@@ -6,8 +6,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis"
 
-	j "github.com/G-Research/k8s-batch/cmd/api/jobs"
 	"github.com/G-Research/k8s-batch/internal/model"
+	"github.com/G-Research/k8s-batch/internal/repository"
 )
 
 func main() {
@@ -26,7 +26,7 @@ func main() {
 			sendError(c, err)
 			return
 		}
-		err = j.AddJobs(db, jobs)
+		err = repository.AddJobs(db, jobs)
 		if err != nil {
 			sendError(c, err)
 			return

@@ -1,4 +1,4 @@
-package jobs
+package repository
 
 import (
 	"fmt"
@@ -11,7 +11,7 @@ import (
 )
 
 const jobObjectPrefix = "job:"
-const queuPerfix = "Job:Queue:"
+const queuePrefix = "Job:Queue:"
 
 func AddJobs(db *redis.Client, requets []model.JobRequest) error {
 
@@ -20,13 +20,11 @@ func AddJobs(db *redis.Client, requets []model.JobRequest) error {
 
 		job := createJob(&request)
 
-		pipe.ZAdd(queuPerfix+job.Queue, redis.Z{
+		pipe.ZAdd(queuePrefix+job.Queue, redis.Z{
 			Member: job.Id,
 			Score:  job.Priority})
 
 		saveJobObject(pipe, job)
-		db.HMSet(jobObjectPrefix+job.Id, nil)
-
 		fmt.Println(job)
 	}
 	_, e := pipe.Exec()
@@ -42,7 +40,7 @@ func createJob(jobRequest *model.JobRequest) *model.Job {
 		Status:   model.Queued,
 		Priority: jobRequest.Priority,
 
-		Resource: model.ComputeResource{}, // TODO
+		Resource: model.ComputeResource{}, // todo
 		PodSpec:  jobRequest.PodSpec,
 
 		Created: time.Now(),
@@ -50,9 +48,9 @@ func createJob(jobRequest *model.JobRequest) *model.Job {
 	return &j
 }
 
-func saveJobObject(db redis.Cmdable, job *model.Job) {	
-	db.HMSet(jobObjectPrefix+job.Id, map[string]interface{}{ 
-		"queue" : job.Queue 
+func saveJobObject(db redis.Cmdable, job *model.Job) {
+	db.HMSet(jobObjectPrefix+job.Id, map[string]interface{}{
+		"queue": job.Queue,
 		// ... TODO
 	})
 }
