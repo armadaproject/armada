@@ -7,8 +7,8 @@ jobs:
     docker:
       # specify the version
       - image: circleci/golang:1.12.6
-    enviornment:
-      GO111MODULE: on
+      enviornment:
+        GO111MODULE: on
 
       # Specify service dependencies here if necessary
       # CircleCI maintains a library of pre-built images
