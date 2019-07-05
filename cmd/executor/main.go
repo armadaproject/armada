@@ -2,50 +2,66 @@ package main
 
 import (
 	"fmt"
+	"github.com/G-Research/k8s-batch/internal/reporter"
+	"github.com/G-Research/k8s-batch/internal/service"
+	"github.com/G-Research/k8s-batch/internal/startup"
+	"github.com/G-Research/k8s-batch/internal/submitter"
 	"github.com/oklog/ulid"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/informers"
+	v12 "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
-	"k8s.io/client-go/tools/clientcmd"
-	"log"
 	"math/rand"
+	"os"
 	"strings"
 	"time"
 )
 
 func main() {
-	//config, err := rest.InClusterConfig()
-
-	kubeconfig := "/home/jamesmu/.kube/kind-config-kind"
-
-	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
-
-	//rules := clientcmd.NewDefaultClientConfigLoadingRules()
-	//overrides := &clientcmd.ConfigOverrides{}
-	//config, err := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(rules, overrides).ClientConfig()
-
+	kubernetesClient, err := startup.LoadDefaultKubernetesClient()
 	if err != nil {
-		fmt.Println("Error loading config")
-	}
-
-	clientset, err := kubernetes.NewForConfig(config)
-
-	if err != nil {
-		fmt.Println("Error loading kubernetes client")
+		fmt.Println(err)
+		os.Exit(-1)
 	}
 
 	//tweakOptionsFunc := func(options *metav1.ListOptions) {
-	//	options.LabelSelector = "node-role.kubernetes.io/master"
+	//	options.LabelSelector = "node-role.startup.io/master"
 	//}
 	//tweakOptions := informers.WithTweakListOptions(tweakOptionsFunc)
 	//factory := informers.NewSharedInformerFactoryWithOptions(clientset, 0, tweakOptions)
 
-	factory := informers.NewSharedInformerFactoryWithOptions(clientset, 0)
+	podEventReporter := reporter.PodEventReporter{ KubernetesClient: kubernetesClient }
 
+	factory := informers.NewSharedInformerFactoryWithOptions(kubernetesClient, 0)
+	podWatcher := initializePodWatcher(factory, podEventReporter)
+
+	nodeWatcher := factory.Core().V1().Nodes()
+	nodeLister := nodeWatcher.Lister()
+
+	defer runtime.HandleCrash()
+	stopper := make(chan struct{})
+	defer close(stopper)
+	factory.Start(stopper)
+
+	jobSubmitter := submitter.JobSubmitter{KubernetesClient:kubernetesClient}
+
+	kubernetesAllocationService := service.KubernetesAllocationService{
+		PodLister: podWatcher.Lister(),
+		NodeLister: nodeLister,
+		JobSubmitter: jobSubmitter,
+	}
+
+	for {
+		time.Sleep(5 * time.Second)
+
+		kubernetesAllocationService.FillInSpareClusterCapacity()
+	}
+}
+
+func createPod(kubernetesClient kubernetes.Interface) {
 	terminationGracePeriod := int64(0)
 
 	t := time.Now()
@@ -71,101 +87,37 @@ func main() {
 		},
 	}
 
-	result, err := clientset.CoreV1().Pods("default").Create(&pod)
+	result, err := kubernetesClient.CoreV1().Pods("default").Create(&pod)
 
 	if err != nil {
 		fmt.Printf("Failed creating pod %s\n", pod.ObjectMeta.Name)
 	} else {
 		fmt.Printf("Created pod %s\n", result.ObjectMeta.Name)
 	}
+}
 
-
-	//createdPod, err := clientset.CoreV1().Pods("default").Create()
-
-
+func initializePodWatcher(factory informers.SharedInformerFactory, eventReporter reporter.PodEventReporter) v12.PodInformer {
 	podWatcher := factory.Core().V1().Pods()
-
-	stopper := make(chan struct{})
-	defer close(stopper)
-
-
-	defer runtime.HandleCrash()
 	podWatcher.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			pod, ok := obj.(*v1.Pod)
 			if !ok {
-				log.Println("this is not a pod")
 				return
 			}
-			fmt.Println("Added " + pod.ObjectMeta.Name + " status " + string(pod.Status.Phase))
+			eventReporter.ReportAddEvent(pod)
 		},
 
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			oldPod, ok := oldObj.(*v1.Pod)
+			if !ok {
+				return
+			}
 			newPod, ok := newObj.(*v1.Pod)
 			if !ok {
-				log.Println("this is not a pod")
 				return
 			}
-			if oldPod.Status.Phase != newPod.Status.Phase {
-				fmt.Println("Updated " + newPod.ObjectMeta.Name  + " to status " + string(newPod.Status.Phase))
-				if strings.HasPrefix(pod.Name, "test") && (newPod.Status.Phase == v1.PodSucceeded || newPod.Status.Phase == v1.PodFailed) {
-					err := clientset.CoreV1().Pods(newPod.Namespace).Delete(newPod.Name, nil)
-
-					if err != nil {
-						log.Println("Failed deleting " + pod.Name)
-						return
-					}
-				}
-			} else {
-				fmt.Println("Updated " + newPod.ObjectMeta.Name + " with no change to status " + string(newPod.Status.Phase))
-			}
-		},
-
-		DeleteFunc:func(obj interface{}) {
-			pod, ok := obj.(*v1.Pod)
-			if !ok {
-				log.Println("this is not a pod")
-				return
-			}
-
-			fmt.Println("Deleted " + pod.ObjectMeta.Name)
+			eventReporter.ReportUpdateEvent(oldPod, newPod)
 		},
 	})
-
-	startingPosition := podWatcher.Informer().LastSyncResourceVersion()
-	fmt.Println("Starting position " + startingPosition)
-
-	podCache:= podWatcher.Lister()
-
-	nodeInformer := factory.Core().V1().Nodes().Lister()
-	factory.Start(stopper)
-
-	for {
-		time.Sleep(5 * time.Second)
-		_, err := nodeInformer.List(labels.Everything())
-		if err != nil {
-			fmt.Println("Error getting node information")
-		}
-
-		allPods, err := podCache.List(labels.Everything())
-		if err != nil {
-			fmt.Println("Error getting pod information")
-		}
-		//totalCpu := resource.Quantity{}
-		//for _, pod := range allPods {
-		//	fmt.Println(pod.Spec.Containers[0].Resources.Requests.Cpu().AsDec())
-		//	podCpu := pod.Spec.Containers[0].Resources.Requests.Cpu()
-		//	totalCpu.Add(*podCpu)
-		//}
-		//
-		//fmt.Println(totalCpu.AsDec())
-
-
-		fmt.Printf("Total count of pods is %d\n", len(allPods))
-		//for _, node := range nodes {
-		//	fmt.Println("Node " + node.Name)
-		//	fmt.Printf("Node %d\n", node.Status.Allocatable.Cpu().AsDec())
-		//}
-	}
+	return podWatcher
 }
