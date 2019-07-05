@@ -13,7 +13,8 @@ To achieve fairness between users we have implemented a Condor like algorithm to
 
 Current implementation utilises Redis to store queues of jobs. Redis streams are used for job events.
 
-![Diagram](./batch-api.svg)
+![Diagram](./docs/batch-api.svg)
+[Design docs](./docs/Design.md)
 
 
 
