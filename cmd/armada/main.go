@@ -7,7 +7,7 @@ import (
 	"github.com/go-redis/redis"
 
 	"github.com/G-Research/k8s-batch/internal/model"
-	"github.com/G-Research/k8s-batch/internal/repository"
+	"github.com/G-Research/k8s-batch/internal/armada/repository"
 )
 
 func main() {
