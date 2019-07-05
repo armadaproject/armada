@@ -18,5 +18,3 @@ func LoadDefaultKubernetesClient() (kubernetes.Interface, error) {
 
 	return kubernetes.NewForConfig(config)
 }
-
-

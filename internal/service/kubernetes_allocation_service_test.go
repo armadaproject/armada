@@ -219,4 +219,3 @@ func makeNodeWithResource(resources map[v1.ResourceName]resource.Quantity) v1.No
 	}
 	return node
 }
-
