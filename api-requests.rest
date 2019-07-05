@@ -1,0 +1,12 @@
+POST http://localhost:8080/jobs HTTP/1.1
+content-type: application/json
+
+[{
+    "queue": "test",
+    "priority": 2,
+    "podSpec": {
+    }
+}]
+
+###
+
