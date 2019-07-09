@@ -2,7 +2,7 @@ package service
 
 import (
 	"fmt"
-	"github.com/G-Research/k8s-batch/internal/submitter"
+	"github.com/G-Research/k8s-batch/internal/executor/submitter"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/labels"

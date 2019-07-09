@@ -2,10 +2,10 @@ package main
 
 import (
 	"fmt"
-	"github.com/G-Research/k8s-batch/internal/reporter"
-	"github.com/G-Research/k8s-batch/internal/service"
-	"github.com/G-Research/k8s-batch/internal/startup"
-	"github.com/G-Research/k8s-batch/internal/submitter"
+	"github.com/G-Research/k8s-batch/internal/executor/reporter"
+	"github.com/G-Research/k8s-batch/internal/executor/service"
+	"github.com/G-Research/k8s-batch/internal/executor/startup"
+	"github.com/G-Research/k8s-batch/internal/executor/submitter"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/informers"
