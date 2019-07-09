@@ -4,10 +4,10 @@ Disclaimer: This document is in progress, anything can change or can be out of d
 Armada is job queueing system for multiple Kubernetes clusters.
 
 ## Goals for the project
-- Easilly handle large queues of jobs (million +)
+- Easily handle large queues of jobs (million +)
 - Enforce fair share over time
-- Failiure of few clusters should not cause an outage
-- Resonable latency between job submission and job start when there is resource available (in order of 10s)
+- Failure of few clusters should not cause an outage
+- Reasonable latency between job submission and job start when there is resource available (in order of 10s)
 - Maximize utilization of the cluster
 - Smart queue instead of scheduler - implement only minimum logic needed on global level, let cluster scheduler do its own work.
 - All components should be highly available
