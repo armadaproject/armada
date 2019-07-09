@@ -1,5 +1,5 @@
 # K8S Batch
-Experimental application to submit and monitor jobs using kubernetes cluster(s), providing Condor-like behaviour.
+Experimental application to submit and monitor jobs using multiple kubernetes clusters, providing Condor-like behaviour.
 
 ## Why?
 In our Condor clusters we need to handle large spikes of resource requests. Condor queues thousands of jobs per user and slowly works them all off assuring all users get a fair share of resource.
@@ -13,8 +13,9 @@ To achieve fairness between users we have implemented a Condor like algorithm to
 
 Current implementation utilises Redis to store queues of jobs. Redis streams are used for job events.
 
-![Diagram](./batch-api.svg)
+![Diagram](./docs/batch-api.svg)
 
+[Design docs](./docs/Design.md)
 
 
 ## Developer setup
