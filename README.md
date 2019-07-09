@@ -15,7 +15,7 @@ Current implementation utilises Redis to store queues of jobs. Redis streams are
 
 ![Diagram](./docs/batch-api.svg)
 
-[Design docs](./docs/Design.md)
+[Design docs](./docs/design.md)
 
 
 ## Developer setup
