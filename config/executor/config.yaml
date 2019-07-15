@@ -1,0 +1,9 @@
+application:
+  clusterId : "Cluster1"
+  inClusterDeployment: false
+task:
+  utilisationReportingInterval: 30s
+  forgottenCompletedPodReportingInterval: 30s
+  jobLeaseRenewalInterval: 10s
+  podDeletionInterval: 60s
+  requestNewJobsInterval: 10s

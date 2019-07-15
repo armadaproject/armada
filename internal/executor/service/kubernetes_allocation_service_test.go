@@ -1,6 +1,7 @@
 package service
 
 import (
+	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -9,53 +10,47 @@ import (
 
 func TestGetAllAvailableProcessingNodes_ShouldReturnAvailableProcessingNodes(t *testing.T) {
 	node := v1.Node{
-		Spec: v1.NodeSpec {
+		Spec: v1.NodeSpec{
 			Unschedulable: false,
-			Taints:nil,
+			Taints:        nil,
 		},
 	}
 
 	nodes := []*v1.Node{&node}
 	result := getAllAvailableProcessingNodes(nodes)
 
-	if len(result) != 1 {
-		t.Errorf("GetAllAvailableProcessingNodes was incorrect, got: %d want: %d", len(result), 1)
-	}
+	assert.Equal(t, len(result), 1)
 }
 
 func TestGetAllAvailableProcessingNodes_ShouldFilterUnschedulableNodes(t *testing.T) {
 	node := v1.Node{
-		Spec: v1.NodeSpec {
+		Spec: v1.NodeSpec{
 			Unschedulable: true,
-			Taints:nil,
+			Taints:        nil,
 		},
 	}
 
 	nodes := []*v1.Node{&node}
 	result := getAllAvailableProcessingNodes(nodes)
 
-	if len(result) != 0 {
-		t.Errorf("GetAllAvailableProcessingNodes was incorrect, got: %d want: %d", len(result), 0)
-	}
+	assert.Equal(t, len(result), 0)
 }
 
 func TestGetAllAvailableProcessingNodes_ShouldFilterNodesWithNoScheduleTaint(t *testing.T) {
-	taint := v1.Taint {
-		Effect:v1.TaintEffectNoSchedule,
+	taint := v1.Taint{
+		Effect: v1.TaintEffectNoSchedule,
 	}
 	node := v1.Node{
-		Spec: v1.NodeSpec {
+		Spec: v1.NodeSpec{
 			Unschedulable: false,
-			Taints: []v1.Taint{taint},
+			Taints:        []v1.Taint{taint},
 		},
 	}
 
 	nodes := []*v1.Node{&node}
 	result := getAllAvailableProcessingNodes(nodes)
 
-	if len(result) != 0 {
-		t.Errorf("GetAllAvailableProcessingNodes was incorrect, got: %d want: %d", len(result), 0)
-	}
+	assert.Equal(t, len(result), 0)
 }
 
 func TestGetAllPodsOnNodes_ShouldExcludePodsNoOnGivenNodes(t *testing.T) {
@@ -72,18 +67,17 @@ func TestGetAllPodsOnNodes_ShouldExcludePodsNoOnGivenNodes(t *testing.T) {
 	}
 
 	node := v1.Node{
-		ObjectMeta : metav1.ObjectMeta {
+		ObjectMeta: metav1.ObjectMeta{
 			Name: presentNodeName,
 		},
 	}
-	pods := []*v1.Pod {&podOnNode, &podNotOnNode}
-	nodes := []*v1.Node {&node}
+	pods := []*v1.Pod{&podOnNode, &podNotOnNode}
+	nodes := []*v1.Node{&node}
 
 	result := getAllPodsOnNodes(pods, nodes)
 
-	if len(result) != 1 || result[0].Spec.NodeName != presentNodeName {
-		t.Errorf("GetAllPodsOnNodes was incorrect, got: %d want: %d (%s)", len(result), 1, presentNodeName)
-	}
+	assert.Equal(t, len(result), 1)
+	assert.Equal(t, result[0].Spec.NodeName, presentNodeName)
 }
 
 func TestGetAllPodsOnNodes_ShouldHandleNoNodesProvided(t *testing.T) {
@@ -93,19 +87,17 @@ func TestGetAllPodsOnNodes_ShouldHandleNoNodesProvided(t *testing.T) {
 		},
 	}
 
-	pods := []*v1.Pod {&podOnNode}
+	pods := []*v1.Pod{&podOnNode}
 	var nodes []*v1.Node
 
 	result := getAllPodsOnNodes(pods, nodes)
 
-	if len(result) != 0 {
-		t.Errorf("GetAllPodsOnNodes was incorrect, got: %d want: %d", len(result), 0)
-	}
+	assert.Equal(t, len(result), 0)
 }
 
 func TestCalculateTotalCpu(t *testing.T) {
 	resources := resource.NewMilliQuantity(100, resource.DecimalSI)
-	resourceMap := map[v1.ResourceName]resource.Quantity { v1.ResourceCPU: *resources }
+	resourceMap := map[v1.ResourceName]resource.Quantity{v1.ResourceCPU: *resources}
 	node1 := makeNodeWithResource(resourceMap)
 	node2 := makeNodeWithResource(resourceMap)
 
@@ -113,14 +105,12 @@ func TestCalculateTotalCpu(t *testing.T) {
 
 	//Expected is resources *2
 	resources.Add(*resources)
-	if !result.Equal(*resources) {
-		t.Errorf("CalculateTotalCpu was incorrect, got: %#v want %#v", result, resources)
-	}
+	assert.Equal(t, result, *resources)
 }
 
 func TestCalculateTotalMemory(t *testing.T) {
 	resources := resource.NewMilliQuantity(50*1024*1024, resource.DecimalSI)
-	resourceMap := map[v1.ResourceName]resource.Quantity { v1.ResourceMemory: *resources }
+	resourceMap := map[v1.ResourceName]resource.Quantity{v1.ResourceMemory: *resources}
 	node1 := makeNodeWithResource(resourceMap)
 	node2 := makeNodeWithResource(resourceMap)
 
@@ -128,10 +118,7 @@ func TestCalculateTotalMemory(t *testing.T) {
 
 	//Expected is resources *2
 	resources.Add(*resources)
-
-	if !result.Equal(*resources) {
-		t.Errorf("CalculateTotalMemory was incorrect, got: %#v want %#v", result, resources)
-	}
+	assert.Equal(t, result, *resources)
 }
 
 func TestCalculateTotalCpuLimit_ShouldSumAllContainers(t *testing.T) {
@@ -142,10 +129,7 @@ func TestCalculateTotalCpuLimit_ShouldSumAllContainers(t *testing.T) {
 
 	//Expected is resources * 2 containers
 	resources.Add(*resources)
-
-	if !result.Equal(*resources) {
-		t.Errorf("CalculateTotalCpuLimit was incorrect, got: %#v want %#v", result, resources)
-	}
+	assert.Equal(t, result, *resources)
 }
 
 func TestCalculateTotalCpuLimit_ShouldSumAllPods(t *testing.T) {
@@ -157,10 +141,7 @@ func TestCalculateTotalCpuLimit_ShouldSumAllPods(t *testing.T) {
 
 	//Expected is resources * 2 pods
 	resources.Add(*resources)
-
-	if !result.Equal(*resources) {
-		t.Errorf("CalculateTotalCpuLimit was incorrect, got: %#v want %#v", result, resources)
-	}
+	assert.Equal(t, result, *resources)
 }
 
 func TestCalculateTotalMemoryLimit_ShouldSumAllContainers(t *testing.T) {
@@ -171,10 +152,7 @@ func TestCalculateTotalMemoryLimit_ShouldSumAllContainers(t *testing.T) {
 
 	//Expected is resources * 2 containers
 	resources.Add(*resources)
-
-	if !result.Equal(*resources) {
-		t.Errorf("CalculateTotalMemoryLimit was incorrect, got: %#v want %#v", result, resources)
-	}
+	assert.Equal(t, result, *resources)
 }
 
 func TestCalculateTotalMemoryLimit__ShouldSumAllPods(t *testing.T) {
@@ -185,31 +163,26 @@ func TestCalculateTotalMemoryLimit__ShouldSumAllPods(t *testing.T) {
 
 	//Expected is resources * 2 containers
 	resources.Add(*resources)
-
-	if !result.Equal(*resources) {
-		t.Errorf("CalculateTotalMemoryLimit was incorrect, got: %#v want %#v", result, resources)
-	}
+	assert.Equal(t, result, *resources)
 }
-
 
 func makePodWthResource(resourceName v1.ResourceName, resources []*resource.Quantity) v1.Pod {
 	containers := make([]v1.Container, len(resources))
 	for i, res := range resources {
 		containers[i] = v1.Container{
 			Resources: v1.ResourceRequirements{
-				Limits: map[v1.ResourceName]resource.Quantity { resourceName: *res },
+				Limits: map[v1.ResourceName]resource.Quantity{resourceName: *res},
 			},
 		}
 	}
 	pod := v1.Pod{
-		Spec: v1.PodSpec {
+		Spec: v1.PodSpec{
 			Containers: containers,
 		},
 	}
 
 	return pod
 }
-
 
 func makeNodeWithResource(resources map[v1.ResourceName]resource.Quantity) v1.Node {
 	node := v1.Node{

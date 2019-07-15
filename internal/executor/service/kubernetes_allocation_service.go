@@ -3,6 +3,7 @@ package service
 import (
 	"fmt"
 	"github.com/G-Research/k8s-batch/internal/executor/submitter"
+	"github.com/G-Research/k8s-batch/internal/model"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/labels"
@@ -42,11 +43,22 @@ func (allocationService KubernetesAllocationService) FillInSpareClusterCapacity(
 	freeMemory := totalNodeMemory.DeepCopy()
 	freeMemory.Sub(totalPodMemoryLimit)
 
-	//newJobs := jobRequest.RequestJobs(freeCpu, freeMemory)
-	//for _, job := range newJobs {
-	//	jobSubmitter.SubmitJob(job, "default")
-	//}
+	newJobs := requestJobs(&freeCpu, &freeMemory)
+	for _, job := range newJobs {
+		allocationService.JobSubmitter.SubmitJob(job, "default")
+	}
 
+}
+
+func requestJobs(freeCpu *resource.Quantity, freeMemory *resource.Quantity) []*model.Job {
+	//leaseRequest := api.LeaseRequest{
+	//	ClusterID: "ClusterID",
+	//	AvailableResource: map[v1.ResourceName]resource.Quantity {
+	//		v1.ResourceCPU: *freeCpu,
+	//		v1.ResourceMemory: *freeMemory,
+	//	},
+	//}
+	return make([]*model.Job, 0)
 }
 
 func getAllAvailableProcessingNodes(nodes []*v1.Node) []*v1.Node {
