@@ -8,6 +8,7 @@ require (
 	github.com/imdario/mergo v0.3.7 // indirect
 	github.com/kjk/betterguid v0.0.0-20170621091430-c442874ba63a
 	github.com/oklog/ulid v1.3.1
+	github.com/stretchr/testify v1.3.0
 	golang.org/x/net v0.0.0-20190620200207-3b0461eec859 // indirect
 	golang.org/x/oauth2 v0.0.0-20190604053449-0f29369cfe45 // indirect
 	golang.org/x/sys v0.0.0-20190626221950-04f50cda93cb // indirect
