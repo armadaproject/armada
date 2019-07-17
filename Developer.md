@@ -5,7 +5,8 @@ sudo docker run --expose=6379 --network=host redis
 ```
 
 ### GRPC
-Install protoc (https://github.com/protocolbuffers/protobuf/releases/download/v3.8.0/protoc-3.8.0-linux-x86_64.zip)
+Install protoc (https://github.com/protocolbuffers/protobuf/releases/download/v3.8.0/protoc-3.8.0-linux-x86_64.zip) and make sure it is on $PATH.
+Make sure $GOPATH/bin is in your $PATH.
 
 ```
 go get github.com/gogo/protobuf/proto
