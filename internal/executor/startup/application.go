@@ -6,6 +6,7 @@ import (
 	"github.com/G-Research/k8s-batch/internal/executor/reporter"
 	"github.com/G-Research/k8s-batch/internal/executor/service"
 	"github.com/G-Research/k8s-batch/internal/executor/submitter"
+	"github.com/G-Research/k8s-batch/internal/executor/task"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/informers"
@@ -22,56 +23,124 @@ func StartUp(config configuration.Configuration) {
 		os.Exit(-1)
 	}
 
-	podEventReporter := reporter.PodEventReporter{KubernetesClient: kubernetesClient}
-
-	factory := informers.NewSharedInformerFactoryWithOptions(kubernetesClient, 0)
-	podWatcher := initializePodWatcher(factory, podEventReporter)
-
-	nodeWatcher := factory.Core().V1().Nodes()
-	nodeLister := nodeWatcher.Lister()
+	eventReporter := reporter.New(kubernetesClient, 5*time.Second)
 
 	defer runtime.HandleCrash()
-	stopper := make(chan struct{})
-	defer close(stopper)
-	factory.Start(stopper)
+	factory := informers.NewSharedInformerFactoryWithOptions(kubernetesClient, 0)
+	podInformer := factory.Core().V1().Pods()
+	nodeInformer := factory.Core().V1().Nodes()
+	addPodEventHandler(podInformer, eventReporter)
+	informerStopper := startInformers(factory)
+	defer close(informerStopper)
 
 	jobSubmitter := submitter.JobSubmitter{KubernetesClient: kubernetesClient}
 
 	kubernetesAllocationService := service.KubernetesAllocationService{
-		PodLister:    podWatcher.Lister(),
-		NodeLister:   nodeLister,
+		PodLister:    podInformer.Lister(),
+		NodeLister:   nodeInformer.Lister(),
 		JobSubmitter: jobSubmitter,
 	}
 
-	for {
-		time.Sleep(5 * time.Second)
+	if kubernetesAllocationService.PodLister != nil {
 
-		kubernetesAllocationService.FillInSpareClusterCapacity()
+	}
+
+	tasks := make([]*task.ScheduledTask, 0, 5)
+	//var utilisationReporterTask task.ScheduledTask = task.ClusterUtilisationReporterTask{
+	//	PodLister: podInformer.Lister(),
+	//	Interval: config.Task.UtilisationReportingInterval,
+	//}
+	//tasks = append(tasks, &utilisationReporterTask)
+
+	var forgottenPodReporterTask task.ScheduledTask = task.ForgottenCompletedPodReporterTask{
+		PodLister:     podInformer.Lister(),
+		EventReporter: eventReporter,
+		Interval:      config.Task.ForgottenCompletedPodReportingInterval,
+	}
+	tasks = append(tasks, &forgottenPodReporterTask)
+
+	var jobLeaseRenewalTask task.ScheduledTask = task.JobLeaseRenewalTask{
+		PodLister: podInformer.Lister(),
+		Interval:  config.Task.JobLeaseRenewalInterval,
+	}
+	tasks = append(tasks, &jobLeaseRenewalTask)
+
+	var podDeletionTask task.ScheduledTask = task.PodDeletionTask{
+		KubernetesClient: kubernetesClient,
+		Interval:         config.Task.PodDeletionInterval,
+	}
+	tasks = append(tasks, &podDeletionTask)
+
+	//var requestJobsTask  task.ScheduledTask = task.RequestJobsTask{
+	//	AllocationService: kubernetesAllocationService,
+	//	Interval: config.Task.RequestNewJobsInterval,
+	//}
+	//tasks = append(tasks, &requestJobsTask)
+	taskChannels := scheduleTasks(tasks)
+	defer stopTasks(taskChannels)
+
+	for {
+		time.Sleep(10 * time.Second)
 	}
 }
 
-func initializePodWatcher(factory informers.SharedInformerFactory, eventReporter reporter.PodEventReporter) informer.PodInformer {
-	podWatcher := factory.Core().V1().Pods()
-	podWatcher.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+func scheduleTasks(tasks []*task.ScheduledTask) []chan bool {
+	taskChannels := make([]chan bool, 0, len(tasks))
+	for _, scheduledTask := range tasks {
+		stop := make(chan bool)
+		t := *scheduledTask
+
+		go func() {
+			for {
+				select {
+				case <-time.After(t.GetInterval()):
+				case <-stop:
+					return
+				}
+				t.Execute()
+			}
+		}()
+
+		taskChannels = append(taskChannels, stop)
+	}
+
+	return taskChannels
+}
+
+func stopTasks(taskChannels []chan bool) {
+	for _, channel := range taskChannels {
+		channel <- true
+	}
+}
+
+func addPodEventHandler(podInformer informer.PodInformer, eventReporter *reporter.JobEventReporter) {
+	podInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			pod, ok := obj.(*v1.Pod)
 			if !ok {
+				//TODO Log
 				return
 			}
 			eventReporter.ReportAddEvent(pod)
 		},
-
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			oldPod, ok := oldObj.(*v1.Pod)
 			if !ok {
+				//TODO Log
 				return
 			}
 			newPod, ok := newObj.(*v1.Pod)
 			if !ok {
+				//TODO Log
 				return
 			}
 			eventReporter.ReportUpdateEvent(oldPod, newPod)
 		},
 	})
-	return podWatcher
+}
+
+func startInformers(factory informers.SharedInformerFactory) chan struct{} {
+	stopper := make(chan struct{})
+	factory.Start(stopper)
+	return stopper
 }
