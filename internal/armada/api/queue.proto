@@ -8,25 +8,26 @@ import "k8s.io/api/core/v1/generated.proto";
 import "k8s.io/apimachinery/pkg/api/resource/generated.proto";
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 
-message Empty {}
+message Empty {
+}
 
 message Job {
     string Id = 1;
-	string JobSetId = 2;
-	string Queue = 3;
-	double Priority = 4;
+    string JobSetId = 2;
+    string Queue = 3;
+    double Priority = 4;
     k8s.io.api.core.v1.PodSpec PodSpec = 5;
-	google.protobuf.Timestamp Created = 6;
-	map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> Resources = 7 [(gogoproto.nullable) = false];
+    google.protobuf.Timestamp Created = 6;
+    map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> Resources = 7 [(gogoproto.nullable) = false];
 }
 
 message LeaseRequest {
-	string ClusterID = 1;
-	map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> Resources = 2 [(gogoproto.nullable) = false];
+    string ClusterID = 1;
+    map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> Resources = 2 [(gogoproto.nullable) = false];
 }
 
 message JobLease {
-	repeated Job Job = 1;
+    repeated Job Job = 1;
 }
 
 message IdList {
@@ -34,7 +35,10 @@ message IdList {
 }
 
 service AggregatedQueue {
-    rpc LeaseJobs(LeaseRequest) returns (JobLease) {}
-	rpc RenewLease(IdList) returns (Empty) {}
-	rpc ReportDone(IdList) returns (Empty) {}
+    rpc LeaseJobs (LeaseRequest) returns (JobLease) {
+    }
+    rpc RenewLease (IdList) returns (Empty) {
+    }
+    rpc ReportDone (IdList) returns (Empty) {
+    }
 }

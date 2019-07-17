@@ -5,10 +5,10 @@ package api;
 import "k8s.io/api/core/v1/generated.proto";
 
 message JobRequest {
-	string Queue = 1;
-	string JobSetId = 2;
-	double Priority = 3;
-	k8s.io.api.core.v1.PodSpec PodSpec = 4;
+    string Queue = 1;
+    string JobSetId = 2;
+    double Priority = 3;
+    k8s.io.api.core.v1.PodSpec PodSpec = 4;
 }
 
 message JobSubmitResponse {
@@ -16,5 +16,6 @@ message JobSubmitResponse {
 }
 
 service Submit {
-    rpc SubmitJob(JobRequest) returns (JobSubmitResponse) {}
+    rpc SubmitJob (JobRequest) returns (JobSubmitResponse) {
+    }
 }
