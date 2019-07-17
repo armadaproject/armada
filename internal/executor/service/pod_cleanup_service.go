@@ -1,30 +1,53 @@
-package task
+package service
 
 import (
 	"errors"
-	"github.com/G-Research/k8s-batch/internal/executor/reporter"
-	"github.com/G-Research/k8s-batch/internal/executor/service"
+	"fmt"
+	"github.com/G-Research/k8s-batch/internal/executor/reporter/event"
+	"github.com/G-Research/k8s-batch/internal/executor/util"
 	v1 "k8s.io/api/core/v1"
-	listers "k8s.io/client-go/listers/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	lister "k8s.io/client-go/listers/core/v1"
 	"time"
 )
 
-type ForgottenCompletedPodReporterTask struct {
-	PodLister     listers.PodLister
-	EventReporter reporter.EventReporter
-	Interval      time.Duration
+type PodCleanupService struct {
+	KubernetesClient kubernetes.Interface
+	EventReporter    event.EventReporter
+	PodLister        lister.PodLister
 }
 
-func (podCleanup ForgottenCompletedPodReporterTask) Execute() {
-	podsToBeReported := getAllPodsRequiringCompletionEvent(podCleanup.PodLister)
+func (cleanupService PodCleanupService) DeletePodsReadyForCleanup() {
+	deleteOptions := createPodDeletionDeleteOptions()
+	listOptions := util.CreateListOptionsForManagedPods(true)
 
-	for _, pod := range podsToBeReported {
-		podCleanup.EventReporter.ReportCompletedEvent(pod)
+	//TODO decide how to handle namespaces, or select from all namespaces and delete individually
+	err := cleanupService.KubernetesClient.CoreV1().Pods("default").DeleteCollection(&deleteOptions, listOptions)
+	if err != nil {
+		fmt.Println(err)
+		//TODO handle error
 	}
 }
 
-func getAllPodsRequiringCompletionEvent(podLister listers.PodLister) []*v1.Pod {
-	selector, err := service.CreateLabelSelectorForManagedPods(false)
+func (cleanupService PodCleanupService) ReportForgottenCompletedPods() {
+	podsToBeReported := getAllPodsRequiringCompletionEvent(cleanupService.PodLister)
+
+	for _, pod := range podsToBeReported {
+		cleanupService.EventReporter.ReportCompletedEvent(pod)
+	}
+}
+
+func createPodDeletionDeleteOptions() metav1.DeleteOptions {
+	gracePeriod := int64(0)
+	deleteOptions := metav1.DeleteOptions{
+		GracePeriodSeconds: &gracePeriod,
+	}
+	return deleteOptions
+}
+
+func getAllPodsRequiringCompletionEvent(podLister lister.PodLister) []*v1.Pod {
+	selector, err := util.CreateLabelSelectorForManagedPods(false)
 	if err != nil {
 		return nil
 		//TODO Handle error case
@@ -46,7 +69,7 @@ func filterCompletedPods(pods []*v1.Pod) []*v1.Pod {
 	completedPods := make([]*v1.Pod, 0, len(pods))
 
 	for _, pod := range pods {
-		if service.IsInTerminalState(pod) {
+		if util.IsInTerminalState(pod) {
 			completedPods = append(completedPods, pod)
 		}
 	}
@@ -84,8 +107,4 @@ func lastStatusChange(pod *v1.Pod) (time.Time, error) {
 	}
 
 	return maxStatusChange, nil
-}
-
-func (podCleanup ForgottenCompletedPodReporterTask) GetInterval() time.Duration {
-	return podCleanup.Interval
 }

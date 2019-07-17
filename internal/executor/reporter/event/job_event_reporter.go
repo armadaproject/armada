@@ -1,10 +1,10 @@
-package reporter
+package event
 
 import (
 	"encoding/json"
 	"fmt"
 	"github.com/G-Research/k8s-batch/internal/executor/domain"
-	"github.com/G-Research/k8s-batch/internal/executor/service"
+	"github.com/G-Research/k8s-batch/internal/executor/util"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
@@ -57,7 +57,7 @@ func (jobEventReporter *JobEventReporter) processEvents() {
 
 		//TODO perform API calls here and retrying etc
 		for _, pod := range events {
-			jobStatus, err := service.ExtractJobStatus(pod)
+			jobStatus, err := util.ExtractJobStatus(pod)
 			if err != nil {
 				fmt.Printf("Error reporting job pod for %s because: %s \n", pod.Name, err)
 			}
@@ -65,7 +65,7 @@ func (jobEventReporter *JobEventReporter) processEvents() {
 			fmt.Printf("Reporting pod for %s with status %d \n", pod.Name, jobStatus)
 
 			//TODO find a more efficient way to update labels (you should be able to partially patch rather than send the whole pod)
-			if service.IsInTerminalState(pod) {
+			if util.IsInTerminalState(pod) {
 				pod.ObjectMeta.Labels[domain.ReadyForCleanup] = strconv.FormatBool(true)
 
 				patchBytes, err := json.Marshal(pod)
@@ -101,7 +101,7 @@ func (jobEventReporter *JobEventReporter) ReportCompletedEvent(pod *v1.Pod) {
 }
 
 func (jobEventReporter *JobEventReporter) queueEvent(pod *v1.Pod) {
-	if !service.IsManagedPod(pod) {
+	if !util.IsManagedPod(pod) {
 		return
 	}
 

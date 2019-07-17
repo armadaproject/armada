@@ -1,27 +1,25 @@
-package task
+package service
 
 import (
 	"github.com/G-Research/k8s-batch/internal/executor/domain"
-	"github.com/G-Research/k8s-batch/internal/executor/service"
+	"github.com/G-Research/k8s-batch/internal/executor/util"
 	v1 "k8s.io/api/core/v1"
 	lister "k8s.io/client-go/listers/core/v1"
-	"time"
 )
 
-type ClusterUtilisationReporterTask struct {
+type ClusterUtilisationService struct {
 	PodLister lister.PodLister
-	Interval  time.Duration
 	//TODO API
 }
 
-func (clusterUtilisationReporter ClusterUtilisationReporterTask) Execute() {
-	allActivePods := getAllActivePods(clusterUtilisationReporter.PodLister)
+func (clusterUtilisationService ClusterUtilisationService) ReportClusterUtilisation() {
+	allActivePods := getAllActivePods(clusterUtilisationService.PodLister)
 	getUtilisationByQueue(allActivePods)
 
 }
 
 func getAllActivePods(podLister lister.PodLister) []*v1.Pod {
-	runningPodsSelector, err := service.CreateLabelSelectorForManagedPods(false)
+	runningPodsSelector, err := util.CreateLabelSelectorForManagedPods(false)
 	if err != nil {
 		//TODO Handle error case
 	}
@@ -35,7 +33,7 @@ func removePodsInTerminalState(pods []*v1.Pod) []*v1.Pod {
 	activePods := make([]*v1.Pod, 0)
 
 	for _, pod := range pods {
-		if !service.IsInTerminalState(pod) {
+		if !util.IsInTerminalState(pod) {
 			activePods = append(activePods, pod)
 		}
 	}
@@ -57,8 +55,4 @@ func getUtilisationByQueue(pods []*v1.Pod) map[string]v1.ResourceList {
 	}
 
 	return utilisationByQueue
-}
-
-func (clusterUtilisationReporter ClusterUtilisationReporterTask) GetInterval() time.Duration {
-	return clusterUtilisationReporter.Interval
 }

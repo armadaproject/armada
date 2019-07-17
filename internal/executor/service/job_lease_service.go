@@ -2,27 +2,31 @@ package service
 
 import (
 	"fmt"
+	"github.com/G-Research/k8s-batch/internal/executor/domain"
 	"github.com/G-Research/k8s-batch/internal/executor/submitter"
+	"github.com/G-Research/k8s-batch/internal/executor/util"
 	"github.com/G-Research/k8s-batch/internal/model"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/labels"
 	listers "k8s.io/client-go/listers/core/v1"
+	"strings"
 )
 
-type KubernetesAllocationService struct {
+type JobLeaseService struct {
 	PodLister    listers.PodLister
 	NodeLister   listers.NodeLister
 	JobSubmitter submitter.JobSubmitter
 }
 
-func (allocationService KubernetesAllocationService) FillInSpareClusterCapacity() {
-	allNodes, err := allocationService.NodeLister.List(labels.Everything())
+//TODO split into separate functions
+func (jobLeaseService JobLeaseService) RequestJobLeasesAndFillSpareClusterCapacity() {
+	allNodes, err := jobLeaseService.NodeLister.List(labels.Everything())
 	if err != nil {
 		fmt.Println("Error getting node information")
 	}
 
-	allPods, err := allocationService.PodLister.List(labels.Everything())
+	allPods, err := jobLeaseService.PodLister.List(labels.Everything())
 	if err != nil {
 		fmt.Println("Error getting pod information")
 	}
@@ -46,9 +50,35 @@ func (allocationService KubernetesAllocationService) FillInSpareClusterCapacity(
 
 	//newJobs := requestJobs(&freeCpu, &freeMemory)
 	//for _, job := range newJobs {
-	//	allocationService.JobSubmitter.SubmitJob(job, "default")
+	//	jobLeaseService.JobSubmitter.SubmitJob(job, "default")
 	//}
+}
 
+func (jobLeaseService JobLeaseService) RenewJobLeases() {
+	runningPodsSelector, err := util.CreateLabelSelectorForManagedPods(false)
+	if err != nil {
+		//TODO Handle error case
+	}
+
+	allPodsEligibleForRenewal, err := jobLeaseService.PodLister.List(runningPodsSelector)
+	if err != nil {
+		//TODO Handle error case
+	}
+	if len(allPodsEligibleForRenewal) > 0 {
+		jobIds := extractJobIds(allPodsEligibleForRenewal)
+		fmt.Printf("Renewing lease for %s \n", strings.Join(jobIds, ","))
+	}
+}
+
+func extractJobIds(pods []*v1.Pod) []string {
+	jobIds := make([]string, 0, len(pods))
+
+	for _, pod := range pods {
+		jobId := pod.Labels[domain.JobId]
+		jobIds = append(jobIds, jobId)
+	}
+
+	return jobIds
 }
 
 func requestJobs(freeCpu *resource.Quantity, freeMemory *resource.Quantity) []*model.Job {

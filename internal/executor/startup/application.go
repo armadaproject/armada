@@ -3,10 +3,9 @@ package startup
 import (
 	"fmt"
 	"github.com/G-Research/k8s-batch/internal/executor/configuration"
-	"github.com/G-Research/k8s-batch/internal/executor/reporter"
+	"github.com/G-Research/k8s-batch/internal/executor/reporter/event"
 	"github.com/G-Research/k8s-batch/internal/executor/service"
 	"github.com/G-Research/k8s-batch/internal/executor/submitter"
-	"github.com/G-Research/k8s-batch/internal/executor/task"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/informers"
@@ -23,7 +22,7 @@ func StartUp(config configuration.Configuration) {
 		os.Exit(-1)
 	}
 
-	var eventReporter reporter.EventReporter = reporter.New(kubernetesClient, 5*time.Second)
+	var eventReporter event.EventReporter = event.New(kubernetesClient, 5*time.Second)
 
 	defer runtime.HandleCrash()
 	factory := informers.NewSharedInformerFactoryWithOptions(kubernetesClient, 0)
@@ -35,76 +34,47 @@ func StartUp(config configuration.Configuration) {
 
 	jobSubmitter := submitter.JobSubmitter{KubernetesClient: kubernetesClient}
 
-	kubernetesAllocationService := service.KubernetesAllocationService{
+	jobLeaseService := service.JobLeaseService{
 		PodLister:    podInformer.Lister(),
 		NodeLister:   nodeInformer.Lister(),
 		JobSubmitter: jobSubmitter,
 	}
 
-	if kubernetesAllocationService.PodLister != nil {
-
-	}
-
-	tasks := make([]*task.ScheduledTask, 0, 5)
-	//var utilisationReporterTask task.ScheduledTask = task.ClusterUtilisationReporterTask{
-	//	PodLister: podInformer.Lister(),
-	//	Interval: config.Task.UtilisationReportingInterval,
-	//}
-	//tasks = append(tasks, &utilisationReporterTask)
-
-	var forgottenPodReporterTask task.ScheduledTask = task.ForgottenCompletedPodReporterTask{
-		PodLister:     podInformer.Lister(),
-		EventReporter: eventReporter,
-		Interval:      config.Task.ForgottenCompletedPodReportingInterval,
-	}
-	tasks = append(tasks, &forgottenPodReporterTask)
-
-	var jobLeaseRenewalTask task.ScheduledTask = task.JobLeaseRenewalTask{
-		PodLister: podInformer.Lister(),
-		Interval:  config.Task.JobLeaseRenewalInterval,
-	}
-	tasks = append(tasks, &jobLeaseRenewalTask)
-
-	var podDeletionTask task.ScheduledTask = task.PodDeletionTask{
+	clusterUtilisationService := service.ClusterUtilisationService{PodLister: podInformer.Lister()}
+	podCleanupService := service.PodCleanupService{
+		PodLister:        podInformer.Lister(),
+		EventReporter:    eventReporter,
 		KubernetesClient: kubernetesClient,
-		Interval:         config.Task.PodDeletionInterval,
 	}
-	tasks = append(tasks, &podDeletionTask)
 
-	//var requestJobsTask  task.ScheduledTask = task.RequestJobsTask{
-	//	AllocationService: kubernetesAllocationService,
-	//	Interval: config.Task.RequestNewJobsInterval,
-	//}
-	//tasks = append(tasks, &requestJobsTask)
-	taskChannels := scheduleTasks(tasks)
-	defer stopTasks(taskChannels)
+	tasks := make([]chan bool, 0)
+	tasks = append(tasks, scheduleBackgroundTask(clusterUtilisationService.ReportClusterUtilisation, config.Task.UtilisationReportingInterval))
+	tasks = append(tasks, scheduleBackgroundTask(jobLeaseService.RequestJobLeasesAndFillSpareClusterCapacity, config.Task.RequestNewJobsInterval))
+	tasks = append(tasks, scheduleBackgroundTask(jobLeaseService.RenewJobLeases, config.Task.JobLeaseRenewalInterval))
+	tasks = append(tasks, scheduleBackgroundTask(podCleanupService.ReportForgottenCompletedPods, config.Task.ForgottenCompletedPodReportingInterval))
+	tasks = append(tasks, scheduleBackgroundTask(podCleanupService.DeletePodsReadyForCleanup, config.Task.PodDeletionInterval))
+	defer stopTasks(tasks)
 
 	for {
 		time.Sleep(10 * time.Second)
 	}
 }
 
-func scheduleTasks(tasks []*task.ScheduledTask) []chan bool {
-	taskChannels := make([]chan bool, 0, len(tasks))
-	for _, scheduledTask := range tasks {
-		stop := make(chan bool)
-		t := *scheduledTask
+func scheduleBackgroundTask(task func(), interval time.Duration) chan bool {
+	stop := make(chan bool)
 
-		go func() {
-			for {
-				select {
-				case <-time.After(t.GetInterval()):
-				case <-stop:
-					return
-				}
-				t.Execute()
+	go func() {
+		for {
+			select {
+			case <-time.After(interval):
+			case <-stop:
+				return
 			}
-		}()
+			task()
+		}
+	}()
 
-		taskChannels = append(taskChannels, stop)
-	}
-
-	return taskChannels
+	return stop
 }
 
 func stopTasks(taskChannels []chan bool) {
@@ -113,7 +83,7 @@ func stopTasks(taskChannels []chan bool) {
 	}
 }
 
-func addPodEventHandler(podInformer informer.PodInformer, eventReporter reporter.EventReporter) {
+func addPodEventHandler(podInformer informer.PodInformer, eventReporter event.EventReporter) {
 	podInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			pod, ok := obj.(*v1.Pod)
