@@ -3,7 +3,7 @@ package startup
 import (
 	"fmt"
 	"github.com/G-Research/k8s-batch/internal/executor/configuration"
-	"github.com/G-Research/k8s-batch/internal/executor/reporter/event"
+	"github.com/G-Research/k8s-batch/internal/executor/reporter"
 	"github.com/G-Research/k8s-batch/internal/executor/service"
 	"github.com/G-Research/k8s-batch/internal/executor/submitter"
 	v1 "k8s.io/api/core/v1"
@@ -22,7 +22,11 @@ func StartUp(config configuration.Configuration) {
 		os.Exit(-1)
 	}
 
-	var eventReporter event.EventReporter = event.New(kubernetesClient, 5*time.Second)
+	var eventReporter reporter.EventReporter = reporter.New(
+		kubernetesClient,
+		config.Events.EventReportingInterval,
+		config.Events.EventReportingBatchSize,
+	)
 
 	defer runtime.HandleCrash()
 	factory := informers.NewSharedInformerFactoryWithOptions(kubernetesClient, 0)
@@ -83,7 +87,7 @@ func stopTasks(taskChannels []chan bool) {
 	}
 }
 
-func addPodEventHandler(podInformer informer.PodInformer, eventReporter event.EventReporter) {
+func addPodEventHandler(podInformer informer.PodInformer, eventReporter reporter.EventReporter) {
 	podInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			pod, ok := obj.(*v1.Pod)

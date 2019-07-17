@@ -1,4 +1,4 @@
-package event
+package reporter
 
 import (
 	"encoding/json"
@@ -26,7 +26,7 @@ type JobEventReporter struct {
 	//TODO API CLIENT
 }
 
-func New(kubernetesClient kubernetes.Interface, reportingInterval time.Duration) *JobEventReporter {
+func New(kubernetesClient kubernetes.Interface, reportingInterval time.Duration, reportingBatchSize int) *JobEventReporter {
 	reporter := JobEventReporter{
 		kubernetesClient: kubernetesClient,
 		podEvents:        make([]*v1.Pod, 0, 100),
@@ -34,7 +34,7 @@ func New(kubernetesClient kubernetes.Interface, reportingInterval time.Duration)
 
 	go func() {
 		for {
-			reporter.processEvents()
+			reporter.processEvents(reportingBatchSize)
 			time.Sleep(reportingInterval)
 		}
 	}()
@@ -42,13 +42,12 @@ func New(kubernetesClient kubernetes.Interface, reportingInterval time.Duration)
 	return &reporter
 }
 
-func (jobEventReporter *JobEventReporter) processEvents() {
-	chunkSize := 100
+func (jobEventReporter *JobEventReporter) processEvents(reportingBatchSize int) {
 	numberOfEvents := jobEventReporter.queueLength()
 
 	for numberOfEvents > 0 {
 		//TODO write min function
-		numberOfEventsToReport := chunkSize
+		numberOfEventsToReport := reportingBatchSize
 		if numberOfEventsToReport > numberOfEvents {
 			numberOfEventsToReport = numberOfEvents
 		}

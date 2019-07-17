@@ -3,7 +3,7 @@ package service
 import (
 	"errors"
 	"fmt"
-	"github.com/G-Research/k8s-batch/internal/executor/reporter/event"
+	"github.com/G-Research/k8s-batch/internal/executor/reporter"
 	"github.com/G-Research/k8s-batch/internal/executor/util"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -14,7 +14,7 @@ import (
 
 type PodCleanupService struct {
 	KubernetesClient kubernetes.Interface
-	EventReporter    event.EventReporter
+	EventReporter    reporter.EventReporter
 	PodLister        lister.PodLister
 }
 
