@@ -16,10 +16,3 @@ Current implementation utilises Redis to store queues of jobs. Redis streams are
 ![Diagram](./docs/batch-api.svg)
 
 [Design docs](./docs/design.md)
-
-
-## Developer setup
-Run local redis 
-```
-sudo docker run --expose=6379 --network=host redis
-```
