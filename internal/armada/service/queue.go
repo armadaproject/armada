@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/G-Research/k8s-batch/internal/armada/api"
 	"github.com/G-Research/k8s-batch/internal/armada/repository"
+	"github.com/gogo/protobuf/types"
 )
 
 type AggregatedQueueServer struct {
@@ -14,11 +15,10 @@ func (AggregatedQueueServer) LeaseJobs(context.Context, *api.LeaseRequest) (*api
 	panic("implement me")
 }
 
-func (AggregatedQueueServer) RenewLease(context.Context, *api.IdList) (*api.Empty, error) {
+func (AggregatedQueueServer) RenewLease(context.Context, *api.IdList) (*types.Empty, error) {
 	panic("implement me")
 }
 
-func (AggregatedQueueServer) ReportDone(context.Context, *api.IdList) (*api.Empty, error) {
+func (AggregatedQueueServer) ReportDone(context.Context, *api.IdList) (*types.Empty, error) {
 	panic("implement me")
 }
-
