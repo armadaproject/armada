@@ -2,6 +2,7 @@ package task
 
 import (
 	"github.com/G-Research/k8s-batch/internal/executor/domain"
+	"github.com/G-Research/k8s-batch/internal/executor/service"
 	v1 "k8s.io/api/core/v1"
 	lister "k8s.io/client-go/listers/core/v1"
 	"time"
@@ -34,7 +35,7 @@ func removePodsInTerminalState(pods []*v1.Pod) []*v1.Pod {
 	activePods := make([]*v1.Pod, 0)
 
 	for _, pod := range pods {
-		if !isInTerminalState(pod) {
+		if !service.IsInTerminalState(pod) {
 			activePods = append(activePods, pod)
 		}
 	}
@@ -56,14 +57,6 @@ func getUtilisationByQueue(pods []*v1.Pod) map[string]v1.ResourceList {
 	}
 
 	return utilisationByQueue
-}
-
-func isInTerminalState(pod *v1.Pod) bool {
-	podPhase := pod.Status.Phase
-	if podPhase == v1.PodSucceeded || podPhase == v1.PodFailed {
-		return true
-	}
-	return false
 }
 
 func (clusterUtilisationReporter ClusterUtilisationReporterTask) GetInterval() time.Duration {

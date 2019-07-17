@@ -3,6 +3,7 @@ package task
 import (
 	"errors"
 	"github.com/G-Research/k8s-batch/internal/executor/reporter"
+	"github.com/G-Research/k8s-batch/internal/executor/service"
 	v1 "k8s.io/api/core/v1"
 	listers "k8s.io/client-go/listers/core/v1"
 	"time"
@@ -45,7 +46,7 @@ func filterCompletedPods(pods []*v1.Pod) []*v1.Pod {
 	completedPods := make([]*v1.Pod, 0, len(pods))
 
 	for _, pod := range pods {
-		if isInTerminalState(pod) {
+		if service.IsInTerminalState(pod) {
 			completedPods = append(completedPods, pod)
 		}
 	}
