@@ -1,24 +1,28 @@
 package task
 
 import (
+	"fmt"
 	"github.com/G-Research/k8s-batch/internal/executor/domain"
-	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type PodDeletionTask struct {
-	KubernetesClient kubernetes.Clientset
+	KubernetesClient kubernetes.Interface
+	Interval         time.Duration
 }
 
-func (deletionTask PodDeletionTask) Run() {
+func (deletionTask PodDeletionTask) Execute() {
 	deleteOptions := createPodDeletionDeleteOptions()
 	listOptions := createPodDeletionListOptions()
 
-	err := deletionTask.KubernetesClient.CoreV1().Pods(v1.NamespaceAll).DeleteCollection(&deleteOptions, listOptions)
+	//TODO decide how to handle namespaces, or select from all namespaces and delete individually
+	err := deletionTask.KubernetesClient.CoreV1().Pods("default").DeleteCollection(&deleteOptions, listOptions)
 	if err != nil {
+		fmt.Println(err)
 		//TODO handle error
 	}
 }
@@ -32,7 +36,7 @@ func createPodDeletionDeleteOptions() metav1.DeleteOptions {
 }
 
 func createPodDeletionListOptions() metav1.ListOptions {
-	markedForDeletionJobLabels := make([]string, 2)
+	markedForDeletionJobLabels := make([]string, 0, 2)
 	//Only delete batch jobs
 	markedForDeletionJobLabels = append(markedForDeletionJobLabels, domain.JobId)
 	//Only delete jobs with ready for cleanup = true
@@ -43,4 +47,8 @@ func createPodDeletionListOptions() metav1.ListOptions {
 	}
 
 	return listOptions
+}
+
+func (deletionTask PodDeletionTask) GetInterval() time.Duration {
+	return deletionTask.Interval
 }

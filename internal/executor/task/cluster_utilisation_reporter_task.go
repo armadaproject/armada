@@ -4,15 +4,17 @@ import (
 	"github.com/G-Research/k8s-batch/internal/executor/domain"
 	v1 "k8s.io/api/core/v1"
 	lister "k8s.io/client-go/listers/core/v1"
+	"time"
 )
 
 type ClusterUtilisationReporterTask struct {
-	podLister lister.PodLister
+	PodLister lister.PodLister
+	Interval  time.Duration
 	//TODO API
 }
 
-func (clusterUtilisationReporter ClusterUtilisationReporterTask) Run() {
-	allActivePods := getAllActivePods(clusterUtilisationReporter.podLister)
+func (clusterUtilisationReporter ClusterUtilisationReporterTask) Execute() {
+	allActivePods := getAllActivePods(clusterUtilisationReporter.PodLister)
 	getUtilisationByQueue(allActivePods)
 
 }
@@ -62,4 +64,8 @@ func isInTerminalState(pod *v1.Pod) bool {
 		return true
 	}
 	return false
+}
+
+func (clusterUtilisationReporter ClusterUtilisationReporterTask) GetInterval() time.Duration {
+	return clusterUtilisationReporter.Interval
 }

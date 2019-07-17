@@ -2,36 +2,33 @@ package task
 
 import (
 	"errors"
-	"github.com/G-Research/k8s-batch/internal/executor/domain"
 	"github.com/G-Research/k8s-batch/internal/executor/reporter"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/selection"
 	listers "k8s.io/client-go/listers/core/v1"
 	"time"
 )
 
 type ForgottenCompletedPodReporterTask struct {
 	PodLister     listers.PodLister
-	EventReporter reporter.EventReporter
+	EventReporter *reporter.JobEventReporter
+	Interval      time.Duration
 }
 
-func (podCleanup ForgottenCompletedPodReporterTask) Run() {
+func (podCleanup ForgottenCompletedPodReporterTask) Execute() {
 	podsToBeReported := getAllPodsRequiringCompletionEvent(podCleanup.PodLister)
 
 	for _, pod := range podsToBeReported {
-		podCleanup.EventReporter.ReportEvent(pod)
+		podCleanup.EventReporter.ReportCompletedEvent(pod)
 	}
 }
 
 func getAllPodsRequiringCompletionEvent(podLister listers.PodLister) []*v1.Pod {
-	requirement, err := labels.NewRequirement(domain.JobId, selection.Exists, []string{})
+	selector, err := createRunningPodLabelSelector()
 	if err != nil {
 		return nil
 		//TODO Handle error case
 	}
 
-	selector := labels.NewSelector().Add(*requirement)
 	allBatchPodsNotMarkedForCleanup, err := podLister.List(selector)
 
 	if err != nil {
@@ -86,4 +83,8 @@ func lastStatusChange(pod *v1.Pod) (time.Time, error) {
 	}
 
 	return maxStatusChange, nil
+}
+
+func (podCleanup ForgottenCompletedPodReporterTask) GetInterval() time.Duration {
+	return podCleanup.Interval
 }
