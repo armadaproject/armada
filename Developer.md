@@ -10,7 +10,7 @@ Make sure $GOPATH/bin is in your $PATH.
 
 ```
 go get github.com/gogo/protobuf/proto
-go get github.com/gogo/protobuf/protoc-gen-gofaster
+go get github.com/gogo/protobuf/protoc-gen-gogofaster
 go get github.com/gogo/protobuf/gogoproto
 go get google.golang.org/grpc
 
