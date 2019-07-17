@@ -6,6 +6,11 @@ import (
 	"github.com/G-Research/k8s-batch/internal/executor/domain"
 	"github.com/G-Research/k8s-batch/internal/model"
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/selection"
+	"strconv"
+	"strings"
 )
 
 func IsInTerminalState(pod *v1.Pod) bool {
@@ -14,14 +19,6 @@ func IsInTerminalState(pod *v1.Pod) bool {
 		return true
 	}
 	return false
-}
-
-func IsManagedPod(pod *v1.Pod) bool {
-	if _, ok := pod.Labels[domain.JobId]; !ok {
-		return false
-	}
-
-	return true
 }
 
 func ExtractJobStatus(pod *v1.Pod) (model.JobStatus, error) {
@@ -39,4 +36,39 @@ func ExtractJobStatus(pod *v1.Pod) (model.JobStatus, error) {
 	default:
 		return *new(model.JobStatus), errors.New(fmt.Sprintf("Could not determine job status from pod in phase %s", phase))
 	}
+}
+
+func IsManagedPod(pod *v1.Pod) bool {
+	if _, ok := pod.Labels[domain.JobId]; !ok {
+		return false
+	}
+
+	return true
+}
+
+func CreateLabelSelectorForManagedPods(podsReadyForCleanup bool) (labels.Selector, error) {
+	jobIdExistsRequirement, err := labels.NewRequirement(domain.JobId, selection.Exists, []string{})
+	if err != nil {
+		return labels.NewSelector(), err
+	}
+
+	readyForCleanupRequirement, err := labels.NewRequirement(domain.ReadyForCleanup, selection.Equals, []string{strconv.FormatBool(podsReadyForCleanup)})
+	if err != nil {
+		return labels.NewSelector(), err
+	}
+
+	selector := labels.NewSelector().Add(*jobIdExistsRequirement, *readyForCleanupRequirement)
+	return selector, nil
+}
+
+func CreateListOptionsForManagedPods(podsReadyForCleanup bool) metav1.ListOptions {
+	managedPodLabels := make([]string, 0, 2)
+	managedPodLabels = append(managedPodLabels, domain.JobId)
+	managedPodLabels = append(managedPodLabels, domain.ReadyForCleanup+"="+strconv.FormatBool(podsReadyForCleanup))
+
+	listOptions := metav1.ListOptions{
+		LabelSelector: strings.Join(managedPodLabels, ","),
+	}
+
+	return listOptions
 }

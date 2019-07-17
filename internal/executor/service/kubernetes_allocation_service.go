@@ -11,8 +11,8 @@ import (
 )
 
 type KubernetesAllocationService struct {
-	PodLister listers.PodLister
-	NodeLister listers.NodeLister
+	PodLister    listers.PodLister
+	NodeLister   listers.NodeLister
 	JobSubmitter submitter.JobSubmitter
 }
 
@@ -29,7 +29,8 @@ func (allocationService KubernetesAllocationService) FillInSpareClusterCapacity(
 	// Todo Inefficient? We could monitor changes on nodes + pods and keep an internal map of where they are. However then we would be maintaining 2 internal maps (ours + informer)
 
 	processingNodes := getAllAvailableProcessingNodes(allNodes)
-	podsOnProcessingNodes := getAllPodsOnNodes(allPods, processingNodes);
+	// TODO remove terminated pods
+	podsOnProcessingNodes := getAllPodsOnNodes(allPods, processingNodes)
 
 	totalNodeCpu := calculateTotalCpu(processingNodes)
 	totalNodeMemory := calculateTotalMemory(processingNodes)
@@ -43,10 +44,10 @@ func (allocationService KubernetesAllocationService) FillInSpareClusterCapacity(
 	freeMemory := totalNodeMemory.DeepCopy()
 	freeMemory.Sub(totalPodMemoryLimit)
 
-	newJobs := requestJobs(&freeCpu, &freeMemory)
-	for _, job := range newJobs {
-		allocationService.JobSubmitter.SubmitJob(job, "default")
-	}
+	//newJobs := requestJobs(&freeCpu, &freeMemory)
+	//for _, job := range newJobs {
+	//	allocationService.JobSubmitter.SubmitJob(job, "default")
+	//}
 
 }
 

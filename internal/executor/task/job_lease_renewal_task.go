@@ -3,11 +3,9 @@ package task
 import (
 	"fmt"
 	"github.com/G-Research/k8s-batch/internal/executor/domain"
+	"github.com/G-Research/k8s-batch/internal/executor/service"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/selection"
 	lister "k8s.io/client-go/listers/core/v1"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -19,7 +17,7 @@ type JobLeaseRenewalTask struct {
 }
 
 func (jobLeaseRenewal JobLeaseRenewalTask) Execute() {
-	runningPodsSelector, err := createRunningPodLabelSelector()
+	runningPodsSelector, err := service.CreateLabelSelectorForManagedPods(false)
 	if err != nil {
 		//TODO Handle error case
 	}
@@ -32,21 +30,6 @@ func (jobLeaseRenewal JobLeaseRenewalTask) Execute() {
 		jobIds := extractJobIds(allPodsEligibleForRenewal)
 		fmt.Printf("Renewing lease for %s \n", strings.Join(jobIds, ","))
 	}
-}
-
-func createRunningPodLabelSelector() (labels.Selector, error) {
-	jobIdExistsRequirement, err := labels.NewRequirement(domain.JobId, selection.Exists, []string{})
-	if err != nil {
-		return labels.NewSelector(), err
-	}
-
-	notReadyCleanupRequirement, err := labels.NewRequirement(domain.ReadyForCleanup, selection.Equals, []string{strconv.FormatBool(false)})
-	if err != nil {
-		return labels.NewSelector(), err
-	}
-
-	selector := labels.NewSelector().Add(*jobIdExistsRequirement, *notReadyCleanupRequirement)
-	return selector, nil
 }
 
 func extractJobIds(pods []*v1.Pod) []string {

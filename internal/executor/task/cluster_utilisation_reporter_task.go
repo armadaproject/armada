@@ -21,7 +21,7 @@ func (clusterUtilisationReporter ClusterUtilisationReporterTask) Execute() {
 }
 
 func getAllActivePods(podLister lister.PodLister) []*v1.Pod {
-	runningPodsSelector, err := createRunningPodLabelSelector()
+	runningPodsSelector, err := service.CreateLabelSelectorForManagedPods(false)
 	if err != nil {
 		//TODO Handle error case
 	}

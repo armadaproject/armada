@@ -24,7 +24,7 @@ func (podCleanup ForgottenCompletedPodReporterTask) Execute() {
 }
 
 func getAllPodsRequiringCompletionEvent(podLister listers.PodLister) []*v1.Pod {
-	selector, err := createRunningPodLabelSelector()
+	selector, err := service.CreateLabelSelectorForManagedPods(false)
 	if err != nil {
 		return nil
 		//TODO Handle error case
