@@ -9,7 +9,7 @@ import (
 	"strconv"
 )
 
-const PodNamePrefix string = "batch_"
+const PodNamePrefix string = "batch-"
 
 type JobSubmitter struct {
 	KubernetesClient kubernetes.Interface
