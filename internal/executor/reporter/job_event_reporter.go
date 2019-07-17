@@ -10,7 +10,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 )
@@ -67,14 +66,14 @@ func (jobEventReporter *JobEventReporter) processEvents() {
 			fmt.Printf("Reporting pod for %s with status %d \n", pod.Name, jobStatus)
 
 			//TODO find a more efficient way to update labels (you should be able to partially patch rather than send the whole pod)
-			if IsInTerminalState(pod) && strings.HasPrefix(pod.Name, "test") {
+			if IsInTerminalState(pod) {
 				pod.ObjectMeta.Labels[domain.ReadyForCleanup] = strconv.FormatBool(true)
 
 				patchBytes, err := json.Marshal(pod)
 				if err != nil {
 					fmt.Printf("Failure marshalling patch for pod %s because: %s \n", pod.Name, err)
 				}
-				_, err = jobEventReporter.kubernetesClient.CoreV1().Pods("default").Patch(pod.Name, types.MergePatchType, patchBytes)
+				_, err = jobEventReporter.kubernetesClient.CoreV1().Pods(pod.Namespace).Patch(pod.Name, types.MergePatchType, patchBytes)
 				if err != nil {
 					fmt.Printf("Error updating label for pod for %s because: %s \n", pod.Name, err)
 				}
@@ -103,6 +102,10 @@ func (jobEventReporter *JobEventReporter) ReportCompletedEvent(pod *v1.Pod) {
 }
 
 func (jobEventReporter *JobEventReporter) queueEvent(pod *v1.Pod) {
+	if !IsManagedPod(pod) {
+		return
+	}
+
 	jobEventReporter.mux.Lock()
 
 	jobEventReporter.podEvents = append(jobEventReporter.podEvents, pod.DeepCopy())
@@ -130,6 +133,14 @@ func (jobEventReporter *JobEventReporter) queueLength() int {
 //This can only be accessed by the internal go routine, so therefore doesn't need locking
 func (jobEventReporter *JobEventReporter) peekQueue(numberOfEvents int) []*v1.Pod {
 	return jobEventReporter.podEvents[:numberOfEvents]
+}
+
+func IsManagedPod(pod *v1.Pod) bool {
+	if _, ok := pod.Labels[domain.JobId]; !ok {
+		return false
+	}
+
+	return true
 }
 
 func getJobStatus(pod *v1.Pod) (model.JobStatus, error) {
