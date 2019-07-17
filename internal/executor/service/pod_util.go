@@ -1,6 +1,12 @@
 package service
 
-import v1 "k8s.io/api/core/v1"
+import (
+	"errors"
+	"fmt"
+	"github.com/G-Research/k8s-batch/internal/executor/domain"
+	"github.com/G-Research/k8s-batch/internal/model"
+	v1 "k8s.io/api/core/v1"
+)
 
 func IsInTerminalState(pod *v1.Pod) bool {
 	podPhase := pod.Status.Phase
@@ -8,4 +14,29 @@ func IsInTerminalState(pod *v1.Pod) bool {
 		return true
 	}
 	return false
+}
+
+func IsManagedPod(pod *v1.Pod) bool {
+	if _, ok := pod.Labels[domain.JobId]; !ok {
+		return false
+	}
+
+	return true
+}
+
+func ExtractJobStatus(pod *v1.Pod) (model.JobStatus, error) {
+	phase := pod.Status.Phase
+
+	switch phase {
+	case v1.PodPending:
+		return model.Pending, nil
+	case v1.PodRunning:
+		return model.Running, nil
+	case v1.PodSucceeded:
+		return model.Succeeded, nil
+	case v1.PodFailed:
+		return model.Failed, nil
+	default:
+		return *new(model.JobStatus), errors.New(fmt.Sprintf("Could not determine job status from pod in phase %s", phase))
+	}
 }

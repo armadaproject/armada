@@ -2,10 +2,9 @@ package reporter
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"github.com/G-Research/k8s-batch/internal/executor/domain"
-	"github.com/G-Research/k8s-batch/internal/model"
+	"github.com/G-Research/k8s-batch/internal/executor/service"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
@@ -58,7 +57,7 @@ func (jobEventReporter *JobEventReporter) processEvents() {
 
 		//TODO perform API calls here and retrying etc
 		for _, pod := range events {
-			jobStatus, err := getJobStatus(pod)
+			jobStatus, err := service.ExtractJobStatus(pod)
 			if err != nil {
 				fmt.Printf("Error reporting job pod for %s because: %s \n", pod.Name, err)
 			}
@@ -66,7 +65,7 @@ func (jobEventReporter *JobEventReporter) processEvents() {
 			fmt.Printf("Reporting pod for %s with status %d \n", pod.Name, jobStatus)
 
 			//TODO find a more efficient way to update labels (you should be able to partially patch rather than send the whole pod)
-			if IsInTerminalState(pod) {
+			if service.IsInTerminalState(pod) {
 				pod.ObjectMeta.Labels[domain.ReadyForCleanup] = strconv.FormatBool(true)
 
 				patchBytes, err := json.Marshal(pod)
@@ -102,7 +101,7 @@ func (jobEventReporter *JobEventReporter) ReportCompletedEvent(pod *v1.Pod) {
 }
 
 func (jobEventReporter *JobEventReporter) queueEvent(pod *v1.Pod) {
-	if !IsManagedPod(pod) {
+	if !service.IsManagedPod(pod) {
 		return
 	}
 
@@ -133,29 +132,4 @@ func (jobEventReporter *JobEventReporter) queueLength() int {
 //This can only be accessed by the internal go routine, so therefore doesn't need locking
 func (jobEventReporter *JobEventReporter) peekQueue(numberOfEvents int) []*v1.Pod {
 	return jobEventReporter.podEvents[:numberOfEvents]
-}
-
-func IsManagedPod(pod *v1.Pod) bool {
-	if _, ok := pod.Labels[domain.JobId]; !ok {
-		return false
-	}
-
-	return true
-}
-
-func getJobStatus(pod *v1.Pod) (model.JobStatus, error) {
-	phase := pod.Status.Phase
-
-	switch phase {
-	case v1.PodPending:
-		return model.Pending, nil
-	case v1.PodRunning:
-		return model.Running, nil
-	case v1.PodSucceeded:
-		return model.Succeeded, nil
-	case v1.PodFailed:
-		return model.Failed, nil
-	default:
-		return *new(model.JobStatus), errors.New(fmt.Sprintf("Could not determine job status from pod in phase %s", phase))
-	}
 }
