@@ -1,52 +1,29 @@
 package main
 
 import (
-	"net/http"
-
-	"github.com/gin-gonic/gin"
-	"github.com/go-redis/redis"
-
-	"github.com/G-Research/k8s-batch/internal/model"
-	"github.com/G-Research/k8s-batch/internal/armada/repository"
+	"fmt"
+	"github.com/G-Research/k8s-batch/internal/armada"
+	"github.com/G-Research/k8s-batch/internal/armada/configuration"
+	"github.com/spf13/viper"
+	"os"
 )
 
 func main() {
-	r := gin.Default()
-	db := redis.NewClient(&redis.Options{
-		Addr:     "localhost:6379",
-		Password: "", // no password set
-		DB:       0,  // use default DB
-	})
+	viper.SetConfigName("config")
+	viper.AddConfigPath("./config/executor")
+	var config configuration.ArmadaConfig
 
-	r.POST("jobs", func(c *gin.Context) {
-		var jobs []model.JobRequest
+	if err := viper.ReadInConfig(); err != nil {
+		fmt.Println(err)
+		os.Exit(-1)
+	}
 
-		err := c.Bind(&jobs)
-		if err != nil {
-			sendError(c, err)
-			return
-		}
-		err = repository.AddJobs(db, jobs)
-		if err != nil {
-			sendError(c, err)
-			return
-		}
+	err := viper.Unmarshal(&config)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(-1)
+	}
 
-		c.JSON(http.StatusOK, gin.H{
-			"message": "ok",
-		})
-	})
-
-	r.GET("/ping", func(c *gin.Context) {
-		c.JSON(200, gin.H{
-			"message": "pong",
-		})
-	})
-	r.Run() // listen and serve on 0.0.0.0:8080
-}
-
-func sendError(c *gin.Context, e error) {
-	c.JSON(http.StatusBadRequest, gin.H{
-		"errorMessage": e.Error(),
-	})
+	_, wg := armada.Serve(&config)
+	wg.Wait()
 }
