@@ -10,7 +10,7 @@ import (
 
 type ForgottenCompletedPodReporterTask struct {
 	PodLister     listers.PodLister
-	EventReporter *reporter.JobEventReporter
+	EventReporter reporter.EventReporter
 	Interval      time.Duration
 }
 
