@@ -7,8 +7,6 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
 	"github.com/kjk/betterguid"
-	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 	"time"
 
 	//"github.com/golang/protobuf/ptypes/timestamp"
@@ -82,8 +80,6 @@ func (repo RedisJobRepository) GetJobsByIds(ids []string) ([]*api.Job, error) {
 
 func createJob(jobRequest *api.JobRequest) *api.Job {
 	now := time.Now()
-	res := calculateResource(jobRequest.PodSpec)
-
 	j := api.Job{
 		Id:       betterguid.New(),
 		Queue:    jobRequest.Queue,
@@ -91,35 +87,8 @@ func createJob(jobRequest *api.JobRequest) *api.Job {
 
 		Priority: jobRequest.Priority,
 
-		Resources: res,
 		PodSpec:  jobRequest.PodSpec,
 		Created: &types.Timestamp{ Seconds:now.Unix(), Nanos: int32(now.Nanosecond())},
 	}
 	return &j
 }
-
-func calculateResource(podSpec *v1.PodSpec) map[string]resource.Quantity {
-	resources := make(map[string]resource.Quantity)
-	for _, c := range podSpec.Containers {
-		for k, v := range  c.Resources.Limits {
-			existing, ok := resources[string(k)];
-			if ok {
-				existing.Add(v)
-			} else {
-				resources[string(k)] = v.DeepCopy()
-			}
-		}
-	}
-	return resources
-}
-
-
-type ComputeResources map[string]resource.Quantity;
-
-func (ComputeResources) Add(ComputeResources){
-
-}
-
-
-
-

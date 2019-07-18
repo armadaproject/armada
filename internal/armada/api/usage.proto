@@ -1,0 +1,24 @@
+syntax = 'proto3';
+
+package api;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+import "k8s.io/apimachinery/pkg/api/resource/generated.proto";
+import "github.com/gogo/protobuf/gogoproto/gogo.proto";
+
+message QueueReport {
+    string Name = 1;
+    map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> Resources = 2 [(gogoproto.nullable) = false];
+}
+
+message ClusterUsageReport {
+    string ClusterId = 1;
+    google.protobuf.Timestamp ReportTime = 2;
+    repeated QueueReport Queues = 3;
+    map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> ClusterCapacity = 4 [(gogoproto.nullable) = false];
+}
+
+service Usage {
+    rpc ReportUsage (ClusterUsageReport) returns (google.protobuf.Empty);
+}
