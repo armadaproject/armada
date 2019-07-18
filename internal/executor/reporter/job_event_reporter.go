@@ -6,6 +6,7 @@ import (
 	"github.com/G-Research/k8s-batch/internal/executor/domain"
 	"github.com/G-Research/k8s-batch/internal/executor/util"
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	"strconv"
@@ -43,16 +44,12 @@ func New(kubernetesClient kubernetes.Interface, reportingInterval time.Duration,
 }
 
 func (jobEventReporter *JobEventReporter) processEvents(reportingBatchSize int) {
-	numberOfEvents := jobEventReporter.queueLength()
+	numberOfEventsLeftToProcess := jobEventReporter.queueLength()
 
-	for numberOfEvents > 0 {
-		//TODO write min function
-		numberOfEventsToReport := reportingBatchSize
-		if numberOfEventsToReport > numberOfEvents {
-			numberOfEventsToReport = numberOfEvents
-		}
+	for numberOfEventsLeftToProcess > 0 {
+		currentEventBatchSize := util.Min(reportingBatchSize, numberOfEventsLeftToProcess)
 
-		events := jobEventReporter.peekQueue(numberOfEventsToReport)
+		events := jobEventReporter.peekQueue(currentEventBatchSize)
 
 		//TODO perform API calls here and retrying etc
 		for _, pod := range events {
@@ -63,23 +60,29 @@ func (jobEventReporter *JobEventReporter) processEvents(reportingBatchSize int) 
 
 			fmt.Printf("Reporting pod for %s with status %d \n", pod.Name, jobStatus)
 
-			//TODO find a more efficient way to update labels (you should be able to partially patch rather than send the whole pod)
 			if util.IsInTerminalState(pod) {
-				pod.ObjectMeta.Labels[domain.ReadyForCleanup] = strconv.FormatBool(true)
+				labels := util.DeepCopy(pod.Labels)
+				labels[domain.ReadyForCleanup] = strconv.FormatBool(true)
 
-				patchBytes, err := json.Marshal(pod)
+				patch := domain.Patch{
+					MetaData: metav1.ObjectMeta{
+						Labels: labels,
+					},
+				}
+
+				patchBytes, err := json.Marshal(patch)
 				if err != nil {
 					fmt.Printf("Failure marshalling patch for pod %s because: %s \n", pod.Name, err)
 				}
-				_, err = jobEventReporter.kubernetesClient.CoreV1().Pods(pod.Namespace).Patch(pod.Name, types.MergePatchType, patchBytes)
+				_, err = jobEventReporter.kubernetesClient.CoreV1().Pods(pod.Namespace).Patch(pod.Name, types.StrategicMergePatchType, patchBytes)
 				if err != nil {
 					fmt.Printf("Error updating label for pod for %s because: %s \n", pod.Name, err)
 				}
 			}
 		}
 
-		jobEventReporter.dequeueEvents(numberOfEventsToReport)
-		numberOfEvents -= numberOfEventsToReport
+		jobEventReporter.dequeueEvents(currentEventBatchSize)
+		numberOfEventsLeftToProcess -= currentEventBatchSize
 	}
 }
 
