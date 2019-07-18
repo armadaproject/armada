@@ -56,6 +56,7 @@ func StartUp(config configuration.Configuration) {
 		NodeLister:   nodeInformer.Lister(),
 		JobSubmitter: jobSubmitter,
 		QueueClient:  queueClient,
+		ClusterId:    config.Application.ClusterId,
 	}
 
 	clusterUtilisationService := service.ClusterUtilisationService{

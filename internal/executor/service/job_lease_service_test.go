@@ -1,6 +1,7 @@
 package service
 
 import (
+	"github.com/G-Research/k8s-batch/internal/common"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -95,83 +96,64 @@ func TestGetAllPodsOnNodes_ShouldHandleNoNodesProvided(t *testing.T) {
 	assert.Equal(t, len(result), 0)
 }
 
-func TestCalculateTotalCpu(t *testing.T) {
-	resources := resource.NewMilliQuantity(100, resource.DecimalSI)
-	resourceMap := map[v1.ResourceName]resource.Quantity{v1.ResourceCPU: *resources}
-	node1 := makeNodeWithResource(resourceMap)
-	node2 := makeNodeWithResource(resourceMap)
+func TestCalculateTotalResource(t *testing.T) {
+	resources := makeDefaultResource()
+	node1 := makeNodeWithResource(resources)
+	node2 := makeNodeWithResource(resources)
 
-	result := calculateTotalCpu([]*v1.Node{&node1, &node2})
+	//Expected is resources * 2 nodes
+	expectedResult := common.FromResourceList(resources)
+	expectedResult.Add(expectedResult)
 
-	//Expected is resources *2
-	resources.Add(*resources)
-	assert.Equal(t, result, *resources)
+	result := calculateTotalResource([]*v1.Node{&node1, &node2})
+	assert.Equal(t, result, expectedResult)
 }
 
-func TestCalculateTotalMemory(t *testing.T) {
-	resources := resource.NewMilliQuantity(50*1024*1024, resource.DecimalSI)
-	resourceMap := map[v1.ResourceName]resource.Quantity{v1.ResourceMemory: *resources}
-	node1 := makeNodeWithResource(resourceMap)
-	node2 := makeNodeWithResource(resourceMap)
-
-	result := calculateTotalMemory([]*v1.Node{&node1, &node2})
-
-	//Expected is resources *2
-	resources.Add(*resources)
-	assert.Equal(t, result, *resources)
-}
-
-func TestCalculateTotalCpuLimit_ShouldSumAllContainers(t *testing.T) {
-	resources := resource.NewMilliQuantity(100, resource.DecimalSI)
-	pod := makePodWthResource(v1.ResourceCPU, []*resource.Quantity{resources, resources})
-
-	result := calculateTotalCpuLimit([]*v1.Pod{&pod})
+func TestCalculateTotalResourceLimit_ShouldSumAllContainers(t *testing.T) {
+	resources := makeDefaultResource()
+	pod := makePodWthResource([]*v1.ResourceList{&resources, &resources})
 
 	//Expected is resources * 2 containers
-	resources.Add(*resources)
-	assert.Equal(t, result, *resources)
+	expectedResult := common.FromResourceList(resources)
+	expectedResult.Add(expectedResult)
+
+	result := calculateTotalResourceLimit([]*v1.Pod{&pod})
+	assert.Equal(t, result, expectedResult)
 }
 
-func TestCalculateTotalCpuLimit_ShouldSumAllPods(t *testing.T) {
-	resources := resource.NewMilliQuantity(100, resource.DecimalSI)
-	pod1 := makePodWthResource(v1.ResourceCPU, []*resource.Quantity{resources})
-	pod2 := makePodWthResource(v1.ResourceCPU, []*resource.Quantity{resources})
-
-	result := calculateTotalCpuLimit([]*v1.Pod{&pod1, &pod2})
+func TestCalculateTotalResourceLimit_ShouldSumAllPods(t *testing.T) {
+	resources := makeDefaultResource()
+	pod1 := makePodWthResource([]*v1.ResourceList{&resources})
+	pod2 := makePodWthResource([]*v1.ResourceList{&resources})
 
 	//Expected is resources * 2 pods
-	resources.Add(*resources)
-	assert.Equal(t, result, *resources)
+	expectedResult := common.FromResourceList(resources)
+	expectedResult.Add(expectedResult)
+
+	result := calculateTotalResourceLimit([]*v1.Pod{&pod1, &pod2})
+	assert.Equal(t, result, expectedResult)
 }
 
-func TestCalculateTotalMemoryLimit_ShouldSumAllContainers(t *testing.T) {
-	resources := resource.NewMilliQuantity(50*1024*1024, resource.DecimalSI)
-	pod := makePodWthResource(v1.ResourceMemory, []*resource.Quantity{resources, resources})
-
-	result := calculateTotalMemoryLimit([]*v1.Pod{&pod})
-
-	//Expected is resources * 2 containers
-	resources.Add(*resources)
-	assert.Equal(t, result, *resources)
+func makeDefaultResource() v1.ResourceList {
+	cpuResource := resource.NewMilliQuantity(100, resource.DecimalSI)
+	memoryResource := resource.NewMilliQuantity(50*1024*1024*1024, resource.DecimalSI)
+	storageResource := resource.NewMilliQuantity(500*1024*1024*1024, resource.DecimalSI)
+	ephemeralStorageResource := resource.NewMilliQuantity(20*1024*1024*1024, resource.DecimalSI)
+	resourceMap := map[v1.ResourceName]resource.Quantity{
+		v1.ResourceCPU:              *cpuResource,
+		v1.ResourceMemory:           *memoryResource,
+		v1.ResourceStorage:          *storageResource,
+		v1.ResourceEphemeralStorage: *ephemeralStorageResource,
+	}
+	return resourceMap
 }
 
-func TestCalculateTotalMemoryLimit__ShouldSumAllPods(t *testing.T) {
-	resources := resource.NewMilliQuantity(50*1024*1024, resource.DecimalSI)
-	pod := makePodWthResource(v1.ResourceMemory, []*resource.Quantity{resources, resources})
-
-	result := calculateTotalMemoryLimit([]*v1.Pod{&pod})
-
-	//Expected is resources * 2 containers
-	resources.Add(*resources)
-	assert.Equal(t, result, *resources)
-}
-
-func makePodWthResource(resourceName v1.ResourceName, resources []*resource.Quantity) v1.Pod {
+func makePodWthResource(resources []*v1.ResourceList) v1.Pod {
 	containers := make([]v1.Container, len(resources))
 	for i, res := range resources {
 		containers[i] = v1.Container{
 			Resources: v1.ResourceRequirements{
-				Limits: map[v1.ResourceName]resource.Quantity{resourceName: *res},
+				Limits: *res,
 			},
 		}
 	}

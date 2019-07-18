@@ -3,12 +3,11 @@ package service
 import (
 	"fmt"
 	"github.com/G-Research/k8s-batch/internal/armada/api"
+	"github.com/G-Research/k8s-batch/internal/common"
 	"github.com/G-Research/k8s-batch/internal/executor/domain"
 	"github.com/G-Research/k8s-batch/internal/executor/submitter"
 	"github.com/G-Research/k8s-batch/internal/executor/util"
-	"github.com/G-Research/k8s-batch/internal/model"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/labels"
 	listers "k8s.io/client-go/listers/core/v1"
 	"strings"
@@ -19,6 +18,7 @@ type JobLeaseService struct {
 	NodeLister   listers.NodeLister
 	JobSubmitter submitter.JobSubmitter
 	QueueClient  api.AggregatedQueueClient
+	ClusterId    string
 }
 
 //TODO split into separate functions
@@ -32,28 +32,24 @@ func (jobLeaseService JobLeaseService) RequestJobLeasesAndFillSpareClusterCapaci
 	if err != nil {
 		fmt.Println("Error getting pod information")
 	}
-	// Todo Inefficient? We could monitor changes on nodes + pods and keep an internal map of where they are. However then we would be maintaining 2 internal maps (ours + informer)
 
 	processingNodes := getAllAvailableProcessingNodes(allNodes)
-	// TODO remove terminated pods
 	podsOnProcessingNodes := getAllPodsOnNodes(allPods, processingNodes)
+	activePodsOnProcessingNodes := filterCompletedPods(podsOnProcessingNodes)
 
-	totalNodeCpu := calculateTotalCpu(processingNodes)
-	totalNodeMemory := calculateTotalMemory(processingNodes)
+	totalNodeResource := calculateTotalResource(processingNodes)
+	totalPodResource := calculateTotalResourceLimit(activePodsOnProcessingNodes)
 
-	totalPodCpuLimit := calculateTotalCpuLimit(podsOnProcessingNodes)
-	totalPodMemoryLimit := calculateTotalMemoryLimit(podsOnProcessingNodes)
+	availableResource := totalNodeResource.DeepCopy()
+	availableResource.Sub(totalPodResource)
 
-	freeCpu := totalNodeCpu.DeepCopy()
-	freeCpu.Sub(totalPodCpuLimit)
-
-	freeMemory := totalNodeMemory.DeepCopy()
-	freeMemory.Sub(totalPodMemoryLimit)
-
-	//newJobs := requestJobs(&freeCpu, &freeMemory)
-	//for _, job := range newJobs {
-	//	jobLeaseService.JobSubmitter.SubmitJob(job, "default")
-	//}
+	newJobs := jobLeaseService.requestJobs(availableResource)
+	for _, job := range newJobs {
+		_, err = jobLeaseService.JobSubmitter.SubmitJob(job)
+		if err != nil {
+			fmt.Printf("Failed to submit job %s", job.Id)
+		}
+	}
 }
 
 func (jobLeaseService JobLeaseService) RenewJobLeases() {
@@ -69,6 +65,14 @@ func (jobLeaseService JobLeaseService) RenewJobLeases() {
 	if len(allPodsEligibleForRenewal) > 0 {
 		jobIds := extractJobIds(allPodsEligibleForRenewal)
 		fmt.Printf("Renewing lease for %s \n", strings.Join(jobIds, ","))
+
+		//ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		//defer cancel()
+		//_, err := jobLeaseService.QueueClient.RenewLease(ctx, &api.IdList{Ids: jobIds})
+		//
+		//if err != nil {
+		//	fmt.Printf("Failed to new lease for jobs because %s", err)
+		//}
 	}
 }
 
@@ -83,15 +87,22 @@ func extractJobIds(pods []*v1.Pod) []string {
 	return jobIds
 }
 
-func requestJobs(freeCpu *resource.Quantity, freeMemory *resource.Quantity) []*model.Job {
+func (jobLeaseService JobLeaseService) requestJobs(availableResource common.ComputeResources) []*api.Job {
 	//leaseRequest := api.LeaseRequest{
-	//	ClusterID: "ClusterID",
-	//	AvailableResource: map[v1.ResourceName]resource.Quantity {
-	//		v1.ResourceCPU: *freeCpu,
-	//		v1.ResourceMemory: *freeMemory,
-	//	},
+	//	ClusterID: jobLeaseService.ClusterId,
+	//	Resources: availableResource,
 	//}
-	return make([]*model.Job, 0)
+	//ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	//defer cancel()
+	//response, err := jobLeaseService.QueueClient.LeaseJobs(ctx, &leaseRequest)
+	//
+	//if err != nil {
+	//	fmt.Printf("Failed to lease jobs because %s", err)
+	//}
+	//
+	//return response.Job
+
+	return make([]*api.Job, 0)
 }
 
 func getAllAvailableProcessingNodes(nodes []*v1.Node) []*v1.Node {
@@ -144,44 +155,23 @@ func getAllPodsOnNodes(pods []*v1.Pod, nodes []*v1.Node) []*v1.Pod {
 	return podsBelongingToNodes
 }
 
-func calculateTotalCpu(nodes []*v1.Node) resource.Quantity {
-	totalCpu := resource.Quantity{}
+func calculateTotalResource(nodes []*v1.Node) common.ComputeResources {
+	totalResources := make(common.ComputeResources)
 	for _, node := range nodes {
-		nodeAllocatableCpu := node.Status.Allocatable.Cpu()
-		totalCpu.Add(*nodeAllocatableCpu)
+		nodeAllocatableResource := common.FromResourceList(node.Status.Allocatable)
+		totalResources.Add(nodeAllocatableResource)
 	}
-	return totalCpu
+	return totalResources
 }
 
-func calculateTotalMemory(nodes []*v1.Node) resource.Quantity {
-	totalMemory := resource.Quantity{}
-	for _, node := range nodes {
-		nodeAllocatableMemory := node.Status.Allocatable.Memory()
-		totalMemory.Add(*nodeAllocatableMemory)
-	}
-	return totalMemory
-}
-
-func calculateTotalCpuLimit(pods []*v1.Pod) resource.Quantity {
-	totalCpu := resource.Quantity{}
+func calculateTotalResourceLimit(pods []*v1.Pod) common.ComputeResources {
+	totalResources := make(common.ComputeResources)
 	for _, pod := range pods {
 		for _, container := range pod.Spec.Containers {
-			containerCpuLimit := container.Resources.Limits.Cpu()
-			totalCpu.Add(*containerCpuLimit)
+			containerResourceLimit := common.FromResourceList(container.Resources.Limits)
+			totalResources.Add(containerResourceLimit)
 		}
-		// Todo determine what to do about init contianers? How does Kubernetes scheduler handle these
+		// Todo determine what to do about init containers? How does Kubernetes scheduler handle these
 	}
-	return totalCpu
-}
-
-func calculateTotalMemoryLimit(pods []*v1.Pod) resource.Quantity {
-	totalMemory := resource.Quantity{}
-	for _, pod := range pods {
-		for _, container := range pod.Spec.Containers {
-			containerMemoryLimit := container.Resources.Limits.Memory()
-			totalMemory.Add(*containerMemoryLimit)
-		}
-		// Todo determine what to do about init contianers? How does Kubernetes scheduler handle these
-	}
-	return totalMemory
+	return totalResources
 }
