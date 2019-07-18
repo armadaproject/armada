@@ -2,14 +2,11 @@ syntax = 'proto3';
 
 package api;
 
-
 import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
 import "k8s.io/api/core/v1/generated.proto";
 import "k8s.io/apimachinery/pkg/api/resource/generated.proto";
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
-
-message Empty {
-}
 
 message Job {
     string Id = 1;
@@ -18,7 +15,6 @@ message Job {
     double Priority = 4;
     k8s.io.api.core.v1.PodSpec PodSpec = 5;
     google.protobuf.Timestamp Created = 6;
-    map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> Resources = 7 [(gogoproto.nullable) = false];
 }
 
 message LeaseRequest {
@@ -35,10 +31,7 @@ message IdList {
 }
 
 service AggregatedQueue {
-    rpc LeaseJobs (LeaseRequest) returns (JobLease) {
-    }
-    rpc RenewLease (IdList) returns (Empty) {
-    }
-    rpc ReportDone (IdList) returns (Empty) {
-    }
+    rpc LeaseJobs (LeaseRequest) returns (JobLease);
+    rpc RenewLease (IdList) returns (google.protobuf.Empty);
+    rpc ReportDone (IdList) returns (google.protobuf.Empty);
 }

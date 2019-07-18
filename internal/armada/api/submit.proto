@@ -16,6 +16,5 @@ message JobSubmitResponse {
 }
 
 service Submit {
-    rpc SubmitJob (JobRequest) returns (JobSubmitResponse) {
-    }
+    rpc SubmitJob (JobRequest) returns (JobSubmitResponse);
 }
