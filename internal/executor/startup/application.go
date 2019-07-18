@@ -2,15 +2,18 @@ package startup
 
 import (
 	"fmt"
+	"github.com/G-Research/k8s-batch/internal/armada/api"
 	"github.com/G-Research/k8s-batch/internal/executor/configuration"
 	"github.com/G-Research/k8s-batch/internal/executor/reporter"
 	"github.com/G-Research/k8s-batch/internal/executor/service"
 	"github.com/G-Research/k8s-batch/internal/executor/submitter"
+	"google.golang.org/grpc"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/informers"
 	informer "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/tools/cache"
+	"log"
 	"os"
 	"time"
 )
@@ -22,8 +25,18 @@ func StartUp(config configuration.Configuration) {
 		os.Exit(-1)
 	}
 
+	conn, err := grpc.Dial(config.Armada.Url, grpc.WithInsecure())
+	if err != nil {
+		log.Fatalf("did not connect: %v", err)
+	}
+	defer conn.Close()
+
+	queueClient := api.NewAggregatedQueueClient(conn)
+	usageClient := api.NewUsageClient(conn)
+
 	var eventReporter reporter.EventReporter = reporter.New(
 		kubernetesClient,
+		queueClient,
 		config.Events.EventReportingInterval,
 		config.Events.EventReportingBatchSize,
 	)
@@ -42,9 +55,14 @@ func StartUp(config configuration.Configuration) {
 		PodLister:    podInformer.Lister(),
 		NodeLister:   nodeInformer.Lister(),
 		JobSubmitter: jobSubmitter,
+		QueueClient:  queueClient,
 	}
 
-	clusterUtilisationService := service.ClusterUtilisationService{PodLister: podInformer.Lister()}
+	clusterUtilisationService := service.ClusterUtilisationService{
+		PodLister:   podInformer.Lister(),
+		UsageClient: usageClient,
+	}
+
 	podCleanupService := service.PodCleanupService{
 		PodLister:        podInformer.Lister(),
 		EventReporter:    eventReporter,

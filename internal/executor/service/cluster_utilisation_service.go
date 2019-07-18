@@ -1,6 +1,7 @@
 package service
 
 import (
+	"github.com/G-Research/k8s-batch/internal/armada/api"
 	"github.com/G-Research/k8s-batch/internal/executor/domain"
 	"github.com/G-Research/k8s-batch/internal/executor/util"
 	v1 "k8s.io/api/core/v1"
@@ -8,8 +9,8 @@ import (
 )
 
 type ClusterUtilisationService struct {
-	PodLister lister.PodLister
-	//TODO API
+	PodLister   lister.PodLister
+	UsageClient api.UsageClient
 }
 
 func (clusterUtilisationService ClusterUtilisationService) ReportClusterUtilisation() {

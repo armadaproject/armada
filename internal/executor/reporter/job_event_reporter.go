@@ -3,6 +3,7 @@ package reporter
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/G-Research/k8s-batch/internal/armada/api"
 	"github.com/G-Research/k8s-batch/internal/executor/domain"
 	"github.com/G-Research/k8s-batch/internal/executor/util"
 	v1 "k8s.io/api/core/v1"
@@ -24,13 +25,14 @@ type JobEventReporter struct {
 	kubernetesClient kubernetes.Interface
 	podEvents        []*v1.Pod
 	mux              sync.Mutex
-	//TODO API CLIENT
+	queueClient      api.AggregatedQueueClient
 }
 
-func New(kubernetesClient kubernetes.Interface, reportingInterval time.Duration, reportingBatchSize int) *JobEventReporter {
+func New(kubernetesClient kubernetes.Interface, queueClient api.AggregatedQueueClient, reportingInterval time.Duration, reportingBatchSize int) *JobEventReporter {
 	reporter := JobEventReporter{
 		kubernetesClient: kubernetesClient,
 		podEvents:        make([]*v1.Pod, 0, 100),
+		queueClient:      queueClient,
 	}
 
 	go func() {

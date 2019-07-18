@@ -2,6 +2,7 @@ package service
 
 import (
 	"fmt"
+	"github.com/G-Research/k8s-batch/internal/armada/api"
 	"github.com/G-Research/k8s-batch/internal/executor/domain"
 	"github.com/G-Research/k8s-batch/internal/executor/submitter"
 	"github.com/G-Research/k8s-batch/internal/executor/util"
@@ -17,6 +18,7 @@ type JobLeaseService struct {
 	PodLister    listers.PodLister
 	NodeLister   listers.NodeLister
 	JobSubmitter submitter.JobSubmitter
+	QueueClient  api.AggregatedQueueClient
 }
 
 //TODO split into separate functions
