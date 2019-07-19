@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/G-Research/k8s-batch/internal/armada/api"
 	"github.com/G-Research/k8s-batch/internal/common"
-	"github.com/G-Research/k8s-batch/internal/executor/domain"
 	"github.com/G-Research/k8s-batch/internal/executor/submitter"
 	"github.com/G-Research/k8s-batch/internal/executor/util"
 	v1 "k8s.io/api/core/v1"
@@ -63,7 +62,7 @@ func (jobLeaseService JobLeaseService) RenewJobLeases() {
 		//TODO Handle error case
 	}
 	if len(allPodsEligibleForRenewal) > 0 {
-		jobIds := extractJobIds(allPodsEligibleForRenewal)
+		jobIds := util.ExtractJobIds(allPodsEligibleForRenewal)
 		fmt.Printf("Renewing lease for %s \n", strings.Join(jobIds, ","))
 
 		//TODO Add back in when API side is ready
@@ -75,17 +74,6 @@ func (jobLeaseService JobLeaseService) RenewJobLeases() {
 		//	fmt.Printf("Failed to new lease for jobs because %s", err)
 		//}
 	}
-}
-
-func extractJobIds(pods []*v1.Pod) []string {
-	jobIds := make([]string, 0, len(pods))
-
-	for _, pod := range pods {
-		jobId := pod.Labels[domain.JobId]
-		jobIds = append(jobIds, jobId)
-	}
-
-	return jobIds
 }
 
 func (jobLeaseService JobLeaseService) requestJobs(availableResource common.ComputeResources) []*api.Job {

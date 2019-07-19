@@ -72,3 +72,14 @@ func CreateListOptionsForManagedPods(podsReadyForCleanup bool) metav1.ListOption
 
 	return listOptions
 }
+
+func ExtractJobIds(pods []*v1.Pod) []string {
+	jobIds := make([]string, 0, len(pods))
+
+	for _, pod := range pods {
+		jobId := pod.Labels[domain.JobId]
+		jobIds = append(jobIds, jobId)
+	}
+
+	return jobIds
+}

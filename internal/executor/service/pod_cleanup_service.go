@@ -22,12 +22,47 @@ func (cleanupService PodCleanupService) DeletePodsReadyForCleanup() {
 	deleteOptions := createPodDeletionDeleteOptions()
 	listOptions := util.CreateListOptionsForManagedPods(true)
 
-	//TODO decide how to handle namespaces, or select from all namespaces and delete individually
-	err := cleanupService.KubernetesClient.CoreV1().Pods("default").DeleteCollection(&deleteOptions, listOptions)
+	namespacesToDeleteFrom := cleanupService.getAllNamespacesContainingPodsToBeDeleted()
+
+	for _, namespace := range namespacesToDeleteFrom {
+		err := cleanupService.KubernetesClient.CoreV1().Pods(namespace).DeleteCollection(&deleteOptions, listOptions)
+		if err != nil {
+			fmt.Println(err)
+			//TODO handle error
+		}
+	}
+}
+
+func (cleanupService PodCleanupService) getAllNamespacesContainingPodsToBeDeleted() []string {
+	selector, err := util.CreateLabelSelectorForManagedPods(true)
 	if err != nil {
 		fmt.Println(err)
-		//TODO handle error
+		return []string{}
 	}
+
+	podsReadyToDelete, err := cleanupService.PodLister.List(selector)
+	if err != nil {
+		fmt.Println(err)
+		return []string{}
+	}
+
+	allUniqueNamespaces := make(map[string]bool)
+
+	for _, pod := range podsReadyToDelete {
+		allUniqueNamespaces[pod.Namespace] = true
+	}
+
+	return keys(allUniqueNamespaces)
+}
+
+func keys(input map[string]bool) []string {
+	keys := make([]string, 0, len(input))
+
+	for key := range input {
+		keys = append(keys, key)
+	}
+
+	return keys
 }
 
 func (cleanupService PodCleanupService) ReportForgottenCompletedPods() {
@@ -60,7 +95,7 @@ func getAllPodsRequiringCompletionEvent(podLister lister.PodLister) []*v1.Pod {
 	}
 
 	completedBatchPodsNotMarkedForCleanup := filterCompletedPods(allBatchPodsNotMarkedForCleanup)
-	completedBatchPodsToBeReported := filterPodsInStateForLongerThanGivenDuration(completedBatchPodsNotMarkedForCleanup, time.Minute*2)
+	completedBatchPodsToBeReported := filterPodsInStateForLongerThanGivenDuration(completedBatchPodsNotMarkedForCleanup, 5*time.Minute)
 
 	return completedBatchPodsToBeReported
 }
