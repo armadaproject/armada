@@ -44,7 +44,7 @@ func StartUp(config configuration.Configuration) {
 	defer runtime.HandleCrash()
 	factory := informers.NewSharedInformerFactoryWithOptions(kubernetesClient, 0)
 	podInformer := factory.Core().V1().Pods()
-	nodeInformer := factory.Core().V1().Nodes()
+	nodeLister := factory.Core().V1().Nodes().Lister()
 	addPodEventHandler(podInformer, eventReporter)
 	informerStopper := startInformers(factory)
 	defer close(informerStopper)
@@ -53,7 +53,7 @@ func StartUp(config configuration.Configuration) {
 
 	jobLeaseService := service.JobLeaseService{
 		PodLister:    podInformer.Lister(),
-		NodeLister:   nodeInformer.Lister(),
+		NodeLister:   nodeLister,
 		JobSubmitter: jobSubmitter,
 		QueueClient:  queueClient,
 		ClusterId:    config.Application.ClusterId,
@@ -61,6 +61,7 @@ func StartUp(config configuration.Configuration) {
 
 	clusterUtilisationService := service.ClusterUtilisationService{
 		PodLister:   podInformer.Lister(),
+		NodeLister:  nodeLister,
 		UsageClient: usageClient,
 	}
 

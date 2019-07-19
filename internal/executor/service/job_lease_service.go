@@ -66,6 +66,7 @@ func (jobLeaseService JobLeaseService) RenewJobLeases() {
 		jobIds := extractJobIds(allPodsEligibleForRenewal)
 		fmt.Printf("Renewing lease for %s \n", strings.Join(jobIds, ","))
 
+		//TODO Add back in when API side is ready
 		//ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 		//defer cancel()
 		//_, err := jobLeaseService.QueueClient.RenewLease(ctx, &api.IdList{Ids: jobIds})
@@ -88,6 +89,7 @@ func extractJobIds(pods []*v1.Pod) []string {
 }
 
 func (jobLeaseService JobLeaseService) requestJobs(availableResource common.ComputeResources) []*api.Job {
+	//TODO Add back in when API side is ready
 	//leaseRequest := api.LeaseRequest{
 	//	ClusterID: jobLeaseService.ClusterId,
 	//	Resources: availableResource,
