@@ -1,0 +1,61 @@
+syntax = 'proto3';
+
+package api;
+
+import "google/protobuf/timestamp.proto";
+
+message JobCreated {
+    string Id = 1;
+    string JobSetId = 2;
+    string Queue = 3;
+    JobStatus JobStatus = 4;
+    google.protobuf.Timestamp Created = 5;
+
+}
+
+message JobLeasedEvent {
+    string Id = 1;
+    string JobSetId = 2;
+    string Queue = 3;
+    JobStatus JobStatus = 4;
+    google.protobuf.Timestamp Created = 5;
+}
+
+message JobProcessingEvent {
+    string Id = 1;
+    string JobSetId = 2;
+    string Queue = 3;
+    JobStatus JobStatus = 4;
+    google.protobuf.Timestamp Created = 5;
+}
+
+message JobFinishedEvent {
+    string Id = 1;
+    string JobSetId = 2;
+    string Queue = 3;
+    JobStatus JobStatus = 4;
+    google.protobuf.Timestamp Created = 5;
+}
+
+message JobCancellingEvent {
+    string Id = 1;
+    string JobSetId = 2;
+    string Queue = 3;
+    JobStatus JobStatus = 4;
+    google.protobuf.Timestamp Created = 5;
+}
+
+enum JobStatus {
+    Queued     = 0; // queued outside cluster
+    Submitting = 1; // send to the cluster, no confirmation available yet
+    Pending    = 2; // aknowledged by the cluster, not started yet
+    Running    = 3;
+    Succeeded  = 4; // job finished with exit code 0
+    Failed     = 5; // failed to start or finished with non zero exit code
+    Cancelling = 6; // Cancellation of job was requested
+    Cancelled  = 7;
+}
+
+service Event {
+    
+}
