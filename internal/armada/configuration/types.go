@@ -8,5 +8,5 @@ type ArmadaConfig struct {
 type RedisConfig struct {
 	Addr     string
 	Password string
-	DB       int
+	Db       int
 }

@@ -45,7 +45,7 @@ func withRunningServer(action func (client api.SubmitClient, ctx context.Context
 		GrpcPort:":50051",
 		Redis: configuration.RedisConfig{
 			Addr: redis.Addr(),
-			DB:   0,
+			Db:   0,
 		},
 	})
 	defer server.Stop()
