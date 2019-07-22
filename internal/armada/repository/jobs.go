@@ -5,10 +5,8 @@ import (
 	"github.com/G-Research/k8s-batch/internal/armada/api"
 	"github.com/go-redis/redis"
 	"github.com/gogo/protobuf/proto"
-	"github.com/gogo/protobuf/types"
 	"github.com/kjk/betterguid"
 	"time"
-
 	//"github.com/golang/protobuf/ptypes/timestamp"
 )
 
@@ -47,7 +45,7 @@ func (repo RedisJobRepository) AddJob(request *api.JobRequest) (string, error) {
 }
 
 func (repo RedisJobRepository) PeekQueue(queue string, limit int64) ([]*api.Job, error) {
-	ids, e := repo.Db.ZRange(queuePrefix+queue, 0, limit -1).Result()
+	ids, e := repo.Db.ZRange(queuePrefix+queue, 0, limit-1).Result()
 	if e != nil {
 		return nil, e
 	}
@@ -69,7 +67,7 @@ func (repo RedisJobRepository) GetJobsByIds(ids []string) ([]*api.Job, error) {
 	for _, cmd := range cmds {
 		d, _ := cmd.Bytes()
 		job := &api.Job{}
-		e = proto.Unmarshal(d,job)
+		e = proto.Unmarshal(d, job)
 		if e != nil {
 			return nil, e
 		}
@@ -79,7 +77,6 @@ func (repo RedisJobRepository) GetJobsByIds(ids []string) ([]*api.Job, error) {
 }
 
 func createJob(jobRequest *api.JobRequest) *api.Job {
-	now := time.Now()
 	j := api.Job{
 		Id:       betterguid.New(),
 		Queue:    jobRequest.Queue,
@@ -87,8 +84,8 @@ func createJob(jobRequest *api.JobRequest) *api.Job {
 
 		Priority: jobRequest.Priority,
 
-		PodSpec:  jobRequest.PodSpec,
-		Created: &types.Timestamp{ Seconds:now.Unix(), Nanos: int32(now.Nanosecond())},
+		PodSpec: jobRequest.PodSpec,
+		Created: time.Now(),
 	}
 	return &j
 }
