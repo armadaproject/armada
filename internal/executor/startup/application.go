@@ -78,19 +78,17 @@ func StartUp(config configuration.Configuration) (*sync.WaitGroup, chan os.Signa
 	tasks = append(tasks, scheduleBackgroundTask(jobLeaseService.RenewJobLeases, config.Task.JobLeaseRenewalInterval, wg))
 	tasks = append(tasks, scheduleBackgroundTask(podCleanupService.ReportForgottenCompletedPods, config.Task.ForgottenCompletedPodReportingInterval, wg))
 	tasks = append(tasks, scheduleBackgroundTask(podCleanupService.DeletePodsReadyForCleanup, config.Task.PodDeletionInterval, wg))
-	defer stopTasks(tasks)
 
 	shutdown := make(chan os.Signal, 1)
 
 	go func() {
 		shutdownSignal := <-shutdown
 		fmt.Printf("Caught shutdown signal: %+v \n", shutdownSignal)
-
+		stopTasks(tasks)
 		close(informerStopper)
 		conn.Close()
-
-		fmt.Println("Shutdown complete")
 		wg.Done()
+		fmt.Println("Shutdown complete")
 		if waitForShutdownCompletion(wg, 2*time.Second) {
 			fmt.Println("Graceful shutdown timed out")
 		}
