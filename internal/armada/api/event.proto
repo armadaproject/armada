@@ -1,0 +1,103 @@
+syntax = 'proto3';
+
+package api;
+
+import "google/protobuf/timestamp.proto";
+import "internal/armada/api/queue.proto";
+import "google/protobuf/empty.proto";
+import "github.com/gogo/protobuf/gogoproto/gogo.proto";
+
+message JobQueuedEvent {
+    string JobId = 1;
+    string JobSetId = 2;
+    string Queue = 3;
+    google.protobuf.Timestamp Created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+    Job Job = 5 [(gogoproto.nullable) = false];
+}
+
+message JobLeasedEvent {
+    string JobId = 1;
+    string JobSetId = 2;
+    string Queue = 3;
+    google.protobuf.Timestamp Created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+}
+
+message JobLeaseExpired {
+    string JobId = 1;
+    string JobSetId = 2;
+    string Queue = 3;
+    google.protobuf.Timestamp Created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+}
+
+message JobPendingEvent {
+    string JobId = 1;
+    string JobSetId = 2;
+    string Queue = 3;
+    google.protobuf.Timestamp Created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+}
+
+message JobRunningEvent {
+    string JobId = 1;
+    string JobSetId = 2;
+    string Queue = 3;
+    google.protobuf.Timestamp Created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+}
+
+message JobFailedEvent {
+    string JobId = 1;
+    string JobSetId = 2;
+    string Queue = 3;
+    google.protobuf.Timestamp Created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+}
+
+message JobSucceededEvent {
+    string JobId = 1;
+    string JobSetId = 2;
+    string Queue = 3;
+    google.protobuf.Timestamp Created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+}
+
+message JobReprioritizedEvent {
+    string JobId = 1;
+    string JobSetId = 2;
+    string Queue = 3;
+    google.protobuf.Timestamp Created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+}
+
+message JobCancellingEvent {
+    string JobId = 1;
+    string JobSetId = 2;
+    string Queue = 3;
+    google.protobuf.Timestamp Created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+}
+
+message JobCancelledEvent {
+    string JobId = 1;
+    string JobSetId = 2;
+    string Queue = 3;
+    google.protobuf.Timestamp Created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+}
+
+message EventMessage {
+    oneof events {
+        JobQueuedEvent queued = 1;
+        JobLeasedEvent leased = 2;
+        JobLeaseExpired leaseExpired = 3;
+        JobPendingEvent pending = 4;
+        JobRunningEvent running = 5;
+        JobFailedEvent failed = 6;
+        JobSucceededEvent succeeded = 7;
+        JobReprioritizedEvent reprioritized = 8;
+        JobCancellingEvent cancelling = 9;
+        JobCancelledEvent cancelled = 10;
+    }
+}
+
+message JobSetRequest {
+    string Id = 1;
+}
+
+service Event {
+    rpc Report (EventMessage) returns (google.protobuf.Empty);
+    rpc GetJobSetEvents (JobSetRequest) returns (stream EventMessage);
+}
