@@ -14,7 +14,7 @@ message QueueReport {
 
 message ClusterUsageReport {
     string ClusterId = 1;
-    google.protobuf.Timestamp ReportTime = 2;
+    google.protobuf.Timestamp ReportTime = 2 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
     repeated QueueReport Queues = 3;
     map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> ClusterCapacity = 4 [(gogoproto.nullable) = false];
 }
