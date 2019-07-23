@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"fmt"
 	"github.com/G-Research/k8s-batch/internal/armada/api"
 	"github.com/G-Research/k8s-batch/internal/common"
@@ -10,6 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	listers "k8s.io/client-go/listers/core/v1"
 	"strings"
+	"time"
 )
 
 type JobLeaseService struct {
@@ -42,11 +44,15 @@ func (jobLeaseService JobLeaseService) RequestJobLeasesAndFillSpareClusterCapaci
 	availableResource := totalNodeResource.DeepCopy()
 	availableResource.Sub(totalPodResource)
 
-	newJobs := jobLeaseService.requestJobs(availableResource)
-	for _, job := range newJobs {
-		_, err = jobLeaseService.JobSubmitter.SubmitJob(job)
-		if err != nil {
-			fmt.Printf("Failed to submit job %s", job.Id)
+	newJobs, err := jobLeaseService.requestJobs(availableResource)
+	if err != nil {
+		fmt.Printf("Failed to lease new jobs because %s \n", err)
+	} else {
+		for _, job := range newJobs {
+			_, err = jobLeaseService.JobSubmitter.SubmitJob(job)
+			if err != nil {
+				fmt.Printf("Failed to submit job %s because %s \n", job.Id, err)
+			}
 		}
 	}
 }
@@ -65,34 +71,30 @@ func (jobLeaseService JobLeaseService) RenewJobLeases() {
 		jobIds := util.ExtractJobIds(allPodsEligibleForRenewal)
 		fmt.Printf("Renewing lease for %s \n", strings.Join(jobIds, ","))
 
-		//TODO Add back in when API side is ready
-		//ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-		//defer cancel()
-		//_, err := jobLeaseService.QueueClient.RenewLease(ctx, &api.IdList{Ids: jobIds})
-		//
-		//if err != nil {
-		//	fmt.Printf("Failed to new lease for jobs because %s", err)
-		//}
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		_, err := jobLeaseService.QueueClient.RenewLease(ctx, &api.IdList{Ids: jobIds})
+
+		if err != nil {
+			fmt.Printf("Failed to renew lease for jobs because %s \n", err)
+		}
 	}
 }
 
-func (jobLeaseService JobLeaseService) requestJobs(availableResource common.ComputeResources) []*api.Job {
-	//TODO Add back in when API side is ready
-	//leaseRequest := api.LeaseRequest{
-	//	ClusterID: jobLeaseService.ClusterId,
-	//	Resources: availableResource,
-	//}
-	//ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	//defer cancel()
-	//response, err := jobLeaseService.QueueClient.LeaseJobs(ctx, &leaseRequest)
-	//
-	//if err != nil {
-	//	fmt.Printf("Failed to lease jobs because %s", err)
-	//}
-	//
-	//return response.Job
+func (jobLeaseService JobLeaseService) requestJobs(availableResource common.ComputeResources) ([]*api.Job, error) {
+	leaseRequest := api.LeaseRequest{
+		ClusterID: jobLeaseService.ClusterId,
+		Resources: availableResource,
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	response, err := jobLeaseService.QueueClient.LeaseJobs(ctx, &leaseRequest)
 
-	return make([]*api.Job, 0)
+	if err != nil {
+		return make([]*api.Job, 0), err
+	}
+
+	return response.Job, nil
 }
 
 func getAllAvailableProcessingNodes(nodes []*v1.Node) []*v1.Node {
