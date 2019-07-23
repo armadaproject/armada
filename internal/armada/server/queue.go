@@ -14,6 +14,7 @@ type AggregatedQueueServer struct {
 
 func (AggregatedQueueServer) LeaseJobs(context.Context, *api.LeaseRequest) (*api.JobLease, error) {
 
+	panic("implement me")
 
 
 	
