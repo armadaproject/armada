@@ -6,10 +6,10 @@ import (
 	"github.com/G-Research/k8s-batch/internal/common"
 	"github.com/G-Research/k8s-batch/internal/executor/domain"
 	"github.com/G-Research/k8s-batch/internal/executor/util"
-	"github.com/gogo/protobuf/types"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	lister "k8s.io/client-go/listers/core/v1"
+	"time"
 )
 
 type ClusterUtilisationService struct {
@@ -33,7 +33,7 @@ func (clusterUtilisationService ClusterUtilisationService) ReportClusterUtilisat
 
 	clusterUsage := api.ClusterUsageReport{
 		ClusterId:       clusterUtilisationService.ClientId,
-		ReportTime:      types.TimestampNow(),
+		ReportTime:      time.Now(),
 		Queues:          queueReports,
 		ClusterCapacity: totalNodeResource,
 	}
