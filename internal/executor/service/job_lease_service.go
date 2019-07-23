@@ -167,3 +167,15 @@ func calculateTotalResourceLimit(pods []*v1.Pod) common.ComputeResources {
 	}
 	return totalResources
 }
+
+func filterCompletedPods(pods []*v1.Pod) []*v1.Pod {
+	completedPods := make([]*v1.Pod, 0, len(pods))
+
+	for _, pod := range pods {
+		if util.IsInTerminalState(pod) {
+			completedPods = append(completedPods, pod)
+		}
+	}
+
+	return completedPods
+}
