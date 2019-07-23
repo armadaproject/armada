@@ -15,7 +15,19 @@ type TaskConfiguration struct {
 	RequestNewJobsInterval                 time.Duration
 }
 
+type ArmadaConfiguration struct {
+	Url string
+}
+
+type EventsConfiguration struct {
+	Url                     string
+	EventReportingInterval  time.Duration
+	EventReportingBatchSize int
+}
+
 type Configuration struct {
 	Application ApplicationConfiguration
 	Task        TaskConfiguration
+	Armada      ArmadaConfiguration
+	Events      EventsConfiguration
 }
