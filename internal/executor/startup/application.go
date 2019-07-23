@@ -32,14 +32,12 @@ func StartUp(config configuration.Configuration) (*sync.WaitGroup, chan os.Signa
 
 	queueClient := api.NewAggregatedQueueClient(conn)
 	usageClient := api.NewUsageClient(conn)
+	eventClient := api.NewEventClient(conn)
 
-	//TODO Decide how to gracefully stop event reporter
-	var eventReporter reporter.EventReporter = reporter.New(
-		kubernetesClient,
-		queueClient,
-		config.Events.EventReportingInterval,
-		config.Events.EventReportingBatchSize,
-	)
+	var eventReporter reporter.EventReporter = reporter.JobEventReporter{
+		KubernetesClient: kubernetesClient,
+		EventClient:      eventClient,
+	}
 
 	factory := informers.NewSharedInformerFactoryWithOptions(kubernetesClient, 0)
 	podInformer := factory.Core().V1().Pods()
@@ -55,6 +53,11 @@ func StartUp(config configuration.Configuration) (*sync.WaitGroup, chan os.Signa
 		JobSubmitter: jobSubmitter,
 		QueueClient:  queueClient,
 		ClusterId:    config.Application.ClusterId,
+	}
+
+	eventReconciliationService := service.JobEventReconciliationService{
+		PodLister:     podInformer.Lister(),
+		EventReporter: eventReporter,
 	}
 
 	clusterUtilisationService := service.ClusterUtilisationService{
@@ -76,7 +79,7 @@ func StartUp(config configuration.Configuration) (*sync.WaitGroup, chan os.Signa
 	tasks = append(tasks, scheduleBackgroundTask(clusterUtilisationService.ReportClusterUtilisation, config.Task.UtilisationReportingInterval, wg))
 	tasks = append(tasks, scheduleBackgroundTask(jobLeaseService.RequestJobLeasesAndFillSpareClusterCapacity, config.Task.RequestNewJobsInterval, wg))
 	tasks = append(tasks, scheduleBackgroundTask(jobLeaseService.RenewJobLeases, config.Task.JobLeaseRenewalInterval, wg))
-	tasks = append(tasks, scheduleBackgroundTask(podCleanupService.ReportForgottenCompletedPods, config.Task.ForgottenCompletedPodReportingInterval, wg))
+	tasks = append(tasks, scheduleBackgroundTask(eventReconciliationService.ReconcileMissingJobEvents, config.Task.MissingJobEventReconciliationInterval, wg))
 	tasks = append(tasks, scheduleBackgroundTask(podCleanupService.DeletePodsReadyForCleanup, config.Task.PodDeletionInterval, wg))
 
 	shutdown := make(chan os.Signal, 1)
@@ -144,7 +147,7 @@ func addPodEventHandler(podInformer informer.PodInformer, eventReporter reporter
 				//TODO Log
 				return
 			}
-			eventReporter.ReportAddEvent(pod)
+			go eventReporter.ReportEvent(pod)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			oldPod, ok := oldObj.(*v1.Pod)
@@ -157,7 +160,7 @@ func addPodEventHandler(podInformer informer.PodInformer, eventReporter reporter
 				//TODO Log
 				return
 			}
-			eventReporter.ReportUpdateEvent(oldPod, newPod)
+			go eventReporter.ReportUpdateEvent(oldPod, newPod)
 		},
 	})
 }

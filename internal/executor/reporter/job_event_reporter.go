@@ -2,6 +2,7 @@ package reporter
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/G-Research/k8s-batch/internal/armada/api"
 	"github.com/G-Research/k8s-batch/internal/executor/domain"
@@ -10,130 +11,156 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
-	"strconv"
-	"sync"
 	"time"
 )
 
 type EventReporter interface {
-	ReportAddEvent(pod *v1.Pod)
+	ReportEvent(pod *v1.Pod)
 	ReportUpdateEvent(old *v1.Pod, new *v1.Pod)
-	ReportCompletedEvent(pod *v1.Pod)
 }
 
 type JobEventReporter struct {
-	kubernetesClient kubernetes.Interface
-	podEvents        []*v1.Pod
-	mux              sync.Mutex
-	queueClient      api.AggregatedQueueClient
+	KubernetesClient kubernetes.Interface
+	EventClient      api.EventClient
 }
 
-func New(kubernetesClient kubernetes.Interface, queueClient api.AggregatedQueueClient, reportingInterval time.Duration, reportingBatchSize int) *JobEventReporter {
-	reporter := JobEventReporter{
-		kubernetesClient: kubernetesClient,
-		podEvents:        make([]*v1.Pod, 0, 100),
-		queueClient:      queueClient,
-	}
-
-	go func() {
-		for {
-			reporter.processEvents(reportingBatchSize)
-			time.Sleep(reportingInterval)
-		}
-	}()
-
-	return &reporter
+func (eventReporter JobEventReporter) ReportEvent(pod *v1.Pod) {
+	eventReporter.report(pod)
 }
 
-func (jobEventReporter *JobEventReporter) processEvents(reportingBatchSize int) {
-	numberOfEventsLeftToProcess := jobEventReporter.queueLength()
-
-	for numberOfEventsLeftToProcess > 0 {
-		currentEventBatchSize := util.Min(reportingBatchSize, numberOfEventsLeftToProcess)
-
-		events := jobEventReporter.peekQueue(currentEventBatchSize)
-
-		//TODO perform API calls here and retrying etc
-		for _, pod := range events {
-			jobStatus, err := util.ExtractJobStatus(pod)
-			if err != nil {
-				fmt.Printf("Error reporting job pod for %s because: %s \n", pod.Name, err)
-			}
-
-			fmt.Printf("Reporting pod for %s with status %d \n", pod.Name, jobStatus)
-
-			if util.IsInTerminalState(pod) {
-				labels := util.DeepCopy(pod.Labels)
-				labels[domain.ReadyForCleanup] = strconv.FormatBool(true)
-
-				patch := domain.Patch{
-					MetaData: metav1.ObjectMeta{
-						Labels: labels,
-					},
-				}
-
-				patchBytes, err := json.Marshal(patch)
-				if err != nil {
-					fmt.Printf("Failure marshalling patch for pod %s because: %s \n", pod.Name, err)
-				}
-				_, err = jobEventReporter.kubernetesClient.CoreV1().Pods(pod.Namespace).Patch(pod.Name, types.StrategicMergePatchType, patchBytes)
-				if err != nil {
-					fmt.Printf("Error updating label for pod for %s because: %s \n", pod.Name, err)
-				}
-			}
-		}
-
-		jobEventReporter.dequeueEvents(currentEventBatchSize)
-		numberOfEventsLeftToProcess -= currentEventBatchSize
-	}
-}
-
-func (jobEventReporter *JobEventReporter) ReportAddEvent(pod *v1.Pod) {
-	jobEventReporter.queueEvent(pod)
-}
-
-func (jobEventReporter *JobEventReporter) ReportUpdateEvent(old *v1.Pod, new *v1.Pod) {
+func (eventReporter JobEventReporter) ReportUpdateEvent(old *v1.Pod, new *v1.Pod) {
 	if old.Status.Phase == new.Status.Phase {
 		fmt.Printf("Skipping update on pod %s, as update didn't change the pods current phase \n", new.Name)
 		return
 	}
-	jobEventReporter.queueEvent(new)
+	eventReporter.report(new)
 }
 
-func (jobEventReporter *JobEventReporter) ReportCompletedEvent(pod *v1.Pod) {
-	jobEventReporter.queueEvent(pod)
-}
-
-func (jobEventReporter *JobEventReporter) queueEvent(pod *v1.Pod) {
+func (eventReporter JobEventReporter) report(pod *v1.Pod) {
 	if !util.IsManagedPod(pod) {
 		return
 	}
 
-	jobEventReporter.mux.Lock()
+	event, err := createJobEventMessage(pod)
+	if err != nil {
+		fmt.Printf("Failed to report event because %s \n", err)
+	}
 
-	jobEventReporter.podEvents = append(jobEventReporter.podEvents, pod.DeepCopy())
+	//ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	//defer cancel()
+	//_, err = eventReporter.EventClient.Report(ctx, event)
+	//
+	//if err != nil {
+	//	fmt.Printf("Failed to report event because %s \n", err)
+	//}
+	fmt.Printf("Reporting event %s \n", event.String())
 
-	jobEventReporter.mux.Unlock()
-
-	fmt.Printf("Queueing event for pod %s \n", pod.Name)
+	eventReporter.addStateChangeAnnotation(pod)
 }
 
-func (jobEventReporter *JobEventReporter) dequeueEvents(numberOfEvents int) {
-	jobEventReporter.mux.Lock()
+func createJobEventMessage(pod *v1.Pod) (*api.EventMessage, error) {
+	phase := pod.Status.Phase
 
-	jobEventReporter.podEvents = jobEventReporter.podEvents[numberOfEvents:]
+	switch phase {
+	case v1.PodPending:
+		pending := api.JobPendingEvent{
+			JobId:    pod.Labels[domain.JobId],
+			JobSetId: pod.Labels[domain.JobSetId],
+			Queue:    pod.Labels[domain.Queue],
+			Created:  time.Now(),
+		}
 
-	jobEventReporter.mux.Unlock()
+		pendingMessage := api.EventMessage_Pending{
+			Pending: &pending,
+		}
+
+		message := api.EventMessage{
+			Events: &pendingMessage,
+		}
+
+		return &message, nil
+
+	case v1.PodRunning:
+		running := api.JobRunningEvent{
+			JobId:    pod.Labels[domain.JobId],
+			JobSetId: pod.Labels[domain.JobSetId],
+			Queue:    pod.Labels[domain.Queue],
+			Created:  time.Now(),
+		}
+
+		runningMessage := api.EventMessage_Running{
+			Running: &running,
+		}
+
+		message := api.EventMessage{
+			Events: &runningMessage,
+		}
+
+		return &message, nil
+
+	case v1.PodFailed:
+		failed := api.JobFailedEvent{
+			JobId:    pod.Labels[domain.JobId],
+			JobSetId: pod.Labels[domain.JobSetId],
+			Queue:    pod.Labels[domain.Queue],
+			Created:  time.Now(),
+		}
+
+		failedMessage := api.EventMessage_Failed{
+			Failed: &failed,
+		}
+
+		message := api.EventMessage{
+			Events: &failedMessage,
+		}
+
+		return &message, nil
+
+	case v1.PodSucceeded:
+		succeeded := api.JobSucceededEvent{
+			JobId:    pod.Labels[domain.JobId],
+			JobSetId: pod.Labels[domain.JobSetId],
+			Queue:    pod.Labels[domain.Queue],
+			Created:  time.Now(),
+		}
+
+		succeededMessage := api.EventMessage_Succeeded{
+			Succeeded: &succeeded,
+		}
+
+		message := api.EventMessage{
+			Events: &succeededMessage,
+		}
+
+		return &message, nil
+
+	default:
+		return new(api.EventMessage), errors.New(fmt.Sprintf("Could not determine job status from pod in phase %s", phase))
+	}
 }
 
-func (jobEventReporter *JobEventReporter) queueLength() int {
-	jobEventReporter.mux.Lock()
-	defer jobEventReporter.mux.Unlock()
+func (eventReporter JobEventReporter) addStateChangeAnnotation(pod *v1.Pod) {
+	annotations := make(map[string]string)
+	annotationName := string(pod.Status.Phase)
 
-	return len(jobEventReporter.podEvents)
+	annotations[annotationName] = time.Now().String()
+
+	patch := domain.Patch{
+		MetaData: metav1.ObjectMeta{
+			Annotations: annotations,
+		},
+	}
+
+	eventReporter.patchPod(pod, &patch)
 }
 
-//This can only be accessed by the internal go routine, so therefore doesn't need locking
-func (jobEventReporter *JobEventReporter) peekQueue(numberOfEvents int) []*v1.Pod {
-	return jobEventReporter.podEvents[:numberOfEvents]
+func (eventReporter JobEventReporter) patchPod(pod *v1.Pod, patch *domain.Patch) {
+	patchBytes, err := json.Marshal(patch)
+	if err != nil {
+		fmt.Printf("Failure marshalling patch for pod %s because: %s \n", pod.Name, err)
+	}
+	_, err = eventReporter.KubernetesClient.CoreV1().Pods(pod.Namespace).Patch(pod.Name, types.StrategicMergePatchType, patchBytes)
+	if err != nil {
+		fmt.Printf("Error updating pod with %s for %s because: %s \n", patchBytes, pod.Name, err)
+	}
 }
