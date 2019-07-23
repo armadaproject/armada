@@ -1,5 +1,5 @@
 
-package service
+package server
 
 import (
 	"context"
@@ -14,35 +14,38 @@ import (
 )
 
 type UsageServer struct {
-	priorityHalfTime time.Duration
-	usageRepository  repository.UsageRepository
+	PriorityHalfTime time.Duration
+	UsageRepository  repository.UsageRepository
 }
 
 func (s UsageServer) ReportUsage(ctx context.Context, report *api.ClusterUsageReport) (*types.Empty, error) {
 
-	err := s.usageRepository.UpdateClusterResource(report.ClusterId, report.ClusterCapacity)
-	if err != nil {
-		return nil, err
-	}
-	availableResources, err := s.usageRepository.GetAvailableResources()
-	if err != nil {
-		return nil, err
-	}
-	previousPriority, previousTime, err := s.usageRepository.GetClusterPriority(report.ClusterId)
+	reports, err := s.UsageRepository.GetClusterUsageReports()
 	if err != nil {
 		return nil, err
 	}
 
-	timeChange := difference(previousTime, report.ReportTime)
+	previousPriority, err := s.UsageRepository.GetClusterPriority(report.ClusterId)
+	if err != nil {
+		return nil, err
+	}
+
+	previousReport := reports[report.ClusterId]
+	timeChange := time.Minute
+	if previousReport != nil {
+		timeChange = report.ReportTime.Sub(previousReport.ReportTime)
+	}
+
+	reports[report.ClusterId] = report
+	availableResources := sumResources(reports)
 	resourceScarcity := calculateResourceScarcity(availableResources)
 	usage := calculateUsage(resourceScarcity, report.Queues)
-	newPriority := calculatePriority(usage, previousPriority, timeChange, s.priorityHalfTime)
+	newPriority := calculatePriority(usage, previousPriority, timeChange, s.PriorityHalfTime)
 
-	err = s.usageRepository.UpdateClusterPriority(report.ClusterId, newPriority, report.ReportTime)
+	err = s.UsageRepository.UpdateCluster(report, newPriority)
 	if err != nil {
 		return nil, err
 	}
-
 	return nil, nil
 }
 
@@ -97,11 +100,12 @@ func calculateResourceScarcity(res common.ComputeResources) map[string]float64 {
 	return importance
 }
 
-func difference(from *types.Timestamp, to*types.Timestamp) time.Duration{
-	fromTime, _ := types.TimestampFromProto(from)
-	toTime, _ := types.TimestampFromProto(to)
-
-	return toTime.Sub(fromTime)
+func sumResources(reports map[string]*api.ClusterUsageReport) common.ComputeResources {
+	result := common.ComputeResources{}
+	for _, report := range reports {
+		result.Add(report.ClusterCapacity)
+	}
+	return result
 }
 
 func getOrDefault(m map[string]float64, key string, def float64) float64 {

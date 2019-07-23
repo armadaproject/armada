@@ -9,10 +9,16 @@ import (
 
 type AggregatedQueueServer struct {
 	JobRepository repository.JobRepository
+	UsageRepository repository.UsageRepository
 }
 
 func (AggregatedQueueServer) LeaseJobs(context.Context, *api.LeaseRequest) (*api.JobLease, error) {
-	panic("implement me")
+
+
+
+	
+
+
 }
 
 func (AggregatedQueueServer) RenewLease(context.Context, *api.IdList) (*types.Empty, error) {

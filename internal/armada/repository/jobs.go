@@ -10,8 +10,9 @@ import (
 	//"github.com/golang/protobuf/ptypes/timestamp"
 )
 
-const jobObjectPrefix = "job:"
+const jobObjectPrefix = "Job:"
 const jobQueuePrefix = "Job:Queue:"
+
 
 type JobRepository interface {
 	AddJob(request *api.JobRequest) (string, error)
@@ -45,7 +46,7 @@ func (repo RedisJobRepository) AddJob(request *api.JobRequest) (string, error) {
 }
 
 func (repo RedisJobRepository) PeekQueue(queue string, limit int64) ([]*api.Job, error) {
-	ids, e := repo.Db.ZRange(queuePrefix+queue, 0, limit-1).Result()
+	ids, e := repo.Db.ZRange(jobQueuePrefix+queue, 0, limit-1).Result()
 	if e != nil {
 		return nil, e
 	}
