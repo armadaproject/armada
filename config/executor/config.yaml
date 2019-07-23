@@ -2,8 +2,14 @@ application:
   clusterId : "Cluster1"
   inClusterDeployment: false
 task:
-  utilisationReportingInterval: 30s
-  forgottenCompletedPodReportingInterval: 30s
+  utilisationReportingInterval: 10s
+  forgottenCompletedPodReportingInterval: 10s
   jobLeaseRenewalInterval: 10s
-  podDeletionInterval: 60s
+  podDeletionInterval: 10s
   requestNewJobsInterval: 10s
+armada:
+  url : "localhost:50051"
+events:
+  url : "localhost:50051"
+  eventReportingInterval : 5s
+  eventReportingBatchSize : 100

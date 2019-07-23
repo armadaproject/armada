@@ -1,8 +1,8 @@
 package submitter
 
 import (
+	"github.com/G-Research/k8s-batch/internal/armada/api"
 	"github.com/G-Research/k8s-batch/internal/executor/domain"
-	"github.com/G-Research/k8s-batch/internal/model"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -10,7 +10,7 @@ import (
 )
 
 func TestCreateLabels_CreatesExpectedLabels(t *testing.T) {
-	job := model.Job{
+	job := api.Job{
 		Id:       "Id",
 		JobSetId: "JobSetId",
 		Queue:    "Queue1",
@@ -29,7 +29,7 @@ func TestCreateLabels_CreatesExpectedLabels(t *testing.T) {
 }
 
 func TestCreatePod_CreatesExpectedPod(t *testing.T) {
-	job := model.Job{
+	job := api.Job{
 		Id:       "Id",
 		JobSetId: "JobSetId",
 		Queue:    "Queue1",
