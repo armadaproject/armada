@@ -15,7 +15,7 @@ type JobEventReconciliationService struct {
 }
 
 func (reconciliationService JobEventReconciliationService) ReconcileMissingJobEvents() {
-	selector, err := util.CreateLabelSelectorForManagedPods(false)
+	selector, err := util.CreateLabelSelectorForManagedPods()
 	if err != nil {
 		return
 		//TODO Handle error case

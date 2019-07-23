@@ -58,7 +58,7 @@ func (jobLeaseService JobLeaseService) RequestJobLeasesAndFillSpareClusterCapaci
 }
 
 func (jobLeaseService JobLeaseService) RenewJobLeases() {
-	runningPodsSelector, err := util.CreateLabelSelectorForManagedPods(false)
+	runningPodsSelector, err := util.CreateLabelSelectorForManagedPods()
 	if err != nil {
 		//TODO Handle error case
 	}

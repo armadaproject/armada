@@ -30,7 +30,7 @@ func (cleanupService PodCleanupService) DeletePodsReadyForCleanup() {
 }
 
 func (cleanupService PodCleanupService) getAllPodsToBeDeleted() []*v1.Pod {
-	selector, err := util.CreateLabelSelectorForManagedPods(false)
+	selector, err := util.CreateLabelSelectorForManagedPods()
 	if err != nil {
 		fmt.Println(err)
 		return []*v1.Pod{}
