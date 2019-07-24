@@ -1,4 +1,3 @@
-
 package server
 
 import (
@@ -46,17 +45,17 @@ func (s UsageServer) ReportUsage(ctx context.Context, report *api.ClusterUsageRe
 	if err != nil {
 		return nil, err
 	}
-	return nil, nil
+	return &types.Empty{}, nil
 }
 
 func calculatePriority(usage map[string]float64, previousPriority map[string]float64, timeChange time.Duration, halfTime time.Duration) map[string]float64 {
 
 	newPriority := map[string]float64{}
-	timeChangeFactor := math.Pow(0.5, timeChange.Seconds() / halfTime.Seconds())
+	timeChangeFactor := math.Pow(0.5, timeChange.Seconds()/halfTime.Seconds())
 
 	for queue, oldPriority := range previousPriority {
-		newPriority[queue] = timeChangeFactor * getOrDefault(usage, queue,0) +
-							(1 - timeChangeFactor) * oldPriority
+		newPriority[queue] = timeChangeFactor*getOrDefault(usage, queue, 0) +
+			(1-timeChangeFactor)*oldPriority
 	}
 	for queue, usage := range usage {
 		_, exists := newPriority[queue]
@@ -89,7 +88,7 @@ func calculateResourceScarcity(res common.ComputeResources) map[string]float64 {
 	cpu := asFloat64(res["cpu"])
 
 	for k, v := range res {
-		if k == "cpu"{
+		if k == "cpu" {
 			continue
 		}
 		q := asFloat64(v)
@@ -117,7 +116,7 @@ func getOrDefault(m map[string]float64, key string, def float64) float64 {
 }
 
 func asFloat64(q resource.Quantity) float64 {
-	dec:= q.AsDec()
+	dec := q.AsDec()
 	unscaled := dec.UnscaledBig()
 	scale := dec.Scale()
 	unscaledFloat, _ := new(big.Float).SetInt(unscaled).Float64()

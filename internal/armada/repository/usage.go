@@ -8,7 +8,7 @@ import (
 )
 
 type Usage struct {
-	PriorityPerQueue map[string]float64
+	PriorityPerQueue     map[string]float64
 	CurrentUsagePerQueue map[string]float64
 }
 
@@ -16,7 +16,6 @@ const clusterReportKey = "Cluster:Report"
 const clusterPrioritiesPrefix = "Cluster:Priority:"
 
 type UsageRepository interface {
-
 	GetClusterUsageReports() (map[string]*api.ClusterUsageReport, error)
 	GetClusterPriority(clusterId string) (map[string]float64, error)
 
@@ -26,7 +25,6 @@ type UsageRepository interface {
 type RedisUsageRepository struct {
 	Db *redis.Client
 }
-
 
 func (r RedisUsageRepository) GetClusterUsageReports() (map[string]*api.ClusterUsageReport, error) {
 	result, err := r.Db.HGetAll(clusterReportKey).Result()
@@ -38,7 +36,7 @@ func (r RedisUsageRepository) GetClusterUsageReports() (map[string]*api.ClusterU
 	for k, v := range result {
 		report := &api.ClusterUsageReport{}
 		e := proto.Unmarshal([]byte(v), report)
-		if e!= nil {
+		if e != nil {
 			return nil, e
 		}
 		reports[k] = report
@@ -47,7 +45,7 @@ func (r RedisUsageRepository) GetClusterUsageReports() (map[string]*api.ClusterU
 }
 
 func (r RedisUsageRepository) GetClusterPriority(clusterId string) (map[string]float64, error) {
-	result, err := r.Db.HGetAll(clusterPrioritiesPrefix+clusterId).Result()
+	result, err := r.Db.HGetAll(clusterPrioritiesPrefix + clusterId).Result()
 	if err != nil {
 		return nil, err
 	}
@@ -68,7 +66,9 @@ func (r RedisUsageRepository) UpdateCluster(report *api.ClusterUsageReport, prio
 	for k, v := range priorities {
 		untyped[k] = v
 	}
-	pipe.HMSet(clusterPrioritiesPrefix+report.ClusterId, untyped)
+	if len(priorities) > 0 {
+		pipe.HMSet(clusterPrioritiesPrefix+report.ClusterId, untyped)
+	}
 
 	_, err := pipe.Exec()
 	return err
@@ -78,7 +78,7 @@ func toFloat64Map(result map[string]string) (map[string]float64, error) {
 	reports := make(map[string]float64)
 	for k, v := range result {
 		priority, e := strconv.ParseFloat(v, 64)
-		if e!= nil {
+		if e != nil {
 			return nil, e
 		}
 		reports[k] = priority
