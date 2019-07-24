@@ -1,4 +1,4 @@
-package service
+package server
 
 import (
 	"context"
@@ -10,9 +10,11 @@ import (
 
 type AggregatedQueueServer struct {
 	JobRepository repository.JobRepository
+	UsageRepository repository.UsageRepository
 }
 
 func (AggregatedQueueServer) LeaseJobs(context.Context, *api.LeaseRequest) (*api.JobLease, error) {
+
 	//TODO Implement me
 	fmt.Println("Lease jobs called")
 	jobLease := api.JobLease{
