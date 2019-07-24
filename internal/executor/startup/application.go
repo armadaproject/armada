@@ -32,14 +32,12 @@ func StartUp(config configuration.Configuration) (*sync.WaitGroup, chan os.Signa
 
 	queueClient := api.NewAggregatedQueueClient(conn)
 	usageClient := api.NewUsageClient(conn)
+	eventClient := api.NewEventClient(conn)
 
-	//TODO Decide how to gracefully stop event reporter
-	var eventReporter reporter.EventReporter = reporter.New(
-		kubernetesClient,
-		queueClient,
-		config.Events.EventReportingInterval,
-		config.Events.EventReportingBatchSize,
-	)
+	var eventReporter reporter.EventReporter = reporter.JobEventReporter{
+		KubernetesClient: kubernetesClient,
+		EventClient:      eventClient,
+	}
 
 	factory := informers.NewSharedInformerFactoryWithOptions(kubernetesClient, 0)
 	podInformer := factory.Core().V1().Pods()
@@ -49,12 +47,20 @@ func StartUp(config configuration.Configuration) (*sync.WaitGroup, chan os.Signa
 
 	jobSubmitter := submitter.JobSubmitter{KubernetesClient: kubernetesClient}
 
+	podCleanupService := service.PodCleanupService{KubernetesClient: kubernetesClient}
+
 	jobLeaseService := service.JobLeaseService{
-		PodLister:    podInformer.Lister(),
-		NodeLister:   nodeLister,
-		JobSubmitter: jobSubmitter,
-		QueueClient:  queueClient,
-		ClusterId:    config.Application.ClusterId,
+		PodLister:      podInformer.Lister(),
+		NodeLister:     nodeLister,
+		JobSubmitter:   jobSubmitter,
+		QueueClient:    queueClient,
+		CleanupService: podCleanupService,
+		ClusterId:      config.Application.ClusterId,
+	}
+
+	eventReconciliationService := service.JobEventReconciliationService{
+		PodLister:     podInformer.Lister(),
+		EventReporter: eventReporter,
 	}
 
 	clusterUtilisationService := service.ClusterUtilisationService{
@@ -63,21 +69,14 @@ func StartUp(config configuration.Configuration) (*sync.WaitGroup, chan os.Signa
 		UsageClient: usageClient,
 	}
 
-	podCleanupService := service.PodCleanupService{
-		PodLister:        podInformer.Lister(),
-		EventReporter:    eventReporter,
-		KubernetesClient: kubernetesClient,
-	}
-
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
 
 	tasks := make([]chan bool, 0)
 	tasks = append(tasks, scheduleBackgroundTask(clusterUtilisationService.ReportClusterUtilisation, config.Task.UtilisationReportingInterval, wg))
 	tasks = append(tasks, scheduleBackgroundTask(jobLeaseService.RequestJobLeasesAndFillSpareClusterCapacity, config.Task.RequestNewJobsInterval, wg))
-	tasks = append(tasks, scheduleBackgroundTask(jobLeaseService.RenewJobLeases, config.Task.JobLeaseRenewalInterval, wg))
-	tasks = append(tasks, scheduleBackgroundTask(podCleanupService.ReportForgottenCompletedPods, config.Task.ForgottenCompletedPodReportingInterval, wg))
-	tasks = append(tasks, scheduleBackgroundTask(podCleanupService.DeletePodsReadyForCleanup, config.Task.PodDeletionInterval, wg))
+	tasks = append(tasks, scheduleBackgroundTask(jobLeaseService.ManageJobLeases, config.Task.JobLeaseRenewalInterval, wg))
+	tasks = append(tasks, scheduleBackgroundTask(eventReconciliationService.ReconcileMissingJobEvents, config.Task.MissingJobEventReconciliationInterval, wg))
 
 	shutdown := make(chan os.Signal, 1)
 
@@ -116,6 +115,7 @@ func scheduleBackgroundTask(task func(), interval time.Duration, wg *sync.WaitGr
 
 	wg.Add(1)
 	go func() {
+		task()
 		for {
 			select {
 			case <-time.After(interval):
@@ -144,7 +144,7 @@ func addPodEventHandler(podInformer informer.PodInformer, eventReporter reporter
 				//TODO Log
 				return
 			}
-			eventReporter.ReportAddEvent(pod)
+			go eventReporter.ReportEvent(pod)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			oldPod, ok := oldObj.(*v1.Pod)
@@ -157,7 +157,7 @@ func addPodEventHandler(podInformer informer.PodInformer, eventReporter reporter
 				//TODO Log
 				return
 			}
-			eventReporter.ReportUpdateEvent(oldPod, newPod)
+			go eventReporter.ReportUpdateEvent(oldPod, newPod)
 		},
 	})
 }
@@ -165,5 +165,6 @@ func addPodEventHandler(podInformer informer.PodInformer, eventReporter reporter
 func startInformers(factory informers.SharedInformerFactory) chan struct{} {
 	stopper := make(chan struct{})
 	factory.Start(stopper)
+	factory.WaitForCacheSync(stopper)
 	return stopper
 }

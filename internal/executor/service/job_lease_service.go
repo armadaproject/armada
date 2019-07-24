@@ -15,11 +15,12 @@ import (
 )
 
 type JobLeaseService struct {
-	PodLister    listers.PodLister
-	NodeLister   listers.NodeLister
-	JobSubmitter submitter.JobSubmitter
-	QueueClient  api.AggregatedQueueClient
-	ClusterId    string
+	PodLister      listers.PodLister
+	NodeLister     listers.NodeLister
+	JobSubmitter   submitter.JobSubmitter
+	QueueClient    api.AggregatedQueueClient
+	CleanupService PodCleanupService
+	ClusterId      string
 }
 
 //TODO split into separate functions
@@ -57,28 +58,69 @@ func (jobLeaseService JobLeaseService) RequestJobLeasesAndFillSpareClusterCapaci
 	}
 }
 
-func (jobLeaseService JobLeaseService) RenewJobLeases() {
-	runningPodsSelector, err := util.CreateLabelSelectorForManagedPods(false)
+func (jobLeaseService JobLeaseService) ManageJobLeases() {
+	managedPodSelector, err := util.CreateLabelSelectorForManagedPods()
 	if err != nil {
 		//TODO Handle error case
 	}
 
-	allPodsEligibleForRenewal, err := jobLeaseService.PodLister.List(runningPodsSelector)
+	allManagedPods, err := jobLeaseService.PodLister.List(managedPodSelector)
 	if err != nil {
 		//TODO Handle error case
 	}
-	if len(allPodsEligibleForRenewal) > 0 {
-		jobIds := util.ExtractJobIds(allPodsEligibleForRenewal)
-		fmt.Printf("Renewing lease for %s \n", strings.Join(jobIds, ","))
 
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-		defer cancel()
-		_, err := jobLeaseService.QueueClient.RenewLease(ctx, &api.IdList{Ids: jobIds})
+	podsToRenew, podsToCleanup := splitRunningAndFinishedPods(allManagedPods)
 
-		if err != nil {
-			fmt.Printf("Failed to renew lease for jobs because %s \n", err)
+	jobLeaseService.renewJobLeases(podsToRenew)
+	jobLeaseService.endJobLeases(podsToCleanup)
+}
+
+func splitRunningAndFinishedPods(pods []*v1.Pod) (running []*v1.Pod, finished []*v1.Pod) {
+	runningPods := make([]*v1.Pod, 0)
+	finishedPods := make([]*v1.Pod, 0)
+
+	for _, pod := range pods {
+		if IsPodReadyForCleanup(pod) {
+			finishedPods = append(finishedPods, pod)
+		} else {
+			runningPods = append(runningPods, pod)
 		}
 	}
+
+	return runningPods, finishedPods
+}
+
+func (jobLeaseService JobLeaseService) renewJobLeases(pods []*v1.Pod) {
+	if len(pods) <= 0 {
+		return
+	}
+	jobIds := util.ExtractJobIds(pods)
+	fmt.Printf("Renewing lease for %s \n", strings.Join(jobIds, ","))
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	_, err := jobLeaseService.QueueClient.RenewLease(ctx, &api.IdList{Ids: jobIds})
+
+	if err != nil {
+		fmt.Printf("Failed to renew lease for jobs because %s \n", err)
+	}
+}
+
+func (jobLeaseService JobLeaseService) endJobLeases(pods []*v1.Pod) {
+	if len(pods) <= 0 {
+		return
+	}
+	jobIds := util.ExtractJobIds(pods)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	_, err := jobLeaseService.QueueClient.ReportDone(ctx, &api.IdList{Ids: jobIds})
+
+	if err != nil {
+		fmt.Printf("Failed cleaning up jobs because %s \n", err)
+	}
+
+	jobLeaseService.CleanupService.DeletePods(pods)
 }
 
 func (jobLeaseService JobLeaseService) requestJobs(availableResource common.ComputeResources) ([]*api.Job, error) {
@@ -166,4 +208,16 @@ func calculateTotalResourceLimit(pods []*v1.Pod) common.ComputeResources {
 		// Todo determine what to do about init containers? How does Kubernetes scheduler handle these
 	}
 	return totalResources
+}
+
+func filterCompletedPods(pods []*v1.Pod) []*v1.Pod {
+	completedPods := make([]*v1.Pod, 0, len(pods))
+
+	for _, pod := range pods {
+		if util.IsInTerminalState(pod) {
+			completedPods = append(completedPods, pod)
+		}
+	}
+
+	return completedPods
 }

@@ -17,10 +17,9 @@ func TestCreateLabels_CreatesExpectedLabels(t *testing.T) {
 	}
 
 	expectedOutput := map[string]string{
-		domain.JobId:           job.Id,
-		domain.JobSetId:        job.JobSetId,
-		domain.Queue:           job.Queue,
-		domain.ReadyForCleanup: "false",
+		domain.JobId:    job.Id,
+		domain.JobSetId: job.JobSetId,
+		domain.Queue:    job.Queue,
 	}
 
 	result := createLabels(&job)

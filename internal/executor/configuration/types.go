@@ -8,11 +8,10 @@ type ApplicationConfiguration struct {
 }
 
 type TaskConfiguration struct {
-	UtilisationReportingInterval           time.Duration
-	ForgottenCompletedPodReportingInterval time.Duration
-	JobLeaseRenewalInterval                time.Duration
-	PodDeletionInterval                    time.Duration
-	RequestNewJobsInterval                 time.Duration
+	UtilisationReportingInterval          time.Duration
+	MissingJobEventReconciliationInterval time.Duration
+	JobLeaseRenewalInterval               time.Duration
+	RequestNewJobsInterval                time.Duration
 }
 
 type ArmadaConfiguration struct {
@@ -20,9 +19,7 @@ type ArmadaConfiguration struct {
 }
 
 type EventsConfiguration struct {
-	Url                     string
-	EventReportingInterval  time.Duration
-	EventReportingBatchSize int
+	Url string
 }
 
 type Configuration struct {
