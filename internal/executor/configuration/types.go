@@ -11,7 +11,6 @@ type TaskConfiguration struct {
 	UtilisationReportingInterval          time.Duration
 	MissingJobEventReconciliationInterval time.Duration
 	JobLeaseRenewalInterval               time.Duration
-	PodDeletionInterval                   time.Duration
 	RequestNewJobsInterval                time.Duration
 }
 

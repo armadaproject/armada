@@ -349,7 +349,7 @@ func (c *aggregatedQueueClient) RenewLease(ctx context.Context, in *IdList, opts
 
 func (c *aggregatedQueueClient) ReportDone(ctx context.Context, in *IdList, opts ...grpc.CallOption) (*types.Empty, error) {
 	out := new(types.Empty)
-	err := c.cc.Invoke(ctx, "/api.AggregatedQueue/ReportDone", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/api.AggregatedQueue/EndJobLeases", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -413,7 +413,7 @@ func _AggregatedQueue_ReportDone_Handler(srv interface{}, ctx context.Context, d
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/api.AggregatedQueue/ReportDone",
+		FullMethod: "/api.AggregatedQueue/EndJobLeases",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AggregatedQueueServer).ReportDone(ctx, req.(*IdList))
@@ -434,7 +434,7 @@ var _AggregatedQueue_serviceDesc = grpc.ServiceDesc{
 			Handler:    _AggregatedQueue_RenewLease_Handler,
 		},
 		{
-			MethodName: "ReportDone",
+			MethodName: "EndJobLeases",
 			Handler:    _AggregatedQueue_ReportDone_Handler,
 		},
 	},

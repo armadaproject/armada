@@ -47,12 +47,15 @@ func StartUp(config configuration.Configuration) (*sync.WaitGroup, chan os.Signa
 
 	jobSubmitter := submitter.JobSubmitter{KubernetesClient: kubernetesClient}
 
+	podCleanupService := service.PodCleanupService{KubernetesClient: kubernetesClient}
+
 	jobLeaseService := service.JobLeaseService{
-		PodLister:    podInformer.Lister(),
-		NodeLister:   nodeLister,
-		JobSubmitter: jobSubmitter,
-		QueueClient:  queueClient,
-		ClusterId:    config.Application.ClusterId,
+		PodLister:      podInformer.Lister(),
+		NodeLister:     nodeLister,
+		JobSubmitter:   jobSubmitter,
+		QueueClient:    queueClient,
+		CleanupService: podCleanupService,
+		ClusterId:      config.Application.ClusterId,
 	}
 
 	eventReconciliationService := service.JobEventReconciliationService{
@@ -66,21 +69,14 @@ func StartUp(config configuration.Configuration) (*sync.WaitGroup, chan os.Signa
 		UsageClient: usageClient,
 	}
 
-	podCleanupService := service.PodCleanupService{
-		PodLister:        podInformer.Lister(),
-		EventReporter:    eventReporter,
-		KubernetesClient: kubernetesClient,
-	}
-
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
 
 	tasks := make([]chan bool, 0)
 	tasks = append(tasks, scheduleBackgroundTask(clusterUtilisationService.ReportClusterUtilisation, config.Task.UtilisationReportingInterval, wg))
 	tasks = append(tasks, scheduleBackgroundTask(jobLeaseService.RequestJobLeasesAndFillSpareClusterCapacity, config.Task.RequestNewJobsInterval, wg))
-	tasks = append(tasks, scheduleBackgroundTask(jobLeaseService.RenewJobLeases, config.Task.JobLeaseRenewalInterval, wg))
+	tasks = append(tasks, scheduleBackgroundTask(jobLeaseService.ManageJobLeases, config.Task.JobLeaseRenewalInterval, wg))
 	tasks = append(tasks, scheduleBackgroundTask(eventReconciliationService.ReconcileMissingJobEvents, config.Task.MissingJobEventReconciliationInterval, wg))
-	tasks = append(tasks, scheduleBackgroundTask(podCleanupService.DeletePodsReadyForCleanup, config.Task.PodDeletionInterval, wg))
 
 	shutdown := make(chan os.Signal, 1)
 

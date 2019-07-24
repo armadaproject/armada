@@ -21,8 +21,8 @@ func (reconciliationService JobEventReconciliationService) ReconcileMissingJobEv
 		//TODO Handle error case
 	}
 
-	allBatchPodsNotMarkedForCleanup, err := reconciliationService.PodLister.List(selector)
-	allPodsWithMissingEvent := filterPodsWithCurrentStateNotReported(allBatchPodsNotMarkedForCleanup)
+	allBatchPods, err := reconciliationService.PodLister.List(selector)
+	allPodsWithMissingEvent := filterPodsWithCurrentStateNotReported(allBatchPods)
 
 	for _, pod := range allPodsWithMissingEvent {
 		go reconciliationService.EventReporter.ReportEvent(pod)

@@ -5,7 +5,6 @@ task:
   utilisationReportingInterval: 10s
   missingJobEventReconciliationInterval: 10s
   jobLeaseRenewalInterval: 10s
-  podDeletionInterval: 10s
   requestNewJobsInterval: 10s
 armada:
   url : "localhost:50051"

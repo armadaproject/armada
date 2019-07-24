@@ -2,26 +2,20 @@ package service
 
 import (
 	"fmt"
-	"github.com/G-Research/k8s-batch/internal/executor/reporter"
 	"github.com/G-Research/k8s-batch/internal/executor/util"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
-	lister "k8s.io/client-go/listers/core/v1"
 )
 
 type PodCleanupService struct {
 	KubernetesClient kubernetes.Interface
-	EventReporter    reporter.EventReporter
-	PodLister        lister.PodLister
 }
 
-func (cleanupService PodCleanupService) DeletePodsReadyForCleanup() {
+func (cleanupService PodCleanupService) DeletePods(pods []*v1.Pod) {
 	deleteOptions := createPodDeletionDeleteOptions()
 
-	podsReadyForDeletion := cleanupService.getAllPodsToBeDeleted()
-
-	for _, podToDelete := range podsReadyForDeletion {
+	for _, podToDelete := range pods {
 		err := cleanupService.KubernetesClient.CoreV1().Pods(podToDelete.Namespace).Delete(podToDelete.Name, &deleteOptions)
 		if err != nil {
 			fmt.Printf("Failed to delete pod %s/%s because %s", podToDelete.Namespace, podToDelete.Name, err)
@@ -29,28 +23,11 @@ func (cleanupService PodCleanupService) DeletePodsReadyForCleanup() {
 	}
 }
 
-func (cleanupService PodCleanupService) getAllPodsToBeDeleted() []*v1.Pod {
-	selector, err := util.CreateLabelSelectorForManagedPods()
-	if err != nil {
-		fmt.Println(err)
-		return []*v1.Pod{}
+func IsPodReadyForCleanup(pod *v1.Pod) bool {
+	if util.IsInTerminalState(pod) && hasEventBeenReportedForCurrentState(pod) {
+		return true
 	}
-
-	allBatchPods, err := cleanupService.PodLister.List(selector)
-	if err != nil {
-		fmt.Println(err)
-		return []*v1.Pod{}
-	}
-
-	podsReadyForDeletion := make([]*v1.Pod, 0)
-
-	for _, pod := range allBatchPods {
-		if util.IsInTerminalState(pod) && hasEventBeenReportedForCurrentState(pod) {
-			podsReadyForDeletion = append(podsReadyForDeletion, pod)
-		}
-	}
-
-	return podsReadyForDeletion
+	return false
 }
 
 func createPodDeletionDeleteOptions() metav1.DeleteOptions {
