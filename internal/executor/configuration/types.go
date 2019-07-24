@@ -11,7 +11,7 @@ type TaskConfiguration struct {
 	UtilisationReportingInterval          time.Duration
 	MissingJobEventReconciliationInterval time.Duration
 	JobLeaseRenewalInterval               time.Duration
-	RequestNewJobsInterval                time.Duration
+	AllocateSpareClusterCapacityInterval  time.Duration
 }
 
 type ArmadaConfiguration struct {

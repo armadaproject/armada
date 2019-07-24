@@ -5,7 +5,7 @@ task:
   utilisationReportingInterval: 10s
   missingJobEventReconciliationInterval: 10s
   jobLeaseRenewalInterval: 10s
-  requestNewJobsInterval: 10s
+  allocateSpareClusterCapacityInterval: 10s
 armada:
   url : "localhost:50051"
 events:

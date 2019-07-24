@@ -43,3 +43,27 @@ func ExtractJobIds(pods []*v1.Pod) []string {
 
 	return jobIds
 }
+
+func FilterCompletedPods(pods []*v1.Pod) []*v1.Pod {
+	completedPods := make([]*v1.Pod, 0, len(pods))
+
+	for _, pod := range pods {
+		if IsInTerminalState(pod) {
+			completedPods = append(completedPods, pod)
+		}
+	}
+
+	return completedPods
+}
+
+func FilterRunningPods(pods []*v1.Pod) []*v1.Pod {
+	activePods := make([]*v1.Pod, 0)
+
+	for _, pod := range pods {
+		if !IsInTerminalState(pod) {
+			activePods = append(activePods, pod)
+		}
+	}
+
+	return activePods
+}
