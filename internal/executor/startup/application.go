@@ -115,6 +115,7 @@ func scheduleBackgroundTask(task func(), interval time.Duration, wg *sync.WaitGr
 
 	wg.Add(1)
 	go func() {
+		task()
 		for {
 			select {
 			case <-time.After(interval):
@@ -164,5 +165,6 @@ func addPodEventHandler(podInformer informer.PodInformer, eventReporter reporter
 func startInformers(factory informers.SharedInformerFactory) chan struct{} {
 	stopper := make(chan struct{})
 	factory.Start(stopper)
+	factory.WaitForCacheSync(stopper)
 	return stopper
 }
