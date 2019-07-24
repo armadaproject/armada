@@ -45,6 +45,7 @@ func (eventReporter JobEventReporter) report(pod *v1.Pod) {
 		fmt.Printf("Failed to report event because %s \n", err)
 	}
 
+	//TODO Put code back in when server side events API is ready
 	//ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	//defer cancel()
 	//_, err = eventReporter.EventClient.Report(ctx, event)
