@@ -69,19 +69,25 @@ func (jobLeaseService JobLeaseService) ManageJobLeases() {
 		//TODO Handle error case
 	}
 
-	podsToRenew := make([]*v1.Pod, 0)
-	podsToCleanup := make([]*v1.Pod, 0)
-
-	for _, pod := range allManagedPods {
-		if IsPodReadyForCleanup(pod) {
-			podsToCleanup = append(podsToCleanup, pod)
-		} else {
-			podsToRenew = append(podsToRenew, pod)
-		}
-	}
+	podsToRenew, podsToCleanup := splitRunningAndFinishedPods(allManagedPods)
 
 	jobLeaseService.renewJobLeases(podsToRenew)
 	jobLeaseService.endJobLeases(podsToCleanup)
+}
+
+func splitRunningAndFinishedPods(pods []*v1.Pod) (running []*v1.Pod, finished []*v1.Pod) {
+	runningPods := make([]*v1.Pod, 0)
+	finishedPods := make([]*v1.Pod, 0)
+
+	for _, pod := range pods {
+		if IsPodReadyForCleanup(pod) {
+			finishedPods = append(finishedPods, pod)
+		} else {
+			runningPods = append(runningPods, pod)
+		}
+	}
+
+	return runningPods, finishedPods
 }
 
 func (jobLeaseService JobLeaseService) renewJobLeases(pods []*v1.Pod) {
