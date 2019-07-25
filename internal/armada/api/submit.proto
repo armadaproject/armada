@@ -2,7 +2,9 @@ syntax = 'proto3';
 
 package api;
 
+import "google/protobuf/empty.proto";
 import "k8s.io/api/core/v1/generated.proto";
+
 
 message JobRequest {
     string Queue = 1;
@@ -15,6 +17,12 @@ message JobSubmitResponse {
     string JobId = 1;
 }
 
+message Queue {
+    string Name = 1;
+    double Priority = 2;
+}
+
 service Submit {
     rpc SubmitJob (JobRequest) returns (JobSubmitResponse);
+    rpc CreateQueue (Queue) returns (google.protobuf.Empty);
 }
