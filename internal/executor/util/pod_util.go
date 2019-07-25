@@ -1,11 +1,18 @@
 package util
 
 import (
+	"fmt"
 	"github.com/G-Research/k8s-batch/internal/executor/domain"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
 )
+
+var managedPodSelector labels.Selector
+
+func init() {
+	managedPodSelector = createLabelSelectorForManagedPods()
+}
 
 func IsInTerminalState(pod *v1.Pod) bool {
 	podPhase := pod.Status.Phase
@@ -23,22 +30,30 @@ func IsManagedPod(pod *v1.Pod) bool {
 	return true
 }
 
-func CreateLabelSelectorForManagedPods() (labels.Selector, error) {
+func GetManagedPodSelector() labels.Selector {
+	return managedPodSelector.DeepCopySelector()
+}
+
+func createLabelSelectorForManagedPods() labels.Selector {
 	jobIdExistsRequirement, err := labels.NewRequirement(domain.JobId, selection.Exists, []string{})
 	if err != nil {
-		return labels.NewSelector(), err
+		panic(err)
 	}
 
 	selector := labels.NewSelector().Add(*jobIdExistsRequirement)
-	return selector, nil
+	return selector
 }
 
 func ExtractJobIds(pods []*v1.Pod) []string {
 	jobIds := make([]string, 0, len(pods))
 
 	for _, pod := range pods {
-		jobId := pod.Labels[domain.JobId]
-		jobIds = append(jobIds, jobId)
+		if jobId, ok := pod.Labels[domain.JobId]; ok {
+			jobIds = append(jobIds, jobId)
+		} else {
+			//TODO decide how to handle this error, it should in theory never happen if all jobs are well formed. Maybe skipping is OK
+			fmt.Printf("Failed to report event for pod %s as not job id was present to report it under. \n", pod.Name)
+		}
 	}
 
 	return jobIds
@@ -56,7 +71,7 @@ func FilterCompletedPods(pods []*v1.Pod) []*v1.Pod {
 	return completedPods
 }
 
-func FilterRunningPods(pods []*v1.Pod) []*v1.Pod {
+func FilterNonCompletedPods(pods []*v1.Pod) []*v1.Pod {
 	activePods := make([]*v1.Pod, 0)
 
 	for _, pod := range pods {

@@ -129,13 +129,12 @@ func getAllPodsOnNodes(pods []*v1.Pod, nodes []*v1.Node) []*v1.Pod {
 }
 
 func getAllActiveManagedPods(podLister lister.PodLister) []*v1.Pod {
-	managedPodSelector, err := util.CreateLabelSelectorForManagedPods()
-	if err != nil {
-		//TODO Handle error case
-	}
-
+	managedPodSelector := util.GetManagedPodSelector()
 	allActiveManagedPods, err := podLister.List(managedPodSelector)
-	allActiveManagedPods = util.FilterRunningPods(allActiveManagedPods)
+	if err != nil {
+		//TODO handle error case
+	}
+	allActiveManagedPods = util.FilterNonCompletedPods(allActiveManagedPods)
 	return allActiveManagedPods
 }
 

@@ -15,13 +15,13 @@ type JobEventReconciliationService struct {
 }
 
 func (reconciliationService JobEventReconciliationService) ReconcileMissingJobEvents() {
-	selector, err := util.CreateLabelSelectorForManagedPods()
+	selector := util.GetManagedPodSelector()
+	allBatchPods, err := reconciliationService.PodLister.List(selector)
 	if err != nil {
-		return
 		//TODO Handle error case
+		return
 	}
 
-	allBatchPods, err := reconciliationService.PodLister.List(selector)
 	allPodsWithMissingEvent := filterPodsWithCurrentStateNotReported(allBatchPods)
 
 	for _, pod := range allPodsWithMissingEvent {

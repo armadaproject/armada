@@ -36,11 +36,7 @@ func (jobLeaseService JobLeaseService) RequestJobLeases(availableResource *commo
 }
 
 func (jobLeaseService JobLeaseService) ManageJobLeases() {
-	managedPodSelector, err := util.CreateLabelSelectorForManagedPods()
-	if err != nil {
-		//TODO Handle error case
-	}
-
+	managedPodSelector := util.GetManagedPodSelector()
 	allManagedPods, err := jobLeaseService.PodLister.List(managedPodSelector)
 	if err != nil {
 		//TODO Handle error case
