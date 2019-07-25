@@ -17,7 +17,7 @@ func Serve(config *configuration.ArmadaConfig) (*grpc.Server, *sync.WaitGroup) {
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
 	grpcServer := grpc.NewServer()
-	go func () {
+	go func() {
 		log.Printf("Grpc listening on %s", config.GrpcPort)
 		defer log.Println("Stopping server.")
 
@@ -27,12 +27,13 @@ func Serve(config *configuration.ArmadaConfig) (*grpc.Server, *sync.WaitGroup) {
 			DB:       config.Redis.Db,
 		})
 
-		jobRepository := &repository.RedisJobRepository{ Db: db }
-		usageRepository := &repository.RedisUsageRepository{ Db: db }
+		jobRepository := repository.NewRedisJobRepository(db)
+		usageRepository := repository.NewRedisUsageRepository(db)
+		queueRepository := repository.NewRedisQueueRepository(db)
 
-		submitServer := &server.SubmitServer{ JobRepository: jobRepository }
-		usageServer := &server.UsageServer { UsageRepository: usageRepository, PriorityHalfTime: time.Minute }
-		aggregatedQueueServer := &server.AggregatedQueueServer{ JobRepository: jobRepository, UsageRepository: usageRepository }
+		submitServer := server.NewSubmitServer(jobRepository, queueRepository)
+		usageServer := server.NewUsageServer(time.Minute, usageRepository)
+		aggregatedQueueServer := server.NewAggregatedQueueServer(jobRepository, usageRepository, queueRepository)
 
 		lis, err := net.Listen("tcp", config.GrpcPort)
 		if err != nil {
@@ -48,6 +49,6 @@ func Serve(config *configuration.ArmadaConfig) (*grpc.Server, *sync.WaitGroup) {
 		}
 
 		wg.Done()
-	} ()
+	}()
 	return grpcServer, wg
 }

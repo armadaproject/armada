@@ -16,20 +16,23 @@ const clusterReportKey = "Cluster:Report"
 const clusterPrioritiesPrefix = "Cluster:Priority:"
 
 type UsageRepository interface {
-
 	GetClusterUsageReports() (map[string]*api.ClusterUsageReport, error)
 	GetClusterPriority(clusterId string) (map[string]float64, error)
+	GetClusterPriorities(clusterIds []string) (map[string]map[string]float64, error)
 
 	UpdateCluster(report *api.ClusterUsageReport, priorities map[string]float64) error
 }
 
 type RedisUsageRepository struct {
-	Db *redis.Client
+	db *redis.Client
 }
 
+func NewRedisUsageRepository(db *redis.Client) *RedisUsageRepository {
+	return &RedisUsageRepository{db: db}
+}
 
 func (r RedisUsageRepository) GetClusterUsageReports() (map[string]*api.ClusterUsageReport, error) {
-	result, err := r.Db.HGetAll(clusterReportKey).Result()
+	result, err := r.db.HGetAll(clusterReportKey).Result()
 	if err != nil {
 		return nil, err
 	}
@@ -47,16 +50,38 @@ func (r RedisUsageRepository) GetClusterUsageReports() (map[string]*api.ClusterU
 }
 
 func (r RedisUsageRepository) GetClusterPriority(clusterId string) (map[string]float64, error) {
-	result, err := r.Db.HGetAll(clusterPrioritiesPrefix+clusterId).Result()
+	result, err := r.db.HGetAll(clusterPrioritiesPrefix+clusterId).Result()
 	if err != nil {
 		return nil, err
 	}
 	return toFloat64Map(result)
 }
 
+func (r RedisUsageRepository) GetClusterPriorities(clusterIds []string) (map[string]map[string]float64, error) {
+	pipe := r.db.Pipeline()
+	cmds := make(map[string]*redis.StringStringMapCmd)
+	for _, id := range clusterIds {
+		cmds[id] = pipe.HGetAll(clusterPrioritiesPrefix+id)
+	}
+	_, e := pipe.Exec()
+	if e != nil {
+		return nil, e
+	}
+
+	clusterPriorities := make(map[string]map[string]float64)
+	for id, cmd := range cmds {
+		priorities, e := toFloat64Map(cmd.Val())
+		if e != nil {
+			return nil, e
+		}
+		clusterPriorities[id] = priorities
+	}
+	return clusterPriorities, nil
+}
+
 func (r RedisUsageRepository) UpdateCluster(report *api.ClusterUsageReport, priorities map[string]float64) error {
 
-	pipe := r.Db.TxPipeline()
+	pipe := r.db.TxPipeline()
 
 	data, e := proto.Marshal(report)
 	if e != nil {
