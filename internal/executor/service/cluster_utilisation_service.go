@@ -53,7 +53,7 @@ func (clusterUtilisationService ClusterUtilisationService) ReportClusterUtilisat
 }
 
 func getAllActiveManagedPods(podLister lister.PodLister) []*v1.Pod {
-	managedPodSelector, err := util.CreateLabelSelectorForManagedPods(false)
+	managedPodSelector, err := util.CreateLabelSelectorForManagedPods()
 	if err != nil {
 		//TODO Handle error case
 	}

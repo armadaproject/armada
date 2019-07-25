@@ -3,13 +3,10 @@ application:
   inClusterDeployment: false
 task:
   utilisationReportingInterval: 10s
-  forgottenCompletedPodReportingInterval: 10s
+  missingJobEventReconciliationInterval: 10s
   jobLeaseRenewalInterval: 10s
-  podDeletionInterval: 10s
   requestNewJobsInterval: 10s
 armada:
   url : "localhost:50051"
 events:
   url : "localhost:50051"
-  eventReportingInterval : 5s
-  eventReportingBatchSize : 100

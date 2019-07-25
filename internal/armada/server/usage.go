@@ -45,7 +45,7 @@ func (s UsageServer) ReportUsage(ctx context.Context, report *api.ClusterUsageRe
 	if err != nil {
 		return nil, err
 	}
-	return nil, nil
+	return &types.Empty{}, nil
 }
 
 func calculatePriority(usage map[string]float64, previousPriority map[string]float64, timeChange time.Duration, halfTime time.Duration) map[string]float64 {

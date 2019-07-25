@@ -174,3 +174,40 @@ func makeNodeWithResource(resources map[v1.ResourceName]resource.Quantity) v1.No
 	}
 	return node
 }
+
+func TestFilterCompletedPods(t *testing.T) {
+	runningPod := v1.Pod{
+		Status: v1.PodStatus{
+			Phase: v1.PodRunning,
+		},
+	}
+
+	completedPod := v1.Pod{
+		Status: v1.PodStatus{
+			Phase: v1.PodSucceeded,
+		},
+	}
+
+	result := filterCompletedPods([]*v1.Pod{&runningPod, &completedPod})
+
+	assert.Equal(t, len(result), 1)
+	assert.Equal(t, result[0], &completedPod)
+}
+
+func TestFilterCompletedPods_ShouldReturnEmptyIfNoCompletedPods(t *testing.T) {
+	runningPod := v1.Pod{
+		Status: v1.PodStatus{
+			Phase: v1.PodRunning,
+		},
+	}
+
+	pendingPod := v1.Pod{
+		Status: v1.PodStatus{
+			Phase: v1.PodPending,
+		},
+	}
+
+	result := filterCompletedPods([]*v1.Pod{&runningPod, &pendingPod})
+
+	assert.Equal(t, len(result), 0)
+}

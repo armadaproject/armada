@@ -85,11 +85,13 @@ func (r RedisUsageRepository) UpdateCluster(report *api.ClusterUsageReport, prio
 	}
 	pipe.HSet(clusterReportKey, report.ClusterId, data)
 
-	untyped := make(map[string]interface{})
-	for k, v := range priorities {
-		untyped[k] = v
+	if len(priorities) > 0 {
+		untyped := make(map[string]interface{})
+		for k, v := range priorities {
+			untyped[k] = v
+		}
+		pipe.HMSet(clusterPrioritiesPrefix+report.ClusterId, untyped)
 	}
-	pipe.HMSet(clusterPrioritiesPrefix+report.ClusterId, untyped)
 
 	_, err := pipe.Exec()
 	return err
