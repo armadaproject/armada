@@ -27,7 +27,7 @@ const batchSize = 100
 
 func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.LeaseRequest) (*api.JobLease, error) {
 
-	usageReports, e := q.usageRepository.GetClusterUsageReports();
+	usageReports, e := q.usageRepository.GetClusterUsageReports()
 	if e != nil {
 		return nil, e
 	}
@@ -113,7 +113,7 @@ func (q AggregatedQueueServer) leaseJobs(queue string, slice common.ComputeResou
 		// stop scheduling round if we leased less then batch (either the slice is too small or queue is empty)
 		// TODO: should we look at next batch?
 		if len(candidates) < batchSize {
-			continue
+			break
 		}
 	}
 	return jobs, slice, nil
