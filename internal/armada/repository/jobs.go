@@ -3,9 +3,9 @@ package repository
 import (
 	"fmt"
 	"github.com/G-Research/k8s-batch/internal/armada/api"
+	"github.com/G-Research/k8s-batch/internal/common/util"
 	"github.com/go-redis/redis"
 	"github.com/gogo/protobuf/proto"
-	"github.com/kjk/betterguid"
 	"time"
 )
 
@@ -126,7 +126,7 @@ func (repo RedisJobRepository) FilterActiveQueues(queueNames []string) ([]string
 
 func createJob(jobRequest *api.JobRequest) *api.Job {
 	j := api.Job{
-		Id:       betterguid.New(),
+		Id:       util.NewULID(),
 		Queue:    jobRequest.Queue,
 		JobSetId: jobRequest.JobSetId,
 
