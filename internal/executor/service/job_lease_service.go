@@ -159,10 +159,8 @@ func calculateTotalResource(nodes []*v1.Node) common.ComputeResources {
 func calculateTotalResourceLimit(pods []*v1.Pod) common.ComputeResources {
 	totalResources := make(common.ComputeResources)
 	for _, pod := range pods {
-		for _, container := range pod.Spec.Containers {
-			containerResourceLimit := common.FromResourceList(container.Resources.Limits)
-			totalResources.Add(containerResourceLimit)
-		}
+		podResourceLimit := common.TotalResourceLimit(&pod.Spec)
+		totalResources.Add(podResourceLimit)
 		// Todo determine what to do about init containers? How does Kubernetes scheduler handle these
 	}
 	return totalResources

@@ -6,10 +6,9 @@ import (
 	"github.com/G-Research/k8s-batch/internal/armada/api"
 	"github.com/G-Research/k8s-batch/internal/armada/repository"
 	"github.com/G-Research/k8s-batch/internal/common"
+	"github.com/G-Research/k8s-batch/internal/common/util"
 	"github.com/gogo/protobuf/types"
-	"k8s.io/apimachinery/pkg/api/resource"
 	"math"
-	"math/big"
 	"time"
 )
 
@@ -38,7 +37,7 @@ func (s UsageServer) ReportUsage(ctx context.Context, report *api.ClusterUsageRe
 
 	reports[report.ClusterId] = report
 	availableResources := sumResources(reports)
-	resourceScarcity := calculateResourceScarcity(availableResources)
+	resourceScarcity := calculateResourceScarcity(availableResources.AsFloat())
 	usage := calculateUsage(resourceScarcity, report.Queues)
 	newPriority := calculatePriority(usage, previousPriority, timeChange, s.PriorityHalfTime)
 
@@ -55,7 +54,7 @@ func calculatePriority(usage map[string]float64, previousPriority map[string]flo
 	timeChangeFactor := math.Pow(0.5, timeChange.Seconds() / halfTime.Seconds())
 
 	for queue, oldPriority := range previousPriority {
-		newPriority[queue] = timeChangeFactor * getOrDefault(usage, queue,0) +
+		newPriority[queue] = timeChangeFactor * util.GetOrDefault(usage, queue,0) +
 							(1 - timeChangeFactor) * oldPriority
 	}
 	for queue, usage := range usage {
@@ -72,8 +71,8 @@ func calculateUsage(resourceScarcity map[string]float64, queues []*api.QueueRepo
 	for _, queue := range queues {
 		usage := 0.0
 		for resourceName, quantity := range queue.Resources {
-			scarcity := getOrDefault(resourceScarcity, resourceName, 1)
-			usage += asFloat64(quantity) * scarcity
+			scarcity := util.GetOrDefault(resourceScarcity, resourceName, 1)
+			usage += common.QuantityAsFloat64(quantity) * scarcity
 		}
 		usages[queue.Name] = usage
 	}
@@ -82,17 +81,16 @@ func calculateUsage(resourceScarcity map[string]float64, queues []*api.QueueRepo
 
 // Calculates inverse of resources per cpu unit
 // { cpu: 4, memory: 20GB, gpu: 2 } -> { cpu: 1.0, memory: 0.2, gpu: 2 }
-func calculateResourceScarcity(res common.ComputeResources) map[string]float64 {
+func calculateResourceScarcity(res common.ComputeResourcesFloat) map[string]float64 {
 	importance := map[string]float64{
 		"cpu": 1,
 	}
-	cpu := asFloat64(res["cpu"])
+	cpu := res["cpu"]
 
-	for k, v := range res {
-		if k == "cpu"{
+	for k, q := range res {
+		if k == "cpu" {
 			continue
 		}
-		q := asFloat64(v)
 		if q >= 0.00001 {
 			importance[k] = cpu / q
 		}
@@ -106,20 +104,4 @@ func sumResources(reports map[string]*api.ClusterUsageReport) common.ComputeReso
 		result.Add(report.ClusterCapacity)
 	}
 	return result
-}
-
-func getOrDefault(m map[string]float64, key string, def float64) float64 {
-	v, ok := m[key]
-	if ok {
-		return v
-	}
-	return def
-}
-
-func asFloat64(q resource.Quantity) float64 {
-	dec:= q.AsDec()
-	unscaled := dec.UnscaledBig()
-	scale := dec.Scale()
-	unscaledFloat, _ := new(big.Float).SetInt(unscaled).Float64()
-	return unscaledFloat * math.Pow10(-int(scale))
 }

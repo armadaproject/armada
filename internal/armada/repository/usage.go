@@ -16,9 +16,9 @@ const clusterReportKey = "Cluster:Report"
 const clusterPrioritiesPrefix = "Cluster:Priority:"
 
 type UsageRepository interface {
-
 	GetClusterUsageReports() (map[string]*api.ClusterUsageReport, error)
 	GetClusterPriority(clusterId string) (map[string]float64, error)
+	GetClusterPriorities(clusterIds []string) (map[string]map[string]float64, error)
 
 	UpdateCluster(report *api.ClusterUsageReport, priorities map[string]float64) error
 }
@@ -26,7 +26,6 @@ type UsageRepository interface {
 type RedisUsageRepository struct {
 	Db *redis.Client
 }
-
 
 func (r RedisUsageRepository) GetClusterUsageReports() (map[string]*api.ClusterUsageReport, error) {
 	result, err := r.Db.HGetAll(clusterReportKey).Result()
@@ -52,6 +51,28 @@ func (r RedisUsageRepository) GetClusterPriority(clusterId string) (map[string]f
 		return nil, err
 	}
 	return toFloat64Map(result)
+}
+
+func (r RedisUsageRepository) GetClusterPriorities(clusterIds []string) (map[string]map[string]float64, error) {
+	pipe := r.Db.Pipeline()
+	cmds := make(map[string]*redis.StringStringMapCmd)
+	for _, id := range clusterIds {
+		cmds[id] = pipe.HGetAll(clusterPrioritiesPrefix+id)
+	}
+	_, e := pipe.Exec()
+	if e != nil {
+		return nil, e
+	}
+
+	clusterPriorities := make(map[string]map[string]float64)
+	for id, cmd := range cmds {
+		priorities, e := toFloat64Map(cmd.Val())
+		if e != nil {
+			return nil, e
+		}
+		clusterPriorities[id] = priorities
+	}
+	return clusterPriorities, nil
 }
 
 func (r RedisUsageRepository) UpdateCluster(report *api.ClusterUsageReport, priorities map[string]float64) error {
