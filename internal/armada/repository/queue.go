@@ -25,7 +25,7 @@ func NewRedisQueueRepository(db *redis.Client) *RedisQueueRepository {
 }
 
 func (r RedisQueueRepository) GetQueues() ([]*api.Queue, error) {
-	result, err := r.db.HGetAll(clusterReportKey).Result()
+	result, err := r.db.HGetAll(queueHashKey).Result()
 	if err != nil {
 		return nil, err
 	}
@@ -34,7 +34,7 @@ func (r RedisQueueRepository) GetQueues() ([]*api.Queue, error) {
 	for _, v := range result {
 		queue := &api.Queue{}
 		e := proto.Unmarshal([]byte(v), queue)
-		if e!= nil {
+		if e != nil {
 			return nil, e
 		}
 		queues = append(queues, queue)

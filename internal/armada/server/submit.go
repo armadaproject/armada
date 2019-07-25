@@ -34,6 +34,6 @@ func (server SubmitServer) SubmitJob(ctx context.Context, req *api.JobRequest) (
 	if e != nil {
 		return nil, status.Errorf(codes.Aborted, e.Error())
 	}
-	result := &api.JobSubmitResponse{ JobId: jobId }
+	result := &api.JobSubmitResponse{JobId: jobId}
 	return result, nil
 }

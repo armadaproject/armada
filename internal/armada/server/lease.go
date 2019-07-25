@@ -87,13 +87,13 @@ func (q AggregatedQueueServer) leaseJobs(queue string, slice common.ComputeResou
 	remainder := slice
 	for slice.IsValid() {
 
-		jobs, e := q.jobRepository.PeekQueue(queue, batchSize)
+		topJobs, e := q.jobRepository.PeekQueue(queue, batchSize)
 		if e != nil {
 			return nil, slice, e
 		}
 
 		candidates := make([]*api.Job, 0)
-		for _, job := range jobs {
+		for _, job := range topJobs {
 			requirement := common.TotalResourceLimit(job.PodSpec).AsFloat()
 			remainder = slice.DeepCopy()
 			remainder.Sub(requirement)

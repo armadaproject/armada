@@ -42,7 +42,7 @@ func (repo RedisJobRepository) AddJob(request *api.JobRequest) (string, error) {
 		Member: job.Id,
 		Score:  job.Priority})
 
-	pipe.SAdd(jobObjectPrefix+job.Id, jobData)
+	pipe.Set(jobObjectPrefix+job.Id, jobData, 0)
 
 	fmt.Println(job)
 
@@ -63,7 +63,7 @@ func (repo RedisJobRepository) TryLeaseJobs(queue string, jobs []*api.Job) ([]*a
 	now := float64(time.Now().Unix())
 	pipe := repo.db.Pipeline()
 	cmds := make(map[*api.Job]*redis.Cmd)
-	for _, job := range jobs{
+	for _, job := range jobs {
 		cmds[job] = zmove(pipe, jobQueuePrefix+queue, jobLeasedPrefix+queue, job.Id, now)
 	}
 
@@ -75,19 +75,18 @@ func (repo RedisJobRepository) TryLeaseJobs(queue string, jobs []*api.Job) ([]*a
 	leasedJobs := make([]*api.Job, 0)
 	for job, cmd := range cmds {
 		modified, e := cmd.Int()
-		if e != nil && modified > 0 {
+		if e == nil && modified > 0 {
 			leasedJobs = append(leasedJobs, job)
 		}
 	}
 	return leasedJobs, nil
 }
 
-
 func (repo RedisJobRepository) GetJobsByIds(ids []string) ([]*api.Job, error) {
 	pipe := repo.db.Pipeline()
 	var cmds []*redis.StringCmd
 	for _, id := range ids {
-		cmds = append(cmds, pipe.Get(id))
+		cmds = append(cmds, pipe.Get(jobObjectPrefix+id))
 	}
 	_, e := pipe.Exec()
 	if e != nil {
@@ -112,7 +111,7 @@ func (repo RedisJobRepository) FilterActiveQueues(queues []*api.Queue) ([]*api.Q
 	cmds := make(map[*api.Queue]*redis.IntCmd)
 	for _, queue := range queues {
 		// empty (even sorted) sets gets deleted by redis automatically
-		cmds[queue] = pipe.Exists(jobQueuePrefix+queue.Name)
+		cmds[queue] = pipe.Exists(jobQueuePrefix + queue.Name)
 	}
 	_, e := pipe.Exec()
 	if e != nil {
@@ -150,6 +149,7 @@ else
 	return 0
 end
 `
-func zmove(db redis.Cmdable, from string , to string, key string, score float64) *redis.Cmd {
-	return db.Eval(zmoveScript, []string {from, to}, key, score)
+
+func zmove(db redis.Cmdable, from string, to string, key string, score float64) *redis.Cmd {
+	return db.Eval(zmoveScript, []string{from, to}, key, score)
 }
