@@ -1,4 +1,3 @@
-
 package server
 
 import (
@@ -15,7 +14,7 @@ import (
 )
 
 func TestUsageServer_ReportUsage(t *testing.T) {
-	withUsageServer(func (s *UsageServer){
+	withUsageServer(func(s *UsageServer) {
 		now := time.Now()
 		cpu, _ := resource.ParseQuantity("10")
 		memory, _ := resource.ParseQuantity("360Gi")
@@ -23,16 +22,16 @@ func TestUsageServer_ReportUsage(t *testing.T) {
 		_, err := s.ReportUsage(context.Background(), oneQueueReport(now, cpu, memory))
 		assert.Nil(t, err)
 
-		priority, err := s.UsageRepository.GetClusterPriority("clusterA")
+		priority, err := s.usageRepository.GetClusterPriority("clusterA")
 		assert.Nil(t, err)
 		assert.Equal(t, 10.0, priority["q1"], "Priority should be updated for the new cluster.")
 
 		_, err = s.ReportUsage(context.Background(), oneQueueReport(now.Add(time.Minute), cpu, memory))
 		assert.Nil(t, err)
 
-		priority, err = s.UsageRepository.GetClusterPriority("clusterA")
+		priority, err = s.usageRepository.GetClusterPriority("clusterA")
 		assert.Nil(t, err)
-		assert.Equal(t, 15.0, priority["q1"], "Priority schould be updated considering previous report.")
+		assert.Equal(t, 15.0, priority["q1"], "Priority should be updated considering previous report.")
 	})
 }
 
@@ -50,15 +49,15 @@ func oneQueueReport(t time.Time, cpu resource.Quantity, memory resource.Quantity
 	}
 }
 
-func withUsageServer(action func (s *UsageServer)) {
+func withUsageServer(action func(s *UsageServer)) {
 	db, err := miniredis.Run()
 	if err != nil {
 		panic(err)
 	}
 	defer db.Close()
 
-	repo := &repository.RedisUsageRepository { Db: redis.NewClient(&redis.Options{Addr: db.Addr()})}
-	server := &UsageServer{UsageRepository: repo, PriorityHalfTime: time.Minute }
+	repo := repository.NewRedisUsageRepository(redis.NewClient(&redis.Options{Addr: db.Addr()}))
+	server := NewUsageServer(time.Minute, repo)
 
 	action(server)
 }

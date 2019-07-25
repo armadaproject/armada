@@ -13,18 +13,22 @@ import (
 )
 
 type UsageServer struct {
-	PriorityHalfTime time.Duration
-	UsageRepository  repository.UsageRepository
+	priorityHalfTime time.Duration
+	usageRepository  repository.UsageRepository
+}
+
+func NewUsageServer(priorityHalfTime time.Duration, usageRepository repository.UsageRepository) *UsageServer {
+	return &UsageServer{priorityHalfTime: priorityHalfTime, usageRepository: usageRepository}
 }
 
 func (s UsageServer) ReportUsage(ctx context.Context, report *api.ClusterUsageReport) (*types.Empty, error) {
 
-	reports, err := s.UsageRepository.GetClusterUsageReports()
+	reports, err := s.usageRepository.GetClusterUsageReports()
 	if err != nil {
 		return nil, err
 	}
 
-	previousPriority, err := s.UsageRepository.GetClusterPriority(report.ClusterId)
+	previousPriority, err := s.usageRepository.GetClusterPriority(report.ClusterId)
 	if err != nil {
 		return nil, err
 	}
@@ -39,9 +43,9 @@ func (s UsageServer) ReportUsage(ctx context.Context, report *api.ClusterUsageRe
 	availableResources := sumResources(reports)
 	resourceScarcity := calculateResourceScarcity(availableResources.AsFloat())
 	usage := calculateUsage(resourceScarcity, report.Queues)
-	newPriority := calculatePriority(usage, previousPriority, timeChange, s.PriorityHalfTime)
+	newPriority := calculatePriority(usage, previousPriority, timeChange, s.priorityHalfTime)
 
-	err = s.UsageRepository.UpdateCluster(report, newPriority)
+	err = s.usageRepository.UpdateCluster(report, newPriority)
 	if err != nil {
 		return nil, err
 	}

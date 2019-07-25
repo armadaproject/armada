@@ -13,9 +13,13 @@ import (
 )
 
 type AggregatedQueueServer struct {
-	JobRepository repository.JobRepository
-	UsageRepository repository.UsageRepository
-	QueueRepository repository.QueueRepository
+	jobRepository   repository.JobRepository
+	usageRepository repository.UsageRepository
+	queueRepository repository.QueueRepository
+}
+
+func NewAggregatedQueueServer(jobRepository repository.JobRepository, usageRepository repository.UsageRepository, queueRepository repository.QueueRepository) *AggregatedQueueServer {
+	return &AggregatedQueueServer{jobRepository: jobRepository, usageRepository: usageRepository, queueRepository: queueRepository}
 }
 
 const minPriority = 0.5
@@ -23,29 +27,30 @@ const batchSize = 100
 
 func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.LeaseRequest) (*api.JobLease, error) {
 
-	usageReports, e := q.UsageRepository.GetClusterUsageReports();
+	usageReports, e := q.usageRepository.GetClusterUsageReports();
 	if e != nil {
 		return nil, e
 	}
 
-	activeClusterIds := filterActiveClusters(usageReports, 10 * time.Minute)
-	clusterPriorities, e := q.UsageRepository.GetClusterPriorities(activeClusterIds)
+	activeClusterIds := filterActiveClusters(usageReports, 10*time.Minute)
+	clusterPriorities, e := q.usageRepository.GetClusterPriorities(activeClusterIds)
 	if e != nil {
 		return nil, e
 	}
 
-	queues, e := q.QueueRepository.GetQueues()
+	queues, e := q.queueRepository.GetQueues()
 	if e != nil {
 		return nil, e
 	}
 
-	activeQueues, e := q.JobRepository.FilterActiveQueues(queues)
+	activeQueues, e := q.jobRepository.FilterActiveQueues(queues)
 	if e != nil {
 		return nil, e
 	}
+	activeQueueNames := getQueueNames(activeQueues)
 
 	queuePriority := aggregatePriority(clusterPriorities)
-	activeQueuePriority := filterMapByKeys(queuePriority, activeQueues, minPriority)
+	activeQueuePriority := filterMapByKeys(queuePriority, activeQueueNames, minPriority)
 	slices := sliceResource(activeQueuePriority, request.Resources)
 	jobs, e := q.assignJobs(slices)
 
@@ -56,17 +61,17 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 }
 
 func (AggregatedQueueServer) RenewLease(context.Context, *api.IdList) (*types.Empty, error) {
-	return &types.Empty{},nil
+	return &types.Empty{}, nil
 }
 
 func (AggregatedQueueServer) ReportDone(context.Context, *api.IdList) (*types.Empty, error) {
-	return &types.Empty{},nil
+	return &types.Empty{}, nil
 }
 
 func (q AggregatedQueueServer) assignJobs(slices map[string]common.ComputeResourcesFloat) ([]*api.Job, error) {
 	jobs := make([]*api.Job, 0)
 	for queue, slice := range slices {
-		leased, remainder, e :=  q.leaseJobs(queue, slice)
+		leased, remainder, e := q.leaseJobs(queue, slice)
 		if e != nil {
 			fmt.Print(e)
 			continue
@@ -78,11 +83,11 @@ func (q AggregatedQueueServer) assignJobs(slices map[string]common.ComputeResour
 }
 
 func (q AggregatedQueueServer) leaseJobs(queue string, slice common.ComputeResourcesFloat) ([]*api.Job, common.ComputeResourcesFloat, error) {
-	jobs:= make([]*api.Job, 0)
+	jobs := make([]*api.Job, 0)
 	remainder := slice
 	for slice.IsValid() {
 
-		jobs, e := q.JobRepository.PeekQueue(queue, batchSize)
+		jobs, e := q.jobRepository.PeekQueue(queue, batchSize)
 		if e != nil {
 			return nil, slice, e
 		}
@@ -98,7 +103,7 @@ func (q AggregatedQueueServer) leaseJobs(queue string, slice common.ComputeResou
 			}
 		}
 
-		leased, e := q.JobRepository.TryLeaseJobs(queue, candidates)
+		leased, e := q.jobRepository.TryLeaseJobs(queue, candidates)
 		if e != nil {
 			return nil, slice, e
 		}
@@ -152,8 +157,16 @@ func aggregatePriority(clusterPriorities map[string]map[string]float64) map[stri
 	return result
 }
 
+func getQueueNames(queues []*api.Queue) []string {
+	result := make([]string, 0)
+	for _, q := range queues {
+		result = append(result, q.Name)
+	}
+	return result
+}
+
 func filterMapByKeys(original map[string]float64, keys []string, defaultValue float64) map[string]float64 {
-	result:= make(map[string]float64)
+	result := make(map[string]float64)
 	for _, key := range keys {
 		result[key] = util.GetOrDefault(original, key, defaultValue)
 	}

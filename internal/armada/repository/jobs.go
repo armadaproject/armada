@@ -16,17 +16,21 @@ const jobLeasedPrefix = "Job:Leased:"
 type JobRepository interface {
 	AddJob(request *api.JobRequest) (string, error)
 	PeekQueue(queue string, limit int64) ([]*api.Job, error)
-	FilterActiveQueues(queueNames []string) ([]string, error)
+	FilterActiveQueues(queues []*api.Queue) ([]*api.Queue, error)
 	TryLeaseJobs(queue string, jobs []*api.Job) ([]*api.Job, error)
 }
 
 type RedisJobRepository struct {
-	Db *redis.Client
+	db *redis.Client
+}
+
+func NewRedisJobRepository(db *redis.Client) *RedisJobRepository {
+	return &RedisJobRepository{db: db}
 }
 
 func (repo RedisJobRepository) AddJob(request *api.JobRequest) (string, error) {
 
-	pipe := repo.Db.TxPipeline()
+	pipe := repo.db.TxPipeline()
 
 	job := createJob(request)
 	jobData, e := proto.Marshal(job)
@@ -47,7 +51,7 @@ func (repo RedisJobRepository) AddJob(request *api.JobRequest) (string, error) {
 }
 
 func (repo RedisJobRepository) PeekQueue(queue string, limit int64) ([]*api.Job, error) {
-	ids, e := repo.Db.ZRange(jobQueuePrefix+queue, 0, limit-1).Result()
+	ids, e := repo.db.ZRange(jobQueuePrefix+queue, 0, limit-1).Result()
 	if e != nil {
 		return nil, e
 	}
@@ -57,7 +61,7 @@ func (repo RedisJobRepository) PeekQueue(queue string, limit int64) ([]*api.Job,
 // returns list of jobs which are successfully leased
 func (repo RedisJobRepository) TryLeaseJobs(queue string, jobs []*api.Job) ([]*api.Job, error) {
 	now := float64(time.Now().Unix())
-	pipe := repo.Db.Pipeline()
+	pipe := repo.db.Pipeline()
 	cmds := make(map[*api.Job]*redis.Cmd)
 	for _, job := range jobs{
 		cmds[job] = zmove(pipe, jobQueuePrefix+queue, jobLeasedPrefix+queue, job.Id, now)
@@ -80,7 +84,7 @@ func (repo RedisJobRepository) TryLeaseJobs(queue string, jobs []*api.Job) ([]*a
 
 
 func (repo RedisJobRepository) GetJobsByIds(ids []string) ([]*api.Job, error) {
-	pipe := repo.Db.Pipeline()
+	pipe := repo.db.Pipeline()
 	var cmds []*redis.StringCmd
 	for _, id := range ids {
 		cmds = append(cmds, pipe.Get(id))
@@ -103,19 +107,19 @@ func (repo RedisJobRepository) GetJobsByIds(ids []string) ([]*api.Job, error) {
 	return jobs, nil
 }
 
-func (repo RedisJobRepository) FilterActiveQueues(queueNames []string) ([]string, error) {
-	pipe := repo.Db.Pipeline()
-	cmds := make(map[string]*redis.IntCmd)
-	for _, queue := range queueNames {
+func (repo RedisJobRepository) FilterActiveQueues(queues []*api.Queue) ([]*api.Queue, error) {
+	pipe := repo.db.Pipeline()
+	cmds := make(map[*api.Queue]*redis.IntCmd)
+	for _, queue := range queues {
 		// empty (even sorted) sets gets deleted by redis automatically
-		cmds[queue] = pipe.Exists(jobQueuePrefix+queue)
+		cmds[queue] = pipe.Exists(jobQueuePrefix+queue.Name)
 	}
 	_, e := pipe.Exec()
 	if e != nil {
 		return nil, e
 	}
 
-	var active []string
+	var active []*api.Queue
 	for queue, cmd := range cmds {
 		if cmd.Val() > 0 {
 			active = append(active, queue)
