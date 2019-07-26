@@ -18,7 +18,7 @@ import (
 	"time"
 )
 
-func StartUp(config configuration.ExecutorConfiguration) (*sync.WaitGroup, chan os.Signal) {
+func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGroup) {
 	kubernetesClient, err := CreateKubernetesClientWithDefaultConfig(config.Application.InClusterDeployment)
 	if err != nil {
 		log.Error(err)
@@ -83,11 +83,7 @@ func StartUp(config configuration.ExecutorConfiguration) (*sync.WaitGroup, chan 
 	tasks = append(tasks, scheduleBackgroundTask(jobLeaseService.ManageJobLeases, config.Task.JobLeaseRenewalInterval, wg))
 	tasks = append(tasks, scheduleBackgroundTask(eventReconciliationService.ReconcileMissingJobEvents, config.Task.MissingJobEventReconciliationInterval, wg))
 
-	shutdown := make(chan os.Signal, 1)
-
-	go func() {
-		shutdownSignal := <-shutdown
-		log.Infof("Caught shutdown signal: %+v \n", shutdownSignal)
+	return func() {
 		stopTasks(tasks)
 		close(informerStopper)
 		conn.Close()
@@ -96,9 +92,7 @@ func StartUp(config configuration.ExecutorConfiguration) (*sync.WaitGroup, chan 
 		if waitForShutdownCompletion(wg, 2*time.Second) {
 			fmt.Println("Graceful shutdown timed out")
 		}
-	}()
-
-	return wg, shutdown
+	}, wg
 }
 
 func waitForShutdownCompletion(wg *sync.WaitGroup, timeout time.Duration) bool {
