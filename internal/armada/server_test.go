@@ -70,7 +70,7 @@ func withRunningServer(action func(client api.SubmitClient, leaseClient api.Aggr
 	})
 	defer server.Stop()
 
-	conn, err := grpc.Dial("localhost:50051", grpc.WithInsecure())
+	conn, err := grpc.Dial("localhost:50051", grpc.WithInsecure(), grpc.WithDefaultCallOptions(grpc.WaitForReady(true)))
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
 	}
