@@ -22,7 +22,7 @@ type ClusterUtilisationService struct {
 
 func (clusterUtilisationService ClusterUtilisationService) ReportClusterUtilisation() {
 	allAvailableProcessingNodes := clusterUtilisationService.getAllAvailableProcessingNodes()
-	totalNodeResource := util.CalculateTotalResource(allAvailableProcessingNodes)
+	totalNodeResource := common.CalculateTotalResource(allAvailableProcessingNodes)
 
 	allActiveManagedPods := getAllActiveManagedPods(clusterUtilisationService.PodLister)
 	queueReports := createReportsOfQueueUsages(allActiveManagedPods)
@@ -51,8 +51,8 @@ func (clusterUtilisationService ClusterUtilisationService) GetAvailableClusterCa
 	podsOnProcessingNodes := getAllPodsOnNodes(allPods, processingNodes)
 	activePodsOnProcessingNodes := util.FilterCompletedPods(podsOnProcessingNodes)
 
-	totalNodeResource := util.CalculateTotalResource(processingNodes)
-	totalPodResource := util.CalculateTotalResourceLimit(activePodsOnProcessingNodes)
+	totalNodeResource := common.CalculateTotalResource(processingNodes)
+	totalPodResource := common.CalculateTotalResourceLimit(activePodsOnProcessingNodes)
 
 	availableResource := totalNodeResource.DeepCopy()
 	availableResource.Sub(totalPodResource)
@@ -158,7 +158,7 @@ func getUsageByQueue(pods []*v1.Pod) map[string]common.ComputeResources {
 
 	for _, pod := range pods {
 		queue := pod.Labels[domain.Queue]
-		podComputeResource := util.CalculateTotalResourceLimit([]*v1.Pod{pod})
+		podComputeResource := common.CalculateTotalResourceLimit([]*v1.Pod{pod})
 
 		if _, ok := utilisationByQueue[queue]; ok {
 			utilisationByQueue[queue].Add(podComputeResource)

@@ -24,7 +24,7 @@ func (cleanupService PodCleanupService) DeletePods(pods []*v1.Pod) {
 }
 
 func IsPodReadyForCleanup(pod *v1.Pod) bool {
-	if util.IsInTerminalState(pod) && hasEventBeenReportedForCurrentState(pod) {
+	if util.IsInTerminalState(pod) && hasCurrentStateBeenReported(pod) {
 		return true
 	}
 	return false

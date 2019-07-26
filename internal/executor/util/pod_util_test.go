@@ -168,7 +168,8 @@ func TestExtractJobIds_HandlesEmptyList(t *testing.T) {
 
 func TestExtractJobIds_SkipsWhenJobIdNotPresent(t *testing.T) {
 	expected := []string{}
-	pods := []*v1.Pod{}
+	podWithNoJobId := v1.Pod{}
+	pods := []*v1.Pod{&podWithNoJobId}
 
 	result := ExtractJobIds(pods)
 	assert.Equal(t, result, expected)

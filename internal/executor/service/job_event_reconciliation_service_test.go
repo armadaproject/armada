@@ -89,3 +89,41 @@ func TestHasPodBeenInStateForLongerThanGivenDuration_ReturnsTrue_WhenNoPodStateC
 
 	assert.True(t, result)
 }
+
+func TestHasCurrentStateBeenReported_TrueWhenAnnotationExistsForCurrentPhase(t *testing.T) {
+	podPhase := v1.PodRunning
+	pod := v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Annotations: map[string]string{string(podPhase): time.Now().String()},
+		},
+		Status: v1.PodStatus{
+			Phase: podPhase,
+		},
+	}
+	result := hasCurrentStateBeenReported(&pod)
+	assert.True(t, result)
+}
+
+func TestHasCurrentStateBeenReported_FalseWhenNoAnnotationExistsForCurrentPhase(t *testing.T) {
+	pod := v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			//Annotation for different phase
+			Annotations: map[string]string{string(v1.PodPending): time.Now().String()},
+		},
+		Status: v1.PodStatus{
+			Phase: v1.PodRunning,
+		},
+	}
+	result := hasCurrentStateBeenReported(&pod)
+	assert.False(t, result)
+}
+
+func TestHasCurrentStateBeenReported_FalseWhenNoAnnotationsExist(t *testing.T) {
+	pod := v1.Pod{
+		Status: v1.PodStatus{
+			Phase: v1.PodRunning,
+		},
+	}
+	result := hasCurrentStateBeenReported(&pod)
+	assert.False(t, result)
+}
