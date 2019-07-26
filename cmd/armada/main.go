@@ -24,7 +24,7 @@ func main() {
 	s, wg := armada.Serve(&config)
 	go func() {
 		<-stopSignal
-		s.Stop()
+		s.GracefulStop()
 	}()
 	wg.Wait()
 }
