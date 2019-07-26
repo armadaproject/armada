@@ -1,7 +1,6 @@
 package repository
 
 import (
-	"fmt"
 	"github.com/G-Research/k8s-batch/internal/armada/api"
 	"github.com/G-Research/k8s-batch/internal/common/util"
 	"github.com/go-redis/redis"
@@ -43,8 +42,6 @@ func (repo RedisJobRepository) AddJob(request *api.JobRequest) (string, error) {
 		Score:  job.Priority})
 
 	pipe.Set(jobObjectPrefix+job.Id, jobData, 0)
-
-	fmt.Println(job)
 
 	_, e = pipe.Exec()
 	return job.Id, e
