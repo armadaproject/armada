@@ -51,8 +51,6 @@ func StartUp(config configuration.Configuration) (*sync.WaitGroup, chan os.Signa
 
 	jobLeaseService := service.JobLeaseService{
 		PodLister:      podInformer.Lister(),
-		NodeLister:     nodeLister,
-		JobSubmitter:   jobSubmitter,
 		QueueClient:    queueClient,
 		CleanupService: podCleanupService,
 		ClusterId:      config.Application.ClusterId,
@@ -64,9 +62,16 @@ func StartUp(config configuration.Configuration) (*sync.WaitGroup, chan os.Signa
 	}
 
 	clusterUtilisationService := service.ClusterUtilisationService{
+		ClientId:    config.Application.ClusterId,
 		PodLister:   podInformer.Lister(),
 		NodeLister:  nodeLister,
 		UsageClient: usageClient,
+	}
+
+	clusterAllocationService := service.ClusterAllocationService{
+		LeaseService:       jobLeaseService,
+		UtilisationService: clusterUtilisationService,
+		JobSubmitter:       jobSubmitter,
 	}
 
 	wg := &sync.WaitGroup{}
@@ -74,7 +79,7 @@ func StartUp(config configuration.Configuration) (*sync.WaitGroup, chan os.Signa
 
 	tasks := make([]chan bool, 0)
 	tasks = append(tasks, scheduleBackgroundTask(clusterUtilisationService.ReportClusterUtilisation, config.Task.UtilisationReportingInterval, wg))
-	tasks = append(tasks, scheduleBackgroundTask(jobLeaseService.RequestJobLeasesAndFillSpareClusterCapacity, config.Task.RequestNewJobsInterval, wg))
+	tasks = append(tasks, scheduleBackgroundTask(clusterAllocationService.AllocateSpareClusterCapacity, config.Task.AllocateSpareClusterCapacityInterval, wg))
 	tasks = append(tasks, scheduleBackgroundTask(jobLeaseService.ManageJobLeases, config.Task.JobLeaseRenewalInterval, wg))
 	tasks = append(tasks, scheduleBackgroundTask(eventReconciliationService.ReconcileMissingJobEvents, config.Task.MissingJobEventReconciliationInterval, wg))
 

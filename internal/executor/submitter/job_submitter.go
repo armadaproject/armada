@@ -17,11 +17,13 @@ type JobSubmitter struct {
 func (submitter JobSubmitter) SubmitJob(job *api.Job) (*v1.Pod, error) {
 	pod := createPod(job)
 
-	return submitter.KubernetesClient.CoreV1().Pods(pod.Namespace).Create(pod)
+	//TODO Remove hardcoded namespace once it can be user specified
+	return submitter.KubernetesClient.CoreV1().Pods("default").Create(pod)
 }
 
 func createPod(job *api.Job) *v1.Pod {
 	labels := createLabels(job)
+	setRestartPolicyNever(job.PodSpec)
 
 	pod := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -32,6 +34,10 @@ func createPod(job *api.Job) *v1.Pod {
 	}
 
 	return &pod
+}
+
+func setRestartPolicyNever(podSpec *v1.PodSpec) {
+	podSpec.RestartPolicy = v1.RestartPolicyNever
 }
 
 func createLabels(job *api.Job) map[string]string {

@@ -15,13 +15,13 @@ type JobEventReconciliationService struct {
 }
 
 func (reconciliationService JobEventReconciliationService) ReconcileMissingJobEvents() {
-	selector, err := util.CreateLabelSelectorForManagedPods()
+	selector := util.GetManagedPodSelector()
+	allBatchPods, err := reconciliationService.PodLister.List(selector)
 	if err != nil {
-		return
 		//TODO Handle error case
+		return
 	}
 
-	allBatchPods, err := reconciliationService.PodLister.List(selector)
 	allPodsWithMissingEvent := filterPodsWithCurrentStateNotReported(allBatchPods)
 
 	for _, pod := range allPodsWithMissingEvent {
@@ -32,16 +32,14 @@ func (reconciliationService JobEventReconciliationService) ReconcileMissingJobEv
 func filterPodsWithCurrentStateNotReported(pods []*v1.Pod) []*v1.Pod {
 	podsWithMissingEvent := make([]*v1.Pod, 0)
 	for _, pod := range pods {
-		if !hasEventBeenReportedForCurrentState(pod) {
-			if hasPodBeenInStateForLongerThanGivenDuration(pod, 15*time.Second) {
-				podsWithMissingEvent = append(podsWithMissingEvent, pod)
-			}
+		if !hasCurrentStateBeenReported(pod) && hasPodBeenInStateForLongerThanGivenDuration(pod, 15*time.Second) {
+			podsWithMissingEvent = append(podsWithMissingEvent, pod)
 		}
 	}
 	return podsWithMissingEvent
 }
 
-func hasEventBeenReportedForCurrentState(pod *v1.Pod) bool {
+func hasCurrentStateBeenReported(pod *v1.Pod) bool {
 	podPhase := pod.Status.Phase
 	_, annotationPresent := pod.Annotations[string(podPhase)]
 	return annotationPresent

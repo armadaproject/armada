@@ -55,10 +55,15 @@ func (eventReporter JobEventReporter) report(pod *v1.Pod) {
 	//}
 	fmt.Printf("Reporting event %s \n", event.String())
 
-	eventReporter.addStateChangeAnnotation(pod)
+	eventReporter.addAnnotationToMarkStateReported(pod)
 }
 
-func (eventReporter JobEventReporter) addStateChangeAnnotation(pod *v1.Pod) {
+func (eventReporter JobEventReporter) addAnnotationToMarkStateReported(pod *v1.Pod) {
+	stateReportedPatch := createPatchToMarkCurrentStateReported(pod)
+	eventReporter.patchPod(pod, stateReportedPatch)
+}
+
+func createPatchToMarkCurrentStateReported(pod *v1.Pod) *domain.Patch {
 	annotations := make(map[string]string)
 	annotationName := string(pod.Status.Phase)
 
@@ -69,8 +74,7 @@ func (eventReporter JobEventReporter) addStateChangeAnnotation(pod *v1.Pod) {
 			Annotations: annotations,
 		},
 	}
-
-	eventReporter.patchPod(pod, &patch)
+	return &patch
 }
 
 func (eventReporter JobEventReporter) patchPod(pod *v1.Pod, patch *domain.Patch) {

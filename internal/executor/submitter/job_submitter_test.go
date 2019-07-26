@@ -27,22 +27,34 @@ func TestCreateLabels_CreatesExpectedLabels(t *testing.T) {
 	assert.Equal(t, result, expectedOutput)
 }
 
+func TestSetRestartPolicyNever_OverwritesExistingValue(t *testing.T) {
+	podSpec := makePodSpec()
+
+	podSpec.RestartPolicy = v1.RestartPolicyAlways
+	assert.Equal(t, podSpec.RestartPolicy, v1.RestartPolicyAlways)
+
+	setRestartPolicyNever(podSpec)
+	assert.Equal(t, podSpec.RestartPolicy, v1.RestartPolicyNever)
+}
+
 func TestCreatePod_CreatesExpectedPod(t *testing.T) {
+	podSpec := makePodSpec()
 	job := api.Job{
 		Id:       "Id",
 		JobSetId: "JobSetId",
 		Queue:    "Queue1",
-		PodSpec:  makePodSpec(),
+		PodSpec:  podSpec,
 	}
 
 	labels := createLabels(&job)
+	podSpec.RestartPolicy = v1.RestartPolicyNever
 
 	expectedOutput := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:   PodNamePrefix + job.Id,
 			Labels: labels,
 		},
-		Spec: *job.PodSpec,
+		Spec: *podSpec,
 	}
 
 	result := createPod(&job)
