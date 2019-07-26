@@ -1,4 +1,4 @@
-package startup
+package executor
 
 import (
 	"fmt"
@@ -7,27 +7,27 @@ import (
 	"github.com/G-Research/k8s-batch/internal/executor/reporter"
 	"github.com/G-Research/k8s-batch/internal/executor/service"
 	"github.com/G-Research/k8s-batch/internal/executor/submitter"
+	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/informers"
 	informer "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/tools/cache"
-	"log"
 	"os"
 	"sync"
 	"time"
 )
 
-func StartUp(config configuration.Configuration) (*sync.WaitGroup, chan os.Signal) {
+func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGroup) {
 	kubernetesClient, err := CreateKubernetesClientWithDefaultConfig(config.Application.InClusterDeployment)
 	if err != nil {
-		fmt.Println(err)
+		log.Error(err)
 		os.Exit(-1)
 	}
 
 	conn, err := grpc.Dial(config.Armada.Url, grpc.WithInsecure())
 	if err != nil {
-		log.Fatalf("did not connect: %v", err)
+		log.Errorf("did not connect: %v", err)
 	}
 
 	queueClient := api.NewAggregatedQueueClient(conn)
@@ -83,11 +83,7 @@ func StartUp(config configuration.Configuration) (*sync.WaitGroup, chan os.Signa
 	tasks = append(tasks, scheduleBackgroundTask(jobLeaseService.ManageJobLeases, config.Task.JobLeaseRenewalInterval, wg))
 	tasks = append(tasks, scheduleBackgroundTask(eventReconciliationService.ReconcileMissingJobEvents, config.Task.MissingJobEventReconciliationInterval, wg))
 
-	shutdown := make(chan os.Signal, 1)
-
-	go func() {
-		shutdownSignal := <-shutdown
-		fmt.Printf("Caught shutdown signal: %+v \n", shutdownSignal)
+	return func() {
 		stopTasks(tasks)
 		close(informerStopper)
 		conn.Close()
@@ -96,9 +92,7 @@ func StartUp(config configuration.Configuration) (*sync.WaitGroup, chan os.Signa
 		if waitForShutdownCompletion(wg, 2*time.Second) {
 			fmt.Println("Graceful shutdown timed out")
 		}
-	}()
-
-	return wg, shutdown
+	}, wg
 }
 
 func waitForShutdownCompletion(wg *sync.WaitGroup, timeout time.Duration) bool {

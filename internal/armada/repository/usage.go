@@ -8,7 +8,7 @@ import (
 )
 
 type Usage struct {
-	PriorityPerQueue map[string]float64
+	PriorityPerQueue     map[string]float64
 	CurrentUsagePerQueue map[string]float64
 }
 
@@ -41,7 +41,7 @@ func (r RedisUsageRepository) GetClusterUsageReports() (map[string]*api.ClusterU
 	for k, v := range result {
 		report := &api.ClusterUsageReport{}
 		e := proto.Unmarshal([]byte(v), report)
-		if e!= nil {
+		if e != nil {
 			return nil, e
 		}
 		reports[k] = report
@@ -50,7 +50,7 @@ func (r RedisUsageRepository) GetClusterUsageReports() (map[string]*api.ClusterU
 }
 
 func (r RedisUsageRepository) GetClusterPriority(clusterId string) (map[string]float64, error) {
-	result, err := r.db.HGetAll(clusterPrioritiesPrefix+clusterId).Result()
+	result, err := r.db.HGetAll(clusterPrioritiesPrefix + clusterId).Result()
 	if err != nil {
 		return nil, err
 	}
@@ -61,7 +61,7 @@ func (r RedisUsageRepository) GetClusterPriorities(clusterIds []string) (map[str
 	pipe := r.db.Pipeline()
 	cmds := make(map[string]*redis.StringStringMapCmd)
 	for _, id := range clusterIds {
-		cmds[id] = pipe.HGetAll(clusterPrioritiesPrefix+id)
+		cmds[id] = pipe.HGetAll(clusterPrioritiesPrefix + id)
 	}
 	_, e := pipe.Exec()
 	if e != nil {
@@ -105,7 +105,7 @@ func toFloat64Map(result map[string]string) (map[string]float64, error) {
 	reports := make(map[string]float64)
 	for k, v := range result {
 		priority, e := strconv.ParseFloat(v, 64)
-		if e!= nil {
+		if e != nil {
 			return nil, e
 		}
 		reports[k] = priority

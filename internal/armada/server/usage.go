@@ -1,4 +1,3 @@
-
 package server
 
 import (
@@ -55,11 +54,11 @@ func (s UsageServer) ReportUsage(ctx context.Context, report *api.ClusterUsageRe
 func calculatePriority(usage map[string]float64, previousPriority map[string]float64, timeChange time.Duration, halfTime time.Duration) map[string]float64 {
 
 	newPriority := map[string]float64{}
-	timeChangeFactor := math.Pow(0.5, timeChange.Seconds() / halfTime.Seconds())
+	timeChangeFactor := math.Pow(0.5, timeChange.Seconds()/halfTime.Seconds())
 
 	for queue, oldPriority := range previousPriority {
-		newPriority[queue] = timeChangeFactor * util.GetOrDefault(usage, queue,0) +
-							(1 - timeChangeFactor) * oldPriority
+		newPriority[queue] = timeChangeFactor*util.GetOrDefault(usage, queue, 0) +
+			(1-timeChangeFactor)*oldPriority
 	}
 	for queue, usage := range usage {
 		_, exists := newPriority[queue]

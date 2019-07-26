@@ -2,12 +2,12 @@ package server
 
 import (
 	"context"
-	"fmt"
 	"github.com/G-Research/k8s-batch/internal/armada/api"
 	"github.com/G-Research/k8s-batch/internal/armada/repository"
 	"github.com/G-Research/k8s-batch/internal/common"
 	"github.com/G-Research/k8s-batch/internal/common/util"
 	"github.com/gogo/protobuf/types"
+	log "github.com/sirupsen/logrus"
 	"math"
 	"time"
 )
@@ -73,7 +73,7 @@ func (q AggregatedQueueServer) assignJobs(slices map[string]common.ComputeResour
 	for queue, slice := range slices {
 		leased, remainder, e := q.leaseJobs(queue, slice)
 		if e != nil {
-			fmt.Print(e)
+			log.Error(e)
 			continue
 		}
 		slices[queue] = remainder

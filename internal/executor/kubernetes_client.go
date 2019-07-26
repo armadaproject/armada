@@ -1,4 +1,4 @@
-package startup
+package executor
 
 import (
 	"k8s.io/client-go/kubernetes"
