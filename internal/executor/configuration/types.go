@@ -22,7 +22,7 @@ type EventsConfiguration struct {
 	Url string
 }
 
-type Configuration struct {
+type ExecutorConfiguration struct {
 	Application ApplicationConfiguration
 	Task        TaskConfiguration
 	Armada      ArmadaConfiguration
