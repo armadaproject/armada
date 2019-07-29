@@ -2,10 +2,10 @@ package reporter
 
 import (
 	"encoding/json"
-	"fmt"
 	"github.com/G-Research/k8s-batch/internal/armada/api"
 	"github.com/G-Research/k8s-batch/internal/executor/domain"
 	"github.com/G-Research/k8s-batch/internal/executor/util"
+	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -29,7 +29,6 @@ func (eventReporter JobEventReporter) ReportEvent(pod *v1.Pod) {
 
 func (eventReporter JobEventReporter) ReportUpdateEvent(old *v1.Pod, new *v1.Pod) {
 	if old.Status.Phase == new.Status.Phase {
-		fmt.Printf("Skipping update on pod %s, as update didn't change the pods current phase \n", new.Name)
 		return
 	}
 	eventReporter.report(new)
@@ -42,7 +41,8 @@ func (eventReporter JobEventReporter) report(pod *v1.Pod) {
 
 	event, err := util.CreateEventMessageForCurrentState(pod)
 	if err != nil {
-		fmt.Printf("Failed to report event because %s \n", err)
+		log.Errorf("Failed to report event because %s", err)
+		return
 	}
 
 	//TODO Put code back in when server side events API is ready
@@ -51,16 +51,21 @@ func (eventReporter JobEventReporter) report(pod *v1.Pod) {
 	//_, err = eventReporter.EventClient.Report(ctx, event)
 	//
 	//if err != nil {
-	//	fmt.Printf("Failed to report event because %s \n", err)
+	//	log.Infof("Failed to report event because %s", err)
+	//	return
 	//}
-	fmt.Printf("Reporting event %s \n", event.String())
+	log.Infof("Reporting event %s", event.String())
 
-	eventReporter.addAnnotationToMarkStateReported(pod)
+	err = eventReporter.addAnnotationToMarkStateReported(pod)
+	if err != nil {
+		log.Errorf("Failed to add stats reported annotation to pod %s because %s", pod.Name, err)
+		return
+	}
 }
 
-func (eventReporter JobEventReporter) addAnnotationToMarkStateReported(pod *v1.Pod) {
+func (eventReporter JobEventReporter) addAnnotationToMarkStateReported(pod *v1.Pod) error {
 	stateReportedPatch := createPatchToMarkCurrentStateReported(pod)
-	eventReporter.patchPod(pod, stateReportedPatch)
+	return eventReporter.patchPod(pod, stateReportedPatch)
 }
 
 func createPatchToMarkCurrentStateReported(pod *v1.Pod) *domain.Patch {
@@ -77,13 +82,14 @@ func createPatchToMarkCurrentStateReported(pod *v1.Pod) *domain.Patch {
 	return &patch
 }
 
-func (eventReporter JobEventReporter) patchPod(pod *v1.Pod, patch *domain.Patch) {
+func (eventReporter JobEventReporter) patchPod(pod *v1.Pod, patch *domain.Patch) error {
 	patchBytes, err := json.Marshal(patch)
 	if err != nil {
-		fmt.Printf("Failure marshalling patch for pod %s because: %s \n", pod.Name, err)
+		return err
 	}
 	_, err = eventReporter.KubernetesClient.CoreV1().Pods(pod.Namespace).Patch(pod.Name, types.StrategicMergePatchType, patchBytes)
 	if err != nil {
-		fmt.Printf("Error updating pod with %s for %s because: %s \n", patchBytes, pod.Name, err)
+		return err
 	}
+	return nil
 }

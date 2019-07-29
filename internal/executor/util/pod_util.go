@@ -1,8 +1,8 @@
 package util
 
 import (
-	"fmt"
 	"github.com/G-Research/k8s-batch/internal/executor/domain"
+	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
@@ -52,7 +52,7 @@ func ExtractJobIds(pods []*v1.Pod) []string {
 			jobIds = append(jobIds, jobId)
 		} else {
 			//TODO decide how to handle this error, it should in theory never happen if all jobs are well formed. Maybe skipping is OK
-			fmt.Printf("Failed to report event for pod %s as not job id was present to report it under. \n", pod.Name)
+			log.Errorf("Failed to report event for pod %s as no job id was present to report it under.", pod.Name)
 		}
 	}
 

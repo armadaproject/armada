@@ -1,7 +1,6 @@
 package executor
 
 import (
-	"fmt"
 	"github.com/G-Research/k8s-batch/internal/armada/api"
 	"github.com/G-Research/k8s-batch/internal/executor/configuration"
 	"github.com/G-Research/k8s-batch/internal/executor/reporter"
@@ -21,13 +20,14 @@ import (
 func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGroup) {
 	kubernetesClient, err := CreateKubernetesClientWithDefaultConfig(config.Application.InClusterDeployment)
 	if err != nil {
-		log.Error(err)
+		log.Errorf("Failed to connect to kubernetes because %s", err)
 		os.Exit(-1)
 	}
 
 	conn, err := grpc.Dial(config.Armada.Url, grpc.WithInsecure())
 	if err != nil {
-		log.Errorf("did not connect: %v", err)
+		log.Errorf("Failed to connect to API because: %s", err)
+		os.Exit(-1)
 	}
 
 	queueClient := api.NewAggregatedQueueClient(conn)
@@ -88,10 +88,10 @@ func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGrou
 		close(informerStopper)
 		conn.Close()
 		wg.Done()
-		fmt.Println("Shutdown complete")
 		if waitForShutdownCompletion(wg, 2*time.Second) {
-			fmt.Println("Graceful shutdown timed out")
+			log.Warnf("Graceful shutdown timed out")
 		}
+		log.Infof("Shutdown complete")
 	}, wg
 }
 
@@ -140,7 +140,7 @@ func addPodEventHandler(podInformer informer.PodInformer, eventReporter reporter
 		AddFunc: func(obj interface{}) {
 			pod, ok := obj.(*v1.Pod)
 			if !ok {
-				//TODO Log
+				log.Errorf("Failed to process pod event due to it being an unexpected type. Failed to process %+v", obj)
 				return
 			}
 			go eventReporter.ReportEvent(pod)
@@ -148,12 +148,12 @@ func addPodEventHandler(podInformer informer.PodInformer, eventReporter reporter
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			oldPod, ok := oldObj.(*v1.Pod)
 			if !ok {
-				//TODO Log
+				log.Errorf("Failed to process pod event due to it being an unexpected type. Failed to process %+v", oldObj)
 				return
 			}
 			newPod, ok := newObj.(*v1.Pod)
 			if !ok {
-				//TODO Log
+				log.Errorf("Failed to process pod event due to it being an unexpected type. Failed to process %+v", newObj)
 				return
 			}
 			go eventReporter.ReportUpdateEvent(oldPod, newPod)

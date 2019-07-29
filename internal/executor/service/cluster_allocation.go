@@ -1,8 +1,8 @@
 package service
 
 import (
-	"fmt"
 	"github.com/G-Research/k8s-batch/internal/executor/submitter"
+	log "github.com/sirupsen/logrus"
 )
 
 type ClusterAllocationService struct {
@@ -12,17 +12,22 @@ type ClusterAllocationService struct {
 }
 
 func (allocationService ClusterAllocationService) AllocateSpareClusterCapacity() {
-	availableResource := allocationService.UtilisationService.GetAvailableClusterCapacity()
+	availableResource, err := allocationService.UtilisationService.GetAvailableClusterCapacity()
+	if err != nil {
+		log.Errorf("Failed to allocate spare cluster capacity because %s", err)
+		return
+	}
 
 	newJobs, err := allocationService.LeaseService.RequestJobLeases(availableResource)
 
 	if err != nil {
-		fmt.Printf("Failed to lease new jobs because %s \n", err)
+		log.Errorf("Failed to lease new jobs because %s", err)
+		return
 	} else {
 		for _, job := range newJobs {
 			_, err = allocationService.JobSubmitter.SubmitJob(job)
 			if err != nil {
-				fmt.Printf("Failed to submit job %s because %s \n", job.Id, err)
+				log.Errorf("Failed to submit job %s because %s", job.Id, err)
 			}
 		}
 	}

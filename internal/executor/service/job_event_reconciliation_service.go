@@ -4,6 +4,7 @@ import (
 	"errors"
 	"github.com/G-Research/k8s-batch/internal/executor/reporter"
 	"github.com/G-Research/k8s-batch/internal/executor/util"
+	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	listers "k8s.io/client-go/listers/core/v1"
 	"time"
@@ -18,7 +19,7 @@ func (reconciliationService JobEventReconciliationService) ReconcileMissingJobEv
 	selector := util.GetManagedPodSelector()
 	allBatchPods, err := reconciliationService.PodLister.List(selector)
 	if err != nil {
-		//TODO Handle error case
+		log.Errorf("Failed to reconcile missing job events because %s", err)
 		return
 	}
 

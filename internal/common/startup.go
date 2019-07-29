@@ -1,8 +1,7 @@
 package common
 
 import (
-	"github.com/prometheus/common/log"
-	"github.com/sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 	"os"
 )
@@ -22,6 +21,6 @@ func LoadConfig(config interface{}, path string) {
 }
 
 func ConfigureLogging() {
-	logrus.SetFormatter(&logrus.TextFormatter{ForceColors: true, FullTimestamp: true})
-	logrus.SetOutput(os.Stdout)
+	log.SetFormatter(&log.TextFormatter{ForceColors: true, FullTimestamp: true})
+	log.SetOutput(os.Stdout)
 }
