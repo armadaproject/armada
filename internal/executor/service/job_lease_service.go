@@ -2,10 +2,10 @@ package service
 
 import (
 	"context"
-	"fmt"
 	"github.com/G-Research/k8s-batch/internal/armada/api"
 	"github.com/G-Research/k8s-batch/internal/common"
 	"github.com/G-Research/k8s-batch/internal/executor/util"
+	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	listers "k8s.io/client-go/listers/core/v1"
 	"strings"
@@ -39,7 +39,8 @@ func (jobLeaseService JobLeaseService) ManageJobLeases() {
 	managedPodSelector := util.GetManagedPodSelector()
 	allManagedPods, err := jobLeaseService.PodLister.List(managedPodSelector)
 	if err != nil {
-		//TODO Handle error case
+		log.Errorf("Failed to manage job leases due to %s", err)
+		return
 	}
 
 	podsToRenew, podsToCleanup := splitRunningAndFinishedPods(allManagedPods)
@@ -68,14 +69,14 @@ func (jobLeaseService JobLeaseService) renewJobLeases(pods []*v1.Pod) {
 		return
 	}
 	jobIds := util.ExtractJobIds(pods)
-	fmt.Printf("Renewing lease for %s \n", strings.Join(jobIds, ","))
+	log.Infof("Renewing lease for %s", strings.Join(jobIds, ","))
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	_, err := jobLeaseService.QueueClient.RenewLease(ctx, &api.IdList{Ids: jobIds})
 
 	if err != nil {
-		fmt.Printf("Failed to renew lease for jobs because %s \n", err)
+		log.Errorf("Failed to renew lease for jobs because %s", err)
 	}
 }
 
@@ -90,7 +91,7 @@ func (jobLeaseService JobLeaseService) endJobLeases(pods []*v1.Pod) {
 	_, err := jobLeaseService.QueueClient.ReportDone(ctx, &api.IdList{Ids: jobIds})
 
 	if err != nil {
-		fmt.Printf("Failed cleaning up jobs because %s \n", err)
+		log.Errorf("Failed cleaning up jobs because %s", err)
 	}
 
 	jobLeaseService.CleanupService.DeletePods(pods)
