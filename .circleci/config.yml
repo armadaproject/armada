@@ -5,7 +5,7 @@ jobs:
       - image: circleci/golang:1.12.6
         environment:
           GO111MODULE: "on"
-    working_directory: /go/src/github.com/Gresearch/k8s-batch
+    working_directory: /go/src/github.com/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}
     steps:
       - checkout
       - setup_remote_docker
