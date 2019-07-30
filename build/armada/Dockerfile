@@ -6,7 +6,7 @@ ADD . /app
 
 WORKDIR /app
 
-RUN env GOOS=linux GARCH=amd64 CGO_ENABLED=0 go build -o main cmd/executor/main.go
+RUN env GOOS=linux GARCH=amd64 CGO_ENABLED=0 go build -o main cmd/armada/main.go
 
 FROM alpine:3.10
 
