@@ -3,8 +3,12 @@ package configuration
 import "time"
 
 type ApplicationConfiguration struct {
-	ClusterId           string
+	ClusterId string
+}
+
+type KubernetesConfiguration struct {
 	InClusterDeployment bool
+	ConfigLocation      string
 }
 
 type TaskConfiguration struct {
@@ -24,6 +28,7 @@ type EventsConfiguration struct {
 
 type ExecutorConfiguration struct {
 	Application ApplicationConfiguration
+	Kubernetes  KubernetesConfiguration
 	Task        TaskConfiguration
 	Armada      ArmadaConfiguration
 	Events      EventsConfiguration

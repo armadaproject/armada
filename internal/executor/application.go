@@ -18,7 +18,7 @@ import (
 )
 
 func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGroup) {
-	kubernetesClient, err := CreateKubernetesClientWithDefaultConfig(config.Application.InClusterDeployment)
+	kubernetesClient, err := CreateKubernetesClient(&config.Kubernetes)
 	if err != nil {
 		log.Errorf("Failed to connect to kubernetes because %s", err)
 		os.Exit(-1)
