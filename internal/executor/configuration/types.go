@@ -7,8 +7,8 @@ type ApplicationConfiguration struct {
 }
 
 type KubernetesConfiguration struct {
-	InClusterDeployment bool
-	ConfigLocation      string
+	InClusterDeployment      bool
+	KubernetesConfigLocation string
 }
 
 type TaskConfiguration struct {

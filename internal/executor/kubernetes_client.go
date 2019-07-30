@@ -20,8 +20,8 @@ func CreateKubernetesClient(kubernetesConfig *configuration.KubernetesConfigurat
 func loadConfig(kubernetesConfig *configuration.KubernetesConfiguration) (*rest.Config, error) {
 	if kubernetesConfig.InClusterDeployment {
 		return rest.InClusterConfig()
-	} else if kubernetesConfig.ConfigLocation != "" {
-		return clientcmd.BuildConfigFromFlags("", kubernetesConfig.ConfigLocation)
+	} else if kubernetesConfig.KubernetesConfigLocation != "" {
+		return clientcmd.BuildConfigFromFlags("", kubernetesConfig.KubernetesConfigLocation)
 	} else {
 		rules := clientcmd.NewDefaultClientConfigLoadingRules()
 		overrides := &clientcmd.ConfigOverrides{}

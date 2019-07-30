@@ -2,7 +2,7 @@ application:
   clusterId : "Cluster1"
 kubernetes:
   inClusterDeployment: false
-  configLocation: ""
+  kubernetesConfigLocation: ""
 task:
   utilisationReportingInterval: 10s
   missingJobEventReconciliationInterval: 10s
