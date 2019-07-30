@@ -11,16 +11,29 @@ import (
 const jobObjectPrefix = "Job:"
 const jobQueuePrefix = "Job:Queue:"
 const jobLeasedPrefix = "Job:Leased:"
+const jobClusterMapKey = "Job:ClusterId"
 
 type JobRepository interface {
 	AddJob(request *api.JobRequest) (string, error)
 	PeekQueue(queue string, limit int64) ([]*api.Job, error)
 	FilterActiveQueues(queues []*api.Queue) ([]*api.Queue, error)
-	TryLeaseJobs(queue string, jobs []*api.Job) ([]*api.Job, error)
+	TryLeaseJobs(clusterId string, queue string, jobs []*api.Job) ([]*api.Job, error)
+	RenewLease(clusterId string, jobIds []string) (unsuccessful []string, e error)
+	Remove(jobIds []string) (unsuccessful []string, e error)
 }
 
 type RedisJobRepository struct {
 	db *redis.Client
+}
+
+func (repo RedisJobRepository) RenewLease(clusterId string, jobIds []string) (unsuccessful []string, e error) {
+	// TODO
+	return nil, nil
+}
+
+func (repo RedisJobRepository) Remove(jobIds []string) (unsuccessful []string, e error) {
+	// TODO
+	return nil, nil
 }
 
 func NewRedisJobRepository(db *redis.Client) *RedisJobRepository {
@@ -56,7 +69,7 @@ func (repo RedisJobRepository) PeekQueue(queue string, limit int64) ([]*api.Job,
 }
 
 // returns list of jobs which are successfully leased
-func (repo RedisJobRepository) TryLeaseJobs(queue string, jobs []*api.Job) ([]*api.Job, error) {
+func (repo RedisJobRepository) TryLeaseJobs(clusterId string, queue string, jobs []*api.Job) ([]*api.Job, error) {
 	now := float64(time.Now().Unix())
 	pipe := repo.db.Pipeline()
 	cmds := make(map[*api.Job]*redis.Cmd)
@@ -76,6 +89,17 @@ func (repo RedisJobRepository) TryLeaseJobs(queue string, jobs []*api.Job) ([]*a
 			leasedJobs = append(leasedJobs, job)
 		}
 	}
+
+	leasedJobsClusterIds := make(map[string]interface{})
+	for _, job := range leasedJobs {
+		leasedJobsClusterIds[job.Id] = clusterId
+	}
+	e = repo.db.HMSet(jobClusterMapKey, leasedJobsClusterIds).Err()
+	if e != nil {
+		// TODO: try cancelling the lease, or implement this all as script?
+		return nil, e
+	}
+
 	return leasedJobs, nil
 }
 
