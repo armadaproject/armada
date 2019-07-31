@@ -36,7 +36,7 @@ func UnwrapEvent(message *EventMessage) (Event, error) {
 	case *EventMessage_Cancelled:
 		return event.Cancelled, nil
 	}
-	return nil, fmt.Errorf("Unknow event type: %s", reflect.TypeOf(message.Events))
+	return nil, fmt.Errorf("unknow event type: %s", reflect.TypeOf(message.Events))
 }
 
 func Wrap(event Event) (*EventMessage, error) {
@@ -71,6 +71,18 @@ func Wrap(event Event) (*EventMessage, error) {
 				Running: typed,
 			},
 		}, nil
+	case *JobFailedEvent:
+		return &EventMessage{
+			Events: &EventMessage_Failed{
+				Failed: typed,
+			},
+		}, nil
+	case *JobSucceededEvent:
+		return &EventMessage{
+			Events: &EventMessage_Succeeded{
+				Succeeded: typed,
+			},
+		}, nil
 	case *JobReprioritizedEvent:
 		return &EventMessage{
 			Events: &EventMessage_Reprioritized{
@@ -90,5 +102,5 @@ func Wrap(event Event) (*EventMessage, error) {
 			},
 		}, nil
 	}
-	return nil, fmt.Errorf("Unknow event type: %s", reflect.TypeOf(event))
+	return nil, fmt.Errorf("unknow event type: %s", reflect.TypeOf(event))
 }
