@@ -4,8 +4,9 @@ import "time"
 
 type ArmadaConfig struct {
 	GrpcPort         string
-	Redis            RedisConfig
 	PriorityHalfTime time.Duration
+	Redis            RedisConfig
+	EventsRedis      RedisConfig
 }
 
 type RedisConfig struct {

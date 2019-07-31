@@ -27,13 +27,22 @@ func Serve(config *configuration.ArmadaConfig) (*grpc.Server, *sync.WaitGroup) {
 			DB:       config.Redis.Db,
 		})
 
+		eventsDb := redis.NewClient(&redis.Options{
+			Addr:     config.Redis.Addr,
+			Password: config.Redis.Password,
+			DB:       config.Redis.Db,
+		})
+
 		jobRepository := repository.NewRedisJobRepository(db)
 		usageRepository := repository.NewRedisUsageRepository(db)
 		queueRepository := repository.NewRedisQueueRepository(db)
 
-		submitServer := server.NewSubmitServer(jobRepository, queueRepository)
+		eventRepository := repository.NewRedisEventRepository(eventsDb)
+
+		submitServer := server.NewSubmitServer(jobRepository, queueRepository, eventRepository)
 		usageServer := server.NewUsageServer(time.Minute, usageRepository)
 		aggregatedQueueServer := server.NewAggregatedQueueServer(jobRepository, usageRepository, queueRepository)
+		eventServer := server.NewEventServer(eventRepository)
 
 		lis, err := net.Listen("tcp", config.GrpcPort)
 		if err != nil {
@@ -43,6 +52,7 @@ func Serve(config *configuration.ArmadaConfig) (*grpc.Server, *sync.WaitGroup) {
 		api.RegisterSubmitServer(grpcServer, submitServer)
 		api.RegisterUsageServer(grpcServer, usageServer)
 		api.RegisterAggregatedQueueServer(grpcServer, aggregatedQueueServer)
+		api.RegisterEventServer(grpcServer, eventServer)
 
 		if err := grpcServer.Serve(lis); err != nil {
 			log.Fatalf("failed to serve: %v", err)
