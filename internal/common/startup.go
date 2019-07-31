@@ -5,8 +5,6 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"os"
-	"path/filepath"
-	"strings"
 )
 
 func BindCommandlineArguments() {
@@ -17,7 +15,7 @@ func BindCommandlineArguments() {
 	}
 }
 
-func LoadConfig(config interface{}, defaultPath string, customConfigPath string) {
+func LoadConfig(config interface{}, defaultPath string, overrideConfig string) {
 	viper.SetConfigName("config")
 	viper.AddConfigPath(defaultPath)
 	if err := viper.ReadInConfig(); err != nil {
@@ -25,12 +23,8 @@ func LoadConfig(config interface{}, defaultPath string, customConfigPath string)
 		os.Exit(-1)
 	}
 
-	if customConfigPath != "" {
-		dir, file := filepath.Split(customConfigPath)
-		fileName := strings.TrimSuffix(file, filepath.Ext(file))
-
-		viper.SetConfigName(fileName)
-		viper.AddConfigPath(dir)
+	if overrideConfig != "" {
+		viper.SetConfigFile(overrideConfig)
 
 		err := viper.MergeInConfig()
 		if err != nil {
