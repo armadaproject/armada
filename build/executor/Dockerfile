@@ -16,4 +16,4 @@ COPY --from=builder /app/config /app/config
 
 WORKDIR /app
 
-CMD ["./main"]
+ENTRYPOINT ["./main"]
