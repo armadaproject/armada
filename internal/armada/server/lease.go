@@ -52,7 +52,7 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 	queuePriority := aggregatePriority(clusterPriorities)
 	activeQueuePriority := filterMapByKeys(queuePriority, activeQueueNames, minPriority)
 	slices := sliceResource(activeQueuePriority, request.Resources)
-	jobs, e := q.assignJobs(slices)
+	jobs, e := q.assignJobs(request.ClusterID, slices)
 
 	jobLease := api.JobLease{
 		Job: jobs,
@@ -60,18 +60,26 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 	return &jobLease, nil
 }
 
-func (AggregatedQueueServer) RenewLease(context.Context, *api.IdList) (*types.Empty, error) {
-	return &types.Empty{}, nil
+func (q AggregatedQueueServer) RenewLease(ctx context.Context, idList *api.IdList) (*types.Empty, error) {
+	unsuccessful, e := q.jobRepository.Remove(idList.Ids)
+	for _, id := range unsuccessful {
+		log.WithField("jobId", id).Warnf("Failed renew lease, job id: %s", id)
+	}
+	return &types.Empty{}, e
 }
 
-func (AggregatedQueueServer) ReportDone(context.Context, *api.IdList) (*types.Empty, error) {
-	return &types.Empty{}, nil
+func (q AggregatedQueueServer) ReportDone(ctx context.Context, idList *api.IdList) (*types.Empty, error) {
+	unsuccessful, e := q.jobRepository.Remove(idList.Ids)
+	for _, id := range unsuccessful {
+		log.WithField("jobId", id).Warnf("Missing job reported done, job id: %s", id)
+	}
+	return &types.Empty{}, e
 }
 
-func (q AggregatedQueueServer) assignJobs(slices map[string]common.ComputeResourcesFloat) ([]*api.Job, error) {
+func (q AggregatedQueueServer) assignJobs(clusterId string, slices map[string]common.ComputeResourcesFloat) ([]*api.Job, error) {
 	jobs := make([]*api.Job, 0)
 	for queue, slice := range slices {
-		leased, remainder, e := q.leaseJobs(queue, slice)
+		leased, remainder, e := q.leaseJobs(clusterId, queue, slice)
 		if e != nil {
 			log.Error(e)
 			continue
@@ -82,7 +90,7 @@ func (q AggregatedQueueServer) assignJobs(slices map[string]common.ComputeResour
 	return jobs, nil
 }
 
-func (q AggregatedQueueServer) leaseJobs(queue string, slice common.ComputeResourcesFloat) ([]*api.Job, common.ComputeResourcesFloat, error) {
+func (q AggregatedQueueServer) leaseJobs(clusterId string, queue string, slice common.ComputeResourcesFloat) ([]*api.Job, common.ComputeResourcesFloat, error) {
 	jobs := make([]*api.Job, 0)
 	remainder := slice
 	for slice.IsValid() {
@@ -103,7 +111,7 @@ func (q AggregatedQueueServer) leaseJobs(queue string, slice common.ComputeResou
 			}
 		}
 
-		leased, e := q.jobRepository.TryLeaseJobs(queue, candidates)
+		leased, e := q.jobRepository.TryLeaseJobs(clusterId, queue, candidates)
 		if e != nil {
 			return nil, slice, e
 		}
