@@ -12,17 +12,3 @@ executor:
   terminationGracePeriodSeconds: 0
 
 applicationConfig:
-  application:
-    clusterId: "Cluster2"
-    kubernetes:
-      inClusterDeployment: false
-      configLocation: "/home/jamesmu/.kube/kind-config-kind"
-    task:
-      utilisationReportingInterval: 20s
-      missingJobEventReconciliationInterval: 20s
-      jobLeaseRenewalInterval: 20s
-      allocateSpareClusterCapacityInterval: 20s
-    armada:
-      url: "localhost:99999"
-    events:
-      url: "localhost:99999"
