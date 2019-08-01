@@ -12,19 +12,20 @@ import (
 )
 
 const CustomConfigLocation string = "config"
+const InCluster string = "inCluster"
+const KubeConfig string = "kubeConfigPath"
 
 func init() {
 	pflag.String(CustomConfigLocation, "", "Fully qualified path to application configuration file")
+	pflag.Bool(InCluster, false, "When set executor will run using in cluster client connection details")
+	pflag.String(KubeConfig, "", "Fully qualified path to custom kube config file")
 	pflag.Parse()
 }
 
 func main() {
 	common.ConfigureLogging()
 	common.BindCommandlineArguments()
-
-	var config configuration.ExecutorConfiguration
-	userSpecifiedConfig := viper.GetString(CustomConfigLocation)
-	common.LoadConfig(&config, "./config/executor", userSpecifiedConfig)
+	config := loadConfig()
 
 	shutdownChannel := make(chan os.Signal, 1)
 	signal.Notify(shutdownChannel, syscall.SIGINT, syscall.SIGTERM)
@@ -35,4 +36,19 @@ func main() {
 		shutdown()
 	}()
 	wg.Wait()
+}
+
+func loadConfig() configuration.ExecutorConfiguration {
+	var config configuration.ExecutorConfiguration
+	userSpecifiedConfig := viper.GetString(CustomConfigLocation)
+	common.LoadConfig(&config, "./config/executor", userSpecifiedConfig)
+
+	inClusterDeployment := viper.GetBool(InCluster)
+	customKubeConfigLocation := viper.GetString(KubeConfig)
+
+	config.Kubernetes = configuration.KubernetesConfiguration{
+		InClusterDeployment:      inClusterDeployment,
+		KubernetesConfigLocation: customKubeConfigLocation,
+	}
+	return config
 }
