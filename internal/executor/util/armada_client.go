@@ -14,76 +14,36 @@ func CreateEventMessageForCurrentState(pod *v1.Pod) (*api.EventMessage, error) {
 
 	switch phase {
 	case v1.PodPending:
-		pending := api.JobPendingEvent{
+		return api.Wrap(&api.JobPendingEvent{
 			JobId:    pod.Labels[domain.JobId],
 			JobSetId: pod.Labels[domain.JobSetId],
 			Queue:    pod.Labels[domain.Queue],
 			Created:  time.Now(),
-		}
-
-		pendingMessage := api.EventMessage_Pending{
-			Pending: &pending,
-		}
-
-		message := api.EventMessage{
-			Events: &pendingMessage,
-		}
-
-		return &message, nil
+		})
 
 	case v1.PodRunning:
-		running := api.JobRunningEvent{
+		return api.Wrap(&api.JobRunningEvent{
 			JobId:    pod.Labels[domain.JobId],
 			JobSetId: pod.Labels[domain.JobSetId],
 			Queue:    pod.Labels[domain.Queue],
 			Created:  time.Now(),
-		}
-
-		runningMessage := api.EventMessage_Running{
-			Running: &running,
-		}
-
-		message := api.EventMessage{
-			Events: &runningMessage,
-		}
-
-		return &message, nil
+		})
 
 	case v1.PodFailed:
-		failed := api.JobFailedEvent{
+		return api.Wrap(&api.JobFailedEvent{
 			JobId:    pod.Labels[domain.JobId],
 			JobSetId: pod.Labels[domain.JobSetId],
 			Queue:    pod.Labels[domain.Queue],
 			Created:  time.Now(),
-		}
-
-		failedMessage := api.EventMessage_Failed{
-			Failed: &failed,
-		}
-
-		message := api.EventMessage{
-			Events: &failedMessage,
-		}
-
-		return &message, nil
+		})
 
 	case v1.PodSucceeded:
-		succeeded := api.JobSucceededEvent{
+		return api.Wrap(&api.JobSucceededEvent{
 			JobId:    pod.Labels[domain.JobId],
 			JobSetId: pod.Labels[domain.JobSetId],
 			Queue:    pod.Labels[domain.Queue],
 			Created:  time.Now(),
-		}
-
-		succeededMessage := api.EventMessage_Succeeded{
-			Succeeded: &succeeded,
-		}
-
-		message := api.EventMessage{
-			Events: &succeededMessage,
-		}
-
-		return &message, nil
+		})
 
 	default:
 		return new(api.EventMessage), errors.New(fmt.Sprintf("Could not determine job status from pod in phase %s", phase))

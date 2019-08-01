@@ -12,10 +12,11 @@ import (
 type SubmitServer struct {
 	jobRepository   repository.JobRepository
 	queueRepository repository.QueueRepository
+	eventRepository repository.EventRepository
 }
 
-func NewSubmitServer(jobRepository repository.JobRepository, queueRepository repository.QueueRepository) *SubmitServer {
-	return &SubmitServer{jobRepository: jobRepository, queueRepository: queueRepository}
+func NewSubmitServer(jobRepository repository.JobRepository, queueRepository repository.QueueRepository, eventRepository repository.EventRepository) *SubmitServer {
+	return &SubmitServer{jobRepository: jobRepository, queueRepository: queueRepository, eventRepository: eventRepository}
 }
 
 func (server SubmitServer) CreateQueue(ctx context.Context, queue *api.Queue) (*types.Empty, error) {

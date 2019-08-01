@@ -93,11 +93,17 @@ message EventMessage {
     }
 }
 
+message EventStreamMessage {
+    string Id = 1;
+    EventMessage message = 2;
+}
+
 message JobSetRequest {
     string Id = 1;
+    bool Watch = 2;
 }
 
 service Event {
     rpc Report (EventMessage) returns (google.protobuf.Empty);
-    rpc GetJobSetEvents (JobSetRequest) returns (stream EventMessage);
+    rpc GetJobSetEvents (JobSetRequest) returns (stream EventStreamMessage);
 }
