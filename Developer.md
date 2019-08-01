@@ -25,3 +25,8 @@ Generate types
 ```
 ./scripts/proto.sh
 ```
+
+Cobra
+```
+go get -u github.com/spf13/cobra/cobra
+```

@@ -1,0 +1,21 @@
+jobs:
+  - queue: test
+    priority: 0
+    jobSetId: set1
+    podSpec:
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      containers:
+        - name: sleep
+          imagePullPolicy: IfNotPresent
+          image: mcr.microsoft.com/dotnet/core/runtime:2.2
+          args:
+            - sleep
+            - 20s
+          resources:
+            limits:
+              memory: 64Mi
+              cpu: 150m
+            requests:
+              memory: 64Mi
+              cpu: 100m
