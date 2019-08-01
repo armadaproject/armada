@@ -25,6 +25,7 @@ spec:
           args:
             - --config
             - /config/application_config.yaml
+            - --inCluster
           resources:
 {{ toYaml .Values.executor.resources | indent 12 }}
           volumeMounts:
