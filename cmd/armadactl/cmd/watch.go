@@ -3,12 +3,9 @@ package cmd
 import (
 	"github.com/G-Research/k8s-batch/internal/armada/api"
 	"github.com/G-Research/k8s-batch/internal/armada/client"
-	"google.golang.org/grpc"
-	"os"
-
-	"github.com/spf13/cobra"
-
 	log "github.com/sirupsen/logrus"
+	"github.com/spf13/cobra"
+	"google.golang.org/grpc"
 )
 
 // watchCmd represents the watch command
@@ -23,7 +20,7 @@ This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 	Run: func(cmd *cobra.Command, args []string) {
 
-		jobSetId := os.Args[0]
+		jobSetId := args[0]
 
 		url := cmd.Flag("armadaUrl").Value.String()
 		conn, err := grpc.Dial(url, grpc.WithInsecure(), grpc.WithDefaultCallOptions(grpc.WaitForReady(false)))
