@@ -40,16 +40,15 @@ jobs:
             kubectl version
 #      - run:
 #          name: Install helm
-#      - run:
-#          name: Start Kind clusters
-#          command: |
-#            kind create cluster --name cluster1
-
-#      - run:
-#          name: List nodes
-#          command: |
-#            export KUBECONFIG="$(kind get kubeconfig-path --name="kind")"
-#            kubectl get nodes -o wide
+      - run:
+          name: Start Kind clusters
+          command: |
+            kind create cluster --name cluster1
+      - run:
+          name: List nodes
+          command: |
+            export KUBECONFIG="$(kind get kubeconfig-path --name="kind")"
+            kubectl get nodes -o wide
 #      - run:
 #          name: Deploy executors to clusters
 #      - run:
