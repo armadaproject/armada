@@ -130,7 +130,7 @@ func (q AggregatedQueueServer) leaseJobs(clusterId string, queue string, slice c
 func sliceResource(queuePriorities map[string]float64, quantity common.ComputeResources) map[string]common.ComputeResourcesFloat {
 	inversePriority := make(map[string]float64)
 	for queue, priority := range queuePriorities {
-		inversePriority[queue] = 1 / math.Min(priority, minPriority)
+		inversePriority[queue] = 1 / math.Max(priority, minPriority)
 	}
 	inverseSum := 0.0
 	for _, inverse := range inversePriority {
