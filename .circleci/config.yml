@@ -25,7 +25,7 @@ jobs:
       - run: go get -v -d ./...
       - run: go test -v ./...
       - run: exit $(gofmt -l . | wc -l)
-      - run: docker build -t executor:${CIRCLE_SHA1} -f ./build/executor/Dockerfile .
+#      - run: docker build -t executor:${CIRCLE_SHA1} -f ./build/executor/Dockerfile .
       - run:
           name: Install kind
           command: |
