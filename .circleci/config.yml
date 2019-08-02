@@ -30,6 +30,7 @@ jobs:
           name: Install kind
           command: |
             go get sigs.k8s.io/kind@v0.4.0
+            kind version
       - run:
           name: Start Kind clusters
           command: |
