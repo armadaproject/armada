@@ -1,6 +1,7 @@
 package reporter
 
 import (
+	"context"
 	"encoding/json"
 	"github.com/G-Research/k8s-batch/internal/armada/api"
 	"github.com/G-Research/k8s-batch/internal/executor/domain"
@@ -45,16 +46,15 @@ func (eventReporter JobEventReporter) report(pod *v1.Pod) {
 		return
 	}
 
-	//TODO Put code back in when server side events API is ready
-	//ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	//defer cancel()
-	//_, err = eventReporter.EventClient.Report(ctx, event)
-	//
-	//if err != nil {
-	//	log.Infof("Failed to report event because %s", err)
-	//	return
-	//}
-	log.Infof("Reporting event %s", event.String())
+	log.Infof("Reporting event %+v", event)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	_, err = eventReporter.EventClient.Report(ctx, event)
+
+	if err != nil {
+		log.Errorf("Failed to report event because %s", err)
+		return
+	}
 
 	err = eventReporter.addAnnotationToMarkStateReported(pod)
 	if err != nil {

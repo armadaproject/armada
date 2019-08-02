@@ -25,3 +25,11 @@ Generate types
 ```
 ./scripts/proto.sh
 ```
+
+you can use cobra cli for adding new armadactl command Cobra 
+```
+go get -u github.com/spf13/cobra/cobra
+cd ./cmd/armadactl
+cobra add cmd
+```
+

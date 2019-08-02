@@ -1,6 +1,10 @@
 grpcPort: ":50051"
+priorityHalfTime: 20m
 redis:
   addr: "localhost:6379"
-  priorityHalfTime: 20m
+  password: ""
+  db: 0
+eventsRedis:
+  addr: "localhost:6379"
   password: ""
   db: 0
