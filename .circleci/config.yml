@@ -12,3 +12,8 @@ jobs:
 #      - run:
 #          name: Run e2e tests
 
+workflows:
+  version: 2
+  build-and-test:
+    jobs:
+      - e2e
