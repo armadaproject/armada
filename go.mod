@@ -16,6 +16,7 @@ require (
 	github.com/kjk/betterguid v0.0.0-20170621091430-c442874ba63a
 	github.com/oklog/ulid v1.3.1
 	github.com/sirupsen/logrus v1.2.0
+	github.com/spf13/pflag v1.0.3
 	github.com/spf13/viper v1.4.0
 	github.com/stretchr/testify v1.3.0
 	github.com/yuin/gopher-lua v0.0.0-20190514113301-1cd887cd7036 // indirect

@@ -1,0 +1,14 @@
+executor:
+  image:
+    repository: executor-test
+    tag: latest
+  resources:
+    limits:
+      memory: 1Gi
+      cpu: 300m
+    requests:
+      memory: 512Mi
+      cpu: 200m
+  terminationGracePeriodSeconds: 0
+
+applicationConfig:

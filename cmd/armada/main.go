@@ -5,16 +5,27 @@ import (
 	"github.com/G-Research/k8s-batch/internal/armada/configuration"
 	"github.com/G-Research/k8s-batch/internal/common"
 	log "github.com/sirupsen/logrus"
+	"github.com/spf13/pflag"
+	"github.com/spf13/viper"
 	"os"
 	"os/signal"
 	"syscall"
 )
 
-func main() {
+const CustomConfigLocation string = "config"
 
+func init() {
+	pflag.String(CustomConfigLocation, "", "Fully qualified path to application configuration file")
+	pflag.Parse()
+}
+
+func main() {
 	common.ConfigureLogging()
+	common.BindCommandlineArguments()
+
 	var config configuration.ArmadaConfig
-	common.LoadConfig(&config, "./config/armada")
+	userSpecifiedConfig := viper.GetString(CustomConfigLocation)
+	common.LoadConfig(&config, "./config/armada", userSpecifiedConfig)
 
 	log.Info("Starting...")
 
