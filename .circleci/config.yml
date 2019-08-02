@@ -1,3 +1,6 @@
+orbs:
+  aws-cli: circleci/aws-cli@0.1.13
+
 version: 2
 jobs:
   e2e:
@@ -5,7 +8,16 @@ jobs:
       enabled: true
     steps:
       - checkout
-      - run: test/end_to_end/setup/setup_environment.sh
+      - aws-cli/install
+      - aws-cli/configure
+      - run:
+          name: Load relevant docker images
+          command: |
+            source scripts/assume-role.sh
+            $(aws ecr get-login --region eu-west-1 --no-include-email)
+            docker pull ${ECR_REPOSITORY}/armada:b91e651cba4ed065cbbbea5bf43ef688b40bd766
+            docker list
+#      - run: test/end_to_end/setup/setup_environment.sh
 #      - run:
 #          name: Deploy executors to clusters
 #      - run:
