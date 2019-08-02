@@ -26,3 +26,20 @@ jobs:
       - run: go test -v ./...
       - run: exit $(gofmt -l . | wc -l)
       - run: docker build -t executor:${CIRCLE_SHA1} -f ./build/executor/Dockerfile .
+      - run:
+          name: Install kind
+          command: |
+            go get sigs.k8s.io/kind@v0.4.0
+            kind version
+#      - run:
+#          name: Install helm
+#      - run:
+#          name: Start Kind clusters
+#      - run:
+#          name: Deploy executors to clusters
+#      - run:
+#          name: Run API
+#      - run:
+#          name: Run e2e tests
+
+
