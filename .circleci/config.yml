@@ -33,7 +33,7 @@ jobs:
 
       - aws-cli/install
       - aws-cli/configure
-      
+
       # specify any bash command here prefixed with `run: `
 
       - run: go get -v -d ./...
@@ -47,4 +47,4 @@ jobs:
             source scripts/assume-role.sh
             $(aws ecr get-login --region eu-west-1 --no-include-email)
             docker tag armada-executor:${CIRCLE_SHA1} ${ECR_REPOSITORY}/armada-executor:${CIRCLE_SHA1}
-
+            docker push ${ECR_REPOSITORY}/armada-executor:${CIRCLE_SHA1}
