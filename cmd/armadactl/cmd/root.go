@@ -3,27 +3,23 @@ package cmd
 import (
 	"fmt"
 	"github.com/spf13/cobra"
+	"google.golang.org/grpc"
 	"os"
 
 	homedir "github.com/mitchellh/go-homedir"
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 )
 
-var cfgFile string
+func init() {
+	cobra.OnInitialize(initConfig)
+	rootCmd.PersistentFlags().StringVar(&cfgFile, "armadaUrl", "localhost:50051", "specify armada server url")
+}
 
-// rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:   "cmd",
-	Short: "A brief description of your application",
-	Long: `A longer description that spans multiple lines and likely contains
-examples and usage of using your application. For example:
-
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
-	// Uncomment the following line if your bare application
-	// has an action associated with it:
-	//	Run: func(cmd *cobra.Command, args []string) { },
+	Use:   "armadaclt command",
+	Short: "Command line utility to manage armada",
+	Long:  ``,
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -35,19 +31,20 @@ func Execute() {
 	}
 }
 
-func init() {
-	cobra.OnInitialize(initConfig)
+func withConnection(cmd *cobra.Command, action func(*grpc.ClientConn)) {
+	url := cmd.Flag("armadaUrl").Value.String()
+	conn, err := grpc.Dial(url, grpc.WithInsecure())
+	if err != nil {
+		log.Fatalf("did not connect: %v", err)
+	}
+	defer conn.Close()
 
-	// Here you will define your flags and configuration settings.
-	// Cobra supports persistent flags, which, if defined here,
-	// will be global for your application.
-
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "armadaUrl", "localhost:50051", "specify armada server url")
-
-	// Cobra also supports local flags, which will only run
-	// when this action is called directly.
-	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	action(conn)
 }
+
+// TODO
+
+var cfgFile string
 
 // initConfig reads in config file and ENV variables if set.
 func initConfig() {

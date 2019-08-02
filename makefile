@@ -8,4 +8,7 @@ build-executor:
 	$(gobuild) -o executor cmd/executor/main.go
 	docker build -t armada-executor -f ./build/executor/Dockerfile .
 
-build: build-server build-executor
+build-armadactl:
+	$(gobuild) -o armadactl cmd/armadactl/main.go
+
+build: build-server build-executor build-armadactl
