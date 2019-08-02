@@ -4,6 +4,12 @@ orbs:
   aws-cli: circleci/aws-cli@0.1.13
 
 jobs:
+  aws-cli:
+    executor: aws-cli/default
+    steps:
+      - checkout
+
+
   build:
     docker:
       - image: circleci/golang:1.12.6
@@ -25,7 +31,9 @@ jobs:
       - checkout
       - setup_remote_docker
 
-
+      - aws-cli/install
+      - aws-cli/configure
+      
       # specify any bash command here prefixed with `run: `
 
       - run: go get -v -d ./...
@@ -33,16 +41,10 @@ jobs:
       - run: exit $(gofmt -l . | wc -l)
       - run: docker build -t armada-executor:${CIRCLE_SHA1} -f ./build/executor/Dockerfile .
 
-  aws-cli:
-    executor: aws-cli/default
-    steps:
-      - checkout
-      - aws-cli/install
-      - aws-cli/configure
-
       - run:
-        name: Push Image
-        command: |
-          source scripts/assume-role.sh
-          $(aws ecr get-login --region eu-west-1 --no-include-email)
-          docker tag armada-executor:${CIRCLE_SHA1} ${ECR_REPOSITORY}/armada-executor:${CIRCLE_SHA1}
+          name: Push Image
+          command: |
+            source scripts/assume-role.sh
+            $(aws ecr get-login --region eu-west-1 --no-include-email)
+            docker tag armada-executor:${CIRCLE_SHA1} ${ECR_REPOSITORY}/armada-executor:${CIRCLE_SHA1}
+
