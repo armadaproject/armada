@@ -1,0 +1,6 @@
+kind: Namespace
+apiVersion: v1
+metadata:
+  name: {{ .Release.Namespace }}
+  labels:
+{{ include "executor.labels.all" . | indent 4 }}

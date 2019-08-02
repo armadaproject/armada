@@ -1,0 +1,15 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "executor.name" . }}
+  labels:
+{{ include "executor.labels.all" . | indent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "executor.name" . }}
+subjects:
+- kind: ServiceAccount
+  name: {{ include "executor.name" . }}
+  namespace:  {{ .Release.Namespace }}
+

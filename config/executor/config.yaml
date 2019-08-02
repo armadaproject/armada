@@ -1,6 +1,5 @@
 application:
   clusterId : "Cluster1"
-  inClusterDeployment: false
 task:
   utilisationReportingInterval: 10s
   missingJobEventReconciliationInterval: 10s

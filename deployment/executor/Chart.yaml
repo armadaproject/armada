@@ -1,0 +1,4 @@
+appVersion : v1
+description: A helm chart for armada-executor component
+name: executor
+version: 0.0.1
