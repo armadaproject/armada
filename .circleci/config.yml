@@ -29,16 +29,16 @@ jobs:
           keys:
             - go-mod-v1-{{ checksum "go.sum" }}
 
-      - run: go get -v -d ./...
+      - run:
+          name: Test
+          command: |
+            go get -v -d ./...
+            go test -v ./...
 
       - save_cache:
           key: go-mod-v1-{{ checksum "go.sum" }}
           paths:
             - "/go/pkg/mod"
-
-      - run:
-          name: Test
-          command: go test -v ./...
 
       - run:
           name: Check formatting
@@ -53,11 +53,19 @@ jobs:
       - run:
           name: Push Image
           command: |
+
+            TAG=${CIRCLE_SHA1}
+
+            if [ ${CIRCLE_BRANCH} != master ]
+              then
+                TAG=branch-${CIRCLE_BRANCH}
+            fi
+
             source scripts/assume-role.sh
             $(aws ecr get-login --region eu-west-1 --no-include-email)
 
-            docker tag armada-executor ${ECR_REPOSITORY}/armada:${CIRCLE_SHA1}
-            docker push ${ECR_REPOSITORY}/armada:${CIRCLE_SHA1}
+            docker tag armada-executor ${ECR_REPOSITORY}/armada:${TAG}
+            docker push ${ECR_REPOSITORY}/armada:${TAG}
 
-            docker tag armada-executor ${ECR_REPOSITORY}/armada-executor:${CIRCLE_SHA1}
-            docker push ${ECR_REPOSITORY}/armada-executor:${CIRCLE_SHA1}
+            docker tag armada-executor ${ECR_REPOSITORY}/armada-executor:${TAG}
+            docker push ${ECR_REPOSITORY}/armada-executor:${TAG}
