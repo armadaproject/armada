@@ -1,59 +1,14 @@
 version: 2
 jobs:
-  build:
-    docker:
-      - image: circleci/golang:1.12.6
-        environment:
-          GO111MODULE: "on"
-
-      # Specify service dependencies here if necessary
-      # CircleCI maintains a library of pre-built images
-      # documented at https://circleci.com/docs/2.0/circleci-images/
-      # - image: circleci/postgres:9.4
-      - image: redis
-
-    #### TEMPLATE_NOTE: go expects specific checkout path representing url
-    #### expecting it in the form of
-    ####   /go/src/github.com/circleci/go-tool
-    ####   /go/src/bitbucket.org/circleci/go-tool
-    working_directory: /go/src/github.com/G-Research/k8s-batch
+  e2e:
+    machine:
+      enabled: true
     steps:
-      - checkout
-      - setup_remote_docker
-
-      # specify any bash command here prefixed with `run: `
-#      - run: go get -v -d ./...
-#      - run: go test -v ./...
-#      - run: exit $(gofmt -l . | wc -l)
-#      - run: docker build -t executor:${CIRCLE_SHA1} -f ./build/executor/Dockerfile .
-      - run:
-          name: Install kind
-          command: |
-            go get sigs.k8s.io/kind@v0.4.0
-            kind version
-      - run:
-          name: Start Kind clusters
-          command: |
-            kind create cluster --name cluster1
-      - run:
-          name: Install kubectl
-          command: |
-            curl -LO https://storage.googleapis.com/kubernetes-release/release/v1.15.0/bin/linux/amd64/kubectl
-            chmod +x ./kubectl
-            sudo mv ./kubectl /usr/local/bin/kubectl
-#      - run:
-#          name: Install helm
-
-      - run:
-          name: List nodes
-          command: |
-            export KUBECONFIG="$(kind get kubeconfig-path --name="cluster1")"
-            kubectl get nodes -o wide
+      - run: test/end_to_end/setup/setup_environment.sh
 #      - run:
 #          name: Deploy executors to clusters
 #      - run:
 #          name: Run API
 #      - run:
 #          name: Run e2e tests
-
 
