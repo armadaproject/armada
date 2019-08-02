@@ -1,3 +1,5 @@
+REPO_ROOT=$(git rev-parse --show-toplevel)
+
 echo "Installing kubectl"
 curl -LO https://storage.googleapis.com/kubernetes-release/release/v1.15.0/bin/linux/amd64/kubectl
 chmod +x ./kubectl
@@ -8,15 +10,12 @@ curl -L https://get.helm.sh/helm-v2.14.3-linux-amd64.tar.gz > helm.tar.gz
 tar -zxvf helm.tar.gz
 sudo mv linux-amd64/helm /usr/local/bin/helm
 
-REPO_ROOT=$(git rev-parse --show-toplevel)
+echo "Installing Go"
+wget https://dl.google.com/go/go1.12.6.linux-amd64.tar.gz
+sudo tar -xvf go1.12.6.linux-amd64.tar.gz
+sudo mv go /usr/local
+export PATH=$PATH:/usr/local/go/bin
+export PATH=$PATH:$(go env GOPATH)/bin
+export GOPATH=$(go env GOPATH)
+go version
 
-echo "Building kind"
-docker build -t kind:src . -f ${REPO_ROOT}/test/end_to_end/setup/Dockerfile
-docker create -ti --name dummy kind:src sh
-docker cp dummy:/go/bin/kind ./kind
-docker rm -f dummy
-
-echo "Installing kind"
-chmod +x kind
-sudo mv kind /usr/local/bin/
-kind create cluster --wait 5m
