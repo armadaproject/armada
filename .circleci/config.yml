@@ -31,6 +31,10 @@ jobs:
           command: |
             go get sigs.k8s.io/kind@v0.4.0
       - run:
+          name: Start Kind clusters
+          command: |
+            kind create cluster --name cluster1
+      - run:
           name: Install kubectl
           command: |
             curl -LO https://storage.googleapis.com/kubernetes-release/release/v1.15.0/bin/linux/amd64/kubectl
@@ -38,10 +42,7 @@ jobs:
             sudo mv ./kubectl /usr/local/bin/kubectl
 #      - run:
 #          name: Install helm
-      - run:
-          name: Start Kind clusters
-          command: |
-            kind create cluster --name cluster1
+
       - run:
           name: List nodes
           command: |
