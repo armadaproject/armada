@@ -5,7 +5,7 @@ sudo mv ./kubectl /usr/local/bin/kubectl
 
 echo ">>> Installing Helm"
 curl -L https://get.helm.sh/helm-v2.14.3-linux-amd64.tar.gz > helm.tar.gz
-tar -zxvf helm.tar.tgz
+tar -zxvf helm.tar.gz
 mv linux-amd64/helm /usr/local/bin/helm
 
 echo "Building kind"
