@@ -7,6 +7,11 @@ import (
 	"google.golang.org/grpc"
 )
 
+func init() {
+	rootCmd.AddCommand(createQueueCmd)
+	createQueueCmd.Flags().Float64("priority", 1, "Set queue priority")
+}
+
 // createQueueCmd represents the createQueue command
 var createQueueCmd = &cobra.Command{
 	Use:   "create-queue name",
@@ -31,9 +36,4 @@ Job priority is evaluated inside queue, queue has its own priority.`,
 			log.Infof("Queue %s created.", queue)
 		})
 	},
-}
-
-func init() {
-	rootCmd.AddCommand(createQueueCmd)
-	createQueueCmd.Flags().Float64("priority", 1, "Set queue priority")
 }
