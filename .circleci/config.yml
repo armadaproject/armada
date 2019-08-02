@@ -19,7 +19,7 @@ jobs:
     working_directory: /go/src/github.com/G-Research/k8s-batch
     steps:
       - checkout
-#      - setup_remote_docker
+      - setup_remote_docker
 
       # specify any bash command here prefixed with `run: `
 #      - run: go get -v -d ./...
