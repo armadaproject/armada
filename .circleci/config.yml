@@ -41,7 +41,7 @@ jobs:
       - run:
           name: Push Image
           command: |
-            source scripts/aws-cli-assumerole.sh
+            source scripts/assume-role.sh
             $(aws ecr get-login --region eu-west-1 --no-include-email)
             docker tag armada-executor:${CIRCLE_SHA1} ${ECR_REPOSITORY}/armada-executor:${CIRCLE_SHA1}
 
