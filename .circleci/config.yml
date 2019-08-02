@@ -4,6 +4,7 @@ jobs:
     machine:
       enabled: true
     steps:
+      - checkout
       - run: test/end_to_end/setup/setup_environment.sh
 #      - run:
 #          name: Deploy executors to clusters
