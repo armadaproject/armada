@@ -48,6 +48,10 @@ jobs:
           name: Build
           command: make build
 
+      - store_artifacts:
+          path: armadactl
+          destination: armadactl
+
       - aws-cli/install
       - aws-cli/configure
       - run:
