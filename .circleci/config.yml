@@ -18,7 +18,7 @@ jobs:
             $(aws ecr get-login --region eu-west-1 --no-include-email)
             docker pull ${ECR_REPOSITORY}/armada:b91e651cba4ed065cbbbea5bf43ef688b40bd766
             docker images
-#      - run: test/end_to_end/setup/setup_environment.sh
+      - run: test/end_to_end/setup/setup_environment.sh
 #      - run:
 #          name: Deploy executors to clusters
 #      - run:
