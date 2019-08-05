@@ -11,13 +11,14 @@ tar -zxvf helm.tar.gz
 sudo mv linux-amd64/helm /usr/local/bin/helm
 
 echo "Installing Go"
-go version
 sudo rm -rf /usr/local/go
 wget https://dl.google.com/go/go1.12.6.linux-amd64.tar.gz
 sudo tar -xvf go1.12.6.linux-amd64.tar.gz
 sudo mv go /usr/local
-export PATH=$PATH:/usr/local/go/bin
-export PATH=$PATH:$(go env GOPATH)/bin
-export GOPATH=$(go env GOPATH)
 go version
 
+echo "Installing kind"
+curl -Lo ./kind https://github.com/kubernetes-sigs/kind/releases/download/v0.4.0/kind-linux-amd64
+chmod +x kind
+sudo mv kind /usr/local/bin/
+kind version
