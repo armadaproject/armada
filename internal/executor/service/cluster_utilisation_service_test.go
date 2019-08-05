@@ -116,7 +116,7 @@ func TestGetUsageByQueue_SkipsPodsWithoutQueue(t *testing.T) {
 	pod := makePodWithResource("", &podResource)
 	pod.Labels = make(map[string]string)
 
-	result := getUsageByQueue([]*v1.Pod {&pod})
+	result := getUsageByQueue([]*v1.Pod{&pod})
 	assert.NotNil(t, result)
 	assert.Equal(t, len(result), 0)
 }
@@ -129,7 +129,7 @@ func TestGetUsageByQueue_AggregatesPodResourcesInAQueue(t *testing.T) {
 	pods := []*v1.Pod{&queue1Pod1, &queue1Pod2}
 
 	expectedResource := makeResourceList(4, 100)
-	expectedResult := map[string]common.ComputeResources { "queue1": common.FromResourceList(expectedResource)}
+	expectedResult := map[string]common.ComputeResources{"queue1": common.FromResourceList(expectedResource)}
 
 	result := getUsageByQueue(pods)
 	assert.Equal(t, result, expectedResult)
@@ -162,10 +162,10 @@ func makeResourceList(cores int64, gigabytesRam int64) v1.ResourceList {
 func makePodWithResource(queue string, resource *v1.ResourceList) v1.Pod {
 	pod := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Labels: map[string]string { domain.Queue: queue},
+			Labels: map[string]string{domain.Queue: queue},
 		},
 		Spec: v1.PodSpec{
-			Containers: []v1.Container {
+			Containers: []v1.Container{
 				{
 					Resources: v1.ResourceRequirements{
 						Limits: *resource,
