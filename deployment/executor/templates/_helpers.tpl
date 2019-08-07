@@ -31,5 +31,3 @@ Common labels
 chart: {{ include "executor.chart" . }}
 release: {{ .Release.Name }}
 {{- end -}}
-
-
