@@ -16,18 +16,18 @@ spec:
       labels:
 {{ include "executor.labels.all" . | indent 8 }}
     spec:
-      terminationGracePeriodSeconds: {{ .Values.executor.terminationGracePeriodSeconds }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
       serviceAccountName: {{ include "executor.name" . }}
       containers:
         - name: executor
           imagePullPolicy: IfNotPresent
-          image: {{ .Values.executor.image.repository }}:{{ required "A value is required for .Values.executor.image.tag" .Values.executor.image.tag }}
+          image: {{ .Values.image.repository }}:{{ required "A value is required for .Values.image.tag" .Values.image.tag }}
           args:
             - --config
             - /config/application_config.yaml
             - --inCluster
           resources:
-{{ toYaml .Values.executor.resources | indent 12 }}
+{{ toYaml .Values.resources | indent 12 }}
           volumeMounts:
             - name: user-config
               mountPath: /config/application_config.yaml
