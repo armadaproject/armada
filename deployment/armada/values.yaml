@@ -1,0 +1,15 @@
+image:
+  repository: armada
+  tag: latest
+resources:
+  limits:
+    memory: 1Gi
+    cpu: 300m
+  requests:
+    memory: 512Mi
+    cpu: 200m
+terminationGracePeriodSeconds: 0
+replicas: 1
+
+applicationConfig:
+  grpcPort: 50051

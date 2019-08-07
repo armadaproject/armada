@@ -1,0 +1,4 @@
+appVersion : v1
+description: A helm chart for armada API component
+name: armada
+version: 0.0.1
