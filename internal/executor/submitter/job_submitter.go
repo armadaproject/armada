@@ -49,3 +49,8 @@ func createLabels(job *api.Job) map[string]string {
 
 	return labels
 }
+
+//TODO
+// Termination grace period seconds to 0
+// Image pull policy IfNotPresent
+// RunAsUser

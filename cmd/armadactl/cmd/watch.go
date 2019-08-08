@@ -2,7 +2,7 @@ package cmd
 
 import (
 	"github.com/G-Research/k8s-batch/internal/armada/api"
-	"github.com/G-Research/k8s-batch/internal/armada/client"
+	"github.com/G-Research/k8s-batch/internal/client/service"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
@@ -26,7 +26,7 @@ var watchCmd = &cobra.Command{
 
 		withConnection(cmd, func(conn *grpc.ClientConn) {
 			eventsClient := api.NewEventClient(conn)
-			client.WatchJobSet(eventsClient, jobSetId)
+			service.WatchJobSet(eventsClient, jobSetId)
 		})
 	},
 }
