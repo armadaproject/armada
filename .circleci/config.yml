@@ -62,7 +62,7 @@ jobs:
 
             if [ ${CIRCLE_BRANCH} != master ]
               then
-                TAG=branch-${CIRCLE_BRANCH}
+                TAG=branch-${CIRCLE_BRANCH}-${CIRCLE_SHA1}
             fi
 
             source scripts/assume-role.sh
