@@ -27,6 +27,10 @@ spec:
             - /config/application_config.yaml
           resources:
 {{ toYaml .Values.resources | indent 12 }}
+          ports:
+            - containerPort:  {{ .Values.applicationConfig.grpcPort }}
+              protocol: TCP
+              name: grpc
           volumeMounts:
             - name: user-config
               mountPath: /config/application_config.yaml
