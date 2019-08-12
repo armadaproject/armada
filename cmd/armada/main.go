@@ -1,8 +1,6 @@
 package main
 
 import (
-	"bufio"
-	"fmt"
 	"github.com/G-Research/k8s-batch/internal/armada"
 	"github.com/G-Research/k8s-batch/internal/armada/configuration"
 	"github.com/G-Research/k8s-batch/internal/common"
@@ -32,11 +30,6 @@ func main() {
 	common.LoadConfig(&config, "./config/armada", userSpecifiedConfig)
 	loadUsersCredentialFile(&config)
 
-	log.Infof("Users  %d", len(config.Authentication.Users))
-	for _, user := range config.Authentication.Users {
-		log.Info(user)
-	}
-
 	log.Info("Starting...")
 
 	stopSignal := make(chan os.Signal, 1)
@@ -52,19 +45,12 @@ func main() {
 
 func loadUsersCredentialFile(config *configuration.ArmadaConfig) {
 	credentialsPath := viper.GetString(ValidUsersLocation)
-	log.Info("Credential path " + credentialsPath)
+
 	if credentialsPath != "" {
+		log.Info("Loading credentials from " + credentialsPath)
 		viper.SetConfigFile(credentialsPath)
 
-		file, err := os.Open(credentialsPath)
-
-		scanner := bufio.NewScanner(file)
-
-		for scanner.Scan() {
-			fmt.Println(scanner.Text())
-		}
-
-		err = viper.ReadInConfig()
+		err := viper.ReadInConfig()
 		if err != nil {
 			log.Error(err)
 			os.Exit(-1)
