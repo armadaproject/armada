@@ -2,18 +2,24 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/G-Research/k8s-batch/internal/common"
+	"github.com/mitchellh/go-homedir"
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	"google.golang.org/grpc"
 	"os"
-
-	homedir "github.com/mitchellh/go-homedir"
-	log "github.com/sirupsen/logrus"
-	"github.com/spf13/viper"
 )
 
 func init() {
 	cobra.OnInitialize(initConfig)
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "armadaUrl", "localhost:50051", "specify armada server url")
+	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.armadactl.yaml)")
+	rootCmd.PersistentFlags().String("armadaUrl", "localhost:50051", "specify armada server url")
+	rootCmd.PersistentFlags().String("username", "", "username to connect to armada server")
+	rootCmd.PersistentFlags().String("password", "", "password to connect to armada server")
+	viper.BindPFlag("armadaUrl", rootCmd.PersistentFlags().Lookup("armadaUrl"))
+	viper.BindPFlag("username", rootCmd.PersistentFlags().Lookup("username"))
+	viper.BindPFlag("password", rootCmd.PersistentFlags().Lookup("password"))
 }
 
 var rootCmd = &cobra.Command{
@@ -33,7 +39,11 @@ func Execute() {
 
 func withConnection(cmd *cobra.Command, action func(*grpc.ClientConn)) {
 	url := cmd.Flag("armadaUrl").Value.String()
-	conn, err := grpc.Dial(url, grpc.WithInsecure())
+	username := cmd.Flag("username").Value.String()
+	password := cmd.Flag("password").Value.String()
+
+	conn, err := createConnection(url, username, password)
+
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
 	}
@@ -42,7 +52,19 @@ func withConnection(cmd *cobra.Command, action func(*grpc.ClientConn)) {
 	action(conn)
 }
 
-// TODO
+func createConnection(url string, username string, password string) (*grpc.ClientConn, error) {
+	if username == "" || password == "" {
+		return grpc.Dial(url, grpc.WithInsecure())
+	} else {
+		return grpc.Dial(
+			url,
+			grpc.WithInsecure(),
+			grpc.WithPerRPCCredentials(&common.LoginCredentials{
+				Username: username,
+				Password: password,
+			}))
+	}
+}
 
 var cfgFile string
 
@@ -59,15 +81,19 @@ func initConfig() {
 			os.Exit(1)
 		}
 
-		// Search config in home directory with name ".cmd" (without extension).
 		viper.AddConfigPath(home)
-		viper.SetConfigName(".cmd")
+		viper.SetConfigName(".armadactl")
 	}
 
 	viper.AutomaticEnv() // read in environment variables that match
 
 	// If a config file is found, read it in.
-	if err := viper.ReadInConfig(); err == nil {
+	err := viper.ReadInConfig()
+
+	if err == nil {
 		fmt.Println("Using config file:", viper.ConfigFileUsed())
+	} else {
+		fmt.Println("Can't read config:", err)
+		os.Exit(1)
 	}
 }
