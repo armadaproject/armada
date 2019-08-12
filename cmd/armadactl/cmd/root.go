@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"os"
 )
 
@@ -37,10 +38,10 @@ func Execute() {
 	}
 }
 
-func withConnection(cmd *cobra.Command, action func(*grpc.ClientConn)) {
-	url := cmd.Flag("armadaUrl").Value.String()
-	username := cmd.Flag("username").Value.String()
-	password := cmd.Flag("password").Value.String()
+func withConnection(action func(*grpc.ClientConn)) {
+	url := viper.GetString("armadaUrl")
+	username := viper.GetString("username")
+	password := viper.GetString("password")
 
 	conn, err := createConnection(url, username, password)
 
@@ -58,7 +59,7 @@ func createConnection(url string, username string, password string) (*grpc.Clien
 	} else {
 		return grpc.Dial(
 			url,
-			grpc.WithInsecure(),
+			grpc.WithTransportCredentials(credentials.NewClientTLSFromCert(nil, "")),
 			grpc.WithPerRPCCredentials(&common.LoginCredentials{
 				Username: username,
 				Password: password,
