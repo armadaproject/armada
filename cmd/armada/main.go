@@ -13,9 +13,11 @@ import (
 )
 
 const CustomConfigLocation string = "config"
+const ValidUsersLocation string = "usersPath"
 
 func init() {
 	pflag.String(CustomConfigLocation, "", "Fully qualified path to application configuration file")
+	pflag.String(ValidUsersLocation, "", "Fully qualified path to user credentials file")
 	pflag.Parse()
 }
 
@@ -26,6 +28,12 @@ func main() {
 	var config configuration.ArmadaConfig
 	userSpecifiedConfig := viper.GetString(CustomConfigLocation)
 	common.LoadConfig(&config, "./config/armada", userSpecifiedConfig)
+	loadUsersCredentialFile(&config)
+
+	log.Infof("Users  %d", len(config.Authentication.Users))
+	for _, user := range config.Authentication.Users {
+		log.Info(user)
+	}
 
 	log.Info("Starting...")
 
@@ -38,4 +46,23 @@ func main() {
 		s.GracefulStop()
 	}()
 	wg.Wait()
+}
+
+func loadUsersCredentialFile(config *configuration.ArmadaConfig) {
+	credentialsPath := viper.GetString(ValidUsersLocation)
+	if credentialsPath != "" {
+		viper.SetConfigFile(credentialsPath)
+
+		err := viper.ReadInConfig()
+		if err != nil {
+			log.Error(err)
+			os.Exit(-1)
+		}
+		users := viper.GetStringMapString("users")
+
+		config.Authentication = configuration.AuthenticationConfig{
+			EnableAuthentication: true,
+			Users:                users,
+		}
+	}
 }
