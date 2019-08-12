@@ -21,6 +21,10 @@ type BasicAuthAuthorizeService struct {
 	users map[string]string
 }
 
+func NewBasicAuthAuthorizeService(users map[string]string) *BasicAuthAuthorizeService {
+	return &BasicAuthAuthorizeService{users: users}
+}
+
 func (authService BasicAuthAuthorizeService) Authorize(ctx context.Context) error {
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		if len(md[common.UsernameField]) <= 0 || len(md[common.PasswordField]) <= 0 {

@@ -67,7 +67,7 @@ func Serve(config *configuration.ArmadaConfig) (*grpc.Server, *sync.WaitGroup) {
 
 func createServer(config *configuration.ArmadaConfig) *grpc.Server {
 	if config.Authentication.EnableAuthentication {
-		authService := service.BasicAuthAuthorizeService{config.Authentication.Users}
+		authService := service.NewBasicAuthAuthorizeService(config.Authentication.Users)
 		unaryInterceptor, streamInterceptor := createInterceptors(authService)
 
 		return grpc.NewServer(
