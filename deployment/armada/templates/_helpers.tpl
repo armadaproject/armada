@@ -7,10 +7,17 @@
 {{- printf "%s-%s" ( include "armada.name" .) "config" -}}
 {{- end }}
 
-{{- define "armada.application.config.filename" -}}
+{{- define "armada.config.filename" -}}
 {{- printf "%s%s" ( include "armada.config.name" .) ".yaml" -}}
 {{- end }}
 
+{{- define "armada.users.name" -}}
+{{- printf "%s-%s" ( include "armada.name" .) "users" -}}
+{{- end }}
+
+{{- define "armada.users.filename" -}}
+{{- printf "%s%s" ( include "armada.users.name" .) ".yaml" -}}
+{{- end }}
 
 {{/*
 Create chart name and version as used by the chart label.

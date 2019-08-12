@@ -25,6 +25,8 @@ spec:
           args:
             - --config
             - /config/application_config.yaml
+            - --usersPath
+            - /config/users.yaml
           resources:
 {{ toYaml .Values.resources | indent 12 }}
           ports:
@@ -34,8 +36,15 @@ spec:
           volumeMounts:
             - name: user-config
               mountPath: /config/application_config.yaml
-              subPath: {{ include "armada.application.config.filename" . }}
+              subPath: {{ include "armada.config.filename" . }}
+            - name: users
+              mountPath: /config/users.yaml
+              subPath: {{ include "armada.users.filename" . }}
+              readOnly: true
       volumes:
         - name: user-config
           configMap:
             name: {{ include "armada.config.name" . }}
+        - name: users
+          secret:
+            secretName: {{ include "armada.users.name" . }}

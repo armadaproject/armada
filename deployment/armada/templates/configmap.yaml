@@ -6,7 +6,7 @@ metadata:
   labels:
 {{ include "armada.labels.all" . | indent 4 }}
 data:
-  {{ include "armada.application.config.filename" . }}: |
+  {{ include "armada.config.filename" . }}: |
 {{- if .Values.applicationConfig }}
 {{ toYaml .Values.applicationConfig | indent 4 }}
 {{- end }}
