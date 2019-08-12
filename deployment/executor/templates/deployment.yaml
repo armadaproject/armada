@@ -31,7 +31,7 @@ spec:
           volumeMounts:
             - name: user-config
               mountPath: /config/application_config.yaml
-              subPath: {{ include "executor.application.config.filename" . }}
+              subPath: {{ include "executor.config.filename" . }}
       volumes:
         - name: user-config
           configMap:

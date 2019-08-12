@@ -7,7 +7,7 @@
 {{- printf "%s-%s" ( include "executor.name" .) "config" -}}
 {{- end }}
 
-{{- define "executor.application.config.filename" -}}
+{{- define "executor.config.filename" -}}
 {{- printf "%s%s" ( include "executor.config.name" .) ".yaml" -}}
 {{- end }}
 
