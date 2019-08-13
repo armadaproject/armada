@@ -11,9 +11,11 @@ type ArmadaConfig struct {
 }
 
 type RedisConfig struct {
-	Addr     string
-	Password string
-	Db       int
+	Addr              string
+	MasterName        string
+	SentinelAddresses []string
+	Password          string
+	Db                int
 }
 
 type AuthenticationConfig struct {
