@@ -12,7 +12,7 @@
 {{- end }}
 
 {{- define "executor.api.credentials.name" -}}
-{{- printf "%s-%s" ( include "executor.name" .) "config" -}}
+{{- printf "%s-%s" ( include "executor.name" .) "credentials" -}}
 {{- end }}
 
 {{- define "executor.api.credentials.filename" -}}
