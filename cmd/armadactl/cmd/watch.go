@@ -24,7 +24,7 @@ var watchCmd = &cobra.Command{
 
 		log.Infof("Watching job set %s", jobSetId)
 
-		withConnection(cmd, func(conn *grpc.ClientConn) {
+		withConnection(func(conn *grpc.ClientConn) {
 			eventsClient := api.NewEventClient(conn)
 			service.WatchJobSet(eventsClient, jobSetId)
 		})

@@ -62,13 +62,13 @@ jobs:
 
             if [ ${CIRCLE_BRANCH} != master ]
               then
-                TAG=branch-${CIRCLE_BRANCH}
+                TAG=branch-${CIRCLE_BRANCH}-${CIRCLE_SHA1}
             fi
 
             source scripts/assume-role.sh
             $(aws ecr get-login --region eu-west-1 --no-include-email)
 
-            docker tag armada-executor ${ECR_REPOSITORY}/armada:${TAG}
+            docker tag armada ${ECR_REPOSITORY}/armada:${TAG}
             docker push ${ECR_REPOSITORY}/armada:${TAG}
 
             docker tag armada-executor ${ECR_REPOSITORY}/armada-executor:${TAG}

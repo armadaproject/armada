@@ -2,12 +2,14 @@ package executor
 
 import (
 	"github.com/G-Research/k8s-batch/internal/armada/api"
+	"github.com/G-Research/k8s-batch/internal/common"
 	"github.com/G-Research/k8s-batch/internal/executor/configuration"
 	"github.com/G-Research/k8s-batch/internal/executor/reporter"
 	"github.com/G-Research/k8s-batch/internal/executor/service"
 	"github.com/G-Research/k8s-batch/internal/executor/submitter"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/informers"
 	informer "k8s.io/client-go/informers/core/v1"
@@ -24,7 +26,7 @@ func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGrou
 		os.Exit(-1)
 	}
 
-	conn, err := grpc.Dial(config.Armada.Url, grpc.WithInsecure())
+	conn, err := createConnectionToApi(config)
 	if err != nil {
 		log.Errorf("Failed to connect to API because: %s", err)
 		os.Exit(-1)
@@ -93,6 +95,20 @@ func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGrou
 		}
 		log.Infof("Shutdown complete")
 	}, wg
+}
+
+func createConnectionToApi(config configuration.ExecutorConfiguration) (*grpc.ClientConn, error) {
+	if config.Authentication.EnableAuthentication {
+		return grpc.Dial(
+			config.Armada.Url,
+			grpc.WithTransportCredentials(credentials.NewClientTLSFromCert(nil, "")),
+			grpc.WithPerRPCCredentials(&common.LoginCredentials{
+				Username: config.Authentication.Username,
+				Password: config.Authentication.Password,
+			}))
+	} else {
+		return grpc.Dial(config.Armada.Url, grpc.WithInsecure())
+	}
 }
 
 func waitForShutdownCompletion(wg *sync.WaitGroup, timeout time.Duration) bool {

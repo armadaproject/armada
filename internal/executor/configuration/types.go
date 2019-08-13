@@ -11,6 +11,12 @@ type KubernetesConfiguration struct {
 	KubernetesConfigLocation string
 }
 
+type AuthenticationConfiguration struct {
+	EnableAuthentication bool
+	Username             string
+	Password             string
+}
+
 type TaskConfiguration struct {
 	UtilisationReportingInterval          time.Duration
 	MissingJobEventReconciliationInterval time.Duration
@@ -27,9 +33,10 @@ type EventsConfiguration struct {
 }
 
 type ExecutorConfiguration struct {
-	Application ApplicationConfiguration
-	Kubernetes  KubernetesConfiguration
-	Task        TaskConfiguration
-	Armada      ArmadaConfiguration
-	Events      EventsConfiguration
+	Application    ApplicationConfiguration
+	Authentication AuthenticationConfiguration
+	Kubernetes     KubernetesConfiguration
+	Task           TaskConfiguration
+	Armada         ArmadaConfiguration
+	Events         EventsConfiguration
 }

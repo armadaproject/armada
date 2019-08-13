@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "armada.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+{{ include "armada.labels.all" . | indent 4 }}
+spec:
+  replicas: {{ .Values.replicas }}
+  selector:
+    matchLabels:
+{{ include "armada.labels.identity" . | indent 6 }}
+  template:
+    metadata:
+      name: {{ include "armada.name" . }}
+      labels:
+{{ include "armada.labels.all" . | indent 8 }}
+    spec:
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      serviceAccountName: {{ include "armada.name" . }}
+      containers:
+        - name: armada
+          imagePullPolicy: IfNotPresent
+          image: {{ .Values.image.repository }}:{{ required "A value is required for .Values.image.tag" .Values.image.tag }}
+          args:
+            - --config
+            - /config/application_config.yaml
+            - --usersPath
+            - /config/users.yaml
+          resources:
+{{ toYaml .Values.resources | indent 12 }}
+          ports:
+            - containerPort:  {{ .Values.applicationConfig.grpcPort }}
+              protocol: TCP
+              name: grpc
+          volumeMounts:
+            - name: user-config
+              mountPath: /config/application_config.yaml
+              subPath: {{ include "armada.config.filename" . }}
+            - name: users
+              mountPath: /config/users.yaml
+              subPath: {{ include "armada.users.filename" . }}
+              readOnly: true
+      volumes:
+        - name: user-config
+          configMap:
+            name: {{ include "armada.config.name" . }}
+        - name: users
+          secret:
+            secretName: {{ include "armada.users.name" . }}
