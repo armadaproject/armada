@@ -171,7 +171,12 @@ func getUsageByQueue(pods []*v1.Pod) map[string]common.ComputeResources {
 	utilisationByQueue := make(map[string]common.ComputeResources)
 
 	for _, pod := range pods {
-		queue := pod.Labels[domain.Queue]
+		queue, present := pod.Labels[domain.Queue]
+		if !present {
+			log.Errorf("Pod %s found not belonging to a queue, not reporting its usage", pod.Name)
+			continue
+		}
+
 		podComputeResource := common.CalculateTotalResourceLimit([]*v1.Pod{pod})
 
 		if _, ok := utilisationByQueue[queue]; ok {

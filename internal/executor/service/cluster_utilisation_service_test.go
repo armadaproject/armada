@@ -1,8 +1,11 @@
 package service
 
 import (
+	"github.com/G-Research/k8s-batch/internal/common"
+	"github.com/G-Research/k8s-batch/internal/executor/domain"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"testing"
 )
@@ -92,4 +95,84 @@ func TestGetAllPodsOnNodes_ShouldHandleNoNodesProvided(t *testing.T) {
 	result := getAllPodsOnNodes(pods, nodes)
 
 	assert.Equal(t, len(result), 0)
+}
+
+func TestGetUsageByQueue_HasAnEntryPerQueue(t *testing.T) {
+	podResource := makeResourceList(2, 50)
+	queue1Pod1 := makePodWithResource("queue1", &podResource)
+	queue1Pod2 := makePodWithResource("queue1", &podResource)
+	queue2Pod1 := makePodWithResource("queue2", &podResource)
+
+	pods := []*v1.Pod{&queue1Pod1, &queue1Pod2, &queue2Pod1}
+
+	result := getUsageByQueue(pods)
+	assert.Equal(t, len(result), 2)
+	assert.True(t, hasKey(result, "queue1"))
+	assert.True(t, hasKey(result, "queue2"))
+}
+
+func TestGetUsageByQueue_SkipsPodsWithoutQueue(t *testing.T) {
+	podResource := makeResourceList(2, 50)
+	pod := makePodWithResource("", &podResource)
+	pod.Labels = make(map[string]string)
+
+	result := getUsageByQueue([]*v1.Pod{&pod})
+	assert.NotNil(t, result)
+	assert.Equal(t, len(result), 0)
+}
+
+func TestGetUsageByQueue_AggregatesPodResourcesInAQueue(t *testing.T) {
+	podResource := makeResourceList(2, 50)
+	queue1Pod1 := makePodWithResource("queue1", &podResource)
+	queue1Pod2 := makePodWithResource("queue1", &podResource)
+
+	pods := []*v1.Pod{&queue1Pod1, &queue1Pod2}
+
+	expectedResource := makeResourceList(4, 100)
+	expectedResult := map[string]common.ComputeResources{"queue1": common.FromResourceList(expectedResource)}
+
+	result := getUsageByQueue(pods)
+	assert.Equal(t, result, expectedResult)
+}
+
+func TestGetUsageByQueue_HandlesEmptyList(t *testing.T) {
+	var pods []*v1.Pod
+
+	result := getUsageByQueue(pods)
+
+	assert.NotNil(t, result)
+	assert.Equal(t, len(result), 0)
+}
+
+func hasKey(value map[string]common.ComputeResources, key string) bool {
+	_, ok := value[key]
+	return ok
+}
+
+func makeResourceList(cores int64, gigabytesRam int64) v1.ResourceList {
+	cpuResource := resource.NewQuantity(cores, resource.DecimalSI)
+	memoryResource := resource.NewQuantity(gigabytesRam*1024*1024*1024, resource.DecimalSI)
+	resourceMap := map[v1.ResourceName]resource.Quantity{
+		v1.ResourceCPU:    *cpuResource,
+		v1.ResourceMemory: *memoryResource,
+	}
+	return resourceMap
+}
+
+func makePodWithResource(queue string, resource *v1.ResourceList) v1.Pod {
+	pod := v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Labels: map[string]string{domain.Queue: queue},
+		},
+		Spec: v1.PodSpec{
+			Containers: []v1.Container{
+				{
+					Resources: v1.ResourceRequirements{
+						Limits: *resource,
+					},
+				},
+			},
+		},
+	}
+	return pod
 }
