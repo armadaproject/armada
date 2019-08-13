@@ -25,6 +25,8 @@ spec:
           args:
             - --config
             - /config/application_config.yaml
+            - --apiCredentialsPath
+            - /config/api-credentials.yaml
             - --inCluster
           resources:
 {{ toYaml .Values.resources | indent 12 }}
@@ -32,7 +34,14 @@ spec:
             - name: user-config
               mountPath: /config/application_config.yaml
               subPath: {{ include "executor.config.filename" . }}
+            - name: api-credentials
+              mountPath: /config/api-credentials.yaml
+              subPath: {{ include "executor.api.credentials.filename" . }}
+              readOnly: true
       volumes:
         - name: user-config
           configMap:
             name: {{ include "executor.config.name" . }}
+        - name: api-credentials
+          secret:
+            secretName: {{ include "executor.api.credentials.name" . }}

@@ -11,6 +11,13 @@
 {{- printf "%s%s" ( include "executor.config.name" .) ".yaml" -}}
 {{- end }}
 
+{{- define "executor.api.credentials.name" -}}
+{{- printf "%s-%s" ( include "executor.name" .) "config" -}}
+{{- end }}
+
+{{- define "executor.api.credentials.filename" -}}
+{{- printf "%s%s" ( include "executor.api.credentials.name" .) ".yaml" -}}
+{{- end }}
 
 {{/*
 Create chart name and version as used by the chart label.
