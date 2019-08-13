@@ -37,7 +37,7 @@ var submitCmd = &cobra.Command{
 		submitFile := &JobSubmitFile{}
 		bindYaml(filePath, submitFile)
 
-		withConnection(cmd, func(conn *grpc.ClientConn) {
+		withConnection(func(conn *grpc.ClientConn) {
 			client := api.NewSubmitClient(conn)
 
 			for _, job := range submitFile.Jobs {

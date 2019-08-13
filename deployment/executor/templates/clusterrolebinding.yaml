@@ -12,4 +12,3 @@ subjects:
 - kind: ServiceAccount
   name: {{ include "executor.name" . }}
   namespace:  {{ .Release.Namespace }}
-

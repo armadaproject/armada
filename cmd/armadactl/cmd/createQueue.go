@@ -24,7 +24,7 @@ Job priority is evaluated inside queue, queue has its own priority.`,
 
 		queue := args[0]
 
-		withConnection(cmd, func(conn *grpc.ClientConn) {
+		withConnection(func(conn *grpc.ClientConn) {
 
 			client := api.NewSubmitClient(conn)
 			_, e := client.CreateQueue(timeout(), &api.Queue{Name: queue, Priority: 1})

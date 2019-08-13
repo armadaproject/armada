@@ -7,10 +7,18 @@ type ArmadaConfig struct {
 	PriorityHalfTime time.Duration
 	Redis            RedisConfig
 	EventsRedis      RedisConfig
+	Authentication   AuthenticationConfig
 }
 
 type RedisConfig struct {
-	Addr     string
-	Password string
-	Db       int
+	Addr              string
+	MasterName        string
+	SentinelAddresses []string
+	Password          string
+	Db                int
+}
+
+type AuthenticationConfig struct {
+	EnableAuthentication bool
+	Users                map[string]string
 }
