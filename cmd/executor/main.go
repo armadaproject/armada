@@ -47,9 +47,6 @@ func loadConfig() configuration.ExecutorConfiguration {
 	common.LoadConfig(&config, "./config/executor", userSpecifiedConfig)
 	loadCredentials(&config)
 
-	log.Info("Username " + config.Authentication.Username)
-	log.Info("Password " + config.Authentication.Password)
-
 	inClusterDeployment := viper.GetBool(InCluster)
 	customKubeConfigLocation := viper.GetString(KubeConfig)
 

@@ -101,7 +101,7 @@ func createConnectionToApi(config configuration.ExecutorConfiguration) (*grpc.Cl
 	if config.Authentication.EnableAuthentication {
 		return grpc.Dial(
 			config.Armada.Url,
-			grpc.WithTransportCredentials(credentials.NewTLS(nil)),
+			grpc.WithTransportCredentials(credentials.NewClientTLSFromCert(nil, "")),
 			grpc.WithPerRPCCredentials(&common.LoginCredentials{
 				Username: config.Authentication.Username,
 				Password: config.Authentication.Password,
