@@ -4,17 +4,30 @@ import (
 	"context"
 	"github.com/G-Research/k8s-batch/internal/armada/api"
 	"github.com/prometheus/common/log"
-	"reflect"
 	"time"
 )
 
-func WatchJobSet(client api.EventClient, jobSetId string) {
+type JobStatus string
 
-	running := 0
-	finished := 0
-	failed := 0
+const (
+	Submitted = "Submitted"
+	Queued    = "Queued"
+	Leased    = "Leased"
+	Pending   = "Pending"
+	Running   = "Running"
+	Succeeded = "Succeeded"
+	Failed    = "Failed"
+	Cancelled = "Cancelled"
+)
 
-	r := make(map[string]bool)
+type JobInfo struct {
+	Status JobStatus
+	Job    *api.Job
+}
+
+func WatchJobSet(client api.EventClient, jobSetId string, onUpdate func(map[string]*JobInfo, api.Event)) {
+
+	state := make(map[string]*JobInfo)
 
 	for {
 		clientStream, e := client.GetJobSetEvents(context.Background(), &api.JobSetRequest{Id: jobSetId, Watch: true})
@@ -31,7 +44,7 @@ func WatchJobSet(client api.EventClient, jobSetId string) {
 			if e != nil {
 				log.Error(e)
 				time.Sleep(5 * time.Second)
-				continue
+				break
 			}
 
 			event, e := api.UnwrapEvent(msg.Message)
@@ -41,28 +54,49 @@ func WatchJobSet(client api.EventClient, jobSetId string) {
 				continue
 			}
 
-			switch event.(type) {
-			case *api.JobRunningEvent:
-				r[event.GetJobId()] = true
-				running++
-			case *api.JobFailedEvent:
-				if r[event.GetJobId()] {
-					r[event.GetJobId()] = false
-					running--
-				}
-				failed++
-			case *api.JobSucceededEvent:
-				if r[event.GetJobId()] {
-					r[event.GetJobId()] = false
-					running--
-				}
-				finished++
+			info, exists := state[event.GetJobId()]
+			if !exists {
+				info = &JobInfo{}
+				state[event.GetJobId()] = info
 			}
 
-			log.
-				With("event", reflect.TypeOf(event)).
-				With("jobId", event.GetJobId()).
-				Infof("running: %d finished: %d, failed: %d", running, finished, failed)
+			switch typed := event.(type) {
+			case *api.JobSubmittedEvent:
+				info.Status = Submitted
+				info.Job = &typed.Job
+			case *api.JobQueuedEvent:
+				info.Status = Queued
+			case *api.JobLeasedEvent:
+				info.Status = Leased
+			case *api.JobLeaseExpired:
+				info.Status = Queued
+			case *api.JobPendingEvent:
+				info.Status = Pending
+			case *api.JobRunningEvent:
+				info.Status = Running
+			case *api.JobFailedEvent:
+				info.Status = Failed
+				break
+			case *api.JobSucceededEvent:
+				info.Status = Succeeded
+			case *api.JobReprioritizedEvent:
+				// TODO
+			case *api.JobCancellingEvent:
+			case *api.JobCancelledEvent:
+				info.Status = Cancelled
+
+			}
+
+			onUpdate(state, event)
 		}
 	}
+}
+
+func CountStates(state map[string]*JobInfo) map[JobStatus]int {
+	result := map[JobStatus]int{}
+	for _, jobInfo := range state {
+		count, _ := result[jobInfo.Status]
+		result[jobInfo.Status] = count + 1
+	}
+	return result
 }

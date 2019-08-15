@@ -17,6 +17,7 @@ func TestEventServer_ReportUsage(t *testing.T) {
 		stream := &eventStreamMock{}
 
 		reportEvent(t, s, &api.JobQueuedEvent{JobSetId: jobSetId})
+		reportEvent(t, s, &api.JobQueuedEvent{JobSetId: jobSetId})
 		reportEvent(t, s, &api.JobLeasedEvent{JobSetId: jobSetId})
 		reportEvent(t, s, &api.JobLeaseExpired{JobSetId: jobSetId})
 		reportEvent(t, s, &api.JobPendingEvent{JobSetId: jobSetId})
