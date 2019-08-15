@@ -81,16 +81,16 @@ message JobCancellingEvent {
     string JobId = 1;
     string JobSetId = 2;
     string Queue = 3;
-    string ClusterId = 5;
     google.protobuf.Timestamp Created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+    string ClusterId = 5;
 }
 
 message JobCancelledEvent {
     string JobId = 1;
     string JobSetId = 2;
     string Queue = 3;
-    string ClusterId = 5;
     google.protobuf.Timestamp Created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+    string ClusterId = 5;
 }
 
 message EventMessage {
