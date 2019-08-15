@@ -22,6 +22,7 @@ type EventReporter interface {
 type JobEventReporter struct {
 	KubernetesClient kubernetes.Interface
 	EventClient      api.EventClient
+	ClusterId        string
 }
 
 func (eventReporter JobEventReporter) ReportEvent(pod *v1.Pod) {
@@ -40,7 +41,7 @@ func (eventReporter JobEventReporter) report(pod *v1.Pod) {
 		return
 	}
 
-	event, err := util.CreateEventMessageForCurrentState(pod)
+	event, err := util.CreateEventMessageForCurrentState(pod, eventReporter.ClusterId)
 	if err != nil {
 		log.Errorf("Failed to report event because %s", err)
 		return
