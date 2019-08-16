@@ -29,8 +29,8 @@ Executor periodically reports resource usage details to Armada server.
 Usage is recorded in database and used to update priorities of individual queues.
 
 #### Job Leasing
-Whenever any executor asks for jobs to run available resources in particular cluster are distributed among queues according to queue priority. Jobs from the top of each queue which fit into allocated resources are provided to be executed in the cluster. Jobs are marked as Leased with time stamp. Executor needs to renew 
-job leases otherwise lease expires and job will be considered failed and executed on different cluster.
+Whenever any executor asks for jobs to run available resources in particular cluster are distributed among queues according to queue priority. Jobs from the top of each queue which fit into allocated resources are provided to be executed in the cluster. Jobs are marked as Leased with a time stamp. Executor needs to renew 
+job leases otherwise leases expire and jobs will be considered failed and executed on different cluster.
 
 #### Job Events
 Executors reports all jobs events back to Armada server. Jobs can be grouped in JobSets. Job Events from jobs in particular JobSet are exposed to user through api.
