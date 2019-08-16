@@ -94,7 +94,12 @@ func initConfig() {
 	if err == nil {
 		fmt.Println("Using config file:", viper.ConfigFileUsed())
 	} else {
-		fmt.Println("Can't read config:", err)
-		os.Exit(1)
+		switch err.(type) {
+		case viper.ConfigFileNotFoundError:
+			fmt.Println("No config file:", err)
+		default:
+			fmt.Println("Can't read config:", err)
+			os.Exit(1)
+		}
 	}
 }

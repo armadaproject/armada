@@ -13,7 +13,7 @@ func TestCreateEventMessageForCurrentState_WhenPodPending(t *testing.T) {
 		},
 	}
 
-	result, err := CreateEventMessageForCurrentState(&pod)
+	result, err := CreateEventMessageForCurrentState(&pod, "cluster1")
 	assert.Nil(t, err)
 	assert.NotNil(t, result.GetPending())
 
@@ -26,7 +26,7 @@ func TestCreateEventMessageForCurrentState_WhenPodRunning(t *testing.T) {
 		},
 	}
 
-	result, err := CreateEventMessageForCurrentState(&pod)
+	result, err := CreateEventMessageForCurrentState(&pod, "cluster1")
 	assert.Nil(t, err)
 	assert.NotNil(t, result.GetRunning())
 }
@@ -38,7 +38,7 @@ func TestCreateEventMessageForCurrentState_WhenPodFailed(t *testing.T) {
 		},
 	}
 
-	result, err := CreateEventMessageForCurrentState(&pod)
+	result, err := CreateEventMessageForCurrentState(&pod, "cluster1")
 	assert.Nil(t, err)
 	assert.NotNil(t, result.GetFailed())
 }
@@ -50,7 +50,7 @@ func TestCreateEventMessageForCurrentState_WhenPodSucceeded(t *testing.T) {
 		},
 	}
 
-	result, err := CreateEventMessageForCurrentState(&pod)
+	result, err := CreateEventMessageForCurrentState(&pod, "cluster1")
 	assert.Nil(t, err)
 	assert.NotNil(t, result.GetSucceeded())
 }
@@ -62,6 +62,6 @@ func TestCreateEventMessageForCurrentState_ShouldError_WhenPodPhaseUnknown(t *te
 		},
 	}
 
-	_, err := CreateEventMessageForCurrentState(&pod)
+	_, err := CreateEventMessageForCurrentState(&pod, "cluster1")
 	assert.NotNil(t, err)
 }

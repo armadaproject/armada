@@ -16,6 +16,7 @@ func TestEventServer_ReportUsage(t *testing.T) {
 		jobSetId := "set1"
 		stream := &eventStreamMock{}
 
+		reportEvent(t, s, &api.JobSubmittedEvent{JobSetId: jobSetId})
 		reportEvent(t, s, &api.JobQueuedEvent{JobSetId: jobSetId})
 		reportEvent(t, s, &api.JobLeasedEvent{JobSetId: jobSetId})
 		reportEvent(t, s, &api.JobLeaseExpired{JobSetId: jobSetId})
@@ -29,7 +30,7 @@ func TestEventServer_ReportUsage(t *testing.T) {
 
 		e := s.GetJobSetEvents(&api.JobSetRequest{Id: jobSetId, Watch: false}, stream)
 		assert.Nil(t, e)
-		assert.Equal(t, 10, len(stream.sendMessages))
+		assert.Equal(t, 11, len(stream.sendMessages))
 	})
 }
 

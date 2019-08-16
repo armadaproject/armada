@@ -30,11 +30,23 @@ func (server SubmitServer) CreateQueue(ctx context.Context, queue *api.Queue) (*
 
 func (server SubmitServer) SubmitJob(ctx context.Context, req *api.JobRequest) (*api.JobSubmitResponse, error) {
 
-	jobId, e := server.jobRepository.AddJob(req)
+	job := server.jobRepository.CreateJob(req)
 
+	e := reportQueued(server.eventRepository, job)
 	if e != nil {
 		return nil, status.Errorf(codes.Aborted, e.Error())
 	}
-	result := &api.JobSubmitResponse{JobId: jobId}
+
+	e = server.jobRepository.AddJob(job)
+	if e != nil {
+		return nil, status.Errorf(codes.Aborted, e.Error())
+	}
+	result := &api.JobSubmitResponse{JobId: job.Id}
+
+	e = reportSubmitted(server.eventRepository, job)
+	if e != nil {
+		return result, status.Errorf(codes.Aborted, e.Error())
+	}
+
 	return result, nil
 }

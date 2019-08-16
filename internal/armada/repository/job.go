@@ -14,7 +14,8 @@ const jobLeasedPrefix = "Job:Leased:"
 const jobClusterMapKey = "Job:ClusterId"
 
 type JobRepository interface {
-	AddJob(request *api.JobRequest) (string, error)
+	CreateJob(request *api.JobRequest) *api.Job
+	AddJob(job *api.Job) error
 	PeekQueue(queue string, limit int64) ([]*api.Job, error)
 	FilterActiveQueues(queues []*api.Queue) ([]*api.Queue, error)
 	TryLeaseJobs(clusterId string, queue string, jobs []*api.Job) ([]*api.Job, error)
@@ -24,6 +25,20 @@ type JobRepository interface {
 
 type RedisJobRepository struct {
 	db *redis.Client
+}
+
+func (repo RedisJobRepository) CreateJob(request *api.JobRequest) *api.Job {
+	j := api.Job{
+		Id:       util.NewULID(),
+		Queue:    request.Queue,
+		JobSetId: request.JobSetId,
+
+		Priority: request.Priority,
+
+		PodSpec: request.PodSpec,
+		Created: time.Now(),
+	}
+	return &j
 }
 
 func (repo RedisJobRepository) RenewLease(clusterId string, jobIds []string) (unsuccessful []string, e error) {
@@ -40,14 +55,13 @@ func NewRedisJobRepository(db *redis.Client) *RedisJobRepository {
 	return &RedisJobRepository{db: db}
 }
 
-func (repo RedisJobRepository) AddJob(request *api.JobRequest) (string, error) {
+func (repo RedisJobRepository) AddJob(job *api.Job) error {
 
 	pipe := repo.db.TxPipeline()
 
-	job := createJob(request)
 	jobData, e := proto.Marshal(job)
 	if e != nil {
-		return "", e
+		return e
 	}
 
 	pipe.ZAdd(jobQueuePrefix+job.Queue, redis.Z{
@@ -57,7 +71,7 @@ func (repo RedisJobRepository) AddJob(request *api.JobRequest) (string, error) {
 	pipe.Set(jobObjectPrefix+job.Id, jobData, 0)
 
 	_, e = pipe.Exec()
-	return job.Id, e
+	return e
 }
 
 func (repo RedisJobRepository) PeekQueue(queue string, limit int64) ([]*api.Job, error) {
@@ -146,20 +160,6 @@ func (repo RedisJobRepository) FilterActiveQueues(queues []*api.Queue) ([]*api.Q
 		}
 	}
 	return active, nil
-}
-
-func createJob(jobRequest *api.JobRequest) *api.Job {
-	j := api.Job{
-		Id:       util.NewULID(),
-		Queue:    jobRequest.Queue,
-		JobSetId: jobRequest.JobSetId,
-
-		Priority: jobRequest.Priority,
-
-		PodSpec: jobRequest.PodSpec,
-		Created: time.Now(),
-	}
-	return &j
 }
 
 const zmoveScript = `

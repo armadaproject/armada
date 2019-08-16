@@ -39,6 +39,7 @@ func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGrou
 	var eventReporter reporter.EventReporter = reporter.JobEventReporter{
 		KubernetesClient: kubernetesClient,
 		EventClient:      eventClient,
+		ClusterId:        config.Application.ClusterId,
 	}
 
 	factory := informers.NewSharedInformerFactoryWithOptions(kubernetesClient, 0)
