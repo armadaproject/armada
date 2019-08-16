@@ -14,3 +14,5 @@ Some of the issues could be solved by replacing the scheduler or improving other
 It would be a benefit to have a solution that supports scaling out using multiple Kubernetes clusters. This allows simple scaling as well as benefit from a maintenance perspective.
 
 [Design docs](./docs/design.md)
+
+[Installation & Usage](./docs/usage.md)
