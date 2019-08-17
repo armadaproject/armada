@@ -13,21 +13,28 @@ Armada is job queueing system for multiple Kubernetes clusters.
 - All components should be highly available
 
 ## Proposed design
-
-### Job Queues and submission API
-Any jobs submitted to api will be added to a specific queue.
-Based on queue priorities (priority is determined by past resource usage by jobs from the particular queue) jobs are offered to cluster executors to be run.
+![Diagram](./batch-api.svg)
 
 ### Cluster Executor
 Cluster executor is component running on each Kubernetes cluster. It keeps all pods and nodes information in memory and manages jobs within the cluster.
 It proactively reports current state of the cluster and asks for jobs to run.
 Executor can also refuse to execute assigned job and return it.
 
-### Accounting 
-Accounting monitors individual queues resource usages. This is used to calculate queue priority when deciding which Jobs to run first.
+### Armada server
+Armada server is central component which manages queues of jobs.
+It stores all active jobs in Job database (current implementation use Redis).
 
-### Job monitoring (Events)
-All job events are recorded and contain all necessary information to reconstruct state of the job in any time. This will allow to erase all other data about jobs after it finishes except this stream of events.
-Jobs can be grouped in JobSets. Job Events from jobs in particular JobSet will be exposed to user through api.
+#### Accounting
+Executor periodically reports resource usage details to Armada server. 
+Usage is recorded in database and used to update priorities of individual queues.
 
-![Diagram](./batch-api.svg)
+#### Job Leasing
+Whenever any executor asks for jobs to run available resources in particular cluster are distributed among queues according to queue priority. Jobs from the top of each queue which fit into allocated resources are provided to be executed in the cluster. Jobs are marked as Leased with a time stamp. Executor needs to renew 
+job leases otherwise leases expire and jobs will be considered failed and executed on different cluster.
+
+#### Job Events
+Executors reports all jobs events back to Armada server. Jobs can be grouped in JobSets. Job Events from jobs in particular JobSet are exposed to user through api.
+
+Armada records all necessary events to fully reconstruct state of the job at any time. This allows us to erase all job data from Jobs database after the job finishes and keep only the events.
+
+Current implementation utilise Redis streams to store job events.
