@@ -12,6 +12,20 @@ Armada is job queueing system for multiple Kubernetes clusters.
 - Smart queue instead of scheduler - implement only minimum logic needed on global level, let cluster scheduler do its own work.
 - All components should be highly available
 
+## Data model
+### Job
+Job is executable unit, currently contains Kubernetes Pod specification.
+
+### Job Set
+All jobs are grouped into Job Sets with user specified identifier. Job set represent project or other higher level unit of work. Users can observer events in Job Sets through api.
+
+### Queue
+All jobs needs to be placed into queues. Resources allocation is controlled using queues.
+
+Queues has its own priority (lower number makes queue more important). Queue current priority is calculated from combination of resources used by jobs from the queue over time and queue priority. Current priority is used to decide which jobs to run first.
+
+Usual setup maps users or teams one to one to queues to control resource usage.
+
 ## Proposed design
 ![Diagram](./batch-api.svg)
 
@@ -29,11 +43,15 @@ Executor periodically reports resource usage details to Armada server.
 Usage is recorded in database and used to update priorities of individual queues.
 
 #### Job Leasing
-Whenever any executor asks for jobs to run available resources in particular cluster are distributed among queues according to queue priority. Jobs from the top of each queue which fit into allocated resources are provided to be executed in the cluster. Jobs are marked as Leased with a time stamp. Executor needs to renew 
-job leases otherwise leases expire and jobs will be considered failed and executed on different cluster.
+Executor periodically ask server for jobs to run reporting available resources. Armada distributes these available resources among queues according to queue current priority. 
+Jobs are taken from the top of each queue until the available resources is filled. These jobs are then returned to the executor to be executed on the cluster and marked as Leased with a timestamp to show when the lease began.
+
+The executor must regularly renew the lease of all jobs it leases, otherwise leases expire and jobs will be considered failed and executed on different cluster.
 
 #### Job Events
-Executors reports all jobs events back to Armada server. Jobs can be grouped in JobSets. Job Events from jobs in particular JobSet are exposed to user through api.
+Jobs events are used to show when a Job reaches a new state, such as submitted, running, completed. They hold generic information about, such event created time along with state specific information, such as completed will hold an exit code.
+
+Armada records events of all jobs against the job set the job belongs to. Events for a given job set are available through the api.
 
 Armada records all necessary events to fully reconstruct state of the job at any time. This allows us to erase all job data from Jobs database after the job finishes and keep only the events.
 
