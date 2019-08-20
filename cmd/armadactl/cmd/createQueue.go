@@ -29,9 +29,8 @@ Job priority is evaluated inside queue, queue has its own priority.`,
 
 		util.WithConnection(apiConnectionDetails, func(conn *grpc.ClientConn) {
 			client := api.NewSubmitClient(conn)
-			submissionService := service.NewArmadaApiJobSubmissionService(client)
 
-			e := submissionService.CreateQueue(&api.Queue{Name: queue, Priority: 1})
+			e := service.CreateQueue(client, &api.Queue{Name: queue, Priority: 1})
 
 			if e != nil {
 				log.Error(e)

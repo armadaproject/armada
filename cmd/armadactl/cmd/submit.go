@@ -42,10 +42,9 @@ var submitCmd = &cobra.Command{
 
 		util.WithConnection(apiConnectionDetails, func(conn *grpc.ClientConn) {
 			client := api.NewSubmitClient(conn)
-			submissionService := service.NewArmadaApiJobSubmissionService(client)
 
 			for _, job := range submitFile.Jobs {
-				response, e := submissionService.SubmitJob(job)
+				response, e := service.SubmitJob(client, job)
 
 				if e != nil {
 					log.Error(e)
