@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"github.com/G-Research/k8s-batch/internal/armada/api"
+	"github.com/G-Research/k8s-batch/internal/client"
+	"github.com/G-Research/k8s-batch/internal/client/util"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
@@ -31,18 +33,17 @@ var submitCmd = &cobra.Command{
 `,
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-
 		filePath := args[0]
 
 		submitFile := &JobSubmitFile{}
-		bindYaml(filePath, submitFile)
+		util.BindJsonOrYaml(filePath, submitFile)
+		apiConnectionDetails := client.ExtractCommandlineArmadaApiConnectionDetails()
 
-		withConnection(func(conn *grpc.ClientConn) {
+		util.WithConnection(apiConnectionDetails, func(conn *grpc.ClientConn) {
 			client := api.NewSubmitClient(conn)
 
 			for _, job := range submitFile.Jobs {
-
-				response, e := client.SubmitJob(timeout(), job)
+				response, e := client.SubmitJob(util.DefaultTimeout(), job)
 
 				if e != nil {
 					log.Error(e)

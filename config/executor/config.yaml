@@ -1,10 +1,10 @@
 application:
   clusterId : "Cluster1"
 task:
-  utilisationReportingInterval: 10s
-  missingJobEventReconciliationInterval: 10s
-  jobLeaseRenewalInterval: 10s
-  allocateSpareClusterCapacityInterval: 10s
+  utilisationReportingInterval: 15s
+  missingJobEventReconciliationInterval: 15s
+  jobLeaseRenewalInterval: 30s
+  allocateSpareClusterCapacityInterval: 2s
 armada:
   url : "localhost:50051"
 events:

@@ -3,7 +3,9 @@ package cmd
 import (
 	"fmt"
 	"github.com/G-Research/k8s-batch/internal/armada/api"
-	"github.com/G-Research/k8s-batch/internal/armada/client"
+	"github.com/G-Research/k8s-batch/internal/client"
+	"github.com/G-Research/k8s-batch/internal/client/service"
+	"github.com/G-Research/k8s-batch/internal/client/util"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
@@ -27,20 +29,22 @@ var watchCmd = &cobra.Command{
 
 		log.Infof("Watching job set %s", jobSetId)
 
-		withConnection(func(conn *grpc.ClientConn) {
+		apiConnectionDetails := client.ExtractCommandlineArmadaApiConnectionDetails()
+
+		util.WithConnection(apiConnectionDetails, func(conn *grpc.ClientConn) {
 			eventsClient := api.NewEventClient(conn)
-			client.WatchJobSet(eventsClient, jobSetId, func(state map[string]*client.JobInfo, e api.Event) {
+			service.WatchJobSet(eventsClient, jobSetId, func(state map[string]*service.JobInfo, e api.Event) {
 
-				states := []client.JobStatus{
-					client.Queued,
-					client.Leased,
-					client.Pending,
-					client.Running,
-					client.Succeeded,
-					client.Failed,
-					client.Cancelled}
+				states := []service.JobStatus{
+					service.Queued,
+					service.Leased,
+					service.Pending,
+					service.Running,
+					service.Succeeded,
+					service.Failed,
+					service.Cancelled}
 
-				counts := client.CountStates(state)
+				counts := service.CountStates(state)
 
 				first := true
 

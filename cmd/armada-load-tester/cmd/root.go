@@ -14,8 +14,8 @@ func init() {
 }
 
 var rootCmd = &cobra.Command{
-	Use:   "armadaclt command",
-	Short: "Command line utility to manage armada",
+	Use:   "armada-load-tester command",
+	Short: "Command line utility to submit many jobs to armada",
 	Long:  ``,
 }
 
