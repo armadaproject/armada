@@ -3,8 +3,10 @@ package service
 import (
 	"github.com/G-Research/k8s-batch/internal/armada/api"
 	"github.com/G-Research/k8s-batch/internal/client/domain"
+	"github.com/G-Research/k8s-batch/internal/client/util"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
+	v1 "k8s.io/api/core/v1"
 	"strconv"
 	"sync"
 )
@@ -47,11 +49,11 @@ func (apiLoadTester ArmadaLoadTester) RunSubmissionTest(spec domain.LoadTestSpec
 }
 
 func (apiLoadTester ArmadaLoadTester) runSubmission(queue string, jobSetId string, jobs []*domain.JobSubmissionDescription) {
-	WithConnection(apiLoadTester.apiConnectionDetails, func(connection *grpc.ClientConn) {
+	util.WithConnection(apiLoadTester.apiConnectionDetails, func(connection *grpc.ClientConn) {
 		client := api.NewSubmitClient(connection)
-		ctx := timeout()
+		timeout := util.DefaultTimeout()
 
-		_, e := client.CreateQueue(timeout(), &api.Queue{Name: queue, Priority: 1})
+		_, e := client.CreateQueue(timeout, &api.Queue{Name: queue, Priority: 1})
 		if e != nil {
 			log.Error(e)
 			return
@@ -61,7 +63,7 @@ func (apiLoadTester ArmadaLoadTester) runSubmission(queue string, jobSetId strin
 		for _, job := range jobs {
 			jobRequest := createJobRequest(queue, jobSetId, job.Spec)
 			for i := 0; i < job.Count; i++ {
-				response, e := client.SubmitJob(ctx, jobRequest)
+				response, e := client.SubmitJob(timeout, jobRequest)
 
 				if e != nil {
 					log.Error(e)
@@ -71,4 +73,14 @@ func (apiLoadTester ArmadaLoadTester) runSubmission(queue string, jobSetId strin
 			}
 		}
 	})
+}
+
+func createJobRequest(queue string, jobSetId string, spec *v1.PodSpec) *api.JobRequest {
+	job := api.JobRequest{
+		Priority: 1,
+		Queue:    queue,
+		JobSetId: jobSetId,
+	}
+	job.PodSpec = spec
+	return &job
 }

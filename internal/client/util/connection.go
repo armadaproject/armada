@@ -1,29 +1,17 @@
-package service
+package util
 
 import (
 	"context"
-	"github.com/G-Research/k8s-batch/internal/armada/api"
 	"github.com/G-Research/k8s-batch/internal/client/domain"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-	v1 "k8s.io/api/core/v1"
 	"time"
 )
 
-func timeout() context.Context {
+func DefaultTimeout() context.Context {
 	ctx, _ := context.WithTimeout(context.Background(), 30*time.Second)
 	return ctx
-}
-
-func createJobRequest(queue string, jobSetId string, spec *v1.PodSpec) *api.JobRequest {
-	job := api.JobRequest{
-		Priority: 1,
-		Queue:    queue,
-		JobSetId: jobSetId,
-	}
-	job.PodSpec = spec
-	return &job
 }
 
 func WithConnection(apiConnectionDetails *domain.ArmadaApiConnectionDetails, action func(*grpc.ClientConn)) {
