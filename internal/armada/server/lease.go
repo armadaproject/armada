@@ -16,10 +16,21 @@ type AggregatedQueueServer struct {
 	jobRepository   repository.JobRepository
 	usageRepository repository.UsageRepository
 	queueRepository repository.QueueRepository
+	eventRepository repository.EventRepository
 }
 
-func NewAggregatedQueueServer(jobRepository repository.JobRepository, usageRepository repository.UsageRepository, queueRepository repository.QueueRepository) *AggregatedQueueServer {
-	return &AggregatedQueueServer{jobRepository: jobRepository, usageRepository: usageRepository, queueRepository: queueRepository}
+func NewAggregatedQueueServer(
+	jobRepository repository.JobRepository,
+	usageRepository repository.UsageRepository,
+	queueRepository repository.QueueRepository,
+	eventRepository repository.EventRepository,
+) *AggregatedQueueServer {
+
+	return &AggregatedQueueServer{
+		jobRepository:   jobRepository,
+		usageRepository: usageRepository,
+		queueRepository: queueRepository,
+		eventRepository: eventRepository}
 }
 
 const minPriority = 0.5
@@ -57,6 +68,7 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 	jobLease := api.JobLease{
 		Job: jobs,
 	}
+	log.WithField("clusterId", request.ClusterID).Infof("Leasing %d jobs.", len(jobs))
 	return &jobLease, nil
 }
 
@@ -124,6 +136,9 @@ func (q AggregatedQueueServer) leaseJobs(clusterId string, queue string, slice c
 			break
 		}
 	}
+
+	go reportJobsLeased(q.eventRepository, jobs, clusterId)
+
 	return jobs, slice, nil
 }
 

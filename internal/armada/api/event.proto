@@ -7,7 +7,7 @@ import "internal/armada/api/queue.proto";
 import "google/protobuf/empty.proto";
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 
-message JobQueuedEvent {
+message JobSubmittedEvent {
     string JobId = 1;
     string JobSetId = 2;
     string Queue = 3;
@@ -15,11 +15,19 @@ message JobQueuedEvent {
     Job Job = 5 [(gogoproto.nullable) = false];
 }
 
+message JobQueuedEvent {
+    string JobId = 1;
+    string JobSetId = 2;
+    string Queue = 3;
+    google.protobuf.Timestamp Created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+}
+
 message JobLeasedEvent {
     string JobId = 1;
     string JobSetId = 2;
     string Queue = 3;
     google.protobuf.Timestamp Created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+    string ClusterId = 5;
 }
 
 message JobLeaseExpired {
@@ -27,6 +35,7 @@ message JobLeaseExpired {
     string JobSetId = 2;
     string Queue = 3;
     google.protobuf.Timestamp Created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+    string ClusterId = 5;
 }
 
 message JobPendingEvent {
@@ -34,6 +43,7 @@ message JobPendingEvent {
     string JobSetId = 2;
     string Queue = 3;
     google.protobuf.Timestamp Created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+    string ClusterId = 5;
 }
 
 message JobRunningEvent {
@@ -41,6 +51,7 @@ message JobRunningEvent {
     string JobSetId = 2;
     string Queue = 3;
     google.protobuf.Timestamp Created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+    string ClusterId = 5;
 }
 
 message JobFailedEvent {
@@ -48,6 +59,7 @@ message JobFailedEvent {
     string JobSetId = 2;
     string Queue = 3;
     google.protobuf.Timestamp Created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+    string ClusterId = 5;
 }
 
 message JobSucceededEvent {
@@ -55,6 +67,7 @@ message JobSucceededEvent {
     string JobSetId = 2;
     string Queue = 3;
     google.protobuf.Timestamp Created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+    string ClusterId = 5;
 }
 
 message JobReprioritizedEvent {
@@ -69,6 +82,7 @@ message JobCancellingEvent {
     string JobSetId = 2;
     string Queue = 3;
     google.protobuf.Timestamp Created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+    string ClusterId = 5;
 }
 
 message JobCancelledEvent {
@@ -76,20 +90,22 @@ message JobCancelledEvent {
     string JobSetId = 2;
     string Queue = 3;
     google.protobuf.Timestamp Created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+    string ClusterId = 5;
 }
 
 message EventMessage {
     oneof events {
-        JobQueuedEvent queued = 1;
-        JobLeasedEvent leased = 2;
-        JobLeaseExpired leaseExpired = 3;
-        JobPendingEvent pending = 4;
-        JobRunningEvent running = 5;
-        JobFailedEvent failed = 6;
-        JobSucceededEvent succeeded = 7;
-        JobReprioritizedEvent reprioritized = 8;
-        JobCancellingEvent cancelling = 9;
-        JobCancelledEvent cancelled = 10;
+        JobSubmittedEvent submitted = 1;
+        JobQueuedEvent queued = 2;
+        JobLeasedEvent leased = 3;
+        JobLeaseExpired leaseExpired = 4;
+        JobPendingEvent pending = 5;
+        JobRunningEvent running = 6;
+        JobFailedEvent failed = 7;
+        JobSucceededEvent succeeded = 8;
+        JobReprioritizedEvent reprioritized = 9;
+        JobCancellingEvent cancelling = 10;
+        JobCancelledEvent cancelled = 11;
     }
 }
 

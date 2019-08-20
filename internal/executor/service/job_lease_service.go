@@ -77,6 +77,7 @@ func (jobLeaseService JobLeaseService) renewJobLeases(pods []*v1.Pod) {
 
 	if err != nil {
 		log.Errorf("Failed to renew lease for jobs because %s", err)
+		return
 	}
 }
 
@@ -92,6 +93,7 @@ func (jobLeaseService JobLeaseService) endJobLeases(pods []*v1.Pod) {
 
 	if err != nil {
 		log.Errorf("Failed cleaning up jobs because %s", err)
+		return
 	}
 
 	jobLeaseService.CleanupService.DeletePods(pods)

@@ -1,11 +1,14 @@
 package cmd
 
 import (
+	"fmt"
 	"github.com/G-Research/k8s-batch/internal/armada/api"
 	"github.com/G-Research/k8s-batch/internal/client/service"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
+	"reflect"
+	"time"
 )
 
 func init() {
@@ -26,7 +29,32 @@ var watchCmd = &cobra.Command{
 
 		withConnection(func(conn *grpc.ClientConn) {
 			eventsClient := api.NewEventClient(conn)
-			service.WatchJobSet(eventsClient, jobSetId)
+			service.WatchJobSet(eventsClient, jobSetId, func(state map[string]*service.JobInfo, e api.Event) {
+
+				states := []service.JobStatus{
+					service.Queued,
+					service.Leased,
+					service.Pending,
+					service.Running,
+					service.Succeeded,
+					service.Failed,
+					service.Cancelled}
+
+				counts := service.CountStates(state)
+
+				first := true
+
+				fmt.Printf("%s | ", e.GetCreated().Format(time.Stamp))
+				for _, state := range states {
+					if !first {
+						fmt.Print(", ")
+					}
+					first = false
+					fmt.Printf("%s: %3d", state, counts[state])
+				}
+				fmt.Printf(" | event: %s, job id: %s", reflect.TypeOf(e), e.GetJobId())
+				fmt.Println()
+			})
 		})
 	},
 }

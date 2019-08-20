@@ -15,6 +15,8 @@ type Event interface {
 
 func UnwrapEvent(message *EventMessage) (Event, error) {
 	switch event := message.Events.(type) {
+	case *EventMessage_Submitted:
+		return event.Submitted, nil
 	case *EventMessage_Queued:
 		return event.Queued, nil
 	case *EventMessage_Leased:
@@ -41,6 +43,12 @@ func UnwrapEvent(message *EventMessage) (Event, error) {
 
 func Wrap(event Event) (*EventMessage, error) {
 	switch typed := event.(type) {
+	case *JobSubmittedEvent:
+		return &EventMessage{
+			Events: &EventMessage_Submitted{
+				Submitted: typed,
+			},
+		}, nil
 	case *JobQueuedEvent:
 		return &EventMessage{
 			Events: &EventMessage_Queued{
@@ -102,5 +110,5 @@ func Wrap(event Event) (*EventMessage, error) {
 			},
 		}, nil
 	}
-	return nil, fmt.Errorf("unknow event type: %s", reflect.TypeOf(event))
+	return nil, fmt.Errorf("unknown event type: %s", reflect.TypeOf(event))
 }
