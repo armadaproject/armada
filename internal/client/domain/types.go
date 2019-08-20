@@ -1,6 +1,9 @@
 package domain
 
-import v1 "k8s.io/api/core/v1"
+import (
+	"github.com/G-Research/k8s-batch/internal/common"
+	v1 "k8s.io/api/core/v1"
+)
 
 type LoadTestSpecification struct {
 	Submissions []*SubmissionDescription
@@ -17,4 +20,9 @@ type JobSubmissionDescription struct {
 	Name  string
 	Count int
 	Spec  *v1.PodSpec
+}
+
+type ArmadaApiConnectionDetails struct {
+	Url         string
+	Credentials common.LoginCredentials
 }

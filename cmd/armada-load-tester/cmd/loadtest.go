@@ -1,12 +1,11 @@
 package cmd
 
 import (
+	"github.com/G-Research/k8s-batch/internal/client"
 	"github.com/G-Research/k8s-batch/internal/client/domain"
 	"github.com/G-Research/k8s-batch/internal/client/service"
 	"github.com/G-Research/k8s-batch/internal/client/util"
-	"github.com/G-Research/k8s-batch/internal/common"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
 func init() {
@@ -22,10 +21,8 @@ var loadtestCmd = &cobra.Command{
 		loadTestSpec := &domain.LoadTestSpecification{}
 		util.BindJsonOrYaml(filePath, loadTestSpec)
 
-		url := viper.GetString("armadaUrl")
-		username := viper.GetString("username")
-		password := viper.GetString("password")
-		loadTester := service.NewArmadaLoadTester(url, common.LoginCredentials{Username: username, Password: password})
+		apiConnectionDetails := client.ExtractCommandlineArmadaApiConnectionDetails()
+		loadTester := service.NewArmadaLoadTester(apiConnectionDetails)
 
 		loadTester.RunSubmissionTest(*loadTestSpec)
 	},

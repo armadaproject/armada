@@ -1,17 +1,12 @@
 package service
 
 import (
-	"context"
 	"github.com/G-Research/k8s-batch/internal/armada/api"
 	"github.com/G-Research/k8s-batch/internal/client/domain"
-	"github.com/G-Research/k8s-batch/internal/common"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-	v1 "k8s.io/api/core/v1"
 	"strconv"
 	"sync"
-	"time"
 )
 
 type LoadTester interface {
@@ -19,14 +14,12 @@ type LoadTester interface {
 }
 
 type ArmadaLoadTester struct {
-	apiUrl      string
-	credentials common.LoginCredentials
+	apiConnectionDetails *domain.ArmadaApiConnectionDetails
 }
 
-func NewArmadaLoadTester(url string, credentials common.LoginCredentials) *ArmadaLoadTester {
+func NewArmadaLoadTester(connectionDetails *domain.ArmadaApiConnectionDetails) *ArmadaLoadTester {
 	return &ArmadaLoadTester{
-		apiUrl:      url,
-		credentials: credentials,
+		apiConnectionDetails: connectionDetails,
 	}
 }
 
@@ -54,7 +47,7 @@ func (apiLoadTester ArmadaLoadTester) RunSubmissionTest(spec domain.LoadTestSpec
 }
 
 func (apiLoadTester ArmadaLoadTester) runSubmission(queue string, jobSetId string, jobs []*domain.JobSubmissionDescription) {
-	withConnection(apiLoadTester.apiUrl, &apiLoadTester.credentials, func(connection *grpc.ClientConn) {
+	WithConnection(apiLoadTester.apiConnectionDetails, func(connection *grpc.ClientConn) {
 		client := api.NewSubmitClient(connection)
 		ctx := timeout()
 
@@ -78,41 +71,4 @@ func (apiLoadTester ArmadaLoadTester) runSubmission(queue string, jobSetId strin
 			}
 		}
 	})
-}
-
-func timeout() context.Context {
-	ctx, _ := context.WithTimeout(context.Background(), 30*time.Second)
-	return ctx
-}
-
-func createJobRequest(queue string, jobSetId string, spec *v1.PodSpec) *api.JobRequest {
-	job := api.JobRequest{
-		Priority: 1,
-		Queue:    queue,
-		JobSetId: jobSetId,
-	}
-	job.PodSpec = spec
-	return &job
-}
-
-func withConnection(url string, creds *common.LoginCredentials, action func(*grpc.ClientConn)) {
-	conn, err := createConnection(url, creds)
-
-	if err != nil {
-		log.Errorf("Failed to connect to api because %s", err)
-	}
-	defer conn.Close()
-
-	action(conn)
-}
-
-func createConnection(url string, creds *common.LoginCredentials) (*grpc.ClientConn, error) {
-	if creds.Username == "" || creds.Password == "" {
-		return grpc.Dial(url, grpc.WithInsecure())
-	} else {
-		return grpc.Dial(
-			url,
-			grpc.WithTransportCredentials(credentials.NewClientTLSFromCert(nil, "")),
-			grpc.WithPerRPCCredentials(creds))
-	}
 }

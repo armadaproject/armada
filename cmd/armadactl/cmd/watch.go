@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"github.com/G-Research/k8s-batch/internal/armada/api"
+	"github.com/G-Research/k8s-batch/internal/client"
 	"github.com/G-Research/k8s-batch/internal/client/service"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -27,7 +28,9 @@ var watchCmd = &cobra.Command{
 
 		log.Infof("Watching job set %s", jobSetId)
 
-		withConnection(func(conn *grpc.ClientConn) {
+		apiConnectionDetails := client.ExtractCommandlineArmadaApiConnectionDetails()
+
+		service.WithConnection(apiConnectionDetails, func(conn *grpc.ClientConn) {
 			eventsClient := api.NewEventClient(conn)
 			service.WatchJobSet(eventsClient, jobSetId, func(state map[string]*service.JobInfo, e api.Event) {
 
