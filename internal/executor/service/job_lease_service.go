@@ -1,7 +1,6 @@
 package service
 
 import (
-	"context"
 	"github.com/G-Research/k8s-batch/internal/armada/api"
 	"github.com/G-Research/k8s-batch/internal/common"
 	"github.com/G-Research/k8s-batch/internal/executor/util"
@@ -9,7 +8,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	listers "k8s.io/client-go/listers/core/v1"
 	"strings"
-	"time"
 )
 
 type JobLeaseService struct {
@@ -24,7 +22,7 @@ func (jobLeaseService JobLeaseService) RequestJobLeases(availableResource *commo
 		ClusterID: jobLeaseService.ClusterId,
 		Resources: *availableResource,
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := common.ContextWithDefaultTimeout()
 	defer cancel()
 	response, err := jobLeaseService.QueueClient.LeaseJobs(ctx, &leaseRequest)
 
@@ -71,7 +69,7 @@ func (jobLeaseService JobLeaseService) renewJobLeases(pods []*v1.Pod) {
 	jobIds := util.ExtractJobIds(pods)
 	log.Infof("Renewing lease for %s", strings.Join(jobIds, ","))
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := common.ContextWithDefaultTimeout()
 	defer cancel()
 	_, err := jobLeaseService.QueueClient.RenewLease(ctx, &api.IdList{Ids: jobIds})
 
@@ -87,7 +85,7 @@ func (jobLeaseService JobLeaseService) endJobLeases(pods []*v1.Pod) {
 	}
 	jobIds := util.ExtractJobIds(pods)
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := common.ContextWithDefaultTimeout()
 	defer cancel()
 	_, err := jobLeaseService.QueueClient.ReportDone(ctx, &api.IdList{Ids: jobIds})
 
