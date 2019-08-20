@@ -84,6 +84,10 @@ func (repo RedisJobRepository) PeekQueue(queue string, limit int64) ([]*api.Job,
 
 // returns list of jobs which are successfully leased
 func (repo RedisJobRepository) TryLeaseJobs(clusterId string, queue string, jobs []*api.Job) ([]*api.Job, error) {
+	if len(jobs) <= 0 {
+		return []*api.Job{}, nil
+	}
+
 	now := float64(time.Now().Unix())
 	pipe := repo.db.Pipeline()
 	cmds := make(map[*api.Job]*redis.Cmd)
