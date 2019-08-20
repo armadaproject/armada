@@ -1,0 +1,26 @@
+submissions:
+  - name: somenewvalue
+    count: 1
+    jobs:
+      - name: basic_job
+        count: 300
+        spec:
+          terminationGracePeriodSeconds: 0
+          restartPolicy: Never
+          containers:
+            - name: sleep
+              imagePullPolicy: IfNotPresent
+              image: alpine:latest
+              command:
+                - sh
+              args:
+                - -c
+#                - sleep 120
+                - sleep $(( (RANDOM % 60) + 100 ))
+              resources:
+                limits:
+                  memory: 128Mi
+                  cpu: 80m
+                requests:
+                  memory: 64Mi
+                  cpu: 60m

@@ -3,7 +3,7 @@ package domain
 import v1 "k8s.io/api/core/v1"
 
 type LoadTestSpecification struct {
-	Submission []*SubmissionDescription
+	Submissions []*SubmissionDescription
 }
 
 type SubmissionDescription struct {
