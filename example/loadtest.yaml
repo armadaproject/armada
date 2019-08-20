@@ -1,9 +1,10 @@
 submissions:
-  - name: somenewvalue
-    count: 1
+  - name: example
+    count: 5
+    queue: queuename # If specified all submissions are under this queue, otherwise a new queue is created for each group of jobs
     jobs:
       - name: basic_job
-        count: 300
+        count: 10
         spec:
           terminationGracePeriodSeconds: 0
           restartPolicy: Never
@@ -15,7 +16,6 @@ submissions:
                 - sh
               args:
                 - -c
-#                - sleep 120
                 - sleep $(( (RANDOM % 60) + 100 ))
               resources:
                 limits:
