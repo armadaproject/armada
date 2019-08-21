@@ -23,7 +23,7 @@ type JobRepository interface {
 	FilterActiveQueues(queues []*api.Queue) ([]*api.Queue, error)
 	TryLeaseJobs(clusterId string, queue string, jobs []*api.Job) ([]*api.Job, error)
 	RenewLease(clusterId string, jobIds []string) (renewed []string, e error)
-	ExpireLeases(queue string, deadline time.Time) error
+	ExpireLeases(queue string, deadline time.Time) (expired []*api.Job, e error)
 	Remove(jobIds []string) (cleanedJobs []string, e error)
 }
 
@@ -178,29 +178,46 @@ func (repo RedisJobRepository) FilterActiveQueues(queues []*api.Queue) ([]*api.Q
 	return active, nil
 }
 
-func (repo RedisJobRepository) ExpireLeases(queue string, deadline time.Time) error {
+func (repo RedisJobRepository) ExpireLeases(queue string, deadline time.Time) ([]*api.Job, error) {
 	maxScore := strconv.FormatInt(deadline.UnixNano(), 10)
 
+	// TODO: expire just limited number here ???
 	ids, e := repo.db.ZRangeByScore(jobLeasedPrefix+queue, redis.ZRangeBy{Max: maxScore, Min: "-Inf"}).Result()
 	if e != nil {
-		return e
+		return nil, e
 	}
-	expiredJobs, e := repo.GetJobsByIds(ids)
+	expiringJobs, e := repo.GetJobsByIds(ids)
 	if e != nil {
-		return e
+		return nil, e
 	}
 
-	if len(expiredJobs) == 0 {
-		return nil
+	expired := make([]*api.Job, 0)
+	if len(expiringJobs) == 0 {
+		return expired, nil
 	}
+
+	cmds := make(map[*api.Job]*redis.Cmd)
 
 	pipe := repo.db.Pipeline()
 	expireScript.Load(pipe)
-	for _, job := range expiredJobs {
-		expire(pipe, job.Queue, job.Id, job.Created, deadline)
+	for _, job := range expiringJobs {
+		cmds[job] = expire(pipe, job.Queue, job.Id, job.Created, deadline)
 	}
 	_, e = pipe.Exec()
-	return e
+
+	if e != nil {
+		return nil, e
+	}
+
+	for job, cmd := range cmds {
+		value, e := cmd.Int()
+		if e != nil {
+			log.Error(e)
+		} else if value > 0 {
+			expired = append(expired, job)
+		}
+	}
+	return expired, nil
 }
 
 type jobIdentity struct {

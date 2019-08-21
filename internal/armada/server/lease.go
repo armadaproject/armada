@@ -192,12 +192,30 @@ func filterMapByKeys(original map[string]float64, keys []string, defaultValue fl
 	return result
 }
 
-func expireOldJobs(jobRepository repository.JobRepository, queues []*api.Queue, expiryInterval time.Duration) {
+func expireOldJobs(jobRepository repository.JobRepository, eventRepository repository.EventRepository, queues []*api.Queue, expiryInterval time.Duration) {
 	deadline := time.Now().Add(-expiryInterval)
 	for _, queue := range queues {
-		e := jobRepository.ExpireLeases(queue.Name, deadline)
+		jobs, e := jobRepository.ExpireLeases(queue.Name, deadline)
+		now := time.Now()
 		if e != nil {
 			log.Error(e)
+		} else {
+			for _, job := range jobs {
+				event, e := api.Wrap(&api.JobLeaseExpired{
+					JobId:    job.Id,
+					Queue:    job.Queue,
+					JobSetId: job.JobSetId,
+					Created:  now,
+				})
+				if e != nil {
+					log.Error(e)
+				} else {
+					e := eventRepository.ReportEvent(event)
+					if e != nil {
+						log.Error(e)
+					}
+				}
+			}
 		}
 	}
 }
