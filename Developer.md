@@ -47,8 +47,8 @@ kind create cluster --name demoB --config ./example/kind-config.yaml
 ./armada
 
 # run 2 executors
-KUBECONFIG=$(kind get kubeconfig-path --name="demoA") ./executor
-KUBECONFIG=$(kind get kubeconfig-path --name="demoB") ./executor
+KUBECONFIG=$(kind get kubeconfig-path --name="demoA") ARMADA_APPLICATION_CLUSTERID=demoA ./executor
+KUBECONFIG=$(kind get kubeconfig-path --name="demoB") ARMADA_APPLICATION_CLUSTERID=demoB ./executor
 ```
 
 Depending on your docker setup you might need to load images for jobs you plan to run manually 
