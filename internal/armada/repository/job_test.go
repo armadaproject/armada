@@ -73,8 +73,9 @@ func TestRenewingLeaseFailsForJobAssignedToDifferentCluster(t *testing.T) {
 
 func TestRenewingNonExistentLease(t *testing.T) {
 	withRepository(func(r *RedisJobRepository) {
-		_, e := r.RenewLease("cluster2", []string{"missingJobId"})
-		assert.NotNil(t, e)
+		renewed, e := r.RenewLease("cluster2", []string{"missingJobId"})
+		assert.Nil(t, e)
+		assert.Equal(t, 0, len(renewed))
 	})
 }
 
