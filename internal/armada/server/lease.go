@@ -54,7 +54,7 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 	}
 
 	// TODO: doing cleanup here for simplicity, should happen in background loop instead
-	expireOldJobs(q.jobRepository, queues, 2*time.Minute)
+	expireOldJobs(q.jobRepository, q.eventRepository, queues, 2*time.Minute)
 
 	activeQueues, e := q.jobRepository.FilterActiveQueues(queues)
 	if e != nil {
