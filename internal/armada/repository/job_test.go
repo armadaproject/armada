@@ -37,7 +37,7 @@ func TestJobLeaseExpiry(t *testing.T) {
 		deadline := time.Now()
 		addLeasedJob(t, r, "queue1", "cluster1")
 
-		e := r.ExpireLeases("queue1", deadline)
+		_, e := r.ExpireLeases("queue1", deadline)
 		assert.Nil(t, e)
 
 		queued, e := r.PeekQueue("queue1", 10)
@@ -51,7 +51,7 @@ func TestEvenExpiredLeaseCanBeRenewed(t *testing.T) {
 		job := addLeasedJob(t, r, "queue1", "cluster1")
 		deadline := time.Now()
 
-		e := r.ExpireLeases("queue1", deadline)
+		_, e := r.ExpireLeases("queue1", deadline)
 		assert.Nil(t, e)
 
 		renewed, e := r.RenewLease("cluster1", []string{job.Id})
@@ -68,6 +68,13 @@ func TestRenewingLeaseFailsForJobAssignedToDifferentCluster(t *testing.T) {
 		renewed, e := r.RenewLease("cluster2", []string{job.Id})
 		assert.Nil(t, e)
 		assert.Equal(t, 0, len(renewed))
+	})
+}
+
+func TestRenewingNonExistentLease(t *testing.T) {
+	withRepository(func(r *RedisJobRepository) {
+		_, e := r.RenewLease("cluster2", []string{"missingJobId"})
+		assert.NotNil(t, e)
 	})
 }
 

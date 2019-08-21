@@ -233,7 +233,11 @@ func (repo RedisJobRepository) getJobIdentities(jobIds []string) ([]jobIdentity,
 
 	jobIdentities := []jobIdentity{}
 	for i, queue := range queues {
-		jobIdentities = append(jobIdentities, jobIdentity{jobIds[i], queue.(string)})
+		if queue != nil {
+			jobIdentities = append(jobIdentities, jobIdentity{jobIds[i], queue.(string)})
+		} else {
+			log.Errorf("Missing queue for job %s", jobIds[i])
+		}
 	}
 	return jobIdentities, nil
 }
