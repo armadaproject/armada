@@ -6,7 +6,6 @@ import (
 	"github.com/G-Research/k8s-batch/internal/armada/repository"
 	"github.com/G-Research/k8s-batch/internal/common"
 	"github.com/G-Research/k8s-batch/internal/common/util"
-	"github.com/gogo/protobuf/types"
 	log "github.com/sirupsen/logrus"
 	"math"
 	"time"
@@ -72,20 +71,14 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 	return &jobLease, nil
 }
 
-func (q AggregatedQueueServer) RenewLease(ctx context.Context, idList *api.IdList) (*types.Empty, error) {
-	unsuccessful, e := q.jobRepository.Remove(idList.Ids)
-	for _, id := range unsuccessful {
-		log.WithField("jobId", id).Warnf("Failed renew lease, job id: %s", id)
-	}
-	return &types.Empty{}, e
+func (q AggregatedQueueServer) RenewLease(ctx context.Context, request *api.RenewLeaseRequest) (*api.IdList, error) {
+	renewed, e := q.jobRepository.RenewLease(request.ClusterID, request.Ids)
+	return &api.IdList{renewed}, e
 }
 
-func (q AggregatedQueueServer) ReportDone(ctx context.Context, idList *api.IdList) (*types.Empty, error) {
-	unsuccessful, e := q.jobRepository.Remove(idList.Ids)
-	for _, id := range unsuccessful {
-		log.WithField("jobId", id).Warnf("Missing job reported done, job id: %s", id)
-	}
-	return &types.Empty{}, e
+func (q AggregatedQueueServer) ReportDone(ctx context.Context, idList *api.IdList) (*api.IdList, error) {
+	cleaned, e := q.jobRepository.Remove(idList.Ids)
+	return &api.IdList{cleaned}, e
 }
 
 func (q AggregatedQueueServer) assignJobs(clusterId string, slices map[string]common.ComputeResourcesFloat) ([]*api.Job, error) {
