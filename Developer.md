@@ -33,3 +33,25 @@ cd ./cmd/armadactl
 cobra add cmd
 ```
 
+### Local development with Kind
+
+It is possible to test Armada locally with [kind](https://github.com/kubernetes-sigs/kind) Kubernetes clusters.
+```bash
+go get sigs.k8s.io/kind
+ 
+# create 2 clusters
+kind create cluster --name demoA --config ./example/kind-config.yaml
+kind create cluster --name demoB --config ./example/kind-config.yaml 
+
+# run armada
+./armada
+
+# run 2 executors
+KUBECONFIG=$(kind get kubeconfig-path --name="demoA") ./executor
+KUBECONFIG=$(kind get kubeconfig-path --name="demoB") ./executor
+```
+
+Depending on your docker setup you might need to load images for jobs you plan to run manually 
+```bash
+kind load docker-image busybox:latest
+```
