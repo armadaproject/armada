@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/G-Research/k8s-batch/internal/armada/api"
 	"github.com/G-Research/k8s-batch/internal/client"
@@ -15,6 +16,7 @@ import (
 
 func init() {
 	rootCmd.AddCommand(watchCmd)
+	watchCmd.Flags().Bool("raw", false, "Output raw events")
 }
 
 // watchCmd represents the watch command
@@ -26,6 +28,7 @@ var watchCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 
 		jobSetId := args[0]
+		raw, _ := cmd.Flags().GetBool("raw")
 
 		log.Infof("Watching job set %s", jobSetId)
 
@@ -46,18 +49,27 @@ var watchCmd = &cobra.Command{
 
 				counts := service.CountStates(state)
 
-				first := true
-
-				fmt.Printf("%s | ", e.GetCreated().Format(time.Stamp))
-				for _, state := range states {
-					if !first {
-						fmt.Print(", ")
+				if raw {
+					data, err := json.Marshal(e)
+					if err != nil {
+						fmt.Print(e)
+					} else {
+						fmt.Printf("%s %s\n", reflect.TypeOf(e), string(data))
 					}
-					first = false
-					fmt.Printf("%s: %3d", state, counts[state])
+				} else {
+					first := true
+					fmt.Printf("%s | ", e.GetCreated().Format(time.Stamp))
+					for _, state := range states {
+						if !first {
+							fmt.Print(", ")
+						}
+						first = false
+						fmt.Printf("%s: %3d", state, counts[state])
+					}
+
+					fmt.Printf(" | event: %s, job id: %s", reflect.TypeOf(e), e.GetJobId())
+					fmt.Println()
 				}
-				fmt.Printf(" | event: %s, job id: %s", reflect.TypeOf(e), e.GetJobId())
-				fmt.Println()
 			})
 		})
 	},
