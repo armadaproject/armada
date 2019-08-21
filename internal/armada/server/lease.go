@@ -53,6 +53,9 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 		return nil, e
 	}
 
+	// TODO: doing cleanup here for simplicity, should happen in background loop instead
+	expireOldJobs(q.jobRepository, queues, 2*time.Minute)
+
 	activeQueues, e := q.jobRepository.FilterActiveQueues(queues)
 	if e != nil {
 		return nil, e
@@ -187,4 +190,14 @@ func filterMapByKeys(original map[string]float64, keys []string, defaultValue fl
 		result[key] = util.GetOrDefault(original, key, defaultValue)
 	}
 	return result
+}
+
+func expireOldJobs(jobRepository repository.JobRepository, queues []*api.Queue, expiryInterval time.Duration) {
+	deadline := time.Now().Add(-expiryInterval)
+	for _, queue := range queues {
+		e := jobRepository.ExpireLeases(queue.Name, deadline)
+		if e != nil {
+			log.Error(e)
+		}
+	}
 }

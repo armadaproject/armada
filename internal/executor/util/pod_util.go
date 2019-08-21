@@ -59,6 +59,10 @@ func ExtractJobIds(pods []*v1.Pod) []string {
 	return jobIds
 }
 
+func ExtractJobId(pod *v1.Pod) string {
+	return pod.Labels[domain.JobId]
+}
+
 func FilterCompletedPods(pods []*v1.Pod) []*v1.Pod {
 	completedPods := make([]*v1.Pod, 0, len(pods))
 

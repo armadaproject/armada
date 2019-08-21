@@ -190,6 +190,10 @@ func (repo RedisJobRepository) ExpireLeases(queue string, deadline time.Time) er
 		return e
 	}
 
+	if len(expiredJobs) == 0 {
+		return nil
+	}
+
 	pipe := repo.db.Pipeline()
 	expireScript.Load(pipe)
 	for _, job := range expiredJobs {
