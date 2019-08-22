@@ -3,6 +3,7 @@ package cmd
 import (
 	"github.com/G-Research/k8s-batch/internal/armada/api"
 	"github.com/G-Research/k8s-batch/internal/client"
+	"github.com/G-Research/k8s-batch/internal/client/service"
 	"github.com/G-Research/k8s-batch/internal/client/util"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -28,7 +29,8 @@ Job priority is evaluated inside queue, queue has its own priority.`,
 
 		util.WithConnection(apiConnectionDetails, func(conn *grpc.ClientConn) {
 			client := api.NewSubmitClient(conn)
-			_, e := client.CreateQueue(util.DefaultTimeout(), &api.Queue{Name: queue, Priority: 1})
+
+			e := service.CreateQueue(client, &api.Queue{Name: queue, Priority: 1})
 
 			if e != nil {
 				log.Error(e)

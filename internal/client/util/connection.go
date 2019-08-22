@@ -1,18 +1,11 @@
 package util
 
 import (
-	"context"
 	"github.com/G-Research/k8s-batch/internal/client/domain"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-	"time"
 )
-
-func DefaultTimeout() context.Context {
-	ctx, _ := context.WithTimeout(context.Background(), 30*time.Second)
-	return ctx
-}
 
 func WithConnection(apiConnectionDetails *domain.ArmadaApiConnectionDetails, action func(*grpc.ClientConn)) {
 	conn, err := createConnection(apiConnectionDetails)

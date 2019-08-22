@@ -51,9 +51,8 @@ func (apiLoadTester ArmadaLoadTester) RunSubmissionTest(spec domain.LoadTestSpec
 func (apiLoadTester ArmadaLoadTester) runSubmission(queue string, jobSetId string, jobs []*domain.JobSubmissionDescription) {
 	util.WithConnection(apiLoadTester.apiConnectionDetails, func(connection *grpc.ClientConn) {
 		client := api.NewSubmitClient(connection)
-		timeout := util.DefaultTimeout()
 
-		_, e := client.CreateQueue(timeout, &api.Queue{Name: queue, Priority: 1})
+		e := CreateQueue(client, &api.Queue{Name: queue, Priority: 1})
 		if e != nil {
 			log.Error(e)
 			return
@@ -63,7 +62,7 @@ func (apiLoadTester ArmadaLoadTester) runSubmission(queue string, jobSetId strin
 		for _, job := range jobs {
 			jobRequest := createJobRequest(queue, jobSetId, job.Spec)
 			for i := 0; i < job.Count; i++ {
-				response, e := client.SubmitJob(timeout, jobRequest)
+				response, e := SubmitJob(client, jobRequest)
 
 				if e != nil {
 					log.Error(e)

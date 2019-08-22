@@ -3,6 +3,7 @@ package cmd
 import (
 	"github.com/G-Research/k8s-batch/internal/armada/api"
 	"github.com/G-Research/k8s-batch/internal/client"
+	"github.com/G-Research/k8s-batch/internal/client/service"
 	"github.com/G-Research/k8s-batch/internal/client/util"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -43,7 +44,7 @@ var submitCmd = &cobra.Command{
 			client := api.NewSubmitClient(conn)
 
 			for _, job := range submitFile.Jobs {
-				response, e := client.SubmitJob(util.DefaultTimeout(), job)
+				response, e := service.SubmitJob(client, job)
 
 				if e != nil {
 					log.Error(e)

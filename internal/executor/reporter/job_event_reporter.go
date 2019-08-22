@@ -1,9 +1,9 @@
 package reporter
 
 import (
-	"context"
 	"encoding/json"
 	"github.com/G-Research/k8s-batch/internal/armada/api"
+	"github.com/G-Research/k8s-batch/internal/common"
 	"github.com/G-Research/k8s-batch/internal/executor/domain"
 	"github.com/G-Research/k8s-batch/internal/executor/util"
 	log "github.com/sirupsen/logrus"
@@ -48,7 +48,7 @@ func (eventReporter JobEventReporter) report(pod *v1.Pod) {
 	}
 
 	log.Infof("Reporting event %+v", event)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := common.ContextWithDefaultTimeout()
 	defer cancel()
 	_, err = eventReporter.EventClient.Report(ctx, event)
 
