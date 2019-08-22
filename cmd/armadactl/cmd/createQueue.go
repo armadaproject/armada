@@ -25,12 +25,13 @@ Job priority is evaluated inside queue, queue has its own priority.`,
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		queue := args[0]
+		priority, _ := cmd.Flags().GetFloat64("priority")
+
 		apiConnectionDetails := client.ExtractCommandlineArmadaApiConnectionDetails()
 
 		util.WithConnection(apiConnectionDetails, func(conn *grpc.ClientConn) {
 			client := api.NewSubmitClient(conn)
-
-			e := service.CreateQueue(client, &api.Queue{Name: queue, Priority: 1})
+			e := service.CreateQueue(client, &api.Queue{Name: queue, Priority: priority})
 
 			if e != nil {
 				log.Error(e)

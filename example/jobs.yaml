@@ -8,10 +8,10 @@ jobs:
       containers:
         - name: sleep
           imagePullPolicy: IfNotPresent
-          image: mcr.microsoft.com/dotnet/core/runtime:2.2
+          image: busybox:latest
           args:
             - sleep
-            - 20s
+            - 60s
           resources:
             limits:
               memory: 64Mi

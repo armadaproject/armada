@@ -5,6 +5,7 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"os"
+	"strings"
 )
 
 func BindCommandlineArguments() {
@@ -32,6 +33,10 @@ func LoadConfig(config interface{}, defaultPath string, overrideConfig string) {
 			os.Exit(-1)
 		}
 	}
+
+	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	viper.SetEnvPrefix("ARMADA")
+	viper.AutomaticEnv()
 
 	err := viper.Unmarshal(config)
 	if err != nil {

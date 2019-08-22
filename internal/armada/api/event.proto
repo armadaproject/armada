@@ -35,7 +35,6 @@ message JobLeaseExpired {
     string JobSetId = 2;
     string Queue = 3;
     google.protobuf.Timestamp Created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
-    string ClusterId = 5;
 }
 
 message JobPendingEvent {

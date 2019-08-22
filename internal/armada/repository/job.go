@@ -5,6 +5,8 @@ import (
 	"github.com/G-Research/k8s-batch/internal/common/util"
 	"github.com/go-redis/redis"
 	"github.com/gogo/protobuf/proto"
+	"github.com/prometheus/common/log"
+	"strconv"
 	"time"
 )
 
@@ -12,6 +14,7 @@ const jobObjectPrefix = "Job:"
 const jobQueuePrefix = "Job:Queue:"
 const jobLeasedPrefix = "Job:Leased:"
 const jobClusterMapKey = "Job:ClusterId"
+const jobQueueMapKey = "Job:QueueName"
 
 type JobRepository interface {
 	CreateJob(request *api.JobRequest) *api.Job
@@ -19,12 +22,17 @@ type JobRepository interface {
 	PeekQueue(queue string, limit int64) ([]*api.Job, error)
 	FilterActiveQueues(queues []*api.Queue) ([]*api.Queue, error)
 	TryLeaseJobs(clusterId string, queue string, jobs []*api.Job) ([]*api.Job, error)
-	RenewLease(clusterId string, jobIds []string) (unsuccessful []string, e error)
-	Remove(jobIds []string) (unsuccessful []string, e error)
+	RenewLease(clusterId string, jobIds []string) (renewed []string, e error)
+	ExpireLeases(queue string, deadline time.Time) (expired []*api.Job, e error)
+	Remove(jobIds []string) (cleanedJobs []string, e error)
 }
 
 type RedisJobRepository struct {
 	db *redis.Client
+}
+
+func NewRedisJobRepository(db *redis.Client) *RedisJobRepository {
+	return &RedisJobRepository{db: db}
 }
 
 func (repo RedisJobRepository) CreateJob(request *api.JobRequest) *api.Job {
@@ -41,22 +49,43 @@ func (repo RedisJobRepository) CreateJob(request *api.JobRequest) *api.Job {
 	return &j
 }
 
-func (repo RedisJobRepository) RenewLease(clusterId string, jobIds []string) (unsuccessful []string, e error) {
-	// TODO
-	return nil, nil
+func (repo RedisJobRepository) RenewLease(clusterId string, jobIds []string) (renewedJobIds []string, e error) {
+	jobs, e := repo.getJobIdentities(jobIds)
+	if e != nil {
+		return nil, e
+	}
+	return repo.leaseJobs(clusterId, jobs)
 }
 
-func (repo RedisJobRepository) Remove(jobIds []string) (unsuccessful []string, e error) {
-	// TODO
-	return nil, nil
-}
+func (repo RedisJobRepository) Remove(jobIds []string) (cleanedJobIds []string, e error) {
 
-func NewRedisJobRepository(db *redis.Client) *RedisJobRepository {
-	return &RedisJobRepository{db: db}
+	jobs, e := repo.getJobIdentities(jobIds)
+
+	pipe := repo.db.Pipeline()
+	cmds := make(map[string]*redis.IntCmd)
+	for _, job := range jobs {
+		cmds[job.id] = repo.db.ZRem(jobLeasedPrefix+job.queueName, job.id)
+	}
+
+	_, e = pipe.Exec()
+	if e != nil {
+		return nil, e
+	}
+
+	cleanedJobs := []string{}
+
+	for jobId, cmd := range cmds {
+		modified, e := cmd.Result()
+		if e == nil && modified > 0 {
+			cleanedJobs = append(cleanedJobs, jobId)
+		}
+	}
+
+	// TODO removing only leases for now, cleanup everything else
+	return cleanedJobs, nil
 }
 
 func (repo RedisJobRepository) AddJob(job *api.Job) error {
-
 	pipe := repo.db.TxPipeline()
 
 	jobData, e := proto.Marshal(job)
@@ -69,6 +98,7 @@ func (repo RedisJobRepository) AddJob(job *api.Job) error {
 		Score:  job.Priority})
 
 	pipe.Set(jobObjectPrefix+job.Id, jobData, 0)
+	pipe.HSet(jobQueueMapKey, job.Id, job.Queue)
 
 	_, e = pipe.Exec()
 	return e
@@ -84,40 +114,22 @@ func (repo RedisJobRepository) PeekQueue(queue string, limit int64) ([]*api.Job,
 
 // returns list of jobs which are successfully leased
 func (repo RedisJobRepository) TryLeaseJobs(clusterId string, queue string, jobs []*api.Job) ([]*api.Job, error) {
-	if len(jobs) <= 0 {
-		return []*api.Job{}, nil
-	}
-
-	now := float64(time.Now().Unix())
-	pipe := repo.db.Pipeline()
-	cmds := make(map[*api.Job]*redis.Cmd)
+	jobIds := []jobIdentity{}
+	jobById := map[string]*api.Job{}
 	for _, job := range jobs {
-		cmds[job] = zmove(pipe, jobQueuePrefix+queue, jobLeasedPrefix+queue, job.Id, now)
+		jobIds = append(jobIds, jobIdentity{job.Id, queue})
+		jobById[job.Id] = job
 	}
 
-	_, e := pipe.Exec()
+	leasedIds, e := repo.leaseJobs(clusterId, jobIds)
 	if e != nil {
 		return nil, e
 	}
 
 	leasedJobs := make([]*api.Job, 0)
-	for job, cmd := range cmds {
-		modified, e := cmd.Int()
-		if e == nil && modified > 0 {
-			leasedJobs = append(leasedJobs, job)
-		}
+	for _, id := range leasedIds {
+		leasedJobs = append(leasedJobs, jobById[id])
 	}
-
-	leasedJobsClusterIds := make(map[string]interface{})
-	for _, job := range leasedJobs {
-		leasedJobsClusterIds[job.Id] = clusterId
-	}
-	e = repo.db.HMSet(jobClusterMapKey, leasedJobsClusterIds).Err()
-	if e != nil {
-		// TODO: try cancelling the lease, or implement this all as script?
-		return nil, e
-	}
-
 	return leasedJobs, nil
 }
 
@@ -166,15 +178,158 @@ func (repo RedisJobRepository) FilterActiveQueues(queues []*api.Queue) ([]*api.Q
 	return active, nil
 }
 
-const zmoveScript = `
-local exists = redis.call('ZREM', KEYS[1], ARGV[1])
-if exists then
-	return redis.call('ZADD', KEYS[2], ARGV[2], ARGV[1])
-else
-	return 0
-end
-`
+func (repo RedisJobRepository) ExpireLeases(queue string, deadline time.Time) ([]*api.Job, error) {
+	maxScore := strconv.FormatInt(deadline.UnixNano(), 10)
 
-func zmove(db redis.Cmdable, from string, to string, key string, score float64) *redis.Cmd {
-	return db.Eval(zmoveScript, []string{from, to}, key, score)
+	// TODO: expire just limited number here ???
+	ids, e := repo.db.ZRangeByScore(jobLeasedPrefix+queue, redis.ZRangeBy{Max: maxScore, Min: "-Inf"}).Result()
+	if e != nil {
+		return nil, e
+	}
+	expiringJobs, e := repo.GetJobsByIds(ids)
+	if e != nil {
+		return nil, e
+	}
+
+	expired := make([]*api.Job, 0)
+	if len(expiringJobs) == 0 {
+		return expired, nil
+	}
+
+	cmds := make(map[*api.Job]*redis.Cmd)
+
+	pipe := repo.db.Pipeline()
+	expireScript.Load(pipe)
+	for _, job := range expiringJobs {
+		cmds[job] = expire(pipe, job.Queue, job.Id, job.Created, deadline)
+	}
+	_, e = pipe.Exec()
+
+	if e != nil {
+		return nil, e
+	}
+
+	for job, cmd := range cmds {
+		value, e := cmd.Int()
+		if e != nil {
+			log.Error(e)
+		} else if value > 0 {
+			expired = append(expired, job)
+		}
+	}
+	return expired, nil
 }
+
+type jobIdentity struct {
+	id        string
+	queueName string
+}
+
+func (repo RedisJobRepository) getJobIdentities(jobIds []string) ([]jobIdentity, error) {
+	queues, e := repo.db.HMGet(jobQueueMapKey, jobIds...).Result()
+	if e != nil {
+		return nil, e
+	}
+
+	jobIdentities := []jobIdentity{}
+	for i, queue := range queues {
+		if queue != nil {
+			jobIdentities = append(jobIdentities, jobIdentity{jobIds[i], queue.(string)})
+		} else {
+			log.Errorf("Missing queue for job %s", jobIds[i])
+		}
+	}
+	return jobIdentities, nil
+}
+
+func (repo RedisJobRepository) leaseJobs(clusterId string, jobs []jobIdentity) ([]string, error) {
+
+	now := time.Now()
+	pipe := repo.db.Pipeline()
+
+	leaseJobScript.Load(pipe)
+
+	cmds := make(map[string]*redis.Cmd)
+	for _, job := range jobs {
+		cmds[job.id] = leaseJob(pipe, job.queueName, clusterId, job.id, now)
+	}
+	_, e := pipe.Exec()
+	if e != nil {
+		return nil, e
+	}
+
+	leasedJobs := make([]string, 0)
+	for jobId, cmd := range cmds {
+		value, e := cmd.Int()
+		if e != nil {
+			log.Error(e)
+		} else if value == alreadyAllocatedByDifferentCluster {
+			log.With("jobId", jobId).Info("Job Already allocated to different cluster")
+		} else {
+			leasedJobs = append(leasedJobs, jobId)
+		}
+	}
+	return leasedJobs, nil
+}
+
+func leaseJob(db redis.Cmdable, queueName string, clusterId string, jobId string, now time.Time) *redis.Cmd {
+	return leaseJobScript.Run(db, []string{jobQueuePrefix + queueName, jobLeasedPrefix + queueName, jobClusterMapKey},
+		clusterId, jobId, float64(now.UnixNano()))
+}
+
+const alreadyAllocatedByDifferentCluster = -42
+
+var leaseJobScript = redis.NewScript(`
+local queue = KEYS[1]
+local leasedJobsSet = KEYS[2]
+local clusterAssociation = KEYS[3]
+
+local clusterId = ARGV[1]
+local jobId = ARGV[2]
+local currentTime = ARGV[3]
+
+local exists = redis.call('ZREM', queue, jobId)
+
+if exists == 1 then 
+	redis.call('HSET', clusterAssociation, jobId, clusterId)
+	return redis.call('ZADD', leasedJobsSet, currentTime, jobId)
+else
+	local currentClusterId = redis.call('HGET', clusterAssociation, jobId)
+	local score = redis.call('ZSCORE', leasedJobsSet, jobId)
+	
+	if currentClusterId ~= clusterId then
+		return -42
+	end
+
+	if score == nil then
+		return redis.error_reply('Job is missing from leased jobs set.')
+	end
+
+	return redis.call('ZADD', leasedJobsSet, currentTime, jobId)
+end
+`)
+
+func expire(db redis.Cmdable, queueName string, jobId string, created time.Time, deadline time.Time) *redis.Cmd {
+	return expireScript.Run(db, []string{jobQueuePrefix + queueName, jobLeasedPrefix + queueName},
+		jobId, float64(created.UnixNano()), float64(deadline.UnixNano()))
+}
+
+var expireScript = redis.NewScript(`
+local queue = KEYS[1]
+local leasedJobsSet = KEYS[2]
+
+local jobId = ARGV[1]
+local created = tonumber(ARGV[2])
+local deadline = tonumber(ARGV[3])
+
+local leasedTime = tonumber(redis.call('ZSCORE', leasedJobsSet, jobId))
+
+if leasedTime ~= nil and leasedTime < deadline then
+	local exists = redis.call('ZREM', leasedJobsSet, jobId)
+	if exists then
+		return redis.call('ZADD', queue, created, jobId)
+	else
+		return 0
+	end
+end
+`)

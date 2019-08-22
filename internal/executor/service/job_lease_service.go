@@ -3,6 +3,7 @@ package service
 import (
 	"github.com/G-Research/k8s-batch/internal/armada/api"
 	"github.com/G-Research/k8s-batch/internal/common"
+	commonUtil "github.com/G-Research/k8s-batch/internal/common/util"
 	"github.com/G-Research/k8s-batch/internal/executor/util"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
@@ -71,12 +72,18 @@ func (jobLeaseService JobLeaseService) renewJobLeases(pods []*v1.Pod) {
 
 	ctx, cancel := common.ContextWithDefaultTimeout()
 	defer cancel()
-	_, err := jobLeaseService.QueueClient.RenewLease(ctx, &api.IdList{Ids: jobIds})
-
+	renewedJobIds, err := jobLeaseService.QueueClient.RenewLease(ctx, &api.RenewLeaseRequest{ClusterID: jobLeaseService.ClusterId, Ids: jobIds})
 	if err != nil {
 		log.Errorf("Failed to renew lease for jobs because %s", err)
 		return
 	}
+
+	failedIds := commonUtil.SubtractStringList(jobIds, renewedJobIds.Ids)
+	for _, jobId := range failedIds {
+		log.WithField("jobId", jobId).Error("Failed to renew job lease")
+		// TODO: kill the pods ???
+	}
+
 }
 
 func (jobLeaseService JobLeaseService) endJobLeases(pods []*v1.Pod) {
@@ -87,12 +94,19 @@ func (jobLeaseService JobLeaseService) endJobLeases(pods []*v1.Pod) {
 
 	ctx, cancel := common.ContextWithDefaultTimeout()
 	defer cancel()
-	_, err := jobLeaseService.QueueClient.ReportDone(ctx, &api.IdList{Ids: jobIds})
+	reported, err := jobLeaseService.QueueClient.ReportDone(ctx, &api.IdList{Ids: jobIds})
 
 	if err != nil {
 		log.Errorf("Failed cleaning up jobs because %s", err)
 		return
 	}
 
-	jobLeaseService.CleanupService.DeletePods(pods)
+	reportedIdSet := commonUtil.StringListToSet(reported.Ids)
+	podsToDelete := make([]*v1.Pod, 0)
+	for _, pod := range pods {
+		if reportedIdSet[util.ExtractJobId(pod)] {
+			podsToDelete = append(podsToDelete, pod)
+		}
+	}
+	jobLeaseService.CleanupService.DeletePods(podsToDelete)
 }

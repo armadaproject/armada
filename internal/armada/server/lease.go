@@ -6,7 +6,6 @@ import (
 	"github.com/G-Research/k8s-batch/internal/armada/repository"
 	"github.com/G-Research/k8s-batch/internal/common"
 	"github.com/G-Research/k8s-batch/internal/common/util"
-	"github.com/gogo/protobuf/types"
 	log "github.com/sirupsen/logrus"
 	"math"
 	"time"
@@ -54,6 +53,9 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 		return nil, e
 	}
 
+	// TODO: doing cleanup here for simplicity, should happen in background loop instead
+	expireOldJobs(q.jobRepository, q.eventRepository, queues, 2*time.Minute)
+
 	activeQueues, e := q.jobRepository.FilterActiveQueues(queues)
 	if e != nil {
 		return nil, e
@@ -72,20 +74,14 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 	return &jobLease, nil
 }
 
-func (q AggregatedQueueServer) RenewLease(ctx context.Context, idList *api.IdList) (*types.Empty, error) {
-	unsuccessful, e := q.jobRepository.Remove(idList.Ids)
-	for _, id := range unsuccessful {
-		log.WithField("jobId", id).Warnf("Failed renew lease, job id: %s", id)
-	}
-	return &types.Empty{}, e
+func (q AggregatedQueueServer) RenewLease(ctx context.Context, request *api.RenewLeaseRequest) (*api.IdList, error) {
+	renewed, e := q.jobRepository.RenewLease(request.ClusterID, request.Ids)
+	return &api.IdList{renewed}, e
 }
 
-func (q AggregatedQueueServer) ReportDone(ctx context.Context, idList *api.IdList) (*types.Empty, error) {
-	unsuccessful, e := q.jobRepository.Remove(idList.Ids)
-	for _, id := range unsuccessful {
-		log.WithField("jobId", id).Warnf("Missing job reported done, job id: %s", id)
-	}
-	return &types.Empty{}, e
+func (q AggregatedQueueServer) ReportDone(ctx context.Context, idList *api.IdList) (*api.IdList, error) {
+	cleaned, e := q.jobRepository.Remove(idList.Ids)
+	return &api.IdList{cleaned}, e
 }
 
 func (q AggregatedQueueServer) assignJobs(clusterId string, slices map[string]common.ComputeResourcesFloat) ([]*api.Job, error) {
@@ -194,4 +190,32 @@ func filterMapByKeys(original map[string]float64, keys []string, defaultValue fl
 		result[key] = util.GetOrDefault(original, key, defaultValue)
 	}
 	return result
+}
+
+func expireOldJobs(jobRepository repository.JobRepository, eventRepository repository.EventRepository, queues []*api.Queue, expiryInterval time.Duration) {
+	deadline := time.Now().Add(-expiryInterval)
+	for _, queue := range queues {
+		jobs, e := jobRepository.ExpireLeases(queue.Name, deadline)
+		now := time.Now()
+		if e != nil {
+			log.Error(e)
+		} else {
+			for _, job := range jobs {
+				event, e := api.Wrap(&api.JobLeaseExpired{
+					JobId:    job.Id,
+					Queue:    job.Queue,
+					JobSetId: job.JobSetId,
+					Created:  now,
+				})
+				if e != nil {
+					log.Error(e)
+				} else {
+					e := eventRepository.ReportEvent(event)
+					if e != nil {
+						log.Error(e)
+					}
+				}
+			}
+		}
+	}
 }
