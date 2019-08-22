@@ -1,7 +1,6 @@
 package service
 
 import (
-	"context"
 	"fmt"
 	"github.com/G-Research/k8s-batch/internal/armada/api"
 	"github.com/G-Research/k8s-batch/internal/common"
@@ -85,7 +84,7 @@ func (clusterUtilisationService ClusterUtilisationService) getAllAvailableProces
 }
 
 func (clusterUtilisationService ClusterUtilisationService) reportUsage(clusterUsage *api.ClusterUsageReport) error {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := common.ContextWithDefaultTimeout()
 	defer cancel()
 	_, err := clusterUtilisationService.UsageClient.ReportUsage(ctx, clusterUsage)
 
