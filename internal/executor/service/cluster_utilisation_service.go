@@ -133,7 +133,7 @@ func getAllPodsRequiringResourceOnProcessingNodes(allPods []*v1.Pod, processingN
 	}
 
 	for _, pod := range allPods {
-		if _, presentOnWorkerNode := nodeMap[pod.Spec.NodeName]; presentOnWorkerNode {
+		if _, presentOnProcessingNode := nodeMap[pod.Spec.NodeName]; presentOnProcessingNode {
 			podsUsingResourceOnProcessingNodes = append(podsUsingResourceOnProcessingNodes, pod)
 		} else if util.IsManagedPod(pod) && pod.Spec.NodeName == "" {
 			podsUsingResourceOnProcessingNodes = append(podsUsingResourceOnProcessingNodes, pod)
