@@ -21,7 +21,7 @@ type ClusterUtilisationService struct {
 }
 
 func (clusterUtilisationService ClusterUtilisationService) ReportClusterUtilisation() {
-	allAvailableProcessingNodes, err := clusterUtilisationService.getAllAvailableProcessingNodes()
+	allAvailableProcessingNodes, err := clusterUtilisationService.getAllAvailableWorkerNodes()
 	if err != nil {
 		log.Errorf("Failed to get required information to report cluster usage because %s", err)
 		return
@@ -52,7 +52,7 @@ func (clusterUtilisationService ClusterUtilisationService) ReportClusterUtilisat
 }
 
 func (clusterUtilisationService ClusterUtilisationService) GetAvailableClusterCapacity() (*common.ComputeResources, error) {
-	processingNodes, err := clusterUtilisationService.getAllAvailableProcessingNodes()
+	workerNodes, err := clusterUtilisationService.getAllAvailableWorkerNodes()
 	if err != nil {
 		return new(common.ComputeResources), fmt.Errorf("Failed getting available cluster capacity due to: %s", err)
 	}
@@ -62,11 +62,11 @@ func (clusterUtilisationService ClusterUtilisationService) GetAvailableClusterCa
 		return new(common.ComputeResources), fmt.Errorf("Failed getting available cluster capacity due to: %s", err)
 	}
 
-	podsOnProcessingNodes := getAllPodsOnNodes(allPods, processingNodes)
-	activePodsOnProcessingNodes := util.FilterNonCompletedPods(podsOnProcessingNodes)
+	allPodsRequiringResource := getAllPodsRequiringResourceOnWorkerNodes(allPods, workerNodes)
+	allNonCompletePodsRequiringResource := util.FilterNonCompletedPods(allPodsRequiringResource)
 
-	totalNodeResource := common.CalculateTotalResource(processingNodes)
-	totalPodResource := common.CalculateTotalResourceLimit(activePodsOnProcessingNodes)
+	totalNodeResource := common.CalculateTotalResource(workerNodes)
+	totalPodResource := common.CalculateTotalResourceLimit(allNonCompletePodsRequiringResource)
 
 	availableResource := totalNodeResource.DeepCopy()
 	availableResource.Sub(totalPodResource)
@@ -74,7 +74,7 @@ func (clusterUtilisationService ClusterUtilisationService) GetAvailableClusterCa
 	return &availableResource, nil
 }
 
-func (clusterUtilisationService ClusterUtilisationService) getAllAvailableProcessingNodes() ([]*v1.Node, error) {
+func (clusterUtilisationService ClusterUtilisationService) getAllAvailableWorkerNodes() ([]*v1.Node, error) {
 	allNodes, err := clusterUtilisationService.NodeLister.List(labels.Everything())
 	if err != nil {
 		return []*v1.Node{}, err
@@ -124,21 +124,23 @@ func isAvailableProcessingNode(node *v1.Node) bool {
 	return true
 }
 
-func getAllPodsOnNodes(pods []*v1.Pod, nodes []*v1.Node) []*v1.Pod {
-	podsBelongingToNodes := make([]*v1.Pod, 0, len(pods))
+func getAllPodsRequiringResourceOnWorkerNodes(allPods []*v1.Pod, workerNodes []*v1.Node) []*v1.Pod {
+	podsUsingResourceOnProcessingNodes := make([]*v1.Pod, 0, len(allPods))
 
 	nodeMap := make(map[string]*v1.Node)
-	for _, node := range nodes {
+	for _, node := range workerNodes {
 		nodeMap[node.Name] = node
 	}
 
-	for _, pod := range pods {
-		if _, present := nodeMap[pod.Spec.NodeName]; present {
-			podsBelongingToNodes = append(podsBelongingToNodes, pod)
+	for _, pod := range allPods {
+		if _, presentOnWorkerNode := nodeMap[pod.Spec.NodeName]; presentOnWorkerNode {
+			podsUsingResourceOnProcessingNodes = append(podsUsingResourceOnProcessingNodes, pod)
+		} else if util.IsManagedPod(pod) && pod.Spec.NodeName == "" {
+			podsUsingResourceOnProcessingNodes = append(podsUsingResourceOnProcessingNodes, pod)
 		}
 	}
 
-	return podsBelongingToNodes
+	return podsUsingResourceOnProcessingNodes
 }
 
 func getAllActiveManagedPods(podLister lister.PodLister) ([]*v1.Pod, error) {
