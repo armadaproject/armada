@@ -21,7 +21,7 @@ type ClusterUtilisationService struct {
 }
 
 func (clusterUtilisationService ClusterUtilisationService) ReportClusterUtilisation() {
-	allAvailableProcessingNodes, err := clusterUtilisationService.getAllAvailableWorkerNodes()
+	allAvailableProcessingNodes, err := clusterUtilisationService.getAllAvailableProcessingNodes()
 	if err != nil {
 		log.Errorf("Failed to get required information to report cluster usage because %s", err)
 		return
@@ -52,7 +52,7 @@ func (clusterUtilisationService ClusterUtilisationService) ReportClusterUtilisat
 }
 
 func (clusterUtilisationService ClusterUtilisationService) GetAvailableClusterCapacity() (*common.ComputeResources, error) {
-	workerNodes, err := clusterUtilisationService.getAllAvailableWorkerNodes()
+	processingNodes, err := clusterUtilisationService.getAllAvailableProcessingNodes()
 	if err != nil {
 		return new(common.ComputeResources), fmt.Errorf("Failed getting available cluster capacity due to: %s", err)
 	}
@@ -62,10 +62,10 @@ func (clusterUtilisationService ClusterUtilisationService) GetAvailableClusterCa
 		return new(common.ComputeResources), fmt.Errorf("Failed getting available cluster capacity due to: %s", err)
 	}
 
-	allPodsRequiringResource := getAllPodsRequiringResourceOnWorkerNodes(allPods, workerNodes)
+	allPodsRequiringResource := getAllPodsRequiringResourceOnProcessingNodes(allPods, processingNodes)
 	allNonCompletePodsRequiringResource := util.FilterNonCompletedPods(allPodsRequiringResource)
 
-	totalNodeResource := common.CalculateTotalResource(workerNodes)
+	totalNodeResource := common.CalculateTotalResource(processingNodes)
 	totalPodResource := common.CalculateTotalResourceLimit(allNonCompletePodsRequiringResource)
 
 	availableResource := totalNodeResource.DeepCopy()
@@ -74,7 +74,7 @@ func (clusterUtilisationService ClusterUtilisationService) GetAvailableClusterCa
 	return &availableResource, nil
 }
 
-func (clusterUtilisationService ClusterUtilisationService) getAllAvailableWorkerNodes() ([]*v1.Node, error) {
+func (clusterUtilisationService ClusterUtilisationService) getAllAvailableProcessingNodes() ([]*v1.Node, error) {
 	allNodes, err := clusterUtilisationService.NodeLister.List(labels.Everything())
 	if err != nil {
 		return []*v1.Node{}, err
@@ -124,7 +124,7 @@ func isAvailableProcessingNode(node *v1.Node) bool {
 	return true
 }
 
-func getAllPodsRequiringResourceOnWorkerNodes(allPods []*v1.Pod, workerNodes []*v1.Node) []*v1.Pod {
+func getAllPodsRequiringResourceOnProcessingNodes(allPods []*v1.Pod, workerNodes []*v1.Node) []*v1.Pod {
 	podsUsingResourceOnProcessingNodes := make([]*v1.Pod, 0, len(allPods))
 
 	nodeMap := make(map[string]*v1.Node)
