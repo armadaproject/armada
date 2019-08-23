@@ -8,6 +8,8 @@ import (
 	"github.com/G-Research/k8s-batch/internal/armada/server"
 	"github.com/G-Research/k8s-batch/internal/armada/service"
 	"github.com/go-redis/redis"
+	"github.com/grpc-ecosystem/go-grpc-middleware"
+	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"net"
@@ -78,11 +80,17 @@ func createRedisClient(config configuration.RedisConfig) *redis.Client {
 func createServer(config *configuration.ArmadaConfig) *grpc.Server {
 	if config.Authentication.EnableAuthentication {
 		authService := service.NewBasicAuthAuthorizeService(config.Authentication.Users)
-		unaryInterceptor, streamInterceptor := createInterceptors(authService)
+		authUnaryInterceptor, authStreamInterceptor := createInterceptors(authService)
 
 		return grpc.NewServer(
-			grpc.StreamInterceptor(streamInterceptor),
-			grpc.UnaryInterceptor(unaryInterceptor),
+			grpc.StreamInterceptor(grpc_middleware.ChainStreamServer(
+				authStreamInterceptor,
+				grpc_prometheus.StreamServerInterceptor,
+			)),
+			grpc.UnaryInterceptor(grpc_middleware.ChainUnaryServer(
+				authUnaryInterceptor,
+				grpc_prometheus.UnaryServerInterceptor,
+			)),
 		)
 	} else {
 		return grpc.NewServer()
