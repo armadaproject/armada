@@ -124,11 +124,11 @@ func isAvailableProcessingNode(node *v1.Node) bool {
 	return true
 }
 
-func getAllPodsRequiringResourceOnProcessingNodes(allPods []*v1.Pod, workerNodes []*v1.Node) []*v1.Pod {
+func getAllPodsRequiringResourceOnProcessingNodes(allPods []*v1.Pod, processingNodes []*v1.Node) []*v1.Pod {
 	podsUsingResourceOnProcessingNodes := make([]*v1.Pod, 0, len(allPods))
 
 	nodeMap := make(map[string]*v1.Node)
-	for _, node := range workerNodes {
+	for _, node := range processingNodes {
 		nodeMap[node.Name] = node
 	}
 
