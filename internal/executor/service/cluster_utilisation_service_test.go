@@ -55,7 +55,7 @@ func TestFilterAvailableProcessingNodes_ShouldFilterNodesWithNoScheduleTaint(t *
 	assert.Equal(t, len(result), 0)
 }
 
-func TestGetAllPodsOnNodes_ShouldExcludePodsNoOnGivenNodes(t *testing.T) {
+func TestGetAllPodsUsingResourceOnProcessingNodes_ShouldExcludePodsNotOnGivenNodes(t *testing.T) {
 	presentNodeName := "Node1"
 	podOnNode := v1.Pod{
 		Spec: v1.PodSpec{
@@ -76,13 +76,13 @@ func TestGetAllPodsOnNodes_ShouldExcludePodsNoOnGivenNodes(t *testing.T) {
 	pods := []*v1.Pod{&podOnNode, &podNotOnNode}
 	nodes := []*v1.Node{&node}
 
-	result := getAllPodsOnNodes(pods, nodes)
+	result := getAllPodsRequiringResourceOnProcessingNodes(pods, nodes)
 
 	assert.Equal(t, len(result), 1)
 	assert.Equal(t, result[0].Spec.NodeName, presentNodeName)
 }
 
-func TestGetAllPodsOnNodes_ShouldHandleNoNodesProvided(t *testing.T) {
+func TestGetAllPodsUsingResourceOnProcessingNodes_ShouldHandleNoNodesProvided(t *testing.T) {
 	podOnNode := v1.Pod{
 		Spec: v1.PodSpec{
 			NodeName: "Node1",
@@ -92,7 +92,76 @@ func TestGetAllPodsOnNodes_ShouldHandleNoNodesProvided(t *testing.T) {
 	pods := []*v1.Pod{&podOnNode}
 	var nodes []*v1.Node
 
-	result := getAllPodsOnNodes(pods, nodes)
+	result := getAllPodsRequiringResourceOnProcessingNodes(pods, nodes)
+
+	assert.Equal(t, len(result), 0)
+}
+
+func TestGetAllPodsUsingResourceOnProcessingNodes_ShouldIncludeManagedPodsOnNodes(t *testing.T) {
+	podOnNode := v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Labels: map[string]string{domain.JobId: "label"},
+		},
+		Spec: v1.PodSpec{
+			NodeName: "Node1",
+		},
+	}
+	node := v1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "Node1",
+		},
+	}
+
+	pods := []*v1.Pod{&podOnNode}
+	nodes := []*v1.Node{&node}
+
+	result := getAllPodsRequiringResourceOnProcessingNodes(pods, nodes)
+
+	assert.Equal(t, len(result), 1)
+}
+
+func TestGetAllPodsUsingResourceOnProcessingNodes_ShouldIncludeManagedPodNotAssignedToAnyNode(t *testing.T) {
+	podOnNode := v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Labels: map[string]string{domain.JobId: "label"},
+		},
+		Spec: v1.PodSpec{
+			NodeName: "",
+		},
+	}
+	node := v1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "Node1",
+		},
+	}
+
+	pods := []*v1.Pod{&podOnNode}
+	nodes := []*v1.Node{&node}
+
+	result := getAllPodsRequiringResourceOnProcessingNodes(pods, nodes)
+
+	assert.Equal(t, len(result), 1)
+}
+
+func TestGetAllPodsUsingResourceOnProcessingNodes_ShouldExcludeManagedPodNotAssignedToGivenNodes(t *testing.T) {
+	podOnNode := v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Labels: map[string]string{domain.JobId: "label"},
+		},
+		Spec: v1.PodSpec{
+			NodeName: "Node2",
+		},
+	}
+	node := v1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "Node1",
+		},
+	}
+
+	pods := []*v1.Pod{&podOnNode}
+	nodes := []*v1.Node{&node}
+
+	result := getAllPodsRequiringResourceOnProcessingNodes(pods, nodes)
 
 	assert.Equal(t, len(result), 0)
 }

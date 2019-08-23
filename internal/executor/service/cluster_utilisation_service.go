@@ -62,11 +62,11 @@ func (clusterUtilisationService ClusterUtilisationService) GetAvailableClusterCa
 		return new(common.ComputeResources), fmt.Errorf("Failed getting available cluster capacity due to: %s", err)
 	}
 
-	podsOnProcessingNodes := getAllPodsOnNodes(allPods, processingNodes)
-	activePodsOnProcessingNodes := util.FilterNonCompletedPods(podsOnProcessingNodes)
+	allPodsRequiringResource := getAllPodsRequiringResourceOnProcessingNodes(allPods, processingNodes)
+	allNonCompletePodsRequiringResource := util.FilterNonCompletedPods(allPodsRequiringResource)
 
 	totalNodeResource := common.CalculateTotalResource(processingNodes)
-	totalPodResource := common.CalculateTotalResourceLimit(activePodsOnProcessingNodes)
+	totalPodResource := common.CalculateTotalResourceLimit(allNonCompletePodsRequiringResource)
 
 	availableResource := totalNodeResource.DeepCopy()
 	availableResource.Sub(totalPodResource)
@@ -124,21 +124,23 @@ func isAvailableProcessingNode(node *v1.Node) bool {
 	return true
 }
 
-func getAllPodsOnNodes(pods []*v1.Pod, nodes []*v1.Node) []*v1.Pod {
-	podsBelongingToNodes := make([]*v1.Pod, 0, len(pods))
+func getAllPodsRequiringResourceOnProcessingNodes(allPods []*v1.Pod, processingNodes []*v1.Node) []*v1.Pod {
+	podsUsingResourceOnProcessingNodes := make([]*v1.Pod, 0, len(allPods))
 
 	nodeMap := make(map[string]*v1.Node)
-	for _, node := range nodes {
+	for _, node := range processingNodes {
 		nodeMap[node.Name] = node
 	}
 
-	for _, pod := range pods {
-		if _, present := nodeMap[pod.Spec.NodeName]; present {
-			podsBelongingToNodes = append(podsBelongingToNodes, pod)
+	for _, pod := range allPods {
+		if _, presentOnProcessingNode := nodeMap[pod.Spec.NodeName]; presentOnProcessingNode {
+			podsUsingResourceOnProcessingNodes = append(podsUsingResourceOnProcessingNodes, pod)
+		} else if util.IsManagedPod(pod) && pod.Spec.NodeName == "" {
+			podsUsingResourceOnProcessingNodes = append(podsUsingResourceOnProcessingNodes, pod)
 		}
 	}
 
-	return podsBelongingToNodes
+	return podsUsingResourceOnProcessingNodes
 }
 
 func getAllActiveManagedPods(podLister lister.PodLister) ([]*v1.Pod, error) {
