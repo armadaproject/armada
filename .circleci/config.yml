@@ -37,13 +37,19 @@ jobs:
             echo $EXECUTOR_CONFIG | base64 -d > executor_config.yaml
             echo $EXECUTOR_API_CREDENTIALS | base64 -d > executor_api_credentials.yaml
       - run:
-          name: "Deploy worker 1"
+          name: "Deploy to services"
+          command: |
+            echo $KUBECONFIG_SERVICES| base64 -d > kubeconfig_services_decoded.yaml
+            export KUBECONFIG=./kubeconfig_services_decoded.yaml
+            helm upgrade armada ./deployment/armada/ -f ./armada_config.yaml -f ./armada_users.yaml --set image.tag="54eea2bf52ea237abb877de0e9a9b236784ad7ca"
+      - run:
+          name: "Deploy to worker 1"
           command: |
             echo $KUBECONFIG_WORKER_1 | base64 -d > kubeconfig_worker_1_decoded.yaml
             export KUBECONFIG=./kubeconfig_worker_1_decoded.yaml
             helm upgrade armada-executor ./deployment/executor/ -f ./executor_config.yaml -f ./executor_api_credentials.yaml --set applicationConfig.application.clusterId="worker-pool-1" --set image.tag="54eea2bf52ea237abb877de0e9a9b236784ad7ca"
       - run:
-          name: "Deploy worker 2"
+          name: "Deploy to worker 2"
           command: |
             echo $KUBECONFIG_WORKER_2 | base64 -d > kubeconfig_worker_2_decoded.yaml
             export KUBECONFIG=./kubeconfig_worker_2_decoded.yaml
