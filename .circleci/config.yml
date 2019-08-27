@@ -40,4 +40,4 @@ workflows:
             - build
           filters:
             branches:
-              only: master
+              only: circleci-cd
