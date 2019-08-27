@@ -31,7 +31,7 @@ jobs:
       - run:
           name: "Deploy worker-1"
           command: |
-            echo $KUBECONFIG_WORKER_1 | base64 --decode > decoded.yaml
+            echo $KUBECONFIG_WORKER_1 | base64 -d > decoded.yaml
             export KUBECONFIG=./decoded.yaml
             helm list
 
