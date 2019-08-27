@@ -29,11 +29,24 @@ jobs:
     working_directory: /go/src/github.com/G-Research/k8s-batch
     steps:
       - run:
-          name: "Deploy worker-1"
+          name: "Extract config files from environment variables"
           command: |
-            echo $KUBECONFIG_WORKER_1 | base64 -d > decoded.yaml
-            export KUBECONFIG=./decoded.yaml
-            helm list
+            echo $ARMADA_CONFIG | base64 -d > armada_config.yaml
+            echo $ARMADA_USERS | base64 -d > armada_users.yaml
+            echo $EXECUTOR_CONFIG | base64 -d > executor_config.yaml
+            echo $EXECUTOR_API_CREDENTIALS | base64 -d > executor_api_credentials.yaml
+      - run:
+          name: "Deploy worker 1"
+          command: |
+            echo $KUBECONFIG_WORKER_1 | base64 -d > kubeconfig_worker_1_decoded.yaml
+            export KUBECONFIG=./kubeconfig_worker_1_decoded.yaml
+            helm upgrade armada-executor ./deployment/executor/ -f ./executor_config.yaml -f ./executor_api_credentials.yaml --set applicationConfig.application.clusterId="worker-pool-1" --set image.tag="54eea2bf52ea237abb877de0e9a9b236784ad7ca"
+      - run:
+          name: "Deploy worker 2"
+          command: |
+            echo $KUBECONFIG_WORKER_2 | base64 -d > kubeconfig_worker_2_decoded.yaml
+            export KUBECONFIG=./kubeconfig_worker_2_decoded.yaml
+            helm upgrade armada-executor ./deployment/executor/ -f ./executor_config.yaml -f ./executor_api_credentials.yaml --set applicationConfig.application.clusterId="worker-pool-2" --set image.tag="54eea2bf52ea237abb877de0e9a9b236784ad7ca"
 
 workflows:
   version: 2
