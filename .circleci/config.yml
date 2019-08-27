@@ -28,7 +28,7 @@ jobs:
       - image: alpine/helm:2.13.1
     working_directory: /go/src/github.com/G-Research/k8s-batch
     steps:
-      - echo "here"
+      - run: echo "here"
 
 workflows:
   version: 2
