@@ -28,6 +28,7 @@ jobs:
       - image: alpine/helm:2.13.1
     working_directory: /go/src/github.com/G-Research/k8s-batch
     steps:
+      - checkout
       - run:
           name: "Extract config files from environment variables"
           command: |
