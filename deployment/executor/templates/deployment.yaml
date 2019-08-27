@@ -38,6 +38,12 @@ spec:
               mountPath: /config/api-credentials.yaml
               subPath: {{ include "executor.api.credentials.filename" . }}
               readOnly: true
+      nodeSelector:
+        node-role.kubernetes.io/master: ""
+      tolerations:
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/master
+          operator: Exists
       volumes:
         - name: user-config
           configMap:
