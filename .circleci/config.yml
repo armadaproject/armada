@@ -90,7 +90,7 @@ jobs:
                 TAG=branch-${CIRCLE_BRANCH}-${CIRCLE_SHA1}
             fi
 
-            export TAG >> $BASH_ENV
+            echo "export TAG=TAG" >> $BASH_ENV
 
             echo $ARMADA_CONFIG | base64 -d > armada_config.yaml
             echo $ARMADA_USERS | base64 -d > armada_users.yaml
@@ -99,6 +99,7 @@ jobs:
       - run:
           name: "Deploy to services"
           command: |
+            source $BASH_ENV
             echo "Tag" + ${TAG}
             echo $KUBECONFIG_SERVICES| base64 -d > kubeconfig_services_decoded.yaml
             export KUBECONFIG=./kubeconfig_services_decoded.yaml
