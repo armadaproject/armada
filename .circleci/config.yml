@@ -82,6 +82,16 @@ jobs:
       - run:
           name: "Extract config files from environment variables"
           command: |
+
+            TAG=${CIRCLE_SHA1}
+
+            if [ ${CIRCLE_BRANCH} != master ]
+              then
+                TAG=branch-${CIRCLE_BRANCH}-${CIRCLE_SHA1}
+            fi
+
+            export TAG >> $BASH_ENV
+
             echo $ARMADA_CONFIG | base64 -d > armada_config.yaml
             echo $ARMADA_USERS | base64 -d > armada_users.yaml
             echo $EXECUTOR_CONFIG | base64 -d > executor_config.yaml
