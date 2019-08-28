@@ -44,13 +44,15 @@ spec:
       affinity:
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
-            - labelSelector:
-                matchExpressions:
-                  - key: app
-                    operator: In
-                    values:
-                      - {{ include "armada.name" . }}
-              topologyKey: kubernetes.io/hostname
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - {{ include "armada.name" . }}
+                topologyKey: kubernetes.io/hostname
       nodeSelector:
         node-role.kubernetes.io/master: ""
       tolerations:
