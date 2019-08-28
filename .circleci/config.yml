@@ -90,7 +90,7 @@ jobs:
                 TAG=branch-${CIRCLE_BRANCH}-${CIRCLE_SHA1}
             fi
 
-            echo "export TAG=TAG" >> $BASH_ENV
+            echo "export TAG=${TAG}" >> $BASH_ENV
 
             echo $ARMADA_CONFIG | base64 -d > armada_config.yaml
             echo $ARMADA_USERS | base64 -d > armada_users.yaml
