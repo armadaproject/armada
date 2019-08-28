@@ -23,56 +23,56 @@ jobs:
     working_directory: /go/src/github.com/G-Research/k8s-batch
     steps:
       - checkout
-      - setup_remote_docker
-
-      - restore_cache:
-          keys:
-            - go-mod-v1-{{ checksum "go.sum" }}
-
-      - run:
-          name: Test
-          command: |
-            go get -v -d ./...
-            go test -v ./...
-
-      - save_cache:
-          key: go-mod-v1-{{ checksum "go.sum" }}
-          paths:
-            - "/go/pkg/mod"
-
-      - run:
-          name: Check formatting
-          command: exit $(gofmt -l . | wc -l)
-
-      - run:
-          name: Build
-          command: make build
-
-      - store_artifacts:
-          path: armadactl
-          destination: armadactl
-
-      - aws-cli/install
-      - aws-cli/configure
-      - run:
-          name: Push Image
-          command: |
-
-            TAG=${CIRCLE_SHA1}
-
-            if [ ${CIRCLE_BRANCH} != master ]
-              then
-                TAG=branch-${CIRCLE_BRANCH}-${CIRCLE_SHA1}
-            fi
-
-            source scripts/assume-role.sh
-            $(aws ecr get-login --region eu-west-1 --no-include-email)
-
-            docker tag armada ${ECR_REPOSITORY}/armada:${TAG}
-            docker push ${ECR_REPOSITORY}/armada:${TAG}
-
-            docker tag armada-executor ${ECR_REPOSITORY}/armada-executor:${TAG}
-            docker push ${ECR_REPOSITORY}/armada-executor:${TAG}
+#      - setup_remote_docker
+#
+#      - restore_cache:
+#          keys:
+#            - go-mod-v1-{{ checksum "go.sum" }}
+#
+#      - run:
+#          name: Test
+#          command: |
+#            go get -v -d ./...
+#            go test -v ./...
+#
+#      - save_cache:
+#          key: go-mod-v1-{{ checksum "go.sum" }}
+#          paths:
+#            - "/go/pkg/mod"
+#
+#      - run:
+#          name: Check formatting
+#          command: exit $(gofmt -l . | wc -l)
+#
+#      - run:
+#          name: Build
+#          command: make build
+#
+#      - store_artifacts:
+#          path: armadactl
+#          destination: armadactl
+#
+#      - aws-cli/install
+#      - aws-cli/configure
+#      - run:
+#          name: Push Image
+#          command: |
+#
+#            TAG=${CIRCLE_SHA1}
+#
+#            if [ ${CIRCLE_BRANCH} != master ]
+#              then
+#                TAG=branch-${CIRCLE_BRANCH}-${CIRCLE_SHA1}
+#            fi
+#
+#            source scripts/assume-role.sh
+#            $(aws ecr get-login --region eu-west-1 --no-include-email)
+#
+#            docker tag armada ${ECR_REPOSITORY}/armada:${TAG}
+#            docker push ${ECR_REPOSITORY}/armada:${TAG}
+#
+#            docker tag armada-executor ${ECR_REPOSITORY}/armada-executor:${TAG}
+#            docker push ${ECR_REPOSITORY}/armada-executor:${TAG}
   deploy:
     docker:
       - image: alpine/helm:2.13.1
@@ -99,21 +99,22 @@ jobs:
       - run:
           name: "Deploy to services"
           command: |
+            echo "Tag" + ${TAG}
             echo $KUBECONFIG_SERVICES| base64 -d > kubeconfig_services_decoded.yaml
             export KUBECONFIG=./kubeconfig_services_decoded.yaml
-            helm upgrade armada ./deployment/armada/ -f ./armada_config.yaml -f ./armada_users.yaml --set image.tag=${TAG}
+            helm upgrade armada ./deployment/armada/ -f ./armada_config.yaml -f ./armada_users.yaml --set image.tag="${TAG}"
       - run:
           name: "Deploy to worker 1"
           command: |
             echo $KUBECONFIG_WORKER_1 | base64 -d > kubeconfig_worker_1_decoded.yaml
             export KUBECONFIG=./kubeconfig_worker_1_decoded.yaml
-            helm upgrade armada-executor ./deployment/executor/ -f ./executor_config.yaml -f ./executor_api_credentials.yaml --set applicationConfig.application.clusterId="worker-pool-1" --set image.tag=${TAG}
+            helm upgrade armada-executor ./deployment/executor/ -f ./executor_config.yaml -f ./executor_api_credentials.yaml --set applicationConfig.application.clusterId="worker-pool-1" --set image.tag="${TAG}"
       - run:
           name: "Deploy to worker 2"
           command: |
             echo $KUBECONFIG_WORKER_2 | base64 -d > kubeconfig_worker_2_decoded.yaml
             export KUBECONFIG=./kubeconfig_worker_2_decoded.yaml
-            helm upgrade armada-executor ./deployment/executor/ -f ./executor_config.yaml -f ./executor_api_credentials.yaml --set applicationConfig.application.clusterId="worker-pool-2" --set image.tag=${TAG}
+            helm upgrade armada-executor ./deployment/executor/ -f ./executor_config.yaml -f ./executor_api_credentials.yaml --set applicationConfig.application.clusterId="worker-pool-2" --set image.tag="${TAG}"
 
 workflows:
   version: 2
