@@ -115,4 +115,4 @@ workflows:
             - build
           filters:
             branches:
-              only: circleci-cd
+              only: master
