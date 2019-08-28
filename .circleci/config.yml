@@ -82,16 +82,6 @@ jobs:
       - run:
           name: "Extract config files from environment variables"
           command: |
-
-            TAG=${CIRCLE_SHA1}
-
-            if [ ${CIRCLE_BRANCH} != master ]
-              then
-                TAG=branch-${CIRCLE_BRANCH}-${CIRCLE_SHA1}
-            fi
-
-            echo "export TAG=${TAG}" >> $BASH_ENV
-
             echo $ARMADA_CONFIG | base64 -d > armada_config.yaml
             echo $ARMADA_USERS | base64 -d > armada_users.yaml
             echo $EXECUTOR_CONFIG | base64 -d > executor_config.yaml
@@ -99,24 +89,21 @@ jobs:
       - run:
           name: "Deploy to services"
           command: |
-            source $BASH_ENV
             echo $KUBECONFIG_SERVICES| base64 -d > kubeconfig_services_decoded.yaml
             export KUBECONFIG=./kubeconfig_services_decoded.yaml
-            helm upgrade armada ./deployment/armada/ -f ./armada_config.yaml -f ./armada_users.yaml --set image.tag="${TAG}"
+            helm upgrade armada ./deployment/armada/ -f ./armada_config.yaml -f ./armada_users.yaml --set image.tag="${CIRCLE_SHA1}"
       - run:
           name: "Deploy to worker 1"
           command: |
-            source $BASH_ENV
             echo $KUBECONFIG_WORKER_1 | base64 -d > kubeconfig_worker_1_decoded.yaml
             export KUBECONFIG=./kubeconfig_worker_1_decoded.yaml
-            helm upgrade armada-executor ./deployment/executor/ -f ./executor_config.yaml -f ./executor_api_credentials.yaml --set applicationConfig.application.clusterId="worker-pool-1" --set image.tag="${TAG}"
+            helm upgrade armada-executor ./deployment/executor/ -f ./executor_config.yaml -f ./executor_api_credentials.yaml --set applicationConfig.application.clusterId="worker-pool-1" --set image.tag="${CIRCLE_SHA1}"
       - run:
           name: "Deploy to worker 2"
           command: |
-            source $BASH_ENV
             echo $KUBECONFIG_WORKER_2 | base64 -d > kubeconfig_worker_2_decoded.yaml
             export KUBECONFIG=./kubeconfig_worker_2_decoded.yaml
-            helm upgrade armada-executor ./deployment/executor/ -f ./executor_config.yaml -f ./executor_api_credentials.yaml --set applicationConfig.application.clusterId="worker-pool-2" --set image.tag="${TAG}"
+            helm upgrade armada-executor ./deployment/executor/ -f ./executor_config.yaml -f ./executor_api_credentials.yaml --set applicationConfig.application.clusterId="worker-pool-2" --set image.tag="${CIRCLE_SHA1}"
 
 workflows:
   version: 2
