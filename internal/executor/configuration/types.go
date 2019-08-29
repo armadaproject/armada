@@ -21,6 +21,7 @@ type TaskConfiguration struct {
 	UtilisationReportingInterval          time.Duration
 	MissingJobEventReconciliationInterval time.Duration
 	JobLeaseRenewalInterval               time.Duration
+	JobLeaseCleanupInterval               time.Duration
 	AllocateSpareClusterCapacityInterval  time.Duration
 }
 
