@@ -34,33 +34,26 @@ func (jobLeaseService JobLeaseService) RequestJobLeases(availableResource *commo
 	return response.Job, nil
 }
 
-func (jobLeaseService JobLeaseService) ManageJobLeases() {
-	managedPodSelector := util.GetManagedPodSelector()
-	allManagedPods, err := jobLeaseService.PodLister.List(managedPodSelector)
+func (jobLeaseService JobLeaseService) RenewJobLeases() {
+	allManagedPods, err := jobLeaseService.PodLister.List(util.GetManagedPodSelector())
 	if err != nil {
-		log.Errorf("Failed to manage job leases due to %s", err)
+		log.Errorf("Failed to renew job leases due to %s", err)
 		return
 	}
 
-	podsToRenew, podsToCleanup := splitRunningAndFinishedPods(allManagedPods)
-
+	podsToRenew := getRunningPods(allManagedPods)
 	jobLeaseService.renewJobLeases(podsToRenew)
-	jobLeaseService.endJobLeases(podsToCleanup)
 }
 
-func splitRunningAndFinishedPods(pods []*v1.Pod) (running []*v1.Pod, finished []*v1.Pod) {
-	runningPods := make([]*v1.Pod, 0)
-	finishedPods := make([]*v1.Pod, 0)
-
-	for _, pod := range pods {
-		if IsPodReadyForCleanup(pod) {
-			finishedPods = append(finishedPods, pod)
-		} else {
-			runningPods = append(runningPods, pod)
-		}
+func (jobLeaseService JobLeaseService) CleanupJobLeases() {
+	allManagedPods, err := jobLeaseService.PodLister.List(util.GetManagedPodSelector())
+	if err != nil {
+		log.Errorf("Failed to end job leases due to %s", err)
+		return
 	}
 
-	return runningPods, finishedPods
+	podsToCleanup := getFinishedPods(allManagedPods)
+	jobLeaseService.cleanupJobLeases(podsToCleanup)
 }
 
 func (jobLeaseService JobLeaseService) renewJobLeases(pods []*v1.Pod) {
@@ -83,7 +76,7 @@ func (jobLeaseService JobLeaseService) renewJobLeases(pods []*v1.Pod) {
 	jobLeaseService.deletePodsWithIds(pods, failedIds)
 }
 
-func (jobLeaseService JobLeaseService) endJobLeases(pods []*v1.Pod) {
+func (jobLeaseService JobLeaseService) cleanupJobLeases(pods []*v1.Pod) {
 	if len(pods) <= 0 {
 		return
 	}
@@ -99,6 +92,30 @@ func (jobLeaseService JobLeaseService) endJobLeases(pods []*v1.Pod) {
 	}
 
 	jobLeaseService.deletePodsWithIds(pods, reported.Ids)
+}
+
+func getRunningPods(pods []*v1.Pod) []*v1.Pod {
+	runningPods := make([]*v1.Pod, 0)
+
+	for _, pod := range pods {
+		if !IsPodReadyForCleanup(pod) {
+			runningPods = append(runningPods, pod)
+		}
+	}
+
+	return runningPods
+}
+
+func getFinishedPods(pods []*v1.Pod) []*v1.Pod {
+	finishedPods := make([]*v1.Pod, 0)
+
+	for _, pod := range pods {
+		if IsPodReadyForCleanup(pod) {
+			finishedPods = append(finishedPods, pod)
+		}
+	}
+
+	return finishedPods
 }
 
 func (jobLeaseService JobLeaseService) deletePodsWithIds(pods []*v1.Pod, idsToDelete []string) {

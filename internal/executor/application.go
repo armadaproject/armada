@@ -83,7 +83,8 @@ func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGrou
 	tasks := make([]chan bool, 0)
 	tasks = append(tasks, scheduleBackgroundTask(clusterUtilisationService.ReportClusterUtilisation, config.Task.UtilisationReportingInterval, wg))
 	tasks = append(tasks, scheduleBackgroundTask(clusterAllocationService.AllocateSpareClusterCapacity, config.Task.AllocateSpareClusterCapacityInterval, wg))
-	tasks = append(tasks, scheduleBackgroundTask(jobLeaseService.ManageJobLeases, config.Task.JobLeaseRenewalInterval, wg))
+	tasks = append(tasks, scheduleBackgroundTask(jobLeaseService.RenewJobLeases, config.Task.JobLeaseRenewalInterval, wg))
+	tasks = append(tasks, scheduleBackgroundTask(jobLeaseService.CleanupJobLeases, config.Task.JobLeaseCleanupInterval, wg))
 	tasks = append(tasks, scheduleBackgroundTask(eventReconciliationService.ReconcileMissingJobEvents, config.Task.MissingJobEventReconciliationInterval, wg))
 
 	return func() {
