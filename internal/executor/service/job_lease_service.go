@@ -48,7 +48,7 @@ func (jobLeaseService JobLeaseService) RenewJobLeases() {
 func (jobLeaseService JobLeaseService) CleanupJobLeases() {
 	allManagedPods, err := jobLeaseService.PodLister.List(util.GetManagedPodSelector())
 	if err != nil {
-		log.Errorf("Failed to end job leases due to %s", err)
+		log.Errorf("Failed to cleanp job leases due to %s", err)
 		return
 	}
 
@@ -87,7 +87,7 @@ func (jobLeaseService JobLeaseService) cleanupJobLeases(pods []*v1.Pod) {
 	reported, err := jobLeaseService.QueueClient.ReportDone(ctx, &api.IdList{Ids: jobIds})
 
 	if err != nil {
-		log.Errorf("Failed cleaning up jobs because %s", err)
+		log.Errorf("Failed reporting jobs as done because %s", err)
 		return
 	}
 
