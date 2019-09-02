@@ -58,6 +58,6 @@ var loadtestCmd = &cobra.Command{
 		apiConnectionDetails := client.ExtractCommandlineArmadaApiConnectionDetails()
 		loadTester := service.NewArmadaLoadTester(apiConnectionDetails)
 
-		loadTester.RunSubmissionTest(*loadTestSpec)
+		loadTester.RunSubmissionTest(*loadTestSpec, watchEvents)
 	},
 }

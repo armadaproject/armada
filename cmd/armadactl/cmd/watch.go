@@ -36,19 +36,7 @@ var watchCmd = &cobra.Command{
 
 		util.WithConnection(apiConnectionDetails, func(conn *grpc.ClientConn) {
 			eventsClient := api.NewEventClient(conn)
-			service.WatchJobSet(eventsClient, jobSetId, func(state map[string]*service.JobInfo, e api.Event) {
-
-				states := []service.JobStatus{
-					service.Queued,
-					service.Leased,
-					service.Pending,
-					service.Running,
-					service.Succeeded,
-					service.Failed,
-					service.Cancelled}
-
-				counts := service.CountStates(state)
-
+			service.WatchJobSet(eventsClient, jobSetId, func(state map[string]*service.JobInfo, e api.Event) bool {
 				if raw {
 					data, err := json.Marshal(e)
 					if err != nil {
@@ -57,19 +45,12 @@ var watchCmd = &cobra.Command{
 						fmt.Printf("%s %s\n", reflect.TypeOf(e), string(data))
 					}
 				} else {
-					first := true
 					fmt.Printf("%s | ", e.GetCreated().Format(time.Stamp))
-					for _, state := range states {
-						if !first {
-							fmt.Print(", ")
-						}
-						first = false
-						fmt.Printf("%s: %3d", state, counts[state])
-					}
-
+					fmt.Print(service.CreateSummaryOfCurrentState(state))
 					fmt.Printf(" | event: %s, job id: %s", reflect.TypeOf(e), e.GetJobId())
 					fmt.Println()
 				}
+				return false
 			})
 		})
 	},
