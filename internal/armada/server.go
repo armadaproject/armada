@@ -64,6 +64,7 @@ func createRedisClient(config configuration.RedisConfig) *redis.Client {
 			SentinelAddrs: config.SentinelAddresses,
 			Password:      config.Password,
 			DB:            config.Db,
+			PoolSize:      1000,
 		})
 	} else {
 		log.Infof("Connecting to redis with address %s", config.Addr)
@@ -71,6 +72,7 @@ func createRedisClient(config configuration.RedisConfig) *redis.Client {
 			Addr:     config.Addr,
 			Password: config.Password,
 			DB:       config.Db,
+			PoolSize: 1000,
 		})
 	}
 }
