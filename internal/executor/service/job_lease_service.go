@@ -72,8 +72,10 @@ func (jobLeaseService JobLeaseService) renewJobLeases(pods []*v1.Pod) {
 	}
 
 	failedIds := commonUtil.SubtractStringList(jobIds, renewedJobIds.Ids)
-	log.Errorf("Failed to renew job lease for jobs %s", strings.Join(failedIds, ","))
-	jobLeaseService.deletePodsWithIds(pods, failedIds)
+	if len(failedIds) > 0 {
+		log.Errorf("Failed to renew job lease for jobs %s", strings.Join(failedIds, ","))
+		jobLeaseService.deletePodsWithIds(pods, failedIds)
+	}
 }
 
 func (jobLeaseService JobLeaseService) cleanupJobLeases(pods []*v1.Pod) {
