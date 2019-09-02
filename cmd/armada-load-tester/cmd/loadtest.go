@@ -6,10 +6,13 @@ import (
 	"github.com/G-Research/k8s-batch/internal/client/service"
 	"github.com/G-Research/k8s-batch/internal/client/util"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 func init() {
 	rootCmd.AddCommand(loadtestCmd)
+	loadtestCmd.Flags().Bool("watchEvents", false, "If enabled, the program will watch the events of all submitted jobs before exiting")
+	viper.BindPFlag("watchEvents", loadtestCmd.Flags().Lookup("watchEvents"))
 }
 
 var loadtestCmd = &cobra.Command{
@@ -51,6 +54,7 @@ var loadtestCmd = &cobra.Command{
 		loadTestSpec := &domain.LoadTestSpecification{}
 		util.BindJsonOrYaml(filePath, loadTestSpec)
 
+		watchEvents := viper.GetBool("watchEvents")
 		apiConnectionDetails := client.ExtractCommandlineArmadaApiConnectionDetails()
 		loadTester := service.NewArmadaLoadTester(apiConnectionDetails)
 
