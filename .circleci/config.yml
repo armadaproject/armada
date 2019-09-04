@@ -28,6 +28,10 @@ jobs:
           command: |
             export KUBECONFIG=$(kind get kubeconfig-path --name=cluster1)
             kubectl -n armada get pods
+            kubectl -n armada describe pod
+            sleep 20s
+            kubectl -n armada get pods
+            kubectl -n armada describe pod
 #      - run:
 #          name: Run e2e tests
 
