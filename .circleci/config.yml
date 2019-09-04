@@ -24,14 +24,11 @@ jobs:
       - run: docker run -d --expose=6379 redis
       - run: docker run -d --expose=50051 ${ECR_REPOSITORY}/armada:b91e651cba4ed065cbbbea5bf43ef688b40bd766
       - run:
-          name: "Install executor on Kind"
+          name: "Wait for cluster executors to be ready"
           command: |
             export KUBECONFIG=$(kind get kubeconfig-path --name=cluster1)
-            kubectl -n armada get pods
-            kubectl -n armada describe pod
-            sleep 20s
-            kubectl -n armada get pods
-            kubectl -n armada describe pod
+            kubectl -n armada  wait --for=condition=available --timeout=30s deployment/executor
+
 #      - run:
 #          name: Run e2e tests
 
