@@ -4,6 +4,11 @@ orbs:
   aws-cli: circleci/aws-cli@0.1.13
 
 jobs:
+  basic:
+    docker:
+      - image: circleci/golang:1.12.6
+    steps:
+      - run: echo Hello
   e2e:
     machine:
       enabled: true
@@ -36,8 +41,11 @@ workflows:
   version: 2
   build-and-test:
     jobs:
+      - basic
       - hold:
           type: approval
+          requires:
+            - basic
       - e2e:
           requires:
             - hold
