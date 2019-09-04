@@ -22,19 +22,23 @@ const (
 	Cancelled = "Cancelled"
 )
 
-var statesToIncludeInSummary = [...]JobStatus{
-	Queued,
-	Leased,
-	Pending,
-	Running,
-	Succeeded,
-	Failed,
-	Cancelled,
-}
-
 type JobInfo struct {
 	Status JobStatus
 	Job    *api.Job
+}
+
+var statesToIncludeInSummary []JobStatus
+
+func init() {
+	statesToIncludeInSummary = []JobStatus{
+		Queued,
+		Leased,
+		Pending,
+		Running,
+		Succeeded,
+		Failed,
+		Cancelled,
+	}
 }
 
 func WatchJobSet(client api.EventClient, jobSetId string, onUpdate func(map[string]*JobInfo, api.Event) bool) {
