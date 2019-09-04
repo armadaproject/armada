@@ -27,7 +27,7 @@ jobs:
           name: "Install executor on Kind"
           command: |
             export KUBECONFIG=$(kind get kubeconfig-path --name=cluster1)
-            helm init
+            helm init --wait
             echo $EXECUTOR_E2E_CONFIG | base64 -d > executor_config.yaml
             helm install ./deployment/executor -f ./executor_config --set applicationConfig.application.clusterId="worker-1" --set image.tag="b91e651cba4ed065cbbbea5bf43ef688b40bd766"
 #      - run:
