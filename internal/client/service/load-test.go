@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"fmt"
 	"github.com/G-Research/k8s-batch/internal/armada/api"
 	"github.com/G-Research/k8s-batch/internal/client/domain"
@@ -120,7 +121,7 @@ func (apiLoadTester ArmadaLoadTester) runSubmission(queue string, jobSetId strin
 func (apiLoadTester ArmadaLoadTester) monitorJobsUntilCompletion(jobSetId string, jobIds []string, jobInfoChannel chan JobInfo) {
 	util.WithConnection(apiLoadTester.apiConnectionDetails, func(connection *grpc.ClientConn) {
 		eventsClient := api.NewEventClient(connection)
-		WatchJobSetWithJobIdsFilter(eventsClient, jobSetId, jobIds, func(state map[string]*JobInfo, e api.Event) bool {
+		WatchJobSetWithJobIdsFilter(eventsClient, jobSetId, context.Background(), jobIds, func(state map[string]*JobInfo, e api.Event) bool {
 			currentState := state[e.GetJobId()]
 			jobInfoChannel <- *currentState
 

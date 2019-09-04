@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"context"
 	"github.com/G-Research/k8s-batch/internal/armada/api"
 	"github.com/G-Research/k8s-batch/internal/client/domain"
 	"github.com/G-Research/k8s-batch/internal/client/service"
@@ -11,6 +12,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"testing"
+	"time"
 )
 
 func TestCanSubmitJob_ReceivingAllExpectedEvents(t *testing.T) {
@@ -28,13 +30,13 @@ func TestCanSubmitJob_ReceivingAllExpectedEvents(t *testing.T) {
 		_, err = service.SubmitJob(submitClient, jobRequest)
 		assert.Empty(t, err)
 
-		receivedEvents := make(map[service.JobStatus] bool)
+		receivedEvents := make(map[service.JobStatus]bool)
 
 		eventsClient := api.NewEventClient(connection)
 
-		//TODO add timeout
+		timeout, _ := context.WithTimeout(context.Background(), 20*time.Second)
 
-		service.WatchJobSet(eventsClient, jobRequest.JobSetId, func(state map[string]*service.JobInfo, e api.Event) bool {
+		service.WatchJobSet(eventsClient, jobRequest.JobSetId, timeout, func(state map[string]*service.JobInfo, e api.Event) bool {
 			currentStatus := state[e.GetJobId()].Status
 			receivedEvents[currentStatus] = true
 
@@ -44,9 +46,22 @@ func TestCanSubmitJob_ReceivingAllExpectedEvents(t *testing.T) {
 
 			return false
 		})
+		assert.False(t, hasTimedOut(timeout), "Test timed out waiting for expected events")
 
+		assert.True(t, receivedEvents[service.Queued])
+		assert.True(t, receivedEvents[service.Leased])
+		assert.True(t, receivedEvents[service.Running])
 		assert.True(t, receivedEvents[service.Succeeded])
 	})
+}
+
+func hasTimedOut(context context.Context) bool {
+	select {
+	case <-context.Done():
+		return true
+	default:
+		return false
+	}
 }
 
 func createJobRequest() *api.JobRequest {
@@ -60,7 +75,7 @@ func createJobRequest() *api.JobRequest {
 				Args:  []string{"sleep", "10s"},
 				Resources: v1.ResourceRequirements{
 					Requests: v1.ResourceList{"cpu": cpu, "memory": memory},
-					Limits: v1.ResourceList{"cpu": cpu, "memory": memory},
+					Limits:   v1.ResourceList{"cpu": cpu, "memory": memory},
 				},
 			},
 			},

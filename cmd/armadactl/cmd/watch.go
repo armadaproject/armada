@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/G-Research/k8s-batch/internal/armada/api"
@@ -36,7 +37,7 @@ var watchCmd = &cobra.Command{
 
 		util.WithConnection(apiConnectionDetails, func(conn *grpc.ClientConn) {
 			eventsClient := api.NewEventClient(conn)
-			service.WatchJobSet(eventsClient, jobSetId, func(state map[string]*service.JobInfo, e api.Event) bool {
+			service.WatchJobSet(eventsClient, jobSetId, context.Background(), func(state map[string]*service.JobInfo, e api.Event) bool {
 				if raw {
 					data, err := json.Marshal(e)
 					if err != nil {

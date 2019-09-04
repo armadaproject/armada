@@ -27,18 +27,24 @@ type JobInfo struct {
 	Job    *api.Job
 }
 
-func WatchJobSet(client api.EventClient, jobSetId string, onUpdate func(map[string]*JobInfo, api.Event) bool) {
-	WatchJobSetWithJobIdsFilter(client, jobSetId, []string{}, onUpdate)
+func WatchJobSet(client api.EventClient, jobSetId string, context context.Context, onUpdate func(map[string]*JobInfo, api.Event) bool) {
+	WatchJobSetWithJobIdsFilter(client, jobSetId, context, []string{}, onUpdate)
 }
 
-func WatchJobSetWithJobIdsFilter(client api.EventClient, jobSetId string, jobIds []string, onUpdate func(map[string]*JobInfo, api.Event) bool) {
+func WatchJobSetWithJobIdsFilter(client api.EventClient, jobSetId string, context context.Context, jobIds []string, onUpdate func(map[string]*JobInfo, api.Event) bool) {
 	state := make(map[string]*JobInfo)
 
 	jobIdsSet := util.StringListToSet(jobIds)
 	filterOnJobId := len(jobIdsSet) > 0
 
 	for {
-		clientStream, e := client.GetJobSetEvents(context.Background(), &api.JobSetRequest{Id: jobSetId, Watch: true})
+		select {
+		case <-context.Done():
+			return
+		default:
+		}
+
+		clientStream, e := client.GetJobSetEvents(context, &api.JobSetRequest{Id: jobSetId, Watch: true})
 
 		if e != nil {
 			log.Error(e)
