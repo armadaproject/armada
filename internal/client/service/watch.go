@@ -22,6 +22,16 @@ const (
 	Cancelled = "Cancelled"
 )
 
+var statesToIncludeInSummary = [...]JobStatus{
+	Queued,
+	Leased,
+	Pending,
+	Running,
+	Succeeded,
+	Failed,
+	Cancelled,
+}
+
 type JobInfo struct {
 	Status JobStatus
 	Job    *api.Job
@@ -117,21 +127,12 @@ func CountStates(state map[string]*JobInfo) map[JobStatus]int {
 }
 
 func CreateSummaryOfCurrentState(state map[string]*JobInfo) string {
-	states := []JobStatus{
-		Queued,
-		Leased,
-		Pending,
-		Running,
-		Succeeded,
-		Failed,
-		Cancelled}
-
 	counts := CountStates(state)
 
 	first := true
 	summary := ""
 
-	for _, state := range states {
+	for _, state := range statesToIncludeInSummary {
 		if !first {
 			summary += ", "
 		}
