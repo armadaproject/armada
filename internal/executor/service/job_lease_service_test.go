@@ -6,24 +6,36 @@ import (
 	"testing"
 )
 
-func TestSplitRunningAndFinishedPods(t *testing.T) {
+func TestGetRunningPods(t *testing.T) {
 	nonFinishedPod := makePodWithCurrentStateReported(v1.PodPending)
 	finishedPod := makePodWithCurrentStateReported(v1.PodSucceeded)
 
-	runningPods, finishedPods := splitRunningAndFinishedPods([]*v1.Pod{nonFinishedPod, finishedPod})
+	result := getRunningPods([]*v1.Pod{nonFinishedPod, finishedPod})
 
-	assert.Equal(t, len(runningPods), 1)
-	assert.Equal(t, runningPods[0], nonFinishedPod)
-
-	assert.Equal(t, len(finishedPods), 1)
-	assert.Equal(t, finishedPods[0], finishedPod)
+	assert.Equal(t, len(result), 1)
+	assert.Equal(t, result[0], nonFinishedPod)
 }
 
-func TestSplitRunningAndFinishedPods_HandlesEmptyInput(t *testing.T) {
-	runningPods, finishedPods := splitRunningAndFinishedPods([]*v1.Pod{})
+func TestGetRunningPods_HandlesEmptyInput(t *testing.T) {
+	result := getRunningPods([]*v1.Pod{})
 
-	assert.NotNil(t, runningPods)
-	assert.Equal(t, len(runningPods), 0)
-	assert.NotNil(t, finishedPods)
-	assert.Equal(t, len(finishedPods), 0)
+	assert.NotNil(t, result)
+	assert.Equal(t, len(result), 0)
+}
+
+func TestGetFinishedPods(t *testing.T) {
+	nonFinishedPod := makePodWithCurrentStateReported(v1.PodPending)
+	finishedPod := makePodWithCurrentStateReported(v1.PodSucceeded)
+
+	result := getFinishedPods([]*v1.Pod{nonFinishedPod, finishedPod})
+
+	assert.Equal(t, len(result), 1)
+	assert.Equal(t, result[0], finishedPod)
+}
+
+func TestGetFinishedPods_HandlesEmptyInput(t *testing.T) {
+	result := getFinishedPods([]*v1.Pod{})
+
+	assert.NotNil(t, result)
+	assert.Equal(t, len(result), 0)
 }

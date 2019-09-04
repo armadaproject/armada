@@ -32,7 +32,7 @@ func (server SubmitServer) SubmitJob(ctx context.Context, req *api.JobRequest) (
 
 	job := server.jobRepository.CreateJob(req)
 
-	e := reportQueued(server.eventRepository, job)
+	e := reportSubmitted(server.eventRepository, job)
 	if e != nil {
 		return nil, status.Errorf(codes.Aborted, e.Error())
 	}
@@ -43,7 +43,7 @@ func (server SubmitServer) SubmitJob(ctx context.Context, req *api.JobRequest) (
 	}
 	result := &api.JobSubmitResponse{JobId: job.Id}
 
-	e = reportSubmitted(server.eventRepository, job)
+	e = reportQueued(server.eventRepository, job)
 	if e != nil {
 		return result, status.Errorf(codes.Aborted, e.Error())
 	}
