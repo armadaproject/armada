@@ -36,8 +36,8 @@ workflows:
   version: 2
   build-and-test:
     jobs:
-      - request-e2e-testing
+      - hold
           type: approval
-      - e2e:
+      - e2e
           requires:
-            - request-e2e-testing
+            - hold
