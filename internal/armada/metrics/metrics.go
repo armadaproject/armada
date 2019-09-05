@@ -3,17 +3,13 @@ package metrics
 import (
 	"github.com/G-Research/k8s-batch/internal/armada/repository"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
-	"net/http"
 )
 
 const metricPrefix = "armada_"
 
 func ExposeDataMetrics(queueRepository repository.QueueRepository, jobRepository repository.JobRepository) {
-	registry := prometheus.NewRegistry()
-	registry.MustRegister(&QueueInfoCollector{queueRepository, jobRepository})
-	http.Handle("/metrics-data", promhttp.HandlerFor(registry, promhttp.HandlerOpts{}))
+	prometheus.MustRegister(&QueueInfoCollector{queueRepository, jobRepository})
 }
 
 type QueueInfoCollector struct {
