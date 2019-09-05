@@ -183,7 +183,6 @@ func (repo RedisJobRepository) GetQueueSizes(queues []*api.Queue) (sizes []int64
 	pipe := repo.db.Pipeline()
 	cmds := make(map[*api.Queue]*redis.IntCmd)
 	for _, queue := range queues {
-		// empty (even sorted) sets gets deleted by redis automatically
 		cmds[queue] = pipe.ZCount(jobQueuePrefix+queue.Name, "-Inf", "+Inf")
 	}
 	_, e := pipe.Exec()
