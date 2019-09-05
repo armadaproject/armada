@@ -95,6 +95,8 @@ func createServer(config *configuration.ArmadaConfig) *grpc.Server {
 		streamInterceptors = append(streamInterceptors, authStreamInterceptor)
 	}
 
+	grpc_prometheus.EnableHandlingTimeHistogram()
+
 	unaryInterceptors = append(unaryInterceptors, grpc_prometheus.UnaryServerInterceptor)
 	streamInterceptors = append(streamInterceptors, grpc_prometheus.StreamServerInterceptor)
 
