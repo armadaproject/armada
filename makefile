@@ -11,7 +11,7 @@ build-executor:
 build-armadactl:
 	$(gobuild) -o armadactl cmd/armadactl/main.go
 
-build-load-test:
-	$(gobuild) -o load-test cmd/load-test/main.go
+build-load-tester:
+	$(gobuild) -o armada-load-tester cmd/armada-load-tester/main.go
 
-build: build-server build-executor build-armadactl build-load-test
+build: build-server build-executor build-armadactl build-load-tester
