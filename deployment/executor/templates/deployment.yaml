@@ -30,6 +30,10 @@ spec:
             - --inCluster
           resources:
 {{ toYaml .Values.resources | indent 12 }}
+          ports:
+            - containerPort: 9001
+              protocol: TCP
+              name: metrics
           volumeMounts:
             - name: user-config
               mountPath: /config/application_config.yaml
