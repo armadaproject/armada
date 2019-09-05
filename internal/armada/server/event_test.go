@@ -62,3 +62,7 @@ func (s *eventStreamMock) Send(m *api.EventStreamMessage) error {
 	s.sendMessages = append(s.sendMessages, m)
 	return nil
 }
+
+func (s *eventStreamMock) Context() context.Context {
+	return context.Background()
+}
