@@ -20,7 +20,7 @@ type JobRepository interface {
 	CreateJob(request *api.JobRequest) *api.Job
 	AddJob(job *api.Job) error
 	PeekQueue(queue string, limit int64) ([]*api.Job, error)
-	FilterActiveQueues(queues []*api.Queue) ([]*api.Queue, error)
+	GetQueueSizes(queues []*api.Queue) (sizes []int64, e error)
 	TryLeaseJobs(clusterId string, queue string, jobs []*api.Job) ([]*api.Job, error)
 	RenewLease(clusterId string, jobIds []string) (renewed []string, e error)
 	ExpireLeases(queue string, deadline time.Time) (expired []*api.Job, e error)
@@ -157,7 +157,7 @@ func (repo RedisJobRepository) GetJobsByIds(ids []string) ([]*api.Job, error) {
 	return jobs, nil
 }
 
-func (repo RedisJobRepository) FilterActiveQueues(queues []*api.Queue) ([]*api.Queue, error) {
+func (repo RedisJobRepository) GetQueueSizes(queues []*api.Queue) (sizes []int64, err error) {
 	pipe := repo.db.Pipeline()
 	cmds := make(map[*api.Queue]*redis.IntCmd)
 	for _, queue := range queues {
@@ -169,13 +169,11 @@ func (repo RedisJobRepository) FilterActiveQueues(queues []*api.Queue) ([]*api.Q
 		return nil, e
 	}
 
-	var active []*api.Queue
-	for queue, cmd := range cmds {
-		if cmd.Val() > 0 {
-			active = append(active, queue)
-		}
+	sizes = []int64{}
+	for _, cmd := range cmds {
+		sizes = append(sizes, cmd.Val())
 	}
-	return active, nil
+	return sizes, nil
 }
 
 func (repo RedisJobRepository) ExpireLeases(queue string, deadline time.Time) ([]*api.Job, error) {

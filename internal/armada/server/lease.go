@@ -56,7 +56,7 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 	// TODO: doing cleanup here for simplicity, should happen in background loop instead
 	expireOldJobs(q.jobRepository, q.eventRepository, queues, 2*time.Minute)
 
-	activeQueues, e := q.jobRepository.FilterActiveQueues(queues)
+	activeQueues, e := q.filterActiveQueues(queues)
 	if e != nil {
 		return nil, e
 	}
@@ -136,6 +136,21 @@ func (q AggregatedQueueServer) leaseJobs(clusterId string, queue string, slice c
 	go reportJobsLeased(q.eventRepository, jobs, clusterId)
 
 	return jobs, slice, nil
+}
+
+func (q AggregatedQueueServer) filterActiveQueues(queues []*api.Queue) ([]*api.Queue, error) {
+	sizes, e := q.jobRepository.GetQueueSizes(queues)
+	if e != nil {
+		return nil, e
+	}
+
+	var active []*api.Queue
+	for i, queue := range queues {
+		if sizes[i] > 0 {
+			active = append(active, queue)
+		}
+	}
+	return active, nil
 }
 
 func sliceResource(queuePriorities map[string]float64, quantity common.ComputeResources) map[string]common.ComputeResourcesFloat {

@@ -35,6 +35,9 @@ func main() {
 	stopSignal := make(chan os.Signal, 1)
 	signal.Notify(stopSignal, syscall.SIGINT, syscall.SIGTERM)
 
+	shutdownMetricServer := common.ServeMetrics(":9000")
+	defer shutdownMetricServer()
+
 	s, wg := armada.Serve(&config)
 	go func() {
 		<-stopSignal
