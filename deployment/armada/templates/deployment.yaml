@@ -33,6 +33,9 @@ spec:
             - containerPort:  {{ .Values.applicationConfig.grpcPort }}
               protocol: TCP
               name: grpc
+            - containerPort: 9000
+              protocol: TCP
+              name: metrics
           volumeMounts:
             - name: user-config
               mountPath: /config/application_config.yaml

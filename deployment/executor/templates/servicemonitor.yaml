@@ -1,0 +1,13 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "executor.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+{{ include "executor.labels.all" . | indent 4 }}
+spec:
+  selector:
+{{ include "executor.labels.identity" . | indent 4 }}
+  endpoints:
+    - port: metrics
+    - path: /metrics

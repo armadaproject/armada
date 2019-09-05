@@ -7,6 +7,7 @@ import (
 	"github.com/G-Research/k8s-batch/internal/executor/reporter"
 	"github.com/G-Research/k8s-batch/internal/executor/service"
 	"github.com/G-Research/k8s-batch/internal/executor/submitter"
+	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -107,9 +108,15 @@ func createConnectionToApi(config configuration.ExecutorConfiguration) (*grpc.Cl
 			grpc.WithPerRPCCredentials(&common.LoginCredentials{
 				Username: config.Authentication.Username,
 				Password: config.Authentication.Password,
-			}))
+			}),
+			grpc.WithUnaryInterceptor(grpc_prometheus.UnaryClientInterceptor),
+			grpc.WithStreamInterceptor(grpc_prometheus.StreamClientInterceptor))
 	} else {
-		return grpc.Dial(config.Armada.Url, grpc.WithInsecure())
+		return grpc.Dial(
+			config.Armada.Url,
+			grpc.WithInsecure(),
+			grpc.WithUnaryInterceptor(grpc_prometheus.UnaryClientInterceptor),
+			grpc.WithStreamInterceptor(grpc_prometheus.StreamClientInterceptor))
 	}
 }
 
