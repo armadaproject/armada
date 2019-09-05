@@ -181,9 +181,9 @@ func (repo RedisJobRepository) FilterActiveQueues(queues []*api.Queue) ([]*api.Q
 
 func (repo RedisJobRepository) GetQueueSizes(queues []*api.Queue) (sizes []int64, err error) {
 	pipe := repo.db.Pipeline()
-	cmds := make(map[*api.Queue]*redis.IntCmd)
+	cmds := []*redis.IntCmd{}
 	for _, queue := range queues {
-		cmds[queue] = pipe.ZCount(jobQueuePrefix+queue.Name, "-Inf", "+Inf")
+		cmds = append(cmds, pipe.ZCount(jobQueuePrefix+queue.Name, "-Inf", "+Inf"))
 	}
 	_, e := pipe.Exec()
 	if e != nil {
