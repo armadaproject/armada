@@ -120,22 +120,22 @@ func (a ComputeResourcesFloat) DeepCopy() ComputeResourcesFloat {
 	return targetComputeResource
 }
 
-//Resource limit for a given pod is the maximum of:
+//Resource request for a given pod is the maximum of:
 // - sum of all containers
 // - any individual init container
 //This is because:
 // - containers run in parallel (so need to sum resources)
 // - init containers run sequentially (so only their individual resource need be considered)
 //So pod resource usage is the max for each resource type (cpu/memory etc) that could be used at any given time
-func TotalResourceLimit(podSpec *v1.PodSpec) ComputeResources {
+func TotalResourceRequest(podSpec *v1.PodSpec) ComputeResources {
 	totalResources := make(ComputeResources)
 	for _, container := range podSpec.Containers {
-		containerResource := FromResourceList(container.Resources.Limits)
+		containerResource := FromResourceList(container.Resources.Requests)
 		totalResources.Add(containerResource)
 	}
 
 	for _, initContainer := range podSpec.InitContainers {
-		containerResource := FromResourceList(initContainer.Resources.Limits)
+		containerResource := FromResourceList(initContainer.Resources.Requests)
 		totalResources.Max(containerResource)
 	}
 	return totalResources
@@ -150,10 +150,10 @@ func CalculateTotalResource(nodes []*v1.Node) ComputeResources {
 	return totalResources
 }
 
-func CalculateTotalResourceLimit(pods []*v1.Pod) ComputeResources {
+func CalculateTotalResourceRequest(pods []*v1.Pod) ComputeResources {
 	totalResources := make(ComputeResources)
 	for _, pod := range pods {
-		podResource := TotalResourceLimit(&pod.Spec)
+		podResource := TotalResourceRequest(&pod.Spec)
 		totalResources.Add(podResource)
 	}
 	return totalResources

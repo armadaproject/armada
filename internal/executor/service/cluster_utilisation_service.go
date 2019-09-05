@@ -66,7 +66,7 @@ func (clusterUtilisationService ClusterUtilisationService) GetAvailableClusterCa
 	allNonCompletePodsRequiringResource := util.FilterNonCompletedPods(allPodsRequiringResource)
 
 	totalNodeResource := common.CalculateTotalResource(processingNodes)
-	totalPodResource := common.CalculateTotalResourceLimit(allNonCompletePodsRequiringResource)
+	totalPodResource := common.CalculateTotalResourceRequest(allNonCompletePodsRequiringResource)
 
 	availableResource := totalNodeResource.DeepCopy()
 	availableResource.Sub(totalPodResource)
@@ -178,7 +178,7 @@ func getUsageByQueue(pods []*v1.Pod) map[string]common.ComputeResources {
 			continue
 		}
 
-		podComputeResource := common.CalculateTotalResourceLimit([]*v1.Pod{pod})
+		podComputeResource := common.CalculateTotalResourceRequest([]*v1.Pod{pod})
 
 		if _, ok := utilisationByQueue[queue]; ok {
 			utilisationByQueue[queue].Add(podComputeResource)
