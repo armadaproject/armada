@@ -20,7 +20,7 @@ func TestCalculateTotalResource(t *testing.T) {
 	assert.Equal(t, result, expectedResult)
 }
 
-func TestCalculateTotalResourceLimit_ShouldSumAllPods(t *testing.T) {
+func TestCalculateTotalResourceRequest_ShouldSumAllPods(t *testing.T) {
 	resources := makeContainerResource(100, 50)
 	pod1 := makePodWithResource([]*v1.ResourceList{&resources}, []*v1.ResourceList{})
 	pod2 := makePodWithResource([]*v1.ResourceList{&resources}, []*v1.ResourceList{})
@@ -28,22 +28,22 @@ func TestCalculateTotalResourceLimit_ShouldSumAllPods(t *testing.T) {
 	//Expected is resources * 2 containers
 	expectedResult := makeContainerResource(200, 100)
 
-	result := CalculateTotalResourceLimit([]*v1.Pod{&pod1, &pod2})
+	result := CalculateTotalResourceRequest([]*v1.Pod{&pod1, &pod2})
 	assert.Equal(t, result, FromResourceList(expectedResult))
 }
 
-func TestTotalResourceLimit_ShouldSumAllContainers(t *testing.T) {
+func TestTotalResourceRequest_ShouldSumAllContainers(t *testing.T) {
 	resources := makeContainerResource(100, 50)
 	pod := makePodWithResource([]*v1.ResourceList{&resources, &resources}, []*v1.ResourceList{})
 
 	//Expected is resources * 2 containers
 	expectedResult := makeContainerResource(200, 100)
 
-	result := TotalResourceLimit(&pod.Spec)
+	result := TotalResourceRequest(&pod.Spec)
 	assert.Equal(t, result, FromResourceList(expectedResult))
 }
 
-func TestTotalResourceLimit_ShouldReportMaxInitContainerValues(t *testing.T) {
+func TestTotalResourceRequestShouldReportMaxInitContainerValues(t *testing.T) {
 	highCpuResource := makeContainerResource(1000, 5)
 	highRamResource := makeContainerResource(100, 500)
 	//With init containers, it should take the max of each individual resource from all init containers
@@ -51,11 +51,11 @@ func TestTotalResourceLimit_ShouldReportMaxInitContainerValues(t *testing.T) {
 
 	pod := makePodWithResource([]*v1.ResourceList{}, []*v1.ResourceList{&highCpuResource, &highRamResource})
 
-	result := TotalResourceLimit(&pod.Spec)
+	result := TotalResourceRequest(&pod.Spec)
 	assert.Equal(t, result, FromResourceList(expectedResult))
 }
 
-func TestTotalResourceLimit_ShouldCombineMaxInitContainerResourcesWithSummedContainerResources(t *testing.T) {
+func TestTotalResourceRequest_ShouldCombineMaxInitContainerResourcesWithSummedContainerResources(t *testing.T) {
 	standardResource := makeContainerResource(100, 50)
 	highCpuResource := makeContainerResource(1000, 50)
 
@@ -65,7 +65,7 @@ func TestTotalResourceLimit_ShouldCombineMaxInitContainerResourcesWithSummedCont
 	//Memory is 100, as the sum of the two containers is 100, which is higher than the max of any given init container (both init containers are 50 each)
 	expectedResult := makeContainerResource(1000, 100)
 
-	result := TotalResourceLimit(&pod.Spec)
+	result := TotalResourceRequest(&pod.Spec)
 	assert.Equal(t, result, FromResourceList(expectedResult))
 }
 
@@ -98,7 +98,8 @@ func makePodWithResource(containerResources []*v1.ResourceList, initContainerRes
 	for i, res := range containerResources {
 		containers[i] = v1.Container{
 			Resources: v1.ResourceRequirements{
-				Limits: *res,
+				Requests: *res,
+				Limits:   *res,
 			},
 		}
 	}
@@ -107,7 +108,8 @@ func makePodWithResource(containerResources []*v1.ResourceList, initContainerRes
 	for i, res := range initContainerResources {
 		initContainers[i] = v1.Container{
 			Resources: v1.ResourceRequirements{
-				Limits: *res,
+				Requests: *res,
+				Limits:   *res,
 			},
 		}
 	}

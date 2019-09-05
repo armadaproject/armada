@@ -110,7 +110,7 @@ func (q AggregatedQueueServer) leaseJobs(clusterId string, queue string, slice c
 
 		candidates := make([]*api.Job, 0)
 		for _, job := range topJobs {
-			requirement := common.TotalResourceLimit(job.PodSpec).AsFloat()
+			requirement := common.TotalResourceRequest(job.PodSpec).AsFloat()
 			remainder = slice.DeepCopy()
 			remainder.Sub(requirement)
 			if remainder.IsValid() {

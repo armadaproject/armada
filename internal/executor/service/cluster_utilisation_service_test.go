@@ -237,7 +237,8 @@ func makePodWithResource(queue string, resource *v1.ResourceList) v1.Pod {
 			Containers: []v1.Container{
 				{
 					Resources: v1.ResourceRequirements{
-						Limits: *resource,
+						Requests: *resource,
+						Limits:   *resource,
 					},
 				},
 			},
