@@ -30,6 +30,12 @@ func (s EventServer) GetJobSetEvents(request *api.JobSetRequest, stream api.Even
 	}
 
 	for {
+		select {
+		case <-stream.Context().Done():
+			return nil
+		default:
+		}
+
 		messages, e := s.eventRepository.ReadEvents(request.Id, lastId, 100, timeout)
 
 		if e != nil {

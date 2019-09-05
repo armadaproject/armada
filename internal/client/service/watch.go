@@ -2,7 +2,9 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"github.com/G-Research/k8s-batch/internal/armada/api"
+	"github.com/G-Research/k8s-batch/internal/common/util"
 	"github.com/prometheus/common/log"
 	"time"
 )
@@ -25,9 +27,29 @@ type JobInfo struct {
 	Job    *api.Job
 }
 
-func WatchJobSet(client api.EventClient, jobSetId string, onUpdate func(map[string]*JobInfo, api.Event)) {
+var statesToIncludeInSummary []JobStatus
 
+func init() {
+	statesToIncludeInSummary = []JobStatus{
+		Queued,
+		Leased,
+		Pending,
+		Running,
+		Succeeded,
+		Failed,
+		Cancelled,
+	}
+}
+
+func WatchJobSet(client api.EventClient, jobSetId string, onUpdate func(map[string]*JobInfo, api.Event) bool) {
+	WatchJobSetWithJobIdsFilter(client, jobSetId, []string{}, onUpdate)
+}
+
+func WatchJobSetWithJobIdsFilter(client api.EventClient, jobSetId string, jobIds []string, onUpdate func(map[string]*JobInfo, api.Event) bool) {
 	state := make(map[string]*JobInfo)
+
+	jobIdsSet := util.StringListToSet(jobIds)
+	filterOnJobId := len(jobIdsSet) > 0
 
 	for {
 		clientStream, e := client.GetJobSetEvents(context.Background(), &api.JobSetRequest{Id: jobSetId, Watch: true})
@@ -51,6 +73,10 @@ func WatchJobSet(client api.EventClient, jobSetId string, onUpdate func(map[stri
 			if e != nil {
 				log.Error(e)
 				time.Sleep(5 * time.Second)
+				continue
+			}
+
+			if filterOnJobId && !jobIdsSet[event.GetJobId()] {
 				continue
 			}
 
@@ -87,7 +113,10 @@ func WatchJobSet(client api.EventClient, jobSetId string, onUpdate func(map[stri
 
 			}
 
-			onUpdate(state, event)
+			shouldExit := onUpdate(state, event)
+			if shouldExit {
+				return
+			}
 		}
 	}
 }
@@ -99,4 +128,21 @@ func CountStates(state map[string]*JobInfo) map[JobStatus]int {
 		result[jobInfo.Status] = count + 1
 	}
 	return result
+}
+
+func CreateSummaryOfCurrentState(state map[string]*JobInfo) string {
+	counts := CountStates(state)
+
+	first := true
+	summary := ""
+
+	for _, state := range statesToIncludeInSummary {
+		if !first {
+			summary += ", "
+		}
+		first = false
+		summary += fmt.Sprintf("%s: %3d", state, counts[state])
+	}
+
+	return summary
 }
