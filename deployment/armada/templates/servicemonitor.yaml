@@ -10,4 +10,3 @@ spec:
 {{ include "armada.labels.identity" . | indent 4 }}
   endpoints:
     - port: metrics
-    - path: /metrics
