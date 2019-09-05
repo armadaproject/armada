@@ -2,9 +2,9 @@ apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
   name: {{ include "armada.name" . }}
-    namespace: {{ .Release.Namespace }}
-    labels:
-  {{ include "armada.labels.all" . | indent 4 }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+{{ include "armada.labels.all" . | indent 4 }}
 spec:
   groups:
     - name: grpc-server-metrics
