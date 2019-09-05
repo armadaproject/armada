@@ -20,6 +20,7 @@ type JobRepository interface {
 	CreateJob(request *api.JobRequest) *api.Job
 	AddJob(job *api.Job) error
 	PeekQueue(queue string, limit int64) ([]*api.Job, error)
+	FilterActiveQueues(queues []*api.Queue) ([]*api.Queue, error)
 	GetQueueSizes(queues []*api.Queue) (sizes []int64, e error)
 	TryLeaseJobs(clusterId string, queue string, jobs []*api.Job) ([]*api.Job, error)
 	RenewLease(clusterId string, jobIds []string) (renewed []string, e error)
@@ -157,12 +158,33 @@ func (repo RedisJobRepository) GetJobsByIds(ids []string) ([]*api.Job, error) {
 	return jobs, nil
 }
 
-func (repo RedisJobRepository) GetQueueSizes(queues []*api.Queue) (sizes []int64, err error) {
+func (repo RedisJobRepository) FilterActiveQueues(queues []*api.Queue) ([]*api.Queue, error) {
 	pipe := repo.db.Pipeline()
 	cmds := make(map[*api.Queue]*redis.IntCmd)
 	for _, queue := range queues {
 		// empty (even sorted) sets gets deleted by redis automatically
 		cmds[queue] = pipe.Exists(jobQueuePrefix + queue.Name)
+	}
+	_, e := pipe.Exec()
+	if e != nil {
+		return nil, e
+	}
+
+	var active []*api.Queue
+	for queue, cmd := range cmds {
+		if cmd.Val() > 0 {
+			active = append(active, queue)
+		}
+	}
+	return active, nil
+}
+
+func (repo RedisJobRepository) GetQueueSizes(queues []*api.Queue) (sizes []int64, err error) {
+	pipe := repo.db.Pipeline()
+	cmds := make(map[*api.Queue]*redis.IntCmd)
+	for _, queue := range queues {
+		// empty (even sorted) sets gets deleted by redis automatically
+		cmds[queue] = pipe.ZCount(jobQueuePrefix+queue.Name, "-Inf", "+Inf")
 	}
 	_, e := pipe.Exec()
 	if e != nil {
