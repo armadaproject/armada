@@ -7,7 +7,7 @@ require (
 	github.com/alecthomas/units v0.0.0-20190717042225-c3de453c63f4 // indirect
 	github.com/alicebob/gopher-json v0.0.0-20180125190556-5a6b3ba71ee6 // indirect
 	github.com/alicebob/miniredis v2.5.0+incompatible
-	github.com/go-redis/redis v6.15.2+incompatible
+	github.com/go-redis/redis v6.15.4+incompatible
 	github.com/gogo/protobuf v1.2.1
 	github.com/golang/groupcache v0.0.0-20190702054246-869f871628b6 // indirect
 	github.com/gomodule/redigo v2.0.0+incompatible // indirect
