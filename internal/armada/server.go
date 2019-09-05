@@ -4,10 +4,13 @@ import (
 	"context"
 	"github.com/G-Research/k8s-batch/internal/armada/api"
 	"github.com/G-Research/k8s-batch/internal/armada/configuration"
+	"github.com/G-Research/k8s-batch/internal/armada/metrics"
 	"github.com/G-Research/k8s-batch/internal/armada/repository"
 	"github.com/G-Research/k8s-batch/internal/armada/server"
 	"github.com/G-Research/k8s-batch/internal/armada/service"
 	"github.com/go-redis/redis"
+	"github.com/grpc-ecosystem/go-grpc-middleware"
+	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"net"
@@ -46,6 +49,10 @@ func Serve(config *configuration.ArmadaConfig) (*grpc.Server, *sync.WaitGroup) {
 		api.RegisterAggregatedQueueServer(grpcServer, aggregatedQueueServer)
 		api.RegisterEventServer(grpcServer, eventServer)
 
+		grpc_prometheus.Register(grpcServer)
+
+		metrics.ExposeDataMetrics(queueRepository, jobRepository)
+
 		log.Printf("Grpc listening on %s", config.GrpcPort)
 		if err := grpcServer.Serve(lis); err != nil {
 			log.Fatalf("failed to serve: %v", err)
@@ -78,17 +85,26 @@ func createRedisClient(config configuration.RedisConfig) *redis.Client {
 }
 
 func createServer(config *configuration.ArmadaConfig) *grpc.Server {
+
+	unaryInterceptors := []grpc.UnaryServerInterceptor{}
+	streamInterceptors := []grpc.StreamServerInterceptor{}
+
 	if config.Authentication.EnableAuthentication {
 		authService := service.NewBasicAuthAuthorizeService(config.Authentication.Users)
-		unaryInterceptor, streamInterceptor := createInterceptors(authService)
+		authUnaryInterceptor, authStreamInterceptor := createInterceptors(authService)
 
-		return grpc.NewServer(
-			grpc.StreamInterceptor(streamInterceptor),
-			grpc.UnaryInterceptor(unaryInterceptor),
-		)
-	} else {
-		return grpc.NewServer()
+		unaryInterceptors = append(unaryInterceptors, authUnaryInterceptor)
+		streamInterceptors = append(streamInterceptors, authStreamInterceptor)
 	}
+
+	grpc_prometheus.EnableHandlingTimeHistogram()
+
+	unaryInterceptors = append(unaryInterceptors, grpc_prometheus.UnaryServerInterceptor)
+	streamInterceptors = append(streamInterceptors, grpc_prometheus.StreamServerInterceptor)
+
+	return grpc.NewServer(
+		grpc.StreamInterceptor(grpc_middleware.ChainStreamServer(streamInterceptors...)),
+		grpc.UnaryInterceptor(grpc_middleware.ChainUnaryServer(unaryInterceptors...)))
 }
 
 func createInterceptors(authService service.AuthorizeService) (grpc.UnaryServerInterceptor, grpc.StreamServerInterceptor) {

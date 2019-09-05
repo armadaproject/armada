@@ -1,11 +1,16 @@
 package common
 
 import (
+	"context"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
+	"github.com/weaveworks/promrus"
+	"net/http"
 	"os"
 	"strings"
+	"time"
 )
 
 func BindCommandlineArguments() {
@@ -48,4 +53,29 @@ func LoadConfig(config interface{}, defaultPath string, overrideConfig string) {
 func ConfigureLogging() {
 	log.SetFormatter(&log.TextFormatter{ForceColors: true, FullTimestamp: true})
 	log.SetOutput(os.Stdout)
+}
+
+func ServeMetrics(addr string) (shutdown func()) {
+	srv := &http.Server{Addr: addr}
+
+	hook := promrus.MustNewPrometheusHook()
+	log.AddHook(hook)
+
+	http.Handle("/metrics", promhttp.Handler())
+	go func() {
+		log.Printf("Metrics listening on %s", addr)
+		if err := srv.ListenAndServe(); err != http.ErrServerClosed {
+			panic(err)
+		}
+		log.Printf("Metrics listening on %s", addr)
+	}()
+	return func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		log.Print("Stopping metrics server")
+		e := srv.Shutdown(ctx)
+		if e != nil {
+			panic(e)
+		}
+	}
 }
