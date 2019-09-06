@@ -6,9 +6,6 @@ import (
 	"github.com/gogo/protobuf/proto"
 )
 
-type Queue struct {
-}
-
 const queueHashKey = "Queue"
 
 type QueueRepository interface {
