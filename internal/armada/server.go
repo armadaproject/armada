@@ -34,9 +34,11 @@ func Serve(config *configuration.ArmadaConfig) (*grpc.Server, *sync.WaitGroup) {
 
 		eventRepository := repository.NewRedisEventRepository(eventsDb)
 
+		metricsRecorder := metrics.ExposeDataMetrics(queueRepository, jobRepository)
+
 		submitServer := server.NewSubmitServer(jobRepository, queueRepository, eventRepository)
 		usageServer := server.NewUsageServer(time.Minute, usageRepository)
-		aggregatedQueueServer := server.NewAggregatedQueueServer(jobRepository, usageRepository, queueRepository, eventRepository)
+		aggregatedQueueServer := server.NewAggregatedQueueServer(jobRepository, usageRepository, queueRepository, eventRepository, metricsRecorder)
 		eventServer := server.NewEventServer(eventRepository)
 
 		lis, err := net.Listen("tcp", config.GrpcPort)
@@ -50,8 +52,6 @@ func Serve(config *configuration.ArmadaConfig) (*grpc.Server, *sync.WaitGroup) {
 		api.RegisterEventServer(grpcServer, eventServer)
 
 		grpc_prometheus.Register(grpcServer)
-
-		metrics.ExposeDataMetrics(queueRepository, jobRepository)
 
 		log.Printf("Grpc listening on %s", config.GrpcPort)
 		if err := grpcServer.Serve(lis); err != nil {

@@ -8,13 +8,20 @@ import (
 
 const metricPrefix = "armada_"
 
-func ExposeDataMetrics(queueRepository repository.QueueRepository, jobRepository repository.JobRepository) {
-	prometheus.MustRegister(&QueueInfoCollector{queueRepository, jobRepository})
+func ExposeDataMetrics(queueRepository repository.QueueRepository, jobRepository repository.JobRepository) *QueueInfoCollector {
+	collector := &QueueInfoCollector{queueRepository, jobRepository, map[string]float64{}}
+	prometheus.MustRegister(collector)
+	return collector
+}
+
+type MetricRecorder interface {
+	RecordQueuePriorities(priorities map[string]float64)
 }
 
 type QueueInfoCollector struct {
 	queueRepository repository.QueueRepository
 	jobRepository   repository.JobRepository
+	priorities      map[string]float64
 }
 
 var queueSizeDesc = prometheus.NewDesc(
@@ -31,6 +38,10 @@ var queuePriorityDesc = prometheus.NewDesc(
 	nil,
 )
 
+func (c *QueueInfoCollector) RecordQueuePriorities(priorities map[string]float64) {
+	c.priorities = priorities
+}
+
 func (c *QueueInfoCollector) Describe(desc chan<- *prometheus.Desc) {
 	desc <- queueSizeDesc
 	desc <- queuePriorityDesc
@@ -38,14 +49,15 @@ func (c *QueueInfoCollector) Describe(desc chan<- *prometheus.Desc) {
 
 func (c *QueueInfoCollector) Collect(metrics chan<- prometheus.Metric) {
 
+	for queueName, priority := range c.priorities {
+		metrics <- prometheus.MustNewConstMetric(queuePriorityDesc, prometheus.GaugeValue, priority, queueName)
+	}
+
 	queues, e := c.queueRepository.GetQueues()
 	if e != nil {
 		log.Errorf("Error while getting queue metrics %s", e)
-		metrics <- prometheus.NewInvalidMetric(queuePriorityDesc, e)
+		metrics <- prometheus.NewInvalidMetric(queueSizeDesc, e)
 		return
-	}
-	for _, q := range queues {
-		metrics <- prometheus.MustNewConstMetric(queuePriorityDesc, prometheus.GaugeValue, q.Priority, q.Name)
 	}
 
 	queueSizes, e := c.jobRepository.GetQueueSizes(queues)

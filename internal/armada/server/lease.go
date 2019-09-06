@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"github.com/G-Research/k8s-batch/internal/armada/api"
+	"github.com/G-Research/k8s-batch/internal/armada/metrics"
 	"github.com/G-Research/k8s-batch/internal/armada/repository"
 	"github.com/G-Research/k8s-batch/internal/common"
 	"github.com/G-Research/k8s-batch/internal/common/util"
@@ -16,6 +17,7 @@ type AggregatedQueueServer struct {
 	usageRepository repository.UsageRepository
 	queueRepository repository.QueueRepository
 	eventRepository repository.EventRepository
+	metricRecorder  metrics.MetricRecorder
 }
 
 func NewAggregatedQueueServer(
@@ -23,13 +25,15 @@ func NewAggregatedQueueServer(
 	usageRepository repository.UsageRepository,
 	queueRepository repository.QueueRepository,
 	eventRepository repository.EventRepository,
+	metricRecorder metrics.MetricRecorder,
 ) *AggregatedQueueServer {
 
 	return &AggregatedQueueServer{
 		jobRepository:   jobRepository,
 		usageRepository: usageRepository,
 		queueRepository: queueRepository,
-		eventRepository: eventRepository}
+		eventRepository: eventRepository,
+		metricRecorder:  metricRecorder}
 }
 
 const minPriority = 0.5
@@ -37,16 +41,11 @@ const batchSize = 100
 
 func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.LeaseRequest) (*api.JobLease, error) {
 
-	usageReports, e := q.usageRepository.GetClusterUsageReports()
+	queuePriority, e := q.calculatePriorities()
 	if e != nil {
 		return nil, e
 	}
-
-	activeClusterIds := filterActiveClusters(usageReports, 10*time.Minute)
-	clusterPriorities, e := q.usageRepository.GetClusterPriorities(activeClusterIds)
-	if e != nil {
-		return nil, e
-	}
+	q.metricRecorder.RecordQueuePriorities(queuePriority)
 
 	queues, e := q.queueRepository.GetQueues()
 	if e != nil {
@@ -61,8 +60,6 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 		return nil, e
 	}
 	activeQueueNames := getQueueNames(activeQueues)
-
-	queuePriority := aggregatePriority(clusterPriorities)
 	activeQueuePriority := filterMapByKeys(queuePriority, activeQueueNames, minPriority)
 	slices := sliceResource(activeQueuePriority, request.Resources)
 	jobs, e := q.assignJobs(request.ClusterID, slices)
@@ -96,6 +93,23 @@ func (q AggregatedQueueServer) assignJobs(clusterId string, slices map[string]co
 		jobs = append(jobs, leased...)
 	}
 	return jobs, nil
+}
+
+func (q AggregatedQueueServer) calculatePriorities() (map[string]float64, error) {
+
+	usageReports, e := q.usageRepository.GetClusterUsageReports()
+	if e != nil {
+		return nil, e
+	}
+
+	activeClusterIds := filterActiveClusters(usageReports, 10*time.Minute)
+	clusterPriorities, e := q.usageRepository.GetClusterPriorities(activeClusterIds)
+	if e != nil {
+		return nil, e
+	}
+	queuePriority := aggregatePriority(clusterPriorities)
+
+	return queuePriority, nil
 }
 
 func (q AggregatedQueueServer) leaseJobs(clusterId string, queue string, slice common.ComputeResourcesFloat) ([]*api.Job, common.ComputeResourcesFloat, error) {
