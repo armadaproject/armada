@@ -31,6 +31,7 @@ func main() {
 	loadUsersCredentialFile(&config)
 
 	log.Info("Starting...")
+	log.Infof("Config %+v", config)
 
 	stopSignal := make(chan os.Signal, 1)
 	signal.Notify(stopSignal, syscall.SIGINT, syscall.SIGTERM)
