@@ -32,7 +32,7 @@ var queueSizeDesc = prometheus.NewDesc(
 )
 
 var queuePriorityDesc = prometheus.NewDesc(
-	metricPrefix+"queue_Priority",
+	metricPrefix+"queue_priority",
 	"Priority of a queue",
 	[]string{"queueName"},
 	nil,
