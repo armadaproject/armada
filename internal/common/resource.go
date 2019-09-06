@@ -131,7 +131,7 @@ func (a ComputeResourcesFloat) DeepCopy() ComputeResourcesFloat {
 	return targetComputeResource
 }
 
-func (a ComputeResourcesFloat) IsLessThen(b ComputeResourcesFloat) bool {
+func (a ComputeResourcesFloat) IsLessThan(b ComputeResourcesFloat) bool {
 	reduced := a.DeepCopy()
 	reduced.Sub(b)
 	return !reduced.IsValid()

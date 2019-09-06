@@ -40,9 +40,14 @@ func NewAggregatedQueueServer(
 const minPriority = 0.5
 const batchSize = 100
 
-var minimalResource = common.ComputeResourcesFloat{"cpu": 0.5, "memory": 200.0 * 1024 * 1024}
+var minimalResource = common.ComputeResourcesFloat{"cpu": 0.25, "memory": 100.0 * 1024 * 1024}
 
 func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.LeaseRequest) (*api.JobLease, error) {
+
+	var res common.ComputeResources = request.Resources
+	if res.AsFloat().IsLessThan(minimalResource) {
+		return &api.JobLease{}, nil
+	}
 
 	queuePriority, e := q.calculatePriorities()
 	if e != nil {
@@ -129,7 +134,7 @@ func (q AggregatedQueueServer) distributeRemainder(clusterId string, priorities 
 		}
 		jobs = append(jobs, leased...)
 		remainder = remaining
-		if remainder.IsLessThen(minimalResource) {
+		if remainder.IsLessThan(minimalResource) {
 			break
 		}
 	}
