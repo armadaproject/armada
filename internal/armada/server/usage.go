@@ -57,13 +57,13 @@ func calculatePriority(usage map[string]float64, previousPriority map[string]flo
 	timeChangeFactor := math.Pow(0.5, timeChange.Seconds()/halfTime.Seconds())
 
 	for queue, oldPriority := range previousPriority {
-		newPriority[queue] = timeChangeFactor*util.GetOrDefault(usage, queue, 0) +
-			(1-timeChangeFactor)*oldPriority
+		newPriority[queue] = timeChangeFactor*oldPriority +
+			(1-timeChangeFactor)*util.GetOrDefault(usage, queue, 0)
 	}
 	for queue, usage := range usage {
 		_, exists := newPriority[queue]
 		if !exists {
-			newPriority[queue] = timeChangeFactor * usage
+			newPriority[queue] = (1 - timeChangeFactor) * usage
 		}
 	}
 	return newPriority
