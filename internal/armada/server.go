@@ -15,7 +15,6 @@ import (
 	"google.golang.org/grpc"
 	"net"
 	"sync"
-	"time"
 )
 
 func Serve(config *configuration.ArmadaConfig) (*grpc.Server, *sync.WaitGroup) {
@@ -37,7 +36,7 @@ func Serve(config *configuration.ArmadaConfig) (*grpc.Server, *sync.WaitGroup) {
 		metricsRecorder := metrics.ExposeDataMetrics(queueRepository, jobRepository)
 
 		submitServer := server.NewSubmitServer(jobRepository, queueRepository, eventRepository)
-		usageServer := server.NewUsageServer(time.Minute, usageRepository)
+		usageServer := server.NewUsageServer(config.PriorityHalfTime, usageRepository)
 		aggregatedQueueServer := server.NewAggregatedQueueServer(jobRepository, usageRepository, queueRepository, eventRepository, metricsRecorder)
 		eventServer := server.NewEventServer(eventRepository)
 
