@@ -67,12 +67,12 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 	slices := sliceResource(activeQueuePriority, request.Resources)
 	jobs, e := q.assignJobs(request.ClusterID, slices)
 	if e != nil {
-		log.Error("Error when leasing jobs for cluster %s: %s", request.ClusterID, e)
+		log.Errorf("Error when leasing jobs for cluster %s: %s", request.ClusterID, e)
 		return nil, e
 	}
 	additionalJobs, e := q.distributeRemainder(request.ClusterID, activeQueuePriority, slices)
 	if e != nil {
-		log.Error("Error when leasing jobs for cluster %s: %s", request.ClusterID, e)
+		log.Errorf("Error when leasing jobs for cluster %s: %s", request.ClusterID, e)
 		return nil, e
 	}
 	jobs = append(jobs, additionalJobs...)
