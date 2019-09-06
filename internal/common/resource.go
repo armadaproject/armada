@@ -112,12 +112,29 @@ func (a ComputeResourcesFloat) Sub(b ComputeResourcesFloat) {
 	}
 }
 
+func (a ComputeResourcesFloat) Add(b ComputeResourcesFloat) {
+	for k, v := range b {
+		existing, ok := a[k]
+		if ok {
+			a[k] = existing + v
+		} else {
+			a[k] = v
+		}
+	}
+}
+
 func (a ComputeResourcesFloat) DeepCopy() ComputeResourcesFloat {
 	targetComputeResource := make(ComputeResourcesFloat)
 	for key, value := range a {
 		targetComputeResource[key] = value
 	}
 	return targetComputeResource
+}
+
+func (a ComputeResourcesFloat) IsLessThan(b ComputeResourcesFloat) bool {
+	reduced := a.DeepCopy()
+	reduced.Sub(b)
+	return !reduced.IsValid()
 }
 
 //Resource request for a given pod is the maximum of:
