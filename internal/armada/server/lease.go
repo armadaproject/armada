@@ -9,6 +9,7 @@ import (
 	"github.com/G-Research/k8s-batch/internal/common/util"
 	log "github.com/sirupsen/logrus"
 	"math"
+	"sort"
 	"time"
 )
 
@@ -39,6 +40,8 @@ func NewAggregatedQueueServer(
 const minPriority = 0.5
 const batchSize = 100
 
+var minimalResource = common.ComputeResourcesFloat{"cpu": 0.5, "memory": 200.0 * 1024 * 1024}
+
 func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.LeaseRequest) (*api.JobLease, error) {
 
 	queuePriority, e := q.calculatePriorities()
@@ -63,6 +66,16 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 	activeQueuePriority := filterMapByKeys(queuePriority, activeQueueNames, minPriority)
 	slices := sliceResource(activeQueuePriority, request.Resources)
 	jobs, e := q.assignJobs(request.ClusterID, slices)
+	if e != nil {
+		log.Error("Error when leasing jobs for cluster %s: %s", request.ClusterID, e)
+		return nil, e
+	}
+	additionalJobs, e := q.distributeRemainder(request.ClusterID, activeQueuePriority, slices)
+	if e != nil {
+		log.Error("Error when leasing jobs for cluster %s: %s", request.ClusterID, e)
+		return nil, e
+	}
+	jobs = append(jobs, additionalJobs...)
 
 	jobLease := api.JobLease{
 		Job: jobs,
@@ -83,8 +96,9 @@ func (q AggregatedQueueServer) ReportDone(ctx context.Context, idList *api.IdLis
 
 func (q AggregatedQueueServer) assignJobs(clusterId string, slices map[string]common.ComputeResourcesFloat) ([]*api.Job, error) {
 	jobs := make([]*api.Job, 0)
+	// TODO: parallelize
 	for queue, slice := range slices {
-		leased, remainder, e := q.leaseJobs(clusterId, queue, slice)
+		leased, remainder, e := q.leaseJobs(clusterId, queue, slice, -1)
 		if e != nil {
 			log.Error(e)
 			continue
@@ -92,6 +106,34 @@ func (q AggregatedQueueServer) assignJobs(clusterId string, slices map[string]co
 		slices[queue] = remainder
 		jobs = append(jobs, leased...)
 	}
+	return jobs, nil
+}
+
+func (q AggregatedQueueServer) distributeRemainder(clusterId string, priorities map[string]float64, slices map[string]common.ComputeResourcesFloat) ([]*api.Job, error) {
+	jobs := []*api.Job{}
+	remainder := common.ComputeResourcesFloat{}
+	orderedQueues := []string{}
+	for queue, slice := range slices {
+		remainder.Add(slice)
+		orderedQueues = append(orderedQueues, queue)
+	}
+	sort.Slice(orderedQueues, func(i, j int) bool {
+		return priorities[orderedQueues[i]] < priorities[orderedQueues[j]]
+	})
+
+	for _, queue := range orderedQueues {
+		leased, remaining, e := q.leaseJobs(clusterId, queue, remainder, 1)
+		if e != nil {
+			log.Error(e)
+			continue
+		}
+		jobs = append(jobs, leased...)
+		remainder = remaining
+		if remainder.IsLessThen(minimalResource) {
+			break
+		}
+	}
+
 	return jobs, nil
 }
 
@@ -112,7 +154,7 @@ func (q AggregatedQueueServer) calculatePriorities() (map[string]float64, error)
 	return queuePriority, nil
 }
 
-func (q AggregatedQueueServer) leaseJobs(clusterId string, queue string, slice common.ComputeResourcesFloat) ([]*api.Job, common.ComputeResourcesFloat, error) {
+func (q AggregatedQueueServer) leaseJobs(clusterId string, queue string, slice common.ComputeResourcesFloat, limit int) ([]*api.Job, common.ComputeResourcesFloat, error) {
 	jobs := make([]*api.Job, 0)
 	remainder := slice
 	for slice.IsValid() {
@@ -131,6 +173,9 @@ func (q AggregatedQueueServer) leaseJobs(clusterId string, queue string, slice c
 				slice = remainder
 				candidates = append(candidates, job)
 			}
+			if limit > 0 && len(candidates) >= limit {
+				break
+			}
 		}
 
 		leased, e := q.jobRepository.TryLeaseJobs(clusterId, queue, candidates)
@@ -143,6 +188,9 @@ func (q AggregatedQueueServer) leaseJobs(clusterId string, queue string, slice c
 		// stop scheduling round if we leased less then batch (either the slice is too small or queue is empty)
 		// TODO: should we look at next batch?
 		if len(candidates) < batchSize {
+			break
+		}
+		if limit > 0 && len(candidates) >= limit {
 			break
 		}
 	}
