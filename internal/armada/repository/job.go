@@ -62,28 +62,42 @@ func (repo RedisJobRepository) Remove(jobIds []string) (cleanedJobIds []string, 
 
 	jobs, e := repo.getJobIdentities(jobIds)
 
-	pipe := repo.db.Pipeline()
-	cmds := make(map[string]*redis.IntCmd)
-	for _, job := range jobs {
-		cmds[job.id] = repo.db.ZRem(jobLeasedPrefix+job.queueName, job.id)
-	}
-
-	_, e = pipe.Exec()
+	cleanedJobs, e := repo.zRemoveJobIds(jobs, func(j *jobIdentity) string { return jobLeasedPrefix + j.queueName })
 	if e != nil {
 		return nil, e
 	}
 
-	cleanedJobs := []string{}
+	cleanedQueueJobs, e := repo.zRemoveJobIds(jobs, func(j *jobIdentity) string { return jobQueuePrefix + j.queueName })
+	if e != nil {
+		return nil, e
+	}
+
+	// TODO removing only leases for now, cleanup everything else
+	return append(cleanedJobs, cleanedQueueJobs...), nil
+}
+
+func (repo RedisJobRepository) zRemoveJobIds(jobIdentities []jobIdentity, getRedisKey func(*jobIdentity) string) (ids []string, err error) {
+
+	pipe := repo.db.Pipeline()
+	cmds := make(map[string]*redis.IntCmd)
+	for _, job := range jobIdentities {
+		cmds[job.id] = repo.db.ZRem(getRedisKey(&job), job.id)
+	}
+
+	_, e := pipe.Exec()
+	if e != nil {
+		return nil, e
+	}
+
+	cleanedIds := []string{}
 
 	for jobId, cmd := range cmds {
 		modified, e := cmd.Result()
 		if e == nil && modified > 0 {
-			cleanedJobs = append(cleanedJobs, jobId)
+			cleanedIds = append(cleanedIds, jobId)
 		}
 	}
-
-	// TODO removing only leases for now, cleanup everything else
-	return cleanedJobs, nil
+	return cleanedIds, nil
 }
 
 func (repo RedisJobRepository) AddJob(job *api.Job) error {

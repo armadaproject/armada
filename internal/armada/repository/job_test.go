@@ -79,6 +79,26 @@ func TestRenewingNonExistentLease(t *testing.T) {
 	})
 }
 
+func TestExpiredJobRemoveShouldRemoveJobFromQueue(t *testing.T) {
+	withRepository(func(r *RedisJobRepository) {
+		job := addLeasedJob(t, r, "queue1", "cluster1")
+		deadline := time.Now()
+
+		_, e := r.ExpireLeases("queue1", deadline)
+		assert.Nil(t, e)
+
+		removed, e := r.Remove([]string{job.Id})
+		assert.Nil(t, e)
+
+		assert.Equal(t, 1, len(removed))
+		assert.Equal(t, job.Id, removed[0])
+
+		queue, e := r.PeekQueue("queue1", 100)
+		assert.Nil(t, e)
+		assert.Equal(t, 0, len(queue))
+	})
+}
+
 func addLeasedJob(t *testing.T, r *RedisJobRepository, queue string, cluster string) *api.Job {
 	job := addTestJob(t, r, queue)
 	leased, e := r.TryLeaseJobs(cluster, queue, []*api.Job{job})
