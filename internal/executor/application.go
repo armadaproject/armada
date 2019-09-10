@@ -8,6 +8,7 @@ import (
 	"github.com/G-Research/k8s-batch/internal/executor/reporter"
 	"github.com/G-Research/k8s-batch/internal/executor/service"
 	"github.com/G-Research/k8s-batch/internal/executor/submitter"
+	"github.com/G-Research/k8s-batch/internal/executor/util"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -44,13 +45,18 @@ func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGrou
 		ClusterId:        config.Application.ClusterId,
 	}
 
+	submittedPodCache := util.NewMapPodCache()
+
 	factory := informers.NewSharedInformerFactoryWithOptions(kubernetesClient, 0)
 	podInformer := factory.Core().V1().Pods()
 	nodeLister := factory.Core().V1().Nodes().Lister()
-	addPodEventHandler(podInformer, eventReporter)
+	addPodEventHandler(podInformer, eventReporter, submittedPodCache)
 	informerStopper := startInformers(factory)
 
-	jobSubmitter := submitter.JobSubmitter{KubernetesClient: kubernetesClient}
+	jobSubmitter := submitter.JobSubmitter{
+		KubernetesClient:  kubernetesClient,
+		SubmittedPodCache: submittedPodCache,
+	}
 
 	podCleanupService := service.PodCleanupService{KubernetesClient: kubernetesClient}
 
@@ -67,10 +73,11 @@ func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGrou
 	}
 
 	clusterUtilisationService := service.ClusterUtilisationService{
-		ClientId:    config.Application.ClusterId,
-		PodLister:   podInformer.Lister(),
-		NodeLister:  nodeLister,
-		UsageClient: usageClient,
+		ClientId:          config.Application.ClusterId,
+		PodLister:         podInformer.Lister(),
+		NodeLister:        nodeLister,
+		UsageClient:       usageClient,
+		SubmittedPodCache: submittedPodCache,
 	}
 
 	clusterAllocationService := service.ClusterAllocationService{
@@ -161,7 +168,7 @@ func stopTasks(taskChannels []chan bool) {
 	}
 }
 
-func addPodEventHandler(podInformer informer.PodInformer, eventReporter reporter.EventReporter) {
+func addPodEventHandler(podInformer informer.PodInformer, eventReporter reporter.EventReporter, submittedPodCache util.PodCache) {
 	podInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			pod, ok := obj.(*v1.Pod)
@@ -169,6 +176,7 @@ func addPodEventHandler(podInformer informer.PodInformer, eventReporter reporter
 				log.Errorf("Failed to process pod event due to it being an unexpected type. Failed to process %+v", obj)
 				return
 			}
+			submittedPodCache.Delete(pod)
 			go eventReporter.ReportEvent(pod)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {

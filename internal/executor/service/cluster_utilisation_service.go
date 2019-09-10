@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/G-Research/k8s-batch/internal/armada/api"
 	"github.com/G-Research/k8s-batch/internal/common"
+	util2 "github.com/G-Research/k8s-batch/internal/common/util"
 	"github.com/G-Research/k8s-batch/internal/executor/domain"
 	"github.com/G-Research/k8s-batch/internal/executor/util"
 	log "github.com/sirupsen/logrus"
@@ -14,10 +15,11 @@ import (
 )
 
 type ClusterUtilisationService struct {
-	ClientId    string
-	PodLister   lister.PodLister
-	NodeLister  lister.NodeLister
-	UsageClient api.UsageClient
+	ClientId          string
+	PodLister         lister.PodLister
+	NodeLister        lister.NodeLister
+	UsageClient       api.UsageClient
+	SubmittedPodCache util.PodCache
 }
 
 func (clusterUtilisationService ClusterUtilisationService) ReportClusterUtilisation() {
@@ -29,7 +31,7 @@ func (clusterUtilisationService ClusterUtilisationService) ReportClusterUtilisat
 
 	totalNodeResource := common.CalculateTotalResource(allAvailableProcessingNodes)
 
-	allActiveManagedPods, err := getAllActiveManagedPods(clusterUtilisationService.PodLister)
+	allActiveManagedPods, err := getAllRunningManagedPods(clusterUtilisationService.PodLister)
 	if err != nil {
 		log.Errorf("Failed to get required information to report cluster usage because %s", err)
 		return
@@ -61,6 +63,7 @@ func (clusterUtilisationService ClusterUtilisationService) GetAvailableClusterCa
 	if err != nil {
 		return new(common.ComputeResources), fmt.Errorf("Failed getting available cluster capacity due to: %s", err)
 	}
+	clusterUtilisationService.addCachedSubmittedPods(allPods)
 
 	allPodsRequiringResource := getAllPodsRequiringResourceOnProcessingNodes(allPods, processingNodes)
 	allNonCompletePodsRequiringResource := util.FilterNonCompletedPods(allPodsRequiringResource)
@@ -89,6 +92,17 @@ func (clusterUtilisationService ClusterUtilisationService) reportUsage(clusterUs
 	_, err := clusterUtilisationService.UsageClient.ReportUsage(ctx, clusterUsage)
 
 	return err
+}
+
+func (clusterUtilisationService ClusterUtilisationService) addCachedSubmittedPods(pods []*v1.Pod) {
+	jobIds := util.ExtractJobIds(pods)
+	jobIdsSet := util2.StringListToSet(jobIds)
+
+	for submittedJobId, submittedJob := range clusterUtilisationService.SubmittedPodCache.GetAll() {
+		if !jobIdsSet[submittedJobId] {
+			pods = append(pods, submittedJob)
+		}
+	}
 }
 
 func filterAvailableProcessingNodes(nodes []*v1.Node) []*v1.Node {
@@ -143,13 +157,13 @@ func getAllPodsRequiringResourceOnProcessingNodes(allPods []*v1.Pod, processingN
 	return podsUsingResourceOnProcessingNodes
 }
 
-func getAllActiveManagedPods(podLister lister.PodLister) ([]*v1.Pod, error) {
+func getAllRunningManagedPods(podLister lister.PodLister) ([]*v1.Pod, error) {
 	managedPodSelector := util.GetManagedPodSelector()
 	allActiveManagedPods, err := podLister.List(managedPodSelector)
 	if err != nil {
 		return []*v1.Pod{}, err
 	}
-	allActiveManagedPods = util.FilterNonCompletedPods(allActiveManagedPods)
+	allActiveManagedPods = util.FilterPodsWithPhase(allActiveManagedPods, v1.PodRunning)
 	return allActiveManagedPods, nil
 }
 
