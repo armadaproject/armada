@@ -15,6 +15,9 @@ func CreateKubernetesClient(kubernetesConfig *configuration.KubernetesConfigurat
 		return nil, err
 	}
 
+	config.Burst = 10000
+	config.QPS = 10000
+
 	return kubernetes.NewForConfig(config)
 }
 
