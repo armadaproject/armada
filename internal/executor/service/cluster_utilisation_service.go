@@ -63,7 +63,7 @@ func (clusterUtilisationService ClusterUtilisationService) GetAvailableClusterCa
 	if err != nil {
 		return new(common.ComputeResources), fmt.Errorf("Failed getting available cluster capacity due to: %s", err)
 	}
-	clusterUtilisationService.addCachedSubmittedPods(allPods)
+	allPods = clusterUtilisationService.addCachedSubmittedPods(allPods)
 
 	allPodsRequiringResource := getAllPodsRequiringResourceOnProcessingNodes(allPods, processingNodes)
 	allNonCompletePodsRequiringResource := util.FilterNonCompletedPods(allPodsRequiringResource)
@@ -94,15 +94,19 @@ func (clusterUtilisationService ClusterUtilisationService) reportUsage(clusterUs
 	return err
 }
 
-func (clusterUtilisationService ClusterUtilisationService) addCachedSubmittedPods(pods []*v1.Pod) {
+func (clusterUtilisationService ClusterUtilisationService) addCachedSubmittedPods(pods []*v1.Pod) []*v1.Pod {
 	jobIds := util.ExtractJobIds(pods)
 	jobIdsSet := util2.StringListToSet(jobIds)
 
+	podsIncludingCachedPods := pods
+
 	for submittedJobId, submittedJob := range clusterUtilisationService.SubmittedPodCache.GetAll() {
 		if !jobIdsSet[submittedJobId] {
-			pods = append(pods, submittedJob)
+			podsIncludingCachedPods = append(podsIncludingCachedPods, submittedJob)
 		}
 	}
+
+	return podsIncludingCachedPods
 }
 
 func filterAvailableProcessingNodes(nodes []*v1.Node) []*v1.Node {
