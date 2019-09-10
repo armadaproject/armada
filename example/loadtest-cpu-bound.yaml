@@ -11,12 +11,12 @@ submissions:
           containers:
             - name: cpu-burner
               imagePullPolicy: IfNotPresent
-              image: alpine:latest
+              image: containerstack/alpine-stress:latest
               command:
                 - sh
               args:
                 - -c
-                - "echo starting && dd if=/dev/zero of=/dev/null count=$(( RANDOM * 1000 )) && echo done && exit 0"
+                - "stress --cpu 2 --timeout $(( (RANDOM % 60) + 100 ))s"
               resources:
                 limits:
                   memory: 128Mi
