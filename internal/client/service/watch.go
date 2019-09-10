@@ -50,9 +50,10 @@ func WatchJobSetWithJobIdsFilter(client api.EventClient, jobSetId string, jobIds
 
 	jobIdsSet := util.StringListToSet(jobIds)
 	filterOnJobId := len(jobIdsSet) > 0
+	lastMessageId := ""
 
 	for {
-		clientStream, e := client.GetJobSetEvents(context.Background(), &api.JobSetRequest{Id: jobSetId, Watch: true})
+		clientStream, e := client.GetJobSetEvents(context.Background(), &api.JobSetRequest{Id: jobSetId, FromMessageId: lastMessageId, Watch: true})
 
 		if e != nil {
 			log.Error(e)
@@ -68,6 +69,8 @@ func WatchJobSetWithJobIdsFilter(client api.EventClient, jobSetId string, jobIds
 				time.Sleep(5 * time.Second)
 				break
 			}
+
+			lastMessageId = msg.Id
 
 			event, e := api.UnwrapEvent(msg.Message)
 			if e != nil {
