@@ -1,0 +1,26 @@
+submissions:
+  - name: example
+    count: 30
+    queue: queuename # If specified all submissions are under this queue, otherwise a new queue is created for each group of jobs
+    jobs:
+      - name: heavy_cpu_job
+        count: 100
+        spec:
+          terminationGracePeriodSeconds: 0
+          restartPolicy: Never
+          containers:
+            - name: cpu-burner
+              imagePullPolicy: IfNotPresent
+              image: containerstack/alpine-stress:latest
+              command:
+                - sh
+              args:
+                - -c
+                - "stress --cpu 2 --timeout $(( (RANDOM % 60) + 100 ))s"
+              resources:
+                limits:
+                  memory: 128Mi
+                  cpu: 80m
+                requests:
+                  memory: 64Mi
+                  cpu: 60m
