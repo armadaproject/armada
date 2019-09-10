@@ -93,7 +93,7 @@ func (apiLoadTester ArmadaLoadTester) runSubmission(queue string, jobSetId strin
 	util.WithConnection(apiLoadTester.apiConnectionDetails, func(connection *grpc.ClientConn) {
 		client := api.NewSubmitClient(connection)
 
-		e := CreateQueue(client, &api.Queue{Name: queue, Priority: 1})
+		e := CreateQueue(client, &api.Queue{Name: queue, PriorityFactor: 1})
 		if e != nil {
 			log.Errorf("Failed to create queue: %s because: %s", queue, e)
 			return

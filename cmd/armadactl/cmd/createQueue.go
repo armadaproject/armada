@@ -12,7 +12,9 @@ import (
 
 func init() {
 	rootCmd.AddCommand(createQueueCmd)
-	createQueueCmd.Flags().Float64("priority", 1, "Set queue priority")
+	createQueueCmd.Flags().Float64(
+		"priorityFactor", 1,
+		"Set queue priority factor - lower number makes queue more important, must be > 0.")
 }
 
 // createQueueCmd represents the createQueue command
@@ -25,13 +27,13 @@ Job priority is evaluated inside queue, queue has its own priority.`,
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		queue := args[0]
-		priority, _ := cmd.Flags().GetFloat64("priority")
+		priority, _ := cmd.Flags().GetFloat64("priorityFactor")
 
 		apiConnectionDetails := client.ExtractCommandlineArmadaApiConnectionDetails()
 
 		util.WithConnection(apiConnectionDetails, func(conn *grpc.ClientConn) {
 			client := api.NewSubmitClient(conn)
-			e := service.CreateQueue(client, &api.Queue{Name: queue, Priority: priority})
+			e := service.CreateQueue(client, &api.Queue{Name: queue, PriorityFactor: priority})
 
 			if e != nil {
 				log.Error(e)

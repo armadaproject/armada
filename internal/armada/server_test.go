@@ -18,8 +18,8 @@ func TestSubmitJob(t *testing.T) {
 	withRunningServer(func(client api.SubmitClient, leaseClient api.AggregatedQueueClient, ctx context.Context) {
 
 		_, err := client.CreateQueue(ctx, &api.Queue{
-			Name:     "test",
-			Priority: 1,
+			Name:           "test",
+			PriorityFactor: 1,
 		})
 		assert.Empty(t, err)
 
