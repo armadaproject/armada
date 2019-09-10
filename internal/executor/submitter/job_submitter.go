@@ -19,10 +19,11 @@ type JobSubmitter struct {
 func (submitter JobSubmitter) SubmitJob(job *api.Job) (*v1.Pod, error) {
 	//TODO Remove hardcoded namespace once it can be user specified
 	pod := createPod(job)
+	submitter.SubmittedPodCache.Add(pod)
 	pod, err := submitter.KubernetesClient.CoreV1().Pods("default").Create(pod)
 
-	if err == nil {
-		submitter.SubmittedPodCache.Add(pod)
+	if err != nil {
+		submitter.SubmittedPodCache.Delete(util.ExtractJobId(pod))
 	}
 
 	return pod, err
