@@ -1,0 +1,26 @@
+submissions:
+  - name: example
+    count: 30
+    queue: queuename # If specified all submissions are under this queue, otherwise a new queue is created for each group of jobs
+    jobs:
+      - name: heavy_cpu_job
+        count: 100
+        spec:
+          terminationGracePeriodSeconds: 0
+          restartPolicy: Never
+          containers:
+            - name: cpu-burner
+              imagePullPolicy: IfNotPresent
+              image: alpine:latest
+              command:
+                - sh
+              args:
+                - -c
+                - "echo starting && dd if=/dev/zero of=/dev/null count=$(( RANDOM * 1000 )) && echo done && exit 0"
+              resources:
+                limits:
+                  memory: 128Mi
+                  cpu: 80m
+                requests:
+                  memory: 64Mi
+                  cpu: 60m
