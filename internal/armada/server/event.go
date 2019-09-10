@@ -23,7 +23,8 @@ func (s EventServer) Report(ctx context.Context, message *api.EventMessage) (*ty
 
 func (s EventServer) GetJobSetEvents(request *api.JobSetRequest, stream api.Event_GetJobSetEventsServer) error {
 
-	lastId := ""
+	lastId := request.FromMessageId
+
 	var timeout time.Duration = -1
 	if request.Watch {
 		timeout = 5 * time.Second
