@@ -116,6 +116,7 @@ message EventStreamMessage {
 message JobSetRequest {
     string Id = 1;
     bool Watch = 2;
+    string FromMessageId = 3;
 }
 
 service Event {
