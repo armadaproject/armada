@@ -150,6 +150,43 @@ func TestFilterNonCompletedPods_ShouldReturnEmptyIfAllPodsCompleted(t *testing.T
 	assert.Equal(t, len(result), 0)
 }
 
+func TestFilterPodsWithPhase(t *testing.T) {
+	runningPod := v1.Pod{
+		Status: v1.PodStatus{
+			Phase: v1.PodRunning,
+		},
+	}
+
+	completedPod := v1.Pod{
+		Status: v1.PodStatus{
+			Phase: v1.PodSucceeded,
+		},
+	}
+
+	result := FilterPodsWithPhase([]*v1.Pod{&runningPod, &completedPod}, v1.PodRunning)
+
+	assert.Equal(t, len(result), 1)
+	assert.Equal(t, result[0], &runningPod)
+}
+
+func TestFilterPodsWithPhase_ShouldReturnEmptyIfNoPodWithPhaseExists(t *testing.T) {
+	succeededPod := v1.Pod{
+		Status: v1.PodStatus{
+			Phase: v1.PodSucceeded,
+		},
+	}
+
+	failedPod := v1.Pod{
+		Status: v1.PodStatus{
+			Phase: v1.PodFailed,
+		},
+	}
+
+	result := FilterPodsWithPhase([]*v1.Pod{&succeededPod, &failedPod}, v1.PodPending)
+
+	assert.Equal(t, len(result), 0)
+}
+
 func TestExtractJobIds(t *testing.T) {
 	jobIds := []string{"1", "2", "3", "4"}
 	pods := makePodsWithJobIds(jobIds)

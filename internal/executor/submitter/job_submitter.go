@@ -3,6 +3,7 @@ package submitter
 import (
 	"github.com/G-Research/k8s-batch/internal/armada/api"
 	"github.com/G-Research/k8s-batch/internal/executor/domain"
+	"github.com/G-Research/k8s-batch/internal/executor/util"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -11,14 +12,21 @@ import (
 const PodNamePrefix string = "batch-"
 
 type JobSubmitter struct {
-	KubernetesClient kubernetes.Interface
+	KubernetesClient  kubernetes.Interface
+	SubmittedPodCache util.PodCache
 }
 
 func (submitter JobSubmitter) SubmitJob(job *api.Job) (*v1.Pod, error) {
-	pod := createPod(job)
-
 	//TODO Remove hardcoded namespace once it can be user specified
-	return submitter.KubernetesClient.CoreV1().Pods("default").Create(pod)
+	pod := createPod(job)
+	submitter.SubmittedPodCache.Add(pod)
+	pod, err := submitter.KubernetesClient.CoreV1().Pods("default").Create(pod)
+
+	if err != nil {
+		submitter.SubmittedPodCache.Delete(util.ExtractJobId(pod))
+	}
+
+	return pod, err
 }
 
 func createPod(job *api.Job) *v1.Pod {
