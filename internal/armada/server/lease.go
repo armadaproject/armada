@@ -2,15 +2,16 @@ package server
 
 import (
 	"context"
+	"sort"
+	"time"
+
+	log "github.com/sirupsen/logrus"
+
 	"github.com/G-Research/k8s-batch/internal/armada/api"
 	"github.com/G-Research/k8s-batch/internal/armada/repository"
 	"github.com/G-Research/k8s-batch/internal/armada/service"
 	"github.com/G-Research/k8s-batch/internal/common"
 	"github.com/G-Research/k8s-batch/internal/common/util"
-	log "github.com/sirupsen/logrus"
-	"math"
-	"sort"
-	"time"
 )
 
 type AggregatedQueueServer struct {
@@ -31,7 +32,6 @@ func NewAggregatedQueueServer(
 		eventRepository: eventRepository}
 }
 
-const minPriority = 0.5
 const batchSize = 100
 
 var minimalResource = common.ComputeResourcesFloat{"cpu": 0.25, "memory": 100.0 * 1024 * 1024}
@@ -53,7 +53,7 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 	if e != nil {
 		return nil, e
 	}
-	activeQueuePriority := filterPriorityMapByKeys(queuePriority, activeQueues, minPriority)
+	activeQueuePriority := filterPriorityMapByKeys(queuePriority, activeQueues)
 
 	slices := sliceResource(activeQueuePriority, request.Resources)
 	jobs, e := q.assignJobs(request.ClusterID, slices)
@@ -177,7 +177,7 @@ func (q AggregatedQueueServer) leaseJobs(clusterId string, queue *api.Queue, sli
 func sliceResource(queuePriorities map[*api.Queue]float64, quantity common.ComputeResources) map[*api.Queue]common.ComputeResourcesFloat {
 	inversePriority := make(map[*api.Queue]float64)
 	for queue, priority := range queuePriorities {
-		inversePriority[queue] = 1 / math.Max(priority, minPriority)
+		inversePriority[queue] = 1 / priority
 	}
 	inverseSum := 0.0
 	for _, inverse := range inversePriority {
@@ -191,14 +191,12 @@ func sliceResource(queuePriorities map[*api.Queue]float64, quantity common.Compu
 	return shares
 }
 
-func filterPriorityMapByKeys(original map[*api.Queue]float64, keys []*api.Queue, defaultValue float64) map[*api.Queue]float64 {
+func filterPriorityMapByKeys(original map[*api.Queue]float64, keys []*api.Queue) map[*api.Queue]float64 {
 	result := make(map[*api.Queue]float64)
 	for _, key := range keys {
 		existing, ok := original[key]
 		if ok {
 			result[key] = existing
-		} else {
-			result[key] = defaultValue
 		}
 	}
 	return result

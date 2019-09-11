@@ -5,8 +5,11 @@ import (
 	"github.com/G-Research/k8s-batch/internal/armada/metrics"
 	"github.com/G-Research/k8s-batch/internal/armada/repository"
 	"github.com/G-Research/k8s-batch/internal/common/util"
+	"math"
 	"time"
 )
+
+const minPriority = 0.5
 
 type PriorityService interface {
 	GetQueuePriorities() (map[*api.Queue]float64, error)
@@ -30,7 +33,7 @@ func NewMultiClusterPriorityService(
 	}
 }
 
-func (p MultiClusterPriorityService) GetQueuePriorities() (map[*api.Queue]float64, error) {
+func (p *MultiClusterPriorityService) GetQueuePriorities() (map[*api.Queue]float64, error) {
 	queues, e := p.queueRepository.GetQueues()
 	if e != nil {
 		return nil, e
@@ -45,7 +48,7 @@ func (p MultiClusterPriorityService) GetQueuePriorities() (map[*api.Queue]float6
 	return queuePriority, nil
 }
 
-func (q MultiClusterPriorityService) calculateQueuePriorities(queues []*api.Queue) (map[*api.Queue]float64, error) {
+func (q *MultiClusterPriorityService) calculateQueuePriorities(queues []*api.Queue) (map[*api.Queue]float64, error) {
 
 	usageReports, e := q.usageRepository.GetClusterUsageReports()
 	if e != nil {
@@ -63,9 +66,9 @@ func (q MultiClusterPriorityService) calculateQueuePriorities(queues []*api.Queu
 	for _, queue := range queues {
 		currentPriority, ok := queuePriority[queue.Name]
 		if ok {
-			resultPriorityMap[queue] = currentPriority * queue.PriorityFactor
+			resultPriorityMap[queue] = math.Max(currentPriority, minPriority) * queue.PriorityFactor
 		} else {
-			resultPriorityMap[queue] = 0
+			resultPriorityMap[queue] = minPriority * queue.PriorityFactor
 		}
 	}
 	return resultPriorityMap, nil
