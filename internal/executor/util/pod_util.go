@@ -2,7 +2,6 @@ package util
 
 import (
 	"github.com/G-Research/k8s-batch/internal/executor/domain"
-	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
@@ -50,9 +49,6 @@ func ExtractJobIds(pods []*v1.Pod) []string {
 	for _, pod := range pods {
 		if jobId, ok := pod.Labels[domain.JobId]; ok {
 			jobIds = append(jobIds, jobId)
-		} else {
-			//TODO decide how to handle this error, it should in theory never happen if all jobs are well formed. Maybe skipping is OK
-			log.Errorf("Failed to report event for pod %s as no job id was present to report it under.", pod.Name)
 		}
 	}
 
@@ -85,4 +81,16 @@ func FilterNonCompletedPods(pods []*v1.Pod) []*v1.Pod {
 	}
 
 	return activePods
+}
+
+func FilterPodsWithPhase(pods []*v1.Pod, podPhase v1.PodPhase) []*v1.Pod {
+	podsInPhase := make([]*v1.Pod, 0)
+
+	for _, pod := range pods {
+		if pod.Status.Phase == podPhase {
+			podsInPhase = append(podsInPhase, pod)
+		}
+	}
+
+	return podsInPhase
 }
