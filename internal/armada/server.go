@@ -35,9 +35,11 @@ func Serve(config *configuration.ArmadaConfig) (*grpc.Server, *sync.WaitGroup) {
 
 		metricsRecorder := metrics.ExposeDataMetrics(queueRepository, jobRepository)
 
+		usageService := service.NewMultiClusterPriorityService(usageRepository, queueRepository, metricsRecorder)
+
 		submitServer := server.NewSubmitServer(jobRepository, queueRepository, eventRepository)
 		usageServer := server.NewUsageServer(config.PriorityHalfTime, usageRepository)
-		aggregatedQueueServer := server.NewAggregatedQueueServer(jobRepository, usageRepository, queueRepository, eventRepository, metricsRecorder)
+		aggregatedQueueServer := server.NewAggregatedQueueServer(usageService, jobRepository, eventRepository)
 		eventServer := server.NewEventServer(eventRepository)
 
 		lis, err := net.Listen("tcp", config.GrpcPort)
