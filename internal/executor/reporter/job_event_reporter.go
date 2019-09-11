@@ -47,7 +47,6 @@ func (eventReporter JobEventReporter) report(pod *v1.Pod) {
 		return
 	}
 
-	log.Infof("Reporting event %+v", event)
 	ctx, cancel := common.ContextWithDefaultTimeout()
 	defer cancel()
 	_, err = eventReporter.EventClient.Report(ctx, event)
