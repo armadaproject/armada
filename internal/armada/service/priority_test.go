@@ -13,7 +13,7 @@ func TestPriorityService_GetQueuePriorities(t *testing.T) {
 	q2 := &api.Queue{Name: "queue2", PriorityFactor: 1}
 	q3 := &api.Queue{Name: "queue3", PriorityFactor: 1}
 	q4 := &api.Queue{Name: "queue4", PriorityFactor: 1}
-	q5 := &api.Queue{Name: "queue4", PriorityFactor: 0.5}
+	q5 := &api.Queue{Name: "queue5", PriorityFactor: 0.5}
 
 	service := NewMultiClusterPriorityService(
 		mockUsageRepository{
@@ -29,7 +29,6 @@ func TestPriorityService_GetQueuePriorities(t *testing.T) {
 				"cluster2": {
 					"queue1": 1,
 					"queue3": 1,
-					"queue5": 1,
 					"queue6": 1, // missing
 				},
 			},
