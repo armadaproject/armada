@@ -20,6 +20,10 @@ func (allocationService ClusterAllocationService) AllocateSpareClusterCapacity()
 
 	newJobs, err := allocationService.LeaseService.RequestJobLeases(availableResource)
 
+	cpu := (*availableResource)["cpu"]
+	memory := (*availableResource)["memory"]
+	log.Infof("Requesting new jobs with free resource cpu: %d, memory %d. Received %d new jobs. ", cpu.AsDec(), memory.Value(), len(newJobs))
+
 	if err != nil {
 		log.Errorf("Failed to lease new jobs because %s", err)
 		return

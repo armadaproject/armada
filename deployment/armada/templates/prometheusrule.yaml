@@ -12,9 +12,15 @@ spec:
       rules:
         - record: armada:queue:size
           expr: avg(sum(armada_queue_size) by (queueName, pod)) by (queueName) > 0
+
         - record: armada:queue:priority
           expr: avg(sum(armada_queue_priority) by (queueName, pod)) by (queueName) > 0.1
+
         - record: armada:grpc:server:histogram95
           expr: histogram_quantile(0.95, sum(rate(grpc_server_handling_seconds_bucket{grpc_type!="server_stream"}[10s])) by (grpc_method,grpc_service, le))
+
         - record: armada:grpc:server:requestrate
           expr: sum(rate(grpc_server_handled_total[10s])) by (grpc_method,grpc_service)
+
+        - record: armada:log:rate
+          expr: sum(rate(log_messages[30s])) by (level)
