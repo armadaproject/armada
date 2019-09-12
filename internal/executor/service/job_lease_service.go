@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"github.com/G-Research/k8s-batch/internal/armada/api"
 	"github.com/G-Research/k8s-batch/internal/common"
 	commonUtil "github.com/G-Research/k8s-batch/internal/common/util"
@@ -9,6 +10,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	listers "k8s.io/client-go/listers/core/v1"
 	"strings"
+	"time"
 )
 
 type JobLeaseService struct {
@@ -23,7 +25,7 @@ func (jobLeaseService JobLeaseService) RequestJobLeases(availableResource *commo
 		ClusterID: jobLeaseService.ClusterId,
 		Resources: *availableResource,
 	}
-	ctx, cancel := common.ContextWithDefaultTimeout()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	response, err := jobLeaseService.QueueClient.LeaseJobs(ctx, &leaseRequest)
 
