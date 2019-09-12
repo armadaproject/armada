@@ -30,4 +30,10 @@ spec:
             ) by (label_queue_id, phase)
 
         - record: armada:executor:pod:count
-            expr: sum(armada:executor:pod:queue) by (label_queue_id, phase)
+          expr: sum(armada:executor:pod:queue) by (label_queue_id, phase)
+
+        - record: armada:executor:rest:request:histogram95
+          expr: histogram_quantile(0.95, sum(rate(rest_client_request_duration_seconds_bucket{service="armada-executor"}[30s])) by (endpoint, verb, url, le))
+
+        - record: armada:executor:log:rate
+          expr: sum(rate(log_messages[30s])) by (level)
