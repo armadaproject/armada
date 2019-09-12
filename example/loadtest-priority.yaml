@@ -1,0 +1,51 @@
+submissions:
+  - name: example
+    count: 10
+    jobs:
+      - name: basic_job
+        count: 50
+        spec:
+          terminationGracePeriodSeconds: 0
+          restartPolicy: Never
+          containers:
+            - name: sleep
+              imagePullPolicy: IfNotPresent
+              image: alpine:latest
+              command:
+                - sh
+              args:
+                - -c
+                - sleep $(( (RANDOM % 120) + 60 ))
+              resources:
+                limits:
+                  memory: 128Mi
+                  cpu: 500m
+                requests:
+                  memory: 128Mi
+                  cpu: 500m
+  - name: important
+    count: 1
+    queue: important # If specified all submissions are under this queue, otherwise a new queue is created for each group of jobs
+    queuePriorityFactor: 0.1
+    jobs:
+     - name: basic_job
+       count: 500
+       spec:
+         terminationGracePeriodSeconds: 0
+         restartPolicy: Never
+         containers:
+           - name: sleep
+             imagePullPolicy: IfNotPresent
+             image: alpine:latest
+             command:
+               - sh
+             args:
+               - -c
+               - sleep $(( (RANDOM % 120) + 60 ))
+             resources:
+               limits:
+                 memory: 128Mi
+                 cpu: 500m
+               requests:
+                 memory: 128Mi
+                 cpu: 500m
