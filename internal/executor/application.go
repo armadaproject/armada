@@ -109,6 +109,7 @@ func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGrou
 }
 
 func createConnectionToApi(config configuration.ExecutorConfiguration) (*grpc.ClientConn, error) {
+	dialOptions := grpc.WithDefaultCallOptions(grpc.WaitForReady(true))
 	if config.Authentication.EnableAuthentication {
 		return grpc.Dial(
 			config.Armada.Url,
@@ -118,13 +119,15 @@ func createConnectionToApi(config configuration.ExecutorConfiguration) (*grpc.Cl
 				Password: config.Authentication.Password,
 			}),
 			grpc.WithUnaryInterceptor(grpc_prometheus.UnaryClientInterceptor),
-			grpc.WithStreamInterceptor(grpc_prometheus.StreamClientInterceptor))
+			grpc.WithStreamInterceptor(grpc_prometheus.StreamClientInterceptor),
+			dialOptions)
 	} else {
 		return grpc.Dial(
 			config.Armada.Url,
 			grpc.WithInsecure(),
 			grpc.WithUnaryInterceptor(grpc_prometheus.UnaryClientInterceptor),
-			grpc.WithStreamInterceptor(grpc_prometheus.StreamClientInterceptor))
+			grpc.WithStreamInterceptor(grpc_prometheus.StreamClientInterceptor),
+			dialOptions)
 	}
 }
 
