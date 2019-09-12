@@ -41,19 +41,14 @@ func (apiLoadTester ArmadaLoadTester) RunSubmissionTest(spec domain.LoadTestSpec
 
 	for _, submission := range spec.Submissions {
 		for i := 0; i < submission.Count; i++ {
-			queue := submission.Queue
-			if queue == "" {
-				queue = submission.UserNamePrefix + "-" + strconv.Itoa(i)
-			}
-			jobSetId := queue + "-" + strconv.Itoa(i)
 			wg.Add(1)
-			go func() {
+			go func(i int, submission *domain.SubmissionDescription) {
 				defer wg.Done()
-				submittedJobIds := apiLoadTester.runSubmission(queue, jobSetId, submission.Jobs)
+				submittedJobIds, jobSetId := apiLoadTester.runSubmission(submission, i)
 				if watchEvents {
 					apiLoadTester.monitorJobsUntilCompletion(jobSetId, submittedJobIds, jobInfoChannel)
 				}
-			}()
+			}(i, submission)
 		}
 	}
 
@@ -88,12 +83,24 @@ func watchJobInfoChannel(jobInfoChannel chan JobInfo) (*sync.WaitGroup, chan boo
 	return complete, stop
 }
 
-func (apiLoadTester ArmadaLoadTester) runSubmission(queue string, jobSetId string, jobs []*domain.JobSubmissionDescription) []string {
-	jobIds := make([]string, 0, len(jobs))
+func (apiLoadTester ArmadaLoadTester) runSubmission(submission *domain.SubmissionDescription, i int) (jobIds []string, jobSetId string) {
+
+	queue := submission.Queue
+	if queue == "" {
+		queue = submission.UserNamePrefix + "-" + strconv.Itoa(i)
+	}
+	priorityFactor := submission.QueuePriorityFactor
+	if priorityFactor <= 0 {
+		priorityFactor = 1
+	}
+	jobSetId = queue + "-" + strconv.Itoa(i)
+	jobs := submission.Jobs
+
+	jobIds = make([]string, 0, len(jobs))
 	util.WithConnection(apiLoadTester.apiConnectionDetails, func(connection *grpc.ClientConn) {
 		client := api.NewSubmitClient(connection)
 
-		e := CreateQueue(client, &api.Queue{Name: queue, PriorityFactor: 1})
+		e := CreateQueue(client, &api.Queue{Name: queue, PriorityFactor: priorityFactor})
 		if e != nil {
 			log.Errorf("Failed to create queue: %s because: %s", queue, e)
 			return
@@ -114,7 +121,7 @@ func (apiLoadTester ArmadaLoadTester) runSubmission(queue string, jobSetId strin
 			}
 		}
 	})
-	return jobIds
+	return jobIds, jobSetId
 }
 
 func (apiLoadTester ArmadaLoadTester) monitorJobsUntilCompletion(jobSetId string, jobIds []string, jobInfoChannel chan JobInfo) {
