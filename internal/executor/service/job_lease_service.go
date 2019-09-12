@@ -86,6 +86,7 @@ func (jobLeaseService JobLeaseService) cleanupJobLeases(pods []*v1.Pod) {
 
 	ctx, cancel := common.ContextWithDefaultTimeout()
 	defer cancel()
+	log.Infof("Reporting done for jobs %s", strings.Join(jobIds, ","))
 	reported, err := jobLeaseService.QueueClient.ReportDone(ctx, &api.IdList{Ids: jobIds})
 
 	if err != nil {
