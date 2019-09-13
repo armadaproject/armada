@@ -110,20 +110,26 @@ func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGrou
 }
 
 func createConnectionToApi(config configuration.ExecutorConfiguration) (*grpc.ClientConn, error) {
-	dialOpts := make([]grpc.DialOption, 10)
+	dialOpts := make([]grpc.DialOption, 0, 10)
 
 	retryOpts := []grpc_retry.CallOption{
-		grpc_retry.WithBackoff(grpc_retry.BackoffExponential(100 * time.Millisecond)),
+		grpc_retry.WithBackoff(grpc_retry.BackoffExponential(300 * time.Millisecond)),
 		grpc_retry.WithMax(3),
 	}
 
-	dialOpts = append(dialOpts, grpc.WithUnaryInterceptor(grpc_retry.UnaryClientInterceptor(retryOpts...)))
-	dialOpts = append(dialOpts, grpc.WithStreamInterceptor(grpc_retry.StreamClientInterceptor(retryOpts...)))
+	defaultCallOptions := grpc.WithDefaultCallOptions(grpc.WaitForReady(true))
 
-	dialOpts = append(dialOpts, grpc.WithDefaultCallOptions(grpc.WaitForReady(true)))
+	unuaryInterceptors := grpc.WithChainUnaryInterceptor(
+		grpc_prometheus.UnaryClientInterceptor,
+		grpc_retry.UnaryClientInterceptor(retryOpts...),
+	)
 
-	dialOpts = append(dialOpts, grpc.WithUnaryInterceptor(grpc_prometheus.UnaryClientInterceptor))
-	dialOpts = append(dialOpts, grpc.WithStreamInterceptor(grpc_prometheus.StreamClientInterceptor))
+	streamInterceptors := grpc.WithChainStreamInterceptor(
+		grpc_prometheus.StreamClientInterceptor,
+		grpc_retry.StreamClientInterceptor(retryOpts...),
+	)
+
+	dialOpts = append(dialOpts, defaultCallOptions, unuaryInterceptors, streamInterceptors)
 
 	if config.Authentication.EnableAuthentication {
 		dialOpts = append(dialOpts,
