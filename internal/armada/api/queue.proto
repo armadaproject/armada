@@ -18,7 +18,7 @@ message Job {
 }
 
 message LeaseRequest {
-    string ClusterID = 1;
+    string ClusterId = 1;
     map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> Resources = 2 [(gogoproto.nullable) = false];
 }
 
@@ -31,7 +31,7 @@ message IdList {
 }
 
 message RenewLeaseRequest {
-    string ClusterID = 1;
+    string ClusterId = 1;
     repeated string Ids = 2;
 }
 
@@ -41,7 +41,7 @@ enum LeaseReturnReasonType {
 }
 
 message ReturnLeaseRequest {
-    string ClusterID = 1;
+    string ClusterId = 1;
     string JobId = 2;
     string Reason = 3;
     LeaseReturnReasonType ReasonType = 4;

@@ -108,14 +108,14 @@ message EventMessage {
         JobQueuedEvent queued = 2;
         JobLeasedEvent leased = 3;
         JobLeaseExpiredEvent leaseExpired = 4;
-        JobPendingEvent pending = 5;
-        JobRunningEvent running = 6;
-        JobFailedEvent failed = 7;
-        JobSucceededEvent succeeded = 8;
-        JobReprioritizedEvent reprioritized = 9;
-        JobCancellingEvent cancelling = 10;
-        JobCancelledEvent cancelled = 11;
-        JobLeaseReturnedEvent leaseReturned = 12;
+        JobLeaseReturnedEvent leaseReturned = 5;
+        JobPendingEvent pending = 6;
+        JobRunningEvent running = 7;
+        JobFailedEvent failed = 8;
+        JobSucceededEvent succeeded = 9;
+        JobReprioritizedEvent reprioritized = 10;
+        JobCancellingEvent cancelling = 11;
+        JobCancelledEvent cancelled = 12;
     }
 }
 

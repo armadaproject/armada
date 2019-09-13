@@ -22,7 +22,7 @@ type JobLeaseService struct {
 
 func (jobLeaseService JobLeaseService) RequestJobLeases(availableResource *common.ComputeResources) ([]*api.Job, error) {
 	leaseRequest := api.LeaseRequest{
-		ClusterID: jobLeaseService.ClusterId,
+		ClusterId: jobLeaseService.ClusterId,
 		Resources: *availableResource,
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -67,7 +67,7 @@ func (jobLeaseService JobLeaseService) renewJobLeases(pods []*v1.Pod) {
 
 	ctx, cancel := common.ContextWithDefaultTimeout()
 	defer cancel()
-	renewedJobIds, err := jobLeaseService.QueueClient.RenewLease(ctx, &api.RenewLeaseRequest{ClusterID: jobLeaseService.ClusterId, Ids: jobIds})
+	renewedJobIds, err := jobLeaseService.QueueClient.RenewLease(ctx, &api.RenewLeaseRequest{ClusterId: jobLeaseService.ClusterId, Ids: jobIds})
 	if err != nil {
 		log.Errorf("Failed to renew lease for jobs because %s", err)
 		return
