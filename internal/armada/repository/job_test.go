@@ -99,6 +99,45 @@ func TestExpiredJobRemoveShouldRemoveJobFromQueue(t *testing.T) {
 	})
 }
 
+func TestReturnLeaseShouldReturnJobToQueue(t *testing.T) {
+	withRepository(func(r *RedisJobRepository) {
+		job := addLeasedJob(t, r, "queue1", "cluster1")
+
+		returned, e := r.ReturnLease("cluster1", job.Id)
+		assert.Nil(t, e)
+		assert.NotNil(t, returned)
+
+		queue, e := r.PeekQueue("queue1", 100)
+		assert.Nil(t, e)
+		assert.Equal(t, 1, len(queue))
+		assert.Equal(t, job.Id, returned.Id)
+	})
+}
+
+func TestReturnLeaseFromDifferentClusterIsNoop(t *testing.T) {
+	withRepository(func(r *RedisJobRepository) {
+		job := addLeasedJob(t, r, "queue1", "cluster1")
+
+		returned, e := r.ReturnLease("cluster2", job.Id)
+		assert.Nil(t, e)
+		assert.Nil(t, returned)
+
+		queue, e := r.PeekQueue("queue1", 100)
+		assert.Nil(t, e)
+		assert.Equal(t, 0, len(queue))
+	})
+}
+
+func TestReturnLeaseForJobInQueueIsNoop(t *testing.T) {
+	withRepository(func(r *RedisJobRepository) {
+		job := addTestJob(t, r, "queue1")
+
+		returned, e := r.ReturnLease("cluster2", job.Id)
+		assert.Nil(t, e)
+		assert.Nil(t, returned)
+	})
+}
+
 func addLeasedJob(t *testing.T, r *RedisJobRepository, queue string, cluster string) *api.Job {
 	job := addTestJob(t, r, queue)
 	leased, e := r.TryLeaseJobs(cluster, queue, []*api.Job{job})

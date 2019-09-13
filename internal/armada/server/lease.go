@@ -5,6 +5,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/gogo/protobuf/types"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/G-Research/k8s-batch/internal/armada/api"
@@ -56,14 +57,14 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 	activeQueuePriority := filterPriorityMapByKeys(queuePriority, activeQueues)
 
 	slices := sliceResource(activeQueuePriority, request.Resources)
-	jobs, e := q.assignJobs(request.ClusterID, slices)
+	jobs, e := q.assignJobs(request.ClusterId, slices)
 	if e != nil {
-		log.Errorf("Error when leasing jobs for cluster %s: %s", request.ClusterID, e)
+		log.Errorf("Error when leasing jobs for cluster %s: %s", request.ClusterId, e)
 		return nil, e
 	}
-	additionalJobs, e := q.distributeRemainder(request.ClusterID, activeQueuePriority, slices)
+	additionalJobs, e := q.distributeRemainder(request.ClusterId, activeQueuePriority, slices)
 	if e != nil {
-		log.Errorf("Error when leasing jobs for cluster %s: %s", request.ClusterID, e)
+		log.Errorf("Error when leasing jobs for cluster %s: %s", request.ClusterId, e)
 		return nil, e
 	}
 	jobs = append(jobs, additionalJobs...)
@@ -71,13 +72,37 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 	jobLease := api.JobLease{
 		Job: jobs,
 	}
-	log.WithField("clusterId", request.ClusterID).Infof("Leasing %d jobs.", len(jobs))
+	log.WithField("clusterId", request.ClusterId).Infof("Leasing %d jobs.", len(jobs))
 	return &jobLease, nil
 }
 
 func (q AggregatedQueueServer) RenewLease(ctx context.Context, request *api.RenewLeaseRequest) (*api.IdList, error) {
-	renewed, e := q.jobRepository.RenewLease(request.ClusterID, request.Ids)
+	renewed, e := q.jobRepository.RenewLease(request.ClusterId, request.Ids)
 	return &api.IdList{renewed}, e
+}
+
+func (q AggregatedQueueServer) ReturnLease(ctx context.Context, request *api.ReturnLeaseRequest) (*types.Empty, error) {
+	returnedJob, err := q.jobRepository.ReturnLease(request.ClusterId, request.JobId)
+	if err != nil {
+		return nil, err
+	}
+	if returnedJob != nil {
+		event, err := api.Wrap(&api.JobLeaseReturnedEvent{
+			JobId:      returnedJob.Id,
+			Queue:      returnedJob.Queue,
+			JobSetId:   returnedJob.JobSetId,
+			Created:    time.Now(),
+			Reason:     request.Reason,
+			ReasonType: request.ReasonType,
+			ClusterId:  request.ClusterId,
+		})
+
+		err = q.eventRepository.ReportEvent(event)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return &types.Empty{}, nil
 }
 
 func (q AggregatedQueueServer) ReportDone(ctx context.Context, idList *api.IdList) (*api.IdList, error) {
@@ -211,7 +236,7 @@ func expireOldJobs(jobRepository repository.JobRepository, eventRepository repos
 			log.Error(e)
 		} else {
 			for _, job := range jobs {
-				event, e := api.Wrap(&api.JobLeaseExpired{
+				event, e := api.Wrap(&api.JobLeaseExpiredEvent{
 					JobId:    job.Id,
 					Queue:    job.Queue,
 					JobSetId: job.JobSetId,
