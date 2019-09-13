@@ -6,6 +6,7 @@ import "google/protobuf/timestamp.proto";
 import "k8s.io/api/core/v1/generated.proto";
 import "k8s.io/apimachinery/pkg/api/resource/generated.proto";
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
+import "google/protobuf/empty.proto";
 
 message Job {
     string Id = 1;
@@ -34,8 +35,21 @@ message RenewLeaseRequest {
     repeated string Ids = 2;
 }
 
+enum LeaseReturnReasonType {
+    CLUSTER_SCHEDULE_TIMEOUT = 0;
+    UNABLE_TO_SCHEDULE = 1;
+}
+
+message ReturnLeaseRequest {
+    string ClusterID = 1;
+    string JobId = 2;
+    string Reason = 3;
+    LeaseReturnReasonType ReasonType = 4;
+}
+
 service AggregatedQueue {
     rpc LeaseJobs (LeaseRequest) returns (JobLease);
     rpc RenewLease (RenewLeaseRequest) returns (IdList);
+    rpc ReturnLease (ReturnLeaseRequest) returns (google.protobuf.Empty);
     rpc ReportDone (IdList) returns (IdList);
 }

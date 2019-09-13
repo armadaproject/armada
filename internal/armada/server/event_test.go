@@ -19,7 +19,8 @@ func TestEventServer_ReportUsage(t *testing.T) {
 		reportEvent(t, s, &api.JobSubmittedEvent{JobSetId: jobSetId})
 		reportEvent(t, s, &api.JobQueuedEvent{JobSetId: jobSetId})
 		reportEvent(t, s, &api.JobLeasedEvent{JobSetId: jobSetId})
-		reportEvent(t, s, &api.JobLeaseExpired{JobSetId: jobSetId})
+		reportEvent(t, s, &api.JobLeaseExpiredEvent{JobSetId: jobSetId})
+		reportEvent(t, s, &api.JobLeaseReturnedEvent{JobSetId: jobSetId})
 		reportEvent(t, s, &api.JobPendingEvent{JobSetId: jobSetId})
 		reportEvent(t, s, &api.JobRunningEvent{JobSetId: jobSetId})
 		reportEvent(t, s, &api.JobFailedEvent{JobSetId: jobSetId})
@@ -30,13 +31,13 @@ func TestEventServer_ReportUsage(t *testing.T) {
 
 		e := s.GetJobSetEvents(&api.JobSetRequest{Id: jobSetId, Watch: false}, stream)
 		assert.Nil(t, e)
-		assert.Equal(t, 11, len(stream.sendMessages))
+		assert.Equal(t, 12, len(stream.sendMessages))
 
 		lastMessage := stream.sendMessages[len(stream.sendMessages)-1]
 		reportEvent(t, s, &api.JobCancelledEvent{JobSetId: jobSetId})
 		e = s.GetJobSetEvents(&api.JobSetRequest{Id: jobSetId, FromMessageId: lastMessage.Id, Watch: false}, stream)
 		assert.Nil(t, e)
-		assert.Equal(t, 12, len(stream.sendMessages),
+		assert.Equal(t, 13, len(stream.sendMessages),
 			"Just new messages should be added when reading from last one.")
 	})
 }

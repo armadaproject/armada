@@ -97,7 +97,9 @@ func WatchJobSetWithJobIdsFilter(client api.EventClient, jobSetId string, jobIds
 				info.Status = Queued
 			case *api.JobLeasedEvent:
 				info.Status = Leased
-			case *api.JobLeaseExpired:
+			case *api.JobLeaseReturnedEvent:
+				info.Status = Queued
+			case *api.JobLeaseExpiredEvent:
 				info.Status = Queued
 			case *api.JobPendingEvent:
 				info.Status = Pending
@@ -105,15 +107,14 @@ func WatchJobSetWithJobIdsFilter(client api.EventClient, jobSetId string, jobIds
 				info.Status = Running
 			case *api.JobFailedEvent:
 				info.Status = Failed
-				break
 			case *api.JobSucceededEvent:
 				info.Status = Succeeded
 			case *api.JobReprioritizedEvent:
 				// TODO
 			case *api.JobCancellingEvent:
+				// NOOP
 			case *api.JobCancelledEvent:
 				info.Status = Cancelled
-
 			}
 
 			shouldExit := onUpdate(state, event)

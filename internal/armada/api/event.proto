@@ -30,11 +30,21 @@ message JobLeasedEvent {
     string ClusterId = 5;
 }
 
-message JobLeaseExpired {
+message JobLeaseExpiredEvent {
     string JobId = 1;
     string JobSetId = 2;
     string Queue = 3;
     google.protobuf.Timestamp Created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+}
+
+message JobLeaseReturnedEvent {
+    string JobId = 1;
+    string JobSetId = 2;
+    string Queue = 3;
+    google.protobuf.Timestamp Created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+    string ClusterId = 5;
+    LeaseReturnReasonType ReasonType = 6;
+    string Reason = 7;
 }
 
 message JobPendingEvent {
@@ -97,7 +107,7 @@ message EventMessage {
         JobSubmittedEvent submitted = 1;
         JobQueuedEvent queued = 2;
         JobLeasedEvent leased = 3;
-        JobLeaseExpired leaseExpired = 4;
+        JobLeaseExpiredEvent leaseExpired = 4;
         JobPendingEvent pending = 5;
         JobRunningEvent running = 6;
         JobFailedEvent failed = 7;
@@ -105,6 +115,7 @@ message EventMessage {
         JobReprioritizedEvent reprioritized = 9;
         JobCancellingEvent cancelling = 10;
         JobCancelledEvent cancelled = 11;
+        JobLeaseReturnedEvent leaseReturned = 12;
     }
 }
 

@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"fmt"
 	"github.com/G-Research/k8s-batch/internal/armada/api"
 	"github.com/G-Research/k8s-batch/internal/common/util"
 	"github.com/go-redis/redis"
@@ -26,6 +27,7 @@ type JobRepository interface {
 	RenewLease(clusterId string, jobIds []string) (renewed []string, e error)
 	ExpireLeases(queue string, deadline time.Time) (expired []*api.Job, e error)
 	Remove(jobIds []string) (cleanedJobs []string, e error)
+	ReturnLease(clusterId string, jobId string) (returnedJob *api.Job, err error)
 }
 
 type RedisJobRepository struct {
@@ -56,6 +58,27 @@ func (repo RedisJobRepository) RenewLease(clusterId string, jobIds []string) (re
 		return nil, e
 	}
 	return repo.leaseJobs(clusterId, jobs)
+}
+
+func (repo RedisJobRepository) ReturnLease(clusterId string, jobId string) (returnedJob *api.Job, err error) {
+	jobs, e := repo.GetJobsByIds([]string{jobId})
+	if e != nil {
+		return nil, e
+	}
+	if len(jobs) == 0 {
+		return nil, fmt.Errorf("Job not found %s", jobId)
+	}
+
+	job := jobs[0]
+
+	returned, e := returnLease(repo.db, clusterId, job.Queue, job.Id, job.Created).Int()
+	if e != nil {
+		return nil, e
+	}
+	if returned > 0 {
+		return job, nil
+	}
+	return nil, nil
 }
 
 func (repo RedisJobRepository) Remove(jobIds []string) (cleanedJobIds []string, e error) {
@@ -365,4 +388,31 @@ if leasedTime ~= nil and leasedTime < deadline then
 		return 0
 	end
 end
+`)
+
+func returnLease(db redis.Cmdable, clusterId string, queueName string, jobId string, created time.Time) *redis.Cmd {
+	return returnLeaseScript.Run(db, []string{jobQueuePrefix + queueName, jobLeasedPrefix + queueName, jobClusterMapKey},
+		clusterId, jobId, float64(created.UnixNano()))
+}
+
+var returnLeaseScript = redis.NewScript(`
+local queue = KEYS[1]
+local leasedJobsSet = KEYS[2]
+local clusterAssociation = KEYS[3]
+
+local clusterId = ARGV[1]
+local jobId = ARGV[2]
+local created = tonumber(ARGV[3])
+
+local currentClusterId = redis.call('HGET', clusterAssociation, jobId)
+
+if currentClusterId == clusterId then
+	local exists = redis.call('ZREM', leasedJobsSet, jobId)
+	if exists then
+		return redis.call('ZADD', queue, created, jobId)
+	else
+		return 0
+	end
+end
+return 0
 `)

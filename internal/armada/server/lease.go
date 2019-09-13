@@ -5,6 +5,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/gogo/protobuf/types"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/G-Research/k8s-batch/internal/armada/api"
@@ -78,6 +79,30 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 func (q AggregatedQueueServer) RenewLease(ctx context.Context, request *api.RenewLeaseRequest) (*api.IdList, error) {
 	renewed, e := q.jobRepository.RenewLease(request.ClusterID, request.Ids)
 	return &api.IdList{renewed}, e
+}
+
+func (q AggregatedQueueServer) ReturnLease(ctx context.Context, request *api.ReturnLeaseRequest) (*types.Empty, error) {
+	returnedJob, err := q.jobRepository.ReturnLease(request.ClusterID, request.JobId)
+	if err != nil {
+		return nil, err
+	}
+	if returnedJob != nil {
+		event, err := api.Wrap(&api.JobLeaseReturnedEvent{
+			JobId:      returnedJob.Id,
+			Queue:      returnedJob.Queue,
+			JobSetId:   returnedJob.JobSetId,
+			Created:    time.Now(),
+			Reason:     request.Reason,
+			ReasonType: request.ReasonType,
+			ClusterId:  request.ClusterID,
+		})
+
+		err = q.eventRepository.ReportEvent(event)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return &types.Empty{}, nil
 }
 
 func (q AggregatedQueueServer) ReportDone(ctx context.Context, idList *api.IdList) (*api.IdList, error) {
@@ -211,7 +236,7 @@ func expireOldJobs(jobRepository repository.JobRepository, eventRepository repos
 			log.Error(e)
 		} else {
 			for _, job := range jobs {
-				event, e := api.Wrap(&api.JobLeaseExpired{
+				event, e := api.Wrap(&api.JobLeaseExpiredEvent{
 					JobId:    job.Id,
 					Queue:    job.Queue,
 					JobSetId: job.JobSetId,
