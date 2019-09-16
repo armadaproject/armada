@@ -10,9 +10,10 @@ type LoadTestSpecification struct {
 }
 
 type SubmissionDescription struct {
-	UserNamePrefix      string `json:"name"`
-	Count               int
 	Queue               string
+	QueuePrefix         string
+	JobSetPrefix        string
+	Count               int
 	QueuePriorityFactor float64
 	Jobs                []*JobSubmissionDescription
 }
