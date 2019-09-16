@@ -1,7 +1,8 @@
 submissions:
-  - name: example
+  - jobSetPrefix: example
+    #queue: test          # If set all jobs will be submitted under this queue
+    queuePrefix: test     # If set jobs will be submitted under their own queue with this prefix
     count: 5
-    queue: queuename # If specified all submissions are under this queue, otherwise a new queue is created for each group of jobs
     jobs:
       - name: basic_job
         count: 10
@@ -20,7 +21,7 @@ submissions:
               resources:
                 limits:
                   memory: 128Mi
-                  cpu: 80m
+                  cpu: 100m
                 requests:
-                  memory: 64Mi
-                  cpu: 60m
+                  memory: 128Mi
+                  cpu: 100m
