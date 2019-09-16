@@ -16,7 +16,7 @@ commands:
             echo $KUBECONFIG_WORKER_<< parameters.worker-id >> | base64 -d > kubeconfig_worker_<< parameters.worker-id >>_decoded.yaml
             export KUBECONFIG=./kubeconfig_worker_<< parameters.worker-id >>_decoded.yaml
             if timeout 15 helm list; then
-              helm upgrade --install armada-executor ---namespace=armada ./deployment/executor/ -f ./executor_config.yaml -f ./executor_api_credentials.yaml --set applicationConfig.application.clusterId="worker-pool-<< parameters.worker-id >>" --set image.tag="0c030681780a44cf13e94f29b7181ea3e7568d1e"
+              helm upgrade --install armada-executor --namespace=armada ./deployment/executor/ -f ./executor_config.yaml -f ./executor_api_credentials.yaml --set applicationConfig.application.clusterId="worker-pool-<< parameters.worker-id >>" --set image.tag="0c030681780a44cf13e94f29b7181ea3e7568d1e"
             else
               echo Unable to connect to worker << parameters.worker-id >>
             fi
@@ -107,7 +107,7 @@ jobs:
       - run:
           name: "Deploy to services"
           command: |
-            echo $KUBECONFIG_SERVICES| base64 -d > kubeconfig_services_decoded.yaml
+            echo $KUBECONFIG_SERVICES | base64 -d > kubeconfig_services_decoded.yaml
             export KUBECONFIG=./kubeconfig_services_decoded.yaml
             helm upgrade armada ./deployment/armada/ -f ./armada_config.yaml -f ./armada_users.yaml --set image.tag="0c030681780a44cf13e94f29b7181ea3e7568d1e"
       - deploy-executor:
