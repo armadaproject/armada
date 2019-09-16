@@ -109,7 +109,11 @@ jobs:
           command: |
             echo $KUBECONFIG_SERVICES | base64 -d > kubeconfig_services_decoded.yaml
             export KUBECONFIG=./kubeconfig_services_decoded.yaml
-            helm upgrade armada ./deployment/armada/ -f ./armada_config.yaml -f ./armada_users.yaml --set image.tag="0c030681780a44cf13e94f29b7181ea3e7568d1e"
+            if timeout 15 helm list; then
+              helm upgrade --install armada --namespace=armada ./deployment/armada/ -f ./armada_config.yaml -f ./armada_users.yaml --set image.tag="0c030681780a44cf13e94f29b7181ea3e7568d1e"
+            else
+              echo Unable to connect to services cluster
+            fi
       - deploy-executor:
           worker-id: "1"
       - deploy-executor:
