@@ -18,7 +18,7 @@ commands:
             if helm list; then
               helm upgrade armada-executor ./deployment/executor/ -f ./executor_config.yaml -f ./executor_api_credentials.yaml --set applicationConfig.application.clusterId="worker-pool-<< parameters.worker-id >>" --set image.tag="0c030681780a44cf13e94f29b7181ea3e7568d1e"
             else
-              echo Unable to connect to worker 1
+              echo Unable to connect to worker << parameters.worker-id >>
             fi
 
 jobs:
@@ -111,9 +111,9 @@ jobs:
             export KUBECONFIG=./kubeconfig_services_decoded.yaml
             helm upgrade armada ./deployment/armada/ -f ./armada_config.yaml -f ./armada_users.yaml --set image.tag="0c030681780a44cf13e94f29b7181ea3e7568d1e"
       - deploy-executor:
-        worker-id: "1"
+          worker-id: "1"
       - deploy-executor:
-        worker-id: "2"
+          worker-id: "2"
 workflows:
   version: 2
   build_and_deploy:
