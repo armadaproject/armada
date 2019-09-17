@@ -23,6 +23,8 @@ func UnwrapEvent(message *EventMessage) (Event, error) {
 		return event.Leased, nil
 	case *EventMessage_LeaseExpired:
 		return event.LeaseExpired, nil
+	case *EventMessage_LeaseReturned:
+		return event.LeaseReturned, nil
 	case *EventMessage_Pending:
 		return event.Pending, nil
 	case *EventMessage_Running:
@@ -61,10 +63,16 @@ func Wrap(event Event) (*EventMessage, error) {
 				Leased: typed,
 			},
 		}, nil
-	case *JobLeaseExpired:
+	case *JobLeaseExpiredEvent:
 		return &EventMessage{
 			Events: &EventMessage_LeaseExpired{
 				LeaseExpired: typed,
+			},
+		}, nil
+	case *JobLeaseReturnedEvent:
+		return &EventMessage{
+			Events: &EventMessage_LeaseReturned{
+				LeaseReturned: typed,
 			},
 		}, nil
 	case *JobPendingEvent:
