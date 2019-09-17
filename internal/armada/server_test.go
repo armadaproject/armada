@@ -44,7 +44,7 @@ func TestSubmitJob(t *testing.T) {
 		assert.Empty(t, err)
 
 		leasedResponse, err := leaseClient.LeaseJobs(ctx, &api.LeaseRequest{
-			ClusterID: "test-cluster",
+			ClusterId: "test-cluster",
 			Resources: common.ComputeResources{"cpu": cpu, "memory": memory},
 		})
 		assert.Empty(t, err)
