@@ -127,7 +127,7 @@ func (apiLoadTester ArmadaLoadTester) runSubmission(submission *domain.Submissio
 func (apiLoadTester ArmadaLoadTester) monitorJobsUntilCompletion(jobSetId string, jobIds []string, jobInfoChannel chan JobInfo) {
 	util.WithConnection(apiLoadTester.apiConnectionDetails, func(connection *grpc.ClientConn) {
 		eventsClient := api.NewEventClient(connection)
-		WatchJobSetWithJobIdsFilter(eventsClient, jobSetId, jobIds, func(state map[string]*JobInfo, e api.Event) bool {
+		WatchJobSetWithJobIdsFilter(eventsClient, jobSetId, true, jobIds, func(state map[string]*JobInfo, e api.Event) bool {
 			currentState := state[e.GetJobId()]
 			jobInfoChannel <- *currentState
 

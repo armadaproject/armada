@@ -41,11 +41,11 @@ func init() {
 	}
 }
 
-func WatchJobSet(client api.EventClient, jobSetId string, onUpdate func(map[string]*JobInfo, api.Event) bool) {
-	WatchJobSetWithJobIdsFilter(client, jobSetId, []string{}, onUpdate)
+func WatchJobSet(client api.EventClient, jobSetId string, waitForNew bool, onUpdate func(map[string]*JobInfo, api.Event) bool) {
+	WatchJobSetWithJobIdsFilter(client, jobSetId, waitForNew, []string{}, onUpdate)
 }
 
-func WatchJobSetWithJobIdsFilter(client api.EventClient, jobSetId string, jobIds []string, onUpdate func(map[string]*JobInfo, api.Event) bool) {
+func WatchJobSetWithJobIdsFilter(client api.EventClient, jobSetId string, waitForNew bool, jobIds []string, onUpdate func(map[string]*JobInfo, api.Event) bool) {
 	state := make(map[string]*JobInfo)
 
 	jobIdsSet := util.StringListToSet(jobIds)
@@ -53,13 +53,15 @@ func WatchJobSetWithJobIdsFilter(client api.EventClient, jobSetId string, jobIds
 	lastMessageId := ""
 
 	for {
-		clientStream, e := client.GetJobSetEvents(context.Background(), &api.JobSetRequest{Id: jobSetId, FromMessageId: lastMessageId, Watch: true})
+		clientStream, e := client.GetJobSetEvents(context.Background(), &api.JobSetRequest{Id: jobSetId, FromMessageId: lastMessageId, Watch: waitForNew})
 
 		if e != nil {
 			log.Error(e)
 			time.Sleep(5 * time.Second)
 			continue
 		}
+
+		receivedThisCall := 0
 
 		for {
 
@@ -69,7 +71,7 @@ func WatchJobSetWithJobIdsFilter(client api.EventClient, jobSetId string, jobIds
 				time.Sleep(5 * time.Second)
 				break
 			}
-
+			receivedThisCall++
 			lastMessageId = msg.Id
 
 			event, e := api.UnwrapEvent(msg.Message)
@@ -121,6 +123,10 @@ func WatchJobSetWithJobIdsFilter(client api.EventClient, jobSetId string, jobIds
 			if shouldExit {
 				return
 			}
+		}
+
+		if receivedThisCall == 0 && !waitForNew {
+			return
 		}
 	}
 }
