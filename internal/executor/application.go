@@ -9,6 +9,7 @@ import (
 	"github.com/G-Research/k8s-batch/internal/executor/service"
 	"github.com/G-Research/k8s-batch/internal/executor/submitter"
 	"github.com/G-Research/k8s-batch/internal/executor/util"
+	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/retry"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -109,26 +110,40 @@ func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGrou
 }
 
 func createConnectionToApi(config configuration.ExecutorConfiguration) (*grpc.ClientConn, error) {
-	dialOptions := grpc.WithDefaultCallOptions(grpc.WaitForReady(true))
+	dialOpts := make([]grpc.DialOption, 0, 10)
+
+	retryOpts := []grpc_retry.CallOption{
+		grpc_retry.WithBackoff(grpc_retry.BackoffExponential(300 * time.Millisecond)),
+		grpc_retry.WithMax(3),
+	}
+
+	defaultCallOptions := grpc.WithDefaultCallOptions(grpc.WaitForReady(true))
+
+	unuaryInterceptors := grpc.WithChainUnaryInterceptor(
+		grpc_prometheus.UnaryClientInterceptor,
+		grpc_retry.UnaryClientInterceptor(retryOpts...),
+	)
+
+	streamInterceptors := grpc.WithChainStreamInterceptor(
+		grpc_prometheus.StreamClientInterceptor,
+		grpc_retry.StreamClientInterceptor(retryOpts...),
+	)
+
+	dialOpts = append(dialOpts, defaultCallOptions, unuaryInterceptors, streamInterceptors)
+
 	if config.Authentication.EnableAuthentication {
-		return grpc.Dial(
-			config.Armada.Url,
+		dialOpts = append(dialOpts,
 			grpc.WithTransportCredentials(credentials.NewClientTLSFromCert(nil, "")),
 			grpc.WithPerRPCCredentials(&common.LoginCredentials{
 				Username: config.Authentication.Username,
 				Password: config.Authentication.Password,
 			}),
-			grpc.WithUnaryInterceptor(grpc_prometheus.UnaryClientInterceptor),
-			grpc.WithStreamInterceptor(grpc_prometheus.StreamClientInterceptor),
-			dialOptions)
+		)
 	} else {
-		return grpc.Dial(
-			config.Armada.Url,
-			grpc.WithInsecure(),
-			grpc.WithUnaryInterceptor(grpc_prometheus.UnaryClientInterceptor),
-			grpc.WithStreamInterceptor(grpc_prometheus.StreamClientInterceptor),
-			dialOptions)
+		dialOpts = append(dialOpts, grpc.WithInsecure())
 	}
+
+	return grpc.Dial(config.Armada.Url, dialOpts...)
 }
 
 func waitForShutdownCompletion(wg *sync.WaitGroup, timeout time.Duration) bool {
