@@ -11,8 +11,8 @@ import (
 
 func init() {
 	rootCmd.AddCommand(loadtestCmd)
-	loadtestCmd.Flags().Bool("watchEvents", false, "If enabled, the program will watch the events of all submitted jobs before exiting")
-	viper.BindPFlag("watchEvents", loadtestCmd.Flags().Lookup("watchEvents"))
+	loadtestCmd.Flags().Bool("watch", false, "If enabled, the program will watch the events of all submitted jobs before exiting")
+	viper.BindPFlag("watch", loadtestCmd.Flags().Lookup("watch"))
 }
 
 var loadtestCmd = &cobra.Command{
@@ -54,7 +54,7 @@ var loadtestCmd = &cobra.Command{
 		loadTestSpec := &domain.LoadTestSpecification{}
 		util.BindJsonOrYaml(filePath, loadTestSpec)
 
-		watchEvents := viper.GetBool("watchEvents")
+		watchEvents := viper.GetBool("watch")
 		apiConnectionDetails := client.ExtractCommandlineArmadaApiConnectionDetails()
 		loadTester := service.NewArmadaLoadTester(apiConnectionDetails)
 

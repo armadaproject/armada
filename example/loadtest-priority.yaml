@@ -1,5 +1,7 @@
 submissions:
-  - name: example
+  - jobSetPrefix: priority
+    #queue: test          # If set all jobs will be submitted under this queue
+    queuePrefix: example     # If set jobs will be submitted under their own queue with this prefix
     count: 10
     jobs:
       - name: basic_job
@@ -23,9 +25,10 @@ submissions:
                 requests:
                   memory: 128Mi
                   cpu: 500m
-  - name: important
+  - jobSetPrefix: priority
+    queue: important          # If set all jobs will be submitted under this queue
+    # queuePrefix: example     # If set jobs will be submitted under their own queue with this prefix
     count: 1
-    queue: important # If specified all submissions are under this queue, otherwise a new queue is created for each group of jobs
     queuePriorityFactor: 0.1
     jobs:
      - name: basic_job
