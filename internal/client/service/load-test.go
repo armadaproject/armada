@@ -5,7 +5,6 @@ import (
 	"github.com/G-Research/k8s-batch/internal/armada/api"
 	"github.com/G-Research/k8s-batch/internal/client/domain"
 	"github.com/G-Research/k8s-batch/internal/client/util"
-	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	v1 "k8s.io/api/core/v1"
 	"strconv"
@@ -84,16 +83,13 @@ func watchJobInfoChannel(jobInfoChannel chan JobInfo) (*sync.WaitGroup, chan boo
 }
 
 func (apiLoadTester ArmadaLoadTester) runSubmission(submission *domain.SubmissionDescription, i int) (jobIds []string, jobSetId string) {
+	queue := createQueueName(submission, i)
 
-	queue := submission.Queue
-	if queue == "" {
-		queue = submission.UserNamePrefix + "-" + strconv.Itoa(i)
-	}
 	priorityFactor := submission.QueuePriorityFactor
 	if priorityFactor <= 0 {
 		priorityFactor = 1
 	}
-	jobSetId = queue + "-" + strconv.Itoa(i)
+	jobSetId = submission.JobSetPrefix + "-" + strconv.Itoa(i)
 	jobs := submission.Jobs
 
 	jobIds = make([]string, 0, len(jobs))
@@ -102,10 +98,10 @@ func (apiLoadTester ArmadaLoadTester) runSubmission(submission *domain.Submissio
 
 		e := CreateQueue(client, &api.Queue{Name: queue, PriorityFactor: priorityFactor})
 		if e != nil {
-			log.Errorf("Failed to create queue: %s because: %s", queue, e)
+			fmt.Printf("ERROR: Failed to create queue: %s because: %s\n", queue, e)
 			return
 		}
-		log.Infof("Queue %s created.", queue)
+		fmt.Printf("Queue %s created.\n", queue)
 
 		for _, job := range jobs {
 			jobRequest := createJobRequest(queue, jobSetId, job.Spec)
@@ -113,15 +109,31 @@ func (apiLoadTester ArmadaLoadTester) runSubmission(submission *domain.Submissio
 				response, e := SubmitJob(client, jobRequest)
 
 				if e != nil {
-					log.Errorf("Failed to submit job for jobset: %s because %s", jobSetId, e)
+					fmt.Printf("ERROR: Failed to submit job for jobset: %s because %s\n", jobSetId, e)
 					continue
 				}
-				log.Infof("Submitted job id: %s (set: %s)", response.JobId, jobSetId)
+				fmt.Printf("Submitted job id: %s (set: %s)\n", response.JobId, jobSetId)
 				jobIds = append(jobIds, response.JobId)
 			}
 		}
 	})
 	return jobIds, jobSetId
+}
+
+func createQueueName(submission *domain.SubmissionDescription, i int) string {
+	queue := ""
+
+	if submission.Queue != "" {
+		queue = submission.Queue
+	} else if submission.QueuePrefix != "" {
+		queue = submission.QueuePrefix + "-" + strconv.Itoa(i)
+	}
+
+	if queue == "" {
+		fmt.Printf("ERROR: Queue name is blank, please set queue or queuePrefix ")
+		panic("Queue name is blank")
+	}
+	return queue
 }
 
 func (apiLoadTester ArmadaLoadTester) monitorJobsUntilCompletion(jobSetId string, jobIds []string, jobInfoChannel chan JobInfo) {
