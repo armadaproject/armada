@@ -30,7 +30,7 @@ func (apiLoadTester ArmadaLoadTester) RunSubmissionTest(spec domain.LoadTestSpec
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
 
-	jobInfoChannel := make(chan JobInfo, 1000)
+	jobInfoChannel := make(chan JobInfo, 10000)
 
 	if watchEvents {
 		complete, cancel := watchJobInfoChannel(jobInfoChannel)
@@ -139,7 +139,7 @@ func createQueueName(submission *domain.SubmissionDescription, i int) string {
 func (apiLoadTester ArmadaLoadTester) monitorJobsUntilCompletion(jobSetId string, jobIds []string, jobInfoChannel chan JobInfo) {
 	util.WithConnection(apiLoadTester.apiConnectionDetails, func(connection *grpc.ClientConn) {
 		eventsClient := api.NewEventClient(connection)
-		WatchJobSetWithJobIdsFilter(eventsClient, jobSetId, jobIds, func(state map[string]*JobInfo, e api.Event) bool {
+		WatchJobSetWithJobIdsFilter(eventsClient, jobSetId, true, jobIds, func(state map[string]*JobInfo, e api.Event) bool {
 			currentState := state[e.GetJobId()]
 			jobInfoChannel <- *currentState
 
