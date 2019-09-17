@@ -30,7 +30,7 @@ func (apiLoadTester ArmadaLoadTester) RunSubmissionTest(spec domain.LoadTestSpec
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
 
-	jobInfoChannel := make(chan JobInfo, 1000)
+	jobInfoChannel := make(chan JobInfo, 10000)
 
 	if watchEvents {
 		complete, cancel := watchJobInfoChannel(jobInfoChannel)
