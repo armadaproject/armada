@@ -61,6 +61,9 @@ func (cleanupService *podCleanupService) ProcessPodsToDelete() {
 
 	deleteOptions := createPodDeletionDeleteOptions()
 	for jobId, podToDelete := range cleanupService.podsCache {
+		if podToDelete == nil {
+			continue
+		}
 		err := cleanupService.kubernetesClient.CoreV1().Pods(podToDelete.Namespace).Delete(podToDelete.Name, &deleteOptions)
 		if err != nil {
 			log.Errorf("Failed to delete pod %s/%s because %s", podToDelete.Namespace, podToDelete.Name, err)
