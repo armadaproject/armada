@@ -28,6 +28,7 @@ type JobRepository interface {
 	ExpireLeases(queue string, deadline time.Time) (expired []*api.Job, e error)
 	Remove(jobIds []string) (cleanedJobs []string, e error)
 	ReturnLease(clusterId string, jobId string) (returnedJob *api.Job, err error)
+	CancelById(jobId string) (cancelledJob *api.Job, err error)
 }
 
 type RedisJobRepository struct {
@@ -68,7 +69,6 @@ func (repo RedisJobRepository) ReturnLease(clusterId string, jobId string) (retu
 	if len(jobs) == 0 {
 		return nil, fmt.Errorf("Job not found %s", jobId)
 	}
-
 	job := jobs[0]
 
 	returned, e := returnLease(repo.db, clusterId, job.Queue, job.Id, job.Created).Int()
@@ -81,9 +81,42 @@ func (repo RedisJobRepository) ReturnLease(clusterId string, jobId string) (retu
 	return nil, nil
 }
 
+func (repo RedisJobRepository) CancelById(jobId string) (cancelledJob *api.Job, err error) {
+
+	jobs, e := repo.GetJobsByIds([]string{jobId})
+	if e != nil {
+		return nil, e
+	}
+	job := jobs[0]
+
+	queueResult, e := repo.db.ZRem(jobQueuePrefix+job.Queue, job.Id).Result()
+	if e != nil {
+		return nil, e
+	}
+	if queueResult > 0 {
+		return job, nil
+	}
+
+	leasedResult, e := repo.db.ZRem(jobLeasedPrefix+job.Queue, job.Id).Result()
+	if e != nil {
+		return nil, e
+	}
+
+	if leasedResult > 0 {
+		return job, nil
+	}
+
+	// TODO clean up job completely??
+
+	return nil, nil
+}
+
 func (repo RedisJobRepository) Remove(jobIds []string) (cleanedJobIds []string, e error) {
 
 	jobs, e := repo.getJobIdentities(jobIds)
+	if e != nil {
+		return nil, e
+	}
 
 	cleanedJobs, e := repo.zRemoveJobIds(jobs, func(j *jobIdentity) string { return jobLeasedPrefix + j.queueName })
 	if e != nil {

@@ -13,6 +13,10 @@ message JobRequest {
     k8s.io.api.core.v1.PodSpec PodSpec = 4;
 }
 
+message JobCancelRequest {
+    string jobId = 1;
+}
+
 message JobSubmitResponse {
     string JobId = 1;
 }
@@ -24,5 +28,6 @@ message Queue {
 
 service Submit {
     rpc SubmitJob (JobRequest) returns (JobSubmitResponse);
+    rpc CancelJob (JobCancelRequest) returns (google.protobuf.Empty);
     rpc CreateQueue (Queue) returns (google.protobuf.Empty);
 }

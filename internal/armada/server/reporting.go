@@ -59,3 +59,31 @@ func reportJobsLeased(repository repository.EventRepository, jobs []*api.Job, cl
 		}
 	}
 }
+
+func reportCancelled(repository repository.EventRepository, job *api.Job) error {
+	event, e := api.Wrap(&api.JobCancelledEvent{
+		JobId:    job.Id,
+		Queue:    job.Queue,
+		JobSetId: job.JobSetId,
+		Created:  job.Created,
+	})
+	if e != nil {
+		return e
+	}
+	e = repository.ReportEvent(event)
+	return e
+}
+
+func reportCancelling(repository repository.EventRepository, job *api.Job) error {
+	event, e := api.Wrap(&api.JobCancellingEvent{
+		JobId:    job.Id,
+		Queue:    job.Queue,
+		JobSetId: job.JobSetId,
+		Created:  job.Created,
+	})
+	if e != nil {
+		return e
+	}
+	e = repository.ReportEvent(event)
+	return e
+}

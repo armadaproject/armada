@@ -50,3 +50,19 @@ func (server SubmitServer) SubmitJob(ctx context.Context, req *api.JobRequest) (
 
 	return result, nil
 }
+
+func (server SubmitServer) CancelJob(ctx context.Context, request *api.JobCancelRequest) (*types.Empty, error) {
+	cancelledJob, e := server.jobRepository.CancelById(request.JobId)
+	if e != nil {
+		return nil, status.Errorf(codes.Aborted, e.Error())
+	}
+
+	if cancelledJob != nil {
+		e = reportCancelled(server.eventRepository, cancelledJob)
+		if e != nil {
+			return nil, status.Errorf(codes.Unknown, e.Error())
+		}
+	}
+
+	return &types.Empty{}, nil
+}
