@@ -59,11 +59,12 @@ func (cleanupService *podCleanupService) DeletePods(pods []*v1.Pod) {
 
 func (cleanupService *podCleanupService) ProcessPodsToDelete() {
 
+	cleanupService.mutex.Lock()
+	pods := copyMapStringPod(cleanupService.podsCache)
+	cleanupService.mutex.Unlock()
+
 	deleteOptions := createPodDeletionDeleteOptions()
-	for jobId, podToDelete := range cleanupService.podsCache {
-		if podToDelete == nil {
-			continue
-		}
+	for jobId, podToDelete := range pods {
 		err := cleanupService.kubernetesClient.CoreV1().Pods(podToDelete.Namespace).Delete(podToDelete.Name, &deleteOptions)
 		if err != nil {
 			log.Errorf("Failed to delete pod %s/%s because %s", podToDelete.Namespace, podToDelete.Name, err)
@@ -98,4 +99,15 @@ func createPodDeletionDeleteOptions() metav1.DeleteOptions {
 		GracePeriodSeconds: &gracePeriod,
 	}
 	return deleteOptions
+}
+
+func copyMapStringPod(stringPodMap map[string]*v1.Pod) map[string]*v1.Pod {
+	pods := map[string]*v1.Pod{}
+	for jobId, podToDelete := range stringPodMap {
+		if podToDelete == nil {
+			continue
+		}
+		pods[jobId] = podToDelete
+	}
+	return pods
 }
