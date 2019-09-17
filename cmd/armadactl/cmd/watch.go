@@ -36,7 +36,7 @@ var watchCmd = &cobra.Command{
 
 		util.WithConnection(apiConnectionDetails, func(conn *grpc.ClientConn) {
 			eventsClient := api.NewEventClient(conn)
-			service.WatchJobSet(eventsClient, jobSetId, func(state map[string]*service.JobInfo, e api.Event) bool {
+			service.WatchJobSet(eventsClient, jobSetId, true, func(state map[string]*service.JobInfo, e api.Event) bool {
 				if raw {
 					data, err := json.Marshal(e)
 					if err != nil {
