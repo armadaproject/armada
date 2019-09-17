@@ -4,6 +4,7 @@ import (
 	"github.com/G-Research/k8s-batch/internal/armada/api"
 	"github.com/G-Research/k8s-batch/internal/common"
 	"github.com/G-Research/k8s-batch/internal/executor/configuration"
+	"github.com/G-Research/k8s-batch/internal/executor/metrics"
 	_ "github.com/G-Research/k8s-batch/internal/executor/metrics"
 	"github.com/G-Research/k8s-batch/internal/executor/reporter"
 	"github.com/G-Research/k8s-batch/internal/executor/service"
@@ -11,6 +12,8 @@ import (
 	"github.com/G-Research/k8s-batch/internal/executor/util"
 	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/retry"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -91,11 +94,11 @@ func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGrou
 	wg.Add(1)
 
 	tasks := make([]chan bool, 0)
-	tasks = append(tasks, scheduleBackgroundTask(clusterUtilisationService.ReportClusterUtilisation, config.Task.UtilisationReportingInterval, wg))
-	tasks = append(tasks, scheduleBackgroundTask(clusterAllocationService.AllocateSpareClusterCapacity, config.Task.AllocateSpareClusterCapacityInterval, wg))
-	tasks = append(tasks, scheduleBackgroundTask(jobLeaseService.RenewJobLeases, config.Task.JobLeaseRenewalInterval, wg))
-	tasks = append(tasks, scheduleBackgroundTask(jobLeaseService.CleanupJobLeases, config.Task.JobLeaseCleanupInterval, wg))
-	tasks = append(tasks, scheduleBackgroundTask(eventReconciliationService.ReconcileMissingJobEvents, config.Task.MissingJobEventReconciliationInterval, wg))
+	tasks = append(tasks, scheduleBackgroundTask(clusterUtilisationService.ReportClusterUtilisation, config.Task.UtilisationReportingInterval, "utilisation_reporting", wg))
+	tasks = append(tasks, scheduleBackgroundTask(clusterAllocationService.AllocateSpareClusterCapacity, config.Task.AllocateSpareClusterCapacityInterval, "job_lease_request", wg))
+	tasks = append(tasks, scheduleBackgroundTask(jobLeaseService.RenewJobLeases, config.Task.JobLeaseRenewalInterval, "job_lease_renewal", wg))
+	tasks = append(tasks, scheduleBackgroundTask(jobLeaseService.CleanupJobLeases, config.Task.JobLeaseCleanupInterval, "job_cleanup", wg))
+	tasks = append(tasks, scheduleBackgroundTask(eventReconciliationService.ReconcileMissingJobEvents, config.Task.MissingJobEventReconciliationInterval, "event_reconciliation", wg))
 
 	return func() {
 		stopTasks(tasks)
@@ -160,12 +163,23 @@ func waitForShutdownCompletion(wg *sync.WaitGroup, timeout time.Duration) bool {
 	}
 }
 
-func scheduleBackgroundTask(task func(), interval time.Duration, wg *sync.WaitGroup) chan bool {
+func scheduleBackgroundTask(task func(), interval time.Duration, metricName string, wg *sync.WaitGroup) chan bool {
 	stop := make(chan bool)
+
+	var taskDurationHistogram = promauto.NewHistogram(
+		prometheus.HistogramOpts{
+			Name:    metrics.ArmadaExecutorMetricsPrefix + metricName + "_latency_seconds",
+			Help:    "Background loop " + metricName + " latency in seconds",
+			Buckets: prometheus.ExponentialBuckets(0.01, 2, 10),
+		})
 
 	wg.Add(1)
 	go func() {
+		start := time.Now()
 		task()
+		duration := time.Since(start)
+		taskDurationHistogram.Observe(duration.Seconds())
+
 		for {
 			select {
 			case <-time.After(interval):
@@ -173,7 +187,10 @@ func scheduleBackgroundTask(task func(), interval time.Duration, wg *sync.WaitGr
 				wg.Done()
 				return
 			}
+			innerStart := time.Now()
 			task()
+			innerDuration := time.Since(innerStart)
+			taskDurationHistogram.Observe(innerDuration.Seconds())
 		}
 	}()
 
