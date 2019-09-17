@@ -94,3 +94,7 @@ func FilterPodsWithPhase(pods []*v1.Pod, podPhase v1.PodPhase) []*v1.Pod {
 
 	return podsInPhase
 }
+
+func IsReportingPhaseRequired(podPhase v1.PodPhase) bool {
+	return podPhase != v1.PodPending && podPhase != v1.PodUnknown
+}

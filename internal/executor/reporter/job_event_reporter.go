@@ -57,10 +57,12 @@ func (eventReporter JobEventReporter) report(pod *v1.Pod) {
 		return
 	}
 
-	err = eventReporter.addAnnotationToMarkStateReported(pod)
-	if err != nil {
-		log.Errorf("Failed to add stats reported annotation to pod %s because %s", pod.Name, err)
-		return
+	if util.IsReportingPhaseRequired(pod.Status.Phase) {
+		err = eventReporter.addAnnotationToMarkStateReported(pod)
+		if err != nil {
+			log.Errorf("Failed to add stats reported annotation to pod %s because %s", pod.Name, err)
+			return
+		}
 	}
 }
 
