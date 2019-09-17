@@ -13,8 +13,10 @@ import (
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/keepalive"
 	"net"
 	"sync"
+	"time"
 )
 
 func Serve(config *configuration.ArmadaConfig) (*grpc.Server, *sync.WaitGroup) {
@@ -104,6 +106,9 @@ func createServer(config *configuration.ArmadaConfig) *grpc.Server {
 	streamInterceptors = append(streamInterceptors, grpc_prometheus.StreamServerInterceptor)
 
 	return grpc.NewServer(
+		grpc.KeepaliveParams(keepalive.ServerParameters{
+			MaxConnectionIdle: 5 * time.Minute,
+		}),
 		grpc.StreamInterceptor(grpc_middleware.ChainStreamServer(streamInterceptors...)),
 		grpc.UnaryInterceptor(grpc_middleware.ChainUnaryServer(unaryInterceptors...)))
 }
