@@ -1,14 +1,11 @@
 package service
 
 import (
-	"sync"
-
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	v12 "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/cache"
 
 	"github.com/G-Research/k8s-batch/internal/executor/util"
 )
@@ -20,66 +17,45 @@ type PodCleanupService interface {
 
 type podCleanupService struct {
 	kubernetesClient kubernetes.Interface
-	mutex            sync.RWMutex
-	podsCache        map[string]*v1.Pod
+	cache            util.PodCache
 }
 
-func NewPodCleanupService(kubernetesClient kubernetes.Interface, podInformer v12.PodInformer) PodCleanupService {
-	service := &podCleanupService{
+func NewPodCleanupService(kubernetesClient kubernetes.Interface, deletedPodCache util.PodCache) PodCleanupService {
+	return &podCleanupService{
 		kubernetesClient: kubernetesClient,
-		mutex:            sync.RWMutex{},
-		podsCache:        map[string]*v1.Pod{},
+		cache:            deletedPodCache,
 	}
-
-	podInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		DeleteFunc: func(obj interface{}) {
-			pod, ok := obj.(*v1.Pod)
-			if !ok {
-				log.Errorf("Failed to process pod event due to it being an unexpected type. Failed to process %+v", obj)
-				return
-			}
-			service.RemoveFromCache(pod)
-		},
-	})
-
-	return service
 }
 
 func (cleanupService *podCleanupService) DeletePods(pods []*v1.Pod) {
 	for _, podToDelete := range pods {
-		cleanupService.mutex.Lock()
-		jobId := util.ExtractJobId(podToDelete)
-		_, ok := cleanupService.podsCache[jobId]
-		if !ok {
-			cleanupService.podsCache[jobId] = podToDelete
-		}
-		cleanupService.mutex.Unlock()
+		cleanupService.cache.AddIfNotExists(podToDelete)
 	}
 }
 
 func (cleanupService *podCleanupService) ProcessPodsToDelete() {
 
+	pods := cleanupService.cache.GetAll()
+
 	deleteOptions := createPodDeletionDeleteOptions()
-	for jobId, podToDelete := range cleanupService.podsCache {
+	for _, podToDelete := range pods {
+		if podToDelete == nil {
+			continue
+		}
 		err := cleanupService.kubernetesClient.CoreV1().Pods(podToDelete.Namespace).Delete(podToDelete.Name, &deleteOptions)
-		if err != nil {
-			log.Errorf("Failed to delete pod %s/%s because %s", podToDelete.Namespace, podToDelete.Name, err)
-		}
-		cleanupService.mutex.Lock()
-		if err != nil {
-			delete(cleanupService.podsCache, jobId)
+		jobId := util.ExtractJobId(podToDelete)
+		if err == nil || errors.IsNotFound(err) {
+			cleanupService.cache.Update(jobId, nil)
 		} else {
-			cleanupService.podsCache[jobId] = nil
+			log.Errorf("Failed to delete pod %s/%s because %s", podToDelete.Namespace, podToDelete.Name, err)
+			cleanupService.cache.Delete(jobId)
 		}
-		cleanupService.mutex.Unlock()
 	}
 }
 
 func (cleanupService *podCleanupService) RemoveFromCache(pod *v1.Pod) {
 	jobId := util.ExtractJobId(pod)
-	cleanupService.mutex.Lock()
-	defer cleanupService.mutex.Unlock()
-	delete(cleanupService.podsCache, jobId)
+	cleanupService.cache.Delete(jobId)
 }
 
 func IsPodReadyForCleanup(pod *v1.Pod) bool {

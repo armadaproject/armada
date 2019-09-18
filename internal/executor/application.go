@@ -49,7 +49,8 @@ func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGrou
 		ClusterId:        config.Application.ClusterId,
 	}
 
-	submittedPodCache := util.NewMapPodCache()
+	submittedPodCache := util.NewMapPodCache(time.Minute, time.Second, "submitted_job")
+	deletedPodCache := util.NewMapPodCache(2*time.Minute, time.Second, "deleted_job")
 
 	factory := informers.NewSharedInformerFactoryWithOptions(kubernetesClient, 0)
 	podInformer := factory.Core().V1().Pods()
@@ -62,13 +63,14 @@ func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGrou
 		SubmittedPodCache: submittedPodCache,
 	}
 
-	podCleanupService := service.NewPodCleanupService(kubernetesClient, podInformer)
+	podCleanupService := service.NewPodCleanupService(kubernetesClient, deletedPodCache)
 
 	jobLeaseService := service.JobLeaseService{
-		PodLister:      podInformer.Lister(),
-		QueueClient:    queueClient,
-		CleanupService: podCleanupService,
-		ClusterId:      config.Application.ClusterId,
+		PodLister:         podInformer.Lister(),
+		QueueClient:       queueClient,
+		CleanupService:    podCleanupService,
+		ClusterId:         config.Application.ClusterId,
+		SubmittedJobCache: submittedPodCache,
 	}
 
 	eventReconciliationService := service.JobEventReconciliationService{
