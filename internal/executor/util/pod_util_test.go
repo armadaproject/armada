@@ -253,7 +253,6 @@ func TestManagedPodSelector_IsImmutable(t *testing.T) {
 	assert.NotEqual(t, result, GetManagedPodSelector())
 }
 
-
 func TestIsReportingPhaseRequired(t *testing.T) {
 	assert.Equal(t, true, IsReportingPhaseRequired(v1.PodRunning))
 	assert.Equal(t, true, IsReportingPhaseRequired(v1.PodSucceeded))
