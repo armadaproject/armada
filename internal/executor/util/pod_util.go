@@ -1,6 +1,7 @@
 package util
 
 import (
+	"github.com/G-Research/k8s-batch/internal/common/util"
 	"github.com/G-Research/k8s-batch/internal/executor/domain"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -41,6 +42,16 @@ func createLabelSelectorForManagedPods() labels.Selector {
 
 	selector := labels.NewSelector().Add(*jobIdExistsRequirement)
 	return selector
+}
+
+func ExtractNames(pods []*v1.Pod) []string {
+	podNames := make([]string, 0, len(pods))
+
+	for _, pod := range pods {
+		podNames = append(podNames, pod.Name)
+	}
+
+	return podNames
 }
 
 func ExtractJobIds(pods []*v1.Pod) []string {
@@ -93,4 +104,19 @@ func FilterPodsWithPhase(pods []*v1.Pod, podPhase v1.PodPhase) []*v1.Pod {
 	}
 
 	return podsInPhase
+}
+
+func MergePodList(list1 []*v1.Pod, list2 []*v1.Pod) []*v1.Pod {
+	jobIds := ExtractNames(list1)
+	jobIdsSet := util.StringListToSet(jobIds)
+
+	allPods := list1
+
+	for _, pod := range list2 {
+		if !jobIdsSet[pod.Name] {
+			allPods = append(allPods, pod)
+		}
+	}
+
+	return allPods
 }

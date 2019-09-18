@@ -14,10 +14,11 @@ import (
 )
 
 type JobLeaseService struct {
-	PodLister      listers.PodLister
-	QueueClient    api.AggregatedQueueClient
-	CleanupService PodCleanupService
-	ClusterId      string
+	PodLister         listers.PodLister
+	QueueClient       api.AggregatedQueueClient
+	CleanupService    PodCleanupService
+	ClusterId         string
+	SubmittedJobCache util.PodCache
 }
 
 func (jobLeaseService JobLeaseService) RequestJobLeases(availableResource *common.ComputeResources) ([]*api.Job, error) {
@@ -43,7 +44,9 @@ func (jobLeaseService JobLeaseService) ManageJobLeases() {
 		return
 	}
 
-	podsToRenew := getRunningPods(allManagedPods)
+	podsToRenew := allManagedPods
+	podsToRenew = util.MergePodList(podsToRenew, jobLeaseService.SubmittedJobCache.GetAll())
+
 	podsToCleanup := getFinishedPods(allManagedPods)
 
 	jobLeaseService.renewJobLeases(podsToRenew)

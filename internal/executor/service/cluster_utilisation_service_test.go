@@ -4,7 +4,6 @@ import (
 	"github.com/G-Research/k8s-batch/internal/common"
 	util2 "github.com/G-Research/k8s-batch/internal/common/util"
 	"github.com/G-Research/k8s-batch/internal/executor/domain"
-	"github.com/G-Research/k8s-batch/internal/executor/util"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -213,49 +212,6 @@ func TestGetUsageByQueue_HandlesEmptyList(t *testing.T) {
 
 	assert.NotNil(t, result)
 	assert.Equal(t, len(result), 0)
-}
-
-func TestAddCachedSubmittedPods_AddsCachedPods(t *testing.T) {
-	podResource := makeResourceList(2, 50)
-	cachedPod := makePodWithResource("queue1", &podResource)
-
-	cache := util.NewMapPodCache()
-	clusterUtilisationService := ClusterUtilisationService{SubmittedPodCache: cache}
-
-	cache.Add(&cachedPod)
-
-	result := clusterUtilisationService.addCachedSubmittedPods([]*v1.Pod{})
-
-	assert.Equal(t, len(result), 1)
-	assert.Equal(t, result[0], &cachedPod)
-}
-
-func TestAddCachedSubmittedPods_DoesNotDuplicateExistingPods(t *testing.T) {
-	podResource := makeResourceList(2, 50)
-	existingAndCachedPod := makePodWithResource("queue1", &podResource)
-
-	cache := util.NewMapPodCache()
-	clusterUtilisationService := ClusterUtilisationService{SubmittedPodCache: cache}
-
-	cache.Add(&existingAndCachedPod)
-
-	result := clusterUtilisationService.addCachedSubmittedPods([]*v1.Pod{&existingAndCachedPod})
-
-	assert.Equal(t, len(result), 1)
-	assert.Equal(t, result[0], &existingAndCachedPod)
-}
-
-func TestAddCachedSubmittedPods_ShouldJustReturnTheExistingListIfNotPodsCached(t *testing.T) {
-	podResource := makeResourceList(2, 50)
-	existingPod := makePodWithResource("queue1", &podResource)
-
-	cache := util.NewMapPodCache()
-	clusterUtilisationService := ClusterUtilisationService{SubmittedPodCache: cache}
-
-	result := clusterUtilisationService.addCachedSubmittedPods([]*v1.Pod{&existingPod})
-
-	assert.Equal(t, len(result), 1)
-	assert.Equal(t, result[0], &existingPod)
 }
 
 func hasKey(value map[string]common.ComputeResources, key string) bool {

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/G-Research/k8s-batch/internal/armada/api"
 	"github.com/G-Research/k8s-batch/internal/common"
-	util2 "github.com/G-Research/k8s-batch/internal/common/util"
 	"github.com/G-Research/k8s-batch/internal/executor/domain"
 	"github.com/G-Research/k8s-batch/internal/executor/util"
 	log "github.com/sirupsen/logrus"
@@ -63,7 +62,7 @@ func (clusterUtilisationService ClusterUtilisationService) GetAvailableClusterCa
 	if err != nil {
 		return new(common.ComputeResources), fmt.Errorf("Failed getting available cluster capacity due to: %s", err)
 	}
-	allPods = clusterUtilisationService.addCachedSubmittedPods(allPods)
+	allPods = util.MergePodList(allPods, clusterUtilisationService.SubmittedPodCache.GetAll())
 
 	allPodsRequiringResource := getAllPodsRequiringResourceOnProcessingNodes(allPods, processingNodes)
 	allNonCompletePodsRequiringResource := util.FilterNonCompletedPods(allPodsRequiringResource)
@@ -92,21 +91,6 @@ func (clusterUtilisationService ClusterUtilisationService) reportUsage(clusterUs
 	_, err := clusterUtilisationService.UsageClient.ReportUsage(ctx, clusterUsage)
 
 	return err
-}
-
-func (clusterUtilisationService ClusterUtilisationService) addCachedSubmittedPods(pods []*v1.Pod) []*v1.Pod {
-	jobIds := util.ExtractJobIds(pods)
-	jobIdsSet := util2.StringListToSet(jobIds)
-
-	podsIncludingCachedPods := pods
-
-	for submittedJobId, submittedJob := range clusterUtilisationService.SubmittedPodCache.GetAll() {
-		if !jobIdsSet[submittedJobId] {
-			podsIncludingCachedPods = append(podsIncludingCachedPods, submittedJob)
-		}
-	}
-
-	return podsIncludingCachedPods
 }
 
 func filterAvailableProcessingNodes(nodes []*v1.Node) []*v1.Node {

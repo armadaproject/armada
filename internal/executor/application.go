@@ -65,10 +65,11 @@ func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGrou
 	podCleanupService := service.NewPodCleanupService(kubernetesClient, podInformer)
 
 	jobLeaseService := service.JobLeaseService{
-		PodLister:      podInformer.Lister(),
-		QueueClient:    queueClient,
-		CleanupService: podCleanupService,
-		ClusterId:      config.Application.ClusterId,
+		PodLister:         podInformer.Lister(),
+		QueueClient:       queueClient,
+		CleanupService:    podCleanupService,
+		ClusterId:         config.Application.ClusterId,
+		SubmittedJobCache: submittedPodCache,
 	}
 
 	eventReconciliationService := service.JobEventReconciliationService{
