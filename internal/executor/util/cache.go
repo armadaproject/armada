@@ -129,6 +129,7 @@ func (podCache *mapPodCache) deleteExpired() {
 	for id, c := range podCache.records {
 		if c.expiry.Before(now) {
 			delete(podCache.records, id)
+			podCache.sizeGauge.Dec()
 		}
 	}
 }
