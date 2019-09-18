@@ -12,7 +12,7 @@ type PodCache interface {
 	Add(pod *v1.Pod)
 	Delete(jobId string)
 	Get(jobId string) *v1.Pod
-	GetAll() map[string]*v1.Pod
+	GetAll() []*v1.Pod
 }
 
 var cacheSize = promauto.NewGauge(
@@ -63,14 +63,14 @@ func (podCache *MapPodCache) Get(jobId string) *v1.Pod {
 	return pod.DeepCopy()
 }
 
-func (podCache *MapPodCache) GetAll() map[string]*v1.Pod {
+func (podCache *MapPodCache) GetAll() []*v1.Pod {
 	podCache.rwLock.Lock()
 	defer podCache.rwLock.Unlock()
 
-	replica := make(map[string]*v1.Pod, len(podCache.cache))
+	all := make([]*v1.Pod, 0, len(podCache.cache))
 
-	for k, v := range podCache.cache {
-		replica[k] = v.DeepCopy()
+	for _, v := range podCache.cache {
+		all = append(all, v.DeepCopy())
 	}
-	return replica
+	return all
 }

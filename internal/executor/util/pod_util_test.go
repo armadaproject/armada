@@ -252,3 +252,77 @@ func TestManagedPodSelector_IsImmutable(t *testing.T) {
 	//Check it is now different from the original
 	assert.NotEqual(t, result, GetManagedPodSelector())
 }
+
+func TestMergePodList(t *testing.T) {
+	pod1 := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "Pod1",
+		},
+	}
+	pod2 := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "Pod2",
+		},
+	}
+
+	result := MergePodList([]*v1.Pod{pod1}, []*v1.Pod{pod2})
+
+	assert.Equal(t, len(result), 2)
+	assert.Equal(t, result[0], pod1)
+	assert.Equal(t, result[1], pod2)
+}
+
+func TestMergePodList_DoesNotAddDuplicates(t *testing.T) {
+	pod1 := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "Pod1",
+		},
+	}
+	pod2 := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "Pod2",
+		},
+	}
+
+	result := MergePodList([]*v1.Pod{pod1, pod2}, []*v1.Pod{pod2})
+
+	assert.Equal(t, len(result), 2)
+	assert.Equal(t, result[0], pod1)
+	assert.Equal(t, result[1], pod2)
+}
+
+func TestMergePodList_HandlesListsBeingEmpty(t *testing.T) {
+	pod1 := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "Pod1",
+		},
+	}
+
+	result := MergePodList([]*v1.Pod{pod1}, []*v1.Pod{})
+	assert.Equal(t, len(result), 1)
+	assert.Equal(t, result[0], pod1)
+
+	result = MergePodList([]*v1.Pod{}, []*v1.Pod{pod1})
+	assert.Equal(t, len(result), 1)
+	assert.Equal(t, result[0], pod1)
+}
+
+func TestMergePodList_DoesNotModifyOriginalList(t *testing.T) {
+	pod1 := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "Pod1",
+		},
+	}
+	pod2 := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "Pod2",
+		},
+	}
+
+	list1 := []*v1.Pod{pod1}
+
+	result := MergePodList(list1, []*v1.Pod{pod2})
+
+	assert.Equal(t, len(list1), 1)
+	assert.Equal(t, len(result), 2)
+}

@@ -58,8 +58,14 @@ func TestMapPodCache_GetAll(t *testing.T) {
 	result := cache.GetAll()
 
 	assert.Equal(t, len(result), 2)
-	assert.NotNil(t, result["job1"])
-	assert.NotNil(t, result["job2"])
+
+	if ExtractJobId(result[0]) == "job1" {
+		assert.True(t, ExtractJobId(result[0]) == "job1")
+		assert.True(t, ExtractJobId(result[1]) == "job2")
+	} else {
+		assert.True(t, ExtractJobId(result[0]) == "job2")
+		assert.True(t, ExtractJobId(result[1]) == "job1")
+	}
 }
 
 func TestMapPodCache_GetReturnsACopy(t *testing.T) {
@@ -68,7 +74,7 @@ func TestMapPodCache_GetReturnsACopy(t *testing.T) {
 
 	cache.Add(pod)
 
-	result := cache.GetAll()["job1"]
+	result := cache.GetAll()[0]
 	assert.Equal(t, result, pod)
 
 	pod.Namespace = "new value"
