@@ -44,7 +44,7 @@ func (jobLeaseService JobLeaseService) ManageJobLeases() {
 		return
 	}
 
-	podsToRenew := getRunningPods(allManagedPods)
+	podsToRenew := allManagedPods
 	podsToRenew = util.MergePodList(podsToRenew, jobLeaseService.SubmittedJobCache.GetAll())
 
 	podsToCleanup := getFinishedPods(allManagedPods)
