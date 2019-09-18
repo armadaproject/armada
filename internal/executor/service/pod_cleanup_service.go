@@ -3,10 +3,9 @@ package service
 import (
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	v12 "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/cache"
 
 	"github.com/G-Research/k8s-batch/internal/executor/util"
 )
@@ -21,25 +20,11 @@ type podCleanupService struct {
 	cache            util.PodCache
 }
 
-func NewPodCleanupService(kubernetesClient kubernetes.Interface, podInformer v12.PodInformer, deletedPodCache util.PodCache) PodCleanupService {
-	service := &podCleanupService{
+func NewPodCleanupService(kubernetesClient kubernetes.Interface, deletedPodCache util.PodCache) PodCleanupService {
+	return &podCleanupService{
 		kubernetesClient: kubernetesClient,
 		cache:            deletedPodCache,
 	}
-
-	podInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		DeleteFunc: func(obj interface{}) {
-			pod, ok := obj.(*v1.Pod)
-			if !ok {
-				log.Errorf("Failed to process pod event due to it being an unexpected type. Failed to process %+v", obj)
-				return
-			}
-			jobId := util.ExtractJobId(pod)
-			service.cache.Delete(jobId)
-		},
-	})
-
-	return service
 }
 
 func (cleanupService *podCleanupService) DeletePods(pods []*v1.Pod) {
@@ -59,11 +44,11 @@ func (cleanupService *podCleanupService) ProcessPodsToDelete() {
 		}
 		err := cleanupService.kubernetesClient.CoreV1().Pods(podToDelete.Namespace).Delete(podToDelete.Name, &deleteOptions)
 		jobId := util.ExtractJobId(podToDelete)
-		if err != nil {
+		if err == nil || errors.IsNotFound(err) {
+			cleanupService.cache.Update(jobId, nil)
+		} else {
 			log.Errorf("Failed to delete pod %s/%s because %s", podToDelete.Namespace, podToDelete.Name, err)
 			cleanupService.cache.Delete(jobId)
-		} else {
-			cleanupService.cache.Update(jobId, nil)
 		}
 	}
 }

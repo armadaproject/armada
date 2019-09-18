@@ -63,7 +63,7 @@ func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGrou
 		SubmittedPodCache: submittedPodCache,
 	}
 
-	podCleanupService := service.NewPodCleanupService(kubernetesClient, podInformer, deletedPodCache)
+	podCleanupService := service.NewPodCleanupService(kubernetesClient, deletedPodCache)
 
 	jobLeaseService := service.JobLeaseService{
 		PodLister:         podInformer.Lister(),
