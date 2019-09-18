@@ -4,6 +4,7 @@ import (
 	"github.com/G-Research/k8s-batch/internal/armada/api"
 	"github.com/G-Research/k8s-batch/internal/armada/repository"
 	log "github.com/sirupsen/logrus"
+	"time"
 )
 
 func reportQueued(repository repository.EventRepository, job *api.Job) error {
@@ -11,7 +12,7 @@ func reportQueued(repository repository.EventRepository, job *api.Job) error {
 		JobId:    job.Id,
 		Queue:    job.Queue,
 		JobSetId: job.JobSetId,
-		Created:  job.Created,
+		Created:  time.Now(),
 	})
 	if e != nil {
 		return e
@@ -25,7 +26,7 @@ func reportSubmitted(repository repository.EventRepository, job *api.Job) error 
 		JobId:    job.Id,
 		Queue:    job.Queue,
 		JobSetId: job.JobSetId,
-		Created:  job.Created,
+		Created:  time.Now(),
 		Job:      *job,
 	})
 
@@ -41,7 +42,7 @@ func reportLeased(repository repository.EventRepository, job *api.Job, clusterId
 		JobId:     job.Id,
 		Queue:     job.Queue,
 		JobSetId:  job.JobSetId,
-		Created:   job.Created,
+		Created:   time.Now(),
 		ClusterId: clusterId,
 	})
 	if e != nil {
