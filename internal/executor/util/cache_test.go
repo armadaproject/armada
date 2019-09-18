@@ -11,7 +11,7 @@ import (
 
 func TestMapPodCache_Add(t *testing.T) {
 	pod := makeManagedPod("job1")
-	cache := NewMapPodCache(time.Minute, time.Second, "metric")
+	cache := NewMapPodCache(time.Minute, time.Second, "metric1")
 	cache.Add(pod)
 
 	assert.Equal(t, pod, cache.Get("job1"))
@@ -19,7 +19,7 @@ func TestMapPodCache_Add(t *testing.T) {
 
 func TestMapPodCache_Add_Expires(t *testing.T) {
 	pod := makeManagedPod("job1")
-	cache := NewMapPodCache(time.Second/10, time.Second/100, "metric")
+	cache := NewMapPodCache(time.Second/10, time.Second/100, "metric2")
 	cache.Add(pod)
 
 	assert.Equal(t, pod, cache.Get("job1"))
@@ -36,7 +36,7 @@ func TestMapPodCache_AddIfNotExists(t *testing.T) {
 	pod2 := makeManagedPod("job1")
 	pod2.Name = "2"
 
-	cache := NewMapPodCache(time.Minute, time.Second, "metric")
+	cache := NewMapPodCache(time.Minute, time.Second, "metric3")
 	assert.True(t, cache.AddIfNotExists(pod1))
 	assert.False(t, cache.AddIfNotExists(pod2))
 	assert.Equal(t, "1", cache.Get("job1").Name)
@@ -48,7 +48,7 @@ func TestMapPodCache_Update(t *testing.T) {
 	pod2 := makeManagedPod("job1")
 	pod2.Name = "2"
 
-	cache := NewMapPodCache(time.Minute, time.Second, "metric")
+	cache := NewMapPodCache(time.Minute, time.Second, "metric4")
 	assert.False(t, cache.Update("job1", pod1))
 	assert.Equal(t, 0, len(cache.GetAll()))
 	cache.Add(pod1)
@@ -58,7 +58,7 @@ func TestMapPodCache_Update(t *testing.T) {
 
 func TestMapPodCache_Delete(t *testing.T) {
 	pod := makeManagedPod("job1")
-	cache := NewMapPodCache(time.Minute, time.Second, "metric2")
+	cache := NewMapPodCache(time.Minute, time.Second, "metric5")
 
 	cache.Add(pod)
 	assert.NotNil(t, cache.Get("job1"))
@@ -68,7 +68,7 @@ func TestMapPodCache_Delete(t *testing.T) {
 }
 
 func TestMapPodCache_Delete_DoNotFailOnUnrecognisedKey(t *testing.T) {
-	cache := NewMapPodCache(time.Minute, time.Second, "metric3")
+	cache := NewMapPodCache(time.Minute, time.Second, "metric6")
 
 	cache.Delete("madeupkey")
 	assert.Nil(t, cache.Get("madeupkey"))
@@ -76,7 +76,7 @@ func TestMapPodCache_Delete_DoNotFailOnUnrecognisedKey(t *testing.T) {
 
 func TestNewMapPodCache_Get_ReturnsCopy(t *testing.T) {
 	pod := makeManagedPod("job1")
-	cache := NewMapPodCache(time.Minute, time.Second, "metric4")
+	cache := NewMapPodCache(time.Minute, time.Second, "metric7")
 
 	cache.Add(pod)
 
@@ -90,7 +90,7 @@ func TestNewMapPodCache_Get_ReturnsCopy(t *testing.T) {
 func TestMapPodCache_GetAll(t *testing.T) {
 	pod1 := makeManagedPod("job1")
 	pod2 := makeManagedPod("job2")
-	cache := NewMapPodCache(time.Minute, time.Second, "metric5")
+	cache := NewMapPodCache(time.Minute, time.Second, "metric8")
 
 	cache.Add(pod1)
 	cache.Add(pod2)
@@ -110,7 +110,7 @@ func TestMapPodCache_GetAll(t *testing.T) {
 
 func TestMapPodCache_GetReturnsACopy(t *testing.T) {
 	pod := makeManagedPod("job1")
-	cache := NewMapPodCache(time.Minute, time.Second, "metric6")
+	cache := NewMapPodCache(time.Minute, time.Second, "metric9")
 
 	cache.Add(pod)
 
