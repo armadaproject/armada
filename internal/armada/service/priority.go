@@ -66,9 +66,9 @@ func (q *MultiClusterPriorityService) calculateQueuePriorities(queues []*api.Que
 	for _, queue := range queues {
 		currentPriority, ok := queuePriority[queue.Name]
 		if ok {
-			resultPriorityMap[queue] = math.Max(currentPriority*queue.PriorityFactor, minPriority)
+			resultPriorityMap[queue] = math.Max(currentPriority*math.Sqrt(queue.PriorityFactor), minPriority) * math.Sqrt(queue.PriorityFactor)
 		} else {
-			resultPriorityMap[queue] = minPriority
+			resultPriorityMap[queue] = minPriority * math.Sqrt(queue.PriorityFactor)
 		}
 	}
 	return resultPriorityMap, nil
