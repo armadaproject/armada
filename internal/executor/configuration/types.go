@@ -22,7 +22,7 @@ type TaskConfiguration struct {
 	MissingJobEventReconciliationInterval time.Duration
 	JobLeaseRenewalInterval               time.Duration
 	AllocateSpareClusterCapacityInterval  time.Duration
-	PodDeleteInterval                     time.Duration
+	PodDeletionInterval                   time.Duration
 }
 
 type ArmadaConfiguration struct {

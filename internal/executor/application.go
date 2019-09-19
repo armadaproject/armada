@@ -100,7 +100,7 @@ func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGrou
 	tasks = append(tasks, scheduleBackgroundTask(clusterAllocationService.AllocateSpareClusterCapacity, config.Task.AllocateSpareClusterCapacityInterval, "job_lease_request", wg))
 	tasks = append(tasks, scheduleBackgroundTask(jobLeaseService.ManageJobLeases, config.Task.JobLeaseRenewalInterval, "job_lease_renewal", wg))
 	tasks = append(tasks, scheduleBackgroundTask(eventReconciliationService.ReconcileMissingJobEvents, config.Task.MissingJobEventReconciliationInterval, "event_reconciliation", wg))
-	tasks = append(tasks, scheduleBackgroundTask(podCleanupService.ProcessPodsToDelete, config.Task.PodDeleteInterval, "pod_deletion", wg))
+	tasks = append(tasks, scheduleBackgroundTask(podCleanupService.ProcessPodsToDelete, config.Task.PodDeletionInterval, "pod_deletion", wg))
 
 	return func() {
 		stopTasks(tasks)
