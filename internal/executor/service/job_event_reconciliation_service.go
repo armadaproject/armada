@@ -23,10 +23,12 @@ func (reconciliationService JobEventReconciliationService) ReconcileMissingJobEv
 		return
 	}
 
-	allPodsWithMissingEvent := filterPodsWithCurrentStateNotReported(allBatchPods)
+	podsWithCurrentPhaseNotReported := filterPodsWithCurrentStateNotReported(allBatchPods)
 
-	for _, pod := range allPodsWithMissingEvent {
-		reconciliationService.EventReporter.ReportEvent(pod)
+	for _, pod := range podsWithCurrentPhaseNotReported {
+		if util.IsReportingPhaseRequired(pod.Status.Phase) {
+			reconciliationService.EventReporter.ReportEvent(pod)
+		}
 	}
 }
 

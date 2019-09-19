@@ -253,6 +253,15 @@ func TestManagedPodSelector_IsImmutable(t *testing.T) {
 	assert.NotEqual(t, result, GetManagedPodSelector())
 }
 
+func TestIsReportingPhaseRequired(t *testing.T) {
+	assert.Equal(t, true, IsReportingPhaseRequired(v1.PodRunning))
+	assert.Equal(t, true, IsReportingPhaseRequired(v1.PodSucceeded))
+	assert.Equal(t, true, IsReportingPhaseRequired(v1.PodFailed))
+
+	assert.Equal(t, false, IsReportingPhaseRequired(v1.PodPending))
+	assert.Equal(t, false, IsReportingPhaseRequired(v1.PodUnknown))
+}
+
 func TestMergePodList(t *testing.T) {
 	pod1 := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{

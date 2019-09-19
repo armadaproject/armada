@@ -106,6 +106,10 @@ func FilterPodsWithPhase(pods []*v1.Pod, podPhase v1.PodPhase) []*v1.Pod {
 	return podsInPhase
 }
 
+func IsReportingPhaseRequired(podPhase v1.PodPhase) bool {
+	return podPhase != v1.PodPending && podPhase != v1.PodUnknown
+}
+
 func MergePodList(list1 []*v1.Pod, list2 []*v1.Pod) []*v1.Pod {
 	jobIds := ExtractNames(list1)
 	jobIdsSet := util.StringListToSet(jobIds)
