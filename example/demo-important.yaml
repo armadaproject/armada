@@ -1,0 +1,27 @@
+submissions:
+  - jobSetPrefix: freds-project
+    queue: fred
+    count: 1
+    queuePriorityFactor: 0.3
+    jobs:
+      - name: heavy_cpu_job
+        count: 8000
+        spec:
+          terminationGracePeriodSeconds: 0
+          restartPolicy: Never
+          containers:
+            - name: cpu-burner
+              imagePullPolicy: IfNotPresent
+              image: containerstack/alpine-stress:latest
+              command:
+                - sh
+              args:
+                - -c
+                - "stress --cpu 1 --timeout $(( (RANDOM % 120) + 100))s"
+              resources:
+                limits:
+                  memory: 128Mi
+                  cpu: 0.2
+                requests:
+                  memory: 128Mi
+                  cpu: 0.2
