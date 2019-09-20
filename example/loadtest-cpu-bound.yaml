@@ -1,11 +1,11 @@
 submissions:
-  - jobSetPrefix: cpu
+  - jobSetPrefix: report-done-test
     #queue: test          # If set all jobs will be submitted under this queue
-    queuePrefix: example     # If set jobs will be submitted under their own queue with this prefix
-    count: 1
+    queuePrefix: test     # If set jobs will be submitted under their own queue with this prefix
+    count: 5
     jobs:
       - name: heavy_cpu_job
-        count: 100
+        count: 10000
         spec:
           terminationGracePeriodSeconds: 0
           restartPolicy: Never
@@ -17,11 +17,11 @@ submissions:
                 - sh
               args:
                 - -c
-                - "stress --cpu 2 --timeout $(( (RANDOM % 60) + 100 ))s"
+                - "stress --cpu 1 --timeout $(( (RANDOM % 120) + 100))s"
               resources:
                 limits:
                   memory: 128Mi
-                  cpu: 100m
+                  cpu: 0.2
                 requests:
                   memory: 128Mi
-                  cpu: 100m
+                  cpu: 0.2
