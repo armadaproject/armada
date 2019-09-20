@@ -1,54 +1,55 @@
 submissions:
-  - jobSetPrefix: priority
+  - jobSetPrefix: priority-test
     #queue: test          # If set all jobs will be submitted under this queue
-    queuePrefix: example     # If set jobs will be submitted under their own queue with this prefix
-    count: 10
+    queuePrefix: priority     # If set jobs will be submitted under their own queue with this prefix
+    count: 5
     jobs:
-      - name: basic_job
-        count: 50
+      - name: heavy_cpu_job
+        count: 5000
         spec:
           terminationGracePeriodSeconds: 0
           restartPolicy: Never
           containers:
-            - name: sleep
+            - name: cpu-burner
               imagePullPolicy: IfNotPresent
-              image: alpine:latest
+              image: containerstack/alpine-stress:latest
               command:
                 - sh
               args:
                 - -c
-                - sleep $(( (RANDOM % 120) + 60 ))
+                - "stress --cpu 1 --timeout $(( (RANDOM % 120) + 100))s"
               resources:
                 limits:
                   memory: 128Mi
-                  cpu: 500m
+                  cpu: 0.2
                 requests:
                   memory: 128Mi
-                  cpu: 500m
-  - jobSetPrefix: priority
-    queue: important          # If set all jobs will be submitted under this queue
-    # queuePrefix: example     # If set jobs will be submitted under their own queue with this prefix
+                  cpu: 0.2
+
+  - jobSetPrefix: priority-test-important
+    queue: priority-important      # If set all jobs will be submitted under this queue
+    # queuePrefix: example         # If set jobs will be submitted under their own queue with this prefix
     count: 1
     queuePriorityFactor: 0.1
     jobs:
-     - name: basic_job
-       count: 500
-       spec:
-         terminationGracePeriodSeconds: 0
-         restartPolicy: Never
-         containers:
-           - name: sleep
-             imagePullPolicy: IfNotPresent
-             image: alpine:latest
-             command:
-               - sh
-             args:
-               - -c
-               - sleep $(( (RANDOM % 120) + 60 ))
-             resources:
-               limits:
-                 memory: 128Mi
-                 cpu: 500m
-               requests:
-                 memory: 128Mi
-                 cpu: 500m
+      - name: heavy_cpu_job
+        count: 25000
+        spec:
+          terminationGracePeriodSeconds: 0
+          restartPolicy: Never
+          containers:
+            - name: cpu-burner
+              imagePullPolicy: IfNotPresent
+              image: containerstack/alpine-stress:latest
+              command:
+                - sh
+              args:
+                - -c
+                - "stress --cpu 1 --timeout $(( (RANDOM % 120) + 100))s"
+              resources:
+                limits:
+                  memory: 128Mi
+                  cpu: 0.2
+                requests:
+                  memory: 128Mi
+                  cpu: 0.2
