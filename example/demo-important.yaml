@@ -1,11 +1,11 @@
 submissions:
-  - jobSetPrefix: report-done-test
-    #queue: test          # If set all jobs will be submitted under this queue
-    queuePrefix: test     # If set jobs will be submitted under their own queue with this prefix
-    count: 5
+  - jobSetPrefix: freds-project
+    queue: fred
+    count: 1
+    queuePriorityFactor: 0.3
     jobs:
       - name: heavy_cpu_job
-        count: 10000
+        count: 8000
         spec:
           terminationGracePeriodSeconds: 0
           restartPolicy: Never

@@ -1,0 +1,126 @@
+submissions:
+  - jobSetPrefix: eliots-project
+    queue: eliot
+    count: 1
+    jobs:
+      - name: heavy_cpu_job
+        count: 8000
+        spec:
+          terminationGracePeriodSeconds: 0
+          restartPolicy: Never
+          containers:
+            - name: cpu-burner
+              imagePullPolicy: IfNotPresent
+              image: containerstack/alpine-stress:latest
+              command:
+                - sh
+              args:
+                - -c
+                - "stress --cpu 1 --timeout $(( (RANDOM % 120) + 100))s"
+              resources:
+                limits:
+                  memory: 128Mi
+                  cpu: 0.2
+                requests:
+                  memory: 128Mi
+                  cpu: 0.2
+  - jobSetPrefix: bobs-project
+    queue: bob
+    count: 1
+    jobs:
+      - name: heavy_cpu_job
+        count: 8000
+        spec:
+          terminationGracePeriodSeconds: 0
+          restartPolicy: Never
+          containers:
+            - name: cpu-burner
+              imagePullPolicy: IfNotPresent
+              image: containerstack/alpine-stress:latest
+              command:
+                - sh
+              args:
+                - -c
+                - "stress --cpu 1 --timeout $(( (RANDOM % 120) + 100))s"
+              resources:
+                limits:
+                  memory: 128Mi
+                  cpu: 0.2
+                requests:
+                  memory: 128Mi
+                  cpu: 0.2
+  - jobSetPrefix: alices-project
+    queue: alice
+    count: 1
+    jobs:
+      - name: heavy_cpu_job
+        count: 8000
+        spec:
+          terminationGracePeriodSeconds: 0
+          restartPolicy: Never
+          containers:
+            - name: cpu-burner
+              imagePullPolicy: IfNotPresent
+              image: containerstack/alpine-stress:latest
+              command:
+                - sh
+              args:
+                - -c
+                - "stress --cpu 1 --timeout $(( (RANDOM % 120) + 100))s"
+              resources:
+                limits:
+                  memory: 128Mi
+                  cpu: 0.2
+                requests:
+                  memory: 128Mi
+                  cpu: 0.2
+  - jobSetPrefix: daves-project
+    queue: dave
+    count: 1
+    jobs:
+      - name: heavy_cpu_job
+        count: 8000
+        spec:
+          terminationGracePeriodSeconds: 0
+          restartPolicy: Never
+          containers:
+            - name: cpu-burner
+              imagePullPolicy: IfNotPresent
+              image: containerstack/alpine-stress:latest
+              command:
+                - sh
+              args:
+                - -c
+                - "stress --cpu 1 --timeout $(( (RANDOM % 120) + 100))s"
+              resources:
+                limits:
+                  memory: 128Mi
+                  cpu: 0.2
+                requests:
+                  memory: 128Mi
+                  cpu: 0.2
+  - jobSetPrefix: chriss-project
+    queue: chris
+    count: 1
+    jobs:
+      - name: heavy_cpu_job
+        count: 8000
+        spec:
+          terminationGracePeriodSeconds: 0
+          restartPolicy: Never
+          containers:
+            - name: cpu-burner
+              imagePullPolicy: IfNotPresent
+              image: containerstack/alpine-stress:latest
+              command:
+                - sh
+              args:
+                - -c
+                - "stress --cpu 1 --timeout $(( (RANDOM % 120) + 100))s"
+              resources:
+                limits:
+                  memory: 128Mi
+                  cpu: 0.2
+                requests:
+                  memory: 128Mi
+                  cpu: 0.2

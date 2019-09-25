@@ -14,10 +14,11 @@ import (
 )
 
 type JobLeaseService struct {
-	PodLister      listers.PodLister
-	QueueClient    api.AggregatedQueueClient
-	CleanupService PodCleanupService
-	ClusterId      string
+	PodLister         listers.PodLister
+	QueueClient       api.AggregatedQueueClient
+	CleanupService    PodCleanupService
+	ClusterId         string
+	SubmittedJobCache util.PodCache
 }
 
 func (jobLeaseService JobLeaseService) RequestJobLeases(availableResource *common.ComputeResources) ([]*api.Job, error) {
@@ -36,26 +37,22 @@ func (jobLeaseService JobLeaseService) RequestJobLeases(availableResource *commo
 	return response.Job, nil
 }
 
-func (jobLeaseService JobLeaseService) RenewJobLeases() {
+func (jobLeaseService JobLeaseService) ManageJobLeases() {
 	allManagedPods, err := jobLeaseService.PodLister.List(util.GetManagedPodSelector())
 	if err != nil {
-		log.Errorf("Failed to renew job leases due to %s", err)
+		log.Errorf("Failed to manage job leases due to %s", err)
 		return
 	}
 
-	podsToRenew := getRunningPods(allManagedPods)
-	jobLeaseService.renewJobLeases(podsToRenew)
-}
-
-func (jobLeaseService JobLeaseService) CleanupJobLeases() {
-	allManagedPods, err := jobLeaseService.PodLister.List(util.GetManagedPodSelector())
-	if err != nil {
-		log.Errorf("Failed to cleanp job leases due to %s", err)
-		return
-	}
+	podsToRenew := allManagedPods
+	podsToRenew = util.MergePodList(podsToRenew, jobLeaseService.SubmittedJobCache.GetAll())
 
 	podsToCleanup := getFinishedPods(allManagedPods)
+
+	jobLeaseService.renewJobLeases(podsToRenew)
 	jobLeaseService.cleanupJobLeases(podsToCleanup)
+
+	jobLeaseService.CleanupService.DeletePods(podsToCleanup)
 }
 
 func (jobLeaseService JobLeaseService) renewJobLeases(pods []*v1.Pod) {
@@ -74,9 +71,10 @@ func (jobLeaseService JobLeaseService) renewJobLeases(pods []*v1.Pod) {
 	}
 
 	failedIds := commonUtil.SubtractStringList(jobIds, renewedJobIds.Ids)
+	failedPods := filterPodsByJobId(pods, failedIds)
 	if len(failedIds) > 0 {
 		log.Errorf("Failed to renew job lease for jobs %s", strings.Join(failedIds, ","))
-		jobLeaseService.deletePodsWithIds(pods, failedIds)
+		jobLeaseService.CleanupService.DeletePods(failedPods)
 	}
 }
 
@@ -89,14 +87,12 @@ func (jobLeaseService JobLeaseService) cleanupJobLeases(pods []*v1.Pod) {
 	ctx, cancel := common.ContextWithDefaultTimeout()
 	defer cancel()
 	log.Infof("Reporting done for jobs %s", strings.Join(jobIds, ","))
-	reported, err := jobLeaseService.QueueClient.ReportDone(ctx, &api.IdList{Ids: jobIds})
+	_, err := jobLeaseService.QueueClient.ReportDone(ctx, &api.IdList{Ids: jobIds})
 
 	if err != nil {
 		log.Errorf("Failed reporting jobs as done because %s", err)
 		return
 	}
-
-	jobLeaseService.deletePodsWithIds(pods, reported.Ids)
 }
 
 func getRunningPods(pods []*v1.Pod) []*v1.Pod {
@@ -123,13 +119,13 @@ func getFinishedPods(pods []*v1.Pod) []*v1.Pod {
 	return finishedPods
 }
 
-func (jobLeaseService JobLeaseService) deletePodsWithIds(pods []*v1.Pod, idsToDelete []string) {
-	reportedIdSet := commonUtil.StringListToSet(idsToDelete)
-	podsToDelete := make([]*v1.Pod, 0)
+func filterPodsByJobId(pods []*v1.Pod, ids []string) []*v1.Pod {
+	reportedIdSet := commonUtil.StringListToSet(ids)
+	filteredPods := make([]*v1.Pod, 0)
 	for _, pod := range pods {
 		if reportedIdSet[util.ExtractJobId(pod)] {
-			podsToDelete = append(podsToDelete, pod)
+			filteredPods = append(filteredPods, pod)
 		}
 	}
-	jobLeaseService.CleanupService.DeletePods(podsToDelete)
+	return filteredPods
 }

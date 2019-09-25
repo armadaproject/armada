@@ -137,7 +137,7 @@ func (repo RedisJobRepository) zRemoveJobIds(jobIdentities []jobIdentity, getRed
 	pipe := repo.db.Pipeline()
 	cmds := make(map[string]*redis.IntCmd)
 	for _, job := range jobIdentities {
-		cmds[job.id] = repo.db.ZRem(getRedisKey(&job), job.id)
+		cmds[job.id] = pipe.ZRem(getRedisKey(&job), job.id)
 	}
 
 	_, e := pipe.Exec()
