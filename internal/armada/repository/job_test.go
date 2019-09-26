@@ -1,12 +1,14 @@
 package repository
 
 import (
-	"github.com/G-Research/k8s-batch/internal/armada/api"
+	"testing"
+	"time"
+
 	"github.com/go-redis/redis"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
-	"testing"
-	"time"
+
+	"github.com/G-Research/k8s-batch/internal/armada/api"
 )
 
 func TestJobCanBeLeasedOnlyOnce(t *testing.T) {
@@ -135,6 +137,34 @@ func TestReturnLeaseForJobInQueueIsNoop(t *testing.T) {
 		returned, e := r.ReturnLease("cluster2", job.Id)
 		assert.Nil(t, e)
 		assert.Nil(t, returned)
+	})
+}
+
+func TestCancelRunningJob(t *testing.T) {
+	withRepository(func(r *RedisJobRepository) {
+		job := addLeasedJob(t, r, "queue1", "cluster1")
+
+		cancelled, e := r.Cancel(job)
+		assert.Nil(t, e)
+		assert.True(t, cancelled)
+	})
+}
+
+func TestCancelQueuedJob(t *testing.T) {
+	withRepository(func(r *RedisJobRepository) {
+		job := addTestJob(t, r, "queue1")
+
+		cancelled, e := r.Cancel(job)
+		assert.Nil(t, e)
+		assert.True(t, cancelled)
+	})
+}
+
+func TestCancelMissingJob(t *testing.T) {
+	withRepository(func(r *RedisJobRepository) {
+		cancelled, e := r.Cancel(&api.Job{Id: "jobId"})
+		assert.Nil(t, e)
+		assert.False(t, cancelled)
 	})
 }
 

@@ -52,13 +52,25 @@ func (server SubmitServer) SubmitJob(ctx context.Context, req *api.JobRequest) (
 }
 
 func (server SubmitServer) CancelJob(ctx context.Context, request *api.JobCancelRequest) (*types.Empty, error) {
-	cancelledJob, e := server.jobRepository.CancelById(request.JobId)
+
+	jobs, e := server.jobRepository.GetJobsByIds([]string{request.JobId})
+	if e != nil {
+		return nil, status.Errorf(codes.Unknown, e.Error())
+	}
+	job := jobs[0]
+
+	e = reportCancelling(server.eventRepository, job)
+	if e != nil {
+		return nil, status.Errorf(codes.Unknown, e.Error())
+	}
+
+	cancelled, e := server.jobRepository.Cancel(job)
 	if e != nil {
 		return nil, status.Errorf(codes.Aborted, e.Error())
 	}
 
-	if cancelledJob != nil {
-		e = reportCancelled(server.eventRepository, cancelledJob)
+	if cancelled {
+		e = reportCancelled(server.eventRepository, job)
 		if e != nil {
 			return nil, status.Errorf(codes.Unknown, e.Error())
 		}
