@@ -66,25 +66,8 @@ func Serve(config *configuration.ArmadaConfig) (*grpc.Server, *sync.WaitGroup) {
 	return grpcServer, wg
 }
 
-func createRedisClient(config configuration.RedisConfig) *redis.Client {
-	if config.MasterName != "" && len(config.SentinelAddresses) > 0 {
-		log.Infof("Connecting to redis HA with master %s and sentinel addresses %s", config.MasterName, config.SentinelAddresses)
-		return redis.NewFailoverClient(&redis.FailoverOptions{
-			MasterName:    config.MasterName,
-			SentinelAddrs: config.SentinelAddresses,
-			Password:      config.Password,
-			DB:            config.Db,
-			PoolSize:      1000,
-		})
-	} else {
-		log.Infof("Connecting to redis with address %s", config.Addr)
-		return redis.NewClient(&redis.Options{
-			Addr:     config.Addr,
-			Password: config.Password,
-			DB:       config.Db,
-			PoolSize: 1000,
-		})
-	}
+func createRedisClient(config *redis.UniversalOptions) redis.UniversalClient {
+	return redis.NewUniversalClient(config)
 }
 
 func createServer(config *configuration.ArmadaConfig) *grpc.Server {

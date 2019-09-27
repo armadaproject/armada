@@ -1,21 +1,17 @@
 package configuration
 
-import "time"
+import (
+	"time"
+
+	"github.com/go-redis/redis"
+)
 
 type ArmadaConfig struct {
 	GrpcPort         string
 	PriorityHalfTime time.Duration
-	Redis            RedisConfig
-	EventsRedis      RedisConfig
+	Redis            redis.UniversalOptions
+	EventsRedis      redis.UniversalOptions
 	Authentication   AuthenticationConfig
-}
-
-type RedisConfig struct {
-	Addr              string
-	MasterName        string
-	SentinelAddresses []string
-	Password          string
-	Db                int
 }
 
 type AuthenticationConfig struct {

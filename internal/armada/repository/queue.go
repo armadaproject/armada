@@ -14,10 +14,10 @@ type QueueRepository interface {
 }
 
 type RedisQueueRepository struct {
-	db *redis.Client
+	db redis.UniversalClient
 }
 
-func NewRedisQueueRepository(db *redis.Client) *RedisQueueRepository {
+func NewRedisQueueRepository(db redis.UniversalClient) *RedisQueueRepository {
 	return &RedisQueueRepository{db: db}
 }
 
