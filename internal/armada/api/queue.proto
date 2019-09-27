@@ -35,16 +35,9 @@ message RenewLeaseRequest {
     repeated string Ids = 2;
 }
 
-enum LeaseReturnReasonType {
-    CLUSTER_SCHEDULE_TIMEOUT = 0;
-    UNABLE_TO_SCHEDULE = 1;
-}
-
 message ReturnLeaseRequest {
     string ClusterId = 1;
     string JobId = 2;
-    string Reason = 3;
-    LeaseReturnReasonType ReasonType = 4;
 }
 
 service AggregatedQueue {
