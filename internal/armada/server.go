@@ -26,8 +26,8 @@ func Serve(config *configuration.ArmadaConfig) (*grpc.Server, *sync.WaitGroup) {
 	go func() {
 		defer log.Println("Stopping server.")
 
-		db := createRedisClient(config.Redis)
-		eventsDb := createRedisClient(config.EventsRedis)
+		db := createRedisClient(&config.Redis)
+		eventsDb := createRedisClient(&config.EventsRedis)
 
 		jobRepository := repository.NewRedisJobRepository(db)
 		usageRepository := repository.NewRedisUsageRepository(db)

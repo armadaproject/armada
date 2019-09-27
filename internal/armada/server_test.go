@@ -2,16 +2,19 @@ package armada
 
 import (
 	"context"
-	"github.com/G-Research/k8s-batch/internal/armada/api"
-	"github.com/G-Research/k8s-batch/internal/armada/configuration"
-	"github.com/G-Research/k8s-batch/internal/common"
+	"log"
+	"testing"
+
 	"github.com/alicebob/miniredis"
+	"github.com/go-redis/redis"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
-	"log"
-	"testing"
+
+	"github.com/G-Research/k8s-batch/internal/armada/api"
+	"github.com/G-Research/k8s-batch/internal/armada/configuration"
+	"github.com/G-Research/k8s-batch/internal/common"
 )
 
 func TestSubmitJob(t *testing.T) {
@@ -55,17 +58,17 @@ func TestSubmitJob(t *testing.T) {
 }
 
 func withRunningServer(action func(client api.SubmitClient, leaseClient api.AggregatedQueueClient, ctx context.Context)) {
-	redis, err := miniredis.Run()
+	minidb, err := miniredis.Run()
 	if err != nil {
 		panic(err)
 	}
-	defer redis.Close()
+	defer minidb.Close()
 
 	server, _ := Serve(&configuration.ArmadaConfig{
 		GrpcPort: ":50051",
-		Redis: configuration.RedisConfig{
-			Addr: redis.Addr(),
-			Db:   0,
+		Redis: redis.UniversalOptions{
+			Addrs: []string{minidb.Addr()},
+			DB:    0,
 		},
 	})
 	defer server.Stop()
