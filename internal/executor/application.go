@@ -49,8 +49,8 @@ func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGrou
 		ClusterId:        config.Application.ClusterId,
 	}
 
-	submittedPodCache := util.NewMapPodCache(time.Minute, time.Second, "submitted_job")
-	deletedPodCache := util.NewMapPodCache(2*time.Minute, time.Second, "deleted_job")
+	submittedPodCache := util.NewMapPodCacheWithExpiry(time.Minute, time.Second, "submitted_job")
+	deletedPodCache := util.NewMapPodCacheWithExpiry(2*time.Minute, time.Second, "deleted_job")
 
 	factory := informers.NewSharedInformerFactoryWithOptions(kubernetesClient, 0)
 	podInformer := factory.Core().V1().Pods()
@@ -72,6 +72,8 @@ func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGrou
 		ClusterId:         config.Application.ClusterId,
 		SubmittedJobCache: submittedPodCache,
 	}
+
+	podMonitor := service.NewPodProgressMonitorService(podInformer.Lister(), eventReporter, podCleanupService, jobLeaseService, config.Application.ClusterId)
 
 	eventReconciliationService := service.JobEventReconciliationService{
 		PodLister:     podInformer.Lister(),
@@ -100,6 +102,7 @@ func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGrou
 	tasks = append(tasks, scheduleBackgroundTask(clusterAllocationService.AllocateSpareClusterCapacity, config.Task.AllocateSpareClusterCapacityInterval, "job_lease_request", wg))
 	tasks = append(tasks, scheduleBackgroundTask(jobLeaseService.ManageJobLeases, config.Task.JobLeaseRenewalInterval, "job_lease_renewal", wg))
 	tasks = append(tasks, scheduleBackgroundTask(eventReconciliationService.ReconcileMissingJobEvents, config.Task.MissingJobEventReconciliationInterval, "event_reconciliation", wg))
+	tasks = append(tasks, scheduleBackgroundTask(podMonitor.HandleStuckPods, config.Task.StuckPodScanInterval, "stuck_pod", wg))
 	tasks = append(tasks, scheduleBackgroundTask(podCleanupService.ProcessPodsToDelete, config.Task.PodDeletionInterval, "pod_deletion", wg))
 
 	return func() {
