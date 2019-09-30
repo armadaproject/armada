@@ -99,8 +99,8 @@ func WatchJobSetWithJobIdsFilter(client api.EventClient, jobSetId string, waitFo
 				info.Status = Queued
 			case *api.JobLeasedEvent:
 				info.Status = Leased
-			case *api.JobLeaseReturnedEvent:
-				info.Status = Queued
+			case *api.JobUnableToScheduleEvent:
+				// NOOP
 			case *api.JobLeaseExpiredEvent:
 				info.Status = Queued
 			case *api.JobPendingEvent:
