@@ -15,7 +15,7 @@ import (
 )
 
 type EventReporter interface {
-	Report(event *api.EventMessage) error
+	Report(event api.Event) error
 	ReportCurrentStatus(pod *v1.Pod)
 	ReportStatusUpdate(old *v1.Pod, new *v1.Pod)
 }
@@ -26,7 +26,7 @@ type JobEventReporter struct {
 	ClusterId        string
 }
 
-func (eventReporter JobEventReporter) Report(event *api.EventMessage) error {
+func (eventReporter JobEventReporter) Report(event api.Event) error {
 	return eventReporter.sendEvent(event)
 }
 
@@ -46,7 +46,7 @@ func (eventReporter JobEventReporter) report(pod *v1.Pod) {
 		return
 	}
 
-	event, err := util.CreateEventMessageForCurrentState(pod, eventReporter.ClusterId)
+	event, err := util.CreateEventForCurrentState(pod, eventReporter.ClusterId)
 	if err != nil {
 		log.Errorf("Failed to report event because %s", err)
 		return
@@ -68,11 +68,16 @@ func (eventReporter JobEventReporter) report(pod *v1.Pod) {
 	}
 }
 
-func (eventReporter JobEventReporter) sendEvent(event *api.EventMessage) error {
-	log.Infof("Reporting event %+v", event)
+func (eventReporter JobEventReporter) sendEvent(event api.Event) error {
+	eventMessage, err := api.Wrap(event)
+	if err != nil {
+		return err
+	}
+
+	log.Infof("Reporting event %+v", eventMessage)
 	ctx, cancel := common.ContextWithDefaultTimeout()
 	defer cancel()
-	_, err := eventReporter.EventClient.Report(ctx, event)
+	_, err = eventReporter.EventClient.Report(ctx, eventMessage)
 	return err
 }
 

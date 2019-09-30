@@ -51,7 +51,7 @@ func (podProgressMonitor *PodProgressMonitorService) HandleStuckPods() {
 			continue
 		}
 
-		if (pod.Status.Phase == v1.PodUnknown || pod.Status.Phase == v1.PodPending) && hasPodBeenInStateForLongerThanGivenDuration(pod, 5*time.Minute) {
+		if (pod.Status.Phase == v1.PodUnknown || pod.Status.Phase == v1.PodPending) && hasPodBeenInStateForLongerThanGivenDuration(pod, 30*time.Second) {
 			err := podProgressMonitor.reportStuckPodEvent(pod)
 			if err == nil {
 				podProgressMonitor.stuckPodCache.AddIfNotExists(pod)
@@ -62,17 +62,12 @@ func (podProgressMonitor *PodProgressMonitorService) HandleStuckPods() {
 }
 
 func (podProgressMonitor *PodProgressMonitorService) reportStuckPodEvent(pod *v1.Pod) error {
-	var event *api.EventMessage
-	var err error
+	var event api.Event
 
 	if util.IsRetryable(pod) {
-		event, err = util.CreateJobUnableToScheduleEventMessage(pod, util.ExtractPodStuckReason(pod), podProgressMonitor.clusterId)
+		event = util.CreateJobUnableToScheduleEvent(pod, util.ExtractPodStuckReason(pod), podProgressMonitor.clusterId)
 	} else {
-		event, err = util.CreateJobFailedEventMessage(pod, util.ExtractPodStuckReason(pod), podProgressMonitor.clusterId)
-	}
-
-	if err != nil {
-		return err
+		event = util.CreateJobFailedEvent(pod, util.ExtractPodStuckReason(pod), podProgressMonitor.clusterId)
 	}
 
 	return podProgressMonitor.eventReporter.Report(event)
