@@ -13,6 +13,10 @@ import (
 	"github.com/G-Research/k8s-batch/internal/executor/util"
 )
 
+type PodProgressMonitor interface {
+	HandleStuckPods()
+}
+
 type PodProgressMonitorService struct {
 	podLister       listers.PodLister
 	eventReporter   reporter.EventReporter
@@ -20,6 +24,18 @@ type PodProgressMonitorService struct {
 	cleanupService  PodCleanupService
 	jobLeaseService JobLeaseService
 	clusterId       string
+}
+
+func NewPodProgressMonitorService(podLister listers.PodLister, eventReporter reporter.EventReporter, cleanupService PodCleanupService,
+	jobLeaseService JobLeaseService, clusterId string) *PodProgressMonitorService {
+	return &PodProgressMonitorService{
+		podLister:       podLister,
+		eventReporter:   eventReporter,
+		stuckPodCache:   util.NewMapPodCache("stuck_job"),
+		cleanupService:  cleanupService,
+		jobLeaseService: jobLeaseService,
+		clusterId:       clusterId,
+	}
 }
 
 func (podProgressMonitor *PodProgressMonitorService) HandleStuckPods() {
