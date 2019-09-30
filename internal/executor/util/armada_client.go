@@ -53,3 +53,25 @@ func CreateEventMessageForCurrentState(pod *v1.Pod, clusterId string) (*api.Even
 		return new(api.EventMessage), errors.New(fmt.Sprintf("Could not determine job status from pod in phase %s", phase))
 	}
 }
+
+func CreateJobUnableToScheduleEventMessage(pod *v1.Pod, reason string, clusterId string) (*api.EventMessage, error) {
+	return api.Wrap(&api.JobFailedEvent{
+		JobId:     pod.Labels[domain.JobId],
+		JobSetId:  pod.Labels[domain.JobSetId],
+		Queue:     pod.Labels[domain.Queue],
+		Created:   time.Now(),
+		ClusterId: clusterId,
+		Reason:    reason,
+	})
+}
+
+func CreateJobFailedEventMessage(pod *v1.Pod, reason string, clusterId string) (*api.EventMessage, error) {
+	return api.Wrap(&api.JobFailedEvent{
+		JobId:     pod.Labels[domain.JobId],
+		JobSetId:  pod.Labels[domain.JobSetId],
+		Queue:     pod.Labels[domain.Queue],
+		Created:   time.Now(),
+		ClusterId: clusterId,
+		Reason:    reason,
+	})
+}

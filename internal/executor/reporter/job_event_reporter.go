@@ -15,8 +15,9 @@ import (
 )
 
 type EventReporter interface {
-	ReportEvent(pod *v1.Pod)
-	ReportUpdateEvent(old *v1.Pod, new *v1.Pod)
+	Report(event *api.EventMessage) error
+	ReportCurrentStatus(pod *v1.Pod)
+	ReportStatusUpdate(old *v1.Pod, new *v1.Pod)
 }
 
 type JobEventReporter struct {
@@ -25,11 +26,15 @@ type JobEventReporter struct {
 	ClusterId        string
 }
 
-func (eventReporter JobEventReporter) ReportEvent(pod *v1.Pod) {
+func (eventReporter JobEventReporter) Report(event *api.EventMessage) error {
+	return eventReporter.sendEvent(event)
+}
+
+func (eventReporter JobEventReporter) ReportCurrentStatus(pod *v1.Pod) {
 	eventReporter.report(pod)
 }
 
-func (eventReporter JobEventReporter) ReportUpdateEvent(old *v1.Pod, new *v1.Pod) {
+func (eventReporter JobEventReporter) ReportStatusUpdate(old *v1.Pod, new *v1.Pod) {
 	if old.Status.Phase == new.Status.Phase {
 		return
 	}
@@ -47,10 +52,7 @@ func (eventReporter JobEventReporter) report(pod *v1.Pod) {
 		return
 	}
 
-	log.Infof("Reporting event %+v", event)
-	ctx, cancel := common.ContextWithDefaultTimeout()
-	defer cancel()
-	_, err = eventReporter.EventClient.Report(ctx, event)
+	err = eventReporter.sendEvent(event)
 
 	if err != nil {
 		log.Errorf("Failed to report event because %s", err)
@@ -64,6 +66,14 @@ func (eventReporter JobEventReporter) report(pod *v1.Pod) {
 			return
 		}
 	}
+}
+
+func (eventReporter JobEventReporter) sendEvent(event *api.EventMessage) error {
+	log.Infof("Reporting event %+v", event)
+	ctx, cancel := common.ContextWithDefaultTimeout()
+	defer cancel()
+	_, err := eventReporter.EventClient.Report(ctx, event)
+	return err
 }
 
 func (eventReporter JobEventReporter) addAnnotationToMarkStateReported(pod *v1.Pod) error {

@@ -214,7 +214,7 @@ func addPodEventHandler(podInformer informer.PodInformer, eventReporter reporter
 				return
 			}
 			submittedPodCache.Delete(util.ExtractJobId(pod))
-			go eventReporter.ReportEvent(pod)
+			go eventReporter.ReportCurrentStatus(pod)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			oldPod, ok := oldObj.(*v1.Pod)
@@ -227,7 +227,7 @@ func addPodEventHandler(podInformer informer.PodInformer, eventReporter reporter
 				log.Errorf("Failed to process pod event due to it being an unexpected type. Failed to process %+v", newObj)
 				return
 			}
-			go eventReporter.ReportUpdateEvent(oldPod, newPod)
+			go eventReporter.ReportStatusUpdate(oldPod, newPod)
 		},
 	})
 }
