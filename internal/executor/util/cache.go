@@ -31,22 +31,11 @@ type mapPodCache struct {
 	sizeGauge     prometheus.Gauge
 }
 
-func NewMapPodCache(metricName string) PodCache {
-	return newPodCache(metricName)
-}
-
-func NewMapPodCacheWithExpiry(expiry time.Duration, cleanUpInterval time.Duration, metricName string) PodCache {
-	cache := newPodCache(metricName)
-	cache.defaultExpiry = expiry
-	cache.runCleanupLoop(cleanUpInterval)
-	return cache
-}
-
-func newPodCache(metricName string) *mapPodCache {
-	return &mapPodCache{
+func NewMapPodCache(expiry time.Duration, cleanUpInterval time.Duration, metricName string) PodCache {
+	cache := &mapPodCache{
 		records:       map[string]cacheRecord{},
 		rwLock:        sync.RWMutex{},
-		defaultExpiry: time.Minute,
+		defaultExpiry: expiry,
 		sizeGauge: promauto.NewGauge(
 			prometheus.GaugeOpts{
 				Name: metrics.ArmadaExecutorMetricsPrefix + metricName + "_cache_size",
@@ -54,6 +43,8 @@ func newPodCache(metricName string) *mapPodCache {
 			},
 		),
 	}
+	cache.runCleanupLoop(cleanUpInterval)
+	return cache
 }
 
 func (podCache *mapPodCache) Add(pod *v1.Pod) {

@@ -49,8 +49,8 @@ func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGrou
 		ClusterId:        config.Application.ClusterId,
 	}
 
-	submittedPodCache := util.NewMapPodCacheWithExpiry(time.Minute, time.Second, "submitted_job")
-	deletedPodCache := util.NewMapPodCacheWithExpiry(2*time.Minute, time.Second, "deleted_job")
+	submittedPodCache := util.NewMapPodCache(time.Minute, time.Second, "submitted_job")
+	deletedPodCache := util.NewMapPodCache(2*time.Minute, time.Second, "deleted_job")
 
 	factory := informers.NewSharedInformerFactoryWithOptions(kubernetesClient, 0)
 	podInformer := factory.Core().V1().Pods()
