@@ -20,7 +20,7 @@ type PodProgressMonitor interface {
 type PodProgressMonitorService struct {
 	podLister       listers.PodLister
 	eventReporter   reporter.EventReporter
-	stuckPodCache   util.PodCache
+	stuckPodCache   map[string]*v1.Pod
 	cleanupService  PodCleanupService
 	jobLeaseService JobLeaseService
 	clusterId       string
@@ -31,7 +31,7 @@ func NewPodProgressMonitorService(podLister listers.PodLister, eventReporter rep
 	return &PodProgressMonitorService{
 		podLister:       podLister,
 		eventReporter:   eventReporter,
-		stuckPodCache:   util.NewMapPodCache("stuck_job"),
+		stuckPodCache:   map[string]*v1.Pod{},
 		cleanupService:  cleanupService,
 		jobLeaseService: jobLeaseService,
 		clusterId:       clusterId,
@@ -47,14 +47,16 @@ func (podProgressMonitor *PodProgressMonitorService) HandleStuckPods() {
 
 	for _, pod := range allBatchPods {
 		jobId := util.ExtractJobId(pod)
-		if podProgressMonitor.stuckPodCache.Get(jobId) != nil {
+		_, exists := podProgressMonitor.stuckPodCache[jobId]
+
+		if exists {
 			continue
 		}
 
 		if (pod.Status.Phase == v1.PodUnknown || pod.Status.Phase == v1.PodPending) && hasPodBeenInStateForLongerThanGivenDuration(pod, 30*time.Second) {
 			err := podProgressMonitor.reportStuckPodEvent(pod)
 			if err == nil {
-				podProgressMonitor.stuckPodCache.AddIfNotExists(pod)
+				podProgressMonitor.stuckPodCache[jobId] = pod.DeepCopy()
 			}
 		}
 	}
@@ -79,7 +81,13 @@ func (podProgressMonitor *PodProgressMonitorService) processStuckPodCache(existi
 
 	remainingStuckPods := make([]*v1.Pod, 0, 10)
 
-	for _, pod := range podProgressMonitor.stuckPodCache.GetAll() {
+	cacheCopy := make([]*v1.Pod, 0, len(podProgressMonitor.stuckPodCache))
+
+	for _, pod := range podProgressMonitor.stuckPodCache {
+		cacheCopy = append(cacheCopy, pod)
+	}
+
+	for _, pod := range cacheCopy {
 		jobId := util.ExtractJobId(pod)
 		if _, exists := jobIdSet[jobId]; !exists {
 			if util.IsRetryable(pod) {
@@ -89,7 +97,7 @@ func (podProgressMonitor *PodProgressMonitorService) processStuckPodCache(existi
 					continue
 				}
 			}
-			podProgressMonitor.stuckPodCache.Delete(jobId)
+			delete(podProgressMonitor.stuckPodCache, jobId)
 		} else {
 			remainingStuckPods = append(remainingStuckPods, pod)
 		}
