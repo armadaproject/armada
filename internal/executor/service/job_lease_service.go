@@ -2,15 +2,17 @@ package service
 
 import (
 	"context"
+	"strings"
+	"time"
+
+	log "github.com/sirupsen/logrus"
+	v1 "k8s.io/api/core/v1"
+	listers "k8s.io/client-go/listers/core/v1"
+
 	"github.com/G-Research/k8s-batch/internal/armada/api"
 	"github.com/G-Research/k8s-batch/internal/common"
 	commonUtil "github.com/G-Research/k8s-batch/internal/common/util"
 	"github.com/G-Research/k8s-batch/internal/executor/util"
-	log "github.com/sirupsen/logrus"
-	v1 "k8s.io/api/core/v1"
-	listers "k8s.io/client-go/listers/core/v1"
-	"strings"
-	"time"
 )
 
 type JobLeaseService struct {
@@ -63,6 +65,7 @@ func (jobLeaseService JobLeaseService) ReturnLease(pod *v1.Pod) error {
 	jobId := util.ExtractJobId(pod)
 	ctx, cancel := common.ContextWithDefaultTimeout()
 	defer cancel()
+	log.Infof("Returning lease for job %s", jobId)
 	_, err := jobLeaseService.QueueClient.ReturnLease(ctx, &api.ReturnLeaseRequest{ClusterId: jobLeaseService.ClusterId, JobId: jobId})
 
 	return err
