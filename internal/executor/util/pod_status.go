@@ -47,10 +47,10 @@ func IsRetryable(pod *v1.Pod) bool {
 		if containerStatus.State.Waiting != nil {
 			waitingReason := containerStatus.State.Waiting.Reason
 			if imagePullBackOffStatesSet[waitingReason] {
-				return true
+				return false
 			}
 		}
 	}
 
-	return false
+	return true
 }
