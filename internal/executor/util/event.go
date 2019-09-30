@@ -30,13 +30,7 @@ func CreateEventForCurrentState(pod *v1.Pod, clusterId string) (api.Event, error
 			ClusterId: clusterId,
 		}, nil
 	case v1.PodFailed:
-		return &api.JobFailedEvent{
-			JobId:     pod.Labels[domain.JobId],
-			JobSetId:  pod.Labels[domain.JobSetId],
-			Queue:     pod.Labels[domain.Queue],
-			Created:   time.Now(),
-			ClusterId: clusterId,
-		}, nil
+		return CreateJobFailedEvent(pod, ExtractPodFailedReason(pod), clusterId), nil
 	case v1.PodSucceeded:
 		return &api.JobSucceededEvent{
 			JobId:     pod.Labels[domain.JobId],
