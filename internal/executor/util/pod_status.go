@@ -20,6 +20,10 @@ func ExtractPodStuckReason(pod *v1.Pod) string {
 		}
 	}
 
+	if stuckMessage == "" && pod.Status.NominatedNodeName == "" {
+		stuckMessage += "Pod became stuck due to insufficient space on any node to schedule the pod.\n"
+	}
+
 	return stuckMessage
 }
 
