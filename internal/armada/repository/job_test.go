@@ -144,9 +144,8 @@ func TestCancelRunningJob(t *testing.T) {
 	withRepository(func(r *RedisJobRepository) {
 		job := addLeasedJob(t, r, "queue1", "cluster1")
 
-		cancelled, e := r.Cancel(job)
-		assert.Nil(t, e)
-		assert.True(t, cancelled)
+		result := r.Cancel([]*api.Job{job})
+		assert.Nil(t, result[job])
 	})
 }
 
@@ -154,17 +153,16 @@ func TestCancelQueuedJob(t *testing.T) {
 	withRepository(func(r *RedisJobRepository) {
 		job := addTestJob(t, r, "queue1")
 
-		cancelled, e := r.Cancel(job)
-		assert.Nil(t, e)
-		assert.True(t, cancelled)
+		result := r.Cancel([]*api.Job{job})
+		assert.Nil(t, result[job])
 	})
 }
 
 func TestCancelMissingJob(t *testing.T) {
 	withRepository(func(r *RedisJobRepository) {
-		cancelled, e := r.Cancel(&api.Job{Id: "jobId"})
-		assert.Nil(t, e)
-		assert.False(t, cancelled)
+		job := &api.Job{Id: "jobId"}
+		result := r.Cancel([]*api.Job{job})
+		assert.Nil(t, result[job])
 	})
 }
 
