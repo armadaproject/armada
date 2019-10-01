@@ -30,8 +30,7 @@ type JobRepository interface {
 	ExpireLeases(queue string, deadline time.Time) (expired []*api.Job, e error)
 	Remove(jobIds []string) (cleanedJobs []string, e error)
 	ReturnLease(clusterId string, jobId string) (returnedJob *api.Job, err error)
-	Cancel(job *api.Job) (cancelled bool, err error)
-	CancelBulk(jobs []*api.Job) map[*api.Job]error
+	Cancel(jobs []*api.Job) map[*api.Job]error
 	GetActiveJobIds(queue string, jobSetId string) ([]string, error)
 }
 
@@ -106,31 +105,7 @@ func (repo RedisJobRepository) ReturnLease(clusterId string, jobId string) (retu
 	return nil, nil
 }
 
-func (repo RedisJobRepository) Cancel(job *api.Job) (cancelled bool, err error) {
-
-	queueResult, e := repo.db.ZRem(jobQueuePrefix+job.Queue, job.Id).Result()
-	if e != nil {
-		return false, e
-	}
-	if queueResult > 0 {
-		return true, nil
-	}
-
-	leasedResult, e := repo.db.ZRem(jobLeasedPrefix+job.Queue, job.Id).Result()
-	if e != nil {
-		return false, e
-	}
-
-	if leasedResult > 0 {
-		return true, nil
-	}
-
-	// TODO clean up job completely??
-
-	return false, nil
-}
-
-func (repo RedisJobRepository) CancelBulk(jobs []*api.Job) map[*api.Job]error {
+func (repo RedisJobRepository) Cancel(jobs []*api.Job) map[*api.Job]error {
 
 	pipe := repo.db.Pipeline()
 	queueCmds := []*redis.IntCmd{}

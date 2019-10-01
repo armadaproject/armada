@@ -82,7 +82,7 @@ func (server *SubmitServer) cancelJobs(ids []string) (*types.Empty, error) {
 		return nil, status.Errorf(codes.Unknown, e.Error())
 	}
 
-	cancellationResult := server.jobRepository.CancelBulk(jobs)
+	cancellationResult := server.jobRepository.Cancel(jobs)
 	cancelled := []*api.Job{}
 	for job, error := range cancellationResult {
 		if error != nil {
