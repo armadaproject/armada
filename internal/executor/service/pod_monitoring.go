@@ -53,7 +53,7 @@ func (podProgressMonitor *PodProgressMonitorService) HandleStuckPods() {
 			continue
 		}
 
-		if (pod.Status.Phase == v1.PodUnknown || pod.Status.Phase == v1.PodPending) && hasPodBeenInStateForLongerThanGivenDuration(pod, 30*time.Second) {
+		if (pod.Status.Phase == v1.PodUnknown || pod.Status.Phase == v1.PodPending) && hasPodBeenInStateForLongerThanGivenDuration(pod, 5*time.Minute) {
 			err := podProgressMonitor.reportStuckPodEvent(pod)
 			if err == nil {
 				podProgressMonitor.stuckPodCache[jobId] = pod.DeepCopy()
