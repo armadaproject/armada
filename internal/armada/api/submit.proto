@@ -14,7 +14,9 @@ message JobRequest {
 }
 
 message JobCancelRequest {
-    string jobId = 1;
+    string JobId = 1;
+    string JobSetId = 2;
+    string Queue = 3;
 }
 
 message JobSubmitResponse {

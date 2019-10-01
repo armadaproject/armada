@@ -13,32 +13,41 @@ import (
 
 func init() {
 	rootCmd.AddCommand(cancelCmd)
+	createQueueCmd.Flags().String(
+		"jobId", "", "job to cancel")
+	createQueueCmd.Flags().String(
+		"queue", "", "queue to cancel jobs from (requires job set to be specified)")
+	createQueueCmd.Flags().String(
+		"jobSet", "", "jobSet to cancel (requires queue to be specified)")
 }
 
 var cancelCmd = &cobra.Command{
 	Use:   "cancel jobId",
 	Short: "Cancels jobs in armada",
-	Long: `
-
-`,
-	Args: cobra.ExactArgs(1),
+	Long:  `Cancels jobs either by jobId or by combination of queue & job set.`,
+	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		jobId := args[0]
-
 		apiConnectionDetails := client.ExtractCommandlineArmadaApiConnectionDetails()
 
 		util.WithConnection(apiConnectionDetails, func(conn *grpc.ClientConn) {
 			client := api.NewSubmitClient(conn)
 
+			jobId, _ := cmd.Flags().GetString("jobId")
+			queue, _ := cmd.Flags().GetString("queue")
+			jobSet, _ := cmd.Flags().GetString("jobSet")
+
 			ctx, cancel := common.ContextWithDefaultTimeout()
 			defer cancel()
-			_, e := client.CancelJob(ctx, &api.JobCancelRequest{JobId: jobId})
+			_, e := client.CancelJob(ctx, &api.JobCancelRequest{
+				JobId:    jobId,
+				JobSetId: queue,
+				Queue:    jobSet,
+			})
 			if e != nil {
 				log.Error(e)
 				return
 			}
-			log.Infof("Submitted job id: %s ", jobId)
-
+			log.Info("Cancellation request submitted.")
 		})
 	},
 }

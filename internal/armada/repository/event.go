@@ -12,6 +12,7 @@ const dataKey = "message"
 
 type EventRepository interface {
 	ReportEvent(message *api.EventMessage) error
+	ReportEvents(message []*api.EventMessage) error
 	ReadEvents(jobSetId string, lastId string, limit int64, block time.Duration) ([]*api.EventStreamMessage, error)
 }
 
@@ -24,23 +25,40 @@ func NewRedisEventRepository(db *redis.Client) *RedisEventRepository {
 }
 
 func (repo *RedisEventRepository) ReportEvent(message *api.EventMessage) error {
-	event, e := api.UnwrapEvent(message)
-	if e != nil {
-		return e
+	return repo.ReportEvents([]*api.EventMessage{message})
+}
+
+func (repo *RedisEventRepository) ReportEvents(message []*api.EventMessage) error {
+
+	type eventData struct {
+		jobSetId string
+		data     []byte
+	}
+	data := []eventData{}
+
+	for _, m := range message {
+		event, e := api.UnwrapEvent(m)
+		if e != nil {
+			return e
+		}
+		messageData, e := proto.Marshal(m)
+		if e != nil {
+			return e
+		}
+		data = append(data, eventData{jobSetId: event.GetJobSetId(), data: messageData})
 	}
 
-	messageData, e := proto.Marshal(message)
-	if e != nil {
-		return e
+	pipe := repo.db.Pipeline()
+	for _, e := range data {
+		pipe.XAdd(&redis.XAddArgs{
+			Stream: eventStreamPrefix + e.jobSetId,
+			Values: map[string]interface{}{
+				dataKey: e.data,
+			},
+		})
 	}
-
-	result := repo.db.XAdd(&redis.XAddArgs{
-		Stream: eventStreamPrefix + event.GetJobSetId(),
-		Values: map[string]interface{}{
-			dataKey: messageData,
-		},
-	})
-	return result.Err()
+	_, e := pipe.Exec()
+	return e
 }
 
 func (repo *RedisEventRepository) ReadEvents(jobSetId string, lastId string, limit int64, block time.Duration) ([]*api.EventStreamMessage, error) {

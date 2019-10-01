@@ -56,6 +56,8 @@ func withEventServer(action func(s *EventServer)) {
 	repo := repository.NewRedisEventRepository(client)
 	server := NewEventServer(repo)
 
+	client.FlushDB()
+
 	action(server)
 
 	client.FlushDB()
