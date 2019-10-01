@@ -2,15 +2,17 @@ package service
 
 import (
 	"context"
+	"strings"
+	"time"
+
+	log "github.com/sirupsen/logrus"
+	v1 "k8s.io/api/core/v1"
+	listers "k8s.io/client-go/listers/core/v1"
+
 	"github.com/G-Research/k8s-batch/internal/armada/api"
 	"github.com/G-Research/k8s-batch/internal/common"
 	commonUtil "github.com/G-Research/k8s-batch/internal/common/util"
 	"github.com/G-Research/k8s-batch/internal/executor/util"
-	log "github.com/sirupsen/logrus"
-	v1 "k8s.io/api/core/v1"
-	listers "k8s.io/client-go/listers/core/v1"
-	"strings"
-	"time"
 )
 
 type JobLeaseService struct {
@@ -50,9 +52,37 @@ func (jobLeaseService JobLeaseService) ManageJobLeases() {
 	podsToCleanup := getFinishedPods(allManagedPods)
 
 	jobLeaseService.renewJobLeases(podsToRenew)
-	jobLeaseService.cleanupJobLeases(podsToCleanup)
+
+	err = jobLeaseService.ReportDone(podsToCleanup)
+	if err != nil {
+		log.Errorf("Failed reporting jobs as done because %s", err)
+	}
 
 	jobLeaseService.CleanupService.DeletePods(podsToCleanup)
+}
+
+func (jobLeaseService JobLeaseService) ReturnLease(pod *v1.Pod) error {
+	jobId := util.ExtractJobId(pod)
+	ctx, cancel := common.ContextWithDefaultTimeout()
+	defer cancel()
+	log.Infof("Returning lease for job %s", jobId)
+	_, err := jobLeaseService.QueueClient.ReturnLease(ctx, &api.ReturnLeaseRequest{ClusterId: jobLeaseService.ClusterId, JobId: jobId})
+
+	return err
+}
+
+func (jobLeaseService JobLeaseService) ReportDone(pods []*v1.Pod) error {
+	if len(pods) <= 0 {
+		return nil
+	}
+	jobIds := util.ExtractJobIds(pods)
+
+	ctx, cancel := common.ContextWithDefaultTimeout()
+	defer cancel()
+	log.Infof("Reporting done for jobs %s", strings.Join(jobIds, ","))
+	_, err := jobLeaseService.QueueClient.ReportDone(ctx, &api.IdList{Ids: jobIds})
+
+	return err
 }
 
 func (jobLeaseService JobLeaseService) renewJobLeases(pods []*v1.Pod) {
@@ -75,23 +105,6 @@ func (jobLeaseService JobLeaseService) renewJobLeases(pods []*v1.Pod) {
 	if len(failedIds) > 0 {
 		log.Errorf("Failed to renew job lease for jobs %s", strings.Join(failedIds, ","))
 		jobLeaseService.CleanupService.DeletePods(failedPods)
-	}
-}
-
-func (jobLeaseService JobLeaseService) cleanupJobLeases(pods []*v1.Pod) {
-	if len(pods) <= 0 {
-		return
-	}
-	jobIds := util.ExtractJobIds(pods)
-
-	ctx, cancel := common.ContextWithDefaultTimeout()
-	defer cancel()
-	log.Infof("Reporting done for jobs %s", strings.Join(jobIds, ","))
-	_, err := jobLeaseService.QueueClient.ReportDone(ctx, &api.IdList{Ids: jobIds})
-
-	if err != nil {
-		log.Errorf("Failed reporting jobs as done because %s", err)
-		return
 	}
 }
 

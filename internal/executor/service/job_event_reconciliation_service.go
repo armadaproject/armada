@@ -27,7 +27,7 @@ func (reconciliationService JobEventReconciliationService) ReconcileMissingJobEv
 
 	for _, pod := range podsWithCurrentPhaseNotReported {
 		if util.IsReportingPhaseRequired(pod.Status.Phase) {
-			reconciliationService.EventReporter.ReportEvent(pod)
+			reconciliationService.EventReporter.ReportCurrentStatus(pod)
 		}
 	}
 }
@@ -35,7 +35,7 @@ func (reconciliationService JobEventReconciliationService) ReconcileMissingJobEv
 func filterPodsWithCurrentStateNotReported(pods []*v1.Pod) []*v1.Pod {
 	podsWithMissingEvent := make([]*v1.Pod, 0)
 	for _, pod := range pods {
-		if !hasCurrentStateBeenReported(pod) && hasPodBeenInStateForLongerThanGivenDuration(pod, 15*time.Second) {
+		if !hasCurrentStateBeenReported(pod) && hasPodBeenInStateForLongerThanGivenDuration(pod, 30*time.Second) {
 			podsWithMissingEvent = append(podsWithMissingEvent, pod)
 		}
 	}

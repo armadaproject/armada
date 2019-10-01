@@ -73,6 +73,8 @@ func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGrou
 		SubmittedJobCache: submittedPodCache,
 	}
 
+	podMonitor := service.NewPodProgressMonitorService(podInformer.Lister(), eventReporter, podCleanupService, jobLeaseService, config.Application.ClusterId)
+
 	eventReconciliationService := service.JobEventReconciliationService{
 		PodLister:     podInformer.Lister(),
 		EventReporter: eventReporter,
@@ -100,6 +102,7 @@ func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGrou
 	tasks = append(tasks, scheduleBackgroundTask(clusterAllocationService.AllocateSpareClusterCapacity, config.Task.AllocateSpareClusterCapacityInterval, "job_lease_request", wg))
 	tasks = append(tasks, scheduleBackgroundTask(jobLeaseService.ManageJobLeases, config.Task.JobLeaseRenewalInterval, "job_lease_renewal", wg))
 	tasks = append(tasks, scheduleBackgroundTask(eventReconciliationService.ReconcileMissingJobEvents, config.Task.MissingJobEventReconciliationInterval, "event_reconciliation", wg))
+	tasks = append(tasks, scheduleBackgroundTask(podMonitor.HandleStuckPods, config.Task.StuckPodScanInterval, "stuck_pod", wg))
 	tasks = append(tasks, scheduleBackgroundTask(podCleanupService.ProcessPodsToDelete, config.Task.PodDeletionInterval, "pod_deletion", wg))
 
 	return func() {
@@ -214,7 +217,7 @@ func addPodEventHandler(podInformer informer.PodInformer, eventReporter reporter
 				return
 			}
 			submittedPodCache.Delete(util.ExtractJobId(pod))
-			go eventReporter.ReportEvent(pod)
+			go eventReporter.ReportCurrentStatus(pod)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			oldPod, ok := oldObj.(*v1.Pod)
@@ -227,7 +230,7 @@ func addPodEventHandler(podInformer informer.PodInformer, eventReporter reporter
 				log.Errorf("Failed to process pod event due to it being an unexpected type. Failed to process %+v", newObj)
 				return
 			}
-			go eventReporter.ReportUpdateEvent(oldPod, newPod)
+			go eventReporter.ReportStatusUpdate(oldPod, newPod)
 		},
 	})
 }
