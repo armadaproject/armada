@@ -40,8 +40,8 @@ var cancelCmd = &cobra.Command{
 			defer cancel()
 			_, e := client.CancelJob(ctx, &api.JobCancelRequest{
 				JobId:    jobId,
-				JobSetId: queue,
-				Queue:    jobSet,
+				JobSetId: jobSet,
+				Queue:    queue,
 			})
 			if e != nil {
 				log.Error(e)

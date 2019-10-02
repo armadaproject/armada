@@ -166,6 +166,18 @@ func TestCancelMissingJob(t *testing.T) {
 	})
 }
 
+func TestGetActiveJobIds(t *testing.T) {
+	withRepository(func(r *RedisJobRepository) {
+		addTestJob(t, r, "queue1")
+		addLeasedJob(t, r, "queue1", "cluster1")
+		addTestJob(t, r, "queue2")
+
+		ids, e := r.GetActiveJobIds("queue1", "set1")
+		assert.Nil(t, e)
+		assert.Equal(t, 2, len(ids))
+	})
+}
+
 func addLeasedJob(t *testing.T, r *RedisJobRepository, queue string, cluster string) *api.Job {
 	job := addTestJob(t, r, queue)
 	leased, e := r.TryLeaseJobs(cluster, queue, []*api.Job{job})
