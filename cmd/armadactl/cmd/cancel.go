@@ -13,19 +13,19 @@ import (
 
 func init() {
 	rootCmd.AddCommand(cancelCmd)
-	createQueueCmd.Flags().String(
+	cancelCmd.Flags().String(
 		"jobId", "", "job to cancel")
-	createQueueCmd.Flags().String(
+	cancelCmd.Flags().String(
 		"queue", "", "queue to cancel jobs from (requires job set to be specified)")
-	createQueueCmd.Flags().String(
+	cancelCmd.Flags().String(
 		"jobSet", "", "jobSet to cancel (requires queue to be specified)")
 }
 
 var cancelCmd = &cobra.Command{
-	Use:   "cancel jobId",
+	Use:   "cancel",
 	Short: "Cancels jobs in armada",
 	Long:  `Cancels jobs either by jobId or by combination of queue & job set.`,
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.ExactArgs(0),
 	Run: func(cmd *cobra.Command, args []string) {
 		apiConnectionDetails := client.ExtractCommandlineArmadaApiConnectionDetails()
 
@@ -40,8 +40,8 @@ var cancelCmd = &cobra.Command{
 			defer cancel()
 			_, e := client.CancelJob(ctx, &api.JobCancelRequest{
 				JobId:    jobId,
-				JobSetId: queue,
-				Queue:    jobSet,
+				JobSetId: jobSet,
+				Queue:    queue,
 			})
 			if e != nil {
 				log.Error(e)
