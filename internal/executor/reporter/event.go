@@ -1,12 +1,15 @@
-package util
+package reporter
 
 import (
 	"errors"
 	"fmt"
+	"time"
+
 	"github.com/G-Research/k8s-batch/internal/armada/api"
 	"github.com/G-Research/k8s-batch/internal/executor/domain"
+	"github.com/G-Research/k8s-batch/internal/executor/util"
+
 	v1 "k8s.io/api/core/v1"
-	"time"
 )
 
 func CreateEventForCurrentState(pod *v1.Pod, clusterId string) (api.Event, error) {
@@ -30,7 +33,7 @@ func CreateEventForCurrentState(pod *v1.Pod, clusterId string) (api.Event, error
 			ClusterId: clusterId,
 		}, nil
 	case v1.PodFailed:
-		return CreateJobFailedEvent(pod, ExtractPodFailedReason(pod), clusterId), nil
+		return CreateJobFailedEvent(pod, util.ExtractPodFailedReason(pod), clusterId), nil
 	case v1.PodSucceeded:
 		return &api.JobSucceededEvent{
 			JobId:     pod.Labels[domain.JobId],

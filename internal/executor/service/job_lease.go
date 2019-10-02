@@ -7,20 +7,19 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
-	listers "k8s.io/client-go/listers/core/v1"
 
 	"github.com/G-Research/k8s-batch/internal/armada/api"
 	"github.com/G-Research/k8s-batch/internal/common"
 	commonUtil "github.com/G-Research/k8s-batch/internal/common/util"
+	context2 "github.com/G-Research/k8s-batch/internal/executor/context"
+	"github.com/G-Research/k8s-batch/internal/executor/reporter"
 	"github.com/G-Research/k8s-batch/internal/executor/util"
 )
 
 type JobLeaseService struct {
-	PodLister         listers.PodLister
-	QueueClient       api.AggregatedQueueClient
-	CleanupService    PodCleanupService
-	ClusterId         string
-	SubmittedJobCache util.PodCache
+	ClusterContext context2.ClusterContext
+	QueueClient    api.AggregatedQueueClient
+	ClusterId      string
 }
 
 func (jobLeaseService JobLeaseService) RequestJobLeases(availableResource *common.ComputeResources) ([]*api.Job, error) {
@@ -40,16 +39,13 @@ func (jobLeaseService JobLeaseService) RequestJobLeases(availableResource *commo
 }
 
 func (jobLeaseService JobLeaseService) ManageJobLeases() {
-	allManagedPods, err := jobLeaseService.PodLister.List(util.GetManagedPodSelector())
+	podsToRenew, err := jobLeaseService.ClusterContext.GetBatchPods()
 	if err != nil {
 		log.Errorf("Failed to manage job leases due to %s", err)
 		return
 	}
 
-	podsToRenew := allManagedPods
-	podsToRenew = util.MergePodList(podsToRenew, jobLeaseService.SubmittedJobCache.GetAll())
-
-	podsToCleanup := getFinishedPods(allManagedPods)
+	podsToCleanup := getFinishedPods(podsToRenew)
 
 	jobLeaseService.renewJobLeases(podsToRenew)
 
@@ -58,7 +54,7 @@ func (jobLeaseService JobLeaseService) ManageJobLeases() {
 		log.Errorf("Failed reporting jobs as done because %s", err)
 	}
 
-	jobLeaseService.CleanupService.DeletePods(podsToCleanup)
+	jobLeaseService.ClusterContext.DeletePods(podsToCleanup)
 }
 
 func (jobLeaseService JobLeaseService) ReturnLease(pod *v1.Pod) error {
@@ -104,27 +100,15 @@ func (jobLeaseService JobLeaseService) renewJobLeases(pods []*v1.Pod) {
 	failedPods := filterPodsByJobId(pods, failedIds)
 	if len(failedIds) > 0 {
 		log.Errorf("Failed to renew job lease for jobs %s", strings.Join(failedIds, ","))
-		jobLeaseService.CleanupService.DeletePods(failedPods)
+		jobLeaseService.ClusterContext.DeletePods(failedPods)
 	}
-}
-
-func getRunningPods(pods []*v1.Pod) []*v1.Pod {
-	runningPods := make([]*v1.Pod, 0)
-
-	for _, pod := range pods {
-		if !IsPodReadyForCleanup(pod) {
-			runningPods = append(runningPods, pod)
-		}
-	}
-
-	return runningPods
 }
 
 func getFinishedPods(pods []*v1.Pod) []*v1.Pod {
 	finishedPods := make([]*v1.Pod, 0)
 
 	for _, pod := range pods {
-		if IsPodReadyForCleanup(pod) {
+		if isPodReadyForCleanup(pod) {
 			finishedPods = append(finishedPods, pod)
 		}
 	}
@@ -141,4 +125,11 @@ func filterPodsByJobId(pods []*v1.Pod, ids []string) []*v1.Pod {
 		}
 	}
 	return filteredPods
+}
+
+func isPodReadyForCleanup(pod *v1.Pod) bool {
+	if util.IsInTerminalState(pod) && reporter.HasCurrentStateBeenReported(pod) {
+		return true
+	}
+	return false
 }
