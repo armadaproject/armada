@@ -82,25 +82,9 @@ func (q AggregatedQueueServer) RenewLease(ctx context.Context, request *api.Rene
 }
 
 func (q AggregatedQueueServer) ReturnLease(ctx context.Context, request *api.ReturnLeaseRequest) (*types.Empty, error) {
-	returnedJob, err := q.jobRepository.ReturnLease(request.ClusterId, request.JobId)
+	_, err := q.jobRepository.ReturnLease(request.ClusterId, request.JobId)
 	if err != nil {
 		return nil, err
-	}
-	if returnedJob != nil {
-		event, err := api.Wrap(&api.JobLeaseReturnedEvent{
-			JobId:      returnedJob.Id,
-			Queue:      returnedJob.Queue,
-			JobSetId:   returnedJob.JobSetId,
-			Created:    time.Now(),
-			Reason:     request.Reason,
-			ReasonType: request.ReasonType,
-			ClusterId:  request.ClusterId,
-		})
-
-		err = q.eventRepository.ReportEvent(event)
-		if err != nil {
-			return nil, err
-		}
 	}
 	return &types.Empty{}, nil
 }

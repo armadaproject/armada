@@ -1,15 +1,10 @@
 package executor
 
 import (
-	"github.com/G-Research/k8s-batch/internal/armada/api"
-	"github.com/G-Research/k8s-batch/internal/common"
-	"github.com/G-Research/k8s-batch/internal/executor/configuration"
-	"github.com/G-Research/k8s-batch/internal/executor/metrics"
-	_ "github.com/G-Research/k8s-batch/internal/executor/metrics"
-	"github.com/G-Research/k8s-batch/internal/executor/reporter"
-	"github.com/G-Research/k8s-batch/internal/executor/service"
-	"github.com/G-Research/k8s-batch/internal/executor/submitter"
-	"github.com/G-Research/k8s-batch/internal/executor/util"
+	"os"
+	"sync"
+	"time"
+
 	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/retry"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/prometheus/client_golang/prometheus"
@@ -17,13 +12,16 @@ import (
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-	v1 "k8s.io/api/core/v1"
-	"k8s.io/client-go/informers"
-	informer "k8s.io/client-go/informers/core/v1"
-	"k8s.io/client-go/tools/cache"
-	"os"
-	"sync"
-	"time"
+
+	"github.com/G-Research/k8s-batch/internal/armada/api"
+	"github.com/G-Research/k8s-batch/internal/common"
+	"github.com/G-Research/k8s-batch/internal/executor/configuration"
+	"github.com/G-Research/k8s-batch/internal/executor/context"
+	"github.com/G-Research/k8s-batch/internal/executor/metrics"
+	"github.com/G-Research/k8s-batch/internal/executor/reporter"
+	"github.com/G-Research/k8s-batch/internal/executor/service"
+	"github.com/G-Research/k8s-batch/internal/executor/submitter"
+	"github.com/G-Research/k8s-batch/internal/executor/util"
 )
 
 func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGroup) {
@@ -43,47 +41,33 @@ func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGrou
 	usageClient := api.NewUsageClient(conn)
 	eventClient := api.NewEventClient(conn)
 
-	var eventReporter reporter.EventReporter = reporter.JobEventReporter{
-		KubernetesClient: kubernetesClient,
-		EventClient:      eventClient,
-		ClusterId:        config.Application.ClusterId,
-	}
+	clusterContext := context.NewClusterContext(
+		util.NewMapPodCache(time.Minute, time.Second, "submitted_job"),
+		util.NewMapPodCache(2*time.Minute, time.Second, "deleted_job"),
+		kubernetesClient,
+	)
 
-	submittedPodCache := util.NewMapPodCache(time.Minute, time.Second, "submitted_job")
-	deletedPodCache := util.NewMapPodCache(2*time.Minute, time.Second, "deleted_job")
-
-	factory := informers.NewSharedInformerFactoryWithOptions(kubernetesClient, 0)
-	podInformer := factory.Core().V1().Pods()
-	nodeLister := factory.Core().V1().Nodes().Lister()
-	addPodEventHandler(podInformer, eventReporter, submittedPodCache)
-	informerStopper := startInformers(factory)
+	eventReporter := reporter.NewJobEventReporter(
+		eventClient,
+		config.Application.ClusterId,
+		clusterContext)
 
 	jobSubmitter := submitter.JobSubmitter{
-		KubernetesClient:  kubernetesClient,
-		SubmittedPodCache: submittedPodCache,
+		ClusterContext: clusterContext,
 	}
-
-	podCleanupService := service.NewPodCleanupService(kubernetesClient, deletedPodCache)
 
 	jobLeaseService := service.JobLeaseService{
-		PodLister:         podInformer.Lister(),
-		QueueClient:       queueClient,
-		CleanupService:    podCleanupService,
-		ClusterId:         config.Application.ClusterId,
-		SubmittedJobCache: submittedPodCache,
+		ClusterContext: clusterContext,
+		QueueClient:    queueClient,
+		ClusterId:      config.Application.ClusterId,
 	}
 
-	eventReconciliationService := service.JobEventReconciliationService{
-		PodLister:     podInformer.Lister(),
-		EventReporter: eventReporter,
-	}
+	stuckPodDetector := service.NewPodProgressMonitorService(clusterContext, eventReporter, jobLeaseService, config.Application.ClusterId)
 
 	clusterUtilisationService := service.ClusterUtilisationService{
-		ClientId:          config.Application.ClusterId,
-		PodLister:         podInformer.Lister(),
-		NodeLister:        nodeLister,
-		UsageClient:       usageClient,
-		SubmittedPodCache: submittedPodCache,
+		ClientId:       config.Application.ClusterId,
+		ClusterContext: clusterContext,
+		UsageClient:    usageClient,
 	}
 
 	clusterAllocationService := service.ClusterAllocationService{
@@ -99,12 +83,13 @@ func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGrou
 	tasks = append(tasks, scheduleBackgroundTask(clusterUtilisationService.ReportClusterUtilisation, config.Task.UtilisationReportingInterval, "utilisation_reporting", wg))
 	tasks = append(tasks, scheduleBackgroundTask(clusterAllocationService.AllocateSpareClusterCapacity, config.Task.AllocateSpareClusterCapacityInterval, "job_lease_request", wg))
 	tasks = append(tasks, scheduleBackgroundTask(jobLeaseService.ManageJobLeases, config.Task.JobLeaseRenewalInterval, "job_lease_renewal", wg))
-	tasks = append(tasks, scheduleBackgroundTask(eventReconciliationService.ReconcileMissingJobEvents, config.Task.MissingJobEventReconciliationInterval, "event_reconciliation", wg))
-	tasks = append(tasks, scheduleBackgroundTask(podCleanupService.ProcessPodsToDelete, config.Task.PodDeletionInterval, "pod_deletion", wg))
+	tasks = append(tasks, scheduleBackgroundTask(eventReporter.ReportMissingJobEvents, config.Task.MissingJobEventReconciliationInterval, "event_reconciliation", wg))
+	tasks = append(tasks, scheduleBackgroundTask(stuckPodDetector.HandleStuckPods, config.Task.StuckPodScanInterval, "stuck_pod", wg))
+	tasks = append(tasks, scheduleBackgroundTask(clusterContext.ProcessPodsToDelete, config.Task.PodDeletionInterval, "pod_deletion", wg))
 
 	return func() {
 		stopTasks(tasks)
-		close(informerStopper)
+		clusterContext.Stop()
 		conn.Close()
 		wg.Done()
 		if waitForShutdownCompletion(wg, 2*time.Second) {
@@ -203,38 +188,4 @@ func stopTasks(taskChannels []chan bool) {
 	for _, channel := range taskChannels {
 		channel <- true
 	}
-}
-
-func addPodEventHandler(podInformer informer.PodInformer, eventReporter reporter.EventReporter, submittedPodCache util.PodCache) {
-	podInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
-			pod, ok := obj.(*v1.Pod)
-			if !ok {
-				log.Errorf("Failed to process pod event due to it being an unexpected type. Failed to process %+v", obj)
-				return
-			}
-			submittedPodCache.Delete(util.ExtractJobId(pod))
-			go eventReporter.ReportEvent(pod)
-		},
-		UpdateFunc: func(oldObj, newObj interface{}) {
-			oldPod, ok := oldObj.(*v1.Pod)
-			if !ok {
-				log.Errorf("Failed to process pod event due to it being an unexpected type. Failed to process %+v", oldObj)
-				return
-			}
-			newPod, ok := newObj.(*v1.Pod)
-			if !ok {
-				log.Errorf("Failed to process pod event due to it being an unexpected type. Failed to process %+v", newObj)
-				return
-			}
-			go eventReporter.ReportUpdateEvent(oldPod, newPod)
-		},
-	})
-}
-
-func startInformers(factory informers.SharedInformerFactory) chan struct{} {
-	stopper := make(chan struct{})
-	factory.Start(stopper)
-	factory.WaitForCacheSync(stopper)
-	return stopper
 }
