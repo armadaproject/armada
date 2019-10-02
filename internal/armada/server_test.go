@@ -52,15 +52,15 @@ func TestCancelJob(t *testing.T) {
 		cpu, _ := resource.ParseQuantity("1")
 		memory, _ := resource.ParseQuantity("512Mi")
 
-		jobId1 := SubmitJob(client, ctx, cpu, memory, t)
-		_ = SubmitJob(client, ctx, cpu, memory, t)
+		SubmitJob(client, ctx, cpu, memory, t)
+		SubmitJob(client, ctx, cpu, memory, t)
 
 		leasedResponse, err := leaseClient.LeaseJobs(ctx, &api.LeaseRequest{
 			ClusterId: "test-cluster",
 			Resources: common.ComputeResources{"cpu": cpu, "memory": memory},
 		})
 		assert.Empty(t, err)
-		assert.Equal(t, jobId1, leasedResponse.Job[0].Id)
+		assert.Equal(t, 1, len(leasedResponse.Job))
 
 		cancelResult, err := client.CancelJobs(ctx, &api.JobCancelRequest{JobSetId: "set", Queue: "test"})
 		assert.Empty(t, err)
@@ -68,7 +68,7 @@ func TestCancelJob(t *testing.T) {
 
 		renewed, err := leaseClient.RenewLease(ctx, &api.RenewLeaseRequest{
 			ClusterId: "test-cluster",
-			Ids:       []string{jobId1},
+			Ids:       []string{leasedResponse.Job[0].Id},
 		})
 		assert.Empty(t, err)
 		assert.Equal(t, 0, len(renewed.Ids))
@@ -84,7 +84,8 @@ func SubmitJob(client api.SubmitClient, ctx context.Context, cpu resource.Quanti
 				Image: "index.docker.io/library/ubuntu:latest",
 				Args:  []string{"sleep", "10s"},
 				Resources: v1.ResourceRequirements{
-					Limits: v1.ResourceList{"cpu": cpu, "memory": memory},
+					Requests: v1.ResourceList{"cpu": cpu, "memory": memory},
+					Limits:   v1.ResourceList{"cpu": cpu, "memory": memory},
 				},
 			},
 			},
