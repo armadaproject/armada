@@ -6,6 +6,7 @@ import (
 	"github.com/G-Research/k8s-batch/internal/armada/configuration"
 	"github.com/G-Research/k8s-batch/internal/common"
 	"github.com/alicebob/miniredis"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
 	v1 "k8s.io/api/core/v1"
@@ -26,22 +27,7 @@ func TestSubmitJob(t *testing.T) {
 		cpu, _ := resource.ParseQuantity("1")
 		memory, _ := resource.ParseQuantity("512Mi")
 
-		response, err := client.SubmitJob(ctx, &api.JobRequest{
-			PodSpec: &v1.PodSpec{
-				Containers: []v1.Container{{
-					Name:  "Container1",
-					Image: "index.docker.io/library/ubuntu:latest",
-					Args:  []string{"sleep", "10s"},
-					Resources: v1.ResourceRequirements{
-						Limits: v1.ResourceList{"cpu": cpu, "memory": memory},
-					},
-				},
-				},
-			},
-			Priority: 0,
-			Queue:    "test",
-		})
-		assert.Empty(t, err)
+		jobId := SubmitJob(client, ctx, cpu, memory, t)
 
 		leasedResponse, err := leaseClient.LeaseJobs(ctx, &api.LeaseRequest{
 			ClusterId: "test-cluster",
@@ -50,8 +36,64 @@ func TestSubmitJob(t *testing.T) {
 		assert.Empty(t, err)
 
 		assert.Equal(t, 1, len(leasedResponse.Job))
-		assert.Equal(t, response.JobId, leasedResponse.Job[0].Id)
+		assert.Equal(t, jobId, leasedResponse.Job[0].Id)
 	})
+}
+
+func TestCancelJob(t *testing.T) {
+	withRunningServer(func(client api.SubmitClient, leaseClient api.AggregatedQueueClient, ctx context.Context) {
+
+		_, err := client.CreateQueue(ctx, &api.Queue{
+			Name:           "test",
+			PriorityFactor: 1,
+		})
+		assert.Empty(t, err)
+
+		cpu, _ := resource.ParseQuantity("1")
+		memory, _ := resource.ParseQuantity("512Mi")
+
+		jobId1 := SubmitJob(client, ctx, cpu, memory, t)
+		_ = SubmitJob(client, ctx, cpu, memory, t)
+
+		leasedResponse, err := leaseClient.LeaseJobs(ctx, &api.LeaseRequest{
+			ClusterId: "test-cluster",
+			Resources: common.ComputeResources{"cpu": cpu, "memory": memory},
+		})
+		assert.Empty(t, err)
+		assert.Equal(t, jobId1, leasedResponse.Job[0].Id)
+
+		_, err = client.CancelJob(ctx, &api.JobCancelRequest{JobSetId: "set", Queue: "test"})
+		assert.Empty(t, err)
+
+		renewed, err := leaseClient.RenewLease(ctx, &api.RenewLeaseRequest{
+			ClusterId: "test-cluster",
+			Ids:       []string{jobId1},
+		})
+		assert.Empty(t, err)
+		assert.Equal(t, 0, len(renewed.Ids))
+
+	})
+}
+
+func SubmitJob(client api.SubmitClient, ctx context.Context, cpu resource.Quantity, memory resource.Quantity, t *testing.T) string {
+	response, err := client.SubmitJob(ctx, &api.JobRequest{
+		PodSpec: &v1.PodSpec{
+			Containers: []v1.Container{{
+				Name:  "Container1",
+				Image: "index.docker.io/library/ubuntu:latest",
+				Args:  []string{"sleep", "10s"},
+				Resources: v1.ResourceRequirements{
+					Limits: v1.ResourceList{"cpu": cpu, "memory": memory},
+				},
+			},
+			},
+		},
+		Priority: 0,
+		Queue:    "test",
+		JobSetId: "set",
+	})
+	assert.Empty(t, err)
+	return response.JobId
 }
 
 func withRunningServer(action func(client api.SubmitClient, leaseClient api.AggregatedQueueClient, ctx context.Context)) {
@@ -61,6 +103,8 @@ func withRunningServer(action func(client api.SubmitClient, leaseClient api.Aggr
 	}
 	defer redis.Close()
 
+	// cleanup prometheus in case there are registered metrics already present
+	prometheus.DefaultRegisterer = prometheus.NewRegistry()
 	server, _ := Serve(&configuration.ArmadaConfig{
 		GrpcPort: ":50051",
 		Redis: configuration.RedisConfig{

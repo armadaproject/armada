@@ -380,6 +380,8 @@ func (repo RedisJobRepository) leaseJobs(clusterId string, jobs []jobIdentity) (
 			log.Error(e)
 		} else if value == alreadyAllocatedByDifferentCluster {
 			log.With("jobId", jobId).Info("Job Already allocated to different cluster")
+		} else if value == jobCancelled {
+			log.With("jobId", jobId).Info("Trying to renew cancelled job")
 		} else {
 			leasedJobs = append(leasedJobs, jobId)
 		}
@@ -393,6 +395,7 @@ func leaseJob(db redis.Cmdable, queueName string, clusterId string, jobId string
 }
 
 const alreadyAllocatedByDifferentCluster = -42
+const jobCancelled = -43
 
 var leaseJobScript = redis.NewScript(`
 local queue = KEYS[1]
@@ -416,8 +419,8 @@ else
 		return -42
 	end
 
-	if score == nil then
-		return redis.error_reply('Job is missing from leased jobs set.')
+	if score == false then
+		return -43
 	end
 
 	return redis.call('ZADD', leasedJobsSet, currentTime, jobId)
