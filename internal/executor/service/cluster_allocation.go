@@ -1,8 +1,9 @@
 package service
 
 import (
-	"github.com/G-Research/k8s-batch/internal/executor/submitter"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/G-Research/k8s-batch/internal/executor/submitter"
 )
 
 type ClusterAllocationService struct {

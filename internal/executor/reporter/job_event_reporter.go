@@ -1,17 +1,17 @@
 package reporter
 
 import (
-	"encoding/json"
-	"github.com/G-Research/k8s-batch/internal/armada/api"
-	"github.com/G-Research/k8s-batch/internal/common"
-	"github.com/G-Research/k8s-batch/internal/executor/domain"
-	"github.com/G-Research/k8s-batch/internal/executor/util"
+	"errors"
+	"time"
+
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/kubernetes"
-	"time"
+	"k8s.io/client-go/tools/cache"
+
+	"github.com/G-Research/k8s-batch/internal/armada/api"
+	"github.com/G-Research/k8s-batch/internal/common"
+	"github.com/G-Research/k8s-batch/internal/executor/context"
+	"github.com/G-Research/k8s-batch/internal/executor/util"
 )
 
 type EventReporter interface {
@@ -21,9 +21,43 @@ type EventReporter interface {
 }
 
 type JobEventReporter struct {
-	KubernetesClient kubernetes.Interface
-	EventClient      api.EventClient
-	ClusterId        string
+	eventClient    api.EventClient
+	clusterId      string
+	clusterContext *context.KubernetesClusterContext
+}
+
+func NewJobEventReporter(
+	eventClient api.EventClient,
+	clusterId string,
+	clusterContext *context.KubernetesClusterContext) *JobEventReporter {
+
+	reporter := &JobEventReporter{eventClient: eventClient, clusterId: clusterId, clusterContext: clusterContext}
+
+	clusterContext.AddPodEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			pod, ok := obj.(*v1.Pod)
+			if !ok {
+				log.Errorf("Failed to process pod event due to it being an unexpected type. Failed to process %+v", obj)
+				return
+			}
+			go reporter.ReportCurrentStatus(pod)
+		},
+		UpdateFunc: func(oldObj, newObj interface{}) {
+			oldPod, ok := oldObj.(*v1.Pod)
+			if !ok {
+				log.Errorf("Failed to process pod event due to it being an unexpected type. Failed to process %+v", oldObj)
+				return
+			}
+			newPod, ok := newObj.(*v1.Pod)
+			if !ok {
+				log.Errorf("Failed to process pod event due to it being an unexpected type. Failed to process %+v", newObj)
+				return
+			}
+			go reporter.ReportStatusUpdate(oldPod, newPod)
+		},
+	})
+
+	return reporter
 }
 
 func (eventReporter JobEventReporter) Report(event api.Event) error {
@@ -46,7 +80,7 @@ func (eventReporter JobEventReporter) report(pod *v1.Pod) {
 		return
 	}
 
-	event, err := util.CreateEventForCurrentState(pod, eventReporter.ClusterId)
+	event, err := CreateEventForCurrentState(pod, eventReporter.clusterId)
 	if err != nil {
 		log.Errorf("Failed to report event because %s", err)
 		return
@@ -77,37 +111,73 @@ func (eventReporter JobEventReporter) sendEvent(event api.Event) error {
 	log.Infof("Reporting event %+v", eventMessage)
 	ctx, cancel := common.ContextWithDefaultTimeout()
 	defer cancel()
-	_, err = eventReporter.EventClient.Report(ctx, eventMessage)
+	_, err = eventReporter.eventClient.Report(ctx, eventMessage)
 	return err
 }
 
 func (eventReporter JobEventReporter) addAnnotationToMarkStateReported(pod *v1.Pod) error {
-	stateReportedPatch := createPatchToMarkCurrentStateReported(pod)
-	return eventReporter.patchPod(pod, stateReportedPatch)
-}
-
-func createPatchToMarkCurrentStateReported(pod *v1.Pod) *domain.Patch {
 	annotations := make(map[string]string)
 	annotationName := string(pod.Status.Phase)
-
 	annotations[annotationName] = time.Now().String()
 
-	patch := domain.Patch{
-		MetaData: metav1.ObjectMeta{
-			Annotations: annotations,
-		},
-	}
-	return &patch
+	return eventReporter.clusterContext.AddAnnotation(pod, annotations)
 }
 
-func (eventReporter JobEventReporter) patchPod(pod *v1.Pod, patch *domain.Patch) error {
-	patchBytes, err := json.Marshal(patch)
+func (eventReporter JobEventReporter) ReportMissingJobEvents() {
+	allBatchPods, err := eventReporter.clusterContext.GetActiveBatchPods()
 	if err != nil {
-		return err
+		log.Errorf("Failed to reconcile missing job events because %s", err)
+		return
 	}
-	_, err = eventReporter.KubernetesClient.CoreV1().Pods(pod.Namespace).Patch(pod.Name, types.StrategicMergePatchType, patchBytes)
-	if err != nil {
-		return err
+	podsWithCurrentPhaseNotReported := filterPodsWithCurrentStateNotReported(allBatchPods)
+
+	for _, pod := range podsWithCurrentPhaseNotReported {
+		if util.IsReportingPhaseRequired(pod.Status.Phase) {
+			eventReporter.ReportCurrentStatus(pod)
+		}
 	}
-	return nil
+}
+
+func filterPodsWithCurrentStateNotReported(pods []*v1.Pod) []*v1.Pod {
+	podsWithMissingEvent := make([]*v1.Pod, 0)
+	for _, pod := range pods {
+		if !HasCurrentStateBeenReported(pod) && HasPodBeenInStateForLongerThanGivenDuration(pod, 30*time.Second) {
+			podsWithMissingEvent = append(podsWithMissingEvent, pod)
+		}
+	}
+	return podsWithMissingEvent
+}
+
+func HasCurrentStateBeenReported(pod *v1.Pod) bool {
+	podPhase := pod.Status.Phase
+	_, annotationPresent := pod.Annotations[string(podPhase)]
+	return annotationPresent
+}
+
+func HasPodBeenInStateForLongerThanGivenDuration(pod *v1.Pod, duration time.Duration) bool {
+	deadline := time.Now().Add(-duration)
+	lastStatusChange, err := lastStatusChange(pod)
+
+	if err != nil || lastStatusChange.Before(deadline) {
+		return true
+	}
+	return false
+}
+
+func lastStatusChange(pod *v1.Pod) (time.Time, error) {
+	conditions := pod.Status.Conditions
+
+	if len(conditions) <= 0 {
+		return *new(time.Time), errors.New("no state changes found, cannot determine last status change")
+	}
+
+	var maxStatusChange time.Time
+
+	for _, condition := range conditions {
+		if condition.LastTransitionTime.Time.After(maxStatusChange) {
+			maxStatusChange = condition.LastTransitionTime.Time
+		}
+	}
+
+	return maxStatusChange, nil
 }
