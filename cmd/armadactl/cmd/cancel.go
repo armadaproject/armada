@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"strings"
+
 	"github.com/G-Research/k8s-batch/internal/armada/api"
 	"github.com/G-Research/k8s-batch/internal/client"
 	"github.com/G-Research/k8s-batch/internal/client/util"
@@ -38,7 +40,7 @@ var cancelCmd = &cobra.Command{
 
 			ctx, cancel := common.ContextWithDefaultTimeout()
 			defer cancel()
-			_, e := client.CancelJob(ctx, &api.JobCancelRequest{
+			result, e := client.CancelJobs(ctx, &api.JobCancelRequest{
 				JobId:    jobId,
 				JobSetId: jobSet,
 				Queue:    queue,
@@ -47,7 +49,7 @@ var cancelCmd = &cobra.Command{
 				log.Error(e)
 				return
 			}
-			log.Info("Cancellation request submitted.")
+			log.Infof("Cancellation request submitted for jobs: %s", strings.Join(result.CancelledIds, ", "))
 		})
 	},
 }
