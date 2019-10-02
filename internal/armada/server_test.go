@@ -62,8 +62,9 @@ func TestCancelJob(t *testing.T) {
 		assert.Empty(t, err)
 		assert.Equal(t, jobId1, leasedResponse.Job[0].Id)
 
-		_, err = client.CancelJob(ctx, &api.JobCancelRequest{JobSetId: "set", Queue: "test"})
+		cancelResult, err := client.CancelJobs(ctx, &api.JobCancelRequest{JobSetId: "set", Queue: "test"})
 		assert.Empty(t, err)
+		assert.Equal(t, 2, len(cancelResult.CancelledIds))
 
 		renewed, err := leaseClient.RenewLease(ctx, &api.RenewLeaseRequest{
 			ClusterId: "test-cluster",

@@ -114,7 +114,7 @@ func (repo RedisJobRepository) Cancel(jobs []*api.Job) map[*api.Job]error {
 	}
 	leaseCmds := []*redis.IntCmd{}
 	for _, job := range jobs {
-		leaseCmds = append(queueCmds, pipe.ZRem(jobLeasedPrefix+job.Queue, job.Id))
+		leaseCmds = append(leaseCmds, pipe.ZRem(jobLeasedPrefix+job.Queue, job.Id))
 	}
 
 	_, _ = pipe.Exec() // ignoring error here as it will be part of individual commands
