@@ -282,15 +282,28 @@ func (repo RedisJobRepository) GetQueueSizes(queues []*api.Queue) (sizes []int64
 }
 
 func (repo RedisJobRepository) GetActiveJobIds(queue string, jobSetId string) ([]string, error) {
-	queuedIds, e := repo.db.SInter(jobSetPrefix+jobSetId, jobQueuePrefix+queue).Result()
+
+	queuedIds, e := repo.db.ZRange(jobQueuePrefix+queue, 0, -1).Result()
 	if e != nil {
 		return nil, e
 	}
-	leasedIds, e := repo.db.SInter(jobSetPrefix+jobSetId, jobLeasedPrefix+queue).Result()
+	leasedIds, e := repo.db.ZRange(jobLeasedPrefix+queue, 0, -1).Result()
 	if e != nil {
 		return nil, e
 	}
-	return append(queuedIds, leasedIds...), nil
+	jobSetIds, e := repo.db.SMembers(jobSetPrefix + jobSetId).Result()
+	if e != nil {
+		return nil, e
+	}
+
+	activeIds := util.StringListToSet(append(queuedIds, leasedIds...))
+	activeSetIds := []string{}
+	for _, id := range jobSetIds {
+		if activeIds[id] {
+			activeSetIds = append(activeSetIds, id)
+		}
+	}
+	return activeSetIds, nil
 }
 
 func (repo RedisJobRepository) ExpireLeases(queue string, deadline time.Time) ([]*api.Job, error) {
