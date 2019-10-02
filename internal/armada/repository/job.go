@@ -13,6 +13,7 @@ import (
 
 const jobObjectPrefix = "Job:"
 const jobQueuePrefix = "Job:Queue:"
+const jobSetPrefix = "Job:Set:"
 const jobLeasedPrefix = "Job:Leased:"
 const jobClusterMapKey = "Job:ClusterId"
 const jobQueueMapKey = "Job:QueueName"
@@ -20,6 +21,7 @@ const jobQueueMapKey = "Job:QueueName"
 type JobRepository interface {
 	CreateJob(request *api.JobRequest) *api.Job
 	AddJob(job *api.Job) error
+	GetJobsByIds(ids []string) ([]*api.Job, error)
 	PeekQueue(queue string, limit int64) ([]*api.Job, error)
 	FilterActiveQueues(queues []*api.Queue) ([]*api.Queue, error)
 	GetQueueSizes(queues []*api.Queue) (sizes []int64, e error)
@@ -28,6 +30,8 @@ type JobRepository interface {
 	ExpireLeases(queue string, deadline time.Time) (expired []*api.Job, e error)
 	Remove(jobIds []string) (cleanedJobs []string, e error)
 	ReturnLease(clusterId string, jobId string) (returnedJob *api.Job, err error)
+	Cancel(jobs []*api.Job) map[*api.Job]error
+	GetActiveJobIds(queue string, jobSetId string) ([]string, error)
 }
 
 type RedisJobRepository struct {
@@ -52,6 +56,27 @@ func (repo RedisJobRepository) CreateJob(request *api.JobRequest) *api.Job {
 	return &j
 }
 
+func (repo RedisJobRepository) AddJob(job *api.Job) error {
+	pipe := repo.db.TxPipeline()
+
+	jobData, e := proto.Marshal(job)
+	if e != nil {
+		return e
+	}
+
+	pipe.ZAdd(jobQueuePrefix+job.Queue, redis.Z{
+		Member: job.Id,
+		Score:  job.Priority})
+
+	pipe.Set(jobObjectPrefix+job.Id, jobData, 0)
+	pipe.HSet(jobQueueMapKey, job.Id, job.Queue)
+
+	pipe.SAdd(jobSetPrefix+job.JobSetId, job.Id)
+
+	_, e = pipe.Exec()
+	return e
+}
+
 func (repo RedisJobRepository) RenewLease(clusterId string, jobIds []string) (renewedJobIds []string, e error) {
 	jobs, e := repo.getJobIdentities(jobIds)
 	if e != nil {
@@ -68,7 +93,6 @@ func (repo RedisJobRepository) ReturnLease(clusterId string, jobId string) (retu
 	if len(jobs) == 0 {
 		return nil, fmt.Errorf("Job not found %s", jobId)
 	}
-
 	job := jobs[0]
 
 	returned, e := returnLease(repo.db, clusterId, job.Queue, job.Id, job.Created).Int()
@@ -81,9 +105,51 @@ func (repo RedisJobRepository) ReturnLease(clusterId string, jobId string) (retu
 	return nil, nil
 }
 
+func (repo RedisJobRepository) Cancel(jobs []*api.Job) map[*api.Job]error {
+
+	pipe := repo.db.Pipeline()
+	queueCmds := []*redis.IntCmd{}
+	for _, job := range jobs {
+		queueCmds = append(queueCmds, pipe.ZRem(jobQueuePrefix+job.Queue, job.Id))
+	}
+	leaseCmds := []*redis.IntCmd{}
+	for _, job := range jobs {
+		leaseCmds = append(queueCmds, pipe.ZRem(jobLeasedPrefix+job.Queue, job.Id))
+	}
+
+	_, _ = pipe.Exec() // ignoring error here as it will be part of individual commands
+
+	cancelledJobs := map[*api.Job]error{}
+	for i, job := range jobs {
+		result, e := queueCmds[i].Result()
+		if e != nil {
+			cancelledJobs[job] = e
+		}
+		if result > 0 {
+			cancelledJobs[job] = nil
+		}
+	}
+	for i, job := range jobs {
+		result, e := leaseCmds[i].Result()
+		if e != nil {
+			cancelledJobs[job] = e
+		}
+		if result > 0 {
+			cancelledJobs[job] = nil
+		}
+	}
+
+	// TODO clean up job completely??
+
+	return cancelledJobs
+}
+
 func (repo RedisJobRepository) Remove(jobIds []string) (cleanedJobIds []string, e error) {
 
 	jobs, e := repo.getJobIdentities(jobIds)
+	if e != nil {
+		return nil, e
+	}
 
 	cleanedJobs, e := repo.zRemoveJobIds(jobs, func(j *jobIdentity) string { return jobLeasedPrefix + j.queueName })
 	if e != nil {
@@ -121,25 +187,6 @@ func (repo RedisJobRepository) zRemoveJobIds(jobIdentities []jobIdentity, getRed
 		}
 	}
 	return cleanedIds, nil
-}
-
-func (repo RedisJobRepository) AddJob(job *api.Job) error {
-	pipe := repo.db.TxPipeline()
-
-	jobData, e := proto.Marshal(job)
-	if e != nil {
-		return e
-	}
-
-	pipe.ZAdd(jobQueuePrefix+job.Queue, redis.Z{
-		Member: job.Id,
-		Score:  job.Priority})
-
-	pipe.Set(jobObjectPrefix+job.Id, jobData, 0)
-	pipe.HSet(jobQueueMapKey, job.Id, job.Queue)
-
-	_, e = pipe.Exec()
-	return e
 }
 
 func (repo RedisJobRepository) PeekQueue(queue string, limit int64) ([]*api.Job, error) {
@@ -232,6 +279,18 @@ func (repo RedisJobRepository) GetQueueSizes(queues []*api.Queue) (sizes []int64
 		sizes = append(sizes, cmd.Val())
 	}
 	return sizes, nil
+}
+
+func (repo RedisJobRepository) GetActiveJobIds(queue string, jobSetId string) ([]string, error) {
+	queuedIds, e := repo.db.SInter(jobSetPrefix+jobSetId, jobQueuePrefix+queue).Result()
+	if e != nil {
+		return nil, e
+	}
+	leasedIds, e := repo.db.SInter(jobSetPrefix+jobSetId, jobLeasedPrefix+queue).Result()
+	if e != nil {
+		return nil, e
+	}
+	return append(queuedIds, leasedIds...), nil
 }
 
 func (repo RedisJobRepository) ExpireLeases(queue string, deadline time.Time) ([]*api.Job, error) {

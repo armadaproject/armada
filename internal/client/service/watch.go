@@ -113,7 +113,7 @@ func WatchJobSetWithJobIdsFilter(client api.EventClient, jobSetId string, waitFo
 				info.Status = Succeeded
 			case *api.JobReprioritizedEvent:
 				// TODO
-			case *api.JobCancellingEvent:
+			case *api.JobTerminatedEvent:
 				// NOOP
 			case *api.JobCancelledEvent:
 				info.Status = Cancelled

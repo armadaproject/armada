@@ -26,8 +26,8 @@ func TestEventServer_ReportUsage(t *testing.T) {
 		reportEvent(t, s, &api.JobFailedEvent{JobSetId: jobSetId})
 		reportEvent(t, s, &api.JobSucceededEvent{JobSetId: jobSetId})
 		reportEvent(t, s, &api.JobReprioritizedEvent{JobSetId: jobSetId})
-		reportEvent(t, s, &api.JobCancellingEvent{JobSetId: jobSetId})
 		reportEvent(t, s, &api.JobCancelledEvent{JobSetId: jobSetId})
+		reportEvent(t, s, &api.JobTerminatedEvent{JobSetId: jobSetId})
 
 		e := s.GetJobSetEvents(&api.JobSetRequest{Id: jobSetId, Watch: false}, stream)
 		assert.Nil(t, e)
@@ -55,6 +55,8 @@ func withEventServer(action func(s *EventServer)) {
 
 	repo := repository.NewRedisEventRepository(client)
 	server := NewEventServer(repo)
+
+	client.FlushDB()
 
 	action(server)
 

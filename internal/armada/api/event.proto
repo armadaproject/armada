@@ -91,10 +91,16 @@ message JobCancellingEvent {
     string JobSetId = 2;
     string Queue = 3;
     google.protobuf.Timestamp Created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
-    string ClusterId = 5;
 }
 
 message JobCancelledEvent {
+    string JobId = 1;
+    string JobSetId = 2;
+    string Queue = 3;
+    google.protobuf.Timestamp Created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+}
+
+message JobTerminatedEvent {
     string JobId = 1;
     string JobSetId = 2;
     string Queue = 3;
@@ -116,6 +122,7 @@ message EventMessage {
         JobReprioritizedEvent reprioritized = 10;
         JobCancellingEvent cancelling = 11;
         JobCancelledEvent cancelled = 12;
+        JobTerminatedEvent terminated = 13;
     }
 }
 
