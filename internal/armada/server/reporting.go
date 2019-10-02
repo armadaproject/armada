@@ -82,7 +82,7 @@ func reportJobsCancelling(repository repository.EventRepository, jobs []*api.Job
 func reportJobsCancelled(repository repository.EventRepository, jobs []*api.Job) error {
 	events := []*api.EventMessage{}
 	for _, job := range jobs {
-		event, e := api.Wrap(&api.JobCancellingEvent{
+		event, e := api.Wrap(&api.JobCancelledEvent{
 			JobId:    job.Id,
 			Queue:    job.Queue,
 			JobSetId: job.JobSetId,
