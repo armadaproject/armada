@@ -12,6 +12,7 @@ import (
 	"k8s.io/client-go/informers"
 	informer "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/kubernetes"
+	lister "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/G-Research/k8s-batch/internal/executor/domain"
@@ -35,7 +36,7 @@ type KubernetesClusterContext struct {
 	submittedPods    util.PodCache
 	podsToDelete     util.PodCache
 	podInformer      informer.PodInformer
-	nodeInformer     informer.NodeInformer
+	nodeLister       lister.NodeLister
 	stopper          chan struct{}
 	kubernetesClient kubernetes.Interface
 }
@@ -52,7 +53,7 @@ func NewClusterContext(
 		podsToDelete:     deletedPods,
 		stopper:          make(chan struct{}),
 		podInformer:      factory.Core().V1().Pods(),
-		nodeInformer:     factory.Core().V1().Nodes(),
+		nodeLister:       factory.Core().V1().Nodes().Lister(),
 		kubernetesClient: kubernetesClient,
 	}
 
@@ -109,7 +110,7 @@ func (c *KubernetesClusterContext) GetAllPods() ([]*v1.Pod, error) {
 }
 
 func (c *KubernetesClusterContext) GetNodes() ([]*v1.Node, error) {
-	return c.nodeInformer.Lister().List(labels.Everything())
+	return c.nodeLister.List(labels.Everything())
 }
 
 func (c *KubernetesClusterContext) SubmitPod(pod *v1.Pod) (*v1.Pod, error) {
