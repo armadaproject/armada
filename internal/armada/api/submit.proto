@@ -28,8 +28,12 @@ message Queue {
     double PriorityFactor = 2;
 }
 
+message CancellationResult {
+    repeated string CancelledIds = 1;
+}
+
 service Submit {
     rpc SubmitJob (JobRequest) returns (JobSubmitResponse);
-    rpc CancelJob (JobCancelRequest) returns (google.protobuf.Empty);
+    rpc CancelJobs (JobCancelRequest) returns (CancellationResult);
     rpc CreateQueue (Queue) returns (google.protobuf.Empty);
 }

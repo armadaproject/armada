@@ -54,7 +54,7 @@ func (server *SubmitServer) SubmitJob(ctx context.Context, req *api.JobRequest) 
 	return result, nil
 }
 
-func (server *SubmitServer) CancelJob(ctx context.Context, request *api.JobCancelRequest) (*types.Empty, error) {
+func (server *SubmitServer) CancelJobs(ctx context.Context, request *api.JobCancelRequest) (*api.CancellationResult, error) {
 
 	if request.JobId != "" {
 		return server.cancelJobs([]string{request.JobId})
@@ -70,7 +70,7 @@ func (server *SubmitServer) CancelJob(ctx context.Context, request *api.JobCance
 	return nil, status.Errorf(codes.InvalidArgument, "Specify job id or queue with job set id")
 }
 
-func (server *SubmitServer) cancelJobs(ids []string) (*types.Empty, error) {
+func (server *SubmitServer) cancelJobs(ids []string) (*api.CancellationResult, error) {
 
 	jobs, e := server.jobRepository.GetJobsByIds(ids)
 	if e != nil {
@@ -84,11 +84,13 @@ func (server *SubmitServer) cancelJobs(ids []string) (*types.Empty, error) {
 
 	cancellationResult := server.jobRepository.Cancel(jobs)
 	cancelled := []*api.Job{}
+	cancelledIds := []string{}
 	for job, error := range cancellationResult {
 		if error != nil {
 			log.Errorf("Error when cancelling job id %s: %s", job.Id, error.Error())
 		} else {
 			cancelled = append(cancelled, job)
+			cancelledIds = append(cancelledIds, job.Id)
 		}
 	}
 
@@ -97,5 +99,5 @@ func (server *SubmitServer) cancelJobs(ids []string) (*types.Empty, error) {
 		return nil, status.Errorf(codes.Unknown, e.Error())
 	}
 
-	return &types.Empty{}, nil
+	return &api.CancellationResult{cancelledIds}, nil
 }
