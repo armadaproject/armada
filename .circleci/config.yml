@@ -115,13 +115,9 @@ jobs:
           command: |
             export KUBECONFIG="$(kind get kubeconfig-path --name="cluster1")"
             kubectl -n armada  wait --for=condition=available --timeout=60s deployment/armada-executor
-      - restore_cache:
-          keys:
-            - go-mod-v1-{{ checksum "go.sum" }}
       - run:
           name: Run e2e tests
           command: |
-            go get -v -d ./...
             go test -v ./e2e/test/...
   deploy:
     docker:
