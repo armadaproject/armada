@@ -10,4 +10,7 @@ resources:
     cpu: 200m
 terminationGracePeriodSeconds: 0
 
+prometheus:
+  enabled: false
+
 applicationConfig:

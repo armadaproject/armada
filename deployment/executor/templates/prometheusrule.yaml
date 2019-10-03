@@ -1,3 +1,4 @@
+{{- if .Values.prometheus.enabled }}
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
@@ -37,3 +38,4 @@ spec:
 
         - record: armada:executor:log:rate
           expr: sum(rate(log_messages[30s])) by (level)
+{{- end }}
