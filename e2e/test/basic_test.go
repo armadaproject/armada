@@ -1,0 +1,89 @@
+package test
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"google.golang.org/grpc"
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
+
+	"github.com/G-Research/k8s-batch/internal/armada/api"
+	"github.com/G-Research/k8s-batch/internal/client/domain"
+	"github.com/G-Research/k8s-batch/internal/client/service"
+	util2 "github.com/G-Research/k8s-batch/internal/client/util"
+	"github.com/G-Research/k8s-batch/internal/common/util"
+)
+
+func TestCanSubmitJob_ReceivingAllExpectedEvents(t *testing.T) {
+	jobRequest := createJobRequest()
+	connectionDetails := &domain.ArmadaApiConnectionDetails{
+		Url: "localhost:50051",
+	}
+
+	util2.WithConnection(connectionDetails, func(connection *grpc.ClientConn) {
+		submitClient := api.NewSubmitClient(connection)
+
+		err := service.CreateQueue(submitClient, &api.Queue{Name: jobRequest.Queue, PriorityFactor: 1})
+		assert.Empty(t, err)
+
+		_, err = service.SubmitJob(submitClient, jobRequest)
+		assert.Empty(t, err)
+
+		receivedEvents := make(map[service.JobStatus]bool)
+
+		eventsClient := api.NewEventClient(connection)
+
+		timeout, _ := context.WithTimeout(context.Background(), 20*time.Second)
+
+		service.WatchJobSet(eventsClient, jobRequest.JobSetId, true, timeout, func(state map[string]*service.JobInfo, e api.Event) bool {
+			currentStatus := state[e.GetJobId()].Status
+			receivedEvents[currentStatus] = true
+
+			if currentStatus == service.Succeeded || currentStatus == service.Failed || currentStatus == service.Cancelled {
+				return true
+			}
+
+			return false
+		})
+		assert.False(t, hasTimedOut(timeout), "Test timed out waiting for expected events")
+
+		assert.True(t, receivedEvents[service.Queued])
+		assert.True(t, receivedEvents[service.Leased])
+		assert.True(t, receivedEvents[service.Running])
+		assert.True(t, receivedEvents[service.Succeeded])
+	})
+}
+
+func hasTimedOut(context context.Context) bool {
+	select {
+	case <-context.Done():
+		return true
+	default:
+		return false
+	}
+}
+
+func createJobRequest() *api.JobRequest {
+	cpu, _ := resource.ParseQuantity("80m")
+	memory, _ := resource.ParseQuantity("50Mi")
+	return &api.JobRequest{
+		PodSpec: &v1.PodSpec{
+			Containers: []v1.Container{{
+				Name:  "container1",
+				Image: "mcr.microsoft.com/dotnet/core/runtime:2.2",
+				Args:  []string{"sleep", "5s"},
+				Resources: v1.ResourceRequirements{
+					Requests: v1.ResourceList{"cpu": cpu, "memory": memory},
+					Limits:   v1.ResourceList{"cpu": cpu, "memory": memory},
+				},
+			},
+			},
+		},
+		JobSetId: util.NewULID(),
+		Priority: 0,
+		Queue:    "test",
+	}
+}
