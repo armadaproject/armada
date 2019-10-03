@@ -10,10 +10,10 @@ jobs:
       enabled: true
     working_directory: ~/go/src/github.com/G-Research/k8s-batch
     steps:
+      - checkout
       - restore_cache:
           keys:
             - go-mod-v1-{{ checksum "go.sum" }}
-      - checkout
       - aws-cli/install
       - aws-cli/configure
       - run:
