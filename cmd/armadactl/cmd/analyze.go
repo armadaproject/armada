@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"reflect"
@@ -39,7 +40,7 @@ var analyzeCmd = &cobra.Command{
 			events := map[string][]*api.Event{}
 			jobState := map[string]*service.JobInfo{}
 
-			service.WatchJobSet(eventsClient, jobSetId, false, func(state map[string]*service.JobInfo, e api.Event) bool {
+			service.WatchJobSet(eventsClient, jobSetId, false, context.Background(), func(state map[string]*service.JobInfo, e api.Event) bool {
 				events[e.GetJobId()] = append(events[e.GetJobId()], &e)
 				jobState = state
 				return false
