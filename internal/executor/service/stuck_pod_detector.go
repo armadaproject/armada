@@ -45,6 +45,9 @@ func (podProgressMonitor *StuckPodDetector) onStuckPodDetected(pod *v1.Pod) (res
 	}
 
 	err := podProgressMonitor.eventReporter.Report(event)
+	if err != nil {
+		log.Errorf("Failure to stuck pod event %+v because %s", event, err)
+	}
 	return err == nil
 }
 
