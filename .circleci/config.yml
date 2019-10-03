@@ -10,6 +10,7 @@ jobs:
       enabled: true
     working_directory: ~/go/src/github.com/G-Research/k8s-batch
     steps:
+      - run: e2e/setup/background.sh &
       - checkout
       - restore_cache:
           keys:
