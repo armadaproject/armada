@@ -103,13 +103,13 @@ jobs:
           command: |
             source scripts/assume-role.sh
             $(aws ecr get-login --region eu-west-1 --no-include-email)
-            docker pull ${ECR_REPOSITORY}/armada:b91e651cba4ed065cbbbea5bf43ef688b40bd766
-            docker pull ${ECR_REPOSITORY}/armada-executor:b91e651cba4ed065cbbbea5bf43ef688b40bd766
+            docker pull ${ECR_REPOSITORY}/armada:branch-${CIRCLE_BRANCH}-${CIRCLE_SHA1}
+            docker pull ${ECR_REPOSITORY}/armada-executor:branch-${CIRCLE_BRANCH}-${CIRCLE_SHA1}
             docker images
       - run: e2e/setup/setup_environment.sh
       - run: e2e/setup/setup_clusters.sh
       - run: docker run -d --expose=6379 redis
-      - run: docker run -d --expose=50051 ${ECR_REPOSITORY}/armada:b91e651cba4ed065cbbbea5bf43ef688b40bd766
+      - run: docker run -d --expose=50051 ${ECR_REPOSITORY}/armada:branch-${CIRCLE_BRANCH}-${CIRCLE_SHA1}
       - run:
           name: Wait for cluster executors to be ready
           command: |
@@ -117,12 +117,12 @@ jobs:
             kubectl -n armada get deploy
             kubectl -n armada get deploy -o yaml
             kubectl -n armada get pod
-            kubectl -n armada get pod -o yaml
+            kubectl -n armada describe pod
             sleep 10s
             kubectl -n armada get deploy
             kubectl -n armada get deploy -o yaml
             kubectl -n armada get pod
-            kubectl -n armada get pod -o yaml
+            kubectl -n armada describe pod
             kubectl -n armada  wait --for=condition=available --timeout=60s deployment/armada-executor
       - run:
           name: Run e2e tests
