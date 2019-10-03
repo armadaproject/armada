@@ -27,10 +27,10 @@ func TestCanSubmitJob_ReceivingAllExpectedEvents(t *testing.T) {
 		submitClient := api.NewSubmitClient(connection)
 
 		err := service.CreateQueue(submitClient, &api.Queue{Name: jobRequest.Queue, PriorityFactor: 1})
-		assert.Empty(t, err)
+		assert.Nil(t, err)
 
 		_, err = service.SubmitJob(submitClient, jobRequest)
-		assert.Empty(t, err)
+		assert.Nil(t, err)
 
 		receivedEvents := make(map[service.JobStatus]bool)
 
@@ -73,7 +73,7 @@ func createJobRequest() *api.JobRequest {
 		PodSpec: &v1.PodSpec{
 			Containers: []v1.Container{{
 				Name:  "container1",
-				Image: "mcr.microsoft.com/dotnet/core/runtime:2.2",
+				Image: "alpine:3.10",
 				Args:  []string{"sleep", "5s"},
 				Resources: v1.ResourceRequirements{
 					Requests: v1.ResourceList{"cpu": cpu, "memory": memory},
