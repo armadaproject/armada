@@ -113,7 +113,12 @@ jobs:
       - run:
           name: Wait for cluster executors to be ready
           command: |
-            export KUBECONFIG=$(kind get kubeconfig-path --name=cluster1)
+            export KUBECONFIG="$(kind get kubeconfig-path --name="cluster1")"
+            kubectl -n armada get deploy
+            kubectl -n armada get pod
+            sleep 10s
+            kubectl -n armada get deploy
+            kubectl -n armada get pod
             kubectl -n armada  wait --for=condition=available --timeout=60s deployment/armada-executor
       - run:
           name: Run e2e tests
