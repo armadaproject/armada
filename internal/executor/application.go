@@ -20,7 +20,6 @@ import (
 	"github.com/G-Research/k8s-batch/internal/executor/metrics"
 	"github.com/G-Research/k8s-batch/internal/executor/reporter"
 	"github.com/G-Research/k8s-batch/internal/executor/service"
-	"github.com/G-Research/k8s-batch/internal/executor/submitter"
 	"github.com/G-Research/k8s-batch/internal/executor/util"
 )
 
@@ -42,39 +41,33 @@ func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGrou
 	eventClient := api.NewEventClient(conn)
 
 	clusterContext := context.NewClusterContext(
+		config.Application.ClusterId,
 		util.NewMapPodCache(time.Minute, time.Second, "submitted_job"),
 		util.NewMapPodCache(2*time.Minute, time.Second, "deleted_job"),
 		kubernetesClient,
 	)
 
 	eventReporter := reporter.NewJobEventReporter(
-		eventClient,
-		config.Application.ClusterId,
-		clusterContext)
+		clusterContext,
+		eventClient)
 
-	jobSubmitter := submitter.JobSubmitter{
-		ClusterContext: clusterContext,
-	}
+	jobLeaseService := service.NewJobLeaseService(
+		clusterContext,
+		queueClient)
 
-	jobLeaseService := service.JobLeaseService{
-		ClusterContext: clusterContext,
-		QueueClient:    queueClient,
-		ClusterId:      config.Application.ClusterId,
-	}
+	clusterUtilisationService := service.NewClusterUtilisationService(
+		clusterContext,
+		usageClient)
 
-	stuckPodDetector := service.NewPodProgressMonitorService(clusterContext, eventReporter, jobLeaseService, config.Application.ClusterId)
+	stuckPodDetector := service.NewPodProgressMonitorService(
+		clusterContext,
+		eventReporter,
+		jobLeaseService)
 
-	clusterUtilisationService := service.ClusterUtilisationService{
-		ClientId:       config.Application.ClusterId,
-		ClusterContext: clusterContext,
-		UsageClient:    usageClient,
-	}
-
-	clusterAllocationService := service.ClusterAllocationService{
-		LeaseService:       jobLeaseService,
-		UtilisationService: clusterUtilisationService,
-		JobSubmitter:       jobSubmitter,
-	}
+	clusterAllocationService := service.NewClusterAllocationService(
+		clusterContext,
+		jobLeaseService,
+		clusterUtilisationService)
 
 	wg := &sync.WaitGroup{}
 	wg.Add(1)

@@ -14,10 +14,22 @@ import (
 	"github.com/G-Research/k8s-batch/internal/executor/util"
 )
 
+type UtilisationService interface {
+	GetAvailableClusterCapacity() (*common.ComputeResources, error)
+}
+
 type ClusterUtilisationService struct {
-	ClientId       string
-	ClusterContext context.ClusterContext
-	UsageClient    api.UsageClient
+	clusterContext context.ClusterContext
+	usageClient    api.UsageClient
+}
+
+func NewClusterUtilisationService(
+	clusterContext context.ClusterContext,
+	usageClient api.UsageClient) *ClusterUtilisationService {
+
+	return &ClusterUtilisationService{
+		clusterContext: clusterContext,
+		usageClient:    usageClient}
 }
 
 func (clusterUtilisationService ClusterUtilisationService) ReportClusterUtilisation() {
@@ -37,7 +49,7 @@ func (clusterUtilisationService ClusterUtilisationService) ReportClusterUtilisat
 	queueReports := createReportsOfQueueUsages(allActiveManagedPods)
 
 	clusterUsage := api.ClusterUsageReport{
-		ClusterId:       clusterUtilisationService.ClientId,
+		ClusterId:       clusterUtilisationService.clusterContext.GetClusterId(),
 		ReportTime:      time.Now(),
 		Queues:          queueReports,
 		ClusterCapacity: totalNodeResource,
@@ -57,7 +69,7 @@ func (clusterUtilisationService ClusterUtilisationService) GetAvailableClusterCa
 		return new(common.ComputeResources), fmt.Errorf("Failed getting available cluster capacity due to: %s", err)
 	}
 
-	allPods, err := clusterUtilisationService.ClusterContext.GetAllPods()
+	allPods, err := clusterUtilisationService.clusterContext.GetAllPods()
 	if err != nil {
 		return new(common.ComputeResources), fmt.Errorf("Failed getting available cluster capacity due to: %s", err)
 	}
@@ -75,7 +87,7 @@ func (clusterUtilisationService ClusterUtilisationService) GetAvailableClusterCa
 }
 
 func (clusterUtilisationService ClusterUtilisationService) getAllAvailableProcessingNodes() ([]*v1.Node, error) {
-	allNodes, err := clusterUtilisationService.ClusterContext.GetNodes()
+	allNodes, err := clusterUtilisationService.clusterContext.GetNodes()
 	if err != nil {
 		return []*v1.Node{}, err
 	}
@@ -86,7 +98,7 @@ func (clusterUtilisationService ClusterUtilisationService) getAllAvailableProces
 func (clusterUtilisationService ClusterUtilisationService) reportUsage(clusterUsage *api.ClusterUsageReport) error {
 	ctx, cancel := common.ContextWithDefaultTimeout()
 	defer cancel()
-	_, err := clusterUtilisationService.UsageClient.ReportUsage(ctx, clusterUsage)
+	_, err := clusterUtilisationService.usageClient.ReportUsage(ctx, clusterUsage)
 
 	return err
 }
@@ -144,7 +156,7 @@ func getAllPodsRequiringResourceOnProcessingNodes(allPods []*v1.Pod, processingN
 }
 
 func (clusterUtilisationService *ClusterUtilisationService) getAllRunningManagedPods() ([]*v1.Pod, error) {
-	allActiveManagedPods, err := clusterUtilisationService.ClusterContext.GetActiveBatchPods()
+	allActiveManagedPods, err := clusterUtilisationService.clusterContext.GetActiveBatchPods()
 	if err != nil {
 		return []*v1.Pod{}, err
 	}

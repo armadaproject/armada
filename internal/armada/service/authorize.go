@@ -25,7 +25,7 @@ func NewBasicAuthAuthorizeService(users map[string]string) *BasicAuthAuthorizeSe
 	return &BasicAuthAuthorizeService{users: users}
 }
 
-func (authService BasicAuthAuthorizeService) Authorize(ctx context.Context) error {
+func (authService *BasicAuthAuthorizeService) Authorize(ctx context.Context) error {
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		if len(md[common.UsernameField]) <= 0 || len(md[common.PasswordField]) <= 0 {
 			return invalidCredentials
@@ -41,7 +41,7 @@ func (authService BasicAuthAuthorizeService) Authorize(ctx context.Context) erro
 	return missingCredentials
 }
 
-func (authService BasicAuthAuthorizeService) isValidUser(username string, password string) bool {
+func (authService *BasicAuthAuthorizeService) isValidUser(username string, password string) bool {
 	val, ok := authService.users[username]
 	return ok && val == password
 }
