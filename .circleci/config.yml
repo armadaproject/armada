@@ -112,11 +112,6 @@ jobs:
       - run: docker run -d --expose=6379 --network=host redis
       - run: docker run -d --expose=50051 --network=host ${ECR_REPOSITORY}/armada:branch-${CIRCLE_BRANCH}-${CIRCLE_SHA1}
       - run: docker run -d --network=host -v $(kind get kubeconfig-path --name="cluster1"):/kube/config -e KUBECONFIG=/kube/config ${ECR_REPOSITORY}/armada-executor:branch-${CIRCLE_BRANCH}-${CIRCLE_SHA1}
-      - run: mkdir go
-      - run: chmod -R 777 ./go
-      - restore_cache:
-          keys:
-            - go-mod-v1-{{ checksum "go.sum" }}
       - run:
           name: Run e2e tests
           command: |
