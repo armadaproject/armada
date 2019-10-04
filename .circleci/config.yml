@@ -49,6 +49,11 @@ jobs:
             go get -v -d ./...
             go test -v ./internal/...
 
+      - run: pwd ${GOPATH}
+      - run: ls ${GOPATH}
+      - run: ls ${HOME}
+      - run: ls ${HOME}/go
+
       - save_cache:
           key: go-mod-machine-v1-{{ checksum "go.sum" }}
           paths:
