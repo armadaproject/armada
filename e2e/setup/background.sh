@@ -1,2 +1,2 @@
-sleep 60
-echo hello > done.txt
+sleep 10
+echo hello > ./done.txt
