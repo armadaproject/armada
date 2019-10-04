@@ -53,7 +53,7 @@ jobs:
       - save_cache:
           key: go-mod-machine-experiment-v2-{{ checksum "go.sum" }}
           paths:
-            - "/home/circleci/go/pkg/mod"
+            - "${GOPATH}/pkg/mod"
 
       - run:
           name: Check formatting
