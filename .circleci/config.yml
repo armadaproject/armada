@@ -11,15 +11,10 @@ jobs:
     working_directory: ~/go/src/github.com/G-Research/k8s-batch
     steps:
       - checkout
-      - run: ls
-      - run: pwd
       - run:
           name: "run background task"
           command: e2e/setup/background.sh
           background: true
-      - run: sleep 20s
-      - run: ls
-      - run: pwd
       - run: timeout 30 e2e/setup/wait.sh
 
       - restore_cache:
