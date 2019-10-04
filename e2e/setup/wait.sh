@@ -1,6 +1,5 @@
-count=0
-while [ ! -f ./done.txt ]
+REPO_ROOT=$(git rev-parse --show-toplevel)
+while [ ! -f .${REPO_ROOT}/done.txt ]
 do
-  count=`expr $count + 1`
   sleep 1
 done
