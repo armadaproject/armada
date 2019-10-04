@@ -4,7 +4,7 @@ echo ${REPO_ROOT}
 ls
 pwd
 
-while [ ! -f .${REPO_ROOT}/done.txt ]
+while [ ! -f ./done.txt ]
 do
   sleep 1
 done
