@@ -10,8 +10,9 @@ jobs:
       enabled: true
     working_directory: ~/go/src/github.com/G-Research/k8s-batch
     steps:
-      - run: e2e/setup/background.sh &
       - checkout
+      - run: e2e/setup/background.sh &
+      - run: timeout 120 e2e/set/wait.sh
       - restore_cache:
           keys:
             - go-mod-v1-{{ checksum "go.sum" }}
