@@ -54,12 +54,10 @@ func (clusterUtilisationService ClusterUtilisationService) ReportClusterUtilisat
 func (clusterUtilisationService ClusterUtilisationService) GetAvailableClusterCapacity() (*common.ComputeResources, error) {
 	processingNodes, err := clusterUtilisationService.getAllAvailableProcessingNodes()
 	if err != nil {
-		return new(common.ComputeResources), fmt.Errorf("Failed getting available cluster capacity due to: %s", err)
 	}
 
 	allPods, err := clusterUtilisationService.ClusterContext.GetAllPods()
 	if err != nil {
-		return new(common.ComputeResources), fmt.Errorf("Failed getting available cluster capacity due to: %s", err)
 	}
 
 	allPodsRequiringResource := getAllPodsRequiringResourceOnProcessingNodes(allPods, processingNodes)
