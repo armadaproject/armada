@@ -12,7 +12,7 @@ jobs:
     steps:
       - checkout
       - run: e2e/setup/background.sh &
-      - run: timeout 120 e2e/set/wait.sh
+      - run: timeout 120 e2e/setup/wait.sh
       - restore_cache:
           keys:
             - go-mod-v1-{{ checksum "go.sum" }}
