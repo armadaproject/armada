@@ -34,11 +34,11 @@ jobs:
       - run: env
       - run: go version
       - run: docker run -d --expose=6379 --network=host redis
+
 #      - run:
-#          name: "run background task"
-#          command: e2e/setup/background.sh
+#          name: "Start up kind clusters in background"
+#          command: e2e/setup/setup_clusters.sh
 #          background: true
-#      - run: timeout 30 e2e/setup/wait.sh
 
       - restore_cache:
           keys:
@@ -69,6 +69,14 @@ jobs:
 
       - aws-cli/install
       - aws-cli/configure
+
+#      - run:
+#          name: End to end tests
+#          command: |
+#            timeout 100 e2e/setup/wait_cluster_setup_completion.sh
+#            docker run -d --expose=50051 --network=host armada:latest
+#            docker run -d --network=host -v $(kind get kubeconfig-path --name="cluster1"):/kube/config -e KUBECONFIG=/kube/config armada-executor:latest
+#            go test -v ./e2e/test/...
 
       - run:
           name: Push Image
