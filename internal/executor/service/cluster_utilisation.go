@@ -32,7 +32,7 @@ func NewClusterUtilisationService(
 		usageClient:    usageClient}
 }
 
-func (clusterUtilisationService ClusterUtilisationService) ReportClusterUtilisation() {
+func (clusterUtilisationService *ClusterUtilisationService) ReportClusterUtilisation() {
 	allAvailableProcessingNodes, err := clusterUtilisationService.getAllAvailableProcessingNodes()
 	if err != nil {
 		log.Errorf("Failed to get required information to report cluster usage because %s", err)
@@ -63,7 +63,7 @@ func (clusterUtilisationService ClusterUtilisationService) ReportClusterUtilisat
 	}
 }
 
-func (clusterUtilisationService ClusterUtilisationService) GetAvailableClusterCapacity() (*common.ComputeResources, error) {
+func (clusterUtilisationService *ClusterUtilisationService) GetAvailableClusterCapacity() (*common.ComputeResources, error) {
 	processingNodes, err := clusterUtilisationService.getAllAvailableProcessingNodes()
 	if err != nil {
 		return new(common.ComputeResources), fmt.Errorf("Failed getting available cluster capacity due to: %s", err)
@@ -86,7 +86,7 @@ func (clusterUtilisationService ClusterUtilisationService) GetAvailableClusterCa
 	return &availableResource, nil
 }
 
-func (clusterUtilisationService ClusterUtilisationService) getAllAvailableProcessingNodes() ([]*v1.Node, error) {
+func (clusterUtilisationService *ClusterUtilisationService) getAllAvailableProcessingNodes() ([]*v1.Node, error) {
 	allNodes, err := clusterUtilisationService.clusterContext.GetNodes()
 	if err != nil {
 		return []*v1.Node{}, err
@@ -95,7 +95,7 @@ func (clusterUtilisationService ClusterUtilisationService) getAllAvailableProces
 	return filterAvailableProcessingNodes(allNodes), nil
 }
 
-func (clusterUtilisationService ClusterUtilisationService) reportUsage(clusterUsage *api.ClusterUsageReport) error {
+func (clusterUtilisationService *ClusterUtilisationService) reportUsage(clusterUsage *api.ClusterUsageReport) error {
 	ctx, cancel := common.ContextWithDefaultTimeout()
 	defer cancel()
 	_, err := clusterUtilisationService.usageClient.ReportUsage(ctx, clusterUsage)

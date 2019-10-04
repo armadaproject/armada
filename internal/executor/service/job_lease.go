@@ -36,7 +36,7 @@ func NewJobLeaseService(
 		queueClient:    queueClient}
 }
 
-func (jobLeaseService JobLeaseService) RequestJobLeases(availableResource *common.ComputeResources) ([]*api.Job, error) {
+func (jobLeaseService *JobLeaseService) RequestJobLeases(availableResource *common.ComputeResources) ([]*api.Job, error) {
 	leaseRequest := api.LeaseRequest{
 		ClusterId: jobLeaseService.clusterContext.GetClusterId(),
 		Resources: *availableResource,
@@ -52,7 +52,7 @@ func (jobLeaseService JobLeaseService) RequestJobLeases(availableResource *commo
 	return response.Job, nil
 }
 
-func (jobLeaseService JobLeaseService) ReturnLease(pod *v1.Pod) error {
+func (jobLeaseService *JobLeaseService) ReturnLease(pod *v1.Pod) error {
 	jobId := util.ExtractJobId(pod)
 	ctx, cancel := common.ContextWithDefaultTimeout()
 	defer cancel()
@@ -62,7 +62,7 @@ func (jobLeaseService JobLeaseService) ReturnLease(pod *v1.Pod) error {
 	return err
 }
 
-func (jobLeaseService JobLeaseService) ManageJobLeases() {
+func (jobLeaseService *JobLeaseService) ManageJobLeases() {
 	podsToRenew, err := jobLeaseService.clusterContext.GetBatchPods()
 	if err != nil {
 		log.Errorf("Failed to manage job leases due to %s", err)
@@ -81,7 +81,7 @@ func (jobLeaseService JobLeaseService) ManageJobLeases() {
 	jobLeaseService.clusterContext.DeletePods(podsToCleanup)
 }
 
-func (jobLeaseService JobLeaseService) ReportDone(pods []*v1.Pod) error {
+func (jobLeaseService *JobLeaseService) ReportDone(pods []*v1.Pod) error {
 	if len(pods) <= 0 {
 		return nil
 	}
@@ -95,7 +95,7 @@ func (jobLeaseService JobLeaseService) ReportDone(pods []*v1.Pod) error {
 	return err
 }
 
-func (jobLeaseService JobLeaseService) renewJobLeases(pods []*v1.Pod) {
+func (jobLeaseService *JobLeaseService) renewJobLeases(pods []*v1.Pod) {
 	if len(pods) <= 0 {
 		return
 	}
