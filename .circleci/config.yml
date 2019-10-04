@@ -31,6 +31,7 @@ jobs:
     steps:
       - checkout
       - run: e2e/setup/setup_environment.sh
+      - run: env
       - run: docker run -d --expose=6379 --network=host redis
 #      - run:
 #          name: "run background task"
@@ -48,12 +49,11 @@ jobs:
             go get -v -d ./...
             go test -v ./internal/...
 
-
       - save_cache:
           key: go-mod-machine-v1-{{ checksum "go.sum" }}
           paths:
             - "~/go/pkg/mod"
-              
+
       - run:
           name: Check formatting
           command: exit $(gofmt -l . | wc -l)
