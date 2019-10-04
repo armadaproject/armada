@@ -2,6 +2,9 @@ package test
 
 import (
 	"context"
+	"fmt"
+	"os"
+	"strconv"
 	"testing"
 	"time"
 
@@ -17,7 +20,11 @@ import (
 	"github.com/G-Research/k8s-batch/internal/common/util"
 )
 
+const integrationEnabledEnvVar = "INTEGRATION_ENABLED"
+
 func TestCanSubmitJob_ReceivingAllExpectedEvents(t *testing.T) {
+	skipIfIntegrationEnvNotPresent(t)
+
 	jobRequest := createJobRequest()
 	connectionDetails := &domain.ArmadaApiConnectionDetails{
 		Url: "localhost:50051",
@@ -55,6 +62,22 @@ func TestCanSubmitJob_ReceivingAllExpectedEvents(t *testing.T) {
 		assert.True(t, receivedEvents[service.Running])
 		assert.True(t, receivedEvents[service.Succeeded])
 	})
+}
+
+func skipIfIntegrationEnvNotPresent(t *testing.T) {
+	value, exists := os.LookupEnv(integrationEnabledEnvVar)
+	if !exists {
+		t.Skip(fmt.Sprintf("Skipping as integration enabled env variable (%s) not passed", integrationEnabledEnvVar))
+	}
+
+	isEnabled, err := strconv.ParseBool(value)
+	if err != nil {
+		t.Skip(fmt.Sprintf("Skipping as integration enabled env variable (%s) not with invalid value, must be true or false", integrationEnabledEnvVar))
+	}
+
+	if !isEnabled {
+		t.Skip(fmt.Sprintf("Skipping as integration enabled env variable (%s) is not set to true", integrationEnabledEnvVar))
+	}
 }
 
 func hasTimedOut(context context.Context) bool {
