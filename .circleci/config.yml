@@ -41,7 +41,7 @@ jobs:
 
       - restore_cache:
           keys:
-            - go-mod-machine-experiment-v1-{{ checksum "go.sum" }}
+            - go-mod-machine-experiment-v2-{{ checksum "go.sum" }}
 
       - run:
           name: Test
@@ -50,9 +50,9 @@ jobs:
             go test -v ./internal/...
 
       - save_cache:
-          key: go-mod-machine-experiment-v1-{{ checksum "go.sum" }}
+          key: go-mod-machine-experiment-v2-{{ checksum "go.sum" }}
           paths:
-            - "${HOME}/go/pkg/mod"
+            - "/home/circleci/go/pkg/mod"
 
       - run:
           name: Check formatting
