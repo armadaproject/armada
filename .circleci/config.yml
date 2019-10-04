@@ -11,7 +11,7 @@ jobs:
     working_directory: ~/go/src/github.com/G-Research/k8s-batch
     steps:
       - checkout
-      - run: echo ls
+      - run: ls
       - run: pwd
       - run:
           name: "run background task"
