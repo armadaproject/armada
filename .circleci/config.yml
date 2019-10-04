@@ -30,7 +30,8 @@ jobs:
     working_directory: ~/go/src/github.com/G-Research/k8s-batch
     steps:
       - checkout
-      - run: echo ${GO111MODULE}
+      - run: e2e/setup/setup_environment.sh
+      - run: docker run -d --expose=6379 --network=host redis
 #      - run:
 #          name: "run background task"
 #          command: e2e/setup/background.sh
