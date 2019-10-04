@@ -37,11 +37,23 @@ jobs:
 #          command: e2e/setup/background.sh
 #          background: true
 #      - run: timeout 30 e2e/setup/wait.sh
+
+      - restore_cache:
+          keys:
+            - go-mod-machine-v1-{{ checksum "go.sum" }}
+
       - run:
           name: Test
           command: |
             go get -v -d ./...
             go test -v ./internal/...
+
+
+      - save_cache:
+          key: go-mod-machine-v1-{{ checksum "go.sum" }}
+          paths:
+            - "~/go/pkg/mod"
+              
       - run:
           name: Check formatting
           command: exit $(gofmt -l . | wc -l)
