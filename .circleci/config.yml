@@ -25,8 +25,8 @@ jobs:
   e2e:
     machine:
       enabled: true
-      environment:
-        GO111MODULE: "on"
+    environment:
+      GO111MODULE: "on"
     working_directory: ~/go/src/github.com/G-Research/k8s-batch
     steps:
       - checkout
