@@ -42,7 +42,7 @@ jobs:
 
       - restore_cache:
           keys:
-            - go-mod-machine-experiment-v2-{{ checksum "go.sum" }}
+            - go-mod-machine-experiment-v3-{{ checksum "go.sum" }}
 
       - run:
           name: Test
@@ -51,7 +51,7 @@ jobs:
             go test -v ./internal/...
 
       - save_cache:
-          key: go-mod-machine-experiment-v2-{{ checksum "go.sum" }}
+          key: go-mod-machine-experiment-v3-{{ checksum "go.sum" }}
           paths:
             - "${GOPATH}/pkg/mod"
 
