@@ -16,20 +16,34 @@ import (
 	"github.com/G-Research/k8s-batch/internal/executor/util"
 )
 
-type JobLeaseService struct {
-	ClusterContext context2.ClusterContext
-	QueueClient    api.AggregatedQueueClient
-	ClusterId      string
+type LeaseService interface {
+	ReturnLease(pod *v1.Pod) error
+	RequestJobLeases(availableResource *common.ComputeResources) ([]*api.Job, error)
+	ReportDone(pods []*v1.Pod) error
 }
 
-func (jobLeaseService JobLeaseService) RequestJobLeases(availableResource *common.ComputeResources) ([]*api.Job, error) {
+type JobLeaseService struct {
+	clusterContext context2.ClusterContext
+	queueClient    api.AggregatedQueueClient
+}
+
+func NewJobLeaseService(
+	clusterContext context2.ClusterContext,
+	queueClient api.AggregatedQueueClient) *JobLeaseService {
+
+	return &JobLeaseService{
+		clusterContext: clusterContext,
+		queueClient:    queueClient}
+}
+
+func (jobLeaseService *JobLeaseService) RequestJobLeases(availableResource *common.ComputeResources) ([]*api.Job, error) {
 	leaseRequest := api.LeaseRequest{
-		ClusterId: jobLeaseService.ClusterId,
+		ClusterId: jobLeaseService.clusterContext.GetClusterId(),
 		Resources: *availableResource,
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	response, err := jobLeaseService.QueueClient.LeaseJobs(ctx, &leaseRequest)
+	response, err := jobLeaseService.queueClient.LeaseJobs(ctx, &leaseRequest)
 
 	if err != nil {
 		return make([]*api.Job, 0), err
@@ -38,8 +52,18 @@ func (jobLeaseService JobLeaseService) RequestJobLeases(availableResource *commo
 	return response.Job, nil
 }
 
-func (jobLeaseService JobLeaseService) ManageJobLeases() {
-	podsToRenew, err := jobLeaseService.ClusterContext.GetBatchPods()
+func (jobLeaseService *JobLeaseService) ReturnLease(pod *v1.Pod) error {
+	jobId := util.ExtractJobId(pod)
+	ctx, cancel := common.ContextWithDefaultTimeout()
+	defer cancel()
+	log.Infof("Returning lease for job %s", jobId)
+	_, err := jobLeaseService.queueClient.ReturnLease(ctx, &api.ReturnLeaseRequest{ClusterId: jobLeaseService.clusterContext.GetClusterId(), JobId: jobId})
+
+	return err
+}
+
+func (jobLeaseService *JobLeaseService) ManageJobLeases() {
+	podsToRenew, err := jobLeaseService.clusterContext.GetBatchPods()
 	if err != nil {
 		log.Errorf("Failed to manage job leases due to %s", err)
 		return
@@ -54,20 +78,10 @@ func (jobLeaseService JobLeaseService) ManageJobLeases() {
 		log.Errorf("Failed reporting jobs as done because %s", err)
 	}
 
-	jobLeaseService.ClusterContext.DeletePods(podsToCleanup)
+	jobLeaseService.clusterContext.DeletePods(podsToCleanup)
 }
 
-func (jobLeaseService JobLeaseService) ReturnLease(pod *v1.Pod) error {
-	jobId := util.ExtractJobId(pod)
-	ctx, cancel := common.ContextWithDefaultTimeout()
-	defer cancel()
-	log.Infof("Returning lease for job %s", jobId)
-	_, err := jobLeaseService.QueueClient.ReturnLease(ctx, &api.ReturnLeaseRequest{ClusterId: jobLeaseService.ClusterId, JobId: jobId})
-
-	return err
-}
-
-func (jobLeaseService JobLeaseService) ReportDone(pods []*v1.Pod) error {
+func (jobLeaseService *JobLeaseService) ReportDone(pods []*v1.Pod) error {
 	if len(pods) <= 0 {
 		return nil
 	}
@@ -76,12 +90,12 @@ func (jobLeaseService JobLeaseService) ReportDone(pods []*v1.Pod) error {
 	ctx, cancel := common.ContextWithDefaultTimeout()
 	defer cancel()
 	log.Infof("Reporting done for jobs %s", strings.Join(jobIds, ","))
-	_, err := jobLeaseService.QueueClient.ReportDone(ctx, &api.IdList{Ids: jobIds})
+	_, err := jobLeaseService.queueClient.ReportDone(ctx, &api.IdList{Ids: jobIds})
 
 	return err
 }
 
-func (jobLeaseService JobLeaseService) renewJobLeases(pods []*v1.Pod) {
+func (jobLeaseService *JobLeaseService) renewJobLeases(pods []*v1.Pod) {
 	if len(pods) <= 0 {
 		return
 	}
@@ -90,7 +104,10 @@ func (jobLeaseService JobLeaseService) renewJobLeases(pods []*v1.Pod) {
 
 	ctx, cancel := common.ContextWithDefaultTimeout()
 	defer cancel()
-	renewedJobIds, err := jobLeaseService.QueueClient.RenewLease(ctx, &api.RenewLeaseRequest{ClusterId: jobLeaseService.ClusterId, Ids: jobIds})
+	renewedJobIds, err := jobLeaseService.queueClient.RenewLease(ctx,
+		&api.RenewLeaseRequest{
+			ClusterId: jobLeaseService.clusterContext.GetClusterId(),
+			Ids:       jobIds})
 	if err != nil {
 		log.Errorf("Failed to renew lease for jobs because %s", err)
 		return
@@ -99,8 +116,8 @@ func (jobLeaseService JobLeaseService) renewJobLeases(pods []*v1.Pod) {
 	failedIds := commonUtil.SubtractStringList(jobIds, renewedJobIds.Ids)
 	failedPods := filterPodsByJobId(pods, failedIds)
 	if len(failedIds) > 0 {
-		log.Errorf("Failed to renew job lease for jobs %s", strings.Join(failedIds, ","))
-		jobLeaseService.ClusterContext.DeletePods(failedPods)
+		log.Warnf("Server has prevented renewing of job lease for jobs %s", strings.Join(failedIds, ","))
+		jobLeaseService.clusterContext.DeletePods(failedPods)
 	}
 }
 

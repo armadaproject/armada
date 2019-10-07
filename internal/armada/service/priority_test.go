@@ -1,10 +1,12 @@
 package service
 
 import (
-	"github.com/G-Research/k8s-batch/internal/armada/api"
-	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+
+	"github.com/G-Research/k8s-batch/internal/armada/api"
 )
 
 func TestPriorityService_GetQueuePriorities(t *testing.T) {
@@ -78,7 +80,7 @@ func (m mockUsageRepository) GetClusterPriorities(clusterIds []string) (map[stri
 	return m.clusterPriorities, nil
 }
 
-func (mockUsageRepository) UpdateCluster(report *api.ClusterUsageReport, priorities map[string]float64) error {
+func (m mockUsageRepository) UpdateCluster(report *api.ClusterUsageReport, priorities map[string]float64) error {
 	panic("implement me")
 }
 

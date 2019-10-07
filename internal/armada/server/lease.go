@@ -76,12 +76,12 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 	return &jobLease, nil
 }
 
-func (q AggregatedQueueServer) RenewLease(ctx context.Context, request *api.RenewLeaseRequest) (*api.IdList, error) {
+func (q *AggregatedQueueServer) RenewLease(ctx context.Context, request *api.RenewLeaseRequest) (*api.IdList, error) {
 	renewed, e := q.jobRepository.RenewLease(request.ClusterId, request.Ids)
 	return &api.IdList{renewed}, e
 }
 
-func (q AggregatedQueueServer) ReturnLease(ctx context.Context, request *api.ReturnLeaseRequest) (*types.Empty, error) {
+func (q *AggregatedQueueServer) ReturnLease(ctx context.Context, request *api.ReturnLeaseRequest) (*types.Empty, error) {
 	_, err := q.jobRepository.ReturnLease(request.ClusterId, request.JobId)
 	if err != nil {
 		return nil, err
@@ -89,12 +89,12 @@ func (q AggregatedQueueServer) ReturnLease(ctx context.Context, request *api.Ret
 	return &types.Empty{}, nil
 }
 
-func (q AggregatedQueueServer) ReportDone(ctx context.Context, idList *api.IdList) (*api.IdList, error) {
+func (q *AggregatedQueueServer) ReportDone(ctx context.Context, idList *api.IdList) (*api.IdList, error) {
 	cleaned, e := q.jobRepository.Remove(idList.Ids)
 	return &api.IdList{cleaned}, e
 }
 
-func (q AggregatedQueueServer) assignJobs(clusterId string, slices map[*api.Queue]common.ComputeResourcesFloat) ([]*api.Job, error) {
+func (q *AggregatedQueueServer) assignJobs(clusterId string, slices map[*api.Queue]common.ComputeResourcesFloat) ([]*api.Job, error) {
 	jobs := make([]*api.Job, 0)
 	// TODO: parallelize
 	for queue, slice := range slices {
@@ -109,7 +109,7 @@ func (q AggregatedQueueServer) assignJobs(clusterId string, slices map[*api.Queu
 	return jobs, nil
 }
 
-func (q AggregatedQueueServer) distributeRemainder(clusterId string, priorities map[*api.Queue]float64, slices map[*api.Queue]common.ComputeResourcesFloat) ([]*api.Job, error) {
+func (q *AggregatedQueueServer) distributeRemainder(clusterId string, priorities map[*api.Queue]float64, slices map[*api.Queue]common.ComputeResourcesFloat) ([]*api.Job, error) {
 	jobs := []*api.Job{}
 	remainder := common.ComputeResourcesFloat{}
 	orderedQueues := []*api.Queue{}
@@ -137,7 +137,7 @@ func (q AggregatedQueueServer) distributeRemainder(clusterId string, priorities 
 	return jobs, nil
 }
 
-func (q AggregatedQueueServer) leaseJobs(clusterId string, queue *api.Queue, slice common.ComputeResourcesFloat, limit int) ([]*api.Job, common.ComputeResourcesFloat, error) {
+func (q *AggregatedQueueServer) leaseJobs(clusterId string, queue *api.Queue, slice common.ComputeResourcesFloat, limit int) ([]*api.Job, common.ComputeResourcesFloat, error) {
 	jobs := make([]*api.Job, 0)
 	remainder := slice
 	for slice.IsValid() {

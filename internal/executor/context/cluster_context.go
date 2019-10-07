@@ -30,9 +30,12 @@ type ClusterContext interface {
 	SubmitPod(pod *v1.Pod) (*v1.Pod, error)
 	AddAnnotation(pod *v1.Pod, annotations map[string]string) error
 	DeletePods(pods []*v1.Pod)
+
+	GetClusterId() string
 }
 
 type KubernetesClusterContext struct {
+	clusterId        string
 	submittedPods    util.PodCache
 	podsToDelete     util.PodCache
 	podInformer      informer.PodInformer
@@ -41,7 +44,12 @@ type KubernetesClusterContext struct {
 	kubernetesClient kubernetes.Interface
 }
 
+func (c *KubernetesClusterContext) GetClusterId() string {
+	return c.clusterId
+}
+
 func NewClusterContext(
+	clusterId string,
 	submittedPods util.PodCache,
 	deletedPods util.PodCache,
 	kubernetesClient kubernetes.Interface) *KubernetesClusterContext {
@@ -49,6 +57,7 @@ func NewClusterContext(
 	factory := informers.NewSharedInformerFactoryWithOptions(kubernetesClient, 0)
 
 	context := &KubernetesClusterContext{
+		clusterId:        clusterId,
 		submittedPods:    submittedPods,
 		podsToDelete:     deletedPods,
 		stopper:          make(chan struct{}),

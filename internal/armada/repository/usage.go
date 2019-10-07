@@ -24,14 +24,14 @@ type UsageRepository interface {
 }
 
 type RedisUsageRepository struct {
-	db *redis.Client
+	db redis.UniversalClient
 }
 
-func NewRedisUsageRepository(db *redis.Client) *RedisUsageRepository {
+func NewRedisUsageRepository(db redis.UniversalClient) *RedisUsageRepository {
 	return &RedisUsageRepository{db: db}
 }
 
-func (r RedisUsageRepository) GetClusterUsageReports() (map[string]*api.ClusterUsageReport, error) {
+func (r *RedisUsageRepository) GetClusterUsageReports() (map[string]*api.ClusterUsageReport, error) {
 	result, err := r.db.HGetAll(clusterReportKey).Result()
 	if err != nil {
 		return nil, err
@@ -49,7 +49,7 @@ func (r RedisUsageRepository) GetClusterUsageReports() (map[string]*api.ClusterU
 	return reports, nil
 }
 
-func (r RedisUsageRepository) GetClusterPriority(clusterId string) (map[string]float64, error) {
+func (r *RedisUsageRepository) GetClusterPriority(clusterId string) (map[string]float64, error) {
 	result, err := r.db.HGetAll(clusterPrioritiesPrefix + clusterId).Result()
 	if err != nil {
 		return nil, err
@@ -57,7 +57,7 @@ func (r RedisUsageRepository) GetClusterPriority(clusterId string) (map[string]f
 	return toFloat64Map(result)
 }
 
-func (r RedisUsageRepository) GetClusterPriorities(clusterIds []string) (map[string]map[string]float64, error) {
+func (r *RedisUsageRepository) GetClusterPriorities(clusterIds []string) (map[string]map[string]float64, error) {
 	pipe := r.db.Pipeline()
 	cmds := make(map[string]*redis.StringStringMapCmd)
 	for _, id := range clusterIds {
@@ -79,7 +79,7 @@ func (r RedisUsageRepository) GetClusterPriorities(clusterIds []string) (map[str
 	return clusterPriorities, nil
 }
 
-func (r RedisUsageRepository) UpdateCluster(report *api.ClusterUsageReport, priorities map[string]float64) error {
+func (r *RedisUsageRepository) UpdateCluster(report *api.ClusterUsageReport, priorities map[string]float64) error {
 
 	pipe := r.db.TxPipeline()
 

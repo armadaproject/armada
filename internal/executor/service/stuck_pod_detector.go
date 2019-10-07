@@ -17,21 +17,20 @@ type StuckPodDetector struct {
 	clusterContext  context.ClusterContext
 	eventReporter   reporter.EventReporter
 	stuckPodCache   map[string]*v1.Pod
-	jobLeaseService JobLeaseService
+	jobLeaseService LeaseService
 	clusterId       string
 }
 
 func NewPodProgressMonitorService(
 	clusterContext context.ClusterContext,
 	eventReporter reporter.EventReporter,
-	jobLeaseService JobLeaseService, clusterId string) *StuckPodDetector {
+	jobLeaseService LeaseService) *StuckPodDetector {
 
 	return &StuckPodDetector{
 		clusterContext:  clusterContext,
 		eventReporter:   eventReporter,
 		stuckPodCache:   map[string]*v1.Pod{},
 		jobLeaseService: jobLeaseService,
-		clusterId:       clusterId,
 	}
 }
 
@@ -45,6 +44,9 @@ func (podProgressMonitor *StuckPodDetector) onStuckPodDetected(pod *v1.Pod) (res
 	}
 
 	err := podProgressMonitor.eventReporter.Report(event)
+	if err != nil {
+		log.Errorf("Failure to stuck pod event %+v because %s", event, err)
+	}
 	return err == nil
 }
 

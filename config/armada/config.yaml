@@ -1,12 +1,16 @@
 grpcPort: ":50051"
 priorityHalfTime: 20m
 redis:
-  addr: "localhost:6379"
+  addrs:
+    - "localhost:6379"
   password: ""
   db: 0
+  poolSize: 1000
 eventsRedis:
-  addr: "localhost:6379"
+  addrs:
+    - "localhost:6379"
   password: ""
   db: 0
+  poolSize: 1000
 authentication:
   enableAuthentication: false
