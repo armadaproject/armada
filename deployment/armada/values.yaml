@@ -11,5 +11,8 @@ resources:
 terminationGracePeriodSeconds: 0
 replicas: 1
 
+prometheus:
+  enabled: false
+
 applicationConfig:
   grpcPort: 50051

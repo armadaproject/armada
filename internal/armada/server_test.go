@@ -111,7 +111,7 @@ func withRunningServer(action func(client api.SubmitClient, leaseClient api.Aggr
 	// cleanup prometheus in case there are registered metrics already present
 	prometheus.DefaultRegisterer = prometheus.NewRegistry()
 	server, _ := Serve(&configuration.ArmadaConfig{
-		GrpcPort: ":50051",
+		GrpcPort: ":50052",
 		Redis: redis.UniversalOptions{
 			Addrs: []string{minidb.Addr()},
 			DB:    0,
@@ -119,7 +119,7 @@ func withRunningServer(action func(client api.SubmitClient, leaseClient api.Aggr
 	})
 	defer server.Stop()
 
-	conn, err := grpc.Dial("localhost:50051", grpc.WithInsecure(), grpc.WithDefaultCallOptions(grpc.WaitForReady(true)))
+	conn, err := grpc.Dial("localhost:50052", grpc.WithInsecure(), grpc.WithDefaultCallOptions(grpc.WaitForReady(true)))
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
 	}

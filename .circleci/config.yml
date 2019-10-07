@@ -51,7 +51,7 @@ jobs:
           name: Test
           command: |
             go get -v -d ./...
-            go test -v ./...
+            go test -v ./internal/...
 
       - save_cache:
           key: go-mod-v1-{{ checksum "go.sum" }}
@@ -91,6 +91,31 @@ jobs:
 
             docker tag armada-executor ${ECR_REPOSITORY}/armada-executor:${TAG}
             docker push ${ECR_REPOSITORY}/armada-executor:${TAG}
+  e2e:
+    machine:
+      enabled: true
+    steps:
+      - checkout
+      - aws-cli/install
+      - aws-cli/configure
+      - run:
+          name: Load relevant docker images
+          command: |
+            source scripts/assume-role.sh
+            $(aws ecr get-login --region eu-west-1 --no-include-email)
+            docker pull alpine:3.10
+            docker pull ${ECR_REPOSITORY}/armada:branch-${CIRCLE_BRANCH}-${CIRCLE_SHA1}
+            docker pull ${ECR_REPOSITORY}/armada-executor:branch-${CIRCLE_BRANCH}-${CIRCLE_SHA1}
+            docker images
+      - run: e2e/setup/setup_environment.sh
+      - run: e2e/setup/setup_clusters.sh
+      - run: docker run -d --expose=6379 --network=host redis
+      - run: docker run -d --expose=50051 --network=host ${ECR_REPOSITORY}/armada:branch-${CIRCLE_BRANCH}-${CIRCLE_SHA1}
+      - run: docker run -d --network=host -v $(kind get kubeconfig-path --name="cluster1"):/kube/config -e KUBECONFIG=/kube/config ${ECR_REPOSITORY}/armada-executor:branch-${CIRCLE_BRANCH}-${CIRCLE_SHA1}
+      - run:
+          name: Run e2e tests
+          command: |
+            INTEGRATION_ENABLED=true go test -v ./e2e/test/...
   deploy:
     docker:
       - image: alpine/helm:2.13.1
@@ -124,11 +149,18 @@ jobs:
           worker-id: "4"
       - deploy-executor:
           worker-id: "5"
+
 workflows:
   version: 2
   build_and_deploy:
     jobs:
       - build
+      - e2e:
+          requires:
+            - build
+          filters:
+            branches:
+              ignore: master
       - deploy:
           requires:
             - build
