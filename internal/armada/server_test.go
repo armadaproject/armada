@@ -112,9 +112,9 @@ func withRunningServer(action func(client api.SubmitClient, leaseClient api.Aggr
 	prometheus.DefaultRegisterer = prometheus.NewRegistry()
 	server, _ := Serve(&configuration.ArmadaConfig{
 		GrpcPort: ":50052",
-		Redis: configuration.RedisConfig{
-			Addr: redis.Addr(),
-			Db:   0,
+		Redis: redis.UniversalOptions{
+			Addrs: []string{minidb.Addr()},
+			DB:    0,
 		},
 	})
 	defer server.Stop()
