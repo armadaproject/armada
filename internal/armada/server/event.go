@@ -17,11 +17,11 @@ func NewEventServer(eventRepository repository.EventRepository) *EventServer {
 	return &EventServer{eventRepository: eventRepository}
 }
 
-func (s EventServer) Report(ctx context.Context, message *api.EventMessage) (*types.Empty, error) {
+func (s *EventServer) Report(ctx context.Context, message *api.EventMessage) (*types.Empty, error) {
 	return &types.Empty{}, s.eventRepository.ReportEvent(message)
 }
 
-func (s EventServer) GetJobSetEvents(request *api.JobSetRequest, stream api.Event_GetJobSetEventsServer) error {
+func (s *EventServer) GetJobSetEvents(request *api.JobSetRequest, stream api.Event_GetJobSetEventsServer) error {
 
 	lastId := request.FromMessageId
 
