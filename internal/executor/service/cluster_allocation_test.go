@@ -1,12 +1,14 @@
-package submitter
+package service
 
 import (
+	"testing"
+
 	"github.com/G-Research/k8s-batch/internal/armada/api"
 	"github.com/G-Research/k8s-batch/internal/executor/domain"
+
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"testing"
 )
 
 func TestCreateLabels_CreatesExpectedLabels(t *testing.T) {

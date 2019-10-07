@@ -22,16 +22,14 @@ type EventReporter interface {
 
 type JobEventReporter struct {
 	eventClient    api.EventClient
-	clusterId      string
 	clusterContext *context.KubernetesClusterContext
 }
 
-func NewJobEventReporter(
-	eventClient api.EventClient,
-	clusterId string,
-	clusterContext *context.KubernetesClusterContext) *JobEventReporter {
+func NewJobEventReporter(clusterContext *context.KubernetesClusterContext, eventClient api.EventClient) *JobEventReporter {
 
-	reporter := &JobEventReporter{eventClient: eventClient, clusterId: clusterId, clusterContext: clusterContext}
+	reporter := &JobEventReporter{
+		eventClient:    eventClient,
+		clusterContext: clusterContext}
 
 	clusterContext.AddPodEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
@@ -60,27 +58,27 @@ func NewJobEventReporter(
 	return reporter
 }
 
-func (eventReporter JobEventReporter) Report(event api.Event) error {
+func (eventReporter *JobEventReporter) Report(event api.Event) error {
 	return eventReporter.sendEvent(event)
 }
 
-func (eventReporter JobEventReporter) ReportCurrentStatus(pod *v1.Pod) {
+func (eventReporter *JobEventReporter) ReportCurrentStatus(pod *v1.Pod) {
 	eventReporter.report(pod)
 }
 
-func (eventReporter JobEventReporter) ReportStatusUpdate(old *v1.Pod, new *v1.Pod) {
+func (eventReporter *JobEventReporter) ReportStatusUpdate(old *v1.Pod, new *v1.Pod) {
 	if old.Status.Phase == new.Status.Phase {
 		return
 	}
 	eventReporter.report(new)
 }
 
-func (eventReporter JobEventReporter) report(pod *v1.Pod) {
+func (eventReporter *JobEventReporter) report(pod *v1.Pod) {
 	if !util.IsManagedPod(pod) {
 		return
 	}
 
-	event, err := CreateEventForCurrentState(pod, eventReporter.clusterId)
+	event, err := CreateEventForCurrentState(pod, eventReporter.clusterContext.GetClusterId())
 	if err != nil {
 		log.Errorf("Failed to report event because %s", err)
 		return
@@ -102,7 +100,7 @@ func (eventReporter JobEventReporter) report(pod *v1.Pod) {
 	}
 }
 
-func (eventReporter JobEventReporter) sendEvent(event api.Event) error {
+func (eventReporter *JobEventReporter) sendEvent(event api.Event) error {
 	eventMessage, err := api.Wrap(event)
 	if err != nil {
 		return err
@@ -115,7 +113,7 @@ func (eventReporter JobEventReporter) sendEvent(event api.Event) error {
 	return err
 }
 
-func (eventReporter JobEventReporter) addAnnotationToMarkStateReported(pod *v1.Pod) error {
+func (eventReporter *JobEventReporter) addAnnotationToMarkStateReported(pod *v1.Pod) error {
 	annotations := make(map[string]string)
 	annotationName := string(pod.Status.Phase)
 	annotations[annotationName] = time.Now().String()
@@ -123,7 +121,7 @@ func (eventReporter JobEventReporter) addAnnotationToMarkStateReported(pod *v1.P
 	return eventReporter.clusterContext.AddAnnotation(pod, annotations)
 }
 
-func (eventReporter JobEventReporter) ReportMissingJobEvents() {
+func (eventReporter *JobEventReporter) ReportMissingJobEvents() {
 	allBatchPods, err := eventReporter.clusterContext.GetActiveBatchPods()
 	if err != nil {
 		log.Errorf("Failed to reconcile missing job events because %s", err)
