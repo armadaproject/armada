@@ -115,7 +115,7 @@ jobs:
       - run:
           name: Run e2e tests
           command: |
-            go test -v ./e2e/test/...
+            INTEGRATION_ENABLED=true go test -v ./e2e/test/...
   deploy:
     docker:
       - image: alpine/helm:2.13.1
