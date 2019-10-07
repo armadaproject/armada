@@ -20,7 +20,7 @@ func NewUsageServer(priorityHalfTime time.Duration, usageRepository repository.U
 	return &UsageServer{priorityHalfTime: priorityHalfTime, usageRepository: usageRepository}
 }
 
-func (s UsageServer) ReportUsage(ctx context.Context, report *api.ClusterUsageReport) (*types.Empty, error) {
+func (s *UsageServer) ReportUsage(ctx context.Context, report *api.ClusterUsageReport) (*types.Empty, error) {
 
 	reports, err := s.usageRepository.GetClusterUsageReports()
 	if err != nil {

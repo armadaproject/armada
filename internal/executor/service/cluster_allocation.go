@@ -1,24 +1,42 @@
 package service
 
 import (
-	"github.com/G-Research/k8s-batch/internal/executor/submitter"
 	log "github.com/sirupsen/logrus"
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/G-Research/k8s-batch/internal/armada/api"
+	"github.com/G-Research/k8s-batch/internal/executor/context"
+	"github.com/G-Research/k8s-batch/internal/executor/domain"
 )
 
+const PodNamePrefix string = "batch-"
+
 type ClusterAllocationService struct {
-	LeaseService       JobLeaseService
-	UtilisationService ClusterUtilisationService
-	JobSubmitter       submitter.JobSubmitter
+	leaseService       LeaseService
+	utilisationService UtilisationService
+	clusterContext     context.ClusterContext
 }
 
-func (allocationService ClusterAllocationService) AllocateSpareClusterCapacity() {
-	availableResource, err := allocationService.UtilisationService.GetAvailableClusterCapacity()
+func NewClusterAllocationService(
+	clusterContext context.ClusterContext,
+	leaseService LeaseService,
+	utilisationService UtilisationService) *ClusterAllocationService {
+
+	return &ClusterAllocationService{
+		leaseService:       leaseService,
+		utilisationService: utilisationService,
+		clusterContext:     clusterContext}
+}
+
+func (allocationService *ClusterAllocationService) AllocateSpareClusterCapacity() {
+	availableResource, err := allocationService.utilisationService.GetAvailableClusterCapacity()
 	if err != nil {
 		log.Errorf("Failed to allocate spare cluster capacity because %s", err)
 		return
 	}
 
-	newJobs, err := allocationService.LeaseService.RequestJobLeases(availableResource)
+	newJobs, err := allocationService.leaseService.RequestJobLeases(availableResource)
 
 	cpu := (*availableResource)["cpu"]
 	memory := (*availableResource)["memory"]
@@ -29,10 +47,44 @@ func (allocationService ClusterAllocationService) AllocateSpareClusterCapacity()
 		return
 	} else {
 		for _, job := range newJobs {
-			_, err = allocationService.JobSubmitter.SubmitJob(job)
+			_, err = allocationService.submitJob(job)
 			if err != nil {
 				log.Errorf("Failed to submit job %s because %s", job.Id, err)
 			}
 		}
 	}
+}
+
+func (allocationService *ClusterAllocationService) submitJob(job *api.Job) (*v1.Pod, error) {
+	pod := createPod(job)
+	return allocationService.clusterContext.SubmitPod(pod)
+}
+
+func createPod(job *api.Job) *v1.Pod {
+	labels := createLabels(job)
+	setRestartPolicyNever(job.PodSpec)
+
+	pod := v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   PodNamePrefix + job.Id,
+			Labels: labels,
+		},
+		Spec: *job.PodSpec,
+	}
+
+	return &pod
+}
+
+func setRestartPolicyNever(podSpec *v1.PodSpec) {
+	podSpec.RestartPolicy = v1.RestartPolicyNever
+}
+
+func createLabels(job *api.Job) map[string]string {
+	labels := make(map[string]string)
+
+	labels[domain.JobId] = job.Id
+	labels[domain.JobSetId] = job.JobSetId
+	labels[domain.Queue] = job.Queue
+
+	return labels
 }

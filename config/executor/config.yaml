@@ -3,6 +3,7 @@ application:
 task:
   utilisationReportingInterval: 10s
   missingJobEventReconciliationInterval: 15s
+  stuckPodScanInterval: 15s
   jobLeaseRenewalInterval: 15s
   podDeletionInterval: 5s
   allocateSpareClusterCapacityInterval: 5s

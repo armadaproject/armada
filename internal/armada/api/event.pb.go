@@ -316,98 +316,6 @@ func (m *JobLeaseExpiredEvent) GetCreated() time.Time {
 	return time.Time{}
 }
 
-type JobLeaseReturnedEvent struct {
-	JobId      string                `protobuf:"bytes,1,opt,name=JobId,proto3" json:"JobId,omitempty"`
-	JobSetId   string                `protobuf:"bytes,2,opt,name=JobSetId,proto3" json:"JobSetId,omitempty"`
-	Queue      string                `protobuf:"bytes,3,opt,name=Queue,proto3" json:"Queue,omitempty"`
-	Created    time.Time             `protobuf:"bytes,4,opt,name=Created,proto3,stdtime" json:"Created"`
-	ClusterId  string                `protobuf:"bytes,5,opt,name=ClusterId,proto3" json:"ClusterId,omitempty"`
-	ReasonType LeaseReturnReasonType `protobuf:"varint,6,opt,name=ReasonType,proto3,enum=api.LeaseReturnReasonType" json:"ReasonType,omitempty"`
-	Reason     string                `protobuf:"bytes,7,opt,name=Reason,proto3" json:"Reason,omitempty"`
-}
-
-func (m *JobLeaseReturnedEvent) Reset()         { *m = JobLeaseReturnedEvent{} }
-func (m *JobLeaseReturnedEvent) String() string { return proto.CompactTextString(m) }
-func (*JobLeaseReturnedEvent) ProtoMessage()    {}
-func (*JobLeaseReturnedEvent) Descriptor() ([]byte, []int) {
-	return fileDescriptor_f36d4f2a7aeb61e3, []int{4}
-}
-func (m *JobLeaseReturnedEvent) XXX_Unmarshal(b []byte) error {
-	return m.Unmarshal(b)
-}
-func (m *JobLeaseReturnedEvent) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_JobLeaseReturnedEvent.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
-	}
-}
-func (m *JobLeaseReturnedEvent) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_JobLeaseReturnedEvent.Merge(m, src)
-}
-func (m *JobLeaseReturnedEvent) XXX_Size() int {
-	return m.Size()
-}
-func (m *JobLeaseReturnedEvent) XXX_DiscardUnknown() {
-	xxx_messageInfo_JobLeaseReturnedEvent.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_JobLeaseReturnedEvent proto.InternalMessageInfo
-
-func (m *JobLeaseReturnedEvent) GetJobId() string {
-	if m != nil {
-		return m.JobId
-	}
-	return ""
-}
-
-func (m *JobLeaseReturnedEvent) GetJobSetId() string {
-	if m != nil {
-		return m.JobSetId
-	}
-	return ""
-}
-
-func (m *JobLeaseReturnedEvent) GetQueue() string {
-	if m != nil {
-		return m.Queue
-	}
-	return ""
-}
-
-func (m *JobLeaseReturnedEvent) GetCreated() time.Time {
-	if m != nil {
-		return m.Created
-	}
-	return time.Time{}
-}
-
-func (m *JobLeaseReturnedEvent) GetClusterId() string {
-	if m != nil {
-		return m.ClusterId
-	}
-	return ""
-}
-
-func (m *JobLeaseReturnedEvent) GetReasonType() LeaseReturnReasonType {
-	if m != nil {
-		return m.ReasonType
-	}
-	return LeaseReturnReasonType_CLUSTER_SCHEDULE_TIMEOUT
-}
-
-func (m *JobLeaseReturnedEvent) GetReason() string {
-	if m != nil {
-		return m.Reason
-	}
-	return ""
-}
-
 type JobPendingEvent struct {
 	JobId     string    `protobuf:"bytes,1,opt,name=JobId,proto3" json:"JobId,omitempty"`
 	JobSetId  string    `protobuf:"bytes,2,opt,name=JobSetId,proto3" json:"JobSetId,omitempty"`
@@ -420,7 +328,7 @@ func (m *JobPendingEvent) Reset()         { *m = JobPendingEvent{} }
 func (m *JobPendingEvent) String() string { return proto.CompactTextString(m) }
 func (*JobPendingEvent) ProtoMessage()    {}
 func (*JobPendingEvent) Descriptor() ([]byte, []int) {
-	return fileDescriptor_f36d4f2a7aeb61e3, []int{5}
+	return fileDescriptor_f36d4f2a7aeb61e3, []int{4}
 }
 func (m *JobPendingEvent) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -496,7 +404,7 @@ func (m *JobRunningEvent) Reset()         { *m = JobRunningEvent{} }
 func (m *JobRunningEvent) String() string { return proto.CompactTextString(m) }
 func (*JobRunningEvent) ProtoMessage()    {}
 func (*JobRunningEvent) Descriptor() ([]byte, []int) {
-	return fileDescriptor_f36d4f2a7aeb61e3, []int{6}
+	return fileDescriptor_f36d4f2a7aeb61e3, []int{5}
 }
 func (m *JobRunningEvent) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -560,12 +468,97 @@ func (m *JobRunningEvent) GetClusterId() string {
 	return ""
 }
 
+type JobUnableToScheduleEvent struct {
+	JobId     string    `protobuf:"bytes,1,opt,name=JobId,proto3" json:"JobId,omitempty"`
+	JobSetId  string    `protobuf:"bytes,2,opt,name=JobSetId,proto3" json:"JobSetId,omitempty"`
+	Queue     string    `protobuf:"bytes,3,opt,name=Queue,proto3" json:"Queue,omitempty"`
+	Created   time.Time `protobuf:"bytes,4,opt,name=Created,proto3,stdtime" json:"Created"`
+	ClusterId string    `protobuf:"bytes,5,opt,name=ClusterId,proto3" json:"ClusterId,omitempty"`
+	Reason    string    `protobuf:"bytes,6,opt,name=Reason,proto3" json:"Reason,omitempty"`
+}
+
+func (m *JobUnableToScheduleEvent) Reset()         { *m = JobUnableToScheduleEvent{} }
+func (m *JobUnableToScheduleEvent) String() string { return proto.CompactTextString(m) }
+func (*JobUnableToScheduleEvent) ProtoMessage()    {}
+func (*JobUnableToScheduleEvent) Descriptor() ([]byte, []int) {
+	return fileDescriptor_f36d4f2a7aeb61e3, []int{6}
+}
+func (m *JobUnableToScheduleEvent) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *JobUnableToScheduleEvent) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_JobUnableToScheduleEvent.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *JobUnableToScheduleEvent) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_JobUnableToScheduleEvent.Merge(m, src)
+}
+func (m *JobUnableToScheduleEvent) XXX_Size() int {
+	return m.Size()
+}
+func (m *JobUnableToScheduleEvent) XXX_DiscardUnknown() {
+	xxx_messageInfo_JobUnableToScheduleEvent.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_JobUnableToScheduleEvent proto.InternalMessageInfo
+
+func (m *JobUnableToScheduleEvent) GetJobId() string {
+	if m != nil {
+		return m.JobId
+	}
+	return ""
+}
+
+func (m *JobUnableToScheduleEvent) GetJobSetId() string {
+	if m != nil {
+		return m.JobSetId
+	}
+	return ""
+}
+
+func (m *JobUnableToScheduleEvent) GetQueue() string {
+	if m != nil {
+		return m.Queue
+	}
+	return ""
+}
+
+func (m *JobUnableToScheduleEvent) GetCreated() time.Time {
+	if m != nil {
+		return m.Created
+	}
+	return time.Time{}
+}
+
+func (m *JobUnableToScheduleEvent) GetClusterId() string {
+	if m != nil {
+		return m.ClusterId
+	}
+	return ""
+}
+
+func (m *JobUnableToScheduleEvent) GetReason() string {
+	if m != nil {
+		return m.Reason
+	}
+	return ""
+}
+
 type JobFailedEvent struct {
 	JobId     string    `protobuf:"bytes,1,opt,name=JobId,proto3" json:"JobId,omitempty"`
 	JobSetId  string    `protobuf:"bytes,2,opt,name=JobSetId,proto3" json:"JobSetId,omitempty"`
 	Queue     string    `protobuf:"bytes,3,opt,name=Queue,proto3" json:"Queue,omitempty"`
 	Created   time.Time `protobuf:"bytes,4,opt,name=Created,proto3,stdtime" json:"Created"`
 	ClusterId string    `protobuf:"bytes,5,opt,name=ClusterId,proto3" json:"ClusterId,omitempty"`
+	Reason    string    `protobuf:"bytes,6,opt,name=Reason,proto3" json:"Reason,omitempty"`
 }
 
 func (m *JobFailedEvent) Reset()         { *m = JobFailedEvent{} }
@@ -632,6 +625,13 @@ func (m *JobFailedEvent) GetCreated() time.Time {
 func (m *JobFailedEvent) GetClusterId() string {
 	if m != nil {
 		return m.ClusterId
+	}
+	return ""
+}
+
+func (m *JobFailedEvent) GetReason() string {
+	if m != nil {
+		return m.Reason
 	}
 	return ""
 }
@@ -781,11 +781,10 @@ func (m *JobReprioritizedEvent) GetCreated() time.Time {
 }
 
 type JobCancellingEvent struct {
-	JobId     string    `protobuf:"bytes,1,opt,name=JobId,proto3" json:"JobId,omitempty"`
-	JobSetId  string    `protobuf:"bytes,2,opt,name=JobSetId,proto3" json:"JobSetId,omitempty"`
-	Queue     string    `protobuf:"bytes,3,opt,name=Queue,proto3" json:"Queue,omitempty"`
-	Created   time.Time `protobuf:"bytes,4,opt,name=Created,proto3,stdtime" json:"Created"`
-	ClusterId string    `protobuf:"bytes,5,opt,name=ClusterId,proto3" json:"ClusterId,omitempty"`
+	JobId    string    `protobuf:"bytes,1,opt,name=JobId,proto3" json:"JobId,omitempty"`
+	JobSetId string    `protobuf:"bytes,2,opt,name=JobSetId,proto3" json:"JobSetId,omitempty"`
+	Queue    string    `protobuf:"bytes,3,opt,name=Queue,proto3" json:"Queue,omitempty"`
+	Created  time.Time `protobuf:"bytes,4,opt,name=Created,proto3,stdtime" json:"Created"`
 }
 
 func (m *JobCancellingEvent) Reset()         { *m = JobCancellingEvent{} }
@@ -849,19 +848,11 @@ func (m *JobCancellingEvent) GetCreated() time.Time {
 	return time.Time{}
 }
 
-func (m *JobCancellingEvent) GetClusterId() string {
-	if m != nil {
-		return m.ClusterId
-	}
-	return ""
-}
-
 type JobCancelledEvent struct {
-	JobId     string    `protobuf:"bytes,1,opt,name=JobId,proto3" json:"JobId,omitempty"`
-	JobSetId  string    `protobuf:"bytes,2,opt,name=JobSetId,proto3" json:"JobSetId,omitempty"`
-	Queue     string    `protobuf:"bytes,3,opt,name=Queue,proto3" json:"Queue,omitempty"`
-	Created   time.Time `protobuf:"bytes,4,opt,name=Created,proto3,stdtime" json:"Created"`
-	ClusterId string    `protobuf:"bytes,5,opt,name=ClusterId,proto3" json:"ClusterId,omitempty"`
+	JobId    string    `protobuf:"bytes,1,opt,name=JobId,proto3" json:"JobId,omitempty"`
+	JobSetId string    `protobuf:"bytes,2,opt,name=JobSetId,proto3" json:"JobSetId,omitempty"`
+	Queue    string    `protobuf:"bytes,3,opt,name=Queue,proto3" json:"Queue,omitempty"`
+	Created  time.Time `protobuf:"bytes,4,opt,name=Created,proto3,stdtime" json:"Created"`
 }
 
 func (m *JobCancelledEvent) Reset()         { *m = JobCancelledEvent{} }
@@ -925,7 +916,76 @@ func (m *JobCancelledEvent) GetCreated() time.Time {
 	return time.Time{}
 }
 
-func (m *JobCancelledEvent) GetClusterId() string {
+type JobTerminatedEvent struct {
+	JobId     string    `protobuf:"bytes,1,opt,name=JobId,proto3" json:"JobId,omitempty"`
+	JobSetId  string    `protobuf:"bytes,2,opt,name=JobSetId,proto3" json:"JobSetId,omitempty"`
+	Queue     string    `protobuf:"bytes,3,opt,name=Queue,proto3" json:"Queue,omitempty"`
+	Created   time.Time `protobuf:"bytes,4,opt,name=Created,proto3,stdtime" json:"Created"`
+	ClusterId string    `protobuf:"bytes,5,opt,name=ClusterId,proto3" json:"ClusterId,omitempty"`
+}
+
+func (m *JobTerminatedEvent) Reset()         { *m = JobTerminatedEvent{} }
+func (m *JobTerminatedEvent) String() string { return proto.CompactTextString(m) }
+func (*JobTerminatedEvent) ProtoMessage()    {}
+func (*JobTerminatedEvent) Descriptor() ([]byte, []int) {
+	return fileDescriptor_f36d4f2a7aeb61e3, []int{12}
+}
+func (m *JobTerminatedEvent) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *JobTerminatedEvent) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_JobTerminatedEvent.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *JobTerminatedEvent) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_JobTerminatedEvent.Merge(m, src)
+}
+func (m *JobTerminatedEvent) XXX_Size() int {
+	return m.Size()
+}
+func (m *JobTerminatedEvent) XXX_DiscardUnknown() {
+	xxx_messageInfo_JobTerminatedEvent.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_JobTerminatedEvent proto.InternalMessageInfo
+
+func (m *JobTerminatedEvent) GetJobId() string {
+	if m != nil {
+		return m.JobId
+	}
+	return ""
+}
+
+func (m *JobTerminatedEvent) GetJobSetId() string {
+	if m != nil {
+		return m.JobSetId
+	}
+	return ""
+}
+
+func (m *JobTerminatedEvent) GetQueue() string {
+	if m != nil {
+		return m.Queue
+	}
+	return ""
+}
+
+func (m *JobTerminatedEvent) GetCreated() time.Time {
+	if m != nil {
+		return m.Created
+	}
+	return time.Time{}
+}
+
+func (m *JobTerminatedEvent) GetClusterId() string {
 	if m != nil {
 		return m.ClusterId
 	}
@@ -938,14 +998,15 @@ type EventMessage struct {
 	//	*EventMessage_Queued
 	//	*EventMessage_Leased
 	//	*EventMessage_LeaseExpired
-	//	*EventMessage_LeaseReturned
 	//	*EventMessage_Pending
 	//	*EventMessage_Running
+	//	*EventMessage_UnableToSchedule
 	//	*EventMessage_Failed
 	//	*EventMessage_Succeeded
 	//	*EventMessage_Reprioritized
 	//	*EventMessage_Cancelling
 	//	*EventMessage_Cancelled
+	//	*EventMessage_Terminated
 	Events isEventMessage_Events `protobuf_oneof:"events"`
 }
 
@@ -953,7 +1014,7 @@ func (m *EventMessage) Reset()         { *m = EventMessage{} }
 func (m *EventMessage) String() string { return proto.CompactTextString(m) }
 func (*EventMessage) ProtoMessage()    {}
 func (*EventMessage) Descriptor() ([]byte, []int) {
-	return fileDescriptor_f36d4f2a7aeb61e3, []int{12}
+	return fileDescriptor_f36d4f2a7aeb61e3, []int{13}
 }
 func (m *EventMessage) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1000,14 +1061,14 @@ type EventMessage_Leased struct {
 type EventMessage_LeaseExpired struct {
 	LeaseExpired *JobLeaseExpiredEvent `protobuf:"bytes,4,opt,name=leaseExpired,proto3,oneof"`
 }
-type EventMessage_LeaseReturned struct {
-	LeaseReturned *JobLeaseReturnedEvent `protobuf:"bytes,5,opt,name=leaseReturned,proto3,oneof"`
-}
 type EventMessage_Pending struct {
-	Pending *JobPendingEvent `protobuf:"bytes,6,opt,name=pending,proto3,oneof"`
+	Pending *JobPendingEvent `protobuf:"bytes,5,opt,name=pending,proto3,oneof"`
 }
 type EventMessage_Running struct {
-	Running *JobRunningEvent `protobuf:"bytes,7,opt,name=running,proto3,oneof"`
+	Running *JobRunningEvent `protobuf:"bytes,6,opt,name=running,proto3,oneof"`
+}
+type EventMessage_UnableToSchedule struct {
+	UnableToSchedule *JobUnableToScheduleEvent `protobuf:"bytes,7,opt,name=unableToSchedule,proto3,oneof"`
 }
 type EventMessage_Failed struct {
 	Failed *JobFailedEvent `protobuf:"bytes,8,opt,name=failed,proto3,oneof"`
@@ -1024,19 +1085,23 @@ type EventMessage_Cancelling struct {
 type EventMessage_Cancelled struct {
 	Cancelled *JobCancelledEvent `protobuf:"bytes,12,opt,name=cancelled,proto3,oneof"`
 }
+type EventMessage_Terminated struct {
+	Terminated *JobTerminatedEvent `protobuf:"bytes,13,opt,name=terminated,proto3,oneof"`
+}
 
-func (*EventMessage_Submitted) isEventMessage_Events()     {}
-func (*EventMessage_Queued) isEventMessage_Events()        {}
-func (*EventMessage_Leased) isEventMessage_Events()        {}
-func (*EventMessage_LeaseExpired) isEventMessage_Events()  {}
-func (*EventMessage_LeaseReturned) isEventMessage_Events() {}
-func (*EventMessage_Pending) isEventMessage_Events()       {}
-func (*EventMessage_Running) isEventMessage_Events()       {}
-func (*EventMessage_Failed) isEventMessage_Events()        {}
-func (*EventMessage_Succeeded) isEventMessage_Events()     {}
-func (*EventMessage_Reprioritized) isEventMessage_Events() {}
-func (*EventMessage_Cancelling) isEventMessage_Events()    {}
-func (*EventMessage_Cancelled) isEventMessage_Events()     {}
+func (*EventMessage_Submitted) isEventMessage_Events()        {}
+func (*EventMessage_Queued) isEventMessage_Events()           {}
+func (*EventMessage_Leased) isEventMessage_Events()           {}
+func (*EventMessage_LeaseExpired) isEventMessage_Events()     {}
+func (*EventMessage_Pending) isEventMessage_Events()          {}
+func (*EventMessage_Running) isEventMessage_Events()          {}
+func (*EventMessage_UnableToSchedule) isEventMessage_Events() {}
+func (*EventMessage_Failed) isEventMessage_Events()           {}
+func (*EventMessage_Succeeded) isEventMessage_Events()        {}
+func (*EventMessage_Reprioritized) isEventMessage_Events()    {}
+func (*EventMessage_Cancelling) isEventMessage_Events()       {}
+func (*EventMessage_Cancelled) isEventMessage_Events()        {}
+func (*EventMessage_Terminated) isEventMessage_Events()       {}
 
 func (m *EventMessage) GetEvents() isEventMessage_Events {
 	if m != nil {
@@ -1073,13 +1138,6 @@ func (m *EventMessage) GetLeaseExpired() *JobLeaseExpiredEvent {
 	return nil
 }
 
-func (m *EventMessage) GetLeaseReturned() *JobLeaseReturnedEvent {
-	if x, ok := m.GetEvents().(*EventMessage_LeaseReturned); ok {
-		return x.LeaseReturned
-	}
-	return nil
-}
-
 func (m *EventMessage) GetPending() *JobPendingEvent {
 	if x, ok := m.GetEvents().(*EventMessage_Pending); ok {
 		return x.Pending
@@ -1090,6 +1148,13 @@ func (m *EventMessage) GetPending() *JobPendingEvent {
 func (m *EventMessage) GetRunning() *JobRunningEvent {
 	if x, ok := m.GetEvents().(*EventMessage_Running); ok {
 		return x.Running
+	}
+	return nil
+}
+
+func (m *EventMessage) GetUnableToSchedule() *JobUnableToScheduleEvent {
+	if x, ok := m.GetEvents().(*EventMessage_UnableToSchedule); ok {
+		return x.UnableToSchedule
 	}
 	return nil
 }
@@ -1129,6 +1194,13 @@ func (m *EventMessage) GetCancelled() *JobCancelledEvent {
 	return nil
 }
 
+func (m *EventMessage) GetTerminated() *JobTerminatedEvent {
+	if x, ok := m.GetEvents().(*EventMessage_Terminated); ok {
+		return x.Terminated
+	}
+	return nil
+}
+
 // XXX_OneofFuncs is for the internal use of the proto package.
 func (*EventMessage) XXX_OneofFuncs() (func(msg proto.Message, b *proto.Buffer) error, func(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error), func(msg proto.Message) (n int), []interface{}) {
 	return _EventMessage_OneofMarshaler, _EventMessage_OneofUnmarshaler, _EventMessage_OneofSizer, []interface{}{
@@ -1136,14 +1208,15 @@ func (*EventMessage) XXX_OneofFuncs() (func(msg proto.Message, b *proto.Buffer) 
 		(*EventMessage_Queued)(nil),
 		(*EventMessage_Leased)(nil),
 		(*EventMessage_LeaseExpired)(nil),
-		(*EventMessage_LeaseReturned)(nil),
 		(*EventMessage_Pending)(nil),
 		(*EventMessage_Running)(nil),
+		(*EventMessage_UnableToSchedule)(nil),
 		(*EventMessage_Failed)(nil),
 		(*EventMessage_Succeeded)(nil),
 		(*EventMessage_Reprioritized)(nil),
 		(*EventMessage_Cancelling)(nil),
 		(*EventMessage_Cancelled)(nil),
+		(*EventMessage_Terminated)(nil),
 	}
 }
 
@@ -1171,19 +1244,19 @@ func _EventMessage_OneofMarshaler(msg proto.Message, b *proto.Buffer) error {
 		if err := b.EncodeMessage(x.LeaseExpired); err != nil {
 			return err
 		}
-	case *EventMessage_LeaseReturned:
-		_ = b.EncodeVarint(5<<3 | proto.WireBytes)
-		if err := b.EncodeMessage(x.LeaseReturned); err != nil {
-			return err
-		}
 	case *EventMessage_Pending:
-		_ = b.EncodeVarint(6<<3 | proto.WireBytes)
+		_ = b.EncodeVarint(5<<3 | proto.WireBytes)
 		if err := b.EncodeMessage(x.Pending); err != nil {
 			return err
 		}
 	case *EventMessage_Running:
-		_ = b.EncodeVarint(7<<3 | proto.WireBytes)
+		_ = b.EncodeVarint(6<<3 | proto.WireBytes)
 		if err := b.EncodeMessage(x.Running); err != nil {
+			return err
+		}
+	case *EventMessage_UnableToSchedule:
+		_ = b.EncodeVarint(7<<3 | proto.WireBytes)
+		if err := b.EncodeMessage(x.UnableToSchedule); err != nil {
 			return err
 		}
 	case *EventMessage_Failed:
@@ -1209,6 +1282,11 @@ func _EventMessage_OneofMarshaler(msg proto.Message, b *proto.Buffer) error {
 	case *EventMessage_Cancelled:
 		_ = b.EncodeVarint(12<<3 | proto.WireBytes)
 		if err := b.EncodeMessage(x.Cancelled); err != nil {
+			return err
+		}
+	case *EventMessage_Terminated:
+		_ = b.EncodeVarint(13<<3 | proto.WireBytes)
+		if err := b.EncodeMessage(x.Terminated); err != nil {
 			return err
 		}
 	case nil:
@@ -1253,15 +1331,7 @@ func _EventMessage_OneofUnmarshaler(msg proto.Message, tag, wire int, b *proto.B
 		err := b.DecodeMessage(msg)
 		m.Events = &EventMessage_LeaseExpired{msg}
 		return true, err
-	case 5: // events.leaseReturned
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		msg := new(JobLeaseReturnedEvent)
-		err := b.DecodeMessage(msg)
-		m.Events = &EventMessage_LeaseReturned{msg}
-		return true, err
-	case 6: // events.pending
+	case 5: // events.pending
 		if wire != proto.WireBytes {
 			return true, proto.ErrInternalBadWireType
 		}
@@ -1269,13 +1339,21 @@ func _EventMessage_OneofUnmarshaler(msg proto.Message, tag, wire int, b *proto.B
 		err := b.DecodeMessage(msg)
 		m.Events = &EventMessage_Pending{msg}
 		return true, err
-	case 7: // events.running
+	case 6: // events.running
 		if wire != proto.WireBytes {
 			return true, proto.ErrInternalBadWireType
 		}
 		msg := new(JobRunningEvent)
 		err := b.DecodeMessage(msg)
 		m.Events = &EventMessage_Running{msg}
+		return true, err
+	case 7: // events.unableToSchedule
+		if wire != proto.WireBytes {
+			return true, proto.ErrInternalBadWireType
+		}
+		msg := new(JobUnableToScheduleEvent)
+		err := b.DecodeMessage(msg)
+		m.Events = &EventMessage_UnableToSchedule{msg}
 		return true, err
 	case 8: // events.failed
 		if wire != proto.WireBytes {
@@ -1317,6 +1395,14 @@ func _EventMessage_OneofUnmarshaler(msg proto.Message, tag, wire int, b *proto.B
 		err := b.DecodeMessage(msg)
 		m.Events = &EventMessage_Cancelled{msg}
 		return true, err
+	case 13: // events.terminated
+		if wire != proto.WireBytes {
+			return true, proto.ErrInternalBadWireType
+		}
+		msg := new(JobTerminatedEvent)
+		err := b.DecodeMessage(msg)
+		m.Events = &EventMessage_Terminated{msg}
+		return true, err
 	default:
 		return false, nil
 	}
@@ -1346,11 +1432,6 @@ func _EventMessage_OneofSizer(msg proto.Message) (n int) {
 		n += 1 // tag and wire
 		n += proto.SizeVarint(uint64(s))
 		n += s
-	case *EventMessage_LeaseReturned:
-		s := proto.Size(x.LeaseReturned)
-		n += 1 // tag and wire
-		n += proto.SizeVarint(uint64(s))
-		n += s
 	case *EventMessage_Pending:
 		s := proto.Size(x.Pending)
 		n += 1 // tag and wire
@@ -1358,6 +1439,11 @@ func _EventMessage_OneofSizer(msg proto.Message) (n int) {
 		n += s
 	case *EventMessage_Running:
 		s := proto.Size(x.Running)
+		n += 1 // tag and wire
+		n += proto.SizeVarint(uint64(s))
+		n += s
+	case *EventMessage_UnableToSchedule:
+		s := proto.Size(x.UnableToSchedule)
 		n += 1 // tag and wire
 		n += proto.SizeVarint(uint64(s))
 		n += s
@@ -1386,6 +1472,11 @@ func _EventMessage_OneofSizer(msg proto.Message) (n int) {
 		n += 1 // tag and wire
 		n += proto.SizeVarint(uint64(s))
 		n += s
+	case *EventMessage_Terminated:
+		s := proto.Size(x.Terminated)
+		n += 1 // tag and wire
+		n += proto.SizeVarint(uint64(s))
+		n += s
 	case nil:
 	default:
 		panic(fmt.Sprintf("proto: unexpected type %T in oneof", x))
@@ -1402,7 +1493,7 @@ func (m *EventStreamMessage) Reset()         { *m = EventStreamMessage{} }
 func (m *EventStreamMessage) String() string { return proto.CompactTextString(m) }
 func (*EventStreamMessage) ProtoMessage()    {}
 func (*EventStreamMessage) Descriptor() ([]byte, []int) {
-	return fileDescriptor_f36d4f2a7aeb61e3, []int{13}
+	return fileDescriptor_f36d4f2a7aeb61e3, []int{14}
 }
 func (m *EventStreamMessage) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1455,7 +1546,7 @@ func (m *JobSetRequest) Reset()         { *m = JobSetRequest{} }
 func (m *JobSetRequest) String() string { return proto.CompactTextString(m) }
 func (*JobSetRequest) ProtoMessage()    {}
 func (*JobSetRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_f36d4f2a7aeb61e3, []int{14}
+	return fileDescriptor_f36d4f2a7aeb61e3, []int{15}
 }
 func (m *JobSetRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1510,14 +1601,15 @@ func init() {
 	proto.RegisterType((*JobQueuedEvent)(nil), "api.JobQueuedEvent")
 	proto.RegisterType((*JobLeasedEvent)(nil), "api.JobLeasedEvent")
 	proto.RegisterType((*JobLeaseExpiredEvent)(nil), "api.JobLeaseExpiredEvent")
-	proto.RegisterType((*JobLeaseReturnedEvent)(nil), "api.JobLeaseReturnedEvent")
 	proto.RegisterType((*JobPendingEvent)(nil), "api.JobPendingEvent")
 	proto.RegisterType((*JobRunningEvent)(nil), "api.JobRunningEvent")
+	proto.RegisterType((*JobUnableToScheduleEvent)(nil), "api.JobUnableToScheduleEvent")
 	proto.RegisterType((*JobFailedEvent)(nil), "api.JobFailedEvent")
 	proto.RegisterType((*JobSucceededEvent)(nil), "api.JobSucceededEvent")
 	proto.RegisterType((*JobReprioritizedEvent)(nil), "api.JobReprioritizedEvent")
 	proto.RegisterType((*JobCancellingEvent)(nil), "api.JobCancellingEvent")
 	proto.RegisterType((*JobCancelledEvent)(nil), "api.JobCancelledEvent")
+	proto.RegisterType((*JobTerminatedEvent)(nil), "api.JobTerminatedEvent")
 	proto.RegisterType((*EventMessage)(nil), "api.EventMessage")
 	proto.RegisterType((*EventStreamMessage)(nil), "api.EventStreamMessage")
 	proto.RegisterType((*JobSetRequest)(nil), "api.JobSetRequest")
@@ -1526,60 +1618,62 @@ func init() {
 func init() { proto.RegisterFile("internal/armada/api/event.proto", fileDescriptor_f36d4f2a7aeb61e3) }
 
 var fileDescriptor_f36d4f2a7aeb61e3 = []byte{
-	// 842 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xd4, 0x57, 0xcd, 0x6e, 0xeb, 0x44,
-	0x14, 0xb6, 0xd3, 0x9b, 0xbf, 0x93, 0xb6, 0x57, 0x77, 0x08, 0xbd, 0xc6, 0xa0, 0x24, 0x8a, 0x58,
-	0x54, 0x42, 0x37, 0xb9, 0x4a, 0x25, 0x24, 0x58, 0x00, 0x4a, 0xd5, 0x92, 0x44, 0x20, 0xd1, 0x69,
-	0x25, 0x16, 0xac, 0xc6, 0xf1, 0x34, 0xb5, 0x64, 0x7b, 0x5c, 0x7b, 0x8c, 0x28, 0x0b, 0x9e, 0xa1,
-	0xec, 0x58, 0xc1, 0x53, 0x00, 0x02, 0x89, 0x7d, 0x97, 0x5d, 0xb2, 0x02, 0xd4, 0xbe, 0x08, 0x9a,
-	0x19, 0x4f, 0x32, 0x6e, 0xee, 0x03, 0x24, 0xbb, 0x9c, 0x99, 0xef, 0x3b, 0xfe, 0xe6, 0xcc, 0xf9,
-	0x99, 0x40, 0x37, 0x88, 0x39, 0x4d, 0x63, 0x12, 0x0e, 0x49, 0x1a, 0x11, 0x9f, 0x0c, 0x49, 0x12,
-	0x0c, 0xe9, 0xb7, 0x34, 0xe6, 0x83, 0x24, 0x65, 0x9c, 0xa1, 0x1d, 0x92, 0x04, 0x6e, 0x77, 0xc1,
-	0xd8, 0x22, 0xa4, 0x43, 0xb9, 0xe4, 0xe5, 0x97, 0x43, 0x1e, 0x44, 0x34, 0xe3, 0x24, 0x4a, 0x14,
-	0xca, 0x7d, 0xa3, 0x9b, 0xeb, 0x9c, 0xe6, 0xb4, 0x00, 0xbc, 0xfb, 0xd4, 0x03, 0x8d, 0x12, 0x7e,
-	0x53, 0x6c, 0xbe, 0x5a, 0x04, 0xfc, 0x2a, 0xf7, 0x06, 0x73, 0x16, 0x0d, 0x17, 0x6c, 0xc1, 0x56,
-	0x28, 0x61, 0x49, 0x43, 0xfe, 0x52, 0xf0, 0xfe, 0x5f, 0x36, 0xbc, 0x98, 0x31, 0xef, 0x3c, 0xf7,
-	0xa2, 0x80, 0x73, 0xea, 0x9f, 0x08, 0xb9, 0xa8, 0x0d, 0xd5, 0x19, 0xf3, 0xa6, 0xbe, 0x63, 0xf7,
-	0xec, 0xc3, 0x26, 0x56, 0x06, 0x72, 0xa1, 0x21, 0xa0, 0x94, 0x4f, 0x7d, 0xa7, 0x22, 0x37, 0x96,
-	0xb6, 0x60, 0x9c, 0x09, 0x89, 0xce, 0x8e, 0x62, 0x48, 0x03, 0x7d, 0x02, 0xf5, 0xe3, 0x94, 0x12,
-	0x4e, 0x7d, 0xe7, 0x59, 0xcf, 0x3e, 0x6c, 0x8d, 0xdc, 0x81, 0xd2, 0x3e, 0xd0, 0xaa, 0x06, 0x17,
-	0xfa, 0xf4, 0xe3, 0xc6, 0xdd, 0x3f, 0x5d, 0xeb, 0xf6, 0xdf, 0xae, 0x8d, 0x35, 0x09, 0xf5, 0x60,
-	0x67, 0xc6, 0x3c, 0xa7, 0x2a, 0xb9, 0x8d, 0x01, 0x49, 0x82, 0xc1, 0x8c, 0x79, 0xe3, 0x67, 0x02,
-	0x89, 0xc5, 0x56, 0xff, 0x27, 0x1b, 0xf6, 0x67, 0xcc, 0x93, 0x9f, 0xdb, 0x2c, 0xf1, 0xfd, 0xdf,
-	0x94, 0xb4, 0x2f, 0x28, 0xc9, 0x36, 0x2d, 0xae, 0xef, 0x41, 0xf3, 0x38, 0xcc, 0x33, 0x4e, 0xd3,
-	0xa9, 0x2f, 0xa3, 0xdb, 0xc4, 0xab, 0x85, 0xfe, 0xcf, 0x36, 0xb4, 0xb5, 0xf0, 0x93, 0xef, 0x92,
-	0x20, 0xdd, 0xb4, 0xc8, 0xfe, 0x58, 0x81, 0xb7, 0xb5, 0x40, 0x4c, 0x79, 0x9e, 0xc6, 0x5b, 0x15,
-	0x60, 0xf4, 0x31, 0x00, 0xa6, 0x24, 0x63, 0xf1, 0xc5, 0x4d, 0x42, 0x9d, 0x5a, 0xcf, 0x3e, 0xdc,
-	0x1f, 0xb9, 0x32, 0xbb, 0x8d, 0x23, 0xad, 0x10, 0xd8, 0x40, 0xa3, 0x03, 0xa8, 0x29, 0xcb, 0xa9,
-	0x4b, 0xb7, 0x85, 0xd5, 0xff, 0xdd, 0x86, 0xe7, 0x33, 0xe6, 0x7d, 0x45, 0x63, 0x3f, 0x88, 0x17,
-	0xdb, 0x94, 0x6e, 0x85, 0x72, 0x9c, 0xc7, 0xf1, 0x96, 0x29, 0x2f, 0x2a, 0xfc, 0x94, 0x04, 0xe1,
-	0x76, 0x55, 0xf8, 0x1f, 0xba, 0xeb, 0xcf, 0xe7, 0x94, 0xfa, 0xdb, 0xa5, 0xfd, 0x17, 0x5b, 0x16,
-	0x3f, 0xa6, 0x49, 0x1a, 0xb0, 0x34, 0xe0, 0xc1, 0xf7, 0x9b, 0xd6, 0x9e, 0xfe, 0xb4, 0x01, 0xcd,
-	0x98, 0x77, 0x4c, 0xe2, 0x39, 0x0d, 0xc3, 0x2d, 0xcb, 0xe9, 0x22, 0x35, 0x0a, 0xf1, 0xdb, 0x95,
-	0x1a, 0xbf, 0x56, 0x61, 0x57, 0xea, 0xfd, 0x92, 0x66, 0x19, 0x59, 0x50, 0xf4, 0x21, 0x34, 0x33,
-	0xfd, 0xb2, 0x91, 0xd2, 0x5b, 0xa3, 0x03, 0xfd, 0x8a, 0x28, 0x3f, 0x79, 0x26, 0x16, 0x5e, 0x41,
-	0xd1, 0x2b, 0xa8, 0xc9, 0x07, 0x97, 0x3a, 0x56, 0x6b, 0xf4, 0x96, 0x26, 0x19, 0xef, 0x8c, 0x89,
-	0x85, 0x0b, 0x90, 0x80, 0x87, 0x72, 0xca, 0xcb, 0xc3, 0x1a, 0x70, 0x63, 0xf6, 0x0b, 0xb8, 0x02,
-	0xa1, 0x4f, 0x61, 0x37, 0x34, 0x66, 0x6b, 0x11, 0x89, 0x77, 0x4a, 0x24, 0x73, 0xee, 0x4e, 0x2c,
-	0x5c, 0x22, 0xa0, 0x31, 0xec, 0x85, 0xe6, 0xec, 0x2b, 0x1e, 0x48, 0x6e, 0xc9, 0x43, 0x69, 0x30,
-	0x4e, 0x2c, 0x5c, 0xa6, 0xa0, 0xd7, 0x50, 0x4f, 0xd4, 0xac, 0x90, 0x03, 0xa8, 0x35, 0x6a, 0x6b,
-	0xb6, 0x39, 0x42, 0x26, 0x16, 0xd6, 0x30, 0xc1, 0x48, 0x55, 0x8f, 0x96, 0xa3, 0xc7, 0x60, 0x98,
-	0xad, 0x5b, 0x30, 0x0a, 0x98, 0x88, 0xcb, 0xa5, 0xec, 0x8d, 0x4e, 0xa3, 0x1c, 0x17, 0xa3, 0x63,
-	0x8a, 0xb8, 0x28, 0x90, 0xba, 0xad, 0xa2, 0x23, 0x39, 0xcd, 0xa7, 0xb7, 0x65, 0xb6, 0x2a, 0x75,
-	0x5b, 0xc5, 0x8a, 0x08, 0x47, 0x6a, 0x76, 0x03, 0x07, 0xca, 0xe1, 0x58, 0x6f, 0x15, 0x22, 0x1c,
-	0x25, 0x0a, 0xfa, 0x08, 0x60, 0xbe, 0xac, 0x57, 0xa7, 0x25, 0x1d, 0xbc, 0xd4, 0x0e, 0x9e, 0x54,
-	0xf2, 0xc4, 0xc2, 0x06, 0x58, 0xc8, 0x9e, 0xeb, 0x6a, 0x71, 0x76, 0xcb, 0xb2, 0xcb, 0x65, 0x24,
-	0x64, 0x2f, 0xa1, 0xe3, 0x06, 0xd4, 0xe4, 0x9f, 0x83, 0xac, 0x7f, 0x06, 0x48, 0xee, 0x9f, 0xf3,
-	0x94, 0x92, 0x48, 0x27, 0xef, 0x3e, 0x54, 0x96, 0x05, 0x57, 0x99, 0xfa, 0xe8, 0x03, 0xa8, 0x47,
-	0x6a, 0xab, 0xc8, 0xca, 0x17, 0xf2, 0x2b, 0x66, 0xc2, 0x63, 0x8d, 0xe8, 0x7f, 0x03, 0x7b, 0xaa,
-	0x14, 0x31, 0xbd, 0xce, 0x69, 0xc6, 0xd7, 0xbc, 0xb5, 0xa1, 0xfa, 0x35, 0xe1, 0xf3, 0x2b, 0xe9,
-	0xab, 0x81, 0x95, 0x81, 0xde, 0x87, 0xbd, 0xd3, 0x94, 0x69, 0x09, 0x53, 0xbf, 0xa8, 0xde, 0xf2,
-	0xe2, 0xe8, 0x07, 0xa8, 0xaa, 0xb6, 0x70, 0x24, 0x1e, 0x23, 0x09, 0x4b, 0x39, 0x5a, 0xd7, 0xe2,
-	0x1e, 0xac, 0x95, 0xf6, 0x89, 0xf8, 0x9f, 0x82, 0x3e, 0x83, 0xe7, 0x9f, 0x53, 0xae, 0xd4, 0x49,
-	0x42, 0x86, 0xd0, 0xf2, 0x9a, 0x97, 0x82, 0xdd, 0x97, 0x2b, 0x8f, 0xa5, 0xb8, 0xbc, 0xb6, 0xc7,
-	0xce, 0xdd, 0x43, 0xc7, 0xbe, 0x7f, 0xe8, 0xd8, 0xff, 0x3d, 0x74, 0xec, 0xdb, 0xc7, 0x8e, 0x75,
-	0xff, 0xd8, 0xb1, 0xfe, 0x7e, 0xec, 0x58, 0x5e, 0x4d, 0x7e, 0xeb, 0xe8, 0xff, 0x00, 0x00, 0x00,
-	0xff, 0xff, 0xc3, 0x42, 0xca, 0xac, 0x8b, 0x0d, 0x00, 0x00,
+	// 867 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xd4, 0x57, 0xcf, 0x6f, 0xe3, 0x44,
+	0x14, 0xb6, 0xdb, 0xcd, 0xaf, 0x97, 0x66, 0x97, 0x1d, 0x42, 0xd7, 0x04, 0x48, 0x2a, 0x8b, 0xc3,
+	0x4a, 0x68, 0x93, 0x55, 0x56, 0x42, 0xe2, 0x02, 0x28, 0x55, 0x97, 0xc4, 0x80, 0x44, 0xa7, 0x45,
+	0x1c, 0x38, 0x8d, 0xed, 0x69, 0x6a, 0xc9, 0xf6, 0xb8, 0xf6, 0x18, 0x01, 0x07, 0xfe, 0x86, 0x1e,
+	0x91, 0x40, 0xf0, 0x5f, 0x80, 0x40, 0xe2, 0xde, 0x13, 0xea, 0xb1, 0x27, 0x40, 0xed, 0x5f, 0xc1,
+	0x0d, 0xcd, 0x8c, 0x27, 0xb1, 0x93, 0x72, 0x4f, 0x6e, 0x19, 0xcf, 0xf7, 0xcd, 0x7c, 0xf3, 0x66,
+	0xde, 0xf7, 0x5e, 0x60, 0x10, 0xc4, 0x9c, 0xa6, 0x31, 0x09, 0x47, 0x24, 0x8d, 0x88, 0x4f, 0x46,
+	0x24, 0x09, 0x46, 0xf4, 0x2b, 0x1a, 0xf3, 0x61, 0x92, 0x32, 0xce, 0xd0, 0x2e, 0x49, 0x82, 0xde,
+	0x60, 0xce, 0xd8, 0x3c, 0xa4, 0x23, 0xf9, 0xc9, 0xcd, 0xcf, 0x46, 0x3c, 0x88, 0x68, 0xc6, 0x49,
+	0x94, 0x28, 0x54, 0xef, 0xde, 0x65, 0x2e, 0x72, 0x9a, 0xd3, 0x02, 0xf0, 0xc6, 0xea, 0x0a, 0x34,
+	0x4a, 0xf8, 0x37, 0xc5, 0xe4, 0xb3, 0x79, 0xc0, 0xcf, 0x73, 0x77, 0xe8, 0xb1, 0x68, 0x34, 0x67,
+	0x73, 0xb6, 0x44, 0x89, 0x91, 0x1c, 0xc8, 0x5f, 0x0a, 0x6e, 0xff, 0x61, 0xc2, 0x63, 0x87, 0xb9,
+	0x27, 0xb9, 0x1b, 0x05, 0x9c, 0x53, 0xff, 0x48, 0xc8, 0x45, 0x5d, 0xa8, 0x39, 0xcc, 0x9d, 0xf9,
+	0x96, 0x79, 0x60, 0x3e, 0x6d, 0x61, 0x35, 0x40, 0x3d, 0x68, 0x0a, 0x28, 0xe5, 0x33, 0xdf, 0xda,
+	0x91, 0x13, 0x8b, 0xb1, 0x60, 0x1c, 0x0b, 0x89, 0xd6, 0xae, 0x62, 0xc8, 0x01, 0x7a, 0x1f, 0x1a,
+	0x87, 0x29, 0x25, 0x9c, 0xfa, 0xd6, 0x83, 0x03, 0xf3, 0x69, 0x7b, 0xdc, 0x1b, 0x2a, 0xed, 0x43,
+	0xad, 0x6a, 0x78, 0xaa, 0x4f, 0x3f, 0x69, 0x5e, 0xfd, 0x35, 0x30, 0x2e, 0xff, 0x1e, 0x98, 0x58,
+	0x93, 0xd0, 0x01, 0xec, 0x3a, 0xcc, 0xb5, 0x6a, 0x92, 0xdb, 0x1c, 0x92, 0x24, 0x18, 0x3a, 0xcc,
+	0x9d, 0x3c, 0x10, 0x48, 0x2c, 0xa6, 0xec, 0xef, 0x4d, 0x78, 0xe8, 0x30, 0x57, 0x6e, 0xb7, 0x59,
+	0xe2, 0xed, 0x5f, 0x94, 0xb4, 0x4f, 0x28, 0xc9, 0x36, 0x2d, 0xae, 0x6f, 0x42, 0xeb, 0x30, 0xcc,
+	0x33, 0x4e, 0xd3, 0x99, 0x2f, 0xa3, 0xdb, 0xc2, 0xcb, 0x0f, 0xf6, 0x4f, 0x26, 0x74, 0xb5, 0xf0,
+	0xa3, 0xaf, 0x93, 0x20, 0xdd, 0xb4, 0xc8, 0xfe, 0x6a, 0xc2, 0x23, 0x87, 0xb9, 0x9f, 0xd1, 0xd8,
+	0x0f, 0xe2, 0xf9, 0x36, 0x85, 0xb6, 0x50, 0x8e, 0xf3, 0x38, 0xde, 0x32, 0xe5, 0x37, 0x26, 0x58,
+	0x0e, 0x73, 0x3f, 0x8f, 0x89, 0x1b, 0xd2, 0x53, 0x76, 0xe2, 0x9d, 0x53, 0x3f, 0x0f, 0xe9, 0x16,
+	0x1d, 0x01, 0xed, 0x43, 0x1d, 0x53, 0x92, 0xb1, 0xd8, 0xaa, 0xcb, 0xa9, 0x62, 0x64, 0xff, 0xa9,
+	0x12, 0xf5, 0x25, 0x09, 0xc2, 0xad, 0x4a, 0xd4, 0xff, 0x3d, 0xd0, 0x6f, 0xda, 0xd4, 0x3d, 0x8f,
+	0x52, 0x7f, 0xbb, 0xcc, 0xe7, 0x67, 0x13, 0x5e, 0x13, 0x19, 0x42, 0x93, 0x34, 0x60, 0x69, 0xc0,
+	0x83, 0x6f, 0x37, 0xcd, 0x7d, 0x7e, 0x34, 0x01, 0x39, 0xcc, 0x3d, 0x24, 0xb1, 0x47, 0xc3, 0x70,
+	0xd3, 0xd2, 0xd8, 0xfe, 0x41, 0x5d, 0x7e, 0x21, 0x6f, 0xd3, 0x82, 0xf7, 0xbb, 0x0a, 0xde, 0x29,
+	0x4d, 0xa3, 0x20, 0x26, 0x7c, 0xbb, 0xde, 0xe6, 0xbf, 0x35, 0xd8, 0x93, 0x7a, 0x3f, 0xa5, 0x59,
+	0x46, 0xe6, 0x14, 0xbd, 0x0b, 0xad, 0x4c, 0x77, 0x4e, 0x52, 0x7a, 0x7b, 0xbc, 0xaf, 0xbb, 0x94,
+	0x6a, 0x4b, 0x35, 0x35, 0xf0, 0x12, 0x8a, 0x9e, 0x41, 0x5d, 0x36, 0x74, 0xea, 0x58, 0xed, 0xf1,
+	0xab, 0x9a, 0x54, 0xea, 0x63, 0xa6, 0x06, 0x2e, 0x40, 0x02, 0x1e, 0xca, 0x2e, 0x42, 0x1e, 0xb6,
+	0x04, 0x2f, 0xf5, 0x16, 0x02, 0xae, 0x40, 0xe8, 0x03, 0xd8, 0x0b, 0x4b, 0xb5, 0xbb, 0x88, 0xc4,
+	0xeb, 0x15, 0x52, 0xb9, 0xae, 0x4f, 0x0d, 0x5c, 0x21, 0xa0, 0xe7, 0xd0, 0x48, 0x54, 0x6d, 0x2d,
+	0x5a, 0xaf, 0xae, 0xe6, 0x96, 0x4b, 0xee, 0xd4, 0xc0, 0x1a, 0x26, 0x18, 0xa9, 0xaa, 0x69, 0xd2,
+	0x8a, 0x4a, 0x8c, 0x72, 0xa9, 0x13, 0x8c, 0x02, 0x86, 0x3e, 0x86, 0x57, 0xf2, 0x95, 0x5a, 0x62,
+	0x35, 0x24, 0xf5, 0x2d, 0x4d, 0xbd, 0xb7, 0xd6, 0x4c, 0x0d, 0xbc, 0x46, 0x14, 0x01, 0x3a, 0x93,
+	0xee, 0x6d, 0x35, 0xab, 0x01, 0x2a, 0x79, 0xba, 0x08, 0x90, 0x02, 0xa9, 0x6b, 0x2b, 0xbc, 0xd1,
+	0x6a, 0xad, 0x5e, 0x5b, 0xd9, 0x34, 0xd5, 0xb5, 0x15, 0x5f, 0xd0, 0x04, 0x3a, 0x69, 0xd9, 0x97,
+	0x2c, 0x28, 0xde, 0x98, 0x3e, 0xeb, 0x9a, 0x69, 0x4d, 0x0d, 0x5c, 0xa5, 0xa0, 0xf7, 0x00, 0xbc,
+	0x85, 0x73, 0x58, 0x6d, 0xb9, 0xc0, 0x13, 0xbd, 0xc0, 0x8a, 0xa7, 0x4c, 0x0d, 0x5c, 0x02, 0x0b,
+	0xd9, 0x9e, 0xce, 0x6a, 0x6b, 0xaf, 0x2a, 0xbb, 0x9a, 0xee, 0x42, 0xf6, 0x02, 0x2a, 0xb6, 0xe4,
+	0x8b, 0x7c, 0xb3, 0x3a, 0xd5, 0x2d, 0x57, 0x32, 0x51, 0x6c, 0xb9, 0x04, 0x4f, 0x9a, 0x50, 0x97,
+	0x7f, 0x60, 0x32, 0xfb, 0x18, 0x90, 0x04, 0x9c, 0xf0, 0x94, 0x92, 0x48, 0x27, 0xc0, 0x43, 0xd8,
+	0x59, 0x24, 0xed, 0xce, 0xcc, 0x47, 0xef, 0x40, 0x23, 0x52, 0x53, 0xc5, 0xcb, 0x7e, 0x2c, 0xf7,
+	0x29, 0x27, 0x0d, 0xd6, 0x08, 0xfb, 0x4b, 0xe8, 0xa8, 0x74, 0xc6, 0xf4, 0x22, 0xa7, 0x19, 0x5f,
+	0x5b, 0xad, 0x0b, 0xb5, 0x2f, 0x08, 0xf7, 0xce, 0xe5, 0x5a, 0x4d, 0xac, 0x06, 0xe8, 0x6d, 0xe8,
+	0xbc, 0x4c, 0x99, 0x96, 0x30, 0xf3, 0x0b, 0x07, 0xa8, 0x7e, 0x1c, 0x7f, 0x07, 0x35, 0x65, 0x2d,
+	0x2f, 0x44, 0x91, 0x4c, 0x58, 0xca, 0xd1, 0xba, 0x96, 0xde, 0xfe, 0x9a, 0x3d, 0x1c, 0x89, 0xff,
+	0x52, 0xe8, 0x43, 0x78, 0xf4, 0x11, 0xe5, 0x4a, 0x9d, 0x24, 0x64, 0x08, 0x2d, 0x5e, 0xc8, 0x42,
+	0x70, 0xef, 0xc9, 0x72, 0xc5, 0x4a, 0x5c, 0x9e, 0x9b, 0x13, 0xeb, 0xea, 0xb6, 0x6f, 0x5e, 0xdf,
+	0xf6, 0xcd, 0x7f, 0x6e, 0xfb, 0xe6, 0xe5, 0x5d, 0xdf, 0xb8, 0xbe, 0xeb, 0x1b, 0x37, 0x77, 0x7d,
+	0xc3, 0xad, 0xcb, 0xbd, 0x5e, 0xfc, 0x17, 0x00, 0x00, 0xff, 0xff, 0x5f, 0x8c, 0x37, 0x3b, 0x2f,
+	0x0e, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -1905,67 +1999,6 @@ func (m *JobLeaseExpiredEvent) MarshalTo(dAtA []byte) (int, error) {
 	return i, nil
 }
 
-func (m *JobLeaseReturnedEvent) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *JobLeaseReturnedEvent) MarshalTo(dAtA []byte) (int, error) {
-	var i int
-	_ = i
-	var l int
-	_ = l
-	if len(m.JobId) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintEvent(dAtA, i, uint64(len(m.JobId)))
-		i += copy(dAtA[i:], m.JobId)
-	}
-	if len(m.JobSetId) > 0 {
-		dAtA[i] = 0x12
-		i++
-		i = encodeVarintEvent(dAtA, i, uint64(len(m.JobSetId)))
-		i += copy(dAtA[i:], m.JobSetId)
-	}
-	if len(m.Queue) > 0 {
-		dAtA[i] = 0x1a
-		i++
-		i = encodeVarintEvent(dAtA, i, uint64(len(m.Queue)))
-		i += copy(dAtA[i:], m.Queue)
-	}
-	dAtA[i] = 0x22
-	i++
-	i = encodeVarintEvent(dAtA, i, uint64(github_com_gogo_protobuf_types.SizeOfStdTime(m.Created)))
-	n6, err := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Created, dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n6
-	if len(m.ClusterId) > 0 {
-		dAtA[i] = 0x2a
-		i++
-		i = encodeVarintEvent(dAtA, i, uint64(len(m.ClusterId)))
-		i += copy(dAtA[i:], m.ClusterId)
-	}
-	if m.ReasonType != 0 {
-		dAtA[i] = 0x30
-		i++
-		i = encodeVarintEvent(dAtA, i, uint64(m.ReasonType))
-	}
-	if len(m.Reason) > 0 {
-		dAtA[i] = 0x3a
-		i++
-		i = encodeVarintEvent(dAtA, i, uint64(len(m.Reason)))
-		i += copy(dAtA[i:], m.Reason)
-	}
-	return i, nil
-}
-
 func (m *JobPendingEvent) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
@@ -2002,11 +2035,11 @@ func (m *JobPendingEvent) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0x22
 	i++
 	i = encodeVarintEvent(dAtA, i, uint64(github_com_gogo_protobuf_types.SizeOfStdTime(m.Created)))
-	n7, err := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Created, dAtA[i:])
+	n6, err := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Created, dAtA[i:])
 	if err != nil {
 		return 0, err
 	}
-	i += n7
+	i += n6
 	if len(m.ClusterId) > 0 {
 		dAtA[i] = 0x2a
 		i++
@@ -2052,6 +2085,56 @@ func (m *JobRunningEvent) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0x22
 	i++
 	i = encodeVarintEvent(dAtA, i, uint64(github_com_gogo_protobuf_types.SizeOfStdTime(m.Created)))
+	n7, err := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Created, dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n7
+	if len(m.ClusterId) > 0 {
+		dAtA[i] = 0x2a
+		i++
+		i = encodeVarintEvent(dAtA, i, uint64(len(m.ClusterId)))
+		i += copy(dAtA[i:], m.ClusterId)
+	}
+	return i, nil
+}
+
+func (m *JobUnableToScheduleEvent) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *JobUnableToScheduleEvent) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if len(m.JobId) > 0 {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintEvent(dAtA, i, uint64(len(m.JobId)))
+		i += copy(dAtA[i:], m.JobId)
+	}
+	if len(m.JobSetId) > 0 {
+		dAtA[i] = 0x12
+		i++
+		i = encodeVarintEvent(dAtA, i, uint64(len(m.JobSetId)))
+		i += copy(dAtA[i:], m.JobSetId)
+	}
+	if len(m.Queue) > 0 {
+		dAtA[i] = 0x1a
+		i++
+		i = encodeVarintEvent(dAtA, i, uint64(len(m.Queue)))
+		i += copy(dAtA[i:], m.Queue)
+	}
+	dAtA[i] = 0x22
+	i++
+	i = encodeVarintEvent(dAtA, i, uint64(github_com_gogo_protobuf_types.SizeOfStdTime(m.Created)))
 	n8, err := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Created, dAtA[i:])
 	if err != nil {
 		return 0, err
@@ -2062,6 +2145,12 @@ func (m *JobRunningEvent) MarshalTo(dAtA []byte) (int, error) {
 		i++
 		i = encodeVarintEvent(dAtA, i, uint64(len(m.ClusterId)))
 		i += copy(dAtA[i:], m.ClusterId)
+	}
+	if len(m.Reason) > 0 {
+		dAtA[i] = 0x32
+		i++
+		i = encodeVarintEvent(dAtA, i, uint64(len(m.Reason)))
+		i += copy(dAtA[i:], m.Reason)
 	}
 	return i, nil
 }
@@ -2112,6 +2201,12 @@ func (m *JobFailedEvent) MarshalTo(dAtA []byte) (int, error) {
 		i++
 		i = encodeVarintEvent(dAtA, i, uint64(len(m.ClusterId)))
 		i += copy(dAtA[i:], m.ClusterId)
+	}
+	if len(m.Reason) > 0 {
+		dAtA[i] = 0x32
+		i++
+		i = encodeVarintEvent(dAtA, i, uint64(len(m.Reason)))
+		i += copy(dAtA[i:], m.Reason)
 	}
 	return i, nil
 }
@@ -2251,12 +2346,6 @@ func (m *JobCancellingEvent) MarshalTo(dAtA []byte) (int, error) {
 		return 0, err
 	}
 	i += n12
-	if len(m.ClusterId) > 0 {
-		dAtA[i] = 0x2a
-		i++
-		i = encodeVarintEvent(dAtA, i, uint64(len(m.ClusterId)))
-		i += copy(dAtA[i:], m.ClusterId)
-	}
 	return i, nil
 }
 
@@ -2301,6 +2390,50 @@ func (m *JobCancelledEvent) MarshalTo(dAtA []byte) (int, error) {
 		return 0, err
 	}
 	i += n13
+	return i, nil
+}
+
+func (m *JobTerminatedEvent) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *JobTerminatedEvent) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if len(m.JobId) > 0 {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintEvent(dAtA, i, uint64(len(m.JobId)))
+		i += copy(dAtA[i:], m.JobId)
+	}
+	if len(m.JobSetId) > 0 {
+		dAtA[i] = 0x12
+		i++
+		i = encodeVarintEvent(dAtA, i, uint64(len(m.JobSetId)))
+		i += copy(dAtA[i:], m.JobSetId)
+	}
+	if len(m.Queue) > 0 {
+		dAtA[i] = 0x1a
+		i++
+		i = encodeVarintEvent(dAtA, i, uint64(len(m.Queue)))
+		i += copy(dAtA[i:], m.Queue)
+	}
+	dAtA[i] = 0x22
+	i++
+	i = encodeVarintEvent(dAtA, i, uint64(github_com_gogo_protobuf_types.SizeOfStdTime(m.Created)))
+	n14, err := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Created, dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n14
 	if len(m.ClusterId) > 0 {
 		dAtA[i] = 0x2a
 		i++
@@ -2326,11 +2459,11 @@ func (m *EventMessage) MarshalTo(dAtA []byte) (int, error) {
 	var l int
 	_ = l
 	if m.Events != nil {
-		nn14, err := m.Events.MarshalTo(dAtA[i:])
+		nn15, err := m.Events.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
-		i += nn14
+		i += nn15
 	}
 	return i, nil
 }
@@ -2341,11 +2474,11 @@ func (m *EventMessage_Submitted) MarshalTo(dAtA []byte) (int, error) {
 		dAtA[i] = 0xa
 		i++
 		i = encodeVarintEvent(dAtA, i, uint64(m.Submitted.Size()))
-		n15, err := m.Submitted.MarshalTo(dAtA[i:])
+		n16, err := m.Submitted.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
-		i += n15
+		i += n16
 	}
 	return i, nil
 }
@@ -2355,11 +2488,11 @@ func (m *EventMessage_Queued) MarshalTo(dAtA []byte) (int, error) {
 		dAtA[i] = 0x12
 		i++
 		i = encodeVarintEvent(dAtA, i, uint64(m.Queued.Size()))
-		n16, err := m.Queued.MarshalTo(dAtA[i:])
+		n17, err := m.Queued.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
-		i += n16
+		i += n17
 	}
 	return i, nil
 }
@@ -2369,11 +2502,11 @@ func (m *EventMessage_Leased) MarshalTo(dAtA []byte) (int, error) {
 		dAtA[i] = 0x1a
 		i++
 		i = encodeVarintEvent(dAtA, i, uint64(m.Leased.Size()))
-		n17, err := m.Leased.MarshalTo(dAtA[i:])
+		n18, err := m.Leased.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
-		i += n17
+		i += n18
 	}
 	return i, nil
 }
@@ -2383,21 +2516,7 @@ func (m *EventMessage_LeaseExpired) MarshalTo(dAtA []byte) (int, error) {
 		dAtA[i] = 0x22
 		i++
 		i = encodeVarintEvent(dAtA, i, uint64(m.LeaseExpired.Size()))
-		n18, err := m.LeaseExpired.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n18
-	}
-	return i, nil
-}
-func (m *EventMessage_LeaseReturned) MarshalTo(dAtA []byte) (int, error) {
-	i := 0
-	if m.LeaseReturned != nil {
-		dAtA[i] = 0x2a
-		i++
-		i = encodeVarintEvent(dAtA, i, uint64(m.LeaseReturned.Size()))
-		n19, err := m.LeaseReturned.MarshalTo(dAtA[i:])
+		n19, err := m.LeaseExpired.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
@@ -2408,7 +2527,7 @@ func (m *EventMessage_LeaseReturned) MarshalTo(dAtA []byte) (int, error) {
 func (m *EventMessage_Pending) MarshalTo(dAtA []byte) (int, error) {
 	i := 0
 	if m.Pending != nil {
-		dAtA[i] = 0x32
+		dAtA[i] = 0x2a
 		i++
 		i = encodeVarintEvent(dAtA, i, uint64(m.Pending.Size()))
 		n20, err := m.Pending.MarshalTo(dAtA[i:])
@@ -2422,7 +2541,7 @@ func (m *EventMessage_Pending) MarshalTo(dAtA []byte) (int, error) {
 func (m *EventMessage_Running) MarshalTo(dAtA []byte) (int, error) {
 	i := 0
 	if m.Running != nil {
-		dAtA[i] = 0x3a
+		dAtA[i] = 0x32
 		i++
 		i = encodeVarintEvent(dAtA, i, uint64(m.Running.Size()))
 		n21, err := m.Running.MarshalTo(dAtA[i:])
@@ -2433,17 +2552,31 @@ func (m *EventMessage_Running) MarshalTo(dAtA []byte) (int, error) {
 	}
 	return i, nil
 }
+func (m *EventMessage_UnableToSchedule) MarshalTo(dAtA []byte) (int, error) {
+	i := 0
+	if m.UnableToSchedule != nil {
+		dAtA[i] = 0x3a
+		i++
+		i = encodeVarintEvent(dAtA, i, uint64(m.UnableToSchedule.Size()))
+		n22, err := m.UnableToSchedule.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n22
+	}
+	return i, nil
+}
 func (m *EventMessage_Failed) MarshalTo(dAtA []byte) (int, error) {
 	i := 0
 	if m.Failed != nil {
 		dAtA[i] = 0x42
 		i++
 		i = encodeVarintEvent(dAtA, i, uint64(m.Failed.Size()))
-		n22, err := m.Failed.MarshalTo(dAtA[i:])
+		n23, err := m.Failed.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
-		i += n22
+		i += n23
 	}
 	return i, nil
 }
@@ -2453,11 +2586,11 @@ func (m *EventMessage_Succeeded) MarshalTo(dAtA []byte) (int, error) {
 		dAtA[i] = 0x4a
 		i++
 		i = encodeVarintEvent(dAtA, i, uint64(m.Succeeded.Size()))
-		n23, err := m.Succeeded.MarshalTo(dAtA[i:])
+		n24, err := m.Succeeded.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
-		i += n23
+		i += n24
 	}
 	return i, nil
 }
@@ -2467,11 +2600,11 @@ func (m *EventMessage_Reprioritized) MarshalTo(dAtA []byte) (int, error) {
 		dAtA[i] = 0x52
 		i++
 		i = encodeVarintEvent(dAtA, i, uint64(m.Reprioritized.Size()))
-		n24, err := m.Reprioritized.MarshalTo(dAtA[i:])
+		n25, err := m.Reprioritized.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
-		i += n24
+		i += n25
 	}
 	return i, nil
 }
@@ -2481,11 +2614,11 @@ func (m *EventMessage_Cancelling) MarshalTo(dAtA []byte) (int, error) {
 		dAtA[i] = 0x5a
 		i++
 		i = encodeVarintEvent(dAtA, i, uint64(m.Cancelling.Size()))
-		n25, err := m.Cancelling.MarshalTo(dAtA[i:])
+		n26, err := m.Cancelling.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
-		i += n25
+		i += n26
 	}
 	return i, nil
 }
@@ -2495,11 +2628,25 @@ func (m *EventMessage_Cancelled) MarshalTo(dAtA []byte) (int, error) {
 		dAtA[i] = 0x62
 		i++
 		i = encodeVarintEvent(dAtA, i, uint64(m.Cancelled.Size()))
-		n26, err := m.Cancelled.MarshalTo(dAtA[i:])
+		n27, err := m.Cancelled.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
-		i += n26
+		i += n27
+	}
+	return i, nil
+}
+func (m *EventMessage_Terminated) MarshalTo(dAtA []byte) (int, error) {
+	i := 0
+	if m.Terminated != nil {
+		dAtA[i] = 0x6a
+		i++
+		i = encodeVarintEvent(dAtA, i, uint64(m.Terminated.Size()))
+		n28, err := m.Terminated.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n28
 	}
 	return i, nil
 }
@@ -2528,11 +2675,11 @@ func (m *EventStreamMessage) MarshalTo(dAtA []byte) (int, error) {
 		dAtA[i] = 0x12
 		i++
 		i = encodeVarintEvent(dAtA, i, uint64(m.Message.Size()))
-		n27, err := m.Message.MarshalTo(dAtA[i:])
+		n29, err := m.Message.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
-		i += n27
+		i += n29
 	}
 	return i, nil
 }
@@ -2684,40 +2831,6 @@ func (m *JobLeaseExpiredEvent) Size() (n int) {
 	return n
 }
 
-func (m *JobLeaseReturnedEvent) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	l = len(m.JobId)
-	if l > 0 {
-		n += 1 + l + sovEvent(uint64(l))
-	}
-	l = len(m.JobSetId)
-	if l > 0 {
-		n += 1 + l + sovEvent(uint64(l))
-	}
-	l = len(m.Queue)
-	if l > 0 {
-		n += 1 + l + sovEvent(uint64(l))
-	}
-	l = github_com_gogo_protobuf_types.SizeOfStdTime(m.Created)
-	n += 1 + l + sovEvent(uint64(l))
-	l = len(m.ClusterId)
-	if l > 0 {
-		n += 1 + l + sovEvent(uint64(l))
-	}
-	if m.ReasonType != 0 {
-		n += 1 + sovEvent(uint64(m.ReasonType))
-	}
-	l = len(m.Reason)
-	if l > 0 {
-		n += 1 + l + sovEvent(uint64(l))
-	}
-	return n
-}
-
 func (m *JobPendingEvent) Size() (n int) {
 	if m == nil {
 		return 0
@@ -2772,6 +2885,37 @@ func (m *JobRunningEvent) Size() (n int) {
 	return n
 }
 
+func (m *JobUnableToScheduleEvent) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.JobId)
+	if l > 0 {
+		n += 1 + l + sovEvent(uint64(l))
+	}
+	l = len(m.JobSetId)
+	if l > 0 {
+		n += 1 + l + sovEvent(uint64(l))
+	}
+	l = len(m.Queue)
+	if l > 0 {
+		n += 1 + l + sovEvent(uint64(l))
+	}
+	l = github_com_gogo_protobuf_types.SizeOfStdTime(m.Created)
+	n += 1 + l + sovEvent(uint64(l))
+	l = len(m.ClusterId)
+	if l > 0 {
+		n += 1 + l + sovEvent(uint64(l))
+	}
+	l = len(m.Reason)
+	if l > 0 {
+		n += 1 + l + sovEvent(uint64(l))
+	}
+	return n
+}
+
 func (m *JobFailedEvent) Size() (n int) {
 	if m == nil {
 		return 0
@@ -2793,6 +2937,10 @@ func (m *JobFailedEvent) Size() (n int) {
 	l = github_com_gogo_protobuf_types.SizeOfStdTime(m.Created)
 	n += 1 + l + sovEvent(uint64(l))
 	l = len(m.ClusterId)
+	if l > 0 {
+		n += 1 + l + sovEvent(uint64(l))
+	}
+	l = len(m.Reason)
 	if l > 0 {
 		n += 1 + l + sovEvent(uint64(l))
 	}
@@ -2869,14 +3017,33 @@ func (m *JobCancellingEvent) Size() (n int) {
 	}
 	l = github_com_gogo_protobuf_types.SizeOfStdTime(m.Created)
 	n += 1 + l + sovEvent(uint64(l))
-	l = len(m.ClusterId)
-	if l > 0 {
-		n += 1 + l + sovEvent(uint64(l))
-	}
 	return n
 }
 
 func (m *JobCancelledEvent) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.JobId)
+	if l > 0 {
+		n += 1 + l + sovEvent(uint64(l))
+	}
+	l = len(m.JobSetId)
+	if l > 0 {
+		n += 1 + l + sovEvent(uint64(l))
+	}
+	l = len(m.Queue)
+	if l > 0 {
+		n += 1 + l + sovEvent(uint64(l))
+	}
+	l = github_com_gogo_protobuf_types.SizeOfStdTime(m.Created)
+	n += 1 + l + sovEvent(uint64(l))
+	return n
+}
+
+func (m *JobTerminatedEvent) Size() (n int) {
 	if m == nil {
 		return 0
 	}
@@ -2963,18 +3130,6 @@ func (m *EventMessage_LeaseExpired) Size() (n int) {
 	}
 	return n
 }
-func (m *EventMessage_LeaseReturned) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	if m.LeaseReturned != nil {
-		l = m.LeaseReturned.Size()
-		n += 1 + l + sovEvent(uint64(l))
-	}
-	return n
-}
 func (m *EventMessage_Pending) Size() (n int) {
 	if m == nil {
 		return 0
@@ -2995,6 +3150,18 @@ func (m *EventMessage_Running) Size() (n int) {
 	_ = l
 	if m.Running != nil {
 		l = m.Running.Size()
+		n += 1 + l + sovEvent(uint64(l))
+	}
+	return n
+}
+func (m *EventMessage_UnableToSchedule) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.UnableToSchedule != nil {
+		l = m.UnableToSchedule.Size()
 		n += 1 + l + sovEvent(uint64(l))
 	}
 	return n
@@ -3055,6 +3222,18 @@ func (m *EventMessage_Cancelled) Size() (n int) {
 	_ = l
 	if m.Cancelled != nil {
 		l = m.Cancelled.Size()
+		n += 1 + l + sovEvent(uint64(l))
+	}
+	return n
+}
+func (m *EventMessage_Terminated) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Terminated != nil {
+		l = m.Terminated.Size()
 		n += 1 + l + sovEvent(uint64(l))
 	}
 	return n
@@ -3902,271 +4081,6 @@ func (m *JobLeaseExpiredEvent) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *JobLeaseReturnedEvent) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowEvent
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= uint64(b&0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: JobLeaseReturnedEvent: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: JobLeaseReturnedEvent: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field JobId", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowEvent
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthEvent
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLengthEvent
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.JobId = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 2:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field JobSetId", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowEvent
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthEvent
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLengthEvent
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.JobSetId = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 3:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Queue", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowEvent
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthEvent
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLengthEvent
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Queue = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 4:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Created", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowEvent
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthEvent
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthEvent
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if err := github_com_gogo_protobuf_types.StdTimeUnmarshal(&m.Created, dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		case 5:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field ClusterId", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowEvent
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthEvent
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLengthEvent
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.ClusterId = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 6:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field ReasonType", wireType)
-			}
-			m.ReasonType = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowEvent
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.ReasonType |= LeaseReturnReasonType(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		case 7:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Reason", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowEvent
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthEvent
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLengthEvent
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Reason = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		default:
-			iNdEx = preIndex
-			skippy, err := skipEvent(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if skippy < 0 {
-				return ErrInvalidLengthEvent
-			}
-			if (iNdEx + skippy) < 0 {
-				return ErrInvalidLengthEvent
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
 func (m *JobPendingEvent) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -4595,6 +4509,252 @@ func (m *JobRunningEvent) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
+func (m *JobUnableToScheduleEvent) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowEvent
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: JobUnableToScheduleEvent: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: JobUnableToScheduleEvent: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field JobId", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvent
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthEvent
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvent
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.JobId = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field JobSetId", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvent
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthEvent
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvent
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.JobSetId = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Queue", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvent
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthEvent
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvent
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Queue = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Created", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvent
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvent
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvent
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := github_com_gogo_protobuf_types.StdTimeUnmarshal(&m.Created, dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 5:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ClusterId", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvent
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthEvent
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvent
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.ClusterId = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 6:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Reason", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvent
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthEvent
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvent
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Reason = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipEvent(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthEvent
+			}
+			if (iNdEx + skippy) < 0 {
+				return ErrInvalidLengthEvent
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
 func (m *JobFailedEvent) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -4784,6 +4944,38 @@ func (m *JobFailedEvent) Unmarshal(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			m.ClusterId = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 6:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Reason", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvent
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthEvent
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvent
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Reason = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
@@ -5363,38 +5555,6 @@ func (m *JobCancellingEvent) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
-		case 5:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field ClusterId", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowEvent
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthEvent
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLengthEvent
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.ClusterId = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipEvent(dAtA[iNdEx:])
@@ -5446,6 +5606,188 @@ func (m *JobCancelledEvent) Unmarshal(dAtA []byte) error {
 		}
 		if fieldNum <= 0 {
 			return fmt.Errorf("proto: JobCancelledEvent: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field JobId", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvent
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthEvent
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvent
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.JobId = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field JobSetId", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvent
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthEvent
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvent
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.JobSetId = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Queue", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvent
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthEvent
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvent
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Queue = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Created", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvent
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvent
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvent
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := github_com_gogo_protobuf_types.StdTimeUnmarshal(&m.Created, dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipEvent(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthEvent
+			}
+			if (iNdEx + skippy) < 0 {
+				return ErrInvalidLengthEvent
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *JobTerminatedEvent) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowEvent
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: JobTerminatedEvent: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: JobTerminatedEvent: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
@@ -5804,41 +6146,6 @@ func (m *EventMessage) Unmarshal(dAtA []byte) error {
 			iNdEx = postIndex
 		case 5:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field LeaseReturned", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowEvent
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthEvent
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthEvent
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			v := &JobLeaseReturnedEvent{}
-			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			m.Events = &EventMessage_LeaseReturned{v}
-			iNdEx = postIndex
-		case 6:
-			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Pending", wireType)
 			}
 			var msglen int
@@ -5872,7 +6179,7 @@ func (m *EventMessage) Unmarshal(dAtA []byte) error {
 			}
 			m.Events = &EventMessage_Pending{v}
 			iNdEx = postIndex
-		case 7:
+		case 6:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Running", wireType)
 			}
@@ -5906,6 +6213,41 @@ func (m *EventMessage) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			m.Events = &EventMessage_Running{v}
+			iNdEx = postIndex
+		case 7:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field UnableToSchedule", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvent
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvent
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvent
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &JobUnableToScheduleEvent{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Events = &EventMessage_UnableToSchedule{v}
 			iNdEx = postIndex
 		case 8:
 			if wireType != 2 {
@@ -6081,6 +6423,41 @@ func (m *EventMessage) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			m.Events = &EventMessage_Cancelled{v}
+			iNdEx = postIndex
+		case 13:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Terminated", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvent
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvent
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvent
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &JobTerminatedEvent{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Events = &EventMessage_Terminated{v}
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex

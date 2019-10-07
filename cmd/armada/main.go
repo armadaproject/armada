@@ -1,15 +1,17 @@
 package main
 
 import (
-	"github.com/G-Research/k8s-batch/internal/armada"
-	"github.com/G-Research/k8s-batch/internal/armada/configuration"
-	"github.com/G-Research/k8s-batch/internal/common"
-	log "github.com/sirupsen/logrus"
-	"github.com/spf13/pflag"
-	"github.com/spf13/viper"
 	"os"
 	"os/signal"
 	"syscall"
+
+	log "github.com/sirupsen/logrus"
+	"github.com/spf13/pflag"
+	"github.com/spf13/viper"
+
+	"github.com/G-Research/k8s-batch/internal/armada"
+	"github.com/G-Research/k8s-batch/internal/armada/configuration"
+	"github.com/G-Research/k8s-batch/internal/common"
 )
 
 const CustomConfigLocation string = "config"

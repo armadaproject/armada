@@ -60,3 +60,54 @@ func reportJobsLeased(repository repository.EventRepository, jobs []*api.Job, cl
 		}
 	}
 }
+
+func reportJobsCancelling(repository repository.EventRepository, jobs []*api.Job) error {
+	events := []*api.EventMessage{}
+	for _, job := range jobs {
+		event, e := api.Wrap(&api.JobCancellingEvent{
+			JobId:    job.Id,
+			Queue:    job.Queue,
+			JobSetId: job.JobSetId,
+			Created:  job.Created,
+		})
+		if e != nil {
+			return e
+		}
+		events = append(events, event)
+	}
+	e := repository.ReportEvents(events)
+	return e
+}
+
+func reportJobsCancelled(repository repository.EventRepository, jobs []*api.Job) error {
+	events := []*api.EventMessage{}
+	for _, job := range jobs {
+		event, e := api.Wrap(&api.JobCancelledEvent{
+			JobId:    job.Id,
+			Queue:    job.Queue,
+			JobSetId: job.JobSetId,
+			Created:  job.Created,
+		})
+		if e != nil {
+			return e
+		}
+		events = append(events, event)
+	}
+	e := repository.ReportEvents(events)
+	return e
+}
+
+func reportTerminated(repository repository.EventRepository, clusterId string, job *api.Job) error {
+	event, e := api.Wrap(&api.JobTerminatedEvent{
+		JobId:     job.Id,
+		Queue:     job.Queue,
+		JobSetId:  job.JobSetId,
+		Created:   job.Created,
+		ClusterId: clusterId,
+	})
+	if e != nil {
+		return e
+	}
+	e = repository.ReportEvent(event)
+	return e
+}

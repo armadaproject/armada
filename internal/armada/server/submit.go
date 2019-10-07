@@ -2,11 +2,14 @@ package server
 
 import (
 	"context"
-	"github.com/G-Research/k8s-batch/internal/armada/api"
-	"github.com/G-Research/k8s-batch/internal/armada/repository"
+
 	"github.com/gogo/protobuf/types"
+	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	"github.com/G-Research/k8s-batch/internal/armada/api"
+	"github.com/G-Research/k8s-batch/internal/armada/repository"
 )
 
 type SubmitServer struct {
@@ -19,7 +22,7 @@ func NewSubmitServer(jobRepository repository.JobRepository, queueRepository rep
 	return &SubmitServer{jobRepository: jobRepository, queueRepository: queueRepository, eventRepository: eventRepository}
 }
 
-func (server SubmitServer) CreateQueue(ctx context.Context, queue *api.Queue) (*types.Empty, error) {
+func (server *SubmitServer) CreateQueue(ctx context.Context, queue *api.Queue) (*types.Empty, error) {
 
 	e := server.queueRepository.CreateQueue(queue)
 	if e != nil {
@@ -28,7 +31,7 @@ func (server SubmitServer) CreateQueue(ctx context.Context, queue *api.Queue) (*
 	return &types.Empty{}, nil
 }
 
-func (server SubmitServer) SubmitJob(ctx context.Context, req *api.JobRequest) (*api.JobSubmitResponse, error) {
+func (server *SubmitServer) SubmitJob(ctx context.Context, req *api.JobRequest) (*api.JobSubmitResponse, error) {
 
 	job := server.jobRepository.CreateJob(req)
 
@@ -49,4 +52,52 @@ func (server SubmitServer) SubmitJob(ctx context.Context, req *api.JobRequest) (
 	}
 
 	return result, nil
+}
+
+func (server *SubmitServer) CancelJobs(ctx context.Context, request *api.JobCancelRequest) (*api.CancellationResult, error) {
+
+	if request.JobId != "" {
+		return server.cancelJobs([]string{request.JobId})
+	}
+
+	if request.JobSetId != "" && request.Queue != "" {
+		ids, e := server.jobRepository.GetActiveJobIds(request.Queue, request.JobSetId)
+		if e != nil {
+			return nil, status.Errorf(codes.Aborted, e.Error())
+		}
+		return server.cancelJobs(ids)
+	}
+	return nil, status.Errorf(codes.InvalidArgument, "Specify job id or queue with job set id")
+}
+
+func (server *SubmitServer) cancelJobs(ids []string) (*api.CancellationResult, error) {
+
+	jobs, e := server.jobRepository.GetJobsByIds(ids)
+	if e != nil {
+		return nil, status.Errorf(codes.Internal, e.Error())
+	}
+
+	e = reportJobsCancelling(server.eventRepository, jobs)
+	if e != nil {
+		return nil, status.Errorf(codes.Unknown, e.Error())
+	}
+
+	cancellationResult := server.jobRepository.Cancel(jobs)
+	cancelled := []*api.Job{}
+	cancelledIds := []string{}
+	for job, error := range cancellationResult {
+		if error != nil {
+			log.Errorf("Error when cancelling job id %s: %s", job.Id, error.Error())
+		} else {
+			cancelled = append(cancelled, job)
+			cancelledIds = append(cancelledIds, job.Id)
+		}
+	}
+
+	e = reportJobsCancelled(server.eventRepository, cancelled)
+	if e != nil {
+		return nil, status.Errorf(codes.Unknown, e.Error())
+	}
+
+	return &api.CancellationResult{cancelledIds}, nil
 }
