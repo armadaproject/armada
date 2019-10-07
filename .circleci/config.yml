@@ -27,6 +27,7 @@ jobs:
       enabled: true
     environment:
       GO111MODULE: "on"
+      GOPATH: "/home/circleci/go"
     working_directory: ~/go/src/github.com/G-Research/k8s-batch
     steps:
       - checkout
@@ -42,7 +43,7 @@ jobs:
 
       - restore_cache:
           keys:
-            - go-mod-machine-experiment-v3-{{ checksum "go.sum" }}
+            - go-mod-machine-experiment-v4-{{ checksum "go.sum" }}
 
       - run:
           name: Test
@@ -51,9 +52,9 @@ jobs:
             go test -v ./internal/...
 
       - save_cache:
-          key: go-mod-machine-experiment-v3-{{ checksum "go.sum" }}
+          key: go-mod-machine-experiment-v4-{{ checksum "go.sum" }}
           paths:
-            - "${GOPATH}/pkg/mod"
+            - "/home/circleci/go/pkg/mod"
 
       - run:
           name: Check formatting
