@@ -117,7 +117,7 @@ func (jobLeaseService *JobLeaseService) renewJobLeases(pods []*v1.Pod) {
 	failedPods := filterPodsByJobId(pods, failedIds)
 	if len(failedIds) > 0 {
 		log.Warnf("Server has prevented renewing of job lease for jobs %s", strings.Join(failedIds, ","))
-		jobLeaseService.ClusterContext.DeletePods(failedPods)
+		jobLeaseService.clusterContext.DeletePods(failedPods)
 	}
 }
 
