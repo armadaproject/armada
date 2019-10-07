@@ -17,10 +17,10 @@ type EventRepository interface {
 }
 
 type RedisEventRepository struct {
-	db *redis.Client
+	db redis.UniversalClient
 }
 
-func NewRedisEventRepository(db *redis.Client) *RedisEventRepository {
+func NewRedisEventRepository(db redis.UniversalClient) *RedisEventRepository {
 	return &RedisEventRepository{db: db}
 }
 

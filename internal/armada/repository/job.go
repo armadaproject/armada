@@ -35,10 +35,10 @@ type JobRepository interface {
 }
 
 type RedisJobRepository struct {
-	db *redis.Client
+	db redis.UniversalClient
 }
 
-func NewRedisJobRepository(db *redis.Client) *RedisJobRepository {
+func NewRedisJobRepository(db redis.UniversalClient) *RedisJobRepository {
 	return &RedisJobRepository{db: db}
 }
 

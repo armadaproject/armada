@@ -24,10 +24,10 @@ type UsageRepository interface {
 }
 
 type RedisUsageRepository struct {
-	db *redis.Client
+	db redis.UniversalClient
 }
 
-func NewRedisUsageRepository(db *redis.Client) *RedisUsageRepository {
+func NewRedisUsageRepository(db redis.UniversalClient) *RedisUsageRepository {
 	return &RedisUsageRepository{db: db}
 }
 
