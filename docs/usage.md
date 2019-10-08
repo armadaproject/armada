@@ -28,7 +28,7 @@ To follow this section I am assuming you have:
 * Docker installed (ideally in the sudo group)
 * This repository cloned. The guide will assume you are in the root directory of this repository
 
-###Steps
+### Steps
 
 1. Set up a Kubernetes cluster, this can be a local instance such as Kind (https://github.com/kubernetes-sigs/kind)
     * For Kind simply run `GO111MODULE="on" go get sigs.k8s.io/kind@v0.5.1 && kind create cluster`
@@ -56,7 +56,7 @@ Likely you'll want to run the last step via an IDE to make developing easier, so
 
 For production it is recommended but not essential that the server component runs inside a Kubernetes cluster.
 
-##### Installing pre-requisites
+#### Installing pre-requisites
 
 If you have a cluster with the below installed, skip this sub section
 
@@ -108,7 +108,7 @@ You will likely want to configure your load balancer to point at this ingress
 helm install stable/redis-ha --name=example-redis-ha 
 ```
 
-##### Installing server component
+#### Installing server component
 
 
 To install the server component, you can simply use helm.
