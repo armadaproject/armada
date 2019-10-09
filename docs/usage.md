@@ -56,57 +56,17 @@ Likely you'll want to run the last step via an IDE to make developing easier, so
 
 For production it is recommended but not essential that the server component runs inside a Kubernetes cluster.
 
-#### Installing pre-requisites
+The below sections will cover how to install the component into a Kubernetes server. 
 
-If you have a cluster with the below installed, skip this sub section
+#### Recommended pre-requisites
 
-* Cert manager installed
+* Cert manager installed (https://hub.helm.sh/charts/jetstack/cert-manager)
 * gRPC compatible ingress controller installed (for gRPC ingress)
-* Redis installed
+    * Such as https://github.com/helm/charts/tree/master/stable/nginx-ingress
+* Redis installed (https://github.com/helm/charts/tree/master/stable/redis / https://github.com/helm/charts/tree/master/stable/redis-ha)
+    * This doesn't actually need to be running in the cluster, just accessible from it
 
-
-This sections gives a **very** brief outline of how to install these components.
- 
-It is **strongly** recommended you the full documentation for how to install these components in the most suitable way for your own setup.
-
-1. Cert Manager (https://hub.helm.sh/charts/jetstack/cert-manager)
-
-*Please review ./docs/sample/cluster-issuer.yaml before running the below, specifically the email field*
-
-```bash
-# Install the CustomResourceDefinition resources separately
-kubectl apply -f https://raw.githubusercontent.com/jetstack/cert-manager/release-0.8/deploy/manifests/00-crds.yaml
-kubectl create namespace cert-manager
-kubectl label namespace cert-manager certmanager.k8s.io/disable-validation=true
-
-# Add the Jetstack Helm repository
-helm repo add jetstack https://charts.jetstack.io
-helm repo update
-
-# Install the cert-manager Helm chart
-helm install \
-  --name cert-manager \
-  --namespace cert-manager \
-  jetstack/cert-manager
-  
-# Wait for cert manager to be ready
-sleep 30
-kubectl apply -f ./docs/sample/cluster-issuer.yaml
-```
-
-2. NGINX Ingress (https://github.com/helm/charts/tree/master/stable/nginx-ingress)
-
-```bash
-helm install stable/nginx-ingress
-```
-
-You will likely want to configure your load balancer to point at this ingress
-
-3. Redis/Redis-ha (https://github.com/helm/charts/tree/master/stable/redis / https://github.com/helm/charts/tree/master/stable/redis-ha)
-
-```bash
-helm install stable/redis-ha --name=example-redis-ha 
-```
+*You could also run using a NodePort service, meaning you could drop cert manager + ingress, however this is not the ideal set up*
 
 #### Installing server component
 
