@@ -1,4 +1,4 @@
-# Server values
+# Executor values
 
 This document briefly outlines the options found in the executor values file and how to use them
 
