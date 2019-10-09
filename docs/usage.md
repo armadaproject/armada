@@ -148,7 +148,6 @@ For all configuration options you can specify in your values file, see [executor
 
 Armadactl expects you to provide to provide several arguments that deal with connection/authentication information.
 
-
 | Parameter    | Description                                                              | Default            |
 |--------------|--------------------------------------------------------------------------|--------------------|
 | `armadaUrl`  | URL of Armada server component                                           | `localhost:50051`  |
