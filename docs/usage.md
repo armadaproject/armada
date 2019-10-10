@@ -88,12 +88,18 @@ image:
 applicationConfig:
   redis:
     masterName: "mymaster"
-    sentinelAddresses: 
-      - "example-redis-ha.default.svc.cluster.local:26379"
+    addrs:
+      - "redis-ha-announce-0.default.svc.cluster.local:26379"
+      - "redis-ha-announce-1.default.svc.cluster.local:26379"
+      - "redis-ha-announce-2.default.svc.cluster.local:26379"
+    poolSize: 1000
   eventsRedis:   
     masterName: "mymaster"
-    sentinelAddresses: 
-      - "example-redis-ha.default.svc.cluster.local:26379"
+    addrs:
+      - "redis-ha-announce-0.default.svc.cluster.local:26379"
+      - "redis-ha-announce-1.default.svc.cluster.local:26379"
+      - "redis-ha-announce-2.default.svc.cluster.local:26379"
+    poolSize: 1000
 
 credentials:
   users:
@@ -113,6 +119,8 @@ For all configuration options you can specify in your values file, see [server h
 ### Installing Armada Executor
 
 For production it is highly recommended the executor component runs inside the cluster it is "managing".
+
+**Please note by default the executor runs on the control plane. This is recommended but can configured differently, see the helm chart page [here](./docs/helm/executor.md) for details.**
 
 To install the executor into a cluster, we will use helm. 
 

@@ -1,6 +1,8 @@
-# Executor values
+# Executor helm chart
 
-This document briefly outlines the options found in the executor values file and how to use them
+This document briefly outlines the customisation options of the Executor helm chart.
+
+## Values
 
 | Parameter                         | Description                                                                                                                                                                      | Default                                                                          |
 |-----------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------|
@@ -13,7 +15,7 @@ This document briefly outlines the options found in the executor values file and
 | `credentials`                     | The credentials used by the executor when communicating with the server component                                                                                                | `nil`                                                                            |
 
 
-## applicationConfig example
+### applicationConfig example
 
 The applicationConfig section of the values file is purely used to override the default config for the executor component
 
@@ -31,7 +33,7 @@ applicationConfig:
     url : "server.url.com:443"  
 ```
 
-## credentials example
+### credentials example
 
 The credentials section of the values file is used to provide the username/password used for communication with the server component
 
@@ -45,3 +47,20 @@ credentials:
   username: "user1"
   password: "password1"
 ```
+
+### Executor node configuration
+
+By default the executor runs on the control plane. This is because it as a vital part of the cluster it is running on and managing.
+
+However there are times when this is not possible to do, such as using a managed kubernetes cluster where you cannot access the control plane.
+
+To turn off running on the control plane, and instead just run on normal work nodes, add the following to your configuration:
+ 
+ ```yaml
+ nodeSelector: {}
+ tolerations: {}
+ ```
+
+Alternatively you could have a dedicated node that the executor runs on. Then use the nodeSelector + tolerations to enforce it running that node.
+
+This has the benefit of being separated from the cluster it is managing, but not being on the control plane. 
