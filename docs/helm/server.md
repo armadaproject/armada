@@ -27,12 +27,18 @@ As an example, this section is formatted as:
 applicationConfig:
   redis:
     masterName: "mymaster"
-    sentinelAddresses: 
-      - "redis-ha.default.svc.cluster.local:26379"
+    addrs:
+      - "redis-ha-announce-0.default.svc.cluster.local:26379"
+      - "redis-ha-announce-1.default.svc.cluster.local:26379"
+      - "redis-ha-announce-2.default.svc.cluster.local:26379"
+    poolSize: 1000
   eventsRedis:   
     masterName: "mymaster"
-    sentinelAddresses: 
-      - "redis-ha.default.svc.cluster.local:26379"
+    addrs:
+      - "redis-ha-announce-0.default.svc.cluster.local:26379"
+      - "redis-ha-announce-1.default.svc.cluster.local:26379"
+      - "redis-ha-announce-2.default.svc.cluster.local:26379"
+    poolSize: 1000
 ```
 
 ## credentials example
