@@ -1,6 +1,8 @@
-# Server values
+# Server helm chart
 
-This document briefly outlines the options found in the server values file and how to use them
+This document briefly outlines the customisation options of the server helm chart.
+
+## Values
 
 | Parameter                         | Description                                                                                                                                                                    | Default                                                                       |
 |-----------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------|
