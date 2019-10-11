@@ -52,6 +52,8 @@ credentials:
 
 By default the executor runs on the control plane. This is because it as a vital part of the cluster it is running on and managing.
 
+*If the executor runs on the worker nodes, it could potentially get slowed down by the jobs it is scheduling on the cluster*
+
 However there are times when this is not possible to do, such as using a managed kubernetes cluster where you cannot access the control plane.
 
 To turn off running on the control plane, and instead just run on normal work nodes, add the following to your configuration:
