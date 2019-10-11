@@ -24,5 +24,7 @@ jobs:
             done
             echo "Kubernetes ready - run tests!"
             wget http://localhost:10080/config
+            mkdir ~/.kube
+            chmod 777 ~./kube
             cp config ~/.kube/config
             kubectl get nodes
