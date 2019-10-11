@@ -7,6 +7,10 @@ jobs:
   e2e:
     machine:
       docker_layer_caching: true
+    environment:
+      GO111MODULE: "on"
+      GOPATH: "/home/circleci/go"
+    working_directory: ~/go/src/github.com/G-Research/k8s-batch
     steps:
       - checkout
       - aws-cli/install
