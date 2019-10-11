@@ -1,56 +1,8 @@
 # Installation
 
-There are multiple combinations on how you can install Armada, this guide will cover the two most common scenarios:
-* Local development
-* Production setup
-
-## Pre-requisites
+### Pre-requisites
 
 * At least one running Kubernetes cluster
-* One running redis instance
-    * This can be local using:
-        * docker run --expose=6379 --network=host redis
-    * Hosted somewhere such as AWS
-    * Installed on your cluster using:
-        * Redis HA: https://github.com/helm/charts/tree/master/stable/redis-ha
-        * Redis: https://github.com/helm/charts/tree/master/stable/redis
-        
-        
-
-## Local development setup
-
-There are many ways you can setup you local environment, this is just a basic quick example of how to setup everything you'll need to get started running and developing Armada.
-
-### Pre-requisites
-To follow this section I am assuming you have:
-* Golang >= 1.12 installed (https://golang.org/doc/install)
-* Kubectl installed (https://kubernetes.io/docs/tasks/tools/install-kubectl/)
-* Docker installed (ideally in the sudo group)
-* This repository cloned. The guide will assume you are in the root directory of this repository
-
-### Steps
-
-1. Set up a Kubernetes cluster, this can be a local instance such as Kind (https://github.com/kubernetes-sigs/kind)
-    * For Kind simply run `GO111MODULE="on" go get sigs.k8s.io/kind@v0.5.1 && kind create cluster`
-2. Put the kubernetes config file so your kubectl can find it. %HOME/.kube/config or set env variable KUBECONFIG=/config/file/location
-    * If using Kind, you can find the config file location by running command: `kind get kubeconfig-path`
-3. Start redis with default values `docker run -d --expose=6379 --network=host redis`
-    * You may need to run this as sudo
-4. In separate terminals run:
-    * go run /cmd/armada/main.go
-    * go run /cmd/executor/main.go
-    
-You now have Armada setup and can submit jobs to it (See Submitting Jobs section below). 
-
-* The server component should be up and talking to Redis and ready to accept gRPC calls
-* The executor component should be up and talking to the server component and Kubernetes. 
-    * If it is failing to contact kubernetes, make sure your config file is placed in the correct place. 
-    * You can test it by checking you can use Kubectl to access your cluster. The executor should be looking in the same place as Kubectl
-
-Likely you'll want to run the last step via an IDE to make developing easier, so you can benefit from debug features etc.
-
-
-## Production setup
 
 ### Installing Armada Server
 
@@ -152,7 +104,9 @@ helm install ./deployment/armada-executor -f ./executor-values.yaml
 For all configuration options you can specify in your values file, see [executor helm docs](./docs/helm/executor.md).
 
 
-# Setting up armadactl
+# Interacting with Armada
+
+## Setting up armadactl
 
 Armadactl expects you to provide to provide several arguments that deal with connection/authentication information.
 
@@ -192,7 +146,7 @@ This file will automatically be picked up and used by armadactl
 
  --- TBC ---
 
-# Submitting Jobs
+## Submitting Jobs
 Describe jobs in yaml file:
 ```yaml
 jobs:

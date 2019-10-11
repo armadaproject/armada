@@ -15,4 +15,6 @@ It would be a benefit to have a solution that supports scaling out using multipl
 
 [Design docs](./docs/design.md)
 
+[Development guide](./docs/developer.md)
+
 [Installation & Usage](./docs/usage.md)
