@@ -41,18 +41,17 @@ jobs:
       - run: docker run -d --network=host -v ~/.kube/config:/kube/config -e KUBECONFIG=/kube/config ${ECR_REPOSITORY}/armada-executor:cbb026d82f2776fd1423b19448dcac002242ce52
       - restore_cache:
           keys:
-            - go-mod-speed-experiment-v2-{{ checksum "go.sum" }}
+            - go-mod-speed-experiment-v3-{{ checksum "go.sum" }}
 
       - run: go get -v -d ./...
-      - save_cache:
-          key: go-mod-speed-experiment-v2-{{ checksum "go.sum" }}
-          paths:
-            - "/home/circleci/go/pkg/mod"
       - run:
           name: Run e2e tests
           command: |
             INTEGRATION_ENABLED=true go test -v ./e2e/test/...
-
+      - save_cache:
+          key: go-mod-speed-experiment-v3-{{ checksum "go.sum" }}
+          paths:
+            - "/home/circleci/go/pkg/mod"
 
 
 workflows:
