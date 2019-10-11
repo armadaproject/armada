@@ -7,6 +7,14 @@ jobs:
       - run:
           name: Pull image
           command: docker pull bsycorp/kind:v1.15.1
+
+      - run:
+          name: Install Kubectl
+          command: |
+            echo "Installing kubectl"
+            curl -LO https://storage.googleapis.com/kubernetes-release/release/v1.15.0/bin/linux/amd64/kubectl
+            chmod +x ./kubectl
+            sudo mv ./kubectl /usr/local/bin/kubectl
       - run:
           name: Start Kubernetes
           command: |
@@ -15,3 +23,6 @@ jobs:
               sleep 1;
             done
             echo "Kubernetes ready - run tests!"
+            wget http://localhost:10080/config
+            cp config ~/.kube/config
+            kubectl get nodes
