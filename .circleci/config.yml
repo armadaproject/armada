@@ -1,8 +1,8 @@
 version: 2
 jobs:
   build:
-    machine: true
-      docker_layer_caching: true
+    machine:
+      docker_layer_caching: true    # default - false
     steps:
       - run:
           name: Pull image
