@@ -2,10 +2,11 @@ version: 2
 jobs:
   build:
     machine: true
+      docker_layer_cachine: true
     steps:
       - run:
           name: Pull image
-          command: docker pull bsycorp/kind:v1.15.
+          command: docker pull bsycorp/kind:v1.15.1
       - run:
           name: Start Kubernetes
           command: |
