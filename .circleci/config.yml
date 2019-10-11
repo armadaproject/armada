@@ -21,12 +21,11 @@ jobs:
             docker pull ${ECR_REPOSITORY}/armada-executor:cbb026d82f2776fd1423b19448dcac002242ce52
             docker images
       - run: e2e/setup/setup_environment.sh
-#      - run: e2e/setup/setup_clusters.sh
       - run: Alternative kind setup
         command: |
           docker run -d --name kube --privileged -p 8443:8443 -p 10080:10080 bsycorp/kind:v1.15.1
           until curl -s --fail http://127.0.0.1:10080/kubernetes-ready; do
-           sleep 1;
+            sleep 1;
           done
           wget http://localhost:10080/config
           mkdir ~/.kube
