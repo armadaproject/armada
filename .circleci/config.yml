@@ -4,6 +4,9 @@ jobs:
     machine: true
     steps:
       - run:
+          name: Pull image
+          command: docker pull bsycorp/kind:v1.15.
+      - run:
           name: Start Kubernetes
           command: |
             docker run -d --name kube --privileged -p 8443:8443 -p 10080:10080 bsycorp/kind:v1.15.1
