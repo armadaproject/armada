@@ -12,5 +12,6 @@ terminationGracePeriodSeconds: 0
 
 prometheus:
   enabled: false
+  labels: {}
 
 applicationConfig:
