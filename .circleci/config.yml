@@ -28,10 +28,10 @@ jobs:
             until curl -s --fail http://127.0.0.1:10080/kubernetes-ready; do
               sleep 1;
             done
-            wget http://localhost:10080/config
             mkdir ~/.kube
             chmod 777 ~/.kube
-            cp config ~/.kube/config
+            wget -P ~/.kube http://localhost:10080/config
+            kubectl get nodes
       - run: docker run -d --expose=6379 --network=host redis
       - run: docker run -d --expose=50051 --network=host ${ECR_REPOSITORY}/armada:cbb026d82f2776fd1423b19448dcac002242ce52
       - run: docker run -d --network=host -v ~/.kube/config:/kube/config -e KUBECONFIG=/kube/config ${ECR_REPOSITORY}/armada-executor:cbb026d82f2776fd1423b19448dcac002242ce52
