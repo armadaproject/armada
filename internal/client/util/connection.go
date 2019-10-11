@@ -1,12 +1,16 @@
 package util
 
 import (
-	"github.com/G-Research/k8s-batch/internal/client/domain"
+	"strings"
+	"time"
+
 	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/retry"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-	"time"
+
+	"github.com/G-Research/k8s-batch/internal/client/domain"
+	"github.com/G-Research/k8s-batch/internal/common/oidc"
 )
 
 func WithConnection(apiConnectionDetails *domain.ArmadaApiConnectionDetails, action func(*grpc.ClientConn)) {
@@ -36,20 +40,38 @@ func createConnection(connectionDetails *domain.ArmadaApiConnectionDetails) (*gr
 		grpc_retry.StreamClientInterceptor(retryOpts...),
 	)
 
+	if connectionDetails.OpenIdConnect.ProviderUrl != "" {
+
+		tokenCredentials := oidc.AuthenticatePkce(connectionDetails.OpenIdConnect)
+
+		return grpc.Dial(
+			connectionDetails.Url,
+			transportCredentials(connectionDetails.Url, true),
+			grpc.WithPerRPCCredentials(tokenCredentials),
+			unuaryInterceptors,
+			streamInterceptors)
+	}
 	if creds.Username == "" || creds.Password == "" {
 		return grpc.Dial(
 			connectionDetails.Url,
-			grpc.WithInsecure(),
+			transportCredentials(connectionDetails.Url, true),
 			unuaryInterceptors,
 			streamInterceptors,
 		)
 	} else {
 		return grpc.Dial(
 			connectionDetails.Url,
-			grpc.WithTransportCredentials(credentials.NewClientTLSFromCert(nil, "")),
+			transportCredentials(connectionDetails.Url, false),
 			grpc.WithPerRPCCredentials(&creds),
 			unuaryInterceptors,
 			streamInterceptors,
 		)
 	}
+}
+
+func transportCredentials(url string, secure bool) grpc.DialOption {
+	if secure && !strings.Contains(url, "localhost") {
+		return grpc.WithTransportCredentials(credentials.NewClientTLSFromCert(nil, ""))
+	}
+	return grpc.WithInsecure()
 }

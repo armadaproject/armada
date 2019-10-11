@@ -1,22 +1,25 @@
 package armada
 
 import (
-	"context"
+	"net"
+	"sync"
+	"time"
+
+	"github.com/go-redis/redis"
+	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
+	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
+	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
+	log "github.com/sirupsen/logrus"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/keepalive"
+
 	"github.com/G-Research/k8s-batch/internal/armada/api"
+	"github.com/G-Research/k8s-batch/internal/armada/authorization"
 	"github.com/G-Research/k8s-batch/internal/armada/configuration"
 	"github.com/G-Research/k8s-batch/internal/armada/metrics"
 	"github.com/G-Research/k8s-batch/internal/armada/repository"
 	"github.com/G-Research/k8s-batch/internal/armada/server"
 	"github.com/G-Research/k8s-batch/internal/armada/service"
-	"github.com/go-redis/redis"
-	"github.com/grpc-ecosystem/go-grpc-middleware"
-	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
-	log "github.com/sirupsen/logrus"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/keepalive"
-	"net"
-	"sync"
-	"time"
 )
 
 func Serve(config *configuration.ArmadaConfig) (*grpc.Server, *sync.WaitGroup) {
@@ -76,11 +79,11 @@ func createServer(config *configuration.ArmadaConfig) *grpc.Server {
 	streamInterceptors := []grpc.StreamServerInterceptor{}
 
 	if config.Authentication.EnableAuthentication {
-		authService := service.NewBasicAuthAuthorizeService(config.Authentication.Users)
-		authUnaryInterceptor, authStreamInterceptor := createInterceptors(authService)
+		authService := authorization.NewBasicAuthAuthorizeService(config.Authentication.Users)
+		authFunction := authorization.CreateMiddlewareAuthFunction(authService)
 
-		unaryInterceptors = append(unaryInterceptors, authUnaryInterceptor)
-		streamInterceptors = append(streamInterceptors, authStreamInterceptor)
+		unaryInterceptors = append(unaryInterceptors, grpc_auth.UnaryServerInterceptor(authFunction))
+		streamInterceptors = append(streamInterceptors, grpc_auth.StreamServerInterceptor(authFunction))
 	}
 
 	grpc_prometheus.EnableHandlingTimeHistogram()
@@ -94,23 +97,4 @@ func createServer(config *configuration.ArmadaConfig) *grpc.Server {
 		}),
 		grpc.StreamInterceptor(grpc_middleware.ChainStreamServer(streamInterceptors...)),
 		grpc.UnaryInterceptor(grpc_middleware.ChainUnaryServer(unaryInterceptors...)))
-}
-
-func createInterceptors(authService service.AuthorizeService) (grpc.UnaryServerInterceptor, grpc.StreamServerInterceptor) {
-	unaryInterceptor := func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-		if err := authService.Authorize(ctx); err != nil {
-			return nil, err
-		}
-
-		return handler(ctx, req)
-	}
-	streamInterceptor := func(srv interface{}, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
-		if err := authService.Authorize(stream.Context()); err != nil {
-			return err
-		}
-
-		return handler(srv, stream)
-	}
-
-	return unaryInterceptor, streamInterceptor
 }

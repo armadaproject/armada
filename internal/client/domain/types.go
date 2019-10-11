@@ -1,8 +1,9 @@
 package domain
 
 import (
-	"github.com/G-Research/k8s-batch/internal/common"
 	v1 "k8s.io/api/core/v1"
+
+	"github.com/G-Research/k8s-batch/internal/common"
 )
 
 type LoadTestSpecification struct {
@@ -24,7 +25,15 @@ type JobSubmissionDescription struct {
 	Spec  *v1.PodSpec
 }
 
+type OpenIdConnectClientDetails struct {
+	ProviderUrl string
+	ClientId    string
+	LocalPort   uint16
+}
+
 type ArmadaApiConnectionDetails struct {
-	Url         string
-	Credentials common.LoginCredentials
+	Url           string
+	Credentials   common.LoginCredentials
+	OpenIdConnect OpenIdConnectClientDetails
+	Scopes        []string
 }
