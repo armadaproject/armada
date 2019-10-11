@@ -6,7 +6,7 @@ orbs:
 jobs:
   e2e:
     machine:
-      enabled: true
+      docker_layer_caching: true
     steps:
       - checkout
       - aws-cli/install
