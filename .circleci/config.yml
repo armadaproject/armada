@@ -93,7 +93,12 @@ jobs:
             docker push ${ECR_REPOSITORY}/armada-executor:${TAG}
   e2e:
     machine:
-      enabled: true
+      docker_layer_caching: true
+    environment:
+      GO111MODULE: "on"
+      GOPATH: "/home/circleci/go"
+      GOCACHE: "/home/circleci/go/cache"
+    working_directory: ~/go/src/github.com/G-Research/k8s-batch
     steps:
       - checkout
       - aws-cli/install
@@ -106,16 +111,28 @@ jobs:
             docker pull alpine:3.10
             docker pull ${ECR_REPOSITORY}/armada:branch-${CIRCLE_BRANCH}-${CIRCLE_SHA1}
             docker pull ${ECR_REPOSITORY}/armada-executor:branch-${CIRCLE_BRANCH}-${CIRCLE_SHA1}
-            docker images
       - run: e2e/setup/setup_environment.sh
-      - run: e2e/setup/setup_clusters.sh
+      - run: e2e/setup/setup_cluster_ci.sh
+      - run: e2e/setup/setup_kube_config_ci.sh
       - run: docker run -d --expose=6379 --network=host redis
       - run: docker run -d --expose=50051 --network=host ${ECR_REPOSITORY}/armada:branch-${CIRCLE_BRANCH}-${CIRCLE_SHA1}
-      - run: docker run -d --network=host -v $(kind get kubeconfig-path --name="cluster1"):/kube/config -e KUBECONFIG=/kube/config ${ECR_REPOSITORY}/armada-executor:branch-${CIRCLE_BRANCH}-${CIRCLE_SHA1}
+      - run: docker run -d --network=host -v ~/.kube/config:/kube/config -e KUBECONFIG=/kube/config ${ECR_REPOSITORY}/armada-executor:branch-${CIRCLE_BRANCH}-${CIRCLE_SHA1}
+      - restore_cache:
+          keys:
+            - machine-go-mod-v1-{{ checksum "go.sum" }}
+      - run:
+          name: Get dependencies
+          command: |
+            go get -d ./...
       - run:
           name: Run e2e tests
           command: |
-            INTEGRATION_ENABLED=true go test -v ./e2e/test/...
+            INTEGRATION_ENABLED=true go test ./e2e/test/... -count=1
+      - save_cache:
+          key: machine-go-mod-v1-{{ checksum "go.sum" }}
+          paths:
+            - "/home/circleci/go/pkg/mod"
+            - "/home/circleci/go/cache"
   deploy:
     docker:
       - image: alpine/helm:2.13.1
