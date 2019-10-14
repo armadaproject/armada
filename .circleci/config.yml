@@ -46,11 +46,11 @@ jobs:
       - run:
           name: Build e2e test
           command: |
-            go test -c ./e2e/test/... -vet=off -o integration_test
+            go get -d ./...
       - run:
           name: Run e2e tests
           command: |
-            INTEGRATION_ENABLED=true ./integration_test
+            INTEGRATION_ENABLED=true go test ./e2e/test/...
       - save_cache:
           key: go-mod-speed-experiment-v10-{{ checksum "go.sum" }}
           paths:
