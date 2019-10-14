@@ -113,7 +113,7 @@ jobs:
             source scripts/assume-role.sh
             $(aws ecr get-login --region eu-west-1 --no-include-email)
             docker pull alpine:3.10
-            docker pull ${ECR_REPOSITORY}/armada:branch-${CIRCLE_BRANCH}-${CIRCLE_SHA1}
+            docker pull gresearchdev/armada-server-dev:branch-${CIRCLE_BRANCH}-${CIRCLE_SHA1}
             docker pull ${ECR_REPOSITORY}/armada-executor:branch-${CIRCLE_BRANCH}-${CIRCLE_SHA1}
       - run: e2e/setup/setup_environment.sh
       - run: e2e/setup/setup_cluster_ci.sh
