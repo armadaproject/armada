@@ -2,12 +2,13 @@ package client
 
 import (
 	"fmt"
-	"github.com/G-Research/k8s-batch/internal/client/domain"
-	"github.com/G-Research/k8s-batch/internal/common"
+	"os"
+
 	"github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"os"
+
+	"github.com/G-Research/k8s-batch/internal/client/domain"
 )
 
 func AddArmadaApiConnectionCommandlineArgs(rootCmd *cobra.Command) {
@@ -54,16 +55,8 @@ func LoadCommandlineArgsFromConfigFile(cfgFile string) {
 }
 
 func ExtractCommandlineArmadaApiConnectionDetails() *domain.ArmadaApiConnectionDetails {
-	url := viper.GetString("armadaUrl")
-	username := viper.GetString("username")
-	password := viper.GetString("password")
 
-	apiConnectionDetails := domain.ArmadaApiConnectionDetails{
-		Url: url,
-		Credentials: common.LoginCredentials{
-			Username: username,
-			Password: password,
-		},
-	}
-	return &apiConnectionDetails
+	apiConnectionDetails := &domain.ArmadaApiConnectionDetails{}
+	viper.Unmarshal(apiConnectionDetails)
+	return apiConnectionDetails
 }

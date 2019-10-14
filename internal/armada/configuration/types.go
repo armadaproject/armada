@@ -11,7 +11,14 @@ type ArmadaConfig struct {
 	PriorityHalfTime time.Duration
 	Redis            redis.UniversalOptions
 	EventsRedis      redis.UniversalOptions
-	Authentication   AuthenticationConfig
+	BasicAuth        AuthenticationConfig
+	OpenIdAuth       OpenIdAuthenticationConfig
+}
+
+type OpenIdAuthenticationConfig struct {
+	ProviderUrl string
+	ClientId    string
+	GroupsClaim string
 }
 
 type AuthenticationConfig struct {

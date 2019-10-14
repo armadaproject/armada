@@ -1,6 +1,7 @@
 package armada
 
 import (
+	"context"
 	"net"
 	"sync"
 	"time"
@@ -78,10 +79,23 @@ func createServer(config *configuration.ArmadaConfig) *grpc.Server {
 	unaryInterceptors := []grpc.UnaryServerInterceptor{}
 	streamInterceptors := []grpc.StreamServerInterceptor{}
 
-	if config.Authentication.EnableAuthentication {
-		authService := authorization.NewBasicAuthAuthorizeService(config.Authentication.Users)
-		authFunction := authorization.CreateMiddlewareAuthFunction(authService)
+	authServices := []authorization.AuthorizeService{}
 
+	if config.BasicAuth.EnableAuthentication {
+		authServices = append(authServices,
+			authorization.NewBasicAuthorizeService(config.BasicAuth.Users))
+	}
+
+	if config.OpenIdAuth.ProviderUrl != "" {
+		openIdAuthService, err := authorization.NewOpenIdAuthorizeServiceForProvider(context.Background(), &config.OpenIdAuth)
+		if err != nil {
+			panic(err)
+		}
+		authServices = append(authServices, openIdAuthService)
+	}
+
+	if len(authServices) > 0 {
+		authFunction := authorization.CreateMiddlewareAuthFunction(authServices)
 		unaryInterceptors = append(unaryInterceptors, grpc_auth.UnaryServerInterceptor(authFunction))
 		streamInterceptors = append(streamInterceptors, grpc_auth.StreamServerInterceptor(authFunction))
 	}

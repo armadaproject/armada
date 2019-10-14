@@ -35,7 +35,7 @@ func (c *TokenCredentials) GetRequestMetadata(context.Context, ...string) (map[s
 }
 
 func (c *TokenCredentials) RequireTransportSecurity() bool {
-	return true
+	return false
 }
 
 func GetJWT(source oauth2.TokenSource) (string, error) {
@@ -50,10 +50,11 @@ func GetJWT(source oauth2.TokenSource) (string, error) {
 	return jwt, nil
 }
 
-func AuthenticatePkce(config domain.OpenIdConnectClientDetails) *TokenCredentials {
+func AuthenticatePkce(config domain.OpenIdConnectClientDetails) (*TokenCredentials, error) {
 
 	ctx := context.Background()
 	result := make(chan *oauth2.Token)
+	errorResult := make(chan error)
 
 	provider, err := openId.NewProvider(ctx, config.ProviderUrl)
 	if err != nil {
@@ -66,7 +67,7 @@ func AuthenticatePkce(config domain.OpenIdConnectClientDetails) *TokenCredential
 		ClientID:    config.ClientId,
 		Endpoint:    provider.Endpoint(),
 		RedirectURL: "http://" + localUrl + "/auth/callback",
-		Scopes:      []string{openId.ScopeOpenID, "groups"},
+		Scopes:      append(config.Scopes, openId.ScopeOpenID),
 	}
 
 	state := randomStringBase64() // xss protection
@@ -83,15 +84,29 @@ func AuthenticatePkce(config domain.OpenIdConnectClientDetails) *TokenCredential
 
 	http.HandleFunc("/auth/callback", func(w http.ResponseWriter, r *http.Request) {
 
+		_, err := fmt.Fprint(w, "<h1>Please close this window.</h1>")
+		if err != nil {
+			errorResult <- err
+			return
+		}
+
 		if r.URL.Query().Get("state") != state {
-			panic("Wrong state!")
+			errorResult <- errors.New("Wrong state!")
+			return
+		}
+
+		authError := r.URL.Query().Get("error")
+		if authError != "" {
+			authErrorDesc := r.URL.Query().Get("error_description")
+			errorResult <- fmt.Errorf("%s: %s", authError, authErrorDesc)
+			return
 		}
 
 		token, err := oauth.Exchange(ctx, r.URL.Query().Get("code"), oauth2.SetAuthURLParam("code_verifier", challenge))
 		if err != nil {
-			panic(err)
+			errorResult <- err
+			return
 		}
-		fmt.Fprint(w, "<h1>Please close this window.</h1><script>close();</script>")
 
 		result <- token
 	})
@@ -110,11 +125,15 @@ func AuthenticatePkce(config domain.OpenIdConnectClientDetails) *TokenCredential
 	defer cmd.Process.Kill()
 
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
-	t := <-result
-	return &TokenCredentials{oauth.TokenSource(ctx, t)}
+	select {
+	case t := <-result:
+		return &TokenCredentials{oauth.TokenSource(ctx, t)}, nil
+	case e := <-errorResult:
+		return nil, e
+	}
 }
 
 func randomStringBase64() string {

@@ -29,11 +29,11 @@ type OpenIdConnectClientDetails struct {
 	ProviderUrl string
 	ClientId    string
 	LocalPort   uint16
+	Scopes      []string
 }
 
 type ArmadaApiConnectionDetails struct {
-	Url           string
+	ArmadaUrl     string
 	Credentials   common.LoginCredentials
 	OpenIdConnect OpenIdConnectClientDetails
-	Scopes        []string
 }

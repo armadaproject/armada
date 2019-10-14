@@ -18,6 +18,7 @@ func WithConnection(apiConnectionDetails *domain.ArmadaApiConnectionDetails, act
 
 	if err != nil {
 		log.Errorf("Failed to connect to api because %s", err)
+		return
 	}
 	defer conn.Close()
 
@@ -41,32 +42,32 @@ func createConnection(connectionDetails *domain.ArmadaApiConnectionDetails) (*gr
 	)
 
 	if connectionDetails.OpenIdConnect.ProviderUrl != "" {
-
-		tokenCredentials := oidc.AuthenticatePkce(connectionDetails.OpenIdConnect)
-
+		tokenCredentials, err := oidc.AuthenticatePkce(connectionDetails.OpenIdConnect)
+		if err != nil {
+			return nil, err
+		}
 		return grpc.Dial(
-			connectionDetails.Url,
-			transportCredentials(connectionDetails.Url, true),
+			connectionDetails.ArmadaUrl,
+			transportCredentials(connectionDetails.ArmadaUrl, true),
 			grpc.WithPerRPCCredentials(tokenCredentials),
 			unuaryInterceptors,
 			streamInterceptors)
 	}
 	if creds.Username == "" || creds.Password == "" {
 		return grpc.Dial(
-			connectionDetails.Url,
-			transportCredentials(connectionDetails.Url, true),
-			unuaryInterceptors,
-			streamInterceptors,
-		)
-	} else {
-		return grpc.Dial(
-			connectionDetails.Url,
-			transportCredentials(connectionDetails.Url, false),
-			grpc.WithPerRPCCredentials(&creds),
+			connectionDetails.ArmadaUrl,
+			transportCredentials(connectionDetails.ArmadaUrl, true),
 			unuaryInterceptors,
 			streamInterceptors,
 		)
 	}
+	return grpc.Dial(
+		connectionDetails.ArmadaUrl,
+		transportCredentials(connectionDetails.ArmadaUrl, false),
+		grpc.WithPerRPCCredentials(&creds),
+		unuaryInterceptors,
+		streamInterceptors,
+	)
 }
 
 func transportCredentials(url string, secure bool) grpc.DialOption {
