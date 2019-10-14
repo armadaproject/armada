@@ -97,8 +97,6 @@ jobs:
       - run:
           name: Load relevant docker images
           command: |
-            source scripts/assume-role.sh
-            $(aws ecr get-login --region eu-west-1 --no-include-email)
             docker pull alpine:3.10
             docker pull gresearchdev/armada-server-dev:branch-${CIRCLE_BRANCH}-${CIRCLE_SHA1}
             docker pull gresearchdev/armada-executor-dev:branch-${CIRCLE_BRANCH}-${CIRCLE_SHA1}
