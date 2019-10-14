@@ -24,19 +24,9 @@ jobs:
             docker pull alpine:3.10
             docker pull ${ECR_REPOSITORY}/armada:cbb026d82f2776fd1423b19448dcac002242ce52
             docker pull ${ECR_REPOSITORY}/armada-executor:cbb026d82f2776fd1423b19448dcac002242ce52
-            docker images
       - run: e2e/setup/setup_environment.sh
-      - run:
-          name: Alternative kind setup
-          command: |
-            docker run -d --name kube --privileged -p 8443:8443 -p 10080:10080 bsycorp/kind:v1.15.1
-            until curl -s --fail http://127.0.0.1:10080/kubernetes-ready; do
-              sleep 1;
-            done
-            mkdir ~/.kube
-            chmod 777 ~/.kube
-            wget -P ~/.kube http://localhost:10080/config
-            kubectl get nodes
+      - run: e2e/setup/setup_cluster_ci.sh
+      - run: e2e/setup/setup_kube_config_ci.sh
       - run: docker run -d --expose=6379 --network=host redis
       - run: docker run -d --expose=50051 --network=host ${ECR_REPOSITORY}/armada:cbb026d82f2776fd1423b19448dcac002242ce52
       - run: docker run -d --network=host -v ~/.kube/config:/kube/config -e KUBECONFIG=/kube/config ${ECR_REPOSITORY}/armada-executor:cbb026d82f2776fd1423b19448dcac002242ce52
