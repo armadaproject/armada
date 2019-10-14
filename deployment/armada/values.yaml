@@ -13,6 +13,7 @@ replicas: 1
 
 prometheus:
   enabled: false
+  labels: {}
 
 applicationConfig:
   grpcPort: 50051

@@ -6,6 +6,9 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
 {{ include "armada.labels.all" . | indent 4 }}
+{{- if .Values.prometheus.labels }}
+{{ toYaml .Values.prometheus.labels | indent 4 }}
+{{- end }}
 spec:
   selector:
 {{ include "armada.labels.identity" . | indent 4 }}
