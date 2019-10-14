@@ -43,7 +43,7 @@ jobs:
           keys:
             - go-mod-speed-experiment-v3-{{ checksum "go.sum" }}
 
-      - run: go get -v -d ./...
+      - run: go get -v -u -d ./...
       - run:
           name: Run e2e tests
           command: |
