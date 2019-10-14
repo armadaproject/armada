@@ -1,8 +1,5 @@
 version: 2.1
 
-orbs:
-  aws-cli: circleci/aws-cli@0.1.13
-
 commands:
   deploy-executor:
     parameters:
@@ -69,9 +66,6 @@ jobs:
       - store_artifacts:
           path: armadactl
           destination: armadactl
-
-      - aws-cli/install
-      - aws-cli/configure
       - run:
           name: Push Image
           command: |
@@ -83,14 +77,13 @@ jobs:
                 TAG=branch-${CIRCLE_BRANCH}-${CIRCLE_SHA1}
             fi
 
-            source scripts/assume-role.sh
-            $(aws ecr get-login --region eu-west-1 --no-include-email)
+            echo ${DOCKERHUB_PASS} | docker login -u ${DOCKERHUB_USER} --password-stdin
 
-            docker tag armada ${ECR_REPOSITORY}/armada:${TAG}
-            docker push ${ECR_REPOSITORY}/armada:${TAG}
+            docker tag armada gresearchdev/armada-server-dev:${TAG}
+            docker push gresearchdev/armada-server-dev:${TAG}
 
-            docker tag armada-executor ${ECR_REPOSITORY}/armada-executor:${TAG}
-            docker push ${ECR_REPOSITORY}/armada-executor:${TAG}
+            docker tag armada-executor gresearchdev/armada-executor-dev:${TAG}
+            docker push gresearchdev/armada-executor-dev:${TAG}
   e2e:
     machine:
       docker_layer_caching: true
@@ -101,22 +94,18 @@ jobs:
     working_directory: ~/go/src/github.com/G-Research/k8s-batch
     steps:
       - checkout
-      - aws-cli/install
-      - aws-cli/configure
       - run:
           name: Load relevant docker images
           command: |
-            source scripts/assume-role.sh
-            $(aws ecr get-login --region eu-west-1 --no-include-email)
             docker pull alpine:3.10
-            docker pull ${ECR_REPOSITORY}/armada:branch-${CIRCLE_BRANCH}-${CIRCLE_SHA1}
-            docker pull ${ECR_REPOSITORY}/armada-executor:branch-${CIRCLE_BRANCH}-${CIRCLE_SHA1}
+            docker pull gresearchdev/armada-server-dev:branch-${CIRCLE_BRANCH}-${CIRCLE_SHA1}
+            docker pull gresearchdev/armada-executor-dev:branch-${CIRCLE_BRANCH}-${CIRCLE_SHA1}
       - run: e2e/setup/setup_environment.sh
       - run: e2e/setup/setup_cluster_ci.sh
       - run: e2e/setup/setup_kube_config_ci.sh
       - run: docker run -d --expose=6379 --network=host redis
-      - run: docker run -d --expose=50051 --network=host ${ECR_REPOSITORY}/armada:branch-${CIRCLE_BRANCH}-${CIRCLE_SHA1}
-      - run: docker run -d --network=host -v ~/.kube/config:/kube/config -e KUBECONFIG=/kube/config ${ECR_REPOSITORY}/armada-executor:branch-${CIRCLE_BRANCH}-${CIRCLE_SHA1}
+      - run: docker run -d --expose=50051 --network=host gresearchdev/armada-server-dev:branch-${CIRCLE_BRANCH}-${CIRCLE_SHA1}
+      - run: docker run -d --network=host -v ~/.kube/config:/kube/config -e KUBECONFIG=/kube/config gresearchdev/armada-executor-dev:branch-${CIRCLE_BRANCH}-${CIRCLE_SHA1}
       - restore_cache:
           keys:
             - machine-go-mod-v1-{{ checksum "go.sum" }}
