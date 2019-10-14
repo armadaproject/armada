@@ -40,7 +40,7 @@ jobs:
       - run:
           name: Run e2e tests
           command: |
-            INTEGRATION_ENABLED=true go test ./e2e/test/...
+            INTEGRATION_ENABLED=true go test ./e2e/test/... -count=1
       - save_cache:
           key: machine-go-mod-v1-{{ checksum "go.sum" }}
           paths:
