@@ -1,8 +1,5 @@
 version: 2.1
 
-orbs:
-  aws-cli: circleci/aws-cli@0.1.13
-
 commands:
   deploy-executor:
     parameters:
@@ -16,7 +13,10 @@ commands:
             echo $KUBECONFIG_WORKER_<< parameters.worker-id >> | base64 -d > kubeconfig_worker_<< parameters.worker-id >>_decoded.yaml
             export KUBECONFIG=./kubeconfig_worker_<< parameters.worker-id >>_decoded.yaml
             if timeout 15 helm list; then
-              helm upgrade --install armada-executor --namespace=armada ./deployment/executor/ -f ./executor_config.yaml -f ./executor_api_credentials.yaml --set applicationConfig.application.clusterId="worker-pool-<< parameters.worker-id >>" --set image.tag="${CIRCLE_SHA1}"
+              helm upgrade --install armada-executor --namespace=armada ./deployment/executor/ -f ./executor_config.yaml -f ./executor_api_credentials.yaml \
+              --set applicationConfig.application.clusterId="worker-pool-<< parameters.worker-id >>" \
+              --set image.repository=gresearchdev/armada-executor-dev  \
+              --set image.tag="${CIRCLE_SHA1}"
             else
               echo Unable to connect to worker << parameters.worker-id >>
             fi
@@ -69,9 +69,6 @@ jobs:
       - store_artifacts:
           path: armadactl
           destination: armadactl
-
-      - aws-cli/install
-      - aws-cli/configure
       - run:
           name: Push Image
           command: |
@@ -83,39 +80,51 @@ jobs:
                 TAG=branch-${CIRCLE_BRANCH}-${CIRCLE_SHA1}
             fi
 
-            source scripts/assume-role.sh
-            $(aws ecr get-login --region eu-west-1 --no-include-email)
+            echo ${DOCKERHUB_PASS} | docker login -u ${DOCKERHUB_USER} --password-stdin
 
-            docker tag armada ${ECR_REPOSITORY}/armada:${TAG}
-            docker push ${ECR_REPOSITORY}/armada:${TAG}
+            docker tag armada gresearchdev/armada-server-dev:${TAG}
+            docker push gresearchdev/armada-server-dev:${TAG}
 
-            docker tag armada-executor ${ECR_REPOSITORY}/armada-executor:${TAG}
-            docker push ${ECR_REPOSITORY}/armada-executor:${TAG}
+            docker tag armada-executor gresearchdev/armada-executor-dev:${TAG}
+            docker push gresearchdev/armada-executor-dev:${TAG}
   e2e:
     machine:
-      enabled: true
+      docker_layer_caching: true
+    environment:
+      GO111MODULE: "on"
+      GOPATH: "/home/circleci/go"
+      GOCACHE: "/home/circleci/go/cache"
+    working_directory: ~/go/src/github.com/G-Research/k8s-batch
     steps:
       - checkout
-      - aws-cli/install
-      - aws-cli/configure
       - run:
           name: Load relevant docker images
           command: |
-            source scripts/assume-role.sh
-            $(aws ecr get-login --region eu-west-1 --no-include-email)
             docker pull alpine:3.10
-            docker pull ${ECR_REPOSITORY}/armada:branch-${CIRCLE_BRANCH}-${CIRCLE_SHA1}
-            docker pull ${ECR_REPOSITORY}/armada-executor:branch-${CIRCLE_BRANCH}-${CIRCLE_SHA1}
-            docker images
+            docker pull gresearchdev/armada-server-dev:branch-${CIRCLE_BRANCH}-${CIRCLE_SHA1}
+            docker pull gresearchdev/armada-executor-dev:branch-${CIRCLE_BRANCH}-${CIRCLE_SHA1}
       - run: e2e/setup/setup_environment.sh
-      - run: e2e/setup/setup_clusters.sh
+      - run: e2e/setup/setup_cluster_ci.sh
+      - run: e2e/setup/setup_kube_config_ci.sh
       - run: docker run -d --expose=6379 --network=host redis
-      - run: docker run -d --expose=50051 --network=host ${ECR_REPOSITORY}/armada:branch-${CIRCLE_BRANCH}-${CIRCLE_SHA1}
-      - run: docker run -d --network=host -v $(kind get kubeconfig-path --name="cluster1"):/kube/config -e KUBECONFIG=/kube/config ${ECR_REPOSITORY}/armada-executor:branch-${CIRCLE_BRANCH}-${CIRCLE_SHA1}
+      - run: docker run -d --expose=50051 --network=host gresearchdev/armada-server-dev:branch-${CIRCLE_BRANCH}-${CIRCLE_SHA1}
+      - run: docker run -d --network=host -v ~/.kube/config:/kube/config -e KUBECONFIG=/kube/config gresearchdev/armada-executor-dev:branch-${CIRCLE_BRANCH}-${CIRCLE_SHA1}
+      - restore_cache:
+          keys:
+            - machine-go-mod-v1-{{ checksum "go.sum" }}
+      - run:
+          name: Get dependencies
+          command: |
+            go get -d ./...
       - run:
           name: Run e2e tests
           command: |
-            INTEGRATION_ENABLED=true go test -v ./e2e/test/...
+            INTEGRATION_ENABLED=true go test ./e2e/test/... -count=1
+      - save_cache:
+          key: machine-go-mod-v1-{{ checksum "go.sum" }}
+          paths:
+            - "/home/circleci/go/pkg/mod"
+            - "/home/circleci/go/cache"
   deploy:
     docker:
       - image: alpine/helm:2.13.1
@@ -135,7 +144,7 @@ jobs:
             echo $KUBECONFIG_SERVICES | base64 -d > kubeconfig_services_decoded.yaml
             export KUBECONFIG=./kubeconfig_services_decoded.yaml
             if timeout 15 helm list; then
-              helm upgrade --install armada --namespace=armada ./deployment/armada/ -f ./armada_config.yaml -f ./armada_users.yaml --set image.tag="${CIRCLE_SHA1}"
+              helm upgrade --install armada --namespace=armada ./deployment/armada/ -f ./armada_config.yaml -f ./armada_users.yaml --set image.repository=gresearchdev/armada-server-dev --set image.tag="${CIRCLE_SHA1}"
             else
               echo Unable to connect to services cluster
             fi
