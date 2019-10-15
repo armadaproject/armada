@@ -9,6 +9,13 @@ resources:
     memory: 512Mi
     cpu: 200m
 terminationGracePeriodSeconds: 0
+nodeSelector:
+  node-role.kubernetes.io/master: ""
+tolerations:
+  - effect: NoSchedule
+    key: node-role.kubernetes.io/master
+    operator: Exists
+
 
 prometheus:
   enabled: false
