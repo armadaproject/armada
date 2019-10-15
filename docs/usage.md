@@ -66,7 +66,7 @@ Then run:
 helm install ./deployment/armada -f ./server-values.yaml
 ```
 
-For all configuration options you can specify in your values file, see [server helm docs](./docs/helm/server.md).
+For all configuration options you can specify in your values file, see [server helm docs](./helm/server.md).
 
 ### Installing Armada Executor
 
@@ -101,7 +101,7 @@ Then run:
 helm install ./deployment/armada-executor -f ./executor-values.yaml
 ```
 
-For all configuration options you can specify in your values file, see [executor helm docs](./docs/helm/executor.md).
+For all configuration options you can specify in your values file, see [executor helm docs](./helm/executor.md).
 
 
 # Interacting with Armada
