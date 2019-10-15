@@ -212,6 +212,20 @@ func TestExtractJobIds_SkipsWhenJobIdNotPresent(t *testing.T) {
 	assert.Equal(t, result, expected)
 }
 
+func TestExtractJobId(t *testing.T) {
+	pod := makePodsWithJobIds([]string{"1"})[0]
+
+	result := ExtractJobId(pod)
+	assert.Equal(t, result, "1")
+}
+
+func TestExtractJobId_ReturnsEmpty_WhenJobIdNotPresent(t *testing.T) {
+	pod := v1.Pod{}
+
+	result := ExtractJobId(&pod)
+	assert.Equal(t, result, "")
+}
+
 func makePodsWithJobIds(jobIds []string) []*v1.Pod {
 	pods := make([]*v1.Pod, 0, len(jobIds))
 
