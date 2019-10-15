@@ -13,7 +13,10 @@ commands:
             echo $KUBECONFIG_WORKER_<< parameters.worker-id >> | base64 -d > kubeconfig_worker_<< parameters.worker-id >>_decoded.yaml
             export KUBECONFIG=./kubeconfig_worker_<< parameters.worker-id >>_decoded.yaml
             if timeout 15 helm list; then
-              helm upgrade --install armada-executor --namespace=armada ./deployment/executor/ -f ./executor_config.yaml -f ./executor_api_credentials.yaml --set applicationConfig.application.clusterId="worker-pool-<< parameters.worker-id >>" --set image.tag="${CIRCLE_SHA1}"
+              helm upgrade --install armada-executor --namespace=armada ./deployment/executor/ -f ./executor_config.yaml -f ./executor_api_credentials.yaml \
+              --set applicationConfig.application.clusterId="worker-pool-<< parameters.worker-id >>" \
+              --set image.repository=gresearchdev/armada-executor-dev  \
+              --set image.tag="${CIRCLE_SHA1}"
             else
               echo Unable to connect to worker << parameters.worker-id >>
             fi
@@ -57,7 +60,9 @@ jobs:
 
       - run:
           name: Check formatting
-          command: exit $(gofmt -l . | wc -l)
+          command: |
+            go get golang.org/x/tools/cmd/goimports
+            exit $(goimports -l -local "github.com/G-Research/k8s-batch" . | wc -l)
 
       - run:
           name: Build
@@ -141,7 +146,7 @@ jobs:
             echo $KUBECONFIG_SERVICES | base64 -d > kubeconfig_services_decoded.yaml
             export KUBECONFIG=./kubeconfig_services_decoded.yaml
             if timeout 15 helm list; then
-              helm upgrade --install armada --namespace=armada ./deployment/armada/ -f ./armada_config.yaml -f ./armada_users.yaml --set image.tag="${CIRCLE_SHA1}"
+              helm upgrade --install armada --namespace=armada ./deployment/armada/ -f ./armada_config.yaml -f ./armada_users.yaml --set image.repository=gresearchdev/armada-server-dev --set image.tag="${CIRCLE_SHA1}"
             else
               echo Unable to connect to services cluster
             fi

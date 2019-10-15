@@ -30,15 +30,10 @@ type ArmadaConfiguration struct {
 	Url string
 }
 
-type EventsConfiguration struct {
-	Url string
-}
-
 type ExecutorConfiguration struct {
 	Application    ApplicationConfiguration
 	Authentication AuthenticationConfiguration
 	Kubernetes     KubernetesConfiguration
 	Task           TaskConfiguration
 	Armada         ArmadaConfiguration
-	Events         EventsConfiguration
 }

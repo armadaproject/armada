@@ -2,12 +2,14 @@ package server
 
 import (
 	"context"
-	"github.com/G-Research/k8s-batch/internal/armada/api"
-	"github.com/G-Research/k8s-batch/internal/armada/repository"
+	"testing"
+
 	"github.com/go-redis/redis"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
-	"testing"
+
+	"github.com/G-Research/k8s-batch/internal/armada/api"
+	"github.com/G-Research/k8s-batch/internal/armada/repository"
 )
 
 func TestEventServer_ReportUsage(t *testing.T) {

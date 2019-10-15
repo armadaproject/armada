@@ -2,9 +2,11 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/G-Research/k8s-batch/internal/client"
-	"github.com/spf13/cobra"
 	"os"
+
+	"github.com/spf13/cobra"
+
+	"github.com/G-Research/k8s-batch/internal/client"
 )
 
 func init() {

@@ -2,15 +2,17 @@ package server
 
 import (
 	"context"
-	"github.com/G-Research/k8s-batch/internal/armada/api"
-	"github.com/G-Research/k8s-batch/internal/armada/repository"
-	"github.com/G-Research/k8s-batch/internal/common"
+	"testing"
+	"time"
+
 	"github.com/alicebob/miniredis"
 	"github.com/go-redis/redis"
 	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/api/resource"
-	"testing"
-	"time"
+
+	"github.com/G-Research/k8s-batch/internal/armada/api"
+	"github.com/G-Research/k8s-batch/internal/armada/repository"
+	"github.com/G-Research/k8s-batch/internal/common"
 )
 
 func TestUsageServer_ReportUsage(t *testing.T) {

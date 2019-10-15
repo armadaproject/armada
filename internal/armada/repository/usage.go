@@ -1,10 +1,12 @@
 package repository
 
 import (
-	"github.com/G-Research/k8s-batch/internal/armada/api"
+	"strconv"
+
 	"github.com/go-redis/redis"
 	"github.com/gogo/protobuf/proto"
-	"strconv"
+
+	"github.com/G-Research/k8s-batch/internal/armada/api"
 )
 
 type Usage struct {

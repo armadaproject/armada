@@ -1,12 +1,13 @@
 package service
 
 import (
+	"math"
+	"time"
+
 	"github.com/G-Research/k8s-batch/internal/armada/api"
 	"github.com/G-Research/k8s-batch/internal/armada/metrics"
 	"github.com/G-Research/k8s-batch/internal/armada/repository"
 	"github.com/G-Research/k8s-batch/internal/common/util"
-	"math"
-	"time"
 )
 
 const minPriority = 0.5
