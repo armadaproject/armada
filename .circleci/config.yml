@@ -50,16 +50,15 @@ jobs:
             go get -v -d ./...
             go test -v ./internal/...
 
+      - run:
+          name: Check formatting
+          command: |
+            exit $(goimports -l -local "github.com/G-Research/k8s-batch" . | wc -l)
+
       - save_cache:
           key: go-mod-v1-{{ checksum "go.sum" }}
           paths:
             - "/go/pkg/mod"
-
-      - run:
-          name: Check formatting
-          command: |
-            go get golang.org/x/tools/cmd/goimports
-            exit $(goimports -l -local "github.com/G-Research/k8s-batch" . | wc -l)
 
       - run:
           name: Build
