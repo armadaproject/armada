@@ -22,30 +22,30 @@ type Principal interface {
 	IsInGroup(group string) bool
 }
 
-type SimplePrincipal struct {
+type StaticPrincipal struct {
 	name   string
 	groups map[string]bool
 }
 
-func NewSimplePrincipal(name string, groups []string) *SimplePrincipal {
-	return &SimplePrincipal{
+func NewStaticPrincipal(name string, groups []string) *StaticPrincipal {
+	return &StaticPrincipal{
 		name,
 		util.StringListToSet(groups),
 	}
 }
 
-func (p *SimplePrincipal) IsInGroup(group string) bool {
+func (p *StaticPrincipal) IsInGroup(group string) bool {
 	return p.groups[group]
 }
 
-func (p *SimplePrincipal) GetName() string {
+func (p *StaticPrincipal) GetName() string {
 	return p.name
 }
 
 func GetPrincipal(ctx context.Context) Principal {
 	p, ok := ctx.Value(principalKey).(Principal)
 	if !ok {
-		return NewSimplePrincipal("anonymous", []string{})
+		return NewStaticPrincipal("anonymous", []string{})
 	}
 	return p
 }
@@ -54,14 +54,14 @@ func withPrincipal(ctx context.Context, principal Principal) context.Context {
 	return context.WithValue(ctx, principalKey, principal)
 }
 
-type AuthorizeService interface {
-	Authorize(ctx context.Context) (Principal, error)
+type AuthService interface {
+	Authenticate(ctx context.Context) (Principal, error)
 }
 
-func CreateMiddlewareAuthFunction(authServices []AuthorizeService) grpc_auth.AuthFunc {
+func CreateMiddlewareAuthFunction(authServices []AuthService) grpc_auth.AuthFunc {
 	return func(ctx context.Context) (context.Context, error) {
 		for _, service := range authServices {
-			principal, err := service.Authorize(ctx)
+			principal, err := service.Authenticate(ctx)
 			if err == missingCredentials {
 				// try next auth service
 				continue

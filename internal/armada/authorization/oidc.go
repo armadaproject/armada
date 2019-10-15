@@ -14,25 +14,25 @@ import (
 
 type PermissionClaimQueries map[Permission]string
 
-type OpenIdAuthorizeService struct {
+type OpenIdAuthService struct {
 	verifier    *oidc.IDTokenVerifier
 	groupsClaim string
 }
 
-func NewOpenIdAuthorizeServiceForProvider(ctx context.Context, config *configuration.OpenIdAuthenticationConfig) (*OpenIdAuthorizeService, error) {
+func NewOpenIdAuthServiceForProvider(ctx context.Context, config *configuration.OpenIdAuthenticationConfig) (*OpenIdAuthService, error) {
 	provider, err := oidc.NewProvider(ctx, config.ProviderUrl)
 	if err != nil {
 		return nil, err
 	}
 	verifier := provider.Verifier(&oidc.Config{ClientID: config.ClientId})
-	return NewOpenIdAuthorizeService(verifier, config.GroupsClaim), nil
+	return NewOpenIdAuthService(verifier, config.GroupsClaim), nil
 }
 
-func NewOpenIdAuthorizeService(verifier *oidc.IDTokenVerifier, groupsClaim string) *OpenIdAuthorizeService {
-	return &OpenIdAuthorizeService{verifier, groupsClaim}
+func NewOpenIdAuthService(verifier *oidc.IDTokenVerifier, groupsClaim string) *OpenIdAuthService {
+	return &OpenIdAuthService{verifier, groupsClaim}
 }
 
-func (authService *OpenIdAuthorizeService) Authorize(ctx context.Context) (Principal, error) {
+func (authService *OpenIdAuthService) Authenticate(ctx context.Context) (Principal, error) {
 
 	token, err := grpc_auth.AuthFromMD(ctx, "bearer")
 	if err != nil {
@@ -44,10 +44,10 @@ func (authService *OpenIdAuthorizeService) Authorize(ctx context.Context) (Princ
 		return nil, status.Errorf(codes.Unauthenticated, err.Error())
 	}
 
-	return NewSimplePrincipal(verifiedToken.Subject, authService.extractGroups(verifiedToken)), nil
+	return NewStaticPrincipal(verifiedToken.Subject, authService.extractGroups(verifiedToken)), nil
 }
 
-func (authService *OpenIdAuthorizeService) extractGroups(token *oidc.IDToken) []string {
+func (authService *OpenIdAuthService) extractGroups(token *oidc.IDToken) []string {
 	rawClaims := map[string]*json.RawMessage{}
 	err := token.Claims(&rawClaims)
 	if err != nil {

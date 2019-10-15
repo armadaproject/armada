@@ -79,15 +79,15 @@ func createServer(config *configuration.ArmadaConfig) *grpc.Server {
 	unaryInterceptors := []grpc.UnaryServerInterceptor{}
 	streamInterceptors := []grpc.StreamServerInterceptor{}
 
-	authServices := []authorization.AuthorizeService{}
+	authServices := []authorization.AuthService{}
 
 	if config.BasicAuth.EnableAuthentication {
 		authServices = append(authServices,
-			authorization.NewBasicAuthorizeService(config.BasicAuth.Users))
+			authorization.NewBasicAuthService(config.BasicAuth.Users))
 	}
 
 	if config.OpenIdAuth.ProviderUrl != "" {
-		openIdAuthService, err := authorization.NewOpenIdAuthorizeServiceForProvider(context.Background(), &config.OpenIdAuth)
+		openIdAuthService, err := authorization.NewOpenIdAuthServiceForProvider(context.Background(), &config.OpenIdAuth)
 		if err != nil {
 			panic(err)
 		}
