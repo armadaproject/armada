@@ -1,10 +1,11 @@
 package common
 
 import (
-	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 	"math"
 	"math/big"
+
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 )
 
 type ComputeResources map[string]resource.Quantity

@@ -1,12 +1,14 @@
 package util
 
 import (
-	"github.com/G-Research/k8s-batch/internal/executor/domain"
+	"testing"
+	"time"
+
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"testing"
-	"time"
+
+	"github.com/G-Research/k8s-batch/internal/executor/domain"
 )
 
 func TestMapPodCache_Add(t *testing.T) {

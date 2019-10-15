@@ -3,10 +3,12 @@ package service
 import (
 	"context"
 	"fmt"
+	"time"
+
+	"github.com/prometheus/common/log"
+
 	"github.com/G-Research/k8s-batch/internal/armada/api"
 	"github.com/G-Research/k8s-batch/internal/common/util"
-	"github.com/prometheus/common/log"
-	"time"
 )
 
 type JobStatus string

@@ -2,13 +2,15 @@ package server
 
 import (
 	"context"
+	"math"
+	"time"
+
+	"github.com/gogo/protobuf/types"
+
 	"github.com/G-Research/k8s-batch/internal/armada/api"
 	"github.com/G-Research/k8s-batch/internal/armada/repository"
 	"github.com/G-Research/k8s-batch/internal/common"
 	"github.com/G-Research/k8s-batch/internal/common/util"
-	"github.com/gogo/protobuf/types"
-	"math"
-	"time"
 )
 
 type UsageServer struct {
