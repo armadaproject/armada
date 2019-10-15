@@ -1,14 +1,16 @@
 package service
 
 import (
-	"github.com/G-Research/k8s-batch/internal/common"
-	util2 "github.com/G-Research/k8s-batch/internal/common/util"
-	"github.com/G-Research/k8s-batch/internal/executor/domain"
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"testing"
+
+	"github.com/G-Research/k8s-batch/internal/common"
+	util2 "github.com/G-Research/k8s-batch/internal/common/util"
+	"github.com/G-Research/k8s-batch/internal/executor/domain"
 )
 
 func TestFilterAvailableProcessingNodes_ShouldReturnAvailableProcessingNodes(t *testing.T) {

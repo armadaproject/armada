@@ -2,12 +2,14 @@ package client
 
 import (
 	"fmt"
-	"github.com/G-Research/k8s-batch/internal/client/domain"
-	"github.com/G-Research/k8s-batch/internal/common"
+	"os"
+
 	"github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"os"
+
+	"github.com/G-Research/k8s-batch/internal/client/domain"
+	"github.com/G-Research/k8s-batch/internal/common"
 )
 
 func AddArmadaApiConnectionCommandlineArgs(rootCmd *cobra.Command) {

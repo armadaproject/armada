@@ -2,10 +2,12 @@ package service
 
 import (
 	"context"
-	"github.com/G-Research/k8s-batch/internal/common"
+
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+
+	"github.com/G-Research/k8s-batch/internal/common"
 )
 
 var (

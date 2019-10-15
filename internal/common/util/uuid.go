@@ -1,11 +1,12 @@
 package util
 
 import (
-	"github.com/oklog/ulid"
 	"math/rand"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/oklog/ulid"
 )
 
 var entropy = ulid.Monotonic(rand.New(rand.NewSource(time.Now().UnixNano())), 0)

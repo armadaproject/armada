@@ -2,21 +2,23 @@ package armada
 
 import (
 	"context"
+	"net"
+	"sync"
+	"time"
+
+	"github.com/go-redis/redis"
+	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
+	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
+	log "github.com/sirupsen/logrus"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/keepalive"
+
 	"github.com/G-Research/k8s-batch/internal/armada/api"
 	"github.com/G-Research/k8s-batch/internal/armada/configuration"
 	"github.com/G-Research/k8s-batch/internal/armada/metrics"
 	"github.com/G-Research/k8s-batch/internal/armada/repository"
 	"github.com/G-Research/k8s-batch/internal/armada/server"
 	"github.com/G-Research/k8s-batch/internal/armada/service"
-	"github.com/go-redis/redis"
-	"github.com/grpc-ecosystem/go-grpc-middleware"
-	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
-	log "github.com/sirupsen/logrus"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/keepalive"
-	"net"
-	"sync"
-	"time"
 )
 
 func Serve(config *configuration.ArmadaConfig) (*grpc.Server, *sync.WaitGroup) {

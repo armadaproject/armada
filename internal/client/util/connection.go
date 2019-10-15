@@ -1,12 +1,14 @@
 package util
 
 import (
-	"github.com/G-Research/k8s-batch/internal/client/domain"
+	"time"
+
 	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/retry"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-	"time"
+
+	"github.com/G-Research/k8s-batch/internal/client/domain"
 )
 
 func WithConnection(apiConnectionDetails *domain.ArmadaApiConnectionDetails, action func(*grpc.ClientConn)) {
