@@ -2,15 +2,16 @@ package common
 
 import (
 	"context"
+	"net/http"
+	"os"
+	"strings"
+	"time"
+
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"github.com/weaveworks/promrus"
-	"net/http"
-	"os"
-	"strings"
-	"time"
 )
 
 func BindCommandlineArguments() {

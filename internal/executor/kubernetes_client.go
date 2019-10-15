@@ -1,11 +1,12 @@
 package executor
 
 import (
-	"github.com/G-Research/k8s-batch/internal/executor/configuration"
 	log "github.com/sirupsen/logrus"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+
+	"github.com/G-Research/k8s-batch/internal/executor/configuration"
 )
 
 func CreateKubernetesClient(kubernetesConfig *configuration.KubernetesConfiguration) (kubernetes.Interface, error) {

@@ -2,13 +2,15 @@ package repository
 
 import (
 	"fmt"
-	"github.com/G-Research/k8s-batch/internal/armada/api"
-	"github.com/G-Research/k8s-batch/internal/common/util"
+	"strconv"
+	"time"
+
 	"github.com/go-redis/redis"
 	"github.com/gogo/protobuf/proto"
 	"github.com/prometheus/common/log"
-	"strconv"
-	"time"
+
+	"github.com/G-Research/k8s-batch/internal/armada/api"
+	"github.com/G-Research/k8s-batch/internal/common/util"
 )
 
 const jobObjectPrefix = "Job:"

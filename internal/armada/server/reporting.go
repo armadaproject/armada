@@ -1,10 +1,12 @@
 package server
 
 import (
+	"time"
+
+	log "github.com/sirupsen/logrus"
+
 	"github.com/G-Research/k8s-batch/internal/armada/api"
 	"github.com/G-Research/k8s-batch/internal/armada/repository"
-	log "github.com/sirupsen/logrus"
-	"time"
 )
 
 func reportQueued(repository repository.EventRepository, job *api.Job) error {
