@@ -12,5 +12,5 @@ eventsRedis:
   password: ""
   db: 0
   poolSize: 1000
-authentication:
+basicAuth:
   enableAuthentication: false

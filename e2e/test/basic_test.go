@@ -27,7 +27,7 @@ func TestCanSubmitJob_ReceivingAllExpectedEvents(t *testing.T) {
 
 	jobRequest := createJobRequest()
 	connectionDetails := &domain.ArmadaApiConnectionDetails{
-		Url: "localhost:50051",
+		ArmadaUrl: "localhost:50051",
 	}
 
 	util2.WithConnection(connectionDetails, func(connection *grpc.ClientConn) {
