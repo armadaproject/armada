@@ -2,9 +2,10 @@ package server
 
 import (
 	"context"
+	"time"
+
 	"github.com/G-Research/k8s-batch/internal/armada/api"
 	"github.com/G-Research/k8s-batch/internal/armada/repository"
-	"time"
 
 	"github.com/gogo/protobuf/types"
 )

@@ -1,13 +1,15 @@
 package util
 
 import (
-	"github.com/G-Research/k8s-batch/internal/executor/metrics"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
-	v1 "k8s.io/api/core/v1"
 	"runtime"
 	"sync"
 	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+	v1 "k8s.io/api/core/v1"
+
+	"github.com/G-Research/k8s-batch/internal/executor/metrics"
 )
 
 type PodCache interface {

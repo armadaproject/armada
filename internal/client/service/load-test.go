@@ -3,14 +3,16 @@ package service
 import (
 	"context"
 	"fmt"
-	"github.com/G-Research/k8s-batch/internal/armada/api"
-	"github.com/G-Research/k8s-batch/internal/client/domain"
-	"github.com/G-Research/k8s-batch/internal/client/util"
-	"google.golang.org/grpc"
-	v1 "k8s.io/api/core/v1"
 	"strconv"
 	"sync"
 	"time"
+
+	"google.golang.org/grpc"
+	v1 "k8s.io/api/core/v1"
+
+	"github.com/G-Research/k8s-batch/internal/armada/api"
+	"github.com/G-Research/k8s-batch/internal/client/domain"
+	"github.com/G-Research/k8s-batch/internal/client/util"
 )
 
 type LoadTester interface {

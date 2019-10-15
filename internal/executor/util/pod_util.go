@@ -1,11 +1,12 @@
 package util
 
 import (
-	"github.com/G-Research/k8s-batch/internal/common/util"
-	"github.com/G-Research/k8s-batch/internal/executor/domain"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
+
+	"github.com/G-Research/k8s-batch/internal/common/util"
+	"github.com/G-Research/k8s-batch/internal/executor/domain"
 )
 
 var managedPodSelector labels.Selector

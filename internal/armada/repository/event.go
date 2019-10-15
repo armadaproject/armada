@@ -1,10 +1,12 @@
 package repository
 
 import (
-	"github.com/G-Research/k8s-batch/internal/armada/api"
+	"time"
+
 	"github.com/go-redis/redis"
 	"github.com/gogo/protobuf/proto"
-	"time"
+
+	"github.com/G-Research/k8s-batch/internal/armada/api"
 )
 
 const eventStreamPrefix = "Events:"

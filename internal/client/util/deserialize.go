@@ -1,9 +1,10 @@
 package util
 
 import (
+	"os"
+
 	log "github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/yaml"
-	"os"
 )
 
 func BindJsonOrYaml(filePath string, obj interface{}) {
