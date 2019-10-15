@@ -59,8 +59,7 @@ jobs:
           name: Check formatting
           command: |
             go get golang.org/x/tools/cmd/goimports
-            goimports -h
-            exit $(gofmt -l . | wc -l)
+            exit $(goimports -l -local "github.com/G-Research/k8s-batch" . | wc -l)
 
       - run:
           name: Build
