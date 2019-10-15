@@ -2,7 +2,7 @@ gobuildlinux = GOOS=linux GARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w"
 gobuild = go build
 
 build-server:
-	$(gobuild) -o ./bin/armada cmd/armada/main.go
+	$(gobuild) -o ./bin/server cmd/armada/main.go
 
 build-executor:
 	$(gobuild) -o ./bin/executor cmd/executor/main.go
@@ -16,7 +16,7 @@ build-load-tester:
 build: build-server build-executor build-armadactl build-load-tester
 
 build-docker-server:
-	$(gobuildlinux) -o ./bin/linux/armada cmd/armada/main.go
+	$(gobuildlinux) -o ./bin/linux/server cmd/armada/main.go
 	docker build -t armada -f ./build/armada/Dockerfile .
 
 build-docker-executor:
