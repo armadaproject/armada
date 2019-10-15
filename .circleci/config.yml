@@ -58,9 +58,9 @@ jobs:
       - run:
           name: Check formatting
           command: |
-          go get golang.org/x/tools/cmd/goimports
-          goimports -h
-          exit $(gofmt -l . | wc -l)
+            go get golang.org/x/tools/cmd/goimports
+            goimports -h
+            exit $(gofmt -l . | wc -l)
 
       - run:
           name: Build
