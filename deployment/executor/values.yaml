@@ -19,5 +19,6 @@ tolerations:
 
 prometheus:
   enabled: false
+  labels: {}
 
 applicationConfig:
