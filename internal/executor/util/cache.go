@@ -15,6 +15,7 @@ import (
 type PodCache interface {
 	Add(pod *v1.Pod)
 	AddIfNotExists(pod *v1.Pod) bool
+	Exists(jobId string) bool
 	Update(key string, pod *v1.Pod) bool
 	Delete(jobId string)
 	Get(jobId string) *v1.Pod
@@ -72,6 +73,15 @@ func (podCache *mapPodCache) AddIfNotExists(pod *v1.Pod) bool {
 		podCache.sizeGauge.Inc()
 	}
 	return !exists
+}
+
+func (podCache *mapPodCache) Exists(jobId string) bool {
+	podCache.rwLock.Lock()
+	defer podCache.rwLock.Unlock()
+
+	existing, ok := podCache.records[jobId]
+	exists := ok && existing.expiry.After(time.Now())
+	return exists
 }
 
 func (podCache *mapPodCache) Update(jobId string, pod *v1.Pod) bool {

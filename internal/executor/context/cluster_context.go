@@ -12,7 +12,6 @@ import (
 	"k8s.io/client-go/informers"
 	informer "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/kubernetes"
-	lister "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/G-Research/k8s-batch/internal/executor/domain"
@@ -39,7 +38,7 @@ type KubernetesClusterContext struct {
 	submittedPods    util.PodCache
 	podsToDelete     util.PodCache
 	podInformer      informer.PodInformer
-	nodeLister       lister.NodeLister
+	nodeInformer     informer.NodeInformer
 	stopper          chan struct{}
 	kubernetesClient kubernetes.Interface
 }
@@ -62,7 +61,7 @@ func NewClusterContext(
 		podsToDelete:     deletedPods,
 		stopper:          make(chan struct{}),
 		podInformer:      factory.Core().V1().Pods(),
-		nodeLister:       factory.Core().V1().Nodes().Lister(),
+		nodeInformer:     factory.Core().V1().Nodes(),
 		kubernetesClient: kubernetesClient,
 	}
 
@@ -76,6 +75,9 @@ func NewClusterContext(
 			context.submittedPods.Delete(util.ExtractJobId(pod))
 		},
 	})
+
+	//Use node informer so it is initialized properly
+	context.nodeInformer.Lister()
 
 	factory.Start(context.stopper)
 	factory.WaitForCacheSync(context.stopper)
@@ -96,7 +98,6 @@ func (c *KubernetesClusterContext) GetActiveBatchPods() ([]*v1.Pod, error) {
 }
 
 func (c *KubernetesClusterContext) GetBatchPods() ([]*v1.Pod, error) {
-
 	podsInCluster, err := c.GetActiveBatchPods()
 	if err != nil {
 		return nil, err
@@ -119,18 +120,18 @@ func (c *KubernetesClusterContext) GetAllPods() ([]*v1.Pod, error) {
 }
 
 func (c *KubernetesClusterContext) GetNodes() ([]*v1.Node, error) {
-	return c.nodeLister.List(labels.Everything())
+	return c.nodeInformer.Lister().List(labels.Everything())
 }
 
 func (c *KubernetesClusterContext) SubmitPod(pod *v1.Pod) (*v1.Pod, error) {
 
 	c.submittedPods.Add(pod)
-	pod, err := c.kubernetesClient.CoreV1().Pods("default").Create(pod)
+	returnedPod, err := c.kubernetesClient.CoreV1().Pods("default").Create(pod)
 
 	if err != nil {
 		c.submittedPods.Delete(util.ExtractJobId(pod))
 	}
-	return pod, err
+	return returnedPod, err
 }
 
 func (c *KubernetesClusterContext) AddAnnotation(pod *v1.Pod, annotations map[string]string) error {
