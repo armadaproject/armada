@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -11,7 +12,13 @@ import (
 	"github.com/G-Research/k8s-batch/internal/executor/domain"
 )
 
+func initializeTest() {
+	prometheus.DefaultRegisterer = prometheus.NewRegistry()
+}
+
 func TestMapPodCache_Add(t *testing.T) {
+	initializeTest()
+
 	pod := makeManagedPod("job1")
 	cache := NewTimeExpiringPodCache(time.Minute, time.Second, "metric1")
 	cache.Add(pod)
@@ -20,8 +27,10 @@ func TestMapPodCache_Add(t *testing.T) {
 }
 
 func TestMapPodCache_Add_Expires(t *testing.T) {
+	initializeTest()
+
 	pod := makeManagedPod("job1")
-	cache := NewTimeExpiringPodCache(time.Second/10, time.Second/100, "metric2")
+	cache := NewTimeExpiringPodCache(time.Second/10, time.Second/100, "metric1")
 	cache.Add(pod)
 
 	assert.Equal(t, pod, cache.Get("job1"))
@@ -33,24 +42,28 @@ func TestMapPodCache_Add_Expires(t *testing.T) {
 }
 
 func TestMapPodCache_AddIfNotExists(t *testing.T) {
+	initializeTest()
+
 	pod1 := makeManagedPod("job1")
 	pod1.Name = "1"
 	pod2 := makeManagedPod("job1")
 	pod2.Name = "2"
 
-	cache := NewTimeExpiringPodCache(time.Minute, time.Second, "metric3")
+	cache := NewTimeExpiringPodCache(time.Minute, time.Second, "metric1")
 	assert.True(t, cache.AddIfNotExists(pod1))
 	assert.False(t, cache.AddIfNotExists(pod2))
 	assert.Equal(t, "1", cache.Get("job1").Name)
 }
 
 func TestMapPodCache_Update(t *testing.T) {
+	initializeTest()
+
 	pod1 := makeManagedPod("job1")
 	pod1.Name = "1"
 	pod2 := makeManagedPod("job1")
 	pod2.Name = "2"
 
-	cache := NewTimeExpiringPodCache(time.Minute, time.Second, "metric4")
+	cache := NewTimeExpiringPodCache(time.Minute, time.Second, "metric1")
 	assert.False(t, cache.Update("job1", pod1))
 	assert.Equal(t, 0, len(cache.GetAll()))
 	cache.Add(pod1)
@@ -59,8 +72,10 @@ func TestMapPodCache_Update(t *testing.T) {
 }
 
 func TestMapPodCache_Delete(t *testing.T) {
+	initializeTest()
+
 	pod := makeManagedPod("job1")
-	cache := NewTimeExpiringPodCache(time.Minute, time.Second, "metric5")
+	cache := NewTimeExpiringPodCache(time.Minute, time.Second, "metric1")
 
 	cache.Add(pod)
 	assert.NotNil(t, cache.Get("job1"))
@@ -70,15 +85,19 @@ func TestMapPodCache_Delete(t *testing.T) {
 }
 
 func TestMapPodCache_Delete_DoNotFailOnUnrecognisedKey(t *testing.T) {
-	cache := NewTimeExpiringPodCache(time.Minute, time.Second, "metric6")
+	initializeTest()
+
+	cache := NewTimeExpiringPodCache(time.Minute, time.Second, "metric1")
 
 	cache.Delete("madeupkey")
 	assert.Nil(t, cache.Get("madeupkey"))
 }
 
 func TestNewMapPodCache_Get_ReturnsCopy(t *testing.T) {
+	initializeTest()
+
 	pod := makeManagedPod("job1")
-	cache := NewTimeExpiringPodCache(time.Minute, time.Second, "metric7")
+	cache := NewTimeExpiringPodCache(time.Minute, time.Second, "metric1")
 
 	cache.Add(pod)
 
@@ -90,9 +109,11 @@ func TestNewMapPodCache_Get_ReturnsCopy(t *testing.T) {
 }
 
 func TestMapPodCache_GetAll(t *testing.T) {
+	initializeTest()
+
 	pod1 := makeManagedPod("job1")
 	pod2 := makeManagedPod("job2")
-	cache := NewTimeExpiringPodCache(time.Minute, time.Second, "metric8")
+	cache := NewTimeExpiringPodCache(time.Minute, time.Second, "metric1")
 
 	cache.Add(pod1)
 	cache.Add(pod2)
@@ -111,8 +132,10 @@ func TestMapPodCache_GetAll(t *testing.T) {
 }
 
 func TestMapPodCache_GetReturnsACopy(t *testing.T) {
+	initializeTest()
+
 	pod := makeManagedPod("job1")
-	cache := NewTimeExpiringPodCache(time.Minute, time.Second, "metric9")
+	cache := NewTimeExpiringPodCache(time.Minute, time.Second, "metric1")
 
 	cache.Add(pod)
 
@@ -124,8 +147,10 @@ func TestMapPodCache_GetReturnsACopy(t *testing.T) {
 }
 
 func TestMapPodCache_Exists(t *testing.T) {
+	initializeTest()
+
 	pod := makeManagedPod("job1")
-	cache := NewTimeExpiringPodCache(time.Minute, time.Second, "metric10")
+	cache := NewTimeExpiringPodCache(time.Minute, time.Second, "metric1")
 
 	assert.False(t, cache.Exists("job1"))
 

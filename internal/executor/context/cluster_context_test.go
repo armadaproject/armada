@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	errors2 "k8s.io/apimachinery/pkg/api/errors"
@@ -19,18 +20,16 @@ import (
 	"github.com/G-Research/k8s-batch/internal/executor/util"
 )
 
-func setupTest(t *testing.T) (*KubernetesClusterContext, *fake.Clientset) {
-	return setupTestWithMinRepeatedDeletePeriod(t, 2*time.Minute)
+func setupTest() (*KubernetesClusterContext, *fake.Clientset) {
+	return setupTestWithMinRepeatedDeletePeriod(2 * time.Minute)
 }
 
-func setupTestWithMinRepeatedDeletePeriod(t *testing.T, minRepeatedDeletePeriod time.Duration) (*KubernetesClusterContext, *fake.Clientset) {
-	t.Parallel()
+func setupTestWithMinRepeatedDeletePeriod(minRepeatedDeletePeriod time.Duration) (*KubernetesClusterContext, *fake.Clientset) {
+	prometheus.DefaultRegisterer = prometheus.NewRegistry()
 	client := fake.NewSimpleClientset()
 
 	clusterContext := NewClusterContext(
 		"test-cluster-1",
-		util2.NewULID(),
-		util2.NewULID(),
 		minRepeatedDeletePeriod,
 		client,
 	)
@@ -39,7 +38,7 @@ func setupTestWithMinRepeatedDeletePeriod(t *testing.T, minRepeatedDeletePeriod 
 }
 
 func TestKubernetesClusterContext_SubmitPod(t *testing.T) {
-	clusterContext, _ := setupTest(t)
+	clusterContext, _ := setupTest()
 
 	pod := createBatchPod()
 	_, err := clusterContext.SubmitPod(pod)
@@ -53,7 +52,7 @@ func TestKubernetesClusterContext_SubmitPod(t *testing.T) {
 }
 
 func TestKubernetesClusterContext_SubmitPod_RemovesPodFromSubmittedCache_OnClientError(t *testing.T) {
-	clusterContext, client := setupTest(t)
+	clusterContext, client := setupTest()
 	client.Fake.PrependReactor("create", "pods", func(action clientTesting.Action) (bool, runtime.Object, error) {
 		return true, nil, errors.New("server error")
 	})
@@ -68,7 +67,7 @@ func TestKubernetesClusterContext_SubmitPod_RemovesPodFromSubmittedCache_OnClien
 }
 
 func TestKubernetesClusterContext_DeletePods_AddsPodToDeleteCache(t *testing.T) {
-	clusterContext, _ := setupTest(t)
+	clusterContext, _ := setupTest()
 
 	pod := createBatchPod()
 
@@ -80,7 +79,7 @@ func TestKubernetesClusterContext_DeletePods_AddsPodToDeleteCache(t *testing.T) 
 }
 
 func TestKubernetesClusterContext_DeletePods_DoesNotCallClient(t *testing.T) {
-	clusterContext, client := setupTest(t)
+	clusterContext, client := setupTest()
 
 	pod := createBatchPod()
 
@@ -91,7 +90,7 @@ func TestKubernetesClusterContext_DeletePods_DoesNotCallClient(t *testing.T) {
 }
 
 func TestKubernetesClusterContext_ProcessPodsToDelete_DoesNotCallClient_WhenNoPodsMarkedForDeletion(t *testing.T) {
-	clusterContext, client := setupTest(t)
+	clusterContext, client := setupTest()
 
 	client.Fake.ClearActions()
 	clusterContext.ProcessPodsToDelete()
@@ -100,7 +99,7 @@ func TestKubernetesClusterContext_ProcessPodsToDelete_DoesNotCallClient_WhenNoPo
 }
 
 func TestKubernetesClusterContext_ProcessPodsToDelete_CallDeleteOnClient_WhenPodsMarkedForDeletion(t *testing.T) {
-	clusterContext, client := setupTest(t)
+	clusterContext, client := setupTest()
 
 	pod := createSubmittedBatchPod(t, clusterContext)
 
@@ -117,7 +116,7 @@ func TestKubernetesClusterContext_ProcessPodsToDelete_CallDeleteOnClient_WhenPod
 }
 
 func TestKubernetesClusterContext_ProcessPodsToDelete_PreventsRepeatedDeleteCallsToClient_OnClientSuccess(t *testing.T) {
-	clusterContext, client := setupTest(t)
+	clusterContext, client := setupTest()
 
 	pod := createSubmittedBatchPod(t, clusterContext)
 
@@ -133,7 +132,7 @@ func TestKubernetesClusterContext_ProcessPodsToDelete_PreventsRepeatedDeleteCall
 }
 
 func TestKubernetesClusterContext_ProcessPodsToDelete_PreventsRepeatedDeleteCallsToClient_OnClientErrorNotFound(t *testing.T) {
-	clusterContext, client := setupTest(t)
+	clusterContext, client := setupTest()
 	client.Fake.PrependReactor("delete", "pods", func(action clientTesting.Action) (bool, runtime.Object, error) {
 		notFound := errors2.StatusError{
 			ErrStatus: metav1.Status{
@@ -157,7 +156,7 @@ func TestKubernetesClusterContext_ProcessPodsToDelete_PreventsRepeatedDeleteCall
 }
 
 func TestKubernetesClusterContext_ProcessPodsToDelete_AllowsRepeatedDeleteCallToClient_OnClientError(t *testing.T) {
-	clusterContext, client := setupTest(t)
+	clusterContext, client := setupTest()
 	client.Fake.PrependReactor("delete", "pods", func(action clientTesting.Action) (bool, runtime.Object, error) {
 		return true, nil, errors.New("server error")
 	})
@@ -176,8 +175,8 @@ func TestKubernetesClusterContext_ProcessPodsToDelete_AllowsRepeatedDeleteCallTo
 }
 
 func TestKubernetesClusterContext_ProcessPodsToDelete_AllowsRepeatedDeleteCallToClient_AfterMinimumDeletePeriodHasPassed(t *testing.T) {
-	timeBetweenRepeatedDeleteCalls := 1 * time.Second
-	clusterContext, client := setupTestWithMinRepeatedDeletePeriod(t, timeBetweenRepeatedDeleteCalls)
+	timeBetweenRepeatedDeleteCalls := 500 * time.Millisecond
+	clusterContext, client := setupTestWithMinRepeatedDeletePeriod(timeBetweenRepeatedDeleteCalls)
 
 	pod := createSubmittedBatchPod(t, clusterContext)
 
@@ -187,7 +186,7 @@ func TestKubernetesClusterContext_ProcessPodsToDelete_AllowsRepeatedDeleteCallTo
 	assert.Equal(t, len(client.Fake.Actions()), 1)
 
 	//Wait time required between repeated delete calls
-	time.Sleep(timeBetweenRepeatedDeleteCalls + 500*time.Millisecond)
+	time.Sleep(timeBetweenRepeatedDeleteCalls + 200*time.Millisecond)
 
 	client.Fake.ClearActions()
 	clusterContext.DeletePods([]*v1.Pod{pod})
@@ -196,7 +195,7 @@ func TestKubernetesClusterContext_ProcessPodsToDelete_AllowsRepeatedDeleteCallTo
 }
 
 func TestKubernetesClusterContext_AddAnnotation(t *testing.T) {
-	clusterContext, _ := setupTest(t)
+	clusterContext, _ := setupTest()
 	pod := createSubmittedBatchPod(t, clusterContext)
 
 	annotationsToAdd := map[string]string{"test": "annotation"}
@@ -210,7 +209,7 @@ func TestKubernetesClusterContext_AddAnnotation(t *testing.T) {
 }
 
 func TestKubernetesClusterContext_AddAnnotation_ReturnsError_OnClientError(t *testing.T) {
-	clusterContext, client := setupTest(t)
+	clusterContext, client := setupTest()
 	client.Fake.PrependReactor("patch", "pods", func(action clientTesting.Action) (bool, runtime.Object, error) {
 		return true, nil, errors.New("server error")
 	})
@@ -223,7 +222,7 @@ func TestKubernetesClusterContext_AddAnnotation_ReturnsError_OnClientError(t *te
 }
 
 func TestKubernetesClusterContext_GetAllPods(t *testing.T) {
-	clusterContext, _ := setupTest(t)
+	clusterContext, _ := setupTest()
 
 	nonBatchPod := createPod()
 	batchPod := createBatchPod()
@@ -248,7 +247,7 @@ func TestKubernetesClusterContext_GetAllPods(t *testing.T) {
 }
 
 func TestKubernetesClusterContext_GetAllPods_DeduplicatesTransientPods(t *testing.T) {
-	clusterContext, _ := setupTest(t)
+	clusterContext, _ := setupTest()
 
 	batchPod := createBatchPod()
 	submitPod(t, clusterContext, batchPod)
@@ -268,7 +267,7 @@ func TestKubernetesClusterContext_GetAllPods_DeduplicatesTransientPods(t *testin
 }
 
 func TestKubernetesClusterContext_GetBatchPods_ReturnsOnlyBatchPods_IncludingTransient(t *testing.T) {
-	clusterContext, _ := setupTest(t)
+	clusterContext, _ := setupTest()
 
 	nonBatchPod := createPod()
 	batchPod := createBatchPod()
@@ -292,7 +291,7 @@ func TestKubernetesClusterContext_GetBatchPods_ReturnsOnlyBatchPods_IncludingTra
 }
 
 func TestKubernetesClusterContext_GetBatchPods_DeduplicatesTransientPods(t *testing.T) {
-	clusterContext, _ := setupTest(t)
+	clusterContext, _ := setupTest()
 
 	batchPod := createBatchPod()
 	submitPod(t, clusterContext, batchPod)
@@ -312,7 +311,7 @@ func TestKubernetesClusterContext_GetBatchPods_DeduplicatesTransientPods(t *test
 }
 
 func TestKubernetesClusterContext_GetActiveBatchPods_ReturnsOnlyBatchPods_ExcludingTransient(t *testing.T) {
-	clusterContext, _ := setupTest(t)
+	clusterContext, _ := setupTest()
 
 	nonBatchPod := createPod()
 	batchPod := createBatchPod()
@@ -334,7 +333,7 @@ func TestKubernetesClusterContext_GetActiveBatchPods_ReturnsOnlyBatchPods_Exclud
 }
 
 func TestKubernetesClusterContext_GetNodes(t *testing.T) {
-	clusterContext, client := setupTest(t)
+	clusterContext, client := setupTest()
 
 	node := &v1.Node{
 		ObjectMeta: metav1.ObjectMeta{
