@@ -79,7 +79,7 @@ func TestHasPodBeenInStateForLongerThanGivenDuration_ReturnsFalse(t *testing.T) 
 	assert.False(t, result)
 }
 
-func TestHasPodBeenInStateForLongerThanGivenDuration_ReturnsTrue_WhenNoPodStateChangesCanBeFound(t *testing.T) {
+func TestHasPodBeenInStateForLongerThanGivenDuration_ReturnsFalse_WhenNoPodStateChangesCanBeFound(t *testing.T) {
 	pod := v1.Pod{
 		Status: v1.PodStatus{
 			Conditions: []v1.PodCondition{},
@@ -88,7 +88,7 @@ func TestHasPodBeenInStateForLongerThanGivenDuration_ReturnsTrue_WhenNoPodStateC
 
 	result := HasPodBeenInStateForLongerThanGivenDuration(&pod, 5*time.Second)
 
-	assert.True(t, result)
+	assert.False(t, result)
 }
 
 func TestHasCurrentStateBeenReported_TrueWhenAnnotationExistsForCurrentPhase(t *testing.T) {

@@ -156,7 +156,7 @@ func HasPodBeenInStateForLongerThanGivenDuration(pod *v1.Pod, duration time.Dura
 	deadline := time.Now().Add(-duration)
 	lastStatusChange, err := lastStatusChange(pod)
 
-	if err != nil || lastStatusChange.Before(deadline) {
+	if err == nil && lastStatusChange.Before(deadline) {
 		return true
 	}
 	return false
