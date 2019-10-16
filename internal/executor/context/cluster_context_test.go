@@ -20,12 +20,18 @@ import (
 )
 
 func setupTest(t *testing.T) (*KubernetesClusterContext, *fake.Clientset) {
+	return setupTestWithMinRepeatedDeletePeriod(t, 2*time.Minute)
+}
+
+func setupTestWithMinRepeatedDeletePeriod(t *testing.T, minRepeatedDeletePeriod time.Duration) (*KubernetesClusterContext, *fake.Clientset) {
 	t.Parallel()
 	client := fake.NewSimpleClientset()
 
 	clusterContext := NewClusterContext(
 		"test-cluster-1",
-		2*time.Minute,
+		util2.NewULID(),
+		util2.NewULID(),
+		minRepeatedDeletePeriod,
 		client,
 	)
 
@@ -78,19 +84,28 @@ func TestKubernetesClusterContext_DeletePods_DoesNotCallClient(t *testing.T) {
 
 	pod := createBatchPod()
 
-	//Reset action count
 	client.Fake.ClearActions()
 	clusterContext.DeletePods([]*v1.Pod{pod})
 
 	assert.Equal(t, len(client.Actions()), 0)
 }
 
-func TestKubernetesClusterContext_ProcessPodsToDelete_CallDeleteOnClient(t *testing.T) {
+func TestKubernetesClusterContext_ProcessPodsToDelete_DoesNotCallClient_WhenNoPodsMarkedForDeletion(t *testing.T) {
 	clusterContext, client := setupTest(t)
 
-	pod := createSubmittedPod(t, clusterContext, true)
 	client.Fake.ClearActions()
+	clusterContext.ProcessPodsToDelete()
 
+	assert.Equal(t, len(client.Fake.Actions()), 0)
+}
+
+func TestKubernetesClusterContext_ProcessPodsToDelete_CallDeleteOnClient_WhenPodsMarkedForDeletion(t *testing.T) {
+	clusterContext, client := setupTest(t)
+
+	pod := createSubmittedBatchPod(t, clusterContext)
+
+	client.Fake.ClearActions()
+	clusterContext.DeletePods([]*v1.Pod{pod})
 	clusterContext.ProcessPodsToDelete()
 
 	assert.Equal(t, len(client.Fake.Actions()), 1)
@@ -101,19 +116,23 @@ func TestKubernetesClusterContext_ProcessPodsToDelete_CallDeleteOnClient(t *test
 	assert.Equal(t, deleteAction.GetName(), pod.Name)
 }
 
-func TestKubernetesClusterContext_ProcessPodsToDelete_OnClientSuccess_MarkPodAsNilInCache(t *testing.T) {
+func TestKubernetesClusterContext_ProcessPodsToDelete_PreventsRepeatedDeleteCallsToClient_OnClientSuccess(t *testing.T) {
 	clusterContext, client := setupTest(t)
 
-	pod := createSubmittedPod(t, clusterContext, true)
+	pod := createSubmittedBatchPod(t, clusterContext)
+
 	client.Fake.ClearActions()
-
+	clusterContext.DeletePods([]*v1.Pod{pod})
 	clusterContext.ProcessPodsToDelete()
+	assert.Equal(t, len(client.Fake.Actions()), 1)
 
-	assert.True(t, clusterContext.podsToDelete.Exists(util.ExtractJobId(pod)))
-	assert.Nil(t, clusterContext.podsToDelete.Get(util.ExtractJobId(pod)))
+	client.Fake.ClearActions()
+	clusterContext.DeletePods([]*v1.Pod{pod})
+	clusterContext.ProcessPodsToDelete()
+	assert.Equal(t, len(client.Fake.Actions()), 0)
 }
 
-func TestKubernetesClusterContext_ProcessPodsToDelete_OnClientErrorNotFound_MarkPodAsNilInCache(t *testing.T) {
+func TestKubernetesClusterContext_ProcessPodsToDelete_PreventsRepeatedDeleteCallsToClient_OnClientErrorNotFound(t *testing.T) {
 	clusterContext, client := setupTest(t)
 	client.Fake.PrependReactor("delete", "pods", func(action clientTesting.Action) (bool, runtime.Object, error) {
 		notFound := errors2.StatusError{
@@ -124,46 +143,61 @@ func TestKubernetesClusterContext_ProcessPodsToDelete_OnClientErrorNotFound_Mark
 		return true, nil, &notFound
 	})
 
-	pod := createSubmittedPod(t, clusterContext, true)
+	pod := createSubmittedBatchPod(t, clusterContext)
+
 	client.Fake.ClearActions()
-
+	clusterContext.DeletePods([]*v1.Pod{pod})
 	clusterContext.ProcessPodsToDelete()
+	assert.Equal(t, len(client.Fake.Actions()), 1)
 
-	assert.True(t, clusterContext.podsToDelete.Exists(util.ExtractJobId(pod)))
-	assert.Nil(t, clusterContext.podsToDelete.Get(util.ExtractJobId(pod)))
+	client.Fake.ClearActions()
+	clusterContext.DeletePods([]*v1.Pod{pod})
+	clusterContext.ProcessPodsToDelete()
+	assert.Equal(t, len(client.Fake.Actions()), 0)
 }
 
-func TestKubernetesClusterContext_ProcessPodsToDelete_OnClientError_RemovePodFromDeleteCache(t *testing.T) {
+func TestKubernetesClusterContext_ProcessPodsToDelete_AllowsRepeatedDeleteCallToClient_OnClientError(t *testing.T) {
 	clusterContext, client := setupTest(t)
 	client.Fake.PrependReactor("delete", "pods", func(action clientTesting.Action) (bool, runtime.Object, error) {
 		return true, nil, errors.New("server error")
 	})
 
-	pod := createSubmittedPod(t, clusterContext, true)
+	pod := createSubmittedBatchPod(t, clusterContext)
 
 	client.Fake.ClearActions()
-	clusterContext.ProcessPodsToDelete()
-
-	assert.False(t, clusterContext.podsToDelete.Exists(util.ExtractJobId(pod)))
-}
-
-func TestKubernetesClusterContext_ProcessPodsToDelete_OnRepeatedCall_DoesNotCallDeleteOnClientRepeatedly(t *testing.T) {
-	clusterContext, client := setupTest(t)
-
-	createSubmittedPod(t, clusterContext, true)
-
-	client.Fake.ClearActions()
+	clusterContext.DeletePods([]*v1.Pod{pod})
 	clusterContext.ProcessPodsToDelete()
 	assert.Equal(t, len(client.Fake.Actions()), 1)
 
 	client.Fake.ClearActions()
+	clusterContext.DeletePods([]*v1.Pod{pod})
 	clusterContext.ProcessPodsToDelete()
-	assert.Equal(t, len(client.Fake.Actions()), 0)
+	assert.Equal(t, len(client.Fake.Actions()), 1)
+}
+
+func TestKubernetesClusterContext_ProcessPodsToDelete_AllowsRepeatedDeleteCallToClient_AfterMinimumDeletePeriodHasPassed(t *testing.T) {
+	timeBetweenRepeatedDeleteCalls := 1 * time.Second
+	clusterContext, client := setupTestWithMinRepeatedDeletePeriod(t, timeBetweenRepeatedDeleteCalls)
+
+	pod := createSubmittedBatchPod(t, clusterContext)
+
+	client.Fake.ClearActions()
+	clusterContext.DeletePods([]*v1.Pod{pod})
+	clusterContext.ProcessPodsToDelete()
+	assert.Equal(t, len(client.Fake.Actions()), 1)
+
+	//Wait time required between repeated delete calls
+	time.Sleep(timeBetweenRepeatedDeleteCalls + 500*time.Millisecond)
+
+	client.Fake.ClearActions()
+	clusterContext.DeletePods([]*v1.Pod{pod})
+	clusterContext.ProcessPodsToDelete()
+	assert.Equal(t, len(client.Fake.Actions()), 1)
 }
 
 func TestKubernetesClusterContext_AddAnnotation(t *testing.T) {
 	clusterContext, _ := setupTest(t)
-	pod := createSubmittedPod(t, clusterContext, false)
+	pod := createSubmittedBatchPod(t, clusterContext)
 
 	annotationsToAdd := map[string]string{"test": "annotation"}
 	err := clusterContext.AddAnnotation(pod, annotationsToAdd)
@@ -181,7 +215,7 @@ func TestKubernetesClusterContext_AddAnnotation_ReturnsError_OnClientError(t *te
 		return true, nil, errors.New("server error")
 	})
 
-	pod := createSubmittedPod(t, clusterContext, false)
+	pod := createSubmittedBatchPod(t, clusterContext)
 
 	annotationsToAdd := map[string]string{"test": "\\"}
 	err := clusterContext.AddAnnotation(pod, annotationsToAdd)
@@ -324,14 +358,10 @@ func submitPod(t *testing.T, context ClusterContext, pod *v1.Pod) {
 	assert.Nil(t, err)
 }
 
-func createSubmittedPod(t *testing.T, context ClusterContext, markForDeletion bool) *v1.Pod {
+func createSubmittedBatchPod(t *testing.T, context ClusterContext) *v1.Pod {
 	pod := createBatchPod()
 
 	submitPod(t, context, pod)
-
-	if markForDeletion {
-		context.DeletePods([]*v1.Pod{pod})
-	}
 
 	return pod
 }

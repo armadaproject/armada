@@ -50,6 +50,8 @@ func (c *KubernetesClusterContext) GetClusterId() string {
 
 func NewClusterContext(
 	clusterId string,
+	submittedPodCacheMetricName string,
+	deletePodCacheMetricName string,
 	minTimeBetweenRepeatDeletionCalls time.Duration,
 	kubernetesClient kubernetes.Interface) *KubernetesClusterContext {
 
@@ -57,8 +59,8 @@ func NewClusterContext(
 
 	context := &KubernetesClusterContext{
 		clusterId:        clusterId,
-		submittedPods:    util.NewTimeExpiringPodCache(time.Minute, time.Second, "submitted_job"),
-		podsToDelete:     util.NewTimeExpiringPodCache(minTimeBetweenRepeatDeletionCalls, time.Second, "deleted_job"),
+		submittedPods:    util.NewTimeExpiringPodCache(time.Minute, time.Second, submittedPodCacheMetricName),
+		podsToDelete:     util.NewTimeExpiringPodCache(minTimeBetweenRepeatDeletionCalls, time.Second, deletePodCacheMetricName),
 		stopper:          make(chan struct{}),
 		podInformer:      factory.Core().V1().Pods(),
 		nodeInformer:     factory.Core().V1().Nodes(),

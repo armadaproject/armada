@@ -41,6 +41,8 @@ func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGrou
 
 	clusterContext := context.NewClusterContext(
 		config.Application.ClusterId,
+		"submitted_pod",
+		"delete_pod",
 		2*time.Minute,
 		kubernetesClient,
 	)
