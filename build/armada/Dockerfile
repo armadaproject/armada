@@ -5,4 +5,4 @@ COPY /config/armada/ /app/config/armada
 
 WORKDIR /app
 
-ENTRYPOINT ["./armada"]
+ENTRYPOINT ["./server"]
