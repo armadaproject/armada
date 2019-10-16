@@ -55,11 +55,14 @@ tests-e2e: build-docker e2e-start-cluster
 	docker run -d --name server --network=host -p=50051:50051 armada
 	docker run -d --name executor --network=host -v $(shell pwd)/.kube/config:/kube/config -e KUBECONFIG=/kube/config armada-executor
 	function tearDown {
+		echo -e "\nexecutor logs:"
 		docker logs executor
+		echo -e "\nserver logs:"
 		docker logs server
 		docker stop executor server redis
 		docker rm executor server redis
 	}
 	trap tearDown EXIT
+	echo -e "\nrunning test:"
 	INTEGRATION_ENABLED=true go test ./e2e/test/... -count=1
 
