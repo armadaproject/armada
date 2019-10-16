@@ -110,7 +110,7 @@ jobs:
       - run: e2e/setup/setup_kube_config_ci.sh
       - run: docker run -d --expose=6379 --network=host redis
       - run: docker run -d --expose=50051 --network=host gresearchdev/armada-server-dev:branch-${CIRCLE_BRANCH}-${CIRCLE_SHA1}
-      - run: docker run -d --network=host -v ~/.kube/config:/kube/config -e KUBECONFIG=/kube/config gresearchdev/armada-executor-dev:branch-${CIRCLE_BRANCH}-${CIRCLE_SHA1}
+      - run: docker run -d --network=host -v $(pwd)/.kube/config:/kube/config -e KUBECONFIG=/kube/config gresearchdev/armada-executor-dev:branch-${CIRCLE_BRANCH}-${CIRCLE_SHA1}
       - restore_cache:
           keys:
             - machine-go-mod-v1-{{ checksum "go.sum" }}
