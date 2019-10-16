@@ -1,7 +1,6 @@
 # use bash for running:
 export SHELL:=/bin/bash
 export SHELLOPTS:=$(if $(SHELLOPTS),$(SHELLOPTS):)pipefail:errexit
-.ONESHELL:
 
 gobuildlinux = GOOS=linux GARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w"
 gobuild = go build
@@ -33,6 +32,7 @@ build-docker: build-docker-server build-docker-executor
 build-ci: gobuild=$(gobuildlinux)
 build-ci: build-docker build-armadactl build-load-tester
 
+.ONESHELL:
 tests:
 	docker run -d --name=test-redis -p=6379:6379 redis
 	function tearDown {
@@ -50,6 +50,7 @@ e2e-stop-cluster:
 	docker stop kube
 	docker rm kube
 
+.ONESHELL:
 tests-e2e: build-docker e2e-start-cluster
 	docker run -d --name redis -p=6379:6379 redis
 	docker run -d --name server --network=host -p=50051:50051 armada
