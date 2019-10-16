@@ -23,40 +23,26 @@ commands:
 
 jobs:
   build:
-    docker:
-      - image: circleci/golang:1.12.6
-        environment:
-          GO111MODULE: "on"
-
-      # Specify service dependencies here if necessary
-      # CircleCI maintains a library of pre-built images
-      # documented at https://circleci.com/docs/2.0/circleci-images/
-      # - image: circleci/postgres:9.4
-      - image: redis
-
-    #### TEMPLATE_NOTE: go expects specific checkout path representing url
-    #### expecting it in the form of
-    ####   /go/src/github.com/circleci/go-tool
-    ####   /go/src/bitbucket.org/circleci/go-tool
-    working_directory: /go/src/github.com/G-Research/k8s-batch
+    machine:
+      docker_layer_caching: true
+    environment:
+      GO111MODULE: "on"
+      GOPATH: "/home/circleci/go"
+      GOCACHE: "/home/circleci/go/cache"
+    working_directory: ~/go/src/github.com/G-Research/k8s-batch
     steps:
       - checkout
-      - setup_remote_docker
+      - run:
+          name: Start cluster for e2e tests
+          command: ./e2e/setup/setup_cluster_ci.sh
 
       - restore_cache:
           keys:
-            - go-mod-v1-{{ checksum "go.sum" }}
+            - machine-go-mod-v1-{{ checksum "go.sum" }}
 
       - run:
           name: Test
-          command: |
-            go get -v -d ./...
-            go test -v ./internal/...
-
-      - save_cache:
-          key: go-mod-v1-{{ checksum "go.sum" }}
-          paths:
-            - "/go/pkg/mod"
+          command: make tests
 
       - run:
           name: Check formatting
@@ -65,12 +51,13 @@ jobs:
             exit $(goimports -l -local "github.com/G-Research/k8s-batch" . | wc -l)
 
       - run:
-          name: Build
-          command: make build-ci
+          name: Test e2e & Build
+          command: make build-ci test-e2e
 
       - store_artifacts:
-          path: armadactl
+          path: bin/linux/armadactl
           destination: armadactl
+
       - run:
           name: Push Image
           command: |
@@ -89,31 +76,8 @@ jobs:
 
             docker tag armada-executor gresearchdev/armada-executor-dev:${TAG}
             docker push gresearchdev/armada-executor-dev:${TAG}
-  e2e:
-    machine:
-      docker_layer_caching: true
-    environment:
-      GO111MODULE: "on"
-      GOPATH: "/home/circleci/go"
-      GOCACHE: "/home/circleci/go/cache"
-    working_directory: ~/go/src/github.com/G-Research/k8s-batch
-    steps:
-      - checkout
-      - run:
-          name: Load relevant docker images
-          command: |
-            docker pull alpine:3.10
-            docker pull gresearchdev/armada-server-dev:branch-${CIRCLE_BRANCH}-${CIRCLE_SHA1}
-            docker pull gresearchdev/armada-executor-dev:branch-${CIRCLE_BRANCH}-${CIRCLE_SHA1}
-      - run: e2e/setup/setup_environment.sh
-      - run: e2e/setup/setup_cluster_ci.sh
-      - run: e2e/setup/setup_kube_config_ci.sh
-      - run: docker run -d --expose=6379 --network=host redis
-      - run: docker run -d --expose=50051 --network=host gresearchdev/armada-server-dev:branch-${CIRCLE_BRANCH}-${CIRCLE_SHA1}
-      - run: docker run -d --network=host -v $(pwd)/.kube/config:/kube/config -e KUBECONFIG=/kube/config gresearchdev/armada-executor-dev:branch-${CIRCLE_BRANCH}-${CIRCLE_SHA1}
-      - restore_cache:
-          keys:
-            - machine-go-mod-v1-{{ checksum "go.sum" }}
+
+
       - run:
           name: Get dependencies
           command: |
@@ -122,6 +86,7 @@ jobs:
           name: Run e2e tests
           command: |
             INTEGRATION_ENABLED=true go test ./e2e/test/... -count=1
+
       - save_cache:
           key: machine-go-mod-v1-{{ checksum "go.sum" }}
           paths:
