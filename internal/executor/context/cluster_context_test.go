@@ -38,32 +38,20 @@ func setupTestWithMinRepeatedDeletePeriod(minRepeatedDeletePeriod time.Duration)
 }
 
 func TestKubernetesClusterContext_SubmitPod(t *testing.T) {
-	clusterContext, _ := setupTest()
+	clusterContext, client := setupTest()
 
 	pod := createBatchPod()
+	client.Fake.ClearActions()
+
 	_, err := clusterContext.SubmitPod(pod)
-
 	assert.Nil(t, err)
-	assert.True(t, clusterContext.submittedPods.Exists(util.ExtractJobId(pod)))
 
-	//When informer cache syncs, it should receive an added event and remove the pod from the submitted cache
-	cache.WaitForCacheSync(make(chan struct{}), clusterContext.podInformer.Informer().HasSynced)
-	assert.False(t, clusterContext.submittedPods.Exists(util.ExtractJobId(pod)), "Pod was not cleared from cache by add event")
-}
+	assert.Equal(t, len(client.Fake.Actions()), 1)
+	assert.True(t, client.Fake.Actions()[0].Matches("create", "pods"))
 
-func TestKubernetesClusterContext_SubmitPod_RemovesPodFromSubmittedCache_OnClientError(t *testing.T) {
-	clusterContext, client := setupTest()
-	client.Fake.PrependReactor("create", "pods", func(action clientTesting.Action) (bool, runtime.Object, error) {
-		return true, nil, errors.New("server error")
-	})
-
-	returned, err := clusterContext.SubmitPod(createBatchPod())
-
-	assert.NotNil(t, err)
-	assert.Nil(t, returned)
-
-	submittedCache := clusterContext.submittedPods.GetAll()
-	assert.Equal(t, len(submittedCache), 0)
+	createAction, ok := client.Fake.Actions()[0].(clientTesting.CreateAction)
+	assert.True(t, ok)
+	assert.Equal(t, createAction.GetObject(), pod)
 }
 
 func TestKubernetesClusterContext_DeletePods_AddsPodToDeleteCache(t *testing.T) {
@@ -73,9 +61,7 @@ func TestKubernetesClusterContext_DeletePods_AddsPodToDeleteCache(t *testing.T) 
 
 	clusterContext.DeletePods([]*v1.Pod{pod})
 
-	podsToDeleteCache := clusterContext.podsToDelete.GetAll()
-	assert.Equal(t, len(podsToDeleteCache), 1)
-	assert.Equal(t, podsToDeleteCache[0], pod)
+	assert.True(t, clusterContext.podsToDelete.Exists(util.ExtractJobId(pod)))
 }
 
 func TestKubernetesClusterContext_DeletePods_DoesNotCallClient(t *testing.T) {
@@ -288,6 +274,22 @@ func TestKubernetesClusterContext_GetBatchPods_ReturnsOnlyBatchPods_IncludingTra
 	podSet := util2.StringListToSet(util.ExtractNames(allPods))
 	assert.True(t, podSet[batchPod.Name])
 	assert.True(t, podSet[transientBatchPod.Name])
+}
+
+func TestKubernetesClusterContext_GetBatchPods_DoesNotShowTransient_OnSubmitFailure(t *testing.T) {
+	clusterContext, client := setupTest()
+	client.Fake.PrependReactor("create", "pods", func(action clientTesting.Action) (bool, runtime.Object, error) {
+		return true, nil, errors.New("server error")
+	})
+
+	batchPod := createBatchPod()
+	_, err := clusterContext.SubmitPod(batchPod)
+	assert.NotNil(t, err)
+
+	allPods, err := clusterContext.GetBatchPods()
+
+	assert.Nil(t, err)
+	assert.Equal(t, len(allPods), 0)
 }
 
 func TestKubernetesClusterContext_GetBatchPods_DeduplicatesTransientPods(t *testing.T) {
