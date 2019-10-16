@@ -54,16 +54,6 @@ func TestKubernetesClusterContext_SubmitPod(t *testing.T) {
 	assert.Equal(t, createAction.GetObject(), pod)
 }
 
-func TestKubernetesClusterContext_DeletePods_AddsPodToDeleteCache(t *testing.T) {
-	clusterContext, _ := setupTest()
-
-	pod := createBatchPod()
-
-	clusterContext.DeletePods([]*v1.Pod{pod})
-
-	assert.True(t, clusterContext.podsToDelete.Exists(util.ExtractJobId(pod)))
-}
-
 func TestKubernetesClusterContext_DeletePods_DoesNotCallClient(t *testing.T) {
 	clusterContext, client := setupTest()
 
