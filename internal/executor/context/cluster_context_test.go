@@ -194,12 +194,12 @@ func TestKubernetesClusterContext_GetAllPods(t *testing.T) {
 	nonBatchPod := createPod()
 	batchPod := createBatchPod()
 
-	clusterContext.SubmitPod(nonBatchPod)
-	clusterContext.SubmitPod(batchPod)
+	submitPod(t, clusterContext, nonBatchPod)
+	submitPod(t, clusterContext, batchPod)
 	cache.WaitForCacheSync(make(chan struct{}), clusterContext.podInformer.Informer().HasSynced)
 
 	transientBatchPod := createBatchPod()
-	clusterContext.SubmitPod(transientBatchPod)
+	submitPod(t, clusterContext, transientBatchPod)
 
 	allPods, err := clusterContext.GetAllPods()
 
@@ -217,7 +217,7 @@ func TestKubernetesClusterContext_GetAllPods_DeduplicatesTransientPods(t *testin
 	clusterContext, _ := setupTest(t)
 
 	batchPod := createBatchPod()
-	clusterContext.SubmitPod(batchPod)
+	submitPod(t, clusterContext, batchPod)
 	cache.WaitForCacheSync(make(chan struct{}), clusterContext.podInformer.Informer().HasSynced)
 
 	//Forcibly add pod back to cache, so now it exists in kubernetes + cache
@@ -239,12 +239,12 @@ func TestKubernetesClusterContext_GetBatchPods_ReturnsOnlyBatchPods_IncludingTra
 	nonBatchPod := createPod()
 	batchPod := createBatchPod()
 
-	clusterContext.SubmitPod(nonBatchPod)
-	clusterContext.SubmitPod(batchPod)
+	submitPod(t, clusterContext, nonBatchPod)
+	submitPod(t, clusterContext, batchPod)
 	cache.WaitForCacheSync(make(chan struct{}), clusterContext.podInformer.Informer().HasSynced)
 
 	transientBatchPod := createBatchPod()
-	clusterContext.SubmitPod(transientBatchPod)
+	submitPod(t, clusterContext, transientBatchPod)
 
 	allPods, err := clusterContext.GetBatchPods()
 
@@ -261,7 +261,7 @@ func TestKubernetesClusterContext_GetBatchPods_DeduplicatesTransientPods(t *test
 	clusterContext, _ := setupTest(t)
 
 	batchPod := createBatchPod()
-	clusterContext.SubmitPod(batchPod)
+	submitPod(t, clusterContext, batchPod)
 	cache.WaitForCacheSync(make(chan struct{}), clusterContext.podInformer.Informer().HasSynced)
 
 	//Forcibly add pod back to cache, so now it exists in kubernetes + cache
@@ -283,12 +283,12 @@ func TestKubernetesClusterContext_GetActiveBatchPods_ReturnsOnlyBatchPods_Exclud
 	nonBatchPod := createPod()
 	batchPod := createBatchPod()
 
-	clusterContext.SubmitPod(nonBatchPod)
-	clusterContext.SubmitPod(batchPod)
+	submitPod(t, clusterContext, nonBatchPod)
+	submitPod(t, clusterContext, batchPod)
 	cache.WaitForCacheSync(make(chan struct{}), clusterContext.podInformer.Informer().HasSynced)
 
 	transientBatchPod := createBatchPod()
-	clusterContext.SubmitPod(transientBatchPod)
+	submitPod(t, clusterContext, transientBatchPod)
 
 	allPods, err := clusterContext.GetActiveBatchPods()
 
@@ -319,12 +319,15 @@ func TestKubernetesClusterContext_GetNodes(t *testing.T) {
 	assert.Equal(t, nodes[0].Name, node.Name)
 }
 
+func submitPod(t *testing.T, context ClusterContext, pod *v1.Pod) {
+	_, err := context.SubmitPod(pod)
+	assert.Nil(t, err)
+}
+
 func createSubmittedPod(t *testing.T, context ClusterContext, markForDeletion bool) *v1.Pod {
 	pod := createBatchPod()
 
-	_, err := context.SubmitPod(pod)
-
-	assert.Nil(t, err)
+	submitPod(t, context, pod)
 
 	if markForDeletion {
 		context.DeletePods([]*v1.Pod{pod})
