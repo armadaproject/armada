@@ -25,8 +25,7 @@ func setupTest(t *testing.T) (*KubernetesClusterContext, *fake.Clientset) {
 
 	clusterContext := NewClusterContext(
 		"test-cluster-1",
-		util.NewTimeExpiringPodCache(time.Minute, time.Second, util2.NewULID()),
-		util.NewTimeExpiringPodCache(2*time.Minute, time.Second, util2.NewULID()),
+		2*time.Minute,
 		client,
 	)
 

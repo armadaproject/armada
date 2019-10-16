@@ -2,6 +2,7 @@ package context
 
 import (
 	"encoding/json"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
@@ -49,16 +50,15 @@ func (c *KubernetesClusterContext) GetClusterId() string {
 
 func NewClusterContext(
 	clusterId string,
-	submittedPods util.PodCache,
-	deletedPods util.PodCache,
+	minTimeBetweenRepeatDeletionCalls time.Duration,
 	kubernetesClient kubernetes.Interface) *KubernetesClusterContext {
 
 	factory := informers.NewSharedInformerFactoryWithOptions(kubernetesClient, 0)
 
 	context := &KubernetesClusterContext{
 		clusterId:        clusterId,
-		submittedPods:    submittedPods,
-		podsToDelete:     deletedPods,
+		submittedPods:    util.NewTimeExpiringPodCache(time.Minute, time.Second, "submitted_job"),
+		podsToDelete:     util.NewTimeExpiringPodCache(minTimeBetweenRepeatDeletionCalls, time.Second, "deleted_job"),
 		stopper:          make(chan struct{}),
 		podInformer:      factory.Core().V1().Pods(),
 		nodeInformer:     factory.Core().V1().Nodes(),

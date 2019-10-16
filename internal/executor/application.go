@@ -20,7 +20,6 @@ import (
 	"github.com/G-Research/k8s-batch/internal/executor/metrics"
 	"github.com/G-Research/k8s-batch/internal/executor/reporter"
 	"github.com/G-Research/k8s-batch/internal/executor/service"
-	"github.com/G-Research/k8s-batch/internal/executor/util"
 )
 
 func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGroup) {
@@ -42,8 +41,7 @@ func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGrou
 
 	clusterContext := context.NewClusterContext(
 		config.Application.ClusterId,
-		util.NewTimeExpiringPodCache(time.Minute, time.Second, "submitted_job"),
-		util.NewTimeExpiringPodCache(2*time.Minute, time.Second, "deleted_job"),
+		2*time.Minute,
 		kubernetesClient,
 	)
 
