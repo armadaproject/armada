@@ -1,8 +1,8 @@
 FROM alpine:3.10
 
-COPY ./armada /app/
+COPY ./bin/linux/server /app/
 COPY /config/armada/ /app/config/armada
 
 WORKDIR /app
 
-ENTRYPOINT ["./armada"]
+ENTRYPOINT ["./server"]
