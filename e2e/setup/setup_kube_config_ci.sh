@@ -1,3 +1,3 @@
-mkdir ~/.kube
-chmod 777 ~/.kube
-wget -P ~/.kube http://localhost:10080/config
+mkdir .kube
+rm .kube/config
+wget -P .kube http://localhost:10080/config
