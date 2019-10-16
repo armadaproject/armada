@@ -34,7 +34,7 @@ build-ci: gobuild=$(gobuildlinux)
 build-ci: build-docker build-armadactl build-load-tester
 
 tests:
-	docker start test-redis || docker run -d --name test-redis -p=6379:6379 redis
+	docker run -d --name=test-redis -p=6379:6379 redis
 	function tearDown {
 		docker stop test-redis
 		docker rm test-redis
