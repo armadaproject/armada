@@ -123,6 +123,19 @@ func TestMapPodCache_GetReturnsACopy(t *testing.T) {
 	assert.NotEqual(t, result, pod)
 }
 
+func TestMapPodCache_Exists(t *testing.T) {
+	pod := makeManagedPod("job1")
+	cache := NewMapPodCache(time.Minute, time.Second, "metric10")
+
+	assert.False(t, cache.Exists("job1"))
+
+	cache.Add(pod)
+	assert.True(t, cache.Exists("job1"))
+
+	cache.Delete("job1")
+	assert.False(t, cache.Exists("job1"))
+}
+
 func makeManagedPod(jobId string) *v1.Pod {
 	pod := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
