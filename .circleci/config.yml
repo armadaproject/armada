@@ -56,7 +56,7 @@ jobs:
 
       - run:
           name: Test e2e & Build
-          command: make build-ci test-e2e
+          command: make build-ci tests-e2e
 
       - store_artifacts:
           path: bin/linux/armadactl
@@ -80,16 +80,6 @@ jobs:
 
             docker tag armada-executor gresearchdev/armada-executor-dev:${TAG}
             docker push gresearchdev/armada-executor-dev:${TAG}
-
-
-      - run:
-          name: Get dependencies
-          command: |
-            go get -d ./...
-      - run:
-          name: Run e2e tests
-          command: |
-            INTEGRATION_ENABLED=true go test ./e2e/test/... -count=1
 
       - save_cache:
           key: machine-go-mod-v1-{{ checksum "go.sum" }}
