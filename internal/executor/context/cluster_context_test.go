@@ -19,7 +19,8 @@ import (
 	"github.com/G-Research/k8s-batch/internal/executor/util"
 )
 
-func setupTest() (*KubernetesClusterContext, *fake.Clientset) {
+func setupTest(t *testing.T) (*KubernetesClusterContext, *fake.Clientset) {
+	t.Parallel()
 	client := fake.NewSimpleClientset()
 
 	clusterContext := NewClusterContext(
@@ -33,7 +34,7 @@ func setupTest() (*KubernetesClusterContext, *fake.Clientset) {
 }
 
 func TestKubernetesClusterContext_SubmitPod(t *testing.T) {
-	clusterContext, _ := setupTest()
+	clusterContext, _ := setupTest(t)
 
 	pod := createBatchPod()
 	_, err := clusterContext.SubmitPod(pod)
@@ -47,7 +48,7 @@ func TestKubernetesClusterContext_SubmitPod(t *testing.T) {
 }
 
 func TestKubernetesClusterContext_SubmitPod_RemovesPodFromSubmittedCache_OnClientError(t *testing.T) {
-	clusterContext, client := setupTest()
+	clusterContext, client := setupTest(t)
 	client.Fake.PrependReactor("create", "pods", func(action clientTesting.Action) (bool, runtime.Object, error) {
 		return true, nil, errors.New("server error")
 	})
@@ -62,7 +63,7 @@ func TestKubernetesClusterContext_SubmitPod_RemovesPodFromSubmittedCache_OnClien
 }
 
 func TestKubernetesClusterContext_DeletePods_AddsPodToDeleteCache(t *testing.T) {
-	clusterContext, _ := setupTest()
+	clusterContext, _ := setupTest(t)
 
 	pod := createBatchPod()
 
@@ -74,7 +75,7 @@ func TestKubernetesClusterContext_DeletePods_AddsPodToDeleteCache(t *testing.T) 
 }
 
 func TestKubernetesClusterContext_DeletePods_DoesNotCallClient(t *testing.T) {
-	clusterContext, client := setupTest()
+	clusterContext, client := setupTest(t)
 
 	pod := createBatchPod()
 
@@ -86,7 +87,7 @@ func TestKubernetesClusterContext_DeletePods_DoesNotCallClient(t *testing.T) {
 }
 
 func TestKubernetesClusterContext_ProcessPodsToDelete_CallDeleteOnClient(t *testing.T) {
-	clusterContext, client := setupTest()
+	clusterContext, client := setupTest(t)
 
 	pod := createSubmittedPod(t, clusterContext, true)
 	client.Fake.ClearActions()
@@ -102,7 +103,7 @@ func TestKubernetesClusterContext_ProcessPodsToDelete_CallDeleteOnClient(t *test
 }
 
 func TestKubernetesClusterContext_ProcessPodsToDelete_OnClientSuccess_MarkPodAsNilInCache(t *testing.T) {
-	clusterContext, client := setupTest()
+	clusterContext, client := setupTest(t)
 
 	pod := createSubmittedPod(t, clusterContext, true)
 	client.Fake.ClearActions()
@@ -114,7 +115,7 @@ func TestKubernetesClusterContext_ProcessPodsToDelete_OnClientSuccess_MarkPodAsN
 }
 
 func TestKubernetesClusterContext_ProcessPodsToDelete_OnClientErrorNotFound_MarkPodAsNilInCache(t *testing.T) {
-	clusterContext, client := setupTest()
+	clusterContext, client := setupTest(t)
 	client.Fake.PrependReactor("delete", "pods", func(action clientTesting.Action) (bool, runtime.Object, error) {
 		notFound := errors2.StatusError{
 			ErrStatus: metav1.Status{
@@ -134,7 +135,7 @@ func TestKubernetesClusterContext_ProcessPodsToDelete_OnClientErrorNotFound_Mark
 }
 
 func TestKubernetesClusterContext_ProcessPodsToDelete_OnClientError_RemovePodFromDeleteCache(t *testing.T) {
-	clusterContext, client := setupTest()
+	clusterContext, client := setupTest(t)
 	client.Fake.PrependReactor("delete", "pods", func(action clientTesting.Action) (bool, runtime.Object, error) {
 		return true, nil, errors.New("server error")
 	})
@@ -148,7 +149,7 @@ func TestKubernetesClusterContext_ProcessPodsToDelete_OnClientError_RemovePodFro
 }
 
 func TestKubernetesClusterContext_ProcessPodsToDelete_OnRepeatedCall_DoesNotCallDeleteOnClientRepeatedly(t *testing.T) {
-	clusterContext, client := setupTest()
+	clusterContext, client := setupTest(t)
 
 	createSubmittedPod(t, clusterContext, true)
 
@@ -162,7 +163,7 @@ func TestKubernetesClusterContext_ProcessPodsToDelete_OnRepeatedCall_DoesNotCall
 }
 
 func TestKubernetesClusterContext_AddAnnotation(t *testing.T) {
-	clusterContext, _ := setupTest()
+	clusterContext, _ := setupTest(t)
 	pod := createSubmittedPod(t, clusterContext, false)
 
 	annotationsToAdd := map[string]string{"test": "annotation"}
@@ -176,7 +177,7 @@ func TestKubernetesClusterContext_AddAnnotation(t *testing.T) {
 }
 
 func TestKubernetesClusterContext_AddAnnotation_ReturnsError_OnClientError(t *testing.T) {
-	clusterContext, client := setupTest()
+	clusterContext, client := setupTest(t)
 	client.Fake.PrependReactor("patch", "pods", func(action clientTesting.Action) (bool, runtime.Object, error) {
 		return true, nil, errors.New("server error")
 	})
@@ -189,7 +190,7 @@ func TestKubernetesClusterContext_AddAnnotation_ReturnsError_OnClientError(t *te
 }
 
 func TestKubernetesClusterContext_GetAllPods(t *testing.T) {
-	clusterContext, _ := setupTest()
+	clusterContext, _ := setupTest(t)
 
 	nonBatchPod := createPod()
 	batchPod := createBatchPod()
@@ -214,7 +215,7 @@ func TestKubernetesClusterContext_GetAllPods(t *testing.T) {
 }
 
 func TestKubernetesClusterContext_GetAllPods_DeduplicatesTransientPods(t *testing.T) {
-	clusterContext, _ := setupTest()
+	clusterContext, _ := setupTest(t)
 
 	batchPod := createBatchPod()
 	clusterContext.SubmitPod(batchPod)
@@ -234,7 +235,7 @@ func TestKubernetesClusterContext_GetAllPods_DeduplicatesTransientPods(t *testin
 }
 
 func TestKubernetesClusterContext_GetBatchPods_ReturnsOnlyBatchPods_IncludingTransient(t *testing.T) {
-	clusterContext, _ := setupTest()
+	clusterContext, _ := setupTest(t)
 
 	nonBatchPod := createPod()
 	batchPod := createBatchPod()
@@ -258,7 +259,7 @@ func TestKubernetesClusterContext_GetBatchPods_ReturnsOnlyBatchPods_IncludingTra
 }
 
 func TestKubernetesClusterContext_GetBatchPods_DeduplicatesTransientPods(t *testing.T) {
-	clusterContext, _ := setupTest()
+	clusterContext, _ := setupTest(t)
 
 	batchPod := createBatchPod()
 	clusterContext.SubmitPod(batchPod)
@@ -278,7 +279,7 @@ func TestKubernetesClusterContext_GetBatchPods_DeduplicatesTransientPods(t *test
 }
 
 func TestKubernetesClusterContext_GetActiveBatchPods_ReturnsOnlyBatchPods_ExcludingTransient(t *testing.T) {
-	clusterContext, _ := setupTest()
+	clusterContext, _ := setupTest(t)
 
 	nonBatchPod := createPod()
 	batchPod := createBatchPod()
@@ -300,7 +301,7 @@ func TestKubernetesClusterContext_GetActiveBatchPods_ReturnsOnlyBatchPods_Exclud
 }
 
 func TestKubernetesClusterContext_GetNodes(t *testing.T) {
-	clusterContext, client := setupTest()
+	clusterContext, client := setupTest(t)
 
 	node := &v1.Node{
 		ObjectMeta: metav1.ObjectMeta{
