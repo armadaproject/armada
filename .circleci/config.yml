@@ -32,6 +32,7 @@ jobs:
     working_directory: ~/go/src/github.com/G-Research/k8s-batch
     steps:
       - checkout
+      - run: e2e/setup/setup_environment.sh
       - run:
           name: Start cluster for e2e tests
           command: ./e2e/setup/setup_cluster_ci.sh
@@ -39,6 +40,8 @@ jobs:
       - restore_cache:
           keys:
             - machine-go-mod-v1-{{ checksum "go.sum" }}
+
+      - run: make --version
 
       - run:
           name: Test
