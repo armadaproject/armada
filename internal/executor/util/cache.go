@@ -34,7 +34,7 @@ type mapPodCache struct {
 	sizeGauge     prometheus.Gauge
 }
 
-func NewMapPodCache(expiry time.Duration, cleanUpInterval time.Duration, metricName string) PodCache {
+func NewTimeExpiringPodCache(expiry time.Duration, cleanUpInterval time.Duration, metricName string) PodCache {
 	cache := &mapPodCache{
 		records:       map[string]cacheRecord{},
 		rwLock:        sync.RWMutex{},

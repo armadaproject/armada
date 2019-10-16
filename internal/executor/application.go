@@ -42,8 +42,8 @@ func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGrou
 
 	clusterContext := context.NewClusterContext(
 		config.Application.ClusterId,
-		util.NewMapPodCache(time.Minute, time.Second, "submitted_job"),
-		util.NewMapPodCache(2*time.Minute, time.Second, "deleted_job"),
+		util.NewTimeExpiringPodCache(time.Minute, time.Second, "submitted_job"),
+		util.NewTimeExpiringPodCache(2*time.Minute, time.Second, "deleted_job"),
 		kubernetesClient,
 	)
 
