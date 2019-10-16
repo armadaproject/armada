@@ -131,12 +131,6 @@ workflows:
   build_and_deploy:
     jobs:
       - build
-      - e2e:
-          requires:
-            - build
-          filters:
-            branches:
-              ignore: master
       - deploy:
           requires:
             - build
