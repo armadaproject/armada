@@ -80,6 +80,8 @@ jobs:
             docker tag armada-executor gresearchdev/armada-executor-dev:${TAG}
             docker push gresearchdev/armada-executor-dev:${TAG}
 
+      - run: cat go.sum
+
       - save_cache:
           key: machine-go-mod-v1-{{ checksum "go.sum" }}-{{ checksum ".circleci/config.yml" }}
           paths:
