@@ -40,7 +40,7 @@ jobs:
 
       - restore_cache:
           keys:
-            - machine-go-mod-v1-{{ checksum "go.sum" }}
+            - machine-go-mod-v1-{{ checksum "go.sum" }}-{{ checksum ".circleci/config.yaml" }}
 
       - run: make --version
 
@@ -82,7 +82,7 @@ jobs:
             docker push gresearchdev/armada-executor-dev:${TAG}
 
       - save_cache:
-          key: machine-go-mod-v1-{{ checksum "go.sum" }}
+          key: machine-go-mod-v1-{{ checksum "go.sum" }}-{{ checksum ".circleci/config.yaml" }}
           paths:
             - "/home/circleci/go/pkg/mod"
             - "/home/circleci/go/cache"
