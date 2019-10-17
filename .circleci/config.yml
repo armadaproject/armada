@@ -40,9 +40,7 @@ jobs:
 
       - restore_cache:
           keys:
-            - machine-go-mod-v1-{{ checksum "go.sum" }}-{{ checksum ".circleci/config.yml" }}
-
-      - run: make --version
+            - machine-go-mod-v1-{{ checksum "go.sum" }}
 
       - run:
           name: Test
@@ -54,7 +52,7 @@ jobs:
             exit $(go run golang.org/x/tools/cmd/goimports -l -local "github.com/G-Research/k8s-batch" . | wc -l)
 
       - run:
-          name: Test e2e & Build
+          name: Build & Run e2e tests
           command: make build-ci tests-e2e
 
       - store_artifacts:
@@ -83,7 +81,7 @@ jobs:
       - run: cat go.sum
 
       - save_cache:
-          key: machine-go-mod-v1-{{ checksum "go.sum" }}-{{ checksum ".circleci/config.yml" }}
+          key: machine-go-mod-v1-{{ checksum "go.sum" }}
           paths:
             - "/home/circleci/go/pkg/mod"
             - "/home/circleci/go/cache"
