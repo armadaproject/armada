@@ -166,6 +166,9 @@ func lastStatusChange(pod *v1.Pod) (time.Time, error) {
 	conditions := pod.Status.Conditions
 
 	if len(conditions) <= 0 {
+		if pod.Status.Phase == v1.PodPending && !pod.CreationTimestamp.IsZero() {
+			return pod.CreationTimestamp.Time, nil
+		}
 		return *new(time.Time), errors.New("no state changes found, cannot determine last status change")
 	}
 
