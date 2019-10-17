@@ -17,8 +17,3 @@ sudo tar -xvf go1.12.6.linux-amd64.tar.gz
 sudo mv go /usr/local
 go version
 
-echo "Installing kind"
-curl -Lo ./kind https://github.com/kubernetes-sigs/kind/releases/download/v0.4.0/kind-linux-amd64
-chmod +x kind
-sudo mv kind /usr/local/bin/
-kind version

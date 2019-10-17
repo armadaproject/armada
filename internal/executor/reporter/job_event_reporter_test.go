@@ -36,7 +36,7 @@ func TestLastStatusChange_ReturnsExpectedValue(t *testing.T) {
 	assert.Equal(t, result, latest)
 }
 
-func TestLastStatusChange_ReturnsErrorWhenNoStateChangesFound(t *testing.T) {
+func TestLastStatusChange_ReturnsError_WhenNoStateChangesFound(t *testing.T) {
 	pod := v1.Pod{
 		Status: v1.PodStatus{
 			Conditions: make([]v1.PodCondition, 0),
@@ -45,7 +45,35 @@ func TestLastStatusChange_ReturnsErrorWhenNoStateChangesFound(t *testing.T) {
 
 	_, err := lastStatusChange(&pod)
 
-	assert.True(t, err != nil)
+	assert.NotNil(t, err)
+}
+
+func TestLastStatusChange_ReturnsCreatedTime_WhenNoStateChangesFoundForPendingPod(t *testing.T) {
+	creationTime := time.Date(2019, 11, 20, 9, 31, 5, 0, time.UTC)
+	pod := v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			CreationTimestamp: metav1.NewTime(creationTime),
+		},
+		Status: v1.PodStatus{
+			Phase:      v1.PodPending,
+			Conditions: make([]v1.PodCondition, 0),
+		},
+	}
+	result, _ := lastStatusChange(&pod)
+
+	assert.Equal(t, result, creationTime)
+}
+
+func TestLastStatusChange_ReturnsError_WhenNoStateChangesFoundAndCreatedTimeIsNotSetForPendingPod(t *testing.T) {
+	pod := v1.Pod{
+		Status: v1.PodStatus{
+			Phase:      v1.PodPending,
+			Conditions: make([]v1.PodCondition, 0),
+		},
+	}
+	_, err := lastStatusChange(&pod)
+
+	assert.NotNil(t, err)
 }
 
 func TestHasPodBeenInStateForLongerThanGivenDuration_ReturnsTrue(t *testing.T) {
@@ -79,7 +107,7 @@ func TestHasPodBeenInStateForLongerThanGivenDuration_ReturnsFalse(t *testing.T) 
 	assert.False(t, result)
 }
 
-func TestHasPodBeenInStateForLongerThanGivenDuration_ReturnsTrue_WhenNoPodStateChangesCanBeFound(t *testing.T) {
+func TestHasPodBeenInStateForLongerThanGivenDuration_ReturnsFalse_WhenNoPodStateChangesCanBeFound(t *testing.T) {
 	pod := v1.Pod{
 		Status: v1.PodStatus{
 			Conditions: []v1.PodCondition{},
@@ -88,7 +116,7 @@ func TestHasPodBeenInStateForLongerThanGivenDuration_ReturnsTrue_WhenNoPodStateC
 
 	result := HasPodBeenInStateForLongerThanGivenDuration(&pod, 5*time.Second)
 
-	assert.True(t, result)
+	assert.False(t, result)
 }
 
 func TestHasCurrentStateBeenReported_TrueWhenAnnotationExistsForCurrentPhase(t *testing.T) {
