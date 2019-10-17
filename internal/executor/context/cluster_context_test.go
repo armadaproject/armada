@@ -54,17 +54,6 @@ func TestKubernetesClusterContext_SubmitPod(t *testing.T) {
 	assert.Equal(t, createAction.GetObject(), pod)
 }
 
-func TestKubernetesClusterContext_DeletePods_DoesNotCallClient(t *testing.T) {
-	clusterContext, client := setupTest()
-
-	pod := createBatchPod()
-
-	client.Fake.ClearActions()
-	clusterContext.DeletePods([]*v1.Pod{pod})
-
-	assert.Equal(t, len(client.Actions()), 0)
-}
-
 func TestKubernetesClusterContext_ProcessPodsToDelete_DoesNotCallClient_WhenNoPodsMarkedForDeletion(t *testing.T) {
 	clusterContext, client := setupTest()
 
