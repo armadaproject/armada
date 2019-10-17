@@ -51,15 +51,14 @@ jobs:
       - run:
           name: Check formatting
           command: |
-            go get golang.org/x/tools/cmd/goimports
-            exit $(goimports -l -local "github.com/G-Research/k8s-batch" . | wc -l)
+            exit $(go run golang.org/x/tools/cmd/goimports -l -local "github.com/G-Research/k8s-batch" . | wc -l)
 
       - run:
           name: Test e2e & Build
           command: make build-ci tests-e2e
 
       - store_artifacts:
-          path: bin/linux/armadactl
+          path: bin/armadactl
           destination: armadactl
 
       - run:
