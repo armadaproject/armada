@@ -7,7 +7,7 @@ import (
 
 	"github.com/go-redis/redis"
 	"github.com/gogo/protobuf/proto"
-	"github.com/prometheus/common/log"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/G-Research/k8s-batch/internal/armada/api"
 	"github.com/G-Research/k8s-batch/internal/common/util"
@@ -394,9 +394,9 @@ func (repo *RedisJobRepository) leaseJobs(clusterId string, jobs []jobIdentity) 
 		if e != nil {
 			log.Error(e)
 		} else if value == alreadyAllocatedByDifferentCluster {
-			log.With("jobId", jobId).Info("Job Already allocated to different cluster")
+			log.WithField("jobId", jobId).Info("Job Already allocated to different cluster")
 		} else if value == jobCancelled {
-			log.With("jobId", jobId).Info("Trying to renew cancelled job")
+			log.WithField("jobId", jobId).Info("Trying to renew cancelled job")
 		} else {
 			leasedJobs = append(leasedJobs, jobId)
 		}
