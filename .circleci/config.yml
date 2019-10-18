@@ -144,7 +144,8 @@ jobs:
       - run:
           name: Publish images
           command: |
-            TAG=${CIRCLE_SHA1}
+#            Fix TAG
+            TAG=branch-release-pipeline-${CIRCLE_SHA1}
             RELEASE_TAG=${CIRCLE_TAG}
 
             echo ${DOCKERHUB_PASS} | docker login -u ${DOCKERHUB_USER} --password-stdin
