@@ -137,9 +137,9 @@ jobs:
           path: bin/armadactl
           destination: armadactl
 
-      #      - run:
-      #          name: Upload artifacts to Github
-      #          command: TODO
+      - run:
+          name: Upload artifacts to Github release
+          command: ./scripts/upload-github-release-asset.sh ${GITHUB_TOKEN} ${CIRCLE_TAG} ./bin/armadactl
 
       - run:
           name: Publish images
