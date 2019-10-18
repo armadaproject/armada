@@ -6,7 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/G-Research/k8s-batch/internal/client"
+	"github.com/G-Research/armada/internal/client"
 )
 
 func init() {

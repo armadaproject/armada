@@ -14,13 +14,13 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/keepalive"
 
-	"github.com/G-Research/k8s-batch/internal/armada/api"
-	"github.com/G-Research/k8s-batch/internal/armada/authorization"
-	"github.com/G-Research/k8s-batch/internal/armada/configuration"
-	"github.com/G-Research/k8s-batch/internal/armada/metrics"
-	"github.com/G-Research/k8s-batch/internal/armada/repository"
-	"github.com/G-Research/k8s-batch/internal/armada/server"
-	"github.com/G-Research/k8s-batch/internal/armada/service"
+	"github.com/G-Research/armada/internal/armada/api"
+	"github.com/G-Research/armada/internal/armada/authorization"
+	"github.com/G-Research/armada/internal/armada/configuration"
+	"github.com/G-Research/armada/internal/armada/metrics"
+	"github.com/G-Research/armada/internal/armada/repository"
+	"github.com/G-Research/armada/internal/armada/server"
+	"github.com/G-Research/armada/internal/armada/service"
 )
 
 func Serve(config *configuration.ArmadaConfig) (*grpc.Server, *sync.WaitGroup) {

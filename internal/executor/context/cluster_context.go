@@ -15,8 +15,8 @@ import (
 	lister "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/G-Research/k8s-batch/internal/executor/domain"
-	"github.com/G-Research/k8s-batch/internal/executor/util"
+	"github.com/G-Research/armada/internal/executor/domain"
+	"github.com/G-Research/armada/internal/executor/util"
 )
 
 type ClusterContext interface {

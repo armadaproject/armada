@@ -8,12 +8,12 @@ import (
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/G-Research/k8s-batch/internal/armada/api"
-	"github.com/G-Research/k8s-batch/internal/common"
-	commonUtil "github.com/G-Research/k8s-batch/internal/common/util"
-	context2 "github.com/G-Research/k8s-batch/internal/executor/context"
-	"github.com/G-Research/k8s-batch/internal/executor/reporter"
-	"github.com/G-Research/k8s-batch/internal/executor/util"
+	"github.com/G-Research/armada/internal/armada/api"
+	"github.com/G-Research/armada/internal/common"
+	commonUtil "github.com/G-Research/armada/internal/common/util"
+	context2 "github.com/G-Research/armada/internal/executor/context"
+	"github.com/G-Research/armada/internal/executor/reporter"
+	"github.com/G-Research/armada/internal/executor/util"
 )
 
 type LeaseService interface {

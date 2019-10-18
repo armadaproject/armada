@@ -3,7 +3,7 @@ package domain
 import (
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/G-Research/k8s-batch/internal/common"
+	"github.com/G-Research/armada/internal/common"
 )
 
 type LoadTestSpecification struct {

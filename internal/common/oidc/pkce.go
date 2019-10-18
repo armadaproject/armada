@@ -17,7 +17,7 @@ import (
 	openId "github.com/coreos/go-oidc"
 	"golang.org/x/oauth2"
 
-	"github.com/G-Research/k8s-batch/internal/client/domain"
+	"github.com/G-Research/armada/internal/client/domain"
 )
 
 type TokenCredentials struct {

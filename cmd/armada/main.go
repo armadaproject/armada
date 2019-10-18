@@ -9,9 +9,9 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 
-	"github.com/G-Research/k8s-batch/internal/armada"
-	"github.com/G-Research/k8s-batch/internal/armada/configuration"
-	"github.com/G-Research/k8s-batch/internal/common"
+	"github.com/G-Research/armada/internal/armada"
+	"github.com/G-Research/armada/internal/armada/configuration"
+	"github.com/G-Research/armada/internal/common"
 )
 
 const CustomConfigLocation string = "config"

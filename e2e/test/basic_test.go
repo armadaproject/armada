@@ -13,11 +13,11 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/G-Research/k8s-batch/internal/armada/api"
-	"github.com/G-Research/k8s-batch/internal/client/domain"
-	"github.com/G-Research/k8s-batch/internal/client/service"
-	util2 "github.com/G-Research/k8s-batch/internal/client/util"
-	"github.com/G-Research/k8s-batch/internal/common/util"
+	"github.com/G-Research/armada/internal/armada/api"
+	"github.com/G-Research/armada/internal/client/domain"
+	"github.com/G-Research/armada/internal/client/service"
+	util2 "github.com/G-Research/armada/internal/client/util"
+	"github.com/G-Research/armada/internal/common/util"
 )
 
 const integrationEnabledEnvVar = "INTEGRATION_ENABLED"

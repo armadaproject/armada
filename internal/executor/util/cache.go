@@ -9,7 +9,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/G-Research/k8s-batch/internal/executor/metrics"
+	"github.com/G-Research/armada/internal/executor/metrics"
 )
 
 type PodCache interface {
