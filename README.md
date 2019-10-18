@@ -3,18 +3,72 @@
 ![Armada](./logo.svg)
 
 Armada is experimental application to submit and monitor jobs to multiple Kubernetes clusters.
-It stores queues for users/projects with pod specifications and create these pods once there is available resource in Kubernetes.
 
-To achieve fairness between users we have implemented a HTCondor like algorithm to divide resources. Each queue has a priority. When pods from a queue use some resources over time, queue priority is reduced so other queues will get more share in the future. When queues do not use resources their priority will eventually get back to initial value.
+It stores queues for users/projects with pod specifications and create these pods once there is available resource in one of the connected Kubernetes clusters.
 
-## Why?
-In our HTCondor clusters we need to handle large spikes of resource requests. Condor queues thousands of jobs per user and slowly works them all off assuring all users get a fair share of resource.
-Kubernetes itself is not designed around this use case and multiple components of the system struggle when 10k - 100k pods are created at once.
-Some of the issues could be solved by replacing the scheduler or improving other components, but we also need to support large clusters and current Kubernetes official limit for nodes is 5000. We have anecdotal evidence from conferences that Kubernetes does not operate optimally past 1000 nodes without significant tuning.
-It would be a benefit to have a solution that supports scaling out using multiple Kubernetes clusters. This allows simple scaling as well as benefit from a maintenance perspective.
+## Documentation
 
-[Design docs](./docs/design.md)
+- [Design docs](./docs/design.md)
+- [Development guide](./docs/developer.md)
+- [Installation & Usage](./docs/usage.md)
 
-[Development guide](./docs/developer.md)
+## Key features
+- Armada maintains fair resource share over time (inspired by HTCondor priority)
+- It can handle large amount of queued jobs (million+)
+- It Allows adding and removing clusters from the system without disruption
+- By utilizing multiple Kubernetes clusters system can scale to larger amount of nodes beyond one cluster limits
 
-[Installation & Usage](./docs/usage.md)
+
+
+## Key concepts
+
+**Queue:** Represent user or project, used to maintain fair share over time, has priority factor
+
+**Job:** Unit of work to be run (described as Kubernetes PodSpec)
+
+**Job Set:** Group of related jobs, api allows observing progress of job set together
+
+
+## Try it out locally
+
+Assumming you have go installed.
+
+1. Clone repository & Build (project requires go & docker installed)
+```bash
+git clone https://github.com/G-Research/armada.git
+cd armada
+make build
+```
+
+2. Get kind
+```bash
+go get sigs.k8s.io/kind
+```
+ 
+3. create 2 kind clusters
+```bash
+kind create cluster --name demoA --config ./example/kind-config.yaml
+kind create cluster --name demoB --config ./example/kind-config.yaml 
+```
+
+4. Start Redis
+```bash
+docker run -d --expose=6379 --network=host redis
+```
+
+5. Start server in one terminal
+```bash
+./bin/armada
+```
+
+6. Start executors for each cluster each in separate terminal
+```
+KUBECONFIG=$(kind get kubeconfig-path --name="demoA") ARMADA_APPLICATION_CLUSTERID=demoA ./bin/executor
+KUBECONFIG=$(kind get kubeconfig-path --name="demoB") ARMADA_APPLICATION_CLUSTERID=demoB ./cmd/executor
+```
+7. Create queue & Submit job
+```
+armadactl create-queue test 1
+armadactl submit ./example/jobs.yaml
+armadactl watch job-set-1
+```
