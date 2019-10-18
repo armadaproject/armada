@@ -7,16 +7,23 @@ if [ ! -f $FILE ]; then
     exit -1
 fi
 
-RELEASE_ID=$(curl -H "Authorization: token $API_TOKEN" https://api.github.com/repos/G-Research/armada/releases/tags/$RELEASE_TAG | jq -r '.id')
+RELEASE_INFO_REPLY=$(curl --fail -H "Authorization: token $API_TOKEN" https://api.github.com/repos/G-Research/armada/releases/tags/$RELEASE_TAG)
+
+if [ $? -ne 0 ]; then
+    echo "Failed to get release information from Github"
+    exit -1
+fi
+
+RELEASE_ID=$(echo $RELEASE_INFO_REPLY | jq -r '.id')
 
 if [ $RELEASE_ID = null ]; then
     echo "Failed to get id of release with tag $RELEASE_TAG"
     exit -1
 fi
 
-curl -H "Authorization: token $API_TOKEN" -H "Content-Type: application/octet-stream" --data-binary @$FILE "https://uploads.github.com/repos/G-Research/armada/releases/$RELEASE_ID/assets?name=$(basename $FILE)"
+curl --fail -H "Authorization: token $API_TOKEN" -H "Content-Type: application/octet-stream" --data-binary @$FILE "https://uploads.github.com/repos/G-Research/armada/releases/$RELEASE_ID/assets?name=$(basename $FILE)"
 
-if [ $? -eq 0 ]; then
+if [ $? -ne 0 ]; then
     echo "Failed to upload file to Github"
     exit -1
 fi
