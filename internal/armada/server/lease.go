@@ -8,11 +8,11 @@ import (
 	"github.com/gogo/protobuf/types"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/G-Research/k8s-batch/internal/armada/api"
-	"github.com/G-Research/k8s-batch/internal/armada/repository"
-	"github.com/G-Research/k8s-batch/internal/armada/service"
-	"github.com/G-Research/k8s-batch/internal/common"
-	"github.com/G-Research/k8s-batch/internal/common/util"
+	"github.com/G-Research/armada/internal/armada/api"
+	"github.com/G-Research/armada/internal/armada/repository"
+	"github.com/G-Research/armada/internal/armada/service"
+	"github.com/G-Research/armada/internal/common"
+	"github.com/G-Research/armada/internal/common/util"
 )
 
 type AggregatedQueueServer struct {

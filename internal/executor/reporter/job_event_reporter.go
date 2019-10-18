@@ -8,10 +8,10 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/G-Research/k8s-batch/internal/armada/api"
-	"github.com/G-Research/k8s-batch/internal/common"
-	"github.com/G-Research/k8s-batch/internal/executor/context"
-	"github.com/G-Research/k8s-batch/internal/executor/util"
+	"github.com/G-Research/armada/internal/armada/api"
+	"github.com/G-Research/armada/internal/common"
+	"github.com/G-Research/armada/internal/executor/context"
+	"github.com/G-Research/armada/internal/executor/util"
 )
 
 type EventReporter interface {

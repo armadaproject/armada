@@ -1,8 +1,8 @@
 package service
 
 import (
-	"github.com/G-Research/k8s-batch/internal/armada/api"
-	"github.com/G-Research/k8s-batch/internal/common"
+	"github.com/G-Research/armada/internal/armada/api"
+	"github.com/G-Research/armada/internal/common"
 )
 
 func CreateQueue(submitClient api.SubmitClient, queue *api.Queue) error {

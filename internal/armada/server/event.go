@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/G-Research/k8s-batch/internal/armada/api"
-	"github.com/G-Research/k8s-batch/internal/armada/repository"
+	"github.com/G-Research/armada/internal/armada/api"
+	"github.com/G-Research/armada/internal/armada/repository"
 
 	"github.com/gogo/protobuf/types"
 )

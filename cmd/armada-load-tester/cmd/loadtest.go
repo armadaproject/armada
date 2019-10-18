@@ -4,10 +4,10 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	"github.com/G-Research/k8s-batch/internal/client"
-	"github.com/G-Research/k8s-batch/internal/client/domain"
-	"github.com/G-Research/k8s-batch/internal/client/service"
-	"github.com/G-Research/k8s-batch/internal/client/util"
+	"github.com/G-Research/armada/internal/client"
+	"github.com/G-Research/armada/internal/client/domain"
+	"github.com/G-Research/armada/internal/client/service"
+	"github.com/G-Research/armada/internal/client/util"
 )
 
 func init() {

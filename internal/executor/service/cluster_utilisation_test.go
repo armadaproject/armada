@@ -8,9 +8,9 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/G-Research/k8s-batch/internal/common"
-	util2 "github.com/G-Research/k8s-batch/internal/common/util"
-	"github.com/G-Research/k8s-batch/internal/executor/domain"
+	"github.com/G-Research/armada/internal/common"
+	util2 "github.com/G-Research/armada/internal/common/util"
+	"github.com/G-Research/armada/internal/executor/domain"
 )
 
 func TestFilterAvailableProcessingNodes_ShouldReturnAvailableProcessingNodes(t *testing.T) {

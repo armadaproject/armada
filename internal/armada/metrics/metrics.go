@@ -4,9 +4,9 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/G-Research/k8s-batch/internal/armada/api"
-	"github.com/G-Research/k8s-batch/internal/armada/repository"
-	"github.com/G-Research/k8s-batch/internal/common/util"
+	"github.com/G-Research/armada/internal/armada/api"
+	"github.com/G-Research/armada/internal/armada/repository"
+	"github.com/G-Research/armada/internal/common/util"
 )
 
 const metricPrefix = "armada_"

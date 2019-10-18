@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/G-Research/k8s-batch/internal/armada/api"
+	"github.com/G-Research/armada/internal/armada/api"
 )
 
 func TestPriorityService_GetQueuePriorities(t *testing.T) {

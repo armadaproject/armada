@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
 
-	"github.com/G-Research/k8s-batch/internal/armada/api"
-	"github.com/G-Research/k8s-batch/internal/armada/repository"
+	"github.com/G-Research/armada/internal/armada/api"
+	"github.com/G-Research/armada/internal/armada/repository"
 )
 
 func TestEventServer_ReportUsage(t *testing.T) {

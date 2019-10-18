@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc/metadata"
 
-	"github.com/G-Research/k8s-batch/internal/common"
+	"github.com/G-Research/armada/internal/common"
 )
 
 func TestBasicAuthService(t *testing.T) {

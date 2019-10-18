@@ -9,7 +9,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
 
-	"github.com/G-Research/k8s-batch/internal/executor/domain"
+	"github.com/G-Research/armada/internal/executor/domain"
 )
 
 func TestIsInTerminalState_ShouldReturnTrueWhenPodInSucceededPhase(t *testing.T) {

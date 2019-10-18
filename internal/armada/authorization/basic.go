@@ -5,7 +5,7 @@ import (
 
 	"google.golang.org/grpc/metadata"
 
-	"github.com/G-Research/k8s-batch/internal/common"
+	"github.com/G-Research/armada/internal/common"
 )
 
 type BasicAuthService struct {
