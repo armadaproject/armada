@@ -145,17 +145,17 @@ jobs:
           name: Publish images
           command: |
             TAG=${CIRCLE_SHA1}
-            RELEASE-TAG=${CIRCLE_TAG}
+            RELEASE_TAG=${CIRCLE_TAG}
 
             echo ${DOCKERHUB_PASS} | docker login -u ${DOCKERHUB_USER} --password-stdin
 
             docker pull gresearchdev/armada-server-dev:${TAG}
-            docker tag gresearchdev/armada-server-dev:${TAG} gresearchdev/armada-server-experiment:${RELEASE-TAG}
-            docker push gresearchdev/armada-server-experiment:${RELEASE-TAG}
+            docker tag gresearchdev/armada-server-dev:${TAG} gresearchdev/armada-server-experiment:${RELEASE_TAG}
+            docker push gresearchdev/armada-server-experiment:${RELEASE_TAG}
 
             docker pull gresearchdev/armada-executor-dev:${TAG}
-            docker tag gresearchdev/armada-executor-dev:${TAG} gresearchdev/armada-executor-experiment:${RELEASE-TAG}
-            docker push gresearchdev/armada-executor-experiment:${RELEASE-TAG}
+            docker tag gresearchdev/armada-executor-dev:${TAG} gresearchdev/armada-executor-experiment:${RELEASE_TAG}
+            docker push gresearchdev/armada-executor-experiment:${RELEASE_TAG}
 
 
 workflows:
