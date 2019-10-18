@@ -64,11 +64,11 @@ docker run -d --expose=6379 --network=host redis
 6. Start executors for each cluster each in separate terminal
 ```
 KUBECONFIG=$(kind get kubeconfig-path --name="demoA") ARMADA_APPLICATION_CLUSTERID=demoA ./bin/executor
-KUBECONFIG=$(kind get kubeconfig-path --name="demoB") ARMADA_APPLICATION_CLUSTERID=demoB ./cmd/executor
+KUBECONFIG=$(kind get kubeconfig-path --name="demoB") ARMADA_APPLICATION_CLUSTERID=demoB ./bin/executor
 ```
 7. Create queue & Submit job
 ```
-armadactl create-queue test 1
-armadactl submit ./example/jobs.yaml
-armadactl watch job-set-1
+./bin/armadactl create-queue test 1
+./bin/armadactl submit ./example/jobs.yaml
+./bin/armadactl watch job-set-1
 ```
