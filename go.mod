@@ -20,6 +20,7 @@ require (
 	github.com/konsorten/go-windows-terminal-sequences v1.0.2 // indirect
 	github.com/magiconair/properties v1.8.1 // indirect
 	github.com/mitchellh/go-homedir v1.1.0
+	github.com/mitchellh/gox v1.0.1 // indirect
 	github.com/oklog/ulid v1.3.1
 	github.com/pelletier/go-toml v1.4.0 // indirect
 	github.com/pquerna/cachecontrol v0.0.0-20180517163645-1555304b9b35 // indirect
