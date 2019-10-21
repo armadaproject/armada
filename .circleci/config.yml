@@ -130,16 +130,21 @@ jobs:
       - setup_remote_docker
 
       - run:
-          name: Build
-          command: make build-armadactl
+          name: Build armadactl release artifacts
+          command: make build-armadactl-release RELEASE_VERSION=${CIRCLE_TAG}
 
       - store_artifacts:
-          path: bin/armadactl
-          destination: armadactl
+          path: dist/*
 
       - run:
           name: Upload artifacts to Github release
-          command: ./scripts/upload-github-release-asset.sh ${GITHUB_TOKEN} ${CIRCLE_TAG} ./bin/armadactl
+          command: |
+            for artifact in ./dist/*; do
+              ./scripts/upload-github-release-asset.sh ${GITHUB_TOKEN} ${CIRCLE_TAG} $artifact
+            done
+
+            ./scripts/add-checksum-summary.sh
+
 
       - run:
           name: Publish images
