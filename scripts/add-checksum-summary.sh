@@ -8,6 +8,13 @@ if [ $? -ne 0 ]; then
     exit -1
 fi
 
+RELEASE_ID=$(echo $RELEASE_INFO_REPLY | jq -r '.id')
+
+if [ $RELEASE_ID = null ]; then
+    echo "Failed to get id of release with tag $RELEASE_TAG"
+    exit -1
+fi
+
 BODY=$(echo $RELEASE_INFO_REPLY | jq '.body')
 
 if [ "{$BODY}" = null ]; then
@@ -32,4 +39,4 @@ JSON_STRING="{\"body\" : \"$DETAILS\"}"
 echo "$JSON_STRING"
 
 
-curl -H "Authorization: token $API_TOKEN" -X PATCH https://api.github.com/repos/G-Research/armada/releases/20811859 --data "$JSON_STRING"
+curl -H "Authorization: token $API_TOKEN" -X PATCH https://api.github.com/repos/G-Research/armada/releases/$RELEASE_ID --data "$JSON_STRING"
