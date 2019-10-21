@@ -25,7 +25,7 @@ build-armadactl-release: build-armadactl-multiplatform
 	mkdir ./dist || true
 	tar -czvf ./dist/armadactl-$(RELEASE_VERSION)-linux-amd64.tar.gz ./bin/linux-amd64/armadactl
 	tar -czvf ./dist/armadactl-$(RELEASE_VERSION)-darwin-amd64.tar.gz ./bin/darwin-amd64/armadactl
-	zip ./dist/armadactl-$(RELEASE_VERSION)-windows-amd64.tar.gz ./bin/windows-amd64/armadactl.exe
+	zip ./dist/armadactl-$(RELEASE_VERSION)-windows-amd64.zip ./bin/windows-amd64/armadactl.exe
 
 build-load-tester:
 	$(gobuild) -o ./bin/armada-load-tester cmd/armada-load-tester/main.go
