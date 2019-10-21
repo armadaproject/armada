@@ -143,8 +143,7 @@ jobs:
               ./scripts/upload-github-release-asset.sh ${GITHUB_TOKEN} ${CIRCLE_TAG} $artifact
             done
 
-            ./scripts/add-checksum-summary.sh
-
+            ./scripts/add-checksum-summary.sh ${GITHUB_TOKEN} ${CIRCLE_TAG}
 
       - run:
           name: Publish images
