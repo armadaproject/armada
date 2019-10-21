@@ -24,7 +24,12 @@ func NewOpenIdAuthServiceForProvider(ctx context.Context, config *configuration.
 	if err != nil {
 		return nil, err
 	}
-	verifier := provider.Verifier(&oidc.Config{ClientID: config.ClientId})
+
+	//We use verifier to verify Access Token, there might not be an clientId in audience claim
+	verifier := provider.Verifier(&oidc.Config{
+		SkipClientIDCheck: true,
+		ClientID:          "",
+	})
 	return NewOpenIdAuthService(verifier, config.GroupsClaim), nil
 }
 

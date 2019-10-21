@@ -25,7 +25,7 @@ type TokenCredentials struct {
 }
 
 func (c *TokenCredentials) GetRequestMetadata(context.Context, ...string) (map[string]string, error) {
-	jwt, err := GetJWT(c.tokenSource)
+	jwt, err := c.getJWT(c.tokenSource)
 	if err != nil {
 		return nil, err
 	}
@@ -38,16 +38,12 @@ func (c *TokenCredentials) RequireTransportSecurity() bool {
 	return false
 }
 
-func GetJWT(source oauth2.TokenSource) (string, error) {
+func (c *TokenCredentials) getJWT(source oauth2.TokenSource) (string, error) {
 	t, e := source.Token()
 	if e != nil {
 		return "", e
 	}
-	jwt, ok := t.Extra("id_token").(string)
-	if !ok || jwt == "" {
-		return "", errors.New("missing ID Token")
-	}
-	return jwt, nil
+	return t.AccessToken, nil
 }
 
 func AuthenticatePkce(config domain.OpenIdConnectClientDetails) (*TokenCredentials, error) {
