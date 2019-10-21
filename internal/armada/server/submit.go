@@ -9,20 +9,34 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/G-Research/armada/internal/armada/api"
+	"github.com/G-Research/armada/internal/armada/authorization"
 	"github.com/G-Research/armada/internal/armada/repository"
 )
 
 type SubmitServer struct {
+	permissions     authorization.PermissionChecker
 	jobRepository   repository.JobRepository
 	queueRepository repository.QueueRepository
 	eventRepository repository.EventRepository
 }
 
-func NewSubmitServer(jobRepository repository.JobRepository, queueRepository repository.QueueRepository, eventRepository repository.EventRepository) *SubmitServer {
-	return &SubmitServer{jobRepository: jobRepository, queueRepository: queueRepository, eventRepository: eventRepository}
+func NewSubmitServer(
+	permissions authorization.PermissionChecker,
+	jobRepository repository.JobRepository,
+	queueRepository repository.QueueRepository,
+	eventRepository repository.EventRepository) *SubmitServer {
+
+	return &SubmitServer{
+		permissions:     permissions,
+		jobRepository:   jobRepository,
+		queueRepository: queueRepository,
+		eventRepository: eventRepository}
 }
 
 func (server *SubmitServer) CreateQueue(ctx context.Context, queue *api.Queue) (*types.Empty, error) {
+	if e := checkPermission(server.permissions, ctx, authorization.CreateQueue); e != nil {
+		return nil, e
+	}
 
 	e := server.queueRepository.CreateQueue(queue)
 	if e != nil {
@@ -32,6 +46,9 @@ func (server *SubmitServer) CreateQueue(ctx context.Context, queue *api.Queue) (
 }
 
 func (server *SubmitServer) SubmitJob(ctx context.Context, req *api.JobRequest) (*api.JobSubmitResponse, error) {
+	if e := checkPermission(server.permissions, ctx, authorization.SubmitJobs); e != nil {
+		return nil, e
+	}
 
 	job := server.jobRepository.CreateJob(req)
 
@@ -55,6 +72,9 @@ func (server *SubmitServer) SubmitJob(ctx context.Context, req *api.JobRequest) 
 }
 
 func (server *SubmitServer) CancelJobs(ctx context.Context, request *api.JobCancelRequest) (*api.CancellationResult, error) {
+	if e := checkPermission(server.permissions, ctx, authorization.CancelJobs); e != nil {
+		return nil, e
+	}
 
 	if request.JobId != "" {
 		return server.cancelJobs([]string{request.JobId})
@@ -71,7 +91,6 @@ func (server *SubmitServer) CancelJobs(ctx context.Context, request *api.JobCanc
 }
 
 func (server *SubmitServer) cancelJobs(ids []string) (*api.CancellationResult, error) {
-
 	jobs, e := server.jobRepository.GetJobsByIds(ids)
 	if e != nil {
 		return nil, status.Errorf(codes.Internal, e.Error())

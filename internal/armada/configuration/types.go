@@ -4,24 +4,26 @@ import (
 	"time"
 
 	"github.com/go-redis/redis"
+
+	"github.com/G-Research/armada/internal/armada/authorization"
 )
 
 type ArmadaConfig struct {
-	GrpcPort         string
-	PriorityHalfTime time.Duration
-	Redis            redis.UniversalOptions
-	EventsRedis      redis.UniversalOptions
-	BasicAuth        AuthenticationConfig
-	OpenIdAuth       OpenIdAuthenticationConfig
+	GrpcPort               string
+	PriorityHalfTime       time.Duration
+	Redis                  redis.UniversalOptions
+	EventsRedis            redis.UniversalOptions
+	BasicAuth              BasicAuthenticationConfig
+	OpenIdAuth             OpenIdAuthenticationConfig
+	PermissionGroupMapping map[authorization.Permission][]string
 }
 
 type OpenIdAuthenticationConfig struct {
 	ProviderUrl string
-	ClientId    string
 	GroupsClaim string
 }
 
-type AuthenticationConfig struct {
+type BasicAuthenticationConfig struct {
 	EnableAuthentication bool
-	Users                map[string]string
+	Users                map[string]authorization.UserInfo
 }

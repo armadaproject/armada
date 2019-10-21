@@ -5,7 +5,12 @@ import "context"
 type Permission string
 
 const (
-	SubmitJobs Permission = "SubmitJobs"
+	SubmitJobs     Permission = "SubmitJobs"
+	CreateQueue               = "CreateQueue"
+	CancelJobs                = "CancelJobs"
+	WatchAllEvents            = "WatchAllEvents"
+
+	ExecuteJobs = "ExecuteJobs"
 )
 
 type PermissionChecker interface {
