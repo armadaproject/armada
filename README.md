@@ -4,7 +4,7 @@
 
 Armada is experimental application to submit and monitor jobs to multiple Kubernetes clusters.
 
-It stores queues for users/projects with pod specifications and create these pods once there is available resource in one of the connected Kubernetes clusters.
+It stores queues for users/projects with pod specifications and creates these pods once there is available resource in one of the connected Kubernetes clusters.
 
 ## Documentation
 
