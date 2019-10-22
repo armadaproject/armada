@@ -119,6 +119,49 @@ jobs:
       - deploy-executor:
           worker-id: "5"
 
+  release:
+    docker:
+      - image: circleci/golang:1.12.6
+        environment:
+          GO111MODULE: "on"
+    working_directory: /go/src/github.com/G-Research/k8s-batch
+    steps:
+      - checkout
+      - setup_remote_docker
+
+      - run:
+          name: Build armadactl release artifacts
+          command: make build-armadactl-release RELEASE_VERSION=${CIRCLE_TAG}
+
+      - store_artifacts:
+          path: dist/*
+
+      - run:
+          name: Upload artifacts to Github release
+          command: |
+            for artifact in ./dist/*; do
+              ./scripts/upload-github-release-asset.sh ${GITHUB_TOKEN} ${CIRCLE_TAG} $artifact
+            done
+
+            ./scripts/add-checksum-summary.sh ${GITHUB_TOKEN} ${CIRCLE_TAG}
+
+      - run:
+          name: Publish images
+          command: |
+            TAG=${CIRCLE_SHA1}
+            RELEASE_TAG=${CIRCLE_TAG}
+
+            echo ${DOCKERHUB_PASS} | docker login -u ${DOCKERHUB_USER} --password-stdin
+
+            docker pull gresearchdev/armada-server-dev:${TAG}
+            docker tag gresearchdev/armada-server-dev:${TAG} gresearchdev/armada-server:${RELEASE_TAG}
+            docker push gresearchdev/armada-server:${RELEASE_TAG}
+
+            docker pull gresearchdev/armada-executor-dev:${TAG}
+            docker tag gresearchdev/armada-executor-dev:${TAG} gresearchdev/armada-executor:${RELEASE_TAG}
+            docker push gresearchdev/armada-executor:${RELEASE_TAG}
+
+
 workflows:
   version: 2
   build_and_deploy:
@@ -130,3 +173,9 @@ workflows:
           filters:
             branches:
               only: master
+      - release:
+          filters:
+            tags:
+              only: /.*/
+            branches:
+              ignore: /.*/
