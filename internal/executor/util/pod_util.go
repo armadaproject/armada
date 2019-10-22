@@ -59,7 +59,7 @@ func ExtractJobIds(pods []*v1.Pod) []string {
 	jobIds := make([]string, 0, len(pods))
 
 	for _, pod := range pods {
-		if jobId, ok := pod.Labels[domain.JobId]; ok {
+		if jobId := ExtractJobId(pod); jobId != "" {
 			jobIds = append(jobIds, jobId)
 		}
 	}
