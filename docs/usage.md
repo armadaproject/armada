@@ -64,7 +64,7 @@ helm install ./deployment/armada -f ./server-values.yaml
 
 For production the executor component should run inside the cluster it is "managing".
 
-**Please note by default the executor runs on the control plane. This is recommended but can configured differently, see the helm chart page [here](./helm/executor.md) for details.**
+**Please note by default the executor runs on the control plane. This is recommended but can be configured differently, see the helm chart page [here](./helm/executor.md) for details.**
 
 To install the executor into a cluster, we will use helm. 
 
