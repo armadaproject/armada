@@ -52,7 +52,7 @@ This list determines all the valid users for the server components gRPC API.  Al
 As an example, this section is formatted as:
 
 ```yaml
-credentials:
+basicAuth:
   users:
     "user1": "password1"
 ```
