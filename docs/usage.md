@@ -222,7 +222,7 @@ The reasons you may want to do this is because you can;
 * Watch all events of a Job Set together
 * Cancel all jobs in a Job Set together
 
-The Job Set represents are typically meant to be used to represent a single task, where many Jobs are involved. 
+The Job Sets are typically meant to be used to represent a single task, where many Jobs are involved.
 
 You can then follow this Job Set as a single entity rather than having to remember every Job that are associated in some way.
 
