@@ -18,4 +18,4 @@ jobs:
               cpu: 150m
             requests:
               memory: 64Mi
-              cpu: 100m
+              cpu: 150m
