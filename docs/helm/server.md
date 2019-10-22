@@ -13,7 +13,7 @@ This document briefly outlines the customisation options of the server helm char
 | `replicas`                        | Number of replicas (pods) of the server component                                                                                                                              | `1`                                                                           |                                                   
 | `prometheus.enabled`              | Flag to determine if Prometheus components are deployed or not. This should only be enabled if Prometheus is deployed and you want to scrape metrics from the server component | `false`                                                                       |
 | `applicationConfig`               | Config file override values, merged with /config/armada/config.yaml to make up the config file used when running the application                                               |`grpcPort: 50051`                                                              |
-| `credentials`                     | List of valid users/passwords used to login to the application                                                                                                                 | `nil`                                                                         |
+| `basicAuth`                       | List of valid users/passwords used to login to the application                                                                                                                 | `nil`                                                                         |
 
 ## applicationConfig example
 
@@ -43,9 +43,9 @@ applicationConfig:
     poolSize: 1000
 ```
 
-## credentials example
+## basicAuth example
 
-The credentials section of the values file is used to provide a list of valid username/password pairs.
+The basicAuth section of the values file is used to provide a list of valid username/password pairs.
 
 This list determines all the valid users for the server components gRPC API.  All clients (executor or armadactl) must provide a valid set of credentials from this list when communicating with the server.
 
