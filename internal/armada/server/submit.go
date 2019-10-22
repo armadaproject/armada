@@ -10,6 +10,7 @@ import (
 
 	"github.com/G-Research/armada/internal/armada/api"
 	"github.com/G-Research/armada/internal/armada/authorization"
+	"github.com/G-Research/armada/internal/armada/authorization/permissions"
 	"github.com/G-Research/armada/internal/armada/repository"
 )
 
@@ -34,7 +35,7 @@ func NewSubmitServer(
 }
 
 func (server *SubmitServer) CreateQueue(ctx context.Context, queue *api.Queue) (*types.Empty, error) {
-	if e := checkPermission(server.permissions, ctx, authorization.CreateQueue); e != nil {
+	if e := checkPermission(server.permissions, ctx, permissions.CreateQueue); e != nil {
 		return nil, e
 	}
 
@@ -46,7 +47,7 @@ func (server *SubmitServer) CreateQueue(ctx context.Context, queue *api.Queue) (
 }
 
 func (server *SubmitServer) SubmitJob(ctx context.Context, req *api.JobRequest) (*api.JobSubmitResponse, error) {
-	if e := checkPermission(server.permissions, ctx, authorization.SubmitJobs); e != nil {
+	if e := checkPermission(server.permissions, ctx, permissions.SubmitJobs); e != nil {
 		return nil, e
 	}
 
@@ -72,7 +73,7 @@ func (server *SubmitServer) SubmitJob(ctx context.Context, req *api.JobRequest) 
 }
 
 func (server *SubmitServer) CancelJobs(ctx context.Context, request *api.JobCancelRequest) (*api.CancellationResult, error) {
-	if e := checkPermission(server.permissions, ctx, authorization.CancelJobs); e != nil {
+	if e := checkPermission(server.permissions, ctx, permissions.CancelJobs); e != nil {
 		return nil, e
 	}
 

@@ -5,17 +5,25 @@ import (
 
 	"github.com/go-redis/redis"
 
-	"github.com/G-Research/armada/internal/armada/authorization"
+	"github.com/G-Research/armada/internal/armada/authorization/permissions"
 )
 
+type UserInfo struct {
+	Password string
+	Groups   []string
+}
+
 type ArmadaConfig struct {
+	Development bool
+
 	GrpcPort               string
 	PriorityHalfTime       time.Duration
 	Redis                  redis.UniversalOptions
 	EventsRedis            redis.UniversalOptions
 	BasicAuth              BasicAuthenticationConfig
 	OpenIdAuth             OpenIdAuthenticationConfig
-	PermissionGroupMapping map[authorization.Permission][]string
+	PermissionGroupMapping map[permissions.Permission][]string
+	PermissionScopeMapping map[permissions.Permission][]string
 }
 
 type OpenIdAuthenticationConfig struct {
@@ -25,5 +33,5 @@ type OpenIdAuthenticationConfig struct {
 
 type BasicAuthenticationConfig struct {
 	EnableAuthentication bool
-	Users                map[string]authorization.UserInfo
+	Users                map[string]UserInfo
 }

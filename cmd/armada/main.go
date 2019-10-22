@@ -61,11 +61,12 @@ func loadUsersCredentialFile(config *configuration.ArmadaConfig) {
 			log.Error(err)
 			os.Exit(-1)
 		}
-		users := viper.GetStringMapString("users")
 
-		config.BasicAuth = configuration.BasicAuthenticationConfig{
-			EnableAuthentication: true,
-			Users:                users,
+		err = viper.Unmarshal(&config.BasicAuth)
+		if err != nil {
+			log.Error(err)
+			os.Exit(-1)
 		}
+		config.BasicAuth.EnableAuthentication = true
 	}
 }

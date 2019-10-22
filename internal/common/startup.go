@@ -2,6 +2,7 @@ package common
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"os"
 	"strings"
@@ -43,6 +44,8 @@ func LoadConfig(config interface{}, defaultPath string, overrideConfig string) {
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	viper.SetEnvPrefix("ARMADA")
 	viper.AutomaticEnv()
+
+	fmt.Print(os.Getenv("ARMADA_DEVELOPMENT"))
 
 	err := viper.Unmarshal(config)
 	if err != nil {

@@ -15,6 +15,7 @@ import (
 
 	"github.com/G-Research/armada/internal/armada/api"
 	"github.com/G-Research/armada/internal/common"
+	"github.com/G-Research/armada/internal/common/oidc"
 	"github.com/G-Research/armada/internal/executor/configuration"
 	"github.com/G-Research/armada/internal/executor/context"
 	"github.com/G-Research/armada/internal/executor/metrics"
@@ -114,13 +115,31 @@ func createConnectionToApi(config configuration.ExecutorConfiguration) (*grpc.Cl
 
 	dialOpts = append(dialOpts, defaultCallOptions, unuaryInterceptors, streamInterceptors)
 
-	if config.Authentication.EnableAuthentication {
+	if config.BasicAuth.EnableAuthentication {
 		dialOpts = append(dialOpts,
 			grpc.WithTransportCredentials(credentials.NewClientTLSFromCert(nil, "")),
 			grpc.WithPerRPCCredentials(&common.LoginCredentials{
-				Username: config.Authentication.Username,
-				Password: config.Authentication.Password,
+				Username: config.BasicAuth.Username,
+				Password: config.BasicAuth.Password,
 			}),
+		)
+	} else if config.OpenIdPasswordAuth.ProviderUrl != "" {
+		tokenCredentials, err := oidc.AuthenticateWithPassword(config.OpenIdPasswordAuth)
+		if err != nil {
+			return nil, err
+		}
+		dialOpts = append(dialOpts,
+			grpc.WithTransportCredentials(credentials.NewClientTLSFromCert(nil, "")),
+			grpc.WithPerRPCCredentials(tokenCredentials),
+		)
+	} else if config.OpenIdClientCredentialsAuth.ProviderUrl != "" {
+		tokenCredentials, err := oidc.AuthenticateWithClientCredentials(config.OpenIdClientCredentialsAuth)
+		if err != nil {
+			return nil, err
+		}
+		dialOpts = append(dialOpts,
+			grpc.WithTransportCredentials(credentials.NewClientTLSFromCert(nil, "")),
+			grpc.WithPerRPCCredentials(tokenCredentials),
 		)
 	} else {
 		dialOpts = append(dialOpts, grpc.WithInsecure())

@@ -75,7 +75,7 @@ func loadCredentials(config *configuration.ExecutorConfiguration) {
 		username := viper.GetString(common.UsernameField)
 		password := viper.GetString(common.PasswordField)
 
-		config.Authentication = configuration.AuthenticationConfiguration{
+		config.BasicAuth = configuration.BasicAuthenticationConfiguration{
 			EnableAuthentication: true,
 			Username:             username,
 			Password:             password,

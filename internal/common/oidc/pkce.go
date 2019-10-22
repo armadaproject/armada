@@ -20,32 +20,6 @@ import (
 	"github.com/G-Research/armada/internal/client/domain"
 )
 
-type TokenCredentials struct {
-	tokenSource oauth2.TokenSource
-}
-
-func (c *TokenCredentials) GetRequestMetadata(context.Context, ...string) (map[string]string, error) {
-	jwt, err := c.getJWT(c.tokenSource)
-	if err != nil {
-		return nil, err
-	}
-	return map[string]string{
-		"authorization": "Bearer " + jwt,
-	}, nil
-}
-
-func (c *TokenCredentials) RequireTransportSecurity() bool {
-	return false
-}
-
-func (c *TokenCredentials) getJWT(source oauth2.TokenSource) (string, error) {
-	t, e := source.Token()
-	if e != nil {
-		return "", e
-	}
-	return t.AccessToken, nil
-}
-
 func AuthenticatePkce(config domain.OpenIdConnectClientDetails) (*TokenCredentials, error) {
 
 	ctx := context.Background()
@@ -54,7 +28,7 @@ func AuthenticatePkce(config domain.OpenIdConnectClientDetails) (*TokenCredentia
 
 	provider, err := openId.NewProvider(ctx, config.ProviderUrl)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	localUrl := "localhost:" + strconv.Itoa(int(config.LocalPort))
@@ -103,7 +77,6 @@ func AuthenticatePkce(config domain.OpenIdConnectClientDetails) (*TokenCredentia
 			errorResult <- err
 			return
 		}
-
 		result <- token
 	})
 

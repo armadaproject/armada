@@ -5,19 +5,15 @@ import (
 
 	"google.golang.org/grpc/metadata"
 
+	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/G-Research/armada/internal/common"
 )
 
-type UserInfo struct {
-	Password string
-	Groups   []string
-}
-
 type BasicAuthService struct {
-	users map[string]UserInfo
+	users map[string]configuration.UserInfo
 }
 
-func NewBasicAuthService(users map[string]UserInfo) *BasicAuthService {
+func NewBasicAuthService(users map[string]configuration.UserInfo) *BasicAuthService {
 	return &BasicAuthService{users: users}
 }
 
@@ -40,7 +36,7 @@ func (authService *BasicAuthService) Authenticate(ctx context.Context) (Principa
 	return nil, missingCredentials
 }
 
-func (authService *BasicAuthService) loginUser(username string, password string) (*UserInfo, error) {
+func (authService *BasicAuthService) loginUser(username string, password string) (*configuration.UserInfo, error) {
 	val, ok := authService.users[username]
 	if ok && val.Password == password {
 		return &val, nil

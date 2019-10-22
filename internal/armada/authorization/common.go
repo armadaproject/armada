@@ -20,22 +20,37 @@ const principalKey = "principal"
 type Principal interface {
 	GetName() string
 	IsInGroup(group string) bool
+	HasScope(scope string) bool
 }
 
 type StaticPrincipal struct {
 	name   string
 	groups map[string]bool
+	scopes map[string]bool
 }
 
 func NewStaticPrincipal(name string, groups []string) *StaticPrincipal {
 	return &StaticPrincipal{
 		name,
 		util.StringListToSet(groups),
+		map[string]bool{},
+	}
+}
+
+func NewStaticPrincipalWithScopes(name string, groups []string, scopes []string) *StaticPrincipal {
+	return &StaticPrincipal{
+		name,
+		util.StringListToSet(groups),
+		util.StringListToSet(scopes),
 	}
 }
 
 func (p *StaticPrincipal) IsInGroup(group string) bool {
 	return p.groups[group]
+}
+
+func (p *StaticPrincipal) HasScope(scope string) bool {
+	return p.scopes[scope]
 }
 
 func (p *StaticPrincipal) GetName() string {

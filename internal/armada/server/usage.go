@@ -9,6 +9,7 @@ import (
 
 	"github.com/G-Research/armada/internal/armada/api"
 	"github.com/G-Research/armada/internal/armada/authorization"
+	"github.com/G-Research/armada/internal/armada/authorization/permissions"
 	"github.com/G-Research/armada/internal/armada/repository"
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/internal/common/util"
@@ -32,7 +33,7 @@ func NewUsageServer(
 }
 
 func (s *UsageServer) ReportUsage(ctx context.Context, report *api.ClusterUsageReport) (*types.Empty, error) {
-	if e := checkPermission(s.permissions, ctx, authorization.ExecuteJobs); e != nil {
+	if e := checkPermission(s.permissions, ctx, permissions.ExecuteJobs); e != nil {
 		return nil, e
 	}
 

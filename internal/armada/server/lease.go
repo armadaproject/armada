@@ -10,6 +10,7 @@ import (
 
 	"github.com/G-Research/armada/internal/armada/api"
 	"github.com/G-Research/armada/internal/armada/authorization"
+	"github.com/G-Research/armada/internal/armada/authorization/permissions"
 	"github.com/G-Research/armada/internal/armada/repository"
 	"github.com/G-Research/armada/internal/armada/service"
 	"github.com/G-Research/armada/internal/common"
@@ -42,7 +43,7 @@ const batchSize = 100
 var minimalResource = common.ComputeResourcesFloat{"cpu": 0.25, "memory": 100.0 * 1024 * 1024}
 
 func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.LeaseRequest) (*api.JobLease, error) {
-	if e := checkPermission(q.permissions, ctx, authorization.ExecuteJobs); e != nil {
+	if e := checkPermission(q.permissions, ctx, permissions.ExecuteJobs); e != nil {
 		return nil, e
 	}
 
@@ -84,7 +85,7 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 }
 
 func (q *AggregatedQueueServer) RenewLease(ctx context.Context, request *api.RenewLeaseRequest) (*api.IdList, error) {
-	if e := checkPermission(q.permissions, ctx, authorization.ExecuteJobs); e != nil {
+	if e := checkPermission(q.permissions, ctx, permissions.ExecuteJobs); e != nil {
 		return nil, e
 	}
 	renewed, e := q.jobRepository.RenewLease(request.ClusterId, request.Ids)
@@ -92,7 +93,7 @@ func (q *AggregatedQueueServer) RenewLease(ctx context.Context, request *api.Ren
 }
 
 func (q *AggregatedQueueServer) ReturnLease(ctx context.Context, request *api.ReturnLeaseRequest) (*types.Empty, error) {
-	if e := checkPermission(q.permissions, ctx, authorization.ExecuteJobs); e != nil {
+	if e := checkPermission(q.permissions, ctx, permissions.ExecuteJobs); e != nil {
 		return nil, e
 	}
 	_, err := q.jobRepository.ReturnLease(request.ClusterId, request.JobId)
@@ -103,7 +104,7 @@ func (q *AggregatedQueueServer) ReturnLease(ctx context.Context, request *api.Re
 }
 
 func (q *AggregatedQueueServer) ReportDone(ctx context.Context, idList *api.IdList) (*api.IdList, error) {
-	if e := checkPermission(q.permissions, ctx, authorization.ExecuteJobs); e != nil {
+	if e := checkPermission(q.permissions, ctx, permissions.ExecuteJobs); e != nil {
 		return nil, e
 	}
 	cleaned, e := q.jobRepository.Remove(idList.Ids)

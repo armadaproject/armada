@@ -1,3 +1,4 @@
+development: false
 grpcPort: ":50051"
 priorityHalfTime: 20m
 redis:

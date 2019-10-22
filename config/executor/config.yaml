@@ -9,5 +9,5 @@ task:
   allocateSpareClusterCapacityInterval: 5s
 armada:
   url : "localhost:50051"
-authentication:
+basicAuth:
   enableAuthentication: false

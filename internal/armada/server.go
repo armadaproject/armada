@@ -43,7 +43,7 @@ func Serve(config *configuration.ArmadaConfig) (*grpc.Server, *sync.WaitGroup) {
 
 		usageService := service.NewMultiClusterPriorityService(usageRepository, queueRepository, metricsRecorder)
 
-		permissions := authorization.NewPrincipalPermissionChecker(config.PermissionGroupMapping)
+		permissions := authorization.NewPrincipalPermissionChecker(config.PermissionGroupMapping, config.PermissionScopeMapping)
 
 		submitServer := server.NewSubmitServer(permissions, jobRepository, queueRepository, eventRepository)
 		usageServer := server.NewUsageServer(permissions, config.PriorityHalfTime, usageRepository)
@@ -96,14 +96,15 @@ func createServer(config *configuration.ArmadaConfig) *grpc.Server {
 		authServices = append(authServices, openIdAuthService)
 	}
 
-	if len(authServices) > 0 {
-		authFunction := authorization.CreateMiddlewareAuthFunction(authServices)
-		unaryInterceptors = append(unaryInterceptors, grpc_auth.UnaryServerInterceptor(authFunction))
-		streamInterceptors = append(streamInterceptors, grpc_auth.StreamServerInterceptor(authFunction))
+	if config.Development && len(authServices) == 0 {
+		authServices = append(authServices, &authorization.AnonymousGodAuthService{})
 	}
 
-	grpc_prometheus.EnableHandlingTimeHistogram()
+	authFunction := authorization.CreateMiddlewareAuthFunction(authServices)
+	unaryInterceptors = append(unaryInterceptors, grpc_auth.UnaryServerInterceptor(authFunction))
+	streamInterceptors = append(streamInterceptors, grpc_auth.StreamServerInterceptor(authFunction))
 
+	grpc_prometheus.EnableHandlingTimeHistogram()
 	unaryInterceptors = append(unaryInterceptors, grpc_prometheus.UnaryServerInterceptor)
 	streamInterceptors = append(streamInterceptors, grpc_prometheus.StreamServerInterceptor)
 

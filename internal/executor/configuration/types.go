@@ -1,6 +1,10 @@
 package configuration
 
-import "time"
+import (
+	"time"
+
+	"github.com/G-Research/armada/internal/common/oidc"
+)
 
 type ApplicationConfiguration struct {
 	ClusterId string
@@ -11,7 +15,7 @@ type KubernetesConfiguration struct {
 	KubernetesConfigLocation string
 }
 
-type AuthenticationConfiguration struct {
+type BasicAuthenticationConfiguration struct {
 	EnableAuthentication bool
 	Username             string
 	Password             string
@@ -31,9 +35,11 @@ type ArmadaConfiguration struct {
 }
 
 type ExecutorConfiguration struct {
-	Application    ApplicationConfiguration
-	Authentication AuthenticationConfiguration
-	Kubernetes     KubernetesConfiguration
-	Task           TaskConfiguration
-	Armada         ArmadaConfiguration
+	Application                 ApplicationConfiguration
+	BasicAuth                   BasicAuthenticationConfiguration
+	OpenIdPasswordAuth          oidc.ClientPasswordDetails
+	OpenIdClientCredentialsAuth oidc.ClientCredentialsDetails
+	Kubernetes                  KubernetesConfiguration
+	Task                        TaskConfiguration
+	Armada                      ArmadaConfiguration
 }

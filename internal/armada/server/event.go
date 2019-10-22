@@ -6,6 +6,7 @@ import (
 
 	"github.com/G-Research/armada/internal/armada/api"
 	"github.com/G-Research/armada/internal/armada/authorization"
+	"github.com/G-Research/armada/internal/armada/authorization/permissions"
 	"github.com/G-Research/armada/internal/armada/repository"
 
 	"github.com/gogo/protobuf/types"
@@ -21,14 +22,14 @@ func NewEventServer(permissions authorization.PermissionChecker, eventRepository
 }
 
 func (s *EventServer) Report(ctx context.Context, message *api.EventMessage) (*types.Empty, error) {
-	if e := checkPermission(s.permissions, ctx, authorization.ExecuteJobs); e != nil {
+	if e := checkPermission(s.permissions, ctx, permissions.ExecuteJobs); e != nil {
 		return nil, e
 	}
 	return &types.Empty{}, s.eventRepository.ReportEvent(message)
 }
 
 func (s *EventServer) GetJobSetEvents(request *api.JobSetRequest, stream api.Event_GetJobSetEventsServer) error {
-	if e := checkPermission(s.permissions, stream.Context(), authorization.WatchAllEvents); e != nil {
+	if e := checkPermission(s.permissions, stream.Context(), permissions.WatchAllEvents); e != nil {
 		return e
 	}
 
