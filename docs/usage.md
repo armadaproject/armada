@@ -163,6 +163,8 @@ armadactl watch job-set-1
 
 ```
 
+**Note: Job resource request and limit should be equal. Armada does not support limit > request currently.**
+
 # How to use Armada
 
 We have now covered how to setup Armada and how to interact with it. 
@@ -210,7 +212,7 @@ So if you submit 2 Jobs, A and B, and you want B to be ordered before A in the q
 
 All jobs of priority 0 will be taken from the queue before any with priority 1 and time of submission is not taken into account.
 
-**Note:** Job resource request and limit should be equal. Armada does not support limit > request currently.
+**Note: Job resource request and limit should be equal. Armada does not support limit > request currently.**
 
 ### Job Set
 
