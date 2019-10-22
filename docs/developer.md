@@ -130,7 +130,7 @@ Our commandline tools used the cobra framework (https://github.com/spf13/cobra).
 
 You can use the cobra cli to add new commands, the below will describe how to add new commands for armadactl but it can be applied to any of our command line tools.
 
-#####Steps
+##### Steps
 
 Get cobra cli tool:
 
