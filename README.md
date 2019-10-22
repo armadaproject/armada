@@ -2,7 +2,7 @@
 
 ![Armada](./logo.svg)
 
-Armada is experimental application to submit and monitor jobs to multiple Kubernetes clusters.
+Armada is an experimental application to achieve high throughput of run-to-completion jobs on multiple Kubernetes clusters.
 
 It stores queues for users/projects with pod specifications and creates these pods once there is available resource in one of the connected Kubernetes clusters.
 
@@ -15,9 +15,9 @@ It stores queues for users/projects with pod specifications and creates these po
 
 ## Key features
 - Armada maintains fair resource share over time (inspired by HTCondor priority)
-- It can handle large amount of queued jobs (million+)
-- It Allows adding and removing clusters from the system without disruption
-- By utilizing multiple Kubernetes clusters system can scale to larger amount of nodes beyond one cluster limits
+- It can handle large amounts of queued jobs (million+)
+- It allows adding and removing clusters from the system without disruption
+- By utilizing multiple Kubernetes clusters, the system can scale to larger amount of nodes beyond the limits of a single Kubernetes cluster
 
 ## Key concepts
 
@@ -30,9 +30,9 @@ It stores queues for users/projects with pod specifications and creates these po
 
 ## Try it out locally
 
-Assuming you have go installed.
+Prequisites: Git, Go and Docker installed.
 
-1. Clone repository & Build (project requires go & docker installed)
+1. Clone repository & Build
 ```bash
 git clone https://github.com/G-Research/armada.git
 cd armada
@@ -44,7 +44,7 @@ make build
 go get sigs.k8s.io/kind
 ```
  
-3. create 2 kind clusters
+3. Create 2 kind clusters
 ```bash
 kind create cluster --name demoA --config ./example/kind-config.yaml
 kind create cluster --name demoB --config ./example/kind-config.yaml 
@@ -65,7 +65,7 @@ docker run -d --expose=6379 --network=host redis
 KUBECONFIG=$(kind get kubeconfig-path --name="demoA") ARMADA_APPLICATION_CLUSTERID=demoA ./bin/executor
 KUBECONFIG=$(kind get kubeconfig-path --name="demoB") ARMADA_APPLICATION_CLUSTERID=demoB ./bin/executor
 ```
-7. Create queue & Submit job
+7. Create queue, submit job and watch progress
 ```bash
 ./bin/armadactl create-queue test 1
 ./bin/armadactl submit ./example/jobs.yaml

@@ -13,13 +13,12 @@ The below sections will cover how to install the component into Kubernetes.
 #### Recommended pre-requisites
 
 * Cert manager installed (https://hub.helm.sh/charts/jetstack/cert-manager)
-* gRPC compatible ingress controller installed (for gRPC ingress)
-    * Such as https://github.com/helm/charts/tree/master/stable/nginx-ingress
+* gRPC compatible ingress controller installed for gRPC ingress (such as https://github.com/helm/charts/tree/master/stable/nginx-ingress)
 * Redis installed (https://github.com/helm/charts/tree/master/stable/redis-ha)
 
 #### Installing server component
 
-To install the server component, we will use helm.
+To install the server component, we will use Helm.
 
 You'll need to provide custom config via the values file, below is a minimal template that you can fill in:
 
@@ -50,9 +49,9 @@ basicAuth:
     "user1": "password1"
 ```
 
-For all configuration options you can specify in your values file, see [server helm docs](./helm/server.md).
+For all configuration options you can specify in your values file, see [server Helm docs](./helm/server.md).
 
-Fill in the appropriate values in the above template and save it as server-values.yaml
+Fill in the appropriate values in the above template and save it as `server-values.yaml`
 
 Then run:
 
@@ -64,9 +63,9 @@ helm install ./deployment/armada -f ./server-values.yaml
 
 For production the executor component should run inside the cluster it is "managing".
 
-**Please note by default the executor runs on the control plane. This is recommended but can be configured differently, see the helm chart page [here](./helm/executor.md) for details.**
+**Please note by default the executor runs on the control plane. This is recommended but can be configured differently, see the Helm chart page [here](./helm/executor.md) for details.**
 
-To install the executor into a cluster, we will use helm. 
+To install the executor into a cluster, we will use Helm. 
 
 You'll need to provide custom config via the values file, below is a minimal template that you can fill in:
 
@@ -82,9 +81,9 @@ credentials:
   password: "password1"
 ```
 
-For all configuration options you can specify in your values file, see [executor helm docs](./helm/executor.md).
+For all configuration options you can specify in your values file, see [executor Helm docs](./helm/executor.md).
 
-Fill in the appropriate values in the above template and save it as executor-values.yaml.
+Fill in the appropriate values in the above template and save it as `executor-values.yaml`.
 
 Then run:
 
@@ -93,21 +92,21 @@ helm install ./deployment/armada-executor -f ./executor-values.yaml
 ```
 # Interacting with Armada
 
-Once you have Armada components running, you can interact with them via the command line tool called armadactl.
+Once you have Armada components running, you can interact with them via the command-line tool called `armadactl`.
 
 ## Setting up armadactl
 
-Armadactl expects you to provide several arguments that deal with connection/authentication information.
+`armadactl` expects you to provide several arguments that deal with connection/authentication information.
 
-| Parameter    | Description                                                              | Default            |
-|--------------|--------------------------------------------------------------------------|--------------------|
-| `armadaUrl`  | URL of Armada server component                                           | `localhost:50051`  |
-| `username`   | Only required when connection to armada instance with authentication on  | `""`               |
-| `password`   | Only required when connection to armada instance with authentication on  | `""`               |
+| Parameter    | Description                                                                 | Default            |
+|--------------|-----------------------------------------------------------------------------|--------------------|
+| `armadaUrl`  | URL of the Armada server component                                          | `localhost:50051`  |
+| `username`   | Only required when connecting to an Armada instance with authentication on  | `""`               |
+| `password`   | Only required when connecting to an Armada instance with authentication on  | `""`               |
 
 *Defaults to working for local development setup*
 
-You can provide these with each invocation of armadactl, however this can be tiresome.
+You can provide these with each invocation of `armadactl`, however this can be tiresome.
 
 Instead you can try one of the options below:
 
@@ -127,9 +126,9 @@ password: "password1"
 
 #### Persistent config
 
-Building on the to the config file above. If you store the config file as $HOME/.armadactl
+Building on the to the config file above. If you store the config file as `$HOME/.armadactl`
 
-This file will automatically be picked up and used by armadactl
+This file will automatically be picked up and used by `armadactl`.
 
 #### Environment variables
 
@@ -137,7 +136,7 @@ This file will automatically be picked up and used by armadactl
 
 ## Submitting Test Jobs
 
-For more information about usage please see [User Guide](./user.md)
+For more information about usage please see the [User Guide](./user.md)
 
 Describe jobs in yaml file:
 ```yaml
@@ -153,7 +152,7 @@ jobs:
 
 ```
 
-Use armadactl command line utility to submit jobs to armada server
+Use `armadactl` command line utility to submit jobs to armada server
 ```bash
 # create a queue:
 armadactl create-queue test 1
@@ -170,21 +169,21 @@ armadactl watch job-set-1
 
 ## Metrics
 
-All Armada components provide /metrics endpoints providing relevant metrics to the running of the system.
+All Armada components provide a `/metrics` endpoint providing relevant metrics to the running of the system.
 
-We actively support Prometheus through our Helm charts (see below for details), however any metrics solution that can scrape an end point will work.
+We actively support Prometheus through our Helm charts (see below for details), however any metrics solution that can scrape an endpoint will work.
 
 ### Component metrics
 
 #### Server
 
-The server component provides metrics on the :9000/metrics endpoint.
+The server component provides metrics on the `:9000/metrics` endpoint.
 
-You can enable Prometheus components when installing Helm with setting `prometheus.enabled=true`.
+You can enable Prometheus components when installing with Helm by setting `prometheus.enabled=true`.
 
 #### Executor
 
-The server component provides metrics on the :9001/metrics endpoint.
+The executor component provides metrics on the `:9001/metrics` endpoint.
 
-You can enable Prometheus components when installing Helm with setting `prometheus.enabled=true`.
+You can enable Prometheus components when installing with Helm by setting `prometheus.enabled=true`.
 

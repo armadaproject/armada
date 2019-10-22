@@ -37,9 +37,9 @@ podSpec:
           memory: 64Mi
           cpu: 150m
 ```
-A Job belongs to a Queue and a Job Set, seen by the corresponding fields. Finally it has a priority, which is a relative priority to other Jobs in the same queue, lower the number, the higher the priority.
+A Job belongs to a Queue and a Job Set, seen by the corresponding fields. Finally it has a priority, which is a relative priority to other Jobs in the same queue; the lower the number, the higher the priority.
 
-So if you submit 2 Jobs, A and B, and you want B to be ordered before A in the queue, B should be given a priority lower than A using the priority field.
+If you submit 2 Jobs, A and B, and you want B to be ordered before A in the queue, B should be given a priority lower than A using the priority field.
 
 All jobs of priority 0 will be taken from the queue before any with priority 1 and time of submission is not taken into account.
 
@@ -55,7 +55,7 @@ The reasons you may want to do this is because you can;
 
 The Job Sets are typically meant to be used to represent a single task, where many Jobs are involved.
 
-You can then follow this Job Set as a single entity rather than having to remember every Job that are associated in some way.
+You can then follow this Job Set as a single entity rather than having to track multiple associated Jobs.
 
 A Job Set has no impact on the running of jobs a this moment and is purely an abstraction over a group of Jobs.
 
@@ -73,7 +73,7 @@ In addition to being a queue, it is also used:
 
 Queues are provided with a fair share of the resource available on all clusters over time. 
 
-That is to say if there are 5 queues and they were all to submit infinite jobs (Well in excess of cluster capacity), then each queue should receive the  same amount of compute resource over the course of time. No single queue should get a larger share of the available resource.
+That is to say if there are 5 queues and they were all to submit infinite jobs (well in excess of cluster capacity), then each queue should receive the  same amount of compute resource over the course of time. No single queue should get a larger share of the available resource.
 
 The reason we say over time, as at any single moment we cannot guarantee the queues will be exactly equal, however each job submitted has a cost. So if one queue gets a larger share early, they'll receive a lesser share later to make up for it.
 
@@ -95,16 +95,16 @@ Priority allows great flexibility, as it means you can predictably give certain 
 
 ##### Security Boundary (Not yet implemented)
 
-A user(or group) who has permission to submit to Queue A and only A cannot therefore submit and/or delete from any other Queue.
+A user (or group) who has permission to submit to Queue A and only A cannot therefore submit and/or delete from any other Queue.
 
-This allows users work to be separated by Queue, with no concern someone else will delete or view their Jobs.
+This allows users' work to be separated by Queues, with no concern someone else will delete or view their Jobs.
 
 
 #### Considerations when setting up Queues
 
 So now you know what Queues are and what they can do. We'll briefly cover what to consider when setting them up.
 
-You should consider how your organisation should be split up so peoples work is provided with an appropriate amount of resource allocation.
+You should consider how your organisation should be split up so users' work is provided with an appropriate amount of resource allocation.
 
 There are many ways this could be done, here are some ideas:
 
@@ -116,4 +116,4 @@ There are many ways this could be done, here are some ideas:
 
 For each of the above, if you went for "By user". Simply make each user of the system their own Queue and tell them to submit to it. 
 
-They will then receive the same amount of resource as any other user in the company.
+They will then receive the same amount of resource as any other user in the system.
