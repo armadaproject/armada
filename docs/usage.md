@@ -97,7 +97,7 @@ Once you have Armada components running, you can interact with them via the comm
 
 ## Setting up armadactl
 
-Armadactl expects you to provide to provide several arguments that deal with connection/authentication information.
+Armadactl expects you to provide several arguments that deal with connection/authentication information.
 
 | Parameter    | Description                                                              | Default            |
 |--------------|--------------------------------------------------------------------------|--------------------|
