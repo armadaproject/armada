@@ -15,3 +15,10 @@ eventsRedis:
   poolSize: 1000
 basicAuth:
   enableAuthentication: false
+permissionGroupMapping:
+  submit_jobs: ["armada-admin"]
+  create_queue: ["armada-admin"]
+  cancel_jobs: ["armada-admin"]
+  watch_all_events: ["armada-admin"]
+  execute_jobs: ["executor"]
+
