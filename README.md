@@ -30,7 +30,7 @@ It stores queues for users/projects with pod specifications and creates these po
 
 ## Try it out locally
 
-Prequisites: Git, Go and Docker installed.
+Prequisites: Git, Go and Docker installed. Ensure the current user has permission to run the `docker` command.
 
 1. Clone repository & build
 ```bash
@@ -57,7 +57,7 @@ docker run -d --expose=6379 --network=host redis
 
 5. Start server in one terminal
 ```bash
-./bin/armada
+./bin/server
 ```
 
 6. Start executors for each cluster each in separate terminal
@@ -67,7 +67,7 @@ KUBECONFIG=$(kind get kubeconfig-path --name="demoB") ARMADA_APPLICATION_CLUSTER
 ```
 7. Create queue, submit jobs and watch progress
 ```bash
-./bin/armadactl create-queue test 1
+./bin/armadactl create-queue test --priorityFactor 1
 ./bin/armadactl submit ./example/jobs.yaml
 ./bin/armadactl watch job-set-1
 ```

@@ -45,7 +45,7 @@ KUBECONFIG=$(kind get kubeconfig-path --name="demoB") ARMADA_APPLICATION_CLUSTER
 ```
 6. Create queue & Submit job
 ```bash
-go run ./cmd/armadactl/main.go create-queue test 1
+go run ./cmd/armadactl/main.go create-queue test --priorityFactor 1
 go run ./cmd/armadactl/main.go submit ./example/jobs.yaml
 go run ./cmd/armadactl/main.go watch job-set-1
 ```
