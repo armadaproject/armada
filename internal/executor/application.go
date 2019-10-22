@@ -20,7 +20,6 @@ import (
 	"github.com/G-Research/armada/internal/executor/metrics"
 	"github.com/G-Research/armada/internal/executor/reporter"
 	"github.com/G-Research/armada/internal/executor/service"
-	"github.com/G-Research/armada/internal/executor/util"
 )
 
 func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGroup) {

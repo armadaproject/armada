@@ -15,9 +15,9 @@ import (
 	clientTesting "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/cache"
 
-	util2 "github.com/G-Research/k8s-batch/internal/common/util"
-	"github.com/G-Research/k8s-batch/internal/executor/domain"
-	"github.com/G-Research/k8s-batch/internal/executor/util"
+	util2 "github.com/G-Research/armada/internal/common/util"
+	"github.com/G-Research/armada/internal/executor/domain"
+	"github.com/G-Research/armada/internal/executor/util"
 )
 
 func setupTest() (*KubernetesClusterContext, *fake.Clientset) {
