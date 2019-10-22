@@ -22,11 +22,13 @@ All jobs are grouped into Job Sets with user specified identifier. Job set repre
 ### Queue
 All jobs needs to be placed into queues. Resources allocation is controlled using queues.
 
-Queues has its own priority (lower number makes queue more important). Queue current priority is calculated from combination of resources used by jobs from the queue over time and queue priority. Current priority is used to decide which jobs to run first.
+**Queue Current Priority**: Current priority is calculated from resource usage of jobs in the queue. This number approaches the amount of resource used by queue with configurable speed by `priorityHalfTime` configuration. If the queue priority is `A` and queue is using `B` amount of resource after time defined by `priorityHalfTime` the new priority will be `A + (B - A) / 2`.
 
-Usual setup maps users or teams one to one to queues to control resource usage.
+**Queue Priority Factor**: Each queue has priority factor which determines how important the queue is (lower number makes queue more important).
 
-To achieve fairness between users we have implemented a HTCondor like algorithm to divide resources. Each queue has a priority. When pods from a queue use some resources over time, queue priority is reduced so other queues will get more share in the future. When queues do not use resources their priority will eventually get back to initial value.
+**Queue Effective Priority** = **Queue Priority Factor** * **Queue Current Priority**
+
+To achieve fairness between queues, when Armada schedules jobs resources are divided based on Queue Effective Priority.
 
 ## Proposed design
 ![Diagram](./batch-api.svg)
@@ -34,18 +36,15 @@ To achieve fairness between users we have implemented a HTCondor like algorithm 
 ### Cluster Executor
 Cluster executor is component running on each Kubernetes cluster. It keeps all pods and nodes information in memory and manages jobs within the cluster.
 It proactively reports current state of the cluster and asks for jobs to run.
+Queue Usage is recorded in database and used to update priorities of individual queues.
 Executor can also refuse to execute assigned job and return it.
 
 ### Armada server
 Armada server is central component which manages queues of jobs.
 It stores all active jobs in Job database (current implementation use Redis).
 
-#### Accounting
-Executor periodically reports resource usage details to Armada server. 
-Usage is recorded in database and used to update priorities of individual queues.
-
 #### Job Leasing
-Executor periodically ask server for jobs to run reporting available resources. Armada distributes these available resources among queues according to queue current priority. 
+Executor periodically ask server for jobs to run reporting available resources. Armada distributes these available resources among queues according to Queue Effective Priority. 
 Jobs are taken from the top of each queue until the available resources is filled. These jobs are then returned to the executor to be executed on the cluster and marked as Leased with a timestamp to show when the lease began.
 
 The executor must regularly renew the lease of all jobs it leases, otherwise leases expire and jobs will be considered failed and executed on different cluster.

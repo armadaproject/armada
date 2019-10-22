@@ -8,17 +8,16 @@ It stores queues for users/projects with pod specifications and creates these po
 
 ## Documentation
 
-- [Design docs](./docs/design.md)
-- [Development guide](./docs/developer.md)
-- [Installation & Usage](./docs/usage.md)
+- [Design Documentation](./docs/design.md)
+- [Development Guide](./docs/developer.md)
+- [User Guide](./docs/user.md)
+- [Installation in Production](./docs/production-install.md)
 
 ## Key features
 - Armada maintains fair resource share over time (inspired by HTCondor priority)
 - It can handle large amount of queued jobs (million+)
 - It Allows adding and removing clusters from the system without disruption
 - By utilizing multiple Kubernetes clusters system can scale to larger amount of nodes beyond one cluster limits
-
-
 
 ## Key concepts
 
@@ -31,7 +30,7 @@ It stores queues for users/projects with pod specifications and creates these po
 
 ## Try it out locally
 
-Assumming you have go installed.
+Assuming you have go installed.
 
 1. Clone repository & Build (project requires go & docker installed)
 ```bash
@@ -62,12 +61,12 @@ docker run -d --expose=6379 --network=host redis
 ```
 
 6. Start executors for each cluster each in separate terminal
-```
+```bash
 KUBECONFIG=$(kind get kubeconfig-path --name="demoA") ARMADA_APPLICATION_CLUSTERID=demoA ./bin/executor
 KUBECONFIG=$(kind get kubeconfig-path --name="demoB") ARMADA_APPLICATION_CLUSTERID=demoB ./bin/executor
 ```
 7. Create queue & Submit job
-```
+```bash
 ./bin/armadactl create-queue test 1
 ./bin/armadactl submit ./example/jobs.yaml
 ./bin/armadactl watch job-set-1
