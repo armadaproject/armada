@@ -19,7 +19,7 @@ func TestPrincipalPermissionChecker_UserHavePermission(t *testing.T) {
 	submitter := NewStaticPrincipal("me", []string{"submitterGroup"})
 	otherUser := NewStaticPrincipal("me", []string{"test"})
 
-	assert.True(t, checker.UserHasPermission(withPrincipal(context.Background(), admin), permissions.SubmitJobs))
-	assert.True(t, checker.UserHasPermission(withPrincipal(context.Background(), submitter), permissions.SubmitJobs))
-	assert.False(t, checker.UserHasPermission(withPrincipal(context.Background(), otherUser), permissions.SubmitJobs))
+	assert.True(t, checker.UserHasPermission(WithPrincipal(context.Background(), admin), permissions.SubmitJobs))
+	assert.True(t, checker.UserHasPermission(WithPrincipal(context.Background(), submitter), permissions.SubmitJobs))
+	assert.False(t, checker.UserHasPermission(WithPrincipal(context.Background(), otherUser), permissions.SubmitJobs))
 }

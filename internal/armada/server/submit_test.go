@@ -84,7 +84,7 @@ func withSubmitServer(action func(s *SubmitServer)) {
 	jobRepo := repository.NewRedisJobRepository(client)
 	queueRepo := repository.NewRedisQueueRepository(client)
 	eventRepo := repository.NewRedisEventRepository(client)
-	server := NewSubmitServer(jobRepo, queueRepo, eventRepo)
+	server := NewSubmitServer(&fakePermissionChecker{}, jobRepo, queueRepo, eventRepo)
 
 	action(server)
 }

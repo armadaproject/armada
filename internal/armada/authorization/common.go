@@ -65,7 +65,7 @@ func GetPrincipal(ctx context.Context) Principal {
 	return p
 }
 
-func withPrincipal(ctx context.Context, principal Principal) context.Context {
+func WithPrincipal(ctx context.Context, principal Principal) context.Context {
 	return context.WithValue(ctx, principalKey, principal)
 }
 
@@ -84,7 +84,7 @@ func CreateMiddlewareAuthFunction(authServices []AuthService) grpc_auth.AuthFunc
 			if err != nil {
 				return nil, err
 			}
-			return withPrincipal(ctx, principal), nil
+			return WithPrincipal(ctx, principal), nil
 		}
 		return nil, status.Errorf(codes.Unauthenticated, "Request in not authenticated with any of the supported schemes.")
 	}

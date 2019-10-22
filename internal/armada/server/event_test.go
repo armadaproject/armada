@@ -56,7 +56,7 @@ func withEventServer(action func(s *EventServer)) {
 	client := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 10})
 
 	repo := repository.NewRedisEventRepository(client)
-	server := NewEventServer(repo)
+	server := NewEventServer(&fakePermissionChecker{}, repo)
 
 	client.FlushDB()
 
@@ -77,4 +77,5 @@ func (s *eventStreamMock) Send(m *api.EventStreamMessage) error {
 
 func (s *eventStreamMock) Context() context.Context {
 	return context.Background()
+
 }
