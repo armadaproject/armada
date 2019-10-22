@@ -17,7 +17,7 @@ fi
 
 BODY=$(echo $RELEASE_INFO_REPLY | jq '.body')
 
-if [ "{$BODY}" = null ]; then
+if [ "$BODY" = null ]; then
     echo "Failed to get body of release with tag $RELEASE_TAG"
     exit -1
 fi
