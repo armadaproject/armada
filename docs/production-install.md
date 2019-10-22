@@ -92,7 +92,7 @@ helm install ./deployment/armada-executor -f ./executor-values.yaml
 ```
 # Interacting with Armada
 
-Once you have Armada components running, you can interact with them via the command-line tool called `armadactl`.
+Once you have the Armada components running, you can interact with them via the command-line tool called `armadactl`.
 
 ## Setting up armadactl
 
@@ -126,7 +126,7 @@ password: "password1"
 
 #### Persistent config
 
-Building on the to the config file above. If you store the config file as `$HOME/.armadactl`
+Building on the config file above. If you store the config file as `$HOME/.armadactl`
 
 This file will automatically be picked up and used by `armadactl`.
 
@@ -152,7 +152,7 @@ jobs:
 
 ```
 
-Use `armadactl` command line utility to submit jobs to armada server
+Use the `armadactl` command line utility to submit jobs to the Armada server
 ```bash
 # create a queue:
 armadactl create-queue test 1

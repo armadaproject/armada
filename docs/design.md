@@ -14,7 +14,7 @@ Armada is job queueing system for multiple Kubernetes clusters.
 
 ## Data model
 ### Job
-Job is an executable unit, currently contains Kubernetes pod specification.
+A Job is an executable unit, currently containing a Kubernetes pod specification.
 
 ### Job Set
 All jobs are grouped into Job Sets with user-specified identifier. A Job Set represents a project or other higher level unit of work. Users can observe events in Job Sets through the API.
@@ -50,10 +50,10 @@ Jobs are taken from the top of each queue until the available resource is filled
 The executor must regularly renew the lease of all jobs it leases, otherwise leases expire and jobs will be considered failed and executed on different cluster.
 
 #### Job Events
-Jobs events are used to show when a job reaches a new state, such as submitted, running, completed. They hold generic information about events (such as created-time) along with state specific information (such as exit-code for completed jobs).
+Job events are used to show when a job reaches a new state, such as submitted, running, completed. They hold generic information about events (such as created-time) along with state specific information (such as exit-code for completed jobs).
 
 Armada records events of all jobs against the job set the job belongs to. Events for a given job set are available through the API.
 
-Armada records all necessary events to fully reconstruct state of the job at any time. This allows us to erase all job data from jobs database after the job finishes and keep only the events.
+Armada records all necessary events to fully reconstruct state of the job at any time. This allows us to erase all job data from the jobs database after the job finishes and keep only the events.
 
 The current implementation utilises Redis streams to store job events.

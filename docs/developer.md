@@ -137,4 +137,4 @@ Use cobra to add new command:
 cobra add commandName
 ```
 
-You should see a new file appear under ./cmd/armadactl/cmd with the name you specified in the command.
+You should see a new file appear under `./cmd/armadactl/cmd` with the name you specified in the command.
