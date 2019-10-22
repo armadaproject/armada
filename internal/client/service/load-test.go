@@ -10,9 +10,9 @@ import (
 	"google.golang.org/grpc"
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/G-Research/k8s-batch/internal/armada/api"
-	"github.com/G-Research/k8s-batch/internal/client/domain"
-	"github.com/G-Research/k8s-batch/internal/client/util"
+	"github.com/G-Research/armada/internal/armada/api"
+	"github.com/G-Research/armada/internal/client/domain"
+	"github.com/G-Research/armada/internal/client/util"
 )
 
 type LoadTester interface {

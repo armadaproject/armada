@@ -5,9 +5,9 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/G-Research/k8s-batch/internal/armada/api"
-	"github.com/G-Research/k8s-batch/internal/executor/context"
-	"github.com/G-Research/k8s-batch/internal/executor/domain"
+	"github.com/G-Research/armada/internal/armada/api"
+	"github.com/G-Research/armada/internal/executor/context"
+	"github.com/G-Research/armada/internal/executor/domain"
 )
 
 const PodNamePrefix string = "batch-"

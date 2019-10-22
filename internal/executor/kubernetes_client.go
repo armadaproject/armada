@@ -6,7 +6,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
-	"github.com/G-Research/k8s-batch/internal/executor/configuration"
+	"github.com/G-Research/armada/internal/executor/configuration"
 )
 
 func CreateKubernetesClient(kubernetesConfig *configuration.KubernetesConfiguration) (kubernetes.Interface, error) {

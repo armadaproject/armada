@@ -7,7 +7,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/G-Research/k8s-batch/internal/common/util"
+	"github.com/G-Research/armada/internal/common/util"
 )
 
 var (

@@ -13,13 +13,14 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
-	"github.com/G-Research/k8s-batch/internal/armada/api"
-	"github.com/G-Research/k8s-batch/internal/common"
-	"github.com/G-Research/k8s-batch/internal/executor/configuration"
-	"github.com/G-Research/k8s-batch/internal/executor/context"
-	"github.com/G-Research/k8s-batch/internal/executor/metrics"
-	"github.com/G-Research/k8s-batch/internal/executor/reporter"
-	"github.com/G-Research/k8s-batch/internal/executor/service"
+	"github.com/G-Research/armada/internal/armada/api"
+	"github.com/G-Research/armada/internal/common"
+	"github.com/G-Research/armada/internal/executor/configuration"
+	"github.com/G-Research/armada/internal/executor/context"
+	"github.com/G-Research/armada/internal/executor/metrics"
+	"github.com/G-Research/armada/internal/executor/reporter"
+	"github.com/G-Research/armada/internal/executor/service"
+	"github.com/G-Research/armada/internal/executor/util"
 )
 
 func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGroup) {

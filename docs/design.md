@@ -26,6 +26,8 @@ Queues has its own priority (lower number makes queue more important). Queue cur
 
 Usual setup maps users or teams one to one to queues to control resource usage.
 
+To achieve fairness between users we have implemented a HTCondor like algorithm to divide resources. Each queue has a priority. When pods from a queue use some resources over time, queue priority is reduced so other queues will get more share in the future. When queues do not use resources their priority will eventually get back to initial value.
+
 ## Proposed design
 ![Diagram](./batch-api.svg)
 

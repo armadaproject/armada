@@ -9,8 +9,8 @@ import (
 	"github.com/gogo/protobuf/proto"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/G-Research/k8s-batch/internal/armada/api"
-	"github.com/G-Research/k8s-batch/internal/common/util"
+	"github.com/G-Research/armada/internal/armada/api"
+	"github.com/G-Research/armada/internal/common/util"
 )
 
 const jobObjectPrefix = "Job:"

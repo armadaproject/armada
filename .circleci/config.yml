@@ -30,7 +30,7 @@ jobs:
       GO111MODULE: "on"
       GOPATH: "/home/circleci/go"
       GOCACHE: "/home/circleci/go/cache"
-    working_directory: ~/go/src/github.com/G-Research/k8s-batch
+    working_directory: ~/go/src/github.com/G-Research/armada
     steps:
       - checkout
       - run: e2e/setup/setup_environment.sh
@@ -49,7 +49,7 @@ jobs:
       - run:
           name: Check formatting
           command: |
-            exit $(go run golang.org/x/tools/cmd/goimports -l -local "github.com/G-Research/k8s-batch" . | wc -l)
+            exit $(go run golang.org/x/tools/cmd/goimports -l -local "github.com/G-Research/armada" . | wc -l)
 
       - run:
           name: Build & Run e2e tests
@@ -88,7 +88,7 @@ jobs:
   deploy:
     docker:
       - image: alpine/helm:2.13.1
-    working_directory: /go/src/github.com/G-Research/k8s-batch
+    working_directory: /go/src/github.com/G-Research/armada
     steps:
       - checkout
       - run:

@@ -10,9 +10,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/G-Research/k8s-batch/internal/armada/api"
-	"github.com/G-Research/k8s-batch/internal/armada/repository"
-	"github.com/G-Research/k8s-batch/internal/common"
+	"github.com/G-Research/armada/internal/armada/api"
+	"github.com/G-Research/armada/internal/armada/repository"
+	"github.com/G-Research/armada/internal/common"
 )
 
 func TestUsageServer_ReportUsage(t *testing.T) {

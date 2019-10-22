@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/G-Research/k8s-batch/internal/armada/api"
+	"github.com/G-Research/armada/internal/armada/api"
 )
 
 func TestCreateEventForCurrentState_WhenPodPending(t *testing.T) {

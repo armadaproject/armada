@@ -9,7 +9,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/G-Research/k8s-batch/internal/armada/configuration"
+	"github.com/G-Research/armada/internal/armada/configuration"
 )
 
 type PermissionClaimQueries map[Permission]string
