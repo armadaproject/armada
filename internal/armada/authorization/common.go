@@ -17,6 +17,8 @@ var (
 
 const principalKey = "principal"
 
+const EveryoneGroup = "everyone"
+
 type Principal interface {
 	GetName() string
 	IsInGroup(group string) bool
@@ -32,7 +34,7 @@ type StaticPrincipal struct {
 func NewStaticPrincipal(name string, groups []string) *StaticPrincipal {
 	return &StaticPrincipal{
 		name,
-		util.StringListToSet(groups),
+		util.StringListToSet(append(groups, EveryoneGroup)),
 		map[string]bool{},
 	}
 }
@@ -40,7 +42,7 @@ func NewStaticPrincipal(name string, groups []string) *StaticPrincipal {
 func NewStaticPrincipalWithScopes(name string, groups []string, scopes []string) *StaticPrincipal {
 	return &StaticPrincipal{
 		name,
-		util.StringListToSet(groups),
+		util.StringListToSet(append(groups, EveryoneGroup)),
 		util.StringListToSet(scopes),
 	}
 }

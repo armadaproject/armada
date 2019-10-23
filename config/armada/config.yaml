@@ -18,9 +18,10 @@ eventsRedis:
 basicAuth:
   enableAuthentication: false
 permissionGroupMapping:
-  submit_jobs: ["armada-admin"]
-  create_queue: ["armada-admin"]
-  cancel_jobs: ["armada-admin"]
-  watch_all_events: ["armada-admin"]
-  execute_jobs: ["executor"]
-
+  submit_jobs: ["everyone"]
+  submit_any_jobs: ["everyone"]
+  create_queue: ["everyone"]
+  cancel_jobs: ["everyone"]
+  cancel_any_jobs: ["everyone"]
+  watch_all_events: ["everyone"]
+  execute_jobs: ["everyone"]
