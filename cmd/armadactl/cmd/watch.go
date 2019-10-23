@@ -43,15 +43,15 @@ var watchCmd = &cobra.Command{
 				if raw {
 					data, err := json.Marshal(e)
 					if err != nil {
-						fmt.Print(e)
+						log.Error(e)
 					} else {
-						fmt.Printf("%s %s\n", reflect.TypeOf(e), string(data))
+						log.Infof("%s %s\n", reflect.TypeOf(e), string(data))
 					}
 				} else {
-					fmt.Printf("%s | ", e.GetCreated().Format(time.Stamp))
-					fmt.Print(service.CreateSummaryOfCurrentState(state))
-					fmt.Printf(" | event: %s, job id: %s", reflect.TypeOf(e), e.GetJobId())
-					fmt.Println()
+					summary := fmt.Sprintf("%s | ", e.GetCreated().Format(time.Stamp))
+					summary += service.CreateSummaryOfCurrentState(state)
+					summary += fmt.Sprintf(" | event: %s, job id: %s", reflect.TypeOf(e), e.GetJobId())
+					log.Info(summary)
 				}
 				return false
 			})
