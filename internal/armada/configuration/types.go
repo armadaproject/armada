@@ -14,7 +14,7 @@ type UserInfo struct {
 }
 
 type ArmadaConfig struct {
-	Development bool
+	AnonymousAuth bool
 
 	GrpcPort               uint16
 	MetricsPort            uint16

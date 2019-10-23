@@ -112,18 +112,20 @@ func withRunningServer(action func(client api.SubmitClient, leaseClient api.Aggr
 	// cleanup prometheus in case there are registered metrics already present
 	prometheus.DefaultRegisterer = prometheus.NewRegistry()
 	server, _ := Serve(&configuration.ArmadaConfig{
-		Development: true,
-		GrpcPort:    50052,
+		AnonymousAuth: true,
+		GrpcPort:      50052,
 		Redis: redis.UniversalOptions{
 			Addrs: []string{minidb.Addr()},
 			DB:    0,
 		},
 		PermissionGroupMapping: map[permissions.Permission][]string{
-			permissions.ExecuteJobs:    {"anyone"},
-			permissions.SubmitJobs:     {"anyone"},
-			permissions.CreateQueue:    {"anyone"},
-			permissions.CancelJobs:     {"anyone"},
-			permissions.WatchAllEvents: {"anyone"},
+			permissions.ExecuteJobs:    {"everyone"},
+			permissions.SubmitJobs:     {"everyone"},
+			permissions.SubmitAnyJobs:  {"everyone"},
+			permissions.CreateQueue:    {"everyone"},
+			permissions.CancelJobs:     {"everyone"},
+			permissions.CancelAnyJobs:  {"everyone"},
+			permissions.WatchAllEvents: {"everyone"},
 		},
 	})
 	defer server.Stop()

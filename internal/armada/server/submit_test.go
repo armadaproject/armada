@@ -86,5 +86,10 @@ func withSubmitServer(action func(s *SubmitServer)) {
 	eventRepo := repository.NewRedisEventRepository(client)
 	server := NewSubmitServer(&fakePermissionChecker{}, jobRepo, queueRepo, eventRepo)
 
+	err := queueRepo.CreateQueue(&api.Queue{Name: "test"})
+	if err != nil {
+		panic(err)
+	}
+
 	action(server)
 }

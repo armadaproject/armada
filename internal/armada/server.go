@@ -97,7 +97,7 @@ func createServer(config *configuration.ArmadaConfig) *grpc.Server {
 		authServices = append(authServices, openIdAuthService)
 	}
 
-	if config.Development && len(authServices) == 0 {
+	if config.AnonymousAuth {
 		authServices = append(authServices, &authorization.AnonymousAuthService{})
 	}
 

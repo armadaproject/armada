@@ -137,7 +137,7 @@ func (server *SubmitServer) checkQueuePermission(
 
 	queue, e := server.queueRepository.GetQueue(queueName)
 	if e != nil {
-		return e
+		return status.Errorf(codes.NotFound, "Could not load queue: %s", e.Error())
 	}
 	permissionToCheck := basicPermission
 	if !server.permissions.UserOwns(ctx, queue) {

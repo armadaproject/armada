@@ -45,8 +45,6 @@ func LoadConfig(config interface{}, defaultPath string, overrideConfig string) {
 	viper.SetEnvPrefix("ARMADA")
 	viper.AutomaticEnv()
 
-	fmt.Print(os.Getenv("ARMADA_DEVELOPMENT"))
-
 	err := viper.Unmarshal(config)
 	if err != nil {
 		log.Error(err)
