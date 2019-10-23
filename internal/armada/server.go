@@ -2,6 +2,7 @@ package armada
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"sync"
 	"time"
@@ -50,7 +51,7 @@ func Serve(config *configuration.ArmadaConfig) (*grpc.Server, *sync.WaitGroup) {
 		aggregatedQueueServer := server.NewAggregatedQueueServer(permissions, usageService, jobRepository, eventRepository)
 		eventServer := server.NewEventServer(permissions, eventRepository)
 
-		lis, err := net.Listen("tcp", config.GrpcPort)
+		lis, err := net.Listen("tcp", fmt.Sprintf(":%d", config.GrpcPort))
 		if err != nil {
 			log.Fatalf("failed to listen: %v", err)
 		}
@@ -62,7 +63,7 @@ func Serve(config *configuration.ArmadaConfig) (*grpc.Server, *sync.WaitGroup) {
 
 		grpc_prometheus.Register(grpcServer)
 
-		log.Printf("Grpc listening on %s", config.GrpcPort)
+		log.Printf("Grpc listening on %d", config.GrpcPort)
 		if err := grpcServer.Serve(lis); err != nil {
 			log.Fatalf("failed to serve: %v", err)
 		}

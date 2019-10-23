@@ -16,7 +16,8 @@ type UserInfo struct {
 type ArmadaConfig struct {
 	Development bool
 
-	GrpcPort               string
+	GrpcPort         uint16
+	MetricsPort      uint16
 	PriorityHalfTime       time.Duration
 	Redis                  redis.UniversalOptions
 	EventsRedis            redis.UniversalOptions

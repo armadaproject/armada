@@ -35,6 +35,7 @@ type ArmadaConfiguration struct {
 }
 
 type ExecutorConfiguration struct {
+	MetricsPort                 uint16
 	Application                 ApplicationConfiguration
 	BasicAuth                   BasicAuthenticationConfiguration
 	OpenIdPasswordAuth          oidc.ClientPasswordDetails

@@ -1,6 +1,6 @@
 image:
-  repository: armada-executor
-  tag: latest
+  repository: gresearchdev/armada-executor-dev
+  tag: v0.0.1
 resources:
   limits:
     memory: 1Gi

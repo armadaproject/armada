@@ -76,6 +76,7 @@ func (jobLeaseService *JobLeaseService) ManageJobLeases() {
 	err = jobLeaseService.ReportDone(podsToCleanup)
 	if err != nil {
 		log.Errorf("Failed reporting jobs as done because %s", err)
+		return
 	}
 
 	jobLeaseService.clusterContext.DeletePods(podsToCleanup)

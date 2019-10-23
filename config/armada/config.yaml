@@ -1,5 +1,7 @@
+
 development: false
-grpcPort: ":50051"
+grpcPort: 50051
+metricsPort: 9000
 priorityHalfTime: 20m
 redis:
   addrs:

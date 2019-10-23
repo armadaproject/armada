@@ -1,7 +1,7 @@
 jobs:
   - queue: test
     priority: 0
-    jobSetId: set1
+    jobSetId: job-set-1
     podSpec:
       terminationGracePeriodSeconds: 0
       restartPolicy: Never
@@ -18,4 +18,4 @@ jobs:
               cpu: 150m
             requests:
               memory: 64Mi
-              cpu: 100m
+              cpu: 150m
