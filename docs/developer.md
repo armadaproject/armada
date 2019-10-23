@@ -40,8 +40,8 @@ go run ./cmd/armada/main.go
 ```
 5. Start executors for each cluster each in separate terminal
 ```bash
-KUBECONFIG=$(kind get kubeconfig-path --name="demoA") ARMADA_APPLICATION_CLUSTERID=demoA go run ./cmd/executor/main.go
-KUBECONFIG=$(kind get kubeconfig-path --name="demoB") ARMADA_APPLICATION_CLUSTERID=demoB go run ./cmd/executor/main.go
+KUBECONFIG=$(kind get kubeconfig-path --name="demoA") ARMADA_APPLICATION_CLUSTERID=demoA ARMADA_METRICSPORT=9001 go run ./cmd/executor/main.go
+KUBECONFIG=$(kind get kubeconfig-path --name="demoB") ARMADA_APPLICATION_CLUSTERID=demoB ARMADA_METRICSPORT=9002 go run ./cmd/executor/main.go
 ```
 6. Create queue & Submit job
 ```bash
