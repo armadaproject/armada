@@ -44,7 +44,8 @@ func LoadCommandlineArgsFromConfigFile(cfgFile string) {
 	if err != nil {
 		switch err.(type) {
 		case viper.ConfigFileNotFoundError:
-			// Do nothing
+			// This only occurs when looking for the default .armadactl file and it is not present
+			// This is not an error as users don't have to specify it, so do nothing
 		default:
 			fmt.Printf("Can't read config file %s because %s\n", viper.ConfigFileUsed(), err)
 			os.Exit(1)
