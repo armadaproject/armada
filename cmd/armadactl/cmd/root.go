@@ -16,9 +16,20 @@ func init() {
 }
 
 var rootCmd = &cobra.Command{
-	Use:   "armadaclt command",
+	Use:   "armadactl",
 	Short: "Command line utility to manage armada",
-	Long:  ``,
+	Long: `
+Command line utility to manage armada
+
+Persistent config can be saved in a config file so it doesn't have to be specified every command.
+
+Example structure:
+armadaUrl: localhost:50051
+username: user1
+password: password123
+
+The location of this file can be passed in using --config argument or picked from $HOME/.armadactl.yaml.
+`,
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
