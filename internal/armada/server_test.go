@@ -111,7 +111,7 @@ func withRunningServer(action func(client api.SubmitClient, leaseClient api.Aggr
 	// cleanup prometheus in case there are registered metrics already present
 	prometheus.DefaultRegisterer = prometheus.NewRegistry()
 	server, _ := Serve(&configuration.ArmadaConfig{
-		GrpcPort: ":50052",
+		GrpcPort: 50052,
 		Redis: redis.UniversalOptions{
 			Addrs: []string{minidb.Addr()},
 			DB:    0,

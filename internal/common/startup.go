@@ -2,6 +2,7 @@ package common
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"os"
 	"strings"
@@ -56,19 +57,19 @@ func ConfigureLogging() {
 	log.SetOutput(os.Stdout)
 }
 
-func ServeMetrics(addr string) (shutdown func()) {
-	srv := &http.Server{Addr: addr}
+func ServeMetrics(port uint16) (shutdown func()) {
+	srv := &http.Server{Addr: fmt.Sprintf(":%d", port)}
 
 	hook := promrus.MustNewPrometheusHook()
 	log.AddHook(hook)
 
 	http.Handle("/metrics", promhttp.Handler())
 	go func() {
-		log.Printf("Metrics listening on %s", addr)
+		log.Printf("Metrics listening on %d", port)
 		if err := srv.ListenAndServe(); err != http.ErrServerClosed {
 			panic(err)
 		}
-		log.Printf("Metrics listening on %s", addr)
+		log.Printf("Metrics listening on %d", port)
 	}()
 	return func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

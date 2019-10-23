@@ -7,7 +7,8 @@ import (
 )
 
 type ArmadaConfig struct {
-	GrpcPort         string
+	GrpcPort         uint16
+	MetricsPort      uint16
 	PriorityHalfTime time.Duration
 	Redis            redis.UniversalOptions
 	EventsRedis      redis.UniversalOptions

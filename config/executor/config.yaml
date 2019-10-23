@@ -11,3 +11,4 @@ armada:
   url : "localhost:50051"
 authentication:
   enableAuthentication: false
+metricsPort: 9001
