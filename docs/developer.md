@@ -11,10 +11,10 @@
 There are many ways you can setup you local environment, this is just a basic quick example of how to setup everything you'll need to get started running and developing Armada.
 
 ### Pre-requisites
-To follow this section I am assuming you have:
+To follow this section it is assumed you have:
 * Golang >= 1.12 installed (https://golang.org/doc/install)
-* Kubectl installed (https://kubernetes.io/docs/tasks/tools/install-kubectl/)
-* Docker installed (ideally in the sudo group)
+* `kubectl` installed (https://kubernetes.io/docs/tasks/tools/install-kubectl/)
+* Docker installed, configured for the current user
 * This repository cloned. The guide will assume you are in the root directory of this repository
 
 ### Running Armada locally
@@ -45,17 +45,17 @@ KUBECONFIG=$(kind get kubeconfig-path --name="demoB") ARMADA_APPLICATION_CLUSTER
 ```
 6. Create queue & Submit job
 ```bash
-go run ./cmd/armadactl/main.go create-queue test 1
+go run ./cmd/armadactl/main.go create-queue test --priorityFactor 1
 go run ./cmd/armadactl/main.go submit ./example/jobs.yaml
 go run ./cmd/armadactl/main.go watch job-set-1
 ```
 
-For more details on submitting jobs jobs to Armada, see [here](usage.md#submitting-jobs).
+For more details on submitting jobs to Armada, see [here](usage.md#submitting-jobs).
 
 Once you submit jobs, you should be able to see pods appearing in your cluster(s), running what you submitted.
 
 
-**Note:** Depending on your docker setup you might need to load images for jobs you plan to run manually 
+**Note:** Depending on your Docker setup you might need to load images for jobs you plan to run manually:
 ```bash
 kind load docker-image busybox:latest
 ```
@@ -75,18 +75,18 @@ make e2e-stop-cluster
 
 ## Code Generation
 
-This project uses code generation in a couple of places. The below sections will discuss how to install and use the code generation tools.
+This project uses code generation. The below sections will discuss how to install and use the code generation tools.
 
 ### gRPC
 
-We use protoc to generate the Go files used for our gRPC communication. 
+We use `protoc` to generate the Go files used for our gRPC communication. 
 
 The github for this utility ca be found: https://github.com/protocolbuffers/protobuf
 
 ##### Set up steps
 
-* Install protoc (https://github.com/protocolbuffers/protobuf/releases/download/v3.8.0/protoc-3.8.0-linux-x86_64.zip) and make sure it is on $PATH.
-* Make sure Go is installed and $GOPATH/bin is in your $PATH
+* Install `protoc` (https://github.com/protocolbuffers/protobuf/releases/download/v3.8.0/protoc-3.8.0-linux-x86_64.zip) and make sure it is on `$PATH`.
+* Make sure Go is installed and `$GOPATH/bin` is in your `$PATH`
 
 
 Install required proto libraries:
@@ -111,11 +111,11 @@ There is a script that will regenerate all proto files, assuming the above setup
 ./scripts/proto.sh
 ```
 
-### Command line tools
+### Command-line tools
 
-Our commandline tools used the cobra framework (https://github.com/spf13/cobra).
+Our command-line tools used the cobra framework (https://github.com/spf13/cobra).
 
-You can use the cobra cli to add new commands, the below will describe how to add new commands for armadactl but it can be applied to any of our command line tools.
+You can use the cobra cli to add new commands, the below will describe how to add new commands for `armadactl` but it can be applied to any of our command line tools.
 
 ##### Steps
 
@@ -125,7 +125,7 @@ Get cobra cli tool:
 go get -u github.com/spf13/cobra/cobra
 ```
 
-Go to directory of commandline tool you are working on:
+Change to the directory of the command-line tool you are working on:
 
 ```
 cd ./cmd/armadactl
@@ -137,4 +137,4 @@ Use cobra to add new command:
 cobra add commandName
 ```
 
-You should see a new file appear under ./cmd/armadactl/cmd with the name you specified in the command.
+You should see a new file appear under `./cmd/armadactl/cmd` with the name you specified in the command.
