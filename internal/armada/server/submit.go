@@ -73,10 +73,6 @@ func (server *SubmitServer) SubmitJob(ctx context.Context, req *api.JobRequest) 
 }
 
 func (server *SubmitServer) CancelJobs(ctx context.Context, request *api.JobCancelRequest) (*api.CancellationResult, error) {
-	if e := checkPermission(server.permissions, ctx, permissions.CancelJobs); e != nil {
-		return nil, e
-	}
-
 	if request.JobId != "" {
 		jobs, e := server.jobRepository.GetJobsByIds([]string{request.JobId})
 		if e != nil {
