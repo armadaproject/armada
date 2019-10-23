@@ -1,7 +1,7 @@
 jobs:
   - queue: test
     priority: 0
-    jobSetId: set1
+    jobSetId: job-set-1
     podSpec:
       terminationGracePeriodSeconds: 0
       restartPolicy: Never
