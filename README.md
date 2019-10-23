@@ -3,7 +3,7 @@
 ![Armada](./logo.svg)
 
 [![CircleCI](https://circleci.com/gh/helm/helm.svg?style=shield)](https://circleci.com/gh/G-Research/armada)
-[![Go Report Card](https://goreportcard.com/badge/github.com/thanos-io/thanos)](https://goreportcard.com/report/github.com/G-Rsearch/armada)
+[![Go Report Card](https://goreportcard.com/badge/github.com/thanos-io/thanos)](https://goreportcard.com/report/github.com/G-Research/armada)
 
 Armada is an experimental application to achieve high throughput of run-to-completion jobs on multiple Kubernetes clusters.
 
