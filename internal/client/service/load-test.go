@@ -2,11 +2,11 @@ package service
 
 import (
 	"context"
-	"fmt"
 	"strconv"
 	"sync"
 	"time"
 
+	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	v1 "k8s.io/api/core/v1"
 
@@ -73,9 +73,9 @@ func watchJobInfoChannel(jobInfoChannel chan JobInfo) (*sync.WaitGroup, chan boo
 			case jobInfo := <-jobInfoChannel:
 				aggregatedCurrentState[jobInfo.Job.Id] = &jobInfo
 			case <-tickChannel.C:
-				fmt.Println(CreateSummaryOfCurrentState(aggregatedCurrentState))
+				log.Info(CreateSummaryOfCurrentState(aggregatedCurrentState))
 			case <-stop:
-				fmt.Println(CreateSummaryOfCurrentState(aggregatedCurrentState))
+				log.Info(CreateSummaryOfCurrentState(aggregatedCurrentState))
 				complete.Done()
 				return
 			}
@@ -101,10 +101,10 @@ func (apiLoadTester ArmadaLoadTester) runSubmission(submission *domain.Submissio
 
 		e := CreateQueue(client, &api.Queue{Name: queue, PriorityFactor: priorityFactor})
 		if e != nil {
-			fmt.Printf("ERROR: Failed to create queue: %s because: %s\n", queue, e)
+			log.Errorf("ERROR: Failed to create queue: %s because: %s\n", queue, e)
 			return
 		}
-		fmt.Printf("Queue %s created.\n", queue)
+		log.Infof("Queue %s created.\n", queue)
 
 		for _, job := range jobs {
 			jobRequest := createJobRequest(queue, jobSetId, job.Spec)
@@ -112,10 +112,10 @@ func (apiLoadTester ArmadaLoadTester) runSubmission(submission *domain.Submissio
 				response, e := SubmitJob(client, jobRequest)
 
 				if e != nil {
-					fmt.Printf("ERROR: Failed to submit job for jobset: %s because %s\n", jobSetId, e)
+					log.Errorf("ERROR: Failed to submit job for job set: %s because %s\n", jobSetId, e)
 					continue
 				}
-				fmt.Printf("Submitted job id: %s (set: %s)\n", response.JobId, jobSetId)
+				log.Infof("Submitted job id: %s (set: %s)\n", response.JobId, jobSetId)
 				jobIds = append(jobIds, response.JobId)
 			}
 		}
@@ -133,7 +133,7 @@ func createQueueName(submission *domain.SubmissionDescription, i int) string {
 	}
 
 	if queue == "" {
-		fmt.Printf("ERROR: Queue name is blank, please set queue or queuePrefix ")
+		log.Error("ERROR: Queue name is blank, please set queue or queuePrefix ")
 		panic("Queue name is blank")
 	}
 	return queue

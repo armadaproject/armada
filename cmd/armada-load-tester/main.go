@@ -6,6 +6,6 @@ import (
 )
 
 func main() {
-	common.ConfigureLogging()
+	common.ConfigureCommandLineLogging()
 	cmd.Execute()
 }
