@@ -35,7 +35,7 @@ func NewMultiClusterPriorityService(
 }
 
 func (p *MultiClusterPriorityService) GetQueuePriorities() (map[*api.Queue]float64, error) {
-	queues, e := p.queueRepository.GetQueues()
+	queues, e := p.queueRepository.GetAllQueues()
 	if e != nil {
 		return nil, e
 	}

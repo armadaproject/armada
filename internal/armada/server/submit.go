@@ -47,7 +47,7 @@ func (server *SubmitServer) CreateQueue(ctx context.Context, queue *api.Queue) (
 }
 
 func (server *SubmitServer) SubmitJob(ctx context.Context, req *api.JobRequest) (*api.JobSubmitResponse, error) {
-	if e := checkPermission(server.permissions, ctx, permissions.SubmitJobs); e != nil {
+	if e := server.checkQueuePermission(ctx, req.Queue, permissions.SubmitJobs, permissions.SubmitAnyJobs); e != nil {
 		return nil, e
 	}
 
@@ -78,7 +78,11 @@ func (server *SubmitServer) CancelJobs(ctx context.Context, request *api.JobCanc
 	}
 
 	if request.JobId != "" {
-		return server.cancelJobs([]string{request.JobId})
+		jobs, e := server.jobRepository.GetJobsByIds([]string{request.JobId})
+		if e != nil {
+			return nil, status.Errorf(codes.Internal, e.Error())
+		}
+		return server.cancelJobs(ctx, jobs[0].Queue, jobs)
 	}
 
 	if request.JobSetId != "" && request.Queue != "" {
@@ -86,18 +90,21 @@ func (server *SubmitServer) CancelJobs(ctx context.Context, request *api.JobCanc
 		if e != nil {
 			return nil, status.Errorf(codes.Aborted, e.Error())
 		}
-		return server.cancelJobs(ids)
+		jobs, e := server.jobRepository.GetJobsByIds(ids)
+		if e != nil {
+			return nil, status.Errorf(codes.Internal, e.Error())
+		}
+		return server.cancelJobs(ctx, request.Queue, jobs)
 	}
 	return nil, status.Errorf(codes.InvalidArgument, "Specify job id or queue with job set id")
 }
 
-func (server *SubmitServer) cancelJobs(ids []string) (*api.CancellationResult, error) {
-	jobs, e := server.jobRepository.GetJobsByIds(ids)
-	if e != nil {
-		return nil, status.Errorf(codes.Internal, e.Error())
+func (server *SubmitServer) cancelJobs(ctx context.Context, queue string, jobs []*api.Job) (*api.CancellationResult, error) {
+	if e := server.checkQueuePermission(ctx, queue, permissions.CancelJobs, permissions.CancelAnyJobs); e != nil {
+		return nil, e
 	}
 
-	e = reportJobsCancelling(server.eventRepository, jobs)
+	e := reportJobsCancelling(server.eventRepository, jobs)
 	if e != nil {
 		return nil, status.Errorf(codes.Unknown, e.Error())
 	}
@@ -120,4 +127,24 @@ func (server *SubmitServer) cancelJobs(ids []string) (*api.CancellationResult, e
 	}
 
 	return &api.CancellationResult{cancelledIds}, nil
+}
+
+func (server *SubmitServer) checkQueuePermission(
+	ctx context.Context,
+	queueName string,
+	basicPermission permissions.Permission,
+	allQueuesPermission permissions.Permission) error {
+
+	queue, e := server.queueRepository.GetQueue(queueName)
+	if e != nil {
+		return e
+	}
+	permissionToCheck := basicPermission
+	if !server.permissions.UserOwns(ctx, queue) {
+		permissionToCheck = allQueuesPermission
+	}
+	if e := checkPermission(server.permissions, ctx, permissionToCheck); e != nil {
+		return e
+	}
+	return nil
 }

@@ -6,8 +6,14 @@ import (
 	"github.com/G-Research/armada/internal/armada/authorization/permissions"
 )
 
+type Owned interface {
+	GetUserOwners() []string
+	GetGroupOwners() []string
+}
+
 type PermissionChecker interface {
 	UserHasPermission(ctx context.Context, perm permissions.Permission) bool
+	UserOwns(ctx context.Context, obj Owned) bool
 }
 
 type PrincipalPermissionChecker struct {
@@ -28,6 +34,24 @@ func (checker *PrincipalPermissionChecker) UserHasPermission(ctx context.Context
 	principal := GetPrincipal(ctx)
 	return hasPermission(perm, checker.permissionScopeMap, func(scope string) bool { return principal.HasScope(scope) }) ||
 		hasPermission(perm, checker.permissionGroupMap, func(group string) bool { return principal.IsInGroup(group) })
+}
+
+func (checker *PrincipalPermissionChecker) UserOwns(ctx context.Context, obj Owned) bool {
+	principal := GetPrincipal(ctx)
+	currentUserName := principal.GetName()
+
+	for _, userName := range obj.GetUserOwners() {
+		if userName == currentUserName {
+			return true
+		}
+	}
+
+	for _, group := range obj.GetGroupOwners() {
+		if principal.IsInGroup(group) {
+			return true
+		}
+	}
+	return false
 }
 
 func hasPermission(perm permissions.Permission, permMap map[permissions.Permission][]string, assert func(string) bool) bool {

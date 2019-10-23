@@ -26,6 +26,8 @@ message JobSubmitResponse {
 message Queue {
     string Name = 1;
     double PriorityFactor = 2;
+    repeated string UserOwners = 3;
+    repeated string GroupOwners = 4;
 }
 
 message CancellationResult {

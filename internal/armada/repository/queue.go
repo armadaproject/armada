@@ -10,7 +10,8 @@ import (
 const queueHashKey = "Queue"
 
 type QueueRepository interface {
-	GetQueues() ([]*api.Queue, error)
+	GetAllQueues() ([]*api.Queue, error)
+	GetQueue(name string) (*api.Queue, error)
 	CreateQueue(queue *api.Queue) error
 }
 
@@ -22,7 +23,7 @@ func NewRedisQueueRepository(db redis.UniversalClient) *RedisQueueRepository {
 	return &RedisQueueRepository{db: db}
 }
 
-func (r *RedisQueueRepository) GetQueues() ([]*api.Queue, error) {
+func (r *RedisQueueRepository) GetAllQueues() ([]*api.Queue, error) {
 	result, err := r.db.HGetAll(queueHashKey).Result()
 	if err != nil {
 		return nil, err
@@ -38,6 +39,19 @@ func (r *RedisQueueRepository) GetQueues() ([]*api.Queue, error) {
 		queues = append(queues, queue)
 	}
 	return queues, nil
+}
+
+func (r *RedisQueueRepository) GetQueue(name string) (*api.Queue, error) {
+	result, err := r.db.HGet(queueHashKey, name).Result()
+	if err != nil {
+		return nil, err
+	}
+	queue := &api.Queue{}
+	e := proto.Unmarshal([]byte(result), queue)
+	if e != nil {
+		return nil, e
+	}
+	return queue, nil
 }
 
 func (r *RedisQueueRepository) CreateQueue(queue *api.Queue) error {

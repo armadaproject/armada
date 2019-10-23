@@ -6,16 +6,15 @@ package api
 import (
 	context "context"
 	fmt "fmt"
-	io "io"
-	math "math"
-	time "time"
-
 	_ "github.com/gogo/protobuf/gogoproto"
 	proto "github.com/gogo/protobuf/proto"
 	github_com_gogo_protobuf_types "github.com/gogo/protobuf/types"
 	types "github.com/gogo/protobuf/types"
 	grpc "google.golang.org/grpc"
+	io "io"
 	resource "k8s.io/apimachinery/pkg/api/resource"
+	math "math"
+	time "time"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
