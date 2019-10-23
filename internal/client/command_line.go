@@ -1,10 +1,10 @@
 package client
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/mitchellh/go-homedir"
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
@@ -28,7 +28,7 @@ func LoadCommandlineArgsFromConfigFile(cfgFile string) {
 		// Find home directory.
 		home, err := homedir.Dir()
 		if err != nil {
-			fmt.Println(err)
+			log.Error(err)
 			os.Exit(1)
 		}
 
@@ -47,7 +47,7 @@ func LoadCommandlineArgsFromConfigFile(cfgFile string) {
 			// This only occurs when looking for the default .armadactl file and it is not present
 			// This is not an error as users don't have to specify it, so do nothing
 		default:
-			fmt.Printf("Can't read config file %s because %s\n", viper.ConfigFileUsed(), err)
+			log.Errorf("Can't read config file %s because %s\n", viper.ConfigFileUsed(), err)
 			os.Exit(1)
 		}
 	}

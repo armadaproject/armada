@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"reflect"
 
 	log "github.com/sirupsen/logrus"
@@ -50,16 +49,16 @@ var analyzeCmd = &cobra.Command{
 				if jobInfo.Status != service.Succeeded {
 					jobEvents := events[id]
 
-					fmt.Println()
+					log.Println()
 					for _, e := range jobEvents {
 						data, err := json.Marshal(e)
 						if err != nil {
-							fmt.Print(e)
+							log.Error(e)
 						} else {
-							fmt.Printf("%s %s\n", reflect.TypeOf(*e), string(data))
+							log.Info("%s %s\n", reflect.TypeOf(*e), string(data))
 						}
 					}
-					fmt.Println()
+					log.Println()
 				}
 			}
 
