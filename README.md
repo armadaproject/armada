@@ -69,5 +69,5 @@ KUBECONFIG=$(kind get kubeconfig-path --name="demoB") ARMADA_APPLICATION_CLUSTER
 ```bash
 ./bin/armadactl create-queue test --priorityFactor 1
 ./bin/armadactl submit ./example/jobs.yaml
-./bin/armadactl watch job-set-1
+./bin/armadactl watch set1
 ```
