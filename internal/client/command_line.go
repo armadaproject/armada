@@ -41,14 +41,12 @@ func LoadCommandlineArgsFromConfigFile(cfgFile string) {
 	// If a config file is found, read it in.
 	err := viper.ReadInConfig()
 
-	if err == nil {
-		fmt.Println("Using config file:", viper.ConfigFileUsed())
-	} else {
+	if err != nil {
 		switch err.(type) {
 		case viper.ConfigFileNotFoundError:
-			fmt.Println("No config file:", err)
+			// Do nothing
 		default:
-			fmt.Println("Can't read config:", err)
+			fmt.Printf("Can't read config file %s because %s\n", viper.ConfigFileUsed(), err)
 			os.Exit(1)
 		}
 	}
