@@ -33,7 +33,11 @@ It stores queues for users/projects with pod specifications and creates these po
 
 ## Try it out locally
 
-Prequisites: Git, Go and Docker installed. Ensure the current user has permission to run the `docker` command.
+Prerequisites: 
+* Git
+* Go 1.12+ 
+* Docker installed. Ensure the current user has permission to run the `docker` command without sudo.
+* 3GB Disk space
 
 1. Clone repository & build
 ```bash
@@ -42,12 +46,18 @@ cd armada
 make build
 ```
 
-2. Get kind
+2. Get Kind (Installation help [here](https://kind.sigs.k8s.io/docs/user/quick-start/))
+
+Kind is Kubernetes in Docker. It allows us to easily run a local Kubernetes cluster using Docker.
+
 ```bash
-go get sigs.k8s.io/kind
+GO111MODULE="on" go get sigs.k8s.io/kind@v0.5.1
 ```
  
-3. Create 2 kind clusters
+3. Create 2 Kind clusters
+
+As this step is using Docker, it will require root to run
+
 ```bash
 kind create cluster --name demoA --config ./example/kind-config.yaml
 kind create cluster --name demoB --config ./example/kind-config.yaml 
@@ -55,7 +65,7 @@ kind create cluster --name demoB --config ./example/kind-config.yaml
 
 4. Start Redis
 ```bash
-docker run -d --expose=6379 --network=host redis
+docker run -d -p 6379:6379 redis
 ```
 
 5. Start server in one terminal
@@ -63,12 +73,17 @@ docker run -d --expose=6379 --network=host redis
 ./bin/server
 ```
 
-6. Start executors for each cluster each in separate terminal
+6. Start executor for demoA cluster in a new terminal
 ```bash
 KUBECONFIG=$(kind get kubeconfig-path --name="demoA") ARMADA_APPLICATION_CLUSTERID=demoA ARMADA_METRICSPORT=9001 ./bin/executor
+```
+
+7. Start executor for demoB cluster in a new terminal
+```bash
 KUBECONFIG=$(kind get kubeconfig-path --name="demoB") ARMADA_APPLICATION_CLUSTERID=demoB ARMADA_METRICSPORT=9002 ./bin/executor
 ```
-7. Create queue, submit jobs and watch progress
+
+8. Create queue, submit jobs and watch progress
 ```bash
 ./bin/armadactl create-queue test --priorityFactor 1
 ./bin/armadactl submit ./example/jobs.yaml
