@@ -58,7 +58,7 @@ anonymousAuth: true
 Armada can be configured to use tokens signed by OpenId provider for authentication.
 **Currently only JWT tokens are supported.**
 
-To determine group membership of particular user, armada will reed jwt claim specified in configuration as `groupsClaim`.
+To determine group membership of particular user, armada will read jwt claim specified in configuration as `groupsClaim`.
 
 For example configuration using Amazon Cognito as provider can look like this:
 ```yaml
