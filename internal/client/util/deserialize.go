@@ -14,6 +14,6 @@ func BindJsonOrYaml(filePath string, obj interface{}) {
 	}
 	err = yaml.NewYAMLOrJSONDecoder(reader, 128).Decode(obj)
 	if err != nil {
-		log.Fatalf("Unmarshal: %v", err)
+		log.Fatalf("Failed to parse file %s because: %v", filePath, err)
 	}
 }
