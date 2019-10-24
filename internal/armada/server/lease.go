@@ -53,6 +53,9 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 	}
 
 	queuePriority, e := q.priorityService.GetQueuePriorities()
+	if e != nil {
+		return nil, e
+	}
 	queues := util.GetPriorityMapQueues(queuePriority)
 
 	// TODO: doing cleanup here for simplicity, should happen in background loop instead

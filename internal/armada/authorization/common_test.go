@@ -22,7 +22,7 @@ func TestCreateMiddlewareAuthFunction(t *testing.T) {
 	ctxPrincipal := GetPrincipal(c)
 	assert.Equal(t, principal, ctxPrincipal, "principal should be added to context")
 
-	c, e = CreateMiddlewareAuthFunction([]AuthService{serviceWithoutCredentials})(context.Background())
+	_, e = CreateMiddlewareAuthFunction([]AuthService{serviceWithoutCredentials})(context.Background())
 	assert.NotNil(t, e, "no credentials should result in error")
 }
 

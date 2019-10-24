@@ -13,6 +13,8 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"github.com/weaveworks/promrus"
+
+	"github.com/G-Research/armada/internal/common/logging"
 )
 
 func BindCommandlineArguments() {
@@ -50,6 +52,11 @@ func LoadConfig(config interface{}, defaultPath string, overrideConfig string) {
 		log.Error(err)
 		os.Exit(-1)
 	}
+}
+func ConfigureCommandLineLogging() {
+	commandLineFormatter := new(logging.CommandLineFormatter)
+	log.SetFormatter(commandLineFormatter)
+	log.SetOutput(os.Stdout)
 }
 
 func ConfigureLogging() {

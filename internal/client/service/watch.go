@@ -99,33 +99,7 @@ func WatchJobSetWithJobIdsFilter(client api.EventClient, jobSetId string, waitFo
 				state[event.GetJobId()] = info
 			}
 
-			switch typed := event.(type) {
-			case *api.JobSubmittedEvent:
-				info.Status = Submitted
-				info.Job = &typed.Job
-			case *api.JobQueuedEvent:
-				info.Status = Queued
-			case *api.JobLeasedEvent:
-				info.Status = Leased
-			case *api.JobUnableToScheduleEvent:
-				// NOOP
-			case *api.JobLeaseExpiredEvent:
-				info.Status = Queued
-			case *api.JobPendingEvent:
-				info.Status = Pending
-			case *api.JobRunningEvent:
-				info.Status = Running
-			case *api.JobFailedEvent:
-				info.Status = Failed
-			case *api.JobSucceededEvent:
-				info.Status = Succeeded
-			case *api.JobReprioritizedEvent:
-				// TODO
-			case *api.JobTerminatedEvent:
-				// NOOP
-			case *api.JobCancelledEvent:
-				info.Status = Cancelled
-			}
+			updateJobInfo(info, event)
 
 			shouldExit := onUpdate(state, event)
 			if shouldExit {
@@ -136,6 +110,36 @@ func WatchJobSetWithJobIdsFilter(client api.EventClient, jobSetId string, waitFo
 		if receivedThisCall == 0 && !waitForNew {
 			return
 		}
+	}
+}
+
+func updateJobInfo(info *JobInfo, event api.Event) {
+	switch typed := event.(type) {
+	case *api.JobSubmittedEvent:
+		info.Status = Submitted
+		info.Job = &typed.Job
+	case *api.JobQueuedEvent:
+		info.Status = Queued
+	case *api.JobLeasedEvent:
+		info.Status = Leased
+	case *api.JobUnableToScheduleEvent:
+		// NOOP
+	case *api.JobLeaseExpiredEvent:
+		info.Status = Queued
+	case *api.JobPendingEvent:
+		info.Status = Pending
+	case *api.JobRunningEvent:
+		info.Status = Running
+	case *api.JobFailedEvent:
+		info.Status = Failed
+	case *api.JobSucceededEvent:
+		info.Status = Succeeded
+	case *api.JobReprioritizedEvent:
+		// TODO
+	case *api.JobTerminatedEvent:
+		// NOOP
+	case *api.JobCancelledEvent:
+		info.Status = Cancelled
 	}
 }
 

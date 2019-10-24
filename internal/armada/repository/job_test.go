@@ -43,6 +43,7 @@ func TestJobLeaseExpiry(t *testing.T) {
 		assert.Nil(t, e)
 
 		queued, e := r.PeekQueue("queue1", 10)
+		assert.Nil(t, e)
 		assert.Equal(t, 1, len(queued), "Queue should have one job which expired")
 		assert.Equal(t, job.Id, queued[0].Id)
 	})
