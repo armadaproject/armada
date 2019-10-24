@@ -35,7 +35,7 @@ kind create cluster --name demoB --config ./example/kind-config.yaml
 ```
 3. Start Redis
 ```bash
-docker run -d -p 6379:6379  redis
+docker run -d -p 6379:6379 redis
 ```
 4. Start server in one terminal
 ```bash
