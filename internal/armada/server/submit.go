@@ -39,6 +39,11 @@ func (server *SubmitServer) CreateQueue(ctx context.Context, queue *api.Queue) (
 		return nil, e
 	}
 
+	if len(queue.UserOwners) == 0 {
+		principal := authorization.GetPrincipal(ctx)
+		queue.UserOwners = []string{principal.GetName()}
+	}
+
 	e := server.queueRepository.CreateQueue(queue)
 	if e != nil {
 		return nil, status.Errorf(codes.Aborted, e.Error())

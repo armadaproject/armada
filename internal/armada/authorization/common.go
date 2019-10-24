@@ -19,6 +19,8 @@ const principalKey = "principal"
 
 const EveryoneGroup = "everyone"
 
+var anonymousPrincipal = NewStaticPrincipal("anonymous", []string{})
+
 type Principal interface {
 	GetName() string
 	IsInGroup(group string) bool
@@ -62,7 +64,7 @@ func (p *StaticPrincipal) GetName() string {
 func GetPrincipal(ctx context.Context) Principal {
 	p, ok := ctx.Value(principalKey).(Principal)
 	if !ok {
-		return NewStaticPrincipal("anonymous", []string{})
+		return anonymousPrincipal
 	}
 	return p
 }
