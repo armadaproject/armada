@@ -69,7 +69,7 @@ jobs:
 
             if [ -z "${DOCKERHUB_USER}" ]
               then
-                echo "Do not push image inside PR"
+                echo "Do not push image inside fork."
                 exit 0
             fi
 
