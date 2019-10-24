@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"os"
+
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
@@ -43,6 +45,11 @@ var submitCmd = &cobra.Command{
 
 		util.WithConnection(apiConnectionDetails, func(conn *grpc.ClientConn) {
 			client := api.NewSubmitClient(conn)
+
+			if len(submitFile.Jobs) <= 0 {
+				log.Warnf("Warning: You have provided no jobs to submit.")
+				os.Exit(1)
+			}
 
 			for _, job := range submitFile.Jobs {
 				response, e := service.SubmitJob(client, job)
