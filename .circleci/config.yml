@@ -43,6 +43,10 @@ jobs:
             - machine-go-mod-v1-{{ checksum "go.sum" }}
 
       - run:
+          name: ineffassign
+          command: go run github.com/gordonklaus/ineffassign .
+
+      - run:
           name: Test
           command: make tests
 

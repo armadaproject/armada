@@ -170,6 +170,7 @@ func TestKubernetesClusterContext_AddAnnotation(t *testing.T) {
 	cache.WaitForCacheSync(make(chan struct{}), clusterContext.podInformer.Informer().HasSynced)
 
 	allPods, err := clusterContext.GetActiveBatchPods()
+	assert.Nil(t, err)
 	assert.Equal(t, allPods[0].Annotations, annotationsToAdd)
 }
 
