@@ -20,7 +20,7 @@ It stores queues for users/projects with pod specifications and creates these po
 - Armada maintains fair resource share over time (inspired by HTCondor priority)
 - It can handle large amounts of queued jobs (million+)
 - It allows adding and removing clusters from the system without disruption
-- By utilizing multiple Kubernetes clusters, the system can scale to larger amounts of nodes beyond the limits of a single Kubernetes cluster
+- By utilizing multiple Kubernetes clusters the system can scale beyond the limits of a single Kubernetes cluster
 
 ## Key concepts
 

@@ -67,6 +67,12 @@ jobs:
           name: Push Image
           command: |
 
+            if [ -z "${DOCKERHUB_USER}" ]
+              then
+                echo "Do not push image inside fork."
+                exit 0
+            fi
+
             TAG=${CIRCLE_SHA1}
 
             if [ ${CIRCLE_BRANCH} != master ]
