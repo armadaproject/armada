@@ -2,6 +2,9 @@
 
 ![Armada](./logo.svg)
 
+[![CircleCI](https://circleci.com/gh/helm/helm.svg?style=shield)](https://circleci.com/gh/G-Research/armada)
+[![Go Report Card](https://goreportcard.com/badge/github.com/G-Research/armada)](https://goreportcard.com/report/github.com/G-Research/armada)
+
 Armada is an experimental application to achieve high throughput of run-to-completion jobs on multiple Kubernetes clusters.
 
 It stores queues for users/projects with pod specifications and creates these pods once there is available resource in one of the connected Kubernetes clusters.

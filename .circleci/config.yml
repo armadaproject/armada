@@ -43,6 +43,10 @@ jobs:
             - machine-go-mod-v1-{{ checksum "go.sum" }}
 
       - run:
+          name: ineffassign
+          command: go run github.com/gordonklaus/ineffassign .
+
+      - run:
           name: Test
           command: make tests
 
@@ -62,6 +66,12 @@ jobs:
       - run:
           name: Push Image
           command: |
+
+            if [ -z "${DOCKERHUB_USER}" ]
+              then
+                echo "Do not push image inside fork."
+                exit 0
+            fi
 
             TAG=${CIRCLE_SHA1}
 
