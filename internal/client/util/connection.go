@@ -53,10 +53,11 @@ func createConnection(connectionDetails *domain.ArmadaApiConnectionDetails) (*gr
 			unuaryInterceptors,
 			streamInterceptors)
 	}
-	if creds.Username == "" || creds.Password == "" {
+	if creds.Username != "" || creds.Password != "" {
 		return grpc.Dial(
 			connectionDetails.ArmadaUrl,
 			transportCredentials(connectionDetails.ArmadaUrl, true),
+			grpc.WithPerRPCCredentials(&creds),
 			unuaryInterceptors,
 			streamInterceptors,
 		)
@@ -64,7 +65,6 @@ func createConnection(connectionDetails *domain.ArmadaApiConnectionDetails) (*gr
 	return grpc.Dial(
 		connectionDetails.ArmadaUrl,
 		transportCredentials(connectionDetails.ArmadaUrl, false),
-		grpc.WithPerRPCCredentials(&creds),
 		unuaryInterceptors,
 		streamInterceptors,
 	)
