@@ -33,6 +33,5 @@ type OpenIdAuthenticationConfig struct {
 }
 
 type BasicAuthenticationConfig struct {
-	EnableAuthentication bool
-	Users                map[string]UserInfo
+	Users map[string]UserInfo
 }
