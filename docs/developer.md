@@ -21,29 +21,35 @@ To follow this section it is assumed you have:
 
 It is possible to develop Armada locally with [kind](https://github.com/kubernetes-sigs/kind) Kubernetes clusters.
 
-1. Get kind
+1. Get kind (Installation help [here](https://kind.sigs.k8s.io/docs/user/quick-start/))
 ```bash
-go get sigs.k8s.io/kind
+GO111MODULE="on" go get sigs.k8s.io/kind@v0.5.1
 ``` 
 2. Create kind clusters (you can create any number of clusters)
+
+As this step is using Docker, it will require root to run
+
 ```bash
 kind create cluster --name demoA --config ./example/kind-config.yaml
 kind create cluster --name demoB --config ./example/kind-config.yaml 
 ```
 3. Start Redis
 ```bash
-docker run -d --expose=6379 --network=host redis
+docker run -d -p 6379:6379 redis
 ```
 4. Start server in one terminal
 ```bash
 go run ./cmd/armada/main.go
 ```
-5. Start executors for each cluster each in separate terminal
+5. Start executor for demoA in a new terminal
 ```bash
 KUBECONFIG=$(kind get kubeconfig-path --name="demoA") ARMADA_APPLICATION_CLUSTERID=demoA ARMADA_METRICSPORT=9001 go run ./cmd/executor/main.go
+```
+6. Start executor for demoB in a new terminal
+```bash
 KUBECONFIG=$(kind get kubeconfig-path --name="demoB") ARMADA_APPLICATION_CLUSTERID=demoB ARMADA_METRICSPORT=9002 go run ./cmd/executor/main.go
 ```
-6. Create queue & Submit job
+7. Create queue & Submit job
 ```bash
 go run ./cmd/armadactl/main.go create-queue test --priorityFactor 1
 go run ./cmd/armadactl/main.go submit ./example/jobs.yaml
