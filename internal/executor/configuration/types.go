@@ -16,9 +16,8 @@ type KubernetesConfiguration struct {
 }
 
 type BasicAuthenticationConfiguration struct {
-	EnableAuthentication bool
-	Username             string
-	Password             string
+	Username string
+	Password string
 }
 
 type TaskConfiguration struct {

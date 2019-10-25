@@ -113,7 +113,7 @@ func createConnectionToApi(config configuration.ExecutorConfiguration) (*grpc.Cl
 
 	dialOpts = append(dialOpts, defaultCallOptions, unuaryInterceptors, streamInterceptors)
 
-	if config.BasicAuth.EnableAuthentication {
+	if config.BasicAuth.Username != "" {
 		dialOpts = append(dialOpts,
 			grpc.WithTransportCredentials(credentials.NewClientTLSFromCert(nil, "")),
 			grpc.WithPerRPCCredentials(&common.LoginCredentials{

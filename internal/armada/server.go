@@ -84,7 +84,7 @@ func createServer(config *configuration.ArmadaConfig) *grpc.Server {
 
 	authServices := []authorization.AuthService{}
 
-	if config.BasicAuth.EnableAuthentication {
+	if len(config.BasicAuth.Users) > 0 {
 		authServices = append(authServices,
 			authorization.NewBasicAuthService(config.BasicAuth.Users))
 	}
