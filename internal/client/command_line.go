@@ -13,11 +13,7 @@ import (
 
 func AddArmadaApiConnectionCommandlineArgs(rootCmd *cobra.Command) {
 	rootCmd.PersistentFlags().String("armadaUrl", "localhost:50051", "specify armada server url")
-	rootCmd.PersistentFlags().String("username", "", "username to connect to armada server")
-	rootCmd.PersistentFlags().String("password", "", "password to connect to armada server")
 	viper.BindPFlag("armadaUrl", rootCmd.PersistentFlags().Lookup("armadaUrl"))
-	viper.BindPFlag("username", rootCmd.PersistentFlags().Lookup("username"))
-	viper.BindPFlag("password", rootCmd.PersistentFlags().Lookup("password"))
 }
 
 func LoadCommandlineArgsFromConfigFile(cfgFile string) {
