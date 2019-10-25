@@ -1,6 +1,7 @@
 package service
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -55,7 +56,16 @@ type mockQueueRepository struct {
 	queues []*api.Queue
 }
 
-func (m mockQueueRepository) GetQueues() ([]*api.Queue, error) {
+func (m mockQueueRepository) GetQueue(name string) (*api.Queue, error) {
+	for _, q := range m.queues {
+		if q.Name == name {
+			return q, nil
+		}
+	}
+	return nil, errors.New("not found")
+}
+
+func (m mockQueueRepository) GetAllQueues() ([]*api.Queue, error) {
 	return m.queues, nil
 }
 

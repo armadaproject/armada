@@ -108,7 +108,9 @@ Once you have the Armada components running, you can interact with them via the 
 
 You can provide these with each invocation of `armadactl`, however this can be tiresome.
 
-Instead you can try one of the options below:
+Instead you can try one of the options below.
+
+For server with Open Id authentication config file is required.
 
 #### Config file
 
@@ -122,6 +124,18 @@ The format of this file is a simple yaml file:
 armadaUrl: "server.component.url.com:443"
 username: "user1"
 password: "password1"
+```
+
+For Open Id protected server armadactl will perform PKCE flow opening web browser.
+Config file should look like this:
+```yaml
+armadaUrl: "server.component.url.com:443"
+openIdConnect:
+  providerUrl: "https://myproviderurl.com"
+  clientId: "***"
+  localPort: 26354
+  useAccessToken: true
+  scopes: []
 ```
 
 #### Persistent config

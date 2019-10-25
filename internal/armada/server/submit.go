@@ -9,20 +9,40 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/G-Research/armada/internal/armada/api"
+	"github.com/G-Research/armada/internal/armada/authorization"
+	"github.com/G-Research/armada/internal/armada/authorization/permissions"
 	"github.com/G-Research/armada/internal/armada/repository"
 )
 
 type SubmitServer struct {
+	permissions     authorization.PermissionChecker
 	jobRepository   repository.JobRepository
 	queueRepository repository.QueueRepository
 	eventRepository repository.EventRepository
 }
 
-func NewSubmitServer(jobRepository repository.JobRepository, queueRepository repository.QueueRepository, eventRepository repository.EventRepository) *SubmitServer {
-	return &SubmitServer{jobRepository: jobRepository, queueRepository: queueRepository, eventRepository: eventRepository}
+func NewSubmitServer(
+	permissions authorization.PermissionChecker,
+	jobRepository repository.JobRepository,
+	queueRepository repository.QueueRepository,
+	eventRepository repository.EventRepository) *SubmitServer {
+
+	return &SubmitServer{
+		permissions:     permissions,
+		jobRepository:   jobRepository,
+		queueRepository: queueRepository,
+		eventRepository: eventRepository}
 }
 
 func (server *SubmitServer) CreateQueue(ctx context.Context, queue *api.Queue) (*types.Empty, error) {
+	if e := checkPermission(server.permissions, ctx, permissions.CreateQueue); e != nil {
+		return nil, e
+	}
+
+	if len(queue.UserOwners) == 0 {
+		principal := authorization.GetPrincipal(ctx)
+		queue.UserOwners = []string{principal.GetName()}
+	}
 
 	e := server.queueRepository.CreateQueue(queue)
 	if e != nil {
@@ -32,6 +52,9 @@ func (server *SubmitServer) CreateQueue(ctx context.Context, queue *api.Queue) (
 }
 
 func (server *SubmitServer) SubmitJob(ctx context.Context, req *api.JobRequest) (*api.JobSubmitResponse, error) {
+	if e := server.checkQueuePermission(ctx, req.Queue, permissions.SubmitJobs, permissions.SubmitAnyJobs); e != nil {
+		return nil, e
+	}
 
 	job := server.jobRepository.CreateJob(req)
 
@@ -55,9 +78,12 @@ func (server *SubmitServer) SubmitJob(ctx context.Context, req *api.JobRequest) 
 }
 
 func (server *SubmitServer) CancelJobs(ctx context.Context, request *api.JobCancelRequest) (*api.CancellationResult, error) {
-
 	if request.JobId != "" {
-		return server.cancelJobs([]string{request.JobId})
+		jobs, e := server.jobRepository.GetJobsByIds([]string{request.JobId})
+		if e != nil {
+			return nil, status.Errorf(codes.Internal, e.Error())
+		}
+		return server.cancelJobs(ctx, jobs[0].Queue, jobs)
 	}
 
 	if request.JobSetId != "" && request.Queue != "" {
@@ -65,19 +91,21 @@ func (server *SubmitServer) CancelJobs(ctx context.Context, request *api.JobCanc
 		if e != nil {
 			return nil, status.Errorf(codes.Aborted, e.Error())
 		}
-		return server.cancelJobs(ids)
+		jobs, e := server.jobRepository.GetJobsByIds(ids)
+		if e != nil {
+			return nil, status.Errorf(codes.Internal, e.Error())
+		}
+		return server.cancelJobs(ctx, request.Queue, jobs)
 	}
 	return nil, status.Errorf(codes.InvalidArgument, "Specify job id or queue with job set id")
 }
 
-func (server *SubmitServer) cancelJobs(ids []string) (*api.CancellationResult, error) {
-
-	jobs, e := server.jobRepository.GetJobsByIds(ids)
-	if e != nil {
-		return nil, status.Errorf(codes.Internal, e.Error())
+func (server *SubmitServer) cancelJobs(ctx context.Context, queue string, jobs []*api.Job) (*api.CancellationResult, error) {
+	if e := server.checkQueuePermission(ctx, queue, permissions.CancelJobs, permissions.CancelAnyJobs); e != nil {
+		return nil, e
 	}
 
-	e = reportJobsCancelling(server.eventRepository, jobs)
+	e := reportJobsCancelling(server.eventRepository, jobs)
 	if e != nil {
 		return nil, status.Errorf(codes.Unknown, e.Error())
 	}
@@ -100,4 +128,24 @@ func (server *SubmitServer) cancelJobs(ids []string) (*api.CancellationResult, e
 	}
 
 	return &api.CancellationResult{cancelledIds}, nil
+}
+
+func (server *SubmitServer) checkQueuePermission(
+	ctx context.Context,
+	queueName string,
+	basicPermission permissions.Permission,
+	allQueuesPermission permissions.Permission) error {
+
+	queue, e := server.queueRepository.GetQueue(queueName)
+	if e != nil {
+		return status.Errorf(codes.NotFound, "Could not load queue: %s", e.Error())
+	}
+	permissionToCheck := basicPermission
+	if !server.permissions.UserOwns(ctx, queue) {
+		permissionToCheck = allQueuesPermission
+	}
+	if e := checkPermission(server.permissions, ctx, permissionToCheck); e != nil {
+		return e
+	}
+	return nil
 }

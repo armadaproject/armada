@@ -1,34 +1,67 @@
 package authorization
 
-import "context"
+import (
+	"context"
 
-type Permission string
-
-const (
-	SubmitJobs Permission = "SubmitJobs"
+	"github.com/G-Research/armada/internal/armada/authorization/permissions"
 )
 
+type Owned interface {
+	GetUserOwners() []string
+	GetGroupOwners() []string
+}
+
 type PermissionChecker interface {
-	UserHavePermission(ctx context.Context, perm Permission) bool
+	UserHasPermission(ctx context.Context, perm permissions.Permission) bool
+	UserOwns(ctx context.Context, obj Owned) bool
 }
 
 type PrincipalPermissionChecker struct {
-	permissionGroupMap map[Permission][]string
+	permissionGroupMap map[permissions.Permission][]string
+	permissionScopeMap map[permissions.Permission][]string
 }
 
-func NewPrincipalPermissionChecker(permissionGroupMap map[Permission][]string) *PrincipalPermissionChecker {
-	return &PrincipalPermissionChecker{permissionGroupMap: permissionGroupMap}
+func NewPrincipalPermissionChecker(
+	permissionGroupMap map[permissions.Permission][]string,
+	permissionScopeMap map[permissions.Permission][]string) *PrincipalPermissionChecker {
+
+	return &PrincipalPermissionChecker{
+		permissionGroupMap: permissionGroupMap,
+		permissionScopeMap: permissionScopeMap}
 }
 
-func (checker PrincipalPermissionChecker) UserHavePermission(ctx context.Context, perm Permission) bool {
+func (checker *PrincipalPermissionChecker) UserHasPermission(ctx context.Context, perm permissions.Permission) bool {
 	principal := GetPrincipal(ctx)
-	allowedGroups, ok := checker.permissionGroupMap[perm]
-	if !ok {
-		return true
+	return hasPermission(perm, checker.permissionScopeMap, func(scope string) bool { return principal.HasScope(scope) }) ||
+		hasPermission(perm, checker.permissionGroupMap, func(group string) bool { return principal.IsInGroup(group) })
+}
+
+func (checker *PrincipalPermissionChecker) UserOwns(ctx context.Context, obj Owned) bool {
+	principal := GetPrincipal(ctx)
+	currentUserName := principal.GetName()
+
+	for _, userName := range obj.GetUserOwners() {
+		if userName == currentUserName {
+			return true
+		}
 	}
 
-	for _, group := range allowedGroups {
+	for _, group := range obj.GetGroupOwners() {
 		if principal.IsInGroup(group) {
+			return true
+		}
+	}
+	return false
+}
+
+func hasPermission(perm permissions.Permission, permMap map[permissions.Permission][]string, assert func(string) bool) bool {
+	allowedValues, ok := permMap[perm]
+	if !ok {
+		return false
+	}
+
+	for _, value := range allowedValues {
+		if assert(value) {
 			return true
 		}
 	}

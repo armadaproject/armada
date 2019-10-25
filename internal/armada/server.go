@@ -44,10 +44,12 @@ func Serve(config *configuration.ArmadaConfig) (*grpc.Server, *sync.WaitGroup) {
 
 		usageService := service.NewMultiClusterPriorityService(usageRepository, queueRepository, metricsRecorder)
 
-		submitServer := server.NewSubmitServer(jobRepository, queueRepository, eventRepository)
-		usageServer := server.NewUsageServer(config.PriorityHalfTime, usageRepository)
-		aggregatedQueueServer := server.NewAggregatedQueueServer(usageService, jobRepository, eventRepository)
-		eventServer := server.NewEventServer(eventRepository)
+		permissions := authorization.NewPrincipalPermissionChecker(config.PermissionGroupMapping, config.PermissionScopeMapping)
+
+		submitServer := server.NewSubmitServer(permissions, jobRepository, queueRepository, eventRepository)
+		usageServer := server.NewUsageServer(permissions, config.PriorityHalfTime, usageRepository)
+		aggregatedQueueServer := server.NewAggregatedQueueServer(permissions, usageService, jobRepository, eventRepository)
+		eventServer := server.NewEventServer(permissions, eventRepository)
 
 		lis, err := net.Listen("tcp", fmt.Sprintf(":%d", config.GrpcPort))
 		if err != nil {
@@ -95,14 +97,15 @@ func createServer(config *configuration.ArmadaConfig) *grpc.Server {
 		authServices = append(authServices, openIdAuthService)
 	}
 
-	if len(authServices) > 0 {
-		authFunction := authorization.CreateMiddlewareAuthFunction(authServices)
-		unaryInterceptors = append(unaryInterceptors, grpc_auth.UnaryServerInterceptor(authFunction))
-		streamInterceptors = append(streamInterceptors, grpc_auth.StreamServerInterceptor(authFunction))
+	if config.AnonymousAuth {
+		authServices = append(authServices, &authorization.AnonymousAuthService{})
 	}
 
-	grpc_prometheus.EnableHandlingTimeHistogram()
+	authFunction := authorization.CreateMiddlewareAuthFunction(authServices)
+	unaryInterceptors = append(unaryInterceptors, grpc_auth.UnaryServerInterceptor(authFunction))
+	streamInterceptors = append(streamInterceptors, grpc_auth.StreamServerInterceptor(authFunction))
 
+	grpc_prometheus.EnableHandlingTimeHistogram()
 	unaryInterceptors = append(unaryInterceptors, grpc_prometheus.UnaryServerInterceptor)
 	streamInterceptors = append(streamInterceptors, grpc_prometheus.StreamServerInterceptor)
 

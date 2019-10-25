@@ -16,6 +16,12 @@ func init() {
 	createQueueCmd.Flags().Float64(
 		"priorityFactor", 1,
 		"Set queue priority factor - lower number makes queue more important, must be > 0.")
+	createQueueCmd.Flags().StringArray(
+		"owners", []string{},
+		"Comma separated list of queue owners, defaults to current user.")
+	createQueueCmd.Flags().StringArray(
+		"groupOwners", []string{},
+		"Comma separated list of queue group owners, defaults to empty list.")
 }
 
 // createQueueCmd represents the createQueue command
@@ -29,12 +35,18 @@ Job priority is evaluated inside queue, queue has its own priority.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		queue := args[0]
 		priority, _ := cmd.Flags().GetFloat64("priorityFactor")
+		owners, _ := cmd.Flags().GetStringArray("owners")
+		groups, _ := cmd.Flags().GetStringArray("groupOwners")
 
 		apiConnectionDetails := client.ExtractCommandlineArmadaApiConnectionDetails()
 
 		util.WithConnection(apiConnectionDetails, func(conn *grpc.ClientConn) {
 			client := api.NewSubmitClient(conn)
-			e := service.CreateQueue(client, &api.Queue{Name: queue, PriorityFactor: priority})
+			e := service.CreateQueue(client, &api.Queue{
+				Name:           queue,
+				PriorityFactor: priority,
+				UserOwners:     owners,
+				GroupOwners:    groups})
 
 			if e != nil {
 				log.Error(e)

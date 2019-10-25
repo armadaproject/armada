@@ -5,14 +5,15 @@ import (
 
 	"google.golang.org/grpc/metadata"
 
+	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/G-Research/armada/internal/common"
 )
 
 type BasicAuthService struct {
-	users map[string]string
+	users map[string]configuration.UserInfo
 }
 
-func NewBasicAuthService(users map[string]string) *BasicAuthService {
+func NewBasicAuthService(users map[string]configuration.UserInfo) *BasicAuthService {
 	return &BasicAuthService{users: users}
 }
 
@@ -24,17 +25,21 @@ func (authService *BasicAuthService) Authenticate(ctx context.Context) (Principa
 
 		userName := md[common.UsernameField][0]
 
-		if !authService.isValidUser(userName, md[common.PasswordField][0]) {
-			return nil, invalidCredentials
+		user, err := authService.loginUser(userName, md[common.PasswordField][0])
+		if err != nil {
+			return nil, err
 		}
 
-		return NewStaticPrincipal(userName, []string{}), nil
+		return NewStaticPrincipal(userName, user.Groups), nil
 	}
 
 	return nil, missingCredentials
 }
 
-func (authService *BasicAuthService) isValidUser(username string, password string) bool {
+func (authService *BasicAuthService) loginUser(username string, password string) (*configuration.UserInfo, error) {
 	val, ok := authService.users[username]
-	return ok && val == password
+	if ok && val.Password == password {
+		return &val, nil
+	}
+	return nil, invalidCredentials
 }

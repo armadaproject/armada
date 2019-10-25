@@ -3,16 +3,18 @@ package authorization
 import (
 	"context"
 	"encoding/json"
+	"strings"
 
 	"github.com/coreos/go-oidc"
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/G-Research/armada/internal/armada/authorization/permissions"
 	"github.com/G-Research/armada/internal/armada/configuration"
 )
 
-type PermissionClaimQueries map[Permission]string
+type PermissionClaimQueries map[permissions.Permission]string
 
 type OpenIdAuthService struct {
 	verifier    *oidc.IDTokenVerifier
@@ -24,7 +26,12 @@ func NewOpenIdAuthServiceForProvider(ctx context.Context, config *configuration.
 	if err != nil {
 		return nil, err
 	}
-	verifier := provider.Verifier(&oidc.Config{ClientID: config.ClientId})
+
+	//We use verifier to verify Access Token, there might not be an clientId in audience claim
+	verifier := provider.Verifier(&oidc.Config{
+		SkipClientIDCheck: true,
+		ClientID:          "",
+	})
 	return NewOpenIdAuthService(verifier, config.GroupsClaim), nil
 }
 
@@ -44,7 +51,10 @@ func (authService *OpenIdAuthService) Authenticate(ctx context.Context) (Princip
 		return nil, status.Errorf(codes.Unauthenticated, err.Error())
 	}
 
-	return NewStaticPrincipal(verifiedToken.Subject, authService.extractGroups(verifiedToken)), nil
+	return NewStaticPrincipalWithScopes(
+		verifiedToken.Subject,
+		authService.extractGroups(verifiedToken),
+		authService.extractScopes(verifiedToken)), nil
 }
 
 func (authService *OpenIdAuthService) extractGroups(token *oidc.IDToken) []string {
@@ -65,4 +75,15 @@ func (authService *OpenIdAuthService) extractGroups(token *oidc.IDToken) []strin
 		return []string{}
 	}
 	return groups
+}
+
+func (authService *OpenIdAuthService) extractScopes(token *oidc.IDToken) []string {
+	scopeClaim := struct {
+		Scope string `json:"scope"`
+	}{}
+	err := token.Claims(&scopeClaim)
+	if err != nil {
+		return []string{}
+	}
+	return strings.Split(scopeClaim.Scope, " ")
 }

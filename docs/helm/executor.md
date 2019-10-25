@@ -12,10 +12,8 @@ This document briefly outlines the customisation options of the Executor helm ch
 | `terminationGracePeriodSeconds`   | Executor termination grace period in seconds                                                                                                                                     | `0`                                                                              |                                                   
 | `prometheus.enabled`              | Flag to determine if Prometheus components are deployed or not. This should only be enabled if Prometheus is deployed and you want to scrape metrics from the executor component | `false`                                                                          |
 | `applicationConfig`               | Config file override values, merged with /config/executor/config.yaml to make up the config file used when running the application                                               | `nil`                                                                            |
-| `credentials`                     | The credentials used by the executor when communicating with the server component                                                                                                | `nil`                                                                            |
 
-
-### applicationConfig example
+## Application Config
 
 The applicationConfig section of the values file is purely used to override the default config for the executor component
 
@@ -33,7 +31,33 @@ applicationConfig:
     url : "server.url.com:443"  
 ```
 
-### credentials example
+### Credentials
+
+#### Open Id
+
+For connection to Armada server protected by open Id auth you can configure executor to perform Client Credentials flow.
+To do this it is recommended to configure new client application with Open Id provider for executor and permission executor using custom scope.
+
+For Amazon Cognito the configuration could look like this:
+```yaml
+openIdClientCredentialsAuth:
+  providerUrl: "https://cognito-idp.eu-west-2.amazonaws.com/eu-west-2_*** your user pool id ***"
+  clientId: "***"
+  clientSecret: "***"
+  scopes: ["armada/executor"]
+```
+
+To authenticate with username and password instead you can use Resource Owner (Password) flow:
+```yaml
+OpenIdPasswordAuth:
+  providerUrl: "https://myopenidprovider.com"
+  clientId: "***"
+  scopes: []
+  username: "executor-service"
+  password: "***"
+```
+
+#### Basic Auth
 
 The credentials section of the values file is used to provide the username/password used for communication with the server component
 

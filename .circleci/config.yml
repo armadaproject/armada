@@ -105,9 +105,7 @@ jobs:
           name: "Extract config files from environment variables"
           command: |
             echo $ARMADA_CONFIG | base64 -d > armada_config.yaml
-            echo $ARMADA_USERS | base64 -d > armada_users.yaml
             echo $EXECUTOR_CONFIG | base64 -d > executor_config.yaml
-            echo $EXECUTOR_API_CREDENTIALS | base64 -d > executor_api_credentials.yaml
       - run:
           name: "Deploy to services"
           command: |

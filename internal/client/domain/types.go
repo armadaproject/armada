@@ -30,6 +30,9 @@ type OpenIdConnectClientDetails struct {
 	ClientId    string
 	LocalPort   uint16
 	Scopes      []string
+
+	Username string
+	Password string
 }
 
 type ArmadaApiConnectionDetails struct {
