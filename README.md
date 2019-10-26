@@ -56,8 +56,6 @@ GO111MODULE="on" go get sigs.k8s.io/kind@v0.5.1
  
 3. Create 2 Kind clusters
 
-As this step is using Docker, it will require root to run
-
 ```bash
 kind create cluster --name demoA --config ./example/kind-config.yaml
 kind create cluster --name demoB --config ./example/kind-config.yaml 
