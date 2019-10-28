@@ -63,7 +63,7 @@ func (allocationService *ClusterAllocationService) submitJobs(jobsToSubmit []*ap
 
 	for _, job := range jobsToSubmit {
 		pod := createPod(job)
-		_, err := allocationService.submitJob(job)
+		_, err := allocationService.clusterContext.SubmitPod(pod)
 
 		if err != nil {
 			log.Errorf("Failed to submit job %s because %s", job.Id, err)
@@ -83,7 +83,7 @@ func (allocationService *ClusterAllocationService) submitJobs(jobsToSubmit []*ap
 
 	err := allocationService.failJobs(toBeFailedJobs)
 	if err != nil {
-		log.Errorf("Failed to fail jobs because %s", err)
+		log.Errorf("Failed to report failed jobs as done because %s", err)
 	}
 }
 
@@ -115,11 +115,6 @@ func (allocationService *ClusterAllocationService) returnLease(pod *v1.Pod, reas
 			log.Errorf("Failed to report event %+v because %s", leaseReturnedEvent, err)
 		}
 	}
-}
-
-func (allocationService *ClusterAllocationService) submitJob(job *api.Job) (*v1.Pod, error) {
-	pod := createPod(job)
-	return allocationService.clusterContext.SubmitPod(pod)
 }
 
 func createPod(job *api.Job) *v1.Pod {
