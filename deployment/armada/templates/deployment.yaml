@@ -25,8 +25,6 @@ spec:
           args:
             - --config
             - /config/application_config.yaml
-            - --usersPath
-            - /config/users.yaml
           resources:
 {{ toYaml .Values.resources | indent 12 }}
           ports:
@@ -40,9 +38,6 @@ spec:
             - name: user-config
               mountPath: /config/application_config.yaml
               subPath: {{ include "armada.config.filename" . }}
-            - name: users
-              mountPath: /config/users.yaml
-              subPath: {{ include "armada.users.filename" . }}
               readOnly: true
       affinity:
         podAntiAffinity:
@@ -58,8 +53,5 @@ spec:
                 topologyKey: kubernetes.io/hostname
       volumes:
         - name: user-config
-          configMap:
-            name: {{ include "armada.config.name" . }}
-        - name: users
           secret:
-            secretName: {{ include "armada.users.name" . }}
+            secretName: {{ include "armada.config.name" . }}

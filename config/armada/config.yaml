@@ -1,3 +1,4 @@
+
 grpcPort: 50051
 metricsPort: 9000
 priorityHalfTime: 20m
@@ -15,3 +16,12 @@ eventsRedis:
   poolSize: 1000
 basicAuth:
   enableAuthentication: false
+anonymousAuth: true
+permissionGroupMapping:
+  submit_jobs: ["everyone"]
+  submit_any_jobs: ["everyone"]
+  create_queue: ["everyone"]
+  cancel_jobs: ["everyone"]
+  cancel_any_jobs: ["everyone"]
+  watch_all_events: ["everyone"]
+  execute_jobs: ["everyone"]

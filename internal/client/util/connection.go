@@ -48,30 +48,30 @@ func createConnection(connectionDetails *domain.ArmadaApiConnectionDetails) (*gr
 		}
 		return grpc.Dial(
 			connectionDetails.ArmadaUrl,
-			transportCredentials(connectionDetails.ArmadaUrl, true),
+			transportCredentials(connectionDetails.ArmadaUrl),
 			grpc.WithPerRPCCredentials(tokenCredentials),
 			unuaryInterceptors,
 			streamInterceptors)
 	}
-	if creds.Username == "" || creds.Password == "" {
+	if creds.Username != "" || creds.Password != "" {
 		return grpc.Dial(
 			connectionDetails.ArmadaUrl,
-			transportCredentials(connectionDetails.ArmadaUrl, true),
+			transportCredentials(connectionDetails.ArmadaUrl),
+			grpc.WithPerRPCCredentials(&creds),
 			unuaryInterceptors,
 			streamInterceptors,
 		)
 	}
 	return grpc.Dial(
 		connectionDetails.ArmadaUrl,
-		transportCredentials(connectionDetails.ArmadaUrl, false),
-		grpc.WithPerRPCCredentials(&creds),
+		transportCredentials(connectionDetails.ArmadaUrl),
 		unuaryInterceptors,
 		streamInterceptors,
 	)
 }
 
-func transportCredentials(url string, secure bool) grpc.DialOption {
-	if secure && !strings.Contains(url, "localhost") {
+func transportCredentials(url string) grpc.DialOption {
+	if !strings.Contains(url, "localhost") {
 		return grpc.WithTransportCredentials(credentials.NewClientTLSFromCert(nil, ""))
 	}
 	return grpc.WithInsecure()

@@ -9,6 +9,8 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/G-Research/armada/internal/armada/api"
+	"github.com/G-Research/armada/internal/armada/authorization"
+	"github.com/G-Research/armada/internal/armada/authorization/permissions"
 	"github.com/G-Research/armada/internal/armada/repository"
 	"github.com/G-Research/armada/internal/armada/service"
 	"github.com/G-Research/armada/internal/common"
@@ -16,18 +18,21 @@ import (
 )
 
 type AggregatedQueueServer struct {
+	permissions     authorization.PermissionChecker
 	priorityService service.PriorityService
 	jobRepository   repository.JobRepository
 	eventRepository repository.EventRepository
 }
 
 func NewAggregatedQueueServer(
+	permissions authorization.PermissionChecker,
 	priorityService service.PriorityService,
 	jobRepository repository.JobRepository,
 	eventRepository repository.EventRepository,
 ) *AggregatedQueueServer {
 
 	return &AggregatedQueueServer{
+		permissions:     permissions,
 		priorityService: priorityService,
 		jobRepository:   jobRepository,
 		eventRepository: eventRepository}
@@ -38,6 +43,9 @@ const batchSize = 100
 var minimalResource = common.ComputeResourcesFloat{"cpu": 0.25, "memory": 100.0 * 1024 * 1024}
 
 func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.LeaseRequest) (*api.JobLease, error) {
+	if e := checkPermission(q.permissions, ctx, permissions.ExecuteJobs); e != nil {
+		return nil, e
+	}
 
 	var res common.ComputeResources = request.Resources
 	if res.AsFloat().IsLessThan(minimalResource) {
@@ -80,11 +88,17 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 }
 
 func (q *AggregatedQueueServer) RenewLease(ctx context.Context, request *api.RenewLeaseRequest) (*api.IdList, error) {
+	if e := checkPermission(q.permissions, ctx, permissions.ExecuteJobs); e != nil {
+		return nil, e
+	}
 	renewed, e := q.jobRepository.RenewLease(request.ClusterId, request.Ids)
 	return &api.IdList{renewed}, e
 }
 
 func (q *AggregatedQueueServer) ReturnLease(ctx context.Context, request *api.ReturnLeaseRequest) (*types.Empty, error) {
+	if e := checkPermission(q.permissions, ctx, permissions.ExecuteJobs); e != nil {
+		return nil, e
+	}
 	_, err := q.jobRepository.ReturnLease(request.ClusterId, request.JobId)
 	if err != nil {
 		return nil, err
@@ -93,6 +107,9 @@ func (q *AggregatedQueueServer) ReturnLease(ctx context.Context, request *api.Re
 }
 
 func (q *AggregatedQueueServer) ReportDone(ctx context.Context, idList *api.IdList) (*api.IdList, error) {
+	if e := checkPermission(q.permissions, ctx, permissions.ExecuteJobs); e != nil {
+		return nil, e
+	}
 	cleaned, e := q.jobRepository.Remove(idList.Ids)
 	return &api.IdList{cleaned}, e
 }

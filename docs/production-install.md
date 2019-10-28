@@ -96,39 +96,41 @@ Once you have the Armada components running, you can interact with them via the 
 
 ## Setting up armadactl
 
-`armadactl` expects you to provide several arguments that deal with connection/authentication information.
+`armadactl` connects to `localhost:50051` by default with no authentication.
 
-| Parameter    | Description                                                                 | Default            |
-|--------------|-----------------------------------------------------------------------------|--------------------|
-| `armadaUrl`  | URL of the Armada server component                                          | `localhost:50051`  |
-| `username`   | Only required when connecting to an Armada instance with authentication on  | `""`               |
-| `password`   | Only required when connecting to an Armada instance with authentication on  | `""`               |
-
-*Defaults to working for local development setup*
-
-You can provide these with each invocation of `armadactl`, however this can be tiresome.
-
-Instead you can try one of the options below:
+For authentication please create a config file described below.
 
 #### Config file
 
-You can also store them in a yaml file and provide this to armadactl on each invocation:
+By default config is loaded from `$HOME/.armadactl`.
 
+You can also set location of the config file  using command line argument:
+
+```bash
 armada command --config=/config/location/config.yaml
+```
 
 The format of this file is a simple yaml file:
 
 ```yaml
 armadaUrl: "server.component.url.com:443"
-username: "user1"
-password: "password1"
+credentials:
+  username: "user1"
+  password: "password1"
 ```
 
-#### Persistent config
+For Open Id protected server armadactl will perform PKCE flow opening web browser.
+Config file should look like this:
+```yaml
+armadaUrl: "server.component.url.com:443"
+openIdConnect:
+  providerUrl: "https://myproviderurl.com"
+  clientId: "***"
+  localPort: 26354
+  useAccessToken: true
+  scopes: []
+```
 
-Building on the config file above. If you store the config file as `$HOME/.armadactl`
-
-This file will automatically be picked up and used by `armadactl`.
 
 #### Environment variables
 

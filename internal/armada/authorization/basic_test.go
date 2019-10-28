@@ -7,13 +7,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc/metadata"
 
+	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/G-Research/armada/internal/common"
 )
 
 func TestBasicAuthService(t *testing.T) {
 
-	service := NewBasicAuthService(map[string]string{
-		"root": "toor",
+	service := NewBasicAuthService(map[string]configuration.UserInfo{
+		"root": {"toor", []string{}},
 	})
 
 	principal, e := service.Authenticate(metadata.NewIncomingContext(context.Background(), map[string][]string{

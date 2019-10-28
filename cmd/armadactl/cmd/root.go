@@ -25,8 +25,9 @@ Persistent config can be saved in a config file so it doesn't have to be specifi
 
 Example structure:
 armadaUrl: localhost:50051
-username: user1
-password: password123
+credentials:
+  username: user1
+  password: password123
 
 The location of this file can be passed in using --config argument or picked from $HOME/.armadactl.yaml.
 `,

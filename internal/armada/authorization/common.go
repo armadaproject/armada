@@ -17,25 +17,44 @@ var (
 
 const principalKey = "principal"
 
+const EveryoneGroup = "everyone"
+
+var anonymousPrincipal = NewStaticPrincipal("anonymous", []string{})
+
 type Principal interface {
 	GetName() string
 	IsInGroup(group string) bool
+	HasScope(scope string) bool
 }
 
 type StaticPrincipal struct {
 	name   string
 	groups map[string]bool
+	scopes map[string]bool
 }
 
 func NewStaticPrincipal(name string, groups []string) *StaticPrincipal {
 	return &StaticPrincipal{
 		name,
-		util.StringListToSet(groups),
+		util.StringListToSet(append(groups, EveryoneGroup)),
+		map[string]bool{},
+	}
+}
+
+func NewStaticPrincipalWithScopes(name string, groups []string, scopes []string) *StaticPrincipal {
+	return &StaticPrincipal{
+		name,
+		util.StringListToSet(append(groups, EveryoneGroup)),
+		util.StringListToSet(scopes),
 	}
 }
 
 func (p *StaticPrincipal) IsInGroup(group string) bool {
 	return p.groups[group]
+}
+
+func (p *StaticPrincipal) HasScope(scope string) bool {
+	return p.scopes[scope]
 }
 
 func (p *StaticPrincipal) GetName() string {
@@ -45,12 +64,12 @@ func (p *StaticPrincipal) GetName() string {
 func GetPrincipal(ctx context.Context) Principal {
 	p, ok := ctx.Value(principalKey).(Principal)
 	if !ok {
-		return NewStaticPrincipal("anonymous", []string{})
+		return anonymousPrincipal
 	}
 	return p
 }
 
-func withPrincipal(ctx context.Context, principal Principal) context.Context {
+func WithPrincipal(ctx context.Context, principal Principal) context.Context {
 	return context.WithValue(ctx, principalKey, principal)
 }
 
@@ -69,7 +88,7 @@ func CreateMiddlewareAuthFunction(authServices []AuthService) grpc_auth.AuthFunc
 			if err != nil {
 				return nil, err
 			}
-			return withPrincipal(ctx, principal), nil
+			return WithPrincipal(ctx, principal), nil
 		}
 		return nil, status.Errorf(codes.Unauthenticated, "Request in not authenticated with any of the supported schemes.")
 	}

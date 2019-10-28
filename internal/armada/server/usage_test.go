@@ -59,7 +59,7 @@ func withUsageServer(action func(s *UsageServer)) {
 	defer db.Close()
 
 	repo := repository.NewRedisUsageRepository(redis.NewClient(&redis.Options{Addr: db.Addr()}))
-	server := NewUsageServer(time.Minute, repo)
+	server := NewUsageServer(&fakePermissionChecker{}, time.Minute, repo)
 
 	action(server)
 }

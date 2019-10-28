@@ -13,7 +13,7 @@ commands:
             echo $KUBECONFIG_WORKER_<< parameters.worker-id >> | base64 -d > kubeconfig_worker_<< parameters.worker-id >>_decoded.yaml
             export KUBECONFIG=./kubeconfig_worker_<< parameters.worker-id >>_decoded.yaml
             if timeout 15 helm list; then
-              helm upgrade --install armada-executor --namespace=armada ./deployment/executor/ -f ./executor_config.yaml -f ./executor_api_credentials.yaml \
+              helm upgrade --install armada-executor --namespace=armada ./deployment/executor/ -f ./executor_config.yaml \
               --set applicationConfig.application.clusterId="worker-pool-<< parameters.worker-id >>" \
               --set image.repository=gresearchdev/armada-executor-dev  \
               --set image.tag="${CIRCLE_SHA1}"
@@ -67,6 +67,12 @@ jobs:
           name: Push Image
           command: |
 
+            if [ -z "${DOCKERHUB_USER}" ]
+              then
+                echo "Do not push image inside fork."
+                exit 0
+            fi
+
             TAG=${CIRCLE_SHA1}
 
             if [ ${CIRCLE_BRANCH} != master ]
@@ -99,16 +105,14 @@ jobs:
           name: "Extract config files from environment variables"
           command: |
             echo $ARMADA_CONFIG | base64 -d > armada_config.yaml
-            echo $ARMADA_USERS | base64 -d > armada_users.yaml
             echo $EXECUTOR_CONFIG | base64 -d > executor_config.yaml
-            echo $EXECUTOR_API_CREDENTIALS | base64 -d > executor_api_credentials.yaml
       - run:
           name: "Deploy to services"
           command: |
             echo $KUBECONFIG_SERVICES | base64 -d > kubeconfig_services_decoded.yaml
             export KUBECONFIG=./kubeconfig_services_decoded.yaml
             if timeout 15 helm list; then
-              helm upgrade --install armada --namespace=armada ./deployment/armada/ -f ./armada_config.yaml -f ./armada_users.yaml --set image.repository=gresearchdev/armada-server-dev --set image.tag="${CIRCLE_SHA1}"
+              helm upgrade --install armada --namespace=armada ./deployment/armada/ -f ./armada_config.yaml --set image.repository=gresearchdev/armada-server-dev --set image.tag="${CIRCLE_SHA1}"
             else
               echo Unable to connect to services cluster
             fi

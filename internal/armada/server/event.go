@@ -5,24 +5,33 @@ import (
 	"time"
 
 	"github.com/G-Research/armada/internal/armada/api"
+	"github.com/G-Research/armada/internal/armada/authorization"
+	"github.com/G-Research/armada/internal/armada/authorization/permissions"
 	"github.com/G-Research/armada/internal/armada/repository"
 
 	"github.com/gogo/protobuf/types"
 )
 
 type EventServer struct {
+	permissions     authorization.PermissionChecker
 	eventRepository repository.EventRepository
 }
 
-func NewEventServer(eventRepository repository.EventRepository) *EventServer {
-	return &EventServer{eventRepository: eventRepository}
+func NewEventServer(permissions authorization.PermissionChecker, eventRepository repository.EventRepository) *EventServer {
+	return &EventServer{permissions: permissions, eventRepository: eventRepository}
 }
 
 func (s *EventServer) Report(ctx context.Context, message *api.EventMessage) (*types.Empty, error) {
+	if e := checkPermission(s.permissions, ctx, permissions.ExecuteJobs); e != nil {
+		return nil, e
+	}
 	return &types.Empty{}, s.eventRepository.ReportEvent(message)
 }
 
 func (s *EventServer) GetJobSetEvents(request *api.JobSetRequest, stream api.Event_GetJobSetEventsServer) error {
+	if e := checkPermission(s.permissions, stream.Context(), permissions.WatchAllEvents); e != nil {
+		return e
+	}
 
 	lastId := request.FromMessageId
 
