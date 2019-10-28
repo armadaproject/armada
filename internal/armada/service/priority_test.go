@@ -6,8 +6,10 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/G-Research/armada/internal/armada/api"
+	"github.com/G-Research/armada/internal/armada/types"
 )
 
 func TestPriorityService_GetQueuePriorities(t *testing.T) {
@@ -18,11 +20,17 @@ func TestPriorityService_GetQueuePriorities(t *testing.T) {
 	q4 := &api.Queue{Name: "queue4", PriorityFactor: 1}
 	q5 := &api.Queue{Name: "queue5", PriorityFactor: 0.5}
 
+	cpu := resource.MustParse("1Mi")
+	queue1usage := &api.QueueReport{
+		Name:      "queue1",
+		Resources: map[string]resource.Quantity{"cpu": cpu},
+	}
+
 	service := NewMultiClusterPriorityService(
 		mockUsageRepository{
 			clusterUsageReports: map[string]*api.ClusterUsageReport{
-				"cluster1": {ClusterId: "cluster1", ReportTime: time.Now()},
-				"cluster2": {ClusterId: "cluster2", ReportTime: time.Now()},
+				"cluster1": {ClusterId: "cluster1", ReportTime: time.Now(), Queues: []*api.QueueReport{queue1usage}},
+				"cluster2": {ClusterId: "cluster2", ReportTime: time.Now(), Queues: []*api.QueueReport{queue1usage}},
 			},
 			clusterPriorities: map[string]map[string]float64{
 				"cluster1": {
@@ -43,12 +51,15 @@ func TestPriorityService_GetQueuePriorities(t *testing.T) {
 
 	priorities, e := service.GetQueuePriorities()
 	assert.Nil(t, e)
-	assert.Equal(t, map[*api.Queue]float64{
-		q1: 5,
-		q2: 1.5,
-		q3: 1,
-		q4: minPriority,
-		q5: minPriority * 0.5,
+
+	cpuSum := cpu.DeepCopy()
+	cpuSum.Add(cpu)
+	assert.Equal(t, map[*api.Queue]types.QueuePriorityInfo{
+		q1: {5, map[string]resource.Quantity{"cpu": cpuSum}},
+		q2: {1.5, nil},
+		q3: {1, nil},
+		q4: {minPriority, nil},
+		q5: {minPriority * 0.5, nil},
 	}, priorities)
 }
 
@@ -96,4 +107,4 @@ func (m mockUsageRepository) UpdateCluster(report *api.ClusterUsageReport, prior
 
 type mockMetricRecorder struct{}
 
-func (mockMetricRecorder) RecordQueuePriorities(priorities map[*api.Queue]float64) {}
+func (mockMetricRecorder) RecordQueuePriorities(priorities map[*api.Queue]types.QueuePriorityInfo) {}
