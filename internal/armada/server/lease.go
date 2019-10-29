@@ -208,21 +208,15 @@ func sliceResource(queuePriorities map[*api.Queue]types2.QueuePriorityInfo, quan
 
 	inversePriority := make(map[*api.Queue]float64)
 	inverseSum := 0.0
-	resourcesInUse := common.ComputeResources{}
 	for queue, info := range queuePriorities {
 		inverse := 1 / info.Priority
 		inversePriority[queue] = inverse
 		inverseSum += inverse
-		resourcesInUse.Add(info.CurrentUsage)
 	}
-
-	allResources := resourcesInUse.DeepCopy()
-	allResources.Add(quantityToSlice)
 
 	shares := make(map[*api.Queue]common.ComputeResourcesFloat)
 	for queue, inverse := range inversePriority {
-		share := allResources.Mul(inverse / inverseSum)
-		share.Sub(queuePriorities[queue].CurrentUsage.AsFloat())
+		share := quantityToSlice.Mul(inverse / inverseSum)
 		shares[queue] = share
 	}
 	return shares
