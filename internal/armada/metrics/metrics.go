@@ -6,25 +6,25 @@ import (
 
 	"github.com/G-Research/armada/internal/armada/api"
 	"github.com/G-Research/armada/internal/armada/repository"
-	"github.com/G-Research/armada/internal/common/util"
+	"github.com/G-Research/armada/internal/armada/types"
 )
 
 const metricPrefix = "armada_"
 
 func ExposeDataMetrics(queueRepository repository.QueueRepository, jobRepository repository.JobRepository) *QueueInfoCollector {
-	collector := &QueueInfoCollector{queueRepository, jobRepository, map[*api.Queue]float64{}}
+	collector := &QueueInfoCollector{queueRepository, jobRepository, map[*api.Queue]types.QueuePriorityInfo{}}
 	prometheus.MustRegister(collector)
 	return collector
 }
 
 type MetricRecorder interface {
-	RecordQueuePriorities(priorities map[*api.Queue]float64)
+	RecordQueuePriorities(priorities map[*api.Queue]types.QueuePriorityInfo)
 }
 
 type QueueInfoCollector struct {
 	queueRepository repository.QueueRepository
 	jobRepository   repository.JobRepository
-	priorities      map[*api.Queue]float64
+	priorities      map[*api.Queue]types.QueuePriorityInfo
 }
 
 var queueSizeDesc = prometheus.NewDesc(
@@ -41,7 +41,7 @@ var queuePriorityDesc = prometheus.NewDesc(
 	nil,
 )
 
-func (c *QueueInfoCollector) RecordQueuePriorities(priorities map[*api.Queue]float64) {
+func (c *QueueInfoCollector) RecordQueuePriorities(priorities map[*api.Queue]types.QueuePriorityInfo) {
 	c.priorities = priorities
 }
 
@@ -53,10 +53,10 @@ func (c *QueueInfoCollector) Describe(desc chan<- *prometheus.Desc) {
 func (c *QueueInfoCollector) Collect(metrics chan<- prometheus.Metric) {
 
 	for queue, priority := range c.priorities {
-		metrics <- prometheus.MustNewConstMetric(queuePriorityDesc, prometheus.GaugeValue, priority, queue.Name)
+		metrics <- prometheus.MustNewConstMetric(queuePriorityDesc, prometheus.GaugeValue, priority.Priority, queue.Name)
 	}
 
-	queues := util.GetPriorityMapQueues(c.priorities)
+	queues := types.GetPriorityMapQueues(c.priorities)
 
 	queueSizes, e := c.jobRepository.GetQueueSizes(queues)
 	if e != nil {
