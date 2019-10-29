@@ -58,6 +58,17 @@ func CreateJobUnableToScheduleEvent(pod *v1.Pod, reason string, clusterId string
 	}
 }
 
+func CreateJobLeaseReturnedEvent(pod *v1.Pod, reason string, clusterId string) api.Event {
+	return &api.JobLeaseReturnedEvent{
+		JobId:     pod.Labels[domain.JobId],
+		JobSetId:  pod.Labels[domain.JobSetId],
+		Queue:     pod.Labels[domain.Queue],
+		Created:   time.Now(),
+		ClusterId: clusterId,
+		Reason:    reason,
+	}
+}
+
 func CreateJobFailedEvent(pod *v1.Pod, reason string, clusterId string) api.Event {
 	return &api.JobFailedEvent{
 		JobId:     pod.Labels[domain.JobId],

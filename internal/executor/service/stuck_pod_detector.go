@@ -57,6 +57,16 @@ func (podProgressMonitor *StuckPodDetector) onStuckPodDeleted(jobId string, pod 
 			log.Errorf("Failed to return lease for job %s because %s", jobId, err)
 			return false
 		}
+
+		leaseReturnedEvent := reporter.CreateJobLeaseReturnedEvent(pod, util.ExtractPodStuckReason(pod), podProgressMonitor.clusterContext.GetClusterId())
+
+		err = podProgressMonitor.eventReporter.Report(leaseReturnedEvent)
+		if err != nil {
+			log.Errorf("Failed to report lease returned for job %s because %s", jobId, err)
+			//We should fall through to true here, as we have already returned the lease and the event is just for reporting
+			//If we fail, we'll try again which could be complicated if the same executor leases is again between retries
+		}
+
 	}
 	return true
 }
