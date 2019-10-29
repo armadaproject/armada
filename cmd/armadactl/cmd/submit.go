@@ -50,7 +50,12 @@ var submitCmd = &cobra.Command{
 		}
 
 		submitFile := &JobSubmitFile{}
-		util.BindJsonOrYaml(filePath, submitFile)
+		err = util.BindJsonOrYaml(filePath, submitFile)
+
+		if err != nil {
+			log.Error(err)
+			os.Exit(1)
+		}
 
 		if dryRun {
 			return

@@ -1,6 +1,9 @@
 package cmd
 
 import (
+	"os"
+
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
@@ -53,7 +56,12 @@ var loadtestCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		filePath := args[0]
 		loadTestSpec := &domain.LoadTestSpecification{}
-		util.BindJsonOrYaml(filePath, loadTestSpec)
+		err := util.BindJsonOrYaml(filePath, loadTestSpec)
+
+		if err != nil {
+			log.Error(err)
+			os.Exit(1)
+		}
 
 		watchEvents := viper.GetBool("watch")
 		apiConnectionDetails := client.ExtractCommandlineArmadaApiConnectionDetails()

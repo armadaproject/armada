@@ -36,7 +36,11 @@ func rawPod(spec *json.RawMessage) *rawKubernetesType {
 
 func ValidateSubmitFile(filePath string) (bool, error) {
 	submitFile := &rawJobSubmitFile{}
-	util.BindJsonOrYaml(filePath, submitFile)
+	err := util.BindJsonOrYaml(filePath, submitFile)
+
+	if err != nil {
+		return false, err
+	}
 
 	if len(submitFile.Jobs) <= 0 {
 		return false, errors.New("Warning: You have provided no jobs to submit.")
