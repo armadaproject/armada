@@ -43,21 +43,30 @@ jobs:
             - machine-go-mod-v1-{{ checksum "go.sum" }}
 
       - run:
-          name: ineffassign
-          command: go run github.com/gordonklaus/ineffassign .
-
-      - run:
           name: Test
           command: make tests
+
+      - run:
+          name: Build & Run e2e tests
+          command: make build-ci tests-e2e
+
+      - run: cat go.sum
+
+      - save_cache:
+          key: machine-go-mod-v1-{{ checksum "go.sum" }}
+          paths:
+            - "/home/circleci/go/pkg/mod"
+            - "/home/circleci/go/cache"
+
+      - run:
+          name: ineffassign
+          command: go run github.com/gordonklaus/ineffassign .
 
       - run:
           name: Check formatting
           command: |
             exit $(go run golang.org/x/tools/cmd/goimports -l -local "github.com/G-Research/armada" . | wc -l)
 
-      - run:
-          name: Build & Run e2e tests
-          command: make build-ci tests-e2e
 
       - store_artifacts:
           path: bin/armadactl
@@ -87,14 +96,6 @@ jobs:
 
             docker tag armada-executor gresearchdev/armada-executor-dev:${TAG}
             docker push gresearchdev/armada-executor-dev:${TAG}
-
-      - run: cat go.sum
-
-      - save_cache:
-          key: machine-go-mod-v1-{{ checksum "go.sum" }}
-          paths:
-            - "/home/circleci/go/pkg/mod"
-            - "/home/circleci/go/cache"
   deploy:
     docker:
       - image: alpine/helm:2.13.1
