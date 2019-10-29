@@ -1,30 +1,38 @@
 package service
 
 import (
+	"fmt"
+
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/G-Research/armada/internal/armada/api"
 	"github.com/G-Research/armada/internal/executor/context"
 	"github.com/G-Research/armada/internal/executor/domain"
+	"github.com/G-Research/armada/internal/executor/reporter"
+	"github.com/G-Research/armada/internal/executor/util"
 )
 
 const PodNamePrefix string = "batch-"
 
 type ClusterAllocationService struct {
 	leaseService       LeaseService
+	eventReporter      reporter.EventReporter
 	utilisationService UtilisationService
 	clusterContext     context.ClusterContext
 }
 
 func NewClusterAllocationService(
 	clusterContext context.ClusterContext,
+	eventReporter reporter.EventReporter,
 	leaseService LeaseService,
 	utilisationService UtilisationService) *ClusterAllocationService {
 
 	return &ClusterAllocationService{
 		leaseService:       leaseService,
+		eventReporter:      eventReporter,
 		utilisationService: utilisationService,
 		clusterContext:     clusterContext}
 }
@@ -46,18 +54,67 @@ func (allocationService *ClusterAllocationService) AllocateSpareClusterCapacity(
 		log.Errorf("Failed to lease new jobs because %s", err)
 		return
 	} else {
-		for _, job := range newJobs {
-			_, err = allocationService.submitJob(job)
-			if err != nil {
-				log.Errorf("Failed to submit job %s because %s", job.Id, err)
-			}
-		}
+		allocationService.submitJobs(newJobs)
 	}
 }
 
-func (allocationService *ClusterAllocationService) submitJob(job *api.Job) (*v1.Pod, error) {
-	pod := createPod(job)
-	return allocationService.clusterContext.SubmitPod(pod)
+func (allocationService *ClusterAllocationService) submitJobs(jobsToSubmit []*api.Job) {
+	toBeFailedJobs := make([]*failedSubmissionDetails, 0, 10)
+
+	for _, job := range jobsToSubmit {
+		pod := createPod(job)
+		_, err := allocationService.clusterContext.SubmitPod(pod)
+
+		if err != nil {
+			log.Errorf("Failed to submit job %s because %s", job.Id, err)
+
+			status, ok := err.(errors.APIStatus)
+			if ok && status.Status().Reason == metav1.StatusReasonInvalid {
+				errDetails := &failedSubmissionDetails{
+					pod:   pod,
+					error: status,
+				}
+				toBeFailedJobs = append(toBeFailedJobs, errDetails)
+			} else {
+				allocationService.returnLease(pod, fmt.Sprintf("Failed to submit pod because %s", err))
+			}
+		}
+	}
+
+	err := allocationService.failJobs(toBeFailedJobs)
+	if err != nil {
+		log.Errorf("Failed to report failed jobs as done because %s", err)
+	}
+}
+
+func (allocationService *ClusterAllocationService) failJobs(failedSubmissions []*failedSubmissionDetails) error {
+	toBeReportedDone := make([]*v1.Pod, 0, 10)
+
+	for _, details := range failedSubmissions {
+		failEvent := reporter.CreateJobFailedEvent(details.pod, details.error.Status().Message, allocationService.clusterContext.GetClusterId())
+		err := allocationService.eventReporter.Report(failEvent)
+
+		if err == nil {
+			toBeReportedDone = append(toBeReportedDone, details.pod)
+		}
+	}
+
+	return allocationService.leaseService.ReportDone(toBeReportedDone)
+}
+
+func (allocationService *ClusterAllocationService) returnLease(pod *v1.Pod, reason string) {
+	err := allocationService.leaseService.ReturnLease(pod)
+
+	if err != nil {
+		log.Errorf("Failed to return lease for job %s because %s", util.ExtractJobId(pod), err)
+	} else {
+		leaseReturnedEvent := reporter.CreateJobLeaseReturnedEvent(pod, reason, allocationService.clusterContext.GetClusterId())
+
+		err = allocationService.eventReporter.Report(leaseReturnedEvent)
+		if err != nil {
+			log.Errorf("Failed to report event %+v because %s", leaseReturnedEvent, err)
+		}
+	}
 }
 
 func createPod(job *api.Job) *v1.Pod {
@@ -87,4 +144,9 @@ func createLabels(job *api.Job) map[string]string {
 	labels[domain.Queue] = job.Queue
 
 	return labels
+}
+
+type failedSubmissionDetails struct {
+	pod   *v1.Pod
+	error errors.APIStatus
 }
