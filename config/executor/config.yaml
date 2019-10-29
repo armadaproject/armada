@@ -1,7 +1,7 @@
 application:
   clusterId : "Cluster1"
 task:
-  utilisationReportingInterval: 10s
+  utilisationReportingInterval: 1s
   missingJobEventReconciliationInterval: 15s
   stuckPodScanInterval: 15s
   jobLeaseRenewalInterval: 15s

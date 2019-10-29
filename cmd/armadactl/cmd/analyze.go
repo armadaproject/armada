@@ -55,7 +55,7 @@ var analyzeCmd = &cobra.Command{
 						if err != nil {
 							log.Error(e)
 						} else {
-							log.Info("%s %s\n", reflect.TypeOf(*e), string(data))
+							log.Infof("%s %s\n", reflect.TypeOf(*e), string(data))
 						}
 					}
 					log.Println()
