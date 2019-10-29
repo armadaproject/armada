@@ -65,6 +65,7 @@ func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGrou
 
 	clusterAllocationService := service.NewClusterAllocationService(
 		clusterContext,
+		eventReporter,
 		jobLeaseService,
 		clusterUtilisationService)
 
