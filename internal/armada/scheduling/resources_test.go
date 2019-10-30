@@ -3,11 +3,11 @@ package scheduling
 import (
 	"testing"
 
-	"github.com/magiconair/properties/assert"
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/G-Research/armada/internal/armada/api"
 	"github.com/G-Research/armada/internal/common"
+	"github.com/stretchr/testify/assert"
 )
 
 // 1 cpu per 1 Gb
