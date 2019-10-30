@@ -39,6 +39,8 @@ func init() {
 	}
 }
 
+//WatchContext keeps track of the current state when processing a stream of events
+//It is not threadsafe and is expected to only ever be used in a single thread
 type WatchContext struct {
 	state        map[string]*JobInfo
 	stateSummary map[JobStatus]int
