@@ -43,7 +43,7 @@ func TestCanSubmitJob_ReceivingAllExpectedEvents(t *testing.T) {
 
 		eventsClient := api.NewEventClient(connection)
 
-		timeout, _ := context.WithTimeout(context.Background(), 20*time.Second)
+		timeout, _ := context.WithTimeout(context.Background(), 30*time.Second)
 
 		service.WatchJobSet(eventsClient, jobRequest.JobSetId, true, timeout, func(state map[string]*service.JobInfo, e api.Event) bool {
 			currentStatus := state[e.GetJobId()].Status

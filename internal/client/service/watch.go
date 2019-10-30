@@ -122,6 +122,8 @@ func updateJobInfo(info *JobInfo, event api.Event) {
 		info.Status = Queued
 	case *api.JobLeasedEvent:
 		info.Status = Leased
+	case *api.JobLeaseReturnedEvent:
+		info.Status = Queued
 	case *api.JobUnableToScheduleEvent:
 		// NOOP
 	case *api.JobLeaseExpiredEvent:
