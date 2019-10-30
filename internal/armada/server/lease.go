@@ -11,31 +11,36 @@ import (
 	"github.com/G-Research/armada/internal/armada/api"
 	"github.com/G-Research/armada/internal/armada/authorization"
 	"github.com/G-Research/armada/internal/armada/authorization/permissions"
+	"github.com/G-Research/armada/internal/armada/metrics"
 	"github.com/G-Research/armada/internal/armada/repository"
-	"github.com/G-Research/armada/internal/armada/service"
-	types2 "github.com/G-Research/armada/internal/armada/types"
+	"github.com/G-Research/armada/internal/armada/scheduling"
 	"github.com/G-Research/armada/internal/common"
 )
 
 type AggregatedQueueServer struct {
 	permissions     authorization.PermissionChecker
-	priorityService service.PriorityService
 	jobRepository   repository.JobRepository
+	queueRepository repository.QueueRepository
+	usageRepository repository.UsageRepository
 	eventRepository repository.EventRepository
+	metricRecorder  metrics.MetricRecorder
 }
 
 func NewAggregatedQueueServer(
 	permissions authorization.PermissionChecker,
-	priorityService service.PriorityService,
 	jobRepository repository.JobRepository,
+	queueRepository repository.QueueRepository,
+	usageRepository repository.UsageRepository,
 	eventRepository repository.EventRepository,
+	metricRecorder metrics.MetricRecorder,
 ) *AggregatedQueueServer {
-
 	return &AggregatedQueueServer{
 		permissions:     permissions,
-		priorityService: priorityService,
 		jobRepository:   jobRepository,
-		eventRepository: eventRepository}
+		queueRepository: queueRepository,
+		usageRepository: usageRepository,
+		eventRepository: eventRepository,
+		metricRecorder:  metricRecorder}
 }
 
 const batchSize = 100
@@ -52,11 +57,10 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 		return &api.JobLease{}, nil
 	}
 
-	queuePriority, e := q.priorityService.GetQueuePriorities()
+	queues, e := q.queueRepository.GetAllQueues()
 	if e != nil {
 		return nil, e
 	}
-	queues := types2.GetPriorityMapQueues(queuePriority)
 
 	// TODO: doing cleanup here for simplicity, should happen in background loop instead
 	expireOldJobs(q.jobRepository, q.eventRepository, queues, 2*time.Minute)
@@ -65,9 +69,24 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 	if e != nil {
 		return nil, e
 	}
-	activeQueuePriority := filterPriorityMapByKeys(queuePriority, activeQueues)
 
-	slices := sliceResource(activeQueuePriority, request.Resources)
+	usageReports, e := q.usageRepository.GetClusterUsageReports()
+	if e != nil {
+		return nil, e
+	}
+
+	activeClusterReports := scheduling.FilterActiveClusters(usageReports, 10*time.Minute)
+	clusterPriorities, e := q.usageRepository.GetClusterPriorities(scheduling.GetClusterReportIds(activeClusterReports))
+	if e != nil {
+		return nil, e
+	}
+
+	queuePriority := scheduling.CalculateQueuesPriorityInfo(clusterPriorities, activeClusterReports, queues)
+	scarcity := scheduling.ResourceScarcityFromReports(activeClusterReports)
+	activeQueuePriority := filterPriorityMapByKeys(queuePriority, activeQueues)
+	slices := scheduling.SliceResource(scarcity, activeQueuePriority, request.Resources)
+
+	q.metricRecorder.RecordQueuePriorities(queuePriority)
 
 	jobs, e := q.assignJobs(request.ClusterId, slices)
 	if e != nil {
@@ -130,7 +149,7 @@ func (q *AggregatedQueueServer) assignJobs(clusterId string, slices map[*api.Que
 	return jobs, nil
 }
 
-func (q *AggregatedQueueServer) distributeRemainder(clusterId string, priorities map[*api.Queue]types2.QueuePriorityInfo, slices map[*api.Queue]common.ComputeResourcesFloat) ([]*api.Job, error) {
+func (q *AggregatedQueueServer) distributeRemainder(clusterId string, priorities map[*api.Queue]scheduling.QueuePriorityInfo, slices map[*api.Queue]common.ComputeResourcesFloat) ([]*api.Job, error) {
 	jobs := []*api.Job{}
 	remainder := common.ComputeResourcesFloat{}
 	orderedQueues := []*api.Queue{}
@@ -204,26 +223,8 @@ func (q *AggregatedQueueServer) leaseJobs(clusterId string, queue *api.Queue, sl
 	return jobs, slice, nil
 }
 
-func sliceResource(queuePriorities map[*api.Queue]types2.QueuePriorityInfo, quantityToSlice common.ComputeResources) map[*api.Queue]common.ComputeResourcesFloat {
-
-	inversePriority := make(map[*api.Queue]float64)
-	inverseSum := 0.0
-	for queue, info := range queuePriorities {
-		inverse := 1 / info.Priority
-		inversePriority[queue] = inverse
-		inverseSum += inverse
-	}
-
-	shares := make(map[*api.Queue]common.ComputeResourcesFloat)
-	for queue, inverse := range inversePriority {
-		share := quantityToSlice.Mul(inverse / inverseSum)
-		shares[queue] = share
-	}
-	return shares
-}
-
-func filterPriorityMapByKeys(original map[*api.Queue]types2.QueuePriorityInfo, keys []*api.Queue) map[*api.Queue]types2.QueuePriorityInfo {
-	result := make(map[*api.Queue]types2.QueuePriorityInfo)
+func filterPriorityMapByKeys(original map[*api.Queue]scheduling.QueuePriorityInfo, keys []*api.Queue) map[*api.Queue]scheduling.QueuePriorityInfo {
+	result := make(map[*api.Queue]scheduling.QueuePriorityInfo)
 	for _, key := range keys {
 		existing, ok := original[key]
 		if ok {
