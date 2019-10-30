@@ -65,7 +65,7 @@ func watchJobInfoChannel(eventChannel chan api.Event) (*sync.WaitGroup, chan boo
 	complete := &sync.WaitGroup{}
 	complete.Add(1)
 
-	aggregatedCurrentState := &domain.WatchContext{}
+	aggregatedCurrentState := domain.NewWatchContext()
 
 	go func() {
 		for {
