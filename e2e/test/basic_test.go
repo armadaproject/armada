@@ -39,17 +39,17 @@ func TestCanSubmitJob_ReceivingAllExpectedEvents(t *testing.T) {
 		_, err = service.SubmitJob(submitClient, jobRequest)
 		assert.Nil(t, err)
 
-		receivedEvents := make(map[service.JobStatus]bool)
+		receivedEvents := make(map[domain.JobStatus]bool)
 
 		eventsClient := api.NewEventClient(connection)
 
 		timeout, _ := context.WithTimeout(context.Background(), 20*time.Second)
 
-		service.WatchJobSet(eventsClient, jobRequest.JobSetId, true, timeout, func(state map[string]*service.JobInfo, e api.Event) bool {
-			currentStatus := state[e.GetJobId()].Status
+		service.WatchJobSet(eventsClient, jobRequest.JobSetId, true, timeout, func(state *domain.WatchContext, e api.Event) bool {
+			currentStatus := state.GetJobInfo(e.GetJobId()).Status
 			receivedEvents[currentStatus] = true
 
-			if currentStatus == service.Succeeded || currentStatus == service.Failed || currentStatus == service.Cancelled {
+			if currentStatus == domain.Succeeded || currentStatus == domain.Failed || currentStatus == domain.Cancelled {
 				return true
 			}
 
@@ -57,10 +57,10 @@ func TestCanSubmitJob_ReceivingAllExpectedEvents(t *testing.T) {
 		})
 		assert.False(t, hasTimedOut(timeout), "Test timed out waiting for expected events")
 
-		assert.True(t, receivedEvents[service.Queued])
-		assert.True(t, receivedEvents[service.Leased])
-		assert.True(t, receivedEvents[service.Running])
-		assert.True(t, receivedEvents[service.Succeeded])
+		assert.True(t, receivedEvents[domain.Queued])
+		assert.True(t, receivedEvents[domain.Leased])
+		assert.True(t, receivedEvents[domain.Running])
+		assert.True(t, receivedEvents[domain.Succeeded])
 	})
 }
 
