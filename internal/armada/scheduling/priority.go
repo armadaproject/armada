@@ -29,10 +29,10 @@ func CalculateQueuesPriorityInfo(clusterPriorities map[string]map[string]float64
 	queueUsage := aggregateQueueUsage(activeClusterReports)
 	resultPriorityMap := map[*api.Queue]QueuePriorityInfo{}
 	for _, queue := range queues {
-		priority := minPriority * queue.PriorityFactor
+		priority := minPriority
 		currentPriority, ok := queuePriority[queue.Name]
 		if ok {
-			priority = math.Max(currentPriority, minPriority) * queue.PriorityFactor
+			priority = math.Max(currentPriority*queue.PriorityFactor, minPriority)
 		}
 		resultPriorityMap[queue] = QueuePriorityInfo{
 			Priority:     priority,
