@@ -161,7 +161,7 @@ func (q *AggregatedQueueServer) distributeRemainder(resourceScarcity map[string]
 	sort.Slice(orderedQueues, func(i, j int) bool {
 		usageI := scheduling.ResourcesFloatAsUsage(resourceScarcity, slices[orderedQueues[i]])
 		usageJ := scheduling.ResourcesFloatAsUsage(resourceScarcity, slices[orderedQueues[j]])
-		return usageI < usageJ
+		return usageI > usageJ
 	})
 
 	for _, queue := range orderedQueues {
