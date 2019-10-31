@@ -2,7 +2,7 @@ package server
 
 import (
 	"context"
-	"sort"
+	"math/rand"
 	"time"
 
 	"github.com/gogo/protobuf/types"
@@ -152,32 +152,52 @@ func (q *AggregatedQueueServer) assignJobs(clusterId string, slices map[*api.Que
 func (q *AggregatedQueueServer) distributeRemainder(resourceScarcity map[string]float64, clusterId string, priorities map[*api.Queue]scheduling.QueuePriorityInfo, slices map[*api.Queue]common.ComputeResourcesFloat) ([]*api.Job, error) {
 	jobs := []*api.Job{}
 	remainder := common.ComputeResourcesFloat{}
-	orderedQueues := []*api.Queue{}
+	shares := map[*api.Queue]float64{}
 	for queue, slice := range slices {
 		remainder.Add(slice)
-		orderedQueues = append(orderedQueues, queue)
+		shares[queue] = scheduling.ResourcesFloatAsUsage(resourceScarcity, slice)
 	}
 
-	sort.Slice(orderedQueues, func(i, j int) bool {
-		usageI := scheduling.ResourcesFloatAsUsage(resourceScarcity, slices[orderedQueues[i]])
-		usageJ := scheduling.ResourcesFloatAsUsage(resourceScarcity, slices[orderedQueues[j]])
-		return usageI > usageJ
-	})
+	emptySteps := 0
+	for !remainder.IsLessThan(minimalResource) && emptySteps < len(slices) {
+		queue := q.pickQueueRandomly(shares)
+		emptySteps++
 
-	for _, queue := range orderedQueues {
 		leased, remaining, e := q.leaseJobs(clusterId, queue, remainder, 1)
 		if e != nil {
 			log.Error(e)
 			continue
 		}
+		if len(leased) > 0 {
+			emptySteps = 0
+		}
 		jobs = append(jobs, leased...)
 		remainder = remaining
-		if remainder.IsLessThan(minimalResource) {
-			break
-		}
+		shares[queue] = 0
 	}
 
 	return jobs, nil
+}
+
+func (q *AggregatedQueueServer) pickQueueRandomly(shares map[*api.Queue]float64) *api.Queue {
+	sum := 0.0
+	for _, share := range shares {
+		sum += share
+	}
+
+	pick := sum * rand.Float64()
+	current := 0.0
+
+	var lastQueue *api.Queue
+	for queue, share := range shares {
+		current += share
+		if current >= pick {
+			return queue
+		}
+		lastQueue = queue
+	}
+	log.Error("Could not randomly pick a queue, this should not happen!")
+	return lastQueue
 }
 
 func (q *AggregatedQueueServer) leaseJobs(clusterId string, queue *api.Queue, slice common.ComputeResourcesFloat, limit int) ([]*api.Job, common.ComputeResourcesFloat, error) {
