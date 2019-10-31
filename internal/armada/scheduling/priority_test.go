@@ -50,6 +50,6 @@ func TestPriorityService_GetQueuePriorities(t *testing.T) {
 		q2: {1.5, nil},
 		q3: {1, nil},
 		q4: {minPriority, nil},
-		q5: {minPriority * 0.5, nil},
+		q5: {minPriority, nil},
 	}, priorities)
 }
