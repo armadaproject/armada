@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"math"
 	"math/rand"
 	"time"
 
@@ -88,22 +89,23 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 
 	q.metricRecorder.RecordQueuePriorities(queuePriority)
 
-	jobs, e := q.assignJobs(request.ClusterId, slices)
+	/*jobs, e := q.assignJobs(request.ClusterId, slices)
+	if e != nil {
+		log.Errorf("Error when leasing jobs for cluster %s: %s", request.ClusterId, e)
+		return nil, e
+	}*/
+
+	jobs, e := q.distributeRemainder(scarcity, request.ClusterId, activeQueuePriority, slices)
 	if e != nil {
 		log.Errorf("Error when leasing jobs for cluster %s: %s", request.ClusterId, e)
 		return nil, e
 	}
-	additionalJobs, e := q.distributeRemainder(scarcity, request.ClusterId, activeQueuePriority, slices)
-	if e != nil {
-		log.Errorf("Error when leasing jobs for cluster %s: %s", request.ClusterId, e)
-		return nil, e
-	}
-	jobs = append(jobs, additionalJobs...)
+	//jobs = append(jobs, additionalJobs...)
 
 	jobLease := api.JobLease{
 		Job: jobs,
 	}
-	log.WithField("clusterId", request.ClusterId).Infof("Leasing %d jobs. (by reminder distribution: %d)", len(jobs), len(additionalJobs))
+	log.WithField("clusterId", request.ClusterId).Infof("Leasing %d jobs. (by reminder distribution: %d)", len(jobs), len(jobs))
 	return &jobLease, nil
 }
 
@@ -172,8 +174,9 @@ func (q *AggregatedQueueServer) distributeRemainder(resourceScarcity map[string]
 			emptySteps = 0
 		}
 		jobs = append(jobs, leased...)
+		scheduledShare := scheduling.ResourcesFloatAsUsage(resourceScarcity, remainder) - scheduling.ResourcesFloatAsUsage(resourceScarcity, remaining)
+		shares[queue] = math.Max(0, shares[queue]-scheduledShare)
 		remainder = remaining
-		shares[queue] = 0
 	}
 
 	return jobs, nil
