@@ -93,7 +93,7 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 		log.Errorf("Error when leasing jobs for cluster %s: %s", request.ClusterId, e)
 		return nil, e
 	}
-	additionalJobs, e := q.distributeRemainder(request.ClusterId, activeQueuePriority, slices)
+	additionalJobs, e := q.distributeRemainder(scarcity, request.ClusterId, activeQueuePriority, slices)
 	if e != nil {
 		log.Errorf("Error when leasing jobs for cluster %s: %s", request.ClusterId, e)
 		return nil, e
@@ -103,7 +103,7 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 	jobLease := api.JobLease{
 		Job: jobs,
 	}
-	log.WithField("clusterId", request.ClusterId).Infof("Leasing %d jobs.", len(jobs))
+	log.WithField("clusterId", request.ClusterId).Infof("Leasing %d jobs. (by reminder distribution: %d)", len(jobs), len(additionalJobs))
 	return &jobLease, nil
 }
 
@@ -149,7 +149,7 @@ func (q *AggregatedQueueServer) assignJobs(clusterId string, slices map[*api.Que
 	return jobs, nil
 }
 
-func (q *AggregatedQueueServer) distributeRemainder(clusterId string, priorities map[*api.Queue]scheduling.QueuePriorityInfo, slices map[*api.Queue]common.ComputeResourcesFloat) ([]*api.Job, error) {
+func (q *AggregatedQueueServer) distributeRemainder(resourceScarcity map[string]float64, clusterId string, priorities map[*api.Queue]scheduling.QueuePriorityInfo, slices map[*api.Queue]common.ComputeResourcesFloat) ([]*api.Job, error) {
 	jobs := []*api.Job{}
 	remainder := common.ComputeResourcesFloat{}
 	orderedQueues := []*api.Queue{}
@@ -157,8 +157,11 @@ func (q *AggregatedQueueServer) distributeRemainder(clusterId string, priorities
 		remainder.Add(slice)
 		orderedQueues = append(orderedQueues, queue)
 	}
+
 	sort.Slice(orderedQueues, func(i, j int) bool {
-		return priorities[orderedQueues[i]].Priority < priorities[orderedQueues[j]].Priority
+		usageI := scheduling.ResourcesFloatAsUsage(resourceScarcity, slices[orderedQueues[i]])
+		usageJ := scheduling.ResourcesFloatAsUsage(resourceScarcity, slices[orderedQueues[j]])
+		return usageI < usageJ
 	})
 
 	for _, queue := range orderedQueues {

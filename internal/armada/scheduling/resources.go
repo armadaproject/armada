@@ -53,6 +53,15 @@ func ResourcesAsUsage(resourceScarcity map[string]float64, resources common.Comp
 	return usage
 }
 
+func ResourcesFloatAsUsage(resourceScarcity map[string]float64, resources common.ComputeResourcesFloat) float64 {
+	usage := 0.0
+	for resourceName, quantity := range resources {
+		scarcity := util.GetOrDefault(resourceScarcity, resourceName, 1)
+		usage += quantity * scarcity
+	}
+	return usage
+}
+
 func ResourceScarcityFromReports(reports map[string]*api.ClusterUsageReport) map[string]float64 {
 	availableResources := sumReportResources(reports)
 	return calculateResourceScarcity(availableResources.AsFloat())
