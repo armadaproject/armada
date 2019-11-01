@@ -42,6 +42,6 @@ type BasicAuthenticationConfig struct {
 type SchedulingConfig struct {
 	UseProbabilisticSchedulingForAllResources bool
 	QueueLeaseBatchSize                       uint
-	MinimumResourceToSchedule                 common.ComputeResources
+	MinimumResourceToSchedule                 common.ComputeResourcesFloat
 	MaximalClusterFractionToSchedule          float64
 }

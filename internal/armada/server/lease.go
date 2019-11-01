@@ -54,7 +54,7 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 	}
 
 	var res common.ComputeResources = request.Resources
-	if res.AsFloat().IsLessThan(q.schedulingConfig.MinimumResourceToSchedule.AsFloat()) {
+	if res.AsFloat().IsLessThan(q.schedulingConfig.MinimumResourceToSchedule) {
 		return &api.JobLease{}, nil
 	}
 
@@ -172,7 +172,7 @@ func (q *AggregatedQueueServer) distributeRemainder(resourceScarcity map[string]
 
 	queueCount := len(slices)
 	emptySteps := 0
-	minimumResource := q.schedulingConfig.MinimumResourceToSchedule.AsFloat()
+	minimumResource := q.schedulingConfig.MinimumResourceToSchedule
 	for !remainder.IsLessThan(minimumResource) && emptySteps < queueCount {
 		queue := q.pickQueueRandomly(shares)
 		emptySteps++
