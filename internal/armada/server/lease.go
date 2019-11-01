@@ -12,6 +12,7 @@ import (
 	"github.com/G-Research/armada/internal/armada/api"
 	"github.com/G-Research/armada/internal/armada/authorization"
 	"github.com/G-Research/armada/internal/armada/authorization/permissions"
+	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/G-Research/armada/internal/armada/metrics"
 	"github.com/G-Research/armada/internal/armada/repository"
 	"github.com/G-Research/armada/internal/armada/scheduling"
@@ -19,16 +20,18 @@ import (
 )
 
 type AggregatedQueueServer struct {
-	permissions     authorization.PermissionChecker
-	jobRepository   repository.JobRepository
-	queueRepository repository.QueueRepository
-	usageRepository repository.UsageRepository
-	eventRepository repository.EventRepository
-	metricRecorder  metrics.MetricRecorder
+	permissions      authorization.PermissionChecker
+	schedulingConfig configuration.SchedulingConfig
+	jobRepository    repository.JobRepository
+	queueRepository  repository.QueueRepository
+	usageRepository  repository.UsageRepository
+	eventRepository  repository.EventRepository
+	metricRecorder   metrics.MetricRecorder
 }
 
 func NewAggregatedQueueServer(
 	permissions authorization.PermissionChecker,
+	schedulingConfig configuration.SchedulingConfig,
 	jobRepository repository.JobRepository,
 	queueRepository repository.QueueRepository,
 	usageRepository repository.UsageRepository,
@@ -36,12 +39,13 @@ func NewAggregatedQueueServer(
 	metricRecorder metrics.MetricRecorder,
 ) *AggregatedQueueServer {
 	return &AggregatedQueueServer{
-		permissions:     permissions,
-		jobRepository:   jobRepository,
-		queueRepository: queueRepository,
-		usageRepository: usageRepository,
-		eventRepository: eventRepository,
-		metricRecorder:  metricRecorder}
+		permissions:      permissions,
+		schedulingConfig: schedulingConfig,
+		jobRepository:    jobRepository,
+		queueRepository:  queueRepository,
+		usageRepository:  usageRepository,
+		eventRepository:  eventRepository,
+		metricRecorder:   metricRecorder}
 }
 
 const batchSize = 100
@@ -89,18 +93,21 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 
 	q.metricRecorder.RecordQueuePriorities(queuePriority)
 
-	/*jobs, e := q.assignJobs(request.ClusterId, slices)
-	if e != nil {
-		log.Errorf("Error when leasing jobs for cluster %s: %s", request.ClusterId, e)
-		return nil, e
-	}*/
+	jobs := []*api.Job{}
+	if !q.schedulingConfig.UseProbabilisticSchedulingForAllResources {
+		jobs, e = q.assignJobs(request.ClusterId, slices)
+		if e != nil {
+			log.Errorf("Error when leasing jobs for cluster %s: %s", request.ClusterId, e)
+			return nil, e
+		}
+	}
 
-	jobs, e := q.distributeRemainder(scarcity, request.ClusterId, activeQueuePriority, slices)
+	additionalJobs, e := q.distributeRemainder(scarcity, request.ClusterId, activeQueuePriority, slices)
 	if e != nil {
 		log.Errorf("Error when leasing jobs for cluster %s: %s", request.ClusterId, e)
 		return nil, e
 	}
-	//jobs = append(jobs, additionalJobs...)
+	jobs = append(jobs, additionalJobs...)
 
 	jobLease := api.JobLease{
 		Job: jobs,
@@ -160,8 +167,9 @@ func (q *AggregatedQueueServer) distributeRemainder(resourceScarcity map[string]
 		shares[queue] = scheduling.ResourcesFloatAsUsage(resourceScarcity, slice)
 	}
 
+	queueCount := len(slices)
 	emptySteps := 0
-	for !remainder.IsLessThan(minimalResource) && emptySteps < len(slices) {
+	for !remainder.IsLessThan(minimalResource) && emptySteps < queueCount {
 		queue := q.pickQueueRandomly(shares)
 		emptySteps++
 

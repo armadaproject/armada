@@ -45,7 +45,7 @@ func Serve(config *configuration.ArmadaConfig) (*grpc.Server, *sync.WaitGroup) {
 
 		submitServer := server.NewSubmitServer(permissions, jobRepository, queueRepository, eventRepository)
 		usageServer := server.NewUsageServer(permissions, config.PriorityHalfTime, usageRepository)
-		aggregatedQueueServer := server.NewAggregatedQueueServer(permissions, jobRepository, queueRepository, usageRepository, eventRepository, metricsRecorder)
+		aggregatedQueueServer := server.NewAggregatedQueueServer(permissions, config.Scheduling, jobRepository, queueRepository, usageRepository, eventRepository, metricsRecorder)
 		eventServer := server.NewEventServer(permissions, eventRepository)
 
 		lis, err := net.Listen("tcp", fmt.Sprintf(":%d", config.GrpcPort))
