@@ -1,0 +1,99 @@
+package scheduling
+
+import (
+	"math"
+	"time"
+
+	"github.com/G-Research/armada/internal/armada/api"
+	"github.com/G-Research/armada/internal/common"
+	"github.com/G-Research/armada/internal/common/util"
+)
+
+const minPriority = 0.5
+
+type QueuePriorityInfo struct {
+	Priority     float64
+	CurrentUsage common.ComputeResources
+}
+
+func GetPriorityMapQueues(priorities map[*api.Queue]QueuePriorityInfo) []*api.Queue {
+	queues := []*api.Queue{}
+	for queue := range priorities {
+		queues = append(queues, queue)
+	}
+	return queues
+}
+
+func CalculateQueuesPriorityInfo(clusterPriorities map[string]map[string]float64, activeClusterReports map[string]*api.ClusterUsageReport, queues []*api.Queue) map[*api.Queue]QueuePriorityInfo {
+	queuePriority := aggregatePriority(clusterPriorities)
+	queueUsage := aggregateQueueUsage(activeClusterReports)
+	resultPriorityMap := map[*api.Queue]QueuePriorityInfo{}
+	for _, queue := range queues {
+		priority := minPriority
+		currentPriority, ok := queuePriority[queue.Name]
+		if ok {
+			priority = math.Max(currentPriority*queue.PriorityFactor, minPriority)
+		}
+		resultPriorityMap[queue] = QueuePriorityInfo{
+			Priority:     priority,
+			CurrentUsage: queueUsage[queue.Name],
+		}
+	}
+	return resultPriorityMap
+}
+
+func CalculatePriorityUpdateFromReports(reports map[string]*api.ClusterUsageReport, report *api.ClusterUsageReport, previousPriority map[string]float64, halfTime time.Duration) map[string]float64 {
+	previousReport := reports[report.ClusterId]
+	timeChange := time.Minute
+	if previousReport != nil {
+		timeChange = report.ReportTime.Sub(previousReport.ReportTime)
+	}
+	reports[report.ClusterId] = report
+	resourceScarcity := ResourceScarcityFromReports(reports)
+	usage := usageFromQueueReports(resourceScarcity, report.Queues)
+	newPriority := calculatePriorityUpdate(usage, previousPriority, timeChange, halfTime)
+	return newPriority
+}
+
+func calculatePriorityUpdate(usage map[string]float64, previousPriority map[string]float64, timeChange time.Duration, halfTime time.Duration) map[string]float64 {
+
+	newPriority := map[string]float64{}
+	timeChangeFactor := math.Pow(0.5, timeChange.Seconds()/halfTime.Seconds())
+
+	for queue, oldPriority := range previousPriority {
+		newPriority[queue] = timeChangeFactor*oldPriority +
+			(1-timeChangeFactor)*util.GetOrDefault(usage, queue, 0)
+	}
+	for queue, usage := range usage {
+		_, exists := newPriority[queue]
+		if !exists {
+			newPriority[queue] = (1 - timeChangeFactor) * usage
+		}
+	}
+	return newPriority
+}
+
+func aggregatePriority(clusterPriorities map[string]map[string]float64) map[string]float64 {
+	result := make(map[string]float64)
+	for _, clusterPriority := range clusterPriorities {
+		for queue, priority := range clusterPriority {
+			result[queue] = priority + util.GetOrDefault(result, queue, 0)
+		}
+	}
+	return result
+}
+
+func aggregateQueueUsage(reports map[string]*api.ClusterUsageReport) map[string]common.ComputeResources {
+	result := map[string]common.ComputeResources{}
+	for _, report := range reports {
+		for _, queueReport := range report.Queues {
+			current, ok := result[queueReport.Name]
+			if !ok {
+				result[queueReport.Name] = queueReport.Resources
+			} else {
+				current.Add(queueReport.Resources)
+			}
+		}
+	}
+	return result
+}

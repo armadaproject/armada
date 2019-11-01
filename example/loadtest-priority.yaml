@@ -3,6 +3,7 @@ submissions:
     #queue: test          # If set all jobs will be submitted under this queue
     queuePrefix: priority     # If set jobs will be submitted under their own queue with this prefix
     count: 5
+    queuePriorityFactor: 10
     jobs:
       - name: heavy_cpu_job
         count: 5000
@@ -30,7 +31,7 @@ submissions:
     queue: priority-important      # If set all jobs will be submitted under this queue
     # queuePrefix: example         # If set jobs will be submitted under their own queue with this prefix
     count: 1
-    queuePriorityFactor: 0.1
+    queuePriorityFactor: 1
     jobs:
       - name: heavy_cpu_job
         count: 25000

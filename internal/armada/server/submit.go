@@ -44,6 +44,10 @@ func (server *SubmitServer) CreateQueue(ctx context.Context, queue *api.Queue) (
 		queue.UserOwners = []string{principal.GetName()}
 	}
 
+	if queue.PriorityFactor < 1.0 {
+		return nil, status.Errorf(codes.InvalidArgument, "Minimum queue priority factor is 1.")
+	}
+
 	e := server.queueRepository.CreateQueue(queue)
 	if e != nil {
 		return nil, status.Errorf(codes.Aborted, e.Error())
