@@ -138,6 +138,22 @@ func (a ComputeResourcesFloat) IsLessThan(b ComputeResourcesFloat) bool {
 	return !reduced.IsValid()
 }
 
+func (a ComputeResourcesFloat) LimitWith(limit ComputeResourcesFloat) ComputeResourcesFloat {
+	targetComputeResource := make(ComputeResourcesFloat)
+	for key, value := range a {
+		targetComputeResource[key] = math.Min(value, limit[key])
+	}
+	return targetComputeResource
+}
+
+func (a ComputeResourcesFloat) Mul(factor float64) ComputeResourcesFloat {
+	targetComputeResource := make(ComputeResourcesFloat)
+	for key, value := range a {
+		targetComputeResource[key] = value * factor
+	}
+	return targetComputeResource
+}
+
 //Resource request for a given pod is the maximum of:
 // - sum of all containers
 // - any individual init container

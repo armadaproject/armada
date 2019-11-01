@@ -48,17 +48,13 @@ func NewAggregatedQueueServer(
 		metricRecorder:   metricRecorder}
 }
 
-const batchSize = 100
-
-var minimalResource = common.ComputeResourcesFloat{"cpu": 0.25, "memory": 100.0 * 1024 * 1024}
-
 func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.LeaseRequest) (*api.JobLease, error) {
 	if e := checkPermission(q.permissions, ctx, permissions.ExecuteJobs); e != nil {
 		return nil, e
 	}
 
 	var res common.ComputeResources = request.Resources
-	if res.AsFloat().IsLessThan(minimalResource) {
+	if res.AsFloat().IsLessThan(q.schedulingConfig.MinimumResourceToSchedule.AsFloat()) {
 		return &api.JobLease{}, nil
 	}
 
@@ -86,10 +82,17 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 		return nil, e
 	}
 
+	resourcesToSchedule := common.ComputeResources(request.Resources).AsFloat()
+	currentClusterReport, ok := activeClusterReports[request.ClusterId]
+	if ok {
+		capacity := common.ComputeResources(currentClusterReport.ClusterCapacity)
+		resourcesToSchedule = resourcesToSchedule.LimitWith(capacity.Mul(q.schedulingConfig.MaximalClusterFractionToSchedule))
+	}
+
 	queuePriority := scheduling.CalculateQueuesPriorityInfo(clusterPriorities, activeClusterReports, queues)
 	scarcity := scheduling.ResourceScarcityFromReports(activeClusterReports)
 	activeQueuePriority := filterPriorityMapByKeys(queuePriority, activeQueues)
-	slices := scheduling.SliceResource(scarcity, activeQueuePriority, request.Resources)
+	slices := scheduling.SliceResource(scarcity, activeQueuePriority, resourcesToSchedule)
 
 	q.metricRecorder.RecordQueuePriorities(queuePriority)
 
@@ -169,7 +172,8 @@ func (q *AggregatedQueueServer) distributeRemainder(resourceScarcity map[string]
 
 	queueCount := len(slices)
 	emptySteps := 0
-	for !remainder.IsLessThan(minimalResource) && emptySteps < queueCount {
+	minimumResource := q.schedulingConfig.MinimumResourceToSchedule.AsFloat()
+	for !remainder.IsLessThan(minimumResource) && emptySteps < queueCount {
 		queue := q.pickQueueRandomly(shares)
 		emptySteps++
 
@@ -216,7 +220,7 @@ func (q *AggregatedQueueServer) leaseJobs(clusterId string, queue *api.Queue, sl
 	remainder := slice
 	for slice.IsValid() {
 
-		topJobs, e := q.jobRepository.PeekQueue(queue.Name, batchSize)
+		topJobs, e := q.jobRepository.PeekQueue(queue.Name, int64(q.schedulingConfig.QueueLeaseBatchSize))
 		if e != nil {
 			return nil, slice, e
 		}
@@ -244,7 +248,7 @@ func (q *AggregatedQueueServer) leaseJobs(clusterId string, queue *api.Queue, sl
 
 		// stop scheduling round if we leased less then batch (either the slice is too small or queue is empty)
 		// TODO: should we look at next batch?
-		if len(candidates) < batchSize {
+		if len(candidates) < int(q.schedulingConfig.QueueLeaseBatchSize) {
 			break
 		}
 		if limit > 0 && len(candidates) >= limit {

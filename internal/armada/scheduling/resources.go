@@ -8,7 +8,7 @@ import (
 	"github.com/G-Research/armada/internal/common/util"
 )
 
-func SliceResource(resourceScarcity map[string]float64, queuePriorities map[*api.Queue]QueuePriorityInfo, quantityToSlice common.ComputeResources) map[*api.Queue]common.ComputeResourcesFloat {
+func SliceResource(resourceScarcity map[string]float64, queuePriorities map[*api.Queue]QueuePriorityInfo, quantityToSlice common.ComputeResourcesFloat) map[*api.Queue]common.ComputeResourcesFloat {
 
 	inversePriorities := make(map[*api.Queue]float64)
 	inverseSum := 0.0
@@ -26,7 +26,7 @@ func SliceResource(resourceScarcity map[string]float64, queuePriorities map[*api
 		allCurrentUsage += queueUsage
 	}
 
-	usageToSlice := ResourcesAsUsage(resourceScarcity, quantityToSlice)
+	usageToSlice := ResourcesFloatAsUsage(resourceScarcity, quantityToSlice)
 	allUsage := usageToSlice + allCurrentUsage
 
 	shares := make(map[*api.Queue]float64)
