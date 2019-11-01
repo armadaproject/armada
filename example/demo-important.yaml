@@ -2,7 +2,7 @@ submissions:
   - jobSetPrefix: freds-project
     queue: fred
     count: 1
-    queuePriorityFactor: 0.3
+    queuePriorityFactor: 10
     jobs:
       - name: heavy_cpu_job
         count: 8000
