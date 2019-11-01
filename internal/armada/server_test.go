@@ -127,6 +127,9 @@ func withRunningServer(action func(client api.SubmitClient, leaseClient api.Aggr
 			permissions.CancelAnyJobs:  {"everyone"},
 			permissions.WatchAllEvents: {"everyone"},
 		},
+		Scheduling: configuration.SchedulingConfig{
+			QueueLeaseBatchSize: 100,
+		},
 	})
 	defer server.Stop()
 

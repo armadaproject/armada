@@ -28,7 +28,7 @@ func Test_sliceResources(t *testing.T) {
 		q3: {Priority: 1, CurrentUsage: noResources},  // queue usage is 0
 	}
 
-	slices := SliceResource(scarcity, queuePriorities, common.ComputeResources{"cpu": resource.MustParse("8")})
+	slices := SliceResource(scarcity, queuePriorities, common.ComputeResources{"cpu": resource.MustParse("8")}.AsFloat())
 
 	// resulted usage ration should be 4 : 4 : 4
 	twoCpu := common.ComputeResourcesFloat{"cpu": 2.0}
@@ -49,7 +49,7 @@ func Test_sliceResources_highImbalance(t *testing.T) {
 		q2: {Priority: 1, CurrentUsage: noResources},
 	}
 
-	slices := SliceResource(scarcity, queuePriorities, common.ComputeResources{"cpu": resource.MustParse("3")})
+	slices := SliceResource(scarcity, queuePriorities, common.ComputeResources{"cpu": resource.MustParse("3")}.AsFloat())
 
 	noCpu := common.ComputeResourcesFloat{"cpu": 0.0}
 	allCpu := common.ComputeResourcesFloat{"cpu": 3.0}
