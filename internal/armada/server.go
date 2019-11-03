@@ -21,7 +21,6 @@ import (
 	"github.com/G-Research/armada/internal/armada/metrics"
 	"github.com/G-Research/armada/internal/armada/repository"
 	"github.com/G-Research/armada/internal/armada/server"
-	"github.com/G-Research/armada/internal/armada/service"
 )
 
 func Serve(config *configuration.ArmadaConfig) (*grpc.Server, *sync.WaitGroup) {
@@ -42,13 +41,11 @@ func Serve(config *configuration.ArmadaConfig) (*grpc.Server, *sync.WaitGroup) {
 
 		metricsRecorder := metrics.ExposeDataMetrics(queueRepository, jobRepository)
 
-		usageService := service.NewMultiClusterPriorityService(usageRepository, queueRepository, metricsRecorder)
-
 		permissions := authorization.NewPrincipalPermissionChecker(config.PermissionGroupMapping, config.PermissionScopeMapping)
 
 		submitServer := server.NewSubmitServer(permissions, jobRepository, queueRepository, eventRepository)
 		usageServer := server.NewUsageServer(permissions, config.PriorityHalfTime, usageRepository)
-		aggregatedQueueServer := server.NewAggregatedQueueServer(permissions, usageService, jobRepository, eventRepository)
+		aggregatedQueueServer := server.NewAggregatedQueueServer(permissions, config.Scheduling, jobRepository, queueRepository, usageRepository, eventRepository, metricsRecorder)
 		eventServer := server.NewEventServer(permissions, eventRepository)
 
 		lis, err := net.Listen("tcp", fmt.Sprintf(":%d", config.GrpcPort))
