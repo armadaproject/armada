@@ -1,0 +1,36 @@
+jobs:
+  - queue: queue-a
+    priority: 0
+    jobSetId: job-set-1
+    podSpec:
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      containers:
+        - name: pi-calculator
+          image: perl
+          command: ["perl", "-Mbignum=bpi", "-wle", "print bpi(2000)"]
+          resources:
+            limits:
+              memory: 128Mi
+              cpu: 0.2
+            requests:
+              memory: 128Mi
+              cpu: 0.2
+  - queue: queue-b
+    priority: 0
+    jobSetId: job-set-1
+    podSpec:
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      containers:
+        - name: pi-calculator
+          image: perl
+          command: ["perl", "-Mbignum=bpi", "-wle", "print bpi(2000)"]
+          resources:
+            limits:
+              memory: 128Mi
+              cpu: 0.2
+            requests:
+              memory: 128Mi
+              cpu: 0.2
+

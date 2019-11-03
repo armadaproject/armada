@@ -1,5 +1,5 @@
 image:
-  repository: gresearchdev/armada-executor-dev
+  repository: gresearchdev/armada-executor
   tag: v0.0.1
 resources:
   limits:
