@@ -97,7 +97,7 @@ chmod u+x armadactl
 ```
 
 ## Usage
-Create a queue, submit some jobs and monitor progress:
+Create queues, submit some jobs and monitor progress:
 ```
 ./armadactl --armadaUrl=localhost:30000 create-queue queue-a --priorityFactor 1
 ./armadactl --armadaUrl=localhost:30000 create-queue queue-b --priorityFactor 2
