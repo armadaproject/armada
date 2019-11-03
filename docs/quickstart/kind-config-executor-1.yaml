@@ -6,4 +6,3 @@ nodes:
   extraPortMappings:
   - containerPort: 30003
     hostPort: 30003
-

@@ -33,4 +33,3 @@ jobs:
             requests:
               memory: 128Mi
               cpu: 0.2
-

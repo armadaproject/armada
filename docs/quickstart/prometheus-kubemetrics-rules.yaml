@@ -35,4 +35,3 @@ spec:
           expr: sum(kube_node_status_allocatable_cpu_cores * on (node) node:schedulable_worker_nodes:sum)
         - record: node:worker_node_allocatable_memory_bytes:sum
           expr: sum(kube_node_status_allocatable_memory_bytes  * on (node) node:schedulable_worker_nodes:sum)
-
