@@ -11,6 +11,7 @@ import (
 
 	"github.com/G-Research/armada/internal/armada/api"
 	"github.com/G-Research/armada/internal/client"
+	"github.com/G-Research/armada/internal/client/domain"
 	"github.com/G-Research/armada/internal/client/service"
 	"github.com/G-Research/armada/internal/client/util"
 )
@@ -37,16 +38,16 @@ var analyzeCmd = &cobra.Command{
 			eventsClient := api.NewEventClient(conn)
 
 			events := map[string][]*api.Event{}
-			jobState := map[string]*service.JobInfo{}
+			var jobState *domain.WatchContext
 
-			service.WatchJobSet(eventsClient, jobSetId, false, context.Background(), func(state map[string]*service.JobInfo, e api.Event) bool {
+			service.WatchJobSet(eventsClient, jobSetId, false, context.Background(), func(state *domain.WatchContext, e api.Event) bool {
 				events[e.GetJobId()] = append(events[e.GetJobId()], &e)
 				jobState = state
 				return false
 			})
 
-			for id, jobInfo := range jobState {
-				if jobInfo.Status != service.Succeeded {
+			for id, jobInfo := range jobState.GetCurrentState() {
+				if jobInfo.Status != domain.Succeeded {
 					jobEvents := events[id]
 
 					log.Println()
