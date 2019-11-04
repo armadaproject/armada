@@ -6,6 +6,7 @@ import (
 	"github.com/go-redis/redis"
 
 	"github.com/G-Research/armada/internal/armada/authorization/permissions"
+	"github.com/G-Research/armada/internal/common"
 )
 
 type UserInfo struct {
@@ -25,6 +26,8 @@ type ArmadaConfig struct {
 	OpenIdAuth             OpenIdAuthenticationConfig
 	PermissionGroupMapping map[permissions.Permission][]string
 	PermissionScopeMapping map[permissions.Permission][]string
+
+	Scheduling SchedulingConfig
 }
 
 type OpenIdAuthenticationConfig struct {
@@ -34,4 +37,11 @@ type OpenIdAuthenticationConfig struct {
 
 type BasicAuthenticationConfig struct {
 	Users map[string]UserInfo
+}
+
+type SchedulingConfig struct {
+	UseProbabilisticSchedulingForAllResources bool
+	QueueLeaseBatchSize                       uint
+	MinimumResourceToSchedule                 common.ComputeResourcesFloat
+	MaximalClusterFractionToSchedule          float64
 }

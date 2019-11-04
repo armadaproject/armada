@@ -33,10 +33,10 @@ func (apiLoadTester ArmadaLoadTester) RunSubmissionTest(spec domain.LoadTestSpec
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
 
-	jobInfoChannel := make(chan JobInfo, 10000)
+	eventChannel := make(chan api.Event, 10000)
 
 	if watchEvents {
-		complete, cancel := watchJobInfoChannel(jobInfoChannel)
+		complete, cancel := watchJobInfoChannel(eventChannel)
 		defer complete.Wait()
 		defer func() { cancel <- true }()
 	}
@@ -48,7 +48,7 @@ func (apiLoadTester ArmadaLoadTester) RunSubmissionTest(spec domain.LoadTestSpec
 				defer wg.Done()
 				submittedJobIds, jobSetId := apiLoadTester.runSubmission(submission, i)
 				if watchEvents {
-					apiLoadTester.monitorJobsUntilCompletion(jobSetId, submittedJobIds, jobInfoChannel)
+					apiLoadTester.monitorJobsUntilCompletion(jobSetId, submittedJobIds, eventChannel)
 				}
 			}(i, submission)
 		}
@@ -58,24 +58,24 @@ func (apiLoadTester ArmadaLoadTester) RunSubmissionTest(spec domain.LoadTestSpec
 	wg.Wait()
 }
 
-func watchJobInfoChannel(jobInfoChannel chan JobInfo) (*sync.WaitGroup, chan bool) {
+func watchJobInfoChannel(eventChannel chan api.Event) (*sync.WaitGroup, chan bool) {
 	stop := make(chan bool)
 	tickChannel := time.NewTicker(5 * time.Second)
 
 	complete := &sync.WaitGroup{}
 	complete.Add(1)
 
-	aggregatedCurrentState := make(map[string]*JobInfo)
+	aggregatedCurrentState := domain.NewWatchContext()
 
 	go func() {
 		for {
 			select {
-			case jobInfo := <-jobInfoChannel:
-				aggregatedCurrentState[jobInfo.Job.Id] = &jobInfo
+			case event := <-eventChannel:
+				aggregatedCurrentState.ProcessEvent(event)
 			case <-tickChannel.C:
-				log.Info(CreateSummaryOfCurrentState(aggregatedCurrentState))
+				log.Info(aggregatedCurrentState.GetCurrentStateSummary())
 			case <-stop:
-				log.Info(CreateSummaryOfCurrentState(aggregatedCurrentState))
+				log.Info(aggregatedCurrentState.GetCurrentStateSummary())
 				complete.Done()
 				return
 			}
@@ -153,15 +153,14 @@ func createQueueName(submission *domain.SubmissionDescription, i int) string {
 	return queue
 }
 
-func (apiLoadTester ArmadaLoadTester) monitorJobsUntilCompletion(jobSetId string, jobIds []string, jobInfoChannel chan JobInfo) {
+func (apiLoadTester ArmadaLoadTester) monitorJobsUntilCompletion(jobSetId string, jobIds []string, eventChannel chan api.Event) {
 	util.WithConnection(apiLoadTester.apiConnectionDetails, func(connection *grpc.ClientConn) {
 		eventsClient := api.NewEventClient(connection)
-		WatchJobSetWithJobIdsFilter(eventsClient, jobSetId, true, jobIds, context.Background(), func(state map[string]*JobInfo, e api.Event) bool {
-			currentState := state[e.GetJobId()]
-			jobInfoChannel <- *currentState
+		WatchJobSetWithJobIdsFilter(eventsClient, jobSetId, true, jobIds, context.Background(), func(state *domain.WatchContext, e api.Event) bool {
+			eventChannel <- e
 
-			stateCounts := CountStates(state)
-			if stateCounts[Succeeded]+stateCounts[Failed]+stateCounts[Cancelled] == len(jobIds) {
+			numberOfJobsInCompletedState := state.GetNumberOfJobsInStates([]domain.JobStatus{domain.Succeeded, domain.Failed, domain.Cancelled})
+			if numberOfJobsInCompletedState == len(jobIds) {
 				return true
 			}
 
