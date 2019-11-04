@@ -140,12 +140,12 @@ openIdConnect:
 
 For more information about usage please see the [User Guide](./user.md)
 
-Describe jobs in yaml file:
+Specify the jobs to be submitted in a yaml file:
 ```yaml
+queue: test
+jobSetId: job-set-1
 jobs:
-  - queue: test
-    priority: 0
-    jobSetId: job-set-1
+  - priority: 0    
     podSpec:
       terminationGracePeriodSeconds: 0
       restartPolicy: Never
