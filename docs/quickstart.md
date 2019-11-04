@@ -30,7 +30,7 @@ Ensure all clusters are up and running before continuing.
 
 ### Server deployment
 
-N.B. The offical Prometheus chart is complex and may take up to 1 minute to install in the following instructions.
+N.B. The official Prometheus chart is complex and may take up to 1 minute to install in the following instructions.
 
 ```
 export KUBECONFIG=$(kind get kubeconfig-path --name="quickstart-armada-server")
