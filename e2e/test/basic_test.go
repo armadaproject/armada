@@ -36,7 +36,7 @@ func TestCanSubmitJob_ReceivingAllExpectedEvents(t *testing.T) {
 		err := service.CreateQueue(submitClient, &api.Queue{Name: jobRequest.Queue, PriorityFactor: 1})
 		assert.Nil(t, err)
 
-		_, err = service.SubmitJob(submitClient, jobRequest)
+		_, err = service.SubmitJobs(submitClient, jobRequest)
 		assert.Nil(t, err)
 
 		receivedEvents := make(map[service.JobStatus]bool)
@@ -89,24 +89,28 @@ func hasTimedOut(context context.Context) bool {
 	}
 }
 
-func createJobRequest() *api.JobRequest {
+func createJobRequest() *api.JobSubmitRequest {
 	cpu, _ := resource.ParseQuantity("80m")
 	memory, _ := resource.ParseQuantity("50Mi")
-	return &api.JobRequest{
-		PodSpec: &v1.PodSpec{
-			Containers: []v1.Container{{
-				Name:  "container1",
-				Image: "alpine:3.10",
-				Args:  []string{"sleep", "5s"},
-				Resources: v1.ResourceRequirements{
-					Requests: v1.ResourceList{"cpu": cpu, "memory": memory},
-					Limits:   v1.ResourceList{"cpu": cpu, "memory": memory},
+	return &api.JobSubmitRequest{
+		Queue:    "test",
+		JobSetId: util.NewULID(),
+		JobRequestItems: []*api.JobSubmitRequestItem{
+			{
+				PodSpec: &v1.PodSpec{
+					Containers: []v1.Container{{
+						Name:  "container1",
+						Image: "alpine:3.10",
+						Args:  []string{"sleep", "5s"},
+						Resources: v1.ResourceRequirements{
+							Requests: v1.ResourceList{"cpu": cpu, "memory": memory},
+							Limits:   v1.ResourceList{"cpu": cpu, "memory": memory},
+						},
+					},
+					},
 				},
-			},
+				Priority: 0,
 			},
 		},
-		JobSetId: util.NewULID(),
-		Priority: 0,
-		Queue:    "test",
 	}
 }
