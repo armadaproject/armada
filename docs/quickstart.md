@@ -113,7 +113,7 @@ Navigate to the Armada Overview dashboard to get a view of jobs progressing thro
 Try submitting lots of jobs and see queues build and get processed:
 
 ```
-for i in {1..100}
+for i in {1..50}
 do
   ./armadactl --armadaUrl=localhost:30000 submit ./docs/quickstart/job-queue-a.yaml
   ./armadactl --armadaUrl=localhost:30000 submit ./docs/quickstart/job-queue-b.yaml
