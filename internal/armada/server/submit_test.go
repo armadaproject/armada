@@ -21,10 +21,10 @@ func TestSubmitServer_SubmitJob(t *testing.T) {
 		jobSetId := util.NewULID()
 		jobRequest := createJobRequest(jobSetId)
 
-		response, err := s.SubmitJob(context.Background(), jobRequest)
+		response, err := s.SubmitJobs(context.Background(), jobRequest)
 
 		assert.Empty(t, err)
-		assert.NotNil(t, response.JobId)
+		assert.NotNil(t, response.JobResponseItems[0].JobId)
 	})
 }
 
@@ -33,7 +33,7 @@ func TestSubmitServer_SubmitJob_AddsExpectedEventsInCorrectOrder(t *testing.T) {
 		jobSetId := util.NewULID()
 		jobRequest := createJobRequest(jobSetId)
 
-		_, err := s.SubmitJob(context.Background(), jobRequest)
+		_, err := s.SubmitJobs(context.Background(), jobRequest)
 		assert.Empty(t, err)
 
 		messages, err := s.eventRepository.ReadEvents(jobSetId, "", 100, 5*time.Second)
@@ -56,24 +56,28 @@ func TestSubmitServer_SubmitJob_AddsExpectedEventsInCorrectOrder(t *testing.T) {
 	})
 }
 
-func createJobRequest(jobSetId string) *api.JobRequest {
+func createJobRequest(jobSetId string) *api.JobSubmitRequest {
 	cpu, _ := resource.ParseQuantity("1")
 	memory, _ := resource.ParseQuantity("512Mi")
-	return &api.JobRequest{
-		PodSpec: &v1.PodSpec{
-			Containers: []v1.Container{{
-				Name:  "Container1",
-				Image: "index.docker.io/library/ubuntu:latest",
-				Args:  []string{"sleep", "10s"},
-				Resources: v1.ResourceRequirements{
-					Limits: v1.ResourceList{"cpu": cpu, "memory": memory},
+	return &api.JobSubmitRequest{
+		JobSetId: jobSetId,
+		Queue:    "test",
+		JobRequestItems: []*api.JobSubmitRequestItem{
+			{
+				PodSpec: &v1.PodSpec{
+					Containers: []v1.Container{{
+						Name:  "Container1",
+						Image: "index.docker.io/library/ubuntu:latest",
+						Args:  []string{"sleep", "10s"},
+						Resources: v1.ResourceRequirements{
+							Limits: v1.ResourceList{"cpu": cpu, "memory": memory},
+						},
+					},
+					},
 				},
-			},
+				Priority: 0,
 			},
 		},
-		JobSetId: jobSetId,
-		Priority: 0,
-		Queue:    "test",
 	}
 }
 
