@@ -1,4 +1,3 @@
-quickstart: true
 ingressClass: "nginx"
 clusterIssuer: "dummy-value"
 hostname: "dummy-value"
@@ -26,3 +25,5 @@ basicAuth:
 
 prometheus:
   enabled: true
+
+nodePort: 30000

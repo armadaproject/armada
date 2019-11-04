@@ -6,7 +6,7 @@ metadata:
   labels:
 {{ include "armada.labels.all" . | indent 4 }}
 spec:
-  {{- if .Values.quickstart }}
+  {{- if .Values.nodePort }}
   type: NodePort
   {{- end }}
   selector:
@@ -15,8 +15,8 @@ spec:
     - name: grpc
       protocol: TCP
       port: {{ .Values.applicationConfig.grpcPort }}
-      {{- if .Values.quickstart }}
-      nodePort: 30000
+      {{- if .Values.nodePort }}
+      nodePort: {{ .Values.nodePort }}
       {{- end }}
     - name: metrics
       protocol: TCP
