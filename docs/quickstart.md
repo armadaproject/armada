@@ -7,6 +7,7 @@ The purpose of this guide is to install a minimal local Armada deployment for te
 - Docker
 - Helm
 - Kind
+- Kubectl
 
 N.B.  Ensure the current user has permission to run the `docker` command without `sudo`.
 
