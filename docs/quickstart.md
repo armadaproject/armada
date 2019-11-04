@@ -3,6 +3,7 @@
 The purpose of this guide is to install a minimal local Armada deployment for testing and evaluation purposes.
 
 ## Pre-requisites
+- Linux OS
 - Git
 - Docker
 - Helm
@@ -102,7 +103,8 @@ Create queues, submit some jobs and monitor progress:
 ```
 ./armadactl --armadaUrl=localhost:30000 create-queue queue-a --priorityFactor 1
 ./armadactl --armadaUrl=localhost:30000 create-queue queue-b --priorityFactor 2
-./armadactl --armadaUrl=localhost:30000 submit ./docs/quickstart/jobs.yaml
+./armadactl --armadaUrl=localhost:30000 submit ./docs/quickstart/job-queue-a.yaml
+./armadactl --armadaUrl=localhost:30000 submit ./docs/quickstart/job-queue-b.yaml
 ./armadactl --armadaUrl=localhost:30000 watch job-set-1
 ```
 Log in to the Grafana dashboard at http://localhost:30001/ using the default credentials of `admin` / `prom-operator`.
@@ -113,6 +115,7 @@ Try submitting lots of jobs and see queues build and get processed:
 ```
 for i in {1..100}
 do
-  ./armadactl --armadaUrl=localhost:30000 submit ./docs/quickstart/jobs.yaml
+  ./armadactl --armadaUrl=localhost:30000 submit ./docs/quickstart/job-queue-a.yaml
+  ./armadactl --armadaUrl=localhost:30000 submit ./docs/quickstart/job-queue-b.yaml
 done
 ```
