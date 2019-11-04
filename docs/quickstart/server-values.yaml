@@ -23,3 +23,6 @@ applicationConfig:
 basicAuth:
   users:
     "user1": "password1"
+
+prometheus:
+  enabled: true

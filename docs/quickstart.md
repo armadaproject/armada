@@ -40,13 +40,13 @@ helm init && kubectl apply -f docs/quickstart/server-helm-clusterrolebinding.yam
 kubectl wait --for=condition=available --timeout=600s deployment/tiller-deploy -n kube-system
 
 # Install Redis
-helm install stable/redis-ha --name=redis --set persistentVolume.enabled=false --set hardAntiAffinity=false
+helm install stable/redis-ha --name=redis -f docs/quickstart/redis-values.yaml
 
 # Install Prometheus
-helm install stable/prometheus-operator --name=prometheus-operator --set prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues=false --set prometheus.prometheusSpec.ruleSelectorNilUsesHelmValues=false --set grafana.service.type=NodePort --set grafana.service.nodePort=30001 --set prometheus.service.type=NodePort
+helm install stable/prometheus-operator --name=prometheus-operator -f docs/quickstart/server-prometheus-values.yaml
 
 # Install Armada server
-helm template ./deployment/armada -f ./docs/quickstart/server-values.yaml --set prometheus.enabled=true | kubectl apply -f -
+helm template ./deployment/armada -f ./docs/quickstart/server-values.yaml | kubectl apply -f -
 ```
 ### Executor deployments
 
@@ -60,7 +60,7 @@ helm init && kubectl apply -f docs/quickstart/server-helm-clusterrolebinding.yam
 kubectl wait --for=condition=available --timeout=600s deployment/tiller-deploy -n kube-system
 
 # Install Prometheus
-helm install stable/prometheus-operator --name=prometheus-operator --set prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues=false --set prometheus.prometheusSpec.ruleSelectorNilUsesHelmValues=false --set prometheus.service.type=NodePort --set prometheus.service.nodePort=30002
+helm install stable/prometheus-operator --name=prometheus-operator -f docs/quickstart/executor-prometheus-values.yaml --set prometheus.service.nodePort=30002
 kubectl apply -f docs/quickstart/prometheus-kubemetrics-rules.yaml
 
 # Install executor
@@ -76,7 +76,7 @@ helm init && kubectl apply -f docs/quickstart/server-helm-clusterrolebinding.yam
 kubectl wait --for=condition=available --timeout=600s deployment/tiller-deploy -n kube-system
 
 # Install Prometheus
-helm install stable/prometheus-operator --name=prometheus-operator --set prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues=false --set prometheus.prometheusSpec.ruleSelectorNilUsesHelmValues=false --set prometheus.service.type=NodePort --set prometheus.service.nodePort=30003
+helm install stable/prometheus-operator --name=prometheus-operator -f docs/quickstart/executor-prometheus-values.yaml --set prometheus.service.nodePort=30003
 kubectl apply -f docs/quickstart/prometheus-kubemetrics-rules.yaml
 
 # Install executor
