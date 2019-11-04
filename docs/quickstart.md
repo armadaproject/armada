@@ -44,7 +44,7 @@ helm install stable/prometheus-operator --name=prometheus-operator --set prometh
 # Install Armada server
 helm template ./deployment/armada -f ./docs/quickstart/server-values.yaml --set prometheus.enabled=true | kubectl apply -f -
 ```
-### Executor deployment
+### Executor deployments
 
 First executor:
 ```
