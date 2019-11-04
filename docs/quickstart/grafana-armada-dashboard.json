@@ -239,7 +239,7 @@
         "steppedLine": false,
         "targets": [
           {
-            "expr": "(armada:queue:size > bool 1) *  (1 / armada:queue:priority)",
+            "expr": "armada:queue:ideal_current_share",
             "legendFormat": "{{ queueName }}",
             "refId": "A"
           }
