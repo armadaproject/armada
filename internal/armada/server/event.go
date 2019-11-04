@@ -47,7 +47,7 @@ func (s *EventServer) GetJobSetEvents(request *api.JobSetRequest, stream api.Eve
 		default:
 		}
 
-		messages, e := s.eventRepository.ReadEvents(request.Id, lastId, 100, timeout)
+		messages, e := s.eventRepository.ReadEvents(request.Id, lastId, 500, timeout)
 
 		if e != nil {
 			return e
