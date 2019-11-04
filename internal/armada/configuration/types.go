@@ -6,6 +6,7 @@ import (
 	"github.com/go-redis/redis"
 
 	"github.com/G-Research/armada/internal/armada/authorization/permissions"
+	"github.com/G-Research/armada/internal/common"
 )
 
 type UserInfo struct {
@@ -40,4 +41,7 @@ type BasicAuthenticationConfig struct {
 
 type SchedulingConfig struct {
 	UseProbabilisticSchedulingForAllResources bool
+	QueueLeaseBatchSize                       uint
+	MinimumResourceToSchedule                 common.ComputeResourcesFloat
+	MaximalClusterFractionToSchedule          float64
 }
