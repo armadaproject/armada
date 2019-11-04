@@ -21,8 +21,8 @@ const jobClusterMapKey = "Job:ClusterId"
 const jobQueueMapKey = "Job:QueueName"
 
 type JobRepository interface {
-	CreateJob(request *api.JobRequest) *api.Job
-	AddJob(job *api.Job) error
+	CreateJobs(request *api.JobSubmitRequest) []*api.Job
+	AddJobs(job []*api.Job) (map[*api.Job]error, error)
 	GetJobsByIds(ids []string) ([]*api.Job, error)
 	PeekQueue(queue string, limit int64) ([]*api.Job, error)
 	FilterActiveQueues(queues []*api.Queue) ([]*api.Queue, error)
@@ -44,39 +44,81 @@ func NewRedisJobRepository(db redis.UniversalClient) *RedisJobRepository {
 	return &RedisJobRepository{db: db}
 }
 
-func (repo *RedisJobRepository) CreateJob(request *api.JobRequest) *api.Job {
-	j := api.Job{
-		Id:       util.NewULID(),
-		Queue:    request.Queue,
-		JobSetId: request.JobSetId,
+func (repo *RedisJobRepository) CreateJobs(request *api.JobSubmitRequest) []*api.Job {
+	jobs := make([]*api.Job, 0, len(request.JobRequestItems))
 
-		Priority: request.Priority,
+	for _, item := range request.JobRequestItems {
+		j := &api.Job{
+			Id:       util.NewULID(),
+			Queue:    request.Queue,
+			JobSetId: request.JobSetId,
 
-		PodSpec: request.PodSpec,
-		Created: time.Now(),
+			Priority: item.Priority,
+
+			PodSpec: item.PodSpec,
+			Created: time.Now(),
+		}
+		jobs = append(jobs, j)
 	}
-	return &j
+
+	return jobs
 }
 
-func (repo *RedisJobRepository) AddJob(job *api.Job) error {
-	pipe := repo.db.TxPipeline()
+type submitJobResult struct {
+	job               *api.Job
+	queueJobResult    *redis.IntCmd
+	saveJobResult     *redis.StatusCmd
+	queueIndexResult  *redis.BoolCmd
+	jobSetIndexResult *redis.IntCmd
+}
 
-	jobData, e := proto.Marshal(job)
-	if e != nil {
-		return e
+func (repo *RedisJobRepository) AddJobs(jobs []*api.Job) (map[*api.Job]error, error) {
+	pipe := repo.db.Pipeline()
+
+	submitResults := make([]*submitJobResult, 0, len(jobs))
+
+	for _, job := range jobs {
+		submitResult := &submitJobResult{job: job}
+
+		jobData, e := proto.Marshal(job)
+		if e != nil {
+			return nil, e
+		}
+
+		submitResult.queueJobResult =
+			pipe.ZAdd(jobQueuePrefix+job.Queue, redis.Z{
+				Member: job.Id,
+				Score:  job.Priority},
+			)
+
+		submitResult.saveJobResult = pipe.Set(jobObjectPrefix+job.Id, jobData, 0)
+		submitResult.queueIndexResult = pipe.HSet(jobQueueMapKey, job.Id, job.Queue)
+		submitResult.jobSetIndexResult = pipe.SAdd(jobSetPrefix+job.JobSetId, job.Id)
+		submitResults = append(submitResults, submitResult)
 	}
 
-	pipe.ZAdd(jobQueuePrefix+job.Queue, redis.Z{
-		Member: job.Id,
-		Score:  job.Priority})
+	_, _ = pipe.Exec() // ignoring error here as it will be part of individual commands
 
-	pipe.Set(jobObjectPrefix+job.Id, jobData, 0)
-	pipe.HSet(jobQueueMapKey, job.Id, job.Queue)
+	result := make(map[*api.Job]error, len(jobs))
+	for _, submitResult := range submitResults {
+		result[submitResult.job] = nil
 
-	pipe.SAdd(jobSetPrefix+job.JobSetId, job.Id)
+		if _, e := submitResult.queueJobResult.Result(); e != nil {
+			result[submitResult.job] = e
+		}
+		if _, e := submitResult.saveJobResult.Result(); e != nil {
+			result[submitResult.job] = e
+		}
 
-	_, e = pipe.Exec()
-	return e
+		if _, e := submitResult.queueIndexResult.Result(); e != nil {
+			result[submitResult.job] = e
+		}
+		if _, e := submitResult.jobSetIndexResult.Result(); e != nil {
+			result[submitResult.job] = e
+		}
+	}
+
+	return result, nil
 }
 
 func (repo *RedisJobRepository) RenewLease(clusterId string, jobIds []string) (renewedJobIds []string, e error) {
