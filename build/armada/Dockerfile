@@ -7,4 +7,10 @@ RUN apk update && apk add --no-cache ca-certificates
 
 WORKDIR /app
 
+RUN addgroup -S armada && adduser -S armada -G armada
+
+RUN chown -R armada:armada /app
+
+USER armada
+
 ENTRYPOINT ["./server"]
