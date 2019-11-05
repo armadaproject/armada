@@ -14,8 +14,8 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/G-Research/armada/internal/armada/api"
+	"github.com/G-Research/armada/internal/client"
 	"github.com/G-Research/armada/internal/client/domain"
-	"github.com/G-Research/armada/internal/client/service"
 	util2 "github.com/G-Research/armada/internal/client/util"
 	"github.com/G-Research/armada/internal/common/util"
 )
@@ -33,10 +33,10 @@ func TestCanSubmitJob_ReceivingAllExpectedEvents(t *testing.T) {
 	util2.WithConnection(connectionDetails, func(connection *grpc.ClientConn) {
 		submitClient := api.NewSubmitClient(connection)
 
-		err := service.CreateQueue(submitClient, &api.Queue{Name: jobRequest.Queue, PriorityFactor: 1})
+		err := client.CreateQueue(submitClient, &api.Queue{Name: jobRequest.Queue, PriorityFactor: 1})
 		assert.Nil(t, err)
 
-		_, err = service.SubmitJobs(submitClient, jobRequest)
+		_, err = client.SubmitJobs(submitClient, jobRequest)
 		assert.Nil(t, err)
 
 		receivedEvents := make(map[domain.JobStatus]bool)
@@ -45,7 +45,7 @@ func TestCanSubmitJob_ReceivingAllExpectedEvents(t *testing.T) {
 
 		timeout, _ := context.WithTimeout(context.Background(), 30*time.Second)
 
-		service.WatchJobSet(eventsClient, jobRequest.JobSetId, true, timeout, func(state *domain.WatchContext, e api.Event) bool {
+		client.WatchJobSet(eventsClient, jobRequest.JobSetId, true, timeout, func(state *domain.WatchContext, e api.Event) bool {
 			currentStatus := state.GetJobInfo(e.GetJobId()).Status
 			receivedEvents[currentStatus] = true
 

@@ -1,4 +1,4 @@
-package service
+package client
 
 import (
 	"github.com/G-Research/armada/internal/armada/api"

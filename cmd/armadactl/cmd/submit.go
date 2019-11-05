@@ -9,7 +9,6 @@ import (
 
 	"github.com/G-Research/armada/internal/armada/api"
 	"github.com/G-Research/armada/internal/client"
-	"github.com/G-Research/armada/internal/client/service"
 	"github.com/G-Research/armada/internal/client/util"
 	"github.com/G-Research/armada/internal/client/validation"
 )
@@ -65,12 +64,12 @@ var submitCmd = &cobra.Command{
 
 		apiConnectionDetails := client.ExtractCommandlineArmadaApiConnectionDetails()
 
-		requests := service.CreateChunkedSubmitRequests(submitFile.Queue, submitFile.JobSetId, submitFile.Jobs)
+		requests := client.CreateChunkedSubmitRequests(submitFile.Queue, submitFile.JobSetId, submitFile.Jobs)
 
 		util.WithConnection(apiConnectionDetails, func(conn *grpc.ClientConn) {
-			client := api.NewSubmitClient(conn)
+			submissionClient := api.NewSubmitClient(conn)
 			for _, request := range requests {
-				response, e := service.SubmitJobs(client, request)
+				response, e := client.SubmitJobs(submissionClient, request)
 
 				if e != nil {
 					log.Error(e)

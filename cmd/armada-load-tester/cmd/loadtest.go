@@ -9,7 +9,6 @@ import (
 
 	"github.com/G-Research/armada/internal/client"
 	"github.com/G-Research/armada/internal/client/domain"
-	"github.com/G-Research/armada/internal/client/service"
 	"github.com/G-Research/armada/internal/client/util"
 )
 
@@ -65,7 +64,7 @@ var loadtestCmd = &cobra.Command{
 
 		watchEvents := viper.GetBool("watch")
 		apiConnectionDetails := client.ExtractCommandlineArmadaApiConnectionDetails()
-		loadTester := service.NewArmadaLoadTester(apiConnectionDetails)
+		loadTester := client.NewArmadaLoadTester(apiConnectionDetails)
 
 		loadTester.RunSubmissionTest(*loadTestSpec, watchEvents)
 	},
