@@ -55,25 +55,36 @@ func (server *SubmitServer) CreateQueue(ctx context.Context, queue *api.Queue) (
 	return &types.Empty{}, nil
 }
 
-func (server *SubmitServer) SubmitJob(ctx context.Context, req *api.JobRequest) (*api.JobSubmitResponse, error) {
+func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRequest) (*api.JobSubmitResponse, error) {
 	if e := server.checkQueuePermission(ctx, req.Queue, permissions.SubmitJobs, permissions.SubmitAnyJobs); e != nil {
 		return nil, e
 	}
 
-	job := server.jobRepository.CreateJob(req)
+	jobs := server.jobRepository.CreateJobs(req)
 
-	e := reportSubmitted(server.eventRepository, job)
+	e := reportSubmitted(server.eventRepository, jobs)
 	if e != nil {
 		return nil, status.Errorf(codes.Aborted, e.Error())
 	}
 
-	e = server.jobRepository.AddJob(job)
+	submissionResults, e := server.jobRepository.AddJobs(jobs)
 	if e != nil {
 		return nil, status.Errorf(codes.Aborted, e.Error())
 	}
-	result := &api.JobSubmitResponse{JobId: job.Id}
 
-	e = reportQueued(server.eventRepository, job)
+	result := &api.JobSubmitResponse{
+		JobResponseItems: make([]*api.JobSubmitResponseItem, 0, len(submissionResults)),
+	}
+
+	for _, submissionResult := range submissionResults {
+		jobResponse := &api.JobSubmitResponseItem{JobId: submissionResult.Job.Id}
+		if submissionResult.Error != nil {
+			jobResponse.Error = submissionResult.Error.Error()
+		}
+		result.JobResponseItems = append(result.JobResponseItems, jobResponse)
+	}
+
+	e = reportQueued(server.eventRepository, jobs)
 	if e != nil {
 		return result, status.Errorf(codes.Aborted, e.Error())
 	}

@@ -81,25 +81,30 @@ func TestCancelJob(t *testing.T) {
 }
 
 func SubmitJob(client api.SubmitClient, ctx context.Context, cpu resource.Quantity, memory resource.Quantity, t *testing.T) string {
-	response, err := client.SubmitJob(ctx, &api.JobRequest{
-		PodSpec: &v1.PodSpec{
-			Containers: []v1.Container{{
-				Name:  "Container1",
-				Image: "index.docker.io/library/ubuntu:latest",
-				Args:  []string{"sleep", "10s"},
-				Resources: v1.ResourceRequirements{
-					Requests: v1.ResourceList{"cpu": cpu, "memory": memory},
-					Limits:   v1.ResourceList{"cpu": cpu, "memory": memory},
+	request := &api.JobSubmitRequest{
+		JobRequestItems: []*api.JobSubmitRequestItem{
+			{
+				PodSpec: &v1.PodSpec{
+					Containers: []v1.Container{{
+						Name:  "Container1",
+						Image: "index.docker.io/library/ubuntu:latest",
+						Args:  []string{"sleep", "10s"},
+						Resources: v1.ResourceRequirements{
+							Requests: v1.ResourceList{"cpu": cpu, "memory": memory},
+							Limits:   v1.ResourceList{"cpu": cpu, "memory": memory},
+						},
+					},
+					},
 				},
-			},
+				Priority: 0,
 			},
 		},
-		Priority: 0,
 		Queue:    "test",
 		JobSetId: "set",
-	})
+	}
+	response, err := client.SubmitJobs(ctx, request)
 	assert.Empty(t, err)
-	return response.JobId
+	return response.JobResponseItems[0].JobId
 }
 
 func withRunningServer(action func(client api.SubmitClient, leaseClient api.AggregatedQueueClient, ctx context.Context)) {

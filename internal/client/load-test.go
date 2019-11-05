@@ -1,4 +1,4 @@
-package service
+package client
 
 import (
 	"context"
@@ -107,16 +107,30 @@ func (apiLoadTester ArmadaLoadTester) runSubmission(submission *domain.Submissio
 		log.Infof("Queue %s created.\n", queue)
 
 		for _, job := range jobs {
-			jobRequest := createJobRequest(queue, jobSetId, job.Spec)
-			for i := 0; i < job.Count; i++ {
-				response, e := SubmitJob(client, jobRequest)
+			jobRequestItems := createJobSubmitRequestItems(job.Spec, job.Count)
+			requests := CreateChunkedSubmitRequests(queue, jobSetId, jobRequestItems)
+
+			for _, request := range requests {
+				response, e := SubmitJobs(client, request)
 
 				if e != nil {
-					log.Errorf("ERROR: Failed to submit job for job set: %s because %s\n", jobSetId, e)
+					log.Errorf("ERROR: Failed to submit jobs for job set: %s because %s\n", jobSetId, e)
 					continue
 				}
-				log.Infof("Submitted job id: %s (set: %s)\n", response.JobId, jobSetId)
-				jobIds = append(jobIds, response.JobId)
+				failedJobs := 0
+
+				for _, jobSubmitResponse := range response.JobResponseItems {
+					if jobSubmitResponse.Error != "" {
+						failedJobs++
+					} else {
+						jobIds = append(jobIds, jobSubmitResponse.JobId)
+					}
+				}
+
+				log.Infof("Submitted %d jobs to queue %s job set %s", len(request.JobRequestItems), queue, jobSetId)
+				if failedJobs > 0 {
+					log.Errorf("ERROR: %d jobs failed to be created when submitting to queue %s job set %s", failedJobs, queue, jobSetId)
+				}
 			}
 		}
 	})
@@ -155,12 +169,15 @@ func (apiLoadTester ArmadaLoadTester) monitorJobsUntilCompletion(jobSetId string
 	})
 }
 
-func createJobRequest(queue string, jobSetId string, spec *v1.PodSpec) *api.JobRequest {
-	job := api.JobRequest{
+func createJobSubmitRequestItems(spec *v1.PodSpec, count int) []*api.JobSubmitRequestItem {
+	requestItems := make([]*api.JobSubmitRequestItem, 0, count)
+	job := api.JobSubmitRequestItem{
 		Priority: 1,
-		Queue:    queue,
-		JobSetId: jobSetId,
+		PodSpec:  spec,
 	}
-	job.PodSpec = spec
-	return &job
+	for i := 0; i < count; i++ {
+		requestItems = append(requestItems, &job)
+	}
+
+	return requestItems
 }

@@ -1,2 +1,4 @@
+queue: test
+jobSetId: job-set-1
 jobs:
-  - queue= test
+  - priority= 0

@@ -7,7 +7,6 @@ import (
 
 	"github.com/G-Research/armada/internal/armada/api"
 	"github.com/G-Research/armada/internal/client"
-	"github.com/G-Research/armada/internal/client/service"
 	"github.com/G-Research/armada/internal/client/util"
 )
 
@@ -41,8 +40,8 @@ Job priority is evaluated inside queue, queue has its own priority.`,
 		apiConnectionDetails := client.ExtractCommandlineArmadaApiConnectionDetails()
 
 		util.WithConnection(apiConnectionDetails, func(conn *grpc.ClientConn) {
-			client := api.NewSubmitClient(conn)
-			e := service.CreateQueue(client, &api.Queue{
+			submissionClient := api.NewSubmitClient(conn)
+			e := client.CreateQueue(submissionClient, &api.Queue{
 				Name:           queue,
 				PriorityFactor: priority,
 				UserOwners:     owners,

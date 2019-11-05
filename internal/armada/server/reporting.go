@@ -9,33 +9,41 @@ import (
 	"github.com/G-Research/armada/internal/armada/repository"
 )
 
-func reportQueued(repository repository.EventRepository, job *api.Job) error {
-	event, e := api.Wrap(&api.JobQueuedEvent{
-		JobId:    job.Id,
-		Queue:    job.Queue,
-		JobSetId: job.JobSetId,
-		Created:  time.Now(),
-	})
-	if e != nil {
-		return e
+func reportQueued(repository repository.EventRepository, jobs []*api.Job) error {
+	events := []*api.EventMessage{}
+	for _, job := range jobs {
+		event, e := api.Wrap(&api.JobQueuedEvent{
+			JobId:    job.Id,
+			Queue:    job.Queue,
+			JobSetId: job.JobSetId,
+			Created:  time.Now(),
+		})
+		if e != nil {
+			return e
+		}
+		events = append(events, event)
 	}
-	e = repository.ReportEvent(event)
+	e := repository.ReportEvents(events)
 	return e
 }
 
-func reportSubmitted(repository repository.EventRepository, job *api.Job) error {
-	event, e := api.Wrap(&api.JobSubmittedEvent{
-		JobId:    job.Id,
-		Queue:    job.Queue,
-		JobSetId: job.JobSetId,
-		Created:  time.Now(),
-		Job:      *job,
-	})
-
-	if e != nil {
-		return e
+func reportSubmitted(repository repository.EventRepository, jobs []*api.Job) error {
+	events := []*api.EventMessage{}
+	for _, job := range jobs {
+		event, e := api.Wrap(&api.JobSubmittedEvent{
+			JobId:    job.Id,
+			Queue:    job.Queue,
+			JobSetId: job.JobSetId,
+			Created:  time.Now(),
+			Job:      *job,
+		})
+		if e != nil {
+			return e
+		}
+		events = append(events, event)
 	}
-	e = repository.ReportEvent(event)
+
+	e := repository.ReportEvents(events)
 	return e
 }
 

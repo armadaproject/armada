@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"testing"
 	"time"
@@ -19,21 +20,21 @@ import (
 func TestSubmitServer_SubmitJob(t *testing.T) {
 	withSubmitServer(func(s *SubmitServer) {
 		jobSetId := util.NewULID()
-		jobRequest := createJobRequest(jobSetId)
+		jobRequest := createJobRequest(jobSetId, 1)
 
-		response, err := s.SubmitJob(context.Background(), jobRequest)
+		response, err := s.SubmitJobs(context.Background(), jobRequest)
 
 		assert.Empty(t, err)
-		assert.NotNil(t, response.JobId)
+		assert.NotNil(t, response.JobResponseItems[0].JobId)
 	})
 }
 
 func TestSubmitServer_SubmitJob_AddsExpectedEventsInCorrectOrder(t *testing.T) {
 	withSubmitServer(func(s *SubmitServer) {
 		jobSetId := util.NewULID()
-		jobRequest := createJobRequest(jobSetId)
+		jobRequest := createJobRequest(jobSetId, 1)
 
-		_, err := s.SubmitJob(context.Background(), jobRequest)
+		_, err := s.SubmitJobs(context.Background(), jobRequest)
 		assert.Empty(t, err)
 
 		messages, err := s.eventRepository.ReadEvents(jobSetId, "", 100, 5*time.Second)
@@ -56,25 +57,74 @@ func TestSubmitServer_SubmitJob_AddsExpectedEventsInCorrectOrder(t *testing.T) {
 	})
 }
 
-func createJobRequest(jobSetId string) *api.JobRequest {
+func TestSubmitServer_SubmitJob_ReturnsJobItemsInTheSameOrderTheyWereSubmitted(t *testing.T) {
+	withSubmitServer(func(s *SubmitServer) {
+		jobSetId := util.NewULID()
+		jobRequest := createJobRequest(jobSetId, 5)
+
+		response, err := s.SubmitJobs(context.Background(), jobRequest)
+		assert.Empty(t, err)
+
+		jobIds := make([]string, 0, 5)
+
+		for _, jobItem := range response.JobResponseItems {
+			jobIds = append(jobIds, jobItem.JobId)
+		}
+
+		//Get jobs for jobIds returned
+		jobs, _ := s.jobRepository.GetJobsByIds(jobIds)
+		jobSet := make(map[string]*api.Job, 5)
+		for _, job := range jobs {
+			jobSet[job.Id] = job
+		}
+
+		//Confirm submitted spec and created spec line up, using order of returned jobIds to correlate submitted to created
+		for i := 0; i < len(jobRequest.JobRequestItems); i++ {
+			requestItem := jobRequest.JobRequestItems[i]
+			returnedId := jobIds[i]
+			createdJob := jobSet[returnedId]
+
+			assert.NotNil(t, createdJob)
+			assert.Equal(t, requestItem.PodSpec, createdJob.PodSpec)
+		}
+	})
+}
+
+func createJobRequest(jobSetId string, numberOfJobs int) *api.JobSubmitRequest {
+	return &api.JobSubmitRequest{
+		JobSetId:        jobSetId,
+		Queue:           "test",
+		JobRequestItems: createJobRequestItems(numberOfJobs),
+	}
+}
+
+func createJobRequestItems(numberOfJobs int) []*api.JobSubmitRequestItem {
 	cpu, _ := resource.ParseQuantity("1")
 	memory, _ := resource.ParseQuantity("512Mi")
-	return &api.JobRequest{
-		PodSpec: &v1.PodSpec{
-			Containers: []v1.Container{{
-				Name:  "Container1",
-				Image: "index.docker.io/library/ubuntu:latest",
-				Args:  []string{"sleep", "10s"},
-				Resources: v1.ResourceRequirements{
-					Limits: v1.ResourceList{"cpu": cpu, "memory": memory},
+
+	jobRequestItems := make([]*api.JobSubmitRequestItem, 0, numberOfJobs)
+
+	for i := 0; i < numberOfJobs; i++ {
+		item := &api.JobSubmitRequestItem{
+			PodSpec: &v1.PodSpec{
+				Containers: []v1.Container{
+					{
+						Name:  fmt.Sprintf("Container %d", i),
+						Image: "index.docker.io/library/ubuntu:latest",
+						Args:  []string{"sleep", "10s"},
+						Resources: v1.ResourceRequirements{
+							Limits: v1.ResourceList{"cpu": cpu, "memory": memory},
+						},
+					},
 				},
 			},
-			},
-		},
-		JobSetId: jobSetId,
-		Priority: 0,
-		Queue:    "test",
+			Priority: 0,
+		}
+		jobRequestItems = append(jobRequestItems, item)
+
 	}
+
+	return jobRequestItems
 }
 
 func withSubmitServer(action func(s *SubmitServer)) {

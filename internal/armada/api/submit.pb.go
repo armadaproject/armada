@@ -27,25 +27,23 @@ var _ = math.Inf
 // proto package needs to be updated.
 const _ = proto.GoGoProtoPackageIsVersion2 // please upgrade the proto package
 
-type JobRequest struct {
-	Queue    string      `protobuf:"bytes,1,opt,name=Queue,proto3" json:"Queue,omitempty"`
-	JobSetId string      `protobuf:"bytes,2,opt,name=JobSetId,proto3" json:"JobSetId,omitempty"`
-	Priority float64     `protobuf:"fixed64,3,opt,name=Priority,proto3" json:"Priority,omitempty"`
-	PodSpec  *v1.PodSpec `protobuf:"bytes,4,opt,name=PodSpec,proto3" json:"PodSpec,omitempty"`
+type JobSubmitRequestItem struct {
+	Priority float64     `protobuf:"fixed64,1,opt,name=Priority,proto3" json:"Priority,omitempty"`
+	PodSpec  *v1.PodSpec `protobuf:"bytes,2,opt,name=PodSpec,proto3" json:"PodSpec,omitempty"`
 }
 
-func (m *JobRequest) Reset()         { *m = JobRequest{} }
-func (m *JobRequest) String() string { return proto.CompactTextString(m) }
-func (*JobRequest) ProtoMessage()    {}
-func (*JobRequest) Descriptor() ([]byte, []int) {
+func (m *JobSubmitRequestItem) Reset()         { *m = JobSubmitRequestItem{} }
+func (m *JobSubmitRequestItem) String() string { return proto.CompactTextString(m) }
+func (*JobSubmitRequestItem) ProtoMessage()    {}
+func (*JobSubmitRequestItem) Descriptor() ([]byte, []int) {
 	return fileDescriptor_83bbfbf574fac779, []int{0}
 }
-func (m *JobRequest) XXX_Unmarshal(b []byte) error {
+func (m *JobSubmitRequestItem) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
-func (m *JobRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+func (m *JobSubmitRequestItem) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
-		return xxx_messageInfo_JobRequest.Marshal(b, m, deterministic)
+		return xxx_messageInfo_JobSubmitRequestItem.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
 		n, err := m.MarshalTo(b)
@@ -55,42 +53,88 @@ func (m *JobRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return b[:n], nil
 	}
 }
-func (m *JobRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_JobRequest.Merge(m, src)
+func (m *JobSubmitRequestItem) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_JobSubmitRequestItem.Merge(m, src)
 }
-func (m *JobRequest) XXX_Size() int {
+func (m *JobSubmitRequestItem) XXX_Size() int {
 	return m.Size()
 }
-func (m *JobRequest) XXX_DiscardUnknown() {
-	xxx_messageInfo_JobRequest.DiscardUnknown(m)
+func (m *JobSubmitRequestItem) XXX_DiscardUnknown() {
+	xxx_messageInfo_JobSubmitRequestItem.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_JobRequest proto.InternalMessageInfo
+var xxx_messageInfo_JobSubmitRequestItem proto.InternalMessageInfo
 
-func (m *JobRequest) GetQueue() string {
-	if m != nil {
-		return m.Queue
-	}
-	return ""
-}
-
-func (m *JobRequest) GetJobSetId() string {
-	if m != nil {
-		return m.JobSetId
-	}
-	return ""
-}
-
-func (m *JobRequest) GetPriority() float64 {
+func (m *JobSubmitRequestItem) GetPriority() float64 {
 	if m != nil {
 		return m.Priority
 	}
 	return 0
 }
 
-func (m *JobRequest) GetPodSpec() *v1.PodSpec {
+func (m *JobSubmitRequestItem) GetPodSpec() *v1.PodSpec {
 	if m != nil {
 		return m.PodSpec
+	}
+	return nil
+}
+
+type JobSubmitRequest struct {
+	Queue           string                  `protobuf:"bytes,1,opt,name=Queue,proto3" json:"Queue,omitempty"`
+	JobSetId        string                  `protobuf:"bytes,2,opt,name=JobSetId,proto3" json:"JobSetId,omitempty"`
+	JobRequestItems []*JobSubmitRequestItem `protobuf:"bytes,3,rep,name=JobRequestItems,proto3" json:"JobRequestItems,omitempty"`
+}
+
+func (m *JobSubmitRequest) Reset()         { *m = JobSubmitRequest{} }
+func (m *JobSubmitRequest) String() string { return proto.CompactTextString(m) }
+func (*JobSubmitRequest) ProtoMessage()    {}
+func (*JobSubmitRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_83bbfbf574fac779, []int{1}
+}
+func (m *JobSubmitRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *JobSubmitRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_JobSubmitRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *JobSubmitRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_JobSubmitRequest.Merge(m, src)
+}
+func (m *JobSubmitRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *JobSubmitRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_JobSubmitRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_JobSubmitRequest proto.InternalMessageInfo
+
+func (m *JobSubmitRequest) GetQueue() string {
+	if m != nil {
+		return m.Queue
+	}
+	return ""
+}
+
+func (m *JobSubmitRequest) GetJobSetId() string {
+	if m != nil {
+		return m.JobSetId
+	}
+	return ""
+}
+
+func (m *JobSubmitRequest) GetJobRequestItems() []*JobSubmitRequestItem {
+	if m != nil {
+		return m.JobRequestItems
 	}
 	return nil
 }
@@ -105,7 +149,7 @@ func (m *JobCancelRequest) Reset()         { *m = JobCancelRequest{} }
 func (m *JobCancelRequest) String() string { return proto.CompactTextString(m) }
 func (*JobCancelRequest) ProtoMessage()    {}
 func (*JobCancelRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_83bbfbf574fac779, []int{1}
+	return fileDescriptor_83bbfbf574fac779, []int{2}
 }
 func (m *JobCancelRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -155,15 +199,67 @@ func (m *JobCancelRequest) GetQueue() string {
 	return ""
 }
 
-type JobSubmitResponse struct {
+type JobSubmitResponseItem struct {
 	JobId string `protobuf:"bytes,1,opt,name=JobId,proto3" json:"JobId,omitempty"`
+	Error string `protobuf:"bytes,2,opt,name=Error,proto3" json:"Error,omitempty"`
+}
+
+func (m *JobSubmitResponseItem) Reset()         { *m = JobSubmitResponseItem{} }
+func (m *JobSubmitResponseItem) String() string { return proto.CompactTextString(m) }
+func (*JobSubmitResponseItem) ProtoMessage()    {}
+func (*JobSubmitResponseItem) Descriptor() ([]byte, []int) {
+	return fileDescriptor_83bbfbf574fac779, []int{3}
+}
+func (m *JobSubmitResponseItem) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *JobSubmitResponseItem) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_JobSubmitResponseItem.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *JobSubmitResponseItem) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_JobSubmitResponseItem.Merge(m, src)
+}
+func (m *JobSubmitResponseItem) XXX_Size() int {
+	return m.Size()
+}
+func (m *JobSubmitResponseItem) XXX_DiscardUnknown() {
+	xxx_messageInfo_JobSubmitResponseItem.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_JobSubmitResponseItem proto.InternalMessageInfo
+
+func (m *JobSubmitResponseItem) GetJobId() string {
+	if m != nil {
+		return m.JobId
+	}
+	return ""
+}
+
+func (m *JobSubmitResponseItem) GetError() string {
+	if m != nil {
+		return m.Error
+	}
+	return ""
+}
+
+type JobSubmitResponse struct {
+	JobResponseItems []*JobSubmitResponseItem `protobuf:"bytes,1,rep,name=JobResponseItems,proto3" json:"JobResponseItems,omitempty"`
 }
 
 func (m *JobSubmitResponse) Reset()         { *m = JobSubmitResponse{} }
 func (m *JobSubmitResponse) String() string { return proto.CompactTextString(m) }
 func (*JobSubmitResponse) ProtoMessage()    {}
 func (*JobSubmitResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_83bbfbf574fac779, []int{2}
+	return fileDescriptor_83bbfbf574fac779, []int{4}
 }
 func (m *JobSubmitResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -192,11 +288,11 @@ func (m *JobSubmitResponse) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_JobSubmitResponse proto.InternalMessageInfo
 
-func (m *JobSubmitResponse) GetJobId() string {
+func (m *JobSubmitResponse) GetJobResponseItems() []*JobSubmitResponseItem {
 	if m != nil {
-		return m.JobId
+		return m.JobResponseItems
 	}
-	return ""
+	return nil
 }
 
 type Queue struct {
@@ -210,7 +306,7 @@ func (m *Queue) Reset()         { *m = Queue{} }
 func (m *Queue) String() string { return proto.CompactTextString(m) }
 func (*Queue) ProtoMessage()    {}
 func (*Queue) Descriptor() ([]byte, []int) {
-	return fileDescriptor_83bbfbf574fac779, []int{3}
+	return fileDescriptor_83bbfbf574fac779, []int{5}
 }
 func (m *Queue) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -275,7 +371,7 @@ func (m *CancellationResult) Reset()         { *m = CancellationResult{} }
 func (m *CancellationResult) String() string { return proto.CompactTextString(m) }
 func (*CancellationResult) ProtoMessage()    {}
 func (*CancellationResult) Descriptor() ([]byte, []int) {
-	return fileDescriptor_83bbfbf574fac779, []int{4}
+	return fileDescriptor_83bbfbf574fac779, []int{6}
 }
 func (m *CancellationResult) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -312,8 +408,10 @@ func (m *CancellationResult) GetCancelledIds() []string {
 }
 
 func init() {
-	proto.RegisterType((*JobRequest)(nil), "api.JobRequest")
+	proto.RegisterType((*JobSubmitRequestItem)(nil), "api.JobSubmitRequestItem")
+	proto.RegisterType((*JobSubmitRequest)(nil), "api.JobSubmitRequest")
 	proto.RegisterType((*JobCancelRequest)(nil), "api.JobCancelRequest")
+	proto.RegisterType((*JobSubmitResponseItem)(nil), "api.JobSubmitResponseItem")
 	proto.RegisterType((*JobSubmitResponse)(nil), "api.JobSubmitResponse")
 	proto.RegisterType((*Queue)(nil), "api.Queue")
 	proto.RegisterType((*CancellationResult)(nil), "api.CancellationResult")
@@ -322,36 +420,39 @@ func init() {
 func init() { proto.RegisterFile("internal/armada/api/submit.proto", fileDescriptor_83bbfbf574fac779) }
 
 var fileDescriptor_83bbfbf574fac779 = []byte{
-	// 461 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x7c, 0x92, 0xcf, 0x6e, 0xd3, 0x40,
-	0x10, 0xc6, 0xb3, 0x38, 0x14, 0x32, 0x41, 0xfc, 0x59, 0x41, 0xb1, 0x5c, 0xc9, 0xb2, 0x7c, 0x40,
-	0xe1, 0xb2, 0x56, 0x0a, 0x48, 0x3d, 0x70, 0xa2, 0x02, 0x14, 0x1f, 0xa0, 0xb8, 0xe2, 0xc2, 0x6d,
-	0x1d, 0x0f, 0x91, 0x85, 0xe3, 0x31, 0xbb, 0xeb, 0xa2, 0x3e, 0x00, 0x77, 0x78, 0x12, 0x5e, 0x83,
-	0x63, 0x8f, 0x1c, 0x51, 0xf2, 0x22, 0x28, 0xbb, 0x71, 0x48, 0xab, 0xa8, 0xb7, 0x9d, 0x6f, 0x7f,
-	0x3b, 0xfa, 0xe6, 0xdb, 0x81, 0xa8, 0xac, 0x0d, 0xaa, 0x5a, 0x56, 0x89, 0x54, 0x73, 0x59, 0xc8,
-	0x44, 0x36, 0x65, 0xa2, 0xdb, 0x7c, 0x5e, 0x1a, 0xd1, 0x28, 0x32, 0xc4, 0x3d, 0xd9, 0x94, 0xc1,
-	0xc1, 0x8c, 0x68, 0x56, 0x61, 0x62, 0xa5, 0xbc, 0xfd, 0x9c, 0xe0, 0xbc, 0x31, 0xe7, 0x8e, 0x08,
-	0xe2, 0x2f, 0x47, 0x5a, 0x94, 0x64, 0x9f, 0x4e, 0x49, 0x61, 0x72, 0x36, 0x4e, 0x66, 0x58, 0xa3,
-	0x92, 0x06, 0x0b, 0xc7, 0xc4, 0x3f, 0x19, 0x40, 0x4a, 0x79, 0x86, 0x5f, 0x5b, 0xd4, 0x86, 0x3f,
-	0x84, 0x9b, 0x1f, 0x5a, 0x6c, 0xd1, 0x67, 0x11, 0x1b, 0x0d, 0x32, 0x57, 0xf0, 0x00, 0x6e, 0xa7,
-	0x94, 0x9f, 0xa2, 0x99, 0x14, 0xfe, 0x0d, 0x7b, 0xb1, 0xa9, 0x57, 0x77, 0x27, 0xaa, 0x24, 0x55,
-	0x9a, 0x73, 0xdf, 0x8b, 0xd8, 0x88, 0x65, 0x9b, 0x9a, 0xbf, 0x80, 0x5b, 0x27, 0x54, 0x9c, 0x36,
-	0x38, 0xf5, 0xfb, 0x11, 0x1b, 0x0d, 0x0f, 0x0f, 0x84, 0xb3, 0x24, 0x64, 0x53, 0x8a, 0x95, 0x25,
-	0x71, 0x36, 0x16, 0x6b, 0x24, 0xeb, 0xd8, 0xf8, 0x13, 0xdc, 0x4f, 0x29, 0x3f, 0x96, 0xf5, 0x14,
-	0xab, 0x2d, 0x63, 0x29, 0xe5, 0x93, 0xa2, 0x33, 0x66, 0x8b, 0x6b, 0x8d, 0x6d, 0x46, 0xf1, 0xb6,
-	0x46, 0x89, 0x9f, 0xc2, 0x83, 0x15, 0x61, 0x83, 0xcc, 0x50, 0x37, 0x54, 0x6b, 0xdc, 0xdd, 0x3c,
-	0xfe, 0xce, 0xd6, 0x1d, 0x38, 0x87, 0xfe, 0x3b, 0x39, 0xef, 0x42, 0xb1, 0x67, 0xfe, 0x04, 0xee,
-	0x76, 0x73, 0xbe, 0x91, 0x53, 0x43, 0xca, 0x1a, 0x60, 0xd9, 0x15, 0x95, 0x87, 0x00, 0x1f, 0x35,
-	0xaa, 0xf7, 0xdf, 0x6a, 0x54, 0xda, 0xf7, 0x22, 0x6f, 0x34, 0xc8, 0xb6, 0x14, 0x1e, 0xc1, 0xf0,
-	0xad, 0xa2, 0xb6, 0x59, 0x03, 0x7d, 0x0b, 0x6c, 0x4b, 0xf1, 0x11, 0x70, 0x97, 0x45, 0x25, 0x4d,
-	0x49, 0x75, 0x86, 0xba, 0xad, 0x0c, 0x8f, 0xe1, 0xce, 0x5a, 0xc5, 0x62, 0x52, 0x68, 0x9f, 0xd9,
-	0x87, 0x97, 0xb4, 0xc3, 0x5f, 0x0c, 0xf6, 0xdc, 0xa8, 0xfc, 0x39, 0x0c, 0xdc, 0x29, 0xa5, 0x9c,
-	0xdf, 0xb3, 0xf9, 0xff, 0xff, 0xf6, 0x60, 0xbf, 0x13, 0xae, 0x04, 0xf3, 0x12, 0xc0, 0x35, 0x4c,
-	0x29, 0xd7, 0xfc, 0x51, 0x47, 0x5d, 0xfa, 0x9a, 0xe0, 0xb1, 0x95, 0x77, 0x58, 0x1c, 0xc3, 0xf0,
-	0x58, 0xa1, 0x34, 0xe8, 0x52, 0x04, 0xcb, 0xd9, 0x73, 0xb0, 0x2f, 0xdc, 0xe2, 0x8a, 0x6e, 0x71,
-	0xc5, 0xeb, 0xd5, 0xe2, 0xbe, 0xf2, 0x7f, 0x2f, 0x42, 0x76, 0xb1, 0x08, 0xd9, 0xdf, 0x45, 0xc8,
-	0x7e, 0x2c, 0xc3, 0xde, 0xc5, 0x32, 0xec, 0xfd, 0x59, 0x86, 0xbd, 0x7c, 0xcf, 0x92, 0xcf, 0xfe,
-	0x05, 0x00, 0x00, 0xff, 0xff, 0x56, 0xa8, 0x23, 0x83, 0x19, 0x03, 0x00, 0x00,
+	// 511 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x7c, 0x53, 0xcd, 0x6e, 0x13, 0x31,
+	0x10, 0x8e, 0x49, 0x5b, 0xc8, 0x04, 0xf1, 0x63, 0xa5, 0x25, 0x6c, 0xa5, 0x55, 0xb4, 0x07, 0x94,
+	0x93, 0x57, 0x09, 0x42, 0xaa, 0x04, 0x27, 0xa2, 0x16, 0x25, 0x07, 0x28, 0xae, 0xb8, 0xc0, 0xc9,
+	0x9b, 0x1d, 0x22, 0x8b, 0x64, 0xbd, 0xd8, 0xde, 0xa2, 0x3e, 0x00, 0x07, 0x6e, 0x3c, 0x0d, 0xcf,
+	0xc0, 0xb1, 0x47, 0x8e, 0x28, 0x79, 0x11, 0x14, 0x7b, 0x13, 0x36, 0x69, 0xd4, 0x9b, 0xe7, 0xd3,
+	0x37, 0xf3, 0x7d, 0x33, 0xe3, 0x81, 0x8e, 0xcc, 0x2c, 0xea, 0x4c, 0x4c, 0x63, 0xa1, 0x67, 0x22,
+	0x15, 0xb1, 0xc8, 0x65, 0x6c, 0x8a, 0x64, 0x26, 0x2d, 0xcb, 0xb5, 0xb2, 0x8a, 0xd6, 0x45, 0x2e,
+	0x83, 0xe3, 0x89, 0x52, 0x93, 0x29, 0xc6, 0x0e, 0x4a, 0x8a, 0xcf, 0x31, 0xce, 0x72, 0x7b, 0xe5,
+	0x19, 0x41, 0xf4, 0xe5, 0xc4, 0x30, 0xa9, 0x5c, 0xea, 0x58, 0x69, 0x8c, 0x2f, 0x7b, 0xf1, 0x04,
+	0x33, 0xd4, 0xc2, 0x62, 0xea, 0x39, 0x91, 0x84, 0xd6, 0x48, 0x25, 0x17, 0xae, 0x30, 0xc7, 0xaf,
+	0x05, 0x1a, 0x3b, 0xb4, 0x38, 0xa3, 0x01, 0xdc, 0x3b, 0xd7, 0x52, 0x69, 0x69, 0xaf, 0xda, 0xa4,
+	0x43, 0xba, 0x84, 0xaf, 0x63, 0xfa, 0x02, 0xee, 0x9e, 0xab, 0xf4, 0x22, 0xc7, 0x71, 0xfb, 0x4e,
+	0x87, 0x74, 0x9b, 0xfd, 0x63, 0xe6, 0x95, 0x98, 0xc8, 0x25, 0x5b, 0x2a, 0xb1, 0xcb, 0x1e, 0x2b,
+	0x29, 0x7c, 0xc5, 0x8d, 0x7e, 0x10, 0x78, 0xb4, 0xad, 0x45, 0x5b, 0xb0, 0xff, 0xbe, 0xc0, 0x02,
+	0x9d, 0x48, 0x83, 0xfb, 0x60, 0xa9, 0xbe, 0x64, 0xa2, 0x1d, 0xa6, 0x4e, 0xa2, 0xc1, 0xd7, 0x31,
+	0x1d, 0xc0, 0xc3, 0x91, 0x4a, 0x2a, 0x5e, 0x4d, 0xbb, 0xde, 0xa9, 0x77, 0x9b, 0xfd, 0xa7, 0x4e,
+	0x7e, 0x57, 0x37, 0x7c, 0x3b, 0x23, 0xfa, 0xe8, 0xac, 0x0c, 0x44, 0x36, 0xc6, 0x69, 0xc5, 0xca,
+	0x48, 0x25, 0xc3, 0x74, 0x65, 0xc5, 0x05, 0xb7, 0x5a, 0x59, 0x9b, 0xaf, 0x57, 0xcc, 0x47, 0x03,
+	0x38, 0xac, 0x98, 0x30, 0xb9, 0xca, 0x0c, 0xba, 0x99, 0xee, 0x16, 0x68, 0xc1, 0xfe, 0xa9, 0xd6,
+	0x4a, 0x97, 0xd5, 0x7d, 0x10, 0x7d, 0x82, 0xc7, 0x37, 0x8a, 0xd0, 0x33, 0xe7, 0xba, 0x5a, 0xd3,
+	0xb4, 0x89, 0xeb, 0x3d, 0xd8, 0xee, 0xfd, 0x3f, 0x85, 0xdf, 0xc8, 0x89, 0xbe, 0x93, 0xd2, 0x38,
+	0xa5, 0xb0, 0xf7, 0x56, 0xcc, 0x56, 0xd3, 0x77, 0x6f, 0xfa, 0x0c, 0x1e, 0xac, 0x56, 0x7d, 0x26,
+	0xc6, 0xb6, 0x74, 0x46, 0xf8, 0x16, 0x4a, 0x43, 0x80, 0x0f, 0x06, 0xf5, 0xbb, 0x6f, 0x19, 0x6a,
+	0xbf, 0x83, 0x06, 0xaf, 0x20, 0xb4, 0x03, 0xcd, 0x37, 0x5a, 0x15, 0x79, 0x49, 0xd8, 0x73, 0x84,
+	0x2a, 0x14, 0x9d, 0x00, 0xf5, 0x2b, 0x98, 0x0a, 0x2b, 0x55, 0xc6, 0xd1, 0x14, 0x53, 0x4b, 0x23,
+	0xb8, 0x5f, 0xa2, 0x98, 0x0e, 0x53, 0xdf, 0x61, 0x83, 0x6f, 0x60, 0xfd, 0x5f, 0x04, 0x0e, 0x7c,
+	0xab, 0xf4, 0x25, 0x80, 0x7f, 0x8d, 0x54, 0x62, 0xe8, 0xe1, 0xce, 0x4f, 0x10, 0x1c, 0xed, 0x9e,
+	0x0f, 0x7d, 0x05, 0xe0, 0xeb, 0x6e, 0x26, 0x6f, 0x7c, 0x8c, 0xe0, 0x89, 0x83, 0x77, 0x38, 0xed,
+	0x41, 0x73, 0xa0, 0x51, 0x58, 0xf4, 0xc3, 0x04, 0xc7, 0x73, 0xef, 0xe0, 0x88, 0xf9, 0xcb, 0x64,
+	0xab, 0xcb, 0x64, 0xa7, 0xcb, 0xcb, 0x7c, 0xdd, 0xfe, 0x3d, 0x0f, 0xc9, 0xf5, 0x3c, 0x24, 0x7f,
+	0xe7, 0x21, 0xf9, 0xb9, 0x08, 0x6b, 0xd7, 0x8b, 0xb0, 0xf6, 0x67, 0x11, 0xd6, 0x92, 0x03, 0xc7,
+	0x7c, 0xfe, 0x2f, 0x00, 0x00, 0xff, 0xff, 0x25, 0xd3, 0xa0, 0x0f, 0xfa, 0x03, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -366,7 +467,7 @@ const _ = grpc.SupportPackageIsVersion4
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
 type SubmitClient interface {
-	SubmitJob(ctx context.Context, in *JobRequest, opts ...grpc.CallOption) (*JobSubmitResponse, error)
+	SubmitJobs(ctx context.Context, in *JobSubmitRequest, opts ...grpc.CallOption) (*JobSubmitResponse, error)
 	CancelJobs(ctx context.Context, in *JobCancelRequest, opts ...grpc.CallOption) (*CancellationResult, error)
 	CreateQueue(ctx context.Context, in *Queue, opts ...grpc.CallOption) (*types.Empty, error)
 }
@@ -379,9 +480,9 @@ func NewSubmitClient(cc *grpc.ClientConn) SubmitClient {
 	return &submitClient{cc}
 }
 
-func (c *submitClient) SubmitJob(ctx context.Context, in *JobRequest, opts ...grpc.CallOption) (*JobSubmitResponse, error) {
+func (c *submitClient) SubmitJobs(ctx context.Context, in *JobSubmitRequest, opts ...grpc.CallOption) (*JobSubmitResponse, error) {
 	out := new(JobSubmitResponse)
-	err := c.cc.Invoke(ctx, "/api.Submit/SubmitJob", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/api.Submit/SubmitJobs", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -408,7 +509,7 @@ func (c *submitClient) CreateQueue(ctx context.Context, in *Queue, opts ...grpc.
 
 // SubmitServer is the server API for Submit service.
 type SubmitServer interface {
-	SubmitJob(context.Context, *JobRequest) (*JobSubmitResponse, error)
+	SubmitJobs(context.Context, *JobSubmitRequest) (*JobSubmitResponse, error)
 	CancelJobs(context.Context, *JobCancelRequest) (*CancellationResult, error)
 	CreateQueue(context.Context, *Queue) (*types.Empty, error)
 }
@@ -417,20 +518,20 @@ func RegisterSubmitServer(s *grpc.Server, srv SubmitServer) {
 	s.RegisterService(&_Submit_serviceDesc, srv)
 }
 
-func _Submit_SubmitJob_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(JobRequest)
+func _Submit_SubmitJobs_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(JobSubmitRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(SubmitServer).SubmitJob(ctx, in)
+		return srv.(SubmitServer).SubmitJobs(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/api.Submit/SubmitJob",
+		FullMethod: "/api.Submit/SubmitJobs",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SubmitServer).SubmitJob(ctx, req.(*JobRequest))
+		return srv.(SubmitServer).SubmitJobs(ctx, req.(*JobSubmitRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -476,8 +577,8 @@ var _Submit_serviceDesc = grpc.ServiceDesc{
 	HandlerType: (*SubmitServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "SubmitJob",
-			Handler:    _Submit_SubmitJob_Handler,
+			MethodName: "SubmitJobs",
+			Handler:    _Submit_SubmitJobs_Handler,
 		},
 		{
 			MethodName: "CancelJobs",
@@ -492,7 +593,7 @@ var _Submit_serviceDesc = grpc.ServiceDesc{
 	Metadata: "internal/armada/api/submit.proto",
 }
 
-func (m *JobRequest) Marshal() (dAtA []byte, err error) {
+func (m *JobSubmitRequestItem) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
 	n, err := m.MarshalTo(dAtA)
@@ -502,7 +603,41 @@ func (m *JobRequest) Marshal() (dAtA []byte, err error) {
 	return dAtA[:n], nil
 }
 
-func (m *JobRequest) MarshalTo(dAtA []byte) (int, error) {
+func (m *JobSubmitRequestItem) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.Priority != 0 {
+		dAtA[i] = 0x9
+		i++
+		encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(math.Float64bits(float64(m.Priority))))
+		i += 8
+	}
+	if m.PodSpec != nil {
+		dAtA[i] = 0x12
+		i++
+		i = encodeVarintSubmit(dAtA, i, uint64(m.PodSpec.Size()))
+		n1, err := m.PodSpec.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n1
+	}
+	return i, nil
+}
+
+func (m *JobSubmitRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *JobSubmitRequest) MarshalTo(dAtA []byte) (int, error) {
 	var i int
 	_ = i
 	var l int
@@ -519,21 +654,17 @@ func (m *JobRequest) MarshalTo(dAtA []byte) (int, error) {
 		i = encodeVarintSubmit(dAtA, i, uint64(len(m.JobSetId)))
 		i += copy(dAtA[i:], m.JobSetId)
 	}
-	if m.Priority != 0 {
-		dAtA[i] = 0x19
-		i++
-		encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(math.Float64bits(float64(m.Priority))))
-		i += 8
-	}
-	if m.PodSpec != nil {
-		dAtA[i] = 0x22
-		i++
-		i = encodeVarintSubmit(dAtA, i, uint64(m.PodSpec.Size()))
-		n1, err := m.PodSpec.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
+	if len(m.JobRequestItems) > 0 {
+		for _, msg := range m.JobRequestItems {
+			dAtA[i] = 0x1a
+			i++
+			i = encodeVarintSubmit(dAtA, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(dAtA[i:])
+			if err != nil {
+				return 0, err
+			}
+			i += n
 		}
-		i += n1
 	}
 	return i, nil
 }
@@ -574,6 +705,36 @@ func (m *JobCancelRequest) MarshalTo(dAtA []byte) (int, error) {
 	return i, nil
 }
 
+func (m *JobSubmitResponseItem) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *JobSubmitResponseItem) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if len(m.JobId) > 0 {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintSubmit(dAtA, i, uint64(len(m.JobId)))
+		i += copy(dAtA[i:], m.JobId)
+	}
+	if len(m.Error) > 0 {
+		dAtA[i] = 0x12
+		i++
+		i = encodeVarintSubmit(dAtA, i, uint64(len(m.Error)))
+		i += copy(dAtA[i:], m.Error)
+	}
+	return i, nil
+}
+
 func (m *JobSubmitResponse) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
@@ -589,11 +750,17 @@ func (m *JobSubmitResponse) MarshalTo(dAtA []byte) (int, error) {
 	_ = i
 	var l int
 	_ = l
-	if len(m.JobId) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintSubmit(dAtA, i, uint64(len(m.JobId)))
-		i += copy(dAtA[i:], m.JobId)
+	if len(m.JobResponseItems) > 0 {
+		for _, msg := range m.JobResponseItems {
+			dAtA[i] = 0xa
+			i++
+			i = encodeVarintSubmit(dAtA, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(dAtA[i:])
+			if err != nil {
+				return 0, err
+			}
+			i += n
+		}
 	}
 	return i, nil
 }
@@ -700,7 +867,23 @@ func encodeVarintSubmit(dAtA []byte, offset int, v uint64) int {
 	dAtA[offset] = uint8(v)
 	return offset + 1
 }
-func (m *JobRequest) Size() (n int) {
+func (m *JobSubmitRequestItem) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Priority != 0 {
+		n += 9
+	}
+	if m.PodSpec != nil {
+		l = m.PodSpec.Size()
+		n += 1 + l + sovSubmit(uint64(l))
+	}
+	return n
+}
+
+func (m *JobSubmitRequest) Size() (n int) {
 	if m == nil {
 		return 0
 	}
@@ -714,12 +897,11 @@ func (m *JobRequest) Size() (n int) {
 	if l > 0 {
 		n += 1 + l + sovSubmit(uint64(l))
 	}
-	if m.Priority != 0 {
-		n += 9
-	}
-	if m.PodSpec != nil {
-		l = m.PodSpec.Size()
-		n += 1 + l + sovSubmit(uint64(l))
+	if len(m.JobRequestItems) > 0 {
+		for _, e := range m.JobRequestItems {
+			l = e.Size()
+			n += 1 + l + sovSubmit(uint64(l))
+		}
 	}
 	return n
 }
@@ -745,7 +927,7 @@ func (m *JobCancelRequest) Size() (n int) {
 	return n
 }
 
-func (m *JobSubmitResponse) Size() (n int) {
+func (m *JobSubmitResponseItem) Size() (n int) {
 	if m == nil {
 		return 0
 	}
@@ -754,6 +936,25 @@ func (m *JobSubmitResponse) Size() (n int) {
 	l = len(m.JobId)
 	if l > 0 {
 		n += 1 + l + sovSubmit(uint64(l))
+	}
+	l = len(m.Error)
+	if l > 0 {
+		n += 1 + l + sovSubmit(uint64(l))
+	}
+	return n
+}
+
+func (m *JobSubmitResponse) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if len(m.JobResponseItems) > 0 {
+		for _, e := range m.JobResponseItems {
+			l = e.Size()
+			n += 1 + l + sovSubmit(uint64(l))
+		}
 	}
 	return n
 }
@@ -814,7 +1015,7 @@ func sovSubmit(x uint64) (n int) {
 func sozSubmit(x uint64) (n int) {
 	return sovSubmit(uint64((x << 1) ^ uint64((int64(x) >> 63))))
 }
-func (m *JobRequest) Unmarshal(dAtA []byte) error {
+func (m *JobSubmitRequestItem) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -837,10 +1038,110 @@ func (m *JobRequest) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: JobRequest: wiretype end group for non-group")
+			return fmt.Errorf("proto: JobSubmitRequestItem: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: JobRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: JobSubmitRequestItem: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 1 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Priority", wireType)
+			}
+			var v uint64
+			if (iNdEx + 8) > l {
+				return io.ErrUnexpectedEOF
+			}
+			v = uint64(encoding_binary.LittleEndian.Uint64(dAtA[iNdEx:]))
+			iNdEx += 8
+			m.Priority = float64(math.Float64frombits(v))
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PodSpec", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowSubmit
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthSubmit
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthSubmit
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.PodSpec == nil {
+				m.PodSpec = &v1.PodSpec{}
+			}
+			if err := m.PodSpec.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipSubmit(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthSubmit
+			}
+			if (iNdEx + skippy) < 0 {
+				return ErrInvalidLengthSubmit
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *JobSubmitRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowSubmit
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: JobSubmitRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: JobSubmitRequest: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
@@ -908,19 +1209,8 @@ func (m *JobRequest) Unmarshal(dAtA []byte) error {
 			m.JobSetId = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		case 3:
-			if wireType != 1 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Priority", wireType)
-			}
-			var v uint64
-			if (iNdEx + 8) > l {
-				return io.ErrUnexpectedEOF
-			}
-			v = uint64(encoding_binary.LittleEndian.Uint64(dAtA[iNdEx:]))
-			iNdEx += 8
-			m.Priority = float64(math.Float64frombits(v))
-		case 4:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field PodSpec", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field JobRequestItems", wireType)
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
@@ -947,10 +1237,8 @@ func (m *JobRequest) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			if m.PodSpec == nil {
-				m.PodSpec = &v1.PodSpec{}
-			}
-			if err := m.PodSpec.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+			m.JobRequestItems = append(m.JobRequestItems, &JobSubmitRequestItem{})
+			if err := m.JobRequestItems[len(m.JobRequestItems)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex
@@ -1127,7 +1415,7 @@ func (m *JobCancelRequest) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *JobSubmitResponse) Unmarshal(dAtA []byte) error {
+func (m *JobSubmitResponseItem) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -1150,10 +1438,10 @@ func (m *JobSubmitResponse) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: JobSubmitResponse: wiretype end group for non-group")
+			return fmt.Errorf("proto: JobSubmitResponseItem: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: JobSubmitResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: JobSubmitResponseItem: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
@@ -1187,6 +1475,125 @@ func (m *JobSubmitResponse) Unmarshal(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			m.JobId = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Error", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowSubmit
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthSubmit
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthSubmit
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Error = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipSubmit(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthSubmit
+			}
+			if (iNdEx + skippy) < 0 {
+				return ErrInvalidLengthSubmit
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *JobSubmitResponse) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowSubmit
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: JobSubmitResponse: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: JobSubmitResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field JobResponseItems", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowSubmit
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthSubmit
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthSubmit
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.JobResponseItems = append(m.JobResponseItems, &JobSubmitResponseItem{})
+			if err := m.JobResponseItems[len(m.JobResponseItems)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex

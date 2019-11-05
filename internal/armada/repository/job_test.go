@@ -189,15 +189,22 @@ func addLeasedJob(t *testing.T, r *RedisJobRepository, queue string, cluster str
 }
 
 func addTestJob(t *testing.T, r *RedisJobRepository, queue string) *api.Job {
-	job := r.CreateJob(&api.JobRequest{
+	jobs := r.CreateJobs(&api.JobSubmitRequest{
 		Queue:    queue,
 		JobSetId: "set1",
-		Priority: 1,
-		PodSpec:  &v1.PodSpec{},
+		JobRequestItems: []*api.JobSubmitRequestItem{
+			{
+				Priority: 1,
+				PodSpec:  &v1.PodSpec{},
+			},
+		},
 	})
-	e := r.AddJob(job)
+	results, e := r.AddJobs(jobs)
 	assert.Nil(t, e)
-	return job
+	for _, result := range results {
+		assert.Empty(t, result.Error)
+	}
+	return jobs[0]
 }
 
 func withRepository(action func(r *RedisJobRepository)) {
