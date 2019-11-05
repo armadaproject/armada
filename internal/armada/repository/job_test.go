@@ -202,7 +202,7 @@ func addTestJob(t *testing.T, r *RedisJobRepository, queue string) *api.Job {
 	results, e := r.AddJobs(jobs)
 	assert.Nil(t, e)
 	for _, result := range results {
-		assert.Nil(t, result)
+		assert.Empty(t, result.Error)
 	}
 	return jobs[0]
 }
