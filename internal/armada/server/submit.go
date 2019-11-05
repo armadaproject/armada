@@ -67,19 +67,19 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 		return nil, status.Errorf(codes.Aborted, e.Error())
 	}
 
-	submissionResult, e := server.jobRepository.AddJobs(jobs)
+	submissionResults, e := server.jobRepository.AddJobs(jobs)
 	if e != nil {
 		return nil, status.Errorf(codes.Aborted, e.Error())
 	}
 
 	result := &api.JobSubmitResponse{
-		JobResponseItems: make([]*api.JobSubmitResponseItem, 0, len(submissionResult)),
+		JobResponseItems: make([]*api.JobSubmitResponseItem, 0, len(submissionResults)),
 	}
 
-	for job, err := range submissionResult {
-		jobResponse := &api.JobSubmitResponseItem{JobId: job.Id}
-		if err != nil {
-			jobResponse.Error = err.Error()
+	for _, submissionResult := range submissionResults {
+		jobResponse := &api.JobSubmitResponseItem{JobId: submissionResult.Job.Id}
+		if submissionResult.Error != nil {
+			jobResponse.Error = submissionResult.Error.Error()
 		}
 		result.JobResponseItems = append(result.JobResponseItems, jobResponse)
 	}

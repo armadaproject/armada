@@ -22,7 +22,7 @@ const jobQueueMapKey = "Job:QueueName"
 
 type JobRepository interface {
 	CreateJobs(request *api.JobSubmitRequest) []*api.Job
-	AddJobs(job []*api.Job) (map[*api.Job]error, error)
+	AddJobs(job []*api.Job) ([]*SubmitJobResult, error)
 	GetJobsByIds(ids []string) ([]*api.Job, error)
 	PeekQueue(queue string, limit int64) ([]*api.Job, error)
 	FilterActiveQueues(queues []*api.Queue) ([]*api.Queue, error)
@@ -64,7 +64,7 @@ func (repo *RedisJobRepository) CreateJobs(request *api.JobSubmitRequest) []*api
 	return jobs
 }
 
-type submitJobResult struct {
+type submitJobRedisResponse struct {
 	job               *api.Job
 	queueJobResult    *redis.IntCmd
 	saveJobResult     *redis.StatusCmd
@@ -72,13 +72,18 @@ type submitJobResult struct {
 	jobSetIndexResult *redis.IntCmd
 }
 
-func (repo *RedisJobRepository) AddJobs(jobs []*api.Job) (map[*api.Job]error, error) {
+type SubmitJobResult struct {
+	Job   *api.Job
+	Error error
+}
+
+func (repo *RedisJobRepository) AddJobs(jobs []*api.Job) ([]*SubmitJobResult, error) {
 	pipe := repo.db.Pipeline()
 
-	submitResults := make([]*submitJobResult, 0, len(jobs))
+	submitResults := make([]*submitJobRedisResponse, 0, len(jobs))
 
 	for _, job := range jobs {
-		submitResult := &submitJobResult{job: job}
+		submitResult := &submitJobRedisResponse{job: job}
 
 		jobData, e := proto.Marshal(job)
 		if e != nil {
@@ -99,23 +104,25 @@ func (repo *RedisJobRepository) AddJobs(jobs []*api.Job) (map[*api.Job]error, er
 
 	_, _ = pipe.Exec() // ignoring error here as it will be part of individual commands
 
-	result := make(map[*api.Job]error, len(jobs))
+	result := make([]*SubmitJobResult, 0, len(jobs))
 	for _, submitResult := range submitResults {
-		result[submitResult.job] = nil
+		response := &SubmitJobResult{Job: submitResult.job}
 
 		if _, e := submitResult.queueJobResult.Result(); e != nil {
-			result[submitResult.job] = e
+			response.Error = e
 		}
 		if _, e := submitResult.saveJobResult.Result(); e != nil {
-			result[submitResult.job] = e
+			response.Error = e
 		}
 
 		if _, e := submitResult.queueIndexResult.Result(); e != nil {
-			result[submitResult.job] = e
+			response.Error = e
 		}
 		if _, e := submitResult.jobSetIndexResult.Result(); e != nil {
-			result[submitResult.job] = e
+			response.Error = e
 		}
+
+		result = append(result, response)
 	}
 
 	return result, nil
