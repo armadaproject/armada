@@ -37,4 +37,7 @@ Common labels
 {{ include "armada.labels.identity" . }}
 chart: {{ include "armada.chart" . }}
 release: {{ .Release.Name }}
+{{- if .Values.additionalLabels }}
+{{ toYaml .Values.additionalLabels }}
+{{- end }}
 {{- end -}}

@@ -8,6 +8,7 @@ resources:
   requests:
     memory: 512Mi
     cpu: 200m
+additionalLabels: {}
 terminationGracePeriodSeconds: 0
 nodeSelector:
   node-role.kubernetes.io/master: ""
