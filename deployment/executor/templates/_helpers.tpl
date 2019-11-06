@@ -37,4 +37,7 @@ Common labels
 {{ include "executor.labels.identity" . }}
 chart: {{ include "executor.chart" . }}
 release: {{ .Release.Name }}
+{{- if .Values.additionalLabels }}
+{{ toYaml .Values.additionalLabels }}
+{{- end }}
 {{- end -}}
