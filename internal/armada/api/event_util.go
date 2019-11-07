@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"time"
@@ -11,6 +12,14 @@ type Event interface {
 	GetJobSetId() string
 	GetQueue() string
 	GetCreated() time.Time
+}
+
+// customize oneof serialization
+func (message *EventMessage) MarshalJSON() ([]byte, error) {
+	return json.Marshal(message.Events)
+}
+func (message *EventMessage) UnmarshalJSON(data []byte) error {
+	return json.Unmarshal(data, message.Events)
 }
 
 func UnwrapEvent(message *EventMessage) (Event, error) {
