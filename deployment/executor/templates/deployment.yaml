@@ -40,8 +40,8 @@ spec:
               mountPath: /config/application_config.yaml
               subPath: {{ include "executor.config.filename" . }}
               readOnly: true
-        securityContext:
-          allowPrivilegeEscalation: false
+          securityContext:
+            allowPrivilegeEscalation: false
       nodeSelector:
 {{ toYaml .Values.nodeSelector | indent 8 }}
       tolerations:
