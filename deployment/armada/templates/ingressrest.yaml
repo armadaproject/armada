@@ -1,0 +1,25 @@
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: {{ include "armada.name" . }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    kubernetes.io/ingress.class: {{ required "A value is required for .Values.ingressClass" .Values.ingressClass }}
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    certmanager.k8s.io/cluster-issuer: {{ required "A value is required for .Values.clusterIssuer" .Values.clusterIssuer }}
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+  labels:
+{{ include "armada.labels.all" . | indent 4 }}
+spec:
+  rules:
+  - host: {{ required "A value is required for .Values.hostname" .Values.hostname }}
+    http:
+      paths:
+        - path: /api(/|$)(.*)
+          backend:
+            serviceName: {{ include "armada.name" . }}
+            servicePort: {{ .Values.applicationConfig.grpcPort }}
+  tls:
+    - hosts:
+        - {{ required "A value is required for .Values.hostname" .Values.hostname }}
+      secretName: armada-service-tls
