@@ -1,6 +1,9 @@
 package common
 
-import "context"
+import (
+	"context"
+	"encoding/base64"
+)
 
 const UsernameField string = "username"
 const PasswordField string = "password"
@@ -11,9 +14,9 @@ type LoginCredentials struct {
 }
 
 func (c *LoginCredentials) GetRequestMetadata(context.Context, ...string) (map[string]string, error) {
+	auth := c.Username + ":" + c.Password
 	return map[string]string{
-		UsernameField: c.Username,
-		PasswordField: c.Password,
+		"authorization": "basic " + base64.StdEncoding.EncodeToString([]byte(auth)),
 	}, nil
 }
 
