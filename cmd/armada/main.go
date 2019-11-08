@@ -38,7 +38,7 @@ func main() {
 	shutdownMetricServer := common.ServeMetrics(config.MetricsPort)
 	defer shutdownMetricServer()
 
-	shutdownGateway := armada.ServeGateway(8080, config.GrpcPort)
+	shutdownGateway := armada.ServeGateway(config.HttpPort, config.GrpcPort)
 	defer shutdownGateway()
 
 	s, wg := armada.Serve(&config)
