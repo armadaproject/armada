@@ -41,7 +41,7 @@ func ServeGateway(port uint16, grpcPort uint16) (shutdown func()) {
 	}
 	mux.Handle("/", gw)
 
-	h := middleware.Spec("/", []byte(api.SwaggerJsonTemplate()), h)
+	h := middleware.Spec("/", []byte(api.SwaggerJsonTemplate()), mux)
 
 	srv := &http.Server{Addr: address, Handler: h}
 
