@@ -17,7 +17,9 @@ protoc -I=./ -I=$GOPATH/src -I=$GOPATH/src/github.com/gogo/protobuf/protobuf \
   ./internal/armada/api/event.proto \
   ./internal/armada/api/submit.proto
 
-# Hack: Easiest way to have ndjson streaming in generated client is to pretend the stream is actually a file
+# Hack:
+# Easiest way to make ndjson streaming work in generated clients is to pretend the stream is actually a file
+# Generated resourceQuantity type needs to be fixed to be string instead of object
 cat internal/armada/api/api.swagger.json | \
  jq '.["x-stream-definitions"].apiEventStreamMessage.type = "file" | .paths["/v1/job-set/{Id}"].post.produces = ["application/ndjson-stream"] | .definitions.resourceQuantity.type = "string" | del(.definitions.resourceQuantity.properties)' \
 >  internal/armada/api/api.swagger.stream_as_file.json
