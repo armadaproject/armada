@@ -1,7 +1,7 @@
 apiVersion: extensions/v1beta1
 kind: Ingress
 metadata:
-  name: {{ include "armada.name" . }}
+  name: {{ include "armada.name" . }}-rest
   namespace: {{ .Release.Namespace }}
   annotations:
     kubernetes.io/ingress.class: {{ required "A value is required for .Values.ingressClass" .Values.ingressClass }}
@@ -18,7 +18,7 @@ spec:
         - path: /api(/|$)(.*)
           backend:
             serviceName: {{ include "armada.name" . }}
-            servicePort: {{ .Values.applicationConfig.grpcPort }}
+            servicePort: {{ .Values.applicationConfig.httpPort }}
   tls:
     - hosts:
         - {{ required "A value is required for .Values.hostname" .Values.hostname }}
