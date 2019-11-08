@@ -18,6 +18,7 @@ type ArmadaConfig struct {
 	AnonymousAuth bool
 
 	GrpcPort               uint16
+	HttpPort               uint16
 	MetricsPort            uint16
 	PriorityHalfTime       time.Duration
 	Redis                  redis.UniversalOptions

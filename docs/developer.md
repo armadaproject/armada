@@ -103,6 +103,10 @@ go get github.com/gogo/protobuf/protoc-gen-gogofaster
 go get github.com/gogo/protobuf/gogoproto
 go get google.golang.org/grpc
 
+go get github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway
+go get github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger
+go get github.com/golang/protobuf/protoc-gen-go
+
 GO111MODULE=off go get k8s.io/api
 GO111MODULE=off go get k8s.io/apimachinery
 GO111MODULE=off go get github.com/gogo/protobuf/gogoproto

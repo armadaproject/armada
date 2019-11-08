@@ -18,3 +18,4 @@ prometheus:
 
 applicationConfig:
   grpcPort: 50051
+  httpPort: 8080
