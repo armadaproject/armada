@@ -65,18 +65,22 @@ func ConfigureLogging() {
 }
 
 func ServeMetrics(port uint16) (shutdown func()) {
-	srv := &http.Server{Addr: fmt.Sprintf(":%d", port)}
 
 	hook := promrus.MustNewPrometheusHook()
 	log.AddHook(hook)
 
-	http.Handle("/metrics", promhttp.Handler())
+	mux := http.NewServeMux()
+	mux.Handle("/metrics", promhttp.Handler())
+
+	srv := &http.Server{
+		Addr:    fmt.Sprintf(":%d", port),
+		Handler: mux}
+
 	go func() {
 		log.Printf("Metrics listening on %d", port)
 		if err := srv.ListenAndServe(); err != http.ErrServerClosed {
 			panic(err)
 		}
-		log.Printf("Metrics listening on %d", port)
 	}()
 	return func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

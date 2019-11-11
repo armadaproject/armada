@@ -18,6 +18,12 @@ spec:
       {{- if .Values.nodePort }}
       nodePort: {{ .Values.nodePort }}
       {{- end }}
+    - name: rest
+      protocol: TCP
+      port: {{ .Values.applicationConfig.httpPort }}
+      {{- if .Values.httpNodePort }}
+      nodePort: {{ .Values.httpNodePort }}
+      {{- end }}
     - name: metrics
       protocol: TCP
       port: 9000
