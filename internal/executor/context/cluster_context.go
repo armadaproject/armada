@@ -15,6 +15,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 
+	"github.com/G-Research/armada/internal/executor/cluster"
 	"github.com/G-Research/armada/internal/executor/domain"
 	"github.com/G-Research/armada/internal/executor/util"
 )
@@ -27,7 +28,7 @@ type ClusterContext interface {
 	GetActiveBatchPods() ([]*v1.Pod, error)
 	GetNodes() ([]*v1.Node, error)
 
-	SubmitPod(pod *v1.Pod) (*v1.Pod, error)
+	SubmitPod(pod *v1.Pod, owner string) (*v1.Pod, error)
 	AddAnnotation(pod *v1.Pod, annotations map[string]string) error
 	DeletePods(pods []*v1.Pod)
 
@@ -35,13 +36,14 @@ type ClusterContext interface {
 }
 
 type KubernetesClusterContext struct {
-	clusterId        string
-	submittedPods    util.PodCache
-	podsToDelete     util.PodCache
-	podInformer      informer.PodInformer
-	nodeInformer     informer.NodeInformer
-	stopper          chan struct{}
-	kubernetesClient kubernetes.Interface
+	clusterId                string
+	submittedPods            util.PodCache
+	podsToDelete             util.PodCache
+	podInformer              informer.PodInformer
+	nodeInformer             informer.NodeInformer
+	stopper                  chan struct{}
+	kubernetesClient         kubernetes.Interface
+	kubernetesClientProvider cluster.KubernetesClientProvider
 }
 
 func (c *KubernetesClusterContext) GetClusterId() string {
@@ -51,18 +53,21 @@ func (c *KubernetesClusterContext) GetClusterId() string {
 func NewClusterContext(
 	clusterId string,
 	minTimeBetweenRepeatDeletionCalls time.Duration,
-	kubernetesClient kubernetes.Interface) *KubernetesClusterContext {
+	kubernetesClientProvider cluster.KubernetesClientProvider) *KubernetesClusterContext {
+
+	kubernetesClient := kubernetesClientProvider.Client()
 
 	factory := informers.NewSharedInformerFactoryWithOptions(kubernetesClient, 0)
 
 	context := &KubernetesClusterContext{
-		clusterId:        clusterId,
-		submittedPods:    util.NewTimeExpiringPodCache(time.Minute, time.Second, "submitted_job"),
-		podsToDelete:     util.NewTimeExpiringPodCache(minTimeBetweenRepeatDeletionCalls, time.Second, "deleted_job"),
-		stopper:          make(chan struct{}),
-		podInformer:      factory.Core().V1().Pods(),
-		nodeInformer:     factory.Core().V1().Nodes(),
-		kubernetesClient: kubernetesClient,
+		clusterId:                clusterId,
+		submittedPods:            util.NewTimeExpiringPodCache(time.Minute, time.Second, "submitted_job"),
+		podsToDelete:             util.NewTimeExpiringPodCache(minTimeBetweenRepeatDeletionCalls, time.Second, "deleted_job"),
+		stopper:                  make(chan struct{}),
+		podInformer:              factory.Core().V1().Pods(),
+		nodeInformer:             factory.Core().V1().Nodes(),
+		kubernetesClient:         kubernetesClient,
+		kubernetesClientProvider: kubernetesClientProvider,
 	}
 
 	context.AddPodEventHandler(cache.ResourceEventHandlerFuncs{
@@ -123,10 +128,15 @@ func (c *KubernetesClusterContext) GetNodes() ([]*v1.Node, error) {
 	return c.nodeInformer.Lister().List(labels.Everything())
 }
 
-func (c *KubernetesClusterContext) SubmitPod(pod *v1.Pod) (*v1.Pod, error) {
+func (c *KubernetesClusterContext) SubmitPod(pod *v1.Pod, owner string) (*v1.Pod, error) {
 
 	c.submittedPods.Add(pod)
-	returnedPod, err := c.kubernetesClient.CoreV1().Pods("default").Create(pod)
+	ownerClient, err := c.kubernetesClientProvider.ClientForUser(owner)
+	if err != nil {
+		return nil, err
+	}
+
+	returnedPod, err := ownerClient.CoreV1().Pods(pod.Namespace).Create(pod)
 
 	if err != nil {
 		c.submittedPods.Delete(util.ExtractJobId(pod))

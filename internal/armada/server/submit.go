@@ -60,7 +60,9 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 		return nil, e
 	}
 
-	jobs := server.jobRepository.CreateJobs(req)
+	principal := authorization.GetPrincipal(ctx)
+
+	jobs := server.jobRepository.CreateJobs(req, principal)
 
 	e := reportSubmitted(server.eventRepository, jobs)
 	if e != nil {

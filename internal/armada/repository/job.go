@@ -10,6 +10,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/G-Research/armada/internal/armada/api"
+	"github.com/G-Research/armada/internal/armada/authorization"
 	"github.com/G-Research/armada/internal/common/util"
 )
 
@@ -21,7 +22,7 @@ const jobClusterMapKey = "Job:ClusterId"
 const jobQueueMapKey = "Job:QueueName"
 
 type JobRepository interface {
-	CreateJobs(request *api.JobSubmitRequest) []*api.Job
+	CreateJobs(request *api.JobSubmitRequest, principal authorization.Principal) []*api.Job
 	AddJobs(job []*api.Job) ([]*SubmitJobResult, error)
 	GetJobsByIds(ids []string) ([]*api.Job, error)
 	PeekQueue(queue string, limit int64) ([]*api.Job, error)
@@ -44,19 +45,26 @@ func NewRedisJobRepository(db redis.UniversalClient) *RedisJobRepository {
 	return &RedisJobRepository{db: db}
 }
 
-func (repo *RedisJobRepository) CreateJobs(request *api.JobSubmitRequest) []*api.Job {
+func (repo *RedisJobRepository) CreateJobs(request *api.JobSubmitRequest, principal authorization.Principal) []*api.Job {
 	jobs := make([]*api.Job, 0, len(request.JobRequestItems))
 
 	for _, item := range request.JobRequestItems {
+		namespace := item.Namespace
+		if namespace == "" {
+			namespace = "default"
+		}
+
 		j := &api.Job{
 			Id:       util.NewULID(),
 			Queue:    request.Queue,
 			JobSetId: request.JobSetId,
 
-			Priority: item.Priority,
+			Namespace: namespace,
+			Priority:  item.Priority,
 
 			PodSpec: item.PodSpec,
 			Created: time.Now(),
+			Owner:   principal.GetName(),
 		}
 		jobs = append(jobs, j)
 	}

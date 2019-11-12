@@ -224,6 +224,12 @@ func SwaggerJsonTemplate() string {
 		"        \"Queue\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
+		"        \"Namespace\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"Owner\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
 		"        \"Priority\": {\n" +
 		"          \"type\": \"number\",\n" +
 		"          \"format\": \"double\"\n" +
@@ -490,6 +496,9 @@ func SwaggerJsonTemplate() string {
 		"        \"Priority\": {\n" +
 		"          \"type\": \"number\",\n" +
 		"          \"format\": \"double\"\n" +
+		"        },\n" +
+		"        \"Namespace\": {\n" +
+		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"PodSpec\": {\n" +
 		"          \"$ref\": \"#/definitions/v1PodSpec\"\n" +
