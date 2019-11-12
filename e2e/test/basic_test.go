@@ -52,7 +52,7 @@ func TestCanSubmitJob_KubernetesNamespacePermissionsAreRespected(t *testing.T) {
 		createQueue(submitClient, jobRequest, t)
 
 		receivedEvents := submitJobsAndWatch(t, submitClient, eventsClient, jobRequest)
-		assert.True(t, receivedEvents[domain.Failed])
+		assert.True(t, receivedEvents[domain.Failed], "Anonymous user should not have access to default namespace.")
 	})
 }
 
