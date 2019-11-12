@@ -10,8 +10,11 @@ resources:
     cpu: 200m
 additionalLabels: {}
 terminationGracePeriodSeconds: 5
-replicas: 1
-
+replicas: 3
+strategy:
+  rollingUpdate:
+    maxUnavailable: 1
+  type: RollingUpdate
 prometheus:
   enabled: false
   labels: {}
