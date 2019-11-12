@@ -213,6 +213,12 @@
         "Queue": {
           "type": "string"
         },
+        "Namespace": {
+          "type": "string"
+        },
+        "Owner": {
+          "type": "string"
+        },
         "Priority": {
           "type": "number",
           "format": "double"
@@ -479,6 +485,9 @@
         "Priority": {
           "type": "number",
           "format": "double"
+        },
+        "Namespace": {
+          "type": "string"
         },
         "PodSpec": {
           "$ref": "#/definitions/v1PodSpec"

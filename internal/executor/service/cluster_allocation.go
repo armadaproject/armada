@@ -63,7 +63,7 @@ func (allocationService *ClusterAllocationService) submitJobs(jobsToSubmit []*ap
 
 	for _, job := range jobsToSubmit {
 		pod := createPod(job)
-		_, err := allocationService.clusterContext.SubmitPod(pod)
+		_, err := allocationService.clusterContext.SubmitPod(pod, job.Owner)
 
 		if err != nil {
 			log.Errorf("Failed to submit job %s because %s", job.Id, err)
@@ -123,8 +123,9 @@ func createPod(job *api.Job) *v1.Pod {
 
 	pod := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:   PodNamePrefix + job.Id,
-			Labels: labels,
+			Name:      PodNamePrefix + job.Id,
+			Labels:    labels,
+			Namespace: job.Namespace,
 		},
 		Spec: *job.PodSpec,
 	}

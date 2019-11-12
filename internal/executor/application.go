@@ -16,6 +16,7 @@ import (
 	"github.com/G-Research/armada/internal/armada/api"
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/internal/common/oidc"
+	"github.com/G-Research/armada/internal/executor/cluster"
 	"github.com/G-Research/armada/internal/executor/configuration"
 	"github.com/G-Research/armada/internal/executor/context"
 	"github.com/G-Research/armada/internal/executor/metrics"
@@ -24,7 +25,9 @@ import (
 )
 
 func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGroup) {
-	kubernetesClient, err := CreateKubernetesClient(&config.Kubernetes)
+
+	kubernetesClientProvider, err := cluster.NewKubernetesClientProvider(&config.Kubernetes)
+
 	if err != nil {
 		log.Errorf("Failed to connect to kubernetes because %s", err)
 		os.Exit(-1)
@@ -43,7 +46,7 @@ func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGrou
 	clusterContext := context.NewClusterContext(
 		config.Application.ClusterId,
 		2*time.Minute,
-		kubernetesClient,
+		kubernetesClientProvider,
 	)
 
 	eventReporter := reporter.NewJobEventReporter(
