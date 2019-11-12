@@ -11,9 +11,7 @@ type ApplicationConfiguration struct {
 }
 
 type KubernetesConfiguration struct {
-	InClusterDeployment      bool
-	KubernetesConfigLocation string
-	ImpersonateUsers         bool
+	ImpersonateUsers bool
 }
 
 type BasicAuthenticationConfiguration struct {

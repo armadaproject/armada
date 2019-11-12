@@ -21,7 +21,7 @@ type ConfigKubernetesClientProvider struct {
 }
 
 func NewKubernetesClientProvider(kubernetesConfig *configuration.KubernetesConfiguration) (*ConfigKubernetesClientProvider, error) {
-	config, err := loadConfig(kubernetesConfig)
+	config, err := loadConfig()
 	if err != nil {
 		return nil, err
 	}
@@ -54,17 +54,14 @@ func (c *ConfigKubernetesClientProvider) ClientForUser(user string) (kubernetes.
 	return kubernetes.NewForConfig(&config)
 }
 
-func loadConfig(kubernetesConfig *configuration.KubernetesConfiguration) (*rest.Config, error) {
-	if kubernetesConfig.InClusterDeployment {
-		log.Info("Running with in cluster client configuration")
-		return rest.InClusterConfig()
-	} else if kubernetesConfig.KubernetesConfigLocation != "" {
-		log.Infof("Running with custom client configuration from %s", kubernetesConfig.KubernetesConfigLocation)
-		return clientcmd.BuildConfigFromFlags("", kubernetesConfig.KubernetesConfigLocation)
-	} else {
+func loadConfig() (*rest.Config, error) {
+	config, err := rest.InClusterConfig()
+	if err == rest.ErrNotInCluster {
 		log.Info("Running with default client configuration")
 		rules := clientcmd.NewDefaultClientConfigLoadingRules()
 		overrides := &clientcmd.ConfigOverrides{}
 		return clientcmd.NewNonInteractiveDeferredLoadingClientConfig(rules, overrides).ClientConfig()
 	}
+	log.Info("Running with in cluster client configuration")
+	return config, err
 }

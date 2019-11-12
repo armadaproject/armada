@@ -12,3 +12,5 @@ armada:
 basicAuth:
   enableAuthentication: false
 metricsPort: 9001
+kubernetes:
+  impersonateUsers: false
