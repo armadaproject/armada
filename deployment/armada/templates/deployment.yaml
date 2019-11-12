@@ -48,6 +48,13 @@ spec:
               readOnly: true
           securityContext:
             allowPrivilegeEscalation: false
+          readinessProbe:
+            httpGet:
+              host: localhost
+              path: /health
+              port: rest
+            initialDelaySeconds: 5
+            timeoutSeconds: 5
       affinity:
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
