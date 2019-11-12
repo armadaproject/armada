@@ -11,6 +11,7 @@ import (
 	errors2 "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
 	clientTesting "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/cache"
@@ -21,20 +22,27 @@ import (
 )
 
 func setupTest() (*KubernetesClusterContext, *fake.Clientset) {
+	context, provider := setupTestWithMinRepeatedDeletePeriod(2 * time.Minute)
+	return context, provider.FakeClient
+}
+
+func setupTestWithProvider() (*KubernetesClusterContext, *FakeClientProvider) {
 	return setupTestWithMinRepeatedDeletePeriod(2 * time.Minute)
 }
 
-func setupTestWithMinRepeatedDeletePeriod(minRepeatedDeletePeriod time.Duration) (*KubernetesClusterContext, *fake.Clientset) {
+func setupTestWithMinRepeatedDeletePeriod(minRepeatedDeletePeriod time.Duration) (*KubernetesClusterContext, *FakeClientProvider) {
 	prometheus.DefaultRegisterer = prometheus.NewRegistry()
+
 	client := fake.NewSimpleClientset()
+	clientProvider := &FakeClientProvider{FakeClient: client}
 
 	clusterContext := NewClusterContext(
 		"test-cluster-1",
 		minRepeatedDeletePeriod,
-		client,
+		clientProvider,
 	)
 
-	return clusterContext, client
+	return clusterContext, clientProvider
 }
 
 func TestKubernetesClusterContext_SubmitPod(t *testing.T) {
@@ -43,7 +51,7 @@ func TestKubernetesClusterContext_SubmitPod(t *testing.T) {
 	pod := createBatchPod()
 	client.Fake.ClearActions()
 
-	_, err := clusterContext.SubmitPod(pod)
+	_, err := clusterContext.SubmitPod(pod, "user1")
 	assert.Nil(t, err)
 
 	assert.Equal(t, len(client.Fake.Actions()), 1)
@@ -141,7 +149,8 @@ func TestKubernetesClusterContext_ProcessPodsToDelete_AllowsRepeatedDeleteCallTo
 
 func TestKubernetesClusterContext_ProcessPodsToDelete_AllowsRepeatedDeleteCallToClient_AfterMinimumDeletePeriodHasPassed(t *testing.T) {
 	timeBetweenRepeatedDeleteCalls := 500 * time.Millisecond
-	clusterContext, client := setupTestWithMinRepeatedDeletePeriod(timeBetweenRepeatedDeleteCalls)
+	clusterContext, provider := setupTestWithMinRepeatedDeletePeriod(timeBetweenRepeatedDeleteCalls)
+	client := provider.FakeClient
 
 	pod := createSubmittedBatchPod(t, clusterContext)
 
@@ -263,7 +272,7 @@ func TestKubernetesClusterContext_GetBatchPods_DoesNotShowTransient_OnSubmitFail
 	})
 
 	batchPod := createBatchPod()
-	_, err := clusterContext.SubmitPod(batchPod)
+	_, err := clusterContext.SubmitPod(batchPod, "user")
 	assert.NotNil(t, err)
 
 	allPods, err := clusterContext.GetBatchPods()
@@ -334,8 +343,16 @@ func TestKubernetesClusterContext_GetNodes(t *testing.T) {
 	assert.Equal(t, nodes[0].Name, node.Name)
 }
 
+func TestKubernetesClusterContext_Submit_UseUserSpecificClient(t *testing.T) {
+	clusterContext, provider := setupTestWithProvider()
+
+	_, err := clusterContext.SubmitPod(createPod(), "user")
+	assert.Nil(t, err)
+	assert.Contains(t, provider.users, "user")
+}
+
 func submitPod(t *testing.T, context ClusterContext, pod *v1.Pod) {
-	_, err := context.SubmitPod(pod)
+	_, err := context.SubmitPod(pod, "user")
 	assert.Nil(t, err)
 }
 
@@ -362,4 +379,17 @@ func createPod() *v1.Pod {
 			Namespace: "default",
 		},
 	}
+}
+
+type FakeClientProvider struct {
+	FakeClient *fake.Clientset
+	users      []string
+}
+
+func (p *FakeClientProvider) ClientForUser(user string) (kubernetes.Interface, error) {
+	p.users = append(p.users, user)
+	return p.FakeClient, nil
+}
+func (p *FakeClientProvider) Client() kubernetes.Interface {
+	return p.FakeClient
 }

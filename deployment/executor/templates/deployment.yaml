@@ -28,7 +28,6 @@ spec:
           args:
             - --config
             - /config/application_config.yaml
-            - --inCluster
           resources:
 {{ toYaml .Values.resources | indent 12 }}
           ports:

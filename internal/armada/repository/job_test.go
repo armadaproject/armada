@@ -9,6 +9,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/G-Research/armada/internal/armada/api"
+	"github.com/G-Research/armada/internal/armada/authorization"
 )
 
 func TestJobCanBeLeasedOnlyOnce(t *testing.T) {
@@ -198,7 +199,7 @@ func addTestJob(t *testing.T, r *RedisJobRepository, queue string) *api.Job {
 				PodSpec:  &v1.PodSpec{},
 			},
 		},
-	})
+	}, authorization.NewStaticPrincipal("user", []string{}))
 	results, e := r.AddJobs(jobs)
 	assert.Nil(t, e)
 	for _, result := range results {
