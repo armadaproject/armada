@@ -25,43 +25,66 @@ const integrationEnabledEnvVar = "INTEGRATION_ENABLED"
 func TestCanSubmitJob_ReceivingAllExpectedEvents(t *testing.T) {
 	skipIfIntegrationEnvNotPresent(t)
 
-	jobRequest := createJobRequest()
-	connectionDetails := &domain.ArmadaApiConnectionDetails{
-		ArmadaUrl: "localhost:50051",
-	}
-
-	util2.WithConnection(connectionDetails, func(connection *grpc.ClientConn) {
+	util2.WithConnection(connectionDetails(), func(connection *grpc.ClientConn) {
 		submitClient := api.NewSubmitClient(connection)
-
-		err := client.CreateQueue(submitClient, &api.Queue{Name: jobRequest.Queue, PriorityFactor: 1})
-		assert.Nil(t, err)
-
-		_, err = client.SubmitJobs(submitClient, jobRequest)
-		assert.Nil(t, err)
-
-		receivedEvents := make(map[domain.JobStatus]bool)
-
 		eventsClient := api.NewEventClient(connection)
 
-		timeout, _ := context.WithTimeout(context.Background(), 30*time.Second)
+		jobRequest := createJobRequest("personal-anonymous")
+		createQueue(submitClient, jobRequest, t)
 
-		client.WatchJobSet(eventsClient, jobRequest.JobSetId, true, timeout, func(state *domain.WatchContext, e api.Event) bool {
-			currentStatus := state.GetJobInfo(e.GetJobId()).Status
-			receivedEvents[currentStatus] = true
-
-			if currentStatus == domain.Succeeded || currentStatus == domain.Failed || currentStatus == domain.Cancelled {
-				return true
-			}
-
-			return false
-		})
-		assert.False(t, hasTimedOut(timeout), "Test timed out waiting for expected events")
+		receivedEvents := submitJobsAndWatch(t, submitClient, eventsClient, jobRequest)
 
 		assert.True(t, receivedEvents[domain.Queued])
 		assert.True(t, receivedEvents[domain.Leased])
 		assert.True(t, receivedEvents[domain.Running])
 		assert.True(t, receivedEvents[domain.Succeeded])
 	})
+}
+
+func TestCanSubmitJob_KubernetesNamespacePermissionsAreRespected(t *testing.T) {
+	skipIfIntegrationEnvNotPresent(t)
+
+	util2.WithConnection(connectionDetails(), func(connection *grpc.ClientConn) {
+		submitClient := api.NewSubmitClient(connection)
+		eventsClient := api.NewEventClient(connection)
+
+		jobRequest := createJobRequest("default")
+		createQueue(submitClient, jobRequest, t)
+
+		receivedEvents := submitJobsAndWatch(t, submitClient, eventsClient, jobRequest)
+		assert.True(t, receivedEvents[domain.Failed])
+	})
+}
+
+func connectionDetails() *domain.ArmadaApiConnectionDetails {
+	connectionDetails := &domain.ArmadaApiConnectionDetails{
+		ArmadaUrl: "localhost:50051",
+	}
+	return connectionDetails
+}
+
+func submitJobsAndWatch(t *testing.T, submitClient api.SubmitClient, eventsClient api.EventClient, jobRequest *api.JobSubmitRequest) map[domain.JobStatus]bool {
+	_, err := client.SubmitJobs(submitClient, jobRequest)
+	assert.Nil(t, err)
+	receivedEvents := make(map[domain.JobStatus]bool)
+	timeout, _ := context.WithTimeout(context.Background(), 30*time.Second)
+	client.WatchJobSet(eventsClient, jobRequest.JobSetId, true, timeout, func(state *domain.WatchContext, e api.Event) bool {
+		currentStatus := state.GetJobInfo(e.GetJobId()).Status
+		receivedEvents[currentStatus] = true
+
+		if currentStatus == domain.Succeeded || currentStatus == domain.Failed || currentStatus == domain.Cancelled {
+			return true
+		}
+
+		return false
+	})
+	assert.False(t, hasTimedOut(timeout), "Test timed out waiting for expected events")
+	return receivedEvents
+}
+
+func createQueue(submitClient api.SubmitClient, jobRequest *api.JobSubmitRequest, t *testing.T) {
+	err := client.CreateQueue(submitClient, &api.Queue{Name: jobRequest.Queue, PriorityFactor: 1})
+	assert.Nil(t, err)
 }
 
 func skipIfIntegrationEnvNotPresent(t *testing.T) {
@@ -89,7 +112,7 @@ func hasTimedOut(context context.Context) bool {
 	}
 }
 
-func createJobRequest() *api.JobSubmitRequest {
+func createJobRequest(namespace string) *api.JobSubmitRequest {
 	cpu, _ := resource.ParseQuantity("80m")
 	memory, _ := resource.ParseQuantity("50Mi")
 	return &api.JobSubmitRequest{
@@ -97,6 +120,7 @@ func createJobRequest() *api.JobSubmitRequest {
 		JobSetId: util.NewULID(),
 		JobRequestItems: []*api.JobSubmitRequestItem{
 			{
+				Namespace: namespace,
 				PodSpec: &v1.PodSpec{
 					Containers: []v1.Container{{
 						Name:  "container1",
