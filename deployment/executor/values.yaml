@@ -9,7 +9,7 @@ resources:
     memory: 512Mi
     cpu: 200m
 additionalLabels: {}
-terminationGracePeriodSeconds: 0
+terminationGracePeriodSeconds: 5
 nodeSelector:
   node-role.kubernetes.io/master: ""
 tolerations:
