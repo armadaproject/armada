@@ -69,7 +69,7 @@ func (allocationService *ClusterAllocationService) submitJobs(jobsToSubmit []*ap
 			log.Errorf("Failed to submit job %s because %s", job.Id, err)
 
 			status, ok := err.(errors.APIStatus)
-			if ok && status.Status().Reason == metav1.StatusReasonInvalid {
+			if ok && (isNotRecoverable(status.Status().Reason)) {
 				errDetails := &failedSubmissionDetails{
 					pod:   pod,
 					error: status,
@@ -85,6 +85,11 @@ func (allocationService *ClusterAllocationService) submitJobs(jobsToSubmit []*ap
 	if err != nil {
 		log.Errorf("Failed to report failed jobs as done because %s", err)
 	}
+}
+
+func isNotRecoverable(reason metav1.StatusReason) bool {
+	return reason == metav1.StatusReasonInvalid ||
+		reason == metav1.StatusReasonForbidden
 }
 
 func (allocationService *ClusterAllocationService) failJobs(failedSubmissions []*failedSubmissionDetails) error {
