@@ -26,3 +26,9 @@ rules:
   - get
   - list
   - watch
+- apiGroups:
+  - ""
+  resources:
+  - users
+  verbs:
+  - impersonate
