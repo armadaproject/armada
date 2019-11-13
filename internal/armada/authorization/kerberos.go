@@ -1,0 +1,103 @@
+package authorization
+
+import (
+	"context"
+	"encoding/base64"
+
+	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
+	log "github.com/sirupsen/logrus"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/peer"
+	"google.golang.org/grpc/status"
+	"gopkg.in/jcmturner/goidentity.v3"
+	"gopkg.in/jcmturner/gokrb5.v7/credentials"
+	"gopkg.in/jcmturner/gokrb5.v7/gssapi"
+	"gopkg.in/jcmturner/gokrb5.v7/keytab"
+	"gopkg.in/jcmturner/gokrb5.v7/service"
+	"gopkg.in/jcmturner/gokrb5.v7/spnego"
+	"gopkg.in/jcmturner/gokrb5.v7/types"
+
+	"github.com/G-Research/armada/internal/armada/configuration"
+)
+
+const (
+	// spnegoNegTokenRespKRBAcceptCompleted - The response on successful authentication always has this header. Capturing as const so we don't have marshaling and encoding overhead.
+	spnegoNegTokenRespKRBAcceptCompleted = "Negotiate oRQwEqADCgEAoQsGCSqGSIb3EgECAg=="
+)
+
+type KerberosAuthService struct {
+	kt       *keytab.Keytab
+	settings []func(*service.Settings)
+}
+
+func NewKerberosAuthService(config *configuration.KerberosAuthenticationConfig) (*KerberosAuthService, error) {
+	kt, err := keytab.Load(config.KeytabLocation)
+	if err != nil {
+		return nil, err
+	}
+
+	settings := []func(*service.Settings){}
+	if config.PrincipalName != "" {
+		settings = append(settings, service.KeytabPrincipal(config.PrincipalName))
+	}
+
+	return &KerberosAuthService{
+		kt:       kt,
+		settings: settings,
+	}, nil
+}
+
+func (authService *KerberosAuthService) AddNegotiationMetadata(ctx context.Context) error {
+	return grpc.SetHeader(ctx, metadata.Pairs(spnego.HTTPHeaderAuthResponse, spnego.HTTPHeaderAuthResponseValueKey))
+}
+
+func (authService *KerberosAuthService) Authenticate(ctx context.Context) (Principal, error) {
+	encodedToken, err := grpc_auth.AuthFromMD(ctx, spnego.HTTPHeaderAuthResponseValueKey)
+	if err != nil {
+		return nil, missingCredentials
+	}
+
+	tokenData, err := base64.StdEncoding.DecodeString(encodedToken)
+	var token spnego.SPNEGOToken
+	err = token.Unmarshal(tokenData)
+	if err != nil {
+		return nil, status.Errorf(codes.Unauthenticated, "SPNEGO invalid token")
+	}
+
+	settings := authService.settings
+	p, ok := peer.FromContext(ctx)
+	if ok {
+		clientHost, e := types.GetHostAddress(p.Addr.String())
+		if e == nil {
+			settings = append([]func(*service.Settings){service.ClientAddress(clientHost)}, settings...)
+		}
+	}
+	svc := spnego.SPNEGOService(authService.kt, settings...)
+
+	authenticated, ctx, st := svc.AcceptSecContext(&token)
+	if st.Code != gssapi.StatusComplete && st.Code != gssapi.StatusContinueNeeded {
+		return nil, status.Errorf(codes.Unauthenticated, "SPNEGO validation error: %v", st)
+	}
+	if st.Code == gssapi.StatusContinueNeeded {
+		return nil, status.Errorf(codes.Unauthenticated, "SPNEGO GSS-API continue needed")
+	}
+	if authenticated {
+		id := ctx.Value(spnego.CTXKeyCredentials).(goidentity.Identity)
+		if adCredentials, ok := id.Attributes()[credentials.AttributeKeyADCredentials].(credentials.ADCredentials); ok {
+			user := adCredentials.EffectiveName
+			groups := adCredentials.GroupMembershipSIDs
+
+			log.WithField("user", user).WithField("groups", groups).Info("SPNGO: Logged in!")
+			grpc.SetHeader(ctx, metadata.Pairs(spnego.HTTPHeaderAuthResponse, spnegoNegTokenRespKRBAcceptCompleted))
+
+			return NewStaticPrincipal(user, groups), nil
+		}
+
+		return nil, status.Errorf(codes.Unauthenticated, "Failed to read ad credentials")
+
+	} else {
+		return nil, status.Errorf(codes.Unauthenticated, "SPNEGO Kerberos authentication failed")
+	}
+}

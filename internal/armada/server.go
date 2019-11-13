@@ -98,6 +98,14 @@ func createServer(config *configuration.ArmadaConfig) *grpc.Server {
 		authServices = append(authServices, &authorization.AnonymousAuthService{})
 	}
 
+	if config.Kerberos.KeytabLocation != "" {
+		kerberosAuthService, err := authorization.NewKerberosAuthService(&config.Kerberos)
+		if err != nil {
+			panic(err)
+		}
+		authServices = append(authServices, kerberosAuthService)
+	}
+
 	authFunction := authorization.CreateMiddlewareAuthFunction(authServices)
 	unaryInterceptors = append(unaryInterceptors, grpc_auth.UnaryServerInterceptor(authFunction))
 	streamInterceptors = append(streamInterceptors, grpc_auth.StreamServerInterceptor(authFunction))

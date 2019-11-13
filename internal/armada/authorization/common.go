@@ -4,6 +4,7 @@ import (
 	"context"
 
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
+	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -77,6 +78,11 @@ type AuthService interface {
 	Authenticate(ctx context.Context) (Principal, error)
 }
 
+type AuthServiceNegotiation interface {
+	// If auth service implements this interface AddNegotiationMetadata() is called in case of missing credentials
+	AddNegotiationMetadata(ctx context.Context) error
+}
+
 func CreateMiddlewareAuthFunction(authServices []AuthService) grpc_auth.AuthFunc {
 	return func(ctx context.Context) (context.Context, error) {
 		for _, service := range authServices {
@@ -90,6 +96,17 @@ func CreateMiddlewareAuthFunction(authServices []AuthService) grpc_auth.AuthFunc
 			}
 			return WithPrincipal(ctx, principal), nil
 		}
+
+		for _, service := range authServices {
+			switch n := service.(type) {
+			case AuthServiceNegotiation:
+				e := n.AddNegotiationMetadata(ctx)
+				if e != nil {
+					log.Error(e)
+				}
+			}
+		}
+
 		return nil, status.Errorf(codes.Unauthenticated, "Request in not authenticated with any of the supported schemes.")
 	}
 }

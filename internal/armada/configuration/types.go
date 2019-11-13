@@ -25,6 +25,7 @@ type ArmadaConfig struct {
 	EventsRedis            redis.UniversalOptions
 	BasicAuth              BasicAuthenticationConfig
 	OpenIdAuth             OpenIdAuthenticationConfig
+	Kerberos               KerberosAuthenticationConfig
 	PermissionGroupMapping map[permissions.Permission][]string
 	PermissionScopeMapping map[permissions.Permission][]string
 
@@ -38,6 +39,11 @@ type OpenIdAuthenticationConfig struct {
 
 type BasicAuthenticationConfig struct {
 	Users map[string]UserInfo
+}
+
+type KerberosAuthenticationConfig struct {
+	KeytabLocation string
+	PrincipalName  string
 }
 
 type SchedulingConfig struct {
