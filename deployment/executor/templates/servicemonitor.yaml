@@ -10,7 +10,8 @@ metadata:
 {{ toYaml .Values.prometheus.labels | indent 4 }}
 {{- end }}
 spec:
-  matchLabels:
+  selector:
+    matchLabels:
 {{ include "executor.labels.identity" . | indent 6 }}
   endpoints:
     - port: metrics
