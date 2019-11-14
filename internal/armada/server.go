@@ -98,6 +98,7 @@ func createServer(config *configuration.ArmadaConfig) *grpc.Server {
 		authServices = append(authServices, &authorization.AnonymousAuthService{})
 	}
 
+	// Kerberos should be the last service as it is adding WWW-Authenticate header for unauthenticated response
 	if config.Kerberos.KeytabLocation != "" {
 		kerberosAuthService, err := authorization.NewKerberosAuthService(&config.Kerberos)
 		if err != nil {

@@ -25,6 +25,10 @@ import (
 const (
 	// spnegoNegTokenRespKRBAcceptCompleted - The response on successful authentication always has this header. Capturing as const so we don't have marshaling and encoding overhead.
 	spnegoNegTokenRespKRBAcceptCompleted = "Negotiate oRQwEqADCgEAoQsGCSqGSIb3EgECAg=="
+	// spnegoNegTokenRespReject - The response on a failed authentication always has this rejection header. Capturing as const so we don't have marshaling and encoding overhead.
+	spnegoNegTokenRespReject = "Negotiate oQcwBaADCgEC"
+	// spnegoNegTokenRespIncompleteKRB5 - Response token specifying incomplete context and KRB5 as the supported mechtype.
+	spnegoNegTokenRespIncompleteKRB5 = "Negotiate oRQwEqADCgEBoQsGCSqGSIb3EgECAg=="
 )
 
 type KerberosAuthService struct {
@@ -49,17 +53,19 @@ func NewKerberosAuthService(config *configuration.KerberosAuthenticationConfig) 
 	}, nil
 }
 
-func (authService *KerberosAuthService) AddNegotiationMetadata(ctx context.Context) error {
-	return grpc.SetHeader(ctx, metadata.Pairs(spnego.HTTPHeaderAuthResponse, spnego.HTTPHeaderAuthResponseValueKey))
-}
-
 func (authService *KerberosAuthService) Authenticate(ctx context.Context) (Principal, error) {
 	encodedToken, err := grpc_auth.AuthFromMD(ctx, spnego.HTTPHeaderAuthResponseValueKey)
 	if err != nil {
+		// Add WWW-Authenticate header
+		_ = grpc.SetHeader(ctx, metadata.Pairs(spnego.HTTPHeaderAuthResponse, spnego.HTTPHeaderAuthResponseValueKey))
 		return nil, missingCredentials
 	}
 
 	tokenData, err := base64.StdEncoding.DecodeString(encodedToken)
+	if err != nil {
+		return nil, status.Errorf(codes.Unauthenticated, "SPNEGO invalid token")
+	}
+
 	var token spnego.SPNEGOToken
 	err = token.Unmarshal(tokenData)
 	if err != nil {
@@ -78,9 +84,11 @@ func (authService *KerberosAuthService) Authenticate(ctx context.Context) (Princ
 
 	authenticated, ctx, st := svc.AcceptSecContext(&token)
 	if st.Code != gssapi.StatusComplete && st.Code != gssapi.StatusContinueNeeded {
+
 		return nil, status.Errorf(codes.Unauthenticated, "SPNEGO validation error: %v", st)
 	}
 	if st.Code == gssapi.StatusContinueNeeded {
+		_ = grpc.SetHeader(ctx, metadata.Pairs(spnego.HTTPHeaderAuthResponse, spnegoNegTokenRespIncompleteKRB5))
 		return nil, status.Errorf(codes.Unauthenticated, "SPNEGO GSS-API continue needed")
 	}
 	if authenticated {
@@ -90,14 +98,14 @@ func (authService *KerberosAuthService) Authenticate(ctx context.Context) (Princ
 			groups := adCredentials.GroupMembershipSIDs
 
 			log.WithField("user", user).WithField("groups", groups).Info("SPNGO: Logged in!")
-			grpc.SetHeader(ctx, metadata.Pairs(spnego.HTTPHeaderAuthResponse, spnegoNegTokenRespKRBAcceptCompleted))
-
+			_ = grpc.SetHeader(ctx, metadata.Pairs(spnego.HTTPHeaderAuthResponse, spnegoNegTokenRespKRBAcceptCompleted))
 			return NewStaticPrincipal(user, groups), nil
 		}
 
 		return nil, status.Errorf(codes.Unauthenticated, "Failed to read ad credentials")
 
 	} else {
+		_ = grpc.SetHeader(ctx, metadata.Pairs(spnego.HTTPHeaderAuthResponse, spnegoNegTokenRespReject))
 		return nil, status.Errorf(codes.Unauthenticated, "SPNEGO Kerberos authentication failed")
 	}
 }
