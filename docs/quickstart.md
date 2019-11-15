@@ -14,12 +14,19 @@ N.B.  Ensure the current user has permission to run the `docker` command without
 
 ## Installation
 This guide will install Armada on 3 local Kubernetes clusters; one server and two executor clusters. 
-This repository must be cloned locally. All commands are intended to be run from the root of the repository.
+
+Set `ARMADA_VERSION` environment variable and clone this repository repository with the same version tag as you are installing. For example to install version `v1.2.3`:
+```bash
+export ARMADA_VERSION=v1.2.3
+git clone <repo_url> --branch $ARMADA_VERSION
+```
+
+All commands are intended to be run from the root of the repository.
 
 ### Cluster creation
 
 First create the 3 required Kind clusters:
-```
+```bash
 kindImage=kindest/node:v1.13.10
 kind create cluster --image $kindImage --name quickstart-armada-server --config ./docs/quickstart/kind-config-server.yaml
 kind create cluster --image $kindImage --name quickstart-armada-executor-0 --config ./docs/quickstart/kind-config-executor-0.yaml
@@ -32,7 +39,7 @@ Ensure all clusters are up and running before continuing.
 
 N.B. The official Prometheus chart is complex and may take up to 1 minute to install in the following instructions.
 
-```
+```bash
 export KUBECONFIG=$(kind get kubeconfig-path --name="quickstart-armada-server")
 
 # Configure Helm
@@ -46,12 +53,12 @@ helm install stable/redis-ha --name=redis -f docs/quickstart/redis-values.yaml
 helm install stable/prometheus-operator --name=prometheus-operator -f docs/quickstart/server-prometheus-values.yaml
 
 # Install Armada server
-helm template ./deployment/armada -f ./docs/quickstart/server-values.yaml | kubectl apply -f -
+helm template ./deployment/armada --set image.tag=$ARMADA_VERSION -f ./docs/quickstart/server-values.yaml | kubectl apply -f -
 ```
 ### Executor deployments
 
 First executor:
-```
+```bash
 export DOCKERHOSTIP=$(ip -4 addr show docker0 | grep -Po 'inet \K[\d.]+')
 export KUBECONFIG=$(kind get kubeconfig-path --name="quickstart-armada-executor-0")	
 
@@ -64,10 +71,10 @@ helm install stable/prometheus-operator --name=prometheus-operator -f docs/quick
 kubectl apply -f docs/quickstart/prometheus-kubemetrics-rules.yaml
 
 # Install executor
-helm template ./deployment/executor --set applicationConfig.armada.url="$DOCKERHOSTIP:30000" | kubectl apply -f -
+helm template ./deployment/executor --set image.tag=$ARMADA_VERSION --set applicationConfig.armada.url="$DOCKERHOSTIP:30000" | kubectl apply -f -
 ```
 Second executor:
-```
+```bash
 export DOCKERHOSTIP=$(ip -4 addr show docker0 | grep -Po 'inet \K[\d.]+')
 export KUBECONFIG=$(kind get kubeconfig-path --name="quickstart-armada-executor-1")	
 
@@ -80,11 +87,11 @@ helm install stable/prometheus-operator --name=prometheus-operator -f docs/quick
 kubectl apply -f docs/quickstart/prometheus-kubemetrics-rules.yaml
 
 # Install executor
-helm template ./deployment/executor --set applicationConfig.armada.url="$DOCKERHOSTIP:30000" | kubectl apply -f -
+helm template ./deployment/executor --set image.tag=$ARMADA_VERSION  --set applicationConfig.armada.url="$DOCKERHOSTIP:30000" | kubectl apply -f -
 ```
 ### Grafana configuration
 
-```
+```bash
 export DOCKERHOSTIP=$(ip -4 addr show docker0 | grep -Po 'inet \K[\d.]+')
 curl -X POST -i http://admin:prom-operator@localhost:30001/api/datasources -H "Content-Type: application/json" -d '{"name":"cluster-0","type":"prometheus","url":"http://'$DOCKERHOSTIP':30002","access":"proxy","basicAuth":false}'
 curl -X POST -i http://admin:prom-operator@localhost:30001/api/datasources -H "Content-Type: application/json" -d '{"name":"cluster-1","type":"prometheus","url":"http://'$DOCKERHOSTIP':30003","access":"proxy","basicAuth":false}'
@@ -93,7 +100,7 @@ curl -X POST -i http://admin:prom-operator@localhost:30001/api/dashboards/import
 ### CLI installation
 
 The following steps download the `armadactl` CLI to the current directory:
-```
+```bash
 armadaRelease=v0.0.1
 armadaCtlTar=armadactl-$armadaRelease-linux-amd64.tar
 curl -LO https://github.com/G-Research/armada/releases/download/$armadaRelease/$armadaCtlTar.gz
@@ -103,7 +110,7 @@ chmod u+x armadactl
 
 ## Usage
 Create queues, submit some jobs and monitor progress:
-```
+```bash
 ./armadactl --armadaUrl=localhost:30000 create-queue queue-a --priorityFactor 1
 ./armadactl --armadaUrl=localhost:30000 create-queue queue-b --priorityFactor 2
 ./armadactl --armadaUrl=localhost:30000 submit ./docs/quickstart/job-queue-a.yaml
@@ -115,7 +122,7 @@ Navigate to the Armada Overview dashboard to get a view of jobs progressing thro
 
 Try submitting lots of jobs and see queues build and get processed:
 
-```
+```bash
 for i in {1..50}
 do
   ./armadactl --armadaUrl=localhost:30000 submit ./docs/quickstart/job-queue-a.yaml
@@ -127,7 +134,7 @@ done
 
 CLI:
 
-```
+```bash
 $ ./armadactl --armadaUrl=localhost:30000 watch job-set-1
 Watching job set job-set-1
 Nov  4 11:43:36 | Queued:   0, Leased:   0, Pending:   0, Running:   0, Succeeded:   0, Failed:   0, Cancelled:   0 | event: *api.JobSubmittedEvent, job id: 01drv3mey2mzmayf50631tzp9m
