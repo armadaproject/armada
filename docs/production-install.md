@@ -16,6 +16,12 @@ The below sections will cover how to install the component into Kubernetes.
 * gRPC compatible ingress controller installed for gRPC ingress (such as https://github.com/helm/charts/tree/master/stable/nginx-ingress)
 * Redis installed (https://github.com/helm/charts/tree/master/stable/redis-ha)
 
+Set `ARMADA_VERSION` environment variable and clone this repository repository with the same version tag as you are installing. For example to install version `v1.2.3`:
+```bash
+export ARMADA_VERSION=v1.2.3
+git clone https://github.com/G-Research/armada.git --branch $ARMADA_VERSION
+```
+
 #### Installing server component
 
 To install the server component, we will use Helm.
@@ -56,7 +62,7 @@ Fill in the appropriate values in the above template and save it as `server-valu
 Then run:
 
 ```bash
-helm install ./deployment/armada -f ./server-values.yaml
+helm install ./deployment/armada --set image.tag=$ARMADA_VERSION -f ./server-values.yaml
 ```
 
 ### Installing Armada Executor
@@ -88,7 +94,7 @@ Fill in the appropriate values in the above template and save it as `executor-va
 Then run:
 
 ```bash
-helm install ./deployment/armada-executor -f ./executor-values.yaml
+helm install ./deployment/armada-executor --set image.tag=$ARMADA_VERSION -f ./executor-values.yaml
 ```
 # Interacting with Armada
 
