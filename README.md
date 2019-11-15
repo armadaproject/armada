@@ -15,7 +15,7 @@ It stores queues for users/projects with pod specifications and creates these po
 - [Development Guide](./docs/developer.md)
 - [User Guide](./docs/user.md)
 - [Installation in Production](./docs/production-install.md)
-- [quickstart](./docs/quickstart.md)
+- [Quickstart](./docs/quickstart.md)
 
 ## Key features
 - Armada maintains fair resource share over time (inspired by HTCondor priority)
