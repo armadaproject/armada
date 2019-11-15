@@ -39,6 +39,9 @@ spec:
               mountPath: /config/application_config.yaml
               subPath: {{ include "executor.config.filename" . }}
               readOnly: true
+{{- if .Values.additionalVolumeMounts }}
+{{ toYaml .Values.additionalVolumeMounts | indent 12 }}
+{{- end }}
           securityContext:
             allowPrivilegeEscalation: false
       nodeSelector:
@@ -49,3 +52,7 @@ spec:
         - name: user-config
           secret:
             secretName: {{ include "executor.config.name" . }}
+{{- if .Values.additionalVolumes }}
+{{ toYaml .Values.additionalVolumes | indent 8 }}
+{{- end }}
+
