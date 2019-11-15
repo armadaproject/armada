@@ -19,7 +19,7 @@ The below sections will cover how to install the component into Kubernetes.
 Set `ARMADA_VERSION` environment variable and clone this repository repository with the same version tag as you are installing. For example to install version `v1.2.3`:
 ```bash
 export ARMADA_VERSION=v1.2.3
-git clone <repo_url> --branch $ARMADA_VERSION
+git clone https://github.com/G-Research/armada.git --branch $ARMADA_VERSION
 ```
 
 #### Installing server component
