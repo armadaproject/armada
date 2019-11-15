@@ -101,8 +101,7 @@ curl -X POST -i http://admin:prom-operator@localhost:30001/api/dashboards/import
 
 The following steps download the `armadactl` CLI to the current directory:
 ```bash
-armadaRelease=v0.0.1
-armadaCtlTar=armadactl-$armadaRelease-linux-amd64.tar
+armadaCtlTar=armadactl-$ARMADA_VERSION-linux-amd64.tar
 curl -LO https://github.com/G-Research/armada/releases/download/$armadaRelease/$armadaCtlTar.gz
 gunzip $armadaCtlTar.gz && tar xf $armadaCtlTar && rm $armadaCtlTar
 chmod u+x armadactl
