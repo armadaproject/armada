@@ -10,7 +10,7 @@ resources:
     cpu: 200m
 additionalLabels: {}
 terminationGracePeriodSeconds: 5
-replicas: 3
+replicas: 1
 strategy:
   rollingUpdate:
     maxUnavailable: 1
