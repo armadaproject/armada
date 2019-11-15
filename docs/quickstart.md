@@ -15,9 +15,9 @@ N.B.  Ensure the current user has permission to run the `docker` command without
 ## Installation
 This guide will install Armada on 3 local Kubernetes clusters; one server and two executor clusters. 
 
-Set `ARMADA_VERSION` environment variable and clone this repository repository with the same version tag as you are installing. For example to install version `v1.2.3`:
+Set `ARMADA_VERSION` environment variable and clone this repository repository with the same version tag as you are installing. For example to install version `v0.0.3`:
 ```bash
-export ARMADA_VERSION=v1.2.3
+export ARMADA_VERSION=v0.0.3
 git clone https://github.com/G-Research/armada.git --branch $ARMADA_VERSION
 ```
 
@@ -87,7 +87,7 @@ helm install stable/prometheus-operator --name=prometheus-operator -f docs/quick
 kubectl apply -f docs/quickstart/prometheus-kubemetrics-rules.yaml
 
 # Install executor
-helm template ./deployment/executor --set image.tag=$ARMADA_VERSION  --set applicationConfig.armada.url="$DOCKERHOSTIP:30000" | kubectl apply -f -
+helm template ./deployment/executor --set image.tag=$ARMADA_VERSION --set applicationConfig.armada.url="$DOCKERHOSTIP:30000" | kubectl apply -f -
 ```
 ### Grafana configuration
 
