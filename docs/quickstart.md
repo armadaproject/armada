@@ -18,7 +18,8 @@ This guide will install Armada on 3 local Kubernetes clusters; one server and tw
 Set `ARMADA_VERSION` environment variable and clone this repository repository with the same version tag as you are installing. For example to install version `v0.0.3`:
 ```bash
 export ARMADA_VERSION=v0.0.3
-git clone https://github.com/G-Research/armada.git --branch $ARMADA_VERSION
+git clone https://github.com/G-Research/armada.git
+git checkout $ARMADA_VERSION
 ```
 
 All commands are intended to be run from the root of the repository.
@@ -101,8 +102,7 @@ curl -X POST -i http://admin:prom-operator@localhost:30001/api/dashboards/import
 
 The following steps download the `armadactl` CLI to the current directory:
 ```bash
-armadaRelease=v0.0.1
-armadaCtlTar=armadactl-$armadaRelease-linux-amd64.tar
+armadaCtlTar=armadactl-$ARMADA_VERSION-linux-amd64.tar
 curl -LO https://github.com/G-Research/armada/releases/download/$armadaRelease/$armadaCtlTar.gz
 gunzip $armadaCtlTar.gz && tar xf $armadaCtlTar && rm $armadaCtlTar
 chmod u+x armadactl
