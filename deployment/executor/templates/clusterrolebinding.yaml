@@ -11,4 +11,22 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: {{ include "executor.name" . }}
-  namespace:  {{ .Release.Namespace }}
+  namespace: {{ .Release.Namespace }}
+{{- $root := . -}}
+{{ range .Values.additionalClusterRoleBindings }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "executor.name" $root }}-{{ .nameSuffix }}
+  labels:
+{{ include "executor.labels.all" $root | indent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ .clusterRoleName }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "executor.name" $root }}
+    namespace: {{ $root.Release.Namespace }}
+{{ end }}
