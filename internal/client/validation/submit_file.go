@@ -52,7 +52,7 @@ func ValidateSubmitFile(filePath string) (bool, error) {
 		result, err := validate(rawPod)
 
 		if !result[0].ValidatedAgainstSchema {
-			log.Error("Warning: Unable to validate jobs. You must be offline as pod schemas cannot be retrieved to perform validation")
+			log.Warn("Warning: Unable to validate jobs. You must be offline as pod schemas cannot be retrieved to perform validation")
 			break
 		}
 
