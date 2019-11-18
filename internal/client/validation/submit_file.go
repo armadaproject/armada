@@ -47,13 +47,12 @@ func ValidateSubmitFile(filePath string) (bool, error) {
 		return false, errors.New("Warning: You have provided no jobs to submit.")
 	}
 
-	noSchema := false
 	for i, job := range submitFile.Jobs {
 		rawPod := rawPod(job.PodSpec)
 		result, err := validate(rawPod)
 
 		if !result[0].ValidatedAgainstSchema {
-			noSchema = true
+			log.Error("Warning: Unable to validate jobs. You must be offline as pod schemas cannot be retrieved to perform validation")
 			break
 		}
 
@@ -64,10 +63,6 @@ func ValidateSubmitFile(filePath string) (bool, error) {
 		if len(result[0].Errors) > 0 {
 			return false, fmt.Errorf("Validation error in job[%d]: %s", i, result[0].Errors[0].Description())
 		}
-	}
-
-	if noSchema {
-		log.Error("Unable to validate jobs. You must be offline as pod schemas cannot be retrieved to perform validation")
 	}
 
 	return true, nil
