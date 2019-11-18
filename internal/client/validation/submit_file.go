@@ -54,6 +54,7 @@ func ValidateSubmitFile(filePath string) (bool, error) {
 
 		if !result[0].ValidatedAgainstSchema {
 			noSchema = true
+			break
 		}
 
 		if err != nil {
