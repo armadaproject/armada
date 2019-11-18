@@ -65,13 +65,15 @@ func ConfigureLogging() {
 }
 
 func ServeMetrics(port uint16) (shutdown func()) {
-
 	hook := promrus.MustNewPrometheusHook()
 	log.AddHook(hook)
 
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", promhttp.Handler())
+	return ServeHttp(port, mux)
+}
 
+func ServeHttp(port uint16, mux http.Handler) (shutdown func()) {
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", port),
 		Handler: mux}
