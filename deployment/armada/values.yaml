@@ -8,9 +8,12 @@ resources:
     memory: 512Mi
     cpu: 200m
 additionalLabels: {}
-terminationGracePeriodSeconds: 0
+terminationGracePeriodSeconds: 5
 replicas: 1
-
+strategy:
+  rollingUpdate:
+    maxUnavailable: 1
+  type: RollingUpdate
 prometheus:
   enabled: false
   labels: {}
