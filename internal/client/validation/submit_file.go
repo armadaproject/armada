@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/instrumenta/kubeval/kubeval"
+	log "github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/G-Research/armada/internal/client/util"
@@ -50,6 +51,11 @@ func ValidateSubmitFile(filePath string) (bool, error) {
 		rawPod := rawPod(job.PodSpec)
 		result, err := validate(rawPod)
 
+		if !result[0].ValidatedAgainstSchema {
+			log.Warn("Warning: Unable to validate jobs. You must be offline as pod schemas cannot be retrieved to perform validation")
+			break
+		}
+
 		if err != nil {
 			return false, err
 		}
@@ -66,5 +72,6 @@ func validate(value *rawKubernetesType) ([]kubeval.ValidationResult, error) {
 	output, _ := json.Marshal(value)
 	config := kubeval.NewDefaultConfig()
 	config.Strict = true
+	config.IgnoreMissingSchemas = true
 	return kubeval.Validate(output, config)
 }
