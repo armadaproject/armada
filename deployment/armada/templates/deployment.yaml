@@ -10,6 +10,10 @@ spec:
   selector:
     matchLabels:
 {{ include "armada.labels.identity" . | indent 6 }}
+{{- if .Values.strategy }}
+  strategy:
+{{ toYaml .Values.strategy | indent 4 }}
+{{- end }}
   template:
     metadata:
       name: {{ include "armada.name" . }}
@@ -28,6 +32,10 @@ spec:
           args:
             - --config
             - /config/application_config.yaml
+{{- if .Values.env }}
+          env:
+{{ toYaml .Values.env | indent 12 }}
+{{- end }}
           resources:
 {{ toYaml .Values.resources | indent 12 }}
           ports:
@@ -42,8 +50,18 @@ spec:
               mountPath: /config/application_config.yaml
               subPath: {{ include "armada.config.filename" . }}
               readOnly: true
+{{- if .Values.additionalVolumeMounts }}
+{{ toYaml .Values.additionalVolumeMounts | indent 12 }}
+{{- end }}
           securityContext:
             allowPrivilegeEscalation: false
+          readinessProbe:
+            httpGet:
+              host: localhost
+              path: /health
+              port: rest
+            initialDelaySeconds: 5
+            timeoutSeconds: 5
       affinity:
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
@@ -60,3 +78,6 @@ spec:
         - name: user-config
           secret:
             secretName: {{ include "armada.config.name" . }}
+{{- if .Values.additionalVolumes }}
+{{ toYaml .Values.additionalVolumes | indent 8 }}
+{{- end }}

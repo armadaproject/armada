@@ -1,6 +1,5 @@
 image:
   repository: gresearchdev/armada-server
-  tag: v0.0.1
 resources:
   limits:
     memory: 1Gi
@@ -9,9 +8,12 @@ resources:
     memory: 512Mi
     cpu: 200m
 additionalLabels: {}
-terminationGracePeriodSeconds: 0
+terminationGracePeriodSeconds: 5
 replicas: 1
-
+strategy:
+  rollingUpdate:
+    maxUnavailable: 1
+  type: RollingUpdate
 prometheus:
   enabled: false
   labels: {}

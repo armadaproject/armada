@@ -1,7 +1,7 @@
+queue: queue-b
+jobSetId: job-set-1
 jobs:
-  - queue: queue-b
-    jobSetId: job-set-1
-    priority: 0
+  - priority: 0
     podSpec:
       terminationGracePeriodSeconds: 0
       restartPolicy: Never

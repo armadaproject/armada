@@ -11,7 +11,8 @@ metadata:
 {{- end }}
 spec:
   selector:
-{{ include "armada.labels.identity" . | indent 4 }}
+    matchLabels:
+{{ include "armada.labels.identity" . | indent 6 }}
   endpoints:
     - port: metrics
       interval: 3s
