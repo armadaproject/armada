@@ -1,13 +1,13 @@
 package kerberos
 
 import (
+	"encoding/base64"
 	"net"
 	"net/url"
 )
 
 type ClientConfig struct {
-	Enabled        bool
-	KeytabLocation string
+	Enabled bool
 }
 
 func urlToSpn(apiUrl string) (string, error) {
@@ -21,4 +21,10 @@ func urlToSpn(apiUrl string) (string, error) {
 		return "", e
 	}
 	return "HTTP/" + host, nil
+}
+
+func negotiateHeader(token []byte) map[string]string {
+	return map[string]string{
+		"authorization": "Negotiate " + base64.StdEncoding.EncodeToString(token),
+	}
 }

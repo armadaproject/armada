@@ -39,9 +39,7 @@ func (s *spnego) GetRequestMetadata(ctx context.Context, uri ...string) (map[str
 
 	log.Info(base64.StdEncoding.EncodeToString(token))
 
-	return map[string]string{
-		"authorization": "Negotiate " + base64.StdEncoding.EncodeToString(token),
-	}, nil
+	return negotiateHeader(token), nil
 }
 
 func (s spnego) RequireTransportSecurity() bool {
