@@ -10,3 +10,9 @@ prometheus:
     ruleSelectorNilUsesHelmValues: false
   service:
     type: NodePort
+
+prometheusOperator:
+  admissionWebhooks:
+    enabled: false
+  tlsProxy:
+    enabled: false
