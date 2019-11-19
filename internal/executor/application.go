@@ -5,17 +5,14 @@ import (
 	"sync"
 	"time"
 
-	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/retry"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 
 	"github.com/G-Research/armada/internal/armada/api"
-	"github.com/G-Research/armada/internal/common"
-	"github.com/G-Research/armada/internal/common/oidc"
+	"github.com/G-Research/armada/internal/common/client"
 	"github.com/G-Research/armada/internal/executor/cluster"
 	"github.com/G-Research/armada/internal/executor/configuration"
 	"github.com/G-Research/armada/internal/executor/context"
@@ -96,58 +93,9 @@ func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGrou
 }
 
 func createConnectionToApi(config configuration.ExecutorConfiguration) (*grpc.ClientConn, error) {
-	dialOpts := make([]grpc.DialOption, 0, 10)
-
-	retryOpts := []grpc_retry.CallOption{
-		grpc_retry.WithBackoff(grpc_retry.BackoffExponential(300 * time.Millisecond)),
-		grpc_retry.WithMax(3),
-	}
-
-	defaultCallOptions := grpc.WithDefaultCallOptions(grpc.WaitForReady(true))
-
-	unuaryInterceptors := grpc.WithChainUnaryInterceptor(
-		grpc_prometheus.UnaryClientInterceptor,
-		grpc_retry.UnaryClientInterceptor(retryOpts...),
-	)
-
-	streamInterceptors := grpc.WithChainStreamInterceptor(
-		grpc_prometheus.StreamClientInterceptor,
-		grpc_retry.StreamClientInterceptor(retryOpts...),
-	)
-
-	dialOpts = append(dialOpts, defaultCallOptions, unuaryInterceptors, streamInterceptors)
-
-	if config.BasicAuth.Username != "" {
-		dialOpts = append(dialOpts,
-			grpc.WithTransportCredentials(credentials.NewClientTLSFromCert(nil, "")),
-			grpc.WithPerRPCCredentials(&common.LoginCredentials{
-				Username: config.BasicAuth.Username,
-				Password: config.BasicAuth.Password,
-			}),
-		)
-	} else if config.OpenIdPasswordAuth.ProviderUrl != "" {
-		tokenCredentials, err := oidc.AuthenticateWithPassword(config.OpenIdPasswordAuth)
-		if err != nil {
-			return nil, err
-		}
-		dialOpts = append(dialOpts,
-			grpc.WithTransportCredentials(credentials.NewClientTLSFromCert(nil, "")),
-			grpc.WithPerRPCCredentials(tokenCredentials),
-		)
-	} else if config.OpenIdClientCredentialsAuth.ProviderUrl != "" {
-		tokenCredentials, err := oidc.AuthenticateWithClientCredentials(config.OpenIdClientCredentialsAuth)
-		if err != nil {
-			return nil, err
-		}
-		dialOpts = append(dialOpts,
-			grpc.WithTransportCredentials(credentials.NewClientTLSFromCert(nil, "")),
-			grpc.WithPerRPCCredentials(tokenCredentials),
-		)
-	} else {
-		dialOpts = append(dialOpts, grpc.WithInsecure())
-	}
-
-	return grpc.Dial(config.Armada.Url, dialOpts...)
+	return client.CreateApiConnection(&config.ApiConnection,
+		grpc.WithChainUnaryInterceptor(grpc_prometheus.UnaryClientInterceptor),
+		grpc.WithChainStreamInterceptor(grpc_prometheus.StreamClientInterceptor))
 }
 
 func waitForShutdownCompletion(wg *sync.WaitGroup, timeout time.Duration) bool {

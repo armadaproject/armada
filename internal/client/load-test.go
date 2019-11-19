@@ -13,6 +13,7 @@ import (
 	"github.com/G-Research/armada/internal/armada/api"
 	"github.com/G-Research/armada/internal/client/domain"
 	"github.com/G-Research/armada/internal/client/util"
+	"github.com/G-Research/armada/internal/common/client"
 )
 
 type LoadTester interface {
@@ -20,10 +21,10 @@ type LoadTester interface {
 }
 
 type ArmadaLoadTester struct {
-	apiConnectionDetails *domain.ArmadaApiConnectionDetails
+	apiConnectionDetails *client.ApiConnectionDetails
 }
 
-func NewArmadaLoadTester(connectionDetails *domain.ArmadaApiConnectionDetails) *ArmadaLoadTester {
+func NewArmadaLoadTester(connectionDetails *client.ApiConnectionDetails) *ArmadaLoadTester {
 	return &ArmadaLoadTester{
 		apiConnectionDetails: connectionDetails,
 	}

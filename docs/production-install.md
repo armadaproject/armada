@@ -82,7 +82,7 @@ applicationConfig:
   armada:
     url : "server.component.url.com:443"
     
-credentials:
+basicAuth:
   username: "user1"
   password: "password1"
 ```
@@ -120,7 +120,7 @@ The format of this file is a simple yaml file:
 
 ```yaml
 armadaUrl: "server.component.url.com:443"
-credentials:
+basicAuth:
   username: "user1"
   password: "password1"
 ```

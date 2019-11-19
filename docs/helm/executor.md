@@ -72,7 +72,7 @@ If the username/password are not present in the server components secret, commun
 As an example, this section is formatted as:
 
 ```yaml
-credentials:
+basicAuth:
   username: "user1"
   password: "password1"
 ```
