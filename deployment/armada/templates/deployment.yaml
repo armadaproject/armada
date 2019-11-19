@@ -45,6 +45,9 @@ spec:
             - containerPort: 9000
               protocol: TCP
               name: metrics
+            - containerPort: {{ .Values.applicationConfig.httpPort }}
+              protocol: TCP
+              name: rest
           volumeMounts:
             - name: user-config
               mountPath: /config/application_config.yaml
@@ -57,7 +60,6 @@ spec:
             allowPrivilegeEscalation: false
           readinessProbe:
             httpGet:
-              host: localhost
               path: /health
               port: rest
             initialDelaySeconds: 5
