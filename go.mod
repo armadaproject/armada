@@ -6,6 +6,7 @@ replace gopkg.in/jcmturner/gokrb5.v7 => github.com/jgiannuzzi/gokrb5 v7.2.5-0.20
 
 require (
 	cloud.google.com/go v0.47.0 // indirect
+	github.com/alexbrainman/sspi v0.0.0-20180613141037-e580b900e9f5
 	github.com/alicebob/gopher-json v0.0.0-20180125190556-5a6b3ba71ee6 // indirect
 	github.com/alicebob/miniredis v2.5.0+incompatible
 	github.com/coreos/go-oidc v2.1.0+incompatible
