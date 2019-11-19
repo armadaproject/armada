@@ -75,6 +75,9 @@ func (s *spnegoCredentials) GetRequestMetadata(ctx context.Context, uri ...strin
 	if err != nil {
 		// try renewing client TGT might have expired
 		err := s.renewClient()
+		if err != nil {
+			return nil, fmt.Errorf("could not acquire client credential: %v", err)
+		}
 		spnegoClient := spnego.SPNEGOClient(s.kerberosClient, s.spn)
 		err = spnegoClient.AcquireCred()
 		if err != nil {
