@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"net"
 	"net/url"
+	"strings"
 )
 
 type ClientConfig struct {
@@ -11,6 +12,12 @@ type ClientConfig struct {
 }
 
 func urlToSpn(apiUrl string) (string, error) {
+
+	// prevent "server:port" being parsed as scheme=server host=port
+	if !strings.Contains(apiUrl, "//") {
+		apiUrl = "//" + apiUrl
+	}
+
 	parsedUrl, e := url.Parse(apiUrl)
 	if e != nil {
 		return "", e
