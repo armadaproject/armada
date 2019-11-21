@@ -28,6 +28,10 @@ spec:
           args:
             - --config
             - /config/application_config.yaml
+{{- if .Values.env }}
+          env:
+{{ toYaml .Values.env | indent 12 }}
+{{- end }}
           resources:
 {{ toYaml .Values.resources | indent 12 }}
           ports:
