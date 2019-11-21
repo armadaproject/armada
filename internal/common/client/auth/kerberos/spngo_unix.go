@@ -46,7 +46,7 @@ func NewSPNEGOCredentials(serverUrl string, spnegoConfig ClientConfig) (grpc_cre
 		return nil, err
 	}
 	credentialsCachePath := os.Getenv("KRB5CCNAME")
-	if credentialsCachePath != "" {
+	if credentialsCachePath == "" {
 		credentialsCachePath = "/tmp/krb5cc_" + currentUser.Uid
 	}
 
