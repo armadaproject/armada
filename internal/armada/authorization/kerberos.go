@@ -32,8 +32,9 @@ const (
 )
 
 type KerberosAuthService struct {
-	kt       *keytab.Keytab
-	settings []func(*service.Settings)
+	kt             *keytab.Keytab
+	userNameSuffix string
+	settings       []func(*service.Settings)
 }
 
 func NewKerberosAuthService(config *configuration.KerberosAuthenticationConfig) (*KerberosAuthService, error) {
@@ -48,8 +49,9 @@ func NewKerberosAuthService(config *configuration.KerberosAuthenticationConfig) 
 	}
 
 	return &KerberosAuthService{
-		kt:       kt,
-		settings: settings,
+		kt:             kt,
+		userNameSuffix: config.UserNameSuffix,
+		settings:       settings,
 	}, nil
 }
 
@@ -97,7 +99,7 @@ func (authService *KerberosAuthService) Authenticate(ctx context.Context) (Princ
 	if authenticated {
 		id := ctx.Value(spnego.CTXKeyCredentials).(goidentity.Identity)
 		if adCredentials, ok := id.Attributes()[credentials.AttributeKeyADCredentials].(credentials.ADCredentials); ok {
-			user := adCredentials.EffectiveName
+			user := adCredentials.EffectiveName + authService.userNameSuffix
 			groups := adCredentials.GroupMembershipSIDs
 
 			log.WithField("user", user).WithField("groups", groups).Info("SPNGO: Logged in!")

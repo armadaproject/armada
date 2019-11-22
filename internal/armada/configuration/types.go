@@ -44,6 +44,7 @@ type BasicAuthenticationConfig struct {
 type KerberosAuthenticationConfig struct {
 	KeytabLocation string
 	PrincipalName  string
+	UserNameSuffix string
 }
 
 type SchedulingConfig struct {
