@@ -8,7 +8,6 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
-	v1 "k8s.io/api/core/v1"
 
 	"github.com/G-Research/armada/internal/armada/api"
 	"github.com/G-Research/armada/internal/client/domain"
@@ -107,7 +106,7 @@ func (apiLoadTester ArmadaLoadTester) runSubmission(submission *domain.Submissio
 		log.Infof("Queue %s created.\n", queue)
 
 		for _, job := range jobs {
-			jobRequestItems := createJobSubmitRequestItems(job.Spec, job.Count)
+			jobRequestItems := createJobSubmitRequestItems(job)
 			requests := CreateChunkedSubmitRequests(queue, jobSetId, jobRequestItems)
 
 			for _, request := range requests {
@@ -169,13 +168,14 @@ func (apiLoadTester ArmadaLoadTester) monitorJobsUntilCompletion(jobSetId string
 	})
 }
 
-func createJobSubmitRequestItems(spec *v1.PodSpec, count int) []*api.JobSubmitRequestItem {
-	requestItems := make([]*api.JobSubmitRequestItem, 0, count)
+func createJobSubmitRequestItems(jobDesc *domain.JobSubmissionDescription) []*api.JobSubmitRequestItem {
+	requestItems := make([]*api.JobSubmitRequestItem, 0, jobDesc.Count)
 	job := api.JobSubmitRequestItem{
-		Priority: 1,
-		PodSpec:  spec,
+		Priority:  1,
+		Namespace: jobDesc.Namespace,
+		PodSpec:   jobDesc.Spec,
 	}
-	for i := 0; i < count; i++ {
+	for i := 0; i < jobDesc.Count; i++ {
 		requestItems = append(requestItems, &job)
 	}
 
