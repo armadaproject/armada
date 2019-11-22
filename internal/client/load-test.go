@@ -168,7 +168,7 @@ func (apiLoadTester ArmadaLoadTester) monitorJobsUntilCompletion(jobSetId string
 	})
 }
 
-func createJobSubmitRequestItems(jobDesc domain.JobSubmissionDescription) []*api.JobSubmitRequestItem {
+func createJobSubmitRequestItems(jobDesc *domain.JobSubmissionDescription) []*api.JobSubmitRequestItem {
 	requestItems := make([]*api.JobSubmitRequestItem, 0, jobDesc.Count)
 	job := api.JobSubmitRequestItem{
 		Priority:  1,
