@@ -18,7 +18,8 @@ type SubmissionDescription struct {
 }
 
 type JobSubmissionDescription struct {
-	Name  string
-	Count int
-	Spec  *v1.PodSpec
+	Name      string
+	Count     int
+	Namespace string
+	Spec      *v1.PodSpec
 }
