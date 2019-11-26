@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/user"
 	"sync"
+	"time"
 
 	grpc_credentials "google.golang.org/grpc/credentials"
 	"gopkg.in/jcmturner/gokrb5.v7/client"
@@ -18,9 +19,10 @@ import (
 )
 
 type spnegoCredentials struct {
-	spn                  string
-	krb5Config           *config.Config
-	credentialsCachePath string
+	spn                      string
+	krb5Config               *config.Config
+	credentialsCachePath     string
+	credentialsFileRefreshed time.Time
 
 	kerberosClient *client.Client
 	mux            sync.Mutex
@@ -68,21 +70,12 @@ func (s *spnegoCredentials) GetRequestMetadata(ctx context.Context, uri ...strin
 
 	err := s.renewClient()
 	if err != nil {
-		return nil, fmt.Errorf("could not acquire client credential: %v", err)
+		return nil, fmt.Errorf("could not renew client: %v", err)
 	}
 	spnegoClient := spnego.SPNEGOClient(s.kerberosClient, s.spn)
 	err = spnegoClient.AcquireCred()
 	if err != nil {
-		// try renewing client TGT might have expired
-		err := s.renewClient()
-		if err != nil {
-			return nil, fmt.Errorf("could not acquire client credential: %v", err)
-		}
-		spnegoClient := spnego.SPNEGOClient(s.kerberosClient, s.spn)
-		err = spnegoClient.AcquireCred()
-		if err != nil {
-			return nil, fmt.Errorf("could not acquire client credential: %v", err)
-		}
+		return nil, fmt.Errorf("could not acquire client credential: %v", err)
 	}
 	st, err := spnegoClient.InitSecContext()
 	if err != nil {
@@ -90,7 +83,7 @@ func (s *spnegoCredentials) GetRequestMetadata(ctx context.Context, uri ...strin
 	}
 	token, err := st.Marshal()
 	if err != nil {
-		return nil, krberror.Errorf(err, krberror.EncodingError, "could not marshal SPNEGO")
+		return nil, krberror.Errorf(err, krberror.EncodingError, "could not marshal SPNEGO token")
 	}
 	return negotiateHeader(token), nil
 }
@@ -99,7 +92,13 @@ func (s *spnegoCredentials) renewClient() error {
 	s.mux.Lock()
 	defer s.mux.Unlock()
 
-	if s.kerberosClient == nil || s.kerberosClient.Credentials == nil || s.kerberosClient.Credentials.Expired() {
+	now := time.Now()
+
+	if s.kerberosClient == nil ||
+		s.kerberosClient.Credentials == nil ||
+		s.kerberosClient.Credentials.Expired() ||
+		s.credentialsFileRefreshed.Add(5*time.Minute).Before(now) {
+
 		credentialsCache, err := credentials.LoadCCache(s.credentialsCachePath)
 		if err != nil {
 			return err
@@ -109,6 +108,7 @@ func (s *spnegoCredentials) renewClient() error {
 			return err
 		}
 		s.kerberosClient = kerberosClient
+		s.credentialsFileRefreshed = now
 	}
 
 	return nil
