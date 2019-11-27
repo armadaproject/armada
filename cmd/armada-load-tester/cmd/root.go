@@ -25,7 +25,7 @@ Persistent config can be saved in a config file so it doesn't have to be specifi
 
 Example structure:
 armadaUrl: localhost:50051
-credentials:
+basicAuth:
   username: user1
   password: password123
 

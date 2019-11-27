@@ -17,6 +17,7 @@ import (
 	"github.com/G-Research/armada/internal/client"
 	"github.com/G-Research/armada/internal/client/domain"
 	util2 "github.com/G-Research/armada/internal/client/util"
+	common_client "github.com/G-Research/armada/internal/common/client"
 	"github.com/G-Research/armada/internal/common/util"
 )
 
@@ -56,8 +57,8 @@ func TestCanSubmitJob_KubernetesNamespacePermissionsAreRespected(t *testing.T) {
 	})
 }
 
-func connectionDetails() *domain.ArmadaApiConnectionDetails {
-	connectionDetails := &domain.ArmadaApiConnectionDetails{
+func connectionDetails() *common_client.ApiConnectionDetails {
+	connectionDetails := &common_client.ApiConnectionDetails{
 		ArmadaUrl: "localhost:50051",
 	}
 	return connectionDetails
