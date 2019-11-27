@@ -55,11 +55,11 @@ func TestCanSubmitJob_ArmdactlWatchExitOnInactive(t *testing.T) {
 
 		cmd := exec.Command("armadactl", "--armadaUrl="+connDetails.ArmadaUrl, "watch", "--exit-if-inactive", jobRequest.JobSetId)
 		err := cmd.Start()
-		assert.NotError(t, err)
+		assert.NoError(t, err)
 
 		submitJobsAndWatch(t, submitClient, eventsClient, jobRequest)
 		err = cmd.Wait()
-		assert.NotError(t, err)
+		assert.NoError(t, err)
 	})
 }
 
