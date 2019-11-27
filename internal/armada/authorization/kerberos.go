@@ -102,7 +102,6 @@ func (authService *KerberosAuthService) Authenticate(ctx context.Context) (Princ
 			user := adCredentials.EffectiveName + authService.userNameSuffix
 			groups := adCredentials.GroupMembershipSIDs
 
-			log.WithField("user", user).WithField("groups", groups).Info("SPNGO: Logged in!")
 			_ = grpc.SetHeader(ctx, metadata.Pairs(spnego.HTTPHeaderAuthResponse, spnegoNegTokenRespKRBAcceptCompleted))
 			return NewStaticPrincipal(user, groups), nil
 		}
