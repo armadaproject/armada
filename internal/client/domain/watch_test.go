@@ -109,6 +109,32 @@ func TestWatchContext_GetNumberOfJobsInStates(t *testing.T) {
 	assert.Equal(t, result, 1)
 }
 
+// Only jobs in active states mark the context as having active jobs
+func TestWatchContext_HasActiveJobs(t *testing.T) {
+	watchContext := NewWatchContext()
+
+	watchContext.ProcessEvent(&api.JobQueuedEvent{JobId: "1"})
+	assert.Equal(t, watchContext.HasActiveJobs(), true)
+
+	watchContext.ProcessEvent(&api.JobCancelledEvent{JobId: "1"})
+	assert.Equal(t, watchContext.HasActiveJobs(), false)
+
+	watchContext.ProcessEvent(&api.JobPendingEvent{JobId: "1"})
+	assert.Equal(t, watchContext.HasActiveJobs(), true)
+
+	watchContext.ProcessEvent(&api.JobSucceededEvent{JobId: "1"})
+	assert.Equal(t, watchContext.HasActiveJobs(), false)
+
+	watchContext.ProcessEvent(&api.JobLeasedEvent{JobId: "1"})
+	assert.Equal(t, watchContext.HasActiveJobs(), true)
+
+	watchContext.ProcessEvent(&api.JobRunningEvent{JobId: "1"})
+	assert.Equal(t, watchContext.HasActiveJobs(), true)
+
+	watchContext.ProcessEvent(&api.JobFailedEvent{JobId: "1"})
+	assert.Equal(t, watchContext.HasActiveJobs(), false)
+}
+
 func TestWatchContext_GetNumberOfJobsInStates_IsCorrectlyUpdatedOnUpdateToExistingJobState(t *testing.T) {
 	watchContext := NewWatchContext()
 

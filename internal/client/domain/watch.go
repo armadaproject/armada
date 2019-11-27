@@ -27,6 +27,9 @@ type JobInfo struct {
 
 var statesToIncludeInSummary []JobStatus
 
+// States where the job is still active, or might be active in the future:
+var activeStates []JobStatus
+
 func init() {
 	statesToIncludeInSummary = []JobStatus{
 		Queued,
@@ -36,6 +39,12 @@ func init() {
 		Succeeded,
 		Failed,
 		Cancelled,
+	}
+	activeStates = []JobStatus{
+		Queued,
+		Leased,
+		Pending,
+		Running,
 	}
 }
 
@@ -113,6 +122,11 @@ func (context *WatchContext) GetNumberOfJobsInStates(states []JobStatus) int {
 	}
 
 	return numberOfJobs
+}
+
+// Return whether there are any jobs in active states:
+func (context *WatchContext) HasActiveJobs() bool {
+	return context.GetNumberOfJobsInStates(activeStates) > 0
 }
 
 func updateJobInfo(info *JobInfo, event api.Event) {
