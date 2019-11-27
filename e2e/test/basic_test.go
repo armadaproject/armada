@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"strconv"
 	"testing"
 	"time"
@@ -39,6 +40,26 @@ func TestCanSubmitJob_ReceivingAllExpectedEvents(t *testing.T) {
 		assert.True(t, receivedEvents[domain.Leased])
 		assert.True(t, receivedEvents[domain.Running])
 		assert.True(t, receivedEvents[domain.Succeeded])
+	})
+}
+
+func TestCanSubmitJob_ArmdactlWatchExitOnInactive(t *testing.T) {
+	skipIfIntegrationEnvNotPresent(t)
+	connDetails := connectionDetails()
+	util2.WithConnection(connDetails, func(connection *grpc.ClientConn) {
+		submitClient := api.NewSubmitClient(connection)
+		eventsClient := api.NewEventClient(connection)
+
+		jobRequest := createJobRequest("personal-anonymous")
+		createQueue(submitClient, jobRequest, t)
+
+		cmd := exec.Command("armadactl", "--armadaUrl="+connDetails.ArmadaUrl, "watch", "--exit-if-inactive", jobRequest.JobSetId)
+		err := cmd.Start()
+		assert.NotError(t, err)
+
+		submitJobsAndWatch(t, submitClient, eventsClient, jobRequest)
+		err = cmd.Wait()
+		assert.NotError(t, err)
 	})
 }
 
