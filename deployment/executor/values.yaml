@@ -22,5 +22,5 @@ prometheus:
   labels: {}
 
 applicationConfig:
-  armada:
-    url: ""
+  apiConnection:
+    armadaUrl: ""

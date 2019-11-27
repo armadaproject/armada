@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/go-openapi/runtime/middleware"
 	gwruntime "github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"google.golang.org/grpc"
+	"gopkg.in/jcmturner/gokrb5.v7/spnego"
 
 	"github.com/G-Research/armada/internal/armada/api"
 	protoutil "github.com/G-Research/armada/internal/armada/protoutils"
@@ -24,7 +26,14 @@ func ServeGateway(port uint16, grpcPort uint16) (shutdown func()) {
 	mux.HandleFunc("/health", health)
 
 	m := new(protoutil.JSONMarshaller)
-	gw := gwruntime.NewServeMux(gwruntime.WithMarshalerOption(gwruntime.MIMEWildcard, m))
+	gw := gwruntime.NewServeMux(
+		gwruntime.WithMarshalerOption(gwruntime.MIMEWildcard, m),
+		gwruntime.WithOutgoingHeaderMatcher(func(key string) (string, bool) {
+			if key == strings.ToLower(spnego.HTTPHeaderAuthResponse) {
+				return spnego.HTTPHeaderAuthResponse, true
+			}
+			return fmt.Sprintf("%s%s", gwruntime.MetadataHeaderPrefix, key), true
+		}))
 
 	conn, err := grpc.DialContext(connectionCtx, grpcAddress, grpc.WithInsecure())
 	if err != nil {

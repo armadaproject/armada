@@ -16,11 +16,16 @@ import (
 
 	openId "github.com/coreos/go-oidc"
 	"golang.org/x/oauth2"
-
-	"github.com/G-Research/armada/internal/client/domain"
 )
 
-func AuthenticatePkce(config domain.OpenIdConnectClientDetails) (*TokenCredentials, error) {
+type PKCEDetails struct {
+	ProviderUrl string
+	ClientId    string
+	LocalPort   uint16
+	Scopes      []string
+}
+
+func AuthenticatePkce(config PKCEDetails) (*TokenCredentials, error) {
 
 	ctx := context.Background()
 	result := make(chan *oauth2.Token)

@@ -7,10 +7,8 @@ task:
   jobLeaseRenewalInterval: 15s
   podDeletionInterval: 5s
   allocateSpareClusterCapacityInterval: 5s
-armada:
-  url : "localhost:50051"
-basicAuth:
-  enableAuthentication: false
+apiConnection:
+  armadaUrl : "localhost:50051"
 metricsPort: 9001
 kubernetes:
   impersonateUsers: false

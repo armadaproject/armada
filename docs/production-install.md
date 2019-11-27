@@ -79,12 +79,11 @@ You'll need to provide custom config via the values file, below is a minimal tem
 applicationConfig:
   application:
     clusterId : "clustername"
-  armada:
-    url : "server.component.url.com:443"
-    
-credentials:
-  username: "user1"
-  password: "password1"
+  apiConnection:
+    armadaUrl : "server.component.url.com:443"    
+    basicAuth:
+      username: "user1"
+      password: "password1"
 ```
 
 For all configuration options you can specify in your values file, see [executor Helm docs](./helm/executor.md).
@@ -120,7 +119,7 @@ The format of this file is a simple yaml file:
 
 ```yaml
 armadaUrl: "server.component.url.com:443"
-credentials:
+basicAuth:
   username: "user1"
   password: "password1"
 ```

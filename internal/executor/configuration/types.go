@@ -3,7 +3,7 @@ package configuration
 import (
 	"time"
 
-	"github.com/G-Research/armada/internal/common/oidc"
+	"github.com/G-Research/armada/internal/common/client"
 )
 
 type ApplicationConfiguration struct {
@@ -12,11 +12,6 @@ type ApplicationConfiguration struct {
 
 type KubernetesConfiguration struct {
 	ImpersonateUsers bool
-}
-
-type BasicAuthenticationConfiguration struct {
-	Username string
-	Password string
 }
 
 type TaskConfiguration struct {
@@ -28,17 +23,11 @@ type TaskConfiguration struct {
 	PodDeletionInterval                   time.Duration
 }
 
-type ArmadaConfiguration struct {
-	Url string
-}
-
 type ExecutorConfiguration struct {
-	MetricsPort                 uint16
-	Application                 ApplicationConfiguration
-	BasicAuth                   BasicAuthenticationConfiguration
-	OpenIdPasswordAuth          oidc.ClientPasswordDetails
-	OpenIdClientCredentialsAuth oidc.ClientCredentialsDetails
-	Kubernetes                  KubernetesConfiguration
-	Task                        TaskConfiguration
-	Armada                      ArmadaConfiguration
+	MetricsPort   uint16
+	Application   ApplicationConfiguration
+	ApiConnection client.ApiConnectionDetails
+
+	Kubernetes KubernetesConfiguration
+	Task       TaskConfiguration
 }

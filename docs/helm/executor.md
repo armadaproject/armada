@@ -31,9 +31,9 @@ The example format for this section looks like:
 ```yaml
 applicationConfig:
   application:
-    clusterId : "cluster-1"
-  armada:
-    url : "server.url.com:443"  
+    clusterId: "cluster-1"
+  apiConnection:
+    armadaUrl: "server.url.com:443"  
 ```
 
 ### Credentials
@@ -72,7 +72,7 @@ If the username/password are not present in the server components secret, commun
 As an example, this section is formatted as:
 
 ```yaml
-credentials:
+basicAuth:
   username: "user1"
   password: "password1"
 ```
