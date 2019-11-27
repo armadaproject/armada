@@ -516,7 +516,7 @@ local leasedTime = tonumber(redis.call('ZSCORE', leasedJobsSet, jobId))
 
 if leasedTime ~= nil and leasedTime < deadline then
 	local exists = redis.call('ZREM', leasedJobsSet, jobId)
-	if exists then
+	if exists ~= 0 then
 		return redis.call('ZADD', queue, created, jobId)
 	else
 		return 0
@@ -542,7 +542,7 @@ local currentClusterId = redis.call('HGET', clusterAssociation, jobId)
 
 if currentClusterId == clusterId then
 	local exists = redis.call('ZREM', leasedJobsSet, jobId)
-	if exists then
+	if exists ~= 0 then
 		return redis.call('ZADD', queue, created, jobId)
 	else
 		return 0
