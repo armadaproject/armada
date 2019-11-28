@@ -4,21 +4,21 @@ metadata:
   name: {{ include "armada.name" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-{{ include "armada.labels.all" . | indent 4 }}
+    {{- include "armada.labels.all" . | nindent 4 }}
 spec:
   replicas: {{ .Values.replicas }}
   selector:
     matchLabels:
-{{ include "armada.labels.identity" . | indent 6 }}
-{{- if .Values.strategy }}
+      {{- include "armada.labels.identity" . | nindent 6 }}
+  {{- if .Values.strategy }}
   strategy:
-{{ toYaml .Values.strategy | indent 4 }}
-{{- end }}
+    {{- toYaml .Values.strategy | nindent 4 }}
+  {{- end }}
   template:
     metadata:
       name: {{ include "armada.name" . }}
       labels:
-{{ include "armada.labels.all" . | indent 8 }}
+        {{- include "armada.labels.all" . | nindent 8 }}
     spec:
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
       serviceAccountName: {{ include "armada.name" . }}
@@ -32,12 +32,12 @@ spec:
           args:
             - --config
             - /config/application_config.yaml
-{{- if .Values.env }}
+          {{- if .Values.env }}
           env:
-{{ toYaml .Values.env | indent 12 }}
-{{- end }}
+            {{- toYaml .Values.env | nindent 12 -}}
+          {{- end }}
           resources:
-{{ toYaml .Values.resources | indent 12 }}
+            {{- toYaml .Values.resources | nindent 12 -}}
           ports:
             - containerPort:  {{ .Values.applicationConfig.grpcPort }}
               protocol: TCP
@@ -53,9 +53,9 @@ spec:
               mountPath: /config/application_config.yaml
               subPath: {{ include "armada.config.filename" . }}
               readOnly: true
-{{- if .Values.additionalVolumeMounts }}
-{{ toYaml .Values.additionalVolumeMounts | indent 12 }}
-{{- end }}
+            {{- if .Values.additionalVolumeMounts }}
+            {{- toYaml .Values.additionalVolumeMounts | nindent 12 -}}
+            {{- end }}
           securityContext:
             allowPrivilegeEscalation: false
           readinessProbe:
@@ -80,6 +80,6 @@ spec:
         - name: user-config
           secret:
             secretName: {{ include "armada.config.name" . }}
-{{- if .Values.additionalVolumes }}
-{{ toYaml .Values.additionalVolumes | indent 8 }}
-{{- end }}
+        {{- if .Values.additionalVolumes }}
+        {{- toYaml .Values.additionalVolumes | nindent 8 }}
+        {{- end }}

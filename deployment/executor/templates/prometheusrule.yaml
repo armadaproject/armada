@@ -5,10 +5,10 @@ metadata:
   name: {{ include "executor.name" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-{{ include "executor.labels.all" . | indent 4 }}
-{{- if .Values.prometheus.labels }}
-{{ toYaml .Values.prometheus.labels | indent 4 }}
-{{- end }}
+    {{- include "executor.labels.all" . | nindent 4 }}
+    {{- if .Values.prometheus.labels }}
+    {{- toYaml .Values.prometheus.labels | nindent 4 }}
+    {{- end }}
 spec:
   groups:
     - name: armada-pods
