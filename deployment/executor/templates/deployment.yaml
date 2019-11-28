@@ -33,7 +33,7 @@ spec:
 {{ toYaml .Values.env | indent 12 }}
 {{- end }}
           resources:
-            {{- toYaml .Values.resources | nindent 12 -}}
+            {{- toYaml .Values.resources | nindent 12 }}
           ports:
             - containerPort: 9001
               protocol: TCP
@@ -49,9 +49,9 @@ spec:
           securityContext:
             allowPrivilegeEscalation: false
       nodeSelector:
-        {{- toYaml .Values.nodeSelector | nindent 8 -}}
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
       tolerations:
-        {{- toYaml .Values.tolerations | nindent 8 -}}
+        {{- toYaml .Values.tolerations | nindent 8 }}
       volumes:
         - name: user-config
           secret:

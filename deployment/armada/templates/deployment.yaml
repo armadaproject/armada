@@ -37,7 +37,7 @@ spec:
             {{- toYaml .Values.env | nindent 12 -}}
           {{- end }}
           resources:
-            {{- toYaml .Values.resources | nindent 12 -}}
+            {{- toYaml .Values.resources | nindent 12 }}
           ports:
             - containerPort:  {{ .Values.applicationConfig.grpcPort }}
               protocol: TCP
