@@ -126,7 +126,7 @@ func TestGetAllPodsUsingResourceOnProcessingNodes_ShouldIncludeManagedPodsOnNode
 func TestGetAllPodsUsingResourceOnProcessingNodes_ShouldIncludeManagedPodNotAssignedToAnyNode(t *testing.T) {
 	podOnNode := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Labels: map[string]string{domain.JobId: "label"},
+			Labels: map[string]string{domain.Queue: "label"},
 		},
 		Spec: v1.PodSpec{
 			NodeName: "",
@@ -149,7 +149,7 @@ func TestGetAllPodsUsingResourceOnProcessingNodes_ShouldIncludeManagedPodNotAssi
 func TestGetAllPodsUsingResourceOnProcessingNodes_ShouldExcludeManagedPodNotAssignedToGivenNodes(t *testing.T) {
 	podOnNode := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Labels: map[string]string{domain.JobId: "label"},
+			Labels: map[string]string{domain.Queue: "label"},
 		},
 		Spec: v1.PodSpec{
 			NodeName: "Node2",

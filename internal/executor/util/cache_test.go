@@ -149,7 +149,8 @@ func TestMapPodCache_GetReturnsACopy(t *testing.T) {
 func makeManagedPod(jobId string) *v1.Pod {
 	pod := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Labels: map[string]string{domain.JobId: jobId},
+			Labels:      map[string]string{domain.Queue: "queue"},
+			Annotations: map[string]string{domain.JobId: jobId},
 		},
 	}
 	return &pod
