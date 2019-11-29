@@ -33,11 +33,18 @@ func (s *EventServer) GetJobSetEvents(request *api.JobSetRequest, stream api.Eve
 		return e
 	}
 
-	lastId := request.FromMessageId
+	fromId := request.FromMessageId
 
 	var timeout time.Duration = -1
+	var stopAfter = ""
 	if request.Watch {
 		timeout = 5 * time.Second
+	} else {
+		lastId, e := s.eventRepository.GetLastMessageId(request.Id)
+		if e != nil {
+			return e
+		}
+		stopAfter = lastId
 	}
 
 	for {
@@ -47,20 +54,25 @@ func (s *EventServer) GetJobSetEvents(request *api.JobSetRequest, stream api.Eve
 		default:
 		}
 
-		messages, e := s.eventRepository.ReadEvents(request.Id, lastId, 500, timeout)
+		messages, e := s.eventRepository.ReadEvents(request.Id, fromId, 500, timeout)
 
 		if e != nil {
 			return e
 		}
+
+		stop := len(messages) == 0
 		for _, msg := range messages {
-			lastId = msg.Id
+			fromId = msg.Id
+			if fromId == stopAfter {
+				stop = true
+			}
 			e = stream.Send(msg)
 			if e != nil {
 				return e
 			}
 		}
 
-		if !request.Watch && len(messages) == 0 {
+		if !request.Watch && stop {
 			return nil
 		}
 	}

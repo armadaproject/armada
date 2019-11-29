@@ -44,6 +44,16 @@ func TestEventServer_ReportUsage(t *testing.T) {
 	})
 }
 
+func TestEventServer_GetJobSetEvents_EmptyStreamShouldNotFail(t *testing.T) {
+	withEventServer(func(s *EventServer) {
+
+		stream := &eventStreamMock{}
+		e := s.GetJobSetEvents(&api.JobSetRequest{Id: "test", Watch: false}, stream)
+		assert.Nil(t, e)
+		assert.Equal(t, 0, len(stream.sendMessages))
+	})
+}
+
 func reportEvent(t *testing.T, s *EventServer, event api.Event) {
 	msg, _ := api.Wrap(event)
 	_, e := s.Report(context.Background(), msg)
