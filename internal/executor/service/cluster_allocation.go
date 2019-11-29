@@ -2,6 +2,7 @@ package service
 
 import (
 	"fmt"
+	"strings"
 
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
@@ -16,6 +17,7 @@ import (
 )
 
 const PodNamePrefix string = "armada-"
+const admissionWebhookValidationFailureMessage string = "admission webhook"
 
 type ClusterAllocationService struct {
 	leaseService       LeaseService
@@ -69,7 +71,7 @@ func (allocationService *ClusterAllocationService) submitJobs(jobsToSubmit []*ap
 			log.Errorf("Failed to submit job %s because %s", job.Id, err)
 
 			status, ok := err.(errors.APIStatus)
-			if ok && (isNotRecoverable(status.Status().Reason)) {
+			if ok && (isNotRecoverable(status.Status())) {
 				errDetails := &failedSubmissionDetails{
 					pod:   pod,
 					error: status,
@@ -87,9 +89,19 @@ func (allocationService *ClusterAllocationService) submitJobs(jobsToSubmit []*ap
 	}
 }
 
-func isNotRecoverable(reason metav1.StatusReason) bool {
-	return reason == metav1.StatusReasonInvalid ||
-		reason == metav1.StatusReasonForbidden
+func isNotRecoverable(status metav1.Status) bool {
+	if status.Reason == metav1.StatusReasonInvalid ||
+		status.Reason == metav1.StatusReasonForbidden {
+		return true
+	}
+
+	//This message shows it was rejected by an admission webhook.
+	// By default admission webhooks blocking results in a 500 so we can't use the status code as we could confuse it with Kubernetes outage
+	if strings.Contains(status.Message, admissionWebhookValidationFailureMessage) {
+		return true
+	}
+
+	return false
 }
 
 func (allocationService *ClusterAllocationService) failJobs(failedSubmissions []*failedSubmissionDetails) error {
