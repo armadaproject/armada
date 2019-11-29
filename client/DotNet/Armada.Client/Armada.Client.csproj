@@ -21,7 +21,7 @@
   </ItemGroup>
 
   <Target Name="NSwag" BeforeTargets="Build">
-    <Exec Command="$(NSwagExe_Core30) openapi2csclient /ProtectedMethods:Client.GetJobSetEventsAsync /classname:Client /namespace:GResearch.Armada.Client /input:../../../internal/armada/api/api.swagger.json /output:ClientGenerated.cs" />
+    <Exec Command="$(NSwagExe_Core30) openapi2csclient /ProtectedMethods:ArmadaClient.GetJobSetEventsAsync /classname:ArmadaClient /namespace:GResearch.Armada.Client /input:../../../internal/armada/api/api.swagger.json /output:ClientGenerated.cs" />
   </Target>
   
 </Project>
