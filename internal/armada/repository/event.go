@@ -16,6 +16,7 @@ type EventRepository interface {
 	ReportEvent(message *api.EventMessage) error
 	ReportEvents(message []*api.EventMessage) error
 	ReadEvents(jobSetId string, lastId string, limit int64, block time.Duration) ([]*api.EventStreamMessage, error)
+	GetLastMessageId(jobSetId string) (string, error)
 }
 
 type RedisEventRepository struct {
@@ -96,4 +97,15 @@ func (repo *RedisEventRepository) ReadEvents(jobSetId string, lastId string, lim
 		messages = append(messages, &api.EventStreamMessage{Id: m.ID, Message: msg})
 	}
 	return messages, nil
+}
+
+func (repo *RedisEventRepository) GetLastMessageId(jobSetId string) (string, error) {
+	msg, err := repo.db.XRevRangeN(eventStreamPrefix+jobSetId, "+", "-", 1).Result()
+	if err != nil {
+		return "", err
+	}
+	if len(msg) > 0 {
+		return msg[0].ID, nil
+	}
+	return "0", nil
 }
