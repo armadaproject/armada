@@ -44,10 +44,10 @@ func TestIsInTerminalState_ShouldReturnFalseWhenPodInNonTerminalState(t *testing
 	assert.False(t, inTerminatedState)
 }
 
-func TestIsManagedPod_ReturnsTrueIfQueueLabelPresent(t *testing.T) {
+func TestIsManagedPod_ReturnsTrueIfJobIdLabelPresent(t *testing.T) {
 	pod := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Labels: map[string]string{domain.Queue: "label"},
+			Labels: map[string]string{domain.JobId: "label"},
 		},
 	}
 
@@ -232,8 +232,7 @@ func makePodsWithJobIds(jobIds []string) []*v1.Pod {
 	for _, jobId := range jobIds {
 		pod := v1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
-				Labels:      map[string]string{domain.Queue: "queue"},
-				Annotations: map[string]string{domain.JobId: jobId},
+				Labels: map[string]string{domain.JobId: jobId},
 			},
 		}
 		pods = append(pods, &pod)

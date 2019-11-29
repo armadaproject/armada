@@ -20,11 +20,11 @@ func TestCreateLabels_CreatesExpectedLabels(t *testing.T) {
 	}
 
 	expectedLabels := map[string]string{
+		domain.JobId: job.Id,
 		domain.Queue: job.Queue,
 	}
 
 	expectedAnotations := map[string]string{
-		domain.JobId:    job.Id,
 		domain.JobSetId: job.JobSetId,
 	}
 
@@ -61,11 +61,11 @@ func TestCreatePod_CreatesExpectedPod(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name: PodNamePrefix + job.Id,
 			Labels: map[string]string{
+				domain.JobId: job.Id,
 				domain.Queue: job.Queue,
 				"label":      "test",
 			},
 			Annotations: map[string]string{
-				domain.JobId:    job.Id,
 				domain.JobSetId: job.JobSetId,
 				"annotation":    "test",
 			},

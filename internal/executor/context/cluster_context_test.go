@@ -367,7 +367,7 @@ func createSubmittedBatchPod(t *testing.T, context ClusterContext) *v1.Pod {
 func createBatchPod() *v1.Pod {
 	pod := createPod()
 	pod.ObjectMeta.Labels = map[string]string{
-		domain.Queue: "queue",
+		domain.JobId: "jobid",
 	}
 	return pod
 }

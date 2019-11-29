@@ -24,7 +24,7 @@ func IsInTerminalState(pod *v1.Pod) bool {
 }
 
 func IsManagedPod(pod *v1.Pod) bool {
-	if _, ok := pod.Labels[domain.Queue]; !ok {
+	if _, ok := pod.Labels[domain.JobId]; !ok {
 		return false
 	}
 
@@ -36,12 +36,12 @@ func GetManagedPodSelector() labels.Selector {
 }
 
 func createLabelSelectorForManagedPods() labels.Selector {
-	queueLabelExistsRequirement, err := labels.NewRequirement(domain.Queue, selection.Exists, []string{})
+	jobIdExistsRequirement, err := labels.NewRequirement(domain.JobId, selection.Exists, []string{})
 	if err != nil {
 		panic(err)
 	}
 
-	selector := labels.NewSelector().Add(*queueLabelExistsRequirement)
+	selector := labels.NewSelector().Add(*jobIdExistsRequirement)
 	return selector
 }
 
@@ -68,7 +68,7 @@ func ExtractJobIds(pods []*v1.Pod) []string {
 }
 
 func ExtractJobId(pod *v1.Pod) string {
-	return pod.Annotations[domain.JobId]
+	return pod.Labels[domain.JobId]
 }
 
 func FilterCompletedPods(pods []*v1.Pod) []*v1.Pod {

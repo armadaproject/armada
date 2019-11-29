@@ -124,10 +124,10 @@ func (allocationService *ClusterAllocationService) returnLease(pod *v1.Pod, reas
 
 func createPod(job *api.Job) *v1.Pod {
 	labels := mergeMaps(job.Labels, map[string]string{
+		domain.JobId: job.Id,
 		domain.Queue: job.Queue,
 	})
 	annotation := mergeMaps(job.Annotations, map[string]string{
-		domain.JobId:    job.Id,
 		domain.JobSetId: job.JobSetId,
 	})
 
