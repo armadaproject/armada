@@ -12,7 +12,7 @@ namespace GResearch.Armada.Client
         public string Error { get; set; }
     }
 
-    public partial class Client
+    public partial class ArmadaClient
     {
         public async Task<IEnumerable<StreamResponse<ApiEventStreamMessage>>> GetJobEventsStream(string jobSetId,
             string fromMessage = null, bool watch = false)
