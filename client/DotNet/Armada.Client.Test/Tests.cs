@@ -4,9 +4,9 @@ using System.Net.Http;
 using System.Linq;
 using System.Threading.Tasks;
 using NUnit.Framework;
-using ArmadaClient;
+using GResearch.Armada.Client;
 
-namespace ArmadaClient.Test
+namespace GResearch.Armada.Client.Test
 {
     public class Tests
     {

@@ -1,8 +1,8 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ArmadaClient", "ArmadaClient\ArmadaClient.csproj", "{8016908D-697F-48B0-9AAA-048A64A06FA8}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Armada.Client", "Armada.Client\Armada.Client.csproj", "{8016908D-697F-48B0-9AAA-048A64A06FA8}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ArmadaClient.Test", "ArmadaClient.Test\ArmadaClient.Test.csproj", "{FFF216CF-27D6-4E56-B472-30092FF6AE4D}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Armada.Client.Test", "Armada.Client.Test\Armada.Client.Test.csproj", "{FFF216CF-27D6-4E56-B472-30092FF6AE4D}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
