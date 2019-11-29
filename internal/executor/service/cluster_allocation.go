@@ -17,6 +17,7 @@ import (
 )
 
 const PodNamePrefix string = "armada-"
+const admissionWebhookValidationFailureMessage string = "admission webhook"
 
 type ClusterAllocationService struct {
 	leaseService       LeaseService
@@ -96,7 +97,7 @@ func isNotRecoverable(status metav1.Status) bool {
 
 	//This message shows it was rejected by an admission webhook.
 	// By default admission webhooks blocking results in a 500 so we can't use the status code as we could confuse it with Kubernetes outage
-	if strings.Contains(status.Message, "admission webhook") {
+	if strings.Contains(status.Message, admissionWebhookValidationFailureMessage) {
 		return true
 	}
 
