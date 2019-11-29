@@ -15,7 +15,7 @@ import (
 	"github.com/G-Research/armada/internal/executor/util"
 )
 
-const PodNamePrefix string = "batch-"
+const PodNamePrefix string = "armada-"
 
 type ClusterAllocationService struct {
 	leaseService       LeaseService
@@ -123,14 +123,22 @@ func (allocationService *ClusterAllocationService) returnLease(pod *v1.Pod, reas
 }
 
 func createPod(job *api.Job) *v1.Pod {
-	labels := createLabels(job)
+	labels := mergeMaps(job.Labels, map[string]string{
+		domain.JobId: job.Id,
+		domain.Queue: job.Queue,
+	})
+	annotation := mergeMaps(job.Annotations, map[string]string{
+		domain.JobSetId: job.JobSetId,
+	})
+
 	setRestartPolicyNever(job.PodSpec)
 
 	pod := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      PodNamePrefix + job.Id,
-			Labels:    labels,
-			Namespace: job.Namespace,
+			Name:        PodNamePrefix + job.Id,
+			Labels:      labels,
+			Annotations: annotation,
+			Namespace:   job.Namespace,
 		},
 		Spec: *job.PodSpec,
 	}
@@ -142,17 +150,18 @@ func setRestartPolicyNever(podSpec *v1.PodSpec) {
 	podSpec.RestartPolicy = v1.RestartPolicyNever
 }
 
-func createLabels(job *api.Job) map[string]string {
-	labels := make(map[string]string)
-
-	labels[domain.JobId] = job.Id
-	labels[domain.JobSetId] = job.JobSetId
-	labels[domain.Queue] = job.Queue
-
-	return labels
-}
-
 type failedSubmissionDetails struct {
 	pod   *v1.Pod
 	error errors.APIStatus
+}
+
+func mergeMaps(a map[string]string, b map[string]string) map[string]string {
+	result := make(map[string]string)
+	for k, v := range a {
+		result[k] = v
+	}
+	for k, v := range b {
+		result[k] = v
+	}
+	return result
 }

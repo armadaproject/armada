@@ -6,8 +6,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/selection"
 
 	"github.com/G-Research/armada/internal/executor/domain"
 )
@@ -241,32 +239,6 @@ func makePodsWithJobIds(jobIds []string) []*v1.Pod {
 	}
 
 	return pods
-}
-
-func TestGetManagedPodSelector_HoldsExpectedValue(t *testing.T) {
-	jobIdExistsRequirement, _ := labels.NewRequirement(domain.JobId, selection.Exists, []string{})
-	expected := labels.NewSelector().Add(*jobIdExistsRequirement)
-
-	result := GetManagedPodSelector()
-
-	assert.Equal(t, result, expected)
-}
-
-func TestManagedPodSelector_IsImmutable(t *testing.T) {
-	result := GetManagedPodSelector()
-	assert.Equal(t, result, GetManagedPodSelector())
-
-	//Reassign first requirement
-	newRequirement, err := labels.NewRequirement(domain.JobSetId, selection.Exists, []string{})
-	if err != nil {
-		assert.Fail(t, err.Error())
-		return
-	}
-	requirements, _ := result.Requirements()
-	requirements[0] = *newRequirement
-
-	//Check it is now different from the original
-	assert.NotEqual(t, result, GetManagedPodSelector())
 }
 
 func TestIsReportingPhaseRequired(t *testing.T) {

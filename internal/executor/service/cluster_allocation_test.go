@@ -16,17 +16,22 @@ func TestCreateLabels_CreatesExpectedLabels(t *testing.T) {
 		Id:       "Id",
 		JobSetId: "JobSetId",
 		Queue:    "Queue1",
+		PodSpec:  makePodSpec(),
 	}
 
-	expectedOutput := map[string]string{
-		domain.JobId:    job.Id,
+	expectedLabels := map[string]string{
+		domain.JobId: job.Id,
+		domain.Queue: job.Queue,
+	}
+
+	expectedAnotations := map[string]string{
 		domain.JobSetId: job.JobSetId,
-		domain.Queue:    job.Queue,
 	}
 
-	result := createLabels(&job)
+	result := createPod(&job)
 
-	assert.Equal(t, result, expectedOutput)
+	assert.Equal(t, result.Labels, expectedLabels)
+	assert.Equal(t, result.Annotations, expectedAnotations)
 }
 
 func TestSetRestartPolicyNever_OverwritesExistingValue(t *testing.T) {
@@ -42,25 +47,33 @@ func TestSetRestartPolicyNever_OverwritesExistingValue(t *testing.T) {
 func TestCreatePod_CreatesExpectedPod(t *testing.T) {
 	podSpec := makePodSpec()
 	job := api.Job{
-		Id:       "Id",
-		JobSetId: "JobSetId",
-		Queue:    "Queue1",
-		PodSpec:  podSpec,
+		Id:          "Id",
+		JobSetId:    "JobSetId",
+		Queue:       "Queue1",
+		PodSpec:     podSpec,
+		Annotations: map[string]string{"annotation": "test"},
+		Labels:      map[string]string{"label": "test"},
 	}
 
-	labels := createLabels(&job)
 	podSpec.RestartPolicy = v1.RestartPolicyNever
 
 	expectedOutput := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:   PodNamePrefix + job.Id,
-			Labels: labels,
+			Name: PodNamePrefix + job.Id,
+			Labels: map[string]string{
+				domain.JobId: job.Id,
+				domain.Queue: job.Queue,
+				"label":      "test",
+			},
+			Annotations: map[string]string{
+				domain.JobSetId: job.JobSetId,
+				"annotation":    "test",
+			},
 		},
 		Spec: *podSpec,
 	}
 
 	result := createPod(&job)
-
 	assert.Equal(t, result, &expectedOutput)
 }
 

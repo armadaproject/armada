@@ -180,7 +180,7 @@ func TestKubernetesClusterContext_AddAnnotation(t *testing.T) {
 
 	allPods, err := clusterContext.GetActiveBatchPods()
 	assert.Nil(t, err)
-	assert.Equal(t, allPods[0].Annotations, annotationsToAdd)
+	assert.Equal(t, allPods[0].Annotations["test"], "annotation")
 }
 
 func TestKubernetesClusterContext_AddAnnotation_ReturnsError_OnClientError(t *testing.T) {

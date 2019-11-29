@@ -216,6 +216,18 @@
         "Namespace": {
           "type": "string"
         },
+        "Labels": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "Annotations": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
         "Owner": {
           "type": "string"
         },
@@ -488,6 +500,18 @@
         },
         "Namespace": {
           "type": "string"
+        },
+        "Labels": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "Annotations": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
         },
         "PodSpec": {
           "$ref": "#/definitions/v1PodSpec"
