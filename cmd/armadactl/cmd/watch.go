@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"reflect"
 	"time"
 
@@ -55,8 +54,8 @@ var watchCmd = &cobra.Command{
 					summary += fmt.Sprintf(" | event: %s, job id: %s", reflect.TypeOf(e), e.GetJobId())
 					log.Info(summary)
 				}
-				if exit_on_inactive && !state.HasActiveJobs() {
-					os.Exit(0)
+				if exit_on_inactive && state.GetNumberOfJobs() == state.GetNumberOfFinishedJobs() {
+					return true
 				}
 				return false
 			})
