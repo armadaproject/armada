@@ -82,5 +82,5 @@ tests-e2e: build-docker e2e-start-cluster
 	}
 	trap tearDown EXIT
 	echo -e "\nrunning test:"
-	INTEGRATION_ENABLED=true PATH=${PATH}:./bin go test -v ./e2e/test/... -count=1
+	INTEGRATION_ENABLED=true PATH=${PATH}:${PWD}/bin go test -v ./e2e/test/... -count=1
 

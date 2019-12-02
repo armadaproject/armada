@@ -53,7 +53,7 @@ func TestCanSubmitJob_ArmdactlWatchExitOnInactive(t *testing.T) {
 		jobRequest := createJobRequest("personal-anonymous")
 		createQueue(submitClient, jobRequest, t)
 
-		cmd := exec.Command("./bin/armadactl", "--armadaUrl="+connDetails.ArmadaUrl, "watch", "--exit-if-inactive", jobRequest.JobSetId)
+		cmd := exec.Command("armadactl", "--armadaUrl="+connDetails.ArmadaUrl, "watch", "--exit-if-inactive", jobRequest.JobSetId)
 		err := cmd.Start()
 		assert.NoError(t, err)
 
