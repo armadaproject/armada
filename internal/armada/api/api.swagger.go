@@ -227,6 +227,18 @@ func SwaggerJsonTemplate() string {
 		"        \"Namespace\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
+		"        \"Labels\": {\n" +
+		"          \"type\": \"object\",\n" +
+		"          \"additionalProperties\": {\n" +
+		"            \"type\": \"string\"\n" +
+		"          }\n" +
+		"        },\n" +
+		"        \"Annotations\": {\n" +
+		"          \"type\": \"object\",\n" +
+		"          \"additionalProperties\": {\n" +
+		"            \"type\": \"string\"\n" +
+		"          }\n" +
+		"        },\n" +
 		"        \"Owner\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
@@ -499,6 +511,18 @@ func SwaggerJsonTemplate() string {
 		"        },\n" +
 		"        \"Namespace\": {\n" +
 		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"Labels\": {\n" +
+		"          \"type\": \"object\",\n" +
+		"          \"additionalProperties\": {\n" +
+		"            \"type\": \"string\"\n" +
+		"          }\n" +
+		"        },\n" +
+		"        \"Annotations\": {\n" +
+		"          \"type\": \"object\",\n" +
+		"          \"additionalProperties\": {\n" +
+		"            \"type\": \"string\"\n" +
+		"          }\n" +
 		"        },\n" +
 		"        \"PodSpec\": {\n" +
 		"          \"$ref\": \"#/definitions/v1PodSpec\"\n" +

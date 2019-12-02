@@ -4,17 +4,17 @@ metadata:
   name: {{ include "executor.name" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-{{ include "executor.labels.all" . | indent 4 }}
+    {{- include "executor.labels.all" . | nindent 4 }}
 spec:
   replicas: 1
   selector:
     matchLabels:
-{{ include "executor.labels.identity" . | indent 6 }}
+      {{- include "executor.labels.identity" . | nindent 6 }}
   template:
     metadata:
       name: {{ include "executor.name" . }}
       labels:
-{{ include "executor.labels.all" . | indent 8 }}
+        {{- include "executor.labels.all" . | nindent 8 }}
     spec:
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
       serviceAccountName: {{ include "executor.name" . }}
@@ -33,7 +33,7 @@ spec:
 {{ toYaml .Values.env | indent 12 }}
 {{- end }}
           resources:
-{{ toYaml .Values.resources | indent 12 }}
+            {{- toYaml .Values.resources | nindent 12 }}
           ports:
             - containerPort: 9001
               protocol: TCP
@@ -43,20 +43,19 @@ spec:
               mountPath: /config/application_config.yaml
               subPath: {{ include "executor.config.filename" . }}
               readOnly: true
-{{- if .Values.additionalVolumeMounts }}
-{{ toYaml .Values.additionalVolumeMounts | indent 12 }}
-{{- end }}
+            {{- if .Values.additionalVolumeMounts }}
+            {{- toYaml .Values.additionalVolumeMounts | nindent 12 -}}
+            {{- end }}
           securityContext:
             allowPrivilegeEscalation: false
       nodeSelector:
-{{ toYaml .Values.nodeSelector | indent 8 }}
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
       tolerations:
-{{ toYaml .Values.tolerations | indent 8 }}
+        {{- toYaml .Values.tolerations | nindent 8 }}
       volumes:
         - name: user-config
           secret:
             secretName: {{ include "executor.config.name" . }}
-{{- if .Values.additionalVolumes }}
-{{ toYaml .Values.additionalVolumes | indent 8 }}
-{{- end }}
-
+        {{- if .Values.additionalVolumes }}
+        {{- toYaml .Values.additionalVolumes | nindent 8 }}
+        {{- end }}

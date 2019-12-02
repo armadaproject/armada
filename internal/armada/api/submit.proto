@@ -9,6 +9,8 @@ import "google/api/annotations.proto";
 message JobSubmitRequestItem {
     double Priority = 1;
     string Namespace = 3;
+    map<string, string> Labels = 4;
+    map<string, string> Annotations = 5;
     k8s.io.api.core.v1.PodSpec PodSpec = 2;
 }
 

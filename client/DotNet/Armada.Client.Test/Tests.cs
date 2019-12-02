@@ -4,9 +4,9 @@ using System.Net.Http;
 using System.Linq;
 using System.Threading.Tasks;
 using NUnit.Framework;
-using ArmadaClient;
+using GResearch.Armada.Client;
 
-namespace ArmadaClient.Test
+namespace GResearch.Armada.Client.Test
 {
     public class Tests
     {
@@ -15,7 +15,7 @@ namespace ArmadaClient.Test
         {
             var jobSet = $"set-{Guid.NewGuid()}";
 
-            var client = new Client("http://localhost:8080", new HttpClient());
+            var client = new ArmadaClient("http://localhost:8080", new HttpClient());
             await client.CreateQueueAsync("test", new ApiQueue {PriorityFactor = 200});
 
             var pod = new V1PodSpec
