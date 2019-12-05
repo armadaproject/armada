@@ -20,6 +20,7 @@ type ApiConnectionDetails struct {
 	OpenIdPasswordAuth          oidc.ClientPasswordDetails
 	OpenIdClientCredentialsAuth oidc.ClientCredentialsDetails
 	KerberosAuth                kerberos.ClientConfig
+	ForceNoTls                  bool
 }
 
 func CreateApiConnection(config *ApiConnectionDetails, additionalDialOptions ...grpc.DialOption) (*grpc.ClientConn, error) {
@@ -37,7 +38,7 @@ func CreateApiConnection(config *ApiConnectionDetails, additionalDialOptions ...
 		defaultCallOptions,
 		unuaryInterceptors,
 		streamInterceptors,
-		transportCredentials(config.ArmadaUrl))
+		transportCredentials(config))
 
 	creds, err := perRpcCredentials(config)
 	if err != nil {
@@ -69,8 +70,8 @@ func perRpcCredentials(config *ApiConnectionDetails) (credentials.PerRPCCredenti
 	return nil, nil
 }
 
-func transportCredentials(url string) grpc.DialOption {
-	if !strings.Contains(url, "localhost") {
+func transportCredentials(config *ApiConnectionDetails) grpc.DialOption {
+	if !config.ForceNoTls && !strings.Contains(config.ArmadaUrl, "localhost") {
 		return grpc.WithTransportCredentials(credentials.NewClientTLSFromCert(nil, ""))
 	}
 	return grpc.WithInsecure()
