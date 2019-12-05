@@ -27,6 +27,7 @@ namespace GResearch.Armada.Client.Test
                         Name = "Container1",
                         Image = "index.docker.io/library/ubuntu:latest",
                         Args = new[] {"sleep", "10s"},
+                        SecurityContext = new V1SecurityContext{RunAsUser = 1000}, 
                         Resources = new V1ResourceRequirements
                         {
                             Requests = new Dictionary<string, string>
