@@ -666,7 +666,7 @@ func SwaggerJsonTemplate() string {
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
 		"        \"type\": {\n" +
-		"          \"type\": \"string\",\n" +
+		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int64\"\n" +
 		"        },\n" +
 		"        \"intVal\": {\n" +
@@ -1911,12 +1911,12 @@ func SwaggerJsonTemplate() string {
 		"          \"title\": \"Windows security options.\\n+optional\"\n" +
 		"        },\n" +
 		"        \"runAsUser\": {\n" +
-		"          \"type\": \"string\",\n" +
+		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int64\",\n" +
 		"          \"title\": \"The UID to run the entrypoint of the container process.\\nDefaults to user specified in image metadata if unspecified.\\nMay also be set in SecurityContext.  If set in both SecurityContext and\\nPodSecurityContext, the value specified in SecurityContext takes precedence\\nfor that container.\\n+optional\"\n" +
 		"        },\n" +
 		"        \"runAsGroup\": {\n" +
-		"          \"type\": \"string\",\n" +
+		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int64\",\n" +
 		"          \"title\": \"The GID to run the entrypoint of the container process.\\nUses runtime default if unset.\\nMay also be set in SecurityContext.  If set in both SecurityContext and\\nPodSecurityContext, the value specified in SecurityContext takes precedence\\nfor that container.\\n+optional\"\n" +
 		"        },\n" +
@@ -1928,13 +1928,13 @@ func SwaggerJsonTemplate() string {
 		"        \"supplementalGroups\": {\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
-		"            \"type\": \"string\",\n" +
+		"            \"type\": \"integer\",\n" +
 		"            \"format\": \"int64\"\n" +
 		"          },\n" +
 		"          \"title\": \"A list of groups applied to the first process run in each container, in addition\\nto the container's primary GID.  If unspecified, no groups will be added to\\nany container.\\n+optional\"\n" +
 		"        },\n" +
 		"        \"fsGroup\": {\n" +
-		"          \"type\": \"string\",\n" +
+		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int64\",\n" +
 		"          \"description\": \"1. The owning GID will be the FSGroup\\n2. The setgid bit is set (new files created in the volume will be owned by FSGroup)\\n3. The permission bits are OR'd with rw-rw----\\n\\nIf unset, the Kubelet will not modify the ownership and permissions of any volume.\\n+optional\",\n" +
 		"          \"title\": \"A special supplemental group that applies to all containers in a pod.\\nSome volume types allow the Kubelet to change the ownership of that volume\\nto be owned by the pod:\"\n" +
@@ -1978,12 +1978,12 @@ func SwaggerJsonTemplate() string {
 		"          \"title\": \"Restart policy for all containers within the pod.\\nOne of Always, OnFailure, Never.\\nDefault to Always.\\nMore info: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#restart-policy\\n+optional\"\n" +
 		"        },\n" +
 		"        \"terminationGracePeriodSeconds\": {\n" +
-		"          \"type\": \"string\",\n" +
+		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int64\",\n" +
 		"          \"title\": \"Optional duration in seconds the pod needs to terminate gracefully. May be decreased in delete request.\\nValue must be non-negative integer. The value zero indicates delete immediately.\\nIf this value is nil, the default grace period will be used instead.\\nThe grace period is the duration in seconds after the processes running in the pod are sent\\na termination signal and the time when the processes are forcibly halted with a kill signal.\\nSet this value longer than the expected cleanup time for your process.\\nDefaults to 30 seconds.\\n+optional\"\n" +
 		"        },\n" +
 		"        \"activeDeadlineSeconds\": {\n" +
-		"          \"type\": \"string\",\n" +
+		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int64\",\n" +
 		"          \"title\": \"Optional duration in seconds the pod may be active on the node relative to\\nStartTime before the system will actively try to mark it failed and kill associated containers.\\nValue must be a positive integer.\\n+optional\"\n" +
 		"        },\n" +
@@ -2490,12 +2490,12 @@ func SwaggerJsonTemplate() string {
 		"          \"title\": \"Windows security options.\\n+optional\"\n" +
 		"        },\n" +
 		"        \"runAsUser\": {\n" +
-		"          \"type\": \"string\",\n" +
+		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int64\",\n" +
 		"          \"title\": \"The UID to run the entrypoint of the container process.\\nDefaults to user specified in image metadata if unspecified.\\nMay also be set in PodSecurityContext.  If set in both SecurityContext and\\nPodSecurityContext, the value specified in SecurityContext takes precedence.\\n+optional\"\n" +
 		"        },\n" +
 		"        \"runAsGroup\": {\n" +
-		"          \"type\": \"string\",\n" +
+		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int64\",\n" +
 		"          \"title\": \"The GID to run the entrypoint of the container process.\\nUses runtime default if unset.\\nMay also be set in PodSecurityContext.  If set in both SecurityContext and\\nPodSecurityContext, the value specified in SecurityContext takes precedence.\\n+optional\"\n" +
 		"        },\n" +
@@ -2529,7 +2529,7 @@ func SwaggerJsonTemplate() string {
 		"          \"title\": \"Audience is the intended audience of the token. A recipient of a token\\nmust identify itself with an identifier specified in the audience of the\\ntoken, and otherwise should reject the token. The audience defaults to the\\nidentifier of the apiserver.\\n+optional\"\n" +
 		"        },\n" +
 		"        \"expirationSeconds\": {\n" +
-		"          \"type\": \"string\",\n" +
+		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int64\",\n" +
 		"          \"title\": \"ExpirationSeconds is the requested duration of validity of the service\\naccount token. As the token approaches expiration, the kubelet volume\\nplugin will proactively rotate the service account token. The kubelet will\\nstart trying to rotate the token if the token is older than 80 percent of\\nits time to live or if the token is older than 24 hours.Defaults to 1 hour\\nand must be at least 10 minutes.\\n+optional\"\n" +
 		"        },\n" +
@@ -2615,7 +2615,7 @@ func SwaggerJsonTemplate() string {
 		"          \"title\": \"Effect indicates the taint effect to match. Empty means match all taint effects.\\nWhen specified, allowed values are NoSchedule, PreferNoSchedule and NoExecute.\\n+optional\"\n" +
 		"        },\n" +
 		"        \"tolerationSeconds\": {\n" +
-		"          \"type\": \"string\",\n" +
+		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int64\",\n" +
 		"          \"title\": \"TolerationSeconds represents the period of time the toleration (which must be\\nof effect NoExecute, otherwise this field is ignored) tolerates the taint. By default,\\nit is not set, which means tolerate the taint forever (do not evict). Zero and\\nnegative values will be treated as 0 (evict immediately) by the system.\\n+optional\"\n" +
 		"        }\n" +
