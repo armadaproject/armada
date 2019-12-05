@@ -71,7 +71,7 @@ helm install stable/prometheus-operator --name=prometheus-operator -f docs/quick
 kubectl apply -f docs/quickstart/prometheus-kubemetrics-rules.yaml
 
 # Install executor
-helm template ./deployment/executor --set image.tag=$ARMADA_VERSION --set applicationConfig.armada.url="$DOCKERHOSTIP:30000" --set prometheus.enabled=true | kubectl apply -f -
+helm template ./deployment/executor --set image.tag=$ARMADA_VERSION --set applicationConfig.apiConnection.armadaUrl="$DOCKERHOSTIP:30000" --set prometheus.enabled=true | kubectl apply -f -
 ```
 Second executor:
 ```bash
@@ -87,7 +87,7 @@ helm install stable/prometheus-operator --name=prometheus-operator -f docs/quick
 kubectl apply -f docs/quickstart/prometheus-kubemetrics-rules.yaml
 
 # Install executor
-helm template ./deployment/executor --set image.tag=$ARMADA_VERSION --set applicationConfig.armada.url="$DOCKERHOSTIP:30000" --set prometheus.enabled=true | kubectl apply -f -
+helm template ./deployment/executor --set image.tag=$ARMADA_VERSION --set applicationConfig.apiConnection.armadaUrl="$DOCKERHOSTIP:30000" --set prometheus.enabled=true | kubectl apply -f -
 ```
 ### Grafana configuration
 
