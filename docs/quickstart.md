@@ -43,8 +43,7 @@ N.B. The official Prometheus chart is complex and may take up to 1 minute to ins
 export KUBECONFIG=$(kind get kubeconfig-path --name="quickstart-armada-server")
 
 # Configure Helm
-helm init && kubectl apply -f docs/quickstart/server-helm-clusterrolebinding.yaml
-kubectl wait --for=condition=available --timeout=600s deployment/tiller-deploy -n kube-system
+helm init --wait && kubectl apply -f docs/quickstart/server-helm-clusterrolebinding.yaml
 
 # Install Redis
 helm install stable/redis-ha --name=redis -f docs/quickstart/redis-values.yaml
@@ -63,8 +62,7 @@ export DOCKERHOSTIP=$(ip -4 addr show docker0 | grep -Po 'inet \K[\d.]+')
 export KUBECONFIG=$(kind get kubeconfig-path --name="quickstart-armada-executor-0")	
 
 # Configure Helm
-helm init && kubectl apply -f docs/quickstart/server-helm-clusterrolebinding.yaml
-kubectl wait --for=condition=available --timeout=600s deployment/tiller-deploy -n kube-system
+helm init --wait && kubectl apply -f docs/quickstart/server-helm-clusterrolebinding.yaml
 
 # Install Prometheus
 helm install stable/prometheus-operator --name=prometheus-operator -f docs/quickstart/executor-prometheus-values.yaml --set prometheus.service.nodePort=30002
@@ -79,8 +77,7 @@ export DOCKERHOSTIP=$(ip -4 addr show docker0 | grep -Po 'inet \K[\d.]+')
 export KUBECONFIG=$(kind get kubeconfig-path --name="quickstart-armada-executor-1")	
 
 # Configure Helm
-helm init && kubectl apply -f docs/quickstart/server-helm-clusterrolebinding.yaml
-kubectl wait --for=condition=available --timeout=600s deployment/tiller-deploy -n kube-system
+helm init --wait && kubectl apply -f docs/quickstart/server-helm-clusterrolebinding.yaml
 
 # Install Prometheus
 helm install stable/prometheus-operator --name=prometheus-operator -f docs/quickstart/executor-prometheus-values.yaml --set prometheus.service.nodePort=30003
