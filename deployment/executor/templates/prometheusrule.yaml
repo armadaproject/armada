@@ -14,28 +14,6 @@ spec:
     - name: armada-executor-metrics
       interval: {{ .Values.prometheus.prometheusRule.interval }}
       rules:
-        - record: armada:executor:pod:queue
-          expr: |
-            sum(kube_pod_labels{label_queue_id!=""}) by (pod, label_queue_id)
-            * on (pod) group_left(phase) sum(kube_pod_status_phase==1) by (pod, namespace, phase)
-
-        - record: armada:executor:pod:request:cpu
-          expr: |
-            sum(
-              sum(kube_pod_container_resource_requests_cpu_cores) by (pod)
-              * on (pod) group_left(label_queue_id, phase) armada:executor:pod:queue
-            ) by (label_queue_id, phase)
-
-        - record: armada:executor:pod:request:memory
-          expr: |
-            sum(
-              sum(kube_pod_container_resource_requests_memory_bytes) by (pod)
-              * on (pod) group_left(label_queue_id, phase) armada:executor:pod:queue
-            ) by (label_queue_id, phase)
-
-        - record: armada:executor:pod:count
-          expr: sum(armada:executor:pod:queue) by (label_queue_id, phase)
-
         - record: armada:executor:rest:request:histogram95
           expr: histogram_quantile(0.95, sum(rate(rest_client_request_duration_seconds_bucket{service="{{ include "executor.name" . }}"}[30s])) by (endpoint, verb, url, le))
 
