@@ -12,7 +12,7 @@ metadata:
 spec:
   groups:
     - name: armada-executor-metrics
-      interval: {{ .Values.prometheus.prometheusRule.interval }}
+      interval: {{ .Values.prometheus.scrapeInterval }}
       rules:
         - record: armada:executor:rest:request:histogram95
           expr: histogram_quantile(0.95, sum(rate(rest_client_request_duration_seconds_bucket{service="{{ include "executor.name" . }}"}[30s])) by (endpoint, verb, url, le))
