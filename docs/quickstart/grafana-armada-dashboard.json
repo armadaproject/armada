@@ -239,7 +239,7 @@
         "steppedLine": false,
         "targets": [
           {
-            "expr": "armada:queue:ideal_current_share",
+            "expr": "(armada:queue:size > bool 1) *  (100 / armada:queue:priority)  / scalar(sum((armada:queue:size > bool 1) * (1 / armada:queue:priority)))",
             "legendFormat": "{{ queueName }}",
             "refId": "A"
           }
@@ -265,11 +265,11 @@
         "yaxes": [
           {
             "decimals": null,
-            "format": "none",
+            "format": "percent",
             "label": null,
             "logBase": 1,
-            "max": null,
-            "min": "0",
+            "max": "100",
+            "min": null,
             "show": true
           },
           {
@@ -377,10 +377,10 @@
         "steppedLine": false,
         "targets": [
           {
-            "expr": "armada:executor:pod:request:cpu{phase=\"Running\"}",
+            "expr": "armada:monitoring:armada_pod_cpu_request:sum{phase=\"Running\"}",
             "format": "time_series",
             "intervalFactor": 1,
-            "legendFormat": "{{ label_queue_id }}",
+            "legendFormat": "{{ label_armada_queue_id }}",
             "refId": "A"
           },
           {
@@ -516,10 +516,10 @@
         "steppedLine": false,
         "targets": [
           {
-            "expr": "armada:executor:pod:request:cpu{phase=\"Running\"}",
+            "expr": "armada:monitoring:armada_pod_cpu_request:sum{phase=\"Running\"}",
             "format": "time_series",
             "intervalFactor": 1,
-            "legendFormat": "{{ label_queue_id }}",
+            "legendFormat": "{{ label_armada_queue_id }}",
             "refId": "A"
           },
           {
@@ -667,10 +667,10 @@
         "steppedLine": false,
         "targets": [
           {
-            "expr": "armada:executor:pod:request:memory{phase=\"Running\"}",
+            "expr": "armada:monitoring:armada_pod_memory_request:sum{phase=\"Running\"}",
             "format": "time_series",
             "intervalFactor": 1,
-            "legendFormat": "{{ label_queue_id }}",
+            "legendFormat": "{{ label_armada_queue_id }}",
             "refId": "A"
           },
           {
@@ -805,10 +805,10 @@
         "steppedLine": false,
         "targets": [
           {
-            "expr": "armada:executor:pod:request:memory{phase=\"Running\"}",
+            "expr": "armada:monitoring:armada_pod_memory_request:sum{phase=\"Running\"}",
             "format": "time_series",
             "intervalFactor": 1,
-            "legendFormat": "{{ label_queue_id }}",
+            "legendFormat": "{{ label_armada_queue_id }}",
             "refId": "A"
           },
           {
@@ -1103,7 +1103,7 @@
       }
     ],
     "refresh": "5s",
-    "schemaVersion": 20,
+    "schemaVersion": 19,
     "style": "dark",
     "tags": [],
     "templating": {
