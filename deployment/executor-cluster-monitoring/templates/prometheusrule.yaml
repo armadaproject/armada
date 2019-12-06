@@ -1,10 +1,10 @@
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
-  name: {{ include "executor-monitoring.name" . }}
+  name: {{ include "executor-cluster-monitoring.name" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "executor-monitoring.labels.all" . | nindent 4 }}
+    {{- include "executor-cluster-monitoring.labels.all" . | nindent 4 }}
 spec:
   groups:
     - name: armada-pod-details
