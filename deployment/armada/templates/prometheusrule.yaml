@@ -11,8 +11,8 @@ metadata:
     {{- end }}
 spec:
   groups:
-    - name: grpc-server-metrics
-      interval: 3s
+    - name: armada-server-metrics
+      interval: {{ .Values.prometheus.scrapeInterval }}
       rules:
         - record: armada:queue:size
           expr: avg(sum(armada_queue_size) by (queueName, pod)) by (queueName) > 0
