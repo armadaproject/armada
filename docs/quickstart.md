@@ -6,7 +6,7 @@ The purpose of this guide is to install a minimal local Armada deployment for te
 - Linux OS
 - Git
 - Docker
-- Helm
+- Helm v3
 - Kind
 - Kubectl
 
@@ -15,42 +15,28 @@ N.B.  Ensure the current user has permission to run the `docker` command without
 ## Installation
 This guide will install Armada on 3 local Kubernetes clusters; one server and two executor clusters. 
 
-Set the `ARMADA_VERSION` environment variable and clone this repository with the same version tag as you are installing. For example to install version `v0.0.4`:
+Set the `ARMADA_VERSION` environment variable and clone this repository with the same version tag as you are installing. For example to install version `v0.0.5`:
 ```bash
-export ARMADA_VERSION=v0.0.4
+export ARMADA_VERSION=v0.0.5
 git clone https://github.com/G-Research/armada.git --branch $ARMADA_VERSION
 ```
 
 All commands are intended to be run from the root of the repository.
 
-### Cluster creation
-
-First create the 3 required Kind clusters:
-```bash
-kindImage=kindest/node:v1.13.10
-kind create cluster --image $kindImage --name quickstart-armada-server --config ./docs/quickstart/kind-config-server.yaml
-kind create cluster --image $kindImage --name quickstart-armada-executor-0 --config ./docs/quickstart/kind-config-executor-0.yaml
-kind create cluster --image $kindImage --name quickstart-armada-executor-1 --config ./docs/quickstart/kind-config-executor-1.yaml
-```
-
-Ensure all clusters are up and running before continuing.
-
 ### Server deployment
 
-N.B. The official Prometheus chart is complex and may take up to 1 minute to install in the following instructions.
-
 ```bash
+kind create cluster --name quickstart-armada-server --config ./docs/quickstart/kind-config-server.yaml
 export KUBECONFIG=$(kind get kubeconfig-path --name="quickstart-armada-server")
 
 # Configure Helm
-helm init && kubectl apply -f docs/quickstart/server-helm-clusterrolebinding.yaml
-kubectl wait --for=condition=available --timeout=600s deployment/tiller-deploy -n kube-system
+helm repo add stable https://kubernetes-charts.storage.googleapis.com/
 
 # Install Redis
-helm install stable/redis-ha --name=redis -f docs/quickstart/redis-values.yaml
+helm install redis stable/redis-ha -f docs/quickstart/redis-values.yaml
 
 # Install Prometheus
-helm install stable/prometheus-operator --name=prometheus-operator -f docs/quickstart/server-prometheus-values.yaml
+helm install prometheus-operator stable/prometheus-operator -f docs/quickstart/server-prometheus-values.yaml
 
 # Install Armada server
 helm template ./deployment/armada --set image.tag=$ARMADA_VERSION -f ./docs/quickstart/server-values.yaml | kubectl apply -f -
@@ -59,15 +45,15 @@ helm template ./deployment/armada --set image.tag=$ARMADA_VERSION -f ./docs/quic
 
 First executor:
 ```bash
+kind create cluster --name quickstart-armada-executor-0 --config ./docs/quickstart/kind-config-executor-0.yaml
 export DOCKERHOSTIP=$(ip -4 addr show docker0 | grep -Po 'inet \K[\d.]+')
 export KUBECONFIG=$(kind get kubeconfig-path --name="quickstart-armada-executor-0")	
 
 # Configure Helm
-helm init && kubectl apply -f docs/quickstart/server-helm-clusterrolebinding.yaml
-kubectl wait --for=condition=available --timeout=600s deployment/tiller-deploy -n kube-system
+helm repo add stable https://kubernetes-charts.storage.googleapis.com/
 
 # Install Prometheus
-helm install stable/prometheus-operator --name=prometheus-operator -f docs/quickstart/executor-prometheus-values.yaml --set prometheus.service.nodePort=30002
+helm install prometheus-operator stable/prometheus-operator -f docs/quickstart/executor-prometheus-values.yaml --set prometheus.service.nodePort=30002
 kubectl apply -f docs/quickstart/prometheus-kubemetrics-rules.yaml
 
 # Install executor
@@ -75,15 +61,15 @@ helm template ./deployment/executor --set image.tag=$ARMADA_VERSION --set applic
 ```
 Second executor:
 ```bash
+kind create cluster --name quickstart-armada-executor-1 --config ./docs/quickstart/kind-config-executor-1.yaml
 export DOCKERHOSTIP=$(ip -4 addr show docker0 | grep -Po 'inet \K[\d.]+')
 export KUBECONFIG=$(kind get kubeconfig-path --name="quickstart-armada-executor-1")	
 
 # Configure Helm
-helm init && kubectl apply -f docs/quickstart/server-helm-clusterrolebinding.yaml
-kubectl wait --for=condition=available --timeout=600s deployment/tiller-deploy -n kube-system
+helm repo add stable https://kubernetes-charts.storage.googleapis.com/
 
 # Install Prometheus
-helm install stable/prometheus-operator --name=prometheus-operator -f docs/quickstart/executor-prometheus-values.yaml --set prometheus.service.nodePort=30003
+helm install prometheus-operator stable/prometheus-operator -f docs/quickstart/executor-prometheus-values.yaml --set prometheus.service.nodePort=30003
 kubectl apply -f docs/quickstart/prometheus-kubemetrics-rules.yaml
 
 # Install executor
