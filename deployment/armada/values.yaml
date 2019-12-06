@@ -17,6 +17,10 @@ strategy:
 prometheus:
   enabled: false
   labels: {}
+  serviceMonitor:
+    interval: 10s
+  prometheusRule:
+    interval: 10s
 
 applicationConfig:
   grpcPort: 50051

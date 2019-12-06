@@ -20,6 +20,10 @@ tolerations:
 prometheus:
   enabled: false
   labels: {}
+  serviceMonitor:
+    interval: 10s
+  prometheusRule:
+    interval: 10s
 
 applicationConfig:
   apiConnection:

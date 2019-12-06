@@ -15,5 +15,5 @@ spec:
       {{- include "armada.labels.identity" . | nindent 6 }}
   endpoints:
     - port: metrics
-      interval: 3s
+      interval: {{ .Values.prometheus.serviceMonitor.interval }}
 {{- end }}

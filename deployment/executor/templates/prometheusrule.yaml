@@ -11,8 +11,8 @@ metadata:
     {{- end }}
 spec:
   groups:
-    - name: armada-pods
-      interval: 3s
+    - name: armada-executor-metrics
+      interval: {{ .Values.prometheus.prometheusRule.interval }}
       rules:
         - record: armada:executor:pod:queue
           expr: |
