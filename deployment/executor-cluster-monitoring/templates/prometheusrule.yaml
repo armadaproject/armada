@@ -11,23 +11,23 @@ spec:
       interval: {{ .Values.interval }}
       rules:
         - record: armada:monitoring:armada_pod_by_queue:sum
-            expr: |
-              sum(kube_pod_labels{label_queue_id!=""}) by (pod, label_queue_id)
-              * on (pod) group_left(phase) sum(kube_pod_status_phase==1) by (pod, namespace, phase)
+          expr: |
+            sum(kube_pod_labels{label_armada_queue_id!=""}) by (pod, label_armada_queue_id)
+            * on (pod) group_left(phase) sum(kube_pod_status_phase==1) by (pod, namespace, phase)
         - record: armada:monitoring:armada_pod_cpu_request:sum
           expr: |
             sum(
               sum(kube_pod_container_resource_requests_cpu_cores) by (pod)
-              * on (pod) group_left(label_queue_id, phase) armada:executor:pod:queue
-            ) by (label_queue_id, phase)
+              * on (pod) group_left(label_armada_queue_id, phase) armada:monitoring:armada_pod_by_queue:sum
+            ) by (label_armada_queue_id, phase)
         - record: armada:monitoring:armada_pod_memory_request:sum
           expr: |
             sum(
               sum(kube_pod_container_resource_requests_memory_bytes) by (pod)
-              * on (pod) group_left(label_queue_id, phase) armada:executor:pod:queue
-            ) by (label_queue_id, phase)
+              * on (pod) group_left(label_armada_queue_id, phase) armada:monitoring:armada_pod_by_queue:sum
+            ) by (label_armada_queue_id, phase)
         - record: armada:monitoring:armada_pods_per_phase:sum
-          expr: sum(armada:executor:pod:queue) by (label_queue_id, phase)
+          expr: sum(armada:monitoring:armada_pod_by_queue:sum) by (label_armada_queue_id, phase)
 
         - record: namespace:pods_per_phase:sum
           expr: sum(kube_pod_status_phase) by (namespace, phase)
