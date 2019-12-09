@@ -52,23 +52,18 @@ message CancellationResult {
 }
 
 service Submit {
-
     rpc SubmitJobs (JobSubmitRequest) returns (JobSubmitResponse) {
         option (google.api.http) = {
             post: "/v1/job/submit"
             body: "*"
         };
     }
-
-
     rpc CancelJobs (JobCancelRequest) returns (CancellationResult) {
         option (google.api.http) = {
             post: "/v1/job/cancel"
             body: "*"
         };
     }
-
-
     rpc CreateQueue (Queue) returns (google.protobuf.Empty) {
         option (google.api.http) = {
             put: "/v1/queue/{Name}"
