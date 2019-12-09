@@ -11,7 +11,11 @@ require (
 	github.com/alicebob/miniredis v2.5.0+incompatible
 	github.com/coreos/go-oidc v2.1.0+incompatible
 	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f
+	github.com/go-openapi/analysis v0.19.5
+	github.com/go-openapi/jsonreference v0.19.2
+	github.com/go-openapi/loads v0.19.3
 	github.com/go-openapi/runtime v0.19.7
+	github.com/go-openapi/spec v0.19.3
 	github.com/go-redis/redis v6.15.4+incompatible
 	github.com/gogo/protobuf v1.3.1
 	github.com/golang/groupcache v0.0.0-20191027212112-611e8accdfc9 // indirect
