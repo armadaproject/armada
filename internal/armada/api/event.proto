@@ -137,11 +137,13 @@ message EventMessage {
     }
 }
 
+// swagger:model
 message EventStreamMessage {
     string Id = 1;
     EventMessage message = 2;
 }
 
+// swagger:model
 message JobSetRequest {
     string Id = 1;
     bool Watch = 2;
