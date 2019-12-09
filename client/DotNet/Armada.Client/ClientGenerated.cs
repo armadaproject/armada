@@ -934,7 +934,7 @@ namespace GResearch.Armada.Client
     public partial class IntstrIntOrString 
     {
         [Newtonsoft.Json.JsonProperty("type", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string Type { get; set; }
+        public long? Type { get; set; }
     
         [Newtonsoft.Json.JsonProperty("intVal", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public int? IntVal { get; set; }
@@ -2002,16 +2002,16 @@ namespace GResearch.Armada.Client
         public V1WindowsSecurityContextOptions WindowsOptions { get; set; }
     
         [Newtonsoft.Json.JsonProperty("runAsUser", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string RunAsUser { get; set; }
+        public long? RunAsUser { get; set; }
     
         [Newtonsoft.Json.JsonProperty("runAsGroup", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string RunAsGroup { get; set; }
+        public long? RunAsGroup { get; set; }
     
         [Newtonsoft.Json.JsonProperty("runAsNonRoot", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public bool? RunAsNonRoot { get; set; }
     
         [Newtonsoft.Json.JsonProperty("supplementalGroups", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.Collections.Generic.ICollection<string> SupplementalGroups { get; set; }
+        public System.Collections.Generic.ICollection<long> SupplementalGroups { get; set; }
     
         /// <summary>1. The owning GID will be the FSGroup
         /// 2. The setgid bit is set (new files created in the volume will be owned by FSGroup)
@@ -2020,7 +2020,7 @@ namespace GResearch.Armada.Client
         /// If unset, the Kubelet will not modify the ownership and permissions of any volume.
         /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("fsGroup", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string FsGroup { get; set; }
+        public long? FsGroup { get; set; }
     
         [Newtonsoft.Json.JsonProperty("sysctls", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.ICollection<V1Sysctl> Sysctls { get; set; }
@@ -2045,10 +2045,10 @@ namespace GResearch.Armada.Client
         public string RestartPolicy { get; set; }
     
         [Newtonsoft.Json.JsonProperty("terminationGracePeriodSeconds", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string TerminationGracePeriodSeconds { get; set; }
+        public long? TerminationGracePeriodSeconds { get; set; }
     
         [Newtonsoft.Json.JsonProperty("activeDeadlineSeconds", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string ActiveDeadlineSeconds { get; set; }
+        public long? ActiveDeadlineSeconds { get; set; }
     
         [Newtonsoft.Json.JsonProperty("dnsPolicy", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string DnsPolicy { get; set; }
@@ -2450,10 +2450,10 @@ namespace GResearch.Armada.Client
         public V1WindowsSecurityContextOptions WindowsOptions { get; set; }
     
         [Newtonsoft.Json.JsonProperty("runAsUser", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string RunAsUser { get; set; }
+        public long? RunAsUser { get; set; }
     
         [Newtonsoft.Json.JsonProperty("runAsGroup", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string RunAsGroup { get; set; }
+        public long? RunAsGroup { get; set; }
     
         [Newtonsoft.Json.JsonProperty("runAsNonRoot", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public bool? RunAsNonRoot { get; set; }
@@ -2481,7 +2481,7 @@ namespace GResearch.Armada.Client
         public string Audience { get; set; }
     
         [Newtonsoft.Json.JsonProperty("expirationSeconds", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string ExpirationSeconds { get; set; }
+        public long? ExpirationSeconds { get; set; }
     
         /// <summary>Path is the path relative to the mount point of the file to project the
         /// token into.</summary>
@@ -2560,7 +2560,7 @@ namespace GResearch.Armada.Client
         public string Effect { get; set; }
     
         [Newtonsoft.Json.JsonProperty("tolerationSeconds", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string TolerationSeconds { get; set; }
+        public long? TolerationSeconds { get; set; }
     
     
     }

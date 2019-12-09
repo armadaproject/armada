@@ -17,6 +17,7 @@ strategy:
 prometheus:
   enabled: false
   labels: {}
+  scrapeInterval: 10s
 
 applicationConfig:
   grpcPort: 50051
