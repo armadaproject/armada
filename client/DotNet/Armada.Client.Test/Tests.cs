@@ -20,14 +20,17 @@ namespace GResearch.Armada.Client.Test
 
             var pod = new V1PodSpec
             {
-                Volumes = new List<V1Volume>{ 
-                    new V1Volume{
+                Volumes = new List<V1Volume>
+                {
+                    new V1Volume
+                    {
                         Name = "root-dir",
-                        FlexVolume = new V1FlexVolumeSource{
+                        FlexVolume = new V1FlexVolumeSource
+                        {
                             Driver = "gr/cifs",
                             FsType = "cifs",
-                            SecretRef = new V1LocalObjectReference { Name = "secret-name" },
-                            Options = new Dictionary<string, string> {{"networkPath", "" }}
+                            SecretRef = new V1LocalObjectReference {Name = "secret-name"},
+                            Options = new Dictionary<string, string> {{"networkPath", ""}}
                         }
                     }
                 },
@@ -38,7 +41,7 @@ namespace GResearch.Armada.Client.Test
                         Name = "Container1",
                         Image = "index.docker.io/library/ubuntu:latest",
                         Args = new[] {"sleep", "10s"},
-                        SecurityContext = new V1SecurityContext{RunAsUser = 1000}, 
+                        SecurityContext = new V1SecurityContext {RunAsUser = 1000},
                         Resources = new V1ResourceRequirements
                         {
                             Requests = new V1ResourceList
@@ -51,7 +54,7 @@ namespace GResearch.Armada.Client.Test
                                 ["cpu"] = "120m",
                                 ["memory"] = "512Mi"
                             }
-                        }                        
+                        }
                     }
                 }
             };
