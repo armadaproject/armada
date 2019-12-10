@@ -27,12 +27,20 @@ type JobInfo struct {
 
 var statesToIncludeInSummary []JobStatus
 
+// States where the job is finished:
+var inactiveStates []JobStatus
+
 func init() {
 	statesToIncludeInSummary = []JobStatus{
 		Queued,
 		Leased,
 		Pending,
 		Running,
+		Succeeded,
+		Failed,
+		Cancelled,
+	}
+	inactiveStates = []JobStatus{
 		Succeeded,
 		Failed,
 		Cancelled,
@@ -110,6 +118,22 @@ func (context *WatchContext) GetNumberOfJobsInStates(states []JobStatus) int {
 
 	for _, state := range states {
 		numberOfJobs += context.stateSummary[state]
+	}
+
+	return numberOfJobs
+}
+
+// Return number of finished jobs:
+func (context *WatchContext) GetNumberOfFinishedJobs() int {
+	return context.GetNumberOfJobsInStates(inactiveStates)
+}
+
+// Return number of jobs:
+func (context *WatchContext) GetNumberOfJobs() int {
+	numberOfJobs := 0
+
+	for _, num := range context.stateSummary {
+		numberOfJobs += num
 	}
 
 	return numberOfJobs
