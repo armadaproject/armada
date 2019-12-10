@@ -172,6 +172,22 @@ jobs:
             docker tag gresearchdev/armada-executor-dev:${TAG} gresearchdev/armada-executor:${RELEASE_TAG}
             docker push gresearchdev/armada-executor:${RELEASE_TAG}
 
+  release-dotnet-client:
+    docker:
+      - image: mcr.microsoft.com/dotnet/core/sdk:3.0.101-alpine3.10
+    working_directory: /go/src/github.com/G-Research/k8s-batch
+    steps:
+      - checkout
+
+      - run:
+          name: Release dotnet client
+          command: |
+            RELEASE_TAG=${CIRCLE_TAG#"v"}
+            dotnet pack client/DotNet/Armada.Client/Armada.Client.csproj -c Release -p:PackageVersion=${RELEASE_TAG} -o ./bin/client/DotNet
+            dotnet nuget push ./bin/client/DotNet/G-Research.Armada.Client.${RELEASE_TAG}.nupkg -k ${NUGET_API_KEY} -s https://api.nuget.org/v3/index.json
+
+      - store_artifacts:
+          path: bin/client/DotNet/*
 
 workflows:
   version: 2
@@ -190,3 +206,10 @@ workflows:
               only: /.*/
             branches:
               ignore: /.*/
+      - release-dotnet-client:
+          filters:
+            tags:
+              only: /.*/
+            branches:
+              ignore: /.*/
+
