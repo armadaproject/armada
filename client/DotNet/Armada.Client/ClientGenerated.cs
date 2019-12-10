@@ -441,47 +441,47 @@ namespace GResearch.Armada.Client
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class ApiEventMessage 
     {
-        [Newtonsoft.Json.JsonProperty("submitted", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public ApiJobSubmittedEvent Submitted { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("queued", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public ApiJobQueuedEvent Queued { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("leased", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public ApiJobLeasedEvent Leased { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("leaseReturned", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public ApiJobLeaseReturnedEvent LeaseReturned { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("leaseExpired", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public ApiJobLeaseExpiredEvent LeaseExpired { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("pending", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public ApiJobPendingEvent Pending { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("running", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public ApiJobRunningEvent Running { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("unableToSchedule", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public ApiJobUnableToScheduleEvent UnableToSchedule { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("failed", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public ApiJobFailedEvent Failed { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("succeeded", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public ApiJobSucceededEvent Succeeded { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("reprioritized", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public ApiJobReprioritizedEvent Reprioritized { get; set; }
+        [Newtonsoft.Json.JsonProperty("cancelled", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public ApiJobCancelledEvent Cancelled { get; set; }
     
         [Newtonsoft.Json.JsonProperty("cancelling", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public ApiJobCancellingEvent Cancelling { get; set; }
     
-        [Newtonsoft.Json.JsonProperty("cancelled", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public ApiJobCancelledEvent Cancelled { get; set; }
+        [Newtonsoft.Json.JsonProperty("failed", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public ApiJobFailedEvent Failed { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("leaseExpired", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public ApiJobLeaseExpiredEvent LeaseExpired { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("leaseReturned", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public ApiJobLeaseReturnedEvent LeaseReturned { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("leased", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public ApiJobLeasedEvent Leased { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("pending", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public ApiJobPendingEvent Pending { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("queued", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public ApiJobQueuedEvent Queued { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("reprioritized", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public ApiJobReprioritizedEvent Reprioritized { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("running", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public ApiJobRunningEvent Running { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("submitted", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public ApiJobSubmittedEvent Submitted { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("succeeded", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public ApiJobSucceededEvent Succeeded { get; set; }
     
         [Newtonsoft.Json.JsonProperty("terminated", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public ApiJobTerminatedEvent Terminated { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("unableToSchedule", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public ApiJobUnableToScheduleEvent UnableToSchedule { get; set; }
     
     
     }
@@ -501,35 +501,35 @@ namespace GResearch.Armada.Client
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class ApiJob 
     {
+        [Newtonsoft.Json.JsonProperty("Annotations", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.IDictionary<string, string> Annotations { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("Created", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.DateTimeOffset? Created { get; set; }
+    
         [Newtonsoft.Json.JsonProperty("Id", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Id { get; set; }
     
         [Newtonsoft.Json.JsonProperty("JobSetId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string JobSetId { get; set; }
     
-        [Newtonsoft.Json.JsonProperty("Queue", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string Queue { get; set; }
+        [Newtonsoft.Json.JsonProperty("Labels", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.IDictionary<string, string> Labels { get; set; }
     
         [Newtonsoft.Json.JsonProperty("Namespace", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Namespace { get; set; }
     
-        [Newtonsoft.Json.JsonProperty("Labels", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.Collections.Generic.IDictionary<string, string> Labels { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("Annotations", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.Collections.Generic.IDictionary<string, string> Annotations { get; set; }
-    
         [Newtonsoft.Json.JsonProperty("Owner", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Owner { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("Priority", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public double? Priority { get; set; }
     
         [Newtonsoft.Json.JsonProperty("PodSpec", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public V1PodSpec PodSpec { get; set; }
     
-        [Newtonsoft.Json.JsonProperty("Created", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.DateTimeOffset? Created { get; set; }
+        [Newtonsoft.Json.JsonProperty("Priority", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public double? Priority { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("Queue", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Queue { get; set; }
     
     
     }
@@ -552,6 +552,9 @@ namespace GResearch.Armada.Client
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class ApiJobCancelledEvent 
     {
+        [Newtonsoft.Json.JsonProperty("Created", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.DateTimeOffset? Created { get; set; }
+    
         [Newtonsoft.Json.JsonProperty("JobId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string JobId { get; set; }
     
@@ -560,9 +563,6 @@ namespace GResearch.Armada.Client
     
         [Newtonsoft.Json.JsonProperty("Queue", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Queue { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("Created", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.DateTimeOffset? Created { get; set; }
     
     
     }
@@ -570,6 +570,9 @@ namespace GResearch.Armada.Client
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class ApiJobCancellingEvent 
     {
+        [Newtonsoft.Json.JsonProperty("Created", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.DateTimeOffset? Created { get; set; }
+    
         [Newtonsoft.Json.JsonProperty("JobId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string JobId { get; set; }
     
@@ -578,9 +581,6 @@ namespace GResearch.Armada.Client
     
         [Newtonsoft.Json.JsonProperty("Queue", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Queue { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("Created", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.DateTimeOffset? Created { get; set; }
     
     
     }
@@ -588,6 +588,12 @@ namespace GResearch.Armada.Client
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class ApiJobFailedEvent 
     {
+        [Newtonsoft.Json.JsonProperty("ClusterId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string ClusterId { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("Created", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.DateTimeOffset? Created { get; set; }
+    
         [Newtonsoft.Json.JsonProperty("JobId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string JobId { get; set; }
     
@@ -596,12 +602,6 @@ namespace GResearch.Armada.Client
     
         [Newtonsoft.Json.JsonProperty("Queue", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Queue { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("Created", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.DateTimeOffset? Created { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("ClusterId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string ClusterId { get; set; }
     
         [Newtonsoft.Json.JsonProperty("Reason", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Reason { get; set; }
@@ -612,6 +612,9 @@ namespace GResearch.Armada.Client
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class ApiJobLeaseExpiredEvent 
     {
+        [Newtonsoft.Json.JsonProperty("Created", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.DateTimeOffset? Created { get; set; }
+    
         [Newtonsoft.Json.JsonProperty("JobId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string JobId { get; set; }
     
@@ -620,9 +623,6 @@ namespace GResearch.Armada.Client
     
         [Newtonsoft.Json.JsonProperty("Queue", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Queue { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("Created", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.DateTimeOffset? Created { get; set; }
     
     
     }
@@ -630,6 +630,12 @@ namespace GResearch.Armada.Client
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class ApiJobLeaseReturnedEvent 
     {
+        [Newtonsoft.Json.JsonProperty("ClusterId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string ClusterId { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("Created", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.DateTimeOffset? Created { get; set; }
+    
         [Newtonsoft.Json.JsonProperty("JobId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string JobId { get; set; }
     
@@ -638,12 +644,6 @@ namespace GResearch.Armada.Client
     
         [Newtonsoft.Json.JsonProperty("Queue", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Queue { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("Created", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.DateTimeOffset? Created { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("ClusterId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string ClusterId { get; set; }
     
         [Newtonsoft.Json.JsonProperty("Reason", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Reason { get; set; }
@@ -654,6 +654,12 @@ namespace GResearch.Armada.Client
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class ApiJobLeasedEvent 
     {
+        [Newtonsoft.Json.JsonProperty("ClusterId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string ClusterId { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("Created", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.DateTimeOffset? Created { get; set; }
+    
         [Newtonsoft.Json.JsonProperty("JobId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string JobId { get; set; }
     
@@ -662,12 +668,6 @@ namespace GResearch.Armada.Client
     
         [Newtonsoft.Json.JsonProperty("Queue", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Queue { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("Created", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.DateTimeOffset? Created { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("ClusterId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string ClusterId { get; set; }
     
     
     }
@@ -675,6 +675,12 @@ namespace GResearch.Armada.Client
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class ApiJobPendingEvent 
     {
+        [Newtonsoft.Json.JsonProperty("ClusterId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string ClusterId { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("Created", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.DateTimeOffset? Created { get; set; }
+    
         [Newtonsoft.Json.JsonProperty("JobId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string JobId { get; set; }
     
@@ -683,12 +689,6 @@ namespace GResearch.Armada.Client
     
         [Newtonsoft.Json.JsonProperty("Queue", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Queue { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("Created", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.DateTimeOffset? Created { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("ClusterId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string ClusterId { get; set; }
     
     
     }
@@ -696,6 +696,9 @@ namespace GResearch.Armada.Client
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class ApiJobQueuedEvent 
     {
+        [Newtonsoft.Json.JsonProperty("Created", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.DateTimeOffset? Created { get; set; }
+    
         [Newtonsoft.Json.JsonProperty("JobId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string JobId { get; set; }
     
@@ -704,9 +707,6 @@ namespace GResearch.Armada.Client
     
         [Newtonsoft.Json.JsonProperty("Queue", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Queue { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("Created", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.DateTimeOffset? Created { get; set; }
     
     
     }
@@ -714,6 +714,9 @@ namespace GResearch.Armada.Client
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class ApiJobReprioritizedEvent 
     {
+        [Newtonsoft.Json.JsonProperty("Created", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.DateTimeOffset? Created { get; set; }
+    
         [Newtonsoft.Json.JsonProperty("JobId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string JobId { get; set; }
     
@@ -722,9 +725,6 @@ namespace GResearch.Armada.Client
     
         [Newtonsoft.Json.JsonProperty("Queue", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Queue { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("Created", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.DateTimeOffset? Created { get; set; }
     
     
     }
@@ -732,6 +732,12 @@ namespace GResearch.Armada.Client
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class ApiJobRunningEvent 
     {
+        [Newtonsoft.Json.JsonProperty("ClusterId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string ClusterId { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("Created", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.DateTimeOffset? Created { get; set; }
+    
         [Newtonsoft.Json.JsonProperty("JobId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string JobId { get; set; }
     
@@ -741,26 +747,20 @@ namespace GResearch.Armada.Client
         [Newtonsoft.Json.JsonProperty("Queue", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Queue { get; set; }
     
-        [Newtonsoft.Json.JsonProperty("Created", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.DateTimeOffset? Created { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("ClusterId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string ClusterId { get; set; }
-    
     
     }
     
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class ApiJobSetRequest 
     {
+        [Newtonsoft.Json.JsonProperty("FromMessageId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string FromMessageId { get; set; }
+    
         [Newtonsoft.Json.JsonProperty("Id", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Id { get; set; }
     
         [Newtonsoft.Json.JsonProperty("Watch", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public bool? Watch { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("FromMessageId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string FromMessageId { get; set; }
     
     
     }
@@ -768,14 +768,14 @@ namespace GResearch.Armada.Client
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class ApiJobSubmitRequest 
     {
-        [Newtonsoft.Json.JsonProperty("Queue", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string Queue { get; set; }
+        [Newtonsoft.Json.JsonProperty("JobRequestItems", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<ApiJobSubmitRequestItem> JobRequestItems { get; set; }
     
         [Newtonsoft.Json.JsonProperty("JobSetId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string JobSetId { get; set; }
     
-        [Newtonsoft.Json.JsonProperty("JobRequestItems", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.Collections.Generic.ICollection<ApiJobSubmitRequestItem> JobRequestItems { get; set; }
+        [Newtonsoft.Json.JsonProperty("Queue", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Queue { get; set; }
     
     
     }
@@ -783,20 +783,20 @@ namespace GResearch.Armada.Client
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class ApiJobSubmitRequestItem 
     {
-        [Newtonsoft.Json.JsonProperty("Priority", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public double? Priority { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("Namespace", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string Namespace { get; set; }
+        [Newtonsoft.Json.JsonProperty("Annotations", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.IDictionary<string, string> Annotations { get; set; }
     
         [Newtonsoft.Json.JsonProperty("Labels", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.IDictionary<string, string> Labels { get; set; }
     
-        [Newtonsoft.Json.JsonProperty("Annotations", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.Collections.Generic.IDictionary<string, string> Annotations { get; set; }
+        [Newtonsoft.Json.JsonProperty("Namespace", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Namespace { get; set; }
     
         [Newtonsoft.Json.JsonProperty("PodSpec", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public V1PodSpec PodSpec { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("Priority", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public double? Priority { get; set; }
     
     
     }
@@ -813,11 +813,11 @@ namespace GResearch.Armada.Client
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class ApiJobSubmitResponseItem 
     {
-        [Newtonsoft.Json.JsonProperty("JobId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string JobId { get; set; }
-    
         [Newtonsoft.Json.JsonProperty("Error", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Error { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("JobId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string JobId { get; set; }
     
     
     }
@@ -825,6 +825,12 @@ namespace GResearch.Armada.Client
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class ApiJobSubmittedEvent 
     {
+        [Newtonsoft.Json.JsonProperty("Created", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.DateTimeOffset? Created { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("Job", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public ApiJob Job { get; set; }
+    
         [Newtonsoft.Json.JsonProperty("JobId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string JobId { get; set; }
     
@@ -833,12 +839,6 @@ namespace GResearch.Armada.Client
     
         [Newtonsoft.Json.JsonProperty("Queue", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Queue { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("Created", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.DateTimeOffset? Created { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("Job", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public ApiJob Job { get; set; }
     
     
     }
@@ -846,6 +846,12 @@ namespace GResearch.Armada.Client
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class ApiJobSucceededEvent 
     {
+        [Newtonsoft.Json.JsonProperty("ClusterId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string ClusterId { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("Created", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.DateTimeOffset? Created { get; set; }
+    
         [Newtonsoft.Json.JsonProperty("JobId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string JobId { get; set; }
     
@@ -854,12 +860,6 @@ namespace GResearch.Armada.Client
     
         [Newtonsoft.Json.JsonProperty("Queue", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Queue { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("Created", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.DateTimeOffset? Created { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("ClusterId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string ClusterId { get; set; }
     
     
     }
@@ -867,6 +867,12 @@ namespace GResearch.Armada.Client
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class ApiJobTerminatedEvent 
     {
+        [Newtonsoft.Json.JsonProperty("ClusterId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string ClusterId { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("Created", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.DateTimeOffset? Created { get; set; }
+    
         [Newtonsoft.Json.JsonProperty("JobId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string JobId { get; set; }
     
@@ -875,12 +881,6 @@ namespace GResearch.Armada.Client
     
         [Newtonsoft.Json.JsonProperty("Queue", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Queue { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("Created", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.DateTimeOffset? Created { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("ClusterId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string ClusterId { get; set; }
     
     
     }
@@ -888,6 +888,12 @@ namespace GResearch.Armada.Client
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class ApiJobUnableToScheduleEvent 
     {
+        [Newtonsoft.Json.JsonProperty("ClusterId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string ClusterId { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("Created", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.DateTimeOffset? Created { get; set; }
+    
         [Newtonsoft.Json.JsonProperty("JobId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string JobId { get; set; }
     
@@ -896,12 +902,6 @@ namespace GResearch.Armada.Client
     
         [Newtonsoft.Json.JsonProperty("Queue", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Queue { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("Created", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.DateTimeOffset? Created { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("ClusterId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string ClusterId { get; set; }
     
         [Newtonsoft.Json.JsonProperty("Reason", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Reason { get; set; }
@@ -912,6 +912,9 @@ namespace GResearch.Armada.Client
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class ApiQueue 
     {
+        [Newtonsoft.Json.JsonProperty("GroupOwners", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<string> GroupOwners { get; set; }
+    
         [Newtonsoft.Json.JsonProperty("Name", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Name { get; set; }
     
@@ -920,9 +923,6 @@ namespace GResearch.Armada.Client
     
         [Newtonsoft.Json.JsonProperty("UserOwners", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.ICollection<string> UserOwners { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("GroupOwners", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.Collections.Generic.ICollection<string> GroupOwners { get; set; }
     
     
     }
@@ -933,14 +933,14 @@ namespace GResearch.Armada.Client
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class IntstrIntOrString 
     {
-        [Newtonsoft.Json.JsonProperty("type", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public long? Type { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("intVal", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        [Newtonsoft.Json.JsonProperty("IntVal", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public int? IntVal { get; set; }
     
-        [Newtonsoft.Json.JsonProperty("strVal", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        [Newtonsoft.Json.JsonProperty("StrVal", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string StrVal { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("Type", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public long? Type { get; set; }
     
     
     }
@@ -960,49 +960,63 @@ namespace GResearch.Armada.Client
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class RuntimeStreamError 
     {
+        [Newtonsoft.Json.JsonProperty("details", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<ProtobufAny> Details { get; set; }
+    
         [Newtonsoft.Json.JsonProperty("grpc_code", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public int? Grpc_code { get; set; }
     
         [Newtonsoft.Json.JsonProperty("http_code", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public int? Http_code { get; set; }
     
-        [Newtonsoft.Json.JsonProperty("message", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string Message { get; set; }
-    
         [Newtonsoft.Json.JsonProperty("http_status", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Http_status { get; set; }
     
-        [Newtonsoft.Json.JsonProperty("details", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.Collections.Generic.ICollection<ProtobufAny> Details { get; set; }
+        [Newtonsoft.Json.JsonProperty("message", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Message { get; set; }
     
     
     }
     
-    /// <summary>Represents a Persistent Disk resource in AWS.
-    /// 
-    /// An AWS EBS disk must exist before mounting to a container. The disk
+    /// <summary>An AWS EBS disk must exist before mounting to a container. The disk
     /// must also be in the same AWS zone as the kubelet. An AWS EBS disk
     /// can only be mounted as read/write once. AWS EBS volumes support
     /// ownership management and SELinux relabeling.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1AWSElasticBlockStoreVolumeSource 
     {
-        [Newtonsoft.Json.JsonProperty("volumeID", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string VolumeID { get; set; }
-    
+        /// <summary>Filesystem type of the volume that you want to mount.
+        /// Tip: Ensure that the filesystem type is supported by the host operating system.
+        /// Examples: "ext4", "xfs", "ntfs". Implicitly inferred to be "ext4" if unspecified.
+        /// More info: https://kubernetes.io/docs/concepts/storage/volumes#awselasticblockstore
+        /// TODO: how do we prevent errors in the filesystem from compromising the machine
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("fsType", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string FsType { get; set; }
     
+        /// <summary>The partition in the volume that you want to mount.
+        /// If omitted, the default is to mount by volume name.
+        /// Examples: For volume /dev/sda1, you specify the partition as "1".
+        /// Similarly, the volume partition for /dev/sda is "0" (or you can leave the property empty).
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("partition", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public int? Partition { get; set; }
     
+        /// <summary>Specify "true" to force and set the ReadOnly property in VolumeMounts to "true".
+        /// If omitted, the default is "false".
+        /// More info: https://kubernetes.io/docs/concepts/storage/volumes#awselasticblockstore
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("readOnly", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public bool? ReadOnly { get; set; }
+    
+        /// <summary>Unique ID of the persistent disk resource in AWS (Amazon EBS volume).
+        /// More info: https://kubernetes.io/docs/concepts/storage/volumes#awselasticblockstore</summary>
+        [Newtonsoft.Json.JsonProperty("volumeID", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string VolumeID { get; set; }
     
     
     }
     
-    /// <summary>Affinity is a group of affinity scheduling rules.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1Affinity 
     {
@@ -1018,47 +1032,60 @@ namespace GResearch.Armada.Client
     
     }
     
-    /// <summary>AzureDisk represents an Azure Data Disk mount on the host and bind mount to the pod.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1AzureDiskVolumeSource 
     {
-        [Newtonsoft.Json.JsonProperty("diskName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string DiskName { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("diskURI", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string DiskURI { get; set; }
-    
         [Newtonsoft.Json.JsonProperty("cachingMode", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string CachingMode { get; set; }
     
+        /// <summary>The Name of the data disk in the blob storage</summary>
+        [Newtonsoft.Json.JsonProperty("diskName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string DiskName { get; set; }
+    
+        /// <summary>The URI the data disk in the blob storage</summary>
+        [Newtonsoft.Json.JsonProperty("diskURI", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string DiskURI { get; set; }
+    
+        /// <summary>Filesystem type to mount.
+        /// Must be a filesystem type supported by the host operating system.
+        /// Ex. "ext4", "xfs", "ntfs". Implicitly inferred to be "ext4" if unspecified.
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("fsType", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string FsType { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("readOnly", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public bool? ReadOnly { get; set; }
     
         [Newtonsoft.Json.JsonProperty("kind", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Kind { get; set; }
     
-    
-    }
-    
-    /// <summary>AzureFile represents an Azure File Service mount on the host and bind mount to the pod.</summary>
-    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
-    public partial class V1AzureFileVolumeSource 
-    {
-        [Newtonsoft.Json.JsonProperty("secretName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string SecretName { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("shareName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string ShareName { get; set; }
-    
+        /// <summary>Defaults to false (read/write). ReadOnly here will force
+        /// the ReadOnly setting in VolumeMounts.
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("readOnly", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public bool? ReadOnly { get; set; }
     
     
     }
     
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
+    public partial class V1AzureFileVolumeSource 
+    {
+        /// <summary>Defaults to false (read/write). ReadOnly here will force
+        /// the ReadOnly setting in VolumeMounts.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("readOnly", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public bool? ReadOnly { get; set; }
+    
+        /// <summary>the name of secret that contains Azure Storage Account Name and Key</summary>
+        [Newtonsoft.Json.JsonProperty("secretName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string SecretName { get; set; }
+    
+        /// <summary>Share Name</summary>
+        [Newtonsoft.Json.JsonProperty("shareName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string ShareName { get; set; }
+    
+    
+    }
+    
+    /// <summary>Represents a source location of a volume to mount, managed by an external CSI driver</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1CSIVolumeSource 
     {
@@ -1067,28 +1094,41 @@ namespace GResearch.Armada.Client
         [Newtonsoft.Json.JsonProperty("driver", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Driver { get; set; }
     
-        [Newtonsoft.Json.JsonProperty("readOnly", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public bool? ReadOnly { get; set; }
-    
+        /// <summary>Filesystem type to mount. Ex. "ext4", "xfs", "ntfs".
+        /// If not provided, the empty value is passed to the associated CSI driver
+        /// which will determine the default filesystem to apply.
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("fsType", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string FsType { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("volumeAttributes", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.Collections.Generic.IDictionary<string, string> VolumeAttributes { get; set; }
     
         [Newtonsoft.Json.JsonProperty("nodePublishSecretRef", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public V1LocalObjectReference NodePublishSecretRef { get; set; }
     
+        /// <summary>Specifies a read-only configuration for the volume.
+        /// Defaults to false (read/write).
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("readOnly", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public bool? ReadOnly { get; set; }
+    
+        /// <summary>VolumeAttributes stores driver-specific properties that are passed to the CSI
+        /// driver. Consult your driver's documentation for supported values.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("volumeAttributes", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.IDictionary<string, string> VolumeAttributes { get; set; }
+    
     
     }
     
-    /// <summary>Adds and removes POSIX capabilities from running containers.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1Capabilities 
     {
+        /// <summary>Added capabilities
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("add", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.ICollection<string> Add { get; set; }
     
+        /// <summary>Removed capabilities
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("drop", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.ICollection<string> Drop { get; set; }
     
@@ -1100,88 +1140,116 @@ namespace GResearch.Armada.Client
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1CephFSVolumeSource 
     {
+        /// <summary>Required: Monitors is a collection of Ceph monitors
+        /// More info: https://releases.k8s.io/HEAD/examples/volumes/cephfs/README.md#how-to-use-it</summary>
         [Newtonsoft.Json.JsonProperty("monitors", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.ICollection<string> Monitors { get; set; }
     
+        /// <summary>Optional: Used as the mounted root, rather than the full Ceph tree, default is /
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("path", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Path { get; set; }
     
-        [Newtonsoft.Json.JsonProperty("user", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string User { get; set; }
+        /// <summary>Optional: Defaults to false (read/write). ReadOnly here will force
+        /// the ReadOnly setting in VolumeMounts.
+        /// More info: https://releases.k8s.io/HEAD/examples/volumes/cephfs/README.md#how-to-use-it
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("readOnly", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public bool? ReadOnly { get; set; }
     
+        /// <summary>Optional: SecretFile is the path to key ring for User, default is /etc/ceph/user.secret
+        /// More info: https://releases.k8s.io/HEAD/examples/volumes/cephfs/README.md#how-to-use-it
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("secretFile", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string SecretFile { get; set; }
     
         [Newtonsoft.Json.JsonProperty("secretRef", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public V1LocalObjectReference SecretRef { get; set; }
     
-        [Newtonsoft.Json.JsonProperty("readOnly", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public bool? ReadOnly { get; set; }
+        /// <summary>Optional: User is the rados user name, default is admin
+        /// More info: https://releases.k8s.io/HEAD/examples/volumes/cephfs/README.md#how-to-use-it
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("user", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string User { get; set; }
     
     
     }
     
-    /// <summary>Represents a cinder volume resource in Openstack.
-    /// A Cinder volume must exist before mounting to a container.
+    /// <summary>A Cinder volume must exist before mounting to a container.
     /// The volume must also be in the same region as the kubelet.
     /// Cinder volumes support ownership management and SELinux relabeling.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1CinderVolumeSource 
     {
-        [Newtonsoft.Json.JsonProperty("volumeID", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string VolumeID { get; set; }
-    
+        /// <summary>Filesystem type to mount.
+        /// Must be a filesystem type supported by the host operating system.
+        /// Examples: "ext4", "xfs", "ntfs". Implicitly inferred to be "ext4" if unspecified.
+        /// More info: https://releases.k8s.io/HEAD/examples/mysql-cinder-pd/README.md
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("fsType", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string FsType { get; set; }
     
+        /// <summary>Optional: Defaults to false (read/write). ReadOnly here will force
+        /// the ReadOnly setting in VolumeMounts.
+        /// More info: https://releases.k8s.io/HEAD/examples/mysql-cinder-pd/README.md
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("readOnly", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public bool? ReadOnly { get; set; }
     
         [Newtonsoft.Json.JsonProperty("secretRef", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public V1LocalObjectReference SecretRef { get; set; }
     
+        /// <summary>volume id used to identify the volume in cinder
+        /// More info: https://releases.k8s.io/HEAD/examples/mysql-cinder-pd/README.md</summary>
+        [Newtonsoft.Json.JsonProperty("volumeID", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string VolumeID { get; set; }
+    
     
     }
     
-    /// <summary>ConfigMapEnvSource selects a ConfigMap to populate the environment
-    /// variables with.
-    /// 
-    /// The contents of the target ConfigMap's Data field will represent the
+    /// <summary>The contents of the target ConfigMap's Data field will represent the
     /// key-value pairs as environment variables.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1ConfigMapEnvSource 
     {
-        /// <summary>The ConfigMap to select from.</summary>
-        [Newtonsoft.Json.JsonProperty("localObjectReference", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1LocalObjectReference LocalObjectReference { get; set; }
+        /// <summary>Name of the referent.
+        /// More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+        /// TODO: Add other useful fields. apiVersion, kind, uid?
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("name", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Name { get; set; }
     
+        /// <summary>Specify whether the ConfigMap must be defined
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("optional", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public bool? Optional { get; set; }
     
     
     }
     
-    /// <summary>Selects a key from a ConfigMap.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1ConfigMapKeySelector 
     {
-        /// <summary>The ConfigMap to select from.</summary>
-        [Newtonsoft.Json.JsonProperty("localObjectReference", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1LocalObjectReference LocalObjectReference { get; set; }
-    
         /// <summary>The key to select.</summary>
         [Newtonsoft.Json.JsonProperty("key", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Key { get; set; }
     
+        /// <summary>Name of the referent.
+        /// More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+        /// TODO: Add other useful fields. apiVersion, kind, uid?
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("name", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Name { get; set; }
+    
+        /// <summary>Specify whether the ConfigMap or its key must be defined
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("optional", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public bool? Optional { get; set; }
     
     
     }
     
-    /// <summary>Adapts a ConfigMap into a projected volume.
-    /// 
-    /// The contents of the target ConfigMap's Data field will be presented in a
+    /// <summary>The contents of the target ConfigMap's Data field will be presented in a
     /// projected volume as files using the keys in the Data field as the file names,
     /// unless the items element is populated with specific mappings of keys to paths.
     /// Note that this is identical to a configmap volume source without the default
@@ -1189,185 +1257,326 @@ namespace GResearch.Armada.Client
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1ConfigMapProjection 
     {
-        [Newtonsoft.Json.JsonProperty("localObjectReference", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1LocalObjectReference LocalObjectReference { get; set; }
-    
+        /// <summary>If unspecified, each key-value pair in the Data field of the referenced
+        /// ConfigMap will be projected into the volume as a file whose name is the
+        /// key and content is the value. If specified, the listed keys will be
+        /// projected into the specified paths, and unlisted keys will not be
+        /// present. If a key is specified which is not present in the ConfigMap,
+        /// the volume setup will error unless it is marked optional. Paths must be
+        /// relative and may not contain the '..' path or start with '..'.
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("items", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.ICollection<V1KeyToPath> Items { get; set; }
     
+        /// <summary>Name of the referent.
+        /// More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+        /// TODO: Add other useful fields. apiVersion, kind, uid?
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("name", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Name { get; set; }
+    
+        /// <summary>Specify whether the ConfigMap or its keys must be defined
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("optional", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public bool? Optional { get; set; }
     
     
     }
     
-    /// <summary>Adapts a ConfigMap into a volume.
-    /// 
-    /// The contents of the target ConfigMap's Data field will be presented in a
+    /// <summary>The contents of the target ConfigMap's Data field will be presented in a
     /// volume as files using the keys in the Data field as the file names, unless
     /// the items element is populated with specific mappings of keys to paths.
     /// ConfigMap volumes support ownership management and SELinux relabeling.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1ConfigMapVolumeSource 
     {
-        [Newtonsoft.Json.JsonProperty("localObjectReference", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1LocalObjectReference LocalObjectReference { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("items", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.Collections.Generic.ICollection<V1KeyToPath> Items { get; set; }
-    
+        /// <summary>Optional: mode bits to use on created files by default. Must be a
+        /// value between 0 and 0777. Defaults to 0644.
+        /// Directories within the path are not affected by this setting.
+        /// This might be in conflict with other options that affect the file
+        /// mode, like fsGroup, and the result can be other mode bits set.
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("defaultMode", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public int? DefaultMode { get; set; }
     
+        /// <summary>If unspecified, each key-value pair in the Data field of the referenced
+        /// ConfigMap will be projected into the volume as a file whose name is the
+        /// key and content is the value. If specified, the listed keys will be
+        /// projected into the specified paths, and unlisted keys will not be
+        /// present. If a key is specified which is not present in the ConfigMap,
+        /// the volume setup will error unless it is marked optional. Paths must be
+        /// relative and may not contain the '..' path or start with '..'.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("items", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<V1KeyToPath> Items { get; set; }
+    
+        /// <summary>Name of the referent.
+        /// More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+        /// TODO: Add other useful fields. apiVersion, kind, uid?
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("name", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Name { get; set; }
+    
+        /// <summary>Specify whether the ConfigMap or its keys must be defined
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("optional", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public bool? Optional { get; set; }
     
     
     }
     
-    /// <summary>A single application container that you want to run within a pod.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1Container 
     {
+        /// <summary>Arguments to the entrypoint.
+        /// The docker image's CMD is used if this is not provided.
+        /// Variable references $(VAR_NAME) are expanded using the container's environment. If a variable
+        /// cannot be resolved, the reference in the input string will be unchanged. The $(VAR_NAME) syntax
+        /// can be escaped with a double $$, ie: $$(VAR_NAME). Escaped references will never be expanded,
+        /// regardless of whether the variable exists or not.
+        /// Cannot be updated.
+        /// More info: https://kubernetes.io/docs/tasks/inject-data-application/define-command-argument-container/#running-a-command-in-a-shell
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("args", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<string> Args { get; set; }
+    
+        /// <summary>Entrypoint array. Not executed within a shell.
+        /// The docker image's ENTRYPOINT is used if this is not provided.
+        /// Variable references $(VAR_NAME) are expanded using the container's environment. If a variable
+        /// cannot be resolved, the reference in the input string will be unchanged. The $(VAR_NAME) syntax
+        /// can be escaped with a double $$, ie: $$(VAR_NAME). Escaped references will never be expanded,
+        /// regardless of whether the variable exists or not.
+        /// Cannot be updated.
+        /// More info: https://kubernetes.io/docs/tasks/inject-data-application/define-command-argument-container/#running-a-command-in-a-shell
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("command", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<string> Command { get; set; }
+    
+        /// <summary>List of environment variables to set in the container.
+        /// Cannot be updated.
+        /// +optional
+        /// +patchMergeKey=name
+        /// +patchStrategy=merge</summary>
+        [Newtonsoft.Json.JsonProperty("env", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<V1EnvVar> Env { get; set; }
+    
+        /// <summary>List of sources to populate environment variables in the container.
+        /// The keys defined within a source must be a C_IDENTIFIER. All invalid keys
+        /// will be reported as an event when the container is starting. When a key exists in multiple
+        /// sources, the value associated with the last source will take precedence.
+        /// Values defined by an Env with a duplicate key will take precedence.
+        /// Cannot be updated.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("envFrom", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<V1EnvFromSource> EnvFrom { get; set; }
+    
+        /// <summary>Docker image name.
+        /// More info: https://kubernetes.io/docs/concepts/containers/images
+        /// This field is optional to allow higher level config management to default or override
+        /// container images in workload controllers like Deployments and StatefulSets.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("image", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Image { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("imagePullPolicy", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string ImagePullPolicy { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("lifecycle", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1Lifecycle Lifecycle { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("livenessProbe", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1Probe LivenessProbe { get; set; }
+    
         /// <summary>Name of the container specified as a DNS_LABEL.
         /// Each container in a pod must have a unique name (DNS_LABEL).
         /// Cannot be updated.</summary>
         [Newtonsoft.Json.JsonProperty("name", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Name { get; set; }
     
-        [Newtonsoft.Json.JsonProperty("image", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string Image { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("command", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.Collections.Generic.ICollection<string> Command { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("args", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.Collections.Generic.ICollection<string> Args { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("workingDir", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string WorkingDir { get; set; }
-    
+        /// <summary>List of ports to expose from the container. Exposing a port here gives
+        /// the system additional information about the network connections a
+        /// container uses, but is primarily informational. Not specifying a port here
+        /// DOES NOT prevent that port from being exposed. Any port which is
+        /// listening on the default "0.0.0.0" address inside a container will be
+        /// accessible from the network.
+        /// Cannot be updated.
+        /// +optional
+        /// +patchMergeKey=containerPort
+        /// +patchStrategy=merge
+        /// +listType=map
+        /// +listMapKey=containerPort
+        /// +listMapKey=protocol</summary>
         [Newtonsoft.Json.JsonProperty("ports", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.ICollection<V1ContainerPort> Ports { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("envFrom", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.Collections.Generic.ICollection<V1EnvFromSource> EnvFrom { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("env", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.Collections.Generic.ICollection<V1EnvVar> Env { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("resources", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1ResourceRequirements Resources { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("volumeMounts", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.Collections.Generic.ICollection<V1VolumeMount> VolumeMounts { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("volumeDevices", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.Collections.Generic.ICollection<V1VolumeDevice> VolumeDevices { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("livenessProbe", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1Probe LivenessProbe { get; set; }
     
         [Newtonsoft.Json.JsonProperty("readinessProbe", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public V1Probe ReadinessProbe { get; set; }
     
-        [Newtonsoft.Json.JsonProperty("lifecycle", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1Lifecycle Lifecycle { get; set; }
+        [Newtonsoft.Json.JsonProperty("resources", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1ResourceRequirements Resources { get; set; }
     
+        [Newtonsoft.Json.JsonProperty("securityContext", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1SecurityContext SecurityContext { get; set; }
+    
+        /// <summary>Whether this container should allocate a buffer for stdin in the container runtime. If this
+        /// is not set, reads from stdin in the container will always result in EOF.
+        /// Default is false.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("stdin", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public bool? Stdin { get; set; }
+    
+        /// <summary>Whether the container runtime should close the stdin channel after it has been opened by
+        /// a single attach. When stdin is true the stdin stream will remain open across multiple attach
+        /// sessions. If stdinOnce is set to true, stdin is opened on container start, is empty until the
+        /// first client attaches to stdin, and then remains open and accepts data until the client disconnects,
+        /// at which time stdin is closed and remains closed until the container is restarted. If this
+        /// flag is false, a container processes that reads from stdin will never receive an EOF.
+        /// Default is false
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("stdinOnce", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public bool? StdinOnce { get; set; }
+    
+        /// <summary>Optional: Path at which the file to which the container's termination message
+        /// will be written is mounted into the container's filesystem.
+        /// Message written is intended to be brief final status, such as an assertion failure message.
+        /// Will be truncated by the node if greater than 4096 bytes. The total message length across
+        /// all containers will be limited to 12kb.
+        /// Defaults to /dev/termination-log.
+        /// Cannot be updated.
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("terminationMessagePath", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string TerminationMessagePath { get; set; }
     
         [Newtonsoft.Json.JsonProperty("terminationMessagePolicy", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string TerminationMessagePolicy { get; set; }
     
-        [Newtonsoft.Json.JsonProperty("imagePullPolicy", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string ImagePullPolicy { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("securityContext", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1SecurityContext SecurityContext { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("stdin", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public bool? Stdin { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("stdinOnce", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public bool? StdinOnce { get; set; }
-    
+        /// <summary>Whether this container should allocate a TTY for itself, also requires 'stdin' to be true.
+        /// Default is false.
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("tty", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public bool? Tty { get; set; }
+    
+        /// <summary>volumeDevices is the list of block devices to be used by the container.
+        /// This is a beta feature.
+        /// +patchMergeKey=devicePath
+        /// +patchStrategy=merge
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("volumeDevices", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<V1VolumeDevice> VolumeDevices { get; set; }
+    
+        /// <summary>Pod volumes to mount into the container's filesystem.
+        /// Cannot be updated.
+        /// +optional
+        /// +patchMergeKey=mountPath
+        /// +patchStrategy=merge</summary>
+        [Newtonsoft.Json.JsonProperty("volumeMounts", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<V1VolumeMount> VolumeMounts { get; set; }
+    
+        /// <summary>Container's working directory.
+        /// If not specified, the container runtime's default will be used, which
+        /// might be configured in the container image.
+        /// Cannot be updated.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("workingDir", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string WorkingDir { get; set; }
     
     
     }
     
-    /// <summary>ContainerPort represents a network port in a single container.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1ContainerPort 
     {
-        [Newtonsoft.Json.JsonProperty("name", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string Name { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("hostPort", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public int? HostPort { get; set; }
-    
         /// <summary>Number of port to expose on the pod's IP address.
         /// This must be a valid port number, 0 &lt; x &lt; 65536.</summary>
         [Newtonsoft.Json.JsonProperty("containerPort", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public int? ContainerPort { get; set; }
     
-        [Newtonsoft.Json.JsonProperty("protocol", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string Protocol { get; set; }
-    
+        /// <summary>What host IP to bind the external port to.
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("hostIP", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string HostIP { get; set; }
+    
+        /// <summary>Number of port to expose on the host.
+        /// If specified, this must be a valid port number, 0 &lt; x &lt; 65536.
+        /// If HostNetwork is specified, this must match ContainerPort.
+        /// Most containers do not need this.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("hostPort", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public int? HostPort { get; set; }
+    
+        /// <summary>If specified, this must be an IANA_SVC_NAME and unique within the pod. Each
+        /// named port in a pod must have a unique name. Name for the port that can be
+        /// referred to by services.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("name", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Name { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("protocol", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Protocol { get; set; }
     
     
     }
     
-    /// <summary>Represents downward API info for projecting into a projected volume.
-    /// Note that this is identical to a downwardAPI volume source without the default
+    /// <summary>Note that this is identical to a downwardAPI volume source without the default
     /// mode.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1DownwardAPIProjection 
     {
+        /// <summary>Items is a list of DownwardAPIVolume file
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("items", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.ICollection<V1DownwardAPIVolumeFile> Items { get; set; }
     
     
     }
     
+    /// <summary>DownwardAPIVolumeFile represents information to create the file containing the pod field</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1DownwardAPIVolumeFile 
     {
-        [Newtonsoft.Json.JsonProperty("path", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string Path { get; set; }
-    
         [Newtonsoft.Json.JsonProperty("fieldRef", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public V1ObjectFieldSelector FieldRef { get; set; }
+    
+        /// <summary>Optional: mode bits to use on this file, must be a value between 0
+        /// and 0777. If not specified, the volume defaultMode will be used.
+        /// This might be in conflict with other options that affect the file
+        /// mode, like fsGroup, and the result can be other mode bits set.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("mode", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public int? Mode { get; set; }
+    
+        /// <summary>Required: Path is  the relative path name of the file to be created. Must not be absolute or contain the '..' path. Must be utf-8 encoded. The first item of the relative path must not start with '..'</summary>
+        [Newtonsoft.Json.JsonProperty("path", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Path { get; set; }
     
         [Newtonsoft.Json.JsonProperty("resourceFieldRef", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public V1ResourceFieldSelector ResourceFieldRef { get; set; }
     
-        [Newtonsoft.Json.JsonProperty("mode", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public int? Mode { get; set; }
-    
     
     }
     
-    /// <summary>DownwardAPIVolumeSource represents a volume containing downward API info.
-    /// Downward API volumes support ownership management and SELinux relabeling.</summary>
+    /// <summary>Downward API volumes support ownership management and SELinux relabeling.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1DownwardAPIVolumeSource 
     {
-        [Newtonsoft.Json.JsonProperty("items", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.Collections.Generic.ICollection<V1DownwardAPIVolumeFile> Items { get; set; }
-    
+        /// <summary>Optional: mode bits to use on created files by default. Must be a
+        /// value between 0 and 0777. Defaults to 0644.
+        /// Directories within the path are not affected by this setting.
+        /// This might be in conflict with other options that affect the file
+        /// mode, like fsGroup, and the result can be other mode bits set.
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("defaultMode", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public int? DefaultMode { get; set; }
+    
+        /// <summary>Items is a list of downward API volume file
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("items", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<V1DownwardAPIVolumeFile> Items { get; set; }
     
     
     }
     
-    /// <summary>Represents an empty directory for a pod.
-    /// Empty directory volumes support ownership management and SELinux relabeling.</summary>
+    /// <summary>Empty directory volumes support ownership management and SELinux relabeling.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1EmptyDirVolumeSource 
     {
@@ -1380,14 +1589,17 @@ namespace GResearch.Armada.Client
     
     }
     
+    /// <summary>EnvFromSource represents the source of a set of ConfigMaps</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1EnvFromSource 
     {
-        [Newtonsoft.Json.JsonProperty("prefix", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string Prefix { get; set; }
-    
         [Newtonsoft.Json.JsonProperty("configMapRef", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public V1ConfigMapEnvSource ConfigMapRef { get; set; }
+    
+        /// <summary>An optional identifier to prepend to each key in the ConfigMap. Must be a C_IDENTIFIER.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("prefix", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Prefix { get; set; }
     
         [Newtonsoft.Json.JsonProperty("secretRef", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public V1SecretEnvSource SecretRef { get; set; }
@@ -1395,7 +1607,6 @@ namespace GResearch.Armada.Client
     
     }
     
-    /// <summary>EnvVar represents an environment variable present in a Container.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1EnvVar 
     {
@@ -1403,6 +1614,15 @@ namespace GResearch.Armada.Client
         [Newtonsoft.Json.JsonProperty("name", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Name { get; set; }
     
+        /// <summary>Variable references $(VAR_NAME) are expanded
+        /// using the previous defined environment variables in the container and
+        /// any service environment variables. If a variable cannot be resolved,
+        /// the reference in the input string will be unchanged. The $(VAR_NAME)
+        /// syntax can be escaped with a double $$, ie: $$(VAR_NAME). Escaped
+        /// references will never be expanded, regardless of whether the variable
+        /// exists or not.
+        /// Defaults to "".
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("value", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Value { get; set; }
     
@@ -1412,18 +1632,17 @@ namespace GResearch.Armada.Client
     
     }
     
-    /// <summary>EnvVarSource represents a source for the value of an EnvVar.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1EnvVarSource 
     {
+        [Newtonsoft.Json.JsonProperty("configMapKeyRef", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1ConfigMapKeySelector ConfigMapKeyRef { get; set; }
+    
         [Newtonsoft.Json.JsonProperty("fieldRef", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public V1ObjectFieldSelector FieldRef { get; set; }
     
         [Newtonsoft.Json.JsonProperty("resourceFieldRef", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public V1ResourceFieldSelector ResourceFieldRef { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("configMapKeyRef", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1ConfigMapKeySelector ConfigMapKeyRef { get; set; }
     
         [Newtonsoft.Json.JsonProperty("secretKeyRef", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public V1SecretKeySelector SecretKeyRef { get; set; }
@@ -1431,34 +1650,53 @@ namespace GResearch.Armada.Client
     
     }
     
-    /// <summary>ExecAction describes a "run in container" action.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1ExecAction 
     {
+        /// <summary>Command is the command line to execute inside the container, the working directory for the
+        /// command  is root ('/') in the container's filesystem. The command is simply exec'd, it is
+        /// not run inside a shell, so traditional shell instructions ('|', etc) won't work. To use
+        /// a shell, you need to explicitly call out to that shell.
+        /// Exit status of 0 is treated as live/healthy and non-zero is unhealthy.
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("command", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.ICollection<string> Command { get; set; }
     
     
     }
     
-    /// <summary>Represents a Fibre Channel volume.
-    /// Fibre Channel volumes can only be mounted as read/write once.
+    /// <summary>Fibre Channel volumes can only be mounted as read/write once.
     /// Fibre Channel volumes support ownership management and SELinux relabeling.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1FCVolumeSource 
     {
-        [Newtonsoft.Json.JsonProperty("targetWWNs", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.Collections.Generic.ICollection<string> TargetWWNs { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("lun", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public int? Lun { get; set; }
-    
+        /// <summary>Filesystem type to mount.
+        /// Must be a filesystem type supported by the host operating system.
+        /// Ex. "ext4", "xfs", "ntfs". Implicitly inferred to be "ext4" if unspecified.
+        /// TODO: how do we prevent errors in the filesystem from compromising the machine
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("fsType", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string FsType { get; set; }
     
+        /// <summary>Optional: FC target lun number
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("lun", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public int? Lun { get; set; }
+    
+        /// <summary>Optional: Defaults to false (read/write). ReadOnly here will force
+        /// the ReadOnly setting in VolumeMounts.
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("readOnly", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public bool? ReadOnly { get; set; }
     
+        /// <summary>Optional: FC target worldwide names (WWNs)
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("targetWWNs", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<string> TargetWWNs { get; set; }
+    
+        /// <summary>Optional: FC volume world wide identifiers (wwids)
+        /// Either wwids or combination of targetWWNs and lun must be set, but not both simultaneously.
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("wwids", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.ICollection<string> Wwids { get; set; }
     
@@ -1474,130 +1712,176 @@ namespace GResearch.Armada.Client
         [Newtonsoft.Json.JsonProperty("driver", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Driver { get; set; }
     
+        /// <summary>Filesystem type to mount.
+        /// Must be a filesystem type supported by the host operating system.
+        /// Ex. "ext4", "xfs", "ntfs". The default filesystem depends on FlexVolume script.
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("fsType", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string FsType { get; set; }
+    
+        /// <summary>Optional: Extra command options if any.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("options", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.IDictionary<string, string> Options { get; set; }
+    
+        /// <summary>Optional: Defaults to false (read/write). ReadOnly here will force
+        /// the ReadOnly setting in VolumeMounts.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("readOnly", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public bool? ReadOnly { get; set; }
     
         [Newtonsoft.Json.JsonProperty("secretRef", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public V1LocalObjectReference SecretRef { get; set; }
     
-        [Newtonsoft.Json.JsonProperty("readOnly", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public bool? ReadOnly { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("options", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.Collections.Generic.IDictionary<string, string> Options { get; set; }
-    
     
     }
     
-    /// <summary>Represents a Flocker volume mounted by the Flocker agent.
-    /// One and only one of datasetName and datasetUUID should be set.
+    /// <summary>One and only one of datasetName and datasetUUID should be set.
     /// Flocker volumes do not support ownership management or SELinux relabeling.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1FlockerVolumeSource 
     {
+        /// <summary>Name of the dataset stored as metadata -&gt; name on the dataset for Flocker
+        /// should be considered as deprecated
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("datasetName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string DatasetName { get; set; }
     
+        /// <summary>UUID of the dataset. This is unique identifier of a Flocker dataset
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("datasetUUID", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string DatasetUUID { get; set; }
     
     
     }
     
-    /// <summary>Represents a Persistent Disk resource in Google Compute Engine.
-    /// 
-    /// A GCE PD must exist before mounting to a container. The disk must
+    /// <summary>A GCE PD must exist before mounting to a container. The disk must
     /// also be in the same GCE project and zone as the kubelet. A GCE PD
     /// can only be mounted as read/write once or read-only many times. GCE
     /// PDs support ownership management and SELinux relabeling.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1GCEPersistentDiskVolumeSource 
     {
-        [Newtonsoft.Json.JsonProperty("pdName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string PdName { get; set; }
-    
+        /// <summary>Filesystem type of the volume that you want to mount.
+        /// Tip: Ensure that the filesystem type is supported by the host operating system.
+        /// Examples: "ext4", "xfs", "ntfs". Implicitly inferred to be "ext4" if unspecified.
+        /// More info: https://kubernetes.io/docs/concepts/storage/volumes#gcepersistentdisk
+        /// TODO: how do we prevent errors in the filesystem from compromising the machine
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("fsType", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string FsType { get; set; }
     
+        /// <summary>The partition in the volume that you want to mount.
+        /// If omitted, the default is to mount by volume name.
+        /// Examples: For volume /dev/sda1, you specify the partition as "1".
+        /// Similarly, the volume partition for /dev/sda is "0" (or you can leave the property empty).
+        /// More info: https://kubernetes.io/docs/concepts/storage/volumes#gcepersistentdisk
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("partition", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public int? Partition { get; set; }
     
+        /// <summary>Unique name of the PD resource in GCE. Used to identify the disk in GCE.
+        /// More info: https://kubernetes.io/docs/concepts/storage/volumes#gcepersistentdisk</summary>
+        [Newtonsoft.Json.JsonProperty("pdName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string PdName { get; set; }
+    
+        /// <summary>ReadOnly here will force the ReadOnly setting in VolumeMounts.
+        /// Defaults to false.
+        /// More info: https://kubernetes.io/docs/concepts/storage/volumes#gcepersistentdisk
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("readOnly", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public bool? ReadOnly { get; set; }
     
     
     }
     
-    /// <summary>Represents a volume that is populated with the contents of a git repository.
-    /// Git repo volumes do not support ownership management.
-    /// Git repo volumes support SELinux relabeling.
-    /// 
-    /// DEPRECATED: GitRepo is deprecated. To provision a container with a git repo, mount an
+    /// <summary>DEPRECATED: GitRepo is deprecated. To provision a container with a git repo, mount an
     /// EmptyDir into an InitContainer that clones the repo using git, then mount the EmptyDir
     /// into the Pod's container.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1GitRepoVolumeSource 
     {
+        /// <summary>Target directory name.
+        /// Must not contain or start with '..'.  If '.' is supplied, the volume directory will be the
+        /// git repository.  Otherwise, if specified, the volume will contain the git repository in
+        /// the subdirectory with the given name.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("directory", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Directory { get; set; }
+    
+        /// <summary>Repository URL</summary>
         [Newtonsoft.Json.JsonProperty("repository", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Repository { get; set; }
     
+        /// <summary>Commit hash for the specified revision.
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("revision", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Revision { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("directory", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string Directory { get; set; }
     
     
     }
     
-    /// <summary>Represents a Glusterfs mount that lasts the lifetime of a pod.
-    /// Glusterfs volumes do not support ownership management or SELinux relabeling.</summary>
+    /// <summary>Glusterfs volumes do not support ownership management or SELinux relabeling.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1GlusterfsVolumeSource 
     {
+        /// <summary>EndpointsName is the endpoint name that details Glusterfs topology.
+        /// More info: https://releases.k8s.io/HEAD/examples/volumes/glusterfs/README.md#create-a-pod</summary>
         [Newtonsoft.Json.JsonProperty("endpoints", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Endpoints { get; set; }
     
+        /// <summary>Path is the Glusterfs volume path.
+        /// More info: https://releases.k8s.io/HEAD/examples/volumes/glusterfs/README.md#create-a-pod</summary>
         [Newtonsoft.Json.JsonProperty("path", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Path { get; set; }
     
+        /// <summary>ReadOnly here will force the Glusterfs volume to be mounted with read-only permissions.
+        /// Defaults to false.
+        /// More info: https://releases.k8s.io/HEAD/examples/volumes/glusterfs/README.md#create-a-pod
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("readOnly", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public bool? ReadOnly { get; set; }
     
     
     }
     
-    /// <summary>HTTPGetAction describes an action based on HTTP Get requests.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1HTTPGetAction 
     {
+        /// <summary>Host name to connect to, defaults to the pod IP. You probably want to set
+        /// "Host" in httpHeaders instead.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("host", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Host { get; set; }
+    
+        /// <summary>Custom headers to set in the request. HTTP allows repeated headers.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("httpHeaders", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<V1HTTPHeader> HttpHeaders { get; set; }
+    
+        /// <summary>Path to access on the HTTP server.
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("path", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Path { get; set; }
     
-        /// <summary>Name or number of the port to access on the container.
-        /// Number must be in the range 1 to 65535.
-        /// Name must be an IANA_SVC_NAME.</summary>
         [Newtonsoft.Json.JsonProperty("port", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public IntstrIntOrString Port { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("host", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string Host { get; set; }
     
         [Newtonsoft.Json.JsonProperty("scheme", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Scheme { get; set; }
     
-        [Newtonsoft.Json.JsonProperty("httpHeaders", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.Collections.Generic.ICollection<V1HTTPHeader> HttpHeaders { get; set; }
-    
     
     }
     
+    /// <summary>HTTPHeader describes a custom header to be used in HTTP probes</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1HTTPHeader 
     {
+        /// <summary>The header field name</summary>
         [Newtonsoft.Json.JsonProperty("name", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Name { get; set; }
     
+        /// <summary>The header field value</summary>
         [Newtonsoft.Json.JsonProperty("value", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Value { get; set; }
     
@@ -1626,22 +1910,24 @@ namespace GResearch.Armada.Client
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1HostAlias 
     {
-        /// <summary>IP address of the host file entry.</summary>
-        [Newtonsoft.Json.JsonProperty("ip", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string Ip { get; set; }
-    
         /// <summary>Hostnames for the above IP address.</summary>
         [Newtonsoft.Json.JsonProperty("hostnames", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.ICollection<string> Hostnames { get; set; }
     
+        /// <summary>IP address of the host file entry.</summary>
+        [Newtonsoft.Json.JsonProperty("ip", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Ip { get; set; }
+    
     
     }
     
-    /// <summary>Represents a host path mapped into a pod.
-    /// Host path volumes do not support ownership management or SELinux relabeling.</summary>
+    /// <summary>Host path volumes do not support ownership management or SELinux relabeling.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1HostPathVolumeSource 
     {
+        /// <summary>Path of the directory on the host.
+        /// If the path is a symlink, it will follow the link to the real path.
+        /// More info: https://kubernetes.io/docs/concepts/storage/volumes#hostpath</summary>
         [Newtonsoft.Json.JsonProperty("path", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Path { get; set; }
     
@@ -1651,53 +1937,74 @@ namespace GResearch.Armada.Client
     
     }
     
-    /// <summary>Represents an ISCSI disk.
-    /// ISCSI volumes can only be mounted as read/write once.
+    /// <summary>ISCSI volumes can only be mounted as read/write once.
     /// ISCSI volumes support ownership management and SELinux relabeling.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1ISCSIVolumeSource 
     {
-        /// <summary>iSCSI Target Portal. The Portal is either an IP or ip_addr:port if the port
-        /// is other than default (typically TCP ports 860 and 3260).</summary>
-        [Newtonsoft.Json.JsonProperty("targetPortal", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string TargetPortal { get; set; }
+        /// <summary>whether support iSCSI Discovery CHAP authentication
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("chapAuthDiscovery", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public bool? ChapAuthDiscovery { get; set; }
+    
+        /// <summary>whether support iSCSI Session CHAP authentication
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("chapAuthSession", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public bool? ChapAuthSession { get; set; }
+    
+        /// <summary>Filesystem type of the volume that you want to mount.
+        /// Tip: Ensure that the filesystem type is supported by the host operating system.
+        /// Examples: "ext4", "xfs", "ntfs". Implicitly inferred to be "ext4" if unspecified.
+        /// More info: https://kubernetes.io/docs/concepts/storage/volumes#iscsi
+        /// TODO: how do we prevent errors in the filesystem from compromising the machine
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("fsType", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string FsType { get; set; }
+    
+        /// <summary>Custom iSCSI Initiator Name.
+        /// If initiatorName is specified with iscsiInterface simultaneously, new iSCSI interface
+        /// &lt;target portal&gt;:&lt;volume name&gt; will be created for the connection.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("initiatorName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string InitiatorName { get; set; }
     
         /// <summary>Target iSCSI Qualified Name.</summary>
         [Newtonsoft.Json.JsonProperty("iqn", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Iqn { get; set; }
     
+        /// <summary>iSCSI Interface Name that uses an iSCSI transport.
+        /// Defaults to 'default' (tcp).
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("iscsiInterface", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string IscsiInterface { get; set; }
+    
         /// <summary>iSCSI Target Lun number.</summary>
         [Newtonsoft.Json.JsonProperty("lun", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public int? Lun { get; set; }
     
-        [Newtonsoft.Json.JsonProperty("iscsiInterface", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string IscsiInterface { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("fsType", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string FsType { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("readOnly", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public bool? ReadOnly { get; set; }
-    
+        /// <summary>iSCSI Target Portal List. The portal is either an IP or ip_addr:port if the port
+        /// is other than default (typically TCP ports 860 and 3260).
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("portals", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.ICollection<string> Portals { get; set; }
     
-        [Newtonsoft.Json.JsonProperty("chapAuthDiscovery", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public bool? ChapAuthDiscovery { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("chapAuthSession", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public bool? ChapAuthSession { get; set; }
+        /// <summary>ReadOnly here will force the ReadOnly setting in VolumeMounts.
+        /// Defaults to false.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("readOnly", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public bool? ReadOnly { get; set; }
     
         [Newtonsoft.Json.JsonProperty("secretRef", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public V1LocalObjectReference SecretRef { get; set; }
     
-        [Newtonsoft.Json.JsonProperty("initiatorName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string InitiatorName { get; set; }
+        /// <summary>iSCSI Target Portal. The Portal is either an IP or ip_addr:port if the port
+        /// is other than default (typically TCP ports 860 and 3260).</summary>
+        [Newtonsoft.Json.JsonProperty("targetPortal", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string TargetPortal { get; set; }
     
     
     }
     
-    /// <summary>Maps a string key to a path within a volume.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1KeyToPath 
     {
@@ -1705,15 +2012,20 @@ namespace GResearch.Armada.Client
         [Newtonsoft.Json.JsonProperty("key", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Key { get; set; }
     
+        /// <summary>Optional: mode bits to use on this file, must be a value between 0
+        /// and 0777. If not specified, the volume defaultMode will be used.
+        /// This might be in conflict with other options that affect the file
+        /// mode, like fsGroup, and the result can be other mode bits set.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("mode", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public int? Mode { get; set; }
+    
         /// <summary>The relative path of the file to map the key to.
         /// May not be an absolute path.
         /// May not contain the path element '..'.
         /// May not start with the string '..'.</summary>
         [Newtonsoft.Json.JsonProperty("path", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Path { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("mode", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public int? Mode { get; set; }
     
     
     }
@@ -1724,11 +2036,17 @@ namespace GResearch.Armada.Client
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1LabelSelector 
     {
-        [Newtonsoft.Json.JsonProperty("matchLabels", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.Collections.Generic.IDictionary<string, string> MatchLabels { get; set; }
-    
+        /// <summary>matchExpressions is a list of label selector requirements. The requirements are ANDed.
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("matchExpressions", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.ICollection<V1LabelSelectorRequirement> MatchExpressions { get; set; }
+    
+        /// <summary>matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+        /// map is equivalent to an element of matchExpressions, whose key field is "key", the
+        /// operator is "In", and the values array contains only "value". The requirements are ANDed.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("matchLabels", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.IDictionary<string, string> MatchLabels { get; set; }
     
     
     }
@@ -1738,14 +2056,20 @@ namespace GResearch.Armada.Client
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1LabelSelectorRequirement 
     {
+        /// <summary>key is the label key that the selector applies to.
+        /// +patchMergeKey=key
+        /// +patchStrategy=merge</summary>
         [Newtonsoft.Json.JsonProperty("key", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Key { get; set; }
     
-        /// <summary>operator represents a key's relationship to a set of values.
-        /// Valid operators are In, NotIn, Exists and DoesNotExist.</summary>
         [Newtonsoft.Json.JsonProperty("operator", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Operator { get; set; }
     
+        /// <summary>values is an array of string values. If the operator is In or NotIn,
+        /// the values array must be non-empty. If the operator is Exists or DoesNotExist,
+        /// the values array must be empty. This array is replaced during a strategic
+        /// merge patch.
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("values", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.ICollection<string> Values { get; set; }
     
@@ -1772,38 +2096,59 @@ namespace GResearch.Armada.Client
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1LocalObjectReference 
     {
+        /// <summary>Name of the referent.
+        /// More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+        /// TODO: Add other useful fields. apiVersion, kind, uid?
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("name", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Name { get; set; }
     
     
     }
     
-    /// <summary>Represents an NFS mount that lasts the lifetime of a pod.
-    /// NFS volumes do not support ownership management or SELinux relabeling.</summary>
+    /// <summary>NFS volumes do not support ownership management or SELinux relabeling.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1NFSVolumeSource 
     {
-        [Newtonsoft.Json.JsonProperty("server", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string Server { get; set; }
-    
+        /// <summary>Path that is exported by the NFS server.
+        /// More info: https://kubernetes.io/docs/concepts/storage/volumes#nfs</summary>
         [Newtonsoft.Json.JsonProperty("path", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Path { get; set; }
     
+        /// <summary>ReadOnly here will force
+        /// the NFS export to be mounted with read-only permissions.
+        /// Defaults to false.
+        /// More info: https://kubernetes.io/docs/concepts/storage/volumes#nfs
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("readOnly", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public bool? ReadOnly { get; set; }
+    
+        /// <summary>Server is the hostname or IP address of the NFS server.
+        /// More info: https://kubernetes.io/docs/concepts/storage/volumes#nfs</summary>
+        [Newtonsoft.Json.JsonProperty("server", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Server { get; set; }
     
     
     }
     
-    /// <summary>Node affinity is a group of node affinity scheduling rules.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1NodeAffinity 
     {
-        [Newtonsoft.Json.JsonProperty("requiredDuringSchedulingIgnoredDuringExecution", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1NodeSelector RequiredDuringSchedulingIgnoredDuringExecution { get; set; }
-    
+        /// <summary>The scheduler will prefer to schedule pods to nodes that satisfy
+        /// the affinity expressions specified by this field, but it may choose
+        /// a node that violates one or more of the expressions. The node that is
+        /// most preferred is the one with the greatest sum of weights, i.e.
+        /// for each node that meets all of the scheduling requirements (resource
+        /// request, requiredDuringScheduling affinity expressions, etc.),
+        /// compute a sum by iterating through the elements of this field and adding
+        /// "weight" to the sum if the node matches the corresponding matchExpressions; the
+        /// node(s) with the highest sum are the most preferred.
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("preferredDuringSchedulingIgnoredDuringExecution", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.ICollection<V1PreferredSchedulingTerm> PreferredDuringSchedulingIgnoredDuringExecution { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("requiredDuringSchedulingIgnoredDuringExecution", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1NodeSelector RequiredDuringSchedulingIgnoredDuringExecution { get; set; }
     
     
     }
@@ -1830,11 +2175,15 @@ namespace GResearch.Armada.Client
         [Newtonsoft.Json.JsonProperty("key", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Key { get; set; }
     
-        /// <summary>Represents a key's relationship to a set of values.
-        /// Valid operators are In, NotIn, Exists, DoesNotExist. Gt, and Lt.</summary>
         [Newtonsoft.Json.JsonProperty("operator", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Operator { get; set; }
     
+        /// <summary>An array of string values. If the operator is In or NotIn,
+        /// the values array must be non-empty. If the operator is Exists or DoesNotExist,
+        /// the values array must be empty. If the operator is Gt or Lt, the values
+        /// array must have a single element, which will be interpreted as an integer.
+        /// This array is replaced during a strategic merge patch.
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("values", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.ICollection<string> Values { get; set; }
     
@@ -1847,19 +2196,24 @@ namespace GResearch.Armada.Client
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1NodeSelectorTerm 
     {
+        /// <summary>A list of node selector requirements by node's labels.
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("matchExpressions", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.ICollection<V1NodeSelectorRequirement> MatchExpressions { get; set; }
     
+        /// <summary>A list of node selector requirements by node's fields.
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("matchFields", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.ICollection<V1NodeSelectorRequirement> MatchFields { get; set; }
     
     
     }
     
-    /// <summary>ObjectFieldSelector selects an APIVersioned field of an object.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1ObjectFieldSelector 
     {
+        /// <summary>Version of the schema the FieldPath is written in terms of, defaults to "v1".
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("apiVersion", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string ApiVersion { get; set; }
     
@@ -1870,57 +2224,87 @@ namespace GResearch.Armada.Client
     
     }
     
-    /// <summary>PersistentVolumeClaimVolumeSource references the user's PVC in the same namespace.
-    /// This volume finds the bound PV and mounts that volume for the pod. A
+    /// <summary>This volume finds the bound PV and mounts that volume for the pod. A
     /// PersistentVolumeClaimVolumeSource is, essentially, a wrapper around another
     /// type of volume that is owned by someone else (the system).</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1PersistentVolumeClaimVolumeSource 
     {
+        /// <summary>ClaimName is the name of a PersistentVolumeClaim in the same namespace as the pod using this volume.
+        /// More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#persistentvolumeclaims</summary>
         [Newtonsoft.Json.JsonProperty("claimName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string ClaimName { get; set; }
     
+        /// <summary>Will force the ReadOnly setting in VolumeMounts.
+        /// Default false.
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("readOnly", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public bool? ReadOnly { get; set; }
     
     
     }
     
-    /// <summary>Represents a Photon Controller persistent disk resource.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1PhotonPersistentDiskVolumeSource 
     {
-        [Newtonsoft.Json.JsonProperty("pdID", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string PdID { get; set; }
-    
         /// <summary>Filesystem type to mount.
         /// Must be a filesystem type supported by the host operating system.
         /// Ex. "ext4", "xfs", "ntfs". Implicitly inferred to be "ext4" if unspecified.</summary>
         [Newtonsoft.Json.JsonProperty("fsType", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string FsType { get; set; }
     
+        /// <summary>ID that identifies Photon Controller persistent disk</summary>
+        [Newtonsoft.Json.JsonProperty("pdID", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string PdID { get; set; }
+    
     
     }
     
-    /// <summary>Pod affinity is a group of inter pod affinity scheduling rules.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1PodAffinity 
     {
-        [Newtonsoft.Json.JsonProperty("requiredDuringSchedulingIgnoredDuringExecution", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.Collections.Generic.ICollection<V1PodAffinityTerm> RequiredDuringSchedulingIgnoredDuringExecution { get; set; }
-    
+        /// <summary>The scheduler will prefer to schedule pods to nodes that satisfy
+        /// the affinity expressions specified by this field, but it may choose
+        /// a node that violates one or more of the expressions. The node that is
+        /// most preferred is the one with the greatest sum of weights, i.e.
+        /// for each node that meets all of the scheduling requirements (resource
+        /// request, requiredDuringScheduling affinity expressions, etc.),
+        /// compute a sum by iterating through the elements of this field and adding
+        /// "weight" to the sum if the node has pods which matches the corresponding podAffinityTerm; the
+        /// node(s) with the highest sum are the most preferred.
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("preferredDuringSchedulingIgnoredDuringExecution", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.ICollection<V1WeightedPodAffinityTerm> PreferredDuringSchedulingIgnoredDuringExecution { get; set; }
+    
+        /// <summary>If the affinity requirements specified by this field are not met at
+        /// scheduling time, the pod will not be scheduled onto the node.
+        /// If the affinity requirements specified by this field cease to be met
+        /// at some point during pod execution (e.g. due to a pod label update), the
+        /// system may or may not try to eventually evict the pod from its node.
+        /// When there are multiple elements, the lists of nodes corresponding to each
+        /// podAffinityTerm are intersected, i.e. all terms must be satisfied.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("requiredDuringSchedulingIgnoredDuringExecution", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<V1PodAffinityTerm> RequiredDuringSchedulingIgnoredDuringExecution { get; set; }
     
     
     }
     
+    /// <summary>Defines a set of pods (namely those matching the labelSelector
+    /// relative to the given namespace(s)) that this pod should be
+    /// co-located (affinity) or not co-located (anti-affinity) with,
+    /// where co-located is defined as running on a node whose value of
+    /// the label with key &lt;topologyKey&gt; matches that of any node on which
+    /// a pod of the set of pods is running</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1PodAffinityTerm 
     {
         [Newtonsoft.Json.JsonProperty("labelSelector", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public V1LabelSelector LabelSelector { get; set; }
     
+        /// <summary>namespaces specifies which namespaces the labelSelector applies to (matches against);
+        /// null or empty list means "this pod's namespace"
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("namespaces", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.ICollection<string> Namespaces { get; set; }
     
@@ -1935,15 +2319,32 @@ namespace GResearch.Armada.Client
     
     }
     
-    /// <summary>Pod anti affinity is a group of inter pod anti affinity scheduling rules.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1PodAntiAffinity 
     {
-        [Newtonsoft.Json.JsonProperty("requiredDuringSchedulingIgnoredDuringExecution", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.Collections.Generic.ICollection<V1PodAffinityTerm> RequiredDuringSchedulingIgnoredDuringExecution { get; set; }
-    
+        /// <summary>The scheduler will prefer to schedule pods to nodes that satisfy
+        /// the anti-affinity expressions specified by this field, but it may choose
+        /// a node that violates one or more of the expressions. The node that is
+        /// most preferred is the one with the greatest sum of weights, i.e.
+        /// for each node that meets all of the scheduling requirements (resource
+        /// request, requiredDuringScheduling anti-affinity expressions, etc.),
+        /// compute a sum by iterating through the elements of this field and adding
+        /// "weight" to the sum if the node has pods which matches the corresponding podAffinityTerm; the
+        /// node(s) with the highest sum are the most preferred.
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("preferredDuringSchedulingIgnoredDuringExecution", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.ICollection<V1WeightedPodAffinityTerm> PreferredDuringSchedulingIgnoredDuringExecution { get; set; }
+    
+        /// <summary>If the anti-affinity requirements specified by this field are not met at
+        /// scheduling time, the pod will not be scheduled onto the node.
+        /// If the anti-affinity requirements specified by this field cease to be met
+        /// at some point during pod execution (e.g. due to a pod label update), the
+        /// system may or may not try to eventually evict the pod from its node.
+        /// When there are multiple elements, the lists of nodes corresponding to each
+        /// podAffinityTerm are intersected, i.e. all terms must be satisfied.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("requiredDuringSchedulingIgnoredDuringExecution", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<V1PodAffinityTerm> RequiredDuringSchedulingIgnoredDuringExecution { get; set; }
     
     
     }
@@ -1953,19 +2354,31 @@ namespace GResearch.Armada.Client
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1PodDNSConfig 
     {
+        /// <summary>A list of DNS name server IP addresses.
+        /// This will be appended to the base nameservers generated from DNSPolicy.
+        /// Duplicated nameservers will be removed.
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("nameservers", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.ICollection<string> Nameservers { get; set; }
     
-        [Newtonsoft.Json.JsonProperty("searches", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.Collections.Generic.ICollection<string> Searches { get; set; }
-    
+        /// <summary>A list of DNS resolver options.
+        /// This will be merged with the base options generated from DNSPolicy.
+        /// Duplicated entries will be removed. Resolution options given in Options
+        /// will override those that appear in the base DNSPolicy.
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("options", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.ICollection<V1PodDNSConfigOption> Options { get; set; }
+    
+        /// <summary>A list of DNS search domains for host-name lookup.
+        /// This will be appended to the base search paths generated from DNSPolicy.
+        /// Duplicated search paths will be removed.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("searches", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<string> Searches { get; set; }
     
     
     }
     
-    /// <summary>PodDNSConfigOption defines DNS resolver options of a pod.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1PodDNSConfigOption 
     {
@@ -1973,47 +2386,33 @@ namespace GResearch.Armada.Client
         [Newtonsoft.Json.JsonProperty("name", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Name { get; set; }
     
+        /// <summary>+optional</summary>
         [Newtonsoft.Json.JsonProperty("value", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Value { get; set; }
     
     
     }
     
+    /// <summary>PodReadinessGate contains the reference to a pod condition</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1PodReadinessGate 
     {
-        /// <summary>ConditionType refers to a condition in the pod's condition list with matching type.</summary>
         [Newtonsoft.Json.JsonProperty("conditionType", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string ConditionType { get; set; }
     
     
     }
     
-    /// <summary>PodSecurityContext holds pod-level security attributes and common container settings.
-    /// Some fields are also present in container.securityContext.  Field values of
+    /// <summary>Some fields are also present in container.securityContext.  Field values of
     /// container.securityContext take precedence over field values of PodSecurityContext.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1PodSecurityContext 
     {
-        [Newtonsoft.Json.JsonProperty("seLinuxOptions", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1SELinuxOptions SeLinuxOptions { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("windowsOptions", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1WindowsSecurityContextOptions WindowsOptions { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("runAsUser", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public long? RunAsUser { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("runAsGroup", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public long? RunAsGroup { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("runAsNonRoot", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public bool? RunAsNonRoot { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("supplementalGroups", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.Collections.Generic.ICollection<long> SupplementalGroups { get; set; }
-    
-        /// <summary>1. The owning GID will be the FSGroup
+        /// <summary>A special supplemental group that applies to all containers in a pod.
+        /// Some volume types allow the Kubelet to change the ownership of that volume
+        /// to be owned by the pod:
+        /// 
+        /// 1. The owning GID will be the FSGroup
         /// 2. The setgid bit is set (new files created in the volume will be owned by FSGroup)
         /// 3. The permission bits are OR'd with rw-rw----
         /// 
@@ -2022,130 +2421,301 @@ namespace GResearch.Armada.Client
         [Newtonsoft.Json.JsonProperty("fsGroup", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public long? FsGroup { get; set; }
     
+        /// <summary>The GID to run the entrypoint of the container process.
+        /// Uses runtime default if unset.
+        /// May also be set in SecurityContext.  If set in both SecurityContext and
+        /// PodSecurityContext, the value specified in SecurityContext takes precedence
+        /// for that container.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("runAsGroup", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public long? RunAsGroup { get; set; }
+    
+        /// <summary>Indicates that the container must run as a non-root user.
+        /// If true, the Kubelet will validate the image at runtime to ensure that it
+        /// does not run as UID 0 (root) and fail to start the container if it does.
+        /// If unset or false, no such validation will be performed.
+        /// May also be set in SecurityContext.  If set in both SecurityContext and
+        /// PodSecurityContext, the value specified in SecurityContext takes precedence.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("runAsNonRoot", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public bool? RunAsNonRoot { get; set; }
+    
+        /// <summary>The UID to run the entrypoint of the container process.
+        /// Defaults to user specified in image metadata if unspecified.
+        /// May also be set in SecurityContext.  If set in both SecurityContext and
+        /// PodSecurityContext, the value specified in SecurityContext takes precedence
+        /// for that container.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("runAsUser", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public long? RunAsUser { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("seLinuxOptions", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1SELinuxOptions SeLinuxOptions { get; set; }
+    
+        /// <summary>A list of groups applied to the first process run in each container, in addition
+        /// to the container's primary GID.  If unspecified, no groups will be added to
+        /// any container.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("supplementalGroups", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<long> SupplementalGroups { get; set; }
+    
+        /// <summary>Sysctls hold a list of namespaced sysctls used for the pod. Pods with unsupported
+        /// sysctls (by the container runtime) might fail to launch.
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("sysctls", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.ICollection<V1Sysctl> Sysctls { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("windowsOptions", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1WindowsSecurityContextOptions WindowsOptions { get; set; }
     
     
     }
     
-    /// <summary>PodSpec is a description of a pod.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1PodSpec 
     {
-        [Newtonsoft.Json.JsonProperty("volumes", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.Collections.Generic.ICollection<V1Volume> Volumes { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("initContainers", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.Collections.Generic.ICollection<V1Container> InitContainers { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("containers", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.Collections.Generic.ICollection<V1Container> Containers { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("restartPolicy", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string RestartPolicy { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("terminationGracePeriodSeconds", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public long? TerminationGracePeriodSeconds { get; set; }
-    
+        /// <summary>Optional duration in seconds the pod may be active on the node relative to
+        /// StartTime before the system will actively try to mark it failed and kill associated containers.
+        /// Value must be a positive integer.
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("activeDeadlineSeconds", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public long? ActiveDeadlineSeconds { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("dnsPolicy", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string DnsPolicy { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("nodeSelector", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.Collections.Generic.IDictionary<string, string> NodeSelector { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("serviceAccountName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string ServiceAccountName { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("serviceAccount", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string ServiceAccount { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("automountServiceAccountToken", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public bool? AutomountServiceAccountToken { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("nodeName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string NodeName { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("hostNetwork", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public bool? HostNetwork { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("hostPID", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public bool? HostPID { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("hostIPC", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public bool? HostIPC { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("shareProcessNamespace", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public bool? ShareProcessNamespace { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("securityContext", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1PodSecurityContext SecurityContext { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("imagePullSecrets", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.Collections.Generic.ICollection<V1LocalObjectReference> ImagePullSecrets { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("hostname", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string Hostname { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("subdomain", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string Subdomain { get; set; }
     
         [Newtonsoft.Json.JsonProperty("affinity", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public V1Affinity Affinity { get; set; }
     
-        [Newtonsoft.Json.JsonProperty("schedulerName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string SchedulerName { get; set; }
+        /// <summary>AutomountServiceAccountToken indicates whether a service account token should be automatically mounted.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("automountServiceAccountToken", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public bool? AutomountServiceAccountToken { get; set; }
     
-        [Newtonsoft.Json.JsonProperty("tolerations", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.Collections.Generic.ICollection<V1Toleration> Tolerations { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("hostAliases", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.Collections.Generic.ICollection<V1HostAlias> HostAliases { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("priorityClassName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string PriorityClassName { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("priority", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public int? Priority { get; set; }
+        /// <summary>List of containers belonging to the pod.
+        /// Containers cannot currently be added or removed.
+        /// There must be at least one container in a Pod.
+        /// Cannot be updated.
+        /// +patchMergeKey=name
+        /// +patchStrategy=merge</summary>
+        [Newtonsoft.Json.JsonProperty("containers", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<V1Container> Containers { get; set; }
     
         [Newtonsoft.Json.JsonProperty("dnsConfig", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public V1PodDNSConfig DnsConfig { get; set; }
     
-        [Newtonsoft.Json.JsonProperty("readinessGates", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.Collections.Generic.ICollection<V1PodReadinessGate> ReadinessGates { get; set; }
+        [Newtonsoft.Json.JsonProperty("dnsPolicy", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string DnsPolicy { get; set; }
     
-        [Newtonsoft.Json.JsonProperty("runtimeClassName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string RuntimeClassName { get; set; }
-    
+        /// <summary>EnableServiceLinks indicates whether information about services should be injected into pod's
+        /// environment variables, matching the syntax of Docker links.
+        /// Optional: Defaults to true.
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("enableServiceLinks", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public bool? EnableServiceLinks { get; set; }
+    
+        /// <summary>HostAliases is an optional list of hosts and IPs that will be injected into the pod's hosts
+        /// file if specified. This is only valid for non-hostNetwork pods.
+        /// +optional
+        /// +patchMergeKey=ip
+        /// +patchStrategy=merge</summary>
+        [Newtonsoft.Json.JsonProperty("hostAliases", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<V1HostAlias> HostAliases { get; set; }
+    
+        /// <summary>Use the host's ipc namespace.
+        /// Optional: Default to false.
+        /// +k8s:conversion-gen=false
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("hostIPC", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public bool? HostIPC { get; set; }
+    
+        /// <summary>Host networking requested for this pod. Use the host's network namespace.
+        /// If this option is set, the ports that will be used must be specified.
+        /// Default to false.
+        /// +k8s:conversion-gen=false
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("hostNetwork", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public bool? HostNetwork { get; set; }
+    
+        /// <summary>Use the host's pid namespace.
+        /// Optional: Default to false.
+        /// +k8s:conversion-gen=false
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("hostPID", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public bool? HostPID { get; set; }
+    
+        /// <summary>Specifies the hostname of the Pod
+        /// If not specified, the pod's hostname will be set to a system-defined value.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("hostname", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Hostname { get; set; }
+    
+        /// <summary>ImagePullSecrets is an optional list of references to secrets in the same namespace to use for pulling any of the images used by this PodSpec.
+        /// If specified, these secrets will be passed to individual puller implementations for them to use. For example,
+        /// in the case of docker, only DockerConfig type secrets are honored.
+        /// More info: https://kubernetes.io/docs/concepts/containers/images#specifying-imagepullsecrets-on-a-pod
+        /// +optional
+        /// +patchMergeKey=name
+        /// +patchStrategy=merge</summary>
+        [Newtonsoft.Json.JsonProperty("imagePullSecrets", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<V1LocalObjectReference> ImagePullSecrets { get; set; }
+    
+        /// <summary>List of initialization containers belonging to the pod.
+        /// Init containers are executed in order prior to containers being started. If any
+        /// init container fails, the pod is considered to have failed and is handled according
+        /// to its restartPolicy. The name for an init container or normal container must be
+        /// unique among all containers.
+        /// Init containers may not have Lifecycle actions, Readiness probes, or Liveness probes.
+        /// The resourceRequirements of an init container are taken into account during scheduling
+        /// by finding the highest request/limit for each resource type, and then using the max of
+        /// of that value or the sum of the normal containers. Limits are applied to init containers
+        /// in a similar fashion.
+        /// Init containers cannot currently be added or removed.
+        /// Cannot be updated.
+        /// More info: https://kubernetes.io/docs/concepts/workloads/pods/init-containers/
+        /// +patchMergeKey=name
+        /// +patchStrategy=merge</summary>
+        [Newtonsoft.Json.JsonProperty("initContainers", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<V1Container> InitContainers { get; set; }
+    
+        /// <summary>NodeName is a request to schedule this pod onto a specific node. If it is non-empty,
+        /// the scheduler simply schedules this pod onto that node, assuming that it fits resource
+        /// requirements.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("nodeName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string NodeName { get; set; }
+    
+        /// <summary>NodeSelector is a selector which must be true for the pod to fit on a node.
+        /// Selector which must match a node's labels for the pod to be scheduled on that node.
+        /// More info: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("nodeSelector", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.IDictionary<string, string> NodeSelector { get; set; }
     
         [Newtonsoft.Json.JsonProperty("preemptionPolicy", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string PreemptionPolicy { get; set; }
     
-        [Newtonsoft.Json.JsonProperty("overhead", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.Collections.Generic.IDictionary<string, string> Overhead { get; set; }
+        /// <summary>The priority value. Various system components use this field to find the
+        /// priority of the pod. When Priority Admission Controller is enabled, it
+        /// prevents users from setting this field. The admission controller populates
+        /// this field from PriorityClassName.
+        /// The higher the value, the higher the priority.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("priority", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public int? Priority { get; set; }
+    
+        /// <summary>If specified, indicates the pod's priority. "system-node-critical" and
+        /// "system-cluster-critical" are two special keywords which indicate the
+        /// highest priorities with the former being the highest priority. Any other
+        /// name must be defined by creating a PriorityClass object with that name.
+        /// If not specified, the pod priority will be default or zero if there is no
+        /// default.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("priorityClassName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string PriorityClassName { get; set; }
+    
+        /// <summary>If specified, all readiness gates will be evaluated for pod readiness.
+        /// A pod is ready when all its containers are ready AND
+        /// all conditions specified in the readiness gates have status equal to "True"
+        /// More info: https://git.k8s.io/enhancements/keps/sig-network/0007-pod-ready%2B%2B.md
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("readinessGates", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<V1PodReadinessGate> ReadinessGates { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("restartPolicy", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string RestartPolicy { get; set; }
+    
+        /// <summary>RuntimeClassName refers to a RuntimeClass object in the node.k8s.io group, which should be used
+        /// to run this pod.  If no RuntimeClass resource matches the named class, the pod will not be run.
+        /// If unset or empty, the "legacy" RuntimeClass will be used, which is an implicit class with an
+        /// empty definition that uses the default runtime handler.
+        /// More info: https://git.k8s.io/enhancements/keps/sig-node/runtime-class.md
+        /// This is a beta feature as of Kubernetes v1.14.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("runtimeClassName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string RuntimeClassName { get; set; }
+    
+        /// <summary>If specified, the pod will be dispatched by specified scheduler.
+        /// If not specified, the pod will be dispatched by default scheduler.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("schedulerName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string SchedulerName { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("securityContext", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1PodSecurityContext SecurityContext { get; set; }
+    
+        /// <summary>DeprecatedServiceAccount is a depreciated alias for ServiceAccountName.
+        /// Deprecated: Use serviceAccountName instead.
+        /// +k8s:conversion-gen=false
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("serviceAccount", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string ServiceAccount { get; set; }
+    
+        /// <summary>ServiceAccountName is the name of the ServiceAccount to use to run this pod.
+        /// More info: https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("serviceAccountName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string ServiceAccountName { get; set; }
+    
+        /// <summary>Share a single process namespace between all of the containers in a pod.
+        /// When this is set containers will be able to view and signal processes from other containers
+        /// in the same pod, and the first process in each container will not be assigned PID 1.
+        /// HostPID and ShareProcessNamespace cannot both be set.
+        /// Optional: Default to false.
+        /// This field is beta-level and may be disabled with the PodShareProcessNamespace feature.
+        /// +k8s:conversion-gen=false
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("shareProcessNamespace", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public bool? ShareProcessNamespace { get; set; }
+    
+        /// <summary>If specified, the fully qualified Pod hostname will be "&lt;hostname&gt;.&lt;subdomain&gt;.&lt;pod namespace&gt;.svc.&lt;cluster domain&gt;".
+        /// If not specified, the pod will not have a domainname at all.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("subdomain", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Subdomain { get; set; }
+    
+        /// <summary>Optional duration in seconds the pod needs to terminate gracefully. May be decreased in delete request.
+        /// Value must be non-negative integer. The value zero indicates delete immediately.
+        /// If this value is nil, the default grace period will be used instead.
+        /// The grace period is the duration in seconds after the processes running in the pod are sent
+        /// a termination signal and the time when the processes are forcibly halted with a kill signal.
+        /// Set this value longer than the expected cleanup time for your process.
+        /// Defaults to 30 seconds.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("terminationGracePeriodSeconds", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public long? TerminationGracePeriodSeconds { get; set; }
+    
+        /// <summary>If specified, the pod's tolerations.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("tolerations", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<V1Toleration> Tolerations { get; set; }
+    
+        /// <summary>List of volumes that can be mounted by containers belonging to the pod.
+        /// More info: https://kubernetes.io/docs/concepts/storage/volumes
+        /// +optional
+        /// +patchMergeKey=name
+        /// +patchStrategy=merge,retainKeys</summary>
+        [Newtonsoft.Json.JsonProperty("volumes", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<V1Volume> Volumes { get; set; }
     
     
     }
     
-    /// <summary>PortworxVolumeSource represents a Portworx volume resource.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1PortworxVolumeSource 
     {
-        [Newtonsoft.Json.JsonProperty("volumeID", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string VolumeID { get; set; }
-    
         /// <summary>FSType represents the filesystem type to mount
         /// Must be a filesystem type supported by the host operating system.
         /// Ex. "ext4", "xfs". Implicitly inferred to be "ext4" if unspecified.</summary>
         [Newtonsoft.Json.JsonProperty("fsType", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string FsType { get; set; }
     
+        /// <summary>Defaults to false (read/write). ReadOnly here will force
+        /// the ReadOnly setting in VolumeMounts.
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("readOnly", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public bool? ReadOnly { get; set; }
+    
+        /// <summary>VolumeID uniquely identifies a Portworx volume</summary>
+        [Newtonsoft.Json.JsonProperty("volumeID", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string VolumeID { get; set; }
     
     
     }
@@ -2155,13 +2725,12 @@ namespace GResearch.Armada.Client
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1PreferredSchedulingTerm 
     {
+        [Newtonsoft.Json.JsonProperty("preference", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1NodeSelectorTerm Preference { get; set; }
+    
         /// <summary>Weight associated with matching the corresponding nodeSelectorTerm, in the range 1-100.</summary>
         [Newtonsoft.Json.JsonProperty("weight", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public int? Weight { get; set; }
-    
-        /// <summary>A node selector term, associated with the corresponding weight.</summary>
-        [Newtonsoft.Json.JsonProperty("preference", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1NodeSelectorTerm Preference { get; set; }
     
     
     }
@@ -2171,301 +2740,469 @@ namespace GResearch.Armada.Client
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1Probe 
     {
-        [Newtonsoft.Json.JsonProperty("handler", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1Handler Handler { get; set; }
+        [Newtonsoft.Json.JsonProperty("exec", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1ExecAction Exec { get; set; }
     
-        [Newtonsoft.Json.JsonProperty("initialDelaySeconds", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public int? InitialDelaySeconds { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("timeoutSeconds", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public int? TimeoutSeconds { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("periodSeconds", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public int? PeriodSeconds { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("successThreshold", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public int? SuccessThreshold { get; set; }
-    
+        /// <summary>Minimum consecutive failures for the probe to be considered failed after having succeeded.
+        /// Defaults to 3. Minimum value is 1.
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("failureThreshold", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public int? FailureThreshold { get; set; }
     
+        [Newtonsoft.Json.JsonProperty("httpGet", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1HTTPGetAction HttpGet { get; set; }
+    
+        /// <summary>Number of seconds after the container has started before liveness probes are initiated.
+        /// More info: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle#container-probes
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("initialDelaySeconds", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public int? InitialDelaySeconds { get; set; }
+    
+        /// <summary>How often (in seconds) to perform the probe.
+        /// Default to 10 seconds. Minimum value is 1.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("periodSeconds", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public int? PeriodSeconds { get; set; }
+    
+        /// <summary>Minimum consecutive successes for the probe to be considered successful after having failed.
+        /// Defaults to 1. Must be 1 for liveness. Minimum value is 1.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("successThreshold", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public int? SuccessThreshold { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("tcpSocket", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1TCPSocketAction TcpSocket { get; set; }
+    
+        /// <summary>Number of seconds after which the probe times out.
+        /// Defaults to 1 second. Minimum value is 1.
+        /// More info: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle#container-probes
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("timeoutSeconds", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public int? TimeoutSeconds { get; set; }
+    
     
     }
     
+    /// <summary>Represents a projected volume source</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1ProjectedVolumeSource 
     {
-        [Newtonsoft.Json.JsonProperty("sources", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.Collections.Generic.ICollection<V1VolumeProjection> Sources { get; set; }
-    
+        /// <summary>Mode bits to use on created files by default. Must be a value between
+        /// 0 and 0777.
+        /// Directories within the path are not affected by this setting.
+        /// This might be in conflict with other options that affect the file
+        /// mode, like fsGroup, and the result can be other mode bits set.
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("defaultMode", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public int? DefaultMode { get; set; }
+    
+        /// <summary>list of volume projections</summary>
+        [Newtonsoft.Json.JsonProperty("sources", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<V1VolumeProjection> Sources { get; set; }
     
     
     }
     
-    /// <summary>Represents a Quobyte mount that lasts the lifetime of a pod.
-    /// Quobyte volumes do not support ownership management or SELinux relabeling.</summary>
+    /// <summary>Quobyte volumes do not support ownership management or SELinux relabeling.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1QuobyteVolumeSource 
     {
+        /// <summary>Group to map volume access to
+        /// Default is no group
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("group", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Group { get; set; }
+    
+        /// <summary>ReadOnly here will force the Quobyte volume to be mounted with read-only permissions.
+        /// Defaults to false.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("readOnly", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public bool? ReadOnly { get; set; }
+    
+        /// <summary>Registry represents a single or multiple Quobyte Registry services
+        /// specified as a string as host:port pair (multiple entries are separated with commas)
+        /// which acts as the central registry for volumes</summary>
         [Newtonsoft.Json.JsonProperty("registry", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Registry { get; set; }
+    
+        /// <summary>Tenant owning the given Quobyte volume in the Backend
+        /// Used with dynamically provisioned Quobyte volumes, value is set by the plugin
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("tenant", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Tenant { get; set; }
+    
+        /// <summary>User to map volume access to
+        /// Defaults to serivceaccount user
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("user", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string User { get; set; }
     
         /// <summary>Volume is a string that references an already created Quobyte volume by name.</summary>
         [Newtonsoft.Json.JsonProperty("volume", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Volume { get; set; }
     
-        [Newtonsoft.Json.JsonProperty("readOnly", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public bool? ReadOnly { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("user", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string User { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("group", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string Group { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("tenant", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string Tenant { get; set; }
-    
     
     }
     
-    /// <summary>Represents a Rados Block Device mount that lasts the lifetime of a pod.
-    /// RBD volumes support ownership management and SELinux relabeling.</summary>
+    /// <summary>RBD volumes support ownership management and SELinux relabeling.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1RBDVolumeSource 
     {
-        [Newtonsoft.Json.JsonProperty("monitors", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.Collections.Generic.ICollection<string> Monitors { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("image", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string Image { get; set; }
-    
+        /// <summary>Filesystem type of the volume that you want to mount.
+        /// Tip: Ensure that the filesystem type is supported by the host operating system.
+        /// Examples: "ext4", "xfs", "ntfs". Implicitly inferred to be "ext4" if unspecified.
+        /// More info: https://kubernetes.io/docs/concepts/storage/volumes#rbd
+        /// TODO: how do we prevent errors in the filesystem from compromising the machine
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("fsType", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string FsType { get; set; }
     
+        /// <summary>The rados image name.
+        /// More info: https://releases.k8s.io/HEAD/examples/volumes/rbd/README.md#how-to-use-it</summary>
+        [Newtonsoft.Json.JsonProperty("image", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Image { get; set; }
+    
+        /// <summary>Keyring is the path to key ring for RBDUser.
+        /// Default is /etc/ceph/keyring.
+        /// More info: https://releases.k8s.io/HEAD/examples/volumes/rbd/README.md#how-to-use-it
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("keyring", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Keyring { get; set; }
+    
+        /// <summary>A collection of Ceph monitors.
+        /// More info: https://releases.k8s.io/HEAD/examples/volumes/rbd/README.md#how-to-use-it</summary>
+        [Newtonsoft.Json.JsonProperty("monitors", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<string> Monitors { get; set; }
+    
+        /// <summary>The rados pool name.
+        /// Default is rbd.
+        /// More info: https://releases.k8s.io/HEAD/examples/volumes/rbd/README.md#how-to-use-it
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("pool", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Pool { get; set; }
     
-        [Newtonsoft.Json.JsonProperty("user", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string User { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("keyring", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string Keyring { get; set; }
+        /// <summary>ReadOnly here will force the ReadOnly setting in VolumeMounts.
+        /// Defaults to false.
+        /// More info: https://releases.k8s.io/HEAD/examples/volumes/rbd/README.md#how-to-use-it
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("readOnly", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public bool? ReadOnly { get; set; }
     
         [Newtonsoft.Json.JsonProperty("secretRef", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public V1LocalObjectReference SecretRef { get; set; }
     
-        [Newtonsoft.Json.JsonProperty("readOnly", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public bool? ReadOnly { get; set; }
+        /// <summary>The rados user name.
+        /// Default is admin.
+        /// More info: https://releases.k8s.io/HEAD/examples/volumes/rbd/README.md#how-to-use-it
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("user", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string User { get; set; }
     
     
     }
     
+    /// <summary>ResourceFieldSelector represents container resources (cpu, memory) and their output format</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1ResourceFieldSelector 
     {
+        /// <summary>Container name: required for volumes, optional for env vars
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("containerName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string ContainerName { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("resource", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string Resource { get; set; }
     
         [Newtonsoft.Json.JsonProperty("divisor", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Divisor { get; set; }
     
+        /// <summary>Required: resource to select</summary>
+        [Newtonsoft.Json.JsonProperty("resource", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Resource { get; set; }
+    
     
     }
     
-    /// <summary>ResourceRequirements describes the compute resource requirements.</summary>
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
+    public partial class V1ResourceList : System.Collections.Generic.Dictionary<string, string>
+    {
+    
+    }
+    
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1ResourceRequirements 
     {
         [Newtonsoft.Json.JsonProperty("limits", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.Collections.Generic.IDictionary<string, string> Limits { get; set; }
+        public V1ResourceList Limits { get; set; }
     
         [Newtonsoft.Json.JsonProperty("requests", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.Collections.Generic.IDictionary<string, string> Requests { get; set; }
+        public V1ResourceList Requests { get; set; }
     
     
     }
     
+    /// <summary>SELinuxOptions are the labels to be applied to the container</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1SELinuxOptions 
     {
-        [Newtonsoft.Json.JsonProperty("user", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string User { get; set; }
+        /// <summary>Level is SELinux level label that applies to the container.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("level", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Level { get; set; }
     
+        /// <summary>Role is a SELinux role label that applies to the container.
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("role", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Role { get; set; }
     
+        /// <summary>Type is a SELinux type label that applies to the container.
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("type", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Type { get; set; }
     
-        [Newtonsoft.Json.JsonProperty("level", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string Level { get; set; }
+        /// <summary>User is a SELinux user label that applies to the container.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("user", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string User { get; set; }
     
     
     }
     
+    /// <summary>ScaleIOVolumeSource represents a persistent ScaleIO volume</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1ScaleIOVolumeSource 
     {
+        /// <summary>Filesystem type to mount.
+        /// Must be a filesystem type supported by the host operating system.
+        /// Ex. "ext4", "xfs", "ntfs".
+        /// Default is "xfs".
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("fsType", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string FsType { get; set; }
+    
         /// <summary>The host address of the ScaleIO API Gateway.</summary>
         [Newtonsoft.Json.JsonProperty("gateway", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Gateway { get; set; }
     
-        /// <summary>The name of the storage system as configured in ScaleIO.</summary>
-        [Newtonsoft.Json.JsonProperty("system", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string System { get; set; }
-    
-        /// <summary>SecretRef references to the secret for ScaleIO user and other
-        /// sensitive information. If this is not provided, Login operation will fail.</summary>
-        [Newtonsoft.Json.JsonProperty("secretRef", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1LocalObjectReference SecretRef { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("sslEnabled", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public bool? SslEnabled { get; set; }
-    
+        /// <summary>The name of the ScaleIO Protection Domain for the configured storage.
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("protectionDomain", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string ProtectionDomain { get; set; }
     
+        /// <summary>Defaults to false (read/write). ReadOnly here will force
+        /// the ReadOnly setting in VolumeMounts.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("readOnly", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public bool? ReadOnly { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("secretRef", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1LocalObjectReference SecretRef { get; set; }
+    
+        /// <summary>Flag to enable/disable SSL communication with Gateway, default false
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("sslEnabled", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public bool? SslEnabled { get; set; }
+    
+        /// <summary>Indicates whether the storage for a volume should be ThickProvisioned or ThinProvisioned.
+        /// Default is ThinProvisioned.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("storageMode", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string StorageMode { get; set; }
+    
+        /// <summary>The ScaleIO Storage Pool associated with the protection domain.
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("storagePool", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string StoragePool { get; set; }
     
-        [Newtonsoft.Json.JsonProperty("storageMode", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string StorageMode { get; set; }
+        /// <summary>The name of the storage system as configured in ScaleIO.</summary>
+        [Newtonsoft.Json.JsonProperty("system", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string System { get; set; }
     
         /// <summary>The name of a volume already created in the ScaleIO system
         /// that is associated with this volume source.</summary>
         [Newtonsoft.Json.JsonProperty("volumeName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string VolumeName { get; set; }
     
-        [Newtonsoft.Json.JsonProperty("fsType", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string FsType { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("readOnly", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public bool? ReadOnly { get; set; }
-    
     
     }
     
-    /// <summary>SecretEnvSource selects a Secret to populate the environment
-    /// variables with.
-    /// 
-    /// The contents of the target Secret's Data field will represent the
+    /// <summary>The contents of the target Secret's Data field will represent the
     /// key-value pairs as environment variables.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1SecretEnvSource 
     {
-        /// <summary>The Secret to select from.</summary>
-        [Newtonsoft.Json.JsonProperty("localObjectReference", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1LocalObjectReference LocalObjectReference { get; set; }
+        /// <summary>Name of the referent.
+        /// More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+        /// TODO: Add other useful fields. apiVersion, kind, uid?
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("name", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Name { get; set; }
     
+        /// <summary>Specify whether the Secret must be defined
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("optional", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public bool? Optional { get; set; }
     
     
     }
     
-    /// <summary>SecretKeySelector selects a key of a Secret.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1SecretKeySelector 
     {
-        /// <summary>The name of the secret in the pod's namespace to select from.</summary>
-        [Newtonsoft.Json.JsonProperty("localObjectReference", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1LocalObjectReference LocalObjectReference { get; set; }
-    
         /// <summary>The key of the secret to select from.  Must be a valid secret key.</summary>
         [Newtonsoft.Json.JsonProperty("key", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Key { get; set; }
     
+        /// <summary>Name of the referent.
+        /// More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+        /// TODO: Add other useful fields. apiVersion, kind, uid?
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("name", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Name { get; set; }
+    
+        /// <summary>Specify whether the Secret or its key must be defined
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("optional", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public bool? Optional { get; set; }
     
     
     }
     
-    /// <summary>Adapts a secret into a projected volume.
-    /// 
-    /// The contents of the target Secret's Data field will be presented in a
+    /// <summary>The contents of the target Secret's Data field will be presented in a
     /// projected volume as files using the keys in the Data field as the file names.
     /// Note that this is identical to a secret volume source without the default
     /// mode.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1SecretProjection 
     {
-        [Newtonsoft.Json.JsonProperty("localObjectReference", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1LocalObjectReference LocalObjectReference { get; set; }
-    
+        /// <summary>If unspecified, each key-value pair in the Data field of the referenced
+        /// Secret will be projected into the volume as a file whose name is the
+        /// key and content is the value. If specified, the listed keys will be
+        /// projected into the specified paths, and unlisted keys will not be
+        /// present. If a key is specified which is not present in the Secret,
+        /// the volume setup will error unless it is marked optional. Paths must be
+        /// relative and may not contain the '..' path or start with '..'.
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("items", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.ICollection<V1KeyToPath> Items { get; set; }
     
+        /// <summary>Name of the referent.
+        /// More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+        /// TODO: Add other useful fields. apiVersion, kind, uid?
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("name", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Name { get; set; }
+    
+        /// <summary>Specify whether the Secret or its key must be defined
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("optional", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public bool? Optional { get; set; }
     
     
     }
     
-    /// <summary>Adapts a Secret into a volume.
-    /// 
-    /// The contents of the target Secret's Data field will be presented in a volume
+    /// <summary>The contents of the target Secret's Data field will be presented in a volume
     /// as files using the keys in the Data field as the file names.
     /// Secret volumes support ownership management and SELinux relabeling.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1SecretVolumeSource 
     {
-        [Newtonsoft.Json.JsonProperty("secretName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string SecretName { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("items", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.Collections.Generic.ICollection<V1KeyToPath> Items { get; set; }
-    
+        /// <summary>Optional: mode bits to use on created files by default. Must be a
+        /// value between 0 and 0777. Defaults to 0644.
+        /// Directories within the path are not affected by this setting.
+        /// This might be in conflict with other options that affect the file
+        /// mode, like fsGroup, and the result can be other mode bits set.
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("defaultMode", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public int? DefaultMode { get; set; }
     
+        /// <summary>If unspecified, each key-value pair in the Data field of the referenced
+        /// Secret will be projected into the volume as a file whose name is the
+        /// key and content is the value. If specified, the listed keys will be
+        /// projected into the specified paths, and unlisted keys will not be
+        /// present. If a key is specified which is not present in the Secret,
+        /// the volume setup will error unless it is marked optional. Paths must be
+        /// relative and may not contain the '..' path or start with '..'.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("items", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<V1KeyToPath> Items { get; set; }
+    
+        /// <summary>Specify whether the Secret or its keys must be defined
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("optional", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public bool? Optional { get; set; }
+    
+        /// <summary>Name of the secret in the pod's namespace to use.
+        /// More info: https://kubernetes.io/docs/concepts/storage/volumes#secret
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("secretName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string SecretName { get; set; }
     
     
     }
     
-    /// <summary>SecurityContext holds security configuration that will be applied to a container.
-    /// Some fields are present in both SecurityContext and PodSecurityContext.  When both
+    /// <summary>Some fields are present in both SecurityContext and PodSecurityContext.  When both
     /// are set, the values in SecurityContext take precedence.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1SecurityContext 
     {
+        /// <summary>AllowPrivilegeEscalation controls whether a process can gain more
+        /// privileges than its parent process. This bool directly controls if
+        /// the no_new_privs flag will be set on the container process.
+        /// AllowPrivilegeEscalation is true always when the container is:
+        /// 1) run as Privileged
+        /// 2) has CAP_SYS_ADMIN
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("allowPrivilegeEscalation", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public bool? AllowPrivilegeEscalation { get; set; }
+    
         [Newtonsoft.Json.JsonProperty("capabilities", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public V1Capabilities Capabilities { get; set; }
     
+        /// <summary>Run container in privileged mode.
+        /// Processes in privileged containers are essentially equivalent to root on the host.
+        /// Defaults to false.
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("privileged", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public bool? Privileged { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("procMount", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string ProcMount { get; set; }
+    
+        /// <summary>Whether this container has a read-only root filesystem.
+        /// Default is false.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("readOnlyRootFilesystem", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public bool? ReadOnlyRootFilesystem { get; set; }
+    
+        /// <summary>The GID to run the entrypoint of the container process.
+        /// Uses runtime default if unset.
+        /// May also be set in PodSecurityContext.  If set in both SecurityContext and
+        /// PodSecurityContext, the value specified in SecurityContext takes precedence.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("runAsGroup", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public long? RunAsGroup { get; set; }
+    
+        /// <summary>Indicates that the container must run as a non-root user.
+        /// If true, the Kubelet will validate the image at runtime to ensure that it
+        /// does not run as UID 0 (root) and fail to start the container if it does.
+        /// If unset or false, no such validation will be performed.
+        /// May also be set in PodSecurityContext.  If set in both SecurityContext and
+        /// PodSecurityContext, the value specified in SecurityContext takes precedence.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("runAsNonRoot", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public bool? RunAsNonRoot { get; set; }
+    
+        /// <summary>The UID to run the entrypoint of the container process.
+        /// Defaults to user specified in image metadata if unspecified.
+        /// May also be set in PodSecurityContext.  If set in both SecurityContext and
+        /// PodSecurityContext, the value specified in SecurityContext takes precedence.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("runAsUser", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public long? RunAsUser { get; set; }
     
         [Newtonsoft.Json.JsonProperty("seLinuxOptions", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public V1SELinuxOptions SeLinuxOptions { get; set; }
     
         [Newtonsoft.Json.JsonProperty("windowsOptions", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public V1WindowsSecurityContextOptions WindowsOptions { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("runAsUser", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public long? RunAsUser { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("runAsGroup", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public long? RunAsGroup { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("runAsNonRoot", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public bool? RunAsNonRoot { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("readOnlyRootFilesystem", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public bool? ReadOnlyRootFilesystem { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("allowPrivilegeEscalation", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public bool? AllowPrivilegeEscalation { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("procMount", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string ProcMount { get; set; }
     
     
     }
@@ -2477,9 +3214,21 @@ namespace GResearch.Armada.Client
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1ServiceAccountTokenProjection 
     {
+        /// <summary>Audience is the intended audience of the token. A recipient of a token
+        /// must identify itself with an identifier specified in the audience of the
+        /// token, and otherwise should reject the token. The audience defaults to the
+        /// identifier of the apiserver.
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("audience", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Audience { get; set; }
     
+        /// <summary>ExpirationSeconds is the requested duration of validity of the service
+        /// account token. As the token approaches expiration, the kubelet volume
+        /// plugin will proactively rotate the service account token. The kubelet will
+        /// start trying to rotate the token if the token is older than 80 percent of
+        /// its time to live or if the token is older than 24 hours.Defaults to 1 hour
+        /// and must be at least 10 minutes.
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("expirationSeconds", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public long? ExpirationSeconds { get; set; }
     
@@ -2491,53 +3240,69 @@ namespace GResearch.Armada.Client
     
     }
     
-    /// <summary>Represents a StorageOS persistent volume resource.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1StorageOSVolumeSource 
     {
-        /// <summary>VolumeName is the human-readable name of the StorageOS volume.  Volume
-        /// names are only unique within a namespace.</summary>
-        [Newtonsoft.Json.JsonProperty("volumeName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string VolumeName { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("volumeNamespace", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string VolumeNamespace { get; set; }
-    
+        /// <summary>Filesystem type to mount.
+        /// Must be a filesystem type supported by the host operating system.
+        /// Ex. "ext4", "xfs", "ntfs". Implicitly inferred to be "ext4" if unspecified.
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("fsType", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string FsType { get; set; }
     
+        /// <summary>Defaults to false (read/write). ReadOnly here will force
+        /// the ReadOnly setting in VolumeMounts.
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("readOnly", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public bool? ReadOnly { get; set; }
     
         [Newtonsoft.Json.JsonProperty("secretRef", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public V1LocalObjectReference SecretRef { get; set; }
     
+        /// <summary>VolumeName is the human-readable name of the StorageOS volume.  Volume
+        /// names are only unique within a namespace.</summary>
+        [Newtonsoft.Json.JsonProperty("volumeName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string VolumeName { get; set; }
+    
+        /// <summary>VolumeNamespace specifies the scope of the volume within StorageOS.  If no
+        /// namespace is specified then the Pod's namespace will be used.  This allows the
+        /// Kubernetes name scoping to be mirrored within StorageOS for tighter integration.
+        /// Set VolumeName to any name to override the default behaviour.
+        /// Set to "default" if you are not using namespaces within StorageOS.
+        /// Namespaces that do not pre-exist within StorageOS will be created.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("volumeNamespace", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string VolumeNamespace { get; set; }
+    
     
     }
     
+    /// <summary>Sysctl defines a kernel parameter to be set</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1Sysctl 
     {
+        /// <summary>Name of a property to set</summary>
         [Newtonsoft.Json.JsonProperty("name", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Name { get; set; }
     
+        /// <summary>Value of a property to set</summary>
         [Newtonsoft.Json.JsonProperty("value", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Value { get; set; }
     
     
     }
     
+    /// <summary>TCPSocketAction describes an action based on opening a socket</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1TCPSocketAction 
     {
-        /// <summary>Number or name of the port to access on the container.
-        /// Number must be in the range 1 to 65535.
-        /// Name must be an IANA_SVC_NAME.</summary>
-        [Newtonsoft.Json.JsonProperty("port", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public IntstrIntOrString Port { get; set; }
-    
+        /// <summary>Optional: Host name to connect to, defaults to the pod IP.
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("host", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Host { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("port", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public IntstrIntOrString Port { get; set; }
     
     
     }
@@ -2547,93 +3312,196 @@ namespace GResearch.Armada.Client
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1Toleration 
     {
+        [Newtonsoft.Json.JsonProperty("effect", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Effect { get; set; }
+    
+        /// <summary>Key is the taint key that the toleration applies to. Empty means match all taint keys.
+        /// If the key is empty, operator must be Exists; this combination means to match all values and all keys.
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("key", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Key { get; set; }
     
         [Newtonsoft.Json.JsonProperty("operator", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Operator { get; set; }
     
-        [Newtonsoft.Json.JsonProperty("value", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string Value { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("effect", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string Effect { get; set; }
-    
+        /// <summary>TolerationSeconds represents the period of time the toleration (which must be
+        /// of effect NoExecute, otherwise this field is ignored) tolerates the taint. By default,
+        /// it is not set, which means tolerate the taint forever (do not evict). Zero and
+        /// negative values will be treated as 0 (evict immediately) by the system.
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("tolerationSeconds", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public long? TolerationSeconds { get; set; }
     
+        /// <summary>Value is the taint value the toleration matches to.
+        /// If the operator is Exists, the value should be empty, otherwise just a regular string.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("value", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Value { get; set; }
+    
     
     }
     
-    /// <summary>Volume represents a named volume in a pod that may be accessed by any container in the pod.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1Volume 
     {
+        [Newtonsoft.Json.JsonProperty("awsElasticBlockStore", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1AWSElasticBlockStoreVolumeSource AwsElasticBlockStore { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("azureDisk", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1AzureDiskVolumeSource AzureDisk { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("azureFile", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1AzureFileVolumeSource AzureFile { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("cephfs", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1CephFSVolumeSource Cephfs { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("cinder", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1CinderVolumeSource Cinder { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("configMap", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1ConfigMapVolumeSource ConfigMap { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("csi", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1CSIVolumeSource Csi { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("downwardAPI", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1DownwardAPIVolumeSource DownwardAPI { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("emptyDir", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1EmptyDirVolumeSource EmptyDir { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("fc", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1FCVolumeSource Fc { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("flexVolume", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1FlexVolumeSource FlexVolume { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("flocker", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1FlockerVolumeSource Flocker { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("gcePersistentDisk", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1GCEPersistentDiskVolumeSource GcePersistentDisk { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("gitRepo", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1GitRepoVolumeSource GitRepo { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("glusterfs", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1GlusterfsVolumeSource Glusterfs { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("hostPath", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1HostPathVolumeSource HostPath { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("iscsi", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1ISCSIVolumeSource Iscsi { get; set; }
+    
+        /// <summary>Volume's name.
+        /// Must be a DNS_LABEL and unique within the pod.
+        /// More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names</summary>
         [Newtonsoft.Json.JsonProperty("name", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Name { get; set; }
     
-        /// <summary>VolumeSource represents the location and type of the mounted volume.
-        /// If not specified, the Volume is implied to be an EmptyDir.
-        /// This implied behavior is deprecated and will be removed in a future version.</summary>
-        [Newtonsoft.Json.JsonProperty("volumeSource", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1VolumeSource VolumeSource { get; set; }
+        [Newtonsoft.Json.JsonProperty("nfs", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1NFSVolumeSource Nfs { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("persistentVolumeClaim", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1PersistentVolumeClaimVolumeSource PersistentVolumeClaim { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("photonPersistentDisk", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1PhotonPersistentDiskVolumeSource PhotonPersistentDisk { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("portworxVolume", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1PortworxVolumeSource PortworxVolume { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("projected", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1ProjectedVolumeSource Projected { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("quobyte", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1QuobyteVolumeSource Quobyte { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("rbd", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1RBDVolumeSource Rbd { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("scaleIO", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1ScaleIOVolumeSource ScaleIO { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("secret", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1SecretVolumeSource Secret { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("storageos", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1StorageOSVolumeSource Storageos { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("vsphereVolume", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1VsphereVirtualDiskVolumeSource VsphereVolume { get; set; }
     
     
     }
     
-    /// <summary>volumeDevice describes a mapping of a raw block device within a container.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1VolumeDevice 
     {
-        [Newtonsoft.Json.JsonProperty("name", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string Name { get; set; }
-    
         /// <summary>devicePath is the path inside of the container that the device will be mapped to.</summary>
         [Newtonsoft.Json.JsonProperty("devicePath", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string DevicePath { get; set; }
     
-    
-    }
-    
-    /// <summary>VolumeMount describes a mounting of a Volume within a container.</summary>
-    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
-    public partial class V1VolumeMount 
-    {
-        /// <summary>This must match the Name of a Volume.</summary>
+        /// <summary>name must match the name of a persistentVolumeClaim in the pod</summary>
         [Newtonsoft.Json.JsonProperty("name", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Name { get; set; }
     
-        [Newtonsoft.Json.JsonProperty("readOnly", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public bool? ReadOnly { get; set; }
     
+    }
+    
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
+    public partial class V1VolumeMount 
+    {
         /// <summary>Path within the container at which the volume should be mounted.  Must
         /// not contain ':'.</summary>
         [Newtonsoft.Json.JsonProperty("mountPath", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string MountPath { get; set; }
     
-        [Newtonsoft.Json.JsonProperty("subPath", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string SubPath { get; set; }
-    
         [Newtonsoft.Json.JsonProperty("mountPropagation", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string MountPropagation { get; set; }
     
+        /// <summary>This must match the Name of a Volume.</summary>
+        [Newtonsoft.Json.JsonProperty("name", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Name { get; set; }
+    
+        /// <summary>Mounted read-only if true, read-write otherwise (false or unspecified).
+        /// Defaults to false.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("readOnly", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public bool? ReadOnly { get; set; }
+    
+        /// <summary>Path within the volume from which the container's volume should be mounted.
+        /// Defaults to "" (volume's root).
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("subPath", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string SubPath { get; set; }
+    
+        /// <summary>Expanded path within the volume from which the container's volume should be mounted.
+        /// Behaves similarly to SubPath but environment variable references $(VAR_NAME) are expanded using the container's environment.
+        /// Defaults to "" (volume's root).
+        /// SubPathExpr and SubPath are mutually exclusive.
+        /// This field is beta in 1.15.
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("subPathExpr", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string SubPathExpr { get; set; }
     
     
     }
     
+    /// <summary>Projection that may be projected along with other supported volume types</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1VolumeProjection 
     {
-        [Newtonsoft.Json.JsonProperty("secret", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1SecretProjection Secret { get; set; }
+        [Newtonsoft.Json.JsonProperty("configMap", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1ConfigMapProjection ConfigMap { get; set; }
     
         [Newtonsoft.Json.JsonProperty("downwardAPI", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public V1DownwardAPIProjection DownwardAPI { get; set; }
     
-        [Newtonsoft.Json.JsonProperty("configMap", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1ConfigMapProjection ConfigMap { get; set; }
+        [Newtonsoft.Json.JsonProperty("secret", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1SecretProjection Secret { get; set; }
     
         [Newtonsoft.Json.JsonProperty("serviceAccountToken", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public V1ServiceAccountTokenProjection ServiceAccountToken { get; set; }
@@ -2646,136 +3514,151 @@ namespace GResearch.Armada.Client
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1VolumeSource 
     {
-        [Newtonsoft.Json.JsonProperty("hostPath", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1HostPathVolumeSource HostPath { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("emptyDir", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1EmptyDirVolumeSource EmptyDir { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("gcePersistentDisk", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1GCEPersistentDiskVolumeSource GcePersistentDisk { get; set; }
-    
         [Newtonsoft.Json.JsonProperty("awsElasticBlockStore", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public V1AWSElasticBlockStoreVolumeSource AwsElasticBlockStore { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("gitRepo", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1GitRepoVolumeSource GitRepo { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("secret", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1SecretVolumeSource Secret { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("nfs", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1NFSVolumeSource Nfs { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("iscsi", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1ISCSIVolumeSource Iscsi { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("glusterfs", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1GlusterfsVolumeSource Glusterfs { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("persistentVolumeClaim", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1PersistentVolumeClaimVolumeSource PersistentVolumeClaim { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("rbd", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1RBDVolumeSource Rbd { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("flexVolume", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1FlexVolumeSource FlexVolume { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("cinder", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1CinderVolumeSource Cinder { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("cephfs", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1CephFSVolumeSource Cephfs { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("flocker", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1FlockerVolumeSource Flocker { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("downwardAPI", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1DownwardAPIVolumeSource DownwardAPI { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("fc", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1FCVolumeSource Fc { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("azureFile", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1AzureFileVolumeSource AzureFile { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("configMap", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1ConfigMapVolumeSource ConfigMap { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("vsphereVolume", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1VsphereVirtualDiskVolumeSource VsphereVolume { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("quobyte", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1QuobyteVolumeSource Quobyte { get; set; }
     
         [Newtonsoft.Json.JsonProperty("azureDisk", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public V1AzureDiskVolumeSource AzureDisk { get; set; }
     
-        [Newtonsoft.Json.JsonProperty("photonPersistentDisk", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1PhotonPersistentDiskVolumeSource PhotonPersistentDisk { get; set; }
+        [Newtonsoft.Json.JsonProperty("azureFile", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1AzureFileVolumeSource AzureFile { get; set; }
     
-        [Newtonsoft.Json.JsonProperty("projected", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1ProjectedVolumeSource Projected { get; set; }
+        [Newtonsoft.Json.JsonProperty("cephfs", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1CephFSVolumeSource Cephfs { get; set; }
     
-        [Newtonsoft.Json.JsonProperty("portworxVolume", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1PortworxVolumeSource PortworxVolume { get; set; }
+        [Newtonsoft.Json.JsonProperty("cinder", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1CinderVolumeSource Cinder { get; set; }
     
-        [Newtonsoft.Json.JsonProperty("scaleIO", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1ScaleIOVolumeSource ScaleIO { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("storageos", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1StorageOSVolumeSource Storageos { get; set; }
+        [Newtonsoft.Json.JsonProperty("configMap", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1ConfigMapVolumeSource ConfigMap { get; set; }
     
         [Newtonsoft.Json.JsonProperty("csi", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public V1CSIVolumeSource Csi { get; set; }
     
+        [Newtonsoft.Json.JsonProperty("downwardAPI", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1DownwardAPIVolumeSource DownwardAPI { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("emptyDir", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1EmptyDirVolumeSource EmptyDir { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("fc", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1FCVolumeSource Fc { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("flexVolume", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1FlexVolumeSource FlexVolume { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("flocker", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1FlockerVolumeSource Flocker { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("gcePersistentDisk", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1GCEPersistentDiskVolumeSource GcePersistentDisk { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("gitRepo", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1GitRepoVolumeSource GitRepo { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("glusterfs", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1GlusterfsVolumeSource Glusterfs { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("hostPath", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1HostPathVolumeSource HostPath { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("iscsi", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1ISCSIVolumeSource Iscsi { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("nfs", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1NFSVolumeSource Nfs { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("persistentVolumeClaim", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1PersistentVolumeClaimVolumeSource PersistentVolumeClaim { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("photonPersistentDisk", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1PhotonPersistentDiskVolumeSource PhotonPersistentDisk { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("portworxVolume", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1PortworxVolumeSource PortworxVolume { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("projected", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1ProjectedVolumeSource Projected { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("quobyte", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1QuobyteVolumeSource Quobyte { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("rbd", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1RBDVolumeSource Rbd { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("scaleIO", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1ScaleIOVolumeSource ScaleIO { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("secret", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1SecretVolumeSource Secret { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("storageos", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1StorageOSVolumeSource Storageos { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("vsphereVolume", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1VsphereVirtualDiskVolumeSource VsphereVolume { get; set; }
+    
     
     }
     
-    /// <summary>Represents a vSphere volume resource.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1VsphereVirtualDiskVolumeSource 
     {
-        [Newtonsoft.Json.JsonProperty("volumePath", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string VolumePath { get; set; }
-    
+        /// <summary>Filesystem type to mount.
+        /// Must be a filesystem type supported by the host operating system.
+        /// Ex. "ext4", "xfs", "ntfs". Implicitly inferred to be "ext4" if unspecified.
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("fsType", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string FsType { get; set; }
     
+        /// <summary>Storage Policy Based Management (SPBM) profile ID associated with the StoragePolicyName.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("storagePolicyID", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string StoragePolicyID { get; set; }
+    
+        /// <summary>Storage Policy Based Management (SPBM) profile name.
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("storagePolicyName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string StoragePolicyName { get; set; }
     
-        [Newtonsoft.Json.JsonProperty("storagePolicyID", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string StoragePolicyID { get; set; }
+        /// <summary>Path that identifies vSphere volume vmdk</summary>
+        [Newtonsoft.Json.JsonProperty("volumePath", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string VolumePath { get; set; }
     
     
     }
     
+    /// <summary>The weights of all of the matched WeightedPodAffinityTerm fields are added per-node to find the most preferred node(s)</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1WeightedPodAffinityTerm 
     {
+        [Newtonsoft.Json.JsonProperty("podAffinityTerm", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1PodAffinityTerm PodAffinityTerm { get; set; }
+    
         /// <summary>weight associated with matching the corresponding podAffinityTerm,
         /// in the range 1-100.</summary>
         [Newtonsoft.Json.JsonProperty("weight", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public int? Weight { get; set; }
     
-        /// <summary>Required. A pod affinity term, associated with the corresponding weight.</summary>
-        [Newtonsoft.Json.JsonProperty("podAffinityTerm", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1PodAffinityTerm PodAffinityTerm { get; set; }
-    
     
     }
     
-    /// <summary>WindowsSecurityContextOptions contain Windows-specific options and credentials.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1WindowsSecurityContextOptions 
     {
-        [Newtonsoft.Json.JsonProperty("gmsaCredentialSpecName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string GmsaCredentialSpecName { get; set; }
-    
+        /// <summary>GMSACredentialSpec is where the GMSA admission webhook
+        /// (https://github.com/kubernetes-sigs/windows-gmsa) inlines the contents of the
+        /// GMSA credential spec named by the GMSACredentialSpecName field.
+        /// This field is alpha-level and is only honored by servers that enable the WindowsGMSA feature flag.
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("gmsaCredentialSpec", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string GmsaCredentialSpec { get; set; }
+    
+        /// <summary>GMSACredentialSpecName is the name of the GMSA credential spec to use.
+        /// This field is alpha-level and is only honored by servers that enable the WindowsGMSA feature flag.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("gmsaCredentialSpecName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string GmsaCredentialSpecName { get; set; }
     
     
     }

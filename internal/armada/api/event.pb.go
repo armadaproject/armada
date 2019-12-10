@@ -1601,6 +1601,7 @@ func _EventMessage_OneofSizer(msg proto.Message) (n int) {
 	return n
 }
 
+// swagger:model
 type EventStreamMessage struct {
 	Id      string        `protobuf:"bytes,1,opt,name=Id,proto3" json:"Id,omitempty"`
 	Message *EventMessage `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
@@ -1653,6 +1654,7 @@ func (m *EventStreamMessage) GetMessage() *EventMessage {
 	return nil
 }
 
+// swagger:model
 type JobSetRequest struct {
 	Id            string `protobuf:"bytes,1,opt,name=Id,proto3" json:"Id,omitempty"`
 	Watch         bool   `protobuf:"varint,2,opt,name=Watch,proto3" json:"Watch,omitempty"`

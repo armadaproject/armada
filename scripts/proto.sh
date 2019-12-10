@@ -17,30 +17,14 @@ protoc -I=./ -I=$GOPATH/src -I=$GOPATH/src/github.com/gogo/protobuf/protobuf \
   ./internal/armada/api/event.proto \
   ./internal/armada/api/submit.proto
 
-# Hack:
-FILTER='
-# walk is not defined in older versions of jq
-def walk(f):
-    . as $in
-    | if type == "object" then
-      reduce keys_unsorted[] as $key
-        ( {}; . + { ($key):  ($in[$key] | walk(f)) } ) | f
-    elif type == "array" then map( walk(f) ) | f
-    else f
-    end;
+# generate proper swagger types (we are using standard json serializer, GRPC gateway generates protobuf json, which is not compatible)
+go run github.com/go-swagger/go-swagger/cmd/swagger generate spec -m -o internal/armada/api/api.swagger.definitions.json
 
-# Make int64 to be represented as number - this is requred for compatibility with kubernetes types
-walk(if type == "object" and .type == "string" and .format == "int64" then .type = "integer" else . end) |
+# combine swagger definitions
+go run ./scripts/merge_swagger.go > internal/armada/api/api.swagger.merged.json
 
-# Generated resourceQuantity type needs to be fixed to be string instead of object
-.definitions.resourceQuantity.type = "string" | del(.definitions.resourceQuantity.properties) |
-
-# Easiest way to make ndjson streaming work in generated clients is to pretend the stream is actually a file
-.paths["/v1/job-set/{Id}"].post.produces = ["application/ndjson-stream"] |
-.["x-stream-definitions"].apiEventStreamMessage.type = "file" '
-
-cat internal/armada/api/api.swagger.json | jq "$FILTER" > internal/armada/api/api.swagger.stream_as_file.json
-mv internal/armada/api/api.swagger.stream_as_file.json internal/armada/api/api.swagger.json
+mv internal/armada/api/api.swagger.merged.json internal/armada/api/api.swagger.json
+rm internal/armada/api/api.swagger.definitions.json
 
 # Embed swagger json into go binary
 go run github.com/wlbr/templify -e -p=api -f=SwaggerJson  internal/armada/api/api.swagger.json

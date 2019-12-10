@@ -104,6 +104,7 @@ func (m *JobSubmitRequestItem) GetPodSpec() *v1.PodSpec {
 	return nil
 }
 
+// swagger:model
 type JobSubmitRequest struct {
 	Queue           string                  `protobuf:"bytes,1,opt,name=Queue,proto3" json:"Queue,omitempty"`
 	JobSetId        string                  `protobuf:"bytes,2,opt,name=JobSetId,proto3" json:"JobSetId,omitempty"`
@@ -164,6 +165,7 @@ func (m *JobSubmitRequest) GetJobRequestItems() []*JobSubmitRequestItem {
 	return nil
 }
 
+// swagger:model
 type JobCancelRequest struct {
 	JobId    string `protobuf:"bytes,1,opt,name=JobId,proto3" json:"JobId,omitempty"`
 	JobSetId string `protobuf:"bytes,2,opt,name=JobSetId,proto3" json:"JobSetId,omitempty"`
@@ -276,6 +278,7 @@ func (m *JobSubmitResponseItem) GetError() string {
 	return ""
 }
 
+// swagger:model
 type JobSubmitResponse struct {
 	JobResponseItems []*JobSubmitResponseItem `protobuf:"bytes,1,rep,name=JobResponseItems,proto3" json:"JobResponseItems,omitempty"`
 }
@@ -320,6 +323,7 @@ func (m *JobSubmitResponse) GetJobResponseItems() []*JobSubmitResponseItem {
 	return nil
 }
 
+// swagger:model
 type Queue struct {
 	Name           string   `protobuf:"bytes,1,opt,name=Name,proto3" json:"Name,omitempty"`
 	PriorityFactor float64  `protobuf:"fixed64,2,opt,name=PriorityFactor,proto3" json:"PriorityFactor,omitempty"`
@@ -388,6 +392,7 @@ func (m *Queue) GetGroupOwners() []string {
 	return nil
 }
 
+// swagger:model
 type CancellationResult struct {
 	CancelledIds []string `protobuf:"bytes,1,rep,name=CancelledIds,proto3" json:"CancelledIds,omitempty"`
 }
