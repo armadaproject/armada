@@ -32,4 +32,5 @@ go run github.com/wlbr/templify -e -p=api -f=SwaggerJson  internal/armada/api/ap
 # Fix all imports ordering
 go run golang.org/x/tools/cmd/goimports -w -local "github.com/G-Research/armada" ./internal/armada/api/
 
-
+# Genereate dotnet client to match the swagger
+dotnet msbuild ./client/DotNet/Armada.Client /t:NSwag
