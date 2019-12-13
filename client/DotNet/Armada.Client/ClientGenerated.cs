@@ -594,6 +594,9 @@ namespace GResearch.Armada.Client
         [Newtonsoft.Json.JsonProperty("Created", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.DateTimeOffset? Created { get; set; }
     
+        [Newtonsoft.Json.JsonProperty("ExitCodes", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.IDictionary<string, int> ExitCodes { get; set; }
+    
         [Newtonsoft.Json.JsonProperty("JobId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string JobId { get; set; }
     

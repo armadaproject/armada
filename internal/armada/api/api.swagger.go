@@ -316,6 +316,13 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"string\",\n" +
 		"          \"format\": \"date-time\"\n" +
 		"        },\n" +
+		"        \"ExitCodes\": {\n" +
+		"          \"type\": \"object\",\n" +
+		"          \"additionalProperties\": {\n" +
+		"            \"type\": \"integer\",\n" +
+		"            \"format\": \"int32\"\n" +
+		"          }\n" +
+		"        },\n" +
 		"        \"JobId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +

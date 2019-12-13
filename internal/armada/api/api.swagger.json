@@ -305,6 +305,13 @@
           "type": "string",
           "format": "date-time"
         },
+        "ExitCodes": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
         "JobId": {
           "type": "string"
         },

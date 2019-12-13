@@ -79,6 +79,7 @@ message JobFailedEvent {
     google.protobuf.Timestamp Created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
     string ClusterId = 5;
     string Reason = 6;
+    map<string, int32> ExitCodes = 7;
 }
 
 message JobSucceededEvent {

@@ -44,6 +44,21 @@ func ExtractPodFailedReason(pod *v1.Pod) string {
 	return failedMessage
 }
 
+func ExtractPodExitCodes(pod *v1.Pod) map[string]int32 {
+	containerStatuses := pod.Status.ContainerStatuses
+	containerStatuses = append(containerStatuses, pod.Status.InitContainerStatuses...)
+
+	exitCodes := map[string]int32{}
+
+	for _, containerStatus := range containerStatuses {
+		if containerStatus.State.Terminated != nil {
+			exitCodes[containerStatus.Name] = containerStatus.State.Terminated.ExitCode
+		}
+	}
+
+	return exitCodes
+}
+
 func IsRetryable(pod *v1.Pod) bool {
 	containerStatuses := pod.Status.ContainerStatuses
 	containerStatuses = append(containerStatuses, pod.Status.InitContainerStatuses...)
