@@ -33,7 +33,7 @@ func CreateEventForCurrentState(pod *v1.Pod, clusterId string) (api.Event, error
 			ClusterId: clusterId,
 		}, nil
 	case v1.PodFailed:
-		return CreateJobFailedEvent(pod, util.ExtractPodFailedReason(pod), clusterId), nil
+		return CreateJobFailedEvent(pod, util.ExtractPodFailedReason(pod), util.ExtractPodExitCodes(pod), clusterId), nil
 	case v1.PodSucceeded:
 		return &api.JobSucceededEvent{
 			JobId:     pod.Labels[domain.JobId],
@@ -69,7 +69,7 @@ func CreateJobLeaseReturnedEvent(pod *v1.Pod, reason string, clusterId string) a
 	}
 }
 
-func CreateJobFailedEvent(pod *v1.Pod, reason string, clusterId string) api.Event {
+func CreateJobFailedEvent(pod *v1.Pod, reason string, exitCodes map[string]int32, clusterId string) api.Event {
 	return &api.JobFailedEvent{
 		JobId:     pod.Labels[domain.JobId],
 		JobSetId:  pod.Annotations[domain.JobSetId],
@@ -77,5 +77,6 @@ func CreateJobFailedEvent(pod *v1.Pod, reason string, clusterId string) api.Even
 		Created:   time.Now(),
 		ClusterId: clusterId,
 		Reason:    reason,
+		ExitCodes: exitCodes,
 	}
 }
