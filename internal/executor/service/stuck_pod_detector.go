@@ -40,7 +40,7 @@ func (podProgressMonitor *StuckPodDetector) onStuckPodDetected(pod *v1.Pod) (res
 	if util.IsRetryable(pod) {
 		event = reporter.CreateJobUnableToScheduleEvent(pod, util.ExtractPodStuckReason(pod), podProgressMonitor.clusterId)
 	} else {
-		event = reporter.CreateJobFailedEvent(pod, util.ExtractPodStuckReason(pod), podProgressMonitor.clusterId)
+		event = reporter.CreateJobFailedEvent(pod, util.ExtractPodStuckReason(pod), map[string]int32{}, podProgressMonitor.clusterId)
 	}
 
 	err := podProgressMonitor.eventReporter.Report(event)
