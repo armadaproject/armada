@@ -63,6 +63,8 @@ func (repo *RedisJobRepository) CreateJobs(request *api.JobSubmitRequest, princi
 			Labels:      item.Labels,
 			Annotations: item.Annotations,
 
+			RequiredNodeLabels: item.RequiredNodeLabels,
+
 			Priority: item.Priority,
 
 			PodSpec: item.PodSpec,

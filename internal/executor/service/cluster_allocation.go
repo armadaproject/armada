@@ -40,13 +40,13 @@ func NewClusterAllocationService(
 }
 
 func (allocationService *ClusterAllocationService) AllocateSpareClusterCapacity() {
-	availableResource, err := allocationService.utilisationService.GetAvailableClusterCapacity()
+	availableResource, availableLabels, err := allocationService.utilisationService.GetAvailableClusterCapacity()
 	if err != nil {
 		log.Errorf("Failed to allocate spare cluster capacity because %s", err)
 		return
 	}
 
-	newJobs, err := allocationService.leaseService.RequestJobLeases(availableResource)
+	newJobs, err := allocationService.leaseService.RequestJobLeases(availableResource, availableLabels)
 
 	cpu := (*availableResource)["cpu"]
 	memory := (*availableResource)["memory"]

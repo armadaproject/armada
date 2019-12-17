@@ -18,7 +18,7 @@ import (
 
 type LeaseService interface {
 	ReturnLease(pod *v1.Pod) error
-	RequestJobLeases(availableResource *common.ComputeResources) ([]*api.Job, error)
+	RequestJobLeases(availableResource *common.ComputeResources, availableLabels []map[string]string) ([]*api.Job, error)
 	ReportDone(pods []*v1.Pod) error
 }
 
@@ -36,10 +36,16 @@ func NewJobLeaseService(
 		queueClient:    queueClient}
 }
 
-func (jobLeaseService *JobLeaseService) RequestJobLeases(availableResource *common.ComputeResources) ([]*api.Job, error) {
+func (jobLeaseService *JobLeaseService) RequestJobLeases(availableResource *common.ComputeResources, availableLabels []map[string]string) ([]*api.Job, error) {
+	labeling := []*api.NodeLabeling{}
+	for _, l := range availableLabels {
+		labeling = append(labeling, &api.NodeLabeling{Labels: l})
+	}
+
 	leaseRequest := api.LeaseRequest{
-		ClusterId: jobLeaseService.clusterContext.GetClusterId(),
-		Resources: *availableResource,
+		ClusterId:       jobLeaseService.clusterContext.GetClusterId(),
+		Resources:       *availableResource,
+		AvailableLabels: labeling,
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()

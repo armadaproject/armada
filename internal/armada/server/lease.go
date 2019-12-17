@@ -98,14 +98,14 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 
 	jobs := []*api.Job{}
 	if !q.schedulingConfig.UseProbabilisticSchedulingForAllResources {
-		jobs, e = q.assignJobs(request.ClusterId, slices)
+		jobs, e = q.assignJobs(request, slices)
 		if e != nil {
 			log.Errorf("Error when leasing jobs for cluster %s: %s", request.ClusterId, e)
 			return nil, e
 		}
 	}
 
-	additionalJobs, e := q.distributeRemainder(scarcity, request.ClusterId, activeQueuePriority, slices)
+	additionalJobs, e := q.distributeRemainder(request, scarcity, activeQueuePriority, slices)
 	if e != nil {
 		log.Errorf("Error when leasing jobs for cluster %s: %s", request.ClusterId, e)
 		return nil, e
@@ -146,11 +146,11 @@ func (q *AggregatedQueueServer) ReportDone(ctx context.Context, idList *api.IdLi
 	return &api.IdList{cleaned}, e
 }
 
-func (q *AggregatedQueueServer) assignJobs(clusterId string, slices map[*api.Queue]common.ComputeResourcesFloat) ([]*api.Job, error) {
+func (q *AggregatedQueueServer) assignJobs(request *api.LeaseRequest, slices map[*api.Queue]common.ComputeResourcesFloat) ([]*api.Job, error) {
 	jobs := make([]*api.Job, 0)
 	// TODO: parallelize
 	for queue, slice := range slices {
-		leased, remainder, e := q.leaseJobs(clusterId, queue, slice, -1)
+		leased, remainder, e := q.leaseJobs(request, queue, slice, -1)
 		if e != nil {
 			log.Error(e)
 			continue
@@ -161,7 +161,7 @@ func (q *AggregatedQueueServer) assignJobs(clusterId string, slices map[*api.Que
 	return jobs, nil
 }
 
-func (q *AggregatedQueueServer) distributeRemainder(resourceScarcity map[string]float64, clusterId string, priorities map[*api.Queue]scheduling.QueuePriorityInfo, slices map[*api.Queue]common.ComputeResourcesFloat) ([]*api.Job, error) {
+func (q *AggregatedQueueServer) distributeRemainder(request *api.LeaseRequest, resourceScarcity map[string]float64, priorities map[*api.Queue]scheduling.QueuePriorityInfo, slices map[*api.Queue]common.ComputeResourcesFloat) ([]*api.Job, error) {
 	jobs := []*api.Job{}
 	remainder := common.ComputeResourcesFloat{}
 	shares := map[*api.Queue]float64{}
@@ -177,7 +177,7 @@ func (q *AggregatedQueueServer) distributeRemainder(resourceScarcity map[string]
 		queue := q.pickQueueRandomly(shares)
 		emptySteps++
 
-		leased, remaining, e := q.leaseJobs(clusterId, queue, remainder, 1)
+		leased, remaining, e := q.leaseJobs(request, queue, remainder, 1)
 		if e != nil {
 			log.Error(e)
 			continue
@@ -215,7 +215,7 @@ func (q *AggregatedQueueServer) pickQueueRandomly(shares map[*api.Queue]float64)
 	return lastQueue
 }
 
-func (q *AggregatedQueueServer) leaseJobs(clusterId string, queue *api.Queue, slice common.ComputeResourcesFloat, limit int) ([]*api.Job, common.ComputeResourcesFloat, error) {
+func (q *AggregatedQueueServer) leaseJobs(request *api.LeaseRequest, queue *api.Queue, slice common.ComputeResourcesFloat, limit int) ([]*api.Job, common.ComputeResourcesFloat, error) {
 	jobs := make([]*api.Job, 0)
 	remainder := slice
 	for slice.IsValid() {
@@ -230,7 +230,7 @@ func (q *AggregatedQueueServer) leaseJobs(clusterId string, queue *api.Queue, sl
 			requirement := common.TotalResourceRequest(job.PodSpec).AsFloat()
 			remainder = slice.DeepCopy()
 			remainder.Sub(requirement)
-			if remainder.IsValid() {
+			if remainder.IsValid() && matchRequirements(job, request) {
 				slice = remainder
 				candidates = append(candidates, job)
 			}
@@ -239,7 +239,7 @@ func (q *AggregatedQueueServer) leaseJobs(clusterId string, queue *api.Queue, sl
 			}
 		}
 
-		leased, e := q.jobRepository.TryLeaseJobs(clusterId, queue.Name, candidates)
+		leased, e := q.jobRepository.TryLeaseJobs(request.ClusterId, queue.Name, candidates)
 		if e != nil {
 			return nil, slice, e
 		}
@@ -256,9 +256,26 @@ func (q *AggregatedQueueServer) leaseJobs(clusterId string, queue *api.Queue, sl
 		}
 	}
 
-	go reportJobsLeased(q.eventRepository, jobs, clusterId)
+	go reportJobsLeased(q.eventRepository, jobs, request.ClusterId)
 
 	return jobs, slice, nil
+}
+
+func matchRequirements(job *api.Job, request *api.LeaseRequest) bool {
+	if len(job.RequiredNodeLabels) == 0 {
+		return true
+	}
+
+Labels:
+	for _, labeling := range request.AvailableLabels {
+		for k, v := range job.RequiredNodeLabels {
+			if labeling.Labels[k] != v {
+				continue Labels
+			}
+		}
+		return true
+	}
+	return false
 }
 
 func filterPriorityMapByKeys(original map[*api.Queue]scheduling.QueuePriorityInfo, keys []*api.Queue) map[*api.Queue]scheduling.QueuePriorityInfo {

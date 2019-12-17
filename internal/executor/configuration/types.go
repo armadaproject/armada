@@ -11,7 +11,8 @@ type ApplicationConfiguration struct {
 }
 
 type KubernetesConfiguration struct {
-	ImpersonateUsers bool
+	ImpersonateUsers  bool
+	TrackedNodeLabels []string
 }
 
 type TaskConfiguration struct {

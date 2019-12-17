@@ -241,6 +241,12 @@
         },
         "Queue": {
           "type": "string"
+        },
+        "RequiredNodeLabels": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
         }
       }
     },
@@ -525,6 +531,12 @@
         "Priority": {
           "type": "number",
           "format": "double"
+        },
+        "RequiredNodeLabels": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
         }
       }
     },
