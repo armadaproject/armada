@@ -31,9 +31,8 @@ type JobRepository interface {
 	TryLeaseJobs(clusterId string, queue string, jobs []*api.Job) ([]*api.Job, error)
 	RenewLease(clusterId string, jobIds []string) (renewed []string, e error)
 	ExpireLeases(queue string, deadline time.Time) (expired []*api.Job, e error)
-	Remove(jobIds []string) (cleanedJobs []string, e error)
 	ReturnLease(clusterId string, jobId string) (returnedJob *api.Job, err error)
-	Cancel(jobs []*api.Job) map[*api.Job]error
+	DeleteJobs(jobs []*api.Job) map[*api.Job]error
 	GetActiveJobIds(queue string, jobSetId string) ([]string, error)
 }
 
@@ -169,88 +168,80 @@ func (repo *RedisJobRepository) ReturnLease(clusterId string, jobId string) (ret
 	return nil, nil
 }
 
-func (repo *RedisJobRepository) Cancel(jobs []*api.Job) map[*api.Job]error {
+type deleteJobRedisResponse struct {
+	job                       *api.Job
+	removeFromLeasedResult    *redis.IntCmd
+	removeFromQueueResult     *redis.IntCmd
+	deleteJobResult           *redis.IntCmd
+	deleteJobQueueIndexResult *redis.IntCmd
+	deleteJobSetIndexResult   *redis.IntCmd
+}
 
+func (repo *RedisJobRepository) DeleteJobs(jobs []*api.Job) map[*api.Job]error {
 	pipe := repo.db.Pipeline()
-	queueCmds := []*redis.IntCmd{}
+	deletionResults := make([]*deleteJobRedisResponse, 0, len(jobs))
 	for _, job := range jobs {
-		queueCmds = append(queueCmds, pipe.ZRem(jobQueuePrefix+job.Queue, job.Id))
+		deletionResult := &deleteJobRedisResponse{job: job}
+		deletionResult.removeFromQueueResult = pipe.ZRem(jobQueuePrefix+job.Queue, job.Id)
+		deletionResult.removeFromLeasedResult = pipe.ZRem(jobLeasedPrefix+job.Queue, job.Id)
+		deletionResult.deleteJobResult = pipe.Del(jobObjectPrefix + job.Id)
+		deletionResult.deleteJobQueueIndexResult = pipe.HDel(jobQueueMapKey, job.Id, job.Queue)
+		deletionResult.deleteJobSetIndexResult = pipe.SRem(jobSetPrefix+job.JobSetId, job.Id)
+		deletionResults = append(deletionResults, deletionResult)
 	}
-	leaseCmds := []*redis.IntCmd{}
-	for _, job := range jobs {
-		leaseCmds = append(leaseCmds, pipe.ZRem(jobLeasedPrefix+job.Queue, job.Id))
-	}
-
 	_, _ = pipe.Exec() // ignoring error here as it will be part of individual commands
 
 	cancelledJobs := map[*api.Job]error{}
-	for i, job := range jobs {
-		result, e := queueCmds[i].Result()
-		if e != nil {
-			cancelledJobs[job] = e
-		}
-		if result > 0 {
-			cancelledJobs[job] = nil
-		}
-	}
-	for i, job := range jobs {
-		result, e := leaseCmds[i].Result()
-		if e != nil {
-			cancelledJobs[job] = e
-		}
-		if result > 0 {
-			cancelledJobs[job] = nil
-		}
-	}
+	for _, deletionResult := range deletionResults {
+		numberOfUpdates, err := processDeletionResponse(deletionResult)
 
-	// TODO clean up job completely??
+		if numberOfUpdates > 0 {
+			cancelledJobs[deletionResult.job] = nil
+		}
+
+		if err != nil {
+			cancelledJobs[deletionResult.job] = err
+		}
+	}
 
 	return cancelledJobs
 }
 
-func (repo *RedisJobRepository) Remove(jobIds []string) (cleanedJobIds []string, e error) {
+func processDeletionResponse(deletionResponse *deleteJobRedisResponse) (int64, error) {
+	var totalUpdates int64 = 0
+	var errorMessage error = nil
 
-	jobs, e := repo.getJobIdentities(jobIds)
+	modified, e := deletionResponse.removeFromLeasedResult.Result()
+	totalUpdates += modified
 	if e != nil {
-		return nil, e
+		errorMessage = e
 	}
 
-	cleanedJobs, e := repo.zRemoveJobIds(jobs, func(j *jobIdentity) string { return jobLeasedPrefix + j.queueName })
+	modified, e = deletionResponse.removeFromQueueResult.Result()
+	totalUpdates += modified
 	if e != nil {
-		return nil, e
+		errorMessage = e
 	}
 
-	cleanedQueueJobs, e := repo.zRemoveJobIds(jobs, func(j *jobIdentity) string { return jobQueuePrefix + j.queueName })
+	modified, e = deletionResponse.deleteJobResult.Result()
+	totalUpdates += modified
 	if e != nil {
-		return nil, e
+		errorMessage = e
 	}
 
-	// TODO removing only leases for now, cleanup everything else
-	return append(cleanedJobs, cleanedQueueJobs...), nil
-}
-
-func (repo *RedisJobRepository) zRemoveJobIds(jobIdentities []jobIdentity, getRedisKey func(*jobIdentity) string) (ids []string, err error) {
-
-	pipe := repo.db.Pipeline()
-	cmds := make(map[string]*redis.IntCmd)
-	for _, job := range jobIdentities {
-		cmds[job.id] = pipe.ZRem(getRedisKey(&job), job.id)
-	}
-
-	_, e := pipe.Exec()
+	modified, e = deletionResponse.deleteJobQueueIndexResult.Result()
+	totalUpdates += modified
 	if e != nil {
-		return nil, e
+		errorMessage = e
 	}
 
-	cleanedIds := []string{}
-
-	for jobId, cmd := range cmds {
-		modified, e := cmd.Result()
-		if e == nil && modified > 0 {
-			cleanedIds = append(cleanedIds, jobId)
-		}
+	modified, e = deletionResponse.deleteJobSetIndexResult.Result()
+	totalUpdates += modified
+	if e != nil {
+		errorMessage = e
 	}
-	return cleanedIds, nil
+
+	return totalUpdates, errorMessage
 }
 
 func (repo *RedisJobRepository) PeekQueue(queue string, limit int64) ([]*api.Job, error) {

@@ -83,7 +83,7 @@ func TestRenewingNonExistentLease(t *testing.T) {
 	})
 }
 
-func TestExpiredJobRemoveShouldRemoveJobFromQueue(t *testing.T) {
+func TestDeletingExpiredJobShouldDeleteJobFromQueue(t *testing.T) {
 	withRepository(func(r *RedisJobRepository) {
 		job := addLeasedJob(t, r, "queue1", "cluster1")
 		deadline := time.Now()
@@ -91,11 +91,13 @@ func TestExpiredJobRemoveShouldRemoveJobFromQueue(t *testing.T) {
 		_, e := r.ExpireLeases("queue1", deadline)
 		assert.Nil(t, e)
 
-		removed, e := r.Remove([]string{job.Id})
-		assert.Nil(t, e)
+		deletionResult := r.DeleteJobs([]*api.Job{job})
 
-		assert.Equal(t, 1, len(removed))
-		assert.Equal(t, job.Id, removed[0])
+		err, deleted := deletionResult[job]
+
+		assert.Equal(t, 1, len(deletionResult))
+		assert.True(t, deleted)
+		assert.Nil(t, err)
 
 		queue, e := r.PeekQueue("queue1", 100)
 		assert.Nil(t, e)
@@ -142,38 +144,58 @@ func TestReturnLeaseForJobInQueueIsNoop(t *testing.T) {
 	})
 }
 
-func TestCancelRunningJob(t *testing.T) {
+func TestDeleteRunningJob(t *testing.T) {
 	withRepository(func(r *RedisJobRepository) {
 		job := addLeasedJob(t, r, "queue1", "cluster1")
 
-		result := r.Cancel([]*api.Job{job})
-		assert.Nil(t, result[job])
+		result := r.DeleteJobs([]*api.Job{job})
+		err, deletionOccurred := result[job]
+		assert.Nil(t, err)
+		assert.True(t, deletionOccurred)
+
+		_, err = r.GetJobsByIds([]string{job.Id})
+		// Redis returns this error when key does not exist
+		assert.Equal(t, err, redis.Nil)
 	})
 }
 
-func TestCancelQueuedJob(t *testing.T) {
+func TestDeleteQueuedJob(t *testing.T) {
 	withRepository(func(r *RedisJobRepository) {
 		job := addTestJob(t, r, "queue1")
 
-		result := r.Cancel([]*api.Job{job})
-		assert.Nil(t, result[job])
+		result := r.DeleteJobs([]*api.Job{job})
+		err, deletionOccurred := result[job]
+		assert.Nil(t, err)
+		assert.True(t, deletionOccurred)
+
+		_, err = r.GetJobsByIds([]string{job.Id})
+		// Redis returns this error when key does not exist
+		assert.Equal(t, err, redis.Nil)
 	})
 }
 
-func TestCancelMissingJob(t *testing.T) {
+func TestDeleteWithSomeMissingJobs(t *testing.T) {
 	withRepository(func(r *RedisJobRepository) {
-		job := &api.Job{Id: "jobId"}
-		result := r.Cancel([]*api.Job{job})
-		assert.Nil(t, result[job])
+		missingJob := &api.Job{Id: "jobId"}
+		runningJob := addLeasedJob(t, r, "queue1", "cluster1")
+		result := r.DeleteJobs([]*api.Job{missingJob, runningJob})
+
+		err, deletionOccurred := result[missingJob]
+		assert.Nil(t, err)
+		assert.False(t, deletionOccurred)
+
+		err, deletionOccurred = result[runningJob]
+		assert.Nil(t, err)
+		assert.True(t, deletionOccurred)
 	})
 }
 
-func TestReturnLeaseForCancelledJobShouldKeepJobCancelled(t *testing.T) {
+func TestReturnLeaseForDeletedJobShouldKeepJobDeleted(t *testing.T) {
 	withRepository(func(r *RedisJobRepository) {
 
 		job := addLeasedJob(t, r, "cancel-test-queue", "cluster")
 
-		result := r.Cancel([]*api.Job{job})
+		result := r.DeleteJobs([]*api.Job{job})
 		assert.Nil(t, result[job])
 
 		returned, err := r.ReturnLease("cluster", job.Id)

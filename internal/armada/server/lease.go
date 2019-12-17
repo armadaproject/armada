@@ -8,6 +8,8 @@ import (
 
 	"github.com/gogo/protobuf/types"
 	log "github.com/sirupsen/logrus"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/G-Research/armada/internal/armada/api"
 	"github.com/G-Research/armada/internal/armada/authorization"
@@ -142,8 +144,19 @@ func (q *AggregatedQueueServer) ReportDone(ctx context.Context, idList *api.IdLi
 	if e := checkPermission(q.permissions, ctx, permissions.ExecuteJobs); e != nil {
 		return nil, e
 	}
-	cleaned, e := q.jobRepository.Remove(idList.Ids)
-	return &api.IdList{cleaned}, e
+	jobs, e := q.jobRepository.GetJobsByIds(idList.Ids)
+	if e != nil {
+		return nil, status.Errorf(codes.Internal, e.Error())
+	}
+	deletionResult := q.jobRepository.DeleteJobs(jobs)
+
+	cleanedIds := make([]string, 0, len(deletionResult))
+	for job, err := range deletionResult {
+		if err == nil {
+			cleanedIds = append(cleanedIds, job.Id)
+		}
+	}
+	return &api.IdList{cleanedIds}, e
 }
 
 func (q *AggregatedQueueServer) assignJobs(request *api.LeaseRequest, slices map[*api.Queue]common.ComputeResourcesFloat) ([]*api.Job, error) {

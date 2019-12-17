@@ -127,12 +127,12 @@ func (server *SubmitServer) cancelJobs(ctx context.Context, queue string, jobs [
 		return nil, status.Errorf(codes.Unknown, e.Error())
 	}
 
-	cancellationResult := server.jobRepository.Cancel(jobs)
+	deletionResult := server.jobRepository.DeleteJobs(jobs)
 	cancelled := []*api.Job{}
 	cancelledIds := []string{}
-	for job, error := range cancellationResult {
-		if error != nil {
-			log.Errorf("Error when cancelling job id %s: %s", job.Id, error.Error())
+	for job, err := range deletionResult {
+		if err != nil {
+			log.Errorf("Error when cancelling job id %s: %s", job.Id, err.Error())
 		} else {
 			cancelled = append(cancelled, job)
 			cancelledIds = append(cancelledIds, job.Id)
