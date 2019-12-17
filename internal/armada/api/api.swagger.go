@@ -252,6 +252,12 @@ func SwaggerJsonTemplate() string {
 		"        },\n" +
 		"        \"Queue\": {\n" +
 		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"RequiredNodeLabels\": {\n" +
+		"          \"type\": \"object\",\n" +
+		"          \"additionalProperties\": {\n" +
+		"            \"type\": \"string\"\n" +
+		"          }\n" +
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
@@ -536,6 +542,12 @@ func SwaggerJsonTemplate() string {
 		"        \"Priority\": {\n" +
 		"          \"type\": \"number\",\n" +
 		"          \"format\": \"double\"\n" +
+		"        },\n" +
+		"        \"RequiredNodeLabels\": {\n" +
+		"          \"type\": \"object\",\n" +
+		"          \"additionalProperties\": {\n" +
+		"            \"type\": \"string\"\n" +
+		"          }\n" +
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +

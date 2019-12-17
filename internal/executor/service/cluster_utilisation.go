@@ -15,21 +15,24 @@ import (
 )
 
 type UtilisationService interface {
-	GetAvailableClusterCapacity() (*common.ComputeResources, error)
+	GetAvailableClusterCapacity() (*common.ComputeResources, []map[string]string, error)
 }
 
 type ClusterUtilisationService struct {
-	clusterContext context.ClusterContext
-	usageClient    api.UsageClient
+	clusterContext    context.ClusterContext
+	usageClient       api.UsageClient
+	trackedNodeLabels []string
 }
 
 func NewClusterUtilisationService(
 	clusterContext context.ClusterContext,
-	usageClient api.UsageClient) *ClusterUtilisationService {
+	usageClient api.UsageClient,
+	trackedNodeLabels []string) *ClusterUtilisationService {
 
 	return &ClusterUtilisationService{
-		clusterContext: clusterContext,
-		usageClient:    usageClient}
+		clusterContext:    clusterContext,
+		usageClient:       usageClient,
+		trackedNodeLabels: trackedNodeLabels}
 }
 
 func (clusterUtilisationService *ClusterUtilisationService) ReportClusterUtilisation() {
@@ -63,15 +66,15 @@ func (clusterUtilisationService *ClusterUtilisationService) ReportClusterUtilisa
 	}
 }
 
-func (clusterUtilisationService *ClusterUtilisationService) GetAvailableClusterCapacity() (*common.ComputeResources, error) {
+func (clusterUtilisationService *ClusterUtilisationService) GetAvailableClusterCapacity() (*common.ComputeResources, []map[string]string, error) {
 	processingNodes, err := clusterUtilisationService.getAllAvailableProcessingNodes()
 	if err != nil {
-		return new(common.ComputeResources), fmt.Errorf("Failed getting available cluster capacity due to: %s", err)
+		return new(common.ComputeResources), nil, fmt.Errorf("Failed getting available cluster capacity due to: %s", err)
 	}
 
 	allPods, err := clusterUtilisationService.clusterContext.GetAllPods()
 	if err != nil {
-		return new(common.ComputeResources), fmt.Errorf("Failed getting available cluster capacity due to: %s", err)
+		return new(common.ComputeResources), nil, fmt.Errorf("Failed getting available cluster capacity due to: %s", err)
 	}
 
 	allPodsRequiringResource := getAllPodsRequiringResourceOnProcessingNodes(allPods, processingNodes)
@@ -83,7 +86,9 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAvailableClusterC
 	availableResource := totalNodeResource.DeepCopy()
 	availableResource.Sub(totalPodResource)
 
-	return &availableResource, nil
+	availableLabels := getDistinctNodesLabels(clusterUtilisationService.trackedNodeLabels, processingNodes)
+
+	return &availableResource, availableLabels, nil
 }
 
 func (clusterUtilisationService *ClusterUtilisationService) getAllAvailableProcessingNodes() ([]*v1.Node, error) {
@@ -199,4 +204,25 @@ func getUsageByQueue(pods []*v1.Pod) map[string]common.ComputeResources {
 	}
 
 	return utilisationByQueue
+}
+
+func getDistinctNodesLabels(labels []string, nodes []*v1.Node) []map[string]string {
+	result := []map[string]string{}
+	existing := map[string]bool{}
+	for _, n := range nodes {
+		selectedLabels := map[string]string{}
+		id := ""
+		for _, key := range labels {
+			value, ok := n.Labels[key]
+			if ok {
+				selectedLabels[key] = value
+			}
+			id += "|" + value
+		}
+		if !existing[id] {
+			result = append(result, selectedLabels)
+			existing[id] = true
+		}
+	}
+	return result
 }

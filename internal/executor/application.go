@@ -56,7 +56,8 @@ func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGrou
 
 	clusterUtilisationService := service.NewClusterUtilisationService(
 		clusterContext,
-		usageClient)
+		usageClient,
+		config.Kubernetes.TrackedNodeLabels)
 
 	stuckPodDetector := service.NewPodProgressMonitorService(
 		clusterContext,
