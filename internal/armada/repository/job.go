@@ -19,7 +19,6 @@ const jobQueuePrefix = "Job:Queue:"
 const jobSetPrefix = "Job:Set:"
 const jobLeasedPrefix = "Job:Leased:"
 const jobClusterMapKey = "Job:ClusterId"
-const jobQueueMapKey = "Job:QueueName"
 
 type JobRepository interface {
 	CreateJobs(request *api.JobSubmitRequest, principal authorization.Principal) []*api.Job
@@ -80,7 +79,6 @@ type submitJobRedisResponse struct {
 	job               *api.Job
 	queueJobResult    *redis.IntCmd
 	saveJobResult     *redis.StatusCmd
-	queueIndexResult  *redis.BoolCmd
 	jobSetIndexResult *redis.IntCmd
 }
 
@@ -109,7 +107,6 @@ func (repo *RedisJobRepository) AddJobs(jobs []*api.Job) ([]*SubmitJobResult, er
 			)
 
 		submitResult.saveJobResult = pipe.Set(jobObjectPrefix+job.Id, jobData, 0)
-		submitResult.queueIndexResult = pipe.HSet(jobQueueMapKey, job.Id, job.Queue)
 		submitResult.jobSetIndexResult = pipe.SAdd(jobSetPrefix+job.JobSetId, job.Id)
 		submitResults = append(submitResults, submitResult)
 	}
@@ -127,9 +124,6 @@ func (repo *RedisJobRepository) AddJobs(jobs []*api.Job) ([]*SubmitJobResult, er
 			response.Error = e
 		}
 
-		if _, e := submitResult.queueIndexResult.Result(); e != nil {
-			response.Error = e
-		}
 		if _, e := submitResult.jobSetIndexResult.Result(); e != nil {
 			response.Error = e
 		}
@@ -169,13 +163,12 @@ func (repo *RedisJobRepository) ReturnLease(clusterId string, jobId string) (ret
 }
 
 type deleteJobRedisResponse struct {
-	job                       *api.Job
-	expiryAlreadySet          bool
-	removeFromLeasedResult    *redis.IntCmd
-	removeFromQueueResult     *redis.IntCmd
-	setJobExpiryResult        *redis.BoolCmd
-	deleteJobQueueIndexResult *redis.IntCmd
-	deleteJobSetIndexResult   *redis.IntCmd
+	job                     *api.Job
+	expiryAlreadySet        bool
+	removeFromLeasedResult  *redis.IntCmd
+	removeFromQueueResult   *redis.IntCmd
+	setJobExpiryResult      *redis.BoolCmd
+	deleteJobSetIndexResult *redis.IntCmd
 }
 
 func (repo *RedisJobRepository) DeleteJobs(jobs []*api.Job) map[*api.Job]error {
@@ -186,7 +179,6 @@ func (repo *RedisJobRepository) DeleteJobs(jobs []*api.Job) map[*api.Job]error {
 		deletionResult := &deleteJobRedisResponse{job: job, expiryAlreadySet: expiryStatus[job]}
 		deletionResult.removeFromQueueResult = pipe.ZRem(jobQueuePrefix+job.Queue, job.Id)
 		deletionResult.removeFromLeasedResult = pipe.ZRem(jobLeasedPrefix+job.Queue, job.Id)
-		deletionResult.deleteJobQueueIndexResult = pipe.HDel(jobQueueMapKey, job.Id, job.Queue)
 		deletionResult.deleteJobSetIndexResult = pipe.SRem(jobSetPrefix+job.JobSetId, job.Id)
 
 		if !deletionResult.expiryAlreadySet {
@@ -247,12 +239,6 @@ func processDeletionResponse(deletionResponse *deleteJobRedisResponse) (int64, e
 	}
 
 	modified, e = deletionResponse.removeFromQueueResult.Result()
-	totalUpdates += modified
-	if e != nil {
-		errorMessage = e
-	}
-
-	modified, e = deletionResponse.deleteJobQueueIndexResult.Result()
 	totalUpdates += modified
 	if e != nil {
 		errorMessage = e
