@@ -72,7 +72,7 @@ func TestSubmitServer_SubmitJob_ReturnsJobItemsInTheSameOrderTheyWereSubmitted(t
 		}
 
 		//Get jobs for jobIds returned
-		jobs, _ := s.jobRepository.GetJobsByIds(jobIds)
+		jobs, _ := s.jobRepository.GetExistingJobsByIds(jobIds)
 		jobSet := make(map[string]*api.Job, 5)
 		for _, job := range jobs {
 			jobSet[job.Id] = job

@@ -23,7 +23,7 @@ const jobClusterMapKey = "Job:ClusterId"
 type JobRepository interface {
 	CreateJobs(request *api.JobSubmitRequest, principal authorization.Principal) []*api.Job
 	AddJobs(job []*api.Job) ([]*SubmitJobResult, error)
-	GetJobsByIds(ids []string) ([]*api.Job, error)
+	GetExistingJobsByIds(ids []string) ([]*api.Job, error)
 	PeekQueue(queue string, limit int64) ([]*api.Job, error)
 	FilterActiveQueues(queues []*api.Queue) ([]*api.Queue, error)
 	GetQueueSizes(queues []*api.Queue) (sizes []int64, e error)
@@ -135,7 +135,7 @@ func (repo *RedisJobRepository) AddJobs(jobs []*api.Job) ([]*SubmitJobResult, er
 }
 
 func (repo *RedisJobRepository) RenewLease(clusterId string, jobIds []string) (renewedJobIds []string, e error) {
-	jobs, e := repo.GetJobsByIds(jobIds)
+	jobs, e := repo.GetExistingJobsByIds(jobIds)
 	if e != nil {
 		return nil, e
 	}
@@ -143,7 +143,7 @@ func (repo *RedisJobRepository) RenewLease(clusterId string, jobIds []string) (r
 }
 
 func (repo *RedisJobRepository) ReturnLease(clusterId string, jobId string) (returnedJob *api.Job, err error) {
-	jobs, e := repo.GetJobsByIds([]string{jobId})
+	jobs, e := repo.GetExistingJobsByIds([]string{jobId})
 	if e != nil {
 		return nil, e
 	}
@@ -268,7 +268,7 @@ func (repo *RedisJobRepository) PeekQueue(queue string, limit int64) ([]*api.Job
 	if e != nil {
 		return nil, e
 	}
-	return repo.GetJobsByIds(ids)
+	return repo.GetExistingJobsByIds(ids)
 }
 
 // returns list of jobs which are successfully leased
@@ -290,19 +290,26 @@ func (repo *RedisJobRepository) TryLeaseJobs(clusterId string, queue string, job
 	return leasedJobs, nil
 }
 
-func (repo *RedisJobRepository) GetJobsByIds(ids []string) ([]*api.Job, error) {
+// Returns existing jobs by Id
+// If an Id is supplied that no longer exists, that job will simply be omitted from the result and no error returned
+func (repo *RedisJobRepository) GetExistingJobsByIds(ids []string) ([]*api.Job, error) {
 	pipe := repo.db.Pipeline()
 	var cmds []*redis.StringCmd
 	for _, id := range ids {
 		cmds = append(cmds, pipe.Get(jobObjectPrefix+id))
 	}
 	_, e := pipe.Exec()
-	if e != nil {
-		return nil, e
-	}
 
 	var jobs []*api.Job
-	for _, cmd := range cmds {
+	for index, cmd := range cmds {
+		_, err := cmd.Result()
+		if err != nil {
+			if err != redis.Nil {
+				log.Warnf("No job found with with job id %s", ids[index])
+			} else {
+				return nil, err
+			}
+		}
 		d, _ := cmd.Bytes()
 		job := &api.Job{}
 		e = proto.Unmarshal(d, job)
@@ -386,7 +393,7 @@ func (repo *RedisJobRepository) ExpireLeases(queue string, deadline time.Time) (
 	if e != nil {
 		return nil, e
 	}
-	expiringJobs, e := repo.GetJobsByIds(ids)
+	expiringJobs, e := repo.GetExistingJobsByIds(ids)
 	if e != nil {
 		return nil, e
 	}

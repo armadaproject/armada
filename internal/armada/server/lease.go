@@ -144,7 +144,7 @@ func (q *AggregatedQueueServer) ReportDone(ctx context.Context, idList *api.IdLi
 	if e := checkPermission(q.permissions, ctx, permissions.ExecuteJobs); e != nil {
 		return nil, e
 	}
-	jobs, e := q.jobRepository.GetJobsByIds(idList.Ids)
+	jobs, e := q.jobRepository.GetExistingJobsByIds(idList.Ids)
 	if e != nil {
 		return nil, status.Errorf(codes.Internal, e.Error())
 	}

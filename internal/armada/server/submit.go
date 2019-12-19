@@ -96,7 +96,7 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 
 func (server *SubmitServer) CancelJobs(ctx context.Context, request *api.JobCancelRequest) (*api.CancellationResult, error) {
 	if request.JobId != "" {
-		jobs, e := server.jobRepository.GetJobsByIds([]string{request.JobId})
+		jobs, e := server.jobRepository.GetExistingJobsByIds([]string{request.JobId})
 		if e != nil {
 			return nil, status.Errorf(codes.Internal, e.Error())
 		}
@@ -108,7 +108,7 @@ func (server *SubmitServer) CancelJobs(ctx context.Context, request *api.JobCanc
 		if e != nil {
 			return nil, status.Errorf(codes.Aborted, e.Error())
 		}
-		jobs, e := server.jobRepository.GetJobsByIds(ids)
+		jobs, e := server.jobRepository.GetExistingJobsByIds(ids)
 		if e != nil {
 			return nil, status.Errorf(codes.Internal, e.Error())
 		}
