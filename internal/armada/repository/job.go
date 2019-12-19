@@ -291,23 +291,24 @@ func (repo *RedisJobRepository) TryLeaseJobs(clusterId string, queue string, job
 }
 
 // Returns existing jobs by Id
-// If an Id is supplied that no longer exists, that job will simply be omitted from the result and no error returned
+// If an Id is supplied that no longer exists, that job will simply be omitted from the result.
+// No error will be thrown for missing jobs
 func (repo *RedisJobRepository) GetExistingJobsByIds(ids []string) ([]*api.Job, error) {
 	pipe := repo.db.Pipeline()
 	var cmds []*redis.StringCmd
 	for _, id := range ids {
 		cmds = append(cmds, pipe.Get(jobObjectPrefix+id))
 	}
-	_, e := pipe.Exec()
+	_, _ = pipe.Exec() // ignoring error here as it will be part of individual commands
 
 	var jobs []*api.Job
 	for index, cmd := range cmds {
-		_, err := cmd.Result()
-		if err != nil {
-			if err == redis.Nil {
+		_, e := cmd.Result()
+		if e != nil {
+			if e == redis.Nil {
 				log.Warnf("No job found with with job id %s", ids[index])
 			} else {
-				return nil, err
+				return nil, e
 			}
 		}
 		d, _ := cmd.Bytes()
