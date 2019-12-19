@@ -141,7 +141,7 @@ func (repo *RedisJobRepository) AddJobs(jobs []*api.Job) ([]*SubmitJobResult, er
 }
 
 func (repo *RedisJobRepository) RenewLease(clusterId string, jobIds []string) (renewedJobIds []string, e error) {
-	jobs, e := repo.getJobIdentities(jobIds)
+	jobs, e := repo.GetJobsByIds(jobIds)
 	if e != nil {
 		return nil, e
 	}
@@ -287,14 +287,12 @@ func (repo *RedisJobRepository) PeekQueue(queue string, limit int64) ([]*api.Job
 
 // returns list of jobs which are successfully leased
 func (repo *RedisJobRepository) TryLeaseJobs(clusterId string, queue string, jobs []*api.Job) ([]*api.Job, error) {
-	jobIds := []jobIdentity{}
 	jobById := map[string]*api.Job{}
 	for _, job := range jobs {
-		jobIds = append(jobIds, jobIdentity{job.Id, queue})
 		jobById[job.Id] = job
 	}
 
-	leasedIds, e := repo.leaseJobs(clusterId, jobIds)
+	leasedIds, e := repo.leaseJobs(clusterId, jobs)
 	if e != nil {
 		return nil, e
 	}
@@ -436,29 +434,7 @@ func (repo *RedisJobRepository) ExpireLeases(queue string, deadline time.Time) (
 	return expired, nil
 }
 
-type jobIdentity struct {
-	id        string
-	queueName string
-}
-
-func (repo *RedisJobRepository) getJobIdentities(jobIds []string) ([]jobIdentity, error) {
-	queues, e := repo.db.HMGet(jobQueueMapKey, jobIds...).Result()
-	if e != nil {
-		return nil, e
-	}
-
-	jobIdentities := []jobIdentity{}
-	for i, queue := range queues {
-		if queue != nil {
-			jobIdentities = append(jobIdentities, jobIdentity{jobIds[i], queue.(string)})
-		} else {
-			log.Errorf("Missing queue for job %s", jobIds[i])
-		}
-	}
-	return jobIdentities, nil
-}
-
-func (repo *RedisJobRepository) leaseJobs(clusterId string, jobs []jobIdentity) ([]string, error) {
+func (repo *RedisJobRepository) leaseJobs(clusterId string, jobs []*api.Job) ([]string, error) {
 
 	now := time.Now()
 	pipe := repo.db.Pipeline()
@@ -467,7 +443,7 @@ func (repo *RedisJobRepository) leaseJobs(clusterId string, jobs []jobIdentity) 
 
 	cmds := make(map[string]*redis.Cmd)
 	for _, job := range jobs {
-		cmds[job.id] = leaseJob(pipe, job.queueName, clusterId, job.id, now)
+		cmds[job.Id] = leaseJob(pipe, job.Queue, clusterId, job.Id, now)
 	}
 	_, e := pipe.Exec()
 	if e != nil {
