@@ -152,10 +152,6 @@ func TestDeleteRunningJob(t *testing.T) {
 		err, deletionOccurred := result[job]
 		assert.Nil(t, err)
 		assert.True(t, deletionOccurred)
-
-		_, err = r.GetJobsByIds([]string{job.Id})
-		// Redis returns this error when key does not exist
-		assert.Equal(t, err, redis.Nil)
 	})
 }
 
@@ -167,10 +163,6 @@ func TestDeleteQueuedJob(t *testing.T) {
 		err, deletionOccurred := result[job]
 		assert.Nil(t, err)
 		assert.True(t, deletionOccurred)
-
-		_, err = r.GetJobsByIds([]string{job.Id})
-		// Redis returns this error when key does not exist
-		assert.Equal(t, err, redis.Nil)
 	})
 }
 

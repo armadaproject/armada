@@ -172,7 +172,7 @@ type deleteJobRedisResponse struct {
 	job                       *api.Job
 	removeFromLeasedResult    *redis.IntCmd
 	removeFromQueueResult     *redis.IntCmd
-	deleteJobResult           *redis.IntCmd
+	setJobExpiryResult        *redis.BoolCmd
 	deleteJobQueueIndexResult *redis.IntCmd
 	deleteJobSetIndexResult   *redis.IntCmd
 }
@@ -184,7 +184,7 @@ func (repo *RedisJobRepository) DeleteJobs(jobs []*api.Job) map[*api.Job]error {
 		deletionResult := &deleteJobRedisResponse{job: job}
 		deletionResult.removeFromQueueResult = pipe.ZRem(jobQueuePrefix+job.Queue, job.Id)
 		deletionResult.removeFromLeasedResult = pipe.ZRem(jobLeasedPrefix+job.Queue, job.Id)
-		deletionResult.deleteJobResult = pipe.Del(jobObjectPrefix + job.Id)
+		deletionResult.setJobExpiryResult = pipe.Expire(jobObjectPrefix+job.Id, time.Hour*24*7)
 		deletionResult.deleteJobQueueIndexResult = pipe.HDel(jobQueueMapKey, job.Id, job.Queue)
 		deletionResult.deleteJobSetIndexResult = pipe.SRem(jobSetPrefix+job.JobSetId, job.Id)
 		deletionResults = append(deletionResults, deletionResult)
@@ -223,12 +223,6 @@ func processDeletionResponse(deletionResponse *deleteJobRedisResponse) (int64, e
 		errorMessage = e
 	}
 
-	modified, e = deletionResponse.deleteJobResult.Result()
-	totalUpdates += modified
-	if e != nil {
-		errorMessage = e
-	}
-
 	modified, e = deletionResponse.deleteJobQueueIndexResult.Result()
 	totalUpdates += modified
 	if e != nil {
@@ -237,6 +231,11 @@ func processDeletionResponse(deletionResponse *deleteJobRedisResponse) (int64, e
 
 	modified, e = deletionResponse.deleteJobSetIndexResult.Result()
 	totalUpdates += modified
+	if e != nil {
+		errorMessage = e
+	}
+
+	_, e = deletionResponse.setJobExpiryResult.Result()
 	if e != nil {
 		errorMessage = e
 	}
