@@ -304,7 +304,7 @@ func (repo *RedisJobRepository) GetExistingJobsByIds(ids []string) ([]*api.Job, 
 	for index, cmd := range cmds {
 		_, err := cmd.Result()
 		if err != nil {
-			if err != redis.Nil {
+			if err == redis.Nil {
 				log.Warnf("No job found with with job id %s", ids[index])
 			} else {
 				return nil, err
