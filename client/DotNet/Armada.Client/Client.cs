@@ -12,6 +12,14 @@ namespace GResearch.Armada.Client
         string Queue { get;  }
         System.DateTimeOffset? Created { get; }
     }
+    
+    public interface IArmadaClient
+    {
+        Task<ApiCancellationResult> CancelJobsAsync(ApiJobCancelRequest body);
+        Task<ApiJobSubmitResponse> SubmitJobsAsync(ApiJobSubmitRequest body);
+        Task<object> CreateQueueAsync(string name, ApiQueue body);
+        Task<IEnumerable<StreamResponse<ApiEventStreamMessage>>> GetJobEventsStream(string jobSetId, string fromMessage = null, bool watch = false);
+    }
 
     public partial class ApiEventMessage
     {
@@ -41,7 +49,7 @@ namespace GResearch.Armada.Client
         public string Error { get; set; }
     }
 
-    public partial class ArmadaClient
+    public partial class ArmadaClient : IArmadaClient
     {
         public async Task<IEnumerable<StreamResponse<ApiEventStreamMessage>>> GetJobEventsStream(string jobSetId,
             string fromMessage = null, bool watch = false)
