@@ -15,7 +15,7 @@ namespace GResearch.Armada.Client.Test
         {
             var jobSet = $"set-{Guid.NewGuid()}";
 
-            var client = new ArmadaClient("http://localhost:8080", new HttpClient());
+            IArmadaClient client = new ArmadaClient("http://localhost:8080", new HttpClient());
             await client.CreateQueueAsync("test", new ApiQueue {PriorityFactor = 200});
 
             var pod = new V1PodSpec
