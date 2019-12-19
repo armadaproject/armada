@@ -235,7 +235,10 @@ func processDeletionResponse(deletionResponse *deleteJobRedisResponse) (int64, e
 		errorMessage = e
 	}
 
-	_, e = deletionResponse.setJobExpiryResult.Result()
+	expirySet, e := deletionResponse.setJobExpiryResult.Result()
+	if expirySet {
+		totalUpdates++
+	}
 	if e != nil {
 		errorMessage = e
 	}
