@@ -151,12 +151,15 @@ func (q *AggregatedQueueServer) ReportDone(ctx context.Context, idList *api.IdLi
 	deletionResult := q.jobRepository.DeleteJobs(jobs)
 
 	cleanedIds := make([]string, 0, len(deletionResult))
+	var returnedError error = nil
 	for job, err := range deletionResult {
-		if err == nil {
+		if err != nil {
+			returnedError = err
+		} else {
 			cleanedIds = append(cleanedIds, job.Id)
 		}
 	}
-	return &api.IdList{cleanedIds}, e
+	return &api.IdList{cleanedIds}, returnedError
 }
 
 func (q *AggregatedQueueServer) assignJobs(request *api.LeaseRequest, slices map[*api.Queue]common.ComputeResourcesFloat) ([]*api.Job, error) {
