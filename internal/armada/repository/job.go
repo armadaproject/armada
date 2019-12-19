@@ -170,6 +170,7 @@ func (repo *RedisJobRepository) ReturnLease(clusterId string, jobId string) (ret
 
 type deleteJobRedisResponse struct {
 	job                       *api.Job
+	expiryAlreadySet          bool
 	removeFromLeasedResult    *redis.IntCmd
 	removeFromQueueResult     *redis.IntCmd
 	setJobExpiryResult        *redis.BoolCmd
@@ -178,15 +179,19 @@ type deleteJobRedisResponse struct {
 }
 
 func (repo *RedisJobRepository) DeleteJobs(jobs []*api.Job) map[*api.Job]error {
+	expiryStatus := repo.getExpiryStatus(jobs)
 	pipe := repo.db.Pipeline()
 	deletionResults := make([]*deleteJobRedisResponse, 0, len(jobs))
 	for _, job := range jobs {
-		deletionResult := &deleteJobRedisResponse{job: job}
+		deletionResult := &deleteJobRedisResponse{job: job, expiryAlreadySet: expiryStatus[job]}
 		deletionResult.removeFromQueueResult = pipe.ZRem(jobQueuePrefix+job.Queue, job.Id)
 		deletionResult.removeFromLeasedResult = pipe.ZRem(jobLeasedPrefix+job.Queue, job.Id)
-		deletionResult.setJobExpiryResult = pipe.Expire(jobObjectPrefix+job.Id, time.Hour*24*7)
 		deletionResult.deleteJobQueueIndexResult = pipe.HDel(jobQueueMapKey, job.Id, job.Queue)
 		deletionResult.deleteJobSetIndexResult = pipe.SRem(jobSetPrefix+job.JobSetId, job.Id)
+
+		if !deletionResult.expiryAlreadySet {
+			deletionResult.setJobExpiryResult = pipe.Expire(jobObjectPrefix+job.Id, time.Hour*24*7)
+		}
 		deletionResults = append(deletionResults, deletionResult)
 	}
 	_, _ = pipe.Exec() // ignoring error here as it will be part of individual commands
@@ -205,6 +210,30 @@ func (repo *RedisJobRepository) DeleteJobs(jobs []*api.Job) map[*api.Job]error {
 	}
 
 	return cancelledJobs
+}
+
+// Returns details on if the expiry for each job is already set or not
+func (repo *RedisJobRepository) getExpiryStatus(jobs []*api.Job) map[*api.Job]bool {
+	pipe := repo.db.Pipeline()
+
+	var cmds []*redis.DurationCmd
+	for _, job := range jobs {
+		cmds = append(cmds, pipe.TTL(jobObjectPrefix+job.Id))
+	}
+	_, _ = pipe.Exec() // ignoring error here as it will be part of individual commands
+
+	expiryStatus := make(map[*api.Job]bool, len(jobs))
+	for index, response := range cmds {
+		expiry, err := response.Result()
+		job := jobs[index]
+
+		expiryStatus[job] = false
+		if err == nil && expiry > 0 {
+			expiryStatus[job] = true
+		}
+	}
+
+	return expiryStatus
 }
 
 func processDeletionResponse(deletionResponse *deleteJobRedisResponse) (int64, error) {
@@ -235,12 +264,14 @@ func processDeletionResponse(deletionResponse *deleteJobRedisResponse) (int64, e
 		errorMessage = e
 	}
 
-	expirySet, e := deletionResponse.setJobExpiryResult.Result()
-	if expirySet {
-		totalUpdates++
-	}
-	if e != nil {
-		errorMessage = e
+	if !deletionResponse.expiryAlreadySet {
+		expirySet, e := deletionResponse.setJobExpiryResult.Result()
+		if expirySet {
+			totalUpdates++
+		}
+		if e != nil {
+			errorMessage = e
+		}
 	}
 
 	return totalUpdates, errorMessage
