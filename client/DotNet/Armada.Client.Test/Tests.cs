@@ -2,6 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Net.Http;
 using System.Linq;
+using System.Net.Http.Headers;
+using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using NUnit.Framework;
 using GResearch.Armada.Client;
@@ -11,6 +14,27 @@ namespace GResearch.Armada.Client.Test
     public class Tests
     {
         [Test]
+        public async Task TestWatchingEvents()
+        {
+            var client = new ArmadaClient("http://localhost:8080", new HttpClient());
+            
+            var jobSet = $"set-{Guid.NewGuid()}";
+            
+            // produce some events
+            await client.CreateQueueAsync("test", new ApiQueue {PriorityFactor = 200});
+            var request = CreateJobRequest(jobSet);
+            var response = await client.SubmitJobsAsync(request);
+            var cancelResponse = await client.CancelJobsAsync(new ApiJobCancelRequest {Queue = "test", JobSetId = jobSet});
+            
+            using (var cts = new CancellationTokenSource())
+            {
+                Task.Run(() => client.WatchEvents(jobSet, null,  cts.Token, m => Console.WriteLine(m.Result.Id), e => throw e));
+                await Task.Delay(TimeSpan.FromMinutes(2));
+                cts.Cancel();
+            }
+        }
+        
+        [Test]
         public async Task TestSimpleJobSubmitFlow()
         {
             var jobSet = $"set-{Guid.NewGuid()}";
@@ -18,6 +42,20 @@ namespace GResearch.Armada.Client.Test
             IArmadaClient client = new ArmadaClient("http://localhost:8080", new HttpClient());
             await client.CreateQueueAsync("test", new ApiQueue {PriorityFactor = 200});
 
+            var request = CreateJobRequest(jobSet);
+
+            var response = await client.SubmitJobsAsync(request);
+            var cancelResponse =
+                await client.CancelJobsAsync(new ApiJobCancelRequest {Queue = "test", JobSetId = jobSet});
+            var events = await client.GetJobEventsStream(jobSet, watch: false);
+            var allEvents = events.ToList();
+
+            Assert.That(allEvents, Is.Not.Empty);
+            Assert.That(allEvents[0].Result.Message.Submitted, Is.Not.Null);
+        }
+
+        private static ApiJobSubmitRequest CreateJobRequest(string jobSet)
+        {
             var pod = new V1PodSpec
             {
                 Volumes = new List<V1Volume>
@@ -59,7 +97,7 @@ namespace GResearch.Armada.Client.Test
                 }
             };
 
-            var request = new ApiJobSubmitRequest
+            return new ApiJobSubmitRequest
             {
                 Queue = "test",
                 JobSetId = jobSet,
@@ -72,15 +110,6 @@ namespace GResearch.Armada.Client.Test
                     }
                 },
             };
-
-            var response = await client.SubmitJobsAsync(request);
-            var cancelResponse =
-                await client.CancelJobsAsync(new ApiJobCancelRequest {Queue = "test", JobSetId = jobSet});
-            var events = await client.GetJobEventsStream(jobSet, watch: false);
-            var allEvents = events.ToList();
-
-            Assert.That(allEvents, Is.Not.Empty);
-            Assert.That(allEvents[0].Result.Message.Submitted, Is.Not.Null);
         }
     }
 }
