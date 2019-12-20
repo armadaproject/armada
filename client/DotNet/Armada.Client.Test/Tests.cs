@@ -14,6 +14,7 @@ namespace GResearch.Armada.Client.Test
     public class Tests
     {
         [Test]
+        [Explicit("Intended for manual testing against armada server with proxy.")]
         public async Task TestWatchingEvents()
         {
             var client = new ArmadaClient("http://localhost:8080", new HttpClient());
@@ -28,9 +29,11 @@ namespace GResearch.Armada.Client.Test
             
             using (var cts = new CancellationTokenSource())
             {
-                Task.Run(() => client.WatchEvents(jobSet, null,  cts.Token, m => Console.WriteLine(m.Result.Id), e => throw e));
+                var eventCount = 0;
+                Task.Run(() => client.WatchEvents(jobSet, null,  cts.Token, m => eventCount++, e => throw e));
                 await Task.Delay(TimeSpan.FromMinutes(2));
                 cts.Cancel();
+                Assert.That(eventCount, Is.GreaterThan(0));
             }
         }
         
