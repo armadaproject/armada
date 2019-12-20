@@ -1,5 +1,7 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 
@@ -19,6 +21,11 @@ namespace GResearch.Armada.Client
         Task<ApiJobSubmitResponse> SubmitJobsAsync(ApiJobSubmitRequest body);
         Task<object> CreateQueueAsync(string name, ApiQueue body);
         Task<IEnumerable<StreamResponse<ApiEventStreamMessage>>> GetJobEventsStream(string jobSetId, string fromMessage = null, bool watch = false);
+        Task WatchEvents(string jobSetId,
+            string fromMessageId, 
+            CancellationToken ct,
+            Action<StreamResponse<ApiEventStreamMessage>> onMessage, 
+            Action<Exception> onException = null);
     }
 
     public partial class ApiEventMessage
@@ -52,13 +59,13 @@ namespace GResearch.Armada.Client
     public partial class ArmadaClient : IArmadaClient
     {
         public async Task<IEnumerable<StreamResponse<ApiEventStreamMessage>>> GetJobEventsStream(string jobSetId,
-            string fromMessage = null, bool watch = false)
+            string fromMessageId = null, bool watch = false)
         {
             var fileResponse = await GetJobSetEventsCoreAsync(jobSetId,
-                new ApiJobSetRequest {FromMessageId = fromMessage, Watch = watch});
+                new ApiJobSetRequest {FromMessageId = fromMessageId, Watch = watch});
             return ReadEventStream(fileResponse.Stream);
         }
-
+        
         private IEnumerable<StreamResponse<ApiEventStreamMessage>> ReadEventStream(Stream stream)
         {
             using (var reader = new StreamReader(stream))
@@ -70,6 +77,55 @@ namespace GResearch.Armada.Client
                         JsonConvert.DeserializeObject<StreamResponse<ApiEventStreamMessage>>(line,
                             this.JsonSerializerSettings);
                     yield return eventMessage;
+                }
+            }
+        }
+
+        public async Task WatchEvents(
+            string jobSetId, 
+            string fromMessageId, 
+            CancellationToken ct, 
+            Action<StreamResponse<ApiEventStreamMessage>> onMessage,
+            Action<Exception> onException = null)
+        {
+            var failCount = 0;
+            while (!ct.IsCancellationRequested)
+            {
+                try
+                {
+                    using (var fileResponse = await GetJobSetEventsCoreAsync(jobSetId,
+                        new ApiJobSetRequest {FromMessageId = fromMessageId, Watch = true}, ct))
+                    using (var reader = new StreamReader(fileResponse.Stream))
+                    {
+                        try
+                        {
+                            failCount = 0;
+                            while (!reader.EndOfStream && !ct.IsCancellationRequested)
+                            {
+                                var line = await reader.ReadLineAsync();
+                                var eventMessage =
+                                    JsonConvert.DeserializeObject<StreamResponse<ApiEventStreamMessage>>(line,
+                                        this.JsonSerializerSettings);
+
+                                onMessage(eventMessage);
+                            }
+                        }
+                        catch (IOException)
+                        {
+                            // Stream was probably closed by the server, continue to reconnect
+                        }
+                    }
+                }
+                catch (TaskCanceledException)
+                {
+                    // Server closed the connection, continue to reconnect
+                }
+                catch (Exception e)
+                {
+                    failCount++;
+                    onException?.Invoke(e);
+                    // gradually back off
+                    await Task.Delay(TimeSpan.FromSeconds(Math.Min(300, Math.Pow(2 ,failCount))), ct);
                 }
             }
         }
