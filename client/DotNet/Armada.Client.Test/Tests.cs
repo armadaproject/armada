@@ -33,7 +33,7 @@ namespace GResearch.Armada.Client.Test
                 Task.Run(() => client.WatchEvents(jobSet, null,  cts.Token, m => eventCount++, e => throw e));
                 await Task.Delay(TimeSpan.FromMinutes(2));
                 cts.Cancel();
-                Assert.That(eventCount, Is.GreaterThan(0));
+                Assert.That(eventCount, Is.EqualTo(4));
             }
         }
         
