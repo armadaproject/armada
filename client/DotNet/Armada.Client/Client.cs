@@ -108,6 +108,7 @@ namespace GResearch.Armada.Client
                                         this.JsonSerializerSettings);
 
                                 onMessage(eventMessage);
+                                fromMessageId = eventMessage.Result?.Id ?? fromMessageId;
                             }
                         }
                         catch (IOException)
