@@ -100,7 +100,7 @@ namespace GResearch.Armada.Client
                         try
                         {
                             failCount = 0;
-                            while (!reader.EndOfStream && !ct.IsCancellationRequested)
+                            while (!ct.IsCancellationRequested && !reader.EndOfStream)
                             {
                                 var line = await reader.ReadLineAsync();
                                 var eventMessage =
