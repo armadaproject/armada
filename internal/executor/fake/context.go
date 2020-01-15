@@ -102,7 +102,7 @@ func extractSleepTime(pod *v1.Pod) float32 {
 	command := append(pod.Spec.Containers[0].Command, pod.Spec.Containers[0].Args...)
 	commandString := strings.Join(command, " ")
 
-	// command needs to be in the form: sleep sleep $(( (RANDOM % 60) + 100 ))
+	// command needs to be in the form: sleep $(( (RANDOM % 60) + 100 ))
 	r, e := regexp.Compile("\\(RANDOM *% *([0-9]+)\\) *\\+ *([0-9]+)")
 	if e == nil {
 		randomCallMatches := r.FindStringSubmatch(commandString)
