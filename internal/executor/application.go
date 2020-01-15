@@ -88,7 +88,7 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 	stopSignals = append(stopSignals, scheduleBackgroundTask(jobLeaseService.ManageJobLeases, config.Task.JobLeaseRenewalInterval, "job_lease_renewal", wg))
 	stopSignals = append(stopSignals, scheduleBackgroundTask(eventReporter.ReportMissingJobEvents, config.Task.MissingJobEventReconciliationInterval, "event_reconciliation", wg))
 	stopSignals = append(stopSignals, scheduleBackgroundTask(stuckPodDetector.HandleStuckPods, config.Task.StuckPodScanInterval, "stuck_pod", wg))
-	stopSignals = append(stopSignals, scheduleBackgroundTask(contextMetrics.UpdatePodMetrics, config.Task.PodMetricsInterval, "pod_metrics", wg))
+	stopSignals = append(stopSignals, scheduleBackgroundTask(contextMetrics.UpdateMetrics, config.Task.PodMetricsInterval, "pod_metrics", wg))
 
 	return func() {
 		stopTasks(stopSignals)

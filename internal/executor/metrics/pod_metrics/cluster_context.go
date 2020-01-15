@@ -118,7 +118,7 @@ type podMetric struct {
 	count  float64
 }
 
-func (m *ClusterContextMetrics) UpdatePodMetrics() {
+func (m *ClusterContextMetrics) UpdateMetrics() {
 	pods, e := m.context.GetBatchPods()
 	if e != nil {
 		log.Errorf("Unable to update metrics: %v", e)
