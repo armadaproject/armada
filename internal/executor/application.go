@@ -57,8 +57,6 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 	usageClient := api.NewUsageClient(conn)
 	eventClient := api.NewEventClient(conn)
 
-	contextMetrics := pod_metrics.NewClusterContextMetrics(clusterContext)
-
 	eventReporter := reporter.NewJobEventReporter(
 		clusterContext,
 		eventClient)
@@ -82,6 +80,8 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 		eventReporter,
 		jobLeaseService,
 		clusterUtilisationService)
+
+	contextMetrics := pod_metrics.NewClusterContextMetrics(clusterContext, clusterUtilisationService)
 
 	stopSignals = append(stopSignals, scheduleBackgroundTask(clusterUtilisationService.ReportClusterUtilisation, config.Task.UtilisationReportingInterval, "utilisation_reporting", wg))
 	stopSignals = append(stopSignals, scheduleBackgroundTask(clusterAllocationService.AllocateSpareClusterCapacity, config.Task.AllocateSpareClusterCapacityInterval, "job_lease_request", wg))
