@@ -7,6 +7,7 @@ task:
   jobLeaseRenewalInterval: 15s
   podDeletionInterval: 5s
   allocateSpareClusterCapacityInterval: 5s
+  podMetricsInterval: 1s
 apiConnection:
   armadaUrl : "localhost:50051"
 metricsPort: 9001
