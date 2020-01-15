@@ -22,10 +22,10 @@ type EventReporter interface {
 
 type JobEventReporter struct {
 	eventClient    api.EventClient
-	clusterContext *context.KubernetesClusterContext
+	clusterContext context.ClusterContext
 }
 
-func NewJobEventReporter(clusterContext *context.KubernetesClusterContext, eventClient api.EventClient) *JobEventReporter {
+func NewJobEventReporter(clusterContext context.ClusterContext, eventClient api.EventClient) *JobEventReporter {
 
 	reporter := &JobEventReporter{
 		eventClient:    eventClient,
