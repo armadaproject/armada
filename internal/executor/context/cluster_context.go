@@ -33,6 +33,8 @@ type ClusterContext interface {
 	DeletePods(pods []*v1.Pod)
 
 	GetClusterId() string
+
+	Stop()
 }
 
 type KubernetesClusterContext struct {

@@ -98,6 +98,9 @@ jobs:
 
             docker tag armada-executor gresearchdev/armada-executor-dev:${TAG}
             docker push gresearchdev/armada-executor-dev:${TAG}
+
+            docker tag armada-fakeexecutor gresearchdev/armada-fakeexecutor-dev:${TAG}
+            docker push gresearchdev/armada-fakeexecutor-dev:${TAG}
   deploy:
     docker:
       - image: alpine/helm:2.13.1

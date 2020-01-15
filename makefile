@@ -11,6 +11,9 @@ build-server:
 build-executor:
 	$(gobuild) -o ./bin/executor cmd/executor/main.go
 
+build-fakeexecutor:
+	$(gobuild) -o ./bin/executor cmd/fakeexecutor/main.go
+
 build-armadactl:
 	$(gobuild) -o ./bin/armadactl cmd/armadactl/main.go
 
@@ -30,7 +33,7 @@ build-armadactl-release: build-armadactl-multiplatform
 build-load-tester:
 	$(gobuild) -o ./bin/armada-load-tester cmd/armada-load-tester/main.go
 
-build: build-server build-executor build-armadactl build-load-tester
+build: build-server build-executor build-fakeexecutor build-armadactl build-load-tester
 
 build-docker-server:
 	$(gobuildlinux) -o ./bin/linux/server cmd/armada/main.go
@@ -40,7 +43,11 @@ build-docker-executor:
 	$(gobuildlinux) -o ./bin/linux/executor cmd/executor/main.go
 	docker build $(dockerFlags) -t armada-executor -f ./build/executor/Dockerfile .
 
-build-docker: build-docker-server build-docker-executor
+build-docker-fakeexecutor:
+	$(gobuildlinux) -o ./bin/linux/fakeexecutor cmd/fakeexecutor/main.go
+	docker build $(dockerFlags) -t armada-fakeexecutor -f ./build/fakeexecutor/Dockerfile .
+
+build-docker: build-docker-server build-docker-executor build-docker-fakeexecutor
 
 build-ci: gobuild=$(gobuildlinux)
 build-ci: build-docker build-armadactl build-load-tester

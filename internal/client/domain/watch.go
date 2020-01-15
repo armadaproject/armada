@@ -3,6 +3,7 @@ package domain
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/G-Research/armada/internal/armada/api"
 )
@@ -21,8 +22,9 @@ const (
 )
 
 type JobInfo struct {
-	Status JobStatus
-	Job    *api.Job
+	Status     JobStatus
+	Job        *api.Job
+	LastUpdate time.Time
 }
 
 var statesToIncludeInSummary []JobStatus
@@ -140,6 +142,12 @@ func (context *WatchContext) GetNumberOfJobs() int {
 }
 
 func updateJobInfo(info *JobInfo, event api.Event) {
+	if info.LastUpdate.After(event.GetCreated()) {
+		// skipping event as it is out of time order
+		return
+	}
+	info.LastUpdate = event.GetCreated()
+
 	switch typed := event.(type) {
 	case *api.JobSubmittedEvent:
 		info.Status = Submitted
