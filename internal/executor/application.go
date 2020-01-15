@@ -17,6 +17,7 @@ import (
 	"github.com/G-Research/armada/internal/executor/configuration"
 	"github.com/G-Research/armada/internal/executor/context"
 	"github.com/G-Research/armada/internal/executor/metrics"
+	"github.com/G-Research/armada/internal/executor/metrics/pod_metrics"
 	"github.com/G-Research/armada/internal/executor/reporter"
 	"github.com/G-Research/armada/internal/executor/service"
 )
@@ -80,11 +81,14 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 		jobLeaseService,
 		clusterUtilisationService)
 
+	contextMetrics := pod_metrics.NewClusterContextMetrics(clusterContext, clusterUtilisationService)
+
 	stopSignals = append(stopSignals, scheduleBackgroundTask(clusterUtilisationService.ReportClusterUtilisation, config.Task.UtilisationReportingInterval, "utilisation_reporting", wg))
 	stopSignals = append(stopSignals, scheduleBackgroundTask(clusterAllocationService.AllocateSpareClusterCapacity, config.Task.AllocateSpareClusterCapacityInterval, "job_lease_request", wg))
 	stopSignals = append(stopSignals, scheduleBackgroundTask(jobLeaseService.ManageJobLeases, config.Task.JobLeaseRenewalInterval, "job_lease_renewal", wg))
 	stopSignals = append(stopSignals, scheduleBackgroundTask(eventReporter.ReportMissingJobEvents, config.Task.MissingJobEventReconciliationInterval, "event_reconciliation", wg))
 	stopSignals = append(stopSignals, scheduleBackgroundTask(stuckPodDetector.HandleStuckPods, config.Task.StuckPodScanInterval, "stuck_pod", wg))
+	stopSignals = append(stopSignals, scheduleBackgroundTask(contextMetrics.UpdateMetrics, config.Task.PodMetricsInterval, "pod_metrics", wg))
 
 	return func() {
 		stopTasks(stopSignals)

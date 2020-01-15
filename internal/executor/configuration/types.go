@@ -22,6 +22,7 @@ type TaskConfiguration struct {
 	AllocateSpareClusterCapacityInterval  time.Duration
 	StuckPodScanInterval                  time.Duration
 	PodDeletionInterval                   time.Duration
+	PodMetricsInterval                    time.Duration
 }
 
 type ExecutorConfiguration struct {
