@@ -193,6 +193,10 @@ func (q *AggregatedQueueServer) assignJobs(ctx context.Context, request *api.Lea
 
 func (q *AggregatedQueueServer) distributeRemainder(ctx context.Context, request *api.LeaseRequest, resourceScarcity map[string]float64, priorities map[*api.Queue]scheduling.QueuePriorityInfo, slices map[*api.Queue]common.ComputeResourcesFloat, limit int) ([]*api.Job, error) {
 	jobs := []*api.Job{}
+	if limit <= 0 {
+		return jobs, nil
+	}
+
 	remainder := common.ComputeResourcesFloat{}
 	shares := map[*api.Queue]float64{}
 	for queue, slice := range slices {
@@ -254,6 +258,9 @@ func (q *AggregatedQueueServer) leaseJobs(ctx context.Context, request *api.Leas
 	jobs := make([]*api.Job, 0)
 	remainder := slice
 	for slice.IsValid() {
+		if limit <= 0 {
+			break
+		}
 
 		topJobs, e := q.jobRepository.PeekQueue(queue.Name, int64(q.schedulingConfig.QueueLeaseBatchSize))
 		if e != nil {
@@ -269,7 +276,7 @@ func (q *AggregatedQueueServer) leaseJobs(ctx context.Context, request *api.Leas
 				slice = remainder
 				candidates = append(candidates, job)
 			}
-			if limit > 0 && len(candidates) >= limit {
+			if len(candidates) >= limit {
 				break
 			}
 		}
@@ -280,13 +287,11 @@ func (q *AggregatedQueueServer) leaseJobs(ctx context.Context, request *api.Leas
 		}
 
 		jobs = append(jobs, leased...)
+		limit -= len(leased)
 
 		// stop scheduling round if we leased less then batch (either the slice is too small or queue is empty)
 		// TODO: should we look at next batch?
 		if len(candidates) < int(q.schedulingConfig.QueueLeaseBatchSize) {
-			break
-		}
-		if limit > 0 && len(jobs) >= limit {
 			break
 		}
 		if closeToDeadline(ctx) {
