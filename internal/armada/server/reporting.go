@@ -11,12 +11,13 @@ import (
 
 func reportQueued(repository repository.EventRepository, jobs []*api.Job) error {
 	events := []*api.EventMessage{}
+	now := time.Now()
 	for _, job := range jobs {
 		event, e := api.Wrap(&api.JobQueuedEvent{
 			JobId:    job.Id,
 			Queue:    job.Queue,
 			JobSetId: job.JobSetId,
-			Created:  time.Now(),
+			Created:  now,
 		})
 		if e != nil {
 			return e
@@ -29,12 +30,13 @@ func reportQueued(repository repository.EventRepository, jobs []*api.Job) error 
 
 func reportSubmitted(repository repository.EventRepository, jobs []*api.Job) error {
 	events := []*api.EventMessage{}
+	now := time.Now()
 	for _, job := range jobs {
 		event, e := api.Wrap(&api.JobSubmittedEvent{
 			JobId:    job.Id,
 			Queue:    job.Queue,
 			JobSetId: job.JobSetId,
-			Created:  time.Now(),
+			Created:  now,
 			Job:      *job,
 		})
 		if e != nil {
@@ -47,38 +49,38 @@ func reportSubmitted(repository repository.EventRepository, jobs []*api.Job) err
 	return e
 }
 
-func reportLeased(repository repository.EventRepository, job *api.Job, clusterId string) error {
-	event, e := api.Wrap(&api.JobLeasedEvent{
-		JobId:     job.Id,
-		Queue:     job.Queue,
-		JobSetId:  job.JobSetId,
-		Created:   time.Now(),
-		ClusterId: clusterId,
-	})
-	if e != nil {
-		return e
-	}
-	e = repository.ReportEvent(event)
-	return e
-}
-
 func reportJobsLeased(repository repository.EventRepository, jobs []*api.Job, clusterId string) {
+	events := []*api.EventMessage{}
+	now := time.Now()
 	for _, job := range jobs {
-		e := reportLeased(repository, job, clusterId)
+		event, e := api.Wrap(&api.JobLeasedEvent{
+			JobId:     job.Id,
+			Queue:     job.Queue,
+			JobSetId:  job.JobSetId,
+			Created:   now,
+			ClusterId: clusterId,
+		})
 		if e != nil {
 			log.Error(e)
+		} else {
+			events = append(events, event)
 		}
+	}
+	e := repository.ReportEvents(events)
+	if e != nil {
+		log.Error(e)
 	}
 }
 
 func reportJobsCancelling(repository repository.EventRepository, jobs []*api.Job) error {
 	events := []*api.EventMessage{}
+	now := time.Now()
 	for _, job := range jobs {
 		event, e := api.Wrap(&api.JobCancellingEvent{
 			JobId:    job.Id,
 			Queue:    job.Queue,
 			JobSetId: job.JobSetId,
-			Created:  job.Created,
+			Created:  now,
 		})
 		if e != nil {
 			return e
@@ -91,12 +93,13 @@ func reportJobsCancelling(repository repository.EventRepository, jobs []*api.Job
 
 func reportJobsCancelled(repository repository.EventRepository, jobs []*api.Job) error {
 	events := []*api.EventMessage{}
+	now := time.Now()
 	for _, job := range jobs {
 		event, e := api.Wrap(&api.JobCancelledEvent{
 			JobId:    job.Id,
 			Queue:    job.Queue,
 			JobSetId: job.JobSetId,
-			Created:  job.Created,
+			Created:  now,
 		})
 		if e != nil {
 			return e
@@ -112,7 +115,7 @@ func reportTerminated(repository repository.EventRepository, clusterId string, j
 		JobId:     job.Id,
 		Queue:     job.Queue,
 		JobSetId:  job.JobSetId,
-		Created:   job.Created,
+		Created:   time.Now(),
 		ClusterId: clusterId,
 	})
 	if e != nil {
