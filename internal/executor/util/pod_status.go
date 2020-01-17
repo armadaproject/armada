@@ -7,6 +7,7 @@ import (
 )
 
 var imagePullBackOffStatesSet = map[string]bool{"ImagePullBackOff": true, "ErrImagePull": true}
+var invalidImageNameStatesSet = map[string]bool{"InvalidImageName": true}
 
 func ExtractPodStuckReason(pod *v1.Pod) string {
 	containerStatuses := pod.Status.ContainerStatuses
@@ -67,6 +68,9 @@ func IsRetryable(pod *v1.Pod) bool {
 		if containerStatus.State.Waiting != nil {
 			waitingReason := containerStatus.State.Waiting.Reason
 			if imagePullBackOffStatesSet[waitingReason] {
+				return false
+			}
+			if invalidImageNameStatesSet[waitingReason] {
 				return false
 			}
 		}
