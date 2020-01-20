@@ -12,15 +12,20 @@ import (
 const eventStreamPrefix = "Events:"
 const dataKey = "message"
 
-type EventRepository interface {
-	ReportEvent(message *api.EventMessage) error
+type EventStore interface {
 	ReportEvents(message []*api.EventMessage) error
+}
+
+type EventRepository interface {
+	EventStore
+	ReportEvent(message *api.EventMessage) error
 	ReadEvents(jobSetId string, lastId string, limit int64, block time.Duration) ([]*api.EventStreamMessage, error)
 	GetLastMessageId(jobSetId string) (string, error)
 }
 
 type RedisEventRepository struct {
-	db redis.UniversalClient
+	db               redis.UniversalClient
+	additionalStores []EventStore
 }
 
 func NewRedisEventRepository(db redis.UniversalClient) *RedisEventRepository {
