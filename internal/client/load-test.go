@@ -75,6 +75,7 @@ func watchJobInfoChannel(eventChannel chan api.Event) (*sync.WaitGroup, chan boo
 			case <-tickChannel.C:
 				log.Info(aggregatedCurrentState.GetCurrentStateSummary())
 			case <-stop:
+				close(eventChannel)
 				for event := range eventChannel {
 					aggregatedCurrentState.ProcessEvent(event)
 				}
