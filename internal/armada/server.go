@@ -37,7 +37,7 @@ func Serve(config *configuration.ArmadaConfig) (*grpc.Server, *sync.WaitGroup) {
 		usageRepository := repository.NewRedisUsageRepository(db)
 		queueRepository := repository.NewRedisQueueRepository(db)
 
-		eventRepository := repository.NewRedisEventRepository(eventsDb)
+		eventRepository := repository.NewRedisEventRepository(eventsDb, config.EventRetention)
 
 		metricsRecorder := metrics.ExposeDataMetrics(queueRepository, jobRepository)
 
