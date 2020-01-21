@@ -16,6 +16,8 @@ import (
 	"github.com/G-Research/armada/internal/executor/util"
 )
 
+const maxPodRequestSize = 10000
+
 type LeaseService interface {
 	ReturnLease(pod *v1.Pod) error
 	RequestJobLeases(availableResource *common.ComputeResources, availableLabels []map[string]string) ([]*api.Job, error)
@@ -75,17 +77,23 @@ func (jobLeaseService *JobLeaseService) ManageJobLeases() {
 		return
 	}
 
-	podsToCleanup := getFinishedPods(podsToRenew)
-
-	jobLeaseService.renewJobLeases(podsToRenew)
-
-	err = jobLeaseService.ReportDone(podsToCleanup)
-	if err != nil {
-		log.Errorf("Failed reporting jobs as done because %s", err)
-		return
+	chunkedPods := chunkPods(podsToRenew, maxPodRequestSize)
+	for _, chunk := range chunkedPods {
+		jobLeaseService.renewJobLeases(chunk)
 	}
 
-	jobLeaseService.clusterContext.DeletePods(podsToCleanup)
+	podsToCleanup := getFinishedPods(podsToRenew)
+	chunkedPodsToCleanup := chunkPods(podsToCleanup, maxPodRequestSize)
+	for _, chunk := range chunkedPodsToCleanup {
+
+		err = jobLeaseService.ReportDone(chunk)
+		if err != nil {
+			log.Errorf("Failed reporting jobs as done because %s", err)
+			return
+		}
+
+		jobLeaseService.clusterContext.DeletePods(chunk)
+	}
 }
 
 func (jobLeaseService *JobLeaseService) ReportDone(pods []*v1.Pod) error {
@@ -156,4 +164,16 @@ func isPodReadyForCleanup(pod *v1.Pod) bool {
 		return true
 	}
 	return false
+}
+
+func chunkPods(pods []*v1.Pod, size int) [][]*v1.Pod {
+	chunks := [][]*v1.Pod{}
+	for start := 0; start < len(pods); start += size {
+		end := start + size
+		if end > len(pods) {
+			end = len(pods)
+		}
+		chunks = append(chunks, pods[start:end])
+	}
+	return chunks
 }
