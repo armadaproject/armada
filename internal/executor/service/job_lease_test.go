@@ -49,6 +49,12 @@ func TestIsPodReadyForCleanup_ReturnsFalse_WhenPodsStateNotReported(t *testing.T
 	assert.False(t, result)
 }
 
+func TestChunkPods(t *testing.T) {
+	p := makePodWithCurrentStateReported(v1.PodPending)
+	chunks := chunkPods([]*v1.Pod{p, p, p}, 2)
+	assert.Equal(t, [][]*v1.Pod{{p, p}, {p}}, chunks)
+}
+
 func makePodWithCurrentStateReported(state v1.PodPhase) *v1.Pod {
 	pod := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
