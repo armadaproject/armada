@@ -89,8 +89,8 @@ However there are times when this is not possible to do, such as using a managed
 To turn off running on the control plane, and instead just run on normal work nodes, add the following to your configuration:
  
  ```yaml
- nodeSelector: {}
- tolerations: {}
+ nodeSelector: null
+ tolerations: []
  ```
 
 Alternatively you could have a dedicated node that the executor runs on. Then use the nodeSelector + tolerations to enforce it running that node.
