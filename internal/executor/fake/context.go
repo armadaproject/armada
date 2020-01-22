@@ -1,6 +1,7 @@
 package fake
 
 import (
+	"fmt"
 	"math/rand"
 	"regexp"
 	"strconv"
@@ -35,7 +36,7 @@ func (c *fakeClusterContext) GetBatchPods() ([]*v1.Pod, error) {
 
 	pods := []*v1.Pod{}
 	for _, p := range c.pods {
-		pods = append(pods, p)
+		pods = append(pods, p.DeepCopy())
 	}
 	return pods, nil
 }
@@ -69,29 +70,43 @@ func (c *fakeClusterContext) GetNodes() ([]*v1.Node, error) {
 
 func (c *fakeClusterContext) SubmitPod(pod *v1.Pod, owner string) (*v1.Pod, error) {
 	c.rwLock.Lock()
-	defer c.rwLock.Unlock()
-	c.pods[pod.Name] = pod
 	pod.Status.Phase = v1.PodPending
+	saved := pod.DeepCopy()
+	c.pods[pod.Name] = saved
+	c.rwLock.Unlock()
 
 	for _, h := range c.handlers {
 		h.AddFunc(pod)
 	}
+
 	go func() {
 		time.Sleep(time.Duration(rand.Float32()+1) * 100 * time.Millisecond)
-		oldPod := pod.DeepCopy()
-		pod.Spec.NodeName = c.clusterId + "-mega-node"
-		pod.Status.Phase = v1.PodRunning
+
+		c.rwLock.Lock()
+		oldPod := saved.DeepCopy()
+		saved.Spec.NodeName = c.clusterId + "-mega-node"
+		saved.Status.Phase = v1.PodRunning
+		newPod := saved.DeepCopy()
+		c.rwLock.Unlock()
+
 		for _, h := range c.handlers {
-			h.UpdateFunc(oldPod, pod)
+			h.UpdateFunc(oldPod, newPod)
 		}
 
-		runtime := extractSleepTime(pod)
+		c.rwLock.Lock()
+		runtime := extractSleepTime(saved)
+		c.rwLock.Unlock()
 
 		time.Sleep(time.Duration(runtime) * time.Second)
-		oldPod = pod.DeepCopy()
-		pod.Status.Phase = v1.PodSucceeded
+
+		c.rwLock.Lock()
+		oldPod = saved.DeepCopy()
+		saved.Status.Phase = v1.PodSucceeded
+		newPod = saved.DeepCopy()
+		c.rwLock.Unlock()
+
 		for _, h := range c.handlers {
-			h.UpdateFunc(oldPod, pod)
+			h.UpdateFunc(oldPod, newPod)
 		}
 	}()
 
@@ -116,10 +131,16 @@ func extractSleepTime(pod *v1.Pod) float32 {
 	return 1
 }
 
-func (fakeClusterContext) AddAnnotation(pod *v1.Pod, annotations map[string]string) error {
-	// just annotate previously returned object, this relies on not copying pods when returning them from context
+func (c *fakeClusterContext) AddAnnotation(pod *v1.Pod, annotations map[string]string) error {
+	c.rwLock.Lock()
+	defer c.rwLock.Unlock()
+
+	p, found := c.pods[pod.Name]
+	if !found {
+		return fmt.Errorf("Missing pod to annotate %v", pod.Name)
+	}
 	for k, v := range annotations {
-		pod.Annotations[k] = v
+		p.Annotations[k] = v
 	}
 	return nil
 }
