@@ -8,8 +8,14 @@ metadata:
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
     nginx.ingress.kubernetes.io/backend-protocol: "GRPC"
     certmanager.k8s.io/cluster-issuer: {{ required "A value is required for .Values.clusterIssuer" .Values.clusterIssuer }}
+    {{- if .Values.ingress.annotations }}
+    {{- toYaml .Values.ingress.annotations | nindent 4 }}
+    {{- end }}
   labels:
     {{- include "armada.labels.all" . | nindent 4 }}
+    {{- if .Values.ingress.labels }}
+    {{- toYaml .Values.ingress.labels | nindent 4 }}
+    {{- end }}
 spec:
   rules:
   {{- $root := . -}}
