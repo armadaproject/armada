@@ -95,7 +95,11 @@ func (c *fakeClusterContext) SubmitPod(pod *v1.Pod, owner string) (*v1.Pod, erro
 
 		c.rwLock.Lock()
 		runtime := extractSleepTime(saved)
+		c.rwLock.Unlock()
+
 		time.Sleep(time.Duration(runtime) * time.Second)
+
+		c.rwLock.Lock()
 		oldPod = saved.DeepCopy()
 		saved.Status.Phase = v1.PodSucceeded
 		newPod = saved.DeepCopy()
