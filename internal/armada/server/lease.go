@@ -52,6 +52,15 @@ func NewAggregatedQueueServer(
 		metricRecorder:   metricRecorder}
 }
 
+type leaseContext struct {
+	ctx              context.Context
+	request          *api.LeaseRequest
+	slices           map[*api.Queue]common.ComputeResourcesFloat
+	resourceScarcity map[string]float64
+	priorities       map[*api.Queue]scheduling.QueuePriorityInfo
+	queueCache       map[string][]*api.Job
+}
+
 func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.LeaseRequest) (*api.JobLease, error) {
 	if e := checkPermission(q.permissions, ctx, permissions.ExecuteJobs); e != nil {
 		return nil, e
@@ -103,8 +112,17 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 	jobs := []*api.Job{}
 	limit := maxJobsPerLease
 
+	lc := &leaseContext{
+		ctx:              ctx,
+		request:          request,
+		slices:           slices,
+		resourceScarcity: scarcity,
+		priorities:       activeQueuePriority,
+		queueCache:       map[string][]*api.Job{},
+	}
+
 	if !q.schedulingConfig.UseProbabilisticSchedulingForAllResources {
-		jobs, e = q.assignJobs(ctx, request, slices, limit)
+		jobs, e = q.assignJobs(lc, limit)
 		if e != nil {
 			log.Errorf("Error when leasing jobs for cluster %s: %s", request.ClusterId, e)
 			return nil, e
@@ -112,7 +130,7 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 		limit -= len(jobs)
 	}
 
-	additionalJobs, e := q.distributeRemainder(ctx, request, scarcity, activeQueuePriority, slices, limit)
+	additionalJobs, e := q.distributeRemainder(lc, limit)
 	if e != nil {
 		log.Errorf("Error when leasing jobs for cluster %s: %s", request.ClusterId, e)
 		return nil, e
@@ -171,27 +189,27 @@ func (q *AggregatedQueueServer) ReportDone(ctx context.Context, idList *api.IdLi
 	return &api.IdList{cleanedIds}, returnedError
 }
 
-func (q *AggregatedQueueServer) assignJobs(ctx context.Context, request *api.LeaseRequest, slices map[*api.Queue]common.ComputeResourcesFloat, limit int) ([]*api.Job, error) {
+func (q *AggregatedQueueServer) assignJobs(lc *leaseContext, limit int) ([]*api.Job, error) {
 	jobs := make([]*api.Job, 0)
 	// TODO: parallelize
-	for queue, slice := range slices {
+	for queue, slice := range lc.slices {
 		// TODO: partition limit by priority instead
-		leased, remainder, e := q.leaseJobs(ctx, request, queue, slice, limit/len(slices))
+		leased, remainder, e := q.leaseJobs(lc, queue, slice, limit/len(lc.slices))
 		if e != nil {
 			log.Error(e)
 			continue
 		}
-		slices[queue] = remainder
+		lc.slices[queue] = remainder
 		jobs = append(jobs, leased...)
 
-		if closeToDeadline(ctx) {
+		if closeToDeadline(lc.ctx) {
 			break
 		}
 	}
 	return jobs, nil
 }
 
-func (q *AggregatedQueueServer) distributeRemainder(ctx context.Context, request *api.LeaseRequest, resourceScarcity map[string]float64, priorities map[*api.Queue]scheduling.QueuePriorityInfo, slices map[*api.Queue]common.ComputeResourcesFloat, limit int) ([]*api.Job, error) {
+func (q *AggregatedQueueServer) distributeRemainder(lc *leaseContext, limit int) ([]*api.Job, error) {
 	jobs := []*api.Job{}
 	if limit <= 0 {
 		return jobs, nil
@@ -199,19 +217,19 @@ func (q *AggregatedQueueServer) distributeRemainder(ctx context.Context, request
 
 	remainder := common.ComputeResourcesFloat{}
 	shares := map[*api.Queue]float64{}
-	for queue, slice := range slices {
+	for queue, slice := range lc.slices {
 		remainder.Add(slice)
-		shares[queue] = scheduling.ResourcesFloatAsUsage(resourceScarcity, slice)
+		shares[queue] = scheduling.ResourcesFloatAsUsage(lc.resourceScarcity, slice)
 	}
 
-	queueCount := len(slices)
+	queueCount := len(lc.slices)
 	emptySteps := 0
 	minimumResource := q.schedulingConfig.MinimumResourceToSchedule
 	for !remainder.IsLessThan(minimumResource) && emptySteps < queueCount {
 		queue := q.pickQueueRandomly(shares)
 		emptySteps++
 
-		leased, remaining, e := q.leaseJobs(ctx, request, queue, remainder, 1)
+		leased, remaining, e := q.leaseJobs(lc, queue, remainder, 1)
 		if e != nil {
 			log.Error(e)
 			continue
@@ -220,12 +238,12 @@ func (q *AggregatedQueueServer) distributeRemainder(ctx context.Context, request
 			emptySteps = 0
 		}
 		jobs = append(jobs, leased...)
-		scheduledShare := scheduling.ResourcesFloatAsUsage(resourceScarcity, remainder) - scheduling.ResourcesFloatAsUsage(resourceScarcity, remaining)
+		scheduledShare := scheduling.ResourcesFloatAsUsage(lc.resourceScarcity, remainder) - scheduling.ResourcesFloatAsUsage(lc.resourceScarcity, remaining)
 		shares[queue] = math.Max(0, shares[queue]-scheduledShare)
 		remainder = remaining
 
 		limit -= len(leased)
-		if limit <= 0 || closeToDeadline(ctx) {
+		if limit <= 0 || closeToDeadline(lc.ctx) {
 			break
 		}
 	}
@@ -254,7 +272,7 @@ func (q *AggregatedQueueServer) pickQueueRandomly(shares map[*api.Queue]float64)
 	return lastQueue
 }
 
-func (q *AggregatedQueueServer) leaseJobs(ctx context.Context, request *api.LeaseRequest, queue *api.Queue, slice common.ComputeResourcesFloat, limit int) ([]*api.Job, common.ComputeResourcesFloat, error) {
+func (q *AggregatedQueueServer) leaseJobs(lc *leaseContext, queue *api.Queue, slice common.ComputeResourcesFloat, limit int) ([]*api.Job, common.ComputeResourcesFloat, error) {
 	jobs := make([]*api.Job, 0)
 	remainder := slice
 	for slice.IsValid() {
@@ -262,26 +280,32 @@ func (q *AggregatedQueueServer) leaseJobs(ctx context.Context, request *api.Leas
 			break
 		}
 
-		topJobs, e := q.jobRepository.PeekQueue(queue.Name, int64(q.schedulingConfig.QueueLeaseBatchSize))
-		if e != nil {
-			return nil, slice, e
+		topJobs, ok := lc.queueCache[queue.Name]
+		if !ok || len(topJobs) < int(q.schedulingConfig.QueueLeaseBatchSize/2) {
+			newTop, e := q.jobRepository.PeekQueue(queue.Name, int64(q.schedulingConfig.QueueLeaseBatchSize))
+			if e != nil {
+				return nil, slice, e
+			}
+			topJobs = newTop
 		}
 
 		candidates := make([]*api.Job, 0)
-		for _, job := range topJobs {
+		for i, job := range topJobs {
 			requirement := common.TotalResourceRequest(job.PodSpec).AsFloat()
 			remainder = slice.DeepCopy()
 			remainder.Sub(requirement)
-			if remainder.IsValid() && matchRequirements(job, request) {
+			if remainder.IsValid() && matchRequirements(job, lc.request) {
 				slice = remainder
 				candidates = append(candidates, job)
+
+				lc.queueCache[queue.Name] = append(topJobs[:i], topJobs[i+1:]...)
 			}
 			if len(candidates) >= limit {
 				break
 			}
 		}
 
-		leased, e := q.jobRepository.TryLeaseJobs(request.ClusterId, queue.Name, candidates)
+		leased, e := q.jobRepository.TryLeaseJobs(lc.request.ClusterId, queue.Name, candidates)
 		if e != nil {
 			return nil, slice, e
 		}
@@ -294,12 +318,12 @@ func (q *AggregatedQueueServer) leaseJobs(ctx context.Context, request *api.Leas
 		if len(candidates) < int(q.schedulingConfig.QueueLeaseBatchSize) {
 			break
 		}
-		if closeToDeadline(ctx) {
+		if closeToDeadline(lc.ctx) {
 			break
 		}
 	}
 
-	go reportJobsLeased(q.eventRepository, jobs, request.ClusterId)
+	go reportJobsLeased(q.eventRepository, jobs, lc.request.ClusterId)
 
 	return jobs, slice, nil
 }
