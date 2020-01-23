@@ -83,6 +83,10 @@ func (c *fakeClusterContext) SubmitPod(pod *v1.Pod, owner string) (*v1.Pod, erro
 	go func() {
 		time.Sleep(time.Duration(rand.Float32()+1) * 100 * time.Millisecond)
 
+		c.rwLock.Lock()
+		saved.Spec.NodeName = c.clusterId + "-mega-node"
+		c.rwLock.Unlock()
+
 		start := metav1.Now()
 		c.updateStatus(saved, v1.PodRunning, v1.ContainerState{Running: &v1.ContainerStateRunning{
 			StartedAt: start,
@@ -106,10 +110,7 @@ func (c *fakeClusterContext) SubmitPod(pod *v1.Pod, owner string) (*v1.Pod, erro
 func (c *fakeClusterContext) updateStatus(saved *v1.Pod, phase v1.PodPhase, state v1.ContainerState) (*v1.Pod, *v1.Pod) {
 	c.rwLock.Lock()
 	oldPod := saved.DeepCopy()
-	saved.Spec.NodeName = c.clusterId + "-mega-node"
 	saved.Status.Phase = phase
-	saved.Status.Conditions = append(saved.Status.Conditions, v1.PodCondition{})
-
 	containerStatuses := []v1.ContainerStatus{}
 	for _, c := range saved.Spec.Containers {
 		containerStatuses = append(containerStatuses, v1.ContainerStatus{
