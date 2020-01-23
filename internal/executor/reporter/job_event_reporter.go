@@ -156,29 +156,37 @@ func HasPodBeenInStateForLongerThanGivenDuration(pod *v1.Pod, duration time.Dura
 	deadline := time.Now().Add(-duration)
 	lastStatusChange, err := lastStatusChange(pod)
 
-	if err == nil && lastStatusChange.Before(deadline) {
-		return true
+	if err != nil {
+		log.Errorf("Problem with pod %v: %v", pod.Name, err)
+		return false
 	}
-	return false
+	return lastStatusChange.Before(deadline)
 }
 
 func lastStatusChange(pod *v1.Pod) (time.Time, error) {
-	conditions := pod.Status.Conditions
-
-	if len(conditions) <= 0 {
-		if pod.Status.Phase == v1.PodPending && !pod.CreationTimestamp.IsZero() {
-			return pod.CreationTimestamp.Time, nil
+	maxStatusChange := pod.CreationTimestamp.Time
+	for _, containerStatus := range pod.Status.ContainerStatuses {
+		if s := containerStatus.State.Running; s != nil {
+			maxStatusChange = maxTime(maxStatusChange, s.StartedAt.Time)
 		}
-		return *new(time.Time), errors.New("no state changes found, cannot determine last status change")
-	}
-
-	var maxStatusChange time.Time
-
-	for _, condition := range conditions {
-		if condition.LastTransitionTime.Time.After(maxStatusChange) {
-			maxStatusChange = condition.LastTransitionTime.Time
+		if s := containerStatus.State.Terminated; s != nil {
+			maxStatusChange = maxTime(maxStatusChange, s.FinishedAt.Time)
 		}
 	}
 
+	for _, condition := range pod.Status.Conditions {
+		maxStatusChange = maxTime(maxStatusChange, condition.LastTransitionTime.Time)
+	}
+
+	if maxStatusChange.IsZero() {
+		return maxStatusChange, errors.New("cannot determine last status change")
+	}
 	return maxStatusChange, nil
+}
+
+func maxTime(a, b time.Time) time.Time {
+	if a.After(b) {
+		return a
+	}
+	return b
 }
