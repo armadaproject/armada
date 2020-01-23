@@ -71,6 +71,7 @@ func (c *fakeClusterContext) GetNodes() ([]*v1.Node, error) {
 func (c *fakeClusterContext) SubmitPod(pod *v1.Pod, owner string) (*v1.Pod, error) {
 	c.rwLock.Lock()
 	pod.Status.Phase = v1.PodPending
+	pod.CreationTimestamp = metav1.Now()
 	saved := pod.DeepCopy()
 	c.pods[pod.Name] = saved
 	c.rwLock.Unlock()
@@ -83,34 +84,50 @@ func (c *fakeClusterContext) SubmitPod(pod *v1.Pod, owner string) (*v1.Pod, erro
 		time.Sleep(time.Duration(rand.Float32()+1) * 100 * time.Millisecond)
 
 		c.rwLock.Lock()
-		oldPod := saved.DeepCopy()
 		saved.Spec.NodeName = c.clusterId + "-mega-node"
-		saved.Status.Phase = v1.PodRunning
-		newPod := saved.DeepCopy()
 		c.rwLock.Unlock()
 
-		for _, h := range c.handlers {
-			h.UpdateFunc(oldPod, newPod)
-		}
+		start := metav1.Now()
+		c.updateStatus(saved, v1.PodRunning, v1.ContainerState{Running: &v1.ContainerStateRunning{
+			StartedAt: start,
+		}})
 
 		c.rwLock.Lock()
 		runtime := extractSleepTime(saved)
 		c.rwLock.Unlock()
-
 		time.Sleep(time.Duration(runtime) * time.Second)
 
-		c.rwLock.Lock()
-		oldPod = saved.DeepCopy()
-		saved.Status.Phase = v1.PodSucceeded
-		newPod = saved.DeepCopy()
-		c.rwLock.Unlock()
-
-		for _, h := range c.handlers {
-			h.UpdateFunc(oldPod, newPod)
-		}
+		c.updateStatus(saved, v1.PodSucceeded, v1.ContainerState{Terminated: &v1.ContainerStateTerminated{
+			StartedAt:  start,
+			FinishedAt: metav1.Now(),
+			ExitCode:   0,
+		}})
 	}()
 
 	return pod, nil
+}
+
+func (c *fakeClusterContext) updateStatus(saved *v1.Pod, phase v1.PodPhase, state v1.ContainerState) (*v1.Pod, *v1.Pod) {
+	c.rwLock.Lock()
+	oldPod := saved.DeepCopy()
+	saved.Status.Phase = phase
+	containerStatuses := []v1.ContainerStatus{}
+	for _, c := range saved.Spec.Containers {
+		containerStatuses = append(containerStatuses, v1.ContainerStatus{
+			Name:  c.Name,
+			Ready: phase != v1.PodPending,
+			State: state,
+		})
+	}
+
+	saved.Status.ContainerStatuses = containerStatuses
+
+	newPod := saved.DeepCopy()
+	c.rwLock.Unlock()
+	for _, h := range c.handlers {
+		h.UpdateFunc(oldPod, newPod)
+	}
+	return oldPod, newPod
 }
 
 func extractSleepTime(pod *v1.Pod) float32 {

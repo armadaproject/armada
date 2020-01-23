@@ -76,6 +76,32 @@ func TestLastStatusChange_ReturnsError_WhenNoStateChangesFoundAndCreatedTimeIsNo
 	assert.NotNil(t, err)
 }
 
+func TestLastStatusChange_ReportsTimeFromContainerStatus(t *testing.T) {
+	now := time.Now()
+	pod := v1.Pod{
+		Status: v1.PodStatus{
+			Phase: v1.PodRunning,
+			ContainerStatuses: []v1.ContainerStatus{{
+				State: v1.ContainerState{Running: &v1.ContainerStateRunning{
+					StartedAt: metav1.NewTime(now),
+				}},
+			}},
+		},
+	}
+	result, err := lastStatusChange(&pod)
+	assert.Equal(t, result, now)
+	assert.Nil(t, err)
+
+	pod.Status.ContainerStatuses = []v1.ContainerStatus{{
+		State: v1.ContainerState{Terminated: &v1.ContainerStateTerminated{
+			FinishedAt: metav1.NewTime(now),
+		}},
+	}}
+	result, err = lastStatusChange(&pod)
+	assert.Equal(t, result, now)
+	assert.Nil(t, err)
+}
+
 func TestHasPodBeenInStateForLongerThanGivenDuration_ReturnsTrue(t *testing.T) {
 	now := time.Now()
 	sixSecondsAgo := now.Add(-6 * time.Second)
