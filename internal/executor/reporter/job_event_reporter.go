@@ -1,16 +1,19 @@
 package reporter
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/sync/semaphore"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/G-Research/armada/internal/armada/api"
 	"github.com/G-Research/armada/internal/common"
-	"github.com/G-Research/armada/internal/executor/context"
+	clusterContext "github.com/G-Research/armada/internal/executor/context"
 	"github.com/G-Research/armada/internal/executor/util"
 )
 
@@ -21,15 +24,17 @@ type EventReporter interface {
 }
 
 type JobEventReporter struct {
-	eventClient    api.EventClient
-	clusterContext context.ClusterContext
+	eventClient      api.EventClient
+	clusterContext   clusterContext.ClusterContext
+	concurrencyLimit *semaphore.Weighted
 }
 
-func NewJobEventReporter(clusterContext context.ClusterContext, eventClient api.EventClient) *JobEventReporter {
+func NewJobEventReporter(clusterContext clusterContext.ClusterContext, eventClient api.EventClient) *JobEventReporter {
 
 	reporter := &JobEventReporter{
-		eventClient:    eventClient,
-		clusterContext: clusterContext}
+		eventClient:      eventClient,
+		clusterContext:   clusterContext,
+		concurrencyLimit: semaphore.NewWeighted(20)}
 
 	clusterContext.AddPodEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
@@ -101,6 +106,12 @@ func (eventReporter *JobEventReporter) report(pod *v1.Pod) {
 }
 
 func (eventReporter *JobEventReporter) sendEvent(event api.Event) error {
+	c, _ := context.WithDeadline(context.Background(), time.Now().Add(time.Minute))
+	err := eventReporter.concurrencyLimit.Acquire(c, 1)
+	if err != nil {
+		return fmt.Errorf("%v when waiting to report event %+v", err, event)
+	}
+	defer eventReporter.concurrencyLimit.Release(1)
 	eventMessage, err := api.Wrap(event)
 	if err != nil {
 		return err
