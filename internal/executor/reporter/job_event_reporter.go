@@ -125,9 +125,14 @@ func (eventReporter *JobEventReporter) queueEvent(event api.Event, callback func
 func (eventReporter *JobEventReporter) processEventQueue(stop chan bool) {
 	for {
 		batch := []*queuedEvent{}
-		batch = append(batch, <-eventReporter.eventBuffer)
-		for len(batch) < batchSize && len(eventReporter.eventBuffer) > 0 {
-			batch = append(batch, <-eventReporter.eventBuffer)
+		select {
+		case <-stop:
+			return
+		case event := <-eventReporter.eventBuffer:
+			batch = append(batch, event)
+			for len(batch) < batchSize && len(eventReporter.eventBuffer) > 0 {
+				batch = append(batch, <-eventReporter.eventBuffer)
+			}
 		}
 		err := eventReporter.sendEvents(batch)
 		go func() {
