@@ -1,13 +1,11 @@
 package reporter
 
 import (
-	"context"
 	"errors"
-	"fmt"
+	"sync"
 	"time"
 
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/sync/semaphore"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/cache"
 
@@ -17,24 +15,38 @@ import (
 	"github.com/G-Research/armada/internal/executor/util"
 )
 
+const batchSize = 200
+
 type EventReporter interface {
 	Report(event api.Event) error
 	ReportCurrentStatus(pod *v1.Pod)
 	ReportStatusUpdate(old *v1.Pod, new *v1.Pod)
 }
 
-type JobEventReporter struct {
-	eventClient      api.EventClient
-	clusterContext   clusterContext.ClusterContext
-	concurrencyLimit *semaphore.Weighted
+type queuedEvent struct {
+	Event    api.Event
+	Callback func(error)
 }
 
-func NewJobEventReporter(clusterContext clusterContext.ClusterContext, eventClient api.EventClient) *JobEventReporter {
+type JobEventReporter struct {
+	eventClient      api.EventClient
+	eventBuffer      chan *queuedEvent
+	eventQueued      map[string]bool
+	eventQueuedMutex sync.Mutex
 
+	clusterContext clusterContext.ClusterContext
+	stop           chan bool
+}
+
+func NewJobEventReporter(clusterContext clusterContext.ClusterContext, eventClient api.EventClient) (*JobEventReporter, chan bool) {
+
+	stop := make(chan bool)
 	reporter := &JobEventReporter{
 		eventClient:      eventClient,
 		clusterContext:   clusterContext,
-		concurrencyLimit: semaphore.NewWeighted(20)}
+		eventBuffer:      make(chan *queuedEvent, 1000000),
+		eventQueued:      map[string]bool{},
+		eventQueuedMutex: sync.Mutex{}}
 
 	clusterContext.AddPodEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
@@ -60,25 +72,23 @@ func NewJobEventReporter(clusterContext clusterContext.ClusterContext, eventClie
 		},
 	})
 
-	return reporter
+	go reporter.processEventQueue(stop)
+
+	return reporter, stop
 }
 
 func (eventReporter *JobEventReporter) Report(event api.Event) error {
 	return eventReporter.sendEvent(event)
 }
 
-func (eventReporter *JobEventReporter) ReportCurrentStatus(pod *v1.Pod) {
-	eventReporter.report(pod)
-}
-
 func (eventReporter *JobEventReporter) ReportStatusUpdate(old *v1.Pod, new *v1.Pod) {
 	if old.Status.Phase == new.Status.Phase {
 		return
 	}
-	eventReporter.report(new)
+	eventReporter.ReportCurrentStatus(new)
 }
 
-func (eventReporter *JobEventReporter) report(pod *v1.Pod) {
+func (eventReporter *JobEventReporter) ReportCurrentStatus(pod *v1.Pod) {
 	if !util.IsManagedPod(pod) {
 		return
 	}
@@ -89,29 +99,68 @@ func (eventReporter *JobEventReporter) report(pod *v1.Pod) {
 		return
 	}
 
-	err = eventReporter.sendEvent(event)
-
-	if err != nil {
-		log.Errorf("Failed to report event because %s", err)
-		return
-	}
-
-	if util.IsReportingPhaseRequired(pod.Status.Phase) {
-		err = eventReporter.addAnnotationToMarkStateReported(pod)
+	eventReporter.queueEvent(event, func(err error) {
 		if err != nil {
-			log.Errorf("Failed to add state annotation %s to pod %s because %s", string(pod.Status.Phase), pod.Name, err)
+			log.Errorf("Failed to report event because %s", err)
 			return
 		}
+
+		if util.IsReportingPhaseRequired(pod.Status.Phase) {
+			err = eventReporter.addAnnotationToMarkStateReported(pod)
+			if err != nil {
+				log.Errorf("Failed to add state annotation %s to pod %s because %s", string(pod.Status.Phase), pod.Name, err)
+				return
+			}
+		}
+	})
+}
+
+func (eventReporter *JobEventReporter) queueEvent(event api.Event, callback func(error)) {
+	eventReporter.eventQueuedMutex.Lock()
+	defer eventReporter.eventQueuedMutex.Unlock()
+	eventReporter.eventQueued[event.GetJobId()] = true
+	eventReporter.eventBuffer <- &queuedEvent{event, callback}
+}
+
+func (eventReporter *JobEventReporter) processEventQueue(stop chan bool) {
+	for {
+		batch := []*queuedEvent{}
+		batch = append(batch, <-eventReporter.eventBuffer)
+		for len(batch) < batchSize && len(eventReporter.eventBuffer) > 0 {
+			batch = append(batch, <-eventReporter.eventBuffer)
+		}
+		err := eventReporter.sendEvents(batch)
+		go func() {
+			for _, e := range batch {
+				e.Callback(err)
+			}
+		}()
+
+		eventReporter.eventQueuedMutex.Lock()
+		for _, e := range batch {
+			delete(eventReporter.eventQueued, e.Event.GetJobId())
+		}
+		eventReporter.eventQueuedMutex.Unlock()
 	}
 }
 
-func (eventReporter *JobEventReporter) sendEvent(event api.Event) error {
-	c, _ := context.WithDeadline(context.Background(), time.Now().Add(time.Minute))
-	err := eventReporter.concurrencyLimit.Acquire(c, 1)
-	if err != nil {
-		return fmt.Errorf("%v when waiting to report event %+v", err, event)
+func (eventReporter *JobEventReporter) sendEvents(events []*queuedEvent) error {
+	eventMessages := []*api.EventMessage{}
+	for _, e := range events {
+		m, err := api.Wrap(e.Event)
+		eventMessages = append(eventMessages, m)
+		if err != nil {
+			return err
+		}
+		log.Infof("Reporting event %+v", m)
 	}
-	defer eventReporter.concurrencyLimit.Release(1)
+	ctx, cancel := common.ContextWithDefaultTimeout()
+	defer cancel()
+	_, err := eventReporter.eventClient.ReportMultiple(ctx, &api.EventList{eventMessages})
+	return err
+}
+
+func (eventReporter *JobEventReporter) sendEvent(event api.Event) error {
 	eventMessage, err := api.Wrap(event)
 	if err != nil {
 		return err
@@ -141,10 +190,17 @@ func (eventReporter *JobEventReporter) ReportMissingJobEvents() {
 	podsWithCurrentPhaseNotReported := filterPodsWithCurrentStateNotReported(allBatchPods)
 
 	for _, pod := range podsWithCurrentPhaseNotReported {
-		if util.IsReportingPhaseRequired(pod.Status.Phase) {
+		if util.IsReportingPhaseRequired(pod.Status.Phase) && !eventReporter.hasPendingEvents(pod) {
 			eventReporter.ReportCurrentStatus(pod)
 		}
 	}
+}
+
+func (eventReporter *JobEventReporter) hasPendingEvents(pod *v1.Pod) bool {
+	eventReporter.eventQueuedMutex.Lock()
+	defer eventReporter.eventQueuedMutex.Unlock()
+	id := util.ExtractJobId(pod)
+	return eventReporter.eventQueued[id]
 }
 
 func filterPodsWithCurrentStateNotReported(pods []*v1.Pod) []*v1.Pod {
