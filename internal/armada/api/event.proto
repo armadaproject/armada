@@ -138,6 +138,10 @@ message EventMessage {
     }
 }
 
+message EventList {
+    repeated EventMessage Events = 1;
+}
+
 // swagger:model
 message EventStreamMessage {
     string Id = 1;
@@ -152,6 +156,7 @@ message JobSetRequest {
 }
 
 service Event {
+    rpc ReportMultiple (EventList) returns (google.protobuf.Empty);
     rpc Report (EventMessage) returns (google.protobuf.Empty);
     rpc GetJobSetEvents (JobSetRequest) returns (stream EventStreamMessage) {
         option (google.api.http) = {
