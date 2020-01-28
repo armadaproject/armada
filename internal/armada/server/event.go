@@ -28,6 +28,13 @@ func (s *EventServer) Report(ctx context.Context, message *api.EventMessage) (*t
 	return &types.Empty{}, s.eventRepository.ReportEvent(message)
 }
 
+func (s *EventServer) ReportMultiple(ctx context.Context, message *api.EventList) (*types.Empty, error) {
+	if e := checkPermission(s.permissions, ctx, permissions.ExecuteJobs); e != nil {
+		return nil, e
+	}
+	return &types.Empty{}, s.eventRepository.ReportEvents(message.Events)
+}
+
 func (s *EventServer) GetJobSetEvents(request *api.JobSetRequest, stream api.Event_GetJobSetEventsServer) error {
 	if e := checkPermission(s.permissions, stream.Context(), permissions.WatchAllEvents); e != nil {
 		return e
