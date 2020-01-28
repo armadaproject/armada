@@ -31,7 +31,7 @@ type queuedEvent struct {
 type JobEventReporter struct {
 	eventClient      api.EventClient
 	eventBuffer      chan *queuedEvent
-	eventQueued      map[string]bool
+	eventQueued      map[string]uint8
 	eventQueuedMutex sync.Mutex
 
 	clusterContext clusterContext.ClusterContext
@@ -45,7 +45,7 @@ func NewJobEventReporter(clusterContext clusterContext.ClusterContext, eventClie
 		eventClient:      eventClient,
 		clusterContext:   clusterContext,
 		eventBuffer:      make(chan *queuedEvent, 1000000),
-		eventQueued:      map[string]bool{},
+		eventQueued:      map[string]uint8{},
 		eventQueuedMutex: sync.Mutex{}}
 
 	clusterContext.AddPodEventHandler(cache.ResourceEventHandlerFuncs{
@@ -118,7 +118,8 @@ func (eventReporter *JobEventReporter) ReportCurrentStatus(pod *v1.Pod) {
 func (eventReporter *JobEventReporter) queueEvent(event api.Event, callback func(error)) {
 	eventReporter.eventQueuedMutex.Lock()
 	defer eventReporter.eventQueuedMutex.Unlock()
-	eventReporter.eventQueued[event.GetJobId()] = true
+	jobId := event.GetJobId()
+	eventReporter.eventQueued[jobId] = eventReporter.eventQueued[jobId] + 1
 	eventReporter.eventBuffer <- &queuedEvent{event, callback}
 }
 
@@ -155,7 +156,13 @@ func (eventReporter *JobEventReporter) sendBatch(batch []*queuedEvent) {
 	}()
 	eventReporter.eventQueuedMutex.Lock()
 	for _, e := range batch {
-		delete(eventReporter.eventQueued, e.Event.GetJobId())
+		id := e.Event.GetJobId()
+		count := eventReporter.eventQueued[id]
+		if count <= 1 {
+			delete(eventReporter.eventQueued, id)
+		} else {
+			eventReporter.eventQueued[id] = count - 1
+		}
 	}
 	eventReporter.eventQueuedMutex.Unlock()
 }
@@ -216,7 +223,7 @@ func (eventReporter *JobEventReporter) hasPendingEvents(pod *v1.Pod) bool {
 	eventReporter.eventQueuedMutex.Lock()
 	defer eventReporter.eventQueuedMutex.Unlock()
 	id := util.ExtractJobId(pod)
-	return eventReporter.eventQueued[id]
+	return eventReporter.eventQueued[id] > 0
 }
 
 func filterPodsWithCurrentStateNotReported(pods []*v1.Pod) []*v1.Pod {
