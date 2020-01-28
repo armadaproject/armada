@@ -124,29 +124,40 @@ func (eventReporter *JobEventReporter) queueEvent(event api.Event, callback func
 
 func (eventReporter *JobEventReporter) processEventQueue(stop chan bool) {
 	for {
-		batch := []*queuedEvent{}
+
 		select {
 		case <-stop:
+			for i := len(eventReporter.eventBuffer); i > 0; i -= batchSize {
+				batch := eventReporter.fillBatch()
+				eventReporter.sendBatch(batch)
+			}
 			return
 		case event := <-eventReporter.eventBuffer:
-			batch = append(batch, event)
-			for len(batch) < batchSize && len(eventReporter.eventBuffer) > 0 {
-				batch = append(batch, <-eventReporter.eventBuffer)
-			}
+			batch := eventReporter.fillBatch(event)
+			eventReporter.sendBatch(batch)
 		}
-		err := eventReporter.sendEvents(batch)
-		go func() {
-			for _, e := range batch {
-				e.Callback(err)
-			}
-		}()
-
-		eventReporter.eventQueuedMutex.Lock()
-		for _, e := range batch {
-			delete(eventReporter.eventQueued, e.Event.GetJobId())
-		}
-		eventReporter.eventQueuedMutex.Unlock()
 	}
+}
+
+func (eventReporter *JobEventReporter) fillBatch(batch ...*queuedEvent) []*queuedEvent {
+	for len(batch) < batchSize && len(eventReporter.eventBuffer) > 0 {
+		batch = append(batch, <-eventReporter.eventBuffer)
+	}
+	return batch
+}
+
+func (eventReporter *JobEventReporter) sendBatch(batch []*queuedEvent) {
+	err := eventReporter.sendEvents(batch)
+	go func() {
+		for _, e := range batch {
+			e.Callback(err)
+		}
+	}()
+	eventReporter.eventQueuedMutex.Lock()
+	for _, e := range batch {
+		delete(eventReporter.eventQueued, e.Event.GetJobId())
+	}
+	eventReporter.eventQueuedMutex.Unlock()
 }
 
 func (eventReporter *JobEventReporter) sendEvents(events []*queuedEvent) error {
