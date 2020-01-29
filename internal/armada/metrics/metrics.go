@@ -53,7 +53,7 @@ var queueUsageDesc = prometheus.NewDesc(
 
 var clusterCapacityDesc = prometheus.NewDesc(
 	metricPrefix+"cluster_capacity",
-	"Resource usage of a queue",
+	"Cluster capacity",
 	[]string{"cluster", "resourceType"},
 	nil,
 )
