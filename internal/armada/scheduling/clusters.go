@@ -6,11 +6,13 @@ import (
 	"github.com/G-Research/armada/internal/armada/api"
 )
 
-func FilterActiveClusters(reports map[string]*api.ClusterUsageReport, expiry time.Duration) map[string]*api.ClusterUsageReport {
+const activeClusterExpiry = 10 * time.Minute
+
+func FilterActiveClusters(reports map[string]*api.ClusterUsageReport) map[string]*api.ClusterUsageReport {
 	result := map[string]*api.ClusterUsageReport{}
 	now := time.Now()
 	for id, report := range reports {
-		if report.ReportTime.Add(expiry).After(now) {
+		if report.ReportTime.Add(activeClusterExpiry).After(now) {
 			result[id] = report
 		}
 	}
