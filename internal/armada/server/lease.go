@@ -15,7 +15,6 @@ import (
 	"github.com/G-Research/armada/internal/armada/authorization"
 	"github.com/G-Research/armada/internal/armada/authorization/permissions"
 	"github.com/G-Research/armada/internal/armada/configuration"
-	"github.com/G-Research/armada/internal/armada/metrics"
 	"github.com/G-Research/armada/internal/armada/repository"
 	"github.com/G-Research/armada/internal/armada/scheduling"
 	"github.com/G-Research/armada/internal/common"
@@ -30,7 +29,6 @@ type AggregatedQueueServer struct {
 	queueRepository  repository.QueueRepository
 	usageRepository  repository.UsageRepository
 	eventRepository  repository.EventRepository
-	metricRecorder   metrics.MetricRecorder
 }
 
 func NewAggregatedQueueServer(
@@ -40,7 +38,6 @@ func NewAggregatedQueueServer(
 	queueRepository repository.QueueRepository,
 	usageRepository repository.UsageRepository,
 	eventRepository repository.EventRepository,
-	metricRecorder metrics.MetricRecorder,
 ) *AggregatedQueueServer {
 	return &AggregatedQueueServer{
 		permissions:      permissions,
@@ -48,8 +45,7 @@ func NewAggregatedQueueServer(
 		jobRepository:    jobRepository,
 		queueRepository:  queueRepository,
 		usageRepository:  usageRepository,
-		eventRepository:  eventRepository,
-		metricRecorder:   metricRecorder}
+		eventRepository:  eventRepository}
 }
 
 type leaseContext struct {
@@ -89,7 +85,7 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 		return nil, e
 	}
 
-	activeClusterReports := scheduling.FilterActiveClusters(usageReports, 10*time.Minute)
+	activeClusterReports := scheduling.FilterActiveClusters(usageReports)
 	clusterPriorities, e := q.usageRepository.GetClusterPriorities(scheduling.GetClusterReportIds(activeClusterReports))
 	if e != nil {
 		return nil, e
@@ -106,8 +102,6 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 	scarcity := scheduling.ResourceScarcityFromReports(activeClusterReports)
 	activeQueuePriority := filterPriorityMapByKeys(queuePriority, activeQueues)
 	slices := scheduling.SliceResource(scarcity, activeQueuePriority, resourcesToSchedule)
-
-	q.metricRecorder.RecordQueuePriorities(queuePriority)
 
 	jobs := []*api.Job{}
 	limit := maxJobsPerLease
