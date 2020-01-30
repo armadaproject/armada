@@ -16,14 +16,6 @@ type QueuePriorityInfo struct {
 	CurrentUsage common.ComputeResources
 }
 
-func GetPriorityMapQueues(priorities map[*api.Queue]QueuePriorityInfo) []*api.Queue {
-	queues := []*api.Queue{}
-	for queue := range priorities {
-		queues = append(queues, queue)
-	}
-	return queues
-}
-
 func CalculateQueuesPriorityInfo(clusterPriorities map[string]map[string]float64, activeClusterReports map[string]*api.ClusterUsageReport, queues []*api.Queue) map[*api.Queue]QueuePriorityInfo {
 	queuePriority := aggregatePriority(clusterPriorities)
 	queueUsage := aggregateQueueUsage(activeClusterReports)
