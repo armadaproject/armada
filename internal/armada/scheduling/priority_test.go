@@ -54,7 +54,7 @@ func TestPriorityService_GetQueuePriorities(t *testing.T) {
 	}, priorities)
 }
 
-func TestAggregateQueueUsageDoesNotChangeSOurceData(t *testing.T) {
+func TestAggregateQueueUsageDoesNotChangeSourceData(t *testing.T) {
 	oneCpu := resource.MustParse("1")
 	reports := map[string]*api.ClusterUsageReport{
 		"cluster1": {Queues: []*api.QueueReport{
