@@ -89,7 +89,7 @@ func aggregateQueueUsage(reports map[string]*api.ClusterUsageReport) map[string]
 		for _, queueReport := range report.Queues {
 			current, ok := result[queueReport.Name]
 			if !ok {
-				result[queueReport.Name] = queueReport.Resources
+				result[queueReport.Name] = common.ComputeResources(queueReport.Resources).DeepCopy()
 			} else {
 				current.Add(queueReport.Resources)
 			}
