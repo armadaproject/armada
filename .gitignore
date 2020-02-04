@@ -9,7 +9,6 @@
 *.so
 *.dylib
 bin/
-armadactl
 
 # Test binary, built with `go test -c`
 *.test
