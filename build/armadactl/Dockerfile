@@ -10,4 +10,4 @@ COPY ./bin/linux/armadactl /app/
 
 WORKDIR /app
 
-ENTRYPOINT ["./server"]
+ENTRYPOINT ["./armadactl"]
