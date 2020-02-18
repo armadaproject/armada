@@ -13,3 +13,5 @@ apiConnection:
 metricsPort: 9001
 kubernetes:
   impersonateUsers: false
+  minimumPodAge: 3m
+  failedPodExpiry: 10m

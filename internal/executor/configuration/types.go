@@ -13,6 +13,8 @@ type ApplicationConfiguration struct {
 type KubernetesConfiguration struct {
 	ImpersonateUsers  bool
 	TrackedNodeLabels []string
+	MinimumPodAge     time.Duration
+	FailedPodExpiry   time.Duration
 }
 
 type TaskConfiguration struct {

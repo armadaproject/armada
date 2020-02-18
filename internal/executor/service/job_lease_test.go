@@ -1,68 +1,110 @@
 package service
 
 import (
+	"context"
 	"testing"
 	"time"
 
+	"github.com/gogo/protobuf/types"
 	"github.com/stretchr/testify/assert"
+	"google.golang.org/grpc"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/G-Research/armada/internal/armada/api"
+	context2 "github.com/G-Research/armada/internal/executor/fake/context"
 )
 
-func TestGetFinishedPods(t *testing.T) {
-	nonFinishedPod := makePodWithCurrentStateReported(v1.PodPending)
-	finishedPod := makePodWithCurrentStateReported(v1.PodSucceeded)
+func TestCanBeRemovedConditions(t *testing.T) {
+	s := CreateLeaseService(time.Second, time.Second)
+	pods := map[*v1.Pod]bool{
+		// should not be cleaned yet
+		makePodWithCurrentStateReported(v1.PodRunning, false):   false,
+		makePodWithCurrentStateReported(v1.PodSucceeded, false): false,
+		makePodWithCurrentStateReported(v1.PodFailed, false):    false,
 
-	result := getFinishedPods([]*v1.Pod{nonFinishedPod, finishedPod})
+		// should be cleaned
+		makePodWithCurrentStateReported(v1.PodSucceeded, true): true,
+		makePodWithCurrentStateReported(v1.PodFailed, true):    true,
+	}
 
-	assert.Equal(t, len(result), 1)
-	assert.Equal(t, result[0], finishedPod)
+	for pod, expected := range pods {
+		result := s.canBeRemoved(pod)
+		assert.Equal(t, expected, result)
+	}
 }
 
-func TestGetFinishedPods_HandlesEmptyInput(t *testing.T) {
-	result := getFinishedPods([]*v1.Pod{})
+func TestCanBeRemovedMinumumPodTime(t *testing.T) {
+	s := CreateLeaseService(5*time.Minute, 10*time.Minute)
+	now := time.Now()
+	pods := map[*v1.Pod]bool{
+		// should not be cleaned yet
+		makeFinishedPodWithTimestamp(v1.PodSucceeded, now.Add(-1*time.Minute)): false,
+		makeFinishedPodWithTimestamp(v1.PodFailed, now.Add(-1*time.Minute)):    false,
+		makeFinishedPodWithTimestamp(v1.PodFailed, now.Add(-7*time.Minute)):    false,
 
-	assert.NotNil(t, result)
-	assert.Equal(t, len(result), 0)
-}
+		// should be cleaned
+		makeFinishedPodWithTimestamp(v1.PodSucceeded, now.Add(-7*time.Minute)): true,
+		makeFinishedPodWithTimestamp(v1.PodFailed, now.Add(-13*time.Minute)):   true,
+	}
 
-func TestIsPodReadyForCleanup_ReturnsTrue_WhenPodCompletedWithStateReported(t *testing.T) {
-	pod := makePodWithCurrentStateReported(v1.PodSucceeded)
-
-	result := isPodReadyForCleanup(pod)
-	assert.True(t, result)
-}
-
-func TestIsPodReadyForCleanup_ReturnsFalse_WhenPodNotCompleted(t *testing.T) {
-	pod := makePodWithCurrentStateReported(v1.PodRunning)
-
-	result := isPodReadyForCleanup(pod)
-	assert.False(t, result)
-}
-
-func TestIsPodReadyForCleanup_ReturnsFalse_WhenPodsStateNotReported(t *testing.T) {
-	pod := makePodWithCurrentStateReported(v1.PodSucceeded)
-	//Remove annotation marking pod state reported
-	pod.Annotations = map[string]string{}
-
-	result := isPodReadyForCleanup(pod)
-	assert.False(t, result)
+	for pod, expected := range pods {
+		result := s.canBeRemoved(pod)
+		assert.Equal(t, expected, result)
+	}
 }
 
 func TestChunkPods(t *testing.T) {
-	p := makePodWithCurrentStateReported(v1.PodPending)
+	p := makePodWithCurrentStateReported(v1.PodPending, false)
 	chunks := chunkPods([]*v1.Pod{p, p, p}, 2)
 	assert.Equal(t, [][]*v1.Pod{{p, p}, {p}}, chunks)
 }
 
-func makePodWithCurrentStateReported(state v1.PodPhase) *v1.Pod {
+func makeFinishedPodWithTimestamp(state v1.PodPhase, timestamp time.Time) *v1.Pod {
+	pod := makePodWithCurrentStateReported(state, true)
+	pod.CreationTimestamp.Time = timestamp
+	return pod
+}
+
+func makePodWithCurrentStateReported(state v1.PodPhase, reportedDone bool) *v1.Pod {
 	pod := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Annotations: map[string]string{string(state): time.Now().String()},
+			// all times check fallback to creation time if there is no info available
+			CreationTimestamp: metav1.Time{time.Now().Add(-10 * time.Minute)},
 		},
 		Status: v1.PodStatus{
 			Phase: state,
 		},
 	}
+
+	if reportedDone {
+		pod.Annotations[jobDoneAnnotation] = time.Now().String()
+	}
+
 	return &pod
+}
+
+func CreateLeaseService(minimumPodAge, failedPodExpiry time.Duration) *JobLeaseService {
+	fakeClusterContext := context2.NewFakeClusterContext("test")
+	return NewJobLeaseService(fakeClusterContext, &queueClientMock{}, minimumPodAge, failedPodExpiry)
+}
+
+type queueClientMock struct {
+}
+
+func (queueClientMock) LeaseJobs(ctx context.Context, in *api.LeaseRequest, opts ...grpc.CallOption) (*api.JobLease, error) {
+	return &api.JobLease{}, nil
+}
+
+func (queueClientMock) RenewLease(ctx context.Context, in *api.RenewLeaseRequest, opts ...grpc.CallOption) (*api.IdList, error) {
+	return &api.IdList{}, nil
+}
+
+func (queueClientMock) ReturnLease(ctx context.Context, in *api.ReturnLeaseRequest, opts ...grpc.CallOption) (*types.Empty, error) {
+	return &types.Empty{}, nil
+}
+
+func (queueClientMock) ReportDone(ctx context.Context, in *api.IdList, opts ...grpc.CallOption) (*api.IdList, error) {
+	return &api.IdList{}, nil
 }
