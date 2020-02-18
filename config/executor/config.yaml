@@ -6,10 +6,12 @@ task:
   stuckPodScanInterval: 15s
   jobLeaseRenewalInterval: 15s
   podDeletionInterval: 5s
-  allocateSpareClusterCapacityInterval: 5s
+  allocateSpareClusterCapacityInterval: 1s
   podMetricsInterval: 1s
 apiConnection:
   armadaUrl : "localhost:50051"
 metricsPort: 9001
 kubernetes:
   impersonateUsers: false
+  minimumPodAge: 3m
+  failedPodExpiry: 10m

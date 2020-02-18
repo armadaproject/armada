@@ -1,6 +1,9 @@
 package util
 
 import (
+	"errors"
+	"time"
+
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
@@ -124,4 +127,53 @@ func MergePodList(list1 []*v1.Pod, list2 []*v1.Pod) []*v1.Pod {
 	}
 
 	return allPods
+}
+
+func FilterPods(pods []*v1.Pod, filter func(*v1.Pod) bool) []*v1.Pod {
+	result := make([]*v1.Pod, 0)
+	for _, pod := range pods {
+		if filter(pod) {
+			result = append(result, pod)
+		}
+	}
+	return result
+}
+
+func LastStatusChange(pod *v1.Pod) (time.Time, error) {
+	maxStatusChange := pod.CreationTimestamp.Time
+	for _, containerStatus := range pod.Status.ContainerStatuses {
+		if s := containerStatus.State.Running; s != nil {
+			maxStatusChange = maxTime(maxStatusChange, s.StartedAt.Time)
+		}
+		if s := containerStatus.State.Terminated; s != nil {
+			maxStatusChange = maxTime(maxStatusChange, s.FinishedAt.Time)
+		}
+	}
+
+	for _, condition := range pod.Status.Conditions {
+		maxStatusChange = maxTime(maxStatusChange, condition.LastTransitionTime.Time)
+	}
+
+	if maxStatusChange.IsZero() {
+		return maxStatusChange, errors.New("cannot determine last status change")
+	}
+	return maxStatusChange, nil
+}
+
+func FindLastContainerStartTime(pod *v1.Pod) time.Time {
+	//Fallback to pod creation if there is no container
+	startTime := pod.CreationTimestamp.Time
+	for _, c := range pod.Status.ContainerStatuses {
+		if c.State.Terminated != nil {
+			startTime = maxTime(startTime, c.State.Terminated.StartedAt.Time)
+		}
+	}
+	return startTime
+}
+
+func maxTime(a, b time.Time) time.Time {
+	if a.After(b) {
+		return a
+	}
+	return b
 }

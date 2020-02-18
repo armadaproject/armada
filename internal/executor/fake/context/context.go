@@ -1,4 +1,4 @@
-package fake
+package context
 
 import (
 	"fmt"
@@ -14,23 +14,29 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
+
+	"github.com/G-Research/armada/internal/executor/context"
 )
 
-type fakeClusterContext struct {
+type FakeClusterContext struct {
 	clusterId string
 	handlers  []*cache.ResourceEventHandlerFuncs
 	rwLock    sync.RWMutex
 	pods      map[string]*v1.Pod
 }
 
-func (fakeClusterContext) Stop() {
+func NewFakeClusterContext(clusterId string) context.ClusterContext {
+	return &FakeClusterContext{clusterId: clusterId, pods: map[string]*v1.Pod{}}
 }
 
-func (c *fakeClusterContext) AddPodEventHandler(handler cache.ResourceEventHandlerFuncs) {
+func (FakeClusterContext) Stop() {
+}
+
+func (c *FakeClusterContext) AddPodEventHandler(handler cache.ResourceEventHandlerFuncs) {
 	c.handlers = append(c.handlers, &handler)
 }
 
-func (c *fakeClusterContext) GetBatchPods() ([]*v1.Pod, error) {
+func (c *FakeClusterContext) GetBatchPods() ([]*v1.Pod, error) {
 	c.rwLock.Lock()
 	defer c.rwLock.Unlock()
 
@@ -41,15 +47,15 @@ func (c *fakeClusterContext) GetBatchPods() ([]*v1.Pod, error) {
 	return pods, nil
 }
 
-func (c *fakeClusterContext) GetAllPods() ([]*v1.Pod, error) {
+func (c *FakeClusterContext) GetAllPods() ([]*v1.Pod, error) {
 	return c.GetBatchPods()
 }
 
-func (c *fakeClusterContext) GetActiveBatchPods() ([]*v1.Pod, error) {
+func (c *FakeClusterContext) GetActiveBatchPods() ([]*v1.Pod, error) {
 	return c.GetBatchPods()
 }
 
-func (c *fakeClusterContext) GetNodes() ([]*v1.Node, error) {
+func (c *FakeClusterContext) GetNodes() ([]*v1.Node, error) {
 	return []*v1.Node{
 		{
 			ObjectMeta: metav1.ObjectMeta{
@@ -68,7 +74,7 @@ func (c *fakeClusterContext) GetNodes() ([]*v1.Node, error) {
 	}, nil
 }
 
-func (c *fakeClusterContext) SubmitPod(pod *v1.Pod, owner string) (*v1.Pod, error) {
+func (c *FakeClusterContext) SubmitPod(pod *v1.Pod, owner string) (*v1.Pod, error) {
 	c.rwLock.Lock()
 	pod.Status.Phase = v1.PodPending
 	pod.CreationTimestamp = metav1.Now()
@@ -107,7 +113,7 @@ func (c *fakeClusterContext) SubmitPod(pod *v1.Pod, owner string) (*v1.Pod, erro
 	return pod, nil
 }
 
-func (c *fakeClusterContext) updateStatus(saved *v1.Pod, phase v1.PodPhase, state v1.ContainerState) (*v1.Pod, *v1.Pod) {
+func (c *FakeClusterContext) updateStatus(saved *v1.Pod, phase v1.PodPhase, state v1.ContainerState) (*v1.Pod, *v1.Pod) {
 	c.rwLock.Lock()
 	oldPod := saved.DeepCopy()
 	saved.Status.Phase = phase
@@ -148,7 +154,7 @@ func extractSleepTime(pod *v1.Pod) float32 {
 	return 1
 }
 
-func (c *fakeClusterContext) AddAnnotation(pod *v1.Pod, annotations map[string]string) error {
+func (c *FakeClusterContext) AddAnnotation(pod *v1.Pod, annotations map[string]string) error {
 	c.rwLock.Lock()
 	defer c.rwLock.Unlock()
 
@@ -162,7 +168,7 @@ func (c *fakeClusterContext) AddAnnotation(pod *v1.Pod, annotations map[string]s
 	return nil
 }
 
-func (c *fakeClusterContext) DeletePods(pods []*v1.Pod) {
+func (c *FakeClusterContext) DeletePods(pods []*v1.Pod) {
 	go func() {
 		// wait a little before actual delete
 		time.Sleep(100 * time.Millisecond)
@@ -170,12 +176,12 @@ func (c *fakeClusterContext) DeletePods(pods []*v1.Pod) {
 		c.rwLock.Lock()
 		defer c.rwLock.Unlock()
 
-		for _, p := range pods {
+		/*for _, p := range pods {
 			delete(c.pods, p.Name)
-		}
+		}*/
 	}()
 }
 
-func (c *fakeClusterContext) GetClusterId() string {
+func (c *FakeClusterContext) GetClusterId() string {
 	return c.clusterId
 }
