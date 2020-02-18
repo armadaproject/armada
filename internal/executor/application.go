@@ -63,7 +63,9 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 
 	jobLeaseService := service.NewJobLeaseService(
 		clusterContext,
-		queueClient)
+		queueClient,
+		config.Kubernetes.MinimumPodAge,
+		config.Kubernetes.FailedPodExpiry)
 
 	clusterUtilisationService := service.NewClusterUtilisationService(
 		clusterContext,

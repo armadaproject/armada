@@ -1,7 +1,6 @@
 package reporter
 
 import (
-	"errors"
 	"sync"
 	"time"
 
@@ -244,39 +243,11 @@ func HasCurrentStateBeenReported(pod *v1.Pod) bool {
 
 func HasPodBeenInStateForLongerThanGivenDuration(pod *v1.Pod, duration time.Duration) bool {
 	deadline := time.Now().Add(-duration)
-	lastStatusChange, err := lastStatusChange(pod)
+	lastStatusChange, err := util.LastStatusChange(pod)
 
 	if err != nil {
 		log.Errorf("Problem with pod %v: %v", pod.Name, err)
 		return false
 	}
 	return lastStatusChange.Before(deadline)
-}
-
-func lastStatusChange(pod *v1.Pod) (time.Time, error) {
-	maxStatusChange := pod.CreationTimestamp.Time
-	for _, containerStatus := range pod.Status.ContainerStatuses {
-		if s := containerStatus.State.Running; s != nil {
-			maxStatusChange = maxTime(maxStatusChange, s.StartedAt.Time)
-		}
-		if s := containerStatus.State.Terminated; s != nil {
-			maxStatusChange = maxTime(maxStatusChange, s.FinishedAt.Time)
-		}
-	}
-
-	for _, condition := range pod.Status.Conditions {
-		maxStatusChange = maxTime(maxStatusChange, condition.LastTransitionTime.Time)
-	}
-
-	if maxStatusChange.IsZero() {
-		return maxStatusChange, errors.New("cannot determine last status change")
-	}
-	return maxStatusChange, nil
-}
-
-func maxTime(a, b time.Time) time.Time {
-	if a.After(b) {
-		return a
-	}
-	return b
 }
