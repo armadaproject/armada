@@ -176,9 +176,9 @@ func (c *FakeClusterContext) DeletePods(pods []*v1.Pod) {
 		c.rwLock.Lock()
 		defer c.rwLock.Unlock()
 
-		/*for _, p := range pods {
+		for _, p := range pods {
 			delete(c.pods, p.Name)
-		}*/
+		}
 	}()
 }
 
