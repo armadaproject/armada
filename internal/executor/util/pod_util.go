@@ -164,8 +164,11 @@ func FindLastContainerStartTime(pod *v1.Pod) time.Time {
 	//Fallback to pod creation if there is no container
 	startTime := pod.CreationTimestamp.Time
 	for _, c := range pod.Status.ContainerStatuses {
-		if c.State.Terminated != nil {
-			startTime = maxTime(startTime, c.State.Terminated.StartedAt.Time)
+		if s := c.State.Running; s != nil {
+			startTime = maxTime(startTime, s.StartedAt.Time)
+		}
+		if s := c.State.Terminated; s != nil {
+			startTime = maxTime(startTime, s.StartedAt.Time)
 		}
 	}
 	return startTime
