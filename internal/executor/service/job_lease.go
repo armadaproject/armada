@@ -84,13 +84,13 @@ func (jobLeaseService *JobLeaseService) ManageJobLeases() {
 		return
 	}
 
-	podsTopRenew := util.FilterPods(batchPods, isToRenew)
-	chunkedPods := chunkPods(podsTopRenew, maxPodRequestSize)
+	podsToRenew := util.FilterPods(batchPods, shouldBeRenewed)
+	chunkedPods := chunkPods(podsToRenew, maxPodRequestSize)
 	for _, chunk := range chunkedPods {
 		jobLeaseService.renewJobLeases(chunk)
 	}
 
-	podsForReporting := util.FilterPods(batchPods, isToReportDone)
+	podsForReporting := util.FilterPods(batchPods, shouldBeReportedDone)
 	chunkedPodsToReportDone := chunkPods(podsForReporting, maxPodRequestSize)
 	for _, chunk := range chunkedPodsToReportDone {
 		err = jobLeaseService.ReportDone(chunk)
@@ -156,11 +156,11 @@ func (jobLeaseService *JobLeaseService) markAsDone(pods []*v1.Pod) {
 	}
 }
 
-func isToRenew(pod *v1.Pod) bool {
+func shouldBeRenewed(pod *v1.Pod) bool {
 	return !isReportedDone(pod)
 }
 
-func isToReportDone(pod *v1.Pod) bool {
+func shouldBeReportedDone(pod *v1.Pod) bool {
 	return util.IsInTerminalState(pod) && !isReportedDone(pod)
 }
 
