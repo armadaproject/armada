@@ -10,12 +10,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/jcmturner/gokrb5/v8/client"
+	"github.com/jcmturner/gokrb5/v8/config"
+	"github.com/jcmturner/gokrb5/v8/credentials"
+	"github.com/jcmturner/gokrb5/v8/krberror"
+	"github.com/jcmturner/gokrb5/v8/spnego"
 	grpc_credentials "google.golang.org/grpc/credentials"
-	"gopkg.in/jcmturner/gokrb5.v7/client"
-	"gopkg.in/jcmturner/gokrb5.v7/config"
-	"gopkg.in/jcmturner/gokrb5.v7/credentials"
-	"gopkg.in/jcmturner/gokrb5.v7/krberror"
-	"gopkg.in/jcmturner/gokrb5.v7/spnego"
 )
 
 type spnegoCredentials struct {
@@ -103,7 +103,7 @@ func (s *spnegoCredentials) renewClient() error {
 		if err != nil {
 			return err
 		}
-		kerberosClient, err := client.NewClientFromCCache(credentialsCache, s.krb5Config, client.DisablePAFXFAST(true))
+		kerberosClient, err := client.NewFromCCache(credentialsCache, s.krb5Config, client.DisablePAFXFAST(true))
 		if err != nil {
 			return err
 		}
