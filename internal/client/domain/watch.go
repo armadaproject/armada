@@ -3,6 +3,7 @@ package domain
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/G-Research/armada/internal/armada/api"
 )
@@ -21,11 +22,15 @@ const (
 )
 
 type JobInfo struct {
-	Status JobStatus
-	Job    *api.Job
+	Status     JobStatus
+	Job        *api.Job
+	LastUpdate time.Time
 }
 
 var statesToIncludeInSummary []JobStatus
+
+// States where the job is finished:
+var inactiveStates []JobStatus
 
 func init() {
 	statesToIncludeInSummary = []JobStatus{
@@ -33,6 +38,11 @@ func init() {
 		Leased,
 		Pending,
 		Running,
+		Succeeded,
+		Failed,
+		Cancelled,
+	}
+	inactiveStates = []JobStatus{
 		Succeeded,
 		Failed,
 		Cancelled,
@@ -115,7 +125,29 @@ func (context *WatchContext) GetNumberOfJobsInStates(states []JobStatus) int {
 	return numberOfJobs
 }
 
+// Return number of finished jobs:
+func (context *WatchContext) GetNumberOfFinishedJobs() int {
+	return context.GetNumberOfJobsInStates(inactiveStates)
+}
+
+// Return number of jobs:
+func (context *WatchContext) GetNumberOfJobs() int {
+	numberOfJobs := 0
+
+	for _, num := range context.stateSummary {
+		numberOfJobs += num
+	}
+
+	return numberOfJobs
+}
+
 func updateJobInfo(info *JobInfo, event api.Event) {
+	if info.LastUpdate.After(event.GetCreated()) {
+		// skipping event as it is out of time order
+		return
+	}
+	info.LastUpdate = event.GetCreated()
+
 	switch typed := event.(type) {
 	case *api.JobSubmittedEvent:
 		info.Status = Submitted

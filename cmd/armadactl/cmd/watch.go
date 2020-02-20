@@ -20,6 +20,7 @@ import (
 func init() {
 	rootCmd.AddCommand(watchCmd)
 	watchCmd.Flags().Bool("raw", false, "Output raw events")
+	watchCmd.Flags().Bool("exit-if-inactive", false, "Exit if there are no more active jobs")
 }
 
 // watchCmd represents the watch command
@@ -32,7 +33,7 @@ var watchCmd = &cobra.Command{
 
 		jobSetId := args[0]
 		raw, _ := cmd.Flags().GetBool("raw")
-
+		exit_on_inactive, _ := cmd.Flags().GetBool("exit-if-inactive")
 		log.Infof("Watching job set %s", jobSetId)
 
 		apiConnectionDetails := client.ExtractCommandlineArmadaApiConnectionDetails()
@@ -52,6 +53,9 @@ var watchCmd = &cobra.Command{
 					summary += state.GetCurrentStateSummary()
 					summary += fmt.Sprintf(" | event: %s, job id: %s", reflect.TypeOf(e), e.GetJobId())
 					log.Info(summary)
+				}
+				if exit_on_inactive && state.GetNumberOfJobs() == state.GetNumberOfFinishedJobs() {
+					return true
 				}
 				return false
 			})

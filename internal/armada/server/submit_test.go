@@ -13,6 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/G-Research/armada/internal/armada/api"
+	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/G-Research/armada/internal/armada/repository"
 	"github.com/G-Research/armada/internal/common/util"
 )
@@ -72,7 +73,7 @@ func TestSubmitServer_SubmitJob_ReturnsJobItemsInTheSameOrderTheyWereSubmitted(t
 		}
 
 		//Get jobs for jobIds returned
-		jobs, _ := s.jobRepository.GetJobsByIds(jobIds)
+		jobs, _ := s.jobRepository.GetExistingJobsByIds(jobIds)
 		jobSet := make(map[string]*api.Job, 5)
 		for _, job := range jobs {
 			jobSet[job.Id] = job
@@ -133,7 +134,7 @@ func withSubmitServer(action func(s *SubmitServer)) {
 
 	jobRepo := repository.NewRedisJobRepository(client)
 	queueRepo := repository.NewRedisQueueRepository(client)
-	eventRepo := repository.NewRedisEventRepository(client)
+	eventRepo := repository.NewRedisEventRepository(client, configuration.EventRetentionPolicy{ExpiryEnabled: false})
 	server := NewSubmitServer(&fakePermissionChecker{}, jobRepo, queueRepo, eventRepo)
 
 	err := queueRepo.CreateQueue(&api.Queue{Name: "test"})

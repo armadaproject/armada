@@ -4,9 +4,12 @@ import (
 	"fmt"
 
 	v1 "k8s.io/api/core/v1"
+
+	"github.com/G-Research/armada/internal/common/util"
 )
 
-var imagePullBackOffStatesSet = map[string]bool{"ImagePullBackOff": true, "ErrImagePull": true}
+var imagePullBackOffStatesSet = util.StringListToSet([]string{"ImagePullBackOff", "ErrImagePull"})
+var invalidImageNameStatesSet = util.StringListToSet([]string{"InvalidImageName"})
 
 func ExtractPodStuckReason(pod *v1.Pod) string {
 	containerStatuses := pod.Status.ContainerStatuses
@@ -44,6 +47,21 @@ func ExtractPodFailedReason(pod *v1.Pod) string {
 	return failedMessage
 }
 
+func ExtractPodExitCodes(pod *v1.Pod) map[string]int32 {
+	containerStatuses := pod.Status.ContainerStatuses
+	containerStatuses = append(containerStatuses, pod.Status.InitContainerStatuses...)
+
+	exitCodes := map[string]int32{}
+
+	for _, containerStatus := range containerStatuses {
+		if containerStatus.State.Terminated != nil {
+			exitCodes[containerStatus.Name] = containerStatus.State.Terminated.ExitCode
+		}
+	}
+
+	return exitCodes
+}
+
 func IsRetryable(pod *v1.Pod) bool {
 	containerStatuses := pod.Status.ContainerStatuses
 	containerStatuses = append(containerStatuses, pod.Status.InitContainerStatuses...)
@@ -52,6 +70,9 @@ func IsRetryable(pod *v1.Pod) bool {
 		if containerStatus.State.Waiting != nil {
 			waitingReason := containerStatus.State.Waiting.Reason
 			if imagePullBackOffStatesSet[waitingReason] {
+				return false
+			}
+			if invalidImageNameStatesSet[waitingReason] {
 				return false
 			}
 		}

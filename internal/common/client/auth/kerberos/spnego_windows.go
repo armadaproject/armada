@@ -29,7 +29,7 @@ func (s *spnego) GetRequestMetadata(ctx context.Context, uri ...string) (map[str
 	}
 	defer cred.Release()
 
-	securityCtx, token, err := negotiate.NewClientContext(cred, "HTTP/armada.armada.services-1.ospr-k8s-d.eqld.c3.zone")
+	securityCtx, token, err := negotiate.NewClientContext(cred, s.spn)
 	if err != nil {
 		return nil, err
 	}

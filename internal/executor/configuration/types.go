@@ -11,7 +11,10 @@ type ApplicationConfiguration struct {
 }
 
 type KubernetesConfiguration struct {
-	ImpersonateUsers bool
+	ImpersonateUsers  bool
+	TrackedNodeLabels []string
+	MinimumPodAge     time.Duration
+	FailedPodExpiry   time.Duration
 }
 
 type TaskConfiguration struct {
@@ -21,6 +24,7 @@ type TaskConfiguration struct {
 	AllocateSpareClusterCapacityInterval  time.Duration
 	StuckPodScanInterval                  time.Duration
 	PodDeletionInterval                   time.Duration
+	PodMetricsInterval                    time.Duration
 }
 
 type ExecutorConfiguration struct {

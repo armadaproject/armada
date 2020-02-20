@@ -17,6 +17,7 @@ import (
 	"github.com/G-Research/armada/internal/executor/configuration"
 	"github.com/G-Research/armada/internal/executor/context"
 	"github.com/G-Research/armada/internal/executor/metrics"
+	"github.com/G-Research/armada/internal/executor/metrics/pod_metrics"
 	"github.com/G-Research/armada/internal/executor/reporter"
 	"github.com/G-Research/armada/internal/executor/service"
 )
@@ -30,6 +31,22 @@ func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGrou
 		os.Exit(-1)
 	}
 
+	clusterContext := context.NewClusterContext(
+		config.Application.ClusterId,
+		2*time.Minute,
+		kubernetesClientProvider)
+
+	wg := &sync.WaitGroup{}
+	wg.Add(1)
+
+	stopSignals := make([]chan bool, 0)
+	stopSignals = append(stopSignals, scheduleBackgroundTask(clusterContext.ProcessPodsToDelete, config.Task.PodDeletionInterval, "pod_deletion", wg))
+
+	return StartUpWithContext(config, clusterContext, stopSignals, wg)
+}
+
+func StartUpWithContext(config configuration.ExecutorConfiguration, clusterContext context.ClusterContext, stopSignals []chan bool, wg *sync.WaitGroup) (func(), *sync.WaitGroup) {
+
 	conn, err := createConnectionToApi(config)
 	if err != nil {
 		log.Errorf("Failed to connect to API because: %s", err)
@@ -40,23 +57,20 @@ func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGrou
 	usageClient := api.NewUsageClient(conn)
 	eventClient := api.NewEventClient(conn)
 
-	clusterContext := context.NewClusterContext(
-		config.Application.ClusterId,
-		2*time.Minute,
-		kubernetesClientProvider,
-	)
-
-	eventReporter := reporter.NewJobEventReporter(
+	eventReporter, stopReporter := reporter.NewJobEventReporter(
 		clusterContext,
 		eventClient)
 
 	jobLeaseService := service.NewJobLeaseService(
 		clusterContext,
-		queueClient)
+		queueClient,
+		config.Kubernetes.MinimumPodAge,
+		config.Kubernetes.FailedPodExpiry)
 
 	clusterUtilisationService := service.NewClusterUtilisationService(
 		clusterContext,
-		usageClient)
+		usageClient,
+		config.Kubernetes.TrackedNodeLabels)
 
 	stuckPodDetector := service.NewPodProgressMonitorService(
 		clusterContext,
@@ -69,19 +83,18 @@ func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGrou
 		jobLeaseService,
 		clusterUtilisationService)
 
-	wg := &sync.WaitGroup{}
-	wg.Add(1)
+	contextMetrics := pod_metrics.NewClusterContextMetrics(clusterContext, clusterUtilisationService)
 
-	tasks := make([]chan bool, 0)
-	tasks = append(tasks, scheduleBackgroundTask(clusterUtilisationService.ReportClusterUtilisation, config.Task.UtilisationReportingInterval, "utilisation_reporting", wg))
-	tasks = append(tasks, scheduleBackgroundTask(clusterAllocationService.AllocateSpareClusterCapacity, config.Task.AllocateSpareClusterCapacityInterval, "job_lease_request", wg))
-	tasks = append(tasks, scheduleBackgroundTask(jobLeaseService.ManageJobLeases, config.Task.JobLeaseRenewalInterval, "job_lease_renewal", wg))
-	tasks = append(tasks, scheduleBackgroundTask(eventReporter.ReportMissingJobEvents, config.Task.MissingJobEventReconciliationInterval, "event_reconciliation", wg))
-	tasks = append(tasks, scheduleBackgroundTask(stuckPodDetector.HandleStuckPods, config.Task.StuckPodScanInterval, "stuck_pod", wg))
-	tasks = append(tasks, scheduleBackgroundTask(clusterContext.ProcessPodsToDelete, config.Task.PodDeletionInterval, "pod_deletion", wg))
+	stopSignals = append(stopSignals, stopReporter)
+	stopSignals = append(stopSignals, scheduleBackgroundTask(clusterUtilisationService.ReportClusterUtilisation, config.Task.UtilisationReportingInterval, "utilisation_reporting", wg))
+	stopSignals = append(stopSignals, scheduleBackgroundTask(clusterAllocationService.AllocateSpareClusterCapacity, config.Task.AllocateSpareClusterCapacityInterval, "job_lease_request", wg))
+	stopSignals = append(stopSignals, scheduleBackgroundTask(jobLeaseService.ManageJobLeases, config.Task.JobLeaseRenewalInterval, "job_lease_renewal", wg))
+	stopSignals = append(stopSignals, scheduleBackgroundTask(eventReporter.ReportMissingJobEvents, config.Task.MissingJobEventReconciliationInterval, "event_reconciliation", wg))
+	stopSignals = append(stopSignals, scheduleBackgroundTask(stuckPodDetector.HandleStuckPods, config.Task.StuckPodScanInterval, "stuck_pod", wg))
+	stopSignals = append(stopSignals, scheduleBackgroundTask(contextMetrics.UpdateMetrics, config.Task.PodMetricsInterval, "pod_metrics", wg))
 
 	return func() {
-		stopTasks(tasks)
+		stopTasks(stopSignals)
 		clusterContext.Stop()
 		conn.Close()
 		wg.Done()

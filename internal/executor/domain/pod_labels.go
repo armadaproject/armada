@@ -1,7 +1,7 @@
 package domain
 
 const (
-	JobId    = "job_id"
-	JobSetId = "jobset_id"
-	Queue    = "queue_id"
+	JobId    = "armada_job_id"
+	JobSetId = "armada_jobset_id"
+	Queue    = "armada_queue_id"
 )

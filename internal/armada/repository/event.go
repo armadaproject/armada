@@ -7,6 +7,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 
 	"github.com/G-Research/armada/internal/armada/api"
+	"github.com/G-Research/armada/internal/armada/configuration"
 )
 
 const eventStreamPrefix = "Events:"
@@ -16,14 +17,16 @@ type EventRepository interface {
 	ReportEvent(message *api.EventMessage) error
 	ReportEvents(message []*api.EventMessage) error
 	ReadEvents(jobSetId string, lastId string, limit int64, block time.Duration) ([]*api.EventStreamMessage, error)
+	GetLastMessageId(jobSetId string) (string, error)
 }
 
 type RedisEventRepository struct {
-	db redis.UniversalClient
+	db             redis.UniversalClient
+	eventRetention configuration.EventRetentionPolicy
 }
 
-func NewRedisEventRepository(db redis.UniversalClient) *RedisEventRepository {
-	return &RedisEventRepository{db: db}
+func NewRedisEventRepository(db redis.UniversalClient, eventRetention configuration.EventRetentionPolicy) *RedisEventRepository {
+	return &RedisEventRepository{db: db, eventRetention: eventRetention}
 }
 
 func (repo *RedisEventRepository) ReportEvent(message *api.EventMessage) error {
@@ -37,6 +40,7 @@ func (repo *RedisEventRepository) ReportEvents(message []*api.EventMessage) erro
 		data     []byte
 	}
 	data := []eventData{}
+	uniqueJobSets := make(map[string]bool)
 
 	for _, m := range message {
 		event, e := api.UnwrapEvent(m)
@@ -48,6 +52,7 @@ func (repo *RedisEventRepository) ReportEvents(message []*api.EventMessage) erro
 			return e
 		}
 		data = append(data, eventData{jobSetId: event.GetJobSetId(), data: messageData})
+		uniqueJobSets[event.GetJobSetId()] = true
 	}
 
 	pipe := repo.db.Pipeline()
@@ -59,6 +64,13 @@ func (repo *RedisEventRepository) ReportEvents(message []*api.EventMessage) erro
 			},
 		})
 	}
+
+	if repo.eventRetention.ExpiryEnabled {
+		for jobSetId, _ := range uniqueJobSets {
+			pipe.Expire(eventStreamPrefix+jobSetId, repo.eventRetention.RetentionDuration)
+		}
+	}
+
 	_, e := pipe.Exec()
 	return e
 }
@@ -96,4 +108,15 @@ func (repo *RedisEventRepository) ReadEvents(jobSetId string, lastId string, lim
 		messages = append(messages, &api.EventStreamMessage{Id: m.ID, Message: msg})
 	}
 	return messages, nil
+}
+
+func (repo *RedisEventRepository) GetLastMessageId(jobSetId string) (string, error) {
+	msg, err := repo.db.XRevRangeN(eventStreamPrefix+jobSetId, "+", "-", 1).Result()
+	if err != nil {
+		return "", err
+	}
+	if len(msg) > 0 {
+		return msg[0].ID, nil
+	}
+	return "0", nil
 }

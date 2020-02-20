@@ -17,13 +17,14 @@ protoc -I=./ -I=$GOPATH/src -I=$GOPATH/src/github.com/gogo/protobuf/protobuf \
   ./internal/armada/api/event.proto \
   ./internal/armada/api/submit.proto
 
-# Hack:
-# Easiest way to make ndjson streaming work in generated clients is to pretend the stream is actually a file
-# Generated resourceQuantity type needs to be fixed to be string instead of object
-cat internal/armada/api/api.swagger.json | \
- jq '.["x-stream-definitions"].apiEventStreamMessage.type = "file" | .paths["/v1/job-set/{Id}"].post.produces = ["application/ndjson-stream"] | .definitions.resourceQuantity.type = "string" | del(.definitions.resourceQuantity.properties)' \
->  internal/armada/api/api.swagger.stream_as_file.json
-mv internal/armada/api/api.swagger.stream_as_file.json internal/armada/api/api.swagger.json
+# generate proper swagger types (we are using standard json serializer, GRPC gateway generates protobuf json, which is not compatible)
+go run github.com/go-swagger/go-swagger/cmd/swagger generate spec -m -o internal/armada/api/api.swagger.definitions.json
+
+# combine swagger definitions
+go run ./scripts/merge_swagger.go > internal/armada/api/api.swagger.merged.json
+
+mv internal/armada/api/api.swagger.merged.json internal/armada/api/api.swagger.json
+rm internal/armada/api/api.swagger.definitions.json
 
 # Embed swagger json into go binary
 go run github.com/wlbr/templify -e -p=api -f=SwaggerJson  internal/armada/api/api.swagger.json
@@ -31,4 +32,5 @@ go run github.com/wlbr/templify -e -p=api -f=SwaggerJson  internal/armada/api/ap
 # Fix all imports ordering
 go run golang.org/x/tools/cmd/goimports -w -local "github.com/G-Research/armada" ./internal/armada/api/
 
-
+# Genereate dotnet client to match the swagger
+dotnet msbuild ./client/DotNet/Armada.Client /t:NSwag

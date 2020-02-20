@@ -1,0 +1,3 @@
+additionalLabels:
+  app: prometheus-operator
+  release: prometheus-operator

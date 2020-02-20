@@ -75,6 +75,10 @@ func watchJobInfoChannel(eventChannel chan api.Event) (*sync.WaitGroup, chan boo
 			case <-tickChannel.C:
 				log.Info(aggregatedCurrentState.GetCurrentStateSummary())
 			case <-stop:
+				close(eventChannel)
+				for event := range eventChannel {
+					aggregatedCurrentState.ProcessEvent(event)
+				}
 				log.Info(aggregatedCurrentState.GetCurrentStateSummary())
 				complete.Done()
 				return
@@ -172,9 +176,12 @@ func (apiLoadTester ArmadaLoadTester) monitorJobsUntilCompletion(jobSetId string
 func createJobSubmitRequestItems(jobDesc *domain.JobSubmissionDescription) []*api.JobSubmitRequestItem {
 	requestItems := make([]*api.JobSubmitRequestItem, 0, jobDesc.Count)
 	job := api.JobSubmitRequestItem{
-		Priority:  1,
-		Namespace: jobDesc.Namespace,
-		PodSpec:   jobDesc.Spec,
+		Priority:           1,
+		Namespace:          jobDesc.Namespace,
+		Annotations:        jobDesc.Annotations,
+		Labels:             jobDesc.Labels,
+		RequiredNodeLabels: jobDesc.RequiredNodeLabels,
+		PodSpec:            jobDesc.Spec,
 	}
 	for i := 0; i < jobDesc.Count; i++ {
 		requestItems = append(requestItems, &job)

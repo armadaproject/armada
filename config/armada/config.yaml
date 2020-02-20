@@ -28,8 +28,11 @@ permissionGroupMapping:
   execute_jobs: ["everyone"]
 scheduling:
   useProbabilisticSchedulingForAllResources: true
-  queueLeaseBatchSize: 100
+  queueLeaseBatchSize: 200
   minimumResourceToSchedule:
     memory: 100000000 # 100Mb
     cpu: 0.25
   maximalClusterFractionToSchedule: 0.25
+eventRetention:
+  expiryEnabled: true
+  retentionDuration: 336h # Specified as a Go duration

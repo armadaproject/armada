@@ -14,9 +14,13 @@ strategy:
   rollingUpdate:
     maxUnavailable: 1
   type: RollingUpdate
+ingress:
+  annotations: {}
+  labels: {}
 prometheus:
   enabled: false
   labels: {}
+  scrapeInterval: 10s
 
 applicationConfig:
   grpcPort: 50051

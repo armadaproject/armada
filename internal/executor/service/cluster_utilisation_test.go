@@ -216,6 +216,31 @@ func TestGetUsageByQueue_HandlesEmptyList(t *testing.T) {
 	assert.Equal(t, len(result), 0)
 }
 
+func Test_getDistinctNodesLabels(t *testing.T) {
+
+	nodes := []*v1.Node{
+		{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{
+			"A": "x",
+			"B": "x",
+		}}},
+		{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{
+			"A": "x",
+			"B": "x",
+		}}},
+		{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{
+			"B": "y",
+		}}},
+	}
+	labels := []string{"A", "B"}
+
+	result := getDistinctNodesLabels(labels, nodes)
+
+	assert.Equal(t, []map[string]string{
+		{"A": "x", "B": "x"},
+		{"B": "y"},
+	}, result)
+}
+
 func hasKey(value map[string]common.ComputeResources, key string) bool {
 	_, ok := value[key]
 	return ok

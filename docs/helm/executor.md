@@ -16,6 +16,7 @@ This document briefly outlines the customisation options of the Executor helm ch
 | `additionalVolumes`               | Additional volumes that'll be mounted to the executor pod                                                                                                                        | `""`                                                                             |
 | `prometheus.enabled`              | Flag to determine if Prometheus components are deployed or not. This should only be enabled if Prometheus is deployed and you want to scrape metrics from the executor component | `false`                                                                          |
 | `prometheus.labels`               | Additional labels that'll be added to executor prometheus components                                                                                                             | `{}`                                                                             |
+| `prometheus.scrapeInterval`       | Scrape interval of the serviceMonitor and prometheusRule                                                                                                                         | `10s`                                                                         |
 | `applicationConfig`               | Config file override values, merged with /config/executor/config.yaml to make up the config file used when running the application                                               | `nil`                                                                            |
 
 ## Application Config
@@ -88,8 +89,8 @@ However there are times when this is not possible to do, such as using a managed
 To turn off running on the control plane, and instead just run on normal work nodes, add the following to your configuration:
  
  ```yaml
- nodeSelector: {}
- tolerations: {}
+ nodeSelector: null
+ tolerations: []
  ```
 
 Alternatively you could have a dedicated node that the executor runs on. Then use the nodeSelector + tolerations to enforce it running that node.

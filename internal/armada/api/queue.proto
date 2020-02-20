@@ -13,6 +13,9 @@ message Job {
     string JobSetId = 2;
     string Queue = 3;
     string Namespace = 7;
+    map<string, string> Labels = 9;
+    map<string, string> Annotations = 10;
+    map<string, string> RequiredNodeLabels = 11;
     string Owner = 8;
     double Priority = 4;
     k8s.io.api.core.v1.PodSpec PodSpec = 5;
@@ -22,6 +25,11 @@ message Job {
 message LeaseRequest {
     string ClusterId = 1;
     map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> Resources = 2 [(gogoproto.nullable) = false];
+    repeated NodeLabeling AvailableLabels = 3;
+}
+
+message NodeLabeling {
+    map<string,string> Labels = 3;
 }
 
 message JobLease {

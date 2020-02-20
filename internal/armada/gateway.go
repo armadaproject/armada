@@ -8,8 +8,8 @@ import (
 
 	"github.com/go-openapi/runtime/middleware"
 	gwruntime "github.com/grpc-ecosystem/grpc-gateway/runtime"
+	"github.com/jcmturner/gokrb5/v8/spnego"
 	"google.golang.org/grpc"
-	"gopkg.in/jcmturner/gokrb5.v7/spnego"
 
 	"github.com/G-Research/armada/internal/armada/api"
 	protoutil "github.com/G-Research/armada/internal/armada/protoutils"

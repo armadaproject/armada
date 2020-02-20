@@ -2,6 +2,7 @@ package service
 
 import (
 	"fmt"
+	"strings"
 
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
@@ -15,7 +16,8 @@ import (
 	"github.com/G-Research/armada/internal/executor/util"
 )
 
-const PodNamePrefix string = "batch-"
+const PodNamePrefix string = "armada-"
+const admissionWebhookValidationFailureMessage string = "admission webhook"
 
 type ClusterAllocationService struct {
 	leaseService       LeaseService
@@ -38,13 +40,13 @@ func NewClusterAllocationService(
 }
 
 func (allocationService *ClusterAllocationService) AllocateSpareClusterCapacity() {
-	availableResource, err := allocationService.utilisationService.GetAvailableClusterCapacity()
+	availableResource, availableLabels, err := allocationService.utilisationService.GetAvailableClusterCapacity()
 	if err != nil {
 		log.Errorf("Failed to allocate spare cluster capacity because %s", err)
 		return
 	}
 
-	newJobs, err := allocationService.leaseService.RequestJobLeases(availableResource)
+	newJobs, err := allocationService.leaseService.RequestJobLeases(availableResource, availableLabels)
 
 	cpu := (*availableResource)["cpu"]
 	memory := (*availableResource)["memory"]
@@ -69,7 +71,7 @@ func (allocationService *ClusterAllocationService) submitJobs(jobsToSubmit []*ap
 			log.Errorf("Failed to submit job %s because %s", job.Id, err)
 
 			status, ok := err.(errors.APIStatus)
-			if ok && (isNotRecoverable(status.Status().Reason)) {
+			if ok && (isNotRecoverable(status.Status())) {
 				errDetails := &failedSubmissionDetails{
 					pod:   pod,
 					error: status,
@@ -87,16 +89,26 @@ func (allocationService *ClusterAllocationService) submitJobs(jobsToSubmit []*ap
 	}
 }
 
-func isNotRecoverable(reason metav1.StatusReason) bool {
-	return reason == metav1.StatusReasonInvalid ||
-		reason == metav1.StatusReasonForbidden
+func isNotRecoverable(status metav1.Status) bool {
+	if status.Reason == metav1.StatusReasonInvalid ||
+		status.Reason == metav1.StatusReasonForbidden {
+		return true
+	}
+
+	//This message shows it was rejected by an admission webhook.
+	// By default admission webhooks blocking results in a 500 so we can't use the status code as we could confuse it with Kubernetes outage
+	if strings.Contains(status.Message, admissionWebhookValidationFailureMessage) {
+		return true
+	}
+
+	return false
 }
 
 func (allocationService *ClusterAllocationService) failJobs(failedSubmissions []*failedSubmissionDetails) error {
 	toBeReportedDone := make([]*v1.Pod, 0, 10)
 
 	for _, details := range failedSubmissions {
-		failEvent := reporter.CreateJobFailedEvent(details.pod, details.error.Status().Message, allocationService.clusterContext.GetClusterId())
+		failEvent := reporter.CreateJobFailedEvent(details.pod, details.error.Status().Message, map[string]int32{}, allocationService.clusterContext.GetClusterId())
 		err := allocationService.eventReporter.Report(failEvent)
 
 		if err == nil {
@@ -123,14 +135,22 @@ func (allocationService *ClusterAllocationService) returnLease(pod *v1.Pod, reas
 }
 
 func createPod(job *api.Job) *v1.Pod {
-	labels := createLabels(job)
+	labels := mergeMaps(job.Labels, map[string]string{
+		domain.JobId: job.Id,
+		domain.Queue: job.Queue,
+	})
+	annotation := mergeMaps(job.Annotations, map[string]string{
+		domain.JobSetId: job.JobSetId,
+	})
+
 	setRestartPolicyNever(job.PodSpec)
 
 	pod := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      PodNamePrefix + job.Id,
-			Labels:    labels,
-			Namespace: job.Namespace,
+			Name:        PodNamePrefix + job.Id,
+			Labels:      labels,
+			Annotations: annotation,
+			Namespace:   job.Namespace,
 		},
 		Spec: *job.PodSpec,
 	}
@@ -142,17 +162,18 @@ func setRestartPolicyNever(podSpec *v1.PodSpec) {
 	podSpec.RestartPolicy = v1.RestartPolicyNever
 }
 
-func createLabels(job *api.Job) map[string]string {
-	labels := make(map[string]string)
-
-	labels[domain.JobId] = job.Id
-	labels[domain.JobSetId] = job.JobSetId
-	labels[domain.Queue] = job.Queue
-
-	return labels
-}
-
 type failedSubmissionDetails struct {
 	pod   *v1.Pod
 	error errors.APIStatus
+}
+
+func mergeMaps(a map[string]string, b map[string]string) map[string]string {
+	result := make(map[string]string)
+	for k, v := range a {
+		result[k] = v
+	}
+	for k, v := range b {
+		result[k] = v
+	}
+	return result
 }

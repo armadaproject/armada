@@ -37,21 +37,21 @@ func Serve(config *configuration.ArmadaConfig) (*grpc.Server, *sync.WaitGroup) {
 		usageRepository := repository.NewRedisUsageRepository(db)
 		queueRepository := repository.NewRedisQueueRepository(db)
 
-		eventRepository := repository.NewRedisEventRepository(eventsDb)
-
-		metricsRecorder := metrics.ExposeDataMetrics(queueRepository, jobRepository)
+		eventRepository := repository.NewRedisEventRepository(eventsDb, config.EventRetention)
 
 		permissions := authorization.NewPrincipalPermissionChecker(config.PermissionGroupMapping, config.PermissionScopeMapping)
 
 		submitServer := server.NewSubmitServer(permissions, jobRepository, queueRepository, eventRepository)
 		usageServer := server.NewUsageServer(permissions, config.PriorityHalfTime, usageRepository)
-		aggregatedQueueServer := server.NewAggregatedQueueServer(permissions, config.Scheduling, jobRepository, queueRepository, usageRepository, eventRepository, metricsRecorder)
+		aggregatedQueueServer := server.NewAggregatedQueueServer(permissions, config.Scheduling, jobRepository, queueRepository, usageRepository, eventRepository)
 		eventServer := server.NewEventServer(permissions, eventRepository)
 
 		lis, err := net.Listen("tcp", fmt.Sprintf(":%d", config.GrpcPort))
 		if err != nil {
 			log.Fatalf("failed to listen: %v", err)
 		}
+
+		metrics.ExposeDataMetrics(queueRepository, jobRepository, usageRepository)
 
 		api.RegisterSubmitServer(grpcServer, submitServer)
 		api.RegisterUsageServer(grpcServer, usageServer)
