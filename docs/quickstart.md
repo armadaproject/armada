@@ -56,7 +56,7 @@ helm repo add stable https://kubernetes-charts.storage.googleapis.com/
 helm install prometheus-operator stable/prometheus-operator -f docs/quickstart/executor-prometheus-values.yaml --set prometheus.service.nodePort=30002
 
 # Install executor
-helm template ./deployment/executor --set image.tag=$ARMADA_VERSION --set applicationConfig.apiConnection.armadaUrl="$DOCKERHOSTIP:30000" --set applicationConfig.apiConnection.forceNoTls=true --set prometheus.enabled=true | kubectl apply -f -
+helm template ./deployment/executor --set image.tag=$ARMADA_VERSION --set applicationConfig.apiConnection.armadaUrl="$DOCKERHOSTIP:30000" --set applicationConfig.apiConnection.forceNoTls=true --set prometheus.enabled=true --set applicationConfig.kubernetes.minimumPodAge=0s | kubectl apply -f -
 helm template ./deployment/executor-cluster-monitoring -f docs/quickstart/executor-cluster-monitoring-values.yaml --set interval=5s | kubectl apply -f -
 ```
 Second executor:
@@ -72,7 +72,7 @@ helm repo add stable https://kubernetes-charts.storage.googleapis.com/
 helm install prometheus-operator stable/prometheus-operator -f docs/quickstart/executor-prometheus-values.yaml --set prometheus.service.nodePort=30003
 
 # Install executor
-helm template ./deployment/executor --set image.tag=$ARMADA_VERSION --set applicationConfig.apiConnection.armadaUrl="$DOCKERHOSTIP:30000" --set applicationConfig.apiConnection.forceNoTls=true --set prometheus.enabled=true | kubectl apply -f -
+helm template ./deployment/executor --set image.tag=$ARMADA_VERSION --set applicationConfig.apiConnection.armadaUrl="$DOCKERHOSTIP:30000" --set applicationConfig.apiConnection.forceNoTls=true --set prometheus.enabled=true --set applicationConfig.kubernetes.minimumPodAge=0s | kubectl apply -f -
 helm template ./deployment/executor-cluster-monitoring -f docs/quickstart/executor-cluster-monitoring-values.yaml --set interval=5s | kubectl apply -f -
 ```
 ### Grafana configuration
