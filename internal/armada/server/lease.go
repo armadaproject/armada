@@ -95,7 +95,7 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 	currentClusterReport, ok := activeClusterReports[request.ClusterId]
 	if ok {
 		capacity := common.ComputeResources(currentClusterReport.ClusterCapacity)
-		resourcesToSchedule = resourcesToSchedule.LimitWith(capacity.Mul(q.schedulingConfig.MaximalClusterFractionToSchedule))
+		resourcesToSchedule = resourcesToSchedule.LimitWith(capacity.MulByResource(q.schedulingConfig.MaximalClusterFractionToSchedule))
 	}
 
 	queuePriority := scheduling.CalculateQueuesPriorityInfo(clusterPriorities, activeClusterReports, queues)

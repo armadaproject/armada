@@ -52,7 +52,7 @@ type SchedulingConfig struct {
 	UseProbabilisticSchedulingForAllResources bool
 	QueueLeaseBatchSize                       uint
 	MinimumResourceToSchedule                 common.ComputeResourcesFloat
-	MaximalClusterFractionToSchedule          float64
+	MaximalClusterFractionToSchedule          map[string]float64
 }
 
 type EventRetentionPolicy struct {
