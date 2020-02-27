@@ -50,7 +50,7 @@ func ServeGateway(port uint16, grpcPort uint16) (shutdown func()) {
 	mux.Handle("/", gw)
 	h := middleware.Spec("/", []byte(api.SwaggerJsonTemplate()), mux)
 
-	cancel := common.ServeHttp(port, h)
+	cancel := common.ServeHttp(port, "Http", h)
 
 	return func() {
 		cancelConnectionCtx()
