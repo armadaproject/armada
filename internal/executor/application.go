@@ -6,8 +6,6 @@ import (
 	"time"
 
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 
@@ -97,11 +95,11 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 		stopReporter <- true
 		clusterContext.Stop()
 		conn.Close()
-		wg.Done()
 		if taskManager.StopAll(2 * time.Second) {
 			log.Warnf("Graceful shutdown timed out")
 		}
 		log.Infof("Shutdown complete")
+		wg.Done()
 	}, wg
 }
 
