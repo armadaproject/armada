@@ -22,6 +22,7 @@ import (
 	"github.com/G-Research/armada/internal/armada/repository"
 	"github.com/G-Research/armada/internal/armada/scheduling"
 	"github.com/G-Research/armada/internal/armada/server"
+	"github.com/G-Research/armada/internal/common/task"
 )
 
 func Serve(config *configuration.ArmadaConfig) (func(), *sync.WaitGroup) {
@@ -45,7 +46,9 @@ func Serve(config *configuration.ArmadaConfig) (func(), *sync.WaitGroup) {
 	aggregatedQueueServer := server.NewAggregatedQueueServer(permissions, config.Scheduling, jobRepository, queueRepository, usageRepository, eventRepository)
 	eventServer := server.NewEventServer(permissions, eventRepository)
 	leaseManager := scheduling.NewLeaseManager(jobRepository, queueRepository, eventRepository, config.Scheduling.Lease.ExpireAfter)
-	stop := startLeaseExpiryBackgroundLoop(config.Scheduling.Lease, leaseManager)
+
+	taskManager := task.NewBackgroundTaskManager(metrics.MetricPrefix)
+	taskManager.Register(leaseManager.ExpireLeases, config.Scheduling.Lease.ExpiryLoopInterval, "lease_expiry")
 
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", config.GrpcPort))
 	if err != nil {
@@ -73,7 +76,7 @@ func Serve(config *configuration.ArmadaConfig) (func(), *sync.WaitGroup) {
 	}()
 
 	return func() {
-		stop <- true
+		taskManager.StopAll(time.Second * 2)
 		grpcServer.GracefulStop()
 	}, wg
 }
@@ -129,20 +132,4 @@ func createServer(config *configuration.ArmadaConfig) *grpc.Server {
 		}),
 		grpc.StreamInterceptor(grpc_middleware.ChainStreamServer(streamInterceptors...)),
 		grpc.UnaryInterceptor(grpc_middleware.ChainUnaryServer(unaryInterceptors...)))
-}
-
-func startLeaseExpiryBackgroundLoop(config configuration.LeaseSettings, leaseManager *scheduling.LeaseManager) chan bool {
-	stop := make(chan bool)
-	go func() {
-		for {
-			select {
-			case <-time.After(config.ExpiryLoopInterval):
-			case <-stop:
-				return
-			}
-			leaseManager.ExpireLeases()
-		}
-	}()
-
-	return stop
 }

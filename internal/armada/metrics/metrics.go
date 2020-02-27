@@ -9,7 +9,7 @@ import (
 	"github.com/G-Research/armada/internal/common"
 )
 
-const metricPrefix = "armada_"
+const MetricPrefix = "armada_"
 
 func ExposeDataMetrics(
 	queueRepository repository.QueueRepository,
@@ -31,28 +31,28 @@ type QueueInfoCollector struct {
 }
 
 var queueSizeDesc = prometheus.NewDesc(
-	metricPrefix+"queue_size",
+	MetricPrefix+"queue_size",
 	"Number of jobs in a queue",
 	[]string{"queueName"},
 	nil,
 )
 
 var queuePriorityDesc = prometheus.NewDesc(
-	metricPrefix+"queue_priority",
+	MetricPrefix+"queue_priority",
 	"Priority of a queue",
 	[]string{"queueName"},
 	nil,
 )
 
 var queueUsageDesc = prometheus.NewDesc(
-	metricPrefix+"queue_resource_usage",
+	MetricPrefix+"queue_resource_usage",
 	"Resource usage of a queue",
 	[]string{"cluster", "queueName", "resourceType"},
 	nil,
 )
 
 var clusterCapacityDesc = prometheus.NewDesc(
-	metricPrefix+"cluster_capacity",
+	MetricPrefix+"cluster_capacity",
 	"Cluster capacity",
 	[]string{"cluster", "resourceType"},
 	nil,
