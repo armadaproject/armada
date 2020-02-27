@@ -93,12 +93,13 @@ All priorities are relative, so you can make your own scheme of priority numbers
 
 Priority allows great flexibility, as it means you can predictably give certain queues a bigger share of resource than others.
 
-##### Security Boundary (Not yet implemented)
+##### Security Boundary
 
-A user (or group) who has permission to submit to Queue A and only A cannot therefore submit and/or delete from any other Queue.
+Armada allows to set user (and group) permissions for a specific Queue using owners (and groupOwners) options. 
 
-This allows users' work to be separated by Queues, with no concern someone else will delete or view their Jobs.
+The job set events are available to all users with "watch_all_events" permissions.
 
+If `kubernetes.impersonateUsers` is turned on, Armada will create pods in kubernetes impersonating owner of the job. This will enforce Kubernetes permissions and limit access to namespaces.
 
 #### Considerations when setting up Queues
 
