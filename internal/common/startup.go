@@ -70,16 +70,16 @@ func ServeMetrics(port uint16) (shutdown func()) {
 
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", promhttp.Handler())
-	return ServeHttp(port, "Metrics", mux)
+	return ServeHttp(port, mux)
 }
 
-func ServeHttp(port uint16, serviceDescription string, mux http.Handler) (shutdown func()) {
+func ServeHttp(port uint16, mux http.Handler) (shutdown func()) {
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", port),
 		Handler: mux}
 
 	go func() {
-		log.Printf("%s listening on %d", serviceDescription, port)
+		log.Printf("Starting server listening on %d", port)
 		if err := srv.ListenAndServe(); err != http.ErrServerClosed {
 			panic(err)
 		}
@@ -87,7 +87,7 @@ func ServeHttp(port uint16, serviceDescription string, mux http.Handler) (shutdo
 	return func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		log.Printf("Stopping %s server", serviceDescription)
+		log.Printf("Stopping server listening on %d", port)
 		e := srv.Shutdown(ctx)
 		if e != nil {
 			panic(e)
