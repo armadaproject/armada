@@ -16,8 +16,8 @@ const dataKey = "message"
 type EventRepository interface {
 	ReportEvent(message *api.EventMessage) error
 	ReportEvents(message []*api.EventMessage) error
-	ReadEvents(jobSetId string, lastId string, limit int64, block time.Duration) ([]*api.EventStreamMessage, error)
-	GetLastMessageId(jobSetId string) (string, error)
+	ReadEvents(queue, jobSetId string, lastId string, limit int64, block time.Duration) ([]*api.EventStreamMessage, error)
+	GetLastMessageId(queue, jobSetId string) (string, error)
 }
 
 type RedisEventRepository struct {
@@ -36,8 +36,8 @@ func (repo *RedisEventRepository) ReportEvent(message *api.EventMessage) error {
 func (repo *RedisEventRepository) ReportEvents(message []*api.EventMessage) error {
 
 	type eventData struct {
-		jobSetId string
-		data     []byte
+		key  string
+		data []byte
 	}
 	data := []eventData{}
 	uniqueJobSets := make(map[string]bool)
@@ -51,14 +51,15 @@ func (repo *RedisEventRepository) ReportEvents(message []*api.EventMessage) erro
 		if e != nil {
 			return e
 		}
-		data = append(data, eventData{jobSetId: event.GetJobSetId(), data: messageData})
-		uniqueJobSets[event.GetJobSetId()] = true
+		key := getJobSetEventsKey(event.GetQueue(), event.GetJobSetId())
+		data = append(data, eventData{key: key, data: messageData})
+		uniqueJobSets[key] = true
 	}
 
 	pipe := repo.db.Pipeline()
 	for _, e := range data {
 		pipe.XAdd(&redis.XAddArgs{
-			Stream: eventStreamPrefix + e.jobSetId,
+			Stream: e.key,
 			Values: map[string]interface{}{
 				dataKey: e.data,
 			},
@@ -66,8 +67,8 @@ func (repo *RedisEventRepository) ReportEvents(message []*api.EventMessage) erro
 	}
 
 	if repo.eventRetention.ExpiryEnabled {
-		for jobSetId, _ := range uniqueJobSets {
-			pipe.Expire(eventStreamPrefix+jobSetId, repo.eventRetention.RetentionDuration)
+		for key, _ := range uniqueJobSets {
+			pipe.Expire(key, repo.eventRetention.RetentionDuration)
 		}
 	}
 
@@ -75,14 +76,14 @@ func (repo *RedisEventRepository) ReportEvents(message []*api.EventMessage) erro
 	return e
 }
 
-func (repo *RedisEventRepository) ReadEvents(jobSetId string, lastId string, limit int64, block time.Duration) ([]*api.EventStreamMessage, error) {
+func (repo *RedisEventRepository) ReadEvents(queue, jobSetId string, lastId string, limit int64, block time.Duration) ([]*api.EventStreamMessage, error) {
 
 	if lastId == "" {
 		lastId = "0"
 	}
 
 	cmd, e := repo.db.XRead(&redis.XReadArgs{
-		Streams: []string{eventStreamPrefix + jobSetId, lastId},
+		Streams: []string{getJobSetEventsKey(queue, jobSetId), lastId},
 		Count:   limit,
 		Block:   block,
 	}).Result()
@@ -110,8 +111,8 @@ func (repo *RedisEventRepository) ReadEvents(jobSetId string, lastId string, lim
 	return messages, nil
 }
 
-func (repo *RedisEventRepository) GetLastMessageId(jobSetId string) (string, error) {
-	msg, err := repo.db.XRevRangeN(eventStreamPrefix+jobSetId, "+", "-", 1).Result()
+func (repo *RedisEventRepository) GetLastMessageId(queue, jobSetId string) (string, error) {
+	msg, err := repo.db.XRevRangeN(getJobSetEventsKey(queue, jobSetId), "+", "-", 1).Result()
 	if err != nil {
 		return "", err
 	}
@@ -119,4 +120,8 @@ func (repo *RedisEventRepository) GetLastMessageId(jobSetId string) (string, err
 		return msg[0].ID, nil
 	}
 	return "0", nil
+}
+
+func getJobSetEventsKey(queue, jobSetId string) string {
+	return eventStreamPrefix + queue + ":" + jobSetId
 }
