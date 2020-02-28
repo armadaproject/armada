@@ -11,11 +11,11 @@ import (
 	"github.com/G-Research/armada/internal/common/util"
 )
 
-func WatchJobSet(client api.EventClient, jobSetId string, waitForNew bool, context context.Context, onUpdate func(*domain.WatchContext, api.Event) bool) {
-	WatchJobSetWithJobIdsFilter(client, jobSetId, waitForNew, []string{}, context, onUpdate)
+func WatchJobSet(client api.EventClient, queue, jobSetId string, waitForNew bool, context context.Context, onUpdate func(*domain.WatchContext, api.Event) bool) {
+	WatchJobSetWithJobIdsFilter(client, queue, jobSetId, waitForNew, []string{}, context, onUpdate)
 }
 
-func WatchJobSetWithJobIdsFilter(client api.EventClient, jobSetId string, waitForNew bool, jobIds []string, context context.Context, onUpdate func(*domain.WatchContext, api.Event) bool) {
+func WatchJobSetWithJobIdsFilter(client api.EventClient, queue, jobSetId string, waitForNew bool, jobIds []string, context context.Context, onUpdate func(*domain.WatchContext, api.Event) bool) {
 	state := domain.NewWatchContext()
 
 	jobIdsSet := util.StringListToSet(jobIds)
@@ -29,7 +29,7 @@ func WatchJobSetWithJobIdsFilter(client api.EventClient, jobSetId string, waitFo
 		default:
 		}
 
-		clientStream, e := client.GetJobSetEvents(context, &api.JobSetRequest{Id: jobSetId, FromMessageId: lastMessageId, Watch: waitForNew})
+		clientStream, e := client.GetJobSetEvents(context, &api.JobSetRequest{Queue: queue, Id: jobSetId, FromMessageId: lastMessageId, Watch: waitForNew})
 
 		if e != nil {
 			log.Error(e)

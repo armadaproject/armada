@@ -11,7 +11,7 @@
     "version": "version not set"
   },
   "paths": {
-    "/v1/job-set/{Id}": {
+    "/v1/job-set/{Queue}/{Id}": {
       "post": {
         "produces": [
           "application/ndjson-stream"
@@ -21,6 +21,12 @@
         ],
         "operationId": "GetJobSetEvents",
         "parameters": [
+          {
+            "type": "string",
+            "name": "Queue",
+            "in": "path",
+            "required": true
+          },
           {
             "type": "string",
             "name": "Id",
@@ -481,6 +487,9 @@
           "type": "string"
         },
         "Id": {
+          "type": "string"
+        },
+        "Queue": {
           "type": "string"
         },
         "Watch": {

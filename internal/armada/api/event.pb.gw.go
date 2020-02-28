@@ -50,6 +50,17 @@ func request_Event_GetJobSetEvents_0(ctx context.Context, marshaler runtime.Mars
 		_   = err
 	)
 
+	val, ok = pathParams["Queue"]
+	if !ok {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "Queue")
+	}
+
+	protoReq.Queue, err = runtime.String(val)
+
+	if err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "Queue", err)
+	}
+
 	val, ok = pathParams["Id"]
 	if !ok {
 		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "Id")
@@ -151,7 +162,7 @@ func RegisterEventHandlerClient(ctx context.Context, mux *runtime.ServeMux, clie
 }
 
 var (
-	pattern_Event_GetJobSetEvents_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 1, 0, 4, 1, 5, 2}, []string{"v1", "job-set", "Id"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Event_GetJobSetEvents_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 1, 0, 4, 1, 5, 2, 1, 0, 4, 1, 5, 3}, []string{"v1", "job-set", "Queue", "Id"}, "", runtime.AssumeColonVerbOpt(true)))
 )
 
 var (
