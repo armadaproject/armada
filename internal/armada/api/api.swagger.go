@@ -22,7 +22,7 @@ func SwaggerJsonTemplate() string {
 		"    \"version\": \"version not set\"\n" +
 		"  },\n" +
 		"  \"paths\": {\n" +
-		"    \"/v1/job-set/{Id}\": {\n" +
+		"    \"/v1/job-set/{Queue}/{Id}\": {\n" +
 		"      \"post\": {\n" +
 		"        \"produces\": [\n" +
 		"          \"application/ndjson-stream\"\n" +
@@ -32,6 +32,12 @@ func SwaggerJsonTemplate() string {
 		"        ],\n" +
 		"        \"operationId\": \"GetJobSetEvents\",\n" +
 		"        \"parameters\": [\n" +
+		"          {\n" +
+		"            \"type\": \"string\",\n" +
+		"            \"name\": \"Queue\",\n" +
+		"            \"in\": \"path\",\n" +
+		"            \"required\": true\n" +
+		"          },\n" +
 		"          {\n" +
 		"            \"type\": \"string\",\n" +
 		"            \"name\": \"Id\",\n" +
@@ -492,6 +498,9 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"Id\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"Queue\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"Watch\": {\n" +

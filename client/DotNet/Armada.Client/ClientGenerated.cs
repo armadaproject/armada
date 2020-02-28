@@ -48,21 +48,25 @@ namespace GResearch.Armada.Client
     
         /// <returns>A successful response.(streaming responses)</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        protected System.Threading.Tasks.Task<FileResponse> GetJobSetEventsCoreAsync(string id, ApiJobSetRequest body)
+        protected System.Threading.Tasks.Task<FileResponse> GetJobSetEventsCoreAsync(string queue, string id, ApiJobSetRequest body)
         {
-            return GetJobSetEventsCoreAsync(id, body, System.Threading.CancellationToken.None);
+            return GetJobSetEventsCoreAsync(queue, id, body, System.Threading.CancellationToken.None);
         }
     
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <returns>A successful response.(streaming responses)</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        protected async System.Threading.Tasks.Task<FileResponse> GetJobSetEventsCoreAsync(string id, ApiJobSetRequest body, System.Threading.CancellationToken cancellationToken)
+        protected async System.Threading.Tasks.Task<FileResponse> GetJobSetEventsCoreAsync(string queue, string id, ApiJobSetRequest body, System.Threading.CancellationToken cancellationToken)
         {
+            if (queue == null)
+                throw new System.ArgumentNullException("queue");
+    
             if (id == null)
                 throw new System.ArgumentNullException("id");
     
             var urlBuilder_ = new System.Text.StringBuilder();
-            urlBuilder_.Append(BaseUrl != null ? BaseUrl.TrimEnd('/') : "").Append("/v1/job-set/{Id}");
+            urlBuilder_.Append(BaseUrl != null ? BaseUrl.TrimEnd('/') : "").Append("/v1/job-set/{Queue}/{Id}");
+            urlBuilder_.Replace("{Queue}", System.Uri.EscapeDataString(ConvertToString(queue, System.Globalization.CultureInfo.InvariantCulture)));
             urlBuilder_.Replace("{Id}", System.Uri.EscapeDataString(ConvertToString(id, System.Globalization.CultureInfo.InvariantCulture)));
     
             var client_ = _httpClient;
@@ -764,6 +768,9 @@ namespace GResearch.Armada.Client
     
         [Newtonsoft.Json.JsonProperty("Id", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Id { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("Queue", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Queue { get; set; }
     
         [Newtonsoft.Json.JsonProperty("Watch", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public bool? Watch { get; set; }
