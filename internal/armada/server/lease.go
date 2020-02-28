@@ -227,11 +227,14 @@ func (q *AggregatedQueueServer) distributeRemainder(lc *leaseContext, limit int)
 		}
 		if len(leased) > 0 {
 			emptySteps = 0
+			jobs = append(jobs, leased...)
+			scheduledShare := scheduling.ResourcesFloatAsUsage(lc.resourceScarcity, remainder) - scheduling.ResourcesFloatAsUsage(lc.resourceScarcity, remaining)
+			shares[queue] = math.Max(0, shares[queue]-scheduledShare)
+			remainder = remaining
+		} else {
+			// if there are no suitable jobs to lease eliminate queue from the scheduling
+			shares[queue] = 0
 		}
-		jobs = append(jobs, leased...)
-		scheduledShare := scheduling.ResourcesFloatAsUsage(lc.resourceScarcity, remainder) - scheduling.ResourcesFloatAsUsage(lc.resourceScarcity, remaining)
-		shares[queue] = math.Max(0, shares[queue]-scheduledShare)
-		remainder = remaining
 
 		limit -= len(leased)
 		if limit <= 0 || closeToDeadline(lc.ctx) {
