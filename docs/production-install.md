@@ -168,7 +168,7 @@ armadactl create-queue test --priorityFactor 1
 armadactl submit ./example/jobs.yaml
 
 # watch jobs events:
-armadactl watch job-set-1
+armadactl watch test job-set-1
 
 ```
 
