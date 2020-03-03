@@ -100,8 +100,16 @@ Create queues, submit some jobs and monitor progress:
 ./armadactl --armadaUrl=localhost:30000 create-queue queue-b --priorityFactor 2
 ./armadactl --armadaUrl=localhost:30000 submit ./docs/quickstart/job-queue-a.yaml
 ./armadactl --armadaUrl=localhost:30000 submit ./docs/quickstart/job-queue-b.yaml
-./armadactl --armadaUrl=localhost:30000 watch job-set-1
 ```
+
+Watch individual queues:
+```bash
+./armadactl --armadaUrl=localhost:30000 watch queue-a job-set-1
+```
+```bash
+./armadactl --armadaUrl=localhost:30000 watch queue-b job-set-1
+```
+
 Log in to the Grafana dashboard at http://localhost:30001/ using the default credentials of `admin` / `prom-operator`.
 Navigate to the Armada Overview dashboard to get a view of jobs progressing through the system.
 
@@ -120,7 +128,7 @@ done
 CLI:
 
 ```bash
-$ ./armadactl --armadaUrl=localhost:30000 watch job-set-1
+$ ./armadactl --armadaUrl=localhost:30000 watch queue-a job-set-1
 Watching job set job-set-1
 Nov  4 11:43:36 | Queued:   0, Leased:   0, Pending:   0, Running:   0, Succeeded:   0, Failed:   0, Cancelled:   0 | event: *api.JobSubmittedEvent, job id: 01drv3mey2mzmayf50631tzp9m
 Nov  4 11:43:36 | Queued:   1, Leased:   0, Pending:   0, Running:   0, Succeeded:   0, Failed:   0, Cancelled:   0 | event: *api.JobQueuedEvent, job id: 01drv3mey2mzmayf50631tzp9m

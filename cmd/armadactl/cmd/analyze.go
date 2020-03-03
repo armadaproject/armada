@@ -21,13 +21,14 @@ func init() {
 
 // analyzeCmd represents the analyze command
 var analyzeCmd = &cobra.Command{
-	Use:   "analyze",
+	Use:   "analyze queue jobSet",
 	Short: "Analyze job events in job set.",
 	Long:  ``,
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.ExactArgs(2),
 	Run: func(cmd *cobra.Command, args []string) {
 
-		jobSetId := args[0]
+		queue := args[0]
+		jobSetId := args[1]
 
 		log.Infof("job set %s", jobSetId)
 
@@ -39,7 +40,7 @@ var analyzeCmd = &cobra.Command{
 			events := map[string][]*api.Event{}
 			var jobState *domain.WatchContext
 
-			client.WatchJobSet(eventsClient, jobSetId, false, context.Background(), func(state *domain.WatchContext, e api.Event) bool {
+			client.WatchJobSet(eventsClient, queue, jobSetId, false, context.Background(), func(state *domain.WatchContext, e api.Event) bool {
 				events[e.GetJobId()] = append(events[e.GetJobId()], &e)
 				jobState = state
 				return false

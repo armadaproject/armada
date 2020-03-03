@@ -75,6 +75,18 @@ func (a ComputeResources) Mul(factor float64) ComputeResourcesFloat {
 	return targetComputeResource
 }
 
+func (a ComputeResources) MulByResource(factors map[string]float64) ComputeResourcesFloat {
+	targetComputeResource := make(ComputeResourcesFloat)
+	for key, value := range a {
+		factor, exists := factors[key]
+		if !exists {
+			factor = 1
+		}
+		targetComputeResource[key] = QuantityAsFloat64(value) * factor
+	}
+	return targetComputeResource
+}
+
 func (a ComputeResources) AsFloat() ComputeResourcesFloat {
 	targetComputeResource := make(ComputeResourcesFloat)
 	for key, value := range a {
