@@ -116,7 +116,7 @@ func withRunningServer(action func(client api.SubmitClient, leaseClient api.Aggr
 
 	// cleanup prometheus in case there are registered metrics already present
 	prometheus.DefaultRegisterer = prometheus.NewRegistry()
-	server, _ := Serve(&configuration.ArmadaConfig{
+	shutdown, _ := Serve(&configuration.ArmadaConfig{
 		AnonymousAuth: true,
 		GrpcPort:      50052,
 		Redis: redis.UniversalOptions{
@@ -136,7 +136,7 @@ func withRunningServer(action func(client api.SubmitClient, leaseClient api.Aggr
 			QueueLeaseBatchSize: 100,
 		},
 	})
-	defer server.Stop()
+	defer shutdown()
 
 	conn, err := grpc.Dial("localhost:50052", grpc.WithInsecure(), grpc.WithDefaultCallOptions(grpc.WaitForReady(true)))
 	if err != nil {

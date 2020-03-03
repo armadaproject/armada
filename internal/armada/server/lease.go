@@ -72,9 +72,6 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 		return nil, e
 	}
 
-	// TODO: doing cleanup here for simplicity, should happen in background loop instead
-	expireOldJobs(q.jobRepository, q.eventRepository, queues, 2*time.Minute)
-
 	activeQueues, e := q.jobRepository.FilterActiveQueues(queues)
 	if e != nil {
 		return nil, e
@@ -95,7 +92,7 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 	currentClusterReport, ok := activeClusterReports[request.ClusterId]
 	if ok {
 		capacity := common.ComputeResources(currentClusterReport.ClusterCapacity)
-		resourcesToSchedule = resourcesToSchedule.LimitWith(capacity.Mul(q.schedulingConfig.MaximalClusterFractionToSchedule))
+		resourcesToSchedule = resourcesToSchedule.LimitWith(capacity.MulByResource(q.schedulingConfig.MaximalClusterFractionToSchedule))
 	}
 
 	queuePriority := scheduling.CalculateQueuesPriorityInfo(clusterPriorities, activeClusterReports, queues)
@@ -230,11 +227,14 @@ func (q *AggregatedQueueServer) distributeRemainder(lc *leaseContext, limit int)
 		}
 		if len(leased) > 0 {
 			emptySteps = 0
+			jobs = append(jobs, leased...)
+			scheduledShare := scheduling.ResourcesFloatAsUsage(lc.resourceScarcity, remainder) - scheduling.ResourcesFloatAsUsage(lc.resourceScarcity, remaining)
+			shares[queue] = math.Max(0, shares[queue]-scheduledShare)
+			remainder = remaining
+		} else {
+			// if there are no suitable jobs to lease eliminate queue from the scheduling
+			shares[queue] = 0
 		}
-		jobs = append(jobs, leased...)
-		scheduledShare := scheduling.ResourcesFloatAsUsage(lc.resourceScarcity, remainder) - scheduling.ResourcesFloatAsUsage(lc.resourceScarcity, remaining)
-		shares[queue] = math.Max(0, shares[queue]-scheduledShare)
-		remainder = remaining
 
 		limit -= len(leased)
 		if limit <= 0 || closeToDeadline(lc.ctx) {
@@ -348,34 +348,6 @@ func filterPriorityMapByKeys(original map[*api.Queue]scheduling.QueuePriorityInf
 		}
 	}
 	return result
-}
-
-func expireOldJobs(jobRepository repository.JobRepository, eventRepository repository.EventRepository, queues []*api.Queue, expiryInterval time.Duration) {
-	deadline := time.Now().Add(-expiryInterval)
-	for _, queue := range queues {
-		jobs, e := jobRepository.ExpireLeases(queue.Name, deadline)
-		now := time.Now()
-		if e != nil {
-			log.Error(e)
-		} else {
-			for _, job := range jobs {
-				event, e := api.Wrap(&api.JobLeaseExpiredEvent{
-					JobId:    job.Id,
-					Queue:    job.Queue,
-					JobSetId: job.JobSetId,
-					Created:  now,
-				})
-				if e != nil {
-					log.Error(e)
-				} else {
-					e := eventRepository.ReportEvent(event)
-					if e != nil {
-						log.Error(e)
-					}
-				}
-			}
-		}
-	}
 }
 
 func closeToDeadline(ctx context.Context) bool {

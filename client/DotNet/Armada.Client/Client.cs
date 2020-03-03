@@ -20,8 +20,10 @@ namespace GResearch.Armada.Client
         Task<ApiCancellationResult> CancelJobsAsync(ApiJobCancelRequest body);
         Task<ApiJobSubmitResponse> SubmitJobsAsync(ApiJobSubmitRequest body);
         Task<object> CreateQueueAsync(string name, ApiQueue body);
-        Task<IEnumerable<StreamResponse<ApiEventStreamMessage>>> GetJobEventsStream(string jobSetId, string fromMessage = null, bool watch = false);
-        Task WatchEvents(string jobSetId,
+        Task<IEnumerable<StreamResponse<ApiEventStreamMessage>>> GetJobEventsStream(string queue, string jobSetId, string fromMessage = null, bool watch = false);
+        Task WatchEvents(
+            string queue,
+            string jobSetId,
             string fromMessageId, 
             CancellationToken ct,
             Action<StreamResponse<ApiEventStreamMessage>> onMessage, 
@@ -58,10 +60,10 @@ namespace GResearch.Armada.Client
 
     public partial class ArmadaClient : IArmadaClient
     {
-        public async Task<IEnumerable<StreamResponse<ApiEventStreamMessage>>> GetJobEventsStream(string jobSetId,
-            string fromMessageId = null, bool watch = false)
+        public async Task<IEnumerable<StreamResponse<ApiEventStreamMessage>>> GetJobEventsStream(
+            string queue, string jobSetId, string fromMessageId = null, bool watch = false)
         {
-            var fileResponse = await GetJobSetEventsCoreAsync(jobSetId,
+            var fileResponse = await GetJobSetEventsCoreAsync(queue, jobSetId,
                 new ApiJobSetRequest {FromMessageId = fromMessageId, Watch = watch});
             return ReadEventStream(fileResponse.Stream);
         }
@@ -82,6 +84,7 @@ namespace GResearch.Armada.Client
         }
 
         public async Task WatchEvents(
+            string queue,
             string jobSetId, 
             string fromMessageId, 
             CancellationToken ct, 
@@ -93,7 +96,7 @@ namespace GResearch.Armada.Client
             {
                 try
                 {
-                    using (var fileResponse = await GetJobSetEventsCoreAsync(jobSetId,
+                    using (var fileResponse = await GetJobSetEventsCoreAsync(queue, jobSetId,
                         new ApiJobSetRequest {FromMessageId = fromMessageId, Watch = true}, ct))
                     using (var reader = new StreamReader(fileResponse.Stream))
                     {
