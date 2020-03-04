@@ -79,11 +79,12 @@ func (c *leaseContext) scheduleJobs(limit int) ([]*api.Job, error) {
 	jobs := []*api.Job{}
 
 	if !c.schedulingConfig.UseProbabilisticSchedulingForAllResources {
-		jobs, e := c.assignJobs(limit)
+		assignedJobs, e := c.assignJobs(limit)
 		if e != nil {
 			log.Errorf("Error when leasing jobs for cluster %s: %s", c.request.ClusterId, e)
 			return nil, e
 		}
+		jobs = assignedJobs
 		limit -= len(jobs)
 	}
 
