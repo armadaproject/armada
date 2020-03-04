@@ -1,16 +1,11 @@
 package scheduling
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/G-Research/armada/internal/armada/api"
-	"github.com/G-Research/armada/internal/armada/configuration"
-	"github.com/G-Research/armada/internal/common"
 )
 
 func Test_matchRequirements(t *testing.T) {
@@ -31,4 +26,3 @@ func Test_matchRequirements(t *testing.T) {
 		{Labels: map[string]string{"armada/region": "eu", "armada/zone": "1", "x": "y"}},
 	}}))
 }
-
