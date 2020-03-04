@@ -93,6 +93,13 @@ func (c *leaseContext) scheduleJobs(limit int) ([]*api.Job, error) {
 		return nil, e
 	}
 	jobs = append(jobs, additionalJobs...)
+
+	if c.schedulingConfig.UseProbabilisticSchedulingForAllResources {
+		log.WithField("clusterId", c.request.ClusterId).Infof("Leasing %d jobs. (using probabilistic scheduling)", len(jobs))
+	} else {
+		log.WithField("clusterId", c.request.ClusterId).Infof("Leasing %d jobs. (by remainder distribution: %d)", len(jobs), len(additionalJobs))
+	}
+
 	return jobs, nil
 }
 

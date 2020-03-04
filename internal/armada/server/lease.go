@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/gogo/protobuf/types"
-	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -91,11 +90,6 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 
 	jobLease := api.JobLease{
 		Job: jobs,
-	}
-	if q.schedulingConfig.UseProbabilisticSchedulingForAllResources {
-		log.WithField("clusterId", request.ClusterId).Infof("Leasing %d jobs. (using probabilistic scheduling)", len(jobs))
-	} else {
-		log.WithField("clusterId", request.ClusterId).Infof("Leasing %d jobs. (by remainder distribution: %d)", len(jobs), len(additionalJobs))
 	}
 	return &jobLease, nil
 }
