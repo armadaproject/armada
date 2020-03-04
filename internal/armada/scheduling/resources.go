@@ -62,6 +62,22 @@ func ResourcesFloatAsUsage(resourceScarcity map[string]float64, resources common
 	return usage
 }
 
+func QueueSlicesToShares(resourceScarcity map[string]float64, slices map[*api.Queue]common.ComputeResourcesFloat) map[*api.Queue]float64 {
+	shares := map[*api.Queue]float64{}
+	for queue, slice := range slices {
+		shares[queue] = ResourcesFloatAsUsage(resourceScarcity, slice)
+	}
+	return shares
+}
+
+func SumQueueSlices(slices map[*api.Queue]common.ComputeResourcesFloat) common.ComputeResourcesFloat {
+	sum := common.ComputeResourcesFloat{}
+	for _, slice := range slices {
+		sum.Add(slice)
+	}
+	return sum
+}
+
 func ResourceScarcityFromReports(reports map[string]*api.ClusterUsageReport) map[string]float64 {
 	availableResources := sumReportResources(reports)
 	return calculateResourceScarcity(availableResources.AsFloat())

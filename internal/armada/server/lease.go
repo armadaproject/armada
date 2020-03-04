@@ -81,7 +81,6 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 		request,
 		activeClusterReports,
 		clusterPriorities,
-		queues,
 		activeQueues)
 
 	if e != nil {

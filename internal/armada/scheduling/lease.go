@@ -39,7 +39,6 @@ func LeaseJobs(
 	request *api.LeaseRequest,
 	activeClusterReports map[string]*api.ClusterUsageReport,
 	clusterPriorities map[string]map[string]float64,
-	queues []*api.Queue,
 	activeQueues []*api.Queue,
 ) ([]*api.Job, error) {
 	resourcesToSchedule := common.ComputeResources(request.Resources).AsFloat()
@@ -50,12 +49,10 @@ func LeaseJobs(
 		resourcesToSchedule = resourcesToSchedule.LimitWith(capacity.MulByResource(config.MaximalClusterFractionToSchedule))
 	}
 
-	queuePriority := CalculateQueuesPriorityInfo(clusterPriorities, activeClusterReports, queues)
+	activeQueuePriority := CalculateQueuesPriorityInfo(clusterPriorities, activeClusterReports, activeQueues)
 	scarcity := ResourceScarcityFromReports(activeClusterReports)
-	activeQueuePriority := filterPriorityMapByKeys(queuePriority, activeQueues)
 	slices := SliceResource(scarcity, activeQueuePriority, resourcesToSchedule)
 
-	limit := maxJobsPerLease
 	lc := &leaseContext{
 		schedulingConfig: config,
 		repository:       jobQueueRepository,
@@ -63,8 +60,8 @@ func LeaseJobs(
 		ctx:     ctx,
 		request: request,
 
-		slices:           slices,
 		resourceScarcity: scarcity,
+		slices:           slices,
 		priorities:       activeQueuePriority,
 
 		queueCache: map[string][]*api.Job{},
@@ -72,7 +69,7 @@ func LeaseJobs(
 		onJobsLeased: onJobLease,
 	}
 
-	return lc.scheduleJobs(limit)
+	return lc.scheduleJobs(maxJobsPerLease)
 }
 
 func (c *leaseContext) scheduleJobs(limit int) ([]*api.Job, error) {
@@ -131,18 +128,14 @@ func (c *leaseContext) distributeRemainder(limit int) ([]*api.Job, error) {
 		return jobs, nil
 	}
 
-	remainder := common.ComputeResourcesFloat{}
-	shares := map[*api.Queue]float64{}
-	for queue, slice := range c.slices {
-		remainder.Add(slice)
-		shares[queue] = ResourcesFloatAsUsage(c.resourceScarcity, slice)
-	}
+	remainder := SumQueueSlices(c.slices)
+	shares := QueueSlicesToShares(c.resourceScarcity, c.slices)
 
 	queueCount := len(c.slices)
 	emptySteps := 0
 	minimumResource := c.schedulingConfig.MinimumResourceToSchedule
 
-	for !remainder.IsLessThan(minimumResource) && emptySteps < queueCount {
+	for !remainder.IsLessThan(minimumResource) && len(shares) > 0 && emptySteps < queueCount {
 		queue := pickQueueRandomly(shares)
 		emptySteps++
 
@@ -154,12 +147,16 @@ func (c *leaseContext) distributeRemainder(limit int) ([]*api.Job, error) {
 		if len(leased) > 0 {
 			emptySteps = 0
 			jobs = append(jobs, leased...)
+
 			scheduledShare := ResourcesFloatAsUsage(c.resourceScarcity, remainder) - ResourcesFloatAsUsage(c.resourceScarcity, remaining)
 			shares[queue] = math.Max(0, shares[queue]-scheduledShare)
 			remainder = remaining
+
 		} else {
 			// if there are no suitable jobs to lease eliminate queue from the scheduling
-			shares[queue] = 0
+			delete(c.priorities, queue)
+			c.slices = SliceResource(c.resourceScarcity, c.priorities, remainder)
+			shares = QueueSlicesToShares(c.resourceScarcity, c.slices)
 		}
 
 		limit -= len(leased)
