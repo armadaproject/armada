@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"io"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -37,17 +38,17 @@ func WatchJobSetWithJobIdsFilter(client api.EventClient, queue, jobSetId string,
 			continue
 		}
 
-		receivedThisCall := 0
-
 		for {
 
 			msg, e := clientStream.Recv()
 			if e != nil {
+				if e == io.EOF {
+					return
+				}
 				log.Error(e)
 				time.Sleep(5 * time.Second)
 				break
 			}
-			receivedThisCall++
 			lastMessageId = msg.Id
 
 			event, e := api.UnwrapEvent(msg.Message)
@@ -67,10 +68,6 @@ func WatchJobSetWithJobIdsFilter(client api.EventClient, queue, jobSetId string,
 			if shouldExit {
 				return
 			}
-		}
-
-		if receivedThisCall == 0 && !waitForNew {
-			return
 		}
 	}
 }
