@@ -3,6 +3,7 @@ package scheduling
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
@@ -64,8 +65,8 @@ func Test_distributeRemainder_highPriorityUserDoesNotBlockOthers(t *testing.T) {
 		},
 	}
 
-	//ctx, _ := context.WithDeadline(context.Background(), time.Now().Add(time.Second))
-	ctx := context.Background()
+	// the leasing logic stops scheduling 1s before the deadline
+	ctx, _ := context.WithDeadline(context.Background(), time.Now().Add(2*time.Second))
 
 	c := leaseContext{
 		ctx: ctx,
