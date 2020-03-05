@@ -153,6 +153,7 @@ message JobSetRequest {
     string Id = 1;
     bool Watch = 2;
     string FromMessageId = 3;
+    string Queue = 4;
 }
 
 service Event {
@@ -160,7 +161,7 @@ service Event {
     rpc Report (EventMessage) returns (google.protobuf.Empty);
     rpc GetJobSetEvents (JobSetRequest) returns (stream EventStreamMessage) {
         option (google.api.http) = {
-            post: "/v1/job-set/{Id}"
+            post: "/v1/job-set/{Queue}/{Id}"
             body: "*"
         };
     }

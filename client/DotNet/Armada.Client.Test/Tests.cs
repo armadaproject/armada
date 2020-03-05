@@ -19,10 +19,11 @@ namespace GResearch.Armada.Client.Test
         {
             var client = new ArmadaClient("http://localhost:8080", new HttpClient());
             
+            var queue = "test";
             var jobSet = $"set-{Guid.NewGuid()}";
             
             // produce some events
-            await client.CreateQueueAsync("test", new ApiQueue {PriorityFactor = 200});
+            await client.CreateQueueAsync(queue, new ApiQueue {PriorityFactor = 200});
             var request = CreateJobRequest(jobSet);
             var response = await client.SubmitJobsAsync(request);
             var cancelResponse = await client.CancelJobsAsync(new ApiJobCancelRequest {Queue = "test", JobSetId = jobSet});
@@ -30,7 +31,7 @@ namespace GResearch.Armada.Client.Test
             using (var cts = new CancellationTokenSource())
             {
                 var eventCount = 0;
-                Task.Run(() => client.WatchEvents(jobSet, null,  cts.Token, m => eventCount++, e => throw e));
+                Task.Run(() => client.WatchEvents(queue, jobSet, null,  cts.Token, m => eventCount++, e => throw e));
                 await Task.Delay(TimeSpan.FromMinutes(2));
                 cts.Cancel();
                 Assert.That(eventCount, Is.EqualTo(4));
@@ -40,17 +41,18 @@ namespace GResearch.Armada.Client.Test
         [Test]
         public async Task TestSimpleJobSubmitFlow()
         {
+            var queue = "test";
             var jobSet = $"set-{Guid.NewGuid()}";
 
             IArmadaClient client = new ArmadaClient("http://localhost:8080", new HttpClient());
-            await client.CreateQueueAsync("test", new ApiQueue {PriorityFactor = 200});
+            await client.CreateQueueAsync(queue, new ApiQueue {PriorityFactor = 200});
 
             var request = CreateJobRequest(jobSet);
 
             var response = await client.SubmitJobsAsync(request);
             var cancelResponse =
                 await client.CancelJobsAsync(new ApiJobCancelRequest {Queue = "test", JobSetId = jobSet});
-            var events = await client.GetJobEventsStream(jobSet, watch: false);
+            var events = await client.GetJobEventsStream(queue, jobSet, watch: false);
             var allEvents = events.ToList();
 
             Assert.That(allEvents, Is.Not.Empty);

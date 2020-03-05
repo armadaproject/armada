@@ -41,10 +41,10 @@ func main() {
 	shutdownGateway := armada.ServeGateway(config.HttpPort, config.GrpcPort)
 	defer shutdownGateway()
 
-	s, wg := armada.Serve(&config)
+	shutdown, wg := armada.Serve(&config)
 	go func() {
 		<-stopSignal
-		s.GracefulStop()
+		shutdown()
 	}()
 	wg.Wait()
 }
