@@ -46,9 +46,9 @@ func (apiLoadTester ArmadaLoadTester) RunSubmissionTest(spec domain.LoadTestSpec
 			wg.Add(1)
 			go func(i int, submission *domain.SubmissionDescription) {
 				defer wg.Done()
-				submittedJobIds, jobSetId := apiLoadTester.runSubmission(submission, i)
+				jobIdChannel, jobSetId := apiLoadTester.runSubmission(submission, i)
 				if watchEvents {
-					apiLoadTester.monitorJobsUntilCompletion(submission.Queue, jobSetId, submittedJobIds, eventChannel)
+					apiLoadTester.monitorJobsUntilCompletion(submission.Queue, jobSetId, jobIdChannel, eventChannel)
 				}
 			}(i, submission)
 		}
@@ -89,8 +89,9 @@ func watchJobInfoChannel(eventChannel chan api.Event) (*sync.WaitGroup, chan boo
 	return complete, stop
 }
 
-func (apiLoadTester ArmadaLoadTester) runSubmission(submission *domain.SubmissionDescription, i int) (jobIds []string, jobSetId string) {
+func (apiLoadTester ArmadaLoadTester) runSubmission(submission *domain.SubmissionDescription, i int) (jobIds chan string, jobSetId string) {
 	queue := createQueueName(submission, i)
+	startTime := time.Now()
 
 	priorityFactor := submission.QueuePriorityFactor
 	if priorityFactor <= 0 {
@@ -99,8 +100,14 @@ func (apiLoadTester ArmadaLoadTester) runSubmission(submission *domain.Submissio
 	jobSetId = submission.JobSetPrefix + "-" + strconv.Itoa(i)
 	jobs := submission.Jobs
 
-	jobIds = make([]string, 0, len(jobs))
-	util.WithConnection(apiLoadTester.apiConnectionDetails, func(connection *grpc.ClientConn) {
+	jobCount := 0
+	for _, job := range jobs {
+		jobCount += job.Count
+	}
+
+	jobIds = make(chan string, jobCount)
+
+	go util.WithConnection(apiLoadTester.apiConnectionDetails, func(connection *grpc.ClientConn) {
 		client := api.NewSubmitClient(connection)
 
 		e := CreateQueue(client, &api.Queue{Name: queue, PriorityFactor: priorityFactor})
@@ -110,35 +117,57 @@ func (apiLoadTester ArmadaLoadTester) runSubmission(submission *domain.Submissio
 		}
 		log.Infof("Queue %s created.\n", queue)
 
-		for _, job := range jobs {
-			jobRequestItems := createJobSubmitRequestItems(job)
-			requests := CreateChunkedSubmitRequests(queue, jobSetId, jobRequestItems)
+		for len(jobs) > 0 {
+			readyJobs, remainingJobs := filterReadyJobs(startTime, jobs)
+			jobs = remainingJobs
+			for _, job := range readyJobs {
+				jobRequestItems := createJobSubmitRequestItems(job)
+				requests := CreateChunkedSubmitRequests(queue, jobSetId, jobRequestItems)
 
-			for _, request := range requests {
-				response, e := SubmitJobs(client, request)
+				for _, request := range requests {
+					response, e := SubmitJobs(client, request)
 
-				if e != nil {
-					log.Errorf("ERROR: Failed to submit jobs for job set: %s because %s\n", jobSetId, e)
-					continue
-				}
-				failedJobs := 0
+					if e != nil {
+						log.Errorf("ERROR: Failed to submit jobs for job set: %s because %s\n", jobSetId, e)
+						continue
+					}
+					failedJobs := 0
 
-				for _, jobSubmitResponse := range response.JobResponseItems {
-					if jobSubmitResponse.Error != "" {
-						failedJobs++
-					} else {
-						jobIds = append(jobIds, jobSubmitResponse.JobId)
+					for _, jobSubmitResponse := range response.JobResponseItems {
+						if jobSubmitResponse.Error != "" {
+							failedJobs++
+						} else {
+							jobIds <- jobSubmitResponse.JobId
+						}
+					}
+
+					log.Infof("Submitted %d jobs to queue %s job set %s", len(request.JobRequestItems), queue, jobSetId)
+					if failedJobs > 0 {
+						log.Errorf("ERROR: %d jobs failed to be created when submitting to queue %s job set %s", failedJobs, queue, jobSetId)
 					}
 				}
-
-				log.Infof("Submitted %d jobs to queue %s job set %s", len(request.JobRequestItems), queue, jobSetId)
-				if failedJobs > 0 {
-					log.Errorf("ERROR: %d jobs failed to be created when submitting to queue %s job set %s", failedJobs, queue, jobSetId)
-				}
+			}
+			if len(jobs) > 0 {
+				time.Sleep(time.Second)
 			}
 		}
+		close(jobIds)
 	})
 	return jobIds, jobSetId
+}
+
+func filterReadyJobs(startTime time.Time, jobs []*domain.JobSubmissionDescription) (ready []*domain.JobSubmissionDescription, notReady []*domain.JobSubmissionDescription) {
+	now := time.Now()
+	ready = []*domain.JobSubmissionDescription{}
+	notReady = []*domain.JobSubmissionDescription{}
+	for _, j := range jobs {
+		if startTime.Add(j.DelaySubmit).Before(now) {
+			ready = append(ready, j)
+		} else {
+			notReady = append(notReady, j)
+		}
+	}
+	return ready, notReady
 }
 
 func createQueueName(submission *domain.SubmissionDescription, i int) string {
@@ -157,18 +186,32 @@ func createQueueName(submission *domain.SubmissionDescription, i int) string {
 	return queue
 }
 
-func (apiLoadTester ArmadaLoadTester) monitorJobsUntilCompletion(queue, jobSetId string, jobIds []string, eventChannel chan api.Event) {
+func (apiLoadTester ArmadaLoadTester) monitorJobsUntilCompletion(queue, jobSetId string, jobIds chan string, eventChannel chan api.Event) {
 	util.WithConnection(apiLoadTester.apiConnectionDetails, func(connection *grpc.ClientConn) {
 		eventsClient := api.NewEventClient(connection)
-		WatchJobSetWithJobIdsFilter(eventsClient, queue, jobSetId, true, jobIds, context.Background(), func(state *domain.WatchContext, e api.Event) bool {
+
+		var submittedIds []string = nil
+		go func() {
+			ids := []string{}
+			for id := range jobIds {
+				ids = append(ids, id)
+			}
+			submittedIds = ids
+		}()
+
+		WatchJobSet(eventsClient, queue, jobSetId, true, context.Background(), func(state *domain.WatchContext, e api.Event) bool {
 			eventChannel <- e
 
-			numberOfJobsInCompletedState := state.GetNumberOfJobsInStates([]domain.JobStatus{domain.Succeeded, domain.Failed, domain.Cancelled})
-			if numberOfJobsInCompletedState == len(jobIds) {
-				return true
+			if submittedIds == nil {
+				return false
 			}
 
-			return false
+			numberOfJobsInCompletedState := state.GetNumberOfFinishedJobs()
+			if numberOfJobsInCompletedState < len(submittedIds) {
+				return false
+			}
+
+			return state.AreJobsFinished(submittedIds)
 		})
 	})
 }
