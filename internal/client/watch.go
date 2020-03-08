@@ -2,9 +2,12 @@ package client
 
 import (
 	"context"
+	"io"
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/G-Research/armada/internal/armada/api"
 	"github.com/G-Research/armada/internal/client/domain"
@@ -37,17 +40,19 @@ func WatchJobSetWithJobIdsFilter(client api.EventClient, queue, jobSetId string,
 			continue
 		}
 
-		receivedThisCall := 0
-
 		for {
 
 			msg, e := clientStream.Recv()
 			if e != nil {
-				log.Error(e)
+				if e == io.EOF {
+					return
+				}
+				if !isTransportClosingError(e) {
+					log.Error(e)
+				}
 				time.Sleep(5 * time.Second)
 				break
 			}
-			receivedThisCall++
 			lastMessageId = msg.Id
 
 			event, e := api.UnwrapEvent(msg.Message)
@@ -68,9 +73,15 @@ func WatchJobSetWithJobIdsFilter(client api.EventClient, queue, jobSetId string,
 				return
 			}
 		}
+	}
+}
 
-		if receivedThisCall == 0 && !waitForNew {
-			return
+func isTransportClosingError(e error) bool {
+	if err, ok := status.FromError(e); ok {
+		switch err.Code() {
+		case codes.Unavailable:
+			return true
 		}
 	}
+	return false
 }

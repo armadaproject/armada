@@ -46,6 +46,11 @@ var analyzeCmd = &cobra.Command{
 				return false
 			})
 
+			if jobState == nil {
+				log.Infof("No events found in jobset %s (queue: %s)", jobSetId, queue)
+				return
+			}
+
 			for id, jobInfo := range jobState.GetCurrentState() {
 				if jobInfo.Status != domain.Succeeded {
 					jobEvents := events[id]
