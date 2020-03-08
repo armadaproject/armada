@@ -15,10 +15,11 @@ N.B.  Ensure the current user has permission to run the `docker` command without
 ## Installation
 This guide will install Armada on 3 local Kubernetes clusters; one server and two executor clusters. 
 
-Set the `ARMADA_VERSION` environment variable and clone this repository with the same version tag as you are installing. For example to install version `v0.0.5`:
+Set the `ARMADA_VERSION` environment variable and clone this repository with the same version tag as you are installing. For example to install version `v0.1.0`:
 ```bash
-export ARMADA_VERSION=v0.0.5
+export ARMADA_VERSION=v0.1.0
 git clone https://github.com/G-Research/armada.git --branch $ARMADA_VERSION
+cd armada
 ```
 
 All commands are intended to be run from the root of the repository.
