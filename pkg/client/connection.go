@@ -9,8 +9,8 @@ import (
 	"google.golang.org/grpc/credentials"
 
 	"github.com/G-Research/armada/internal/common"
-	"github.com/G-Research/armada/internal/common/client/auth/kerberos"
-	"github.com/G-Research/armada/internal/common/client/auth/oidc"
+	"github.com/G-Research/armada/pkg/client/auth/kerberos"
+	"github.com/G-Research/armada/pkg/client/auth/oidc"
 )
 
 type ApiConnectionDetails struct {

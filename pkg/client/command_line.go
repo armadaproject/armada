@@ -7,8 +7,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-
-	"github.com/G-Research/armada/internal/common/client"
 )
 
 func AddArmadaApiConnectionCommandlineArgs(rootCmd *cobra.Command) {
@@ -49,8 +47,8 @@ func LoadCommandlineArgsFromConfigFile(cfgFile string) {
 	}
 }
 
-func ExtractCommandlineArmadaApiConnectionDetails() *client.ApiConnectionDetails {
-	apiConnectionDetails := &client.ApiConnectionDetails{}
+func ExtractCommandlineArmadaApiConnectionDetails() *ApiConnectionDetails {
+	apiConnectionDetails := &ApiConnectionDetails{}
 	viper.Unmarshal(apiConnectionDetails)
 	return apiConnectionDetails
 }

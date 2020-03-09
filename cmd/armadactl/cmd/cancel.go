@@ -3,14 +3,13 @@ package cmd
 import (
 	"strings"
 
-	"github.com/G-Research/armada/internal/common"
-	"github.com/G-Research/armada/pkg/api"
-	"github.com/G-Research/armada/pkg/client"
-	"github.com/G-Research/armada/pkg/client/util"
-
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
+
+	"github.com/G-Research/armada/internal/common"
+	"github.com/G-Research/armada/pkg/api"
+	"github.com/G-Research/armada/pkg/client"
 )
 
 func init() {
@@ -31,7 +30,7 @@ var cancelCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		apiConnectionDetails := client.ExtractCommandlineArmadaApiConnectionDetails()
 
-		util.WithConnection(apiConnectionDetails, func(conn *grpc.ClientConn) {
+		client.WithConnection(apiConnectionDetails, func(conn *grpc.ClientConn) {
 			client := api.NewSubmitClient(conn)
 
 			jobId, _ := cmd.Flags().GetString("jobId")

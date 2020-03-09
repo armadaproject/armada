@@ -14,7 +14,6 @@ import (
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/client"
 	"github.com/G-Research/armada/pkg/client/domain"
-	"github.com/G-Research/armada/pkg/client/util"
 )
 
 func init() {
@@ -40,7 +39,7 @@ var watchCmd = &cobra.Command{
 
 		apiConnectionDetails := client.ExtractCommandlineArmadaApiConnectionDetails()
 
-		util.WithConnection(apiConnectionDetails, func(conn *grpc.ClientConn) {
+		client.WithConnection(apiConnectionDetails, func(conn *grpc.ClientConn) {
 			eventsClient := api.NewEventClient(conn)
 			client.WatchJobSet(eventsClient, queue, jobSetId, true, context.Background(), func(state *domain.WatchContext, e api.Event) bool {
 				if raw {

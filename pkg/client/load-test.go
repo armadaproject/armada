@@ -9,10 +9,8 @@ import (
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 
-	"github.com/G-Research/armada/internal/common/client"
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/client/domain"
-	"github.com/G-Research/armada/pkg/client/util"
 )
 
 type LoadTester interface {
@@ -20,10 +18,10 @@ type LoadTester interface {
 }
 
 type ArmadaLoadTester struct {
-	apiConnectionDetails *client.ApiConnectionDetails
+	apiConnectionDetails *ApiConnectionDetails
 }
 
-func NewArmadaLoadTester(connectionDetails *client.ApiConnectionDetails) *ArmadaLoadTester {
+func NewArmadaLoadTester(connectionDetails *ApiConnectionDetails) *ArmadaLoadTester {
 	return &ArmadaLoadTester{
 		apiConnectionDetails: connectionDetails,
 	}
@@ -107,7 +105,7 @@ func (apiLoadTester ArmadaLoadTester) runSubmission(submission *domain.Submissio
 
 	jobIds = make(chan string, jobCount)
 
-	go util.WithConnection(apiLoadTester.apiConnectionDetails, func(connection *grpc.ClientConn) {
+	go WithConnection(apiLoadTester.apiConnectionDetails, func(connection *grpc.ClientConn) {
 		client := api.NewSubmitClient(connection)
 
 		e := CreateQueue(client, &api.Queue{Name: queue, PriorityFactor: priorityFactor})
@@ -187,7 +185,7 @@ func createQueueName(submission *domain.SubmissionDescription, i int) string {
 }
 
 func (apiLoadTester ArmadaLoadTester) monitorJobsUntilCompletion(queue, jobSetId string, jobIds chan string, eventChannel chan api.Event) {
-	util.WithConnection(apiLoadTester.apiConnectionDetails, func(connection *grpc.ClientConn) {
+	WithConnection(apiLoadTester.apiConnectionDetails, func(connection *grpc.ClientConn) {
 		eventsClient := api.NewEventClient(connection)
 
 		var submittedIds []string = nil

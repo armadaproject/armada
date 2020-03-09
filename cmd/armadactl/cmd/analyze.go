@@ -12,7 +12,6 @@ import (
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/client"
 	"github.com/G-Research/armada/pkg/client/domain"
-	"github.com/G-Research/armada/pkg/client/util"
 )
 
 func init() {
@@ -34,7 +33,7 @@ var analyzeCmd = &cobra.Command{
 
 		apiConnectionDetails := client.ExtractCommandlineArmadaApiConnectionDetails()
 
-		util.WithConnection(apiConnectionDetails, func(conn *grpc.ClientConn) {
+		client.WithConnection(apiConnectionDetails, func(conn *grpc.ClientConn) {
 			eventsClient := api.NewEventClient(conn)
 
 			events := map[string][]*api.Event{}
