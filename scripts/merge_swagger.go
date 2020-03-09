@@ -13,18 +13,18 @@ import (
 
 func main() {
 
-	grpcDoc, err := loads.Spec("internal/armada/api/api.swagger.json")
+	grpcDoc, err := loads.Spec("pkg/api/api.swagger.json")
 	if err != nil {
 		panic(err)
 	}
 
-	definitionDoc, err := loads.Spec("internal/armada/api/api.swagger.definitions.json")
+	definitionDoc, err := loads.Spec("pkg/api/api.swagger.definitions.json")
 	if err != nil {
 		panic(err)
 	}
 
 	definitionsSpec := definitionDoc.Spec()
-	removeGoPackage("github.com/G-Research/armada/internal/armada/api", definitionsSpec.Definitions)
+	removeGoPackage("github.com/G-Research/armada/pkg/api", definitionsSpec.Definitions)
 	prefixTypeWithGoPackageName(definitionsSpec.Definitions)
 
 	grpcSpec := grpcDoc.Spec()

@@ -9,9 +9,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
 
-	"github.com/G-Research/armada/internal/armada/api"
 	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/G-Research/armada/internal/armada/repository"
+	"github.com/G-Research/armada/pkg/api"
 )
 
 func TestEventServer_ReportUsage(t *testing.T) {

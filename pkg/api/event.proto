@@ -3,7 +3,7 @@ syntax = 'proto3';
 package api;
 
 import "google/protobuf/timestamp.proto";
-import "internal/armada/api/queue.proto";
+import "pkg/api/queue.proto";
 import "google/protobuf/empty.proto";
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 import "google/api/annotations.proto";

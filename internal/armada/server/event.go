@@ -4,10 +4,10 @@ import (
 	"context"
 	"time"
 
-	"github.com/G-Research/armada/internal/armada/api"
 	"github.com/G-Research/armada/internal/armada/authorization"
 	"github.com/G-Research/armada/internal/armada/authorization/permissions"
 	"github.com/G-Research/armada/internal/armada/repository"
+	"github.com/G-Research/armada/pkg/api"
 
 	"github.com/gogo/protobuf/types"
 )
