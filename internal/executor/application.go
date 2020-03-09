@@ -18,7 +18,7 @@ import (
 	"github.com/G-Research/armada/internal/executor/reporter"
 	"github.com/G-Research/armada/internal/executor/service"
 	"github.com/G-Research/armada/pkg/api"
-	client2 "github.com/G-Research/armada/pkg/client"
+	"github.com/G-Research/armada/pkg/client"
 )
 
 func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGroup) {
@@ -104,7 +104,7 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 }
 
 func createConnectionToApi(config configuration.ExecutorConfiguration) (*grpc.ClientConn, error) {
-	return client2.CreateApiConnection(&config.ApiConnection,
+	return client.CreateApiConnection(&config.ApiConnection,
 		grpc.WithChainUnaryInterceptor(grpc_prometheus.UnaryClientInterceptor),
 		grpc.WithChainStreamInterceptor(grpc_prometheus.StreamClientInterceptor))
 }
