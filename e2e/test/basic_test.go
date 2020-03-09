@@ -14,12 +14,10 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	common_client "github.com/G-Research/armada/internal/common/client"
 	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/client"
 	"github.com/G-Research/armada/pkg/client/domain"
-	util2 "github.com/G-Research/armada/pkg/client/util"
 )
 
 const integrationEnabledEnvVar = "INTEGRATION_ENABLED"
@@ -27,7 +25,7 @@ const integrationEnabledEnvVar = "INTEGRATION_ENABLED"
 func TestCanSubmitJob_ReceivingAllExpectedEvents(t *testing.T) {
 	skipIfIntegrationEnvNotPresent(t)
 
-	util2.WithConnection(connectionDetails(), func(connection *grpc.ClientConn) {
+	client.WithConnection(connectionDetails(), func(connection *grpc.ClientConn) {
 		submitClient := api.NewSubmitClient(connection)
 		eventsClient := api.NewEventClient(connection)
 
@@ -46,7 +44,7 @@ func TestCanSubmitJob_ReceivingAllExpectedEvents(t *testing.T) {
 func TestCanSubmitJob_ArmdactlWatchExitOnInactive(t *testing.T) {
 	skipIfIntegrationEnvNotPresent(t)
 	connDetails := connectionDetails()
-	util2.WithConnection(connDetails, func(connection *grpc.ClientConn) {
+	client.WithConnection(connDetails, func(connection *grpc.ClientConn) {
 		submitClient := api.NewSubmitClient(connection)
 		eventsClient := api.NewEventClient(connection)
 
@@ -66,7 +64,7 @@ func TestCanSubmitJob_ArmdactlWatchExitOnInactive(t *testing.T) {
 func TestCanSubmitJob_KubernetesNamespacePermissionsAreRespected(t *testing.T) {
 	skipIfIntegrationEnvNotPresent(t)
 
-	util2.WithConnection(connectionDetails(), func(connection *grpc.ClientConn) {
+	client.WithConnection(connectionDetails(), func(connection *grpc.ClientConn) {
 		submitClient := api.NewSubmitClient(connection)
 		eventsClient := api.NewEventClient(connection)
 
@@ -78,8 +76,8 @@ func TestCanSubmitJob_KubernetesNamespacePermissionsAreRespected(t *testing.T) {
 	})
 }
 
-func connectionDetails() *common_client.ApiConnectionDetails {
-	connectionDetails := &common_client.ApiConnectionDetails{
+func connectionDetails() *client.ApiConnectionDetails {
+	connectionDetails := &client.ApiConnectionDetails{
 		ArmadaUrl: "localhost:50051",
 	}
 	return connectionDetails
