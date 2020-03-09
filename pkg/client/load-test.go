@@ -217,7 +217,7 @@ func (apiLoadTester ArmadaLoadTester) monitorJobsUntilCompletion(queue, jobSetId
 func createJobSubmitRequestItems(jobDesc *domain.JobSubmissionDescription) []*api.JobSubmitRequestItem {
 	requestItems := make([]*api.JobSubmitRequestItem, 0, jobDesc.Count)
 	job := api.JobSubmitRequestItem{
-		Priority:           1,
+		Priority:           jobDesc.Priority,
 		Namespace:          jobDesc.Namespace,
 		Annotations:        jobDesc.Annotations,
 		Labels:             jobDesc.Labels,
