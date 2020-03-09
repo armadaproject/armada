@@ -3,10 +3,10 @@ package cmd
 import (
 	"strings"
 
-	"github.com/G-Research/armada/internal/armada/api"
-	"github.com/G-Research/armada/internal/client"
-	"github.com/G-Research/armada/internal/client/util"
 	"github.com/G-Research/armada/internal/common"
+	"github.com/G-Research/armada/pkg/api"
+	"github.com/G-Research/armada/pkg/client"
+	"github.com/G-Research/armada/pkg/client/util"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"

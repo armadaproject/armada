@@ -11,10 +11,10 @@ import (
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
 
-	"github.com/G-Research/armada/internal/armada/api"
-	"github.com/G-Research/armada/internal/client"
-	"github.com/G-Research/armada/internal/client/domain"
-	"github.com/G-Research/armada/internal/client/util"
+	"github.com/G-Research/armada/pkg/api"
+	"github.com/G-Research/armada/pkg/client"
+	"github.com/G-Research/armada/pkg/client/domain"
+	"github.com/G-Research/armada/pkg/client/util"
 )
 
 func init() {

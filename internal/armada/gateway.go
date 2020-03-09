@@ -11,9 +11,9 @@ import (
 	"github.com/jcmturner/gokrb5/v8/spnego"
 	"google.golang.org/grpc"
 
-	"github.com/G-Research/armada/internal/armada/api"
 	protoutil "github.com/G-Research/armada/internal/armada/protoutils"
 	"github.com/G-Research/armada/internal/common"
+	"github.com/G-Research/armada/pkg/api"
 )
 
 func ServeGateway(port uint16, grpcPort uint16) (shutdown func()) {

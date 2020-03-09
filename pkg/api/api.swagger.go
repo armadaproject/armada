@@ -18,7 +18,7 @@ func SwaggerJsonTemplate() string {
 		"  ],\n" +
 		"  \"swagger\": \"2.0\",\n" +
 		"  \"info\": {\n" +
-		"    \"title\": \"internal/armada/api/event.proto\",\n" +
+		"    \"title\": \"pkg/api/event.proto\",\n" +
 		"    \"version\": \"version not set\"\n" +
 		"  },\n" +
 		"  \"paths\": {\n" +

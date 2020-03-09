@@ -1,8 +1,8 @@
 package client
 
 import (
-	"github.com/G-Research/armada/internal/armada/api"
 	"github.com/G-Research/armada/internal/common"
+	"github.com/G-Research/armada/pkg/api"
 )
 
 const MaxJobsPerRequest = 200

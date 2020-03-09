@@ -3,7 +3,7 @@ package scheduling
 import (
 	"time"
 
-	"github.com/G-Research/armada/internal/armada/api"
+	"github.com/G-Research/armada/pkg/api"
 )
 
 const activeClusterExpiry = 10 * time.Minute

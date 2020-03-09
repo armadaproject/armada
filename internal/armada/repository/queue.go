@@ -4,7 +4,7 @@ import (
 	"github.com/go-redis/redis"
 	"github.com/gogo/protobuf/proto"
 
-	"github.com/G-Research/armada/internal/armada/api"
+	"github.com/G-Research/armada/pkg/api"
 )
 
 const queueHashKey = "Queue"

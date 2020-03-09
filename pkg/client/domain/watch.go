@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/G-Research/armada/internal/armada/api"
+	"github.com/G-Research/armada/pkg/api"
 )
 
 type JobStatus string

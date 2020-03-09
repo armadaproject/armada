@@ -9,10 +9,10 @@ import (
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 
-	"github.com/G-Research/armada/internal/armada/api"
-	"github.com/G-Research/armada/internal/client/domain"
-	"github.com/G-Research/armada/internal/client/util"
 	"github.com/G-Research/armada/internal/common/client"
+	"github.com/G-Research/armada/pkg/api"
+	"github.com/G-Research/armada/pkg/client/domain"
+	"github.com/G-Research/armada/pkg/client/util"
 )
 
 type LoadTester interface {

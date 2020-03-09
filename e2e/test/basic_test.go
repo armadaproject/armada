@@ -14,12 +14,12 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/G-Research/armada/internal/armada/api"
-	"github.com/G-Research/armada/internal/client"
-	"github.com/G-Research/armada/internal/client/domain"
-	util2 "github.com/G-Research/armada/internal/client/util"
 	common_client "github.com/G-Research/armada/internal/common/client"
 	"github.com/G-Research/armada/internal/common/util"
+	"github.com/G-Research/armada/pkg/api"
+	"github.com/G-Research/armada/pkg/client"
+	"github.com/G-Research/armada/pkg/client/domain"
+	util2 "github.com/G-Research/armada/pkg/client/util"
 )
 
 const integrationEnabledEnvVar = "INTEGRATION_ENABLED"

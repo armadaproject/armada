@@ -7,9 +7,9 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	"github.com/G-Research/armada/internal/client"
-	"github.com/G-Research/armada/internal/client/domain"
-	"github.com/G-Research/armada/internal/client/util"
+	"github.com/G-Research/armada/pkg/client"
+	"github.com/G-Research/armada/pkg/client/domain"
+	"github.com/G-Research/armada/pkg/client/util"
 )
 
 func init() {

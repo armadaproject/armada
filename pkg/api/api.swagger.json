@@ -7,7 +7,7 @@
   ],
   "swagger": "2.0",
   "info": {
-    "title": "internal/armada/api/event.proto",
+    "title": "pkg/api/event.proto",
     "version": "version not set"
   },
   "paths": {
