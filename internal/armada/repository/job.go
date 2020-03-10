@@ -9,9 +9,9 @@ import (
 	"github.com/gogo/protobuf/proto"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/G-Research/armada/internal/armada/api"
 	"github.com/G-Research/armada/internal/armada/authorization"
 	"github.com/G-Research/armada/internal/common/util"
+	"github.com/G-Research/armada/pkg/api"
 )
 
 const jobObjectPrefix = "Job:"
@@ -20,14 +20,18 @@ const jobSetPrefix = "Job:Set:"
 const jobLeasedPrefix = "Job:Leased:"
 const jobClusterMapKey = "Job:ClusterId"
 
+type JobQueueRepository interface {
+	PeekQueue(queue string, limit int64) ([]*api.Job, error)
+	TryLeaseJobs(clusterId string, queue string, jobs []*api.Job) ([]*api.Job, error)
+}
+
 type JobRepository interface {
+	JobQueueRepository
 	CreateJobs(request *api.JobSubmitRequest, principal authorization.Principal) []*api.Job
 	AddJobs(job []*api.Job) ([]*SubmitJobResult, error)
 	GetExistingJobsByIds(ids []string) ([]*api.Job, error)
-	PeekQueue(queue string, limit int64) ([]*api.Job, error)
 	FilterActiveQueues(queues []*api.Queue) ([]*api.Queue, error)
 	GetQueueSizes(queues []*api.Queue) (sizes []int64, e error)
-	TryLeaseJobs(clusterId string, queue string, jobs []*api.Job) ([]*api.Job, error)
 	RenewLease(clusterId string, jobIds []string) (renewed []string, e error)
 	ExpireLeases(queue string, deadline time.Time) (expired []*api.Job, e error)
 	ReturnLease(clusterId string, jobId string) (returnedJob *api.Job, err error)

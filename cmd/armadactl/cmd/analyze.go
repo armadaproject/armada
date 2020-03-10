@@ -9,10 +9,9 @@ import (
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
 
-	"github.com/G-Research/armada/internal/armada/api"
-	"github.com/G-Research/armada/internal/client"
-	"github.com/G-Research/armada/internal/client/domain"
-	"github.com/G-Research/armada/internal/client/util"
+	"github.com/G-Research/armada/pkg/api"
+	"github.com/G-Research/armada/pkg/client"
+	"github.com/G-Research/armada/pkg/client/domain"
 )
 
 func init() {
@@ -34,7 +33,7 @@ var analyzeCmd = &cobra.Command{
 
 		apiConnectionDetails := client.ExtractCommandlineArmadaApiConnectionDetails()
 
-		util.WithConnection(apiConnectionDetails, func(conn *grpc.ClientConn) {
+		client.WithConnection(apiConnectionDetails, func(conn *grpc.ClientConn) {
 			eventsClient := api.NewEventClient(conn)
 
 			events := map[string][]*api.Event{}
@@ -45,6 +44,11 @@ var analyzeCmd = &cobra.Command{
 				jobState = state
 				return false
 			})
+
+			if jobState == nil {
+				log.Infof("No events found in jobset %s (queue: %s)", jobSetId, queue)
+				return
+			}
 
 			for id, jobInfo := range jobState.GetCurrentState() {
 				if jobInfo.Status != domain.Succeeded {

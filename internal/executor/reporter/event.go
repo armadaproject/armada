@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/G-Research/armada/internal/armada/api"
 	"github.com/G-Research/armada/internal/executor/domain"
 	"github.com/G-Research/armada/internal/executor/util"
+	"github.com/G-Research/armada/pkg/api"
 
 	v1 "k8s.io/api/core/v1"
 )

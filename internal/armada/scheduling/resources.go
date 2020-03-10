@@ -3,9 +3,9 @@ package scheduling
 import (
 	"math"
 
-	"github.com/G-Research/armada/internal/armada/api"
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/internal/common/util"
+	"github.com/G-Research/armada/pkg/api"
 )
 
 func SliceResource(resourceScarcity map[string]float64, queuePriorities map[*api.Queue]QueuePriorityInfo, quantityToSlice common.ComputeResourcesFloat) map[*api.Queue]common.ComputeResourcesFloat {
@@ -60,6 +60,22 @@ func ResourcesFloatAsUsage(resourceScarcity map[string]float64, resources common
 		usage += quantity * scarcity
 	}
 	return usage
+}
+
+func QueueSlicesToShares(resourceScarcity map[string]float64, slices map[*api.Queue]common.ComputeResourcesFloat) map[*api.Queue]float64 {
+	shares := map[*api.Queue]float64{}
+	for queue, slice := range slices {
+		shares[queue] = ResourcesFloatAsUsage(resourceScarcity, slice)
+	}
+	return shares
+}
+
+func SumQueueSlices(slices map[*api.Queue]common.ComputeResourcesFloat) common.ComputeResourcesFloat {
+	sum := common.ComputeResourcesFloat{}
+	for _, slice := range slices {
+		sum.Add(slice)
+	}
+	return sum
 }
 
 func ResourceScarcityFromReports(reports map[string]*api.ClusterUsageReport) map[string]float64 {

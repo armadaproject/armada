@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/G-Research/armada/internal/armada/api"
+	"github.com/G-Research/armada/pkg/api"
 )
 
 type JobStatus string
@@ -139,6 +139,17 @@ func (context *WatchContext) GetNumberOfJobs() int {
 	}
 
 	return numberOfJobs
+}
+
+func (context *WatchContext) AreJobsFinished(ids []string) bool {
+	for _, id := range ids {
+		if context.state[id].Status != Succeeded &&
+			context.state[id].Status != Failed &&
+			context.state[id].Status != Cancelled {
+			return false
+		}
+	}
+	return true
 }
 
 func updateJobInfo(info *JobInfo, event api.Event) {

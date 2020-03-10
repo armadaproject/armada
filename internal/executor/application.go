@@ -9,8 +9,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 
-	"github.com/G-Research/armada/internal/armada/api"
-	"github.com/G-Research/armada/internal/common/client"
 	"github.com/G-Research/armada/internal/common/task"
 	"github.com/G-Research/armada/internal/executor/cluster"
 	"github.com/G-Research/armada/internal/executor/configuration"
@@ -19,6 +17,8 @@ import (
 	"github.com/G-Research/armada/internal/executor/metrics/pod_metrics"
 	"github.com/G-Research/armada/internal/executor/reporter"
 	"github.com/G-Research/armada/internal/executor/service"
+	"github.com/G-Research/armada/pkg/api"
+	"github.com/G-Research/armada/pkg/client"
 )
 
 func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGroup) {

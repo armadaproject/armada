@@ -68,14 +68,14 @@ func (authService *KerberosAuthService) Authenticate(ctx context.Context) (Princ
 
 	tokenData, err := base64.StdEncoding.DecodeString(encodedToken)
 	if err != nil {
-		log.Error("SPNEGO invalid token")
+		log.Errorf("SPNEGO invalid token, could not decode: %v", err)
 		return nil, status.Errorf(codes.Unauthenticated, "SPNEGO invalid token")
 	}
 
 	var token spnego.SPNEGOToken
 	err = token.Unmarshal(tokenData)
 	if err != nil {
-		log.Error("SPNEGO invalid token")
+		log.Errorf("SPNEGO invalid token, could not unmarshal : %v", err)
 		return nil, status.Errorf(codes.Unauthenticated, "SPNEGO invalid token")
 	}
 
