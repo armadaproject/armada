@@ -13,6 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/rest"
 	clientTesting "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/cache"
 
@@ -392,4 +393,8 @@ func (p *FakeClientProvider) ClientForUser(user string) (kubernetes.Interface, e
 }
 func (p *FakeClientProvider) Client() kubernetes.Interface {
 	return p.FakeClient
+}
+
+func (p *FakeClientProvider) ClientConfig() *rest.Config {
+	return nil
 }
