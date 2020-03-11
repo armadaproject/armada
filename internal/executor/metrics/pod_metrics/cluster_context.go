@@ -1,16 +1,11 @@
 package pod_metrics
 
 import (
-	"strings"
-
 	"github.com/google/martian/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
-	"k8s.io/metrics/pkg/apis/metrics/v1beta1"
-	metrics_server "k8s.io/metrics/pkg/client/clientset/versioned"
 
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/internal/executor/context"
@@ -26,9 +21,9 @@ const (
 )
 
 type ClusterContextMetrics struct {
-	context             context.ClusterContext
-	utilisationService  service.UtilisationService
-	metricsServerClient metrics_server.Interface
+	context                 context.ClusterContext
+	utilisationService      service.UtilisationService
+	queueUtilisationService service.QueueUtilisationService
 
 	knownQueues map[string]bool
 
@@ -44,12 +39,12 @@ type ClusterContextMetrics struct {
 	nodeMemoryAvailable prometheus.Gauge
 }
 
-func NewClusterContextMetrics(context context.ClusterContext, metricsServerClient metrics_server.Interface, utilisationService service.UtilisationService) *ClusterContextMetrics {
+func NewClusterContextMetrics(context context.ClusterContext, utilisationService service.UtilisationService, queueUtilisationService service.QueueUtilisationService) *ClusterContextMetrics {
 	m := &ClusterContextMetrics{
-		context:             context,
-		utilisationService:  utilisationService,
-		metricsServerClient: metricsServerClient,
-		knownQueues:         map[string]bool{},
+		context:                 context,
+		utilisationService:      utilisationService,
+		queueUtilisationService: queueUtilisationService,
+		knownQueues:             map[string]bool{},
 		podCountTotal: promauto.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: metrics.ArmadaExecutorMetricsPrefix + "job_pod_total",
@@ -138,7 +133,7 @@ type podMetric struct {
 	count  float64
 }
 
-func (m *ClusterContextMetrics) UpdateBasicMetrics() {
+func (m *ClusterContextMetrics) UpdateMetrics() {
 	pods, e := m.context.GetBatchPods()
 	if e != nil {
 		log.Errorf("Unable to update metrics: %v", e)
@@ -198,81 +193,14 @@ func (m *ClusterContextMetrics) UpdateBasicMetrics() {
 	m.nodeCount.Set(float64(len(allAvailableProcessingNodes)))
 	m.nodeCpuAvailable.Set(totalNodeResource[string(v1.ResourceCPU)])
 	m.nodeMemoryAvailable.Set(totalNodeResource[string(v1.ResourceMemory)])
-}
 
-func (m *ClusterContextMetrics) UpdateUsageMetrics() {
-	allBatchPods, e := m.context.GetBatchPods()
-	if e != nil {
-		log.Errorf("Unable to update usage metrics: %v", e)
+	queueUsageData := m.queueUtilisationService.GetQueueUtilisationData()
+
+	for queue, queueMetric := range queueUsageData {
+		resources := queueMetric.ResourceUsed.AsFloat()
+		m.podCpuUsage.WithLabelValues(queue).Set(resources[string(v1.ResourceCPU)])
+		m.podMemoryUsage.WithLabelValues(queue).Set(resources[string(v1.ResourceMemory)])
 	}
-
-	usage, err := m.getUsageMetricsForManagedPods()
-	if err != nil {
-		log.Errorf("Failed to get required information to report pod usage metrics because %s", err)
-	}
-
-	podMetrics := map[string]*podMetric{}
-	nameToQueueMap := createPodNameToQueueMap(allBatchPods)
-	for _, pod := range usage.Items {
-		queue, present := nameToQueueMap[pod.Name]
-		if !present {
-			continue
-		}
-		queueMetric, present := podMetrics[queue]
-		if !present {
-			queueMetric = &podMetric{}
-			podMetrics[queue] = queueMetric
-		}
-
-		totalResources := make(common.ComputeResources)
-		for _, container := range pod.Containers {
-			containerResource := common.FromResourceList(container.Usage)
-			totalResources.Add(containerResource)
-		}
-
-		resources := totalResources.AsFloat()
-		queueMetric.memory += resources[string(v1.ResourceMemory)]
-		queueMetric.cpu += resources[string(v1.ResourceCPU)]
-	}
-
-	//TODO Pods by phase? Exclude completed?
-
-	// reset metric for queues without pods
-	for q, _ := range m.knownQueues {
-		_, exists := podMetrics[q]
-		if !exists {
-			podMetrics[q] = &podMetric{}
-		}
-	}
-	// TODO CONCURRENT MAP ACCESS
-
-	for queue, queueMetric := range podMetrics {
-		m.podCpuUsage.WithLabelValues(queue).Set(queueMetric.cpu)
-		m.podMemoryUsage.WithLabelValues(queue).Set(queueMetric.memory)
-	}
-}
-
-func (m *ClusterContextMetrics) getUsageMetricsForManagedPods() (*v1beta1.PodMetricsList, error) {
-	managedPodLabels := make([]string, 0, 1)
-	managedPodLabels = append(managedPodLabels, domain.JobId)
-
-	listOptions := metav1.ListOptions{
-		LabelSelector: strings.Join(managedPodLabels, ","),
-	}
-
-	return m.metricsServerClient.MetricsV1beta1().PodMetricses(metav1.NamespaceAll).List(listOptions)
-}
-
-func createPodNameToQueueMap(allBatchPods []*v1.Pod) map[string]string {
-	nameToQueueMap := make(map[string]string, len(allBatchPods))
-	for _, pod := range allBatchPods {
-		queue, present := pod.Labels[domain.Queue]
-		if !present {
-			continue
-		}
-		nameToQueueMap[pod.Name] = queue
-	}
-	return nameToQueueMap
 }
 
 func createPodPhaseMetric() map[string]*podMetric {

@@ -25,12 +25,12 @@ type TaskConfiguration struct {
 	StuckPodScanInterval                  time.Duration
 	PodDeletionInterval                   time.Duration
 	PodMetricsInterval                    time.Duration
-	PodUsageMetricsInterval               time.Duration
+	QueueUsageDataRefreshInterval         time.Duration
 }
 
 type MetricConfiguration struct {
-	Port                  uint16
-	ExposePodUsageMetrics bool
+	Port                    uint16
+	ExposeQueueUsageMetrics bool
 }
 
 type ExecutorConfiguration struct {

@@ -53,6 +53,15 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 		os.Exit(-1)
 	}
 
+	var metricsServerClient *metrics_server.Clientset
+	if config.Metric.ExposeQueueUsageMetrics && kubernetesClientProvider != nil {
+		metricsServerClient, err = metrics_server.NewForConfig(kubernetesClientProvider.ClientConfig())
+		if err != nil {
+			log.Errorf("Failed to connect to metrics server because: %s", err)
+			os.Exit(-1)
+		}
+	}
+
 	queueClient := api.NewAggregatedQueueClient(conn)
 	usageClient := api.NewUsageClient(conn)
 	eventClient := api.NewEventClient(conn)
@@ -67,8 +76,13 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 		config.Kubernetes.MinimumPodAge,
 		config.Kubernetes.FailedPodExpiry)
 
+	queueUtilisationService := service.NewMetricsServerQueueUtilisationService(
+		clusterContext,
+		metricsServerClient)
+
 	clusterUtilisationService := service.NewClusterUtilisationService(
 		clusterContext,
+		queueUtilisationService,
 		usageClient,
 		config.Kubernetes.TrackedNodeLabels)
 
@@ -83,26 +97,17 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 		jobLeaseService,
 		clusterUtilisationService)
 
-	var metricsServerClient *metrics_server.Clientset
-	if config.Metric.ExposePodUsageMetrics && kubernetesClientProvider != nil {
-		metricsServerClient, err = metrics_server.NewForConfig(kubernetesClientProvider.ClientConfig())
-		if err != nil {
-			log.Errorf("Failed to connect to metrics server because: %s", err)
-			os.Exit(-1)
-		}
-	}
-
-	contextMetrics := pod_metrics.NewClusterContextMetrics(clusterContext, metricsServerClient, clusterUtilisationService)
+	contextMetrics := pod_metrics.NewClusterContextMetrics(clusterContext, clusterUtilisationService, queueUtilisationService)
 
 	taskManager.Register(clusterUtilisationService.ReportClusterUtilisation, config.Task.UtilisationReportingInterval, "utilisation_reporting")
 	taskManager.Register(clusterAllocationService.AllocateSpareClusterCapacity, config.Task.AllocateSpareClusterCapacityInterval, "job_lease_request")
 	taskManager.Register(jobLeaseService.ManageJobLeases, config.Task.JobLeaseRenewalInterval, "job_lease_renewal")
 	taskManager.Register(eventReporter.ReportMissingJobEvents, config.Task.MissingJobEventReconciliationInterval, "event_reconciliation")
 	taskManager.Register(stuckPodDetector.HandleStuckPods, config.Task.StuckPodScanInterval, "stuck_pod")
-	taskManager.Register(contextMetrics.UpdateBasicMetrics, config.Task.PodMetricsInterval, "pod_metrics")
+	taskManager.Register(contextMetrics.UpdateMetrics, config.Task.PodMetricsInterval, "pod_metrics")
 
-	if config.Metric.ExposePodUsageMetrics {
-		taskManager.Register(contextMetrics.UpdateUsageMetrics, config.Task.PodUsageMetricsInterval, "pod_usage_metrics")
+	if config.Metric.ExposeQueueUsageMetrics {
+		taskManager.Register(queueUtilisationService.RefreshUtilisationData, config.Task.QueueUsageDataRefreshInterval, "pod_usage_data_refresh")
 	}
 
 	return func() {

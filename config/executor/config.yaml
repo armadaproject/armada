@@ -8,12 +8,12 @@ task:
   podDeletionInterval: 5s
   allocateSpareClusterCapacityInterval: 5s
   podMetricsInterval: 1s
-  podUsageMetricsInterval: 5s
+  queueUsageDataRefreshInterval: 10s
 apiConnection:
   armadaUrl : "localhost:50051"
 metric:
   port: 9001
-  exposePodUsageMetrics: true
+  exposeQueueUsageMetrics: true
 kubernetes:
   impersonateUsers: false
   minimumPodAge: 3m
