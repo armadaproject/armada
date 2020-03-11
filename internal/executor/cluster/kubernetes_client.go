@@ -12,6 +12,7 @@ import (
 type KubernetesClientProvider interface {
 	ClientForUser(user string) (kubernetes.Interface, error)
 	Client() kubernetes.Interface
+	ClientConfig() *rest.Config
 }
 
 type ConfigKubernetesClientProvider struct {
@@ -43,6 +44,10 @@ func NewKubernetesClientProvider(kubernetesConfig *configuration.KubernetesConfi
 
 func (c *ConfigKubernetesClientProvider) Client() kubernetes.Interface {
 	return c.client
+}
+
+func (c *ConfigKubernetesClientProvider) ClientConfig() *rest.Config {
+	return c.restConfig
 }
 
 func (c *ConfigKubernetesClientProvider) ClientForUser(user string) (kubernetes.Interface, error) {
