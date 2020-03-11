@@ -118,33 +118,33 @@ func (apiLoadTester ArmadaLoadTester) runSubmission(submission *domain.Submissio
 		for len(jobs) > 0 {
 			readyJobs, remainingJobs := filterReadyJobs(startTime, jobs)
 			jobs = remainingJobs
-			for _, job := range readyJobs {
-				jobRequestItems := createJobSubmitRequestItems(job)
-				requests := CreateChunkedSubmitRequests(queue, jobSetId, jobRequestItems)
 
-				for _, request := range requests {
-					response, e := SubmitJobs(client, request)
+			readyRequests := createJobSubmitRequestItems(readyJobs)
+			requests := CreateChunkedSubmitRequests(queue, jobSetId, readyRequests)
 
-					if e != nil {
-						log.Errorf("ERROR: Failed to submit jobs for job set: %s because %s\n", jobSetId, e)
-						continue
-					}
-					failedJobs := 0
+			for _, request := range requests {
+				response, e := SubmitJobs(client, request)
 
-					for _, jobSubmitResponse := range response.JobResponseItems {
-						if jobSubmitResponse.Error != "" {
-							failedJobs++
-						} else {
-							jobIds <- jobSubmitResponse.JobId
-						}
-					}
+				if e != nil {
+					log.Errorf("ERROR: Failed to submit jobs for job set: %s because %s\n", jobSetId, e)
+					continue
+				}
+				failedJobs := 0
 
-					log.Infof("Submitted %d jobs to queue %s job set %s", len(request.JobRequestItems), queue, jobSetId)
-					if failedJobs > 0 {
-						log.Errorf("ERROR: %d jobs failed to be created when submitting to queue %s job set %s", failedJobs, queue, jobSetId)
+				for _, jobSubmitResponse := range response.JobResponseItems {
+					if jobSubmitResponse.Error != "" {
+						failedJobs++
+					} else {
+						jobIds <- jobSubmitResponse.JobId
 					}
 				}
+
+				log.Infof("Submitted %d jobs to queue %s job set %s", len(request.JobRequestItems), queue, jobSetId)
+				if failedJobs > 0 {
+					log.Errorf("ERROR: %d jobs failed to be created when submitting to queue %s job set %s", failedJobs, queue, jobSetId)
+				}
 			}
+
 			if len(jobs) > 0 {
 				time.Sleep(time.Second)
 			}
@@ -214,19 +214,20 @@ func (apiLoadTester ArmadaLoadTester) monitorJobsUntilCompletion(queue, jobSetId
 	})
 }
 
-func createJobSubmitRequestItems(jobDesc *domain.JobSubmissionDescription) []*api.JobSubmitRequestItem {
-	requestItems := make([]*api.JobSubmitRequestItem, 0, jobDesc.Count)
-	job := api.JobSubmitRequestItem{
-		Priority:           1,
-		Namespace:          jobDesc.Namespace,
-		Annotations:        jobDesc.Annotations,
-		Labels:             jobDesc.Labels,
-		RequiredNodeLabels: jobDesc.RequiredNodeLabels,
-		PodSpec:            jobDesc.Spec,
+func createJobSubmitRequestItems(jobDescs []*domain.JobSubmissionDescription) []*api.JobSubmitRequestItem {
+	requestItems := []*api.JobSubmitRequestItem{}
+	for _, jobDesc := range jobDescs {
+		job := api.JobSubmitRequestItem{
+			Priority:           jobDesc.Priority,
+			Namespace:          jobDesc.Namespace,
+			Annotations:        jobDesc.Annotations,
+			Labels:             jobDesc.Labels,
+			RequiredNodeLabels: jobDesc.RequiredNodeLabels,
+			PodSpec:            jobDesc.Spec,
+		}
+		for i := 0; i < jobDesc.Count; i++ {
+			requestItems = append(requestItems, &job)
+		}
 	}
-	for i := 0; i < jobDesc.Count; i++ {
-		requestItems = append(requestItems, &job)
-	}
-
 	return requestItems
 }

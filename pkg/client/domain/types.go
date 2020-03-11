@@ -27,5 +27,6 @@ type JobSubmissionDescription struct {
 	Labels             map[string]string
 	RequiredNodeLabels map[string]string
 	DelaySubmit        time.Duration
+	Priority           float64
 	Spec               *v1.PodSpec
 }
