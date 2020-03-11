@@ -66,8 +66,8 @@ func (c *FakeClusterContext) GetNodes() ([]*v1.Node, error) {
 			},
 			Status: v1.NodeStatus{
 				Allocatable: map[v1.ResourceName]resource.Quantity{
-					"cpu":    resource.MustParse("1000"),
-					"memory": resource.MustParse("10Ti"),
+					"cpu":    resource.MustParse("2600"),
+					"memory": resource.MustParse("60Ti"),
 				},
 			},
 		},

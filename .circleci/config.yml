@@ -141,7 +141,7 @@ jobs:
       - image: circleci/golang:1.12.6
         environment:
           GO111MODULE: "on"
-    working_directory: /go/src/github.com/G-Research/k8s-batch
+    working_directory: /go/src/github.com/G-Research/armada
     steps:
       - checkout
       - setup_remote_docker
@@ -185,7 +185,7 @@ jobs:
   release-dotnet-client:
     docker:
       - image: mcr.microsoft.com/dotnet/core/sdk:3.0.101-alpine3.10
-    working_directory: /go/src/github.com/G-Research/k8s-batch
+    working_directory: /go/src/github.com/G-Research/armada
     steps:
       - checkout
 
