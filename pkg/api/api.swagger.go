@@ -116,6 +116,28 @@ func SwaggerJsonTemplate() string {
 		"      }\n" +
 		"    },\n" +
 		"    \"/v1/queue/{Name}\": {\n" +
+		"      \"get\": {\n" +
+		"        \"tags\": [\n" +
+		"          \"Submit\"\n" +
+		"        ],\n" +
+		"        \"operationId\": \"GetQueueInfo\",\n" +
+		"        \"parameters\": [\n" +
+		"          {\n" +
+		"            \"type\": \"string\",\n" +
+		"            \"name\": \"Name\",\n" +
+		"            \"in\": \"path\",\n" +
+		"            \"required\": true\n" +
+		"          }\n" +
+		"        ],\n" +
+		"        \"responses\": {\n" +
+		"          \"200\": {\n" +
+		"            \"description\": \"A successful response.\",\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/apiQueueInfo\"\n" +
+		"            }\n" +
+		"          }\n" +
+		"        }\n" +
+		"      },\n" +
 		"      \"put\": {\n" +
 		"        \"tags\": [\n" +
 		"          \"Submit\"\n" +
@@ -490,6 +512,22 @@ func SwaggerJsonTemplate() string {
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
+		"    \"apiJobSetInfo\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"LeasedJobs\": {\n" +
+		"          \"type\": \"integer\",\n" +
+		"          \"format\": \"int32\"\n" +
+		"        },\n" +
+		"        \"Name\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"QueuedJobs\": {\n" +
+		"          \"type\": \"integer\",\n" +
+		"          \"format\": \"int32\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
 		"    \"apiJobSetRequest\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"title\": \"swagger:model\",\n" +
@@ -692,6 +730,21 @@ func SwaggerJsonTemplate() string {
 		"          \"items\": {\n" +
 		"            \"type\": \"string\"\n" +
 		"          }\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"apiQueueInfo\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"title\": \"swagger:model\",\n" +
+		"      \"properties\": {\n" +
+		"        \"ActiveJobSets\": {\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/apiJobSetInfo\"\n" +
+		"          }\n" +
+		"        },\n" +
+		"        \"Name\": {\n" +
+		"          \"type\": \"string\"\n" +
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
