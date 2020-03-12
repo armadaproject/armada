@@ -409,8 +409,8 @@ func (repo *RedisJobRepository) GetQueueActiveJobSets(queue string) ([]*api.JobS
 		return nil, e
 	}
 	for _, job := range leasedJobs {
-		info := jobSets[job.JobSetId]
-		if info == nil {
+		info, ok := jobSets[job.JobSetId]
+		if !ok {
 			info = &api.JobSetInfo{Name: job.JobSetId}
 			jobSets[job.JobSetId] = info
 		}
@@ -422,8 +422,8 @@ func (repo *RedisJobRepository) GetQueueActiveJobSets(queue string) ([]*api.JobS
 		return nil, e
 	}
 	for _, job := range queuedJobs {
-		info := jobSets[job.JobSetId]
-		if info == nil {
+		info, ok := jobSets[job.JobSetId]
+		if !ok {
 			info = &api.JobSetInfo{Name: job.JobSetId}
 			jobSets[job.JobSetId] = info
 		}
