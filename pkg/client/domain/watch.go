@@ -143,9 +143,11 @@ func (context *WatchContext) GetNumberOfJobs() int {
 
 func (context *WatchContext) AreJobsFinished(ids []string) bool {
 	for _, id := range ids {
-		if context.state[id].Status != Succeeded &&
-			context.state[id].Status != Failed &&
-			context.state[id].Status != Cancelled {
+		state, ok := context.state[id]
+
+		if !ok || (state.Status != Succeeded &&
+			state.Status != Failed &&
+			state.Status != Cancelled) {
 			return false
 		}
 	}
