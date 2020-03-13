@@ -1,6 +1,8 @@
 package domain
 
 import (
+	"time"
+
 	v1 "k8s.io/api/core/v1"
 )
 
@@ -24,5 +26,7 @@ type JobSubmissionDescription struct {
 	Annotations        map[string]string
 	Labels             map[string]string
 	RequiredNodeLabels map[string]string
+	DelaySubmit        time.Duration
+	Priority           float64
 	Spec               *v1.PodSpec
 }

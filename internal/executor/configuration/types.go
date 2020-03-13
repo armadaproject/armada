@@ -3,7 +3,7 @@ package configuration
 import (
 	"time"
 
-	"github.com/G-Research/armada/internal/common/client"
+	"github.com/G-Research/armada/pkg/client"
 )
 
 type ApplicationConfiguration struct {

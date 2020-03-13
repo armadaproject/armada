@@ -9,9 +9,9 @@ import (
 	"github.com/gogo/protobuf/proto"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/G-Research/armada/internal/armada/api"
 	"github.com/G-Research/armada/internal/armada/authorization"
 	"github.com/G-Research/armada/internal/common/util"
+	"github.com/G-Research/armada/pkg/api"
 )
 
 const jobObjectPrefix = "Job:"
@@ -37,6 +37,7 @@ type JobRepository interface {
 	ReturnLease(clusterId string, jobId string) (returnedJob *api.Job, err error)
 	DeleteJobs(jobs []*api.Job) map[*api.Job]error
 	GetActiveJobIds(queue string, jobSetId string) ([]string, error)
+	GetQueueActiveJobSets(queue string) ([]*api.JobSetInfo, error)
 }
 
 type RedisJobRepository struct {
@@ -388,6 +389,52 @@ func (repo *RedisJobRepository) GetActiveJobIds(queue string, jobSetId string) (
 		}
 	}
 	return activeSetIds, nil
+}
+
+func (repo *RedisJobRepository) GetQueueActiveJobSets(queue string) ([]*api.JobSetInfo, error) {
+
+	queuedIds, e := repo.db.ZRange(jobQueuePrefix+queue, 0, -1).Result()
+	if e != nil {
+		return nil, e
+	}
+	leasedIds, e := repo.db.ZRange(jobLeasedPrefix+queue, 0, -1).Result()
+	if e != nil {
+		return nil, e
+	}
+
+	jobSets := map[string]*api.JobSetInfo{}
+
+	leasedJobs, e := repo.GetExistingJobsByIds(leasedIds)
+	if e != nil {
+		return nil, e
+	}
+	for _, job := range leasedJobs {
+		info, ok := jobSets[job.JobSetId]
+		if !ok {
+			info = &api.JobSetInfo{Name: job.JobSetId}
+			jobSets[job.JobSetId] = info
+		}
+		info.LeasedJobs++
+	}
+
+	queuedJobs, e := repo.GetExistingJobsByIds(queuedIds)
+	if e != nil {
+		return nil, e
+	}
+	for _, job := range queuedJobs {
+		info, ok := jobSets[job.JobSetId]
+		if !ok {
+			info = &api.JobSetInfo{Name: job.JobSetId}
+			jobSets[job.JobSetId] = info
+		}
+		info.QueuedJobs++
+	}
+
+	result := []*api.JobSetInfo{}
+	for _, i := range jobSets {
+		result = append(result, i)
+	}
+	return result, nil
 }
 
 func (repo *RedisJobRepository) ExpireLeases(queue string, deadline time.Time) ([]*api.Job, error) {

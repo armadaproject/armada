@@ -11,10 +11,9 @@ import (
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
 
-	"github.com/G-Research/armada/internal/armada/api"
-	"github.com/G-Research/armada/internal/client"
-	"github.com/G-Research/armada/internal/client/domain"
-	"github.com/G-Research/armada/internal/client/util"
+	"github.com/G-Research/armada/pkg/api"
+	"github.com/G-Research/armada/pkg/client"
+	"github.com/G-Research/armada/pkg/client/domain"
 )
 
 func init() {
@@ -40,7 +39,7 @@ var watchCmd = &cobra.Command{
 
 		apiConnectionDetails := client.ExtractCommandlineArmadaApiConnectionDetails()
 
-		util.WithConnection(apiConnectionDetails, func(conn *grpc.ClientConn) {
+		client.WithConnection(apiConnectionDetails, func(conn *grpc.ClientConn) {
 			eventsClient := api.NewEventClient(conn)
 			client.WatchJobSet(eventsClient, queue, jobSetId, true, context.Background(), func(state *domain.WatchContext, e api.Event) bool {
 				if raw {
@@ -55,6 +54,10 @@ var watchCmd = &cobra.Command{
 					summary += state.GetCurrentStateSummary()
 					summary += fmt.Sprintf(" | event: %s, job id: %s", reflect.TypeOf(e), e.GetJobId())
 					log.Info(summary)
+					switch event := e.(type) {
+					case *api.JobFailedEvent:
+						log.Errorf("Failure reason: %s", event.Reason)
+					}
 				}
 				if exit_on_inactive && state.GetNumberOfJobs() == state.GetNumberOfFinishedJobs() {
 					return true

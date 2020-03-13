@@ -7,7 +7,7 @@
   ],
   "swagger": "2.0",
   "info": {
-    "title": "internal/armada/api/event.proto",
+    "title": "pkg/api/event.proto",
     "version": "version not set"
   },
   "paths": {
@@ -105,6 +105,28 @@
       }
     },
     "/v1/queue/{Name}": {
+      "get": {
+        "tags": [
+          "Submit"
+        ],
+        "operationId": "GetQueueInfo",
+        "parameters": [
+          {
+            "type": "string",
+            "name": "Name",
+            "in": "path",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiQueueInfo"
+            }
+          }
+        }
+      },
       "put": {
         "tags": [
           "Submit"
@@ -479,6 +501,22 @@
         }
       }
     },
+    "apiJobSetInfo": {
+      "type": "object",
+      "properties": {
+        "LeasedJobs": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "Name": {
+          "type": "string"
+        },
+        "QueuedJobs": {
+          "type": "integer",
+          "format": "int32"
+        }
+      }
+    },
     "apiJobSetRequest": {
       "type": "object",
       "title": "swagger:model",
@@ -681,6 +719,21 @@
           "items": {
             "type": "string"
           }
+        }
+      }
+    },
+    "apiQueueInfo": {
+      "type": "object",
+      "title": "swagger:model",
+      "properties": {
+        "ActiveJobSets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiJobSetInfo"
+          }
+        },
+        "Name": {
+          "type": "string"
         }
       }
     },

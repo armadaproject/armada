@@ -5,9 +5,8 @@ import (
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
 
-	"github.com/G-Research/armada/internal/armada/api"
-	"github.com/G-Research/armada/internal/client"
-	"github.com/G-Research/armada/internal/client/util"
+	"github.com/G-Research/armada/pkg/api"
+	"github.com/G-Research/armada/pkg/client"
 )
 
 func init() {
@@ -39,7 +38,7 @@ Job priority is evaluated inside queue, queue has its own priority.`,
 
 		apiConnectionDetails := client.ExtractCommandlineArmadaApiConnectionDetails()
 
-		util.WithConnection(apiConnectionDetails, func(conn *grpc.ClientConn) {
+		client.WithConnection(apiConnectionDetails, func(conn *grpc.ClientConn) {
 			submissionClient := api.NewSubmitClient(conn)
 			e := client.CreateQueue(submissionClient, &api.Queue{
 				Name:           queue,

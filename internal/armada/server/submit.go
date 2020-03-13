@@ -8,10 +8,10 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/G-Research/armada/internal/armada/api"
 	"github.com/G-Research/armada/internal/armada/authorization"
 	"github.com/G-Research/armada/internal/armada/authorization/permissions"
 	"github.com/G-Research/armada/internal/armada/repository"
+	"github.com/G-Research/armada/pkg/api"
 )
 
 type SubmitServer struct {
@@ -32,6 +32,20 @@ func NewSubmitServer(
 		jobRepository:   jobRepository,
 		queueRepository: queueRepository,
 		eventRepository: eventRepository}
+}
+
+func (server *SubmitServer) GetQueueInfo(ctx context.Context, req *api.QueueInfoRequest) (*api.QueueInfo, error) {
+	if e := checkPermission(server.permissions, ctx, permissions.WatchAllEvents); e != nil {
+		return nil, e
+	}
+	jobSets, e := server.jobRepository.GetQueueActiveJobSets(req.Name)
+	if e != nil {
+		return nil, e
+	}
+	return &api.QueueInfo{
+		Name:          req.Name,
+		ActiveJobSets: jobSets,
+	}, nil
 }
 
 func (server *SubmitServer) CreateQueue(ctx context.Context, queue *api.Queue) (*types.Empty, error) {

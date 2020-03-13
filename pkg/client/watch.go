@@ -9,9 +9,9 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/G-Research/armada/internal/armada/api"
-	"github.com/G-Research/armada/internal/client/domain"
 	"github.com/G-Research/armada/internal/common/util"
+	"github.com/G-Research/armada/pkg/api"
+	"github.com/G-Research/armada/pkg/client/domain"
 )
 
 func WatchJobSet(client api.EventClient, queue, jobSetId string, waitForNew bool, context context.Context, onUpdate func(*domain.WatchContext, api.Event) bool) {
