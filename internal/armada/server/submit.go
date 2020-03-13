@@ -35,7 +35,7 @@ func NewSubmitServer(
 }
 
 func (server *SubmitServer) GetQueueInfo(ctx context.Context, req *api.QueueInfoRequest) (*api.QueueInfo, error) {
-	if e := server.checkQueuePermission(ctx, req.Name, permissions.WatchAllEvents, permissions.SubmitAnyJobs); e != nil {
+	if e := checkPermission(server.permissions, ctx, permissions.WatchAllEvents); e != nil {
 		return nil, e
 	}
 	jobSets, e := server.jobRepository.GetQueueActiveJobSets(req.Name)
