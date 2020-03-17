@@ -20,6 +20,8 @@ import (
 	"github.com/G-Research/armada/internal/executor/util"
 )
 
+const podByUIDIndex = "podUID"
+
 type ClusterContext interface {
 	AddPodEventHandler(handler cache.ResourceEventHandlerFuncs)
 
@@ -27,6 +29,7 @@ type ClusterContext interface {
 	GetAllPods() ([]*v1.Pod, error)
 	GetActiveBatchPods() ([]*v1.Pod, error)
 	GetNodes() ([]*v1.Node, error)
+	GetPodEvents(pod *v1.Pod) ([]*v1.Event, error)
 
 	SubmitPod(pod *v1.Pod, owner string) (*v1.Pod, error)
 	AddAnnotation(pod *v1.Pod, annotations map[string]string) error
@@ -46,6 +49,7 @@ type KubernetesClusterContext struct {
 	stopper                  chan struct{}
 	kubernetesClient         kubernetes.Interface
 	kubernetesClientProvider cluster.KubernetesClientProvider
+	eventInformer            informer.EventInformer
 }
 
 func (c *KubernetesClusterContext) GetClusterId() string {
@@ -68,6 +72,7 @@ func NewClusterContext(
 		stopper:                  make(chan struct{}),
 		podInformer:              factory.Core().V1().Pods(),
 		nodeInformer:             factory.Core().V1().Nodes(),
+		eventInformer:            factory.Core().V1().Events(),
 		kubernetesClient:         kubernetesClient,
 		kubernetesClientProvider: kubernetesClientProvider,
 	}
@@ -86,10 +91,23 @@ func NewClusterContext(
 	//Use node informer so it is initialized properly
 	context.nodeInformer.Lister()
 
+	err := context.eventInformer.Informer().AddIndexers(cache.Indexers{podByUIDIndex: indexPodByUID})
+	if err != nil {
+		panic(err)
+	}
+
 	factory.Start(context.stopper)
 	factory.WaitForCacheSync(context.stopper)
 
 	return context
+}
+
+func indexPodByUID(obj interface{}) (strings []string, err error) {
+	event := obj.(*v1.Event)
+	if event.InvolvedObject.Kind != "Pod" || event.InvolvedObject.UID == "" {
+		return []string{}, nil
+	}
+	return []string{string(event.InvolvedObject.UID)}, nil
 }
 
 func (c *KubernetesClusterContext) AddPodEventHandler(handler cache.ResourceEventHandlerFuncs) {
@@ -124,6 +142,21 @@ func (c *KubernetesClusterContext) GetAllPods() ([]*v1.Pod, error) {
 	allPods = util.MergePodList(allPods, c.submittedPods.GetAll())
 
 	return allPods, nil
+}
+
+func (c *KubernetesClusterContext) GetPodEvents(pod *v1.Pod) ([]*v1.Event, error) {
+	events, err := c.eventInformer.Informer().GetIndexer().ByIndex(podByUIDIndex, string(pod.UID))
+	if err != nil {
+		return nil, err
+	}
+	eventsTyped := []*v1.Event{}
+	for _, untyped := range events {
+		typed, ok := untyped.(*v1.Event)
+		if ok {
+			eventsTyped = append(eventsTyped, typed)
+		}
+	}
+	return eventsTyped, nil
 }
 
 func (c *KubernetesClusterContext) GetNodes() ([]*v1.Node, error) {

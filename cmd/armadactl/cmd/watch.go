@@ -55,8 +55,10 @@ var watchCmd = &cobra.Command{
 					summary += fmt.Sprintf(" | event: %s, job id: %s", reflect.TypeOf(e), e.GetJobId())
 					log.Info(summary)
 					switch event := e.(type) {
+					case *api.JobUnableToScheduleEvent:
+						log.Warn("Unable to schedule reason:\n%s\n", event.Reason)
 					case *api.JobFailedEvent:
-						log.Errorf("Failure reason: %s", event.Reason)
+						log.Errorf("Failure reason:\n%s\n", event.Reason)
 					}
 				}
 				if exit_on_inactive && state.GetNumberOfJobs() == state.GetNumberOfFinishedJobs() {
