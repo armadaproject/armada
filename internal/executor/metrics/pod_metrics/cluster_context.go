@@ -23,7 +23,7 @@ const (
 type ClusterContextMetrics struct {
 	context                 context.ClusterContext
 	utilisationService      service.UtilisationService
-	queueUtilisationService service.QueueUtilisationService
+	queueUtilisationService service.PodUtilisationService
 
 	knownQueues map[string]bool
 
@@ -36,10 +36,12 @@ type ClusterContextMetrics struct {
 
 	nodeCount           prometheus.Gauge
 	nodeCpuAvailable    prometheus.Gauge
+	nodeCpuTotal        prometheus.Gauge
 	nodeMemoryAvailable prometheus.Gauge
+	nodeMemoryTotal     prometheus.Gauge
 }
 
-func NewClusterContextMetrics(context context.ClusterContext, utilisationService service.UtilisationService, queueUtilisationService service.QueueUtilisationService) *ClusterContextMetrics {
+func NewClusterContextMetrics(context context.ClusterContext, utilisationService service.UtilisationService, queueUtilisationService service.PodUtilisationService) *ClusterContextMetrics {
 	m := &ClusterContextMetrics{
 		context:                 context,
 		utilisationService:      utilisationService,
@@ -67,9 +69,9 @@ func NewClusterContextMetrics(context context.ClusterContext, utilisationService
 		podCpuUsage: promauto.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: metrics.ArmadaExecutorMetricsPrefix + "job_pod_cpu_usage",
-				Help: "Pod cpu usages by queue",
+				Help: "Pod cpu usage in different phases by queue",
 			},
-			[]string{queueLabel}),
+			[]string{queueLabel, phaseLabel}),
 		podMemoryRequest: promauto.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: metrics.ArmadaExecutorMetricsPrefix + "job_pod_memory_request_bytes",
@@ -79,9 +81,9 @@ func NewClusterContextMetrics(context context.ClusterContext, utilisationService
 		podMemoryUsage: promauto.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: metrics.ArmadaExecutorMetricsPrefix + "job_pod_memory_usage_bytes",
-				Help: "Pod memory usages by queue",
+				Help: "Pod memory usage in different phases by queue",
 			},
-			[]string{queueLabel}),
+			[]string{queueLabel, phaseLabel}),
 		nodeCount: promauto.NewGauge(
 			prometheus.GaugeOpts{
 				Name: metrics.ArmadaExecutorMetricsPrefix + "available_node_count",
@@ -92,10 +94,20 @@ func NewClusterContextMetrics(context context.ClusterContext, utilisationService
 				Name: metrics.ArmadaExecutorMetricsPrefix + "available_node_allocatable_cpu",
 				Help: "Number of cpus available for Armada jobs",
 			}),
+		nodeCpuTotal: promauto.NewGauge(
+			prometheus.GaugeOpts{
+				Name: metrics.ArmadaExecutorMetricsPrefix + "available_node_total_cpu",
+				Help: "Number of cpus on nodes available for Armada jobs",
+			}),
 		nodeMemoryAvailable: promauto.NewGauge(
 			prometheus.GaugeOpts{
 				Name: metrics.ArmadaExecutorMetricsPrefix + "available_node_allocatable_memory_bytes",
 				Help: "Memory available for Armada jobs",
+			}),
+		nodeMemoryTotal: promauto.NewGauge(
+			prometheus.GaugeOpts{
+				Name: metrics.ArmadaExecutorMetricsPrefix + "available_node_total_memory_bytes",
+				Help: "Memory on nodes available  for Armada jobs",
 			}),
 	}
 
@@ -128,9 +140,11 @@ func (m *ClusterContextMetrics) reportPhase(pod *v1.Pod) {
 }
 
 type podMetric struct {
-	cpu    float64
-	memory float64
-	count  float64
+	cpuRequest    float64
+	cpuUsage      float64
+	memoryRequest float64
+	memoryUsage   float64
+	count         float64
 }
 
 func (m *ClusterContextMetrics) UpdateMetrics() {
@@ -158,11 +172,14 @@ func (m *ClusterContextMetrics) UpdateMetrics() {
 			podMetrics[queue] = queueMetric
 		}
 
-		resources := common.TotalResourceRequest(&pod.Spec).AsFloat()
+		request := common.TotalResourceRequest(&pod.Spec).AsFloat()
+		usage := m.queueUtilisationService.GetPodUtilisation(pod).AsFloat()
 
 		queueMetric[phase].count++
-		queueMetric[phase].memory += resources[string(v1.ResourceMemory)]
-		queueMetric[phase].cpu += resources[string(v1.ResourceCPU)]
+		queueMetric[phase].memoryRequest += request[string(v1.ResourceMemory)]
+		queueMetric[phase].memoryUsage += usage[string(v1.ResourceMemory)]
+		queueMetric[phase].cpuRequest += request[string(v1.ResourceCPU)]
+		queueMetric[phase].cpuUsage += usage[string(v1.ResourceCPU)]
 	}
 
 	// reset metric for queues without pods
@@ -178,8 +195,10 @@ func (m *ClusterContextMetrics) UpdateMetrics() {
 
 		for phase, phaseMetric := range queueMetric {
 			m.podCount.WithLabelValues(queue, phase).Set(phaseMetric.count)
-			m.podCpuRequest.WithLabelValues(queue, phase).Set(phaseMetric.cpu)
-			m.podMemoryRequest.WithLabelValues(queue, phase).Set(phaseMetric.memory)
+			m.podCpuRequest.WithLabelValues(queue, phase).Set(phaseMetric.cpuRequest)
+			m.podCpuUsage.WithLabelValues(queue, phase).Set(phaseMetric.cpuUsage)
+			m.podMemoryRequest.WithLabelValues(queue, phase).Set(phaseMetric.memoryRequest)
+			m.podMemoryUsage.WithLabelValues(queue, phase).Set(phaseMetric.memoryUsage)
 		}
 	}
 
@@ -188,19 +207,20 @@ func (m *ClusterContextMetrics) UpdateMetrics() {
 		log.Errorf("Failed to get required information to report cluster usage because %s", err)
 		return
 	}
+
+	allocatableNodeResource, err := m.utilisationService.GetTotalAllocatableClusterCapacity()
+	if err != nil {
+		log.Errorf("Failed to get required information to report cluster usage because %s", err)
+		return
+	}
 	totalNodeResource := common.CalculateTotalResource(allAvailableProcessingNodes).AsFloat()
+	availableNodeResource := allocatableNodeResource.AsFloat()
 
 	m.nodeCount.Set(float64(len(allAvailableProcessingNodes)))
-	m.nodeCpuAvailable.Set(totalNodeResource[string(v1.ResourceCPU)])
-	m.nodeMemoryAvailable.Set(totalNodeResource[string(v1.ResourceMemory)])
-
-	queueUsageData := m.queueUtilisationService.GetQueueUtilisationData()
-
-	for queue, queueMetric := range queueUsageData {
-		resources := queueMetric.ResourceUsed.AsFloat()
-		m.podCpuUsage.WithLabelValues(queue).Set(resources[string(v1.ResourceCPU)])
-		m.podMemoryUsage.WithLabelValues(queue).Set(resources[string(v1.ResourceMemory)])
-	}
+	m.nodeCpuAvailable.Set(availableNodeResource[string(v1.ResourceCPU)])
+	m.nodeCpuTotal.Set(totalNodeResource[string(v1.ResourceCPU)])
+	m.nodeMemoryAvailable.Set(availableNodeResource[string(v1.ResourceMemory)])
+	m.nodeMemoryTotal.Set(totalNodeResource[string(v1.ResourceMemory)])
 }
 
 func createPodPhaseMetric() map[string]*podMetric {
