@@ -34,6 +34,20 @@ func NewSubmitServer(
 		eventRepository: eventRepository}
 }
 
+func (server *SubmitServer) GetQueueInfo(ctx context.Context, req *api.QueueInfoRequest) (*api.QueueInfo, error) {
+	if e := checkPermission(server.permissions, ctx, permissions.WatchAllEvents); e != nil {
+		return nil, e
+	}
+	jobSets, e := server.jobRepository.GetQueueActiveJobSets(req.Name)
+	if e != nil {
+		return nil, e
+	}
+	return &api.QueueInfo{
+		Name:          req.Name,
+		ActiveJobSets: jobSets,
+	}, nil
+}
+
 func (server *SubmitServer) CreateQueue(ctx context.Context, queue *api.Queue) (*types.Empty, error) {
 	if e := checkPermission(server.permissions, ctx, permissions.CreateQueue); e != nil {
 		return nil, e

@@ -52,6 +52,23 @@ message CancellationResult {
     repeated string CancelledIds = 1;
 }
 
+//swagger:model
+message QueueInfoRequest {
+    string Name = 1;
+}
+
+//swagger:model
+message QueueInfo {
+    string Name = 1;
+    repeated JobSetInfo ActiveJobSets = 2;
+}
+
+message JobSetInfo {
+    string Name = 1;
+    int32 QueuedJobs = 2;
+    int32 LeasedJobs = 3;
+}
+
 service Submit {
     rpc SubmitJobs (JobSubmitRequest) returns (JobSubmitResponse) {
         option (google.api.http) = {
@@ -69,6 +86,11 @@ service Submit {
         option (google.api.http) = {
             put: "/v1/queue/{Name}"
             body: "*"
+        };
+    }
+    rpc GetQueueInfo (QueueInfoRequest) returns (QueueInfo) {
+        option (google.api.http) = {
+            get: "/v1/queue/{Name}"
         };
     }
 }

@@ -212,6 +212,22 @@ func TestGetActiveJobIds(t *testing.T) {
 	})
 }
 
+func TestGetQueueActiveJobSets(t *testing.T) {
+	withRepository(func(r *RedisJobRepository) {
+		addTestJob(t, r, "queue1")
+		addLeasedJob(t, r, "queue1", "cluster1")
+		addTestJob(t, r, "queue2")
+
+		infos, e := r.GetQueueActiveJobSets("queue1")
+		assert.Nil(t, e)
+		assert.Equal(t, []*api.JobSetInfo{{
+			Name:       "set1",
+			QueuedJobs: 1,
+			LeasedJobs: 1,
+		}}, infos)
+	})
+}
+
 func addLeasedJob(t *testing.T, r *RedisJobRepository, queue string, cluster string) *api.Job {
 	job := addTestJob(t, r, queue)
 	leased, e := r.TryLeaseJobs(cluster, queue, []*api.Job{job})
