@@ -100,6 +100,6 @@ func ContainersAreRetryable(pod *v1.Pod) bool {
 			}
 		}
 	}
-	
+
 	return true
 }
