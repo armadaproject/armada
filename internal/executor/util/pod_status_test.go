@@ -57,6 +57,34 @@ func TestContainersAreRetryable_ReturnFalse_WhenInitContainerInImagePullBackoff(
 	assert.False(t, result)
 }
 
+func TestDiagnoseStuckPod_ShouldRetryWithNoProblems(t *testing.T) {
+	waitingContainer := v1.ContainerState{Waiting: &v1.ContainerStateWaiting{}}
+	pod := makePodWithContainerStatuses([]v1.ContainerState{waitingContainer}, []v1.ContainerState{})
+	events := []*v1.Event{}
+
+	retryable, _ := DiagnoseStuckPod(pod, events)
+	assert.True(t, retryable)
+}
+
+func TestDiagnoseStuckPod_ShouldReportUnexpectedWarnings(t *testing.T) {
+	waitingContainer := v1.ContainerState{Waiting: &v1.ContainerStateWaiting{}}
+	pod := makePodWithContainerStatuses([]v1.ContainerState{waitingContainer}, []v1.ContainerState{})
+	events := []*v1.Event{&v1.Event{Reason: "PodExploded", Type: v1.EventTypeWarning, Message: "Boom"}}
+
+	retryable, message := DiagnoseStuckPod(pod, events)
+	assert.False(t, retryable)
+	assert.Contains(t, message, "Boom")
+}
+
+func TestDiagnoseStuckPod_ShouldIgnoreSchedulingFailures(t *testing.T) {
+	waitingContainer := v1.ContainerState{Waiting: &v1.ContainerStateWaiting{}}
+	pod := makePodWithContainerStatuses([]v1.ContainerState{waitingContainer}, []v1.ContainerState{})
+	events := []*v1.Event{&v1.Event{Reason: "FailedScheduling", Type: v1.EventTypeWarning}}
+
+	retryable, _ := DiagnoseStuckPod(pod, events)
+	assert.True(t, retryable)
+}
+
 func makePodWithContainerStatuses(containerStates []v1.ContainerState, initContainerStates []v1.ContainerState) *v1.Pod {
 	containers := make([]v1.ContainerStatus, len(containerStates))
 	for i, state := range containerStates {
