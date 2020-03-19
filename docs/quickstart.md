@@ -9,6 +9,7 @@ The purpose of this guide is to install a minimal local Armada deployment for te
 - Helm v3
 - Kind
 - Kubectl
+
 ### OS specifics
 
 #### Linux
@@ -59,39 +60,45 @@ helm install prometheus-operator stable/prometheus-operator -f docs/quickstart/s
 
 # Install Armada server
 helm template ./deployment/armada --set image.tag=$ARMADA_VERSION -f ./docs/quickstart/server-values.yaml | kubectl apply -f -
+
+# Get server IP for executors
+SERVER_IP=$(kubectl get nodes quickstart-armada-server-worker -o jsonpath='{.status.addresses[?(@.type=="InternalIP")].address}')
 ```
 ### Executor deployments
 
 First executor:
 ```bash
-kind create cluster --name quickstart-armada-executor-0 --config ./docs/quickstart/kind-config-executor-0.yaml
-export DOCKERHOSTIP=$(ip -4 addr show docker0 | grep -Po 'inet \K[\d.]+')
+kind create cluster --name quickstart-armada-executor-0 --config ./docs/quickstart/kind-config-executor.yaml
 
 # Install Prometheus
-helm install prometheus-operator stable/prometheus-operator -f docs/quickstart/executor-prometheus-values.yaml --set prometheus.service.nodePort=30002
+helm install prometheus-operator stable/prometheus-operator -f docs/quickstart/executor-prometheus-values.yaml
 
 # Install executor
-helm template ./deployment/executor --set image.tag=$ARMADA_VERSION --set applicationConfig.apiConnection.armadaUrl="$DOCKERHOSTIP:30000" --set applicationConfig.apiConnection.forceNoTls=true --set prometheus.enabled=true --set applicationConfig.kubernetes.minimumPodAge=0s | kubectl apply -f -
+helm template ./deployment/executor --set image.tag=$ARMADA_VERSION --set applicationConfig.apiConnection.armadaUrl="$SERVER_IP:30000" --set applicationConfig.apiConnection.forceNoTls=true --set prometheus.enabled=true --set applicationConfig.kubernetes.minimumPodAge=0s | kubectl apply -f -
 helm template ./deployment/executor-cluster-monitoring -f docs/quickstart/executor-cluster-monitoring-values.yaml --set interval=5s | kubectl apply -f -
+
+# Get executor IP for Grafana
+EXECUTOR_0_IP=$(kubectl get nodes quickstart-armada-executor-0-worker -o jsonpath='{.status.addresses[?(@.type=="InternalIP")].address}')
 ```
 Second executor:
 ```bash
-kind create cluster --name quickstart-armada-executor-1 --config ./docs/quickstart/kind-config-executor-1.yaml
-export DOCKERHOSTIP=$(ip -4 addr show docker0 | grep -Po 'inet \K[\d.]+')
+kind create cluster --name quickstart-armada-executor-1 --config ./docs/quickstart/kind-config-executor.yaml
 
 # Install Prometheus
-helm install prometheus-operator stable/prometheus-operator -f docs/quickstart/executor-prometheus-values.yaml --set prometheus.service.nodePort=30003
+helm install prometheus-operator stable/prometheus-operator -f docs/quickstart/executor-prometheus-values.yaml
 
 # Install executor
-helm template ./deployment/executor --set image.tag=$ARMADA_VERSION --set applicationConfig.apiConnection.armadaUrl="$DOCKERHOSTIP:30000" --set applicationConfig.apiConnection.forceNoTls=true --set prometheus.enabled=true --set applicationConfig.kubernetes.minimumPodAge=0s | kubectl apply -f -
+helm template ./deployment/executor --set image.tag=$ARMADA_VERSION --set applicationConfig.apiConnection.armadaUrl="$SERVER_IP:30000" --set applicationConfig.apiConnection.forceNoTls=true --set prometheus.enabled=true --set applicationConfig.kubernetes.minimumPodAge=0s | kubectl apply -f -
 helm template ./deployment/executor-cluster-monitoring -f docs/quickstart/executor-cluster-monitoring-values.yaml --set interval=5s | kubectl apply -f -
+
+# Get executor IP for Grafana
+EXECUTOR_1_IP=$(kubectl get nodes quickstart-armada-executor-1-worker -o jsonpath='{.status.addresses[?(@.type=="InternalIP")].address}')
 ```
 ### Grafana configuration
 
 ```bash
-export DOCKERHOSTIP=$(ip -4 addr show docker0 | grep -Po 'inet \K[\d.]+')
-curl -X POST -i http://admin:prom-operator@localhost:30001/api/datasources -H "Content-Type: application/json" -d '{"name":"cluster-0","type":"prometheus","url":"http://'$DOCKERHOSTIP':30002","access":"proxy","basicAuth":false}'
-curl -X POST -i http://admin:prom-operator@localhost:30001/api/datasources -H "Content-Type: application/json" -d '{"name":"cluster-1","type":"prometheus","url":"http://'$DOCKERHOSTIP':30003","access":"proxy","basicAuth":false}'
+curl -X POST -i http://admin:prom-operator@localhost:30001/api/datasources -H "Content-Type: application/json" -d '{"name":"cluster-0","type":"prometheus","url":"http://'$EXECUTOR_0_IP':30001","access":"proxy","basicAuth":false}'
+curl -X POST -i http://admin:prom-operator@localhost:30001/api/datasources -H "Content-Type: application/json" -d '{"name":"cluster-1","type":"prometheus","url":"http://'$EXECUTOR_1_IP':30001","access":"proxy","basicAuth":false}'
 curl -X POST -i http://admin:prom-operator@localhost:30001/api/dashboards/import --data-binary @./docs/quickstart/grafana-armada-dashboard.json -H "Content-Type: application/json"
 ```
 ### CLI installation
