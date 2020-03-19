@@ -41,6 +41,28 @@ func TestCanSubmitJob_ReceivingAllExpectedEvents(t *testing.T) {
 	})
 }
 
+func TestCanSubmitJob_IncorrectJobMountFails(t *testing.T) {
+	skipIfIntegrationEnvNotPresent(t)
+
+	client.WithConnection(connectionDetails(), func(connection *grpc.ClientConn) {
+		submitClient := api.NewSubmitClient(connection)
+		eventsClient := api.NewEventClient(connection)
+
+		jobRequest := createJobRequest("personal-anonymous")
+		pod := jobRequest.JobRequestItems[0].PodSpec
+		pod.Containers[0].VolumeMounts = []v1.VolumeMount{{Name: "config", MountPath: "/test"}}
+		pod.Volumes = []v1.Volume{{
+			Name: "config",
+			VolumeSource: v1.VolumeSource{
+				ConfigMap: &v1.ConfigMapVolumeSource{LocalObjectReference: v1.LocalObjectReference{Name: "missing"}}}}}
+
+		createQueue(submitClient, jobRequest, t)
+
+		receivedEvents := submitJobsAndWatch(t, submitClient, eventsClient, jobRequest)
+		assert.True(t, receivedEvents[domain.Failed])
+	})
+}
+
 func TestCanSubmitJob_ArmdactlWatchExitOnInactive(t *testing.T) {
 	skipIfIntegrationEnvNotPresent(t)
 	connDetails := connectionDetails()
@@ -87,7 +109,7 @@ func submitJobsAndWatch(t *testing.T, submitClient api.SubmitClient, eventsClien
 	_, err := client.SubmitJobs(submitClient, jobRequest)
 	assert.Nil(t, err)
 	receivedEvents := make(map[domain.JobStatus]bool)
-	timeout, _ := context.WithTimeout(context.Background(), 30*time.Second)
+	timeout, _ := context.WithTimeout(context.Background(), 45*time.Second)
 	client.WatchJobSet(eventsClient, jobRequest.Queue, jobRequest.JobSetId, true, timeout, func(state *domain.WatchContext, e api.Event) bool {
 		currentStatus := state.GetJobInfo(e.GetJobId()).Status
 		receivedEvents[currentStatus] = true
