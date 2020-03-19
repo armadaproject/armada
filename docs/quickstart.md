@@ -3,14 +3,28 @@
 The purpose of this guide is to install a minimal local Armada deployment for testing and evaluation purposes.
 
 ## Pre-requisites
-- Linux OS
+
 - Git
 - Docker
 - Helm v3
 - Kind
 - Kubectl
+### OS specifics
 
-N.B.  Ensure the current user has permission to run the `docker` command without `sudo`.
+#### Linux
+
+Ensure the current user has permission to run the `docker` command without `sudo`.
+
+#### macOS
+
+You can install the pre-requisites with [Homebrew](https://brew.sh):
+
+```bash
+brew cask install docker
+brew install helm kind kubernetes-cli
+```
+
+Ensure at least 5GB of RAM are allocated to the Docker VM (see Preferences -> Resources -> Advanced).
 
 ## Installation
 This guide will install Armada on 3 local Kubernetes clusters; one server and two executor clusters. 
