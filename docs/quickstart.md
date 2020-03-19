@@ -26,6 +26,14 @@ brew install helm kind kubernetes-cli
 
 Ensure at least 5GB of RAM are allocated to the Docker VM (see Preferences -> Resources -> Advanced).
 
+### Helm
+
+Make sure helm is configured to use the official Helm stable charts:
+
+```bash
+helm repo add stable https://kubernetes-charts.storage.googleapis.com/
+```
+
 ## Installation
 This guide will install Armada on 3 local Kubernetes clusters; one server and two executor clusters. 
 
@@ -44,9 +52,6 @@ All commands are intended to be run from the root of the repository.
 kind create cluster --name quickstart-armada-server --config ./docs/quickstart/kind-config-server.yaml
 export KUBECONFIG=$(kind get kubeconfig-path --name="quickstart-armada-server")
 
-# Configure Helm
-helm repo add stable https://kubernetes-charts.storage.googleapis.com/
-
 # Install Redis
 helm install redis stable/redis-ha -f docs/quickstart/redis-values.yaml
 
@@ -64,9 +69,6 @@ kind create cluster --name quickstart-armada-executor-0 --config ./docs/quicksta
 export DOCKERHOSTIP=$(ip -4 addr show docker0 | grep -Po 'inet \K[\d.]+')
 export KUBECONFIG=$(kind get kubeconfig-path --name="quickstart-armada-executor-0")	
 
-# Configure Helm
-helm repo add stable https://kubernetes-charts.storage.googleapis.com/
-
 # Install Prometheus
 helm install prometheus-operator stable/prometheus-operator -f docs/quickstart/executor-prometheus-values.yaml --set prometheus.service.nodePort=30002
 
@@ -79,9 +81,6 @@ Second executor:
 kind create cluster --name quickstart-armada-executor-1 --config ./docs/quickstart/kind-config-executor-1.yaml
 export DOCKERHOSTIP=$(ip -4 addr show docker0 | grep -Po 'inet \K[\d.]+')
 export KUBECONFIG=$(kind get kubeconfig-path --name="quickstart-armada-executor-1")	
-
-# Configure Helm
-helm repo add stable https://kubernetes-charts.storage.googleapis.com/
 
 # Install Prometheus
 helm install prometheus-operator stable/prometheus-operator -f docs/quickstart/executor-prometheus-values.yaml --set prometheus.service.nodePort=30003
