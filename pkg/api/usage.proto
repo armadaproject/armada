@@ -10,6 +10,7 @@ import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 message QueueReport {
     string Name = 1;
     map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> Resources = 2 [(gogoproto.nullable) = false];
+    map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> ResourcesUsed = 3 [(gogoproto.nullable) = false];
 }
 
 message ClusterUsageReport {
@@ -17,6 +18,7 @@ message ClusterUsageReport {
     google.protobuf.Timestamp ReportTime = 2 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
     repeated QueueReport Queues = 3;
     map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> ClusterCapacity = 4 [(gogoproto.nullable) = false];
+    map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> ClusterAvailableCapacity = 5 [(gogoproto.nullable) = false];
 }
 
 service Usage {

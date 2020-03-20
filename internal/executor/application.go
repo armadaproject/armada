@@ -8,6 +8,7 @@ import (
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
+	metrics_server "k8s.io/metrics/pkg/client/clientset/versioned"
 
 	"github.com/G-Research/armada/internal/common/task"
 	"github.com/G-Research/armada/internal/executor/cluster"
@@ -41,15 +42,24 @@ func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGrou
 	taskManager := task.NewBackgroundTaskManager(metrics.ArmadaExecutorMetricsPrefix)
 	taskManager.Register(clusterContext.ProcessPodsToDelete, config.Task.PodDeletionInterval, "pod_deletion")
 
-	return StartUpWithContext(config, clusterContext, taskManager, wg)
+	return StartUpWithContext(config, clusterContext, kubernetesClientProvider, taskManager, wg)
 }
 
-func StartUpWithContext(config configuration.ExecutorConfiguration, clusterContext context.ClusterContext, taskManager *task.BackgroundTaskManager, wg *sync.WaitGroup) (func(), *sync.WaitGroup) {
+func StartUpWithContext(config configuration.ExecutorConfiguration, clusterContext context.ClusterContext, kubernetesClientProvider cluster.KubernetesClientProvider, taskManager *task.BackgroundTaskManager, wg *sync.WaitGroup) (func(), *sync.WaitGroup) {
 
 	conn, err := createConnectionToApi(config)
 	if err != nil {
 		log.Errorf("Failed to connect to API because: %s", err)
 		os.Exit(-1)
+	}
+
+	var metricsServerClient *metrics_server.Clientset
+	if config.Metric.ExposeQueueUsageMetrics && kubernetesClientProvider != nil {
+		metricsServerClient, err = metrics_server.NewForConfig(kubernetesClientProvider.ClientConfig())
+		if err != nil {
+			log.Errorf("Failed to connect to metrics server because: %s", err)
+			os.Exit(-1)
+		}
 	}
 
 	queueClient := api.NewAggregatedQueueClient(conn)
@@ -66,8 +76,13 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 		config.Kubernetes.MinimumPodAge,
 		config.Kubernetes.FailedPodExpiry)
 
+	queueUtilisationService := service.NewMetricsServerQueueUtilisationService(
+		clusterContext,
+		metricsServerClient)
+
 	clusterUtilisationService := service.NewClusterUtilisationService(
 		clusterContext,
+		queueUtilisationService,
 		usageClient,
 		config.Kubernetes.TrackedNodeLabels)
 
@@ -83,7 +98,7 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 		jobLeaseService,
 		clusterUtilisationService)
 
-	contextMetrics := pod_metrics.NewClusterContextMetrics(clusterContext, clusterUtilisationService)
+	contextMetrics := pod_metrics.NewClusterContextMetrics(clusterContext, clusterUtilisationService, queueUtilisationService)
 
 	taskManager.Register(clusterUtilisationService.ReportClusterUtilisation, config.Task.UtilisationReportingInterval, "utilisation_reporting")
 	taskManager.Register(clusterAllocationService.AllocateSpareClusterCapacity, config.Task.AllocateSpareClusterCapacityInterval, "job_lease_request")
@@ -91,6 +106,10 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 	taskManager.Register(eventReporter.ReportMissingJobEvents, config.Task.MissingJobEventReconciliationInterval, "event_reconciliation")
 	taskManager.Register(stuckPodDetector.HandleStuckPods, config.Task.StuckPodScanInterval, "stuck_pod")
 	taskManager.Register(contextMetrics.UpdateMetrics, config.Task.PodMetricsInterval, "pod_metrics")
+
+	if config.Metric.ExposeQueueUsageMetrics {
+		taskManager.Register(queueUtilisationService.RefreshUtilisationData, config.Task.QueueUsageDataRefreshInterval, "pod_usage_data_refresh")
+	}
 
 	return func() {
 		stopReporter <- true
