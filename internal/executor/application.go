@@ -89,7 +89,8 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 	stuckPodDetector := service.NewPodProgressMonitorService(
 		clusterContext,
 		eventReporter,
-		jobLeaseService)
+		jobLeaseService,
+		config.Kubernetes.StuckPodExpiry)
 
 	clusterAllocationService := service.NewClusterAllocationService(
 		clusterContext,
