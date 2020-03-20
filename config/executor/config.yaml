@@ -18,3 +18,4 @@ kubernetes:
   impersonateUsers: false
   minimumPodAge: 3m
   failedPodExpiry: 10m
+  stuckPodExpiry: 3m

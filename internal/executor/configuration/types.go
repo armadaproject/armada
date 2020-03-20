@@ -15,6 +15,7 @@ type KubernetesConfiguration struct {
 	TrackedNodeLabels []string
 	MinimumPodAge     time.Duration
 	FailedPodExpiry   time.Duration
+	StuckPodExpiry    time.Duration
 }
 
 type TaskConfiguration struct {

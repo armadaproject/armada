@@ -74,6 +74,10 @@ func (c *FakeClusterContext) GetNodes() ([]*v1.Node, error) {
 	}, nil
 }
 
+func (c *FakeClusterContext) GetPodEvents(pod *v1.Pod) ([]*v1.Event, error) {
+	return []*v1.Event{}, nil
+}
+
 func (c *FakeClusterContext) SubmitPod(pod *v1.Pod, owner string) (*v1.Pod, error) {
 	c.rwLock.Lock()
 	pod.Status.Phase = v1.PodPending

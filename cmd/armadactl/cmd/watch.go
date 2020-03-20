@@ -56,7 +56,7 @@ var watchCmd = &cobra.Command{
 					log.Info(summary)
 					switch event := e.(type) {
 					case *api.JobFailedEvent:
-						log.Errorf("Failure reason: %s", event.Reason)
+						log.Errorf("Failure reason:\n%s\n", event.Reason)
 					}
 				}
 				if exit_on_inactive && state.GetNumberOfJobs() == state.GetNumberOfFinishedJobs() {
