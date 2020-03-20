@@ -44,9 +44,16 @@ var queuePriorityDesc = prometheus.NewDesc(
 	nil,
 )
 
-var queueUsageDesc = prometheus.NewDesc(
-	MetricPrefix+"queue_resource_usage",
-	"Resource usage of a queue",
+var queueAllocatedDesc = prometheus.NewDesc(
+	MetricPrefix+"queue_resource_allocated",
+	"Resource allocated to running jobs of a queue",
+	[]string{"cluster", "queueName", "resourceType"},
+	nil,
+)
+
+var queueUsedDesc = prometheus.NewDesc(
+	MetricPrefix+"queue_resource_used",
+	"Resource actually being used by running jobs of a queue",
 	[]string{"cluster", "queueName", "resourceType"},
 	nil,
 )
@@ -54,6 +61,13 @@ var queueUsageDesc = prometheus.NewDesc(
 var clusterCapacityDesc = prometheus.NewDesc(
 	MetricPrefix+"cluster_capacity",
 	"Cluster capacity",
+	[]string{"cluster", "resourceType"},
+	nil,
+)
+
+var clusterAvailableCapacity = prometheus.NewDesc(
+	MetricPrefix+"cluster_available_capacity",
+	"Cluster capacity available for Armada jobs",
 	[]string{"cluster", "resourceType"},
 	nil,
 )
@@ -108,7 +122,16 @@ func (c *QueueInfoCollector) Collect(metrics chan<- prometheus.Metric) {
 		for _, queueReport := range report.Queues {
 			for resourceType, value := range queueReport.Resources {
 				metrics <- prometheus.MustNewConstMetric(
-					queueUsageDesc,
+					queueAllocatedDesc,
+					prometheus.GaugeValue,
+					common.QuantityAsFloat64(value),
+					cluster,
+					queueReport.Name,
+					resourceType)
+			}
+			for resourceType, value := range queueReport.ResourcesUsed {
+				metrics <- prometheus.MustNewConstMetric(
+					queueUsedDesc,
 					prometheus.GaugeValue,
 					common.QuantityAsFloat64(value),
 					cluster,
@@ -124,11 +147,20 @@ func (c *QueueInfoCollector) Collect(metrics chan<- prometheus.Metric) {
 				cluster,
 				resourceType)
 		}
+
+		for resourceType, value := range report.ClusterAvailableCapacity {
+			metrics <- prometheus.MustNewConstMetric(
+				clusterAvailableCapacity,
+				prometheus.GaugeValue,
+				common.QuantityAsFloat64(value),
+				cluster,
+				resourceType)
+		}
 	}
 }
 
 func recordInvalidMetrics(metrics chan<- prometheus.Metric, e error) {
 	metrics <- prometheus.NewInvalidMetric(queueSizeDesc, e)
 	metrics <- prometheus.NewInvalidMetric(queuePriorityDesc, e)
-	metrics <- prometheus.NewInvalidMetric(queueUsageDesc, e)
+	metrics <- prometheus.NewInvalidMetric(queueAllocatedDesc, e)
 }

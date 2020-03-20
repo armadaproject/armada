@@ -787,7 +787,7 @@ func SwaggerJsonTemplate() string {
 		"    \"resourceQuantity\": {\n" +
 		"      \"description\": \"The serialization format is:\\n\\n\\u003cquantity\\u003e        ::= \\u003csignedNumber\\u003e\\u003csuffix\\u003e\\n(Note that \\u003csuffix\\u003e may be empty, from the \\\"\\\" case in \\u003cdecimalSI\\u003e.)\\n\\u003cdigit\\u003e           ::= 0 | 1 | ... | 9\\n\\u003cdigits\\u003e          ::= \\u003cdigit\\u003e | \\u003cdigit\\u003e\\u003cdigits\\u003e\\n\\u003cnumber\\u003e          ::= \\u003cdigits\\u003e | \\u003cdigits\\u003e.\\u003cdigits\\u003e | \\u003cdigits\\u003e. | .\\u003cdigits\\u003e\\n\\u003csign\\u003e            ::= \\\"+\\\" | \\\"-\\\"\\n\\u003csignedNumber\\u003e    ::= \\u003cnumber\\u003e | \\u003csign\\u003e\\u003cnumber\\u003e\\n\\u003csuffix\\u003e          ::= \\u003cbinarySI\\u003e | \\u003cdecimalExponent\\u003e | \\u003cdecimalSI\\u003e\\n\\u003cbinarySI\\u003e        ::= Ki | Mi | Gi | Ti | Pi | Ei\\n(International System of units; See: http://physics.nist.gov/cuu/Units/binary.html)\\n\\u003cdecimalSI\\u003e       ::= m | \\\"\\\" | k | M | G | T | P | E\\n(Note that 1024 = 1Ki but 1000 = 1k; I didn't choose the capitalization.)\\n\\u003cdecimalExponent\\u003e ::= \\\"e\\\" \\u003csignedNumber\\u003e | \\\"E\\\" \\u003csignedNumber\\u003e\\n\\nNo matter which of the three exponent forms is used, no quantity may represent\\na number greater than 2^63-1 in magnitude, nor may it have more than 3 decimal\\nplaces. Numbers larger or more precise will be capped or rounded up.\\n(E.g.: 0.1m will rounded up to 1m.)\\nThis may be extended in the future if we require larger or smaller quantities.\\n\\nWhen a Quantity is parsed from a string, it will remember the type of suffix\\nit had, and will use the same type again when it is serialized.\\n\\nBefore serializing, Quantity will be put in \\\"canonical form\\\".\\nThis means that Exponent/suffix will be adjusted up or down (with a\\ncorresponding increase or decrease in Mantissa) such that:\\na. No precision is lost\\nb. No fractional digits will be emitted\\nc. The exponent (or suffix) is as large as possible.\\nThe sign will be omitted unless the number is negative.\\n\\nExamples:\\n1.5 will be serialized as \\\"1500m\\\"\\n1.5Gi will be serialized as \\\"1536Mi\\\"\\n\\nNote that the quantity will NEVER be internally represented by a\\nfloating point number. That is the whole point of this exercise.\\n\\nNon-canonical values will still parse as long as they are well formed,\\nbut will be re-emitted in their canonical form. (So always use canonical\\nform, or don't diff.)\\n\\nThis format is intended to make it difficult to use these numbers without\\nwriting some sort of special handling code in the hopes that that will\\ncause implementors to also use a fixed point implementation.\\n\\n+protobuf=true\\n+protobuf.embed=string\\n+protobuf.options.marshal=false\\n+protobuf.options.(gogoproto.goproto_stringer)=false\\n+k8s:deepcopy-gen=true\\n+k8s:openapi-gen=true\",\n" +
 		"      \"type\": \"string\",\n" +
-		"      \"title\": \"Quantity is a fixed-point representation of a number.\\nIt provides convenient marshaling/unmarshaling in JSON and YAML,\\nin addition to String() and Int64() accessors.\",\n" +
+		"      \"title\": \"Quantity is a fixed-point representation of a number.\\nIt provides convenient marshaling/unmarshaling in JSON and YAML,\\nin addition to String() and AsInt64() accessors.\",\n" +
 		"      \"x-go-package\": \"k8s.io/apimachinery/pkg/api/resource\"\n" +
 		"    },\n" +
 		"    \"runtimeStreamError\": {\n" +
@@ -989,7 +989,7 @@ func SwaggerJsonTemplate() string {
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
 		"        \"monitors\": {\n" +
-		"          \"description\": \"Required: Monitors is a collection of Ceph monitors\\nMore info: https://releases.k8s.io/HEAD/examples/volumes/cephfs/README.md#how-to-use-it\",\n" +
+		"          \"description\": \"Required: Monitors is a collection of Ceph monitors\\nMore info: https://examples.k8s.io/volumes/cephfs/README.md#how-to-use-it\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"type\": \"string\"\n" +
@@ -1002,12 +1002,12 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"Path\"\n" +
 		"        },\n" +
 		"        \"readOnly\": {\n" +
-		"          \"description\": \"Optional: Defaults to false (read/write). ReadOnly here will force\\nthe ReadOnly setting in VolumeMounts.\\nMore info: https://releases.k8s.io/HEAD/examples/volumes/cephfs/README.md#how-to-use-it\\n+optional\",\n" +
+		"          \"description\": \"Optional: Defaults to false (read/write). ReadOnly here will force\\nthe ReadOnly setting in VolumeMounts.\\nMore info: https://examples.k8s.io/volumes/cephfs/README.md#how-to-use-it\\n+optional\",\n" +
 		"          \"type\": \"boolean\",\n" +
 		"          \"x-go-name\": \"ReadOnly\"\n" +
 		"        },\n" +
 		"        \"secretFile\": {\n" +
-		"          \"description\": \"Optional: SecretFile is the path to key ring for User, default is /etc/ceph/user.secret\\nMore info: https://releases.k8s.io/HEAD/examples/volumes/cephfs/README.md#how-to-use-it\\n+optional\",\n" +
+		"          \"description\": \"Optional: SecretFile is the path to key ring for User, default is /etc/ceph/user.secret\\nMore info: https://examples.k8s.io/volumes/cephfs/README.md#how-to-use-it\\n+optional\",\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"x-go-name\": \"SecretFile\"\n" +
 		"        },\n" +
@@ -1015,7 +1015,7 @@ func SwaggerJsonTemplate() string {
 		"          \"$ref\": \"#/definitions/v1LocalObjectReference\"\n" +
 		"        },\n" +
 		"        \"user\": {\n" +
-		"          \"description\": \"Optional: User is the rados user name, default is admin\\nMore info: https://releases.k8s.io/HEAD/examples/volumes/cephfs/README.md#how-to-use-it\\n+optional\",\n" +
+		"          \"description\": \"Optional: User is the rados user name, default is admin\\nMore info: https://examples.k8s.io/volumes/cephfs/README.md#how-to-use-it\\n+optional\",\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"x-go-name\": \"User\"\n" +
 		"        }\n" +
@@ -1028,12 +1028,12 @@ func SwaggerJsonTemplate() string {
 		"      \"title\": \"Represents a cinder volume resource in Openstack.\",\n" +
 		"      \"properties\": {\n" +
 		"        \"fsType\": {\n" +
-		"          \"description\": \"Filesystem type to mount.\\nMust be a filesystem type supported by the host operating system.\\nExamples: \\\"ext4\\\", \\\"xfs\\\", \\\"ntfs\\\". Implicitly inferred to be \\\"ext4\\\" if unspecified.\\nMore info: https://releases.k8s.io/HEAD/examples/mysql-cinder-pd/README.md\\n+optional\",\n" +
+		"          \"description\": \"Filesystem type to mount.\\nMust be a filesystem type supported by the host operating system.\\nExamples: \\\"ext4\\\", \\\"xfs\\\", \\\"ntfs\\\". Implicitly inferred to be \\\"ext4\\\" if unspecified.\\nMore info: https://examples.k8s.io/mysql-cinder-pd/README.md\\n+optional\",\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"x-go-name\": \"FSType\"\n" +
 		"        },\n" +
 		"        \"readOnly\": {\n" +
-		"          \"description\": \"Optional: Defaults to false (read/write). ReadOnly here will force\\nthe ReadOnly setting in VolumeMounts.\\nMore info: https://releases.k8s.io/HEAD/examples/mysql-cinder-pd/README.md\\n+optional\",\n" +
+		"          \"description\": \"Optional: Defaults to false (read/write). ReadOnly here will force\\nthe ReadOnly setting in VolumeMounts.\\nMore info: https://examples.k8s.io/mysql-cinder-pd/README.md\\n+optional\",\n" +
 		"          \"type\": \"boolean\",\n" +
 		"          \"x-go-name\": \"ReadOnly\"\n" +
 		"        },\n" +
@@ -1041,7 +1041,7 @@ func SwaggerJsonTemplate() string {
 		"          \"$ref\": \"#/definitions/v1LocalObjectReference\"\n" +
 		"        },\n" +
 		"        \"volumeID\": {\n" +
-		"          \"description\": \"volume id used to identify the volume in cinder\\nMore info: https://releases.k8s.io/HEAD/examples/mysql-cinder-pd/README.md\",\n" +
+		"          \"description\": \"volume id used to identify the volume in cinder.\\nMore info: https://examples.k8s.io/mysql-cinder-pd/README.md\",\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"x-go-name\": \"VolumeID\"\n" +
 		"        }\n" +
@@ -1217,6 +1217,9 @@ func SwaggerJsonTemplate() string {
 		"        },\n" +
 		"        \"securityContext\": {\n" +
 		"          \"$ref\": \"#/definitions/v1SecurityContext\"\n" +
+		"        },\n" +
+		"        \"startupProbe\": {\n" +
+		"          \"$ref\": \"#/definitions/v1Probe\"\n" +
 		"        },\n" +
 		"        \"stdin\": {\n" +
 		"          \"description\": \"Whether this container should allocate a buffer for stdin in the container runtime. If this\\nis not set, reads from stdin in the container will always result in EOF.\\nDefault is false.\\n+optional\",\n" +
@@ -1435,6 +1438,133 @@ func SwaggerJsonTemplate() string {
 		"      },\n" +
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
+		"    \"v1EphemeralContainer\": {\n" +
+		"      \"description\": \"An EphemeralContainer is a container that may be added temporarily to an existing pod for\\nuser-initiated activities such as debugging. Ephemeral containers have no resource or\\nscheduling guarantees, and they will not be restarted when they exit or when a pod is\\nremoved or restarted. If an ephemeral container causes a pod to exceed its resource\\nallocation, the pod may be evicted.\\nEphemeral containers may not be added by directly updating the pod spec. They must be added\\nvia the pod's ephemeralcontainers subresource, and they will appear in the pod spec\\nonce added.\\nThis is an alpha feature enabled by the EphemeralContainers feature flag.\",\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"args\": {\n" +
+		"          \"description\": \"Arguments to the entrypoint.\\nThe docker image's CMD is used if this is not provided.\\nVariable references $(VAR_NAME) are expanded using the container's environment. If a variable\\ncannot be resolved, the reference in the input string will be unchanged. The $(VAR_NAME) syntax\\ncan be escaped with a double $$, ie: $$(VAR_NAME). Escaped references will never be expanded,\\nregardless of whether the variable exists or not.\\nCannot be updated.\\nMore info: https://kubernetes.io/docs/tasks/inject-data-application/define-command-argument-container/#running-a-command-in-a-shell\\n+optional\",\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"type\": \"string\"\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"Args\"\n" +
+		"        },\n" +
+		"        \"command\": {\n" +
+		"          \"description\": \"Entrypoint array. Not executed within a shell.\\nThe docker image's ENTRYPOINT is used if this is not provided.\\nVariable references $(VAR_NAME) are expanded using the container's environment. If a variable\\ncannot be resolved, the reference in the input string will be unchanged. The $(VAR_NAME) syntax\\ncan be escaped with a double $$, ie: $$(VAR_NAME). Escaped references will never be expanded,\\nregardless of whether the variable exists or not.\\nCannot be updated.\\nMore info: https://kubernetes.io/docs/tasks/inject-data-application/define-command-argument-container/#running-a-command-in-a-shell\\n+optional\",\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"type\": \"string\"\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"Command\"\n" +
+		"        },\n" +
+		"        \"env\": {\n" +
+		"          \"description\": \"List of environment variables to set in the container.\\nCannot be updated.\\n+optional\\n+patchMergeKey=name\\n+patchStrategy=merge\",\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/v1EnvVar\"\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"Env\"\n" +
+		"        },\n" +
+		"        \"envFrom\": {\n" +
+		"          \"description\": \"List of sources to populate environment variables in the container.\\nThe keys defined within a source must be a C_IDENTIFIER. All invalid keys\\nwill be reported as an event when the container is starting. When a key exists in multiple\\nsources, the value associated with the last source will take precedence.\\nValues defined by an Env with a duplicate key will take precedence.\\nCannot be updated.\\n+optional\",\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/v1EnvFromSource\"\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"EnvFrom\"\n" +
+		"        },\n" +
+		"        \"image\": {\n" +
+		"          \"description\": \"Docker image name.\\nMore info: https://kubernetes.io/docs/concepts/containers/images\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"Image\"\n" +
+		"        },\n" +
+		"        \"imagePullPolicy\": {\n" +
+		"          \"$ref\": \"#/definitions/v1PullPolicy\"\n" +
+		"        },\n" +
+		"        \"lifecycle\": {\n" +
+		"          \"$ref\": \"#/definitions/v1Lifecycle\"\n" +
+		"        },\n" +
+		"        \"livenessProbe\": {\n" +
+		"          \"$ref\": \"#/definitions/v1Probe\"\n" +
+		"        },\n" +
+		"        \"name\": {\n" +
+		"          \"description\": \"Name of the ephemeral container specified as a DNS_LABEL.\\nThis name must be unique among all containers, init containers and ephemeral containers.\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"Name\"\n" +
+		"        },\n" +
+		"        \"ports\": {\n" +
+		"          \"description\": \"Ports are not allowed for ephemeral containers.\",\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/v1ContainerPort\"\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"Ports\"\n" +
+		"        },\n" +
+		"        \"readinessProbe\": {\n" +
+		"          \"$ref\": \"#/definitions/v1Probe\"\n" +
+		"        },\n" +
+		"        \"resources\": {\n" +
+		"          \"$ref\": \"#/definitions/v1ResourceRequirements\"\n" +
+		"        },\n" +
+		"        \"securityContext\": {\n" +
+		"          \"$ref\": \"#/definitions/v1SecurityContext\"\n" +
+		"        },\n" +
+		"        \"startupProbe\": {\n" +
+		"          \"$ref\": \"#/definitions/v1Probe\"\n" +
+		"        },\n" +
+		"        \"stdin\": {\n" +
+		"          \"description\": \"Whether this container should allocate a buffer for stdin in the container runtime. If this\\nis not set, reads from stdin in the container will always result in EOF.\\nDefault is false.\\n+optional\",\n" +
+		"          \"type\": \"boolean\",\n" +
+		"          \"x-go-name\": \"Stdin\"\n" +
+		"        },\n" +
+		"        \"stdinOnce\": {\n" +
+		"          \"description\": \"Whether the container runtime should close the stdin channel after it has been opened by\\na single attach. When stdin is true the stdin stream will remain open across multiple attach\\nsessions. If stdinOnce is set to true, stdin is opened on container start, is empty until the\\nfirst client attaches to stdin, and then remains open and accepts data until the client disconnects,\\nat which time stdin is closed and remains closed until the container is restarted. If this\\nflag is false, a container processes that reads from stdin will never receive an EOF.\\nDefault is false\\n+optional\",\n" +
+		"          \"type\": \"boolean\",\n" +
+		"          \"x-go-name\": \"StdinOnce\"\n" +
+		"        },\n" +
+		"        \"targetContainerName\": {\n" +
+		"          \"description\": \"If set, the name of the container from PodSpec that this ephemeral container targets.\\nThe ephemeral container will be run in the namespaces (IPC, PID, etc) of this container.\\nIf not set then the ephemeral container is run in whatever namespaces are shared\\nfor the pod. Note that the container runtime must support this feature.\\n+optional\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"TargetContainerName\"\n" +
+		"        },\n" +
+		"        \"terminationMessagePath\": {\n" +
+		"          \"description\": \"Optional: Path at which the file to which the container's termination message\\nwill be written is mounted into the container's filesystem.\\nMessage written is intended to be brief final status, such as an assertion failure message.\\nWill be truncated by the node if greater than 4096 bytes. The total message length across\\nall containers will be limited to 12kb.\\nDefaults to /dev/termination-log.\\nCannot be updated.\\n+optional\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"TerminationMessagePath\"\n" +
+		"        },\n" +
+		"        \"terminationMessagePolicy\": {\n" +
+		"          \"$ref\": \"#/definitions/v1TerminationMessagePolicy\"\n" +
+		"        },\n" +
+		"        \"tty\": {\n" +
+		"          \"description\": \"Whether this container should allocate a TTY for itself, also requires 'stdin' to be true.\\nDefault is false.\\n+optional\",\n" +
+		"          \"type\": \"boolean\",\n" +
+		"          \"x-go-name\": \"TTY\"\n" +
+		"        },\n" +
+		"        \"volumeDevices\": {\n" +
+		"          \"description\": \"volumeDevices is the list of block devices to be used by the container.\\nThis is a beta feature.\\n+patchMergeKey=devicePath\\n+patchStrategy=merge\\n+optional\",\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/v1VolumeDevice\"\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"VolumeDevices\"\n" +
+		"        },\n" +
+		"        \"volumeMounts\": {\n" +
+		"          \"description\": \"Pod volumes to mount into the container's filesystem.\\nCannot be updated.\\n+optional\\n+patchMergeKey=mountPath\\n+patchStrategy=merge\",\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/v1VolumeMount\"\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"VolumeMounts\"\n" +
+		"        },\n" +
+		"        \"workingDir\": {\n" +
+		"          \"description\": \"Container's working directory.\\nIf not specified, the container runtime's default will be used, which\\nmight be configured in the container image.\\nCannot be updated.\\n+optional\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"WorkingDir\"\n" +
+		"        }\n" +
+		"      },\n" +
+		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
+		"    },\n" +
 		"    \"v1ExecAction\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"title\": \"ExecAction describes a \\\"run in container\\\" action.\",\n" +
@@ -1599,17 +1729,17 @@ func SwaggerJsonTemplate() string {
 		"      \"title\": \"Represents a Glusterfs mount that lasts the lifetime of a pod.\",\n" +
 		"      \"properties\": {\n" +
 		"        \"endpoints\": {\n" +
-		"          \"description\": \"EndpointsName is the endpoint name that details Glusterfs topology.\\nMore info: https://releases.k8s.io/HEAD/examples/volumes/glusterfs/README.md#create-a-pod\",\n" +
+		"          \"description\": \"EndpointsName is the endpoint name that details Glusterfs topology.\\nMore info: https://examples.k8s.io/volumes/glusterfs/README.md#create-a-pod\",\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"x-go-name\": \"EndpointsName\"\n" +
 		"        },\n" +
 		"        \"path\": {\n" +
-		"          \"description\": \"Path is the Glusterfs volume path.\\nMore info: https://releases.k8s.io/HEAD/examples/volumes/glusterfs/README.md#create-a-pod\",\n" +
+		"          \"description\": \"Path is the Glusterfs volume path.\\nMore info: https://examples.k8s.io/volumes/glusterfs/README.md#create-a-pod\",\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"x-go-name\": \"Path\"\n" +
 		"        },\n" +
 		"        \"readOnly\": {\n" +
-		"          \"description\": \"ReadOnly here will force the Glusterfs volume to be mounted with read-only permissions.\\nDefaults to false.\\nMore info: https://releases.k8s.io/HEAD/examples/volumes/glusterfs/README.md#create-a-pod\\n+optional\",\n" +
+		"          \"description\": \"ReadOnly here will force the Glusterfs volume to be mounted with read-only permissions.\\nDefaults to false.\\nMore info: https://examples.k8s.io/volumes/glusterfs/README.md#create-a-pod\\n+optional\",\n" +
 		"          \"type\": \"boolean\",\n" +
 		"          \"x-go-name\": \"ReadOnly\"\n" +
 		"        }\n" +
@@ -2271,6 +2401,14 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"boolean\",\n" +
 		"          \"x-go-name\": \"EnableServiceLinks\"\n" +
 		"        },\n" +
+		"        \"ephemeralContainers\": {\n" +
+		"          \"description\": \"List of ephemeral containers run in this pod. Ephemeral containers may be run in an existing\\npod to perform user-initiated actions such as debugging. This list cannot be specified when\\ncreating a pod, and it cannot be modified by updating the pod spec. In order to add an\\nephemeral container to an existing pod, use the pod's ephemeralcontainers subresource.\\nThis field is alpha-level and is only honored by servers that enable the EphemeralContainers feature.\\n+optional\\n+patchMergeKey=name\\n+patchStrategy=merge\",\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/v1EphemeralContainer\"\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"EphemeralContainers\"\n" +
+		"        },\n" +
 		"        \"hostAliases\": {\n" +
 		"          \"description\": \"HostAliases is an optional list of hosts and IPs that will be injected into the pod's hosts\\nfile if specified. This is only valid for non-hostNetwork pods.\\n+optional\\n+patchMergeKey=ip\\n+patchStrategy=merge\",\n" +
 		"          \"type\": \"array\",\n" +
@@ -2308,7 +2446,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"ImagePullSecrets\"\n" +
 		"        },\n" +
 		"        \"initContainers\": {\n" +
-		"          \"description\": \"List of initialization containers belonging to the pod.\\nInit containers are executed in order prior to containers being started. If any\\ninit container fails, the pod is considered to have failed and is handled according\\nto its restartPolicy. The name for an init container or normal container must be\\nunique among all containers.\\nInit containers may not have Lifecycle actions, Readiness probes, or Liveness probes.\\nThe resourceRequirements of an init container are taken into account during scheduling\\nby finding the highest request/limit for each resource type, and then using the max of\\nof that value or the sum of the normal containers. Limits are applied to init containers\\nin a similar fashion.\\nInit containers cannot currently be added or removed.\\nCannot be updated.\\nMore info: https://kubernetes.io/docs/concepts/workloads/pods/init-containers/\\n+patchMergeKey=name\\n+patchStrategy=merge\",\n" +
+		"          \"description\": \"List of initialization containers belonging to the pod.\\nInit containers are executed in order prior to containers being started. If any\\ninit container fails, the pod is considered to have failed and is handled according\\nto its restartPolicy. The name for an init container or normal container must be\\nunique among all containers.\\nInit containers may not have Lifecycle actions, Readiness probes, Liveness probes, or Startup probes.\\nThe resourceRequirements of an init container are taken into account during scheduling\\nby finding the highest request/limit for each resource type, and then using the max of\\nof that value or the sum of the normal containers. Limits are applied to init containers\\nin a similar fashion.\\nInit containers cannot currently be added or removed.\\nCannot be updated.\\nMore info: https://kubernetes.io/docs/concepts/workloads/pods/init-containers/\\n+patchMergeKey=name\\n+patchStrategy=merge\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1Container\"\n" +
@@ -2327,6 +2465,9 @@ func SwaggerJsonTemplate() string {
 		"            \"type\": \"string\"\n" +
 		"          },\n" +
 		"          \"x-go-name\": \"NodeSelector\"\n" +
+		"        },\n" +
+		"        \"overhead\": {\n" +
+		"          \"$ref\": \"#/definitions/v1ResourceList\"\n" +
 		"        },\n" +
 		"        \"preemptionPolicy\": {\n" +
 		"          \"$ref\": \"#/definitions/v1PreemptionPolicy\"\n" +
@@ -2377,7 +2518,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"ServiceAccountName\"\n" +
 		"        },\n" +
 		"        \"shareProcessNamespace\": {\n" +
-		"          \"description\": \"Share a single process namespace between all of the containers in a pod.\\nWhen this is set containers will be able to view and signal processes from other containers\\nin the same pod, and the first process in each container will not be assigned PID 1.\\nHostPID and ShareProcessNamespace cannot both be set.\\nOptional: Default to false.\\nThis field is beta-level and may be disabled with the PodShareProcessNamespace feature.\\n+k8s:conversion-gen=false\\n+optional\",\n" +
+		"          \"description\": \"Share a single process namespace between all of the containers in a pod.\\nWhen this is set containers will be able to view and signal processes from other containers\\nin the same pod, and the first process in each container will not be assigned PID 1.\\nHostPID and ShareProcessNamespace cannot both be set.\\nOptional: Default to false.\\n+k8s:conversion-gen=false\\n+optional\",\n" +
 		"          \"type\": \"boolean\",\n" +
 		"          \"x-go-name\": \"ShareProcessNamespace\"\n" +
 		"        },\n" +
@@ -2399,6 +2540,14 @@ func SwaggerJsonTemplate() string {
 		"            \"$ref\": \"#/definitions/v1Toleration\"\n" +
 		"          },\n" +
 		"          \"x-go-name\": \"Tolerations\"\n" +
+		"        },\n" +
+		"        \"topologySpreadConstraints\": {\n" +
+		"          \"description\": \"TopologySpreadConstraints describes how a group of pods ought to spread across topology\\ndomains. Scheduler will schedule pods in a way which abides by the constraints.\\nThis field is alpha-level and is only honored by clusters that enables the EvenPodsSpread\\nfeature.\\nAll topologySpreadConstraints are ANDed.\\n+optional\\n+patchMergeKey=topologyKey\\n+patchStrategy=merge\\n+listType=map\\n+listMapKey=topologyKey\\n+listMapKey=whenUnsatisfiable\",\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/v1TopologySpreadConstraint\"\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"TopologySpreadConstraints\"\n" +
 		"        },\n" +
 		"        \"volumes\": {\n" +
 		"          \"description\": \"List of volumes that can be mounted by containers belonging to the pod.\\nMore info: https://kubernetes.io/docs/concepts/storage/volumes\\n+optional\\n+patchMergeKey=name\\n+patchStrategy=merge,retainKeys\",\n" +
@@ -2483,7 +2632,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"PeriodSeconds\"\n" +
 		"        },\n" +
 		"        \"successThreshold\": {\n" +
-		"          \"description\": \"Minimum consecutive successes for the probe to be considered successful after having failed.\\nDefaults to 1. Must be 1 for liveness. Minimum value is 1.\\n+optional\",\n" +
+		"          \"description\": \"Minimum consecutive successes for the probe to be considered successful after having failed.\\nDefaults to 1. Must be 1 for liveness and startup. Minimum value is 1.\\n+optional\",\n" +
 		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int32\",\n" +
 		"          \"x-go-name\": \"SuccessThreshold\"\n" +
@@ -2584,17 +2733,17 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"FSType\"\n" +
 		"        },\n" +
 		"        \"image\": {\n" +
-		"          \"description\": \"The rados image name.\\nMore info: https://releases.k8s.io/HEAD/examples/volumes/rbd/README.md#how-to-use-it\",\n" +
+		"          \"description\": \"The rados image name.\\nMore info: https://examples.k8s.io/volumes/rbd/README.md#how-to-use-it\",\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"x-go-name\": \"RBDImage\"\n" +
 		"        },\n" +
 		"        \"keyring\": {\n" +
-		"          \"description\": \"Keyring is the path to key ring for RBDUser.\\nDefault is /etc/ceph/keyring.\\nMore info: https://releases.k8s.io/HEAD/examples/volumes/rbd/README.md#how-to-use-it\\n+optional\",\n" +
+		"          \"description\": \"Keyring is the path to key ring for RBDUser.\\nDefault is /etc/ceph/keyring.\\nMore info: https://examples.k8s.io/volumes/rbd/README.md#how-to-use-it\\n+optional\",\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"x-go-name\": \"Keyring\"\n" +
 		"        },\n" +
 		"        \"monitors\": {\n" +
-		"          \"description\": \"A collection of Ceph monitors.\\nMore info: https://releases.k8s.io/HEAD/examples/volumes/rbd/README.md#how-to-use-it\",\n" +
+		"          \"description\": \"A collection of Ceph monitors.\\nMore info: https://examples.k8s.io/volumes/rbd/README.md#how-to-use-it\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"type\": \"string\"\n" +
@@ -2602,12 +2751,12 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"CephMonitors\"\n" +
 		"        },\n" +
 		"        \"pool\": {\n" +
-		"          \"description\": \"The rados pool name.\\nDefault is rbd.\\nMore info: https://releases.k8s.io/HEAD/examples/volumes/rbd/README.md#how-to-use-it\\n+optional\",\n" +
+		"          \"description\": \"The rados pool name.\\nDefault is rbd.\\nMore info: https://examples.k8s.io/volumes/rbd/README.md#how-to-use-it\\n+optional\",\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"x-go-name\": \"RBDPool\"\n" +
 		"        },\n" +
 		"        \"readOnly\": {\n" +
-		"          \"description\": \"ReadOnly here will force the ReadOnly setting in VolumeMounts.\\nDefaults to false.\\nMore info: https://releases.k8s.io/HEAD/examples/volumes/rbd/README.md#how-to-use-it\\n+optional\",\n" +
+		"          \"description\": \"ReadOnly here will force the ReadOnly setting in VolumeMounts.\\nDefaults to false.\\nMore info: https://examples.k8s.io/volumes/rbd/README.md#how-to-use-it\\n+optional\",\n" +
 		"          \"type\": \"boolean\",\n" +
 		"          \"x-go-name\": \"ReadOnly\"\n" +
 		"        },\n" +
@@ -2615,7 +2764,7 @@ func SwaggerJsonTemplate() string {
 		"          \"$ref\": \"#/definitions/v1LocalObjectReference\"\n" +
 		"        },\n" +
 		"        \"user\": {\n" +
-		"          \"description\": \"The rados user name.\\nDefault is admin.\\nMore info: https://releases.k8s.io/HEAD/examples/volumes/rbd/README.md#how-to-use-it\\n+optional\",\n" +
+		"          \"description\": \"The rados user name.\\nDefault is admin.\\nMore info: https://examples.k8s.io/volumes/rbd/README.md#how-to-use-it\\n+optional\",\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"x-go-name\": \"RadosUser\"\n" +
 		"        }\n" +
@@ -3034,8 +3183,36 @@ func SwaggerJsonTemplate() string {
 		"      \"title\": \"A toleration operator is the set of operators that can be used in a toleration.\",\n" +
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
+		"    \"v1TopologySpreadConstraint\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"title\": \"TopologySpreadConstraint specifies how to spread matching pods among the given topology.\",\n" +
+		"      \"properties\": {\n" +
+		"        \"labelSelector\": {\n" +
+		"          \"$ref\": \"#/definitions/v1LabelSelector\"\n" +
+		"        },\n" +
+		"        \"maxSkew\": {\n" +
+		"          \"description\": \"MaxSkew describes the degree to which pods may be unevenly distributed.\\nIt's the maximum permitted difference between the number of matching pods in\\nany two topology domains of a given topology type.\\nFor example, in a 3-zone cluster, MaxSkew is set to 1, and pods with the same\\nlabelSelector spread as 1/1/0:\\n+-------+-------+-------+\\n zone1 | zone2 | zone3 |\\n+-------+-------+-------+\\n   P   |   P   |       |\\n+-------+-------+-------+\\nif MaxSkew is 1, incoming pod can only be scheduled to zone3 to become 1/1/1;\\nscheduling it onto zone1(zone2) would make the ActualSkew(2-0) on zone1(zone2)\\nviolate MaxSkew(1).\\nif MaxSkew is 2, incoming pod can be scheduled onto any zone.\\nIt's a required field. Default value is 1 and 0 is not allowed.\",\n" +
+		"          \"type\": \"integer\",\n" +
+		"          \"format\": \"int32\",\n" +
+		"          \"x-go-name\": \"MaxSkew\"\n" +
+		"        },\n" +
+		"        \"topologyKey\": {\n" +
+		"          \"description\": \"TopologyKey is the key of node labels. Nodes that have a label with this key\\nand identical values are considered to be in the same topology.\\nWe consider each \\u003ckey, value\\u003e as a \\\"bucket\\\", and try to put balanced number\\nof pods into each bucket.\\nIt's a required field.\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"TopologyKey\"\n" +
+		"        },\n" +
+		"        \"whenUnsatisfiable\": {\n" +
+		"          \"$ref\": \"#/definitions/v1UnsatisfiableConstraintAction\"\n" +
+		"        }\n" +
+		"      },\n" +
+		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
+		"    },\n" +
 		"    \"v1URIScheme\": {\n" +
 		"      \"description\": \"URIScheme identifies the scheme used for connection to a host for Get actions\",\n" +
+		"      \"type\": \"string\",\n" +
+		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
+		"    },\n" +
+		"    \"v1UnsatisfiableConstraintAction\": {\n" +
 		"      \"type\": \"string\",\n" +
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
@@ -3180,7 +3357,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"SubPath\"\n" +
 		"        },\n" +
 		"        \"subPathExpr\": {\n" +
-		"          \"description\": \"Expanded path within the volume from which the container's volume should be mounted.\\nBehaves similarly to SubPath but environment variable references $(VAR_NAME) are expanded using the container's environment.\\nDefaults to \\\"\\\" (volume's root).\\nSubPathExpr and SubPath are mutually exclusive.\\nThis field is beta in 1.15.\\n+optional\",\n" +
+		"          \"description\": \"Expanded path within the volume from which the container's volume should be mounted.\\nBehaves similarly to SubPath but environment variable references $(VAR_NAME) are expanded using the container's environment.\\nDefaults to \\\"\\\" (volume's root).\\nSubPathExpr and SubPath are mutually exclusive.\\n+optional\",\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"x-go-name\": \"SubPathExpr\"\n" +
 		"        }\n" +
@@ -3380,6 +3557,11 @@ func SwaggerJsonTemplate() string {
 		"          \"description\": \"GMSACredentialSpecName is the name of the GMSA credential spec to use.\\nThis field is alpha-level and is only honored by servers that enable the WindowsGMSA feature flag.\\n+optional\",\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"x-go-name\": \"GMSACredentialSpecName\"\n" +
+		"        },\n" +
+		"        \"runAsUserName\": {\n" +
+		"          \"description\": \"The UserName in Windows to run the entrypoint of the container process.\\nDefaults to the user specified in image metadata if unspecified.\\nMay also be set in PodSecurityContext. If set in both SecurityContext and\\nPodSecurityContext, the value specified in SecurityContext takes precedence.\\nThis field is beta-level and may be disabled with the WindowsRunAsUserName feature flag.\\n+optional\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"RunAsUserName\"\n" +
 		"        }\n" +
 		"      },\n" +
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +

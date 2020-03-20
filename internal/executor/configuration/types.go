@@ -26,10 +26,16 @@ type TaskConfiguration struct {
 	StuckPodScanInterval                  time.Duration
 	PodDeletionInterval                   time.Duration
 	PodMetricsInterval                    time.Duration
+	QueueUsageDataRefreshInterval         time.Duration
+}
+
+type MetricConfiguration struct {
+	Port                    uint16
+	ExposeQueueUsageMetrics bool
 }
 
 type ExecutorConfiguration struct {
-	MetricsPort   uint16
+	Metric        MetricConfiguration
 	Application   ApplicationConfiguration
 	ApiConnection client.ApiConnectionDetails
 
