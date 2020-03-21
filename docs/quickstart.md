@@ -27,6 +27,29 @@ brew install helm kind kubernetes-cli
 
 Ensure at least 5GB of RAM are allocated to the Docker VM (see Preferences -> Resources -> Advanced).
 
+#### Windows
+
+You can install the pre-requisites with [Chocolatey](https://chocolatey.org):
+
+```cmd
+choco install git docker-desktop kubernetes-helm kind kubernetes-cli
+```
+
+Ensure at least 5GB of RAM are allocated to the Docker VM (see Settings -> Resources -> Advanced).
+
+In order to follow the instructions below as-is, you should also install [Windows Subsystem for Linux](https://docs.microsoft.com/en-us/windows/wsl/about).
+After you installed the distro of your choice, open a terminal and alias the following commands:
+
+```bash
+alias git=git.exe
+alias docker=docker.exe
+alias helm=helm.exe
+alias kind=kind.exe
+alias kubectl=kubectl.exe
+```
+
+All the commands below should be executed in a Windows directory (i.e. `/mnt/c/Users/<username>`) so change to it before going further.
+
 ### Helm
 
 Make sure helm is configured to use the official Helm stable charts:
