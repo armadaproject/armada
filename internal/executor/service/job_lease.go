@@ -8,13 +8,16 @@ import (
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/G-Research/armada/internal/armada/api"
 	"github.com/G-Research/armada/internal/common"
 	commonUtil "github.com/G-Research/armada/internal/common/util"
 	context2 "github.com/G-Research/armada/internal/executor/context"
 	"github.com/G-Research/armada/internal/executor/reporter"
 	"github.com/G-Research/armada/internal/executor/util"
+	"github.com/G-Research/armada/pkg/api"
 )
+
+const maxPodRequestSize = 10000
+const jobDoneAnnotation = "reported_done"
 
 type LeaseService interface {
 	ReturnLease(pod *v1.Pod) error
@@ -23,17 +26,23 @@ type LeaseService interface {
 }
 
 type JobLeaseService struct {
-	clusterContext context2.ClusterContext
-	queueClient    api.AggregatedQueueClient
+	clusterContext  context2.ClusterContext
+	queueClient     api.AggregatedQueueClient
+	minimumPodAge   time.Duration
+	failedPodExpiry time.Duration
 }
 
 func NewJobLeaseService(
 	clusterContext context2.ClusterContext,
-	queueClient api.AggregatedQueueClient) *JobLeaseService {
+	queueClient api.AggregatedQueueClient,
+	minimumPodAge time.Duration,
+	failedPodExpiry time.Duration) *JobLeaseService {
 
 	return &JobLeaseService{
-		clusterContext: clusterContext,
-		queueClient:    queueClient}
+		clusterContext:  clusterContext,
+		queueClient:     queueClient,
+		minimumPodAge:   minimumPodAge,
+		failedPodExpiry: failedPodExpiry}
 }
 
 func (jobLeaseService *JobLeaseService) RequestJobLeases(availableResource *common.ComputeResources, availableLabels []map[string]string) ([]*api.Job, error) {
@@ -69,22 +78,29 @@ func (jobLeaseService *JobLeaseService) ReturnLease(pod *v1.Pod) error {
 }
 
 func (jobLeaseService *JobLeaseService) ManageJobLeases() {
-	podsToRenew, err := jobLeaseService.clusterContext.GetBatchPods()
+	batchPods, err := jobLeaseService.clusterContext.GetBatchPods()
 	if err != nil {
 		log.Errorf("Failed to manage job leases due to %s", err)
 		return
 	}
 
-	podsToCleanup := getFinishedPods(podsToRenew)
-
-	jobLeaseService.renewJobLeases(podsToRenew)
-
-	err = jobLeaseService.ReportDone(podsToCleanup)
-	if err != nil {
-		log.Errorf("Failed reporting jobs as done because %s", err)
-		return
+	podsToRenew := util.FilterPods(batchPods, shouldBeRenewed)
+	chunkedPods := chunkPods(podsToRenew, maxPodRequestSize)
+	for _, chunk := range chunkedPods {
+		jobLeaseService.renewJobLeases(chunk)
 	}
 
+	podsForReporting := util.FilterPods(batchPods, shouldBeReportedDone)
+	chunkedPodsToReportDone := chunkPods(podsForReporting, maxPodRequestSize)
+	for _, chunk := range chunkedPodsToReportDone {
+		err = jobLeaseService.ReportDone(chunk)
+		if err != nil {
+			log.Errorf("Failed reporting jobs as done because %s", err)
+			return
+		}
+	}
+
+	podsToCleanup := util.FilterPods(batchPods, jobLeaseService.canBeRemoved)
 	jobLeaseService.clusterContext.DeletePods(podsToCleanup)
 }
 
@@ -99,6 +115,7 @@ func (jobLeaseService *JobLeaseService) ReportDone(pods []*v1.Pod) error {
 	log.Infof("Reporting done for jobs %s", strings.Join(jobIds, ","))
 	_, err := jobLeaseService.queueClient.ReportDone(ctx, &api.IdList{Ids: jobIds})
 
+	jobLeaseService.markAsDone(pods)
 	return err
 }
 
@@ -128,16 +145,49 @@ func (jobLeaseService *JobLeaseService) renewJobLeases(pods []*v1.Pod) {
 	}
 }
 
-func getFinishedPods(pods []*v1.Pod) []*v1.Pod {
-	finishedPods := make([]*v1.Pod, 0)
-
+func (jobLeaseService *JobLeaseService) markAsDone(pods []*v1.Pod) {
 	for _, pod := range pods {
-		if isPodReadyForCleanup(pod) {
-			finishedPods = append(finishedPods, pod)
+		err := jobLeaseService.clusterContext.AddAnnotation(pod, map[string]string{
+			jobDoneAnnotation: time.Now().String(),
+		})
+		if err != nil {
+			log.Warnf("Failed to annotate pod as done: %v", err)
 		}
 	}
+}
 
-	return finishedPods
+func shouldBeRenewed(pod *v1.Pod) bool {
+	return !isReportedDone(pod)
+}
+
+func shouldBeReportedDone(pod *v1.Pod) bool {
+	return util.IsInTerminalState(pod) && !isReportedDone(pod)
+}
+
+func (jobLeaseService *JobLeaseService) canBeRemoved(pod *v1.Pod) bool {
+	if !util.IsInTerminalState(pod) ||
+		!isReportedDone(pod) ||
+		!reporter.HasCurrentStateBeenReported(pod) {
+		return false
+	}
+
+	lastContainerStart := util.FindLastContainerStartTime(pod)
+	if lastContainerStart.Add(jobLeaseService.minimumPodAge).After(time.Now()) {
+		return false
+	}
+
+	if pod.Status.Phase == v1.PodFailed {
+		lastChange, err := util.LastStatusChange(pod)
+		if err == nil && lastChange.Add(jobLeaseService.failedPodExpiry).After(time.Now()) {
+			return false
+		}
+	}
+	return true
+}
+
+func isReportedDone(pod *v1.Pod) bool {
+	_, exists := pod.Annotations[jobDoneAnnotation]
+	return exists
 }
 
 func filterPodsByJobId(pods []*v1.Pod, ids []string) []*v1.Pod {
@@ -151,9 +201,14 @@ func filterPodsByJobId(pods []*v1.Pod, ids []string) []*v1.Pod {
 	return filteredPods
 }
 
-func isPodReadyForCleanup(pod *v1.Pod) bool {
-	if util.IsInTerminalState(pod) && reporter.HasCurrentStateBeenReported(pod) {
-		return true
+func chunkPods(pods []*v1.Pod, size int) [][]*v1.Pod {
+	chunks := [][]*v1.Pod{}
+	for start := 0; start < len(pods); start += size {
+		end := start + size
+		if end > len(pods) {
+			end = len(pods)
+		}
+		chunks = append(chunks, pods[start:end])
 	}
-	return false
+	return chunks
 }

@@ -7,10 +7,10 @@ import (
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
 
-	"github.com/G-Research/armada/internal/armada/api"
-	"github.com/G-Research/armada/internal/client"
-	"github.com/G-Research/armada/internal/client/util"
-	"github.com/G-Research/armada/internal/client/validation"
+	"github.com/G-Research/armada/pkg/api"
+	"github.com/G-Research/armada/pkg/client"
+	"github.com/G-Research/armada/pkg/client/util"
+	"github.com/G-Research/armada/pkg/client/validation"
 )
 
 func init() {
@@ -66,7 +66,7 @@ var submitCmd = &cobra.Command{
 
 		requests := client.CreateChunkedSubmitRequests(submitFile.Queue, submitFile.JobSetId, submitFile.Jobs)
 
-		util.WithConnection(apiConnectionDetails, func(conn *grpc.ClientConn) {
+		client.WithConnection(apiConnectionDetails, func(conn *grpc.ClientConn) {
 			submissionClient := api.NewSubmitClient(conn)
 			for _, request := range requests {
 				response, e := client.SubmitJobs(submissionClient, request)

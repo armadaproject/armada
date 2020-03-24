@@ -1,6 +1,7 @@
 ingressClass: "nginx"
 clusterIssuer: "dummy-value"
-hostname: "dummy-value"
+hostnames:
+  - "dummy-value"
 replicas: 3
 
 applicationConfig:

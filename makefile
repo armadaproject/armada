@@ -43,11 +43,15 @@ build-docker-executor:
 	$(gobuildlinux) -o ./bin/linux/executor cmd/executor/main.go
 	docker build $(dockerFlags) -t armada-executor -f ./build/executor/Dockerfile .
 
+build-docker-armadactl:
+	$(gobuildlinux) -o ./bin/linux/armadactl cmd/armadactl/main.go
+	docker build $(dockerFlags) -t armadactl -f ./build/armadactl/Dockerfile .
+
 build-docker-fakeexecutor:
 	$(gobuildlinux) -o ./bin/linux/fakeexecutor cmd/fakeexecutor/main.go
 	docker build $(dockerFlags) -t armada-fakeexecutor -f ./build/fakeexecutor/Dockerfile .
 
-build-docker: build-docker-server build-docker-executor build-docker-fakeexecutor
+build-docker: build-docker-server build-docker-executor build-docker-armadactl build-docker-fakeexecutor
 
 build-ci: gobuild=$(gobuildlinux)
 build-ci: build-docker build-armadactl build-load-tester
@@ -72,12 +76,13 @@ e2e-stop-cluster:
 	docker rm kube
 
 .ONESHELL:
-tests-e2e: build-docker e2e-start-cluster
+tests-e2e: e2e-start-cluster build-docker
 	docker run -d --name redis -p=6379:6379 redis
 	docker run -d --name server --network=host -p=50051:50051 armada
 	docker run -d --name executor --network=host -v $(shell pwd)/.kube/config:/kube/config \
 		-e KUBECONFIG=/kube/config \
 		-e ARMADA_KUBERNETES_IMPERSONATEUSERS=true \
+		-e ARMADA_KUBERNETES_STUCKPODEXPIRY=15s \
 		armada-executor
 	function tearDown {
 		echo -e "\nexecutor logs:"

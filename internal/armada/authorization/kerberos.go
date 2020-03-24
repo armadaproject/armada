@@ -5,23 +5,24 @@ import (
 	"encoding/base64"
 
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
+	"github.com/jcmturner/gokrb5/v8/credentials"
+	"github.com/jcmturner/gokrb5/v8/gssapi"
+	"github.com/jcmturner/gokrb5/v8/keytab"
+	"github.com/jcmturner/gokrb5/v8/service"
+	"github.com/jcmturner/gokrb5/v8/spnego"
+	"github.com/jcmturner/gokrb5/v8/types"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
-	"gopkg.in/jcmturner/goidentity.v3"
-	"gopkg.in/jcmturner/gokrb5.v7/credentials"
-	"gopkg.in/jcmturner/gokrb5.v7/gssapi"
-	"gopkg.in/jcmturner/gokrb5.v7/keytab"
-	"gopkg.in/jcmturner/gokrb5.v7/service"
-	"gopkg.in/jcmturner/gokrb5.v7/spnego"
-	"gopkg.in/jcmturner/gokrb5.v7/types"
 
 	"github.com/G-Research/armada/internal/armada/configuration"
 )
 
+// Partly reimplementing github.com/jcmturner/gokrb5/v8/spnego/http.go for GRPC
+// Copying constants as they are private
 const (
 	// spnegoNegTokenRespKRBAcceptCompleted - The response on successful authentication always has this header. Capturing as const so we don't have marshaling and encoding overhead.
 	spnegoNegTokenRespKRBAcceptCompleted = "Negotiate oRQwEqADCgEAoQsGCSqGSIb3EgECAg=="
@@ -29,6 +30,8 @@ const (
 	spnegoNegTokenRespReject = "Negotiate oQcwBaADCgEC"
 	// spnegoNegTokenRespIncompleteKRB5 - Response token specifying incomplete context and KRB5 as the supported mechtype.
 	spnegoNegTokenRespIncompleteKRB5 = "Negotiate oRQwEqADCgEBoQsGCSqGSIb3EgECAg=="
+	// ctxCredentials is the SPNEGO context key holding the credentials jcmturner/goidentity/Identity object.
+	ctxCredentials = "github.com/jcmturner/gokrb5/v8/ctxCredentials"
 )
 
 type KerberosAuthService struct {
@@ -65,14 +68,14 @@ func (authService *KerberosAuthService) Authenticate(ctx context.Context) (Princ
 
 	tokenData, err := base64.StdEncoding.DecodeString(encodedToken)
 	if err != nil {
-		log.Error("SPNEGO invalid token")
+		log.Errorf("SPNEGO invalid token, could not decode: %v", err)
 		return nil, status.Errorf(codes.Unauthenticated, "SPNEGO invalid token")
 	}
 
 	var token spnego.SPNEGOToken
 	err = token.Unmarshal(tokenData)
 	if err != nil {
-		log.Error("SPNEGO invalid token")
+		log.Errorf("SPNEGO invalid token, could not unmarshal : %v", err)
 		return nil, status.Errorf(codes.Unauthenticated, "SPNEGO invalid token")
 	}
 
@@ -97,7 +100,7 @@ func (authService *KerberosAuthService) Authenticate(ctx context.Context) (Princ
 		return nil, status.Errorf(codes.Unauthenticated, "SPNEGO GSS-API continue needed")
 	}
 	if authenticated {
-		id := ctx.Value(spnego.CTXKeyCredentials).(goidentity.Identity)
+		id := ctx.Value(ctxCredentials).(*credentials.Credentials)
 		if adCredentials, ok := id.Attributes()[credentials.AttributeKeyADCredentials].(credentials.ADCredentials); ok {
 			user := adCredentials.EffectiveName + authService.userNameSuffix
 			groups := adCredentials.GroupMembershipSIDs

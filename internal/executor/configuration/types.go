@@ -3,7 +3,7 @@ package configuration
 import (
 	"time"
 
-	"github.com/G-Research/armada/internal/common/client"
+	"github.com/G-Research/armada/pkg/client"
 )
 
 type ApplicationConfiguration struct {
@@ -13,6 +13,9 @@ type ApplicationConfiguration struct {
 type KubernetesConfiguration struct {
 	ImpersonateUsers  bool
 	TrackedNodeLabels []string
+	MinimumPodAge     time.Duration
+	FailedPodExpiry   time.Duration
+	StuckPodExpiry    time.Duration
 }
 
 type TaskConfiguration struct {
@@ -23,10 +26,16 @@ type TaskConfiguration struct {
 	StuckPodScanInterval                  time.Duration
 	PodDeletionInterval                   time.Duration
 	PodMetricsInterval                    time.Duration
+	QueueUsageDataRefreshInterval         time.Duration
+}
+
+type MetricConfiguration struct {
+	Port                    uint16
+	ExposeQueueUsageMetrics bool
 }
 
 type ExecutorConfiguration struct {
-	MetricsPort   uint16
+	Metric        MetricConfiguration
 	Application   ApplicationConfiguration
 	ApiConnection client.ApiConnectionDetails
 

@@ -31,7 +31,7 @@ func main() {
 	shutdownChannel := make(chan os.Signal, 1)
 	signal.Notify(shutdownChannel, syscall.SIGINT, syscall.SIGTERM)
 
-	shutdownMetricServer := common.ServeMetrics(config.MetricsPort)
+	shutdownMetricServer := common.ServeMetrics(config.Metric.Port)
 	defer shutdownMetricServer()
 
 	shutdown, wg := executor.StartUp(config)

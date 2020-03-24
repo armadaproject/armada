@@ -8,12 +8,12 @@ import (
 
 	"github.com/go-openapi/runtime/middleware"
 	gwruntime "github.com/grpc-ecosystem/grpc-gateway/runtime"
+	"github.com/jcmturner/gokrb5/v8/spnego"
 	"google.golang.org/grpc"
-	"gopkg.in/jcmturner/gokrb5.v7/spnego"
 
-	"github.com/G-Research/armada/internal/armada/api"
 	protoutil "github.com/G-Research/armada/internal/armada/protoutils"
 	"github.com/G-Research/armada/internal/common"
+	"github.com/G-Research/armada/pkg/api"
 )
 
 func ServeGateway(port uint16, grpcPort uint16) (shutdown func()) {

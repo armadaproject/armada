@@ -4,9 +4,9 @@ import (
 	"math"
 	"time"
 
-	"github.com/G-Research/armada/internal/armada/api"
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/internal/common/util"
+	"github.com/G-Research/armada/pkg/api"
 )
 
 const minPriority = 0.5
@@ -14,14 +14,6 @@ const minPriority = 0.5
 type QueuePriorityInfo struct {
 	Priority     float64
 	CurrentUsage common.ComputeResources
-}
-
-func GetPriorityMapQueues(priorities map[*api.Queue]QueuePriorityInfo) []*api.Queue {
-	queues := []*api.Queue{}
-	for queue := range priorities {
-		queues = append(queues, queue)
-	}
-	return queues
 }
 
 func CalculateQueuesPriorityInfo(clusterPriorities map[string]map[string]float64, activeClusterReports map[string]*api.ClusterUsageReport, queues []*api.Queue) map[*api.Queue]QueuePriorityInfo {
@@ -89,7 +81,7 @@ func aggregateQueueUsage(reports map[string]*api.ClusterUsageReport) map[string]
 		for _, queueReport := range report.Queues {
 			current, ok := result[queueReport.Name]
 			if !ok {
-				result[queueReport.Name] = queueReport.Resources
+				result[queueReport.Name] = common.ComputeResources(queueReport.Resources).DeepCopy()
 			} else {
 				current.Add(queueReport.Resources)
 			}

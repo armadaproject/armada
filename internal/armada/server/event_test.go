@@ -3,17 +3,19 @@ package server
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/go-redis/redis"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
 
-	"github.com/G-Research/armada/internal/armada/api"
+	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/G-Research/armada/internal/armada/repository"
+	"github.com/G-Research/armada/pkg/api"
 )
 
 func TestEventServer_ReportUsage(t *testing.T) {
-	withEventServer(func(s *EventServer) {
+	withEventServer(configuration.EventRetentionPolicy{ExpiryEnabled: false}, func(s *EventServer) {
 
 		jobSetId := "set1"
 		stream := &eventStreamMock{}
@@ -45,10 +47,30 @@ func TestEventServer_ReportUsage(t *testing.T) {
 }
 
 func TestEventServer_GetJobSetEvents_EmptyStreamShouldNotFail(t *testing.T) {
-	withEventServer(func(s *EventServer) {
+	withEventServer(configuration.EventRetentionPolicy{ExpiryEnabled: false}, func(s *EventServer) {
 
 		stream := &eventStreamMock{}
 		e := s.GetJobSetEvents(&api.JobSetRequest{Id: "test", Watch: false}, stream)
+		assert.Nil(t, e)
+		assert.Equal(t, 0, len(stream.sendMessages))
+	})
+}
+
+func TestEventServer_EventsShouldBeRemovedAfterEventRetentionTime(t *testing.T) {
+	eventRetention := configuration.EventRetentionPolicy{ExpiryEnabled: true, RetentionDuration: time.Second * 2}
+	withEventServer(eventRetention, func(s *EventServer) {
+		jobSetId := "set1"
+		stream := &eventStreamMock{}
+		reportEvent(t, s, &api.JobSubmittedEvent{JobSetId: jobSetId})
+
+		e := s.GetJobSetEvents(&api.JobSetRequest{Id: jobSetId, Watch: false}, stream)
+		assert.Nil(t, e)
+		assert.Equal(t, 1, len(stream.sendMessages))
+
+		time.Sleep(eventRetention.RetentionDuration + time.Millisecond*100)
+
+		stream = &eventStreamMock{}
+		e = s.GetJobSetEvents(&api.JobSetRequest{Id: jobSetId, Watch: false}, stream)
 		assert.Nil(t, e)
 		assert.Equal(t, 0, len(stream.sendMessages))
 	})
@@ -60,12 +82,12 @@ func reportEvent(t *testing.T, s *EventServer, event api.Event) {
 	assert.Nil(t, e)
 }
 
-func withEventServer(action func(s *EventServer)) {
+func withEventServer(eventRetention configuration.EventRetentionPolicy, action func(s *EventServer)) {
 
 	// using real redis instance as miniredis does not support streams
 	client := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 10})
 
-	repo := repository.NewRedisEventRepository(client)
+	repo := repository.NewRedisEventRepository(client, eventRetention)
 	server := NewEventServer(&fakePermissionChecker{}, repo)
 
 	client.FlushDB()

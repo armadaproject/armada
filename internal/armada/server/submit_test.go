@@ -12,9 +12,10 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/G-Research/armada/internal/armada/api"
+	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/G-Research/armada/internal/armada/repository"
 	"github.com/G-Research/armada/internal/common/util"
+	"github.com/G-Research/armada/pkg/api"
 )
 
 func TestSubmitServer_SubmitJob(t *testing.T) {
@@ -37,7 +38,7 @@ func TestSubmitServer_SubmitJob_AddsExpectedEventsInCorrectOrder(t *testing.T) {
 		_, err := s.SubmitJobs(context.Background(), jobRequest)
 		assert.Empty(t, err)
 
-		messages, err := s.eventRepository.ReadEvents(jobSetId, "", 100, 5*time.Second)
+		messages, err := s.eventRepository.ReadEvents("test", jobSetId, "", 100, 5*time.Second)
 
 		assert.Empty(t, err)
 		assert.Equal(t, len(messages), 2)
@@ -133,7 +134,7 @@ func withSubmitServer(action func(s *SubmitServer)) {
 
 	jobRepo := repository.NewRedisJobRepository(client)
 	queueRepo := repository.NewRedisQueueRepository(client)
-	eventRepo := repository.NewRedisEventRepository(client)
+	eventRepo := repository.NewRedisEventRepository(client, configuration.EventRetentionPolicy{ExpiryEnabled: false})
 	server := NewSubmitServer(&fakePermissionChecker{}, jobRepo, queueRepo, eventRepo)
 
 	err := queueRepo.CreateQueue(&api.Queue{Name: "test"})

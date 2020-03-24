@@ -43,17 +43,17 @@ go run ./cmd/armada/main.go
 ```
 5. Start executor for demoA in a new terminal
 ```bash
-KUBECONFIG=$(kind get kubeconfig-path --name="demoA") ARMADA_APPLICATION_CLUSTERID=demoA ARMADA_METRICSPORT=9001 go run ./cmd/executor/main.go
+KUBECONFIG=$(kind get kubeconfig-path --name="demoA") ARMADA_APPLICATION_CLUSTERID=demoA ARMADA_METRIC_PORT=9001 go run ./cmd/executor/main.go
 ```
 6. Start executor for demoB in a new terminal
 ```bash
-KUBECONFIG=$(kind get kubeconfig-path --name="demoB") ARMADA_APPLICATION_CLUSTERID=demoB ARMADA_METRICSPORT=9002 go run ./cmd/executor/main.go
+KUBECONFIG=$(kind get kubeconfig-path --name="demoB") ARMADA_APPLICATION_CLUSTERID=demoB ARMADA_METRIC_PORT=9002 go run ./cmd/executor/main.go
 ```
 7. Create queue & Submit job
 ```bash
 go run ./cmd/armadactl/main.go create-queue test --priorityFactor 1
 go run ./cmd/armadactl/main.go submit ./example/jobs.yaml
-go run ./cmd/armadactl/main.go watch job-set-1
+go run ./cmd/armadactl/main.go watch test job-set-1
 ```
 
 For more details on submitting jobs to Armada, see [here](usage.md#submitting-jobs).

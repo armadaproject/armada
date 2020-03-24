@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/G-Research/armada/internal/armada/api"
 	"github.com/G-Research/armada/internal/armada/authorization"
+	"github.com/G-Research/armada/pkg/api"
 )
 
 func TestJobCanBeLeasedOnlyOnce(t *testing.T) {
@@ -209,6 +209,22 @@ func TestGetActiveJobIds(t *testing.T) {
 		ids, e := r.GetActiveJobIds("queue1", "set1")
 		assert.Nil(t, e)
 		assert.Equal(t, 2, len(ids))
+	})
+}
+
+func TestGetQueueActiveJobSets(t *testing.T) {
+	withRepository(func(r *RedisJobRepository) {
+		addTestJob(t, r, "queue1")
+		addLeasedJob(t, r, "queue1", "cluster1")
+		addTestJob(t, r, "queue2")
+
+		infos, e := r.GetQueueActiveJobSets("queue1")
+		assert.Nil(t, e)
+		assert.Equal(t, []*api.JobSetInfo{{
+			Name:       "set1",
+			QueuedJobs: 1,
+			LeasedJobs: 1,
+		}}, infos)
 	})
 }
 

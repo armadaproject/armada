@@ -48,21 +48,25 @@ namespace GResearch.Armada.Client
     
         /// <returns>A successful response.(streaming responses)</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        protected System.Threading.Tasks.Task<FileResponse> GetJobSetEventsCoreAsync(string id, ApiJobSetRequest body)
+        protected System.Threading.Tasks.Task<FileResponse> GetJobSetEventsCoreAsync(string queue, string id, ApiJobSetRequest body)
         {
-            return GetJobSetEventsCoreAsync(id, body, System.Threading.CancellationToken.None);
+            return GetJobSetEventsCoreAsync(queue, id, body, System.Threading.CancellationToken.None);
         }
     
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <returns>A successful response.(streaming responses)</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        protected async System.Threading.Tasks.Task<FileResponse> GetJobSetEventsCoreAsync(string id, ApiJobSetRequest body, System.Threading.CancellationToken cancellationToken)
+        protected async System.Threading.Tasks.Task<FileResponse> GetJobSetEventsCoreAsync(string queue, string id, ApiJobSetRequest body, System.Threading.CancellationToken cancellationToken)
         {
+            if (queue == null)
+                throw new System.ArgumentNullException("queue");
+    
             if (id == null)
                 throw new System.ArgumentNullException("id");
     
             var urlBuilder_ = new System.Text.StringBuilder();
-            urlBuilder_.Append(BaseUrl != null ? BaseUrl.TrimEnd('/') : "").Append("/v1/job-set/{Id}");
+            urlBuilder_.Append(BaseUrl != null ? BaseUrl.TrimEnd('/') : "").Append("/v1/job-set/{Queue}/{Id}");
+            urlBuilder_.Replace("{Queue}", System.Uri.EscapeDataString(ConvertToString(queue, System.Globalization.CultureInfo.InvariantCulture)));
             urlBuilder_.Replace("{Id}", System.Uri.EscapeDataString(ConvertToString(id, System.Globalization.CultureInfo.InvariantCulture)));
     
             var client_ = _httpClient;
@@ -249,6 +253,77 @@ namespace GResearch.Armada.Client
                         }
             
                         return default(ApiJobSubmitResponse);
+                    }
+                    finally
+                    {
+                        if (response_ != null)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+            }
+        }
+    
+        /// <returns>A successful response.</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public System.Threading.Tasks.Task<ApiQueueInfo> GetQueueInfoAsync(string name)
+        {
+            return GetQueueInfoAsync(name, System.Threading.CancellationToken.None);
+        }
+    
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>A successful response.</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public async System.Threading.Tasks.Task<ApiQueueInfo> GetQueueInfoAsync(string name, System.Threading.CancellationToken cancellationToken)
+        {
+            if (name == null)
+                throw new System.ArgumentNullException("name");
+    
+            var urlBuilder_ = new System.Text.StringBuilder();
+            urlBuilder_.Append(BaseUrl != null ? BaseUrl.TrimEnd('/') : "").Append("/v1/queue/{Name}");
+            urlBuilder_.Replace("{Name}", System.Uri.EscapeDataString(ConvertToString(name, System.Globalization.CultureInfo.InvariantCulture)));
+    
+            var client_ = _httpClient;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    request_.Method = new System.Net.Http.HttpMethod("GET");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
+    
+                    PrepareRequest(client_, request_, urlBuilder_);
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+                    PrepareRequest(client_, request_, url_);
+    
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    try
+                    {
+                        var headers_ = System.Linq.Enumerable.ToDictionary(response_.Headers, h_ => h_.Key, h_ => h_.Value);
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+    
+                        ProcessResponse(client_, response_);
+    
+                        var status_ = ((int)response_.StatusCode).ToString();
+                        if (status_ == "200") 
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<ApiQueueInfo>(response_, headers_).ConfigureAwait(false);
+                            return objectResponse_.Object;
+                        }
+                        else
+                        if (status_ != "200" && status_ != "204")
+                        {
+                            var responseData_ = response_.Content == null ? null : await response_.Content.ReadAsStringAsync().ConfigureAwait(false); 
+                            throw new ApiException("The HTTP status code of the response was not expected (" + (int)response_.StatusCode + ").", (int)response_.StatusCode, responseData_, headers_, null);
+                        }
+            
+                        return default(ApiQueueInfo);
                     }
                     finally
                     {
@@ -757,6 +832,21 @@ namespace GResearch.Armada.Client
     }
     
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
+    public partial class ApiJobSetInfo 
+    {
+        [Newtonsoft.Json.JsonProperty("LeasedJobs", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public int? LeasedJobs { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("Name", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Name { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("QueuedJobs", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public int? QueuedJobs { get; set; }
+    
+    
+    }
+    
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class ApiJobSetRequest 
     {
         [Newtonsoft.Json.JsonProperty("FromMessageId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
@@ -764,6 +854,9 @@ namespace GResearch.Armada.Client
     
         [Newtonsoft.Json.JsonProperty("Id", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Id { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("Queue", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Queue { get; set; }
     
         [Newtonsoft.Json.JsonProperty("Watch", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public bool? Watch { get; set; }
@@ -932,6 +1025,18 @@ namespace GResearch.Armada.Client
     
         [Newtonsoft.Json.JsonProperty("UserOwners", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.ICollection<string> UserOwners { get; set; }
+    
+    
+    }
+    
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
+    public partial class ApiQueueInfo 
+    {
+        [Newtonsoft.Json.JsonProperty("ActiveJobSets", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<ApiJobSetInfo> ActiveJobSets { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("Name", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Name { get; set; }
     
     
     }
@@ -1150,7 +1255,7 @@ namespace GResearch.Armada.Client
     public partial class V1CephFSVolumeSource 
     {
         /// <summary>Required: Monitors is a collection of Ceph monitors
-        /// More info: https://releases.k8s.io/HEAD/examples/volumes/cephfs/README.md#how-to-use-it</summary>
+        /// More info: https://examples.k8s.io/volumes/cephfs/README.md#how-to-use-it</summary>
         [Newtonsoft.Json.JsonProperty("monitors", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.ICollection<string> Monitors { get; set; }
     
@@ -1161,13 +1266,13 @@ namespace GResearch.Armada.Client
     
         /// <summary>Optional: Defaults to false (read/write). ReadOnly here will force
         /// the ReadOnly setting in VolumeMounts.
-        /// More info: https://releases.k8s.io/HEAD/examples/volumes/cephfs/README.md#how-to-use-it
+        /// More info: https://examples.k8s.io/volumes/cephfs/README.md#how-to-use-it
         /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("readOnly", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public bool? ReadOnly { get; set; }
     
         /// <summary>Optional: SecretFile is the path to key ring for User, default is /etc/ceph/user.secret
-        /// More info: https://releases.k8s.io/HEAD/examples/volumes/cephfs/README.md#how-to-use-it
+        /// More info: https://examples.k8s.io/volumes/cephfs/README.md#how-to-use-it
         /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("secretFile", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string SecretFile { get; set; }
@@ -1176,7 +1281,7 @@ namespace GResearch.Armada.Client
         public V1LocalObjectReference SecretRef { get; set; }
     
         /// <summary>Optional: User is the rados user name, default is admin
-        /// More info: https://releases.k8s.io/HEAD/examples/volumes/cephfs/README.md#how-to-use-it
+        /// More info: https://examples.k8s.io/volumes/cephfs/README.md#how-to-use-it
         /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("user", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string User { get; set; }
@@ -1193,14 +1298,14 @@ namespace GResearch.Armada.Client
         /// <summary>Filesystem type to mount.
         /// Must be a filesystem type supported by the host operating system.
         /// Examples: "ext4", "xfs", "ntfs". Implicitly inferred to be "ext4" if unspecified.
-        /// More info: https://releases.k8s.io/HEAD/examples/mysql-cinder-pd/README.md
+        /// More info: https://examples.k8s.io/mysql-cinder-pd/README.md
         /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("fsType", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string FsType { get; set; }
     
         /// <summary>Optional: Defaults to false (read/write). ReadOnly here will force
         /// the ReadOnly setting in VolumeMounts.
-        /// More info: https://releases.k8s.io/HEAD/examples/mysql-cinder-pd/README.md
+        /// More info: https://examples.k8s.io/mysql-cinder-pd/README.md
         /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("readOnly", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public bool? ReadOnly { get; set; }
@@ -1208,8 +1313,8 @@ namespace GResearch.Armada.Client
         [Newtonsoft.Json.JsonProperty("secretRef", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public V1LocalObjectReference SecretRef { get; set; }
     
-        /// <summary>volume id used to identify the volume in cinder
-        /// More info: https://releases.k8s.io/HEAD/examples/mysql-cinder-pd/README.md</summary>
+        /// <summary>volume id used to identify the volume in cinder.
+        /// More info: https://examples.k8s.io/mysql-cinder-pd/README.md</summary>
         [Newtonsoft.Json.JsonProperty("volumeID", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string VolumeID { get; set; }
     
@@ -1426,6 +1531,9 @@ namespace GResearch.Armada.Client
     
         [Newtonsoft.Json.JsonProperty("securityContext", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public V1SecurityContext SecurityContext { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("startupProbe", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1Probe StartupProbe { get; set; }
     
         /// <summary>Whether this container should allocate a buffer for stdin in the container runtime. If this
         /// is not set, reads from stdin in the container will always result in EOF.
@@ -1659,6 +1767,168 @@ namespace GResearch.Armada.Client
     
     }
     
+    /// <summary>An EphemeralContainer is a container that may be added temporarily to an existing pod for
+    /// user-initiated activities such as debugging. Ephemeral containers have no resource or
+    /// scheduling guarantees, and they will not be restarted when they exit or when a pod is
+    /// removed or restarted. If an ephemeral container causes a pod to exceed its resource
+    /// allocation, the pod may be evicted.
+    /// Ephemeral containers may not be added by directly updating the pod spec. They must be added
+    /// via the pod's ephemeralcontainers subresource, and they will appear in the pod spec
+    /// once added.
+    /// This is an alpha feature enabled by the EphemeralContainers feature flag.</summary>
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
+    public partial class V1EphemeralContainer 
+    {
+        /// <summary>Arguments to the entrypoint.
+        /// The docker image's CMD is used if this is not provided.
+        /// Variable references $(VAR_NAME) are expanded using the container's environment. If a variable
+        /// cannot be resolved, the reference in the input string will be unchanged. The $(VAR_NAME) syntax
+        /// can be escaped with a double $$, ie: $$(VAR_NAME). Escaped references will never be expanded,
+        /// regardless of whether the variable exists or not.
+        /// Cannot be updated.
+        /// More info: https://kubernetes.io/docs/tasks/inject-data-application/define-command-argument-container/#running-a-command-in-a-shell
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("args", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<string> Args { get; set; }
+    
+        /// <summary>Entrypoint array. Not executed within a shell.
+        /// The docker image's ENTRYPOINT is used if this is not provided.
+        /// Variable references $(VAR_NAME) are expanded using the container's environment. If a variable
+        /// cannot be resolved, the reference in the input string will be unchanged. The $(VAR_NAME) syntax
+        /// can be escaped with a double $$, ie: $$(VAR_NAME). Escaped references will never be expanded,
+        /// regardless of whether the variable exists or not.
+        /// Cannot be updated.
+        /// More info: https://kubernetes.io/docs/tasks/inject-data-application/define-command-argument-container/#running-a-command-in-a-shell
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("command", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<string> Command { get; set; }
+    
+        /// <summary>List of environment variables to set in the container.
+        /// Cannot be updated.
+        /// +optional
+        /// +patchMergeKey=name
+        /// +patchStrategy=merge</summary>
+        [Newtonsoft.Json.JsonProperty("env", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<V1EnvVar> Env { get; set; }
+    
+        /// <summary>List of sources to populate environment variables in the container.
+        /// The keys defined within a source must be a C_IDENTIFIER. All invalid keys
+        /// will be reported as an event when the container is starting. When a key exists in multiple
+        /// sources, the value associated with the last source will take precedence.
+        /// Values defined by an Env with a duplicate key will take precedence.
+        /// Cannot be updated.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("envFrom", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<V1EnvFromSource> EnvFrom { get; set; }
+    
+        /// <summary>Docker image name.
+        /// More info: https://kubernetes.io/docs/concepts/containers/images</summary>
+        [Newtonsoft.Json.JsonProperty("image", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Image { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("imagePullPolicy", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string ImagePullPolicy { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("lifecycle", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1Lifecycle Lifecycle { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("livenessProbe", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1Probe LivenessProbe { get; set; }
+    
+        /// <summary>Name of the ephemeral container specified as a DNS_LABEL.
+        /// This name must be unique among all containers, init containers and ephemeral containers.</summary>
+        [Newtonsoft.Json.JsonProperty("name", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Name { get; set; }
+    
+        /// <summary>Ports are not allowed for ephemeral containers.</summary>
+        [Newtonsoft.Json.JsonProperty("ports", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<V1ContainerPort> Ports { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("readinessProbe", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1Probe ReadinessProbe { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("resources", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1ResourceRequirements Resources { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("securityContext", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1SecurityContext SecurityContext { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("startupProbe", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1Probe StartupProbe { get; set; }
+    
+        /// <summary>Whether this container should allocate a buffer for stdin in the container runtime. If this
+        /// is not set, reads from stdin in the container will always result in EOF.
+        /// Default is false.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("stdin", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public bool? Stdin { get; set; }
+    
+        /// <summary>Whether the container runtime should close the stdin channel after it has been opened by
+        /// a single attach. When stdin is true the stdin stream will remain open across multiple attach
+        /// sessions. If stdinOnce is set to true, stdin is opened on container start, is empty until the
+        /// first client attaches to stdin, and then remains open and accepts data until the client disconnects,
+        /// at which time stdin is closed and remains closed until the container is restarted. If this
+        /// flag is false, a container processes that reads from stdin will never receive an EOF.
+        /// Default is false
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("stdinOnce", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public bool? StdinOnce { get; set; }
+    
+        /// <summary>If set, the name of the container from PodSpec that this ephemeral container targets.
+        /// The ephemeral container will be run in the namespaces (IPC, PID, etc) of this container.
+        /// If not set then the ephemeral container is run in whatever namespaces are shared
+        /// for the pod. Note that the container runtime must support this feature.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("targetContainerName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string TargetContainerName { get; set; }
+    
+        /// <summary>Optional: Path at which the file to which the container's termination message
+        /// will be written is mounted into the container's filesystem.
+        /// Message written is intended to be brief final status, such as an assertion failure message.
+        /// Will be truncated by the node if greater than 4096 bytes. The total message length across
+        /// all containers will be limited to 12kb.
+        /// Defaults to /dev/termination-log.
+        /// Cannot be updated.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("terminationMessagePath", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string TerminationMessagePath { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("terminationMessagePolicy", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string TerminationMessagePolicy { get; set; }
+    
+        /// <summary>Whether this container should allocate a TTY for itself, also requires 'stdin' to be true.
+        /// Default is false.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("tty", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public bool? Tty { get; set; }
+    
+        /// <summary>volumeDevices is the list of block devices to be used by the container.
+        /// This is a beta feature.
+        /// +patchMergeKey=devicePath
+        /// +patchStrategy=merge
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("volumeDevices", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<V1VolumeDevice> VolumeDevices { get; set; }
+    
+        /// <summary>Pod volumes to mount into the container's filesystem.
+        /// Cannot be updated.
+        /// +optional
+        /// +patchMergeKey=mountPath
+        /// +patchStrategy=merge</summary>
+        [Newtonsoft.Json.JsonProperty("volumeMounts", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<V1VolumeMount> VolumeMounts { get; set; }
+    
+        /// <summary>Container's working directory.
+        /// If not specified, the container runtime's default will be used, which
+        /// might be configured in the container image.
+        /// Cannot be updated.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("workingDir", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string WorkingDir { get; set; }
+    
+    
+    }
+    
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1ExecAction 
     {
@@ -1835,18 +2105,18 @@ namespace GResearch.Armada.Client
     public partial class V1GlusterfsVolumeSource 
     {
         /// <summary>EndpointsName is the endpoint name that details Glusterfs topology.
-        /// More info: https://releases.k8s.io/HEAD/examples/volumes/glusterfs/README.md#create-a-pod</summary>
+        /// More info: https://examples.k8s.io/volumes/glusterfs/README.md#create-a-pod</summary>
         [Newtonsoft.Json.JsonProperty("endpoints", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Endpoints { get; set; }
     
         /// <summary>Path is the Glusterfs volume path.
-        /// More info: https://releases.k8s.io/HEAD/examples/volumes/glusterfs/README.md#create-a-pod</summary>
+        /// More info: https://examples.k8s.io/volumes/glusterfs/README.md#create-a-pod</summary>
         [Newtonsoft.Json.JsonProperty("path", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Path { get; set; }
     
         /// <summary>ReadOnly here will force the Glusterfs volume to be mounted with read-only permissions.
         /// Defaults to false.
-        /// More info: https://releases.k8s.io/HEAD/examples/volumes/glusterfs/README.md#create-a-pod
+        /// More info: https://examples.k8s.io/volumes/glusterfs/README.md#create-a-pod
         /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("readOnly", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public bool? ReadOnly { get; set; }
@@ -2520,6 +2790,17 @@ namespace GResearch.Armada.Client
         [Newtonsoft.Json.JsonProperty("enableServiceLinks", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public bool? EnableServiceLinks { get; set; }
     
+        /// <summary>List of ephemeral containers run in this pod. Ephemeral containers may be run in an existing
+        /// pod to perform user-initiated actions such as debugging. This list cannot be specified when
+        /// creating a pod, and it cannot be modified by updating the pod spec. In order to add an
+        /// ephemeral container to an existing pod, use the pod's ephemeralcontainers subresource.
+        /// This field is alpha-level and is only honored by servers that enable the EphemeralContainers feature.
+        /// +optional
+        /// +patchMergeKey=name
+        /// +patchStrategy=merge</summary>
+        [Newtonsoft.Json.JsonProperty("ephemeralContainers", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<V1EphemeralContainer> EphemeralContainers { get; set; }
+    
         /// <summary>HostAliases is an optional list of hosts and IPs that will be injected into the pod's hosts
         /// file if specified. This is only valid for non-hostNetwork pods.
         /// +optional
@@ -2571,7 +2852,7 @@ namespace GResearch.Armada.Client
         /// init container fails, the pod is considered to have failed and is handled according
         /// to its restartPolicy. The name for an init container or normal container must be
         /// unique among all containers.
-        /// Init containers may not have Lifecycle actions, Readiness probes, or Liveness probes.
+        /// Init containers may not have Lifecycle actions, Readiness probes, Liveness probes, or Startup probes.
         /// The resourceRequirements of an init container are taken into account during scheduling
         /// by finding the highest request/limit for each resource type, and then using the max of
         /// of that value or the sum of the normal containers. Limits are applied to init containers
@@ -2597,6 +2878,9 @@ namespace GResearch.Armada.Client
         /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("nodeSelector", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.IDictionary<string, string> NodeSelector { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("overhead", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1ResourceList Overhead { get; set; }
     
         [Newtonsoft.Json.JsonProperty("preemptionPolicy", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string PreemptionPolicy { get; set; }
@@ -2668,7 +2952,6 @@ namespace GResearch.Armada.Client
         /// in the same pod, and the first process in each container will not be assigned PID 1.
         /// HostPID and ShareProcessNamespace cannot both be set.
         /// Optional: Default to false.
-        /// This field is beta-level and may be disabled with the PodShareProcessNamespace feature.
         /// +k8s:conversion-gen=false
         /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("shareProcessNamespace", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
@@ -2695,6 +2978,20 @@ namespace GResearch.Armada.Client
         /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("tolerations", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.ICollection<V1Toleration> Tolerations { get; set; }
+    
+        /// <summary>TopologySpreadConstraints describes how a group of pods ought to spread across topology
+        /// domains. Scheduler will schedule pods in a way which abides by the constraints.
+        /// This field is alpha-level and is only honored by clusters that enables the EvenPodsSpread
+        /// feature.
+        /// All topologySpreadConstraints are ANDed.
+        /// +optional
+        /// +patchMergeKey=topologyKey
+        /// +patchStrategy=merge
+        /// +listType=map
+        /// +listMapKey=topologyKey
+        /// +listMapKey=whenUnsatisfiable</summary>
+        [Newtonsoft.Json.JsonProperty("topologySpreadConstraints", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<V1TopologySpreadConstraint> TopologySpreadConstraints { get; set; }
     
         /// <summary>List of volumes that can be mounted by containers belonging to the pod.
         /// More info: https://kubernetes.io/docs/concepts/storage/volumes
@@ -2774,7 +3071,7 @@ namespace GResearch.Armada.Client
         public int? PeriodSeconds { get; set; }
     
         /// <summary>Minimum consecutive successes for the probe to be considered successful after having failed.
-        /// Defaults to 1. Must be 1 for liveness. Minimum value is 1.
+        /// Defaults to 1. Must be 1 for liveness and startup. Minimum value is 1.
         /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("successThreshold", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public int? SuccessThreshold { get; set; }
@@ -2867,32 +3164,32 @@ namespace GResearch.Armada.Client
         public string FsType { get; set; }
     
         /// <summary>The rados image name.
-        /// More info: https://releases.k8s.io/HEAD/examples/volumes/rbd/README.md#how-to-use-it</summary>
+        /// More info: https://examples.k8s.io/volumes/rbd/README.md#how-to-use-it</summary>
         [Newtonsoft.Json.JsonProperty("image", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Image { get; set; }
     
         /// <summary>Keyring is the path to key ring for RBDUser.
         /// Default is /etc/ceph/keyring.
-        /// More info: https://releases.k8s.io/HEAD/examples/volumes/rbd/README.md#how-to-use-it
+        /// More info: https://examples.k8s.io/volumes/rbd/README.md#how-to-use-it
         /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("keyring", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Keyring { get; set; }
     
         /// <summary>A collection of Ceph monitors.
-        /// More info: https://releases.k8s.io/HEAD/examples/volumes/rbd/README.md#how-to-use-it</summary>
+        /// More info: https://examples.k8s.io/volumes/rbd/README.md#how-to-use-it</summary>
         [Newtonsoft.Json.JsonProperty("monitors", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.ICollection<string> Monitors { get; set; }
     
         /// <summary>The rados pool name.
         /// Default is rbd.
-        /// More info: https://releases.k8s.io/HEAD/examples/volumes/rbd/README.md#how-to-use-it
+        /// More info: https://examples.k8s.io/volumes/rbd/README.md#how-to-use-it
         /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("pool", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Pool { get; set; }
     
         /// <summary>ReadOnly here will force the ReadOnly setting in VolumeMounts.
         /// Defaults to false.
-        /// More info: https://releases.k8s.io/HEAD/examples/volumes/rbd/README.md#how-to-use-it
+        /// More info: https://examples.k8s.io/volumes/rbd/README.md#how-to-use-it
         /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("readOnly", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public bool? ReadOnly { get; set; }
@@ -2902,7 +3199,7 @@ namespace GResearch.Armada.Client
     
         /// <summary>The rados user name.
         /// Default is admin.
-        /// More info: https://releases.k8s.io/HEAD/examples/volumes/rbd/README.md#how-to-use-it
+        /// More info: https://examples.k8s.io/volumes/rbd/README.md#how-to-use-it
         /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("user", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string User { get; set; }
@@ -3351,6 +3648,44 @@ namespace GResearch.Armada.Client
     }
     
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
+    public partial class V1TopologySpreadConstraint 
+    {
+        [Newtonsoft.Json.JsonProperty("labelSelector", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1LabelSelector LabelSelector { get; set; }
+    
+        /// <summary>MaxSkew describes the degree to which pods may be unevenly distributed.
+        /// It's the maximum permitted difference between the number of matching pods in
+        /// any two topology domains of a given topology type.
+        /// For example, in a 3-zone cluster, MaxSkew is set to 1, and pods with the same
+        /// labelSelector spread as 1/1/0:
+        /// +-------+-------+-------+
+        ///  zone1 | zone2 | zone3 |
+        /// +-------+-------+-------+
+        ///    P   |   P   |       |
+        /// +-------+-------+-------+
+        /// if MaxSkew is 1, incoming pod can only be scheduled to zone3 to become 1/1/1;
+        /// scheduling it onto zone1(zone2) would make the ActualSkew(2-0) on zone1(zone2)
+        /// violate MaxSkew(1).
+        /// if MaxSkew is 2, incoming pod can be scheduled onto any zone.
+        /// It's a required field. Default value is 1 and 0 is not allowed.</summary>
+        [Newtonsoft.Json.JsonProperty("maxSkew", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public int? MaxSkew { get; set; }
+    
+        /// <summary>TopologyKey is the key of node labels. Nodes that have a label with this key
+        /// and identical values are considered to be in the same topology.
+        /// We consider each &lt;key, value&gt; as a "bucket", and try to put balanced number
+        /// of pods into each bucket.
+        /// It's a required field.</summary>
+        [Newtonsoft.Json.JsonProperty("topologyKey", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string TopologyKey { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("whenUnsatisfiable", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string WhenUnsatisfiable { get; set; }
+    
+    
+    }
+    
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1Volume 
     {
         [Newtonsoft.Json.JsonProperty("awsElasticBlockStore", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
@@ -3491,7 +3826,6 @@ namespace GResearch.Armada.Client
         /// Behaves similarly to SubPath but environment variable references $(VAR_NAME) are expanded using the container's environment.
         /// Defaults to "" (volume's root).
         /// SubPathExpr and SubPath are mutually exclusive.
-        /// This field is beta in 1.15.
         /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("subPathExpr", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string SubPathExpr { get; set; }
@@ -3668,6 +4002,15 @@ namespace GResearch.Armada.Client
         /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("gmsaCredentialSpecName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string GmsaCredentialSpecName { get; set; }
+    
+        /// <summary>The UserName in Windows to run the entrypoint of the container process.
+        /// Defaults to the user specified in image metadata if unspecified.
+        /// May also be set in PodSecurityContext. If set in both SecurityContext and
+        /// PodSecurityContext, the value specified in SecurityContext takes precedence.
+        /// This field is beta-level and may be disabled with the WindowsRunAsUserName feature flag.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("runAsUserName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string RunAsUserName { get; set; }
     
     
     }

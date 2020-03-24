@@ -15,50 +15,57 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/keepalive"
 
-	"github.com/G-Research/armada/internal/armada/api"
 	"github.com/G-Research/armada/internal/armada/authorization"
 	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/G-Research/armada/internal/armada/metrics"
 	"github.com/G-Research/armada/internal/armada/repository"
+	"github.com/G-Research/armada/internal/armada/scheduling"
 	"github.com/G-Research/armada/internal/armada/server"
+	"github.com/G-Research/armada/internal/common/task"
+	"github.com/G-Research/armada/pkg/api"
 )
 
-func Serve(config *configuration.ArmadaConfig) (*grpc.Server, *sync.WaitGroup) {
+func Serve(config *configuration.ArmadaConfig) (func(), *sync.WaitGroup) {
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
 	grpcServer := createServer(config)
+
+	db := createRedisClient(&config.Redis)
+	eventsDb := createRedisClient(&config.EventsRedis)
+
+	jobRepository := repository.NewRedisJobRepository(db)
+	usageRepository := repository.NewRedisUsageRepository(db)
+	queueRepository := repository.NewRedisQueueRepository(db)
+
+	eventRepository := repository.NewRedisEventRepository(eventsDb, config.EventRetention)
+
+	permissions := authorization.NewPrincipalPermissionChecker(config.PermissionGroupMapping, config.PermissionScopeMapping)
+
+	submitServer := server.NewSubmitServer(permissions, jobRepository, queueRepository, eventRepository)
+	usageServer := server.NewUsageServer(permissions, config.PriorityHalfTime, usageRepository)
+	aggregatedQueueServer := server.NewAggregatedQueueServer(permissions, config.Scheduling, jobRepository, queueRepository, usageRepository, eventRepository)
+	eventServer := server.NewEventServer(permissions, eventRepository)
+	leaseManager := scheduling.NewLeaseManager(jobRepository, queueRepository, eventRepository, config.Scheduling.Lease.ExpireAfter)
+
+	taskManager := task.NewBackgroundTaskManager(metrics.MetricPrefix)
+	taskManager.Register(leaseManager.ExpireLeases, config.Scheduling.Lease.ExpiryLoopInterval, "lease_expiry")
+
+	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", config.GrpcPort))
+	if err != nil {
+		log.Fatalf("failed to listen: %v", err)
+	}
+
+	metrics.ExposeDataMetrics(queueRepository, jobRepository, usageRepository)
+
+	api.RegisterSubmitServer(grpcServer, submitServer)
+	api.RegisterUsageServer(grpcServer, usageServer)
+	api.RegisterAggregatedQueueServer(grpcServer, aggregatedQueueServer)
+	api.RegisterEventServer(grpcServer, eventServer)
+
+	grpc_prometheus.Register(grpcServer)
+
 	go func() {
 		defer log.Println("Stopping server.")
-
-		db := createRedisClient(&config.Redis)
-		eventsDb := createRedisClient(&config.EventsRedis)
-
-		jobRepository := repository.NewRedisJobRepository(db)
-		usageRepository := repository.NewRedisUsageRepository(db)
-		queueRepository := repository.NewRedisQueueRepository(db)
-
-		eventRepository := repository.NewRedisEventRepository(eventsDb)
-
-		metricsRecorder := metrics.ExposeDataMetrics(queueRepository, jobRepository)
-
-		permissions := authorization.NewPrincipalPermissionChecker(config.PermissionGroupMapping, config.PermissionScopeMapping)
-
-		submitServer := server.NewSubmitServer(permissions, jobRepository, queueRepository, eventRepository)
-		usageServer := server.NewUsageServer(permissions, config.PriorityHalfTime, usageRepository)
-		aggregatedQueueServer := server.NewAggregatedQueueServer(permissions, config.Scheduling, jobRepository, queueRepository, usageRepository, eventRepository, metricsRecorder)
-		eventServer := server.NewEventServer(permissions, eventRepository)
-
-		lis, err := net.Listen("tcp", fmt.Sprintf(":%d", config.GrpcPort))
-		if err != nil {
-			log.Fatalf("failed to listen: %v", err)
-		}
-
-		api.RegisterSubmitServer(grpcServer, submitServer)
-		api.RegisterUsageServer(grpcServer, usageServer)
-		api.RegisterAggregatedQueueServer(grpcServer, aggregatedQueueServer)
-		api.RegisterEventServer(grpcServer, eventServer)
-
-		grpc_prometheus.Register(grpcServer)
 
 		log.Printf("Grpc listening on %d", config.GrpcPort)
 		if err := grpcServer.Serve(lis); err != nil {
@@ -67,7 +74,11 @@ func Serve(config *configuration.ArmadaConfig) (*grpc.Server, *sync.WaitGroup) {
 
 		wg.Done()
 	}()
-	return grpcServer, wg
+
+	return func() {
+		taskManager.StopAll(time.Second * 2)
+		grpcServer.GracefulStop()
+	}, wg
 }
 
 func createRedisClient(config *redis.UniversalOptions) redis.UniversalClient {

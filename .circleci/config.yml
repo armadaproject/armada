@@ -99,6 +99,9 @@ jobs:
             docker tag armada-executor gresearchdev/armada-executor-dev:${TAG}
             docker push gresearchdev/armada-executor-dev:${TAG}
 
+            docker tag armadactl gresearchdev/armada-armadactl-dev:${TAG}
+            docker push gresearchdev/armada-armadactl-dev:${TAG}
+
             docker tag armada-fakeexecutor gresearchdev/armada-fakeexecutor-dev:${TAG}
             docker push gresearchdev/armada-fakeexecutor-dev:${TAG}
   deploy:
@@ -138,7 +141,7 @@ jobs:
       - image: circleci/golang:1.12.6
         environment:
           GO111MODULE: "on"
-    working_directory: /go/src/github.com/G-Research/k8s-batch
+    working_directory: /go/src/github.com/G-Research/armada
     steps:
       - checkout
       - setup_remote_docker
@@ -175,10 +178,14 @@ jobs:
             docker tag gresearchdev/armada-executor-dev:${TAG} gresearchdev/armada-executor:${RELEASE_TAG}
             docker push gresearchdev/armada-executor:${RELEASE_TAG}
 
+            docker pull gresearchdev/armada-armadactl-dev:${TAG}
+            docker tag gresearchdev/armada-armadactl-dev:${TAG} gresearchdev/armada-armadactl:${RELEASE_TAG}
+            docker push gresearchdev/armada-armadactl:${RELEASE_TAG}
+
   release-dotnet-client:
     docker:
       - image: mcr.microsoft.com/dotnet/core/sdk:3.0.101-alpine3.10
-    working_directory: /go/src/github.com/G-Research/k8s-batch
+    working_directory: /go/src/github.com/G-Research/armada
     steps:
       - checkout
 

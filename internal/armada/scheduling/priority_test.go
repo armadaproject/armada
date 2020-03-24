@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/G-Research/armada/internal/armada/api"
+	"github.com/G-Research/armada/pkg/api"
 )
 
 func TestPriorityService_GetQueuePriorities(t *testing.T) {
@@ -52,4 +52,21 @@ func TestPriorityService_GetQueuePriorities(t *testing.T) {
 		q4: {minPriority, nil},
 		q5: {minPriority, nil},
 	}, priorities)
+}
+
+func TestAggregateQueueUsageDoesNotChangeSourceData(t *testing.T) {
+	oneCpu := resource.MustParse("1")
+	reports := map[string]*api.ClusterUsageReport{
+		"cluster1": {Queues: []*api.QueueReport{
+			{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1")}},
+		}},
+		"cluster2": {Queues: []*api.QueueReport{
+			{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1")}},
+		}},
+	}
+	aggregateQueueUsage(reports)
+
+	for _, r := range reports {
+		assert.Equal(t, r.Queues[0].Resources["cpu"], oneCpu)
+	}
 }

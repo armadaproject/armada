@@ -13,18 +13,18 @@ import (
 
 func main() {
 
-	grpcDoc, err := loads.Spec("internal/armada/api/api.swagger.json")
+	grpcDoc, err := loads.Spec("pkg/api/api.swagger.json")
 	if err != nil {
 		panic(err)
 	}
 
-	definitionDoc, err := loads.Spec("internal/armada/api/api.swagger.definitions.json")
+	definitionDoc, err := loads.Spec("pkg/api/api.swagger.definitions.json")
 	if err != nil {
 		panic(err)
 	}
 
 	definitionsSpec := definitionDoc.Spec()
-	removeGoPackage("github.com/G-Research/armada/internal/armada/api", definitionsSpec.Definitions)
+	removeGoPackage("github.com/G-Research/armada/pkg/api", definitionsSpec.Definitions)
 	prefixTypeWithGoPackageName(definitionsSpec.Definitions)
 
 	grpcSpec := grpcDoc.Spec()
@@ -36,7 +36,7 @@ func main() {
 	resultSpec.Definitions["resourceQuantity"].Type[0] = "string"
 
 	// Hack: Easiest way to make ndjson streaming work in generated clients is to pretend the stream is actually a file
-	resultSpec.Paths.Paths["/v1/job-set/{Id}"].Post.Produces = []string{"application/ndjson-stream"}
+	resultSpec.Paths.Paths["/v1/job-set/{Queue}/{Id}"].Post.Produces = []string{"application/ndjson-stream"}
 	streamDefinitions, _ := resultSpec.Extensions["x-stream-definitions"].(map[string]interface{})
 	streamMessageType, _ := streamDefinitions["apiEventStreamMessage"].(map[string]interface{})
 	streamMessageType["type"] = "file"

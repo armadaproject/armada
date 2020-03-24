@@ -29,7 +29,8 @@ type ArmadaConfig struct {
 	PermissionGroupMapping map[permissions.Permission][]string
 	PermissionScopeMapping map[permissions.Permission][]string
 
-	Scheduling SchedulingConfig
+	Scheduling     SchedulingConfig
+	EventRetention EventRetentionPolicy
 }
 
 type OpenIdAuthenticationConfig struct {
@@ -51,5 +52,16 @@ type SchedulingConfig struct {
 	UseProbabilisticSchedulingForAllResources bool
 	QueueLeaseBatchSize                       uint
 	MinimumResourceToSchedule                 common.ComputeResourcesFloat
-	MaximalClusterFractionToSchedule          float64
+	MaximalClusterFractionToSchedule          map[string]float64
+	Lease                                     LeaseSettings
+}
+
+type EventRetentionPolicy struct {
+	ExpiryEnabled     bool
+	RetentionDuration time.Duration
+}
+
+type LeaseSettings struct {
+	ExpireAfter        time.Duration
+	ExpiryLoopInterval time.Duration
 }

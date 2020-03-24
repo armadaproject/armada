@@ -5,6 +5,7 @@ submissions:
     count: 1
     jobs:
       - name: heavy_cpu_job
+        delaySubmit: 120000000000
         count: 8000
         spec:
           terminationGracePeriodSeconds: 0

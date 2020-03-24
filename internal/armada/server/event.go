@@ -4,10 +4,10 @@ import (
 	"context"
 	"time"
 
-	"github.com/G-Research/armada/internal/armada/api"
 	"github.com/G-Research/armada/internal/armada/authorization"
 	"github.com/G-Research/armada/internal/armada/authorization/permissions"
 	"github.com/G-Research/armada/internal/armada/repository"
+	"github.com/G-Research/armada/pkg/api"
 
 	"github.com/gogo/protobuf/types"
 )
@@ -28,6 +28,13 @@ func (s *EventServer) Report(ctx context.Context, message *api.EventMessage) (*t
 	return &types.Empty{}, s.eventRepository.ReportEvent(message)
 }
 
+func (s *EventServer) ReportMultiple(ctx context.Context, message *api.EventList) (*types.Empty, error) {
+	if e := checkPermission(s.permissions, ctx, permissions.ExecuteJobs); e != nil {
+		return nil, e
+	}
+	return &types.Empty{}, s.eventRepository.ReportEvents(message.Events)
+}
+
 func (s *EventServer) GetJobSetEvents(request *api.JobSetRequest, stream api.Event_GetJobSetEventsServer) error {
 	if e := checkPermission(s.permissions, stream.Context(), permissions.WatchAllEvents); e != nil {
 		return e
@@ -40,7 +47,7 @@ func (s *EventServer) GetJobSetEvents(request *api.JobSetRequest, stream api.Eve
 	if request.Watch {
 		timeout = 5 * time.Second
 	} else {
-		lastId, e := s.eventRepository.GetLastMessageId(request.Id)
+		lastId, e := s.eventRepository.GetLastMessageId(request.Queue, request.Id)
 		if e != nil {
 			return e
 		}
@@ -54,7 +61,7 @@ func (s *EventServer) GetJobSetEvents(request *api.JobSetRequest, stream api.Eve
 		default:
 		}
 
-		messages, e := s.eventRepository.ReadEvents(request.Id, fromId, 500, timeout)
+		messages, e := s.eventRepository.ReadEvents(request.Queue, request.Id, fromId, 500, timeout)
 
 		if e != nil {
 			return e

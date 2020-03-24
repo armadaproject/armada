@@ -14,12 +14,10 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/G-Research/armada/internal/armada/api"
-	"github.com/G-Research/armada/internal/client"
-	"github.com/G-Research/armada/internal/client/domain"
-	util2 "github.com/G-Research/armada/internal/client/util"
-	common_client "github.com/G-Research/armada/internal/common/client"
 	"github.com/G-Research/armada/internal/common/util"
+	"github.com/G-Research/armada/pkg/api"
+	"github.com/G-Research/armada/pkg/client"
+	"github.com/G-Research/armada/pkg/client/domain"
 )
 
 const integrationEnabledEnvVar = "INTEGRATION_ENABLED"
@@ -27,7 +25,7 @@ const integrationEnabledEnvVar = "INTEGRATION_ENABLED"
 func TestCanSubmitJob_ReceivingAllExpectedEvents(t *testing.T) {
 	skipIfIntegrationEnvNotPresent(t)
 
-	util2.WithConnection(connectionDetails(), func(connection *grpc.ClientConn) {
+	client.WithConnection(connectionDetails(), func(connection *grpc.ClientConn) {
 		submitClient := api.NewSubmitClient(connection)
 		eventsClient := api.NewEventClient(connection)
 
@@ -43,17 +41,39 @@ func TestCanSubmitJob_ReceivingAllExpectedEvents(t *testing.T) {
 	})
 }
 
+func TestCanSubmitJob_IncorrectJobMountFails(t *testing.T) {
+	skipIfIntegrationEnvNotPresent(t)
+
+	client.WithConnection(connectionDetails(), func(connection *grpc.ClientConn) {
+		submitClient := api.NewSubmitClient(connection)
+		eventsClient := api.NewEventClient(connection)
+
+		jobRequest := createJobRequest("personal-anonymous")
+		pod := jobRequest.JobRequestItems[0].PodSpec
+		pod.Containers[0].VolumeMounts = []v1.VolumeMount{{Name: "config", MountPath: "/test"}}
+		pod.Volumes = []v1.Volume{{
+			Name: "config",
+			VolumeSource: v1.VolumeSource{
+				ConfigMap: &v1.ConfigMapVolumeSource{LocalObjectReference: v1.LocalObjectReference{Name: "missing"}}}}}
+
+		createQueue(submitClient, jobRequest, t)
+
+		receivedEvents := submitJobsAndWatch(t, submitClient, eventsClient, jobRequest)
+		assert.True(t, receivedEvents[domain.Failed])
+	})
+}
+
 func TestCanSubmitJob_ArmdactlWatchExitOnInactive(t *testing.T) {
 	skipIfIntegrationEnvNotPresent(t)
 	connDetails := connectionDetails()
-	util2.WithConnection(connDetails, func(connection *grpc.ClientConn) {
+	client.WithConnection(connDetails, func(connection *grpc.ClientConn) {
 		submitClient := api.NewSubmitClient(connection)
 		eventsClient := api.NewEventClient(connection)
 
 		jobRequest := createJobRequest("personal-anonymous")
 		createQueue(submitClient, jobRequest, t)
 
-		cmd := exec.Command("armadactl", "--armadaUrl="+connDetails.ArmadaUrl, "watch", "--exit-if-inactive", jobRequest.JobSetId)
+		cmd := exec.Command("armadactl", "--armadaUrl="+connDetails.ArmadaUrl, "watch", "--exit-if-inactive", jobRequest.Queue, jobRequest.JobSetId)
 		err := cmd.Start()
 		assert.NoError(t, err)
 
@@ -66,7 +86,7 @@ func TestCanSubmitJob_ArmdactlWatchExitOnInactive(t *testing.T) {
 func TestCanSubmitJob_KubernetesNamespacePermissionsAreRespected(t *testing.T) {
 	skipIfIntegrationEnvNotPresent(t)
 
-	util2.WithConnection(connectionDetails(), func(connection *grpc.ClientConn) {
+	client.WithConnection(connectionDetails(), func(connection *grpc.ClientConn) {
 		submitClient := api.NewSubmitClient(connection)
 		eventsClient := api.NewEventClient(connection)
 
@@ -78,8 +98,8 @@ func TestCanSubmitJob_KubernetesNamespacePermissionsAreRespected(t *testing.T) {
 	})
 }
 
-func connectionDetails() *common_client.ApiConnectionDetails {
-	connectionDetails := &common_client.ApiConnectionDetails{
+func connectionDetails() *client.ApiConnectionDetails {
+	connectionDetails := &client.ApiConnectionDetails{
 		ArmadaUrl: "localhost:50051",
 	}
 	return connectionDetails
@@ -89,8 +109,8 @@ func submitJobsAndWatch(t *testing.T, submitClient api.SubmitClient, eventsClien
 	_, err := client.SubmitJobs(submitClient, jobRequest)
 	assert.Nil(t, err)
 	receivedEvents := make(map[domain.JobStatus]bool)
-	timeout, _ := context.WithTimeout(context.Background(), 30*time.Second)
-	client.WatchJobSet(eventsClient, jobRequest.JobSetId, true, timeout, func(state *domain.WatchContext, e api.Event) bool {
+	timeout, _ := context.WithTimeout(context.Background(), 45*time.Second)
+	client.WatchJobSet(eventsClient, jobRequest.Queue, jobRequest.JobSetId, true, timeout, func(state *domain.WatchContext, e api.Event) bool {
 		currentStatus := state.GetJobInfo(e.GetJobId()).Status
 		receivedEvents[currentStatus] = true
 

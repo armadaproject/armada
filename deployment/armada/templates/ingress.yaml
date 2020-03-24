@@ -8,18 +8,27 @@ metadata:
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
     nginx.ingress.kubernetes.io/backend-protocol: "GRPC"
     certmanager.k8s.io/cluster-issuer: {{ required "A value is required for .Values.clusterIssuer" .Values.clusterIssuer }}
+    {{- if .Values.ingress.annotations }}
+    {{- toYaml .Values.ingress.annotations | nindent 4 }}
+    {{- end }}
   labels:
     {{- include "armada.labels.all" . | nindent 4 }}
+    {{- if .Values.ingress.labels }}
+    {{- toYaml .Values.ingress.labels | nindent 4 }}
+    {{- end }}
 spec:
   rules:
-  - host: {{ required "A value is required for .Values.hostname" .Values.hostname }}
+  {{- $root := . -}}
+  {{  range required "A value is required for .Values.hostnames" .Values.hostnames }}
+  - host: {{ . }}
     http:
       paths:
         - path: /
           backend:
-            serviceName: {{ include "armada.name" . }}
-            servicePort: {{ .Values.applicationConfig.grpcPort }}
+            serviceName: {{ include "armada.name" $root }}
+            servicePort: {{ $root.Values.applicationConfig.grpcPort }}
+  {{ end }}
   tls:
     - hosts:
-        - {{ required "A value is required for .Values.hostname" .Values.hostname }}
+      {{- toYaml .Values.hostnames  | nindent 8 }}
       secretName: armada-service-tls

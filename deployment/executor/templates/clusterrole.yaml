@@ -21,6 +21,7 @@ rules:
 - apiGroups:
   - ""
   resources:
+  - events
   - nodes
   verbs:
   - get
