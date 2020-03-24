@@ -37,18 +37,7 @@ choco install git docker-desktop kubernetes-helm kind kubernetes-cli
 
 Ensure at least 5GB of RAM are allocated to the Docker VM (see Settings -> Resources -> Advanced).
 
-In order to follow the instructions below as-is, you should also install [Windows Subsystem for Linux](https://docs.microsoft.com/en-us/windows/wsl/about).
-After you installed the distro of your choice, open a terminal and alias the following commands:
-
-```bash
-alias git=git.exe
-alias docker=docker.exe
-alias helm=helm.exe
-alias kind=kind.exe
-alias kubectl=kubectl.exe
-```
-
-All the commands below should be executed in a Windows directory (i.e. `/mnt/c/Users/<username>`) so change to it before going further.
+All the commands below should be executed in Git Bash.
 
 ### Helm
 
@@ -128,7 +117,16 @@ curl -X POST -i http://admin:prom-operator@localhost:30001/api/dashboards/import
 
 The following steps download the `armadactl` CLI to the current directory:
 ```bash
-curl -L https://github.com/G-Research/armada/releases/download/$ARMADA_VERSION/armadactl-$ARMADA_VERSION-$(uname)-amd64.tar.gz | tar xzf -
+SYSTEM=$(uname | sed 's/MINGW.*/windows/' | tr A-Z a-z)
+if [ $SYSTEM == "windows" ]
+then
+  ARCHIVE_TYPE=zip
+  UNARCHIVE="zcat > armadactl.exe"
+else
+  ARCHIVE_TYPE=tar.gz
+  UNARCHIVE="tar xzf -"
+fi
+curl -L https://github.com/G-Research/armada/releases/download/$ARMADA_VERSION/armadactl-$ARMADA_VERSION-$SYSTEM-amd64.$ARCHIVE_TYPE | sh -c "$UNARCHIVE"
 ```
 
 ## Usage
