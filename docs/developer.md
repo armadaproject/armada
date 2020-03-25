@@ -1,10 +1,9 @@
 # Developer setup
 
-[Getting Started](#getting-started)
-
-[Code Generation](#code-generation)
-* [gRPC](#grpc)
-* [Command line tools](#command-line-tools)
+- [Getting Started](#getting-started)
+- [Code Generation](#code-generation)
+  - [gRPC](#grpc)
+  - [Command line tools](#command-line-tools)
 
 # Getting started 
 
