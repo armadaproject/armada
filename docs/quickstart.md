@@ -50,9 +50,9 @@ helm repo add stable https://kubernetes-charts.storage.googleapis.com/
 ## Installation
 This guide will install Armada on 3 local Kubernetes clusters; one server and two executor clusters. 
 
-Set the `ARMADA_VERSION` environment variable and clone this repository with the same version tag as you are installing. For example to install version `v0.1.1`:
+Set the `ARMADA_VERSION` environment variable and clone this repository with the same version tag as you are installing. For example to install version `v0.1.2`:
 ```bash
-export ARMADA_VERSION=v0.1.1
+export ARMADA_VERSION=v0.1.2
 git clone https://github.com/G-Research/armada.git --branch $ARMADA_VERSION
 cd armada
 ```
@@ -132,18 +132,18 @@ curl -L https://github.com/G-Research/armada/releases/download/$ARMADA_VERSION/a
 ## Usage
 Create queues, submit some jobs and monitor progress:
 ```bash
-./armadactl --armadaUrl=localhost:30000 create-queue queue-a --priorityFactor 1
-./armadactl --armadaUrl=localhost:30000 create-queue queue-b --priorityFactor 2
-./armadactl --armadaUrl=localhost:30000 submit ./docs/quickstart/job-queue-a.yaml
-./armadactl --armadaUrl=localhost:30000 submit ./docs/quickstart/job-queue-b.yaml
+./armadactl create-queue queue-a --priorityFactor 1
+./armadactl create-queue queue-b --priorityFactor 2
+./armadactl submit ./docs/quickstart/job-queue-a.yaml
+./armadactl submit ./docs/quickstart/job-queue-b.yaml
 ```
 
 Watch individual queues:
 ```bash
-./armadactl --armadaUrl=localhost:30000 watch queue-a job-set-1
+./armadactl watch queue-a job-set-1
 ```
 ```bash
-./armadactl --armadaUrl=localhost:30000 watch queue-b job-set-1
+./armadactl watch queue-b job-set-1
 ```
 
 Log in to the Grafana dashboard at http://localhost:30001/ using the default credentials of `admin` / `prom-operator`.
@@ -154,8 +154,8 @@ Try submitting lots of jobs and see queues build and get processed:
 ```bash
 for i in {1..50}
 do
-  ./armadactl --armadaUrl=localhost:30000 submit ./docs/quickstart/job-queue-a.yaml
-  ./armadactl --armadaUrl=localhost:30000 submit ./docs/quickstart/job-queue-b.yaml
+  ./armadactl submit ./docs/quickstart/job-queue-a.yaml
+  ./armadactl submit ./docs/quickstart/job-queue-b.yaml
 done
 ```
 
@@ -164,7 +164,7 @@ done
 CLI:
 
 ```bash
-$ ./armadactl --armadaUrl=localhost:30000 watch queue-a job-set-1
+$ ./armadactl watch queue-a job-set-1
 Watching job set job-set-1
 Nov  4 11:43:36 | Queued:   0, Leased:   0, Pending:   0, Running:   0, Succeeded:   0, Failed:   0, Cancelled:   0 | event: *api.JobSubmittedEvent, job id: 01drv3mey2mzmayf50631tzp9m
 Nov  4 11:43:36 | Queued:   1, Leased:   0, Pending:   0, Running:   0, Succeeded:   0, Failed:   0, Cancelled:   0 | event: *api.JobQueuedEvent, job id: 01drv3mey2mzmayf50631tzp9m
