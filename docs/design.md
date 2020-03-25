@@ -1,5 +1,3 @@
-Disclaimer: This document is in progress, anything can change or can be out of date with current implementation
-
 # High level design of Armada
 Armada is job queueing system for multiple Kubernetes clusters.
 
