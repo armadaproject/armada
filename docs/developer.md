@@ -1,11 +1,6 @@
 # Developer setup
 
-- [Getting Started](#getting-started)
-- [Code Generation](#code-generation)
-  - [gRPC](#grpc)
-  - [Command line tools](#command-line-tools)
-
-# Getting started 
+## Getting started 
 
 There are many ways you can setup you local environment, this is just a basic quick example of how to setup everything you'll need to get started running and developing Armada.
 
