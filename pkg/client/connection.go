@@ -26,7 +26,7 @@ type ApiConnectionDetails struct {
 func CreateApiConnection(config *ApiConnectionDetails, additionalDialOptions ...grpc.DialOption) (*grpc.ClientConn, error) {
 
 	retryOpts := []grpc_retry.CallOption{
-		grpc_retry.WithBackoff(grpc_retry.BackoffExponential(300 * time.Millisecond)),
+		grpc_retry.WithBackoff(grpc_retry.BackoffExponential(1 * time.Second)),
 		grpc_retry.WithMax(3),
 	}
 
