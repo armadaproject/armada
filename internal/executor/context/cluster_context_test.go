@@ -178,7 +178,7 @@ func TestKubernetesClusterContext_AddAnnotation(t *testing.T) {
 	assert.Nil(t, err)
 
 	updateOccurred := false
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 20; i++ {
 		pods, err := clusterContext.GetActiveBatchPods()
 		assert.Nil(t, err)
 		if pods[0].Annotations["test"] == "annotation" {
@@ -333,7 +333,7 @@ func TestKubernetesClusterContext_GetNodes(t *testing.T) {
 	assert.Nil(t, err)
 
 	nodeFound := false
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 20; i++ {
 		nodes, err := clusterContext.GetNodes()
 		assert.Nil(t, err)
 		if len(nodes) > 0 {
@@ -368,7 +368,7 @@ func submitPodsWithWait(t *testing.T, context *KubernetesClusterContext, pods ..
 }
 
 func waitForContextSync(t *testing.T, context *KubernetesClusterContext, pods []*v1.Pod) {
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 20; i++ {
 		existingPods, err := context.podInformer.Lister().List(labels.Everything())
 		assert.Nil(t, err)
 
