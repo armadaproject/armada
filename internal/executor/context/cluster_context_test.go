@@ -390,6 +390,7 @@ func waitForContextSync(t *testing.T, context *KubernetesClusterContext, pods []
 		time.Sleep(50 * time.Millisecond)
 	}
 
+	t.Error("Timed out waiting for context sync. Submitted pods were never synced to context.")
 	t.Fail()
 }
 
