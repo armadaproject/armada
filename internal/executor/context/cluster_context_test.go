@@ -177,16 +177,11 @@ func TestKubernetesClusterContext_AddAnnotation(t *testing.T) {
 	err := clusterContext.AddAnnotation(pod, annotationsToAdd)
 	assert.Nil(t, err)
 
-	updateOccurred := false
-	for i := 0; i < 20; i++ {
+	updateOccurred := waitForCondition(func() bool {
 		pods, err := clusterContext.GetActiveBatchPods()
 		assert.Nil(t, err)
-		if pods[0].Annotations["test"] == "annotation" {
-			updateOccurred = true
-			break
-		}
-		time.Sleep(50 * time.Millisecond)
-	}
+		return len(pods) > 0 && pods[0].Annotations["test"] == "annotation"
+	})
 	assert.True(t, updateOccurred)
 }
 
@@ -332,17 +327,11 @@ func TestKubernetesClusterContext_GetNodes(t *testing.T) {
 	_, err := client.CoreV1().Nodes().Create(node)
 	assert.Nil(t, err)
 
-	nodeFound := false
-	for i := 0; i < 20; i++ {
+	nodeFound := waitForCondition(func() bool {
 		nodes, err := clusterContext.GetNodes()
 		assert.Nil(t, err)
-		if len(nodes) > 0 {
-			assert.Equal(t, nodes[0].Name, node.Name)
-			nodeFound = true
-			break
-		}
-		time.Sleep(50 * time.Millisecond)
-	}
+		return len(nodes) > 0 && nodes[0].Name == node.Name
+	})
 	assert.True(t, nodeFound)
 }
 
@@ -368,7 +357,7 @@ func submitPodsWithWait(t *testing.T, context *KubernetesClusterContext, pods ..
 }
 
 func waitForContextSync(t *testing.T, context *KubernetesClusterContext, pods []*v1.Pod) {
-	for i := 0; i < 20; i++ {
+	synced := waitForCondition(func() bool {
 		existingPods, err := context.podInformer.Lister().List(labels.Everything())
 		assert.Nil(t, err)
 
@@ -384,14 +373,24 @@ func waitForContextSync(t *testing.T, context *KubernetesClusterContext, pods []
 				break
 			}
 		}
-		if allSync {
-			return
+		return allSync
+	})
+	if !synced {
+		t.Error("Timed out waiting for context sync. Submitted pods were never synced to context.")
+		t.Fail()
+	}
+}
+
+func waitForCondition(conditionCheck func() bool) bool {
+	conditionMet := false
+	for i := 0; i < 20; i++ {
+		conditionMet = conditionCheck()
+		if conditionMet {
+			break
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
-
-	t.Error("Timed out waiting for context sync. Submitted pods were never synced to context.")
-	t.Fail()
+	return conditionMet
 }
 
 func createSubmittedBatchPod(t *testing.T, context *KubernetesClusterContext) *v1.Pod {
