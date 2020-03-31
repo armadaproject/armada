@@ -10,13 +10,12 @@ import (
 	v1 "k8s.io/api/core/v1"
 	errors2 "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/rest"
 	clientTesting "k8s.io/client-go/testing"
-	"k8s.io/client-go/tools/cache"
 
 	util2 "github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/executor/domain"
@@ -172,19 +171,18 @@ func TestKubernetesClusterContext_ProcessPodsToDelete_AllowsRepeatedDeleteCallTo
 
 func TestKubernetesClusterContext_AddAnnotation(t *testing.T) {
 	clusterContext, _ := setupTest()
-	eventChannel := registerInformerWatcher(clusterContext.podInformer.Informer())
 	pod := createSubmittedBatchPod(t, clusterContext)
-	waitForCacheSync(t, eventChannel, 1)
 
 	annotationsToAdd := map[string]string{"test": "annotation"}
 	err := clusterContext.AddAnnotation(pod, annotationsToAdd)
 	assert.Nil(t, err)
 
-	waitForCacheSync(t, eventChannel, 1)
-
-	allPods, err := clusterContext.GetActiveBatchPods()
-	assert.Nil(t, err)
-	assert.Equal(t, allPods[0].Annotations["test"], "annotation")
+	updateOccurred := waitForCondition(func() bool {
+		pods, err := clusterContext.GetActiveBatchPods()
+		assert.Nil(t, err)
+		return len(pods) > 0 && pods[0].Annotations["test"] == "annotation"
+	})
+	assert.True(t, updateOccurred)
 }
 
 func TestKubernetesClusterContext_AddAnnotation_ReturnsError_OnClientError(t *testing.T) {
@@ -202,15 +200,12 @@ func TestKubernetesClusterContext_AddAnnotation_ReturnsError_OnClientError(t *te
 
 func TestKubernetesClusterContext_GetAllPods(t *testing.T) {
 	clusterContext, _ := setupTest()
-	eventChannel := registerInformerWatcher(clusterContext.podInformer.Informer())
 
 	nonBatchPod := createPod()
 	batchPod := createBatchPod()
+	submitPodsWithWait(t, clusterContext, nonBatchPod, batchPod)
 
-	submitPod(t, clusterContext, nonBatchPod)
-	submitPod(t, clusterContext, batchPod)
-	waitForCacheSync(t, eventChannel, 2)
-
+	clusterContext.Stop() //This prevents newly submitted pods being picked up by the informers
 	transientBatchPod := createBatchPod()
 	submitPod(t, clusterContext, transientBatchPod)
 
@@ -228,11 +223,8 @@ func TestKubernetesClusterContext_GetAllPods(t *testing.T) {
 
 func TestKubernetesClusterContext_GetAllPods_DeduplicatesTransientPods(t *testing.T) {
 	clusterContext, _ := setupTest()
-	eventChannel := registerInformerWatcher(clusterContext.podInformer.Informer())
 
-	batchPod := createBatchPod()
-	submitPod(t, clusterContext, batchPod)
-	waitForCacheSync(t, eventChannel, 1)
+	batchPod := createSubmittedBatchPod(t, clusterContext)
 
 	//Forcibly add pod back to cache, so now it exists in kubernetes + cache
 	clusterContext.submittedPods.Add(batchPod)
@@ -249,15 +241,12 @@ func TestKubernetesClusterContext_GetAllPods_DeduplicatesTransientPods(t *testin
 
 func TestKubernetesClusterContext_GetBatchPods_ReturnsOnlyBatchPods_IncludingTransient(t *testing.T) {
 	clusterContext, _ := setupTest()
-	eventChannel := registerInformerWatcher(clusterContext.podInformer.Informer())
 
 	nonBatchPod := createPod()
 	batchPod := createBatchPod()
+	submitPodsWithWait(t, clusterContext, nonBatchPod, batchPod)
 
-	submitPod(t, clusterContext, nonBatchPod)
-	submitPod(t, clusterContext, batchPod)
-	waitForCacheSync(t, eventChannel, 2)
-
+	clusterContext.Stop() //This prevents newly submitted pods being picked up by the informers
 	transientBatchPod := createBatchPod()
 	submitPod(t, clusterContext, transientBatchPod)
 
@@ -290,11 +279,8 @@ func TestKubernetesClusterContext_GetBatchPods_DoesNotShowTransient_OnSubmitFail
 
 func TestKubernetesClusterContext_GetBatchPods_DeduplicatesTransientPods(t *testing.T) {
 	clusterContext, _ := setupTest()
-	eventChannel := registerInformerWatcher(clusterContext.podInformer.Informer())
 
-	batchPod := createBatchPod()
-	submitPod(t, clusterContext, batchPod)
-	waitForCacheSync(t, eventChannel, 1)
+	batchPod := createSubmittedBatchPod(t, clusterContext)
 
 	//Forcibly add pod back to cache, so now it exists in kubernetes + cache
 	clusterContext.submittedPods.Add(batchPod)
@@ -311,15 +297,12 @@ func TestKubernetesClusterContext_GetBatchPods_DeduplicatesTransientPods(t *test
 
 func TestKubernetesClusterContext_GetActiveBatchPods_ReturnsOnlyBatchPods_ExcludingTransient(t *testing.T) {
 	clusterContext, _ := setupTest()
-	eventChannel := registerInformerWatcher(clusterContext.podInformer.Informer())
 
 	nonBatchPod := createPod()
 	batchPod := createBatchPod()
+	submitPodsWithWait(t, clusterContext, batchPod, nonBatchPod)
 
-	submitPod(t, clusterContext, nonBatchPod)
-	submitPod(t, clusterContext, batchPod)
-	waitForCacheSync(t, eventChannel, 2)
-
+	clusterContext.Stop() //This prevents newly submitted pods being picked up by the informers
 	transientBatchPod := createBatchPod()
 	submitPod(t, clusterContext, transientBatchPod)
 
@@ -334,7 +317,6 @@ func TestKubernetesClusterContext_GetActiveBatchPods_ReturnsOnlyBatchPods_Exclud
 
 func TestKubernetesClusterContext_GetNodes(t *testing.T) {
 	clusterContext, client := setupTest()
-	eventChannel := registerInformerWatcher(clusterContext.nodeInformer.Informer())
 
 	node := &v1.Node{
 		ObjectMeta: metav1.ObjectMeta{
@@ -345,18 +327,18 @@ func TestKubernetesClusterContext_GetNodes(t *testing.T) {
 	_, err := client.CoreV1().Nodes().Create(node)
 	assert.Nil(t, err)
 
-	waitForCacheSync(t, eventChannel, 1)
-	nodes, err := clusterContext.GetNodes()
-
-	assert.Nil(t, err)
-	assert.Equal(t, len(nodes), 1)
-	assert.Equal(t, nodes[0].Name, node.Name)
+	nodeFound := waitForCondition(func() bool {
+		nodes, err := clusterContext.GetNodes()
+		assert.Nil(t, err)
+		return len(nodes) > 0 && nodes[0].Name == node.Name
+	})
+	assert.True(t, nodeFound)
 }
 
 func TestKubernetesClusterContext_Submit_UseUserSpecificClient(t *testing.T) {
 	clusterContext, provider := setupTestWithProvider()
 
-	_, err := clusterContext.SubmitPod(createPod(), "user")
+	_, err := clusterContext.SubmitPod(createBatchPod(), "user")
 	assert.Nil(t, err)
 	assert.Contains(t, provider.users, "user")
 }
@@ -366,18 +348,61 @@ func submitPod(t *testing.T, context ClusterContext, pod *v1.Pod) {
 	assert.Nil(t, err)
 }
 
-func createSubmittedBatchPod(t *testing.T, context ClusterContext) *v1.Pod {
+func submitPodsWithWait(t *testing.T, context *KubernetesClusterContext, pods ...*v1.Pod) {
+	for _, pod := range pods {
+		submitPod(t, context, pod)
+	}
+
+	waitForContextSync(t, context, pods)
+}
+
+func waitForContextSync(t *testing.T, context *KubernetesClusterContext, pods []*v1.Pod) {
+	synced := waitForCondition(func() bool {
+		existingPods, err := context.podInformer.Lister().List(labels.Everything())
+		assert.Nil(t, err)
+
+		allSync := true
+		existPodNamesMap := util2.StringListToSet(util.ExtractNames(existingPods))
+		for _, pod := range pods {
+			if _, present := existPodNamesMap[pod.Name]; !present {
+				allSync = false
+				break
+			}
+			if cachedPod := context.submittedPods.Get(pod.Labels[domain.JobId]); cachedPod != nil {
+				allSync = false
+				break
+			}
+		}
+		return allSync
+	})
+	if !synced {
+		t.Error("Timed out waiting for context sync. Submitted pods were never synced to context.")
+		t.Fail()
+	}
+}
+
+func waitForCondition(conditionCheck func() bool) bool {
+	conditionMet := false
+	for i := 0; i < 20; i++ {
+		conditionMet = conditionCheck()
+		if conditionMet {
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	return conditionMet
+}
+
+func createSubmittedBatchPod(t *testing.T, context *KubernetesClusterContext) *v1.Pod {
 	pod := createBatchPod()
-
-	submitPod(t, context, pod)
-
+	submitPodsWithWait(t, context, pod)
 	return pod
 }
 
 func createBatchPod() *v1.Pod {
 	pod := createPod()
 	pod.ObjectMeta.Labels = map[string]string{
-		domain.JobId: "jobid",
+		domain.JobId: "jobid" + util2.NewULID(),
 	}
 	return pod
 }
@@ -406,35 +431,4 @@ func (p *FakeClientProvider) Client() kubernetes.Interface {
 
 func (p *FakeClientProvider) ClientConfig() *rest.Config {
 	return nil
-}
-
-func registerInformerWatcher(informer cache.SharedIndexInformer) chan bool {
-	eventChannel := make(chan bool)
-	informer.AddEventHandler(&cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
-			eventChannel <- true
-		},
-		UpdateFunc: func(obj interface{}, obj2 interface{}) {
-			eventChannel <- true
-		},
-	})
-
-	return eventChannel
-}
-
-func waitForCacheSync(t *testing.T, eventChannel chan bool, expectedNumberOfEvents int) {
-	numberOfEvents := 0
-	for {
-		select {
-		case _, ok := <-eventChannel:
-			if ok {
-				numberOfEvents++
-				if numberOfEvents == expectedNumberOfEvents {
-					return
-				}
-			}
-		case <-time.After(wait.ForeverTestTimeout):
-			t.Fail()
-		}
-	}
 }
