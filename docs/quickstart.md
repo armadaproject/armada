@@ -50,10 +50,18 @@ helm repo add stable https://kubernetes-charts.storage.googleapis.com/
 ## Installation
 This guide will install Armada on 3 local Kubernetes clusters; one server and two executor clusters. 
 
-Set the `ARMADA_VERSION` environment variable and clone this repository with the same version tag as you are installing. For example to install version `v0.1.2`:
+Set the `ARMADA_VERSION` environment variable to the version of Armada you would like to install. Armada releases can be found [here](https://github.com/G-Research/armada/releases).
+
+For example to install version `v0.1.2`:
+
 ```bash
 export ARMADA_VERSION=v0.1.2
-git clone https://github.com/G-Research/armada.git --branch $ARMADA_VERSION
+```
+
+You should then clone this repository and step into it:
+
+```bash
+git clone https://github.com/G-Research/armada.git
 cd armada
 ```
 
