@@ -88,7 +88,7 @@ func withEventServer(eventRetention configuration.EventRetentionPolicy, action f
 	client := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 10})
 
 	repo := repository.NewRedisEventRepository(client, eventRetention)
-	server := NewEventServer(&fakePermissionChecker{}, repo)
+	server := NewEventServer(&fakePermissionChecker{}, repo, repo)
 
 	client.FlushDB()
 
