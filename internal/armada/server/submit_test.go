@@ -38,7 +38,7 @@ func TestSubmitServer_SubmitJob_AddsExpectedEventsInCorrectOrder(t *testing.T) {
 		_, err := s.SubmitJobs(context.Background(), jobRequest)
 		assert.Empty(t, err)
 
-		messages, err := s.eventRepository.ReadEvents("test", jobSetId, "", 100, 5*time.Second)
+		messages, err := s.eventStore.ReadEvents("test", jobSetId, "", 100, 5*time.Second)
 
 		assert.Empty(t, err)
 		assert.Equal(t, len(messages), 2)

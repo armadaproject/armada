@@ -18,16 +18,12 @@ type EventStore interface {
 }
 
 type EventRepository interface {
-	EventStore
-	ReportEvent(message *api.EventMessage) error
-	ReportEvents(message []*api.EventMessage) error
 	ReadEvents(queue, jobSetId string, lastId string, limit int64, block time.Duration) ([]*api.EventStreamMessage, error)
 	GetLastMessageId(queue, jobSetId string) (string, error)
 }
 
 type RedisEventRepository struct {
 	db             redis.UniversalClient
-	additionalStores []EventStore
 	eventRetention configuration.EventRetentionPolicy
 }
 

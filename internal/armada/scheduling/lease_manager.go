@@ -12,19 +12,19 @@ import (
 type LeaseManager struct {
 	jobRepository       repository.JobRepository
 	queueRepository     repository.QueueRepository
-	eventRepository     repository.EventRepository
+	eventStore          repository.EventStore
 	leaseExpiryDuration time.Duration
 }
 
 func NewLeaseManager(
 	jobRepository repository.JobRepository,
 	queueRepository repository.QueueRepository,
-	eventRepository repository.EventRepository,
+	eventStore repository.EventStore,
 	leaseExpiryDuration time.Duration) *LeaseManager {
 	return &LeaseManager{
 		jobRepository:       jobRepository,
 		queueRepository:     queueRepository,
-		eventRepository:     eventRepository,
+		eventStore:          eventStore,
 		leaseExpiryDuration: leaseExpiryDuration}
 }
 
@@ -52,7 +52,7 @@ func (l *LeaseManager) ExpireLeases() {
 				if e != nil {
 					log.Error(e)
 				} else {
-					e := l.eventRepository.ReportEvent(event)
+					e := l.eventStore.ReportEvents([]*api.EventMessage{event})
 					if e != nil {
 						log.Error(e)
 					}

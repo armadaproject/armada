@@ -18,20 +18,20 @@ type SubmitServer struct {
 	permissions     authorization.PermissionChecker
 	jobRepository   repository.JobRepository
 	queueRepository repository.QueueRepository
-	eventRepository repository.EventRepository
+	eventStore      repository.EventStore
 }
 
 func NewSubmitServer(
 	permissions authorization.PermissionChecker,
 	jobRepository repository.JobRepository,
 	queueRepository repository.QueueRepository,
-	eventRepository repository.EventRepository) *SubmitServer {
+	eventStore repository.EventStore) *SubmitServer {
 
 	return &SubmitServer{
 		permissions:     permissions,
 		jobRepository:   jobRepository,
 		queueRepository: queueRepository,
-		eventRepository: eventRepository}
+		eventStore:      eventStore}
 }
 
 func (server *SubmitServer) GetQueueInfo(ctx context.Context, req *api.QueueInfoRequest) (*api.QueueInfo, error) {
@@ -78,7 +78,7 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 
 	jobs := server.jobRepository.CreateJobs(req, principal)
 
-	e := reportSubmitted(server.eventRepository, jobs)
+	e := reportSubmitted(server.eventStore, jobs)
 	if e != nil {
 		return nil, status.Errorf(codes.Aborted, e.Error())
 	}
@@ -100,7 +100,7 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 		result.JobResponseItems = append(result.JobResponseItems, jobResponse)
 	}
 
-	e = reportQueued(server.eventRepository, jobs)
+	e = reportQueued(server.eventStore, jobs)
 	if e != nil {
 		return result, status.Errorf(codes.Aborted, e.Error())
 	}
@@ -136,7 +136,7 @@ func (server *SubmitServer) cancelJobs(ctx context.Context, queue string, jobs [
 		return nil, e
 	}
 
-	e := reportJobsCancelling(server.eventRepository, jobs)
+	e := reportJobsCancelling(server.eventStore, jobs)
 	if e != nil {
 		return nil, status.Errorf(codes.Unknown, e.Error())
 	}
@@ -153,7 +153,7 @@ func (server *SubmitServer) cancelJobs(ctx context.Context, queue string, jobs [
 		}
 	}
 
-	e = reportJobsCancelled(server.eventRepository, cancelled)
+	e = reportJobsCancelled(server.eventStore, cancelled)
 	if e != nil {
 		return nil, status.Errorf(codes.Unknown, e.Error())
 	}

@@ -11,6 +11,7 @@ import (
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
+	"github.com/segmentio/kafka-go"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/keepalive"
@@ -30,6 +31,8 @@ func Serve(config *configuration.ArmadaConfig) (func(), *sync.WaitGroup) {
 	wg.Add(1)
 	grpcServer := createServer(config)
 
+	taskManager := task.NewBackgroundTaskManager(metrics.MetricPrefix)
+
 	db := createRedisClient(&config.Redis)
 	eventsDb := createRedisClient(&config.EventsRedis)
 
@@ -37,17 +40,42 @@ func Serve(config *configuration.ArmadaConfig) (func(), *sync.WaitGroup) {
 	usageRepository := repository.NewRedisUsageRepository(db)
 	queueRepository := repository.NewRedisQueueRepository(db)
 
-	eventRepository := repository.NewRedisEventRepository(eventsDb, config.EventRetention)
+	redisEventRepository := repository.NewRedisEventRepository(eventsDb, config.EventRetention)
+	var eventStore repository.EventStore
+
+	if len(config.EventsKafka.Brokers) > 0 {
+		log.Infof("Using Kafka for events (%+v)", config.EventsKafka)
+		writer := kafka.NewWriter(kafka.WriterConfig{
+			Brokers: config.EventsKafka.Brokers,
+			Topic:   config.EventsKafka.Topic,
+		})
+		reader := kafka.NewReader(kafka.ReaderConfig{
+			Brokers:  config.EventsKafka.Brokers,
+			GroupID:  config.EventsKafka.ConsumerGroupID,
+			Topic:    config.EventsKafka.Topic,
+			MaxWait:  500 * time.Millisecond,
+			MinBytes: 0,    // 10KB
+			MaxBytes: 10e6, // 10MB
+		})
+
+		eventStore = repository.NewKafkaEventStore(writer)
+		eventProcessor := repository.NewKafkaEventRedisProcessor(reader, redisEventRepository)
+
+		//TODO: Remove this metric, and add one to track event delay
+		taskManager.Register(eventProcessor.ProcessEvents, 100*time.Millisecond, "kafka_redis_processor")
+
+	} else {
+		eventStore = redisEventRepository
+	}
 
 	permissions := authorization.NewPrincipalPermissionChecker(config.PermissionGroupMapping, config.PermissionScopeMapping)
 
-	submitServer := server.NewSubmitServer(permissions, jobRepository, queueRepository, eventRepository)
+	submitServer := server.NewSubmitServer(permissions, jobRepository, queueRepository, eventStore)
 	usageServer := server.NewUsageServer(permissions, config.PriorityHalfTime, usageRepository)
-	aggregatedQueueServer := server.NewAggregatedQueueServer(permissions, config.Scheduling, jobRepository, queueRepository, usageRepository, eventRepository)
-	eventServer := server.NewEventServer(permissions, eventRepository)
-	leaseManager := scheduling.NewLeaseManager(jobRepository, queueRepository, eventRepository, config.Scheduling.Lease.ExpireAfter)
+	aggregatedQueueServer := server.NewAggregatedQueueServer(permissions, config.Scheduling, jobRepository, queueRepository, usageRepository, eventStore)
+	eventServer := server.NewEventServer(permissions, redisEventRepository, eventStore)
+	leaseManager := scheduling.NewLeaseManager(jobRepository, queueRepository, eventStore, config.Scheduling.Lease.ExpireAfter)
 
-	taskManager := task.NewBackgroundTaskManager(metrics.MetricPrefix)
 	taskManager.Register(leaseManager.ExpireLeases, config.Scheduling.Lease.ExpiryLoopInterval, "lease_expiry")
 
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", config.GrpcPort))
