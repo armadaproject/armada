@@ -4,10 +4,11 @@ import (
 	"context"
 	"time"
 
-	"github.com/G-Research/armada/pkg/api"
 	"github.com/gogo/protobuf/proto"
 	"github.com/segmentio/kafka-go"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/G-Research/armada/pkg/api"
 )
 
 type KafkaEventStore struct {
