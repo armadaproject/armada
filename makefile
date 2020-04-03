@@ -97,6 +97,7 @@ tests-e2e: e2e-start-cluster build-docker
 		docker rm executor server redis
 	}
 	trap tearDown EXIT
+	sleep 10
 	echo -e "\nrunning test:"
 	INTEGRATION_ENABLED=true PATH=${PATH}:${PWD}/bin go test -v ./e2e/test/... -count=1
 
