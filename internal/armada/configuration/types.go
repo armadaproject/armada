@@ -23,6 +23,7 @@ type ArmadaConfig struct {
 	PriorityHalfTime       time.Duration
 	Redis                  redis.UniversalOptions
 	EventsKafka            KafkaConfig
+	EventsNats             NatsConfig
 	EventsRedis            redis.UniversalOptions
 	BasicAuth              BasicAuthenticationConfig
 	OpenIdAuth             OpenIdAuthenticationConfig
@@ -71,4 +72,11 @@ type KafkaConfig struct {
 	Brokers         []string
 	Topic           string
 	ConsumerGroupID string
+}
+
+type NatsConfig struct {
+	Servers    []string
+	ClusterID  string
+	Subject    string
+	QueueGroup string
 }

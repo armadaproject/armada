@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"strings"
 	"sync"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
+	"github.com/nats-io/stan.go"
 	"github.com/segmentio/kafka-go"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -23,6 +25,7 @@ import (
 	"github.com/G-Research/armada/internal/armada/scheduling"
 	"github.com/G-Research/armada/internal/armada/server"
 	"github.com/G-Research/armada/internal/common/task"
+	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/pkg/api"
 )
 
@@ -43,6 +46,8 @@ func Serve(config *configuration.ArmadaConfig) (func(), *sync.WaitGroup) {
 	redisEventRepository := repository.NewRedisEventRepository(eventsDb, config.EventRetention)
 	var eventStore repository.EventStore
 
+	// TODO: move this to task manager
+	stopSubscription := func() {}
 	if len(config.EventsKafka.Brokers) > 0 {
 		log.Infof("Using Kafka for events (%+v)", config.EventsKafka)
 		writer := kafka.NewWriter(kafka.WriterConfig{
@@ -63,6 +68,27 @@ func Serve(config *configuration.ArmadaConfig) (func(), *sync.WaitGroup) {
 
 		//TODO: Remove this metric, and add one to track event delay
 		taskManager.Register(eventProcessor.ProcessEvents, 100*time.Millisecond, "kafka_redis_processor")
+
+	} else if len(config.EventsNats.Servers) > 0 {
+
+		conn, err := stan.Connect(
+			config.EventsNats.ClusterID,
+			"armada-server-"+util.NewULID(),
+			stan.NatsURL(strings.Join(config.EventsNats.Servers, ",")),
+		)
+		if err != nil {
+			panic(err)
+		}
+		eventStore = repository.NewNatsEventStore(conn, config.EventsNats.Subject)
+		eventProcessor := repository.NewNatsEventRedisProcessor(conn, redisEventRepository, config.EventsNats.Subject, config.EventsNats.QueueGroup)
+		eventProcessor.Start()
+
+		stopSubscription = func() {
+			err := conn.Close()
+			if err != nil {
+				log.Errorf("failed to close nats connection: %v", err)
+			}
+		}
 
 	} else {
 		eventStore = redisEventRepository
@@ -104,6 +130,7 @@ func Serve(config *configuration.ArmadaConfig) (func(), *sync.WaitGroup) {
 	}()
 
 	return func() {
+		stopSubscription()
 		taskManager.StopAll(time.Second * 2)
 		grpcServer.GracefulStop()
 	}, wg
