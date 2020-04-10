@@ -1,0 +1,8 @@
+applicationConfig:
+  apiConnection:
+    forceNoTls: true 
+  kubernetes:
+    minimumPodAge: 0s
+
+prometheus:
+  enabled: true 
