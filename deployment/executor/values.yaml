@@ -1,5 +1,6 @@
 image:
   repository: gresearchdev/armada-executor
+  tag: v0.1.2
 resources:
   limits:
     memory: 1Gi
