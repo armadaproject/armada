@@ -57,6 +57,10 @@ var watchCmd = &cobra.Command{
 					switch event := e.(type) {
 					case *api.JobFailedEvent:
 						log.Errorf("Failure reason:\n%s\n", event.Reason)
+
+						jobInfo := state.GetJobInfo(event.JobId)
+						log.Errorf("You might be able to get the pod logs by running (logs are available for limited time):\n%s -t 100\n",
+							client.GetKubectlCommand(jobInfo.ClusterId, jobInfo.Job.Namespace, "logs"))
 					}
 				}
 				if exit_on_inactive && state.GetNumberOfJobs() == state.GetNumberOfFinishedJobs() {
