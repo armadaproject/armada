@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
 
@@ -48,6 +49,14 @@ Example:
 			eventsClient := api.NewEventClient(conn)
 			state := client.GetJobSetState(eventsClient, queue, jobSetId, context.Background())
 			jobInfo := state.GetJobInfo(jobId)
+
+			if jobInfo == nil {
+				log.Fatalf("Could not found job %s.", jobId)
+			}
+
+			if jobInfo.ClusterId == "" {
+				log.Fatalf("The job have no cluster allocated.")
+			}
 
 			cmd := client.GetKubectlCommand(jobInfo.ClusterId, jobInfo.Job.Namespace, verb+" "+common.PodNamePrefix+jobId)
 

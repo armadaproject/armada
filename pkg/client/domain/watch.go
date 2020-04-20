@@ -93,8 +93,8 @@ func (context *WatchContext) updateStateSummary(oldJobStatus JobStatus, newJobSt
 	context.stateSummary[newJobStatus]++
 }
 
-func (context *WatchContext) GetJobInfo(jobId string) JobInfo {
-	return *context.state[jobId]
+func (context *WatchContext) GetJobInfo(jobId string) *JobInfo {
+	return context.state[jobId]
 }
 
 func (context *WatchContext) GetCurrentState() map[string]*JobInfo {
