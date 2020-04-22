@@ -714,6 +714,13 @@
           "type": "number",
           "format": "double"
         },
+        "ResourceLimits": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number",
+            "format": "double"
+          }
+        },
         "UserOwners": {
           "type": "array",
           "items": {

@@ -48,7 +48,7 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 	}
 
 	var res common.ComputeResources = request.Resources
-	if res.AsFloat().IsLessThan(q.schedulingConfig.MinimumResourceToSchedule) {
+	if res.AsFloat().IsLessThanOrEqual(q.schedulingConfig.MinimumResourceToSchedule) {
 		return &api.JobLease{}, nil
 	}
 
@@ -73,6 +73,8 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 		return nil, e
 	}
 
+	currentAllocatedJobs, e := q.jobRepository.GetLeasedJobs(scheduling.GetClusterReportIds(activeClusterReports))
+
 	jobs, e := scheduling.LeaseJobs(
 		ctx,
 		&q.schedulingConfig,
@@ -80,6 +82,7 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 		func(jobs []*api.Job) { reportJobsLeased(q.eventRepository, jobs, request.ClusterId) },
 		request,
 		activeClusterReports,
+		currentAllocatedJobs,
 		clusterPriorities,
 		activeQueues)
 

@@ -24,7 +24,7 @@ type leaseContext struct {
 	ctx     context.Context
 	request *api.LeaseRequest
 
-	slices           map[*api.Queue]common.ComputeResourcesFloat
+	schedulingInfo   map[*api.Queue]*QueueSchedulingInfo
 	resourceScarcity map[string]float64
 	priorities       map[*api.Queue]QueuePriorityInfo
 
@@ -38,11 +38,30 @@ func LeaseJobs(
 	onJobLease func([]*api.Job),
 	request *api.LeaseRequest,
 	activeClusterReports map[string]*api.ClusterUsageReport,
+	activeClusterAllocatedJobs []*api.Job,
 	clusterPriorities map[string]map[string]float64,
 	activeQueues []*api.Queue,
 ) ([]*api.Job, error) {
 	resourcesToSchedule := common.ComputeResources(request.Resources).AsFloat()
 	currentClusterReport, ok := activeClusterReports[request.ClusterId]
+
+	totalCapacity := &common.ComputeResources{}
+	for _, clusterReport := range activeClusterReports {
+		totalCapacity.Add(clusterReport.ClusterAvailableCapacity)
+	}
+
+	resourceAllocatedByQueue := map[string]common.ComputeResources{}
+	for _, job := range activeClusterAllocatedJobs {
+		totalResource := common.TotalResourceRequest(job.PodSpec)
+		if allocated, ok := resourceAllocatedByQueue[job.Queue]; ok {
+			totalResource.Add(allocated)
+		}
+		resourceAllocatedByQueue[job.Queue] = totalResource
+	}
+
+	maxResourceToSchedulePerQueue := totalCapacity.MulByResource(config.MaximalResourceFractionToSchedulePerQueue)
+	maxResourcePerQueue := totalCapacity.MulByResource(config.MaximalResourceFractionPerQueue)
+	queueSchedulingInfo := calculateQueueSchedulingLimits(activeQueues, maxResourceToSchedulePerQueue, maxResourcePerQueue, totalCapacity, resourceAllocatedByQueue)
 
 	if ok {
 		capacity := common.ComputeResources(currentClusterReport.ClusterCapacity)
@@ -51,7 +70,7 @@ func LeaseJobs(
 
 	activeQueuePriority := CalculateQueuesPriorityInfo(clusterPriorities, activeClusterReports, activeQueues)
 	scarcity := ResourceScarcityFromReports(activeClusterReports)
-	slices := SliceResource(scarcity, activeQueuePriority, resourcesToSchedule)
+	activeQueueSchedulingInfo := SliceResourceWithLimits(scarcity, queueSchedulingInfo, activeQueuePriority, resourcesToSchedule)
 
 	lc := &leaseContext{
 		schedulingConfig: config,
@@ -61,7 +80,7 @@ func LeaseJobs(
 		request: request,
 
 		resourceScarcity: scarcity,
-		slices:           slices,
+		schedulingInfo:   activeQueueSchedulingInfo,
 		priorities:       activeQueuePriority,
 
 		queueCache: map[string][]*api.Job{},
@@ -70,6 +89,33 @@ func LeaseJobs(
 	}
 
 	return lc.scheduleJobs(maxJobsPerLease)
+}
+
+func calculateQueueSchedulingLimits(
+	activeQueues []*api.Queue,
+	schedulingLimitPerQueue common.ComputeResourcesFloat,
+	resourceLimitPerQueue common.ComputeResourcesFloat,
+	totalCapacity *common.ComputeResources,
+	currentQueueResourceAllocation map[string]common.ComputeResources) map[*api.Queue]*QueueSchedulingInfo {
+	schedulingInfo := make(map[*api.Queue]*QueueSchedulingInfo, len(activeQueues))
+	for _, queue := range activeQueues {
+		remainingGlobalLimit := resourceLimitPerQueue.DeepCopy()
+		if len(queue.ResourceLimits) > 0 {
+			//TODO This only allows customQueueLimit to lower globalLimit not increase it
+			customQueueLimit := totalCapacity.MulByResource(queue.ResourceLimits)
+			remainingGlobalLimit = remainingGlobalLimit.LimitWith(customQueueLimit)
+		}
+		if usage, ok := currentQueueResourceAllocation[queue.Name]; ok {
+			remainingGlobalLimit.Sub(usage.AsFloat())
+			remainingGlobalLimit.LimitTo0()
+		}
+
+		schedulingRoundLimit := schedulingLimitPerQueue.DeepCopy()
+
+		schedulingRoundLimit = schedulingRoundLimit.LimitWith(remainingGlobalLimit)
+		schedulingInfo[queue] = NewQueueSchedulingInfo(schedulingRoundLimit, common.ComputeResourcesFloat{}, common.ComputeResourcesFloat{})
+	}
+	return schedulingInfo
 }
 
 func (c *leaseContext) scheduleJobs(limit int) ([]*api.Job, error) {
@@ -104,14 +150,16 @@ func (c *leaseContext) scheduleJobs(limit int) ([]*api.Job, error) {
 func (c *leaseContext) assignJobs(limit int) ([]*api.Job, error) {
 	jobs := make([]*api.Job, 0)
 	// TODO: parallelize
-	for queue, slice := range c.slices {
+	for queue, info := range c.schedulingInfo {
 		// TODO: partition limit by priority instead
-		leased, remainder, e := c.leaseJobs(queue, slice, limit/len(c.slices))
+		leased, remainder, e := c.leaseJobs(queue, info.adjustedShare, limit/len(c.schedulingInfo))
 		if e != nil {
 			log.Error(e)
 			continue
 		}
-		c.slices[queue] = remainder
+		scheduled := info.adjustedShare.DeepCopy()
+		scheduled.Sub(remainder)
+		c.schedulingInfo[queue].UpdateLimits(scheduled)
 		jobs = append(jobs, leased...)
 
 		if c.closeToDeadline() {
@@ -128,18 +176,20 @@ func (c *leaseContext) distributeRemainder(limit int) ([]*api.Job, error) {
 		return jobs, nil
 	}
 
-	remainder := SumQueueSlices(c.slices)
-	shares := QueueSlicesToShares(c.resourceScarcity, c.slices)
+	remainder := SumRemainingResource(c.schedulingInfo)
+	shares := QueueSlicesToShares(c.resourceScarcity, c.schedulingInfo)
 
-	queueCount := len(c.slices)
+	queueCount := len(c.schedulingInfo)
 	emptySteps := 0
 	minimumResource := c.schedulingConfig.MinimumResourceToSchedule
 
-	for !remainder.IsLessThan(minimumResource) && len(shares) > 0 && emptySteps < queueCount {
+	for !remainder.IsLessThanOrEqual(minimumResource) && len(shares) > 0 && emptySteps < queueCount {
 		queue := pickQueueRandomly(shares)
 		emptySteps++
 
-		leased, remaining, e := c.leaseJobs(queue, remainder, 1)
+		amountToSchedule := remainder.DeepCopy()
+		amountToSchedule.LimitWith(c.schedulingInfo[queue].remainingSchedulingLimit)
+		leased, remaining, e := c.leaseJobs(queue, amountToSchedule, 1)
 		if e != nil {
 			log.Error(e)
 			continue
@@ -148,15 +198,18 @@ func (c *leaseContext) distributeRemainder(limit int) ([]*api.Job, error) {
 			emptySteps = 0
 			jobs = append(jobs, leased...)
 
-			scheduledShare := ResourcesFloatAsUsage(c.resourceScarcity, remainder) - ResourcesFloatAsUsage(c.resourceScarcity, remaining)
-			shares[queue] = math.Max(0, shares[queue]-scheduledShare)
-			remainder = remaining
+			scheduled := amountToSchedule.DeepCopy()
+			scheduled.Sub(remaining)
 
+			c.schedulingInfo[queue].UpdateLimits(scheduled)
+			remainder.Sub(scheduled)
+			shares[queue] = math.Max(0, ResourcesFloatAsUsage(c.resourceScarcity, c.schedulingInfo[queue].schedulingShare))
 		} else {
 			// if there are no suitable jobs to lease eliminate queue from the scheduling
+			delete(c.schedulingInfo, queue)
 			delete(c.priorities, queue)
-			c.slices = SliceResource(c.resourceScarcity, c.priorities, remainder)
-			shares = QueueSlicesToShares(c.resourceScarcity, c.slices)
+			c.schedulingInfo = SliceResourceWithLimits(c.resourceScarcity, c.schedulingInfo, c.priorities, remainder)
+			shares = QueueSlicesToShares(c.resourceScarcity, c.schedulingInfo)
 		}
 
 		limit -= len(leased)

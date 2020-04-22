@@ -725,6 +725,13 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"number\",\n" +
 		"          \"format\": \"double\"\n" +
 		"        },\n" +
+		"        \"ResourceLimits\": {\n" +
+		"          \"type\": \"object\",\n" +
+		"          \"additionalProperties\": {\n" +
+		"            \"type\": \"number\",\n" +
+		"            \"format\": \"double\"\n" +
+		"          }\n" +
+		"        },\n" +
 		"        \"UserOwners\": {\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
