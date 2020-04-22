@@ -34,7 +34,10 @@ var kubeCmd = &cobra.Command{
 	Short: "output kubectl command to access pod information",
 	Long: `This command can be used to query kubernetes pods for a particular job.
 Example:
-	$(armadactl kube logs --queue my-queue --jobSet my-set --jobId 123456) -t 100
+	armadactl kube logs --queue my-queue --jobSet my-set --jobId 123456
+	
+In bash, you can execute it directly like this:
+	$(armadactl kube logs --queue my-queue --jobSet my-set --jobId 123456) --tail=20
 `,
 	Run: func(cmd *cobra.Command, args []string) {
 		apiConnectionDetails := client.ExtractCommandlineArmadaApiConnectionDetails()
