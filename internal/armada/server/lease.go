@@ -74,6 +74,9 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 	}
 
 	currentAllocatedJobs, e := q.jobRepository.GetLeasedJobs(scheduling.GetClusterReportIds(activeClusterReports))
+	if e != nil {
+		return nil, e
+	}
 
 	jobs, e := scheduling.LeaseJobs(
 		ctx,
