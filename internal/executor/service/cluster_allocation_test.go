@@ -3,6 +3,7 @@ package service
 import (
 	"testing"
 
+	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/internal/executor/domain"
 	"github.com/G-Research/armada/pkg/api"
 
@@ -59,7 +60,7 @@ func TestCreatePod_CreatesExpectedPod(t *testing.T) {
 
 	expectedOutput := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: PodNamePrefix + job.Id,
+			Name: common.PodNamePrefix + job.Id,
 			Labels: map[string]string{
 				domain.JobId: job.Id,
 				domain.Queue: job.Queue,

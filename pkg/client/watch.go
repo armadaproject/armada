@@ -14,11 +14,20 @@ import (
 	"github.com/G-Research/armada/pkg/client/domain"
 )
 
-func WatchJobSet(client api.EventClient, queue, jobSetId string, waitForNew bool, context context.Context, onUpdate func(*domain.WatchContext, api.Event) bool) {
-	WatchJobSetWithJobIdsFilter(client, queue, jobSetId, waitForNew, []string{}, context, onUpdate)
+func GetJobSetState(client api.EventClient, queue, jobSetId string, context context.Context) *domain.WatchContext {
+	latestState := domain.NewWatchContext()
+	WatchJobSet(client, queue, jobSetId, false, context, func(state *domain.WatchContext, _ api.Event) bool {
+		latestState = state
+		return false
+	})
+	return latestState
 }
 
-func WatchJobSetWithJobIdsFilter(client api.EventClient, queue, jobSetId string, waitForNew bool, jobIds []string, context context.Context, onUpdate func(*domain.WatchContext, api.Event) bool) {
+func WatchJobSet(client api.EventClient, queue, jobSetId string, waitForNew bool, context context.Context, onUpdate func(*domain.WatchContext, api.Event) bool) *domain.WatchContext {
+	return WatchJobSetWithJobIdsFilter(client, queue, jobSetId, waitForNew, []string{}, context, onUpdate)
+}
+
+func WatchJobSetWithJobIdsFilter(client api.EventClient, queue, jobSetId string, waitForNew bool, jobIds []string, context context.Context, onUpdate func(*domain.WatchContext, api.Event) bool) *domain.WatchContext {
 	state := domain.NewWatchContext()
 
 	jobIdsSet := util.StringListToSet(jobIds)
@@ -28,7 +37,7 @@ func WatchJobSetWithJobIdsFilter(client api.EventClient, queue, jobSetId string,
 	for {
 		select {
 		case <-context.Done():
-			return
+			return state
 		default:
 		}
 
@@ -45,7 +54,7 @@ func WatchJobSetWithJobIdsFilter(client api.EventClient, queue, jobSetId string,
 			msg, e := clientStream.Recv()
 			if e != nil {
 				if e == io.EOF {
-					return
+					return state
 				}
 				if !isTransportClosingError(e) {
 					log.Error(e)
@@ -70,7 +79,7 @@ func WatchJobSetWithJobIdsFilter(client api.EventClient, queue, jobSetId string,
 
 			shouldExit := onUpdate(state, event)
 			if shouldExit {
-				return
+				return state
 			}
 		}
 	}
