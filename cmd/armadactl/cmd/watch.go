@@ -59,7 +59,7 @@ var watchCmd = &cobra.Command{
 						log.Errorf("Failure reason:\n%s\n", event.Reason)
 
 						jobInfo := state.GetJobInfo(event.JobId)
-						log.Errorf("You might be able to get the pod logs by running (logs are available for limited time):\n%s -t 100\n",
+						log.Errorf("You might be able to get the pod logs by running (logs are available for limited time):\n%s --tail=50\n",
 							client.GetKubectlCommand(jobInfo.ClusterId, jobInfo.Job.Namespace, event.JobId, "logs"))
 					}
 				}
