@@ -9,7 +9,6 @@ import (
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
 
-	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/client"
 )
@@ -26,6 +25,8 @@ func init() {
 	kubeCmd.Flags().String(
 		"jobSet", "", "jobSet to cancel (requires queue to be specified)")
 	kubeCmd.MarkFlagRequired("jobSet")
+
+	kubeCmd.FParseErrWhitelist.UnknownFlags = true
 }
 
 var kubeCmd = &cobra.Command{
@@ -58,7 +59,7 @@ Example:
 				log.Fatalf("The job have no cluster allocated.")
 			}
 
-			cmd := client.GetKubectlCommand(jobInfo.ClusterId, jobInfo.Job.Namespace, verb+" "+common.PodNamePrefix+jobId)
+			cmd := client.GetKubectlCommand(jobInfo.ClusterId, jobInfo.Job.Namespace, jobId, verb)
 
 			fmt.Println(cmd)
 		})
