@@ -9,6 +9,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/internal/executor/context"
 	"github.com/G-Research/armada/internal/executor/domain"
 	"github.com/G-Research/armada/internal/executor/reporter"
@@ -16,7 +17,6 @@ import (
 	"github.com/G-Research/armada/pkg/api"
 )
 
-const PodNamePrefix string = "armada-"
 const admissionWebhookValidationFailureMessage string = "admission webhook"
 
 type ClusterAllocationService struct {
@@ -147,7 +147,7 @@ func createPod(job *api.Job) *v1.Pod {
 
 	pod := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        PodNamePrefix + job.Id,
+			Name:        common.PodNamePrefix + job.Id,
 			Labels:      labels,
 			Annotations: annotation,
 			Namespace:   job.Namespace,

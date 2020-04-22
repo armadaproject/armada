@@ -2,6 +2,7 @@ package client
 
 import (
 	"os"
+	"path/filepath"
 
 	"github.com/mitchellh/go-homedir"
 	log "github.com/sirupsen/logrus"
@@ -15,6 +16,27 @@ func AddArmadaApiConnectionCommandlineArgs(rootCmd *cobra.Command) {
 }
 
 func LoadCommandlineArgsFromConfigFile(cfgFile string) {
+	exePath, err := os.Executable()
+	if err != nil {
+
+		log.Errorf("Can't find executable path because %s\n", err)
+		os.Exit(1)
+	} else {
+		exeDir := filepath.Dir(exePath)
+		viper.SetConfigFile(exeDir + "/armadactl-defaults.yaml")
+		err := viper.ReadInConfig()
+		if err != nil {
+			switch err.(type) {
+			case viper.ConfigFileNotFoundError:
+			case *os.PathError:
+				// No default config is fine
+			default:
+				log.Errorf("Can't read config file %s because %s\n", viper.ConfigFileUsed(), err)
+				os.Exit(1)
+			}
+		}
+	}
+
 	if cfgFile != "" {
 		// Use config file from the flag.
 		viper.SetConfigFile(cfgFile)
@@ -33,7 +55,7 @@ func LoadCommandlineArgsFromConfigFile(cfgFile string) {
 	viper.AutomaticEnv() // read in environment variables that match
 
 	// If a config file is found, read it in.
-	err := viper.ReadInConfig()
+	err = viper.MergeInConfig()
 
 	if err != nil {
 		switch err.(type) {
