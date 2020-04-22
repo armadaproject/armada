@@ -28,6 +28,8 @@ All jobs need to be placed into queues. Resources allocation is controlled using
 
 To achieve fairness between queues, when Armada schedules jobs resources are divided based on Queue Effective Priority.
 
+More information about queue priority and scheduling can be found [here](./priority.md)
+
 ## Design
 ![Diagram](./batch-api.svg)
 
