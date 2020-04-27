@@ -24,7 +24,7 @@ func ValidatePodSpec(spec *v1.PodSpec) error {
 		}
 
 		if !resourceListEquals(container.Resources.Requests, container.Resources.Limits) {
-			return fmt.Errorf("container %v does not havee resource request and limit equal (this is currentlz not supported)", container.Name)
+			return fmt.Errorf("container %v does not havee resource request and limit equal (this is currently not supported)", container.Name)
 		}
 	}
 	return nil
