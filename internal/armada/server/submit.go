@@ -76,9 +76,12 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 
 	principal := authorization.GetPrincipal(ctx)
 
-	jobs := server.jobRepository.CreateJobs(req, principal)
+	jobs, e := server.jobRepository.CreateJobs(req, principal)
+	if e != nil {
+		return nil, status.Errorf(codes.InvalidArgument, e.Error())
+	}
 
-	e := reportSubmitted(server.eventRepository, jobs)
+	e = reportSubmitted(server.eventRepository, jobs)
 	if e != nil {
 		return nil, status.Errorf(codes.Aborted, e.Error())
 	}
