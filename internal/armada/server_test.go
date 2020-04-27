@@ -19,6 +19,24 @@ import (
 	"github.com/G-Research/armada/pkg/api"
 )
 
+func TestSubmitJob_EmptyPodSpec(t *testing.T) {
+	withRunningServer(func(client api.SubmitClient, leaseClient api.AggregatedQueueClient, ctx context.Context) {
+		_, err := client.CreateQueue(ctx, &api.Queue{
+			Name:           "test",
+			PriorityFactor: 1,
+		})
+		assert.Empty(t, err)
+
+		request := &api.JobSubmitRequest{
+			JobRequestItems: []*api.JobSubmitRequestItem{{}},
+			Queue:           "test",
+			JobSetId:        "set",
+		}
+		_, err = client.SubmitJobs(ctx, request)
+		assert.Error(t, err)
+	})
+}
+
 func TestSubmitJob(t *testing.T) {
 	withRunningServer(func(client api.SubmitClient, leaseClient api.AggregatedQueueClient, ctx context.Context) {
 
