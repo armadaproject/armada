@@ -67,16 +67,22 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 		return nil, e
 	}
 
+	e = q.usageRepository.UpdateClusterLeased(&request.ClusterLeasedReport)
+	if e != nil {
+		return nil, e
+	}
+
 	activeClusterReports := scheduling.FilterActiveClusters(usageReports)
 	clusterPriorities, e := q.usageRepository.GetClusterPriorities(scheduling.GetClusterReportIds(activeClusterReports))
 	if e != nil {
 		return nil, e
 	}
 
-	currentAllocatedJobs, e := q.jobRepository.GetLeasedJobs(scheduling.GetClusterReportIds(activeClusterReports))
+	clusterLeasedJobReports, e := q.usageRepository.GetClusterLeasedReports()
 	if e != nil {
 		return nil, e
 	}
+	clusterLeasedJobReports = scheduling.FilterActiveClusterLeasedReports(clusterLeasedJobReports)
 
 	jobs, e := scheduling.LeaseJobs(
 		ctx,
@@ -85,10 +91,16 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 		func(jobs []*api.Job) { reportJobsLeased(q.eventRepository, jobs, request.ClusterId) },
 		request,
 		activeClusterReports,
-		currentAllocatedJobs,
+		clusterLeasedJobReports,
 		clusterPriorities,
 		activeQueues)
 
+	if e != nil {
+		return nil, e
+	}
+
+	clusterLeasedReport := scheduling.CreateClusterLeasedReport(request.ClusterLeasedReport.ClusterId, &request.ClusterLeasedReport, jobs)
+	e = q.usageRepository.UpdateClusterLeased(clusterLeasedReport)
 	if e != nil {
 		return nil, e
 	}

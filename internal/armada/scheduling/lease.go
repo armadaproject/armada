@@ -38,7 +38,7 @@ func LeaseJobs(
 	onJobLease func([]*api.Job),
 	request *api.LeaseRequest,
 	activeClusterReports map[string]*api.ClusterUsageReport,
-	activeClusterAllocatedJobs []*api.Job,
+	activeClusterLeaseJobReports map[string]*api.ClusterLeasedReport,
 	clusterPriorities map[string]map[string]float64,
 	activeQueues []*api.Queue,
 ) ([]*api.Job, error) {
@@ -50,15 +50,7 @@ func LeaseJobs(
 		totalCapacity.Add(clusterReport.ClusterAvailableCapacity)
 	}
 
-	resourceAllocatedByQueue := map[string]common.ComputeResources{}
-	for _, job := range activeClusterAllocatedJobs {
-		totalResource := common.TotalResourceRequest(job.PodSpec)
-		if allocated, ok := resourceAllocatedByQueue[job.Queue]; ok {
-			totalResource.Add(allocated)
-		}
-		resourceAllocatedByQueue[job.Queue] = totalResource
-	}
-
+	resourceAllocatedByQueue := CombineLeasedReportResourceByQueue(activeClusterLeaseJobReports)
 	maxResourceToSchedulePerQueue := totalCapacity.MulByResource(config.MaximalResourceFractionToSchedulePerQueue)
 	maxResourcePerQueue := totalCapacity.MulByResource(config.MaximalResourceFractionPerQueue)
 	queueSchedulingInfo := calculateQueueSchedulingLimits(activeQueues, maxResourceToSchedulePerQueue, maxResourcePerQueue, totalCapacity, resourceAllocatedByQueue)

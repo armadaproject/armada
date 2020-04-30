@@ -21,7 +21,7 @@ const jobDoneAnnotation = "reported_done"
 
 type LeaseService interface {
 	ReturnLease(pod *v1.Pod) error
-	RequestJobLeases(availableResource *common.ComputeResources, availableLabels []map[string]string) ([]*api.Job, error)
+	RequestJobLeases(availableResource *common.ComputeResources, availableLabels []map[string]string, leasedResourceByQueue map[string]common.ComputeResources) ([]*api.Job, error)
 	ReportDone(pods []*v1.Pod) error
 }
 
@@ -45,16 +45,30 @@ func NewJobLeaseService(
 		failedPodExpiry: failedPodExpiry}
 }
 
-func (jobLeaseService *JobLeaseService) RequestJobLeases(availableResource *common.ComputeResources, availableLabels []map[string]string) ([]*api.Job, error) {
+func (jobLeaseService *JobLeaseService) RequestJobLeases(availableResource *common.ComputeResources, availableLabels []map[string]string, leasedResourceByQueue map[string]common.ComputeResources) ([]*api.Job, error) {
 	labeling := []*api.NodeLabeling{}
 	for _, l := range availableLabels {
 		labeling = append(labeling, &api.NodeLabeling{Labels: l})
 	}
+	leasedQueueReports := make([]*api.QueueLeasedReport, 0, len(leasedResourceByQueue))
+	for queueName, leasedResource := range leasedResourceByQueue {
+		leasedQueueReport := &api.QueueLeasedReport{
+			Name:            queueName,
+			ResourcesLeased: leasedResource,
+		}
+		leasedQueueReports = append(leasedQueueReports, leasedQueueReport)
+	}
+	clusterLeasedReport := api.ClusterLeasedReport{
+		ClusterId:  jobLeaseService.clusterContext.GetClusterId(),
+		ReportTime: time.Now(),
+		Queues:     leasedQueueReports,
+	}
 
 	leaseRequest := api.LeaseRequest{
-		ClusterId:       jobLeaseService.clusterContext.GetClusterId(),
-		Resources:       *availableResource,
-		AvailableLabels: labeling,
+		ClusterId:           jobLeaseService.clusterContext.GetClusterId(),
+		Resources:           *availableResource,
+		AvailableLabels:     labeling,
+		ClusterLeasedReport: clusterLeasedReport,
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()

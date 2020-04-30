@@ -2,6 +2,7 @@ package scheduling
 
 import (
 	"math"
+	"time"
 
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/internal/common/util"
@@ -184,4 +185,46 @@ func sumReportResources(reports map[string]*api.ClusterUsageReport) common.Compu
 		result.Add(report.ClusterCapacity)
 	}
 	return result
+}
+
+func CombineLeasedReportResourceByQueue(reports map[string]*api.ClusterLeasedReport) map[string]common.ComputeResources {
+	resourceLeasedByQueue := map[string]common.ComputeResources{}
+	for _, clusterReport := range reports {
+		for _, queueReport := range clusterReport.Queues {
+			if _, ok := resourceLeasedByQueue[queueReport.Name]; !ok {
+				resourceLeasedByQueue[queueReport.Name] = queueReport.ResourcesLeased
+			} else {
+				resourceLeasedByQueue[queueReport.Name].Add(queueReport.ResourcesLeased)
+			}
+		}
+	}
+	return resourceLeasedByQueue
+}
+
+func CreateClusterLeasedReport(clusterId string, currentReport *api.ClusterLeasedReport, additionallyLeasedJobs []*api.Job) *api.ClusterLeasedReport {
+	leasedResourceByQueue := CombineLeasedReportResourceByQueue(map[string]*api.ClusterLeasedReport{
+		clusterId: currentReport,
+	})
+	for _, job := range additionallyLeasedJobs {
+		if _, ok := leasedResourceByQueue[job.Queue]; !ok {
+			leasedResourceByQueue[job.Queue] = common.TotalResourceRequest(job.PodSpec)
+		} else {
+			leasedResourceByQueue[job.Queue].Add(common.TotalResourceRequest(job.PodSpec))
+		}
+	}
+	leasedQueueReports := make([]*api.QueueLeasedReport, 0, len(leasedResourceByQueue))
+	for queueName, leasedResource := range leasedResourceByQueue {
+		leasedQueueReport := &api.QueueLeasedReport{
+			Name:            queueName,
+			ResourcesLeased: leasedResource,
+		}
+		leasedQueueReports = append(leasedQueueReports, leasedQueueReport)
+	}
+
+	clusterLeasedReport := api.ClusterLeasedReport{
+		ClusterId:  clusterId,
+		ReportTime: time.Now(),
+		Queues:     leasedQueueReports,
+	}
+	return &clusterLeasedReport
 }

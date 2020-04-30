@@ -37,7 +37,6 @@ type JobRepository interface {
 	ReturnLease(clusterId string, jobId string) (returnedJob *api.Job, err error)
 	DeleteJobs(jobs []*api.Job) map[*api.Job]error
 	GetActiveJobIds(queue string, jobSetId string) ([]string, error)
-	GetLeasedJobs(clusterIds []string) ([]*api.Job, error)
 	GetQueueActiveJobSets(queue string) ([]*api.JobSetInfo, error)
 }
 
@@ -334,23 +333,6 @@ func (repo *RedisJobRepository) GetExistingJobsByIds(ids []string) ([]*api.Job, 
 		jobs = append(jobs, job)
 	}
 	return jobs, nil
-}
-
-func (repo *RedisJobRepository) GetLeasedJobs(clusterIds []string) ([]*api.Job, error) {
-	allJobsAssociatedWithACluster, e := repo.db.HGetAll(jobClusterMapKey).Result()
-	if e != nil {
-		return nil, e
-	}
-	clusterIdSet := util.StringListToSet(clusterIds)
-
-	jobsOnSpecifiedCluster := []string{}
-	for jobId, cluster := range allJobsAssociatedWithACluster {
-		if clusterIdSet[cluster] {
-			jobsOnSpecifiedCluster = append(jobsOnSpecifiedCluster, jobId)
-		}
-	}
-
-	return repo.GetExistingJobsByIds(jobsOnSpecifiedCluster)
 }
 
 func (repo *RedisJobRepository) FilterActiveQueues(queues []*api.Queue) ([]*api.Queue, error) {

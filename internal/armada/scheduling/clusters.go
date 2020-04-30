@@ -19,6 +19,17 @@ func FilterActiveClusters(reports map[string]*api.ClusterUsageReport) map[string
 	return result
 }
 
+func FilterActiveClusterLeasedReports(reports map[string]*api.ClusterLeasedReport) map[string]*api.ClusterLeasedReport {
+	result := map[string]*api.ClusterLeasedReport{}
+	now := time.Now()
+	for id, report := range reports {
+		if report.ReportTime.Add(activeClusterExpiry).After(now) {
+			result[id] = report
+		}
+	}
+	return result
+}
+
 func GetClusterReportIds(reports map[string]*api.ClusterUsageReport) []string {
 	var result []string
 	for id := range reports {

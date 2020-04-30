@@ -46,7 +46,13 @@ func (allocationService *ClusterAllocationService) AllocateSpareClusterCapacity(
 		return
 	}
 
-	newJobs, err := allocationService.leaseService.RequestJobLeases(availableResource, availableLabels)
+	leasedJobs, err := allocationService.clusterContext.GetBatchPods()
+	if err != nil {
+		log.Errorf("Failed to allocate spare cluster capacity because %s", err)
+		return
+	}
+
+	newJobs, err := allocationService.leaseService.RequestJobLeases(availableResource, availableLabels, getAllocationByQueue(leasedJobs))
 
 	cpu := (*availableResource)["cpu"]
 	memory := (*availableResource)["memory"]
