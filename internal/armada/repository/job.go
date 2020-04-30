@@ -11,6 +11,7 @@ import (
 
 	"github.com/G-Research/armada/internal/armada/authorization"
 	"github.com/G-Research/armada/internal/common/util"
+	"github.com/G-Research/armada/internal/common/validation"
 	"github.com/G-Research/armada/pkg/api"
 )
 
@@ -27,7 +28,7 @@ type JobQueueRepository interface {
 
 type JobRepository interface {
 	JobQueueRepository
-	CreateJobs(request *api.JobSubmitRequest, principal authorization.Principal) []*api.Job
+	CreateJobs(request *api.JobSubmitRequest, principal authorization.Principal) ([]*api.Job, error)
 	AddJobs(job []*api.Job) ([]*SubmitJobResult, error)
 	GetExistingJobsByIds(ids []string) ([]*api.Job, error)
 	FilterActiveQueues(queues []*api.Queue) ([]*api.Queue, error)
@@ -48,10 +49,24 @@ func NewRedisJobRepository(db redis.UniversalClient) *RedisJobRepository {
 	return &RedisJobRepository{db: db}
 }
 
-func (repo *RedisJobRepository) CreateJobs(request *api.JobSubmitRequest, principal authorization.Principal) []*api.Job {
+func (repo *RedisJobRepository) CreateJobs(request *api.JobSubmitRequest, principal authorization.Principal) ([]*api.Job, error) {
 	jobs := make([]*api.Job, 0, len(request.JobRequestItems))
 
-	for _, item := range request.JobRequestItems {
+	if request.JobSetId == "" {
+		return nil, fmt.Errorf("job set is not specified")
+	}
+
+	if request.Queue == "" {
+		return nil, fmt.Errorf("queue is not specified")
+	}
+
+	for i, item := range request.JobRequestItems {
+
+		e := validation.ValidatePodSpec(item.PodSpec)
+		if e != nil {
+			return nil, fmt.Errorf("error validating pod spec of job with index %v: %v", i, e)
+		}
+
 		namespace := item.Namespace
 		if namespace == "" {
 			namespace = "default"
@@ -77,7 +92,7 @@ func (repo *RedisJobRepository) CreateJobs(request *api.JobSubmitRequest, princi
 		jobs = append(jobs, j)
 	}
 
-	return jobs
+	return jobs, nil
 }
 
 type submitJobRedisResponse struct {

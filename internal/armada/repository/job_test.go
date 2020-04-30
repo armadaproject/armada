@@ -7,6 +7,7 @@ import (
 	"github.com/go-redis/redis"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/G-Research/armada/internal/armada/authorization"
 	"github.com/G-Research/armada/pkg/api"
@@ -238,16 +239,30 @@ func addLeasedJob(t *testing.T, r *RedisJobRepository, queue string, cluster str
 }
 
 func addTestJob(t *testing.T, r *RedisJobRepository, queue string) *api.Job {
-	jobs := r.CreateJobs(&api.JobSubmitRequest{
+	cpu := resource.MustParse("1")
+	memory := resource.MustParse("512Mi")
+
+	jobs, e := r.CreateJobs(&api.JobSubmitRequest{
 		Queue:    queue,
 		JobSetId: "set1",
 		JobRequestItems: []*api.JobSubmitRequestItem{
 			{
 				Priority: 1,
-				PodSpec:  &v1.PodSpec{},
+				PodSpec: &v1.PodSpec{
+					Containers: []v1.Container{
+						{
+							Resources: v1.ResourceRequirements{
+								Limits:   v1.ResourceList{"cpu": cpu, "memory": memory},
+								Requests: v1.ResourceList{"cpu": cpu, "memory": memory},
+							},
+						},
+					},
+				},
 			},
 		},
 	}, authorization.NewStaticPrincipal("user", []string{}))
+	assert.NoError(t, e)
+
 	results, e := r.AddJobs(jobs)
 	assert.Nil(t, e)
 	for _, result := range results {
