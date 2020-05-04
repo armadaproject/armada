@@ -183,12 +183,13 @@ func (repo *RedisJobRepository) ReturnLease(clusterId string, jobId string) (ret
 }
 
 type deleteJobRedisResponse struct {
-	job                     *api.Job
-	expiryAlreadySet        bool
-	removeFromLeasedResult  *redis.IntCmd
-	removeFromQueueResult   *redis.IntCmd
-	setJobExpiryResult      *redis.BoolCmd
-	deleteJobSetIndexResult *redis.IntCmd
+	job                            *api.Job
+	expiryAlreadySet               bool
+	removeFromLeasedResult         *redis.IntCmd
+	removeFromQueueResult          *redis.IntCmd
+	removeClusterAssociationResult *redis.IntCmd
+	setJobExpiryResult             *redis.BoolCmd
+	deleteJobSetIndexResult        *redis.IntCmd
 }
 
 func (repo *RedisJobRepository) DeleteJobs(jobs []*api.Job) map[*api.Job]error {
@@ -199,6 +200,7 @@ func (repo *RedisJobRepository) DeleteJobs(jobs []*api.Job) map[*api.Job]error {
 		deletionResult := &deleteJobRedisResponse{job: job, expiryAlreadySet: expiryStatus[job]}
 		deletionResult.removeFromQueueResult = pipe.ZRem(jobQueuePrefix+job.Queue, job.Id)
 		deletionResult.removeFromLeasedResult = pipe.ZRem(jobLeasedPrefix+job.Queue, job.Id)
+		deletionResult.removeClusterAssociationResult = pipe.HDel(jobClusterMapKey, job.Id)
 		deletionResult.deleteJobSetIndexResult = pipe.SRem(jobSetPrefix+job.JobSetId, job.Id)
 
 		if !deletionResult.expiryAlreadySet {
@@ -265,6 +267,12 @@ func processDeletionResponse(deletionResponse *deleteJobRedisResponse) (int64, e
 	}
 
 	modified, e = deletionResponse.deleteJobSetIndexResult.Result()
+	totalUpdates += modified
+	if e != nil {
+		errorMessage = e
+	}
+
+	modified, e = deletionResponse.removeClusterAssociationResult.Result()
 	totalUpdates += modified
 	if e != nil {
 		errorMessage = e
@@ -565,13 +573,14 @@ end
 `)
 
 func expire(db redis.Cmdable, queueName string, jobId string, created time.Time, deadline time.Time) *redis.Cmd {
-	return expireScript.Run(db, []string{jobQueuePrefix + queueName, jobLeasedPrefix + queueName},
+	return expireScript.Run(db, []string{jobQueuePrefix + queueName, jobLeasedPrefix + queueName, jobClusterMapKey},
 		jobId, float64(created.UnixNano()), float64(deadline.UnixNano()))
 }
 
 var expireScript = redis.NewScript(`
 local queue = KEYS[1]
 local leasedJobsSet = KEYS[2]
+local clusterAssociation = KEYS[3]
 
 local jobId = ARGV[1]
 local created = tonumber(ARGV[2])
@@ -580,6 +589,7 @@ local deadline = tonumber(ARGV[3])
 local leasedTime = tonumber(redis.call('ZSCORE', leasedJobsSet, jobId))
 
 if leasedTime ~= nil and leasedTime < deadline then
+	redis.call('HDEL', clusterAssociation, jobId)
 	local exists = redis.call('ZREM', leasedJobsSet, jobId)
 	if exists ~= 0 then
 		return redis.call('ZADD', queue, created, jobId)
@@ -606,6 +616,7 @@ local created = tonumber(ARGV[3])
 local currentClusterId = redis.call('HGET', clusterAssociation, jobId)
 
 if currentClusterId == clusterId then
+	redis.call('HDEL', clusterAssociation, jobId)
 	local exists = redis.call('ZREM', leasedJobsSet, jobId)
 	if exists ~= 0 then
 		return redis.call('ZADD', queue, created, jobId)
