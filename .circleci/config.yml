@@ -36,7 +36,6 @@ jobs:
     steps:
       - checkout
       - run: e2e/setup/setup_environment.sh
-      - run: docker-compose -f ./e2e/setup/kafka/docker-compose.yaml up -d
       - run:
           name: Start cluster for e2e tests
           command: ./e2e/setup/setup_cluster_ci.sh
