@@ -70,19 +70,20 @@ e2e-start-cluster:
 	./e2e/setup/setup_cluster_ci.sh
 	./e2e/setup/setup_kube_config_ci.sh
 	KUBECONFIG=.kube/config kubectl apply -f ./e2e/setup/namespace-with-anonymous-user.yaml
-	docker-compose -f ./e2e/setup/kafka/docker-compose.yaml up -d
+	#docker-compose -f ./e2e/setup/kafka/docker-compose.yaml up -d
+	docker run -d --name nats -p 4223:4223 -p 8223:8223 nats-streaming -p 4223 -m 8223
 
 e2e-stop-cluster:
-	docker stop kube
-	docker rm kube
-	docker-compose -f ./e2e/setup/kafka/docker-compose.yaml down
+	docker stop kube nats
+	docker rm kube nats
+	#docker-compose -f ./e2e/setup/kafka/docker-compose.yaml down
 
 .ONESHELL:
 tests-e2e: e2e-start-cluster build-docker
 	docker run -d --name redis -p=6379:6379 redis
 	docker run -d --name server --network=host -p=50051:50051 \
 		-v $(shell pwd)/e2e:/e2e \
-		armada ./server --config /e2e/setup/kafka/armada-config.yaml
+		armada ./server --config /e2e/setup/nats/armada-config.yaml
 	docker run -d --name executor --network=host -v $(shell pwd)/.kube/config:/kube/config \
 		-e KUBECONFIG=/kube/config \
 		-e ARMADA_KUBERNETES_IMPERSONATEUSERS=true \
