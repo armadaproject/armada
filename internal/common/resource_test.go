@@ -1,12 +1,30 @@
 package common
 
 import (
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 )
+
+func TestComputeResourcesFloat_LimitTo0(t *testing.T) {
+	data := ComputeResourcesFloat{
+		"cpu":    2,
+		"memory": -2,
+		"disk":   -1,
+		"gpu":    5,
+	}
+
+	result := data.DeepCopy()
+	result.LimitTo0()
+
+	for key, value := range data {
+		resultValue := result[key]
+		assert.Equal(t, resultValue, math.Max(value, 0))
+	}
+}
 
 func TestCalculateTotalResource(t *testing.T) {
 	resources := makeDefaultNodeResource()

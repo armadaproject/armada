@@ -2,13 +2,82 @@ package scheduling
 
 import (
 	"math"
+	"time"
 
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/pkg/api"
 )
 
-func SliceResource(resourceScarcity map[string]float64, queuePriorities map[*api.Queue]QueuePriorityInfo, quantityToSlice common.ComputeResourcesFloat) map[*api.Queue]common.ComputeResourcesFloat {
+type QueueSchedulingInfo struct {
+	remainingSchedulingLimit common.ComputeResourcesFloat
+	schedulingShare          common.ComputeResourcesFloat
+	adjustedShare            common.ComputeResourcesFloat
+}
+
+func NewQueueSchedulingInfo(
+	remainingSchedulingLimit common.ComputeResourcesFloat,
+	schedulingShare common.ComputeResourcesFloat,
+	adjustedShare common.ComputeResourcesFloat) *QueueSchedulingInfo {
+	return &QueueSchedulingInfo{
+		remainingSchedulingLimit: remainingSchedulingLimit.DeepCopy(),
+		schedulingShare:          schedulingShare.DeepCopy(),
+		adjustedShare:            adjustedShare.DeepCopy(),
+	}
+}
+
+func (info *QueueSchedulingInfo) UpdateLimits(resourceUsed common.ComputeResourcesFloat) {
+	schedulingShareScaled := info.schedulingShare.DeepCopy()
+	for key, schedulingShareOfResource := range info.schedulingShare {
+		allocated, used := resourceUsed[key]
+		if used {
+			adjustedShareOfResource := info.adjustedShare[key]
+			scalingFactor := 0.0
+			if adjustedShareOfResource > 0 {
+				scalingFactor = schedulingShareOfResource / adjustedShareOfResource
+			}
+			scaledValue := allocated * scalingFactor
+
+			schedulingShareScaled[key] = math.Max(schedulingShareScaled[key]-scaledValue, 0)
+		}
+	}
+	info.remainingSchedulingLimit.Sub(resourceUsed)
+	info.remainingSchedulingLimit.LimitTo0()
+	info.schedulingShare = schedulingShareScaled
+	info.schedulingShare.LimitTo0()
+	info.adjustedShare.Sub(resourceUsed)
+	info.adjustedShare.LimitTo0()
+}
+
+func SliceResourceWithLimits(resourceScarcity map[string]float64, queueSchedulingInfo map[*api.Queue]*QueueSchedulingInfo, queuePriorities map[*api.Queue]QueuePriorityInfo, quantityToSlice common.ComputeResourcesFloat) map[*api.Queue]*QueueSchedulingInfo {
+	queuesWithCapacity := filterQueuesWithNoCapacity(queueSchedulingInfo, queuePriorities)
+	naiveSlicedResource := sliceResource(resourceScarcity, queuesWithCapacity, quantityToSlice)
+
+	result := map[*api.Queue]*QueueSchedulingInfo{}
+	for queue, slice := range naiveSlicedResource {
+		schedulingInfo := queueSchedulingInfo[queue]
+		adjustedSlice := slice.DeepCopy()
+		adjustedSlice = adjustedSlice.LimitWith(schedulingInfo.remainingSchedulingLimit)
+		result[queue] = NewQueueSchedulingInfo(schedulingInfo.remainingSchedulingLimit, slice, adjustedSlice)
+	}
+
+	return result
+}
+
+func filterQueuesWithNoCapacity(queueSchedulingInfo map[*api.Queue]*QueueSchedulingInfo, queuePriorities map[*api.Queue]QueuePriorityInfo) map[*api.Queue]QueuePriorityInfo {
+	queuesWithCapacity := map[*api.Queue]QueuePriorityInfo{}
+	for queue, info := range queueSchedulingInfo {
+		for _, resource := range info.remainingSchedulingLimit {
+			if resource > 0 {
+				queuesWithCapacity[queue] = queuePriorities[queue]
+				break
+			}
+		}
+	}
+	return queuesWithCapacity
+}
+
+func sliceResource(resourceScarcity map[string]float64, queuePriorities map[*api.Queue]QueuePriorityInfo, quantityToSlice common.ComputeResourcesFloat) map[*api.Queue]common.ComputeResourcesFloat {
 
 	inversePriorities := make(map[*api.Queue]float64)
 	inverseSum := 0.0
@@ -62,18 +131,18 @@ func ResourcesFloatAsUsage(resourceScarcity map[string]float64, resources common
 	return usage
 }
 
-func QueueSlicesToShares(resourceScarcity map[string]float64, slices map[*api.Queue]common.ComputeResourcesFloat) map[*api.Queue]float64 {
+func QueueSlicesToShares(resourceScarcity map[string]float64, schedulingInfo map[*api.Queue]*QueueSchedulingInfo) map[*api.Queue]float64 {
 	shares := map[*api.Queue]float64{}
-	for queue, slice := range slices {
-		shares[queue] = ResourcesFloatAsUsage(resourceScarcity, slice)
+	for queue, info := range schedulingInfo {
+		shares[queue] = ResourcesFloatAsUsage(resourceScarcity, info.schedulingShare)
 	}
 	return shares
 }
 
-func SumQueueSlices(slices map[*api.Queue]common.ComputeResourcesFloat) common.ComputeResourcesFloat {
+func SumRemainingResource(schedulingInfo map[*api.Queue]*QueueSchedulingInfo) common.ComputeResourcesFloat {
 	sum := common.ComputeResourcesFloat{}
-	for _, slice := range slices {
-		sum.Add(slice)
+	for _, info := range schedulingInfo {
+		sum.Add(info.adjustedShare)
 	}
 	return sum
 }
@@ -116,4 +185,46 @@ func sumReportResources(reports map[string]*api.ClusterUsageReport) common.Compu
 		result.Add(report.ClusterCapacity)
 	}
 	return result
+}
+
+func CombineLeasedReportResourceByQueue(reports map[string]*api.ClusterLeasedReport) map[string]common.ComputeResources {
+	resourceLeasedByQueue := map[string]common.ComputeResources{}
+	for _, clusterReport := range reports {
+		for _, queueReport := range clusterReport.Queues {
+			if _, ok := resourceLeasedByQueue[queueReport.Name]; !ok {
+				resourceLeasedByQueue[queueReport.Name] = queueReport.ResourcesLeased
+			} else {
+				resourceLeasedByQueue[queueReport.Name].Add(queueReport.ResourcesLeased)
+			}
+		}
+	}
+	return resourceLeasedByQueue
+}
+
+func CreateClusterLeasedReport(clusterId string, currentReport *api.ClusterLeasedReport, additionallyLeasedJobs []*api.Job) *api.ClusterLeasedReport {
+	leasedResourceByQueue := CombineLeasedReportResourceByQueue(map[string]*api.ClusterLeasedReport{
+		clusterId: currentReport,
+	})
+	for _, job := range additionallyLeasedJobs {
+		if _, ok := leasedResourceByQueue[job.Queue]; !ok {
+			leasedResourceByQueue[job.Queue] = common.TotalResourceRequest(job.PodSpec)
+		} else {
+			leasedResourceByQueue[job.Queue].Add(common.TotalResourceRequest(job.PodSpec))
+		}
+	}
+	leasedQueueReports := make([]*api.QueueLeasedReport, 0, len(leasedResourceByQueue))
+	for queueName, leasedResource := range leasedResourceByQueue {
+		leasedQueueReport := &api.QueueLeasedReport{
+			Name:            queueName,
+			ResourcesLeased: leasedResource,
+		}
+		leasedQueueReports = append(leasedQueueReports, leasedQueueReport)
+	}
+
+	clusterLeasedReport := api.ClusterLeasedReport{
+		ClusterId:  clusterId,
+		ReportTime: time.Now(),
+		Queues:     leasedQueueReports,
+	}
+	return &clusterLeasedReport
 }

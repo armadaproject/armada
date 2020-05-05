@@ -55,6 +55,8 @@ type SchedulingConfig struct {
 	QueueLeaseBatchSize                       uint
 	MinimumResourceToSchedule                 common.ComputeResourcesFloat
 	MaximalClusterFractionToSchedule          map[string]float64
+	MaximalResourceFractionToSchedulePerQueue map[string]float64
+	MaximalResourceFractionPerQueue           map[string]float64
 	Lease                                     LeaseSettings
 }
 

@@ -50,10 +50,18 @@ helm repo add stable https://kubernetes-charts.storage.googleapis.com/
 ## Installation
 This guide will install Armada on 3 local Kubernetes clusters; one server and two executor clusters. 
 
-Set the `ARMADA_VERSION` environment variable and clone this repository with the same version tag as you are installing. For example to install version `v0.1.2`:
+Set the `ARMADA_VERSION` environment variable to the version of Armada you would like to install. Armada releases can be found [here](https://github.com/G-Research/armada/releases).
+
+For example to install version `v0.1.2`:
+
 ```bash
 export ARMADA_VERSION=v0.1.2
-git clone https://github.com/G-Research/armada.git --branch $ARMADA_VERSION
+```
+
+You should then clone this repository and step into it:
+
+```bash
+git clone https://github.com/G-Research/armada.git
 cd armada
 ```
 
@@ -71,14 +79,16 @@ helm install redis stable/redis-ha -f docs/quickstart/redis-values.yaml
 helm install prometheus-operator stable/prometheus-operator -f docs/quickstart/server-prometheus-values.yaml
 
 # Install Armada server
-helm template ./deployment/armada --set image.tag=$ARMADA_VERSION -f ./docs/quickstart/server-values.yaml | kubectl apply -f -
+helm install armada ./deployment/armada --set image.tag=$ARMADA_VERSION -f ./docs/quickstart/server-values.yaml
 
 # Get server IP for executors
 SERVER_IP=$(kubectl get nodes quickstart-armada-server-worker -o jsonpath='{.status.addresses[?(@.type=="InternalIP")].address}')
 ```
+
 ### Executor deployments
 
 First executor:
+
 ```bash
 kind create cluster --name quickstart-armada-executor-0 --config ./docs/quickstart/kind-config-executor.yaml
 
@@ -86,13 +96,15 @@ kind create cluster --name quickstart-armada-executor-0 --config ./docs/quicksta
 helm install prometheus-operator stable/prometheus-operator -f docs/quickstart/executor-prometheus-values.yaml
 
 # Install executor
-helm template ./deployment/executor --set image.tag=$ARMADA_VERSION --set applicationConfig.apiConnection.armadaUrl="$SERVER_IP:30000" --set applicationConfig.apiConnection.forceNoTls=true --set prometheus.enabled=true --set applicationConfig.kubernetes.minimumPodAge=0s | kubectl apply -f -
-helm template ./deployment/executor-cluster-monitoring -f docs/quickstart/executor-cluster-monitoring-values.yaml --set interval=5s | kubectl apply -f -
+helm install executor ./deployment/executor --set image.tag=$ARMADA_VERSION --set applicationConfig.apiConnection.armadaUrl="$SERVER_IP:30000" -f docs/quickstart/executor-values.yaml
+helm install executor-cluster-monitoring ./deployment/executor-cluster-monitoring -f docs/quickstart/executor-cluster-monitoring-values.yaml
 
 # Get executor IP for Grafana
 EXECUTOR_0_IP=$(kubectl get nodes quickstart-armada-executor-0-worker -o jsonpath='{.status.addresses[?(@.type=="InternalIP")].address}')
 ```
+
 Second executor:
+
 ```bash
 kind create cluster --name quickstart-armada-executor-1 --config ./docs/quickstart/kind-config-executor.yaml
 
@@ -100,8 +112,8 @@ kind create cluster --name quickstart-armada-executor-1 --config ./docs/quicksta
 helm install prometheus-operator stable/prometheus-operator -f docs/quickstart/executor-prometheus-values.yaml
 
 # Install executor
-helm template ./deployment/executor --set image.tag=$ARMADA_VERSION --set applicationConfig.apiConnection.armadaUrl="$SERVER_IP:30000" --set applicationConfig.apiConnection.forceNoTls=true --set prometheus.enabled=true --set applicationConfig.kubernetes.minimumPodAge=0s | kubectl apply -f -
-helm template ./deployment/executor-cluster-monitoring -f docs/quickstart/executor-cluster-monitoring-values.yaml --set interval=5s | kubectl apply -f -
+helm install executor ./deployment/executor --set image.tag=$ARMADA_VERSION --set applicationConfig.apiConnection.armadaUrl="$SERVER_IP:30000" -f docs/quickstart/executor-values.yaml
+helm install executor-cluster-monitoring ./deployment/executor-cluster-monitoring -f docs/quickstart/executor-cluster-monitoring-values.yaml
 
 # Get executor IP for Grafana
 EXECUTOR_1_IP=$(kubectl get nodes quickstart-armada-executor-1-worker -o jsonpath='{.status.addresses[?(@.type=="InternalIP")].address}')

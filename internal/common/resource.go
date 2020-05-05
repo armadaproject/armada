@@ -144,7 +144,7 @@ func (a ComputeResourcesFloat) DeepCopy() ComputeResourcesFloat {
 	return targetComputeResource
 }
 
-func (a ComputeResourcesFloat) IsLessThan(b ComputeResourcesFloat) bool {
+func (a ComputeResourcesFloat) IsLessThanOrEqual(b ComputeResourcesFloat) bool {
 	reduced := a.DeepCopy()
 	reduced.Sub(b)
 	return !reduced.IsValid()
@@ -156,6 +156,12 @@ func (a ComputeResourcesFloat) LimitWith(limit ComputeResourcesFloat) ComputeRes
 		targetComputeResource[key] = math.Min(value, limit[key])
 	}
 	return targetComputeResource
+}
+
+func (a ComputeResourcesFloat) LimitTo0() {
+	for key, value := range a {
+		a[key] = math.Max(value, 0)
+	}
 }
 
 func (a ComputeResourcesFloat) Mul(factor float64) ComputeResourcesFloat {

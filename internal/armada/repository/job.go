@@ -11,6 +11,7 @@ import (
 
 	"github.com/G-Research/armada/internal/armada/authorization"
 	"github.com/G-Research/armada/internal/common/util"
+	"github.com/G-Research/armada/internal/common/validation"
 	"github.com/G-Research/armada/pkg/api"
 )
 
@@ -27,7 +28,7 @@ type JobQueueRepository interface {
 
 type JobRepository interface {
 	JobQueueRepository
-	CreateJobs(request *api.JobSubmitRequest, principal authorization.Principal) []*api.Job
+	CreateJobs(request *api.JobSubmitRequest, principal authorization.Principal) ([]*api.Job, error)
 	AddJobs(job []*api.Job) ([]*SubmitJobResult, error)
 	GetExistingJobsByIds(ids []string) ([]*api.Job, error)
 	FilterActiveQueues(queues []*api.Queue) ([]*api.Queue, error)
@@ -48,10 +49,24 @@ func NewRedisJobRepository(db redis.UniversalClient) *RedisJobRepository {
 	return &RedisJobRepository{db: db}
 }
 
-func (repo *RedisJobRepository) CreateJobs(request *api.JobSubmitRequest, principal authorization.Principal) []*api.Job {
+func (repo *RedisJobRepository) CreateJobs(request *api.JobSubmitRequest, principal authorization.Principal) ([]*api.Job, error) {
 	jobs := make([]*api.Job, 0, len(request.JobRequestItems))
 
-	for _, item := range request.JobRequestItems {
+	if request.JobSetId == "" {
+		return nil, fmt.Errorf("job set is not specified")
+	}
+
+	if request.Queue == "" {
+		return nil, fmt.Errorf("queue is not specified")
+	}
+
+	for i, item := range request.JobRequestItems {
+
+		e := validation.ValidatePodSpec(item.PodSpec)
+		if e != nil {
+			return nil, fmt.Errorf("error validating pod spec of job with index %v: %v", i, e)
+		}
+
 		namespace := item.Namespace
 		if namespace == "" {
 			namespace = "default"
@@ -77,7 +92,7 @@ func (repo *RedisJobRepository) CreateJobs(request *api.JobSubmitRequest, princi
 		jobs = append(jobs, j)
 	}
 
-	return jobs
+	return jobs, nil
 }
 
 type submitJobRedisResponse struct {
@@ -168,12 +183,13 @@ func (repo *RedisJobRepository) ReturnLease(clusterId string, jobId string) (ret
 }
 
 type deleteJobRedisResponse struct {
-	job                     *api.Job
-	expiryAlreadySet        bool
-	removeFromLeasedResult  *redis.IntCmd
-	removeFromQueueResult   *redis.IntCmd
-	setJobExpiryResult      *redis.BoolCmd
-	deleteJobSetIndexResult *redis.IntCmd
+	job                            *api.Job
+	expiryAlreadySet               bool
+	removeFromLeasedResult         *redis.IntCmd
+	removeFromQueueResult          *redis.IntCmd
+	removeClusterAssociationResult *redis.IntCmd
+	setJobExpiryResult             *redis.BoolCmd
+	deleteJobSetIndexResult        *redis.IntCmd
 }
 
 func (repo *RedisJobRepository) DeleteJobs(jobs []*api.Job) map[*api.Job]error {
@@ -184,6 +200,7 @@ func (repo *RedisJobRepository) DeleteJobs(jobs []*api.Job) map[*api.Job]error {
 		deletionResult := &deleteJobRedisResponse{job: job, expiryAlreadySet: expiryStatus[job]}
 		deletionResult.removeFromQueueResult = pipe.ZRem(jobQueuePrefix+job.Queue, job.Id)
 		deletionResult.removeFromLeasedResult = pipe.ZRem(jobLeasedPrefix+job.Queue, job.Id)
+		deletionResult.removeClusterAssociationResult = pipe.HDel(jobClusterMapKey, job.Id)
 		deletionResult.deleteJobSetIndexResult = pipe.SRem(jobSetPrefix+job.JobSetId, job.Id)
 
 		if !deletionResult.expiryAlreadySet {
@@ -250,6 +267,12 @@ func processDeletionResponse(deletionResponse *deleteJobRedisResponse) (int64, e
 	}
 
 	modified, e = deletionResponse.deleteJobSetIndexResult.Result()
+	totalUpdates += modified
+	if e != nil {
+		errorMessage = e
+	}
+
+	modified, e = deletionResponse.removeClusterAssociationResult.Result()
 	totalUpdates += modified
 	if e != nil {
 		errorMessage = e
@@ -550,13 +573,14 @@ end
 `)
 
 func expire(db redis.Cmdable, queueName string, jobId string, created time.Time, deadline time.Time) *redis.Cmd {
-	return expireScript.Run(db, []string{jobQueuePrefix + queueName, jobLeasedPrefix + queueName},
+	return expireScript.Run(db, []string{jobQueuePrefix + queueName, jobLeasedPrefix + queueName, jobClusterMapKey},
 		jobId, float64(created.UnixNano()), float64(deadline.UnixNano()))
 }
 
 var expireScript = redis.NewScript(`
 local queue = KEYS[1]
 local leasedJobsSet = KEYS[2]
+local clusterAssociation = KEYS[3]
 
 local jobId = ARGV[1]
 local created = tonumber(ARGV[2])
@@ -565,6 +589,7 @@ local deadline = tonumber(ARGV[3])
 local leasedTime = tonumber(redis.call('ZSCORE', leasedJobsSet, jobId))
 
 if leasedTime ~= nil and leasedTime < deadline then
+	redis.call('HDEL', clusterAssociation, jobId)
 	local exists = redis.call('ZREM', leasedJobsSet, jobId)
 	if exists ~= 0 then
 		return redis.call('ZADD', queue, created, jobId)
@@ -591,6 +616,7 @@ local created = tonumber(ARGV[3])
 local currentClusterId = redis.call('HGET', clusterAssociation, jobId)
 
 if currentClusterId == clusterId then
+	redis.call('HDEL', clusterAssociation, jobId)
 	local exists = redis.call('ZREM', leasedJobsSet, jobId)
 	if exists ~= 0 then
 		return redis.call('ZADD', queue, created, jobId)

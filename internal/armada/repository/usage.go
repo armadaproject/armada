@@ -15,14 +15,17 @@ type Usage struct {
 }
 
 const clusterReportKey = "Cluster:Report"
+const clusterLeasedReportKey = "Cluster:Leased"
 const clusterPrioritiesPrefix = "Cluster:Priority:"
 
 type UsageRepository interface {
 	GetClusterUsageReports() (map[string]*api.ClusterUsageReport, error)
 	GetClusterPriority(clusterId string) (map[string]float64, error)
 	GetClusterPriorities(clusterIds []string) (map[string]map[string]float64, error)
+	GetClusterLeasedReports() (map[string]*api.ClusterLeasedReport, error)
 
 	UpdateCluster(report *api.ClusterUsageReport, priorities map[string]float64) error
+	UpdateClusterLeased(report *api.ClusterLeasedReport) error
 }
 
 type RedisUsageRepository struct {
@@ -42,6 +45,24 @@ func (r *RedisUsageRepository) GetClusterUsageReports() (map[string]*api.Cluster
 
 	for k, v := range result {
 		report := &api.ClusterUsageReport{}
+		e := proto.Unmarshal([]byte(v), report)
+		if e != nil {
+			return nil, e
+		}
+		reports[k] = report
+	}
+	return reports, nil
+}
+
+func (r *RedisUsageRepository) GetClusterLeasedReports() (map[string]*api.ClusterLeasedReport, error) {
+	result, err := r.db.HGetAll(clusterLeasedReportKey).Result()
+	if err != nil {
+		return nil, err
+	}
+	reports := make(map[string]*api.ClusterLeasedReport)
+
+	for k, v := range result {
+		report := &api.ClusterLeasedReport{}
 		e := proto.Unmarshal([]byte(v), report)
 		if e != nil {
 			return nil, e
@@ -101,6 +122,15 @@ func (r *RedisUsageRepository) UpdateCluster(report *api.ClusterUsageReport, pri
 
 	_, err := pipe.Exec()
 	return err
+}
+
+func (r *RedisUsageRepository) UpdateClusterLeased(report *api.ClusterLeasedReport) error {
+	data, e := proto.Marshal(report)
+	if e != nil {
+		return e
+	}
+	_, e = r.db.HSet(clusterLeasedReportKey, report.ClusterId, data).Result()
+	return e
 }
 
 func toFloat64Map(result map[string]string) (map[string]float64, error) {

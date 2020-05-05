@@ -1023,6 +1023,9 @@ namespace GResearch.Armada.Client
         [Newtonsoft.Json.JsonProperty("PriorityFactor", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public double? PriorityFactor { get; set; }
     
+        [Newtonsoft.Json.JsonProperty("ResourceLimits", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.IDictionary<string, double> ResourceLimits { get; set; }
+    
         [Newtonsoft.Json.JsonProperty("UserOwners", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.ICollection<string> UserOwners { get; set; }
     

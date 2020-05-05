@@ -45,6 +45,7 @@ message Queue {
     double PriorityFactor = 2;
     repeated string UserOwners = 3;
     repeated string GroupOwners = 4;
+    map<string, double> ResourceLimits = 5;
 }
 
 // swagger:model

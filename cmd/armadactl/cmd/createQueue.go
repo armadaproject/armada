@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"strconv"
+
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
@@ -20,6 +22,9 @@ func init() {
 	createQueueCmd.Flags().StringSlice(
 		"groupOwners", []string{},
 		"Comma separated list of queue group owners, defaults to empty list.")
+	createQueueCmd.Flags().StringToString(
+		"resourceLimits", map[string]string{},
+		"Command separated list of resource limits pairs, defaults to empty list. Example: --resourceLimits cpu=0.3,memory=0.2")
 }
 
 // createQueueCmd represents the createQueue command
@@ -35,6 +40,12 @@ Job priority is evaluated inside queue, queue has its own priority.`,
 		priority, _ := cmd.Flags().GetFloat64("priorityFactor")
 		owners, _ := cmd.Flags().GetStringSlice("owners")
 		groups, _ := cmd.Flags().GetStringSlice("groupOwners")
+		resourceLimits, _ := cmd.Flags().GetStringToString("resourceLimits")
+		resourceLimitsFloat, err := convertResourceLimitsToFloat64(resourceLimits)
+		if err != nil {
+			log.Error(err)
+			return
+		}
 
 		apiConnectionDetails := client.ExtractCommandlineArmadaApiConnectionDetails()
 
@@ -44,7 +55,8 @@ Job priority is evaluated inside queue, queue has its own priority.`,
 				Name:           queue,
 				PriorityFactor: priority,
 				UserOwners:     owners,
-				GroupOwners:    groups})
+				GroupOwners:    groups,
+				ResourceLimits: resourceLimitsFloat})
 
 			if e != nil {
 				log.Error(e)
@@ -53,4 +65,17 @@ Job priority is evaluated inside queue, queue has its own priority.`,
 			log.Infof("Queue %s created.", queue)
 		})
 	},
+}
+
+func convertResourceLimitsToFloat64(resourceLimits map[string]string) (map[string]float64, error) {
+	resourceLimitsFloat := make(map[string]float64, len(resourceLimits))
+	for resourceName, limit := range resourceLimits {
+		limitFloat, err := strconv.ParseFloat(limit, 64)
+		if err != nil {
+			return nil, err
+		}
+		resourceLimitsFloat[resourceName] = limitFloat
+	}
+
+	return resourceLimitsFloat, nil
 }

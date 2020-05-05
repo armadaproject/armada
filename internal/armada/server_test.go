@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"testing"
+	"time"
 
 	"github.com/alicebob/miniredis"
 	"github.com/go-redis/redis"
@@ -18,6 +19,24 @@ import (
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/pkg/api"
 )
+
+func TestSubmitJob_EmptyPodSpec(t *testing.T) {
+	withRunningServer(func(client api.SubmitClient, leaseClient api.AggregatedQueueClient, ctx context.Context) {
+		_, err := client.CreateQueue(ctx, &api.Queue{
+			Name:           "test",
+			PriorityFactor: 1,
+		})
+		assert.Empty(t, err)
+
+		request := &api.JobSubmitRequest{
+			JobRequestItems: []*api.JobSubmitRequestItem{{}},
+			Queue:           "test",
+			JobSetId:        "set",
+		}
+		_, err = client.SubmitJobs(ctx, request)
+		assert.Error(t, err)
+	})
+}
 
 func TestSubmitJob(t *testing.T) {
 	withRunningServer(func(client api.SubmitClient, leaseClient api.AggregatedQueueClient, ctx context.Context) {
@@ -144,9 +163,23 @@ func withRunningServer(action func(client api.SubmitClient, leaseClient api.Aggr
 	}
 	defer conn.Close()
 
+	setupServer(conn)
 	client := api.NewSubmitClient(conn)
 	leaseClient := api.NewAggregatedQueueClient(conn)
 	ctx := context.Background()
 
 	action(client, leaseClient, ctx)
+}
+
+func setupServer(conn *grpc.ClientConn) {
+	ctx := context.Background()
+	usageReport := &api.ClusterUsageReport{
+		ClusterId:                "test-cluster",
+		ReportTime:               time.Now(),
+		Queues:                   []*api.QueueReport{},
+		ClusterCapacity:          map[string]resource.Quantity{"cpu": resource.MustParse("100"), "memory": resource.MustParse("100Gi")},
+		ClusterAvailableCapacity: map[string]resource.Quantity{"cpu": resource.MustParse("100"), "memory": resource.MustParse("100Gi")},
+	}
+	usageClient := api.NewUsageClient(conn)
+	_, _ = usageClient.ReportUsage(ctx, usageReport)
 }

@@ -12,24 +12,24 @@ import (
 func TestWatchContext_ProcessEvent(t *testing.T) {
 	watchContext := NewWatchContext()
 
-	expected := JobInfo{Status: Pending}
+	expected := &JobInfo{Status: Pending}
 
 	watchContext.ProcessEvent(&api.JobPendingEvent{JobId: "1"})
 	result := watchContext.GetJobInfo("1")
 
-	assert.Equal(t, result, expected)
+	assert.Equal(t, expected, result)
 }
 
 func TestWatchContext_ProcessEvent_UpdatesExisting(t *testing.T) {
 	watchContext := NewWatchContext()
 
-	expected := JobInfo{Status: Running}
+	expected := &JobInfo{Status: Running}
 
 	watchContext.ProcessEvent(&api.JobPendingEvent{JobId: "1"})
 	watchContext.ProcessEvent(&api.JobRunningEvent{JobId: "1"})
 	result := watchContext.GetJobInfo("1")
 
-	assert.Equal(t, result, expected)
+	assert.Equal(t, expected, result)
 }
 
 func TestWatchContext_ProcessEvent_SubmittedEventAddsJobToJobInfo(t *testing.T) {
@@ -48,7 +48,7 @@ func TestWatchContext_ProcessEvent_SubmittedEventAddsJobToJobInfo(t *testing.T) 
 		},
 	}
 
-	expected := JobInfo{
+	expected := &JobInfo{
 		Status: Submitted,
 		Job:    &job,
 	}
@@ -56,7 +56,7 @@ func TestWatchContext_ProcessEvent_SubmittedEventAddsJobToJobInfo(t *testing.T) 
 	watchContext.ProcessEvent(&api.JobSubmittedEvent{JobId: "1", Job: job})
 	result := watchContext.GetJobInfo("1")
 
-	assert.Equal(t, result, expected)
+	assert.Equal(t, expected, result)
 }
 
 func TestWatchContext_GetCurrentState(t *testing.T) {
@@ -87,7 +87,7 @@ func TestWatchContext_GetCurrentStateSummary(t *testing.T) {
 	expected := "Queued:   1, Leased:   0, Pending:   1, Running:   1, Succeeded:   0, Failed:   0, Cancelled:   0"
 	result := watchContext.GetCurrentStateSummary()
 
-	assert.Equal(t, result, expected)
+	assert.Equal(t, expected, result)
 }
 
 func TestWatchContext_GetCurrentStateSummary_IsCorrectlyAlteredOnUpdateToExistingJob(t *testing.T) {
@@ -106,7 +106,7 @@ func TestWatchContext_GetNumberOfJobsInStates(t *testing.T) {
 	watchContext.ProcessEvent(&api.JobQueuedEvent{JobId: "1"})
 	result := watchContext.GetNumberOfJobsInStates([]JobStatus{Queued})
 
-	assert.Equal(t, result, 1)
+	assert.Equal(t, 1, result)
 }
 
 func TestWatchContext_GetNumberOfJobs(t *testing.T) {
@@ -115,12 +115,12 @@ func TestWatchContext_GetNumberOfJobs(t *testing.T) {
 	watchContext.ProcessEvent(&api.JobQueuedEvent{JobId: "1"})
 	result := watchContext.GetNumberOfJobs()
 
-	assert.Equal(t, result, 1)
+	assert.Equal(t, 1, result)
 
 	watchContext.ProcessEvent(&api.JobSucceededEvent{JobId: "73"})
 	result = watchContext.GetNumberOfJobs()
 
-	assert.Equal(t, result, 2)
+	assert.Equal(t, 2, result)
 }
 
 // Succeeded/failed/cancelled jobs are considered finished
@@ -128,35 +128,35 @@ func TestWatchContext_GetNumberOfFinishedJobs(t *testing.T) {
 	watchContext := NewWatchContext()
 
 	watchContext.ProcessEvent(&api.JobQueuedEvent{JobId: "1"})
-	assert.Equal(t, watchContext.GetNumberOfFinishedJobs(), 0)
+	assert.Equal(t, 0, watchContext.GetNumberOfFinishedJobs())
 
 	watchContext.ProcessEvent(&api.JobCancelledEvent{JobId: "1"})
-	assert.Equal(t, watchContext.GetNumberOfFinishedJobs(), 1)
+	assert.Equal(t, 1, watchContext.GetNumberOfFinishedJobs())
 
 	watchContext.ProcessEvent(&api.JobPendingEvent{JobId: "1"})
-	assert.Equal(t, watchContext.GetNumberOfFinishedJobs(), 0)
+	assert.Equal(t, 0, watchContext.GetNumberOfFinishedJobs())
 
 	watchContext.ProcessEvent(&api.JobSucceededEvent{JobId: "1"})
-	assert.Equal(t, watchContext.GetNumberOfFinishedJobs(), 1)
+	assert.Equal(t, 1, watchContext.GetNumberOfFinishedJobs())
 
 	watchContext.ProcessEvent(&api.JobLeasedEvent{JobId: "1"})
-	assert.Equal(t, watchContext.GetNumberOfFinishedJobs(), 0)
+	assert.Equal(t, 0, watchContext.GetNumberOfFinishedJobs())
 
 	watchContext.ProcessEvent(&api.JobRunningEvent{JobId: "2"})
-	assert.Equal(t, watchContext.GetNumberOfFinishedJobs(), 0)
+	assert.Equal(t, 0, watchContext.GetNumberOfFinishedJobs())
 
 	watchContext.ProcessEvent(&api.JobSucceededEvent{JobId: "2"})
 	watchContext.ProcessEvent(&api.JobFailedEvent{JobId: "1"})
-	assert.Equal(t, watchContext.GetNumberOfFinishedJobs(), 2)
+	assert.Equal(t, 2, watchContext.GetNumberOfFinishedJobs())
 }
 
 func TestWatchContext_GetNumberOfJobsInStates_IsCorrectlyUpdatedOnUpdateToExistingJobState(t *testing.T) {
 	watchContext := NewWatchContext()
 
 	watchContext.ProcessEvent(&api.JobQueuedEvent{JobId: "1"})
-	assert.Equal(t, watchContext.GetNumberOfJobsInStates([]JobStatus{Queued}), 1)
+	assert.Equal(t, 1, watchContext.GetNumberOfJobsInStates([]JobStatus{Queued}))
 
 	watchContext.ProcessEvent(&api.JobPendingEvent{JobId: "1"})
-	assert.Equal(t, watchContext.GetNumberOfJobsInStates([]JobStatus{Queued}), 0)
-	assert.Equal(t, watchContext.GetNumberOfJobsInStates([]JobStatus{Pending}), 1)
+	assert.Equal(t, 0, watchContext.GetNumberOfJobsInStates([]JobStatus{Queued}))
+	assert.Equal(t, 1, watchContext.GetNumberOfJobsInStates([]JobStatus{Pending}))
 }

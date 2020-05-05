@@ -114,7 +114,8 @@ func createJobRequestItems(numberOfJobs int) []*api.JobSubmitRequestItem {
 						Image: "index.docker.io/library/ubuntu:latest",
 						Args:  []string{"sleep", "10s"},
 						Resources: v1.ResourceRequirements{
-							Limits: v1.ResourceList{"cpu": cpu, "memory": memory},
+							Limits:   v1.ResourceList{"cpu": cpu, "memory": memory},
+							Requests: v1.ResourceList{"cpu": cpu, "memory": memory},
 						},
 					},
 				},

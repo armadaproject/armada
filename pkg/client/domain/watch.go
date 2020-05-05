@@ -25,6 +25,7 @@ type JobInfo struct {
 	Status     JobStatus
 	Job        *api.Job
 	LastUpdate time.Time
+	ClusterId  string
 }
 
 var statesToIncludeInSummary []JobStatus
@@ -92,8 +93,8 @@ func (context *WatchContext) updateStateSummary(oldJobStatus JobStatus, newJobSt
 	context.stateSummary[newJobStatus]++
 }
 
-func (context *WatchContext) GetJobInfo(jobId string) JobInfo {
-	return *context.state[jobId]
+func (context *WatchContext) GetJobInfo(jobId string) *JobInfo {
+	return context.state[jobId]
 }
 
 func (context *WatchContext) GetCurrentState() map[string]*JobInfo {
@@ -169,6 +170,7 @@ func updateJobInfo(info *JobInfo, event api.Event) {
 		info.Status = Queued
 	case *api.JobLeasedEvent:
 		info.Status = Leased
+		info.ClusterId = typed.ClusterId
 	case *api.JobLeaseReturnedEvent:
 		info.Status = Queued
 	case *api.JobUnableToScheduleEvent:
@@ -177,12 +179,16 @@ func updateJobInfo(info *JobInfo, event api.Event) {
 		info.Status = Queued
 	case *api.JobPendingEvent:
 		info.Status = Pending
+		info.ClusterId = typed.ClusterId
 	case *api.JobRunningEvent:
 		info.Status = Running
+		info.ClusterId = typed.ClusterId
 	case *api.JobFailedEvent:
 		info.Status = Failed
+		info.ClusterId = typed.ClusterId
 	case *api.JobSucceededEvent:
 		info.Status = Succeeded
+		info.ClusterId = typed.ClusterId
 	case *api.JobReprioritizedEvent:
 		// TODO
 	case *api.JobTerminatedEvent:
