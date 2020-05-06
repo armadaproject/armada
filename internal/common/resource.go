@@ -158,7 +158,16 @@ func (a ComputeResourcesFloat) LimitWith(limit ComputeResourcesFloat) ComputeRes
 	return targetComputeResource
 }
 
-func (a ComputeResourcesFloat) LimitTo0() {
+//The merged in values take precedence and override existing values for the same key
+func (a ComputeResourcesFloat) MergeWith(merged ComputeResourcesFloat) ComputeResourcesFloat {
+	targetComputeResource := a.DeepCopy()
+	for key, value := range merged {
+		targetComputeResource[key] = value
+	}
+	return targetComputeResource
+}
+
+func (a ComputeResourcesFloat) LimitToZero() {
 	for key, value := range a {
 		a[key] = math.Max(value, 0)
 	}

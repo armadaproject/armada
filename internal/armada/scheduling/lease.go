@@ -93,13 +93,12 @@ func calculateQueueSchedulingLimits(
 	for _, queue := range activeQueues {
 		remainingGlobalLimit := resourceLimitPerQueue.DeepCopy()
 		if len(queue.ResourceLimits) > 0 {
-			//TODO This only allows customQueueLimit to lower globalLimit not increase it
 			customQueueLimit := totalCapacity.MulByResource(queue.ResourceLimits)
-			remainingGlobalLimit = remainingGlobalLimit.LimitWith(customQueueLimit)
+			remainingGlobalLimit = remainingGlobalLimit.MergeWith(customQueueLimit)
 		}
 		if usage, ok := currentQueueResourceAllocation[queue.Name]; ok {
 			remainingGlobalLimit.Sub(usage.AsFloat())
-			remainingGlobalLimit.LimitTo0()
+			remainingGlobalLimit.LimitToZero()
 		}
 
 		schedulingRoundLimit := schedulingLimitPerQueue.DeepCopy()
