@@ -180,7 +180,7 @@ func (c *leaseContext) distributeRemainder(limit int) ([]*api.Job, error) {
 		emptySteps++
 
 		amountToSchedule := remainder.DeepCopy()
-		amountToSchedule.LimitWith(c.schedulingInfo[queue].remainingSchedulingLimit)
+		amountToSchedule = amountToSchedule.LimitWith(c.schedulingInfo[queue].remainingSchedulingLimit)
 		leased, remaining, e := c.leaseJobs(queue, amountToSchedule, 1)
 		if e != nil {
 			log.Error(e)
