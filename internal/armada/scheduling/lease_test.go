@@ -187,7 +187,7 @@ outer:
 func Test_calculateQueueSchedulingLimits(t *testing.T) {
 	queue1 := &api.Queue{Name: "queue1", PriorityFactor: 1}
 	activeQueues := []*api.Queue{queue1}
-	schedulingLimitPerQueue := common.ComputeResourcesFloat{"cpu": 200.0}
+	schedulingLimitPerQueue := common.ComputeResourcesFloat{"cpu": 300.0}
 	resourceLimitPerQueue := common.ComputeResourcesFloat{"cpu": 400.0}
 	totalCapacity := &common.ComputeResources{"cpu": resource.MustParse("1000")}
 	currentQueueResourceAllocation := map[string]common.ComputeResources{queue1.Name: {"cpu": resource.MustParse("250")}}
@@ -198,10 +198,24 @@ func Test_calculateQueueSchedulingLimits(t *testing.T) {
 	assert.Equal(t, result[queue1].remainingSchedulingLimit, common.ComputeResourcesFloat{"cpu": 150.0})
 }
 
-func Test_calculateQueueSchedulingLimits_WithCustomQueueLimits(t *testing.T) {
+func Test_calculateQueueSchedulingLimits_WithSmallSchedulingLimitPerQueue(t *testing.T) {
+	queue1 := &api.Queue{Name: "queue1", PriorityFactor: 1}
+	activeQueues := []*api.Queue{queue1}
+	schedulingLimitPerQueue := common.ComputeResourcesFloat{"cpu": 100.0}
+	resourceLimitPerQueue := common.ComputeResourcesFloat{"cpu": 400.0}
+	totalCapacity := &common.ComputeResources{"cpu": resource.MustParse("1000")}
+	currentQueueResourceAllocation := map[string]common.ComputeResources{queue1.Name: {"cpu": resource.MustParse("250")}}
+
+	result := calculateQueueSchedulingLimits(activeQueues, schedulingLimitPerQueue, resourceLimitPerQueue, totalCapacity, currentQueueResourceAllocation)
+
+	assert.Equal(t, len(result), 1)
+	assert.Equal(t, result[queue1].remainingSchedulingLimit, common.ComputeResourcesFloat{"cpu": 100.0})
+}
+
+func Test_calculateQueueSchedulingLimits_WithCustomQueueLimitsLessThanGlobal(t *testing.T) {
 	queue1 := &api.Queue{Name: "queue1", PriorityFactor: 1, ResourceLimits: map[string]float64{"cpu": 0.3}}
 	activeQueues := []*api.Queue{queue1}
-	schedulingLimitPerQueue := common.ComputeResourcesFloat{"cpu": 200.0}
+	schedulingLimitPerQueue := common.ComputeResourcesFloat{"cpu": 300.0}
 	resourceLimitPerQueue := common.ComputeResourcesFloat{"cpu": 400.0}
 	totalCapacity := &common.ComputeResources{"cpu": resource.MustParse("1000")}
 	currentQueueResourceAllocation := map[string]common.ComputeResources{queue1.Name: {"cpu": resource.MustParse("250")}}
@@ -210,4 +224,18 @@ func Test_calculateQueueSchedulingLimits_WithCustomQueueLimits(t *testing.T) {
 
 	assert.Equal(t, len(result), 1)
 	assert.Equal(t, result[queue1].remainingSchedulingLimit, common.ComputeResourcesFloat{"cpu": 50.0})
+}
+
+func Test_calculateQueueSchedulingLimits_WithCustomQueueLimitsGreaterThanGlobal(t *testing.T) {
+	queue1 := &api.Queue{Name: "queue1", PriorityFactor: 1, ResourceLimits: map[string]float64{"cpu": 0.5}}
+	activeQueues := []*api.Queue{queue1}
+	schedulingLimitPerQueue := common.ComputeResourcesFloat{"cpu": 300.0}
+	resourceLimitPerQueue := common.ComputeResourcesFloat{"cpu": 400.0}
+	totalCapacity := &common.ComputeResources{"cpu": resource.MustParse("1000")}
+	currentQueueResourceAllocation := map[string]common.ComputeResources{queue1.Name: {"cpu": resource.MustParse("250")}}
+
+	result := calculateQueueSchedulingLimits(activeQueues, schedulingLimitPerQueue, resourceLimitPerQueue, totalCapacity, currentQueueResourceAllocation)
+
+	assert.Equal(t, len(result), 1)
+	assert.Equal(t, result[queue1].remainingSchedulingLimit, common.ComputeResourcesFloat{"cpu": 250.0})
 }

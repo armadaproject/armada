@@ -42,11 +42,11 @@ func (info *QueueSchedulingInfo) UpdateLimits(resourceUsed common.ComputeResourc
 		}
 	}
 	info.remainingSchedulingLimit.Sub(resourceUsed)
-	info.remainingSchedulingLimit.LimitTo0()
+	info.remainingSchedulingLimit.LimitToZero()
 	info.schedulingShare = schedulingShareScaled
-	info.schedulingShare.LimitTo0()
+	info.schedulingShare.LimitToZero()
 	info.adjustedShare.Sub(resourceUsed)
-	info.adjustedShare.LimitTo0()
+	info.adjustedShare.LimitToZero()
 }
 
 func SliceResourceWithLimits(resourceScarcity map[string]float64, queueSchedulingInfo map[*api.Queue]*QueueSchedulingInfo, queuePriorities map[*api.Queue]QueuePriorityInfo, quantityToSlice common.ComputeResourcesFloat) map[*api.Queue]*QueueSchedulingInfo {
