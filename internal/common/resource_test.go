@@ -18,7 +18,7 @@ func TestComputeResourcesFloat_LimitTo0(t *testing.T) {
 	}
 
 	result := data.DeepCopy()
-	result.LimitTo0()
+	result.LimitToZero()
 
 	for key, value := range data {
 		resultValue := result[key]
