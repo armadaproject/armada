@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/retry"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 
@@ -72,7 +73,7 @@ func (jobLeaseService *JobLeaseService) RequestJobLeases(availableResource *comm
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	response, err := jobLeaseService.queueClient.LeaseJobs(ctx, &leaseRequest)
+	response, err := jobLeaseService.queueClient.LeaseJobs(ctx, &leaseRequest, grpc_retry.WithMax(1))
 
 	if err != nil {
 		return make([]*api.Job, 0), err
