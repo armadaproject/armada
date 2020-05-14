@@ -48,7 +48,7 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 	}
 
 	var res common.ComputeResources = request.Resources
-	if res.AsFloat().IsLessThanOrEqual(q.schedulingConfig.MinimumResourceToSchedule) {
+	if res.AsFloat().IsLessThan(q.schedulingConfig.MinimumResourceToSchedule) {
 		return &api.JobLease{}, nil
 	}
 

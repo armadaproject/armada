@@ -22,7 +22,7 @@ const jobDoneAnnotation = "reported_done"
 
 type LeaseService interface {
 	ReturnLease(pod *v1.Pod) error
-	RequestJobLeases(availableResource *common.ComputeResources, availableLabels []map[string]string, leasedResourceByQueue map[string]common.ComputeResources) ([]*api.Job, error)
+	RequestJobLeases(availableResource *common.ComputeResources, availableLabels []map[string]string, nodeSizes []common.ComputeResources, leasedResourceByQueue map[string]common.ComputeResources) ([]*api.Job, error)
 	ReportDone(pods []*v1.Pod) error
 }
 
@@ -46,7 +46,7 @@ func NewJobLeaseService(
 		failedPodExpiry: failedPodExpiry}
 }
 
-func (jobLeaseService *JobLeaseService) RequestJobLeases(availableResource *common.ComputeResources, availableLabels []map[string]string, leasedResourceByQueue map[string]common.ComputeResources) ([]*api.Job, error) {
+func (jobLeaseService *JobLeaseService) RequestJobLeases(availableResource *common.ComputeResources, availableLabels []map[string]string, nodeSizes []common.ComputeResources, leasedResourceByQueue map[string]common.ComputeResources) ([]*api.Job, error) {
 	labeling := []*api.NodeLabeling{}
 	for _, l := range availableLabels {
 		labeling = append(labeling, &api.NodeLabeling{Labels: l})
@@ -70,6 +70,7 @@ func (jobLeaseService *JobLeaseService) RequestJobLeases(availableResource *comm
 		Resources:           *availableResource,
 		AvailableLabels:     labeling,
 		ClusterLeasedReport: clusterLeasedReport,
+		NodeSizes:           convertIntoComputeResource(nodeSizes),
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -80,6 +81,14 @@ func (jobLeaseService *JobLeaseService) RequestJobLeases(availableResource *comm
 	}
 
 	return response.Job, nil
+}
+
+func convertIntoComputeResource(computeResources []common.ComputeResources) []api.ComputeResource {
+	result := make([]api.ComputeResource, 0, len(computeResources))
+	for _, resource := range computeResources {
+		result = append(result, api.ComputeResource{Resources: resource})
+	}
+	return result
 }
 
 func (jobLeaseService *JobLeaseService) ReturnLease(pod *v1.Pod) error {
