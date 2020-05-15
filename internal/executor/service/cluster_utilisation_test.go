@@ -1,7 +1,6 @@
 package service
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -26,26 +25,6 @@ func TestFilterAvailableProcessingNodes_ShouldReturnAvailableProcessingNodes(t *
 	result := filterAvailableProcessingNodes(nodes)
 
 	assert.Equal(t, len(result), 1)
-}
-
-func Test(t *testing.T) {
-	q1 := resource.MustParse("1000m")
-	q2 := resource.MustParse("1")
-
-	fmt.Println(q1)
-	fmt.Println(q2)
-
-	cap1 := common.ComputeResources{"cpu": resource.MustParse("1000m")}
-	cap2 := common.ComputeResources{"cpu": resource.MustParse("1")}
-
-	var cap3 common.ComputeResources
-	var cap4 common.ComputeResources
-
-	fmt.Println(cap1.Equal(cap2))
-	fmt.Println(cap3.Equal(cap4))
-
-	assert.True(t, q1.Equal(q2))
-
 }
 
 func TestFilterAvailableProcessingNodes_ShouldFilterUnschedulableNodes(t *testing.T) {
