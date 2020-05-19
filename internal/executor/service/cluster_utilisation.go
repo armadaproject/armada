@@ -364,10 +364,10 @@ func getLargestNodeSizes(allPods []*v1.Pod, nodes []*v1.Node) []common.ComputeRe
 		shouldAdd := true
 		nodesToRemove := make([]*v1.Node, 0, 10)
 		for existingNode, existingNodeSize := range nodeSizes {
-			if allocatableResource.IsGreaterThan(existingNodeSize) {
+			if allocatableResource.Dominates(existingNodeSize) {
 				nodesToRemove = append(nodesToRemove, existingNode)
 			}
-			if allocatableResource.IsLessThan(existingNodeSize) || allocatableResource.Equal(existingNodeSize) {
+			if existingNodeSize.Dominates(allocatableResource) || existingNodeSize.Equal(allocatableResource) {
 				shouldAdd = false
 				break
 			}

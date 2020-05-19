@@ -62,18 +62,7 @@ func (a ComputeResources) Equal(b ComputeResources) bool {
 	return true
 }
 
-func (a ComputeResources) IsLessThan(b ComputeResources) bool {
-	reduced := a.DeepCopy()
-	reduced.Sub(b)
-
-	allNegative := true
-	for _, value := range reduced {
-		allNegative = allNegative && value.Sign() < 0
-	}
-	return allNegative
-}
-
-func (a ComputeResources) IsGreaterThan(b ComputeResources) bool {
+func (a ComputeResources) Dominates(b ComputeResources) bool {
 	reduced := a.DeepCopy()
 	reduced.Sub(b)
 
