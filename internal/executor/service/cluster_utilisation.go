@@ -341,26 +341,27 @@ func getDistinctNodesLabels(labels []string, nodes []*v1.Node) []map[string]stri
 	return result
 }
 
-func getNodesWithAllocatableResource(allPods []*v1.Pod, nodes []*v1.Node) map[*v1.Node]common.ComputeResources {
+func getAllocatableResourceByNode(allPods []*v1.Pod, nodes []*v1.Node) map[*v1.Node]common.ComputeResources {
 	unmanagedPodsByNode := getUnmanagedPodsByNode(allPods, nodes)
 	result := make(map[*v1.Node]common.ComputeResources, len(unmanagedPodsByNode))
 	for node, unmanagedPods := range unmanagedPodsByNode {
 		allocatableResource := common.FromResourceList(node.Status.Allocatable)
 		allocatableResource.Sub(common.CalculateTotalResourceRequest(unmanagedPods))
 		if !allocatableResource.IsValid() {
-			continue
+			result[node] = common.ComputeResources{}
+		} else {
+			result[node] = allocatableResource
 		}
-		result[node] = allocatableResource
 	}
 
 	return result
 }
 
 func getLargestNodeSizes(allPods []*v1.Pod, nodes []*v1.Node) []common.ComputeResources {
-	nodesWithAllocatableResource := getNodesWithAllocatableResource(allPods, nodes)
+	allocatableResourceForNodes := getAllocatableResourceByNode(allPods, nodes)
 
 	nodeSizes := make(map[*v1.Node]common.ComputeResources)
-	for node, allocatableResource := range nodesWithAllocatableResource {
+	for node, allocatableResource := range allocatableResourceForNodes {
 		shouldAdd := true
 		nodesToRemove := make([]*v1.Node, 0, 10)
 		for existingNode, existingNodeSize := range nodeSizes {
