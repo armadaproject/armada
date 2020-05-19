@@ -226,24 +226,24 @@ func (c *leaseContext) leaseJobs(queue *api.Queue, slice common.ComputeResources
 			if e != nil {
 				return nil, slice, e
 			}
-			topJobs = newTop
+			c.queueCache[queue.Name] = newTop
+			topJobs = c.queueCache[queue.Name]
 		}
 
 		candidates := make([]*api.Job, 0)
-		for i, job := range topJobs {
+		for _, job := range topJobs {
 			requirement := common.TotalResourceRequest(job.PodSpec).AsFloat()
 			remainder = slice.DeepCopy()
 			remainder.Sub(requirement)
 			if remainder.IsValid() && matchRequirements(job, c.request) {
 				slice = remainder
 				candidates = append(candidates, job)
-
-				c.queueCache[queue.Name] = append(topJobs[:i], topJobs[i+1:]...)
 			}
 			if len(candidates) >= limit {
 				break
 			}
 		}
+		c.queueCache[queue.Name] = removeJobs(c.queueCache[queue.Name], candidates)
 
 		leased, e := c.repository.TryLeaseJobs(c.request.ClusterId, queue.Name, candidates)
 		if e != nil {
@@ -266,6 +266,21 @@ func (c *leaseContext) leaseJobs(queue *api.Queue, slice common.ComputeResources
 	go c.onJobsLeased(jobs)
 
 	return jobs, slice, nil
+}
+
+func removeJobs(jobs []*api.Job, jobsToRemove []*api.Job) []*api.Job {
+	jobsToRemoveIds := make(map[string]bool, len(jobsToRemove))
+	for _, job := range jobsToRemove {
+		jobsToRemoveIds[job.Id] = true
+	}
+
+	result := make([]*api.Job, 0, len(jobs))
+	for _, job := range jobs {
+		if _, shouldRemove := jobsToRemoveIds[job.Id]; !shouldRemove {
+			result = append(result, job)
+		}
+	}
+	return result
 }
 
 func (c *leaseContext) closeToDeadline() bool {
