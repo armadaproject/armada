@@ -55,6 +55,7 @@ func TestSubmitJob(t *testing.T) {
 		leasedResponse, err := leaseClient.LeaseJobs(ctx, &api.LeaseRequest{
 			ClusterId: "test-cluster",
 			Resources: common.ComputeResources{"cpu": cpu, "memory": memory},
+			NodeSizes: []api.ComputeResource{{Resources: common.ComputeResources{"cpu": resource.MustParse("5"), "memory": resource.MustParse("5Gi")}}},
 		})
 		assert.Empty(t, err)
 
@@ -81,6 +82,7 @@ func TestCancelJob(t *testing.T) {
 		leasedResponse, err := leaseClient.LeaseJobs(ctx, &api.LeaseRequest{
 			ClusterId: "test-cluster",
 			Resources: common.ComputeResources{"cpu": cpu, "memory": memory},
+			NodeSizes: []api.ComputeResource{{Resources: common.ComputeResources{"cpu": resource.MustParse("5"), "memory": resource.MustParse("5Gi")}}},
 		})
 		assert.Empty(t, err)
 		assert.Equal(t, 1, len(leasedResponse.Job))

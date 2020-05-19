@@ -174,7 +174,7 @@ func (c *leaseContext) distributeRemainder(limit int) ([]*api.Job, error) {
 	emptySteps := 0
 	minimumResource := c.schedulingConfig.MinimumResourceToSchedule
 
-	for !remainder.IsLessThanOrEqual(minimumResource) && len(shares) > 0 && emptySteps < queueCount {
+	for !remainder.IsLessThan(minimumResource) && len(shares) > 0 && emptySteps < queueCount {
 		queue := pickQueueRandomly(shares)
 		emptySteps++
 
@@ -310,6 +310,23 @@ func pickQueueRandomly(shares map[*api.Queue]float64) *api.Queue {
 }
 
 func matchRequirements(job *api.Job, request *api.LeaseRequest) bool {
+	return matchNodeLabels(job, request) && isAbleToFitOnAvailableNodes(job, request)
+}
+
+func isAbleToFitOnAvailableNodes(job *api.Job, request *api.LeaseRequest) bool {
+	resourceRequest := common.TotalResourceRequest(job.PodSpec).AsFloat()
+	for _, node := range request.NodeSizes {
+		var nodeSize common.ComputeResources = node.Resources
+		remainder := nodeSize.AsFloat()
+		remainder.Sub(resourceRequest)
+		if remainder.IsValid() {
+			return true
+		}
+	}
+	return false
+}
+
+func matchNodeLabels(job *api.Job, request *api.LeaseRequest) bool {
 	if len(job.RequiredNodeLabels) == 0 {
 		return true
 	}
