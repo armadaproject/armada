@@ -46,7 +46,7 @@ func (apiLoadTester ArmadaLoadTester) RunSubmissionTest(spec domain.LoadTestSpec
 				defer wg.Done()
 				jobIdChannel, jobSetId := apiLoadTester.runSubmission(submission, i)
 				if watchEvents {
-					apiLoadTester.monitorJobsUntilCompletion(submission.Queue, jobSetId, jobIdChannel, eventChannel)
+					apiLoadTester.monitorJobsUntilCompletion(createQueueName(submission, i), jobSetId, jobIdChannel, eventChannel)
 				}
 			}(i, submission)
 		}

@@ -14,23 +14,44 @@ import (
 	"github.com/G-Research/armada/pkg/api"
 )
 
-func Test_matchRequirements(t *testing.T) {
-
+func Test_matchNodeLabels(t *testing.T) {
 	job := &api.Job{RequiredNodeLabels: map[string]string{"armada/region": "eu", "armada/zone": "1"}}
 
-	assert.False(t, matchRequirements(job, &api.LeaseRequest{}))
-	assert.False(t, matchRequirements(job, &api.LeaseRequest{AvailableLabels: []*api.NodeLabeling{
+	assert.False(t, matchNodeLabels(job, &api.LeaseRequest{}))
+	assert.False(t, matchNodeLabels(job, &api.LeaseRequest{AvailableLabels: []*api.NodeLabeling{
 		{Labels: map[string]string{"armada/region": "eu"}},
 		{Labels: map[string]string{"armada/zone": "2"}},
 	}}))
-	assert.False(t, matchRequirements(job, &api.LeaseRequest{AvailableLabels: []*api.NodeLabeling{
+	assert.False(t, matchNodeLabels(job, &api.LeaseRequest{AvailableLabels: []*api.NodeLabeling{
 		{Labels: map[string]string{"armada/region": "eu", "armada/zone": "2"}},
 	}}))
 
-	assert.True(t, matchRequirements(job, &api.LeaseRequest{AvailableLabels: []*api.NodeLabeling{
+	assert.True(t, matchNodeLabels(job, &api.LeaseRequest{AvailableLabels: []*api.NodeLabeling{
 		{Labels: map[string]string{"x": "y"}},
 		{Labels: map[string]string{"armada/region": "eu", "armada/zone": "1", "x": "y"}},
 	}}))
+}
+
+func Test_isAbleToFitOnAvailableNodes(t *testing.T) {
+	request := v1.ResourceList{"cpu": resource.MustParse("2"), "memory": resource.MustParse("2Gi")}
+	resourceRequirement := v1.ResourceRequirements{
+		Limits:   request,
+		Requests: request,
+	}
+	job := &api.Job{PodSpec: &v1.PodSpec{Containers: []v1.Container{{Resources: resourceRequirement}}}}
+
+	assert.False(t, isAbleToFitOnAvailableNodes(job, &api.LeaseRequest{}))
+
+	assert.False(t, isAbleToFitOnAvailableNodes(job, &api.LeaseRequest{
+		NodeSizes: []api.ComputeResource{{Resources: common.ComputeResources{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")}}},
+	}))
+
+	assert.True(t, isAbleToFitOnAvailableNodes(job, &api.LeaseRequest{
+		NodeSizes: []api.ComputeResource{
+			{Resources: common.ComputeResources{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")}},
+			{Resources: common.ComputeResources{"cpu": resource.MustParse("3"), "memory": resource.MustParse("3Gi")}},
+		},
+	}))
 }
 
 func Test_distributeRemainder_highPriorityUserDoesNotBlockOthers(t *testing.T) {
@@ -78,8 +99,12 @@ func Test_distributeRemainder_highPriorityUserDoesNotBlockOthers(t *testing.T) {
 		schedulingConfig: &configuration.SchedulingConfig{
 			QueueLeaseBatchSize: 10,
 		},
-		onJobsLeased:     func(a []*api.Job) {},
-		request:          &api.LeaseRequest{ClusterId: "c1", Resources: requestSize},
+		onJobsLeased: func(a []*api.Job) {},
+		request: &api.LeaseRequest{
+			ClusterId: "c1",
+			Resources: requestSize,
+			NodeSizes: []api.ComputeResource{{Resources: common.ComputeResources{"cpu": resource.MustParse("100"), "memory": resource.MustParse("100Gi")}}},
+		},
 		resourceScarcity: scarcity,
 		priorities:       priorities,
 		schedulingInfo:   SliceResourceWithLimits(scarcity, schedulingInfo, priorities, requestSize.AsFloat()),
@@ -130,8 +155,12 @@ func Test_distributeRemainder_DoesNotExceedSchedulingLimits(t *testing.T) {
 		schedulingConfig: &configuration.SchedulingConfig{
 			QueueLeaseBatchSize: 10,
 		},
-		onJobsLeased:     func(a []*api.Job) {},
-		request:          &api.LeaseRequest{ClusterId: "c1", Resources: requestSize},
+		onJobsLeased: func(a []*api.Job) {},
+		request: &api.LeaseRequest{
+			ClusterId: "c1",
+			Resources: requestSize,
+			NodeSizes: []api.ComputeResource{{Resources: common.ComputeResources{"cpu": resource.MustParse("100"), "memory": resource.MustParse("100Gi")}}},
+		},
 		resourceScarcity: scarcity,
 		priorities:       priorities,
 		schedulingInfo:   SliceResourceWithLimits(scarcity, schedulingInfo, priorities, requestSize.AsFloat()),
@@ -187,7 +216,7 @@ outer:
 func Test_calculateQueueSchedulingLimits(t *testing.T) {
 	queue1 := &api.Queue{Name: "queue1", PriorityFactor: 1}
 	activeQueues := []*api.Queue{queue1}
-	schedulingLimitPerQueue := common.ComputeResourcesFloat{"cpu": 200.0}
+	schedulingLimitPerQueue := common.ComputeResourcesFloat{"cpu": 300.0}
 	resourceLimitPerQueue := common.ComputeResourcesFloat{"cpu": 400.0}
 	totalCapacity := &common.ComputeResources{"cpu": resource.MustParse("1000")}
 	currentQueueResourceAllocation := map[string]common.ComputeResources{queue1.Name: {"cpu": resource.MustParse("250")}}
@@ -198,10 +227,24 @@ func Test_calculateQueueSchedulingLimits(t *testing.T) {
 	assert.Equal(t, result[queue1].remainingSchedulingLimit, common.ComputeResourcesFloat{"cpu": 150.0})
 }
 
-func Test_calculateQueueSchedulingLimits_WithCustomQueueLimits(t *testing.T) {
+func Test_calculateQueueSchedulingLimits_WithSmallSchedulingLimitPerQueue(t *testing.T) {
+	queue1 := &api.Queue{Name: "queue1", PriorityFactor: 1}
+	activeQueues := []*api.Queue{queue1}
+	schedulingLimitPerQueue := common.ComputeResourcesFloat{"cpu": 100.0}
+	resourceLimitPerQueue := common.ComputeResourcesFloat{"cpu": 400.0}
+	totalCapacity := &common.ComputeResources{"cpu": resource.MustParse("1000")}
+	currentQueueResourceAllocation := map[string]common.ComputeResources{queue1.Name: {"cpu": resource.MustParse("250")}}
+
+	result := calculateQueueSchedulingLimits(activeQueues, schedulingLimitPerQueue, resourceLimitPerQueue, totalCapacity, currentQueueResourceAllocation)
+
+	assert.Equal(t, len(result), 1)
+	assert.Equal(t, result[queue1].remainingSchedulingLimit, common.ComputeResourcesFloat{"cpu": 100.0})
+}
+
+func Test_calculateQueueSchedulingLimits_WithCustomQueueLimitsLessThanGlobal(t *testing.T) {
 	queue1 := &api.Queue{Name: "queue1", PriorityFactor: 1, ResourceLimits: map[string]float64{"cpu": 0.3}}
 	activeQueues := []*api.Queue{queue1}
-	schedulingLimitPerQueue := common.ComputeResourcesFloat{"cpu": 200.0}
+	schedulingLimitPerQueue := common.ComputeResourcesFloat{"cpu": 300.0}
 	resourceLimitPerQueue := common.ComputeResourcesFloat{"cpu": 400.0}
 	totalCapacity := &common.ComputeResources{"cpu": resource.MustParse("1000")}
 	currentQueueResourceAllocation := map[string]common.ComputeResources{queue1.Name: {"cpu": resource.MustParse("250")}}
@@ -210,4 +253,18 @@ func Test_calculateQueueSchedulingLimits_WithCustomQueueLimits(t *testing.T) {
 
 	assert.Equal(t, len(result), 1)
 	assert.Equal(t, result[queue1].remainingSchedulingLimit, common.ComputeResourcesFloat{"cpu": 50.0})
+}
+
+func Test_calculateQueueSchedulingLimits_WithCustomQueueLimitsGreaterThanGlobal(t *testing.T) {
+	queue1 := &api.Queue{Name: "queue1", PriorityFactor: 1, ResourceLimits: map[string]float64{"cpu": 0.5}}
+	activeQueues := []*api.Queue{queue1}
+	schedulingLimitPerQueue := common.ComputeResourcesFloat{"cpu": 300.0}
+	resourceLimitPerQueue := common.ComputeResourcesFloat{"cpu": 400.0}
+	totalCapacity := &common.ComputeResources{"cpu": resource.MustParse("1000")}
+	currentQueueResourceAllocation := map[string]common.ComputeResources{queue1.Name: {"cpu": resource.MustParse("250")}}
+
+	result := calculateQueueSchedulingLimits(activeQueues, schedulingLimitPerQueue, resourceLimitPerQueue, totalCapacity, currentQueueResourceAllocation)
+
+	assert.Equal(t, len(result), 1)
+	assert.Equal(t, result[queue1].remainingSchedulingLimit, common.ComputeResourcesFloat{"cpu": 250.0})
 }

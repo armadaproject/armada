@@ -26,7 +26,8 @@ message LeaseRequest {
     string ClusterId = 1;
     map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> Resources = 2 [(gogoproto.nullable) = false];
     repeated NodeLabeling AvailableLabels = 3;
-    ClusterLeasedReport clusterLeasedReport  = 4 [(gogoproto.nullable) = false];
+    ClusterLeasedReport ClusterLeasedReport  = 4 [(gogoproto.nullable) = false];
+    repeated ComputeResource NodeSizes = 5 [(gogoproto.nullable) = false];
 }
 
 message QueueLeasedReport {
@@ -38,6 +39,10 @@ message ClusterLeasedReport {
     string ClusterId = 1;
     google.protobuf.Timestamp ReportTime = 2 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
     repeated QueueLeasedReport Queues = 3;
+}
+
+message ComputeResource {
+    map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> Resources = 1 [(gogoproto.nullable) = false];
 }
 
 message NodeLabeling {

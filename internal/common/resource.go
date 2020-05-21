@@ -43,6 +43,50 @@ func (a ComputeResources) Max(b ComputeResources) {
 	}
 }
 
+func (a ComputeResources) Equal(b ComputeResources) bool {
+	if a == nil || b == nil {
+		return false
+	}
+	if len(a) != len(b) {
+		return false
+	}
+	for k, v := range b {
+		existing, ok := a[k]
+		if !ok {
+			return false
+		}
+		if !existing.Equal(v) {
+			return false
+		}
+	}
+	return true
+}
+
+func (a ComputeResources) Dominates(b ComputeResources) bool {
+	reduced := a.DeepCopy()
+	reduced.Sub(b)
+
+	hasRemainder := false
+	for _, value := range reduced {
+		if value.Sign() < 0 {
+			return false
+		}
+		if value.Sign() > 0 {
+			hasRemainder = true
+		}
+	}
+
+	return hasRemainder
+}
+
+func (a ComputeResources) IsValid() bool {
+	valid := true
+	for _, value := range a {
+		valid = valid && value.Sign() >= 0
+	}
+	return valid
+}
+
 func (a ComputeResources) Sub(b ComputeResources) {
 	for k, v := range b {
 		existing, ok := a[k]
@@ -144,7 +188,7 @@ func (a ComputeResourcesFloat) DeepCopy() ComputeResourcesFloat {
 	return targetComputeResource
 }
 
-func (a ComputeResourcesFloat) IsLessThanOrEqual(b ComputeResourcesFloat) bool {
+func (a ComputeResourcesFloat) IsLessThan(b ComputeResourcesFloat) bool {
 	reduced := a.DeepCopy()
 	reduced.Sub(b)
 	return !reduced.IsValid()
@@ -158,7 +202,16 @@ func (a ComputeResourcesFloat) LimitWith(limit ComputeResourcesFloat) ComputeRes
 	return targetComputeResource
 }
 
-func (a ComputeResourcesFloat) LimitTo0() {
+//The merged in values take precedence and override existing values for the same key
+func (a ComputeResourcesFloat) MergeWith(merged ComputeResourcesFloat) ComputeResourcesFloat {
+	targetComputeResource := a.DeepCopy()
+	for key, value := range merged {
+		targetComputeResource[key] = value
+	}
+	return targetComputeResource
+}
+
+func (a ComputeResourcesFloat) LimitToZero() {
 	for key, value := range a {
 		a[key] = math.Max(value, 0)
 	}

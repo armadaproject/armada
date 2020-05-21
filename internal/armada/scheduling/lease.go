@@ -93,13 +93,12 @@ func calculateQueueSchedulingLimits(
 	for _, queue := range activeQueues {
 		remainingGlobalLimit := resourceLimitPerQueue.DeepCopy()
 		if len(queue.ResourceLimits) > 0 {
-			//TODO This only allows customQueueLimit to lower globalLimit not increase it
 			customQueueLimit := totalCapacity.MulByResource(queue.ResourceLimits)
-			remainingGlobalLimit = remainingGlobalLimit.LimitWith(customQueueLimit)
+			remainingGlobalLimit = remainingGlobalLimit.MergeWith(customQueueLimit)
 		}
 		if usage, ok := currentQueueResourceAllocation[queue.Name]; ok {
 			remainingGlobalLimit.Sub(usage.AsFloat())
-			remainingGlobalLimit.LimitTo0()
+			remainingGlobalLimit.LimitToZero()
 		}
 
 		schedulingRoundLimit := schedulingLimitPerQueue.DeepCopy()
@@ -175,12 +174,12 @@ func (c *leaseContext) distributeRemainder(limit int) ([]*api.Job, error) {
 	emptySteps := 0
 	minimumResource := c.schedulingConfig.MinimumResourceToSchedule
 
-	for !remainder.IsLessThanOrEqual(minimumResource) && len(shares) > 0 && emptySteps < queueCount {
+	for !remainder.IsLessThan(minimumResource) && len(shares) > 0 && emptySteps < queueCount {
 		queue := pickQueueRandomly(shares)
 		emptySteps++
 
 		amountToSchedule := remainder.DeepCopy()
-		amountToSchedule.LimitWith(c.schedulingInfo[queue].remainingSchedulingLimit)
+		amountToSchedule = amountToSchedule.LimitWith(c.schedulingInfo[queue].remainingSchedulingLimit)
 		leased, remaining, e := c.leaseJobs(queue, amountToSchedule, 1)
 		if e != nil {
 			log.Error(e)
@@ -227,24 +226,24 @@ func (c *leaseContext) leaseJobs(queue *api.Queue, slice common.ComputeResources
 			if e != nil {
 				return nil, slice, e
 			}
-			topJobs = newTop
+			c.queueCache[queue.Name] = newTop
+			topJobs = c.queueCache[queue.Name]
 		}
 
 		candidates := make([]*api.Job, 0)
-		for i, job := range topJobs {
+		for _, job := range topJobs {
 			requirement := common.TotalResourceRequest(job.PodSpec).AsFloat()
 			remainder = slice.DeepCopy()
 			remainder.Sub(requirement)
 			if remainder.IsValid() && matchRequirements(job, c.request) {
 				slice = remainder
 				candidates = append(candidates, job)
-
-				c.queueCache[queue.Name] = append(topJobs[:i], topJobs[i+1:]...)
 			}
 			if len(candidates) >= limit {
 				break
 			}
 		}
+		c.queueCache[queue.Name] = removeJobs(c.queueCache[queue.Name], candidates)
 
 		leased, e := c.repository.TryLeaseJobs(c.request.ClusterId, queue.Name, candidates)
 		if e != nil {
@@ -267,6 +266,21 @@ func (c *leaseContext) leaseJobs(queue *api.Queue, slice common.ComputeResources
 	go c.onJobsLeased(jobs)
 
 	return jobs, slice, nil
+}
+
+func removeJobs(jobs []*api.Job, jobsToRemove []*api.Job) []*api.Job {
+	jobsToRemoveIds := make(map[string]bool, len(jobsToRemove))
+	for _, job := range jobsToRemove {
+		jobsToRemoveIds[job.Id] = true
+	}
+
+	result := make([]*api.Job, 0, len(jobs))
+	for _, job := range jobs {
+		if _, shouldRemove := jobsToRemoveIds[job.Id]; !shouldRemove {
+			result = append(result, job)
+		}
+	}
+	return result
 }
 
 func (c *leaseContext) closeToDeadline() bool {
@@ -296,6 +310,23 @@ func pickQueueRandomly(shares map[*api.Queue]float64) *api.Queue {
 }
 
 func matchRequirements(job *api.Job, request *api.LeaseRequest) bool {
+	return matchNodeLabels(job, request) && isAbleToFitOnAvailableNodes(job, request)
+}
+
+func isAbleToFitOnAvailableNodes(job *api.Job, request *api.LeaseRequest) bool {
+	resourceRequest := common.TotalResourceRequest(job.PodSpec).AsFloat()
+	for _, node := range request.NodeSizes {
+		var nodeSize common.ComputeResources = node.Resources
+		remainder := nodeSize.AsFloat()
+		remainder.Sub(resourceRequest)
+		if remainder.IsValid() {
+			return true
+		}
+	}
+	return false
+}
+
+func matchNodeLabels(job *api.Job, request *api.LeaseRequest) bool {
 	if len(job.RequiredNodeLabels) == 0 {
 		return true
 	}
