@@ -19,7 +19,7 @@ import (
 )
 
 func TestSubmitServer_SubmitJob(t *testing.T) {
-	withSubmitServer(func(s *SubmitServer) {
+	withSubmitServer(func(s *SubmitServer, events repository.EventRepository) {
 		jobSetId := util.NewULID()
 		jobRequest := createJobRequest(jobSetId, 1)
 
@@ -31,14 +31,14 @@ func TestSubmitServer_SubmitJob(t *testing.T) {
 }
 
 func TestSubmitServer_SubmitJob_AddsExpectedEventsInCorrectOrder(t *testing.T) {
-	withSubmitServer(func(s *SubmitServer) {
+	withSubmitServer(func(s *SubmitServer, events repository.EventRepository) {
 		jobSetId := util.NewULID()
 		jobRequest := createJobRequest(jobSetId, 1)
 
 		_, err := s.SubmitJobs(context.Background(), jobRequest)
 		assert.Empty(t, err)
 
-		messages, err := s.eventRepository.ReadEvents("test", jobSetId, "", 100, 5*time.Second)
+		messages, err := events.ReadEvents("test", jobSetId, "", 100, 5*time.Second)
 
 		assert.Empty(t, err)
 		assert.Equal(t, len(messages), 2)
@@ -59,7 +59,7 @@ func TestSubmitServer_SubmitJob_AddsExpectedEventsInCorrectOrder(t *testing.T) {
 }
 
 func TestSubmitServer_SubmitJob_ReturnsJobItemsInTheSameOrderTheyWereSubmitted(t *testing.T) {
-	withSubmitServer(func(s *SubmitServer) {
+	withSubmitServer(func(s *SubmitServer, events repository.EventRepository) {
 		jobSetId := util.NewULID()
 		jobRequest := createJobRequest(jobSetId, 5)
 
@@ -129,7 +129,7 @@ func createJobRequestItems(numberOfJobs int) []*api.JobSubmitRequestItem {
 	return jobRequestItems
 }
 
-func withSubmitServer(action func(s *SubmitServer)) {
+func withSubmitServer(action func(s *SubmitServer, events repository.EventRepository)) {
 	// using real redis instance as miniredis does not support streams
 	client := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 10})
 
@@ -143,5 +143,5 @@ func withSubmitServer(action func(s *SubmitServer)) {
 		panic(err)
 	}
 
-	action(server)
+	action(server, eventRepo)
 }

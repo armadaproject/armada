@@ -13,9 +13,11 @@ import (
 const eventStreamPrefix = "Events:"
 const dataKey = "message"
 
-type EventRepository interface {
-	ReportEvent(message *api.EventMessage) error
+type EventStore interface {
 	ReportEvents(message []*api.EventMessage) error
+}
+
+type EventRepository interface {
 	ReadEvents(queue, jobSetId string, lastId string, limit int64, block time.Duration) ([]*api.EventStreamMessage, error)
 	GetLastMessageId(queue, jobSetId string) (string, error)
 }
