@@ -36,14 +36,15 @@ func Serve(config *configuration.ArmadaConfig) (func(), *sync.WaitGroup) {
 	jobRepository := repository.NewRedisJobRepository(db)
 	usageRepository := repository.NewRedisUsageRepository(db)
 	queueRepository := repository.NewRedisQueueRepository(db)
+	nodeInfoRepository := repository.NewRedisNodeInfoRepository(db)
 
 	eventRepository := repository.NewRedisEventRepository(eventsDb, config.EventRetention)
 
 	permissions := authorization.NewPrincipalPermissionChecker(config.PermissionGroupMapping, config.PermissionScopeMapping)
 
-	submitServer := server.NewSubmitServer(permissions, jobRepository, queueRepository, eventRepository)
+	submitServer := server.NewSubmitServer(permissions, jobRepository, queueRepository, eventRepository, nodeInfoRepository)
 	usageServer := server.NewUsageServer(permissions, config.PriorityHalfTime, usageRepository)
-	aggregatedQueueServer := server.NewAggregatedQueueServer(permissions, config.Scheduling, jobRepository, queueRepository, usageRepository, eventRepository)
+	aggregatedQueueServer := server.NewAggregatedQueueServer(permissions, config.Scheduling, jobRepository, queueRepository, usageRepository, eventRepository, nodeInfoRepository)
 	eventServer := server.NewEventServer(permissions, eventRepository)
 	leaseManager := scheduling.NewLeaseManager(jobRepository, queueRepository, eventRepository, config.Scheduling.Lease.ExpireAfter)
 

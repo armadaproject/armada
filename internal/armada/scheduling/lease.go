@@ -24,6 +24,7 @@ type leaseContext struct {
 	ctx     context.Context
 	request *api.LeaseRequest
 
+	clusterNodeInfo  *api.ClusterNodeInfoReport
 	schedulingInfo   map[*api.Queue]*QueueSchedulingInfo
 	resourceScarcity map[string]float64
 	priorities       map[*api.Queue]QueuePriorityInfo
@@ -71,6 +72,7 @@ func LeaseJobs(
 		ctx:     ctx,
 		request: request,
 
+		clusterNodeInfo:  CreateClusterNodeInfoReport(request),
 		resourceScarcity: scarcity,
 		schedulingInfo:   activeQueueSchedulingInfo,
 		priorities:       activeQueuePriority,
@@ -235,7 +237,7 @@ func (c *leaseContext) leaseJobs(queue *api.Queue, slice common.ComputeResources
 			requirement := common.TotalResourceRequest(job.PodSpec).AsFloat()
 			remainder = slice.DeepCopy()
 			remainder.Sub(requirement)
-			if remainder.IsValid() && matchRequirements(job, c.request) {
+			if remainder.IsValid() && MatchSchedulingRequirements(job, c.clusterNodeInfo) {
 				slice = remainder
 				candidates = append(candidates, job)
 			}
@@ -309,13 +311,13 @@ func pickQueueRandomly(shares map[*api.Queue]float64) *api.Queue {
 	return lastQueue
 }
 
-func matchRequirements(job *api.Job, request *api.LeaseRequest) bool {
-	return matchNodeLabels(job, request) && isAbleToFitOnAvailableNodes(job, request)
+func MatchSchedulingRequirements(job *api.Job, nodeInfo *api.ClusterNodeInfoReport) bool {
+	return matchNodeLabels(job, nodeInfo) && isAbleToFitOnAvailableNodes(job, nodeInfo)
 }
 
-func isAbleToFitOnAvailableNodes(job *api.Job, request *api.LeaseRequest) bool {
+func isAbleToFitOnAvailableNodes(job *api.Job, nodeInfo *api.ClusterNodeInfoReport) bool {
 	resourceRequest := common.TotalResourceRequest(job.PodSpec).AsFloat()
-	for _, node := range request.NodeSizes {
+	for _, node := range nodeInfo.NodeSizes {
 		var nodeSize common.ComputeResources = node.Resources
 		remainder := nodeSize.AsFloat()
 		remainder.Sub(resourceRequest)
@@ -326,13 +328,13 @@ func isAbleToFitOnAvailableNodes(job *api.Job, request *api.LeaseRequest) bool {
 	return false
 }
 
-func matchNodeLabels(job *api.Job, request *api.LeaseRequest) bool {
+func matchNodeLabels(job *api.Job, nodeInfo *api.ClusterNodeInfoReport) bool {
 	if len(job.RequiredNodeLabels) == 0 {
 		return true
 	}
 
 Labels:
-	for _, labeling := range request.AvailableLabels {
+	for _, labeling := range nodeInfo.AvailableLabels {
 		for k, v := range job.RequiredNodeLabels {
 			if labeling.Labels[k] != v {
 				continue Labels

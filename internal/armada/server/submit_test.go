@@ -14,6 +14,7 @@ import (
 
 	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/G-Research/armada/internal/armada/repository"
+	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/pkg/api"
 )
@@ -27,6 +28,24 @@ func TestSubmitServer_SubmitJob(t *testing.T) {
 
 		assert.Empty(t, err)
 		assert.NotNil(t, response.JobResponseItems[0].JobId)
+	})
+}
+
+func TestSubmitServer_SubmitJob_WhenPodIsNotSchedulable(t *testing.T) {
+	withSubmitServer(func(s *SubmitServer) {
+		jobSetId := util.NewULID()
+		jobRequest := createJobRequest(jobSetId, 1)
+
+		err := s.nodeInfoRepository.UpdateClusterNodeInfo(&api.ClusterNodeInfoReport{
+			ClusterId:  "test-cluster",
+			ReportTime: time.Now(),
+			NodeSizes:  []api.ComputeResource{{Resources: common.ComputeResources{"cpu": resource.MustParse("0"), "memory": resource.MustParse("0")}}},
+		})
+		assert.Empty(t, err)
+
+		_, err = s.SubmitJobs(context.Background(), jobRequest)
+
+		assert.Error(t, err)
 	})
 }
 
@@ -136,9 +155,19 @@ func withSubmitServer(action func(s *SubmitServer)) {
 	jobRepo := repository.NewRedisJobRepository(client)
 	queueRepo := repository.NewRedisQueueRepository(client)
 	eventRepo := repository.NewRedisEventRepository(client, configuration.EventRetentionPolicy{ExpiryEnabled: false})
-	server := NewSubmitServer(&fakePermissionChecker{}, jobRepo, queueRepo, eventRepo)
+	nodeInfoRepo := repository.NewRedisNodeInfoRepository(client)
+	server := NewSubmitServer(&fakePermissionChecker{}, jobRepo, queueRepo, eventRepo, nodeInfoRepo)
 
 	err := queueRepo.CreateQueue(&api.Queue{Name: "test"})
+	if err != nil {
+		panic(err)
+	}
+
+	err = nodeInfoRepo.UpdateClusterNodeInfo(&api.ClusterNodeInfoReport{
+		ClusterId:  "test-cluster",
+		ReportTime: time.Now(),
+		NodeSizes:  []api.ComputeResource{{Resources: common.ComputeResources{"cpu": resource.MustParse("100"), "memory": resource.MustParse("100Gi")}}},
+	})
 	if err != nil {
 		panic(err)
 	}

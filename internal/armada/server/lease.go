@@ -17,12 +17,13 @@ import (
 )
 
 type AggregatedQueueServer struct {
-	permissions      authorization.PermissionChecker
-	schedulingConfig configuration.SchedulingConfig
-	jobRepository    repository.JobRepository
-	queueRepository  repository.QueueRepository
-	usageRepository  repository.UsageRepository
-	eventRepository  repository.EventRepository
+	permissions        authorization.PermissionChecker
+	schedulingConfig   configuration.SchedulingConfig
+	jobRepository      repository.JobRepository
+	queueRepository    repository.QueueRepository
+	usageRepository    repository.UsageRepository
+	eventRepository    repository.EventRepository
+	nodeInfoRepository repository.NodeInfoRepository
 }
 
 func NewAggregatedQueueServer(
@@ -32,14 +33,16 @@ func NewAggregatedQueueServer(
 	queueRepository repository.QueueRepository,
 	usageRepository repository.UsageRepository,
 	eventRepository repository.EventRepository,
+	nodeInfoRepository repository.NodeInfoRepository,
 ) *AggregatedQueueServer {
 	return &AggregatedQueueServer{
-		permissions:      permissions,
-		schedulingConfig: schedulingConfig,
-		jobRepository:    jobRepository,
-		queueRepository:  queueRepository,
-		usageRepository:  usageRepository,
-		eventRepository:  eventRepository}
+		permissions:        permissions,
+		schedulingConfig:   schedulingConfig,
+		jobRepository:      jobRepository,
+		queueRepository:    queueRepository,
+		usageRepository:    usageRepository,
+		eventRepository:    eventRepository,
+		nodeInfoRepository: nodeInfoRepository}
 }
 
 func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.LeaseRequest) (*api.JobLease, error) {
@@ -68,6 +71,12 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 	}
 
 	e = q.usageRepository.UpdateClusterLeased(&request.ClusterLeasedReport)
+	if e != nil {
+		return nil, e
+	}
+
+	clusterNodeInfo := scheduling.CreateClusterNodeInfoReport(request)
+	e = q.nodeInfoRepository.UpdateClusterNodeInfo(clusterNodeInfo)
 	if e != nil {
 		return nil, e
 	}

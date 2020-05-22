@@ -17,16 +17,16 @@ import (
 func Test_matchNodeLabels(t *testing.T) {
 	job := &api.Job{RequiredNodeLabels: map[string]string{"armada/region": "eu", "armada/zone": "1"}}
 
-	assert.False(t, matchNodeLabels(job, &api.LeaseRequest{}))
-	assert.False(t, matchNodeLabels(job, &api.LeaseRequest{AvailableLabels: []*api.NodeLabeling{
+	assert.False(t, matchNodeLabels(job, &api.ClusterNodeInfoReport{}))
+	assert.False(t, matchNodeLabels(job, &api.ClusterNodeInfoReport{AvailableLabels: []*api.NodeLabeling{
 		{Labels: map[string]string{"armada/region": "eu"}},
 		{Labels: map[string]string{"armada/zone": "2"}},
 	}}))
-	assert.False(t, matchNodeLabels(job, &api.LeaseRequest{AvailableLabels: []*api.NodeLabeling{
+	assert.False(t, matchNodeLabels(job, &api.ClusterNodeInfoReport{AvailableLabels: []*api.NodeLabeling{
 		{Labels: map[string]string{"armada/region": "eu", "armada/zone": "2"}},
 	}}))
 
-	assert.True(t, matchNodeLabels(job, &api.LeaseRequest{AvailableLabels: []*api.NodeLabeling{
+	assert.True(t, matchNodeLabels(job, &api.ClusterNodeInfoReport{AvailableLabels: []*api.NodeLabeling{
 		{Labels: map[string]string{"x": "y"}},
 		{Labels: map[string]string{"armada/region": "eu", "armada/zone": "1", "x": "y"}},
 	}}))
@@ -40,13 +40,13 @@ func Test_isAbleToFitOnAvailableNodes(t *testing.T) {
 	}
 	job := &api.Job{PodSpec: &v1.PodSpec{Containers: []v1.Container{{Resources: resourceRequirement}}}}
 
-	assert.False(t, isAbleToFitOnAvailableNodes(job, &api.LeaseRequest{}))
+	assert.False(t, isAbleToFitOnAvailableNodes(job, &api.ClusterNodeInfoReport{}))
 
-	assert.False(t, isAbleToFitOnAvailableNodes(job, &api.LeaseRequest{
+	assert.False(t, isAbleToFitOnAvailableNodes(job, &api.ClusterNodeInfoReport{
 		NodeSizes: []api.ComputeResource{{Resources: common.ComputeResources{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")}}},
 	}))
 
-	assert.True(t, isAbleToFitOnAvailableNodes(job, &api.LeaseRequest{
+	assert.True(t, isAbleToFitOnAvailableNodes(job, &api.ClusterNodeInfoReport{
 		NodeSizes: []api.ComputeResource{
 			{Resources: common.ComputeResources{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")}},
 			{Resources: common.ComputeResources{"cpu": resource.MustParse("3"), "memory": resource.MustParse("3Gi")}},
@@ -94,17 +94,21 @@ func Test_distributeRemainder_highPriorityUserDoesNotBlockOthers(t *testing.T) {
 	// the leasing logic stops scheduling 1s before the deadline
 	ctx, _ := context.WithDeadline(context.Background(), time.Now().Add(2*time.Second))
 
+	leaseRequest := &api.LeaseRequest{
+		ClusterId: "c1",
+		Resources: requestSize,
+		NodeSizes: []api.ComputeResource{{Resources: common.ComputeResources{"cpu": resource.MustParse("100"), "memory": resource.MustParse("100Gi")}}},
+	}
+
 	c := leaseContext{
 		ctx: ctx,
 		schedulingConfig: &configuration.SchedulingConfig{
 			QueueLeaseBatchSize: 10,
 		},
 		onJobsLeased: func(a []*api.Job) {},
-		request: &api.LeaseRequest{
-			ClusterId: "c1",
-			Resources: requestSize,
-			NodeSizes: []api.ComputeResource{{Resources: common.ComputeResources{"cpu": resource.MustParse("100"), "memory": resource.MustParse("100Gi")}}},
-		},
+		request:      leaseRequest,
+
+		clusterNodeInfo:  CreateClusterNodeInfoReport(leaseRequest),
 		resourceScarcity: scarcity,
 		priorities:       priorities,
 		schedulingInfo:   SliceResourceWithLimits(scarcity, schedulingInfo, priorities, requestSize.AsFloat()),
@@ -150,17 +154,20 @@ func Test_distributeRemainder_DoesNotExceedSchedulingLimits(t *testing.T) {
 	// the leasing logic stops scheduling 1s before the deadline
 	ctx, _ := context.WithDeadline(context.Background(), time.Now().Add(2*time.Second))
 
+	leaseRequest := &api.LeaseRequest{
+		ClusterId: "c1",
+		Resources: requestSize,
+		NodeSizes: []api.ComputeResource{{Resources: common.ComputeResources{"cpu": resource.MustParse("100"), "memory": resource.MustParse("100Gi")}}},
+	}
 	c := leaseContext{
 		ctx: ctx,
 		schedulingConfig: &configuration.SchedulingConfig{
 			QueueLeaseBatchSize: 10,
 		},
 		onJobsLeased: func(a []*api.Job) {},
-		request: &api.LeaseRequest{
-			ClusterId: "c1",
-			Resources: requestSize,
-			NodeSizes: []api.ComputeResource{{Resources: common.ComputeResources{"cpu": resource.MustParse("100"), "memory": resource.MustParse("100Gi")}}},
-		},
+		request:      leaseRequest,
+
+		clusterNodeInfo:  CreateClusterNodeInfoReport(leaseRequest),
 		resourceScarcity: scarcity,
 		priorities:       priorities,
 		schedulingInfo:   SliceResourceWithLimits(scarcity, schedulingInfo, priorities, requestSize.AsFloat()),
