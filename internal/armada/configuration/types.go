@@ -22,6 +22,8 @@ type ArmadaConfig struct {
 	MetricsPort            uint16
 	PriorityHalfTime       time.Duration
 	Redis                  redis.UniversalOptions
+	EventsKafka            KafkaConfig
+	EventsNats             NatsConfig
 	EventsRedis            redis.UniversalOptions
 	BasicAuth              BasicAuthenticationConfig
 	OpenIdAuth             OpenIdAuthenticationConfig
@@ -66,4 +68,17 @@ type EventRetentionPolicy struct {
 type LeaseSettings struct {
 	ExpireAfter        time.Duration
 	ExpiryLoopInterval time.Duration
+}
+
+type KafkaConfig struct {
+	Brokers         []string
+	Topic           string
+	ConsumerGroupID string
+}
+
+type NatsConfig struct {
+	Servers    []string
+	ClusterID  string
+	Subject    string
+	QueueGroup string
 }

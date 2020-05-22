@@ -22,7 +22,7 @@ type AggregatedQueueServer struct {
 	jobRepository      repository.JobRepository
 	queueRepository    repository.QueueRepository
 	usageRepository    repository.UsageRepository
-	eventRepository    repository.EventRepository
+	eventStore         repository.EventStore
 	nodeInfoRepository repository.NodeInfoRepository
 }
 
@@ -32,7 +32,7 @@ func NewAggregatedQueueServer(
 	jobRepository repository.JobRepository,
 	queueRepository repository.QueueRepository,
 	usageRepository repository.UsageRepository,
-	eventRepository repository.EventRepository,
+	eventStore repository.EventStore,
 	nodeInfoRepository repository.NodeInfoRepository,
 ) *AggregatedQueueServer {
 	return &AggregatedQueueServer{
@@ -41,7 +41,7 @@ func NewAggregatedQueueServer(
 		jobRepository:      jobRepository,
 		queueRepository:    queueRepository,
 		usageRepository:    usageRepository,
-		eventRepository:    eventRepository,
+		eventStore:         eventStore,
 		nodeInfoRepository: nodeInfoRepository}
 }
 
@@ -97,7 +97,7 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 		ctx,
 		&q.schedulingConfig,
 		q.jobRepository,
-		func(jobs []*api.Job) { reportJobsLeased(q.eventRepository, jobs, request.ClusterId) },
+		func(jobs []*api.Job) { reportJobsLeased(q.eventStore, jobs, request.ClusterId) },
 		request,
 		activeClusterReports,
 		clusterLeasedJobReports,

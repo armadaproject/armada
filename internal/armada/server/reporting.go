@@ -9,7 +9,7 @@ import (
 	"github.com/G-Research/armada/pkg/api"
 )
 
-func reportQueued(repository repository.EventRepository, jobs []*api.Job) error {
+func reportQueued(repository repository.EventStore, jobs []*api.Job) error {
 	events := []*api.EventMessage{}
 	now := time.Now()
 	for _, job := range jobs {
@@ -28,7 +28,7 @@ func reportQueued(repository repository.EventRepository, jobs []*api.Job) error 
 	return e
 }
 
-func reportSubmitted(repository repository.EventRepository, jobs []*api.Job) error {
+func reportSubmitted(repository repository.EventStore, jobs []*api.Job) error {
 	events := []*api.EventMessage{}
 	now := time.Now()
 	for _, job := range jobs {
@@ -49,7 +49,7 @@ func reportSubmitted(repository repository.EventRepository, jobs []*api.Job) err
 	return e
 }
 
-func reportJobsLeased(repository repository.EventRepository, jobs []*api.Job, clusterId string) {
+func reportJobsLeased(repository repository.EventStore, jobs []*api.Job, clusterId string) {
 	events := []*api.EventMessage{}
 	now := time.Now()
 	for _, job := range jobs {
@@ -72,7 +72,7 @@ func reportJobsLeased(repository repository.EventRepository, jobs []*api.Job, cl
 	}
 }
 
-func reportJobsCancelling(repository repository.EventRepository, jobs []*api.Job) error {
+func reportJobsCancelling(repository repository.EventStore, jobs []*api.Job) error {
 	events := []*api.EventMessage{}
 	now := time.Now()
 	for _, job := range jobs {
@@ -91,7 +91,7 @@ func reportJobsCancelling(repository repository.EventRepository, jobs []*api.Job
 	return e
 }
 
-func reportJobsCancelled(repository repository.EventRepository, jobs []*api.Job) error {
+func reportJobsCancelled(repository repository.EventStore, jobs []*api.Job) error {
 	events := []*api.EventMessage{}
 	now := time.Now()
 	for _, job := range jobs {
@@ -110,7 +110,7 @@ func reportJobsCancelled(repository repository.EventRepository, jobs []*api.Job)
 	return e
 }
 
-func reportTerminated(repository repository.EventRepository, clusterId string, job *api.Job) error {
+func reportTerminated(repository repository.EventStore, clusterId string, job *api.Job) error {
 	event, e := api.Wrap(&api.JobTerminatedEvent{
 		JobId:     job.Id,
 		Queue:     job.Queue,
@@ -121,6 +121,6 @@ func reportTerminated(repository repository.EventRepository, clusterId string, j
 	if e != nil {
 		return e
 	}
-	e = repository.ReportEvent(event)
+	e = repository.ReportEvents([]*api.EventMessage{event})
 	return e
 }

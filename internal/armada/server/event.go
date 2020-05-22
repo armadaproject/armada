@@ -15,24 +15,32 @@ import (
 type EventServer struct {
 	permissions     authorization.PermissionChecker
 	eventRepository repository.EventRepository
+	eventStore      repository.EventStore
 }
 
-func NewEventServer(permissions authorization.PermissionChecker, eventRepository repository.EventRepository) *EventServer {
-	return &EventServer{permissions: permissions, eventRepository: eventRepository}
+func NewEventServer(
+	permissions authorization.PermissionChecker,
+	eventRepository repository.EventRepository,
+	eventStore repository.EventStore) *EventServer {
+
+	return &EventServer{
+		permissions:     permissions,
+		eventRepository: eventRepository,
+		eventStore:      eventStore}
 }
 
 func (s *EventServer) Report(ctx context.Context, message *api.EventMessage) (*types.Empty, error) {
 	if e := checkPermission(s.permissions, ctx, permissions.ExecuteJobs); e != nil {
 		return nil, e
 	}
-	return &types.Empty{}, s.eventRepository.ReportEvent(message)
+	return &types.Empty{}, s.eventStore.ReportEvents([]*api.EventMessage{message})
 }
 
 func (s *EventServer) ReportMultiple(ctx context.Context, message *api.EventList) (*types.Empty, error) {
 	if e := checkPermission(s.permissions, ctx, permissions.ExecuteJobs); e != nil {
 		return nil, e
 	}
-	return &types.Empty{}, s.eventRepository.ReportEvents(message.Events)
+	return &types.Empty{}, s.eventStore.ReportEvents(message.Events)
 }
 
 func (s *EventServer) GetJobSetEvents(request *api.JobSetRequest, stream api.Event_GetJobSetEventsServer) error {
