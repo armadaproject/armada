@@ -31,8 +31,8 @@ func TestSubmitServer_SubmitJob(t *testing.T) {
 	})
 }
 
-func TestSubmitServer_SubmitJob_WhenPodIsNotSchedulable(t *testing.T) {
-	withSubmitServer(func(s *SubmitServer) {
+func TestSubmitServer_SubmitJob_WhenPodCannotBeScheduled(t *testing.T) {
+	withSubmitServer(func(s *SubmitServer, events repository.EventRepository) {
 		jobSetId := util.NewULID()
 		jobRequest := createJobRequest(jobSetId, 1)
 
