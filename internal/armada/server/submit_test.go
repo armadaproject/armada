@@ -14,6 +14,7 @@ import (
 
 	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/G-Research/armada/internal/armada/repository"
+	redis2 "github.com/G-Research/armada/internal/armada/repository/redis"
 	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/pkg/api"
 )
@@ -133,9 +134,9 @@ func withSubmitServer(action func(s *SubmitServer, events repository.EventReposi
 	// using real redis instance as miniredis does not support streams
 	client := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 10})
 
-	jobRepo := repository.NewRedisJobRepository(client)
-	queueRepo := repository.NewRedisQueueRepository(client)
-	eventRepo := repository.NewRedisEventRepository(client, configuration.EventRetentionPolicy{ExpiryEnabled: false})
+	jobRepo := redis2.NewRedisJobRepository(client)
+	queueRepo := redis2.NewRedisQueueRepository(client)
+	eventRepo := redis2.NewRedisEventRepository(client, configuration.EventRetentionPolicy{ExpiryEnabled: false})
 	server := NewSubmitServer(&fakePermissionChecker{}, jobRepo, queueRepo, eventRepo)
 
 	err := queueRepo.CreateQueue(&api.Queue{Name: "test"})

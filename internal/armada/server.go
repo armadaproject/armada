@@ -22,6 +22,7 @@ import (
 	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/G-Research/armada/internal/armada/metrics"
 	"github.com/G-Research/armada/internal/armada/repository"
+	redis2 "github.com/G-Research/armada/internal/armada/repository/redis"
 	"github.com/G-Research/armada/internal/armada/scheduling"
 	"github.com/G-Research/armada/internal/armada/server"
 	"github.com/G-Research/armada/internal/common/task"
@@ -39,11 +40,11 @@ func Serve(config *configuration.ArmadaConfig) (func(), *sync.WaitGroup) {
 	db := createRedisClient(&config.Redis)
 	eventsDb := createRedisClient(&config.EventsRedis)
 
-	jobRepository := repository.NewRedisJobRepository(db)
-	usageRepository := repository.NewRedisUsageRepository(db)
-	queueRepository := repository.NewRedisQueueRepository(db)
+	jobRepository := redis2.NewRedisJobRepository(db)
+	usageRepository := redis2.NewRedisUsageRepository(db)
+	queueRepository := redis2.NewRedisQueueRepository(db)
 
-	redisEventRepository := repository.NewRedisEventRepository(eventsDb, config.EventRetention)
+	redisEventRepository := redis2.NewRedisEventRepository(eventsDb, config.EventRetention)
 	var eventStore repository.EventStore
 
 	// TODO: move this to task manager

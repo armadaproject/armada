@@ -1,4 +1,4 @@
-package repository
+package redis
 
 import (
 	"github.com/go-redis/redis"
@@ -8,12 +8,6 @@ import (
 )
 
 const queueHashKey = "Queue"
-
-type QueueRepository interface {
-	GetAllQueues() ([]*api.Queue, error)
-	GetQueue(name string) (*api.Queue, error)
-	CreateQueue(queue *api.Queue) error
-}
 
 type RedisQueueRepository struct {
 	db redis.UniversalClient

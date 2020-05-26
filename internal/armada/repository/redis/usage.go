@@ -1,4 +1,4 @@
-package repository
+package redis
 
 import (
 	"strconv"
@@ -17,16 +17,6 @@ type Usage struct {
 const clusterReportKey = "Cluster:Report"
 const clusterLeasedReportKey = "Cluster:Leased"
 const clusterPrioritiesPrefix = "Cluster:Priority:"
-
-type UsageRepository interface {
-	GetClusterUsageReports() (map[string]*api.ClusterUsageReport, error)
-	GetClusterPriority(clusterId string) (map[string]float64, error)
-	GetClusterPriorities(clusterIds []string) (map[string]map[string]float64, error)
-	GetClusterLeasedReports() (map[string]*api.ClusterLeasedReport, error)
-
-	UpdateCluster(report *api.ClusterUsageReport, priorities map[string]float64) error
-	UpdateClusterLeased(report *api.ClusterLeasedReport) error
-}
 
 type RedisUsageRepository struct {
 	db redis.UniversalClient

@@ -1,4 +1,4 @@
-package repository
+package redis
 
 import (
 	"fmt"
@@ -9,9 +9,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/G-Research/armada/internal/armada/authorization"
 	"github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/internal/common/validation"
 	"github.com/G-Research/armada/pkg/api"
 )
 
@@ -21,78 +19,12 @@ const jobSetPrefix = "Job:Set:"
 const jobLeasedPrefix = "Job:Leased:"
 const jobClusterMapKey = "Job:ClusterId"
 
-type JobQueueRepository interface {
-	PeekQueue(queue string, limit int64) ([]*api.Job, error)
-	TryLeaseJobs(clusterId string, queue string, jobs []*api.Job) ([]*api.Job, error)
-}
-
-type JobRepository interface {
-	JobQueueRepository
-	CreateJobs(request *api.JobSubmitRequest, principal authorization.Principal) ([]*api.Job, error)
-	AddJobs(job []*api.Job) ([]*SubmitJobResult, error)
-	GetExistingJobsByIds(ids []string) ([]*api.Job, error)
-	FilterActiveQueues(queues []*api.Queue) ([]*api.Queue, error)
-	GetQueueSizes(queues []*api.Queue) (sizes []int64, e error)
-	RenewLease(clusterId string, jobIds []string) (renewed []string, e error)
-	ExpireLeases(queue string, deadline time.Time) (expired []*api.Job, e error)
-	ReturnLease(clusterId string, jobId string) (returnedJob *api.Job, err error)
-	DeleteJobs(jobs []*api.Job) map[*api.Job]error
-	GetActiveJobIds(queue string, jobSetId string) ([]string, error)
-	GetQueueActiveJobSets(queue string) ([]*api.JobSetInfo, error)
-}
-
 type RedisJobRepository struct {
 	db redis.UniversalClient
 }
 
 func NewRedisJobRepository(db redis.UniversalClient) *RedisJobRepository {
 	return &RedisJobRepository{db: db}
-}
-
-func (repo *RedisJobRepository) CreateJobs(request *api.JobSubmitRequest, principal authorization.Principal) ([]*api.Job, error) {
-	jobs := make([]*api.Job, 0, len(request.JobRequestItems))
-
-	if request.JobSetId == "" {
-		return nil, fmt.Errorf("job set is not specified")
-	}
-
-	if request.Queue == "" {
-		return nil, fmt.Errorf("queue is not specified")
-	}
-
-	for i, item := range request.JobRequestItems {
-
-		e := validation.ValidatePodSpec(item.PodSpec)
-		if e != nil {
-			return nil, fmt.Errorf("error validating pod spec of job with index %v: %v", i, e)
-		}
-
-		namespace := item.Namespace
-		if namespace == "" {
-			namespace = "default"
-		}
-
-		j := &api.Job{
-			Id:       util.NewULID(),
-			Queue:    request.Queue,
-			JobSetId: request.JobSetId,
-
-			Namespace:   namespace,
-			Labels:      item.Labels,
-			Annotations: item.Annotations,
-
-			RequiredNodeLabels: item.RequiredNodeLabels,
-
-			Priority: item.Priority,
-
-			PodSpec: item.PodSpec,
-			Created: time.Now(),
-			Owner:   principal.GetName(),
-		}
-		jobs = append(jobs, j)
-	}
-
-	return jobs, nil
 }
 
 type submitJobRedisResponse struct {

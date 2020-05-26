@@ -10,7 +10,7 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/G-Research/armada/internal/armada/configuration"
-	"github.com/G-Research/armada/internal/armada/repository"
+	redis2 "github.com/G-Research/armada/internal/armada/repository/redis"
 	"github.com/G-Research/armada/pkg/api"
 )
 
@@ -87,7 +87,7 @@ func withEventServer(eventRetention configuration.EventRetentionPolicy, action f
 	// using real redis instance as miniredis does not support streams
 	client := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 10})
 
-	repo := repository.NewRedisEventRepository(client, eventRetention)
+	repo := redis2.NewRedisEventRepository(client, eventRetention)
 	server := NewEventServer(&fakePermissionChecker{}, repo, repo)
 
 	client.FlushDB()

@@ -8,12 +8,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	redis2 "github.com/G-Research/armada/internal/armada/repository/redis"
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/pkg/api"
 )
 
 func TestGetClusterLeasedReports(t *testing.T) {
-	withUsageRepository(func(r *RedisUsageRepository) {
+	withUsageRepository(func(r *redis2.RedisUsageRepository) {
 		cluster1Report := makeClusterLeasedReport("cluster-1", "queue-1")
 		cluster2Report := makeClusterLeasedReport("cluster-2", "queue-1", "queue-2")
 
@@ -32,7 +33,7 @@ func TestGetClusterLeasedReports(t *testing.T) {
 }
 
 func TestUpdateClusterLeased(t *testing.T) {
-	withUsageRepository(func(r *RedisUsageRepository) {
+	withUsageRepository(func(r *redis2.RedisUsageRepository) {
 		report := makeClusterLeasedReport("cluster-1", "queue-1")
 		e := r.UpdateClusterLeased(report)
 		assert.Nil(t, e)
@@ -67,13 +68,13 @@ func makeClusterLeasedReport(clusterId string, queueNames ...string) *api.Cluste
 	return report
 }
 
-func withUsageRepository(action func(r *RedisUsageRepository)) {
+func withUsageRepository(action func(r *redis2.RedisUsageRepository)) {
 	client := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 10})
 	defer client.FlushDB()
 	defer client.Close()
 
 	client.FlushDB()
 
-	repo := NewRedisUsageRepository(client)
+	repo := redis2.NewRedisUsageRepository(client)
 	action(repo)
 }

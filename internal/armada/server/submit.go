@@ -11,6 +11,7 @@ import (
 	"github.com/G-Research/armada/internal/armada/authorization"
 	"github.com/G-Research/armada/internal/armada/authorization/permissions"
 	"github.com/G-Research/armada/internal/armada/repository"
+	"github.com/G-Research/armada/internal/common/validation"
 	"github.com/G-Research/armada/pkg/api"
 )
 
@@ -76,7 +77,7 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 
 	principal := authorization.GetPrincipal(ctx)
 
-	jobs, e := server.jobRepository.CreateJobs(req, principal)
+	jobs, e := validation.CreateJobs(req, principal)
 	if e != nil {
 		return nil, status.Errorf(codes.InvalidArgument, e.Error())
 	}
