@@ -172,7 +172,10 @@ func (c *leaseContext) distributeRemainder(limit int) ([]*api.Job, error) {
 
 	queueCount := len(c.schedulingInfo)
 	emptySteps := 0
-	minimumResource := c.schedulingConfig.MinimumResourceToSchedule
+
+	minimumJobSize := common.ComputeResources(c.request.MinimumJobSize).AsFloat()
+	minimumResource := c.schedulingConfig.MinimumResourceToSchedule.DeepCopy()
+	minimumResource.Max(minimumJobSize)
 
 	for !remainder.IsLessThan(minimumResource) && len(shares) > 0 && emptySteps < queueCount {
 		queue := pickQueueRandomly(shares)

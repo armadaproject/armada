@@ -180,6 +180,17 @@ func (a ComputeResourcesFloat) Add(b ComputeResourcesFloat) {
 	}
 }
 
+func (a ComputeResourcesFloat) Max(b ComputeResourcesFloat) {
+	for k, v := range b {
+		existing, ok := a[k]
+		if ok {
+			a[k] = math.Max(v, existing)
+		} else {
+			a[k] = v
+		}
+	}
+}
+
 func (a ComputeResourcesFloat) DeepCopy() ComputeResourcesFloat {
 	targetComputeResource := make(ComputeResourcesFloat)
 	for key, value := range a {

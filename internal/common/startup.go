@@ -50,7 +50,7 @@ func LoadConfig(config interface{}, defaultPath string, overrideConfig string) {
 	viper.SetEnvPrefix("ARMADA")
 	viper.AutomaticEnv()
 
-	err := viper.Unmarshal(config, AddDecodeHook(quantityDecodeHook))
+	err := viper.Unmarshal(config, addDecodeHook(quantityDecodeHook))
 
 	if err != nil {
 		log.Error(err)
@@ -58,7 +58,7 @@ func LoadConfig(config interface{}, defaultPath string, overrideConfig string) {
 	}
 }
 
-func AddDecodeHook(hook mapstructure.DecodeHookFuncType) viper.DecoderConfigOption {
+func addDecodeHook(hook mapstructure.DecodeHookFuncType) viper.DecoderConfigOption {
 	return func(c *mapstructure.DecoderConfig) {
 		c.DecodeHook = mapstructure.ComposeDecodeHookFunc(
 			c.DecodeHook,
