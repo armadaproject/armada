@@ -172,7 +172,10 @@ func (c *leaseContext) distributeRemainder(limit int) ([]*api.Job, error) {
 
 	queueCount := len(c.schedulingInfo)
 	emptySteps := 0
-	minimumResource := c.schedulingConfig.MinimumResourceToSchedule
+
+	minimumJobSize := common.ComputeResources(c.request.MinimumJobSize).AsFloat()
+	minimumResource := c.schedulingConfig.MinimumResourceToSchedule.DeepCopy()
+	minimumResource.Max(minimumJobSize)
 
 	for !remainder.IsLessThan(minimumResource) && len(shares) > 0 && emptySteps < queueCount {
 		queue := pickQueueRandomly(shares)
@@ -310,7 +313,9 @@ func pickQueueRandomly(shares map[*api.Queue]float64) *api.Queue {
 }
 
 func matchRequirements(job *api.Job, request *api.LeaseRequest) bool {
-	return matchNodeLabels(job, request) && isAbleToFitOnAvailableNodes(job, request)
+	return matchNodeLabels(job, request) &&
+		isAbleToFitOnAvailableNodes(job, request) &&
+		isLargeEnough(job, request)
 }
 
 func isAbleToFitOnAvailableNodes(job *api.Job, request *api.LeaseRequest) bool {
@@ -352,4 +357,11 @@ func filterPriorityMapByKeys(original map[*api.Queue]QueuePriorityInfo, keys []*
 		}
 	}
 	return result
+}
+
+func isLargeEnough(job *api.Job, request *api.LeaseRequest) bool {
+	resourceRequest := common.TotalResourceRequest(job.PodSpec)
+	minimum := common.ComputeResources(request.MinimumJobSize)
+	resourceRequest.Sub(minimum)
+	return resourceRequest.IsValid()
 }

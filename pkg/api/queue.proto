@@ -28,6 +28,7 @@ message LeaseRequest {
     repeated NodeLabeling AvailableLabels = 3;
     ClusterLeasedReport ClusterLeasedReport  = 4 [(gogoproto.nullable) = false];
     repeated ComputeResource NodeSizes = 5 [(gogoproto.nullable) = false];
+    map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> MinimumJobSize = 6 [(gogoproto.nullable) = false];
 }
 
 message QueueLeasedReport {

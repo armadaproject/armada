@@ -5,14 +5,17 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"reflect"
 	"strings"
 	"time"
 
+	"github.com/mitchellh/mapstructure"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"github.com/weaveworks/promrus"
+	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/G-Research/armada/internal/common/logging"
 )
@@ -47,12 +50,33 @@ func LoadConfig(config interface{}, defaultPath string, overrideConfig string) {
 	viper.SetEnvPrefix("ARMADA")
 	viper.AutomaticEnv()
 
-	err := viper.Unmarshal(config)
+	err := viper.Unmarshal(config, addDecodeHook(quantityDecodeHook))
+
 	if err != nil {
 		log.Error(err)
 		os.Exit(-1)
 	}
 }
+
+func addDecodeHook(hook mapstructure.DecodeHookFuncType) viper.DecoderConfigOption {
+	return func(c *mapstructure.DecoderConfig) {
+		c.DecodeHook = mapstructure.ComposeDecodeHookFunc(
+			c.DecodeHook,
+			hook)
+	}
+}
+
+func quantityDecodeHook(
+	from reflect.Type,
+	to reflect.Type,
+	data interface{}) (interface{}, error) {
+
+	if to != reflect.TypeOf(resource.Quantity{}) {
+		return data, nil
+	}
+	return resource.ParseQuantity(fmt.Sprintf("%v", data))
+}
+
 func ConfigureCommandLineLogging() {
 	commandLineFormatter := new(logging.CommandLineFormatter)
 	log.SetFormatter(commandLineFormatter)

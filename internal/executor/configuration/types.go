@@ -3,6 +3,7 @@ package configuration
 import (
 	"time"
 
+	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/pkg/client"
 )
 
@@ -16,6 +17,7 @@ type KubernetesConfiguration struct {
 	MinimumPodAge     time.Duration
 	FailedPodExpiry   time.Duration
 	StuckPodExpiry    time.Duration
+	MinimumJobSize    common.ComputeResources
 }
 
 type TaskConfiguration struct {

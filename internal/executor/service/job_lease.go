@@ -31,19 +31,22 @@ type JobLeaseService struct {
 	queueClient     api.AggregatedQueueClient
 	minimumPodAge   time.Duration
 	failedPodExpiry time.Duration
+	minimumJobSize  common.ComputeResources
 }
 
 func NewJobLeaseService(
 	clusterContext context2.ClusterContext,
 	queueClient api.AggregatedQueueClient,
 	minimumPodAge time.Duration,
-	failedPodExpiry time.Duration) *JobLeaseService {
+	failedPodExpiry time.Duration,
+	minimumJobSize common.ComputeResources) *JobLeaseService {
 
 	return &JobLeaseService{
 		clusterContext:  clusterContext,
 		queueClient:     queueClient,
 		minimumPodAge:   minimumPodAge,
-		failedPodExpiry: failedPodExpiry}
+		failedPodExpiry: failedPodExpiry,
+		minimumJobSize:  minimumJobSize}
 }
 
 func (jobLeaseService *JobLeaseService) RequestJobLeases(availableResource *common.ComputeResources, availableLabels []map[string]string, nodeSizes []common.ComputeResources, leasedResourceByQueue map[string]common.ComputeResources) ([]*api.Job, error) {
@@ -71,6 +74,7 @@ func (jobLeaseService *JobLeaseService) RequestJobLeases(availableResource *comm
 		AvailableLabels:     labeling,
 		ClusterLeasedReport: clusterLeasedReport,
 		NodeSizes:           convertIntoComputeResource(nodeSizes),
+		MinimumJobSize:      jobLeaseService.minimumJobSize,
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()

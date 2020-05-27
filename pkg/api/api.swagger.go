@@ -1572,6 +1572,128 @@ func SwaggerJsonTemplate() string {
 		"      },\n" +
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
+		"    \"v1EphemeralContainerCommon\": {\n" +
+		"      \"description\": \"EphemeralContainerCommon is a copy of all fields in Container to be inlined in\\nEphemeralContainer. This separate type allows easy conversion from EphemeralContainer\\nto Container and allows separate documentation for the fields of EphemeralContainer.\\nWhen a new field is added to Container it must be added here as well.\",\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"args\": {\n" +
+		"          \"description\": \"Arguments to the entrypoint.\\nThe docker image's CMD is used if this is not provided.\\nVariable references $(VAR_NAME) are expanded using the container's environment. If a variable\\ncannot be resolved, the reference in the input string will be unchanged. The $(VAR_NAME) syntax\\ncan be escaped with a double $$, ie: $$(VAR_NAME). Escaped references will never be expanded,\\nregardless of whether the variable exists or not.\\nCannot be updated.\\nMore info: https://kubernetes.io/docs/tasks/inject-data-application/define-command-argument-container/#running-a-command-in-a-shell\\n+optional\",\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"type\": \"string\"\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"Args\"\n" +
+		"        },\n" +
+		"        \"command\": {\n" +
+		"          \"description\": \"Entrypoint array. Not executed within a shell.\\nThe docker image's ENTRYPOINT is used if this is not provided.\\nVariable references $(VAR_NAME) are expanded using the container's environment. If a variable\\ncannot be resolved, the reference in the input string will be unchanged. The $(VAR_NAME) syntax\\ncan be escaped with a double $$, ie: $$(VAR_NAME). Escaped references will never be expanded,\\nregardless of whether the variable exists or not.\\nCannot be updated.\\nMore info: https://kubernetes.io/docs/tasks/inject-data-application/define-command-argument-container/#running-a-command-in-a-shell\\n+optional\",\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"type\": \"string\"\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"Command\"\n" +
+		"        },\n" +
+		"        \"env\": {\n" +
+		"          \"description\": \"List of environment variables to set in the container.\\nCannot be updated.\\n+optional\\n+patchMergeKey=name\\n+patchStrategy=merge\",\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/v1EnvVar\"\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"Env\"\n" +
+		"        },\n" +
+		"        \"envFrom\": {\n" +
+		"          \"description\": \"List of sources to populate environment variables in the container.\\nThe keys defined within a source must be a C_IDENTIFIER. All invalid keys\\nwill be reported as an event when the container is starting. When a key exists in multiple\\nsources, the value associated with the last source will take precedence.\\nValues defined by an Env with a duplicate key will take precedence.\\nCannot be updated.\\n+optional\",\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/v1EnvFromSource\"\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"EnvFrom\"\n" +
+		"        },\n" +
+		"        \"image\": {\n" +
+		"          \"description\": \"Docker image name.\\nMore info: https://kubernetes.io/docs/concepts/containers/images\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"Image\"\n" +
+		"        },\n" +
+		"        \"imagePullPolicy\": {\n" +
+		"          \"$ref\": \"#/definitions/v1PullPolicy\"\n" +
+		"        },\n" +
+		"        \"lifecycle\": {\n" +
+		"          \"$ref\": \"#/definitions/v1Lifecycle\"\n" +
+		"        },\n" +
+		"        \"livenessProbe\": {\n" +
+		"          \"$ref\": \"#/definitions/v1Probe\"\n" +
+		"        },\n" +
+		"        \"name\": {\n" +
+		"          \"description\": \"Name of the ephemeral container specified as a DNS_LABEL.\\nThis name must be unique among all containers, init containers and ephemeral containers.\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"Name\"\n" +
+		"        },\n" +
+		"        \"ports\": {\n" +
+		"          \"description\": \"Ports are not allowed for ephemeral containers.\",\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/v1ContainerPort\"\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"Ports\"\n" +
+		"        },\n" +
+		"        \"readinessProbe\": {\n" +
+		"          \"$ref\": \"#/definitions/v1Probe\"\n" +
+		"        },\n" +
+		"        \"resources\": {\n" +
+		"          \"$ref\": \"#/definitions/v1ResourceRequirements\"\n" +
+		"        },\n" +
+		"        \"securityContext\": {\n" +
+		"          \"$ref\": \"#/definitions/v1SecurityContext\"\n" +
+		"        },\n" +
+		"        \"startupProbe\": {\n" +
+		"          \"$ref\": \"#/definitions/v1Probe\"\n" +
+		"        },\n" +
+		"        \"stdin\": {\n" +
+		"          \"description\": \"Whether this container should allocate a buffer for stdin in the container runtime. If this\\nis not set, reads from stdin in the container will always result in EOF.\\nDefault is false.\\n+optional\",\n" +
+		"          \"type\": \"boolean\",\n" +
+		"          \"x-go-name\": \"Stdin\"\n" +
+		"        },\n" +
+		"        \"stdinOnce\": {\n" +
+		"          \"description\": \"Whether the container runtime should close the stdin channel after it has been opened by\\na single attach. When stdin is true the stdin stream will remain open across multiple attach\\nsessions. If stdinOnce is set to true, stdin is opened on container start, is empty until the\\nfirst client attaches to stdin, and then remains open and accepts data until the client disconnects,\\nat which time stdin is closed and remains closed until the container is restarted. If this\\nflag is false, a container processes that reads from stdin will never receive an EOF.\\nDefault is false\\n+optional\",\n" +
+		"          \"type\": \"boolean\",\n" +
+		"          \"x-go-name\": \"StdinOnce\"\n" +
+		"        },\n" +
+		"        \"terminationMessagePath\": {\n" +
+		"          \"description\": \"Optional: Path at which the file to which the container's termination message\\nwill be written is mounted into the container's filesystem.\\nMessage written is intended to be brief final status, such as an assertion failure message.\\nWill be truncated by the node if greater than 4096 bytes. The total message length across\\nall containers will be limited to 12kb.\\nDefaults to /dev/termination-log.\\nCannot be updated.\\n+optional\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"TerminationMessagePath\"\n" +
+		"        },\n" +
+		"        \"terminationMessagePolicy\": {\n" +
+		"          \"$ref\": \"#/definitions/v1TerminationMessagePolicy\"\n" +
+		"        },\n" +
+		"        \"tty\": {\n" +
+		"          \"description\": \"Whether this container should allocate a TTY for itself, also requires 'stdin' to be true.\\nDefault is false.\\n+optional\",\n" +
+		"          \"type\": \"boolean\",\n" +
+		"          \"x-go-name\": \"TTY\"\n" +
+		"        },\n" +
+		"        \"volumeDevices\": {\n" +
+		"          \"description\": \"volumeDevices is the list of block devices to be used by the container.\\nThis is a beta feature.\\n+patchMergeKey=devicePath\\n+patchStrategy=merge\\n+optional\",\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/v1VolumeDevice\"\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"VolumeDevices\"\n" +
+		"        },\n" +
+		"        \"volumeMounts\": {\n" +
+		"          \"description\": \"Pod volumes to mount into the container's filesystem.\\nCannot be updated.\\n+optional\\n+patchMergeKey=mountPath\\n+patchStrategy=merge\",\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/v1VolumeMount\"\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"VolumeMounts\"\n" +
+		"        },\n" +
+		"        \"workingDir\": {\n" +
+		"          \"description\": \"Container's working directory.\\nIf not specified, the container runtime's default will be used, which\\nmight be configured in the container image.\\nCannot be updated.\\n+optional\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"WorkingDir\"\n" +
+		"        }\n" +
+		"      },\n" +
+		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
+		"    },\n" +
 		"    \"v1ExecAction\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"title\": \"ExecAction describes a \\\"run in container\\\" action.\",\n" +
@@ -3391,122 +3513,96 @@ func SwaggerJsonTemplate() string {
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
 		"    \"v1VolumeSource\": {\n" +
-		"      \"description\": \"Represents the source of a volume to mount.\\nOnly one of its members may be specified.\",\n" +
+		"      \"description\": \"Only one of its members may be specified.\",\n" +
 		"      \"type\": \"object\",\n" +
+		"      \"title\": \"Represents the source of a volume to mount.\",\n" +
 		"      \"properties\": {\n" +
 		"        \"awsElasticBlockStore\": {\n" +
-		"          \"title\": \"AWSElasticBlockStore represents an AWS Disk resource that is attached to a\\nkubelet's host machine and then exposed to the pod.\\nMore info: https://kubernetes.io/docs/concepts/storage/volumes#awselasticblockstore\\n+optional\",\n" +
 		"          \"$ref\": \"#/definitions/v1AWSElasticBlockStoreVolumeSource\"\n" +
 		"        },\n" +
 		"        \"azureDisk\": {\n" +
-		"          \"title\": \"AzureDisk represents an Azure Data Disk mount on the host and bind mount to the pod.\\n+optional\",\n" +
 		"          \"$ref\": \"#/definitions/v1AzureDiskVolumeSource\"\n" +
 		"        },\n" +
 		"        \"azureFile\": {\n" +
-		"          \"title\": \"AzureFile represents an Azure File Service mount on the host and bind mount to the pod.\\n+optional\",\n" +
 		"          \"$ref\": \"#/definitions/v1AzureFileVolumeSource\"\n" +
 		"        },\n" +
 		"        \"cephfs\": {\n" +
-		"          \"title\": \"CephFS represents a Ceph FS mount on the host that shares a pod's lifetime\\n+optional\",\n" +
 		"          \"$ref\": \"#/definitions/v1CephFSVolumeSource\"\n" +
 		"        },\n" +
 		"        \"cinder\": {\n" +
-		"          \"title\": \"Cinder represents a cinder volume attached and mounted on kubelets host machine\\nMore info: https://releases.k8s.io/HEAD/examples/mysql-cinder-pd/README.md\\n+optional\",\n" +
 		"          \"$ref\": \"#/definitions/v1CinderVolumeSource\"\n" +
 		"        },\n" +
 		"        \"configMap\": {\n" +
-		"          \"title\": \"ConfigMap represents a configMap that should populate this volume\\n+optional\",\n" +
 		"          \"$ref\": \"#/definitions/v1ConfigMapVolumeSource\"\n" +
 		"        },\n" +
 		"        \"csi\": {\n" +
-		"          \"title\": \"CSI (Container Storage Interface) represents storage that is handled by an external CSI driver (Alpha feature).\\n+optional\",\n" +
 		"          \"$ref\": \"#/definitions/v1CSIVolumeSource\"\n" +
 		"        },\n" +
 		"        \"downwardAPI\": {\n" +
-		"          \"title\": \"DownwardAPI represents downward API about the pod that should populate this volume\\n+optional\",\n" +
 		"          \"$ref\": \"#/definitions/v1DownwardAPIVolumeSource\"\n" +
 		"        },\n" +
 		"        \"emptyDir\": {\n" +
-		"          \"title\": \"EmptyDir represents a temporary directory that shares a pod's lifetime.\\nMore info: https://kubernetes.io/docs/concepts/storage/volumes#emptydir\\n+optional\",\n" +
 		"          \"$ref\": \"#/definitions/v1EmptyDirVolumeSource\"\n" +
 		"        },\n" +
 		"        \"fc\": {\n" +
-		"          \"title\": \"FC represents a Fibre Channel resource that is attached to a kubelet's host machine and then exposed to the pod.\\n+optional\",\n" +
 		"          \"$ref\": \"#/definitions/v1FCVolumeSource\"\n" +
 		"        },\n" +
 		"        \"flexVolume\": {\n" +
-		"          \"title\": \"FlexVolume represents a generic volume resource that is\\nprovisioned/attached using an exec based plugin.\\n+optional\",\n" +
 		"          \"$ref\": \"#/definitions/v1FlexVolumeSource\"\n" +
 		"        },\n" +
 		"        \"flocker\": {\n" +
-		"          \"title\": \"Flocker represents a Flocker volume attached to a kubelet's host machine. This depends on the Flocker control service being running\\n+optional\",\n" +
 		"          \"$ref\": \"#/definitions/v1FlockerVolumeSource\"\n" +
 		"        },\n" +
 		"        \"gcePersistentDisk\": {\n" +
-		"          \"title\": \"GCEPersistentDisk represents a GCE Disk resource that is attached to a\\nkubelet's host machine and then exposed to the pod.\\nMore info: https://kubernetes.io/docs/concepts/storage/volumes#gcepersistentdisk\\n+optional\",\n" +
 		"          \"$ref\": \"#/definitions/v1GCEPersistentDiskVolumeSource\"\n" +
 		"        },\n" +
 		"        \"gitRepo\": {\n" +
-		"          \"title\": \"GitRepo represents a git repository at a particular revision.\\nDEPRECATED: GitRepo is deprecated. To provision a container with a git repo, mount an\\nEmptyDir into an InitContainer that clones the repo using git, then mount the EmptyDir\\ninto the Pod's container.\\n+optional\",\n" +
 		"          \"$ref\": \"#/definitions/v1GitRepoVolumeSource\"\n" +
 		"        },\n" +
 		"        \"glusterfs\": {\n" +
-		"          \"title\": \"Glusterfs represents a Glusterfs mount on the host that shares a pod's lifetime.\\nMore info: https://releases.k8s.io/HEAD/examples/volumes/glusterfs/README.md\\n+optional\",\n" +
 		"          \"$ref\": \"#/definitions/v1GlusterfsVolumeSource\"\n" +
 		"        },\n" +
 		"        \"hostPath\": {\n" +
-		"          \"title\": \"HostPath represents a pre-existing file or directory on the host\\nmachine that is directly exposed to the container. This is generally\\nused for system agents or other privileged things that are allowed\\nto see the host machine. Most containers will NOT need this.\\nMore info: https://kubernetes.io/docs/concepts/storage/volumes#hostpath\\n---\\nTODO(jonesdl) We need to restrict who can use host directory mounts and who can/can not\\nmount host directories as read/write.\\n+optional\",\n" +
 		"          \"$ref\": \"#/definitions/v1HostPathVolumeSource\"\n" +
 		"        },\n" +
 		"        \"iscsi\": {\n" +
-		"          \"title\": \"ISCSI represents an ISCSI Disk resource that is attached to a\\nkubelet's host machine and then exposed to the pod.\\nMore info: https://releases.k8s.io/HEAD/examples/volumes/iscsi/README.md\\n+optional\",\n" +
 		"          \"$ref\": \"#/definitions/v1ISCSIVolumeSource\"\n" +
 		"        },\n" +
 		"        \"nfs\": {\n" +
-		"          \"title\": \"NFS represents an NFS mount on the host that shares a pod's lifetime\\nMore info: https://kubernetes.io/docs/concepts/storage/volumes#nfs\\n+optional\",\n" +
 		"          \"$ref\": \"#/definitions/v1NFSVolumeSource\"\n" +
 		"        },\n" +
 		"        \"persistentVolumeClaim\": {\n" +
-		"          \"title\": \"PersistentVolumeClaimVolumeSource represents a reference to a\\nPersistentVolumeClaim in the same namespace.\\nMore info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#persistentvolumeclaims\\n+optional\",\n" +
 		"          \"$ref\": \"#/definitions/v1PersistentVolumeClaimVolumeSource\"\n" +
 		"        },\n" +
 		"        \"photonPersistentDisk\": {\n" +
-		"          \"title\": \"PhotonPersistentDisk represents a PhotonController persistent disk attached and mounted on kubelets host machine\",\n" +
 		"          \"$ref\": \"#/definitions/v1PhotonPersistentDiskVolumeSource\"\n" +
 		"        },\n" +
 		"        \"portworxVolume\": {\n" +
-		"          \"title\": \"PortworxVolume represents a portworx volume attached and mounted on kubelets host machine\\n+optional\",\n" +
 		"          \"$ref\": \"#/definitions/v1PortworxVolumeSource\"\n" +
 		"        },\n" +
 		"        \"projected\": {\n" +
-		"          \"title\": \"Items for all in one resources secrets, configmaps, and downward API\",\n" +
 		"          \"$ref\": \"#/definitions/v1ProjectedVolumeSource\"\n" +
 		"        },\n" +
 		"        \"quobyte\": {\n" +
-		"          \"title\": \"Quobyte represents a Quobyte mount on the host that shares a pod's lifetime\\n+optional\",\n" +
 		"          \"$ref\": \"#/definitions/v1QuobyteVolumeSource\"\n" +
 		"        },\n" +
 		"        \"rbd\": {\n" +
-		"          \"title\": \"RBD represents a Rados Block Device mount on the host that shares a pod's lifetime.\\nMore info: https://releases.k8s.io/HEAD/examples/volumes/rbd/README.md\\n+optional\",\n" +
 		"          \"$ref\": \"#/definitions/v1RBDVolumeSource\"\n" +
 		"        },\n" +
 		"        \"scaleIO\": {\n" +
-		"          \"title\": \"ScaleIO represents a ScaleIO persistent volume attached and mounted on Kubernetes nodes.\\n+optional\",\n" +
 		"          \"$ref\": \"#/definitions/v1ScaleIOVolumeSource\"\n" +
 		"        },\n" +
 		"        \"secret\": {\n" +
-		"          \"title\": \"Secret represents a secret that should populate this volume.\\nMore info: https://kubernetes.io/docs/concepts/storage/volumes#secret\\n+optional\",\n" +
 		"          \"$ref\": \"#/definitions/v1SecretVolumeSource\"\n" +
 		"        },\n" +
 		"        \"storageos\": {\n" +
-		"          \"title\": \"StorageOS represents a StorageOS volume attached and mounted on Kubernetes nodes.\\n+optional\",\n" +
 		"          \"$ref\": \"#/definitions/v1StorageOSVolumeSource\"\n" +
 		"        },\n" +
 		"        \"vsphereVolume\": {\n" +
-		"          \"title\": \"VsphereVolume represents a vSphere volume attached and mounted on kubelets host machine\\n+optional\",\n" +
 		"          \"$ref\": \"#/definitions/v1VsphereVirtualDiskVolumeSource\"\n" +
 		"        }\n" +
-		"      }\n" +
+		"      },\n" +
+		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
 		"    \"v1VsphereVirtualDiskVolumeSource\": {\n" +
 		"      \"type\": \"object\",\n" +

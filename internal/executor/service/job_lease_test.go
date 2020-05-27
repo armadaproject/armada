@@ -11,6 +11,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/G-Research/armada/internal/common"
 	context2 "github.com/G-Research/armada/internal/executor/fake/context"
 	"github.com/G-Research/armada/pkg/api"
 )
@@ -87,7 +88,7 @@ func makePodWithCurrentStateReported(state v1.PodPhase, reportedDone bool) *v1.P
 
 func CreateLeaseService(minimumPodAge, failedPodExpiry time.Duration) *JobLeaseService {
 	fakeClusterContext := context2.NewFakeClusterContext("test")
-	return NewJobLeaseService(fakeClusterContext, &queueClientMock{}, minimumPodAge, failedPodExpiry)
+	return NewJobLeaseService(fakeClusterContext, &queueClientMock{}, minimumPodAge, failedPodExpiry, common.ComputeResources{})
 }
 
 type queueClientMock struct {
