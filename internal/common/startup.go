@@ -29,28 +29,30 @@ func BindCommandlineArguments() {
 }
 
 func LoadConfig(config interface{}, defaultPath string, overrideConfig string) {
-	viper.SetConfigName("config")
-	viper.AddConfigPath(defaultPath)
-	if err := viper.ReadInConfig(); err != nil {
+	v := viper.NewWithOptions(viper.KeyDelimiter("::"))
+
+	v.SetConfigName("config")
+	v.AddConfigPath(defaultPath)
+	if err := v.ReadInConfig(); err != nil {
 		log.Error(err)
 		os.Exit(-1)
 	}
 
 	if overrideConfig != "" {
-		viper.SetConfigFile(overrideConfig)
+		v.SetConfigFile(overrideConfig)
 
-		err := viper.MergeInConfig()
+		err := v.MergeInConfig()
 		if err != nil {
 			log.Error(err)
 			os.Exit(-1)
 		}
 	}
 
-	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
-	viper.SetEnvPrefix("ARMADA")
-	viper.AutomaticEnv()
+	v.SetEnvKeyReplacer(strings.NewReplacer("::", "_"))
+	v.SetEnvPrefix("ARMADA")
+	v.AutomaticEnv()
 
-	err := viper.Unmarshal(config, addDecodeHook(quantityDecodeHook))
+	err := v.Unmarshal(config, addDecodeHook(quantityDecodeHook))
 
 	if err != nil {
 		log.Error(err)
