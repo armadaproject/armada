@@ -1932,6 +1932,155 @@ namespace GResearch.Armada.Client
     
     }
     
+    /// <summary>EphemeralContainerCommon is a copy of all fields in Container to be inlined in
+    /// EphemeralContainer. This separate type allows easy conversion from EphemeralContainer
+    /// to Container and allows separate documentation for the fields of EphemeralContainer.
+    /// When a new field is added to Container it must be added here as well.</summary>
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
+    public partial class V1EphemeralContainerCommon 
+    {
+        /// <summary>Arguments to the entrypoint.
+        /// The docker image's CMD is used if this is not provided.
+        /// Variable references $(VAR_NAME) are expanded using the container's environment. If a variable
+        /// cannot be resolved, the reference in the input string will be unchanged. The $(VAR_NAME) syntax
+        /// can be escaped with a double $$, ie: $$(VAR_NAME). Escaped references will never be expanded,
+        /// regardless of whether the variable exists or not.
+        /// Cannot be updated.
+        /// More info: https://kubernetes.io/docs/tasks/inject-data-application/define-command-argument-container/#running-a-command-in-a-shell
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("args", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<string> Args { get; set; }
+    
+        /// <summary>Entrypoint array. Not executed within a shell.
+        /// The docker image's ENTRYPOINT is used if this is not provided.
+        /// Variable references $(VAR_NAME) are expanded using the container's environment. If a variable
+        /// cannot be resolved, the reference in the input string will be unchanged. The $(VAR_NAME) syntax
+        /// can be escaped with a double $$, ie: $$(VAR_NAME). Escaped references will never be expanded,
+        /// regardless of whether the variable exists or not.
+        /// Cannot be updated.
+        /// More info: https://kubernetes.io/docs/tasks/inject-data-application/define-command-argument-container/#running-a-command-in-a-shell
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("command", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<string> Command { get; set; }
+    
+        /// <summary>List of environment variables to set in the container.
+        /// Cannot be updated.
+        /// +optional
+        /// +patchMergeKey=name
+        /// +patchStrategy=merge</summary>
+        [Newtonsoft.Json.JsonProperty("env", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<V1EnvVar> Env { get; set; }
+    
+        /// <summary>List of sources to populate environment variables in the container.
+        /// The keys defined within a source must be a C_IDENTIFIER. All invalid keys
+        /// will be reported as an event when the container is starting. When a key exists in multiple
+        /// sources, the value associated with the last source will take precedence.
+        /// Values defined by an Env with a duplicate key will take precedence.
+        /// Cannot be updated.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("envFrom", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<V1EnvFromSource> EnvFrom { get; set; }
+    
+        /// <summary>Docker image name.
+        /// More info: https://kubernetes.io/docs/concepts/containers/images</summary>
+        [Newtonsoft.Json.JsonProperty("image", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Image { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("imagePullPolicy", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string ImagePullPolicy { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("lifecycle", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1Lifecycle Lifecycle { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("livenessProbe", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1Probe LivenessProbe { get; set; }
+    
+        /// <summary>Name of the ephemeral container specified as a DNS_LABEL.
+        /// This name must be unique among all containers, init containers and ephemeral containers.</summary>
+        [Newtonsoft.Json.JsonProperty("name", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Name { get; set; }
+    
+        /// <summary>Ports are not allowed for ephemeral containers.</summary>
+        [Newtonsoft.Json.JsonProperty("ports", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<V1ContainerPort> Ports { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("readinessProbe", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1Probe ReadinessProbe { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("resources", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1ResourceRequirements Resources { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("securityContext", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1SecurityContext SecurityContext { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("startupProbe", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1Probe StartupProbe { get; set; }
+    
+        /// <summary>Whether this container should allocate a buffer for stdin in the container runtime. If this
+        /// is not set, reads from stdin in the container will always result in EOF.
+        /// Default is false.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("stdin", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public bool? Stdin { get; set; }
+    
+        /// <summary>Whether the container runtime should close the stdin channel after it has been opened by
+        /// a single attach. When stdin is true the stdin stream will remain open across multiple attach
+        /// sessions. If stdinOnce is set to true, stdin is opened on container start, is empty until the
+        /// first client attaches to stdin, and then remains open and accepts data until the client disconnects,
+        /// at which time stdin is closed and remains closed until the container is restarted. If this
+        /// flag is false, a container processes that reads from stdin will never receive an EOF.
+        /// Default is false
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("stdinOnce", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public bool? StdinOnce { get; set; }
+    
+        /// <summary>Optional: Path at which the file to which the container's termination message
+        /// will be written is mounted into the container's filesystem.
+        /// Message written is intended to be brief final status, such as an assertion failure message.
+        /// Will be truncated by the node if greater than 4096 bytes. The total message length across
+        /// all containers will be limited to 12kb.
+        /// Defaults to /dev/termination-log.
+        /// Cannot be updated.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("terminationMessagePath", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string TerminationMessagePath { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("terminationMessagePolicy", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string TerminationMessagePolicy { get; set; }
+    
+        /// <summary>Whether this container should allocate a TTY for itself, also requires 'stdin' to be true.
+        /// Default is false.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("tty", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public bool? Tty { get; set; }
+    
+        /// <summary>volumeDevices is the list of block devices to be used by the container.
+        /// This is a beta feature.
+        /// +patchMergeKey=devicePath
+        /// +patchStrategy=merge
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("volumeDevices", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<V1VolumeDevice> VolumeDevices { get; set; }
+    
+        /// <summary>Pod volumes to mount into the container's filesystem.
+        /// Cannot be updated.
+        /// +optional
+        /// +patchMergeKey=mountPath
+        /// +patchStrategy=merge</summary>
+        [Newtonsoft.Json.JsonProperty("volumeMounts", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<V1VolumeMount> VolumeMounts { get; set; }
+    
+        /// <summary>Container's working directory.
+        /// If not specified, the container runtime's default will be used, which
+        /// might be configured in the container image.
+        /// Cannot be updated.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("workingDir", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string WorkingDir { get; set; }
+    
+    
+    }
+    
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1ExecAction 
     {
@@ -3855,8 +4004,7 @@ namespace GResearch.Armada.Client
     
     }
     
-    /// <summary>Represents the source of a volume to mount.
-    /// Only one of its members may be specified.</summary>
+    /// <summary>Only one of its members may be specified.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1VolumeSource 
     {
