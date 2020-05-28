@@ -24,9 +24,11 @@ func (n *NatsEventStore) ReportEvents(messages []*api.EventMessage) error {
 	for _, m := range messages {
 		messageData, e := proto.Marshal(m)
 		if e != nil {
+			log.Errorf("Error while marshaling event: %v", e)
 			return e
 		}
 		n.connection.PublishAsync(n.subject, messageData, func(subj string, err error) {
+			log.Errorf("Error while publishing event to queue: %v", err)
 			errors <- err
 		})
 	}
