@@ -104,4 +104,4 @@ tests-e2e: e2e-start-cluster build-docker
 
 proto:
 	docker build $(dockerFlags) -t armada-proto -f ./build/proto/Dockerfile .
-	docker run -it --rm -v $(shell pwd):/app -w /app armada-proto ./scripts/docker-proto.sh
+	docker run -it --rm -v $(shell pwd):/app -w /app armada-proto ./scripts/proto.sh
