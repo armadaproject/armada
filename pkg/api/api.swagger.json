@@ -352,6 +352,9 @@
         "JobSetId": {
           "type": "string"
         },
+        "KubernetesId": {
+          "type": "string"
+        },
         "Queue": {
           "type": "string"
         },
@@ -439,6 +442,9 @@
         "JobSetId": {
           "type": "string"
         },
+        "KubernetesId": {
+          "type": "string"
+        },
         "Queue": {
           "type": "string"
         }
@@ -494,6 +500,9 @@
           "type": "string"
         },
         "JobSetId": {
+          "type": "string"
+        },
+        "KubernetesId": {
           "type": "string"
         },
         "Queue": {
@@ -645,6 +654,9 @@
           "type": "string"
         },
         "JobSetId": {
+          "type": "string"
+        },
+        "KubernetesId": {
           "type": "string"
         },
         "Queue": {

@@ -363,6 +363,9 @@ func SwaggerJsonTemplate() string {
 		"        \"JobSetId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
+		"        \"KubernetesId\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
 		"        \"Queue\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
@@ -450,6 +453,9 @@ func SwaggerJsonTemplate() string {
 		"        \"JobSetId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
+		"        \"KubernetesId\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
 		"        \"Queue\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        }\n" +
@@ -505,6 +511,9 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"JobSetId\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"KubernetesId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"Queue\": {\n" +
@@ -656,6 +665,9 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"JobSetId\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"KubernetesId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"Queue\": {\n" +
