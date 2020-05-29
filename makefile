@@ -102,3 +102,6 @@ tests-e2e: e2e-start-cluster build-docker
 	echo -e "\nrunning test:"
 	INTEGRATION_ENABLED=true PATH=${PATH}:${PWD}/bin go test -v ./e2e/test/... -count=1
 
+proto:
+	docker build $(dockerFlags) -t armada-proto -f ./build/proto/Dockerfile .
+	docker run -it --rm -v $(shell pwd):/app -w /app armada-proto ./scripts/docker-proto.sh
