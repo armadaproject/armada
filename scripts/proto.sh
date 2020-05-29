@@ -22,7 +22,7 @@ pkg/api/event.proto \
 pkg/api/submit.proto
 
 # generate proper swagger types (we are using standard json serializer, GRPC gateway generates protobuf json, which is not compatible)
-go run github.com/go-swagger/go-swagger/cmd/swagger generate spec -m -o pkg/api/api.swagger.definitions.json
+swagger generate spec -m -o pkg/api/api.swagger.definitions.json
 
 # combine swagger definitions
 go run ./scripts/merge_swagger.go > pkg/api/api.swagger.merged.json
@@ -30,10 +30,10 @@ mv pkg/api/api.swagger.merged.json pkg/api/api.swagger.json
 rm pkg/api/api.swagger.definitions.json
 
 # embed swagger json into go binary
-go run github.com/wlbr/templify -e -p=api -f=SwaggerJson  pkg/api/api.swagger.json
+templify -e -p=api -f=SwaggerJson  pkg/api/api.swagger.json
 
 # fix all imports ordering
-go run golang.org/x/tools/cmd/goimports -w -local "github.com/G-Research/armada" ./pkg/api/
+goimports -w -local "github.com/G-Research/armada" ./pkg/api/
 
 # generate dotnet client to match the swagger
 dotnet build ./client/DotNet/Armada.Client /t:NSwag

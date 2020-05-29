@@ -1,9 +1,13 @@
+ARG GOLANG_VERSION=1.14
 ARG PROTOC_VERSION=3.9.1
 ARG GOGO_PROTOBUF_VERSION=1.2.1
 ARG GRPC_GATEWAY_VERSION=1.12.0
 ARG K8S_VERSION=0.17.3
+ARG GO_SWAGGER_VERSION=0.23.0
+ARG TEMPLIFY_VERSION=0.0.0-20190823200653-c12e62ca00c1
+ARG GOIMPORTS_VERSION=0.0.0-20200529172331-a64b76657301
 
-FROM golang:1.14-buster
+FROM golang:${GOLANG_VERSION}-buster as builder
 
 RUN apt-get update && \
     apt-get install unzip
@@ -31,6 +35,21 @@ RUN GO111MODULE=on go get \
 ARG K8S_VERSION
 RUN git clone --branch v${K8S_VERSION} https://github.com/kubernetes/api /proto/k8s.io/api && \
     git clone --branch v${K8S_VERSION} https://github.com/kubernetes/apimachinery /proto/k8s.io/apimachinery
+
+ARG GO_SWAGGER_VERSION
+RUN GO111MODULE=on go get github.com/go-swagger/go-swagger/cmd/swagger@v${GO_SWAGGER_VERSION}
+
+ARG TEMPLIFY_VERSION
+RUN GO111MODULE=on go get github.com/wlbr/templify@v${TEMPLIFY_VERSION}
+
+ARG GOIMPORTS_VERSION
+RUN GO111MODULE=on go get golang.org/x/tools/cmd/goimports@v${GOIMPORTS_VERSION}
+
+ARG GOLANG_VERSION
+FROM golang:${GOLANG_VERSION}-buster
+COPY --from=builder /usr/local/bin /usr/local/bin
+COPY --from=builder /go/bin /usr/local/bin
+COPY --from=builder /proto /proto
 
 # dotnet
 ENV \
