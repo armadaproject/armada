@@ -36,7 +36,7 @@ func TestSubmitServer_SubmitJob_WhenPodCannotBeScheduled(t *testing.T) {
 		jobSetId := util.NewULID()
 		jobRequest := createJobRequest(jobSetId, 1)
 
-		err := s.nodeInfoRepository.UpdateClusterNodeInfo(&api.ClusterNodeInfoReport{
+		err := s.nodeInfoRepository.UpdateClusterSchedulingInfo(&api.ClusterSchedulingInfoReport{
 			ClusterId:  "test-cluster",
 			ReportTime: time.Now(),
 			NodeSizes:  []api.ComputeResource{{Resources: common.ComputeResources{"cpu": resource.MustParse("0"), "memory": resource.MustParse("0")}}},
@@ -163,7 +163,7 @@ func withSubmitServer(action func(s *SubmitServer, events repository.EventReposi
 		panic(err)
 	}
 
-	err = nodeInfoRepo.UpdateClusterNodeInfo(&api.ClusterNodeInfoReport{
+	err = nodeInfoRepo.UpdateClusterSchedulingInfo(&api.ClusterSchedulingInfoReport{
 		ClusterId:  "test-cluster",
 		ReportTime: time.Now(),
 		NodeSizes:  []api.ComputeResource{{Resources: common.ComputeResources{"cpu": resource.MustParse("100"), "memory": resource.MustParse("100Gi")}}},

@@ -31,8 +31,8 @@ func FilterActiveClusterLeasedReports(reports map[string]*api.ClusterLeasedRepor
 	return result
 }
 
-func FilterActiveClusterNodeInfoReports(reports map[string]*api.ClusterNodeInfoReport) map[string]*api.ClusterNodeInfoReport {
-	result := map[string]*api.ClusterNodeInfoReport{}
+func FilterActiveClusterSchedulingInfoReports(reports map[string]*api.ClusterSchedulingInfoReport) map[string]*api.ClusterSchedulingInfoReport {
+	result := map[string]*api.ClusterSchedulingInfoReport{}
 	now := time.Now()
 	for id, report := range reports {
 		if report.ReportTime.Add(recentlyActiveClusterExpiry).After(now) {

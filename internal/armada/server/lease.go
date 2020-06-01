@@ -23,7 +23,7 @@ type AggregatedQueueServer struct {
 	queueRepository    repository.QueueRepository
 	usageRepository    repository.UsageRepository
 	eventStore         repository.EventStore
-	nodeInfoRepository repository.NodeInfoRepository
+	nodeInfoRepository repository.SchedulingInfoRepository
 }
 
 func NewAggregatedQueueServer(
@@ -33,7 +33,7 @@ func NewAggregatedQueueServer(
 	queueRepository repository.QueueRepository,
 	usageRepository repository.UsageRepository,
 	eventStore repository.EventStore,
-	nodeInfoRepository repository.NodeInfoRepository,
+	nodeInfoRepository repository.SchedulingInfoRepository,
 ) *AggregatedQueueServer {
 	return &AggregatedQueueServer{
 		permissions:        permissions,
@@ -75,8 +75,8 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 		return nil, e
 	}
 
-	clusterNodeInfo := scheduling.CreateClusterNodeInfoReport(request)
-	e = q.nodeInfoRepository.UpdateClusterNodeInfo(clusterNodeInfo)
+	clusterNodeInfo := scheduling.CreateClusterSchedulingInfoReport(request)
+	e = q.nodeInfoRepository.UpdateClusterSchedulingInfo(clusterNodeInfo)
 	if e != nil {
 		return nil, e
 	}

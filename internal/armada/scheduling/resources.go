@@ -229,11 +229,12 @@ func CreateClusterLeasedReport(clusterId string, currentReport *api.ClusterLease
 	return &clusterLeasedReport
 }
 
-func CreateClusterNodeInfoReport(leaseRequest *api.LeaseRequest) *api.ClusterNodeInfoReport {
-	return &api.ClusterNodeInfoReport{
+func CreateClusterSchedulingInfoReport(leaseRequest *api.LeaseRequest) *api.ClusterSchedulingInfoReport {
+	return &api.ClusterSchedulingInfoReport{
 		ClusterId:       leaseRequest.ClusterId,
 		ReportTime:      time.Now(),
 		AvailableLabels: leaseRequest.AvailableLabels,
 		NodeSizes:       leaseRequest.NodeSizes,
+		MinimumJobSize:  leaseRequest.MinimumJobSize,
 	}
 }

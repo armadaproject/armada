@@ -21,7 +21,7 @@ type SubmitServer struct {
 	jobRepository      repository.JobRepository
 	queueRepository    repository.QueueRepository
 	eventStore         repository.EventStore
-	nodeInfoRepository repository.NodeInfoRepository
+	nodeInfoRepository repository.SchedulingInfoRepository
 }
 
 func NewSubmitServer(
@@ -29,7 +29,7 @@ func NewSubmitServer(
 	jobRepository repository.JobRepository,
 	queueRepository repository.QueueRepository,
 	eventStore repository.EventStore,
-	nodeInfoRepository repository.NodeInfoRepository) *SubmitServer {
+	nodeInfoRepository repository.SchedulingInfoRepository) *SubmitServer {
 
 	return &SubmitServer{
 		permissions:        permissions,
@@ -122,12 +122,12 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 }
 
 func (server *SubmitServer) validateJobsCanBeScheduled(jobs []*api.Job) error {
-	allClusterNodeInfo, e := server.nodeInfoRepository.GetClusterNodeInfo()
+	allClusterNodeInfo, e := server.nodeInfoRepository.GetClusterSchedulingInfo()
 	if e != nil {
 		return e
 	}
 
-	activeClusterNodeInfo := scheduling.FilterActiveClusterNodeInfoReports(allClusterNodeInfo)
+	activeClusterNodeInfo := scheduling.FilterActiveClusterSchedulingInfoReports(allClusterNodeInfo)
 	for i, job := range jobs {
 		if !validateJobCanBeScheduled(job, activeClusterNodeInfo) {
 			return fmt.Errorf("job with index %d is not schedulable on any cluster", i)
@@ -137,7 +137,7 @@ func (server *SubmitServer) validateJobsCanBeScheduled(jobs []*api.Job) error {
 	return nil
 }
 
-func validateJobCanBeScheduled(job *api.Job, allClusterNodeInfos map[string]*api.ClusterNodeInfoReport) bool {
+func validateJobCanBeScheduled(job *api.Job, allClusterNodeInfos map[string]*api.ClusterSchedulingInfoReport) bool {
 	for _, nodeInfo := range allClusterNodeInfos {
 		if scheduling.MatchSchedulingRequirements(job, nodeInfo) {
 			return true

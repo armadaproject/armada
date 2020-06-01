@@ -17,16 +17,16 @@ import (
 func Test_matchNodeLabels(t *testing.T) {
 	job := &api.Job{RequiredNodeLabels: map[string]string{"armada/region": "eu", "armada/zone": "1"}}
 
-	assert.False(t, matchNodeLabels(job, &api.ClusterNodeInfoReport{}))
-	assert.False(t, matchNodeLabels(job, &api.ClusterNodeInfoReport{AvailableLabels: []*api.NodeLabeling{
+	assert.False(t, matchNodeLabels(job, &api.ClusterSchedulingInfoReport{}))
+	assert.False(t, matchNodeLabels(job, &api.ClusterSchedulingInfoReport{AvailableLabels: []*api.NodeLabeling{
 		{Labels: map[string]string{"armada/region": "eu"}},
 		{Labels: map[string]string{"armada/zone": "2"}},
 	}}))
-	assert.False(t, matchNodeLabels(job, &api.ClusterNodeInfoReport{AvailableLabels: []*api.NodeLabeling{
+	assert.False(t, matchNodeLabels(job, &api.ClusterSchedulingInfoReport{AvailableLabels: []*api.NodeLabeling{
 		{Labels: map[string]string{"armada/region": "eu", "armada/zone": "2"}},
 	}}))
 
-	assert.True(t, matchNodeLabels(job, &api.ClusterNodeInfoReport{AvailableLabels: []*api.NodeLabeling{
+	assert.True(t, matchNodeLabels(job, &api.ClusterSchedulingInfoReport{AvailableLabels: []*api.NodeLabeling{
 		{Labels: map[string]string{"x": "y"}},
 		{Labels: map[string]string{"armada/region": "eu", "armada/zone": "1", "x": "y"}},
 	}}))
@@ -40,13 +40,13 @@ func Test_isAbleToFitOnAvailableNodes(t *testing.T) {
 	}
 	job := &api.Job{PodSpec: &v1.PodSpec{Containers: []v1.Container{{Resources: resourceRequirement}}}}
 
-	assert.False(t, isAbleToFitOnAvailableNodes(job, &api.ClusterNodeInfoReport{}))
+	assert.False(t, isAbleToFitOnAvailableNodes(job, &api.ClusterSchedulingInfoReport{}))
 
-	assert.False(t, isAbleToFitOnAvailableNodes(job, &api.ClusterNodeInfoReport{
+	assert.False(t, isAbleToFitOnAvailableNodes(job, &api.ClusterSchedulingInfoReport{
 		NodeSizes: []api.ComputeResource{{Resources: common.ComputeResources{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")}}},
 	}))
 
-	assert.True(t, isAbleToFitOnAvailableNodes(job, &api.ClusterNodeInfoReport{
+	assert.True(t, isAbleToFitOnAvailableNodes(job, &api.ClusterSchedulingInfoReport{
 		NodeSizes: []api.ComputeResource{
 			{Resources: common.ComputeResources{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")}},
 			{Resources: common.ComputeResources{"cpu": resource.MustParse("3"), "memory": resource.MustParse("3Gi")}},
@@ -62,14 +62,14 @@ func Test_minimumJobSize(t *testing.T) {
 	}
 	job := &api.Job{PodSpec: &v1.PodSpec{Containers: []v1.Container{{Resources: resourceRequirement}}}}
 
-	assert.True(t, isLargeEnough(job, &api.LeaseRequest{
+	assert.True(t, isLargeEnough(job, &api.ClusterSchedulingInfoReport{
 		MinimumJobSize: common.ComputeResources{"cpu": resource.MustParse("2")}}))
-	assert.True(t, isLargeEnough(job, &api.LeaseRequest{
+	assert.True(t, isLargeEnough(job, &api.ClusterSchedulingInfoReport{
 		MinimumJobSize: common.ComputeResources{}}))
 
-	assert.False(t, isLargeEnough(job, &api.LeaseRequest{
+	assert.False(t, isLargeEnough(job, &api.ClusterSchedulingInfoReport{
 		MinimumJobSize: common.ComputeResources{"cpu": resource.MustParse("5")}}))
-	assert.False(t, isLargeEnough(job, &api.LeaseRequest{
+	assert.False(t, isLargeEnough(job, &api.ClusterSchedulingInfoReport{
 		MinimumJobSize: common.ComputeResources{"gpu": resource.MustParse("1")}}))
 }
 
@@ -127,12 +127,12 @@ func Test_distributeRemainder_highPriorityUserDoesNotBlockOthers(t *testing.T) {
 		onJobsLeased: func(a []*api.Job) {},
 		request:      leaseRequest,
 
-		clusterNodeInfo:  CreateClusterNodeInfoReport(leaseRequest),
-		resourceScarcity: scarcity,
-		priorities:       priorities,
-		schedulingInfo:   SliceResourceWithLimits(scarcity, schedulingInfo, priorities, requestSize.AsFloat()),
-		repository:       repository,
-		queueCache:       map[string][]*api.Job{},
+		clusterSchedulingInfo: CreateClusterSchedulingInfoReport(leaseRequest),
+		resourceScarcity:      scarcity,
+		priorities:            priorities,
+		queueSchedulingInfo:   SliceResourceWithLimits(scarcity, schedulingInfo, priorities, requestSize.AsFloat()),
+		repository:            repository,
+		queueCache:            map[string][]*api.Job{},
 	}
 
 	jobs, e := c.distributeRemainder(1000)
@@ -186,12 +186,12 @@ func Test_distributeRemainder_DoesNotExceedSchedulingLimits(t *testing.T) {
 		onJobsLeased: func(a []*api.Job) {},
 		request:      leaseRequest,
 
-		clusterNodeInfo:  CreateClusterNodeInfoReport(leaseRequest),
-		resourceScarcity: scarcity,
-		priorities:       priorities,
-		schedulingInfo:   SliceResourceWithLimits(scarcity, schedulingInfo, priorities, requestSize.AsFloat()),
-		repository:       repository,
-		queueCache:       map[string][]*api.Job{},
+		clusterSchedulingInfo: CreateClusterSchedulingInfoReport(leaseRequest),
+		resourceScarcity:      scarcity,
+		priorities:            priorities,
+		queueSchedulingInfo:   SliceResourceWithLimits(scarcity, schedulingInfo, priorities, requestSize.AsFloat()),
+		repository:            repository,
+		queueCache:            map[string][]*api.Job{},
 	}
 
 	jobs, e := c.distributeRemainder(1000)

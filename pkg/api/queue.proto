@@ -31,7 +31,7 @@ message LeaseRequest {
     map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> MinimumJobSize = 6 [(gogoproto.nullable) = false];
 }
 
-message ClusterNodeInfoReport {
+message ClusterSchedulingInfoReport {
     string ClusterId = 1;
     google.protobuf.Timestamp ReportTime = 2 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
     repeated NodeLabeling AvailableLabels = 3;
