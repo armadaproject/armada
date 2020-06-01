@@ -74,7 +74,8 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 		clusterContext,
 		queueClient,
 		config.Kubernetes.MinimumPodAge,
-		config.Kubernetes.FailedPodExpiry)
+		config.Kubernetes.FailedPodExpiry,
+		config.Kubernetes.MinimumJobSize)
 
 	queueUtilisationService := service.NewMetricsServerQueueUtilisationService(
 		clusterContext,

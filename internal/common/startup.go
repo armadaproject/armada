@@ -5,14 +5,17 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"reflect"
 	"strings"
 	"time"
 
+	"github.com/mitchellh/mapstructure"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"github.com/weaveworks/promrus"
+	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/G-Research/armada/internal/common/logging"
 )
@@ -26,33 +29,56 @@ func BindCommandlineArguments() {
 }
 
 func LoadConfig(config interface{}, defaultPath string, overrideConfig string) {
-	viper.SetConfigName("config")
-	viper.AddConfigPath(defaultPath)
-	if err := viper.ReadInConfig(); err != nil {
+	v := viper.NewWithOptions(viper.KeyDelimiter("::"))
+
+	v.SetConfigName("config")
+	v.AddConfigPath(defaultPath)
+	if err := v.ReadInConfig(); err != nil {
 		log.Error(err)
 		os.Exit(-1)
 	}
 
 	if overrideConfig != "" {
-		viper.SetConfigFile(overrideConfig)
+		v.SetConfigFile(overrideConfig)
 
-		err := viper.MergeInConfig()
+		err := v.MergeInConfig()
 		if err != nil {
 			log.Error(err)
 			os.Exit(-1)
 		}
 	}
 
-	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
-	viper.SetEnvPrefix("ARMADA")
-	viper.AutomaticEnv()
+	v.SetEnvKeyReplacer(strings.NewReplacer("::", "_"))
+	v.SetEnvPrefix("ARMADA")
+	v.AutomaticEnv()
 
-	err := viper.Unmarshal(config)
+	err := v.Unmarshal(config, addDecodeHook(quantityDecodeHook))
+
 	if err != nil {
 		log.Error(err)
 		os.Exit(-1)
 	}
 }
+
+func addDecodeHook(hook mapstructure.DecodeHookFuncType) viper.DecoderConfigOption {
+	return func(c *mapstructure.DecoderConfig) {
+		c.DecodeHook = mapstructure.ComposeDecodeHookFunc(
+			c.DecodeHook,
+			hook)
+	}
+}
+
+func quantityDecodeHook(
+	from reflect.Type,
+	to reflect.Type,
+	data interface{}) (interface{}, error) {
+
+	if to != reflect.TypeOf(resource.Quantity{}) {
+		return data, nil
+	}
+	return resource.ParseQuantity(fmt.Sprintf("%v", data))
+}
+
 func ConfigureCommandLineLogging() {
 	commandLineFormatter := new(logging.CommandLineFormatter)
 	log.SetFormatter(commandLineFormatter)

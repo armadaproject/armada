@@ -54,6 +54,25 @@ func Test_isAbleToFitOnAvailableNodes(t *testing.T) {
 	}))
 }
 
+func Test_minimumJobSize(t *testing.T) {
+	request := v1.ResourceList{"cpu": resource.MustParse("2"), "memory": resource.MustParse("2Gi")}
+	resourceRequirement := v1.ResourceRequirements{
+		Limits:   request,
+		Requests: request,
+	}
+	job := &api.Job{PodSpec: &v1.PodSpec{Containers: []v1.Container{{Resources: resourceRequirement}}}}
+
+	assert.True(t, isLargeEnough(job, &api.LeaseRequest{
+		MinimumJobSize: common.ComputeResources{"cpu": resource.MustParse("2")}}))
+	assert.True(t, isLargeEnough(job, &api.LeaseRequest{
+		MinimumJobSize: common.ComputeResources{}}))
+
+	assert.False(t, isLargeEnough(job, &api.LeaseRequest{
+		MinimumJobSize: common.ComputeResources{"cpu": resource.MustParse("5")}}))
+	assert.False(t, isLargeEnough(job, &api.LeaseRequest{
+		MinimumJobSize: common.ComputeResources{"gpu": resource.MustParse("1")}}))
+}
+
 func Test_distributeRemainder_highPriorityUserDoesNotBlockOthers(t *testing.T) {
 
 	queue1 := &api.Queue{Name: "queue1", PriorityFactor: 1}
