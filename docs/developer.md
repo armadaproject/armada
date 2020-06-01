@@ -75,44 +75,14 @@ make e2e-stop-cluster
 
 ## Code Generation
 
-This project uses code generation. The below sections will discuss how to install and use the code generation tools.
+This project uses code generation.
 
-### gRPC
+The armada api is defined using proto files which are used to generate Go source code (and the c# client) for our gRPC communication.
 
-We use `protoc` to generate the Go files used for our gRPC communication. 
-
-The github for this utility ca be found: https://github.com/protocolbuffers/protobuf
-
-##### Set up steps
-
-* Install `protoc` (https://github.com/protocolbuffers/protobuf/releases/download/v3.8.0/protoc-3.8.0-linux-x86_64.zip) and make sure it is on `$PATH`.
-* Make sure Go is installed and `$GOPATH/bin` is in your `$PATH`
-
-
-Install required proto libraries:
+To generate source code from proto files:
 
 ```
-go get github.com/gogo/protobuf/proto
-go get github.com/gogo/protobuf/protoc-gen-gogofaster
-go get github.com/gogo/protobuf/gogoproto
-go get google.golang.org/grpc
-
-go get github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway
-go get github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger
-go get github.com/golang/protobuf/protoc-gen-go
-
-GO111MODULE=off go get k8s.io/api
-GO111MODULE=off go get k8s.io/apimachinery
-GO111MODULE=off go get github.com/gogo/protobuf/gogoproto
-
-```
-
-Now everything is installed, you can generate types based on the .proto files found in ./internal/armada/api.
-
-There is a script that will regenerate all proto files, assuming the above setup is installed:
-
-```
-./scripts/proto.sh
+make proto
 ```
 
 ### Command-line tools
