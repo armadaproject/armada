@@ -17,11 +17,11 @@ import (
 )
 
 type SubmitServer struct {
-	permissions        authorization.PermissionChecker
-	jobRepository      repository.JobRepository
-	queueRepository    repository.QueueRepository
-	eventStore         repository.EventStore
-	nodeInfoRepository repository.SchedulingInfoRepository
+	permissions              authorization.PermissionChecker
+	jobRepository            repository.JobRepository
+	queueRepository          repository.QueueRepository
+	eventStore               repository.EventStore
+	schedulingInfoRepository repository.SchedulingInfoRepository
 }
 
 func NewSubmitServer(
@@ -29,14 +29,14 @@ func NewSubmitServer(
 	jobRepository repository.JobRepository,
 	queueRepository repository.QueueRepository,
 	eventStore repository.EventStore,
-	nodeInfoRepository repository.SchedulingInfoRepository) *SubmitServer {
+	schedulingInfoRepository repository.SchedulingInfoRepository) *SubmitServer {
 
 	return &SubmitServer{
-		permissions:        permissions,
-		jobRepository:      jobRepository,
-		queueRepository:    queueRepository,
-		eventStore:         eventStore,
-		nodeInfoRepository: nodeInfoRepository}
+		permissions:              permissions,
+		jobRepository:            jobRepository,
+		queueRepository:          queueRepository,
+		eventStore:               eventStore,
+		schedulingInfoRepository: schedulingInfoRepository}
 }
 
 func (server *SubmitServer) GetQueueInfo(ctx context.Context, req *api.QueueInfoRequest) (*api.QueueInfo, error) {
@@ -122,14 +122,14 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 }
 
 func (server *SubmitServer) validateJobsCanBeScheduled(jobs []*api.Job) error {
-	allClusterNodeInfo, e := server.nodeInfoRepository.GetClusterSchedulingInfo()
+	allClusterSchedulingInfo, e := server.schedulingInfoRepository.GetClusterSchedulingInfo()
 	if e != nil {
 		return e
 	}
 
-	activeClusterNodeInfo := scheduling.FilterActiveClusterSchedulingInfoReports(allClusterNodeInfo)
+	activeClusterSchedulingInfo := scheduling.FilterActiveClusterSchedulingInfoReports(allClusterSchedulingInfo)
 	for i, job := range jobs {
-		if !validateJobCanBeScheduled(job, activeClusterNodeInfo) {
+		if !validateJobCanBeScheduled(job, activeClusterSchedulingInfo) {
 			return fmt.Errorf("job with index %d is not schedulable on any cluster", i)
 		}
 	}
@@ -137,9 +137,9 @@ func (server *SubmitServer) validateJobsCanBeScheduled(jobs []*api.Job) error {
 	return nil
 }
 
-func validateJobCanBeScheduled(job *api.Job, allClusterNodeInfos map[string]*api.ClusterSchedulingInfoReport) bool {
-	for _, nodeInfo := range allClusterNodeInfos {
-		if scheduling.MatchSchedulingRequirements(job, nodeInfo) {
+func validateJobCanBeScheduled(job *api.Job, allClusterSchedulingInfos map[string]*api.ClusterSchedulingInfoReport) bool {
+	for _, schedulingInfo := range allClusterSchedulingInfos {
+		if scheduling.MatchSchedulingRequirements(job, schedulingInfo) {
 			return true
 		}
 	}

@@ -17,13 +17,13 @@ import (
 )
 
 type AggregatedQueueServer struct {
-	permissions        authorization.PermissionChecker
-	schedulingConfig   configuration.SchedulingConfig
-	jobRepository      repository.JobRepository
-	queueRepository    repository.QueueRepository
-	usageRepository    repository.UsageRepository
-	eventStore         repository.EventStore
-	nodeInfoRepository repository.SchedulingInfoRepository
+	permissions              authorization.PermissionChecker
+	schedulingConfig         configuration.SchedulingConfig
+	jobRepository            repository.JobRepository
+	queueRepository          repository.QueueRepository
+	usageRepository          repository.UsageRepository
+	eventStore               repository.EventStore
+	schedulingInfoRepository repository.SchedulingInfoRepository
 }
 
 func NewAggregatedQueueServer(
@@ -33,16 +33,16 @@ func NewAggregatedQueueServer(
 	queueRepository repository.QueueRepository,
 	usageRepository repository.UsageRepository,
 	eventStore repository.EventStore,
-	nodeInfoRepository repository.SchedulingInfoRepository,
+	schedulingInfoRepository repository.SchedulingInfoRepository,
 ) *AggregatedQueueServer {
 	return &AggregatedQueueServer{
-		permissions:        permissions,
-		schedulingConfig:   schedulingConfig,
-		jobRepository:      jobRepository,
-		queueRepository:    queueRepository,
-		usageRepository:    usageRepository,
-		eventStore:         eventStore,
-		nodeInfoRepository: nodeInfoRepository}
+		permissions:              permissions,
+		schedulingConfig:         schedulingConfig,
+		jobRepository:            jobRepository,
+		queueRepository:          queueRepository,
+		usageRepository:          usageRepository,
+		eventStore:               eventStore,
+		schedulingInfoRepository: schedulingInfoRepository}
 }
 
 func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.LeaseRequest) (*api.JobLease, error) {
@@ -75,8 +75,8 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 		return nil, e
 	}
 
-	clusterNodeInfo := scheduling.CreateClusterSchedulingInfoReport(request)
-	e = q.nodeInfoRepository.UpdateClusterSchedulingInfo(clusterNodeInfo)
+	clusterSchedulingInfo := scheduling.CreateClusterSchedulingInfoReport(request)
+	e = q.schedulingInfoRepository.UpdateClusterSchedulingInfo(clusterSchedulingInfo)
 	if e != nil {
 		return nil, e
 	}

@@ -18,7 +18,7 @@ type RedisSchedulingInfoRepository struct {
 	db redis.UniversalClient
 }
 
-func NewRedisNodeInfoRepository(db redis.UniversalClient) *RedisSchedulingInfoRepository {
+func NewRedisSchedulingInfoRepository(db redis.UniversalClient) *RedisSchedulingInfoRepository {
 	return &RedisSchedulingInfoRepository{db: db}
 }
 

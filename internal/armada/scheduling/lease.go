@@ -314,15 +314,15 @@ func pickQueueRandomly(shares map[*api.Queue]float64) *api.Queue {
 	return lastQueue
 }
 
-func MatchSchedulingRequirements(job *api.Job, nodeInfo *api.ClusterSchedulingInfoReport) bool {
-	return matchNodeLabels(job, nodeInfo) &&
-		isAbleToFitOnAvailableNodes(job, nodeInfo) &&
-		isLargeEnough(job, nodeInfo)
+func MatchSchedulingRequirements(job *api.Job, schedulingInfo *api.ClusterSchedulingInfoReport) bool {
+	return matchNodeLabels(job, schedulingInfo) &&
+		isAbleToFitOnAvailableNodes(job, schedulingInfo) &&
+		isLargeEnough(job, schedulingInfo)
 }
 
-func isAbleToFitOnAvailableNodes(job *api.Job, nodeInfo *api.ClusterSchedulingInfoReport) bool {
+func isAbleToFitOnAvailableNodes(job *api.Job, schedulingInfo *api.ClusterSchedulingInfoReport) bool {
 	resourceRequest := common.TotalResourceRequest(job.PodSpec).AsFloat()
-	for _, node := range nodeInfo.NodeSizes {
+	for _, node := range schedulingInfo.NodeSizes {
 		var nodeSize common.ComputeResources = node.Resources
 		remainder := nodeSize.AsFloat()
 		remainder.Sub(resourceRequest)
@@ -333,13 +333,13 @@ func isAbleToFitOnAvailableNodes(job *api.Job, nodeInfo *api.ClusterSchedulingIn
 	return false
 }
 
-func matchNodeLabels(job *api.Job, nodeInfo *api.ClusterSchedulingInfoReport) bool {
+func matchNodeLabels(job *api.Job, schedulingInfo *api.ClusterSchedulingInfoReport) bool {
 	if len(job.RequiredNodeLabels) == 0 {
 		return true
 	}
 
 Labels:
-	for _, labeling := range nodeInfo.AvailableLabels {
+	for _, labeling := range schedulingInfo.AvailableLabels {
 		for k, v := range job.RequiredNodeLabels {
 			if labeling.Labels[k] != v {
 				continue Labels
@@ -361,9 +361,9 @@ func filterPriorityMapByKeys(original map[*api.Queue]QueuePriorityInfo, keys []*
 	return result
 }
 
-func isLargeEnough(job *api.Job, nodeInfo *api.ClusterSchedulingInfoReport) bool {
+func isLargeEnough(job *api.Job, schedulingInfo *api.ClusterSchedulingInfoReport) bool {
 	resourceRequest := common.TotalResourceRequest(job.PodSpec)
-	minimum := common.ComputeResources(nodeInfo.MinimumJobSize)
+	minimum := common.ComputeResources(schedulingInfo.MinimumJobSize)
 	resourceRequest.Sub(minimum)
 	return resourceRequest.IsValid()
 }
