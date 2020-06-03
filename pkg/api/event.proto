@@ -53,6 +53,7 @@ message JobPendingEvent {
     string Queue = 3;
     google.protobuf.Timestamp Created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
     string ClusterId = 5;
+    string KubernetesId = 6;
 }
 
 message JobRunningEvent {
@@ -61,6 +62,7 @@ message JobRunningEvent {
     string Queue = 3;
     google.protobuf.Timestamp Created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
     string ClusterId = 5;
+    string KubernetesId = 6;
 }
 
 message JobUnableToScheduleEvent {
@@ -70,6 +72,7 @@ message JobUnableToScheduleEvent {
     google.protobuf.Timestamp Created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
     string ClusterId = 5;
     string Reason = 6;
+    string KubernetesId = 7;
 }
 
 message JobFailedEvent {
@@ -80,6 +83,7 @@ message JobFailedEvent {
     string ClusterId = 5;
     string Reason = 6;
     map<string, int32> ExitCodes = 7;
+    string KubernetesId = 8;
 }
 
 message JobSucceededEvent {
@@ -88,6 +92,7 @@ message JobSucceededEvent {
     string Queue = 3;
     google.protobuf.Timestamp Created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
     string ClusterId = 5;
+    string KubernetesId = 6;
 }
 
 message JobReprioritizedEvent {
