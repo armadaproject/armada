@@ -701,6 +701,9 @@
         "JobSetId": {
           "type": "string"
         },
+        "KubernetesId": {
+          "type": "string"
+        },
         "Queue": {
           "type": "string"
         },

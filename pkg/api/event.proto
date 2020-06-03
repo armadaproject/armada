@@ -72,6 +72,7 @@ message JobUnableToScheduleEvent {
     google.protobuf.Timestamp Created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
     string ClusterId = 5;
     string Reason = 6;
+    string KubernetesId = 7;
 }
 
 message JobFailedEvent {

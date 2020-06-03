@@ -58,6 +58,7 @@ func CreateJobUnableToScheduleEvent(pod *v1.Pod, reason string, clusterId string
 		Created:   time.Now(),
 		ClusterId: clusterId,
 		Reason:    reason,
+		KubernetesId: string(pod.ObjectMeta.UID),
 	}
 }
 
