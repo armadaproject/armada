@@ -52,12 +52,12 @@ func CreateEventForCurrentState(pod *v1.Pod, clusterId string) (api.Event, error
 
 func CreateJobUnableToScheduleEvent(pod *v1.Pod, reason string, clusterId string) api.Event {
 	return &api.JobUnableToScheduleEvent{
-		JobId:     pod.Labels[domain.JobId],
-		JobSetId:  pod.Annotations[domain.JobSetId],
-		Queue:     pod.Labels[domain.Queue],
-		Created:   time.Now(),
-		ClusterId: clusterId,
-		Reason:    reason,
+		JobId:        pod.Labels[domain.JobId],
+		JobSetId:     pod.Annotations[domain.JobSetId],
+		Queue:        pod.Labels[domain.Queue],
+		Created:      time.Now(),
+		ClusterId:    clusterId,
+		Reason:       reason,
 		KubernetesId: string(pod.ObjectMeta.UID),
 	}
 }
