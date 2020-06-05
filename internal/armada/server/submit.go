@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/gogo/protobuf/types"
 	log "github.com/sirupsen/logrus"
@@ -11,27 +12,31 @@ import (
 	"github.com/G-Research/armada/internal/armada/authorization"
 	"github.com/G-Research/armada/internal/armada/authorization/permissions"
 	"github.com/G-Research/armada/internal/armada/repository"
+	"github.com/G-Research/armada/internal/armada/scheduling"
 	"github.com/G-Research/armada/pkg/api"
 )
 
 type SubmitServer struct {
-	permissions     authorization.PermissionChecker
-	jobRepository   repository.JobRepository
-	queueRepository repository.QueueRepository
-	eventStore      repository.EventStore
+	permissions              authorization.PermissionChecker
+	jobRepository            repository.JobRepository
+	queueRepository          repository.QueueRepository
+	eventStore               repository.EventStore
+	schedulingInfoRepository repository.SchedulingInfoRepository
 }
 
 func NewSubmitServer(
 	permissions authorization.PermissionChecker,
 	jobRepository repository.JobRepository,
 	queueRepository repository.QueueRepository,
-	eventStore repository.EventStore) *SubmitServer {
+	eventStore repository.EventStore,
+	schedulingInfoRepository repository.SchedulingInfoRepository) *SubmitServer {
 
 	return &SubmitServer{
-		permissions:     permissions,
-		jobRepository:   jobRepository,
-		queueRepository: queueRepository,
-		eventStore:      eventStore}
+		permissions:              permissions,
+		jobRepository:            jobRepository,
+		queueRepository:          queueRepository,
+		eventStore:               eventStore,
+		schedulingInfoRepository: schedulingInfoRepository}
 }
 
 func (server *SubmitServer) GetQueueInfo(ctx context.Context, req *api.QueueInfoRequest) (*api.QueueInfo, error) {
@@ -81,6 +86,11 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 		return nil, status.Errorf(codes.InvalidArgument, e.Error())
 	}
 
+	e = server.validateJobsCanBeScheduled(jobs)
+	if e != nil {
+		return nil, status.Errorf(codes.InvalidArgument, e.Error())
+	}
+
 	e = reportSubmitted(server.eventStore, jobs)
 	if e != nil {
 		return nil, status.Errorf(codes.Aborted, e.Error())
@@ -109,6 +119,31 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 	}
 
 	return result, nil
+}
+
+func (server *SubmitServer) validateJobsCanBeScheduled(jobs []*api.Job) error {
+	allClusterSchedulingInfo, e := server.schedulingInfoRepository.GetClusterSchedulingInfo()
+	if e != nil {
+		return e
+	}
+
+	activeClusterSchedulingInfo := scheduling.FilterActiveClusterSchedulingInfoReports(allClusterSchedulingInfo)
+	for i, job := range jobs {
+		if !validateJobCanBeScheduled(job, activeClusterSchedulingInfo) {
+			return fmt.Errorf("job with index %d is not schedulable on any cluster", i)
+		}
+	}
+
+	return nil
+}
+
+func validateJobCanBeScheduled(job *api.Job, allClusterSchedulingInfos map[string]*api.ClusterSchedulingInfoReport) bool {
+	for _, schedulingInfo := range allClusterSchedulingInfos {
+		if scheduling.MatchSchedulingRequirements(job, schedulingInfo) {
+			return true
+		}
+	}
+	return false
 }
 
 func (server *SubmitServer) CancelJobs(ctx context.Context, request *api.JobCancelRequest) (*api.CancellationResult, error) {

@@ -17,12 +17,13 @@ import (
 )
 
 type AggregatedQueueServer struct {
-	permissions      authorization.PermissionChecker
-	schedulingConfig configuration.SchedulingConfig
-	jobRepository    repository.JobRepository
-	queueRepository  repository.QueueRepository
-	usageRepository  repository.UsageRepository
-	eventStore       repository.EventStore
+	permissions              authorization.PermissionChecker
+	schedulingConfig         configuration.SchedulingConfig
+	jobRepository            repository.JobRepository
+	queueRepository          repository.QueueRepository
+	usageRepository          repository.UsageRepository
+	eventStore               repository.EventStore
+	schedulingInfoRepository repository.SchedulingInfoRepository
 }
 
 func NewAggregatedQueueServer(
@@ -32,14 +33,16 @@ func NewAggregatedQueueServer(
 	queueRepository repository.QueueRepository,
 	usageRepository repository.UsageRepository,
 	eventStore repository.EventStore,
+	schedulingInfoRepository repository.SchedulingInfoRepository,
 ) *AggregatedQueueServer {
 	return &AggregatedQueueServer{
-		permissions:      permissions,
-		schedulingConfig: schedulingConfig,
-		jobRepository:    jobRepository,
-		queueRepository:  queueRepository,
-		usageRepository:  usageRepository,
-		eventStore:       eventStore}
+		permissions:              permissions,
+		schedulingConfig:         schedulingConfig,
+		jobRepository:            jobRepository,
+		queueRepository:          queueRepository,
+		usageRepository:          usageRepository,
+		eventStore:               eventStore,
+		schedulingInfoRepository: schedulingInfoRepository}
 }
 
 func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.LeaseRequest) (*api.JobLease, error) {
@@ -68,6 +71,12 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 	}
 
 	e = q.usageRepository.UpdateClusterLeased(&request.ClusterLeasedReport)
+	if e != nil {
+		return nil, e
+	}
+
+	clusterSchedulingInfo := scheduling.CreateClusterSchedulingInfoReport(request)
+	e = q.schedulingInfoRepository.UpdateClusterSchedulingInfo(clusterSchedulingInfo)
 	if e != nil {
 		return nil, e
 	}

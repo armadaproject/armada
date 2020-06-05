@@ -52,11 +52,7 @@ func TestSubmitJob(t *testing.T) {
 
 		jobId := SubmitJob(client, ctx, cpu, memory, t)
 
-		leasedResponse, err := leaseClient.LeaseJobs(ctx, &api.LeaseRequest{
-			ClusterId: "test-cluster",
-			Resources: common.ComputeResources{"cpu": cpu, "memory": memory},
-			NodeSizes: []api.ComputeResource{{Resources: common.ComputeResources{"cpu": resource.MustParse("5"), "memory": resource.MustParse("5Gi")}}},
-		})
+		leasedResponse, err := leaseJobs(leaseClient, ctx, common.ComputeResources{"cpu": cpu, "memory": memory})
 		assert.Empty(t, err)
 
 		assert.Equal(t, 1, len(leasedResponse.Job))
@@ -79,11 +75,8 @@ func TestCancelJob(t *testing.T) {
 		SubmitJob(client, ctx, cpu, memory, t)
 		SubmitJob(client, ctx, cpu, memory, t)
 
-		leasedResponse, err := leaseClient.LeaseJobs(ctx, &api.LeaseRequest{
-			ClusterId: "test-cluster",
-			Resources: common.ComputeResources{"cpu": cpu, "memory": memory},
-			NodeSizes: []api.ComputeResource{{Resources: common.ComputeResources{"cpu": resource.MustParse("5"), "memory": resource.MustParse("5Gi")}}},
-		})
+		leasedResponse, err := leaseJobs(leaseClient, ctx, common.ComputeResources{"cpu": cpu, "memory": memory})
+
 		assert.Empty(t, err)
 		assert.Equal(t, 1, len(leasedResponse.Job))
 
@@ -98,6 +91,14 @@ func TestCancelJob(t *testing.T) {
 		assert.Empty(t, err)
 		assert.Equal(t, 0, len(renewed.Ids))
 
+	})
+}
+
+func leaseJobs(leaseClient api.AggregatedQueueClient, ctx context.Context, availableResource common.ComputeResources) (*api.JobLease, error) {
+	return leaseClient.LeaseJobs(ctx, &api.LeaseRequest{
+		ClusterId: "test-cluster",
+		Resources: availableResource,
+		NodeSizes: []api.ComputeResource{{Resources: common.ComputeResources{"cpu": resource.MustParse("5"), "memory": resource.MustParse("5Gi")}}},
 	})
 }
 
@@ -183,5 +184,14 @@ func setupServer(conn *grpc.ClientConn) {
 		ClusterAvailableCapacity: map[string]resource.Quantity{"cpu": resource.MustParse("100"), "memory": resource.MustParse("100Gi")},
 	}
 	usageClient := api.NewUsageClient(conn)
-	_, _ = usageClient.ReportUsage(ctx, usageReport)
+	_, err := usageClient.ReportUsage(ctx, usageReport)
+	if err != nil {
+		panic(err)
+	}
+	//Make initial lease request to populate cluster node info
+	leaseClient := api.NewAggregatedQueueClient(conn)
+	_, err = leaseJobs(leaseClient, ctx, common.ComputeResources{})
+	if err != nil {
+		panic(err)
+	}
 }
