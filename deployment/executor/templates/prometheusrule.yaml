@@ -15,8 +15,8 @@ spec:
       interval: {{ .Values.prometheus.scrapeInterval }}
       rules:
         - record: armada:executor:rest:request:histogram95
-          expr: histogram_quantile(0.95, sum(rate(rest_client_request_duration_seconds_bucket{service="{{ include "executor.name" . }}"}[30s])) by (endpoint, verb, url, le))
+          expr: histogram_quantile(0.95, sum(rate(rest_client_request_duration_seconds_bucket{service="{{ include "executor.name" . }}"}[2m])) by (endpoint, verb, url, le))
 
         - record: armada:executor:log:rate
-          expr: sum(rate(log_messages[30s])) by (level)
+          expr: sum(rate(log_messages[2m])) by (level)
 {{- end }}
