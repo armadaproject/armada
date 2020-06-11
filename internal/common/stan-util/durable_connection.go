@@ -10,7 +10,7 @@ import (
 )
 
 type DurableConnection struct {
-	sync.RWMutex
+	mutex sync.RWMutex
 
 	options       []stan.Option
 	clientID      string
@@ -45,15 +45,15 @@ func DurableConnect(stanClusterID, clientID, urls string, options ...stan.Option
 }
 
 func (c *DurableConnection) PublishAsync(subject string, data []byte, ah stan.AckHandler) (string, error) {
-	c.RLock()
-	defer c.RUnlock()
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
 
 	return c.currentConn.PublishAsync(subject, data, ah)
 }
 
 func (c *DurableConnection) QueueSubscribe(subject, qgroup string, cb stan.MsgHandler, opts ...stan.SubscriptionOption) error {
-	c.Lock()
-	defer c.Unlock()
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 
 	s := func(conn stan.Conn) error {
 		_, err := conn.QueueSubscribe(subject, qgroup, cb, opts...)
@@ -65,8 +65,8 @@ func (c *DurableConnection) QueueSubscribe(subject, qgroup string, cb stan.MsgHa
 }
 
 func (c *DurableConnection) Close() error {
-	c.Lock()
-	defer c.Unlock()
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 
 	err := c.currentConn.Close()
 	c.nc.Close()
@@ -86,8 +86,8 @@ func (c *DurableConnection) onConnectionLost(_ stan.Conn, e error) {
 }
 
 func (c *DurableConnection) reconnect() error {
-	c.Lock()
-	defer c.Unlock()
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 
 	// close any previous connection, just in case it was still open
 	if c.currentConn != nil {
