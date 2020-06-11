@@ -12,7 +12,6 @@ import (
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
-	"github.com/nats-io/stan.go"
 	"github.com/segmentio/kafka-go"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -24,6 +23,7 @@ import (
 	"github.com/G-Research/armada/internal/armada/repository"
 	"github.com/G-Research/armada/internal/armada/scheduling"
 	"github.com/G-Research/armada/internal/armada/server"
+	stan_util "github.com/G-Research/armada/internal/common/stan-util"
 	"github.com/G-Research/armada/internal/common/task"
 	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/pkg/api"
@@ -72,10 +72,10 @@ func Serve(config *configuration.ArmadaConfig) (func(), *sync.WaitGroup) {
 
 	} else if len(config.EventsNats.Servers) > 0 {
 
-		conn, err := stan.Connect(
+		conn, err := stan_util.DurableConnect(
 			config.EventsNats.ClusterID,
 			"armada-server-"+util.NewULID(),
-			stan.NatsURL(strings.Join(config.EventsNats.Servers, ",")),
+			strings.Join(config.EventsNats.Servers, ","),
 		)
 		if err != nil {
 			panic(err)
