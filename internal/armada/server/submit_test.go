@@ -14,7 +14,8 @@ import (
 
 	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/G-Research/armada/internal/armada/repository"
-	redis2 "github.com/G-Research/armada/internal/armada/repository/redis"
+	redisRepository "github.com/G-Research/armada/internal/armada/repository/redis"
+	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/pkg/api"
 )
@@ -28,6 +29,24 @@ func TestSubmitServer_SubmitJob(t *testing.T) {
 
 		assert.Empty(t, err)
 		assert.NotNil(t, response.JobResponseItems[0].JobId)
+	})
+}
+
+func TestSubmitServer_SubmitJob_WhenPodCannotBeScheduled(t *testing.T) {
+	withSubmitServer(func(s *SubmitServer, events repository.EventRepository) {
+		jobSetId := util.NewULID()
+		jobRequest := createJobRequest(jobSetId, 1)
+
+		err := s.schedulingInfoRepository.UpdateClusterSchedulingInfo(&api.ClusterSchedulingInfoReport{
+			ClusterId:  "test-cluster",
+			ReportTime: time.Now(),
+			NodeSizes:  []api.ComputeResource{{Resources: common.ComputeResources{"cpu": resource.MustParse("0"), "memory": resource.MustParse("0")}}},
+		})
+		assert.Empty(t, err)
+
+		_, err = s.SubmitJobs(context.Background(), jobRequest)
+
+		assert.Error(t, err)
 	})
 }
 
@@ -134,12 +153,22 @@ func withSubmitServer(action func(s *SubmitServer, events repository.EventReposi
 	// using real redis instance as miniredis does not support streams
 	client := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 10})
 
-	jobRepo := redis2.NewRedisJobRepository(client)
-	queueRepo := redis2.NewRedisQueueRepository(client)
-	eventRepo := redis2.NewRedisEventRepository(client, configuration.EventRetentionPolicy{ExpiryEnabled: false})
-	server := NewSubmitServer(&fakePermissionChecker{}, jobRepo, queueRepo, eventRepo)
+	jobRepo := redisRepository.NewRedisJobRepository(client)
+	queueRepo := redisRepository.NewRedisQueueRepository(client)
+	eventRepo := redisRepository.NewRedisEventRepository(client, configuration.EventRetentionPolicy{ExpiryEnabled: false})
+	schedulingInfoRepository := repository.NewRedisSchedulingInfoRepository(client)
+	server := NewSubmitServer(&fakePermissionChecker{}, jobRepo, queueRepo, eventRepo, schedulingInfoRepository)
 
 	err := queueRepo.CreateQueue(&api.Queue{Name: "test"})
+	if err != nil {
+		panic(err)
+	}
+
+	err = schedulingInfoRepository.UpdateClusterSchedulingInfo(&api.ClusterSchedulingInfoReport{
+		ClusterId:  "test-cluster",
+		ReportTime: time.Now(),
+		NodeSizes:  []api.ComputeResource{{Resources: common.ComputeResources{"cpu": resource.MustParse("100"), "memory": resource.MustParse("100Gi")}}},
+	})
 	if err != nil {
 		panic(err)
 	}

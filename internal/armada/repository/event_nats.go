@@ -6,15 +6,16 @@ import (
 	stanPb "github.com/nats-io/stan.go/pb"
 	log "github.com/sirupsen/logrus"
 
+	stanUtil "github.com/G-Research/armada/internal/common/stan-util"
 	"github.com/G-Research/armada/pkg/api"
 )
 
 type NatsEventStore struct {
-	connection stan.Conn
+	connection *stanUtil.DurableConnection
 	subject    string
 }
 
-func NewNatsEventStore(connection stan.Conn, subject string) *NatsEventStore {
+func NewNatsEventStore(connection *stanUtil.DurableConnection, subject string) *NatsEventStore {
 	return &NatsEventStore{connection: connection, subject: subject}
 }
 
@@ -24,11 +25,19 @@ func (n *NatsEventStore) ReportEvents(messages []*api.EventMessage) error {
 	for _, m := range messages {
 		messageData, e := proto.Marshal(m)
 		if e != nil {
+			log.Errorf("Error while marshaling event: %v", e)
 			return e
 		}
-		n.connection.PublishAsync(n.subject, messageData, func(subj string, err error) {
+		_, e = n.connection.PublishAsync(n.subject, messageData, func(subj string, err error) {
+			if err != nil {
+				log.Errorf("Error while publishing event to queue: %v", err)
+			}
 			errors <- err
 		})
+		if e != nil {
+			log.Errorf("Error while sending event to queue: %v", e)
+			return e
+		}
 	}
 
 	waiting := len(messages)
@@ -47,18 +56,18 @@ func (n *NatsEventStore) ReportEvents(messages []*api.EventMessage) error {
 }
 
 type NatsEventRedisProcessor struct {
-	connection stan.Conn
+	connection *stanUtil.DurableConnection
 	repository EventStore
 	subject    string
 	group      string
 }
 
-func NewNatsEventRedisProcessor(connection stan.Conn, repository EventStore, subject string, group string) *NatsEventRedisProcessor {
+func NewNatsEventRedisProcessor(connection *stanUtil.DurableConnection, repository EventStore, subject string, group string) *NatsEventRedisProcessor {
 	return &NatsEventRedisProcessor{connection: connection, repository: repository, subject: subject, group: group}
 }
 
 func (p *NatsEventRedisProcessor) Start() {
-	_, err := p.connection.QueueSubscribe(p.subject, p.group,
+	err := p.connection.QueueSubscribe(p.subject, p.group,
 		p.handleMessage,
 		stan.SetManualAckMode(),
 		stan.StartAt(stanPb.StartPosition_LastReceived),
@@ -76,7 +85,11 @@ func (p *NatsEventRedisProcessor) handleMessage(msg *stan.Msg) {
 	if err != nil {
 		log.Errorf("Error while unmarshaling nats message: %v", err)
 	} else {
-		p.repository.ReportEvents([]*api.EventMessage{eventMessage})
+		err := p.repository.ReportEvents([]*api.EventMessage{eventMessage})
+		if err != nil {
+			log.Errorf("Error while reporting event from nats: %v", err)
+			return
+		}
 	}
 	err = msg.Ack()
 	if err != nil {

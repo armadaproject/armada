@@ -30,13 +30,13 @@ spec:
           expr: avg(sum(armada_queue_resource_used) by (cluster, pod, queueName, resourceType)) by (cluster, queueName, resourceType)
 
         - record: armada:grpc:server:histogram95
-          expr: histogram_quantile(0.95, sum(rate(grpc_server_handling_seconds_bucket{grpc_type!="server_stream"}[10s])) by (grpc_method,grpc_service, le))
+          expr: histogram_quantile(0.95, sum(rate(grpc_server_handling_seconds_bucket{grpc_type!="server_stream"}[2m])) by (grpc_method,grpc_service, le))
 
         - record: armada:grpc:server:requestrate
-          expr: sum(rate(grpc_server_handled_total[10s])) by (grpc_method,grpc_service)
+          expr: sum(rate(grpc_server_handled_total[2m])) by (grpc_method,grpc_service)
 
         - record: armada:log:rate
-          expr: sum(rate(log_messages[30s])) by (level)
+          expr: sum(rate(log_messages[2m])) by (level)
 
         - record: armada:resource:available_capacity
           expr: avg(armada_cluster_available_capacity) by (cluster, resourceType)

@@ -24,9 +24,10 @@ type leaseContext struct {
 	ctx     context.Context
 	request *api.LeaseRequest
 
-	schedulingInfo   map[*api.Queue]*QueueSchedulingInfo
-	resourceScarcity map[string]float64
-	priorities       map[*api.Queue]QueuePriorityInfo
+	clusterSchedulingInfo *api.ClusterSchedulingInfoReport
+	queueSchedulingInfo   map[*api.Queue]*QueueSchedulingInfo
+	resourceScarcity      map[string]float64
+	priorities            map[*api.Queue]QueuePriorityInfo
 
 	queueCache map[string][]*api.Job
 }
@@ -71,9 +72,10 @@ func LeaseJobs(
 		ctx:     ctx,
 		request: request,
 
-		resourceScarcity: scarcity,
-		schedulingInfo:   activeQueueSchedulingInfo,
-		priorities:       activeQueuePriority,
+		clusterSchedulingInfo: CreateClusterSchedulingInfoReport(request),
+		resourceScarcity:      scarcity,
+		queueSchedulingInfo:   activeQueueSchedulingInfo,
+		priorities:            activeQueuePriority,
 
 		queueCache: map[string][]*api.Job{},
 
@@ -141,16 +143,16 @@ func (c *leaseContext) scheduleJobs(limit int) ([]*api.Job, error) {
 func (c *leaseContext) assignJobs(limit int) ([]*api.Job, error) {
 	jobs := make([]*api.Job, 0)
 	// TODO: parallelize
-	for queue, info := range c.schedulingInfo {
+	for queue, info := range c.queueSchedulingInfo {
 		// TODO: partition limit by priority instead
-		leased, remainder, e := c.leaseJobs(queue, info.adjustedShare, limit/len(c.schedulingInfo))
+		leased, remainder, e := c.leaseJobs(queue, info.adjustedShare, limit/len(c.queueSchedulingInfo))
 		if e != nil {
 			log.Error(e)
 			continue
 		}
 		scheduled := info.adjustedShare.DeepCopy()
 		scheduled.Sub(remainder)
-		c.schedulingInfo[queue].UpdateLimits(scheduled)
+		c.queueSchedulingInfo[queue].UpdateLimits(scheduled)
 		jobs = append(jobs, leased...)
 
 		if c.closeToDeadline() {
@@ -167,10 +169,10 @@ func (c *leaseContext) distributeRemainder(limit int) ([]*api.Job, error) {
 		return jobs, nil
 	}
 
-	remainder := SumRemainingResource(c.schedulingInfo)
-	shares := QueueSlicesToShares(c.resourceScarcity, c.schedulingInfo)
+	remainder := SumRemainingResource(c.queueSchedulingInfo)
+	shares := QueueSlicesToShares(c.resourceScarcity, c.queueSchedulingInfo)
 
-	queueCount := len(c.schedulingInfo)
+	queueCount := len(c.queueSchedulingInfo)
 	emptySteps := 0
 
 	minimumJobSize := common.ComputeResources(c.request.MinimumJobSize).AsFloat()
@@ -182,7 +184,7 @@ func (c *leaseContext) distributeRemainder(limit int) ([]*api.Job, error) {
 		emptySteps++
 
 		amountToSchedule := remainder.DeepCopy()
-		amountToSchedule = amountToSchedule.LimitWith(c.schedulingInfo[queue].remainingSchedulingLimit)
+		amountToSchedule = amountToSchedule.LimitWith(c.queueSchedulingInfo[queue].remainingSchedulingLimit)
 		leased, remaining, e := c.leaseJobs(queue, amountToSchedule, 1)
 		if e != nil {
 			log.Error(e)
@@ -195,15 +197,15 @@ func (c *leaseContext) distributeRemainder(limit int) ([]*api.Job, error) {
 			scheduled := amountToSchedule.DeepCopy()
 			scheduled.Sub(remaining)
 
-			c.schedulingInfo[queue].UpdateLimits(scheduled)
+			c.queueSchedulingInfo[queue].UpdateLimits(scheduled)
 			remainder.Sub(scheduled)
-			shares[queue] = math.Max(0, ResourcesFloatAsUsage(c.resourceScarcity, c.schedulingInfo[queue].schedulingShare))
+			shares[queue] = math.Max(0, ResourcesFloatAsUsage(c.resourceScarcity, c.queueSchedulingInfo[queue].schedulingShare))
 		} else {
 			// if there are no suitable jobs to lease eliminate queue from the scheduling
-			delete(c.schedulingInfo, queue)
+			delete(c.queueSchedulingInfo, queue)
 			delete(c.priorities, queue)
-			c.schedulingInfo = SliceResourceWithLimits(c.resourceScarcity, c.schedulingInfo, c.priorities, remainder)
-			shares = QueueSlicesToShares(c.resourceScarcity, c.schedulingInfo)
+			c.queueSchedulingInfo = SliceResourceWithLimits(c.resourceScarcity, c.queueSchedulingInfo, c.priorities, remainder)
+			shares = QueueSlicesToShares(c.resourceScarcity, c.queueSchedulingInfo)
 		}
 
 		limit -= len(leased)
@@ -238,7 +240,7 @@ func (c *leaseContext) leaseJobs(queue *api.Queue, slice common.ComputeResources
 			requirement := common.TotalResourceRequest(job.PodSpec).AsFloat()
 			remainder = slice.DeepCopy()
 			remainder.Sub(requirement)
-			if remainder.IsValid() && matchRequirements(job, c.request) {
+			if remainder.IsValid() && MatchSchedulingRequirements(job, c.clusterSchedulingInfo) {
 				slice = remainder
 				candidates = append(candidates, job)
 			}
@@ -312,15 +314,15 @@ func pickQueueRandomly(shares map[*api.Queue]float64) *api.Queue {
 	return lastQueue
 }
 
-func matchRequirements(job *api.Job, request *api.LeaseRequest) bool {
-	return matchNodeLabels(job, request) &&
-		isAbleToFitOnAvailableNodes(job, request) &&
-		isLargeEnough(job, request)
+func MatchSchedulingRequirements(job *api.Job, schedulingInfo *api.ClusterSchedulingInfoReport) bool {
+	return matchNodeLabels(job, schedulingInfo) &&
+		isAbleToFitOnAvailableNodes(job, schedulingInfo) &&
+		isLargeEnough(job, schedulingInfo)
 }
 
-func isAbleToFitOnAvailableNodes(job *api.Job, request *api.LeaseRequest) bool {
+func isAbleToFitOnAvailableNodes(job *api.Job, schedulingInfo *api.ClusterSchedulingInfoReport) bool {
 	resourceRequest := common.TotalResourceRequest(job.PodSpec).AsFloat()
-	for _, node := range request.NodeSizes {
+	for _, node := range schedulingInfo.NodeSizes {
 		var nodeSize common.ComputeResources = node.Resources
 		remainder := nodeSize.AsFloat()
 		remainder.Sub(resourceRequest)
@@ -331,13 +333,13 @@ func isAbleToFitOnAvailableNodes(job *api.Job, request *api.LeaseRequest) bool {
 	return false
 }
 
-func matchNodeLabels(job *api.Job, request *api.LeaseRequest) bool {
+func matchNodeLabels(job *api.Job, schedulingInfo *api.ClusterSchedulingInfoReport) bool {
 	if len(job.RequiredNodeLabels) == 0 {
 		return true
 	}
 
 Labels:
-	for _, labeling := range request.AvailableLabels {
+	for _, labeling := range schedulingInfo.AvailableLabels {
 		for k, v := range job.RequiredNodeLabels {
 			if labeling.Labels[k] != v {
 				continue Labels
@@ -359,9 +361,9 @@ func filterPriorityMapByKeys(original map[*api.Queue]QueuePriorityInfo, keys []*
 	return result
 }
 
-func isLargeEnough(job *api.Job, request *api.LeaseRequest) bool {
+func isLargeEnough(job *api.Job, schedulingInfo *api.ClusterSchedulingInfoReport) bool {
 	resourceRequest := common.TotalResourceRequest(job.PodSpec)
-	minimum := common.ComputeResources(request.MinimumJobSize)
+	minimum := common.ComputeResources(schedulingInfo.MinimumJobSize)
 	resourceRequest.Sub(minimum)
 	return resourceRequest.IsValid()
 }
