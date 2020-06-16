@@ -156,7 +156,7 @@ func withSubmitServer(action func(s *SubmitServer, events repository.EventReposi
 	jobRepo := redisRepository.NewRedisJobRepository(client)
 	queueRepo := redisRepository.NewRedisQueueRepository(client)
 	eventRepo := redisRepository.NewRedisEventRepository(client, configuration.EventRetentionPolicy{ExpiryEnabled: false})
-	schedulingInfoRepository := repository.NewRedisSchedulingInfoRepository(client)
+	schedulingInfoRepository := redisRepository.NewRedisSchedulingInfoRepository(client)
 	server := NewSubmitServer(&fakePermissionChecker{}, jobRepo, queueRepo, eventRepo, schedulingInfoRepository)
 
 	err := queueRepo.CreateQueue(&api.Queue{Name: "test"})

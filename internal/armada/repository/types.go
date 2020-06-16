@@ -50,3 +50,8 @@ type EventRepository interface {
 	ReadEvents(queue, jobSetId string, lastId string, limit int64, block time.Duration) ([]*api.EventStreamMessage, error)
 	GetLastMessageId(queue, jobSetId string) (string, error)
 }
+
+type SchedulingInfoRepository interface {
+	GetClusterSchedulingInfo() (map[string]*api.ClusterSchedulingInfoReport, error)
+	UpdateClusterSchedulingInfo(report *api.ClusterSchedulingInfoReport) error
+}

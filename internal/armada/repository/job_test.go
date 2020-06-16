@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"database/sql"
 	"testing"
 	"time"
 
@@ -11,12 +12,13 @@ import (
 
 	"github.com/G-Research/armada/internal/armada/authorization"
 	redis2 "github.com/G-Research/armada/internal/armada/repository/redis"
+	sqlRepository "github.com/G-Research/armada/internal/armada/repository/sql"
 	"github.com/G-Research/armada/internal/common/validation"
 	"github.com/G-Research/armada/pkg/api"
 )
 
 func TestJobCanBeLeasedOnlyOnce(t *testing.T) {
-	withRepository(func(r *redis2.RedisJobRepository) {
+	withRepository(func(r JobRepository) {
 
 		job := addLeasedJob(t, r, "queue1", "cluster1")
 
@@ -27,7 +29,7 @@ func TestJobCanBeLeasedOnlyOnce(t *testing.T) {
 }
 
 func TestJobLeaseCanBeRenewed(t *testing.T) {
-	withRepository(func(r *redis2.RedisJobRepository) {
+	withRepository(func(r JobRepository) {
 		job := addLeasedJob(t, r, "queue1", "cluster1")
 
 		renewed, e := r.RenewLease("cluster1", []string{job.Id})
@@ -38,7 +40,7 @@ func TestJobLeaseCanBeRenewed(t *testing.T) {
 }
 
 func TestJobLeaseExpiry(t *testing.T) {
-	withRepository(func(r *redis2.RedisJobRepository) {
+	withRepository(func(r JobRepository) {
 		job := addLeasedJob(t, r, "queue1", "cluster1")
 		deadline := time.Now()
 		addLeasedJob(t, r, "queue1", "cluster1")
@@ -54,7 +56,7 @@ func TestJobLeaseExpiry(t *testing.T) {
 }
 
 func TestEvenExpiredLeaseCanBeRenewed(t *testing.T) {
-	withRepository(func(r *redis2.RedisJobRepository) {
+	withRepository(func(r JobRepository) {
 		job := addLeasedJob(t, r, "queue1", "cluster1")
 		deadline := time.Now()
 
@@ -69,7 +71,7 @@ func TestEvenExpiredLeaseCanBeRenewed(t *testing.T) {
 }
 
 func TestRenewingLeaseFailsForJobAssignedToDifferentCluster(t *testing.T) {
-	withRepository(func(r *redis2.RedisJobRepository) {
+	withRepository(func(r JobRepository) {
 		job := addLeasedJob(t, r, "queue1", "cluster1")
 
 		renewed, e := r.RenewLease("cluster2", []string{job.Id})
@@ -79,7 +81,7 @@ func TestRenewingLeaseFailsForJobAssignedToDifferentCluster(t *testing.T) {
 }
 
 func TestRenewingNonExistentLease(t *testing.T) {
-	withRepository(func(r *redis2.RedisJobRepository) {
+	withRepository(func(r JobRepository) {
 		renewed, e := r.RenewLease("cluster2", []string{"missingJobId"})
 		assert.Nil(t, e)
 		assert.Equal(t, 0, len(renewed))
@@ -87,7 +89,7 @@ func TestRenewingNonExistentLease(t *testing.T) {
 }
 
 func TestDeletingExpiredJobShouldDeleteJobFromQueue(t *testing.T) {
-	withRepository(func(r *redis2.RedisJobRepository) {
+	withRepository(func(r JobRepository) {
 		job := addLeasedJob(t, r, "queue1", "cluster1")
 		deadline := time.Now()
 
@@ -109,7 +111,7 @@ func TestDeletingExpiredJobShouldDeleteJobFromQueue(t *testing.T) {
 }
 
 func TestReturnLeaseShouldReturnJobToQueue(t *testing.T) {
-	withRepository(func(r *redis2.RedisJobRepository) {
+	withRepository(func(r JobRepository) {
 		job := addLeasedJob(t, r, "queue1", "cluster1")
 
 		returned, e := r.ReturnLease("cluster1", job.Id)
@@ -124,7 +126,7 @@ func TestReturnLeaseShouldReturnJobToQueue(t *testing.T) {
 }
 
 func TestReturnLeaseFromDifferentClusterIsNoop(t *testing.T) {
-	withRepository(func(r *redis2.RedisJobRepository) {
+	withRepository(func(r JobRepository) {
 		job := addLeasedJob(t, r, "queue1", "cluster1")
 
 		returned, e := r.ReturnLease("cluster2", job.Id)
@@ -138,7 +140,7 @@ func TestReturnLeaseFromDifferentClusterIsNoop(t *testing.T) {
 }
 
 func TestReturnLeaseForJobInQueueIsNoop(t *testing.T) {
-	withRepository(func(r *redis2.RedisJobRepository) {
+	withRepository(func(r JobRepository) {
 		job := addTestJob(t, r, "queue1")
 
 		returned, e := r.ReturnLease("cluster2", job.Id)
@@ -148,7 +150,7 @@ func TestReturnLeaseForJobInQueueIsNoop(t *testing.T) {
 }
 
 func TestDeleteRunningJob(t *testing.T) {
-	withRepository(func(r *redis2.RedisJobRepository) {
+	withRepository(func(r JobRepository) {
 		job := addLeasedJob(t, r, "queue1", "cluster1")
 
 		result := r.DeleteJobs([]*api.Job{job})
@@ -159,7 +161,7 @@ func TestDeleteRunningJob(t *testing.T) {
 }
 
 func TestDeleteQueuedJob(t *testing.T) {
-	withRepository(func(r *redis2.RedisJobRepository) {
+	withRepository(func(r JobRepository) {
 		job := addTestJob(t, r, "queue1")
 
 		result := r.DeleteJobs([]*api.Job{job})
@@ -170,7 +172,7 @@ func TestDeleteQueuedJob(t *testing.T) {
 }
 
 func TestDeleteWithSomeMissingJobs(t *testing.T) {
-	withRepository(func(r *redis2.RedisJobRepository) {
+	withRepository(func(r JobRepository) {
 		missingJob := &api.Job{Id: "jobId"}
 		runningJob := addLeasedJob(t, r, "queue1", "cluster1")
 		result := r.DeleteJobs([]*api.Job{missingJob, runningJob})
@@ -186,7 +188,7 @@ func TestDeleteWithSomeMissingJobs(t *testing.T) {
 }
 
 func TestReturnLeaseForDeletedJobShouldKeepJobDeleted(t *testing.T) {
-	withRepository(func(r *redis2.RedisJobRepository) {
+	withRepository(func(r JobRepository) {
 
 		job := addLeasedJob(t, r, "cancel-test-queue", "cluster")
 
@@ -204,7 +206,7 @@ func TestReturnLeaseForDeletedJobShouldKeepJobDeleted(t *testing.T) {
 }
 
 func TestGetActiveJobIds(t *testing.T) {
-	withRepository(func(r *redis2.RedisJobRepository) {
+	withRepository(func(r JobRepository) {
 		addTestJob(t, r, "queue1")
 		addLeasedJob(t, r, "queue1", "cluster1")
 		addTestJob(t, r, "queue2")
@@ -216,7 +218,7 @@ func TestGetActiveJobIds(t *testing.T) {
 }
 
 func TestGetQueueActiveJobSets(t *testing.T) {
-	withRepository(func(r *redis2.RedisJobRepository) {
+	withRepository(func(r JobRepository) {
 		addTestJob(t, r, "queue1")
 		addLeasedJob(t, r, "queue1", "cluster1")
 		addTestJob(t, r, "queue2")
@@ -231,7 +233,7 @@ func TestGetQueueActiveJobSets(t *testing.T) {
 	})
 }
 
-func addLeasedJob(t *testing.T, r *redis2.RedisJobRepository, queue string, cluster string) *api.Job {
+func addLeasedJob(t *testing.T, r JobRepository, queue string, cluster string) *api.Job {
 	job := addTestJob(t, r, queue)
 	leased, e := r.TryLeaseJobs(cluster, queue, []*api.Job{job})
 	assert.Nil(t, e)
@@ -240,7 +242,7 @@ func addLeasedJob(t *testing.T, r *redis2.RedisJobRepository, queue string, clus
 	return job
 }
 
-func addTestJob(t *testing.T, r *redis2.RedisJobRepository, queue string) *api.Job {
+func addTestJob(t *testing.T, r JobRepository, queue string) *api.Job {
 	cpu := resource.MustParse("1")
 	memory := resource.MustParse("512Mi")
 
@@ -273,8 +275,12 @@ func addTestJob(t *testing.T, r *redis2.RedisJobRepository, queue string) *api.J
 	return jobs[0]
 }
 
-func withRepository(action func(r *redis2.RedisJobRepository)) {
+func withRepository(action func(r JobRepository)) {
+	withSqlRepository(action)
+	withRedisRepository(action)
+}
 
+func withRedisRepository(action func(r JobRepository)) {
 	client := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 10})
 	defer client.FlushDB()
 	defer client.Close()
@@ -282,5 +288,21 @@ func withRepository(action func(r *redis2.RedisJobRepository)) {
 	client.FlushDB()
 
 	repo := redis2.NewRedisJobRepository(client)
+	action(repo)
+}
+
+func withSqlRepository(action func(r JobRepository)) {
+	db, err := sql.Open("postgres",
+		"host=localhost port=5432 user=postgres password=psw dbname=postgres sslmode=disable")
+
+	if err != nil {
+		panic(err)
+	}
+
+	db.Exec("TRUNCATE TABLE job_queue")
+	defer db.Exec("TRUNCATE TABLE job_queue")
+	defer db.Close()
+
+	repo := sqlRepository.NewJobRepository(*db)
 	action(repo)
 }

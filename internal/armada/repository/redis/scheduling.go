@@ -1,4 +1,4 @@
-package repository
+package redis
 
 import (
 	"github.com/go-redis/redis"
@@ -8,11 +8,6 @@ import (
 )
 
 const clusterSchedulingInfoReportKey = "Cluster:SchedulingInfo"
-
-type SchedulingInfoRepository interface {
-	GetClusterSchedulingInfo() (map[string]*api.ClusterSchedulingInfoReport, error)
-	UpdateClusterSchedulingInfo(report *api.ClusterSchedulingInfoReport) error
-}
 
 type RedisSchedulingInfoRepository struct {
 	db redis.UniversalClient
