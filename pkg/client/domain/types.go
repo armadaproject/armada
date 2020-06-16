@@ -4,6 +4,8 @@ import (
 	"time"
 
 	v1 "k8s.io/api/core/v1"
+
+	"github.com/G-Research/armada/pkg/api"
 )
 
 type LoadTestSpecification struct {
@@ -29,4 +31,10 @@ type JobSubmissionDescription struct {
 	DelaySubmit        time.Duration
 	Priority           float64
 	Spec               *v1.PodSpec
+}
+
+type JobSubmitFile struct {
+	Queue    string
+	JobSetId string
+	Jobs     []*api.JobSubmitRequestItem `json:"jobs"`
 }
