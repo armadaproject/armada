@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"os"
 
 	log "github.com/sirupsen/logrus"
@@ -65,7 +66,6 @@ var loadtestCmd = &cobra.Command{
 		watchEvents := viper.GetBool("watch")
 		apiConnectionDetails := client.ExtractCommandlineArmadaApiConnectionDetails()
 		loadTester := client.NewArmadaLoadTester(apiConnectionDetails)
-
-		loadTester.RunSubmissionTest(*loadTestSpec, watchEvents)
+		loadTester.RunSubmissionTest(context.Background(), *loadTestSpec, watchEvents)
 	},
 }

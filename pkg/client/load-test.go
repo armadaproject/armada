@@ -14,7 +14,7 @@ import (
 )
 
 type LoadTester interface {
-	RunSubmissionTest(spec domain.LoadTestSpecification)
+	RunSubmissionTest(ctx context.Context, spec domain.LoadTestSpecification, watchEvents bool) *domain.WatchContext
 }
 
 type ArmadaLoadTester struct {
@@ -27,14 +27,16 @@ func NewArmadaLoadTester(connectionDetails *ApiConnectionDetails) *ArmadaLoadTes
 	}
 }
 
-func (apiLoadTester ArmadaLoadTester) RunSubmissionTest(spec domain.LoadTestSpecification, watchEvents bool) {
+func (apiLoadTester ArmadaLoadTester) RunSubmissionTest(ctx context.Context, spec domain.LoadTestSpecification, watchEvents bool) *domain.WatchContext {
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
 
 	eventChannel := make(chan api.Event, 10000)
 
+	var jobCurrentState *domain.WatchContext
 	if watchEvents {
-		complete, cancel := watchJobInfoChannel(eventChannel)
+		complete, cancel, currentState := watchJobInfoChannel(eventChannel)
+		jobCurrentState = currentState
 		defer complete.Wait()
 		defer func() { cancel <- true }()
 	}
@@ -46,7 +48,7 @@ func (apiLoadTester ArmadaLoadTester) RunSubmissionTest(spec domain.LoadTestSpec
 				defer wg.Done()
 				jobIdChannel, jobSetId := apiLoadTester.runSubmission(submission, i)
 				if watchEvents {
-					apiLoadTester.monitorJobsUntilCompletion(createQueueName(submission, i), jobSetId, jobIdChannel, eventChannel)
+					apiLoadTester.monitorJobsUntilCompletion(ctx, createQueueName(submission, i), jobSetId, jobIdChannel, eventChannel)
 				}
 			}(i, submission)
 		}
@@ -54,9 +56,11 @@ func (apiLoadTester ArmadaLoadTester) RunSubmissionTest(spec domain.LoadTestSpec
 
 	wg.Done()
 	wg.Wait()
+
+	return jobCurrentState
 }
 
-func watchJobInfoChannel(eventChannel chan api.Event) (*sync.WaitGroup, chan bool) {
+func watchJobInfoChannel(eventChannel chan api.Event) (*sync.WaitGroup, chan bool, *domain.WatchContext) {
 	stop := make(chan bool)
 	tickChannel := time.NewTicker(5 * time.Second)
 
@@ -84,7 +88,7 @@ func watchJobInfoChannel(eventChannel chan api.Event) (*sync.WaitGroup, chan boo
 		}
 	}()
 
-	return complete, stop
+	return complete, stop, aggregatedCurrentState
 }
 
 func (apiLoadTester ArmadaLoadTester) runSubmission(submission *domain.SubmissionDescription, i int) (jobIds chan string, jobSetId string) {
@@ -184,7 +188,7 @@ func createQueueName(submission *domain.SubmissionDescription, i int) string {
 	return queue
 }
 
-func (apiLoadTester ArmadaLoadTester) monitorJobsUntilCompletion(queue, jobSetId string, jobIds chan string, eventChannel chan api.Event) {
+func (apiLoadTester ArmadaLoadTester) monitorJobsUntilCompletion(ctx context.Context, queue, jobSetId string, jobIds chan string, eventChannel chan api.Event) {
 	WithConnection(apiLoadTester.apiConnectionDetails, func(connection *grpc.ClientConn) {
 		eventsClient := api.NewEventClient(connection)
 
@@ -197,7 +201,7 @@ func (apiLoadTester ArmadaLoadTester) monitorJobsUntilCompletion(queue, jobSetId
 			submittedIds = ids
 		}()
 
-		WatchJobSet(eventsClient, queue, jobSetId, true, context.Background(), func(state *domain.WatchContext, e api.Event) bool {
+		WatchJobSet(eventsClient, queue, jobSetId, true, ctx, func(state *domain.WatchContext, e api.Event) bool {
 			eventChannel <- e
 
 			if submittedIds == nil {
