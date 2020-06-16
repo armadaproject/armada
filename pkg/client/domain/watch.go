@@ -157,6 +157,9 @@ func (context *WatchContext) AreJobsFinished(ids []string) bool {
 
 func updateJobInfo(info *JobInfo, event api.Event) {
 	if info.LastUpdate.After(event.GetCreated()) {
+		if submitEvent, ok := event.(*api.JobSubmittedEvent); ok {
+			info.Job = &submitEvent.Job
+		}
 		// skipping event as it is out of time order
 		return
 	}
