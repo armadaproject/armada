@@ -303,6 +303,6 @@ func withSqlRepository(action func(r JobRepository)) {
 	defer db.Exec("TRUNCATE TABLE job_queue")
 	defer db.Close()
 
-	repo := sqlRepository.NewJobRepository(*db)
+	repo := sqlRepository.NewJobRepository(db)
 	action(repo)
 }

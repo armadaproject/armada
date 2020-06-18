@@ -2,6 +2,7 @@ package armada
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"net"
 	"strings"
@@ -22,6 +23,7 @@ import (
 	"github.com/G-Research/armada/internal/armada/metrics"
 	"github.com/G-Research/armada/internal/armada/repository"
 	redisRepository "github.com/G-Research/armada/internal/armada/repository/redis"
+	sqlRepository "github.com/G-Research/armada/internal/armada/repository/sql"
 	"github.com/G-Research/armada/internal/armada/scheduling"
 	"github.com/G-Research/armada/internal/armada/server"
 	stan_util "github.com/G-Research/armada/internal/common/stan-util"
@@ -37,14 +39,24 @@ func Serve(config *configuration.ArmadaConfig) (func(), *sync.WaitGroup) {
 
 	taskManager := task.NewBackgroundTaskManager(metrics.MetricPrefix)
 
-	db := createRedisClient(&config.Redis)
+	var jobRepository repository.JobRepository
+	var usageRepository repository.UsageRepository
+	var queueRepository repository.QueueRepository
+	var schedulingInfoRepository repository.SchedulingInfoRepository
+
+	if config.PostgresConnectionString != "" {
+		db, err := sql.Open("postgres", config.PostgresConnectionString)
+		if err != nil {
+			panic(err)
+		}
+		// TODO: close db connection
+		jobRepository, usageRepository, queueRepository, schedulingInfoRepository = createSqlRepositories(db)
+	} else {
+		db := createRedisClient(&config.Redis)
+		jobRepository, usageRepository, queueRepository, schedulingInfoRepository = createRedisRepositories(db)
+	}
+
 	eventsDb := createRedisClient(&config.EventsRedis)
-
-	jobRepository := redisRepository.NewRedisJobRepository(db)
-	usageRepository := redisRepository.NewRedisUsageRepository(db)
-	queueRepository := redisRepository.NewRedisQueueRepository(db)
-	schedulingInfoRepository := redisRepository.NewRedisSchedulingInfoRepository(db)
-
 	redisEventRepository := redisRepository.NewRedisEventRepository(eventsDb, config.EventRetention)
 	var eventStore repository.EventStore
 
@@ -136,6 +148,22 @@ func Serve(config *configuration.ArmadaConfig) (func(), *sync.WaitGroup) {
 		taskManager.StopAll(time.Second * 2)
 		grpcServer.GracefulStop()
 	}, wg
+}
+
+func createRedisRepositories(db redis.UniversalClient) (repository.JobRepository, repository.UsageRepository, repository.QueueRepository, repository.SchedulingInfoRepository) {
+	jobRepository := redisRepository.NewRedisJobRepository(db)
+	usageRepository := redisRepository.NewRedisUsageRepository(db)
+	queueRepository := redisRepository.NewRedisQueueRepository(db)
+	schedulingInfoRepository := redisRepository.NewRedisSchedulingInfoRepository(db)
+	return jobRepository, usageRepository, queueRepository, schedulingInfoRepository
+}
+
+func createSqlRepositories(db *sql.DB) (repository.JobRepository, repository.UsageRepository, repository.QueueRepository, repository.SchedulingInfoRepository) {
+	jobRepository := sqlRepository.NewJobRepository(db)
+	usageRepository := sqlRepository.NewUsageRepository(db)
+	queueRepository := sqlRepository.NewQueueRepository(db)
+	schedulingInfoRepository := sqlRepository.NewSchedulingInfoRepository(db)
+	return jobRepository, usageRepository, queueRepository, schedulingInfoRepository
 }
 
 func createRedisClient(config *redis.UniversalOptions) redis.UniversalClient {

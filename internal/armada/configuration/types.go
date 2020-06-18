@@ -17,19 +17,20 @@ type UserInfo struct {
 type ArmadaConfig struct {
 	AnonymousAuth bool
 
-	GrpcPort               uint16
-	HttpPort               uint16
-	MetricsPort            uint16
-	PriorityHalfTime       time.Duration
-	Redis                  redis.UniversalOptions
-	EventsKafka            KafkaConfig
-	EventsNats             NatsConfig
-	EventsRedis            redis.UniversalOptions
-	BasicAuth              BasicAuthenticationConfig
-	OpenIdAuth             OpenIdAuthenticationConfig
-	Kerberos               KerberosAuthenticationConfig
-	PermissionGroupMapping map[permissions.Permission][]string
-	PermissionScopeMapping map[permissions.Permission][]string
+	GrpcPort                 uint16
+	HttpPort                 uint16
+	MetricsPort              uint16
+	PriorityHalfTime         time.Duration
+	Redis                    redis.UniversalOptions
+	PostgresConnectionString string
+	EventsKafka              KafkaConfig
+	EventsNats               NatsConfig
+	EventsRedis              redis.UniversalOptions
+	BasicAuth                BasicAuthenticationConfig
+	OpenIdAuth               OpenIdAuthenticationConfig
+	Kerberos                 KerberosAuthenticationConfig
+	PermissionGroupMapping   map[permissions.Permission][]string
+	PermissionScopeMapping   map[permissions.Permission][]string
 
 	Scheduling     SchedulingConfig
 	EventRetention EventRetentionPolicy

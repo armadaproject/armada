@@ -3,8 +3,6 @@ package sql
 import (
 	"database/sql"
 	"encoding/json"
-	"fmt"
-	"strings"
 	"time"
 
 	"github.com/G-Research/armada/internal/armada/repository/redis"
@@ -15,10 +13,10 @@ import (
 )
 
 type JobRepository struct {
-	db sql.DB
+	db *sql.DB
 }
 
-func NewJobRepository(db sql.DB) *JobRepository {
+func NewJobRepository(db *sql.DB) *JobRepository {
 	return &JobRepository{db: db}
 }
 
@@ -70,12 +68,12 @@ func (j *JobRepository) AddJobs(jobs []*api.Job) ([]*redis.SubmitJobResult, erro
 	for _, j := range jobs {
 		jobData, err := json.Marshal(j)
 		if err != nil {
-			panic(err) // TODO
+			return nil, err
 		}
 		values = append(values, j.Id, j.Queue, j.JobSetId, j.Created, j.Priority, jobData)
 	}
 
-	_, err := j.insert("job_queue", []string{"id", "queue", "jobset", "created", "priority", "job"}, values)
+	_, err := insert(j.db, "job_queue", []string{"id", "queue", "jobset", "created", "priority", "job"}, values)
 	if err != nil {
 		return nil, err
 	}
@@ -89,7 +87,7 @@ func (j *JobRepository) AddJobs(jobs []*api.Job) ([]*redis.SubmitJobResult, erro
 }
 
 func (j *JobRepository) GetExistingJobsByIds(ids []string) ([]*api.Job, error) {
-	rows, err := j.db.Query(`SELECT job FROM job_queue WHERE id in $1`, ids)
+	rows, err := j.db.Query(`SELECT job FROM job_queue WHERE id = Any($1)`, pq.Array(ids))
 	if err != nil {
 		return nil, err
 	}
@@ -101,7 +99,7 @@ func (j *JobRepository) FilterActiveQueues(queues []*api.Queue) ([]*api.Queue, e
 	for _, q := range queues {
 		names = append(names, q.Name)
 	}
-	rows, err := j.db.Query("SELECT DISTINCT queue from job_queue WHERE queue = Any($1)", names)
+	rows, err := j.db.Query("SELECT DISTINCT queue from job_queue WHERE queue = Any($1)", pq.Array(names))
 	if err != nil {
 		return nil, err
 	}
@@ -128,7 +126,7 @@ func (j *JobRepository) GetQueueSizes(queues []*api.Queue) (sizes []int64, e err
 	for _, q := range queues {
 		names = append(names, q.Name)
 	}
-	rows, err := j.db.Query("SELECT queue, count(*) from job_queue WHERE queue = Any($1)", pq.Array(names))
+	rows, err := j.db.Query("SELECT queue, count(*) from job_queue WHERE queue = Any($1) GROUP BY queue", pq.Array(names))
 	if err != nil {
 		return nil, err
 	}
@@ -286,55 +284,13 @@ func (j *JobRepository) GetQueueActiveJobSets(queue string) ([]*api.JobSetInfo, 
 	return result, nil
 }
 
-func (j *JobRepository) insert(table string, fields []string, values []interface{}) (sql.Result, error) {
-	insertSql := "INSERT INTO " + table + "(" + strings.Join(fields, ",") + ") VALUES "
-	for i := 0; i < len(values); i += len(fields) {
-		if i != 0 {
-			insertSql += ","
-		}
-		insertSql += "("
-		for k, _ := range fields {
-			if k != 0 {
-				insertSql += ","
-			}
-			insertSql += fmt.Sprintf("$%d", i+k+1)
-		}
-		insertSql += ")"
-	}
-	return j.db.Exec(insertSql, values...)
-}
-
-func readStrings(rows *sql.Rows) ([]string, error) {
-	renewedIds := []string{}
-	for rows.Next() {
-		var id string
-		err := rows.Scan(&id)
-		if err != nil {
-			return nil, err
-		}
-		renewedIds = append(renewedIds, id)
-	}
-	return renewedIds, nil
-}
-
 func readJobs(rows *sql.Rows) ([]*api.Job, error) {
 	jobs := []*api.Job{}
-	for rows.Next() {
-		var value interface{}
-		err := rows.Scan(&value)
-		if err != nil {
-			return nil, err
-		}
-		b, ok := value.([]byte)
-		if !ok {
-			return nil, fmt.Errorf("could not read job from database")
-		}
+	err := readByteRows(rows, func(b []byte) error {
 		var j *api.Job
-		err = json.Unmarshal(b, &j)
-		if err != nil {
-			return nil, fmt.Errorf("could not unmarshal job from database")
-		}
+		err := json.Unmarshal(b, &j)
 		jobs = append(jobs, j)
-	}
-	return jobs, nil
+		return err
+	})
+	return jobs, err
 }

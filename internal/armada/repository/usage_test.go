@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"database/sql"
 	"testing"
 	"time"
 
@@ -9,12 +10,13 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	redis2 "github.com/G-Research/armada/internal/armada/repository/redis"
+	sqlRepository "github.com/G-Research/armada/internal/armada/repository/sql"
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/pkg/api"
 )
 
 func TestGetClusterLeasedReports(t *testing.T) {
-	withUsageRepository(func(r *redis2.RedisUsageRepository) {
+	withUsageRepository(func(r UsageRepository) {
 		cluster1Report := makeClusterLeasedReport("cluster-1", "queue-1")
 		cluster2Report := makeClusterLeasedReport("cluster-2", "queue-1", "queue-2")
 
@@ -33,7 +35,7 @@ func TestGetClusterLeasedReports(t *testing.T) {
 }
 
 func TestUpdateClusterLeased(t *testing.T) {
-	withUsageRepository(func(r *redis2.RedisUsageRepository) {
+	withUsageRepository(func(r UsageRepository) {
 		report := makeClusterLeasedReport("cluster-1", "queue-1")
 		e := r.UpdateClusterLeased(report)
 		assert.Nil(t, e)
@@ -68,7 +70,14 @@ func makeClusterLeasedReport(clusterId string, queueNames ...string) *api.Cluste
 	return report
 }
 
-func withUsageRepository(action func(r *redis2.RedisUsageRepository)) {
+func withUsageRepository(action func(r UsageRepository)) {
+	withSqlUsageRepository(action)
+	withRedisUsageRepository(action)
+
+}
+
+func withRedisUsageRepository(action func(r UsageRepository)) {
+
 	client := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 10})
 	defer client.FlushDB()
 	defer client.Close()
@@ -76,5 +85,21 @@ func withUsageRepository(action func(r *redis2.RedisUsageRepository)) {
 	client.FlushDB()
 
 	repo := redis2.NewRedisUsageRepository(client)
+	action(repo)
+}
+
+func withSqlUsageRepository(action func(r UsageRepository)) {
+	db, err := sql.Open("postgres",
+		"host=localhost port=5432 user=postgres password=psw dbname=postgres sslmode=disable")
+
+	if err != nil {
+		panic(err)
+	}
+
+	db.Exec("TRUNCATE TABLE cluster_leased")
+	defer db.Exec("TRUNCATE TABLE cluster_leased")
+	defer db.Close()
+
+	repo := sqlRepository.NewUsageRepository(db)
 	action(repo)
 }
