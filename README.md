@@ -1,5 +1,3 @@
-# Armada
-
 ![Armada](./logo.svg)
 
 [![CircleCI](https://circleci.com/gh/helm/helm.svg?style=shield)](https://circleci.com/gh/G-Research/armada)
