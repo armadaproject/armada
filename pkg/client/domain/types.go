@@ -38,3 +38,18 @@ type JobSubmitFile struct {
 	JobSetId string
 	Jobs     []*api.JobSubmitRequestItem `json:"jobs"`
 }
+
+type LoadTestSummary struct {
+	SubmittedJobs []string
+	CurrentState  *WatchContext
+}
+
+func (loadTest LoadTestSpecification) NumberOfJobsInSpecification() int {
+	numberOfJobs := 0
+	for _, submission := range loadTest.Submissions {
+		for _, jobDescription := range submission.Jobs {
+			numberOfJobs += jobDescription.Count * submission.Count
+		}
+	}
+	return numberOfJobs
+}

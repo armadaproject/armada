@@ -102,6 +102,9 @@ jobs:
             docker tag armadactl gresearchdev/armada-armadactl-dev:${TAG}
             docker push gresearchdev/armada-armadactl-dev:${TAG}
 
+            docker tag armada-load-tester gresearchdev/armada-load-tester-dev:${TAG}
+            docker push gresearchdev/armada-load-tester-dev:${TAG}
+
             docker tag armada-fakeexecutor gresearchdev/armada-fakeexecutor-dev:${TAG}
             docker push gresearchdev/armada-fakeexecutor-dev:${TAG}
   deploy:
