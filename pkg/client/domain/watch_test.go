@@ -2,6 +2,7 @@ package domain
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
@@ -159,4 +160,34 @@ func TestWatchContext_GetNumberOfJobsInStates_IsCorrectlyUpdatedOnUpdateToExisti
 	watchContext.ProcessEvent(&api.JobPendingEvent{JobId: "1"})
 	assert.Equal(t, 0, watchContext.GetNumberOfJobsInStates([]JobStatus{Queued}))
 	assert.Equal(t, 1, watchContext.GetNumberOfJobsInStates([]JobStatus{Pending}))
+}
+
+func TestWatchContext_EventsOutOfOrder(t *testing.T) {
+	watchContext := NewWatchContext()
+
+	now := time.Now()
+	job := api.Job{
+		Id:       "1",
+		JobSetId: "job-set-1",
+		Queue:    "queue1",
+		PodSpec: &v1.PodSpec{
+			Containers: []v1.Container{
+				{
+					Name: "Container1",
+				},
+			},
+		},
+	}
+
+	watchContext.ProcessEvent(&api.JobSucceededEvent{JobId: "1", Created: now})
+	assert.Equal(t, watchContext.GetJobInfo("1"), &JobInfo{Status: Succeeded, LastUpdate: now})
+	assert.Equal(t, map[JobStatus]int{Succeeded: 1}, watchContext.stateSummary)
+
+	watchContext.ProcessEvent(&api.JobQueuedEvent{JobId: "1", Created: now.Add(-1 * time.Second)})
+	assert.Equal(t, &JobInfo{Status: Succeeded, LastUpdate: now}, watchContext.GetJobInfo("1"))
+	assert.Equal(t, map[JobStatus]int{Succeeded: 1}, watchContext.stateSummary)
+
+	watchContext.ProcessEvent(&api.JobSubmittedEvent{JobId: "1", Job: job, Created: now.Add(-2 * time.Second)})
+	assert.Equal(t, &JobInfo{Status: Succeeded, Job: &job, LastUpdate: now}, watchContext.GetJobInfo("1"))
+	assert.Equal(t, map[JobStatus]int{Succeeded: 1}, watchContext.stateSummary)
 }
