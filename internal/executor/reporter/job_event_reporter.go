@@ -18,6 +18,7 @@ const batchSize = 200
 
 type EventReporter interface {
 	Report(event api.Event) error
+	QueueEvent(event api.Event, callback func(error))
 	ReportCurrentStatus(pod *v1.Pod)
 	ReportStatusUpdate(old *v1.Pod, new *v1.Pod)
 }
@@ -98,7 +99,7 @@ func (eventReporter *JobEventReporter) ReportCurrentStatus(pod *v1.Pod) {
 		return
 	}
 
-	eventReporter.queueEvent(event, func(err error) {
+	eventReporter.QueueEvent(event, func(err error) {
 		if err != nil {
 			log.Errorf("Failed to report event because %s", err)
 			return
@@ -114,7 +115,7 @@ func (eventReporter *JobEventReporter) ReportCurrentStatus(pod *v1.Pod) {
 	})
 }
 
-func (eventReporter *JobEventReporter) queueEvent(event api.Event, callback func(error)) {
+func (eventReporter *JobEventReporter) QueueEvent(event api.Event, callback func(error)) {
 	eventReporter.eventQueuedMutex.Lock()
 	defer eventReporter.eventQueuedMutex.Unlock()
 	jobId := event.GetJobId()

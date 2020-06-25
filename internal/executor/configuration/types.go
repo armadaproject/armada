@@ -29,6 +29,8 @@ type TaskConfiguration struct {
 	PodDeletionInterval                   time.Duration
 	PodMetricsInterval                    time.Duration
 	QueueUsageDataRefreshInterval         time.Duration
+	UtilisationEventReportingInterval     time.Duration
+	UtilisationEventReportingPeriod       time.Duration
 }
 
 type MetricConfiguration struct {
