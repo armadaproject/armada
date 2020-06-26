@@ -7,6 +7,7 @@ import "pkg/api/queue.proto";
 import "google/protobuf/empty.proto";
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 import "google/api/annotations.proto";
+import "k8s.io/apimachinery/pkg/api/resource/generated.proto";
 
 message JobSubmittedEvent {
     string JobId = 1;
@@ -95,6 +96,16 @@ message JobSucceededEvent {
     string KubernetesId = 6;
 }
 
+message JobUtilisationEvent {
+    string JobId = 1;
+    string JobSetId = 2;
+    string Queue = 3;
+    google.protobuf.Timestamp Created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+    string ClusterId = 5;
+    string KubernetesId = 6;
+    map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> MaxResourcesForPeriod = 7 [(gogoproto.nullable) = false];
+}
+
 message JobReprioritizedEvent {
     string JobId = 1;
     string JobSetId = 2;
@@ -140,6 +151,7 @@ message EventMessage {
         JobCancellingEvent cancelling = 12;
         JobCancelledEvent cancelled = 13;
         JobTerminatedEvent terminated = 14;
+        JobUtilisationEvent utilisation = 15;
     }
 }
 

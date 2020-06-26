@@ -35,14 +35,15 @@ func NewUtilisationEventReporter(
 	clusterContext clusterContext.ClusterContext,
 	podUtilisation PodUtilisationService,
 	eventReporter reporter.EventReporter,
-	reportingInterval time.Duration,
+	reportingPeriod time.Duration,
 ) *UtilisationEventReporter {
 
 	r := &UtilisationEventReporter{
 		clusterContext:    clusterContext,
 		podUtilisation:    podUtilisation,
 		eventReporter:     eventReporter,
-		reportingInterval: reportingInterval,
+		reportingInterval: reportingPeriod,
+		podInfo:           map[string]*podUtilisationInfo{},
 	}
 
 	clusterContext.AddPodEventHandler(cache.ResourceEventHandlerFuncs{
@@ -78,16 +79,23 @@ func (r *UtilisationEventReporter) ReportUtilisationEvents() {
 	r.dataAccessMutex.Lock()
 	defer r.dataAccessMutex.Unlock()
 
-	reportingTime := time.Now().Add(-r.reportingInterval)
+	now := time.Now()
+	reportingTime := now.Add(-r.reportingInterval)
 	for _, info := range r.podInfo {
-		info.utilisationMax.Max(r.podUtilisation.GetPodUtilisation(info.pod))
+		currentUtilisation := r.podUtilisation.GetPodUtilisation(info.pod)
+		info.utilisationMax.Max(currentUtilisation)
 		if info.lastReported.Before(reportingTime) {
 			r.reportUsage(info)
+			info.lastReported = now
 		}
 	}
 }
 
 func (r *UtilisationEventReporter) updatePod(pod *v1.Pod) {
+	if !util.IsManagedPod(pod) {
+		return
+	}
+
 	r.dataAccessMutex.Lock()
 	defer r.dataAccessMutex.Unlock()
 
@@ -102,11 +110,18 @@ func (r *UtilisationEventReporter) updatePod(pod *v1.Pod) {
 		}
 	}
 	if util.IsInTerminalState(pod) {
-		delete(r.podInfo, pod.Name)
+		podInfo, exists := r.podInfo[pod.Name]
+		if exists {
+			r.reportUsage(podInfo)
+			delete(r.podInfo, pod.Name)
+		}
 	}
 }
 
 func (r *UtilisationEventReporter) deletePod(pod *v1.Pod) {
+	if !util.IsManagedPod(pod) {
+		return
+	}
 	delete(r.podInfo, pod.Name)
 }
 

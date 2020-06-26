@@ -27,11 +27,8 @@ func IsInTerminalState(pod *v1.Pod) bool {
 }
 
 func IsManagedPod(pod *v1.Pod) bool {
-	if _, ok := pod.Labels[domain.JobId]; !ok {
-		return false
-	}
-
-	return true
+	_, ok := pod.Labels[domain.JobId]
+	return ok
 }
 
 func GetManagedPodSelector() labels.Selector {

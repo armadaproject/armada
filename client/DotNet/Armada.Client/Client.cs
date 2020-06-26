@@ -51,6 +51,7 @@ namespace GResearch.Armada.Client
     public partial class ApiJobCancellingEvent  : IEvent {}
     public partial class ApiJobCancelledEvent  : IEvent {}
     public partial class ApiJobTerminatedEvent : IEvent {}
+    public partial class ApiJobUtilisationEvent : IEvent {}
 
     public class StreamResponse<T>
     {

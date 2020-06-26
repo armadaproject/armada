@@ -558,6 +558,9 @@ namespace GResearch.Armada.Client
         [Newtonsoft.Json.JsonProperty("unableToSchedule", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public ApiJobUnableToScheduleEvent UnableToSchedule { get; set; }
     
+        [Newtonsoft.Json.JsonProperty("utilisation", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public ApiJobUtilisationEvent Utilisation { get; set; }
+    
     
     }
     
@@ -1022,6 +1025,33 @@ namespace GResearch.Armada.Client
     
         [Newtonsoft.Json.JsonProperty("Reason", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Reason { get; set; }
+    
+    
+    }
+    
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
+    public partial class ApiJobUtilisationEvent 
+    {
+        [Newtonsoft.Json.JsonProperty("ClusterId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string ClusterId { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("Created", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.DateTimeOffset? Created { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("JobId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string JobId { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("JobSetId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string JobSetId { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("KubernetesId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string KubernetesId { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("MaxResourcesForPeriod", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.IDictionary<string, string> MaxResourcesForPeriod { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("Queue", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Queue { get; set; }
     
     
     }
