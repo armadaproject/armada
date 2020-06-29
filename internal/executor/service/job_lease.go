@@ -142,8 +142,10 @@ func (jobLeaseService *JobLeaseService) ReportDone(pods []*v1.Pod) error {
 	defer cancel()
 	log.Infof("Reporting done for jobs %s", strings.Join(jobIds, ","))
 	_, err := jobLeaseService.queueClient.ReportDone(ctx, &api.IdList{Ids: jobIds})
+	if err == nil {
+		jobLeaseService.markAsDone(pods)
+	}
 
-	jobLeaseService.markAsDone(pods)
 	return err
 }
 
