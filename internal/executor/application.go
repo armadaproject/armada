@@ -103,7 +103,7 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 		clusterContext,
 		queueUtilisationService,
 		eventReporter,
-		config.Task.UtilisationEventReportingPeriod)
+		config.Task.UtilisationEventReportingInterval)
 
 	contextMetrics := pod_metrics.NewClusterContextMetrics(clusterContext, clusterUtilisationService, queueUtilisationService)
 
@@ -116,7 +116,7 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 
 	if config.Metric.ExposeQueueUsageMetrics {
 		taskManager.Register(queueUtilisationService.RefreshUtilisationData, config.Task.QueueUsageDataRefreshInterval, "pod_usage_data_refresh")
-		taskManager.Register(podUtilisationReporter.ReportUtilisationEvents, config.Task.UtilisationEventReportingInterval, "pod_utilisation_event_reporting")
+		taskManager.Register(podUtilisationReporter.ReportUtilisationEvents, config.Task.UtilisationEventProcessingInterval, "pod_utilisation_event_reporting")
 	}
 
 	return func() {

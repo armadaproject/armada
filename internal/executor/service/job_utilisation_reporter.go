@@ -87,6 +87,7 @@ func (r *UtilisationEventReporter) ReportUtilisationEvents() {
 		if info.lastReported.Before(reportingTime) {
 			r.reportUsage(info)
 			info.lastReported = now
+			info.utilisationMax = common.ComputeResources{}
 		}
 	}
 }
@@ -128,7 +129,6 @@ func (r *UtilisationEventReporter) deletePod(pod *v1.Pod) {
 func (r *UtilisationEventReporter) reportUsage(info *podUtilisationInfo) {
 	event := reporter.CreateJobUtilisationEvent(info.pod, info.utilisationMax, r.clusterContext.GetClusterId())
 	r.queueEventWithRetry(event, 3)
-	info.utilisationMax = common.ComputeResources{}
 }
 
 func (r *UtilisationEventReporter) queueEventWithRetry(event api.Event, retry int) {
