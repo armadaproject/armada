@@ -19,8 +19,6 @@ const batchSize = 200
 type EventReporter interface {
 	Report(event api.Event) error
 	QueueEvent(event api.Event, callback func(error))
-	ReportCurrentStatus(pod *v1.Pod)
-	ReportStatusUpdate(old *v1.Pod, new *v1.Pod)
 }
 
 type queuedEvent struct {
@@ -55,7 +53,7 @@ func NewJobEventReporter(clusterContext clusterContext.ClusterContext, eventClie
 				log.Errorf("Failed to process pod event due to it being an unexpected type. Failed to process %+v", obj)
 				return
 			}
-			go reporter.ReportCurrentStatus(pod)
+			go reporter.reportCurrentStatus(pod)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			oldPod, ok := oldObj.(*v1.Pod)
@@ -68,7 +66,7 @@ func NewJobEventReporter(clusterContext clusterContext.ClusterContext, eventClie
 				log.Errorf("Failed to process pod event due to it being an unexpected type. Failed to process %+v", newObj)
 				return
 			}
-			go reporter.ReportStatusUpdate(oldPod, newPod)
+			go reporter.reportStatusUpdate(oldPod, newPod)
 		},
 	})
 
@@ -81,14 +79,14 @@ func (eventReporter *JobEventReporter) Report(event api.Event) error {
 	return eventReporter.sendEvent(event)
 }
 
-func (eventReporter *JobEventReporter) ReportStatusUpdate(old *v1.Pod, new *v1.Pod) {
+func (eventReporter *JobEventReporter) reportStatusUpdate(old *v1.Pod, new *v1.Pod) {
 	if old.Status.Phase == new.Status.Phase {
 		return
 	}
-	eventReporter.ReportCurrentStatus(new)
+	eventReporter.reportCurrentStatus(new)
 }
 
-func (eventReporter *JobEventReporter) ReportCurrentStatus(pod *v1.Pod) {
+func (eventReporter *JobEventReporter) reportCurrentStatus(pod *v1.Pod) {
 	if !util.IsManagedPod(pod) {
 		return
 	}
@@ -214,7 +212,7 @@ func (eventReporter *JobEventReporter) ReportMissingJobEvents() {
 
 	for _, pod := range podsWithCurrentPhaseNotReported {
 		if util.IsReportingPhaseRequired(pod.Status.Phase) && !eventReporter.hasPendingEvents(pod) {
-			eventReporter.ReportCurrentStatus(pod)
+			eventReporter.reportCurrentStatus(pod)
 		}
 	}
 }
