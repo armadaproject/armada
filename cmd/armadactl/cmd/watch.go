@@ -50,12 +50,12 @@ var watchCmd = &cobra.Command{
 						log.Infof("%s %s\n", reflect.TypeOf(e), string(data))
 					}
 				} else {
-					summary := fmt.Sprintf("%s | ", e.GetCreated().Format(time.Stamp))
-					summary += state.GetCurrentStateSummary()
-					summary += fmt.Sprintf(" | event: %s, job id: %s", reflect.TypeOf(e), e.GetJobId())
-					log.Info(summary)
+
 					switch event := e.(type) {
+					case *api.JobUtilisationEvent:
+						// no print
 					case *api.JobFailedEvent:
+						printSummary(state, e)
 						log.Errorf("Failure reason:\n%s\n", event.Reason)
 
 						jobInfo := state.GetJobInfo(event.JobId)
@@ -63,6 +63,8 @@ var watchCmd = &cobra.Command{
 							log.Errorf("You might be able to get the pod logs by running (logs are available for limited time):\n%s --tail=50\n",
 								client.GetKubectlCommand(jobInfo.ClusterId, jobInfo.Job.Namespace, event.JobId, "logs"))
 						}
+					default:
+						printSummary(state, e)
 					}
 				}
 				if exit_on_inactive && state.GetNumberOfJobs() == state.GetNumberOfFinishedJobs() {
@@ -72,4 +74,11 @@ var watchCmd = &cobra.Command{
 			})
 		})
 	},
+}
+
+func printSummary(state *domain.WatchContext, e api.Event) {
+	summary := fmt.Sprintf("%s | ", e.GetCreated().Format(time.Stamp))
+	summary += state.GetCurrentStateSummary()
+	summary += fmt.Sprintf(" | event: %s, job id: %s", reflect.TypeOf(e), e.GetJobId())
+	log.Info(summary)
 }
