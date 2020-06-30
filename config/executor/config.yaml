@@ -9,8 +9,8 @@ task:
   allocateSpareClusterCapacityInterval: 5s
   podMetricsInterval: 1s
   queueUsageDataRefreshInterval: 5s
-  utilisationEventReportingInterval: 1s
-  utilisationEventReportingPeriod: 5m
+  UtilisationEventProcessingInterval: 1s
+  UtilisationEventReportingInterval: 5m
 apiConnection:
   armadaUrl : "localhost:50051"
 metric:
