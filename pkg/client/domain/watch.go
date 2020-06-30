@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/pkg/api"
 )
 
@@ -22,10 +23,11 @@ const (
 )
 
 type JobInfo struct {
-	Status     JobStatus
-	Job        *api.Job
-	LastUpdate time.Time
-	ClusterId  string
+	Status           JobStatus
+	Job              *api.Job
+	LastUpdate       time.Time
+	ClusterId        string
+	MaxUsedResources common.ComputeResources
 }
 
 var statesToIncludeInSummary []JobStatus
@@ -196,6 +198,8 @@ func updateJobInfo(info *JobInfo, event api.Event) {
 		// TODO
 	case *api.JobTerminatedEvent:
 		// NOOP
+	case *api.JobUtilisationEvent:
+		info.MaxUsedResources.Max(typed.MaxResourcesForPeriod)
 	case *api.JobCancelledEvent:
 		info.Status = Cancelled
 	}

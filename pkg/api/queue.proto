@@ -8,6 +8,9 @@ import "k8s.io/apimachinery/pkg/api/resource/generated.proto";
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 import "google/protobuf/empty.proto";
 
+option (gogoproto.goproto_stringer_all) = false;
+option (gogoproto.stringer_all) = true;
+
 message Job {
     string Id = 1;
     string JobSetId = 2;

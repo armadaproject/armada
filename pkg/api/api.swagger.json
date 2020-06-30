@@ -214,6 +214,9 @@
         },
         "unableToSchedule": {
           "$ref": "#/definitions/apiJobUnableToScheduleEvent"
+        },
+        "utilisation": {
+          "$ref": "#/definitions/apiJobUtilisationEvent"
         }
       }
     },
@@ -708,6 +711,36 @@
           "type": "string"
         },
         "Reason": {
+          "type": "string"
+        }
+      }
+    },
+    "apiJobUtilisationEvent": {
+      "type": "object",
+      "properties": {
+        "ClusterId": {
+          "type": "string"
+        },
+        "Created": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "JobId": {
+          "type": "string"
+        },
+        "JobSetId": {
+          "type": "string"
+        },
+        "KubernetesId": {
+          "type": "string"
+        },
+        "MaxResourcesForPeriod": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/resourceQuantity"
+          }
+        },
+        "Queue": {
           "type": "string"
         }
       }

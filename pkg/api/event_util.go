@@ -52,6 +52,8 @@ func UnwrapEvent(message *EventMessage) (Event, error) {
 		return event.Cancelled, nil
 	case *EventMessage_Terminated:
 		return event.Terminated, nil
+	case *EventMessage_Utilisation:
+		return event.Utilisation, nil
 	}
 	return nil, fmt.Errorf("unknow event type: %s", reflect.TypeOf(message.Events))
 }
@@ -140,6 +142,12 @@ func Wrap(event Event) (*EventMessage, error) {
 		return &EventMessage{
 			Events: &EventMessage_Terminated{
 				Terminated: typed,
+			},
+		}, nil
+	case *JobUtilisationEvent:
+		return &EventMessage{
+			Events: &EventMessage_Utilisation{
+				Utilisation: typed,
 			},
 		}, nil
 	}
