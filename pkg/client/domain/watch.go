@@ -69,7 +69,9 @@ func NewWatchContext() *WatchContext {
 func (context *WatchContext) ProcessEvent(event api.Event) {
 	info, exists := context.state[event.GetJobId()]
 	if !exists {
-		info = &JobInfo{}
+		info = &JobInfo{
+			MaxUsedResources: common.ComputeResources{},
+		}
 		context.state[event.GetJobId()] = info
 	}
 
