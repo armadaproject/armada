@@ -34,7 +34,8 @@ namespace GResearch.Armada.Client
     {
         public IEvent Event => Cancelled ?? Submitted ?? Queued ?? Leased ?? LeaseReturned ??
                                LeaseExpired ?? Pending ?? Running ?? UnableToSchedule ??
-                               Failed ?? Succeeded ?? Reprioritized ?? Cancelling ?? Cancelled ?? Terminated as IEvent;
+                               Failed ?? Succeeded ?? Reprioritized ?? Cancelling ?? Cancelled ?? Terminated ?? 
+                               Utilisation as IEvent;
     }
 
     public partial class ApiJobSubmittedEvent : IEvent {}
@@ -76,10 +77,12 @@ namespace GResearch.Armada.Client
                 while (!reader.EndOfStream)
                 {
                     var line = reader.ReadLine();
-                    var eventMessage =
-                        JsonConvert.DeserializeObject<StreamResponse<ApiEventStreamMessage>>(line,
-                            this.JsonSerializerSettings);
-                    yield return eventMessage;
+                    
+                    var (_, eventMessage) = ProcessEventLine(null, line);
+                    if (eventMessage != null)
+                    {
+                        yield return eventMessage;
+                    }
                 }
             }
         }
@@ -107,12 +110,12 @@ namespace GResearch.Armada.Client
                             while (!ct.IsCancellationRequested && !reader.EndOfStream)
                             {
                                 var line = await reader.ReadLineAsync();
-                                var eventMessage =
-                                    JsonConvert.DeserializeObject<StreamResponse<ApiEventStreamMessage>>(line,
-                                        this.JsonSerializerSettings);
-
-                                onMessage(eventMessage);
-                                fromMessageId = eventMessage.Result?.Id ?? fromMessageId;
+                                var (newMessageId, eventMessage) = ProcessEventLine(fromMessageId, line);
+                                fromMessageId = newMessageId;
+                                if (eventMessage != null)
+                                {
+                                    onMessage(eventMessage);
+                                }
                             }
                         }
                         catch (IOException)
@@ -133,6 +136,32 @@ namespace GResearch.Armada.Client
                     await Task.Delay(TimeSpan.FromSeconds(Math.Min(300, Math.Pow(2 ,failCount))), ct);
                 }
             }
+        }
+        
+        private (string, StreamResponse<ApiEventStreamMessage>) ProcessEventLine(string fromMessageId, string line)
+        {
+            try
+            {
+                var eventMessage =
+                    JsonConvert.DeserializeObject<StreamResponse<ApiEventStreamMessage>>(line,
+                        this.JsonSerializerSettings);
+
+                fromMessageId = eventMessage?.Result?.Id ?? fromMessageId;
+                
+                // Ignore unknown event types
+                if (String.IsNullOrEmpty(eventMessage?.Error) &&
+                    eventMessage?.Result?.Message?.Event == null)
+                {
+                    eventMessage = null;
+                }
+                return (fromMessageId, eventMessage);
+            }
+            catch(Exception)
+            {
+                // Ignore messages which can't be deserialized    
+            }
+            
+            return (fromMessageId, null);
         }
     }
 }

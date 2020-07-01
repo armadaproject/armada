@@ -8,6 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using NUnit.Framework;
 using GResearch.Armada.Client;
+using RichardSzalay.MockHttp;
 
 namespace GResearch.Armada.Client.Test
 {
@@ -37,7 +38,7 @@ namespace GResearch.Armada.Client.Test
                 Assert.That(eventCount, Is.EqualTo(4));
             }
         }
-        
+
         [Test]
         public async Task TestSimpleJobSubmitFlow()
         {
@@ -57,6 +58,26 @@ namespace GResearch.Armada.Client.Test
 
             Assert.That(allEvents, Is.Not.Empty);
             Assert.That(allEvents[0].Result.Message.Submitted, Is.Not.Null);
+        }
+
+        [Test]
+        public async Task TestProcessingUnknownEvents()
+        {
+            var mockHttp = new MockHttpMessageHandler();
+            mockHttp.When("http://localhost:8080/*")
+                .Respond("application/json", 
+                    @"{""result"":{""Id"":""1593611590122-0"",""message"":{""Queued"":{""JobId"":""01ec5ae6f9wvya6cr6stzwty7v"",""JobSetId"":""set-bae48cc8-9f70-465f-ae5c-c92713b5f24f"",""Queue"":""test"",""Created"":""2020-07-01T13:53:10.122263955Z""}}}}
+                    {""result"":{""Id"":""1593611590122-0"",""message"":{""UnknownEvent"": { ""test""} }}}
+                    {""error"": ""test error""}
+                    {}
+                    
+                    {""a"":""b""}");
+
+            IArmadaClient client = new ArmadaClient("http://localhost:8080", new HttpClient(mockHttp));
+            var events = (await client.GetJobEventsStream("queue", "jobSet", watch: false)).ToList();
+            Assert.That(events.Count(), Is.EqualTo(2));
+            Assert.That(events[0].Result.Message.Event, Is.Not.Null);
+            Assert.That(events[1].Error, Is.EqualTo("test error"));
         }
 
         private static ApiJobSubmitRequest CreateJobRequest(string jobSet)
