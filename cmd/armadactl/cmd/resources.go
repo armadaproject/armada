@@ -33,7 +33,7 @@ var resourcesCmd = &cobra.Command{
 			state := client.GetJobSetState(eventsClient, queue, jobSetId, context.Background())
 
 			for _, j := range state.GetCurrentState() {
-				log.Info("job id: %v, maximum used resources: %v", j.Job.Id, j.MaxUsedResources)
+				log.Infof("job id: %v, maximum used resources: %v", j.Job.Id, j.MaxUsedResources)
 			}
 		})
 	},

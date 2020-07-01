@@ -6,7 +6,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 
+	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/pkg/api"
 )
 
@@ -190,4 +192,20 @@ func TestWatchContext_EventsOutOfOrder(t *testing.T) {
 	watchContext.ProcessEvent(&api.JobSubmittedEvent{JobId: "1", Job: job, Created: now.Add(-2 * time.Second)})
 	assert.Equal(t, &JobInfo{Status: Succeeded, Job: &job, LastUpdate: now}, watchContext.GetJobInfo("1"))
 	assert.Equal(t, map[JobStatus]int{Succeeded: 1}, watchContext.stateSummary)
+}
+
+func TestWatchContext_UtilisationEvent(t *testing.T) {
+	watchContext := NewWatchContext()
+	watchContext.ProcessEvent(&api.JobUtilisationEvent{
+		JobId:        "job1",
+		JobSetId:     "",
+		Queue:        "",
+		Created:      time.Now(),
+		ClusterId:    "",
+		KubernetesId: "",
+		MaxResourcesForPeriod: common.ComputeResources{
+			"cpu": resource.MustParse("1"),
+		},
+	})
+	assert.Equal(t, resource.MustParse("1"), watchContext.GetJobInfo("job1").MaxUsedResources["cpu"])
 }

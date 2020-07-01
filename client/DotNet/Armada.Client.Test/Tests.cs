@@ -8,6 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using NUnit.Framework;
 using GResearch.Armada.Client;
+using RichardSzalay.MockHttp;
 
 namespace GResearch.Armada.Client.Test
 {
@@ -18,26 +19,27 @@ namespace GResearch.Armada.Client.Test
         public async Task TestWatchingEvents()
         {
             var client = new ArmadaClient("http://localhost:8080", new HttpClient());
-            
+
             var queue = "test";
             var jobSet = $"set-{Guid.NewGuid()}";
-            
+
             // produce some events
             await client.CreateQueueAsync(queue, new ApiQueue {PriorityFactor = 200});
             var request = CreateJobRequest(jobSet);
             var response = await client.SubmitJobsAsync(request);
-            var cancelResponse = await client.CancelJobsAsync(new ApiJobCancelRequest {Queue = "test", JobSetId = jobSet});
-            
+            var cancelResponse =
+                await client.CancelJobsAsync(new ApiJobCancelRequest {Queue = "test", JobSetId = jobSet});
+
             using (var cts = new CancellationTokenSource())
             {
                 var eventCount = 0;
-                Task.Run(() => client.WatchEvents(queue, jobSet, null,  cts.Token, m => eventCount++, e => throw e));
+                Task.Run(() => client.WatchEvents(queue, jobSet, null, cts.Token, m => eventCount++, e => throw e));
                 await Task.Delay(TimeSpan.FromMinutes(2));
                 cts.Cancel();
                 Assert.That(eventCount, Is.EqualTo(4));
             }
         }
-        
+
         [Test]
         public async Task TestSimpleJobSubmitFlow()
         {
@@ -57,6 +59,26 @@ namespace GResearch.Armada.Client.Test
 
             Assert.That(allEvents, Is.Not.Empty);
             Assert.That(allEvents[0].Result.Message.Submitted, Is.Not.Null);
+        }
+
+        [Test]
+        public async Task TestProcessingUnknownEvents()
+        {
+            var mockHttp = new MockHttpMessageHandler();
+            mockHttp.When("http://localhost:8080/*")
+                .Respond("application/json",
+                    @"{""result"":{""Id"":""1593611590122-0"",""message"":{""Queued"":{""JobId"":""01ec5ae6f9wvya6cr6stzwty7v"",""JobSetId"":""set-bae48cc8-9f70-465f-ae5c-c92713b5f24f"",""Queue"":""test"",""Created"":""2020-07-01T13:53:10.122263955Z""}}}}
+                    {""result"":{""Id"":""1593611590122-0"",""message"":{""UnknownEvent"":""test""}}}
+                    {""error"": ""test error""}
+                    {}
+                    
+                    {""a"":""b""}");
+
+            IArmadaClient client = new ArmadaClient("http://localhost:8080", new HttpClient(mockHttp));
+            var events = (await client.GetJobEventsStream("queue", "jobSet", watch: false)).ToList();
+            Assert.That(events.Count(), Is.EqualTo(2));
+            Assert.That(events[0].Result.Message.Event, Is.Not.Null);
+            Assert.That(events[1].Error, Is.EqualTo("test error"));
         }
 
         private static ApiJobSubmitRequest CreateJobRequest(string jobSet)
