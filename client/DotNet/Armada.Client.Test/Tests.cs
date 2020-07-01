@@ -19,20 +19,21 @@ namespace GResearch.Armada.Client.Test
         public async Task TestWatchingEvents()
         {
             var client = new ArmadaClient("http://localhost:8080", new HttpClient());
-            
+
             var queue = "test";
             var jobSet = $"set-{Guid.NewGuid()}";
-            
+
             // produce some events
             await client.CreateQueueAsync(queue, new ApiQueue {PriorityFactor = 200});
             var request = CreateJobRequest(jobSet);
             var response = await client.SubmitJobsAsync(request);
-            var cancelResponse = await client.CancelJobsAsync(new ApiJobCancelRequest {Queue = "test", JobSetId = jobSet});
-            
+            var cancelResponse =
+                await client.CancelJobsAsync(new ApiJobCancelRequest {Queue = "test", JobSetId = jobSet});
+
             using (var cts = new CancellationTokenSource())
             {
                 var eventCount = 0;
-                Task.Run(() => client.WatchEvents(queue, jobSet, null,  cts.Token, m => eventCount++, e => throw e));
+                Task.Run(() => client.WatchEvents(queue, jobSet, null, cts.Token, m => eventCount++, e => throw e));
                 await Task.Delay(TimeSpan.FromMinutes(2));
                 cts.Cancel();
                 Assert.That(eventCount, Is.EqualTo(4));
@@ -65,7 +66,7 @@ namespace GResearch.Armada.Client.Test
         {
             var mockHttp = new MockHttpMessageHandler();
             mockHttp.When("http://localhost:8080/*")
-                .Respond("application/json", 
+                .Respond("application/json",
                     @"{""result"":{""Id"":""1593611590122-0"",""message"":{""Queued"":{""JobId"":""01ec5ae6f9wvya6cr6stzwty7v"",""JobSetId"":""set-bae48cc8-9f70-465f-ae5c-c92713b5f24f"",""Queue"":""test"",""Created"":""2020-07-01T13:53:10.122263955Z""}}}}
                     {""result"":{""Id"":""1593611590122-0"",""message"":{""UnknownEvent"": { ""test""} }}}
                     {""error"": ""test error""}
