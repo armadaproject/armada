@@ -68,7 +68,7 @@ namespace GResearch.Armada.Client.Test
             mockHttp.When("http://localhost:8080/*")
                 .Respond("application/json",
                     @"{""result"":{""Id"":""1593611590122-0"",""message"":{""Queued"":{""JobId"":""01ec5ae6f9wvya6cr6stzwty7v"",""JobSetId"":""set-bae48cc8-9f70-465f-ae5c-c92713b5f24f"",""Queue"":""test"",""Created"":""2020-07-01T13:53:10.122263955Z""}}}}
-                    {""result"":{""Id"":""1593611590122-0"",""message"":{""UnknownEvent"": { ""test""} }}}
+                    {""result"":{""Id"":""1593611590122-0"",""message"":{""UnknownEvent"":""test""}}}
                     {""error"": ""test error""}
                     {}
                     
