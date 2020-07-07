@@ -23,6 +23,81 @@ commands:
               echo Unable to connect to worker << parameters.worker-id >>
             fi
 
+  install-helm-client:
+    description: |
+      Install the Helm v3 client
+      Download from: https://get.helm.sh
+    steps:
+    - run:
+        name: Install and init the helm client
+        command: |
+          if which helm > /dev/null; then
+            echo "Helm is already installed.. skipping install"
+          else
+            HELM_VERSION="3.2.4"
+            HELM_PLATFORM="linux-amd64"
+
+            # Create local bin directory for later convenience
+            mkdir /home/circleci/bin/
+            echo 'export PATH=/home/circleci/bin/:$PATH' >> $BASH_ENV
+            source $BASH_ENV
+
+            # Get helm
+            curl -LSs https://get.helm.sh/helm-v$HELM_VERSION-$HELM_PLATFORM.tar.gz | tar xvz --strip-components=1 -C /home/circleci/bin $HELM_PLATFORM/helm
+          fi
+
+  checkout-charts:
+    description: |
+      Checkout G-Research charts repo so we can update them later
+      Checkout from: https://github.com/G-Research/charts
+    steps:
+    - run:
+        name: Set .ssh directory and GIT_SSH_COMMAND
+        command: |
+          echo 'SSH_CONFIG_DIR="/home/circleci/.ssh"' >> $BASH_ENV
+          echo 'GIT_SSH_COMMAND="ssh -o UserKnownHostsFile=$SSH_CONFIG_DIR/known_hosts"' >> $BASH_ENV
+          source $BASH_ENV
+
+    - run:
+        name: Create known_hosts file for github.com
+        command: |
+          mkdir -p $SSH_CONFIG_DIR
+          echo 'github.com ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAq2A7hRGmdnm9tUDbO9IDSwBK6TbQa+PXYPCPy6rbTrTtw7PHkccKrpp0yVhp5HdEIcKr6pLlVDBfOLX9QUsyCOV0wzfjIJNlGEYsdlLJizHhbn2mUjvSAHQqZETYP81eFzLQNnPHt4EVVUh7VfDESU84KezmD5QlWpXLmvU31/yMf+Se8xhHTvKSCZIFImWwoG6mbUoWf9nzpIoaSjB+weqqUUmpaaasXVal72J+UX2B+2RPW3RcT0eOzQgqlJL3RKrTJvdsjE3JEAvGq3lGHSZXy28G3skua2SmVi/w4yCE6gbODqnTWlg7+wC604ydGXA8VJiS5ap43JXiUFFAaQ==' >> $SSH_CONFIG_DIR/known_hosts
+
+    - run:
+        name: Clone the G-Research common charts repo
+        command: |
+          eval "$(ssh-agent -s)"
+          echo -e "$ARMADA_CHART_UPDATE_KEY" | ssh-add - > /dev/null
+          git clone -q git@github.com:scamtech/circleci-charts-test.git
+
+  update-charts:
+    description: |
+      Update Armada charts in the common G-Research charts repo 
+    steps:
+    - run:      
+        name: Update version, appVersion and image tag to match current $RELEASE_TAG
+        command: |
+          RELEASE_TAG=${CIRCLE_BRANCH}
+          find . \( -name "Chart.yaml" -o -name "values.yaml" \) -exec sed -i s/LATEST/$RELEASE_TAG/ {} +
+
+    - run:
+        name: Build new packages and index.yaml
+        command: |
+          helm package deployment/armada/ -d circleci-charts-test/armada/
+          helm package deployment/executor -d circleci-charts-test/armada/
+          helm package deployment/executor-cluster-monitoring/ -d circleci-charts-test/armada/
+          helm repo index circleci-charts-test/
+
+    - run:
+        name: Commit and push updated charts
+        command: |
+          cd circleci-charts-test
+          git -c user.name='GR OSS' -c user.email=github@gr-oss.io commit -qam "Pushing new helm charts at version $RELEASE_TAG"
+          eval "$(ssh-agent -s)"
+          echo -e "$ARMADA_CHART_UPDATE_KEY" | ssh-add - > /dev/null
+          git push -q origin master
+
 jobs:
   build:
     machine:
@@ -107,6 +182,7 @@ jobs:
 
             docker tag armada-fakeexecutor gresearchdev/armada-fakeexecutor-dev:${TAG}
             docker push gresearchdev/armada-fakeexecutor-dev:${TAG}
+
   deploy:
     docker:
       - image: alpine/helm:2.13.1
@@ -184,6 +260,12 @@ jobs:
             docker pull gresearchdev/armada-armadactl-dev:${TAG}
             docker tag gresearchdev/armada-armadactl-dev:${TAG} gresearchdev/armada-armadactl:${RELEASE_TAG}
             docker push gresearchdev/armada-armadactl:${RELEASE_TAG}
+
+      - install-helm-client
+
+      - checkout-charts
+
+      - update-charts
 
   release-dotnet-client:
     docker:

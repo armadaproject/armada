@@ -1,5 +1,6 @@
 image:
   repository: gresearchdev/armada-server
+  tag: LATEST
 resources:
   limits:
     memory: 1Gi
