@@ -47,16 +47,14 @@ Make sure helm is configured to use the official Helm stable charts:
 helm repo add stable https://kubernetes-charts.storage.googleapis.com/
 ```
 
-## Installation
-This guide will install Armada on 3 local Kubernetes clusters; one server and two executor clusters. 
-
-Set the `ARMADA_VERSION` environment variable to the version of Armada you would like to install. Armada releases can be found [here](https://github.com/G-Research/armada/releases).
-
-For example to install version `v0.1.2`:
+And add the G-Research helm charts repository, too:
 
 ```bash
-export ARMADA_VERSION=v0.1.2
+helm repo add gresearch https://g-research.github.io/charts/
 ```
+
+## Installation
+This guide will install Armada on 3 local Kubernetes clusters; one server and two executor clusters. 
 
 You should then clone this repository and step into it:
 
@@ -79,7 +77,7 @@ helm install redis stable/redis-ha -f docs/quickstart/redis-values.yaml
 helm install prometheus-operator stable/prometheus-operator -f docs/quickstart/server-prometheus-values.yaml
 
 # Install Armada server
-helm install armada ./deployment/armada --set image.tag=$ARMADA_VERSION -f ./docs/quickstart/server-values.yaml
+helm install gresearch/armada -f ./docs/quickstart/server-values.yaml
 
 # Get server IP for executors
 SERVER_IP=$(kubectl get nodes quickstart-armada-server-worker -o jsonpath='{.status.addresses[?(@.type=="InternalIP")].address}')
@@ -96,8 +94,8 @@ kind create cluster --name quickstart-armada-executor-0 --config ./docs/quicksta
 helm install prometheus-operator stable/prometheus-operator -f docs/quickstart/executor-prometheus-values.yaml
 
 # Install executor
-helm install executor ./deployment/executor --set image.tag=$ARMADA_VERSION --set applicationConfig.apiConnection.armadaUrl="$SERVER_IP:30000" -f docs/quickstart/executor-values.yaml
-helm install executor-cluster-monitoring ./deployment/executor-cluster-monitoring -f docs/quickstart/executor-cluster-monitoring-values.yaml
+helm install gresearch/executor --set applicationConfig.apiConnection.armadaUrl="$SERVER_IP:30000" -f docs/quickstart/executor-values.yaml
+helm install gresearch/executor-cluster-monitoring -f docs/quickstart/executor-cluster-monitoring-values.yaml
 
 # Get executor IP for Grafana
 EXECUTOR_0_IP=$(kubectl get nodes quickstart-armada-executor-0-worker -o jsonpath='{.status.addresses[?(@.type=="InternalIP")].address}')
@@ -112,8 +110,8 @@ kind create cluster --name quickstart-armada-executor-1 --config ./docs/quicksta
 helm install prometheus-operator stable/prometheus-operator -f docs/quickstart/executor-prometheus-values.yaml
 
 # Install executor
-helm install executor ./deployment/executor --set image.tag=$ARMADA_VERSION --set applicationConfig.apiConnection.armadaUrl="$SERVER_IP:30000" -f docs/quickstart/executor-values.yaml
-helm install executor-cluster-monitoring ./deployment/executor-cluster-monitoring -f docs/quickstart/executor-cluster-monitoring-values.yaml
+helm install gresearch/executor ./deployment/executor --set applicationConfig.apiConnection.armadaUrl="$SERVER_IP:30000" -f docs/quickstart/executor-values.yaml
+helm install gresearch/executor-cluster-monitoring -f docs/quickstart/executor-cluster-monitoring-values.yaml
 
 # Get executor IP for Grafana
 EXECUTOR_1_IP=$(kubectl get nodes quickstart-armada-executor-1-worker -o jsonpath='{.status.addresses[?(@.type=="InternalIP")].address}')
