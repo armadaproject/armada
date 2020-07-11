@@ -94,8 +94,8 @@ kind create cluster --name quickstart-armada-executor-0 --config ./docs/quicksta
 helm install prometheus-operator stable/prometheus-operator -f docs/quickstart/executor-prometheus-values.yaml
 
 # Install executor
-helm install gresearch/executor --set applicationConfig.apiConnection.armadaUrl="$SERVER_IP:30000" -f docs/quickstart/executor-values.yaml
-helm install gresearch/executor-cluster-monitoring -f docs/quickstart/executor-cluster-monitoring-values.yaml
+helm install armada-executor gresearch/armada-executor --set applicationConfig.apiConnection.armadaUrl="$SERVER_IP:30000" -f docs/quickstart/executor-values.yaml
+helm install armada-executor-cluster-monitoring gresearch/executor-cluster-monitoring -f docs/quickstart/executor-cluster-monitoring-values.yaml
 
 # Get executor IP for Grafana
 EXECUTOR_0_IP=$(kubectl get nodes quickstart-armada-executor-0-worker -o jsonpath='{.status.addresses[?(@.type=="InternalIP")].address}')
@@ -110,8 +110,8 @@ kind create cluster --name quickstart-armada-executor-1 --config ./docs/quicksta
 helm install prometheus-operator stable/prometheus-operator -f docs/quickstart/executor-prometheus-values.yaml
 
 # Install executor
-helm install gresearch/executor ./deployment/executor --set applicationConfig.apiConnection.armadaUrl="$SERVER_IP:30000" -f docs/quickstart/executor-values.yaml
-helm install gresearch/executor-cluster-monitoring -f docs/quickstart/executor-cluster-monitoring-values.yaml
+helm install armada-executor gresearch/armada-executor --set applicationConfig.apiConnection.armadaUrl="$SERVER_IP:30000" -f docs/quickstart/executor-values.yaml
+helm install armada-executor-cluster-monitoring gresearch/executor-cluster-monitoring -f docs/quickstart/executor-cluster-monitoring-values.yaml
 
 # Get executor IP for Grafana
 EXECUTOR_1_IP=$(kubectl get nodes quickstart-armada-executor-1-worker -o jsonpath='{.status.addresses[?(@.type=="InternalIP")].address}')
@@ -126,21 +126,48 @@ curl -X POST -i http://admin:prom-operator@localhost:30001/api/dashboards/import
 ### CLI installation
 
 The following steps download the `armadactl` CLI to the current directory:
+
 ```bash
+#!/bin/bash
+
+echo "Downloading armadactl for your platform"
+
+# Determine Platform
 SYSTEM=$(uname | sed 's/MINGW.*/windows/' | tr A-Z a-z)
-if [ $SYSTEM == "windows" ]
-then
+if [ $SYSTEM == "windows" ]; then
   ARCHIVE_TYPE=zip
   UNARCHIVE="zcat > armadactl.exe"
 else
   ARCHIVE_TYPE=tar.gz
   UNARCHIVE="tar xzf -"
 fi
-curl -L https://github.com/G-Research/armada/releases/download/$ARMADA_VERSION/armadactl-$ARMADA_VERSION-$SYSTEM-amd64.$ARCHIVE_TYPE | sh -c "$UNARCHIVE"
+
+# Find the latest Armada version
+LATEST_GH_URL=$(curl -fsSLI -o /dev/null -w %{url_effective} https://github.com/G-Research/armada/releases/latest)
+ARMADA_VERSION=${LATEST_GH_URL##*/}
+ARMADACTL_URL="https://github.com/G-Research/armada/releases/download/$ARMADA_VERSION/armadactl-$ARMADA_VERSION-$SYSTEM-amd64.$ARCHIVE_TYPE"
+
+# Download and untar/unzip armadactl
+if curl -sL $ARMADACTL_URL | sh -c "$UNARCHIVE" ; then
+	echo "armadactl downloaded successfully"
+else
+	echo "Something is amiss!"
+	echo "Please visit:"
+	echo "  - https://github.com/G-Research/armada/releases/latest"
+	echo "to find the latest armadactl binary for your platform"
+fi
 ```
+
+Alternatively, you can find the latst armadactl binaries at:
+
+  * [https://github.com/G-Research/armada/releases/latest](https://github.com/G-Research/armada/releases/latest)
+
+Simply download the latest release for your platform and unzip or untar.
+
 
 ## Usage
 Create queues, submit some jobs and monitor progress:
+
 ```bash
 ./armadactl create-queue queue-a --priorityFactor 1
 ./armadactl create-queue queue-b --priorityFactor 2
@@ -149,6 +176,7 @@ Create queues, submit some jobs and monitor progress:
 ```
 
 Watch individual queues:
+
 ```bash
 ./armadactl watch queue-a job-set-1
 ```
@@ -156,7 +184,7 @@ Watch individual queues:
 ./armadactl watch queue-b job-set-1
 ```
 
-Log in to the Grafana dashboard at http://localhost:30001/ using the default credentials of `admin` / `prom-operator`.
+Log in to the Grafana dashboard at [http://localhost:30001](http://localhost:30001) using the default credentials of `admin` / `prom-operator`.
 Navigate to the Armada Overview dashboard to get a view of jobs progressing through the system.
 
 Try submitting lots of jobs and see queues build and get processed:
