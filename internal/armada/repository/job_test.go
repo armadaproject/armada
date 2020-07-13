@@ -276,7 +276,7 @@ func addTestJob(t *testing.T, r JobRepository, queue string) *api.Job {
 }
 
 func withRepository(action func(r JobRepository)) {
-	withSqlRepository(action)
+	//withSqlRepository(action)
 	withRedisRepository(action)
 }
 
