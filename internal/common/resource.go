@@ -3,6 +3,7 @@ package common
 import (
 	"math"
 	"math/big"
+	"sort"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -16,6 +17,25 @@ func FromResourceList(list v1.ResourceList) ComputeResources {
 		resources[string(k)] = v.DeepCopy()
 	}
 	return resources
+}
+
+func (a ComputeResources) String() string {
+	str := ""
+
+	var keys []string
+	for k := range a {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, k := range keys {
+		if str != "" {
+			str += ", "
+		}
+		v := a[k]
+		str += k + ": " + v.String()
+	}
+	return str
 }
 
 func (a ComputeResources) Add(b ComputeResources) {

@@ -18,7 +18,7 @@ commands:
               --set image.repository=gresearchdev/armada-executor-dev  \
               --set image.tag="${CIRCLE_SHA1}"
 
-              helm upgrade --install executor-cluster-monitoring --name executor-cluster-monitoring --namespace=common ./deployment/executor-cluster-monitoring --set interval=5s
+              helm upgrade --install executor-cluster-monitoring --namespace=common ./deployment/executor-cluster-monitoring --set interval=5s
             else
               echo Unable to connect to worker << parameters.worker-id >>
             fi
@@ -101,6 +101,9 @@ jobs:
 
             docker tag armadactl gresearchdev/armada-armadactl-dev:${TAG}
             docker push gresearchdev/armada-armadactl-dev:${TAG}
+
+            docker tag armada-load-tester gresearchdev/armada-load-tester-dev:${TAG}
+            docker push gresearchdev/armada-load-tester-dev:${TAG}
 
             docker tag armada-fakeexecutor gresearchdev/armada-fakeexecutor-dev:${TAG}
             docker push gresearchdev/armada-fakeexecutor-dev:${TAG}

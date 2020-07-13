@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/pkg/api"
 )
 
@@ -22,10 +23,11 @@ const (
 )
 
 type JobInfo struct {
-	Status     JobStatus
-	Job        *api.Job
-	LastUpdate time.Time
-	ClusterId  string
+	Status           JobStatus
+	Job              *api.Job
+	LastUpdate       time.Time
+	ClusterId        string
+	MaxUsedResources common.ComputeResources
 }
 
 var statesToIncludeInSummary []JobStatus
@@ -67,7 +69,9 @@ func NewWatchContext() *WatchContext {
 func (context *WatchContext) ProcessEvent(event api.Event) {
 	info, exists := context.state[event.GetJobId()]
 	if !exists {
-		info = &JobInfo{}
+		info = &JobInfo{
+			MaxUsedResources: common.ComputeResources{},
+		}
 		context.state[event.GetJobId()] = info
 	}
 
@@ -156,11 +160,16 @@ func (context *WatchContext) AreJobsFinished(ids []string) bool {
 }
 
 func updateJobInfo(info *JobInfo, event api.Event) {
-	if info.LastUpdate.After(event.GetCreated()) {
-		// skipping event as it is out of time order
-		return
+	if isLifeCycleEvent(event) {
+		if info.LastUpdate.After(event.GetCreated()) {
+			if submitEvent, ok := event.(*api.JobSubmittedEvent); ok {
+				info.Job = &submitEvent.Job
+			}
+			// skipping event as it is out of time order
+			return
+		}
+		info.LastUpdate = event.GetCreated()
 	}
-	info.LastUpdate = event.GetCreated()
 
 	switch typed := event.(type) {
 	case *api.JobSubmittedEvent:
@@ -173,8 +182,6 @@ func updateJobInfo(info *JobInfo, event api.Event) {
 		info.ClusterId = typed.ClusterId
 	case *api.JobLeaseReturnedEvent:
 		info.Status = Queued
-	case *api.JobUnableToScheduleEvent:
-		// NOOP
 	case *api.JobLeaseExpiredEvent:
 		info.Status = Queued
 	case *api.JobPendingEvent:
@@ -189,11 +196,52 @@ func updateJobInfo(info *JobInfo, event api.Event) {
 	case *api.JobSucceededEvent:
 		info.Status = Succeeded
 		info.ClusterId = typed.ClusterId
+	case *api.JobCancelledEvent:
+		info.Status = Cancelled
+
+	case *api.JobUnableToScheduleEvent:
+		// NOOP
 	case *api.JobReprioritizedEvent:
 		// TODO
 	case *api.JobTerminatedEvent:
 		// NOOP
+	case *api.JobUtilisationEvent:
+		info.MaxUsedResources.Max(typed.MaxResourcesForPeriod)
+	}
+}
+
+func isLifeCycleEvent(event api.Event) bool {
+	switch event.(type) {
+	case *api.JobSubmittedEvent:
+		return true
+	case *api.JobQueuedEvent:
+		return true
+	case *api.JobLeasedEvent:
+		return true
+	case *api.JobLeaseReturnedEvent:
+		return true
+	case *api.JobLeaseExpiredEvent:
+		return true
+	case *api.JobPendingEvent:
+		return true
+	case *api.JobRunningEvent:
+		return true
+	case *api.JobFailedEvent:
+		return true
+	case *api.JobSucceededEvent:
+		return true
 	case *api.JobCancelledEvent:
-		info.Status = Cancelled
+		return true
+
+	case *api.JobUnableToScheduleEvent:
+		return false
+	case *api.JobReprioritizedEvent:
+		return false
+	case *api.JobTerminatedEvent:
+		return false
+	case *api.JobUtilisationEvent:
+		return false
+	default:
+		return false
 	}
 }

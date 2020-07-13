@@ -9,12 +9,13 @@ import (
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 
+	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/client/domain"
 )
 
 type LoadTester interface {
-	RunSubmissionTest(spec domain.LoadTestSpecification)
+	RunSubmissionTest(ctx context.Context, spec domain.LoadTestSpecification, watchEvents bool) *domain.WatchContext
 }
 
 type ArmadaLoadTester struct {
@@ -27,26 +28,33 @@ func NewArmadaLoadTester(connectionDetails *ApiConnectionDetails) *ArmadaLoadTes
 	}
 }
 
-func (apiLoadTester ArmadaLoadTester) RunSubmissionTest(spec domain.LoadTestSpecification, watchEvents bool) {
+func (apiLoadTester ArmadaLoadTester) RunSubmissionTest(ctx context.Context, spec domain.LoadTestSpecification, watchEvents bool) domain.LoadTestSummary {
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
 
 	eventChannel := make(chan api.Event, 10000)
 
+	var jobCurrentState *domain.WatchContext
 	if watchEvents {
-		complete, cancel := watchJobInfoChannel(eventChannel)
+		complete, cancel, currentState := watchJobInfoChannel(eventChannel)
+		jobCurrentState = currentState
 		defer complete.Wait()
 		defer func() { cancel <- true }()
 	}
 
+	allSubmittedJobs := NewThreadSafeStringSlice()
 	for _, submission := range spec.Submissions {
 		for i := 0; i < submission.Count; i++ {
 			wg.Add(1)
 			go func(i int, submission *domain.SubmissionDescription) {
 				defer wg.Done()
-				jobIdChannel, jobSetId := apiLoadTester.runSubmission(submission, i)
+				jobIdChannel, jobSetId := apiLoadTester.runSubmission(ctx, submission, i)
 				if watchEvents {
-					apiLoadTester.monitorJobsUntilCompletion(createQueueName(submission, i), jobSetId, jobIdChannel, eventChannel)
+					submittedIds := apiLoadTester.monitorJobsUntilCompletion(ctx, createQueueName(submission, i), jobSetId, jobIdChannel, eventChannel)
+					allSubmittedJobs.Append(submittedIds)
+				}
+				if ctx.Err() != nil {
+					apiLoadTester.cancelRemainingJobs(createQueueName(submission, i), jobSetId)
 				}
 			}(i, submission)
 		}
@@ -54,9 +62,14 @@ func (apiLoadTester ArmadaLoadTester) RunSubmissionTest(spec domain.LoadTestSpec
 
 	wg.Done()
 	wg.Wait()
+
+	return domain.LoadTestSummary{
+		SubmittedJobs: allSubmittedJobs.GetAll(),
+		CurrentState:  jobCurrentState,
+	}
 }
 
-func watchJobInfoChannel(eventChannel chan api.Event) (*sync.WaitGroup, chan bool) {
+func watchJobInfoChannel(eventChannel chan api.Event) (*sync.WaitGroup, chan bool, *domain.WatchContext) {
 	stop := make(chan bool)
 	tickChannel := time.NewTicker(5 * time.Second)
 
@@ -84,10 +97,10 @@ func watchJobInfoChannel(eventChannel chan api.Event) (*sync.WaitGroup, chan boo
 		}
 	}()
 
-	return complete, stop
+	return complete, stop, aggregatedCurrentState
 }
 
-func (apiLoadTester ArmadaLoadTester) runSubmission(submission *domain.SubmissionDescription, i int) (jobIds chan string, jobSetId string) {
+func (apiLoadTester ArmadaLoadTester) runSubmission(ctx context.Context, submission *domain.SubmissionDescription, i int) (jobIds chan string, jobSetId string) {
 	queue := createQueueName(submission, i)
 	startTime := time.Now()
 
@@ -116,6 +129,11 @@ func (apiLoadTester ArmadaLoadTester) runSubmission(submission *domain.Submissio
 		log.Infof("Queue %s created.\n", queue)
 
 		for len(jobs) > 0 {
+			select {
+			case <-ctx.Done():
+				break
+			default:
+			}
 			readyJobs, remainingJobs := filterReadyJobs(startTime, jobs)
 			jobs = remainingJobs
 
@@ -184,20 +202,19 @@ func createQueueName(submission *domain.SubmissionDescription, i int) string {
 	return queue
 }
 
-func (apiLoadTester ArmadaLoadTester) monitorJobsUntilCompletion(queue, jobSetId string, jobIds chan string, eventChannel chan api.Event) {
+func (apiLoadTester ArmadaLoadTester) monitorJobsUntilCompletion(ctx context.Context, queue, jobSetId string, jobIds chan string, eventChannel chan api.Event) []string {
+	var submittedIds []string = nil
+	go func() {
+		ids := []string{}
+		for id := range jobIds {
+			ids = append(ids, id)
+		}
+		submittedIds = ids
+	}()
 	WithConnection(apiLoadTester.apiConnectionDetails, func(connection *grpc.ClientConn) {
 		eventsClient := api.NewEventClient(connection)
 
-		var submittedIds []string = nil
-		go func() {
-			ids := []string{}
-			for id := range jobIds {
-				ids = append(ids, id)
-			}
-			submittedIds = ids
-		}()
-
-		WatchJobSet(eventsClient, queue, jobSetId, true, context.Background(), func(state *domain.WatchContext, e api.Event) bool {
+		WatchJobSet(eventsClient, queue, jobSetId, true, ctx, func(state *domain.WatchContext, e api.Event) bool {
 			eventChannel <- e
 
 			if submittedIds == nil {
@@ -212,6 +229,7 @@ func (apiLoadTester ArmadaLoadTester) monitorJobsUntilCompletion(queue, jobSetId
 			return state.AreJobsFinished(submittedIds)
 		})
 	})
+	return submittedIds
 }
 
 func createJobSubmitRequestItems(jobDescs []*domain.JobSubmissionDescription) []*api.JobSubmitRequestItem {
@@ -230,4 +248,41 @@ func createJobSubmitRequestItems(jobDescs []*domain.JobSubmissionDescription) []
 		}
 	}
 	return requestItems
+}
+
+func (apiLoadTester ArmadaLoadTester) cancelRemainingJobs(queue string, jobSetId string) {
+	WithConnection(apiLoadTester.apiConnectionDetails, func(connection *grpc.ClientConn) {
+		client := api.NewSubmitClient(connection)
+
+		timeout, _ := common.ContextWithDefaultTimeout()
+		cancelRequest := &api.JobCancelRequest{
+			JobSetId: jobSetId,
+			Queue:    queue,
+		}
+		_, _ = client.CancelJobs(timeout, cancelRequest)
+	})
+}
+
+type threadSafeStringSlice struct {
+	slice []string
+	mutex *sync.Mutex
+}
+
+func NewThreadSafeStringSlice() *threadSafeStringSlice {
+	return &threadSafeStringSlice{
+		slice: make([]string, 0, 10),
+		mutex: &sync.Mutex{},
+	}
+}
+
+func (s *threadSafeStringSlice) Append(additionalElements []string) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	s.slice = append(s.slice, additionalElements...)
+}
+
+func (s *threadSafeStringSlice) GetAll() []string {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	return append([]string{}, s.slice...)
 }

@@ -225,6 +225,9 @@ func SwaggerJsonTemplate() string {
 		"        },\n" +
 		"        \"unableToSchedule\": {\n" +
 		"          \"$ref\": \"#/definitions/apiJobUnableToScheduleEvent\"\n" +
+		"        },\n" +
+		"        \"utilisation\": {\n" +
+		"          \"$ref\": \"#/definitions/apiJobUtilisationEvent\"\n" +
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
@@ -719,6 +722,36 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"Reason\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"apiJobUtilisationEvent\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"ClusterId\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"Created\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"format\": \"date-time\"\n" +
+		"        },\n" +
+		"        \"JobId\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"JobSetId\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"KubernetesId\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"MaxResourcesForPeriod\": {\n" +
+		"          \"type\": \"object\",\n" +
+		"          \"additionalProperties\": {\n" +
+		"            \"$ref\": \"#/definitions/resourceQuantity\"\n" +
+		"          }\n" +
+		"        },\n" +
+		"        \"Queue\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        }\n" +
 		"      }\n" +

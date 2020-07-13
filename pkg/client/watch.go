@@ -66,8 +66,8 @@ func WatchJobSetWithJobIdsFilter(client api.EventClient, queue, jobSetId string,
 
 			event, e := api.UnwrapEvent(msg.Message)
 			if e != nil {
+				// This can mean that the event type reported from server is unknown to the client
 				log.Error(e)
-				time.Sleep(5 * time.Second)
 				continue
 			}
 

@@ -9,6 +9,7 @@ import (
 
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/client"
+	"github.com/G-Research/armada/pkg/client/domain"
 	"github.com/G-Research/armada/pkg/client/util"
 	"github.com/G-Research/armada/pkg/client/validation"
 )
@@ -16,12 +17,6 @@ import (
 func init() {
 	rootCmd.AddCommand(submitCmd)
 	submitCmd.Flags().Bool("dry-run", false, "Performs basic validation on the submitted file. Does no actual submission of jobs to the server.")
-}
-
-type JobSubmitFile struct {
-	Queue    string
-	JobSetId string
-	Jobs     []*api.JobSubmitRequestItem `json:"jobs"`
 }
 
 var submitCmd = &cobra.Command{
@@ -50,7 +45,7 @@ var submitCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		submitFile := &JobSubmitFile{}
+		submitFile := &domain.JobSubmitFile{}
 		err = util.BindJsonOrYaml(filePath, submitFile)
 
 		if err != nil {

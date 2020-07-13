@@ -1,6 +1,7 @@
 package common
 
 import (
+	"fmt"
 	"math"
 	"testing"
 
@@ -24,6 +25,21 @@ func TestComputeResourcesFloat_LimitTo0(t *testing.T) {
 		resultValue := result[key]
 		assert.Equal(t, resultValue, math.Max(value, 0))
 	}
+}
+
+func TestComputeResources_String(t *testing.T) {
+	x := ComputeResources{
+		"cpu":    resource.MustParse("1"),
+		"memory": resource.MustParse("640Ki"),
+	}
+	expected := "cpu: 1, memory: 640Ki"
+
+	assert.Equal(t, expected, x.String())
+	assert.Equal(t, expected, fmt.Sprintf("%v", x))
+	assert.Equal(t, expected, fmt.Sprintf("%v", &x))
+
+	x = nil
+	assert.Equal(t, "", x.String())
 }
 
 func TestCalculateTotalResource(t *testing.T) {
