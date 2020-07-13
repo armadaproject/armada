@@ -15,7 +15,7 @@ import (
 func TestWatchContext_ProcessEvent(t *testing.T) {
 	watchContext := NewWatchContext()
 
-	expected := &JobInfo{Status: Pending}
+	expected := &JobInfo{Status: Pending, MaxUsedResources: common.ComputeResources{}}
 
 	watchContext.ProcessEvent(&api.JobPendingEvent{JobId: "1"})
 	result := watchContext.GetJobInfo("1")
@@ -26,7 +26,7 @@ func TestWatchContext_ProcessEvent(t *testing.T) {
 func TestWatchContext_ProcessEvent_UpdatesExisting(t *testing.T) {
 	watchContext := NewWatchContext()
 
-	expected := &JobInfo{Status: Running}
+	expected := &JobInfo{Status: Running, MaxUsedResources: common.ComputeResources{}}
 
 	watchContext.ProcessEvent(&api.JobPendingEvent{JobId: "1"})
 	watchContext.ProcessEvent(&api.JobRunningEvent{JobId: "1"})
@@ -52,8 +52,9 @@ func TestWatchContext_ProcessEvent_SubmittedEventAddsJobToJobInfo(t *testing.T) 
 	}
 
 	expected := &JobInfo{
-		Status: Submitted,
-		Job:    &job,
+		Status:           Submitted,
+		Job:              &job,
+		MaxUsedResources: common.ComputeResources{},
 	}
 
 	watchContext.ProcessEvent(&api.JobSubmittedEvent{JobId: "1", Job: job})
@@ -70,9 +71,9 @@ func TestWatchContext_GetCurrentState(t *testing.T) {
 	watchContext.ProcessEvent(&api.JobRunningEvent{JobId: "3"})
 
 	expected := map[string]*JobInfo{
-		"1": {Status: Queued},
-		"2": {Status: Pending},
-		"3": {Status: Running},
+		"1": {Status: Queued, MaxUsedResources: common.ComputeResources{}},
+		"2": {Status: Pending, MaxUsedResources: common.ComputeResources{}},
+		"3": {Status: Running, MaxUsedResources: common.ComputeResources{}},
 	}
 
 	result := watchContext.GetCurrentState()
@@ -181,16 +182,20 @@ func TestWatchContext_EventsOutOfOrder(t *testing.T) {
 		},
 	}
 
+	watchContext.ProcessEvent(&api.JobUtilisationEvent{JobId: "1", Created: now.Add(10 * time.Second)})
+	assert.Equal(t, &JobInfo{MaxUsedResources: common.ComputeResources{}}, watchContext.GetJobInfo("1"))
+	assert.Equal(t, map[JobStatus]int{}, watchContext.stateSummary)
+
 	watchContext.ProcessEvent(&api.JobSucceededEvent{JobId: "1", Created: now})
-	assert.Equal(t, watchContext.GetJobInfo("1"), &JobInfo{Status: Succeeded, LastUpdate: now})
+	assert.Equal(t, &JobInfo{Status: Succeeded, LastUpdate: now, MaxUsedResources: common.ComputeResources{}}, watchContext.GetJobInfo("1"))
 	assert.Equal(t, map[JobStatus]int{Succeeded: 1}, watchContext.stateSummary)
 
 	watchContext.ProcessEvent(&api.JobQueuedEvent{JobId: "1", Created: now.Add(-1 * time.Second)})
-	assert.Equal(t, &JobInfo{Status: Succeeded, LastUpdate: now}, watchContext.GetJobInfo("1"))
+	assert.Equal(t, &JobInfo{Status: Succeeded, LastUpdate: now, MaxUsedResources: common.ComputeResources{}}, watchContext.GetJobInfo("1"))
 	assert.Equal(t, map[JobStatus]int{Succeeded: 1}, watchContext.stateSummary)
 
 	watchContext.ProcessEvent(&api.JobSubmittedEvent{JobId: "1", Job: job, Created: now.Add(-2 * time.Second)})
-	assert.Equal(t, &JobInfo{Status: Succeeded, Job: &job, LastUpdate: now}, watchContext.GetJobInfo("1"))
+	assert.Equal(t, &JobInfo{Status: Succeeded, Job: &job, LastUpdate: now, MaxUsedResources: common.ComputeResources{}}, watchContext.GetJobInfo("1"))
 	assert.Equal(t, map[JobStatus]int{Succeeded: 1}, watchContext.stateSummary)
 }
 
