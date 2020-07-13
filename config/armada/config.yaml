@@ -3,6 +3,7 @@ grpcPort: 50051
 httpPort: 8080
 metricsPort: 9000
 priorityHalfTime: 20m
+postgresConnectionString: ""
 redis:
   addrs:
     - "localhost:6379"
