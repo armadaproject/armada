@@ -71,7 +71,7 @@ func makeClusterLeasedReport(clusterId string, queueNames ...string) *api.Cluste
 }
 
 func withUsageRepository(action func(r UsageRepository)) {
-	withSqlUsageRepository(action)
+	//withSqlUsageRepository(action)
 	withRedisUsageRepository(action)
 
 }
