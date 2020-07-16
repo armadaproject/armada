@@ -42,7 +42,10 @@ func (j *JobRepository) TryLeaseJobs(clusterId string, queue string, jobs []*api
 	rows, err := j.db.Query(`
 		UPDATE job_queue
 		SET cluster = $2, leased = $3
-		WHERE id = ANY($1) AND (cluster IS NULL OR cluster = $2)
+		WHERE id IN (
+		    SELECT id FROM job_queue 
+		    WHERE id = ANY($1) AND (cluster IS NULL OR cluster = $2)
+		    FOR NO KEY UPDATE SKIP LOCKED)
 		RETURNING id`, pq.Array(ids), clusterId, time.Now())
 
 	if err != nil {
@@ -126,7 +129,7 @@ func (j *JobRepository) GetQueueSizes(queues []*api.Queue) (sizes []int64, e err
 	for _, q := range queues {
 		names = append(names, q.Name)
 	}
-	rows, err := j.db.Query("SELECT queue, count(*) from job_queue WHERE queue = Any($1) GROUP BY queue", pq.Array(names))
+	rows, err := j.db.Query("SELECT queue, count(*) from job_queue WHERE queue = Any($1) AND cluster IS NULL GROUP BY queue", pq.Array(names))
 	if err != nil {
 		return nil, err
 	}
