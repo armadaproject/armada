@@ -12,6 +12,9 @@ CREATE TABLE job_queue
     cluster  varchar(128) NULL
 );
 
+CREATE INDEX job_queue_queue_cluster_priority_created_index
+    ON job_queue (queue, cluster, priority, created);
+
 CREATE TABLE queue
 (
     name  varchar(512) NOT NULL PRIMARY KEY,
