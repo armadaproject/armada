@@ -84,15 +84,15 @@ commands:
     - run:
         name: Build new packages and index.yaml
         command: |
-          helm package deployment/armada/ -d circleci-charts-test/armada/
-          helm package deployment/executor -d circleci-charts-test/armada/
-          helm package deployment/executor-cluster-monitoring/ -d circleci-charts-test/armada/
-          helm repo index circleci-charts-test/
+          helm package deployment/armada/ -d charts/armada/
+          helm package deployment/executor -d charts/armada/
+          helm package deployment/executor-cluster-monitoring/ -d charts/armada/
+          helm repo index charts/
 
     - run:
         name: Commit and push updated charts
         command: |
-          cd circleci-charts-test
+          cd charts
           git -c user.name='GR OSS' -c user.email=github@gr-oss.io commit -qam "Pushing new helm charts at version $RELEASE_TAG"
           eval "$(ssh-agent -s)"
           echo -e "$ARMADA_CHART_UPDATE_KEY" | ssh-add - > /dev/null
