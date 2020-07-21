@@ -69,7 +69,7 @@ commands:
         command: |
           eval "$(ssh-agent -s)"
           echo -e "$ARMADA_CHART_UPDATE_KEY" | ssh-add - > /dev/null
-          git clone -q git@github.com:scamtech/circleci-charts-test.git
+          git clone -q git@github.com:G-Research/charts.git
 
   update-charts:
     description: |
