@@ -2,6 +2,8 @@ package scheduling
 
 import (
 	"math"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/G-Research/armada/internal/common"
@@ -233,8 +235,58 @@ func CreateClusterSchedulingInfoReport(leaseRequest *api.LeaseRequest) *api.Clus
 	return &api.ClusterSchedulingInfoReport{
 		ClusterId:       leaseRequest.ClusterId,
 		ReportTime:      time.Now(),
-		AvailableLabels: leaseRequest.AvailableLabels,
-		NodeSizes:       leaseRequest.NodeSizes,
+		AvailableLabels: getDistinctNodesLabels(leaseRequest.Nodes),
+		NodeSizes:       getLargestNodeSizes(leaseRequest.Nodes),
 		MinimumJobSize:  leaseRequest.MinimumJobSize,
 	}
+}
+
+func getDistinctNodesLabels(nodes []api.NodeInfo) []*api.NodeLabeling {
+	result := []*api.NodeLabeling{}
+	existing := map[string]bool{}
+	for _, n := range nodes {
+		idTokens := []string{}
+		for key, value := range n.Labels {
+			idTokens = append(idTokens, key+"="+value)
+		}
+		sort.Strings(idTokens)
+		id := strings.Join(idTokens, "|")
+		if !existing[id] {
+			result = append(result, &api.NodeLabeling{n.Labels})
+			existing[id] = true
+		}
+	}
+	return result
+}
+
+func getLargestNodeSizes(nodes []api.NodeInfo) []api.ComputeResource {
+
+	nodeSizes := make(map[string]common.ComputeResources)
+	for _, n := range nodes {
+		allocatableResource := common.ComputeResources(n.AllocatableResources)
+		shouldAdd := true
+		nodesToRemove := make([]string, 0, 10)
+		for existingNode, existingNodeSize := range nodeSizes {
+			if allocatableResource.Dominates(existingNodeSize) {
+				nodesToRemove = append(nodesToRemove, existingNode)
+			}
+			if existingNodeSize.Dominates(allocatableResource) || existingNodeSize.Equal(allocatableResource) {
+				shouldAdd = false
+				break
+			}
+		}
+
+		if shouldAdd {
+			nodeSizes[n.Name] = allocatableResource
+		}
+		for _, node := range nodesToRemove {
+			delete(nodeSizes, node)
+		}
+	}
+
+	result := make([]api.ComputeResource, 0, len(nodeSizes))
+	for _, size := range nodeSizes {
+		result = append(result, api.ComputeResource{size})
+	}
+	return result
 }

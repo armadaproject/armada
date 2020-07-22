@@ -28,12 +28,20 @@ message Job {
 message LeaseRequest {
     string ClusterId = 1;
     map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> Resources = 2 [(gogoproto.nullable) = false];
-    repeated NodeLabeling AvailableLabels = 3;
     ClusterLeasedReport ClusterLeasedReport  = 4 [(gogoproto.nullable) = false];
-    repeated ComputeResource NodeSizes = 5 [(gogoproto.nullable) = false];
     map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> MinimumJobSize = 6 [(gogoproto.nullable) = false];
+    repeated NodeInfo Nodes = 7 [(gogoproto.nullable) = false];
 }
 
+message NodeInfo {
+    string name = 1;
+    repeated k8s.io.api.core.v1.Taint Taints = 2 [(gogoproto.nullable) = false];
+    map<string,string> Labels = 3;
+    map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> AllocatableResources = 4 [(gogoproto.nullable) = false];
+    map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> AvailableResources = 5 [(gogoproto.nullable) = false];
+}
+
+// Used to store last info in Redis
 message ClusterSchedulingInfoReport {
     string ClusterId = 1;
     google.protobuf.Timestamp ReportTime = 2 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];

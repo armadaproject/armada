@@ -6,12 +6,13 @@ import (
 	"math/rand"
 	"time"
 
+	log "github.com/sirupsen/logrus"
+	v1 "k8s.io/api/core/v1"
+
 	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/G-Research/armada/internal/armada/repository"
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/pkg/api"
-
-	log "github.com/sirupsen/logrus"
 )
 
 const maxJobsPerLease = 10000
@@ -240,7 +241,10 @@ func (c *leaseContext) leaseJobs(queue *api.Queue, slice common.ComputeResources
 			requirement := common.TotalResourceRequest(job.PodSpec).AsFloat()
 			remainder = slice.DeepCopy()
 			remainder.Sub(requirement)
-			if remainder.IsValid() && MatchSchedulingRequirements(job, c.clusterSchedulingInfo) {
+			if remainder.IsValid() &&
+				MatchSchedulingRequirements(job, c.clusterSchedulingInfo) &&
+				matchAnyNode(job, c.request.Nodes) {
+
 				slice = remainder
 				candidates = append(candidates, job)
 			}
@@ -366,4 +370,44 @@ func isLargeEnough(job *api.Job, schedulingInfo *api.ClusterSchedulingInfoReport
 	minimum := common.ComputeResources(schedulingInfo.MinimumJobSize)
 	resourceRequest.Sub(minimum)
 	return resourceRequest.IsValid()
+}
+
+func matchAnyNode(job *api.Job, nodes []api.NodeInfo) bool {
+	resourceRequest := common.TotalResourceRequest(job.PodSpec)
+	for _, n := range nodes {
+		if fits(resourceRequest, &n) && tolerates(job, &n) {
+			return true
+		}
+	}
+	return false
+}
+
+func fits(resourceRequest common.ComputeResources, n *api.NodeInfo) bool {
+	r := common.ComputeResources(n.AvailableResources).DeepCopy()
+	r.Sub(resourceRequest)
+	return r.IsValid()
+}
+
+func tolerates(job *api.Job, n *api.NodeInfo) bool {
+	for _, taint := range n.Taints {
+		// check only hard constraints
+		if taint.Effect == v1.TaintEffectPreferNoSchedule {
+			continue
+		}
+
+		if !tolerationsTolerateTaint(job.PodSpec.Tolerations, &taint) {
+			return false
+		}
+	}
+	return true
+}
+
+// https://github.com/kubernetes/kubernetes/blob/master/pkg/apis/core/v1/helper/helpers.go#L427
+func tolerationsTolerateTaint(tolerations []v1.Toleration, taint *v1.Taint) bool {
+	for i := range tolerations {
+		if tolerations[i].ToleratesTaint(taint) {
+			return true
+		}
+	}
+	return false
 }

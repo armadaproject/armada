@@ -216,64 +216,6 @@ func TestGetUsageByQueue_HandlesEmptyList(t *testing.T) {
 	assert.Equal(t, len(result), 0)
 }
 
-func Test_getDistinctNodesLabels(t *testing.T) {
-
-	nodes := []*v1.Node{
-		{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{
-			"A": "x",
-			"B": "x",
-		}}},
-		{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{
-			"A": "x",
-			"B": "x",
-		}}},
-		{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{
-			"B": "y",
-		}}},
-	}
-	labels := []string{"A", "B"}
-
-	result := getDistinctNodesLabels(labels, nodes)
-
-	assert.Equal(t, []map[string]string{
-		{"A": "x", "B": "x"},
-		{"B": "y"},
-	}, result)
-}
-
-func Test_getLargestNodeSizes(t *testing.T) {
-	nodes := []*v1.Node{
-		makeNodeWithResource("node-1", makeResourceList(2, 1)),
-		makeNodeWithResource("node-2", makeResourceList(1, 2)),
-	}
-
-	largestNodeSizes := getLargestNodeSizes([]*v1.Pod{}, nodes)
-	assert.Equal(t, len(largestNodeSizes), 2)
-
-	node3 := makeNodeWithResource("node-3", makeResourceList(3, 3))
-	nodes = append(nodes, node3)
-	largestNodeSizes = getLargestNodeSizes([]*v1.Pod{}, nodes)
-	assert.Equal(t, len(largestNodeSizes), 1)
-	assert.True(t, largestNodeSizes[0].Equal(common.FromResourceList(node3.Status.Allocatable)))
-}
-
-func Test_getLargestNodeSizes_ReducedByResourceUsedByNonManagedPods(t *testing.T) {
-	nodes := []*v1.Node{
-		makeNodeWithResource("node-1", makeResourceList(10, 10)),
-		makeNodeWithResource("node-2", makeResourceList(5, 5)),
-	}
-	pod1node1 := makePodWithResource("", makeResourceList(1, 1))
-	pod1node1.Spec.NodeName = "node-1"
-	pod1node1.Status.Phase = v1.PodRunning
-	pod2node1 := makePodWithResource("", makeResourceList(1, 1))
-	pod2node1.Spec.NodeName = "node-1"
-	pod2node1.Status.Phase = v1.PodRunning
-
-	largestNodeSizes := getLargestNodeSizes([]*v1.Pod{&pod1node1, &pod2node1}, nodes)
-	assert.Equal(t, len(largestNodeSizes), 1)
-	assert.True(t, largestNodeSizes[0].Equal(common.FromResourceList(makeResourceList(8, 8))))
-}
-
 func hasKey(value map[string]common.ComputeResources, key string) bool {
 	_, ok := value[key]
 	return ok
@@ -308,15 +250,4 @@ func makePodWithResource(queue string, resource v1.ResourceList) v1.Pod {
 		}
 	}
 	return pod
-}
-
-func makeNodeWithResource(name string, resource v1.ResourceList) *v1.Node {
-	return &v1.Node{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
-		},
-		Status: v1.NodeStatus{
-			Allocatable: resource,
-		},
-	}
 }

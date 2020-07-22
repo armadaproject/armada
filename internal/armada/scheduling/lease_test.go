@@ -113,10 +113,11 @@ func Test_distributeRemainder_highPriorityUserDoesNotBlockOthers(t *testing.T) {
 	// the leasing logic stops scheduling 1s before the deadline
 	ctx, _ := context.WithDeadline(context.Background(), time.Now().Add(2*time.Second))
 
+	nodeResources := common.ComputeResources{"cpu": resource.MustParse("100"), "memory": resource.MustParse("100Gi")}
 	leaseRequest := &api.LeaseRequest{
 		ClusterId: "c1",
 		Resources: requestSize,
-		NodeSizes: []api.ComputeResource{{Resources: common.ComputeResources{"cpu": resource.MustParse("100"), "memory": resource.MustParse("100Gi")}}},
+		Nodes:     []api.NodeInfo{{Name: "testNode", AllocatableResources: nodeResources, AvailableResources: nodeResources}},
 	}
 
 	c := leaseContext{
@@ -173,10 +174,11 @@ func Test_distributeRemainder_DoesNotExceedSchedulingLimits(t *testing.T) {
 	// the leasing logic stops scheduling 1s before the deadline
 	ctx, _ := context.WithDeadline(context.Background(), time.Now().Add(2*time.Second))
 
+	nodeResources := common.ComputeResources{"cpu": resource.MustParse("100"), "memory": resource.MustParse("100Gi")}
 	leaseRequest := &api.LeaseRequest{
 		ClusterId: "c1",
 		Resources: requestSize,
-		NodeSizes: []api.ComputeResource{{Resources: common.ComputeResources{"cpu": resource.MustParse("100"), "memory": resource.MustParse("100Gi")}}},
+		Nodes:     []api.NodeInfo{{Name: "testNode", AllocatableResources: nodeResources, AvailableResources: nodeResources}},
 	}
 	c := leaseContext{
 		ctx: ctx,
@@ -293,4 +295,66 @@ func Test_calculateQueueSchedulingLimits_WithCustomQueueLimitsGreaterThanGlobal(
 
 	assert.Equal(t, len(result), 1)
 	assert.Equal(t, result[queue1].remainingSchedulingLimit, common.ComputeResourcesFloat{"cpu": 250.0})
+}
+
+func Test_getDistinctNodesLabels(t *testing.T) {
+
+	nodes := []api.NodeInfo{
+		{Labels: map[string]string{
+			"A": "x",
+			"B": "x",
+		}},
+		{Labels: map[string]string{
+			"A": "x",
+			"B": "x",
+		}},
+		{Labels: map[string]string{
+			"B": "y",
+		}},
+	}
+
+	result := getDistinctNodesLabels(nodes)
+
+	assert.Equal(t,
+		[]*api.NodeLabeling{
+			{Labels: map[string]string{"A": "x", "B": "x"}},
+			{Labels: map[string]string{"B": "y"}},
+		}, result)
+}
+
+func Test_getLargestNodeSizes(t *testing.T) {
+	nodes := []api.NodeInfo{
+		{Name: "node-1", AllocatableResources: makeResourceList(2, 1)},
+		{Name: "node-2", AllocatableResources: makeResourceList(1, 2)},
+	}
+
+	largestNodeSizes := getLargestNodeSizes(nodes)
+	assert.Equal(t, len(largestNodeSizes), 2)
+
+	node3 := api.NodeInfo{Name: "node-3", AllocatableResources: makeResourceList(3, 3)}
+	nodes = append(nodes, node3)
+	largestNodeSizes = getLargestNodeSizes(nodes)
+	assert.Equal(t, len(largestNodeSizes), 1)
+	assert.Equal(t, largestNodeSizes[0].Resources, node3.AllocatableResources)
+}
+
+func Test_getLargestNodeSizes_ReducedByResourceUsedByNonManagedPods(t *testing.T) {
+	nodes := []api.NodeInfo{
+		{Name: "node-1", AllocatableResources: makeResourceList(10, 10)},
+		{Name: "node-2", AllocatableResources: makeResourceList(5, 5)},
+	}
+
+	largestNodeSizes := getLargestNodeSizes(nodes)
+	assert.Equal(t, 1, len(largestNodeSizes))
+	assert.Equal(t, makeResourceList(10, 10), common.ComputeResources(largestNodeSizes[0].Resources))
+}
+
+func makeResourceList(cores int64, gigabytesRam int64) common.ComputeResources {
+	cpuResource := resource.NewQuantity(cores, resource.DecimalSI)
+	memoryResource := resource.NewQuantity(gigabytesRam*1024*1024*1024, resource.DecimalSI)
+	resourceMap := common.ComputeResources{
+		string(v1.ResourceCPU):    *cpuResource,
+		string(v1.ResourceMemory): *memoryResource,
+	}
+	return resourceMap
 }
