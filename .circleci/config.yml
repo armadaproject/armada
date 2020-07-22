@@ -78,7 +78,8 @@ commands:
     - run:      
         name: Update version, appVersion and image tag to match current $RELEASE_TAG
         command: |
-          RELEASE_TAG=${CIRCLE_BRANCH}
+          RELEASE_TAG=${CIRCLE_TAG}
+          echo release version is $RELEASE_TAG
           find . \( -name "Chart.yaml" -o -name "values.yaml" \) -exec sed -i s/LATEST/$RELEASE_TAG/ {} +
 
     - run:
