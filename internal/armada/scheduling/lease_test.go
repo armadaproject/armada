@@ -349,6 +349,60 @@ func Test_getLargestNodeSizes_ReducedByResourceUsedByNonManagedPods(t *testing.T
 	assert.Equal(t, makeResourceList(10, 10), common.ComputeResources(largestNodeSizes[0].Resources))
 }
 
+func Test_fits(t *testing.T) {
+	n := &api.NodeInfo{
+		AllocatableResources: makeResourceList(4, 40),
+		AvailableResources:   makeResourceList(1, 10),
+	}
+
+	assert.False(t, fits(makeResourceList(2, 20), n))
+	assert.False(t, fits(makeResourceList(2, 5), n))
+	assert.True(t, fits(makeResourceList(1, 10), n))
+}
+
+func Test_matchNodeSelector(t *testing.T) {
+	n := &api.NodeInfo{
+		Labels: map[string]string{
+			"A": "test",
+			"B": "test",
+		},
+	}
+	assert.False(t, matchNodeSelector(&api.Job{PodSpec: &v1.PodSpec{NodeSelector: map[string]string{"C": "test"}}}, n))
+	assert.False(t, matchNodeSelector(&api.Job{PodSpec: &v1.PodSpec{NodeSelector: map[string]string{"B": "42"}}}, n))
+	assert.True(t, matchNodeSelector(&api.Job{PodSpec: &v1.PodSpec{NodeSelector: map[string]string{"A": "test"}}}, n))
+	assert.True(t, matchNodeSelector(&api.Job{PodSpec: &v1.PodSpec{NodeSelector: map[string]string{"A": "test", "B": "test"}}}, n))
+}
+
+func Test_tolerates(t *testing.T) {
+	n := &api.NodeInfo{
+		Taints: []v1.Taint{
+			{
+				Key:    "A",
+				Value:  "test",
+				Effect: v1.TaintEffectNoSchedule,
+			},
+			{
+				Key:    "B",
+				Value:  "test",
+				Effect: v1.TaintEffectPreferNoSchedule,
+			},
+		},
+	}
+
+	job1 := &api.Job{PodSpec: &v1.PodSpec{
+		Tolerations: []v1.Toleration{
+			{
+				Key:      "A",
+				Operator: v1.TolerationOpEqual,
+				Value:    "test",
+				Effect:   v1.TaintEffectNoSchedule,
+			},
+		}}}
+
+	assert.False(t, tolerates(&api.Job{PodSpec: &v1.PodSpec{}}, n))
+	assert.True(t, tolerates(job1, n))
+}
+
 func makeResourceList(cores int64, gigabytesRam int64) common.ComputeResources {
 	cpuResource := resource.NewQuantity(cores, resource.DecimalSI)
 	memoryResource := resource.NewQuantity(gigabytesRam*1024*1024*1024, resource.DecimalSI)

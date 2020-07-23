@@ -216,6 +216,23 @@ func TestGetUsageByQueue_HandlesEmptyList(t *testing.T) {
 	assert.Equal(t, len(result), 0)
 }
 
+func TestGetAllocatedResourceByNodeName(t *testing.T) {
+	podResource := makeResourceList(2, 50)
+	pod1 := makePodWithResource("queue1", podResource)
+	pod2 := makePodWithResource("queue1", podResource)
+	pod3 := makePodWithResource("queue1", podResource)
+	pod1.Spec.NodeName = "node1"
+	pod2.Spec.NodeName = "node2"
+	pod3.Spec.NodeName = "node2"
+	pods := []*v1.Pod{&pod1, &pod2, &pod3}
+
+	allocatedResource := getAllocatedResourceByNodeName(pods)
+	assert.Equal(t, map[string]common.ComputeResources{
+		"node1": common.FromResourceList(makeResourceList(2, 50)),
+		"node2": common.FromResourceList(makeResourceList(4, 100)),
+	}, allocatedResource)
+}
+
 func hasKey(value map[string]common.ComputeResources, key string) bool {
 	_, ok := value[key]
 	return ok
