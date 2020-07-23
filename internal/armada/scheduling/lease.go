@@ -338,7 +338,7 @@ func isAbleToFitOnAvailableNodes(job *api.Job, schedulingInfo *api.ClusterSchedu
 }
 
 func matchNodeLabels(job *api.Job, schedulingInfo *api.ClusterSchedulingInfoReport) bool {
-	if len(job.RequiredNodeLabels) == 0 {
+	if len(job.PodSpec.NodeSelector) == 0 {
 		return true
 	}
 

@@ -15,7 +15,7 @@ import (
 )
 
 func Test_matchNodeLabels(t *testing.T) {
-	job := &api.Job{RequiredNodeLabels: map[string]string{"armada/region": "eu", "armada/zone": "1"}}
+	job := &api.Job{PodSpec: &v1.PodSpec{NodeSelector: map[string]string{"armada/region": "eu", "armada/zone": "1"}}}
 
 	assert.False(t, matchNodeLabels(job, &api.ClusterSchedulingInfoReport{}))
 	assert.False(t, matchNodeLabels(job, &api.ClusterSchedulingInfoReport{AvailableLabels: []*api.NodeLabeling{
