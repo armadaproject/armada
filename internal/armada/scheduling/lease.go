@@ -344,7 +344,7 @@ func matchNodeLabels(job *api.Job, schedulingInfo *api.ClusterSchedulingInfoRepo
 
 Labels:
 	for _, labeling := range schedulingInfo.AvailableLabels {
-		for k, v := range job.RequiredNodeLabels {
+		for k, v := range job.PodSpec.NodeSelector {
 			if labeling.Labels[k] != v {
 				continue Labels
 			}
@@ -352,17 +352,6 @@ Labels:
 		return true
 	}
 	return false
-}
-
-func filterPriorityMapByKeys(original map[*api.Queue]QueuePriorityInfo, keys []*api.Queue) map[*api.Queue]QueuePriorityInfo {
-	result := make(map[*api.Queue]QueuePriorityInfo)
-	for _, key := range keys {
-		existing, ok := original[key]
-		if ok {
-			result[key] = existing
-		}
-	}
-	return result
 }
 
 func isLargeEnough(job *api.Job, schedulingInfo *api.ClusterSchedulingInfoReport) bool {
@@ -375,7 +364,7 @@ func isLargeEnough(job *api.Job, schedulingInfo *api.ClusterSchedulingInfoReport
 func matchAnyNode(job *api.Job, nodes []api.NodeInfo) bool {
 	resourceRequest := common.TotalResourceRequest(job.PodSpec)
 	for _, n := range nodes {
-		if fits(resourceRequest, &n) && tolerates(job, &n) {
+		if fits(resourceRequest, &n) && matchNodeSelector(job, &n) && tolerates(job, &n) {
 			return true
 		}
 	}
@@ -386,6 +375,15 @@ func fits(resourceRequest common.ComputeResources, n *api.NodeInfo) bool {
 	r := common.ComputeResources(n.AvailableResources).DeepCopy()
 	r.Sub(resourceRequest)
 	return r.IsValid()
+}
+
+func matchNodeSelector(job *api.Job, n *api.NodeInfo) bool {
+	for k, v := range job.PodSpec.NodeSelector {
+		if n.Labels[k] != v {
+			return false
+		}
+	}
+	return true
 }
 
 func tolerates(job *api.Job, n *api.NodeInfo) bool {
