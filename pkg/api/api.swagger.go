@@ -369,6 +369,9 @@ func SwaggerJsonTemplate() string {
 		"        \"KubernetesId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
+		"        \"NodeName\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
 		"        \"Queue\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
@@ -517,6 +520,9 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"KubernetesId\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"NodeName\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"Queue\": {\n" +
@@ -673,6 +679,9 @@ func SwaggerJsonTemplate() string {
 		"        \"KubernetesId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
+		"        \"NodeName\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
 		"        \"Queue\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        }\n" +
@@ -718,6 +727,9 @@ func SwaggerJsonTemplate() string {
 		"        \"KubernetesId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
+		"        \"NodeName\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
 		"        \"Queue\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
@@ -750,6 +762,9 @@ func SwaggerJsonTemplate() string {
 		"          \"additionalProperties\": {\n" +
 		"            \"$ref\": \"#/definitions/resourceQuantity\"\n" +
 		"          }\n" +
+		"        },\n" +
+		"        \"NodeName\": {\n" +
+		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"Queue\": {\n" +
 		"          \"type\": \"string\"\n" +

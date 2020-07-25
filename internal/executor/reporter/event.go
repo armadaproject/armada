@@ -34,6 +34,7 @@ func CreateEventForCurrentState(pod *v1.Pod, clusterId string) (api.Event, error
 			Created:      time.Now(),
 			ClusterId:    clusterId,
 			KubernetesId: string(pod.ObjectMeta.UID),
+			NodeName:     pod.Spec.NodeName,
 		}, nil
 	case v1.PodFailed:
 		return CreateJobFailedEvent(pod, util.ExtractPodFailedReason(pod), util.ExtractPodExitCodes(pod), clusterId), nil
@@ -45,6 +46,7 @@ func CreateEventForCurrentState(pod *v1.Pod, clusterId string) (api.Event, error
 			Created:      time.Now(),
 			ClusterId:    clusterId,
 			KubernetesId: string(pod.ObjectMeta.UID),
+			NodeName:     pod.Spec.NodeName,
 		}, nil
 	default:
 		return *new(api.Event), errors.New(fmt.Sprintf("Could not determine job status from pod in phase %s", phase))
@@ -60,6 +62,7 @@ func CreateJobUnableToScheduleEvent(pod *v1.Pod, reason string, clusterId string
 		ClusterId:    clusterId,
 		Reason:       reason,
 		KubernetesId: string(pod.ObjectMeta.UID),
+		NodeName:     pod.Spec.NodeName,
 	}
 }
 
@@ -84,6 +87,7 @@ func CreateJobFailedEvent(pod *v1.Pod, reason string, exitCodes map[string]int32
 		Reason:       reason,
 		ExitCodes:    exitCodes,
 		KubernetesId: string(pod.ObjectMeta.UID),
+		NodeName:     pod.Spec.NodeName,
 	}
 }
 
@@ -96,5 +100,6 @@ func CreateJobUtilisationEvent(pod *v1.Pod, maxResources common.ComputeResources
 		ClusterId:             clusterId,
 		MaxResourcesForPeriod: maxResources,
 		KubernetesId:          string(pod.ObjectMeta.UID),
+		NodeName:              pod.Spec.NodeName,
 	}
 }
