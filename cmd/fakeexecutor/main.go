@@ -11,6 +11,7 @@ import (
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/internal/executor/configuration"
 	"github.com/G-Research/armada/internal/executor/fake"
+	"github.com/G-Research/armada/internal/executor/fake/context"
 )
 
 const CustomConfigLocation string = "config"
@@ -26,7 +27,13 @@ func main() {
 
 	var config configuration.ExecutorConfiguration
 	userSpecifiedConfig := viper.GetString(CustomConfigLocation)
-	common.LoadConfig(&config, "./config/executor", userSpecifiedConfig)
+	v := common.LoadConfig(&config, "./config/executor", userSpecifiedConfig)
+
+	var nodes []*context.NodeSpec
+	e := common.UnmarshalKey(v, "nodes", &nodes)
+	if e != nil {
+		panic(e)
+	}
 
 	shutdownChannel := make(chan os.Signal, 1)
 	signal.Notify(shutdownChannel, syscall.SIGINT, syscall.SIGTERM)
@@ -34,7 +41,7 @@ func main() {
 	shutdownMetricServer := common.ServeMetrics(config.Metric.Port)
 	defer shutdownMetricServer()
 
-	shutdown, wg := fake.StartUp(config)
+	shutdown, wg := fake.StartUp(config, nodes)
 	go func() {
 		<-shutdownChannel
 		shutdown()

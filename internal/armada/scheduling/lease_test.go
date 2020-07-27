@@ -95,6 +95,9 @@ func Test_distributeRemainder_highPriorityUserDoesNotBlockOthers(t *testing.T) {
 		queue2: {remainingSchedulingLimit: requestSize.AsFloat(), schedulingShare: requestSize.AsFloat(), adjustedShare: requestSize.AsFloat()},
 	}
 
+	impossiblePodSpec := classicPodSpec.DeepCopy()
+	impossiblePodSpec.NodeSelector = map[string]string{"impossible": "label"}
+
 	repository := &fakeJobQueueRepository{
 		jobsByQueue: map[string][]*api.Job{
 			"queue1": {
@@ -105,7 +108,7 @@ func Test_distributeRemainder_highPriorityUserDoesNotBlockOthers(t *testing.T) {
 				&api.Job{PodSpec: classicPodSpec},
 			},
 			"queue2": {
-				&api.Job{RequiredNodeLabels: map[string]string{"impossible": "label"}, PodSpec: classicPodSpec},
+				&api.Job{PodSpec: impossiblePodSpec},
 			},
 		},
 	}

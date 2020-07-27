@@ -10,8 +10,8 @@ import (
 	"github.com/G-Research/armada/internal/executor/metrics"
 )
 
-func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGroup) {
+func StartUp(config configuration.ExecutorConfiguration, nodes []*context.NodeSpec) (func(), *sync.WaitGroup) {
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
-	return executor.StartUpWithContext(config, context.NewFakeClusterContext(config.Application.ClusterId, context.DefaultNodeSpec), nil, task.NewBackgroundTaskManager(metrics.ArmadaExecutorMetricsPrefix), wg)
+	return executor.StartUpWithContext(config, context.NewFakeClusterContext(config.Application.ClusterId, nodes), nil, task.NewBackgroundTaskManager(metrics.ArmadaExecutorMetricsPrefix), wg)
 }

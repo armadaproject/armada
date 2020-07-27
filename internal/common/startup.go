@@ -28,7 +28,7 @@ func BindCommandlineArguments() {
 	}
 }
 
-func LoadConfig(config interface{}, defaultPath string, overrideConfig string) {
+func LoadConfig(config interface{}, defaultPath string, overrideConfig string) *viper.Viper {
 	v := viper.NewWithOptions(viper.KeyDelimiter("::"))
 
 	v.SetConfigName("config")
@@ -58,6 +58,12 @@ func LoadConfig(config interface{}, defaultPath string, overrideConfig string) {
 		log.Error(err)
 		os.Exit(-1)
 	}
+
+	return v
+}
+
+func UnmarshalKey(v *viper.Viper, key string, item interface{}) error {
+	return v.UnmarshalKey(key, item, addDecodeHook(quantityDecodeHook))
 }
 
 func addDecodeHook(hook mapstructure.DecodeHookFuncType) viper.DecoderConfigOption {
