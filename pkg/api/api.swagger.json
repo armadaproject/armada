@@ -358,6 +358,9 @@
         "KubernetesId": {
           "type": "string"
         },
+        "NodeName": {
+          "type": "string"
+        },
         "Queue": {
           "type": "string"
         },
@@ -506,6 +509,9 @@
           "type": "string"
         },
         "KubernetesId": {
+          "type": "string"
+        },
+        "NodeName": {
           "type": "string"
         },
         "Queue": {
@@ -662,6 +668,9 @@
         "KubernetesId": {
           "type": "string"
         },
+        "NodeName": {
+          "type": "string"
+        },
         "Queue": {
           "type": "string"
         }
@@ -707,6 +716,9 @@
         "KubernetesId": {
           "type": "string"
         },
+        "NodeName": {
+          "type": "string"
+        },
         "Queue": {
           "type": "string"
         },
@@ -739,6 +751,9 @@
           "additionalProperties": {
             "$ref": "#/definitions/resourceQuantity"
           }
+        },
+        "NodeName": {
+          "type": "string"
         },
         "Queue": {
           "type": "string"

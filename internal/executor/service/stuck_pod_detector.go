@@ -59,7 +59,7 @@ func (d *StuckPodDetector) onStuckPodDetected(pod *v1.Pod) (err error, retryable
 	event := reporter.CreateJobUnableToScheduleEvent(pod, message, d.clusterId)
 	err = d.eventReporter.Report(event)
 	if err != nil {
-		log.Errorf("Failure to stuck pod event %+v because %s", event, err)
+		log.Errorf("Failure to report stuck pod event %+v because %s", event, err)
 	}
 	return err, retryable, message
 }
