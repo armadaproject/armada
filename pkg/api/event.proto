@@ -67,6 +67,7 @@ message JobRunningEvent {
     google.protobuf.Timestamp Created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
     string ClusterId = 5;
     string KubernetesId = 6;
+    string NodeName = 7;
 }
 
 message JobUnableToScheduleEvent {
@@ -77,6 +78,7 @@ message JobUnableToScheduleEvent {
     string ClusterId = 5;
     string Reason = 6;
     string KubernetesId = 7;
+    string NodeName = 8;
 }
 
 message JobFailedEvent {
@@ -88,6 +90,7 @@ message JobFailedEvent {
     string Reason = 6;
     map<string, int32> ExitCodes = 7;
     string KubernetesId = 8;
+    string NodeName = 9;
 }
 
 message JobSucceededEvent {
@@ -97,6 +100,7 @@ message JobSucceededEvent {
     google.protobuf.Timestamp Created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
     string ClusterId = 5;
     string KubernetesId = 6;
+    string NodeName = 7;
 }
 
 message JobUtilisationEvent {
@@ -107,6 +111,7 @@ message JobUtilisationEvent {
     string ClusterId = 5;
     string KubernetesId = 6;
     map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> MaxResourcesForPeriod = 7 [(gogoproto.nullable) = false];
+    string NodeName = 8;
 }
 
 message JobReprioritizedEvent {
