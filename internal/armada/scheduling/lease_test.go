@@ -14,46 +14,6 @@ import (
 	"github.com/G-Research/armada/pkg/api"
 )
 
-func Test_matchNodeLabels(t *testing.T) {
-	job := &api.Job{PodSpec: &v1.PodSpec{NodeSelector: map[string]string{"armada/region": "eu", "armada/zone": "1"}}}
-
-	assert.False(t, matchNodeLabels(job, &api.ClusterSchedulingInfoReport{}))
-	assert.False(t, matchNodeLabels(job, &api.ClusterSchedulingInfoReport{AvailableLabels: []*api.NodeLabeling{
-		{Labels: map[string]string{"armada/region": "eu"}},
-		{Labels: map[string]string{"armada/zone": "2"}},
-	}}))
-	assert.False(t, matchNodeLabels(job, &api.ClusterSchedulingInfoReport{AvailableLabels: []*api.NodeLabeling{
-		{Labels: map[string]string{"armada/region": "eu", "armada/zone": "2"}},
-	}}))
-
-	assert.True(t, matchNodeLabels(job, &api.ClusterSchedulingInfoReport{AvailableLabels: []*api.NodeLabeling{
-		{Labels: map[string]string{"x": "y"}},
-		{Labels: map[string]string{"armada/region": "eu", "armada/zone": "1", "x": "y"}},
-	}}))
-}
-
-func Test_isAbleToFitOnAvailableNodes(t *testing.T) {
-	request := v1.ResourceList{"cpu": resource.MustParse("2"), "memory": resource.MustParse("2Gi")}
-	resourceRequirement := v1.ResourceRequirements{
-		Limits:   request,
-		Requests: request,
-	}
-	job := &api.Job{PodSpec: &v1.PodSpec{Containers: []v1.Container{{Resources: resourceRequirement}}}}
-
-	assert.False(t, isAbleToFitOnAvailableNodes(job, &api.ClusterSchedulingInfoReport{}))
-
-	assert.False(t, isAbleToFitOnAvailableNodes(job, &api.ClusterSchedulingInfoReport{
-		NodeSizes: []api.ComputeResource{{Resources: common.ComputeResources{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")}}},
-	}))
-
-	assert.True(t, isAbleToFitOnAvailableNodes(job, &api.ClusterSchedulingInfoReport{
-		NodeSizes: []api.ComputeResource{
-			{Resources: common.ComputeResources{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")}},
-			{Resources: common.ComputeResources{"cpu": resource.MustParse("3"), "memory": resource.MustParse("3Gi")}},
-		},
-	}))
-}
-
 func Test_minimumJobSize(t *testing.T) {
 	request := v1.ResourceList{"cpu": resource.MustParse("2"), "memory": resource.MustParse("2Gi")}
 	resourceRequirement := v1.ResourceRequirements{
@@ -117,26 +77,21 @@ func Test_distributeRemainder_highPriorityUserDoesNotBlockOthers(t *testing.T) {
 	ctx, _ := context.WithDeadline(context.Background(), time.Now().Add(2*time.Second))
 
 	nodeResources := common.ComputeResources{"cpu": resource.MustParse("100"), "memory": resource.MustParse("100Gi")}
-	leaseRequest := &api.LeaseRequest{
-		ClusterId: "c1",
-		Resources: requestSize,
-		Nodes:     []api.NodeInfo{{Name: "testNode", AllocatableResources: nodeResources, AvailableResources: nodeResources}},
-	}
-
+	nodes := []api.NodeInfo{{Name: "testNode", AllocatableResources: nodeResources, AvailableResources: nodeResources}}
 	c := leaseContext{
 		ctx: ctx,
 		schedulingConfig: &configuration.SchedulingConfig{
 			QueueLeaseBatchSize: 10,
 		},
-		onJobsLeased: func(a []*api.Job) {},
-		request:      leaseRequest,
+		onJobsLeased:  func(a []*api.Job) {},
+		clusterId:     "c1",
+		nodeResources: AggregateNodeTypeAllocations(nodes),
 
-		clusterSchedulingInfo: CreateClusterSchedulingInfoReport(leaseRequest),
-		resourceScarcity:      scarcity,
-		priorities:            priorities,
-		queueSchedulingInfo:   SliceResourceWithLimits(scarcity, schedulingInfo, priorities, requestSize.AsFloat()),
-		repository:            repository,
-		queueCache:            map[string][]*api.Job{},
+		resourceScarcity:    scarcity,
+		priorities:          priorities,
+		queueSchedulingInfo: SliceResourceWithLimits(scarcity, schedulingInfo, priorities, requestSize.AsFloat()),
+		repository:          repository,
+		queueCache:          map[string][]*api.Job{},
 	}
 
 	jobs, e := c.distributeRemainder(1000)
@@ -178,70 +133,28 @@ func Test_distributeRemainder_DoesNotExceedSchedulingLimits(t *testing.T) {
 	ctx, _ := context.WithDeadline(context.Background(), time.Now().Add(2*time.Second))
 
 	nodeResources := common.ComputeResources{"cpu": resource.MustParse("100"), "memory": resource.MustParse("100Gi")}
-	leaseRequest := &api.LeaseRequest{
-		ClusterId: "c1",
-		Resources: requestSize,
-		Nodes:     []api.NodeInfo{{Name: "testNode", AllocatableResources: nodeResources, AvailableResources: nodeResources}},
-	}
+	nodes := []api.NodeInfo{{Name: "testNode", AllocatableResources: nodeResources, AvailableResources: nodeResources}}
+
 	c := leaseContext{
 		ctx: ctx,
 		schedulingConfig: &configuration.SchedulingConfig{
 			QueueLeaseBatchSize: 10,
 		},
 		onJobsLeased: func(a []*api.Job) {},
-		request:      leaseRequest,
+		clusterId:    "c1",
 
-		clusterSchedulingInfo: CreateClusterSchedulingInfoReport(leaseRequest),
-		resourceScarcity:      scarcity,
-		priorities:            priorities,
-		queueSchedulingInfo:   SliceResourceWithLimits(scarcity, schedulingInfo, priorities, requestSize.AsFloat()),
-		repository:            repository,
-		queueCache:            map[string][]*api.Job{},
+		nodeResources: AggregateNodeTypeAllocations(nodes),
+
+		resourceScarcity:    scarcity,
+		priorities:          priorities,
+		queueSchedulingInfo: SliceResourceWithLimits(scarcity, schedulingInfo, priorities, requestSize.AsFloat()),
+		repository:          repository,
+		queueCache:          map[string][]*api.Job{},
 	}
 
 	jobs, e := c.distributeRemainder(1000)
 	assert.Nil(t, e)
 	assert.Equal(t, 2, len(jobs))
-}
-
-var classicPodSpec = &v1.PodSpec{
-	Containers: []v1.Container{{
-		Name:  "Container1",
-		Image: "index.docker.io/library/ubuntu:latest",
-		Args:  []string{"sleep", "10s"},
-		Resources: v1.ResourceRequirements{
-			Requests: v1.ResourceList{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Mi")},
-			Limits:   v1.ResourceList{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Mi")},
-		}}}}
-
-type fakeJobQueueRepository struct {
-	jobsByQueue map[string][]*api.Job
-}
-
-func (r *fakeJobQueueRepository) PeekQueue(queue string, limit int64) ([]*api.Job, error) {
-	jobs, exists := r.jobsByQueue[queue]
-	if !exists {
-		return []*api.Job{}, nil
-	}
-	if int64(len(jobs)) > limit {
-		jobs = jobs[:limit]
-	}
-	return jobs, nil
-}
-
-func (r *fakeJobQueueRepository) TryLeaseJobs(clusterId string, queue string, jobs []*api.Job) ([]*api.Job, error) {
-	remainingJobs := []*api.Job{}
-outer:
-	for _, j := range r.jobsByQueue[queue] {
-		for _, l := range jobs {
-			if j == l {
-				continue outer
-			}
-		}
-		remainingJobs = append(remainingJobs, j)
-	}
-	r.jobsByQueue[queue] = remainingJobs
-	return jobs, nil
 }
 
 func Test_calculateQueueSchedulingLimits(t *testing.T) {
@@ -300,118 +213,42 @@ func Test_calculateQueueSchedulingLimits_WithCustomQueueLimitsGreaterThanGlobal(
 	assert.Equal(t, result[queue1].remainingSchedulingLimit, common.ComputeResourcesFloat{"cpu": 250.0})
 }
 
-func Test_getDistinctNodesLabels(t *testing.T) {
+var classicPodSpec = &v1.PodSpec{
+	Containers: []v1.Container{{
+		Name:  "Container1",
+		Image: "index.docker.io/library/ubuntu:latest",
+		Args:  []string{"sleep", "10s"},
+		Resources: v1.ResourceRequirements{
+			Requests: v1.ResourceList{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Mi")},
+			Limits:   v1.ResourceList{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Mi")},
+		}}}}
 
-	nodes := []api.NodeInfo{
-		{Labels: map[string]string{
-			"A": "x",
-			"B": "x",
-		}},
-		{Labels: map[string]string{
-			"A": "x",
-			"B": "x",
-		}},
-		{Labels: map[string]string{
-			"B": "y",
-		}},
-	}
-
-	result := getDistinctNodesLabels(nodes)
-
-	assert.Equal(t,
-		[]*api.NodeLabeling{
-			{Labels: map[string]string{"A": "x", "B": "x"}},
-			{Labels: map[string]string{"B": "y"}},
-		}, result)
+type fakeJobQueueRepository struct {
+	jobsByQueue map[string][]*api.Job
 }
 
-func Test_getLargestNodeSizes(t *testing.T) {
-	nodes := []api.NodeInfo{
-		{Name: "node-1", AllocatableResources: makeResourceList(2, 1)},
-		{Name: "node-2", AllocatableResources: makeResourceList(1, 2)},
+func (r *fakeJobQueueRepository) PeekQueue(queue string, limit int64) ([]*api.Job, error) {
+	jobs, exists := r.jobsByQueue[queue]
+	if !exists {
+		return []*api.Job{}, nil
 	}
-
-	largestNodeSizes := getLargestNodeSizes(nodes)
-	assert.Equal(t, len(largestNodeSizes), 2)
-
-	node3 := api.NodeInfo{Name: "node-3", AllocatableResources: makeResourceList(3, 3)}
-	nodes = append(nodes, node3)
-	largestNodeSizes = getLargestNodeSizes(nodes)
-	assert.Equal(t, len(largestNodeSizes), 1)
-	assert.Equal(t, largestNodeSizes[0].Resources, node3.AllocatableResources)
+	if int64(len(jobs)) > limit {
+		jobs = jobs[:limit]
+	}
+	return jobs, nil
 }
 
-func Test_getLargestNodeSizes_ReducedByResourceUsedByNonManagedPods(t *testing.T) {
-	nodes := []api.NodeInfo{
-		{Name: "node-1", AllocatableResources: makeResourceList(10, 10)},
-		{Name: "node-2", AllocatableResources: makeResourceList(5, 5)},
+func (r *fakeJobQueueRepository) TryLeaseJobs(clusterId string, queue string, jobs []*api.Job) ([]*api.Job, error) {
+	remainingJobs := []*api.Job{}
+outer:
+	for _, j := range r.jobsByQueue[queue] {
+		for _, l := range jobs {
+			if j == l {
+				continue outer
+			}
+		}
+		remainingJobs = append(remainingJobs, j)
 	}
-
-	largestNodeSizes := getLargestNodeSizes(nodes)
-	assert.Equal(t, 1, len(largestNodeSizes))
-	assert.Equal(t, makeResourceList(10, 10), common.ComputeResources(largestNodeSizes[0].Resources))
-}
-
-func Test_fits(t *testing.T) {
-	n := &api.NodeInfo{
-		AllocatableResources: makeResourceList(4, 40),
-		AvailableResources:   makeResourceList(1, 10),
-	}
-
-	assert.False(t, fits(makeResourceList(2, 20), n))
-	assert.False(t, fits(makeResourceList(2, 5), n))
-	assert.True(t, fits(makeResourceList(1, 10), n))
-}
-
-func Test_matchNodeSelector(t *testing.T) {
-	n := &api.NodeInfo{
-		Labels: map[string]string{
-			"A": "test",
-			"B": "test",
-		},
-	}
-	assert.False(t, matchNodeSelector(&api.Job{PodSpec: &v1.PodSpec{NodeSelector: map[string]string{"C": "test"}}}, n))
-	assert.False(t, matchNodeSelector(&api.Job{PodSpec: &v1.PodSpec{NodeSelector: map[string]string{"B": "42"}}}, n))
-	assert.True(t, matchNodeSelector(&api.Job{PodSpec: &v1.PodSpec{NodeSelector: map[string]string{"A": "test"}}}, n))
-	assert.True(t, matchNodeSelector(&api.Job{PodSpec: &v1.PodSpec{NodeSelector: map[string]string{"A": "test", "B": "test"}}}, n))
-}
-
-func Test_tolerates(t *testing.T) {
-	n := &api.NodeInfo{
-		Taints: []v1.Taint{
-			{
-				Key:    "A",
-				Value:  "test",
-				Effect: v1.TaintEffectNoSchedule,
-			},
-			{
-				Key:    "B",
-				Value:  "test",
-				Effect: v1.TaintEffectPreferNoSchedule,
-			},
-		},
-	}
-
-	job1 := &api.Job{PodSpec: &v1.PodSpec{
-		Tolerations: []v1.Toleration{
-			{
-				Key:      "A",
-				Operator: v1.TolerationOpEqual,
-				Value:    "test",
-				Effect:   v1.TaintEffectNoSchedule,
-			},
-		}}}
-
-	assert.False(t, tolerates(&api.Job{PodSpec: &v1.PodSpec{}}, n))
-	assert.True(t, tolerates(job1, n))
-}
-
-func makeResourceList(cores int64, gigabytesRam int64) common.ComputeResources {
-	cpuResource := resource.NewQuantity(cores, resource.DecimalSI)
-	memoryResource := resource.NewQuantity(gigabytesRam*1024*1024*1024, resource.DecimalSI)
-	resourceMap := common.ComputeResources{
-		string(v1.ResourceCPU):    *cpuResource,
-		string(v1.ResourceMemory): *memoryResource,
-	}
-	return resourceMap
+	r.jobsByQueue[queue] = remainingJobs
+	return jobs, nil
 }

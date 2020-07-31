@@ -11,9 +11,13 @@ import (
 	"github.com/G-Research/armada/internal/common"
 	util2 "github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/executor/domain"
+	fakeContext "github.com/G-Research/armada/internal/executor/fake/context"
 )
 
 func TestFilterAvailableProcessingNodes_ShouldReturnAvailableProcessingNodes(t *testing.T) {
+	context := fakeContext.NewFakeClusterContext("test", nil)
+	service := NewClusterUtilisationService(context, nil, nil, nil, nil)
+
 	node := v1.Node{
 		Spec: v1.NodeSpec{
 			Unschedulable: false,
@@ -22,12 +26,15 @@ func TestFilterAvailableProcessingNodes_ShouldReturnAvailableProcessingNodes(t *
 	}
 
 	nodes := []*v1.Node{&node}
-	result := filterAvailableProcessingNodes(nodes)
+	result := service.filterAvailableProcessingNodes(nodes)
 
 	assert.Equal(t, len(result), 1)
 }
 
 func TestFilterAvailableProcessingNodes_ShouldFilterUnschedulableNodes(t *testing.T) {
+	context := fakeContext.NewFakeClusterContext("test", nil)
+	service := NewClusterUtilisationService(context, nil, nil, nil, nil)
+
 	node := v1.Node{
 		Spec: v1.NodeSpec{
 			Unschedulable: true,
@@ -36,12 +43,15 @@ func TestFilterAvailableProcessingNodes_ShouldFilterUnschedulableNodes(t *testin
 	}
 
 	nodes := []*v1.Node{&node}
-	result := filterAvailableProcessingNodes(nodes)
+	result := service.filterAvailableProcessingNodes(nodes)
 
 	assert.Equal(t, len(result), 0)
 }
 
 func TestFilterAvailableProcessingNodes_ShouldFilterNodesWithNoScheduleTaint(t *testing.T) {
+	context := fakeContext.NewFakeClusterContext("test", nil)
+	service := NewClusterUtilisationService(context, nil, nil, nil, nil)
+
 	taint := v1.Taint{
 		Effect: v1.TaintEffectNoSchedule,
 	}
@@ -53,7 +63,7 @@ func TestFilterAvailableProcessingNodes_ShouldFilterNodesWithNoScheduleTaint(t *
 	}
 
 	nodes := []*v1.Node{&node}
-	result := filterAvailableProcessingNodes(nodes)
+	result := service.filterAvailableProcessingNodes(nodes)
 
 	assert.Equal(t, len(result), 0)
 }

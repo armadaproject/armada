@@ -8,9 +8,10 @@ import (
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/G-Research/armada/internal/common"
+	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/executor/context"
 	"github.com/G-Research/armada/internal/executor/domain"
-	"github.com/G-Research/armada/internal/executor/util"
+	. "github.com/G-Research/armada/internal/executor/util"
 	"github.com/G-Research/armada/pkg/api"
 )
 
@@ -25,19 +26,23 @@ type ClusterUtilisationService struct {
 	queueUtilisationService PodUtilisationService
 	usageClient             api.UsageClient
 	trackedNodeLabels       []string
+	toleratedTaints         map[string]bool
 }
 
 func NewClusterUtilisationService(
 	clusterContext context.ClusterContext,
 	queueUtilisationService PodUtilisationService,
 	usageClient api.UsageClient,
-	trackedNodeLabels []string) *ClusterUtilisationService {
+	trackedNodeLabels []string,
+	toleratedTaints []string) *ClusterUtilisationService {
 
 	return &ClusterUtilisationService{
 		clusterContext:          clusterContext,
 		queueUtilisationService: queueUtilisationService,
 		usageClient:             usageClient,
-		trackedNodeLabels:       trackedNodeLabels}
+		trackedNodeLabels:       trackedNodeLabels,
+		toleratedTaints:         util.StringListToSet(toleratedTaints),
+	}
 }
 
 func (clusterUtilisationService *ClusterUtilisationService) ReportClusterUtilisation() {
@@ -96,7 +101,7 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAvailableClusterC
 	}
 
 	allPodsRequiringResource := getAllPodsRequiringResourceOnProcessingNodes(allPods, processingNodes)
-	allNonCompletePodsRequiringResource := util.FilterNonCompletedPods(allPodsRequiringResource)
+	allNonCompletePodsRequiringResource := FilterNonCompletedPods(allPodsRequiringResource)
 
 	totalNodeResource := common.CalculateTotalResource(processingNodes)
 	totalPodResource := common.CalculateTotalResourceRequest(allNonCompletePodsRequiringResource)
@@ -172,10 +177,10 @@ func getResourceRequiredByUnmanagedPodsOnNodes(allPods []*v1.Pod, nodes []*v1.No
 }
 
 func getUnmanagedPodsByNode(allPods []*v1.Pod, nodes []*v1.Node) map[*v1.Node][]*v1.Pod {
-	unmanagedPods := util.FilterPods(allPods, func(pod *v1.Pod) bool {
-		return !util.IsManagedPod(pod)
+	unmanagedPods := FilterPods(allPods, func(pod *v1.Pod) bool {
+		return !IsManagedPod(pod)
 	})
-	activeUnmanagedPods := util.FilterPodsWithPhase(unmanagedPods, v1.PodRunning)
+	activeUnmanagedPods := FilterPodsWithPhase(unmanagedPods, v1.PodRunning)
 
 	return getPodsByNode(activeUnmanagedPods, nodes)
 }
@@ -186,7 +191,7 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAllAvailableProce
 		return []*v1.Node{}, err
 	}
 
-	return filterAvailableProcessingNodes(allNodes), nil
+	return clusterUtilisationService.filterAvailableProcessingNodes(allNodes), nil
 }
 
 func (clusterUtilisationService *ClusterUtilisationService) reportUsage(clusterUsage *api.ClusterUsageReport) error {
@@ -197,11 +202,11 @@ func (clusterUtilisationService *ClusterUtilisationService) reportUsage(clusterU
 	return err
 }
 
-func filterAvailableProcessingNodes(nodes []*v1.Node) []*v1.Node {
+func (clusterUtilisationService *ClusterUtilisationService) filterAvailableProcessingNodes(nodes []*v1.Node) []*v1.Node {
 	processingNodes := make([]*v1.Node, 0, len(nodes))
 
 	for _, node := range nodes {
-		if isAvailableProcessingNode(node) {
+		if clusterUtilisationService.isAvailableProcessingNode(node) {
 			processingNodes = append(processingNodes, node)
 		}
 	}
@@ -209,22 +214,16 @@ func filterAvailableProcessingNodes(nodes []*v1.Node) []*v1.Node {
 	return processingNodes
 }
 
-func isAvailableProcessingNode(node *v1.Node) bool {
+func (clusterUtilisationService *ClusterUtilisationService) isAvailableProcessingNode(node *v1.Node) bool {
 	if node.Spec.Unschedulable {
 		return false
 	}
 
-	noSchedule := false
-
 	for _, taint := range node.Spec.Taints {
-		if taint.Effect == v1.TaintEffectNoSchedule {
-			noSchedule = true
-			break
+		if taint.Effect == v1.TaintEffectNoSchedule &&
+			!clusterUtilisationService.toleratedTaints[taint.Key] {
+			return false
 		}
-	}
-
-	if noSchedule {
-		return false
 	}
 
 	return true
@@ -241,7 +240,7 @@ func getAllPodsRequiringResourceOnProcessingNodes(allPods []*v1.Pod, processingN
 	for _, pod := range allPods {
 		if _, presentOnProcessingNode := nodeMap[pod.Spec.NodeName]; presentOnProcessingNode {
 			podsUsingResourceOnProcessingNodes = append(podsUsingResourceOnProcessingNodes, pod)
-		} else if util.IsManagedPod(pod) && pod.Spec.NodeName == "" {
+		} else if IsManagedPod(pod) && pod.Spec.NodeName == "" {
 			podsUsingResourceOnProcessingNodes = append(podsUsingResourceOnProcessingNodes, pod)
 		}
 	}
@@ -274,7 +273,7 @@ func (clusterUtilisationService *ClusterUtilisationService) getAllRunningManaged
 	if err != nil {
 		return []*v1.Pod{}, err
 	}
-	allActiveManagedPods = util.FilterPodsWithPhase(allActiveManagedPods, v1.PodRunning)
+	allActiveManagedPods = FilterPodsWithPhase(allActiveManagedPods, v1.PodRunning)
 	return allActiveManagedPods, nil
 }
 

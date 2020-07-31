@@ -39,7 +39,11 @@ func TestSubmitServer_SubmitJob_WhenPodCannotBeScheduled(t *testing.T) {
 		err := s.schedulingInfoRepository.UpdateClusterSchedulingInfo(&api.ClusterSchedulingInfoReport{
 			ClusterId:  "test-cluster",
 			ReportTime: time.Now(),
-			NodeSizes:  []api.ComputeResource{{Resources: common.ComputeResources{"cpu": resource.MustParse("0"), "memory": resource.MustParse("0")}}},
+			NodeTypes: []*api.NodeType{{
+				Taints:               nil,
+				Labels:               nil,
+				AllocatableResources: common.ComputeResources{"cpu": resource.MustParse("0"), "memory": resource.MustParse("0")},
+			}},
 		})
 		assert.Empty(t, err)
 
@@ -166,7 +170,9 @@ func withSubmitServer(action func(s *SubmitServer, events repository.EventReposi
 	err = schedulingInfoRepository.UpdateClusterSchedulingInfo(&api.ClusterSchedulingInfoReport{
 		ClusterId:  "test-cluster",
 		ReportTime: time.Now(),
-		NodeSizes:  []api.ComputeResource{{Resources: common.ComputeResources{"cpu": resource.MustParse("100"), "memory": resource.MustParse("100Gi")}}},
+		NodeTypes: []*api.NodeType{{
+			AllocatableResources: common.ComputeResources{"cpu": resource.MustParse("100"), "memory": resource.MustParse("100Gi")},
+		}},
 	})
 	if err != nil {
 		panic(err)

@@ -41,14 +41,20 @@ message NodeInfo {
     map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> AvailableResources = 5 [(gogoproto.nullable) = false];
 }
 
+message NodeType {
+    repeated k8s.io.api.core.v1.Taint Taints = 1 [(gogoproto.nullable) = false];
+    map<string,string> Labels = 2;
+    map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> AllocatableResources = 3 [(gogoproto.nullable) = false];
+}
+
 // Used to store last info in Redis
 message ClusterSchedulingInfoReport {
     string ClusterId = 1;
     google.protobuf.Timestamp ReportTime = 2 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
-    repeated NodeLabeling AvailableLabels = 3;
-    repeated ComputeResource NodeSizes = 4 [(gogoproto.nullable) = false];
+    repeated NodeType NodeTypes = 5;
     map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> MinimumJobSize = 6 [(gogoproto.nullable) = false];
 }
+
 
 message QueueLeasedReport {
     string Name = 1;
