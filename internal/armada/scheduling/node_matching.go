@@ -128,7 +128,7 @@ func AggregateNodeTypeAllocations(nodes []api.NodeInfo) []*nodeTypeAllocation {
 			}
 			nodeTypesIndex[description] = typeDescription
 		} else {
-			nodeTypesIndex[description].availableResources.Add(nodeAvailableResources)
+			typeDescription.availableResources.Add(nodeAvailableResources)
 		}
 	}
 
