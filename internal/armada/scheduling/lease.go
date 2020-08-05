@@ -258,6 +258,10 @@ func (c *leaseContext) leaseJobs(queue *api.Queue, slice common.ComputeResources
 				nodeType, ok := matchAnyNodeTypeAllocation(job, c.nodeResources, consumedNodeResources)
 				if ok {
 					slice = remainder
+					resourceRequest := requirement.DeepCopy()
+					resourceRequest.Add(consumedNodeResources[nodeType])
+					consumedNodeResources[nodeType] = resourceRequest
+
 					candidates = append(candidates, job)
 					candidateNodes[job] = nodeType
 				}

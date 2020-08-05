@@ -29,7 +29,7 @@ func Test_MatchSchedulingRequirements_labels(t *testing.T) {
 	}}))
 }
 
-func Test_atchSchedulingRequirements_isAbleToFitOnAvailableNodes(t *testing.T) {
+func Test_MatchSchedulingRequirements_isAbleToFitOnAvailableNodes(t *testing.T) {
 	request := v1.ResourceList{"cpu": resource.MustParse("2"), "memory": resource.MustParse("2Gi")}
 	resourceRequirement := v1.ResourceRequirements{
 		Limits:   request,

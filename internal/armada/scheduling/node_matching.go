@@ -63,8 +63,6 @@ func matchAnyNodeTypeAllocation(job *api.Job, nodeAllocations []*nodeTypeAllocat
 		available.LimitWith(node.nodeSize.AsFloat())
 
 		if fits(resourceRequest, available) && matchNodeSelector(job, node.labels) && tolerates(job, node.taints) {
-			resourceRequest.Add(alreadyConsumed[node])
-			alreadyConsumed[node] = resourceRequest
 			return node, true
 		}
 	}
