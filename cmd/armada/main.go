@@ -30,7 +30,6 @@ func main() {
 	common.LoadConfig(&config, "./config/armada", userSpecifiedConfig)
 
 	log.Info("Starting...")
-	log.Infof("Config %+v", config)
 
 	stopSignal := make(chan os.Signal, 1)
 	signal.Notify(stopSignal, syscall.SIGINT, syscall.SIGTERM)
