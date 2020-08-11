@@ -10,7 +10,7 @@ roleRef:
   name: {{ include "executor.name" . }}
 subjects:
 - kind: ServiceAccount
-  name: {{ include "executor.name" . }}
+  name: {{ .Values.customServiceAccount | default (include "executor.name" .) }}
   namespace: {{ .Release.Namespace }}
 {{- $root := . -}}
 {{ range .Values.additionalClusterRoleBindings }}
@@ -27,6 +27,6 @@ roleRef:
   name: {{ .clusterRoleName }}
 subjects:
 - kind: ServiceAccount
-  name: {{ include "executor.name" $root }}
+  name: {{ $root.Values.customServiceAccount | default (include "executor.name" $root) }}
   namespace: {{ $root.Release.Namespace }}
 {{ end }}
