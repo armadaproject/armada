@@ -94,10 +94,11 @@ commands:
         name: Commit and push updated charts
         command: |
           cd charts
+          git checkout -b circlci-armada_$RELEASE_TAG
           git -c user.name='GR OSS' -c user.email=github@gr-oss.io commit -qam "Pushing new helm charts at version $RELEASE_TAG"
           eval "$(ssh-agent -s)"
           echo -e "$ARMADA_CHART_UPDATE_KEY" | ssh-add - > /dev/null
-          git push -q origin master
+          git push -q origin HEAD
 
 jobs:
   build:

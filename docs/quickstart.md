@@ -77,7 +77,7 @@ helm install redis stable/redis-ha -f docs/quickstart/redis-values.yaml
 helm install prometheus-operator stable/prometheus-operator -f docs/quickstart/server-prometheus-values.yaml
 
 # Install Armada server
-helm install gresearch/armada -f ./docs/quickstart/server-values.yaml
+helm install armada-server gresearch/armada -f ./docs/quickstart/server-values.yaml
 
 # Get server IP for executors
 SERVER_IP=$(kubectl get nodes quickstart-armada-server-worker -o jsonpath='{.status.addresses[?(@.type=="InternalIP")].address}')
