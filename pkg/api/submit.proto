@@ -16,7 +16,7 @@ message JobSubmitRequestItem {
     string Namespace = 3;
     map<string, string> Labels = 4;
     map<string, string> Annotations = 5;
-    map<string, string> RequiredNodeLabels = 6;
+    map<string, string> RequiredNodeLabels = 6 [deprecated = true]; // Use PodSpec.NodeSelector instead
     k8s.io.api.core.v1.PodSpec PodSpec = 2;
 }
 

@@ -75,7 +75,8 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 		return nil, e
 	}
 
-	clusterSchedulingInfo := scheduling.CreateClusterSchedulingInfoReport(request)
+	nodeResources := scheduling.AggregateNodeTypeAllocations(request.Nodes)
+	clusterSchedulingInfo := scheduling.CreateClusterSchedulingInfoReport(request, nodeResources)
 	e = q.schedulingInfoRepository.UpdateClusterSchedulingInfo(clusterSchedulingInfo)
 	if e != nil {
 		return nil, e
@@ -99,6 +100,7 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 		q.jobRepository,
 		func(jobs []*api.Job) { reportJobsLeased(q.eventStore, jobs, request.ClusterId) },
 		request,
+		nodeResources,
 		activeClusterReports,
 		clusterLeasedJobReports,
 		clusterPriorities,

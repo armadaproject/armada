@@ -40,6 +40,7 @@ func NewClusterAllocationService(
 }
 
 func (allocationService *ClusterAllocationService) AllocateSpareClusterCapacity() {
+
 	capacityReport, err := allocationService.utilisationService.GetAvailableClusterCapacity()
 	if err != nil {
 		log.Errorf("Failed to allocate spare cluster capacity because %s", err)
@@ -52,7 +53,7 @@ func (allocationService *ClusterAllocationService) AllocateSpareClusterCapacity(
 		return
 	}
 	leasedJobs = util.FilterPods(leasedJobs, shouldBeRenewed)
-	newJobs, err := allocationService.leaseService.RequestJobLeases(capacityReport.AvailableCapacity, capacityReport.NodeLabels, capacityReport.NodesSizes, getAllocationByQueue(leasedJobs))
+	newJobs, err := allocationService.leaseService.RequestJobLeases(capacityReport.AvailableCapacity, capacityReport.Nodes, getAllocationByQueue(leasedJobs))
 
 	cpu := (*capacityReport.AvailableCapacity)["cpu"]
 	memory := (*capacityReport.AvailableCapacity)["memory"]

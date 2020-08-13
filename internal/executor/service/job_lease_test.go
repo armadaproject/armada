@@ -87,7 +87,7 @@ func makePodWithCurrentStateReported(state v1.PodPhase, reportedDone bool) *v1.P
 }
 
 func CreateLeaseService(minimumPodAge, failedPodExpiry time.Duration) *JobLeaseService {
-	fakeClusterContext := context2.NewFakeClusterContext("test")
+	fakeClusterContext := context2.NewFakeClusterContext("test", nil)
 	return NewJobLeaseService(fakeClusterContext, &queueClientMock{}, minimumPodAge, failedPodExpiry, common.ComputeResources{})
 }
 

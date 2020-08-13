@@ -85,7 +85,8 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 		clusterContext,
 		queueUtilisationService,
 		usageClient,
-		config.Kubernetes.TrackedNodeLabels)
+		config.Kubernetes.TrackedNodeLabels,
+		config.Kubernetes.ToleratedTaints)
 
 	stuckPodDetector := service.NewPodProgressMonitorService(
 		clusterContext,

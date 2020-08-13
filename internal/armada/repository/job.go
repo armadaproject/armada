@@ -72,6 +72,11 @@ func (repo *RedisJobRepository) CreateJobs(request *api.JobSubmitRequest, princi
 			namespace = "default"
 		}
 
+		// TODO: remove, RequiredNodeLabels is deprecated and will be removed in future versions
+		for k, v := range item.RequiredNodeLabels {
+			item.PodSpec.NodeSelector[k] = v
+		}
+
 		j := &api.Job{
 			Id:       util.NewULID(),
 			Queue:    request.Queue,
@@ -344,6 +349,11 @@ func (repo *RedisJobRepository) GetExistingJobsByIds(ids []string) ([]*api.Job, 
 		e = proto.Unmarshal(d, job)
 		if e != nil {
 			return nil, e
+		}
+
+		// TODO: remove, RequiredNodeLabels is deprecated and will be removed in future versions
+		for k, v := range job.RequiredNodeLabels {
+			job.PodSpec.NodeSelector[k] = v
 		}
 		jobs = append(jobs, job)
 	}

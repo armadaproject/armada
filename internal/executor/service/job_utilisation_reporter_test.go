@@ -22,7 +22,7 @@ var testPodResources = common.ComputeResources{
 
 func TestUtilisationEventReporter_ReportUtilisationEvents(t *testing.T) {
 	reportingPeriod := 100 * time.Millisecond
-	clusterContext := fakeContext.NewFakeClusterContext("test")
+	clusterContext := fakeContext.NewFakeClusterContext("test", nil)
 	fakeEventReporter := &fakeEventReporter{}
 	reporter := NewUtilisationEventReporter(clusterContext, &fakePodUtilisation{}, fakeEventReporter, reportingPeriod)
 
