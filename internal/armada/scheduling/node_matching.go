@@ -6,7 +6,6 @@ import (
 	"time"
 
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/pkg/api"
@@ -38,10 +37,9 @@ func MatchSchedulingRequirements(job *api.Job, schedulingInfo *api.ClusterSchedu
 		matchAnyNodeType(job, schedulingInfo.NodeTypes)
 }
 
-func isLargeEnough(job *api.Job, minimumJobSize map[string]resource.Quantity) bool {
+func isLargeEnough(job *api.Job, minimumJobSize common.ComputeResources) bool {
 	resourceRequest := common.TotalResourceRequest(job.PodSpec)
-	minimum := common.ComputeResources(minimumJobSize)
-	resourceRequest.Sub(minimum)
+	resourceRequest.Sub(minimumJobSize)
 	return resourceRequest.IsValid()
 }
 
