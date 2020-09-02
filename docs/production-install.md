@@ -13,7 +13,7 @@ The below sections will cover how to install the component into Kubernetes.
 #### Recommended pre-requisites
 
 * Cert manager installed (https://hub.helm.sh/charts/jetstack/cert-manager)
-* gRPC compatible ingress controller installed for gRPC ingress (such as https://github.com/helm/charts/tree/master/stable/nginx-ingress)
+* gRPC compatible ingress controller installed for gRPC ingress (such as https://github.com/kubernetes/ingress-nginx)
 * Redis installed (https://github.com/helm/charts/tree/master/stable/redis-ha)
 
 Set `ARMADA_VERSION` environment variable and clone this repository repository with the same version tag as you are installing. For example to install version `v1.2.3`:
@@ -31,7 +31,8 @@ You'll need to provide custom config via the values file, below is a minimal tem
 ```yaml
 ingressClass: "nginx"
 clusterIssuer: "letsencrypt-prod"
-hostname: "server.component.url.com"
+hostnames: 
+  - "server.component.url.com"
 replicas: 3
 
 applicationConfig:
@@ -107,7 +108,7 @@ For authentication please create a config file described below.
 
 #### Config file
 
-By default config is loaded from `$HOME/.armadactl`.
+By default config is loaded from `$HOME/.armadactl.yaml`.
 
 You can also set location of the config file  using command line argument:
 
