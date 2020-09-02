@@ -17,6 +17,8 @@ spec:
   template:
     metadata:
       name: {{ include "armada.name" . }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
       labels:
         {{- include "armada.labels.all" . | nindent 8 }}
     spec:

@@ -13,6 +13,8 @@ spec:
   template:
     metadata:
       name: {{ include "executor.name" . }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
       labels:
         {{- include "executor.labels.all" . | nindent 8 }}
     spec:
