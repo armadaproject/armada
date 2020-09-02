@@ -23,7 +23,7 @@ prometheus:
   labels: {}
   scrapeInterval: 10s
 customServiceAccount: null
-serviceAccount: {}
+serviceAccount: null
 
 applicationConfig:
   grpcPort: 50051
