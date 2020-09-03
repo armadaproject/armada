@@ -70,8 +70,6 @@ helm install ./deployment/armada --set image.tag=$ARMADA_VERSION -f ./server-val
 
 For production the executor component should run inside the cluster it is "managing".
 
-**Please note by default the executor runs on the control plane. This is recommended but can be configured differently, see the Helm chart page [here](./helm/executor.md) for details.**
-
 To install the executor into a cluster, we will use Helm. 
 
 You'll need to provide custom config via the values file, below is a minimal template that you can fill in:
@@ -87,7 +85,23 @@ applicationConfig:
       password: "password1"
 ```
 
-For all configuration options you can specify in your values file, see [executor Helm docs](./helm/executor.md).
+<br/>
+
+##### Moving Executor off the control plane
+
+By default, the executor runs on the control plane. 
+ 
+When that isn't an option, maybe because you are using a managed kubernetes service where you cannot access the master nodes.
+
+Add the following to your values file:
+ ```yaml
+nodeSelector: null
+tolerations: []
+```
+<br/>
+
+
+For other node configurations and all other executor options you can specify in your values file, see [executor Helm docs](./helm/executor.md).
 
 Fill in the appropriate values in the above template and save it as `executor-values.yaml`.
 
