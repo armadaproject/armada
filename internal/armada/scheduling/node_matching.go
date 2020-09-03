@@ -33,14 +33,13 @@ func extractNodeTypes(allocations []*nodeTypeAllocation) []*api.NodeType {
 }
 
 func MatchSchedulingRequirements(job *api.Job, schedulingInfo *api.ClusterSchedulingInfoReport) bool {
-	return isLargeEnough(job, schedulingInfo) &&
+	return isLargeEnough(job, schedulingInfo.MinimumJobSize) &&
 		matchAnyNodeType(job, schedulingInfo.NodeTypes)
 }
 
-func isLargeEnough(job *api.Job, schedulingInfo *api.ClusterSchedulingInfoReport) bool {
+func isLargeEnough(job *api.Job, minimumJobSize common.ComputeResources) bool {
 	resourceRequest := common.TotalResourceRequest(job.PodSpec)
-	minimum := common.ComputeResources(schedulingInfo.MinimumJobSize)
-	resourceRequest.Sub(minimum)
+	resourceRequest.Sub(minimumJobSize)
 	return resourceRequest.IsValid()
 }
 

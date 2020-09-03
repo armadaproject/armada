@@ -254,7 +254,7 @@ func (c *leaseContext) leaseJobs(queue *api.Queue, slice common.ComputeResources
 			requirement := common.TotalResourceRequest(job.PodSpec).AsFloat()
 			remainder = slice.DeepCopy()
 			remainder.Sub(requirement)
-			if remainder.IsValid() {
+			if isLargeEnough(job, c.minimumJobSize) && remainder.IsValid() {
 				nodeType, ok := matchAnyNodeTypeAllocation(job, c.nodeResources, consumedNodeResources)
 				if ok {
 					slice = remainder
