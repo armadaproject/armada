@@ -6,7 +6,7 @@ metadata:
   annotations:
     kubernetes.io/ingress.class: {{ required "A value is required for .Values.ingressClass" .Values.ingressClass }}
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
-    certmanager.k8s.io/cluster-issuer: {{ required "A value is required for .Values.clusterIssuer" .Values.clusterIssuer }}
+    cert-manager.io/cluster-issuer: {{ required "A value is required for .Values.clusterIssuer" .Values.clusterIssuer }}
     nginx.ingress.kubernetes.io/rewrite-target: /$2
     {{- if .Values.ingress.annotations }}
     {{- toYaml .Values.ingress.annotations | nindent 4 -}}
