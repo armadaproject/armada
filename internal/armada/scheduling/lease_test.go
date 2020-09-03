@@ -22,15 +22,11 @@ func Test_minimumJobSize(t *testing.T) {
 	}
 	job := &api.Job{PodSpec: &v1.PodSpec{Containers: []v1.Container{{Resources: resourceRequirement}}}}
 
-	assert.True(t, isLargeEnough(job, &api.ClusterSchedulingInfoReport{
-		MinimumJobSize: common.ComputeResources{"cpu": resource.MustParse("2")}}))
-	assert.True(t, isLargeEnough(job, &api.ClusterSchedulingInfoReport{
-		MinimumJobSize: common.ComputeResources{}}))
+	assert.True(t, isLargeEnough(job, common.ComputeResources{"cpu": resource.MustParse("2")}))
+	assert.True(t, isLargeEnough(job, common.ComputeResources{}))
 
-	assert.False(t, isLargeEnough(job, &api.ClusterSchedulingInfoReport{
-		MinimumJobSize: common.ComputeResources{"cpu": resource.MustParse("5")}}))
-	assert.False(t, isLargeEnough(job, &api.ClusterSchedulingInfoReport{
-		MinimumJobSize: common.ComputeResources{"gpu": resource.MustParse("1")}}))
+	assert.False(t, isLargeEnough(job, common.ComputeResources{"cpu": resource.MustParse("5")}))
+	assert.False(t, isLargeEnough(job, common.ComputeResources{"gpu": resource.MustParse("1")}))
 }
 
 func Test_distributeRemainder_highPriorityUserDoesNotBlockOthers(t *testing.T) {
