@@ -18,7 +18,6 @@ type StuckPodDetector struct {
 	eventReporter   reporter.EventReporter
 	stuckPodCache   map[string]*podRecord
 	jobLeaseService LeaseService
-	clusterId       string
 	stuckPodExpiry  time.Duration
 }
 
@@ -56,7 +55,7 @@ func (d *StuckPodDetector) onStuckPodDetected(pod *v1.Pod) (err error, retryable
 	} else {
 		message = fmt.Sprintf("Unable to schedule pod with unrecoverable problem, Armada will not retry.\n%s", message)
 	}
-	event := reporter.CreateJobUnableToScheduleEvent(pod, message, d.clusterId)
+	event := reporter.CreateJobUnableToScheduleEvent(pod, message, d.clusterContext.GetClusterId())
 	err = d.eventReporter.Report(event)
 	if err != nil {
 		log.Errorf("Failure to report stuck pod event %+v because %s", event, err)
@@ -84,7 +83,7 @@ func (d *StuckPodDetector) onStuckPodDeleted(jobId string, record *podRecord) (r
 	} else {
 		// Reporting failed even can fail with unfortunate timing of executor restarts, in that case lease will expire and job can be retried
 		// This is preferred over returning Failed event early as user could retry based on failed even but the job could be running
-		event := reporter.CreateJobFailedEvent(record.pod, record.message, map[string]int32{}, d.clusterId)
+		event := reporter.CreateJobFailedEvent(record.pod, record.message, map[string]int32{}, d.clusterContext.GetClusterId())
 		err := d.eventReporter.Report(event)
 		if err != nil {
 			return false
