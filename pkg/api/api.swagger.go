@@ -165,6 +165,26 @@ func SwaggerJsonTemplate() string {
 		"            \"schema\": {}\n" +
 		"          }\n" +
 		"        }\n" +
+		"      },\n" +
+		"      \"delete\": {\n" +
+		"        \"tags\": [\n" +
+		"          \"Submit\"\n" +
+		"        ],\n" +
+		"        \"operationId\": \"DeleteQueue\",\n" +
+		"        \"parameters\": [\n" +
+		"          {\n" +
+		"            \"type\": \"string\",\n" +
+		"            \"name\": \"Name\",\n" +
+		"            \"in\": \"path\",\n" +
+		"            \"required\": true\n" +
+		"          }\n" +
+		"        ],\n" +
+		"        \"responses\": {\n" +
+		"          \"200\": {\n" +
+		"            \"description\": \"A successful response.\",\n" +
+		"            \"schema\": {}\n" +
+		"          }\n" +
+		"        }\n" +
 		"      }\n" +
 		"    }\n" +
 		"  },\n" +

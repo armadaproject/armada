@@ -64,6 +64,11 @@ message QueueInfoRequest {
 }
 
 //swagger:model
+message QueueDeleteRequest {
+    string Name = 1;
+}
+
+//swagger:model
 message QueueInfo {
     string Name = 1;
     repeated JobSetInfo ActiveJobSets = 2;
@@ -92,6 +97,11 @@ service Submit {
         option (google.api.http) = {
             put: "/v1/queue/{Name}"
             body: "*"
+        };
+    }
+    rpc DeleteQueue (QueueDeleteRequest) returns (google.protobuf.Empty) {
+        option (google.api.http) = {
+            delete: "/v1/queue/{Name}"
         };
     }
     rpc GetQueueInfo (QueueInfoRequest) returns (QueueInfo) {
