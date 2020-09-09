@@ -31,7 +31,7 @@ var deleteQueueCmd = &cobra.Command{
 				log.Error(e)
 				return
 			}
-			log.Infof("Queue %s deleted or did not existed at all.", queue)
+			log.Infof("Queue %s deleted or did not exist.", queue)
 		})
 	},
 }
