@@ -74,6 +74,27 @@ func (server *SubmitServer) CreateQueue(ctx context.Context, queue *api.Queue) (
 	return &types.Empty{}, nil
 }
 
+func (server *SubmitServer) DeleteQueue(ctx context.Context, request *api.QueueDeleteRequest) (*types.Empty, error) {
+	if e := checkPermission(server.permissions, ctx, permissions.DeleteQueue); e != nil {
+		return nil, e
+	}
+
+	active, e := server.jobRepository.GetQueueActiveJobSets(request.Name)
+	if e != nil {
+		return nil, status.Errorf(codes.InvalidArgument, e.Error())
+	}
+	if len(active) > 0 {
+		return nil, status.Errorf(codes.FailedPrecondition, "Queue is not empty.")
+	}
+
+	e = server.queueRepository.DeleteQueue(request.Name)
+	if e != nil {
+		return nil, status.Errorf(codes.InvalidArgument, e.Error())
+	}
+
+	return &types.Empty{}, nil
+}
+
 func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRequest) (*api.JobSubmitResponse, error) {
 	if e := server.checkQueuePermission(ctx, req.Queue, permissions.SubmitJobs, permissions.SubmitAnyJobs); e != nil {
 		return nil, e

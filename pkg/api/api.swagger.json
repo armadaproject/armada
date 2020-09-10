@@ -154,6 +154,26 @@
             "schema": {}
           }
         }
+      },
+      "delete": {
+        "tags": [
+          "Submit"
+        ],
+        "operationId": "DeleteQueue",
+        "parameters": [
+          {
+            "type": "string",
+            "name": "Name",
+            "in": "path",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {}
+          }
+        }
       }
     }
   },
