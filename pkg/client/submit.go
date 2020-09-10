@@ -15,6 +15,13 @@ func CreateQueue(submitClient api.SubmitClient, queue *api.Queue) error {
 	return e
 }
 
+func DeleteQueue(submitClient api.SubmitClient, name string) error {
+	ctx, cancel := common.ContextWithDefaultTimeout()
+	defer cancel()
+	_, e := submitClient.DeleteQueue(ctx, &api.QueueDeleteRequest{name})
+	return e
+}
+
 func SubmitJobs(submitClient api.SubmitClient, request *api.JobSubmitRequest) (*api.JobSubmitResponse, error) {
 	ctx, cancel := common.ContextWithDefaultTimeout()
 	defer cancel()

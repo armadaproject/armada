@@ -43,8 +43,7 @@ Job priority is evaluated inside queue, queue has its own priority.`,
 		resourceLimits, _ := cmd.Flags().GetStringToString("resourceLimits")
 		resourceLimitsFloat, err := convertResourceLimitsToFloat64(resourceLimits)
 		if err != nil {
-			log.Error(err)
-			return
+			exitWithError(err)
 		}
 
 		apiConnectionDetails := client.ExtractCommandlineArmadaApiConnectionDetails()
@@ -59,8 +58,7 @@ Job priority is evaluated inside queue, queue has its own priority.`,
 				ResourceLimits: resourceLimitsFloat})
 
 			if e != nil {
-				log.Error(e)
-				return
+				exitWithError(e)
 			}
 			log.Infof("Queue %s created.", queue)
 		})
