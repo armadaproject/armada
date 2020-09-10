@@ -45,8 +45,7 @@ var cancelCmd = &cobra.Command{
 				Queue:    queue,
 			})
 			if e != nil {
-				log.Error(e)
-				return
+				exitWithError(e)
 			}
 			log.Infof("Cancellation request submitted for jobs: %s", strings.Join(result.CancelledIds, ", "))
 		})

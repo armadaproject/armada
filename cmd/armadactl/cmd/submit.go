@@ -49,8 +49,7 @@ var submitCmd = &cobra.Command{
 		err = util.BindJsonOrYaml(filePath, submitFile)
 
 		if err != nil {
-			log.Error(err)
-			os.Exit(1)
+			exitWithError(err)
 		}
 
 		if dryRun {
@@ -67,8 +66,7 @@ var submitCmd = &cobra.Command{
 				response, e := client.SubmitJobs(submissionClient, request)
 
 				if e != nil {
-					log.Error(e)
-					os.Exit(1)
+					exitWithError(e)
 				}
 
 				summariseResponse(response, request.JobSetId)
