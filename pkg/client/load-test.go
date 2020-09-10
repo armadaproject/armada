@@ -48,11 +48,7 @@ func (apiLoadTester ArmadaLoadTester) RunSubmissionTest(ctx context.Context, spe
 			wg.Add(1)
 			go func(i int, submission *domain.SubmissionDescription) {
 				defer wg.Done()
-
-				nestedWg := &sync.WaitGroup{}
-				nestedWg.Add(1)
-				jobIdChannel, jobSetId := apiLoadTester.runSubmission(ctx, submission, i, nestedWg)
-
+				jobIdChannel, jobSetId, submissionComplete := apiLoadTester.runSubmission(ctx, submission, i)
 				if watchEvents {
 					submittedIds := apiLoadTester.monitorJobsUntilCompletion(ctx, createQueueName(submission, i), jobSetId, jobIdChannel, eventChannel)
 					allSubmittedJobs.Append(submittedIds)
@@ -60,8 +56,7 @@ func (apiLoadTester ArmadaLoadTester) RunSubmissionTest(ctx context.Context, spe
 				if ctx.Err() != nil {
 					apiLoadTester.cancelRemainingJobs(createQueueName(submission, i), jobSetId)
 				}
-
-				nestedWg.Wait()
+				submissionComplete.Wait()
 			}(i, submission)
 		}
 	}
@@ -106,7 +101,7 @@ func watchJobInfoChannel(eventChannel chan api.Event) (*sync.WaitGroup, chan boo
 	return complete, stop, aggregatedCurrentState
 }
 
-func (apiLoadTester ArmadaLoadTester) runSubmission(ctx context.Context, submission *domain.SubmissionDescription, i int, wg *sync.WaitGroup) (jobIds chan string, jobSetId string) {
+func (apiLoadTester ArmadaLoadTester) runSubmission(ctx context.Context, submission *domain.SubmissionDescription, i int) (jobIds chan string, jobSetId string, submissionComplete *sync.WaitGroup) {
 	queue := createQueueName(submission, i)
 	startTime := time.Now()
 
@@ -124,8 +119,11 @@ func (apiLoadTester ArmadaLoadTester) runSubmission(ctx context.Context, submiss
 
 	jobIds = make(chan string, jobCount)
 
+	submissionComplete = &sync.WaitGroup{}
+	submissionComplete.Add(1)
+
 	go WithConnection(apiLoadTester.apiConnectionDetails, func(connection *grpc.ClientConn) {
-		defer wg.Done()
+		defer submissionComplete.Done()
 
 		client := api.NewSubmitClient(connection)
 
@@ -177,7 +175,7 @@ func (apiLoadTester ArmadaLoadTester) runSubmission(ctx context.Context, submiss
 		}
 		close(jobIds)
 	})
-	return jobIds, jobSetId
+	return jobIds, jobSetId, submissionComplete
 }
 
 func filterReadyJobs(startTime time.Time, jobs []*domain.JobSubmissionDescription) (ready []*domain.JobSubmissionDescription, notReady []*domain.JobSubmissionDescription) {
