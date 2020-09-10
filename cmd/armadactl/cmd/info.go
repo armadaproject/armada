@@ -34,8 +34,7 @@ var infoCmd = &cobra.Command{
 			defer cancel()
 			queueInfo, e := submitClient.GetQueueInfo(ctx, &api.QueueInfoRequest{queue})
 			if e != nil {
-				log.Error(e)
-				return
+				exitWithError(e)
 			}
 
 			jobSets := queueInfo.ActiveJobSets

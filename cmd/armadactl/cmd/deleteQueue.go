@@ -28,8 +28,7 @@ var deleteQueueCmd = &cobra.Command{
 			submissionClient := api.NewSubmitClient(conn)
 			e := client.DeleteQueue(submissionClient, queue)
 			if e != nil {
-				log.Error(e)
-				return
+				exitWithError(e)
 			}
 			log.Infof("Queue %s deleted or did not exist.", queue)
 		})
