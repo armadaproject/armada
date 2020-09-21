@@ -66,8 +66,8 @@ func Test_AggregateNodeTypesAllocations(t *testing.T) {
 		},
 		{
 			Name:                 "n3-special",
-			AllocatableResources: common.ComputeResources{"cpu": resource.MustParse("4"), "memory": resource.MustParse("1Gi")},
-			AvailableResources:   common.ComputeResources{"cpu": resource.MustParse("2"), "memory": resource.MustParse("3Gi")},
+			AllocatableResources: common.ComputeResources{"cpu": resource.MustParse("5"), "memory": resource.MustParse("5Gi")},
+			AvailableResources:   common.ComputeResources{"cpu": resource.MustParse("6"), "memory": resource.MustParse("6Gi")},
 		},
 	}
 
@@ -82,8 +82,8 @@ func Test_AggregateNodeTypesAllocations(t *testing.T) {
 		{
 			taints:             nil,
 			labels:             nil,
-			nodeSize:           common.ComputeResources{"cpu": resource.MustParse("4"), "memory": resource.MustParse("1Gi")},
-			availableResources: common.ComputeResourcesFloat{"cpu": 2, "memory": 3 * 1024 * 1024 * 1024},
+			nodeSize:           common.ComputeResources{"cpu": resource.MustParse("5"), "memory": resource.MustParse("5Gi")},
+			availableResources: common.ComputeResourcesFloat{"cpu": 6, "memory": 6 * 1024 * 1024 * 1024},
 		},
 	}, aggregated)
 }
