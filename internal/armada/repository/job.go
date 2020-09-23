@@ -8,8 +8,11 @@ import (
 	"github.com/go-redis/redis"
 	"github.com/gogo/protobuf/proto"
 	log "github.com/sirupsen/logrus"
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/G-Research/armada/internal/armada/authorization"
+	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/common/validation"
 	"github.com/G-Research/armada/pkg/api"
@@ -42,11 +45,15 @@ type JobRepository interface {
 }
 
 type RedisJobRepository struct {
-	db redis.UniversalClient
+	db               redis.UniversalClient
+	defaultJobLimits common.ComputeResources
 }
 
-func NewRedisJobRepository(db redis.UniversalClient) *RedisJobRepository {
-	return &RedisJobRepository{db: db}
+func NewRedisJobRepository(db redis.UniversalClient, defaultJobLimits common.ComputeResources) *RedisJobRepository {
+	if defaultJobLimits == nil {
+		defaultJobLimits = common.ComputeResources{}
+	}
+	return &RedisJobRepository{db: db, defaultJobLimits: defaultJobLimits}
 }
 
 func (repo *RedisJobRepository) CreateJobs(request *api.JobSubmitRequest, principal authorization.Principal) ([]*api.Job, error) {
@@ -62,6 +69,7 @@ func (repo *RedisJobRepository) CreateJobs(request *api.JobSubmitRequest, princi
 
 	for i, item := range request.JobRequestItems {
 
+		repo.applyDefaults(item.PodSpec)
 		e := validation.ValidatePodSpec(item.PodSpec)
 		if e != nil {
 			return nil, fmt.Errorf("error validating pod spec of job with index %v: %v", i, e)
@@ -548,6 +556,28 @@ func (repo *RedisJobRepository) leaseJobs(clusterId string, jobs []*api.Job) ([]
 		}
 	}
 	return leasedJobs, nil
+}
+
+func (repo *RedisJobRepository) applyDefaults(spec *v1.PodSpec) {
+	if spec != nil {
+		for i := range spec.Containers {
+			c := &spec.Containers[i]
+			if c.Resources.Limits == nil {
+				c.Resources.Limits = map[v1.ResourceName]resource.Quantity{}
+			}
+			if c.Resources.Requests == nil {
+				c.Resources.Requests = map[v1.ResourceName]resource.Quantity{}
+			}
+			for k, v := range repo.defaultJobLimits {
+				_, limitExists := c.Resources.Limits[v1.ResourceName(k)]
+				_, requestExists := c.Resources.Limits[v1.ResourceName(k)]
+				if !limitExists && !requestExists {
+					c.Resources.Requests[v1.ResourceName(k)] = v
+					c.Resources.Limits[v1.ResourceName(k)] = v
+				}
+			}
+		}
+	}
 }
 
 func leaseJob(db redis.Cmdable, queueName string, clusterId string, jobId string, now time.Time) *redis.Cmd {

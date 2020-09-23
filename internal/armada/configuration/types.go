@@ -58,6 +58,7 @@ type SchedulingConfig struct {
 	MaximalResourceFractionToSchedulePerQueue map[string]float64
 	MaximalResourceFractionPerQueue           map[string]float64
 	Lease                                     LeaseSettings
+	DefaultJobLimits                          common.ComputeResources
 }
 
 type EventRetentionPolicy struct {
