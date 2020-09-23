@@ -10,6 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/G-Research/armada/internal/armada/authorization"
+	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/pkg/api"
 )
 
@@ -229,6 +230,49 @@ func TestGetQueueActiveJobSets(t *testing.T) {
 	})
 }
 
+func TestCreateJob_ApplyDefaultLimitss(t *testing.T) {
+	defaults := common.ComputeResources{
+		"cpu":               resource.MustParse("1"),
+		"memory":            resource.MustParse("512Mi"),
+		"ephemeral-storage": resource.MustParse("4Gi")}
+
+	withRepositoryUsingJobDefaults(defaults, func(r *RedisJobRepository) {
+		testCases := map[*v1.ResourceList]v1.ResourceList{
+			nil: {
+				"cpu":               resource.MustParse("1"),
+				"memory":            resource.MustParse("512Mi"),
+				"ephemeral-storage": resource.MustParse("4Gi"),
+			},
+			{
+				"cpu": resource.MustParse("2"),
+			}: {
+				"cpu":               resource.MustParse("2"),
+				"memory":            resource.MustParse("512Mi"),
+				"ephemeral-storage": resource.MustParse("4Gi"),
+			},
+			{
+				"nvidia/gpu": resource.MustParse("3"),
+			}: {
+				"cpu":               resource.MustParse("1"),
+				"memory":            resource.MustParse("512Mi"),
+				"ephemeral-storage": resource.MustParse("4Gi"),
+				"nvidia/gpu":        resource.MustParse("3"),
+			},
+		}
+
+		for requirements, expected := range testCases {
+			resources := v1.ResourceRequirements{}
+			if requirements != nil {
+				resources.Requests = *requirements
+				resources.Limits = *requirements
+			}
+			job := addTestJobWithRequirements(t, r, "test", resources)
+			assert.Equal(t, expected, job.PodSpec.Containers[0].Resources.Limits)
+			assert.Equal(t, expected, job.PodSpec.Containers[0].Resources.Requests)
+		}
+	})
+}
+
 func addLeasedJob(t *testing.T, r *RedisJobRepository, queue string, cluster string) *api.Job {
 	job := addTestJob(t, r, queue)
 	leased, e := r.TryLeaseJobs(cluster, queue, []*api.Job{job})
@@ -242,6 +286,14 @@ func addTestJob(t *testing.T, r *RedisJobRepository, queue string) *api.Job {
 	cpu := resource.MustParse("1")
 	memory := resource.MustParse("512Mi")
 
+	return addTestJobWithRequirements(t, r, queue, v1.ResourceRequirements{
+		Limits:   v1.ResourceList{"cpu": cpu, "memory": memory},
+		Requests: v1.ResourceList{"cpu": cpu, "memory": memory},
+	})
+}
+
+func addTestJobWithRequirements(t *testing.T, r *RedisJobRepository, queue string, requirements v1.ResourceRequirements) *api.Job {
+
 	jobs, e := r.CreateJobs(&api.JobSubmitRequest{
 		Queue:    queue,
 		JobSetId: "set1",
@@ -251,10 +303,7 @@ func addTestJob(t *testing.T, r *RedisJobRepository, queue string) *api.Job {
 				PodSpec: &v1.PodSpec{
 					Containers: []v1.Container{
 						{
-							Resources: v1.ResourceRequirements{
-								Limits:   v1.ResourceList{"cpu": cpu, "memory": memory},
-								Requests: v1.ResourceList{"cpu": cpu, "memory": memory},
-							},
+							Resources: requirements,
 						},
 					},
 				},
@@ -272,13 +321,16 @@ func addTestJob(t *testing.T, r *RedisJobRepository, queue string) *api.Job {
 }
 
 func withRepository(action func(r *RedisJobRepository)) {
+	withRepositoryUsingJobDefaults(nil, action)
+}
 
+func withRepositoryUsingJobDefaults(jobDefaultLimit common.ComputeResources, action func(r *RedisJobRepository)) {
 	client := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 10})
 	defer client.FlushDB()
 	defer client.Close()
 
 	client.FlushDB()
 
-	repo := NewRedisJobRepository(client)
+	repo := NewRedisJobRepository(client, jobDefaultLimit)
 	action(repo)
 }

@@ -156,7 +156,7 @@ func withSubmitServer(action func(s *SubmitServer, events repository.EventReposi
 	// using real redis instance as miniredis does not support streams
 	client := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 10})
 
-	jobRepo := repository.NewRedisJobRepository(client)
+	jobRepo := repository.NewRedisJobRepository(client, nil)
 	queueRepo := repository.NewRedisQueueRepository(client)
 	eventRepo := repository.NewRedisEventRepository(client, configuration.EventRetentionPolicy{ExpiryEnabled: false})
 	schedulingInfoRepository := repository.NewRedisSchedulingInfoRepository(client)
