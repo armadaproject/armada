@@ -39,7 +39,7 @@ func Serve(config *configuration.ArmadaConfig) (func(), *sync.WaitGroup) {
 	db := createRedisClient(&config.Redis)
 	eventsDb := createRedisClient(&config.EventsRedis)
 
-	jobRepository := repository.NewRedisJobRepository(db)
+	jobRepository := repository.NewRedisJobRepository(db, config.Scheduling.DefaultJobLimits)
 	usageRepository := repository.NewRedisUsageRepository(db)
 	queueRepository := repository.NewRedisQueueRepository(db)
 	schedulingInfoRepository := repository.NewRedisSchedulingInfoRepository(db)
