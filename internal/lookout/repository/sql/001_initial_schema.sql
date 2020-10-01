@@ -4,10 +4,11 @@ CREATE TABLE job
     queue     varchar(512) NOT NULL,
     jobset    varchar(512) NOT NULL,
 
-    priority  float        NOT NULL,
-    submitted timestamp    NOT NULL,
+    priority  float        NULL,
+    submitted timestamp    NULL,
+    cancelled timestamp    NULL,
 
-    job       jsonb        NOT NULL
+    job       jsonb        NULL
 );
 
 CREATE TABLE job_run
@@ -32,3 +33,5 @@ CREATE TABLE job_run_container
     container_name varchar(512),
     exit_code      int         NOT NULL
 )
+
+

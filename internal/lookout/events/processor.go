@@ -15,11 +15,11 @@ type EventProcessor struct {
 	connection *stanUtil.DurableConnection
 	subject    string
 	group      string
-	repository repository.JobRepository
+	recorder   repository.JobRecorder
 }
 
-func NewEventProcessor(connection *stanUtil.DurableConnection, repository repository.JobRepository, subject string, group string) *EventProcessor {
-	return &EventProcessor{connection: connection, repository: repository, subject: subject, group: group}
+func NewEventProcessor(connection *stanUtil.DurableConnection, repository repository.JobRecorder, subject string, group string) *EventProcessor {
+	return &EventProcessor{connection: connection, recorder: repository, subject: subject, group: group}
 }
 
 func (p *EventProcessor) Start() {
@@ -59,9 +59,47 @@ func (p *EventProcessor) handleMessage(msg *stan.Msg) {
 }
 
 func (p *EventProcessor) processEvent(event api.Event) error {
-	//switch typed := event.(type) {
-	//case *api.JobSubmittedEvent:
-	//
-	//}
+	switch typed := event.(type) {
+	case *api.JobSubmittedEvent:
+		return p.recorder.RecordJob(typed.Job)
+
+	case *api.JobQueuedEvent:
+		// this event just attest saving job to redis
+
+	case *api.JobPendingEvent:
+		return p.recorder.RecordJobPending(typed)
+
+	case *api.JobRunningEvent:
+		return p.recorder.RecordJobRunning(typed)
+
+	case *api.JobSucceededEvent:
+		return p.recorder.RecordJobSucceeded(typed)
+
+	case *api.JobFailedEvent:
+		return p.recorder.RecordJobFailed(typed)
+
+	case *api.JobLeasedEvent:
+	case *api.JobLeaseReturnedEvent:
+	case *api.JobLeaseExpiredEvent:
+		// TODO record leasing as messages?
+
+	case *api.JobUnableToScheduleEvent:
+		// TODO record to message log?
+
+	case *api.JobReprioritizedEvent:
+		p.recorder.RecordJobPriorityChange(typed)
+
+	case *api.JobCancellingEvent: // noop
+	case *api.JobCancelledEvent:
+		// job marked for cancellation
+		return p.recorder.MarkCancelled(typed)
+
+	case *api.JobTerminatedEvent:
+		// not used currently
+
+	case *api.JobUtilisationEvent:
+		// TODO
+	}
+
 	return nil
 }
