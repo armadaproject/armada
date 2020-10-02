@@ -12,6 +12,13 @@ Mgoogle/protobuf/wrappers.proto=github.com/gogo/protobuf/types,\
 plugins=grpc:./ \
 pkg/api/*.proto
 
+# TODO: Use vanity package and annotate proto files programmatically instead of this ugly regex
+# gogo proto generates correct json name inside protobuf tag but wrong json tag, for example:
+#   `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
+# this hack fixes tag as:
+#   `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"jobId,omitempty"`
+sed -i 's/\(json=\([^,]*\),[^"]*" json:"\)[^,]*,/\1\2,/g'  pkg/api/*.pb.go
+
 # protoc grpc-gateway + swagger
 protoc \
 --proto_path=. \
