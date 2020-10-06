@@ -63,9 +63,10 @@ build-ci: build-docker build-armadactl build-load-tester
 .ONESHELL:
 tests:
 	docker run -d --name=test-redis -p=6379:6379 redis
+	docker run -d --name=postgres -p 5432:5432 -e POSTGRES_PASSWORD=psw postgres
 	function tearDown {
-		docker stop test-redis
-		docker rm test-redis
+		docker stop test-redis postgres
+		docker rm test-redis postgres
 	}
 	trap tearDown EXIT
 	go test -v ./internal/...
