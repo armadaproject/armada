@@ -109,3 +109,7 @@ tests-e2e: e2e-start-cluster build-docker
 proto:
 	docker build $(dockerFlags) -t armada-proto -f ./build/proto/Dockerfile .
 	docker run -it --rm -v $(shell pwd):/go/src/armada -w /go/src/armada armada-proto ./scripts/proto.sh
+
+generate:
+	go run github.com/rakyll/statik \
+		-dest=internal/lookout/repository/sql/ -src=internal/lookout/repository/sql/ -include=*.sql -ns=lookout/sql -Z -f

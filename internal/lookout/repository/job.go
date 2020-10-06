@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"encoding/json"
 
+	_ "github.com/lib/pq"
+
 	"github.com/G-Research/armada/pkg/api"
 )
 
@@ -20,6 +22,10 @@ type JobRecorder interface {
 
 type SQLJobRepository struct {
 	db *sql.DB
+}
+
+func NewSQLJobRepository(db *sql.DB) *SQLJobRepository {
+	return &SQLJobRepository{db: db}
 }
 
 func (r *SQLJobRepository) RecordJob(job *api.Job) error {
@@ -78,22 +84,22 @@ func (r *SQLJobRepository) RecordJobFailed(event *api.JobFailedEvent) error {
 		values = append(values, event.NodeName)
 	}
 
-	// TODO: update containers
+	// TODO update in one call?
+	for name, code := range event.ExitCodes {
+		_, err := upsertCombinedKey(r.db, "job_run_container",
+			[]string{"run_id", "container_name"}, []string{"exit_code"},
+			[]interface{}{event.KubernetesId, name, code})
+		if err != nil {
+			return err
+		}
+	}
+
 	return r.updateJobRun(event, fields, values)
 }
 
 func (r *SQLJobRepository) updateJobRun(event api.KubernetesEvent, fields []string, values []interface{}) error {
-	_, err := upsert(r.db, "job",
+	_, err := upsert(r.db, "job_run",
 		"run_id", append([]string{"job_id", "cluster"}, fields...),
 		append([]interface{}{event.GetKubernetesId(), event.GetJobId(), event.GetClusterId()}, values...))
 	return err
-}
-
-type kv struct {
-	Field string
-	Value interface{}
-}
-
-func test(kv []*kv) {
-
 }

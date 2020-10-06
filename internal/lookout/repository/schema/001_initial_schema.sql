@@ -13,7 +13,7 @@ CREATE TABLE job
 
 CREATE TABLE job_run
 (
-    run_id    varchar(32)  NOT NULL PRIMARY KEY,
+    run_id    varchar(36)  NOT NULL PRIMARY KEY,
     job_id    varchar(32)  NOT NULL,
 
     cluster   varchar(512) NULL,
@@ -29,9 +29,10 @@ CREATE TABLE job_run
 
 CREATE TABLE job_run_container
 (
-    run_id         varchar(32) NOT NULL PRIMARY KEY,
-    container_name varchar(512),
-    exit_code      int         NOT NULL
+    run_id         varchar(32) NOT NULL,
+    container_name varchar(512) NOT NULL,
+    exit_code      int         NOT NULL,
+    PRIMARY KEY (run_id, container_name)
 )
 
 
