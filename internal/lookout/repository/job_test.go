@@ -30,10 +30,64 @@ func Test_RecordEvents(t *testing.T) {
 			Created:     time.Now(),
 		}
 
+		k8sId := util.NewULID()
+		cluster := "cluster"
+		node := "node"
+
 		err := jobRepo.RecordJob(job)
 		assert.NoError(t, err)
 
+		err = jobRepo.RecordJobPending(&api.JobPendingEvent{
+			JobId:        job.Id,
+			JobSetId:     job.JobSetId,
+			Queue:        job.Queue,
+			Created:      time.Now(),
+			ClusterId:    cluster,
+			KubernetesId: k8sId,
+		})
+		assert.NoError(t, err)
+
+		err = jobRepo.RecordJobRunning(&api.JobRunningEvent{
+			JobId:        job.Id,
+			JobSetId:     job.JobSetId,
+			Queue:        job.Queue,
+			Created:      time.Now(),
+			ClusterId:    cluster,
+			KubernetesId: k8sId,
+			NodeName:     node,
+		})
+		assert.NoError(t, err)
+
+		err = jobRepo.RecordJobFailed(&api.JobFailedEvent{
+			JobId:        job.Id,
+			JobSetId:     job.JobSetId,
+			Queue:        job.Queue,
+			Created:      time.Now(),
+			ClusterId:    cluster,
+			Reason:       "42",
+			ExitCodes:    map[string]int32{"job": -1},
+			KubernetesId: k8sId,
+			NodeName:     node,
+		})
+		assert.NoError(t, err)
+
+		assert.Equal(t, 1, count(t, db,
+			"SELECT count(*) FROM job"))
+		assert.Equal(t, 1, count(t, db,
+			"SELECT count(*) FROM job_run WHERE created IS NOT NULL AND started IS NOT NULL AND finished IS NOT NULL"))
+		assert.Equal(t, 1, count(t, db,
+			"SELECT count(*) FROM job_run_container"))
+
 	})
+}
+
+func count(t *testing.T, db *sql.DB, query string) int {
+	r, err := db.Query(query)
+	assert.NoError(t, err)
+	r.Next()
+	var count int
+	r.Scan(&count)
+	return count
 }
 
 func withDatabase(t *testing.T, action func(*sql.DB)) {
