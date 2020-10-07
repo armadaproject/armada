@@ -1,0 +1,7 @@
+nats:
+  Servers:
+    - "nats://localhost:4223"
+  ClusterID: "test-cluster"
+  Subject: "ArmadaTest"
+  QueueGroup: "ArmadaLookoutEventProcessor"
+postgresConnectionString: "host=localhost port=5432 user=postgres password=psw dbname=postgres sslmode=disable"

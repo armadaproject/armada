@@ -14,9 +14,11 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/G-Research/armada/internal/common"
+	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/executor/context"
 )
 
@@ -99,6 +101,7 @@ func (c *FakeClusterContext) SubmitPod(pod *v1.Pod, owner string) (*v1.Pod, erro
 	c.rwLock.Lock()
 	pod.Status.Phase = v1.PodPending
 	pod.CreationTimestamp = metav1.Now()
+	pod.UID = types.UID("fake-pod--" + util.NewULID()) // ULID is 26 characters, but kubernetes UID can be 36
 	saved := pod.DeepCopy()
 	c.pods[pod.Name] = saved
 	c.rwLock.Unlock()
