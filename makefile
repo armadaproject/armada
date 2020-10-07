@@ -113,4 +113,5 @@ proto:
 
 generate:
 	go run github.com/rakyll/statik \
-		-dest=internal/lookout/repository/sql/ -src=internal/lookout/repository/sql/ -include=*.sql -ns=lookout/sql -Z -f
+		-dest=internal/lookout/repository/schema/ -src=internal/lookout/repository/schema/ -include=\*.sql -ns=lookout/sql -Z -f
+	go run golang.org/x/tools/cmd/goimports -w -local "github.com/G-Research/armada" internal/lookout/repository/schema/statik
