@@ -2,6 +2,7 @@ CREATE TABLE job
 (
     job_id    varchar(32)  NOT NULL PRIMARY KEY,
     queue     varchar(512) NOT NULL,
+    owner     varchar(512) NOT NULL,
     jobset    varchar(512) NOT NULL,
 
     priority  float        NULL,

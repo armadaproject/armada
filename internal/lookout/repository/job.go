@@ -34,8 +34,8 @@ func (r *SQLJobRepository) RecordJob(job *api.Job) error {
 		return err
 	}
 	_, err = upsert(r.db, "job",
-		"job_id", []string{"queue", "jobset", "priority", "submitted", "job"},
-		[]interface{}{job.Id, job.Queue, job.JobSetId, job.Priority, job.Created, jobJson})
+		"job_id", []string{"queue", "owner", "jobset", "priority", "submitted", "job"},
+		[]interface{}{job.Id, job.Queue, job.Owner, job.JobSetId, job.Priority, job.Created, jobJson})
 	return err
 }
 
