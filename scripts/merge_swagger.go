@@ -36,10 +36,9 @@ func main() {
 	resultSpec.Definitions["resourceQuantity"].Type[0] = "string"
 
 	// Hack: Easiest way to make ndjson streaming work in generated clients is to pretend the stream is actually a file
-	resultSpec.Paths.Paths["/v1/job-set/{Queue}/{Id}"].Post.Produces = []string{"application/ndjson-stream"}
-	streamDefinitions, _ := resultSpec.Extensions["x-stream-definitions"].(map[string]interface{})
-	streamMessageType, _ := streamDefinitions["apiEventStreamMessage"].(map[string]interface{})
-	streamMessageType["type"] = "file"
+	eventsPost := resultSpec.Paths.Paths["/v1/job-set/{queue}/{id}"].Post
+	eventsPost.Produces = []string{"application/ndjson-stream"}
+	eventsPost.Responses.StatusCodeResponses[200].Schema.Type = []string{"file"}
 
 	result, err := json.MarshalIndent(resultSpec, "", "  ")
 	if err != nil {

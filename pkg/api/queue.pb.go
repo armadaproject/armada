@@ -9,6 +9,7 @@ import (
 	fmt "fmt"
 	io "io"
 	math "math"
+	math_bits "math/bits"
 	reflect "reflect"
 	strings "strings"
 	time "time"
@@ -19,6 +20,8 @@ import (
 	github_com_gogo_protobuf_types "github.com/gogo/protobuf/types"
 	types "github.com/gogo/protobuf/types"
 	grpc "google.golang.org/grpc"
+	codes "google.golang.org/grpc/codes"
+	status "google.golang.org/grpc/status"
 	v1 "k8s.io/api/core/v1"
 	resource "k8s.io/apimachinery/pkg/api/resource"
 )
@@ -33,20 +36,20 @@ var _ = time.Kitchen
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.GoGoProtoPackageIsVersion2 // please upgrade the proto package
+const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
 
 type Job struct {
-	Id                 string            `protobuf:"bytes,1,opt,name=Id,proto3" json:"Id,omitempty"`
-	JobSetId           string            `protobuf:"bytes,2,opt,name=JobSetId,proto3" json:"JobSetId,omitempty"`
-	Queue              string            `protobuf:"bytes,3,opt,name=Queue,proto3" json:"Queue,omitempty"`
-	Namespace          string            `protobuf:"bytes,7,opt,name=Namespace,proto3" json:"Namespace,omitempty"`
-	Labels             map[string]string `protobuf:"bytes,9,rep,name=Labels,proto3" json:"Labels,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
-	Annotations        map[string]string `protobuf:"bytes,10,rep,name=Annotations,proto3" json:"Annotations,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
-	RequiredNodeLabels map[string]string `protobuf:"bytes,11,rep,name=RequiredNodeLabels,proto3" json:"RequiredNodeLabels,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"` // Deprecated: Do not use.
-	Owner              string            `protobuf:"bytes,8,opt,name=Owner,proto3" json:"Owner,omitempty"`
-	Priority           float64           `protobuf:"fixed64,4,opt,name=Priority,proto3" json:"Priority,omitempty"`
-	PodSpec            *v1.PodSpec       `protobuf:"bytes,5,opt,name=PodSpec,proto3" json:"PodSpec,omitempty"`
-	Created            time.Time         `protobuf:"bytes,6,opt,name=Created,proto3,stdtime" json:"Created"`
+	Id                 string            `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	JobSetId           string            `protobuf:"bytes,2,opt,name=job_set_id,json=jobSetId,proto3" json:"jobSetId,omitempty"`
+	Queue              string            `protobuf:"bytes,3,opt,name=queue,proto3" json:"queue,omitempty"`
+	Namespace          string            `protobuf:"bytes,7,opt,name=namespace,proto3" json:"namespace,omitempty"`
+	Labels             map[string]string `protobuf:"bytes,9,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	Annotations        map[string]string `protobuf:"bytes,10,rep,name=annotations,proto3" json:"annotations,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	RequiredNodeLabels map[string]string `protobuf:"bytes,11,rep,name=required_node_labels,json=requiredNodeLabels,proto3" json:"requiredNodeLabels,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"` // Deprecated: Do not use.
+	Owner              string            `protobuf:"bytes,8,opt,name=owner,proto3" json:"owner,omitempty"`
+	Priority           float64           `protobuf:"fixed64,4,opt,name=priority,proto3" json:"priority,omitempty"`
+	PodSpec            *v1.PodSpec       `protobuf:"bytes,5,opt,name=pod_spec,json=podSpec,proto3" json:"podSpec,omitempty"`
+	Created            time.Time         `protobuf:"bytes,6,opt,name=created,proto3,stdtime" json:"created"`
 }
 
 func (m *Job) Reset()      { *m = Job{} }
@@ -62,7 +65,7 @@ func (m *Job) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_Job.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -161,10 +164,10 @@ func (m *Job) GetCreated() time.Time {
 
 type LeaseRequest struct {
 	ClusterId           string                       `protobuf:"bytes,1,opt,name=ClusterId,proto3" json:"ClusterId,omitempty"`
-	Resources           map[string]resource.Quantity `protobuf:"bytes,2,rep,name=Resources,proto3" json:"Resources" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
-	ClusterLeasedReport ClusterLeasedReport          `protobuf:"bytes,4,opt,name=ClusterLeasedReport,proto3" json:"ClusterLeasedReport"`
-	MinimumJobSize      map[string]resource.Quantity `protobuf:"bytes,6,rep,name=MinimumJobSize,proto3" json:"MinimumJobSize" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
-	Nodes               []NodeInfo                   `protobuf:"bytes,7,rep,name=Nodes,proto3" json:"Nodes"`
+	Resources           map[string]resource.Quantity `protobuf:"bytes,2,rep,name=resources,proto3" json:"resources" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	ClusterLeasedReport ClusterLeasedReport          `protobuf:"bytes,4,opt,name=cluster_leased_report,json=clusterLeasedReport,proto3" json:"cluster_leased_report"`
+	MinimumJobSize      map[string]resource.Quantity `protobuf:"bytes,6,rep,name=minimum_job_size,json=minimumJobSize,proto3" json:"minimumJobSize,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	Nodes               []NodeInfo                   `protobuf:"bytes,7,rep,name=nodes,proto3" json:"nodes"`
 }
 
 func (m *LeaseRequest) Reset()      { *m = LeaseRequest{} }
@@ -180,7 +183,7 @@ func (m *LeaseRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error)
 		return xxx_messageInfo_LeaseRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -236,10 +239,10 @@ func (m *LeaseRequest) GetNodes() []NodeInfo {
 
 type NodeInfo struct {
 	Name                 string                       `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	Taints               []v1.Taint                   `protobuf:"bytes,2,rep,name=Taints,proto3" json:"Taints"`
-	Labels               map[string]string            `protobuf:"bytes,3,rep,name=Labels,proto3" json:"Labels,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
-	AllocatableResources map[string]resource.Quantity `protobuf:"bytes,4,rep,name=AllocatableResources,proto3" json:"AllocatableResources" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
-	AvailableResources   map[string]resource.Quantity `protobuf:"bytes,5,rep,name=AvailableResources,proto3" json:"AvailableResources" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	Taints               []v1.Taint                   `protobuf:"bytes,2,rep,name=taints,proto3" json:"taints"`
+	Labels               map[string]string            `protobuf:"bytes,3,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	AllocatableResources map[string]resource.Quantity `protobuf:"bytes,4,rep,name=allocatable_resources,json=allocatableResources,proto3" json:"allocatableResources,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	AvailableResources   map[string]resource.Quantity `protobuf:"bytes,5,rep,name=available_resources,json=availableResources,proto3" json:"availableResources,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 }
 
 func (m *NodeInfo) Reset()      { *m = NodeInfo{} }
@@ -255,7 +258,7 @@ func (m *NodeInfo) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_NodeInfo.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -310,9 +313,9 @@ func (m *NodeInfo) GetAvailableResources() map[string]resource.Quantity {
 }
 
 type NodeType struct {
-	Taints               []v1.Taint                   `protobuf:"bytes,1,rep,name=Taints,proto3" json:"Taints"`
-	Labels               map[string]string            `protobuf:"bytes,2,rep,name=Labels,proto3" json:"Labels,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
-	AllocatableResources map[string]resource.Quantity `protobuf:"bytes,3,rep,name=AllocatableResources,proto3" json:"AllocatableResources" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	Taints               []v1.Taint                   `protobuf:"bytes,1,rep,name=taints,proto3" json:"taints"`
+	Labels               map[string]string            `protobuf:"bytes,2,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	AllocatableResources map[string]resource.Quantity `protobuf:"bytes,3,rep,name=allocatable_resources,json=allocatableResources,proto3" json:"allocatableResources,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 }
 
 func (m *NodeType) Reset()      { *m = NodeType{} }
@@ -328,7 +331,7 @@ func (m *NodeType) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_NodeType.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -370,10 +373,10 @@ func (m *NodeType) GetAllocatableResources() map[string]resource.Quantity {
 
 // Used to store last info in Redis
 type ClusterSchedulingInfoReport struct {
-	ClusterId      string                       `protobuf:"bytes,1,opt,name=ClusterId,proto3" json:"ClusterId,omitempty"`
-	ReportTime     time.Time                    `protobuf:"bytes,2,opt,name=ReportTime,proto3,stdtime" json:"ReportTime"`
-	NodeTypes      []*NodeType                  `protobuf:"bytes,5,rep,name=NodeTypes,proto3" json:"NodeTypes,omitempty"`
-	MinimumJobSize map[string]resource.Quantity `protobuf:"bytes,6,rep,name=MinimumJobSize,proto3" json:"MinimumJobSize" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	ClusterId      string                       `protobuf:"bytes,1,opt,name=cluster_id,json=clusterId,proto3" json:"clusterId,omitempty"`
+	ReportTime     time.Time                    `protobuf:"bytes,2,opt,name=report_time,json=reportTime,proto3,stdtime" json:"report_time"`
+	NodeTypes      []*NodeType                  `protobuf:"bytes,5,rep,name=node_types,json=nodeTypes,proto3" json:"nodeTypes,omitempty"`
+	MinimumJobSize map[string]resource.Quantity `protobuf:"bytes,6,rep,name=minimum_job_size,json=minimumJobSize,proto3" json:"minimumJobSize,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 }
 
 func (m *ClusterSchedulingInfoReport) Reset()      { *m = ClusterSchedulingInfoReport{} }
@@ -389,7 +392,7 @@ func (m *ClusterSchedulingInfoReport) XXX_Marshal(b []byte, deterministic bool) 
 		return xxx_messageInfo_ClusterSchedulingInfoReport.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -437,8 +440,8 @@ func (m *ClusterSchedulingInfoReport) GetMinimumJobSize() map[string]resource.Qu
 }
 
 type QueueLeasedReport struct {
-	Name            string                       `protobuf:"bytes,1,opt,name=Name,proto3" json:"Name,omitempty"`
-	ResourcesLeased map[string]resource.Quantity `protobuf:"bytes,2,rep,name=ResourcesLeased,proto3" json:"ResourcesLeased" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	Name            string                       `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	ResourcesLeased map[string]resource.Quantity `protobuf:"bytes,2,rep,name=resources_leased,json=resourcesLeased,proto3" json:"resourcesLeased,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 }
 
 func (m *QueueLeasedReport) Reset()      { *m = QueueLeasedReport{} }
@@ -454,7 +457,7 @@ func (m *QueueLeasedReport) XXX_Marshal(b []byte, deterministic bool) ([]byte, e
 		return xxx_messageInfo_QueueLeasedReport.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -488,9 +491,9 @@ func (m *QueueLeasedReport) GetResourcesLeased() map[string]resource.Quantity {
 }
 
 type ClusterLeasedReport struct {
-	ClusterId  string               `protobuf:"bytes,1,opt,name=ClusterId,proto3" json:"ClusterId,omitempty"`
-	ReportTime time.Time            `protobuf:"bytes,2,opt,name=ReportTime,proto3,stdtime" json:"ReportTime"`
-	Queues     []*QueueLeasedReport `protobuf:"bytes,3,rep,name=Queues,proto3" json:"Queues,omitempty"`
+	ClusterId  string               `protobuf:"bytes,1,opt,name=cluster_id,json=clusterId,proto3" json:"clusterId,omitempty"`
+	ReportTime time.Time            `protobuf:"bytes,2,opt,name=report_time,json=reportTime,proto3,stdtime" json:"report_time"`
+	Queues     []*QueueLeasedReport `protobuf:"bytes,3,rep,name=queues,proto3" json:"queues,omitempty"`
 }
 
 func (m *ClusterLeasedReport) Reset()      { *m = ClusterLeasedReport{} }
@@ -506,7 +509,7 @@ func (m *ClusterLeasedReport) XXX_Marshal(b []byte, deterministic bool) ([]byte,
 		return xxx_messageInfo_ClusterLeasedReport.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -547,7 +550,7 @@ func (m *ClusterLeasedReport) GetQueues() []*QueueLeasedReport {
 }
 
 type ComputeResource struct {
-	Resources map[string]resource.Quantity `protobuf:"bytes,1,rep,name=Resources,proto3" json:"Resources" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	Resources map[string]resource.Quantity `protobuf:"bytes,1,rep,name=resources,proto3" json:"resources" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 }
 
 func (m *ComputeResource) Reset()      { *m = ComputeResource{} }
@@ -563,7 +566,7 @@ func (m *ComputeResource) XXX_Marshal(b []byte, deterministic bool) ([]byte, err
 		return xxx_messageInfo_ComputeResource.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -590,7 +593,7 @@ func (m *ComputeResource) GetResources() map[string]resource.Quantity {
 }
 
 type NodeLabeling struct {
-	Labels map[string]string `protobuf:"bytes,3,rep,name=Labels,proto3" json:"Labels,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	Labels map[string]string `protobuf:"bytes,3,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 }
 
 func (m *NodeLabeling) Reset()      { *m = NodeLabeling{} }
@@ -606,7 +609,7 @@ func (m *NodeLabeling) XXX_Marshal(b []byte, deterministic bool) ([]byte, error)
 		return xxx_messageInfo_NodeLabeling.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -633,7 +636,7 @@ func (m *NodeLabeling) GetLabels() map[string]string {
 }
 
 type JobLease struct {
-	Job []*Job `protobuf:"bytes,1,rep,name=Job,proto3" json:"Job,omitempty"`
+	Job []*Job `protobuf:"bytes,1,rep,name=job,proto3" json:"job,omitempty"`
 }
 
 func (m *JobLease) Reset()      { *m = JobLease{} }
@@ -649,7 +652,7 @@ func (m *JobLease) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_JobLease.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -676,7 +679,7 @@ func (m *JobLease) GetJob() []*Job {
 }
 
 type IdList struct {
-	Ids []string `protobuf:"bytes,1,rep,name=Ids,proto3" json:"Ids,omitempty"`
+	Ids []string `protobuf:"bytes,1,rep,name=ids,proto3" json:"ids,omitempty"`
 }
 
 func (m *IdList) Reset()      { *m = IdList{} }
@@ -692,7 +695,7 @@ func (m *IdList) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_IdList.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -719,8 +722,8 @@ func (m *IdList) GetIds() []string {
 }
 
 type RenewLeaseRequest struct {
-	ClusterId string   `protobuf:"bytes,1,opt,name=ClusterId,proto3" json:"ClusterId,omitempty"`
-	Ids       []string `protobuf:"bytes,2,rep,name=Ids,proto3" json:"Ids,omitempty"`
+	ClusterId string   `protobuf:"bytes,1,opt,name=cluster_id,json=clusterId,proto3" json:"clusterId,omitempty"`
+	Ids       []string `protobuf:"bytes,2,rep,name=ids,proto3" json:"ids,omitempty"`
 }
 
 func (m *RenewLeaseRequest) Reset()      { *m = RenewLeaseRequest{} }
@@ -736,7 +739,7 @@ func (m *RenewLeaseRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, e
 		return xxx_messageInfo_RenewLeaseRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -770,8 +773,8 @@ func (m *RenewLeaseRequest) GetIds() []string {
 }
 
 type ReturnLeaseRequest struct {
-	ClusterId string `protobuf:"bytes,1,opt,name=ClusterId,proto3" json:"ClusterId,omitempty"`
-	JobId     string `protobuf:"bytes,2,opt,name=JobId,proto3" json:"JobId,omitempty"`
+	ClusterId string `protobuf:"bytes,1,opt,name=cluster_id,json=clusterId,proto3" json:"clusterId,omitempty"`
+	JobId     string `protobuf:"bytes,2,opt,name=job_id,json=jobId,proto3" json:"jobId,omitempty"`
 }
 
 func (m *ReturnLeaseRequest) Reset()      { *m = ReturnLeaseRequest{} }
@@ -787,7 +790,7 @@ func (m *ReturnLeaseRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, 
 		return xxx_messageInfo_ReturnLeaseRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -853,80 +856,85 @@ func init() {
 func init() { proto.RegisterFile("pkg/api/queue.proto", fileDescriptor_d92c0c680df9617a) }
 
 var fileDescriptor_d92c0c680df9617a = []byte{
-	// 1166 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xd4, 0x57, 0x5b, 0x4f, 0xdc, 0x46,
-	0x14, 0xc6, 0x7b, 0x83, 0x3d, 0x9b, 0x1b, 0x03, 0x0a, 0xc6, 0xb4, 0xcb, 0x6a, 0xab, 0xa6, 0x54,
-	0x69, 0xbc, 0x82, 0x26, 0x6a, 0xda, 0x4a, 0x48, 0xdc, 0xd4, 0x2e, 0xa2, 0x94, 0x18, 0xde, 0xf2,
-	0x64, 0xaf, 0x27, 0xc6, 0x62, 0xd7, 0x63, 0xec, 0x31, 0x68, 0xfb, 0x94, 0x97, 0x3e, 0x56, 0x4a,
-	0x7f, 0x44, 0x1f, 0xfa, 0x4f, 0x78, 0xcc, 0x63, 0xa4, 0x4a, 0xbd, 0xc0, 0x6f, 0xa8, 0xd4, 0xc7,
-	0x6a, 0x2e, 0xf6, 0xce, 0xee, 0x1a, 0x25, 0x24, 0x22, 0x55, 0xdf, 0xe6, 0xf2, 0x9d, 0x6f, 0xe6,
-	0x9c, 0xf3, 0xcd, 0x99, 0x19, 0x98, 0x09, 0x8f, 0xbc, 0x96, 0x1d, 0xfa, 0xad, 0xe3, 0x04, 0x27,
-	0xd8, 0x0c, 0x23, 0x42, 0x09, 0x2a, 0xda, 0xa1, 0x6f, 0x2c, 0x7a, 0x84, 0x78, 0x5d, 0xdc, 0xe2,
-	0x43, 0x4e, 0xf2, 0xac, 0x45, 0xfd, 0x1e, 0x8e, 0xa9, 0xdd, 0x0b, 0x05, 0xca, 0x68, 0x1e, 0x3d,
-	0x8e, 0x4d, 0x9f, 0x70, 0xeb, 0x0e, 0x89, 0x70, 0xeb, 0x64, 0xb9, 0xe5, 0xe1, 0x00, 0x47, 0x36,
-	0xc5, 0xae, 0xc4, 0x3c, 0x1c, 0x60, 0x7a, 0x76, 0xe7, 0xd0, 0x0f, 0x70, 0xd4, 0x6f, 0xa5, 0x4b,
-	0x46, 0x38, 0x26, 0x49, 0xd4, 0xc1, 0x63, 0x56, 0x0f, 0x3c, 0x9f, 0x1e, 0x26, 0x8e, 0xd9, 0x21,
-	0xbd, 0x96, 0x47, 0x3c, 0x32, 0xd8, 0x03, 0xeb, 0xf1, 0x0e, 0x6f, 0x49, 0xf8, 0xc2, 0xe8, 0x4e,
-	0x71, 0x2f, 0xa4, 0x7d, 0x31, 0xd9, 0xfc, 0xb9, 0x0c, 0xc5, 0x6d, 0xe2, 0xa0, 0x5b, 0x50, 0x68,
-	0xbb, 0xba, 0xd6, 0xd0, 0x96, 0xaa, 0x56, 0xa1, 0xed, 0x22, 0x03, 0xa6, 0xb6, 0x89, 0xb3, 0x8f,
-	0x69, 0xdb, 0xd5, 0x0b, 0x7c, 0x34, 0xeb, 0xa3, 0x59, 0x28, 0x3f, 0x61, 0xe1, 0xd0, 0x8b, 0x7c,
-	0x42, 0x74, 0xd0, 0x07, 0x50, 0xdd, 0xb5, 0x7b, 0x38, 0x0e, 0xed, 0x0e, 0xd6, 0x27, 0xf9, 0xcc,
-	0x60, 0x00, 0x7d, 0x06, 0x95, 0x1d, 0xdb, 0xc1, 0xdd, 0x58, 0xaf, 0x36, 0x8a, 0x4b, 0xb5, 0x95,
-	0x59, 0xd3, 0x0e, 0x7d, 0x73, 0x9b, 0x38, 0xa6, 0x18, 0xde, 0x0a, 0x68, 0xd4, 0xb7, 0x24, 0x06,
-	0x7d, 0x0d, 0xb5, 0xb5, 0x20, 0x20, 0xd4, 0xa6, 0x3e, 0x09, 0x62, 0x1d, 0xb8, 0xc9, 0x7c, 0x66,
-	0xa2, 0xcc, 0x09, 0x3b, 0x15, 0x8d, 0x0e, 0x00, 0x59, 0xf8, 0x38, 0xf1, 0x23, 0xec, 0xee, 0x12,
-	0x17, 0xcb, 0x65, 0x6b, 0x9c, 0xa3, 0x91, 0x71, 0x8c, 0x43, 0x38, 0xd5, 0x7a, 0x41, 0xd7, 0xac,
-	0x1c, 0x7b, 0xe6, 0xf4, 0xf7, 0xa7, 0x01, 0x8e, 0xf4, 0x29, 0xe1, 0x34, 0xef, 0xb0, 0x30, 0xed,
-	0x45, 0x3e, 0x89, 0x7c, 0xda, 0xd7, 0x4b, 0x0d, 0x6d, 0x49, 0xb3, 0xb2, 0x3e, 0x7a, 0x04, 0x93,
-	0x7b, 0xc4, 0xdd, 0x0f, 0x71, 0x47, 0x2f, 0x37, 0xb4, 0xa5, 0xda, 0xca, 0x82, 0x29, 0xd2, 0xcd,
-	0xf7, 0xc0, 0x24, 0x61, 0x9e, 0x2c, 0x9b, 0x12, 0x62, 0xa5, 0x58, 0xb4, 0x0a, 0x93, 0x1b, 0x11,
-	0x66, 0xe9, 0xd6, 0x2b, 0xdc, 0xcc, 0x30, 0x45, 0x02, 0xcd, 0x34, 0x81, 0xe6, 0x41, 0x2a, 0xb5,
-	0xf5, 0xa9, 0xb3, 0xdf, 0x17, 0x27, 0x5e, 0xfc, 0xb1, 0xa8, 0x59, 0xa9, 0x91, 0xf1, 0x25, 0xd4,
-	0x14, 0x7f, 0xd0, 0x1d, 0x28, 0x1e, 0xe1, 0xbe, 0xcc, 0x2c, 0x6b, 0x32, 0x4f, 0x4e, 0xec, 0x6e,
-	0x82, 0x65, 0x5e, 0x45, 0xe7, 0xab, 0xc2, 0x63, 0xcd, 0x58, 0x85, 0x3b, 0xa3, 0xa1, 0xbd, 0x92,
-	0xfd, 0x16, 0xcc, 0x5d, 0x12, 0xd6, 0xab, 0xd0, 0x34, 0x7f, 0x29, 0xc1, 0x8d, 0x1d, 0x6c, 0xc7,
-	0x98, 0x91, 0xe1, 0x98, 0x32, 0x69, 0x6d, 0x74, 0x93, 0x98, 0xe2, 0x28, 0xd3, 0xe8, 0x60, 0x00,
-	0x6d, 0x42, 0xd5, 0x92, 0x47, 0x25, 0xd6, 0x0b, 0x4a, 0x9a, 0x55, 0x0e, 0x33, 0x83, 0x88, 0x34,
-	0x97, 0x58, 0xe0, 0xac, 0x81, 0x21, 0xda, 0x83, 0x19, 0x49, 0xc9, 0xcd, 0x5c, 0x0b, 0x87, 0x24,
-	0xa2, 0x3c, 0xa9, 0xb5, 0x15, 0x9d, 0xf3, 0xe5, 0xcc, 0x4b, 0x9e, 0x3c, 0x53, 0xb4, 0x0f, 0xb7,
-	0xbe, 0xf3, 0x03, 0xbf, 0x97, 0xf4, 0xd8, 0xc9, 0xf1, 0x7f, 0xc0, 0x7a, 0x85, 0x6f, 0xee, 0xe3,
-	0xf1, 0xcd, 0x0d, 0xe3, 0xd4, 0x1d, 0x8e, 0x50, 0xa0, 0x4f, 0xa1, 0xcc, 0x42, 0x1b, 0xeb, 0x93,
-	0x9c, 0xeb, 0x26, 0xe7, 0x62, 0x23, 0xed, 0xe0, 0x19, 0x91, 0x36, 0x02, 0x61, 0x74, 0xe1, 0xd6,
-	0xb0, 0xd3, 0x39, 0x49, 0xd8, 0x54, 0x93, 0x50, 0x5b, 0x31, 0x15, 0x85, 0x66, 0x05, 0xc9, 0x0c,
-	0x8f, 0x3c, 0xbe, 0x4c, 0x5a, 0x90, 0xcc, 0x27, 0x89, 0x1d, 0x50, 0x9f, 0xf6, 0xd5, 0xdc, 0x1f,
-	0xc3, 0x4c, 0x8e, 0x17, 0xd7, 0xb9, 0x64, 0xf3, 0xef, 0x12, 0x4c, 0xa5, 0xae, 0x23, 0x04, 0xa5,
-	0xc0, 0xee, 0x61, 0xb9, 0x12, 0x6f, 0xa3, 0x2f, 0xa0, 0x72, 0x60, 0xfb, 0x01, 0x4d, 0x65, 0x31,
-	0x9f, 0x77, 0x00, 0x39, 0x42, 0x46, 0x4e, 0xc2, 0xd1, 0x72, 0x56, 0xad, 0x8a, 0x4a, 0xe9, 0x49,
-	0xd7, 0xca, 0x2d, 0x59, 0x36, 0xcc, 0xae, 0x75, 0xbb, 0xa4, 0x63, 0x53, 0xdb, 0xe9, 0xe2, 0x81,
-	0x20, 0x4b, 0x9c, 0xe0, 0x93, 0x61, 0x82, 0x3c, 0xa4, 0x9a, 0xf5, 0x5c, 0x2a, 0xf4, 0x14, 0xd0,
-	0xda, 0x89, 0xed, 0x77, 0x87, 0x17, 0x28, 0x2b, 0xa2, 0x1a, 0x2c, 0x30, 0x86, 0x53, 0xe9, 0x73,
-	0x68, 0xde, 0xa5, 0x6c, 0x9c, 0xc2, 0xfc, 0xa5, 0x0e, 0x5d, 0xab, 0xe6, 0x12, 0x98, 0xbb, 0xc4,
-	0xd1, 0x6b, 0xd5, 0xdd, 0x4f, 0x45, 0xa1, 0xbb, 0x83, 0x7e, 0xa8, 0x6a, 0x4c, 0x7b, 0x5b, 0x8d,
-	0x15, 0x46, 0x34, 0xc6, 0x78, 0xaf, 0xa4, 0xb1, 0xe2, 0x88, 0xc6, 0x38, 0xc1, 0x5b, 0x69, 0xec,
-	0xff, 0x28, 0x83, 0xe6, 0x8f, 0x45, 0x58, 0x90, 0x05, 0x78, 0xbf, 0x73, 0x88, 0xdd, 0xa4, 0xeb,
-	0x07, 0x1e, 0x3b, 0x06, 0xb2, 0x10, 0xbf, 0xee, 0xfa, 0x00, 0x81, 0x63, 0xb7, 0xaa, 0xdc, 0xcc,
-	0x9b, 0x5d, 0xb9, 0x8a, 0x1d, 0xba, 0x0f, 0xd5, 0x34, 0xf2, 0xe9, 0x91, 0xbc, 0x39, 0x94, 0x0f,
-	0x6b, 0x30, 0x8f, 0x9c, 0x4b, 0x6e, 0x86, 0x87, 0xea, 0x35, 0x93, 0xe7, 0xca, 0x9b, 0x5f, 0x14,
-	0xff, 0x45, 0x3d, 0xfe, 0x47, 0x83, 0x69, 0xfe, 0x16, 0x1c, 0xba, 0x06, 0x11, 0x94, 0x76, 0x95,
-	0xc2, 0xcc, 0xda, 0xe8, 0x29, 0xdc, 0xce, 0xf4, 0x21, 0xc0, 0xf2, 0x10, 0xdc, 0xe7, 0xab, 0x8c,
-	0x91, 0x98, 0x23, 0x68, 0xd5, 0xf1, 0x51, 0x26, 0x23, 0x82, 0xd9, 0x3c, 0xf8, 0xb5, 0xba, 0xfe,
-	0xab, 0x96, 0xfb, 0x7c, 0x78, 0x2f, 0xd2, 0x33, 0xa1, 0xc2, 0x03, 0x96, 0xd6, 0x81, 0xbb, 0xf9,
-	0x31, 0xb4, 0x24, 0xaa, 0x79, 0xa6, 0xc1, 0xed, 0x0d, 0xd2, 0x0b, 0x13, 0x9a, 0x1d, 0x52, 0xf4,
-	0x8d, 0xfa, 0x86, 0x12, 0x85, 0xec, 0x23, 0x21, 0xc6, 0x61, 0xe0, 0xeb, 0x9e, 0x51, 0xef, 0xf7,
-	0xd1, 0xd1, 0x7c, 0xae, 0xc1, 0x8d, 0xec, 0xa5, 0xe9, 0x07, 0x1e, 0x7a, 0x34, 0x72, 0x71, 0x7f,
-	0x98, 0x9d, 0xc1, 0x14, 0x92, 0x57, 0x58, 0xdf, 0xa1, 0xea, 0x35, 0xef, 0xf1, 0x8f, 0x12, 0x0f,
-	0x34, 0x32, 0xf8, 0x5f, 0x4a, 0xc6, 0x6f, 0x2a, 0xfd, 0x6a, 0x58, 0x6c, 0xb0, 0x69, 0x40, 0xa5,
-	0xed, 0xee, 0xf8, 0x31, 0x65, 0xec, 0x6d, 0x57, 0x44, 0xb9, 0x6a, 0xb1, 0x66, 0x73, 0x03, 0xa6,
-	0x2d, 0x1c, 0xe0, 0xd3, 0x2b, 0x3c, 0x7a, 0x25, 0x49, 0x61, 0x40, 0xf2, 0x2d, 0xfb, 0xf6, 0xd0,
-	0x24, 0x0a, 0xae, 0xc0, 0x32, 0x0b, 0xe5, 0x6d, 0xe2, 0x64, 0x5f, 0x3c, 0xd1, 0x59, 0xf9, 0x4d,
-	0x83, 0xdb, 0x6b, 0x9e, 0x17, 0x61, 0x8f, 0x7d, 0x28, 0xc4, 0xef, 0xee, 0x01, 0x54, 0x39, 0xef,
-	0x36, 0x71, 0x62, 0x34, 0x3d, 0xf6, 0x82, 0x35, 0x6e, 0xa6, 0xde, 0x8a, 0x48, 0x2c, 0x33, 0x65,
-	0xa7, 0x1e, 0x21, 0xa1, 0xc8, 0x31, 0x17, 0x8d, 0x1a, 0x1f, 0x97, 0x61, 0x59, 0x85, 0x9a, 0xb2,
-	0x7f, 0x34, 0x27, 0x6d, 0x46, 0x3d, 0x32, 0xee, 0x8e, 0x1d, 0x90, 0x2d, 0xf6, 0x9f, 0x45, 0xf7,
-	0xd2, 0xc3, 0xb4, 0x49, 0x02, 0x8c, 0x54, 0xea, 0xa1, 0x75, 0xd6, 0x1b, 0xaf, 0xfe, 0xaa, 0x4f,
-	0x3c, 0x3f, 0xaf, 0x6b, 0x67, 0xe7, 0x75, 0xed, 0xe5, 0x79, 0x5d, 0xfb, 0xf3, 0xbc, 0xae, 0xbd,
-	0xb8, 0xa8, 0x4f, 0xbc, 0xbc, 0xa8, 0x4f, 0xbc, 0xba, 0xa8, 0x4f, 0x38, 0x15, 0xce, 0xfc, 0xf9,
-	0xbf, 0x01, 0x00, 0x00, 0xff, 0xff, 0xc3, 0x28, 0xd9, 0x2f, 0xfd, 0x0f, 0x00, 0x00,
+	// 1244 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xd4, 0x57, 0x4b, 0x6f, 0x14, 0xc7,
+	0x13, 0xf7, 0xec, 0xcb, 0xbb, 0xb5, 0x3c, 0x4c, 0xdb, 0xc0, 0x30, 0xc0, 0xb2, 0xda, 0xbf, 0xfe,
+	0xc4, 0x51, 0x60, 0x56, 0x76, 0x48, 0x42, 0x12, 0x09, 0x09, 0xb0, 0x15, 0x79, 0x45, 0xa2, 0x30,
+	0x26, 0x39, 0x21, 0xad, 0xe6, 0xd1, 0x0c, 0x6d, 0xcf, 0x4e, 0x8f, 0x67, 0x7a, 0x6c, 0x2d, 0x27,
+	0xce, 0x39, 0x44, 0x9c, 0xf2, 0x1d, 0xa2, 0x7c, 0x11, 0x1f, 0x39, 0x22, 0x45, 0xca, 0xc3, 0xfe,
+	0x10, 0x51, 0x6e, 0x51, 0xf7, 0xf4, 0x3c, 0x76, 0x77, 0x2c, 0x30, 0xc8, 0x44, 0xb9, 0x4d, 0x77,
+	0x55, 0xfd, 0xaa, 0xab, 0xea, 0xd7, 0xd5, 0x35, 0xb0, 0x18, 0x6c, 0xbb, 0x7d, 0x33, 0x20, 0xfd,
+	0x9d, 0x18, 0xc7, 0x58, 0x0f, 0x42, 0xca, 0x28, 0xaa, 0x9a, 0x01, 0xd1, 0xae, 0xb9, 0x94, 0xba,
+	0x1e, 0xee, 0x8b, 0x2d, 0x2b, 0x7e, 0xd2, 0x67, 0x64, 0x84, 0x23, 0x66, 0x8e, 0x82, 0x44, 0x4b,
+	0xeb, 0x6d, 0xdf, 0x8e, 0x74, 0x42, 0x85, 0xb5, 0x4d, 0x43, 0xdc, 0xdf, 0x5d, 0xe9, 0xbb, 0xd8,
+	0xc7, 0xa1, 0xc9, 0xb0, 0x23, 0x75, 0x6e, 0xe5, 0x3a, 0x23, 0xd3, 0x7e, 0x4a, 0x7c, 0x1c, 0x8e,
+	0xfb, 0xa9, 0xcb, 0x10, 0x47, 0x34, 0x0e, 0x6d, 0x3c, 0x63, 0x75, 0xd3, 0x25, 0xec, 0x69, 0x6c,
+	0xe9, 0x36, 0x1d, 0xf5, 0x5d, 0xea, 0xd2, 0xfc, 0x0c, 0x7c, 0x25, 0x16, 0xe2, 0x4b, 0xaa, 0x5f,
+	0x9e, 0x3e, 0x29, 0x1e, 0x05, 0x6c, 0x9c, 0x08, 0x7b, 0x3f, 0xd5, 0xa1, 0x3a, 0xa0, 0x16, 0x3a,
+	0x03, 0x15, 0xe2, 0xa8, 0x4a, 0x57, 0x59, 0x6e, 0x19, 0x15, 0xe2, 0xa0, 0x2b, 0x00, 0x5b, 0xd4,
+	0x1a, 0x46, 0x98, 0x0d, 0x89, 0xa3, 0x56, 0xc4, 0x7e, 0x73, 0x8b, 0x5a, 0x9b, 0x98, 0x6d, 0x38,
+	0x68, 0x09, 0xea, 0x22, 0x21, 0x6a, 0x55, 0x08, 0x92, 0x05, 0xba, 0x02, 0x2d, 0xdf, 0x1c, 0xe1,
+	0x28, 0x30, 0x6d, 0xac, 0xce, 0x0b, 0x49, 0xbe, 0x81, 0x6e, 0x40, 0xc3, 0x33, 0x2d, 0xec, 0x45,
+	0x6a, 0xab, 0x5b, 0x5d, 0x6e, 0xaf, 0x2e, 0xe9, 0x66, 0x40, 0xf4, 0x01, 0xb5, 0xf4, 0x07, 0x62,
+	0x7b, 0xdd, 0x67, 0xe1, 0xd8, 0x90, 0x3a, 0xe8, 0x4b, 0x68, 0x9b, 0xbe, 0x4f, 0x99, 0xc9, 0x08,
+	0xf5, 0x23, 0x15, 0x84, 0xc9, 0xa5, 0xcc, 0xe4, 0x6e, 0x2e, 0x4b, 0xec, 0x8a, 0xda, 0xe8, 0x7b,
+	0x58, 0x0a, 0xf1, 0x4e, 0x4c, 0x42, 0xec, 0x0c, 0x7d, 0xea, 0xe0, 0xa1, 0x74, 0xdc, 0x16, 0x28,
+	0xdd, 0x0c, 0xc5, 0x90, 0x4a, 0xdf, 0x50, 0x07, 0x17, 0x0e, 0x71, 0xaf, 0xa2, 0x2a, 0x06, 0x0a,
+	0x67, 0x84, 0x3c, 0x6c, 0xba, 0xe7, 0xe3, 0x50, 0x6d, 0x26, 0x61, 0x8b, 0x05, 0xd2, 0xa0, 0x19,
+	0x84, 0x84, 0x86, 0x84, 0x8d, 0xd5, 0x5a, 0x57, 0x59, 0x56, 0x8c, 0x6c, 0x8d, 0x3e, 0x85, 0x66,
+	0x40, 0x9d, 0x61, 0x14, 0x60, 0x5b, 0xad, 0x77, 0x95, 0xe5, 0xf6, 0xea, 0x65, 0x3d, 0xa9, 0xb9,
+	0x38, 0x04, 0xe7, 0x85, 0xbe, 0xbb, 0xa2, 0x7f, 0x4b, 0x9d, 0xcd, 0x00, 0xdb, 0xc6, 0x7c, 0x90,
+	0x7c, 0xa0, 0x3b, 0x30, 0x6f, 0x87, 0x98, 0xd7, 0x5c, 0x6d, 0x08, 0x33, 0x4d, 0x4f, 0xaa, 0xa8,
+	0xa7, 0x55, 0xd4, 0x1f, 0xa5, 0x7c, 0xbb, 0xd7, 0xdc, 0xff, 0xed, 0xda, 0xdc, 0x8b, 0xdf, 0xaf,
+	0x29, 0x46, 0x6a, 0xa4, 0x7d, 0x0e, 0xed, 0x42, 0x40, 0x68, 0x01, 0xaa, 0xdb, 0x78, 0x2c, 0xcb,
+	0xcb, 0x3f, 0x79, 0x28, 0xbb, 0xa6, 0x17, 0x63, 0x59, 0xda, 0x64, 0xf1, 0x45, 0xe5, 0xb6, 0xa2,
+	0xdd, 0x81, 0x85, 0xe9, 0xec, 0x1e, 0xcb, 0x7e, 0x1d, 0x2e, 0x1e, 0x91, 0xd7, 0xe3, 0xc0, 0xf4,
+	0x7e, 0xae, 0xc1, 0xa9, 0x07, 0xd8, 0x8c, 0x30, 0x07, 0xc3, 0x11, 0xe3, 0xec, 0xba, 0xef, 0xc5,
+	0x11, 0xc3, 0xe1, 0x46, 0x4a, 0xd4, 0x7c, 0x03, 0xad, 0x41, 0x2b, 0xbd, 0x2f, 0x91, 0x5a, 0x29,
+	0xd4, 0xb9, 0x88, 0xa1, 0x1b, 0xa9, 0x4a, 0x52, 0xe7, 0x1a, 0x4f, 0x9c, 0x91, 0x1b, 0x22, 0x03,
+	0xce, 0xdb, 0x09, 0xe4, 0xd0, 0xe3, 0x76, 0xce, 0x30, 0xc4, 0x01, 0x0d, 0x99, 0xa8, 0x6b, 0x7b,
+	0x55, 0x15, 0x88, 0xd2, 0xa9, 0x00, 0x76, 0x0c, 0x21, 0x97, 0x48, 0x8b, 0xf6, 0xac, 0x08, 0x7d,
+	0x07, 0x0b, 0x23, 0xe2, 0x93, 0x51, 0x3c, 0x1a, 0x8a, 0x1b, 0x45, 0x9e, 0x61, 0xb5, 0x21, 0x0e,
+	0xf8, 0xff, 0xd9, 0x03, 0x7e, 0x9d, 0x68, 0x0e, 0xa8, 0xb5, 0x49, 0x9e, 0xe1, 0xe2, 0x29, 0xcf,
+	0x8c, 0x26, 0x44, 0xe8, 0x43, 0xa8, 0x73, 0x6a, 0x47, 0xea, 0xbc, 0xc0, 0x3a, 0x2d, 0xb0, 0x78,
+	0xc2, 0x37, 0xfc, 0x27, 0x54, 0xda, 0x24, 0x1a, 0x9a, 0x07, 0x67, 0x26, 0x03, 0x2f, 0x29, 0xc4,
+	0x5a, 0xb1, 0x10, 0xed, 0x55, 0xbd, 0xc0, 0xd2, 0xac, 0x33, 0xe9, 0xc1, 0xb6, 0x2b, 0xdc, 0xa4,
+	0x09, 0xd3, 0x1f, 0xc6, 0xa6, 0xcf, 0x08, 0x1b, 0x17, 0xeb, 0xbf, 0x03, 0x8b, 0x25, 0x51, 0x9c,
+	0xa4, 0xcb, 0xde, 0x5f, 0x35, 0x68, 0xa6, 0xa1, 0x23, 0x04, 0x35, 0xde, 0x74, 0xa4, 0x27, 0xf1,
+	0x8d, 0x3e, 0x83, 0x06, 0x33, 0x89, 0xcf, 0x52, 0x6a, 0x5c, 0x2a, 0xbb, 0x84, 0x8f, 0xb8, 0x86,
+	0xcc, 0x9c, 0x54, 0x47, 0x2b, 0x59, 0xd3, 0xaa, 0x16, 0x3a, 0x50, 0xea, 0xab, 0xb4, 0x73, 0x59,
+	0x70, 0xde, 0xf4, 0x3c, 0x6a, 0x9b, 0xcc, 0xb4, 0x3c, 0x3c, 0xcc, 0x59, 0x59, 0x13, 0x08, 0x1f,
+	0x4c, 0x22, 0xdc, 0xcd, 0x55, 0x4b, 0xc9, 0xb9, 0x64, 0x96, 0x28, 0xa0, 0xc7, 0xb0, 0x68, 0xee,
+	0x9a, 0xc4, 0x9b, 0xf2, 0x50, 0x2f, 0xd0, 0x2a, 0xf7, 0x90, 0x2a, 0x96, 0xe2, 0x23, 0x73, 0x46,
+	0xfc, 0x2e, 0xcd, 0x63, 0x0f, 0x2e, 0x1d, 0x19, 0xd1, 0x89, 0xb2, 0x2e, 0x86, 0x8b, 0x47, 0x04,
+	0x7a, 0xa2, 0xcc, 0xfb, 0xb1, 0x9a, 0x30, 0xef, 0xd1, 0x38, 0x28, 0xb2, 0x4c, 0x79, 0x5b, 0x96,
+	0x55, 0xa6, 0x58, 0xc6, 0x71, 0x8f, 0xc7, 0xb2, 0xea, 0x14, 0xcb, 0x04, 0xc2, 0x5b, 0xb1, 0xec,
+	0xbf, 0xc8, 0x83, 0xde, 0x0f, 0x55, 0xb8, 0x2c, 0x1b, 0xf4, 0xa6, 0xfd, 0x14, 0x3b, 0xb1, 0x47,
+	0x7c, 0x97, 0xdf, 0x03, 0xd9, 0x8d, 0xaf, 0x02, 0xa4, 0x1d, 0x3e, 0x9b, 0x77, 0x5a, 0x76, 0xf6,
+	0x8c, 0xac, 0x43, 0x3b, 0xe9, 0xf8, 0x43, 0x3e, 0xce, 0xc9, 0xe3, 0xbc, 0xd9, 0xdb, 0x0b, 0x89,
+	0x21, 0x17, 0xa1, 0x1b, 0x00, 0x62, 0xee, 0x60, 0xe3, 0x20, 0xbb, 0x96, 0xa7, 0x27, 0x4a, 0x62,
+	0xb4, 0x7c, 0xf9, 0x15, 0x21, 0xe7, 0xc8, 0x17, 0xe2, 0x56, 0xf1, 0xc1, 0x29, 0x8b, 0xe7, 0xcd,
+	0x1f, 0x8c, 0x7f, 0xa3, 0x2f, 0xff, 0xad, 0xc0, 0xb9, 0x87, 0x7c, 0x34, 0x9c, 0x78, 0x10, 0xcb,
+	0x1a, 0xf4, 0x63, 0x58, 0xc8, 0x28, 0x2c, 0x9f, 0x5e, 0x79, 0x17, 0x3e, 0x12, 0x6e, 0x66, 0x50,
+	0xf2, 0xa7, 0x3c, 0xd9, 0x2d, 0x46, 0x7e, 0x36, 0x9c, 0x94, 0x69, 0x21, 0x2c, 0x95, 0xa9, 0x9f,
+	0x68, 0xec, 0xbf, 0x28, 0xb0, 0x58, 0x32, 0x29, 0xbc, 0x27, 0x02, 0xea, 0xd0, 0x10, 0x33, 0x79,
+	0xda, 0x0f, 0x2e, 0x94, 0x67, 0xd1, 0x90, 0x5a, 0xbd, 0x7d, 0x05, 0xce, 0xde, 0xa7, 0xa3, 0x20,
+	0x66, 0xd9, 0x65, 0x45, 0x5f, 0x15, 0x47, 0xaa, 0xa4, 0xa3, 0xfd, 0x2f, 0xe1, 0xe3, 0xa4, 0xe2,
+	0xeb, 0xa6, 0xaa, 0xf7, 0x3b, 0x7f, 0xf4, 0x9e, 0x2b, 0x70, 0x2a, 0x1b, 0x3c, 0x89, 0xef, 0xa2,
+	0x4f, 0xa6, 0xde, 0xf0, 0xab, 0xd9, 0x45, 0x4c, 0x55, 0xca, 0x3a, 0xec, 0x3b, 0x74, 0xbf, 0xde,
+	0x75, 0x68, 0x0e, 0xa8, 0x25, 0x12, 0x8d, 0x34, 0xa8, 0x6e, 0x51, 0x4b, 0xe6, 0xaf, 0x99, 0xfe,
+	0x7a, 0x18, 0x7c, 0xb3, 0xa7, 0x41, 0x63, 0xc3, 0x79, 0x40, 0x22, 0xc6, 0xd1, 0x89, 0x93, 0x64,
+	0xb9, 0x65, 0xf0, 0xcf, 0xde, 0x1a, 0x9c, 0x33, 0xb0, 0x8f, 0xf7, 0x26, 0x66, 0xe0, 0xd7, 0x90,
+	0x47, 0xa2, 0x54, 0x72, 0x94, 0x01, 0x20, 0x03, 0xb3, 0x38, 0xf4, 0x8f, 0x03, 0x73, 0x1e, 0x1a,
+	0xbc, 0x0f, 0x65, 0xff, 0x7d, 0xf5, 0x2d, 0x6a, 0x6d, 0x38, 0xab, 0xbf, 0x2a, 0x70, 0xf6, 0xae,
+	0xeb, 0x86, 0xd8, 0xe5, 0xbf, 0x18, 0x82, 0x4b, 0xe8, 0x26, 0xb4, 0x04, 0xf2, 0x80, 0x5a, 0x11,
+	0x3a, 0x37, 0x33, 0xcf, 0x6a, 0xa7, 0xd3, 0x80, 0x93, 0x64, 0xac, 0x00, 0xe4, 0x41, 0xa1, 0x84,
+	0x94, 0x33, 0x51, 0x6a, 0x6d, 0xb1, 0x2f, 0x33, 0x73, 0x07, 0xda, 0x85, 0x08, 0xd0, 0x45, 0x69,
+	0x33, 0x1d, 0x93, 0x76, 0x61, 0xe6, 0x8e, 0xac, 0xf3, 0xdf, 0x5c, 0x74, 0x9d, 0xbb, 0xe4, 0x5c,
+	0x5f, 0xa3, 0x3e, 0x46, 0x45, 0xe8, 0x09, 0x3f, 0xf7, 0xba, 0xaf, 0xfe, 0xec, 0xcc, 0x3d, 0x3f,
+	0xe8, 0x28, 0xfb, 0x07, 0x1d, 0xe5, 0xe5, 0x41, 0x47, 0xf9, 0xe3, 0xa0, 0xa3, 0xbc, 0x38, 0xec,
+	0xcc, 0xbd, 0x3c, 0xec, 0xcc, 0xbd, 0x3a, 0xec, 0xcc, 0x59, 0x0d, 0x81, 0xfc, 0xf1, 0x3f, 0x01,
+	0x00, 0x00, 0xff, 0xff, 0x1d, 0xb6, 0x54, 0xd6, 0x14, 0x10, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -997,6 +1005,23 @@ type AggregatedQueueServer interface {
 	RenewLease(context.Context, *RenewLeaseRequest) (*IdList, error)
 	ReturnLease(context.Context, *ReturnLeaseRequest) (*types.Empty, error)
 	ReportDone(context.Context, *IdList) (*IdList, error)
+}
+
+// UnimplementedAggregatedQueueServer can be embedded to have forward compatible implementations.
+type UnimplementedAggregatedQueueServer struct {
+}
+
+func (*UnimplementedAggregatedQueueServer) LeaseJobs(ctx context.Context, req *LeaseRequest) (*JobLease, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method LeaseJobs not implemented")
+}
+func (*UnimplementedAggregatedQueueServer) RenewLease(ctx context.Context, req *RenewLeaseRequest) (*IdList, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RenewLease not implemented")
+}
+func (*UnimplementedAggregatedQueueServer) ReturnLease(ctx context.Context, req *ReturnLeaseRequest) (*types.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ReturnLease not implemented")
+}
+func (*UnimplementedAggregatedQueueServer) ReportDone(ctx context.Context, req *IdList) (*IdList, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ReportDone not implemented")
 }
 
 func RegisterAggregatedQueueServer(s *grpc.Server, srv AggregatedQueueServer) {
@@ -1103,7 +1128,7 @@ var _AggregatedQueue_serviceDesc = grpc.ServiceDesc{
 func (m *Job) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -1111,122 +1136,140 @@ func (m *Job) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *Job) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *Job) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.Id) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintQueue(dAtA, i, uint64(len(m.Id)))
-		i += copy(dAtA[i:], m.Id)
-	}
-	if len(m.JobSetId) > 0 {
-		dAtA[i] = 0x12
-		i++
-		i = encodeVarintQueue(dAtA, i, uint64(len(m.JobSetId)))
-		i += copy(dAtA[i:], m.JobSetId)
-	}
-	if len(m.Queue) > 0 {
-		dAtA[i] = 0x1a
-		i++
-		i = encodeVarintQueue(dAtA, i, uint64(len(m.Queue)))
-		i += copy(dAtA[i:], m.Queue)
-	}
-	if m.Priority != 0 {
-		dAtA[i] = 0x21
-		i++
-		encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(math.Float64bits(float64(m.Priority))))
-		i += 8
-	}
-	if m.PodSpec != nil {
-		dAtA[i] = 0x2a
-		i++
-		i = encodeVarintQueue(dAtA, i, uint64(m.PodSpec.Size()))
-		n1, err := m.PodSpec.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n1
-	}
-	dAtA[i] = 0x32
-	i++
-	i = encodeVarintQueue(dAtA, i, uint64(github_com_gogo_protobuf_types.SizeOfStdTime(m.Created)))
-	n2, err := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Created, dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n2
-	if len(m.Namespace) > 0 {
-		dAtA[i] = 0x3a
-		i++
-		i = encodeVarintQueue(dAtA, i, uint64(len(m.Namespace)))
-		i += copy(dAtA[i:], m.Namespace)
-	}
-	if len(m.Owner) > 0 {
-		dAtA[i] = 0x42
-		i++
-		i = encodeVarintQueue(dAtA, i, uint64(len(m.Owner)))
-		i += copy(dAtA[i:], m.Owner)
-	}
-	if len(m.Labels) > 0 {
-		for k, _ := range m.Labels {
-			dAtA[i] = 0x4a
-			i++
-			v := m.Labels[k]
-			mapSize := 1 + len(k) + sovQueue(uint64(len(k))) + 1 + len(v) + sovQueue(uint64(len(v)))
-			i = encodeVarintQueue(dAtA, i, uint64(mapSize))
-			dAtA[i] = 0xa
-			i++
-			i = encodeVarintQueue(dAtA, i, uint64(len(k)))
-			i += copy(dAtA[i:], k)
-			dAtA[i] = 0x12
-			i++
+	if len(m.RequiredNodeLabels) > 0 {
+		for k := range m.RequiredNodeLabels {
+			v := m.RequiredNodeLabels[k]
+			baseI := i
+			i -= len(v)
+			copy(dAtA[i:], v)
 			i = encodeVarintQueue(dAtA, i, uint64(len(v)))
-			i += copy(dAtA[i:], v)
+			i--
+			dAtA[i] = 0x12
+			i -= len(k)
+			copy(dAtA[i:], k)
+			i = encodeVarintQueue(dAtA, i, uint64(len(k)))
+			i--
+			dAtA[i] = 0xa
+			i = encodeVarintQueue(dAtA, i, uint64(baseI-i))
+			i--
+			dAtA[i] = 0x5a
 		}
 	}
 	if len(m.Annotations) > 0 {
-		for k, _ := range m.Annotations {
-			dAtA[i] = 0x52
-			i++
+		for k := range m.Annotations {
 			v := m.Annotations[k]
-			mapSize := 1 + len(k) + sovQueue(uint64(len(k))) + 1 + len(v) + sovQueue(uint64(len(v)))
-			i = encodeVarintQueue(dAtA, i, uint64(mapSize))
-			dAtA[i] = 0xa
-			i++
-			i = encodeVarintQueue(dAtA, i, uint64(len(k)))
-			i += copy(dAtA[i:], k)
-			dAtA[i] = 0x12
-			i++
+			baseI := i
+			i -= len(v)
+			copy(dAtA[i:], v)
 			i = encodeVarintQueue(dAtA, i, uint64(len(v)))
-			i += copy(dAtA[i:], v)
+			i--
+			dAtA[i] = 0x12
+			i -= len(k)
+			copy(dAtA[i:], k)
+			i = encodeVarintQueue(dAtA, i, uint64(len(k)))
+			i--
+			dAtA[i] = 0xa
+			i = encodeVarintQueue(dAtA, i, uint64(baseI-i))
+			i--
+			dAtA[i] = 0x52
 		}
 	}
-	if len(m.RequiredNodeLabels) > 0 {
-		for k, _ := range m.RequiredNodeLabels {
-			dAtA[i] = 0x5a
-			i++
-			v := m.RequiredNodeLabels[k]
-			mapSize := 1 + len(k) + sovQueue(uint64(len(k))) + 1 + len(v) + sovQueue(uint64(len(v)))
-			i = encodeVarintQueue(dAtA, i, uint64(mapSize))
-			dAtA[i] = 0xa
-			i++
-			i = encodeVarintQueue(dAtA, i, uint64(len(k)))
-			i += copy(dAtA[i:], k)
-			dAtA[i] = 0x12
-			i++
+	if len(m.Labels) > 0 {
+		for k := range m.Labels {
+			v := m.Labels[k]
+			baseI := i
+			i -= len(v)
+			copy(dAtA[i:], v)
 			i = encodeVarintQueue(dAtA, i, uint64(len(v)))
-			i += copy(dAtA[i:], v)
+			i--
+			dAtA[i] = 0x12
+			i -= len(k)
+			copy(dAtA[i:], k)
+			i = encodeVarintQueue(dAtA, i, uint64(len(k)))
+			i--
+			dAtA[i] = 0xa
+			i = encodeVarintQueue(dAtA, i, uint64(baseI-i))
+			i--
+			dAtA[i] = 0x4a
 		}
 	}
-	return i, nil
+	if len(m.Owner) > 0 {
+		i -= len(m.Owner)
+		copy(dAtA[i:], m.Owner)
+		i = encodeVarintQueue(dAtA, i, uint64(len(m.Owner)))
+		i--
+		dAtA[i] = 0x42
+	}
+	if len(m.Namespace) > 0 {
+		i -= len(m.Namespace)
+		copy(dAtA[i:], m.Namespace)
+		i = encodeVarintQueue(dAtA, i, uint64(len(m.Namespace)))
+		i--
+		dAtA[i] = 0x3a
+	}
+	n1, err1 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Created, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.Created):])
+	if err1 != nil {
+		return 0, err1
+	}
+	i -= n1
+	i = encodeVarintQueue(dAtA, i, uint64(n1))
+	i--
+	dAtA[i] = 0x32
+	if m.PodSpec != nil {
+		{
+			size, err := m.PodSpec.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintQueue(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x2a
+	}
+	if m.Priority != 0 {
+		i -= 8
+		encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(math.Float64bits(float64(m.Priority))))
+		i--
+		dAtA[i] = 0x21
+	}
+	if len(m.Queue) > 0 {
+		i -= len(m.Queue)
+		copy(dAtA[i:], m.Queue)
+		i = encodeVarintQueue(dAtA, i, uint64(len(m.Queue)))
+		i--
+		dAtA[i] = 0x1a
+	}
+	if len(m.JobSetId) > 0 {
+		i -= len(m.JobSetId)
+		copy(dAtA[i:], m.JobSetId)
+		i = encodeVarintQueue(dAtA, i, uint64(len(m.JobSetId)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if len(m.Id) > 0 {
+		i -= len(m.Id)
+		copy(dAtA[i:], m.Id)
+		i = encodeVarintQueue(dAtA, i, uint64(len(m.Id)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *LeaseRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -1234,95 +1277,101 @@ func (m *LeaseRequest) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *LeaseRequest) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *LeaseRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.ClusterId) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintQueue(dAtA, i, uint64(len(m.ClusterId)))
-		i += copy(dAtA[i:], m.ClusterId)
-	}
-	if len(m.Resources) > 0 {
-		for k, _ := range m.Resources {
-			dAtA[i] = 0x12
-			i++
-			v := m.Resources[k]
-			msgSize := 0
-			if (&v) != nil {
-				msgSize = (&v).Size()
-				msgSize += 1 + sovQueue(uint64(msgSize))
-			}
-			mapSize := 1 + len(k) + sovQueue(uint64(len(k))) + msgSize
-			i = encodeVarintQueue(dAtA, i, uint64(mapSize))
-			dAtA[i] = 0xa
-			i++
-			i = encodeVarintQueue(dAtA, i, uint64(len(k)))
-			i += copy(dAtA[i:], k)
-			dAtA[i] = 0x12
-			i++
-			i = encodeVarintQueue(dAtA, i, uint64((&v).Size()))
-			n3, err := (&v).MarshalTo(dAtA[i:])
-			if err != nil {
-				return 0, err
-			}
-			i += n3
-		}
-	}
-	dAtA[i] = 0x22
-	i++
-	i = encodeVarintQueue(dAtA, i, uint64(m.ClusterLeasedReport.Size()))
-	n4, err := m.ClusterLeasedReport.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n4
-	if len(m.MinimumJobSize) > 0 {
-		for k, _ := range m.MinimumJobSize {
-			dAtA[i] = 0x32
-			i++
-			v := m.MinimumJobSize[k]
-			msgSize := 0
-			if (&v) != nil {
-				msgSize = (&v).Size()
-				msgSize += 1 + sovQueue(uint64(msgSize))
-			}
-			mapSize := 1 + len(k) + sovQueue(uint64(len(k))) + msgSize
-			i = encodeVarintQueue(dAtA, i, uint64(mapSize))
-			dAtA[i] = 0xa
-			i++
-			i = encodeVarintQueue(dAtA, i, uint64(len(k)))
-			i += copy(dAtA[i:], k)
-			dAtA[i] = 0x12
-			i++
-			i = encodeVarintQueue(dAtA, i, uint64((&v).Size()))
-			n5, err := (&v).MarshalTo(dAtA[i:])
-			if err != nil {
-				return 0, err
-			}
-			i += n5
-		}
-	}
 	if len(m.Nodes) > 0 {
-		for _, msg := range m.Nodes {
-			dAtA[i] = 0x3a
-			i++
-			i = encodeVarintQueue(dAtA, i, uint64(msg.Size()))
-			n, err := msg.MarshalTo(dAtA[i:])
-			if err != nil {
-				return 0, err
+		for iNdEx := len(m.Nodes) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.Nodes[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintQueue(dAtA, i, uint64(size))
 			}
-			i += n
+			i--
+			dAtA[i] = 0x3a
 		}
 	}
-	return i, nil
+	if len(m.MinimumJobSize) > 0 {
+		for k := range m.MinimumJobSize {
+			v := m.MinimumJobSize[k]
+			baseI := i
+			{
+				size, err := (&v).MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintQueue(dAtA, i, uint64(size))
+			}
+			i--
+			dAtA[i] = 0x12
+			i -= len(k)
+			copy(dAtA[i:], k)
+			i = encodeVarintQueue(dAtA, i, uint64(len(k)))
+			i--
+			dAtA[i] = 0xa
+			i = encodeVarintQueue(dAtA, i, uint64(baseI-i))
+			i--
+			dAtA[i] = 0x32
+		}
+	}
+	{
+		size, err := m.ClusterLeasedReport.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintQueue(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x22
+	if len(m.Resources) > 0 {
+		for k := range m.Resources {
+			v := m.Resources[k]
+			baseI := i
+			{
+				size, err := (&v).MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintQueue(dAtA, i, uint64(size))
+			}
+			i--
+			dAtA[i] = 0x12
+			i -= len(k)
+			copy(dAtA[i:], k)
+			i = encodeVarintQueue(dAtA, i, uint64(len(k)))
+			i--
+			dAtA[i] = 0xa
+			i = encodeVarintQueue(dAtA, i, uint64(baseI-i))
+			i--
+			dAtA[i] = 0x12
+		}
+	}
+	if len(m.ClusterId) > 0 {
+		i -= len(m.ClusterId)
+		copy(dAtA[i:], m.ClusterId)
+		i = encodeVarintQueue(dAtA, i, uint64(len(m.ClusterId)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *NodeInfo) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -1330,104 +1379,110 @@ func (m *NodeInfo) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *NodeInfo) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *NodeInfo) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.Name) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintQueue(dAtA, i, uint64(len(m.Name)))
-		i += copy(dAtA[i:], m.Name)
-	}
-	if len(m.Taints) > 0 {
-		for _, msg := range m.Taints {
-			dAtA[i] = 0x12
-			i++
-			i = encodeVarintQueue(dAtA, i, uint64(msg.Size()))
-			n, err := msg.MarshalTo(dAtA[i:])
-			if err != nil {
-				return 0, err
+	if len(m.AvailableResources) > 0 {
+		for k := range m.AvailableResources {
+			v := m.AvailableResources[k]
+			baseI := i
+			{
+				size, err := (&v).MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintQueue(dAtA, i, uint64(size))
 			}
-			i += n
-		}
-	}
-	if len(m.Labels) > 0 {
-		for k, _ := range m.Labels {
-			dAtA[i] = 0x1a
-			i++
-			v := m.Labels[k]
-			mapSize := 1 + len(k) + sovQueue(uint64(len(k))) + 1 + len(v) + sovQueue(uint64(len(v)))
-			i = encodeVarintQueue(dAtA, i, uint64(mapSize))
-			dAtA[i] = 0xa
-			i++
-			i = encodeVarintQueue(dAtA, i, uint64(len(k)))
-			i += copy(dAtA[i:], k)
+			i--
 			dAtA[i] = 0x12
-			i++
-			i = encodeVarintQueue(dAtA, i, uint64(len(v)))
-			i += copy(dAtA[i:], v)
+			i -= len(k)
+			copy(dAtA[i:], k)
+			i = encodeVarintQueue(dAtA, i, uint64(len(k)))
+			i--
+			dAtA[i] = 0xa
+			i = encodeVarintQueue(dAtA, i, uint64(baseI-i))
+			i--
+			dAtA[i] = 0x2a
 		}
 	}
 	if len(m.AllocatableResources) > 0 {
-		for k, _ := range m.AllocatableResources {
-			dAtA[i] = 0x22
-			i++
+		for k := range m.AllocatableResources {
 			v := m.AllocatableResources[k]
-			msgSize := 0
-			if (&v) != nil {
-				msgSize = (&v).Size()
-				msgSize += 1 + sovQueue(uint64(msgSize))
+			baseI := i
+			{
+				size, err := (&v).MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintQueue(dAtA, i, uint64(size))
 			}
-			mapSize := 1 + len(k) + sovQueue(uint64(len(k))) + msgSize
-			i = encodeVarintQueue(dAtA, i, uint64(mapSize))
-			dAtA[i] = 0xa
-			i++
-			i = encodeVarintQueue(dAtA, i, uint64(len(k)))
-			i += copy(dAtA[i:], k)
+			i--
 			dAtA[i] = 0x12
-			i++
-			i = encodeVarintQueue(dAtA, i, uint64((&v).Size()))
-			n6, err := (&v).MarshalTo(dAtA[i:])
-			if err != nil {
-				return 0, err
-			}
-			i += n6
+			i -= len(k)
+			copy(dAtA[i:], k)
+			i = encodeVarintQueue(dAtA, i, uint64(len(k)))
+			i--
+			dAtA[i] = 0xa
+			i = encodeVarintQueue(dAtA, i, uint64(baseI-i))
+			i--
+			dAtA[i] = 0x22
 		}
 	}
-	if len(m.AvailableResources) > 0 {
-		for k, _ := range m.AvailableResources {
-			dAtA[i] = 0x2a
-			i++
-			v := m.AvailableResources[k]
-			msgSize := 0
-			if (&v) != nil {
-				msgSize = (&v).Size()
-				msgSize += 1 + sovQueue(uint64(msgSize))
-			}
-			mapSize := 1 + len(k) + sovQueue(uint64(len(k))) + msgSize
-			i = encodeVarintQueue(dAtA, i, uint64(mapSize))
-			dAtA[i] = 0xa
-			i++
-			i = encodeVarintQueue(dAtA, i, uint64(len(k)))
-			i += copy(dAtA[i:], k)
+	if len(m.Labels) > 0 {
+		for k := range m.Labels {
+			v := m.Labels[k]
+			baseI := i
+			i -= len(v)
+			copy(dAtA[i:], v)
+			i = encodeVarintQueue(dAtA, i, uint64(len(v)))
+			i--
 			dAtA[i] = 0x12
-			i++
-			i = encodeVarintQueue(dAtA, i, uint64((&v).Size()))
-			n7, err := (&v).MarshalTo(dAtA[i:])
-			if err != nil {
-				return 0, err
-			}
-			i += n7
+			i -= len(k)
+			copy(dAtA[i:], k)
+			i = encodeVarintQueue(dAtA, i, uint64(len(k)))
+			i--
+			dAtA[i] = 0xa
+			i = encodeVarintQueue(dAtA, i, uint64(baseI-i))
+			i--
+			dAtA[i] = 0x1a
 		}
 	}
-	return i, nil
+	if len(m.Taints) > 0 {
+		for iNdEx := len(m.Taints) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.Taints[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintQueue(dAtA, i, uint64(size))
+			}
+			i--
+			dAtA[i] = 0x12
+		}
+	}
+	if len(m.Name) > 0 {
+		i -= len(m.Name)
+		copy(dAtA[i:], m.Name)
+		i = encodeVarintQueue(dAtA, i, uint64(len(m.Name)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *NodeType) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -1435,72 +1490,79 @@ func (m *NodeType) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *NodeType) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *NodeType) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.Taints) > 0 {
-		for _, msg := range m.Taints {
-			dAtA[i] = 0xa
-			i++
-			i = encodeVarintQueue(dAtA, i, uint64(msg.Size()))
-			n, err := msg.MarshalTo(dAtA[i:])
-			if err != nil {
-				return 0, err
+	if len(m.AllocatableResources) > 0 {
+		for k := range m.AllocatableResources {
+			v := m.AllocatableResources[k]
+			baseI := i
+			{
+				size, err := (&v).MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintQueue(dAtA, i, uint64(size))
 			}
-			i += n
+			i--
+			dAtA[i] = 0x12
+			i -= len(k)
+			copy(dAtA[i:], k)
+			i = encodeVarintQueue(dAtA, i, uint64(len(k)))
+			i--
+			dAtA[i] = 0xa
+			i = encodeVarintQueue(dAtA, i, uint64(baseI-i))
+			i--
+			dAtA[i] = 0x1a
 		}
 	}
 	if len(m.Labels) > 0 {
-		for k, _ := range m.Labels {
-			dAtA[i] = 0x12
-			i++
+		for k := range m.Labels {
 			v := m.Labels[k]
-			mapSize := 1 + len(k) + sovQueue(uint64(len(k))) + 1 + len(v) + sovQueue(uint64(len(v)))
-			i = encodeVarintQueue(dAtA, i, uint64(mapSize))
-			dAtA[i] = 0xa
-			i++
-			i = encodeVarintQueue(dAtA, i, uint64(len(k)))
-			i += copy(dAtA[i:], k)
-			dAtA[i] = 0x12
-			i++
+			baseI := i
+			i -= len(v)
+			copy(dAtA[i:], v)
 			i = encodeVarintQueue(dAtA, i, uint64(len(v)))
-			i += copy(dAtA[i:], v)
-		}
-	}
-	if len(m.AllocatableResources) > 0 {
-		for k, _ := range m.AllocatableResources {
-			dAtA[i] = 0x1a
-			i++
-			v := m.AllocatableResources[k]
-			msgSize := 0
-			if (&v) != nil {
-				msgSize = (&v).Size()
-				msgSize += 1 + sovQueue(uint64(msgSize))
-			}
-			mapSize := 1 + len(k) + sovQueue(uint64(len(k))) + msgSize
-			i = encodeVarintQueue(dAtA, i, uint64(mapSize))
-			dAtA[i] = 0xa
-			i++
-			i = encodeVarintQueue(dAtA, i, uint64(len(k)))
-			i += copy(dAtA[i:], k)
+			i--
 			dAtA[i] = 0x12
-			i++
-			i = encodeVarintQueue(dAtA, i, uint64((&v).Size()))
-			n8, err := (&v).MarshalTo(dAtA[i:])
-			if err != nil {
-				return 0, err
-			}
-			i += n8
+			i -= len(k)
+			copy(dAtA[i:], k)
+			i = encodeVarintQueue(dAtA, i, uint64(len(k)))
+			i--
+			dAtA[i] = 0xa
+			i = encodeVarintQueue(dAtA, i, uint64(baseI-i))
+			i--
+			dAtA[i] = 0x12
 		}
 	}
-	return i, nil
+	if len(m.Taints) > 0 {
+		for iNdEx := len(m.Taints) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.Taints[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintQueue(dAtA, i, uint64(size))
+			}
+			i--
+			dAtA[i] = 0xa
+		}
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *ClusterSchedulingInfoReport) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -1508,69 +1570,75 @@ func (m *ClusterSchedulingInfoReport) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *ClusterSchedulingInfoReport) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ClusterSchedulingInfoReport) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.ClusterId) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintQueue(dAtA, i, uint64(len(m.ClusterId)))
-		i += copy(dAtA[i:], m.ClusterId)
-	}
-	dAtA[i] = 0x12
-	i++
-	i = encodeVarintQueue(dAtA, i, uint64(github_com_gogo_protobuf_types.SizeOfStdTime(m.ReportTime)))
-	n9, err := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.ReportTime, dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n9
-	if len(m.NodeTypes) > 0 {
-		for _, msg := range m.NodeTypes {
-			dAtA[i] = 0x2a
-			i++
-			i = encodeVarintQueue(dAtA, i, uint64(msg.Size()))
-			n, err := msg.MarshalTo(dAtA[i:])
-			if err != nil {
-				return 0, err
-			}
-			i += n
-		}
-	}
 	if len(m.MinimumJobSize) > 0 {
-		for k, _ := range m.MinimumJobSize {
-			dAtA[i] = 0x32
-			i++
+		for k := range m.MinimumJobSize {
 			v := m.MinimumJobSize[k]
-			msgSize := 0
-			if (&v) != nil {
-				msgSize = (&v).Size()
-				msgSize += 1 + sovQueue(uint64(msgSize))
+			baseI := i
+			{
+				size, err := (&v).MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintQueue(dAtA, i, uint64(size))
 			}
-			mapSize := 1 + len(k) + sovQueue(uint64(len(k))) + msgSize
-			i = encodeVarintQueue(dAtA, i, uint64(mapSize))
-			dAtA[i] = 0xa
-			i++
-			i = encodeVarintQueue(dAtA, i, uint64(len(k)))
-			i += copy(dAtA[i:], k)
+			i--
 			dAtA[i] = 0x12
-			i++
-			i = encodeVarintQueue(dAtA, i, uint64((&v).Size()))
-			n10, err := (&v).MarshalTo(dAtA[i:])
-			if err != nil {
-				return 0, err
-			}
-			i += n10
+			i -= len(k)
+			copy(dAtA[i:], k)
+			i = encodeVarintQueue(dAtA, i, uint64(len(k)))
+			i--
+			dAtA[i] = 0xa
+			i = encodeVarintQueue(dAtA, i, uint64(baseI-i))
+			i--
+			dAtA[i] = 0x32
 		}
 	}
-	return i, nil
+	if len(m.NodeTypes) > 0 {
+		for iNdEx := len(m.NodeTypes) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.NodeTypes[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintQueue(dAtA, i, uint64(size))
+			}
+			i--
+			dAtA[i] = 0x2a
+		}
+	}
+	n10, err10 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.ReportTime, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.ReportTime):])
+	if err10 != nil {
+		return 0, err10
+	}
+	i -= n10
+	i = encodeVarintQueue(dAtA, i, uint64(n10))
+	i--
+	dAtA[i] = 0x12
+	if len(m.ClusterId) > 0 {
+		i -= len(m.ClusterId)
+		copy(dAtA[i:], m.ClusterId)
+		i = encodeVarintQueue(dAtA, i, uint64(len(m.ClusterId)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *QueueLeasedReport) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -1578,49 +1646,53 @@ func (m *QueueLeasedReport) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *QueueLeasedReport) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *QueueLeasedReport) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.Name) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintQueue(dAtA, i, uint64(len(m.Name)))
-		i += copy(dAtA[i:], m.Name)
-	}
 	if len(m.ResourcesLeased) > 0 {
-		for k, _ := range m.ResourcesLeased {
-			dAtA[i] = 0x12
-			i++
+		for k := range m.ResourcesLeased {
 			v := m.ResourcesLeased[k]
-			msgSize := 0
-			if (&v) != nil {
-				msgSize = (&v).Size()
-				msgSize += 1 + sovQueue(uint64(msgSize))
+			baseI := i
+			{
+				size, err := (&v).MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintQueue(dAtA, i, uint64(size))
 			}
-			mapSize := 1 + len(k) + sovQueue(uint64(len(k))) + msgSize
-			i = encodeVarintQueue(dAtA, i, uint64(mapSize))
-			dAtA[i] = 0xa
-			i++
-			i = encodeVarintQueue(dAtA, i, uint64(len(k)))
-			i += copy(dAtA[i:], k)
+			i--
 			dAtA[i] = 0x12
-			i++
-			i = encodeVarintQueue(dAtA, i, uint64((&v).Size()))
-			n11, err := (&v).MarshalTo(dAtA[i:])
-			if err != nil {
-				return 0, err
-			}
-			i += n11
+			i -= len(k)
+			copy(dAtA[i:], k)
+			i = encodeVarintQueue(dAtA, i, uint64(len(k)))
+			i--
+			dAtA[i] = 0xa
+			i = encodeVarintQueue(dAtA, i, uint64(baseI-i))
+			i--
+			dAtA[i] = 0x12
 		}
 	}
-	return i, nil
+	if len(m.Name) > 0 {
+		i -= len(m.Name)
+		copy(dAtA[i:], m.Name)
+		i = encodeVarintQueue(dAtA, i, uint64(len(m.Name)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *ClusterLeasedReport) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -1628,43 +1700,51 @@ func (m *ClusterLeasedReport) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *ClusterLeasedReport) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ClusterLeasedReport) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.ClusterId) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintQueue(dAtA, i, uint64(len(m.ClusterId)))
-		i += copy(dAtA[i:], m.ClusterId)
-	}
-	dAtA[i] = 0x12
-	i++
-	i = encodeVarintQueue(dAtA, i, uint64(github_com_gogo_protobuf_types.SizeOfStdTime(m.ReportTime)))
-	n12, err := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.ReportTime, dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n12
 	if len(m.Queues) > 0 {
-		for _, msg := range m.Queues {
-			dAtA[i] = 0x1a
-			i++
-			i = encodeVarintQueue(dAtA, i, uint64(msg.Size()))
-			n, err := msg.MarshalTo(dAtA[i:])
-			if err != nil {
-				return 0, err
+		for iNdEx := len(m.Queues) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.Queues[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintQueue(dAtA, i, uint64(size))
 			}
-			i += n
+			i--
+			dAtA[i] = 0x1a
 		}
 	}
-	return i, nil
+	n12, err12 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.ReportTime, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.ReportTime):])
+	if err12 != nil {
+		return 0, err12
+	}
+	i -= n12
+	i = encodeVarintQueue(dAtA, i, uint64(n12))
+	i--
+	dAtA[i] = 0x12
+	if len(m.ClusterId) > 0 {
+		i -= len(m.ClusterId)
+		copy(dAtA[i:], m.ClusterId)
+		i = encodeVarintQueue(dAtA, i, uint64(len(m.ClusterId)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *ComputeResource) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -1672,43 +1752,46 @@ func (m *ComputeResource) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *ComputeResource) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ComputeResource) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
 	if len(m.Resources) > 0 {
-		for k, _ := range m.Resources {
-			dAtA[i] = 0xa
-			i++
+		for k := range m.Resources {
 			v := m.Resources[k]
-			msgSize := 0
-			if (&v) != nil {
-				msgSize = (&v).Size()
-				msgSize += 1 + sovQueue(uint64(msgSize))
+			baseI := i
+			{
+				size, err := (&v).MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintQueue(dAtA, i, uint64(size))
 			}
-			mapSize := 1 + len(k) + sovQueue(uint64(len(k))) + msgSize
-			i = encodeVarintQueue(dAtA, i, uint64(mapSize))
-			dAtA[i] = 0xa
-			i++
-			i = encodeVarintQueue(dAtA, i, uint64(len(k)))
-			i += copy(dAtA[i:], k)
+			i--
 			dAtA[i] = 0x12
-			i++
-			i = encodeVarintQueue(dAtA, i, uint64((&v).Size()))
-			n13, err := (&v).MarshalTo(dAtA[i:])
-			if err != nil {
-				return 0, err
-			}
-			i += n13
+			i -= len(k)
+			copy(dAtA[i:], k)
+			i = encodeVarintQueue(dAtA, i, uint64(len(k)))
+			i--
+			dAtA[i] = 0xa
+			i = encodeVarintQueue(dAtA, i, uint64(baseI-i))
+			i--
+			dAtA[i] = 0xa
 		}
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *NodeLabeling) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -1716,34 +1799,41 @@ func (m *NodeLabeling) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *NodeLabeling) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *NodeLabeling) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
 	if len(m.Labels) > 0 {
-		for k, _ := range m.Labels {
-			dAtA[i] = 0x1a
-			i++
+		for k := range m.Labels {
 			v := m.Labels[k]
-			mapSize := 1 + len(k) + sovQueue(uint64(len(k))) + 1 + len(v) + sovQueue(uint64(len(v)))
-			i = encodeVarintQueue(dAtA, i, uint64(mapSize))
-			dAtA[i] = 0xa
-			i++
-			i = encodeVarintQueue(dAtA, i, uint64(len(k)))
-			i += copy(dAtA[i:], k)
-			dAtA[i] = 0x12
-			i++
+			baseI := i
+			i -= len(v)
+			copy(dAtA[i:], v)
 			i = encodeVarintQueue(dAtA, i, uint64(len(v)))
-			i += copy(dAtA[i:], v)
+			i--
+			dAtA[i] = 0x12
+			i -= len(k)
+			copy(dAtA[i:], k)
+			i = encodeVarintQueue(dAtA, i, uint64(len(k)))
+			i--
+			dAtA[i] = 0xa
+			i = encodeVarintQueue(dAtA, i, uint64(baseI-i))
+			i--
+			dAtA[i] = 0x1a
 		}
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *JobLease) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -1751,29 +1841,36 @@ func (m *JobLease) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *JobLease) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *JobLease) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
 	if len(m.Job) > 0 {
-		for _, msg := range m.Job {
-			dAtA[i] = 0xa
-			i++
-			i = encodeVarintQueue(dAtA, i, uint64(msg.Size()))
-			n, err := msg.MarshalTo(dAtA[i:])
-			if err != nil {
-				return 0, err
+		for iNdEx := len(m.Job) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.Job[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintQueue(dAtA, i, uint64(size))
 			}
-			i += n
+			i--
+			dAtA[i] = 0xa
 		}
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *IdList) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -1781,32 +1878,31 @@ func (m *IdList) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *IdList) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *IdList) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
 	if len(m.Ids) > 0 {
-		for _, s := range m.Ids {
+		for iNdEx := len(m.Ids) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.Ids[iNdEx])
+			copy(dAtA[i:], m.Ids[iNdEx])
+			i = encodeVarintQueue(dAtA, i, uint64(len(m.Ids[iNdEx])))
+			i--
 			dAtA[i] = 0xa
-			i++
-			l = len(s)
-			for l >= 1<<7 {
-				dAtA[i] = uint8(uint64(l)&0x7f | 0x80)
-				l >>= 7
-				i++
-			}
-			dAtA[i] = uint8(l)
-			i++
-			i += copy(dAtA[i:], s)
 		}
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *RenewLeaseRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -1814,38 +1910,38 @@ func (m *RenewLeaseRequest) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *RenewLeaseRequest) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *RenewLeaseRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.ClusterId) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintQueue(dAtA, i, uint64(len(m.ClusterId)))
-		i += copy(dAtA[i:], m.ClusterId)
-	}
 	if len(m.Ids) > 0 {
-		for _, s := range m.Ids {
+		for iNdEx := len(m.Ids) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.Ids[iNdEx])
+			copy(dAtA[i:], m.Ids[iNdEx])
+			i = encodeVarintQueue(dAtA, i, uint64(len(m.Ids[iNdEx])))
+			i--
 			dAtA[i] = 0x12
-			i++
-			l = len(s)
-			for l >= 1<<7 {
-				dAtA[i] = uint8(uint64(l)&0x7f | 0x80)
-				l >>= 7
-				i++
-			}
-			dAtA[i] = uint8(l)
-			i++
-			i += copy(dAtA[i:], s)
 		}
 	}
-	return i, nil
+	if len(m.ClusterId) > 0 {
+		i -= len(m.ClusterId)
+		copy(dAtA[i:], m.ClusterId)
+		i = encodeVarintQueue(dAtA, i, uint64(len(m.ClusterId)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *ReturnLeaseRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -1853,33 +1949,42 @@ func (m *ReturnLeaseRequest) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *ReturnLeaseRequest) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ReturnLeaseRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.ClusterId) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintQueue(dAtA, i, uint64(len(m.ClusterId)))
-		i += copy(dAtA[i:], m.ClusterId)
-	}
 	if len(m.JobId) > 0 {
-		dAtA[i] = 0x12
-		i++
+		i -= len(m.JobId)
+		copy(dAtA[i:], m.JobId)
 		i = encodeVarintQueue(dAtA, i, uint64(len(m.JobId)))
-		i += copy(dAtA[i:], m.JobId)
+		i--
+		dAtA[i] = 0x12
 	}
-	return i, nil
+	if len(m.ClusterId) > 0 {
+		i -= len(m.ClusterId)
+		copy(dAtA[i:], m.ClusterId)
+		i = encodeVarintQueue(dAtA, i, uint64(len(m.ClusterId)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
 }
 
 func encodeVarintQueue(dAtA []byte, offset int, v uint64) int {
+	offset -= sovQueue(v)
+	base := offset
 	for v >= 1<<7 {
 		dAtA[offset] = uint8(v&0x7f | 0x80)
 		v >>= 7
 		offset++
 	}
 	dAtA[offset] = uint8(v)
-	return offset + 1
+	return base
 }
 func (m *Job) Size() (n int) {
 	if m == nil {
@@ -2234,14 +2339,7 @@ func (m *ReturnLeaseRequest) Size() (n int) {
 }
 
 func sovQueue(x uint64) (n int) {
-	for {
-		n++
-		x >>= 7
-		if x == 0 {
-			break
-		}
-	}
-	return n
+	return (math_bits.Len64(x|1) + 6) / 7
 }
 func sozQueue(x uint64) (n int) {
 	return sovQueue(uint64((x << 1) ^ uint64((int64(x) >> 63))))
@@ -2286,7 +2384,7 @@ func (this *Job) String() string {
 		`Queue:` + fmt.Sprintf("%v", this.Queue) + `,`,
 		`Priority:` + fmt.Sprintf("%v", this.Priority) + `,`,
 		`PodSpec:` + strings.Replace(fmt.Sprintf("%v", this.PodSpec), "PodSpec", "v1.PodSpec", 1) + `,`,
-		`Created:` + strings.Replace(strings.Replace(this.Created.String(), "Timestamp", "types.Timestamp", 1), `&`, ``, 1) + `,`,
+		`Created:` + strings.Replace(strings.Replace(fmt.Sprintf("%v", this.Created), "Timestamp", "types.Timestamp", 1), `&`, ``, 1) + `,`,
 		`Namespace:` + fmt.Sprintf("%v", this.Namespace) + `,`,
 		`Owner:` + fmt.Sprintf("%v", this.Owner) + `,`,
 		`Labels:` + mapStringForLabels + `,`,
@@ -2300,6 +2398,11 @@ func (this *LeaseRequest) String() string {
 	if this == nil {
 		return "nil"
 	}
+	repeatedStringForNodes := "[]NodeInfo{"
+	for _, f := range this.Nodes {
+		repeatedStringForNodes += strings.Replace(strings.Replace(f.String(), "NodeInfo", "NodeInfo", 1), `&`, ``, 1) + ","
+	}
+	repeatedStringForNodes += "}"
 	keysForResources := make([]string, 0, len(this.Resources))
 	for k, _ := range this.Resources {
 		keysForResources = append(keysForResources, k)
@@ -2325,7 +2428,7 @@ func (this *LeaseRequest) String() string {
 		`Resources:` + mapStringForResources + `,`,
 		`ClusterLeasedReport:` + strings.Replace(strings.Replace(this.ClusterLeasedReport.String(), "ClusterLeasedReport", "ClusterLeasedReport", 1), `&`, ``, 1) + `,`,
 		`MinimumJobSize:` + mapStringForMinimumJobSize + `,`,
-		`Nodes:` + strings.Replace(strings.Replace(fmt.Sprintf("%v", this.Nodes), "NodeInfo", "NodeInfo", 1), `&`, ``, 1) + `,`,
+		`Nodes:` + repeatedStringForNodes + `,`,
 		`}`,
 	}, "")
 	return s
@@ -2334,6 +2437,11 @@ func (this *NodeInfo) String() string {
 	if this == nil {
 		return "nil"
 	}
+	repeatedStringForTaints := "[]Taint{"
+	for _, f := range this.Taints {
+		repeatedStringForTaints += fmt.Sprintf("%v", f) + ","
+	}
+	repeatedStringForTaints += "}"
 	keysForLabels := make([]string, 0, len(this.Labels))
 	for k, _ := range this.Labels {
 		keysForLabels = append(keysForLabels, k)
@@ -2366,7 +2474,7 @@ func (this *NodeInfo) String() string {
 	mapStringForAvailableResources += "}"
 	s := strings.Join([]string{`&NodeInfo{`,
 		`Name:` + fmt.Sprintf("%v", this.Name) + `,`,
-		`Taints:` + strings.Replace(strings.Replace(fmt.Sprintf("%v", this.Taints), "Taint", "v1.Taint", 1), `&`, ``, 1) + `,`,
+		`Taints:` + repeatedStringForTaints + `,`,
 		`Labels:` + mapStringForLabels + `,`,
 		`AllocatableResources:` + mapStringForAllocatableResources + `,`,
 		`AvailableResources:` + mapStringForAvailableResources + `,`,
@@ -2378,6 +2486,11 @@ func (this *NodeType) String() string {
 	if this == nil {
 		return "nil"
 	}
+	repeatedStringForTaints := "[]Taint{"
+	for _, f := range this.Taints {
+		repeatedStringForTaints += fmt.Sprintf("%v", f) + ","
+	}
+	repeatedStringForTaints += "}"
 	keysForLabels := make([]string, 0, len(this.Labels))
 	for k, _ := range this.Labels {
 		keysForLabels = append(keysForLabels, k)
@@ -2399,7 +2512,7 @@ func (this *NodeType) String() string {
 	}
 	mapStringForAllocatableResources += "}"
 	s := strings.Join([]string{`&NodeType{`,
-		`Taints:` + strings.Replace(strings.Replace(fmt.Sprintf("%v", this.Taints), "Taint", "v1.Taint", 1), `&`, ``, 1) + `,`,
+		`Taints:` + repeatedStringForTaints + `,`,
 		`Labels:` + mapStringForLabels + `,`,
 		`AllocatableResources:` + mapStringForAllocatableResources + `,`,
 		`}`,
@@ -2410,6 +2523,11 @@ func (this *ClusterSchedulingInfoReport) String() string {
 	if this == nil {
 		return "nil"
 	}
+	repeatedStringForNodeTypes := "[]*NodeType{"
+	for _, f := range this.NodeTypes {
+		repeatedStringForNodeTypes += strings.Replace(f.String(), "NodeType", "NodeType", 1) + ","
+	}
+	repeatedStringForNodeTypes += "}"
 	keysForMinimumJobSize := make([]string, 0, len(this.MinimumJobSize))
 	for k, _ := range this.MinimumJobSize {
 		keysForMinimumJobSize = append(keysForMinimumJobSize, k)
@@ -2422,8 +2540,8 @@ func (this *ClusterSchedulingInfoReport) String() string {
 	mapStringForMinimumJobSize += "}"
 	s := strings.Join([]string{`&ClusterSchedulingInfoReport{`,
 		`ClusterId:` + fmt.Sprintf("%v", this.ClusterId) + `,`,
-		`ReportTime:` + strings.Replace(strings.Replace(this.ReportTime.String(), "Timestamp", "types.Timestamp", 1), `&`, ``, 1) + `,`,
-		`NodeTypes:` + strings.Replace(fmt.Sprintf("%v", this.NodeTypes), "NodeType", "NodeType", 1) + `,`,
+		`ReportTime:` + strings.Replace(strings.Replace(fmt.Sprintf("%v", this.ReportTime), "Timestamp", "types.Timestamp", 1), `&`, ``, 1) + `,`,
+		`NodeTypes:` + repeatedStringForNodeTypes + `,`,
 		`MinimumJobSize:` + mapStringForMinimumJobSize + `,`,
 		`}`,
 	}, "")
@@ -2454,10 +2572,15 @@ func (this *ClusterLeasedReport) String() string {
 	if this == nil {
 		return "nil"
 	}
+	repeatedStringForQueues := "[]*QueueLeasedReport{"
+	for _, f := range this.Queues {
+		repeatedStringForQueues += strings.Replace(f.String(), "QueueLeasedReport", "QueueLeasedReport", 1) + ","
+	}
+	repeatedStringForQueues += "}"
 	s := strings.Join([]string{`&ClusterLeasedReport{`,
 		`ClusterId:` + fmt.Sprintf("%v", this.ClusterId) + `,`,
-		`ReportTime:` + strings.Replace(strings.Replace(this.ReportTime.String(), "Timestamp", "types.Timestamp", 1), `&`, ``, 1) + `,`,
-		`Queues:` + strings.Replace(fmt.Sprintf("%v", this.Queues), "QueueLeasedReport", "QueueLeasedReport", 1) + `,`,
+		`ReportTime:` + strings.Replace(strings.Replace(fmt.Sprintf("%v", this.ReportTime), "Timestamp", "types.Timestamp", 1), `&`, ``, 1) + `,`,
+		`Queues:` + repeatedStringForQueues + `,`,
 		`}`,
 	}, "")
 	return s
@@ -2506,8 +2629,13 @@ func (this *JobLease) String() string {
 	if this == nil {
 		return "nil"
 	}
+	repeatedStringForJob := "[]*Job{"
+	for _, f := range this.Job {
+		repeatedStringForJob += strings.Replace(f.String(), "Job", "Job", 1) + ","
+	}
+	repeatedStringForJob += "}"
 	s := strings.Join([]string{`&JobLease{`,
-		`Job:` + strings.Replace(fmt.Sprintf("%v", this.Job), "Job", "Job", 1) + `,`,
+		`Job:` + repeatedStringForJob + `,`,
 		`}`,
 	}, "")
 	return s
@@ -5901,6 +6029,7 @@ func (m *ReturnLeaseRequest) Unmarshal(dAtA []byte) error {
 func skipQueue(dAtA []byte) (n int, err error) {
 	l := len(dAtA)
 	iNdEx := 0
+	depth := 0
 	for iNdEx < l {
 		var wire uint64
 		for shift := uint(0); ; shift += 7 {
@@ -5932,10 +6061,8 @@ func skipQueue(dAtA []byte) (n int, err error) {
 					break
 				}
 			}
-			return iNdEx, nil
 		case 1:
 			iNdEx += 8
-			return iNdEx, nil
 		case 2:
 			var length int
 			for shift := uint(0); ; shift += 7 {
@@ -5956,55 +6083,30 @@ func skipQueue(dAtA []byte) (n int, err error) {
 				return 0, ErrInvalidLengthQueue
 			}
 			iNdEx += length
-			if iNdEx < 0 {
-				return 0, ErrInvalidLengthQueue
-			}
-			return iNdEx, nil
 		case 3:
-			for {
-				var innerWire uint64
-				var start int = iNdEx
-				for shift := uint(0); ; shift += 7 {
-					if shift >= 64 {
-						return 0, ErrIntOverflowQueue
-					}
-					if iNdEx >= l {
-						return 0, io.ErrUnexpectedEOF
-					}
-					b := dAtA[iNdEx]
-					iNdEx++
-					innerWire |= (uint64(b) & 0x7F) << shift
-					if b < 0x80 {
-						break
-					}
-				}
-				innerWireType := int(innerWire & 0x7)
-				if innerWireType == 4 {
-					break
-				}
-				next, err := skipQueue(dAtA[start:])
-				if err != nil {
-					return 0, err
-				}
-				iNdEx = start + next
-				if iNdEx < 0 {
-					return 0, ErrInvalidLengthQueue
-				}
-			}
-			return iNdEx, nil
+			depth++
 		case 4:
-			return iNdEx, nil
+			if depth == 0 {
+				return 0, ErrUnexpectedEndOfGroupQueue
+			}
+			depth--
 		case 5:
 			iNdEx += 4
-			return iNdEx, nil
 		default:
 			return 0, fmt.Errorf("proto: illegal wireType %d", wireType)
 		}
+		if iNdEx < 0 {
+			return 0, ErrInvalidLengthQueue
+		}
+		if depth == 0 {
+			return iNdEx, nil
+		}
 	}
-	panic("unreachable")
+	return 0, io.ErrUnexpectedEOF
 }
 
 var (
-	ErrInvalidLengthQueue = fmt.Errorf("proto: negative length found during unmarshaling")
-	ErrIntOverflowQueue   = fmt.Errorf("proto: integer overflow")
+	ErrInvalidLengthQueue        = fmt.Errorf("proto: negative length found during unmarshaling")
+	ErrIntOverflowQueue          = fmt.Errorf("proto: integer overflow")
+	ErrUnexpectedEndOfGroupQueue = fmt.Errorf("proto: unexpected end of group")
 )
