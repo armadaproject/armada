@@ -148,9 +148,11 @@ It will then either have:
 applicationConfig:
   kubernetes:
     trackedNodeLabels:
-    - somevalue
+    - label1
+    - label2
     toleratedTaints:
-    - somevalue
+    - taintName1
+    - taintName2
     minimumJobSize:
       memory: 0.25
       cpu: 0.25
@@ -163,7 +165,11 @@ Armada-executor will report these labels back to armada-server to allow jobs set
 
 **toleratedTaints**
 
-This is a list of node taints that armada-executor will pay attention to, any other node taints will be ignored. 
+This is a list of node taints that armada-executor will consider usable by jobs. 
+
+By default tainted nodes will be ignored by armada-executor and armada will not try to schedule jobs on them.
+
+This is an opt-in for tainted nodes that you want armada to use and schedule jobs on.
 
 It will report these taints back to armada-server so it use them when schedule jobs onto clusters. (i.e only jobs which tolerate these taints will be scheduled onto these nodes)
 
