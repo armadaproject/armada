@@ -230,7 +230,7 @@ scheduling:
 
 Currently scheduling is done in parallel, so it can happen that we exceed the resource limit set in `maximalResourceFractionPerQueue` due to two clusters requesting new jobs at the exact same time.
 
-To migate this, `maximalResourceFractionToSchedulePerQueue` specifies how much can be scheduled in a single round and can be thought of as the margin for error.
+To mitigate this, `maximalResourceFractionToSchedulePerQueue` specifies how much can be scheduled in a single round and can be thought of as the margin for error.
 
 Using an example of having 1000 cpu over all your clusters:
 `maximalResourceFractionPerQueue` Limits a queue to 250 cpu
