@@ -224,9 +224,13 @@ scheduling:
     cpu: 0.25
 ```
 
-`maximalResourceFractionPerQueue` Is the maximum resource a queue can hold as a percentage of all resource over all clusters.
+All limits are proportional to overall amount of resources in the system. 
 
-`maximalResourceFractionToSchedulePerQueue` Is the percentage of total resource a queue can be allocated in a single scheduling round.
+In this example, a queue can use at most 25% of all available cpu **and** memory.
+
+`maximalResourceFractionPerQueue` Is the maximum resource a queue can hold as a percentage of the total resource of this type over all clusters.
+
+`maximalResourceFractionToSchedulePerQueue` Is the percentage of total resource of this resource type a queue can be allocated in a single scheduling round.
 
 Currently scheduling is done in parallel, so it can happen that we exceed the resource limit set in `maximalResourceFractionPerQueue` due to two clusters requesting new jobs at the exact same time.
 
