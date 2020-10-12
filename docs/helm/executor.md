@@ -142,7 +142,7 @@ Once a Job is considered stuck a JobUnableToScheduleEvent will be reported for t
 
 It will then either have:
  - If the problem is deemed unretryable (for example the image is getting `InvalidImageName`) the job will get a JobFailedEvent and be considered Done
- - If the probelm is deemed retryable, the job will Have its lease returned to armada-server (JobLeaseReturnedEvent) and the job will be rescheduled 
+ - If the problem is deemed retryable, the job will have its lease returned to armada-server (JobLeaseReturnedEvent) and the job will be rescheduled 
 
 ```yaml
 applicationConfig:
