@@ -70,6 +70,9 @@ All commands are intended to be run from the root of the repository.
 ```bash
 kind create cluster --name quickstart-armada-server --config ./docs/quickstart/kind-config-server.yaml
 
+# Set cluster as current context
+export KUBECONFIG="$(kind get kubeconfig-path --name="quickstart-armada-server")"
+
 # Install Redis
 helm install redis stable/redis-ha -f docs/quickstart/redis-values.yaml
 
@@ -90,6 +93,9 @@ First executor:
 ```bash
 kind create cluster --name quickstart-armada-executor-0 --config ./docs/quickstart/kind-config-executor.yaml
 
+# Set cluster as current context
+export KUBECONFIG="$(kind get kubeconfig-path --name="quickstart-armada-executor-0")"
+
 # Install Prometheus
 helm install prometheus-operator stable/prometheus-operator -f docs/quickstart/executor-prometheus-values.yaml
 
@@ -105,6 +111,9 @@ Second executor:
 
 ```bash
 kind create cluster --name quickstart-armada-executor-1 --config ./docs/quickstart/kind-config-executor.yaml
+
+# Set cluster as current context
+export KUBECONFIG="$(kind get kubeconfig-path --name="quickstart-armada-executor-1")"
 
 # Install Prometheus
 helm install prometheus-operator stable/prometheus-operator -f docs/quickstart/executor-prometheus-values.yaml

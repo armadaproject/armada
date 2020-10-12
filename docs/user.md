@@ -68,6 +68,7 @@ Conceptually is it quite simple, it is just a Queue of jobs waiting to be run on
 In addition to being a queue, it is also used:
 * Maintaining fair share over time
 * Security boundary (Not yet implemented) between jobs
+* Resource limits
 
 ##### Fair share
 
@@ -101,6 +102,19 @@ The job set events are available to all users with "watch_all_events" permission
 
 If `kubernetes.impersonateUsers` is turned on, Armada will create pods in kubernetes impersonating owner of the job. This will enforce Kubernetes permissions and limit access to namespaces.
 
+##### Resource Limits
+
+Queues can also have a resource limit which is particularly useful if your installation has irregular usage, with busy and quiet periods.
+
+It will prevent a user submitting lots of long running jobs in a quiet period and holding all the resource in your entire installation.
+
+The limit will restrict them to a given percentage of all available resource over all clusters.
+
+Using armadactl it'll look like:
+`armadactl create queue test --resourceLimits cpu=0.3,memory=0.2`
+
+Which means the queue at maximum can only ever be using 30% of the total cpu and 20% of the memory available over all clusters.
+
 #### Considerations when setting up Queues
 
 So now you know what Queues are and what they can do. We'll briefly cover what to consider when setting them up.
@@ -118,3 +132,12 @@ There are many ways this could be done, here are some ideas:
 For each of the above, if you went for "By user". Simply make each user of the system their own Queue and tell them to submit to it. 
 
 They will then receive the same amount of resource as any other user in the system.
+
+### TODO
+ - Executor/Server configuration settings explanation and considerations guide
+   - Scheduling setting explanation
+   - Expiration setting explanation
+   - More explanation on impersonate users and its implications 
+ - Possibly split user and configuration settings
+   - 1 page on how to use
+   - 1 page on how to setup
