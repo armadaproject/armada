@@ -132,12 +132,3 @@ There are many ways this could be done, here are some ideas:
 For each of the above, if you went for "By user". Simply make each user of the system their own Queue and tell them to submit to it. 
 
 They will then receive the same amount of resource as any other user in the system.
-
-### TODO
- - Executor/Server configuration settings explanation and considerations guide
-   - Scheduling setting explanation
-   - Expiration setting explanation
-   - More explanation on impersonate users and its implications 
- - Possibly split user and configuration settings
-   - 1 page on how to use
-   - 1 page on how to setup
