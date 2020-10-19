@@ -1,0 +1,39 @@
+syntax = 'proto3';
+
+package lookout;
+option go_package = "github.com/G-Research/armada/pkg/api/lookout";
+
+import "google/protobuf/empty.proto";
+import "google/api/annotations.proto";
+import "github.com/gogo/protobuf/gogoproto/gogo.proto";
+import "pkg/api/queue.proto";
+
+option (gogoproto.goproto_stringer_all) = false;
+option (gogoproto.stringer_all) = true;
+
+message SystemOverview {
+    repeated QueueInfo queues = 1;
+}
+
+message JobInfo {
+    api.Job job = 1;
+}
+
+message QueueInfo {
+    string queue = 1;
+
+    int32 jobs_queued = 2;
+    int32 jobs_pending = 3;
+    int32 jobs_running = 4;
+
+    JobInfo oldest_queued_job = 5;
+    JobInfo longest_running_job = 6;
+}
+
+service Lookout {
+    rpc Overview (google.protobuf.Empty) returns (SystemOverview) {
+        option (google.api.http) = {
+            get: "/v1/lookout/overview"
+        };
+    }
+}

@@ -9,8 +9,10 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/G-Research/armada/internal/common"
+	"github.com/G-Research/armada/internal/common/grpc"
 	"github.com/G-Research/armada/internal/lookout"
 	"github.com/G-Research/armada/internal/lookout/configuration"
+	lookoutApi "github.com/G-Research/armada/pkg/api/lookout"
 )
 
 const CustomConfigLocation string = "config"
@@ -30,6 +32,16 @@ func main() {
 
 	shutdownChannel := make(chan os.Signal, 1)
 	signal.Notify(shutdownChannel, syscall.SIGINT, syscall.SIGTERM)
+
+	shutdownMetricServer := common.ServeMetrics(config.MetricsPort)
+	defer shutdownMetricServer()
+
+	shutdownGateway := grpc.ServeGateway(
+		config.HttpPort,
+		config.GrpcPort,
+		lookoutApi.SwaggerJsonTemplate(),
+		lookoutApi.RegisterLookoutHandler)
+	defer shutdownGateway()
 
 	shutdown, wg := lookout.StartUp(config)
 	go func() {

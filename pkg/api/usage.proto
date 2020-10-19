@@ -1,6 +1,7 @@
 syntax = 'proto3';
 
 package api;
+option go_package = "github.com/G-Research/armada/pkg/api";
 
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/empty.proto";

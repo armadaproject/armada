@@ -1,4 +1,4 @@
-package armada
+package grpc
 
 import (
 	"context"
@@ -11,12 +11,17 @@ import (
 	"github.com/jcmturner/gokrb5/v8/spnego"
 	"google.golang.org/grpc"
 
+	"github.com/grpc-ecosystem/grpc-gateway/runtime"
+
 	protoutil "github.com/G-Research/armada/internal/armada/protoutils"
 	"github.com/G-Research/armada/internal/common"
-	"github.com/G-Research/armada/pkg/api"
 )
 
-func ServeGateway(port uint16, grpcPort uint16) (shutdown func()) {
+func ServeGateway(
+	port uint16,
+	grpcPort uint16,
+	spec string,
+	handlers ...func(ctx context.Context, mux *runtime.ServeMux, conn *grpc.ClientConn) error) (shutdown func()) {
 
 	grpcAddress := fmt.Sprintf(":%d", grpcPort)
 	connectionCtx, cancelConnectionCtx := context.WithCancel(context.Background())
@@ -39,16 +44,16 @@ func ServeGateway(port uint16, grpcPort uint16) (shutdown func()) {
 	if err != nil {
 		panic(err)
 	}
-	err = api.RegisterSubmitHandler(connectionCtx, gw, conn)
-	if err != nil {
-		panic(err)
+
+	for _, handler := range handlers {
+		err = handler(connectionCtx, gw, conn)
+		if err != nil {
+			panic(err)
+		}
 	}
-	err = api.RegisterEventHandler(connectionCtx, gw, conn)
-	if err != nil {
-		panic(err)
-	}
+
 	mux.Handle("/", gw)
-	h := middleware.Spec("/", []byte(api.SwaggerJsonTemplate()), mux)
+	h := middleware.Spec("/", []byte(spec), mux)
 
 	cancel := common.ServeHttp(port, h)
 

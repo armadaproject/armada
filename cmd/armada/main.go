@@ -12,6 +12,8 @@ import (
 	"github.com/G-Research/armada/internal/armada"
 	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/G-Research/armada/internal/common"
+	"github.com/G-Research/armada/internal/common/grpc"
+	"github.com/G-Research/armada/pkg/api"
 )
 
 const CustomConfigLocation string = "config"
@@ -37,7 +39,13 @@ func main() {
 	shutdownMetricServer := common.ServeMetrics(config.MetricsPort)
 	defer shutdownMetricServer()
 
-	shutdownGateway := armada.ServeGateway(config.HttpPort, config.GrpcPort)
+	shutdownGateway := grpc.ServeGateway(
+		config.HttpPort,
+		config.GrpcPort,
+		api.SwaggerJsonTemplate(),
+		api.RegisterSubmitHandler,
+		api.RegisterEventHandler,
+	)
 	defer shutdownGateway()
 
 	shutdown, wg := armada.Serve(&config)

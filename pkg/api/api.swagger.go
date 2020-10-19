@@ -236,15 +236,16 @@ func SwaggerJsonTemplate() string {
 		"  \"definitions\": {\n" +
 		"    \"apiCancellationResult\": {\n" +
 		"      \"type\": \"object\",\n" +
-		"      \"title\": \"swagger:model\",\n" +
 		"      \"properties\": {\n" +
 		"        \"cancelledIds\": {\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"type\": \"string\"\n" +
-		"          }\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"CancelledIds\"\n" +
 		"        }\n" +
-		"      }\n" +
+		"      },\n" +
+		"      \"x-go-package\": \"github.com/G-Research/armada/github.com/G-Research/armada/pkg/api\"\n" +
 		"    },\n" +
 		"    \"apiEventMessage\": {\n" +
 		"      \"type\": \"object\",\n" +
@@ -598,18 +599,22 @@ func SwaggerJsonTemplate() string {
 		"    \"apiJobSetInfo\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
-		"        \"leasedJobs\": {\n" +
+		"        \"leased_jobs\": {\n" +
 		"          \"type\": \"integer\",\n" +
-		"          \"format\": \"int32\"\n" +
+		"          \"format\": \"int32\",\n" +
+		"          \"x-go-name\": \"LeasedJobs\"\n" +
 		"        },\n" +
 		"        \"name\": {\n" +
-		"          \"type\": \"string\"\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"Name\"\n" +
 		"        },\n" +
-		"        \"queuedJobs\": {\n" +
+		"        \"queued_jobs\": {\n" +
 		"          \"type\": \"integer\",\n" +
-		"          \"format\": \"int32\"\n" +
+		"          \"format\": \"int32\",\n" +
+		"          \"x-go-name\": \"QueuedJobs\"\n" +
 		"        }\n" +
-		"      }\n" +
+		"      },\n" +
+		"      \"x-go-package\": \"github.com/G-Research/armada/github.com/G-Research/armada/pkg/api\"\n" +
 		"    },\n" +
 		"    \"apiJobSetRequest\": {\n" +
 		"      \"type\": \"object\",\n" +
@@ -654,31 +659,37 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"object\",\n" +
 		"          \"additionalProperties\": {\n" +
 		"            \"type\": \"string\"\n" +
-		"          }\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"Annotations\"\n" +
 		"        },\n" +
 		"        \"labels\": {\n" +
 		"          \"type\": \"object\",\n" +
 		"          \"additionalProperties\": {\n" +
 		"            \"type\": \"string\"\n" +
-		"          }\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"Labels\"\n" +
 		"        },\n" +
 		"        \"namespace\": {\n" +
-		"          \"type\": \"string\"\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"Namespace\"\n" +
 		"        },\n" +
-		"        \"podSpec\": {\n" +
+		"        \"pod_spec\": {\n" +
 		"          \"$ref\": \"#/definitions/v1PodSpec\"\n" +
 		"        },\n" +
 		"        \"priority\": {\n" +
 		"          \"type\": \"number\",\n" +
-		"          \"format\": \"double\"\n" +
+		"          \"format\": \"double\",\n" +
+		"          \"x-go-name\": \"Priority\"\n" +
 		"        },\n" +
-		"        \"requiredNodeLabels\": {\n" +
+		"        \"required_node_labels\": {\n" +
 		"          \"type\": \"object\",\n" +
 		"          \"additionalProperties\": {\n" +
 		"            \"type\": \"string\"\n" +
-		"          }\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"RequiredNodeLabels\"\n" +
 		"        }\n" +
-		"      }\n" +
+		"      },\n" +
+		"      \"x-go-package\": \"github.com/G-Research/armada/github.com/G-Research/armada/pkg/api\"\n" +
 		"    },\n" +
 		"    \"apiJobSubmitResponse\": {\n" +
 		"      \"type\": \"object\",\n" +
@@ -837,35 +848,40 @@ func SwaggerJsonTemplate() string {
 		"    },\n" +
 		"    \"apiQueue\": {\n" +
 		"      \"type\": \"object\",\n" +
-		"      \"title\": \"swagger:model\",\n" +
 		"      \"properties\": {\n" +
-		"        \"groupOwners\": {\n" +
+		"        \"group_owners\": {\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"type\": \"string\"\n" +
-		"          }\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"GroupOwners\"\n" +
 		"        },\n" +
 		"        \"name\": {\n" +
-		"          \"type\": \"string\"\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"Name\"\n" +
 		"        },\n" +
-		"        \"priorityFactor\": {\n" +
+		"        \"priority_factor\": {\n" +
 		"          \"type\": \"number\",\n" +
-		"          \"format\": \"double\"\n" +
+		"          \"format\": \"double\",\n" +
+		"          \"x-go-name\": \"PriorityFactor\"\n" +
 		"        },\n" +
-		"        \"resourceLimits\": {\n" +
+		"        \"resource_limits\": {\n" +
 		"          \"type\": \"object\",\n" +
 		"          \"additionalProperties\": {\n" +
 		"            \"type\": \"number\",\n" +
 		"            \"format\": \"double\"\n" +
-		"          }\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"ResourceLimits\"\n" +
 		"        },\n" +
-		"        \"userOwners\": {\n" +
+		"        \"user_owners\": {\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"type\": \"string\"\n" +
-		"          }\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"UserOwners\"\n" +
 		"        }\n" +
-		"      }\n" +
+		"      },\n" +
+		"      \"x-go-package\": \"github.com/G-Research/armada/github.com/G-Research/armada/pkg/api\"\n" +
 		"    },\n" +
 		"    \"apiQueueInfo\": {\n" +
 		"      \"type\": \"object\",\n" +
