@@ -27,6 +27,9 @@ pkg/api/lookout/*.proto
 sed -i 's/\(json=\([^,]*\),[^"]*" json:"\)[^,]*,/\1\2,/g'  pkg/api/*.pb.go
 sed -i 's/\(json=\([^,]*\),[^"]*" json:"\)[^,]*,/\1\2,/g'  pkg/api/lookout/*.pb.go
 
+# gogo in current version does not respect go_package option and emits wrong import
+sed -i 's|api "pkg/api"|api "github.com/G-Research/armada/pkg/api"|g'  pkg/api/lookout/*.pb.go
+
 # protoc grpc-gateway + swagger
 protoc \
 --proto_path=. \
@@ -58,9 +61,6 @@ rm pkg/api/api.swagger.definitions.json
 # embed swagger json into go binary
 templify -e -p=api -f=SwaggerJson  pkg/api/api.swagger.json
 templify -e -p=lookout -f=SwaggerJson  pkg/api/lookout/api.swagger.json
-
-# gogo in current version does not respect go_package option and emits wrong import
-sed -i 's|api "pkg/api"|api "github.com/G-Research/armada/pkg/api"|g'  pkg/api/lookout/*.pb.go
 
 # fix all imports ordering
 goimports -w -local "github.com/G-Research/armada" ./pkg/api/

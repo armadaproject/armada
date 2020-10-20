@@ -25,7 +25,7 @@ func main() {
 	}
 
 	definitionsSpec := definitionDoc.Spec()
-	removeGoPackage("github.com/G-Research/armada/pkg/api", definitionsSpec.Definitions)
+	removeGoPackage("github.com/G-Research/armada", definitionsSpec.Definitions)
 	prefixTypeWithGoPackageName(definitionsSpec.Definitions)
 
 	grpcSpec := grpcDoc.Spec()
@@ -52,7 +52,8 @@ func main() {
 
 func removeGoPackage(packageName string, definitions spec.Definitions) {
 	for t, def := range definitions {
-		if def.VendorExtensible.Extensions["x-go-package"] == packageName {
+		// swagger for some reason generates package names which contains repeated package base path
+		if strings.Contains(def.VendorExtensible.Extensions["x-go-package"].(string), packageName) {
 			delete(definitions, t)
 		}
 	}

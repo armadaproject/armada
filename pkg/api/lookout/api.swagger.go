@@ -4,7 +4,7 @@
  * THIS FILE SHOULD NOT BE EDITED BY HAND
  */
 
-package api
+package lookout
 
 // SwaggerJsonTemplate is a generated function returning the template as a string.
 // That string should be parsed by the functions of the golang's template package.
@@ -18,210 +18,22 @@ func SwaggerJsonTemplate() string {
 		"  ],\n" +
 		"  \"swagger\": \"2.0\",\n" +
 		"  \"info\": {\n" +
-		"    \"title\": \"pkg/api/event.proto\",\n" +
+		"    \"title\": \"pkg/api/lookout/lookout.proto\",\n" +
 		"    \"version\": \"version not set\"\n" +
 		"  },\n" +
 		"  \"paths\": {\n" +
-		"    \"/v1/job-set/{queue}/{id}\": {\n" +
-		"      \"post\": {\n" +
-		"        \"produces\": [\n" +
-		"          \"application/ndjson-stream\"\n" +
-		"        ],\n" +
-		"        \"tags\": [\n" +
-		"          \"Event\"\n" +
-		"        ],\n" +
-		"        \"operationId\": \"GetJobSetEvents\",\n" +
-		"        \"parameters\": [\n" +
-		"          {\n" +
-		"            \"type\": \"string\",\n" +
-		"            \"name\": \"queue\",\n" +
-		"            \"in\": \"path\",\n" +
-		"            \"required\": true\n" +
-		"          },\n" +
-		"          {\n" +
-		"            \"type\": \"string\",\n" +
-		"            \"name\": \"id\",\n" +
-		"            \"in\": \"path\",\n" +
-		"            \"required\": true\n" +
-		"          },\n" +
-		"          {\n" +
-		"            \"name\": \"body\",\n" +
-		"            \"in\": \"body\",\n" +
-		"            \"required\": true,\n" +
-		"            \"schema\": {\n" +
-		"              \"$ref\": \"#/definitions/apiJobSetRequest\"\n" +
-		"            }\n" +
-		"          }\n" +
-		"        ],\n" +
-		"        \"responses\": {\n" +
-		"          \"200\": {\n" +
-		"            \"description\": \"A successful response.(streaming responses)\",\n" +
-		"            \"schema\": {\n" +
-		"              \"type\": \"file\",\n" +
-		"              \"title\": \"Stream result of apiEventStreamMessage\",\n" +
-		"              \"properties\": {\n" +
-		"                \"error\": {\n" +
-		"                  \"$ref\": \"#/definitions/runtimeStreamError\"\n" +
-		"                },\n" +
-		"                \"result\": {\n" +
-		"                  \"$ref\": \"#/definitions/apiEventStreamMessage\"\n" +
-		"                }\n" +
-		"              }\n" +
-		"            }\n" +
-		"          },\n" +
-		"          \"default\": {\n" +
-		"            \"description\": \"An unexpected error response.\",\n" +
-		"            \"schema\": {\n" +
-		"              \"$ref\": \"#/definitions/runtimeError\"\n" +
-		"            }\n" +
-		"          }\n" +
-		"        }\n" +
-		"      }\n" +
-		"    },\n" +
-		"    \"/v1/job/cancel\": {\n" +
-		"      \"post\": {\n" +
-		"        \"tags\": [\n" +
-		"          \"Submit\"\n" +
-		"        ],\n" +
-		"        \"operationId\": \"CancelJobs\",\n" +
-		"        \"parameters\": [\n" +
-		"          {\n" +
-		"            \"name\": \"body\",\n" +
-		"            \"in\": \"body\",\n" +
-		"            \"required\": true,\n" +
-		"            \"schema\": {\n" +
-		"              \"$ref\": \"#/definitions/apiJobCancelRequest\"\n" +
-		"            }\n" +
-		"          }\n" +
-		"        ],\n" +
-		"        \"responses\": {\n" +
-		"          \"200\": {\n" +
-		"            \"description\": \"A successful response.\",\n" +
-		"            \"schema\": {\n" +
-		"              \"$ref\": \"#/definitions/apiCancellationResult\"\n" +
-		"            }\n" +
-		"          },\n" +
-		"          \"default\": {\n" +
-		"            \"description\": \"An unexpected error response.\",\n" +
-		"            \"schema\": {\n" +
-		"              \"$ref\": \"#/definitions/runtimeError\"\n" +
-		"            }\n" +
-		"          }\n" +
-		"        }\n" +
-		"      }\n" +
-		"    },\n" +
-		"    \"/v1/job/submit\": {\n" +
-		"      \"post\": {\n" +
-		"        \"tags\": [\n" +
-		"          \"Submit\"\n" +
-		"        ],\n" +
-		"        \"operationId\": \"SubmitJobs\",\n" +
-		"        \"parameters\": [\n" +
-		"          {\n" +
-		"            \"name\": \"body\",\n" +
-		"            \"in\": \"body\",\n" +
-		"            \"required\": true,\n" +
-		"            \"schema\": {\n" +
-		"              \"$ref\": \"#/definitions/apiJobSubmitRequest\"\n" +
-		"            }\n" +
-		"          }\n" +
-		"        ],\n" +
-		"        \"responses\": {\n" +
-		"          \"200\": {\n" +
-		"            \"description\": \"A successful response.\",\n" +
-		"            \"schema\": {\n" +
-		"              \"$ref\": \"#/definitions/apiJobSubmitResponse\"\n" +
-		"            }\n" +
-		"          },\n" +
-		"          \"default\": {\n" +
-		"            \"description\": \"An unexpected error response.\",\n" +
-		"            \"schema\": {\n" +
-		"              \"$ref\": \"#/definitions/runtimeError\"\n" +
-		"            }\n" +
-		"          }\n" +
-		"        }\n" +
-		"      }\n" +
-		"    },\n" +
-		"    \"/v1/queue/{name}\": {\n" +
+		"    \"/v1/lookout/overview\": {\n" +
 		"      \"get\": {\n" +
 		"        \"tags\": [\n" +
-		"          \"Submit\"\n" +
+		"          \"Lookout\"\n" +
 		"        ],\n" +
-		"        \"operationId\": \"GetQueueInfo\",\n" +
-		"        \"parameters\": [\n" +
-		"          {\n" +
-		"            \"type\": \"string\",\n" +
-		"            \"name\": \"name\",\n" +
-		"            \"in\": \"path\",\n" +
-		"            \"required\": true\n" +
-		"          }\n" +
-		"        ],\n" +
+		"        \"operationId\": \"Overview\",\n" +
 		"        \"responses\": {\n" +
 		"          \"200\": {\n" +
 		"            \"description\": \"A successful response.\",\n" +
 		"            \"schema\": {\n" +
-		"              \"$ref\": \"#/definitions/apiQueueInfo\"\n" +
+		"              \"$ref\": \"#/definitions/lookoutSystemOverview\"\n" +
 		"            }\n" +
-		"          },\n" +
-		"          \"default\": {\n" +
-		"            \"description\": \"An unexpected error response.\",\n" +
-		"            \"schema\": {\n" +
-		"              \"$ref\": \"#/definitions/runtimeError\"\n" +
-		"            }\n" +
-		"          }\n" +
-		"        }\n" +
-		"      },\n" +
-		"      \"put\": {\n" +
-		"        \"tags\": [\n" +
-		"          \"Submit\"\n" +
-		"        ],\n" +
-		"        \"operationId\": \"CreateQueue\",\n" +
-		"        \"parameters\": [\n" +
-		"          {\n" +
-		"            \"type\": \"string\",\n" +
-		"            \"name\": \"name\",\n" +
-		"            \"in\": \"path\",\n" +
-		"            \"required\": true\n" +
-		"          },\n" +
-		"          {\n" +
-		"            \"name\": \"body\",\n" +
-		"            \"in\": \"body\",\n" +
-		"            \"required\": true,\n" +
-		"            \"schema\": {\n" +
-		"              \"$ref\": \"#/definitions/apiQueue\"\n" +
-		"            }\n" +
-		"          }\n" +
-		"        ],\n" +
-		"        \"responses\": {\n" +
-		"          \"200\": {\n" +
-		"            \"description\": \"A successful response.\",\n" +
-		"            \"schema\": {}\n" +
-		"          },\n" +
-		"          \"default\": {\n" +
-		"            \"description\": \"An unexpected error response.\",\n" +
-		"            \"schema\": {\n" +
-		"              \"$ref\": \"#/definitions/runtimeError\"\n" +
-		"            }\n" +
-		"          }\n" +
-		"        }\n" +
-		"      },\n" +
-		"      \"delete\": {\n" +
-		"        \"tags\": [\n" +
-		"          \"Submit\"\n" +
-		"        ],\n" +
-		"        \"operationId\": \"DeleteQueue\",\n" +
-		"        \"parameters\": [\n" +
-		"          {\n" +
-		"            \"type\": \"string\",\n" +
-		"            \"name\": \"name\",\n" +
-		"            \"in\": \"path\",\n" +
-		"            \"required\": true\n" +
-		"          }\n" +
-		"        ],\n" +
-		"        \"responses\": {\n" +
-		"          \"200\": {\n" +
-		"            \"description\": \"A successful response.\",\n" +
-		"            \"schema\": {}\n" +
 		"          },\n" +
 		"          \"default\": {\n" +
 		"            \"description\": \"An unexpected error response.\",\n" +
@@ -234,80 +46,6 @@ func SwaggerJsonTemplate() string {
 		"    }\n" +
 		"  },\n" +
 		"  \"definitions\": {\n" +
-		"    \"apiCancellationResult\": {\n" +
-		"      \"type\": \"object\",\n" +
-		"      \"title\": \"swagger:model\",\n" +
-		"      \"properties\": {\n" +
-		"        \"cancelledIds\": {\n" +
-		"          \"type\": \"array\",\n" +
-		"          \"items\": {\n" +
-		"            \"type\": \"string\"\n" +
-		"          }\n" +
-		"        }\n" +
-		"      }\n" +
-		"    },\n" +
-		"    \"apiEventMessage\": {\n" +
-		"      \"type\": \"object\",\n" +
-		"      \"properties\": {\n" +
-		"        \"cancelled\": {\n" +
-		"          \"$ref\": \"#/definitions/apiJobCancelledEvent\"\n" +
-		"        },\n" +
-		"        \"cancelling\": {\n" +
-		"          \"$ref\": \"#/definitions/apiJobCancellingEvent\"\n" +
-		"        },\n" +
-		"        \"failed\": {\n" +
-		"          \"$ref\": \"#/definitions/apiJobFailedEvent\"\n" +
-		"        },\n" +
-		"        \"leaseExpired\": {\n" +
-		"          \"$ref\": \"#/definitions/apiJobLeaseExpiredEvent\"\n" +
-		"        },\n" +
-		"        \"leaseReturned\": {\n" +
-		"          \"$ref\": \"#/definitions/apiJobLeaseReturnedEvent\"\n" +
-		"        },\n" +
-		"        \"leased\": {\n" +
-		"          \"$ref\": \"#/definitions/apiJobLeasedEvent\"\n" +
-		"        },\n" +
-		"        \"pending\": {\n" +
-		"          \"$ref\": \"#/definitions/apiJobPendingEvent\"\n" +
-		"        },\n" +
-		"        \"queued\": {\n" +
-		"          \"$ref\": \"#/definitions/apiJobQueuedEvent\"\n" +
-		"        },\n" +
-		"        \"reprioritized\": {\n" +
-		"          \"$ref\": \"#/definitions/apiJobReprioritizedEvent\"\n" +
-		"        },\n" +
-		"        \"running\": {\n" +
-		"          \"$ref\": \"#/definitions/apiJobRunningEvent\"\n" +
-		"        },\n" +
-		"        \"submitted\": {\n" +
-		"          \"$ref\": \"#/definitions/apiJobSubmittedEvent\"\n" +
-		"        },\n" +
-		"        \"succeeded\": {\n" +
-		"          \"$ref\": \"#/definitions/apiJobSucceededEvent\"\n" +
-		"        },\n" +
-		"        \"terminated\": {\n" +
-		"          \"$ref\": \"#/definitions/apiJobTerminatedEvent\"\n" +
-		"        },\n" +
-		"        \"unableToSchedule\": {\n" +
-		"          \"$ref\": \"#/definitions/apiJobUnableToScheduleEvent\"\n" +
-		"        },\n" +
-		"        \"utilisation\": {\n" +
-		"          \"$ref\": \"#/definitions/apiJobUtilisationEvent\"\n" +
-		"        }\n" +
-		"      }\n" +
-		"    },\n" +
-		"    \"apiEventStreamMessage\": {\n" +
-		"      \"type\": \"object\",\n" +
-		"      \"title\": \"swagger:model\",\n" +
-		"      \"properties\": {\n" +
-		"        \"id\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"message\": {\n" +
-		"          \"$ref\": \"#/definitions/apiEventMessage\"\n" +
-		"        }\n" +
-		"      }\n" +
-		"    },\n" +
 		"    \"apiJob\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
@@ -357,531 +95,6 @@ func SwaggerJsonTemplate() string {
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
-		"    \"apiJobCancelRequest\": {\n" +
-		"      \"type\": \"object\",\n" +
-		"      \"title\": \"swagger:model\",\n" +
-		"      \"properties\": {\n" +
-		"        \"jobId\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"jobSetId\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"queue\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        }\n" +
-		"      }\n" +
-		"    },\n" +
-		"    \"apiJobCancelledEvent\": {\n" +
-		"      \"type\": \"object\",\n" +
-		"      \"properties\": {\n" +
-		"        \"created\": {\n" +
-		"          \"type\": \"string\",\n" +
-		"          \"format\": \"date-time\"\n" +
-		"        },\n" +
-		"        \"jobId\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"jobSetId\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"queue\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        }\n" +
-		"      }\n" +
-		"    },\n" +
-		"    \"apiJobCancellingEvent\": {\n" +
-		"      \"type\": \"object\",\n" +
-		"      \"properties\": {\n" +
-		"        \"created\": {\n" +
-		"          \"type\": \"string\",\n" +
-		"          \"format\": \"date-time\"\n" +
-		"        },\n" +
-		"        \"jobId\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"jobSetId\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"queue\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        }\n" +
-		"      }\n" +
-		"    },\n" +
-		"    \"apiJobFailedEvent\": {\n" +
-		"      \"type\": \"object\",\n" +
-		"      \"properties\": {\n" +
-		"        \"clusterId\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"created\": {\n" +
-		"          \"type\": \"string\",\n" +
-		"          \"format\": \"date-time\"\n" +
-		"        },\n" +
-		"        \"exitCodes\": {\n" +
-		"          \"type\": \"object\",\n" +
-		"          \"additionalProperties\": {\n" +
-		"            \"type\": \"integer\",\n" +
-		"            \"format\": \"int32\"\n" +
-		"          }\n" +
-		"        },\n" +
-		"        \"jobId\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"jobSetId\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"kubernetesId\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"nodeName\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"queue\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"reason\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        }\n" +
-		"      }\n" +
-		"    },\n" +
-		"    \"apiJobLeaseExpiredEvent\": {\n" +
-		"      \"type\": \"object\",\n" +
-		"      \"properties\": {\n" +
-		"        \"created\": {\n" +
-		"          \"type\": \"string\",\n" +
-		"          \"format\": \"date-time\"\n" +
-		"        },\n" +
-		"        \"jobId\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"jobSetId\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"queue\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        }\n" +
-		"      }\n" +
-		"    },\n" +
-		"    \"apiJobLeaseReturnedEvent\": {\n" +
-		"      \"type\": \"object\",\n" +
-		"      \"properties\": {\n" +
-		"        \"clusterId\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"created\": {\n" +
-		"          \"type\": \"string\",\n" +
-		"          \"format\": \"date-time\"\n" +
-		"        },\n" +
-		"        \"jobId\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"jobSetId\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"queue\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"reason\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        }\n" +
-		"      }\n" +
-		"    },\n" +
-		"    \"apiJobLeasedEvent\": {\n" +
-		"      \"type\": \"object\",\n" +
-		"      \"properties\": {\n" +
-		"        \"clusterId\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"created\": {\n" +
-		"          \"type\": \"string\",\n" +
-		"          \"format\": \"date-time\"\n" +
-		"        },\n" +
-		"        \"jobId\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"jobSetId\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"queue\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        }\n" +
-		"      }\n" +
-		"    },\n" +
-		"    \"apiJobPendingEvent\": {\n" +
-		"      \"type\": \"object\",\n" +
-		"      \"properties\": {\n" +
-		"        \"clusterId\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"created\": {\n" +
-		"          \"type\": \"string\",\n" +
-		"          \"format\": \"date-time\"\n" +
-		"        },\n" +
-		"        \"jobId\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"jobSetId\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"kubernetesId\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"queue\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        }\n" +
-		"      }\n" +
-		"    },\n" +
-		"    \"apiJobQueuedEvent\": {\n" +
-		"      \"type\": \"object\",\n" +
-		"      \"properties\": {\n" +
-		"        \"created\": {\n" +
-		"          \"type\": \"string\",\n" +
-		"          \"format\": \"date-time\"\n" +
-		"        },\n" +
-		"        \"jobId\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"jobSetId\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"queue\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        }\n" +
-		"      }\n" +
-		"    },\n" +
-		"    \"apiJobReprioritizedEvent\": {\n" +
-		"      \"type\": \"object\",\n" +
-		"      \"properties\": {\n" +
-		"        \"created\": {\n" +
-		"          \"type\": \"string\",\n" +
-		"          \"format\": \"date-time\"\n" +
-		"        },\n" +
-		"        \"jobId\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"jobSetId\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"queue\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        }\n" +
-		"      }\n" +
-		"    },\n" +
-		"    \"apiJobRunningEvent\": {\n" +
-		"      \"type\": \"object\",\n" +
-		"      \"properties\": {\n" +
-		"        \"clusterId\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"created\": {\n" +
-		"          \"type\": \"string\",\n" +
-		"          \"format\": \"date-time\"\n" +
-		"        },\n" +
-		"        \"jobId\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"jobSetId\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"kubernetesId\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"nodeName\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"queue\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        }\n" +
-		"      }\n" +
-		"    },\n" +
-		"    \"apiJobSetInfo\": {\n" +
-		"      \"type\": \"object\",\n" +
-		"      \"properties\": {\n" +
-		"        \"leasedJobs\": {\n" +
-		"          \"type\": \"integer\",\n" +
-		"          \"format\": \"int32\"\n" +
-		"        },\n" +
-		"        \"name\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"queuedJobs\": {\n" +
-		"          \"type\": \"integer\",\n" +
-		"          \"format\": \"int32\"\n" +
-		"        }\n" +
-		"      }\n" +
-		"    },\n" +
-		"    \"apiJobSetRequest\": {\n" +
-		"      \"type\": \"object\",\n" +
-		"      \"title\": \"swagger:model\",\n" +
-		"      \"properties\": {\n" +
-		"        \"fromMessageId\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"id\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"queue\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"watch\": {\n" +
-		"          \"type\": \"boolean\"\n" +
-		"        }\n" +
-		"      }\n" +
-		"    },\n" +
-		"    \"apiJobSubmitRequest\": {\n" +
-		"      \"type\": \"object\",\n" +
-		"      \"title\": \"swagger:model\",\n" +
-		"      \"properties\": {\n" +
-		"        \"jobRequestItems\": {\n" +
-		"          \"type\": \"array\",\n" +
-		"          \"items\": {\n" +
-		"            \"$ref\": \"#/definitions/apiJobSubmitRequestItem\"\n" +
-		"          }\n" +
-		"        },\n" +
-		"        \"jobSetId\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"queue\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        }\n" +
-		"      }\n" +
-		"    },\n" +
-		"    \"apiJobSubmitRequestItem\": {\n" +
-		"      \"type\": \"object\",\n" +
-		"      \"properties\": {\n" +
-		"        \"annotations\": {\n" +
-		"          \"type\": \"object\",\n" +
-		"          \"additionalProperties\": {\n" +
-		"            \"type\": \"string\"\n" +
-		"          }\n" +
-		"        },\n" +
-		"        \"labels\": {\n" +
-		"          \"type\": \"object\",\n" +
-		"          \"additionalProperties\": {\n" +
-		"            \"type\": \"string\"\n" +
-		"          }\n" +
-		"        },\n" +
-		"        \"namespace\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"podSpec\": {\n" +
-		"          \"$ref\": \"#/definitions/v1PodSpec\"\n" +
-		"        },\n" +
-		"        \"priority\": {\n" +
-		"          \"type\": \"number\",\n" +
-		"          \"format\": \"double\"\n" +
-		"        },\n" +
-		"        \"requiredNodeLabels\": {\n" +
-		"          \"type\": \"object\",\n" +
-		"          \"additionalProperties\": {\n" +
-		"            \"type\": \"string\"\n" +
-		"          }\n" +
-		"        }\n" +
-		"      }\n" +
-		"    },\n" +
-		"    \"apiJobSubmitResponse\": {\n" +
-		"      \"type\": \"object\",\n" +
-		"      \"title\": \"swagger:model\",\n" +
-		"      \"properties\": {\n" +
-		"        \"jobResponseItems\": {\n" +
-		"          \"type\": \"array\",\n" +
-		"          \"items\": {\n" +
-		"            \"$ref\": \"#/definitions/apiJobSubmitResponseItem\"\n" +
-		"          }\n" +
-		"        }\n" +
-		"      }\n" +
-		"    },\n" +
-		"    \"apiJobSubmitResponseItem\": {\n" +
-		"      \"type\": \"object\",\n" +
-		"      \"properties\": {\n" +
-		"        \"error\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"jobId\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        }\n" +
-		"      }\n" +
-		"    },\n" +
-		"    \"apiJobSubmittedEvent\": {\n" +
-		"      \"type\": \"object\",\n" +
-		"      \"properties\": {\n" +
-		"        \"created\": {\n" +
-		"          \"type\": \"string\",\n" +
-		"          \"format\": \"date-time\"\n" +
-		"        },\n" +
-		"        \"job\": {\n" +
-		"          \"$ref\": \"#/definitions/apiJob\"\n" +
-		"        },\n" +
-		"        \"jobId\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"jobSetId\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"queue\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        }\n" +
-		"      }\n" +
-		"    },\n" +
-		"    \"apiJobSucceededEvent\": {\n" +
-		"      \"type\": \"object\",\n" +
-		"      \"properties\": {\n" +
-		"        \"clusterId\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"created\": {\n" +
-		"          \"type\": \"string\",\n" +
-		"          \"format\": \"date-time\"\n" +
-		"        },\n" +
-		"        \"jobId\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"jobSetId\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"kubernetesId\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"nodeName\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"queue\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        }\n" +
-		"      }\n" +
-		"    },\n" +
-		"    \"apiJobTerminatedEvent\": {\n" +
-		"      \"type\": \"object\",\n" +
-		"      \"properties\": {\n" +
-		"        \"clusterId\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"created\": {\n" +
-		"          \"type\": \"string\",\n" +
-		"          \"format\": \"date-time\"\n" +
-		"        },\n" +
-		"        \"jobId\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"jobSetId\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"queue\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        }\n" +
-		"      }\n" +
-		"    },\n" +
-		"    \"apiJobUnableToScheduleEvent\": {\n" +
-		"      \"type\": \"object\",\n" +
-		"      \"properties\": {\n" +
-		"        \"clusterId\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"created\": {\n" +
-		"          \"type\": \"string\",\n" +
-		"          \"format\": \"date-time\"\n" +
-		"        },\n" +
-		"        \"jobId\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"jobSetId\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"kubernetesId\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"nodeName\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"queue\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"reason\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        }\n" +
-		"      }\n" +
-		"    },\n" +
-		"    \"apiJobUtilisationEvent\": {\n" +
-		"      \"type\": \"object\",\n" +
-		"      \"properties\": {\n" +
-		"        \"MaxResourcesForPeriod\": {\n" +
-		"          \"type\": \"object\",\n" +
-		"          \"additionalProperties\": {\n" +
-		"            \"$ref\": \"#/definitions/resourceQuantity\"\n" +
-		"          }\n" +
-		"        },\n" +
-		"        \"clusterId\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"created\": {\n" +
-		"          \"type\": \"string\",\n" +
-		"          \"format\": \"date-time\"\n" +
-		"        },\n" +
-		"        \"jobId\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"jobSetId\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"kubernetesId\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"nodeName\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"queue\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        }\n" +
-		"      }\n" +
-		"    },\n" +
-		"    \"apiQueue\": {\n" +
-		"      \"type\": \"object\",\n" +
-		"      \"title\": \"swagger:model\",\n" +
-		"      \"properties\": {\n" +
-		"        \"groupOwners\": {\n" +
-		"          \"type\": \"array\",\n" +
-		"          \"items\": {\n" +
-		"            \"type\": \"string\"\n" +
-		"          }\n" +
-		"        },\n" +
-		"        \"name\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"priorityFactor\": {\n" +
-		"          \"type\": \"number\",\n" +
-		"          \"format\": \"double\"\n" +
-		"        },\n" +
-		"        \"resourceLimits\": {\n" +
-		"          \"type\": \"object\",\n" +
-		"          \"additionalProperties\": {\n" +
-		"            \"type\": \"number\",\n" +
-		"            \"format\": \"double\"\n" +
-		"          }\n" +
-		"        },\n" +
-		"        \"userOwners\": {\n" +
-		"          \"type\": \"array\",\n" +
-		"          \"items\": {\n" +
-		"            \"type\": \"string\"\n" +
-		"          }\n" +
-		"        }\n" +
-		"      }\n" +
-		"    },\n" +
-		"    \"apiQueueInfo\": {\n" +
-		"      \"type\": \"object\",\n" +
-		"      \"title\": \"swagger:model\",\n" +
-		"      \"properties\": {\n" +
-		"        \"activeJobSets\": {\n" +
-		"          \"type\": \"array\",\n" +
-		"          \"items\": {\n" +
-		"            \"$ref\": \"#/definitions/apiJobSetInfo\"\n" +
-		"          }\n" +
-		"        },\n" +
-		"        \"name\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        }\n" +
-		"      }\n" +
-		"    },\n" +
 		"    \"intstrIntOrString\": {\n" +
 		"      \"description\": \"+protobuf=true\\n+protobuf.options.(gogoproto.goproto_stringer)=false\\n+k8s:openapi-gen=true\",\n" +
 		"      \"type\": \"object\",\n" +
@@ -905,6 +118,51 @@ func SwaggerJsonTemplate() string {
 		"      \"format\": \"int64\",\n" +
 		"      \"title\": \"Type represents the stored type of IntOrString.\",\n" +
 		"      \"x-go-package\": \"k8s.io/apimachinery/pkg/util/intstr\"\n" +
+		"    },\n" +
+		"    \"lookoutJobInfo\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"job\": {\n" +
+		"          \"$ref\": \"#/definitions/apiJob\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"lookoutQueueInfo\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"jobsPending\": {\n" +
+		"          \"type\": \"integer\",\n" +
+		"          \"format\": \"int32\"\n" +
+		"        },\n" +
+		"        \"jobsQueued\": {\n" +
+		"          \"type\": \"integer\",\n" +
+		"          \"format\": \"int32\"\n" +
+		"        },\n" +
+		"        \"jobsRunning\": {\n" +
+		"          \"type\": \"integer\",\n" +
+		"          \"format\": \"int32\"\n" +
+		"        },\n" +
+		"        \"longestRunningJob\": {\n" +
+		"          \"$ref\": \"#/definitions/lookoutJobInfo\"\n" +
+		"        },\n" +
+		"        \"oldestQueuedJob\": {\n" +
+		"          \"$ref\": \"#/definitions/lookoutJobInfo\"\n" +
+		"        },\n" +
+		"        \"queue\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"lookoutSystemOverview\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"queues\": {\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/lookoutQueueInfo\"\n" +
+		"          }\n" +
+		"        }\n" +
+		"      }\n" +
 		"    },\n" +
 		"    \"protobufAny\": {\n" +
 		"      \"type\": \"object\",\n" +
@@ -938,31 +196,6 @@ func SwaggerJsonTemplate() string {
 		"          }\n" +
 		"        },\n" +
 		"        \"error\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"message\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        }\n" +
-		"      }\n" +
-		"    },\n" +
-		"    \"runtimeStreamError\": {\n" +
-		"      \"type\": \"object\",\n" +
-		"      \"properties\": {\n" +
-		"        \"details\": {\n" +
-		"          \"type\": \"array\",\n" +
-		"          \"items\": {\n" +
-		"            \"$ref\": \"#/definitions/protobufAny\"\n" +
-		"          }\n" +
-		"        },\n" +
-		"        \"grpcCode\": {\n" +
-		"          \"type\": \"integer\",\n" +
-		"          \"format\": \"int32\"\n" +
-		"        },\n" +
-		"        \"httpCode\": {\n" +
-		"          \"type\": \"integer\",\n" +
-		"          \"format\": \"int32\"\n" +
-		"        },\n" +
-		"        \"httpStatus\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"message\": {\n" +
