@@ -52,8 +52,7 @@ func main() {
 
 func removeGoPackage(packageName string, definitions spec.Definitions) {
 	for t, def := range definitions {
-		// swagger for some reason generates package names which contains repeated package base path
-		if strings.Contains(def.VendorExtensible.Extensions["x-go-package"].(string), packageName) {
+		if strings.HasPrefix(def.VendorExtensible.Extensions["x-go-package"].(string), packageName) {
 			delete(definitions, t)
 		}
 	}

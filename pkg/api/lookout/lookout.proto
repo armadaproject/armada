@@ -1,7 +1,6 @@
 syntax = 'proto3';
 
 package lookout;
-option go_package = "github.com/G-Research/armada/pkg/api/lookout";
 
 import "google/protobuf/empty.proto";
 import "google/api/annotations.proto";
