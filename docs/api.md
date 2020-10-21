@@ -1,9 +1,9 @@
 # Armada API
 
-Armada exposes gRPC and REST api.
+Armada exposes an API via gRPC or REST.
 
 ## gRPC
-All api is defined in `/pkg/api` folder with `*.proto` files as source for all generated code. 
+The API is defined in `/pkg/api` folder with `*.proto` files as source for all generated code. 
 
 Folder `/pkg/api` also contains generated clients and together with helper methods from `/pkg/client` provides a convenient way to call Armada api from go code. See armadactl code for [examples](../cmd/armadactl/cmd/submit.go).
 
@@ -42,12 +42,12 @@ Swagger json specification can be found [here](../pkg/api/api.swagger.json) and 
 
 ## Authentication
 
-Both gRPC and Rest api support the same set of authentication methods. In the case of gRPC all authentication methods uses `authorization` key in grpc metadata. The REST api use standard http Authorization header (which is translated by grpc-gateway to `authorization` metadata).
+Both gRPC and REST API support the same set of authentication methods. In the case of gRPC all authentication methods uses `authorization` key in grpc metadata. The REST api use standard http Authorization header (which is translated by grpc-gateway to `authorization` metadata).
 
 See helm chart [documentation](./helm/server.md#Authentication) for different server authentication schemes setup.
 
 ### No Auth
-For testing armada can be configured to accept no authentication. All operations will use user `anonymous` in this case.
+For testing, armada can be configured to accept no authentication. All operations will use user `anonymous` in this case.
 
 ### OpenId Authentication
 When server is configured with OpenID, it will accept authorization header or metadata in the form `Bearer {oauth_token}`.
