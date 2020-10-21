@@ -5,11 +5,11 @@ Armada exposes an API via gRPC or REST.
 ## gRPC
 The API is defined in `/pkg/api` folder with `*.proto` files as source for all generated code. 
 
-Folder `/pkg/api` also contains generated clients and together with helper methods from `/pkg/client` provides a convenient way to call Armada api from go code. See armadactl code for [examples](../cmd/armadactl/cmd/submit.go).
+Folder `/pkg/api` also contains generated clients and together with helper methods from `/pkg/client` provides a convenient way to call Armada API from go code. See armadactl code for [examples](../cmd/armadactl/cmd/submit.go).
 
-### Public api
+### Public API
 
-Following subset of api defined in `/pkg/api` is intended for public use.
+Following subset of API defined in `/pkg/api` is intended for public use.
 
 #### api.Submit ([definition](../pkg/api/submit.proto))
  
@@ -29,20 +29,20 @@ __/api.Event/GetJobSetEvents__ - read events of jobs running under particular Jo
 
 
 ### Internal
-There are additional api methods defined in proto specifications, which are used by Armada executor and not intended to be used by external users. This api can change in any version.
+There are additional API methods defined in proto specifications, which are used by Armada executor and not intended to be used by external users. This API can change in any version.
 
 - [event.proto](../pkg/api/event.proto) - methods for event reporting
 - [queue.proto](../pkg/api/queue.proto) - methods related to job leasing by executor
 - [usage.proto](../pkg/api/usage.proto) - methods for reporting of resources usage
 
 ## REST
-The REST api only exposes the public part of the gRPC api and it is implemented using grpc-gateway (https://github.com/grpc-ecosystem/grpc-gateway).
+The REST API only exposes the public part of the gRPC API and it is implemented using grpc-gateway (https://github.com/grpc-ecosystem/grpc-gateway).
 
 Swagger json specification can be found [here](../pkg/api/api.swagger.json) and is also served by armada under `my.armada.deployment/api/swagger.json`
 
 ## Authentication
 
-Both gRPC and REST API support the same set of authentication methods. In the case of gRPC all authentication methods uses `authorization` key in grpc metadata. The REST api use standard http Authorization header (which is translated by grpc-gateway to `authorization` metadata).
+Both gRPC and REST API support the same set of authentication methods. In the case of gRPC all authentication methods uses `authorization` key in grpc metadata. The REST API use standard http Authorization header (which is translated by grpc-gateway to `authorization` metadata).
 
 See helm chart [documentation](./helm/server.md#Authentication) for different server authentication schemes setup.
 
@@ -53,7 +53,7 @@ For testing, armada can be configured to accept no authentication. All operation
 When server is configured with OpenID, it will accept authorization header or metadata in the form `Bearer {oauth_token}`.
 
 ### Basic Authentication
-For basic authentication api accepts standard authorization header or metadata in the form `basic {base64(user:password)}`.
+For basic authentication API accepts standard authorization header or metadata in the form `basic {base64(user:password)}`.
 
 ### Kerberos
-For Kerberos authentication api accepts the same authorization metadata for gRPC as standard Kerberos http SPNEGO authorization headers, the api responds with `WWW-Authenticate` header or metadata.
+For Kerberos authentication API accepts the same authorization metadata for gRPC as standard Kerberos http SPNEGO authorization headers, the API responds with `WWW-Authenticate` header or metadata.
