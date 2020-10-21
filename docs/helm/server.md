@@ -99,6 +99,16 @@ basicAuth:
       groups: ["teamA"]
 ```
 
+#### Kerberos Authentication
+Server also support Kerberos authentication, but this feature might be removed in future version. If you can use different authentication method, please do.
+
+```yaml
+kerberos:
+  keytabLocation: /etc/auth/serviceUser.kt  # location of keytab
+  principalName: serviceUser                # name of service user
+  userNameSuffix: -suffix                   # optional suffix appended to username which is read from kerberos ticket
+```
+
 ### Permissions
 Armada allows you to specify these permissions for user:
 
