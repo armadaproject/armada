@@ -5,7 +5,7 @@ Armada exposes gRPC and REST api.
 ## gRPC
 All api is defined in `/pkg/api` folder with `*.proto` files as source for all generated code. 
 
-Folder `/pkg/api` also contains generated clients and together with helper methods from `/pkg/client` provides convenient wayt to call Armada api from go code. See armadactl code for [examples](../cmd/armadactl/cmd/submit.go).
+Folder `/pkg/api` also contains generated clients and together with helper methods from `/pkg/client` provides a convenient way to call Armada api from go code. See armadactl code for [examples](../cmd/armadactl/cmd/submit.go).
 
 ### Public api
 
