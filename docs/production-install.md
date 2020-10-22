@@ -15,6 +15,7 @@ The below sections will cover how to install the component into Kubernetes.
 * Cert manager installed (https://hub.helm.sh/charts/jetstack/cert-manager)
 * gRPC compatible ingress controller installed for gRPC ingress (such as https://github.com/kubernetes/ingress-nginx)
 * Redis installed (https://github.com/helm/charts/tree/master/stable/redis-ha)
+* Optionally install NATS streaming server (helm chart: https://github.com/nats-io/k8s/tree/master/helm/charts/stan, additional docs: https://docs.nats.io/nats-on-kubernetes/minimal-setup)
 
 Set `ARMADA_VERSION` environment variable and clone this repository repository with the same version tag as you are installing. For example to install version `v1.2.3`:
 ```bash
@@ -64,6 +65,22 @@ Then run:
 
 ```bash
 helm install ./deployment/armada --set image.tag=$ARMADA_VERSION -f ./server-values.yaml
+```
+
+#### Using NATS Streaming
+You can optionally setup Armada to route all job events through persistent NATS Streaming subject before saving them to redis. This is useful if additional application needs to consume events from Armada.
+
+Required additional server configuration is:
+
+```yaml
+eventsNats:
+  servers:
+    - "armada-nats-0.default.svc.cluster.local:4222"
+    - "armada-nats-1.default.svc.cluster.local:4222"
+    - "armada-nats-2.default.svc.cluster.local:4222"
+  clusterID: "nats-cluster-ID"
+  subject: "ArmadaEvents"
+  queueGroup: "ArmadaEventsRedisProcessor"
 ```
 
 ### Installing Armada Executor
