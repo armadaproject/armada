@@ -8,12 +8,14 @@ Armada is an application to achieve high throughput of run-to-completion jobs on
 It stores queues for users/projects with pod specifications and creates these pods once there is available resource in one of the connected Kubernetes clusters.
 
 ## Documentation
-
-- [Design Documentation](./docs/design.md)
-- [Development Guide](./docs/developer.md)
+- [Quickstart](./docs/quickstart.md)
 - [User Guide](./docs/user.md)
 - [Installation in Production](./docs/production-install.md)
-- [Quickstart](./docs/quickstart.md)
+- [Design Documentation](./docs/design.md)
+- [Development Guide](./docs/developer.md)
+- [Api Documentation](./docs/api.md)
+
+
 
 ## Key features
 - Armada maintains fair resource share over time (inspired by HTCondor priority)
