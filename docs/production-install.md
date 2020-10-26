@@ -168,6 +168,11 @@ openIdConnect:
   scopes: []
 ```
 
+For Kerberos authentication, config file should contain this:
+```
+KerberosAuth:
+  enabled: true
+```
 
 #### Environment variables
 
