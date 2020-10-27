@@ -87,43 +87,6 @@ func TestStuckPodDetector_ReturnsLeaseAndDeletesRetryableStuckPod(t *testing.T) 
 	assert.Equal(t, retryableStuckPod, mockLeaseService.returnLeaseArg)
 }
 
-func TestStuckPodDetector_RetriesMaxFiveTimes(t *testing.T) {
-	retryableStuckPod := makeRetryableStuckPod()
-
-	fakeClusterContext, mockLeaseService, stuckPodDetector := makeStuckPodDetectorWithTestDoubles()
-
-	for i := 0; i < 5; i++ {
-		addPod(t, fakeClusterContext, retryableStuckPod)
-
-		stuckPodDetector.HandleStuckPods()
-
-		assert.Equal(t, emptyPodSlice(), mockLeaseService.reportDoneArg)
-
-		remainingActivePods := getActivePods(t, fakeClusterContext)
-		assert.Equal(t, emptyPodSlice(), remainingActivePods)
-
-		stuckPodDetector.HandleStuckPods()
-
-		assert.Equal(t, emptyPodSlice(), mockLeaseService.reportDoneArg)
-
-		assert.Equal(t, retryableStuckPod, mockLeaseService.returnLeaseArg)
-	}
-
-	addPod(t, fakeClusterContext, retryableStuckPod)
-
-	stuckPodDetector.HandleStuckPods()
-
-	// Don't retry anymore
-	assert.Equal(t, []*v1.Pod{retryableStuckPod}, mockLeaseService.reportDoneArg)
-
-	remainingActivePods := getActivePods(t, fakeClusterContext)
-	assert.Equal(t, emptyPodSlice(), remainingActivePods)
-
-	stuckPodDetector.HandleStuckPods()
-
-	assert.Equal(t, 5, mockLeaseService.returnLeaseCalls)
-}
-
 func getActivePods(t *testing.T, clusterContext context.ClusterContext) []*v1.Pod {
 	t.Helper()
 	remainingActivePods, err := clusterContext.GetActiveBatchPods()
@@ -201,7 +164,6 @@ func makeStuckPodDetectorWithTestDoubles() (context.ClusterContext, *mockLeaseSe
 		fakeClusterContext,
 		&FakeEventReporter{nil},
 		mockLeaseService,
-		NewInMemoryRetryCache(),
 		time.Second)
 
 	return fakeClusterContext, mockLeaseService, stuckPodDetector

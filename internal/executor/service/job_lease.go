@@ -29,7 +29,6 @@ type LeaseService interface {
 type JobLeaseService struct {
 	clusterContext  context2.ClusterContext
 	queueClient     api.AggregatedQueueClient
-	retryCache      RetryCache
 	minimumPodAge   time.Duration
 	failedPodExpiry time.Duration
 	minimumJobSize  common.ComputeResources
@@ -38,7 +37,6 @@ type JobLeaseService struct {
 func NewJobLeaseService(
 	clusterContext context2.ClusterContext,
 	queueClient api.AggregatedQueueClient,
-	retryCache RetryCache,
 	minimumPodAge time.Duration,
 	failedPodExpiry time.Duration,
 	minimumJobSize common.ComputeResources) *JobLeaseService {
@@ -46,7 +44,6 @@ func NewJobLeaseService(
 	return &JobLeaseService{
 		clusterContext:  clusterContext,
 		queueClient:     queueClient,
-		retryCache:      retryCache,
 		minimumPodAge:   minimumPodAge,
 		failedPodExpiry: failedPodExpiry,
 		minimumJobSize:  minimumJobSize}
@@ -142,8 +139,6 @@ func (jobLeaseService *JobLeaseService) ReportDone(pods []*v1.Pod) error {
 	_, err := jobLeaseService.queueClient.ReportDone(ctx, &api.IdList{Ids: jobIds})
 	if err == nil {
 		jobLeaseService.markAsDone(pods)
-
-		evictRetriedJobs(jobLeaseService.retryCache, jobIds)
 	}
 
 	return err
@@ -241,12 +236,4 @@ func chunkPods(pods []*v1.Pod, size int) [][]*v1.Pod {
 		chunks = append(chunks, pods[start:end])
 	}
 	return chunks
-}
-
-func evictRetriedJobs(retryCache RetryCache, jobIds []string) {
-	for _, jobId := range jobIds {
-		if retryCache.GetNumberOfRetryAttempts(jobId) > 0 {
-			retryCache.Evict(jobId)
-		}
-	}
 }
