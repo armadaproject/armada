@@ -13,11 +13,14 @@ import (
 	"github.com/G-Research/armada/internal/executor/util"
 )
 
+const maxRetries = 5
+
 type StuckPodDetector struct {
 	clusterContext  context.ClusterContext
 	eventReporter   reporter.EventReporter
 	stuckPodCache   map[string]*podRecord
 	jobLeaseService LeaseService
+	retryCache      RetryCache
 	stuckPodExpiry  time.Duration
 }
 
@@ -31,6 +34,7 @@ func NewPodProgressMonitorService(
 	clusterContext context.ClusterContext,
 	eventReporter reporter.EventReporter,
 	jobLeaseService LeaseService,
+	retryCache RetryCache,
 	stuckPodExpiry time.Duration) *StuckPodDetector {
 
 	return &StuckPodDetector{
@@ -38,6 +42,7 @@ func NewPodProgressMonitorService(
 		eventReporter:   eventReporter,
 		stuckPodCache:   map[string]*podRecord{},
 		jobLeaseService: jobLeaseService,
+		retryCache:      retryCache,
 		stuckPodExpiry:  stuckPodExpiry,
 	}
 }
@@ -50,6 +55,8 @@ func (d *StuckPodDetector) onStuckPodDetected(pod *v1.Pod) (err error, retryable
 	}
 
 	retryable, message = util.DiagnoseStuckPod(pod, podEvents)
+	retryable = retryable && d.retryCache.GetNumberOfRetryAttempts(util.ExtractJobId(pod)) < maxRetries
+
 	if retryable {
 		message = fmt.Sprintf("Unable to schedule pod, Armada will retrun lease and retry.\n%s", message)
 	} else {
@@ -70,6 +77,8 @@ func (d *StuckPodDetector) onStuckPodDeleted(jobId string, record *podRecord) (r
 			log.Errorf("Failed to return lease for job %s because %s", jobId, err)
 			return false
 		}
+
+		d.retryCache.AddRetryAttempt(jobId)
 
 		leaseReturnedEvent := reporter.CreateJobLeaseReturnedEvent(record.pod, record.message, d.clusterContext.GetClusterId())
 

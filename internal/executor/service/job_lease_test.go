@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"github.com/G-Research/armada/internal/executor/domain"
 	"testing"
 	"time"
 
@@ -17,7 +18,7 @@ import (
 )
 
 func TestCanBeRemovedConditions(t *testing.T) {
-	s := CreateLeaseService(time.Second, time.Second)
+	s := createLeaseService(time.Second, time.Second)
 	pods := map[*v1.Pod]bool{
 		// should not be cleaned yet
 		makePodWithCurrentStateReported(v1.PodRunning, false):   false,
@@ -36,7 +37,7 @@ func TestCanBeRemovedConditions(t *testing.T) {
 }
 
 func TestCanBeRemovedMinumumPodTime(t *testing.T) {
-	s := CreateLeaseService(5*time.Minute, 10*time.Minute)
+	s := createLeaseService(5*time.Minute, 10*time.Minute)
 	now := time.Now()
 	pods := map[*v1.Pod]bool{
 		// should not be cleaned yet
@@ -59,6 +60,31 @@ func TestChunkPods(t *testing.T) {
 	p := makePodWithCurrentStateReported(v1.PodPending, false)
 	chunks := chunkPods([]*v1.Pod{p, p, p}, 2)
 	assert.Equal(t, [][]*v1.Pod{{p, p}, {p}}, chunks)
+}
+
+func TestJobLeaseService_ReportDoneOnRetriedJobEvictsItFromRetryCache(t *testing.T) {
+	s := createLeaseService(time.Second, time.Second)
+
+	s.retryCache.AddRetryAttempt("job-1")
+
+	err := s.ReportDone([]*v1.Pod{{
+		ObjectMeta: metav1.ObjectMeta{
+			Labels: map[string]string{
+				domain.JobId: "job-1",
+				domain.Queue: "queue-1",
+			},
+			Annotations: map[string]string{
+				domain.JobSetId: "job-set-1",
+			},
+			CreationTimestamp: metav1.Time{time.Now().Add(-10 * time.Minute)},
+		},
+	}})
+
+	if err != nil {
+		t.Error(err)
+	}
+
+	assert.Zero(t, s.retryCache.GetNumberOfRetryAttempts("job-1"))
 }
 
 func makeFinishedPodWithTimestamp(state v1.PodPhase, timestamp time.Time) *v1.Pod {
@@ -86,9 +112,9 @@ func makePodWithCurrentStateReported(state v1.PodPhase, reportedDone bool) *v1.P
 	return &pod
 }
 
-func CreateLeaseService(minimumPodAge, failedPodExpiry time.Duration) *JobLeaseService {
+func createLeaseService(minimumPodAge, failedPodExpiry time.Duration) *JobLeaseService {
 	fakeClusterContext := context2.NewFakeClusterContext("test", nil)
-	return NewJobLeaseService(fakeClusterContext, &queueClientMock{}, minimumPodAge, failedPodExpiry, common.ComputeResources{})
+	return NewJobLeaseService(fakeClusterContext, &queueClientMock{}, NewInMemoryRetryCache(), minimumPodAge, failedPodExpiry, common.ComputeResources{})
 }
 
 type queueClientMock struct {

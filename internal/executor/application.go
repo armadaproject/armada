@@ -70,9 +70,12 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 		clusterContext,
 		eventClient)
 
+	inMemoryRetryCache := service.NewInMemoryRetryCache()
+
 	jobLeaseService := service.NewJobLeaseService(
 		clusterContext,
 		queueClient,
+		inMemoryRetryCache,
 		config.Kubernetes.MinimumPodAge,
 		config.Kubernetes.FailedPodExpiry,
 		config.Kubernetes.MinimumJobSize)
@@ -92,6 +95,7 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 		clusterContext,
 		eventReporter,
 		jobLeaseService,
+		inMemoryRetryCache,
 		config.Kubernetes.StuckPodExpiry)
 
 	clusterAllocationService := service.NewClusterAllocationService(
