@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"github.com/G-Research/armada/internal/executor/domain"
 	"testing"
 	"time"
 
@@ -13,6 +12,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/G-Research/armada/internal/common"
+	"github.com/G-Research/armada/internal/executor/domain"
 	context2 "github.com/G-Research/armada/internal/executor/fake/context"
 	"github.com/G-Research/armada/pkg/api"
 )
