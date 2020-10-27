@@ -5,9 +5,10 @@ import (
 	"time"
 
 	"github.com/G-Research/armada/internal/common"
-	clusterContext "github.com/G-Research/armada/internal/executor/context"
+	"github.com/G-Research/armada/internal/executor/context"
 	"github.com/G-Research/armada/internal/executor/domain"
 	"github.com/G-Research/armada/pkg/api"
+
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -123,7 +124,7 @@ func TestStuckPodDetector_RetriesMaxFiveTimes(t *testing.T) {
 	assert.Equal(t, 5, mockLeaseService.returnLeaseCalls)
 }
 
-func getActivePods(t *testing.T, clusterContext clusterContext.ClusterContext) []*v1.Pod {
+func getActivePods(t *testing.T, clusterContext context.ClusterContext) []*v1.Pod {
 	t.Helper()
 	remainingActivePods, err := clusterContext.GetActiveBatchPods()
 	if err != nil {
@@ -184,7 +185,7 @@ func makeTestPod(status v1.PodStatus) *v1.Pod {
 	}
 }
 
-func addPod(t *testing.T, fakeClusterContext clusterContext.ClusterContext, runningPod *v1.Pod) {
+func addPod(t *testing.T, fakeClusterContext context.ClusterContext, runningPod *v1.Pod) {
 	t.Helper()
 	_, err := fakeClusterContext.SubmitPod(runningPod, "owner-1")
 	if err != nil {
@@ -192,7 +193,7 @@ func addPod(t *testing.T, fakeClusterContext clusterContext.ClusterContext, runn
 	}
 }
 
-func makeStuckPodDetectorWithTestDoubles() (clusterContext.ClusterContext, *mockLeaseService, *StuckPodDetector) {
+func makeStuckPodDetectorWithTestDoubles() (context.ClusterContext, *mockLeaseService, *StuckPodDetector) {
 	fakeClusterContext := newSyncFakeClusterContext()
 	mockLeaseService := NewMockLeaseService()
 
