@@ -23,6 +23,7 @@ const jobQueuePrefix = "Job:Queue:"
 const jobSetPrefix = "Job:Set:"
 const jobLeasedPrefix = "Job:Leased:"
 const jobClusterMapKey = "Job:ClusterId"
+const jobRetriesPrefix = "Job:Retries:"
 
 type JobQueueRepository interface {
 	PeekQueue(queue string, limit int64) ([]*api.Job, error)
@@ -42,6 +43,8 @@ type JobRepository interface {
 	DeleteJobs(jobs []*api.Job) map[*api.Job]error
 	GetActiveJobIds(queue string, jobSetId string) ([]string, error)
 	GetQueueActiveJobSets(queue string) ([]*api.JobSetInfo, error)
+	AddRetryAttempt(jobId string) error
+	GetNumberOfRetryAttempts(jobId string) (int, error)
 }
 
 type RedisJobRepository struct {
@@ -112,10 +115,11 @@ func (repo *RedisJobRepository) CreateJobs(request *api.JobSubmitRequest, princi
 }
 
 type submitJobRedisResponse struct {
-	job               *api.Job
-	queueJobResult    *redis.IntCmd
-	saveJobResult     *redis.StatusCmd
-	jobSetIndexResult *redis.IntCmd
+	job                  *api.Job
+	queueJobResult       *redis.IntCmd
+	saveJobResult        *redis.StatusCmd
+	jobSetIndexResult    *redis.IntCmd
+	initJobRetriesResult *redis.StatusCmd
 }
 
 type SubmitJobResult struct {
@@ -144,6 +148,7 @@ func (repo *RedisJobRepository) AddJobs(jobs []*api.Job) ([]*SubmitJobResult, er
 
 		submitResult.saveJobResult = pipe.Set(jobObjectPrefix+job.Id, jobData, 0)
 		submitResult.jobSetIndexResult = pipe.SAdd(jobSetPrefix+job.JobSetId, job.Id)
+		submitResult.initJobRetriesResult = pipe.Set(jobRetriesPrefix+job.Id, 0, 0)
 		submitResults = append(submitResults, submitResult)
 	}
 
@@ -159,8 +164,10 @@ func (repo *RedisJobRepository) AddJobs(jobs []*api.Job) ([]*SubmitJobResult, er
 		if _, e := submitResult.saveJobResult.Result(); e != nil {
 			response.Error = e
 		}
-
 		if _, e := submitResult.jobSetIndexResult.Result(); e != nil {
+			response.Error = e
+		}
+		if _, e := submitResult.initJobRetriesResult.Result(); e != nil {
 			response.Error = e
 		}
 
@@ -206,6 +213,7 @@ type deleteJobRedisResponse struct {
 	removeClusterAssociationResult *redis.IntCmd
 	setJobExpiryResult             *redis.BoolCmd
 	deleteJobSetIndexResult        *redis.IntCmd
+	deleteJobRetriesResult         *redis.IntCmd
 }
 
 func (repo *RedisJobRepository) DeleteJobs(jobs []*api.Job) map[*api.Job]error {
@@ -218,6 +226,7 @@ func (repo *RedisJobRepository) DeleteJobs(jobs []*api.Job) map[*api.Job]error {
 		deletionResult.removeFromLeasedResult = pipe.ZRem(jobLeasedPrefix+job.Queue, job.Id)
 		deletionResult.removeClusterAssociationResult = pipe.HDel(jobClusterMapKey, job.Id)
 		deletionResult.deleteJobSetIndexResult = pipe.SRem(jobSetPrefix+job.JobSetId, job.Id)
+		deletionResult.deleteJobRetriesResult = pipe.Del(jobRetriesPrefix+job.Id)
 
 		if !deletionResult.expiryAlreadySet {
 			deletionResult.setJobExpiryResult = pipe.Expire(jobObjectPrefix+job.Id, time.Hour*24*7)
@@ -289,6 +298,12 @@ func processDeletionResponse(deletionResponse *deleteJobRedisResponse) (int64, e
 	}
 
 	modified, e = deletionResponse.removeClusterAssociationResult.Result()
+	totalUpdates += modified
+	if e != nil {
+		errorMessage = e
+	}
+
+	modified, e = deletionResponse.deleteJobRetriesResult.Result()
 	totalUpdates += modified
 	if e != nil {
 		errorMessage = e
@@ -524,6 +539,36 @@ func (repo *RedisJobRepository) ExpireLeases(queue string, deadline time.Time) (
 		}
 	}
 	return expired, nil
+}
+
+func (repo *RedisJobRepository) AddRetryAttempt(jobId string) error {
+	exists, errExists := repo.db.Exists(jobRetriesPrefix + jobId).Result()
+
+	if errExists != nil {
+		return errExists
+	}
+	if exists == 0 {
+		return fmt.Errorf("RedisJobRepository.AddRetryAttempt: job with id %q does not exist", jobId)
+	}
+
+	_, errIncr := repo.db.Incr(jobRetriesPrefix + jobId).Result()
+	return errIncr
+}
+
+func (repo *RedisJobRepository) GetNumberOfRetryAttempts(jobId string) (int, error) {
+	val, err := repo.db.Get(jobRetriesPrefix + jobId).Result()
+
+	if err != nil {
+		return 0, err
+	}
+
+	i, err := strconv.Atoi(val)
+
+	if err != nil {
+		return 0, err
+	}
+
+	return i, nil
 }
 
 func (repo *RedisJobRepository) leaseJobs(clusterId string, jobs []*api.Job) ([]string, error) {
