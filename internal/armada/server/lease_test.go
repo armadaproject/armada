@@ -14,7 +14,7 @@ import (
 	"github.com/G-Research/armada/pkg/api"
 )
 
-func TestAggregatedQueueServer_ReturnLeaseCallsTheRepositoryMethod(t *testing.T) {
+func TestAggregatedQueueServer_ReturnLeaseCallsRepositoryMethod(t *testing.T) {
 	mockJobRepository, aggregatedQueueClient := makeAggregatedQueueServerWithTestDoubles()
 
 	clusterId := "cluster-1"
@@ -35,7 +35,7 @@ func TestAggregatedQueueServer_ReturnLeaseCallsTheRepositoryMethod(t *testing.T)
 	assert.Equal(t, jobId, mockJobRepository.returnLeaseArg2)
 }
 
-func TestAggregatedQueueServer_ReturnLeaseCalledMoreThanFiveTimesDeletesTheJob(t *testing.T) {
+func TestAggregatedQueueServer_ReturningLeaseMoreThanFiveTimesDeletesJob(t *testing.T) {
 	mockJobRepository, aggregatedQueueClient := makeAggregatedQueueServerWithTestDoubles()
 
 	clusterId := "cluster-1"
