@@ -16,6 +16,8 @@ import (
 	"github.com/G-Research/armada/pkg/api"
 )
 
+const maxRetries = 5
+
 type AggregatedQueueServer struct {
 	permissions              authorization.PermissionChecker
 	schedulingConfig         configuration.SchedulingConfig
@@ -140,7 +142,7 @@ func (q *AggregatedQueueServer) ReturnLease(ctx context.Context, request *api.Re
 	if err != nil {
 		return nil, err
 	}
-	if retries >= 5 {
+	if retries >= maxRetries {
 		_, reportDoneErr := q.ReportDone(ctx, &api.IdList{Ids: []string{request.JobId}})
 		return &types.Empty{}, reportDoneErr
 	}
