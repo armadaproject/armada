@@ -8,6 +8,10 @@ type NatsConfig struct {
 }
 
 type LookoutConfiguration struct {
+	HttpPort    uint16
+	GrpcPort    uint16
+	MetricsPort uint16
+
 	Nats                     NatsConfig
 	PostgresConnectionString string
 }

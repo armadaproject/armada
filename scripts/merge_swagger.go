@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/go-openapi/analysis"
@@ -13,7 +14,7 @@ import (
 
 func main() {
 
-	grpcDoc, err := loads.Spec("pkg/api/api.swagger.json")
+	grpcDoc, err := loads.Spec("pkg/api/" + os.Args[1])
 	if err != nil {
 		panic(err)
 	}
@@ -24,7 +25,7 @@ func main() {
 	}
 
 	definitionsSpec := definitionDoc.Spec()
-	removeGoPackage("github.com/G-Research/armada/pkg/api", definitionsSpec.Definitions)
+	removeGoPackage("github.com/G-Research/armada", definitionsSpec.Definitions)
 	prefixTypeWithGoPackageName(definitionsSpec.Definitions)
 
 	grpcSpec := grpcDoc.Spec()
@@ -36,9 +37,11 @@ func main() {
 	resultSpec.Definitions["resourceQuantity"].Type[0] = "string"
 
 	// Hack: Easiest way to make ndjson streaming work in generated clients is to pretend the stream is actually a file
-	eventsPost := resultSpec.Paths.Paths["/v1/job-set/{queue}/{id}"].Post
-	eventsPost.Produces = []string{"application/ndjson-stream"}
-	eventsPost.Responses.StatusCodeResponses[200].Schema.Type = []string{"file"}
+	if eventMethod, ok := resultSpec.Paths.Paths["/v1/job-set/{queue}/{id}"]; ok {
+		eventsPost := eventMethod.Post
+		eventsPost.Produces = []string{"application/ndjson-stream"}
+		eventsPost.Responses.StatusCodeResponses[200].Schema.Type = []string{"file"}
+	}
 
 	result, err := json.MarshalIndent(resultSpec, "", "  ")
 	if err != nil {
@@ -49,7 +52,7 @@ func main() {
 
 func removeGoPackage(packageName string, definitions spec.Definitions) {
 	for t, def := range definitions {
-		if def.VendorExtensible.Extensions["x-go-package"] == packageName {
+		if strings.HasPrefix(def.VendorExtensible.Extensions["x-go-package"].(string), packageName) {
 			delete(definitions, t)
 		}
 	}
