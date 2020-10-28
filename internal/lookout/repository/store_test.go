@@ -15,7 +15,7 @@ import (
 
 func Test_RecordEvents(t *testing.T) {
 	withDatabase(t, func(db *sql.DB) {
-		jobRepo := NewSQLJobRepository(db)
+		jobRepo := NewSQLJobStore(db)
 
 		job := &api.Job{
 			Id:          util.NewULID(),

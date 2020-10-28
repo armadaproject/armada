@@ -33,6 +33,7 @@ func StartUp(config configuration.LookoutConfiguration) (func(), *sync.WaitGroup
 		panic(err)
 	}
 
+	jobStore := repository.NewSQLJobStore(db)
 	jobRepository := repository.NewSQLJobRepository(db)
 
 	conn, err := stan_util.DurableConnect(
@@ -44,10 +45,10 @@ func StartUp(config configuration.LookoutConfiguration) (func(), *sync.WaitGroup
 	if err != nil {
 		panic(err)
 	}
-	eventProcessor := events.NewEventProcessor(conn, jobRepository, config.Nats.Subject, config.Nats.QueueGroup)
+	eventProcessor := events.NewEventProcessor(conn, jobStore, config.Nats.Subject, config.Nats.QueueGroup)
 	eventProcessor.Start()
 
-	lookoutServer := &server.LookoutServer{}
+	lookoutServer := server.NewLookoutServer(jobRepository)
 	lookout.RegisterLookoutServer(grpcServer, lookoutServer)
 
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", config.GrpcPort))
