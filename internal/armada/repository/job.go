@@ -543,7 +543,6 @@ func (repo *RedisJobRepository) ExpireLeases(queue string, deadline time.Time) (
 
 func (repo *RedisJobRepository) AddRetryAttempt(jobId string) error {
 	exists, err := repo.db.Exists(jobRetriesPrefix + jobId).Result()
-
 	if err != nil {
 		return err
 	}
