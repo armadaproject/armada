@@ -3,14 +3,15 @@ package server
 import (
 	"context"
 	"fmt"
-	"github.com/G-Research/armada/internal/armada/configuration"
-	"github.com/G-Research/armada/internal/armada/repository"
-	"github.com/G-Research/armada/pkg/api"
-	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/G-Research/armada/internal/armada/authorization"
+	"github.com/G-Research/armada/internal/armada/configuration"
+	"github.com/G-Research/armada/internal/armada/repository"
+	"github.com/G-Research/armada/pkg/api"
 )
 
 func TestAggregatedQueueServer_ReturnLeaseCallsTheRepositoryMethod(t *testing.T) {
@@ -51,7 +52,7 @@ func TestAggregatedQueueServer_ReturnLeaseCalledMoreThanFiveTimesDeletesTheJob(t
 		})
 		assert.Nil(t, err)
 
-		assert.Equal(t, i + 1, mockJobRepository.returnLeaseCalls)
+		assert.Equal(t, i+1, mockJobRepository.returnLeaseCalls)
 		assert.Equal(t, clusterId, mockJobRepository.returnLeaseArg1)
 		assert.Equal(t, jobId, mockJobRepository.returnLeaseArg2)
 	}
@@ -79,7 +80,7 @@ func makeAggregatedQueueServerWithTestDoubles() (*mockJobRepository, *Aggregated
 		&fakeSchedulingInfoRepository{})
 }
 
-type mockJobRepository struct{
+type mockJobRepository struct {
 	jobs       map[string]*api.Job
 	jobRetries map[string]int
 
