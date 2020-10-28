@@ -15,7 +15,7 @@ import (
 )
 
 func TestAggregatedQueueServer_ReturnLeaseCallsRepositoryMethod(t *testing.T) {
-	mockJobRepository, aggregatedQueueClient := makeAggregatedQueueServerWithTestDoubles()
+	mockJobRepository, aggregatedQueueClient := makeAggregatedQueueServerWithTestDoubles(5)
 
 	clusterId := "cluster-1"
 	jobId := "job-id-1"
@@ -35,8 +35,9 @@ func TestAggregatedQueueServer_ReturnLeaseCallsRepositoryMethod(t *testing.T) {
 	assert.Equal(t, jobId, mockJobRepository.returnLeaseArg2)
 }
 
-func TestAggregatedQueueServer_ReturningLeaseMoreThanFiveTimesDeletesJob(t *testing.T) {
-	mockJobRepository, aggregatedQueueClient := makeAggregatedQueueServerWithTestDoubles()
+func TestAggregatedQueueServer_ReturningLeaseMoreThanMaxRetriesDeletesJob(t *testing.T) {
+	maxRetries := 5
+	mockJobRepository, aggregatedQueueClient := makeAggregatedQueueServerWithTestDoubles(uint(maxRetries))
 
 	clusterId := "cluster-1"
 	jobId := "job-id-1"
@@ -45,7 +46,7 @@ func TestAggregatedQueueServer_ReturningLeaseMoreThanFiveTimesDeletesJob(t *test
 	_, addJobsErr := mockJobRepository.AddJobs([]*api.Job{job})
 	assert.Nil(t, addJobsErr)
 
-	for i := 0; i < 5; i++ {
+	for i := 0; i < maxRetries; i++ {
 		_, err := aggregatedQueueClient.ReturnLease(context.TODO(), &api.ReturnLeaseRequest{
 			ClusterId: clusterId,
 			JobId:     jobId,
@@ -62,17 +63,19 @@ func TestAggregatedQueueServer_ReturningLeaseMoreThanFiveTimesDeletesJob(t *test
 		JobId:     jobId,
 	})
 	assert.Nil(t, err)
-	assert.Equal(t, 5, mockJobRepository.returnLeaseCalls)
+	assert.Equal(t, maxRetries, mockJobRepository.returnLeaseCalls)
 
 	assert.Equal(t, 1, mockJobRepository.deleteJobsCalls)
 	assert.Equal(t, []*api.Job{job}, mockJobRepository.deleteJobsArg)
 }
 
-func makeAggregatedQueueServerWithTestDoubles() (*mockJobRepository, *AggregatedQueueServer) {
+func makeAggregatedQueueServerWithTestDoubles(maxRetries uint) (*mockJobRepository, *AggregatedQueueServer) {
 	mockJobRepository := newMockJobRepository()
 	return mockJobRepository, NewAggregatedQueueServer(
 		&FakePermissionChecker{},
-		configuration.SchedulingConfig{},
+		configuration.SchedulingConfig{
+			MaxRetries: maxRetries,
+		},
 		mockJobRepository,
 		&fakeQueueRepository{},
 		&fakeUsageRepository{},
