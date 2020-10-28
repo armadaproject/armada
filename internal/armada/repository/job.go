@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -115,11 +116,10 @@ func (repo *RedisJobRepository) CreateJobs(request *api.JobSubmitRequest, princi
 }
 
 type submitJobRedisResponse struct {
-	job                  *api.Job
-	queueJobResult       *redis.IntCmd
-	saveJobResult        *redis.StatusCmd
-	jobSetIndexResult    *redis.IntCmd
-	initJobRetriesResult *redis.StatusCmd
+	job               *api.Job
+	queueJobResult    *redis.IntCmd
+	saveJobResult     *redis.StatusCmd
+	jobSetIndexResult *redis.IntCmd
 }
 
 type SubmitJobResult struct {
@@ -148,7 +148,6 @@ func (repo *RedisJobRepository) AddJobs(jobs []*api.Job) ([]*SubmitJobResult, er
 
 		submitResult.saveJobResult = pipe.Set(jobObjectPrefix+job.Id, jobData, 0)
 		submitResult.jobSetIndexResult = pipe.SAdd(jobSetPrefix+job.JobSetId, job.Id)
-		submitResult.initJobRetriesResult = pipe.Set(jobRetriesPrefix+job.Id, 0, 0)
 		submitResults = append(submitResults, submitResult)
 	}
 
@@ -165,9 +164,6 @@ func (repo *RedisJobRepository) AddJobs(jobs []*api.Job) ([]*SubmitJobResult, er
 			response.Error = e
 		}
 		if _, e := submitResult.jobSetIndexResult.Result(); e != nil {
-			response.Error = e
-		}
-		if _, e := submitResult.initJobRetriesResult.Result(); e != nil {
 			response.Error = e
 		}
 
@@ -542,20 +538,15 @@ func (repo *RedisJobRepository) ExpireLeases(queue string, deadline time.Time) (
 }
 
 func (repo *RedisJobRepository) AddRetryAttempt(jobId string) error {
-	exists, err := repo.db.Exists(jobRetriesPrefix + jobId).Result()
-	if err != nil {
-		return err
-	}
-	if exists == 0 {
-		return fmt.Errorf("RedisJobRepository.AddRetryAttempt: job with id %q does not exist", jobId)
-	}
-
-	_, err = repo.db.Incr(jobRetriesPrefix + jobId).Result()
+	_, err := repo.db.Incr(jobRetriesPrefix + jobId).Result()
 	return err
 }
 
 func (repo *RedisJobRepository) GetNumberOfRetryAttempts(jobId string) (int, error) {
 	retriesStr, err := repo.db.Get(jobRetriesPrefix + jobId).Result()
+	if errors.Is(err, redis.Nil) {
+		return 0, nil
+	}
 	if err != nil {
 		return 0, err
 	}

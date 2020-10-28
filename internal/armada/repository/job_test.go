@@ -273,15 +273,16 @@ func TestCreateJob_ApplyDefaultLimitss(t *testing.T) {
 	})
 }
 
-func TestGetNumberOfRetryAttemptsErrorsForNonExistentJob(t *testing.T) {
+func TestNumberOfRetryAttemptsIsZeroForNonExistentJob(t *testing.T) {
 	withRepository(func(r *RedisJobRepository) {
-		_, err := r.GetNumberOfRetryAttempts("nonexistent-job-id")
+		retries, err := r.GetNumberOfRetryAttempts("nonexistent-job-id")
 
-		assert.NotNil(t, err)
+		assert.Nil(t, err)
+		assert.Zero(t, retries)
 	})
 }
 
-func TestZeroRetriesForNewJob(t *testing.T) {
+func TestNumberOfRetryAttemptsIsZeroForNewJob(t *testing.T) {
 	withRepository(func(r *RedisJobRepository) {
 		testJob := addLeasedJob(t, r, "some-queue", "cluster-1")
 
@@ -292,11 +293,16 @@ func TestZeroRetriesForNewJob(t *testing.T) {
 	})
 }
 
-func TestAddRetryAttemptErrorsIfJobDoesNotExist(t *testing.T) {
+func TestAddRetryAttemptCreatesKeyIfJobDoesNotExist(t *testing.T) {
 	withRepository(func(r *RedisJobRepository) {
 		err := r.AddRetryAttempt("nonexistent-job-id")
 
-		assert.NotNil(t, err)
+		assert.Nil(t, err)
+
+		retries, err := r.GetNumberOfRetryAttempts("nonexistent-job-id")
+
+		assert.Nil(t, err)
+		assert.Equal(t, 1, retries)
 	})
 }
 
@@ -318,7 +324,7 @@ func TestJobRetriesAreIncrementedCorrectly(t *testing.T) {
 	})
 }
 
-func TestShouldErrorIfGettingRetriesOfDeletedJob(t *testing.T) {
+func TestRetriesOfDeletedJobShouldBeZero(t *testing.T) {
 	withRepository(func(r *RedisJobRepository) {
 		testJob := addLeasedJob(t, r, "some-queue", "cluster-1")
 
@@ -329,9 +335,10 @@ func TestShouldErrorIfGettingRetriesOfDeletedJob(t *testing.T) {
 
 		r.DeleteJobs([]*api.Job{testJob})
 
-		_, err := r.GetNumberOfRetryAttempts(testJob.Id)
+		retries, err := r.GetNumberOfRetryAttempts(testJob.Id)
 
-		assert.NotNil(t, err)
+		assert.Nil(t, err)
+		assert.Zero(t, retries)
 	})
 }
 
