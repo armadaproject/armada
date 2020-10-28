@@ -16,6 +16,8 @@ import (
 	"github.com/G-Research/armada/pkg/api"
 )
 
+const maxRetries = 5
+
 type AggregatedQueueServer struct {
 	permissions              authorization.PermissionChecker
 	schedulingConfig         configuration.SchedulingConfig
