@@ -226,7 +226,7 @@ func (repo *RedisJobRepository) DeleteJobs(jobs []*api.Job) map[*api.Job]error {
 		deletionResult.removeFromLeasedResult = pipe.ZRem(jobLeasedPrefix+job.Queue, job.Id)
 		deletionResult.removeClusterAssociationResult = pipe.HDel(jobClusterMapKey, job.Id)
 		deletionResult.deleteJobSetIndexResult = pipe.SRem(jobSetPrefix+job.JobSetId, job.Id)
-		deletionResult.deleteJobRetriesResult = pipe.Del(jobRetriesPrefix+job.Id)
+		deletionResult.deleteJobRetriesResult = pipe.Del(jobRetriesPrefix + job.Id)
 
 		if !deletionResult.expiryAlreadySet {
 			deletionResult.setJobExpiryResult = pipe.Expire(jobObjectPrefix+job.Id, time.Hour*24*7)
