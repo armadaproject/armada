@@ -32,7 +32,7 @@ func (r *SQLJobRepository) GetQueueStats() ([]*lookout.QueueInfo, error) {
 	}
 	var (
 		queue                          string
-		jobs, jobsCreated, jobsStarted int32
+		jobs, jobsCreated, jobsStarted uint32
 	)
 
 	result := []*lookout.QueueInfo{}

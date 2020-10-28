@@ -121,15 +121,15 @@
       "properties": {
         "jobsPending": {
           "type": "integer",
-          "format": "int32"
+          "format": "int64"
         },
         "jobsQueued": {
           "type": "integer",
-          "format": "int32"
+          "format": "int64"
         },
         "jobsRunning": {
           "type": "integer",
-          "format": "int32"
+          "format": "int64"
         },
         "longestRunningJob": {
           "$ref": "#/definitions/lookoutJobInfo"

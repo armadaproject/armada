@@ -21,9 +21,9 @@ message JobInfo {
 message QueueInfo {
     string queue = 1;
 
-    int32 jobs_queued = 2;
-    int32 jobs_pending = 3;
-    int32 jobs_running = 4;
+    uint32 jobs_queued = 2;
+    uint32 jobs_pending = 3;
+    uint32 jobs_running = 4;
 
     JobInfo oldest_queued_job = 5;
     JobInfo longest_running_job = 6;

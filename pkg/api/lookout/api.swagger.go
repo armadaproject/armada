@@ -132,15 +132,15 @@ func SwaggerJsonTemplate() string {
 		"      \"properties\": {\n" +
 		"        \"jobsPending\": {\n" +
 		"          \"type\": \"integer\",\n" +
-		"          \"format\": \"int32\"\n" +
+		"          \"format\": \"int64\"\n" +
 		"        },\n" +
 		"        \"jobsQueued\": {\n" +
 		"          \"type\": \"integer\",\n" +
-		"          \"format\": \"int32\"\n" +
+		"          \"format\": \"int64\"\n" +
 		"        },\n" +
 		"        \"jobsRunning\": {\n" +
 		"          \"type\": \"integer\",\n" +
-		"          \"format\": \"int32\"\n" +
+		"          \"format\": \"int64\"\n" +
 		"        },\n" +
 		"        \"longestRunningJob\": {\n" +
 		"          \"$ref\": \"#/definitions/lookoutJobInfo\"\n" +
