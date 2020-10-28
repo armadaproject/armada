@@ -322,9 +322,7 @@ func TestShouldErrorIfGettingRetriesOfDeletedJob(t *testing.T) {
 	withRepository(func(r *RedisJobRepository) {
 		testJob := addLeasedJob(t, r, "some-queue", "cluster-1")
 
-		expectedRetries := 11
-
-		for i := 0; i < expectedRetries; i++ {
+		for i := 0; i < 11; i++ {
 			err := r.AddRetryAttempt(testJob.Id)
 			assert.Nil(t, err)
 		}
