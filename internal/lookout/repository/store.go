@@ -20,15 +20,15 @@ type JobRecorder interface {
 	RecordJobFailed(event *api.JobFailedEvent) error
 }
 
-type SQLJobRepository struct {
+type SQLJobStore struct {
 	db *sql.DB
 }
 
-func NewSQLJobRepository(db *sql.DB) *SQLJobRepository {
-	return &SQLJobRepository{db: db}
+func NewSQLJobStore(db *sql.DB) *SQLJobStore {
+	return &SQLJobStore{db: db}
 }
 
-func (r *SQLJobRepository) RecordJob(job *api.Job) error {
+func (r *SQLJobStore) RecordJob(job *api.Job) error {
 	jobJson, err := json.Marshal(job)
 	if err != nil {
 		return err
@@ -39,24 +39,24 @@ func (r *SQLJobRepository) RecordJob(job *api.Job) error {
 	return err
 }
 
-func (r *SQLJobRepository) MarkCancelled(event *api.JobCancelledEvent) error {
+func (r *SQLJobStore) MarkCancelled(event *api.JobCancelledEvent) error {
 	_, err := upsert(r.db, "job",
 		"job_id", []string{"queue", "jobset", "cancelled"},
 		[]interface{}{event.JobId, event.Queue, event.JobSetId, event.Created})
 	return err
 }
 
-func (r *SQLJobRepository) RecordJobPriorityChange(event *api.JobReprioritizedEvent) error {
+func (r *SQLJobStore) RecordJobPriorityChange(event *api.JobReprioritizedEvent) error {
 	panic("implement me")
 }
 
-func (r *SQLJobRepository) RecordJobPending(event *api.JobPendingEvent) error {
+func (r *SQLJobStore) RecordJobPending(event *api.JobPendingEvent) error {
 	fields := []string{"created"}
 	values := []interface{}{event.Created}
 	return r.updateJobRun(event, fields, values)
 }
 
-func (r *SQLJobRepository) RecordJobRunning(event *api.JobRunningEvent) error {
+func (r *SQLJobStore) RecordJobRunning(event *api.JobRunningEvent) error {
 	fields := []string{"started"}
 	values := []interface{}{event.Created}
 	if event.NodeName != "" {
@@ -66,7 +66,7 @@ func (r *SQLJobRepository) RecordJobRunning(event *api.JobRunningEvent) error {
 	return r.updateJobRun(event, fields, values)
 }
 
-func (r *SQLJobRepository) RecordJobSucceeded(event *api.JobSucceededEvent) error {
+func (r *SQLJobStore) RecordJobSucceeded(event *api.JobSucceededEvent) error {
 	fields := []string{"finished", "succeeded"}
 	values := []interface{}{event.Created, true}
 	if event.NodeName != "" {
@@ -76,7 +76,7 @@ func (r *SQLJobRepository) RecordJobSucceeded(event *api.JobSucceededEvent) erro
 	return r.updateJobRun(event, fields, values)
 }
 
-func (r *SQLJobRepository) RecordJobFailed(event *api.JobFailedEvent) error {
+func (r *SQLJobStore) RecordJobFailed(event *api.JobFailedEvent) error {
 	fields := []string{"finished", "succeeded", "error"}
 	values := []interface{}{event.Created, false, event.Reason}
 	if event.NodeName != "" {
@@ -97,7 +97,7 @@ func (r *SQLJobRepository) RecordJobFailed(event *api.JobFailedEvent) error {
 	return r.updateJobRun(event, fields, values)
 }
 
-func (r *SQLJobRepository) updateJobRun(event api.KubernetesEvent, fields []string, values []interface{}) error {
+func (r *SQLJobStore) updateJobRun(event api.KubernetesEvent, fields []string, values []interface{}) error {
 	_, err := upsert(r.db, "job_run",
 		"run_id", append([]string{"job_id", "cluster"}, fields...),
 		append([]interface{}{event.GetKubernetesId(), event.GetJobId(), event.GetClusterId()}, values...))

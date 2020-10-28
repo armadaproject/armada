@@ -28,6 +28,7 @@ require (
 	github.com/imdario/mergo v0.3.7 // indirect
 	github.com/instrumenta/kubeval v0.0.0-20190918223246-8d013ec9fc56
 	github.com/jcmturner/gokrb5/v8 v8.1.1
+	github.com/lib/pq v1.3.0
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/mitchellh/mapstructure v1.1.2
 	github.com/nats-io/nats-server/v2 v2.1.6 // indirect
@@ -36,6 +37,7 @@ require (
 	github.com/nats-io/stan.go v0.6.0
 	github.com/oklog/ulid v1.3.1
 	github.com/prometheus/client_golang v1.2.1
+	github.com/rakyll/statik v0.1.7
 	github.com/segmentio/kafka-go v0.3.5
 	github.com/sirupsen/logrus v1.4.2
 	github.com/spf13/cobra v0.0.5
