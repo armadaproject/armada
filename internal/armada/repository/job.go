@@ -1,7 +1,6 @@
 package repository
 
 import (
-	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -544,7 +543,7 @@ func (repo *RedisJobRepository) AddRetryAttempt(jobId string) error {
 
 func (repo *RedisJobRepository) GetNumberOfRetryAttempts(jobId string) (int, error) {
 	retriesStr, err := repo.db.Get(jobRetriesPrefix + jobId).Result()
-	if errors.Is(err, redis.Nil) {
+	if err == redis.Nil {
 		return 0, nil
 	}
 	if err != nil {
