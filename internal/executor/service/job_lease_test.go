@@ -12,7 +12,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/G-Research/armada/internal/common"
-	"github.com/G-Research/armada/internal/executor/domain"
 	context2 "github.com/G-Research/armada/internal/executor/fake/context"
 	"github.com/G-Research/armada/pkg/api"
 )
@@ -62,31 +61,6 @@ func TestChunkPods(t *testing.T) {
 	assert.Equal(t, [][]*v1.Pod{{p, p}, {p}}, chunks)
 }
 
-func TestJobLeaseService_ReportDoneOnRetriedJobEvictsItFromRetryCache(t *testing.T) {
-	s := createLeaseService(time.Second, time.Second)
-
-	s.retryCache.AddRetryAttempt("job-1")
-
-	err := s.ReportDone([]*v1.Pod{{
-		ObjectMeta: metav1.ObjectMeta{
-			Labels: map[string]string{
-				domain.JobId: "job-1",
-				domain.Queue: "queue-1",
-			},
-			Annotations: map[string]string{
-				domain.JobSetId: "job-set-1",
-			},
-			CreationTimestamp: metav1.Time{time.Now().Add(-10 * time.Minute)},
-		},
-	}})
-
-	if err != nil {
-		t.Error(err)
-	}
-
-	assert.Zero(t, s.retryCache.GetNumberOfRetryAttempts("job-1"))
-}
-
 func makeFinishedPodWithTimestamp(state v1.PodPhase, timestamp time.Time) *v1.Pod {
 	pod := makePodWithCurrentStateReported(state, true)
 	pod.CreationTimestamp.Time = timestamp
@@ -114,7 +88,7 @@ func makePodWithCurrentStateReported(state v1.PodPhase, reportedDone bool) *v1.P
 
 func createLeaseService(minimumPodAge, failedPodExpiry time.Duration) *JobLeaseService {
 	fakeClusterContext := context2.NewFakeClusterContext("test", nil)
-	return NewJobLeaseService(fakeClusterContext, &queueClientMock{}, NewInMemoryRetryCache(), minimumPodAge, failedPodExpiry, common.ComputeResources{})
+	return NewJobLeaseService(fakeClusterContext, &queueClientMock{}, minimumPodAge, failedPodExpiry, common.ComputeResources{})
 }
 
 type queueClientMock struct {
