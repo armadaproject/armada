@@ -136,23 +136,23 @@ func (q *AggregatedQueueServer) ReturnLease(ctx context.Context, request *api.Re
 	}
 
 	// Check how many times the same job has been retried already
-	retries, getRetriesErr := q.jobRepository.GetNumberOfRetryAttempts(request.JobId)
-	if getRetriesErr != nil {
-		return nil, getRetriesErr
+	retries, err := q.jobRepository.GetNumberOfRetryAttempts(request.JobId)
+	if err != nil {
+		return nil, err
 	}
 	if retries >= 5 {
 		_, reportDoneErr := q.ReportDone(ctx, &api.IdList{Ids: []string{request.JobId}})
 		return &types.Empty{}, reportDoneErr
 	}
 
-	_, err := q.jobRepository.ReturnLease(request.ClusterId, request.JobId)
+	_, err = q.jobRepository.ReturnLease(request.ClusterId, request.JobId)
 	if err != nil {
 		return nil, err
 	}
 
-	addRetryAttemptErr := q.jobRepository.AddRetryAttempt(request.JobId)
-	if addRetryAttemptErr != nil {
-		return nil, addRetryAttemptErr
+	err = q.jobRepository.AddRetryAttempt(request.JobId)
+	if err != nil {
+		return nil, err
 	}
 
 	return &types.Empty{}, nil
