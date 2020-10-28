@@ -556,19 +556,17 @@ func (repo *RedisJobRepository) AddRetryAttempt(jobId string) error {
 }
 
 func (repo *RedisJobRepository) GetNumberOfRetryAttempts(jobId string) (int, error) {
-	val, err := repo.db.Get(jobRetriesPrefix + jobId).Result()
-
+	retriesStr, err := repo.db.Get(jobRetriesPrefix + jobId).Result()
 	if err != nil {
 		return 0, err
 	}
 
-	i, err := strconv.Atoi(val)
-
+	retries, err := strconv.Atoi(retriesStr)
 	if err != nil {
 		return 0, err
 	}
 
-	return i, nil
+	return retries, nil
 }
 
 func (repo *RedisJobRepository) leaseJobs(clusterId string, jobs []*api.Job) ([]string, error) {
