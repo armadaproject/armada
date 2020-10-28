@@ -22,7 +22,7 @@ func TestStuckPodDetector_DoesNothingIfNoPodsAreFound(t *testing.T) {
 
 	assert.Zero(t, mockLeaseService.returnLeaseCalls)
 
-	mockLeaseService.assertReportDoneCalledOnceWith(t, emptyPodSlice())
+	mockLeaseService.assertReportDoneCalledOnceWith(t, []*v1.Pod{})
 }
 
 func TestStuckPodDetector_DoesNothingIfNoStuckPodsAreFound(t *testing.T) {
@@ -36,7 +36,7 @@ func TestStuckPodDetector_DoesNothingIfNoStuckPodsAreFound(t *testing.T) {
 
 	assert.Zero(t, mockLeaseService.returnLeaseCalls)
 
-	mockLeaseService.assertReportDoneCalledOnceWith(t, emptyPodSlice())
+	mockLeaseService.assertReportDoneCalledOnceWith(t, []*v1.Pod{})
 }
 
 func TestStuckPodDetector_DeletesPodAndReportsDoneIfStuckAndUnretryable(t *testing.T) {
@@ -49,7 +49,7 @@ func TestStuckPodDetector_DeletesPodAndReportsDoneIfStuckAndUnretryable(t *testi
 	stuckPodDetector.HandleStuckPods()
 
 	remainingActivePods := getActivePods(t, fakeClusterContext)
-	assert.Equal(t, emptyPodSlice(), remainingActivePods)
+	assert.Equal(t, []*v1.Pod{}, remainingActivePods)
 
 	assert.Zero(t, mockLeaseService.returnLeaseCalls)
 
@@ -67,20 +67,20 @@ func TestStuckPodDetector_ReturnsLeaseAndDeletesRetryableStuckPod(t *testing.T) 
 
 	// Not done as can be retried
 	assert.Equal(t, 1, mockLeaseService.reportDoneCalls)
-	assert.Equal(t, emptyPodSlice(), mockLeaseService.reportDoneArg)
+	assert.Equal(t, []*v1.Pod{}, mockLeaseService.reportDoneArg)
 
 	// Not returning lease yet
 	assert.Equal(t, 0, mockLeaseService.returnLeaseCalls)
 
 	// Still deletes pod
 	remainingActivePods := getActivePods(t, fakeClusterContext)
-	assert.Equal(t, emptyPodSlice(), remainingActivePods)
+	assert.Equal(t, []*v1.Pod{}, remainingActivePods)
 
 	stuckPodDetector.HandleStuckPods()
 
 	// Not done as can be retried
 	assert.Equal(t, 2, mockLeaseService.reportDoneCalls)
-	assert.Equal(t, emptyPodSlice(), mockLeaseService.reportDoneArg)
+	assert.Equal(t, []*v1.Pod{}, mockLeaseService.reportDoneArg)
 
 	// Return lease for retry
 	assert.Equal(t, 1, mockLeaseService.returnLeaseCalls)
@@ -167,10 +167,6 @@ func makeStuckPodDetectorWithTestDoubles() (context.ClusterContext, *mockLeaseSe
 		time.Second)
 
 	return fakeClusterContext, mockLeaseService, stuckPodDetector
-}
-
-func emptyPodSlice() []*v1.Pod {
-	return make([]*v1.Pod, 0)
 }
 
 type mockLeaseService struct {

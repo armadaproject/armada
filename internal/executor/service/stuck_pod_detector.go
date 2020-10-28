@@ -13,8 +13,6 @@ import (
 	"github.com/G-Research/armada/internal/executor/util"
 )
 
-const maxRetries = 5
-
 type StuckPodDetector struct {
 	clusterContext  context.ClusterContext
 	eventReporter   reporter.EventReporter
@@ -52,7 +50,6 @@ func (d *StuckPodDetector) onStuckPodDetected(pod *v1.Pod) (err error, retryable
 	}
 
 	retryable, message = util.DiagnoseStuckPod(pod, podEvents)
-
 	if retryable {
 		message = fmt.Sprintf("Unable to schedule pod, Armada will retrun lease and retry.\n%s", message)
 	} else {
