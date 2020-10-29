@@ -23,6 +23,7 @@ const jobQueuePrefix = "Job:Queue:"
 const jobSetPrefix = "Job:Set:"
 const jobLeasedPrefix = "Job:Leased:"
 const jobClusterMapKey = "Job:ClusterId"
+const jobRetriesPrefix = "Job:Retries:"
 
 type JobQueueRepository interface {
 	PeekQueue(queue string, limit int64) ([]*api.Job, error)
@@ -42,6 +43,8 @@ type JobRepository interface {
 	DeleteJobs(jobs []*api.Job) map[*api.Job]error
 	GetActiveJobIds(queue string, jobSetId string) ([]string, error)
 	GetQueueActiveJobSets(queue string) ([]*api.JobSetInfo, error)
+	AddRetryAttempt(jobId string) error
+	GetNumberOfRetryAttempts(jobId string) (int, error)
 }
 
 type RedisJobRepository struct {
@@ -159,7 +162,6 @@ func (repo *RedisJobRepository) AddJobs(jobs []*api.Job) ([]*SubmitJobResult, er
 		if _, e := submitResult.saveJobResult.Result(); e != nil {
 			response.Error = e
 		}
-
 		if _, e := submitResult.jobSetIndexResult.Result(); e != nil {
 			response.Error = e
 		}
@@ -206,6 +208,7 @@ type deleteJobRedisResponse struct {
 	removeClusterAssociationResult *redis.IntCmd
 	setJobExpiryResult             *redis.BoolCmd
 	deleteJobSetIndexResult        *redis.IntCmd
+	deleteJobRetriesResult         *redis.IntCmd
 }
 
 func (repo *RedisJobRepository) DeleteJobs(jobs []*api.Job) map[*api.Job]error {
@@ -218,6 +221,7 @@ func (repo *RedisJobRepository) DeleteJobs(jobs []*api.Job) map[*api.Job]error {
 		deletionResult.removeFromLeasedResult = pipe.ZRem(jobLeasedPrefix+job.Queue, job.Id)
 		deletionResult.removeClusterAssociationResult = pipe.HDel(jobClusterMapKey, job.Id)
 		deletionResult.deleteJobSetIndexResult = pipe.SRem(jobSetPrefix+job.JobSetId, job.Id)
+		deletionResult.deleteJobRetriesResult = pipe.Del(jobRetriesPrefix + job.Id)
 
 		if !deletionResult.expiryAlreadySet {
 			deletionResult.setJobExpiryResult = pipe.Expire(jobObjectPrefix+job.Id, time.Hour*24*7)
@@ -289,6 +293,12 @@ func processDeletionResponse(deletionResponse *deleteJobRedisResponse) (int64, e
 	}
 
 	modified, e = deletionResponse.removeClusterAssociationResult.Result()
+	totalUpdates += modified
+	if e != nil {
+		errorMessage = e
+	}
+
+	modified, e = deletionResponse.deleteJobRetriesResult.Result()
 	totalUpdates += modified
 	if e != nil {
 		errorMessage = e
@@ -524,6 +534,28 @@ func (repo *RedisJobRepository) ExpireLeases(queue string, deadline time.Time) (
 		}
 	}
 	return expired, nil
+}
+
+func (repo *RedisJobRepository) AddRetryAttempt(jobId string) error {
+	_, err := repo.db.Incr(jobRetriesPrefix + jobId).Result()
+	return err
+}
+
+func (repo *RedisJobRepository) GetNumberOfRetryAttempts(jobId string) (int, error) {
+	retriesStr, err := repo.db.Get(jobRetriesPrefix + jobId).Result()
+	if err == redis.Nil {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, err
+	}
+
+	retries, err := strconv.Atoi(retriesStr)
+	if err != nil {
+		return 0, err
+	}
+
+	return retries, nil
 }
 
 func (repo *RedisJobRepository) leaseJobs(clusterId string, jobs []*api.Job) ([]string, error) {

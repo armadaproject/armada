@@ -17,7 +17,7 @@ import (
 )
 
 func TestCanBeRemovedConditions(t *testing.T) {
-	s := CreateLeaseService(time.Second, time.Second)
+	s := createLeaseService(time.Second, time.Second)
 	pods := map[*v1.Pod]bool{
 		// should not be cleaned yet
 		makePodWithCurrentStateReported(v1.PodRunning, false):   false,
@@ -36,7 +36,7 @@ func TestCanBeRemovedConditions(t *testing.T) {
 }
 
 func TestCanBeRemovedMinumumPodTime(t *testing.T) {
-	s := CreateLeaseService(5*time.Minute, 10*time.Minute)
+	s := createLeaseService(5*time.Minute, 10*time.Minute)
 	now := time.Now()
 	pods := map[*v1.Pod]bool{
 		// should not be cleaned yet
@@ -86,7 +86,7 @@ func makePodWithCurrentStateReported(state v1.PodPhase, reportedDone bool) *v1.P
 	return &pod
 }
 
-func CreateLeaseService(minimumPodAge, failedPodExpiry time.Duration) *JobLeaseService {
+func createLeaseService(minimumPodAge, failedPodExpiry time.Duration) *JobLeaseService {
 	fakeClusterContext := context2.NewFakeClusterContext("test", nil)
 	return NewJobLeaseService(fakeClusterContext, &queueClientMock{}, minimumPodAge, failedPodExpiry, common.ComputeResources{})
 }
