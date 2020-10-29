@@ -4,15 +4,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/G-Research/armada/internal/common"
-	"github.com/G-Research/armada/internal/executor/context"
-	"github.com/G-Research/armada/internal/executor/domain"
-	"github.com/G-Research/armada/pkg/api"
-
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
+
+	"github.com/G-Research/armada/internal/common"
+	"github.com/G-Research/armada/internal/executor/context"
+	"github.com/G-Research/armada/internal/executor/domain"
+	"github.com/G-Research/armada/pkg/api"
 )
 
 func TestStuckPodDetector_DoesNothingIfNoPodsAreFound(t *testing.T) {
