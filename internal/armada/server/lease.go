@@ -194,7 +194,7 @@ func (q *AggregatedQueueServer) ReportDone(ctx context.Context, idList *api.IdLi
 }
 
 func (q *AggregatedQueueServer) reportFailure(jobId string, clusterId string, reason string) error {
-	job, err := getJobById(q.jobRepository, jobId)
+	job, err := q.getJobById(jobId)
 	if err != nil {
 		return err
 	}
@@ -208,13 +208,13 @@ func (q *AggregatedQueueServer) reportFailure(jobId string, clusterId string, re
 	return nil
 }
 
-func getJobById(jobRepository repository.JobRepository, jobId string) (*api.Job, error) {
-	jobs, err := jobRepository.GetExistingJobsByIds([]string{jobId})
+func (q *AggregatedQueueServer) getJobById(jobId string) (*api.Job, error) {
+	jobs, err := q.jobRepository.GetExistingJobsByIds([]string{jobId})
 	if err != nil {
 		return nil, err
 	}
 	if len(jobs) < 1 {
-		return nil, fmt.Errorf("Job with jobId %q not found", jobId)
+		return nil, fmt.Errorf("job with jobId %q not found", jobId)
 	}
 	return jobs[0], err
 }
