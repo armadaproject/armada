@@ -195,6 +195,11 @@ func (repo *mockJobRepository) ReturnLease(clusterId string, jobId string) (retu
 func (repo *mockJobRepository) DeleteJobs(jobs []*api.Job) map[*api.Job]error {
 	repo.deleteJobsCalls++
 	repo.deleteJobsArg = jobs
+
+	for _, job := range jobs {
+		delete(repo.jobs, job.Id)
+	}
+
 	return map[*api.Job]error{}
 }
 

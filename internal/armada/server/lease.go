@@ -144,13 +144,13 @@ func (q *AggregatedQueueServer) ReturnLease(ctx context.Context, request *api.Re
 
 	maxRetries := int(q.schedulingConfig.MaxRetries)
 	if retries >= maxRetries {
-		_, err := q.ReportDone(ctx, &api.IdList{Ids: []string{request.JobId}})
+		failureReason := fmt.Sprintf("Exceeded maximum number of retries: %d", maxRetries)
+		err = q.reportFailure(request.JobId, request.ClusterId, failureReason)
 		if err != nil {
 			return nil, err
 		}
 
-		failureReason := fmt.Sprintf("Exceeded maximum number of retries: %d", maxRetries)
-		err = q.reportFailure(request.JobId, request.ClusterId, failureReason)
+		_, err := q.ReportDone(ctx, &api.IdList{Ids: []string{request.JobId}})
 		if err != nil {
 			return nil, err
 		}
