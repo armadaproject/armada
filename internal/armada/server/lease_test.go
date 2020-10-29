@@ -15,7 +15,7 @@ import (
 )
 
 func TestAggregatedQueueServer_ReturnLeaseCallsRepositoryMethod(t *testing.T) {
-	mockJobRepository, aggregatedQueueClient := makeAggregatedQueueServerWithTestDoubles(5)
+	mockJobRepository, _, aggregatedQueueClient := makeAggregatedQueueServerWithTestDoubles(5)
 
 	clusterId := "cluster-1"
 	jobId := "job-id-1"
@@ -37,7 +37,7 @@ func TestAggregatedQueueServer_ReturnLeaseCallsRepositoryMethod(t *testing.T) {
 
 func TestAggregatedQueueServer_ReturningLeaseMoreThanMaxRetriesDeletesJob(t *testing.T) {
 	maxRetries := 5
-	mockJobRepository, aggregatedQueueClient := makeAggregatedQueueServerWithTestDoubles(uint(maxRetries))
+	mockJobRepository, _, aggregatedQueueClient := makeAggregatedQueueServerWithTestDoubles(uint(maxRetries))
 
 	clusterId := "cluster-1"
 	jobId := "job-id-1"
@@ -69,9 +69,50 @@ func TestAggregatedQueueServer_ReturningLeaseMoreThanMaxRetriesDeletesJob(t *tes
 	assert.Equal(t, []*api.Job{job}, mockJobRepository.deleteJobsArg)
 }
 
-func makeAggregatedQueueServerWithTestDoubles(maxRetries uint) (*mockJobRepository, *AggregatedQueueServer) {
+func TestAggregatedQueueServer_ReturningLeaseMoreThanMaxRetriesSendsJobFailedEvent(t *testing.T) {
+	maxRetries := 7
+	mockJobRepository, fakeEventStore, aggregatedQueueClient := makeAggregatedQueueServerWithTestDoubles(uint(maxRetries))
+
+	clusterId := "cluster-1"
+	jobId := "job-id-1"
+	jobSetId := "job-set-id-1"
+	queue := "queue-1"
+	job := &api.Job{
+		Id:       jobId,
+		JobSetId: jobSetId,
+		Queue:    queue,
+	}
+
+	_, addJobsErr := mockJobRepository.AddJobs([]*api.Job{job})
+	assert.Nil(t, addJobsErr)
+
+	for i := 0; i < maxRetries; i++ {
+		_, err := aggregatedQueueClient.ReturnLease(context.TODO(), &api.ReturnLeaseRequest{
+			ClusterId: clusterId,
+			JobId:     jobId,
+		})
+		assert.Nil(t, err)
+	}
+
+	_, err := aggregatedQueueClient.ReturnLease(context.TODO(), &api.ReturnLeaseRequest{
+		ClusterId: clusterId,
+		JobId:     jobId,
+	})
+	assert.Nil(t, err)
+	assert.Equal(t, 1, len(fakeEventStore.events))
+
+	failedEvent := fakeEventStore.events[0].GetFailed()
+	assert.Equal(t, jobId, failedEvent.JobId)
+	assert.Equal(t, jobSetId, failedEvent.JobSetId)
+	assert.Equal(t, queue, failedEvent.Queue)
+	assert.Equal(t, clusterId, failedEvent.ClusterId)
+	assert.Equal(t, fmt.Sprintf("Exceeded maximum number of retries: %d", maxRetries), failedEvent.Reason)
+}
+
+func makeAggregatedQueueServerWithTestDoubles(maxRetries uint) (*mockJobRepository, *fakeEventStore, *AggregatedQueueServer) {
 	mockJobRepository := newMockJobRepository()
-	return mockJobRepository, NewAggregatedQueueServer(
+	fakeEventStore := &fakeEventStore{}
+	return mockJobRepository, fakeEventStore, NewAggregatedQueueServer(
 		&FakePermissionChecker{},
 		configuration.SchedulingConfig{
 			MaxRetries: maxRetries,
@@ -79,7 +120,7 @@ func makeAggregatedQueueServerWithTestDoubles(maxRetries uint) (*mockJobReposito
 		mockJobRepository,
 		&fakeQueueRepository{},
 		&fakeUsageRepository{},
-		&fakeEventStore{},
+		fakeEventStore,
 		&fakeSchedulingInfoRepository{})
 }
 
@@ -234,9 +275,12 @@ func (repo *fakeUsageRepository) UpdateClusterLeased(report *api.ClusterLeasedRe
 	return nil
 }
 
-type fakeEventStore struct{}
+type fakeEventStore struct {
+	events []*api.EventMessage
+}
 
 func (es *fakeEventStore) ReportEvents(message []*api.EventMessage) error {
+	es.events = append(es.events, message...)
 	return nil
 }
 

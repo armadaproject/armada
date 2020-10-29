@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/gogo/protobuf/types"
 	"google.golang.org/grpc/codes"
@@ -15,8 +16,6 @@ import (
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/pkg/api"
 )
-
-const maxRetries = 5
 
 type AggregatedQueueServer struct {
 	permissions              authorization.PermissionChecker
@@ -142,9 +141,21 @@ func (q *AggregatedQueueServer) ReturnLease(ctx context.Context, request *api.Re
 	if err != nil {
 		return nil, err
 	}
-	if retries >= int(q.schedulingConfig.MaxRetries) {
-		_, reportDoneErr := q.ReportDone(ctx, &api.IdList{Ids: []string{request.JobId}})
-		return &types.Empty{}, reportDoneErr
+
+	maxRetries := int(q.schedulingConfig.MaxRetries)
+	if retries >= maxRetries {
+		_, err := q.ReportDone(ctx, &api.IdList{Ids: []string{request.JobId}})
+		if err != nil {
+			return nil, err
+		}
+
+		failureReason := fmt.Sprintf("Exceeded maximum number of retries: %d", maxRetries)
+		err = q.reportFailure(request.JobId, request.ClusterId, failureReason)
+		if err != nil {
+			return nil, err
+		}
+
+		return &types.Empty{}, nil
 	}
 
 	_, err = q.jobRepository.ReturnLease(request.ClusterId, request.JobId)
@@ -180,4 +191,30 @@ func (q *AggregatedQueueServer) ReportDone(ctx context.Context, idList *api.IdLi
 		}
 	}
 	return &api.IdList{cleanedIds}, returnedError
+}
+
+func (q *AggregatedQueueServer) reportFailure(jobId string, clusterId string, reason string) error {
+	job, err := getJobById(q.jobRepository, jobId)
+	if err != nil {
+		return err
+	}
+
+	failureReason := reason
+	err = reportFailed(q.eventStore, clusterId, failureReason, job)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func getJobById(jobRepository repository.JobRepository, jobId string) (*api.Job, error) {
+	jobs, err := jobRepository.GetExistingJobsByIds([]string{jobId})
+	if err != nil {
+		return nil, err
+	}
+	if len(jobs) < 1 {
+		return nil, fmt.Errorf("Job with jobId %q not found", jobId)
+	}
+	return jobs[0], err
 }
