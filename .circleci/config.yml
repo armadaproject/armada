@@ -148,6 +148,9 @@ jobs:
           command: |
             exit $(go run golang.org/x/tools/cmd/goimports -l -local "github.com/G-Research/armada" . | wc -l)
 
+      - run:
+          name: Check generated files
+          command: ./scripts/validate-generated.sh
 
       - store_artifacts:
           path: bin/armadactl
