@@ -125,11 +125,11 @@ jobs:
 
       - run:
           name: Test
-          command: echo "tests" # make tests
+          command: make tests
 
       - run:
           name: Build & Run e2e tests
-          command: echo "e2e tests" # make build-ci tests-e2e
+          command: make build-ci tests-e2e
 
       - run: cat go.sum
 
@@ -153,6 +153,7 @@ jobs:
           name: Check formatting
           command: |
             exit $(go run golang.org/x/tools/cmd/goimports -l -local "github.com/G-Research/armada" . | wc -l)
+
 
       - store_artifacts:
           path: bin/armadactl
