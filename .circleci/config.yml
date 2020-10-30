@@ -140,19 +140,22 @@ jobs:
             - "/home/circleci/go/cache"
 
       - run:
-          name: Check generated files
-          command: |
-            make proto
-            exit $(git status -s -uno | wc -l)
-
-      - run:
           name: ineffassign
-          command: go run github.com/gordonklaus/ineffassign .
+          command: |
+            cd /tmp
+            go run github.com/gordonklaus/ineffassign ~/go/src/github.com/G-Research/armada
+            cd ~/go/src/github.com/G-Research/armada
 
       - run:
           name: Check formatting
           command: |
             exit $(go run golang.org/x/tools/cmd/goimports -l -local "github.com/G-Research/armada" . | wc -l)
+
+      - run:
+          name: Check generated files
+          command: |
+            make proto
+            exit $(git status -s -uno | wc -l)
 
 
       - store_artifacts:
