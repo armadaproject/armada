@@ -150,7 +150,9 @@ jobs:
 
       - run:
           name: Check generated files
-          command: ./scripts/validate-generated.sh
+          command: |
+            make proto
+            exit $(git status -s -uno | wc -l)
 
       - store_artifacts:
           path: bin/armadactl
