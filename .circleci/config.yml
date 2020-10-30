@@ -153,6 +153,9 @@ jobs:
           command: |
             make proto
             dirs_to_check='pkg/api|client/DotNet/Armada.Client'
+            echo "DEBUG 1"
+            git status -s -uno
+            echo "DEBUG 2"
             git status -s -uno | grep -E "$dirs_to_check"
             exit $(git status -s -uno | grep -c -E "$dirs_to_check")
 
