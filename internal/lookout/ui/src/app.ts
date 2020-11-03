@@ -10,7 +10,7 @@ import { JobService } from './services/jobs';
 
 export class App
 {
-    jobs = new JobService(new LookoutApi(new Configuration({basePath: "api"})))
+    jobs = new JobService(new LookoutApi(new Configuration({basePath: "/"})))
 
     constructor()
     {
