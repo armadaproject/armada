@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"path"
 	"strings"
 
 	"github.com/go-openapi/runtime/middleware"
@@ -23,11 +24,26 @@ func ServeGateway(
 	spec string,
 	handlers ...func(ctx context.Context, mux *runtime.ServeMux, conn *grpc.ClientConn) error) (shutdown func()) {
 
-	grpcAddress := fmt.Sprintf(":%d", grpcPort)
+	mux, shutdownGateway := CreateGatewayHandler(grpcPort, "/", spec, handlers...)
+	cancel := common.ServeHttp(port, mux)
+
+	return func() {
+		shutdownGateway()
+		cancel()
+	}
+}
+
+func CreateGatewayHandler(
+	grpcPort uint16,
+	apiBasePath string,
+	spec string,
+	handlers ...func(ctx context.Context, mux *runtime.ServeMux, conn *grpc.ClientConn) error) (handler *http.ServeMux, shutdown func()) {
+
 	connectionCtx, cancelConnectionCtx := context.WithCancel(context.Background())
 
-	mux := http.NewServeMux()
+	grpcAddress := fmt.Sprintf(":%d", grpcPort)
 
+	mux := http.NewServeMux()
 	mux.HandleFunc("/health", health)
 
 	m := new(protoutil.JSONMarshaller)
@@ -52,15 +68,12 @@ func ServeGateway(
 		}
 	}
 
-	mux.Handle("/", gw)
-	h := middleware.Spec("/", []byte(spec), mux)
+	mux.Handle(apiBasePath, gw)
+	mux.Handle(path.Join(apiBasePath, "swagger.json"), middleware.Spec(apiBasePath, []byte(spec), nil))
 
-	cancel := common.ServeHttp(port, h)
-
-	return func() {
+	return mux, func() {
 		cancelConnectionCtx()
 		conn.Close()
-		cancel()
 	}
 }
 

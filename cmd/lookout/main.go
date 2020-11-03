@@ -1,6 +1,7 @@
 package main
 
 import (
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -36,17 +37,27 @@ func main() {
 	shutdownMetricServer := common.ServeMetrics(config.MetricsPort)
 	defer shutdownMetricServer()
 
-	shutdownGateway := grpc.ServeGateway(
-		config.HttpPort,
+	mux, shutdownGateway := grpc.CreateGatewayHandler(
 		config.GrpcPort,
+		"/api/",
 		lookoutApi.SwaggerJsonTemplate(),
 		lookoutApi.RegisterLookoutHandler)
-	defer shutdownGateway()
+
+	// server static UI files
+	mux.Handle("/js", http.FileServer(http.Dir("./internal/lookout/ui/dist/js")))
+	// to accommodate client side routing index.html is server for any path
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "./internal/lookout/ui/dist/index.html")
+	})
+
+	shutdownServer := common.ServeHttp(config.HttpPort, mux)
 
 	shutdown, wg := lookout.StartUp(config)
 	go func() {
 		<-shutdownChannel
 		shutdown()
+		shutdownGateway()
+		shutdownServer()
 	}()
 	wg.Wait()
 }

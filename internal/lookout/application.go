@@ -11,8 +11,8 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/G-Research/armada/internal/armada/authorization"
-	server2 "github.com/G-Research/armada/internal/common/grpc"
-	stan_util "github.com/G-Research/armada/internal/common/stan-util"
+	"github.com/G-Research/armada/internal/common/grpc"
+	stanUtil "github.com/G-Research/armada/internal/common/stan-util"
 	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/lookout/configuration"
 	"github.com/G-Research/armada/internal/lookout/events"
@@ -26,7 +26,7 @@ func StartUp(config configuration.LookoutConfiguration) (func(), *sync.WaitGroup
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
 
-	grpcServer := server2.CreateGrpcServer([]authorization.AuthService{&authorization.AnonymousAuthService{}})
+	grpcServer := grpc.CreateGrpcServer([]authorization.AuthService{&authorization.AnonymousAuthService{}})
 
 	db, err := sql.Open("postgres", config.PostgresConnectionString)
 	if err != nil {
@@ -36,7 +36,7 @@ func StartUp(config configuration.LookoutConfiguration) (func(), *sync.WaitGroup
 	jobStore := repository.NewSQLJobStore(db)
 	jobRepository := repository.NewSQLJobRepository(db)
 
-	conn, err := stan_util.DurableConnect(
+	conn, err := stanUtil.DurableConnect(
 		config.Nats.ClusterID,
 		"armada-server-"+util.NewULID(),
 		strings.Join(config.Nats.Servers, ","),
@@ -77,7 +77,6 @@ func StartUp(config configuration.LookoutConfiguration) (func(), *sync.WaitGroup
 			log.Errorf("failed to close db connection: %v", err)
 		}
 		grpcServer.GracefulStop()
-		wg.Done()
 	}
 
 	return stop, wg
