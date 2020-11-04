@@ -23,3 +23,6 @@ sudo apt-get install -y nodejs
 
 node -v
 npm -v 
+node_14 -v
+which node
+which node_14
