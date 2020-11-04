@@ -11,7 +11,7 @@
     "version": "version not set"
   },
   "paths": {
-    "/v1/lookout/overview": {
+    "/api/v1/lookout/overview": {
       "get": {
         "tags": [
           "Lookout"

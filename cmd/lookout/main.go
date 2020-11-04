@@ -1,6 +1,7 @@
 package main
 
 import (
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/internal/common/grpc"
+	"github.com/G-Research/armada/internal/common/serve"
 	"github.com/G-Research/armada/internal/lookout"
 	"github.com/G-Research/armada/internal/lookout/configuration"
 	lookoutApi "github.com/G-Research/armada/pkg/api/lookout"
@@ -36,17 +38,23 @@ func main() {
 	shutdownMetricServer := common.ServeMetrics(config.MetricsPort)
 	defer shutdownMetricServer()
 
-	shutdownGateway := grpc.ServeGateway(
-		config.HttpPort,
+	mux, shutdownGateway := grpc.CreateGatewayHandler(
 		config.GrpcPort,
+		"/api/",
 		lookoutApi.SwaggerJsonTemplate(),
 		lookoutApi.RegisterLookoutHandler)
-	defer shutdownGateway()
+
+	// server static UI files
+	mux.Handle("/", http.FileServer(serve.CreateDirWithIndexFallback("./internal/lookout/ui/build")))
+
+	shutdownServer := common.ServeHttp(config.HttpPort, mux)
 
 	shutdown, wg := lookout.StartUp(config)
 	go func() {
 		<-shutdownChannel
 		shutdown()
+		shutdownGateway()
+		shutdownServer()
 	}()
 	wg.Wait()
 }

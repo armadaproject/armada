@@ -32,7 +32,7 @@ message QueueInfo {
 service Lookout {
     rpc Overview (google.protobuf.Empty) returns (SystemOverview) {
         option (google.api.http) = {
-            get: "/v1/lookout/overview"
+            get: "/api/v1/lookout/overview"
         };
     }
 }
