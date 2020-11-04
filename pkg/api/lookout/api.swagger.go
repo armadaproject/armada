@@ -124,6 +124,12 @@ func SwaggerJsonTemplate() string {
 		"      \"properties\": {\n" +
 		"        \"job\": {\n" +
 		"          \"$ref\": \"#/definitions/apiJob\"\n" +
+		"        },\n" +
+		"        \"runs\": {\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/lookoutRunInfo\"\n" +
+		"          }\n" +
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
@@ -150,6 +156,42 @@ func SwaggerJsonTemplate() string {
 		"        },\n" +
 		"        \"queue\": {\n" +
 		"          \"type\": \"string\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"lookoutRunInfo\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"cancelled\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"format\": \"date-time\"\n" +
+		"        },\n" +
+		"        \"cluster\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"error\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"finished\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"format\": \"date-time\"\n" +
+		"        },\n" +
+		"        \"k8sId\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"node\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"started\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"format\": \"date-time\"\n" +
+		"        },\n" +
+		"        \"submitted\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"format\": \"date-time\"\n" +
+		"        },\n" +
+		"        \"succeeded\": {\n" +
+		"          \"type\": \"boolean\"\n" +
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +

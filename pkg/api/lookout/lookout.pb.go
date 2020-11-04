@@ -11,9 +11,11 @@ import (
 	math_bits "math/bits"
 	reflect "reflect"
 	strings "strings"
+	time "time"
 
 	_ "github.com/gogo/protobuf/gogoproto"
 	proto "github.com/gogo/protobuf/proto"
+	github_com_gogo_protobuf_types "github.com/gogo/protobuf/types"
 	types "github.com/gogo/protobuf/types"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	grpc "google.golang.org/grpc"
@@ -27,6 +29,7 @@ import (
 var _ = proto.Marshal
 var _ = fmt.Errorf
 var _ = math.Inf
+var _ = time.Kitchen
 
 // This is a compile-time assertion to ensure that this generated file
 // is compatible with the proto package it is being compiled against.
@@ -78,7 +81,8 @@ func (m *SystemOverview) GetQueues() []*QueueInfo {
 }
 
 type JobInfo struct {
-	Job *api.Job `protobuf:"bytes,1,opt,name=job,proto3" json:"job,omitempty"`
+	Job  *api.Job   `protobuf:"bytes,1,opt,name=job,proto3" json:"job,omitempty"`
+	Runs []*RunInfo `protobuf:"bytes,2,rep,name=runs,proto3" json:"runs,omitempty"`
 }
 
 func (m *JobInfo) Reset()      { *m = JobInfo{} }
@@ -120,6 +124,120 @@ func (m *JobInfo) GetJob() *api.Job {
 	return nil
 }
 
+func (m *JobInfo) GetRuns() []*RunInfo {
+	if m != nil {
+		return m.Runs
+	}
+	return nil
+}
+
+type RunInfo struct {
+	K8SId     string     `protobuf:"bytes,1,opt,name=k8s_id,json=k8sId,proto3" json:"k8sId,omitempty"`
+	Cluster   string     `protobuf:"bytes,2,opt,name=cluster,proto3" json:"cluster,omitempty"`
+	Node      string     `protobuf:"bytes,3,opt,name=node,proto3" json:"node,omitempty"`
+	Succeeded bool       `protobuf:"varint,4,opt,name=succeeded,proto3" json:"succeeded,omitempty"`
+	Error     string     `protobuf:"bytes,5,opt,name=error,proto3" json:"error,omitempty"`
+	Submitted *time.Time `protobuf:"bytes,6,opt,name=submitted,proto3,stdtime" json:"submitted,omitempty"`
+	Cancelled *time.Time `protobuf:"bytes,7,opt,name=cancelled,proto3,stdtime" json:"cancelled,omitempty"`
+	Started   *time.Time `protobuf:"bytes,8,opt,name=started,proto3,stdtime" json:"started,omitempty"`
+	Finished  *time.Time `protobuf:"bytes,9,opt,name=finished,proto3,stdtime" json:"finished,omitempty"`
+}
+
+func (m *RunInfo) Reset()      { *m = RunInfo{} }
+func (*RunInfo) ProtoMessage() {}
+func (*RunInfo) Descriptor() ([]byte, []int) {
+	return fileDescriptor_6ee7620a6fb9cfb1, []int{2}
+}
+func (m *RunInfo) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *RunInfo) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_RunInfo.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *RunInfo) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_RunInfo.Merge(m, src)
+}
+func (m *RunInfo) XXX_Size() int {
+	return m.Size()
+}
+func (m *RunInfo) XXX_DiscardUnknown() {
+	xxx_messageInfo_RunInfo.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_RunInfo proto.InternalMessageInfo
+
+func (m *RunInfo) GetK8SId() string {
+	if m != nil {
+		return m.K8SId
+	}
+	return ""
+}
+
+func (m *RunInfo) GetCluster() string {
+	if m != nil {
+		return m.Cluster
+	}
+	return ""
+}
+
+func (m *RunInfo) GetNode() string {
+	if m != nil {
+		return m.Node
+	}
+	return ""
+}
+
+func (m *RunInfo) GetSucceeded() bool {
+	if m != nil {
+		return m.Succeeded
+	}
+	return false
+}
+
+func (m *RunInfo) GetError() string {
+	if m != nil {
+		return m.Error
+	}
+	return ""
+}
+
+func (m *RunInfo) GetSubmitted() *time.Time {
+	if m != nil {
+		return m.Submitted
+	}
+	return nil
+}
+
+func (m *RunInfo) GetCancelled() *time.Time {
+	if m != nil {
+		return m.Cancelled
+	}
+	return nil
+}
+
+func (m *RunInfo) GetStarted() *time.Time {
+	if m != nil {
+		return m.Started
+	}
+	return nil
+}
+
+func (m *RunInfo) GetFinished() *time.Time {
+	if m != nil {
+		return m.Finished
+	}
+	return nil
+}
+
 type QueueInfo struct {
 	Queue             string   `protobuf:"bytes,1,opt,name=queue,proto3" json:"queue,omitempty"`
 	JobsQueued        uint32   `protobuf:"varint,2,opt,name=jobs_queued,json=jobsQueued,proto3" json:"jobsQueued,omitempty"`
@@ -132,7 +250,7 @@ type QueueInfo struct {
 func (m *QueueInfo) Reset()      { *m = QueueInfo{} }
 func (*QueueInfo) ProtoMessage() {}
 func (*QueueInfo) Descriptor() ([]byte, []int) {
-	return fileDescriptor_6ee7620a6fb9cfb1, []int{2}
+	return fileDescriptor_6ee7620a6fb9cfb1, []int{3}
 }
 func (m *QueueInfo) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -206,40 +324,52 @@ func (m *QueueInfo) GetLongestRunningJob() *JobInfo {
 func init() {
 	proto.RegisterType((*SystemOverview)(nil), "lookout.SystemOverview")
 	proto.RegisterType((*JobInfo)(nil), "lookout.JobInfo")
+	proto.RegisterType((*RunInfo)(nil), "lookout.RunInfo")
 	proto.RegisterType((*QueueInfo)(nil), "lookout.QueueInfo")
 }
 
 func init() { proto.RegisterFile("pkg/api/lookout/lookout.proto", fileDescriptor_6ee7620a6fb9cfb1) }
 
 var fileDescriptor_6ee7620a6fb9cfb1 = []byte{
-	// 427 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x74, 0x92, 0xcf, 0x6f, 0xd3, 0x30,
-	0x14, 0xc7, 0xeb, 0x96, 0xb5, 0x9b, 0xcb, 0xaf, 0x79, 0x08, 0xa2, 0x00, 0x26, 0x54, 0x42, 0xaa,
-	0x90, 0x70, 0x44, 0xb9, 0xee, 0x80, 0x90, 0x38, 0x10, 0x21, 0x01, 0xe1, 0x8c, 0xa6, 0x98, 0x78,
-	0x5e, 0xb6, 0xd4, 0x2f, 0x34, 0x4e, 0xd1, 0x6e, 0x88, 0x13, 0x47, 0x24, 0xfe, 0x29, 0x8e, 0x93,
-	0xb8, 0xec, 0x08, 0x29, 0x7f, 0x08, 0xf2, 0x8f, 0x64, 0xe2, 0xb0, 0x53, 0xfb, 0xbe, 0xfe, 0x7c,
-	0xdf, 0xfb, 0x3a, 0xcf, 0xf8, 0x7e, 0x75, 0x22, 0xe3, 0xac, 0x2a, 0xe2, 0x12, 0xe0, 0x04, 0x1a,
-	0xdd, 0xfd, 0xb2, 0x6a, 0x05, 0x1a, 0xc8, 0xc4, 0x97, 0xe1, 0x5d, 0x09, 0x20, 0x4b, 0x11, 0x5b,
-	0x99, 0x37, 0x87, 0xb1, 0x58, 0x56, 0xfa, 0xd4, 0x51, 0xe1, 0x3d, 0x7f, 0x68, 0xfa, 0x64, 0x4a,
-	0x81, 0xce, 0x74, 0x01, 0xaa, 0xf6, 0xa7, 0x4f, 0x64, 0xa1, 0x8f, 0x1a, 0xce, 0x3e, 0xc2, 0x32,
-	0x96, 0x20, 0xe1, 0xa2, 0x87, 0xa9, 0x6c, 0x61, 0xff, 0x79, 0x7c, 0xaf, 0x4b, 0xf4, 0xa9, 0x11,
-	0x8d, 0x70, 0xe2, 0x6c, 0x1f, 0x5f, 0x7f, 0x7f, 0x5a, 0x6b, 0xb1, 0x7c, 0xb3, 0x16, 0xab, 0x75,
-	0x21, 0x3e, 0x93, 0xc7, 0x78, 0x6c, 0x81, 0x3a, 0x40, 0xd1, 0x68, 0x3e, 0x5d, 0x10, 0xd6, 0x25,
-	0x7f, 0x67, 0xe4, 0x57, 0xea, 0x10, 0x52, 0x4f, 0xcc, 0x1e, 0xe1, 0x49, 0x02, 0xdc, 0x48, 0x24,
-	0xc4, 0xa3, 0x63, 0xe0, 0x01, 0x8a, 0xd0, 0x7c, 0xba, 0xd8, 0x66, 0x59, 0x55, 0xb0, 0x04, 0x78,
-	0x6a, 0xc4, 0xd9, 0xb7, 0x21, 0xde, 0xe9, 0xcd, 0xe4, 0x16, 0xde, 0xb2, 0x76, 0xcb, 0xee, 0xa4,
-	0xae, 0x20, 0x0f, 0xf0, 0xf4, 0x18, 0x78, 0x7d, 0x60, 0xab, 0x3c, 0x18, 0x46, 0x68, 0x7e, 0x2d,
-	0xc5, 0x46, 0xb2, 0xce, 0x9c, 0x3c, 0xc4, 0x57, 0x2d, 0x50, 0x09, 0x95, 0x17, 0x4a, 0x06, 0x23,
-	0x4b, 0x58, 0xd3, 0x5b, 0x27, 0xf5, 0xc8, 0xaa, 0x51, 0xca, 0x20, 0x57, 0x2e, 0x90, 0xd4, 0x49,
-	0x64, 0x1f, 0xef, 0x42, 0x99, 0x8b, 0x5a, 0xfb, 0x41, 0x07, 0x26, 0xf4, 0x96, 0x0d, 0x7d, 0xb3,
-	0xbf, 0xa8, 0xbf, 0x53, 0x7a, 0xc3, 0xa1, 0x2e, 0x40, 0x02, 0x9c, 0x3c, 0xc7, 0x7b, 0x25, 0x28,
-	0x69, 0xec, 0x7e, 0x86, 0xf5, 0x8f, 0x2f, 0xf1, 0xef, 0x7a, 0xd8, 0x0f, 0x4f, 0x80, 0x2f, 0x8e,
-	0xf0, 0xe4, 0xb5, 0xa3, 0xc8, 0x07, 0xbc, 0xdd, 0x7f, 0xf4, 0xdb, 0xcc, 0x6d, 0x9a, 0x75, 0x2b,
-	0x64, 0x2f, 0xcd, 0x33, 0x08, 0xef, 0xf4, 0x3d, 0xff, 0xdf, 0xd2, 0x2c, 0xfa, 0xfa, 0xeb, 0xef,
-	0x8f, 0x61, 0x48, 0x02, 0xbb, 0xd1, 0xf5, 0xd3, 0xfe, 0x99, 0x81, 0x27, 0x5e, 0x44, 0xe7, 0x7f,
-	0xe8, 0xe0, 0x4b, 0x4b, 0xd1, 0xcf, 0x96, 0xa2, 0xb3, 0x96, 0xa2, 0xdf, 0x2d, 0x45, 0xdf, 0x37,
-	0x74, 0x70, 0xb6, 0xa1, 0x83, 0xf3, 0x0d, 0x1d, 0xf0, 0xb1, 0x1d, 0xf6, 0xec, 0x5f, 0x00, 0x00,
-	0x00, 0xff, 0xff, 0xb9, 0xf5, 0x0f, 0x48, 0xab, 0x02, 0x00, 0x00,
+	// 606 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x94, 0x54, 0x4d, 0x6f, 0xd3, 0x40,
+	0x10, 0x8d, 0xf3, 0xe5, 0x64, 0x4b, 0x81, 0x6e, 0xf9, 0xb0, 0x42, 0x71, 0x42, 0xc4, 0xa1, 0x42,
+	0xc2, 0x11, 0xe5, 0xd2, 0x43, 0x85, 0xaa, 0x4a, 0x1c, 0x1a, 0x90, 0x00, 0xc3, 0x15, 0x55, 0x76,
+	0x76, 0xeb, 0xba, 0x71, 0x76, 0x8c, 0x77, 0x5d, 0xd4, 0x1b, 0xe2, 0xc4, 0x81, 0x43, 0x25, 0xfe,
+	0x54, 0x8f, 0x95, 0xb8, 0xf4, 0xc4, 0x47, 0xca, 0x0f, 0x41, 0x3b, 0x5e, 0x3b, 0x02, 0xc4, 0xa1,
+	0x27, 0xef, 0xbc, 0x79, 0xef, 0xcd, 0xee, 0xce, 0x8e, 0xc9, 0xdd, 0x74, 0x1a, 0x8d, 0x82, 0x34,
+	0x1e, 0x25, 0x00, 0x53, 0xc8, 0x55, 0xf9, 0xf5, 0xd2, 0x0c, 0x14, 0x50, 0xdb, 0x84, 0xbd, 0x7e,
+	0x04, 0x10, 0x25, 0x7c, 0x84, 0x70, 0x98, 0xef, 0x8f, 0x54, 0x3c, 0xe3, 0x52, 0x05, 0xb3, 0xb4,
+	0x60, 0xf6, 0xee, 0xfc, 0x4d, 0xe0, 0xb3, 0x54, 0x1d, 0x9b, 0xe4, 0x9a, 0x49, 0xea, 0x42, 0x81,
+	0x10, 0xa0, 0x02, 0x15, 0x83, 0x90, 0x26, 0xfb, 0x30, 0x8a, 0xd5, 0x41, 0x1e, 0x7a, 0x13, 0x98,
+	0x8d, 0x22, 0x88, 0x60, 0xe1, 0xa1, 0x23, 0x0c, 0x70, 0x65, 0xe8, 0xab, 0xe5, 0x96, 0xdf, 0xe5,
+	0x3c, 0xe7, 0x05, 0x38, 0xdc, 0x22, 0x57, 0x5f, 0x1f, 0x4b, 0xc5, 0x67, 0x2f, 0x8e, 0x78, 0x76,
+	0x14, 0xf3, 0xf7, 0xf4, 0x01, 0x69, 0x23, 0x41, 0x3a, 0xd6, 0xa0, 0xb1, 0xbe, 0xb4, 0x41, 0xbd,
+	0xf2, 0x68, 0xaf, 0x34, 0xbc, 0x2b, 0xf6, 0xc1, 0x37, 0x8c, 0xe1, 0x33, 0x62, 0x8f, 0x21, 0xd4,
+	0x10, 0xed, 0x91, 0xc6, 0x21, 0x84, 0x8e, 0x35, 0xb0, 0xd6, 0x97, 0x36, 0x3a, 0x5e, 0x90, 0xc6,
+	0xde, 0x18, 0x42, 0x5f, 0x83, 0xf4, 0x3e, 0x69, 0x66, 0xb9, 0x90, 0x4e, 0x1d, 0x0d, 0xaf, 0x57,
+	0x86, 0x7e, 0x2e, 0xd0, 0x0e, 0xb3, 0xc3, 0xcf, 0x0d, 0x62, 0x1b, 0x84, 0xde, 0x24, 0xed, 0xe9,
+	0xa6, 0xdc, 0x8b, 0x19, 0x1a, 0x76, 0xfd, 0xd6, 0x74, 0x53, 0xee, 0x32, 0xea, 0x10, 0x7b, 0x92,
+	0xe4, 0x52, 0xf1, 0xcc, 0xa9, 0x23, 0x5e, 0x86, 0x94, 0x92, 0xa6, 0x00, 0xc6, 0x9d, 0x06, 0xc2,
+	0xb8, 0xa6, 0x6b, 0xa4, 0x2b, 0xf3, 0xc9, 0x84, 0x73, 0xc6, 0x99, 0xd3, 0x1c, 0x58, 0xeb, 0x1d,
+	0x7f, 0x01, 0xd0, 0x1b, 0xa4, 0xc5, 0xb3, 0x0c, 0x32, 0xa7, 0x55, 0x54, 0xc0, 0x80, 0xee, 0x68,
+	0x4d, 0x38, 0x8b, 0x95, 0xe2, 0xcc, 0x69, 0xe3, 0x61, 0x7a, 0x5e, 0xd1, 0x05, 0xaf, 0xbc, 0x5e,
+	0xef, 0x4d, 0xd9, 0xc3, 0x9d, 0xce, 0xe9, 0xb7, 0xbe, 0x75, 0xf2, 0xbd, 0x6f, 0xf9, 0x0b, 0x99,
+	0xf6, 0x98, 0x04, 0x62, 0xc2, 0x93, 0x84, 0x33, 0xc7, 0xbe, 0x8c, 0x47, 0x25, 0xa3, 0x4f, 0x88,
+	0x2d, 0x55, 0x90, 0xe9, 0x5d, 0x74, 0x2e, 0xe1, 0x50, 0x8a, 0xe8, 0x36, 0xe9, 0xec, 0xc7, 0x22,
+	0x96, 0x07, 0x9c, 0x39, 0xdd, 0x4b, 0x18, 0x54, 0xaa, 0xe1, 0xa7, 0x3a, 0xe9, 0x56, 0x1d, 0xd7,
+	0xb7, 0x85, 0x3d, 0x2f, 0xfb, 0x81, 0x01, 0xed, 0x93, 0xa5, 0x43, 0x08, 0xe5, 0x1e, 0x46, 0x0c,
+	0x7b, 0xb2, 0xec, 0x13, 0x0d, 0xa1, 0x92, 0xd1, 0x7b, 0xe4, 0x0a, 0x12, 0x52, 0x2e, 0x58, 0x2c,
+	0x22, 0x6c, 0xcf, 0xb2, 0x8f, 0xa2, 0x97, 0x05, 0x54, 0x51, 0xb2, 0x5c, 0x08, 0x4d, 0x69, 0x2e,
+	0x28, 0x7e, 0x01, 0xd1, 0x2d, 0xb2, 0x02, 0x09, 0xe3, 0x52, 0x99, 0x42, 0x7b, 0xfa, 0xa5, 0xb5,
+	0xf0, 0x54, 0x8b, 0xc7, 0x64, 0x1e, 0xa2, 0x7f, 0xad, 0xa0, 0x16, 0x1b, 0x18, 0x43, 0x48, 0xb7,
+	0xc9, 0x6a, 0x02, 0x22, 0xd2, 0x72, 0x53, 0x03, 0xf5, 0xed, 0xff, 0xe8, 0x57, 0x0c, 0xd9, 0x14,
+	0x1f, 0x43, 0xb8, 0x71, 0x40, 0xec, 0xe7, 0x05, 0x8b, 0xbe, 0x25, 0x9d, 0x6a, 0x52, 0x6e, 0xfd,
+	0x73, 0xa3, 0x4f, 0xf5, 0xec, 0xf6, 0x6e, 0x57, 0x9e, 0x7f, 0x8e, 0xd6, 0x70, 0xf0, 0xf1, 0xeb,
+	0xaf, 0x2f, 0xf5, 0x1e, 0x75, 0x70, 0x0c, 0x8f, 0x1e, 0x55, 0x3f, 0x0f, 0x30, 0x8c, 0x9d, 0xc1,
+	0xf9, 0x4f, 0xb7, 0xf6, 0x61, 0xee, 0x5a, 0xa7, 0x73, 0xd7, 0x3a, 0x9b, 0xbb, 0xd6, 0x8f, 0xb9,
+	0x6b, 0x9d, 0x5c, 0xb8, 0xb5, 0xb3, 0x0b, 0xb7, 0x76, 0x7e, 0xe1, 0xd6, 0xc2, 0x36, 0x16, 0x7b,
+	0xfc, 0x3b, 0x00, 0x00, 0xff, 0xff, 0x66, 0x3d, 0x5e, 0xc3, 0x81, 0x04, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -379,6 +509,20 @@ func (m *JobInfo) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	_ = i
 	var l int
 	_ = l
+	if len(m.Runs) > 0 {
+		for iNdEx := len(m.Runs) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.Runs[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintLookout(dAtA, i, uint64(size))
+			}
+			i--
+			dAtA[i] = 0x12
+		}
+	}
 	if m.Job != nil {
 		{
 			size, err := m.Job.MarshalToSizedBuffer(dAtA[:i])
@@ -388,6 +532,107 @@ func (m *JobInfo) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 			i -= size
 			i = encodeVarintLookout(dAtA, i, uint64(size))
 		}
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *RunInfo) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *RunInfo) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *RunInfo) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.Finished != nil {
+		n2, err2 := github_com_gogo_protobuf_types.StdTimeMarshalTo(*m.Finished, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(*m.Finished):])
+		if err2 != nil {
+			return 0, err2
+		}
+		i -= n2
+		i = encodeVarintLookout(dAtA, i, uint64(n2))
+		i--
+		dAtA[i] = 0x4a
+	}
+	if m.Started != nil {
+		n3, err3 := github_com_gogo_protobuf_types.StdTimeMarshalTo(*m.Started, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(*m.Started):])
+		if err3 != nil {
+			return 0, err3
+		}
+		i -= n3
+		i = encodeVarintLookout(dAtA, i, uint64(n3))
+		i--
+		dAtA[i] = 0x42
+	}
+	if m.Cancelled != nil {
+		n4, err4 := github_com_gogo_protobuf_types.StdTimeMarshalTo(*m.Cancelled, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(*m.Cancelled):])
+		if err4 != nil {
+			return 0, err4
+		}
+		i -= n4
+		i = encodeVarintLookout(dAtA, i, uint64(n4))
+		i--
+		dAtA[i] = 0x3a
+	}
+	if m.Submitted != nil {
+		n5, err5 := github_com_gogo_protobuf_types.StdTimeMarshalTo(*m.Submitted, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(*m.Submitted):])
+		if err5 != nil {
+			return 0, err5
+		}
+		i -= n5
+		i = encodeVarintLookout(dAtA, i, uint64(n5))
+		i--
+		dAtA[i] = 0x32
+	}
+	if len(m.Error) > 0 {
+		i -= len(m.Error)
+		copy(dAtA[i:], m.Error)
+		i = encodeVarintLookout(dAtA, i, uint64(len(m.Error)))
+		i--
+		dAtA[i] = 0x2a
+	}
+	if m.Succeeded {
+		i--
+		if m.Succeeded {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0x20
+	}
+	if len(m.Node) > 0 {
+		i -= len(m.Node)
+		copy(dAtA[i:], m.Node)
+		i = encodeVarintLookout(dAtA, i, uint64(len(m.Node)))
+		i--
+		dAtA[i] = 0x1a
+	}
+	if len(m.Cluster) > 0 {
+		i -= len(m.Cluster)
+		copy(dAtA[i:], m.Cluster)
+		i = encodeVarintLookout(dAtA, i, uint64(len(m.Cluster)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if len(m.K8SId) > 0 {
+		i -= len(m.K8SId)
+		copy(dAtA[i:], m.K8SId)
+		i = encodeVarintLookout(dAtA, i, uint64(len(m.K8SId)))
 		i--
 		dAtA[i] = 0xa
 	}
@@ -499,6 +744,56 @@ func (m *JobInfo) Size() (n int) {
 		l = m.Job.Size()
 		n += 1 + l + sovLookout(uint64(l))
 	}
+	if len(m.Runs) > 0 {
+		for _, e := range m.Runs {
+			l = e.Size()
+			n += 1 + l + sovLookout(uint64(l))
+		}
+	}
+	return n
+}
+
+func (m *RunInfo) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.K8SId)
+	if l > 0 {
+		n += 1 + l + sovLookout(uint64(l))
+	}
+	l = len(m.Cluster)
+	if l > 0 {
+		n += 1 + l + sovLookout(uint64(l))
+	}
+	l = len(m.Node)
+	if l > 0 {
+		n += 1 + l + sovLookout(uint64(l))
+	}
+	if m.Succeeded {
+		n += 2
+	}
+	l = len(m.Error)
+	if l > 0 {
+		n += 1 + l + sovLookout(uint64(l))
+	}
+	if m.Submitted != nil {
+		l = github_com_gogo_protobuf_types.SizeOfStdTime(*m.Submitted)
+		n += 1 + l + sovLookout(uint64(l))
+	}
+	if m.Cancelled != nil {
+		l = github_com_gogo_protobuf_types.SizeOfStdTime(*m.Cancelled)
+		n += 1 + l + sovLookout(uint64(l))
+	}
+	if m.Started != nil {
+		l = github_com_gogo_protobuf_types.SizeOfStdTime(*m.Started)
+		n += 1 + l + sovLookout(uint64(l))
+	}
+	if m.Finished != nil {
+		l = github_com_gogo_protobuf_types.SizeOfStdTime(*m.Finished)
+		n += 1 + l + sovLookout(uint64(l))
+	}
 	return n
 }
 
@@ -557,8 +852,32 @@ func (this *JobInfo) String() string {
 	if this == nil {
 		return "nil"
 	}
+	repeatedStringForRuns := "[]*RunInfo{"
+	for _, f := range this.Runs {
+		repeatedStringForRuns += strings.Replace(f.String(), "RunInfo", "RunInfo", 1) + ","
+	}
+	repeatedStringForRuns += "}"
 	s := strings.Join([]string{`&JobInfo{`,
 		`Job:` + strings.Replace(fmt.Sprintf("%v", this.Job), "Job", "api.Job", 1) + `,`,
+		`Runs:` + repeatedStringForRuns + `,`,
+		`}`,
+	}, "")
+	return s
+}
+func (this *RunInfo) String() string {
+	if this == nil {
+		return "nil"
+	}
+	s := strings.Join([]string{`&RunInfo{`,
+		`K8SId:` + fmt.Sprintf("%v", this.K8SId) + `,`,
+		`Cluster:` + fmt.Sprintf("%v", this.Cluster) + `,`,
+		`Node:` + fmt.Sprintf("%v", this.Node) + `,`,
+		`Succeeded:` + fmt.Sprintf("%v", this.Succeeded) + `,`,
+		`Error:` + fmt.Sprintf("%v", this.Error) + `,`,
+		`Submitted:` + strings.Replace(fmt.Sprintf("%v", this.Submitted), "Timestamp", "types.Timestamp", 1) + `,`,
+		`Cancelled:` + strings.Replace(fmt.Sprintf("%v", this.Cancelled), "Timestamp", "types.Timestamp", 1) + `,`,
+		`Started:` + strings.Replace(fmt.Sprintf("%v", this.Started), "Timestamp", "types.Timestamp", 1) + `,`,
+		`Finished:` + strings.Replace(fmt.Sprintf("%v", this.Finished), "Timestamp", "types.Timestamp", 1) + `,`,
 		`}`,
 	}, "")
 	return s
@@ -735,6 +1054,385 @@ func (m *JobInfo) Unmarshal(dAtA []byte) error {
 				m.Job = &api.Job{}
 			}
 			if err := m.Job.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Runs", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowLookout
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthLookout
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthLookout
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Runs = append(m.Runs, &RunInfo{})
+			if err := m.Runs[len(m.Runs)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipLookout(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthLookout
+			}
+			if (iNdEx + skippy) < 0 {
+				return ErrInvalidLengthLookout
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *RunInfo) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowLookout
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: RunInfo: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: RunInfo: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field K8SId", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowLookout
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthLookout
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthLookout
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.K8SId = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Cluster", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowLookout
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthLookout
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthLookout
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Cluster = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Node", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowLookout
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthLookout
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthLookout
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Node = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 4:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Succeeded", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowLookout
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.Succeeded = bool(v != 0)
+		case 5:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Error", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowLookout
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthLookout
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthLookout
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Error = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 6:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Submitted", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowLookout
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthLookout
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthLookout
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Submitted == nil {
+				m.Submitted = new(time.Time)
+			}
+			if err := github_com_gogo_protobuf_types.StdTimeUnmarshal(m.Submitted, dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 7:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Cancelled", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowLookout
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthLookout
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthLookout
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Cancelled == nil {
+				m.Cancelled = new(time.Time)
+			}
+			if err := github_com_gogo_protobuf_types.StdTimeUnmarshal(m.Cancelled, dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 8:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Started", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowLookout
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthLookout
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthLookout
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Started == nil {
+				m.Started = new(time.Time)
+			}
+			if err := github_com_gogo_protobuf_types.StdTimeUnmarshal(m.Started, dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 9:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Finished", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowLookout
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthLookout
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthLookout
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Finished == nil {
+				m.Finished = new(time.Time)
+			}
+			if err := github_com_gogo_protobuf_types.StdTimeUnmarshal(m.Finished, dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex

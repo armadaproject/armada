@@ -2,6 +2,7 @@ syntax = 'proto3';
 
 package lookout;
 
+import "google/protobuf/timestamp.proto";
 import "google/protobuf/empty.proto";
 import "google/api/annotations.proto";
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
@@ -16,6 +17,19 @@ message SystemOverview {
 
 message JobInfo {
     api.Job job = 1;
+    repeated RunInfo runs = 2;
+}
+
+message RunInfo {
+    string k8s_id = 1;
+    string cluster = 2;
+    string node = 3;
+    bool succeeded = 4;
+    string error = 5;
+    google.protobuf.Timestamp submitted = 6 [(gogoproto.stdtime) = true, (gogoproto.nullable) = true];
+    google.protobuf.Timestamp cancelled = 7 [(gogoproto.stdtime) = true, (gogoproto.nullable) = true];
+    google.protobuf.Timestamp started = 8 [(gogoproto.stdtime) = true, (gogoproto.nullable) = true];
+    google.protobuf.Timestamp finished = 9 [(gogoproto.stdtime) = true, (gogoproto.nullable) = true];
 }
 
 message QueueInfo {

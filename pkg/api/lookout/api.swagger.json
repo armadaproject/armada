@@ -113,6 +113,12 @@
       "properties": {
         "job": {
           "$ref": "#/definitions/apiJob"
+        },
+        "runs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/lookoutRunInfo"
+          }
         }
       }
     },
@@ -139,6 +145,42 @@
         },
         "queue": {
           "type": "string"
+        }
+      }
+    },
+    "lookoutRunInfo": {
+      "type": "object",
+      "properties": {
+        "cancelled": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "cluster": {
+          "type": "string"
+        },
+        "error": {
+          "type": "string"
+        },
+        "finished": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "k8sId": {
+          "type": "string"
+        },
+        "node": {
+          "type": "string"
+        },
+        "started": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "submitted": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "succeeded": {
+          "type": "boolean"
         }
       }
     },

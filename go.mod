@@ -14,7 +14,7 @@ require (
 	github.com/go-openapi/loads v0.19.5
 	github.com/go-openapi/runtime v0.19.12
 	github.com/go-openapi/spec v0.19.7
-	github.com/go-redis/redis v6.15.4+incompatible
+	github.com/go-redis/redis v6.15.9+incompatible
 	github.com/go-swagger/go-swagger v0.23.0 // indirect
 	github.com/gogo/protobuf v1.3.1
 	github.com/golang/groupcache v0.0.0-20191027212112-611e8accdfc9 // indirect
