@@ -21,8 +21,6 @@ echo "Installing nodejs"
 curl -sL https://deb.nodesource.com/setup_14.x | sudo -E bash -
 sudo apt-get install -y nodejs
 
+nvm use node
 node -v
-npm -v 
-node_14 -v
-which node
-which node_14
+npm -v
