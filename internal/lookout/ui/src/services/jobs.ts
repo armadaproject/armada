@@ -1,4 +1,4 @@
-import { LookoutApi } from '../../openapi'
+import { LookoutApi } from '../openapi'
 
 export class JobService{
 

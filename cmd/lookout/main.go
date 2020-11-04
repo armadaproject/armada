@@ -11,6 +11,7 @@ import (
 
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/internal/common/grpc"
+	"github.com/G-Research/armada/internal/common/serve"
 	"github.com/G-Research/armada/internal/lookout"
 	"github.com/G-Research/armada/internal/lookout/configuration"
 	lookoutApi "github.com/G-Research/armada/pkg/api/lookout"
@@ -44,11 +45,7 @@ func main() {
 		lookoutApi.RegisterLookoutHandler)
 
 	// server static UI files
-	mux.Handle("/js", http.FileServer(http.Dir("./internal/lookout/ui/dist/js")))
-	// to accommodate client side routing index.html is server for any path
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, "./internal/lookout/ui/dist/index.html")
-	})
+	mux.Handle("/", http.FileServer(serve.CreateDirWithIndexFallback("./internal/lookout/ui/build")))
 
 	shutdownServer := common.ServeHttp(config.HttpPort, mux)
 

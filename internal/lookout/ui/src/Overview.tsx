@@ -1,10 +1,8 @@
 import  React, { useEffect, useState } from 'react';
-import { LookoutSystemOverview } from '../openapi';
+import { LookoutSystemOverview } from './openapi';
 import { JobService } from './services/jobs';
 
-export function Overview ({jobs}: {jobs: JobService}): JSX.Element {
-
-    console.log(jobs)
+export function Overview ({jobService: jobs}: {jobService: JobService}): JSX.Element {
 
     const [overview, setOverview] = useState<LookoutSystemOverview>({});
     const loadData = async () => {
@@ -17,13 +15,10 @@ export function Overview ({jobs}: {jobs: JobService}): JSX.Element {
         return () => {};
     }, []);
 
-    
     return  (<div>
         { (overview.queues || []).map(q => 
             
             <p> { q.queue } </p>
-            
-            
         ) }      
         </div>);
 }
