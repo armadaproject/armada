@@ -17,3 +17,6 @@ sudo tar -xvf go1.12.6.linux-amd64.tar.gz
 sudo mv go /usr/local
 go version
 
+echo "Installing nodejs"
+curl -sL https://deb.nodesource.com/setup_14.x | bash -
+apt-get install -y nodejs
