@@ -13,7 +13,7 @@ export function Overview ({jobService: jobs}: {jobService: JobService}): JSX.Ele
     useEffect(() => {
         loadData();
         return () => {};
-    }, []);
+    });
 
     return  (<div>
         { (overview.queues || []).map(q => 
