@@ -43,7 +43,7 @@ func (r *SQLJobRepository) GetQueueStats() ([]*lookout.QueueInfo, error) {
 		}
 		result = append(result, &lookout.QueueInfo{
 			Queue:       queue,
-			JobsQueued:  jobs - jobsCreated - jobsStarted,
+			JobsQueued:  jobs - jobsCreated,
 			JobsPending: jobsCreated - jobsStarted,
 			JobsRunning: jobsStarted,
 		})
