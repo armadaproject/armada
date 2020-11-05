@@ -32,7 +32,7 @@ func Test_QueueStats(t *testing.T) {
 		assert.NoError(t, jobStore.RecordJob(job3))
 
 		assert.NoError(t, jobStore.RecordJobPending(createPendingEvent(cluster, k8sId1, job1)))
-		assert.NoError(t, jobStore.RecordJobRunning(createRunningEvent(cluster, k8sId2, node, job1)))
+		assert.NoError(t, jobStore.RecordJobRunning(createRunningEvent(cluster, k8sId2, node, job2)))
 
 		jobRepo := NewSQLJobRepository(db)
 

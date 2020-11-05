@@ -106,7 +106,7 @@ jobs:
   build:
     machine:
       docker_layer_caching: true
-      image: ubuntu-1604:201903-01
+      image: ubuntu-2004:202010-01
     environment:
       GO111MODULE: "on"
       GOPATH: "/home/circleci/go"
@@ -196,6 +196,9 @@ jobs:
             docker tag armada-fakeexecutor gresearchdev/armada-fakeexecutor-dev:${TAG}
             docker push gresearchdev/armada-fakeexecutor-dev:${TAG}
 
+            docker tag armada-lookout gresearchdev/armada-lookout-dev:${TAG}
+            docker push gresearchdev/armada-lookout-dev:${TAG}
+
   deploy:
     docker:
       - image: alpine/helm:2.13.1
@@ -273,6 +276,10 @@ jobs:
             docker pull gresearchdev/armada-armadactl-dev:${TAG}
             docker tag gresearchdev/armada-armadactl-dev:${TAG} gresearchdev/armada-armadactl:${RELEASE_TAG}
             docker push gresearchdev/armada-armadactl:${RELEASE_TAG}
+
+            docker pull gresearchdev/armada-lookout-dev:${TAG}
+            docker tag gresearchdev/armada-lookout-dev:${TAG} gresearchdev/armada-lookout:${RELEASE_TAG}
+            docker push gresearchdev/armada-lookout:${RELEASE_TAG}
 
       - install-helm-client
 

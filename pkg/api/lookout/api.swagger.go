@@ -22,7 +22,7 @@ func SwaggerJsonTemplate() string {
 		"    \"version\": \"version not set\"\n" +
 		"  },\n" +
 		"  \"paths\": {\n" +
-		"    \"/v1/lookout/overview\": {\n" +
+		"    \"/api/v1/lookout/overview\": {\n" +
 		"      \"get\": {\n" +
 		"        \"tags\": [\n" +
 		"          \"Lookout\"\n" +

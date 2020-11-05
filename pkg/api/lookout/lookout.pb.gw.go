@@ -146,7 +146,7 @@ func RegisterLookoutHandlerClient(ctx context.Context, mux *runtime.ServeMux, cl
 }
 
 var (
-	pattern_Lookout_Overview_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "lookout", "overview"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Lookout_Overview_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"api", "v1", "lookout", "overview"}, "", runtime.AssumeColonVerbOpt(true)))
 )
 
 var (
