@@ -80,7 +80,7 @@ func Test_GetSucceededJobFromQueue(t *testing.T) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db)
 
-		startTime := time.Now()
+		startTime, _ := time.Parse(time.RFC3339, "2018-09-16T12:00:00+02:00")
 		queue := "queue"
 		cluster := "cluster"
 		k8sId := util.NewULID()
@@ -97,7 +97,7 @@ func Test_GetSucceededJobFromQueue(t *testing.T) {
 		assert.Equal(t, 1, len(jobInfos))
 
 		jobInfo := jobInfos[0]
-		jobsAreEquivalent(t, succeeded.job, jobInfo.Job)
+		assertJobsAreEquivalent(t, succeeded.job, jobInfo.Job)
 
 		assert.Equal(t, 1, len(jobInfo.Runs))
 		runInfo := jobInfo.Runs[0]
@@ -132,7 +132,7 @@ func Test_GetMultipleRunJobFromQueue(t *testing.T) {
 		assert.Equal(t, 1, len(jobInfos))
 
 		jobInfo := jobInfos[0]
-		jobsAreEquivalent(t, retried.job, jobInfo.Job)
+		assertJobsAreEquivalent(t, retried.job, jobInfo.Job)
 
 		assert.Equal(t, 2, len(jobInfo.Runs))
 		runInfo := jobInfo.Runs[0]
@@ -175,28 +175,13 @@ func createSucceededEvent(cluster string, k8sId string, node string, job *api.Jo
 	}
 }
 
-func createJob(queue string) *api.Job {
-	return &api.Job{
-		Id:          util.NewULID(),
-		JobSetId:    "job-set",
-		Queue:       queue,
-		Namespace:   "nameSpace",
-		Labels:      nil,
-		Annotations: nil,
-		Owner:       "user",
-		Priority:    0,
-		PodSpec:     &v1.PodSpec{},
-		Created:     time.Now(),
-	}
-}
-
-func jobsAreEquivalent(t *testing.T, expected *api.Job, actual *api.Job) {
+func assertJobsAreEquivalent(t *testing.T, expected *api.Job, actual *api.Job) {
 	t.Helper()
 	assert.Equal(t, expected.Id, actual.Id)
 	assert.Equal(t, expected.JobSetId, actual.JobSetId)
 	assert.Equal(t, expected.Owner, actual.Owner)
 	assert.Equal(t, expected.Priority, actual.Priority)
-	assert.Equal(t, expected.Created, actual.Created)
+	assert.Equal(t, expected.Created.UTC(), actual.Created.UTC())
 }
 
 // increment given time by a number of minutes
@@ -249,7 +234,18 @@ func newJobSimulator(t *testing.T, jobStore JobRecorder, timeProvider clock) *jo
 }
 
 func (js *jobSimulator) createJob(queue string) *jobSimulator {
-	js.job = createJob(queue)
+	js.job = &api.Job{
+		Id:          util.NewULID(),
+		JobSetId:    "job-set",
+		Queue:       queue,
+		Namespace:   "nameSpace",
+		Labels:      nil,
+		Annotations: nil,
+		Owner:       "user",
+		Priority:    0,
+		PodSpec:     &v1.PodSpec{},
+		Created:     js.clock.now(),
+	}
 	assert.NoError(js.t, js.jobStore.RecordJob(js.job))
 	return js
 }

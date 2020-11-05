@@ -144,7 +144,7 @@ func (r *SQLJobRepository) GetQueuedJobs(queue string) ([]*lookout.JobInfo, erro
 					Owner:              row.Owner,
 					Priority:           ParseNullFloat(row.Priority),
 					PodSpec:            nil,
-					Created:            time.Time{},
+					Created:            ParseNullTimeDefault(row.Submitted),
 				},
 				Runs: []*lookout.RunInfo{},
 			}
@@ -196,4 +196,11 @@ func ParseNullTime(nullTime sql.NullTime) *time.Time {
 		return nil
 	}
 	return &nullTime.Time
+}
+
+func ParseNullTimeDefault(nullTime sql.NullTime) time.Time {
+	if !nullTime.Valid {
+		return time.Time{}
+	}
+	return nullTime.Time
 }
