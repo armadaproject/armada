@@ -71,6 +71,14 @@ func Test_RecordEvents(t *testing.T) {
 		})
 		assert.NoError(t, err)
 
+		err = jobRepo.MarkCancelled(&api.JobCancelledEvent{
+			JobId:    job.Id,
+			JobSetId: job.JobSetId,
+			Queue:    job.Queue,
+			Created:  time.Now(),
+		})
+		assert.NoError(t, err)
+
 		assert.Equal(t, 1, count(t, db,
 			"SELECT count(*) FROM job"))
 		assert.Equal(t, 1, count(t, db,
@@ -116,7 +124,7 @@ func withDatabase(t *testing.T, action func(*sql.DB)) {
 		_, err = db.Exec("DROP DATABASE " + dbName)
 		assert.Nil(t, err)
 	}()
-	*/
+	 */
 
 	err = schema.UpdateDatabase(testDb)
 	assert.Nil(t, err)

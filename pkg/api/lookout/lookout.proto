@@ -18,6 +18,7 @@ message SystemOverview {
 message JobInfo {
     api.Job job = 1;
     repeated RunInfo runs = 2;
+    google.protobuf.Timestamp cancelled = 3 [(gogoproto.stdtime) = true, (gogoproto.nullable) = true];
 }
 
 message RunInfo {
@@ -26,10 +27,9 @@ message RunInfo {
     string node = 3;
     bool succeeded = 4;
     string error = 5;
-    google.protobuf.Timestamp submitted = 6 [(gogoproto.stdtime) = true, (gogoproto.nullable) = true];
-    google.protobuf.Timestamp cancelled = 7 [(gogoproto.stdtime) = true, (gogoproto.nullable) = true];
-    google.protobuf.Timestamp started = 8 [(gogoproto.stdtime) = true, (gogoproto.nullable) = true];
-    google.protobuf.Timestamp finished = 9 [(gogoproto.stdtime) = true, (gogoproto.nullable) = true];
+    google.protobuf.Timestamp created = 6 [(gogoproto.stdtime) = true, (gogoproto.nullable) = true];
+    google.protobuf.Timestamp started = 7 [(gogoproto.stdtime) = true, (gogoproto.nullable) = true];
+    google.protobuf.Timestamp finished = 8 [(gogoproto.stdtime) = true, (gogoproto.nullable) = true];
 }
 
 message QueueInfo {

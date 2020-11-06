@@ -111,6 +111,10 @@
     "lookoutJobInfo": {
       "type": "object",
       "properties": {
+        "cancelled": {
+          "type": "string",
+          "format": "date-time"
+        },
         "job": {
           "$ref": "#/definitions/apiJob"
         },
@@ -151,12 +155,12 @@
     "lookoutRunInfo": {
       "type": "object",
       "properties": {
-        "cancelled": {
-          "type": "string",
-          "format": "date-time"
-        },
         "cluster": {
           "type": "string"
+        },
+        "created": {
+          "type": "string",
+          "format": "date-time"
         },
         "error": {
           "type": "string"
@@ -172,10 +176,6 @@
           "type": "string"
         },
         "started": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "submitted": {
           "type": "string",
           "format": "date-time"
         },

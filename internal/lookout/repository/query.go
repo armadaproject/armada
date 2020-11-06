@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"github.com/G-Research/armada/pkg/api"
+	"strings"
 	"time"
 
 	"github.com/G-Research/armada/pkg/api/lookout"
@@ -11,7 +12,7 @@ import (
 
 type JobRepository interface {
 	GetQueueStats() ([]*lookout.QueueInfo, error)
-	GetQueuedJobs(queue string) ([]*lookout.JobInfo, error)
+	GetJobsInQueue(queue string) ([]*lookout.JobInfo, error)
 }
 
 type SQLJobRepository struct {
@@ -27,7 +28,7 @@ type joinedRow struct {
 	Submitted sql.NullTime
 	Cancelled sql.NullTime
 	JobJson   sql.NullString
-	RunId     string
+	RunId     sql.NullString
 	Cluster   sql.NullString
 	Node      sql.NullString
 	Created   sql.NullTime
@@ -74,30 +75,25 @@ func (r *SQLJobRepository) GetQueueStats() ([]*lookout.QueueInfo, error) {
 	return result, nil
 }
 
-func (r *SQLJobRepository) GetQueuedJobs(queue string) ([]*lookout.JobInfo, error) {
-	queryString := `
-		SELECT job.job_id as job_id,
-			   job.owner as owner,
-			   job.jobset as jobset,
-               job.priority as priority,
-               job.submitted as submitted,
-               job.cancelled as cancelled,
-			   job.job as job_json,
-			   job_run.run_id as run_id,
-			   job_run.cluster as cluster,
-			   job_run.node as node,
-			   job_run.created as created,
-			   job_run.started as started,
-			   job_run.finished as finished,
-			   job_run.succeeded as succeeded,
-			   job_run.error as error
-		FROM job LEFT JOIN job_run ON job.job_id = job_run.job_id
-		WHERE job.job_id IN (
-			SELECT job.job_id
-			FROM job
-			WHERE job.queue = '%s'
-		)`
-	rows, err := r.db.Query(fmt.Sprintf(queryString, queue))
+type GetJobsInQueueOpts struct {
+	NewestFirst bool
+	FilterStates []JobState
+}
+
+type JobState string
+
+const (
+	Submitted = "Submitted"
+	Pending = "Pending"
+	Running = "Running"
+	Succeeded = "Succeeded"
+	Failed = "Failed"
+	Cancelled = "Cancelled"
+)
+
+func (r *SQLJobRepository) GetJobsInQueue(queue string, opts GetJobsInQueueOpts) ([]*lookout.JobInfo, error) {
+	queryString := makeGetJobsInQueueQuery(queue, opts)
+	rows, err := r.db.Query(queryString)
 	if err != nil {
 		return nil, err
 	}
@@ -129,76 +125,120 @@ func (r *SQLJobRepository) GetQueuedJobs(queue string) ([]*lookout.JobInfo, erro
 		joinedRows = append(joinedRows, row)
 	}
 
-	jobRunMap := make(map[string]*lookout.JobInfo)
+	result := make([]*lookout.JobInfo, 0)
 
-	for _, row := range joinedRows {
-		if _, ok := jobRunMap[row.JobId]; !ok {
-			jobRunMap[row.JobId] = &lookout.JobInfo{
+	for i, row := range joinedRows {
+		if i == 0 || result[len(result) - 1].Job.Id != row.JobId {
+			result = append(result, &lookout.JobInfo{
 				Job:  &api.Job{
-					Id:                 row.JobId,
-					JobSetId:           row.JobSet,
-					Queue:              row.Queue,
-					Namespace:          "",
-					Labels:             nil,
-					Annotations:        nil,
-					Owner:              row.Owner,
-					Priority:           ParseNullFloat(row.Priority),
-					PodSpec:            nil,
-					Created:            ParseNullTimeDefault(row.Submitted),
+					Id:          row.JobId,
+					JobSetId:    row.JobSet,
+					Queue:       row.Queue,
+					Namespace:   "",
+					Labels:      nil,
+					Annotations: nil,
+					Owner:       row.Owner,
+					Priority:    parseNullFloat(row.Priority),
+					PodSpec:     nil,
+					Created:     parseNullTimeDefault(row.Submitted), // Job submitted
 				},
-				Runs: []*lookout.RunInfo{},
-			}
+				Cancelled: parseNullTime(row.Cancelled),
+				Runs:      []*lookout.RunInfo{},
+			})
 		}
 
-		jobRunMap[row.JobId].Runs = append(jobRunMap[row.JobId].Runs, &lookout.RunInfo{
-			K8SId:     row.RunId,
-			Cluster:   ParseNullString(row.Cluster),
-			Node:      ParseNullString(row.Node),
-			Succeeded: ParseNullBool(row.Succeeded),
-			Error:     ParseNullString(row.Error),
-			Submitted: ParseNullTime(row.Submitted),
-			Cancelled: ParseNullTime(row.Cancelled),
-			Started:   ParseNullTime(row.Started),
-			Finished:  ParseNullTime(row.Finished),
+		result[len(result) - 1].Runs = append(result[len(result) - 1].Runs, &lookout.RunInfo{
+			K8SId:     parseNullString(row.RunId),
+			Cluster:   parseNullString(row.Cluster),
+			Node:      parseNullString(row.Node),
+			Succeeded: parseNullBool(row.Succeeded),
+			Error:     parseNullString(row.Error),
+			Created:   parseNullTime(row.Created), // Pod created (Pending)
+			Started:   parseNullTime(row.Started), // Pod running
+			Finished:  parseNullTime(row.Finished),
 		})
 	}
 
-	result := make([]*lookout.JobInfo, 0)
-	for _, jobInfo := range jobRunMap {
-		result = append(result, jobInfo)
-	}
 	return result, nil
 }
 
-func ParseNullString(nullString sql.NullString) string {
+func makeGetJobsInQueueQuery(queue string, opts GetJobsInQueueOpts) string {
+	sb := &strings.Builder{}
+	sb.WriteString(`
+		SELECT job.job_id as job_id,
+			   job.owner as owner,
+			   job.jobset as jobset,
+               job.priority as priority,
+               job.submitted as submitted,
+               job.cancelled as cancelled,
+			   job.job as job_json,
+			   job_run.run_id as run_id,
+			   job_run.cluster as cluster,
+			   job_run.node as node,
+			   job_run.created as created,
+			   job_run.started as started,
+			   job_run.finished as finished,
+			   job_run.succeeded as succeeded,
+			   job_run.error as error
+		FROM job LEFT JOIN job_run ON job.job_id = job_run.job_id
+		`)
+
+	whereSb := &strings.Builder{}
+	whereSb.WriteString(fmt.Sprintf("WHERE job.queue  = '%s'\n", queue))
+	for _, state := range opts.FilterStates {
+		if state == Submitted {
+			whereSb.WriteString(`AND
+				job.submitted IS NOT NULL AND
+				job.cancelled IS NULL AND
+				job_run.created IS NULL AND
+				job_run.started IS NULL AND
+				job_run.finished IS NULL
+			`)
+		}
+	}
+	sb.WriteString(whereSb.String())
+
+	var order string
+	if opts.NewestFirst {
+		order = "DESC"
+	} else {
+		order = "ASC"
+	}
+	orderBy := fmt.Sprintf("ORDER BY job_id %s\n", order) // Job ids are sortable ULIDs
+	sb.WriteString(orderBy)
+
+	return sb.String()
+}
+
+func parseNullString(nullString sql.NullString) string {
 	if !nullString.Valid {
 		return ""
 	}
 	return nullString.String
 }
 
-func ParseNullBool(nullBool sql.NullBool) bool {
+func parseNullBool(nullBool sql.NullBool) bool {
 	if !nullBool.Valid {
 		return false
 	}
 	return nullBool.Bool
 }
 
-func ParseNullFloat(nullFloat sql.NullFloat64) float64 {
+func parseNullFloat(nullFloat sql.NullFloat64) float64 {
 	if !nullFloat.Valid {
 		return 0
 	}
 	return nullFloat.Float64
 }
 
-func ParseNullTime(nullTime sql.NullTime) *time.Time {
+func parseNullTime(nullTime sql.NullTime) *time.Time {
 	if !nullTime.Valid {
 		return nil
 	}
 	return &nullTime.Time
 }
 
-func ParseNullTimeDefault(nullTime sql.NullTime) time.Time {
+func parseNullTimeDefault(nullTime sql.NullTime) time.Time {
 	if !nullTime.Valid {
 		return time.Time{}
 	}

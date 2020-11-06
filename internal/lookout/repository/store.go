@@ -40,9 +40,10 @@ func (r *SQLJobStore) RecordJob(job *api.Job) error {
 }
 
 func (r *SQLJobStore) MarkCancelled(event *api.JobCancelledEvent) error {
-	_, err := upsert(r.db, "job",
-		"job_id", []string{"queue", "jobset", "cancelled"},
-		[]interface{}{event.JobId, event.Queue, event.JobSetId, event.Created})
+	_, err := r.db.Exec(`
+		UPDATE job
+		SET cancelled = $1
+		WHERE job.job_id = $2`, event.Created, event.JobId)
 	return err
 }
 

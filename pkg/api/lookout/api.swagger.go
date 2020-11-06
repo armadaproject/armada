@@ -122,6 +122,10 @@ func SwaggerJsonTemplate() string {
 		"    \"lookoutJobInfo\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
+		"        \"cancelled\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"format\": \"date-time\"\n" +
+		"        },\n" +
 		"        \"job\": {\n" +
 		"          \"$ref\": \"#/definitions/apiJob\"\n" +
 		"        },\n" +
@@ -162,12 +166,12 @@ func SwaggerJsonTemplate() string {
 		"    \"lookoutRunInfo\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
-		"        \"cancelled\": {\n" +
-		"          \"type\": \"string\",\n" +
-		"          \"format\": \"date-time\"\n" +
-		"        },\n" +
 		"        \"cluster\": {\n" +
 		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"created\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"format\": \"date-time\"\n" +
 		"        },\n" +
 		"        \"error\": {\n" +
 		"          \"type\": \"string\"\n" +
@@ -183,10 +187,6 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"started\": {\n" +
-		"          \"type\": \"string\",\n" +
-		"          \"format\": \"date-time\"\n" +
-		"        },\n" +
-		"        \"submitted\": {\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"format\": \"date-time\"\n" +
 		"        },\n" +
