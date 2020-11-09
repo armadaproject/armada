@@ -90,8 +90,8 @@ This is recommended when working on features that are purely Armada specific or 
 #### Optional components
 
 ##### NATS Streaming
-Armada can be etup to use nats streaming as message queue for events.
-To run NATS streaming for development you can use docker:
+Armada can be set up to use NATS Streaming as message queue for events.
+To run NATS Streaming for development you can use docker:
 ```bash
 docker run  -p 4223:4223 -p 8223:8223 nats-streaming -p 4223 -m 8223
 ```
@@ -115,7 +115,7 @@ Start a Postgres database:
 ```bash
 docker run -p 5432:5432 -e POSTGRES_PASSWORD=psw postgres
 ```
-Manually apply schema from `internal/lookout/repository/schema` (this will get automated in future version).
+Manually apply the schema from `internal/lookout/repository/schema` (this will get automated in a future version).
 
 Then run go application:
 ```bash
