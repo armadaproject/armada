@@ -28,7 +28,7 @@ func StartUp(config configuration.LookoutConfiguration) (func(), *sync.WaitGroup
 
 	grpcServer := grpc.CreateGrpcServer([]authorization.AuthService{&authorization.AnonymousAuthService{}})
 
-	db, err := sql.Open("postgres", config.PostgresConnectionString)
+	db, err := sql.Open("postgres", createConnectionString(config.PostgresConnection))
 	if err != nil {
 		panic(err)
 	}
@@ -80,4 +80,14 @@ func StartUp(config configuration.LookoutConfiguration) (func(), *sync.WaitGroup
 	}
 
 	return stop, wg
+}
+
+func createConnectionString(values map[string]string) string {
+	// https://www.postgresql.org/docs/10/libpq-connect.html#id-1.7.3.8.3.5
+	result := ""
+	replacer := strings.NewReplacer(`\`, `\\`, `'`, `\'`)
+	for k, v := range values {
+		result += k + "='" + replacer.Replace(v) + "'"
+	}
+	return result
 }

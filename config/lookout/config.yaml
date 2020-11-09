@@ -2,7 +2,14 @@ grpcPort: 50059
 httpPort: 8089
 metricsPort: 9009
 
-postgresConnectionString: "host=localhost port=5432 user=postgres password=psw dbname=postgres sslmode=disable"
+PostgresConnection:
+  host: localhost
+  port: 5432
+  user: postgres
+  password: psw
+  dbname: postgres
+  sslmode: disable
+
 nats:
   Servers:
     - "nats://localhost:4223"
