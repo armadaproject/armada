@@ -12,7 +12,7 @@ import (
 
 type JobRepository interface {
 	GetQueueStats() ([]*lookout.QueueInfo, error)
-	GetJobsInQueue(queue string) ([]*lookout.JobInfo, error)
+	GetJobsInQueue(queue string, opts GetJobsInQueueOpts) ([]*lookout.JobInfo, error)
 }
 
 type SQLJobRepository struct {
@@ -83,11 +83,11 @@ type GetJobsInQueueOpts struct {
 type JobState string
 
 const (
-	Submitted = "Submitted"
-	Pending = "Pending"
-	Running = "Running"
+	Queued    = "Queued" // Not leased yet
+	Pending   = "Pending"
+	Running   = "Running"
 	Succeeded = "Succeeded"
-	Failed = "Failed"
+	Failed    = "Failed"
 	Cancelled = "Cancelled"
 )
 
@@ -147,24 +147,106 @@ func (r *SQLJobRepository) GetJobsInQueue(queue string, opts GetJobsInQueueOpts)
 			})
 		}
 
-		result[len(result) - 1].Runs = append(result[len(result) - 1].Runs, &lookout.RunInfo{
-			K8SId:     parseNullString(row.RunId),
-			Cluster:   parseNullString(row.Cluster),
-			Node:      parseNullString(row.Node),
-			Succeeded: parseNullBool(row.Succeeded),
-			Error:     parseNullString(row.Error),
-			Created:   parseNullTime(row.Created), // Pod created (Pending)
-			Started:   parseNullTime(row.Started), // Pod running
-			Finished:  parseNullTime(row.Finished),
-		})
+		if row.RunId.Valid {
+			result[len(result)-1].Runs = append(result[len(result)-1].Runs, &lookout.RunInfo{
+				K8SId:     parseNullString(row.RunId),
+				Cluster:   parseNullString(row.Cluster),
+				Node:      parseNullString(row.Node),
+				Succeeded: parseNullBool(row.Succeeded),
+				Error:     parseNullString(row.Error),
+				Created:   parseNullTime(row.Created), // Pod created (Pending)
+				Started:   parseNullTime(row.Started), // Pod running
+				Finished:  parseNullTime(row.Finished),
+			})
+		}
 	}
 
 	return result, nil
 }
 
+const (
+	submitted = "job.submitted"
+	cancelled = "job.cancelled"
+	created = "job_run.created"
+	started = "job_run.started"
+	finished = "job_run.finished"
+	succeeded = "job_run.succeeded"
+)
+
+var stateFiltersMap = map[JobState]map[string]bool {
+	Queued: {
+		submitted: true,
+		cancelled: false,
+		created: false,
+		started: false,
+		finished: false,
+	},
+	Pending: {
+		cancelled: false,
+		created: true,
+		started: false,
+		finished: false,
+	},
+	Running: {
+		cancelled: false,
+		started: true,
+		finished: false,
+	},
+	Succeeded: {
+		cancelled: false,
+		finished: true,
+		succeeded: true,
+	},
+	Failed: {
+		succeeded: false,
+	},
+	Cancelled: {
+		cancelled: true,
+	},
+}
+
+func formatWithNot(condition string, addNot bool) string {
+	not := ""
+	if addNot {
+		not = "NOT"
+	}
+	return fmt.Sprintf(condition, not)
+}
+
 func makeGetJobsInQueueQuery(queue string, opts GetJobsInQueueOpts) string {
-	sb := &strings.Builder{}
-	sb.WriteString(`
+	hs := make([]string, 0)
+
+	for _, state := range opts.FilterStates {
+		h := make([]string, 0)
+
+		for column, include := range stateFiltersMap[state] {
+			if column == submitted {
+				h = append(h, formatWithNot("MAX(job.submitted) IS %s NULL", include))
+			} else if column == cancelled {
+				h = append(h, formatWithNot("MAX(job.cancelled) IS %s NULL", include))
+			} else if column == created {
+				h = append(h, formatWithNot("MAX(job_run.created) IS %s NULL", include))
+			} else if column == started {
+				h = append(h, formatWithNot("MAX(job_run.started) IS %s NULL", include))
+			} else if column == finished {
+				h = append(h, formatWithNot("MAX(job_run.finished) IS %s NULL", include))
+			} else if column == succeeded {
+				h = append(h, formatWithNot("%s BOOL_OR(job_run.succeeded)", !include))
+			}
+		}
+
+		if len(h) > 0 {
+			hs = append(hs, strings.Join(h, " AND "))
+		}
+	}
+
+	var havingClause string
+
+	if len(hs) > 0 {
+		havingClause = fmt.Sprintf("(%s)", strings.Join(hs, ") OR ("))
+	}
+
+	query := `
 		SELECT job.job_id as job_id,
 			   job.owner as owner,
 			   job.jobset as jobset,
@@ -181,22 +263,23 @@ func makeGetJobsInQueueQuery(queue string, opts GetJobsInQueueOpts) string {
 			   job_run.succeeded as succeeded,
 			   job_run.error as error
 		FROM job LEFT JOIN job_run ON job.job_id = job_run.job_id
-		`)
+		WHERE job.job_id IN (%s)`
 
-	whereSb := &strings.Builder{}
-	whereSb.WriteString(fmt.Sprintf("WHERE job.queue  = '%s'\n", queue))
-	for _, state := range opts.FilterStates {
-		if state == Submitted {
-			whereSb.WriteString(`AND
-				job.submitted IS NOT NULL AND
-				job.cancelled IS NULL AND
-				job_run.created IS NULL AND
-				job_run.started IS NULL AND
-				job_run.finished IS NULL
-			`)
-		}
+	sb := &strings.Builder{}
+	sb.WriteString(`
+		SELECT job.job_id
+		FROM job LEFT JOIN job_run ON job.job_id = job_run.job_id
+	`)
+
+	sb.WriteString(fmt.Sprintf("WHERE job.queue  = '%s'\n", queue))
+
+	sb.WriteString("GROUP BY job.job_id\n")
+
+	if havingClause != "" {
+		sb.WriteString("HAVING ")
+		sb.WriteString(havingClause)
+		sb.WriteString("\n")
 	}
-	sb.WriteString(whereSb.String())
 
 	var order string
 	if opts.NewestFirst {
@@ -207,7 +290,7 @@ func makeGetJobsInQueueQuery(queue string, opts GetJobsInQueueOpts) string {
 	orderBy := fmt.Sprintf("ORDER BY job_id %s\n", order) // Job ids are sortable ULIDs
 	sb.WriteString(orderBy)
 
-	return sb.String()
+	return fmt.Sprintf(query, sb.String())
 }
 
 func parseNullString(nullString sql.NullString) string {

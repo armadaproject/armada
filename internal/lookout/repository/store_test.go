@@ -112,7 +112,6 @@ func withDatabase(t *testing.T, action func(*sql.DB)) {
 	testDb, err := sql.Open("postgres", connectionString+" dbname="+dbName)
 	assert.Nil(t, err)
 
-	/*
 	defer func() {
 		err = testDb.Close()
 		assert.Nil(t, err)
@@ -124,7 +123,6 @@ func withDatabase(t *testing.T, action func(*sql.DB)) {
 		_, err = db.Exec("DROP DATABASE " + dbName)
 		assert.Nil(t, err)
 	}()
-	 */
 
 	err = schema.UpdateDatabase(testDb)
 	assert.Nil(t, err)
