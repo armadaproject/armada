@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/rakyll/statik/fs"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/G-Research/armada/internal/lookout/repository/schema/statik"
 )
@@ -19,7 +20,9 @@ type migration struct {
 }
 
 func UpdateDatabase(db *sql.DB) error {
+	log.Info("Updating database...")
 	version, err := readVersion(db)
+	log.Infof("Current version %v", version)
 
 	if err != nil {
 		return err
@@ -32,6 +35,8 @@ func UpdateDatabase(db *sql.DB) error {
 
 	for _, m := range migrations {
 		if m.id > version {
+			log.Infof("Migration %v", m.name)
+
 			_, err := db.Exec(m.sql)
 			if err != nil {
 				return err
@@ -44,6 +49,7 @@ func UpdateDatabase(db *sql.DB) error {
 			}
 		}
 	}
+	log.Info("Database updated.")
 	return nil
 }
 
