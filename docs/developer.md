@@ -119,7 +119,7 @@ Manually apply the schema from `internal/lookout/repository/schema` (this will g
 
 Then run go application:
 ```bash
-go run ./cmd/armada/main.go 
+go run ./cmd/lookout/main.go 
 ```
 For ui development you can also use webpack server which proxies to go api.
 ```bash
