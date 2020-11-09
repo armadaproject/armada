@@ -115,8 +115,10 @@ Start a Postgres database:
 ```bash
 docker run -p 5432:5432 -e POSTGRES_PASSWORD=psw postgres
 ```
-Manually apply the schema from `internal/lookout/repository/schema` (this will get automated in a future version).
-
+Migrate database:
+```bash
+go run ./cmd/lookout/main.go --migrateDatabase
+```
 Then run go application:
 ```bash
 go run ./cmd/lookout/main.go 
