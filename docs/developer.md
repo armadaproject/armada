@@ -87,6 +87,45 @@ This is recommended when working on features that are purely Armada specific or 
     ARMADA_APPLICATION_CLUSTERID=demoB ARMADA_METRIC_PORT=9002 go run ./cmd/fakeexecutor/main.go
     ```
 
+#### Optional components
+
+##### NATS Streaming
+Armada can be set up to use NATS Streaming as message queue for events.
+To run NATS Streaming for development you can use docker:
+```bash
+docker run  -p 4223:4223 -p 8223:8223 nats-streaming -p 4223 -m 8223
+```
+
+For armada configuration check end to end test setup:
+```bash
+go run ./cmd/armada/main.go --config /e2e/setup/nats/armada-config.yaml
+```
+
+##### Lookout - Armada UI
+Lookout requires Armada to be configured with NATS Streaming.
+To run Lookout, firstly build frontend:
+```bash
+cd ./internal/lookout/ui
+npm run 
+npm install 
+npm run openapi
+npm run build
+```
+Start a Postgres database:
+```bash
+docker run -p 5432:5432 -e POSTGRES_PASSWORD=psw postgres
+```
+Manually apply the schema from `internal/lookout/repository/schema` (this will get automated in a future version).
+
+Then run go application:
+```bash
+go run ./cmd/lookout/main.go 
+```
+For ui development you can also use webpack server which proxies to go api.
+```bash
+npm run start
+```
+
 #### Testing your setup
 
 1. Create queue & Submit job
