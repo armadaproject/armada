@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"github.com/G-Research/armada/pkg/api"
+	"github.com/lib/pq"
 	"strings"
 	"time"
 
@@ -25,15 +26,15 @@ type joinedRow struct {
 	Owner     string
 	JobSet    string
 	Priority  sql.NullFloat64
-	Submitted sql.NullTime
-	Cancelled sql.NullTime
+	Submitted pq.NullTime
+	Cancelled pq.NullTime
 	JobJson   sql.NullString
 	RunId     sql.NullString
 	Cluster   sql.NullString
 	Node      sql.NullString
-	Created   sql.NullTime
-	Started   sql.NullTime
-	Finished  sql.NullTime
+	Created   pq.NullTime
+	Started   pq.NullTime
+	Finished  pq.NullTime
 	Succeeded sql.NullBool
 	Error     sql.NullString
 }
@@ -349,14 +350,14 @@ func parseNullFloat(nullFloat sql.NullFloat64) float64 {
 	return nullFloat.Float64
 }
 
-func parseNullTime(nullTime sql.NullTime) *time.Time {
+func parseNullTime(nullTime pq.NullTime) *time.Time {
 	if !nullTime.Valid {
 		return nil
 	}
 	return &nullTime.Time
 }
 
-func parseNullTimeDefault(nullTime sql.NullTime) time.Time {
+func parseNullTimeDefault(nullTime pq.NullTime) time.Time {
 	if !nullTime.Valid {
 		return time.Time{}
 	}
