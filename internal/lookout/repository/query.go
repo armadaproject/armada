@@ -12,7 +12,7 @@ import (
 
 type JobRepository interface {
 	GetQueueStats() ([]*lookout.QueueInfo, error)
-	GetJobsInQueue(queue string, opts GetJobsInQueueOpts) ([]*lookout.JobInfo, error)
+	GetJobsInQueue(opts *lookout.GetJobsInQueueRequest) ([]*lookout.JobInfo, error)
 }
 
 type SQLJobRepository struct {
@@ -75,25 +75,8 @@ func (r *SQLJobRepository) GetQueueStats() ([]*lookout.QueueInfo, error) {
 	return result, nil
 }
 
-type GetJobsInQueueOpts struct {
-	NewestFirst bool
-	JobStates   []JobState
-	JobSetIds   []string
-}
-
-type JobState string
-
-const (
-	Queued    = "Queued" // Not leased yet
-	Pending   = "Pending"
-	Running   = "Running"
-	Succeeded = "Succeeded"
-	Failed    = "Failed"
-	Cancelled = "Cancelled"
-)
-
-func (r *SQLJobRepository) GetJobsInQueue(queue string, take int, opts GetJobsInQueueOpts) ([]*lookout.JobInfo, error) {
-	rows, err := r.queryJobsInQueue(queue, take, opts)
+func (r *SQLJobRepository) GetJobsInQueue(opts *lookout.GetJobsInQueueRequest) ([]*lookout.JobInfo, error) {
+	rows, err := r.queryJobsInQueue(opts)
 	if err != nil {
 		return nil, err
 	}
@@ -102,8 +85,8 @@ func (r *SQLJobRepository) GetJobsInQueue(queue string, take int, opts GetJobsIn
 	return result, nil
 }
 
-func (r *SQLJobRepository) queryJobsInQueue(queue string, take int, opts GetJobsInQueueOpts) ([]*joinedRow, error) {
-	queryString := makeGetJobsInQueueQuery(queue, take, opts)
+func (r *SQLJobRepository) queryJobsInQueue(opts *lookout.GetJobsInQueueRequest) ([]*joinedRow, error) {
+	queryString := makeGetJobsInQueueQuery(opts)
 	rows, err := r.db.Query(queryString)
 	if err != nil {
 		return nil, err
@@ -137,7 +120,7 @@ func (r *SQLJobRepository) queryJobsInQueue(queue string, take int, opts GetJobs
 	return joinedRows, nil
 }
 
-func makeGetJobsInQueueQuery(queue string, take int, opts GetJobsInQueueOpts) string {
+func makeGetJobsInQueueQuery(opts *lookout.GetJobsInQueueRequest) string {
 	query := `
 		SELECT job.job_id as job_id,
 			   job.owner as owner,
@@ -164,7 +147,7 @@ func makeGetJobsInQueueQuery(queue string, take int, opts GetJobsInQueueOpts) st
 		FROM job LEFT JOIN job_run ON job.job_id = job_run.job_id
 	`)
 
-	addWhereClause(sb, queue, opts.JobSetIds)
+	addWhereClause(sb, opts.Queue, opts.JobSetIds)
 
 	sb.WriteString("GROUP BY job.job_id\n")
 
@@ -172,7 +155,11 @@ func makeGetJobsInQueueQuery(queue string, take int, opts GetJobsInQueueOpts) st
 
 	addOrderByClause(sb, opts.NewestFirst)
 
-	sb.WriteString(fmt.Sprintf("LIMIT %d\n", take))
+	sb.WriteString(fmt.Sprintf("LIMIT %d\n", opts.Take))
+
+	if opts.Skip > 0 {
+		sb.WriteString(fmt.Sprintf("OFFSET %d\n", opts.Skip))
+	}
 
 	return fmt.Sprintf(query, sb.String())
 }
@@ -202,39 +189,39 @@ const (
 	succeeded = "job_run.succeeded"
 )
 
-var stateFiltersMap = map[JobState]map[string]bool{
-	Queued: {
+var stateFiltersMap = map[lookout.JobState]map[string]bool{
+	lookout.JobState_QUEUED: {
 		submitted: true,
 		cancelled: false,
 		created:   false,
 		started:   false,
 		finished:  false,
 	},
-	Pending: {
+	lookout.JobState_PENDING: {
 		cancelled: false,
 		created:   true,
 		started:   false,
 		finished:  false,
 	},
-	Running: {
+	lookout.JobState_RUNNING: {
 		cancelled: false,
 		started:   true,
 		finished:  false,
 	},
-	Succeeded: {
+	lookout.JobState_SUCCEEDED: {
 		cancelled: false,
 		finished:  true,
 		succeeded: true,
 	},
-	Failed: {
+	lookout.JobState_FAILED: {
 		succeeded: false,
 	},
-	Cancelled: {
+	lookout.JobState_CANCELLED: {
 		cancelled: true,
 	},
 }
 
-func addHavingClause(sb *strings.Builder, jobStates []JobState) {
+func addHavingClause(sb *strings.Builder, jobStates []lookout.JobState) {
 	conditions := make([]string, 0)
 
 	for _, state := range jobStates {

@@ -26,3 +26,7 @@ func (s *LookoutServer) Overview(ctx context.Context, _ *types.Empty) (*lookout.
 	}
 	return &lookout.SystemOverview{Queues: queues}, nil
 }
+
+func (s *LookoutServer) GetJobsInQueue(context.Context, *lookout.GetJobsInQueueRequest) (*lookout.GetJobsInQueueResponse, error) {
+	return nil, nil
+}

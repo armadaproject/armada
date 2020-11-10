@@ -43,10 +43,38 @@ message QueueInfo {
     JobInfo longest_running_job = 6;
 }
 
+enum JobState {
+    QUEUED = 0;
+    PENDING = 1;
+    RUNNING = 2;
+    SUCCEEDED = 3;
+    FAILED = 4;
+    CANCELLED = 5;
+}
+
+message GetJobsInQueueRequest {
+    string queue = 1;
+    bool newest_first = 2;
+    repeated JobState job_states = 3;
+    repeated string job_set_ids = 4;
+    uint32 take = 5;
+    uint32 skip = 6;
+}
+
+message GetJobsInQueueResponse {
+    repeated JobInfo job_infos = 1;
+}
+
 service Lookout {
     rpc Overview (google.protobuf.Empty) returns (SystemOverview) {
         option (google.api.http) = {
             get: "/api/v1/lookout/overview"
         };
     }
+
+    rpc GetJobsInQueue (GetJobsInQueueRequest) returns (GetJobsInQueueResponse) {
+        option (google.api.http) = {
+            get: "/api/v1/lookout/jobs"
+        };
+    };
 }

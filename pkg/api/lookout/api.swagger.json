@@ -11,6 +11,78 @@
     "version": "version not set"
   },
   "paths": {
+    "/api/v1/lookout/jobs": {
+      "get": {
+        "tags": [
+          "Lookout"
+        ],
+        "operationId": "GetJobsInQueue",
+        "parameters": [
+          {
+            "type": "string",
+            "name": "queue",
+            "in": "query"
+          },
+          {
+            "type": "boolean",
+            "name": "newestFirst",
+            "in": "query"
+          },
+          {
+            "type": "array",
+            "items": {
+              "enum": [
+                "QUEUED",
+                "PENDING",
+                "RUNNING",
+                "SUCCEEDED",
+                "FAILED",
+                "CANCELLED"
+              ],
+              "type": "string"
+            },
+            "collectionFormat": "multi",
+            "name": "jobStates",
+            "in": "query"
+          },
+          {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi",
+            "name": "jobSetIds",
+            "in": "query"
+          },
+          {
+            "type": "integer",
+            "format": "int64",
+            "name": "take",
+            "in": "query"
+          },
+          {
+            "type": "integer",
+            "format": "int64",
+            "name": "skip",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/lookoutGetJobsInQueueResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        }
+      }
+    },
     "/api/v1/lookout/overview": {
       "get": {
         "tags": [
@@ -108,6 +180,17 @@
       "title": "Type represents the stored type of IntOrString.",
       "x-go-package": "k8s.io/apimachinery/pkg/util/intstr"
     },
+    "lookoutGetJobsInQueueResponse": {
+      "type": "object",
+      "properties": {
+        "jobInfos": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/lookoutJobInfo"
+          }
+        }
+      }
+    },
     "lookoutJobInfo": {
       "type": "object",
       "properties": {
@@ -125,6 +208,18 @@
           }
         }
       }
+    },
+    "lookoutJobState": {
+      "type": "string",
+      "default": "QUEUED",
+      "enum": [
+        "QUEUED",
+        "PENDING",
+        "RUNNING",
+        "SUCCEEDED",
+        "FAILED",
+        "CANCELLED"
+      ]
     },
     "lookoutQueueInfo": {
       "type": "object",

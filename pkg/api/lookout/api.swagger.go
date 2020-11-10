@@ -22,6 +22,78 @@ func SwaggerJsonTemplate() string {
 		"    \"version\": \"version not set\"\n" +
 		"  },\n" +
 		"  \"paths\": {\n" +
+		"    \"/api/v1/lookout/jobs\": {\n" +
+		"      \"get\": {\n" +
+		"        \"tags\": [\n" +
+		"          \"Lookout\"\n" +
+		"        ],\n" +
+		"        \"operationId\": \"GetJobsInQueue\",\n" +
+		"        \"parameters\": [\n" +
+		"          {\n" +
+		"            \"type\": \"string\",\n" +
+		"            \"name\": \"queue\",\n" +
+		"            \"in\": \"query\"\n" +
+		"          },\n" +
+		"          {\n" +
+		"            \"type\": \"boolean\",\n" +
+		"            \"name\": \"newestFirst\",\n" +
+		"            \"in\": \"query\"\n" +
+		"          },\n" +
+		"          {\n" +
+		"            \"type\": \"array\",\n" +
+		"            \"items\": {\n" +
+		"              \"enum\": [\n" +
+		"                \"QUEUED\",\n" +
+		"                \"PENDING\",\n" +
+		"                \"RUNNING\",\n" +
+		"                \"SUCCEEDED\",\n" +
+		"                \"FAILED\",\n" +
+		"                \"CANCELLED\"\n" +
+		"              ],\n" +
+		"              \"type\": \"string\"\n" +
+		"            },\n" +
+		"            \"collectionFormat\": \"multi\",\n" +
+		"            \"name\": \"jobStates\",\n" +
+		"            \"in\": \"query\"\n" +
+		"          },\n" +
+		"          {\n" +
+		"            \"type\": \"array\",\n" +
+		"            \"items\": {\n" +
+		"              \"type\": \"string\"\n" +
+		"            },\n" +
+		"            \"collectionFormat\": \"multi\",\n" +
+		"            \"name\": \"jobSetIds\",\n" +
+		"            \"in\": \"query\"\n" +
+		"          },\n" +
+		"          {\n" +
+		"            \"type\": \"integer\",\n" +
+		"            \"format\": \"int64\",\n" +
+		"            \"name\": \"take\",\n" +
+		"            \"in\": \"query\"\n" +
+		"          },\n" +
+		"          {\n" +
+		"            \"type\": \"integer\",\n" +
+		"            \"format\": \"int64\",\n" +
+		"            \"name\": \"skip\",\n" +
+		"            \"in\": \"query\"\n" +
+		"          }\n" +
+		"        ],\n" +
+		"        \"responses\": {\n" +
+		"          \"200\": {\n" +
+		"            \"description\": \"A successful response.\",\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/lookoutGetJobsInQueueResponse\"\n" +
+		"            }\n" +
+		"          },\n" +
+		"          \"default\": {\n" +
+		"            \"description\": \"An unexpected error response.\",\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/runtimeError\"\n" +
+		"            }\n" +
+		"          }\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
 		"    \"/api/v1/lookout/overview\": {\n" +
 		"      \"get\": {\n" +
 		"        \"tags\": [\n" +
@@ -119,6 +191,17 @@ func SwaggerJsonTemplate() string {
 		"      \"title\": \"Type represents the stored type of IntOrString.\",\n" +
 		"      \"x-go-package\": \"k8s.io/apimachinery/pkg/util/intstr\"\n" +
 		"    },\n" +
+		"    \"lookoutGetJobsInQueueResponse\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"jobInfos\": {\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/lookoutJobInfo\"\n" +
+		"          }\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
 		"    \"lookoutJobInfo\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
@@ -136,6 +219,18 @@ func SwaggerJsonTemplate() string {
 		"          }\n" +
 		"        }\n" +
 		"      }\n" +
+		"    },\n" +
+		"    \"lookoutJobState\": {\n" +
+		"      \"type\": \"string\",\n" +
+		"      \"default\": \"QUEUED\",\n" +
+		"      \"enum\": [\n" +
+		"        \"QUEUED\",\n" +
+		"        \"PENDING\",\n" +
+		"        \"RUNNING\",\n" +
+		"        \"SUCCEEDED\",\n" +
+		"        \"FAILED\",\n" +
+		"        \"CANCELLED\"\n" +
+		"      ]\n" +
 		"    },\n" +
 		"    \"lookoutQueueInfo\": {\n" +
 		"      \"type\": \"object\",\n" +
