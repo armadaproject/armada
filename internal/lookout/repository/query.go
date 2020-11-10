@@ -92,8 +92,8 @@ const (
 	Cancelled = "Cancelled"
 )
 
-func (r *SQLJobRepository) GetJobsInQueue(queue string, opts GetJobsInQueueOpts) ([]*lookout.JobInfo, error) {
-	rows, err := r.queryJobsInQueue(queue, opts)
+func (r *SQLJobRepository) GetJobsInQueue(queue string, take int, opts GetJobsInQueueOpts) ([]*lookout.JobInfo, error) {
+	rows, err := r.queryJobsInQueue(queue, take, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -102,8 +102,8 @@ func (r *SQLJobRepository) GetJobsInQueue(queue string, opts GetJobsInQueueOpts)
 	return result, nil
 }
 
-func (r *SQLJobRepository) queryJobsInQueue(queue string, opts GetJobsInQueueOpts) ([]*joinedRow, error) {
-	queryString := makeGetJobsInQueueQuery(queue, opts)
+func (r *SQLJobRepository) queryJobsInQueue(queue string, take int, opts GetJobsInQueueOpts) ([]*joinedRow, error) {
+	queryString := makeGetJobsInQueueQuery(queue, take, opts)
 	rows, err := r.db.Query(queryString)
 	if err != nil {
 		return nil, err
@@ -137,7 +137,7 @@ func (r *SQLJobRepository) queryJobsInQueue(queue string, opts GetJobsInQueueOpt
 	return joinedRows, nil
 }
 
-func makeGetJobsInQueueQuery(queue string, opts GetJobsInQueueOpts) string {
+func makeGetJobsInQueueQuery(queue string, take int, opts GetJobsInQueueOpts) string {
 	query := `
 		SELECT job.job_id as job_id,
 			   job.owner as owner,
@@ -172,6 +172,8 @@ func makeGetJobsInQueueQuery(queue string, opts GetJobsInQueueOpts) string {
 
 	addOrderByClause(sb, opts.NewestFirst)
 
+	sb.WriteString(fmt.Sprintf("LIMIT %d\n", take))
+
 	return fmt.Sprintf(query, sb.String())
 }
 
@@ -194,34 +196,34 @@ func addWhereClause(sb *strings.Builder, queue string, jobSetIds []string) {
 const (
 	submitted = "job.submitted"
 	cancelled = "job.cancelled"
-	created = "job_run.created"
-	started = "job_run.started"
-	finished = "job_run.finished"
+	created   = "job_run.created"
+	started   = "job_run.started"
+	finished  = "job_run.finished"
 	succeeded = "job_run.succeeded"
 )
 
-var stateFiltersMap = map[JobState]map[string]bool {
+var stateFiltersMap = map[JobState]map[string]bool{
 	Queued: {
 		submitted: true,
 		cancelled: false,
-		created: false,
-		started: false,
-		finished: false,
+		created:   false,
+		started:   false,
+		finished:  false,
 	},
 	Pending: {
 		cancelled: false,
-		created: true,
-		started: false,
-		finished: false,
+		created:   true,
+		started:   false,
+		finished:  false,
 	},
 	Running: {
 		cancelled: false,
-		started: true,
-		finished: false,
+		started:   true,
+		finished:  false,
 	},
 	Succeeded: {
 		cancelled: false,
-		finished: true,
+		finished:  true,
 		succeeded: true,
 	},
 	Failed: {
