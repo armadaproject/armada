@@ -77,7 +77,8 @@ func (r *SQLJobRepository) GetQueueStats() ([]*lookout.QueueInfo, error) {
 
 type GetJobsInQueueOpts struct {
 	NewestFirst bool
-	FilterStates []JobState
+	JobStates   []JobState
+	JobSetIds   []string
 }
 
 type JobState string
@@ -92,6 +93,16 @@ const (
 )
 
 func (r *SQLJobRepository) GetJobsInQueue(queue string, opts GetJobsInQueueOpts) ([]*lookout.JobInfo, error) {
+	rows, err := r.queryJobsInQueue(queue, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	result := parseJobsInQueueRows(rows)
+	return result, nil
+}
+
+func (r *SQLJobRepository) queryJobsInQueue(queue string, opts GetJobsInQueueOpts) ([]*joinedRow, error) {
 	queryString := makeGetJobsInQueueQuery(queue, opts)
 	rows, err := r.db.Query(queryString)
 	if err != nil {
@@ -99,7 +110,6 @@ func (r *SQLJobRepository) GetJobsInQueue(queue string, opts GetJobsInQueueOpts)
 	}
 
 	joinedRows := make([]*joinedRow, 0)
-
 	for rows.Next() {
 		row := &joinedRow{}
 		err := rows.Scan(
@@ -124,44 +134,61 @@ func (r *SQLJobRepository) GetJobsInQueue(queue string, opts GetJobsInQueueOpts)
 		}
 		joinedRows = append(joinedRows, row)
 	}
+	return joinedRows, nil
+}
 
-	result := make([]*lookout.JobInfo, 0)
+func makeGetJobsInQueueQuery(queue string, opts GetJobsInQueueOpts) string {
+	query := `
+		SELECT job.job_id as job_id,
+			   job.owner as owner,
+			   job.jobset as jobset,
+               job.priority as priority,
+               job.submitted as submitted,
+               job.cancelled as cancelled,
+			   job.job as job_json,
+			   job_run.run_id as run_id,
+			   job_run.cluster as cluster,
+			   job_run.node as node,
+			   job_run.created as created,
+			   job_run.started as started,
+			   job_run.finished as finished,
+			   job_run.succeeded as succeeded,
+			   job_run.error as error
+		FROM job LEFT JOIN job_run ON job.job_id = job_run.job_id
+		WHERE job.job_id IN (%s)`
 
-	for i, row := range joinedRows {
-		if i == 0 || result[len(result) - 1].Job.Id != row.JobId {
-			result = append(result, &lookout.JobInfo{
-				Job:  &api.Job{
-					Id:          row.JobId,
-					JobSetId:    row.JobSet,
-					Queue:       row.Queue,
-					Namespace:   "",
-					Labels:      nil,
-					Annotations: nil,
-					Owner:       row.Owner,
-					Priority:    parseNullFloat(row.Priority),
-					PodSpec:     nil,
-					Created:     parseNullTimeDefault(row.Submitted), // Job submitted
-				},
-				Cancelled: parseNullTime(row.Cancelled),
-				Runs:      []*lookout.RunInfo{},
-			})
+	sb := &strings.Builder{} // Builder for sub query
+
+	sb.WriteString(`
+		SELECT job.job_id
+		FROM job LEFT JOIN job_run ON job.job_id = job_run.job_id
+	`)
+
+	addWhereClause(sb, queue, opts.JobSetIds)
+
+	sb.WriteString("GROUP BY job.job_id\n")
+
+	addHavingClause(sb, opts.JobStates)
+
+	addOrderByClause(sb, opts.NewestFirst)
+
+	return fmt.Sprintf(query, sb.String())
+}
+
+func addWhereClause(sb *strings.Builder, queue string, jobSetIds []string) {
+	sb.WriteString(fmt.Sprintf("WHERE job.queue  = '%s'\n", queue))
+
+	if len(jobSetIds) > 0 {
+		sb.WriteString("AND (")
+
+		conditions := make([]string, len(jobSetIds))
+		for i, jobSetId := range jobSetIds {
+			conditions[i] = fmt.Sprintf("job.jobset LIKE '%s%%'", jobSetId)
 		}
+		sb.WriteString(joinConditions(conditions, "OR", false))
 
-		if row.RunId.Valid {
-			result[len(result)-1].Runs = append(result[len(result)-1].Runs, &lookout.RunInfo{
-				K8SId:     parseNullString(row.RunId),
-				Cluster:   parseNullString(row.Cluster),
-				Node:      parseNullString(row.Node),
-				Succeeded: parseNullBool(row.Succeeded),
-				Error:     parseNullString(row.Error),
-				Created:   parseNullTime(row.Created), // Pod created (Pending)
-				Started:   parseNullTime(row.Started), // Pod running
-				Finished:  parseNullTime(row.Finished),
-			})
-		}
+		sb.WriteString(")\n")
 	}
-
-	return result, nil
 }
 
 const (
@@ -205,6 +232,49 @@ var stateFiltersMap = map[JobState]map[string]bool {
 	},
 }
 
+func addHavingClause(sb *strings.Builder, jobStates []JobState) {
+	conditions := make([]string, 0)
+
+	for _, state := range jobStates {
+		stateConditions := make([]string, 0)
+
+		for column, include := range stateFiltersMap[state] {
+			if column == submitted {
+				stateConditions = append(stateConditions, formatWithNot("MAX(job.submitted) IS %s NULL", include))
+			} else if column == cancelled {
+				stateConditions = append(stateConditions, formatWithNot("MAX(job.cancelled) IS %s NULL", include))
+			} else if column == created {
+				stateConditions = append(stateConditions, formatWithNot("MAX(job_run.created) IS %s NULL", include))
+			} else if column == started {
+				stateConditions = append(stateConditions, formatWithNot("MAX(job_run.started) IS %s NULL", include))
+			} else if column == finished {
+				stateConditions = append(stateConditions, formatWithNot("MAX(job_run.finished) IS %s NULL", include))
+			} else if column == succeeded {
+				stateConditions = append(stateConditions, formatWithNot("%s BOOL_OR(job_run.succeeded)", !include))
+			}
+		}
+
+		conditions = append(conditions, joinConditions(stateConditions, "AND", false))
+	}
+
+	havingConditions := joinConditions(conditions, "OR", true)
+
+	if havingConditions != "" {
+		sb.WriteString("HAVING ")
+		sb.WriteString(havingConditions)
+		sb.WriteString("\n")
+	}
+}
+
+func addOrderByClause(sb *strings.Builder, newestFirst bool) {
+	var order string
+	if newestFirst {
+		order = "DESC"
+	}
+	orderBy := fmt.Sprintf("ORDER BY job_id %s\n", order) // Job ids are sortable ULIDs
+	sb.WriteString(orderBy)
+}
+
 func formatWithNot(condition string, addNot bool) string {
 	not := ""
 	if addNot {
@@ -213,84 +283,60 @@ func formatWithNot(condition string, addNot bool) string {
 	return fmt.Sprintf(condition, not)
 }
 
-func makeGetJobsInQueueQuery(queue string, opts GetJobsInQueueOpts) string {
-	hs := make([]string, 0)
+func joinConditions(conditions []string, operator string, addParens bool) string {
+	if len(conditions) == 0 {
+		return ""
+	}
 
-	for _, state := range opts.FilterStates {
-		h := make([]string, 0)
+	separator := fmt.Sprintf(" %s ", operator)
+	if addParens {
+		separator = fmt.Sprintf(") %s (", operator)
+	}
 
-		for column, include := range stateFiltersMap[state] {
-			if column == submitted {
-				h = append(h, formatWithNot("MAX(job.submitted) IS %s NULL", include))
-			} else if column == cancelled {
-				h = append(h, formatWithNot("MAX(job.cancelled) IS %s NULL", include))
-			} else if column == created {
-				h = append(h, formatWithNot("MAX(job_run.created) IS %s NULL", include))
-			} else if column == started {
-				h = append(h, formatWithNot("MAX(job_run.started) IS %s NULL", include))
-			} else if column == finished {
-				h = append(h, formatWithNot("MAX(job_run.finished) IS %s NULL", include))
-			} else if column == succeeded {
-				h = append(h, formatWithNot("%s BOOL_OR(job_run.succeeded)", !include))
-			}
+	joined := strings.Join(conditions, separator)
+	if addParens {
+		joined = fmt.Sprintf("(%s)", joined)
+	}
+	return joined
+}
+
+func parseJobsInQueueRows(rows []*joinedRow) []*lookout.JobInfo {
+	result := make([]*lookout.JobInfo, 0)
+
+	for i, row := range rows {
+		if i == 0 || result[len(result)-1].Job.Id != row.JobId {
+			result = append(result, &lookout.JobInfo{
+				Job: &api.Job{
+					Id:          row.JobId,
+					JobSetId:    row.JobSet,
+					Queue:       row.Queue,
+					Namespace:   "",
+					Labels:      nil,
+					Annotations: nil,
+					Owner:       row.Owner,
+					Priority:    parseNullFloat(row.Priority),
+					PodSpec:     nil,
+					Created:     parseNullTimeDefault(row.Submitted), // Job submitted
+				},
+				Cancelled: parseNullTime(row.Cancelled),
+				Runs:      []*lookout.RunInfo{},
+			})
 		}
 
-		if len(h) > 0 {
-			hs = append(hs, strings.Join(h, " AND "))
+		if row.RunId.Valid {
+			result[len(result)-1].Runs = append(result[len(result)-1].Runs, &lookout.RunInfo{
+				K8SId:     parseNullString(row.RunId),
+				Cluster:   parseNullString(row.Cluster),
+				Node:      parseNullString(row.Node),
+				Succeeded: parseNullBool(row.Succeeded),
+				Error:     parseNullString(row.Error),
+				Created:   parseNullTime(row.Created), // Pod created (Pending)
+				Started:   parseNullTime(row.Started), // Pod running
+				Finished:  parseNullTime(row.Finished),
+			})
 		}
 	}
-
-	var havingClause string
-
-	if len(hs) > 0 {
-		havingClause = fmt.Sprintf("(%s)", strings.Join(hs, ") OR ("))
-	}
-
-	query := `
-		SELECT job.job_id as job_id,
-			   job.owner as owner,
-			   job.jobset as jobset,
-               job.priority as priority,
-               job.submitted as submitted,
-               job.cancelled as cancelled,
-			   job.job as job_json,
-			   job_run.run_id as run_id,
-			   job_run.cluster as cluster,
-			   job_run.node as node,
-			   job_run.created as created,
-			   job_run.started as started,
-			   job_run.finished as finished,
-			   job_run.succeeded as succeeded,
-			   job_run.error as error
-		FROM job LEFT JOIN job_run ON job.job_id = job_run.job_id
-		WHERE job.job_id IN (%s)`
-
-	sb := &strings.Builder{}
-	sb.WriteString(`
-		SELECT job.job_id
-		FROM job LEFT JOIN job_run ON job.job_id = job_run.job_id
-	`)
-
-	sb.WriteString(fmt.Sprintf("WHERE job.queue  = '%s'\n", queue))
-
-	sb.WriteString("GROUP BY job.job_id\n")
-
-	if havingClause != "" {
-		sb.WriteString("HAVING ")
-		sb.WriteString(havingClause)
-		sb.WriteString("\n")
-	}
-
-	var order string
-	if opts.NewestFirst {
-		order = "DESC"
-	} else {
-		order = "ASC"
-	}
-	orderBy := fmt.Sprintf("ORDER BY job_id %s\n", order) // Job ids are sortable ULIDs
-	sb.WriteString(orderBy)
-
-	return fmt.Sprintf(query, sb.String())
+	return result
 }
 
 func parseNullString(nullString sql.NullString) string {

@@ -372,7 +372,7 @@ func Test_FilterQueuedJobs(t *testing.T) {
 			cancelled()
 
 		jobInfos, err := jobRepo.GetJobsInQueue(queue, GetJobsInQueueOpts{
-			FilterStates: []JobState{Queued},
+			JobStates: []JobState{Queued},
 		})
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(jobInfos))
@@ -425,7 +425,7 @@ func Test_FilterPendingJobs(t *testing.T) {
 			cancelled()
 
 		jobInfos, err := jobRepo.GetJobsInQueue(queue, GetJobsInQueueOpts{
-			FilterStates: []JobState{Pending},
+			JobStates: []JobState{Pending},
 		})
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(jobInfos))
@@ -478,7 +478,7 @@ func Test_FilterRunningJobs(t *testing.T) {
 			cancelled()
 
 		jobInfos, err := jobRepo.GetJobsInQueue(queue, GetJobsInQueueOpts{
-			FilterStates: []JobState{Running},
+			JobStates: []JobState{Running},
 		})
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(jobInfos))
@@ -531,7 +531,7 @@ func Test_FilterSucceededJobs(t *testing.T) {
 			cancelled()
 
 		jobInfos, err := jobRepo.GetJobsInQueue(queue, GetJobsInQueueOpts{
-			FilterStates: []JobState{Succeeded},
+			JobStates: []JobState{Succeeded},
 		})
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(jobInfos))
@@ -584,7 +584,7 @@ func Test_FilterFailedJobs(t *testing.T) {
 			cancelled()
 
 		jobInfos, err := jobRepo.GetJobsInQueue(queue, GetJobsInQueueOpts{
-			FilterStates: []JobState{Failed},
+			JobStates: []JobState{Failed},
 		})
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(jobInfos))
@@ -637,7 +637,7 @@ func Test_FilterCancelledJobs(t *testing.T) {
 			cancelled()
 
 		jobInfos, err := jobRepo.GetJobsInQueue(queue, GetJobsInQueueOpts{
-			FilterStates: []JobState{Cancelled},
+			JobStates: []JobState{Cancelled},
 		})
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(jobInfos))
@@ -690,7 +690,7 @@ func Test_FilterMultipleStates(t *testing.T) {
 			cancelled()
 
 		jobInfos, err := jobRepo.GetJobsInQueue(queue, GetJobsInQueueOpts{
-			FilterStates: []JobState{Queued, Running, Failed},
+			JobStates: []JobState{Queued, Running, Failed},
 		})
 		assert.NoError(t, err)
 		assert.Equal(t, 3, len(jobInfos))
@@ -699,13 +699,259 @@ func Test_FilterMultipleStates(t *testing.T) {
 		assertJobsAreEquivalent(t, failed.job, jobInfos[2].Job)
 
 		jobInfos, err = jobRepo.GetJobsInQueue(queue, GetJobsInQueueOpts{
-			FilterStates: []JobState{Pending, Succeeded, Cancelled},
+			JobStates: []JobState{Pending, Succeeded, Cancelled},
 		})
 		assert.NoError(t, err)
 		assert.Equal(t, 3, len(jobInfos))
 		assertJobsAreEquivalent(t, pending.job, jobInfos[0].Job)
 		assertJobsAreEquivalent(t, succeeded.job, jobInfos[1].Job)
 		assertJobsAreEquivalent(t, cancelled.job, jobInfos[2].Job)
+	})
+}
+
+func Test_FilterBySingleJobSet(t *testing.T) {
+	withDatabase(t, func(db *sql.DB) {
+		jobStore := NewSQLJobStore(db)
+		jobRepo := NewSQLJobRepository(db)
+
+		queue := "queue"
+		jobSet1 := "job-set-1"
+		jobSet2 := "job-set-2"
+		jobSet3 := "job-set-3"
+
+		cluster := "cluster"
+		node := "node"
+
+		job1 := newJobSimulator(t, jobStore, &defaultClock{}).
+			createJobWithJobSet(queue, jobSet1)
+
+		k8sId1 := util.NewULID()
+		job2 := newJobSimulator(t, jobStore, &defaultClock{}).
+			createJobWithJobSet(queue, jobSet1).
+			pending(cluster, k8sId1)
+
+		k8sId2 := util.NewULID()
+		k8sId3 := util.NewULID()
+		job3 := newJobSimulator(t, jobStore, &defaultClock{}).
+			createJobWithJobSet(queue, jobSet2).
+			pending(cluster, k8sId2).
+			pending(cluster, k8sId3).
+			running(cluster, k8sId3, node)
+
+		k8sId4 := util.NewULID()
+		job4 := newJobSimulator(t, jobStore, &defaultClock{}).
+			createJobWithJobSet(queue, jobSet2).
+			pending(cluster, k8sId4).
+			running(cluster, k8sId4, node).
+			succeeded(cluster, k8sId4, node)
+
+		k8sId5 := util.NewULID()
+		job5 := newJobSimulator(t, jobStore, &defaultClock{}).
+			createJobWithJobSet(queue, jobSet3).
+			failed(cluster, k8sId5, node, "Something bad")
+
+		job6 := newJobSimulator(t, jobStore, &defaultClock{}).
+			createJobWithJobSet(queue, jobSet3).
+			cancelled()
+
+		jobInfos, err := jobRepo.GetJobsInQueue(queue, GetJobsInQueueOpts{
+			JobSetIds: []string{jobSet1},
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, 2, len(jobInfos))
+		assertJobsAreEquivalent(t, job1.job, jobInfos[0].Job)
+		assertJobsAreEquivalent(t, job2.job, jobInfos[1].Job)
+
+		jobInfos, err = jobRepo.GetJobsInQueue(queue, GetJobsInQueueOpts{
+			JobSetIds: []string{jobSet2},
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, 2, len(jobInfos))
+		assertJobsAreEquivalent(t, job3.job, jobInfos[0].Job)
+		assertJobsAreEquivalent(t, job4.job, jobInfos[1].Job)
+
+		jobInfos, err = jobRepo.GetJobsInQueue(queue, GetJobsInQueueOpts{
+			JobSetIds: []string{jobSet3},
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, 2, len(jobInfos))
+		assertJobsAreEquivalent(t, job5.job, jobInfos[0].Job)
+		assertJobsAreEquivalent(t, job6.job, jobInfos[1].Job)
+	})
+}
+
+func Test_FilterByMultipleJobSets(t *testing.T) {
+	withDatabase(t, func(db *sql.DB) {
+		jobStore := NewSQLJobStore(db)
+		jobRepo := NewSQLJobRepository(db)
+
+		queue := "queue"
+		jobSet1 := "job-set-1"
+		jobSet2 := "job-set-2"
+		jobSet3 := "job-set-3"
+
+		cluster := "cluster"
+		node := "node"
+
+		job1 := newJobSimulator(t, jobStore, &defaultClock{}).
+			createJobWithJobSet(queue, jobSet1)
+
+		k8sId1 := util.NewULID()
+		job2 := newJobSimulator(t, jobStore, &defaultClock{}).
+			createJobWithJobSet(queue, jobSet1).
+			pending(cluster, k8sId1)
+
+		k8sId2 := util.NewULID()
+		k8sId3 := util.NewULID()
+		job3 := newJobSimulator(t, jobStore, &defaultClock{}).
+			createJobWithJobSet(queue, jobSet2).
+			pending(cluster, k8sId2).
+			pending(cluster, k8sId3).
+			running(cluster, k8sId3, node)
+
+		k8sId4 := util.NewULID()
+		job4 := newJobSimulator(t, jobStore, &defaultClock{}).
+			createJobWithJobSet(queue, jobSet2).
+			pending(cluster, k8sId4).
+			running(cluster, k8sId4, node).
+			succeeded(cluster, k8sId4, node)
+
+		k8sId5 := util.NewULID()
+		newJobSimulator(t, jobStore, &defaultClock{}).
+			createJobWithJobSet(queue, jobSet3).
+			failed(cluster, k8sId5, node, "Something bad")
+
+		newJobSimulator(t, jobStore, &defaultClock{}).
+			createJobWithJobSet(queue, jobSet3).
+			cancelled()
+
+		jobInfos, err := jobRepo.GetJobsInQueue(queue, GetJobsInQueueOpts{
+			JobSetIds: []string{jobSet1, jobSet2},
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, 4, len(jobInfos))
+		assertJobsAreEquivalent(t, job1.job, jobInfos[0].Job)
+		assertJobsAreEquivalent(t, job2.job, jobInfos[1].Job)
+		assertJobsAreEquivalent(t, job3.job, jobInfos[2].Job)
+		assertJobsAreEquivalent(t, job4.job, jobInfos[3].Job)
+	})
+}
+
+func Test_FilterByJobSetStartingWith(t *testing.T) {
+	withDatabase(t, func(db *sql.DB) {
+		jobStore := NewSQLJobStore(db)
+		jobRepo := NewSQLJobRepository(db)
+
+		queue := "queue"
+		jobSet1 := "job-set-1"
+		jobSet2 := "job-set-2"
+		jobSet3 := "job-set-3"
+
+		cluster := "cluster"
+		node := "node"
+
+		job1 := newJobSimulator(t, jobStore, &defaultClock{}).
+			createJobWithJobSet(queue, jobSet1)
+
+		k8sId1 := util.NewULID()
+		job2 := newJobSimulator(t, jobStore, &defaultClock{}).
+			createJobWithJobSet(queue, jobSet1).
+			pending(cluster, k8sId1)
+
+		k8sId2 := util.NewULID()
+		k8sId3 := util.NewULID()
+		job3 := newJobSimulator(t, jobStore, &defaultClock{}).
+			createJobWithJobSet(queue, jobSet2).
+			pending(cluster, k8sId2).
+			pending(cluster, k8sId3).
+			running(cluster, k8sId3, node)
+
+		k8sId4 := util.NewULID()
+		job4 := newJobSimulator(t, jobStore, &defaultClock{}).
+			createJobWithJobSet(queue, jobSet2).
+			pending(cluster, k8sId4).
+			running(cluster, k8sId4, node).
+			succeeded(cluster, k8sId4, node)
+
+		k8sId5 := util.NewULID()
+		job5 := newJobSimulator(t, jobStore, &defaultClock{}).
+			createJobWithJobSet(queue, jobSet3).
+			failed(cluster, k8sId5, node, "Something bad")
+
+		job6 := newJobSimulator(t, jobStore, &defaultClock{}).
+			createJobWithJobSet(queue, jobSet3).
+			cancelled()
+
+		jobInfos, err := jobRepo.GetJobsInQueue(queue, GetJobsInQueueOpts{
+			JobSetIds: []string{"job-se"},
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, 6, len(jobInfos))
+		assertJobsAreEquivalent(t, job1.job, jobInfos[0].Job)
+		assertJobsAreEquivalent(t, job2.job, jobInfos[1].Job)
+		assertJobsAreEquivalent(t, job3.job, jobInfos[2].Job)
+		assertJobsAreEquivalent(t, job4.job, jobInfos[3].Job)
+		assertJobsAreEquivalent(t, job5.job, jobInfos[4].Job)
+		assertJobsAreEquivalent(t, job6.job, jobInfos[5].Job)
+	})
+}
+
+func Test_FilterByMultipleJobSetStartingWith(t *testing.T) {
+	withDatabase(t, func(db *sql.DB) {
+		jobStore := NewSQLJobStore(db)
+		jobRepo := NewSQLJobRepository(db)
+
+		queue := "queue"
+		jobSet1 := "hello-1"
+		jobSet2 := "world-2"
+		jobSet3 := "world-3"
+		jobSet4 := "other-job-set"
+
+		cluster := "cluster"
+		node := "node"
+
+		job1 := newJobSimulator(t, jobStore, &defaultClock{}).
+			createJobWithJobSet(queue, jobSet1)
+
+		k8sId1 := util.NewULID()
+		job2 := newJobSimulator(t, jobStore, &defaultClock{}).
+			createJobWithJobSet(queue, jobSet1).
+			pending(cluster, k8sId1)
+
+		k8sId2 := util.NewULID()
+		k8sId3 := util.NewULID()
+		job3 := newJobSimulator(t, jobStore, &defaultClock{}).
+			createJobWithJobSet(queue, jobSet2).
+			pending(cluster, k8sId2).
+			pending(cluster, k8sId3).
+			running(cluster, k8sId3, node)
+
+		k8sId4 := util.NewULID()
+		job4 := newJobSimulator(t, jobStore, &defaultClock{}).
+			createJobWithJobSet(queue, jobSet2).
+			pending(cluster, k8sId4).
+			running(cluster, k8sId4, node).
+			succeeded(cluster, k8sId4, node)
+
+		k8sId5 := util.NewULID()
+		job5 := newJobSimulator(t, jobStore, &defaultClock{}).
+			createJobWithJobSet(queue, jobSet3).
+			failed(cluster, k8sId5, node, "Something bad")
+
+		newJobSimulator(t, jobStore, &defaultClock{}).
+			createJobWithJobSet(queue, jobSet4).
+			cancelled()
+
+		jobInfos, err := jobRepo.GetJobsInQueue(queue, GetJobsInQueueOpts{
+			JobSetIds: []string{"hello", "world"},
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, 5, len(jobInfos))
+		assertJobsAreEquivalent(t, job1.job, jobInfos[0].Job)
+		assertJobsAreEquivalent(t, job2.job, jobInfos[1].Job)
+		assertJobsAreEquivalent(t, job3.job, jobInfos[2].Job)
+		assertJobsAreEquivalent(t, job4.job, jobInfos[3].Job)
+		assertJobsAreEquivalent(t, job5.job, jobInfos[4].Job)
 	})
 }
 
@@ -788,13 +1034,21 @@ func newJobSimulator(t *testing.T, jobStore JobRecorder, timeProvider clock) *jo
 }
 
 func (js *jobSimulator) createJob(queue string) *jobSimulator {
-	return js.createJobWithId(queue, util.NewULID())
+	return js.createJobWithOpts(queue, util.NewULID(), "job-set")
 }
 
 func (js *jobSimulator) createJobWithId(queue string, id string) *jobSimulator {
+	return js.createJobWithOpts(queue, id, "job-set")
+}
+
+func (js *jobSimulator) createJobWithJobSet(queue string, jobSetId string) *jobSimulator {
+	return js.createJobWithOpts(queue, util.NewULID(), jobSetId)
+}
+
+func (js *jobSimulator) createJobWithOpts(queue string, jobId string, jobSetId string) *jobSimulator {
 	js.job = &api.Job{
-		Id:          id,
-		JobSetId:    "job-set",
+		Id:          jobId,
+		JobSetId:    jobSetId,
 		Queue:       queue,
 		Namespace:   "nameSpace",
 		Labels:      nil,
