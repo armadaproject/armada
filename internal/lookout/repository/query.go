@@ -230,19 +230,7 @@ func addHavingClause(sb *strings.Builder, jobStates []lookout.JobState) {
 		stateConditions := make([]string, 0)
 
 		for column, include := range stateFiltersMap[state] {
-			if column == submitted {
-				stateConditions = append(stateConditions, formatWithNot("MAX(job.submitted) IS %s NULL", include))
-			} else if column == cancelled {
-				stateConditions = append(stateConditions, formatWithNot("MAX(job.cancelled) IS %s NULL", include))
-			} else if column == created {
-				stateConditions = append(stateConditions, formatWithNot("MAX(job_run.created) IS %s NULL", include))
-			} else if column == started {
-				stateConditions = append(stateConditions, formatWithNot("MAX(job_run.started) IS %s NULL", include))
-			} else if column == finished {
-				stateConditions = append(stateConditions, formatWithNot("MAX(job_run.finished) IS %s NULL", include))
-			} else if column == succeeded {
-				stateConditions = append(stateConditions, formatWithNot("%s BOOL_OR(job_run.succeeded)", !include))
-			}
+			stateConditions = append(stateConditions, getConditionForColumn(column, include))
 		}
 
 		conditions = append(conditions, joinConditions(stateConditions, "AND", false))
@@ -264,6 +252,25 @@ func addOrderByClause(sb *strings.Builder, newestFirst bool) {
 	}
 	orderBy := fmt.Sprintf("ORDER BY job_id %s\n", order) // Job ids are sortable ULIDs
 	sb.WriteString(orderBy)
+}
+
+func getConditionForColumn(column string, include bool) string {
+	var condition string
+	switch column {
+	case submitted:
+		condition = formatWithNot("MAX(job.submitted) IS %s NULL", include)
+	case cancelled:
+		condition = formatWithNot("MAX(job.cancelled) IS %s NULL", include)
+	case created:
+		condition = formatWithNot("MAX(job_run.created) IS %s NULL", include)
+	case started:
+		condition = formatWithNot("MAX(job_run.started) IS %s NULL", include)
+	case finished:
+		condition = formatWithNot("MAX(job_run.finished) IS %s NULL", include)
+	case succeeded:
+		condition = formatWithNot("%s BOOL_OR(job_run.succeeded)", !include)
+	}
+	return condition
 }
 
 func formatWithNot(condition string, addNot bool) string {
