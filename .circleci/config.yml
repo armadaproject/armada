@@ -88,6 +88,7 @@ commands:
           helm package deployment/armada/ -d charts/armada/
           helm package deployment/executor -d charts/armada/
           helm package deployment/executor-cluster-monitoring/ -d charts/armada/
+          helm package deployment/lookout/ -d charts/armada/
           helm repo index charts/
 
     - run:
