@@ -12,59 +12,19 @@
   },
   "paths": {
     "/api/v1/lookout/jobs": {
-      "get": {
+      "post": {
         "tags": [
           "Lookout"
         ],
         "operationId": "GetJobsInQueue",
         "parameters": [
           {
-            "type": "string",
-            "name": "queue",
-            "in": "query"
-          },
-          {
-            "type": "boolean",
-            "name": "newestFirst",
-            "in": "query"
-          },
-          {
-            "type": "array",
-            "items": {
-              "enum": [
-                "QUEUED",
-                "PENDING",
-                "RUNNING",
-                "SUCCEEDED",
-                "FAILED",
-                "CANCELLED"
-              ],
-              "type": "string"
-            },
-            "collectionFormat": "multi",
-            "name": "jobStates",
-            "in": "query"
-          },
-          {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "collectionFormat": "multi",
-            "name": "jobSetIds",
-            "in": "query"
-          },
-          {
-            "type": "integer",
-            "format": "int64",
-            "name": "take",
-            "in": "query"
-          },
-          {
-            "type": "integer",
-            "format": "int64",
-            "name": "skip",
-            "in": "query"
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/lookoutGetJobsInQueueRequest"
+            }
           }
         ],
         "responses": {
@@ -179,6 +139,37 @@
       "format": "int64",
       "title": "Type represents the stored type of IntOrString.",
       "x-go-package": "k8s.io/apimachinery/pkg/util/intstr"
+    },
+    "lookoutGetJobsInQueueRequest": {
+      "type": "object",
+      "properties": {
+        "jobSetIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "jobStates": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/lookoutJobState"
+          }
+        },
+        "newestFirst": {
+          "type": "boolean"
+        },
+        "queue": {
+          "type": "string"
+        },
+        "skip": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "take": {
+          "type": "integer",
+          "format": "int64"
+        }
+      }
     },
     "lookoutGetJobsInQueueResponse": {
       "type": "object",

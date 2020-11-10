@@ -74,7 +74,8 @@ service Lookout {
 
     rpc GetJobsInQueue (GetJobsInQueueRequest) returns (GetJobsInQueueResponse) {
         option (google.api.http) = {
-            get: "/api/v1/lookout/jobs"
+            post: "/api/v1/lookout/jobs"
+            body: "*"
         };
     };
 }
