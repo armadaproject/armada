@@ -3,11 +3,12 @@ package repository
 import (
 	"database/sql"
 	"fmt"
-	"github.com/G-Research/armada/pkg/api"
-	"github.com/lib/pq"
 	"strings"
 	"time"
 
+	"github.com/lib/pq"
+
+	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/api/lookout"
 )
 
