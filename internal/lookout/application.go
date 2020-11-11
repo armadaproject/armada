@@ -1,7 +1,6 @@
 package lookout
 
 import (
-	"database/sql"
 	"fmt"
 	"net"
 	"strings"
@@ -16,6 +15,7 @@ import (
 	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/lookout/configuration"
 	"github.com/G-Research/armada/internal/lookout/events"
+	"github.com/G-Research/armada/internal/lookout/postgres"
 	"github.com/G-Research/armada/internal/lookout/repository"
 	"github.com/G-Research/armada/internal/lookout/server"
 	"github.com/G-Research/armada/pkg/api/lookout"
@@ -28,7 +28,7 @@ func StartUp(config configuration.LookoutConfiguration) (func(), *sync.WaitGroup
 
 	grpcServer := grpc.CreateGrpcServer([]authorization.AuthService{&authorization.AnonymousAuthService{}})
 
-	db, err := sql.Open("postgres", config.PostgresConnectionString)
+	db, err := postgres.Open(config.PostgresConnection)
 	if err != nil {
 		panic(err)
 	}
