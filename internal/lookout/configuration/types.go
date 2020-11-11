@@ -12,6 +12,6 @@ type LookoutConfiguration struct {
 	GrpcPort    uint16
 	MetricsPort uint16
 
-	Nats                     NatsConfig
-	PostgresConnectionString string
+	Nats               NatsConfig
+	PostgresConnection map[string]string
 }
