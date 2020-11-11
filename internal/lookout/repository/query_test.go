@@ -14,14 +14,14 @@ import (
 )
 
 var (
-	queue = "queue"
+	queue   = "queue"
 	cluster = "cluster"
-	k8sId1 = util.NewULID()
-	k8sId2 = util.NewULID()
-	k8sId3 = util.NewULID()
-	k8sId4 = util.NewULID()
-	k8sId5 = util.NewULID()
-	node = "node"
+	k8sId1  = util.NewULID()
+	k8sId2  = util.NewULID()
+	k8sId3  = util.NewULID()
+	k8sId4  = util.NewULID()
+	k8sId5  = util.NewULID()
+	node    = "node"
 )
 
 func Test_QueueStats(t *testing.T) {
