@@ -21,25 +21,6 @@ type SQLJobRepository struct {
 	db *sql.DB
 }
 
-type joinedRow struct {
-	JobId     string
-	Queue     string
-	Owner     string
-	JobSet    string
-	Priority  sql.NullFloat64
-	Submitted pq.NullTime
-	Cancelled pq.NullTime
-	JobJson   sql.NullString
-	RunId     sql.NullString
-	Cluster   sql.NullString
-	Node      sql.NullString
-	Created   pq.NullTime
-	Started   pq.NullTime
-	Finished  pq.NullTime
-	Succeeded sql.NullBool
-	Error     sql.NullString
-}
-
 func NewSQLJobRepository(db *sql.DB) *SQLJobRepository {
 	return &SQLJobRepository{db: db}
 }
@@ -87,16 +68,35 @@ func (r *SQLJobRepository) GetJobsInQueue(opts *lookout.GetJobsInQueueRequest) (
 	return result, nil
 }
 
-func (r *SQLJobRepository) queryJobsInQueue(opts *lookout.GetJobsInQueueRequest) ([]*joinedRow, error) {
-	queryString := makeGetJobsInQueueQuery(opts)
-	rows, err := r.db.Query(queryString)
+type jobsInQueueRow struct {
+	JobId     string
+	Queue     string
+	Owner     string
+	JobSet    string
+	Priority  sql.NullFloat64
+	Submitted pq.NullTime
+	Cancelled pq.NullTime
+	JobJson   sql.NullString
+	RunId     sql.NullString
+	Cluster   sql.NullString
+	Node      sql.NullString
+	Created   pq.NullTime
+	Started   pq.NullTime
+	Finished  pq.NullTime
+	Succeeded sql.NullBool
+	Error     sql.NullString
+}
+
+func (r *SQLJobRepository) queryJobsInQueue(opts *lookout.GetJobsInQueueRequest) ([]*jobsInQueueRow, error) {
+	query := makeGetJobsInQueueQuery(opts)
+	rows, err := r.db.Query(query)
 	if err != nil {
 		return nil, err
 	}
 
-	joinedRows := make([]*joinedRow, 0)
+	joinedRows := make([]*jobsInQueueRow, 0)
 	for rows.Next() {
-		row := &joinedRow{}
+		row := &jobsInQueueRow{}
 		err := rows.Scan(
 			&row.JobId,
 			&row.Owner,
@@ -298,7 +298,7 @@ func joinConditions(conditions []string, operator string, addParens bool) string
 	return joined
 }
 
-func parseJobsInQueueRows(rows []*joinedRow) []*lookout.JobInfo {
+func parseJobsInQueueRows(rows []*jobsInQueueRow) []*lookout.JobInfo {
 	result := make([]*lookout.JobInfo, 0)
 
 	for i, row := range rows {
