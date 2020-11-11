@@ -2,10 +2,11 @@ package repository
 
 import (
 	"database/sql"
-	"fmt"
-	"strings"
 	"time"
 
+	"github.com/doug-martin/goqu/v9"
+	_ "github.com/doug-martin/goqu/v9/dialect/postgres"
+	"github.com/doug-martin/goqu/v9/exp"
 	"github.com/lib/pq"
 
 	"github.com/G-Research/armada/pkg/api"
@@ -88,8 +89,12 @@ type jobsInQueueRow struct {
 }
 
 func (r *SQLJobRepository) queryJobsInQueue(opts *lookout.GetJobsInQueueRequest) ([]*jobsInQueueRow, error) {
-	query := makeGetJobsInQueueQuery(opts)
-	rows, err := r.db.Query(query)
+	query, args, err := makeGetJobsInQueueQuery(opts)
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := r.db.Query(query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -122,64 +127,71 @@ func (r *SQLJobRepository) queryJobsInQueue(opts *lookout.GetJobsInQueueRequest)
 	return joinedRows, nil
 }
 
-func makeGetJobsInQueueQuery(opts *lookout.GetJobsInQueueRequest) string {
-	query := `
-		SELECT job.job_id as job_id,
-			   job.owner as owner,
-			   job.jobset as jobset,
-               job.priority as priority,
-               job.submitted as submitted,
-               job.cancelled as cancelled,
-			   job.job as job_json,
-			   job_run.run_id as run_id,
-			   job_run.cluster as cluster,
-			   job_run.node as node,
-			   job_run.created as created,
-			   job_run.started as started,
-			   job_run.finished as finished,
-			   job_run.succeeded as succeeded,
-			   job_run.error as error
-		FROM job LEFT JOIN job_run ON job.job_id = job_run.job_id
-		WHERE job.job_id IN (%s)`
+func makeGetJobsInQueueQuery(opts *lookout.GetJobsInQueueRequest) (string, []interface{}, error) {
+	dialect := goqu.Dialect("postgres")
 
-	sb := &strings.Builder{} // Builder for sub query
+	subDs := dialect.
+		From("job").
+		LeftJoin(goqu.T("job_run"), goqu.On(goqu.Ex{
+			"job.job_id": goqu.I("job_run.job_id"),
+		})).
+		Select(goqu.I("job.job_id"))
 
-	sb.WriteString(`
-		SELECT job.job_id
-		FROM job LEFT JOIN job_run ON job.job_id = job_run.job_id
-	`)
+	subDs = addWhere(subDs, opts.Queue, opts.JobSetIds)
 
-	addWhereClause(sb, opts.Queue, opts.JobSetIds)
+	subDs = subDs.GroupBy(goqu.I("job.job_id"))
 
-	sb.WriteString("GROUP BY job.job_id\n")
+	subDs = addHaving(subDs, opts.JobStates)
 
-	addHavingClause(sb, opts.JobStates)
+	subDs = addOrderBy(subDs, opts.NewestFirst)
 
-	addOrderByClause(sb, opts.NewestFirst)
+	subDs = subDs.Limit(uint(opts.Take))
 
-	sb.WriteString(fmt.Sprintf("LIMIT %d\n", opts.Take))
+	subDs = addOffset(subDs, opts.Skip)
 
-	if opts.Skip > 0 {
-		sb.WriteString(fmt.Sprintf("OFFSET %d\n", opts.Skip))
-	}
+	ds := dialect.
+		From("job").
+		LeftJoin(goqu.T("job_run"), goqu.On(goqu.Ex{
+			"job.job_id": goqu.I("job_run.job_id"),
+		})).
+		Prepared(true).
+		Select(
+			goqu.I("job.job_id"),
+			goqu.I("job.owner"),
+			goqu.I("job.jobset"),
+			goqu.I("job.priority"),
+			goqu.I("job.submitted"),
+			goqu.I("job.cancelled"),
+			goqu.I("job.job"),
+			goqu.I("job_run.run_id"),
+			goqu.I("job_run.cluster"),
+			goqu.I("job_run.node"),
+			goqu.I("job_run.created"),
+			goqu.I("job_run.started"),
+			goqu.I("job_run.finished"),
+			goqu.I("job_run.succeeded"),
+			goqu.I("job_run.error")).
+		Where(goqu.I("job.job_id").In(subDs))
 
-	return fmt.Sprintf(query, sb.String())
+	ds = addOrderBy(ds, opts.NewestFirst) // Ordering from sub query not guaranteed to be preserved
+
+	return ds.ToSQL()
 }
 
-func addWhereClause(sb *strings.Builder, queue string, jobSetIds []string) {
-	sb.WriteString(fmt.Sprintf("WHERE job.queue  = '%s'\n", queue))
+func addWhere(ds *goqu.SelectDataset, queue string, jobSetIds []string) *goqu.SelectDataset {
+	queueEquals := goqu.I("job.queue").Eq(queue)
 
-	if len(jobSetIds) > 0 {
-		sb.WriteString("AND (")
-
-		conditions := make([]string, len(jobSetIds))
-		for i, jobSetId := range jobSetIds {
-			conditions[i] = fmt.Sprintf("job.jobset LIKE '%s%%'", jobSetId)
-		}
-		sb.WriteString(joinConditions(conditions, "OR", false))
-
-		sb.WriteString(")\n")
+	if len(jobSetIds) == 0 {
+		return ds.Where(queueEquals)
 	}
+
+	jobSetExs := make([]goqu.Expression, 0)
+	for _, jobSetId := range jobSetIds {
+		jobSetEx := goqu.I("job.jobset").Like(jobSetId + "%")
+		jobSetExs = append(jobSetExs, jobSetEx)
+	}
+
+	return ds.Where(goqu.And(queueEquals, goqu.Or(jobSetExs...)))
 }
 
 const (
@@ -191,111 +203,68 @@ const (
 	succeeded = "job_run.succeeded"
 )
 
-var stateFiltersMap = map[lookout.JobState]map[string]bool{
+var stateFilters = map[lookout.JobState][]goqu.Expression{
 	lookout.JobState_QUEUED: {
-		submitted: true,
-		cancelled: false,
-		created:   false,
-		started:   false,
-		finished:  false,
+		goqu.MAX(goqu.I(submitted)).IsNotNull(),
+		goqu.MAX(goqu.I(cancelled)).IsNull(),
+		goqu.MAX(goqu.I(created)).IsNull(),
+		goqu.MAX(goqu.I(started)).IsNull(),
+		goqu.MAX(goqu.I(finished)).IsNull(),
 	},
 	lookout.JobState_PENDING: {
-		cancelled: false,
-		created:   true,
-		started:   false,
-		finished:  false,
+		goqu.MAX(goqu.I(cancelled)).IsNull(),
+		goqu.MAX(goqu.I(created)).IsNotNull(),
+		goqu.MAX(goqu.I(started)).IsNull(),
+		goqu.MAX(goqu.I(finished)).IsNull(),
 	},
 	lookout.JobState_RUNNING: {
-		cancelled: false,
-		started:   true,
-		finished:  false,
+		goqu.MAX(goqu.I(cancelled)).IsNull(),
+		goqu.MAX(goqu.I(started)).IsNotNull(),
+		goqu.MAX(goqu.I(finished)).IsNull(),
 	},
 	lookout.JobState_SUCCEEDED: {
-		cancelled: false,
-		finished:  true,
-		succeeded: true,
+		goqu.MAX(goqu.I(cancelled)).IsNull(),
+		goqu.MAX(goqu.I(finished)).IsNotNull(),
+		BOOL_OR(goqu.I(succeeded)).IsTrue(),
 	},
 	lookout.JobState_FAILED: {
-		succeeded: false,
+		BOOL_OR(goqu.I(succeeded)).IsFalse(),
 	},
 	lookout.JobState_CANCELLED: {
-		cancelled: true,
+		goqu.MAX(goqu.I(cancelled)).IsNotNull(),
 	},
 }
 
-func addHavingClause(sb *strings.Builder, jobStates []lookout.JobState) {
-	conditions := make([]string, 0)
+func addHaving(ds *goqu.SelectDataset, jobStates []lookout.JobState) *goqu.SelectDataset {
+	if len(jobStates) == 0 {
+		return ds
+	}
+
+	conditions := make([]goqu.Expression, 0)
 
 	for _, state := range jobStates {
-		stateConditions := make([]string, 0)
-
-		for column, include := range stateFiltersMap[state] {
-			stateConditions = append(stateConditions, getConditionForColumn(column, include))
-		}
-
-		conditions = append(conditions, joinConditions(stateConditions, "AND", false))
+		conditions = append(conditions, goqu.And(stateFilters[state]...))
 	}
 
-	havingConditions := joinConditions(conditions, "OR", true)
-
-	if havingConditions != "" {
-		sb.WriteString("HAVING ")
-		sb.WriteString(havingConditions)
-		sb.WriteString("\n")
-	}
+	return ds.Having(goqu.Or(conditions...))
 }
 
-func addOrderByClause(sb *strings.Builder, newestFirst bool) {
-	var order string
+func BOOL_OR(col interface{}) exp.SQLFunctionExpression {
+	return goqu.Func("BOOL_OR", col)
+}
+
+func addOrderBy(ds *goqu.SelectDataset, newestFirst bool) *goqu.SelectDataset {
 	if newestFirst {
-		order = "DESC"
+		return ds.Order(goqu.I("job.job_id").Desc())
 	}
-	orderBy := fmt.Sprintf("ORDER BY job_id %s\n", order) // Job ids are sortable ULIDs
-	sb.WriteString(orderBy)
+	return ds.Order(goqu.I("job.job_id").Asc())
 }
 
-func getConditionForColumn(column string, include bool) string {
-	var condition string
-	switch column {
-	case submitted:
-		condition = formatWithNot("MAX(job.submitted) IS %s NULL", include)
-	case cancelled:
-		condition = formatWithNot("MAX(job.cancelled) IS %s NULL", include)
-	case created:
-		condition = formatWithNot("MAX(job_run.created) IS %s NULL", include)
-	case started:
-		condition = formatWithNot("MAX(job_run.started) IS %s NULL", include)
-	case finished:
-		condition = formatWithNot("MAX(job_run.finished) IS %s NULL", include)
-	case succeeded:
-		condition = formatWithNot("%s BOOL_OR(job_run.succeeded)", !include)
+func addOffset(ds *goqu.SelectDataset, skip uint32) *goqu.SelectDataset {
+	if skip > 0 {
+		return ds.Offset(uint(skip))
 	}
-	return condition
-}
-
-func formatWithNot(condition string, addNot bool) string {
-	not := ""
-	if addNot {
-		not = "NOT"
-	}
-	return fmt.Sprintf(condition, not)
-}
-
-func joinConditions(conditions []string, operator string, addParens bool) string {
-	if len(conditions) == 0 {
-		return ""
-	}
-
-	separator := fmt.Sprintf(" %s ", operator)
-	if addParens {
-		separator = fmt.Sprintf(") %s (", operator)
-	}
-
-	joined := strings.Join(conditions, separator)
-	if addParens {
-		joined = fmt.Sprintf("(%s)", joined)
-	}
-	return joined
+	return ds
 }
 
 func parseJobsInQueueRows(rows []*jobsInQueueRow) []*lookout.JobInfo {
