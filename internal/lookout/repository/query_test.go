@@ -13,17 +13,21 @@ import (
 	"github.com/G-Research/armada/pkg/api/lookout"
 )
 
+var (
+	queue = "queue"
+	cluster = "cluster"
+	k8sId1 = util.NewULID()
+	k8sId2 = util.NewULID()
+	k8sId3 = util.NewULID()
+	k8sId4 = util.NewULID()
+	k8sId5 = util.NewULID()
+	node = "node"
+)
+
 func Test_QueueStats(t *testing.T) {
 	withDatabase(t, func(db *sql.DB) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db)
-
-		queue := "queue"
-
-		cluster := "cluster"
-		k8sId1 := util.NewULID()
-		k8sId2 := util.NewULID()
-		node := "node"
 
 		newJobSimulator(t, jobStore, &defaultClock{}).
 			createJob(queue).
@@ -50,11 +54,6 @@ func Test_QueueStats(t *testing.T) {
 func Test_GetNoJobsIfQueueDoesNotExist(t *testing.T) {
 	withDatabase(t, func(db *sql.DB) {
 		jobStore := NewSQLJobStore(db)
-
-		cluster := "cluster"
-		k8sId1 := util.NewULID()
-		k8sId2 := util.NewULID()
-		node := "node"
 
 		newJobSimulator(t, jobStore, &defaultClock{}).
 			createJob("queue-1")
@@ -85,17 +84,12 @@ func Test_GetSucceededJobFromQueue(t *testing.T) {
 		jobRepo := NewSQLJobRepository(db)
 
 		startTime := time.Now()
-		queue := "queue"
-
-		cluster := "cluster"
-		k8sId := util.NewULID()
-		node := "node"
 
 		succeeded := newJobSimulator(t, jobStore, newIncrementClock(startTime)).
 			createJob(queue).
-			pending(cluster, k8sId).
-			running(cluster, k8sId, node).
-			succeeded(cluster, k8sId, node)
+			pending(cluster, k8sId1).
+			running(cluster, k8sId1, node).
+			succeeded(cluster, k8sId1, node)
 
 		jobInfos, err := jobRepo.GetJobsInQueue(&lookout.GetJobsInQueueRequest{
 			Queue: queue,
@@ -112,7 +106,7 @@ func Test_GetSucceededJobFromQueue(t *testing.T) {
 		assert.Equal(t, 1, len(jobInfo.Runs))
 		runInfo := jobInfo.Runs[0]
 		assertRunInfosEquivalent(t, &lookout.RunInfo{
-			K8SId:     k8sId,
+			K8SId:     k8sId1,
 			Cluster:   cluster,
 			Node:      node,
 			Succeeded: true,
@@ -129,18 +123,13 @@ func Test_GetFailedJobFromQueue(t *testing.T) {
 		jobRepo := NewSQLJobRepository(db)
 
 		startTime := time.Now()
-		queue := "queue"
-
-		cluster := "cluster"
-		k8sId := util.NewULID()
-		node := "node"
 		failureReason := "Something bad happened"
 
 		succeeded := newJobSimulator(t, jobStore, newIncrementClock(startTime)).
 			createJob(queue).
-			pending(cluster, k8sId).
-			running(cluster, k8sId, node).
-			failed(cluster, k8sId, node, failureReason)
+			pending(cluster, k8sId1).
+			running(cluster, k8sId1, node).
+			failed(cluster, k8sId1, node, failureReason)
 
 		jobInfos, err := jobRepo.GetJobsInQueue(&lookout.GetJobsInQueueRequest{
 			Queue: queue,
@@ -156,7 +145,7 @@ func Test_GetFailedJobFromQueue(t *testing.T) {
 
 		assert.Equal(t, 1, len(jobInfo.Runs))
 		assertRunInfosEquivalent(t, &lookout.RunInfo{
-			K8SId:     k8sId,
+			K8SId:     k8sId1,
 			Cluster:   cluster,
 			Node:      node,
 			Succeeded: false,
@@ -174,16 +163,11 @@ func Test_GetCancelledJobFromQueue(t *testing.T) {
 		jobRepo := NewSQLJobRepository(db)
 
 		startTime := time.Now()
-		queue := "queue"
-
-		cluster := "cluster"
-		k8sId := util.NewULID()
-		node := "node"
 
 		succeeded := newJobSimulator(t, jobStore, newIncrementClock(startTime)).
 			createJob(queue).
-			pending(cluster, k8sId).
-			running(cluster, k8sId, node).
+			pending(cluster, k8sId1).
+			running(cluster, k8sId1, node).
 			cancelled()
 
 		jobInfos, err := jobRepo.GetJobsInQueue(&lookout.GetJobsInQueueRequest{
@@ -200,7 +184,7 @@ func Test_GetCancelledJobFromQueue(t *testing.T) {
 
 		assert.Equal(t, 1, len(jobInfo.Runs))
 		assertRunInfosEquivalent(t, &lookout.RunInfo{
-			K8SId:     k8sId,
+			K8SId:     k8sId1,
 			Cluster:   cluster,
 			Node:      node,
 			Succeeded: false,
@@ -216,12 +200,6 @@ func Test_GetMultipleRunJobFromQueue(t *testing.T) {
 		jobRepo := NewSQLJobRepository(db)
 
 		startTime := time.Now()
-		queue := "queue"
-
-		k8sId1 := util.NewULID()
-		k8sId2 := util.NewULID()
-		cluster := "cluster"
-		node := "node"
 
 		retried := newJobSimulator(t, jobStore, newIncrementClock(startTime)).
 			createJob(queue).
@@ -267,15 +245,10 @@ func Test_GetJobsOrderedFromOldestToNewest(t *testing.T) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db)
 
-		queue := "queue"
-
 		// Should be sorted by ULID
 		jobId1 := util.NewULID()
 		jobId2 := util.NewULID()
 		jobId3 := util.NewULID()
-
-		cluster := "cluster"
-		node := "node"
 
 		third := newJobSimulator(t, jobStore, &defaultClock{}).
 			createJobWithId(queue, jobId3).
@@ -310,15 +283,10 @@ func Test_GetJobsOrderedFromNewestToOldest(t *testing.T) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db)
 
-		queue := "queue"
-
 		// Should be sorted by ULID
 		jobId1 := util.NewULID()
 		jobId2 := util.NewULID()
 		jobId3 := util.NewULID()
-
-		cluster := "cluster"
-		node := "node"
 
 		first := newJobSimulator(t, jobStore, &defaultClock{}).
 			createJobWithId(queue, jobId1).
@@ -354,35 +322,25 @@ func Test_FilterQueuedJobs(t *testing.T) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db)
 
-		queue := "queue"
-
-		cluster := "cluster"
-		node := "node"
-
 		queued := newJobSimulator(t, jobStore, &defaultClock{}).
 			createJob(queue)
 
-		k8sId1 := util.NewULID()
 		newJobSimulator(t, jobStore, &defaultClock{}).
 			createJob(queue).
 			pending(cluster, k8sId1)
 
-		k8sId2 := util.NewULID()
-		k8sId3 := util.NewULID()
 		newJobSimulator(t, jobStore, &defaultClock{}).
 			createJob(queue).
 			pending(cluster, k8sId2).
 			pending(cluster, k8sId3).
 			running(cluster, k8sId3, node)
 
-		k8sId4 := util.NewULID()
 		newJobSimulator(t, jobStore, &defaultClock{}).
 			createJob(queue).
 			pending(cluster, k8sId4).
 			running(cluster, k8sId4, node).
 			succeeded(cluster, k8sId4, node)
 
-		k8sId5 := util.NewULID()
 		newJobSimulator(t, jobStore, &defaultClock{}).
 			createJob(queue).
 			failed(cluster, k8sId5, node, "Something bad")
@@ -409,35 +367,25 @@ func Test_FilterPendingJobs(t *testing.T) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db)
 
-		queue := "queue"
-
-		cluster := "cluster"
-		node := "node"
-
 		newJobSimulator(t, jobStore, &defaultClock{}).
 			createJob(queue)
 
-		k8sId1 := util.NewULID()
 		pending := newJobSimulator(t, jobStore, &defaultClock{}).
 			createJob(queue).
 			pending(cluster, k8sId1)
 
-		k8sId2 := util.NewULID()
-		k8sId3 := util.NewULID()
 		newJobSimulator(t, jobStore, &defaultClock{}).
 			createJob(queue).
 			pending(cluster, k8sId2).
 			pending(cluster, k8sId3).
 			running(cluster, k8sId3, node)
 
-		k8sId4 := util.NewULID()
 		newJobSimulator(t, jobStore, &defaultClock{}).
 			createJob(queue).
 			pending(cluster, k8sId4).
 			running(cluster, k8sId4, node).
 			succeeded(cluster, k8sId4, node)
 
-		k8sId5 := util.NewULID()
 		newJobSimulator(t, jobStore, &defaultClock{}).
 			createJob(queue).
 			failed(cluster, k8sId5, node, "Something bad")
@@ -464,35 +412,25 @@ func Test_FilterRunningJobs(t *testing.T) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db)
 
-		queue := "queue"
-
-		cluster := "cluster"
-		node := "node"
-
 		newJobSimulator(t, jobStore, &defaultClock{}).
 			createJob(queue)
 
-		k8sId1 := util.NewULID()
 		newJobSimulator(t, jobStore, &defaultClock{}).
 			createJob(queue).
 			pending(cluster, k8sId1)
 
-		k8sId2 := util.NewULID()
-		k8sId3 := util.NewULID()
 		running := newJobSimulator(t, jobStore, &defaultClock{}).
 			createJob(queue).
 			pending(cluster, k8sId2).
 			pending(cluster, k8sId3).
 			running(cluster, k8sId3, node)
 
-		k8sId4 := util.NewULID()
 		newJobSimulator(t, jobStore, &defaultClock{}).
 			createJob(queue).
 			pending(cluster, k8sId4).
 			running(cluster, k8sId4, node).
 			succeeded(cluster, k8sId4, node)
 
-		k8sId5 := util.NewULID()
 		newJobSimulator(t, jobStore, &defaultClock{}).
 			createJob(queue).
 			failed(cluster, k8sId5, node, "Something bad")
@@ -519,35 +457,25 @@ func Test_FilterSucceededJobs(t *testing.T) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db)
 
-		queue := "queue"
-
-		cluster := "cluster"
-		node := "node"
-
 		newJobSimulator(t, jobStore, &defaultClock{}).
 			createJob(queue)
 
-		k8sId1 := util.NewULID()
 		newJobSimulator(t, jobStore, &defaultClock{}).
 			createJob(queue).
 			pending(cluster, k8sId1)
 
-		k8sId2 := util.NewULID()
-		k8sId3 := util.NewULID()
 		newJobSimulator(t, jobStore, &defaultClock{}).
 			createJob(queue).
 			pending(cluster, k8sId2).
 			pending(cluster, k8sId3).
 			running(cluster, k8sId3, node)
 
-		k8sId4 := util.NewULID()
 		succeeded := newJobSimulator(t, jobStore, &defaultClock{}).
 			createJob(queue).
 			pending(cluster, k8sId4).
 			running(cluster, k8sId4, node).
 			succeeded(cluster, k8sId4, node)
 
-		k8sId5 := util.NewULID()
 		newJobSimulator(t, jobStore, &defaultClock{}).
 			createJob(queue).
 			failed(cluster, k8sId5, node, "Something bad")
@@ -574,35 +502,25 @@ func Test_FilterFailedJobs(t *testing.T) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db)
 
-		queue := "queue"
-
-		cluster := "cluster"
-		node := "node"
-
 		newJobSimulator(t, jobStore, &defaultClock{}).
 			createJob(queue)
 
-		k8sId1 := util.NewULID()
 		newJobSimulator(t, jobStore, &defaultClock{}).
 			createJob(queue).
 			pending(cluster, k8sId1)
 
-		k8sId2 := util.NewULID()
-		k8sId3 := util.NewULID()
 		newJobSimulator(t, jobStore, &defaultClock{}).
 			createJob(queue).
 			pending(cluster, k8sId2).
 			pending(cluster, k8sId3).
 			running(cluster, k8sId3, node)
 
-		k8sId4 := util.NewULID()
 		newJobSimulator(t, jobStore, &defaultClock{}).
 			createJob(queue).
 			pending(cluster, k8sId4).
 			running(cluster, k8sId4, node).
 			succeeded(cluster, k8sId4, node)
 
-		k8sId5 := util.NewULID()
 		failed := newJobSimulator(t, jobStore, &defaultClock{}).
 			createJob(queue).
 			failed(cluster, k8sId5, node, "Something bad")
@@ -629,35 +547,25 @@ func Test_FilterCancelledJobs(t *testing.T) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db)
 
-		queue := "queue"
-
-		cluster := "cluster"
-		node := "node"
-
 		newJobSimulator(t, jobStore, &defaultClock{}).
 			createJob(queue)
 
-		k8sId1 := util.NewULID()
 		newJobSimulator(t, jobStore, &defaultClock{}).
 			createJob(queue).
 			pending(cluster, k8sId1)
 
-		k8sId2 := util.NewULID()
-		k8sId3 := util.NewULID()
 		newJobSimulator(t, jobStore, &defaultClock{}).
 			createJob(queue).
 			pending(cluster, k8sId2).
 			pending(cluster, k8sId3).
 			running(cluster, k8sId3, node)
 
-		k8sId4 := util.NewULID()
 		newJobSimulator(t, jobStore, &defaultClock{}).
 			createJob(queue).
 			pending(cluster, k8sId4).
 			running(cluster, k8sId4, node).
 			succeeded(cluster, k8sId4, node)
 
-		k8sId5 := util.NewULID()
 		newJobSimulator(t, jobStore, &defaultClock{}).
 			createJob(queue).
 			failed(cluster, k8sId5, node, "Something bad")
@@ -684,35 +592,25 @@ func Test_FilterMultipleStates(t *testing.T) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db)
 
-		queue := "queue"
-
-		cluster := "cluster"
-		node := "node"
-
 		queued := newJobSimulator(t, jobStore, &defaultClock{}).
 			createJob(queue)
 
-		k8sId1 := util.NewULID()
 		pending := newJobSimulator(t, jobStore, &defaultClock{}).
 			createJob(queue).
 			pending(cluster, k8sId1)
 
-		k8sId2 := util.NewULID()
-		k8sId3 := util.NewULID()
 		running := newJobSimulator(t, jobStore, &defaultClock{}).
 			createJob(queue).
 			pending(cluster, k8sId2).
 			pending(cluster, k8sId3).
 			running(cluster, k8sId3, node)
 
-		k8sId4 := util.NewULID()
 		succeeded := newJobSimulator(t, jobStore, &defaultClock{}).
 			createJob(queue).
 			pending(cluster, k8sId4).
 			running(cluster, k8sId4, node).
 			succeeded(cluster, k8sId4, node)
 
-		k8sId5 := util.NewULID()
 		failed := newJobSimulator(t, jobStore, &defaultClock{}).
 			createJob(queue).
 			failed(cluster, k8sId5, node, "Something bad")
@@ -750,38 +648,29 @@ func Test_FilterBySingleJobSet(t *testing.T) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db)
 
-		queue := "queue"
 		jobSet1 := "job-set-1"
 		jobSet2 := "job-set-2"
 		jobSet3 := "job-set-3"
 
-		cluster := "cluster"
-		node := "node"
-
 		job1 := newJobSimulator(t, jobStore, &defaultClock{}).
 			createJobWithJobSet(queue, jobSet1)
 
-		k8sId1 := util.NewULID()
 		job2 := newJobSimulator(t, jobStore, &defaultClock{}).
 			createJobWithJobSet(queue, jobSet1).
 			pending(cluster, k8sId1)
 
-		k8sId2 := util.NewULID()
-		k8sId3 := util.NewULID()
 		job3 := newJobSimulator(t, jobStore, &defaultClock{}).
 			createJobWithJobSet(queue, jobSet2).
 			pending(cluster, k8sId2).
 			pending(cluster, k8sId3).
 			running(cluster, k8sId3, node)
 
-		k8sId4 := util.NewULID()
 		job4 := newJobSimulator(t, jobStore, &defaultClock{}).
 			createJobWithJobSet(queue, jobSet2).
 			pending(cluster, k8sId4).
 			running(cluster, k8sId4, node).
 			succeeded(cluster, k8sId4, node)
 
-		k8sId5 := util.NewULID()
 		job5 := newJobSimulator(t, jobStore, &defaultClock{}).
 			createJobWithJobSet(queue, jobSet3).
 			failed(cluster, k8sId5, node, "Something bad")
@@ -827,38 +716,29 @@ func Test_FilterByMultipleJobSets(t *testing.T) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db)
 
-		queue := "queue"
 		jobSet1 := "job-set-1"
 		jobSet2 := "job-set-2"
 		jobSet3 := "job-set-3"
 
-		cluster := "cluster"
-		node := "node"
-
 		job1 := newJobSimulator(t, jobStore, &defaultClock{}).
 			createJobWithJobSet(queue, jobSet1)
 
-		k8sId1 := util.NewULID()
 		job2 := newJobSimulator(t, jobStore, &defaultClock{}).
 			createJobWithJobSet(queue, jobSet1).
 			pending(cluster, k8sId1)
 
-		k8sId2 := util.NewULID()
-		k8sId3 := util.NewULID()
 		job3 := newJobSimulator(t, jobStore, &defaultClock{}).
 			createJobWithJobSet(queue, jobSet2).
 			pending(cluster, k8sId2).
 			pending(cluster, k8sId3).
 			running(cluster, k8sId3, node)
 
-		k8sId4 := util.NewULID()
 		job4 := newJobSimulator(t, jobStore, &defaultClock{}).
 			createJobWithJobSet(queue, jobSet2).
 			pending(cluster, k8sId4).
 			running(cluster, k8sId4, node).
 			succeeded(cluster, k8sId4, node)
 
-		k8sId5 := util.NewULID()
 		newJobSimulator(t, jobStore, &defaultClock{}).
 			createJobWithJobSet(queue, jobSet3).
 			failed(cluster, k8sId5, node, "Something bad")
@@ -886,38 +766,29 @@ func Test_FilterByJobSetStartingWith(t *testing.T) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db)
 
-		queue := "queue"
 		jobSet1 := "job-set-1"
 		jobSet2 := "job-set-2"
 		jobSet3 := "job-set-3"
 
-		cluster := "cluster"
-		node := "node"
-
 		job1 := newJobSimulator(t, jobStore, &defaultClock{}).
 			createJobWithJobSet(queue, jobSet1)
 
-		k8sId1 := util.NewULID()
 		job2 := newJobSimulator(t, jobStore, &defaultClock{}).
 			createJobWithJobSet(queue, jobSet1).
 			pending(cluster, k8sId1)
 
-		k8sId2 := util.NewULID()
-		k8sId3 := util.NewULID()
 		job3 := newJobSimulator(t, jobStore, &defaultClock{}).
 			createJobWithJobSet(queue, jobSet2).
 			pending(cluster, k8sId2).
 			pending(cluster, k8sId3).
 			running(cluster, k8sId3, node)
 
-		k8sId4 := util.NewULID()
 		job4 := newJobSimulator(t, jobStore, &defaultClock{}).
 			createJobWithJobSet(queue, jobSet2).
 			pending(cluster, k8sId4).
 			running(cluster, k8sId4, node).
 			succeeded(cluster, k8sId4, node)
 
-		k8sId5 := util.NewULID()
 		job5 := newJobSimulator(t, jobStore, &defaultClock{}).
 			createJobWithJobSet(queue, jobSet3).
 			failed(cluster, k8sId5, node, "Something bad")
@@ -947,39 +818,30 @@ func Test_FilterByMultipleJobSetStartingWith(t *testing.T) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db)
 
-		queue := "queue"
 		jobSet1 := "hello-1"
 		jobSet2 := "world-2"
 		jobSet3 := "world-3"
 		jobSet4 := "other-job-set"
 
-		cluster := "cluster"
-		node := "node"
-
 		job1 := newJobSimulator(t, jobStore, &defaultClock{}).
 			createJobWithJobSet(queue, jobSet1)
 
-		k8sId1 := util.NewULID()
 		job2 := newJobSimulator(t, jobStore, &defaultClock{}).
 			createJobWithJobSet(queue, jobSet1).
 			pending(cluster, k8sId1)
 
-		k8sId2 := util.NewULID()
-		k8sId3 := util.NewULID()
 		job3 := newJobSimulator(t, jobStore, &defaultClock{}).
 			createJobWithJobSet(queue, jobSet2).
 			pending(cluster, k8sId2).
 			pending(cluster, k8sId3).
 			running(cluster, k8sId3, node)
 
-		k8sId4 := util.NewULID()
 		job4 := newJobSimulator(t, jobStore, &defaultClock{}).
 			createJobWithJobSet(queue, jobSet2).
 			pending(cluster, k8sId4).
 			running(cluster, k8sId4, node).
 			succeeded(cluster, k8sId4, node)
 
-		k8sId5 := util.NewULID()
 		job5 := newJobSimulator(t, jobStore, &defaultClock{}).
 			createJobWithJobSet(queue, jobSet3).
 			failed(cluster, k8sId5, node, "Something bad")
@@ -1007,11 +869,6 @@ func Test_TakeOldestJobsFirst(t *testing.T) {
 	withDatabase(t, func(db *sql.DB) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db)
-
-		queue := "queue"
-
-		cluster := "cluster"
-		node := "node"
 
 		nJobs := 100
 		take := 10
@@ -1043,11 +900,6 @@ func Test_TakeNewestJobsFirst(t *testing.T) {
 	withDatabase(t, func(db *sql.DB) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db)
-
-		queue := "queue"
-
-		cluster := "cluster"
-		node := "node"
 
 		nJobs := 100
 		take := 10
@@ -1081,11 +933,6 @@ func Test_SkipFirstOldestJobs(t *testing.T) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db)
 
-		queue := "queue"
-
-		cluster := "cluster"
-		node := "node"
-
 		nJobs := 100
 		take := 10
 		skip := 37
@@ -1118,11 +965,6 @@ func Test_SkipFirstNewestJobs(t *testing.T) {
 	withDatabase(t, func(db *sql.DB) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db)
-
-		queue := "queue"
-
-		cluster := "cluster"
-		node := "node"
 
 		nJobs := 100
 		take := 10
