@@ -135,19 +135,15 @@ func makeGetJobsInQueueQuery(opts *lookout.GetJobsInQueueRequest) (string, []int
 		LeftJoin(goqu.T("job_run"), goqu.On(goqu.Ex{
 			"job.job_id": goqu.I("job_run.job_id"),
 		})).
-		Select(goqu.I("job.job_id"))
-
-	subDs = addWhere(subDs, opts.Queue, opts.JobSetIds)
-
-	subDs = subDs.GroupBy(goqu.I("job.job_id"))
-
-	subDs = addHaving(subDs, opts.JobStates)
-
-	subDs = addOrderBy(subDs, opts.NewestFirst)
-
-	subDs = subDs.Limit(uint(opts.Take))
-
-	subDs = addOffset(subDs, opts.Skip)
+		Select(goqu.I("job.job_id")).
+		Where(goqu.And(
+			goqu.I("job.queue").Eq(opts.Queue),
+			goqu.Or(createJobSetFilters(opts.JobSetIds)...))).
+		GroupBy(goqu.I("job.job_id")).
+		Having(goqu.Or(createJobStateFilters(opts.JobStates)...)).
+		Order(createJobOrdering(opts.NewestFirst)).
+		Limit(uint(opts.Take)).
+		Offset(uint(opts.Skip))
 
 	ds := dialect.
 		From("job").
@@ -171,27 +167,19 @@ func makeGetJobsInQueueQuery(opts *lookout.GetJobsInQueueRequest) (string, []int
 			goqu.I("job_run.finished"),
 			goqu.I("job_run.succeeded"),
 			goqu.I("job_run.error")).
-		Where(goqu.I("job.job_id").In(subDs))
-
-	ds = addOrderBy(ds, opts.NewestFirst) // Ordering from sub query not guaranteed to be preserved
+		Where(goqu.I("job.job_id").In(subDs)).
+		Order(createJobOrdering(opts.NewestFirst)) // Ordering from sub query not guaranteed to be preserved
 
 	return ds.ToSQL()
 }
 
-func addWhere(ds *goqu.SelectDataset, queue string, jobSetIds []string) *goqu.SelectDataset {
-	queueEquals := goqu.I("job.queue").Eq(queue)
-
-	if len(jobSetIds) == 0 {
-		return ds.Where(queueEquals)
-	}
-
-	jobSetExs := make([]goqu.Expression, 0)
+func createJobSetFilters(jobSetIds []string) []goqu.Expression {
+	filters := make([]goqu.Expression, 0)
 	for _, jobSetId := range jobSetIds {
-		jobSetEx := goqu.I("job.jobset").Like(jobSetId + "%")
-		jobSetExs = append(jobSetExs, jobSetEx)
+		filter := goqu.I("job.jobset").Like(jobSetId + "%")
+		filters = append(filters, filter)
 	}
-
-	return ds.Where(goqu.And(queueEquals, goqu.Or(jobSetExs...)))
+	return filters
 }
 
 const (
@@ -203,7 +191,7 @@ const (
 	succeeded = "job_run.succeeded"
 )
 
-var stateFilters = map[lookout.JobState][]goqu.Expression{
+var filtersForState = map[lookout.JobState][]goqu.Expression{
 	lookout.JobState_QUEUED: {
 		goqu.MAX(goqu.I(submitted)).IsNotNull(),
 		goqu.MAX(goqu.I(cancelled)).IsNull(),
@@ -235,36 +223,25 @@ var stateFilters = map[lookout.JobState][]goqu.Expression{
 	},
 }
 
-func addHaving(ds *goqu.SelectDataset, jobStates []lookout.JobState) *goqu.SelectDataset {
-	if len(jobStates) == 0 {
-		return ds
-	}
-
-	conditions := make([]goqu.Expression, 0)
-
+func createJobStateFilters(jobStates []lookout.JobState) []goqu.Expression {
+	filters := make([]goqu.Expression, 0)
 	for _, state := range jobStates {
-		conditions = append(conditions, goqu.And(stateFilters[state]...))
+		filter := goqu.And(filtersForState[state]...)
+		filters = append(filters, filter)
 	}
-
-	return ds.Having(goqu.Or(conditions...))
+	return filters
 }
 
 func BOOL_OR(col interface{}) exp.SQLFunctionExpression {
 	return goqu.Func("BOOL_OR", col)
 }
 
-func addOrderBy(ds *goqu.SelectDataset, newestFirst bool) *goqu.SelectDataset {
+func createJobOrdering(newestFirst bool) exp.OrderedExpression {
+	jobId := goqu.I("job.job_id")
 	if newestFirst {
-		return ds.Order(goqu.I("job.job_id").Desc())
+		return jobId.Desc()
 	}
-	return ds.Order(goqu.I("job.job_id").Asc())
-}
-
-func addOffset(ds *goqu.SelectDataset, skip uint32) *goqu.SelectDataset {
-	if skip > 0 {
-		return ds.Offset(uint(skip))
-	}
-	return ds
+	return jobId.Asc()
 }
 
 func parseJobsInQueueRows(rows []*jobsInQueueRow) []*lookout.JobInfo {
