@@ -18,43 +18,73 @@ type JobRepository interface {
 }
 
 type SQLJobRepository struct {
-	db     *sql.DB
 	goquDb *goqu.Database
 }
 
 func NewSQLJobRepository(db *sql.DB) *SQLJobRepository {
 	goquDb := goqu.New("postgres", db)
-	return &SQLJobRepository{db: db, goquDb: goquDb}
+	return &SQLJobRepository{goquDb: goquDb}
+}
+
+var (
+	// Tables
+	jobTable    = goqu.T("job")
+	jobRunTable = goqu.T("job_run")
+
+	// Columns: job table
+	job_jobId     = goqu.I("job.job_id")
+	job_queue     = goqu.I("job.queue")
+	job_owner     = goqu.I("job.owner")
+	job_jobset    = goqu.I("job.jobset")
+	job_priority  = goqu.I("job.priority")
+	job_submitted = goqu.I("job.submitted")
+	job_cancelled = goqu.I("job.cancelled")
+	job_job       = goqu.I("job.job")
+
+	// Columns: job_run table
+	jobRun_runId     = goqu.I("job_run.run_id")
+	jobRun_jobId     = goqu.I("job_run.job_id")
+	jobRun_cluster   = goqu.I("job_run.cluster")
+	jobRun_node      = goqu.I("job_run.node")
+	jobRun_created   = goqu.I("job_run.created")
+	jobRun_started   = goqu.I("job_run.started")
+	jobRun_finished  = goqu.I("job_run.finished")
+	jobRun_succeeded = goqu.I("job_run.succeeded")
+	jobRun_error     = goqu.I("job_run.error")
+)
+
+type queueStatsRow struct {
+	Queue       string `db:"queue"`
+	Jobs        uint32 `db:"jobs"`
+	JobsCreated uint32 `db:"jobs_created"`
+	JobsStarted uint32 `db:"jobs_started"`
 }
 
 func (r *SQLJobRepository) GetQueueStats() ([]*lookout.QueueInfo, error) {
-	rows, err := r.db.Query(`
-		SELECT job.queue as queue, 
-		       count(*) as jobs,
-		       count(coalesce(job_run.created, job_run.started)) as jobs_created,
-			   count(job_run.started) as Jobs_started
-		FROM job LEFT JOIN job_run ON job.job_id = job_run.job_id
-		WHERE job_run.finished IS NULL
-		GROUP BY job.queue`)
+	ds := r.goquDb.
+		From(jobTable).
+		LeftJoin(jobRunTable, goqu.On(job_jobId.Eq(jobRun_jobId))).
+		Select(
+			job_queue,
+			goqu.COUNT("*").As("jobs"),
+			goqu.COUNT(goqu.COALESCE(jobRun_created, jobRun_started)).As("jobs_created"),
+			goqu.COUNT(jobRun_started).As("jobs_started")).
+		Where(jobRun_finished.IsNull()).
+		GroupBy(job_queue)
+
+	queueStatsRows := make([]*queueStatsRow, 0)
+	err := ds.Prepared(true).ScanStructs(&queueStatsRows)
 	if err != nil {
 		return nil, err
 	}
-	var (
-		queue                          string
-		jobs, jobsCreated, jobsStarted uint32
-	)
 
-	result := []*lookout.QueueInfo{}
-	for rows.Next() {
-		err := rows.Scan(&queue, &jobs, &jobsCreated, &jobsStarted)
-		if err != nil {
-			return nil, err
-		}
+	var result []*lookout.QueueInfo
+	for _, row := range queueStatsRows {
 		result = append(result, &lookout.QueueInfo{
-			Queue:       queue,
-			JobsQueued:  jobs - jobsCreated,
-			JobsPending: jobsCreated - jobsStarted,
-			JobsRunning: jobsStarted,
+			Queue:       row.Queue,
+			JobsQueued:  row.Jobs - row.JobsCreated,
+			JobsPending: row.JobsCreated - row.JobsStarted,
+			JobsRunning: row.JobsStarted,
 		})
 	}
 	return result, nil
@@ -92,53 +122,51 @@ type jobsInQueueRow struct {
 func (r *SQLJobRepository) queryJobsInQueue(opts *lookout.GetJobsInQueueRequest) ([]*jobsInQueueRow, error) {
 	ds := r.createGetJobsInQueueDataset(opts)
 
-	joinedRows := make([]*jobsInQueueRow, 0)
-	err := ds.Prepared(true).ScanStructs(&joinedRows)
+	jobsInQueueRows := make([]*jobsInQueueRow, 0)
+	err := ds.Prepared(true).ScanStructs(&jobsInQueueRows)
 	if err != nil {
 		return nil, err
 	}
 
-	return joinedRows, nil
+	return jobsInQueueRows, nil
 }
 
 func (r *SQLJobRepository) createGetJobsInQueueDataset(opts *lookout.GetJobsInQueueRequest) *goqu.SelectDataset {
 	subDs := r.goquDb.
-		From("job").
-		LeftJoin(goqu.T("job_run"), goqu.On(goqu.Ex{
-			"job.job_id": goqu.I("job_run.job_id"),
-		})).
-		Select(goqu.I("job.job_id")).
+		From(jobTable).
+		LeftJoin(jobRunTable, goqu.On(
+			job_jobId.Eq(jobRun_jobId))).
+		Select(job_jobId).
 		Where(goqu.And(
-			goqu.I("job.queue").Eq(opts.Queue),
+			job_queue.Eq(opts.Queue),
 			goqu.Or(createJobSetFilters(opts.JobSetIds)...))).
-		GroupBy(goqu.I("job.job_id")).
+		GroupBy(job_jobId).
 		Having(goqu.Or(createJobStateFilters(opts.JobStates)...)).
 		Order(createJobOrdering(opts.NewestFirst)).
 		Limit(uint(opts.Take)).
 		Offset(uint(opts.Skip))
 
 	ds := r.goquDb.
-		From("job").
-		LeftJoin(goqu.T("job_run"), goqu.On(goqu.Ex{
-			"job.job_id": goqu.I("job_run.job_id"),
-		})).
+		From(jobTable).
+		LeftJoin(jobRunTable, goqu.On(
+			job_jobId.Eq(jobRun_jobId))).
 		Select(
-			goqu.I("job.job_id"),
-			goqu.I("job.owner"),
-			goqu.I("job.jobset"),
-			goqu.I("job.priority"),
-			goqu.I("job.submitted"),
-			goqu.I("job.cancelled"),
-			goqu.I("job.job"),
-			goqu.I("job_run.run_id"),
-			goqu.I("job_run.cluster"),
-			goqu.I("job_run.node"),
-			goqu.I("job_run.created"),
-			goqu.I("job_run.started"),
-			goqu.I("job_run.finished"),
-			goqu.I("job_run.succeeded"),
-			goqu.I("job_run.error")).
-		Where(goqu.I("job.job_id").In(subDs)).
+			job_jobId,
+			job_owner,
+			job_jobset,
+			job_priority,
+			job_submitted,
+			job_cancelled,
+			job_job,
+			jobRun_runId,
+			jobRun_cluster,
+			jobRun_node,
+			jobRun_created,
+			jobRun_started,
+			jobRun_finished,
+			jobRun_succeeded,
+			jobRun_error).
+		Where(job_jobId.In(subDs)).
 		Order(createJobOrdering(opts.NewestFirst)) // Ordering from sub query not guaranteed to be preserved
 
 	return ds
@@ -147,50 +175,41 @@ func (r *SQLJobRepository) createGetJobsInQueueDataset(opts *lookout.GetJobsInQu
 func createJobSetFilters(jobSetIds []string) []goqu.Expression {
 	filters := make([]goqu.Expression, 0)
 	for _, jobSetId := range jobSetIds {
-		filter := goqu.I("job.jobset").Like(jobSetId + "%")
+		filter := job_jobset.Like(jobSetId + "%")
 		filters = append(filters, filter)
 	}
 	return filters
 }
 
-const (
-	submitted = "job.submitted"
-	cancelled = "job.cancelled"
-	created   = "job_run.created"
-	started   = "job_run.started"
-	finished  = "job_run.finished"
-	succeeded = "job_run.succeeded"
-)
-
 var filtersForState = map[lookout.JobState][]goqu.Expression{
 	lookout.JobState_QUEUED: {
-		goqu.MAX(goqu.I(submitted)).IsNotNull(),
-		goqu.MAX(goqu.I(cancelled)).IsNull(),
-		goqu.MAX(goqu.I(created)).IsNull(),
-		goqu.MAX(goqu.I(started)).IsNull(),
-		goqu.MAX(goqu.I(finished)).IsNull(),
+		goqu.MAX(job_submitted).IsNotNull(),
+		goqu.MAX(job_cancelled).IsNull(),
+		goqu.MAX(jobRun_created).IsNull(),
+		goqu.MAX(jobRun_started).IsNull(),
+		goqu.MAX(jobRun_finished).IsNull(),
 	},
 	lookout.JobState_PENDING: {
-		goqu.MAX(goqu.I(cancelled)).IsNull(),
-		goqu.MAX(goqu.I(created)).IsNotNull(),
-		goqu.MAX(goqu.I(started)).IsNull(),
-		goqu.MAX(goqu.I(finished)).IsNull(),
+		goqu.MAX(job_cancelled).IsNull(),
+		goqu.MAX(jobRun_created).IsNotNull(),
+		goqu.MAX(jobRun_started).IsNull(),
+		goqu.MAX(jobRun_finished).IsNull(),
 	},
 	lookout.JobState_RUNNING: {
-		goqu.MAX(goqu.I(cancelled)).IsNull(),
-		goqu.MAX(goqu.I(started)).IsNotNull(),
-		goqu.MAX(goqu.I(finished)).IsNull(),
+		goqu.MAX(job_cancelled).IsNull(),
+		goqu.MAX(jobRun_started).IsNotNull(),
+		goqu.MAX(jobRun_finished).IsNull(),
 	},
 	lookout.JobState_SUCCEEDED: {
-		goqu.MAX(goqu.I(cancelled)).IsNull(),
-		goqu.MAX(goqu.I(finished)).IsNotNull(),
-		BOOL_OR(goqu.I(succeeded)).IsTrue(),
+		goqu.MAX(job_cancelled).IsNull(),
+		goqu.MAX(jobRun_finished).IsNotNull(),
+		BOOL_OR(jobRun_succeeded).IsTrue(),
 	},
 	lookout.JobState_FAILED: {
-		BOOL_OR(goqu.I(succeeded)).IsFalse(),
+		BOOL_OR(jobRun_succeeded).IsFalse(),
 	},
 	lookout.JobState_CANCELLED: {
-		goqu.MAX(goqu.I(cancelled)).IsNotNull(),
+		goqu.MAX(job_cancelled).IsNotNull(),
 	},
 }
 
@@ -204,11 +223,10 @@ func createJobStateFilters(jobStates []lookout.JobState) []goqu.Expression {
 }
 
 func createJobOrdering(newestFirst bool) exp.OrderedExpression {
-	jobId := goqu.I("job.job_id")
 	if newestFirst {
-		return jobId.Desc()
+		return job_jobId.Desc()
 	}
-	return jobId.Asc()
+	return job_jobId.Asc()
 }
 
 func jobsInQueueRowsToResult(rows []*jobsInQueueRow) []*lookout.JobInfo {
