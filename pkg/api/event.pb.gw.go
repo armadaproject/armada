@@ -20,6 +20,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/grpclog"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
 
@@ -30,6 +31,7 @@ var _ status.Status
 var _ = runtime.String
 var _ = utilities.NewDoubleArray
 var _ = descriptor.ForMessage
+var _ = metadata.Join
 
 func request_Event_GetJobSetEvents_0(ctx context.Context, marshaler runtime.Marshaler, client EventClient, req *http.Request, pathParams map[string]string) (Event_GetJobSetEventsClient, runtime.ServerMetadata, error) {
 	var protoReq JobSetRequest
@@ -50,26 +52,26 @@ func request_Event_GetJobSetEvents_0(ctx context.Context, marshaler runtime.Mars
 		_   = err
 	)
 
-	val, ok = pathParams["Queue"]
+	val, ok = pathParams["queue"]
 	if !ok {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "Queue")
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "queue")
 	}
 
 	protoReq.Queue, err = runtime.String(val)
 
 	if err != nil {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "Queue", err)
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "queue", err)
 	}
 
-	val, ok = pathParams["Id"]
+	val, ok = pathParams["id"]
 	if !ok {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "Id")
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "id")
 	}
 
 	protoReq.Id, err = runtime.String(val)
 
 	if err != nil {
-		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "Id", err)
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "id", err)
 	}
 
 	stream, err := client.GetJobSetEvents(ctx, &protoReq)
@@ -88,6 +90,7 @@ func request_Event_GetJobSetEvents_0(ctx context.Context, marshaler runtime.Mars
 // RegisterEventHandlerServer registers the http handlers for service Event to "mux".
 // UnaryRPC     :call EventServer directly.
 // StreamingRPC :currently unsupported pending https://github.com/grpc/grpc-go/issues/906.
+// Note that using this registration option will cause many gRPC library features to stop working. Consider using RegisterEventHandlerFromEndpoint instead.
 func RegisterEventHandlerServer(ctx context.Context, mux *runtime.ServeMux, server EventServer) error {
 
 	mux.Handle("POST", pattern_Event_GetJobSetEvents_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
@@ -162,7 +165,7 @@ func RegisterEventHandlerClient(ctx context.Context, mux *runtime.ServeMux, clie
 }
 
 var (
-	pattern_Event_GetJobSetEvents_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 1, 0, 4, 1, 5, 2, 1, 0, 4, 1, 5, 3}, []string{"v1", "job-set", "Queue", "Id"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Event_GetJobSetEvents_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 1, 0, 4, 1, 5, 2, 1, 0, 4, 1, 5, 3}, []string{"v1", "job-set", "queue", "id"}, "", runtime.AssumeColonVerbOpt(true)))
 )
 
 var (

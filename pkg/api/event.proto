@@ -13,134 +13,134 @@ option (gogoproto.goproto_stringer_all) = false;
 option (gogoproto.stringer_all) = true;
 
 message JobSubmittedEvent {
-    string JobId = 1;
-    string JobSetId = 2;
-    string Queue = 3;
-    google.protobuf.Timestamp Created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
-    Job Job = 5 [(gogoproto.nullable) = false];
+    string job_id = 1;
+    string job_set_id = 2;
+    string queue = 3;
+    google.protobuf.Timestamp created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+    Job job = 5 [(gogoproto.nullable) = false];
 }
 
 message JobQueuedEvent {
-    string JobId = 1;
-    string JobSetId = 2;
-    string Queue = 3;
-    google.protobuf.Timestamp Created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+    string job_id = 1;
+    string job_set_id = 2;
+    string queue = 3;
+    google.protobuf.Timestamp created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
 }
 
 message JobLeasedEvent {
-    string JobId = 1;
-    string JobSetId = 2;
-    string Queue = 3;
-    google.protobuf.Timestamp Created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
-    string ClusterId = 5;
+    string job_id = 1;
+    string job_set_id = 2;
+    string queue = 3;
+    google.protobuf.Timestamp created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+    string cluster_id = 5;
 }
 
 message JobLeaseReturnedEvent {
-    string JobId = 1;
-    string JobSetId = 2;
-    string Queue = 3;
-    google.protobuf.Timestamp Created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
-    string ClusterId = 5;
-    string Reason = 6;
+    string job_id = 1;
+    string job_set_id = 2;
+    string queue = 3;
+    google.protobuf.Timestamp created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+    string cluster_id = 5;
+    string reason = 6;
 }
 
 message JobLeaseExpiredEvent {
-    string JobId = 1;
-    string JobSetId = 2;
-    string Queue = 3;
-    google.protobuf.Timestamp Created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+    string job_id = 1;
+    string job_set_id = 2;
+    string queue = 3;
+    google.protobuf.Timestamp created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
 }
 
 message JobPendingEvent {
-    string JobId = 1;
-    string JobSetId = 2;
-    string Queue = 3;
-    google.protobuf.Timestamp Created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
-    string ClusterId = 5;
-    string KubernetesId = 6;
+    string job_id = 1;
+    string job_set_id = 2;
+    string queue = 3;
+    google.protobuf.Timestamp created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+    string cluster_id = 5;
+    string kubernetes_id = 6;
 }
 
 message JobRunningEvent {
-    string JobId = 1;
-    string JobSetId = 2;
-    string Queue = 3;
-    google.protobuf.Timestamp Created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
-    string ClusterId = 5;
-    string KubernetesId = 6;
-    string NodeName = 7;
+    string job_id = 1;
+    string job_set_id = 2;
+    string queue = 3;
+    google.protobuf.Timestamp created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+    string cluster_id = 5;
+    string kubernetes_id = 6;
+    string node_name = 7;
 }
 
 message JobUnableToScheduleEvent {
-    string JobId = 1;
-    string JobSetId = 2;
-    string Queue = 3;
-    google.protobuf.Timestamp Created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
-    string ClusterId = 5;
-    string Reason = 6;
-    string KubernetesId = 7;
-    string NodeName = 8;
+    string job_id = 1;
+    string job_set_id = 2;
+    string queue = 3;
+    google.protobuf.Timestamp created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+    string cluster_id = 5;
+    string reason = 6;
+    string kubernetes_id = 7;
+    string node_name = 8;
 }
 
 message JobFailedEvent {
-    string JobId = 1;
-    string JobSetId = 2;
-    string Queue = 3;
-    google.protobuf.Timestamp Created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
-    string ClusterId = 5;
-    string Reason = 6;
-    map<string, int32> ExitCodes = 7;
-    string KubernetesId = 8;
-    string NodeName = 9;
+    string job_id = 1;
+    string job_set_id = 2;
+    string queue = 3;
+    google.protobuf.Timestamp created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+    string cluster_id = 5;
+    string reason = 6;
+    map<string, int32> exit_codes = 7;
+    string kubernetes_id = 8;
+    string node_name = 9;
 }
 
 message JobSucceededEvent {
-    string JobId = 1;
-    string JobSetId = 2;
-    string Queue = 3;
-    google.protobuf.Timestamp Created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
-    string ClusterId = 5;
-    string KubernetesId = 6;
-    string NodeName = 7;
+    string job_id = 1;
+    string job_set_id = 2;
+    string queue = 3;
+    google.protobuf.Timestamp created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+    string cluster_id = 5;
+    string kubernetes_id = 6;
+    string node_name = 7;
 }
 
 message JobUtilisationEvent {
-    string JobId = 1;
-    string JobSetId = 2;
-    string Queue = 3;
-    google.protobuf.Timestamp Created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
-    string ClusterId = 5;
-    string KubernetesId = 6;
+    string job_id = 1;
+    string job_set_id = 2;
+    string queue = 3;
+    google.protobuf.Timestamp created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+    string cluster_id = 5;
+    string kubernetes_id = 6;
     map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> MaxResourcesForPeriod = 7 [(gogoproto.nullable) = false];
-    string NodeName = 8;
+    string node_name = 8;
 }
 
 message JobReprioritizedEvent {
-    string JobId = 1;
-    string JobSetId = 2;
-    string Queue = 3;
-    google.protobuf.Timestamp Created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+    string job_id = 1;
+    string job_set_id = 2;
+    string queue = 3;
+    google.protobuf.Timestamp created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
 }
 
 message JobCancellingEvent {
-    string JobId = 1;
-    string JobSetId = 2;
-    string Queue = 3;
-    google.protobuf.Timestamp Created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+    string job_id = 1;
+    string job_set_id = 2;
+    string queue = 3;
+    google.protobuf.Timestamp created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
 }
 
 message JobCancelledEvent {
-    string JobId = 1;
-    string JobSetId = 2;
-    string Queue = 3;
-    google.protobuf.Timestamp Created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+    string job_id = 1;
+    string job_set_id = 2;
+    string queue = 3;
+    google.protobuf.Timestamp created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
 }
 
 message JobTerminatedEvent {
-    string JobId = 1;
-    string JobSetId = 2;
-    string Queue = 3;
-    google.protobuf.Timestamp Created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
-    string ClusterId = 5;
+    string job_id = 1;
+    string job_set_id = 2;
+    string queue = 3;
+    google.protobuf.Timestamp created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+    string cluster_id = 5;
 }
 
 message EventMessage {
@@ -148,11 +148,11 @@ message EventMessage {
         JobSubmittedEvent submitted = 1;
         JobQueuedEvent queued = 2;
         JobLeasedEvent leased = 3;
-        JobLeaseReturnedEvent leaseReturned = 4;
-        JobLeaseExpiredEvent leaseExpired = 5;
+        JobLeaseReturnedEvent lease_returned = 4;
+        JobLeaseExpiredEvent lease_expired = 5;
         JobPendingEvent pending = 6;
         JobRunningEvent running = 7;
-        JobUnableToScheduleEvent unableToSchedule = 8;
+        JobUnableToScheduleEvent unable_to_schedule = 8;
         JobFailedEvent failed = 9;
         JobSucceededEvent succeeded = 10;
         JobReprioritizedEvent reprioritized = 11;
@@ -164,21 +164,21 @@ message EventMessage {
 }
 
 message EventList {
-    repeated EventMessage Events = 1;
+    repeated EventMessage events = 1;
 }
 
 // swagger:model
 message EventStreamMessage {
-    string Id = 1;
+    string id = 1;
     EventMessage message = 2;
 }
 
 // swagger:model
 message JobSetRequest {
-    string Id = 1;
-    bool Watch = 2;
-    string FromMessageId = 3;
-    string Queue = 4;
+    string id = 1;
+    bool watch = 2;
+    string from_message_id = 3;
+    string queue = 4;
 }
 
 service Event {
@@ -186,7 +186,7 @@ service Event {
     rpc Report (EventMessage) returns (google.protobuf.Empty);
     rpc GetJobSetEvents (JobSetRequest) returns (stream EventStreamMessage) {
         option (google.api.http) = {
-            post: "/v1/job-set/{Queue}/{Id}"
+            post: "/v1/job-set/{queue}/{id}"
             body: "*"
         };
     }

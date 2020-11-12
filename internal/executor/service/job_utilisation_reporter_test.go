@@ -23,7 +23,7 @@ var testPodResources = common.ComputeResources{
 func TestUtilisationEventReporter_ReportUtilisationEvents(t *testing.T) {
 	reportingPeriod := 100 * time.Millisecond
 	clusterContext := fakeContext.NewFakeClusterContext("test", nil)
-	fakeEventReporter := &fakeEventReporter{}
+	fakeEventReporter := &FakeEventReporter{}
 	reporter := NewUtilisationEventReporter(clusterContext, &fakePodUtilisation{}, fakeEventReporter, reportingPeriod)
 
 	podResources := map[v1.ResourceName]resource.Quantity{
@@ -74,16 +74,16 @@ func (f *fakePodUtilisation) GetPodUtilisation(pod *v1.Pod) common.ComputeResour
 	return testPodResources
 }
 
-type fakeEventReporter struct {
+type FakeEventReporter struct {
 	receivedEvents []api.Event
 }
 
-func (f *fakeEventReporter) Report(event api.Event) error {
+func (f *FakeEventReporter) Report(event api.Event) error {
 	f.receivedEvents = append(f.receivedEvents, event)
 	return nil
 }
 
-func (f *fakeEventReporter) QueueEvent(event api.Event, callback func(error)) {
+func (f *FakeEventReporter) QueueEvent(event api.Event, callback func(error)) {
 	e := f.Report(event)
 	callback(e)
 }

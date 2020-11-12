@@ -14,6 +14,12 @@ type Event interface {
 	GetCreated() time.Time
 }
 
+type KubernetesEvent interface {
+	Event
+	GetKubernetesId() string
+	GetClusterId() string
+}
+
 // customize oneof serialization
 func (message *EventMessage) MarshalJSON() ([]byte, error) {
 	return json.Marshal(message.Events)
