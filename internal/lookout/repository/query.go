@@ -18,11 +18,13 @@ type JobRepository interface {
 }
 
 type SQLJobRepository struct {
-	db *sql.DB
+	db     *sql.DB
+	goquDb *goqu.Database
 }
 
 func NewSQLJobRepository(db *sql.DB) *SQLJobRepository {
-	return &SQLJobRepository{db: db}
+	goquDb := goqu.New("postgres", db)
+	return &SQLJobRepository{db: db, goquDb: goquDb}
 }
 
 func (r *SQLJobRepository) GetQueueStats() ([]*lookout.QueueInfo, error) {
@@ -64,72 +66,43 @@ func (r *SQLJobRepository) GetJobsInQueue(opts *lookout.GetJobsInQueueRequest) (
 		return nil, err
 	}
 
-	result := parseJobsInQueueRows(rows)
+	result := jobsInQueueRowsToResult(rows)
 	return result, nil
 }
 
 type jobsInQueueRow struct {
-	JobId     string
-	Queue     string
-	Owner     string
-	JobSet    string
-	Priority  sql.NullFloat64
-	Submitted pq.NullTime
-	Cancelled pq.NullTime
-	JobJson   sql.NullString
-	RunId     sql.NullString
-	Cluster   sql.NullString
-	Node      sql.NullString
-	Created   pq.NullTime
-	Started   pq.NullTime
-	Finished  pq.NullTime
-	Succeeded sql.NullBool
-	Error     sql.NullString
+	JobId     string          `db:"job_id"`
+	Queue     string          `db:"queue"`
+	Owner     string          `db:"owner"`
+	JobSet    string          `db:"jobset"`
+	Priority  sql.NullFloat64 `db:"priority"`
+	Submitted pq.NullTime     `db:"submitted"`
+	Cancelled pq.NullTime     `db:"cancelled"`
+	JobJson   sql.NullString  `db:"job"`
+	RunId     sql.NullString  `db:"run_id"`
+	Cluster   sql.NullString  `db:"cluster"`
+	Node      sql.NullString  `db:"node"`
+	Created   pq.NullTime     `db:"created"`
+	Started   pq.NullTime     `db:"started"`
+	Finished  pq.NullTime     `db:"finished"`
+	Succeeded sql.NullBool    `db:"succeeded"`
+	Error     sql.NullString  `db:"error"`
 }
 
 func (r *SQLJobRepository) queryJobsInQueue(opts *lookout.GetJobsInQueueRequest) ([]*jobsInQueueRow, error) {
-	query, args, err := makeGetJobsInQueueQuery(opts)
-	if err != nil {
-		return nil, err
-	}
-
-	rows, err := r.db.Query(query, args...)
-	if err != nil {
-		return nil, err
-	}
+	ds := r.createGetJobsInQueueDataset(opts)
 
 	joinedRows := make([]*jobsInQueueRow, 0)
-	for rows.Next() {
-		row := &jobsInQueueRow{}
-		err := rows.Scan(
-			&row.JobId,
-			&row.Owner,
-			&row.JobSet,
-			&row.Priority,
-			&row.Submitted,
-			&row.Cancelled,
-			&row.JobJson,
-			&row.RunId,
-			&row.Cluster,
-			&row.Node,
-			&row.Created,
-			&row.Started,
-			&row.Finished,
-			&row.Succeeded,
-			&row.Error,
-		)
-		if err != nil {
-			return nil, err
-		}
-		joinedRows = append(joinedRows, row)
+	err := ds.Prepared(true).ScanStructs(&joinedRows)
+	if err != nil {
+		return nil, err
 	}
+
 	return joinedRows, nil
 }
 
-func makeGetJobsInQueueQuery(opts *lookout.GetJobsInQueueRequest) (string, []interface{}, error) {
-	dialect := goqu.Dialect("postgres")
-
-	subDs := dialect.
+func (r *SQLJobRepository) createGetJobsInQueueDataset(opts *lookout.GetJobsInQueueRequest) *goqu.SelectDataset {
+	subDs := r.goquDb.
 		From("job").
 		LeftJoin(goqu.T("job_run"), goqu.On(goqu.Ex{
 			"job.job_id": goqu.I("job_run.job_id"),
@@ -144,12 +117,11 @@ func makeGetJobsInQueueQuery(opts *lookout.GetJobsInQueueRequest) (string, []int
 		Limit(uint(opts.Take)).
 		Offset(uint(opts.Skip))
 
-	ds := dialect.
+	ds := r.goquDb.
 		From("job").
 		LeftJoin(goqu.T("job_run"), goqu.On(goqu.Ex{
 			"job.job_id": goqu.I("job_run.job_id"),
 		})).
-		Prepared(true).
 		Select(
 			goqu.I("job.job_id"),
 			goqu.I("job.owner"),
@@ -169,7 +141,7 @@ func makeGetJobsInQueueQuery(opts *lookout.GetJobsInQueueRequest) (string, []int
 		Where(goqu.I("job.job_id").In(subDs)).
 		Order(createJobOrdering(opts.NewestFirst)) // Ordering from sub query not guaranteed to be preserved
 
-	return ds.ToSQL()
+	return ds
 }
 
 func createJobSetFilters(jobSetIds []string) []goqu.Expression {
@@ -239,7 +211,7 @@ func createJobOrdering(newestFirst bool) exp.OrderedExpression {
 	return jobId.Asc()
 }
 
-func parseJobsInQueueRows(rows []*jobsInQueueRow) []*lookout.JobInfo {
+func jobsInQueueRowsToResult(rows []*jobsInQueueRow) []*lookout.JobInfo {
 	result := make([]*lookout.JobInfo, 0)
 
 	for i, row := range rows {
