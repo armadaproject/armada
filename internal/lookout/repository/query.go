@@ -2,7 +2,6 @@ package repository
 
 import (
 	"database/sql"
-	"time"
 
 	"github.com/doug-martin/goqu/v9"
 	_ "github.com/doug-martin/goqu/v9/dialect/postgres"
@@ -232,10 +231,6 @@ func createJobStateFilters(jobStates []lookout.JobState) []goqu.Expression {
 	return filters
 }
 
-func BOOL_OR(col interface{}) exp.SQLFunctionExpression {
-	return goqu.Func("BOOL_OR", col)
-}
-
 func createJobOrdering(newestFirst bool) exp.OrderedExpression {
 	jobId := goqu.I("job.job_id")
 	if newestFirst {
@@ -258,62 +253,27 @@ func parseJobsInQueueRows(rows []*jobsInQueueRow) []*lookout.JobInfo {
 					Labels:      nil,
 					Annotations: nil,
 					Owner:       row.Owner,
-					Priority:    parseNullFloat(row.Priority),
+					Priority:    ParseNullFloat(row.Priority),
 					PodSpec:     nil,
-					Created:     parseNullTimeDefault(row.Submitted), // Job submitted
+					Created:     ParseNullTimeDefault(row.Submitted), // Job submitted
 				},
-				Cancelled: parseNullTime(row.Cancelled),
+				Cancelled: ParseNullTime(row.Cancelled),
 				Runs:      []*lookout.RunInfo{},
 			})
 		}
 
 		if row.RunId.Valid {
 			result[len(result)-1].Runs = append(result[len(result)-1].Runs, &lookout.RunInfo{
-				K8SId:     parseNullString(row.RunId),
-				Cluster:   parseNullString(row.Cluster),
-				Node:      parseNullString(row.Node),
-				Succeeded: parseNullBool(row.Succeeded),
-				Error:     parseNullString(row.Error),
-				Created:   parseNullTime(row.Created), // Pod created (Pending)
-				Started:   parseNullTime(row.Started), // Pod running
-				Finished:  parseNullTime(row.Finished),
+				K8SId:     ParseNullString(row.RunId),
+				Cluster:   ParseNullString(row.Cluster),
+				Node:      ParseNullString(row.Node),
+				Succeeded: ParseNullBool(row.Succeeded),
+				Error:     ParseNullString(row.Error),
+				Created:   ParseNullTime(row.Created), // Pod created (Pending)
+				Started:   ParseNullTime(row.Started), // Pod running
+				Finished:  ParseNullTime(row.Finished),
 			})
 		}
 	}
 	return result
-}
-
-func parseNullString(nullString sql.NullString) string {
-	if !nullString.Valid {
-		return ""
-	}
-	return nullString.String
-}
-
-func parseNullBool(nullBool sql.NullBool) bool {
-	if !nullBool.Valid {
-		return false
-	}
-	return nullBool.Bool
-}
-
-func parseNullFloat(nullFloat sql.NullFloat64) float64 {
-	if !nullFloat.Valid {
-		return 0
-	}
-	return nullFloat.Float64
-}
-
-func parseNullTime(nullTime pq.NullTime) *time.Time {
-	if !nullTime.Valid {
-		return nil
-	}
-	return &nullTime.Time
-}
-
-func parseNullTimeDefault(nullTime pq.NullTime) time.Time {
-	if !nullTime.Valid {
-		return time.Time{}
-	}
-	return nullTime.Time
 }
