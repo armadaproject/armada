@@ -4,6 +4,11 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
+	"time"
+
+	"github.com/doug-martin/goqu/v9"
+	"github.com/doug-martin/goqu/v9/exp"
+	"github.com/lib/pq"
 )
 
 func insert(db *sql.DB, table string, fields []string, values []interface{}) (sql.Result, error) {
@@ -46,4 +51,43 @@ func createInsertQuery(table string, fields []string, values []interface{}) stri
 		insertSql += ")"
 	}
 	return insertSql
+}
+
+func BOOL_OR(col interface{}) exp.SQLFunctionExpression {
+	return goqu.Func("BOOL_OR", col)
+}
+
+func ParseNullString(nullString sql.NullString) string {
+	if !nullString.Valid {
+		return ""
+	}
+	return nullString.String
+}
+
+func ParseNullBool(nullBool sql.NullBool) bool {
+	if !nullBool.Valid {
+		return false
+	}
+	return nullBool.Bool
+}
+
+func ParseNullFloat(nullFloat sql.NullFloat64) float64 {
+	if !nullFloat.Valid {
+		return 0
+	}
+	return nullFloat.Float64
+}
+
+func ParseNullTime(nullTime pq.NullTime) *time.Time {
+	if !nullTime.Valid {
+		return nil
+	}
+	return &nullTime.Time
+}
+
+func ParseNullTimeDefault(nullTime pq.NullTime) time.Time {
+	if !nullTime.Valid {
+		return time.Time{}
+	}
+	return nullTime.Time
 }

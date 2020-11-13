@@ -11,6 +11,38 @@
     "version": "version not set"
   },
   "paths": {
+    "/api/v1/lookout/jobs": {
+      "post": {
+        "tags": [
+          "Lookout"
+        ],
+        "operationId": "GetJobsInQueue",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/lookoutGetJobsInQueueRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/lookoutGetJobsInQueueResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        }
+      }
+    },
     "/api/v1/lookout/overview": {
       "get": {
         "tags": [
@@ -108,13 +140,77 @@
       "title": "Type represents the stored type of IntOrString.",
       "x-go-package": "k8s.io/apimachinery/pkg/util/intstr"
     },
+    "lookoutGetJobsInQueueRequest": {
+      "type": "object",
+      "properties": {
+        "jobSetIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "jobStates": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/lookoutJobState"
+          }
+        },
+        "newestFirst": {
+          "type": "boolean"
+        },
+        "queue": {
+          "type": "string"
+        },
+        "skip": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "take": {
+          "type": "integer",
+          "format": "int64"
+        }
+      }
+    },
+    "lookoutGetJobsInQueueResponse": {
+      "type": "object",
+      "properties": {
+        "jobInfos": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/lookoutJobInfo"
+          }
+        }
+      }
+    },
     "lookoutJobInfo": {
       "type": "object",
       "properties": {
+        "cancelled": {
+          "type": "string",
+          "format": "date-time"
+        },
         "job": {
           "$ref": "#/definitions/apiJob"
+        },
+        "runs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/lookoutRunInfo"
+          }
         }
       }
+    },
+    "lookoutJobState": {
+      "type": "string",
+      "default": "QUEUED",
+      "enum": [
+        "QUEUED",
+        "PENDING",
+        "RUNNING",
+        "SUCCEEDED",
+        "FAILED",
+        "CANCELLED"
+      ]
     },
     "lookoutQueueInfo": {
       "type": "object",
@@ -139,6 +235,38 @@
         },
         "queue": {
           "type": "string"
+        }
+      }
+    },
+    "lookoutRunInfo": {
+      "type": "object",
+      "properties": {
+        "cluster": {
+          "type": "string"
+        },
+        "created": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "error": {
+          "type": "string"
+        },
+        "finished": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "k8sId": {
+          "type": "string"
+        },
+        "node": {
+          "type": "string"
+        },
+        "started": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "succeeded": {
+          "type": "boolean"
         }
       }
     },
