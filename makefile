@@ -55,7 +55,12 @@ build-docker-fakeexecutor:
 	$(gobuildlinux) -o ./bin/linux/fakeexecutor cmd/fakeexecutor/main.go
 	docker build $(dockerFlags) -t armada-fakeexecutor -f ./build/fakeexecutor/Dockerfile .
 
-build-docker: build-docker-server build-docker-executor build-docker-armadactl build-docker-armada-load-tester build-docker-fakeexecutor
+build-docker-lookout:
+	(cd ./internal/lookout/ui/ && npm install && npm run openapi && npm run build)
+	$(gobuildlinux) -o ./bin/linux/lookout cmd/lookout/main.go
+	docker build $(dockerFlags) -t armada-lookout -f ./build/lookout/Dockerfile .
+
+build-docker: build-docker-server build-docker-executor build-docker-armadactl build-docker-armada-load-tester build-docker-fakeexecutor build-docker-lookout
 
 build-ci: gobuild=$(gobuildlinux)
 build-ci: build-docker build-armadactl build-load-tester
@@ -63,9 +68,10 @@ build-ci: build-docker build-armadactl build-load-tester
 .ONESHELL:
 tests:
 	docker run -d --name=test-redis -p=6379:6379 redis
+	docker run -d --name=postgres -p 5432:5432 -e POSTGRES_PASSWORD=psw postgres
 	function tearDown {
-		docker stop test-redis
-		docker rm test-redis
+		docker stop test-redis postgres
+		docker rm test-redis postgres
 	}
 	trap tearDown EXIT
 	go test -v ./internal/...
@@ -109,3 +115,8 @@ tests-e2e: e2e-start-cluster build-docker
 proto:
 	docker build $(dockerFlags) -t armada-proto -f ./build/proto/Dockerfile .
 	docker run -it --rm -v $(shell pwd):/go/src/armada -w /go/src/armada armada-proto ./scripts/proto.sh
+
+generate:
+	go run github.com/rakyll/statik \
+		-dest=internal/lookout/repository/schema/ -src=internal/lookout/repository/schema/ -include=\*.sql -ns=lookout/sql -Z -f
+	go run golang.org/x/tools/cmd/goimports -w -local "github.com/G-Research/armada" internal/lookout/repository/schema/statik

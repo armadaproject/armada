@@ -65,7 +65,7 @@ func withUsageServer(action func(s *UsageServer)) {
 
 	repo := repository.NewRedisUsageRepository(redisClient)
 	queueRepo := repository.NewRedisQueueRepository(redisClient)
-	server := NewUsageServer(&fakePermissionChecker{}, time.Minute, repo, queueRepo)
+	server := NewUsageServer(&FakePermissionChecker{}, time.Minute, repo, queueRepo)
 
 	action(server)
 }

@@ -8,6 +8,7 @@ import (
 	fmt "fmt"
 	io "io"
 	math "math"
+	math_bits "math/bits"
 	reflect "reflect"
 	strings "strings"
 	time "time"
@@ -18,6 +19,8 @@ import (
 	github_com_gogo_protobuf_types "github.com/gogo/protobuf/types"
 	types "github.com/gogo/protobuf/types"
 	grpc "google.golang.org/grpc"
+	codes "google.golang.org/grpc/codes"
+	status "google.golang.org/grpc/status"
 	resource "k8s.io/apimachinery/pkg/api/resource"
 )
 
@@ -31,12 +34,12 @@ var _ = time.Kitchen
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.GoGoProtoPackageIsVersion2 // please upgrade the proto package
+const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
 
 type QueueReport struct {
-	Name          string                       `protobuf:"bytes,1,opt,name=Name,proto3" json:"Name,omitempty"`
-	Resources     map[string]resource.Quantity `protobuf:"bytes,2,rep,name=Resources,proto3" json:"Resources" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
-	ResourcesUsed map[string]resource.Quantity `protobuf:"bytes,3,rep,name=ResourcesUsed,proto3" json:"ResourcesUsed" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	Name          string                       `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Resources     map[string]resource.Quantity `protobuf:"bytes,2,rep,name=resources,proto3" json:"resources" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	ResourcesUsed map[string]resource.Quantity `protobuf:"bytes,3,rep,name=resources_used,json=resourcesUsed,proto3" json:"resourcesUsed,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 }
 
 func (m *QueueReport) Reset()      { *m = QueueReport{} }
@@ -52,7 +55,7 @@ func (m *QueueReport) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) 
 		return xxx_messageInfo_QueueReport.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -93,11 +96,11 @@ func (m *QueueReport) GetResourcesUsed() map[string]resource.Quantity {
 }
 
 type ClusterUsageReport struct {
-	ClusterId                string                       `protobuf:"bytes,1,opt,name=ClusterId,proto3" json:"ClusterId,omitempty"`
-	ReportTime               time.Time                    `protobuf:"bytes,2,opt,name=ReportTime,proto3,stdtime" json:"ReportTime"`
-	Queues                   []*QueueReport               `protobuf:"bytes,3,rep,name=Queues,proto3" json:"Queues,omitempty"`
-	ClusterCapacity          map[string]resource.Quantity `protobuf:"bytes,4,rep,name=ClusterCapacity,proto3" json:"ClusterCapacity" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
-	ClusterAvailableCapacity map[string]resource.Quantity `protobuf:"bytes,5,rep,name=ClusterAvailableCapacity,proto3" json:"ClusterAvailableCapacity" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	ClusterId                string                       `protobuf:"bytes,1,opt,name=cluster_id,json=clusterId,proto3" json:"clusterId,omitempty"`
+	ReportTime               time.Time                    `protobuf:"bytes,2,opt,name=report_time,json=reportTime,proto3,stdtime" json:"report_time"`
+	Queues                   []*QueueReport               `protobuf:"bytes,3,rep,name=queues,proto3" json:"queues,omitempty"`
+	ClusterCapacity          map[string]resource.Quantity `protobuf:"bytes,4,rep,name=cluster_capacity,json=clusterCapacity,proto3" json:"clusterCapacity,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	ClusterAvailableCapacity map[string]resource.Quantity `protobuf:"bytes,5,rep,name=cluster_available_capacity,json=clusterAvailableCapacity,proto3" json:"clusterAvailableCapacity,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 }
 
 func (m *ClusterUsageReport) Reset()      { *m = ClusterUsageReport{} }
@@ -113,7 +116,7 @@ func (m *ClusterUsageReport) XXX_Marshal(b []byte, deterministic bool) ([]byte, 
 		return xxx_messageInfo_ClusterUsageReport.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -179,40 +182,41 @@ func init() {
 func init() { proto.RegisterFile("pkg/api/usage.proto", fileDescriptor_5643ccb387d55d48) }
 
 var fileDescriptor_5643ccb387d55d48 = []byte{
-	// 525 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xb4, 0x54, 0x3f, 0x6f, 0xd3, 0x40,
-	0x14, 0xb7, 0xe3, 0xa4, 0x22, 0x2f, 0x02, 0xaa, 0x03, 0x81, 0x65, 0xc0, 0x89, 0xca, 0x92, 0x01,
-	0xce, 0x52, 0x00, 0xa9, 0x62, 0x40, 0x22, 0x69, 0x85, 0x58, 0x40, 0xb5, 0xda, 0x8d, 0xe5, 0x92,
-	0x1c, 0xee, 0x29, 0x76, 0xee, 0x64, 0x9f, 0x8b, 0x2c, 0x16, 0x3e, 0x42, 0x37, 0xbe, 0x52, 0xc7,
-	0x8e, 0x9d, 0xf8, 0x93, 0x6c, 0x7c, 0x0a, 0xe4, 0xf3, 0x39, 0x71, 0x13, 0x42, 0xa7, 0x6c, 0xf7,
-	0x9e, 0xdf, 0xef, 0x8f, 0x7e, 0xef, 0xc9, 0x70, 0x4f, 0x4c, 0x02, 0x8f, 0x08, 0xe6, 0xa5, 0x09,
-	0x09, 0x28, 0x16, 0x31, 0x97, 0x1c, 0x59, 0x44, 0x30, 0xa7, 0x1d, 0x70, 0x1e, 0x84, 0xd4, 0x53,
-	0xad, 0x61, 0xfa, 0xd9, 0x93, 0x2c, 0xa2, 0x89, 0x24, 0x91, 0x28, 0xa6, 0x9c, 0x47, 0xab, 0x03,
-	0x34, 0x12, 0x32, 0xd3, 0x1f, 0x5f, 0x4e, 0xf6, 0x13, 0xcc, 0x78, 0x4e, 0x1d, 0x91, 0xd1, 0x29,
-	0x9b, 0xd2, 0x38, 0xf3, 0x4a, 0xad, 0x98, 0x26, 0x3c, 0x8d, 0x47, 0xd4, 0x0b, 0xe8, 0x94, 0xc6,
-	0x44, 0xd2, 0xb1, 0x46, 0x3d, 0x0f, 0x98, 0x3c, 0x4d, 0x87, 0x78, 0xc4, 0x23, 0x2f, 0xe0, 0x01,
-	0x5f, 0x72, 0xe7, 0x95, 0x2a, 0xd4, 0xab, 0x18, 0xdf, 0xfb, 0x6e, 0x41, 0xeb, 0x28, 0xa5, 0x29,
-	0xf5, 0xa9, 0xe0, 0xb1, 0x44, 0x08, 0xea, 0x1f, 0x48, 0x44, 0x6d, 0xb3, 0x63, 0x76, 0x9b, 0xbe,
-	0x7a, 0xa3, 0x01, 0x34, 0x7d, 0x2d, 0x97, 0xd8, 0xb5, 0x8e, 0xd5, 0x6d, 0xf5, 0xda, 0x98, 0x08,
-	0x86, 0x2b, 0x40, 0xbc, 0x98, 0x38, 0x9c, 0xca, 0x38, 0xeb, 0xd7, 0x2f, 0x7e, 0xb4, 0x0d, 0x7f,
-	0x89, 0x43, 0x1f, 0xe1, 0xf6, 0xa2, 0x38, 0x49, 0xe8, 0xd8, 0xb6, 0x14, 0xd1, 0xd3, 0xcd, 0x44,
-	0xf9, 0x54, 0x95, 0xec, 0x3a, 0xde, 0x09, 0xe1, 0xce, 0x75, 0x4d, 0xb4, 0x0b, 0xd6, 0x84, 0x66,
-	0xda, 0x7a, 0xfe, 0x44, 0x07, 0xd0, 0x38, 0x23, 0x61, 0x4a, 0xed, 0x5a, 0xc7, 0xec, 0xb6, 0x7a,
-	0x18, 0x17, 0x91, 0xe2, 0x6a, 0xa4, 0x58, 0x4c, 0x02, 0x65, 0xa2, 0x8c, 0x14, 0x1f, 0xa5, 0x64,
-	0x2a, 0x99, 0xcc, 0xfc, 0x02, 0xfc, 0xba, 0xb6, 0x6f, 0x3a, 0x02, 0xd0, 0xba, 0xb1, 0x6d, 0x2a,
-	0xee, 0xfd, 0xa9, 0x03, 0x1a, 0x84, 0x69, 0x22, 0x69, 0x7c, 0x92, 0x1f, 0x96, 0x5e, 0xd0, 0x63,
-	0x68, 0xea, 0xee, 0xfb, 0xb1, 0x16, 0x5e, 0x36, 0xd0, 0x01, 0x40, 0x31, 0x77, 0xcc, 0xa2, 0xd2,
-	0x83, 0x83, 0x8b, 0x2b, 0xc3, 0xe5, 0x25, 0xe0, 0xe3, 0xf2, 0x0c, 0xfb, 0xb7, 0xf2, 0x64, 0xcf,
-	0x7f, 0xb6, 0x4d, 0xbf, 0x82, 0x43, 0x5d, 0xd8, 0x51, 0x1b, 0x49, 0xf4, 0x92, 0x76, 0x57, 0x97,
-	0xe4, 0xeb, 0xef, 0xe8, 0x13, 0xdc, 0xd5, 0xe2, 0x03, 0x22, 0xc8, 0x88, 0xc9, 0xcc, 0xae, 0x2b,
-	0xc8, 0x33, 0x05, 0x59, 0xf7, 0x8f, 0x57, 0xc6, 0xab, 0x0b, 0x5e, 0xa5, 0x42, 0x5f, 0xc0, 0xd6,
-	0xad, 0xb7, 0x67, 0x84, 0x85, 0x64, 0x18, 0xd2, 0x85, 0x4c, 0x43, 0xc9, 0xbc, 0xba, 0x41, 0x66,
-	0x0d, 0x57, 0xd5, 0xdb, 0x48, 0xee, 0xc4, 0x70, 0xff, 0x5f, 0x3e, 0xb7, 0x7a, 0x61, 0x5f, 0xe1,
-	0xc9, 0x7f, 0x4d, 0x6f, 0x53, 0xbc, 0xf7, 0x0e, 0x1a, 0x2a, 0x3d, 0xf4, 0x06, 0x5a, 0x45, 0x82,
-	0x45, 0xf9, 0x70, 0x43, 0xbe, 0xce, 0x83, 0xb5, 0xa3, 0x3a, 0xcc, 0x7f, 0x5d, 0xfd, 0xce, 0xd5,
-	0x6f, 0xd7, 0xf8, 0x36, 0x73, 0xcd, 0x8b, 0x99, 0x6b, 0x5e, 0xce, 0x5c, 0xf3, 0xd7, 0xcc, 0x35,
-	0xcf, 0xe7, 0xae, 0x71, 0x39, 0x77, 0x8d, 0xab, 0xb9, 0x6b, 0x0c, 0x77, 0x14, 0xe2, 0xc5, 0xdf,
-	0x00, 0x00, 0x00, 0xff, 0xff, 0x9a, 0x73, 0xa5, 0x6e, 0x37, 0x05, 0x00, 0x00,
+	// 544 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xb4, 0x54, 0xcd, 0x6e, 0xd3, 0x4c,
+	0x14, 0x8d, 0xf3, 0x53, 0x7d, 0xb9, 0xd1, 0x57, 0xa2, 0x01, 0x81, 0x65, 0x54, 0x27, 0x2a, 0x9b,
+	0x2c, 0x60, 0x2c, 0x05, 0x90, 0x2a, 0x16, 0x48, 0x24, 0x44, 0x88, 0x1d, 0xb5, 0xe8, 0x12, 0x45,
+	0x13, 0xe7, 0xe2, 0x8e, 0x62, 0xc7, 0xc3, 0x78, 0x5c, 0xc9, 0x62, 0xc3, 0x23, 0x74, 0xc9, 0x23,
+	0x75, 0xd9, 0x65, 0x57, 0xfc, 0x24, 0x0f, 0xc0, 0x2b, 0x20, 0x8f, 0x6d, 0x92, 0x36, 0x0d, 0xac,
+	0xb2, 0x9b, 0xfb, 0x73, 0xee, 0x39, 0xbe, 0xf7, 0xc8, 0x70, 0x57, 0xcc, 0x7c, 0x87, 0x09, 0xee,
+	0x24, 0x31, 0xf3, 0x91, 0x0a, 0x19, 0xa9, 0x88, 0xd4, 0x98, 0xe0, 0x56, 0xc7, 0x8f, 0x22, 0x3f,
+	0x40, 0x47, 0xa7, 0x26, 0xc9, 0x47, 0x47, 0xf1, 0x10, 0x63, 0xc5, 0x42, 0x91, 0x77, 0x59, 0x0f,
+	0x6f, 0x36, 0x60, 0x28, 0x54, 0x5a, 0x14, 0x9f, 0xcd, 0x8e, 0x62, 0xca, 0xa3, 0x6c, 0x74, 0xc8,
+	0xbc, 0x53, 0x3e, 0x47, 0x99, 0x3a, 0x25, 0x97, 0xc4, 0x38, 0x4a, 0xa4, 0x87, 0x8e, 0x8f, 0x73,
+	0x94, 0x4c, 0xe1, 0xb4, 0x40, 0x3d, 0xf1, 0xb9, 0x3a, 0x4d, 0x26, 0xd4, 0x8b, 0x42, 0xc7, 0x8f,
+	0xfc, 0x68, 0x35, 0x3b, 0x8b, 0x74, 0xa0, 0x5f, 0x79, 0xfb, 0xe1, 0xd7, 0x1a, 0xb4, 0x8e, 0x13,
+	0x4c, 0xd0, 0x45, 0x11, 0x49, 0x45, 0x08, 0xd4, 0xe7, 0x2c, 0x44, 0xd3, 0xe8, 0x1a, 0xbd, 0xa6,
+	0xab, 0xdf, 0x64, 0x08, 0xcd, 0x92, 0x2e, 0x36, 0xab, 0xdd, 0x5a, 0xaf, 0xd5, 0xef, 0x50, 0x26,
+	0x38, 0x5d, 0x03, 0x52, 0xb7, 0xec, 0x18, 0xcd, 0x95, 0x4c, 0x07, 0xf5, 0x8b, 0x6f, 0x9d, 0x8a,
+	0xbb, 0xc2, 0x91, 0x77, 0xb0, 0xff, 0x27, 0x18, 0x27, 0x31, 0x4e, 0xcd, 0x9a, 0x9e, 0xf4, 0x68,
+	0xfb, 0xa4, 0x93, 0x18, 0xa7, 0xeb, 0xd3, 0xfe, 0x97, 0xeb, 0x15, 0x2b, 0x80, 0xfd, 0xeb, 0xa4,
+	0xa4, 0x0d, 0xb5, 0x19, 0xa6, 0x85, 0xf6, 0xec, 0x49, 0x5e, 0x43, 0xe3, 0x8c, 0x05, 0x09, 0x9a,
+	0xd5, 0xae, 0xd1, 0x6b, 0xf5, 0x29, 0xcd, 0x77, 0x4a, 0xd7, 0x77, 0x4a, 0xc5, 0xcc, 0xd7, 0x22,
+	0xca, 0xf1, 0xf4, 0x38, 0x61, 0x73, 0xc5, 0x55, 0xea, 0xe6, 0xe0, 0x17, 0xd5, 0x23, 0xc3, 0x12,
+	0x40, 0x36, 0x85, 0xed, 0x92, 0xf1, 0xf0, 0x57, 0x1d, 0xc8, 0x30, 0x48, 0x62, 0x85, 0xf2, 0x24,
+	0x73, 0x56, 0x71, 0xa1, 0x03, 0x00, 0x2f, 0xcf, 0x8e, 0xf9, 0xb4, 0x60, 0x6e, 0x16, 0x99, 0xb7,
+	0x53, 0x32, 0x82, 0x96, 0xd4, 0x8d, 0xe3, 0xcc, 0x6c, 0x85, 0x0a, 0x8b, 0xe6, 0x46, 0xa3, 0xa5,
+	0x19, 0xe8, 0xfb, 0xd2, 0x89, 0x83, 0xff, 0xb2, 0xdd, 0x9e, 0x7f, 0xef, 0x18, 0x2e, 0xe4, 0xc0,
+	0xac, 0x44, 0x7a, 0xb0, 0xf7, 0x29, 0xbb, 0x49, 0x5c, 0x9c, 0xa9, 0x7d, 0xf3, 0x4c, 0x6e, 0x51,
+	0x27, 0x1f, 0xa0, 0x5d, 0xea, 0xf1, 0x98, 0x60, 0x1e, 0x57, 0xa9, 0x59, 0xd7, 0x98, 0xc7, 0x1a,
+	0xb3, 0xf9, 0x09, 0x65, 0x6a, 0x58, 0xb4, 0xaf, 0xdf, 0xf8, 0x8e, 0x77, 0xbd, 0x46, 0x52, 0xb0,
+	0xca, 0xf1, 0xec, 0x8c, 0xf1, 0x80, 0x4d, 0x02, 0x5c, 0x11, 0x35, 0x34, 0xd1, 0xf3, 0x7f, 0x10,
+	0xbd, 0x2a, 0x81, 0xb7, 0x31, 0x9a, 0xde, 0x96, 0x26, 0x4b, 0xc2, 0xbd, 0xdb, 0x94, 0xee, 0xd4,
+	0x66, 0x9f, 0xe1, 0xe0, 0xaf, 0xa2, 0x77, 0x49, 0xde, 0x7f, 0x03, 0x0d, 0xbd, 0x3d, 0xf2, 0x12,
+	0x5a, 0xf9, 0x06, 0xf3, 0xf0, 0xc1, 0x96, 0xfd, 0x5a, 0xf7, 0x37, 0x7c, 0x35, 0xca, 0x7e, 0x60,
+	0x83, 0xee, 0xd5, 0x4f, 0xbb, 0xf2, 0x65, 0x61, 0x1b, 0x17, 0x0b, 0xdb, 0xb8, 0x5c, 0xd8, 0xc6,
+	0x8f, 0x85, 0x6d, 0x9c, 0x2f, 0xed, 0xca, 0xe5, 0xd2, 0xae, 0x5c, 0x2d, 0xed, 0xca, 0x64, 0x4f,
+	0x23, 0x9e, 0xfe, 0x0e, 0x00, 0x00, 0xff, 0xff, 0x64, 0x5f, 0xa1, 0x65, 0x3d, 0x05, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -250,6 +254,14 @@ func (c *usageClient) ReportUsage(ctx context.Context, in *ClusterUsageReport, o
 // UsageServer is the server API for Usage service.
 type UsageServer interface {
 	ReportUsage(context.Context, *ClusterUsageReport) (*types.Empty, error)
+}
+
+// UnimplementedUsageServer can be embedded to have forward compatible implementations.
+type UnimplementedUsageServer struct {
+}
+
+func (*UnimplementedUsageServer) ReportUsage(ctx context.Context, req *ClusterUsageReport) (*types.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ReportUsage not implemented")
 }
 
 func RegisterUsageServer(s *grpc.Server, srv UsageServer) {
@@ -290,7 +302,7 @@ var _Usage_serviceDesc = grpc.ServiceDesc{
 func (m *QueueReport) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -298,75 +310,77 @@ func (m *QueueReport) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *QueueReport) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *QueueReport) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.Name) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintUsage(dAtA, i, uint64(len(m.Name)))
-		i += copy(dAtA[i:], m.Name)
+	if len(m.ResourcesUsed) > 0 {
+		for k := range m.ResourcesUsed {
+			v := m.ResourcesUsed[k]
+			baseI := i
+			{
+				size, err := (&v).MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintUsage(dAtA, i, uint64(size))
+			}
+			i--
+			dAtA[i] = 0x12
+			i -= len(k)
+			copy(dAtA[i:], k)
+			i = encodeVarintUsage(dAtA, i, uint64(len(k)))
+			i--
+			dAtA[i] = 0xa
+			i = encodeVarintUsage(dAtA, i, uint64(baseI-i))
+			i--
+			dAtA[i] = 0x1a
+		}
 	}
 	if len(m.Resources) > 0 {
-		for k, _ := range m.Resources {
-			dAtA[i] = 0x12
-			i++
+		for k := range m.Resources {
 			v := m.Resources[k]
-			msgSize := 0
-			if (&v) != nil {
-				msgSize = (&v).Size()
-				msgSize += 1 + sovUsage(uint64(msgSize))
+			baseI := i
+			{
+				size, err := (&v).MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintUsage(dAtA, i, uint64(size))
 			}
-			mapSize := 1 + len(k) + sovUsage(uint64(len(k))) + msgSize
-			i = encodeVarintUsage(dAtA, i, uint64(mapSize))
-			dAtA[i] = 0xa
-			i++
-			i = encodeVarintUsage(dAtA, i, uint64(len(k)))
-			i += copy(dAtA[i:], k)
+			i--
 			dAtA[i] = 0x12
-			i++
-			i = encodeVarintUsage(dAtA, i, uint64((&v).Size()))
-			n1, err := (&v).MarshalTo(dAtA[i:])
-			if err != nil {
-				return 0, err
-			}
-			i += n1
+			i -= len(k)
+			copy(dAtA[i:], k)
+			i = encodeVarintUsage(dAtA, i, uint64(len(k)))
+			i--
+			dAtA[i] = 0xa
+			i = encodeVarintUsage(dAtA, i, uint64(baseI-i))
+			i--
+			dAtA[i] = 0x12
 		}
 	}
-	if len(m.ResourcesUsed) > 0 {
-		for k, _ := range m.ResourcesUsed {
-			dAtA[i] = 0x1a
-			i++
-			v := m.ResourcesUsed[k]
-			msgSize := 0
-			if (&v) != nil {
-				msgSize = (&v).Size()
-				msgSize += 1 + sovUsage(uint64(msgSize))
-			}
-			mapSize := 1 + len(k) + sovUsage(uint64(len(k))) + msgSize
-			i = encodeVarintUsage(dAtA, i, uint64(mapSize))
-			dAtA[i] = 0xa
-			i++
-			i = encodeVarintUsage(dAtA, i, uint64(len(k)))
-			i += copy(dAtA[i:], k)
-			dAtA[i] = 0x12
-			i++
-			i = encodeVarintUsage(dAtA, i, uint64((&v).Size()))
-			n2, err := (&v).MarshalTo(dAtA[i:])
-			if err != nil {
-				return 0, err
-			}
-			i += n2
-		}
+	if len(m.Name) > 0 {
+		i -= len(m.Name)
+		copy(dAtA[i:], m.Name)
+		i = encodeVarintUsage(dAtA, i, uint64(len(m.Name)))
+		i--
+		dAtA[i] = 0xa
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *ClusterUsageReport) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -374,99 +388,105 @@ func (m *ClusterUsageReport) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *ClusterUsageReport) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ClusterUsageReport) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.ClusterId) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintUsage(dAtA, i, uint64(len(m.ClusterId)))
-		i += copy(dAtA[i:], m.ClusterId)
-	}
-	dAtA[i] = 0x12
-	i++
-	i = encodeVarintUsage(dAtA, i, uint64(github_com_gogo_protobuf_types.SizeOfStdTime(m.ReportTime)))
-	n3, err := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.ReportTime, dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n3
-	if len(m.Queues) > 0 {
-		for _, msg := range m.Queues {
-			dAtA[i] = 0x1a
-			i++
-			i = encodeVarintUsage(dAtA, i, uint64(msg.Size()))
-			n, err := msg.MarshalTo(dAtA[i:])
-			if err != nil {
-				return 0, err
+	if len(m.ClusterAvailableCapacity) > 0 {
+		for k := range m.ClusterAvailableCapacity {
+			v := m.ClusterAvailableCapacity[k]
+			baseI := i
+			{
+				size, err := (&v).MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintUsage(dAtA, i, uint64(size))
 			}
-			i += n
+			i--
+			dAtA[i] = 0x12
+			i -= len(k)
+			copy(dAtA[i:], k)
+			i = encodeVarintUsage(dAtA, i, uint64(len(k)))
+			i--
+			dAtA[i] = 0xa
+			i = encodeVarintUsage(dAtA, i, uint64(baseI-i))
+			i--
+			dAtA[i] = 0x2a
 		}
 	}
 	if len(m.ClusterCapacity) > 0 {
-		for k, _ := range m.ClusterCapacity {
-			dAtA[i] = 0x22
-			i++
+		for k := range m.ClusterCapacity {
 			v := m.ClusterCapacity[k]
-			msgSize := 0
-			if (&v) != nil {
-				msgSize = (&v).Size()
-				msgSize += 1 + sovUsage(uint64(msgSize))
+			baseI := i
+			{
+				size, err := (&v).MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintUsage(dAtA, i, uint64(size))
 			}
-			mapSize := 1 + len(k) + sovUsage(uint64(len(k))) + msgSize
-			i = encodeVarintUsage(dAtA, i, uint64(mapSize))
-			dAtA[i] = 0xa
-			i++
-			i = encodeVarintUsage(dAtA, i, uint64(len(k)))
-			i += copy(dAtA[i:], k)
+			i--
 			dAtA[i] = 0x12
-			i++
-			i = encodeVarintUsage(dAtA, i, uint64((&v).Size()))
-			n4, err := (&v).MarshalTo(dAtA[i:])
-			if err != nil {
-				return 0, err
-			}
-			i += n4
+			i -= len(k)
+			copy(dAtA[i:], k)
+			i = encodeVarintUsage(dAtA, i, uint64(len(k)))
+			i--
+			dAtA[i] = 0xa
+			i = encodeVarintUsage(dAtA, i, uint64(baseI-i))
+			i--
+			dAtA[i] = 0x22
 		}
 	}
-	if len(m.ClusterAvailableCapacity) > 0 {
-		for k, _ := range m.ClusterAvailableCapacity {
-			dAtA[i] = 0x2a
-			i++
-			v := m.ClusterAvailableCapacity[k]
-			msgSize := 0
-			if (&v) != nil {
-				msgSize = (&v).Size()
-				msgSize += 1 + sovUsage(uint64(msgSize))
+	if len(m.Queues) > 0 {
+		for iNdEx := len(m.Queues) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.Queues[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintUsage(dAtA, i, uint64(size))
 			}
-			mapSize := 1 + len(k) + sovUsage(uint64(len(k))) + msgSize
-			i = encodeVarintUsage(dAtA, i, uint64(mapSize))
-			dAtA[i] = 0xa
-			i++
-			i = encodeVarintUsage(dAtA, i, uint64(len(k)))
-			i += copy(dAtA[i:], k)
-			dAtA[i] = 0x12
-			i++
-			i = encodeVarintUsage(dAtA, i, uint64((&v).Size()))
-			n5, err := (&v).MarshalTo(dAtA[i:])
-			if err != nil {
-				return 0, err
-			}
-			i += n5
+			i--
+			dAtA[i] = 0x1a
 		}
 	}
-	return i, nil
+	n5, err5 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.ReportTime, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.ReportTime):])
+	if err5 != nil {
+		return 0, err5
+	}
+	i -= n5
+	i = encodeVarintUsage(dAtA, i, uint64(n5))
+	i--
+	dAtA[i] = 0x12
+	if len(m.ClusterId) > 0 {
+		i -= len(m.ClusterId)
+		copy(dAtA[i:], m.ClusterId)
+		i = encodeVarintUsage(dAtA, i, uint64(len(m.ClusterId)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
 }
 
 func encodeVarintUsage(dAtA []byte, offset int, v uint64) int {
+	offset -= sovUsage(v)
+	base := offset
 	for v >= 1<<7 {
 		dAtA[offset] = uint8(v&0x7f | 0x80)
 		v >>= 7
 		offset++
 	}
 	dAtA[offset] = uint8(v)
-	return offset + 1
+	return base
 }
 func (m *QueueReport) Size() (n int) {
 	if m == nil {
@@ -539,14 +559,7 @@ func (m *ClusterUsageReport) Size() (n int) {
 }
 
 func sovUsage(x uint64) (n int) {
-	for {
-		n++
-		x >>= 7
-		if x == 0 {
-			break
-		}
-	}
-	return n
+	return (math_bits.Len64(x|1) + 6) / 7
 }
 func sozUsage(x uint64) (n int) {
 	return sovUsage(uint64((x << 1) ^ uint64((int64(x) >> 63))))
@@ -587,6 +600,11 @@ func (this *ClusterUsageReport) String() string {
 	if this == nil {
 		return "nil"
 	}
+	repeatedStringForQueues := "[]*QueueReport{"
+	for _, f := range this.Queues {
+		repeatedStringForQueues += strings.Replace(f.String(), "QueueReport", "QueueReport", 1) + ","
+	}
+	repeatedStringForQueues += "}"
 	keysForClusterCapacity := make([]string, 0, len(this.ClusterCapacity))
 	for k, _ := range this.ClusterCapacity {
 		keysForClusterCapacity = append(keysForClusterCapacity, k)
@@ -609,8 +627,8 @@ func (this *ClusterUsageReport) String() string {
 	mapStringForClusterAvailableCapacity += "}"
 	s := strings.Join([]string{`&ClusterUsageReport{`,
 		`ClusterId:` + fmt.Sprintf("%v", this.ClusterId) + `,`,
-		`ReportTime:` + strings.Replace(strings.Replace(this.ReportTime.String(), "Timestamp", "types.Timestamp", 1), `&`, ``, 1) + `,`,
-		`Queues:` + strings.Replace(fmt.Sprintf("%v", this.Queues), "QueueReport", "QueueReport", 1) + `,`,
+		`ReportTime:` + strings.Replace(strings.Replace(fmt.Sprintf("%v", this.ReportTime), "Timestamp", "types.Timestamp", 1), `&`, ``, 1) + `,`,
+		`Queues:` + repeatedStringForQueues + `,`,
 		`ClusterCapacity:` + mapStringForClusterCapacity + `,`,
 		`ClusterAvailableCapacity:` + mapStringForClusterAvailableCapacity + `,`,
 		`}`,
@@ -1381,6 +1399,7 @@ func (m *ClusterUsageReport) Unmarshal(dAtA []byte) error {
 func skipUsage(dAtA []byte) (n int, err error) {
 	l := len(dAtA)
 	iNdEx := 0
+	depth := 0
 	for iNdEx < l {
 		var wire uint64
 		for shift := uint(0); ; shift += 7 {
@@ -1412,10 +1431,8 @@ func skipUsage(dAtA []byte) (n int, err error) {
 					break
 				}
 			}
-			return iNdEx, nil
 		case 1:
 			iNdEx += 8
-			return iNdEx, nil
 		case 2:
 			var length int
 			for shift := uint(0); ; shift += 7 {
@@ -1436,55 +1453,30 @@ func skipUsage(dAtA []byte) (n int, err error) {
 				return 0, ErrInvalidLengthUsage
 			}
 			iNdEx += length
-			if iNdEx < 0 {
-				return 0, ErrInvalidLengthUsage
-			}
-			return iNdEx, nil
 		case 3:
-			for {
-				var innerWire uint64
-				var start int = iNdEx
-				for shift := uint(0); ; shift += 7 {
-					if shift >= 64 {
-						return 0, ErrIntOverflowUsage
-					}
-					if iNdEx >= l {
-						return 0, io.ErrUnexpectedEOF
-					}
-					b := dAtA[iNdEx]
-					iNdEx++
-					innerWire |= (uint64(b) & 0x7F) << shift
-					if b < 0x80 {
-						break
-					}
-				}
-				innerWireType := int(innerWire & 0x7)
-				if innerWireType == 4 {
-					break
-				}
-				next, err := skipUsage(dAtA[start:])
-				if err != nil {
-					return 0, err
-				}
-				iNdEx = start + next
-				if iNdEx < 0 {
-					return 0, ErrInvalidLengthUsage
-				}
-			}
-			return iNdEx, nil
+			depth++
 		case 4:
-			return iNdEx, nil
+			if depth == 0 {
+				return 0, ErrUnexpectedEndOfGroupUsage
+			}
+			depth--
 		case 5:
 			iNdEx += 4
-			return iNdEx, nil
 		default:
 			return 0, fmt.Errorf("proto: illegal wireType %d", wireType)
 		}
+		if iNdEx < 0 {
+			return 0, ErrInvalidLengthUsage
+		}
+		if depth == 0 {
+			return iNdEx, nil
+		}
 	}
-	panic("unreachable")
+	return 0, io.ErrUnexpectedEOF
 }
 
 var (
-	ErrInvalidLengthUsage = fmt.Errorf("proto: negative length found during unmarshaling")
-	ErrIntOverflowUsage   = fmt.Errorf("proto: integer overflow")
+	ErrInvalidLengthUsage        = fmt.Errorf("proto: negative length found during unmarshaling")
+	ErrIntOverflowUsage          = fmt.Errorf("proto: integer overflow")
+	ErrUnexpectedEndOfGroupUsage = fmt.Errorf("proto: unexpected end of group")
 )

@@ -9,13 +9,10 @@ import (
 	"time"
 
 	"github.com/go-redis/redis"
-	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
-	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/segmentio/kafka-go"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/keepalive"
 
 	"github.com/G-Research/armada/internal/armada/authorization"
 	"github.com/G-Research/armada/internal/armada/configuration"
@@ -23,6 +20,7 @@ import (
 	"github.com/G-Research/armada/internal/armada/repository"
 	"github.com/G-Research/armada/internal/armada/scheduling"
 	"github.com/G-Research/armada/internal/armada/server"
+	grpcCommon "github.com/G-Research/armada/internal/common/grpc"
 	stan_util "github.com/G-Research/armada/internal/common/stan-util"
 	"github.com/G-Research/armada/internal/common/task"
 	"github.com/G-Research/armada/internal/common/util"
@@ -39,7 +37,7 @@ func Serve(config *configuration.ArmadaConfig) (func(), *sync.WaitGroup) {
 	db := createRedisClient(&config.Redis)
 	eventsDb := createRedisClient(&config.EventsRedis)
 
-	jobRepository := repository.NewRedisJobRepository(db)
+	jobRepository := repository.NewRedisJobRepository(db, config.Scheduling.DefaultJobLimits)
 	usageRepository := repository.NewRedisUsageRepository(db)
 	queueRepository := repository.NewRedisQueueRepository(db)
 	schedulingInfoRepository := repository.NewRedisSchedulingInfoRepository(db)
@@ -143,9 +141,6 @@ func createRedisClient(config *redis.UniversalOptions) redis.UniversalClient {
 
 func createServer(config *configuration.ArmadaConfig) *grpc.Server {
 
-	unaryInterceptors := []grpc.UnaryServerInterceptor{}
-	streamInterceptors := []grpc.StreamServerInterceptor{}
-
 	authServices := []authorization.AuthService{}
 
 	if len(config.BasicAuth.Users) > 0 {
@@ -174,18 +169,5 @@ func createServer(config *configuration.ArmadaConfig) *grpc.Server {
 		authServices = append(authServices, kerberosAuthService)
 	}
 
-	authFunction := authorization.CreateMiddlewareAuthFunction(authServices)
-	unaryInterceptors = append(unaryInterceptors, grpc_auth.UnaryServerInterceptor(authFunction))
-	streamInterceptors = append(streamInterceptors, grpc_auth.StreamServerInterceptor(authFunction))
-
-	grpc_prometheus.EnableHandlingTimeHistogram()
-	unaryInterceptors = append(unaryInterceptors, grpc_prometheus.UnaryServerInterceptor)
-	streamInterceptors = append(streamInterceptors, grpc_prometheus.StreamServerInterceptor)
-
-	return grpc.NewServer(
-		grpc.KeepaliveParams(keepalive.ServerParameters{
-			MaxConnectionIdle: 5 * time.Minute,
-		}),
-		grpc.StreamInterceptor(grpc_middleware.ChainStreamServer(streamInterceptors...)),
-		grpc.UnaryInterceptor(grpc_middleware.ChainUnaryServer(unaryInterceptors...)))
+	return grpcCommon.CreateGrpcServer(authServices)
 }

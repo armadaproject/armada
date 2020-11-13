@@ -7,12 +7,12 @@ import (
 	"github.com/G-Research/armada/internal/armada/authorization/permissions"
 )
 
-type fakePermissionChecker struct{}
+type FakePermissionChecker struct{}
 
-func (fakePermissionChecker) UserOwns(ctx context.Context, obj authorization.Owned) bool {
+func (FakePermissionChecker) UserOwns(ctx context.Context, obj authorization.Owned) bool {
 	return true
 }
 
-func (fakePermissionChecker) UserHasPermission(ctx context.Context, perm permissions.Permission) bool {
+func (FakePermissionChecker) UserHasPermission(ctx context.Context, perm permissions.Permission) bool {
 	return true
 }

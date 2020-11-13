@@ -88,6 +88,7 @@ commands:
           helm package deployment/armada/ -d charts/armada/
           helm package deployment/executor -d charts/armada/
           helm package deployment/executor-cluster-monitoring/ -d charts/armada/
+          helm package deployment/lookout/ -d charts/armada/
           helm repo index charts/
 
     - run:
@@ -106,7 +107,7 @@ jobs:
   build:
     machine:
       docker_layer_caching: true
-      image: ubuntu-1604:201903-01
+      image: ubuntu-2004:202010-01
     environment:
       GO111MODULE: "on"
       GOPATH: "/home/circleci/go"
@@ -141,12 +142,21 @@ jobs:
 
       - run:
           name: ineffassign
-          command: go run github.com/gordonklaus/ineffassign .
+          command: |
+            cd /tmp
+            go run github.com/gordonklaus/ineffassign ~/go/src/github.com/G-Research/armada
+            cd ~/go/src/github.com/G-Research/armada
 
       - run:
           name: Check formatting
           command: |
             exit $(go run golang.org/x/tools/cmd/goimports -l -local "github.com/G-Research/armada" . | wc -l)
+
+      - run:
+          name: Check generated files
+          command: |
+            make proto
+            exit $(git status -s -uno | wc -l)
 
 
       - store_artifacts:
@@ -186,6 +196,9 @@ jobs:
 
             docker tag armada-fakeexecutor gresearchdev/armada-fakeexecutor-dev:${TAG}
             docker push gresearchdev/armada-fakeexecutor-dev:${TAG}
+
+            docker tag armada-lookout gresearchdev/armada-lookout-dev:${TAG}
+            docker push gresearchdev/armada-lookout-dev:${TAG}
 
   deploy:
     docker:
@@ -264,6 +277,10 @@ jobs:
             docker pull gresearchdev/armada-armadactl-dev:${TAG}
             docker tag gresearchdev/armada-armadactl-dev:${TAG} gresearchdev/armada-armadactl:${RELEASE_TAG}
             docker push gresearchdev/armada-armadactl:${RELEASE_TAG}
+
+            docker pull gresearchdev/armada-lookout-dev:${TAG}
+            docker tag gresearchdev/armada-lookout-dev:${TAG} gresearchdev/armada-lookout:${RELEASE_TAG}
+            docker push gresearchdev/armada-lookout:${RELEASE_TAG}
 
       - install-helm-client
 
