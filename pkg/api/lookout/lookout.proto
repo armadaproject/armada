@@ -2,6 +2,7 @@ syntax = 'proto3';
 
 package lookout;
 
+import "google/protobuf/timestamp.proto";
 import "google/protobuf/empty.proto";
 import "google/api/annotations.proto";
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
@@ -16,6 +17,19 @@ message SystemOverview {
 
 message JobInfo {
     api.Job job = 1;
+    repeated RunInfo runs = 2;
+    google.protobuf.Timestamp cancelled = 3 [(gogoproto.stdtime) = true, (gogoproto.nullable) = true];
+}
+
+message RunInfo {
+    string k8s_id = 1;
+    string cluster = 2;
+    string node = 3;
+    bool succeeded = 4;
+    string error = 5;
+    google.protobuf.Timestamp created = 6 [(gogoproto.stdtime) = true, (gogoproto.nullable) = true];
+    google.protobuf.Timestamp started = 7 [(gogoproto.stdtime) = true, (gogoproto.nullable) = true];
+    google.protobuf.Timestamp finished = 8 [(gogoproto.stdtime) = true, (gogoproto.nullable) = true];
 }
 
 message QueueInfo {
@@ -29,10 +43,39 @@ message QueueInfo {
     JobInfo longest_running_job = 6;
 }
 
+enum JobState {
+    QUEUED = 0;
+    PENDING = 1;
+    RUNNING = 2;
+    SUCCEEDED = 3;
+    FAILED = 4;
+    CANCELLED = 5;
+}
+
+message GetJobsInQueueRequest {
+    string queue = 1;
+    bool newest_first = 2;
+    repeated JobState job_states = 3;
+    repeated string job_set_ids = 4;
+    uint32 take = 5;
+    uint32 skip = 6;
+}
+
+message GetJobsInQueueResponse {
+    repeated JobInfo job_infos = 1;
+}
+
 service Lookout {
     rpc Overview (google.protobuf.Empty) returns (SystemOverview) {
         option (google.api.http) = {
             get: "/api/v1/lookout/overview"
         };
     }
+
+    rpc GetJobsInQueue (GetJobsInQueueRequest) returns (GetJobsInQueueResponse) {
+        option (google.api.http) = {
+            post: "/api/v1/lookout/jobs"
+            body: "*"
+        };
+    };
 }

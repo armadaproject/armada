@@ -22,6 +22,38 @@ func SwaggerJsonTemplate() string {
 		"    \"version\": \"version not set\"\n" +
 		"  },\n" +
 		"  \"paths\": {\n" +
+		"    \"/api/v1/lookout/jobs\": {\n" +
+		"      \"post\": {\n" +
+		"        \"tags\": [\n" +
+		"          \"Lookout\"\n" +
+		"        ],\n" +
+		"        \"operationId\": \"GetJobsInQueue\",\n" +
+		"        \"parameters\": [\n" +
+		"          {\n" +
+		"            \"name\": \"body\",\n" +
+		"            \"in\": \"body\",\n" +
+		"            \"required\": true,\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/lookoutGetJobsInQueueRequest\"\n" +
+		"            }\n" +
+		"          }\n" +
+		"        ],\n" +
+		"        \"responses\": {\n" +
+		"          \"200\": {\n" +
+		"            \"description\": \"A successful response.\",\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/lookoutGetJobsInQueueResponse\"\n" +
+		"            }\n" +
+		"          },\n" +
+		"          \"default\": {\n" +
+		"            \"description\": \"An unexpected error response.\",\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/runtimeError\"\n" +
+		"            }\n" +
+		"          }\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
 		"    \"/api/v1/lookout/overview\": {\n" +
 		"      \"get\": {\n" +
 		"        \"tags\": [\n" +
@@ -119,13 +151,77 @@ func SwaggerJsonTemplate() string {
 		"      \"title\": \"Type represents the stored type of IntOrString.\",\n" +
 		"      \"x-go-package\": \"k8s.io/apimachinery/pkg/util/intstr\"\n" +
 		"    },\n" +
+		"    \"lookoutGetJobsInQueueRequest\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"jobSetIds\": {\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"type\": \"string\"\n" +
+		"          }\n" +
+		"        },\n" +
+		"        \"jobStates\": {\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/lookoutJobState\"\n" +
+		"          }\n" +
+		"        },\n" +
+		"        \"newestFirst\": {\n" +
+		"          \"type\": \"boolean\"\n" +
+		"        },\n" +
+		"        \"queue\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"skip\": {\n" +
+		"          \"type\": \"integer\",\n" +
+		"          \"format\": \"int64\"\n" +
+		"        },\n" +
+		"        \"take\": {\n" +
+		"          \"type\": \"integer\",\n" +
+		"          \"format\": \"int64\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"lookoutGetJobsInQueueResponse\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"jobInfos\": {\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/lookoutJobInfo\"\n" +
+		"          }\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
 		"    \"lookoutJobInfo\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
+		"        \"cancelled\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"format\": \"date-time\"\n" +
+		"        },\n" +
 		"        \"job\": {\n" +
 		"          \"$ref\": \"#/definitions/apiJob\"\n" +
+		"        },\n" +
+		"        \"runs\": {\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/lookoutRunInfo\"\n" +
+		"          }\n" +
 		"        }\n" +
 		"      }\n" +
+		"    },\n" +
+		"    \"lookoutJobState\": {\n" +
+		"      \"type\": \"string\",\n" +
+		"      \"default\": \"QUEUED\",\n" +
+		"      \"enum\": [\n" +
+		"        \"QUEUED\",\n" +
+		"        \"PENDING\",\n" +
+		"        \"RUNNING\",\n" +
+		"        \"SUCCEEDED\",\n" +
+		"        \"FAILED\",\n" +
+		"        \"CANCELLED\"\n" +
+		"      ]\n" +
 		"    },\n" +
 		"    \"lookoutQueueInfo\": {\n" +
 		"      \"type\": \"object\",\n" +
@@ -150,6 +246,38 @@ func SwaggerJsonTemplate() string {
 		"        },\n" +
 		"        \"queue\": {\n" +
 		"          \"type\": \"string\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"lookoutRunInfo\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"cluster\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"created\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"format\": \"date-time\"\n" +
+		"        },\n" +
+		"        \"error\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"finished\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"format\": \"date-time\"\n" +
+		"        },\n" +
+		"        \"k8sId\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"node\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"started\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"format\": \"date-time\"\n" +
+		"        },\n" +
+		"        \"succeeded\": {\n" +
+		"          \"type\": \"boolean\"\n" +
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +

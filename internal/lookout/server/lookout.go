@@ -26,3 +26,11 @@ func (s *LookoutServer) Overview(ctx context.Context, _ *types.Empty) (*lookout.
 	}
 	return &lookout.SystemOverview{Queues: queues}, nil
 }
+
+func (s *LookoutServer) GetJobsInQueue(ctx context.Context, opts *lookout.GetJobsInQueueRequest) (*lookout.GetJobsInQueueResponse, error) {
+	jobInfos, err := s.jobRepository.GetJobsInQueue(opts)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "Failed to query jobs in queue: %s", err)
+	}
+	return &lookout.GetJobsInQueueResponse{JobInfos: jobInfos}, nil
+}
