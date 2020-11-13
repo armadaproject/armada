@@ -9,12 +9,13 @@ require (
 	github.com/alicebob/miniredis v2.5.0+incompatible
 	github.com/coreos/go-oidc v2.2.1+incompatible
 	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f
+	github.com/doug-martin/goqu/v9 v9.10.0
 	github.com/go-openapi/analysis v0.19.10
 	github.com/go-openapi/jsonreference v0.19.3
 	github.com/go-openapi/loads v0.19.5
 	github.com/go-openapi/runtime v0.19.12
 	github.com/go-openapi/spec v0.19.7
-	github.com/go-redis/redis v6.15.4+incompatible
+	github.com/go-redis/redis v6.15.9+incompatible
 	github.com/go-swagger/go-swagger v0.23.0 // indirect
 	github.com/gogo/protobuf v1.3.1
 	github.com/golang/groupcache v0.0.0-20191027212112-611e8accdfc9 // indirect
