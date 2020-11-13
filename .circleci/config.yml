@@ -262,7 +262,7 @@ jobs:
           name: Publish images
           command: |
             TAG=${CIRCLE_SHA1}
-            RELEASE_TAG=${CIRCLE_TAG}
+            RELEASE_TAG=$(echo -n $CIRCLE_TAG | sed 's|/|-|g')
 
             echo ${DOCKERHUB_PASS} | docker login -u ${DOCKERHUB_USER} --password-stdin
 
