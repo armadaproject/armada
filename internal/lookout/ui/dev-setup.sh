@@ -12,3 +12,7 @@ docker run -d --name=postgres -p 5432:5432 -e POSTGRES_PASSWORD=psw postgres
 # go run ./cmd/armada/main.go --config ./e2e/setup/nats/armada-config.yaml
 # go run ./cmd/lookout/main.go
 # KUBECONFIG=$(kind get kubeconfig-path --name="demoA") ARMADA_APPLICATION_CLUSTERID=demoA ARMADA_METRIC_PORT=9001 go run ./cmd/executor/main.go
+
+# go run ./cmd/armadactl/main.go create-queue test --priorityFactor 1
+# go run ./cmd/armadactl/main.go submit ./example/jobs.yaml
+# go run ./cmd/armadactl/main.go watch test job-set-1

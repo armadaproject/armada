@@ -12,8 +12,14 @@ export class JobService {
     return this.api.overview()
   }
 
-  async getJobsInQueue(queue: string, take: number, skip: number = 0): Promise<LookoutJobInfo[]> {
-    const response = await this.api.getJobsInQueue({ body: { queue: queue } });
+  async getJobsInQueue(queue: string, take: number, skip: number): Promise<LookoutJobInfo[]> {
+    const response = await this.api.getJobsInQueue({
+      body: {
+        queue: queue,
+        take: take,
+        skip: skip
+      }
+    });
     return response.jobInfos || []
   }
 }
