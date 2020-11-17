@@ -5,6 +5,7 @@ import { App } from './App';
 import reportWebVitals from './reportWebVitals';
 import { JobService } from './services/jobs';
 import { LookoutApi, Configuration } from './openapi';
+import 'react-virtualized/styles.css'
 
 let jobService = new JobService(new LookoutApi(new Configuration({basePath: ""})))
 
