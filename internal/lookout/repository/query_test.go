@@ -1001,6 +1001,7 @@ func assertJobsAreEquivalent(t *testing.T, expected *api.Job, actual *api.Job) {
 	assert.Equal(t, expected.JobSetId, actual.JobSetId)
 	assert.Equal(t, expected.Owner, actual.Owner)
 	assert.Equal(t, expected.Priority, actual.Priority)
+	assert.Equal(t, expected.Queue, actual.Queue)
 	assertTimesApproxEqual(t, &expected.Created, &actual.Created)
 }
 

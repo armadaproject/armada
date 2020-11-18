@@ -11,3 +11,10 @@ export function updateArray<T>(array: (T | null)[], newValues: (T | null)[], sta
   }
   array.splice(start, nValuesToAdd, ...newValues)
 }
+
+export function getOrDefault<T>(value: T | undefined | null, defaultValue: T): T {
+  if (value) {
+    return value
+  }
+  return defaultValue
+}

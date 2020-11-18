@@ -1,22 +1,11 @@
-import React, { CSSProperties } from 'react';
+import React from 'react';
 import { AppBar, Tabs, Tab, Toolbar, Typography } from '@material-ui/core'
-import { BrowserRouter as Router, Link, Switch, Route } from 'react-router-dom'
-import { Overview } from './Overview'
-
-import './App.css';
+import { BrowserRouter as Router, Link, Switch, Route} from 'react-router-dom'
 import { JobService } from './services/jobs';
 import { JobTableContainer } from "./containers/JobTableContainer";
+import { Overview } from './Overview'
+import './App.css';
 
-const wrapperStyle: CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  height: "100%",
-}
-
-const contentStyle = {
-  height: "100%",
-  display: "flex"
-}
 
 export function App(services: { jobService: JobService; }) {
   const [value, setValue] = React.useState(0);
@@ -27,25 +16,25 @@ export function App(services: { jobService: JobService; }) {
 
   return (
     <Router>
-      <div style={wrapperStyle}>
+      <div className="wrapper">
         <AppBar position="static">
           <Toolbar>
             <Typography variant="h6">
               Armada Lookout
             </Typography>
+            <Tabs value={value} onChange={handleChange}>
+              <Tab label="Overview" component={Link} to="/"/>
+              <Tab label="Jobs" component={Link} to="/jobs"/>
+            </Tabs>
           </Toolbar>
-          <Tabs value={value} onChange={handleChange}>
-            <Tab label="Overview" component={Link} to="/"/>
-            <Tab label="Jobs" component={Link} to="/jobs"/>
-          </Tabs>
         </AppBar>
-        <div style={contentStyle}>
+        <div className="content">
           <Switch>
             <Route path="/jobs">
-              <JobTableContainer jobService={services.jobService}/>
+              <JobTableContainer jobService={services.jobService} />
             </Route>
             <Route path="/">
-              <Overview jobService={services.jobService}/>
+              <Overview jobService={services.jobService} />
             </Route>
           </Switch>
         </div>

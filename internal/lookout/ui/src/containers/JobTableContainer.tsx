@@ -1,8 +1,7 @@
 import React from 'react'
 
-import { JobService } from "../services/jobs"
-import JobTableComponent from "../components/JobTableComponent"
-import { LookoutJobInfo } from "../openapi/models"
+import { JobInfoViewModel, JobService } from "../services/jobs"
+import JobTable from "../components/JobTable"
 import { updateArray } from "../utils";
 
 type JobTableContainerProps = {
@@ -10,7 +9,7 @@ type JobTableContainerProps = {
 }
 
 type JobTableContainerState = {
-  jobInfos: LookoutJobInfo[]
+  jobInfos: JobInfoViewModel[]
   canLoadMore: boolean
 }
 
@@ -23,7 +22,7 @@ export class JobTableContainer extends React.Component<JobTableContainerProps, J
     this.jobInfoIsLoaded = this.jobInfoIsLoaded.bind(this)
   }
 
-  async loadJobInfos(start: number, stop: number): Promise<LookoutJobInfo[]> {
+  async loadJobInfos(start: number, stop: number): Promise<JobInfoViewModel[]> {
     const take = stop - start;
     const newJobInfos = await this.props.jobService.getJobsInQueue("test", take, start)
 
@@ -38,7 +37,6 @@ export class JobTableContainer extends React.Component<JobTableContainerProps, J
       jobInfos: this.state.jobInfos,
       canLoadMore: canLoadMore
     })
-    console.log(this.state)
     return this.state.jobInfos
   }
 
@@ -47,7 +45,7 @@ export class JobTableContainer extends React.Component<JobTableContainerProps, J
   }
 
   render() {
-    return <JobTableComponent
+    return <JobTable
       jobInfos={this.state.jobInfos}
       fetchJobs={this.loadJobInfos}
       isLoaded={this.jobInfoIsLoaded}
