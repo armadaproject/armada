@@ -1,6 +1,6 @@
 # Production Installation
 
-### Pre-requisites
+### Prerequisites
 
 * At least one running Kubernetes cluster
 
@@ -10,7 +10,7 @@ For production it is assumed that the server component runs inside a Kubernetes 
 
 The below sections will cover how to install the component into Kubernetes. 
 
-#### Recommended pre-requisites
+#### Recommended prerequisites
 
 * Cert manager installed (https://hub.helm.sh/charts/jetstack/cert-manager)
 * gRPC compatible ingress controller installed for gRPC ingress (such as https://github.com/kubernetes/ingress-nginx)
