@@ -48,7 +48,7 @@ func (p *EventProcessor) handleMessage(msg *stan.Msg) {
 		}
 		err = p.processEvent(event)
 		if err != nil {
-			log.Errorf("Error while reporting event from nats: %v", err)
+			log.Errorf("Error while reporting event from nats: %v (event: %v)", err, eventMessage)
 			return
 		}
 	}

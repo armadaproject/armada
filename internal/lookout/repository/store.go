@@ -3,6 +3,7 @@ package repository
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 
 	_ "github.com/lib/pq"
 
@@ -78,7 +79,7 @@ func (r *SQLJobStore) RecordJobSucceeded(event *api.JobSucceededEvent) error {
 
 func (r *SQLJobStore) RecordJobFailed(event *api.JobFailedEvent) error {
 	fields := []string{"finished", "succeeded", "error"}
-	values := []interface{}{event.Created, false, event.Reason}
+	values := []interface{}{event.Created, false, fmt.Sprintf("%.2048s", event.Reason)}
 	if event.NodeName != "" {
 		fields = append(fields, "node")
 		values = append(values, event.NodeName)
