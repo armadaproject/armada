@@ -105,7 +105,9 @@ func (authService *KerberosAuthService) Authenticate(ctx context.Context) (Princ
 			user := adCredentials.EffectiveName + authService.userNameSuffix
 			groups := adCredentials.GroupMembershipSIDs
 
-			_ = grpc.SetHeader(ctx, metadata.Pairs(spnego.HTTPHeaderAuthResponse, spnegoNegTokenRespKRBAcceptCompleted))
+			// Original library sets ticket accepted header here, but this breaks python request-negotiate-sspi module
+			// removing the header as workaround before moving away from kerberos
+			// _ = grpc.SetHeader(ctx, metadata.Pairs(spnego.HTTPHeaderAuthResponse, spnegoNegTokenRespKRBAcceptCompleted))
 			return NewStaticPrincipal(user, groups), nil
 		}
 		log.Error("Failed to read ad credentials")
