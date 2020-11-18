@@ -2,6 +2,7 @@ package repository
 
 import (
 	"database/sql"
+	"strings"
 	"testing"
 	"time"
 
@@ -86,6 +87,42 @@ func Test_RecordEvents(t *testing.T) {
 		assert.Equal(t, 1, count(t, db,
 			"SELECT count(*) FROM job_run_container"))
 
+	})
+}
+
+func Test_RecordLongError(t *testing.T) {
+	withDatabase(t, func(db *sql.DB) {
+		jobRepo := NewSQLJobStore(db)
+
+		job := &api.Job{
+			Id:          util.NewULID(),
+			JobSetId:    "job-set",
+			Queue:       "queue",
+			Namespace:   "nameSpace",
+			Labels:      nil,
+			Annotations: nil,
+			Owner:       "user",
+			Priority:    0,
+			PodSpec:     &v1.PodSpec{},
+			Created:     time.Now(),
+		}
+
+		err := jobRepo.RecordJob(job)
+		assert.NoError(t, err)
+
+		err = jobRepo.RecordJobFailed(&api.JobFailedEvent{
+			JobId:        job.Id,
+			JobSetId:     job.JobSetId,
+			Queue:        job.Queue,
+			Created:      time.Now(),
+			ClusterId:    cluster,
+			Reason:       strings.Repeat("long error test ", 1000),
+			ExitCodes:    nil,
+			KubernetesId: util.NewULID(),
+			NodeName:     "node",
+		})
+
+		assert.NoError(t, err)
 	})
 }
 
