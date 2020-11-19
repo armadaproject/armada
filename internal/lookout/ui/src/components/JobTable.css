@@ -1,4 +1,4 @@
-.container {
+.job-table-container {
   flex: 1 1 auto;
   display: flex;
   flex-direction: column;
@@ -6,20 +6,10 @@
 }
 
 .actions {
-  flex: 0 0 3em;
-  display: flex;
-  flex-direction: row;
-  justify-content: space-between;
-}
-
-.actions .search {
-
-}
-
-.actions .refresh {
-
+  flex: 0 0 4em;
 }
 
 .job-table {
   flex: 1 1 auto;
+  margin-left: 2em;
 }

@@ -1,0 +1,56 @@
+.actions-container {
+  display: flex;
+  justify-content: space-between;
+  flex-direction: row;
+  margin-top: 1em;
+  padding-bottom: 0.67em;
+  border-bottom: 1px solid lightgrey;
+}
+
+.actions-container .left {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-start;
+  align-items: center;
+}
+
+.actions-container .center {
+  flex: 1 1 auto;
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+}
+
+.actions-container .right {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.actions-container .left .title {
+  margin-bottom: 0.5em;
+  margin-right: 2em;
+  margin-left: 2em;
+}
+
+.actions-container .center .search {
+  margin-left: 2em;
+  margin-right: 2em;
+}
+
+.actions-container .center .order {
+  margin-left: 2em;
+  margin-right: 2em;
+  width: 6em;
+}
+
+.actions-container .center .order .select-field {
+  width: 6em;
+}
+
+.actions-container .right .refresh {
+  margin-right: 1em;
+}

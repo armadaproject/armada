@@ -64,13 +64,13 @@ export class JobService {
     return this.api.overview()
   }
 
-  async getJobsInQueue(queue: string, take: number, skip: number): Promise<JobInfoViewModel[]> {
+  async getJobsInQueue(queue: string, take: number, skip: number, newestFirst: boolean): Promise<JobInfoViewModel[]> {
     const response = await this.api.getJobsInQueue({
       body: {
         queue: queue,
         take: take,
         skip: skip,
-        newestFirst: true,
+        newestFirst: newestFirst,
       }
     });
     if (response.jobInfos) {

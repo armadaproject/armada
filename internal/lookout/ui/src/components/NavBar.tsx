@@ -1,37 +1,37 @@
 import React from 'react'
 import { AppBar, Tab, Tabs, Toolbar, Typography } from "@material-ui/core";
-import { Link } from "react-router-dom";
+import { Link, withRouter, RouteComponentProps } from "react-router-dom";
+import "./NavBar.css"
 
-export type NavPage = "Overview" | "Jobs"
+const locationValueMap = new Map<string, number>()
+locationValueMap.set("/", 0)
+locationValueMap.set("/jobs", 1)
+const valueLocationMap = new Map(Array.from(locationValueMap.entries()).map(([k, v]) => ([v, k])))
 
-type NavBarProps = {
-  currentPage: NavPage
-  onPageChange: (page: NavPage) => void
-}
-
-const pageValueMap = new Map<NavPage, number>()
-pageValueMap.set("Overview", 0)
-pageValueMap.set("Jobs", 1)
-
-const valuePageMap = new Map<number, NavPage>()
-valuePageMap.set(0, "Overview")
-valuePageMap.set(1, "Jobs")
-
-
-export function NavBar(props: NavBarProps) {
+function NavBar(props: RouteComponentProps) {
+  const currentPage = props.location.pathname;
+  const currentValue = locationValueMap.has(currentPage) ? locationValueMap.get(currentPage) : 0
   return (
     <AppBar position="static">
-      <Toolbar>
-        <Typography variant="h6">
+      <Toolbar className="toolbar">
+        <Typography variant="h6" className="app-name">
           Armada Lookout
         </Typography>
-        <Tabs value={pageValueMap.get(props.currentPage)} onChange={(event, newValue) => {
-          props.onPageChange(valuePageMap.get(newValue) || "Overview")
-        }}>
-          <Tab label="Overview" component={Link} to="/"/>
-          <Tab label="Jobs" component={Link} to="/jobs"/>
-        </Tabs>
+        <div className="nav-items-container">
+          <Tabs
+            className="nav-items"
+            value={currentValue}
+            onChange={(event, newValue) => {
+              const newLocation = valueLocationMap.get(newValue) || "/"
+              props.history.push(newLocation)
+            }}>
+            <Tab label="Overview" component={Link} to="/"/>
+            <Tab label="Jobs" component={Link} to="/jobs"/>
+          </Tabs>
+        </div>
       </Toolbar>
     </AppBar>
   )
 }
+
+export default withRouter(NavBar);
