@@ -1,10 +1,12 @@
 import React from 'react';
 import { BrowserRouter as Router, Switch, Route} from 'react-router-dom'
-import { JobService } from './services/jobs';
-import { JobTableContainer } from "./containers/JobTableContainer";
+
+import JobService from './services/JobService';
+import { JobsContainer } from "./containers/JobsContainer";
 import { Overview } from './Overview'
-import './App.css';
 import NavBar from "./components/NavBar";
+
+import './App.css';
 
 export function App(services: { jobService: JobService; }) {
   return (
@@ -13,11 +15,11 @@ export function App(services: { jobService: JobService; }) {
         <NavBar />
         <div className="content">
           <Switch>
-            <Route path="/jobs">
-              <JobTableContainer jobService={services.jobService} />
-            </Route>
-            <Route path="/">
+            <Route exact path="/">
               <Overview jobService={services.jobService} />
+            </Route>
+            <Route exact path="/jobs">
+              <JobsContainer jobService={services.jobService} />
             </Route>
           </Switch>
         </div>

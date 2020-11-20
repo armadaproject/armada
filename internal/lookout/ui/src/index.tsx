@@ -1,11 +1,13 @@
 import React from 'react';
 import ReactDOM from 'react-dom';
-import './index.css';
+
 import { App } from './App';
 import reportWebVitals from './reportWebVitals';
-import { JobService } from './services/jobs';
+import JobService from './services/JobService';
 import { LookoutApi, Configuration } from './openapi';
+
 import 'react-virtualized/styles.css'
+import './index.css';
 
 let jobService = new JobService(new LookoutApi(new Configuration({basePath: ""})))
 

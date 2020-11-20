@@ -5,11 +5,13 @@ import {
   InfiniteLoader,
   Table,
 } from "react-virtualized"
-import { JobInfoViewModel } from "../services/jobs"
-import './JobTable.css'
-import JobTableActions from "./JobTableActions";
 
-type JobTableProps = {
+import { JobInfoViewModel } from "../services/JobService"
+import JobTableHeader from "./JobTableHeader";
+
+import './Jobs.css'
+
+type JobsProps = {
   jobInfos: JobInfoViewModel[]
   fetchJobs: (start: number, stop: number) => Promise<JobInfoViewModel[]>
   isLoaded: (index: number) => boolean
@@ -21,10 +23,10 @@ type JobTableProps = {
   onOrderChange: (newestFirst: boolean) => void
 }
 
-export default class JobTable extends React.Component<JobTableProps, {}> {
+export default class Jobs extends React.Component<JobsProps, {}> {
   infiniteLoader: React.RefObject<InfiniteLoader>
 
-  constructor(props: JobTableProps) {
+  constructor(props: JobsProps) {
     super(props)
     this.infiniteLoader = React.createRef()
     this.rowGetter = this.rowGetter.bind(this)
@@ -47,9 +49,9 @@ export default class JobTable extends React.Component<JobTableProps, {}> {
     console.log("rowCount", rowCount, this.props.canLoadMore)
 
     return (
-      <div className="job-table-container">
-        <div className="actions">
-          <JobTableActions
+      <div className="jobs">
+        <div className="job-table-header-container">
+          <JobTableHeader
             queue={this.props.queue}
             newestFirst={this.props.newestFirst}
             onQueueChange={queue => {
@@ -65,18 +67,18 @@ export default class JobTable extends React.Component<JobTableProps, {}> {
               this.props.onRefresh()
             }}/>
         </div>
-        <InfiniteLoader
-          ref={this.infiniteLoader}
-          isRowLoaded={({ index }) => {
-            console.log("isRowLoaded", index, this.props.isLoaded(index))
-            return this.props.isLoaded(index)
-          }}
-          loadMoreRows={({ startIndex, stopIndex }) => {
-            return this.props.fetchJobs(startIndex, stopIndex + 1)  // stopIndex is inclusive
-          }}
-          rowCount={rowCount}>
-          {({ onRowsRendered, registerChild }) => (
-            <div className="job-table">
+        <div className="job-table">
+          <InfiniteLoader
+            ref={this.infiniteLoader}
+            isRowLoaded={({ index }) => {
+              console.log("isRowLoaded", index, this.props.isLoaded(index))
+              return this.props.isLoaded(index)
+            }}
+            loadMoreRows={({ startIndex, stopIndex }) => {
+              return this.props.fetchJobs(startIndex, stopIndex + 1)  // stopIndex is inclusive
+            }}
+            rowCount={rowCount}>
+            {({ onRowsRendered, registerChild }) => (
               <AutoSizer>
                 {({ height, width }) => (
                   <Table
@@ -96,9 +98,9 @@ export default class JobTable extends React.Component<JobTableProps, {}> {
                   </Table>
                 )}
               </AutoSizer>
-            </div>
-          )}
-        </InfiniteLoader>
+            )}
+          </InfiniteLoader>
+        </div>
       </div>
     )
   }

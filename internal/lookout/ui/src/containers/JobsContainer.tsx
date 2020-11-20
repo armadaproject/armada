@@ -1,22 +1,22 @@
 import React from 'react'
 
-import { JobInfoViewModel, JobService } from "../services/jobs"
-import JobTable from "../components/JobTable"
+import JobService, { JobInfoViewModel } from "../services/JobService"
+import Jobs from "../components/Jobs"
 import { updateArray } from "../utils";
 
-type JobTableContainerProps = {
+type JobsContainerProps = {
   jobService: JobService
 }
 
-type JobTableContainerState = {
+type JobsContainerState = {
   jobInfos: JobInfoViewModel[]
-  canLoadMore: boolean
   queue: string
   newestFirst: boolean
+  canLoadMore: boolean
 }
 
-export class JobTableContainer extends React.Component<JobTableContainerProps, JobTableContainerState> {
-  constructor(props: JobTableContainerProps) {
+export class JobsContainer extends React.Component<JobsContainerProps, JobsContainerState> {
+  constructor(props: JobsContainerProps) {
     super(props);
     this.state = { jobInfos: [], canLoadMore: true, queue: "", newestFirst: true }
 
@@ -83,15 +83,15 @@ export class JobTableContainer extends React.Component<JobTableContainerProps, J
   }
 
   render() {
-    return <JobTable
+    return <Jobs
       jobInfos={this.state.jobInfos}
       queue={this.state.queue}
       newestFirst={this.state.newestFirst}
+      canLoadMore={this.state.canLoadMore}
       fetchJobs={this.loadJobInfos}
       isLoaded={this.jobInfoIsLoaded}
       onQueueChange={this.queueChange}
       onOrderChange={this.orderChange}
-      onRefresh={this.refresh}
-      canLoadMore={this.state.canLoadMore}/>
+      onRefresh={this.refresh}/>
   }
 }

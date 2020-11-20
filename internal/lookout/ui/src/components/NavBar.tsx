@@ -1,6 +1,7 @@
 import React from 'react'
 import { AppBar, Tab, Tabs, Toolbar, Typography } from "@material-ui/core";
 import { Link, withRouter, RouteComponentProps } from "react-router-dom";
+
 import "./NavBar.css"
 
 const locationValueMap = new Map<string, number>()
@@ -17,9 +18,8 @@ function NavBar(props: RouteComponentProps) {
         <Typography variant="h6" className="app-name">
           Armada Lookout
         </Typography>
-        <div className="nav-items-container">
+        <div className="nav-items">
           <Tabs
-            className="nav-items"
             value={currentValue}
             onChange={(event, newValue) => {
               const newLocation = valueLocationMap.get(newValue) || "/"

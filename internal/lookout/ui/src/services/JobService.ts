@@ -52,7 +52,7 @@ function parseJobState(jobInfo: LookoutJobInfo): string {
   }
 }
 
-export class JobService {
+export default class JobService {
 
   api: LookoutApi;
 

@@ -1,9 +1,10 @@
 import React from "react";
 import { IconButton, MenuItem, TextField, Select, InputLabel } from "@material-ui/core";
 import RefreshIcon from '@material-ui/icons/Refresh';
-import './JobTableActions.css'
 
-type JobTableActionsProps = {
+import './JobTableHeader.css'
+
+type JobTableHeaderProps = {
   queue: string
   newestFirst: boolean
   onQueueChange: (queue: string) => void
@@ -11,9 +12,9 @@ type JobTableActionsProps = {
   onRefresh: () => void
 }
 
-export default function JobTableActions(props: JobTableActionsProps) {
+export default function JobTableHeader(props: JobTableHeaderProps) {
   return (
-    <div className="actions-container">
+    <div className="job-table-header">
       <div className="left">
         <h2 className="title">Jobs</h2>
       </div>

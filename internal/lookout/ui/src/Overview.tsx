@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { LookoutSystemOverview } from './openapi';
-import { JobService } from './services/jobs';
 import { TableContainer, Table, TableHead, TableRow, TableCell, TableBody, Paper, Container } from '@material-ui/core';
+
+import { LookoutSystemOverview } from './openapi';
+import JobService from './services/JobService';
 
 export function Overview({ jobService: jobs }: { jobService: JobService }): JSX.Element {
 
