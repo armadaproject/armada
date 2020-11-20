@@ -1,7 +1,7 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { App }  from './App';
-import { JobService } from './services/jobs';
+import JobService from './services/JobService';
 import { LookoutApi } from './openapi';
 
 test('renders learn react link', () => {

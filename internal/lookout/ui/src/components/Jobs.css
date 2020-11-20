@@ -1,0 +1,15 @@
+.jobs {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.jobs .job-table-header-container {
+  flex: 0 0 4em;
+}
+
+.jobs .job-table {
+  flex: 1 1 auto;
+  margin-left: 2em;
+}

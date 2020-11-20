@@ -152,6 +152,7 @@ func (r *SQLJobRepository) createGetJobsInQueueDataset(opts *lookout.GetJobsInQu
 			job_jobId.Eq(jobRun_jobId))).
 		Select(
 			job_jobId,
+			job_queue,
 			job_owner,
 			job_jobset,
 			job_priority,

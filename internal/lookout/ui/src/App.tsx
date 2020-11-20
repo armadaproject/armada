@@ -1,36 +1,29 @@
 import React from 'react';
-import { AppBar, Tabs, Tab, Toolbar, Typography } from '@material-ui/core'
-import { BrowserRouter as Router, Link, Switch, Route } from 'react-router-dom'
+import { BrowserRouter as Router, Switch, Route} from 'react-router-dom'
+
+import JobService from './services/JobService';
+import { JobsContainer } from "./containers/JobsContainer";
 import { Overview } from './Overview'
+import NavBar from "./components/NavBar";
 
 import './App.css';
-import { JobService } from './services/jobs';
 
 export function App(services: { jobService: JobService; }) {
   return (
     <Router>
-        <AppBar position="static">
-            <Toolbar>
-                <Typography variant="h6">
-                  Armada Lookout
-                </Typography>
-            </Toolbar>
-            <Tabs>
-                <Tab label="Overview" component={Link} to="/" />
-                <Tab label="Jobs" component={Link} to="/jobs" />
-            </Tabs>
-        </AppBar>
-        <div>
-            
-            <Switch>
-                <Route path="/jobs">
-                    Jobs
-                </Route>
-                <Route path="/">
-                    <Overview jobService={services.jobService}/>
-                </Route>
-            </Switch>
+      <div className="container">
+        <NavBar />
+        <div className="content">
+          <Switch>
+            <Route exact path="/">
+              <Overview jobService={services.jobService} />
+            </Route>
+            <Route exact path="/jobs">
+              <JobsContainer jobService={services.jobService} />
+            </Route>
+          </Switch>
         </div>
+      </div>
     </Router>
   );
 }
