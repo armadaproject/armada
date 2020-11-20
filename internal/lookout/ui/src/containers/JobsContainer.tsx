@@ -83,15 +83,17 @@ export class JobsContainer extends React.Component<JobsContainerProps, JobsConta
   }
 
   render() {
-    return <Jobs
-      jobInfos={this.state.jobInfos}
-      queue={this.state.queue}
-      newestFirst={this.state.newestFirst}
-      canLoadMore={this.state.canLoadMore}
-      fetchJobs={this.loadJobInfos}
-      isLoaded={this.jobInfoIsLoaded}
-      onQueueChange={this.queueChange}
-      onOrderChange={this.orderChange}
-      onRefresh={this.refresh}/>
+    return (
+      <Jobs
+        jobInfos={this.state.jobInfos}
+        queue={this.state.queue}
+        newestFirst={this.state.newestFirst}
+        canLoadMore={this.state.canLoadMore}
+        fetchJobs={this.loadJobInfos}
+        isLoaded={this.jobInfoIsLoaded}
+        onQueueChange={this.queueChange}
+        onOrderChange={this.orderChange}
+        onRefresh={this.refresh}/>
+    )
   }
 }

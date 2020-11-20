@@ -1,5 +1,4 @@
 import { LookoutApi, LookoutJobInfo } from '../openapi'
-import { getOrDefault } from "../utils";
 
 export type JobInfoViewModel = {
   jobId: string
@@ -11,11 +10,11 @@ export type JobInfoViewModel = {
 }
 
 function jobInfoToViewModel(jobInfo: LookoutJobInfo): JobInfoViewModel {
-  const jobId = getOrDefault(jobInfo.job?.id, "-")
-  const queue = getOrDefault(jobInfo.job?.queue, "-")
-  const owner = getOrDefault(jobInfo.job?.owner, "-")
-  const jobSet = getOrDefault(jobInfo.job?.jobSetId, "-")
-  const submissionTime = getOrDefault(jobInfo.job?.created, new Date()).toLocaleString()
+  const jobId = jobInfo.job?.id ?? "-"
+  const queue = jobInfo.job?.queue ?? "-"
+  const owner = jobInfo.job?.owner ?? "-"
+  const jobSet = jobInfo.job?.jobSetId ?? "-"
+  const submissionTime = (jobInfo.job?.created ?? new Date()).toLocaleString()
   const jobState = parseJobState(jobInfo)
 
   return {
