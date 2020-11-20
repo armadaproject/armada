@@ -11,7 +11,7 @@ import './App.css';
 export function App(services: { jobService: JobService; }) {
   return (
     <Router>
-      <div className="wrapper">
+      <div className="container">
         <NavBar />
         <div className="content">
           <Switch>
