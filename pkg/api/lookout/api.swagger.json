@@ -192,6 +192,9 @@
         "job": {
           "$ref": "#/definitions/apiJob"
         },
+        "jobState": {
+          "$ref": "#/definitions/lookoutJobState"
+        },
         "runs": {
           "type": "array",
           "items": {
