@@ -203,6 +203,9 @@ func SwaggerJsonTemplate() string {
 		"        \"job\": {\n" +
 		"          \"$ref\": \"#/definitions/apiJob\"\n" +
 		"        },\n" +
+		"        \"jobState\": {\n" +
+		"          \"$ref\": \"#/definitions/lookoutJobState\"\n" +
+		"        },\n" +
 		"        \"runs\": {\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +

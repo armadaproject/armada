@@ -249,6 +249,7 @@ func jobsInQueueRowsToResult(rows []*jobsInQueueRow) []*lookout.JobInfo {
 					Created:     ParseNullTimeDefault(row.Submitted), // Job submitted
 				},
 				Cancelled: ParseNullTime(row.Cancelled),
+				JobState:  0,
 				Runs:      []*lookout.RunInfo{},
 			})
 		}
@@ -266,5 +267,33 @@ func jobsInQueueRowsToResult(rows []*jobsInQueueRow) []*lookout.JobInfo {
 			})
 		}
 	}
+
+	for i, jobInfo := range result {
+		jobState := determineJobState(jobInfo)
+		result[i].JobState = jobState
+	}
+
 	return result
+}
+
+func determineJobState(jobInfo *lookout.JobInfo) lookout.JobState {
+	if jobInfo.Cancelled != nil {
+		return lookout.JobState_CANCELLED
+	}
+	if len(jobInfo.Runs) > 0 {
+		lastRun := jobInfo.Runs[len(jobInfo.Runs)-1]
+		if lastRun.Finished != nil && lastRun.Succeeded {
+			return lookout.JobState_SUCCEEDED
+		}
+		if lastRun.Finished != nil && !lastRun.Succeeded {
+			return lookout.JobState_FAILED
+		}
+		if lastRun.Started != nil {
+			return lookout.JobState_RUNNING
+		}
+		if lastRun.Created != nil {
+			return lookout.JobState_PENDING
+		}
+	}
+	return lookout.JobState_QUEUED
 }

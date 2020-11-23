@@ -19,6 +19,7 @@ message JobInfo {
     api.Job job = 1;
     repeated RunInfo runs = 2;
     google.protobuf.Timestamp cancelled = 3 [(gogoproto.stdtime) = true, (gogoproto.nullable) = true];
+    JobState job_state = 4;
 }
 
 message RunInfo {
