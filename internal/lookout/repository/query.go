@@ -281,7 +281,7 @@ func determineJobState(jobInfo *lookout.JobInfo) lookout.JobState {
 		return lookout.JobState_CANCELLED
 	}
 	if len(jobInfo.Runs) > 0 {
-		lastRun := jobInfo.Runs[len(jobInfo.Runs) - 1]
+		lastRun := jobInfo.Runs[len(jobInfo.Runs)-1]
 		if lastRun.Finished != nil && lastRun.Succeeded {
 			return lookout.JobState_SUCCEEDED
 		}
