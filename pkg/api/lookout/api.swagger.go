@@ -163,7 +163,7 @@ func SwaggerJsonTemplate() string {
 		"        \"jobStates\": {\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
-		"            \"$ref\": \"#/definitions/lookoutJobState\"\n" +
+		"            \"type\": \"string\"\n" +
 		"          }\n" +
 		"        },\n" +
 		"        \"newestFirst\": {\n" +
@@ -204,7 +204,7 @@ func SwaggerJsonTemplate() string {
 		"          \"$ref\": \"#/definitions/apiJob\"\n" +
 		"        },\n" +
 		"        \"jobState\": {\n" +
-		"          \"$ref\": \"#/definitions/lookoutJobState\"\n" +
+		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"runs\": {\n" +
 		"          \"type\": \"array\",\n" +
@@ -213,18 +213,6 @@ func SwaggerJsonTemplate() string {
 		"          }\n" +
 		"        }\n" +
 		"      }\n" +
-		"    },\n" +
-		"    \"lookoutJobState\": {\n" +
-		"      \"type\": \"string\",\n" +
-		"      \"default\": \"QUEUED\",\n" +
-		"      \"enum\": [\n" +
-		"        \"QUEUED\",\n" +
-		"        \"PENDING\",\n" +
-		"        \"RUNNING\",\n" +
-		"        \"SUCCEEDED\",\n" +
-		"        \"FAILED\",\n" +
-		"        \"CANCELLED\"\n" +
-		"      ]\n" +
 		"    },\n" +
 		"    \"lookoutQueueInfo\": {\n" +
 		"      \"type\": \"object\",\n" +

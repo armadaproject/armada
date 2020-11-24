@@ -152,7 +152,7 @@
         "jobStates": {
           "type": "array",
           "items": {
-            "$ref": "#/definitions/lookoutJobState"
+            "type": "string"
           }
         },
         "newestFirst": {
@@ -193,7 +193,7 @@
           "$ref": "#/definitions/apiJob"
         },
         "jobState": {
-          "$ref": "#/definitions/lookoutJobState"
+          "type": "string"
         },
         "runs": {
           "type": "array",
@@ -202,18 +202,6 @@
           }
         }
       }
-    },
-    "lookoutJobState": {
-      "type": "string",
-      "default": "QUEUED",
-      "enum": [
-        "QUEUED",
-        "PENDING",
-        "RUNNING",
-        "SUCCEEDED",
-        "FAILED",
-        "CANCELLED"
-      ]
     },
     "lookoutQueueInfo": {
       "type": "object",
