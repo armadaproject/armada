@@ -19,7 +19,7 @@ message JobInfo {
     api.Job job = 1;
     repeated RunInfo runs = 2;
     google.protobuf.Timestamp cancelled = 3 [(gogoproto.stdtime) = true, (gogoproto.nullable) = true];
-    JobState job_state = 4;
+    string job_state = 4;
 }
 
 message RunInfo {
@@ -44,19 +44,10 @@ message QueueInfo {
     JobInfo longest_running_job = 6;
 }
 
-enum JobState {
-    QUEUED = 0;
-    PENDING = 1;
-    RUNNING = 2;
-    SUCCEEDED = 3;
-    FAILED = 4;
-    CANCELLED = 5;
-}
-
 message GetJobsInQueueRequest {
     string queue = 1;
     bool newest_first = 2;
-    repeated JobState job_states = 3;
+    repeated string job_states = 3;
     repeated string job_set_ids = 4;
     uint32 take = 5;
     uint32 skip = 6;

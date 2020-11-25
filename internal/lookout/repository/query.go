@@ -2,6 +2,7 @@ package repository
 
 import (
 	"database/sql"
+	"fmt"
 
 	"github.com/doug-martin/goqu/v9"
 	_ "github.com/doug-martin/goqu/v9/dialect/postgres"
@@ -11,6 +12,35 @@ import (
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/api/lookout"
 )
+
+// Emulates JobStates enum
+// can't use protobuf enums because gogoproto + grpc-gateway is hard with K8s specific messages
+type jobStates struct {
+	Queued    string
+	Pending   string
+	Running   string
+	Succeeded string
+	Failed    string
+	Cancelled string
+}
+
+var JobStates = &jobStates{
+	Queued:    "QUEUED",
+	Pending:   "PENDING",
+	Running:   "RUNNING",
+	Succeeded: "SUCCEEDED",
+	Failed:    "FAILED",
+	Cancelled: "CANCELLED",
+}
+
+var AllJobStates = []string{
+	JobStates.Queued,
+	JobStates.Pending,
+	JobStates.Running,
+	JobStates.Succeeded,
+	JobStates.Failed,
+	JobStates.Cancelled,
+}
 
 type JobRepository interface {
 	GetQueueStats() ([]*lookout.QueueInfo, error)
@@ -91,6 +121,10 @@ func (r *SQLJobRepository) GetQueueStats() ([]*lookout.QueueInfo, error) {
 }
 
 func (r *SQLJobRepository) GetJobsInQueue(opts *lookout.GetJobsInQueueRequest) ([]*lookout.JobInfo, error) {
+	if valid, jobState := validateJobStates(opts.JobStates); !valid {
+		return nil, fmt.Errorf("unknown job state: %q", jobState)
+	}
+
 	rows, err := r.queryJobsInQueue(opts)
 	if err != nil {
 		return nil, err
@@ -98,6 +132,24 @@ func (r *SQLJobRepository) GetJobsInQueue(opts *lookout.GetJobsInQueueRequest) (
 
 	result := jobsInQueueRowsToResult(rows)
 	return result, nil
+}
+
+func validateJobStates(jobStates []string) (bool, string) {
+	for _, jobState := range jobStates {
+		if !isJobState(jobState) {
+			return false, jobState
+		}
+	}
+	return true, ""
+}
+
+func isJobState(val string) bool {
+	for _, jobState := range AllJobStates {
+		if val == jobState {
+			return true
+		}
+	}
+	return false
 }
 
 type jobsInQueueRow struct {
@@ -182,39 +234,39 @@ func createJobSetFilters(jobSetIds []string) []goqu.Expression {
 	return filters
 }
 
-var filtersForState = map[lookout.JobState][]goqu.Expression{
-	lookout.JobState_QUEUED: {
+var filtersForState = map[string][]goqu.Expression{
+	JobStates.Queued: {
 		goqu.MAX(job_submitted).IsNotNull(),
 		goqu.MAX(job_cancelled).IsNull(),
 		goqu.MAX(jobRun_created).IsNull(),
 		goqu.MAX(jobRun_started).IsNull(),
 		goqu.MAX(jobRun_finished).IsNull(),
 	},
-	lookout.JobState_PENDING: {
+	JobStates.Pending: {
 		goqu.MAX(job_cancelled).IsNull(),
 		goqu.MAX(jobRun_created).IsNotNull(),
 		goqu.MAX(jobRun_started).IsNull(),
 		goqu.MAX(jobRun_finished).IsNull(),
 	},
-	lookout.JobState_RUNNING: {
+	JobStates.Running: {
 		goqu.MAX(job_cancelled).IsNull(),
 		goqu.MAX(jobRun_started).IsNotNull(),
 		goqu.MAX(jobRun_finished).IsNull(),
 	},
-	lookout.JobState_SUCCEEDED: {
+	JobStates.Succeeded: {
 		goqu.MAX(job_cancelled).IsNull(),
 		goqu.MAX(jobRun_finished).IsNotNull(),
 		BOOL_OR(jobRun_succeeded).IsTrue(),
 	},
-	lookout.JobState_FAILED: {
+	JobStates.Failed: {
 		BOOL_OR(jobRun_succeeded).IsFalse(),
 	},
-	lookout.JobState_CANCELLED: {
+	JobStates.Cancelled: {
 		goqu.MAX(job_cancelled).IsNotNull(),
 	},
 }
 
-func createJobStateFilters(jobStates []lookout.JobState) []goqu.Expression {
+func createJobStateFilters(jobStates []string) []goqu.Expression {
 	filters := make([]goqu.Expression, 0)
 	for _, state := range jobStates {
 		filter := goqu.And(filtersForState[state]...)
@@ -249,7 +301,7 @@ func jobsInQueueRowsToResult(rows []*jobsInQueueRow) []*lookout.JobInfo {
 					Created:     ParseNullTimeDefault(row.Submitted), // Job submitted
 				},
 				Cancelled: ParseNullTime(row.Cancelled),
-				JobState:  0,
+				JobState:  "",
 				Runs:      []*lookout.RunInfo{},
 			})
 		}
@@ -276,24 +328,24 @@ func jobsInQueueRowsToResult(rows []*jobsInQueueRow) []*lookout.JobInfo {
 	return result
 }
 
-func determineJobState(jobInfo *lookout.JobInfo) lookout.JobState {
+func determineJobState(jobInfo *lookout.JobInfo) string {
 	if jobInfo.Cancelled != nil {
-		return lookout.JobState_CANCELLED
+		return JobStates.Cancelled
 	}
 	if len(jobInfo.Runs) > 0 {
 		lastRun := jobInfo.Runs[len(jobInfo.Runs)-1]
 		if lastRun.Finished != nil && lastRun.Succeeded {
-			return lookout.JobState_SUCCEEDED
+			return JobStates.Succeeded
 		}
 		if lastRun.Finished != nil && !lastRun.Succeeded {
-			return lookout.JobState_FAILED
+			return JobStates.Failed
 		}
 		if lastRun.Started != nil {
-			return lookout.JobState_RUNNING
+			return JobStates.Running
 		}
 		if lastRun.Created != nil {
-			return lookout.JobState_PENDING
+			return JobStates.Pending
 		}
 	}
-	return lookout.JobState_QUEUED
+	return JobStates.Queued
 }
