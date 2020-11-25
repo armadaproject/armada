@@ -1,25 +1,41 @@
 import React from "react";
-import { IconButton, MenuItem, TextField, Select, InputLabel } from "@material-ui/core";
+import { IconButton, MenuItem, TextField, Select, InputLabel, Input, Checkbox, ListItemText } from "@material-ui/core";
 import RefreshIcon from '@material-ui/icons/Refresh';
 
+import { JobStateViewModel, VALID_JOB_STATE_VIEW_MODELS } from "../services/JobService";
 import './JobTableHeader.css'
 
 type JobTableHeaderProps = {
   queue: string
+  jobSet: string
+  jobStates: JobStateViewModel[]
   newestFirst: boolean
   onQueueChange: (queue: string) => void
+  onJobSetChange: (jobSet: string) => void
+  onJobStatesChange: (jobStates: JobStateViewModel[]) => void
   onOrderChange: (newestFirst: boolean) => void
   onRefresh: () => void
 }
+
+const ITEM_HEIGHT = 48;
+const ITEM_PADDING_TOP = 8;
+const MenuProps = {
+  PaperProps: {
+    style: {
+      maxHeight: ITEM_HEIGHT * 4.5 + ITEM_PADDING_TOP,
+      width: 250,
+    },
+  },
+};
 
 export default function JobTableHeader(props: JobTableHeaderProps) {
   return (
     <div className="job-table-header">
       <div className="left">
-        <h2 className="title">Jobs</h2>
+        <h2 className="title default-horizontal-margin">Jobs</h2>
       </div>
       <div className="center">
-        <div className="search">
+        <div className="default-horizontal-margin">
           <TextField
             value={props.queue}
             onChange={(event) => {
@@ -28,10 +44,45 @@ export default function JobTableHeader(props: JobTableHeaderProps) {
             label="Queue"
             variant="outlined"/>
         </div>
-        <div className="order">
+        <div className="default-horizontal-margin">
+          <TextField
+            value={props.jobSet}
+            onChange={(event) => {
+              props.onJobSetChange(event.target.value)
+            }}
+            label="Job set"
+            variant="filled"/>
+        </div>
+        <div className="default-horizontal-margin">
+          <InputLabel id="job-table-state-select-label">Job states</InputLabel>
+          <Select
+            labelId="job-table-state-select-label"
+            id="job-table-state-select"
+            multiple
+            value={props.jobStates}
+            onChange={(event) => {
+              const newJobStates = (event.target.value as string[])
+                .filter(jobState => VALID_JOB_STATE_VIEW_MODELS.includes(jobState as JobStateViewModel))
+                .map(jobState => jobState as JobStateViewModel)
+              props.onJobStatesChange(newJobStates)
+            }}
+            input={<Input/>}
+            renderValue={(selected) => `${(selected as string[]).length} selected`}
+            displayEmpty={true}
+            MenuProps={MenuProps}
+          >
+            {VALID_JOB_STATE_VIEW_MODELS.map(jobState => (
+              <MenuItem key={jobState} value={jobState}>
+                <Checkbox checked={props.jobStates.indexOf(jobState as JobStateViewModel) > -1}/>
+                <ListItemText primary={jobState}/>
+              </MenuItem>
+            ))}
+          </Select>
+        </div>
+        <div className="order-width default-horizontal-margin">
           <InputLabel id="job-table-order-select-label">Order</InputLabel>
           <Select
-            className="select-field"
+            className="order-width"
             labelId="job-table-order-select-label"
             value={props.newestFirst ? 1 : 0}
             onChange={event => {
@@ -43,7 +94,7 @@ export default function JobTableHeader(props: JobTableHeaderProps) {
         </div>
       </div>
       <div className="right">
-        <div className="refresh">
+        <div className="default-horizontal-margin">
           <IconButton onClick={props.onRefresh} color="primary">
             <RefreshIcon/>
           </IconButton>

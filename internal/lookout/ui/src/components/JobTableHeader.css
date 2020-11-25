@@ -8,7 +8,7 @@
 }
 
 .job-table-header .left {
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   display: flex;
   flex-direction: row;
   justify-content: flex-start;
@@ -18,12 +18,12 @@
 .job-table-header .center {
   flex: 1 1 auto;
   display: flex;
-  justify-content: flex-start;
+  justify-content: center;
   align-items: center;
 }
 
 .job-table-header .right {
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   display: flex;
   flex-direction: row;
   justify-content: flex-end;
@@ -32,25 +32,13 @@
 
 .job-table-header .left .title {
   margin-bottom: 0.5em;
-  margin-right: 2em;
-  margin-left: 2em;
 }
 
-.job-table-header .center .search {
-  margin-left: 2em;
-  margin-right: 2em;
-}
-
-.job-table-header .center .order {
-  margin-left: 2em;
-  margin-right: 2em;
+.order-width {
   width: 6em;
 }
 
-.job-table-header .center .order .select-field {
-  width: 6em;
-}
-
-.job-table-header .right .refresh {
+.default-horizontal-margin {
+  margin-left: 1em;
   margin-right: 1em;
 }

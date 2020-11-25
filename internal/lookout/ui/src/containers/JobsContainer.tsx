@@ -1,6 +1,10 @@
 import React from 'react'
 
-import JobService, { JobInfoViewModel } from "../services/JobService"
+import JobService, {
+  JobInfoViewModel,
+  JobStateViewModel,
+  VALID_JOB_STATE_VIEW_MODELS
+} from "../services/JobService"
 import Jobs from "../components/Jobs"
 import { updateArray } from "../utils";
 
@@ -11,6 +15,8 @@ type JobsContainerProps = {
 type JobsContainerState = {
   jobInfos: JobInfoViewModel[]
   queue: string
+  jobSet: string
+  jobStates: JobStateViewModel[]
   newestFirst: boolean
   canLoadMore: boolean
 }
@@ -18,11 +24,20 @@ type JobsContainerState = {
 export class JobsContainer extends React.Component<JobsContainerProps, JobsContainerState> {
   constructor(props: JobsContainerProps) {
     super(props);
-    this.state = { jobInfos: [], canLoadMore: true, queue: "", newestFirst: true }
+    this.state = {
+      jobInfos: [],
+      queue: "",
+      jobSet: "",
+      jobStates: VALID_JOB_STATE_VIEW_MODELS,
+      newestFirst: true,
+      canLoadMore: true,
+    }
 
     this.loadJobInfos = this.loadJobInfos.bind(this)
     this.jobInfoIsLoaded = this.jobInfoIsLoaded.bind(this)
     this.queueChange = this.queueChange.bind(this)
+    this.jobSetChange = this.jobSetChange.bind(this)
+    this.jobStatesChange = this.jobStatesChange.bind(this)
     this.orderChange = this.orderChange.bind(this)
     this.refresh = this.refresh.bind(this)
   }
@@ -33,7 +48,9 @@ export class JobsContainer extends React.Component<JobsContainerProps, JobsConta
       this.state.queue,
       take,
       start,
+      [this.state.jobSet],
       this.state.newestFirst,
+      this.state.jobStates,
     )
 
     let canLoadMore = true
@@ -55,31 +72,48 @@ export class JobsContainer extends React.Component<JobsContainerProps, JobsConta
     return !!this.state.jobInfos[index]
   }
 
-  queueChange(queue: string) {
-    console.log("queueChange", queue)
+  queueChange(queue: string, callback: () => void) {
     this.setState({
       ...this.state,
       jobInfos: [],
       canLoadMore: true,
       queue: queue,
-    })
+    }, callback)
   }
 
-  orderChange(newestFirst: boolean) {
+  jobSetChange(jobSet: string, callback: () => void) {
+    this.setState({
+      ...this.state,
+      jobInfos: [],
+      canLoadMore: true,
+      jobSet: jobSet,
+    }, callback)
+  }
+
+  jobStatesChange(jobStates: JobStateViewModel[], callback: () => void) {
+    this.setState({
+      ...this.state,
+      jobInfos: [],
+      canLoadMore: true,
+      jobStates: jobStates
+    }, callback)
+  }
+
+  orderChange(newestFirst: boolean, callback: () => void) {
     this.setState({
       ...this.state,
       jobInfos: [],
       canLoadMore: true,
       newestFirst: newestFirst
-    })
+    }, callback)
   }
 
-  refresh() {
+  refresh(callback: () => void) {
     this.setState({
       ...this.state,
       jobInfos: [],
       canLoadMore: true,
-    })
+    }, callback)
   }
 
   render() {
@@ -87,11 +121,15 @@ export class JobsContainer extends React.Component<JobsContainerProps, JobsConta
       <Jobs
         jobInfos={this.state.jobInfos}
         queue={this.state.queue}
+        jobSet={this.state.jobSet}
+        jobStates={this.state.jobStates}
         newestFirst={this.state.newestFirst}
         canLoadMore={this.state.canLoadMore}
         fetchJobs={this.loadJobInfos}
         isLoaded={this.jobInfoIsLoaded}
         onQueueChange={this.queueChange}
+        onJobSetChange={this.jobSetChange}
+        onJobStatesChange={this.jobStatesChange}
         onOrderChange={this.orderChange}
         onRefresh={this.refresh}/>
     )
