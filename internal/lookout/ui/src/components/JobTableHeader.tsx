@@ -1,5 +1,15 @@
 import React from "react";
-import { IconButton, MenuItem, TextField, Select, InputLabel, Input, Checkbox, ListItemText } from "@material-ui/core";
+import {
+  IconButton,
+  MenuItem,
+  TextField,
+  Select,
+  InputLabel,
+  Input,
+  Checkbox,
+  ListItemText,
+  MenuProps
+} from "@material-ui/core";
 import RefreshIcon from '@material-ui/icons/Refresh';
 
 import { JobStateViewModel, VALID_JOB_STATE_VIEW_MODELS } from "../services/JobService";
@@ -17,12 +27,12 @@ type JobTableHeaderProps = {
   onRefresh: () => void
 }
 
-const ITEM_HEIGHT = 48;
+const ITEM_HEIGHT = 64;
 const ITEM_PADDING_TOP = 8;
-const MenuProps = {
+const menuProps: Partial<MenuProps> = {
   PaperProps: {
     style: {
-      maxHeight: ITEM_HEIGHT * 4.5 + ITEM_PADDING_TOP,
+      maxHeight: ITEM_HEIGHT * VALID_JOB_STATE_VIEW_MODELS.length + ITEM_PADDING_TOP,
       width: 250,
     },
   },
@@ -69,7 +79,7 @@ export default function JobTableHeader(props: JobTableHeaderProps) {
             input={<Input/>}
             renderValue={(selected) => `${(selected as string[]).length} selected`}
             displayEmpty={true}
-            MenuProps={MenuProps}
+            MenuProps={menuProps}
           >
             {VALID_JOB_STATE_VIEW_MODELS.map(jobState => (
               <MenuItem key={jobState} value={jobState}>
