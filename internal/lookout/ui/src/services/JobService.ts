@@ -62,7 +62,6 @@ export default class JobService {
     jobStates: JobStateViewModel[],
   ): Promise<JobInfoViewModel[]> {
     const jobStatesForApi = jobStates.map(jobStateViewModelToJobState)
-    console.log("Called with", jobStatesForApi)
     try {
       const response = await this.api.getJobsInQueue({
         body: {
