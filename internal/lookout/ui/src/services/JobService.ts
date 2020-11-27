@@ -83,6 +83,10 @@ export default class JobService {
   }
 }
 
+export function isValidJobStateViewModel(jobState: string): boolean {
+  return (VALID_JOB_STATE_VIEW_MODELS as string[]).includes(jobState)
+}
+
 function getValidJobStateViewModels(allJobStateViewModels: JobStateViewModel[]): JobStateViewModel[] {
   const copy = allJobStateViewModels.slice()
   const index = copy.indexOf(JobStateViewModel.Unknown)

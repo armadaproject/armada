@@ -1,6 +1,6 @@
 import { updateArray } from "./utils";
 
-describe('updateList', () => {
+describe('updateArray', () => {
   test('does nothing if no new values are provided', () => {
     const array = [1, 2, 3, 4, 5]
     updateArray(array, [], 5, 10)

@@ -4,9 +4,9 @@ import { match, withRouter } from 'react-router-dom'
 import queryString, { ParseOptions, StringifyOptions } from 'query-string'
 
 import JobService, {
+  isValidJobStateViewModel,
   JobInfoViewModel,
-  JobStateViewModel,
-  VALID_JOB_STATE_VIEW_MODELS
+  JobStateViewModel, VALID_JOB_STATE_VIEW_MODELS
 } from "../services/JobService"
 import Jobs from "../components/Jobs"
 import { updateArray } from "../utils";
@@ -18,91 +18,109 @@ type JobsContainerProps = {
   match: match;
 }
 
-interface JobsContainerState {
+interface JobsContainerState extends JobFilters {
   jobInfos: JobInfoViewModel[]
+  canLoadMore: boolean
+}
+
+export interface JobFilters {
   queue: string
   jobSet: string
   jobStates: JobStateViewModel[]
   newestFirst: boolean
-  canLoadMore: boolean
 }
 
 type JobFiltersQueryParams = {
   queue?: string
   job_set?: string
-  job_states?: JobStateViewModel[]
+  job_states?: JobStateViewModel[] | JobStateViewModel
   newest_first?: boolean
 }
 
 const QUERY_STRING_OPTIONS: ParseOptions | StringifyOptions = {
   arrayFormat: "comma",
-  parseBooleans: true
+  parseBooleans: true,
+}
+
+export function makeQueryStringFromFilters(filters: JobFilters): string {
+  let queryObject: JobFiltersQueryParams = {}
+  if (filters.queue) {
+    queryObject = {
+      ...queryObject,
+      queue: filters.queue,
+    }
+  }
+  if (filters.jobSet) {
+    queryObject = {
+      ...queryObject,
+      job_set: filters.jobSet,
+    }
+  }
+  if (filters.jobStates) {
+    queryObject = {
+      ...queryObject,
+      job_states: filters.jobStates,
+    }
+  }
+  if (filters.newestFirst != null) {
+    queryObject = {
+      ...queryObject,
+      newest_first: filters.newestFirst,
+    }
+  }
+
+  return queryString.stringify(queryObject, QUERY_STRING_OPTIONS)
+}
+
+export function makeFiltersFromQueryString(queryParams: string): JobFilters {
+  return {
+    jobSet: "",
+    jobStates: [],
+    newestFirst: false,
+    queue: "",
+  }
 }
 
 function setUrlParams(history: H.History, currentLocation: H.Location, state: JobsContainerState) {
-  let queryObject: JobFiltersQueryParams = {}
-  if (state.queue) {
-    queryObject = {
-      ...queryObject,
-      queue: state.queue,
-    }
-  }
-  if (state.jobSet) {
-    queryObject = {
-      ...queryObject,
-      job_set: state.jobSet,
-    }
-  }
-  if (state.jobStates) {
-    queryObject = {
-      ...queryObject,
-      job_states: state.jobStates,
-    }
-  }
-  if (state.newestFirst) {
-    queryObject = {
-      ...queryObject,
-      newest_first: state.newestFirst,
-    }
-  }
-
-  const query = queryString.stringify(queryObject, QUERY_STRING_OPTIONS)
+  const query = makeQueryStringFromFilters(state)
   history.push({
     ...currentLocation,
     search: query,
   })
 }
 
-function parseUrlParams(history: H.History, currentLocation: H.Location): any {
-  const params = queryString.parse(currentLocation.search, {
-    arrayFormat: 'separator',
-    arrayFormatSeparator: ','
-  }) as JobFiltersQueryParams
-
-  let filters = {}
-  if (params.queue) {
-    filters = {
-      ...filters,
-      queue: params.queue
+function parseJobStates(jobStates: string[] | string): JobStateViewModel[] {
+  if (!Array.isArray(jobStates)) {
+    if ((VALID_JOB_STATE_VIEW_MODELS as string[]).includes(jobStates)) {
+      return [jobStates as JobStateViewModel]
+    } else {
+      return []
     }
+  }
+
+  return jobStates.filter(isValidJobStateViewModel).map(jobState => jobState as JobStateViewModel)
+}
+
+function parseUrlParams(history: H.History, currentLocation: H.Location): JobFilters {
+  const params = queryString.parse(currentLocation.search, QUERY_STRING_OPTIONS) as JobFiltersQueryParams
+
+  let filters: JobFilters = {
+    queue: "",
+    jobSet: "",
+    jobStates: [],
+    newestFirst: true,
+  }
+  if (params.queue) {
+    filters.queue = params.queue
   }
   if (params.job_set) {
-    filters = {
-      ...filters,
-      jobSet: params.job_set
-    }
+    filters.jobSet = params.job_set
   }
   if (params.job_states) {
-    filters = {
-      ...filters,
-      jobSet: params.job_set
-    }
+    filters.jobStates = parseJobStates(params.job_states)
   }
-  if (params.newest_first) {
-    filters = {
-      ...filters,
-      newestFirst: params.newest_first
-    }
+  if (params.newest_first != null) {
+    filters.newestFirst = params.newest_first
   }
 
   return filters
@@ -115,7 +133,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
       jobInfos: [],
       queue: "",
       jobSet: "",
-      jobStates: VALID_JOB_STATE_VIEW_MODELS,
+      jobStates: [],
       newestFirst: true,
       canLoadMore: true,
     }
@@ -131,6 +149,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
 
   componentDidMount() {
     const filters = parseUrlParams(this.props.history, this.props.location)
+    console.log(filters)
     this.setState({
       ...this.state,
       ...filters,
