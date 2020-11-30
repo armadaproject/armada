@@ -36,6 +36,15 @@ const menuProps: Partial<MenuProps> = {
       width: 250,
     },
   },
+  anchorOrigin: {
+    vertical: "bottom",
+    horizontal: "left",
+  },
+  transformOrigin: {
+    vertical: "top",
+    horizontal: "left",
+  },
+  getContentAnchorEl: null,
 };
 
 export default function JobTableHeader(props: JobTableHeaderProps) {
