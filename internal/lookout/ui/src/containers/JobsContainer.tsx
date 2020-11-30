@@ -134,12 +134,9 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
 
   componentDidMount() {
     const filters = makeFiltersFromQueryString(this.props.location.search)
-    console.log(filters)
     this.setState({
       ...this.state,
       ...filters,
-    }, () => {
-      console.log(this.state)
     })
   }
 
