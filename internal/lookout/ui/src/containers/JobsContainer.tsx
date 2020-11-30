@@ -6,7 +6,8 @@ import queryString, { ParseOptions, StringifyOptions } from 'query-string'
 import JobService, {
   isValidJobStateViewModel,
   JobInfoViewModel,
-  JobStateViewModel, VALID_JOB_STATE_VIEW_MODELS
+  JobStateViewModel,
+  VALID_JOB_STATE_VIEW_MODELS
 } from "../services/JobService"
 import Jobs from "../components/Jobs"
 import { updateArray } from "../utils";
@@ -72,37 +73,8 @@ export function makeQueryStringFromFilters(filters: JobFilters): string {
   return queryString.stringify(queryObject, QUERY_STRING_OPTIONS)
 }
 
-export function makeFiltersFromQueryString(queryParams: string): JobFilters {
-  return {
-    jobSet: "",
-    jobStates: [],
-    newestFirst: false,
-    queue: "",
-  }
-}
-
-function setUrlParams(history: H.History, currentLocation: H.Location, state: JobsContainerState) {
-  const query = makeQueryStringFromFilters(state)
-  history.push({
-    ...currentLocation,
-    search: query,
-  })
-}
-
-function parseJobStates(jobStates: string[] | string): JobStateViewModel[] {
-  if (!Array.isArray(jobStates)) {
-    if ((VALID_JOB_STATE_VIEW_MODELS as string[]).includes(jobStates)) {
-      return [jobStates as JobStateViewModel]
-    } else {
-      return []
-    }
-  }
-
-  return jobStates.filter(isValidJobStateViewModel).map(jobState => jobState as JobStateViewModel)
-}
-
-function parseUrlParams(history: H.History, currentLocation: H.Location): JobFilters {
-  const params = queryString.parse(currentLocation.search, QUERY_STRING_OPTIONS) as JobFiltersQueryParams
+export function makeFiltersFromQueryString(query: string): JobFilters {
+  const params = queryString.parse(query, QUERY_STRING_OPTIONS) as JobFiltersQueryParams
 
   let filters: JobFilters = {
     queue: "",
@@ -126,6 +98,18 @@ function parseUrlParams(history: H.History, currentLocation: H.Location): JobFil
   return filters
 }
 
+function parseJobStates(jobStates: string[] | string): JobStateViewModel[] {
+  if (!Array.isArray(jobStates)) {
+    if ((VALID_JOB_STATE_VIEW_MODELS as string[]).includes(jobStates)) {
+      return [jobStates as JobStateViewModel]
+    } else {
+      return []
+    }
+  }
+
+  return jobStates.filter(isValidJobStateViewModel).map(jobState => jobState as JobStateViewModel)
+}
+
 class JobsContainer extends React.Component<JobsContainerProps, JobsContainerState> {
   constructor(props: JobsContainerProps) {
     super(props);
@@ -145,10 +129,11 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     this.jobStatesChange = this.jobStatesChange.bind(this)
     this.orderChange = this.orderChange.bind(this)
     this.refresh = this.refresh.bind(this)
+    this.setUrlParams = this.setUrlParams.bind(this)
   }
 
   componentDidMount() {
-    const filters = parseUrlParams(this.props.history, this.props.location)
+    const filters = makeFiltersFromQueryString(this.props.location.search)
     console.log(filters)
     this.setState({
       ...this.state,
@@ -195,7 +180,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
       canLoadMore: true,
       queue: queue,
     }, () => {
-      setUrlParams(this.props.history, this.props.location, this.state)
+      this.setUrlParams()
       callback()
     })
   }
@@ -207,7 +192,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
       canLoadMore: true,
       jobSet: jobSet,
     }, () => {
-      setUrlParams(this.props.history, this.props.location, this.state)
+      this.setUrlParams()
       callback()
     })
   }
@@ -219,7 +204,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
       canLoadMore: true,
       jobStates: jobStates
     }, () => {
-      setUrlParams(this.props.history, this.props.location, this.state)
+      this.setUrlParams()
       callback()
     })
   }
@@ -231,7 +216,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
       canLoadMore: true,
       newestFirst: newestFirst
     }, () => {
-      setUrlParams(this.props.history, this.props.location, this.state)
+      this.setUrlParams()
       callback()
     })
   }
@@ -242,6 +227,13 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
       jobInfos: [],
       canLoadMore: true,
     }, callback)
+  }
+
+  setUrlParams() {
+    this.props.history.push({
+      ...this.props.location,
+      search: makeQueryStringFromFilters(this.state),
+    })
   }
 
   render() {
