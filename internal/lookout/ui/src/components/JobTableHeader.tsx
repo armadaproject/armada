@@ -81,7 +81,7 @@ export default function JobTableHeader(props: JobTableHeaderProps) {
             value={props.jobStates}
             onChange={(event) => {
               const newJobStates = (event.target.value as string[])
-                .filter(jobState => VALID_JOB_STATE_VIEW_MODELS.includes(jobState as JobStateViewModel))
+                .filter(jobState => (VALID_JOB_STATE_VIEW_MODELS as string[]).includes(jobState))
                 .map(jobState => jobState as JobStateViewModel)
               props.onJobStatesChange(newJobStates)
             }}
