@@ -2,7 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Switch, Route} from 'react-router-dom'
 
 import JobService from './services/JobService';
-import { JobsContainer } from "./containers/JobsContainer";
+import JobsContainer from "./containers/JobsContainer";
 import { Overview } from './Overview'
 import NavBar from "./components/NavBar";
 
