@@ -1,10 +1,6 @@
 import React from 'react'
 
-import JobService, {
-  JobInfoViewModel,
-  JobStateViewModel,
-  VALID_JOB_STATE_VIEW_MODELS
-} from "../services/JobService"
+import JobService, { JobInfoViewModel } from "../services/JobService"
 import Jobs from "../components/Jobs"
 import { updateArray } from "../utils";
 
@@ -16,7 +12,7 @@ type JobsContainerState = {
   jobInfos: JobInfoViewModel[]
   queue: string
   jobSet: string
-  jobStates: JobStateViewModel[]
+  jobStates: string[]
   newestFirst: boolean
   canLoadMore: boolean
 }
@@ -28,7 +24,7 @@ export class JobsContainer extends React.Component<JobsContainerProps, JobsConta
       jobInfos: [],
       queue: "",
       jobSet: "",
-      jobStates: VALID_JOB_STATE_VIEW_MODELS,
+      jobStates: [],
       newestFirst: true,
       canLoadMore: true,
     }
@@ -90,7 +86,7 @@ export class JobsContainer extends React.Component<JobsContainerProps, JobsConta
     }, callback)
   }
 
-  jobStatesChange(jobStates: JobStateViewModel[], callback: () => void) {
+  jobStatesChange(jobStates: string[], callback: () => void) {
     this.setState({
       ...this.state,
       jobInfos: [],

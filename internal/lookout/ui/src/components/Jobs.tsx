@@ -1,7 +1,7 @@
 import React from 'react'
 import { AutoSizer, Column, InfiniteLoader, Table, } from "react-virtualized"
 
-import { JobInfoViewModel, JobStateViewModel } from "../services/JobService"
+import { JobInfoViewModel } from "../services/JobService"
 import JobTableHeader from "./JobTableHeader";
 
 import './Jobs.css'
@@ -11,13 +11,13 @@ type JobsProps = {
   canLoadMore: boolean
   queue: string
   jobSet: string
-  jobStates: JobStateViewModel[]
+  jobStates: string[]
   newestFirst: boolean
   fetchJobs: (start: number, stop: number) => Promise<JobInfoViewModel[]>
   isLoaded: (index: number) => boolean
   onQueueChange: (queue: string, callback: () => void) => void
   onJobSetChange: (jobSet: string, callback: () => void) => void
-  onJobStatesChange: (jobStates: JobStateViewModel[], callback: () => void) => void
+  onJobStatesChange: (jobStates: string[], callback: () => void) => void
   onOrderChange: (newestFirst: boolean, callback: () => void) => void
   onRefresh: (callback: () => void) => void
 }
@@ -40,7 +40,7 @@ export default class Jobs extends React.Component<JobsProps, {}> {
         owner: "",
         jobId: "Loading...",
         jobSet: "",
-        jobState: JobStateViewModel.Unknown,
+        jobState: "",
         queue: "",
         submissionTime: ""
       }
