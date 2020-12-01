@@ -1,10 +1,5 @@
 import React from 'react'
-import {
-  AutoSizer,
-  Column,
-  InfiniteLoader,
-  Table,
-} from "react-virtualized"
+import { AutoSizer, Column, InfiniteLoader, Table, } from "react-virtualized"
 
 import { JobInfoViewModel } from "../services/JobService"
 import JobTableHeader from "./JobTableHeader";
@@ -13,14 +8,18 @@ import './Jobs.css'
 
 type JobsProps = {
   jobInfos: JobInfoViewModel[]
+  canLoadMore: boolean
+  queue: string
+  jobSet: string
+  jobStates: string[]
+  newestFirst: boolean
   fetchJobs: (start: number, stop: number) => Promise<JobInfoViewModel[]>
   isLoaded: (index: number) => boolean
-  canLoadMore: boolean
-  onRefresh: () => void
-  queue: string
-  onQueueChange: (queue: string) => void
-  newestFirst: boolean
-  onOrderChange: (newestFirst: boolean) => void
+  onQueueChange: (queue: string, callback: () => void) => void
+  onJobSetChange: (jobSet: string, callback: () => void) => void
+  onJobStatesChange: (jobStates: string[], callback: () => void) => void
+  onOrderChange: (newestFirst: boolean, callback: () => void) => void
+  onRefresh: (callback: () => void) => void
 }
 
 export default class Jobs extends React.Component<JobsProps, {}> {
@@ -30,48 +29,59 @@ export default class Jobs extends React.Component<JobsProps, {}> {
     super(props)
     this.infiniteLoader = React.createRef()
     this.rowGetter = this.rowGetter.bind(this)
+    this.resetCache = this.resetCache.bind(this)
   }
 
   rowGetter({ index }: { index: number }): JobInfoViewModel {
     if (!!this.props.jobInfos[index]) {
       return this.props.jobInfos[index]
     } else {
-      return { owner: "", jobId: "Loading...", jobSet: "", jobState: "", queue: "", submissionTime: "" }
+      return {
+        owner: "",
+        jobId: "Loading...",
+        jobSet: "",
+        jobState: "",
+        queue: "",
+        submissionTime: ""
+      }
     }
   }
 
   resetCache() {
-    this.infiniteLoader.current?.resetLoadMoreRowsCache()
+    this.infiniteLoader.current?.resetLoadMoreRowsCache(true)
   }
 
   render() {
     const rowCount = this.props.canLoadMore ? this.props.jobInfos.length + 1 : this.props.jobInfos.length
-    console.log("rowCount", rowCount, this.props.canLoadMore)
 
     return (
       <div className="jobs">
         <div className="job-table-header-container">
           <JobTableHeader
             queue={this.props.queue}
+            jobSet={this.props.jobSet}
             newestFirst={this.props.newestFirst}
+            jobStates={this.props.jobStates}
             onQueueChange={queue => {
-              this.resetCache()
-              this.props.onQueueChange(queue)
+              this.props.onQueueChange(queue, this.resetCache)
+            }}
+            onJobSetChange={jobSet => {
+              this.props.onJobSetChange(jobSet, this.resetCache)
+            }}
+            onJobStatesChange={jobStates => {
+              this.props.onJobStatesChange(jobStates, this.resetCache)
             }}
             onOrderChange={newestFirst => {
-              this.resetCache()
-              this.props.onOrderChange(newestFirst)
+              this.props.onOrderChange(newestFirst, this.resetCache)
             }}
             onRefresh={() => {
-              this.resetCache()
-              this.props.onRefresh()
+              this.props.onRefresh(this.resetCache)
             }}/>
         </div>
         <div className="job-table">
           <InfiniteLoader
             ref={this.infiniteLoader}
             isRowLoaded={({ index }) => {
-              console.log("isRowLoaded", index, this.props.isLoaded(index))
               return this.props.isLoaded(index)
             }}
             loadMoreRows={({ startIndex, stopIndex }) => {

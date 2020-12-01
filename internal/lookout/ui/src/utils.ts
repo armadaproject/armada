@@ -11,3 +11,7 @@ export function updateArray<T>(array: (T | null)[], newValues: (T | null)[], sta
   }
   array.splice(start, nValuesToAdd, ...newValues)
 }
+
+export function reverseMap<K, V>(map: Map<K, V>): Map<V, K> {
+  return new Map(Array.from(map.entries()).map(([k, v]) => ([v, k])))
+}

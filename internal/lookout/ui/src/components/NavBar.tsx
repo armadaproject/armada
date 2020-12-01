@@ -2,12 +2,14 @@ import React from 'react'
 import { AppBar, Tab, Tabs, Toolbar, Typography } from "@material-ui/core";
 import { Link, withRouter, RouteComponentProps } from "react-router-dom";
 
+import { reverseMap } from "../utils";
+
 import "./NavBar.css"
 
 const locationValueMap = new Map<string, number>()
 locationValueMap.set("/", 0)
 locationValueMap.set("/jobs", 1)
-const valueLocationMap = new Map(Array.from(locationValueMap.entries()).map(([k, v]) => ([v, k])))
+const valueLocationMap = reverseMap(locationValueMap)
 
 function NavBar(props: RouteComponentProps) {
   const currentPage = props.location.pathname;
