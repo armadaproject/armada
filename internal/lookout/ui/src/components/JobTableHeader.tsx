@@ -92,7 +92,7 @@ export default function JobTableHeader(props: JobTableHeaderProps) {
           >
             {VALID_JOB_STATE_VIEW_MODELS.map(jobState => (
               <MenuItem key={jobState} value={jobState}>
-                <Checkbox checked={props.jobStates.indexOf(jobState as JobStateViewModel) > -1}/>
+                <Checkbox checked={props.jobStates.indexOf(jobState) > -1}/>
                 <ListItemText primary={jobState}/>
               </MenuItem>
             ))}
