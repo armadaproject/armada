@@ -12,17 +12,17 @@ import {
 } from "@material-ui/core";
 import RefreshIcon from '@material-ui/icons/Refresh';
 
-import { JobStateViewModel, VALID_JOB_STATE_VIEW_MODELS } from "../services/JobService";
+import { JOB_STATES_FOR_DISPLAY } from "../services/JobService";
 import './JobTableHeader.css'
 
 type JobTableHeaderProps = {
   queue: string
   jobSet: string
-  jobStates: JobStateViewModel[]
+  jobStates: string[]
   newestFirst: boolean
   onQueueChange: (queue: string) => void
   onJobSetChange: (jobSet: string) => void
-  onJobStatesChange: (jobStates: JobStateViewModel[]) => void
+  onJobStatesChange: (jobStates: string[]) => void
   onOrderChange: (newestFirst: boolean) => void
   onRefresh: () => void
 }
@@ -32,10 +32,19 @@ const ITEM_PADDING_TOP = 8;
 const menuProps: Partial<MenuProps> = {
   PaperProps: {
     style: {
-      maxHeight: ITEM_HEIGHT * VALID_JOB_STATE_VIEW_MODELS.length + ITEM_PADDING_TOP,
+      maxHeight: ITEM_HEIGHT * JOB_STATES_FOR_DISPLAY.length + ITEM_PADDING_TOP,
       width: 250,
     },
   },
+  anchorOrigin: {
+    vertical: "bottom",
+    horizontal: "left",
+  },
+  transformOrigin: {
+    vertical: "top",
+    horizontal: "left",
+  },
+  getContentAnchorEl: null,
 };
 
 export default function JobTableHeader(props: JobTableHeaderProps) {
@@ -72,8 +81,7 @@ export default function JobTableHeader(props: JobTableHeaderProps) {
             value={props.jobStates}
             onChange={(event) => {
               const newJobStates = (event.target.value as string[])
-                .filter(jobState => VALID_JOB_STATE_VIEW_MODELS.includes(jobState as JobStateViewModel))
-                .map(jobState => jobState as JobStateViewModel)
+                .filter(jobState => (JOB_STATES_FOR_DISPLAY).includes(jobState))
               props.onJobStatesChange(newJobStates)
             }}
             input={<Input/>}
@@ -81,9 +89,9 @@ export default function JobTableHeader(props: JobTableHeaderProps) {
             displayEmpty={true}
             MenuProps={menuProps}
           >
-            {VALID_JOB_STATE_VIEW_MODELS.map(jobState => (
+            {JOB_STATES_FOR_DISPLAY.map(jobState => (
               <MenuItem key={jobState} value={jobState}>
-                <Checkbox checked={props.jobStates.indexOf(jobState as JobStateViewModel) > -1}/>
+                <Checkbox checked={props.jobStates.indexOf(jobState) > -1}/>
                 <ListItemText primary={jobState}/>
               </MenuItem>
             ))}

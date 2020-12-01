@@ -3,12 +3,7 @@ import * as H from "history"
 import { match, withRouter } from 'react-router-dom'
 import queryString, { ParseOptions, StringifyOptions } from 'query-string'
 
-import JobService, {
-  isValidJobStateViewModel,
-  JobInfoViewModel,
-  JobStateViewModel,
-  VALID_JOB_STATE_VIEW_MODELS
-} from "../services/JobService"
+import JobService, { JOB_STATES_FOR_DISPLAY, JobInfoViewModel } from "../services/JobService"
 import Jobs from "../components/Jobs"
 import { updateArray } from "../utils";
 
@@ -27,14 +22,14 @@ interface JobsContainerState extends JobFilters {
 export interface JobFilters {
   queue: string
   jobSet: string
-  jobStates: JobStateViewModel[]
+  jobStates: string[]
   newestFirst: boolean
 }
 
 type JobFiltersQueryParams = {
   queue?: string
   job_set?: string
-  job_states?: JobStateViewModel[] | JobStateViewModel
+  job_states?: string[] | string
   newest_first?: boolean
 }
 
@@ -98,16 +93,16 @@ export function makeFiltersFromQueryString(query: string): JobFilters {
   return filters
 }
 
-function parseJobStates(jobStates: string[] | string): JobStateViewModel[] {
+function parseJobStates(jobStates: string[] | string): string[] {
   if (!Array.isArray(jobStates)) {
-    if ((VALID_JOB_STATE_VIEW_MODELS as string[]).includes(jobStates)) {
-      return [jobStates as JobStateViewModel]
+    if (JOB_STATES_FOR_DISPLAY.includes(jobStates)) {
+      return [jobStates]
     } else {
       return []
     }
   }
 
-  return jobStates.filter(isValidJobStateViewModel).map(jobState => jobState as JobStateViewModel)
+  return jobStates.filter(jobState => JOB_STATES_FOR_DISPLAY.includes(jobState))
 }
 
 class JobsContainer extends React.Component<JobsContainerProps, JobsContainerState> {
@@ -194,7 +189,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     })
   }
 
-  jobStatesChange(jobStates: JobStateViewModel[], callback: () => void) {
+  jobStatesChange(jobStates: string[], callback: () => void) {
     this.setState({
       ...this.state,
       jobInfos: [],

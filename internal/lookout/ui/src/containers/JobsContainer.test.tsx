@@ -1,5 +1,4 @@
 import { JobFilters, makeFiltersFromQueryString, makeQueryStringFromFilters } from "./JobsContainer";
-import { JobStateViewModel } from "../services/JobService";
 
 function assertStringHasQueryParams(expected: string[], actual: string) {
   const actualQueryParams = actual.split("&")
@@ -33,7 +32,7 @@ describe("makeQueryStringFromFilters", () => {
     const filters: JobFilters = {
       queue: "",
       jobSet: "",
-      jobStates: [JobStateViewModel.Queued],
+      jobStates: ["Queued"],
       newestFirst: false,
     }
     const queryString = makeQueryStringFromFilters(filters)
@@ -44,7 +43,7 @@ describe("makeQueryStringFromFilters", () => {
     const filters: JobFilters = {
       queue: "",
       jobSet: "",
-      jobStates: [JobStateViewModel.Queued, JobStateViewModel.Running, JobStateViewModel.Cancelled],
+      jobStates: ["Queued", "Running", "Cancelled"],
       newestFirst: false,
     }
     const queryString = makeQueryStringFromFilters(filters)
@@ -66,7 +65,7 @@ describe("makeQueryStringFromFilters", () => {
     const filters: JobFilters = {
       queue: "other-test",
       jobSet: "other-job-set",
-      jobStates: [JobStateViewModel.Pending, JobStateViewModel.Succeeded, JobStateViewModel.Failed],
+      jobStates: ["Pending", "Succeeded", "Failed"],
       newestFirst: true,
     }
     const queryString = makeQueryStringFromFilters(filters)
@@ -119,7 +118,7 @@ describe("makeFiltersFromQueryString", () => {
     expect(filters).toStrictEqual({
       queue: "",
       jobSet: "",
-      jobStates: [JobStateViewModel.Queued],
+      jobStates: ["Queued"],
       newestFirst: true,
     })
   })
@@ -130,7 +129,7 @@ describe("makeFiltersFromQueryString", () => {
     expect(filters).toStrictEqual({
       queue: "",
       jobSet: "",
-      jobStates: [JobStateViewModel.Queued, JobStateViewModel.Pending, JobStateViewModel.Running],
+      jobStates: ["Queued", "Pending", "Running"],
       newestFirst: true,
     })
   })
@@ -152,14 +151,14 @@ describe("makeFiltersFromQueryString", () => {
     expect(filters).toStrictEqual({
       queue: "test",
       jobSet: "job-set-1",
-      jobStates: [JobStateViewModel.Queued, JobStateViewModel.Succeeded, JobStateViewModel.Pending],
+      jobStates: ["Queued", "Succeeded", "Pending"],
       newestFirst: false,
     })
   })
 
   const nonExistentJobStatesCases = [
     ["job_states=SomethingElse", []],
-    ["job_states=Cancelled,SomethingElse,Succeeded,Failed", [JobStateViewModel.Cancelled, JobStateViewModel.Succeeded, JobStateViewModel.Failed]],
+    ["job_states=Cancelled,SomethingElse,Succeeded,Failed", ["Cancelled", "Succeeded", "Failed"]],
   ]
   test.each(nonExistentJobStatesCases)("non existent job states are ignored %p", (query, expectedJobStates) => {
     const filters = makeFiltersFromQueryString(query as string)
