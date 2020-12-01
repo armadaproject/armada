@@ -39,7 +39,7 @@ JOB_STATE_VIEW_MODEL_MAP.set(JobState.Cancelled, JobStateViewModel.Cancelled)
 
 const VIEW_MODEL_JOB_STATE_MAP = reverseMap(JOB_STATE_VIEW_MODEL_MAP)
 
-export const VALID_JOB_STATE_VIEW_MODELS = getValidJobStateViewModels(Object.values(JobStateViewModel))
+export const VALID_JOB_STATE_VIEW_MODELS = getValidJobStateViewModels()
 
 export default class JobService {
 
@@ -83,12 +83,9 @@ export default class JobService {
   }
 }
 
-function getValidJobStateViewModels(allJobStateViewModels: JobStateViewModel[]): JobStateViewModel[] {
-  const copy = allJobStateViewModels.slice()
+function getValidJobStateViewModels(): JobStateViewModel[] {
+  const copy = Object.values(JobStateViewModel).slice()
   const index = copy.indexOf(JobStateViewModel.Unknown)
-  if (index < 0) {
-    throw new Error("'Unknown' job state view model not found")
-  }
   copy.splice(index, 1)
   return copy
 }
