@@ -1,5 +1,12 @@
-import { LookoutApi, LookoutJobInfo } from '../openapi'
+import { LookoutApi, LookoutJobInfo, LookoutQueueInfo } from '../openapi'
 import { reverseMap } from "../utils";
+
+export type QueueInfo = {
+  queue: string
+  jobsQueued: number
+  jobsPending: number
+  jobsRunning: number
+}
 
 export type JobInfoViewModel = {
   jobId: string
@@ -37,8 +44,13 @@ export default class JobService {
     this.api = lookoutAPi
   }
 
-  getOverview() {
-    return this.api.overview()
+  async getOverview(): Promise<QueueInfo[]> {
+    const queueInfosFromApi = await this.api.overview()
+    if (!queueInfosFromApi.queues) {
+      return []
+    }
+
+    return queueInfosFromApi.queues.map(queueInfoToViewModel)
   }
 
   async getJobsInQueue(
@@ -68,6 +80,15 @@ export default class JobService {
       console.error(await e.json())
     }
     return []
+  }
+}
+
+function queueInfoToViewModel(queueInfo: LookoutQueueInfo): QueueInfo {
+  return {
+    queue: queueInfo.queue ?? "Unknown queue",
+    jobsQueued: queueInfo.jobsQueued ?? 0,
+    jobsPending: queueInfo.jobsPending ?? 0,
+    jobsRunning: queueInfo.jobsRunning ?? 0,
   }
 }
 
