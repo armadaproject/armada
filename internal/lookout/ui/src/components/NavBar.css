@@ -5,6 +5,20 @@
   align-items: center;
 }
 
+.toolbar .title {
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-start;
+  align-items: center;
+}
+
+.toolbar .title .logo {
+  max-width: 4em;
+  margin-right: 1em;
+  margin-top: 0.25em;
+  margin-bottom: 0.25em;
+}
+
 .toolbar .nav-items {
   height: 100%;
   display: flex;
