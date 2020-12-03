@@ -17,22 +17,30 @@ type UsageServer struct {
 	permissions      authorization.PermissionChecker
 	priorityHalfTime time.Duration
 	usageRepository  repository.UsageRepository
+	queueRepository  repository.QueueRepository
 }
 
 func NewUsageServer(
 	permissions authorization.PermissionChecker,
 	priorityHalfTime time.Duration,
-	usageRepository repository.UsageRepository) *UsageServer {
+	usageRepository repository.UsageRepository,
+	queueRepository repository.QueueRepository) *UsageServer {
 
 	return &UsageServer{
 		permissions:      permissions,
 		priorityHalfTime: priorityHalfTime,
-		usageRepository:  usageRepository}
+		usageRepository:  usageRepository,
+		queueRepository:  queueRepository}
 }
 
 func (s *UsageServer) ReportUsage(ctx context.Context, report *api.ClusterUsageReport) (*types.Empty, error) {
 	if e := checkPermission(s.permissions, ctx, permissions.ExecuteJobs); e != nil {
 		return nil, e
+	}
+
+	queues, err := s.queueRepository.GetAllQueues()
+	if err != nil {
+		return nil, err
 	}
 
 	reports, err := s.usageRepository.GetClusterUsageReports()
@@ -46,10 +54,22 @@ func (s *UsageServer) ReportUsage(ctx context.Context, report *api.ClusterUsageR
 	}
 
 	newPriority := scheduling.CalculatePriorityUpdateFromReports(reports, report, previousPriority, s.priorityHalfTime)
+	filteredPriority := filterPriority(queues, newPriority)
 
-	err = s.usageRepository.UpdateCluster(report, newPriority)
+	err = s.usageRepository.UpdateCluster(report, filteredPriority)
 	if err != nil {
 		return nil, err
 	}
 	return &types.Empty{}, nil
+}
+
+func filterPriority(queues []*api.Queue, priority map[string]float64) map[string]float64 {
+	filteredPriority := map[string]float64{}
+	for _, q := range queues {
+		priority, ok := priority[q.Name]
+		if ok {
+			filteredPriority[q.Name] = priority
+		}
+	}
+	return filteredPriority
 }

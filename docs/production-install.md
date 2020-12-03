@@ -1,6 +1,6 @@
 # Production Installation
 
-### Pre-requisites
+### Prerequisites
 
 * At least one running Kubernetes cluster
 
@@ -10,11 +10,12 @@ For production it is assumed that the server component runs inside a Kubernetes 
 
 The below sections will cover how to install the component into Kubernetes. 
 
-#### Recommended pre-requisites
+#### Recommended prerequisites
 
 * Cert manager installed (https://hub.helm.sh/charts/jetstack/cert-manager)
-* gRPC compatible ingress controller installed for gRPC ingress (such as https://github.com/helm/charts/tree/master/stable/nginx-ingress)
+* gRPC compatible ingress controller installed for gRPC ingress (such as https://github.com/kubernetes/ingress-nginx)
 * Redis installed (https://github.com/helm/charts/tree/master/stable/redis-ha)
+* Optionally install NATS streaming server (helm chart: https://github.com/nats-io/k8s/tree/master/helm/charts/stan, additional docs: https://docs.nats.io/nats-on-kubernetes/minimal-setup)
 
 Set `ARMADA_VERSION` environment variable and clone this repository repository with the same version tag as you are installing. For example to install version `v1.2.3`:
 ```bash
@@ -31,7 +32,8 @@ You'll need to provide custom config via the values file, below is a minimal tem
 ```yaml
 ingressClass: "nginx"
 clusterIssuer: "letsencrypt-prod"
-hostname: "server.component.url.com"
+hostnames: 
+  - "server.component.url.com"
 replicas: 3
 
 applicationConfig:
@@ -65,11 +67,25 @@ Then run:
 helm install ./deployment/armada --set image.tag=$ARMADA_VERSION -f ./server-values.yaml
 ```
 
+#### Using NATS Streaming
+You can optionally setup Armada to route all job events through persistent NATS Streaming subject before saving them to redis. This is useful if additional application needs to consume events from Armada as NATS subject contains job events from all job sets.
+
+Required additional server configuration is:
+
+```yaml
+eventsNats:
+  servers:
+    - "armada-nats-0.default.svc.cluster.local:4222"
+    - "armada-nats-1.default.svc.cluster.local:4222"
+    - "armada-nats-2.default.svc.cluster.local:4222"
+  clusterID: "nats-cluster-ID"
+  subject: "ArmadaEvents"
+  queueGroup: "ArmadaEventsRedisProcessor"
+```
+
 ### Installing Armada Executor
 
 For production the executor component should run inside the cluster it is "managing".
-
-**Please note by default the executor runs on the control plane. This is recommended but can be configured differently, see the Helm chart page [here](./helm/executor.md) for details.**
 
 To install the executor into a cluster, we will use Helm. 
 
@@ -86,7 +102,23 @@ applicationConfig:
       password: "password1"
 ```
 
-For all configuration options you can specify in your values file, see [executor Helm docs](./helm/executor.md).
+<br/>
+
+##### Moving Executor off the control plane
+
+By default, the executor runs on the control plane. 
+ 
+When that isn't an option, maybe because you are using a managed kubernetes service where you cannot access the master nodes.
+
+Add the following to your values file:
+ ```yaml
+nodeSelector: null
+tolerations: []
+```
+<br/>
+
+
+For other node configurations and all other executor options you can specify in your values file, see [executor Helm docs](./helm/executor.md).
 
 Fill in the appropriate values in the above template and save it as `executor-values.yaml`.
 
@@ -107,7 +139,7 @@ For authentication please create a config file described below.
 
 #### Config file
 
-By default config is loaded from `$HOME/.armadactl`.
+By default config is loaded from `$HOME/.armadactl.yaml`.
 
 You can also set location of the config file  using command line argument:
 
@@ -136,6 +168,11 @@ openIdConnect:
   scopes: []
 ```
 
+For Kerberos authentication, config file should contain this:
+```
+KerberosAuth:
+  enabled: true
+```
 
 #### Environment variables
 

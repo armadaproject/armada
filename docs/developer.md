@@ -13,37 +13,124 @@ To follow this section it is assumed you have:
 
 ### Running Armada locally
 
-It is possible to develop Armada locally with [kind](https://github.com/kubernetes-sigs/kind) Kubernetes clusters.
+There are two options for developing Armada locally. 
+
+##### Kind
+You can use a [kind](https://github.com/kubernetes-sigs/kind) Kubernetes clusters.
+ - The advantage of this is it is more like a real kubernetes cluster
+ - However it is a bit more effort to set it up and it can only emulate a cluster with as much resource as your computer has
+ 
+This is recommended if load doesn't matter or you are working on features that rely on integrating with kubernetes functionality
+  
+##### Fake-executor
+You can use fake-executor
+
+ - It is easy to setup, as it is just a Go program that emulates a kubernetes cluster
+ - It allows you emulate clusters much larger than your current machine
+ - As the jobs aren't really running, it won't properly emulate a real kubernetes cluster
+ 
+This is recommended when working on features that are purely Armada specific or if you want to get a high load of jobs running through Armada components 
+
+#### Setup Kind development
 
 1. Get kind (Installation help [here](https://kind.sigs.k8s.io/docs/user/quick-start/))
-```bash
-GO111MODULE="on" go get sigs.k8s.io/kind@v0.5.1
-``` 
+    ```bash
+    GO111MODULE="on" go get sigs.k8s.io/kind@v0.5.1
+    ``` 
 2. Create kind clusters (you can create any number of clusters)
 
-As this step is using Docker, it will require root to run
-
-```bash
-kind create cluster --name demoA --config ./example/kind-config.yaml
-kind create cluster --name demoB --config ./example/kind-config.yaml 
-```
+    As this step is using Docker, it will require root to run
+    
+    ```bash
+    kind create cluster --name demoA --config ./example/kind-config.yaml
+    kind create cluster --name demoB --config ./example/kind-config.yaml 
+    ```
 3. Start Redis
-```bash
-docker run -d -p 6379:6379 redis
-```
+    ```bash
+    docker run -d -p 6379:6379 redis
+    ```
+    
+    The following steps are shown in a terminal, but for development is it recommended they are run in your IDE
+
 4. Start server in one terminal
-```bash
-go run ./cmd/armada/main.go
-```
+    ```bash
+    go run ./cmd/armada/main.go
+    ```
 5. Start executor for demoA in a new terminal
-```bash
-KUBECONFIG=$(kind get kubeconfig-path --name="demoA") ARMADA_APPLICATION_CLUSTERID=demoA ARMADA_METRIC_PORT=9001 go run ./cmd/executor/main.go
-```
+    ```bash
+    KUBECONFIG=$(kind get kubeconfig-path --name="demoA") ARMADA_APPLICATION_CLUSTERID=demoA ARMADA_METRIC_PORT=9001 go run ./cmd/executor/main.go
+    ```
 6. Start executor for demoB in a new terminal
+    ```bash
+    KUBECONFIG=$(kind get kubeconfig-path --name="demoB") ARMADA_APPLICATION_CLUSTERID=demoB ARMADA_METRIC_PORT=9002 go run ./cmd/executor/main.go
+    ```
+
+#### Setup Fake-executor development
+
+1. Start Redis
+    ```bash
+    docker run -d -p 6379:6379 redis
+    ```
+
+    The following steps are shown in a terminal, but for development is it recommended they are run in your IDE
+
+2. Start server in one terminal
+    ```bash
+    go run ./cmd/armada/main.go
+    ```
+3. Start executor for demoA in a new terminal
+    ```bash
+    ARMADA_APPLICATION_CLUSTERID=demoA ARMADA_METRIC_PORT=9001 go run ./cmd/fakeexecutor/main.go
+    ```
+4. Start executor for demoB in a new terminal
+    ```bash
+    ARMADA_APPLICATION_CLUSTERID=demoB ARMADA_METRIC_PORT=9002 go run ./cmd/fakeexecutor/main.go
+    ```
+
+#### Optional components
+
+##### NATS Streaming
+Armada can be set up to use NATS Streaming as message queue for events.
+To run NATS Streaming for development you can use docker:
 ```bash
-KUBECONFIG=$(kind get kubeconfig-path --name="demoB") ARMADA_APPLICATION_CLUSTERID=demoB ARMADA_METRIC_PORT=9002 go run ./cmd/executor/main.go
+docker run  -p 4223:4223 -p 8223:8223 nats-streaming -p 4223 -m 8223
 ```
-7. Create queue & Submit job
+
+For armada configuration check end to end test setup:
+```bash
+go run ./cmd/armada/main.go --config /e2e/setup/nats/armada-config.yaml
+```
+
+##### Lookout - Armada UI
+Lookout requires Armada to be configured with NATS Streaming.
+To run Lookout, firstly build frontend:
+```bash
+cd ./internal/lookout/ui
+npm run 
+npm install 
+npm run openapi
+npm run build
+```
+Start a Postgres database:
+```bash
+docker run -p 5432:5432 -e POSTGRES_PASSWORD=psw postgres
+```
+Migrate database:
+```bash
+go run ./cmd/lookout/main.go --migrateDatabase
+```
+Then run go application:
+```bash
+go run ./cmd/lookout/main.go 
+```
+For ui development you can also use webpack server which proxies to go api.
+```bash
+npm run start
+```
+
+#### Testing your setup
+
+1. Create queue & Submit job
 ```bash
 go run ./cmd/armadactl/main.go create-queue test --priorityFactor 1
 go run ./cmd/armadactl/main.go submit ./example/jobs.yaml
@@ -83,6 +170,26 @@ To generate source code from proto files:
 
 ```
 make proto
+```
+
+### Usage metrics
+
+Some functionality the executor has is to report how much cpu/memory jobs are actually using.
+
+This is turned on by changing the executor config file to include:
+``` yaml
+metric:
+   exposeQueueUsageMetrics: true
+```
+
+The metrics are calculated by getting values from metrics-server.
+
+When developing locally with Kind, you will also need to deploy metrics server to allow this to work.
+
+The simplest way to do this it to apply this to your kind cluster:
+
+```
+kubectl apply -f https://gist.githubusercontent.com/hjacobs/69b6844ba8442fcbc2007da316499eb4/raw/5b8678ac5e11d6be45aa98ca40d17da70dcb974f/kind-metrics-server.yaml
 ```
 
 ### Command-line tools

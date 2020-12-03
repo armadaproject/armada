@@ -6,12 +6,14 @@ import (
 	"math/rand"
 	"time"
 
+	log "github.com/sirupsen/logrus"
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
+
 	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/G-Research/armada/internal/armada/repository"
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/pkg/api"
-
-	log "github.com/sirupsen/logrus"
 )
 
 const maxJobsPerLease = 10000
@@ -21,28 +23,36 @@ type leaseContext struct {
 	repository       repository.JobQueueRepository
 	onJobsLeased     func([]*api.Job)
 
-	ctx     context.Context
-	request *api.LeaseRequest
+	ctx       context.Context
+	clusterId string
 
-	clusterSchedulingInfo *api.ClusterSchedulingInfoReport
-	queueSchedulingInfo   map[*api.Queue]*QueueSchedulingInfo
-	resourceScarcity      map[string]float64
-	priorities            map[*api.Queue]QueuePriorityInfo
+	queueSchedulingInfo map[*api.Queue]*QueueSchedulingInfo
+	resourceScarcity    map[string]float64
+	priorities          map[*api.Queue]QueuePriorityInfo
+
+	nodeResources  []*nodeTypeAllocation
+	minimumJobSize map[string]resource.Quantity
 
 	queueCache map[string][]*api.Job
 }
 
-func LeaseJobs(
-	ctx context.Context,
+type nodeTypeAllocation struct {
+	taints             []v1.Taint
+	labels             map[string]string
+	nodeSize           common.ComputeResources
+	availableResources common.ComputeResourcesFloat
+}
+
+func LeaseJobs(ctx context.Context,
 	config *configuration.SchedulingConfig,
 	jobQueueRepository repository.JobQueueRepository,
-	onJobLease func([]*api.Job),
-	request *api.LeaseRequest,
+	onJobLease func([]*api.Job), request *api.LeaseRequest,
+	nodeResources []*nodeTypeAllocation,
 	activeClusterReports map[string]*api.ClusterUsageReport,
 	activeClusterLeaseJobReports map[string]*api.ClusterLeasedReport,
 	clusterPriorities map[string]map[string]float64,
-	activeQueues []*api.Queue,
-) ([]*api.Job, error) {
+	activeQueues []*api.Queue) ([]*api.Job, error) {
+
 	resourcesToSchedule := common.ComputeResources(request.Resources).AsFloat()
 	currentClusterReport, ok := activeClusterReports[request.ClusterId]
 
@@ -69,13 +79,14 @@ func LeaseJobs(
 		schedulingConfig: config,
 		repository:       jobQueueRepository,
 
-		ctx:     ctx,
-		request: request,
+		ctx:       ctx,
+		clusterId: request.ClusterId,
 
-		clusterSchedulingInfo: CreateClusterSchedulingInfoReport(request),
-		resourceScarcity:      scarcity,
-		queueSchedulingInfo:   activeQueueSchedulingInfo,
-		priorities:            activeQueuePriority,
+		resourceScarcity:    scarcity,
+		queueSchedulingInfo: activeQueueSchedulingInfo,
+		priorities:          activeQueuePriority,
+		nodeResources:       nodeResources,
+		minimumJobSize:      request.MinimumJobSize,
 
 		queueCache: map[string][]*api.Job{},
 
@@ -117,7 +128,7 @@ func (c *leaseContext) scheduleJobs(limit int) ([]*api.Job, error) {
 	if !c.schedulingConfig.UseProbabilisticSchedulingForAllResources {
 		assignedJobs, e := c.assignJobs(limit)
 		if e != nil {
-			log.Errorf("Error when leasing jobs for cluster %s: %s", c.request.ClusterId, e)
+			log.Errorf("Error when leasing jobs for cluster %s: %s", c.clusterId, e)
 			return nil, e
 		}
 		jobs = assignedJobs
@@ -126,15 +137,15 @@ func (c *leaseContext) scheduleJobs(limit int) ([]*api.Job, error) {
 
 	additionalJobs, e := c.distributeRemainder(limit)
 	if e != nil {
-		log.Errorf("Error when leasing jobs for cluster %s: %s", c.request.ClusterId, e)
+		log.Errorf("Error when leasing jobs for cluster %s: %s", c.clusterId, e)
 		return nil, e
 	}
 	jobs = append(jobs, additionalJobs...)
 
 	if c.schedulingConfig.UseProbabilisticSchedulingForAllResources {
-		log.WithField("clusterId", c.request.ClusterId).Infof("Leasing %d jobs. (using probabilistic scheduling)", len(jobs))
+		log.WithField("clusterId", c.clusterId).Infof("Leasing %d jobs. (using probabilistic scheduling)", len(jobs))
 	} else {
-		log.WithField("clusterId", c.request.ClusterId).Infof("Leasing %d jobs. (by remainder distribution: %d)", len(jobs), len(additionalJobs))
+		log.WithField("clusterId", c.clusterId).Infof("Leasing %d jobs. (by remainder distribution: %d)", len(jobs), len(additionalJobs))
 	}
 
 	return jobs, nil
@@ -175,7 +186,7 @@ func (c *leaseContext) distributeRemainder(limit int) ([]*api.Job, error) {
 	queueCount := len(c.queueSchedulingInfo)
 	emptySteps := 0
 
-	minimumJobSize := common.ComputeResources(c.request.MinimumJobSize).AsFloat()
+	minimumJobSize := common.ComputeResources(c.minimumJobSize).AsFloat()
 	minimumResource := c.schedulingConfig.MinimumResourceToSchedule.DeepCopy()
 	minimumResource.Max(minimumJobSize)
 
@@ -236,13 +247,24 @@ func (c *leaseContext) leaseJobs(queue *api.Queue, slice common.ComputeResources
 		}
 
 		candidates := make([]*api.Job, 0)
+		candidateNodes := map[*api.Job]*nodeTypeAllocation{}
+		consumedNodeResources := map[*nodeTypeAllocation]common.ComputeResourcesFloat{}
+
 		for _, job := range topJobs {
 			requirement := common.TotalResourceRequest(job.PodSpec).AsFloat()
 			remainder = slice.DeepCopy()
 			remainder.Sub(requirement)
-			if remainder.IsValid() && MatchSchedulingRequirements(job, c.clusterSchedulingInfo) {
-				slice = remainder
-				candidates = append(candidates, job)
+			if isLargeEnough(job, c.minimumJobSize) && remainder.IsValid() {
+				nodeType, ok := matchAnyNodeTypeAllocation(job, c.nodeResources, consumedNodeResources)
+				if ok {
+					slice = remainder
+					resourceRequest := requirement.DeepCopy()
+					resourceRequest.Add(consumedNodeResources[nodeType])
+					consumedNodeResources[nodeType] = resourceRequest
+
+					candidates = append(candidates, job)
+					candidateNodes[job] = nodeType
+				}
 			}
 			if len(candidates) >= limit {
 				break
@@ -250,13 +272,15 @@ func (c *leaseContext) leaseJobs(queue *api.Queue, slice common.ComputeResources
 		}
 		c.queueCache[queue.Name] = removeJobs(c.queueCache[queue.Name], candidates)
 
-		leased, e := c.repository.TryLeaseJobs(c.request.ClusterId, queue.Name, candidates)
+		leased, e := c.repository.TryLeaseJobs(c.clusterId, queue.Name, candidates)
 		if e != nil {
 			return nil, slice, e
 		}
 
 		jobs = append(jobs, leased...)
 		limit -= len(leased)
+
+		c.decreaseNodeResources(leased, candidateNodes)
 
 		// stop scheduling round if we leased less then batch (either the slice is too small or queue is empty)
 		// TODO: should we look at next batch?
@@ -271,6 +295,14 @@ func (c *leaseContext) leaseJobs(queue *api.Queue, slice common.ComputeResources
 	go c.onJobsLeased(jobs)
 
 	return jobs, slice, nil
+}
+
+func (c *leaseContext) decreaseNodeResources(leased []*api.Job, nodeAssignment map[*api.Job]*nodeTypeAllocation) {
+	for _, j := range leased {
+		resources := common.TotalResourceRequest(j.PodSpec).AsFloat()
+		nodeType := nodeAssignment[j]
+		nodeType.availableResources.Sub(resources)
+	}
 }
 
 func removeJobs(jobs []*api.Job, jobsToRemove []*api.Job) []*api.Job {
@@ -312,58 +344,4 @@ func pickQueueRandomly(shares map[*api.Queue]float64) *api.Queue {
 	}
 	log.Error("Could not randomly pick a queue, this should not happen!")
 	return lastQueue
-}
-
-func MatchSchedulingRequirements(job *api.Job, schedulingInfo *api.ClusterSchedulingInfoReport) bool {
-	return matchNodeLabels(job, schedulingInfo) &&
-		isAbleToFitOnAvailableNodes(job, schedulingInfo) &&
-		isLargeEnough(job, schedulingInfo)
-}
-
-func isAbleToFitOnAvailableNodes(job *api.Job, schedulingInfo *api.ClusterSchedulingInfoReport) bool {
-	resourceRequest := common.TotalResourceRequest(job.PodSpec).AsFloat()
-	for _, node := range schedulingInfo.NodeSizes {
-		var nodeSize common.ComputeResources = node.Resources
-		remainder := nodeSize.AsFloat()
-		remainder.Sub(resourceRequest)
-		if remainder.IsValid() {
-			return true
-		}
-	}
-	return false
-}
-
-func matchNodeLabels(job *api.Job, schedulingInfo *api.ClusterSchedulingInfoReport) bool {
-	if len(job.RequiredNodeLabels) == 0 {
-		return true
-	}
-
-Labels:
-	for _, labeling := range schedulingInfo.AvailableLabels {
-		for k, v := range job.RequiredNodeLabels {
-			if labeling.Labels[k] != v {
-				continue Labels
-			}
-		}
-		return true
-	}
-	return false
-}
-
-func filterPriorityMapByKeys(original map[*api.Queue]QueuePriorityInfo, keys []*api.Queue) map[*api.Queue]QueuePriorityInfo {
-	result := make(map[*api.Queue]QueuePriorityInfo)
-	for _, key := range keys {
-		existing, ok := original[key]
-		if ok {
-			result[key] = existing
-		}
-	}
-	return result
-}
-
-func isLargeEnough(job *api.Job, schedulingInfo *api.ClusterSchedulingInfoReport) bool {
-	resourceRequest := common.TotalResourceRequest(job.PodSpec)
-	minimum := common.ComputeResources(schedulingInfo.MinimumJobSize)
-	resourceRequest.Sub(minimum)
-	return resourceRequest.IsValid()
 }

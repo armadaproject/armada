@@ -22,6 +22,7 @@ permissionGroupMapping:
   submit_jobs: ["everyone"]
   submit_any_jobs: ["everyone"]
   create_queue: ["everyone"]
+  delete_queue: ["everyone"]
   cancel_jobs: ["everyone"]
   cancel_any_jobs: ["everyone"]
   watch_all_events: ["everyone"]
@@ -38,6 +39,9 @@ scheduling:
   lease:
     expireAfter: 15m
     expiryLoopInterval: 5s
+  maxRetries: 5
+queueManagement:
+  defaultPriorityFactor: 1000
 eventRetention:
   expiryEnabled: true
   retentionDuration: 336h # Specified as a Go duration

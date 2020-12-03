@@ -31,8 +31,9 @@ type ArmadaConfig struct {
 	PermissionGroupMapping map[permissions.Permission][]string
 	PermissionScopeMapping map[permissions.Permission][]string
 
-	Scheduling     SchedulingConfig
-	EventRetention EventRetentionPolicy
+	Scheduling      SchedulingConfig
+	QueueManagement QueueManagementConfig
+	EventRetention  EventRetentionPolicy
 }
 
 type OpenIdAuthenticationConfig struct {
@@ -58,6 +59,8 @@ type SchedulingConfig struct {
 	MaximalResourceFractionToSchedulePerQueue map[string]float64
 	MaximalResourceFractionPerQueue           map[string]float64
 	Lease                                     LeaseSettings
+	DefaultJobLimits                          common.ComputeResources
+	MaxRetries                                uint // Maximum number of retries before a Job is failed
 }
 
 type EventRetentionPolicy struct {
@@ -81,4 +84,9 @@ type NatsConfig struct {
 	ClusterID  string
 	Subject    string
 	QueueGroup string
+}
+
+type QueueManagementConfig struct {
+	AutoCreateQueues      bool
+	DefaultPriorityFactor float64
 }

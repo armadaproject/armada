@@ -22,7 +22,7 @@ func SwaggerJsonTemplate() string {
 		"    \"version\": \"version not set\"\n" +
 		"  },\n" +
 		"  \"paths\": {\n" +
-		"    \"/v1/job-set/{Queue}/{Id}\": {\n" +
+		"    \"/v1/job-set/{queue}/{id}\": {\n" +
 		"      \"post\": {\n" +
 		"        \"produces\": [\n" +
 		"          \"application/ndjson-stream\"\n" +
@@ -34,13 +34,13 @@ func SwaggerJsonTemplate() string {
 		"        \"parameters\": [\n" +
 		"          {\n" +
 		"            \"type\": \"string\",\n" +
-		"            \"name\": \"Queue\",\n" +
+		"            \"name\": \"queue\",\n" +
 		"            \"in\": \"path\",\n" +
 		"            \"required\": true\n" +
 		"          },\n" +
 		"          {\n" +
 		"            \"type\": \"string\",\n" +
-		"            \"name\": \"Id\",\n" +
+		"            \"name\": \"id\",\n" +
 		"            \"in\": \"path\",\n" +
 		"            \"required\": true\n" +
 		"          },\n" +
@@ -57,7 +57,22 @@ func SwaggerJsonTemplate() string {
 		"          \"200\": {\n" +
 		"            \"description\": \"A successful response.(streaming responses)\",\n" +
 		"            \"schema\": {\n" +
-		"              \"$ref\": \"#/x-stream-definitions/apiEventStreamMessage\"\n" +
+		"              \"type\": \"file\",\n" +
+		"              \"title\": \"Stream result of apiEventStreamMessage\",\n" +
+		"              \"properties\": {\n" +
+		"                \"error\": {\n" +
+		"                  \"$ref\": \"#/definitions/runtimeStreamError\"\n" +
+		"                },\n" +
+		"                \"result\": {\n" +
+		"                  \"$ref\": \"#/definitions/apiEventStreamMessage\"\n" +
+		"                }\n" +
+		"              }\n" +
+		"            }\n" +
+		"          },\n" +
+		"          \"default\": {\n" +
+		"            \"description\": \"An unexpected error response.\",\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/runtimeError\"\n" +
 		"            }\n" +
 		"          }\n" +
 		"        }\n" +
@@ -85,6 +100,12 @@ func SwaggerJsonTemplate() string {
 		"            \"schema\": {\n" +
 		"              \"$ref\": \"#/definitions/apiCancellationResult\"\n" +
 		"            }\n" +
+		"          },\n" +
+		"          \"default\": {\n" +
+		"            \"description\": \"An unexpected error response.\",\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/runtimeError\"\n" +
+		"            }\n" +
 		"          }\n" +
 		"        }\n" +
 		"      }\n" +
@@ -111,11 +132,17 @@ func SwaggerJsonTemplate() string {
 		"            \"schema\": {\n" +
 		"              \"$ref\": \"#/definitions/apiJobSubmitResponse\"\n" +
 		"            }\n" +
+		"          },\n" +
+		"          \"default\": {\n" +
+		"            \"description\": \"An unexpected error response.\",\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/runtimeError\"\n" +
+		"            }\n" +
 		"          }\n" +
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
-		"    \"/v1/queue/{Name}\": {\n" +
+		"    \"/v1/queue/{name}\": {\n" +
 		"      \"get\": {\n" +
 		"        \"tags\": [\n" +
 		"          \"Submit\"\n" +
@@ -124,7 +151,7 @@ func SwaggerJsonTemplate() string {
 		"        \"parameters\": [\n" +
 		"          {\n" +
 		"            \"type\": \"string\",\n" +
-		"            \"name\": \"Name\",\n" +
+		"            \"name\": \"name\",\n" +
 		"            \"in\": \"path\",\n" +
 		"            \"required\": true\n" +
 		"          }\n" +
@@ -134,6 +161,12 @@ func SwaggerJsonTemplate() string {
 		"            \"description\": \"A successful response.\",\n" +
 		"            \"schema\": {\n" +
 		"              \"$ref\": \"#/definitions/apiQueueInfo\"\n" +
+		"            }\n" +
+		"          },\n" +
+		"          \"default\": {\n" +
+		"            \"description\": \"An unexpected error response.\",\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/runtimeError\"\n" +
 		"            }\n" +
 		"          }\n" +
 		"        }\n" +
@@ -146,7 +179,7 @@ func SwaggerJsonTemplate() string {
 		"        \"parameters\": [\n" +
 		"          {\n" +
 		"            \"type\": \"string\",\n" +
-		"            \"name\": \"Name\",\n" +
+		"            \"name\": \"name\",\n" +
 		"            \"in\": \"path\",\n" +
 		"            \"required\": true\n" +
 		"          },\n" +
@@ -163,6 +196,38 @@ func SwaggerJsonTemplate() string {
 		"          \"200\": {\n" +
 		"            \"description\": \"A successful response.\",\n" +
 		"            \"schema\": {}\n" +
+		"          },\n" +
+		"          \"default\": {\n" +
+		"            \"description\": \"An unexpected error response.\",\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/runtimeError\"\n" +
+		"            }\n" +
+		"          }\n" +
+		"        }\n" +
+		"      },\n" +
+		"      \"delete\": {\n" +
+		"        \"tags\": [\n" +
+		"          \"Submit\"\n" +
+		"        ],\n" +
+		"        \"operationId\": \"DeleteQueue\",\n" +
+		"        \"parameters\": [\n" +
+		"          {\n" +
+		"            \"type\": \"string\",\n" +
+		"            \"name\": \"name\",\n" +
+		"            \"in\": \"path\",\n" +
+		"            \"required\": true\n" +
+		"          }\n" +
+		"        ],\n" +
+		"        \"responses\": {\n" +
+		"          \"200\": {\n" +
+		"            \"description\": \"A successful response.\",\n" +
+		"            \"schema\": {}\n" +
+		"          },\n" +
+		"          \"default\": {\n" +
+		"            \"description\": \"An unexpected error response.\",\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/runtimeError\"\n" +
+		"            }\n" +
 		"          }\n" +
 		"        }\n" +
 		"      }\n" +
@@ -173,7 +238,7 @@ func SwaggerJsonTemplate() string {
 		"      \"type\": \"object\",\n" +
 		"      \"title\": \"swagger:model\",\n" +
 		"      \"properties\": {\n" +
-		"        \"CancelledIds\": {\n" +
+		"        \"cancelledIds\": {\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"type\": \"string\"\n" +
@@ -235,7 +300,7 @@ func SwaggerJsonTemplate() string {
 		"      \"type\": \"object\",\n" +
 		"      \"title\": \"swagger:model\",\n" +
 		"      \"properties\": {\n" +
-		"        \"Id\": {\n" +
+		"        \"id\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"message\": {\n" +
@@ -246,45 +311,45 @@ func SwaggerJsonTemplate() string {
 		"    \"apiJob\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
-		"        \"Annotations\": {\n" +
+		"        \"annotations\": {\n" +
 		"          \"type\": \"object\",\n" +
 		"          \"additionalProperties\": {\n" +
 		"            \"type\": \"string\"\n" +
 		"          }\n" +
 		"        },\n" +
-		"        \"Created\": {\n" +
+		"        \"created\": {\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"format\": \"date-time\"\n" +
 		"        },\n" +
-		"        \"Id\": {\n" +
+		"        \"id\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"JobSetId\": {\n" +
+		"        \"jobSetId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"Labels\": {\n" +
+		"        \"labels\": {\n" +
 		"          \"type\": \"object\",\n" +
 		"          \"additionalProperties\": {\n" +
 		"            \"type\": \"string\"\n" +
 		"          }\n" +
 		"        },\n" +
-		"        \"Namespace\": {\n" +
+		"        \"namespace\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"Owner\": {\n" +
+		"        \"owner\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"PodSpec\": {\n" +
+		"        \"podSpec\": {\n" +
 		"          \"$ref\": \"#/definitions/v1PodSpec\"\n" +
 		"        },\n" +
-		"        \"Priority\": {\n" +
+		"        \"priority\": {\n" +
 		"          \"type\": \"number\",\n" +
 		"          \"format\": \"double\"\n" +
 		"        },\n" +
-		"        \"Queue\": {\n" +
+		"        \"queue\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"RequiredNodeLabels\": {\n" +
+		"        \"requiredNodeLabels\": {\n" +
 		"          \"type\": \"object\",\n" +
 		"          \"additionalProperties\": {\n" +
 		"            \"type\": \"string\"\n" +
@@ -296,13 +361,13 @@ func SwaggerJsonTemplate() string {
 		"      \"type\": \"object\",\n" +
 		"      \"title\": \"swagger:model\",\n" +
 		"      \"properties\": {\n" +
-		"        \"JobId\": {\n" +
+		"        \"jobId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"JobSetId\": {\n" +
+		"        \"jobSetId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"Queue\": {\n" +
+		"        \"queue\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        }\n" +
 		"      }\n" +
@@ -310,17 +375,17 @@ func SwaggerJsonTemplate() string {
 		"    \"apiJobCancelledEvent\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
-		"        \"Created\": {\n" +
+		"        \"created\": {\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"format\": \"date-time\"\n" +
 		"        },\n" +
-		"        \"JobId\": {\n" +
+		"        \"jobId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"JobSetId\": {\n" +
+		"        \"jobSetId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"Queue\": {\n" +
+		"        \"queue\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        }\n" +
 		"      }\n" +
@@ -328,17 +393,17 @@ func SwaggerJsonTemplate() string {
 		"    \"apiJobCancellingEvent\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
-		"        \"Created\": {\n" +
+		"        \"created\": {\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"format\": \"date-time\"\n" +
 		"        },\n" +
-		"        \"JobId\": {\n" +
+		"        \"jobId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"JobSetId\": {\n" +
+		"        \"jobSetId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"Queue\": {\n" +
+		"        \"queue\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        }\n" +
 		"      }\n" +
@@ -346,36 +411,36 @@ func SwaggerJsonTemplate() string {
 		"    \"apiJobFailedEvent\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
-		"        \"ClusterId\": {\n" +
+		"        \"clusterId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"Created\": {\n" +
+		"        \"created\": {\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"format\": \"date-time\"\n" +
 		"        },\n" +
-		"        \"ExitCodes\": {\n" +
+		"        \"exitCodes\": {\n" +
 		"          \"type\": \"object\",\n" +
 		"          \"additionalProperties\": {\n" +
 		"            \"type\": \"integer\",\n" +
 		"            \"format\": \"int32\"\n" +
 		"          }\n" +
 		"        },\n" +
-		"        \"JobId\": {\n" +
+		"        \"jobId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"JobSetId\": {\n" +
+		"        \"jobSetId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"KubernetesId\": {\n" +
+		"        \"kubernetesId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"NodeName\": {\n" +
+		"        \"nodeName\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"Queue\": {\n" +
+		"        \"queue\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"Reason\": {\n" +
+		"        \"reason\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        }\n" +
 		"      }\n" +
@@ -383,17 +448,17 @@ func SwaggerJsonTemplate() string {
 		"    \"apiJobLeaseExpiredEvent\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
-		"        \"Created\": {\n" +
+		"        \"created\": {\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"format\": \"date-time\"\n" +
 		"        },\n" +
-		"        \"JobId\": {\n" +
+		"        \"jobId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"JobSetId\": {\n" +
+		"        \"jobSetId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"Queue\": {\n" +
+		"        \"queue\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        }\n" +
 		"      }\n" +
@@ -401,23 +466,23 @@ func SwaggerJsonTemplate() string {
 		"    \"apiJobLeaseReturnedEvent\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
-		"        \"ClusterId\": {\n" +
+		"        \"clusterId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"Created\": {\n" +
+		"        \"created\": {\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"format\": \"date-time\"\n" +
 		"        },\n" +
-		"        \"JobId\": {\n" +
+		"        \"jobId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"JobSetId\": {\n" +
+		"        \"jobSetId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"Queue\": {\n" +
+		"        \"queue\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"Reason\": {\n" +
+		"        \"reason\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        }\n" +
 		"      }\n" +
@@ -425,20 +490,20 @@ func SwaggerJsonTemplate() string {
 		"    \"apiJobLeasedEvent\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
-		"        \"ClusterId\": {\n" +
+		"        \"clusterId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"Created\": {\n" +
+		"        \"created\": {\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"format\": \"date-time\"\n" +
 		"        },\n" +
-		"        \"JobId\": {\n" +
+		"        \"jobId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"JobSetId\": {\n" +
+		"        \"jobSetId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"Queue\": {\n" +
+		"        \"queue\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        }\n" +
 		"      }\n" +
@@ -446,23 +511,23 @@ func SwaggerJsonTemplate() string {
 		"    \"apiJobPendingEvent\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
-		"        \"ClusterId\": {\n" +
+		"        \"clusterId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"Created\": {\n" +
+		"        \"created\": {\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"format\": \"date-time\"\n" +
 		"        },\n" +
-		"        \"JobId\": {\n" +
+		"        \"jobId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"JobSetId\": {\n" +
+		"        \"jobSetId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"KubernetesId\": {\n" +
+		"        \"kubernetesId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"Queue\": {\n" +
+		"        \"queue\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        }\n" +
 		"      }\n" +
@@ -470,17 +535,17 @@ func SwaggerJsonTemplate() string {
 		"    \"apiJobQueuedEvent\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
-		"        \"Created\": {\n" +
+		"        \"created\": {\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"format\": \"date-time\"\n" +
 		"        },\n" +
-		"        \"JobId\": {\n" +
+		"        \"jobId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"JobSetId\": {\n" +
+		"        \"jobSetId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"Queue\": {\n" +
+		"        \"queue\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        }\n" +
 		"      }\n" +
@@ -488,17 +553,17 @@ func SwaggerJsonTemplate() string {
 		"    \"apiJobReprioritizedEvent\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
-		"        \"Created\": {\n" +
+		"        \"created\": {\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"format\": \"date-time\"\n" +
 		"        },\n" +
-		"        \"JobId\": {\n" +
+		"        \"jobId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"JobSetId\": {\n" +
+		"        \"jobSetId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"Queue\": {\n" +
+		"        \"queue\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        }\n" +
 		"      }\n" +
@@ -506,26 +571,26 @@ func SwaggerJsonTemplate() string {
 		"    \"apiJobRunningEvent\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
-		"        \"ClusterId\": {\n" +
+		"        \"clusterId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"Created\": {\n" +
+		"        \"created\": {\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"format\": \"date-time\"\n" +
 		"        },\n" +
-		"        \"JobId\": {\n" +
+		"        \"jobId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"JobSetId\": {\n" +
+		"        \"jobSetId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"KubernetesId\": {\n" +
+		"        \"kubernetesId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"NodeName\": {\n" +
+		"        \"nodeName\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"Queue\": {\n" +
+		"        \"queue\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        }\n" +
 		"      }\n" +
@@ -533,14 +598,14 @@ func SwaggerJsonTemplate() string {
 		"    \"apiJobSetInfo\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
-		"        \"LeasedJobs\": {\n" +
+		"        \"leasedJobs\": {\n" +
 		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int32\"\n" +
 		"        },\n" +
-		"        \"Name\": {\n" +
+		"        \"name\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"QueuedJobs\": {\n" +
+		"        \"queuedJobs\": {\n" +
 		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int32\"\n" +
 		"        }\n" +
@@ -550,18 +615,17 @@ func SwaggerJsonTemplate() string {
 		"      \"type\": \"object\",\n" +
 		"      \"title\": \"swagger:model\",\n" +
 		"      \"properties\": {\n" +
-		"        \"FromMessageId\": {\n" +
+		"        \"fromMessageId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"Id\": {\n" +
+		"        \"id\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"Queue\": {\n" +
+		"        \"queue\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"Watch\": {\n" +
-		"          \"type\": \"boolean\",\n" +
-		"          \"format\": \"boolean\"\n" +
+		"        \"watch\": {\n" +
+		"          \"type\": \"boolean\"\n" +
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
@@ -569,16 +633,16 @@ func SwaggerJsonTemplate() string {
 		"      \"type\": \"object\",\n" +
 		"      \"title\": \"swagger:model\",\n" +
 		"      \"properties\": {\n" +
-		"        \"JobRequestItems\": {\n" +
+		"        \"jobRequestItems\": {\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/apiJobSubmitRequestItem\"\n" +
 		"          }\n" +
 		"        },\n" +
-		"        \"JobSetId\": {\n" +
+		"        \"jobSetId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"Queue\": {\n" +
+		"        \"queue\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        }\n" +
 		"      }\n" +
@@ -586,29 +650,29 @@ func SwaggerJsonTemplate() string {
 		"    \"apiJobSubmitRequestItem\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
-		"        \"Annotations\": {\n" +
+		"        \"annotations\": {\n" +
 		"          \"type\": \"object\",\n" +
 		"          \"additionalProperties\": {\n" +
 		"            \"type\": \"string\"\n" +
 		"          }\n" +
 		"        },\n" +
-		"        \"Labels\": {\n" +
+		"        \"labels\": {\n" +
 		"          \"type\": \"object\",\n" +
 		"          \"additionalProperties\": {\n" +
 		"            \"type\": \"string\"\n" +
 		"          }\n" +
 		"        },\n" +
-		"        \"Namespace\": {\n" +
+		"        \"namespace\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"PodSpec\": {\n" +
+		"        \"podSpec\": {\n" +
 		"          \"$ref\": \"#/definitions/v1PodSpec\"\n" +
 		"        },\n" +
-		"        \"Priority\": {\n" +
+		"        \"priority\": {\n" +
 		"          \"type\": \"number\",\n" +
 		"          \"format\": \"double\"\n" +
 		"        },\n" +
-		"        \"RequiredNodeLabels\": {\n" +
+		"        \"requiredNodeLabels\": {\n" +
 		"          \"type\": \"object\",\n" +
 		"          \"additionalProperties\": {\n" +
 		"            \"type\": \"string\"\n" +
@@ -620,7 +684,7 @@ func SwaggerJsonTemplate() string {
 		"      \"type\": \"object\",\n" +
 		"      \"title\": \"swagger:model\",\n" +
 		"      \"properties\": {\n" +
-		"        \"JobResponseItems\": {\n" +
+		"        \"jobResponseItems\": {\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/apiJobSubmitResponseItem\"\n" +
@@ -631,10 +695,10 @@ func SwaggerJsonTemplate() string {
 		"    \"apiJobSubmitResponseItem\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
-		"        \"Error\": {\n" +
+		"        \"error\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"JobId\": {\n" +
+		"        \"jobId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        }\n" +
 		"      }\n" +
@@ -642,20 +706,20 @@ func SwaggerJsonTemplate() string {
 		"    \"apiJobSubmittedEvent\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
-		"        \"Created\": {\n" +
+		"        \"created\": {\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"format\": \"date-time\"\n" +
 		"        },\n" +
-		"        \"Job\": {\n" +
+		"        \"job\": {\n" +
 		"          \"$ref\": \"#/definitions/apiJob\"\n" +
 		"        },\n" +
-		"        \"JobId\": {\n" +
+		"        \"jobId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"JobSetId\": {\n" +
+		"        \"jobSetId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"Queue\": {\n" +
+		"        \"queue\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        }\n" +
 		"      }\n" +
@@ -663,26 +727,26 @@ func SwaggerJsonTemplate() string {
 		"    \"apiJobSucceededEvent\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
-		"        \"ClusterId\": {\n" +
+		"        \"clusterId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"Created\": {\n" +
+		"        \"created\": {\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"format\": \"date-time\"\n" +
 		"        },\n" +
-		"        \"JobId\": {\n" +
+		"        \"jobId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"JobSetId\": {\n" +
+		"        \"jobSetId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"KubernetesId\": {\n" +
+		"        \"kubernetesId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"NodeName\": {\n" +
+		"        \"nodeName\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"Queue\": {\n" +
+		"        \"queue\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        }\n" +
 		"      }\n" +
@@ -690,20 +754,20 @@ func SwaggerJsonTemplate() string {
 		"    \"apiJobTerminatedEvent\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
-		"        \"ClusterId\": {\n" +
+		"        \"clusterId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"Created\": {\n" +
+		"        \"created\": {\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"format\": \"date-time\"\n" +
 		"        },\n" +
-		"        \"JobId\": {\n" +
+		"        \"jobId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"JobSetId\": {\n" +
+		"        \"jobSetId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"Queue\": {\n" +
+		"        \"queue\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        }\n" +
 		"      }\n" +
@@ -711,29 +775,29 @@ func SwaggerJsonTemplate() string {
 		"    \"apiJobUnableToScheduleEvent\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
-		"        \"ClusterId\": {\n" +
+		"        \"clusterId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"Created\": {\n" +
+		"        \"created\": {\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"format\": \"date-time\"\n" +
 		"        },\n" +
-		"        \"JobId\": {\n" +
+		"        \"jobId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"JobSetId\": {\n" +
+		"        \"jobSetId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"KubernetesId\": {\n" +
+		"        \"kubernetesId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"NodeName\": {\n" +
+		"        \"nodeName\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"Queue\": {\n" +
+		"        \"queue\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"Reason\": {\n" +
+		"        \"reason\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        }\n" +
 		"      }\n" +
@@ -741,32 +805,32 @@ func SwaggerJsonTemplate() string {
 		"    \"apiJobUtilisationEvent\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
-		"        \"ClusterId\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"Created\": {\n" +
-		"          \"type\": \"string\",\n" +
-		"          \"format\": \"date-time\"\n" +
-		"        },\n" +
-		"        \"JobId\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"JobSetId\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"KubernetesId\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
 		"        \"MaxResourcesForPeriod\": {\n" +
 		"          \"type\": \"object\",\n" +
 		"          \"additionalProperties\": {\n" +
 		"            \"$ref\": \"#/definitions/resourceQuantity\"\n" +
 		"          }\n" +
 		"        },\n" +
-		"        \"NodeName\": {\n" +
+		"        \"clusterId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"Queue\": {\n" +
+		"        \"created\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"format\": \"date-time\"\n" +
+		"        },\n" +
+		"        \"jobId\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"jobSetId\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"kubernetesId\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"nodeName\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"queue\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        }\n" +
 		"      }\n" +
@@ -775,27 +839,27 @@ func SwaggerJsonTemplate() string {
 		"      \"type\": \"object\",\n" +
 		"      \"title\": \"swagger:model\",\n" +
 		"      \"properties\": {\n" +
-		"        \"GroupOwners\": {\n" +
+		"        \"groupOwners\": {\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"type\": \"string\"\n" +
 		"          }\n" +
 		"        },\n" +
-		"        \"Name\": {\n" +
+		"        \"name\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"PriorityFactor\": {\n" +
+		"        \"priorityFactor\": {\n" +
 		"          \"type\": \"number\",\n" +
 		"          \"format\": \"double\"\n" +
 		"        },\n" +
-		"        \"ResourceLimits\": {\n" +
+		"        \"resourceLimits\": {\n" +
 		"          \"type\": \"object\",\n" +
 		"          \"additionalProperties\": {\n" +
 		"            \"type\": \"number\",\n" +
 		"            \"format\": \"double\"\n" +
 		"          }\n" +
 		"        },\n" +
-		"        \"UserOwners\": {\n" +
+		"        \"userOwners\": {\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"type\": \"string\"\n" +
@@ -807,13 +871,13 @@ func SwaggerJsonTemplate() string {
 		"      \"type\": \"object\",\n" +
 		"      \"title\": \"swagger:model\",\n" +
 		"      \"properties\": {\n" +
-		"        \"ActiveJobSets\": {\n" +
+		"        \"activeJobSets\": {\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/apiJobSetInfo\"\n" +
 		"          }\n" +
 		"        },\n" +
-		"        \"Name\": {\n" +
+		"        \"name\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        }\n" +
 		"      }\n" +
@@ -845,7 +909,7 @@ func SwaggerJsonTemplate() string {
 		"    \"protobufAny\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
-		"        \"type_url\": {\n" +
+		"        \"typeUrl\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"value\": {\n" +
@@ -860,6 +924,27 @@ func SwaggerJsonTemplate() string {
 		"      \"title\": \"Quantity is a fixed-point representation of a number.\\nIt provides convenient marshaling/unmarshaling in JSON and YAML,\\nin addition to String() and AsInt64() accessors.\",\n" +
 		"      \"x-go-package\": \"k8s.io/apimachinery/pkg/api/resource\"\n" +
 		"    },\n" +
+		"    \"runtimeError\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"code\": {\n" +
+		"          \"type\": \"integer\",\n" +
+		"          \"format\": \"int32\"\n" +
+		"        },\n" +
+		"        \"details\": {\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/protobufAny\"\n" +
+		"          }\n" +
+		"        },\n" +
+		"        \"error\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"message\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
 		"    \"runtimeStreamError\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
@@ -869,15 +954,15 @@ func SwaggerJsonTemplate() string {
 		"            \"$ref\": \"#/definitions/protobufAny\"\n" +
 		"          }\n" +
 		"        },\n" +
-		"        \"grpc_code\": {\n" +
+		"        \"grpcCode\": {\n" +
 		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int32\"\n" +
 		"        },\n" +
-		"        \"http_code\": {\n" +
+		"        \"httpCode\": {\n" +
 		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int32\"\n" +
 		"        },\n" +
-		"        \"http_status\": {\n" +
+		"        \"httpStatus\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"message\": {\n" +
@@ -3731,20 +3816,6 @@ func SwaggerJsonTemplate() string {
 		"        }\n" +
 		"      },\n" +
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
-		"    }\n" +
-		"  },\n" +
-		"  \"x-stream-definitions\": {\n" +
-		"    \"apiEventStreamMessage\": {\n" +
-		"      \"properties\": {\n" +
-		"        \"error\": {\n" +
-		"          \"$ref\": \"#/definitions/runtimeStreamError\"\n" +
-		"        },\n" +
-		"        \"result\": {\n" +
-		"          \"$ref\": \"#/definitions/apiEventStreamMessage\"\n" +
-		"        }\n" +
-		"      },\n" +
-		"      \"title\": \"Stream result of apiEventStreamMessage\",\n" +
-		"      \"type\": \"file\"\n" +
 		"    }\n" +
 		"  }\n" +
 		"}"

@@ -22,7 +22,7 @@ const jobDoneAnnotation = "reported_done"
 
 type LeaseService interface {
 	ReturnLease(pod *v1.Pod) error
-	RequestJobLeases(availableResource *common.ComputeResources, availableLabels []map[string]string, nodeSizes []common.ComputeResources, leasedResourceByQueue map[string]common.ComputeResources) ([]*api.Job, error)
+	RequestJobLeases(availableResource *common.ComputeResources, nodes []api.NodeInfo, leasedResourceByQueue map[string]common.ComputeResources) ([]*api.Job, error)
 	ReportDone(pods []*v1.Pod) error
 }
 
@@ -49,11 +49,7 @@ func NewJobLeaseService(
 		minimumJobSize:  minimumJobSize}
 }
 
-func (jobLeaseService *JobLeaseService) RequestJobLeases(availableResource *common.ComputeResources, availableLabels []map[string]string, nodeSizes []common.ComputeResources, leasedResourceByQueue map[string]common.ComputeResources) ([]*api.Job, error) {
-	labeling := []*api.NodeLabeling{}
-	for _, l := range availableLabels {
-		labeling = append(labeling, &api.NodeLabeling{Labels: l})
-	}
+func (jobLeaseService *JobLeaseService) RequestJobLeases(availableResource *common.ComputeResources, nodes []api.NodeInfo, leasedResourceByQueue map[string]common.ComputeResources) ([]*api.Job, error) {
 	leasedQueueReports := make([]*api.QueueLeasedReport, 0, len(leasedResourceByQueue))
 	for queueName, leasedResource := range leasedResourceByQueue {
 		leasedQueueReport := &api.QueueLeasedReport{
@@ -71,9 +67,8 @@ func (jobLeaseService *JobLeaseService) RequestJobLeases(availableResource *comm
 	leaseRequest := api.LeaseRequest{
 		ClusterId:           jobLeaseService.clusterContext.GetClusterId(),
 		Resources:           *availableResource,
-		AvailableLabels:     labeling,
 		ClusterLeasedReport: clusterLeasedReport,
-		NodeSizes:           convertIntoComputeResource(nodeSizes),
+		Nodes:               nodes,
 		MinimumJobSize:      jobLeaseService.minimumJobSize,
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)

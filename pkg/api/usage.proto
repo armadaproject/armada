@@ -11,17 +11,17 @@ option (gogoproto.goproto_stringer_all) = false;
 option (gogoproto.stringer_all) = true;
 
 message QueueReport {
-    string Name = 1;
-    map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> Resources = 2 [(gogoproto.nullable) = false];
-    map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> ResourcesUsed = 3 [(gogoproto.nullable) = false];
+    string name = 1;
+    map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> resources = 2 [(gogoproto.nullable) = false];
+    map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> resources_used = 3 [(gogoproto.nullable) = false];
 }
 
 message ClusterUsageReport {
-    string ClusterId = 1;
-    google.protobuf.Timestamp ReportTime = 2 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
-    repeated QueueReport Queues = 3;
-    map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> ClusterCapacity = 4 [(gogoproto.nullable) = false];
-    map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> ClusterAvailableCapacity = 5 [(gogoproto.nullable) = false];
+    string cluster_id = 1;
+    google.protobuf.Timestamp report_time = 2 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+    repeated QueueReport queues = 3;
+    map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> cluster_capacity = 4 [(gogoproto.nullable) = false];
+    map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> cluster_available_capacity = 5 [(gogoproto.nullable) = false];
 }
 
 service Usage {

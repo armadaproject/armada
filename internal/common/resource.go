@@ -108,6 +108,9 @@ func (a ComputeResources) IsValid() bool {
 }
 
 func (a ComputeResources) Sub(b ComputeResources) {
+	if b == nil {
+		return
+	}
 	for k, v := range b {
 		existing, ok := a[k]
 		if ok {
@@ -179,6 +182,9 @@ func (a ComputeResourcesFloat) IsValid() bool {
 }
 
 func (a ComputeResourcesFloat) Sub(b ComputeResourcesFloat) {
+	if b == nil {
+		return
+	}
 	for k, v := range b {
 		existing, ok := a[k]
 		if ok {
@@ -190,6 +196,9 @@ func (a ComputeResourcesFloat) Sub(b ComputeResourcesFloat) {
 }
 
 func (a ComputeResourcesFloat) Add(b ComputeResourcesFloat) {
+	if b == nil {
+		return
+	}
 	for k, v := range b {
 		existing, ok := a[k]
 		if ok {

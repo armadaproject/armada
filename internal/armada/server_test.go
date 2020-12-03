@@ -60,6 +60,25 @@ func TestSubmitJob(t *testing.T) {
 	})
 }
 
+func TestAutomQueueCreation(t *testing.T) {
+	withRunningServer(func(client api.SubmitClient, leaseClient api.AggregatedQueueClient, ctx context.Context) {
+
+		cpu, _ := resource.ParseQuantity("1")
+		memory, _ := resource.ParseQuantity("512Mi")
+
+		jobId := SubmitJob(client, ctx, cpu, memory, t)
+		leasedResponse, err := leaseJobs(leaseClient, ctx, common.ComputeResources{"cpu": cpu, "memory": memory})
+		assert.Empty(t, err)
+
+		assert.Equal(t, 1, len(leasedResponse.Job))
+		assert.Equal(t, jobId, leasedResponse.Job[0].Id)
+
+		info, err := client.GetQueueInfo(ctx, &api.QueueInfoRequest{Name: "test"})
+		assert.NoError(t, err)
+		assert.Equal(t, "set", info.ActiveJobSets[0].Name)
+	})
+}
+
 func TestCancelJob(t *testing.T) {
 	withRunningServer(func(client api.SubmitClient, leaseClient api.AggregatedQueueClient, ctx context.Context) {
 
@@ -95,10 +114,11 @@ func TestCancelJob(t *testing.T) {
 }
 
 func leaseJobs(leaseClient api.AggregatedQueueClient, ctx context.Context, availableResource common.ComputeResources) (*api.JobLease, error) {
+	nodeResources := common.ComputeResources{"cpu": resource.MustParse("5"), "memory": resource.MustParse("5Gi")}
 	return leaseClient.LeaseJobs(ctx, &api.LeaseRequest{
 		ClusterId: "test-cluster",
 		Resources: availableResource,
-		NodeSizes: []api.ComputeResource{{Resources: common.ComputeResources{"cpu": resource.MustParse("5"), "memory": resource.MustParse("5Gi")}}},
+		Nodes:     []api.NodeInfo{{Name: "testNode", AllocatableResources: nodeResources, AvailableResources: nodeResources}},
 	})
 }
 
@@ -156,6 +176,10 @@ func withRunningServer(action func(client api.SubmitClient, leaseClient api.Aggr
 		},
 		Scheduling: configuration.SchedulingConfig{
 			QueueLeaseBatchSize: 100,
+		},
+		QueueManagement: configuration.QueueManagementConfig{
+			AutoCreateQueues:      true,
+			DefaultPriorityFactor: 1000,
 		},
 	})
 	defer shutdown()

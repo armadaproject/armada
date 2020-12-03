@@ -39,7 +39,11 @@ func TestSubmitServer_SubmitJob_WhenPodCannotBeScheduled(t *testing.T) {
 		err := s.schedulingInfoRepository.UpdateClusterSchedulingInfo(&api.ClusterSchedulingInfoReport{
 			ClusterId:  "test-cluster",
 			ReportTime: time.Now(),
-			NodeSizes:  []api.ComputeResource{{Resources: common.ComputeResources{"cpu": resource.MustParse("0"), "memory": resource.MustParse("0")}}},
+			NodeTypes: []*api.NodeType{{
+				Taints:               nil,
+				Labels:               nil,
+				AllocatableResources: common.ComputeResources{"cpu": resource.MustParse("0"), "memory": resource.MustParse("0")},
+			}},
 		})
 		assert.Empty(t, err)
 
@@ -152,11 +156,11 @@ func withSubmitServer(action func(s *SubmitServer, events repository.EventReposi
 	// using real redis instance as miniredis does not support streams
 	client := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 10})
 
-	jobRepo := repository.NewRedisJobRepository(client)
+	jobRepo := repository.NewRedisJobRepository(client, nil)
 	queueRepo := repository.NewRedisQueueRepository(client)
 	eventRepo := repository.NewRedisEventRepository(client, configuration.EventRetentionPolicy{ExpiryEnabled: false})
 	schedulingInfoRepository := repository.NewRedisSchedulingInfoRepository(client)
-	server := NewSubmitServer(&fakePermissionChecker{}, jobRepo, queueRepo, eventRepo, schedulingInfoRepository)
+	server := NewSubmitServer(&FakePermissionChecker{}, jobRepo, queueRepo, eventRepo, schedulingInfoRepository, &configuration.QueueManagementConfig{DefaultPriorityFactor: 1})
 
 	err := queueRepo.CreateQueue(&api.Queue{Name: "test"})
 	if err != nil {
@@ -166,7 +170,9 @@ func withSubmitServer(action func(s *SubmitServer, events repository.EventReposi
 	err = schedulingInfoRepository.UpdateClusterSchedulingInfo(&api.ClusterSchedulingInfoReport{
 		ClusterId:  "test-cluster",
 		ReportTime: time.Now(),
-		NodeSizes:  []api.ComputeResource{{Resources: common.ComputeResources{"cpu": resource.MustParse("100"), "memory": resource.MustParse("100Gi")}}},
+		NodeTypes: []*api.NodeType{{
+			AllocatableResources: common.ComputeResources{"cpu": resource.MustParse("100"), "memory": resource.MustParse("100Gi")},
+		}},
 	})
 	if err != nil {
 		panic(err)

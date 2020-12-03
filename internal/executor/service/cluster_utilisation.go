@@ -8,9 +8,10 @@ import (
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/G-Research/armada/internal/common"
+	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/executor/context"
 	"github.com/G-Research/armada/internal/executor/domain"
-	"github.com/G-Research/armada/internal/executor/util"
+	. "github.com/G-Research/armada/internal/executor/util"
 	"github.com/G-Research/armada/pkg/api"
 )
 
@@ -25,19 +26,23 @@ type ClusterUtilisationService struct {
 	queueUtilisationService PodUtilisationService
 	usageClient             api.UsageClient
 	trackedNodeLabels       []string
+	toleratedTaints         map[string]bool
 }
 
 func NewClusterUtilisationService(
 	clusterContext context.ClusterContext,
 	queueUtilisationService PodUtilisationService,
 	usageClient api.UsageClient,
-	trackedNodeLabels []string) *ClusterUtilisationService {
+	trackedNodeLabels []string,
+	toleratedTaints []string) *ClusterUtilisationService {
 
 	return &ClusterUtilisationService{
 		clusterContext:          clusterContext,
 		queueUtilisationService: queueUtilisationService,
 		usageClient:             usageClient,
-		trackedNodeLabels:       trackedNodeLabels}
+		trackedNodeLabels:       trackedNodeLabels,
+		toleratedTaints:         util.StringListToSet(toleratedTaints),
+	}
 }
 
 func (clusterUtilisationService *ClusterUtilisationService) ReportClusterUtilisation() {
@@ -81,8 +86,7 @@ func (clusterUtilisationService *ClusterUtilisationService) ReportClusterUtilisa
 
 type ClusterAvailableCapacityReport struct {
 	AvailableCapacity *common.ComputeResources
-	NodeLabels        []map[string]string
-	NodesSizes        []common.ComputeResources
+	Nodes             []api.NodeInfo
 }
 
 func (clusterUtilisationService *ClusterUtilisationService) GetAvailableClusterCapacity() (*ClusterAvailableCapacityReport, error) {
@@ -97,7 +101,7 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAvailableClusterC
 	}
 
 	allPodsRequiringResource := getAllPodsRequiringResourceOnProcessingNodes(allPods, processingNodes)
-	allNonCompletePodsRequiringResource := util.FilterNonCompletedPods(allPodsRequiringResource)
+	allNonCompletePodsRequiringResource := FilterNonCompletedPods(allPodsRequiringResource)
 
 	totalNodeResource := common.CalculateTotalResource(processingNodes)
 	totalPodResource := common.CalculateTotalResourceRequest(allNonCompletePodsRequiringResource)
@@ -105,14 +109,41 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAvailableClusterC
 	availableResource := totalNodeResource.DeepCopy()
 	availableResource.Sub(totalPodResource)
 
-	availableLabels := getDistinctNodesLabels(clusterUtilisationService.trackedNodeLabels, processingNodes)
-	nodeSizes := getLargestNodeSizes(allPods, processingNodes)
+	nodesUsage := getAllocatedResourceByNodeName(allNonCompletePodsRequiringResource)
+	nodes := []api.NodeInfo{}
+	for _, n := range processingNodes {
+		allocatable := common.FromResourceList(n.Status.Allocatable)
+		available := allocatable.DeepCopy()
+		available.Sub(nodesUsage[n.Name])
+
+		nodes = append(nodes, api.NodeInfo{
+			Name:                 n.Name,
+			Labels:               clusterUtilisationService.filterTrackedLabels(n.Labels),
+			Taints:               n.Spec.Taints,
+			AllocatableResources: allocatable,
+			AvailableResources:   available,
+		})
+	}
 
 	return &ClusterAvailableCapacityReport{
 		AvailableCapacity: &availableResource,
-		NodeLabels:        availableLabels,
-		NodesSizes:        nodeSizes,
+		Nodes:             nodes,
 	}, nil
+}
+
+func getAllocatedResourceByNodeName(pods []*v1.Pod) map[string]common.ComputeResources {
+	allocations := map[string]common.ComputeResources{}
+	for _, pod := range pods {
+		nodeName := pod.Spec.NodeName
+		resourceRequest := common.TotalResourceRequest(&pod.Spec)
+
+		_, ok := allocations[nodeName]
+		if !ok {
+			allocations[nodeName] = common.ComputeResources{}
+		}
+		allocations[nodeName].Add(resourceRequest)
+	}
+	return allocations
 }
 
 func (clusterUtilisationService *ClusterUtilisationService) GetTotalAllocatableClusterCapacity() (*common.ComputeResources, error) {
@@ -146,10 +177,10 @@ func getResourceRequiredByUnmanagedPodsOnNodes(allPods []*v1.Pod, nodes []*v1.No
 }
 
 func getUnmanagedPodsByNode(allPods []*v1.Pod, nodes []*v1.Node) map[*v1.Node][]*v1.Pod {
-	unmanagedPods := util.FilterPods(allPods, func(pod *v1.Pod) bool {
-		return !util.IsManagedPod(pod)
+	unmanagedPods := FilterPods(allPods, func(pod *v1.Pod) bool {
+		return !IsManagedPod(pod)
 	})
-	activeUnmanagedPods := util.FilterPodsWithPhase(unmanagedPods, v1.PodRunning)
+	activeUnmanagedPods := FilterPodsWithPhase(unmanagedPods, v1.PodRunning)
 
 	return getPodsByNode(activeUnmanagedPods, nodes)
 }
@@ -160,7 +191,7 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAllAvailableProce
 		return []*v1.Node{}, err
 	}
 
-	return filterAvailableProcessingNodes(allNodes), nil
+	return clusterUtilisationService.filterAvailableProcessingNodes(allNodes), nil
 }
 
 func (clusterUtilisationService *ClusterUtilisationService) reportUsage(clusterUsage *api.ClusterUsageReport) error {
@@ -171,11 +202,11 @@ func (clusterUtilisationService *ClusterUtilisationService) reportUsage(clusterU
 	return err
 }
 
-func filterAvailableProcessingNodes(nodes []*v1.Node) []*v1.Node {
+func (clusterUtilisationService *ClusterUtilisationService) filterAvailableProcessingNodes(nodes []*v1.Node) []*v1.Node {
 	processingNodes := make([]*v1.Node, 0, len(nodes))
 
 	for _, node := range nodes {
-		if isAvailableProcessingNode(node) {
+		if clusterUtilisationService.isAvailableProcessingNode(node) {
 			processingNodes = append(processingNodes, node)
 		}
 	}
@@ -183,22 +214,16 @@ func filterAvailableProcessingNodes(nodes []*v1.Node) []*v1.Node {
 	return processingNodes
 }
 
-func isAvailableProcessingNode(node *v1.Node) bool {
+func (clusterUtilisationService *ClusterUtilisationService) isAvailableProcessingNode(node *v1.Node) bool {
 	if node.Spec.Unschedulable {
 		return false
 	}
 
-	noSchedule := false
-
 	for _, taint := range node.Spec.Taints {
-		if taint.Effect == v1.TaintEffectNoSchedule {
-			noSchedule = true
-			break
+		if taint.Effect == v1.TaintEffectNoSchedule &&
+			!clusterUtilisationService.toleratedTaints[taint.Key] {
+			return false
 		}
-	}
-
-	if noSchedule {
-		return false
 	}
 
 	return true
@@ -215,7 +240,7 @@ func getAllPodsRequiringResourceOnProcessingNodes(allPods []*v1.Pod, processingN
 	for _, pod := range allPods {
 		if _, presentOnProcessingNode := nodeMap[pod.Spec.NodeName]; presentOnProcessingNode {
 			podsUsingResourceOnProcessingNodes = append(podsUsingResourceOnProcessingNodes, pod)
-		} else if util.IsManagedPod(pod) && pod.Spec.NodeName == "" {
+		} else if IsManagedPod(pod) && pod.Spec.NodeName == "" {
 			podsUsingResourceOnProcessingNodes = append(podsUsingResourceOnProcessingNodes, pod)
 		}
 	}
@@ -248,7 +273,7 @@ func (clusterUtilisationService *ClusterUtilisationService) getAllRunningManaged
 	if err != nil {
 		return []*v1.Pod{}, err
 	}
-	allActiveManagedPods = util.FilterPodsWithPhase(allActiveManagedPods, v1.PodRunning)
+	allActiveManagedPods = FilterPodsWithPhase(allActiveManagedPods, v1.PodRunning)
 	return allActiveManagedPods, nil
 }
 
@@ -298,6 +323,17 @@ func (clusterUtilisationService *ClusterUtilisationService) getUsageByQueue(pods
 	return utilisationByQueue
 }
 
+func (clusterUtilisationService *ClusterUtilisationService) filterTrackedLabels(labels map[string]string) map[string]string {
+	result := map[string]string{}
+	for _, k := range clusterUtilisationService.trackedNodeLabels {
+		v, ok := labels[k]
+		if ok {
+			result[k] = v
+		}
+	}
+	return result
+}
+
 func getAllocationByQueue(pods []*v1.Pod) map[string]common.ComputeResources {
 	utilisationByQueue := make(map[string]common.ComputeResources)
 
@@ -318,74 +354,4 @@ func getAllocationByQueue(pods []*v1.Pod) map[string]common.ComputeResources {
 	}
 
 	return utilisationByQueue
-}
-
-func getDistinctNodesLabels(labels []string, nodes []*v1.Node) []map[string]string {
-	result := []map[string]string{}
-	existing := map[string]bool{}
-	for _, n := range nodes {
-		selectedLabels := map[string]string{}
-		id := ""
-		for _, key := range labels {
-			value, ok := n.Labels[key]
-			if ok {
-				selectedLabels[key] = value
-			}
-			id += "|" + value
-		}
-		if !existing[id] {
-			result = append(result, selectedLabels)
-			existing[id] = true
-		}
-	}
-	return result
-}
-
-func getAllocatableResourceByNode(allPods []*v1.Pod, nodes []*v1.Node) map[*v1.Node]common.ComputeResources {
-	unmanagedPodsByNode := getUnmanagedPodsByNode(allPods, nodes)
-	result := make(map[*v1.Node]common.ComputeResources, len(unmanagedPodsByNode))
-	for node, unmanagedPods := range unmanagedPodsByNode {
-		allocatableResource := common.FromResourceList(node.Status.Allocatable)
-		allocatableResource.Sub(common.CalculateTotalResourceRequest(unmanagedPods))
-		if !allocatableResource.IsValid() {
-			result[node] = common.ComputeResources{}
-		} else {
-			result[node] = allocatableResource
-		}
-	}
-
-	return result
-}
-
-func getLargestNodeSizes(allPods []*v1.Pod, nodes []*v1.Node) []common.ComputeResources {
-	allocatableResourceForNodes := getAllocatableResourceByNode(allPods, nodes)
-
-	nodeSizes := make(map[*v1.Node]common.ComputeResources)
-	for node, allocatableResource := range allocatableResourceForNodes {
-		shouldAdd := true
-		nodesToRemove := make([]*v1.Node, 0, 10)
-		for existingNode, existingNodeSize := range nodeSizes {
-			if allocatableResource.Dominates(existingNodeSize) {
-				nodesToRemove = append(nodesToRemove, existingNode)
-			}
-			if existingNodeSize.Dominates(allocatableResource) || existingNodeSize.Equal(allocatableResource) {
-				shouldAdd = false
-				break
-			}
-		}
-
-		if shouldAdd {
-			nodeSizes[node] = allocatableResource
-		}
-		for _, node := range nodesToRemove {
-			delete(nodeSizes, node)
-		}
-	}
-
-	result := make([]common.ComputeResources, 0, len(nodeSizes))
-	for _, size := range nodeSizes {
-		result = append(result, size)
-	}
-
-	return result
 }

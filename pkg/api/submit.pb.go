@@ -9,6 +9,7 @@ import (
 	fmt "fmt"
 	io "io"
 	math "math"
+	math_bits "math/bits"
 	reflect "reflect"
 	strings "strings"
 
@@ -18,6 +19,8 @@ import (
 	types "github.com/gogo/protobuf/types"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	grpc "google.golang.org/grpc"
+	codes "google.golang.org/grpc/codes"
+	status "google.golang.org/grpc/status"
 	v1 "k8s.io/api/core/v1"
 )
 
@@ -30,15 +33,15 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.GoGoProtoPackageIsVersion2 // please upgrade the proto package
+const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
 
 type JobSubmitRequestItem struct {
-	Priority           float64           `protobuf:"fixed64,1,opt,name=Priority,proto3" json:"Priority,omitempty"`
-	Namespace          string            `protobuf:"bytes,3,opt,name=Namespace,proto3" json:"Namespace,omitempty"`
-	Labels             map[string]string `protobuf:"bytes,4,rep,name=Labels,proto3" json:"Labels,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
-	Annotations        map[string]string `protobuf:"bytes,5,rep,name=Annotations,proto3" json:"Annotations,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
-	RequiredNodeLabels map[string]string `protobuf:"bytes,6,rep,name=RequiredNodeLabels,proto3" json:"RequiredNodeLabels,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
-	PodSpec            *v1.PodSpec       `protobuf:"bytes,2,opt,name=PodSpec,proto3" json:"PodSpec,omitempty"`
+	Priority           float64           `protobuf:"fixed64,1,opt,name=priority,proto3" json:"priority,omitempty"`
+	Namespace          string            `protobuf:"bytes,3,opt,name=namespace,proto3" json:"namespace,omitempty"`
+	Labels             map[string]string `protobuf:"bytes,4,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	Annotations        map[string]string `protobuf:"bytes,5,rep,name=annotations,proto3" json:"annotations,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	RequiredNodeLabels map[string]string `protobuf:"bytes,6,rep,name=required_node_labels,json=requiredNodeLabels,proto3" json:"requiredNodeLabels,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"` // Deprecated: Do not use.
+	PodSpec            *v1.PodSpec       `protobuf:"bytes,2,opt,name=pod_spec,json=podSpec,proto3" json:"podSpec,omitempty"`
 }
 
 func (m *JobSubmitRequestItem) Reset()      { *m = JobSubmitRequestItem{} }
@@ -54,7 +57,7 @@ func (m *JobSubmitRequestItem) XXX_Marshal(b []byte, deterministic bool) ([]byte
 		return xxx_messageInfo_JobSubmitRequestItem.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -101,6 +104,7 @@ func (m *JobSubmitRequestItem) GetAnnotations() map[string]string {
 	return nil
 }
 
+// Deprecated: Do not use.
 func (m *JobSubmitRequestItem) GetRequiredNodeLabels() map[string]string {
 	if m != nil {
 		return m.RequiredNodeLabels
@@ -117,9 +121,9 @@ func (m *JobSubmitRequestItem) GetPodSpec() *v1.PodSpec {
 
 // swagger:model
 type JobSubmitRequest struct {
-	Queue           string                  `protobuf:"bytes,1,opt,name=Queue,proto3" json:"Queue,omitempty"`
-	JobSetId        string                  `protobuf:"bytes,2,opt,name=JobSetId,proto3" json:"JobSetId,omitempty"`
-	JobRequestItems []*JobSubmitRequestItem `protobuf:"bytes,3,rep,name=JobRequestItems,proto3" json:"JobRequestItems,omitempty"`
+	Queue           string                  `protobuf:"bytes,1,opt,name=queue,proto3" json:"queue,omitempty"`
+	JobSetId        string                  `protobuf:"bytes,2,opt,name=job_set_id,json=jobSetId,proto3" json:"jobSetId,omitempty"`
+	JobRequestItems []*JobSubmitRequestItem `protobuf:"bytes,3,rep,name=job_request_items,json=jobRequestItems,proto3" json:"jobRequestItems,omitempty"`
 }
 
 func (m *JobSubmitRequest) Reset()      { *m = JobSubmitRequest{} }
@@ -135,7 +139,7 @@ func (m *JobSubmitRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, er
 		return xxx_messageInfo_JobSubmitRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -177,9 +181,9 @@ func (m *JobSubmitRequest) GetJobRequestItems() []*JobSubmitRequestItem {
 
 // swagger:model
 type JobCancelRequest struct {
-	JobId    string `protobuf:"bytes,1,opt,name=JobId,proto3" json:"JobId,omitempty"`
-	JobSetId string `protobuf:"bytes,2,opt,name=JobSetId,proto3" json:"JobSetId,omitempty"`
-	Queue    string `protobuf:"bytes,3,opt,name=Queue,proto3" json:"Queue,omitempty"`
+	JobId    string `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"jobId,omitempty"`
+	JobSetId string `protobuf:"bytes,2,opt,name=job_set_id,json=jobSetId,proto3" json:"jobSetId,omitempty"`
+	Queue    string `protobuf:"bytes,3,opt,name=queue,proto3" json:"queue,omitempty"`
 }
 
 func (m *JobCancelRequest) Reset()      { *m = JobCancelRequest{} }
@@ -195,7 +199,7 @@ func (m *JobCancelRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, er
 		return xxx_messageInfo_JobCancelRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -236,8 +240,8 @@ func (m *JobCancelRequest) GetQueue() string {
 }
 
 type JobSubmitResponseItem struct {
-	JobId string `protobuf:"bytes,1,opt,name=JobId,proto3" json:"JobId,omitempty"`
-	Error string `protobuf:"bytes,2,opt,name=Error,proto3" json:"Error,omitempty"`
+	JobId string `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"jobId,omitempty"`
+	Error string `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
 }
 
 func (m *JobSubmitResponseItem) Reset()      { *m = JobSubmitResponseItem{} }
@@ -253,7 +257,7 @@ func (m *JobSubmitResponseItem) XXX_Marshal(b []byte, deterministic bool) ([]byt
 		return xxx_messageInfo_JobSubmitResponseItem.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -288,7 +292,7 @@ func (m *JobSubmitResponseItem) GetError() string {
 
 // swagger:model
 type JobSubmitResponse struct {
-	JobResponseItems []*JobSubmitResponseItem `protobuf:"bytes,1,rep,name=JobResponseItems,proto3" json:"JobResponseItems,omitempty"`
+	JobResponseItems []*JobSubmitResponseItem `protobuf:"bytes,1,rep,name=job_response_items,json=jobResponseItems,proto3" json:"jobResponseItems,omitempty"`
 }
 
 func (m *JobSubmitResponse) Reset()      { *m = JobSubmitResponse{} }
@@ -304,7 +308,7 @@ func (m *JobSubmitResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, e
 		return xxx_messageInfo_JobSubmitResponse.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -332,11 +336,11 @@ func (m *JobSubmitResponse) GetJobResponseItems() []*JobSubmitResponseItem {
 
 // swagger:model
 type Queue struct {
-	Name           string             `protobuf:"bytes,1,opt,name=Name,proto3" json:"Name,omitempty"`
-	PriorityFactor float64            `protobuf:"fixed64,2,opt,name=PriorityFactor,proto3" json:"PriorityFactor,omitempty"`
-	UserOwners     []string           `protobuf:"bytes,3,rep,name=UserOwners,proto3" json:"UserOwners,omitempty"`
-	GroupOwners    []string           `protobuf:"bytes,4,rep,name=GroupOwners,proto3" json:"GroupOwners,omitempty"`
-	ResourceLimits map[string]float64 `protobuf:"bytes,5,rep,name=ResourceLimits,proto3" json:"ResourceLimits,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"fixed64,2,opt,name=value,proto3"`
+	Name           string             `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	PriorityFactor float64            `protobuf:"fixed64,2,opt,name=priority_factor,json=priorityFactor,proto3" json:"priorityFactor,omitempty"`
+	UserOwners     []string           `protobuf:"bytes,3,rep,name=user_owners,json=userOwners,proto3" json:"userOwners,omitempty"`
+	GroupOwners    []string           `protobuf:"bytes,4,rep,name=group_owners,json=groupOwners,proto3" json:"groupOwners,omitempty"`
+	ResourceLimits map[string]float64 `protobuf:"bytes,5,rep,name=resource_limits,json=resourceLimits,proto3" json:"resourceLimits,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"fixed64,2,opt,name=value,proto3"`
 }
 
 func (m *Queue) Reset()      { *m = Queue{} }
@@ -352,7 +356,7 @@ func (m *Queue) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_Queue.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -408,7 +412,7 @@ func (m *Queue) GetResourceLimits() map[string]float64 {
 
 // swagger:model
 type CancellationResult struct {
-	CancelledIds []string `protobuf:"bytes,1,rep,name=CancelledIds,proto3" json:"CancelledIds,omitempty"`
+	CancelledIds []string `protobuf:"bytes,1,rep,name=cancelled_ids,json=cancelledIds,proto3" json:"cancelledIds"`
 }
 
 func (m *CancellationResult) Reset()      { *m = CancellationResult{} }
@@ -424,7 +428,7 @@ func (m *CancellationResult) XXX_Marshal(b []byte, deterministic bool) ([]byte, 
 		return xxx_messageInfo_CancellationResult.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -452,7 +456,7 @@ func (m *CancellationResult) GetCancelledIds() []string {
 
 //swagger:model
 type QueueInfoRequest struct {
-	Name string `protobuf:"bytes,1,opt,name=Name,proto3" json:"Name,omitempty"`
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 }
 
 func (m *QueueInfoRequest) Reset()      { *m = QueueInfoRequest{} }
@@ -468,7 +472,7 @@ func (m *QueueInfoRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, er
 		return xxx_messageInfo_QueueInfoRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -495,15 +499,59 @@ func (m *QueueInfoRequest) GetName() string {
 }
 
 //swagger:model
+type QueueDeleteRequest struct {
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+}
+
+func (m *QueueDeleteRequest) Reset()      { *m = QueueDeleteRequest{} }
+func (*QueueDeleteRequest) ProtoMessage() {}
+func (*QueueDeleteRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_e998bacb27df16c1, []int{8}
+}
+func (m *QueueDeleteRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *QueueDeleteRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_QueueDeleteRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *QueueDeleteRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_QueueDeleteRequest.Merge(m, src)
+}
+func (m *QueueDeleteRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *QueueDeleteRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_QueueDeleteRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_QueueDeleteRequest proto.InternalMessageInfo
+
+func (m *QueueDeleteRequest) GetName() string {
+	if m != nil {
+		return m.Name
+	}
+	return ""
+}
+
+//swagger:model
 type QueueInfo struct {
-	Name          string        `protobuf:"bytes,1,opt,name=Name,proto3" json:"Name,omitempty"`
-	ActiveJobSets []*JobSetInfo `protobuf:"bytes,2,rep,name=ActiveJobSets,proto3" json:"ActiveJobSets,omitempty"`
+	Name          string        `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	ActiveJobSets []*JobSetInfo `protobuf:"bytes,2,rep,name=active_job_sets,json=activeJobSets,proto3" json:"activeJobSets,omitempty"`
 }
 
 func (m *QueueInfo) Reset()      { *m = QueueInfo{} }
 func (*QueueInfo) ProtoMessage() {}
 func (*QueueInfo) Descriptor() ([]byte, []int) {
-	return fileDescriptor_e998bacb27df16c1, []int{8}
+	return fileDescriptor_e998bacb27df16c1, []int{9}
 }
 func (m *QueueInfo) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -513,7 +561,7 @@ func (m *QueueInfo) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_QueueInfo.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -547,15 +595,15 @@ func (m *QueueInfo) GetActiveJobSets() []*JobSetInfo {
 }
 
 type JobSetInfo struct {
-	Name       string `protobuf:"bytes,1,opt,name=Name,proto3" json:"Name,omitempty"`
-	QueuedJobs int32  `protobuf:"varint,2,opt,name=QueuedJobs,proto3" json:"QueuedJobs,omitempty"`
-	LeasedJobs int32  `protobuf:"varint,3,opt,name=LeasedJobs,proto3" json:"LeasedJobs,omitempty"`
+	Name       string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	QueuedJobs int32  `protobuf:"varint,2,opt,name=queued_jobs,json=queuedJobs,proto3" json:"queuedJobs,omitempty"`
+	LeasedJobs int32  `protobuf:"varint,3,opt,name=leased_jobs,json=leasedJobs,proto3" json:"leasedJobs,omitempty"`
 }
 
 func (m *JobSetInfo) Reset()      { *m = JobSetInfo{} }
 func (*JobSetInfo) ProtoMessage() {}
 func (*JobSetInfo) Descriptor() ([]byte, []int) {
-	return fileDescriptor_e998bacb27df16c1, []int{9}
+	return fileDescriptor_e998bacb27df16c1, []int{10}
 }
 func (m *JobSetInfo) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -565,7 +613,7 @@ func (m *JobSetInfo) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_JobSetInfo.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -618,6 +666,7 @@ func init() {
 	proto.RegisterMapType((map[string]float64)(nil), "api.Queue.ResourceLimitsEntry")
 	proto.RegisterType((*CancellationResult)(nil), "api.CancellationResult")
 	proto.RegisterType((*QueueInfoRequest)(nil), "api.QueueInfoRequest")
+	proto.RegisterType((*QueueDeleteRequest)(nil), "api.QueueDeleteRequest")
 	proto.RegisterType((*QueueInfo)(nil), "api.QueueInfo")
 	proto.RegisterType((*JobSetInfo)(nil), "api.JobSetInfo")
 }
@@ -625,62 +674,69 @@ func init() {
 func init() { proto.RegisterFile("pkg/api/submit.proto", fileDescriptor_e998bacb27df16c1) }
 
 var fileDescriptor_e998bacb27df16c1 = []byte{
-	// 866 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x94, 0x55, 0x5f, 0x6b, 0x1c, 0x55,
-	0x14, 0xcf, 0xec, 0x26, 0xd1, 0x3d, 0x5b, 0xd3, 0xf5, 0x36, 0x69, 0xa7, 0x93, 0x32, 0x2c, 0x03,
-	0x96, 0x50, 0x70, 0x86, 0x44, 0x0a, 0xb1, 0xa0, 0x10, 0x43, 0x52, 0x36, 0x84, 0xb4, 0x4e, 0xb1,
-	0x82, 0xbe, 0x38, 0x7f, 0x4e, 0xd7, 0x31, 0xbb, 0x73, 0xa7, 0x73, 0xef, 0x44, 0x82, 0x08, 0xe2,
-	0x9b, 0x6f, 0x05, 0x3f, 0x8d, 0xdf, 0xc0, 0xc7, 0x82, 0x2f, 0xc5, 0x27, 0x4d, 0xfc, 0x20, 0x72,
-	0xcf, 0x9d, 0xdd, 0x99, 0xdd, 0x9d, 0x55, 0xfa, 0x76, 0xcf, 0xb9, 0xbf, 0xf3, 0xbb, 0xbf, 0xf3,
-	0x8f, 0x0b, 0x9b, 0xd9, 0xf9, 0xd0, 0x0b, 0xb2, 0xc4, 0x13, 0x45, 0x38, 0x4e, 0xa4, 0x9b, 0xe5,
-	0x5c, 0x72, 0xd6, 0x0e, 0xb2, 0xc4, 0xda, 0x1e, 0x72, 0x3e, 0x1c, 0xa1, 0x47, 0xae, 0xb0, 0x78,
-	0xe1, 0xe1, 0x38, 0x93, 0x97, 0x1a, 0x61, 0x39, 0xe7, 0xfb, 0xc2, 0x4d, 0x38, 0x85, 0x46, 0x3c,
-	0x47, 0xef, 0x62, 0xd7, 0x1b, 0x62, 0x8a, 0x79, 0x20, 0x31, 0x2e, 0x31, 0xf7, 0x4a, 0x02, 0x85,
-	0x09, 0xd2, 0x94, 0xcb, 0x40, 0x26, 0x3c, 0x15, 0xe5, 0xed, 0x87, 0xc3, 0x44, 0x7e, 0x5b, 0x84,
-	0x6e, 0xc4, 0xc7, 0xde, 0x90, 0x0f, 0x79, 0xf5, 0x8e, 0xb2, 0xc8, 0xa0, 0x93, 0x86, 0x3b, 0xbf,
-	0xad, 0xc2, 0xe6, 0x09, 0x0f, 0x9f, 0x91, 0x4c, 0x1f, 0x5f, 0x16, 0x28, 0xe4, 0x40, 0xe2, 0x98,
-	0x59, 0xf0, 0xee, 0xd3, 0x3c, 0xe1, 0x79, 0x22, 0x2f, 0x4d, 0xa3, 0x6f, 0xec, 0x18, 0xfe, 0xd4,
-	0x66, 0xf7, 0xa0, 0x73, 0x16, 0x8c, 0x51, 0x64, 0x41, 0x84, 0x66, 0xbb, 0x6f, 0xec, 0x74, 0xfc,
-	0xca, 0xc1, 0x3e, 0x81, 0xf5, 0xd3, 0x20, 0xc4, 0x91, 0x30, 0x57, 0xfb, 0xed, 0x9d, 0xee, 0xde,
-	0x07, 0x6e, 0x90, 0x25, 0x6e, 0xd3, 0x23, 0xae, 0xc6, 0x1d, 0xa5, 0x32, 0xbf, 0xf4, 0xcb, 0x20,
-	0x76, 0x0a, 0xdd, 0x83, 0x2a, 0x2b, 0x73, 0x8d, 0x38, 0x1e, 0x2c, 0xe7, 0xa8, 0x81, 0x35, 0x51,
-	0x3d, 0x9c, 0x05, 0xc0, 0x14, 0x38, 0xc9, 0x31, 0x3e, 0xe3, 0x31, 0x96, 0xc2, 0xd6, 0x89, 0x74,
-	0x77, 0x39, 0xe9, 0x62, 0x8c, 0xe6, 0x6e, 0x20, 0x63, 0x0f, 0xe1, 0x9d, 0xa7, 0x3c, 0x7e, 0x96,
-	0x61, 0x64, 0xb6, 0xfa, 0xc6, 0x4e, 0x77, 0x6f, 0xdb, 0xd5, 0x5d, 0x24, 0x7a, 0xd5, 0x45, 0xf7,
-	0x62, 0xd7, 0x2d, 0x21, 0xfe, 0x04, 0x6b, 0x7d, 0x0c, 0xdd, 0x1a, 0x33, 0xeb, 0x41, 0xfb, 0x1c,
-	0x75, 0xa9, 0x3b, 0xbe, 0x3a, 0xb2, 0x4d, 0x58, 0xbb, 0x08, 0x46, 0x05, 0x12, 0x6b, 0xc7, 0xd7,
-	0xc6, 0xa3, 0xd6, 0xbe, 0x61, 0x7d, 0x0a, 0xbd, 0xf9, 0xac, 0xdf, 0x2a, 0xfe, 0x08, 0xee, 0x2c,
-	0x49, 0xf0, 0x6d, 0x68, 0x9c, 0x5f, 0x0c, 0xe8, 0xcd, 0x57, 0x4f, 0xc1, 0x3f, 0x2f, 0xb0, 0xc0,
-	0x92, 0x42, 0x1b, 0x6a, 0x9a, 0x14, 0x12, 0xe5, 0x20, 0x2e, 0x79, 0xa6, 0x36, 0x3b, 0x84, 0x9b,
-	0x27, 0x3c, 0xac, 0x55, 0x5f, 0x98, 0x6d, 0xea, 0xcf, 0xdd, 0xa5, 0xfd, 0xf1, 0xe7, 0x23, 0x9c,
-	0xaf, 0x48, 0xca, 0x61, 0x90, 0x46, 0x38, 0xaa, 0x49, 0x39, 0xe1, 0xe1, 0x20, 0x9e, 0x48, 0x21,
-	0xe3, 0x3f, 0xa5, 0x4c, 0xc5, 0xb7, 0x6b, 0xe2, 0x9d, 0x43, 0xd8, 0xaa, 0x89, 0x10, 0x19, 0x4f,
-	0x05, 0xd2, 0x8e, 0x34, 0x3f, 0xb0, 0x09, 0x6b, 0x47, 0x79, 0xce, 0xf3, 0x49, 0xc1, 0xc8, 0x70,
-	0xbe, 0x86, 0xf7, 0x17, 0x48, 0xd8, 0x31, 0xa9, 0xae, 0x73, 0x0a, 0xd3, 0xa0, 0xdc, 0xad, 0xf9,
-	0xdc, 0x2b, 0x88, 0xbf, 0x10, 0xe3, 0xbc, 0x6a, 0x95, 0xc2, 0x19, 0x83, 0x55, 0xb5, 0x89, 0xa5,
-	0x22, 0x3a, 0xb3, 0xfb, 0xb0, 0x31, 0x59, 0xdd, 0xe3, 0x20, 0x92, 0xa5, 0x32, 0xc3, 0x9f, 0xf3,
-	0x32, 0x1b, 0xe0, 0x0b, 0x81, 0xf9, 0x93, 0xef, 0x53, 0xcc, 0x75, 0x0f, 0x3a, 0x7e, 0xcd, 0xc3,
-	0xfa, 0xd0, 0x7d, 0x9c, 0xf3, 0x22, 0x2b, 0x01, 0xab, 0x04, 0xa8, 0xbb, 0xd8, 0x31, 0x6c, 0xf8,
-	0x28, 0x78, 0x91, 0x47, 0x78, 0x9a, 0x8c, 0x13, 0x39, 0x59, 0x5f, 0x9b, 0xb2, 0x21, 0x85, 0xee,
-	0x2c, 0x40, 0xaf, 0xd5, 0x5c, 0x94, 0x75, 0x00, 0xb7, 0x1a, 0x60, 0xff, 0x37, 0x9c, 0x46, 0x7d,
-	0x38, 0xf7, 0x81, 0xe9, 0x69, 0x18, 0xd1, 0x96, 0xf8, 0x28, 0x8a, 0x91, 0x64, 0x0e, 0xdc, 0x28,
-	0xbd, 0x18, 0x0f, 0x62, 0x5d, 0xec, 0x8e, 0x3f, 0xe3, 0x73, 0xee, 0x43, 0x8f, 0x94, 0x0e, 0xd2,
-	0x17, 0x7c, 0x32, 0x4a, 0x0d, 0x65, 0x75, 0x9e, 0x43, 0x67, 0x8a, 0x6b, 0xac, 0xfb, 0x43, 0x78,
-	0xef, 0x20, 0x92, 0xc9, 0x05, 0xea, 0xf9, 0x12, 0x66, 0x8b, 0x8a, 0x71, 0x73, 0xda, 0x5a, 0x94,
-	0xf4, 0xc6, 0x2c, 0xca, 0xf9, 0x06, 0xa0, 0xba, 0x6c, 0x24, 0xb6, 0x01, 0xe8, 0xe5, 0xf8, 0x84,
-	0x87, 0x82, 0x52, 0x5f, 0xf3, 0x6b, 0x1e, 0x75, 0x7f, 0x8a, 0x81, 0x28, 0xef, 0xdb, 0xfa, 0xbe,
-	0xf2, 0xec, 0xfd, 0xd9, 0x82, 0x75, 0x3d, 0x57, 0xec, 0x39, 0x80, 0x3e, 0x51, 0xe0, 0x56, 0xe3,
-	0xc6, 0x59, 0xb7, 0x9b, 0x87, 0xd1, 0xb9, 0xfb, 0xf3, 0x1f, 0xff, 0xfc, 0xda, 0xba, 0xe5, 0x6c,
-	0xa8, 0x6f, 0xea, 0x3b, 0x1e, 0x96, 0xbf, 0xdd, 0x23, 0xe3, 0x01, 0xfb, 0x12, 0x40, 0x17, 0x75,
-	0x96, 0x77, 0x66, 0x41, 0xad, 0x3b, 0xe4, 0x5e, 0x6c, 0xd3, 0x22, 0x71, 0x44, 0x18, 0x45, 0x7c,
-	0x06, 0xdd, 0xc3, 0x1c, 0x03, 0x89, 0x7a, 0xde, 0xa1, 0x9a, 0x2c, 0xeb, 0xb6, 0xab, 0x7f, 0x46,
-	0x77, 0xf2, 0xe5, 0xb9, 0x47, 0xea, 0x6b, 0x75, 0xb6, 0x89, 0x6d, 0xcb, 0xea, 0x29, 0xb6, 0x97,
-	0x0a, 0xea, 0xfd, 0xa0, 0xea, 0xf8, 0xa3, 0xe2, 0x7b, 0x02, 0x37, 0x1e, 0xa3, 0xac, 0x1a, 0xb9,
-	0x55, 0x11, 0xd6, 0x06, 0xc0, 0xda, 0x98, 0x75, 0x3b, 0x26, 0x71, 0x32, 0xb6, 0xc0, 0xf9, 0x59,
-	0xff, 0xcd, 0xdf, 0xf6, 0xca, 0x4f, 0x57, 0xb6, 0xf1, 0xfb, 0x95, 0x6d, 0xbc, 0xbe, 0xb2, 0x8d,
-	0xbf, 0xae, 0x6c, 0xe3, 0xd5, 0xb5, 0xbd, 0xf2, 0xfa, 0xda, 0x5e, 0x79, 0x73, 0x6d, 0xaf, 0x84,
-	0xeb, 0xa4, 0xef, 0xa3, 0x7f, 0x03, 0x00, 0x00, 0xff, 0xff, 0xef, 0xbd, 0x25, 0x8b, 0x25, 0x08,
-	0x00, 0x00,
+	// 981 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x94, 0x95, 0x5d, 0x6f, 0x1b, 0x45,
+	0x17, 0xc7, 0xb3, 0x76, 0x92, 0x27, 0x3e, 0x4e, 0x63, 0x77, 0x6a, 0x37, 0xee, 0x26, 0x72, 0xfc,
+	0xac, 0x04, 0x58, 0x91, 0x58, 0x2b, 0x41, 0x40, 0xa9, 0x04, 0x52, 0xd3, 0x86, 0xe2, 0x12, 0xb5,
+	0xb0, 0x91, 0xa0, 0x37, 0xd5, 0x6a, 0x5f, 0x4e, 0xcc, 0x3a, 0xeb, 0x9d, 0xcd, 0xcc, 0x6c, 0x50,
+	0x84, 0x90, 0x10, 0xf7, 0x48, 0x48, 0xf0, 0x51, 0xf8, 0x00, 0x5c, 0x72, 0x59, 0x89, 0x9b, 0x5e,
+	0x21, 0x48, 0xb8, 0xe2, 0x53, 0xa0, 0x9d, 0xd9, 0xf5, 0xda, 0xb1, 0x4d, 0xd5, 0xbb, 0x39, 0x67,
+	0xfe, 0xf3, 0x9b, 0x33, 0xe7, 0x45, 0x03, 0x8d, 0xf8, 0x74, 0xd0, 0x73, 0xe2, 0xa0, 0xc7, 0x13,
+	0x77, 0x14, 0x08, 0x33, 0x66, 0x54, 0x50, 0x52, 0x76, 0xe2, 0x40, 0xdf, 0x1a, 0x50, 0x3a, 0x08,
+	0xb1, 0x27, 0x5d, 0x6e, 0x72, 0xd2, 0xc3, 0x51, 0x2c, 0x2e, 0x94, 0x42, 0x37, 0x4e, 0xef, 0x72,
+	0x33, 0xa0, 0xf2, 0xa8, 0x47, 0x19, 0xf6, 0xce, 0xf7, 0x7a, 0x03, 0x8c, 0x90, 0x39, 0x02, 0xfd,
+	0x4c, 0xb3, 0x9d, 0x01, 0x52, 0x8d, 0x13, 0x45, 0x54, 0x38, 0x22, 0xa0, 0x11, 0xcf, 0x76, 0xdf,
+	0x1e, 0x04, 0xe2, 0xab, 0xc4, 0x35, 0x3d, 0x3a, 0xea, 0x0d, 0xe8, 0x80, 0x16, 0xf7, 0xa4, 0x96,
+	0x34, 0xe4, 0x4a, 0xc9, 0x8d, 0x5f, 0x97, 0xa1, 0xf1, 0x98, 0xba, 0xc7, 0x32, 0x4c, 0x0b, 0xcf,
+	0x12, 0xe4, 0xa2, 0x2f, 0x70, 0x44, 0x74, 0x58, 0x8b, 0x59, 0x40, 0x59, 0x20, 0x2e, 0x5a, 0x5a,
+	0x47, 0xeb, 0x6a, 0xd6, 0xd8, 0x26, 0xdb, 0x50, 0x89, 0x9c, 0x11, 0xf2, 0xd8, 0xf1, 0xb0, 0x55,
+	0xee, 0x68, 0xdd, 0x8a, 0x55, 0x38, 0xc8, 0x87, 0xb0, 0x1a, 0x3a, 0x2e, 0x86, 0xbc, 0xb5, 0xdc,
+	0x29, 0x77, 0xab, 0xfb, 0x6f, 0x98, 0x4e, 0x1c, 0x98, 0xf3, 0x2e, 0x31, 0x8f, 0xa4, 0xee, 0x30,
+	0x12, 0xec, 0xc2, 0xca, 0x0e, 0x91, 0x23, 0xa8, 0x4e, 0xbc, 0xaa, 0xb5, 0x22, 0x19, 0xbb, 0x8b,
+	0x19, 0xf7, 0x0b, 0xb1, 0x02, 0x4d, 0x1e, 0x27, 0x03, 0x68, 0x30, 0x3c, 0x4b, 0x02, 0x86, 0xbe,
+	0x1d, 0x51, 0x1f, 0xed, 0x2c, 0xb4, 0x55, 0x89, 0xdd, 0x5b, 0x8c, 0xb5, 0xb2, 0x53, 0x4f, 0xa8,
+	0x8f, 0x13, 0x61, 0x1e, 0x94, 0x5a, 0x9a, 0x45, 0xd8, 0xcc, 0x26, 0x79, 0x0f, 0xd6, 0x62, 0xea,
+	0xdb, 0x3c, 0x46, 0xaf, 0x55, 0xea, 0x68, 0xdd, 0xea, 0xfe, 0x96, 0xa9, 0x8a, 0x29, 0xef, 0x48,
+	0x8b, 0x69, 0x9e, 0xef, 0x99, 0x9f, 0x51, 0xff, 0x38, 0x46, 0xcf, 0xfa, 0x5f, 0xac, 0x16, 0xfa,
+	0x07, 0x50, 0x9d, 0xc0, 0x93, 0x3a, 0x94, 0x4f, 0x51, 0x65, 0xbc, 0x62, 0xa5, 0x4b, 0xd2, 0x80,
+	0x95, 0x73, 0x27, 0x4c, 0x50, 0x52, 0x2b, 0x96, 0x32, 0xee, 0x95, 0xee, 0x6a, 0xfa, 0x47, 0x50,
+	0xbf, 0xfe, 0xf8, 0xd7, 0x3a, 0x7f, 0x08, 0x9b, 0x0b, 0x5e, 0xf9, 0x3a, 0x18, 0xe3, 0x07, 0x0d,
+	0xea, 0xd7, 0x53, 0x98, 0xca, 0xcf, 0x12, 0x4c, 0x30, 0x43, 0x28, 0x83, 0x6c, 0x03, 0x0c, 0xa9,
+	0x6b, 0x73, 0x14, 0x76, 0xe0, 0x67, 0xa4, 0xb5, 0x21, 0x75, 0x8f, 0x51, 0xf4, 0x7d, 0x72, 0x08,
+	0x37, 0xd3, 0x5d, 0xa6, 0x10, 0x76, 0x20, 0x70, 0xc4, 0x5b, 0x65, 0x59, 0xa8, 0x3b, 0x0b, 0x0b,
+	0x65, 0xd5, 0x86, 0xd4, 0x9d, 0xb0, 0xb9, 0xf1, 0x5c, 0x86, 0xf3, 0xc0, 0x89, 0x3c, 0x0c, 0xf3,
+	0x70, 0x9a, 0xb0, 0x9a, 0xa2, 0x03, 0x3f, 0x8f, 0x67, 0x48, 0xdd, 0xbe, 0xff, 0x8a, 0x78, 0xc6,
+	0x6f, 0x28, 0x4f, 0xbc, 0xc1, 0x78, 0x08, 0xcd, 0x89, 0x38, 0x78, 0x4c, 0x23, 0x8e, 0x72, 0x62,
+	0x16, 0xdc, 0xd1, 0x80, 0x15, 0x64, 0x8c, 0xb2, 0x3c, 0x71, 0xd2, 0x30, 0x9e, 0xc3, 0xcd, 0x19,
+	0x0a, 0xf9, 0x04, 0x88, 0x4a, 0x80, 0xb2, 0xb3, 0x0c, 0x68, 0x32, 0x03, 0xfa, 0xf5, 0x0c, 0x14,
+	0x37, 0x5b, 0x75, 0x99, 0x82, 0xc2, 0xc1, 0x8d, 0x9f, 0x4b, 0xb0, 0xf2, 0xb9, 0x4c, 0x39, 0x81,
+	0xe5, 0x74, 0x34, 0xb3, 0x98, 0xe4, 0x9a, 0xbc, 0x05, 0xb5, 0x7c, 0x96, 0xed, 0x13, 0xc7, 0x13,
+	0x59, 0x70, 0x9a, 0xb5, 0x91, 0xbb, 0x3f, 0x96, 0x5e, 0xb2, 0x03, 0xd5, 0x84, 0x23, 0xb3, 0xe9,
+	0xd7, 0x11, 0x32, 0x55, 0x8b, 0x8a, 0x05, 0xa9, 0xeb, 0xa9, 0xf4, 0x90, 0xff, 0xc3, 0xfa, 0x80,
+	0xd1, 0x24, 0xce, 0x15, 0xcb, 0x52, 0x51, 0x95, 0xbe, 0x4c, 0xf2, 0x08, 0x6a, 0x0c, 0x39, 0x4d,
+	0x98, 0x87, 0x76, 0x18, 0x8c, 0x02, 0x91, 0xcf, 0x74, 0x5b, 0xbe, 0x48, 0x46, 0x69, 0x5a, 0x99,
+	0xe2, 0x48, 0x0a, 0xd4, 0x1c, 0x6f, 0xb0, 0x29, 0xa7, 0x7e, 0x1f, 0x6e, 0xcd, 0x91, 0xbd, 0xaa,
+	0x55, 0xb5, 0xc9, 0x56, 0xfd, 0x14, 0x88, 0xea, 0x8b, 0x50, 0xce, 0x8c, 0x85, 0x3c, 0x09, 0x05,
+	0x79, 0x17, 0x6e, 0x78, 0xca, 0x8b, 0xbe, 0x1d, 0xf8, 0x2a, 0xe3, 0x95, 0x83, 0xfa, 0x3f, 0x7f,
+	0xec, 0xac, 0x8f, 0x37, 0xfa, 0x3e, 0xb7, 0xa6, 0x2c, 0xe3, 0x4d, 0xa8, 0xcb, 0xe0, 0xfb, 0xd1,
+	0x09, 0xcd, 0xfb, 0x6c, 0x4e, 0xb6, 0x8d, 0x2e, 0x10, 0xa9, 0x7b, 0x88, 0x21, 0x0a, 0xfc, 0x2f,
+	0xe5, 0x33, 0xa8, 0x8c, 0x89, 0x73, 0x0b, 0xf7, 0x3e, 0xd4, 0x1c, 0x4f, 0x04, 0xe7, 0x68, 0x67,
+	0x6d, 0xcb, 0x5b, 0x25, 0x99, 0xcb, 0xda, 0xb8, 0x3b, 0x50, 0xc8, 0x78, 0x6e, 0x28, 0x9d, 0xf2,
+	0x70, 0xc3, 0x05, 0x28, 0x36, 0xe7, 0xa2, 0x77, 0xa0, 0x2a, 0xfb, 0xdb, 0x4f, 0xd1, 0x5c, 0xa6,
+	0x6e, 0xc5, 0x02, 0xe5, 0x7a, 0x4c, 0x5d, 0x9e, 0x0a, 0x42, 0x74, 0x78, 0x2e, 0x28, 0x2b, 0x81,
+	0x72, 0xa5, 0x82, 0xfd, 0x5f, 0xca, 0xb0, 0xaa, 0x9a, 0x93, 0x7c, 0x01, 0xa0, 0x56, 0xf2, 0x64,
+	0x73, 0xee, 0xf0, 0xea, 0xb7, 0xe7, 0x77, 0xb4, 0x71, 0xe7, 0xfb, 0xdf, 0xff, 0xfe, 0xa9, 0x74,
+	0xcb, 0xd8, 0x48, 0x3f, 0xbf, 0x21, 0x75, 0xb3, 0x3f, 0xf4, 0x9e, 0xb6, 0x4b, 0xbe, 0x04, 0x50,
+	0xf5, 0x9b, 0xe6, 0x4e, 0xcd, 0xba, 0xbe, 0x29, 0xdd, 0xb3, 0x75, 0x9e, 0x05, 0xab, 0x72, 0xa6,
+	0xe0, 0x27, 0x50, 0x7d, 0xc0, 0xd0, 0x11, 0xa8, 0x86, 0x06, 0x8a, 0xd6, 0xd4, 0x6f, 0x9b, 0xea,
+	0xbf, 0x35, 0xf3, 0x8f, 0xd4, 0x3c, 0x4c, 0x3f, 0x6c, 0x63, 0x4b, 0xd2, 0x9a, 0x7a, 0x3d, 0xa5,
+	0xc9, 0x3c, 0xf5, 0xbe, 0x49, 0x33, 0xf9, 0x6d, 0xca, 0x7b, 0x06, 0x55, 0x55, 0x6e, 0xc5, 0xdb,
+	0x2c, 0x78, 0x53, 0x5d, 0xb0, 0x10, 0xde, 0x92, 0x70, 0xb2, 0x3b, 0x03, 0x27, 0x4f, 0x61, 0xfd,
+	0x11, 0x8a, 0xa2, 0x4d, 0x9a, 0x05, 0x7a, 0xa2, 0x11, 0xf5, 0x8d, 0x69, 0x77, 0x0e, 0x24, 0x33,
+	0xc0, 0x83, 0xce, 0xcb, 0xbf, 0xda, 0x4b, 0xdf, 0x5d, 0xb6, 0xb5, 0xdf, 0x2e, 0xdb, 0xda, 0x8b,
+	0xcb, 0xb6, 0xf6, 0xe7, 0x65, 0x5b, 0xfb, 0xf1, 0xaa, 0xbd, 0xf4, 0xe2, 0xaa, 0xbd, 0xf4, 0xf2,
+	0xaa, 0xbd, 0xe4, 0xae, 0xca, 0xe0, 0xde, 0xf9, 0x37, 0x00, 0x00, 0xff, 0xff, 0x72, 0x73, 0x0e,
+	0x02, 0xd5, 0x08, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -698,6 +754,7 @@ type SubmitClient interface {
 	SubmitJobs(ctx context.Context, in *JobSubmitRequest, opts ...grpc.CallOption) (*JobSubmitResponse, error)
 	CancelJobs(ctx context.Context, in *JobCancelRequest, opts ...grpc.CallOption) (*CancellationResult, error)
 	CreateQueue(ctx context.Context, in *Queue, opts ...grpc.CallOption) (*types.Empty, error)
+	DeleteQueue(ctx context.Context, in *QueueDeleteRequest, opts ...grpc.CallOption) (*types.Empty, error)
 	GetQueueInfo(ctx context.Context, in *QueueInfoRequest, opts ...grpc.CallOption) (*QueueInfo, error)
 }
 
@@ -736,6 +793,15 @@ func (c *submitClient) CreateQueue(ctx context.Context, in *Queue, opts ...grpc.
 	return out, nil
 }
 
+func (c *submitClient) DeleteQueue(ctx context.Context, in *QueueDeleteRequest, opts ...grpc.CallOption) (*types.Empty, error) {
+	out := new(types.Empty)
+	err := c.cc.Invoke(ctx, "/api.Submit/DeleteQueue", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *submitClient) GetQueueInfo(ctx context.Context, in *QueueInfoRequest, opts ...grpc.CallOption) (*QueueInfo, error) {
 	out := new(QueueInfo)
 	err := c.cc.Invoke(ctx, "/api.Submit/GetQueueInfo", in, out, opts...)
@@ -750,7 +816,28 @@ type SubmitServer interface {
 	SubmitJobs(context.Context, *JobSubmitRequest) (*JobSubmitResponse, error)
 	CancelJobs(context.Context, *JobCancelRequest) (*CancellationResult, error)
 	CreateQueue(context.Context, *Queue) (*types.Empty, error)
+	DeleteQueue(context.Context, *QueueDeleteRequest) (*types.Empty, error)
 	GetQueueInfo(context.Context, *QueueInfoRequest) (*QueueInfo, error)
+}
+
+// UnimplementedSubmitServer can be embedded to have forward compatible implementations.
+type UnimplementedSubmitServer struct {
+}
+
+func (*UnimplementedSubmitServer) SubmitJobs(ctx context.Context, req *JobSubmitRequest) (*JobSubmitResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SubmitJobs not implemented")
+}
+func (*UnimplementedSubmitServer) CancelJobs(ctx context.Context, req *JobCancelRequest) (*CancellationResult, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CancelJobs not implemented")
+}
+func (*UnimplementedSubmitServer) CreateQueue(ctx context.Context, req *Queue) (*types.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateQueue not implemented")
+}
+func (*UnimplementedSubmitServer) DeleteQueue(ctx context.Context, req *QueueDeleteRequest) (*types.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteQueue not implemented")
+}
+func (*UnimplementedSubmitServer) GetQueueInfo(ctx context.Context, req *QueueInfoRequest) (*QueueInfo, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetQueueInfo not implemented")
 }
 
 func RegisterSubmitServer(s *grpc.Server, srv SubmitServer) {
@@ -811,6 +898,24 @@ func _Submit_CreateQueue_Handler(srv interface{}, ctx context.Context, dec func(
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Submit_DeleteQueue_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(QueueDeleteRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SubmitServer).DeleteQueue(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/api.Submit/DeleteQueue",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SubmitServer).DeleteQueue(ctx, req.(*QueueDeleteRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Submit_GetQueueInfo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(QueueInfoRequest)
 	if err := dec(in); err != nil {
@@ -846,6 +951,10 @@ var _Submit_serviceDesc = grpc.ServiceDesc{
 			Handler:    _Submit_CreateQueue_Handler,
 		},
 		{
+			MethodName: "DeleteQueue",
+			Handler:    _Submit_DeleteQueue_Handler,
+		},
+		{
 			MethodName: "GetQueueInfo",
 			Handler:    _Submit_GetQueueInfo_Handler,
 		},
@@ -857,7 +966,7 @@ var _Submit_serviceDesc = grpc.ServiceDesc{
 func (m *JobSubmitRequestItem) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -865,90 +974,104 @@ func (m *JobSubmitRequestItem) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *JobSubmitRequestItem) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *JobSubmitRequestItem) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if m.Priority != 0 {
-		dAtA[i] = 0x9
-		i++
-		encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(math.Float64bits(float64(m.Priority))))
-		i += 8
-	}
-	if m.PodSpec != nil {
-		dAtA[i] = 0x12
-		i++
-		i = encodeVarintSubmit(dAtA, i, uint64(m.PodSpec.Size()))
-		n1, err := m.PodSpec.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n1
-	}
-	if len(m.Namespace) > 0 {
-		dAtA[i] = 0x1a
-		i++
-		i = encodeVarintSubmit(dAtA, i, uint64(len(m.Namespace)))
-		i += copy(dAtA[i:], m.Namespace)
-	}
-	if len(m.Labels) > 0 {
-		for k, _ := range m.Labels {
-			dAtA[i] = 0x22
-			i++
-			v := m.Labels[k]
-			mapSize := 1 + len(k) + sovSubmit(uint64(len(k))) + 1 + len(v) + sovSubmit(uint64(len(v)))
-			i = encodeVarintSubmit(dAtA, i, uint64(mapSize))
-			dAtA[i] = 0xa
-			i++
-			i = encodeVarintSubmit(dAtA, i, uint64(len(k)))
-			i += copy(dAtA[i:], k)
-			dAtA[i] = 0x12
-			i++
+	if len(m.RequiredNodeLabels) > 0 {
+		for k := range m.RequiredNodeLabels {
+			v := m.RequiredNodeLabels[k]
+			baseI := i
+			i -= len(v)
+			copy(dAtA[i:], v)
 			i = encodeVarintSubmit(dAtA, i, uint64(len(v)))
-			i += copy(dAtA[i:], v)
+			i--
+			dAtA[i] = 0x12
+			i -= len(k)
+			copy(dAtA[i:], k)
+			i = encodeVarintSubmit(dAtA, i, uint64(len(k)))
+			i--
+			dAtA[i] = 0xa
+			i = encodeVarintSubmit(dAtA, i, uint64(baseI-i))
+			i--
+			dAtA[i] = 0x32
 		}
 	}
 	if len(m.Annotations) > 0 {
-		for k, _ := range m.Annotations {
-			dAtA[i] = 0x2a
-			i++
+		for k := range m.Annotations {
 			v := m.Annotations[k]
-			mapSize := 1 + len(k) + sovSubmit(uint64(len(k))) + 1 + len(v) + sovSubmit(uint64(len(v)))
-			i = encodeVarintSubmit(dAtA, i, uint64(mapSize))
-			dAtA[i] = 0xa
-			i++
-			i = encodeVarintSubmit(dAtA, i, uint64(len(k)))
-			i += copy(dAtA[i:], k)
-			dAtA[i] = 0x12
-			i++
+			baseI := i
+			i -= len(v)
+			copy(dAtA[i:], v)
 			i = encodeVarintSubmit(dAtA, i, uint64(len(v)))
-			i += copy(dAtA[i:], v)
+			i--
+			dAtA[i] = 0x12
+			i -= len(k)
+			copy(dAtA[i:], k)
+			i = encodeVarintSubmit(dAtA, i, uint64(len(k)))
+			i--
+			dAtA[i] = 0xa
+			i = encodeVarintSubmit(dAtA, i, uint64(baseI-i))
+			i--
+			dAtA[i] = 0x2a
 		}
 	}
-	if len(m.RequiredNodeLabels) > 0 {
-		for k, _ := range m.RequiredNodeLabels {
-			dAtA[i] = 0x32
-			i++
-			v := m.RequiredNodeLabels[k]
-			mapSize := 1 + len(k) + sovSubmit(uint64(len(k))) + 1 + len(v) + sovSubmit(uint64(len(v)))
-			i = encodeVarintSubmit(dAtA, i, uint64(mapSize))
-			dAtA[i] = 0xa
-			i++
-			i = encodeVarintSubmit(dAtA, i, uint64(len(k)))
-			i += copy(dAtA[i:], k)
-			dAtA[i] = 0x12
-			i++
+	if len(m.Labels) > 0 {
+		for k := range m.Labels {
+			v := m.Labels[k]
+			baseI := i
+			i -= len(v)
+			copy(dAtA[i:], v)
 			i = encodeVarintSubmit(dAtA, i, uint64(len(v)))
-			i += copy(dAtA[i:], v)
+			i--
+			dAtA[i] = 0x12
+			i -= len(k)
+			copy(dAtA[i:], k)
+			i = encodeVarintSubmit(dAtA, i, uint64(len(k)))
+			i--
+			dAtA[i] = 0xa
+			i = encodeVarintSubmit(dAtA, i, uint64(baseI-i))
+			i--
+			dAtA[i] = 0x22
 		}
 	}
-	return i, nil
+	if len(m.Namespace) > 0 {
+		i -= len(m.Namespace)
+		copy(dAtA[i:], m.Namespace)
+		i = encodeVarintSubmit(dAtA, i, uint64(len(m.Namespace)))
+		i--
+		dAtA[i] = 0x1a
+	}
+	if m.PodSpec != nil {
+		{
+			size, err := m.PodSpec.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintSubmit(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x12
+	}
+	if m.Priority != 0 {
+		i -= 8
+		encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(math.Float64bits(float64(m.Priority))))
+		i--
+		dAtA[i] = 0x9
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *JobSubmitRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -956,41 +1079,50 @@ func (m *JobSubmitRequest) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *JobSubmitRequest) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *JobSubmitRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.Queue) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintSubmit(dAtA, i, uint64(len(m.Queue)))
-		i += copy(dAtA[i:], m.Queue)
-	}
-	if len(m.JobSetId) > 0 {
-		dAtA[i] = 0x12
-		i++
-		i = encodeVarintSubmit(dAtA, i, uint64(len(m.JobSetId)))
-		i += copy(dAtA[i:], m.JobSetId)
-	}
 	if len(m.JobRequestItems) > 0 {
-		for _, msg := range m.JobRequestItems {
-			dAtA[i] = 0x1a
-			i++
-			i = encodeVarintSubmit(dAtA, i, uint64(msg.Size()))
-			n, err := msg.MarshalTo(dAtA[i:])
-			if err != nil {
-				return 0, err
+		for iNdEx := len(m.JobRequestItems) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.JobRequestItems[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintSubmit(dAtA, i, uint64(size))
 			}
-			i += n
+			i--
+			dAtA[i] = 0x1a
 		}
 	}
-	return i, nil
+	if len(m.JobSetId) > 0 {
+		i -= len(m.JobSetId)
+		copy(dAtA[i:], m.JobSetId)
+		i = encodeVarintSubmit(dAtA, i, uint64(len(m.JobSetId)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if len(m.Queue) > 0 {
+		i -= len(m.Queue)
+		copy(dAtA[i:], m.Queue)
+		i = encodeVarintSubmit(dAtA, i, uint64(len(m.Queue)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *JobCancelRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -998,35 +1130,43 @@ func (m *JobCancelRequest) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *JobCancelRequest) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *JobCancelRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.JobId) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintSubmit(dAtA, i, uint64(len(m.JobId)))
-		i += copy(dAtA[i:], m.JobId)
+	if len(m.Queue) > 0 {
+		i -= len(m.Queue)
+		copy(dAtA[i:], m.Queue)
+		i = encodeVarintSubmit(dAtA, i, uint64(len(m.Queue)))
+		i--
+		dAtA[i] = 0x1a
 	}
 	if len(m.JobSetId) > 0 {
-		dAtA[i] = 0x12
-		i++
+		i -= len(m.JobSetId)
+		copy(dAtA[i:], m.JobSetId)
 		i = encodeVarintSubmit(dAtA, i, uint64(len(m.JobSetId)))
-		i += copy(dAtA[i:], m.JobSetId)
+		i--
+		dAtA[i] = 0x12
 	}
-	if len(m.Queue) > 0 {
-		dAtA[i] = 0x1a
-		i++
-		i = encodeVarintSubmit(dAtA, i, uint64(len(m.Queue)))
-		i += copy(dAtA[i:], m.Queue)
+	if len(m.JobId) > 0 {
+		i -= len(m.JobId)
+		copy(dAtA[i:], m.JobId)
+		i = encodeVarintSubmit(dAtA, i, uint64(len(m.JobId)))
+		i--
+		dAtA[i] = 0xa
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *JobSubmitResponseItem) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -1034,29 +1174,36 @@ func (m *JobSubmitResponseItem) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *JobSubmitResponseItem) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *JobSubmitResponseItem) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.JobId) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintSubmit(dAtA, i, uint64(len(m.JobId)))
-		i += copy(dAtA[i:], m.JobId)
-	}
 	if len(m.Error) > 0 {
-		dAtA[i] = 0x12
-		i++
+		i -= len(m.Error)
+		copy(dAtA[i:], m.Error)
 		i = encodeVarintSubmit(dAtA, i, uint64(len(m.Error)))
-		i += copy(dAtA[i:], m.Error)
+		i--
+		dAtA[i] = 0x12
 	}
-	return i, nil
+	if len(m.JobId) > 0 {
+		i -= len(m.JobId)
+		copy(dAtA[i:], m.JobId)
+		i = encodeVarintSubmit(dAtA, i, uint64(len(m.JobId)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *JobSubmitResponse) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -1064,29 +1211,36 @@ func (m *JobSubmitResponse) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *JobSubmitResponse) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *JobSubmitResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
 	if len(m.JobResponseItems) > 0 {
-		for _, msg := range m.JobResponseItems {
-			dAtA[i] = 0xa
-			i++
-			i = encodeVarintSubmit(dAtA, i, uint64(msg.Size()))
-			n, err := msg.MarshalTo(dAtA[i:])
-			if err != nil {
-				return 0, err
+		for iNdEx := len(m.JobResponseItems) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.JobResponseItems[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintSubmit(dAtA, i, uint64(size))
 			}
-			i += n
+			i--
+			dAtA[i] = 0xa
 		}
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *Queue) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -1094,76 +1248,71 @@ func (m *Queue) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *Queue) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *Queue) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.Name) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintSubmit(dAtA, i, uint64(len(m.Name)))
-		i += copy(dAtA[i:], m.Name)
-	}
-	if m.PriorityFactor != 0 {
-		dAtA[i] = 0x11
-		i++
-		encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(math.Float64bits(float64(m.PriorityFactor))))
-		i += 8
-	}
-	if len(m.UserOwners) > 0 {
-		for _, s := range m.UserOwners {
-			dAtA[i] = 0x1a
-			i++
-			l = len(s)
-			for l >= 1<<7 {
-				dAtA[i] = uint8(uint64(l)&0x7f | 0x80)
-				l >>= 7
-				i++
-			}
-			dAtA[i] = uint8(l)
-			i++
-			i += copy(dAtA[i:], s)
+	if len(m.ResourceLimits) > 0 {
+		for k := range m.ResourceLimits {
+			v := m.ResourceLimits[k]
+			baseI := i
+			i -= 8
+			encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(math.Float64bits(float64(v))))
+			i--
+			dAtA[i] = 0x11
+			i -= len(k)
+			copy(dAtA[i:], k)
+			i = encodeVarintSubmit(dAtA, i, uint64(len(k)))
+			i--
+			dAtA[i] = 0xa
+			i = encodeVarintSubmit(dAtA, i, uint64(baseI-i))
+			i--
+			dAtA[i] = 0x2a
 		}
 	}
 	if len(m.GroupOwners) > 0 {
-		for _, s := range m.GroupOwners {
+		for iNdEx := len(m.GroupOwners) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.GroupOwners[iNdEx])
+			copy(dAtA[i:], m.GroupOwners[iNdEx])
+			i = encodeVarintSubmit(dAtA, i, uint64(len(m.GroupOwners[iNdEx])))
+			i--
 			dAtA[i] = 0x22
-			i++
-			l = len(s)
-			for l >= 1<<7 {
-				dAtA[i] = uint8(uint64(l)&0x7f | 0x80)
-				l >>= 7
-				i++
-			}
-			dAtA[i] = uint8(l)
-			i++
-			i += copy(dAtA[i:], s)
 		}
 	}
-	if len(m.ResourceLimits) > 0 {
-		for k, _ := range m.ResourceLimits {
-			dAtA[i] = 0x2a
-			i++
-			v := m.ResourceLimits[k]
-			mapSize := 1 + len(k) + sovSubmit(uint64(len(k))) + 1 + 8
-			i = encodeVarintSubmit(dAtA, i, uint64(mapSize))
-			dAtA[i] = 0xa
-			i++
-			i = encodeVarintSubmit(dAtA, i, uint64(len(k)))
-			i += copy(dAtA[i:], k)
-			dAtA[i] = 0x11
-			i++
-			encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(math.Float64bits(float64(v))))
-			i += 8
+	if len(m.UserOwners) > 0 {
+		for iNdEx := len(m.UserOwners) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.UserOwners[iNdEx])
+			copy(dAtA[i:], m.UserOwners[iNdEx])
+			i = encodeVarintSubmit(dAtA, i, uint64(len(m.UserOwners[iNdEx])))
+			i--
+			dAtA[i] = 0x1a
 		}
 	}
-	return i, nil
+	if m.PriorityFactor != 0 {
+		i -= 8
+		encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(math.Float64bits(float64(m.PriorityFactor))))
+		i--
+		dAtA[i] = 0x11
+	}
+	if len(m.Name) > 0 {
+		i -= len(m.Name)
+		copy(dAtA[i:], m.Name)
+		i = encodeVarintSubmit(dAtA, i, uint64(len(m.Name)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *CancellationResult) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -1171,32 +1320,31 @@ func (m *CancellationResult) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *CancellationResult) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *CancellationResult) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
 	if len(m.CancelledIds) > 0 {
-		for _, s := range m.CancelledIds {
+		for iNdEx := len(m.CancelledIds) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.CancelledIds[iNdEx])
+			copy(dAtA[i:], m.CancelledIds[iNdEx])
+			i = encodeVarintSubmit(dAtA, i, uint64(len(m.CancelledIds[iNdEx])))
+			i--
 			dAtA[i] = 0xa
-			i++
-			l = len(s)
-			for l >= 1<<7 {
-				dAtA[i] = uint8(uint64(l)&0x7f | 0x80)
-				l >>= 7
-				i++
-			}
-			dAtA[i] = uint8(l)
-			i++
-			i += copy(dAtA[i:], s)
 		}
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *QueueInfoRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -1204,23 +1352,59 @@ func (m *QueueInfoRequest) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *QueueInfoRequest) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *QueueInfoRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
 	if len(m.Name) > 0 {
-		dAtA[i] = 0xa
-		i++
+		i -= len(m.Name)
+		copy(dAtA[i:], m.Name)
 		i = encodeVarintSubmit(dAtA, i, uint64(len(m.Name)))
-		i += copy(dAtA[i:], m.Name)
+		i--
+		dAtA[i] = 0xa
 	}
-	return i, nil
+	return len(dAtA) - i, nil
+}
+
+func (m *QueueDeleteRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *QueueDeleteRequest) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *QueueDeleteRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if len(m.Name) > 0 {
+		i -= len(m.Name)
+		copy(dAtA[i:], m.Name)
+		i = encodeVarintSubmit(dAtA, i, uint64(len(m.Name)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *QueueInfo) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -1228,35 +1412,43 @@ func (m *QueueInfo) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *QueueInfo) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *QueueInfo) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.Name) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintSubmit(dAtA, i, uint64(len(m.Name)))
-		i += copy(dAtA[i:], m.Name)
-	}
 	if len(m.ActiveJobSets) > 0 {
-		for _, msg := range m.ActiveJobSets {
-			dAtA[i] = 0x12
-			i++
-			i = encodeVarintSubmit(dAtA, i, uint64(msg.Size()))
-			n, err := msg.MarshalTo(dAtA[i:])
-			if err != nil {
-				return 0, err
+		for iNdEx := len(m.ActiveJobSets) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.ActiveJobSets[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintSubmit(dAtA, i, uint64(size))
 			}
-			i += n
+			i--
+			dAtA[i] = 0x12
 		}
 	}
-	return i, nil
+	if len(m.Name) > 0 {
+		i -= len(m.Name)
+		copy(dAtA[i:], m.Name)
+		i = encodeVarintSubmit(dAtA, i, uint64(len(m.Name)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *JobSetInfo) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -1264,37 +1456,45 @@ func (m *JobSetInfo) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *JobSetInfo) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *JobSetInfo) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.Name) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintSubmit(dAtA, i, uint64(len(m.Name)))
-		i += copy(dAtA[i:], m.Name)
+	if m.LeasedJobs != 0 {
+		i = encodeVarintSubmit(dAtA, i, uint64(m.LeasedJobs))
+		i--
+		dAtA[i] = 0x18
 	}
 	if m.QueuedJobs != 0 {
-		dAtA[i] = 0x10
-		i++
 		i = encodeVarintSubmit(dAtA, i, uint64(m.QueuedJobs))
+		i--
+		dAtA[i] = 0x10
 	}
-	if m.LeasedJobs != 0 {
-		dAtA[i] = 0x18
-		i++
-		i = encodeVarintSubmit(dAtA, i, uint64(m.LeasedJobs))
+	if len(m.Name) > 0 {
+		i -= len(m.Name)
+		copy(dAtA[i:], m.Name)
+		i = encodeVarintSubmit(dAtA, i, uint64(len(m.Name)))
+		i--
+		dAtA[i] = 0xa
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func encodeVarintSubmit(dAtA []byte, offset int, v uint64) int {
+	offset -= sovSubmit(v)
+	base := offset
 	for v >= 1<<7 {
 		dAtA[offset] = uint8(v&0x7f | 0x80)
 		v >>= 7
 		offset++
 	}
 	dAtA[offset] = uint8(v)
-	return offset + 1
+	return base
 }
 func (m *JobSubmitRequestItem) Size() (n int) {
 	if m == nil {
@@ -1480,6 +1680,19 @@ func (m *QueueInfoRequest) Size() (n int) {
 	return n
 }
 
+func (m *QueueDeleteRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.Name)
+	if l > 0 {
+		n += 1 + l + sovSubmit(uint64(l))
+	}
+	return n
+}
+
 func (m *QueueInfo) Size() (n int) {
 	if m == nil {
 		return 0
@@ -1519,14 +1732,7 @@ func (m *JobSetInfo) Size() (n int) {
 }
 
 func sovSubmit(x uint64) (n int) {
-	for {
-		n++
-		x >>= 7
-		if x == 0 {
-			break
-		}
-	}
-	return n
+	return (math_bits.Len64(x|1) + 6) / 7
 }
 func sozSubmit(x uint64) (n int) {
 	return sovSubmit(uint64((x << 1) ^ uint64((int64(x) >> 63))))
@@ -1580,10 +1786,15 @@ func (this *JobSubmitRequest) String() string {
 	if this == nil {
 		return "nil"
 	}
+	repeatedStringForJobRequestItems := "[]*JobSubmitRequestItem{"
+	for _, f := range this.JobRequestItems {
+		repeatedStringForJobRequestItems += strings.Replace(f.String(), "JobSubmitRequestItem", "JobSubmitRequestItem", 1) + ","
+	}
+	repeatedStringForJobRequestItems += "}"
 	s := strings.Join([]string{`&JobSubmitRequest{`,
 		`Queue:` + fmt.Sprintf("%v", this.Queue) + `,`,
 		`JobSetId:` + fmt.Sprintf("%v", this.JobSetId) + `,`,
-		`JobRequestItems:` + strings.Replace(fmt.Sprintf("%v", this.JobRequestItems), "JobSubmitRequestItem", "JobSubmitRequestItem", 1) + `,`,
+		`JobRequestItems:` + repeatedStringForJobRequestItems + `,`,
 		`}`,
 	}, "")
 	return s
@@ -1615,8 +1826,13 @@ func (this *JobSubmitResponse) String() string {
 	if this == nil {
 		return "nil"
 	}
+	repeatedStringForJobResponseItems := "[]*JobSubmitResponseItem{"
+	for _, f := range this.JobResponseItems {
+		repeatedStringForJobResponseItems += strings.Replace(f.String(), "JobSubmitResponseItem", "JobSubmitResponseItem", 1) + ","
+	}
+	repeatedStringForJobResponseItems += "}"
 	s := strings.Join([]string{`&JobSubmitResponse{`,
-		`JobResponseItems:` + strings.Replace(fmt.Sprintf("%v", this.JobResponseItems), "JobSubmitResponseItem", "JobSubmitResponseItem", 1) + `,`,
+		`JobResponseItems:` + repeatedStringForJobResponseItems + `,`,
 		`}`,
 	}, "")
 	return s
@@ -1665,13 +1881,28 @@ func (this *QueueInfoRequest) String() string {
 	}, "")
 	return s
 }
+func (this *QueueDeleteRequest) String() string {
+	if this == nil {
+		return "nil"
+	}
+	s := strings.Join([]string{`&QueueDeleteRequest{`,
+		`Name:` + fmt.Sprintf("%v", this.Name) + `,`,
+		`}`,
+	}, "")
+	return s
+}
 func (this *QueueInfo) String() string {
 	if this == nil {
 		return "nil"
 	}
+	repeatedStringForActiveJobSets := "[]*JobSetInfo{"
+	for _, f := range this.ActiveJobSets {
+		repeatedStringForActiveJobSets += strings.Replace(f.String(), "JobSetInfo", "JobSetInfo", 1) + ","
+	}
+	repeatedStringForActiveJobSets += "}"
 	s := strings.Join([]string{`&QueueInfo{`,
 		`Name:` + fmt.Sprintf("%v", this.Name) + `,`,
-		`ActiveJobSets:` + strings.Replace(fmt.Sprintf("%v", this.ActiveJobSets), "JobSetInfo", "JobSetInfo", 1) + `,`,
+		`ActiveJobSets:` + repeatedStringForActiveJobSets + `,`,
 		`}`,
 	}, "")
 	return s
@@ -3149,6 +3380,91 @@ func (m *QueueInfoRequest) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
+func (m *QueueDeleteRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowSubmit
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: QueueDeleteRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: QueueDeleteRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Name", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowSubmit
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthSubmit
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthSubmit
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Name = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipSubmit(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthSubmit
+			}
+			if (iNdEx + skippy) < 0 {
+				return ErrInvalidLengthSubmit
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
 func (m *QueueInfo) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -3394,6 +3710,7 @@ func (m *JobSetInfo) Unmarshal(dAtA []byte) error {
 func skipSubmit(dAtA []byte) (n int, err error) {
 	l := len(dAtA)
 	iNdEx := 0
+	depth := 0
 	for iNdEx < l {
 		var wire uint64
 		for shift := uint(0); ; shift += 7 {
@@ -3425,10 +3742,8 @@ func skipSubmit(dAtA []byte) (n int, err error) {
 					break
 				}
 			}
-			return iNdEx, nil
 		case 1:
 			iNdEx += 8
-			return iNdEx, nil
 		case 2:
 			var length int
 			for shift := uint(0); ; shift += 7 {
@@ -3449,55 +3764,30 @@ func skipSubmit(dAtA []byte) (n int, err error) {
 				return 0, ErrInvalidLengthSubmit
 			}
 			iNdEx += length
-			if iNdEx < 0 {
-				return 0, ErrInvalidLengthSubmit
-			}
-			return iNdEx, nil
 		case 3:
-			for {
-				var innerWire uint64
-				var start int = iNdEx
-				for shift := uint(0); ; shift += 7 {
-					if shift >= 64 {
-						return 0, ErrIntOverflowSubmit
-					}
-					if iNdEx >= l {
-						return 0, io.ErrUnexpectedEOF
-					}
-					b := dAtA[iNdEx]
-					iNdEx++
-					innerWire |= (uint64(b) & 0x7F) << shift
-					if b < 0x80 {
-						break
-					}
-				}
-				innerWireType := int(innerWire & 0x7)
-				if innerWireType == 4 {
-					break
-				}
-				next, err := skipSubmit(dAtA[start:])
-				if err != nil {
-					return 0, err
-				}
-				iNdEx = start + next
-				if iNdEx < 0 {
-					return 0, ErrInvalidLengthSubmit
-				}
-			}
-			return iNdEx, nil
+			depth++
 		case 4:
-			return iNdEx, nil
+			if depth == 0 {
+				return 0, ErrUnexpectedEndOfGroupSubmit
+			}
+			depth--
 		case 5:
 			iNdEx += 4
-			return iNdEx, nil
 		default:
 			return 0, fmt.Errorf("proto: illegal wireType %d", wireType)
 		}
+		if iNdEx < 0 {
+			return 0, ErrInvalidLengthSubmit
+		}
+		if depth == 0 {
+			return iNdEx, nil
+		}
 	}
-	panic("unreachable")
+	return 0, io.ErrUnexpectedEOF
 }
 
 var (
-	ErrInvalidLengthSubmit = fmt.Errorf("proto: negative length found during unmarshaling")
-	ErrIntOverflowSubmit   = fmt.Errorf("proto: integer overflow")
+	ErrInvalidLengthSubmit        = fmt.Errorf("proto: negative length found during unmarshaling")
+	ErrIntOverflowSubmit          = fmt.Errorf("proto: integer overflow")
+	ErrUnexpectedEndOfGroupSubmit = fmt.Errorf("proto: unexpected end of group")
 )

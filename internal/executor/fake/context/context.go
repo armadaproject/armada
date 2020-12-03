@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/rand"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -13,20 +14,53 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/cache"
 
+	"github.com/G-Research/armada/internal/common"
+	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/executor/context"
 )
 
-type FakeClusterContext struct {
-	clusterId string
-	handlers  []*cache.ResourceEventHandlerFuncs
-	rwLock    sync.RWMutex
-	pods      map[string]*v1.Pod
+type NodeSpec struct {
+	Name        string
+	Count       int
+	Taints      []v1.Taint
+	Labels      map[string]string
+	Allocatable map[v1.ResourceName]resource.Quantity
 }
 
-func NewFakeClusterContext(clusterId string) context.ClusterContext {
-	return &FakeClusterContext{clusterId: clusterId, pods: map[string]*v1.Pod{}}
+var DefaultNodeSpec = []*NodeSpec{
+	{
+		Name:  "worker",
+		Count: 500,
+		Allocatable: map[v1.ResourceName]resource.Quantity{
+			"cpu":    resource.MustParse("8"),
+			"memory": resource.MustParse("128Gi"),
+		},
+	},
+}
+
+type FakeClusterContext struct {
+	clusterId             string
+	handlers              []*cache.ResourceEventHandlerFuncs
+	rwLock                sync.RWMutex
+	pods                  map[string]*v1.Pod
+	nodes                 []*v1.Node
+	nodeAvailableResource map[string]common.ComputeResources
+}
+
+func NewFakeClusterContext(clusterId string, nodeSpecs []*NodeSpec) context.ClusterContext {
+	c := &FakeClusterContext{
+		clusterId:             clusterId,
+		pods:                  map[string]*v1.Pod{},
+		nodeAvailableResource: map[string]common.ComputeResources{},
+	}
+	if nodeSpecs == nil {
+		nodeSpecs = DefaultNodeSpec
+	}
+	c.addNodes(nodeSpecs)
+	return c
 }
 
 func (FakeClusterContext) Stop() {
@@ -56,22 +90,7 @@ func (c *FakeClusterContext) GetActiveBatchPods() ([]*v1.Pod, error) {
 }
 
 func (c *FakeClusterContext) GetNodes() ([]*v1.Node, error) {
-	return []*v1.Node{
-		{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: c.clusterId + "-mega-node",
-			},
-			Spec: v1.NodeSpec{
-				Unschedulable: false,
-			},
-			Status: v1.NodeStatus{
-				Allocatable: map[v1.ResourceName]resource.Quantity{
-					"cpu":    resource.MustParse("2600"),
-					"memory": resource.MustParse("60Ti"),
-				},
-			},
-		},
-	}, nil
+	return c.nodes, nil
 }
 
 func (c *FakeClusterContext) GetPodEvents(pod *v1.Pod) ([]*v1.Event, error) {
@@ -82,6 +101,7 @@ func (c *FakeClusterContext) SubmitPod(pod *v1.Pod, owner string) (*v1.Pod, erro
 	c.rwLock.Lock()
 	pod.Status.Phase = v1.PodPending
 	pod.CreationTimestamp = metav1.Now()
+	pod.UID = types.UID("fake-pod--" + util.NewULID()) // ULID is 26 characters, but kubernetes UID can be 36
 	saved := pod.DeepCopy()
 	c.pods[pod.Name] = saved
 	c.rwLock.Unlock()
@@ -93,9 +113,18 @@ func (c *FakeClusterContext) SubmitPod(pod *v1.Pod, owner string) (*v1.Pod, erro
 	go func() {
 		time.Sleep(time.Duration(rand.Float32()+1) * 100 * time.Millisecond)
 
-		c.rwLock.Lock()
-		saved.Spec.NodeName = c.clusterId + "-mega-node"
-		c.rwLock.Unlock()
+		for {
+			c.rwLock.Lock()
+			if _, exists := c.pods[saved.Name]; !exists {
+				return // The pod was deleted
+			}
+			scheduled := c.trySchedule(saved)
+			c.rwLock.Unlock()
+			if scheduled {
+				break
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
 
 		start := metav1.Now()
 		c.updateStatus(saved, v1.PodRunning, v1.ContainerState{Running: &v1.ContainerStateRunning{
@@ -106,6 +135,10 @@ func (c *FakeClusterContext) SubmitPod(pod *v1.Pod, owner string) (*v1.Pod, erro
 		runtime := extractSleepTime(saved)
 		c.rwLock.Unlock()
 		time.Sleep(time.Duration(runtime) * time.Second)
+
+		c.rwLock.Lock()
+		c.deallocate(saved)
+		c.rwLock.Unlock()
 
 		c.updateStatus(saved, v1.PodSucceeded, v1.ContainerState{Terminated: &v1.ContainerStateTerminated{
 			StartedAt:  start,
@@ -188,4 +221,99 @@ func (c *FakeClusterContext) DeletePods(pods []*v1.Pod) {
 
 func (c *FakeClusterContext) GetClusterId() string {
 	return c.clusterId
+}
+
+func (c *FakeClusterContext) addNodes(specs []*NodeSpec) {
+	for _, s := range specs {
+		for i := 0; i < s.Count; i++ {
+			node := &v1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:   c.clusterId + "-" + s.Name + "-" + strconv.Itoa(i),
+					Labels: s.Labels,
+				},
+				Spec: v1.NodeSpec{
+					Taints:        s.Taints,
+					Unschedulable: false,
+				},
+				Status: v1.NodeStatus{
+					Allocatable: s.Allocatable,
+				}}
+			c.nodes = append(c.nodes, node)
+			c.nodeAvailableResource[node.Name] = common.FromResourceList(s.Allocatable)
+		}
+	}
+}
+
+func (c *FakeClusterContext) trySchedule(pod *v1.Pod) bool {
+	// this method is executed inside lock
+
+	// fill more busy nodes first
+	sort.Slice(c.nodes, func(i, j int) bool {
+		node1 := c.nodes[i]
+		node2 := c.nodes[j]
+		node1Resource := c.nodeAvailableResource[node1.Name]
+		node2Resource := c.nodeAvailableResource[node2.Name]
+
+		// returns true if node1 should be considered before node2
+		return node2Resource.Dominates(node1Resource)
+	})
+
+	for _, n := range c.nodes {
+		if c.isSchedulableOn(pod, n) {
+			resources := common.TotalResourceRequest(&pod.Spec)
+			c.nodeAvailableResource[n.Name].Sub(resources)
+			pod.Spec.NodeName = n.Name
+			return true
+		}
+	}
+	return false
+}
+
+func (c *FakeClusterContext) deallocate(pod *v1.Pod) {
+	resources := common.TotalResourceRequest(&pod.Spec)
+	c.nodeAvailableResource[pod.Spec.NodeName].Add(resources)
+}
+
+func (c *FakeClusterContext) isSchedulableOn(pod *v1.Pod, n *v1.Node) bool {
+	requiredResource := common.TotalResourceRequest(&pod.Spec)
+	availableResource := c.nodeAvailableResource[n.Name].DeepCopy()
+	availableResource.Sub(requiredResource)
+
+	// resources
+	if !availableResource.IsValid() {
+		return false
+	}
+
+	// labels
+	for k, v := range pod.Spec.NodeSelector {
+		if n.Labels == nil {
+			return false
+		}
+		nodeValue, exists := n.Labels[k]
+		if !exists || nodeValue != v {
+			return false
+		}
+	}
+
+	// taints
+	for _, t := range n.Spec.Taints {
+		// check only hard constraints
+		if t.Effect == v1.TaintEffectPreferNoSchedule {
+			continue
+		}
+		if !tolerationsTolerateTaint(pod.Spec.Tolerations, &t) {
+			return false
+		}
+	}
+	return true
+}
+
+// https://github.com/kubernetes/kubernetes/blob/master/pkg/apis/core/v1/helper/helpers.go#L427
+func tolerationsTolerateTaint(tolerations []v1.Toleration, taint *v1.Taint) bool {
+	for i := range tolerations {
+		if tolerations[i].ToleratesTaint(taint) {
+			return true
+		}
+	}
+	return false
 }

@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/gogo/protobuf/types"
 	"google.golang.org/grpc/codes"
@@ -75,7 +76,8 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 		return nil, e
 	}
 
-	clusterSchedulingInfo := scheduling.CreateClusterSchedulingInfoReport(request)
+	nodeResources := scheduling.AggregateNodeTypeAllocations(request.Nodes)
+	clusterSchedulingInfo := scheduling.CreateClusterSchedulingInfoReport(request, nodeResources)
 	e = q.schedulingInfoRepository.UpdateClusterSchedulingInfo(clusterSchedulingInfo)
 	if e != nil {
 		return nil, e
@@ -99,6 +101,7 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 		q.jobRepository,
 		func(jobs []*api.Job) { reportJobsLeased(q.eventStore, jobs, request.ClusterId) },
 		request,
+		nodeResources,
 		activeClusterReports,
 		clusterLeasedJobReports,
 		clusterPriorities,
@@ -132,10 +135,39 @@ func (q *AggregatedQueueServer) ReturnLease(ctx context.Context, request *api.Re
 	if e := checkPermission(q.permissions, ctx, permissions.ExecuteJobs); e != nil {
 		return nil, e
 	}
-	_, err := q.jobRepository.ReturnLease(request.ClusterId, request.JobId)
+
+	// Check how many times the same job has been retried already
+	retries, err := q.jobRepository.GetNumberOfRetryAttempts(request.JobId)
 	if err != nil {
 		return nil, err
 	}
+
+	maxRetries := int(q.schedulingConfig.MaxRetries)
+	if retries >= maxRetries {
+		failureReason := fmt.Sprintf("Exceeded maximum number of retries: %d", maxRetries)
+		err = q.reportFailure(request.JobId, request.ClusterId, failureReason)
+		if err != nil {
+			return nil, err
+		}
+
+		_, err := q.ReportDone(ctx, &api.IdList{Ids: []string{request.JobId}})
+		if err != nil {
+			return nil, err
+		}
+
+		return &types.Empty{}, nil
+	}
+
+	_, err = q.jobRepository.ReturnLease(request.ClusterId, request.JobId)
+	if err != nil {
+		return nil, err
+	}
+
+	err = q.jobRepository.AddRetryAttempt(request.JobId)
+	if err != nil {
+		return nil, err
+	}
+
 	return &types.Empty{}, nil
 }
 
@@ -159,4 +191,30 @@ func (q *AggregatedQueueServer) ReportDone(ctx context.Context, idList *api.IdLi
 		}
 	}
 	return &api.IdList{cleanedIds}, returnedError
+}
+
+func (q *AggregatedQueueServer) reportFailure(jobId string, clusterId string, reason string) error {
+	job, err := q.getJobById(jobId)
+	if err != nil {
+		return err
+	}
+
+	failureReason := reason
+	err = reportFailed(q.eventStore, clusterId, failureReason, job)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (q *AggregatedQueueServer) getJobById(jobId string) (*api.Job, error) {
+	jobs, err := q.jobRepository.GetExistingJobsByIds([]string{jobId})
+	if err != nil {
+		return nil, err
+	}
+	if len(jobs) < 1 {
+		return nil, fmt.Errorf("job with jobId %q not found", jobId)
+	}
+	return jobs[0], err
 }

@@ -47,3 +47,8 @@ var cfgFile string
 func initConfig() {
 	client.LoadCommandlineArgsFromConfigFile(cfgFile)
 }
+
+func exitWithError(e error) {
+	log.Error(e)
+	os.Exit(1)
+}

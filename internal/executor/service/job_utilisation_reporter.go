@@ -123,6 +123,8 @@ func (r *UtilisationEventReporter) deletePod(pod *v1.Pod) {
 	if !util.IsManagedPod(pod) {
 		return
 	}
+	r.dataAccessMutex.Lock()
+	defer r.dataAccessMutex.Unlock()
 	delete(r.podInfo, pod.Name)
 }
 

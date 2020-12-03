@@ -21,7 +21,10 @@ func TestUsageServer_ReportUsage(t *testing.T) {
 		cpu, _ := resource.ParseQuantity("10")
 		memory, _ := resource.ParseQuantity("360Gi")
 
-		_, err := s.ReportUsage(context.Background(), oneQueueReport(now, cpu, memory))
+		err := s.queueRepository.CreateQueue(&api.Queue{Name: "q1", PriorityFactor: 1})
+		assert.Nil(t, err)
+
+		_, err = s.ReportUsage(context.Background(), oneQueueReport(now, cpu, memory))
 		assert.Nil(t, err)
 
 		priority, err := s.usageRepository.GetClusterPriority("clusterA")
@@ -58,8 +61,11 @@ func withUsageServer(action func(s *UsageServer)) {
 	}
 	defer db.Close()
 
-	repo := repository.NewRedisUsageRepository(redis.NewClient(&redis.Options{Addr: db.Addr()}))
-	server := NewUsageServer(&fakePermissionChecker{}, time.Minute, repo)
+	redisClient := redis.NewClient(&redis.Options{Addr: db.Addr()})
+
+	repo := repository.NewRedisUsageRepository(redisClient)
+	queueRepo := repository.NewRedisQueueRepository(redisClient)
+	server := NewUsageServer(&FakePermissionChecker{}, time.Minute, repo, queueRepo)
 
 	action(server)
 }

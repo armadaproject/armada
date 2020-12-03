@@ -89,7 +89,7 @@ func (authService *KerberosAuthService) Authenticate(ctx context.Context) (Princ
 	}
 	svc := spnego.SPNEGOService(authService.kt, settings...)
 
-	authenticated, ctx, st := svc.AcceptSecContext(&token)
+	authenticated, credentialsContext, st := svc.AcceptSecContext(&token)
 	if st.Code != gssapi.StatusComplete && st.Code != gssapi.StatusContinueNeeded {
 		log.Errorf("SPNEGO validation error: %v", st)
 		return nil, status.Errorf(codes.Unauthenticated, "SPNEGO validation error: %v", st)
@@ -100,12 +100,14 @@ func (authService *KerberosAuthService) Authenticate(ctx context.Context) (Princ
 		return nil, status.Errorf(codes.Unauthenticated, "SPNEGO GSS-API continue needed")
 	}
 	if authenticated {
-		id := ctx.Value(ctxCredentials).(*credentials.Credentials)
+		id := credentialsContext.Value(ctxCredentials).(*credentials.Credentials)
 		if adCredentials, ok := id.Attributes()[credentials.AttributeKeyADCredentials].(credentials.ADCredentials); ok {
 			user := adCredentials.EffectiveName + authService.userNameSuffix
 			groups := adCredentials.GroupMembershipSIDs
 
-			_ = grpc.SetHeader(ctx, metadata.Pairs(spnego.HTTPHeaderAuthResponse, spnegoNegTokenRespKRBAcceptCompleted))
+			// Original library sets ticket accepted header here, but this breaks python request-negotiate-sspi module
+			// removing the header as workaround before moving away from kerberos
+			// _ = grpc.SetHeader(ctx, metadata.Pairs(spnego.HTTPHeaderAuthResponse, spnegoNegTokenRespKRBAcceptCompleted))
 			return NewStaticPrincipal(user, groups), nil
 		}
 		log.Error("Failed to read ad credentials")

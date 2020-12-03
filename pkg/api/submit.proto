@@ -12,67 +12,72 @@ option (gogoproto.stringer_all) = true;
 
 
 message JobSubmitRequestItem {
-    double Priority = 1;
-    string Namespace = 3;
-    map<string, string> Labels = 4;
-    map<string, string> Annotations = 5;
-    map<string, string> RequiredNodeLabels = 6;
-    k8s.io.api.core.v1.PodSpec PodSpec = 2;
+    double priority = 1;
+    string namespace = 3;
+    map<string, string> labels = 4;
+    map<string, string> annotations = 5;
+    map<string, string> required_node_labels = 6 [deprecated = true]; // Use PodSpec.NodeSelector instead
+    k8s.io.api.core.v1.PodSpec pod_spec = 2;
 }
 
 // swagger:model
 message JobSubmitRequest {
-    string Queue = 1;
-    string JobSetId = 2;
-    repeated JobSubmitRequestItem JobRequestItems = 3;
+    string queue = 1;
+    string job_set_id = 2;
+    repeated JobSubmitRequestItem job_request_items = 3;
 }
 
 // swagger:model
 message JobCancelRequest {
-    string JobId = 1;
-    string JobSetId = 2;
-    string Queue = 3;
+    string job_id = 1;
+    string job_set_id = 2;
+    string queue = 3;
 }
 
 message JobSubmitResponseItem {
-    string JobId = 1;
-    string Error = 2;
+    string job_id = 1;
+    string error = 2;
 }
 
 // swagger:model
 message JobSubmitResponse {
-    repeated JobSubmitResponseItem JobResponseItems = 1;
+    repeated JobSubmitResponseItem job_response_items = 1;
 }
 
 // swagger:model
 message Queue {
-    string Name = 1;
-    double PriorityFactor = 2;
-    repeated string UserOwners = 3;
-    repeated string GroupOwners = 4;
-    map<string, double> ResourceLimits = 5;
+    string name = 1;
+    double priority_factor = 2;
+    repeated string user_owners = 3;
+    repeated string group_owners = 4;
+    map<string, double> resource_limits = 5;
 }
 
 // swagger:model
 message CancellationResult {
-    repeated string CancelledIds = 1;
+    repeated string cancelled_ids = 1 [(gogoproto.jsontag) = "cancelledIds"];
 }
 
 //swagger:model
 message QueueInfoRequest {
-    string Name = 1;
+    string name = 1;
+}
+
+//swagger:model
+message QueueDeleteRequest {
+    string name = 1;
 }
 
 //swagger:model
 message QueueInfo {
-    string Name = 1;
-    repeated JobSetInfo ActiveJobSets = 2;
+    string name = 1;
+    repeated JobSetInfo active_job_sets = 2;
 }
 
 message JobSetInfo {
-    string Name = 1;
-    int32 QueuedJobs = 2;
-    int32 LeasedJobs = 3;
+    string name = 1;
+    int32 queued_jobs = 2;
+    int32 leased_jobs = 3;
 }
 
 service Submit {
@@ -90,13 +95,18 @@ service Submit {
     }
     rpc CreateQueue (Queue) returns (google.protobuf.Empty) {
         option (google.api.http) = {
-            put: "/v1/queue/{Name}"
+            put: "/v1/queue/{name}"
             body: "*"
+        };
+    }
+    rpc DeleteQueue (QueueDeleteRequest) returns (google.protobuf.Empty) {
+        option (google.api.http) = {
+            delete: "/v1/queue/{name}"
         };
     }
     rpc GetQueueInfo (QueueInfoRequest) returns (QueueInfo) {
         option (google.api.http) = {
-            get: "/v1/queue/{Name}"
+            get: "/v1/queue/{name}"
         };
     }
 }

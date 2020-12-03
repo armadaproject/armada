@@ -63,6 +63,23 @@ func TestCanSubmitJob_IncorrectJobMountFails(t *testing.T) {
 	})
 }
 
+func TestCanNotSubmitJobToDeletedQueue(t *testing.T) {
+	skipIfIntegrationEnvNotPresent(t)
+
+	client.WithConnection(connectionDetails(), func(connection *grpc.ClientConn) {
+		submitClient := api.NewSubmitClient(connection)
+
+		jobRequest := createJobRequest("personal-anonymous")
+		createQueue(submitClient, jobRequest, t)
+
+		err := client.DeleteQueue(submitClient, jobRequest.Queue)
+		assert.NoError(t, err)
+
+		_, err = client.SubmitJobs(submitClient, jobRequest)
+		assert.Error(t, err)
+	})
+}
+
 func TestCanSubmitJob_ArmdactlWatchExitOnInactive(t *testing.T) {
 	skipIfIntegrationEnvNotPresent(t)
 	connDetails := connectionDetails()

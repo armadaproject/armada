@@ -13,6 +13,7 @@ type QueueRepository interface {
 	GetAllQueues() ([]*api.Queue, error)
 	GetQueue(name string) (*api.Queue, error)
 	CreateQueue(queue *api.Queue) error
+	DeleteQueue(name string) error
 }
 
 type RedisQueueRepository struct {
@@ -55,11 +56,15 @@ func (r *RedisQueueRepository) GetQueue(name string) (*api.Queue, error) {
 }
 
 func (r *RedisQueueRepository) CreateQueue(queue *api.Queue) error {
-
 	data, e := proto.Marshal(queue)
 	if e != nil {
 		return e
 	}
 	result := r.db.HSet(queueHashKey, queue.Name, data)
+	return result.Err()
+}
+
+func (r *RedisQueueRepository) DeleteQueue(name string) error {
+	result := r.db.HDel(queueHashKey, name)
 	return result.Err()
 }

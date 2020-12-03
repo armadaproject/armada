@@ -16,7 +16,8 @@ tolerations:
   - effect: NoSchedule
     key: node-role.kubernetes.io/master
     operator: Exists
-
+customServiceAccount: null
+serviceAccount: null
 
 prometheus:
   enabled: false

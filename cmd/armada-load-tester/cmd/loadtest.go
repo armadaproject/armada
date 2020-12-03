@@ -107,7 +107,7 @@ func checkLoadTestSuccess(loadTestDeadline context.Context, result domain.LoadTe
 		}
 	}
 	if len(nonSuccessfulJobs) > 0 {
-		log.Error("Fail: The following jobs have not completed successfully %s", strings.Join(nonSuccessfulJobs, ","))
+		log.Errorf("Fail: The following jobs have not completed successfully %s", strings.Join(nonSuccessfulJobs, ","))
 		os.Exit(1)
 	}
 }

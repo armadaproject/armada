@@ -11,7 +11,7 @@
     "version": "version not set"
   },
   "paths": {
-    "/v1/job-set/{Queue}/{Id}": {
+    "/v1/job-set/{queue}/{id}": {
       "post": {
         "produces": [
           "application/ndjson-stream"
@@ -23,13 +23,13 @@
         "parameters": [
           {
             "type": "string",
-            "name": "Queue",
+            "name": "queue",
             "in": "path",
             "required": true
           },
           {
             "type": "string",
-            "name": "Id",
+            "name": "id",
             "in": "path",
             "required": true
           },
@@ -46,7 +46,22 @@
           "200": {
             "description": "A successful response.(streaming responses)",
             "schema": {
-              "$ref": "#/x-stream-definitions/apiEventStreamMessage"
+              "type": "file",
+              "title": "Stream result of apiEventStreamMessage",
+              "properties": {
+                "error": {
+                  "$ref": "#/definitions/runtimeStreamError"
+                },
+                "result": {
+                  "$ref": "#/definitions/apiEventStreamMessage"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
             }
           }
         }
@@ -74,6 +89,12 @@
             "schema": {
               "$ref": "#/definitions/apiCancellationResult"
             }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
           }
         }
       }
@@ -100,11 +121,17 @@
             "schema": {
               "$ref": "#/definitions/apiJobSubmitResponse"
             }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
           }
         }
       }
     },
-    "/v1/queue/{Name}": {
+    "/v1/queue/{name}": {
       "get": {
         "tags": [
           "Submit"
@@ -113,7 +140,7 @@
         "parameters": [
           {
             "type": "string",
-            "name": "Name",
+            "name": "name",
             "in": "path",
             "required": true
           }
@@ -123,6 +150,12 @@
             "description": "A successful response.",
             "schema": {
               "$ref": "#/definitions/apiQueueInfo"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
             }
           }
         }
@@ -135,7 +168,7 @@
         "parameters": [
           {
             "type": "string",
-            "name": "Name",
+            "name": "name",
             "in": "path",
             "required": true
           },
@@ -152,6 +185,38 @@
           "200": {
             "description": "A successful response.",
             "schema": {}
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Submit"
+        ],
+        "operationId": "DeleteQueue",
+        "parameters": [
+          {
+            "type": "string",
+            "name": "name",
+            "in": "path",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {}
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
           }
         }
       }
@@ -162,7 +227,7 @@
       "type": "object",
       "title": "swagger:model",
       "properties": {
-        "CancelledIds": {
+        "cancelledIds": {
           "type": "array",
           "items": {
             "type": "string"
@@ -224,7 +289,7 @@
       "type": "object",
       "title": "swagger:model",
       "properties": {
-        "Id": {
+        "id": {
           "type": "string"
         },
         "message": {
@@ -235,45 +300,45 @@
     "apiJob": {
       "type": "object",
       "properties": {
-        "Annotations": {
+        "annotations": {
           "type": "object",
           "additionalProperties": {
             "type": "string"
           }
         },
-        "Created": {
+        "created": {
           "type": "string",
           "format": "date-time"
         },
-        "Id": {
+        "id": {
           "type": "string"
         },
-        "JobSetId": {
+        "jobSetId": {
           "type": "string"
         },
-        "Labels": {
+        "labels": {
           "type": "object",
           "additionalProperties": {
             "type": "string"
           }
         },
-        "Namespace": {
+        "namespace": {
           "type": "string"
         },
-        "Owner": {
+        "owner": {
           "type": "string"
         },
-        "PodSpec": {
+        "podSpec": {
           "$ref": "#/definitions/v1PodSpec"
         },
-        "Priority": {
+        "priority": {
           "type": "number",
           "format": "double"
         },
-        "Queue": {
+        "queue": {
           "type": "string"
         },
-        "RequiredNodeLabels": {
+        "requiredNodeLabels": {
           "type": "object",
           "additionalProperties": {
             "type": "string"
@@ -285,13 +350,13 @@
       "type": "object",
       "title": "swagger:model",
       "properties": {
-        "JobId": {
+        "jobId": {
           "type": "string"
         },
-        "JobSetId": {
+        "jobSetId": {
           "type": "string"
         },
-        "Queue": {
+        "queue": {
           "type": "string"
         }
       }
@@ -299,17 +364,17 @@
     "apiJobCancelledEvent": {
       "type": "object",
       "properties": {
-        "Created": {
+        "created": {
           "type": "string",
           "format": "date-time"
         },
-        "JobId": {
+        "jobId": {
           "type": "string"
         },
-        "JobSetId": {
+        "jobSetId": {
           "type": "string"
         },
-        "Queue": {
+        "queue": {
           "type": "string"
         }
       }
@@ -317,17 +382,17 @@
     "apiJobCancellingEvent": {
       "type": "object",
       "properties": {
-        "Created": {
+        "created": {
           "type": "string",
           "format": "date-time"
         },
-        "JobId": {
+        "jobId": {
           "type": "string"
         },
-        "JobSetId": {
+        "jobSetId": {
           "type": "string"
         },
-        "Queue": {
+        "queue": {
           "type": "string"
         }
       }
@@ -335,36 +400,36 @@
     "apiJobFailedEvent": {
       "type": "object",
       "properties": {
-        "ClusterId": {
+        "clusterId": {
           "type": "string"
         },
-        "Created": {
+        "created": {
           "type": "string",
           "format": "date-time"
         },
-        "ExitCodes": {
+        "exitCodes": {
           "type": "object",
           "additionalProperties": {
             "type": "integer",
             "format": "int32"
           }
         },
-        "JobId": {
+        "jobId": {
           "type": "string"
         },
-        "JobSetId": {
+        "jobSetId": {
           "type": "string"
         },
-        "KubernetesId": {
+        "kubernetesId": {
           "type": "string"
         },
-        "NodeName": {
+        "nodeName": {
           "type": "string"
         },
-        "Queue": {
+        "queue": {
           "type": "string"
         },
-        "Reason": {
+        "reason": {
           "type": "string"
         }
       }
@@ -372,17 +437,17 @@
     "apiJobLeaseExpiredEvent": {
       "type": "object",
       "properties": {
-        "Created": {
+        "created": {
           "type": "string",
           "format": "date-time"
         },
-        "JobId": {
+        "jobId": {
           "type": "string"
         },
-        "JobSetId": {
+        "jobSetId": {
           "type": "string"
         },
-        "Queue": {
+        "queue": {
           "type": "string"
         }
       }
@@ -390,23 +455,23 @@
     "apiJobLeaseReturnedEvent": {
       "type": "object",
       "properties": {
-        "ClusterId": {
+        "clusterId": {
           "type": "string"
         },
-        "Created": {
+        "created": {
           "type": "string",
           "format": "date-time"
         },
-        "JobId": {
+        "jobId": {
           "type": "string"
         },
-        "JobSetId": {
+        "jobSetId": {
           "type": "string"
         },
-        "Queue": {
+        "queue": {
           "type": "string"
         },
-        "Reason": {
+        "reason": {
           "type": "string"
         }
       }
@@ -414,20 +479,20 @@
     "apiJobLeasedEvent": {
       "type": "object",
       "properties": {
-        "ClusterId": {
+        "clusterId": {
           "type": "string"
         },
-        "Created": {
+        "created": {
           "type": "string",
           "format": "date-time"
         },
-        "JobId": {
+        "jobId": {
           "type": "string"
         },
-        "JobSetId": {
+        "jobSetId": {
           "type": "string"
         },
-        "Queue": {
+        "queue": {
           "type": "string"
         }
       }
@@ -435,23 +500,23 @@
     "apiJobPendingEvent": {
       "type": "object",
       "properties": {
-        "ClusterId": {
+        "clusterId": {
           "type": "string"
         },
-        "Created": {
+        "created": {
           "type": "string",
           "format": "date-time"
         },
-        "JobId": {
+        "jobId": {
           "type": "string"
         },
-        "JobSetId": {
+        "jobSetId": {
           "type": "string"
         },
-        "KubernetesId": {
+        "kubernetesId": {
           "type": "string"
         },
-        "Queue": {
+        "queue": {
           "type": "string"
         }
       }
@@ -459,17 +524,17 @@
     "apiJobQueuedEvent": {
       "type": "object",
       "properties": {
-        "Created": {
+        "created": {
           "type": "string",
           "format": "date-time"
         },
-        "JobId": {
+        "jobId": {
           "type": "string"
         },
-        "JobSetId": {
+        "jobSetId": {
           "type": "string"
         },
-        "Queue": {
+        "queue": {
           "type": "string"
         }
       }
@@ -477,17 +542,17 @@
     "apiJobReprioritizedEvent": {
       "type": "object",
       "properties": {
-        "Created": {
+        "created": {
           "type": "string",
           "format": "date-time"
         },
-        "JobId": {
+        "jobId": {
           "type": "string"
         },
-        "JobSetId": {
+        "jobSetId": {
           "type": "string"
         },
-        "Queue": {
+        "queue": {
           "type": "string"
         }
       }
@@ -495,26 +560,26 @@
     "apiJobRunningEvent": {
       "type": "object",
       "properties": {
-        "ClusterId": {
+        "clusterId": {
           "type": "string"
         },
-        "Created": {
+        "created": {
           "type": "string",
           "format": "date-time"
         },
-        "JobId": {
+        "jobId": {
           "type": "string"
         },
-        "JobSetId": {
+        "jobSetId": {
           "type": "string"
         },
-        "KubernetesId": {
+        "kubernetesId": {
           "type": "string"
         },
-        "NodeName": {
+        "nodeName": {
           "type": "string"
         },
-        "Queue": {
+        "queue": {
           "type": "string"
         }
       }
@@ -522,14 +587,14 @@
     "apiJobSetInfo": {
       "type": "object",
       "properties": {
-        "LeasedJobs": {
+        "leasedJobs": {
           "type": "integer",
           "format": "int32"
         },
-        "Name": {
+        "name": {
           "type": "string"
         },
-        "QueuedJobs": {
+        "queuedJobs": {
           "type": "integer",
           "format": "int32"
         }
@@ -539,18 +604,17 @@
       "type": "object",
       "title": "swagger:model",
       "properties": {
-        "FromMessageId": {
+        "fromMessageId": {
           "type": "string"
         },
-        "Id": {
+        "id": {
           "type": "string"
         },
-        "Queue": {
+        "queue": {
           "type": "string"
         },
-        "Watch": {
-          "type": "boolean",
-          "format": "boolean"
+        "watch": {
+          "type": "boolean"
         }
       }
     },
@@ -558,16 +622,16 @@
       "type": "object",
       "title": "swagger:model",
       "properties": {
-        "JobRequestItems": {
+        "jobRequestItems": {
           "type": "array",
           "items": {
             "$ref": "#/definitions/apiJobSubmitRequestItem"
           }
         },
-        "JobSetId": {
+        "jobSetId": {
           "type": "string"
         },
-        "Queue": {
+        "queue": {
           "type": "string"
         }
       }
@@ -575,29 +639,29 @@
     "apiJobSubmitRequestItem": {
       "type": "object",
       "properties": {
-        "Annotations": {
+        "annotations": {
           "type": "object",
           "additionalProperties": {
             "type": "string"
           }
         },
-        "Labels": {
+        "labels": {
           "type": "object",
           "additionalProperties": {
             "type": "string"
           }
         },
-        "Namespace": {
+        "namespace": {
           "type": "string"
         },
-        "PodSpec": {
+        "podSpec": {
           "$ref": "#/definitions/v1PodSpec"
         },
-        "Priority": {
+        "priority": {
           "type": "number",
           "format": "double"
         },
-        "RequiredNodeLabels": {
+        "requiredNodeLabels": {
           "type": "object",
           "additionalProperties": {
             "type": "string"
@@ -609,7 +673,7 @@
       "type": "object",
       "title": "swagger:model",
       "properties": {
-        "JobResponseItems": {
+        "jobResponseItems": {
           "type": "array",
           "items": {
             "$ref": "#/definitions/apiJobSubmitResponseItem"
@@ -620,10 +684,10 @@
     "apiJobSubmitResponseItem": {
       "type": "object",
       "properties": {
-        "Error": {
+        "error": {
           "type": "string"
         },
-        "JobId": {
+        "jobId": {
           "type": "string"
         }
       }
@@ -631,20 +695,20 @@
     "apiJobSubmittedEvent": {
       "type": "object",
       "properties": {
-        "Created": {
+        "created": {
           "type": "string",
           "format": "date-time"
         },
-        "Job": {
+        "job": {
           "$ref": "#/definitions/apiJob"
         },
-        "JobId": {
+        "jobId": {
           "type": "string"
         },
-        "JobSetId": {
+        "jobSetId": {
           "type": "string"
         },
-        "Queue": {
+        "queue": {
           "type": "string"
         }
       }
@@ -652,26 +716,26 @@
     "apiJobSucceededEvent": {
       "type": "object",
       "properties": {
-        "ClusterId": {
+        "clusterId": {
           "type": "string"
         },
-        "Created": {
+        "created": {
           "type": "string",
           "format": "date-time"
         },
-        "JobId": {
+        "jobId": {
           "type": "string"
         },
-        "JobSetId": {
+        "jobSetId": {
           "type": "string"
         },
-        "KubernetesId": {
+        "kubernetesId": {
           "type": "string"
         },
-        "NodeName": {
+        "nodeName": {
           "type": "string"
         },
-        "Queue": {
+        "queue": {
           "type": "string"
         }
       }
@@ -679,20 +743,20 @@
     "apiJobTerminatedEvent": {
       "type": "object",
       "properties": {
-        "ClusterId": {
+        "clusterId": {
           "type": "string"
         },
-        "Created": {
+        "created": {
           "type": "string",
           "format": "date-time"
         },
-        "JobId": {
+        "jobId": {
           "type": "string"
         },
-        "JobSetId": {
+        "jobSetId": {
           "type": "string"
         },
-        "Queue": {
+        "queue": {
           "type": "string"
         }
       }
@@ -700,29 +764,29 @@
     "apiJobUnableToScheduleEvent": {
       "type": "object",
       "properties": {
-        "ClusterId": {
+        "clusterId": {
           "type": "string"
         },
-        "Created": {
+        "created": {
           "type": "string",
           "format": "date-time"
         },
-        "JobId": {
+        "jobId": {
           "type": "string"
         },
-        "JobSetId": {
+        "jobSetId": {
           "type": "string"
         },
-        "KubernetesId": {
+        "kubernetesId": {
           "type": "string"
         },
-        "NodeName": {
+        "nodeName": {
           "type": "string"
         },
-        "Queue": {
+        "queue": {
           "type": "string"
         },
-        "Reason": {
+        "reason": {
           "type": "string"
         }
       }
@@ -730,32 +794,32 @@
     "apiJobUtilisationEvent": {
       "type": "object",
       "properties": {
-        "ClusterId": {
-          "type": "string"
-        },
-        "Created": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "JobId": {
-          "type": "string"
-        },
-        "JobSetId": {
-          "type": "string"
-        },
-        "KubernetesId": {
-          "type": "string"
-        },
         "MaxResourcesForPeriod": {
           "type": "object",
           "additionalProperties": {
             "$ref": "#/definitions/resourceQuantity"
           }
         },
-        "NodeName": {
+        "clusterId": {
           "type": "string"
         },
-        "Queue": {
+        "created": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "jobId": {
+          "type": "string"
+        },
+        "jobSetId": {
+          "type": "string"
+        },
+        "kubernetesId": {
+          "type": "string"
+        },
+        "nodeName": {
+          "type": "string"
+        },
+        "queue": {
           "type": "string"
         }
       }
@@ -764,27 +828,27 @@
       "type": "object",
       "title": "swagger:model",
       "properties": {
-        "GroupOwners": {
+        "groupOwners": {
           "type": "array",
           "items": {
             "type": "string"
           }
         },
-        "Name": {
+        "name": {
           "type": "string"
         },
-        "PriorityFactor": {
+        "priorityFactor": {
           "type": "number",
           "format": "double"
         },
-        "ResourceLimits": {
+        "resourceLimits": {
           "type": "object",
           "additionalProperties": {
             "type": "number",
             "format": "double"
           }
         },
-        "UserOwners": {
+        "userOwners": {
           "type": "array",
           "items": {
             "type": "string"
@@ -796,13 +860,13 @@
       "type": "object",
       "title": "swagger:model",
       "properties": {
-        "ActiveJobSets": {
+        "activeJobSets": {
           "type": "array",
           "items": {
             "$ref": "#/definitions/apiJobSetInfo"
           }
         },
-        "Name": {
+        "name": {
           "type": "string"
         }
       }
@@ -834,7 +898,7 @@
     "protobufAny": {
       "type": "object",
       "properties": {
-        "type_url": {
+        "typeUrl": {
           "type": "string"
         },
         "value": {
@@ -849,6 +913,27 @@
       "title": "Quantity is a fixed-point representation of a number.\nIt provides convenient marshaling/unmarshaling in JSON and YAML,\nin addition to String() and AsInt64() accessors.",
       "x-go-package": "k8s.io/apimachinery/pkg/api/resource"
     },
+    "runtimeError": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/protobufAny"
+          }
+        },
+        "error": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        }
+      }
+    },
     "runtimeStreamError": {
       "type": "object",
       "properties": {
@@ -858,15 +943,15 @@
             "$ref": "#/definitions/protobufAny"
           }
         },
-        "grpc_code": {
+        "grpcCode": {
           "type": "integer",
           "format": "int32"
         },
-        "http_code": {
+        "httpCode": {
           "type": "integer",
           "format": "int32"
         },
-        "http_status": {
+        "httpStatus": {
           "type": "string"
         },
         "message": {
@@ -3720,20 +3805,6 @@
         }
       },
       "x-go-package": "k8s.io/api/core/v1"
-    }
-  },
-  "x-stream-definitions": {
-    "apiEventStreamMessage": {
-      "properties": {
-        "error": {
-          "$ref": "#/definitions/runtimeStreamError"
-        },
-        "result": {
-          "$ref": "#/definitions/apiEventStreamMessage"
-        }
-      },
-      "title": "Stream result of apiEventStreamMessage",
-      "type": "file"
     }
   }
 }
