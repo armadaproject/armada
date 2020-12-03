@@ -160,7 +160,7 @@ func withSubmitServer(action func(s *SubmitServer, events repository.EventReposi
 	queueRepo := repository.NewRedisQueueRepository(client)
 	eventRepo := repository.NewRedisEventRepository(client, configuration.EventRetentionPolicy{ExpiryEnabled: false})
 	schedulingInfoRepository := repository.NewRedisSchedulingInfoRepository(client)
-	server := NewSubmitServer(&FakePermissionChecker{}, jobRepo, queueRepo, eventRepo, schedulingInfoRepository)
+	server := NewSubmitServer(&FakePermissionChecker{}, jobRepo, queueRepo, eventRepo, schedulingInfoRepository, &configuration.QueueManagementConfig{DefaultPriorityFactor: 1})
 
 	err := queueRepo.CreateQueue(&api.Queue{Name: "test"})
 	if err != nil {
