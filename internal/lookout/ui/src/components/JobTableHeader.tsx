@@ -51,10 +51,10 @@ export default function JobTableHeader(props: JobTableHeaderProps) {
   return (
     <div className="job-table-header">
       <div className="left">
-        <h2 className="title default-horizontal-margin">Jobs</h2>
+        <h2 className="title">Jobs</h2>
       </div>
       <div className="center">
-        <div className="default-horizontal-margin">
+        <div className="filter">
           <TextField
             value={props.queue}
             onChange={(event) => {
@@ -63,7 +63,7 @@ export default function JobTableHeader(props: JobTableHeaderProps) {
             label="Queue"
             variant="outlined"/>
         </div>
-        <div className="default-horizontal-margin">
+        <div className="filter">
           <TextField
             value={props.jobSet}
             onChange={(event) => {
@@ -72,7 +72,7 @@ export default function JobTableHeader(props: JobTableHeaderProps) {
             label="Job set"
             variant="filled"/>
         </div>
-        <div className="default-horizontal-margin">
+        <div className="filter">
           <InputLabel id="job-table-state-select-label">Job states</InputLabel>
           <Select
             labelId="job-table-state-select-label"
@@ -97,7 +97,7 @@ export default function JobTableHeader(props: JobTableHeaderProps) {
             ))}
           </Select>
         </div>
-        <div className="order-width default-horizontal-margin">
+        <div className="order-width filter">
           <InputLabel id="job-table-order-select-label">Order</InputLabel>
           <Select
             className="order-width"
@@ -112,7 +112,7 @@ export default function JobTableHeader(props: JobTableHeaderProps) {
         </div>
       </div>
       <div className="right">
-        <div className="default-horizontal-margin">
+        <div>
           <IconButton onClick={props.onRefresh} color="primary">
             <RefreshIcon/>
           </IconButton>

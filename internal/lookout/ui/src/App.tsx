@@ -4,7 +4,7 @@ import { ThemeProvider, createMuiTheme } from "@material-ui/core";
 
 import JobService from './services/JobService';
 import JobsContainer from "./containers/JobsContainer";
-import { Overview } from './Overview'
+import OverviewContainer from './containers/OverviewContainer'
 import NavBar from "./components/NavBar";
 
 import './App.css';
@@ -27,7 +27,7 @@ export function App(services: { jobService: JobService; }) {
           <div className="content">
             <Switch>
               <Route exact path="/">
-                <Overview jobService={services.jobService}/>
+                <OverviewContainer jobService={services.jobService}/>
               </Route>
               <Route exact path="/jobs">
                 <JobsContainer jobService={services.jobService}/>
