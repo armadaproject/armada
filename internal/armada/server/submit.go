@@ -11,6 +11,7 @@ import (
 
 	"github.com/G-Research/armada/internal/armada/authorization"
 	"github.com/G-Research/armada/internal/armada/authorization/permissions"
+	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/G-Research/armada/internal/armada/repository"
 	"github.com/G-Research/armada/internal/armada/scheduling"
 	"github.com/G-Research/armada/pkg/api"
@@ -22,6 +23,7 @@ type SubmitServer struct {
 	queueRepository          repository.QueueRepository
 	eventStore               repository.EventStore
 	schedulingInfoRepository repository.SchedulingInfoRepository
+	queueManagementConfig    *configuration.QueueManagementConfig
 }
 
 func NewSubmitServer(
@@ -29,14 +31,16 @@ func NewSubmitServer(
 	jobRepository repository.JobRepository,
 	queueRepository repository.QueueRepository,
 	eventStore repository.EventStore,
-	schedulingInfoRepository repository.SchedulingInfoRepository) *SubmitServer {
+	schedulingInfoRepository repository.SchedulingInfoRepository,
+	queueManagementConfig *configuration.QueueManagementConfig) *SubmitServer {
 
 	return &SubmitServer{
 		permissions:              permissions,
 		jobRepository:            jobRepository,
 		queueRepository:          queueRepository,
 		eventStore:               eventStore,
-		schedulingInfoRepository: schedulingInfoRepository}
+		schedulingInfoRepository: schedulingInfoRepository,
+		queueManagementConfig:    queueManagementConfig}
 }
 
 func (server *SubmitServer) GetQueueInfo(ctx context.Context, req *api.QueueInfoRequest) (*api.QueueInfo, error) {
@@ -96,7 +100,7 @@ func (server *SubmitServer) DeleteQueue(ctx context.Context, request *api.QueueD
 }
 
 func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRequest) (*api.JobSubmitResponse, error) {
-	if e := server.checkQueuePermission(ctx, req.Queue, permissions.SubmitJobs, permissions.SubmitAnyJobs); e != nil {
+	if e := server.checkQueuePermission(ctx, req.Queue, true, permissions.SubmitJobs, permissions.SubmitAnyJobs); e != nil {
 		return nil, e
 	}
 
@@ -191,7 +195,7 @@ func (server *SubmitServer) CancelJobs(ctx context.Context, request *api.JobCanc
 }
 
 func (server *SubmitServer) cancelJobs(ctx context.Context, queue string, jobs []*api.Job) (*api.CancellationResult, error) {
-	if e := server.checkQueuePermission(ctx, queue, permissions.CancelJobs, permissions.CancelAnyJobs); e != nil {
+	if e := server.checkQueuePermission(ctx, queue, false, permissions.CancelJobs, permissions.CancelAnyJobs); e != nil {
 		return nil, e
 	}
 
@@ -223,12 +227,25 @@ func (server *SubmitServer) cancelJobs(ctx context.Context, queue string, jobs [
 func (server *SubmitServer) checkQueuePermission(
 	ctx context.Context,
 	queueName string,
+	attemptToCreate bool,
 	basicPermission permissions.Permission,
 	allQueuesPermission permissions.Permission) error {
 
 	queue, e := server.queueRepository.GetQueue(queueName)
 	if e != nil {
-		return status.Errorf(codes.NotFound, "Could not load queue: %s", e.Error())
+		if attemptToCreate && server.permissions.UserHasPermission(ctx, permissions.SubmitAnyJobs) {
+			queue = &api.Queue{
+				Name:           queueName,
+				PriorityFactor: server.queueManagementConfig.DefaultPriorityFactor,
+			}
+			e := server.queueRepository.CreateQueue(queue)
+			if e != nil {
+				return status.Errorf(codes.Aborted, e.Error())
+			}
+			return nil
+		} else {
+			return status.Errorf(codes.NotFound, "Could not load queue: %s", e.Error())
+		}
 	}
 	permissionToCheck := basicPermission
 	if !server.permissions.UserOwns(ctx, queue) {
