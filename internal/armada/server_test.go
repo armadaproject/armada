@@ -74,6 +74,7 @@ func TestAutomQueueCreation(t *testing.T) {
 		assert.Equal(t, jobId, leasedResponse.Job[0].Id)
 
 		info, err := client.GetQueueInfo(ctx, &api.QueueInfoRequest{Name: "test"})
+		assert.NoError(t, err)
 		assert.Equal(t, "set", info.ActiveJobSets[0].Name)
 	})
 }
