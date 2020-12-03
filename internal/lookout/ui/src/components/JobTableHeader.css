@@ -38,7 +38,16 @@
   width: 6em;
 }
 
-.default-horizontal-margin {
+.job-table-header .center > .filter {
   margin-left: 1em;
   margin-right: 1em;
 }
+
+.job-table-header .left {
+  margin-left: 1em;
+}
+
+.job-table-header .right {
+  margin-right: 1em;
+}
+

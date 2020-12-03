@@ -1,0 +1,25 @@
+.overview {
+  margin-top: 1em;
+}
+
+.overview-header {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+}
+
+.overview-header .title {
+  margin-left: 16px;
+  margin-bottom: 0.6em;
+}
+
+.overview-header .refresh-button {
+  margin-right: 1em;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.details-button-cell {
+  max-width: 3em;
+}

@@ -17,9 +17,15 @@ function NavBar(props: RouteComponentProps) {
   return (
     <AppBar position="static">
       <Toolbar className="toolbar">
-        <Typography variant="h6" className="app-name">
-          Armada Lookout
-        </Typography>
+        <div className="title">
+          <img
+            className="logo"
+            src={process.env.PUBLIC_URL + "./Armada-white-rectangle.png"}
+            alt={""} />
+          <Typography variant="h6" className="app-name">
+            Lookout
+          </Typography>
+        </div>
         <div className="nav-items">
           <Tabs
             value={currentValue}
