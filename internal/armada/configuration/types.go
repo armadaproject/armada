@@ -87,5 +87,6 @@ type NatsConfig struct {
 }
 
 type QueueManagementConfig struct {
+	AutoCreateQueues      bool
 	DefaultPriorityFactor float64
 }

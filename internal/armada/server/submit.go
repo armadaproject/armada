@@ -233,7 +233,10 @@ func (server *SubmitServer) checkQueuePermission(
 
 	queue, e := server.queueRepository.GetQueue(queueName)
 	if e != nil {
-		if attemptToCreate && server.permissions.UserHasPermission(ctx, permissions.SubmitAnyJobs) {
+		if attemptToCreate &&
+			server.queueManagementConfig.AutoCreateQueues &&
+			server.permissions.UserHasPermission(ctx, permissions.SubmitAnyJobs) {
+
 			queue = &api.Queue{
 				Name:           queueName,
 				PriorityFactor: server.queueManagementConfig.DefaultPriorityFactor,
