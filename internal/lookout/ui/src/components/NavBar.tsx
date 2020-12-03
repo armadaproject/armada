@@ -20,10 +20,10 @@ function NavBar(props: RouteComponentProps) {
         <div className="title">
           <img
             className="logo"
-            src={process.env.PUBLIC_URL + "./logo.svg"}
+            src={process.env.PUBLIC_URL + "./Armada-white-rectangle.png"}
             alt={""} />
           <Typography variant="h6" className="app-name">
-            Armada Lookout
+            Lookout
           </Typography>
         </div>
         <div className="nav-items">

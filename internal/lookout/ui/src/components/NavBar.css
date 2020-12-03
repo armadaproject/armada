@@ -13,10 +13,10 @@
 }
 
 .toolbar .title .logo {
-  max-width: 4em;
-  margin-right: 1em;
-  margin-top: 0.25em;
-  margin-bottom: 0.25em;
+  max-width: 8em;
+  margin-right: 2em;
+  margin-top: 0;
+  margin-bottom: 0;
 }
 
 .toolbar .nav-items {

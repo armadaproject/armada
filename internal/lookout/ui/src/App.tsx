@@ -1,5 +1,6 @@
 import React from 'react';
-import { BrowserRouter as Router, Switch, Route} from 'react-router-dom'
+import { BrowserRouter as Router, Switch, Route } from 'react-router-dom'
+import { ThemeProvider, createMuiTheme } from "@material-ui/core";
 
 import JobService from './services/JobService';
 import JobsContainer from "./containers/JobsContainer";
@@ -8,22 +9,33 @@ import NavBar from "./components/NavBar";
 
 import './App.css';
 
+const theme = createMuiTheme({
+  palette: {
+    primary: {
+      main: "#00aae1",
+      contrastText: "#fff",
+    },
+  },
+})
+
 export function App(services: { jobService: JobService; }) {
   return (
-    <Router>
-      <div className="container">
-        <NavBar />
-        <div className="content">
-          <Switch>
-            <Route exact path="/">
-              <Overview jobService={services.jobService} />
-            </Route>
-            <Route exact path="/jobs">
-              <JobsContainer jobService={services.jobService} />
-            </Route>
-          </Switch>
+    <ThemeProvider theme={theme}>
+      <Router>
+        <div className="container">
+          <NavBar/>
+          <div className="content">
+            <Switch>
+              <Route exact path="/">
+                <Overview jobService={services.jobService}/>
+              </Route>
+              <Route exact path="/jobs">
+                <JobsContainer jobService={services.jobService}/>
+              </Route>
+            </Switch>
+          </div>
         </div>
-      </div>
-    </Router>
+      </Router>
+    </ThemeProvider>
   );
 }
