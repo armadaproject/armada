@@ -13,3 +13,10 @@
   flex: 1 1 auto;
   margin-left: 2em;
 }
+
+.job-table > div,
+.ReactVirtualized__Table,
+.ReactVirtualized__Table__Grid,
+.ReactVirtualized__Table__headerRow {
+  width: 100% !important;
+}

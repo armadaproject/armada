@@ -237,6 +237,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
         jobStates={this.state.jobStates}
         newestFirst={this.state.newestFirst}
         canLoadMore={this.state.canLoadMore}
+        batchSize={128}
         fetchJobs={this.loadJobInfos}
         isLoaded={this.jobInfoIsLoaded}
         onQueueChange={this.queueChange}

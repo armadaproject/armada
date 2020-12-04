@@ -13,6 +13,7 @@ type JobsProps = {
   jobSet: string
   jobStates: string[]
   newestFirst: boolean
+  batchSize: number
   fetchJobs: (start: number, stop: number) => Promise<JobInfoViewModel[]>
   isLoaded: (index: number) => boolean
   onQueueChange: (queue: string, callback: () => void) => void
@@ -52,7 +53,7 @@ export default class Jobs extends React.Component<JobsProps, {}> {
   }
 
   render() {
-    const rowCount = this.props.canLoadMore ? this.props.jobInfos.length + 1 : this.props.jobInfos.length
+    const rowCount = this.props.canLoadMore ? this.props.jobInfos.length + this.props.batchSize : this.props.jobInfos.length
 
     return (
       <div className="jobs">
@@ -81,6 +82,7 @@ export default class Jobs extends React.Component<JobsProps, {}> {
         <div className="job-table">
           <InfiniteLoader
             ref={this.infiniteLoader}
+            minimumBatchSize={this.props.batchSize}
             isRowLoaded={({ index }) => {
               return this.props.isLoaded(index)
             }}
