@@ -31,8 +31,9 @@ type ArmadaConfig struct {
 	PermissionGroupMapping map[permissions.Permission][]string
 	PermissionScopeMapping map[permissions.Permission][]string
 
-	Scheduling     SchedulingConfig
-	EventRetention EventRetentionPolicy
+	Scheduling      SchedulingConfig
+	QueueManagement QueueManagementConfig
+	EventRetention  EventRetentionPolicy
 }
 
 type OpenIdAuthenticationConfig struct {
@@ -83,4 +84,9 @@ type NatsConfig struct {
 	ClusterID  string
 	Subject    string
 	QueueGroup string
+}
+
+type QueueManagementConfig struct {
+	AutoCreateQueues      bool
+	DefaultPriorityFactor float64
 }
