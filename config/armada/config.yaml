@@ -40,6 +40,8 @@ scheduling:
     expireAfter: 15m
     expiryLoopInterval: 5s
   maxRetries: 5
+queueManagement:
+  defaultPriorityFactor: 1000
 eventRetention:
   expiryEnabled: true
   retentionDuration: 336h # Specified as a Go duration
