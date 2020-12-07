@@ -144,7 +144,6 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     if (start >= this.state.jobInfos.length || stop >= this.state.jobInfos.length) {
       await this.loadJobInfosForRange(start, stop);
     }
-    console.log(this.state.jobInfos.length)
     return Promise.resolve(this.state.jobInfos.slice(start, stop))
   }
 
