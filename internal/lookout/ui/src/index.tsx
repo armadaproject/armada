@@ -12,9 +12,7 @@ import './index.css';
 let jobService = new JobService(new LookoutApi(new Configuration({basePath: ""})))
 
 ReactDOM.render(
-  <React.StrictMode>
-    <App jobService={jobService} />
-  </React.StrictMode>,
+  <App jobService={jobService} />,
   document.getElementById('root')
 );
 

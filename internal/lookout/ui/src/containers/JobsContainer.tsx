@@ -5,7 +5,6 @@ import queryString, { ParseOptions, StringifyOptions } from 'query-string'
 
 import JobService, { JOB_STATES_FOR_DISPLAY, JobInfoViewModel } from "../services/JobService"
 import Jobs from "../components/Jobs"
-import { updateArray } from "../utils";
 
 type JobsContainerProps = {
   jobService: JobService
@@ -105,26 +104,32 @@ function parseJobStates(jobStates: string[] | string): string[] {
   return jobStates.filter(jobState => JOB_STATES_FOR_DISPLAY.includes(jobState))
 }
 
+const BATCH_SIZE = 100
+
 class JobsContainer extends React.Component<JobsContainerProps, JobsContainerState> {
   constructor(props: JobsContainerProps) {
-    super(props);
-    this.state = {
-      jobInfos: [],
+    super(props)
+
+    const initialFilters = {
       queue: "",
       jobSet: "",
       jobStates: [],
       newestFirst: true,
+    }
+    this.state = {
+      ...initialFilters,
+      jobInfos: [],
       canLoadMore: true,
     }
 
-    this.loadJobInfos = this.loadJobInfos.bind(this)
+    this.serveJobInfos = this.serveJobInfos.bind(this)
     this.jobInfoIsLoaded = this.jobInfoIsLoaded.bind(this)
+
     this.queueChange = this.queueChange.bind(this)
     this.jobSetChange = this.jobSetChange.bind(this)
     this.jobStatesChange = this.jobStatesChange.bind(this)
     this.orderChange = this.orderChange.bind(this)
     this.refresh = this.refresh.bind(this)
-    this.setUrlParams = this.setUrlParams.bind(this)
   }
 
   componentDidMount() {
@@ -135,93 +140,108 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     })
   }
 
-  async loadJobInfos(start: number, stop: number): Promise<JobInfoViewModel[]> {
-    const take = stop - start;
-    const newJobInfos = await this.props.jobService.getJobsInQueue(
-      this.state.queue,
-      take,
-      start,
-      [this.state.jobSet],
-      this.state.newestFirst,
-      this.state.jobStates,
-    )
-
-    let canLoadMore = true
-    if (take > newJobInfos.length) {
-      // No more to be fetched from API
-      canLoadMore = false
+  async serveJobInfos(start: number, stop: number): Promise<JobInfoViewModel[]> {
+    if (start >= this.state.jobInfos.length || stop >= this.state.jobInfos.length) {
+      await this.loadJobInfosForRange(start, stop);
     }
-
-    updateArray(this.state.jobInfos, newJobInfos, start, stop)
-    this.setState({
-      ...this.state,
-      jobInfos: this.state.jobInfos,
-      canLoadMore: canLoadMore
-    })
-    return this.state.jobInfos
+    return Promise.resolve(this.state.jobInfos.slice(start, stop))
   }
 
   jobInfoIsLoaded(index: number) {
     return !!this.state.jobInfos[index]
   }
 
-  queueChange(queue: string, callback: () => void) {
-    this.setState({
+  async queueChange(queue: string, callback: () => void) {
+    const filters = {
       ...this.state,
-      jobInfos: [],
-      canLoadMore: true,
-      queue: queue,
-    }, () => {
-      this.setUrlParams()
-      callback()
-    })
+      queue: queue
+    }
+    await this.setFilters(filters, callback)
   }
 
-  jobSetChange(jobSet: string, callback: () => void) {
-    this.setState({
+  async jobSetChange(jobSet: string, callback: () => void) {
+    const filters = {
       ...this.state,
-      jobInfos: [],
-      canLoadMore: true,
-      jobSet: jobSet,
-    }, () => {
-      this.setUrlParams()
-      callback()
-    })
+      jobSet: jobSet
+    }
+    await this.setFilters(filters, callback)
   }
 
-  jobStatesChange(jobStates: string[], callback: () => void) {
-    this.setState({
+  async jobStatesChange(jobStates: string[], callback: () => void) {
+    const filters = {
       ...this.state,
-      jobInfos: [],
-      canLoadMore: true,
       jobStates: jobStates
-    }, () => {
-      this.setUrlParams()
-      callback()
-    })
+    }
+    await this.setFilters(filters, callback)
   }
 
-  orderChange(newestFirst: boolean, callback: () => void) {
-    this.setState({
+  async orderChange(newestFirst: boolean, callback: () => void) {
+    const filters = {
       ...this.state,
-      jobInfos: [],
-      canLoadMore: true,
       newestFirst: newestFirst
-    }, () => {
-      this.setUrlParams()
-      callback()
+    }
+    await this.setFilters(filters, callback)
+  }
+
+  async refresh(callback: () => void) {
+    await this.setFilters(this.state, callback)
+  }
+
+  private async loadJobInfosForRange(start: number, stop: number) {
+    let allJobInfos = this.state.jobInfos
+    let canLoadMore = true
+
+    while (start >= allJobInfos.length || stop >= allJobInfos.length) {
+      const [newJobInfos, canLoadNext] = await this.fetchNextJobInfos(this.state, this.state.jobInfos.length)
+      allJobInfos = allJobInfos.concat(newJobInfos)
+      canLoadMore = canLoadNext
+
+      if (!canLoadNext) {
+        break
+      }
+    }
+
+    await this.setStateAsync({
+      ...this.state,
+      jobInfos: allJobInfos,
+      canLoadMore: canLoadMore,
     })
   }
 
-  refresh(callback: () => void) {
-    this.setState({
-      ...this.state,
-      jobInfos: [],
-      canLoadMore: true,
-    }, callback)
+  private async fetchNextJobInfos(filters: JobFilters, startIndex: number): Promise<[JobInfoViewModel[], boolean]> {
+    const newJobInfos = await this.props.jobService.getJobsInQueue(
+      filters.queue,
+      BATCH_SIZE,
+      startIndex,
+      [filters.jobSet],
+      filters.newestFirst,
+      filters.jobStates,
+    )
+
+    let canLoadMore = true
+    if (newJobInfos.length < BATCH_SIZE) {
+      canLoadMore = false
+    }
+
+    return [newJobInfos, canLoadMore]
   }
 
-  setUrlParams() {
+  private async setFilters(filters: JobFilters, callback: () => void) {
+    await this.setStateAsync({
+      ...this.state,
+      ...filters,
+      jobInfos: [],
+      canLoadMore: true,
+    })
+    this.setUrlParams()
+    callback()
+  }
+
+  private setStateAsync(state: JobsContainerState): Promise<void> {
+    return new Promise(resolve => this.setState(state, resolve))
+  }
+
+  private setUrlParams() {
     this.props.history.push({
       ...this.props.location,
       search: makeQueryStringFromFilters(this.state),
@@ -237,7 +257,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
         jobStates={this.state.jobStates}
         newestFirst={this.state.newestFirst}
         canLoadMore={this.state.canLoadMore}
-        fetchJobs={this.loadJobInfos}
+        fetchJobs={this.serveJobInfos}
         isLoaded={this.jobInfoIsLoaded}
         onQueueChange={this.queueChange}
         onJobSetChange={this.jobSetChange}
