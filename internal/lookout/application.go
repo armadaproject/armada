@@ -6,6 +6,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/doug-martin/goqu/v9"
+	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	_ "github.com/lib/pq"
 	log "github.com/sirupsen/logrus"
 
@@ -21,6 +23,12 @@ import (
 	"github.com/G-Research/armada/pkg/api/lookout"
 )
 
+type LogRusLogger struct{}
+
+func (l LogRusLogger) Printf(format string, v ...interface{}) {
+	log.Debugf(format, v...)
+}
+
 func StartUp(config configuration.LookoutConfiguration) (func(), *sync.WaitGroup) {
 
 	wg := &sync.WaitGroup{}
@@ -32,9 +40,11 @@ func StartUp(config configuration.LookoutConfiguration) (func(), *sync.WaitGroup
 	if err != nil {
 		panic(err)
 	}
+	goquDb := goqu.New("postgres", db)
+	goquDb.Logger(&LogRusLogger{})
 
-	jobStore := repository.NewSQLJobStore(db)
-	jobRepository := repository.NewSQLJobRepository(db)
+	jobStore := repository.NewSQLJobStore(goquDb)
+	jobRepository := repository.NewSQLJobRepository(goquDb)
 
 	conn, err := stanUtil.DurableConnect(
 		config.Nats.ClusterID,
