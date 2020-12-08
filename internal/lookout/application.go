@@ -61,6 +61,8 @@ func StartUp(config configuration.LookoutConfiguration) (func(), *sync.WaitGroup
 	lookoutServer := server.NewLookoutServer(jobRepository)
 	lookout.RegisterLookoutServer(grpcServer, lookoutServer)
 
+	grpc_prometheus.Register(grpcServer)
+
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", config.GrpcPort))
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
