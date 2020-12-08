@@ -11,17 +11,17 @@ import (
 	"github.com/lib/pq"
 )
 
-func insert(db *sql.DB, table string, fields []string, values []interface{}) (sql.Result, error) {
+func insert(db *goqu.Database, table string, fields []string, values []interface{}) (sql.Result, error) {
 	insertSql := createInsertQuery(table, fields, values)
 
 	return db.Exec(insertSql, values...)
 }
 
-func upsert(db *sql.DB, table string, key string, fields []string, values []interface{}) (sql.Result, error) {
+func upsert(db *goqu.Database, table string, key string, fields []string, values []interface{}) (sql.Result, error) {
 	return upsertCombinedKey(db, table, []string{key}, fields, values)
 }
 
-func upsertCombinedKey(db *sql.DB, table string, key []string, fields []string, values []interface{}) (sql.Result, error) {
+func upsertCombinedKey(db *goqu.Database, table string, key []string, fields []string, values []interface{}) (sql.Result, error) {
 	insertSql := createInsertQuery(table, append(key, fields...), values)
 	insertSql += " ON CONFLICT (" + strings.Join(key, ",") + ") DO UPDATE SET "
 

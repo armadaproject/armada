@@ -1,10 +1,10 @@
 package repository
 
 import (
-	"database/sql"
 	"encoding/json"
 	"fmt"
 
+	"github.com/doug-martin/goqu/v9"
 	_ "github.com/lib/pq"
 
 	"github.com/G-Research/armada/pkg/api"
@@ -22,10 +22,10 @@ type JobRecorder interface {
 }
 
 type SQLJobStore struct {
-	db *sql.DB
+	db *goqu.Database
 }
 
-func NewSQLJobStore(db *sql.DB) *SQLJobStore {
+func NewSQLJobStore(db *goqu.Database) *SQLJobStore {
 	return &SQLJobStore{db: db}
 }
 
