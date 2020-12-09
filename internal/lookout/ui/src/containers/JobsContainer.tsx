@@ -16,6 +16,7 @@ type JobsContainerProps = {
 interface JobsContainerState extends JobFilters {
   jobInfos: JobInfoViewModel[]
   canLoadMore: boolean
+  selectedJobs: Map<string, JobInfoViewModel>
 }
 
 export interface JobFilters {
@@ -120,6 +121,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
       ...initialFilters,
       jobInfos: [],
       canLoadMore: true,
+      selectedJobs: new Map<string, JobInfoViewModel>()
     }
 
     this.serveJobInfos = this.serveJobInfos.bind(this)
@@ -130,6 +132,8 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     this.jobStatesChange = this.jobStatesChange.bind(this)
     this.orderChange = this.orderChange.bind(this)
     this.refresh = this.refresh.bind(this)
+
+    this.selectJob = this.selectJob.bind(this)
   }
 
   componentDidMount() {
@@ -151,40 +155,56 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     return !!this.state.jobInfos[index]
   }
 
-  async queueChange(queue: string, callback: () => void) {
+  async queueChange(queue: string) {
     const filters = {
       ...this.state,
       queue: queue
     }
-    await this.setFilters(filters, callback)
+    await this.setFilters(filters)
   }
 
-  async jobSetChange(jobSet: string, callback: () => void) {
+  async jobSetChange(jobSet: string) {
     const filters = {
       ...this.state,
       jobSet: jobSet
     }
-    await this.setFilters(filters, callback)
+    await this.setFilters(filters)
   }
 
-  async jobStatesChange(jobStates: string[], callback: () => void) {
+  async jobStatesChange(jobStates: string[]) {
     const filters = {
       ...this.state,
       jobStates: jobStates
     }
-    await this.setFilters(filters, callback)
+    await this.setFilters(filters)
   }
 
-  async orderChange(newestFirst: boolean, callback: () => void) {
+  async orderChange(newestFirst: boolean) {
     const filters = {
       ...this.state,
       newestFirst: newestFirst
     }
-    await this.setFilters(filters, callback)
+    await this.setFilters(filters)
   }
 
-  async refresh(callback: () => void) {
-    await this.setFilters(this.state, callback)
+  async refresh() {
+    await this.setFilters(this.state)
+  }
+
+  async selectJob(jobId: string, job: JobInfoViewModel, selected: boolean) {
+    const selectedJobs = new Map<string, JobInfoViewModel>(this.state.selectedJobs)
+    if (selected) {
+      selectedJobs.set(jobId, job)
+    } else {
+      if (selectedJobs.has(jobId)) {
+        selectedJobs.delete(jobId)
+      }
+    }
+    await this.setStateAsync({
+      ...this.state,
+      selectedJobs: selectedJobs
+    })
+    console.log(this.state.selectedJobs)
   }
 
   private async loadJobInfosForRange(start: number, stop: number) {
@@ -226,7 +246,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     return [newJobInfos, canLoadMore]
   }
 
-  private async setFilters(filters: JobFilters, callback: () => void) {
+  private async setFilters(filters: JobFilters) {
     await this.setStateAsync({
       ...this.state,
       ...filters,
@@ -234,7 +254,6 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
       canLoadMore: true,
     })
     this.setUrlParams()
-    callback()
   }
 
   private setStateAsync(state: JobsContainerState): Promise<void> {
@@ -257,13 +276,15 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
         jobStates={this.state.jobStates}
         newestFirst={this.state.newestFirst}
         canLoadMore={this.state.canLoadMore}
+        selectedJobs={this.state.selectedJobs}
         fetchJobs={this.serveJobInfos}
         isLoaded={this.jobInfoIsLoaded}
         onQueueChange={this.queueChange}
         onJobSetChange={this.jobSetChange}
         onJobStatesChange={this.jobStatesChange}
         onOrderChange={this.orderChange}
-        onRefresh={this.refresh}/>
+        onRefresh={this.refresh}
+        onSelectJob={this.selectJob} />
     )
   }
 }

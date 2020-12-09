@@ -1,10 +1,12 @@
 import React from 'react'
-import { AutoSizer, Column, InfiniteLoader, Table, } from "react-virtualized"
+import { AutoSizer, Column, InfiniteLoader, Table } from "react-virtualized"
 
 import { JobInfoViewModel } from "../services/JobService"
 import JobTableHeader from "./JobTableHeader";
 
 import './Jobs.css'
+import JobRow from "./JobRow";
+import HeaderRow from "./HeaderRow";
 
 type JobsProps = {
   jobInfos: JobInfoViewModel[]
@@ -13,13 +15,15 @@ type JobsProps = {
   jobSet: string
   jobStates: string[]
   newestFirst: boolean
+  selectedJobs: Map<string, JobInfoViewModel>
   fetchJobs: (start: number, stop: number) => Promise<JobInfoViewModel[]>
   isLoaded: (index: number) => boolean
-  onQueueChange: (queue: string, callback: () => void) => void
-  onJobSetChange: (jobSet: string, callback: () => void) => void
-  onJobStatesChange: (jobStates: string[], callback: () => void) => void
-  onOrderChange: (newestFirst: boolean, callback: () => void) => void
-  onRefresh: (callback: () => void) => void
+  onQueueChange: (queue: string) => Promise<void>
+  onJobSetChange: (jobSet: string) => Promise<void>
+  onJobStatesChange: (jobStates: string[]) => Promise<void>
+  onOrderChange: (newestFirst: boolean) => Promise<void>
+  onRefresh: () => Promise<void>
+  onSelectJob: (jobId: string, job: JobInfoViewModel, selected: boolean) => Promise<void>
 }
 
 export default class Jobs extends React.Component<JobsProps, {}> {
@@ -62,21 +66,26 @@ export default class Jobs extends React.Component<JobsProps, {}> {
             jobSet={this.props.jobSet}
             newestFirst={this.props.newestFirst}
             jobStates={this.props.jobStates}
-            onQueueChange={queue => {
-              this.props.onQueueChange(queue, this.resetCache)
+            onQueueChange={async queue => {
+              await this.props.onQueueChange(queue)
+              this.resetCache()
             }}
-            onJobSetChange={jobSet => {
-              this.props.onJobSetChange(jobSet, this.resetCache)
+            onJobSetChange={async jobSet => {
+              await this.props.onJobSetChange(jobSet)
+              this.resetCache()
             }}
-            onJobStatesChange={jobStates => {
-              this.props.onJobStatesChange(jobStates, this.resetCache)
+            onJobStatesChange={async jobStates => {
+              await this.props.onJobStatesChange(jobStates)
+              this.resetCache()
             }}
-            onOrderChange={newestFirst => {
-              this.props.onOrderChange(newestFirst, this.resetCache)
+            onOrderChange={async newestFirst => {
+              await this.props.onOrderChange(newestFirst)
+              this.resetCache()
             }}
-            onRefresh={() => {
-              this.props.onRefresh(this.resetCache)
-            }}/>
+            onRefresh={async () => {
+              await this.props.onRefresh()
+              this.resetCache()
+            }} />
         </div>
         <div className="job-table">
           <InfiniteLoader
@@ -97,14 +106,34 @@ export default class Jobs extends React.Component<JobsProps, {}> {
                     rowCount={rowCount}
                     rowHeight={40}
                     rowGetter={this.rowGetter}
+                    rowRenderer={(props) => {
+                      const jobId = props.rowData.jobId
+                      let selected = false
+                      if (this.props.selectedJobs.has(jobId)) {
+                        selected = true
+                      }
+                      return (
+                        <JobRow
+                          isChecked={selected}
+                          onChangeChecked={async (selected) => {
+                            await this.props.onSelectJob(jobId, props.rowData, selected)
+                            this.infiniteLoader.current?.forceUpdate()
+                          }}
+                          tableKey={props.key}
+                          {...props} />
+                      )
+                    }}
+                    headerRowRenderer={(props) => {
+                      return <HeaderRow {...props}/>
+                    }}
                     headerHeight={40}
                     height={height}
                     width={width}>
-                    <Column dataKey="jobId" width={0.2 * width} label="Id"/>
-                    <Column dataKey="owner" width={0.2 * width} label="Owner"/>
-                    <Column dataKey="jobSet" width={0.2 * width} label="Job Set"/>
-                    <Column dataKey="submissionTime" width={0.2 * width} label="Submission Time"/>
-                    <Column dataKey="jobState" width={0.2 * width} label="State"/>
+                    <Column dataKey="jobId" width={0.2 * width} label="Id" />
+                    <Column dataKey="owner" width={0.2 * width} label="Owner" />
+                    <Column dataKey="jobSet" width={0.2 * width} label="Job Set" />
+                    <Column dataKey="submissionTime" width={0.2 * width} label="Submission Time" />
+                    <Column dataKey="jobState" width={0.2 * width} label="State" />
                   </Table>
                 )}
               </AutoSizer>

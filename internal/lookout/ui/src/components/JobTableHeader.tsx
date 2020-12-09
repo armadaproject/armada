@@ -1,5 +1,6 @@
 import React from "react";
 import {
+  Button,
   IconButton,
   MenuItem,
   TextField,
@@ -11,9 +12,11 @@ import {
   MenuProps
 } from "@material-ui/core";
 import RefreshIcon from '@material-ui/icons/Refresh';
+import CancelIcon from "@material-ui/icons/Cancel"
 
 import { JOB_STATES_FOR_DISPLAY } from "../services/JobService";
 import './JobTableHeader.css'
+import { Cancel } from "@material-ui/icons";
 
 type JobTableHeaderProps = {
   queue: string
@@ -112,12 +115,20 @@ export default function JobTableHeader(props: JobTableHeaderProps) {
         </div>
       </div>
       <div className="right">
-        <div>
+        <div className="cancel-jobs">
+          <Button
+            variant="contained"
+            color="secondary"
+            startIcon={<CancelIcon/>}>
+            Cancel
+          </Button>
+        </div>
+        <div className="refresh">
           <IconButton onClick={props.onRefresh} color="primary">
             <RefreshIcon/>
           </IconButton>
         </div>
       </div>
     </div>
-  )
+)
 }
