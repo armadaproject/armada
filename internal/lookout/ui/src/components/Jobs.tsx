@@ -7,6 +7,8 @@ import JobTableHeader from "./JobTableHeader";
 import './Jobs.css'
 import JobRow from "./JobRow";
 import HeaderRow from "./HeaderRow";
+import LoadingRow from "./LoadingRow";
+import CancelJobsModal from "./CancelJobsModal";
 
 type JobsProps = {
   jobInfos: JobInfoViewModel[]
@@ -16,6 +18,9 @@ type JobsProps = {
   jobStates: string[]
   newestFirst: boolean
   selectedJobs: Map<string, JobInfoViewModel>
+  canCancel: boolean
+  cancellableJobs: JobInfoViewModel[]
+  cancelJobsModalIsOpen: boolean
   fetchJobs: (start: number, stop: number) => Promise<JobInfoViewModel[]>
   isLoaded: (index: number) => boolean
   onQueueChange: (queue: string) => Promise<void>
@@ -23,7 +28,8 @@ type JobsProps = {
   onJobStatesChange: (jobStates: string[]) => Promise<void>
   onOrderChange: (newestFirst: boolean) => Promise<void>
   onRefresh: () => Promise<void>
-  onSelectJob: (jobId: string, job: JobInfoViewModel, selected: boolean) => Promise<void>
+  onSelectJob: (job: JobInfoViewModel, selected: boolean) => Promise<void>
+  onToggleCancelJobsModal: (open: boolean) => void
 }
 
 export default class Jobs extends React.Component<JobsProps, {}> {
@@ -42,7 +48,7 @@ export default class Jobs extends React.Component<JobsProps, {}> {
     } else {
       return {
         owner: "",
-        jobId: "Loading...",
+        jobId: "Loading",
         jobSet: "",
         jobState: "",
         queue: "",
@@ -66,6 +72,7 @@ export default class Jobs extends React.Component<JobsProps, {}> {
             jobSet={this.props.jobSet}
             newestFirst={this.props.newestFirst}
             jobStates={this.props.jobStates}
+            canCancel={this.props.canCancel}
             onQueueChange={async queue => {
               await this.props.onQueueChange(queue)
               this.resetCache()
@@ -85,8 +92,16 @@ export default class Jobs extends React.Component<JobsProps, {}> {
             onRefresh={async () => {
               await this.props.onRefresh()
               this.resetCache()
+            }}
+            onCancelJobsClick={() => {
+              this.props.onToggleCancelJobsModal(true)
             }} />
         </div>
+        <CancelJobsModal
+          open={this.props.cancelJobsModalIsOpen}
+          jobsToCancel={this.props.cancellableJobs}
+          onCancelJobs={() => console.log("Cancelling jobs")}
+          onBackdropClick={() => this.props.onToggleCancelJobsModal(false)} />
         <div className="job-table">
           <InfiniteLoader
             ref={this.infiniteLoader}
@@ -106,25 +121,28 @@ export default class Jobs extends React.Component<JobsProps, {}> {
                     rowCount={rowCount}
                     rowHeight={40}
                     rowGetter={this.rowGetter}
-                    rowRenderer={(props) => {
-                      const jobId = props.rowData.jobId
+                    rowRenderer={(tableRowProps) => {
+                      if (tableRowProps.rowData.jobId === "Loading") {
+                        return <LoadingRow {...tableRowProps} />
+                      }
+
                       let selected = false
-                      if (this.props.selectedJobs.has(jobId)) {
+                      if (this.props.selectedJobs.has(tableRowProps.rowData.jobId)) {
                         selected = true
                       }
                       return (
                         <JobRow
                           isChecked={selected}
                           onChangeChecked={async (selected) => {
-                            await this.props.onSelectJob(jobId, props.rowData, selected)
+                            await this.props.onSelectJob(tableRowProps.rowData, selected)
                             this.infiniteLoader.current?.forceUpdate()
                           }}
-                          tableKey={props.key}
-                          {...props} />
+                          tableKey={tableRowProps.key}
+                          {...tableRowProps} />
                       )
                     }}
-                    headerRowRenderer={(props) => {
-                      return <HeaderRow {...props}/>
+                    headerRowRenderer={(tableHeaderRowProps) => {
+                      return <HeaderRow {...tableHeaderRowProps}/>
                     }}
                     headerHeight={40}
                     height={height}

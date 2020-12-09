@@ -16,18 +16,19 @@ import CancelIcon from "@material-ui/icons/Cancel"
 
 import { JOB_STATES_FOR_DISPLAY } from "../services/JobService";
 import './JobTableHeader.css'
-import { Cancel } from "@material-ui/icons";
 
 type JobTableHeaderProps = {
   queue: string
   jobSet: string
   jobStates: string[]
   newestFirst: boolean
+  canCancel: boolean
   onQueueChange: (queue: string) => void
   onJobSetChange: (jobSet: string) => void
   onJobStatesChange: (jobStates: string[]) => void
   onOrderChange: (newestFirst: boolean) => void
   onRefresh: () => void
+  onCancelJobsClick: () => void
 }
 
 const ITEM_HEIGHT = 64;
@@ -117,9 +118,11 @@ export default function JobTableHeader(props: JobTableHeaderProps) {
       <div className="right">
         <div className="cancel-jobs">
           <Button
+            disabled={!props.canCancel}
             variant="contained"
             color="secondary"
-            startIcon={<CancelIcon/>}>
+            startIcon={<CancelIcon />}
+            onClick={props.onCancelJobsClick} >
             Cancel
           </Button>
         </div>

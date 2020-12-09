@@ -17,6 +17,7 @@ interface JobsContainerState extends JobFilters {
   jobInfos: JobInfoViewModel[]
   canLoadMore: boolean
   selectedJobs: Map<string, JobInfoViewModel>
+  cancelJobsModalIsOpen: boolean
 }
 
 export interface JobFilters {
@@ -37,6 +38,13 @@ const QUERY_STRING_OPTIONS: ParseOptions | StringifyOptions = {
   arrayFormat: "comma",
   parseBooleans: true,
 }
+const BATCH_SIZE = 100
+const CANCELLABLE_JOB_STATES = [
+  "Queued",
+  "Pending",
+  "Running",
+]
+
 
 export function makeQueryStringFromFilters(filters: JobFilters): string {
   let queryObject: JobFiltersQueryParams = {}
@@ -105,8 +113,6 @@ function parseJobStates(jobStates: string[] | string): string[] {
   return jobStates.filter(jobState => JOB_STATES_FOR_DISPLAY.includes(jobState))
 }
 
-const BATCH_SIZE = 100
-
 class JobsContainer extends React.Component<JobsContainerProps, JobsContainerState> {
   constructor(props: JobsContainerProps) {
     super(props)
@@ -121,7 +127,8 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
       ...initialFilters,
       jobInfos: [],
       canLoadMore: true,
-      selectedJobs: new Map<string, JobInfoViewModel>()
+      selectedJobs: new Map<string, JobInfoViewModel>(),
+      cancelJobsModalIsOpen: false,
     }
 
     this.serveJobInfos = this.serveJobInfos.bind(this)
@@ -134,6 +141,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     this.refresh = this.refresh.bind(this)
 
     this.selectJob = this.selectJob.bind(this)
+    this.toggleCancelJobsModal = this.toggleCancelJobsModal.bind(this)
   }
 
   componentDidMount() {
@@ -191,7 +199,15 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     await this.setFilters(this.state)
   }
 
-  async selectJob(jobId: string, job: JobInfoViewModel, selected: boolean) {
+  toggleCancelJobsModal(open: boolean) {
+    this.setState({
+      ...this.state,
+      cancelJobsModalIsOpen: open,
+    })
+  }
+
+  async selectJob(job: JobInfoViewModel, selected: boolean) {
+    const jobId = job.jobId
     const selectedJobs = new Map<string, JobInfoViewModel>(this.state.selectedJobs)
     if (selected) {
       selectedJobs.set(jobId, job)
@@ -204,7 +220,6 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
       ...this.state,
       selectedJobs: selectedJobs
     })
-    console.log(this.state.selectedJobs)
   }
 
   private async loadJobInfosForRange(start: number, stop: number) {
@@ -252,6 +267,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
       ...filters,
       jobInfos: [],
       canLoadMore: true,
+      selectedJobs: new Map<string, JobInfoViewModel>(),
     })
     this.setUrlParams()
   }
@@ -267,6 +283,17 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     })
   }
 
+  private selectedJobsAreCancellable(): boolean {
+    return Array.from(this.state.selectedJobs.values())
+      .map(job => job.jobState)
+      .some(jobState => CANCELLABLE_JOB_STATES.includes(jobState))
+  }
+
+  private getCancellableSelectedJobs(): JobInfoViewModel[] {
+    return Array.from(this.state.selectedJobs.values())
+      .filter(job => CANCELLABLE_JOB_STATES.includes(job.jobState))
+  }
+
   render() {
     return (
       <Jobs
@@ -277,6 +304,9 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
         newestFirst={this.state.newestFirst}
         canLoadMore={this.state.canLoadMore}
         selectedJobs={this.state.selectedJobs}
+        canCancel={this.selectedJobsAreCancellable()}
+        cancellableJobs={this.getCancellableSelectedJobs()}
+        cancelJobsModalIsOpen={this.state.cancelJobsModalIsOpen}
         fetchJobs={this.serveJobInfos}
         isLoaded={this.jobInfoIsLoaded}
         onQueueChange={this.queueChange}
@@ -284,7 +314,8 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
         onJobStatesChange={this.jobStatesChange}
         onOrderChange={this.orderChange}
         onRefresh={this.refresh}
-        onSelectJob={this.selectJob} />
+        onSelectJob={this.selectJob}
+        onToggleCancelJobsModal={this.toggleCancelJobsModal} />
     )
   }
 }
