@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="{{ site.lang | default: "en-US" }}">
+
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <meta charset="utf-8">
+
+  <!-- Page Info -->
+  <link rel="shortcut icon" href="{{ site.data.settings.basic_settings.favicon_image | relative_url }}">
+  <title>{% if page.url == "/" %}{{ site.data.settings.basic_settings.site_title }} – {{ page.title }}{% else %}{{ page.title }} – {{ site.data.settings.basic_settings.site_title }}{% endif %}</title>
+  <meta name="description" content="{{ page.description }}">
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title"
+    content="{% if page.url == "/" %}{{ site.data.settings.basic_settings.site_title }} – {{ page.title }}{% else %}{{ page.title }} – {{ site.data.settings.basic_settings.site_title }}{% endif %}">
+  <meta name="twitter:description" content="{{ page.description }}">
+  <meta name="twitter:image:src" content="{{ page.featured_image | absolute_url }}">
+
+  <!-- Facebook OpenGraph -->
+  <meta property="og:title"
+    content="{% if page.url == "/" %}{{ site.data.settings.basic_settings.site_title }} – {{ page.title }}{% else %}{{ page.title }} – {{ site.data.settings.basic_settings.site_title }}{% endif %}" />
+  <meta property="og:description" content="{{ page.description }}" />
+  <meta property="og:image" content="{{ page.featured_image | absolute_url }}" />
+
+  <!--  Fonts and icons -->
+  <link href="https://fonts.googleapis.com/css?family=Open+Sans:300,400,600,700" rel="stylesheet">
+  <link href="https://use.fontawesome.com/releases/v5.0.6/css/all.css" rel="stylesheet">
+  <!-- Nucleo Icons -->
+  <link href="{{ "/assets/css/nucleo-icons.css" | relative_url }}" rel="stylesheet" />
+  <link href="{{ "/assets/css/nucleo-svg.css" | relative_url }}" rel="stylesheet" />
+  <!-- Font Awesome Icons -->
+  <link href="{{ "/assets/css/font-awesome.css" | relative_url }}" rel="stylesheet" />
+  <link href="{{ "/assets/css/nucleo-svg.css" | relative_url }}" rel="stylesheet" />
+  <!-- CSS Files -->
+  <link rel="stylesheet" href="{{ "/assets/styles/styles.css" | relative_url }}" rel="stylesheet">
+
+  {% if site.data.settings.advanced_settings.analytics_code %}
+  <!-- Analytics Code -->
+  {{ site.data.settings.advanced_settings.analytics_code }}
+  {% endif %}
+
+  {% if site.data.settings.advanced_settings.header_js %}
+  <!-- Extra Header JS Code -->
+  {{ site.data.settings.advanced_settings.header_js }}
+  {% endif %}
+
+</head>
+
+<body>
+  {% include header.html %}
+  <div class="wrapper page">
+    {% if page.url != "/" and page.collection != "posts" and page.type != "blogListing" and page.type != "contact" %}
+    <!-- Is not a blog post or blog archive or contact page -->
+    {% if page.featured_image %}
+    <!-- Is a page with a banner -->
+    <div class="page-header page-header-small header-filter mb-4">
+      <div class="page-header-image card-background"
+        style="background-image: url({{ page.featured_image | relative_url }});"></div>
+      <div class="container contentWrapper">
+        <div class="row">
+          <div class="col-lg-10 mx-auto text-center pt-4">
+            <h2 class="display-2 text-white">{{ page.title }}</h2>
+            <h2 class="lead text-white pl-5 pr-5 pb-3 text-center">{{page.subtitle}}</h2>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% elsif page.title %}
+    <!-- Is a page without a banner -->
+    <div class="container contentWrapper pb-2">
+      <div class="text-left mt-5 mb-3">
+        <h3 class="display-2">{{page.title}}</h3>
+        {% if page.subtitle %}
+        <p class="lead">{{page.subtitle}}</p>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+    {% endif %}
+
+    <div id="main" class="container">
+      {{content}}
+    </div>
+  </div>
+
+
+  {% include footer.html %}
+
+  {% if site.data.settings.advanced_settings.footer_js %}
+  <!-- Extra Footer JS Code --> {{ site.data.settings.advanced_settings.footer_js }}
+  {% endif %}
+
+</body>
+
+</html>
+</body>
+
+</html>

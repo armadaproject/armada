@@ -1,0 +1,59 @@
+---
+---
+
+/*!
+=========================================================
+*  Argon Design System  - v 1.2.0
+=========================================================
+
+* Product Page:  https://www.creative-tim.com/product/argon-design-system
+* Copyright  2020  Creative Tim (http://www.creative-tim.com)
+
+Coded by www.creative-tim.com
+
+Jekyll version by www.jekyllthemes.io
+
+=========================================================
+
+* The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+ */
+
+// Jekyll Theme Additions
+
+img {max-width:100%;}
+.fullWidth{width: 100vw !important; margin-left: calc(50% - 50vw);overflow-y: hidden;} // VW includes vertical scroll bar
+.gliderMargin{margin-top:4em; margin-bottom:4em;}
+.highlight{margin-bottom:1rem;}
+ol ul{margin-bottom:1rem !important;}
+.footnotes{margin-top:2rem;}
+.page-header.header-filter:before {background-color: rgba(0,0,0,0.25) !important;} 
+.footnotes{border-top: 0.0625rem solid rgba(0,0,0,0.1); padding-top:20px;}
+
+@media (max-width: 991.98px) {
+    .navbar-collapse .collapse-brand img {
+        height: auto !important;
+        width: auto !important;
+        max-height:50px;
+    }
+}
+
+//Creative Tim Below
+
+// Bootstrap Functions
+@import "bootstrap/functions";
+
+// Custom Variables
+@import "custom/variables";
+
+// Theme Variables
+@import "theme/variables-pro";
+
+// Bootstrap Core
+@import "bootstrap/bootstrap";
+
+// Theme Core
+@import "theme/theme-pro";
+
+// Custom Variables
+@import "custom/styles";

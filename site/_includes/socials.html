@@ -1,0 +1,9 @@
+{% for url in site.data.settings.social_settings %}
+    {% if url[1] != '' %}
+    <button onclick="location.href='{{ url[1] }}';" rel="nofollow" class="btn btn-icon-only btn-{{ url[0] | remove: '_url' | replace: '-', ' ' }} rounded-circle" data-toggle="tooltip" data-original-title="{{ url[0] | remove: '_url' | replace: '-', ' ' | capitalize }}">
+        <span class="btn-inner--icon">
+            <i class="fab fa-{{ url[0] | replace: 'facebook', 'facebook-f' | remove: '_url' }}" aria-hidden="true"></i>
+        </span>
+    </button>
+    {% endif %}
+{% endfor %}

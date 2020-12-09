@@ -1,0 +1,76 @@
+---
+layout: default
+---
+<div class="page-header header-filter" style="width: 100vw; margin-left: calc(50% - 50vw);">
+  <div class="page-header-image" style="background-image: url({{ page.featured_image | relative_url }});"></div>
+  <div class="container">
+    <div class="row">
+      <div class="col-lg-10 mx-auto text-center pt-8">
+        <h2 class="display-2 text-white">{{ page.title }}</h2>
+      </div>
+    </div>
+    <div class="row">
+      <div class="floating-box bg-default">
+        <div class="box text-center">
+          <div class="icon icon-shape bg-primary icon-xl rounded-circle text-white">
+            <i class="ni ni-book-bookmark"></i>
+          </div>
+        </div>
+        <blockquote class="blockquote text-center mt-2">
+          <p class="mb-0 text-white">Posted {{ page.date | date_to_long_string }}</p>
+        </blockquote>
+        <h2 class="lead text-white pl-5 pr-5 pb-5 text-center">{{page.description}}</h2>
+      </div>
+    </div>
+  </div>
+</div>
+
+<section class="section">
+  <div class="container">
+    <div class="row">
+      <div class="col-md-8 ml-auto mr-auto">
+        <h6 class="category">{{ page.date | date_to_long_string }}</h6>
+        <h3 class="title">{{ page.title }}</h3>
+        <article class="blog-post">
+          {{ page.content }}
+        </article>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+
+{% if site.data.settings.blog_settings.read_more == "yes" %}
+<section class="blogs-1">
+  <div class="container">
+    <h2 class="title mb-5">You might also like...</h2>
+
+    {% assign psize = site.posts | size %}
+    {% if psize == 0 %}
+    <p>No posts...yet.</p>
+    {% endif %}
+    <div class="row align-items-center mb-2">
+
+      {% for post in site.posts limit:6 %}
+      <div class="{% if forloop.index == 1 or forloop.index == 6 %}col-lg-6{% else %}col-lg-3{% endif %}">
+        <div class="card card-blog card-background" data-animation="zooming">
+          <div class="full-background" style="background-image: url({{ post.featured_image | relative_url }})"></div>
+          <a href="{{ post.url | relative_url }}">
+            <div class="card-body">
+              <div class="content-bottom">
+                <h6 class="card-category text-white opacity-8">{{ post.date | date_to_long_string }}
+                </h6>
+                <h5 class="card-title">{{ post.title }}</h5>
+              </div>
+            </div>
+          </a>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% endif %}
+
+
