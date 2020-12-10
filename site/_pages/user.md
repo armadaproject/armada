@@ -1,9 +1,3 @@
----
-title: 
-subtitle: 
-featured_image: /assets/img/ill/bg_contactus3.svg
----
-
 # User Guide
 
 ## How to use Armada
@@ -12,7 +6,6 @@ The main concepts to understand in Armada are:
 * Job
 * Job Set
 * Queue
-
 
 ### Job
 
