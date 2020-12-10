@@ -1,9 +1,3 @@
----
-title: 
-subtitle: 
-featured_image: /assets/img/ill/bg_contactus3.svg
----
-
 # High level design of Armada
 Armada is job queueing system for multiple Kubernetes clusters.
 
@@ -37,7 +31,7 @@ To achieve fairness between queues, when Armada schedules jobs resources are div
 More information about queue priority and scheduling can be found [here](./priority.md)
 
 ## Design
-![Diagram](/assets/img/batch-api.svg)
+![Diagram](./batch-api.svg)
 
 ### Armada Server
 The Armada Server is a central component which manages queues of jobs.
@@ -63,4 +57,3 @@ Armada records events of all jobs against the job set the job belongs to. Events
 Armada records all necessary events to fully reconstruct state of the job at any time. This allows us to erase all job data from the jobs database after the job finishes and keep only the events.
 
 The current implementation utilises Redis streams to store job events.
-
