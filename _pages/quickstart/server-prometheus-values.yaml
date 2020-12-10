@@ -1,0 +1,18 @@
+alertmanager:
+  enabled: false
+
+prometheus:
+  prometheusSpec:
+    serviceMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+grafana:
+  service:
+    type: NodePort
+    nodePort: 30001
+
+prometheusOperator:
+  admissionWebhooks:
+    enabled: false
+  tlsProxy:
+    enabled: false
+  createCustomResource: false

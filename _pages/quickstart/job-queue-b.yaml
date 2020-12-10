@@ -1,0 +1,22 @@
+queue: queue-b
+jobSetId: job-set-1
+jobs:
+  - priority: 0
+    podSpec:
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      containers:
+        - name: sleeper
+          image: alpine:latest
+          command:
+            - sh
+          args:
+            - -c
+            - sleep $(( (RANDOM % 60) + 10 ))
+          resources:
+            limits:
+              memory: 128Mi
+              cpu: 0.2
+            requests:
+              memory: 128Mi
+              cpu: 0.2
