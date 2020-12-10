@@ -1,9 +1,3 @@
----
-title: 
-subtitle: 
-featured_image: /assets/img/ill/bg_contactus3.svg
----
-
 # Armada Quickstart
 
 The purpose of this guide is to install a minimal local Armada deployment for testing and evaluation purposes.
@@ -235,6 +229,6 @@ Nov  4 11:44:26 | Queued:   0, Leased:   0, Pending:   0, Running:   0, Succeede
 
 Grafana:
 
-![Armada Grafana dashboard](/assets/img/grafana-screenshot.png "Armada Grafana dashboard")
+![Armada Grafana dashboard](./quickstart/grafana-screenshot.png "Armada Grafana dashboard")
 
 Note that the jobs in this demo simply run the `sleep` command so do not consume much resource.
