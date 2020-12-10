@@ -1,5 +1,0 @@
-eventsKafka:
-  brokers:
-    - "localhost:9092"
-  topic: "ArmadaTest"
-  consumerGroupID: "ArmadaEventRedisProcessor"
