@@ -1,5 +1,0 @@
-apiVersion: v1
-description: A helm chart for armada-executor component
-name: armada-executor
-version: LATEST
-appVersion: LATEST
