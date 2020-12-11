@@ -82,14 +82,6 @@ func (jobLeaseService *JobLeaseService) RequestJobLeases(availableResource *comm
 	return response.Job, nil
 }
 
-func convertIntoComputeResource(computeResources []common.ComputeResources) []api.ComputeResource {
-	result := make([]api.ComputeResource, 0, len(computeResources))
-	for _, resource := range computeResources {
-		result = append(result, api.ComputeResource{Resources: resource})
-	}
-	return result
-}
-
 func (jobLeaseService *JobLeaseService) ReturnLease(pod *v1.Pod) error {
 	jobId := util.ExtractJobId(pod)
 	ctx, cancel := common.ContextWithDefaultTimeout()

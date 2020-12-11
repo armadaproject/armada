@@ -112,6 +112,12 @@ func SwaggerJsonTemplate() string {
 		"        \"podSpec\": {\n" +
 		"          \"$ref\": \"#/definitions/v1PodSpec\"\n" +
 		"        },\n" +
+		"        \"podSpecs\": {\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/v1PodSpec\"\n" +
+		"          }\n" +
+		"        },\n" +
 		"        \"priority\": {\n" +
 		"          \"type\": \"number\",\n" +
 		"          \"format\": \"double\"\n" +

@@ -135,7 +135,7 @@ func getAllocatedResourceByNodeName(pods []*v1.Pod) map[string]common.ComputeRes
 	allocations := map[string]common.ComputeResources{}
 	for _, pod := range pods {
 		nodeName := pod.Spec.NodeName
-		resourceRequest := common.TotalResourceRequest(&pod.Spec)
+		resourceRequest := common.TotalPodResourceRequest(&pod.Spec)
 
 		_, ok := allocations[nodeName]
 		if !ok {

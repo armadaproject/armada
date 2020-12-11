@@ -18,6 +18,7 @@ type KubernetesEvent interface {
 	Event
 	GetKubernetesId() string
 	GetClusterId() string
+	GetPodNumber() int32
 }
 
 // customize oneof serialization

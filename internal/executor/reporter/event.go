@@ -3,6 +3,7 @@ package reporter
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/G-Research/armada/internal/common"
@@ -25,6 +26,7 @@ func CreateEventForCurrentState(pod *v1.Pod, clusterId string) (api.Event, error
 			Created:      time.Now(),
 			ClusterId:    clusterId,
 			KubernetesId: string(pod.ObjectMeta.UID),
+			PodNumber:    getPodNumber(pod),
 		}, nil
 	case v1.PodRunning:
 		return &api.JobRunningEvent{
@@ -34,6 +36,7 @@ func CreateEventForCurrentState(pod *v1.Pod, clusterId string) (api.Event, error
 			Created:      time.Now(),
 			ClusterId:    clusterId,
 			KubernetesId: string(pod.ObjectMeta.UID),
+			PodNumber:    getPodNumber(pod),
 			NodeName:     pod.Spec.NodeName,
 		}, nil
 	case v1.PodFailed:
@@ -46,11 +49,21 @@ func CreateEventForCurrentState(pod *v1.Pod, clusterId string) (api.Event, error
 			Created:      time.Now(),
 			ClusterId:    clusterId,
 			KubernetesId: string(pod.ObjectMeta.UID),
+			PodNumber:    getPodNumber(pod),
 			NodeName:     pod.Spec.NodeName,
 		}, nil
 	default:
 		return *new(api.Event), errors.New(fmt.Sprintf("Could not determine job status from pod in phase %s", phase))
 	}
+}
+
+func getPodNumber(pod *v1.Pod) int32 {
+	noString, ok := pod.Labels[domain.PodNumber]
+	if !ok {
+		return 0
+	}
+	no, _ := strconv.Atoi(noString)
+	return int32(no)
 }
 
 func CreateJobUnableToScheduleEvent(pod *v1.Pod, reason string, clusterId string) api.Event {
@@ -62,6 +75,7 @@ func CreateJobUnableToScheduleEvent(pod *v1.Pod, reason string, clusterId string
 		ClusterId:    clusterId,
 		Reason:       reason,
 		KubernetesId: string(pod.ObjectMeta.UID),
+		PodNumber:    getPodNumber(pod),
 		NodeName:     pod.Spec.NodeName,
 	}
 }
@@ -87,6 +101,7 @@ func CreateJobFailedEvent(pod *v1.Pod, reason string, exitCodes map[string]int32
 		Reason:       reason,
 		ExitCodes:    exitCodes,
 		KubernetesId: string(pod.ObjectMeta.UID),
+		PodNumber:    getPodNumber(pod),
 		NodeName:     pod.Spec.NodeName,
 	}
 }
@@ -100,6 +115,7 @@ func CreateJobUtilisationEvent(pod *v1.Pod, maxResources common.ComputeResources
 		ClusterId:             clusterId,
 		MaxResourcesForPeriod: maxResources,
 		KubernetesId:          string(pod.ObjectMeta.UID),
+		PodNumber:             getPodNumber(pod),
 		NodeName:              pod.Spec.NodeName,
 	}
 }

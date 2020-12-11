@@ -207,9 +207,9 @@ func CreateClusterLeasedReport(clusterId string, currentReport *api.ClusterLease
 	})
 	for _, job := range additionallyLeasedJobs {
 		if _, ok := leasedResourceByQueue[job.Queue]; !ok {
-			leasedResourceByQueue[job.Queue] = common.TotalResourceRequest(job.PodSpec)
+			leasedResourceByQueue[job.Queue] = common.TotalJobResourceRequest(job)
 		} else {
-			leasedResourceByQueue[job.Queue].Add(common.TotalResourceRequest(job.PodSpec))
+			leasedResourceByQueue[job.Queue].Add(common.TotalJobResourceRequest(job))
 		}
 	}
 	leasedQueueReports := make([]*api.QueueLeasedReport, 0, len(leasedResourceByQueue))
