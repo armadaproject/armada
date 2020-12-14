@@ -24,12 +24,12 @@ func CreateGrpcServer(authServices []authorization.AuthService) *grpc.Server {
 	streamInterceptors := []grpc.StreamServerInterceptor{}
 
 	messageDefault := log.NewEntry(log.StandardLogger())
-
+	tagsExtractor := grpc_ctxtags.WithFieldExtractor(grpc_ctxtags.CodeGenRequestFieldExtractor)
 	unaryInterceptors = append(unaryInterceptors,
-		grpc_ctxtags.UnaryServerInterceptor(grpc_ctxtags.WithFieldExtractor(grpc_ctxtags.CodeGenRequestFieldExtractor)),
+		grpc_ctxtags.UnaryServerInterceptor(tagsExtractor),
 		grpc_logrus.UnaryServerInterceptor(messageDefault))
 	streamInterceptors = append(streamInterceptors,
-		grpc_ctxtags.StreamServerInterceptor(grpc_ctxtags.WithFieldExtractor(grpc_ctxtags.CodeGenRequestFieldExtractor)),
+		grpc_ctxtags.StreamServerInterceptor(tagsExtractor),
 		grpc_logrus.StreamServerInterceptor(messageDefault))
 
 	authFunction := authorization.CreateMiddlewareAuthFunction(authServices)
