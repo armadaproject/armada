@@ -4,6 +4,7 @@ import (
 	"context"
 
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
+	grpc_ctxtags "github.com/grpc-ecosystem/go-grpc-middleware/tags"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -88,6 +89,8 @@ func CreateMiddlewareAuthFunction(authServices []AuthService) grpc_auth.AuthFunc
 			if err != nil {
 				return nil, err
 			}
+			// record user name for request logging
+			grpc_ctxtags.Extract(ctx).Set("user", principal.GetName())
 			return WithPrincipal(ctx, principal), nil
 		}
 		return nil, status.Errorf(codes.Unauthenticated, "Request in not authenticated with any of the supported schemes.")
