@@ -1,4 +1,3 @@
-
 # Contributor Code of Conduct
 
 Guiding us in our day-to-day interactions and decision-making are the values of trust, respect, collaboration and transparency. Our community welcomes participants from around the world with different experiences, personalities, unique perspectives, and great ideas to share.
@@ -47,7 +46,7 @@ Project maintainers have the right and responsibility to remove, edit, or reject
 
 ## Scope
 
-This Code of Conduct applies both within spaces involving this project and in other spaces involving community members. This includes the repository, its Pull Requests and Issue tracker, its Twitter community, private email communications in the context of the project, and any events where members of the project are participating, as well as adjacent communities and venues affecting the project’s members.
+This Code of Conduct applies both within spaces involving this project and in other spaces involving community members. This includes the repository, its Pull Requests and Issue tracker, its Gitter community, private email communications in the context of the project, and any events where members of the project are participating, as well as adjacent communities and venues affecting the project’s members.
 
 Depending on the violation, the maintainers may decide that violations of this code of conduct that have happened outside of the scope of the community may deem an individual unwelcome, and take appropriate action to maintain the comfort and safety of its members.
 
