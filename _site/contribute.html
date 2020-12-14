@@ -7,19 +7,19 @@
 
   <!-- Page Info -->
   <link rel="shortcut icon" href="/assets/img/Armada-favicon.png">
-  <title>Design – Armada Project</title>
+  <title>Contribute – Armada Project</title>
   <meta name="description" content="">
 
   <!-- Twitter Card -->
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title"
-    content="Design – Armada Project">
+    content="Contribute – Armada Project">
   <meta name="twitter:description" content="">
   <meta name="twitter:image:src" content="http://localhost:4000/assets/img/ill/bg_contactus3.svg">
 
   <!-- Facebook OpenGraph -->
   <meta property="og:title"
-    content="Design – Armada Project" />
+    content="Contribute – Armada Project" />
   <meta property="og:description" content="" />
   <meta property="og:image" content="http://localhost:4000/assets/img/ill/bg_contactus3.svg" />
 
@@ -122,7 +122,7 @@
               
                 
                   <li class="nav-item">
-                    <a href="/contributing" class="nav-link">
+                    <a href="/contribute" class="nav-link">
                       <span class="nav-link-inner--text">Contribute</span>
                     </a>
                   </li>
@@ -143,7 +143,6 @@
   <div class="wrapper page">
     
     <!-- Is not a blog post or blog archive or contact page -->
-    
     <!-- Is a page with a banner -->
     <div class="page-header page-header-small header-filter mb-4">
       <div class="page-header-image card-background"
@@ -151,77 +150,142 @@
       <div class="container contentWrapper">
         <div class="row">
           <div class="col-lg-10 mx-auto text-center pt-4">
-            <h2 class="display-2 text-white">Design</h2>
-            <h2 class="lead text-white pl-5 pr-5 pb-3 text-center"></h2>
           </div>
         </div>
       </div>
     </div>
     
-    
 
     <div id="main" class="container">
-      <h1 id="high-level-design-of-armada">High level design of Armada</h1>
-<p>Armada is job queueing system for multiple Kubernetes clusters.</p>
+      <h1 id="contributing">Contributing</h1>
 
-<h2 id="goals-for-the-project">Goals for the project</h2>
+<p>We want everyone to feel that they can contribute to the Armada Project.  Whether you have an idea to share, an issue to report, or a pull-request of the finest, most scintillating code ever, we want you to participate!</p>
+
+<p>In the sections below, you’ll find some easy way to connect with other Armada developers as well as some useful informational links on our license and community policies.</p>
+
+<p>Looking forward to building Armada with you!</p>
+
+<h2 id="github">Github</h2>
+
+<p>The main project fork lives here in Github:</p>
+
 <ul>
-  <li>Easily handle large queues of jobs (million +)</li>
-  <li>Enforce fair share over time</li>
-  <li>Failure of some worker clusters should not cause an outage</li>
-  <li>Reasonable latency between job submission and job start when there is resource available (in order of 10s)</li>
-  <li>Maximize utilization of the cluster</li>
-  <li>Smart queueing instead of scheduler - implement only minimum logic needed on global level, let cluster scheduler do its own work.</li>
-  <li>All components should be highly available</li>
+  <li><a href="https://github.com/G-Research/armada">https://github.com/G-Research/armada</a></li>
 </ul>
 
-<h2 id="data-model">Data model</h2>
-<h3 id="job">Job</h3>
-<p>A Job is an executable unit, currently containing a Kubernetes pod specification.</p>
+<p>If you spot a bug, then please raise an issue in our main GitHub project:</p>
 
-<h3 id="job-set">Job Set</h3>
-<p>All jobs are grouped into Job Sets with user-specified identifier. A Job Set represents a project or other higher level unit of work. Users can observe events in Job Sets through the API.</p>
+<ul>
+  <li><a href="">https://github.com/G-Research/armada/issues</a></li>
+</ul>
 
-<h3 id="queue">Queue</h3>
-<p>All jobs need to be placed into queues. Resources allocation is controlled using queues.</p>
+<p>Likewise, if you have developed a cool new feature or improvement, then send us a pull request!</p>
 
-<p><strong>Queue Current Priority</strong>: Current priority is calculated from resource usage of jobs in the queue. This number approaches the amount of resource used by the queue with configurable speed by <code class="language-plaintext highlighter-rouge">priorityHalfTime</code> configuration. If the queue priority is <code class="language-plaintext highlighter-rouge">A</code> and queue is using <code class="language-plaintext highlighter-rouge">B</code> amount of resource, after time defined by <code class="language-plaintext highlighter-rouge">priorityHalfTime</code> the new priority will be <code class="language-plaintext highlighter-rouge">A + (B - A) / 2</code>.</p>
+<p>If you want to brainstorm a potential new feature, hop on over to our Gitter room, listed below.</p>
 
-<p><strong>Queue Priority Factor</strong>: Each queue has priority factor which determines how important the queue is (lower number makes queue more important).</p>
+<h2 id="gitter">Gitter</h2>
 
-<p><strong>Queue Effective Priority</strong> = <strong>Queue Priority Factor</strong> * <strong>Queue Current Priority</strong></p>
+<p>Sometimes, it’s good to hash things out in real time.  We have a Gitter community where you can chat with other Armada developers and get feedback and support (even if it’s just moral support!).</p>
 
-<p>To achieve fairness between queues, when Armada schedules jobs resources are divided based on Queue Effective Priority.</p>
+<p>To join our Gitter community, use this link:</p>
 
-<p>More information about queue priority and scheduling can be found <a href="./priority.md">here</a></p>
+<ul>
+  <li><a href="https://gitter.im/ArmadaProject/community">https://gitter.im/ArmadaProject/community</a></li>
+</ul>
 
-<h2 id="design">Design</h2>
-<p><img src="/assets/img/batch-api.svg" alt="Diagram" /></p>
+<h2 id="license">License</h2>
 
-<h3 id="armada-server">Armada Server</h3>
-<p>The Armada Server is a central component which manages queues of jobs.
-It stores all active jobs in the job database (current implementation use Redis).</p>
+<p>Armada is licensed with the Apache 2.0 license.  You can find it published here:</p>
 
-<h3 id="cluster-executor">Cluster Executor</h3>
-<p>The Cluster Executor is a component running on each Kubernetes worker cluster. It keeps all pod and node information in memory and manages jobs within the cluster.
-It proactively reports the current state of the cluster and asks for jobs to run.
-Queue Usage is recorded in the database and is used to update priorities of individual queues.
-The executor can also refuse to execute an assigned job and return it.</p>
+<ul>
+  <li><a href="https://github.com/G-Research/armada/blob/master/LICENSE">https://github.com/G-Research/armada/blob/master/LICENSE</a></li>
+</ul>
 
-<h4 id="job-leasing">Job Leasing</h4>
-<p>Executors periodically ask the server for jobs to run, reporting available resources. Armada distributes these available resources among queues according to Queue Effective Priority. 
-Jobs are taken from the top of each queue until the available resource is filled. These jobs are then returned to the executor to be executed on the cluster and marked as leased with a timestamp to show when the lease began.</p>
+<h1 id="contributor-code-of-conduct">Contributor Code of Conduct</h1>
 
-<p>The executor must regularly renew the lease of all jobs it leases, otherwise leases expire and jobs will be considered failed and executed on different cluster.</p>
+<p>Guiding us in our day-to-day interactions and decision-making are the values of trust, respect, collaboration and transparency. Our community welcomes participants from around the world with different experiences, personalities, unique perspectives, and great ideas to share.</p>
 
-<h4 id="job-events">Job Events</h4>
-<p>Job events are used to show when a job reaches a new state, such as submitted, running, completed. They hold generic information about events (such as created-time) along with state specific information (such as exit-code for completed jobs).</p>
+<p>We expect this code of conduct to be honored by everyone who participates in the Armada community formally or informally.</p>
 
-<p>Armada records events of all jobs against the job set the job belongs to. Events for a given job set are available through the API.</p>
+<p>This code is not exhaustive or complete, and is a living document. It serves to distill our common understanding of a collaborative, shared environment and goals. We expect it to be followed in spirit as much as in the letter, so that it can enrich all of us and the technical communities in which we participate.</p>
 
-<p>Armada records all necessary events to fully reconstruct state of the job at any time. This allows us to erase all job data from the jobs database after the job finishes and keep only the events.</p>
+<h2 id="our-pledge">Our Pledge</h2>
 
-<p>The current implementation utilises Redis streams to store job events.</p>
+<p>In the interest of fostering an open and welcoming environment, we as contributors and maintainers pledge to making participation in our project and our community a harassment-free experience for everyone, regardless of age, body size, disability, ethnicity, sex characteristics, gender identity and expression, level of experience, education, socio-economic status, nationality, personal appearance, race, religion, or sexual identity and orientation.</p>
+
+<h2 id="our-standards">Our Standards</h2>
+
+<p>Examples of behavior that contributes to creating a positive environment include:</p>
+
+<ul>
+  <li>Using welcoming and inclusive language.</li>
+  <li>Being respectful of differing viewpoints and experiences.</li>
+  <li>Gracefully accepting constructive criticism.</li>
+  <li>Attempting collaboration before conflict.</li>
+  <li>Focusing on what is best for the community.</li>
+  <li>Appreciating time and effort contributed by members.</li>
+  <li>Showing empathy towards other community members.</li>
+</ul>
+
+<p>Examples of unacceptable behavior by participants include:</p>
+
+<ul>
+  <li>Violence, threats of violence, or inciting others to commit self-harm.</li>
+  <li>The use of sexualized language or imagery and unwelcome sexual attention or advances.</li>
+  <li>Trolling, intentionally spreading misinformation, insulting/derogatory comments, and personal or political attacks, including <a href="https://lgbtq.technology/culture.html#discussion-of-labels">challenging someone’s self-identity</a>.</li>
+  <li>Public or private <a href="https://lgbtq.technology/coc.html#harassment">harassment</a>, aggression, deliberate intimidation, or threats.</li>
+  <li><a href="https://www.recurse.com/manual#no-feigned-surprise">Feigning or exaggerating surprise</a> when someone admits to not knowing something, or excusing a disrespectful communication as “ironic” or “joking”.</li>
+  <li>Publishing others’ private information, such as a physical or electronic address, without explicit permission. This includes any sort of “outing” of any aspect of someone’s identity without their consent.</li>
+  <li>Abuse of the reporting process to intentionally harass or exclude others.</li>
+  <li>Advocating for, or encouraging, any of the above behavior.</li>
+  <li>Other conduct which could reasonably be considered inappropriate in a professional or community setting.</li>
+</ul>
+
+<h2 id="our-responsibilities">Our Responsibilities</h2>
+
+<p>Project maintainers are responsible for clarifying the standards of acceptable behavior and are expected to take appropriate and fair corrective action in response to any instances of unacceptable behavior.</p>
+
+<p>Project maintainers have the right and responsibility to remove, edit, or reject comments, commits, code, wiki edits, issues, and other contributions that are not aligned to this Code of Conduct, or to ban temporarily or permanently any contributor for other behaviors that they deem inappropriate, threatening, offensive, or harmful.</p>
+
+<h2 id="scope">Scope</h2>
+
+<p>This Code of Conduct applies both within spaces involving this project and in other spaces involving community members. This includes the repository, its Pull Requests and Issue tracker, its Gitter community, private email communications in the context of the project, and any events where members of the project are participating, as well as adjacent communities and venues affecting the project’s members.</p>
+
+<p>Depending on the violation, the maintainers may decide that violations of this code of conduct that have happened outside of the scope of the community may deem an individual unwelcome, and take appropriate action to maintain the comfort and safety of its members.</p>
+
+<p>As a project on GitHub, this project is additionally covered by the <a href="https://help.github.com/articles/github-community-guidelines/">GitHub Community Guidelines</a>.</p>
+
+<h2 id="enforcement">Enforcement</h2>
+
+<p>While this code of conduct should be adhered to by participants, we recognize that sometimes people may have a bad day, or be unaware of some of the guidelines in this code of conduct. When that happens, or if they are violating this code of conduct, you may reply to them and point out this code of conduct. Such messages may be in public or in private, whatever is most appropriate. However, regardless of whether the message is public or not, it should still adhere to the relevant parts of this code of conduct and itself should not be abusive or disrespectful. Assume good faith; it is more likely that participants are unaware of their bad behaviour than that they intentionally try to degrade the quality of the discussion.</p>
+
+<p>As a small and young project, we don’t yet have a Code of Conduct enforcement team. We encourage contributors to try to resolve issues with respectful communication - <a href="https://github.com/fsprojects/fantomas/pull/649#issuecomment-599965505">here is an example of how to do that</a>.</p>
+
+<p>Should there be difficulties in dealing with the situation or you are uncomfortable speaking up, unacceptable behavior may be reported to conduct@armadaproject.io. All complaints will be reviewed and investigated and will result in a response that is deemed necessary and appropriate to the circumstances. The project team is obligated to maintain confidentiality with regard to the reporter of an incident.</p>
+
+<p>If you are unsure whether an incident is a violation, or whether the space where the incident took place is covered by our Code of Conduct, we encourage you to still address or report it. We would prefer to have a few extra reports where we decide to take no action than to let an incident go unnoticed and unresolved, resulting in an individual or group feeling like they can no longer participate in the community. Reports deemed as not a violation will also allow us to improve our Code of Conduct and processes surrounding it.</p>
+
+<p>Participants asked to stop any harassing behavior are expected to comply immediately. Project maintainers who do not follow or enforce the Code of Conduct in good faith may face temporary or permanent repercussions as determined by other members of the project’s leadership.</p>
+
+<h2 id="license-1">License</h2>
+
+<p>This Code of Conduct is licensed under the <a href="https://creativecommons.org/licenses/by-sa/3.0/">Creative Commons Attribution-ShareAlike 3.0 Unported License</a>.</p>
+
+<h2 id="attribution">Attribution</h2>
+
+<p>This Code of Conduct is informed by and adapted from multiple sources:</p>
+
+<ul>
+  <li><a href="https://www.apache.org/foundation/policies/conduct">Apache Code of Conduct</a>.</li>
+  <li><a href="https://github.com/auth0/open-source-template/blob/master/CODE-OF-CONDUCT.md">Auth0 Contributor Code of Conduct</a>.</li>
+  <li><a href="https://geekfeminism.wikia.org/wiki/Conference_anti-harassment/Policy">Geek Feminism Wiki Anti-Harassment Policy</a>.</li>
+  <li><a href="https://help.github.com/en/github/site-policy/github-community-guidelines">GitHub Community Guidelines</a>.</li>
+  <li><a href="https://www.contributor-covenant.org/">GitHub Contributor Covenant</a>.</li>
+  <li><a href="http://lgbtq.technology/coc.html">LGBTQ in Technology Slack Code of Conduct</a>.</li>
+  <li><a href="https://www.python.org/psf/conduct/">Python Code of Conduct</a>.</li>
+  <li><a href="https://www.recurse.com/manual#no-feigned-surprise">Recurse Center User’s Manual</a>.</li>
+  <li><a href="https://trio.readthedocs.io/en/stable/code-of-conduct.html">Trio Code of Conduct</a>.</li>
+</ul>
 
 
     </div>
@@ -317,7 +381,7 @@ Jobs are taken from the top of each queue until the available resource is filled
           
           
           <li class="nav-item">
-            <a href="/contributing" class="nav-link">
+            <a href="/contribute" class="nav-link">
               <span class="nav-link-inner--text">Contribute</span>
             </a>
           </li>
