@@ -36,11 +36,11 @@ menu_settings:
     - title: 'Documentation'
       submenu_items:
       - title: 'Development'
-        url: '/developer'
+        url: '/development'
       - title: 'User Guide'
         url: '/user'   
       - title: 'Production Install'
-        url: '/production-install'
+        url: '/production'
     - title: 'Quickstart'
       url: '/quickstart' 
     - title: 'Contribute'
