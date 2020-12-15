@@ -51,9 +51,8 @@ type SQLJobRepository struct {
 	goquDb *goqu.Database
 }
 
-func NewSQLJobRepository(db *sql.DB) *SQLJobRepository {
-	goquDb := goqu.New("postgres", db)
-	return &SQLJobRepository{goquDb: goquDb}
+func NewSQLJobRepository(db *goqu.Database) *SQLJobRepository {
+	return &SQLJobRepository{goquDb: db}
 }
 
 var (

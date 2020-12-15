@@ -1,10 +1,10 @@
 package repository
 
 import (
-	"database/sql"
 	"testing"
 	"time"
 
+	"github.com/doug-martin/goqu/v9"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 
@@ -25,7 +25,7 @@ var (
 )
 
 func Test_QueueStats(t *testing.T) {
-	withDatabase(t, func(db *sql.DB) {
+	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db)
 
@@ -52,7 +52,7 @@ func Test_QueueStats(t *testing.T) {
 }
 
 func Test_GetNoJobsIfQueueDoesNotExist(t *testing.T) {
-	withDatabase(t, func(db *sql.DB) {
+	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db)
 
 		newJobSimulator(t, jobStore, &defaultClock{}).
@@ -79,7 +79,7 @@ func Test_GetNoJobsIfQueueDoesNotExist(t *testing.T) {
 }
 
 func Test_GetSucceededJobFromQueue(t *testing.T) {
-	withDatabase(t, func(db *sql.DB) {
+	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db)
 
@@ -120,7 +120,7 @@ func Test_GetSucceededJobFromQueue(t *testing.T) {
 }
 
 func Test_GetFailedJobFromQueue(t *testing.T) {
-	withDatabase(t, func(db *sql.DB) {
+	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db)
 
@@ -162,7 +162,7 @@ func Test_GetFailedJobFromQueue(t *testing.T) {
 }
 
 func Test_GetCancelledJobFromQueue(t *testing.T) {
-	withDatabase(t, func(db *sql.DB) {
+	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db)
 
@@ -201,7 +201,7 @@ func Test_GetCancelledJobFromQueue(t *testing.T) {
 }
 
 func Test_GetMultipleRunJobFromQueue(t *testing.T) {
-	withDatabase(t, func(db *sql.DB) {
+	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db)
 
@@ -247,7 +247,7 @@ func Test_GetMultipleRunJobFromQueue(t *testing.T) {
 }
 
 func Test_GetJobsOrderedFromOldestToNewest(t *testing.T) {
-	withDatabase(t, func(db *sql.DB) {
+	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db)
 
@@ -285,7 +285,7 @@ func Test_GetJobsOrderedFromOldestToNewest(t *testing.T) {
 }
 
 func Test_GetJobsOrderedFromNewestToOldest(t *testing.T) {
-	withDatabase(t, func(db *sql.DB) {
+	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db)
 
@@ -324,7 +324,7 @@ func Test_GetJobsOrderedFromNewestToOldest(t *testing.T) {
 }
 
 func Test_FilterQueuedJobs(t *testing.T) {
-	withDatabase(t, func(db *sql.DB) {
+	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db)
 
@@ -370,7 +370,7 @@ func Test_FilterQueuedJobs(t *testing.T) {
 }
 
 func Test_FilterPendingJobs(t *testing.T) {
-	withDatabase(t, func(db *sql.DB) {
+	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db)
 
@@ -416,7 +416,7 @@ func Test_FilterPendingJobs(t *testing.T) {
 }
 
 func Test_FilterRunningJobs(t *testing.T) {
-	withDatabase(t, func(db *sql.DB) {
+	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db)
 
@@ -462,7 +462,7 @@ func Test_FilterRunningJobs(t *testing.T) {
 }
 
 func Test_FilterSucceededJobs(t *testing.T) {
-	withDatabase(t, func(db *sql.DB) {
+	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db)
 
@@ -508,7 +508,7 @@ func Test_FilterSucceededJobs(t *testing.T) {
 }
 
 func Test_FilterFailedJobs(t *testing.T) {
-	withDatabase(t, func(db *sql.DB) {
+	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db)
 
@@ -554,7 +554,7 @@ func Test_FilterFailedJobs(t *testing.T) {
 }
 
 func Test_FilterCancelledJobs(t *testing.T) {
-	withDatabase(t, func(db *sql.DB) {
+	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db)
 
@@ -600,7 +600,7 @@ func Test_FilterCancelledJobs(t *testing.T) {
 }
 
 func Test_ErrorsIfUnknownStateIsGiven(t *testing.T) {
-	withDatabase(t, func(db *sql.DB) {
+	withDatabase(t, func(db *goqu.Database) {
 		jobRepo := NewSQLJobRepository(db)
 
 		_, err := jobRepo.GetJobsInQueue(&lookout.GetJobsInQueueRequest{
@@ -614,7 +614,7 @@ func Test_ErrorsIfUnknownStateIsGiven(t *testing.T) {
 }
 
 func Test_FilterMultipleStates(t *testing.T) {
-	withDatabase(t, func(db *sql.DB) {
+	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db)
 
@@ -670,7 +670,7 @@ func Test_FilterMultipleStates(t *testing.T) {
 }
 
 func Test_FilterBySingleJobSet(t *testing.T) {
-	withDatabase(t, func(db *sql.DB) {
+	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db)
 
@@ -738,7 +738,7 @@ func Test_FilterBySingleJobSet(t *testing.T) {
 }
 
 func Test_FilterByMultipleJobSets(t *testing.T) {
-	withDatabase(t, func(db *sql.DB) {
+	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db)
 
@@ -788,7 +788,7 @@ func Test_FilterByMultipleJobSets(t *testing.T) {
 }
 
 func Test_FilterByJobSetStartingWith(t *testing.T) {
-	withDatabase(t, func(db *sql.DB) {
+	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db)
 
@@ -840,7 +840,7 @@ func Test_FilterByJobSetStartingWith(t *testing.T) {
 }
 
 func Test_FilterByMultipleJobSetStartingWith(t *testing.T) {
-	withDatabase(t, func(db *sql.DB) {
+	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db)
 
@@ -892,7 +892,7 @@ func Test_FilterByMultipleJobSetStartingWith(t *testing.T) {
 }
 
 func Test_TakeOldestJobsFirst(t *testing.T) {
-	withDatabase(t, func(db *sql.DB) {
+	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db)
 
@@ -923,7 +923,7 @@ func Test_TakeOldestJobsFirst(t *testing.T) {
 }
 
 func Test_TakeNewestJobsFirst(t *testing.T) {
-	withDatabase(t, func(db *sql.DB) {
+	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db)
 
@@ -955,7 +955,7 @@ func Test_TakeNewestJobsFirst(t *testing.T) {
 }
 
 func Test_SkipFirstOldestJobs(t *testing.T) {
-	withDatabase(t, func(db *sql.DB) {
+	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db)
 
@@ -988,7 +988,7 @@ func Test_SkipFirstOldestJobs(t *testing.T) {
 }
 
 func Test_SkipFirstNewestJobs(t *testing.T) {
-	withDatabase(t, func(db *sql.DB) {
+	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db)
 
