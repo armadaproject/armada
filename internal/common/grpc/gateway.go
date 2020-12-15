@@ -3,7 +3,6 @@ package grpc
 import (
 	"context"
 	"fmt"
-	"github.com/golang/glog"
 	"net/http"
 	"path"
 	"strings"
@@ -94,7 +93,6 @@ func preflightHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Headers", strings.Join(headers, ","))
 	methods := []string{"GET", "HEAD", "POST", "PUT", "DELETE"}
 	w.Header().Set("Access-Control-Allow-Methods", strings.Join(methods, ","))
-	glog.Infof("preflight request for %s", r.URL.Path)
 }
 
 func health(w http.ResponseWriter, r *http.Request) {
