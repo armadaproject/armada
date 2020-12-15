@@ -66,7 +66,7 @@ export default function CancelJobs(props: CancelJobsProps) {
           <TableHead>
             <TableRow>
               <TableCell>Id</TableCell>
-              <TableCell>Set</TableCell>
+              <TableCell>Job Set</TableCell>
               <TableCell>State</TableCell>
               <TableCell>Submission Time</TableCell>
             </TableRow>
@@ -85,7 +85,7 @@ export default function CancelJobs(props: CancelJobsProps) {
       </TableContainer>
       <div className={classes.button}>
         <LoadingButton
-          content={"OK"}
+          content={"Cancel Jobs"}
           isLoading={props.isLoading}
           onClick={props.onCancelJobs} />
       </div>

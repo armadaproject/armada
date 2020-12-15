@@ -16,7 +16,7 @@ let jobService = new JobService(
 )
 
 ReactDOM.render(
-  <App jobService={jobService}/>,
+  <App jobService={jobService} />,
   document.getElementById('root')
 );
 

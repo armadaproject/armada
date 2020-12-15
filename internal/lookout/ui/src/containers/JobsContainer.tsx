@@ -352,17 +352,17 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     return (
       <Jobs
         jobs={this.state.jobs}
+        canLoadMore={this.state.canLoadMore}
         queue={this.state.queue}
         jobSet={this.state.jobSet}
         jobStates={this.state.jobStates}
         newestFirst={this.state.newestFirst}
-        canLoadMore={this.state.canLoadMore}
         selectedJobs={this.state.selectedJobs}
-        cancelJobsButtonIsEnabled={this.selectedJobsAreCancellable()}
         cancellableJobs={this.state.cancellableJobs}
-        cancelJobsResult={this.state.cancelJobsResult}
         modalState={this.state.modalState}
+        cancelJobsResult={this.state.cancelJobsResult}
         cancelJobsRequestStatus={this.state.cancelJobsRequestStatus}
+        cancelJobsButtonIsEnabled={this.selectedJobsAreCancellable()}
         fetchJobs={this.serveJobs}
         isLoaded={this.jobIsLoaded}
         onQueueChange={this.queueChange}

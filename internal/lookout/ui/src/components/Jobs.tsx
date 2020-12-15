@@ -19,11 +19,11 @@ type JobsProps = {
   jobStates: string[]
   newestFirst: boolean
   selectedJobs: Map<string, Job>
-  cancelJobsButtonIsEnabled: boolean
   cancellableJobs: Job[]
-  cancelJobsResult: CancelJobsResult
   modalState: ModalState
+  cancelJobsResult: CancelJobsResult
   cancelJobsRequestStatus: CancelJobsRequestStatus
+  cancelJobsButtonIsEnabled: boolean
   fetchJobs: (start: number, stop: number) => Promise<Job[]>
   isLoaded: (index: number) => boolean
   onQueueChange: (queue: string) => Promise<void>

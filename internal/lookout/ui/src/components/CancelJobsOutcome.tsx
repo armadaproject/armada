@@ -83,7 +83,7 @@ export default function CancelJobsOutcome(props: CancelJobsOutcomeProps) {
             <TableHead>
               <TableRow>
                 <TableCell className={classes.successHeader}>Id</TableCell>
-                <TableCell className={classes.successHeader}>Set</TableCell>
+                <TableCell className={classes.successHeader}>Job Set</TableCell>
                 <TableCell className={classes.successHeader}>Submission Time</TableCell>
               </TableRow>
             </TableHead>
@@ -111,7 +111,7 @@ export default function CancelJobsOutcome(props: CancelJobsOutcomeProps) {
             <TableHead className={classes.failureHeader}>
               <TableRow>
                 <TableCell className={classes.failureHeader}>Id</TableCell>
-                <TableCell className={classes.failureHeader}>Set</TableCell>
+                <TableCell className={classes.failureHeader}>Job Set</TableCell>
                 <TableCell className={classes.failureHeader}>State</TableCell>
                 <TableCell className={classes.failureHeader}>Submission Time</TableCell>
                 <TableCell className={classes.failureHeader}>Error</TableCell>
