@@ -1,35 +1,39 @@
 import React from 'react'
 import { AutoSizer, Column, InfiniteLoader, Table } from "react-virtualized"
 
-import { JobInfoViewModel } from "../services/JobService"
+import { CancelJobsResult, Job } from "../services/JobService"
 import JobTableHeader from "./JobTableHeader";
-
-import './Jobs.css'
 import JobRow from "./JobRow";
 import HeaderRow from "./HeaderRow";
 import LoadingRow from "./LoadingRow";
 import CancelJobsModal from "./CancelJobsModal";
+import { CancelJobsRequestStatus, ModalState } from "../containers/JobsContainer";
+
+import './Jobs.css'
 
 type JobsProps = {
-  jobInfos: JobInfoViewModel[]
+  jobs: Job[]
   canLoadMore: boolean
   queue: string
   jobSet: string
   jobStates: string[]
   newestFirst: boolean
-  selectedJobs: Map<string, JobInfoViewModel>
-  canCancel: boolean
-  cancellableJobs: JobInfoViewModel[]
-  cancelJobsModalIsOpen: boolean
-  fetchJobs: (start: number, stop: number) => Promise<JobInfoViewModel[]>
+  selectedJobs: Map<string, Job>
+  cancelJobsButtonIsEnabled: boolean
+  cancellableJobs: Job[]
+  cancelJobsResult: CancelJobsResult
+  modalState: ModalState
+  cancelJobsRequestStatus: CancelJobsRequestStatus
+  fetchJobs: (start: number, stop: number) => Promise<Job[]>
   isLoaded: (index: number) => boolean
   onQueueChange: (queue: string) => Promise<void>
   onJobSetChange: (jobSet: string) => Promise<void>
   onJobStatesChange: (jobStates: string[]) => Promise<void>
   onOrderChange: (newestFirst: boolean) => Promise<void>
   onRefresh: () => Promise<void>
-  onSelectJob: (job: JobInfoViewModel, selected: boolean) => Promise<void>
-  onToggleCancelJobsModal: (open: boolean) => void
+  onSelectJob: (job: Job, selected: boolean) => Promise<void>
+  onSetModalState: (modal: ModalState) => void
+  onCancelJobs: () => void
 }
 
 export default class Jobs extends React.Component<JobsProps, {}> {
@@ -42,9 +46,9 @@ export default class Jobs extends React.Component<JobsProps, {}> {
     this.resetCache = this.resetCache.bind(this)
   }
 
-  rowGetter({ index }: { index: number }): JobInfoViewModel {
-    if (!!this.props.jobInfos[index]) {
-      return this.props.jobInfos[index]
+  rowGetter({ index }: { index: number }): Job {
+    if (!!this.props.jobs[index]) {
+      return this.props.jobs[index]
     } else {
       return {
         owner: "",
@@ -62,7 +66,7 @@ export default class Jobs extends React.Component<JobsProps, {}> {
   }
 
   render() {
-    const rowCount = this.props.canLoadMore ? this.props.jobInfos.length + 1 : this.props.jobInfos.length
+    const rowCount = this.props.canLoadMore ? this.props.jobs.length + 1 : this.props.jobs.length
 
     return (
       <div className="jobs">
@@ -72,7 +76,7 @@ export default class Jobs extends React.Component<JobsProps, {}> {
             jobSet={this.props.jobSet}
             newestFirst={this.props.newestFirst}
             jobStates={this.props.jobStates}
-            canCancel={this.props.canCancel}
+            canCancel={this.props.cancelJobsButtonIsEnabled}
             onQueueChange={async queue => {
               await this.props.onQueueChange(queue)
               this.resetCache()
@@ -94,14 +98,16 @@ export default class Jobs extends React.Component<JobsProps, {}> {
               this.resetCache()
             }}
             onCancelJobsClick={() => {
-              this.props.onToggleCancelJobsModal(true)
+              this.props.onSetModalState("CancelJobs")
             }} />
         </div>
         <CancelJobsModal
-          open={this.props.cancelJobsModalIsOpen}
+          currentOpenModal={this.props.modalState}
           jobsToCancel={this.props.cancellableJobs}
-          onCancelJobs={() => console.log("Cancelling jobs")}
-          onBackdropClick={() => this.props.onToggleCancelJobsModal(false)} />
+          cancelJobsResult={this.props.cancelJobsResult}
+          cancelJobsRequestStatus={this.props.cancelJobsRequestStatus}
+          onCancelJobs={this.props.onCancelJobs}
+          onClose={() => this.props.onSetModalState("None")} />
         <div className="job-table">
           <InfiniteLoader
             ref={this.infiniteLoader}
