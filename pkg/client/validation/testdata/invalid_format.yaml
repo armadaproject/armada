@@ -1,4 +1,0 @@
-queue: test
-jobSetId: job-set-1
-jobs:
-  - priority= 0
