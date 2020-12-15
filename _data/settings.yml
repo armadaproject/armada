@@ -32,15 +32,15 @@ blog_settings:
 menu_settings:
   menu_items:
     - title: 'Design'
-      url: /design    
+      url: '/design'    
     - title: 'Documentation'
       submenu_items:
       - title: 'Development'
-        url: '/development'
+        url: '/developer'
       - title: 'User Guide'
         url: '/user'   
       - title: 'Production Install'
-        url: '/production'
+        url: '/production-install'
     - title: 'Quickstart'
       url: '/quickstart' 
     - title: 'Contribute'

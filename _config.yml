@@ -1,7 +1,7 @@
 site: Armada
 
-url: https://argon.jekyllthemes.io
-baseurl: 
+url: "https://armadaproject.io"
+baseurl: ""
 
 collections:
   pages:
@@ -23,7 +23,7 @@ defaults:
       path: ""
       type: "pages"
     values:
-      layout: "pages"
+      layout: "default"
   -
     scope:
       path: ""
