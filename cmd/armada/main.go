@@ -42,6 +42,7 @@ func main() {
 	shutdownGateway := grpc.ServeGateway(
 		config.HttpPort,
 		config.GrpcPort,
+		config.CorsAllowedOrigins,
 		api.SwaggerJsonTemplate(),
 		api.RegisterSubmitHandler,
 		api.RegisterEventHandler,

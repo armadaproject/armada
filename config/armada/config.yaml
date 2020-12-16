@@ -2,6 +2,7 @@
 grpcPort: 50051
 httpPort: 8080
 metricsPort: 9000
+corsAllowedOrigins: ["http://localhost:3000"]
 priorityHalfTime: 20m
 redis:
   addrs:

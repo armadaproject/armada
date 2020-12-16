@@ -14,15 +14,17 @@ import (
 
 	protoutil "github.com/G-Research/armada/internal/armada/protoutils"
 	"github.com/G-Research/armada/internal/common"
+	"github.com/G-Research/armada/internal/common/util"
 )
 
 func ServeGateway(
 	port uint16,
 	grpcPort uint16,
+	corsAllowedOrigins []string,
 	spec string,
 	handlers ...func(ctx context.Context, mux *runtime.ServeMux, conn *grpc.ClientConn) error) (shutdown func()) {
 
-	mux, shutdownGateway := CreateGatewayHandler(grpcPort, "/", spec, handlers...)
+	mux, shutdownGateway := CreateGatewayHandler(grpcPort, "/", corsAllowedOrigins, spec, handlers...)
 	cancel := common.ServeHttp(port, mux)
 
 	return func() {
@@ -34,6 +36,7 @@ func ServeGateway(
 func CreateGatewayHandler(
 	grpcPort uint16,
 	apiBasePath string,
+	corsAllowedOrigins []string,
 	spec string,
 	handlers ...func(ctx context.Context, mux *runtime.ServeMux, conn *grpc.ClientConn) error) (handler *http.ServeMux, shutdown func()) {
 
@@ -66,7 +69,7 @@ func CreateGatewayHandler(
 		}
 	}
 
-	mux.Handle(apiBasePath, allowCORS(gw))
+	mux.Handle(apiBasePath, allowCORS(gw, corsAllowedOrigins))
 	mux.Handle(path.Join(apiBasePath, "swagger.json"), middleware.Spec(apiBasePath, []byte(spec), nil))
 
 	return mux, func() {
@@ -75,9 +78,9 @@ func CreateGatewayHandler(
 	}
 }
 
-func allowCORS(h http.Handler) http.Handler {
+func allowCORS(h http.Handler, corsAllowedOrigins []string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if origin := r.Header.Get("Origin"); origin != "" {
+		if origin := r.Header.Get("Origin"); origin != "" && util.ContainsString(corsAllowedOrigins, origin) {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			if r.Method == "OPTIONS" && r.Header.Get("Access-Control-Request-Method") != "" {
 				preflightHandler(w, r)
