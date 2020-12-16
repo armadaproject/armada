@@ -1,4 +1,4 @@
-import React, { Fragment } from "react";
+import React, { Fragment, Ref } from "react";
 import {
   colors,
   createStyles,
@@ -61,11 +61,11 @@ type CancelJobsOutcomeProps = {
   onCancelJobs: () => void
 }
 
-export default function CancelJobsOutcome(props: CancelJobsOutcomeProps) {
+const CancelJobsOutcome = React.forwardRef((props: CancelJobsOutcomeProps, ref: Ref<any>) => {
   const classes = useStyles()
 
   return (
-    <div className={classes.paper}>
+    <div ref={ref} className={classes.paper}>
       <h2
         id="cancel-jobs-modal-title"
         className="cancel-jobs-modal-title">
@@ -139,4 +139,6 @@ export default function CancelJobsOutcome(props: CancelJobsOutcomeProps) {
       </Fragment>}
     </div>
   )
-}
+})
+
+export default CancelJobsOutcome

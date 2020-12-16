@@ -66,9 +66,11 @@ export default function CancelJobsModal(props: CancelJobsDialogProps) {
         timeout: 500,
       }}
       onClose={props.onClose}>
-      <Fade in={isOpen}>
-        {content}
-      </Fade>
+      <>
+        <Fade in={isOpen}>
+          {content}
+        </Fade>
+      </>
     </Modal>
   )
 }

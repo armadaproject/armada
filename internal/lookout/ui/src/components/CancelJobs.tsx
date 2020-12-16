@@ -1,4 +1,4 @@
-import React from "react";
+import React, { Ref } from "react";
 import {
   createStyles,
   Paper,
@@ -46,11 +46,11 @@ type CancelJobsProps = {
   onCancelJobs: () => void
 }
 
-export default function CancelJobs(props: CancelJobsProps) {
+const CancelJobs = React.forwardRef((props: CancelJobsProps, ref: Ref<any>) => {
   const classes = useStyles()
 
   return (
-    <div className={classes.paper}>
+    <div ref={ref} className={classes.paper}>
       <h2
         id="cancel-jobs-modal-title"
         className="cancel-jobs-modal-title">
@@ -91,4 +91,6 @@ export default function CancelJobs(props: CancelJobsProps) {
       </div>
     </div>
   )
-}
+})
+
+export default CancelJobs
