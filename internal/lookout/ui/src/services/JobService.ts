@@ -1,5 +1,5 @@
-import { LookoutApi, LookoutJobInfo, LookoutQueueInfo } from '../openapi-lookout'
-import { SubmitApi } from '../openapi-armada'
+import { LookoutApi, LookoutJobInfo, LookoutQueueInfo } from '../openapi/lookout'
+import { SubmitApi } from '../openapi/armada'
 import { reverseMap } from "../utils";
 
 export type QueueInfo = {

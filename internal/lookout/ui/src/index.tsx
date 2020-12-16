@@ -4,8 +4,8 @@ import ReactDOM from 'react-dom';
 import { App } from './App';
 import reportWebVitals from './reportWebVitals';
 import JobService from './services/JobService';
-import { LookoutApi, Configuration  as LookoutConfiguration } from './openapi-lookout';
-import { SubmitApi, Configuration as SubmitConfiguration } from "./openapi-armada";
+import { LookoutApi, Configuration  as LookoutConfiguration } from './openapi/lookout';
+import { SubmitApi, Configuration as SubmitConfiguration } from "./openapi/armada";
 
 import 'react-virtualized/styles.css'
 import './index.css';
