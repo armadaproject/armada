@@ -12,7 +12,10 @@ import './index.css';
 
 let jobService = new JobService(
   new LookoutApi(new LookoutConfiguration({ basePath: "" })),
-  new SubmitApi(new SubmitConfiguration({ basePath: process.env.REACT_APP_ARMADA_API_BASE_URL }))
+  new SubmitApi(new SubmitConfiguration({
+    basePath: process.env.REACT_APP_ARMADA_API_BASE_URL,
+    credentials: "include",
+  }))
 )
 
 ReactDOM.render(

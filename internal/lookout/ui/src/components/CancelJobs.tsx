@@ -59,7 +59,7 @@ const CancelJobs = React.forwardRef((props: CancelJobsProps, ref: Ref<any>) => {
       <p
         id="cancel-jobs-modal-description"
         className="cancel-jobs-modal-description">
-        Cancel the following jobs?
+        The following jobs will be cancelled:
       </p>
       <TableContainer component={Paper} className={classes.container}>
         <Table stickyHeader>
