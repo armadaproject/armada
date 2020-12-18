@@ -18,3 +18,12 @@ func StringListToSet(list []string) map[string]bool {
 	}
 	return set
 }
+
+func ContainsString(list []string, val string) bool {
+	for _, elem := range list {
+		if elem == val {
+			return true
+		}
+	}
+	return false
+}

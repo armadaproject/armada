@@ -1,3 +1,4 @@
+corsAllowedOrigins: ["http://localhost:3000"]
 eventsNats:
   Servers:
     - "nats://localhost:4223"

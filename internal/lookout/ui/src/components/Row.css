@@ -1,0 +1,20 @@
+.select-box {
+    margin-left: 1em;
+    margin-right: 1em;
+    width: 4em;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.row {
+    display: flex;
+    flex-direction: row;
+}
+
+.loading-row {
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+}

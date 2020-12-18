@@ -20,6 +20,7 @@ type ArmadaConfig struct {
 	GrpcPort               uint16
 	HttpPort               uint16
 	MetricsPort            uint16
+	CorsAllowedOrigins     []string
 	PriorityHalfTime       time.Duration
 	Redis                  redis.UniversalOptions
 	EventsKafka            KafkaConfig

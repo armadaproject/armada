@@ -47,7 +47,10 @@
   margin-left: 1em;
 }
 
-.job-table-header .right {
+.job-table-header .right .refresh {
   margin-right: 1em;
 }
 
+.job-table-header .right .cancel-jobs {
+  margin-right: 1em;
+}

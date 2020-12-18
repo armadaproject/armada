@@ -1,4 +1,5 @@
-import { LookoutApi, LookoutJobInfo, LookoutQueueInfo } from '../openapi'
+import { LookoutApi, LookoutJobInfo, LookoutQueueInfo } from '../openapi/lookout'
+import { SubmitApi } from '../openapi/armada'
 import { reverseMap } from "../utils";
 
 export type QueueInfo = {
@@ -8,13 +9,23 @@ export type QueueInfo = {
   jobsRunning: number
 }
 
-export type JobInfoViewModel = {
+export type Job = {
   jobId: string
   queue: string
   owner: string
   jobSet: string
   submissionTime: string
   jobState: string
+}
+
+export type CancelJobsResult = {
+  cancelledJobs: Job[]
+  failedJobCancellations: FailedJobCancellation[]
+}
+
+export type FailedJobCancellation = {
+  job: Job
+  error: string
 }
 
 const JOB_STATE_MAP = new Map<string, string>()
@@ -38,14 +49,16 @@ export const JOB_STATES_FOR_DISPLAY = [
 
 export default class JobService {
 
-  api: LookoutApi;
+  lookoutApi: LookoutApi
+  submitApi: SubmitApi
 
-  constructor(lookoutAPi: LookoutApi) {
-    this.api = lookoutAPi
+  constructor(lookoutAPi: LookoutApi, submitApi: SubmitApi) {
+    this.lookoutApi = lookoutAPi
+    this.submitApi = submitApi
   }
 
   async getOverview(): Promise<QueueInfo[]> {
-    const queueInfosFromApi = await this.api.overview()
+    const queueInfosFromApi = await this.lookoutApi.overview()
     if (!queueInfosFromApi.queues) {
       return []
     }
@@ -60,10 +73,10 @@ export default class JobService {
     jobSets: string[],
     newestFirst: boolean,
     jobStates: string[],
-  ): Promise<JobInfoViewModel[]> {
+  ): Promise<Job[]> {
     const jobStatesForApi = jobStates.map(getJobStateForApi)
     try {
-      const response = await this.api.getJobsInQueue({
+      const response = await this.lookoutApi.getJobsInQueue({
         body: {
           queue: queue,
           take: take,
@@ -80,6 +93,31 @@ export default class JobService {
       console.error(await e.json())
     }
     return []
+  }
+
+  async cancelJobs(jobs: Job[]): Promise<CancelJobsResult> {
+    const result: CancelJobsResult = { cancelledJobs: [], failedJobCancellations: [] }
+    for (let job of jobs) {
+      try {
+        const apiResult = await this.submitApi.cancelJobs({
+          body: {
+            jobId: job.jobId,
+          },
+        })
+
+        if (!apiResult.cancelledIds ||
+            apiResult.cancelledIds.length !== 1 ||
+            apiResult.cancelledIds[0] !== job.jobId) {
+          result.failedJobCancellations.push({ job: job, error: "No job was cancelled" })
+        } else {
+          result.cancelledJobs.push(job)
+        }
+      } catch (e) {
+        console.error(e)
+        result.failedJobCancellations.push({ job: job, error: e.toString() })
+      }
+    }
+    return result
   }
 }
 
@@ -100,7 +138,7 @@ function getJobStateForApi(displayedJobState: string): string {
   return jobState
 }
 
-function jobInfoToViewModel(jobInfo: LookoutJobInfo): JobInfoViewModel {
+function jobInfoToViewModel(jobInfo: LookoutJobInfo): Job {
   const jobId = jobInfo.job?.id ?? "-"
   const queue = jobInfo.job?.queue ?? "-"
   const owner = jobInfo.job?.owner ?? "-"
