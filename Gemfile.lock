@@ -253,6 +253,7 @@ PLATFORMS
 
 DEPENDENCIES
   github-pages (~> 208)
+  jekyll-optional-front-matter (~> 0.3.2)
   jekyll-paginate (~> 1.1.0)
   jekyll-sitemap (~> 1.4.0)
   tzinfo (~> 1.2)
