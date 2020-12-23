@@ -1,25 +1,39 @@
 import React from 'react'
-import { AutoSizer, Column, InfiniteLoader, Table, } from "react-virtualized"
+import { AutoSizer, Column, InfiniteLoader, Table } from "react-virtualized"
 
-import { JobInfoViewModel } from "../services/JobService"
+import { CancelJobsResult, Job } from "../services/JobService"
 import JobTableHeader from "./JobTableHeader";
+import JobRow from "./JobRow";
+import HeaderRow from "./HeaderRow";
+import LoadingRow from "./LoadingRow";
+import CancelJobsModal from "./CancelJobsModal";
+import { CancelJobsRequestStatus, ModalState } from "../containers/JobsContainer";
 
 import './Jobs.css'
 
 type JobsProps = {
-  jobInfos: JobInfoViewModel[]
+  jobs: Job[]
   canLoadMore: boolean
   queue: string
   jobSet: string
   jobStates: string[]
   newestFirst: boolean
-  fetchJobs: (start: number, stop: number) => Promise<JobInfoViewModel[]>
+  selectedJobs: Map<string, Job>
+  cancellableJobs: Job[]
+  modalState: ModalState
+  cancelJobsResult: CancelJobsResult
+  cancelJobsRequestStatus: CancelJobsRequestStatus
+  cancelJobsButtonIsEnabled: boolean
+  fetchJobs: (start: number, stop: number) => Promise<Job[]>
   isLoaded: (index: number) => boolean
-  onQueueChange: (queue: string, callback: () => void) => void
-  onJobSetChange: (jobSet: string, callback: () => void) => void
-  onJobStatesChange: (jobStates: string[], callback: () => void) => void
-  onOrderChange: (newestFirst: boolean, callback: () => void) => void
-  onRefresh: (callback: () => void) => void
+  onQueueChange: (queue: string) => Promise<void>
+  onJobSetChange: (jobSet: string) => Promise<void>
+  onJobStatesChange: (jobStates: string[]) => Promise<void>
+  onOrderChange: (newestFirst: boolean) => Promise<void>
+  onRefresh: () => Promise<void>
+  onSelectJob: (job: Job, selected: boolean) => Promise<void>
+  onSetModalState: (modal: ModalState) => void
+  onCancelJobs: () => void
 }
 
 export default class Jobs extends React.Component<JobsProps, {}> {
@@ -32,13 +46,13 @@ export default class Jobs extends React.Component<JobsProps, {}> {
     this.resetCache = this.resetCache.bind(this)
   }
 
-  rowGetter({ index }: { index: number }): JobInfoViewModel {
-    if (!!this.props.jobInfos[index]) {
-      return this.props.jobInfos[index]
+  rowGetter({ index }: { index: number }): Job {
+    if (!!this.props.jobs[index]) {
+      return this.props.jobs[index]
     } else {
       return {
         owner: "",
-        jobId: "Loading...",
+        jobId: "Loading",
         jobSet: "",
         jobState: "",
         queue: "",
@@ -52,7 +66,7 @@ export default class Jobs extends React.Component<JobsProps, {}> {
   }
 
   render() {
-    const rowCount = this.props.canLoadMore ? this.props.jobInfos.length + 1 : this.props.jobInfos.length
+    const rowCount = this.props.canLoadMore ? this.props.jobs.length + 1 : this.props.jobs.length
 
     return (
       <div className="jobs">
@@ -62,22 +76,38 @@ export default class Jobs extends React.Component<JobsProps, {}> {
             jobSet={this.props.jobSet}
             newestFirst={this.props.newestFirst}
             jobStates={this.props.jobStates}
-            onQueueChange={queue => {
-              this.props.onQueueChange(queue, this.resetCache)
+            canCancel={this.props.cancelJobsButtonIsEnabled}
+            onQueueChange={async queue => {
+              await this.props.onQueueChange(queue)
+              this.resetCache()
             }}
-            onJobSetChange={jobSet => {
-              this.props.onJobSetChange(jobSet, this.resetCache)
+            onJobSetChange={async jobSet => {
+              await this.props.onJobSetChange(jobSet)
+              this.resetCache()
             }}
-            onJobStatesChange={jobStates => {
-              this.props.onJobStatesChange(jobStates, this.resetCache)
+            onJobStatesChange={async jobStates => {
+              await this.props.onJobStatesChange(jobStates)
+              this.resetCache()
             }}
-            onOrderChange={newestFirst => {
-              this.props.onOrderChange(newestFirst, this.resetCache)
+            onOrderChange={async newestFirst => {
+              await this.props.onOrderChange(newestFirst)
+              this.resetCache()
             }}
-            onRefresh={() => {
-              this.props.onRefresh(this.resetCache)
-            }}/>
+            onRefresh={async () => {
+              await this.props.onRefresh()
+              this.resetCache()
+            }}
+            onCancelJobsClick={() => {
+              this.props.onSetModalState("CancelJobs")
+            }} />
         </div>
+        <CancelJobsModal
+          currentOpenModal={this.props.modalState}
+          jobsToCancel={this.props.cancellableJobs}
+          cancelJobsResult={this.props.cancelJobsResult}
+          cancelJobsRequestStatus={this.props.cancelJobsRequestStatus}
+          onCancelJobs={this.props.onCancelJobs}
+          onClose={() => this.props.onSetModalState("None")} />
         <div className="job-table">
           <InfiniteLoader
             ref={this.infiniteLoader}
@@ -97,14 +127,37 @@ export default class Jobs extends React.Component<JobsProps, {}> {
                     rowCount={rowCount}
                     rowHeight={40}
                     rowGetter={this.rowGetter}
+                    rowRenderer={(tableRowProps) => {
+                      if (tableRowProps.rowData.jobId === "Loading") {
+                        return <LoadingRow {...tableRowProps} />
+                      }
+
+                      let selected = false
+                      if (this.props.selectedJobs.has(tableRowProps.rowData.jobId)) {
+                        selected = true
+                      }
+                      return (
+                        <JobRow
+                          isChecked={selected}
+                          onChangeChecked={async (selected) => {
+                            await this.props.onSelectJob(tableRowProps.rowData, selected)
+                            this.infiniteLoader.current?.forceUpdate()
+                          }}
+                          tableKey={tableRowProps.key}
+                          {...tableRowProps} />
+                      )
+                    }}
+                    headerRowRenderer={(tableHeaderRowProps) => {
+                      return <HeaderRow {...tableHeaderRowProps}/>
+                    }}
                     headerHeight={40}
                     height={height}
                     width={width}>
-                    <Column dataKey="jobId" width={0.2 * width} label="Id"/>
-                    <Column dataKey="owner" width={0.2 * width} label="Owner"/>
-                    <Column dataKey="jobSet" width={0.2 * width} label="Job Set"/>
-                    <Column dataKey="submissionTime" width={0.2 * width} label="Submission Time"/>
-                    <Column dataKey="jobState" width={0.2 * width} label="State"/>
+                    <Column dataKey="jobId" width={0.2 * width} label="Id" />
+                    <Column dataKey="owner" width={0.2 * width} label="Owner" />
+                    <Column dataKey="jobSet" width={0.2 * width} label="Job Set" />
+                    <Column dataKey="submissionTime" width={0.2 * width} label="Submission Time" />
+                    <Column dataKey="jobState" width={0.2 * width} label="State" />
                   </Table>
                 )}
               </AutoSizer>

@@ -92,8 +92,20 @@ func ConfigureCommandLineLogging() {
 }
 
 func ConfigureLogging() {
+	log.SetLevel(readEnvironmentLogLevel())
 	log.SetFormatter(&log.TextFormatter{ForceColors: true, FullTimestamp: true})
 	log.SetOutput(os.Stdout)
+}
+
+func readEnvironmentLogLevel() log.Level {
+	level, ok := os.LookupEnv("LOG_LEVEL")
+	if ok {
+		logLevel, err := log.ParseLevel(level)
+		if err == nil {
+			return logLevel
+		}
+	}
+	return log.InfoLevel
 }
 
 func ServeMetrics(port uint16) (shutdown func()) {

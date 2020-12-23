@@ -57,6 +57,7 @@ func main() {
 	mux, shutdownGateway := grpc.CreateGatewayHandler(
 		config.GrpcPort,
 		"/api/",
+		[]string{},
 		lookoutApi.SwaggerJsonTemplate(),
 		lookoutApi.RegisterLookoutHandler)
 

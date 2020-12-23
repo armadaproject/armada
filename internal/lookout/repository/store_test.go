@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/doug-martin/goqu/v9"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 
@@ -15,7 +16,7 @@ import (
 )
 
 func Test_RecordEvents(t *testing.T) {
-	withDatabase(t, func(db *sql.DB) {
+	withDatabase(t, func(db *goqu.Database) {
 		jobRepo := NewSQLJobStore(db)
 
 		job := &api.Job{
@@ -91,7 +92,7 @@ func Test_RecordEvents(t *testing.T) {
 }
 
 func Test_RecordLongError(t *testing.T) {
-	withDatabase(t, func(db *sql.DB) {
+	withDatabase(t, func(db *goqu.Database) {
 		jobRepo := NewSQLJobStore(db)
 
 		job := &api.Job{
@@ -126,7 +127,7 @@ func Test_RecordLongError(t *testing.T) {
 	})
 }
 
-func count(t *testing.T, db *sql.DB, query string) int {
+func count(t *testing.T, db *goqu.Database, query string) int {
 	r, err := db.Query(query)
 	assert.NoError(t, err)
 	r.Next()
@@ -135,7 +136,7 @@ func count(t *testing.T, db *sql.DB, query string) int {
 	return count
 }
 
-func withDatabase(t *testing.T, action func(*sql.DB)) {
+func withDatabase(t *testing.T, action func(*goqu.Database)) {
 	dbName := "test_" + util.NewULID()
 	connectionString := "host=localhost port=5432 user=postgres password=psw sslmode=disable"
 	db, err := sql.Open("postgres", connectionString)
@@ -164,5 +165,5 @@ func withDatabase(t *testing.T, action func(*sql.DB)) {
 	err = schema.UpdateDatabase(testDb)
 	assert.Nil(t, err)
 
-	action(testDb)
+	action(goqu.New("postgres", testDb))
 }
