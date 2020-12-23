@@ -12,6 +12,7 @@ import (
 	"github.com/G-Research/armada/internal/common"
 	commonUtil "github.com/G-Research/armada/internal/common/util"
 	context2 "github.com/G-Research/armada/internal/executor/context"
+	"github.com/G-Research/armada/internal/executor/job_context"
 	"github.com/G-Research/armada/internal/executor/reporter"
 	"github.com/G-Research/armada/internal/executor/util"
 	"github.com/G-Research/armada/pkg/api"
@@ -23,11 +24,12 @@ const jobDoneAnnotation = "reported_done"
 type LeaseService interface {
 	ReturnLease(pod *v1.Pod) error
 	RequestJobLeases(availableResource *common.ComputeResources, nodes []api.NodeInfo, leasedResourceByQueue map[string]common.ComputeResources) ([]*api.Job, error)
-	ReportDone(pods []*v1.Pod) error
+	ReportDone(jobIds []string) error
 }
 
 type JobLeaseService struct {
 	clusterContext  context2.ClusterContext
+	jobContext      job_context.JobContext
 	queueClient     api.AggregatedQueueClient
 	minimumPodAge   time.Duration
 	failedPodExpiry time.Duration
@@ -36,6 +38,7 @@ type JobLeaseService struct {
 
 func NewJobLeaseService(
 	clusterContext context2.ClusterContext,
+	jobContext job_context.JobContext,
 	queueClient api.AggregatedQueueClient,
 	minimumPodAge time.Duration,
 	failedPodExpiry time.Duration,
@@ -43,6 +46,7 @@ func NewJobLeaseService(
 
 	return &JobLeaseService{
 		clusterContext:  clusterContext,
+		jobContext:      jobContext,
 		queueClient:     queueClient,
 		minimumPodAge:   minimumPodAge,
 		failedPodExpiry: failedPodExpiry,
@@ -93,54 +97,75 @@ func (jobLeaseService *JobLeaseService) ReturnLease(pod *v1.Pod) error {
 }
 
 func (jobLeaseService *JobLeaseService) ManageJobLeases() {
-	batchPods, err := jobLeaseService.clusterContext.GetBatchPods()
+	jobs, err := jobLeaseService.jobContext.GetRunningJobs()
 	if err != nil {
 		log.Errorf("Failed to manage job leases due to %s", err)
 		return
 	}
 
-	podsToRenew := util.FilterPods(batchPods, shouldBeRenewed)
-	chunkedPods := chunkPods(podsToRenew, maxPodRequestSize)
-	for _, chunk := range chunkedPods {
+	jobsToRenew := filterRunningJobs(jobs, jobShouldBeRenewed)
+	chunkedJobs := chunkJobs(jobsToRenew, maxPodRequestSize)
+	for _, chunk := range chunkedJobs {
 		jobLeaseService.renewJobLeases(chunk)
 	}
 
-	podsForReporting := util.FilterPods(batchPods, shouldBeReportedDone)
-	chunkedPodsToReportDone := chunkPods(podsForReporting, maxPodRequestSize)
-	for _, chunk := range chunkedPodsToReportDone {
-		err = jobLeaseService.ReportDone(chunk)
+	jobsForReporting := filterRunningJobs(jobs, shouldBeReportedDone)
+	chunkedJobsToReportDone := chunkJobs(jobsForReporting, maxPodRequestSize)
+	for _, chunk := range chunkedJobsToReportDone {
+		err = jobLeaseService.reportDoneAndMarkReported(chunk)
 		if err != nil {
 			log.Errorf("Failed reporting jobs as done because %s", err)
 			return
 		}
 	}
 
-	podsToCleanup := util.FilterPods(batchPods, jobLeaseService.canBeRemoved)
+	podsToCleanup := util.FilterPods(extractPods(jobs), jobLeaseService.canBeRemoved)
 	jobLeaseService.clusterContext.DeletePods(podsToCleanup)
 }
 
-func (jobLeaseService *JobLeaseService) ReportDone(pods []*v1.Pod) error {
-	if len(pods) <= 0 {
+func (jobLeaseService *JobLeaseService) reportDoneAndMarkReported(jobs []*job_context.RunningJob) error {
+	if len(jobs) <= 0 {
 		return nil
 	}
-	jobIds := util.ExtractJobIds(pods)
+	err := jobLeaseService.ReportDone(extractJobIds(jobs))
+	if err == nil {
+		jobLeaseService.markAsDone(extractPods(jobs))
+	}
+	return err
+}
 
+func (jobLeaseService *JobLeaseService) ReportDone(jobIds []string) error {
+	if len(jobIds) <= 0 {
+		return nil
+	}
 	ctx, cancel := common.ContextWithDefaultTimeout()
 	defer cancel()
 	log.Infof("Reporting done for jobs %s", strings.Join(jobIds, ","))
 	_, err := jobLeaseService.queueClient.ReportDone(ctx, &api.IdList{Ids: jobIds})
-	if err == nil {
-		jobLeaseService.markAsDone(pods)
-	}
-
 	return err
 }
 
-func (jobLeaseService *JobLeaseService) renewJobLeases(pods []*v1.Pod) {
-	if len(pods) <= 0 {
+func extractJobIds(jobs []*job_context.RunningJob) []string {
+	ids := []string{}
+	for _, job := range jobs {
+		ids = append(ids, job.JobId)
+	}
+	return ids
+}
+
+func extractPods(jobs []*job_context.RunningJob) []*v1.Pod {
+	pods := []*v1.Pod{}
+	for _, job := range jobs {
+		pods = append(pods, job.Pods...)
+	}
+	return pods
+}
+
+func (jobLeaseService *JobLeaseService) renewJobLeases(jobs []*job_context.RunningJob) {
+	if len(jobs) <= 0 {
 		return
 	}
-	jobIds := util.ExtractJobIds(pods)
+	jobIds := extractJobIds(jobs)
 	log.Infof("Renewing lease for %s", strings.Join(jobIds, ","))
 
 	ctx, cancel := common.ContextWithDefaultTimeout()
@@ -155,7 +180,7 @@ func (jobLeaseService *JobLeaseService) renewJobLeases(pods []*v1.Pod) {
 	}
 
 	failedIds := commonUtil.SubtractStringList(jobIds, renewedJobIds.Ids)
-	failedPods := filterPodsByJobId(pods, failedIds)
+	failedPods := filterPodsByJobId(extractPods(jobs), failedIds)
 	if len(failedIds) > 0 {
 		log.Warnf("Server has prevented renewing of job lease for jobs %s", strings.Join(failedIds, ","))
 		jobLeaseService.clusterContext.DeletePods(failedPods)
@@ -177,8 +202,22 @@ func shouldBeRenewed(pod *v1.Pod) bool {
 	return !isReportedDone(pod)
 }
 
-func shouldBeReportedDone(pod *v1.Pod) bool {
-	return util.IsInTerminalState(pod) && !isReportedDone(pod)
+func jobShouldBeRenewed(job *job_context.RunningJob) bool {
+	for _, pod := range job.Pods {
+		if !isReportedDone(pod) {
+			return true
+		}
+	}
+	return false
+}
+
+func shouldBeReportedDone(job *job_context.RunningJob) bool {
+	for _, pod := range job.Pods {
+		if util.IsInTerminalState(pod) && !isReportedDone(pod) {
+			return true
+		}
+	}
+	return false
 }
 
 func (jobLeaseService *JobLeaseService) canBeRemoved(pod *v1.Pod) bool {
@@ -218,14 +257,24 @@ func filterPodsByJobId(pods []*v1.Pod, ids []string) []*v1.Pod {
 	return filteredPods
 }
 
-func chunkPods(pods []*v1.Pod, size int) [][]*v1.Pod {
-	chunks := [][]*v1.Pod{}
-	for start := 0; start < len(pods); start += size {
+func chunkJobs(jobs []*job_context.RunningJob, size int) [][]*job_context.RunningJob {
+	chunks := [][]*job_context.RunningJob{}
+	for start := 0; start < len(jobs); start += size {
 		end := start + size
-		if end > len(pods) {
-			end = len(pods)
+		if end > len(jobs) {
+			end = len(jobs)
 		}
-		chunks = append(chunks, pods[start:end])
+		chunks = append(chunks, jobs[start:end])
 	}
 	return chunks
+}
+
+func filterRunningJobs(jobs []*job_context.RunningJob, filter func(*job_context.RunningJob) bool) []*job_context.RunningJob {
+	result := make([]*job_context.RunningJob, 0)
+	for _, job := range jobs {
+		if filter(job) {
+			result = append(result, job)
+		}
+	}
+	return result
 }

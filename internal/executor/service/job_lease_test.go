@@ -13,6 +13,7 @@ import (
 
 	"github.com/G-Research/armada/internal/common"
 	context2 "github.com/G-Research/armada/internal/executor/fake/context"
+	"github.com/G-Research/armada/internal/executor/job_context"
 	"github.com/G-Research/armada/pkg/api"
 )
 
@@ -56,9 +57,9 @@ func TestCanBeRemovedMinumumPodTime(t *testing.T) {
 }
 
 func TestChunkPods(t *testing.T) {
-	p := makePodWithCurrentStateReported(v1.PodPending, false)
-	chunks := chunkPods([]*v1.Pod{p, p, p}, 2)
-	assert.Equal(t, [][]*v1.Pod{{p, p}, {p}}, chunks)
+	j := &job_context.RunningJob{}
+	chunks := chunkJobs([]*job_context.RunningJob{j, j, j}, 2)
+	assert.Equal(t, [][]*job_context.RunningJob{{j, j}, {j}}, chunks)
 }
 
 func makeFinishedPodWithTimestamp(state v1.PodPhase, timestamp time.Time) *v1.Pod {
@@ -88,7 +89,8 @@ func makePodWithCurrentStateReported(state v1.PodPhase, reportedDone bool) *v1.P
 
 func createLeaseService(minimumPodAge, failedPodExpiry time.Duration) *JobLeaseService {
 	fakeClusterContext := context2.NewFakeClusterContext("test", nil)
-	return NewJobLeaseService(fakeClusterContext, &queueClientMock{}, minimumPodAge, failedPodExpiry, common.ComputeResources{})
+	jobContext := job_context.NewClusterJobContext(fakeClusterContext)
+	return NewJobLeaseService(fakeClusterContext, jobContext, &queueClientMock{}, minimumPodAge, failedPodExpiry, common.ComputeResources{})
 }
 
 type queueClientMock struct {

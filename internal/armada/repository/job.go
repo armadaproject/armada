@@ -75,6 +75,10 @@ func (repo *RedisJobRepository) CreateJobs(request *api.JobSubmitRequest, princi
 			return nil, fmt.Errorf("job with index %v has both pod spec and pod spec list specified", i)
 		}
 
+		if len(item.GetAllPodSpecs()) == 0 {
+			return nil, fmt.Errorf("job with index %v has no pod spec", i)
+		}
+
 		namespace := item.Namespace
 		if namespace == "" {
 			namespace = "default"

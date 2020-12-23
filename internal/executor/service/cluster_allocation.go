@@ -74,7 +74,6 @@ func (allocationService *ClusterAllocationService) submitJobs(jobsToSubmit []*ap
 	for _, job := range jobsToSubmit {
 		jobPods := []*v1.Pod{}
 		for i, _ := range job.GetAllPodSpecs() {
-
 			pod := createPod(job, i)
 			_, err := allocationService.clusterContext.SubmitPod(pod, job.Owner)
 			jobPods = append(jobPods, pod)
@@ -85,6 +84,7 @@ func (allocationService *ClusterAllocationService) submitJobs(jobsToSubmit []*ap
 				status, ok := err.(errors.APIStatus)
 				if ok && (isNotRecoverable(status.Status())) {
 					errDetails := &failedSubmissionDetails{
+						job:   job,
 						pod:   pod,
 						error: status,
 					}
@@ -121,14 +121,14 @@ func isNotRecoverable(status metav1.Status) bool {
 }
 
 func (allocationService *ClusterAllocationService) failJobs(failedSubmissions []*failedSubmissionDetails) error {
-	toBeReportedDone := make([]*v1.Pod, 0, 10)
+	toBeReportedDone := make([]string, 0, 10)
 
 	for _, details := range failedSubmissions {
 		failEvent := reporter.CreateJobFailedEvent(details.pod, details.error.Status().Message, map[string]int32{}, allocationService.clusterContext.GetClusterId())
 		err := allocationService.eventReporter.Report(failEvent)
 
 		if err == nil {
-			toBeReportedDone = append(toBeReportedDone, details.pod)
+			toBeReportedDone = append(toBeReportedDone, details.job.JobSetId)
 		}
 	}
 
@@ -190,6 +190,7 @@ func setRestartPolicyNever(podSpec *v1.PodSpec) {
 
 type failedSubmissionDetails struct {
 	pod   *v1.Pod
+	job   *api.Job
 	error errors.APIStatus
 }
 
