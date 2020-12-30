@@ -1,3 +1,5 @@
+import { DateTime } from 'luxon'
+
 import { LookoutApi, LookoutJobInfo, LookoutQueueInfo } from '../openapi/lookout'
 import { SubmitApi } from '../openapi/armada'
 import { reverseMap } from "../utils";
@@ -7,6 +9,10 @@ export type QueueInfo = {
   jobsQueued: number
   jobsPending: number
   jobsRunning: number
+  oldestQueuedJob?: Job
+  oldestQueuedJobDuration: string
+  longestRunningJob?: Job
+  longestRunningJobDuration: string
 }
 
 export type Job = {
@@ -16,6 +22,7 @@ export type Job = {
   jobSet: string
   submissionTime: string
   jobState: string
+  cluster?: string
 }
 
 export type CancelJobsResult = {
@@ -122,20 +129,71 @@ export default class JobService {
 }
 
 function queueInfoToViewModel(queueInfo: LookoutQueueInfo): QueueInfo {
+  let oldestQueuedJob: Job | undefined
+  let oldestQueuedJobDuration = "-"
+  if (queueInfo.oldestQueuedJob && queueInfo.oldestQueuedJob.job && queueInfo.oldestQueuedJob.job.created) {
+    oldestQueuedJob = jobInfoToViewModel(queueInfo.oldestQueuedJob)
+    oldestQueuedJobDuration = getDurationString(queueInfo.oldestQueuedJob.job.created)
+  }
+
+  let longestRunningJob: Job | undefined
+  let longestRunningJobDuration = "-"
+  if (
+    queueInfo.longestRunningJob &&
+    queueInfo.longestRunningJob.runs &&
+    queueInfo.longestRunningJob.runs.length > 0
+  ) {
+    const startTime = queueInfo.longestRunningJob.runs[queueInfo.longestRunningJob.runs.length - 1].started
+    if (startTime) {
+      longestRunningJob = jobInfoToViewModel(queueInfo.longestRunningJob)
+      longestRunningJobDuration = getDurationString(startTime)
+    }
+  }
+
   return {
     queue: queueInfo.queue ?? "Unknown queue",
     jobsQueued: queueInfo.jobsQueued ?? 0,
     jobsPending: queueInfo.jobsPending ?? 0,
     jobsRunning: queueInfo.jobsRunning ?? 0,
+    oldestQueuedJob: oldestQueuedJob,
+    oldestQueuedJobDuration: oldestQueuedJobDuration,
+    longestRunningJob: longestRunningJob,
+    longestRunningJobDuration: longestRunningJobDuration,
   }
 }
 
-function getJobStateForApi(displayedJobState: string): string {
-  const jobState = INVERSE_JOB_STATE_MAP.get(displayedJobState)
-  if (!jobState) {
-    throw new Error(`Unrecognized job state: "${displayedJobState}"`)
+// Time difference between now and `date`, as string
+function getDurationString(date: Date): string {
+  const delta = DateTime.fromJSDate(date).diffNow([
+    "days",
+    "hours",
+    "minutes",
+    "seconds",
+  ])
+  const days = Math.abs(delta.days)
+  const hours = Math.abs(delta.hours)
+  const minutes = Math.abs(delta.minutes)
+  const seconds = Math.round(Math.abs(delta.seconds))
+
+  const segments: string[] = []
+
+  if (days > 0) {
+    segments.push(`${days}d`)
   }
-  return jobState
+  if (hours > 0) {
+    segments.push(`${hours}h`)
+  }
+  if (minutes > 0) {
+    segments.push(`${minutes}m`)
+  }
+  if (seconds > 0) {
+    segments.push(`${seconds}s`)
+  }
+  if (segments.length === 0) {
+    return "Just now"
+  }
+
+  return segments.join(" ")
 }
 
 function jobInfoToViewModel(jobInfo: LookoutJobInfo): Job {
@@ -145,6 +203,7 @@ function jobInfoToViewModel(jobInfo: LookoutJobInfo): Job {
   const jobSet = jobInfo.job?.jobSetId ?? "-"
   const submissionTime = (jobInfo.job?.created ?? new Date()).toLocaleString()
   const jobState = JOB_STATE_MAP.get(jobInfo.jobState ?? "") ?? "Unknown"
+  const cluster = getCurrentCluster(jobInfo)
 
   return {
     jobId: jobId,
@@ -153,5 +212,23 @@ function jobInfoToViewModel(jobInfo: LookoutJobInfo): Job {
     jobSet: jobSet,
     submissionTime: submissionTime,
     jobState: jobState,
+    cluster: cluster,
   }
+}
+
+function getCurrentCluster(jobInfo: LookoutJobInfo): string | undefined {
+  if (!jobInfo.runs || jobInfo.runs.length === 0) {
+    return undefined
+  }
+
+  const lastRun = jobInfo.runs[jobInfo.runs.length - 1]
+  return lastRun.cluster
+}
+
+function getJobStateForApi(displayedJobState: string): string {
+  const jobState = INVERSE_JOB_STATE_MAP.get(displayedJobState)
+  if (!jobState) {
+    throw new Error(`Unrecognized job state: "${displayedJobState}"`)
+  }
+  return jobState
 }
