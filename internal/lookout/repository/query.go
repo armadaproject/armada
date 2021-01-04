@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 
@@ -43,8 +44,8 @@ var AllJobStates = []string{
 }
 
 type JobRepository interface {
-	GetQueueStats() ([]*lookout.QueueInfo, error)
-	GetJobsInQueue(opts *lookout.GetJobsInQueueRequest) ([]*lookout.JobInfo, error)
+	GetQueueStats(ctx context.Context) ([]*lookout.QueueInfo, error)
+	GetJobsInQueue(ctx context.Context, opts *lookout.GetJobsInQueueRequest) ([]*lookout.JobInfo, error)
 }
 
 type SQLJobRepository struct {
@@ -89,7 +90,7 @@ type queueStatsRow struct {
 	JobsStarted uint32 `db:"jobs_started"`
 }
 
-func (r *SQLJobRepository) GetQueueStats() ([]*lookout.QueueInfo, error) {
+func (r *SQLJobRepository) GetQueueStats(ctx context.Context) ([]*lookout.QueueInfo, error) {
 	ds := r.goquDb.
 		From(jobTable).
 		LeftJoin(jobRunTable, goqu.On(job_jobId.Eq(jobRun_jobId))).
@@ -102,7 +103,7 @@ func (r *SQLJobRepository) GetQueueStats() ([]*lookout.QueueInfo, error) {
 		GroupBy(job_queue)
 
 	queueStatsRows := make([]*queueStatsRow, 0)
-	err := ds.Prepared(true).ScanStructs(&queueStatsRows)
+	err := ds.Prepared(true).ScanStructsContext(ctx, &queueStatsRows)
 	if err != nil {
 		return nil, err
 	}
@@ -119,12 +120,12 @@ func (r *SQLJobRepository) GetQueueStats() ([]*lookout.QueueInfo, error) {
 	return result, nil
 }
 
-func (r *SQLJobRepository) GetJobsInQueue(opts *lookout.GetJobsInQueueRequest) ([]*lookout.JobInfo, error) {
+func (r *SQLJobRepository) GetJobsInQueue(ctx context.Context, opts *lookout.GetJobsInQueueRequest) ([]*lookout.JobInfo, error) {
 	if valid, jobState := validateJobStates(opts.JobStates); !valid {
 		return nil, fmt.Errorf("unknown job state: %q", jobState)
 	}
 
-	rows, err := r.queryJobsInQueue(opts)
+	rows, err := r.queryJobsInQueue(ctx, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -170,11 +171,11 @@ type jobsInQueueRow struct {
 	Error     sql.NullString  `db:"error"`
 }
 
-func (r *SQLJobRepository) queryJobsInQueue(opts *lookout.GetJobsInQueueRequest) ([]*jobsInQueueRow, error) {
+func (r *SQLJobRepository) queryJobsInQueue(ctx context.Context, opts *lookout.GetJobsInQueueRequest) ([]*jobsInQueueRow, error) {
 	ds := r.createGetJobsInQueueDataset(opts)
 
 	jobsInQueueRows := make([]*jobsInQueueRow, 0)
-	err := ds.Prepared(true).ScanStructs(&jobsInQueueRows)
+	err := ds.Prepared(true).ScanStructsContext(ctx, &jobsInQueueRows)
 	if err != nil {
 		return nil, err
 	}
