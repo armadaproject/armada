@@ -20,7 +20,7 @@ func NewLookoutServer(jobRepository repository.JobRepository) *LookoutServer {
 }
 
 func (s *LookoutServer) Overview(ctx context.Context, _ *types.Empty) (*lookout.SystemOverview, error) {
-	queues, err := s.jobRepository.GetQueueStats()
+	queues, err := s.jobRepository.GetQueueStats(ctx)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Failed to query queue stats: %s", err)
 	}
@@ -28,7 +28,7 @@ func (s *LookoutServer) Overview(ctx context.Context, _ *types.Empty) (*lookout.
 }
 
 func (s *LookoutServer) GetJobsInQueue(ctx context.Context, opts *lookout.GetJobsInQueueRequest) (*lookout.GetJobsInQueueResponse, error) {
-	jobInfos, err := s.jobRepository.GetJobsInQueue(opts)
+	jobInfos, err := s.jobRepository.GetJobsInQueue(ctx, opts)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Failed to query jobs in queue: %s", err)
 	}
