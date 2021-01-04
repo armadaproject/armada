@@ -144,8 +144,9 @@ jobs:
           name: ineffassign
           command: |
             cd /tmp
-            go run github.com/gordonklaus/ineffassign ~/go/src/github.com/G-Research/armada/...
+            go get -u github.com/gordonklaus/ineffassign
             cd ~/go/src/github.com/G-Research/armada
+            ineffassign ./...
 
       - run:
           name: Check formatting
