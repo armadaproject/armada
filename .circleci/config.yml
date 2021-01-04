@@ -144,7 +144,7 @@ jobs:
           name: ineffassign
           command: |
             cd /tmp
-            go run github.com/gordonklaus/ineffassign ~/go/src/github.com/G-Research/armada
+            go run github.com/gordonklaus/ineffassign ~/go/src/github.com/G-Research/armada/...
             cd ~/go/src/github.com/G-Research/armada
 
       - run:
