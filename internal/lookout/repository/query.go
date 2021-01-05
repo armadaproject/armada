@@ -181,6 +181,9 @@ func (r *SQLJobRepository) GetQueueInfos(ctx context.Context) ([]*lookout.QueueI
 	// Longest running
 	if rows.NextResultSet() {
 		err = setLongestRunningJobForQueueInfos(rows, queueInfoMap)
+		if err != nil {
+			return nil, err
+		}
 	} else if rows.Err() != nil {
 		return nil, fmt.Errorf("expected result set for longest running job: %v", rows.Err())
 	}
