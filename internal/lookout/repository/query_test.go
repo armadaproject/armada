@@ -29,7 +29,14 @@ var (
 
 func Test_QueueInfosWithNoJobs(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
+		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db)
+
+		newJobSimulator(t, jobStore, &defaultClock{}).
+			createJob(queue).
+			pending(cluster, k8sId3).
+			running(cluster, k8sId3, node).
+			succeeded(cluster, k8sId3, node)
 
 		queueInfos, err := jobRepo.GetQueueInfos(ctx)
 		assert.NoError(t, err)
