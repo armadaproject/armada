@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -23,13 +24,21 @@ var (
 	k8sId4  = util.NewULID()
 	k8sId5  = util.NewULID()
 	node    = "node"
+	ctx     = context.Background()
 )
 
 func Test_QueueInfosWithNoJobs(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
+		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db)
 
-		queueInfos, err := jobRepo.GetQueueInfos()
+		newJobSimulator(t, jobStore, &defaultClock{}).
+			createJob(queue).
+			pending(cluster, k8sId3).
+			running(cluster, k8sId3, node).
+			succeeded(cluster, k8sId3, node)
+
+		queueInfos, err := jobRepo.GetQueueInfos(ctx)
 		assert.NoError(t, err)
 		assert.Equal(t, 0, len(queueInfos))
 	})
@@ -57,7 +66,7 @@ func Test_QueueInfoCounts(t *testing.T) {
 			running(cluster, k8sId3, node).
 			succeeded(cluster, k8sId3, node)
 
-		queueInfos, err := jobRepo.GetQueueInfos()
+		queueInfos, err := jobRepo.GetQueueInfos(ctx)
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(queueInfos))
 		assertQueueInfoCountsAreEqual(t, &lookout.QueueInfo{
@@ -93,7 +102,7 @@ func Test_QueueInfoCountsWithMultipleJobRuns(t *testing.T) {
 			running(cluster, "c2", node).
 			succeeded(cluster, "c2", node)
 
-		queueInfos, err := jobRepo.GetQueueInfos()
+		queueInfos, err := jobRepo.GetQueueInfos(ctx)
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(queueInfos))
 		assertQueueInfoCountsAreEqual(t, &lookout.QueueInfo{
@@ -144,7 +153,7 @@ func Test_QueueInfosOldestQueuedJobIsNilIfNoJobsAreQueued(t *testing.T) {
 			running(cluster, "g", node).
 			cancelled()
 
-		queueInfos, err := jobRepo.GetQueueInfos()
+		queueInfos, err := jobRepo.GetQueueInfos(ctx)
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(queueInfos))
 
@@ -200,7 +209,7 @@ func Test_QueueInfosIncludeOldestQueuedJob(t *testing.T) {
 			running(cluster, "g", node).
 			cancelled()
 
-		queueInfos, err := jobRepo.GetQueueInfos()
+		queueInfos, err := jobRepo.GetQueueInfos(ctx)
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(queueInfos))
 		assertJobsAreEquivalent(t, oldestQueued.job, queueInfos[0].OldestQueuedJob.Job)
@@ -235,7 +244,7 @@ func Test_QueueInfosLongestRunningJobIsNilIfNoJobsAreRunning(t *testing.T) {
 			running(cluster, "e", node).
 			succeeded(cluster, "e", node)
 
-		queueInfos, err := jobRepo.GetQueueInfos()
+		queueInfos, err := jobRepo.GetQueueInfos(ctx)
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(queueInfos))
 
@@ -285,7 +294,7 @@ func Test_QueueInfosIncludeLongestRunningJob(t *testing.T) {
 			running(cluster, "g", node).
 			cancelled()
 
-		queueInfos, err := jobRepo.GetQueueInfos()
+		queueInfos, err := jobRepo.GetQueueInfos(ctx)
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(queueInfos))
 		assertJobsAreEquivalent(t, longestRunning.job, queueInfos[0].LongestRunningJob.Job)
@@ -350,7 +359,7 @@ func Test_QueueInfosIncludeLongestRunningJobWithMultipleRuns(t *testing.T) {
 			running(cluster, "g", node).
 			cancelled()
 
-		queueInfos, err := jobRepo.GetQueueInfos()
+		queueInfos, err := jobRepo.GetQueueInfos(ctx)
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(queueInfos))
 		assertJobsAreEquivalent(t, longestRunning.job, queueInfos[0].LongestRunningJob.Job)
@@ -444,7 +453,7 @@ func Test_QueueInfosMultipleQueues(t *testing.T) {
 			pending(cluster, "h1").
 			running(cluster, "h2", node)
 
-		queueInfos, err := jobRepo.GetQueueInfos()
+		queueInfos, err := jobRepo.GetQueueInfos(ctx)
 		assert.NoError(t, err)
 		assert.Equal(t, 2, len(queueInfos))
 		assertQueueInfoCountsAreEqual(t, &lookout.QueueInfo{
@@ -530,7 +539,7 @@ func Test_GetNoJobsIfQueueDoesNotExist(t *testing.T) {
 
 		jobRepo := NewSQLJobRepository(db)
 
-		jobInfos, err := jobRepo.GetJobsInQueue(&lookout.GetJobsInQueueRequest{
+		jobInfos, err := jobRepo.GetJobsInQueue(ctx, &lookout.GetJobsInQueueRequest{
 			Queue: "queue",
 			Take:  10,
 		})
@@ -552,7 +561,7 @@ func Test_GetSucceededJobFromQueue(t *testing.T) {
 			running(cluster, k8sId1, node).
 			succeeded(cluster, k8sId1, node)
 
-		jobInfos, err := jobRepo.GetJobsInQueue(&lookout.GetJobsInQueueRequest{
+		jobInfos, err := jobRepo.GetJobsInQueue(ctx, &lookout.GetJobsInQueueRequest{
 			Queue: queue,
 			Take:  10,
 		})
@@ -594,7 +603,7 @@ func Test_GetFailedJobFromQueue(t *testing.T) {
 			running(cluster, k8sId1, node).
 			failed(cluster, k8sId1, node, failureReason)
 
-		jobInfos, err := jobRepo.GetJobsInQueue(&lookout.GetJobsInQueueRequest{
+		jobInfos, err := jobRepo.GetJobsInQueue(ctx, &lookout.GetJobsInQueueRequest{
 			Queue: queue,
 			Take:  10,
 		})
@@ -635,7 +644,7 @@ func Test_GetCancelledJobFromQueue(t *testing.T) {
 			running(cluster, k8sId1, node).
 			cancelled()
 
-		jobInfos, err := jobRepo.GetJobsInQueue(&lookout.GetJobsInQueueRequest{
+		jobInfos, err := jobRepo.GetJobsInQueue(ctx, &lookout.GetJobsInQueueRequest{
 			Queue: queue,
 			Take:  10,
 		})
@@ -675,7 +684,7 @@ func Test_GetMultipleRunJobFromQueue(t *testing.T) {
 			running(cluster, k8sId2, node).
 			succeeded(cluster, k8sId2, node)
 
-		jobInfos, err := jobRepo.GetJobsInQueue(&lookout.GetJobsInQueueRequest{
+		jobInfos, err := jobRepo.GetJobsInQueue(ctx, &lookout.GetJobsInQueueRequest{
 			Queue: queue,
 			Take:  10,
 		})
@@ -732,7 +741,7 @@ func Test_GetJobsOrderedFromOldestToNewest(t *testing.T) {
 			pending(cluster, util.NewULID()).
 			running(cluster, util.NewULID(), node)
 
-		jobInfos, err := jobRepo.GetJobsInQueue(&lookout.GetJobsInQueueRequest{
+		jobInfos, err := jobRepo.GetJobsInQueue(ctx, &lookout.GetJobsInQueueRequest{
 			Queue: queue,
 			Take:  10,
 		})
@@ -770,7 +779,7 @@ func Test_GetJobsOrderedFromNewestToOldest(t *testing.T) {
 			pending(cluster, util.NewULID()).
 			running(cluster, util.NewULID(), node)
 
-		jobInfos, err := jobRepo.GetJobsInQueue(&lookout.GetJobsInQueueRequest{
+		jobInfos, err := jobRepo.GetJobsInQueue(ctx, &lookout.GetJobsInQueueRequest{
 			Queue:       queue,
 			Take:        10,
 			NewestFirst: true,
@@ -816,7 +825,7 @@ func Test_FilterQueuedJobs(t *testing.T) {
 			createJob(queue).
 			cancelled()
 
-		jobInfos, err := jobRepo.GetJobsInQueue(&lookout.GetJobsInQueueRequest{
+		jobInfos, err := jobRepo.GetJobsInQueue(ctx, &lookout.GetJobsInQueueRequest{
 			Queue:     queue,
 			Take:      10,
 			JobStates: []string{JobStates.Queued},
@@ -862,7 +871,7 @@ func Test_FilterPendingJobs(t *testing.T) {
 			createJob(queue).
 			cancelled()
 
-		jobInfos, err := jobRepo.GetJobsInQueue(&lookout.GetJobsInQueueRequest{
+		jobInfos, err := jobRepo.GetJobsInQueue(ctx, &lookout.GetJobsInQueueRequest{
 			Queue:     queue,
 			Take:      10,
 			JobStates: []string{JobStates.Pending},
@@ -908,7 +917,7 @@ func Test_FilterRunningJobs(t *testing.T) {
 			createJob(queue).
 			cancelled()
 
-		jobInfos, err := jobRepo.GetJobsInQueue(&lookout.GetJobsInQueueRequest{
+		jobInfos, err := jobRepo.GetJobsInQueue(ctx, &lookout.GetJobsInQueueRequest{
 			Queue:     queue,
 			Take:      10,
 			JobStates: []string{JobStates.Running},
@@ -954,7 +963,7 @@ func Test_FilterSucceededJobs(t *testing.T) {
 			createJob(queue).
 			cancelled()
 
-		jobInfos, err := jobRepo.GetJobsInQueue(&lookout.GetJobsInQueueRequest{
+		jobInfos, err := jobRepo.GetJobsInQueue(ctx, &lookout.GetJobsInQueueRequest{
 			Queue:     queue,
 			Take:      10,
 			JobStates: []string{JobStates.Succeeded},
@@ -1000,7 +1009,7 @@ func Test_FilterFailedJobs(t *testing.T) {
 			createJob(queue).
 			cancelled()
 
-		jobInfos, err := jobRepo.GetJobsInQueue(&lookout.GetJobsInQueueRequest{
+		jobInfos, err := jobRepo.GetJobsInQueue(ctx, &lookout.GetJobsInQueueRequest{
 			Queue:     queue,
 			Take:      10,
 			JobStates: []string{JobStates.Failed},
@@ -1046,7 +1055,7 @@ func Test_FilterCancelledJobs(t *testing.T) {
 			createJob(queue).
 			cancelled()
 
-		jobInfos, err := jobRepo.GetJobsInQueue(&lookout.GetJobsInQueueRequest{
+		jobInfos, err := jobRepo.GetJobsInQueue(ctx, &lookout.GetJobsInQueueRequest{
 			Queue:     queue,
 			Take:      10,
 			JobStates: []string{JobStates.Cancelled},
@@ -1064,7 +1073,7 @@ func Test_ErrorsIfUnknownStateIsGiven(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
 		jobRepo := NewSQLJobRepository(db)
 
-		_, err := jobRepo.GetJobsInQueue(&lookout.GetJobsInQueueRequest{
+		_, err := jobRepo.GetJobsInQueue(ctx, &lookout.GetJobsInQueueRequest{
 			Queue:     queue,
 			Take:      10,
 			JobStates: []string{"Unknown"},
@@ -1106,7 +1115,7 @@ func Test_FilterMultipleStates(t *testing.T) {
 			createJob(queue).
 			cancelled()
 
-		jobInfos, err := jobRepo.GetJobsInQueue(&lookout.GetJobsInQueueRequest{
+		jobInfos, err := jobRepo.GetJobsInQueue(ctx, &lookout.GetJobsInQueueRequest{
 			Queue:     queue,
 			Take:      10,
 			JobStates: []string{JobStates.Queued, JobStates.Running, JobStates.Failed},
@@ -1117,7 +1126,7 @@ func Test_FilterMultipleStates(t *testing.T) {
 		assertJobsAreEquivalent(t, running.job, jobInfos[1].Job)
 		assertJobsAreEquivalent(t, failed.job, jobInfos[2].Job)
 
-		jobInfos, err = jobRepo.GetJobsInQueue(&lookout.GetJobsInQueueRequest{
+		jobInfos, err = jobRepo.GetJobsInQueue(ctx, &lookout.GetJobsInQueueRequest{
 			Queue:     queue,
 			Take:      10,
 			JobStates: []string{JobStates.Pending, JobStates.Succeeded, JobStates.Cancelled},
@@ -1166,7 +1175,7 @@ func Test_FilterBySingleJobSet(t *testing.T) {
 			createJobWithJobSet(queue, jobSet3).
 			cancelled()
 
-		jobInfos, err := jobRepo.GetJobsInQueue(&lookout.GetJobsInQueueRequest{
+		jobInfos, err := jobRepo.GetJobsInQueue(ctx, &lookout.GetJobsInQueueRequest{
 			Queue:     queue,
 			Take:      10,
 			JobSetIds: []string{jobSet1},
@@ -1176,7 +1185,7 @@ func Test_FilterBySingleJobSet(t *testing.T) {
 		assertJobsAreEquivalent(t, job1.job, jobInfos[0].Job)
 		assertJobsAreEquivalent(t, job2.job, jobInfos[1].Job)
 
-		jobInfos, err = jobRepo.GetJobsInQueue(&lookout.GetJobsInQueueRequest{
+		jobInfos, err = jobRepo.GetJobsInQueue(ctx, &lookout.GetJobsInQueueRequest{
 			Queue:     queue,
 			Take:      10,
 			JobSetIds: []string{jobSet2},
@@ -1186,7 +1195,7 @@ func Test_FilterBySingleJobSet(t *testing.T) {
 		assertJobsAreEquivalent(t, job3.job, jobInfos[0].Job)
 		assertJobsAreEquivalent(t, job4.job, jobInfos[1].Job)
 
-		jobInfos, err = jobRepo.GetJobsInQueue(&lookout.GetJobsInQueueRequest{
+		jobInfos, err = jobRepo.GetJobsInQueue(ctx, &lookout.GetJobsInQueueRequest{
 			Queue:     queue,
 			Take:      10,
 			JobSetIds: []string{jobSet3},
@@ -1234,7 +1243,7 @@ func Test_FilterByMultipleJobSets(t *testing.T) {
 			createJobWithJobSet(queue, jobSet3).
 			cancelled()
 
-		jobInfos, err := jobRepo.GetJobsInQueue(&lookout.GetJobsInQueueRequest{
+		jobInfos, err := jobRepo.GetJobsInQueue(ctx, &lookout.GetJobsInQueueRequest{
 			Queue:     queue,
 			Take:      10,
 			JobSetIds: []string{jobSet1, jobSet2},
@@ -1284,7 +1293,7 @@ func Test_FilterByJobSetStartingWith(t *testing.T) {
 			createJobWithJobSet(queue, jobSet3).
 			cancelled()
 
-		jobInfos, err := jobRepo.GetJobsInQueue(&lookout.GetJobsInQueueRequest{
+		jobInfos, err := jobRepo.GetJobsInQueue(ctx, &lookout.GetJobsInQueueRequest{
 			Queue:     queue,
 			Take:      10,
 			JobSetIds: []string{"job-se"},
@@ -1337,7 +1346,7 @@ func Test_FilterByMultipleJobSetStartingWith(t *testing.T) {
 			createJobWithJobSet(queue, jobSet4).
 			cancelled()
 
-		jobInfos, err := jobRepo.GetJobsInQueue(&lookout.GetJobsInQueueRequest{
+		jobInfos, err := jobRepo.GetJobsInQueue(ctx, &lookout.GetJobsInQueueRequest{
 			Queue:     queue,
 			Take:      10,
 			JobSetIds: []string{"hello", "world"},
@@ -1371,7 +1380,7 @@ func Test_TakeOldestJobsFirst(t *testing.T) {
 				running(cluster, k8sId, node)
 		}
 
-		jobInfos, err := jobRepo.GetJobsInQueue(&lookout.GetJobsInQueueRequest{
+		jobInfos, err := jobRepo.GetJobsInQueue(ctx, &lookout.GetJobsInQueueRequest{
 			Queue: queue,
 			Take:  uint32(take),
 		})
@@ -1402,7 +1411,7 @@ func Test_TakeNewestJobsFirst(t *testing.T) {
 				running(cluster, k8sId, node)
 		}
 
-		jobInfos, err := jobRepo.GetJobsInQueue(&lookout.GetJobsInQueueRequest{
+		jobInfos, err := jobRepo.GetJobsInQueue(ctx, &lookout.GetJobsInQueueRequest{
 			NewestFirst: true,
 			Queue:       queue,
 			Take:        uint32(take),
@@ -1435,7 +1444,7 @@ func Test_SkipFirstOldestJobs(t *testing.T) {
 				running(cluster, k8sId, node)
 		}
 
-		jobInfos, err := jobRepo.GetJobsInQueue(&lookout.GetJobsInQueueRequest{
+		jobInfos, err := jobRepo.GetJobsInQueue(ctx, &lookout.GetJobsInQueueRequest{
 			Queue: queue,
 			Take:  uint32(take),
 			Skip:  uint32(skip),
@@ -1468,7 +1477,7 @@ func Test_SkipFirstNewestJobs(t *testing.T) {
 				running(cluster, k8sId, node)
 		}
 
-		jobInfos, err := jobRepo.GetJobsInQueue(&lookout.GetJobsInQueueRequest{
+		jobInfos, err := jobRepo.GetJobsInQueue(ctx, &lookout.GetJobsInQueueRequest{
 			NewestFirst: true,
 			Queue:       queue,
 			Take:        uint32(take),

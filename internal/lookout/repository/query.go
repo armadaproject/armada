@@ -1,14 +1,17 @@
 package repository
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/doug-martin/goqu/v9"
 	_ "github.com/doug-martin/goqu/v9/dialect/postgres"
 	"github.com/doug-martin/goqu/v9/exp"
 	"github.com/lib/pq"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/api/lookout"
@@ -26,43 +29,25 @@ type jobStates struct {
 }
 
 type JobRepository interface {
-	GetQueueInfos() ([]*lookout.QueueInfo, error)
-	GetJobsInQueue(opts *lookout.GetJobsInQueueRequest) ([]*lookout.JobInfo, error)
+	GetQueueInfos(ctx context.Context) ([]*lookout.QueueInfo, error)
+	GetJobsInQueue(ctx context.Context, opts *lookout.GetJobsInQueueRequest) ([]*lookout.JobInfo, error)
 }
 
 type SQLJobRepository struct {
 	goquDb *goqu.Database
 }
 
-type queueInfoRow struct {
-	Queue       string `db:"queue"`
+type countsRow struct {
 	Jobs        uint32 `db:"jobs"`
 	JobsCreated uint32 `db:"jobs_created"`
 	JobsStarted uint32 `db:"jobs_started"`
-
-	OldestQueuedJobId     sql.NullString  `db:"oldest_queued_job_id"`
-	OldestQueuedJobSet    sql.NullString  `db:"oldest_queued_jobset"`
-	OldestQueuedOwner     sql.NullString  `db:"oldest_queued_owner"`
-	OldestQueuedPriority  sql.NullFloat64 `db:"oldest_queued_priority"`
-	OldestQueuedSubmitted pq.NullTime     `db:"oldest_queued_submitted"`
-
-	LongestRunningJobId     sql.NullString  `db:"longest_running_job_id"`
-	LongestRunningJobSet    sql.NullString  `db:"longest_running_jobset"`
-	LongestRunningOwner     sql.NullString  `db:"longest_running_owner"`
-	LongestRunningPriority  sql.NullFloat64 `db:"longest_running_priority"`
-	LongestRunningSubmitted pq.NullTime     `db:"longest_running_submitted"`
-	LongestRunningRunId     sql.NullString  `db:"longest_running_run_id"`
-	LongestRunningCluster   sql.NullString  `db:"longest_running_cluster"`
-	LongestRunningNode      sql.NullString  `db:"longest_running_node"`
-	LongestRunningCreated   pq.NullTime     `db:"longest_running_created"`
-	LongestRunningStarted   pq.NullTime     `db:"longest_running_started"`
 }
 
-type jobsInQueueRow struct {
-	JobId     string          `db:"job_id"`
-	Queue     string          `db:"queue"`
-	Owner     string          `db:"owner"`
-	JobSet    string          `db:"jobset"`
+type jobRow struct {
+	JobId     sql.NullString  `db:"job_id"`
+	Queue     sql.NullString  `db:"queue"`
+	Owner     sql.NullString  `db:"owner"`
+	JobSet    sql.NullString  `db:"jobset"`
 	Priority  sql.NullFloat64 `db:"priority"`
 	Submitted pq.NullTime     `db:"submitted"`
 	Cancelled pq.NullTime     `db:"cancelled"`
@@ -158,21 +143,62 @@ func NewSQLJobRepository(db *goqu.Database) *SQLJobRepository {
 	return &SQLJobRepository{goquDb: db}
 }
 
-func (r *SQLJobRepository) GetQueueInfos() ([]*lookout.QueueInfo, error) {
-	queueInfoRows, err := r.queryQueueInfos()
+func (r *SQLJobRepository) GetQueueInfos(ctx context.Context) ([]*lookout.QueueInfo, error) {
+	queries, err := r.getQueueInfosSql()
 	if err != nil {
 		return nil, err
 	}
 
-	return r.queueInfoRowsToResult(queueInfoRows), nil
+	rows, err := r.goquDb.Db.QueryContext(ctx, queries)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		err := rows.Close()
+		if err != nil {
+			log.Fatalf("failed to close SQL connection: %v", err)
+		}
+	}()
+
+	queueInfoMap := make(map[string]*lookout.QueueInfo)
+
+	// Job counts
+	err = setJobCountsForQueueInfos(rows, queueInfoMap)
+	if err != nil {
+		return nil, err
+	}
+
+	// Oldest queued
+	if rows.NextResultSet() {
+		err = setOldestQueuedJobForQueueInfo(rows, queueInfoMap)
+		if err != nil {
+			return nil, err
+		}
+	} else if rows.Err() != nil {
+		return nil, fmt.Errorf("expected result set for oldest queued job: %v", rows.Err())
+	}
+
+	// Longest running
+	if rows.NextResultSet() {
+		err = setLongestRunningJobForQueueInfos(rows, queueInfoMap)
+		if err != nil {
+			return nil, err
+		}
+	} else if rows.Err() != nil {
+		return nil, fmt.Errorf("expected result set for longest running job: %v", rows.Err())
+	}
+
+	result := getSortedQueueInfos(queueInfoMap)
+
+	return result, nil
 }
 
-func (r *SQLJobRepository) GetJobsInQueue(opts *lookout.GetJobsInQueueRequest) ([]*lookout.JobInfo, error) {
+func (r *SQLJobRepository) GetJobsInQueue(ctx context.Context, opts *lookout.GetJobsInQueueRequest) ([]*lookout.JobInfo, error) {
 	if valid, jobState := validateJobStates(opts.JobStates); !valid {
 		return nil, fmt.Errorf("unknown job state: %q", jobState)
 	}
 
-	rows, err := r.queryJobsInQueue(opts)
+	rows, err := r.queryJobsInQueue(ctx, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -180,7 +206,7 @@ func (r *SQLJobRepository) GetJobsInQueue(opts *lookout.GetJobsInQueueRequest) (
 	return jobsInQueueRowsToResult(rows), nil
 }
 
-func (r *SQLJobRepository) queryQueueInfos() ([]*queueInfoRow, error) {
+func (r *SQLJobRepository) getQueueInfosSql() (string, error) {
 	countsSubDs := r.goquDb.
 		From(jobTable).
 		LeftJoin(jobRunTable, goqu.On(job_jobId.Eq(jobRun_jobId))).
@@ -264,133 +290,125 @@ func (r *SQLJobRepository) queryQueueInfos() ([]*queueInfoRow, error) {
 			jobRun_finished).
 		As("longest_running")
 
-	ds := r.goquDb.
-		From(countsDs).
-		LeftJoin(longestRunningDs, goqu.On(goqu.I("counts.queue").Eq(goqu.I("longest_running.queue")))).
-		LeftJoin(oldestQueuedDs, goqu.On(goqu.I("counts.queue").Eq(goqu.I("oldest_queued.queue")))).
-		Select(
-			goqu.I("counts.queue"),
-			goqu.I("counts.jobs"),
-			goqu.I("counts.jobs_created"),
-			goqu.I("counts.jobs_started"),
-			goqu.I("oldest_queued.job_id").As("oldest_queued_job_id"),
-			goqu.I("oldest_queued.jobset").As("oldest_queued_jobset"),
-			goqu.I("oldest_queued.owner").As("oldest_queued_owner"),
-			goqu.I("oldest_queued.priority").As("oldest_queued_priority"),
-			goqu.I("oldest_queued.submitted").As("oldest_queued_submitted"),
-			goqu.I("longest_running.job_id").As("longest_running_job_id"),
-			goqu.I("longest_running.jobset").As("longest_running_jobset"),
-			goqu.I("longest_running.owner").As("longest_running_owner"),
-			goqu.I("longest_running.priority").As("longest_running_priority"),
-			goqu.I("longest_running.submitted").As("longest_running_submitted"),
-			goqu.I("longest_running.run_id").As("longest_running_run_id"),
-			goqu.I("longest_running.cluster").As("longest_running_cluster"),
-			goqu.I("longest_running.node").As("longest_running_node"),
-			goqu.I("longest_running.created").As("longest_running_created"),
-			goqu.I("longest_running.started").As("longest_running_started"))
-
-	queueInfoRows := make([]*queueInfoRow, 0)
-	err := ds.Prepared(true).ScanStructs(&queueInfoRows)
+	countsSql, _, err := countsDs.ToSQL()
 	if err != nil {
-		return nil, err
+		return "", err
+	}
+	oldestQueuedSql, _, err := oldestQueuedDs.ToSQL()
+	if err != nil {
+		return "", err
+	}
+	longestRunningSql, _, err := longestRunningDs.ToSQL()
+	if err != nil {
+		return "", err
 	}
 
-	return queueInfoRows, nil
+	// Execute three unprepared statements sequentially.
+	// There are no parameters and we don't care if updates happen between queries.
+	return strings.Join([]string{countsSql, oldestQueuedSql, longestRunningSql}, " ; "), nil
 }
 
-func (r *SQLJobRepository) queueInfoRowsToResult(queueInfoRows []*queueInfoRow) []*lookout.QueueInfo {
-	queueInfoMap := make(map[string]*lookout.QueueInfo)
-	for _, row := range queueInfoRows {
-		if queueInfo, ok := queueInfoMap[row.Queue]; ok {
-			if row.LongestRunningJobId.Valid {
-				queueInfo.LongestRunningJob.Runs = append(queueInfo.LongestRunningJob.Runs, makeLongestRunningJobRun(row))
-			}
-		} else {
-			var oldestQueuedJob *lookout.JobInfo
-			if row.OldestQueuedJobId.Valid {
-				oldestQueuedJob = makeOldestQueuedJob(row)
-			}
+func setJobCountsForQueueInfos(rows *sql.Rows, queueInfoMap map[string]*lookout.QueueInfo) error {
+	for rows.Next() {
+		var (
+			queue string
+			row   countsRow
+		)
+		err := rows.Scan(&queue, &row.Jobs, &row.JobsCreated, &row.JobsStarted)
+		if err != nil {
+			return err
+		}
+		queueInfoMap[queue] = &lookout.QueueInfo{
+			Queue:             queue,
+			JobsQueued:        row.Jobs - row.JobsCreated,
+			JobsPending:       row.JobsCreated - row.JobsStarted,
+			JobsRunning:       row.JobsStarted,
+			OldestQueuedJob:   nil,
+			LongestRunningJob: nil,
+		}
+	}
+	return nil
+}
 
-			var longestRunningJob *lookout.JobInfo
-			if row.LongestRunningJobId.Valid {
-				longestRunningJob = makeLongestRunningJob(row)
-			}
-
-			queueInfoMap[row.Queue] = &lookout.QueueInfo{
-				Queue:             row.Queue,
-				JobsQueued:        row.Jobs - row.JobsCreated,
-				JobsPending:       row.JobsCreated - row.JobsStarted,
-				JobsRunning:       row.JobsStarted,
-				OldestQueuedJob:   oldestQueuedJob,
-				LongestRunningJob: longestRunningJob,
+func setOldestQueuedJobForQueueInfo(rows *sql.Rows, queueInfoMap map[string]*lookout.QueueInfo) error {
+	for rows.Next() {
+		var row jobRow
+		err := rows.Scan(
+			&row.JobId,
+			&row.JobSet,
+			&row.Queue,
+			&row.Owner,
+			&row.Priority,
+			&row.Submitted,
+			&row.Created,
+			&row.Started,
+			&row.Finished)
+		if err != nil {
+			return err
+		}
+		if row.Queue.Valid {
+			if queueInfo, ok := queueInfoMap[row.Queue.String]; queueInfo != nil && ok {
+				queueInfo.OldestQueuedJob = &lookout.JobInfo{
+					Job:       makeJobFromRow(&row),
+					Runs:      []*lookout.RunInfo{},
+					Cancelled: nil,
+					JobState:  JobStates.Queued,
+				}
 			}
 		}
 	}
+	return nil
+}
 
+func setLongestRunningJobForQueueInfos(rows *sql.Rows, queueInfoMap map[string]*lookout.QueueInfo) error {
+	for rows.Next() {
+		var row jobRow
+		err := rows.Scan(
+			&row.JobId,
+			&row.JobSet,
+			&row.Queue,
+			&row.Owner,
+			&row.Priority,
+			&row.Submitted,
+			&row.RunId,
+			&row.Cluster,
+			&row.Node,
+			&row.Created,
+			&row.Started,
+			&row.Finished)
+		if err != nil {
+			return err
+		}
+		if row.Queue.Valid {
+			if queueInfo, ok := queueInfoMap[row.Queue.String]; queueInfo != nil && ok {
+				if queueInfo.LongestRunningJob != nil {
+					queueInfo.LongestRunningJob.Runs = append(queueInfo.LongestRunningJob.Runs, makeRunInfoFromRow(&row))
+				} else {
+					queueInfo.LongestRunningJob = &lookout.JobInfo{
+						Job:       makeJobFromRow(&row),
+						Runs:      []*lookout.RunInfo{makeRunInfoFromRow(&row)},
+						Cancelled: nil,
+						JobState:  JobStates.Running,
+					}
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func getSortedQueueInfos(resultMap map[string]*lookout.QueueInfo) []*lookout.QueueInfo {
 	var queues []string
-	for queue, _ := range queueInfoMap {
+	for queue := range resultMap {
 		queues = append(queues, queue)
 	}
 	sort.Strings(queues)
 
 	var result []*lookout.QueueInfo
 	for _, queue := range queues {
-		result = append(result, queueInfoMap[queue])
+		result = append(result, resultMap[queue])
 	}
 	return result
-}
-
-func makeOldestQueuedJob(row *queueInfoRow) *lookout.JobInfo {
-	return &lookout.JobInfo{
-		Job: &api.Job{
-			Id:          ParseNullString(row.OldestQueuedJobId),
-			JobSetId:    ParseNullString(row.OldestQueuedJobSet),
-			Queue:       row.Queue,
-			Namespace:   "",
-			Labels:      nil,
-			Annotations: nil,
-			Owner:       ParseNullString(row.OldestQueuedOwner),
-			Priority:    ParseNullFloat(row.OldestQueuedPriority),
-			PodSpec:     nil,
-			Created:     ParseNullTimeDefault(row.OldestQueuedSubmitted),
-		},
-		Runs:      []*lookout.RunInfo{},
-		Cancelled: nil,
-		JobState:  JobStates.Queued,
-	}
-}
-
-func makeLongestRunningJob(row *queueInfoRow) *lookout.JobInfo {
-	return &lookout.JobInfo{
-		Job: &api.Job{
-			Id:          ParseNullString(row.LongestRunningJobId),
-			JobSetId:    ParseNullString(row.LongestRunningJobSet),
-			Queue:       row.Queue,
-			Namespace:   "",
-			Labels:      nil,
-			Annotations: nil,
-			Owner:       ParseNullString(row.LongestRunningOwner),
-			Priority:    ParseNullFloat(row.LongestRunningPriority),
-			PodSpec:     nil,
-			Created:     ParseNullTimeDefault(row.LongestRunningSubmitted),
-		},
-		Runs:      []*lookout.RunInfo{makeLongestRunningJobRun(row)},
-		Cancelled: nil,
-		JobState:  JobStates.Running,
-	}
-}
-
-func makeLongestRunningJobRun(row *queueInfoRow) *lookout.RunInfo {
-	return &lookout.RunInfo{
-		K8SId:     ParseNullString(row.LongestRunningRunId),
-		Cluster:   ParseNullString(row.LongestRunningCluster),
-		Node:      ParseNullString(row.LongestRunningNode),
-		Succeeded: false,
-		Error:     "",
-		Created:   ParseNullTime(row.LongestRunningCreated),
-		Started:   ParseNullTime(row.LongestRunningStarted),
-		Finished:  nil,
-	}
 }
 
 func validateJobStates(jobStates []string) (bool, string) {
@@ -411,11 +429,11 @@ func isJobState(val string) bool {
 	return false
 }
 
-func (r *SQLJobRepository) queryJobsInQueue(opts *lookout.GetJobsInQueueRequest) ([]*jobsInQueueRow, error) {
+func (r *SQLJobRepository) queryJobsInQueue(ctx context.Context, opts *lookout.GetJobsInQueueRequest) ([]*jobRow, error) {
 	ds := r.createGetJobsInQueueDataset(opts)
 
-	jobsInQueueRows := make([]*jobsInQueueRow, 0)
-	err := ds.Prepared(true).ScanStructs(&jobsInQueueRows)
+	jobsInQueueRows := make([]*jobRow, 0)
+	err := ds.Prepared(true).ScanStructsContext(ctx, &jobsInQueueRows)
 	if err != nil {
 		return nil, err
 	}
@@ -490,24 +508,14 @@ func createJobOrdering(newestFirst bool) exp.OrderedExpression {
 	return job_jobId.Asc()
 }
 
-func jobsInQueueRowsToResult(rows []*jobsInQueueRow) []*lookout.JobInfo {
+func jobsInQueueRowsToResult(rows []*jobRow) []*lookout.JobInfo {
 	result := make([]*lookout.JobInfo, 0)
 
 	for i, row := range rows {
-		if i == 0 || result[len(result)-1].Job.Id != row.JobId {
+		if row.JobId.Valid &&
+			(i == 0 || result[len(result)-1].Job.Id != row.JobId.String) {
 			result = append(result, &lookout.JobInfo{
-				Job: &api.Job{
-					Id:          row.JobId,
-					JobSetId:    row.JobSet,
-					Queue:       row.Queue,
-					Namespace:   "",
-					Labels:      nil,
-					Annotations: nil,
-					Owner:       row.Owner,
-					Priority:    ParseNullFloat(row.Priority),
-					PodSpec:     nil,
-					Created:     ParseNullTimeDefault(row.Submitted), // Job submitted
-				},
+				Job:       makeJobFromRow(row),
 				Cancelled: ParseNullTime(row.Cancelled),
 				JobState:  "",
 				Runs:      []*lookout.RunInfo{},
@@ -515,16 +523,7 @@ func jobsInQueueRowsToResult(rows []*jobsInQueueRow) []*lookout.JobInfo {
 		}
 
 		if row.RunId.Valid {
-			result[len(result)-1].Runs = append(result[len(result)-1].Runs, &lookout.RunInfo{
-				K8SId:     ParseNullString(row.RunId),
-				Cluster:   ParseNullString(row.Cluster),
-				Node:      ParseNullString(row.Node),
-				Succeeded: ParseNullBool(row.Succeeded),
-				Error:     ParseNullString(row.Error),
-				Created:   ParseNullTime(row.Created), // Pod created (Pending)
-				Started:   ParseNullTime(row.Started), // Pod running
-				Finished:  ParseNullTime(row.Finished),
-			})
+			result[len(result)-1].Runs = append(result[len(result)-1].Runs, makeRunInfoFromRow(row))
 		}
 	}
 
@@ -534,6 +533,36 @@ func jobsInQueueRowsToResult(rows []*jobsInQueueRow) []*lookout.JobInfo {
 	}
 
 	return result
+}
+
+func makeJobFromRow(row *jobRow) *api.Job {
+	if row == nil {
+		return nil
+	}
+	return &api.Job{
+		Id:       ParseNullString(row.JobId),
+		JobSetId: ParseNullString(row.JobSet),
+		Queue:    ParseNullString(row.Queue),
+		Owner:    ParseNullString(row.Owner),
+		Priority: ParseNullFloat(row.Priority),
+		Created:  ParseNullTimeDefault(row.Submitted),
+	}
+}
+
+func makeRunInfoFromRow(row *jobRow) *lookout.RunInfo {
+	if row == nil {
+		return nil
+	}
+	return &lookout.RunInfo{
+		K8SId:     ParseNullString(row.RunId),
+		Cluster:   ParseNullString(row.Cluster),
+		Node:      ParseNullString(row.Node),
+		Succeeded: ParseNullBool(row.Succeeded),
+		Error:     ParseNullString(row.Error),
+		Created:   ParseNullTime(row.Created), // Pod created (Pending)
+		Started:   ParseNullTime(row.Started), // Pod running
+		Finished:  ParseNullTime(row.Finished),
+	}
 }
 
 func determineJobState(jobInfo *lookout.JobInfo) string {
