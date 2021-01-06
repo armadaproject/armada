@@ -16,6 +16,7 @@ import (
 
 var (
 	queue   = "queue"
+	queue2  = "queue2"
 	cluster = "cluster"
 	k8sId1  = util.NewULID()
 	k8sId2  = util.NewULID()
@@ -26,7 +27,24 @@ var (
 	ctx     = context.Background()
 )
 
-func Test_QueueStats(t *testing.T) {
+func Test_QueueInfosWithNoJobs(t *testing.T) {
+	withDatabase(t, func(db *goqu.Database) {
+		jobStore := NewSQLJobStore(db)
+		jobRepo := NewSQLJobRepository(db)
+
+		newJobSimulator(t, jobStore, &defaultClock{}).
+			createJob(queue).
+			pending(cluster, k8sId3).
+			running(cluster, k8sId3, node).
+			succeeded(cluster, k8sId3, node)
+
+		queueInfos, err := jobRepo.GetQueueInfos(ctx)
+		assert.NoError(t, err)
+		assert.Equal(t, 0, len(queueInfos))
+	})
+}
+
+func Test_QueueInfoCounts(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db)
@@ -42,14 +60,464 @@ func Test_QueueStats(t *testing.T) {
 		newJobSimulator(t, jobStore, &defaultClock{}).
 			createJob(queue)
 
-		stats, err := jobRepo.GetQueueStats(ctx)
+		newJobSimulator(t, jobStore, &defaultClock{}).
+			createJob(queue).
+			pending(cluster, k8sId3).
+			running(cluster, k8sId3, node).
+			succeeded(cluster, k8sId3, node)
+
+		queueInfos, err := jobRepo.GetQueueInfos(ctx)
 		assert.NoError(t, err)
-		assert.Equal(t, []*lookout.QueueInfo{{
+		assert.Equal(t, 1, len(queueInfos))
+		assertQueueInfoCountsAreEqual(t, &lookout.QueueInfo{
 			Queue:       queue,
 			JobsQueued:  1,
 			JobsPending: 1,
 			JobsRunning: 1,
-		}}, stats)
+		}, queueInfos[0])
+	})
+}
+
+func Test_QueueInfoCountsWithMultipleJobRuns(t *testing.T) {
+	withDatabase(t, func(db *goqu.Database) {
+		jobStore := NewSQLJobStore(db)
+		jobRepo := NewSQLJobRepository(db)
+
+		newJobSimulator(t, jobStore, &defaultClock{}).
+			createJob(queue).
+			pending(cluster, "a1").
+			pending(cluster, "a2")
+
+		newJobSimulator(t, jobStore, &defaultClock{}).
+			createJob(queue).
+			pending(cluster, "b1").
+			running(cluster, "b2", node)
+
+		newJobSimulator(t, jobStore, &defaultClock{}).
+			createJob(queue)
+
+		newJobSimulator(t, jobStore, &defaultClock{}).
+			createJob(queue).
+			pending(cluster, "c1").
+			running(cluster, "c2", node).
+			succeeded(cluster, "c2", node)
+
+		queueInfos, err := jobRepo.GetQueueInfos(ctx)
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(queueInfos))
+		assertQueueInfoCountsAreEqual(t, &lookout.QueueInfo{
+			Queue:       queue,
+			JobsQueued:  1,
+			JobsPending: 1,
+			JobsRunning: 1,
+		}, queueInfos[0])
+	})
+}
+
+func Test_QueueInfosOldestQueuedJobIsNilIfNoJobsAreQueued(t *testing.T) {
+	withDatabase(t, func(db *goqu.Database) {
+		jobStore := NewSQLJobStore(db)
+		jobRepo := NewSQLJobRepository(db)
+
+		startTime := time.Now()
+
+		newJobSimulator(t, jobStore, newIncrementClock(*increment(startTime, 5))).
+			createJob(queue).
+			pending(cluster, "c")
+
+		newJobSimulator(t, jobStore, newIncrementClock(startTime)).
+			createJob(queue).
+			pending(cluster, "f")
+
+		newJobSimulator(t, jobStore, newIncrementClock(*increment(startTime, 10))).
+			createJob(queue).
+			pending(cluster, "a").
+			running(cluster, "a", node)
+
+		newJobSimulator(t, jobStore, newIncrementClock(*increment(startTime, 5))).
+			createJob(queue).
+			pending(cluster, "b").
+			running(cluster, "b", node)
+
+		newJobSimulator(t, jobStore, newIncrementClock(*increment(startTime, 1))).
+			createJob(queue).
+			running(cluster, "d", node)
+
+		newJobSimulator(t, jobStore, newIncrementClock(startTime)).
+			createJob(queue).
+			running(cluster, "e", node).
+			succeeded(cluster, "e", node)
+
+		newJobSimulator(t, jobStore, newIncrementClock(startTime)).
+			createJob(queue).
+			running(cluster, "g", node).
+			cancelled()
+
+		queueInfos, err := jobRepo.GetQueueInfos(ctx)
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(queueInfos))
+
+		assert.Nil(t, queueInfos[0].OldestQueuedJob)
+	})
+}
+
+func Test_QueueInfosIncludeOldestQueuedJob(t *testing.T) {
+	withDatabase(t, func(db *goqu.Database) {
+		jobStore := NewSQLJobStore(db)
+		jobRepo := NewSQLJobRepository(db)
+
+		startTime := time.Now()
+
+		newJobSimulator(t, jobStore, newIncrementClock(*increment(startTime, 5))).
+			createJob(queue)
+
+		oldestQueued := newJobSimulator(t, jobStore, newIncrementClock(startTime)).
+			createJob(queue)
+
+		newJobSimulator(t, jobStore, newIncrementClock(*increment(startTime, 10))).
+			createJob(queue)
+
+		newJobSimulator(t, jobStore, newIncrementClock(*increment(startTime, 5))).
+			createJob(queue).
+			pending(cluster, "c")
+
+		newJobSimulator(t, jobStore, newIncrementClock(startTime)).
+			createJob(queue).
+			pending(cluster, "f")
+
+		newJobSimulator(t, jobStore, newIncrementClock(*increment(startTime, 10))).
+			createJob(queue).
+			pending(cluster, "a").
+			running(cluster, "a", node)
+
+		newJobSimulator(t, jobStore, newIncrementClock(*increment(startTime, 5))).
+			createJob(queue).
+			pending(cluster, "b").
+			running(cluster, "b", node)
+
+		newJobSimulator(t, jobStore, newIncrementClock(*increment(startTime, 1))).
+			createJob(queue).
+			running(cluster, "d", node)
+
+		newJobSimulator(t, jobStore, newIncrementClock(startTime)).
+			createJob(queue).
+			running(cluster, "e", node).
+			succeeded(cluster, "e", node)
+
+		newJobSimulator(t, jobStore, newIncrementClock(startTime)).
+			createJob(queue).
+			running(cluster, "g", node).
+			cancelled()
+
+		queueInfos, err := jobRepo.GetQueueInfos(ctx)
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(queueInfos))
+		assertJobsAreEquivalent(t, oldestQueued.job, queueInfos[0].OldestQueuedJob.Job)
+
+		assert.Nil(t, queueInfos[0].OldestQueuedJob.Cancelled)
+		assert.Equal(t, JobStates.Queued, queueInfos[0].OldestQueuedJob.JobState)
+
+		assert.Equal(t, 0, len(queueInfos[0].OldestQueuedJob.Runs))
+	})
+}
+
+func Test_QueueInfosLongestRunningJobIsNilIfNoJobsAreRunning(t *testing.T) {
+	withDatabase(t, func(db *goqu.Database) {
+		jobStore := NewSQLJobStore(db)
+		jobRepo := NewSQLJobRepository(db)
+
+		startTime := time.Now()
+
+		newJobSimulator(t, jobStore, newIncrementClock(startTime)).
+			createJob(queue)
+
+		newJobSimulator(t, jobStore, newIncrementClock(startTime)).
+			createJob(queue).
+			pending(cluster, "f")
+
+		newJobSimulator(t, jobStore, newIncrementClock(*increment(startTime, 5))).
+			createJob(queue).
+			pending(cluster, "c")
+
+		newJobSimulator(t, jobStore, newIncrementClock(startTime)).
+			createJob(queue).
+			running(cluster, "e", node).
+			succeeded(cluster, "e", node)
+
+		queueInfos, err := jobRepo.GetQueueInfos(ctx)
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(queueInfos))
+
+		assert.Nil(t, queueInfos[0].LongestRunningJob)
+	})
+}
+
+func Test_QueueInfosIncludeLongestRunningJob(t *testing.T) {
+	withDatabase(t, func(db *goqu.Database) {
+		jobStore := NewSQLJobStore(db)
+		jobRepo := NewSQLJobRepository(db)
+
+		startTime := time.Now()
+
+		newJobSimulator(t, jobStore, newIncrementClock(startTime)).
+			createJob(queue)
+
+		newJobSimulator(t, jobStore, newIncrementClock(*increment(startTime, 5))).
+			createJob(queue).
+			pending(cluster, "c")
+
+		newJobSimulator(t, jobStore, newIncrementClock(startTime)).
+			createJob(queue).
+			pending(cluster, "f")
+
+		newJobSimulator(t, jobStore, newIncrementClock(*increment(startTime, 10))).
+			createJob(queue).
+			pending(cluster, "a").
+			running(cluster, "a", node)
+
+		newJobSimulator(t, jobStore, newIncrementClock(*increment(startTime, 5))).
+			createJob(queue).
+			pending(cluster, "b").
+			running(cluster, "b", node)
+
+		longestRunning := newJobSimulator(t, jobStore, newIncrementClock(*increment(startTime, 1))).
+			createJob(queue).
+			running(cluster, "d", node)
+
+		newJobSimulator(t, jobStore, newIncrementClock(startTime)).
+			createJob(queue).
+			running(cluster, "e", node).
+			succeeded(cluster, "e", node)
+
+		newJobSimulator(t, jobStore, newIncrementClock(startTime)).
+			createJob(queue).
+			running(cluster, "g", node).
+			cancelled()
+
+		queueInfos, err := jobRepo.GetQueueInfos(ctx)
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(queueInfos))
+		assertJobsAreEquivalent(t, longestRunning.job, queueInfos[0].LongestRunningJob.Job)
+
+		assert.Nil(t, queueInfos[0].LongestRunningJob.Cancelled)
+		assert.Equal(t, JobStates.Running, queueInfos[0].LongestRunningJob.JobState)
+
+		assert.Equal(t, 1, len(queueInfos[0].LongestRunningJob.Runs))
+		assertRunInfosEquivalent(t, &lookout.RunInfo{
+			K8SId:     "d",
+			Cluster:   cluster,
+			Node:      node,
+			Succeeded: false,
+			Created:   nil,
+			Started:   increment(startTime, 2),
+			Finished:  nil,
+			Error:     "",
+		}, queueInfos[0].LongestRunningJob.Runs[0])
+	})
+}
+
+func Test_QueueInfosIncludeLongestRunningJobWithMultipleRuns(t *testing.T) {
+	withDatabase(t, func(db *goqu.Database) {
+		jobStore := NewSQLJobStore(db)
+		jobRepo := NewSQLJobRepository(db)
+
+		startTime := time.Now()
+
+		newJobSimulator(t, jobStore, newIncrementClock(startTime)).
+			createJob(queue)
+
+		newJobSimulator(t, jobStore, newIncrementClock(*increment(startTime, 5))).
+			createJob(queue).
+			pending(cluster, "c")
+
+		newJobSimulator(t, jobStore, newIncrementClock(startTime)).
+			createJob(queue).
+			pending(cluster, "f")
+
+		newJobSimulator(t, jobStore, newIncrementClock(*increment(startTime, 10))).
+			createJob(queue).
+			pending(cluster, "a1").
+			running(cluster, "a2", node)
+
+		newJobSimulator(t, jobStore, newIncrementClock(*increment(startTime, 5))).
+			createJob(queue).
+			pending(cluster, "b1").
+			running(cluster, "b2", node)
+
+		longestRunning := newJobSimulator(t, jobStore, newIncrementClock(*increment(startTime, 1))).
+			createJob(queue).
+			pending(cluster, "d1").
+			running(cluster, "d2", node)
+
+		newJobSimulator(t, jobStore, newIncrementClock(startTime)).
+			createJob(queue).
+			running(cluster, "e1", node).
+			succeeded(cluster, "e2", node)
+
+		newJobSimulator(t, jobStore, newIncrementClock(startTime)).
+			createJob(queue).
+			running(cluster, "g", node).
+			cancelled()
+
+		queueInfos, err := jobRepo.GetQueueInfos(ctx)
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(queueInfos))
+		assertJobsAreEquivalent(t, longestRunning.job, queueInfos[0].LongestRunningJob.Job)
+
+		assert.Nil(t, queueInfos[0].LongestRunningJob.Cancelled)
+		assert.Equal(t, JobStates.Running, queueInfos[0].LongestRunningJob.JobState)
+
+		assert.Equal(t, 2, len(queueInfos[0].LongestRunningJob.Runs))
+		assertRunInfosEquivalent(t, &lookout.RunInfo{
+			K8SId:     "d1",
+			Cluster:   cluster,
+			Node:      "",
+			Succeeded: false,
+			Created:   increment(startTime, 2),
+			Started:   nil,
+			Finished:  nil,
+			Error:     "",
+		}, queueInfos[0].LongestRunningJob.Runs[0])
+		assertRunInfosEquivalent(t, &lookout.RunInfo{
+			K8SId:     "d2",
+			Cluster:   cluster,
+			Node:      node,
+			Succeeded: false,
+			Created:   nil,
+			Started:   increment(startTime, 3),
+			Finished:  nil,
+			Error:     "",
+		}, queueInfos[0].LongestRunningJob.Runs[1])
+	})
+}
+
+func Test_QueueInfosMultipleQueues(t *testing.T) {
+	withDatabase(t, func(db *goqu.Database) {
+		jobStore := NewSQLJobStore(db)
+		jobRepo := NewSQLJobRepository(db)
+
+		startTime := time.Now()
+
+		// Queue 1
+		newJobSimulator(t, jobStore, newIncrementClock(*increment(startTime, 5))).
+			createJob(queue)
+
+		oldestQueued1 := newJobSimulator(t, jobStore, newIncrementClock(startTime)).
+			createJob(queue)
+
+		newJobSimulator(t, jobStore, newIncrementClock(startTime)).
+			createJob(queue).
+			pending(cluster, "a")
+
+		newJobSimulator(t, jobStore, newIncrementClock(*increment(startTime, 5))).
+			createJob(queue).
+			pending(cluster, "b1").
+			running(cluster, "b2", node)
+
+		longestRunning1 := newJobSimulator(t, jobStore, newIncrementClock(startTime)).
+			createJob(queue).
+			pending(cluster, "c1").
+			running(cluster, "c2", node)
+
+		newJobSimulator(t, jobStore, newIncrementClock(startTime)).
+			createJob(queue).
+			pending(cluster, "d1").
+			running(cluster, "d2", node).
+			succeeded(cluster, "d2", node)
+
+		newJobSimulator(t, jobStore, newIncrementClock(startTime)).
+			createJob(queue).
+			cancelled()
+
+		// Queue 2
+		newJobSimulator(t, jobStore, newIncrementClock(*increment(startTime, 5))).
+			createJob(queue2)
+
+		oldestQueued2 := newJobSimulator(t, jobStore, newIncrementClock(startTime)).
+			createJob(queue2)
+
+		newJobSimulator(t, jobStore, newIncrementClock(startTime)).
+			createJob(queue2).
+			pending(cluster, "e")
+
+		newJobSimulator(t, jobStore, newIncrementClock(*increment(startTime, 5))).
+			createJob(queue2).
+			running(cluster, "f", node)
+
+		longestRunning2 := newJobSimulator(t, jobStore, newIncrementClock(startTime)).
+			createJob(queue2).
+			running(cluster, "g", node)
+
+		newJobSimulator(t, jobStore, newIncrementClock(*increment(startTime, 1))).
+			createJob(queue2).
+			pending(cluster, "h1").
+			running(cluster, "h2", node)
+
+		queueInfos, err := jobRepo.GetQueueInfos(ctx)
+		assert.NoError(t, err)
+		assert.Equal(t, 2, len(queueInfos))
+		assertQueueInfoCountsAreEqual(t, &lookout.QueueInfo{
+			Queue:       queue,
+			JobsQueued:  2,
+			JobsPending: 1,
+			JobsRunning: 2,
+		}, queueInfos[0])
+		assertQueueInfoCountsAreEqual(t, &lookout.QueueInfo{
+			Queue:       queue2,
+			JobsQueued:  2,
+			JobsPending: 1,
+			JobsRunning: 3,
+		}, queueInfos[1])
+
+		assertJobsAreEquivalent(t, oldestQueued1.job, queueInfos[0].OldestQueuedJob.Job)
+		assert.Nil(t, queueInfos[0].OldestQueuedJob.Cancelled)
+		assert.Equal(t, JobStates.Queued, queueInfos[0].OldestQueuedJob.JobState)
+		assert.Equal(t, 0, len(queueInfos[0].OldestQueuedJob.Runs))
+
+		assertJobsAreEquivalent(t, longestRunning1.job, queueInfos[0].LongestRunningJob.Job)
+		assert.Nil(t, queueInfos[0].LongestRunningJob.Cancelled)
+		assert.Equal(t, JobStates.Running, queueInfos[0].LongestRunningJob.JobState)
+		assert.Equal(t, 2, len(queueInfos[0].LongestRunningJob.Runs))
+		assertRunInfosEquivalent(t, &lookout.RunInfo{
+			K8SId:     "c1",
+			Cluster:   cluster,
+			Node:      "",
+			Succeeded: false,
+			Created:   increment(startTime, 1),
+			Started:   nil,
+			Finished:  nil,
+			Error:     "",
+		}, queueInfos[0].LongestRunningJob.Runs[0])
+		assertRunInfosEquivalent(t, &lookout.RunInfo{
+			K8SId:     "c2",
+			Cluster:   cluster,
+			Node:      node,
+			Succeeded: false,
+			Created:   nil,
+			Started:   increment(startTime, 2),
+			Finished:  nil,
+			Error:     "",
+		}, queueInfos[0].LongestRunningJob.Runs[1])
+
+		assertJobsAreEquivalent(t, oldestQueued2.job, queueInfos[1].OldestQueuedJob.Job)
+		assert.Nil(t, queueInfos[1].OldestQueuedJob.Cancelled)
+		assert.Equal(t, JobStates.Queued, queueInfos[1].OldestQueuedJob.JobState)
+		assert.Equal(t, 0, len(queueInfos[1].OldestQueuedJob.Runs))
+
+		assertJobsAreEquivalent(t, longestRunning2.job, queueInfos[1].LongestRunningJob.Job)
+		assert.Nil(t, queueInfos[1].LongestRunningJob.Cancelled)
+		assert.Equal(t, JobStates.Running, queueInfos[1].LongestRunningJob.JobState)
+		assert.Equal(t, 1, len(queueInfos[1].LongestRunningJob.Runs))
+		assertRunInfosEquivalent(t, &lookout.RunInfo{
+			K8SId:     "g",
+			Cluster:   cluster,
+			Node:      node,
+			Succeeded: false,
+			Created:   nil,
+			Started:   increment(startTime, 1),
+			Finished:  nil,
+			Error:     "",
+		}, queueInfos[1].LongestRunningJob.Runs[0])
 	})
 }
 
@@ -232,7 +700,7 @@ func Test_GetMultipleRunJobFromQueue(t *testing.T) {
 		assertRunInfosEquivalent(t, &lookout.RunInfo{
 			K8SId:     k8sId1,
 			Cluster:   cluster,
-			Node:      node,
+			Node:      "",
 			Succeeded: false,
 			Created:   increment(startTime, 1),
 		}, jobInfo.Runs[0])
@@ -1023,6 +1491,14 @@ func Test_SkipFirstNewestJobs(t *testing.T) {
 	})
 }
 
+func assertQueueInfoCountsAreEqual(t *testing.T, expected *lookout.QueueInfo, actual *lookout.QueueInfo) {
+	t.Helper()
+	assert.Equal(t, expected.Queue, actual.Queue)
+	assert.Equal(t, expected.JobsQueued, actual.JobsQueued)
+	assert.Equal(t, expected.JobsPending, actual.JobsPending)
+	assert.Equal(t, expected.JobsRunning, actual.JobsRunning)
+}
+
 func assertJobsAreEquivalent(t *testing.T, expected *api.Job, actual *api.Job) {
 	t.Helper()
 	assert.Equal(t, expected.Id, actual.Id)
@@ -1036,7 +1512,7 @@ func assertJobsAreEquivalent(t *testing.T, expected *api.Job, actual *api.Job) {
 func assertRunInfosEquivalent(t *testing.T, expected *lookout.RunInfo, actual *lookout.RunInfo) {
 	assert.Equal(t, expected.K8SId, actual.K8SId)
 	assert.Equal(t, expected.Cluster, actual.Cluster)
-	assert.Equal(t, expected.Node, expected.Node)
+	assert.Equal(t, expected.Node, actual.Node)
 	assert.Equal(t, expected.Succeeded, actual.Succeeded)
 	assertTimesApproxEqual(t, expected.Created, actual.Created)
 	assertTimesApproxEqual(t, expected.Started, actual.Started)
@@ -1123,7 +1599,7 @@ func (js *jobSimulator) createJobWithOpts(queue string, jobId string, jobSetId s
 		Labels:      nil,
 		Annotations: nil,
 		Owner:       "user",
-		Priority:    0,
+		Priority:    10,
 		PodSpec:     &v1.PodSpec{},
 		Created:     js.clock.now(),
 	}
