@@ -10,9 +10,9 @@ export type QueueInfo = {
   jobsPending: number
   jobsRunning: number
   oldestQueuedJob?: Job
-  oldestQueuedJobDuration: string
   longestRunningJob?: Job
-  longestRunningJobDuration: string
+  oldestQueuedDuration: string
+  longestRunningDuration: string
 }
 
 export type Job = {
@@ -113,8 +113,8 @@ export default class JobService {
         })
 
         if (!apiResult.cancelledIds ||
-            apiResult.cancelledIds.length !== 1 ||
-            apiResult.cancelledIds[0] !== job.jobId) {
+          apiResult.cancelledIds.length !== 1 ||
+          apiResult.cancelledIds[0] !== job.jobId) {
           result.failedJobCancellations.push({ job: job, error: "No job was cancelled" })
         } else {
           result.cancelledJobs.push(job)
@@ -130,24 +130,21 @@ export default class JobService {
 
 function queueInfoToViewModel(queueInfo: LookoutQueueInfo): QueueInfo {
   let oldestQueuedJob: Job | undefined
-  let oldestQueuedJobDuration = "-"
-  if (queueInfo.oldestQueuedJob && queueInfo.oldestQueuedJob.job && queueInfo.oldestQueuedJob.job.created) {
+  let oldestQueuedDuration = "-"
+  if (queueInfo.oldestQueuedJob) {
     oldestQueuedJob = jobInfoToViewModel(queueInfo.oldestQueuedJob)
-    oldestQueuedJobDuration = getDurationString(queueInfo.oldestQueuedJob.job.created)
+  }
+  if (queueInfo.oldestQueuedDuration) {
+    oldestQueuedDuration = getDurationString(queueInfo.oldestQueuedDuration)
   }
 
   let longestRunningJob: Job | undefined
   let longestRunningJobDuration = "-"
-  if (
-    queueInfo.longestRunningJob &&
-    queueInfo.longestRunningJob.runs &&
-    queueInfo.longestRunningJob.runs.length > 0
-  ) {
-    const startTime = queueInfo.longestRunningJob.runs[queueInfo.longestRunningJob.runs.length - 1].started
-    if (startTime) {
-      longestRunningJob = jobInfoToViewModel(queueInfo.longestRunningJob)
-      longestRunningJobDuration = getDurationString(startTime)
-    }
+  if (queueInfo.longestRunningJob) {
+    longestRunningJob = jobInfoToViewModel(queueInfo.longestRunningJob)
+  }
+  if (queueInfo.longestRunningDuration) {
+    longestRunningJobDuration = getDurationString(queueInfo.longestRunningDuration)
   }
 
   return {
@@ -156,24 +153,19 @@ function queueInfoToViewModel(queueInfo: LookoutQueueInfo): QueueInfo {
     jobsPending: queueInfo.jobsPending ?? 0,
     jobsRunning: queueInfo.jobsRunning ?? 0,
     oldestQueuedJob: oldestQueuedJob,
-    oldestQueuedJobDuration: oldestQueuedJobDuration,
     longestRunningJob: longestRunningJob,
-    longestRunningJobDuration: longestRunningJobDuration,
+    oldestQueuedDuration: oldestQueuedDuration,
+    longestRunningDuration: longestRunningJobDuration,
   }
 }
 
-// Time difference between now and `date`, as string
-function getDurationString(date: Date): string {
-  const delta = DateTime.fromJSDate(date).diffNow([
-    "days",
-    "hours",
-    "minutes",
-    "seconds",
-  ])
-  const days = Math.abs(delta.days)
-  const hours = Math.abs(delta.hours)
-  const minutes = Math.abs(delta.minutes)
-  const seconds = Math.round(Math.abs(delta.seconds))
+function getDurationString(durationFromApi: any): string {
+  durationFromApi = durationFromApi as { seconds: number }
+  const totalSeconds = durationFromApi.seconds
+  const days = Math.floor(totalSeconds / (24 * 3600))
+  const hours = Math.floor(totalSeconds / 3600) % 24
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
 
   const segments: string[] = []
 

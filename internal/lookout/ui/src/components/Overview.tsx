@@ -73,7 +73,7 @@ export default function Overview(props: OverviewProps) {
                     onClick={q.oldestQueuedJob ?
                       () => props.onSetModalState("OldestQueued", q.queue) :
                       () => {}}>
-                    {q.oldestQueuedJobDuration}
+                    {q.oldestQueuedDuration}
                   </div>
                 </TableCell>
                 <TableCell align="center" className="duration-cell">
@@ -82,7 +82,7 @@ export default function Overview(props: OverviewProps) {
                     onClick={q.longestRunningJob ?
                       () => props.onSetModalState("LongestRunning", q.queue) :
                       () => {}}>
-                    {q.longestRunningJobDuration}
+                    {q.longestRunningDuration}
                   </div>
                 </TableCell>
                 <TableCell align="center" className="details-button-cell" padding="none">
