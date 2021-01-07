@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/doug-martin/goqu/v9"
 	_ "github.com/doug-martin/goqu/v9/dialect/postgres"
 	"github.com/doug-martin/goqu/v9/exp"
+	"github.com/gogo/protobuf/types"
 	"github.com/lib/pq"
 	log "github.com/sirupsen/logrus"
 
@@ -35,6 +37,7 @@ type JobRepository interface {
 
 type SQLJobRepository struct {
 	goquDb *goqu.Database
+	clock  Clock
 }
 
 type countsRow struct {
@@ -139,8 +142,8 @@ var filtersForState = map[string][]goqu.Expression{
 	},
 }
 
-func NewSQLJobRepository(db *goqu.Database) *SQLJobRepository {
-	return &SQLJobRepository{goquDb: db}
+func NewSQLJobRepository(db *goqu.Database, clock Clock) *SQLJobRepository {
+	return &SQLJobRepository{goquDb: db, clock: clock}
 }
 
 func (r *SQLJobRepository) GetQueueInfos(ctx context.Context) ([]*lookout.QueueInfo, error) {
@@ -170,7 +173,7 @@ func (r *SQLJobRepository) GetQueueInfos(ctx context.Context) ([]*lookout.QueueI
 
 	// Oldest queued
 	if rows.NextResultSet() {
-		err = setOldestQueuedJobForQueueInfo(rows, queueInfoMap)
+		err = r.setOldestQueuedJobForQueueInfo(rows, queueInfoMap)
 		if err != nil {
 			return nil, err
 		}
@@ -180,7 +183,7 @@ func (r *SQLJobRepository) GetQueueInfos(ctx context.Context) ([]*lookout.QueueI
 
 	// Longest running
 	if rows.NextResultSet() {
-		err = setLongestRunningJobForQueueInfos(rows, queueInfoMap)
+		err = r.setLongestRunningJobForQueueInfos(rows, queueInfoMap)
 		if err != nil {
 			return nil, err
 		}
@@ -308,29 +311,7 @@ func (r *SQLJobRepository) getQueueInfosSql() (string, error) {
 	return strings.Join([]string{countsSql, oldestQueuedSql, longestRunningSql}, " ; "), nil
 }
 
-func setJobCountsForQueueInfos(rows *sql.Rows, queueInfoMap map[string]*lookout.QueueInfo) error {
-	for rows.Next() {
-		var (
-			queue string
-			row   countsRow
-		)
-		err := rows.Scan(&queue, &row.Jobs, &row.JobsCreated, &row.JobsStarted)
-		if err != nil {
-			return err
-		}
-		queueInfoMap[queue] = &lookout.QueueInfo{
-			Queue:             queue,
-			JobsQueued:        row.Jobs - row.JobsCreated,
-			JobsPending:       row.JobsCreated - row.JobsStarted,
-			JobsRunning:       row.JobsStarted,
-			OldestQueuedJob:   nil,
-			LongestRunningJob: nil,
-		}
-	}
-	return nil
-}
-
-func setOldestQueuedJobForQueueInfo(rows *sql.Rows, queueInfoMap map[string]*lookout.QueueInfo) error {
+func (r *SQLJobRepository) setOldestQueuedJobForQueueInfo(rows *sql.Rows, queueInfoMap map[string]*lookout.QueueInfo) error {
 	for rows.Next() {
 		var row jobRow
 		err := rows.Scan(
@@ -354,13 +335,16 @@ func setOldestQueuedJobForQueueInfo(rows *sql.Rows, queueInfoMap map[string]*loo
 					Cancelled: nil,
 					JobState:  JobStates.Queued,
 				}
+				currentTime := r.clock.Now()
+				submissionTime := queueInfo.OldestQueuedJob.Job.Created
+				queueInfo.OldestQueuedDuration = types.DurationProto(currentTime.Sub(submissionTime).Round(time.Second))
 			}
 		}
 	}
 	return nil
 }
 
-func setLongestRunningJobForQueueInfos(rows *sql.Rows, queueInfoMap map[string]*lookout.QueueInfo) error {
+func (r *SQLJobRepository) setLongestRunningJobForQueueInfos(rows *sql.Rows, queueInfoMap map[string]*lookout.QueueInfo) error {
 	for rows.Next() {
 		var row jobRow
 		err := rows.Scan(
@@ -392,6 +376,47 @@ func setLongestRunningJobForQueueInfos(rows *sql.Rows, queueInfoMap map[string]*
 					}
 				}
 			}
+		}
+	}
+
+	// Set duration of longest running job for each queue
+	for _, queueInfo := range queueInfoMap {
+		startTime := getJobStartTime(queueInfo.LongestRunningJob)
+		if startTime != nil {
+			currentTime := r.clock.Now()
+			queueInfo.LongestRunningDuration = types.DurationProto(currentTime.Sub(*startTime).Round(time.Second))
+		}
+	}
+
+	return nil
+}
+
+// Returns the time a given job started running, based on latest job run
+func getJobStartTime(job *lookout.JobInfo) *time.Time {
+	if job == nil || len(job.Runs) == 0 {
+		return nil
+	}
+	latestRun := job.Runs[len(job.Runs)-1]
+	return latestRun.Started
+}
+
+func setJobCountsForQueueInfos(rows *sql.Rows, queueInfoMap map[string]*lookout.QueueInfo) error {
+	for rows.Next() {
+		var (
+			queue string
+			row   countsRow
+		)
+		err := rows.Scan(&queue, &row.Jobs, &row.JobsCreated, &row.JobsStarted)
+		if err != nil {
+			return err
+		}
+		queueInfoMap[queue] = &lookout.QueueInfo{
+			Queue:             queue,
+			JobsQueued:        row.Jobs - row.JobsCreated,
+			JobsPending:       row.JobsCreated - row.JobsStarted,
+			JobsRunning:       row.JobsStarted,
+			OldestQueuedJob:   nil,
+			LongestRunningJob: nil,
 		}
 	}
 	return nil

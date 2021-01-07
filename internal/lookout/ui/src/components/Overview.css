@@ -21,5 +21,13 @@
 }
 
 .details-button-cell {
-  max-width: 3em;
+  max-width: 4em;
+  padding: 0;
+}
+
+.link {
+  display: inline-block;
+  color: blue;
+  text-decoration: underline;
+  cursor: pointer;
 }
