@@ -2,11 +2,11 @@ package repository
 
 import (
 	"context"
-	"github.com/gogo/protobuf/types"
 	"testing"
 	"time"
 
 	"github.com/doug-martin/goqu/v9"
+	"github.com/gogo/protobuf/types"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 
