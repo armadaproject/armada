@@ -11,6 +11,14 @@ import (
 	"github.com/lib/pq"
 )
 
+type Clock interface {
+	Now() time.Time
+}
+
+type DefaultClock struct{}
+
+func (c *DefaultClock) Now() time.Time { return time.Now() }
+
 func insert(db *goqu.Database, table string, fields []string, values []interface{}) (sql.Result, error) {
 	insertSql := createInsertQuery(table, fields, values)
 

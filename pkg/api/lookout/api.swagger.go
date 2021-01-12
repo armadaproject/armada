@@ -311,8 +311,14 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int64\"\n" +
 		"        },\n" +
+		"        \"longestRunningDuration\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
 		"        \"longestRunningJob\": {\n" +
 		"          \"$ref\": \"#/definitions/lookoutJobInfo\"\n" +
+		"        },\n" +
+		"        \"oldestQueuedDuration\": {\n" +
+		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"oldestQueuedJob\": {\n" +
 		"          \"$ref\": \"#/definitions/lookoutJobInfo\"\n" +

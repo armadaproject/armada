@@ -3,6 +3,7 @@ syntax = 'proto3';
 package lookout;
 
 import "google/protobuf/timestamp.proto";
+import "google/protobuf/duration.proto";
 import "google/protobuf/empty.proto";
 import "google/api/annotations.proto";
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
@@ -42,6 +43,9 @@ message QueueInfo {
 
     JobInfo oldest_queued_job = 5;
     JobInfo longest_running_job = 6;
+
+    google.protobuf.Duration oldest_queued_duration = 7;
+    google.protobuf.Duration longest_running_duration = 8;
 }
 
 message JobSetInfo {

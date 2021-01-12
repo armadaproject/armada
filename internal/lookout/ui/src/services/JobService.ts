@@ -7,6 +7,10 @@ export type QueueInfo = {
   jobsQueued: number
   jobsPending: number
   jobsRunning: number
+  oldestQueuedJob?: Job
+  longestRunningJob?: Job
+  oldestQueuedDuration: string
+  longestRunningDuration: string
 }
 
 export type JobSet = {
@@ -26,6 +30,7 @@ export type Job = {
   jobSet: string
   submissionTime: string
   jobState: string
+  cluster?: string
 }
 
 export type CancelJobsResult = {
@@ -129,8 +134,8 @@ export default class JobService {
         })
 
         if (!apiResult.cancelledIds ||
-            apiResult.cancelledIds.length !== 1 ||
-            apiResult.cancelledIds[0] !== job.jobId) {
+          apiResult.cancelledIds.length !== 1 ||
+          apiResult.cancelledIds[0] !== job.jobId) {
           result.failedJobCancellations.push({ job: job, error: "No job was cancelled" })
         } else {
           result.cancelledJobs.push(job)
@@ -145,11 +150,33 @@ export default class JobService {
 }
 
 function queueInfoToViewModel(queueInfo: LookoutQueueInfo): QueueInfo {
+  let oldestQueuedJob: Job | undefined
+  let oldestQueuedDuration = "-"
+  if (queueInfo.oldestQueuedJob) {
+    oldestQueuedJob = jobInfoToViewModel(queueInfo.oldestQueuedJob)
+  }
+  if (queueInfo.oldestQueuedDuration) {
+    oldestQueuedDuration = getDurationString(queueInfo.oldestQueuedDuration)
+  }
+
+  let longestRunningJob: Job | undefined
+  let longestRunningJobDuration = "-"
+  if (queueInfo.longestRunningJob) {
+    longestRunningJob = jobInfoToViewModel(queueInfo.longestRunningJob)
+  }
+  if (queueInfo.longestRunningDuration) {
+    longestRunningJobDuration = getDurationString(queueInfo.longestRunningDuration)
+  }
+
   return {
     queue: queueInfo.queue ?? "Unknown queue",
     jobsQueued: queueInfo.jobsQueued ?? 0,
     jobsPending: queueInfo.jobsPending ?? 0,
     jobsRunning: queueInfo.jobsRunning ?? 0,
+    oldestQueuedJob: oldestQueuedJob,
+    longestRunningJob: longestRunningJob,
+    oldestQueuedDuration: oldestQueuedDuration,
+    longestRunningDuration: longestRunningJobDuration,
   }
 }
 
@@ -165,12 +192,33 @@ function jobSetToViewModel(jobSet: LookoutJobSetInfo): JobSet {
   }
 }
 
-function getJobStateForApi(displayedJobState: string): string {
-  const jobState = INVERSE_JOB_STATE_MAP.get(displayedJobState)
-  if (!jobState) {
-    throw new Error(`Unrecognized job state: "${displayedJobState}"`)
+function getDurationString(durationFromApi: any): string {
+  durationFromApi = durationFromApi as { seconds: number }
+  const totalSeconds = durationFromApi.seconds
+  const days = Math.floor(totalSeconds / (24 * 3600))
+  const hours = Math.floor(totalSeconds / 3600) % 24
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+
+  const segments: string[] = []
+
+  if (days > 0) {
+    segments.push(`${days}d`)
   }
-  return jobState
+  if (hours > 0) {
+    segments.push(`${hours}h`)
+  }
+  if (minutes > 0) {
+    segments.push(`${minutes}m`)
+  }
+  if (seconds > 0) {
+    segments.push(`${seconds}s`)
+  }
+  if (segments.length === 0) {
+    return "Just now"
+  }
+
+  return segments.join(" ")
 }
 
 function jobInfoToViewModel(jobInfo: LookoutJobInfo): Job {
@@ -180,6 +228,7 @@ function jobInfoToViewModel(jobInfo: LookoutJobInfo): Job {
   const jobSet = jobInfo.job?.jobSetId ?? "-"
   const submissionTime = (jobInfo.job?.created ?? new Date()).toLocaleString()
   const jobState = JOB_STATE_MAP.get(jobInfo.jobState ?? "") ?? "Unknown"
+  const cluster = getCurrentCluster(jobInfo)
 
   return {
     jobId: jobId,
@@ -188,5 +237,23 @@ function jobInfoToViewModel(jobInfo: LookoutJobInfo): Job {
     jobSet: jobSet,
     submissionTime: submissionTime,
     jobState: jobState,
+    cluster: cluster,
   }
+}
+
+function getCurrentCluster(jobInfo: LookoutJobInfo): string | undefined {
+  if (!jobInfo.runs || jobInfo.runs.length === 0) {
+    return undefined
+  }
+
+  const lastRun = jobInfo.runs[jobInfo.runs.length - 1]
+  return lastRun.cluster
+}
+
+function getJobStateForApi(displayedJobState: string): string {
+  const jobState = INVERSE_JOB_STATE_MAP.get(displayedJobState)
+  if (!jobState) {
+    throw new Error(`Unrecognized job state: "${displayedJobState}"`)
+  }
+  return jobState
 }

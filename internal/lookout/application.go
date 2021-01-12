@@ -44,7 +44,7 @@ func StartUp(config configuration.LookoutConfiguration) (func(), *sync.WaitGroup
 	goquDb.Logger(&LogRusLogger{})
 
 	jobStore := repository.NewSQLJobStore(goquDb)
-	jobRepository := repository.NewSQLJobRepository(goquDb)
+	jobRepository := repository.NewSQLJobRepository(goquDb, &repository.DefaultClock{})
 
 	conn, err := stanUtil.DurableConnect(
 		config.Nats.ClusterID,
