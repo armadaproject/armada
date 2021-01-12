@@ -51,40 +51,6 @@ func Test_QueueInfoCounts(t *testing.T) {
 
 		newJobSimulator(t, jobStore, &defaultClock{}).
 			createJob(queue).
-			pending(cluster, k8sId1)
-
-		newJobSimulator(t, jobStore, &defaultClock{}).
-			createJob(queue).
-			running(cluster, k8sId2, node)
-
-		newJobSimulator(t, jobStore, &defaultClock{}).
-			createJob(queue)
-
-		newJobSimulator(t, jobStore, &defaultClock{}).
-			createJob(queue).
-			pending(cluster, k8sId3).
-			running(cluster, k8sId3, node).
-			succeeded(cluster, k8sId3, node)
-
-		queueInfos, err := jobRepo.GetQueueInfos(ctx)
-		assert.NoError(t, err)
-		assert.Equal(t, 1, len(queueInfos))
-		assertQueueInfoCountsAreEqual(t, &lookout.QueueInfo{
-			Queue:       queue,
-			JobsQueued:  1,
-			JobsPending: 1,
-			JobsRunning: 1,
-		}, queueInfos[0])
-	})
-}
-
-func Test_QueueInfoCountsWithMultipleJobRuns(t *testing.T) {
-	withDatabase(t, func(db *goqu.Database) {
-		jobStore := NewSQLJobStore(db)
-		jobRepo := NewSQLJobRepository(db)
-
-		newJobSimulator(t, jobStore, &defaultClock{}).
-			createJob(queue).
 			pending(cluster, "a1").
 			pending(cluster, "a2")
 
@@ -518,6 +484,100 @@ func Test_QueueInfosMultipleQueues(t *testing.T) {
 			Finished:  nil,
 			Error:     "",
 		}, queueInfos[1].LongestRunningJob.Runs[0])
+	})
+}
+
+func Test_GetNoJobSetsIfQueueDoesNotExist(t *testing.T) {
+	withDatabase(t, func(db *goqu.Database) {
+		jobStore := NewSQLJobStore(db)
+
+		newJobSimulator(t, jobStore, &defaultClock{}).
+			createJob("queue-1")
+
+		newJobSimulator(t, jobStore, &defaultClock{}).
+			createJob("queue-2").
+			pending(cluster, k8sId1)
+
+		jobRepo := NewSQLJobRepository(db)
+
+		jobSetInfos, err := jobRepo.GetJobSetInfos(ctx, &lookout.GetJobSetsRequest{Queue: queue})
+		assert.NoError(t, err)
+		assert.Empty(t, jobSetInfos)
+	})
+}
+
+func Test_GetsJobSetWithOnlyFinishedJobs(t *testing.T) {
+	withDatabase(t, func(db *goqu.Database) {
+		jobStore := NewSQLJobStore(db)
+
+		newJobSimulator(t, jobStore, &defaultClock{}).
+			createJobWithJobSet(queue, "job-set").
+			running(cluster, k8sId1, node).
+			succeeded(cluster, k8sId1, node)
+
+		newJobSimulator(t, jobStore, &defaultClock{}).
+			createJobWithJobSet(queue, "job-set").
+			pending(cluster, k8sId2).
+			failed(cluster, k8sId2, node, "some error")
+
+		jobRepo := NewSQLJobRepository(db)
+
+		jobSetInfos, err := jobRepo.GetJobSetInfos(ctx, &lookout.GetJobSetsRequest{Queue: queue})
+		assert.NoError(t, err)
+		assertJobSetInfosAreEqual(t, &lookout.JobSetInfo{
+			Queue:         queue,
+			JobSet:        "job-set",
+			JobsQueued:    0,
+			JobsPending:   0,
+			JobsRunning:   0,
+			JobsSucceeded: 1,
+			JobsFailed:    1,
+		}, jobSetInfos[0])
+	})
+}
+
+func Test_JobSetsCounts(t *testing.T) {
+	withDatabase(t, func(db *goqu.Database) {
+		jobStore := NewSQLJobStore(db)
+		jobRepo := NewSQLJobRepository(db)
+
+		newJobSimulator(t, jobStore, &defaultClock{}).
+			createJobWithJobSet(queue, "job-set-1").
+			pending(cluster, "a1").
+			pending(cluster, "a2")
+
+		newJobSimulator(t, jobStore, &defaultClock{}).
+			createJobWithJobSet(queue, "job-set-1").
+			pending(cluster, "b1").
+			running(cluster, "b2", node)
+
+		newJobSimulator(t, jobStore, &defaultClock{}).
+			createJobWithJobSet(queue, "job-set-1")
+
+		newJobSimulator(t, jobStore, &defaultClock{}).
+			createJobWithJobSet(queue, "job-set-1").
+			pending(cluster, "c1").
+			running(cluster, "c2", node).
+			succeeded(cluster, "c2", node)
+
+		newJobSimulator(t, jobStore, &defaultClock{}).
+			createJobWithJobSet(queue, "job-set-1").
+			pending(cluster, "d1").
+			running(cluster, "d2", node).
+			failed(cluster, "d2", node, "something bad")
+
+		jobSetInfos, err := jobRepo.GetJobSetInfos(ctx, &lookout.GetJobSetsRequest{Queue: queue})
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(jobSetInfos))
+		assertJobSetInfosAreEqual(t, &lookout.JobSetInfo{
+			Queue:         queue,
+			JobSet:        "job-set-1",
+			JobsQueued:    1,
+			JobsPending:   1,
+			JobsRunning:   1,
+			JobsSucceeded: 1,
+			JobsFailed:    1,
+		}, jobSetInfos[0])
 	})
 }
 
@@ -1497,6 +1557,18 @@ func assertQueueInfoCountsAreEqual(t *testing.T, expected *lookout.QueueInfo, ac
 	assert.Equal(t, expected.JobsQueued, actual.JobsQueued)
 	assert.Equal(t, expected.JobsPending, actual.JobsPending)
 	assert.Equal(t, expected.JobsRunning, actual.JobsRunning)
+}
+
+func assertJobSetInfosAreEqual(t *testing.T, expected *lookout.JobSetInfo, actual *lookout.JobSetInfo) {
+	t.Helper()
+	assert.Equal(t, expected.JobSet, actual.JobSet)
+	assert.Equal(t, expected.Queue, actual.Queue)
+	assert.Equal(t, expected.JobsQueued, actual.JobsQueued)
+	assert.Equal(t, expected.JobsPending, actual.JobsPending)
+	assert.Equal(t, expected.JobsRunning, actual.JobsRunning)
+	assert.Equal(t, expected.JobsSucceeded, actual.JobsSucceeded)
+	assert.Equal(t, expected.JobsFailed, actual.JobsFailed)
+
 }
 
 func assertJobsAreEquivalent(t *testing.T, expected *api.Job, actual *api.Job) {

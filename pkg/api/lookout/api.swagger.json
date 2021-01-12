@@ -43,6 +43,38 @@
         }
       }
     },
+    "/api/v1/lookout/jobsets": {
+      "post": {
+        "tags": [
+          "Lookout"
+        ],
+        "operationId": "GetJobSets",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/lookoutGetJobSetsRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/lookoutGetJobSetsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        }
+      }
+    },
     "/api/v1/lookout/overview": {
       "get": {
         "tags": [
@@ -140,6 +172,25 @@
       "title": "Type represents the stored type of IntOrString.",
       "x-go-package": "k8s.io/apimachinery/pkg/util/intstr"
     },
+    "lookoutGetJobSetsRequest": {
+      "type": "object",
+      "properties": {
+        "queue": {
+          "type": "string"
+        }
+      }
+    },
+    "lookoutGetJobSetsResponse": {
+      "type": "object",
+      "properties": {
+        "jobSetInfos": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/lookoutJobSetInfo"
+          }
+        }
+      }
+    },
     "lookoutGetJobsInQueueRequest": {
       "type": "object",
       "properties": {
@@ -200,6 +251,37 @@
           "items": {
             "$ref": "#/definitions/lookoutRunInfo"
           }
+        }
+      }
+    },
+    "lookoutJobSetInfo": {
+      "type": "object",
+      "properties": {
+        "jobSet": {
+          "type": "string"
+        },
+        "jobsFailed": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "jobsPending": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "jobsQueued": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "jobsRunning": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "jobsSucceeded": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "queue": {
+          "type": "string"
         }
       }
     },

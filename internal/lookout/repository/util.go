@@ -71,6 +71,13 @@ func ParseNullBool(nullBool sql.NullBool) bool {
 	return nullBool.Bool
 }
 
+func ParseNullInt(nullInt sql.NullInt32) int32 {
+	if !nullInt.Valid {
+		return 0
+	}
+	return nullInt.Int32
+}
+
 func ParseNullFloat(nullFloat sql.NullFloat64) float64 {
 	if !nullFloat.Valid {
 		return 0
