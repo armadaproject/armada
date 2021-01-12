@@ -4,13 +4,14 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"sort"
+	"strings"
+
 	"github.com/doug-martin/goqu/v9"
 	_ "github.com/doug-martin/goqu/v9/dialect/postgres"
 	"github.com/doug-martin/goqu/v9/exp"
 	"github.com/lib/pq"
 	log "github.com/sirupsen/logrus"
-	"sort"
-	"strings"
 
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/api/lookout"
