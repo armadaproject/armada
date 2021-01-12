@@ -64,11 +64,11 @@ type jobRow struct {
 
 type jobSetCountsRow struct {
 	JobSet        string        `db:"jobset"`
-	Jobs          sql.NullInt32 `db:"jobs"`
-	JobsCreated   sql.NullInt32 `db:"jobs_created"`
-	JobsStarted   sql.NullInt32 `db:"jobs_started"`
-	JobsFinished  sql.NullInt32 `db:"jobs_finished"`
-	JobsSucceeded sql.NullInt32 `db:"jobs_succeeded"`
+	Jobs          sql.NullInt64 `db:"jobs"`
+	JobsCreated   sql.NullInt64 `db:"jobs_created"`
+	JobsStarted   sql.NullInt64 `db:"jobs_started"`
+	JobsFinished  sql.NullInt64 `db:"jobs_finished"`
+	JobsSucceeded sql.NullInt64 `db:"jobs_succeeded"`
 }
 
 var (
