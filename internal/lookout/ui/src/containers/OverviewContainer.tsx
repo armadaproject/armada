@@ -14,17 +14,24 @@ interface OverviewContainerProps {
 
 interface OverviewContainerState {
   queueInfos: QueueInfo[]
+  modalState: ModalState
+  modalQueue: string
 }
+
+export type ModalState = "OldestQueued" | "LongestRunning" | "None"
 
 class OverviewContainer extends React.Component<OverviewContainerProps, OverviewContainerState> {
   constructor(props: OverviewContainerProps) {
     super(props)
     this.state = {
-      queueInfos: []
+      queueInfos: [],
+      modalState: "None",
+      modalQueue: "",
     }
 
     this.navigateToQueueInJobs = this.navigateToQueueInJobs.bind(this)
     this.fetchQueueInfos = this.fetchQueueInfos.bind(this)
+    this.setModalState = this.setModalState.bind(this)
   }
 
   async componentDidMount() {
@@ -46,11 +53,22 @@ class OverviewContainer extends React.Component<OverviewContainerProps, Overview
     })
   }
 
+  setModalState(modalState: ModalState, modalQueue: string) {
+    this.setState({
+      ...this.state,
+      modalState: modalState,
+      modalQueue: modalQueue,
+    })
+  }
+
   render() {
     return (
       <Overview
         queueInfos={this.state.queueInfos}
+        modalState={this.state.modalState}
+        modalQueue={this.state.modalQueue}
         onQueueInfoClick={this.navigateToQueueInJobs}
+        onSetModalState={this.setModalState}
         onRefresh={this.fetchQueueInfos}/>
     )
   }
