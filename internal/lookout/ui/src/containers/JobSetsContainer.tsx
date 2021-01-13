@@ -27,7 +27,10 @@ function makeQueryString(queue: string): string {
 }
 
 function getQueueFromQueryString(query: string): string {
-  const params = queryString.parse(query) as { queue: string }
+  if (query[0] === "?") {
+    query = query.slice(1)
+  }
+  const params = queryString.parse(query) as { queue?: string }
 
   return params.queue ?? ""
 }
