@@ -511,6 +511,12 @@ func Test_JobSetsCounts(t *testing.T) {
 			running(cluster, "d2", node).
 			failed(cluster, "d2", node, "something bad")
 
+		newJobSimulator(t, jobStore, &DefaultClock{}).
+			createJobWithJobSet(queue, "job-set-1").
+			pending(cluster, "e1").
+			running(cluster, "e2", node).
+			cancelled()
+
 		jobSetInfos, err := jobRepo.GetJobSetInfos(ctx, &lookout.GetJobSetsRequest{Queue: queue})
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(jobSetInfos))
@@ -523,6 +529,86 @@ func Test_JobSetsCounts(t *testing.T) {
 			JobsSucceeded: 1,
 			JobsFailed:    1,
 		}, jobSetInfos[0])
+	})
+}
+
+func Test_MultipleJobSetsCounts(t *testing.T) {
+	withDatabase(t, func(db *goqu.Database) {
+		jobStore := NewSQLJobStore(db)
+		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
+
+		// Job set 1
+		newJobSimulator(t, jobStore, &DefaultClock{}).
+			createJobWithJobSet(queue, "job-set-1")
+
+		newJobSimulator(t, jobStore, &DefaultClock{}).
+			createJobWithJobSet(queue, "job-set-1")
+
+		newJobSimulator(t, jobStore, &DefaultClock{}).
+			createJobWithJobSet(queue, "job-set-1").
+			pending(cluster, "a1").
+			pending(cluster, "a2")
+
+		newJobSimulator(t, jobStore, &DefaultClock{}).
+			createJobWithJobSet(queue, "job-set-1").
+			pending(cluster, "b1").
+			running(cluster, "b2", node)
+
+		newJobSimulator(t, jobStore, &DefaultClock{}).
+			createJobWithJobSet(queue, "job-set-1").
+			pending(cluster, "c1").
+			running(cluster, "c2", node).
+			succeeded(cluster, "c2", node)
+
+		newJobSimulator(t, jobStore, &DefaultClock{}).
+			createJobWithJobSet(queue, "job-set-1").
+			pending(cluster, "d1").
+			running(cluster, "d2", node).
+			failed(cluster, "d2", node, "something bad")
+
+		// Job set 2
+		newJobSimulator(t, jobStore, &DefaultClock{}).
+			createJobWithJobSet(queue, "job-set-2")
+
+		newJobSimulator(t, jobStore, &DefaultClock{}).
+			createJobWithJobSet(queue, "job-set-2").
+			pending(cluster, "e1")
+
+		newJobSimulator(t, jobStore, &DefaultClock{}).
+			createJobWithJobSet(queue, "job-set-2").
+			pending(cluster, "f1").
+			running(cluster, "f2", node).
+			succeeded(cluster, "f2", node)
+
+		newJobSimulator(t, jobStore, &DefaultClock{}).
+			createJobWithJobSet(queue, "job-set-2").
+			pending(cluster, "h1").
+			running(cluster, "h2", node).
+			failed(cluster, "h2", node, "something bad")
+
+		jobSetInfos, err := jobRepo.GetJobSetInfos(ctx, &lookout.GetJobSetsRequest{Queue: queue})
+		assert.NoError(t, err)
+		assert.Equal(t, 2, len(jobSetInfos))
+
+		assertJobSetInfosAreEqual(t, &lookout.JobSetInfo{
+			Queue:         queue,
+			JobSet:        "job-set-1",
+			JobsQueued:    2,
+			JobsPending:   1,
+			JobsRunning:   1,
+			JobsSucceeded: 1,
+			JobsFailed:    1,
+		}, jobSetInfos[0])
+
+		assertJobSetInfosAreEqual(t, &lookout.JobSetInfo{
+			Queue:         queue,
+			JobSet:        "job-set-2",
+			JobsQueued:    1,
+			JobsPending:   1,
+			JobsRunning:   0,
+			JobsSucceeded: 1,
+			JobsFailed:    1,
+		}, jobSetInfos[1])
 	})
 }
 
