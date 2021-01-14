@@ -1,9 +1,10 @@
 import React from "react"
 import { RouteComponentProps, withRouter } from "react-router-dom";
-
-import JobService, { JobSet } from "../services/JobService";
-import JobSets from "../components/JobSets";
 import * as queryString from "querystring";
+
+import JobSets from "../components/JobSets";
+import JobService, { JobSet } from "../services/JobService";
+import { debounced } from "../utils";
 
 type JobSetsContainerProps = {
   jobService: JobService
@@ -46,6 +47,9 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
 
     this.setQueue = this.setQueue.bind(this)
     this.refresh = this.refresh.bind(this)
+    this.navigateToJobSetForState = this.navigateToJobSetForState.bind(this)
+
+    this.fetchJobSets = debounced(this.fetchJobSets.bind(this), 100)
   }
 
   async componentDidMount() {
@@ -63,24 +67,41 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
       ...this.props.location,
       search: makeQueryString(queue),
     })
-
-    const jobSets = await this.props.jobService.getJobSets(queue)
-    this.setState({
+    await this.setStateAsync({
+      ...this.state,
       queue: queue,
-      jobSets: jobSets,
     })
-  }
 
-  async refresh() {
-    const jobSets = await this.props.jobService.getJobSets(this.state.queue)
+    // Performed separately because debounced
+    const jobSets = await this.fetchJobSets(queue)
     this.setState({
       ...this.state,
       jobSets: jobSets,
     })
   }
 
-  fetchJobSets(queue: string): Promise<JobSet[]> {
+  async refresh() {
+    const jobSets = await this.fetchJobSets(this.state.queue)
+    this.setState({
+      ...this.state,
+      jobSets: jobSets,
+    })
+  }
+
+  navigateToJobSetForState(jobSet: string, jobState: string) {
+    this.props.history.push({
+      ...this.props.location,
+      pathname: "/jobs",
+      search: `queue=${this.state.queue}&job_set=${jobSet}&job_states=${jobState}`
+    })
+  }
+
+  private fetchJobSets(queue: string): Promise<JobSet[]> {
     return this.props.jobService.getJobSets(queue)
+  }
+
+  private setStateAsync(state: JobSetsContainerState): Promise<void> {
+    return new Promise(resolve => this.setState(state, resolve))
   }
 
   render() {
@@ -88,7 +109,8 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
       queue={this.state.queue}
       jobSets={this.state.jobSets}
       onQueueChange={this.setQueue}
-      onRefresh={this.refresh} />
+      onRefresh={this.refresh}
+      onJobSetStatsClick={this.navigateToJobSetForState} />
   }
 }
 

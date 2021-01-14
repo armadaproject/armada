@@ -20,3 +20,10 @@
     justify-content: center;
     align-items: center;
 }
+
+.link {
+    display: inline-block;
+    color: blue;
+    text-decoration: underline;
+    cursor: pointer;
+}

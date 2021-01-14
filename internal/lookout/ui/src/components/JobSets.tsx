@@ -21,6 +21,7 @@ interface JobSetsProps {
   jobSets: JobSet[]
   onQueueChange: (queue: string) => void
   onRefresh: () => void
+  onJobSetStatsClick: (jobSet: string, jobState: string) => void
 }
 
 export default function JobSets(props: JobSetsProps) {
@@ -63,11 +64,51 @@ export default function JobSets(props: JobSetsProps) {
                 <TableCell component="th" scope="row">
                   {q.jobSet}
                 </TableCell>
-                <TableCell align="right">{q.jobsQueued}</TableCell>
-                <TableCell align="right">{q.jobsPending}</TableCell>
-                <TableCell align="right">{q.jobsRunning}</TableCell>
-                <TableCell align="right">{q.jobsSucceeded}</TableCell>
-                <TableCell align="right">{q.jobsFailed}</TableCell>
+                <TableCell align="right">
+                  <div
+                    className={q.jobsQueued ? "link" : ""}
+                    onClick={q.jobsQueued ?
+                      () => props.onJobSetStatsClick(q.jobSet, "Queued") :
+                      () => {}}>
+                    {q.jobsQueued}
+                  </div>
+                </TableCell>
+                <TableCell align="right">
+                  <div
+                    className={q.jobsPending ? "link" : ""}
+                    onClick={q.jobsPending ?
+                      () => props.onJobSetStatsClick(q.jobSet, "Pending") :
+                      () => {}}>
+                    {q.jobsPending}
+                  </div>
+                </TableCell>
+                <TableCell align="right">
+                  <div
+                    className={q.jobsRunning ? "link" : ""}
+                    onClick={q.jobsRunning ?
+                      () => props.onJobSetStatsClick(q.jobSet, "Running") :
+                      () => {}}>
+                    {q.jobsRunning}
+                  </div>
+                </TableCell>
+                <TableCell align="right">
+                  <div
+                    className={q.jobsSucceeded ? "link" : ""}
+                    onClick={q.jobsSucceeded ?
+                      () => props.onJobSetStatsClick(q.jobSet, "Succeeded") :
+                      () => {}}>
+                    {q.jobsSucceeded}
+                  </div>
+                </TableCell>
+                <TableCell align="right">
+                  <div
+                    className={q.jobsFailed ? "link" : ""}
+                    onClick={q.jobsFailed ?
+                      () => props.onJobSetStatsClick(q.jobSet, "Failed") :
+                      () => {}}>
+                    {q.jobsFailed}
+                  </div>
+                </TableCell>
               </TableRow>
             )}
           </TableBody>
