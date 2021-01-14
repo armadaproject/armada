@@ -1599,7 +1599,6 @@ func assertJobSetInfosAreEqual(t *testing.T, expected *lookout.JobSetInfo, actua
 	assert.Equal(t, expected.JobsRunning, actual.JobsRunning)
 	assert.Equal(t, expected.JobsSucceeded, actual.JobsSucceeded)
 	assert.Equal(t, expected.JobsFailed, actual.JobsFailed)
-
 }
 
 func assertJobsAreEquivalent(t *testing.T, expected *api.Job, actual *api.Job) {
