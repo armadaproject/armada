@@ -48,6 +48,25 @@ message QueueInfo {
     google.protobuf.Duration longest_running_duration = 8;
 }
 
+message JobSetInfo {
+    string queue = 1;
+    string job_set = 2;
+
+    uint32 jobs_queued = 3;
+    uint32 jobs_pending = 4;
+    uint32 jobs_running = 5;
+    uint32 jobs_succeeded = 6;
+    uint32 jobs_failed = 7;
+}
+
+message GetJobSetsRequest {
+    string queue = 1;
+}
+
+message GetJobSetsResponse {
+    repeated JobSetInfo job_set_infos = 1;
+}
+
 message GetJobsInQueueRequest {
     string queue = 1;
     bool newest_first = 2;
@@ -65,6 +84,13 @@ service Lookout {
     rpc Overview (google.protobuf.Empty) returns (SystemOverview) {
         option (google.api.http) = {
             get: "/api/v1/lookout/overview"
+        };
+    }
+
+    rpc GetJobSets (GetJobSetsRequest) returns (GetJobSetsResponse) {
+        option (google.api.http) = {
+            post: "/api/v1/lookout/jobsets"
+            body: "*"
         };
     }
 
