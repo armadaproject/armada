@@ -224,8 +224,14 @@
           "type": "integer",
           "format": "int64"
         },
+        "longestRunningDuration": {
+          "type": "string"
+        },
         "longestRunningJob": {
           "$ref": "#/definitions/lookoutJobInfo"
+        },
+        "oldestQueuedDuration": {
+          "type": "string"
         },
         "oldestQueuedJob": {
           "$ref": "#/definitions/lookoutJobInfo"
