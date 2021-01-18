@@ -1,4 +1,4 @@
-import { LookoutApi, LookoutJobInfo, LookoutQueueInfo } from '../openapi/lookout'
+import { LookoutApi, LookoutJobInfo, LookoutJobSetInfo, LookoutQueueInfo } from '../openapi/lookout'
 import { SubmitApi } from '../openapi/armada'
 import { reverseMap } from "../utils";
 
@@ -11,6 +11,16 @@ export type QueueInfo = {
   longestRunningJob?: Job
   oldestQueuedDuration: string
   longestRunningDuration: string
+}
+
+export type JobSet = {
+  jobSet: string
+  queue: string
+  jobsQueued: number
+  jobsPending: number
+  jobsRunning: number
+  jobsSucceeded: number
+  jobsFailed: number
 }
 
 export type Job = {
@@ -69,6 +79,19 @@ export default class JobService {
     }
 
     return queueInfosFromApi.queues.map(queueInfoToViewModel)
+  }
+
+  async getJobSets(queue: string): Promise<JobSet[]> {
+    const jobSetsFromApi = await this.lookoutApi.getJobSets({
+      body: {
+        queue: queue
+      }
+    })
+    if (!jobSetsFromApi.jobSetInfos) {
+      return []
+    }
+
+    return jobSetsFromApi.jobSetInfos.map(jobSetToViewModel)
   }
 
   async getJobsInQueue(
@@ -154,6 +177,18 @@ function queueInfoToViewModel(queueInfo: LookoutQueueInfo): QueueInfo {
     longestRunningJob: longestRunningJob,
     oldestQueuedDuration: oldestQueuedDuration,
     longestRunningDuration: longestRunningJobDuration,
+  }
+}
+
+function jobSetToViewModel(jobSet: LookoutJobSetInfo): JobSet {
+  return {
+    jobSet: jobSet.jobSet ?? "Unknown job set",
+    queue: jobSet.queue ?? "Unknown queue",
+    jobsQueued: jobSet.jobsQueued ?? 0,
+    jobsPending: jobSet.jobsPending ?? 0,
+    jobsRunning: jobSet.jobsRunning ?? 0,
+    jobsSucceeded: jobSet.jobsSucceeded ?? 0,
+    jobsFailed: jobSet.jobsFailed ?? 0,
   }
 }
 
