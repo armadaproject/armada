@@ -1,4 +1,4 @@
-import { LookoutApi, LookoutJobInfo, LookoutQueueInfo } from '../openapi/lookout'
+import { LookoutApi, LookoutJobInfo, LookoutJobSetInfo, LookoutQueueInfo } from '../openapi/lookout'
 import { SubmitApi } from '../openapi/armada'
 import { reverseMap } from "../utils";
 
@@ -11,6 +11,16 @@ export type QueueInfo = {
   longestRunningJob?: Job
   oldestQueuedDuration: string
   longestRunningDuration: string
+}
+
+export type JobSet = {
+  jobSet: string
+  queue: string
+  jobsQueued: number
+  jobsPending: number
+  jobsRunning: number
+  jobsSucceeded: number
+  jobsFailed: number
 }
 
 export type Job = {
@@ -69,6 +79,19 @@ export default class JobService {
     }
 
     return queueInfosFromApi.queues.map(queueInfoToViewModel)
+  }
+
+  async getJobSets(queue: string): Promise<JobSet[]> {
+    const jobSetsFromApi = await this.lookoutApi.getJobSets({
+      body: {
+        queue: queue
+      }
+    })
+    if (!jobSetsFromApi.jobSetInfos) {
+      return []
+    }
+
+    return jobSetsFromApi.jobSetInfos.map(jobSetToViewModel)
   }
 
   async getJobsInQueue(
@@ -157,6 +180,18 @@ function queueInfoToViewModel(queueInfo: LookoutQueueInfo): QueueInfo {
   }
 }
 
+function jobSetToViewModel(jobSet: LookoutJobSetInfo): JobSet {
+  return {
+    jobSet: jobSet.jobSet ?? "Unknown job set",
+    queue: jobSet.queue ?? "Unknown queue",
+    jobsQueued: jobSet.jobsQueued ?? 0,
+    jobsPending: jobSet.jobsPending ?? 0,
+    jobsRunning: jobSet.jobsRunning ?? 0,
+    jobsSucceeded: jobSet.jobsSucceeded ?? 0,
+    jobsFailed: jobSet.jobsFailed ?? 0,
+  }
+}
+
 function getDurationString(durationFromApi: any): string {
   durationFromApi = durationFromApi as { seconds: number }
   const totalSeconds = durationFromApi.seconds
@@ -191,7 +226,7 @@ function jobInfoToViewModel(jobInfo: LookoutJobInfo): Job {
   const queue = jobInfo.job?.queue ?? "-"
   const owner = jobInfo.job?.owner ?? "-"
   const jobSet = jobInfo.job?.jobSetId ?? "-"
-  const submissionTime = (jobInfo.job?.created ?? new Date()).toLocaleString()
+  const submissionTime = dateToString(jobInfo.job?.created ?? new Date())
   const jobState = JOB_STATE_MAP.get(jobInfo.jobState ?? "") ?? "Unknown"
   const cluster = getCurrentCluster(jobInfo)
 
@@ -204,6 +239,13 @@ function jobInfoToViewModel(jobInfo: LookoutJobInfo): Job {
     jobState: jobState,
     cluster: cluster,
   }
+}
+
+function dateToString(date: Date): string {
+  return date.toLocaleString("en-GB", {
+    timeZone: "UTC",
+    timeZoneName: "short",
+  })
 }
 
 function getCurrentCluster(jobInfo: LookoutJobInfo): string | undefined {

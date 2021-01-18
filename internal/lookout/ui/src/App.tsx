@@ -3,8 +3,9 @@ import { BrowserRouter as Router, Switch, Route } from 'react-router-dom'
 import { ThemeProvider, createMuiTheme } from "@material-ui/core";
 
 import JobService from './services/JobService';
-import JobsContainer from "./containers/JobsContainer";
 import OverviewContainer from './containers/OverviewContainer'
+import JobSetsContainer from "./containers/JobSetsContainer";
+import JobsContainer from "./containers/JobsContainer";
 import NavBar from "./components/NavBar";
 
 import './App.css';
@@ -43,6 +44,9 @@ export function App(services: { jobService: JobService; }) {
             <Switch>
               <Route exact path="/">
                 <OverviewContainer jobService={services.jobService}/>
+              </Route>
+              <Route exact path="/job-sets">
+                <JobSetsContainer jobService={services.jobService}/>
               </Route>
               <Route exact path="/jobs">
                 <JobsContainer jobService={services.jobService}/>

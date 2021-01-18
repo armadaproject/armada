@@ -1,0 +1,29 @@
+.job-sets {
+    margin-top: 1em;
+}
+
+.job-sets-header {
+    margin-top: 0.66em;
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+}
+
+.job-sets-header .title {
+    margin-left: 16px;
+    margin-bottom: 0.6em;
+}
+
+.job-sets-header .refresh-button {
+    margin-right: 1em;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.link {
+    display: inline-block;
+    color: blue;
+    text-decoration: underline;
+    cursor: pointer;
+}
