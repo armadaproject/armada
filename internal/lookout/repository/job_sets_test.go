@@ -28,6 +28,33 @@ func TestGetJobSetInfos_GetNoJobSetsIfQueueDoesNotExist(t *testing.T) {
 	})
 }
 
+func TestGetJobSetInfos_GetsJobSetWithNoFinishedJobs(t *testing.T) {
+	withDatabase(t, func(db *goqu.Database) {
+		jobStore := NewSQLJobStore(db)
+
+		NewJobSimulator(t, jobStore, &DefaultClock{}).
+			CreateJobWithJobSet(queue, "job-set")
+
+		NewJobSimulator(t, jobStore, &DefaultClock{}).
+			CreateJobWithJobSet(queue, "job-set").
+			Pending(cluster, k8sId1)
+
+		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
+
+		jobSetInfos, err := jobRepo.GetJobSetInfos(ctx, &lookout.GetJobSetsRequest{Queue: queue})
+		assert.NoError(t, err)
+		assertJobSetInfosAreEqual(t, &lookout.JobSetInfo{
+			Queue:         queue,
+			JobSet:        "job-set",
+			JobsQueued:    1,
+			JobsPending:   1,
+			JobsRunning:   0,
+			JobsSucceeded: 0,
+			JobsFailed:    0,
+		}, jobSetInfos[0])
+	})
+}
+
 func TestGetJobSetInfos_GetsJobSetWithOnlyFinishedJobs(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db)
