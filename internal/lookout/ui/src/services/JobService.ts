@@ -226,7 +226,7 @@ function jobInfoToViewModel(jobInfo: LookoutJobInfo): Job {
   const queue = jobInfo.job?.queue ?? "-"
   const owner = jobInfo.job?.owner ?? "-"
   const jobSet = jobInfo.job?.jobSetId ?? "-"
-  const submissionTime = (jobInfo.job?.created ?? new Date()).toLocaleString()
+  const submissionTime = dateToString(jobInfo.job?.created ?? new Date())
   const jobState = JOB_STATE_MAP.get(jobInfo.jobState ?? "") ?? "Unknown"
   const cluster = getCurrentCluster(jobInfo)
 
@@ -239,6 +239,13 @@ function jobInfoToViewModel(jobInfo: LookoutJobInfo): Job {
     jobState: jobState,
     cluster: cluster,
   }
+}
+
+function dateToString(date: Date): string {
+  return date.toLocaleString("en-GB", {
+    timeZone: "UTC",
+    timeZoneName: "short",
+  })
 }
 
 function getCurrentCluster(jobInfo: LookoutJobInfo): string | undefined {
