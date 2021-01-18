@@ -541,9 +541,9 @@ func (r *SQLJobRepository) createJobSetInfosDataset(opts *lookout.GetJobSetsRequ
 
 	ds := r.goquDb.
 		From(finishedCountsDs).
-		LeftJoin(countsDs, goqu.On(goqu.I("finished_counts.jobset").Eq(goqu.I("counts.jobset")))).
+		FullJoin(countsDs, goqu.On(goqu.I("finished_counts.jobset").Eq(goqu.I("counts.jobset")))).
 		Select(
-			goqu.I("finished_counts.jobset"),
+			goqu.COALESCE(goqu.I("counts.jobset"), goqu.I("finished_counts.jobset")).As("jobset"),
 			goqu.I("counts.jobs"),
 			goqu.I("counts.jobs_created"),
 			goqu.I("counts.jobs_started"),
