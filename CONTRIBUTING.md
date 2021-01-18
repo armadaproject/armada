@@ -15,7 +15,7 @@ The main project fork lives here in Github:
 
 If you spot a bug, then please raise an issue in our main GitHub project:
 
-* [https://github.com/G-Research/armada/issues]()
+* [https://github.com/G-Research/armada/issues](https://github.com/G-Research/armada/issues)
 
 Likewise, if you have developed a cool new feature or improvement, then send us a pull request!
 
