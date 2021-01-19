@@ -43,6 +43,36 @@
         }
       }
     },
+    "/api/v1/lookout/jobs/{jobId}": {
+      "get": {
+        "tags": [
+          "Lookout"
+        ],
+        "operationId": "GetJob",
+        "parameters": [
+          {
+            "type": "string",
+            "name": "jobId",
+            "in": "path",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/lookoutJobInfo"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        }
+      }
+    },
     "/api/v1/lookout/jobsets": {
       "post": {
         "tags": [

@@ -80,6 +80,10 @@ message GetJobsInQueueResponse {
     repeated JobInfo job_infos = 1;
 }
 
+message GetJobRequest {
+    string job_id = 1;
+}
+
 service Lookout {
     rpc Overview (google.protobuf.Empty) returns (SystemOverview) {
         option (google.api.http) = {
@@ -99,5 +103,11 @@ service Lookout {
             post: "/api/v1/lookout/jobs"
             body: "*"
         };
-    };
+    }
+
+    rpc GetJob (GetJobRequest) returns (JobInfo) {
+        option (google.api.http) = {
+            get: "/api/v1/lookout/jobs/{job_id}"
+        };
+    }
 }

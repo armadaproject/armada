@@ -26,6 +26,7 @@ type JobRepository interface {
 	GetQueueInfos(ctx context.Context) ([]*lookout.QueueInfo, error)
 	GetJobSetInfos(ctx context.Context, opts *lookout.GetJobSetsRequest) ([]*lookout.JobSetInfo, error)
 	GetJobsInQueue(ctx context.Context, opts *lookout.GetJobsInQueueRequest) ([]*lookout.JobInfo, error)
+	GetJob(ctx context.Context, jobId string) (*lookout.JobInfo, error)
 }
 
 type SQLJobRepository struct {
