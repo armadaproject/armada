@@ -21,7 +21,7 @@ func (r *SQLJobRepository) GetJobsInQueue(ctx context.Context, opts *lookout.Get
 		return nil, err
 	}
 
-	return jobsInQueueRowsToResult(rows), nil
+	return rowsToJobs(rows), nil
 }
 
 func (r *SQLJobRepository) GetJob(ctx context.Context, jobId string) (*lookout.JobInfo, error) {
@@ -169,7 +169,7 @@ func (r *SQLJobRepository) createJobDataset(jobId string) *goqu.SelectDataset {
 	return ds
 }
 
-func jobsInQueueRowsToResult(rows []*JobRow) []*lookout.JobInfo {
+func rowsToJobs(rows []*JobRow) []*lookout.JobInfo {
 	result := make([]*lookout.JobInfo, 0)
 
 	for i, row := range rows {
@@ -197,27 +197,12 @@ func jobsInQueueRowsToResult(rows []*JobRow) []*lookout.JobInfo {
 }
 
 func rowsToJob(rows []*JobRow) *lookout.JobInfo {
-	if len(rows) == 0 {
+	jobs := rowsToJobs(rows)
+	if len(jobs) != 1 {
 		return nil
 	}
 
-	job := &lookout.JobInfo{}
-
-	for i, row := range rows {
-		if row.JobId.Valid && i == 0 {
-			job.Job = makeJobFromRow(row)
-			job.Cancelled = ParseNullTime(row.Cancelled)
-			job.Runs = []*lookout.RunInfo{}
-		}
-
-		if row.RunId.Valid {
-			job.Runs = append(job.Runs, makeRunFromRow(row))
-		}
-	}
-
-	job.JobState = determineJobState(job)
-
-	return job
+	return jobs[0]
 }
 
 func makeJobFromRow(row *JobRow) *api.Job {
