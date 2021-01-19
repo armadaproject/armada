@@ -49,7 +49,7 @@ func (s *LookoutServer) GetJob(ctx context.Context, opts *lookout.GetJobRequest)
 		return nil, status.Errorf(codes.Internal, "failed to query job: %s", err)
 	}
 	if job == nil {
-		return nil, status.Errorf(codes.NotFound, "job with id %s not found", opts.JobId)
+		return nil, status.Errorf(codes.NotFound, "job with id %q not found", opts.JobId)
 	}
 	return job, nil
 }
