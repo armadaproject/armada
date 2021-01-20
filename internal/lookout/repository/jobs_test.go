@@ -87,7 +87,7 @@ func TestGetJobsInQueue_GetFailedJobFromQueue(t *testing.T) {
 		startTime := time.Now()
 		failureReason := "Something bad happened"
 
-		succeeded := NewJobSimulator(t, jobStore, NewIncrementClock(startTime)).
+		failed := NewJobSimulator(t, jobStore, NewIncrementClock(startTime)).
 			CreateJob(queue).
 			Pending(cluster, k8sId1).
 			Running(cluster, k8sId1, node).
@@ -101,7 +101,7 @@ func TestGetJobsInQueue_GetFailedJobFromQueue(t *testing.T) {
 		assert.Equal(t, 1, len(jobInfos))
 
 		jobInfo := jobInfos[0]
-		AssertJobsAreEquivalent(t, succeeded.job, jobInfo.Job)
+		AssertJobsAreEquivalent(t, failed.job, jobInfo.Job)
 
 		assert.Nil(t, jobInfo.Cancelled)
 
@@ -128,7 +128,7 @@ func TestGetJobsInQueue_GetCancelledJobFromQueue(t *testing.T) {
 
 		startTime := time.Now()
 
-		succeeded := NewJobSimulator(t, jobStore, NewIncrementClock(startTime)).
+		cancelled := NewJobSimulator(t, jobStore, NewIncrementClock(startTime)).
 			CreateJob(queue).
 			Pending(cluster, k8sId1).
 			Running(cluster, k8sId1, node).
@@ -142,7 +142,7 @@ func TestGetJobsInQueue_GetCancelledJobFromQueue(t *testing.T) {
 		assert.Equal(t, 1, len(jobInfos))
 
 		jobInfo := jobInfos[0]
-		AssertJobsAreEquivalent(t, succeeded.job, jobInfo.Job)
+		AssertJobsAreEquivalent(t, cancelled.job, jobInfo.Job)
 
 		AssertTimesApproxEqual(t, Increment(startTime, 3), jobInfo.Cancelled)
 
@@ -978,5 +978,327 @@ func TestGetJobsInQueue_SkipFirstNewestJobs(t *testing.T) {
 		for i := 0; i < take; i++ {
 			AssertJobsAreEquivalent(t, allJobs[nJobs-skip-i-1].job, jobInfos[i].Job)
 		}
+	})
+}
+
+func TestGetJob_ReturnsNoJobIfItDoesNotExist(t *testing.T) {
+	withDatabase(t, func(db *goqu.Database) {
+		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
+
+		job, err := jobRepo.GetJob(ctx, "some-id")
+
+		assert.NoError(t, err)
+		assert.Nil(t, job)
+	})
+}
+
+func TestGetJob_Queued(t *testing.T) {
+	withDatabase(t, func(db *goqu.Database) {
+		jobStore := NewSQLJobStore(db)
+		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
+
+		queued := NewJobSimulator(t, jobStore, &DefaultClock{}).
+			CreateJob("queue-1")
+
+		NewJobSimulator(t, jobStore, &DefaultClock{}).
+			CreateJob("queue-2").
+			Pending(cluster, k8sId1)
+
+		NewJobSimulator(t, jobStore, &DefaultClock{}).
+			CreateJob("queue-3").
+			Pending("cluster-3", k8sId2).
+			Pending(cluster, k8sId3).
+			Running(cluster, k8sId3, node)
+
+		NewJobSimulator(t, jobStore, &DefaultClock{}).
+			CreateJobWithJobSet(queue, "job-set-2").
+			Pending(cluster, k8sId4).
+			Running(cluster, k8sId4, node).
+			Succeeded(cluster, k8sId4, node)
+
+		NewJobSimulator(t, jobStore, &DefaultClock{}).
+			CreateJob(queue).
+			Failed(cluster, k8sId5, node, "Something bad")
+
+		NewJobSimulator(t, jobStore, &DefaultClock{}).
+			CreateJob(queue).
+			Cancelled()
+
+		job, err := jobRepo.GetJob(ctx, queued.job.Id)
+		assert.NoError(t, err)
+		AssertJobsAreEquivalent(t, queued.job, job.Job)
+		assert.Nil(t, job.Cancelled)
+		assert.Equal(t, JobStates.Queued, job.JobState)
+		assert.Equal(t, 0, len(job.Runs))
+	})
+}
+
+func TestGetJob_Pending(t *testing.T) {
+	withDatabase(t, func(db *goqu.Database) {
+		jobStore := NewSQLJobStore(db)
+		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
+
+		startTime := time.Now()
+
+		NewJobSimulator(t, jobStore, &DefaultClock{}).
+			CreateJob("queue-1")
+
+		pending := NewJobSimulator(t, jobStore, NewIncrementClock(startTime)).
+			CreateJob("queue-2").
+			Pending(cluster, k8sId1)
+
+		NewJobSimulator(t, jobStore, &DefaultClock{}).
+			CreateJob("queue-3").
+			Pending("cluster-3", k8sId2).
+			Pending(cluster, k8sId3).
+			Running(cluster, k8sId3, node)
+
+		NewJobSimulator(t, jobStore, &DefaultClock{}).
+			CreateJobWithJobSet(queue, "job-set-2").
+			Pending(cluster, k8sId4).
+			Running(cluster, k8sId4, node).
+			Succeeded(cluster, k8sId4, node)
+
+		NewJobSimulator(t, jobStore, &DefaultClock{}).
+			CreateJob(queue).
+			Failed(cluster, k8sId5, node, "Something bad")
+
+		NewJobSimulator(t, jobStore, &DefaultClock{}).
+			CreateJob(queue).
+			Cancelled()
+
+		job, err := jobRepo.GetJob(ctx, pending.job.Id)
+		assert.NoError(t, err)
+		AssertJobsAreEquivalent(t, pending.job, job.Job)
+		assert.Nil(t, job.Cancelled)
+		assert.Equal(t, JobStates.Pending, job.JobState)
+
+		assert.Equal(t, 1, len(job.Runs))
+		AssertRunInfosEquivalent(t, &lookout.RunInfo{
+			K8SId:     k8sId1,
+			Cluster:   cluster,
+			Node:      "",
+			Succeeded: false,
+			Error:     "",
+			Created:   Increment(startTime, 1),
+			Started:   nil,
+			Finished:  nil,
+		}, job.Runs[0])
+	})
+}
+
+func TestGetJob_Running(t *testing.T) {
+	withDatabase(t, func(db *goqu.Database) {
+		jobStore := NewSQLJobStore(db)
+		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
+
+		startTime := time.Now()
+
+		NewJobSimulator(t, jobStore, &DefaultClock{}).
+			CreateJob("queue-1")
+
+		NewJobSimulator(t, jobStore, &DefaultClock{}).
+			CreateJob("queue-2").
+			Pending(cluster, k8sId1)
+
+		running := NewJobSimulator(t, jobStore, NewIncrementClock(startTime)).
+			CreateJob("queue-3").
+			Pending("cluster-3", k8sId2).
+			Pending(cluster, k8sId3).
+			Running(cluster, k8sId3, node)
+
+		NewJobSimulator(t, jobStore, &DefaultClock{}).
+			CreateJobWithJobSet(queue, "job-set-2").
+			Pending(cluster, k8sId4).
+			Running(cluster, k8sId4, node).
+			Succeeded(cluster, k8sId4, node)
+
+		NewJobSimulator(t, jobStore, &DefaultClock{}).
+			CreateJob(queue).
+			Failed(cluster, k8sId5, node, "Something bad")
+
+		NewJobSimulator(t, jobStore, &DefaultClock{}).
+			CreateJob(queue).
+			Cancelled()
+
+		job, err := jobRepo.GetJob(ctx, running.job.Id)
+		assert.NoError(t, err)
+		AssertJobsAreEquivalent(t, running.job, job.Job)
+		assert.Nil(t, job.Cancelled)
+		assert.Equal(t, JobStates.Running, job.JobState)
+
+		assert.Equal(t, 2, len(job.Runs))
+		AssertRunInfosEquivalent(t, &lookout.RunInfo{
+			K8SId:     k8sId2,
+			Cluster:   "cluster-3",
+			Node:      "",
+			Succeeded: false,
+			Error:     "",
+			Created:   Increment(startTime, 1),
+			Started:   nil,
+			Finished:  nil,
+		}, job.Runs[0])
+		AssertRunInfosEquivalent(t, &lookout.RunInfo{
+			K8SId:     k8sId3,
+			Cluster:   cluster,
+			Node:      node,
+			Succeeded: false,
+			Error:     "",
+			Created:   Increment(startTime, 2),
+			Started:   Increment(startTime, 3),
+			Finished:  nil,
+		}, job.Runs[1])
+	})
+}
+
+func TestGetJob_Succeeded(t *testing.T) {
+	withDatabase(t, func(db *goqu.Database) {
+		jobStore := NewSQLJobStore(db)
+		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
+
+		startTime := time.Now()
+
+		NewJobSimulator(t, jobStore, &DefaultClock{}).
+			CreateJob("queue-1")
+
+		NewJobSimulator(t, jobStore, &DefaultClock{}).
+			CreateJob("queue-2").
+			Pending(cluster, k8sId1)
+
+		NewJobSimulator(t, jobStore, &DefaultClock{}).
+			CreateJob("queue-3").
+			Pending("cluster-3", k8sId2).
+			Pending(cluster, k8sId3).
+			Running(cluster, k8sId3, node)
+
+		succeeded := NewJobSimulator(t, jobStore, NewIncrementClock(startTime)).
+			CreateJobWithJobSet(queue, "job-set-2").
+			Pending(cluster, k8sId4).
+			Running(cluster, k8sId4, node).
+			Succeeded(cluster, k8sId4, node)
+
+		NewJobSimulator(t, jobStore, &DefaultClock{}).
+			CreateJob(queue).
+			Failed(cluster, k8sId5, node, "Something bad")
+
+		NewJobSimulator(t, jobStore, &DefaultClock{}).
+			CreateJob(queue).
+			Cancelled()
+
+		job, err := jobRepo.GetJob(ctx, succeeded.job.Id)
+		assert.NoError(t, err)
+		AssertJobsAreEquivalent(t, succeeded.job, job.Job)
+		assert.Nil(t, job.Cancelled)
+		assert.Equal(t, JobStates.Succeeded, job.JobState)
+
+		assert.Equal(t, 1, len(job.Runs))
+		AssertRunInfosEquivalent(t, &lookout.RunInfo{
+			K8SId:     k8sId4,
+			Cluster:   cluster,
+			Node:      node,
+			Succeeded: true,
+			Error:     "",
+			Created:   Increment(startTime, 1),
+			Started:   Increment(startTime, 2),
+			Finished:  Increment(startTime, 3),
+		}, job.Runs[0])
+	})
+}
+
+func TestGetJob_Failed(t *testing.T) {
+	withDatabase(t, func(db *goqu.Database) {
+		jobStore := NewSQLJobStore(db)
+		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
+
+		startTime := time.Now()
+
+		NewJobSimulator(t, jobStore, &DefaultClock{}).
+			CreateJob("queue-1")
+
+		NewJobSimulator(t, jobStore, &DefaultClock{}).
+			CreateJob("queue-2").
+			Pending(cluster, k8sId1)
+
+		NewJobSimulator(t, jobStore, &DefaultClock{}).
+			CreateJob("queue-3").
+			Pending("cluster-3", k8sId2).
+			Pending(cluster, k8sId3).
+			Running(cluster, k8sId3, node)
+
+		NewJobSimulator(t, jobStore, &DefaultClock{}).
+			CreateJobWithJobSet(queue, "job-set-2").
+			Pending(cluster, k8sId4).
+			Running(cluster, k8sId4, node).
+			Succeeded(cluster, k8sId4, node)
+
+		failed := NewJobSimulator(t, jobStore, NewIncrementClock(startTime)).
+			CreateJob(queue).
+			Failed(cluster, k8sId5, node, "Something bad")
+
+		NewJobSimulator(t, jobStore, &DefaultClock{}).
+			CreateJob(queue).
+			Cancelled()
+
+		job, err := jobRepo.GetJob(ctx, failed.job.Id)
+		assert.NoError(t, err)
+		AssertJobsAreEquivalent(t, failed.job, job.Job)
+		assert.Nil(t, job.Cancelled)
+		assert.Equal(t, JobStates.Failed, job.JobState)
+
+		assert.Equal(t, 1, len(job.Runs))
+		AssertRunInfosEquivalent(t, &lookout.RunInfo{
+			K8SId:     k8sId5,
+			Cluster:   cluster,
+			Node:      node,
+			Succeeded: false,
+			Error:     "Something bad",
+			Created:   nil,
+			Started:   nil,
+			Finished:  Increment(startTime, 1),
+		}, job.Runs[0])
+	})
+}
+
+func TestGetJob_Cancelled(t *testing.T) {
+	withDatabase(t, func(db *goqu.Database) {
+		jobStore := NewSQLJobStore(db)
+		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
+
+		startTime := time.Now()
+
+		NewJobSimulator(t, jobStore, &DefaultClock{}).
+			CreateJob("queue-1")
+
+		NewJobSimulator(t, jobStore, &DefaultClock{}).
+			CreateJob("queue-2").
+			Pending(cluster, k8sId1)
+
+		NewJobSimulator(t, jobStore, &DefaultClock{}).
+			CreateJob("queue-3").
+			Pending("cluster-3", k8sId2).
+			Pending(cluster, k8sId3).
+			Running(cluster, k8sId3, node)
+
+		NewJobSimulator(t, jobStore, &DefaultClock{}).
+			CreateJobWithJobSet(queue, "job-set-2").
+			Pending(cluster, k8sId4).
+			Running(cluster, k8sId4, node).
+			Succeeded(cluster, k8sId4, node)
+
+		NewJobSimulator(t, jobStore, &DefaultClock{}).
+			CreateJob(queue).
+			Failed(cluster, k8sId5, node, "Something bad")
+
+		cancelled := NewJobSimulator(t, jobStore, NewIncrementClock(startTime)).
+			CreateJob(queue).
+			Cancelled()
+
+		job, err := jobRepo.GetJob(ctx, cancelled.job.Id)
+		assert.NoError(t, err)
+		AssertJobsAreEquivalent(t, cancelled.job, job.Job)
+		AssertTimesApproxEqual(t, Increment(startTime, 1), job.Cancelled)
+		assert.Equal(t, JobStates.Cancelled, job.JobState)
+
+		assert.Equal(t, 0, len(job.Runs))
 	})
 }
