@@ -2,6 +2,8 @@ import React from 'react'
 import {
   Container,
   IconButton,
+  Menu,
+  MenuItem,
   Paper,
   Table,
   TableBody,
@@ -10,7 +12,7 @@ import {
   TableHead,
   TableRow
 } from "@material-ui/core";
-import ViewListIcon from "@material-ui/icons/ViewList"
+import MoreVert from "@material-ui/icons/MoreVert"
 import RefreshIcon from "@material-ui/icons/Refresh"
 
 import { QueueInfo } from "../services/JobService";
@@ -23,9 +25,13 @@ interface OverviewProps {
   queueInfos: QueueInfo[]
   modalState: ModalState
   modalQueue: string
-  onQueueInfoClick: (queue: string) => void
-  onSetModalState: (modalState: ModalState, modalQueue: string) => void
+  openQueueMenu: string
+  queueMenuAnchor: HTMLElement | null
   onRefresh: () => void
+  onSetModalState: (modalState: ModalState, modalQueue: string) => void
+  onSetQueueMenu: (queue: string, anchor: HTMLElement | null) => void
+  onQueueMenuJobSetsClick: (queue: string) => void
+  onQueueMenuJobsClick: (queue: string) => void
 }
 
 export default function Overview(props: OverviewProps) {
@@ -89,9 +95,18 @@ export default function Overview(props: OverviewProps) {
                   <IconButton
                     title={"View in Jobs table"}
                     size="small"
-                    onClick={() => props.onQueueInfoClick(q.queue)}>
-                    <ViewListIcon/>
+                    onClick={(event) => {
+                      props.onSetQueueMenu(q.queue, event.currentTarget)
+                    }}>
+                    <MoreVert />
                   </IconButton>
+                  <Menu
+                    anchorEl={props.queueMenuAnchor}
+                    open={q.queue === props.openQueueMenu}
+                    onClose={() => props.onSetQueueMenu("", null)}>
+                    <MenuItem onClick={() => props.onQueueMenuJobSetsClick(q.queue)}>Job Sets</MenuItem>
+                    <MenuItem onClick={() => props.onQueueMenuJobsClick(q.queue)}>Jobs</MenuItem>
+                  </Menu>
                 </TableCell>
               </TableRow>
             )}
