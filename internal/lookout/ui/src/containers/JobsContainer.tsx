@@ -152,6 +152,8 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     this.selectJob = this.selectJob.bind(this)
     this.setModalState = this.setModalState.bind(this)
     this.cancelJobs = this.cancelJobs.bind(this)
+
+    this.navigateToJobDetails = this.navigateToJobDetails.bind(this)
   }
 
   componentDidMount() {
@@ -276,6 +278,14 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     }
   }
 
+  navigateToJobDetails(jobId: string) {
+    this.props.history.push({
+      ...this.props.location,
+      pathname: "/job-details",
+      search: `id=${jobId}`
+    })
+  }
+
   private async loadJobInfosForRange(start: number, stop: number) {
     let allJobInfos = this.state.jobs
     let canLoadMore = true
@@ -372,7 +382,8 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
         onRefresh={this.refresh}
         onSelectJob={this.selectJob}
         onSetModalState={this.setModalState}
-        onCancelJobs={this.cancelJobs} />
+        onCancelJobs={this.cancelJobs}
+        onJobIdClick={this.navigateToJobDetails} />
     )
   }
 }

@@ -6,6 +6,7 @@ import JobTableHeader from "./JobTableHeader";
 import JobRow from "./JobRow";
 import HeaderRow from "./HeaderRow";
 import LoadingRow from "./LoadingRow";
+import JobIdCell from "./JobIdCell";
 import CancelJobsModal from "./CancelJobsModal";
 import { CancelJobsRequestStatus, ModalState } from "../containers/JobsContainer";
 
@@ -34,6 +35,7 @@ type JobsProps = {
   onSelectJob: (job: Job, selected: boolean) => Promise<void>
   onSetModalState: (modal: ModalState) => void
   onCancelJobs: () => void
+  onJobIdClick: (jobId: string) => void
 }
 
 export default class Jobs extends React.Component<JobsProps, {}> {
@@ -54,9 +56,11 @@ export default class Jobs extends React.Component<JobsProps, {}> {
         owner: "",
         jobId: "Loading",
         jobSet: "",
+        priority: 0,
         jobState: "",
         queue: "",
-        submissionTime: ""
+        submissionTime: "",
+        runs: [],
       }
     }
   }
@@ -99,7 +103,7 @@ export default class Jobs extends React.Component<JobsProps, {}> {
             }}
             onCancelJobsClick={() => {
               this.props.onSetModalState("CancelJobs")
-            }} />
+            }}/>
         </div>
         <CancelJobsModal
           currentOpenModal={this.props.modalState}
@@ -107,7 +111,7 @@ export default class Jobs extends React.Component<JobsProps, {}> {
           cancelJobsResult={this.props.cancelJobsResult}
           cancelJobsRequestStatus={this.props.cancelJobsRequestStatus}
           onCancelJobs={this.props.onCancelJobs}
-          onClose={() => this.props.onSetModalState("None")} />
+          onClose={() => this.props.onSetModalState("None")}/>
         <div className="job-table">
           <InfiniteLoader
             ref={this.infiniteLoader}
@@ -153,11 +157,17 @@ export default class Jobs extends React.Component<JobsProps, {}> {
                     headerHeight={40}
                     height={height}
                     width={width}>
-                    <Column dataKey="jobId" width={0.2 * width} label="Id" />
-                    <Column dataKey="owner" width={0.2 * width} label="Owner" />
-                    <Column dataKey="jobSet" width={0.2 * width} label="Job Set" />
-                    <Column dataKey="submissionTime" width={0.2 * width} label="Submission Time" />
-                    <Column dataKey="jobState" width={0.2 * width} label="State" />
+                    <Column
+                      dataKey="jobId"
+                      width={0.2 * width}
+                      label="Id"
+                      cellRenderer={(cellProps) => (
+                        <JobIdCell onClick={() => this.props.onJobIdClick(cellProps.cellData)} {...cellProps} />
+                      )} />
+                    <Column dataKey="owner" width={0.2 * width} label="Owner"/>
+                    <Column dataKey="jobSet" width={0.2 * width} label="Job Set"/>
+                    <Column dataKey="submissionTime" width={0.2 * width} label="Submission Time"/>
+                    <Column dataKey="jobState" width={0.2 * width} label="State"/>
                   </Table>
                 )}
               </AutoSizer>
