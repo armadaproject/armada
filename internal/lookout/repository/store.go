@@ -85,7 +85,7 @@ func (r *SQLJobStore) RecordJobFailed(event *api.JobFailedEvent) error {
 	// If job fails before a pod is created, we generate a new ULID
 	k8sId := event.KubernetesId
 	if k8sId == "" {
-		k8sId = "nopod-" + util.NewULID()
+		k8sId = util.NewULID() + "-nopod"
 	}
 
 	if event.NodeName != "" {
