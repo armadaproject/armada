@@ -127,6 +127,77 @@ func Test_RecordLongError(t *testing.T) {
 	})
 }
 
+func Test_EmptyRunId(t *testing.T) {
+	withDatabase(t, func(db *goqu.Database) {
+		jobStore := NewSQLJobStore(db)
+		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
+
+		job_1 := &api.Job{
+			Id:          util.NewULID(),
+			JobSetId:    "job-set",
+			Queue:       "queue",
+			Namespace:   "nameSpace",
+			Labels:      nil,
+			Annotations: nil,
+			Owner:       "user",
+			Priority:    0,
+			PodSpec:     &v1.PodSpec{},
+			Created:     time.Now(),
+		}
+		err := jobStore.RecordJob(job_1)
+		assert.NoError(t, err)
+
+		err = jobStore.RecordJobFailed(&api.JobFailedEvent{
+			JobId:        job_1.Id,
+			JobSetId:     job_1.JobSetId,
+			Queue:        job_1.Queue,
+			Created:      time.Now(),
+			ClusterId:    cluster,
+			Reason:       "error",
+			ExitCodes:    nil,
+			KubernetesId: "",
+			NodeName:     "node",
+		})
+		assert.NoError(t, err)
+
+		job_2 := &api.Job{
+			Id:          util.NewULID(),
+			JobSetId:    "job-set-2",
+			Queue:       "queue-2",
+			Namespace:   "nameSpace-2",
+			Labels:      nil,
+			Annotations: nil,
+			Owner:       "user",
+			Priority:    0,
+			PodSpec:     &v1.PodSpec{},
+			Created:     time.Now(),
+		}
+		err = jobStore.RecordJob(job_2)
+		assert.NoError(t, err)
+
+		err = jobStore.RecordJobFailed(&api.JobFailedEvent{
+			JobId:        job_2.Id,
+			JobSetId:     job_2.JobSetId,
+			Queue:        job_2.Queue,
+			Created:      time.Now(),
+			ClusterId:    cluster,
+			Reason:       "other error",
+			ExitCodes:    nil,
+			KubernetesId: "",
+			NodeName:     "node-2",
+		})
+		assert.NoError(t, err)
+
+		receivedJob1, err := jobRepo.GetJob(ctx, job_1.Id)
+		assert.NoError(t, err)
+		assert.Equal(t, JobStates.Failed, receivedJob1.JobState)
+
+		receivedJob2, err := jobRepo.GetJob(ctx, job_2.Id)
+		assert.NoError(t, err)
+		assert.Equal(t, JobStates.Failed, receivedJob2.JobState)
+	})
+}
+
 func count(t *testing.T, db *goqu.Database, query string) int {
 	r, err := db.Query(query)
 	assert.NoError(t, err)
