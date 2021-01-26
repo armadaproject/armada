@@ -103,13 +103,14 @@ export default class JobService {
     jobStates: string[],
   ): Promise<Job[]> {
     const jobStatesForApi = jobStates.map(getJobStateForApi)
+    const jobSetsForApi = jobSets.map(escapeBackslashes)
     try {
       const response = await this.lookoutApi.getJobsInQueue({
         body: {
           queue: queue,
           take: take,
           skip: skip,
-          jobSetIds: jobSets,
+          jobSetIds: jobSetsForApi,
           newestFirst: newestFirst,
           jobStates: jobStatesForApi,
         }
@@ -147,6 +148,10 @@ export default class JobService {
     }
     return result
   }
+}
+
+function escapeBackslashes(str: string) {
+  return str.replaceAll("\\", "\\\\")
 }
 
 function queueInfoToViewModel(queueInfo: LookoutQueueInfo): QueueInfo {
