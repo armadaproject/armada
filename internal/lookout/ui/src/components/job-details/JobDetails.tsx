@@ -1,26 +1,23 @@
-import React, { Fragment } from 'react'
+import React from 'react'
 
 import {
-  Collapse,
   Container,
   IconButton,
   Paper,
-  List,
-  ListItem,
-  ListItemText,
-  TableContainer,
   Table,
   TableBody,
-  TableRow,
   TableCell,
+  TableContainer,
+  TableRow,
   TextField,
 } from "@material-ui/core";
 import RefreshIcon from "@material-ui/icons/Refresh";
-import { ExpandMore, ExpandLess } from "@material-ui/icons";
 
-import { Job, Run } from "../services/JobService";
+import { Job } from "../../services/JobService";
+import { RunDetailsRows } from "./RunDetailsRows";
+import { SchedulingHistory } from "./SchedulingHistory";
 
-import './JobDetails.css'
+import './Details.css'
 
 interface JobDetailsProps {
   jobId: string
@@ -35,50 +32,6 @@ interface DetailsProps {
   job: Job
   expandedItems: Set<string>
   onToggleExpand: (k8sId: string, isExpanded: boolean) => void
-}
-
-interface RunDetailsRowsProps {
-  run: Run
-}
-
-function RunDetailsRows(props: RunDetailsRowsProps) {
-  return (
-    <Fragment>
-      <TableRow className="field">
-        <TableCell className="field-label">Cluster</TableCell>
-        <TableCell>{props.run.cluster}</TableCell>
-      </TableRow>
-      <TableRow className="field">
-        <TableCell className="field-label">Kubernetes Id</TableCell>
-        <TableCell>{props.run.k8sId}</TableCell>
-      </TableRow>
-      {props.run.node &&
-      <TableRow className="field">
-        <TableCell className="field-label">Cluster node</TableCell>
-        <TableCell>{props.run.node}</TableCell>
-      </TableRow>}
-      {props.run.podCreationTime &&
-      <TableRow className="field">
-        <TableCell className="field-label">Scheduled on cluster</TableCell>
-        <TableCell>{props.run.podCreationTime}</TableCell>
-      </TableRow>}
-      {props.run.podStartTime &&
-      <TableRow className="field">
-        <TableCell className="field-label">Job started</TableCell>
-        <TableCell>{props.run.podStartTime}</TableCell>
-      </TableRow>}
-      {props.run.finishTime &&
-      <TableRow className="field">
-        <TableCell className="field-label">Finished</TableCell>
-        <TableCell>{props.run.finishTime}</TableCell>
-      </TableRow>}
-      {props.run.error &&
-      <TableRow className="field">
-        <TableCell className="field-label">Error</TableCell>
-        <TableCell><span className="error-message">{props.run.error}</span></TableCell>
-      </TableRow>}
-    </Fragment>
-  )
 }
 
 function Details(props: DetailsProps) {
@@ -132,39 +85,10 @@ function Details(props: DetailsProps) {
         </Table>
       </TableContainer>
       {initRuns &&
-      <Fragment>
-        <h3 className="scheduling-history-title">Scheduling history</h3>
-        <div className="scheduling-history">
-          <List
-            component={Paper}>
-            {initRuns && initRuns.map(run => (
-              <Fragment key={run.k8sId}>
-                <ListItem key={run.k8sId + "-0"} button onClick={() => {
-                  if (props.expandedItems.has(run.k8sId)) {
-                    props.onToggleExpand(run.k8sId, false)
-                  } else {
-                    props.onToggleExpand(run.k8sId, true)
-                  }
-                }}>
-                  <ListItemText>{run.cluster}</ListItemText>
-                  {props.expandedItems.has(run.k8sId) ? <ExpandLess /> : <ExpandMore />}
-                </ListItem>
-                <Collapse key={run.k8sId + "-1"} in={props.expandedItems.has(run.k8sId)} timeout="auto" unmountOnExit>
-                  <div className="nested-run">
-                    <TableContainer>
-                      <Table>
-                        <TableBody>
-                          <RunDetailsRows run={run}/>
-                        </TableBody>
-                      </Table>
-                    </TableContainer>
-                  </div>
-                </Collapse>
-              </Fragment>
-            ))}
-          </List>
-        </div>
-      </Fragment>}
+      <SchedulingHistory
+        runs={initRuns}
+        expandedItems={props.expandedItems}
+        onToggleExpand={props.onToggleExpand}/>}
     </div>
   )
 }

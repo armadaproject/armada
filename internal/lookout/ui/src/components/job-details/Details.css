@@ -36,19 +36,3 @@
     background-color: #f9f2f4;
     color: #c7254e !important;
 }
-
-.scheduling-history-title {
-    margin-top: 2em;
-    margin-left: 16px;
-    width: 100%;
-}
-
-.scheduling-history {
-    margin-bottom: 1em;
-    width: 85%;
-    align-self: center;
-}
-
-.nested-run {
-    margin: 1em;
-}

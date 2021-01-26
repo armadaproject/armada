@@ -2,7 +2,7 @@ import React from 'react'
 import { RouteComponentProps, withRouter } from "react-router-dom";
 
 import JobService, { Job } from "../services/JobService";
-import JobDetails from "../components/JobDetails";
+import JobDetails from "../components/job-details/JobDetails";
 import { debounced } from "../utils";
 import queryString from "querystring";
 
