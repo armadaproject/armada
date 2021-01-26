@@ -3,7 +3,6 @@ package repository
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"sort"
 
 	"github.com/doug-martin/goqu/v9"
@@ -100,9 +99,6 @@ func (r *SQLJobRepository) createJobSetsDataset(opts *lookout.GetJobSetsRequest)
 			goqu.I("counts.jobs_started"),
 			goqu.I("finished_counts.jobs_finished"),
 			goqu.I("finished_counts.jobs_succeeded"))
-
-	qq, _, _ := ds.ToSQL()
-	fmt.Println(qq)
 
 	return ds
 }
