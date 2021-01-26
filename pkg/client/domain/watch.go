@@ -10,6 +10,7 @@ import (
 )
 
 type JobStatus string
+type PodStatus string
 
 const (
 	Submitted = "Submitted"
@@ -24,8 +25,10 @@ const (
 
 type JobInfo struct {
 	Status           JobStatus
+	PodStatus        []PodStatus
 	Job              *api.Job
 	LastUpdate       time.Time
+	PodLastUpdated   []time.Time
 	ClusterId        string
 	MaxUsedResources common.ComputeResources
 }
@@ -160,7 +163,7 @@ func (context *WatchContext) AreJobsFinished(ids []string) bool {
 }
 
 func updateJobInfo(info *JobInfo, event api.Event) {
-	if isLifeCycleEvent(event) {
+	if isLifeCycleEvent(event) && !isPodEvent(event) {
 		if info.LastUpdate.After(event.GetCreated()) {
 			if submitEvent, ok := event.(*api.JobSubmittedEvent); ok {
 				info.Job = &submitEvent.Job
@@ -175,6 +178,10 @@ func updateJobInfo(info *JobInfo, event api.Event) {
 	case *api.JobSubmittedEvent:
 		info.Status = Submitted
 		info.Job = &typed.Job
+		for len(info.PodStatus) < len(typed.Job.PodSpecs) {
+			info.PodStatus = append(info.PodStatus, Submitted)
+			info.PodLastUpdated = append(info.PodLastUpdated, time.Time{})
+		}
 	case *api.JobQueuedEvent:
 		info.Status = Queued
 	case *api.JobLeasedEvent:
@@ -182,22 +189,22 @@ func updateJobInfo(info *JobInfo, event api.Event) {
 		info.ClusterId = typed.ClusterId
 	case *api.JobLeaseReturnedEvent:
 		info.Status = Queued
+		resetPodStatus(info)
 	case *api.JobLeaseExpiredEvent:
 		info.Status = Queued
-	case *api.JobPendingEvent:
-		info.Status = Pending
-		info.ClusterId = typed.ClusterId
-	case *api.JobRunningEvent:
-		info.Status = Running
-		info.ClusterId = typed.ClusterId
-	case *api.JobFailedEvent:
-		info.Status = Failed
-		info.ClusterId = typed.ClusterId
-	case *api.JobSucceededEvent:
-		info.Status = Succeeded
-		info.ClusterId = typed.ClusterId
+		resetPodStatus(info)
 	case *api.JobCancelledEvent:
 		info.Status = Cancelled
+
+	// pod events:
+	case *api.JobPendingEvent:
+		updatePodStatus(info, typed, Pending)
+	case *api.JobRunningEvent:
+		updatePodStatus(info, typed, Running)
+	case *api.JobFailedEvent:
+		updatePodStatus(info, typed, Failed)
+	case *api.JobSucceededEvent:
+		updatePodStatus(info, typed, Succeeded)
 
 	case *api.JobUnableToScheduleEvent:
 		// NOOP
@@ -207,6 +214,59 @@ func updateJobInfo(info *JobInfo, event api.Event) {
 		// NOOP
 	case *api.JobUtilisationEvent:
 		info.MaxUsedResources.Max(typed.MaxResourcesForPeriod)
+	}
+}
+
+func resetPodStatus(info *JobInfo) {
+	for i := 0; i < len(info.PodStatus); i++ {
+		info.PodStatus[i] = Submitted
+		info.PodLastUpdated[i] = time.Time{}
+	}
+}
+
+func updatePodStatus(info *JobInfo, event api.KubernetesEvent, status PodStatus) {
+	info.ClusterId = event.GetClusterId()
+	podNumber := event.GetPodNumber()
+
+	for len(info.PodStatus) <= int(podNumber) {
+		info.PodStatus = append(info.PodStatus, Submitted)
+		info.PodLastUpdated = append(info.PodLastUpdated, time.Time{})
+	}
+	if info.PodLastUpdated[podNumber].After(event.GetCreated()) {
+		// skipping event as it is out of time order
+		return
+	}
+	info.PodLastUpdated[podNumber] = event.GetCreated()
+	info.PodStatus[podNumber] = status
+
+	//if info.Status == Cancelled {
+	//	// cancelled is final state
+	//	return
+	//}
+
+	stateCounts := map[PodStatus]uint{}
+	lastPodUpdate := time.Time{}
+	for i, s := range info.PodStatus {
+		stateCounts[s]++
+		if info.PodLastUpdated[i].After(lastPodUpdate) {
+			lastPodUpdate = info.PodLastUpdated[i]
+		}
+	}
+
+	if info.LastUpdate.After(lastPodUpdate) {
+		//job state is newer than all pod updates
+		return
+	}
+	info.LastUpdate = lastPodUpdate
+
+	if stateCounts[Failed] > 0 {
+		info.Status = Failed
+	} else if stateCounts[Pending] > 0 {
+		info.Status = Pending
+	} else if stateCounts[Running] > 0 {
+		info.Status = Running
+	} else {
+		info.Status = Succeeded
 	}
 }
 
@@ -222,6 +282,7 @@ func isLifeCycleEvent(event api.Event) bool {
 		return true
 	case *api.JobLeaseExpiredEvent:
 		return true
+
 	case *api.JobPendingEvent:
 		return true
 	case *api.JobRunningEvent:
@@ -230,9 +291,9 @@ func isLifeCycleEvent(event api.Event) bool {
 		return true
 	case *api.JobSucceededEvent:
 		return true
+
 	case *api.JobCancelledEvent:
 		return true
-
 	case *api.JobUnableToScheduleEvent:
 		return false
 	case *api.JobReprioritizedEvent:
@@ -241,6 +302,21 @@ func isLifeCycleEvent(event api.Event) bool {
 		return false
 	case *api.JobUtilisationEvent:
 		return false
+	default:
+		return false
+	}
+}
+
+func isPodEvent(event api.Event) bool {
+	switch event.(type) {
+	case *api.JobPendingEvent:
+		return true
+	case *api.JobRunningEvent:
+		return true
+	case *api.JobFailedEvent:
+		return true
+	case *api.JobSucceededEvent:
+		return true
 	default:
 		return false
 	}
