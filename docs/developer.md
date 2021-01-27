@@ -6,8 +6,8 @@ There are many ways you can setup you local environment, this is just a basic qu
 
 ### Pre-requisites
 To follow this section it is assumed you have:
-* Golang >= 1.12 installed (https://golang.org/doc/install)
-* `kubectl` installed (https://kubernetes.io/docs/tasks/tools/install-kubectl/)
+* Golang >= 1.12 installed [https://golang.org/doc/install](https://golang.org/doc/install)
+* `kubectl` installed [https://kubernetes.io/docs/tasks/tools/install-kubectl/](https://kubernetes.io/docs/tasks/tools/install-kubectl/)
 * Docker installed, configured for the current user
 * This repository cloned. The guide will assume you are in the root directory of this repository
 
@@ -137,7 +137,7 @@ go run ./cmd/armadactl/main.go submit ./example/jobs.yaml
 go run ./cmd/armadactl/main.go watch test job-set-1
 ```
 
-For more details on submitting jobs to Armada, see [here](usage.md#submitting-jobs).
+For more details on submitting jobs to Armada, see [here](https://github.com/G-Research/armada/blob/master/docs/user.md).
 
 Once you submit jobs, you should be able to see pods appearing in your cluster(s), running what you submitted.
 
@@ -194,7 +194,7 @@ kubectl apply -f https://gist.githubusercontent.com/hjacobs/69b6844ba8442fcbc200
 
 ### Command-line tools
 
-Our command-line tools used the cobra framework (https://github.com/spf13/cobra).
+Our command-line tools used the cobra framework [https://github.com/spf13/cobra](https://github.com/spf13/cobra).
 
 You can use the cobra cli to add new commands, the below will describe how to add new commands for `armadactl` but it can be applied to any of our command line tools.
 

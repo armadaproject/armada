@@ -7,6 +7,7 @@ import (
 	"github.com/doug-martin/goqu/v9"
 	_ "github.com/lib/pq"
 
+	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/pkg/api"
 )
 
@@ -54,7 +55,7 @@ func (r *SQLJobStore) RecordJobPriorityChange(event *api.JobReprioritizedEvent) 
 func (r *SQLJobStore) RecordJobPending(event *api.JobPendingEvent) error {
 	fields := []string{"created"}
 	values := []interface{}{event.Created}
-	return r.updateJobRun(event, fields, values)
+	return r.updateJobRun(event, event.KubernetesId, fields, values)
 }
 
 func (r *SQLJobStore) RecordJobRunning(event *api.JobRunningEvent) error {
@@ -64,7 +65,7 @@ func (r *SQLJobStore) RecordJobRunning(event *api.JobRunningEvent) error {
 		fields = append(fields, "node")
 		values = append(values, event.NodeName)
 	}
-	return r.updateJobRun(event, fields, values)
+	return r.updateJobRun(event, event.KubernetesId, fields, values)
 }
 
 func (r *SQLJobStore) RecordJobSucceeded(event *api.JobSucceededEvent) error {
@@ -74,12 +75,19 @@ func (r *SQLJobStore) RecordJobSucceeded(event *api.JobSucceededEvent) error {
 		fields = append(fields, "node")
 		values = append(values, event.NodeName)
 	}
-	return r.updateJobRun(event, fields, values)
+	return r.updateJobRun(event, event.KubernetesId, fields, values)
 }
 
 func (r *SQLJobStore) RecordJobFailed(event *api.JobFailedEvent) error {
 	fields := []string{"finished", "succeeded", "error"}
 	values := []interface{}{event.Created, false, fmt.Sprintf("%.2048s", event.Reason)}
+
+	// If job fails before a pod is created, we generate a new ULID
+	k8sId := event.KubernetesId
+	if k8sId == "" {
+		k8sId = util.NewULID() + "-nopod"
+	}
+
 	if event.NodeName != "" {
 		fields = append(fields, "node")
 		values = append(values, event.NodeName)
@@ -89,18 +97,18 @@ func (r *SQLJobStore) RecordJobFailed(event *api.JobFailedEvent) error {
 	for name, code := range event.ExitCodes {
 		_, err := upsertCombinedKey(r.db, "job_run_container",
 			[]string{"run_id", "container_name"}, []string{"exit_code"},
-			[]interface{}{event.KubernetesId, name, code})
+			[]interface{}{k8sId, name, code})
 		if err != nil {
 			return err
 		}
 	}
 
-	return r.updateJobRun(event, fields, values)
+	return r.updateJobRun(event, k8sId, fields, values)
 }
 
-func (r *SQLJobStore) updateJobRun(event api.KubernetesEvent, fields []string, values []interface{}) error {
+func (r *SQLJobStore) updateJobRun(event api.KubernetesEvent, k8sId string, fields []string, values []interface{}) error {
 	_, err := upsert(r.db, "job_run",
 		"run_id", append([]string{"job_id", "cluster"}, fields...),
-		append([]interface{}{event.GetKubernetesId(), event.GetJobId(), event.GetClusterId()}, values...))
+		append([]interface{}{k8sId, event.GetJobId(), event.GetClusterId()}, values...))
 	return err
 }
