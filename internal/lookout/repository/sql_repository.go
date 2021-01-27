@@ -49,15 +49,16 @@ var (
 	job_job       = goqu.I("job.job")
 
 	// Columns: job_run table
-	jobRun_runId     = goqu.I("job_run.run_id")
-	jobRun_jobId     = goqu.I("job_run.job_id")
-	jobRun_cluster   = goqu.I("job_run.cluster")
-	jobRun_node      = goqu.I("job_run.node")
-	jobRun_created   = goqu.I("job_run.created")
-	jobRun_started   = goqu.I("job_run.started")
-	jobRun_finished  = goqu.I("job_run.finished")
-	jobRun_succeeded = goqu.I("job_run.succeeded")
-	jobRun_error     = goqu.I("job_run.error")
+	jobRun_runId            = goqu.I("job_run.run_id")
+	jobRun_jobId            = goqu.I("job_run.job_id")
+	jobRun_cluster          = goqu.I("job_run.cluster")
+	jobRun_node             = goqu.I("job_run.node")
+	jobRun_created          = goqu.I("job_run.created")
+	jobRun_started          = goqu.I("job_run.started")
+	jobRun_finished         = goqu.I("job_run.finished")
+	jobRun_succeeded        = goqu.I("job_run.succeeded")
+	jobRun_error            = goqu.I("job_run.error")
+	jobRun_unableToSchedule = goqu.I("job_run.unable_to_schedule")
 )
 
 type JobRow struct {

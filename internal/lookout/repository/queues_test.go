@@ -36,11 +36,13 @@ func TestGetQueueInfos_Counts(t *testing.T) {
 		NewJobSimulator(t, jobStore, &DefaultClock{}).
 			CreateJob(queue).
 			Pending(cluster, "a1").
+			UnableToSchedule(cluster, "a1", node).
 			Pending(cluster, "a2")
 
 		NewJobSimulator(t, jobStore, &DefaultClock{}).
 			CreateJob(queue).
 			Pending(cluster, "b1").
+			UnableToSchedule(cluster, "b1", node).
 			Running(cluster, "b2", node)
 
 		NewJobSimulator(t, jobStore, &DefaultClock{}).
@@ -49,6 +51,7 @@ func TestGetQueueInfos_Counts(t *testing.T) {
 		NewJobSimulator(t, jobStore, &DefaultClock{}).
 			CreateJob(queue).
 			Pending(cluster, "c1").
+			UnableToSchedule(cluster, "c1", node).
 			Running(cluster, "c2", node).
 			Succeeded(cluster, "c2", node)
 
@@ -228,21 +231,25 @@ func TestGetQueueInfos_IncludeLongestRunningJob(t *testing.T) {
 		NewJobSimulator(t, jobStore, NewIncrementClock(*Increment(time1, 10))).
 			CreateJob(queue).
 			Pending(cluster, "a1").
+			UnableToSchedule(cluster, "a1", node).
 			Running(cluster, "a2", node)
 
 		NewJobSimulator(t, jobStore, NewIncrementClock(*Increment(time1, 5))).
 			CreateJob(queue).
 			Pending(cluster, "b1").
+			UnableToSchedule(cluster, "b1", node).
 			Running(cluster, "b2", node)
 
 		longestRunning := NewJobSimulator(t, jobStore, NewIncrementClock(*Increment(time1, 1))).
 			CreateJob(queue).
 			Pending(cluster, "d1").
+			UnableToSchedule(cluster, "d1", node).
 			Running(cluster, "d2", node)
 
 		NewJobSimulator(t, jobStore, NewIncrementClock(time1)).
 			CreateJob(queue).
 			Running(cluster, "e1", node).
+			UnableToSchedule(cluster, "e1", node).
 			Succeeded(cluster, "e2", node)
 
 		NewJobSimulator(t, jobStore, NewIncrementClock(time1)).
@@ -306,16 +313,19 @@ func TestGetQueueInfos_MultipleQueues(t *testing.T) {
 		NewJobSimulator(t, jobStore, NewIncrementClock(*Increment(startTime, 5))).
 			CreateJob(queue).
 			Pending(cluster, "b1").
+			UnableToSchedule(cluster, "b1", node).
 			Running(cluster, "b2", node)
 
 		longestRunning1 := NewJobSimulator(t, jobStore, NewIncrementClock(startTime)).
 			CreateJob(queue).
 			Pending(cluster, "c1").
+			UnableToSchedule(cluster, "c1", node).
 			Running(cluster, "c2", node)
 
 		NewJobSimulator(t, jobStore, NewIncrementClock(startTime)).
 			CreateJob(queue).
 			Pending(cluster, "d1").
+			UnableToSchedule(cluster, "d1", node).
 			Running(cluster, "d2", node).
 			Succeeded(cluster, "d2", node)
 
@@ -345,6 +355,7 @@ func TestGetQueueInfos_MultipleQueues(t *testing.T) {
 		NewJobSimulator(t, jobStore, NewIncrementClock(*Increment(startTime, 1))).
 			CreateJob(queue2).
 			Pending(cluster, "h1").
+			UnableToSchedule(cluster, "h1", node).
 			Running(cluster, "h2", node)
 
 		queueInfos, err := jobRepo.GetQueueInfos(ctx)

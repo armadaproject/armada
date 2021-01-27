@@ -157,6 +157,7 @@ jobs:
           name: Check generated files
           command: |
             make proto
+            make generate
             git status -s -uno 
             exit $(git status -s -uno | wc -l)
 

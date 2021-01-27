@@ -201,6 +201,44 @@ func Test_EmptyRunId(t *testing.T) {
 	})
 }
 
+func Test_UnableToSchedule(t *testing.T) {
+	withDatabase(t, func(db *goqu.Database) {
+		jobStore := NewSQLJobStore(db)
+
+		job := &api.Job{
+			Id:          util.NewULID(),
+			JobSetId:    "job-set",
+			Queue:       "queue",
+			Namespace:   "nameSpace",
+			Labels:      nil,
+			Annotations: nil,
+			Owner:       "user",
+			Priority:    0,
+			PodSpec:     &v1.PodSpec{},
+			Created:     time.Now(),
+		}
+		err := jobStore.RecordJob(job)
+		assert.NoError(t, err)
+
+		err = jobStore.RecordJobUnableToSchedule(&api.JobUnableToScheduleEvent{
+			JobId:        job.Id,
+			JobSetId:     job.JobSetId,
+			Queue:        job.Queue,
+			Created:      time.Now(),
+			ClusterId:    cluster,
+			Reason:       "other error",
+			KubernetesId: util.NewULID(),
+			NodeName:     "node-2",
+		})
+		assert.NoError(t, err)
+
+		assert.Equal(t, 1, count(t, db,
+			"SELECT count(*) FROM job_run WHERE job_run.unable_to_schedule = TRUE"))
+		assert.Equal(t, 1, count(t, db,
+			"SELECT count(*) FROM job_run WHERE job_run.finished IS NOT NULL"))
+	})
+}
+
 func count(t *testing.T, db *goqu.Database, query string) int {
 	r, err := db.Query(query)
 	assert.NoError(t, err)

@@ -349,6 +349,9 @@
         },
         "succeeded": {
           "type": "boolean"
+        },
+        "unableToSchedule": {
+          "type": "boolean"
         }
       }
     },

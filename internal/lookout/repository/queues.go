@@ -53,10 +53,14 @@ func (r *SQLJobRepository) getQueuesSql() (string, error) {
 		Select(
 			job_jobId,
 			job_queue,
-			goqu.MAX(jobRun_created).As("created"),
-			goqu.MAX(jobRun_started).As("started")).
-		GroupBy(job_jobId).
-		Having(goqu.And(goqu.MAX(jobRun_finished).IsNull(), job_cancelled.IsNull())).
+			jobRun_created,
+			jobRun_started).
+		Where(goqu.And(
+			job_cancelled.IsNull(),
+			jobRun_finished.IsNull(),
+			jobRun_unableToSchedule.IsNull())).
+		// GroupBy(job_jobId).
+		// Having(goqu.And(goqu.MAX(jobRun_finished).IsNull(), job_cancelled.IsNull())).
 		As("counts_sub") // Identify unique created and started jobs
 
 	countsDs := r.goquDb.
