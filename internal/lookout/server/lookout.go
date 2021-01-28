@@ -35,21 +35,10 @@ func (s *LookoutServer) GetJobSets(ctx context.Context, opts *lookout.GetJobSets
 	return &lookout.GetJobSetsResponse{JobSetInfos: jobSets}, nil
 }
 
-func (s *LookoutServer) GetJobsInQueue(ctx context.Context, opts *lookout.GetJobsInQueueRequest) (*lookout.GetJobsInQueueResponse, error) {
-	jobInfos, err := s.jobRepository.GetJobsInQueue(ctx, opts)
+func (s *LookoutServer) GetJobs(ctx context.Context, opts *lookout.GetJobsRequest) (*lookout.GetJobsResponse, error) {
+	jobInfos, err := s.jobRepository.GetJobs(ctx, opts)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to query jobs in queue: %s", err)
 	}
-	return &lookout.GetJobsInQueueResponse{JobInfos: jobInfos}, nil
-}
-
-func (s *LookoutServer) GetJob(ctx context.Context, opts *lookout.GetJobRequest) (*lookout.JobInfo, error) {
-	job, err := s.jobRepository.GetJob(ctx, opts.JobId)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to query job: %s", err)
-	}
-	if job == nil {
-		return nil, status.Errorf(codes.NotFound, "job with id %q not found", opts.JobId)
-	}
-	return job, nil
+	return &lookout.GetJobsResponse{JobInfos: jobInfos}, nil
 }

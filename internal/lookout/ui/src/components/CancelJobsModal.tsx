@@ -1,22 +1,22 @@
 import React from "react"
-import {
-  Backdrop,
-  createStyles,
-  Fade,
-  Modal,
-} from "@material-ui/core";
+import { Backdrop, createStyles, Fade, Modal, } from "@material-ui/core";
 import { makeStyles } from "@material-ui/core/styles";
 
 import { CancelJobsResult, Job } from "../services/JobService";
-import { CancelJobsRequestStatus, ModalState } from "../containers/JobsContainer";
+import { CancelJobsRequestStatus } from "../containers/JobsContainer";
 import CancelJobs from "./CancelJobs";
 import CancelJobsOutcome from "./CancelJobsOutcome";
 
-interface CancelJobsDialogProps {
-  currentOpenModal: ModalState
+export type CancelJobsModalState = "CancelJobs" | "CancelJobsResult" | "None"
+
+export interface CancelJobsModalContext {
+  modalState: CancelJobsModalState
   jobsToCancel: Job[]
   cancelJobsResult: CancelJobsResult
   cancelJobsRequestStatus: CancelJobsRequestStatus
+}
+
+interface CancelJobsDialogProps extends CancelJobsModalContext {
   onCancelJobs: () => void
   onClose: () => void
 }
@@ -33,11 +33,11 @@ const useStyles = makeStyles(() =>
 
 export default function CancelJobsModal(props: CancelJobsDialogProps) {
   const classes = useStyles()
-  const isOpen = props.currentOpenModal === "CancelJobs" || props.currentOpenModal === "CancelJobsResult"
+  const isOpen = props.modalState === "CancelJobs" || props.modalState === "CancelJobsResult"
   const isLoading = props.cancelJobsRequestStatus === "Loading"
 
   let content = <div/>
-  if (props.currentOpenModal === "CancelJobs") {
+  if (props.modalState === "CancelJobs") {
     content = (
       <CancelJobs
         jobsToCancel={props.jobsToCancel}
@@ -45,7 +45,7 @@ export default function CancelJobsModal(props: CancelJobsDialogProps) {
         onCancelJobs={props.onCancelJobs}/>
     )
   }
-  if (props.currentOpenModal === "CancelJobsResult") {
+  if (props.modalState === "CancelJobsResult") {
     content = (
       <CancelJobsOutcome
         cancelJobsResult={props.cancelJobsResult}

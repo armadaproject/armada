@@ -16,30 +16,23 @@ import MoreVert from "@material-ui/icons/MoreVert"
 import RefreshIcon from "@material-ui/icons/Refresh"
 
 import { QueueInfo } from "../services/JobService";
-import { ModalState } from "../containers/OverviewContainer";
-import JobDetailModal from "./JobDetailModal";
 
 import './Overview.css'
 
 interface OverviewProps {
   queueInfos: QueueInfo[]
-  modalState: ModalState
-  modalQueue: string
   openQueueMenu: string
   queueMenuAnchor: HTMLElement | null
   onRefresh: () => void
-  onSetModalState: (modalState: ModalState, modalQueue: string) => void
+  onJobClick: (jobId: string, queue: string) => void
   onSetQueueMenu: (queue: string, anchor: HTMLElement | null) => void
   onQueueMenuJobSetsClick: (queue: string) => void
   onQueueMenuJobsClick: (queue: string) => void
 }
 
 export default function Overview(props: OverviewProps) {
-  const modal = getModal(props)
-
   return (
     <Container className="overview">
-      {modal}
       <TableContainer component={Paper}>
         <div className="overview-header">
           <h2 className="title">Overview</h2>
@@ -65,7 +58,7 @@ export default function Overview(props: OverviewProps) {
             </TableRow>
           </TableHead>
           <TableBody>
-            {props.queueInfos.map(q =>
+            {props.queueInfos.map(q => (
               <TableRow key={q.queue}>
                 <TableCell component="th" scope="row">
                   {q.queue}
@@ -76,18 +69,22 @@ export default function Overview(props: OverviewProps) {
                 <TableCell align="center" className="duration-cell">
                   <div
                     className={q.oldestQueuedJob ? "link" : ""}
-                    onClick={q.oldestQueuedJob ?
-                      () => props.onSetModalState("OldestQueued", q.queue) :
-                      () => {}}>
+                    onClick={() => {
+                      if (q.oldestQueuedJob) {
+                        props.onJobClick(q.oldestQueuedJob.jobId, q.queue)
+                      }
+                    }}>
                     {q.oldestQueuedDuration}
                   </div>
                 </TableCell>
                 <TableCell align="center" className="duration-cell">
                   <div
                     className={q.longestRunningJob ? "link" : ""}
-                    onClick={q.longestRunningJob ?
-                      () => props.onSetModalState("LongestRunning", q.queue) :
-                      () => {}}>
+                    onClick={() => {
+                      if (q.longestRunningJob) {
+                        props.onJobClick(q.longestRunningJob.jobId, q.queue)
+                      }
+                    }}>
                     {q.longestRunningDuration}
                   </div>
                 </TableCell>
@@ -98,7 +95,7 @@ export default function Overview(props: OverviewProps) {
                     onClick={(event) => {
                       props.onSetQueueMenu(q.queue, event.currentTarget)
                     }}>
-                    <MoreVert />
+                    <MoreVert/>
                   </IconButton>
                   <Menu
                     anchorEl={props.queueMenuAnchor}
@@ -108,37 +105,11 @@ export default function Overview(props: OverviewProps) {
                     <MenuItem onClick={() => props.onQueueMenuJobsClick(q.queue)}>Jobs</MenuItem>
                   </Menu>
                 </TableCell>
-              </TableRow>
+              </TableRow>)
             )}
           </TableBody>
         </Table>
       </TableContainer>
     </Container>
   )
-}
-
-function getModal(props: OverviewProps) {
-  const queueInfoForModal = props.queueInfos.find(queueInfo => queueInfo.queue === props.modalQueue)
-
-  if (queueInfoForModal && queueInfoForModal.oldestQueuedJob && props.modalState === "OldestQueued") {
-    return (
-      <JobDetailModal
-        title={"Oldest Queued Job"}
-        job={queueInfoForModal.oldestQueuedJob}
-        isOpen={true}
-        onClose={() => props.onSetModalState("None", "")}/>
-    )
-  }
-
-  if (queueInfoForModal && queueInfoForModal.longestRunningJob && props.modalState === "LongestRunning") {
-    return (
-      <JobDetailModal
-        title={"Longest Running Job"}
-        job={queueInfoForModal.longestRunningJob}
-        isOpen={true}
-        onClose={() => props.onSetModalState("None", "")}/>
-    )
-  }
-
-  return <></>
 }

@@ -1,4 +1,4 @@
-import { LookoutApi, LookoutJobInfo, LookoutJobSetInfo, LookoutQueueInfo } from '../openapi/lookout'
+import { LookoutApi, LookoutJobInfo, LookoutJobSetInfo, LookoutQueueInfo, LookoutRunInfo } from '../openapi/lookout'
 import { SubmitApi } from '../openapi/armada'
 import { reverseMap } from "../utils";
 
@@ -23,14 +23,37 @@ export type JobSet = {
   jobsFailed: number
 }
 
+export interface GetJobsRequest {
+  queue: string,
+  take: number,
+  skip: number,
+  jobSets: string[],
+  newestFirst: boolean,
+  jobStates: string[],
+  jobId: string,
+}
+
 export type Job = {
   jobId: string
   queue: string
   owner: string
   jobSet: string
+  priority: number
   submissionTime: string
+  cancelledTime?: string
   jobState: string
-  cluster?: string
+  runs: Run[]
+}
+
+export type Run = {
+  k8sId: string
+  cluster: string
+  node?: string
+  succeeded: boolean
+  error?: string
+  podCreationTime?: string
+  podStartTime?: string
+  finishTime?: string
 }
 
 export type CancelJobsResult = {
@@ -94,25 +117,19 @@ export default class JobService {
     return jobSetsFromApi.jobSetInfos.map(jobSetToViewModel)
   }
 
-  async getJobsInQueue(
-    queue: string,
-    take: number,
-    skip: number,
-    jobSets: string[],
-    newestFirst: boolean,
-    jobStates: string[],
-  ): Promise<Job[]> {
-    const jobStatesForApi = jobStates.map(getJobStateForApi)
-    const jobSetsForApi = jobSets.map(escapeBackslashes)
+  async getJobsInQueue(getJobsRequest: GetJobsRequest): Promise<Job[]> {
+    const jobStatesForApi = getJobsRequest.jobStates.map(getJobStateForApi)
+    const jobSetsForApi = getJobsRequest.jobSets.map(escapeBackslashes)
     try {
-      const response = await this.lookoutApi.getJobsInQueue({
+      const response = await this.lookoutApi.getJobs({
         body: {
-          queue: queue,
-          take: take,
-          skip: skip,
+          queue: getJobsRequest.queue,
+          take: getJobsRequest.take,
+          skip: getJobsRequest.skip,
           jobSetIds: jobSetsForApi,
-          newestFirst: newestFirst,
+          newestFirst: getJobsRequest.newestFirst,
           jobStates: jobStatesForApi,
+          jobId: getJobsRequest.jobId,
         }
       });
       if (response.jobInfos) {
@@ -142,6 +159,7 @@ export default class JobService {
           result.cancelledJobs.push(job)
         }
       } catch (e) {
+        console.log("HIT")
         console.error(e)
         result.failedJobCancellations.push({ job: job, error: e.toString() })
       }
@@ -231,18 +249,22 @@ function jobInfoToViewModel(jobInfo: LookoutJobInfo): Job {
   const queue = jobInfo.job?.queue ?? "-"
   const owner = jobInfo.job?.owner ?? "-"
   const jobSet = jobInfo.job?.jobSetId ?? "-"
+  const priority = jobInfo.job?.priority ?? 0
   const submissionTime = dateToString(jobInfo.job?.created ?? new Date())
+  const cancelledTime = jobInfo.cancelled ? dateToString(jobInfo.cancelled) : undefined
   const jobState = JOB_STATE_MAP.get(jobInfo.jobState ?? "") ?? "Unknown"
-  const cluster = getCurrentCluster(jobInfo)
+  const runs = getRuns(jobInfo)
 
   return {
     jobId: jobId,
     queue: queue,
     owner: owner,
     jobSet: jobSet,
+    priority: priority,
     submissionTime: submissionTime,
+    cancelledTime: cancelledTime,
     jobState: jobState,
-    cluster: cluster,
+    runs: runs,
   }
 }
 
@@ -253,13 +275,25 @@ function dateToString(date: Date): string {
   })
 }
 
-function getCurrentCluster(jobInfo: LookoutJobInfo): string | undefined {
+function getRuns(jobInfo: LookoutJobInfo): Run[] {
   if (!jobInfo.runs || jobInfo.runs.length === 0) {
-    return undefined
+    return []
   }
 
-  const lastRun = jobInfo.runs[jobInfo.runs.length - 1]
-  return lastRun.cluster
+  return jobInfo.runs.map(runInfoToViewModel)
+}
+
+function runInfoToViewModel(run: LookoutRunInfo): Run {
+  return {
+    k8sId: run.k8sId ?? "Unknown Kubernetes id",
+    cluster: run.cluster ?? "Unknown cluster",
+    node: run.node,
+    succeeded: run.succeeded ?? false,
+    error: run.error,
+    podCreationTime: run.created ? dateToString(run.created) : undefined,
+    podStartTime: run.started ? dateToString(run.started) : undefined,
+    finishTime: run.finished ? dateToString(run.finished) : undefined,
+  }
 }
 
 function getJobStateForApi(displayedJobState: string): string {
