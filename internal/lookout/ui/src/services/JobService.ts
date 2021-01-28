@@ -244,24 +244,6 @@ function getDurationString(durationFromApi: any): string {
   return segments.join(" ")
 }
 
-const TEST_RUNS = [
-  {
-    k8sId: "0001",
-    cluster: "a",
-    node: "node",
-    succeeded: false,
-    error: "With this utility you generate a 16 character output based on your input of numbers and upper and lower case letters.  Random strings can be unique. Used in computing, a random string generator can also be called a random character string generator. This is an important tool if you want to generate a unique set of strings. The utility generates a sequence that lacks a pattern and is random.",
-    podCreationTime: "a time",
-  },
-  {
-    k8sId: "0002",
-    cluster: "b",
-    node: "node",
-    succeeded: false,
-    podCreationTime: "another time",
-  },
-]
-
 function jobInfoToViewModel(jobInfo: LookoutJobInfo): Job {
   const jobId = jobInfo.job?.id ?? "-"
   const queue = jobInfo.job?.queue ?? "-"
@@ -272,8 +254,6 @@ function jobInfoToViewModel(jobInfo: LookoutJobInfo): Job {
   const cancelledTime = jobInfo.cancelled ? dateToString(jobInfo.cancelled) : undefined
   const jobState = JOB_STATE_MAP.get(jobInfo.jobState ?? "") ?? "Unknown"
   const runs = getRuns(jobInfo)
-
-  runs.unshift(...TEST_RUNS)
 
   return {
     jobId: jobId,
