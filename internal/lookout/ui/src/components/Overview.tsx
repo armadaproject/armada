@@ -24,7 +24,7 @@ interface OverviewProps {
   openQueueMenu: string
   queueMenuAnchor: HTMLElement | null
   onRefresh: () => void
-  onJobClick: (jobId: string) => void
+  onJobClick: (jobId: string, queue: string) => void
   onSetQueueMenu: (queue: string, anchor: HTMLElement | null) => void
   onQueueMenuJobSetsClick: (queue: string) => void
   onQueueMenuJobsClick: (queue: string) => void
@@ -71,7 +71,7 @@ export default function Overview(props: OverviewProps) {
                     className={q.oldestQueuedJob ? "link" : ""}
                     onClick={() => {
                       if (q.oldestQueuedJob) {
-                        props.onJobClick(q.oldestQueuedJob.jobId)
+                        props.onJobClick(q.oldestQueuedJob.jobId, q.queue)
                       }
                     }}>
                     {q.oldestQueuedDuration}
@@ -82,7 +82,7 @@ export default function Overview(props: OverviewProps) {
                     className={q.longestRunningJob ? "link" : ""}
                     onClick={() => {
                       if (q.longestRunningJob) {
-                        props.onJobClick(q.longestRunningJob.jobId)
+                        props.onJobClick(q.longestRunningJob.jobId, q.queue)
                       }
                     }}>
                     {q.longestRunningDuration}

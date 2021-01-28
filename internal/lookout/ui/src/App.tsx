@@ -9,7 +9,6 @@ import JobsContainer from "./containers/JobsContainer";
 import NavBar from "./components/NavBar";
 
 import './App.css';
-import JobDetailsContainer from "./containers/JobDetailsContainer";
 
 const theme = createMuiTheme({
   palette: {
@@ -51,9 +50,6 @@ export function App(services: { jobService: JobService; }) {
               </Route>
               <Route exact path="/jobs">
                 <JobsContainer jobService={services.jobService} />
-              </Route>
-              <Route exact path="/job-details">
-                <JobDetailsContainer jobService={services.jobService} />
               </Route>
             </Switch>
           </div>

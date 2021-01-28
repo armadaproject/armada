@@ -1,17 +1,11 @@
 import React from 'react'
-
 import {
-  Container,
-  IconButton,
-  Paper,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableRow,
-  TextField,
 } from "@material-ui/core";
-import RefreshIcon from "@material-ui/icons/Refresh";
 
 import { Job } from "../../services/JobService";
 import { RunDetailsRows } from "./RunDetailsRows";
@@ -19,22 +13,13 @@ import { SchedulingHistory } from "./SchedulingHistory";
 
 import './Details.css'
 
-interface JobDetailsProps {
-  jobId: string
-  job?: Job
-  expandedItems: Set<string>
-  onJobIdChange: (jobId: string) => void
-  onRefresh: () => void
-  onToggleExpand: (k8sId: string, isExpanded: boolean) => void
-}
-
 interface DetailsProps {
   job: Job
   expandedItems: Set<string>
   onToggleExpand: (k8sId: string, isExpanded: boolean) => void
 }
 
-function Details(props: DetailsProps) {
+export default function JobDetails(props: DetailsProps) {
   const lastRun = props.job.runs.length > 0 ? props.job.runs[props.job.runs.length - 1] : null
   const initRuns = props.job.runs.length > 1 ? props.job.runs.slice(0, -1).reverse() : null
 
@@ -80,7 +65,7 @@ function Details(props: DetailsProps) {
               <TableCell className="field-label">Cancelled</TableCell>
               <TableCell>{props.job.cancelledTime}</TableCell>
             </TableRow>}
-            {lastRun && <RunDetailsRows run={lastRun}/>}
+            {lastRun && <RunDetailsRows run={lastRun} />}
           </TableBody>
         </Table>
       </TableContainer>
@@ -90,37 +75,5 @@ function Details(props: DetailsProps) {
         expandedItems={props.expandedItems}
         onToggleExpand={props.onToggleExpand}/>}
     </div>
-  )
-}
-
-export default function JobDetails(props: JobDetailsProps) {
-  return (
-    <Container className="job-details">
-      <Paper>
-        <div className="job-details-header">
-          <h2 className="title">Job details</h2>
-          <TextField
-            value={props.jobId}
-            onChange={(event) => {
-              props.onJobIdChange(event.target.value)
-            }}
-            label="Id"
-            variant="outlined"/>
-          <div className="refresh-button">
-            <IconButton
-              title={"Refresh"}
-              onClick={props.onRefresh}
-              color={"primary"}>
-              <RefreshIcon/>
-            </IconButton>
-          </div>
-        </div>
-        {props.job &&
-        <Details
-          job={props.job}
-          expandedItems={props.expandedItems}
-          onToggleExpand={props.onToggleExpand} />}
-      </Paper>
-    </Container>
   )
 }

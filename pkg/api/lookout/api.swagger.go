@@ -27,14 +27,14 @@ func SwaggerJsonTemplate() string {
 		"        \"tags\": [\n" +
 		"          \"Lookout\"\n" +
 		"        ],\n" +
-		"        \"operationId\": \"GetJobsInQueue\",\n" +
+		"        \"operationId\": \"GetJobs\",\n" +
 		"        \"parameters\": [\n" +
 		"          {\n" +
 		"            \"name\": \"body\",\n" +
 		"            \"in\": \"body\",\n" +
 		"            \"required\": true,\n" +
 		"            \"schema\": {\n" +
-		"              \"$ref\": \"#/definitions/lookoutGetJobsInQueueRequest\"\n" +
+		"              \"$ref\": \"#/definitions/lookoutGetJobsRequest\"\n" +
 		"            }\n" +
 		"          }\n" +
 		"        ],\n" +
@@ -42,37 +42,7 @@ func SwaggerJsonTemplate() string {
 		"          \"200\": {\n" +
 		"            \"description\": \"A successful response.\",\n" +
 		"            \"schema\": {\n" +
-		"              \"$ref\": \"#/definitions/lookoutGetJobsInQueueResponse\"\n" +
-		"            }\n" +
-		"          },\n" +
-		"          \"default\": {\n" +
-		"            \"description\": \"An unexpected error response.\",\n" +
-		"            \"schema\": {\n" +
-		"              \"$ref\": \"#/definitions/runtimeError\"\n" +
-		"            }\n" +
-		"          }\n" +
-		"        }\n" +
-		"      }\n" +
-		"    },\n" +
-		"    \"/api/v1/lookout/jobs/{jobId}\": {\n" +
-		"      \"get\": {\n" +
-		"        \"tags\": [\n" +
-		"          \"Lookout\"\n" +
-		"        ],\n" +
-		"        \"operationId\": \"GetJob\",\n" +
-		"        \"parameters\": [\n" +
-		"          {\n" +
-		"            \"type\": \"string\",\n" +
-		"            \"name\": \"jobId\",\n" +
-		"            \"in\": \"path\",\n" +
-		"            \"required\": true\n" +
-		"          }\n" +
-		"        ],\n" +
-		"        \"responses\": {\n" +
-		"          \"200\": {\n" +
-		"            \"description\": \"A successful response.\",\n" +
-		"            \"schema\": {\n" +
-		"              \"$ref\": \"#/definitions/lookoutJobInfo\"\n" +
+		"              \"$ref\": \"#/definitions/lookoutGetJobsResponse\"\n" +
 		"            }\n" +
 		"          },\n" +
 		"          \"default\": {\n" +
@@ -232,9 +202,12 @@ func SwaggerJsonTemplate() string {
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
-		"    \"lookoutGetJobsInQueueRequest\": {\n" +
+		"    \"lookoutGetJobsRequest\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
+		"        \"jobId\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
 		"        \"jobSetIds\": {\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
@@ -263,7 +236,7 @@ func SwaggerJsonTemplate() string {
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
-		"    \"lookoutGetJobsInQueueResponse\": {\n" +
+		"    \"lookoutGetJobsResponse\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
 		"        \"jobInfos\": {\n" +

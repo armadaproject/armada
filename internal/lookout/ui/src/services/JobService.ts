@@ -23,6 +23,16 @@ export type JobSet = {
   jobsFailed: number
 }
 
+export interface GetJobsRequest {
+  queue: string,
+  take: number,
+  skip: number,
+  jobSets: string[],
+  newestFirst: boolean,
+  jobStates: string[],
+  jobId: string,
+}
+
 export type Job = {
   jobId: string
   queue: string
@@ -107,25 +117,19 @@ export default class JobService {
     return jobSetsFromApi.jobSetInfos.map(jobSetToViewModel)
   }
 
-  async getJobsInQueue(
-    queue: string,
-    take: number,
-    skip: number,
-    jobSets: string[],
-    newestFirst: boolean,
-    jobStates: string[],
-  ): Promise<Job[]> {
-    const jobStatesForApi = jobStates.map(getJobStateForApi)
-    const jobSetsForApi = jobSets.map(escapeBackslashes)
+  async getJobsInQueue(getJobsRequest: GetJobsRequest): Promise<Job[]> {
+    const jobStatesForApi = getJobsRequest.jobStates.map(getJobStateForApi)
+    const jobSetsForApi = getJobsRequest.jobSets.map(escapeBackslashes)
     try {
-      const response = await this.lookoutApi.getJobsInQueue({
+      const response = await this.lookoutApi.getJobs({
         body: {
-          queue: queue,
-          take: take,
-          skip: skip,
+          queue: getJobsRequest.queue,
+          take: getJobsRequest.take,
+          skip: getJobsRequest.skip,
           jobSetIds: jobSetsForApi,
-          newestFirst: newestFirst,
+          newestFirst: getJobsRequest.newestFirst,
           jobStates: jobStatesForApi,
+          jobId: getJobsRequest.jobId,
         }
       });
       if (response.jobInfos) {
@@ -135,24 +139,6 @@ export default class JobService {
       console.error(await e.json())
     }
     return []
-  }
-
-  async getJob(jobId: string): Promise<Job | undefined> {
-    try {
-      const jobInfo = await this.lookoutApi.getJob({
-        jobId: jobId,
-      })
-      if (jobInfo) {
-        return jobInfoToViewModel(jobInfo)
-      }
-    } catch (e) {
-      const err = await e.json()
-      if (err.code && err.code === 5) {
-        return undefined
-      }
-      console.error(err)
-    }
-    return undefined
   }
 
   async cancelJobs(jobs: Job[]): Promise<CancelJobsResult> {
@@ -173,6 +159,7 @@ export default class JobService {
           result.cancelledJobs.push(job)
         }
       } catch (e) {
+        console.log("HIT")
         console.error(e)
         result.failedJobCancellations.push({ job: job, error: e.toString() })
       }
@@ -257,6 +244,24 @@ function getDurationString(durationFromApi: any): string {
   return segments.join(" ")
 }
 
+const TEST_RUNS = [
+  {
+    k8sId: "0001",
+    cluster: "a",
+    node: "node",
+    succeeded: false,
+    error: "With this utility you generate a 16 character output based on your input of numbers and upper and lower case letters.  Random strings can be unique. Used in computing, a random string generator can also be called a random character string generator. This is an important tool if you want to generate a unique set of strings. The utility generates a sequence that lacks a pattern and is random.",
+    podCreationTime: "a time",
+  },
+  {
+    k8sId: "0002",
+    cluster: "b",
+    node: "node",
+    succeeded: false,
+    podCreationTime: "another time",
+  },
+]
+
 function jobInfoToViewModel(jobInfo: LookoutJobInfo): Job {
   const jobId = jobInfo.job?.id ?? "-"
   const queue = jobInfo.job?.queue ?? "-"
@@ -267,6 +272,8 @@ function jobInfoToViewModel(jobInfo: LookoutJobInfo): Job {
   const cancelledTime = jobInfo.cancelled ? dateToString(jobInfo.cancelled) : undefined
   const jobState = JOB_STATE_MAP.get(jobInfo.jobState ?? "") ?? "Unknown"
   const runs = getRuns(jobInfo)
+
+  runs.unshift(...TEST_RUNS)
 
   return {
     jobId: jobId,

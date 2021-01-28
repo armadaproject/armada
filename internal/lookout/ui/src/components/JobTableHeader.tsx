@@ -22,11 +22,13 @@ type JobTableHeaderProps = {
   jobSet: string
   jobStates: string[]
   newestFirst: boolean
+  jobId: string
   canCancel: boolean
   onQueueChange: (queue: string) => void
   onJobSetChange: (jobSet: string) => void
   onJobStatesChange: (jobStates: string[]) => void
   onOrderChange: (newestFirst: boolean) => void
+  onJobIdChange: (jobId: string) => void
   onRefresh: () => void
   onCancelJobsClick: () => void
 }
@@ -74,6 +76,15 @@ export default function JobTableHeader(props: JobTableHeaderProps) {
               props.onJobSetChange(event.target.value)
             }}
             label="Job set"
+            variant="filled"/>
+        </div>
+        <div className="filter">
+          <TextField
+            value={props.jobId}
+            onChange={(event) => {
+              props.onJobIdChange(event.target.value)
+            }}
+            label="Job Id"
             variant="filled"/>
         </div>
         <div className="filter">
