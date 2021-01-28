@@ -2,7 +2,6 @@ package repository
 
 import (
 	"database/sql"
-	"github.com/G-Research/armada/pkg/api/lookout"
 	"strings"
 	"testing"
 	"time"
@@ -14,6 +13,7 @@ import (
 	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/lookout/repository/schema"
 	"github.com/G-Research/armada/pkg/api"
+	"github.com/G-Research/armada/pkg/api/lookout"
 )
 
 func Test_RecordEvents(t *testing.T) {
@@ -189,12 +189,12 @@ func Test_EmptyRunId(t *testing.T) {
 		})
 		assert.NoError(t, err)
 
-		received1, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{ JobId: job_1.Id})
+		received1, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{JobId: job_1.Id})
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(received1))
 		assert.Equal(t, JobStates.Failed, received1[0].JobState)
 
-		received2, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{ JobId: job_1.Id})
+		received2, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{JobId: job_1.Id})
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(received2))
 		assert.Equal(t, JobStates.Failed, received2[0].JobState)

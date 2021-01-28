@@ -1011,9 +1011,9 @@ func TestGetJobsInQueue_FilterByJobIdWithWrongJobSet(t *testing.T) {
 			Cancelled()
 
 		jobInfos, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
-			JobId: job.job.Id,
+			JobId:     job.job.Id,
 			JobSetIds: []string{"other-job-set"},
-			Take:  10,
+			Take:      10,
 		})
 		assert.NoError(t, err)
 		assert.Equal(t, 0, len(jobInfos))

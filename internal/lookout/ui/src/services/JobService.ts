@@ -244,6 +244,25 @@ function getDurationString(durationFromApi: any): string {
   return segments.join(" ")
 }
 
+const TEST_RUNS = [
+  {
+    k8sId: "0001",
+    cluster: "demoA",
+    node: "node-1",
+    succeeded: false,
+    error: "Error: Something bad!",
+    podCreationTime: dateToString(new Date(Date.now())),
+    podStartTime: dateToString(new Date(Date.now()))
+  },
+  {
+    k8sId: "0002",
+    cluster: "demoB",
+    node: "node-2",
+    succeeded: false,
+    podCreationTime: dateToString(new Date(Date.now())),
+  },
+]
+
 function jobInfoToViewModel(jobInfo: LookoutJobInfo): Job {
   const jobId = jobInfo.job?.id ?? "-"
   const queue = jobInfo.job?.queue ?? "-"
@@ -254,6 +273,8 @@ function jobInfoToViewModel(jobInfo: LookoutJobInfo): Job {
   const cancelledTime = jobInfo.cancelled ? dateToString(jobInfo.cancelled) : undefined
   const jobState = JOB_STATE_MAP.get(jobInfo.jobState ?? "") ?? "Unknown"
   const runs = getRuns(jobInfo)
+
+  runs.unshift(...TEST_RUNS)
 
   return {
     jobId: jobId,
