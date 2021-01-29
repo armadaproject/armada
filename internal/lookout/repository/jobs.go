@@ -237,6 +237,11 @@ func determineRunState(runInfo *lookout.RunInfo) JobState {
 }
 
 func determineJobState(jobInfo *lookout.JobInfo) {
+	if jobInfo.Cancelled != nil {
+		jobInfo.JobState = string(JobCancelled)
+		return
+	}
+
 	podStates := map[int32]JobState{}
 	for _, run := range jobInfo.Runs {
 		// this code assumes that runs are ordered by start
@@ -246,10 +251,6 @@ func determineJobState(jobInfo *lookout.JobInfo) {
 		podStates[run.PodNumber] = state
 	}
 
-	if jobInfo.Cancelled != nil {
-		jobInfo.JobState = string(JobCancelled)
-		return
-	}
 	if len(jobInfo.Runs) > 0 {
 
 		stateCounts := map[JobState]int{}

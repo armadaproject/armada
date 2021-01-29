@@ -7,8 +7,8 @@ export type QueueInfo = {
   jobsQueued: number
   jobsPending: number
   jobsRunning: number
-  oldestQueuedJob?: Job
-  longestRunningJob?: Job
+  oldestQueuedJob?: JobRun
+  longestRunningJob?: JobRun
   oldestQueuedDuration: string
   longestRunningDuration: string
 }
@@ -58,6 +58,7 @@ export type Run = {
 
 export type JobRun = Job & {
   podNumber: Number
+  runState: string | undefined
 }
 
 export type CancelJobsResult = {
@@ -177,19 +178,19 @@ function escapeBackslashes(str: string) {
 }
 
 function queueInfoToViewModel(queueInfo: LookoutQueueInfo): QueueInfo {
-  let oldestQueuedJob: Job | undefined
+  let oldestQueuedJob: JobRun | undefined
   let oldestQueuedDuration = "-"
   if (queueInfo.oldestQueuedJob) {
-    oldestQueuedJob = jobInfoToViewModel(queueInfo.oldestQueuedJob)
+    oldestQueuedJob = jobInfoToJobRunViewModel(queueInfo.oldestQueuedJob)[0]
   }
   if (queueInfo.oldestQueuedDuration) {
     oldestQueuedDuration = getDurationString(queueInfo.oldestQueuedDuration)
   }
 
-  let longestRunningJob: Job | undefined
+  let longestRunningJob: JobRun | undefined
   let longestRunningJobDuration = "-"
   if (queueInfo.longestRunningJob) {
-    longestRunningJob = jobInfoToViewModel(queueInfo.longestRunningJob)
+    longestRunningJob = jobInfoToJobRunViewModel(queueInfo.longestRunningJob)[0]
   }
   if (queueInfo.longestRunningDuration) {
     longestRunningJobDuration = getDurationString(queueInfo.longestRunningDuration)
@@ -251,8 +252,8 @@ function getDurationString(durationFromApi: any): string {
 function jobInfoToJobRunViewModel(jobInfo: LookoutJobInfo): JobRun[] {
   let job = jobInfoToViewModel(jobInfo)
   return jobInfo.runs?.length ?
-    jobInfo.runs.map(r => ({...job, podNumber: r.podNumber ?? 0})) :
-    [{...job, podNumber: 0}];
+    jobInfo.runs.map(r => ({...job, podNumber: r.podNumber ?? 0, runState: JOB_STATE_MAP.get(r.runState ?? "") })) :
+    [{...job, podNumber: 0, runState: ""}];
 }
 
 function jobInfoToViewModel(jobInfo: LookoutJobInfo): Job {

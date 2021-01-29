@@ -165,7 +165,8 @@ export default class Jobs extends React.Component<JobsProps, {}> {
                     <Column dataKey="owner" width={0.2 * width} label="Owner" />
                     <Column dataKey="jobSet" width={0.2 * width} label="Job Set" />
                     <Column dataKey="submissionTime" width={0.2 * width} label="Submission Time" />
-                    <Column dataKey="jobState" width={0.2 * width} label="State" />
+                    <Column dataKey="jobState" width={0.1 * width} label="State"/>
+                    <Column dataKey="runState" width={0.1 * width} label="Run State"/>
                   </Table>
                 )}
               </AutoSizer>
