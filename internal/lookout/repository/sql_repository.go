@@ -73,7 +73,7 @@ type JobRow struct {
 	Cancelled pq.NullTime     `db:"cancelled"`
 	JobJson   sql.NullString  `db:"job"`
 	RunId     sql.NullString  `db:"run_id"`
-	PodNUmber int32           `db:"pod_number"`
+	PodNumber sql.NullInt64   `db:"pod_number"`
 	Cluster   sql.NullString  `db:"cluster"`
 	Node      sql.NullString  `db:"node"`
 	Created   pq.NullTime     `db:"created"`

@@ -209,7 +209,7 @@ func makeRunFromRow(row *JobRow) *lookout.RunInfo {
 	}
 	return &lookout.RunInfo{
 		K8SId:     ParseNullString(row.RunId),
-		PodNumber: row.PodNUmber,
+		PodNumber: int32(ParseNullInt(row.PodNumber)),
 		Cluster:   ParseNullString(row.Cluster),
 		Node:      ParseNullString(row.Node),
 		Succeeded: ParseNullBool(row.Succeeded),
