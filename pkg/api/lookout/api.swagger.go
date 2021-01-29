@@ -387,6 +387,13 @@ func SwaggerJsonTemplate() string {
 		"        \"node\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
+		"        \"podNumber\": {\n" +
+		"          \"type\": \"integer\",\n" +
+		"          \"format\": \"int32\"\n" +
+		"        },\n" +
+		"        \"runState\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
 		"        \"started\": {\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"format\": \"date-time\"\n" +

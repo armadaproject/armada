@@ -23,6 +23,10 @@ export type JobSet = {
   jobsFailed: number
 }
 
+export type JobRun = Job & {
+  podNumber: Number
+}
+
 export type Job = {
   jobId: string
   queue: string
@@ -101,7 +105,7 @@ export default class JobService {
     jobSets: string[],
     newestFirst: boolean,
     jobStates: string[],
-  ): Promise<Job[]> {
+  ): Promise<JobRun[]> {
     const jobStatesForApi = jobStates.map(getJobStateForApi)
     const jobSetsForApi = jobSets.map(escapeBackslashes)
     try {
@@ -116,7 +120,7 @@ export default class JobService {
         }
       });
       if (response.jobInfos) {
-        return response.jobInfos.map(jobInfoToViewModel)
+        return response.jobInfos.flatMap(jobInfoToJobRunViewModel)
       }
     } catch (e) {
       console.error(await e.json())
@@ -224,6 +228,13 @@ function getDurationString(durationFromApi: any): string {
   }
 
   return segments.join(" ")
+}
+
+function jobInfoToJobRunViewModel(jobInfo: LookoutJobInfo): JobRun[] {
+  let job = jobInfoToViewModel(jobInfo)
+  return jobInfo.runs?.length ?
+    jobInfo.runs.map(r => ({...job, podNumber: r.podNumber ?? 0})) :
+    [{...job, podNumber: 0}];
 }
 
 function jobInfoToViewModel(jobInfo: LookoutJobInfo): Job {

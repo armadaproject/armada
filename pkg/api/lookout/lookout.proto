@@ -25,10 +25,12 @@ message JobInfo {
 
 message RunInfo {
     string k8s_id = 1;
+    int32 pod_number = 9;
     string cluster = 2;
     string node = 3;
     bool succeeded = 4;
     string error = 5;
+    string run_state = 10;
     google.protobuf.Timestamp created = 6 [(gogoproto.stdtime) = true, (gogoproto.nullable) = true];
     google.protobuf.Timestamp started = 7 [(gogoproto.stdtime) = true, (gogoproto.nullable) = true];
     google.protobuf.Timestamp finished = 8 [(gogoproto.stdtime) = true, (gogoproto.nullable) = true];

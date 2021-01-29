@@ -376,6 +376,13 @@
         "node": {
           "type": "string"
         },
+        "podNumber": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "runState": {
+          "type": "string"
+        },
         "started": {
           "type": "string",
           "format": "date-time"

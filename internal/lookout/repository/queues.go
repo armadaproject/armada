@@ -108,7 +108,7 @@ func (r *SQLJobRepository) getQueuesSql() (string, error) {
 			goqu.MAX(jobRun_started).As("started")).
 		Distinct(job_queue).
 		GroupBy(job_jobId).
-		Having(goqu.And(FiltersForState[JobStates.Running]...)).
+		Having(goqu.And(FiltersForState[JobRunning]...)).
 		Order(job_queue.Asc(), goqu.I("started").Asc()).
 		As("longest_running_sub") // Identify longest Running jobs
 
@@ -203,7 +203,7 @@ func (r *SQLJobRepository) setOldestQueuedJob(rows *sql.Rows, queueInfoMap map[s
 					Job:       makeJobFromRow(&row),
 					Runs:      []*lookout.RunInfo{},
 					Cancelled: nil,
-					JobState:  JobStates.Queued,
+					JobState:  string(JobQueued),
 				}
 				currentTime := r.clock.Now()
 				submissionTime := queueInfo.OldestQueuedJob.Job.Created
@@ -242,7 +242,7 @@ func (r *SQLJobRepository) setLongestRunningJob(rows *sql.Rows, queueInfoMap map
 						Job:       makeJobFromRow(&row),
 						Runs:      []*lookout.RunInfo{makeRunFromRow(&row)},
 						Cancelled: nil,
-						JobState:  JobStates.Running,
+						JobState:  string(JobRunning),
 					}
 				}
 			}
