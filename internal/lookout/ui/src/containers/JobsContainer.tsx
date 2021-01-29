@@ -1,20 +1,15 @@
-import React from 'react'
+import React, { Fragment } from 'react'
 import { RouteComponentProps, withRouter } from 'react-router-dom'
 import queryString, { ParseOptions, StringifyOptions } from 'query-string'
 
-import JobService, {
-  JOB_STATES_FOR_DISPLAY,
-  Job,
-  JobRun,
-  CancelJobsResult
-} from "../services/JobService"
+import JobService, { JobRun, JOB_STATES_FOR_DISPLAY } from "../services/JobService"
 import Jobs from "../components/Jobs"
+import CancelJobsModal, { CancelJobsModalContext, CancelJobsModalState } from "../components/CancelJobsModal";
+import JobDetailsModal, { JobDetailsModalContext, toggleExpanded } from "../components/job-details/JobDetailsModal";
 
 type JobsContainerProps = {
   jobService: JobService
 } & RouteComponentProps
-
-export type ModalState = "CancelJobs" | "CancelJobsResult" | "None"
 
 export type CancelJobsRequestStatus = "Loading" | "Idle"
 
@@ -22,10 +17,8 @@ interface JobsContainerState extends JobFilters {
   jobs: JobRun[]
   canLoadMore: boolean
   selectedJobs: Map<string, JobRun>
-  cancellableJobs: Job[]
-  modalState: ModalState
-  cancelJobsResult: CancelJobsResult
-  cancelJobsRequestStatus: CancelJobsRequestStatus
+  cancelJobsModalContext: CancelJobsModalContext
+  jobDetailsModalContext: JobDetailsModalContext
 }
 
 export interface JobFilters {
@@ -33,6 +26,7 @@ export interface JobFilters {
   jobSet: string
   jobStates: string[]
   newestFirst: boolean
+  jobId: string
 }
 
 type JobFiltersQueryParams = {
@@ -40,6 +34,7 @@ type JobFiltersQueryParams = {
   job_set?: string
   job_states?: string[] | string
   newest_first?: boolean
+  job_id?: string
 }
 
 const QUERY_STRING_OPTIONS: ParseOptions | StringifyOptions = {
@@ -79,6 +74,12 @@ export function makeQueryStringFromFilters(filters: JobFilters): string {
       newest_first: filters.newestFirst,
     }
   }
+  if (filters.jobId) {
+    queryObject = {
+      ...queryObject,
+      job_id: filters.jobId,
+    }
+  }
 
   return queryString.stringify(queryObject, QUERY_STRING_OPTIONS)
 }
@@ -91,6 +92,7 @@ export function makeFiltersFromQueryString(query: string): JobFilters {
     jobSet: "",
     jobStates: [],
     newestFirst: true,
+    jobId: "",
   }
   if (params.queue) {
     filters.queue = params.queue
@@ -103,6 +105,9 @@ export function makeFiltersFromQueryString(query: string): JobFilters {
   }
   if (params.newest_first != null) {
     filters.newestFirst = params.newest_first
+  }
+  if (params.job_id) {
+    filters.jobId = params.job_id
   }
 
   return filters
@@ -129,16 +134,24 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
       jobSet: "",
       jobStates: [],
       newestFirst: true,
+      jobId: "",
     }
     this.state = {
       ...initialFilters,
       jobs: [],
       canLoadMore: true,
       selectedJobs: new Map<string, JobRun>(),
-      cancellableJobs: [],
-      modalState: "None",
-      cancelJobsResult: { cancelledJobs: [], failedJobCancellations: [] },
-      cancelJobsRequestStatus: "Idle",
+      cancelJobsModalContext: {
+        modalState: "None",
+        jobsToCancel: [],
+        cancelJobsResult: { cancelledJobs: [], failedJobCancellations: [] },
+        cancelJobsRequestStatus: "Idle",
+      },
+      jobDetailsModalContext: {
+        open: false,
+        job: undefined,
+        expandedItems: new Set(),
+      }
     }
 
     this.serveJobs = this.serveJobs.bind(this)
@@ -148,11 +161,16 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     this.jobSetChange = this.jobSetChange.bind(this)
     this.jobStatesChange = this.jobStatesChange.bind(this)
     this.orderChange = this.orderChange.bind(this)
+    this.jobIdChange = this.jobIdChange.bind(this)
     this.refresh = this.refresh.bind(this)
 
     this.selectJob = this.selectJob.bind(this)
-    this.setModalState = this.setModalState.bind(this)
+    this.setCancelJobsModalState = this.setCancelJobsModalState.bind(this)
     this.cancelJobs = this.cancelJobs.bind(this)
+
+    this.openJobDetailsModal = this.openJobDetailsModal.bind(this)
+    this.toggleExpanded = this.toggleExpanded.bind(this)
+    this.closeJobDetailsModal = this.closeJobDetailsModal.bind(this)
   }
 
   componentDidMount() {
@@ -206,6 +224,14 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     await this.setFilters(filters)
   }
 
+  async jobIdChange(jobId: string) {
+    const filters = {
+      ...this.state,
+      jobId: jobId,
+    }
+    await this.setFilters(filters)
+  }
+
   async refresh() {
     await this.setFilters(this.state)
   }
@@ -224,44 +250,58 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     await this.setStateAsync({
       ...this.state,
       selectedJobs: selectedJobs,
-      cancellableJobs: cancellableJobs,
+      cancelJobsModalContext: {
+        ...this.state.cancelJobsModalContext,
+        jobsToCancel: cancellableJobs,
+      },
     })
   }
 
-  setModalState(modalState: ModalState) {
+  setCancelJobsModalState(modalState: CancelJobsModalState) {
     this.setState({
       ...this.state,
-      modalState: modalState,
+      cancelJobsModalContext: {
+        ...this.state.cancelJobsModalContext,
+        modalState: modalState,
+      },
     })
   }
 
   async cancelJobs() {
-    if (this.state.cancelJobsRequestStatus === "Loading") {
+    if (this.state.cancelJobsModalContext.cancelJobsRequestStatus === "Loading") {
       return
     }
 
     this.setState({
       ...this.state,
-      cancelJobsRequestStatus: "Loading"
+      cancelJobsModalContext: {
+        ...this.state.cancelJobsModalContext,
+        cancelJobsRequestStatus: "Loading",
+      },
     })
-    const cancelJobsResult = await this.props.jobService.cancelJobs(this.state.cancellableJobs)
+    const cancelJobsResult = await this.props.jobService.cancelJobs(this.state.cancelJobsModalContext.jobsToCancel)
     if (cancelJobsResult.failedJobCancellations.length === 0) { // All succeeded
       this.setState({
         ...this.state,
         jobs: [],
         canLoadMore: true,
         selectedJobs: new Map<string, JobRun>(),
-        cancellableJobs: [],
-        cancelJobsResult: cancelJobsResult,
-        modalState: "CancelJobsResult",
-        cancelJobsRequestStatus: "Idle",
+        cancelJobsModalContext: {
+          jobsToCancel: [],
+          cancelJobsResult: cancelJobsResult,
+          modalState: "CancelJobsResult",
+          cancelJobsRequestStatus: "Idle",
+        },
       })
     } else if (cancelJobsResult.cancelledJobs.length === 0) { // All failed
       this.setState({
         ...this.state,
-        cancelJobsResult: cancelJobsResult,
-        modalState: "CancelJobsResult",
-        cancelJobsRequestStatus: "Idle",
+        cancelJobsModalContext: {
+          ...this.state.cancelJobsModalContext,
+          cancelJobsResult: cancelJobsResult,
+          modalState: "CancelJobsResult",
+          cancelJobsRequestStatus: "Idle",
+        },
       })
     } else { // Some succeeded, some failed
       this.setState({
@@ -269,12 +309,61 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
         jobs: [],
         canLoadMore: true,
         selectedJobs: new Map<string, JobRun>(),
-        cancellableJobs: cancelJobsResult.failedJobCancellations.map(failed => failed.job),
-        cancelJobsResult: cancelJobsResult,
-        modalState: "CancelJobsResult",
-        cancelJobsRequestStatus: "Idle",
+        cancelJobsModalContext: {
+          ...this.state.cancelJobsModalContext,
+          jobsToCancel: cancelJobsResult.failedJobCancellations.map(failed => failed.job),
+          cancelJobsResult: cancelJobsResult,
+          modalState: "CancelJobsResult",
+          cancelJobsRequestStatus: "Idle",
+        },
       })
     }
+  }
+
+  openJobDetailsModal(jobIndex: number) {
+    if (jobIndex < 0 || jobIndex >= this.state.jobs.length) {
+      return
+    }
+
+    const job = this.state.jobs[jobIndex]
+    this.setState({
+      ...this.state,
+      jobDetailsModalContext: {
+        open: true,
+        job: job,
+        expandedItems: new Set(),
+      },
+    })
+  }
+
+  // Toggle expanded items in scheduling history in Job detail modal
+  toggleExpanded(item: string, isExpanded: boolean) {
+    const newExpanded = toggleExpanded(item, isExpanded, this.state.jobDetailsModalContext.expandedItems)
+    this.setState({
+      ...this.state,
+      jobDetailsModalContext: {
+        ...this.state.jobDetailsModalContext,
+        expandedItems: newExpanded,
+      }
+    })
+  }
+
+  closeJobDetailsModal() {
+    this.setState({
+      ...this.state,
+      jobDetailsModalContext: {
+        ...this.state.jobDetailsModalContext,
+        open: false,
+      }
+    })
+  }
+
+  navigateToJobDetails(jobId: string) {
+    this.props.history.push({
+      ...this.props.location,
+      pathname: "/job-details",
+      search: `id=${jobId}`
+    })
   }
 
   private async loadJobInfosForRange(start: number, stop: number) {
@@ -299,14 +388,15 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
   }
 
   private async fetchNextJobInfos(filters: JobFilters, startIndex: number): Promise<[JobRun[], boolean]> {
-    const newJobInfos = await this.props.jobService.getJobsInQueue(
-      filters.queue,
-      BATCH_SIZE,
-      startIndex,
-      [filters.jobSet],
-      filters.newestFirst,
-      filters.jobStates,
-    )
+    const newJobInfos = await this.props.jobService.getJobsInQueue({
+      queue: filters.queue,
+      take: BATCH_SIZE,
+      skip: startIndex,
+      jobSets: [filters.jobSet],
+      newestFirst: filters.newestFirst,
+      jobStates: filters.jobStates,
+      jobId: filters.jobId,
+    })
 
     let canLoadMore = true
     if (newJobInfos.length < BATCH_SIZE) {
@@ -351,29 +441,42 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
 
   render() {
     return (
-      <Jobs
-        jobs={this.state.jobs}
-        canLoadMore={this.state.canLoadMore}
-        queue={this.state.queue}
-        jobSet={this.state.jobSet}
-        jobStates={this.state.jobStates}
-        newestFirst={this.state.newestFirst}
-        selectedJobs={this.state.selectedJobs}
-        cancellableJobs={this.state.cancellableJobs}
-        modalState={this.state.modalState}
-        cancelJobsResult={this.state.cancelJobsResult}
-        cancelJobsRequestStatus={this.state.cancelJobsRequestStatus}
-        cancelJobsButtonIsEnabled={this.selectedJobsAreCancellable()}
-        fetchJobs={this.serveJobs}
-        isLoaded={this.jobIsLoaded}
-        onQueueChange={this.queueChange}
-        onJobSetChange={this.jobSetChange}
-        onJobStatesChange={this.jobStatesChange}
-        onOrderChange={this.orderChange}
-        onRefresh={this.refresh}
-        onSelectJob={this.selectJob}
-        onSetModalState={this.setModalState}
-        onCancelJobs={this.cancelJobs} />
+      <Fragment>
+        <CancelJobsModal
+          modalState={this.state.cancelJobsModalContext.modalState}
+          jobsToCancel={this.state.cancelJobsModalContext.jobsToCancel}
+          cancelJobsResult={this.state.cancelJobsModalContext.cancelJobsResult}
+          cancelJobsRequestStatus={this.state.cancelJobsModalContext.cancelJobsRequestStatus}
+          onCancelJobs={this.cancelJobs}
+          onClose={() => this.setCancelJobsModalState("None")}/>
+        <JobDetailsModal
+          open={this.state.jobDetailsModalContext.open}
+          job={this.state.jobDetailsModalContext.job}
+          expandedItems={this.state.jobDetailsModalContext.expandedItems}
+          onToggleExpanded={this.toggleExpanded}
+          onClose={this.closeJobDetailsModal} />
+        <Jobs
+          jobs={this.state.jobs}
+          canLoadMore={this.state.canLoadMore}
+          queue={this.state.queue}
+          jobSet={this.state.jobSet}
+          jobStates={this.state.jobStates}
+          newestFirst={this.state.newestFirst}
+          jobId={this.state.jobId}
+          selectedJobs={this.state.selectedJobs}
+          cancelJobsButtonIsEnabled={this.selectedJobsAreCancellable()}
+          fetchJobs={this.serveJobs}
+          isLoaded={this.jobIsLoaded}
+          onQueueChange={this.queueChange}
+          onJobSetChange={this.jobSetChange}
+          onJobStatesChange={this.jobStatesChange}
+          onOrderChange={this.orderChange}
+          onJobIdChange={this.jobIdChange}
+          onRefresh={this.refresh}
+          onSelectJob={this.selectJob}
+          onCancelJobsClick={() => this.setCancelJobsModalState("CancelJobs")}
+          onJobIdClick={this.openJobDetailsModal}/>
+      </Fragment>
     )
   }
 }

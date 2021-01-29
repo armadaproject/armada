@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"sort"
 
 	"github.com/doug-martin/goqu/v9"
 	"github.com/doug-martin/goqu/v9/exp"
@@ -11,7 +12,7 @@ import (
 	"github.com/G-Research/armada/pkg/api/lookout"
 )
 
-func (r *SQLJobRepository) GetJobsInQueue(ctx context.Context, opts *lookout.GetJobsInQueueRequest) ([]*lookout.JobInfo, error) {
+func (r *SQLJobRepository) GetJobs(ctx context.Context, opts *lookout.GetJobsRequest) ([]*lookout.JobInfo, error) {
 	if valid, jobState := validateJobStates(opts.JobStates); !valid {
 		return nil, fmt.Errorf("unknown job state: %q", jobState)
 	}
@@ -21,16 +22,10 @@ func (r *SQLJobRepository) GetJobsInQueue(ctx context.Context, opts *lookout.Get
 		return nil, err
 	}
 
-	return rowsToJobs(rows), nil
-}
+	result := rowsToJobs(rows)
+	sortJobsByJobId(result, opts.NewestFirst)
 
-func (r *SQLJobRepository) GetJob(ctx context.Context, jobId string) (*lookout.JobInfo, error) {
-	rows, err := r.queryJob(ctx, jobId)
-	if err != nil {
-		return nil, err
-	}
-
-	return rowsToJob(rows), nil
+	return result, nil
 }
 
 func validateJobStates(jobStates []string) (bool, JobState) {
@@ -51,7 +46,7 @@ func isJobState(val string) bool {
 	return false
 }
 
-func (r *SQLJobRepository) queryJobs(ctx context.Context, opts *lookout.GetJobsInQueueRequest) ([]*JobRow, error) {
+func (r *SQLJobRepository) queryJobs(ctx context.Context, opts *lookout.GetJobsRequest) ([]*JobRow, error) {
 	ds := r.createJobsDataset(opts)
 
 	jobsInQueueRows := make([]*JobRow, 0)
@@ -63,15 +58,13 @@ func (r *SQLJobRepository) queryJobs(ctx context.Context, opts *lookout.GetJobsI
 	return jobsInQueueRows, nil
 }
 
-func (r *SQLJobRepository) createJobsDataset(opts *lookout.GetJobsInQueueRequest) *goqu.SelectDataset {
+func (r *SQLJobRepository) createJobsDataset(opts *lookout.GetJobsRequest) *goqu.SelectDataset {
 	subDs := r.goquDb.
 		From(jobTable).
 		LeftJoin(jobRunTable, goqu.On(
 			job_jobId.Eq(jobRun_jobId))).
 		Select(job_jobId).
-		Where(goqu.And(
-			job_queue.Eq(opts.Queue),
-			goqu.Or(createJobSetFilters(opts.JobSetIds)...))).
+		Where(goqu.And(createWhereFilters(opts)...)).
 		GroupBy(job_jobId).
 		Having(goqu.Or(createJobStateFilters(opts.JobStates)...)).
 		Order(createJobOrdering(opts.NewestFirst)).
@@ -99,10 +92,26 @@ func (r *SQLJobRepository) createJobsDataset(opts *lookout.GetJobsInQueueRequest
 			jobRun_finished,
 			jobRun_succeeded,
 			jobRun_error).
-		Where(job_jobId.In(subDs)).
-		Order(createJobOrdering(opts.NewestFirst)) // Ordering from sub query not guaranteed to be preserved
+		Where(job_jobId.In(subDs))
 
 	return ds
+}
+
+func createWhereFilters(opts *lookout.GetJobsRequest) []goqu.Expression {
+	filters := make([]goqu.Expression, 0)
+
+	if opts.JobId != "" && opts.Queue == "" {
+		filters = append(filters, job_jobId.Eq(opts.JobId))
+	} else if opts.Queue != "" && opts.JobId == "" {
+		filters = append(filters, job_queue.Eq(opts.Queue))
+	} else {
+		filters = append(filters, job_jobId.Eq(opts.JobId))
+		filters = append(filters, job_queue.Eq(opts.Queue))
+	}
+
+	filters = append(filters, goqu.Or(createJobSetFilters(opts.JobSetIds)...))
+
+	return filters
 }
 
 func createJobSetFilters(jobSetIds []string) []goqu.Expression {
@@ -130,78 +139,54 @@ func createJobOrdering(newestFirst bool) exp.OrderedExpression {
 	return job_jobId.Asc()
 }
 
-func (r *SQLJobRepository) queryJob(ctx context.Context, jobId string) ([]*JobRow, error) {
-	ds := r.createJobDataset(jobId)
+func rowsToJobs(rows []*JobRow) []*lookout.JobInfo {
+	jobMap := make(map[string]*lookout.JobInfo)
 
-	jobRows := make([]*JobRow, 0)
-	err := ds.Prepared(true).ScanStructsContext(ctx, &jobRows)
-	if err != nil {
-		return nil, err
+	for _, row := range rows {
+		if row.JobId.Valid {
+			jobId := row.JobId.String
+			if _, ok := jobMap[jobId]; !ok {
+				jobMap[jobId] = &lookout.JobInfo{
+					Job:       makeJobFromRow(row),
+					Cancelled: ParseNullTime(row.Cancelled),
+					JobState:  "",
+					Runs:      []*lookout.RunInfo{},
+				}
+			}
+
+			if row.RunId.Valid {
+				if jobInfo, ok := jobMap[jobId]; ok {
+					jobInfo.Runs = append(jobInfo.Runs, makeRunFromRow(row))
+				}
+			}
+		}
 	}
 
-	return jobRows, nil
+	for _, jobInfo := range jobMap {
+		determineJobState(jobInfo)
+	}
+
+	return jobMapToSlice(jobMap)
 }
 
-func (r *SQLJobRepository) createJobDataset(jobId string) *goqu.SelectDataset {
-	ds := r.goquDb.
-		From(jobTable).
-		LeftJoin(jobRunTable, goqu.On(
-			job_jobId.Eq(jobRun_jobId))).
-		Select(job_jobId,
-			job_queue,
-			job_owner,
-			job_jobset,
-			job_priority,
-			job_submitted,
-			job_cancelled,
-			job_job,
-			jobRun_runId,
-			jobRun_podNumber,
-			jobRun_cluster,
-			jobRun_node,
-			jobRun_created,
-			jobRun_started,
-			jobRun_finished,
-			jobRun_succeeded,
-			jobRun_error).
-		Where(job_jobId.Eq(jobId))
-
-	return ds
-}
-
-func rowsToJobs(rows []*JobRow) []*lookout.JobInfo {
+func jobMapToSlice(jobMap map[string]*lookout.JobInfo) []*lookout.JobInfo {
 	result := make([]*lookout.JobInfo, 0)
 
-	for i, row := range rows {
-		if row.JobId.Valid &&
-			(i == 0 || result[len(result)-1].Job.Id != row.JobId.String) {
-			result = append(result, &lookout.JobInfo{
-				Job:       makeJobFromRow(row),
-				Cancelled: ParseNullTime(row.Cancelled),
-				JobState:  "",
-				Runs:      []*lookout.RunInfo{},
-			})
-		}
-
-		if row.RunId.Valid {
-			result[len(result)-1].Runs = append(result[len(result)-1].Runs, makeRunFromRow(row))
-		}
-	}
-
-	for _, jobInfo := range result {
-		determineJobState(jobInfo)
+	for _, jobInfo := range jobMap {
+		result = append(result, jobInfo)
 	}
 
 	return result
 }
 
-func rowsToJob(rows []*JobRow) *lookout.JobInfo {
-	jobs := rowsToJobs(rows)
-	if len(jobs) != 1 {
-		return nil
-	}
-
-	return jobs[0]
+func sortJobsByJobId(jobInfos []*lookout.JobInfo, descending bool) {
+	sort.SliceStable(jobInfos, func(i, j int) bool {
+		if descending {
+			return jobInfos[i].Job.Id > jobInfos[j].Job.Id
+		} else {
+			return jobInfos[i].Job.Id < jobInfos[j].Job.Id
+		}
+	})
 }
 
 func makeJobFromRow(row *JobRow) *api.Job {

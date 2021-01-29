@@ -43,13 +43,13 @@ export function App(services: { jobService: JobService; }) {
           <div className="content">
             <Switch>
               <Route exact path="/">
-                <OverviewContainer jobService={services.jobService}/>
+                <OverviewContainer jobService={services.jobService} />
               </Route>
               <Route exact path="/job-sets">
-                <JobSetsContainer jobService={services.jobService}/>
+                <JobSetsContainer jobService={services.jobService} />
               </Route>
               <Route exact path="/jobs">
-                <JobsContainer jobService={services.jobService}/>
+                <JobsContainer jobService={services.jobService} />
               </Route>
             </Switch>
           </div>

@@ -21,7 +21,7 @@ const PAGES: Page[] = [
   {
     title: "Jobs",
     location: "/jobs"
-  },
+  }
 ]
 
 // Creates mapping from location to index of element in ordered navbar

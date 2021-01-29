@@ -1,13 +1,12 @@
 import React from 'react'
 import { AutoSizer, Column, InfiniteLoader, Table } from "react-virtualized"
 
-import { CancelJobsResult, Job, JobRun } from "../services/JobService"
+import { Job, JobRun } from "../services/JobService"
 import JobTableHeader from "./JobTableHeader";
 import JobRow from "./JobRow";
 import HeaderRow from "./HeaderRow";
 import LoadingRow from "./LoadingRow";
-import CancelJobsModal from "./CancelJobsModal";
-import { CancelJobsRequestStatus, ModalState } from "../containers/JobsContainer";
+import JobIdCell from "./JobIdCell";
 
 import './Jobs.css'
 
@@ -18,11 +17,8 @@ type JobsProps = {
   jobSet: string
   jobStates: string[]
   newestFirst: boolean
+  jobId: string
   selectedJobs: Map<string, Job>
-  cancellableJobs: Job[]
-  modalState: ModalState
-  cancelJobsResult: CancelJobsResult
-  cancelJobsRequestStatus: CancelJobsRequestStatus
   cancelJobsButtonIsEnabled: boolean
   fetchJobs: (start: number, stop: number) => Promise<Job[]>
   isLoaded: (index: number) => boolean
@@ -30,10 +26,11 @@ type JobsProps = {
   onJobSetChange: (jobSet: string) => Promise<void>
   onJobStatesChange: (jobStates: string[]) => Promise<void>
   onOrderChange: (newestFirst: boolean) => Promise<void>
+  onJobIdChange: (jobId: string) => Promise<void>
   onRefresh: () => Promise<void>
   onSelectJob: (job: JobRun, selected: boolean) => Promise<void>
-  onSetModalState: (modal: ModalState) => void
-  onCancelJobs: () => void
+  onCancelJobsClick: () => void
+  onJobIdClick: (jobIndex: number) => void
 }
 
 export default class Jobs extends React.Component<JobsProps, {}> {
@@ -54,9 +51,11 @@ export default class Jobs extends React.Component<JobsProps, {}> {
         owner: "",
         jobId: "Loading",
         jobSet: "",
+        priority: 0,
         jobState: "",
         queue: "",
-        submissionTime: ""
+        submissionTime: "",
+        runs: [],
       }
     }
   }
@@ -75,6 +74,7 @@ export default class Jobs extends React.Component<JobsProps, {}> {
             queue={this.props.queue}
             jobSet={this.props.jobSet}
             newestFirst={this.props.newestFirst}
+            jobId={this.props.jobId}
             jobStates={this.props.jobStates}
             canCancel={this.props.cancelJobsButtonIsEnabled}
             onQueueChange={async queue => {
@@ -93,21 +93,16 @@ export default class Jobs extends React.Component<JobsProps, {}> {
               await this.props.onOrderChange(newestFirst)
               this.resetCache()
             }}
+            onJobIdChange={async jobId => {
+              await this.props.onJobIdChange(jobId)
+              this.resetCache()
+            }}
             onRefresh={async () => {
               await this.props.onRefresh()
               this.resetCache()
             }}
-            onCancelJobsClick={() => {
-              this.props.onSetModalState("CancelJobs")
-            }} />
+            onCancelJobsClick={this.props.onCancelJobsClick}/>
         </div>
-        <CancelJobsModal
-          currentOpenModal={this.props.modalState}
-          jobsToCancel={this.props.cancellableJobs}
-          cancelJobsResult={this.props.cancelJobsResult}
-          cancelJobsRequestStatus={this.props.cancelJobsRequestStatus}
-          onCancelJobs={this.props.onCancelJobs}
-          onClose={() => this.props.onSetModalState("None")} />
         <div className="job-table">
           <InfiniteLoader
             ref={this.infiniteLoader}
@@ -152,10 +147,22 @@ export default class Jobs extends React.Component<JobsProps, {}> {
                     }}
                     headerHeight={40}
                     height={height}
-                    width={width}>
-                    <Column dataKey="jobId" width={0.2 * width} label="Id" />
+                    width={width}
+                    sortBy={"submissionTime"}
+                    sortDirection={this.props.newestFirst ? "DESC" : "ASC"}
+                    sort={async () => {
+                      await this.props.onOrderChange(!this.props.newestFirst)
+                      this.resetCache()
+                    }}>
+                    <Column
+                      dataKey="jobId"
+                      width={0.2 * width}
+                      label="Id"
+                      cellRenderer={(cellProps) => (
+                        <JobIdCell onClick={() => this.props.onJobIdClick(cellProps.rowIndex)} {...cellProps} />
+                      )} />
                     <Column dataKey="podNumber" width={0.1 * width} label="Pod" />
-                    <Column dataKey="owner" width={0.1 * width} label="Owner" />
+                    <Column dataKey="owner" width={0.2 * width} label="Owner" />
                     <Column dataKey="jobSet" width={0.2 * width} label="Job Set" />
                     <Column dataKey="submissionTime" width={0.2 * width} label="Submission Time" />
                     <Column dataKey="jobState" width={0.2 * width} label="State" />

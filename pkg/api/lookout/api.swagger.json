@@ -16,14 +16,14 @@
         "tags": [
           "Lookout"
         ],
-        "operationId": "GetJobsInQueue",
+        "operationId": "GetJobs",
         "parameters": [
           {
             "name": "body",
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/lookoutGetJobsInQueueRequest"
+              "$ref": "#/definitions/lookoutGetJobsRequest"
             }
           }
         ],
@@ -31,37 +31,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/lookoutGetJobsInQueueResponse"
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "schema": {
-              "$ref": "#/definitions/runtimeError"
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/lookout/jobs/{jobId}": {
-      "get": {
-        "tags": [
-          "Lookout"
-        ],
-        "operationId": "GetJob",
-        "parameters": [
-          {
-            "type": "string",
-            "name": "jobId",
-            "in": "path",
-            "required": true
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/lookoutJobInfo"
+              "$ref": "#/definitions/lookoutGetJobsResponse"
             }
           },
           "default": {
@@ -227,9 +197,12 @@
         }
       }
     },
-    "lookoutGetJobsInQueueRequest": {
+    "lookoutGetJobsRequest": {
       "type": "object",
       "properties": {
+        "jobId": {
+          "type": "string"
+        },
         "jobSetIds": {
           "type": "array",
           "items": {
@@ -258,7 +231,7 @@
         }
       }
     },
-    "lookoutGetJobsInQueueResponse": {
+    "lookoutGetJobsResponse": {
       "type": "object",
       "properties": {
         "jobInfos": {

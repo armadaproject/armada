@@ -1,43 +1,42 @@
-import React from 'react'
-import * as H from "history";
-import { match, withRouter } from 'react-router-dom';
+import React, { Fragment } from 'react'
+import { RouteComponentProps, withRouter } from 'react-router-dom';
 
 import Overview from "../components/Overview"
-import JobService, { QueueInfo } from "../services/JobService";
+import JobService, { Job, QueueInfo } from "../services/JobService";
+import JobDetailsModal, { JobDetailsModalContext, toggleExpanded } from "../components/job-details/JobDetailsModal";
 
-interface OverviewContainerProps {
+type OverviewContainerProps = {
   jobService: JobService
-  history: H.History
-  location: H.Location
-  match: match
-}
+} & RouteComponentProps
 
 interface OverviewContainerState {
   queueInfos: QueueInfo[]
-  modalState: ModalState
-  modalQueue: string
   openQueueMenu: string
   queueMenuAnchor: HTMLElement | null
+  modalContext: JobDetailsModalContext
 }
-
-export type ModalState = "OldestQueued" | "LongestRunning" | "None"
 
 class OverviewContainer extends React.Component<OverviewContainerProps, OverviewContainerState> {
   constructor(props: OverviewContainerProps) {
     super(props)
     this.state = {
       queueInfos: [],
-      modalState: "None",
-      modalQueue: "",
       openQueueMenu: "",
       queueMenuAnchor: null,
+      modalContext: {
+        open: false,
+        expandedItems: new Set(),
+      }
     }
 
     this.fetchQueueInfos = this.fetchQueueInfos.bind(this)
-    this.setModalState = this.setModalState.bind(this)
     this.setOpenQueueMenu = this.setOpenQueueMenu.bind(this)
     this.navigateToJobSets = this.navigateToJobSets.bind(this)
     this.navigateToJobs = this.navigateToJobs.bind(this)
+
+    this.openModalForJob = this.openModalForJob.bind(this)
+    this.toggleExpanded = this.toggleExpanded.bind(this)
+    this.closeModal = this.closeModal.bind(this)
   }
 
   async componentDidMount() {
@@ -48,14 +47,6 @@ class OverviewContainer extends React.Component<OverviewContainerProps, Overview
     const queueInfos = await this.props.jobService.getOverview()
     this.setState({
       queueInfos: queueInfos
-    })
-  }
-
-  setModalState(modalState: ModalState, modalQueue: string) {
-    this.setState({
-      ...this.state,
-      modalState: modalState,
-      modalQueue: modalQueue,
     })
   }
 
@@ -83,19 +74,72 @@ class OverviewContainer extends React.Component<OverviewContainerProps, Overview
     })
   }
 
+  openModalForJob(jobId: string, queue: string) {
+    const queueInfo = this.state.queueInfos.find((queueInfo) => queueInfo.queue === queue)
+    if (!queueInfo) {
+      return;
+    }
+
+    let job: Job | undefined
+    if (queueInfo.oldestQueuedJob && jobId === queueInfo.oldestQueuedJob.jobId) {
+      job = queueInfo.oldestQueuedJob
+    } else if (queueInfo.longestRunningJob && jobId === queueInfo.longestRunningJob.jobId) {
+      job = queueInfo.longestRunningJob
+    }
+
+    if (job) {
+      this.setState({
+        ...this.state,
+        modalContext: {
+          open: true,
+          job: job,
+          expandedItems: new Set(),
+        },
+      })
+    }
+  }
+
+  // Toggle expanded items in scheduling history in Job detail modal
+  toggleExpanded(item: string, isExpanded: boolean) {
+    const newExpanded = toggleExpanded(item, isExpanded, this.state.modalContext.expandedItems)
+    this.setState({
+      ...this.state,
+      modalContext: {
+        ...this.state.modalContext,
+        expandedItems: newExpanded,
+      }
+    })
+  }
+
+  closeModal() {
+    this.setState({
+      ...this.state,
+      modalContext: {
+        ...this.state.modalContext,
+        open: false,
+      }
+    })
+  }
+
   render() {
     return (
-      <Overview
-        queueInfos={this.state.queueInfos}
-        modalState={this.state.modalState}
-        modalQueue={this.state.modalQueue}
-        openQueueMenu={this.state.openQueueMenu}
-        queueMenuAnchor={this.state.queueMenuAnchor}
-        onRefresh={this.fetchQueueInfos}
-        onSetModalState={this.setModalState}
-        onSetQueueMenu={this.setOpenQueueMenu}
-        onQueueMenuJobSetsClick={this.navigateToJobSets}
-        onQueueMenuJobsClick={this.navigateToJobs} />
+      <Fragment>
+        <JobDetailsModal
+          onToggleExpanded={this.toggleExpanded}
+          onClose={this.closeModal}
+          open={this.state.modalContext.open}
+          job={this.state.modalContext.job}
+          expandedItems={this.state.modalContext.expandedItems} />
+        <Overview
+          queueInfos={this.state.queueInfos}
+          openQueueMenu={this.state.openQueueMenu}
+          queueMenuAnchor={this.state.queueMenuAnchor}
+          onRefresh={this.fetchQueueInfos}
+          onJobClick={this.openModalForJob}
+          onSetQueueMenu={this.setOpenQueueMenu}
+          onQueueMenuJobSetsClick={this.navigateToJobSets}
+          onQueueMenuJobsClick={this.navigateToJobs} />
+      </Fragment>
     )
   }
 }
