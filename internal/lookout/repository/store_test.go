@@ -192,12 +192,12 @@ func Test_EmptyRunId(t *testing.T) {
 		received1, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{JobId: job_1.Id})
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(received1))
-		assert.Equal(t, JobFailed, received1[0].JobState)
+		assert.Equal(t, string(JobFailed), received1[0].JobState)
 
 		received2, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{JobId: job_1.Id})
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(received2))
-		assert.Equal(t, JobFailed, received2[0].JobState)
+		assert.Equal(t, string(JobFailed), received2[0].JobState)
 	})
 }
 

@@ -370,7 +370,7 @@ func TestGetJobsInQueue_FilterPendingJobs(t *testing.T) {
 		assert.Equal(t, 1, len(jobInfos))
 		AssertJobsAreEquivalent(t, pending.job, jobInfos[0].Job)
 		assert.Nil(t, jobInfos[0].Cancelled)
-		assert.Equal(t, JobPending, jobInfos[0].JobState)
+		assert.Equal(t, string(JobPending), jobInfos[0].JobState)
 		assert.Equal(t, 1, len(jobInfos[0].Runs))
 	})
 }
@@ -416,7 +416,7 @@ func TestGetJobsInQueue_FilterRunningJobs(t *testing.T) {
 		assert.Equal(t, 1, len(jobInfos))
 		AssertJobsAreEquivalent(t, running.job, jobInfos[0].Job)
 		assert.Nil(t, jobInfos[0].Cancelled)
-		assert.Equal(t, JobRunning, jobInfos[0].JobState)
+		assert.Equal(t, string(JobRunning), jobInfos[0].JobState)
 		assert.Equal(t, 2, len(jobInfos[0].Runs))
 	})
 }
@@ -462,7 +462,7 @@ func TestGetJobsInQueue_FilterSucceededJobs(t *testing.T) {
 		assert.Equal(t, 1, len(jobInfos))
 		AssertJobsAreEquivalent(t, succeeded.job, jobInfos[0].Job)
 		assert.Nil(t, jobInfos[0].Cancelled)
-		assert.Equal(t, JobSucceeded, jobInfos[0].JobState)
+		assert.Equal(t, string(JobSucceeded), jobInfos[0].JobState)
 		assert.Equal(t, 1, len(jobInfos[0].Runs))
 	})
 }
@@ -508,7 +508,7 @@ func TestGetJobsInQueue_FilterFailedJobs(t *testing.T) {
 		assert.Equal(t, 1, len(jobInfos))
 		AssertJobsAreEquivalent(t, failed.job, jobInfos[0].Job)
 		assert.Nil(t, jobInfos[0].Cancelled)
-		assert.Equal(t, JobFailed, jobInfos[0].JobState)
+		assert.Equal(t, string(JobFailed), jobInfos[0].JobState)
 		assert.Equal(t, 1, len(jobInfos[0].Runs))
 	})
 }
@@ -554,7 +554,7 @@ func TestGetJobsInQueue_FilterCancelledJobs(t *testing.T) {
 		assert.Equal(t, 1, len(jobInfos))
 		AssertJobsAreEquivalent(t, cancelled.job, jobInfos[0].Job)
 		assert.NotNil(t, jobInfos[0].Cancelled)
-		assert.Equal(t, JobCancelled, jobInfos[0].JobState)
+		assert.Equal(t, string(JobCancelled), jobInfos[0].JobState)
 		assert.Empty(t, jobInfos[0].Runs)
 	})
 }
