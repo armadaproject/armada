@@ -27,6 +27,8 @@ func (r *SQLJobRepository) GetQueueInfos(ctx context.Context) ([]*lookout.QueueI
 		return nil, err
 	}
 
+	fmt.Println(queries)
+
 	rows, err := r.goquDb.Db.QueryContext(ctx, queries)
 	if err != nil {
 		return nil, err
@@ -47,33 +49,21 @@ func (r *SQLJobRepository) GetQueueInfos(ctx context.Context) ([]*lookout.QueueI
 }
 
 func (r *SQLJobRepository) getQueuesSql() (string, error) {
-	countsSubDs := r.goquDb.
+	countsDs := r.goquDb.
 		From(jobTable).
 		LeftJoin(jobRunTable, goqu.On(job_jobId.Eq(jobRun_jobId))).
 		Select(
-			job_jobId,
 			job_queue,
-			jobRun_created,
-			jobRun_started).
+			goqu.COUNT("*").As("jobs"),
+			goqu.COUNT(goqu.COALESCE(
+				jobRun_created,
+				jobRun_started)).As("jobs_created"),
+			goqu.COUNT(jobRun_started).As("jobs_started")).
 		Where(goqu.And(
 			job_cancelled.IsNull(),
 			jobRun_finished.IsNull(),
 			jobRun_unableToSchedule.IsNull())).
-		// GroupBy(job_jobId).
-		// Having(goqu.And(goqu.MAX(jobRun_finished).IsNull(), job_cancelled.IsNull())).
-		As("counts_sub") // Identify unique created and started jobs
-
-	countsDs := r.goquDb.
-		From(countsSubDs).
-		Select(
-			goqu.I("counts_sub.queue"),
-			goqu.COUNT("*").As("jobs"),
-			goqu.COUNT(
-				goqu.COALESCE(
-					goqu.I("counts_sub.created"),
-					goqu.I("counts_sub.started"))).As("jobs_created"),
-			goqu.COUNT(goqu.I("counts_sub.started")).As("jobs_started")).
-		GroupBy(goqu.I("counts_sub.queue")).
+		GroupBy(job_queue).
 		As("counts")
 
 	oldestQueuedDs := r.goquDb.
@@ -95,7 +85,8 @@ func (r *SQLJobRepository) getQueuesSql() (string, error) {
 			job_cancelled.IsNull(),
 			jobRun_created.IsNull(),
 			jobRun_started.IsNull(),
-			jobRun_finished.IsNull())).
+			jobRun_finished.IsNull(),
+			jobRun_unableToSchedule.IsNull())).
 		Order(job_queue.Asc(), job_submitted.Asc()).
 		As("oldest_queued")
 
@@ -109,11 +100,14 @@ func (r *SQLJobRepository) getQueuesSql() (string, error) {
 			job_owner,
 			job_priority,
 			job_submitted,
-			goqu.MAX(jobRun_started).As("started")).
+			jobRun_started).
 		Distinct(job_queue).
-		GroupBy(job_jobId).
-		Having(goqu.And(FiltersForState[JobStates.Running]...)).
-		Order(job_queue.Asc(), goqu.I("started").Asc()).
+		Where(goqu.And(
+			job_cancelled.IsNull(),
+			jobRun_started.IsNotNull(),
+			jobRun_finished.IsNull(),
+			jobRun_unableToSchedule.IsNull())).
+		Order(job_queue.Asc(), jobRun_started.Asc()).
 		As("longest_running_sub") // Identify longest Running jobs
 
 	longestRunningDs := r.goquDb.

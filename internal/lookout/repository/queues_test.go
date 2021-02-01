@@ -269,25 +269,26 @@ func TestGetQueueInfos_IncludeLongestRunningJob(t *testing.T) {
 		AssertRunInfosEquivalent(t, &lookout.RunInfo{
 			K8SId:     "d1",
 			Cluster:   cluster,
-			Node:      "",
+			Node:      node,
 			Succeeded: false,
 			Created:   Increment(time1, 2),
 			Started:   nil,
-			Finished:  nil,
+			Finished:  Increment(time1, 3),
 			Error:     "",
 		}, queueInfos[0].LongestRunningJob.Runs[0])
+
+		startRunningTime := *Increment(time1, 4)
 		AssertRunInfosEquivalent(t, &lookout.RunInfo{
 			K8SId:     "d2",
 			Cluster:   cluster,
 			Node:      node,
 			Succeeded: false,
 			Created:   nil,
-			Started:   Increment(time1, 3),
+			Started:   &startRunningTime,
 			Finished:  nil,
 			Error:     "",
 		}, queueInfos[0].LongestRunningJob.Runs[1])
 
-		startRunningTime := *Increment(time1, 3)
 		assert.Equal(t, types.DurationProto(time2.Sub(startRunningTime).Round(time.Second)), queueInfos[0].LongestRunningDuration)
 	})
 }
@@ -386,11 +387,11 @@ func TestGetQueueInfos_MultipleQueues(t *testing.T) {
 		AssertRunInfosEquivalent(t, &lookout.RunInfo{
 			K8SId:     "c1",
 			Cluster:   cluster,
-			Node:      "",
+			Node:      node,
 			Succeeded: false,
 			Created:   Increment(startTime, 1),
 			Started:   nil,
-			Finished:  nil,
+			Finished:  Increment(startTime, 2),
 			Error:     "",
 		}, queueInfos[0].LongestRunningJob.Runs[0])
 		AssertRunInfosEquivalent(t, &lookout.RunInfo{
@@ -399,7 +400,7 @@ func TestGetQueueInfos_MultipleQueues(t *testing.T) {
 			Node:      node,
 			Succeeded: false,
 			Created:   nil,
-			Started:   Increment(startTime, 2),
+			Started:   Increment(startTime, 3),
 			Finished:  nil,
 			Error:     "",
 		}, queueInfos[0].LongestRunningJob.Runs[1])
