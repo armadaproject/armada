@@ -158,7 +158,8 @@ jobs:
           command: |
             make proto
             make generate
-            git status -s -uno 
+            git status -s -uno
+            git diff
             exit $(git status -s -uno | wc -l)
 
 
