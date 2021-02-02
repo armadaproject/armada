@@ -149,16 +149,17 @@ jobs:
             ineffassign ./...
 
       - run:
+          name: Check formatting
+          command: |
+            exit $(go run golang.org/x/tools/cmd/goimports -l -local "github.com/G-Research/armada" . | wc -l)
+
+      - run:
           name: Check generated files
           command: |
             make proto
             git status -s -uno
             exit $(git status -s -uno | wc -l)
 
-      - run:
-          name: Check formatting
-          command: |
-            exit $(go run golang.org/x/tools/cmd/goimports -l -local "github.com/G-Research/armada" . | wc -l)
 
       - store_artifacts:
           path: bin/armadactl
