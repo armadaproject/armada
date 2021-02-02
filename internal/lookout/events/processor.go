@@ -87,7 +87,7 @@ func (p *EventProcessor) processEvent(event api.Event) error {
 		// TODO record to message log?
 
 	case *api.JobReprioritizedEvent:
-		p.recorder.RecordJobPriorityChange(typed)
+		return p.recorder.RecordJobPriorityChange(typed)
 
 	case *api.JobCancellingEvent: // noop
 	case *api.JobCancelledEvent:
