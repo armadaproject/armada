@@ -91,9 +91,6 @@ func (r *SQLJobRepository) createJobsDataset(opts *lookout.GetJobsRequest) *goqu
 			jobRun_error).
 		Where(job_jobId.In(subDs))
 
-	query, _, _ := ds.ToSQL()
-	fmt.Println(query)
-
 	return ds
 }
 
