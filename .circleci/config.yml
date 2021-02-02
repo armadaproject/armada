@@ -125,15 +125,6 @@ jobs:
             - machine-go-mod-v1-{{ checksum "go.sum" }}
 
       - run:
-          name: Check generated files
-          command: |
-            make proto
-            git log --pretty=%at --name-status --reverse | perl -ane '($x,$f)=@F;next if !$x;$t=$x,next if !defined($f)||$s{$f};$s{$f}=utime($t,$t,$f),next if $x=~/[AM]/;'
-            make generate
-            git status -s -uno
-            exit $(git status -s -uno | wc -l)
-
-      - run:
           name: Test
           command: make tests
 
@@ -156,6 +147,13 @@ jobs:
             go get -u github.com/gordonklaus/ineffassign
             cd ~/go/src/github.com/G-Research/armada
             ineffassign ./...
+
+      - run:
+          name: Check generated files
+          command: |
+            make proto
+            git status -s -uno
+            exit $(git status -s -uno | wc -l)
 
       - run:
           name: Check formatting
