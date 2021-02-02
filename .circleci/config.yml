@@ -128,8 +128,8 @@ jobs:
           name: Check generated files
           command: |
             make proto
+            gitmtim(){ local f;for f;do touch -d @0`git log --pretty=%at -n1 -- "$f"` "$f"; done;}; gitmtim ./internal/lookout/repository/schema/*.sql
             make generate
-            git diff
             exit $(git status -s -uno | wc -l)
 
       - run:
