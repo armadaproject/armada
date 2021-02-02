@@ -128,7 +128,7 @@ jobs:
           name: Check generated files
           command: |
             make proto
-            gitmtim(){ local f;for f;do touch -d @0`git log --pretty=%at -n1 -- "$f"` "$f"; done;}; gitmtim ./internal/lookout/repository/schema/*.sql
+            git log --pretty=%at --name-status --reverse | perl -ane '($x,$f)=@F;next if !$x;$t=$x,next if !defined($f)||$s{$f};$s{$f}=utime($t,$t,$f),next if $x=~/[AM]/;'
             make generate
             git status -s -uno
             exit $(git status -s -uno | wc -l)
