@@ -2,7 +2,7 @@ import React, { Fragment } from 'react'
 import { RouteComponentProps, withRouter } from 'react-router-dom'
 import queryString, { ParseOptions, StringifyOptions } from 'query-string'
 
-import JobService, { Job, JOB_STATES_FOR_DISPLAY } from "../services/JobService"
+import JobService, { JobRun, JOB_STATES_FOR_DISPLAY } from "../services/JobService"
 import Jobs from "../components/Jobs"
 import CancelJobsModal, { CancelJobsModalContext, CancelJobsModalState } from "../components/CancelJobsModal";
 import JobDetailsModal, { JobDetailsModalContext, toggleExpanded } from "../components/job-details/JobDetailsModal";
@@ -14,9 +14,9 @@ type JobsContainerProps = {
 export type CancelJobsRequestStatus = "Loading" | "Idle"
 
 interface JobsContainerState extends JobFilters {
-  jobs: Job[]
+  jobs: JobRun[]
   canLoadMore: boolean
-  selectedJobs: Map<string, Job>
+  selectedJobs: Map<string, JobRun>
   cancelJobsModalContext: CancelJobsModalContext
   jobDetailsModalContext: JobDetailsModalContext
 }
@@ -140,7 +140,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
       ...initialFilters,
       jobs: [],
       canLoadMore: true,
-      selectedJobs: new Map<string, Job>(),
+      selectedJobs: new Map<string, JobRun>(),
       cancelJobsModalContext: {
         modalState: "None",
         jobsToCancel: [],
@@ -181,7 +181,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     })
   }
 
-  async serveJobs(start: number, stop: number): Promise<Job[]> {
+  async serveJobs(start: number, stop: number): Promise<JobRun[]> {
     if (start >= this.state.jobs.length || stop >= this.state.jobs.length) {
       await this.loadJobInfosForRange(start, stop);
     }
@@ -236,9 +236,9 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     await this.setFilters(this.state)
   }
 
-  async selectJob(job: Job, selected: boolean) {
+  async selectJob(job: JobRun, selected: boolean) {
     const jobId = job.jobId
-    const selectedJobs = new Map<string, Job>(this.state.selectedJobs)
+    const selectedJobs = new Map<string, JobRun>(this.state.selectedJobs)
     if (selected) {
       selectedJobs.set(jobId, job)
     } else {
@@ -285,7 +285,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
         ...this.state,
         jobs: [],
         canLoadMore: true,
-        selectedJobs: new Map<string, Job>(),
+        selectedJobs: new Map<string, JobRun>(),
         cancelJobsModalContext: {
           jobsToCancel: [],
           cancelJobsResult: cancelJobsResult,
@@ -308,7 +308,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
         ...this.state,
         jobs: [],
         canLoadMore: true,
-        selectedJobs: new Map<string, Job>(),
+        selectedJobs: new Map<string, JobRun>(),
         cancelJobsModalContext: {
           ...this.state.cancelJobsModalContext,
           jobsToCancel: cancelJobsResult.failedJobCancellations.map(failed => failed.job),
@@ -387,7 +387,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     })
   }
 
-  private async fetchNextJobInfos(filters: JobFilters, startIndex: number): Promise<[Job[], boolean]> {
+  private async fetchNextJobInfos(filters: JobFilters, startIndex: number): Promise<[JobRun[], boolean]> {
     const newJobInfos = await this.props.jobService.getJobsInQueue({
       queue: filters.queue,
       take: BATCH_SIZE,
@@ -412,7 +412,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
       ...filters,
       jobs: [],
       canLoadMore: true,
-      selectedJobs: new Map<string, Job>(),
+      selectedJobs: new Map<string, JobRun>(),
     })
     this.setUrlParams()
   }
@@ -434,7 +434,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
       .some(jobState => CANCELLABLE_JOB_STATES.includes(jobState))
   }
 
-  private getCancellableSelectedJobs(selectedJobs: Map<string, Job>): Job[] {
+  private getCancellableSelectedJobs(selectedJobs: Map<string, JobRun>): JobRun[] {
     return Array.from(selectedJobs.values())
       .filter(job => CANCELLABLE_JOB_STATES.includes(job.jobState))
   }

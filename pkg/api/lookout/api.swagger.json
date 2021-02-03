@@ -133,6 +133,12 @@
         "podSpec": {
           "$ref": "#/definitions/v1PodSpec"
         },
+        "podSpecs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/v1PodSpec"
+          }
+        },
         "priority": {
           "type": "number",
           "format": "double"
@@ -341,6 +347,13 @@
           "type": "string"
         },
         "node": {
+          "type": "string"
+        },
+        "podNumber": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "runState": {
           "type": "string"
         },
         "started": {

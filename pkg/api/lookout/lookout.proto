@@ -32,7 +32,9 @@ message RunInfo {
     google.protobuf.Timestamp created = 6 [(gogoproto.stdtime) = true, (gogoproto.nullable) = true];
     google.protobuf.Timestamp started = 7 [(gogoproto.stdtime) = true, (gogoproto.nullable) = true];
     google.protobuf.Timestamp finished = 8 [(gogoproto.stdtime) = true, (gogoproto.nullable) = true];
-    bool unable_to_schedule = 9;
+    int32 pod_number = 9;
+    string run_state = 10;
+    bool unable_to_schedule = 11;
 }
 
 message QueueInfo {

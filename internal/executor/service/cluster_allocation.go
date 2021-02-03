@@ -2,6 +2,7 @@ package service
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
@@ -71,21 +72,29 @@ func (allocationService *ClusterAllocationService) submitJobs(jobsToSubmit []*ap
 	toBeFailedJobs := make([]*failedSubmissionDetails, 0, 10)
 
 	for _, job := range jobsToSubmit {
-		pod := createPod(job)
-		_, err := allocationService.clusterContext.SubmitPod(pod, job.Owner)
+		jobPods := []*v1.Pod{}
+		for i, _ := range job.GetAllPodSpecs() {
+			pod := createPod(job, i)
+			_, err := allocationService.clusterContext.SubmitPod(pod, job.Owner)
+			jobPods = append(jobPods, pod)
 
-		if err != nil {
-			log.Errorf("Failed to submit job %s because %s", job.Id, err)
+			if err != nil {
+				log.Errorf("Failed to submit job %s because %s", job.Id, err)
 
-			status, ok := err.(errors.APIStatus)
-			if ok && (isNotRecoverable(status.Status())) {
-				errDetails := &failedSubmissionDetails{
-					pod:   pod,
-					error: status,
+				status, ok := err.(errors.APIStatus)
+				if ok && (isNotRecoverable(status.Status())) {
+					errDetails := &failedSubmissionDetails{
+						job:   job,
+						pod:   pod,
+						error: status,
+					}
+					toBeFailedJobs = append(toBeFailedJobs, errDetails)
+				} else {
+					allocationService.returnLease(pod, fmt.Sprintf("Failed to submit pod because %s", err))
 				}
-				toBeFailedJobs = append(toBeFailedJobs, errDetails)
-			} else {
-				allocationService.returnLease(pod, fmt.Sprintf("Failed to submit pod because %s", err))
+				// remove just created pods
+				allocationService.clusterContext.DeletePods(jobPods)
+				break
 			}
 		}
 	}
@@ -112,14 +121,14 @@ func isNotRecoverable(status metav1.Status) bool {
 }
 
 func (allocationService *ClusterAllocationService) failJobs(failedSubmissions []*failedSubmissionDetails) error {
-	toBeReportedDone := make([]*v1.Pod, 0, 10)
+	toBeReportedDone := make([]string, 0, 10)
 
 	for _, details := range failedSubmissions {
 		failEvent := reporter.CreateJobFailedEvent(details.pod, details.error.Status().Message, map[string]int32{}, allocationService.clusterContext.GetClusterId())
 		err := allocationService.eventReporter.Report(failEvent)
 
 		if err == nil {
-			toBeReportedDone = append(toBeReportedDone, details.pod)
+			toBeReportedDone = append(toBeReportedDone, details.job.JobSetId)
 		}
 	}
 
@@ -141,28 +150,34 @@ func (allocationService *ClusterAllocationService) returnLease(pod *v1.Pod, reas
 	}
 }
 
-func createPod(job *api.Job) *v1.Pod {
+func createPod(job *api.Job, i int) *v1.Pod {
+
+	allPodSpecs := job.GetAllPodSpecs()
+	podSpec := allPodSpecs[i]
+
 	labels := mergeMaps(job.Labels, map[string]string{
-		domain.JobId: job.Id,
-		domain.Queue: job.Queue,
+		domain.JobId:     job.Id,
+		domain.Queue:     job.Queue,
+		domain.PodNumber: strconv.Itoa(i),
+		domain.PodCount:  strconv.Itoa(len(allPodSpecs)),
 	})
 	annotation := mergeMaps(job.Annotations, map[string]string{
 		domain.JobSetId: job.JobSetId,
 	})
 
-	setRestartPolicyNever(job.PodSpec)
+	setRestartPolicyNever(podSpec)
 
-	pod := v1.Pod{
+	pod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        common.PodNamePrefix + job.Id,
+			Name:        common.PodNamePrefix + job.Id + "-" + strconv.Itoa(i),
 			Labels:      labels,
 			Annotations: annotation,
 			Namespace:   job.Namespace,
 		},
-		Spec: *job.PodSpec,
+		Spec: *podSpec,
 	}
 
-	return &pod
+	return pod
 }
 
 func setRestartPolicyNever(podSpec *v1.PodSpec) {
@@ -171,6 +186,7 @@ func setRestartPolicyNever(podSpec *v1.PodSpec) {
 
 type failedSubmissionDetails struct {
 	pod   *v1.Pod
+	job   *api.Job
 	error errors.APIStatus
 }
 

@@ -28,10 +28,10 @@ func (r *SQLJobRepository) GetJobs(ctx context.Context, opts *lookout.GetJobsReq
 	return result, nil
 }
 
-func validateJobStates(jobStates []string) (bool, string) {
+func validateJobStates(jobStates []string) (bool, JobState) {
 	for _, jobState := range jobStates {
 		if !isJobState(jobState) {
-			return false, jobState
+			return false, JobState(jobState)
 		}
 	}
 	return true, ""
@@ -39,7 +39,7 @@ func validateJobStates(jobStates []string) (bool, string) {
 
 func isJobState(val string) bool {
 	for _, jobState := range AllJobStates {
-		if val == jobState {
+		if JobState(val) == jobState {
 			return true
 		}
 	}
@@ -72,8 +72,7 @@ func (r *SQLJobRepository) createJobsDataset(opts *lookout.GetJobsRequest) *goqu
 		From(jobTable).
 		LeftJoin(jobRunTable, goqu.On(
 			job_jobId.Eq(jobRun_jobId))).
-		Select(
-			job_jobId,
+		Select(job_jobId,
 			job_queue,
 			job_owner,
 			job_jobset,
@@ -82,6 +81,7 @@ func (r *SQLJobRepository) createJobsDataset(opts *lookout.GetJobsRequest) *goqu
 			job_cancelled,
 			job_job,
 			jobRun_runId,
+			jobRun_podNumber,
 			jobRun_cluster,
 			jobRun_node,
 			jobRun_created,
@@ -134,7 +134,7 @@ func createJobStateFilters(jobStates []string) []goqu.Expression {
 
 	filters := make([]goqu.Expression, 0)
 	for _, state := range jobStates {
-		filter := goqu.And(FiltersForState[state]...)
+		filter := goqu.And(FiltersForState[JobState(state)]...)
 		filters = append(filters, filter)
 	}
 	return filters
@@ -171,8 +171,7 @@ func rowsToJobs(rows []*JobRow) []*lookout.JobInfo {
 	}
 
 	for _, jobInfo := range jobMap {
-		jobState := determineJobState(jobInfo)
-		jobInfo.JobState = jobState
+		determineJobState(jobInfo)
 	}
 
 	return jobMapToSlice(jobMap)
@@ -218,6 +217,7 @@ func makeRunFromRow(row *JobRow) *lookout.RunInfo {
 	}
 	return &lookout.RunInfo{
 		K8SId:     ParseNullString(row.RunId),
+		PodNumber: int32(ParseNullInt(row.PodNumber)),
 		Cluster:   ParseNullString(row.Cluster),
 		Node:      ParseNullString(row.Node),
 		Succeeded: ParseNullBool(row.Succeeded),
@@ -228,24 +228,58 @@ func makeRunFromRow(row *JobRow) *lookout.RunInfo {
 	}
 }
 
-func determineJobState(jobInfo *lookout.JobInfo) string {
+func determineRunState(runInfo *lookout.RunInfo) JobState {
+	if runInfo.Finished != nil && runInfo.Succeeded {
+		return JobSucceeded
+	}
+	if runInfo.Finished != nil && !runInfo.Succeeded {
+		return JobFailed
+	}
+	if runInfo.Started != nil {
+		return JobRunning
+	}
+	if runInfo.Created != nil {
+		return JobPending
+	}
+	return JobQueued
+}
+
+func determineJobState(jobInfo *lookout.JobInfo) {
 	if jobInfo.Cancelled != nil {
-		return JobStates.Cancelled
+		jobInfo.JobState = string(JobCancelled)
+		return
 	}
+
+	podStates := map[int32]JobState{}
+	for _, run := range jobInfo.Runs {
+		// this code assumes that runs are ordered by start
+		// and the only latest run for specific pod number is relevant
+		state := determineRunState(run)
+		run.RunState = string(state)
+		podStates[run.PodNumber] = state
+	}
+
 	if len(jobInfo.Runs) > 0 {
-		lastRun := jobInfo.Runs[len(jobInfo.Runs)-1]
-		if lastRun.Finished != nil && lastRun.Succeeded {
-			return JobStates.Succeeded
+
+		stateCounts := map[JobState]int{}
+		for _, state := range podStates {
+			stateCounts[state]++
 		}
-		if lastRun.Finished != nil && !lastRun.Succeeded {
-			return JobStates.Failed
+
+		if stateCounts[JobFailed] > 0 {
+			jobInfo.JobState = string(JobFailed)
+			return
 		}
-		if lastRun.Started != nil {
-			return JobStates.Running
+		if stateCounts[JobPending] > 0 {
+			jobInfo.JobState = string(JobPending)
+			return
 		}
-		if lastRun.Created != nil {
-			return JobStates.Pending
+		if stateCounts[JobRunning] > 0 {
+			jobInfo.JobState = string(JobRunning)
+			return
 		}
+		jobInfo.JobState = string(JobSucceeded)
+		return
 	}
-	return JobStates.Queued
+	jobInfo.JobState = string(JobQueued)
 }

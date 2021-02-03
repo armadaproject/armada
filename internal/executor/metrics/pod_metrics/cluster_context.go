@@ -172,7 +172,7 @@ func (m *ClusterContextMetrics) UpdateMetrics() {
 			podMetrics[queue] = queueMetric
 		}
 
-		request := common.TotalResourceRequest(&pod.Spec).AsFloat()
+		request := common.TotalPodResourceRequest(&pod.Spec).AsFloat()
 		usage := m.queueUtilisationService.GetPodUtilisation(pod).AsFloat()
 
 		queueMetric[phase].count++

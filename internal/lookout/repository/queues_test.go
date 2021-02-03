@@ -169,7 +169,7 @@ func TestGetQueueInfos_IncludeOldestQueuedJob(t *testing.T) {
 		AssertJobsAreEquivalent(t, oldestQueued.job, queueInfos[0].OldestQueuedJob.Job)
 
 		assert.Nil(t, queueInfos[0].OldestQueuedJob.Cancelled)
-		assert.Equal(t, JobStates.Queued, queueInfos[0].OldestQueuedJob.JobState)
+		assert.Equal(t, string(JobQueued), queueInfos[0].OldestQueuedJob.JobState)
 
 		assert.Equal(t, 0, len(queueInfos[0].OldestQueuedJob.Runs))
 
@@ -263,7 +263,7 @@ func TestGetQueueInfos_IncludeLongestRunningJob(t *testing.T) {
 		AssertJobsAreEquivalent(t, longestRunning.job, queueInfos[0].LongestRunningJob.Job)
 
 		assert.Nil(t, queueInfos[0].LongestRunningJob.Cancelled)
-		assert.Equal(t, JobStates.Running, queueInfos[0].LongestRunningJob.JobState)
+		assert.Equal(t, string(JobRunning), queueInfos[0].LongestRunningJob.JobState)
 
 		assert.Equal(t, 2, len(queueInfos[0].LongestRunningJob.Runs))
 		AssertRunInfosEquivalent(t, &lookout.RunInfo{
@@ -377,12 +377,12 @@ func TestGetQueueInfos_MultipleQueues(t *testing.T) {
 
 		AssertJobsAreEquivalent(t, oldestQueued1.job, queueInfos[0].OldestQueuedJob.Job)
 		assert.Nil(t, queueInfos[0].OldestQueuedJob.Cancelled)
-		assert.Equal(t, JobStates.Queued, queueInfos[0].OldestQueuedJob.JobState)
+		assert.Equal(t, string(JobQueued), queueInfos[0].OldestQueuedJob.JobState)
 		assert.Equal(t, 0, len(queueInfos[0].OldestQueuedJob.Runs))
 
 		AssertJobsAreEquivalent(t, longestRunning1.job, queueInfos[0].LongestRunningJob.Job)
 		assert.Nil(t, queueInfos[0].LongestRunningJob.Cancelled)
-		assert.Equal(t, JobStates.Running, queueInfos[0].LongestRunningJob.JobState)
+		assert.Equal(t, string(JobRunning), queueInfos[0].LongestRunningJob.JobState)
 		assert.Equal(t, 2, len(queueInfos[0].LongestRunningJob.Runs))
 		AssertRunInfosEquivalent(t, &lookout.RunInfo{
 			K8SId:     "c1",
@@ -407,12 +407,12 @@ func TestGetQueueInfos_MultipleQueues(t *testing.T) {
 
 		AssertJobsAreEquivalent(t, oldestQueued2.job, queueInfos[1].OldestQueuedJob.Job)
 		assert.Nil(t, queueInfos[1].OldestQueuedJob.Cancelled)
-		assert.Equal(t, JobStates.Queued, queueInfos[1].OldestQueuedJob.JobState)
+		assert.Equal(t, string(JobQueued), queueInfos[1].OldestQueuedJob.JobState)
 		assert.Equal(t, 0, len(queueInfos[1].OldestQueuedJob.Runs))
 
 		AssertJobsAreEquivalent(t, longestRunning2.job, queueInfos[1].LongestRunningJob.Job)
 		assert.Nil(t, queueInfos[1].LongestRunningJob.Cancelled)
-		assert.Equal(t, JobStates.Running, queueInfos[1].LongestRunningJob.JobState)
+		assert.Equal(t, string(JobRunning), queueInfos[1].LongestRunningJob.JobState)
 		assert.Equal(t, 1, len(queueInfos[1].LongestRunningJob.Runs))
 		AssertRunInfosEquivalent(t, &lookout.RunInfo{
 			K8SId:     "g",

@@ -33,35 +33,69 @@ func extractNodeTypes(allocations []*nodeTypeAllocation) []*api.NodeType {
 }
 
 func MatchSchedulingRequirements(job *api.Job, schedulingInfo *api.ClusterSchedulingInfoReport) bool {
-	return isLargeEnough(job, schedulingInfo.MinimumJobSize) &&
-		matchAnyNodeType(job, schedulingInfo.NodeTypes)
+	if !isLargeEnough(job, schedulingInfo.MinimumJobSize) {
+		return false
+	}
+	for _, podSpec := range job.GetAllPodSpecs() {
+		// TODO: make sure there are enough nodes available for all the job pods
+		if !matchAnyNodeType(podSpec, schedulingInfo.NodeTypes) {
+			return false
+		}
+	}
+	return true
 }
 
 func isLargeEnough(job *api.Job, minimumJobSize common.ComputeResources) bool {
-	resourceRequest := common.TotalResourceRequest(job.PodSpec)
+	resourceRequest := common.TotalJobResourceRequest(job)
 	resourceRequest.Sub(minimumJobSize)
 	return resourceRequest.IsValid()
 }
 
-func matchAnyNodeType(job *api.Job, nodeTypes []*api.NodeType) bool {
+func matchAnyNodeType(podSpec *v1.PodSpec, nodeTypes []*api.NodeType) bool {
 	for _, nodeType := range nodeTypes {
-		resourceRequest := common.TotalResourceRequest(job.PodSpec).AsFloat()
+		resourceRequest := common.TotalPodResourceRequest(podSpec).AsFloat()
 		nodeResources := common.ComputeResources(nodeType.AllocatableResources).AsFloat()
-		if fits(resourceRequest, nodeResources) && matchNodeSelector(job, nodeType.Labels) && tolerates(job, nodeType.Taints) {
+		if fits(resourceRequest, nodeResources) && matchNodeSelector(podSpec, nodeType.Labels) && tolerates(podSpec, nodeType.Taints) {
 			return true
 		}
 	}
 	return false
 }
 
-func matchAnyNodeTypeAllocation(job *api.Job, nodeAllocations []*nodeTypeAllocation, alreadyConsumed map[*nodeTypeAllocation]common.ComputeResourcesFloat) (*nodeTypeAllocation, bool) {
+func matchAnyNodeTypeAllocation(job *api.Job,
+	nodeAllocations []*nodeTypeAllocation,
+	alreadyConsumed nodeTypeUsedResources) (nodeTypeUsedResources, bool) {
+
+	newlyConsumed := nodeTypeUsedResources{}
+
+	for _, podSpec := range job.GetAllPodSpecs() {
+
+		nodeType, ok := matchAnyNodeTypePodAllocation(podSpec, nodeAllocations, alreadyConsumed, newlyConsumed)
+
+		if !ok {
+			return nodeTypeUsedResources{}, false
+		}
+		resourceRequest := common.TotalPodResourceRequest(podSpec).AsFloat()
+		resourceRequest.Add(newlyConsumed[nodeType])
+		newlyConsumed[nodeType] = resourceRequest
+	}
+	return newlyConsumed, true
+}
+
+func matchAnyNodeTypePodAllocation(
+	podSpec *v1.PodSpec,
+	nodeAllocations []*nodeTypeAllocation,
+	alreadyConsumed nodeTypeUsedResources,
+	newlyConsumed nodeTypeUsedResources) (*nodeTypeAllocation, bool) {
+	resourceRequest := common.TotalPodResourceRequest(podSpec).AsFloat()
+
 	for _, node := range nodeAllocations {
-		resourceRequest := common.TotalResourceRequest(job.PodSpec).AsFloat()
 		available := node.availableResources.DeepCopy()
 		available.Sub(alreadyConsumed[node])
+		available.Sub(newlyConsumed[node])
 		available.LimitWith(node.nodeSize.AsFloat())
 
-		if fits(resourceRequest, available) && matchNodeSelector(job, node.labels) && tolerates(job, node.taints) {
+		if fits(resourceRequest, available) && matchNodeSelector(podSpec, node.labels) && tolerates(podSpec, node.taints) {
 			return node, true
 		}
 	}
@@ -74,8 +108,8 @@ func fits(resourceRequest, availableResources common.ComputeResourcesFloat) bool
 	return r.IsValid()
 }
 
-func matchNodeSelector(job *api.Job, labels map[string]string) bool {
-	for k, v := range job.PodSpec.NodeSelector {
+func matchNodeSelector(podSpec *v1.PodSpec, labels map[string]string) bool {
+	for k, v := range podSpec.NodeSelector {
 		if labels == nil || labels[k] != v {
 			return false
 		}
@@ -83,14 +117,14 @@ func matchNodeSelector(job *api.Job, labels map[string]string) bool {
 	return true
 }
 
-func tolerates(job *api.Job, taints []v1.Taint) bool {
+func tolerates(podSpec *v1.PodSpec, taints []v1.Taint) bool {
 	for _, taint := range taints {
 		// check only hard constraints
 		if taint.Effect == v1.TaintEffectPreferNoSchedule {
 			continue
 		}
 
-		if !tolerationsTolerateTaint(job.PodSpec.Tolerations, &taint) {
+		if !tolerationsTolerateTaint(podSpec.Tolerations, &taint) {
 			return false
 		}
 	}

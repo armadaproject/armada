@@ -101,10 +101,10 @@ func Test_matchNodeSelector(t *testing.T) {
 		"A": "test",
 		"B": "test",
 	}
-	assert.False(t, matchNodeSelector(&api.Job{PodSpec: &v1.PodSpec{NodeSelector: map[string]string{"C": "test"}}}, labels))
-	assert.False(t, matchNodeSelector(&api.Job{PodSpec: &v1.PodSpec{NodeSelector: map[string]string{"B": "42"}}}, labels))
-	assert.True(t, matchNodeSelector(&api.Job{PodSpec: &v1.PodSpec{NodeSelector: map[string]string{"A": "test"}}}, labels))
-	assert.True(t, matchNodeSelector(&api.Job{PodSpec: &v1.PodSpec{NodeSelector: map[string]string{"A": "test", "B": "test"}}}, labels))
+	assert.False(t, matchNodeSelector(&v1.PodSpec{NodeSelector: map[string]string{"C": "test"}}, labels))
+	assert.False(t, matchNodeSelector(&v1.PodSpec{NodeSelector: map[string]string{"B": "42"}}, labels))
+	assert.True(t, matchNodeSelector(&v1.PodSpec{NodeSelector: map[string]string{"A": "test"}}, labels))
+	assert.True(t, matchNodeSelector(&v1.PodSpec{NodeSelector: map[string]string{"A": "test", "B": "test"}}, labels))
 }
 
 func Test_tolerates(t *testing.T) {
@@ -121,7 +121,7 @@ func Test_tolerates(t *testing.T) {
 		},
 	}
 
-	job1 := &api.Job{PodSpec: &v1.PodSpec{
+	podSpec := &v1.PodSpec{
 		Tolerations: []v1.Toleration{
 			{
 				Key:      "A",
@@ -129,10 +129,10 @@ func Test_tolerates(t *testing.T) {
 				Value:    "test",
 				Effect:   v1.TaintEffectNoSchedule,
 			},
-		}}}
+		}}
 
-	assert.False(t, tolerates(&api.Job{PodSpec: &v1.PodSpec{}}, taints))
-	assert.True(t, tolerates(job1, taints))
+	assert.False(t, tolerates(&v1.PodSpec{}, taints))
+	assert.True(t, tolerates(podSpec, taints))
 }
 
 func makeResourceList(cores int64, gigabytesRam int64) common.ComputeResources {

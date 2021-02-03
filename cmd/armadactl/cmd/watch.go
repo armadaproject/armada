@@ -79,6 +79,10 @@ var watchCmd = &cobra.Command{
 func printSummary(state *domain.WatchContext, e api.Event) {
 	summary := fmt.Sprintf("%s | ", e.GetCreated().Format(time.Stamp))
 	summary += state.GetCurrentStateSummary()
-	summary += fmt.Sprintf(" | event: %s, job id: %s", reflect.TypeOf(e), e.GetJobId())
+	summary += fmt.Sprintf(" | %s, job id: %s", reflect.TypeOf(e).String()[5:], e.GetJobId())
+
+	if kubernetesEvent, ok := e.(api.KubernetesEvent); ok {
+		summary += fmt.Sprintf(" pod: %d", kubernetesEvent.GetPodNumber())
+	}
 	log.Info(summary)
 }

@@ -7,7 +7,6 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
-	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/G-Research/armada/internal/armada/configuration"
@@ -34,13 +33,6 @@ type leaseContext struct {
 	minimumJobSize map[string]resource.Quantity
 
 	queueCache map[string][]*api.Job
-}
-
-type nodeTypeAllocation struct {
-	taints             []v1.Taint
-	labels             map[string]string
-	nodeSize           common.ComputeResources
-	availableResources common.ComputeResourcesFloat
 }
 
 func LeaseJobs(ctx context.Context,
@@ -247,23 +239,20 @@ func (c *leaseContext) leaseJobs(queue *api.Queue, slice common.ComputeResources
 		}
 
 		candidates := make([]*api.Job, 0)
-		candidateNodes := map[*api.Job]*nodeTypeAllocation{}
-		consumedNodeResources := map[*nodeTypeAllocation]common.ComputeResourcesFloat{}
+		candidateNodes := map[*api.Job]nodeTypeUsedResources{}
+		consumedNodeResources := nodeTypeUsedResources{}
 
 		for _, job := range topJobs {
-			requirement := common.TotalResourceRequest(job.PodSpec).AsFloat()
+			requirement := common.TotalJobResourceRequest(job).AsFloat()
 			remainder = slice.DeepCopy()
 			remainder.Sub(requirement)
 			if isLargeEnough(job, c.minimumJobSize) && remainder.IsValid() {
-				nodeType, ok := matchAnyNodeTypeAllocation(job, c.nodeResources, consumedNodeResources)
+				newlyConsumed, ok := matchAnyNodeTypeAllocation(job, c.nodeResources, consumedNodeResources)
 				if ok {
 					slice = remainder
-					resourceRequest := requirement.DeepCopy()
-					resourceRequest.Add(consumedNodeResources[nodeType])
-					consumedNodeResources[nodeType] = resourceRequest
-
 					candidates = append(candidates, job)
-					candidateNodes[job] = nodeType
+					candidateNodes[job] = newlyConsumed
+					consumedNodeResources.Add(newlyConsumed)
 				}
 			}
 			if len(candidates) >= limit {
@@ -297,11 +286,11 @@ func (c *leaseContext) leaseJobs(queue *api.Queue, slice common.ComputeResources
 	return jobs, slice, nil
 }
 
-func (c *leaseContext) decreaseNodeResources(leased []*api.Job, nodeAssignment map[*api.Job]*nodeTypeAllocation) {
+func (c *leaseContext) decreaseNodeResources(leased []*api.Job, nodeTypeUsage map[*api.Job]nodeTypeUsedResources) {
 	for _, j := range leased {
-		resources := common.TotalResourceRequest(j.PodSpec).AsFloat()
-		nodeType := nodeAssignment[j]
-		nodeType.availableResources.Sub(resources)
+		for nodeType, resources := range nodeTypeUsage[j] {
+			nodeType.availableResources.Sub(resources)
+		}
 	}
 }
 

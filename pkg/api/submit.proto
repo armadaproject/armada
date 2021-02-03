@@ -17,7 +17,8 @@ message JobSubmitRequestItem {
     map<string, string> labels = 4;
     map<string, string> annotations = 5;
     map<string, string> required_node_labels = 6 [deprecated = true]; // Use PodSpec.NodeSelector instead
-    k8s.io.api.core.v1.PodSpec pod_spec = 2;
+    k8s.io.api.core.v1.PodSpec pod_spec = 2 [deprecated = true]; // Use PodSpecs instead
+    repeated k8s.io.api.core.v1.PodSpec pod_specs = 7;
 }
 
 // swagger:model

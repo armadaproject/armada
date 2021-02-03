@@ -342,6 +342,12 @@ func SwaggerJsonTemplate() string {
 		"        \"podSpec\": {\n" +
 		"          \"$ref\": \"#/definitions/v1PodSpec\"\n" +
 		"        },\n" +
+		"        \"podSpecs\": {\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/v1PodSpec\"\n" +
+		"          }\n" +
+		"        },\n" +
 		"        \"priority\": {\n" +
 		"          \"type\": \"number\",\n" +
 		"          \"format\": \"double\"\n" +
@@ -437,6 +443,10 @@ func SwaggerJsonTemplate() string {
 		"        \"nodeName\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
+		"        \"podNumber\": {\n" +
+		"          \"type\": \"integer\",\n" +
+		"          \"format\": \"int32\"\n" +
+		"        },\n" +
 		"        \"queue\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
@@ -527,6 +537,10 @@ func SwaggerJsonTemplate() string {
 		"        \"kubernetesId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
+		"        \"podNumber\": {\n" +
+		"          \"type\": \"integer\",\n" +
+		"          \"format\": \"int32\"\n" +
+		"        },\n" +
 		"        \"queue\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        }\n" +
@@ -589,6 +603,10 @@ func SwaggerJsonTemplate() string {
 		"        },\n" +
 		"        \"nodeName\": {\n" +
 		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"podNumber\": {\n" +
+		"          \"type\": \"integer\",\n" +
+		"          \"format\": \"int32\"\n" +
 		"        },\n" +
 		"        \"queue\": {\n" +
 		"          \"type\": \"string\"\n" +
@@ -668,6 +686,12 @@ func SwaggerJsonTemplate() string {
 		"        \"podSpec\": {\n" +
 		"          \"$ref\": \"#/definitions/v1PodSpec\"\n" +
 		"        },\n" +
+		"        \"podSpecs\": {\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/v1PodSpec\"\n" +
+		"          }\n" +
+		"        },\n" +
 		"        \"priority\": {\n" +
 		"          \"type\": \"number\",\n" +
 		"          \"format\": \"double\"\n" +
@@ -746,6 +770,10 @@ func SwaggerJsonTemplate() string {
 		"        \"nodeName\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
+		"        \"podNumber\": {\n" +
+		"          \"type\": \"integer\",\n" +
+		"          \"format\": \"int32\"\n" +
+		"        },\n" +
 		"        \"queue\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        }\n" +
@@ -794,6 +822,10 @@ func SwaggerJsonTemplate() string {
 		"        \"nodeName\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
+		"        \"podNumber\": {\n" +
+		"          \"type\": \"integer\",\n" +
+		"          \"format\": \"int32\"\n" +
+		"        },\n" +
 		"        \"queue\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
@@ -829,6 +861,10 @@ func SwaggerJsonTemplate() string {
 		"        },\n" +
 		"        \"nodeName\": {\n" +
 		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"podNumber\": {\n" +
+		"          \"type\": \"integer\",\n" +
+		"          \"format\": \"int32\"\n" +
 		"        },\n" +
 		"        \"queue\": {\n" +
 		"          \"type\": \"string\"\n" +
