@@ -150,10 +150,6 @@ func (allocationService *ClusterAllocationService) returnLease(pod *v1.Pod, reas
 	}
 }
 
-func (allocationService *ClusterAllocationService) remove(pods []*v1.Pod) {
-	allocationService.clusterContext.DeletePods(pods)
-}
-
 func createPod(job *api.Job, i int) *v1.Pod {
 
 	allPodSpecs := job.GetAllPodSpecs()

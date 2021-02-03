@@ -58,12 +58,12 @@ func CreateEventForCurrentState(pod *v1.Pod, clusterId string) (api.Event, error
 }
 
 func getPodNumber(pod *v1.Pod) int32 {
-	noString, ok := pod.Labels[domain.PodNumber]
+	podNUmberString, ok := pod.Labels[domain.PodNumber]
 	if !ok {
 		return 0
 	}
-	no, _ := strconv.Atoi(noString)
-	return int32(no)
+	podNumber, _ := strconv.Atoi(podNUmberString)
+	return int32(podNumber)
 }
 
 func CreateJobUnableToScheduleEvent(pod *v1.Pod, reason string, clusterId string) api.Event {

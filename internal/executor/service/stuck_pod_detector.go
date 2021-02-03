@@ -91,7 +91,7 @@ func (d *StuckPodDetector) onStuckPodDeleted(record *stuckJobRecord) (resolved b
 		for _, pod := range record.job.Pods {
 			message := record.message
 			if pod != record.pod {
-				message = "Peer pod stuck."
+				message = fmt.Sprintf("Peer pod %d stuck.", util.ExtractPodNumber(record.pod))
 			}
 			event := reporter.CreateJobFailedEvent(pod, message, map[string]int32{}, d.clusterContext.GetClusterId())
 
