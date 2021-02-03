@@ -14,6 +14,7 @@ import (
 	"github.com/G-Research/armada/internal/executor/cluster"
 	"github.com/G-Research/armada/internal/executor/configuration"
 	"github.com/G-Research/armada/internal/executor/context"
+	"github.com/G-Research/armada/internal/executor/job_context"
 	"github.com/G-Research/armada/internal/executor/metrics"
 	"github.com/G-Research/armada/internal/executor/metrics/pod_metrics"
 	"github.com/G-Research/armada/internal/executor/reporter"
@@ -70,8 +71,11 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 		clusterContext,
 		eventClient)
 
+	jobContext := job_context.NewClusterJobContext(clusterContext)
+
 	jobLeaseService := service.NewJobLeaseService(
 		clusterContext,
+		jobContext,
 		queueClient,
 		config.Kubernetes.MinimumPodAge,
 		config.Kubernetes.FailedPodExpiry,
@@ -90,6 +94,7 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 
 	stuckPodDetector := service.NewPodProgressMonitorService(
 		clusterContext,
+		jobContext,
 		eventReporter,
 		jobLeaseService,
 		config.Kubernetes.StuckPodExpiry)

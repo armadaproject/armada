@@ -71,11 +71,12 @@ func (repo *RedisJobRepository) CreateJobs(request *api.JobSubmitRequest, princi
 	}
 
 	for i, item := range request.JobRequestItems {
+		if item.PodSpec != nil && len(item.PodSpecs) > 0 {
+			return nil, fmt.Errorf("job with index %v has both pod spec and pod spec list specified", i)
+		}
 
-		repo.applyDefaults(item.PodSpec)
-		e := validation.ValidatePodSpec(item.PodSpec)
-		if e != nil {
-			return nil, fmt.Errorf("error validating pod spec of job with index %v: %v", i, e)
+		if len(item.GetAllPodSpecs()) == 0 {
+			return nil, fmt.Errorf("job with index %v has no pod spec", i)
 		}
 
 		namespace := item.Namespace
@@ -83,12 +84,20 @@ func (repo *RedisJobRepository) CreateJobs(request *api.JobSubmitRequest, princi
 			namespace = "default"
 		}
 
-		// TODO: remove, RequiredNodeLabels is deprecated and will be removed in future versions
-		for k, v := range item.RequiredNodeLabels {
-			if item.PodSpec.NodeSelector == nil {
-				item.PodSpec.NodeSelector = map[string]string{}
+		for j, podSpec := range item.GetAllPodSpecs() {
+			repo.applyDefaults(podSpec)
+			e := validation.ValidatePodSpec(podSpec)
+			if e != nil {
+				return nil, fmt.Errorf("error validating pod spec of job with index %v, pod: %v: %v", i, j, e)
 			}
-			item.PodSpec.NodeSelector[k] = v
+
+			// TODO: remove, RequiredNodeLabels is deprecated and will be removed in future versions
+			for k, v := range item.RequiredNodeLabels {
+				if podSpec.NodeSelector == nil {
+					podSpec.NodeSelector = map[string]string{}
+				}
+				podSpec.NodeSelector[k] = v
+			}
 		}
 
 		j := &api.Job{
@@ -104,9 +113,10 @@ func (repo *RedisJobRepository) CreateJobs(request *api.JobSubmitRequest, princi
 
 			Priority: item.Priority,
 
-			PodSpec: item.PodSpec,
-			Created: time.Now(),
-			Owner:   principal.GetName(),
+			PodSpec:  item.PodSpec,
+			PodSpecs: item.PodSpecs,
+			Created:  time.Now(),
+			Owner:    principal.GetName(),
 		}
 		jobs = append(jobs, j)
 	}
@@ -372,12 +382,14 @@ func (repo *RedisJobRepository) GetExistingJobsByIds(ids []string) ([]*api.Job, 
 			return nil, e
 		}
 
-		// TODO: remove, RequiredNodeLabels is deprecated and will be removed in future versions
-		for k, v := range job.RequiredNodeLabels {
-			if job.PodSpec.NodeSelector == nil {
-				job.PodSpec.NodeSelector = map[string]string{}
+		for _, podSpec := range job.GetAllPodSpecs() {
+			// TODO: remove, RequiredNodeLabels is deprecated and will be removed in future versions
+			for k, v := range job.RequiredNodeLabels {
+				if podSpec.NodeSelector == nil {
+					podSpec.NodeSelector = map[string]string{}
+				}
+				podSpec.NodeSelector[k] = v
 			}
-			job.PodSpec.NodeSelector[k] = v
 		}
 		jobs = append(jobs, job)
 	}

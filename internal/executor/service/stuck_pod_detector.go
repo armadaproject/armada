@@ -7,21 +7,23 @@ import (
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 
-	commonUtil "github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/executor/context"
+	"github.com/G-Research/armada/internal/executor/job_context"
 	"github.com/G-Research/armada/internal/executor/reporter"
 	"github.com/G-Research/armada/internal/executor/util"
 )
 
 type StuckPodDetector struct {
 	clusterContext  context.ClusterContext
+	jobContext      job_context.JobContext
 	eventReporter   reporter.EventReporter
-	stuckPodCache   map[string]*podRecord
+	stuckJobCache   map[string]*stuckJobRecord
 	jobLeaseService LeaseService
 	stuckPodExpiry  time.Duration
 }
 
-type podRecord struct {
+type stuckJobRecord struct {
+	job       *job_context.RunningJob
 	pod       *v1.Pod
 	message   string
 	retryable bool
@@ -29,20 +31,22 @@ type podRecord struct {
 
 func NewPodProgressMonitorService(
 	clusterContext context.ClusterContext,
+	jobContext job_context.JobContext,
 	eventReporter reporter.EventReporter,
 	jobLeaseService LeaseService,
 	stuckPodExpiry time.Duration) *StuckPodDetector {
 
 	return &StuckPodDetector{
 		clusterContext:  clusterContext,
+		jobContext:      jobContext,
 		eventReporter:   eventReporter,
-		stuckPodCache:   map[string]*podRecord{},
+		stuckJobCache:   map[string]*stuckJobRecord{},
 		jobLeaseService: jobLeaseService,
 		stuckPodExpiry:  stuckPodExpiry,
 	}
 }
 
-func (d *StuckPodDetector) onStuckPodDetected(pod *v1.Pod) (err error, retryable bool, message string) {
+func (d *StuckPodDetector) determineStuckPodState(pod *v1.Pod) (err error, retryable bool, message string) {
 
 	podEvents, err := d.clusterContext.GetPodEvents(pod)
 	if err != nil {
@@ -63,11 +67,12 @@ func (d *StuckPodDetector) onStuckPodDetected(pod *v1.Pod) (err error, retryable
 	return err, retryable, message
 }
 
-func (d *StuckPodDetector) onStuckPodDeleted(jobId string, record *podRecord) (resolved bool) {
+func (d *StuckPodDetector) onStuckPodDeleted(record *stuckJobRecord) (resolved bool) {
+	// this method is executed after stuck pod was deleted from the cluster
 	if record.retryable {
 		err := d.jobLeaseService.ReturnLease(record.pod)
 		if err != nil {
-			log.Errorf("Failed to return lease for job %s because %s", jobId, err)
+			log.Errorf("Failed to return lease for job %s because %s", record.job.JobId, err)
 			return false
 		}
 
@@ -75,7 +80,7 @@ func (d *StuckPodDetector) onStuckPodDeleted(jobId string, record *podRecord) (r
 
 		err = d.eventReporter.Report(leaseReturnedEvent)
 		if err != nil {
-			log.Errorf("Failed to report lease returned for job %s because %s", jobId, err)
+			log.Errorf("Failed to report lease returned for job %s because %s", record.job.JobId, err)
 			// We should fall through to true here, as we have already returned the lease and the event is just for reporting
 			// If we fail, we'll try again which could be complicated if the same executor leases is again between retries
 		}
@@ -83,10 +88,17 @@ func (d *StuckPodDetector) onStuckPodDeleted(jobId string, record *podRecord) (r
 	} else {
 		// Reporting failed even can fail with unfortunate timing of executor restarts, in that case lease will expire and job can be retried
 		// This is preferred over returning Failed event early as user could retry based on failed even but the job could be running
-		event := reporter.CreateJobFailedEvent(record.pod, record.message, map[string]int32{}, d.clusterContext.GetClusterId())
-		err := d.eventReporter.Report(event)
-		if err != nil {
-			return false
+		for _, pod := range record.job.Pods {
+			message := record.message
+			if pod != record.pod {
+				message = fmt.Sprintf("Peer pod %d stuck.", util.ExtractPodNumber(record.pod))
+			}
+			event := reporter.CreateJobFailedEvent(pod, message, map[string]int32{}, d.clusterContext.GetClusterId())
+
+			err := d.eventReporter.Report(event)
+			if err != nil {
+				return false
+			}
 		}
 	}
 
@@ -94,73 +106,80 @@ func (d *StuckPodDetector) onStuckPodDeleted(jobId string, record *podRecord) (r
 }
 
 func (d *StuckPodDetector) HandleStuckPods() {
-	allBatchPods, err := d.clusterContext.GetActiveBatchPods()
+	allRunningJobs, err := d.jobContext.GetRunningJobs()
 	if err != nil {
 		log.Errorf("Failed to load all pods for stuck pod handling %s ", err)
 		return
 	}
 
-	for _, pod := range allBatchPods {
-		jobId := util.ExtractJobId(pod)
-		_, exists := d.stuckPodCache[jobId]
-
+	for _, job := range allRunningJobs {
+		_, exists := d.stuckJobCache[job.JobId]
 		if exists {
 			continue
 		}
-		if (pod.Status.Phase == v1.PodUnknown || pod.Status.Phase == v1.PodPending) && reporter.HasPodBeenInStateForLongerThanGivenDuration(pod, d.stuckPodExpiry) {
-			err, retryable, message := d.onStuckPodDetected(pod)
-			if err == nil {
-				d.stuckPodCache[jobId] = &podRecord{pod.DeepCopy(), message, retryable}
+
+		for _, pod := range job.Pods {
+			if (pod.Status.Phase == v1.PodUnknown || pod.Status.Phase == v1.PodPending) && reporter.HasPodBeenInStateForLongerThanGivenDuration(pod, d.stuckPodExpiry) {
+				err, retryable, message := d.determineStuckPodState(pod)
+				if err == nil {
+					d.stuckJobCache[job.JobId] = &stuckJobRecord{
+						job:       job,
+						pod:       pod.DeepCopy(),
+						message:   message,
+						retryable: retryable}
+				}
 			}
 		}
 	}
-	d.processStuckPodCache(allBatchPods)
+	d.processStuckPodCache(allRunningJobs)
 }
 
-func (d *StuckPodDetector) processStuckPodCache(existingPods []*v1.Pod) {
-	jobIds := util.ExtractJobIds(existingPods)
-	jobIdSet := commonUtil.StringListToSet(jobIds)
+func (d *StuckPodDetector) processStuckPodCache(existingJobs []*job_context.RunningJob) {
+	jobIdSet := map[string]bool{}
+	for _, job := range existingJobs {
+		jobIdSet[job.JobId] = true
+	}
 
-	remainingStuckPods := make([]*podRecord, 0, 10)
-
-	cacheCopy := make([]*podRecord, 0, len(d.stuckPodCache))
-
-	for _, record := range d.stuckPodCache {
+	cacheCopy := make([]*stuckJobRecord, 0, len(d.stuckJobCache))
+	for _, record := range d.stuckJobCache {
 		cacheCopy = append(cacheCopy, record)
 	}
 
+	remainingStuckPods := make([]*stuckJobRecord, 0, 10)
+
 	for _, record := range cacheCopy {
-		jobId := util.ExtractJobId(record.pod)
-		if _, exists := jobIdSet[jobId]; !exists {
-			resolved := d.onStuckPodDeleted(jobId, record)
-			if !resolved {
-				continue
+		if _, exists := jobIdSet[record.job.JobId]; !exists {
+			// returns lease here
+			resolved := d.onStuckPodDeleted(record)
+			if resolved {
+				delete(d.stuckJobCache, record.job.JobId)
 			}
-			delete(d.stuckPodCache, jobId)
 		} else {
 			remainingStuckPods = append(remainingStuckPods, record)
 		}
 	}
-
+	// calls report done
 	d.markStuckPodsForDeletion(remainingStuckPods)
 }
 
-func (d *StuckPodDetector) markStuckPodsForDeletion(records []*podRecord) {
-	remainingRetryablePods := make([]*v1.Pod, 0, 10)
-	remainingNonRetryablePods := make([]*v1.Pod, 0, 10)
+func (d *StuckPodDetector) markStuckPodsForDeletion(records []*stuckJobRecord) {
+	remainingRetryableJobs := make([]*job_context.RunningJob, 0, 10)
+	remainingNonRetryableJobs := make([]*job_context.RunningJob, 0, 10)
+	remainingNonRetryableJobIds := make([]string, 0, 10)
 
 	for _, record := range records {
 		if record.retryable {
-			remainingRetryablePods = append(remainingRetryablePods, record.pod)
+			remainingRetryableJobs = append(remainingRetryableJobs, record.job)
 		} else {
-			remainingNonRetryablePods = append(remainingNonRetryablePods, record.pod)
+			remainingNonRetryableJobs = append(remainingNonRetryableJobs, record.job)
+			remainingNonRetryableJobIds = append(remainingNonRetryableJobIds, record.job.JobId)
 		}
 	}
 
-	err := d.jobLeaseService.ReportDone(remainingNonRetryablePods)
+	err := d.jobLeaseService.ReportDone(remainingNonRetryableJobIds)
 	if err != nil {
-		d.clusterContext.DeletePods(remainingRetryablePods)
+		d.jobContext.DeleteJobs(remainingRetryableJobs)
 	} else {
-		d.clusterContext.DeletePods(append(remainingRetryablePods, remainingNonRetryablePods...))
+		d.jobContext.DeleteJobs(append(remainingRetryableJobs, remainingNonRetryableJobs...))
 	}
 }

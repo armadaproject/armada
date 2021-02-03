@@ -12,6 +12,7 @@ import (
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/internal/executor/context"
 	"github.com/G-Research/armada/internal/executor/domain"
+	"github.com/G-Research/armada/internal/executor/job_context"
 	"github.com/G-Research/armada/pkg/api"
 )
 
@@ -22,7 +23,7 @@ func TestStuckPodDetector_DoesNothingIfNoPodsAreFound(t *testing.T) {
 
 	assert.Zero(t, mockLeaseService.returnLeaseCalls)
 
-	mockLeaseService.assertReportDoneCalledOnceWith(t, []*v1.Pod{})
+	mockLeaseService.assertReportDoneCalledOnceWith(t, []string{})
 }
 
 func TestStuckPodDetector_DoesNothingIfNoStuckPodsAreFound(t *testing.T) {
@@ -36,7 +37,7 @@ func TestStuckPodDetector_DoesNothingIfNoStuckPodsAreFound(t *testing.T) {
 
 	assert.Zero(t, mockLeaseService.returnLeaseCalls)
 
-	mockLeaseService.assertReportDoneCalledOnceWith(t, []*v1.Pod{})
+	mockLeaseService.assertReportDoneCalledOnceWith(t, []string{})
 }
 
 func TestStuckPodDetector_DeletesPodAndReportsDoneIfStuckAndUnretryable(t *testing.T) {
@@ -53,7 +54,7 @@ func TestStuckPodDetector_DeletesPodAndReportsDoneIfStuckAndUnretryable(t *testi
 
 	assert.Zero(t, mockLeaseService.returnLeaseCalls)
 
-	mockLeaseService.assertReportDoneCalledOnceWith(t, []*v1.Pod{unretryableStuckPod})
+	mockLeaseService.assertReportDoneCalledOnceWith(t, []string{unretryableStuckPod.Labels[domain.JobId]})
 }
 
 func TestStuckPodDetector_ReturnsLeaseAndDeletesRetryableStuckPod(t *testing.T) {
@@ -67,7 +68,7 @@ func TestStuckPodDetector_ReturnsLeaseAndDeletesRetryableStuckPod(t *testing.T) 
 
 	// Not done as can be retried
 	assert.Equal(t, 1, mockLeaseService.reportDoneCalls)
-	assert.Equal(t, []*v1.Pod{}, mockLeaseService.reportDoneArg)
+	assert.Equal(t, []string{}, mockLeaseService.reportDoneArg)
 
 	// Not returning lease yet
 	assert.Equal(t, 0, mockLeaseService.returnLeaseCalls)
@@ -80,7 +81,7 @@ func TestStuckPodDetector_ReturnsLeaseAndDeletesRetryableStuckPod(t *testing.T) 
 
 	// Not done as can be retried
 	assert.Equal(t, 2, mockLeaseService.reportDoneCalls)
-	assert.Equal(t, []*v1.Pod{}, mockLeaseService.reportDoneArg)
+	assert.Equal(t, []string{}, mockLeaseService.reportDoneArg)
 
 	// Return lease for retry
 	assert.Equal(t, 1, mockLeaseService.returnLeaseCalls)
@@ -158,10 +159,12 @@ func addPod(t *testing.T, fakeClusterContext context.ClusterContext, runningPod 
 
 func makeStuckPodDetectorWithTestDoubles() (context.ClusterContext, *mockLeaseService, *StuckPodDetector) {
 	fakeClusterContext := newSyncFakeClusterContext()
+	jobContext := job_context.NewClusterJobContext(fakeClusterContext)
 	mockLeaseService := NewMockLeaseService()
 
 	stuckPodDetector := NewPodProgressMonitorService(
 		fakeClusterContext,
+		jobContext,
 		&FakeEventReporter{nil},
 		mockLeaseService,
 		time.Second)
@@ -175,7 +178,7 @@ type mockLeaseService struct {
 	reportDoneCalls       int
 
 	returnLeaseArg *v1.Pod
-	reportDoneArg  []*v1.Pod
+	reportDoneArg  []string
 }
 
 func NewMockLeaseService() *mockLeaseService {
@@ -193,13 +196,13 @@ func (ls *mockLeaseService) RequestJobLeases(availableResource *common.ComputeRe
 	return make([]*api.Job, 0), nil
 }
 
-func (ls *mockLeaseService) ReportDone(pods []*v1.Pod) error {
-	ls.reportDoneArg = pods
+func (ls *mockLeaseService) ReportDone(jobIds []string) error {
+	ls.reportDoneArg = jobIds
 	ls.reportDoneCalls++
 	return nil
 }
 
-func (ls *mockLeaseService) assertReportDoneCalledOnceWith(t *testing.T, expected []*v1.Pod) {
+func (ls *mockLeaseService) assertReportDoneCalledOnceWith(t *testing.T, expected []string) {
 	assert.Equal(t, 1, ls.reportDoneCalls)
 	assert.Equal(t, expected, ls.reportDoneArg)
 }

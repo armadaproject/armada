@@ -21,15 +21,17 @@ func TestCreateLabels_CreatesExpectedLabels(t *testing.T) {
 	}
 
 	expectedLabels := map[string]string{
-		domain.JobId: job.Id,
-		domain.Queue: job.Queue,
+		domain.JobId:     job.Id,
+		domain.Queue:     job.Queue,
+		domain.PodNumber: "0",
+		domain.PodCount:  "1",
 	}
 
 	expectedAnotations := map[string]string{
 		domain.JobSetId: job.JobSetId,
 	}
 
-	result := createPod(&job)
+	result := createPod(&job, 0)
 
 	assert.Equal(t, result.Labels, expectedLabels)
 	assert.Equal(t, result.Annotations, expectedAnotations)
@@ -60,11 +62,13 @@ func TestCreatePod_CreatesExpectedPod(t *testing.T) {
 
 	expectedOutput := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: common.PodNamePrefix + job.Id,
+			Name: common.PodNamePrefix + job.Id + "-0",
 			Labels: map[string]string{
-				domain.JobId: job.Id,
-				domain.Queue: job.Queue,
-				"label":      "test",
+				domain.JobId:     job.Id,
+				domain.Queue:     job.Queue,
+				domain.PodNumber: "0",
+				domain.PodCount:  "1",
+				"label":          "test",
 			},
 			Annotations: map[string]string{
 				domain.JobSetId: job.JobSetId,
@@ -74,7 +78,7 @@ func TestCreatePod_CreatesExpectedPod(t *testing.T) {
 		Spec: *podSpec,
 	}
 
-	result := createPod(&job)
+	result := createPod(&job, 0)
 	assert.Equal(t, result, &expectedOutput)
 }
 

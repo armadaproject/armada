@@ -260,7 +260,7 @@ func (c *FakeClusterContext) trySchedule(pod *v1.Pod) bool {
 
 	for _, n := range c.nodes {
 		if c.isSchedulableOn(pod, n) {
-			resources := common.TotalResourceRequest(&pod.Spec)
+			resources := common.TotalPodResourceRequest(&pod.Spec)
 			c.nodeAvailableResource[n.Name].Sub(resources)
 			pod.Spec.NodeName = n.Name
 			return true
@@ -270,12 +270,12 @@ func (c *FakeClusterContext) trySchedule(pod *v1.Pod) bool {
 }
 
 func (c *FakeClusterContext) deallocate(pod *v1.Pod) {
-	resources := common.TotalResourceRequest(&pod.Spec)
+	resources := common.TotalPodResourceRequest(&pod.Spec)
 	c.nodeAvailableResource[pod.Spec.NodeName].Add(resources)
 }
 
 func (c *FakeClusterContext) isSchedulableOn(pod *v1.Pod, n *v1.Node) bool {
-	requiredResource := common.TotalResourceRequest(&pod.Spec)
+	requiredResource := common.TotalPodResourceRequest(&pod.Spec)
 	availableResource := c.nodeAvailableResource[n.Name].DeepCopy()
 	availableResource.Sub(requiredResource)
 

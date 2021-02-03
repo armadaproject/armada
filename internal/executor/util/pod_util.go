@@ -2,6 +2,8 @@ package util
 
 import (
 	"errors"
+	"fmt"
+	"strconv"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
@@ -69,6 +71,15 @@ func ExtractJobIds(pods []*v1.Pod) []string {
 
 func ExtractJobId(pod *v1.Pod) string {
 	return pod.Labels[domain.JobId]
+}
+
+func ExtractPodNumber(pod *v1.Pod) int {
+	i, _ := strconv.Atoi(pod.Labels[domain.PodNumber])
+	return i
+}
+
+func ExtractPodKey(pod *v1.Pod) string {
+	return fmt.Sprintf("%s_%d", ExtractJobId(pod), ExtractPodNumber(pod))
 }
 
 func FilterCompletedPods(pods []*v1.Pod) []*v1.Pod {

@@ -7,6 +7,8 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+
+	"github.com/G-Research/armada/pkg/api"
 )
 
 type ComputeResources map[string]resource.Quantity
@@ -265,6 +267,15 @@ func (a ComputeResourcesFloat) Mul(factor float64) ComputeResourcesFloat {
 	return targetComputeResource
 }
 
+func TotalJobResourceRequest(job *api.Job) ComputeResources {
+	totalResources := make(ComputeResources)
+	for _, podSpec := range job.GetAllPodSpecs() {
+		podResource := TotalPodResourceRequest(podSpec)
+		totalResources.Add(podResource)
+	}
+	return totalResources
+}
+
 //Resource request for a given pod is the maximum of:
 // - sum of all containers
 // - any individual init container
@@ -272,7 +283,7 @@ func (a ComputeResourcesFloat) Mul(factor float64) ComputeResourcesFloat {
 // - containers run in parallel (so need to sum resources)
 // - init containers run sequentially (so only their individual resource need be considered)
 //So pod resource usage is the max for each resource type (cpu/memory etc) that could be used at any given time
-func TotalResourceRequest(podSpec *v1.PodSpec) ComputeResources {
+func TotalPodResourceRequest(podSpec *v1.PodSpec) ComputeResources {
 	totalResources := make(ComputeResources)
 	for _, container := range podSpec.Containers {
 		containerResource := FromResourceList(container.Resources.Requests)
@@ -298,7 +309,7 @@ func CalculateTotalResource(nodes []*v1.Node) ComputeResources {
 func CalculateTotalResourceRequest(pods []*v1.Pod) ComputeResources {
 	totalResources := make(ComputeResources)
 	for _, pod := range pods {
-		podResource := TotalResourceRequest(&pod.Spec)
+		podResource := TotalPodResourceRequest(&pod.Spec)
 		totalResources.Add(podResource)
 	}
 	return totalResources

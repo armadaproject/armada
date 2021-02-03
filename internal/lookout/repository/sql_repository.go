@@ -13,14 +13,16 @@ import (
 
 // Emulates JobStates enum
 // can't use protobuf enums because gogoproto + grpc-gateway is hard with K8s specific messages
-type jobStates struct {
-	Queued    string
-	Pending   string
-	Running   string
-	Succeeded string
-	Failed    string
-	Cancelled string
-}
+type JobState string
+
+const (
+	JobQueued    JobState = "QUEUED"
+	JobPending   JobState = "PENDING"
+	JobRunning   JobState = "RUNNING"
+	JobSucceeded JobState = "SUCCEEDED"
+	JobFailed    JobState = "FAILED"
+	JobCancelled JobState = "CANCELLED"
+)
 
 type JobRepository interface {
 	GetQueueInfos(ctx context.Context) ([]*lookout.QueueInfo, error)
@@ -51,6 +53,7 @@ var (
 	// Columns: job_run table
 	jobRun_runId     = goqu.I("job_run.run_id")
 	jobRun_jobId     = goqu.I("job_run.job_id")
+	jobRun_podNumber = goqu.I("job_run.pod_number")
 	jobRun_cluster   = goqu.I("job_run.cluster")
 	jobRun_node      = goqu.I("job_run.node")
 	jobRun_created   = goqu.I("job_run.created")
@@ -70,6 +73,7 @@ type JobRow struct {
 	Cancelled pq.NullTime     `db:"cancelled"`
 	JobJson   sql.NullString  `db:"job"`
 	RunId     sql.NullString  `db:"run_id"`
+	PodNumber sql.NullInt64   `db:"pod_number"`
 	Cluster   sql.NullString  `db:"cluster"`
 	Node      sql.NullString  `db:"node"`
 	Created   pq.NullTime     `db:"created"`
@@ -79,52 +83,43 @@ type JobRow struct {
 	Error     sql.NullString  `db:"error"`
 }
 
-var JobStates = &jobStates{
-	Queued:    "QUEUED",
-	Pending:   "PENDING",
-	Running:   "RUNNING",
-	Succeeded: "SUCCEEDED",
-	Failed:    "FAILED",
-	Cancelled: "CANCELLED",
+var AllJobStates = []JobState{
+	JobQueued,
+	JobPending,
+	JobRunning,
+	JobSucceeded,
+	JobFailed,
+	JobCancelled,
 }
 
-var AllJobStates = []string{
-	JobStates.Queued,
-	JobStates.Pending,
-	JobStates.Running,
-	JobStates.Succeeded,
-	JobStates.Failed,
-	JobStates.Cancelled,
-}
-
-var FiltersForState = map[string][]goqu.Expression{
-	JobStates.Queued: {
+var FiltersForState = map[JobState][]goqu.Expression{
+	JobQueued: {
 		job_submitted.IsNotNull(),
 		job_cancelled.IsNull(),
 		goqu.MAX(jobRun_created).IsNull(),
 		goqu.MAX(jobRun_started).IsNull(),
 		goqu.MAX(jobRun_finished).IsNull(),
 	},
-	JobStates.Pending: {
+	JobPending: {
 		job_cancelled.IsNull(),
 		goqu.MAX(jobRun_created).IsNotNull(),
 		goqu.MAX(jobRun_started).IsNull(),
 		goqu.MAX(jobRun_finished).IsNull(),
 	},
-	JobStates.Running: {
+	JobRunning: {
 		job_cancelled.IsNull(),
 		goqu.MAX(jobRun_started).IsNotNull(),
 		goqu.MAX(jobRun_finished).IsNull(),
 	},
-	JobStates.Succeeded: {
+	JobSucceeded: {
 		job_cancelled.IsNull(),
 		goqu.MAX(jobRun_finished).IsNotNull(),
 		BOOL_OR(jobRun_succeeded).IsTrue(),
 	},
-	JobStates.Failed: {
+	JobFailed: {
 		BOOL_OR(jobRun_succeeded).IsFalse(),
 	},
-	JobStates.Cancelled: {
+	JobCancelled: {
 		job_cancelled.IsNotNull(),
 	},
 }

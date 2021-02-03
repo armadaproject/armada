@@ -331,6 +331,12 @@
         "podSpec": {
           "$ref": "#/definitions/v1PodSpec"
         },
+        "podSpecs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/v1PodSpec"
+          }
+        },
         "priority": {
           "type": "number",
           "format": "double"
@@ -426,6 +432,10 @@
         "nodeName": {
           "type": "string"
         },
+        "podNumber": {
+          "type": "integer",
+          "format": "int32"
+        },
         "queue": {
           "type": "string"
         },
@@ -516,6 +526,10 @@
         "kubernetesId": {
           "type": "string"
         },
+        "podNumber": {
+          "type": "integer",
+          "format": "int32"
+        },
         "queue": {
           "type": "string"
         }
@@ -578,6 +592,10 @@
         },
         "nodeName": {
           "type": "string"
+        },
+        "podNumber": {
+          "type": "integer",
+          "format": "int32"
         },
         "queue": {
           "type": "string"
@@ -657,6 +675,12 @@
         "podSpec": {
           "$ref": "#/definitions/v1PodSpec"
         },
+        "podSpecs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/v1PodSpec"
+          }
+        },
         "priority": {
           "type": "number",
           "format": "double"
@@ -735,6 +759,10 @@
         "nodeName": {
           "type": "string"
         },
+        "podNumber": {
+          "type": "integer",
+          "format": "int32"
+        },
         "queue": {
           "type": "string"
         }
@@ -783,6 +811,10 @@
         "nodeName": {
           "type": "string"
         },
+        "podNumber": {
+          "type": "integer",
+          "format": "int32"
+        },
         "queue": {
           "type": "string"
         },
@@ -818,6 +850,10 @@
         },
         "nodeName": {
           "type": "string"
+        },
+        "podNumber": {
+          "type": "integer",
+          "format": "int32"
         },
         "queue": {
           "type": "string"

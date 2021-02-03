@@ -7,14 +7,14 @@ import {
   TableRow,
 } from "@material-ui/core";
 
-import { Job } from "../../services/JobService";
+import { JobRun } from "../../services/JobService";
 import { RunDetailsRows } from "./RunDetailsRows";
 import { SchedulingHistory } from "./SchedulingHistory";
 
 import './Details.css'
 
 interface DetailsProps {
-  job: Job
+  job: JobRun
   expandedItems: Set<string>
   onToggleExpand: (k8sId: string, isExpanded: boolean) => void
 }
@@ -35,6 +35,10 @@ export default function JobDetails(props: DetailsProps) {
             <TableRow>
               <TableCell className="field-label">Id</TableCell>
               <TableCell>{props.job.jobId}</TableCell>
+            </TableRow>
+            <TableRow>
+              <TableCell className="field-label">Pod</TableCell>
+              <TableCell>{props.job.podNumber}</TableCell>
             </TableRow>
             <TableRow>
               <TableCell className="field-label">Queue</TableCell>

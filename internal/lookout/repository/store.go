@@ -108,7 +108,7 @@ func (r *SQLJobStore) RecordJobFailed(event *api.JobFailedEvent) error {
 
 func (r *SQLJobStore) updateJobRun(event api.KubernetesEvent, k8sId string, fields []string, values []interface{}) error {
 	_, err := upsert(r.db, "job_run",
-		"run_id", append([]string{"job_id", "cluster"}, fields...),
-		append([]interface{}{k8sId, event.GetJobId(), event.GetClusterId()}, values...))
+		"run_id", append([]string{"job_id", "cluster", "pod_number"}, fields...),
+		append([]interface{}{k8sId, event.GetJobId(), event.GetClusterId(), event.GetPodNumber()}, values...))
 	return err
 }
