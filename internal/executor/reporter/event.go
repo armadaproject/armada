@@ -58,11 +58,11 @@ func CreateEventForCurrentState(pod *v1.Pod, clusterId string) (api.Event, error
 }
 
 func getPodNumber(pod *v1.Pod) int32 {
-	podNUmberString, ok := pod.Labels[domain.PodNumber]
+	podNumberString, ok := pod.Labels[domain.PodNumber]
 	if !ok {
 		return 0
 	}
-	podNumber, _ := strconv.Atoi(podNUmberString)
+	podNumber, _ := strconv.Atoi(podNumberString)
 	return int32(podNumber)
 }
 
