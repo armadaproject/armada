@@ -93,11 +93,13 @@ func TestGetJobSetInfos_JobSetsCounts(t *testing.T) {
 		NewJobSimulator(t, jobStore, &DefaultClock{}).
 			CreateJobWithJobSet(queue, "job-set-1").
 			Pending(cluster, "a1").
+			UnableToSchedule(cluster, "a1", node).
 			Pending(cluster, "a2")
 
 		NewJobSimulator(t, jobStore, &DefaultClock{}).
 			CreateJobWithJobSet(queue, "job-set-1").
 			Pending(cluster, "b1").
+			UnableToSchedule(cluster, "b1", node).
 			Running(cluster, "b2", node)
 
 		NewJobSimulator(t, jobStore, &DefaultClock{}).
@@ -106,18 +108,21 @@ func TestGetJobSetInfos_JobSetsCounts(t *testing.T) {
 		NewJobSimulator(t, jobStore, &DefaultClock{}).
 			CreateJobWithJobSet(queue, "job-set-1").
 			Pending(cluster, "c1").
+			UnableToSchedule(cluster, "c1", node).
 			Running(cluster, "c2", node).
 			Succeeded(cluster, "c2", node)
 
 		NewJobSimulator(t, jobStore, &DefaultClock{}).
 			CreateJobWithJobSet(queue, "job-set-1").
 			Pending(cluster, "d1").
+			UnableToSchedule(cluster, "d1", node).
 			Running(cluster, "d2", node).
 			Failed(cluster, "d2", node, "something bad")
 
 		NewJobSimulator(t, jobStore, &DefaultClock{}).
 			CreateJobWithJobSet(queue, "job-set-1").
 			Pending(cluster, "e1").
+			UnableToSchedule(cluster, "e1", node).
 			Running(cluster, "e2", node).
 			Cancelled()
 
@@ -151,22 +156,26 @@ func TestGetJobSetInfos_MultipleJobSetsCounts(t *testing.T) {
 		NewJobSimulator(t, jobStore, &DefaultClock{}).
 			CreateJobWithJobSet(queue, "job-set-1").
 			Pending(cluster, "a1").
+			UnableToSchedule(cluster, "a1", node).
 			Pending(cluster, "a2")
 
 		NewJobSimulator(t, jobStore, &DefaultClock{}).
 			CreateJobWithJobSet(queue, "job-set-1").
 			Pending(cluster, "b1").
+			UnableToSchedule(cluster, "b1", node).
 			Running(cluster, "b2", node)
 
 		NewJobSimulator(t, jobStore, &DefaultClock{}).
 			CreateJobWithJobSet(queue, "job-set-1").
 			Pending(cluster, "c1").
+			UnableToSchedule(cluster, "c1", node).
 			Running(cluster, "c2", node).
 			Succeeded(cluster, "c2", node)
 
 		NewJobSimulator(t, jobStore, &DefaultClock{}).
 			CreateJobWithJobSet(queue, "job-set-1").
 			Pending(cluster, "d1").
+			UnableToSchedule(cluster, "d1", node).
 			Running(cluster, "d2", node).
 			Failed(cluster, "d2", node, "something bad")
 
@@ -181,12 +190,14 @@ func TestGetJobSetInfos_MultipleJobSetsCounts(t *testing.T) {
 		NewJobSimulator(t, jobStore, &DefaultClock{}).
 			CreateJobWithJobSet(queue, "job-set-2").
 			Pending(cluster, "f1").
+			UnableToSchedule(cluster, "f1", node).
 			Running(cluster, "f2", node).
 			Succeeded(cluster, "f2", node)
 
 		NewJobSimulator(t, jobStore, &DefaultClock{}).
 			CreateJobWithJobSet(queue, "job-set-2").
 			Pending(cluster, "h1").
+			UnableToSchedule(cluster, "h1", node).
 			Running(cluster, "h2", node).
 			Failed(cluster, "h2", node, "something bad")
 

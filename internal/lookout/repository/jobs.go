@@ -61,12 +61,9 @@ func (r *SQLJobRepository) queryJobs(ctx context.Context, opts *lookout.GetJobsR
 func (r *SQLJobRepository) createJobsDataset(opts *lookout.GetJobsRequest) *goqu.SelectDataset {
 	subDs := r.goquDb.
 		From(jobTable).
-		LeftJoin(jobRunTable, goqu.On(
-			job_jobId.Eq(jobRun_jobId))).
+		LeftJoin(jobRunTable, goqu.On(job_jobId.Eq(jobRun_jobId))).
 		Select(job_jobId).
 		Where(goqu.And(createWhereFilters(opts)...)).
-		GroupBy(job_jobId).
-		Having(goqu.Or(createJobStateFilters(opts.JobStates)...)).
 		Order(createJobOrdering(opts.NewestFirst)).
 		Limit(uint(opts.Take)).
 		Offset(uint(opts.Skip))
@@ -111,6 +108,8 @@ func createWhereFilters(opts *lookout.GetJobsRequest) []goqu.Expression {
 
 	filters = append(filters, goqu.Or(createJobSetFilters(opts.JobSetIds)...))
 
+	filters = append(filters, goqu.Or(createJobStateFilters(opts.JobStates)...))
+
 	return filters
 }
 
@@ -124,6 +123,15 @@ func createJobSetFilters(jobSetIds []string) []goqu.Expression {
 }
 
 func createJobStateFilters(jobStates []string) []goqu.Expression {
+	if len(jobStates) == 0 {
+		// If all states are to be included, include all scheduled job runs,
+		// or any failed runs
+		return []goqu.Expression{
+			jobRun_unableToSchedule.IsNull(),
+			goqu.And(jobRun_unableToSchedule.IsNotNull(), jobRun_succeeded.IsFalse()),
+		}
+	}
+
 	filters := make([]goqu.Expression, 0)
 	for _, state := range jobStates {
 		filter := goqu.And(FiltersForState[JobState(state)]...)

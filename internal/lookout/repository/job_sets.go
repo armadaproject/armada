@@ -41,52 +41,37 @@ func (r *SQLJobRepository) queryJobSetInfos(ctx context.Context, opts *lookout.G
 }
 
 func (r *SQLJobRepository) createJobSetsDataset(opts *lookout.GetJobSetsRequest) *goqu.SelectDataset {
-	countsSubDs := r.goquDb.
+	countsDs := r.goquDb.
 		From(jobTable).
 		LeftJoin(jobRunTable, goqu.On(job_jobId.Eq(jobRun_jobId))).
 		Select(
-			job_queue,
 			job_jobset,
-			goqu.MAX(jobRun_created).As("created"),
-			goqu.MAX(jobRun_started).As("started")).
-		Where(job_queue.Eq(opts.Queue)).
-		GroupBy(job_jobId).
-		Having(goqu.And(goqu.MAX(jobRun_finished).IsNull(), job_cancelled.IsNull())).
-		As("counts_sub") // Identify unique created and started jobs
-
-	countsDs := r.goquDb.
-		From(countsSubDs).
-		Select(
-			goqu.I("counts_sub.jobset"),
 			goqu.COUNT("*").As("jobs"),
-			goqu.COUNT(
-				goqu.COALESCE(
-					goqu.I("counts_sub.created"),
-					goqu.I("counts_sub.started"))).As("jobs_created"),
-			goqu.COUNT(goqu.I("counts_sub.started")).As("jobs_started")).
-		GroupBy(goqu.I("counts_sub.jobset")).
+			goqu.COUNT(goqu.COALESCE(
+				jobRun_created,
+				jobRun_started)).As("jobs_created"),
+			goqu.COUNT(jobRun_started).As("jobs_started")).
+		Where(goqu.And(
+			job_queue.Eq(opts.Queue),
+			job_cancelled.IsNull(),
+			jobRun_finished.IsNull(),
+			jobRun_unableToSchedule.IsNull())).
+		GroupBy(job_jobset).
 		As("counts")
 
-	finishedCountsSubDs := r.goquDb.
+	finishedCountsDs := r.goquDb.
 		From(jobTable).
 		LeftJoin(jobRunTable, goqu.On(job_jobId.Eq(jobRun_jobId))).
 		Select(
-			job_queue,
 			job_jobset,
-			goqu.MAX(jobRun_finished).As("finished"),
-			BOOL_OR(jobRun_succeeded).As("succeeded")).
-		Where(job_queue.Eq(opts.Queue)).
-		GroupBy(job_jobId).
-		Having(goqu.And(goqu.MAX(jobRun_finished).IsNotNull(), job_cancelled.IsNull())).
-		As("finished_counts_sub") // Identify unique finished jobs
-
-	finishedCountsDs := r.goquDb.
-		From(finishedCountsSubDs).
-		Select(
-			goqu.I("finished_counts_sub.jobset"),
-			goqu.COUNT(goqu.I("finished_counts_sub.finished")).As("jobs_finished"),
-			goqu.SUM(goqu.L("finished_counts_sub.succeeded::int")).As("jobs_succeeded")).
-		GroupBy(goqu.I("finished_counts_sub.jobset")).
+			goqu.COUNT("*").As("jobs_finished"),
+			goqu.SUM(goqu.L("job_run.succeeded::int")).As("jobs_succeeded")).
+		Where(goqu.And(
+			job_queue.Eq(opts.Queue),
+			job_cancelled.IsNull(),
+			jobRun_finished.IsNotNull(),
+			jobRun_unableToSchedule.IsNull())).
+		GroupBy(job_jobset).
 		As("finished_counts")
 
 	ds := r.goquDb.

@@ -201,3 +201,18 @@ func (js *JobSimulator) Cancelled() *JobSimulator {
 	assert.NoError(js.t, js.jobStore.MarkCancelled(cancelledEvent))
 	return js
 }
+
+func (js *JobSimulator) UnableToSchedule(cluster string, k8sId string, node string) *JobSimulator {
+	unableToScheduleEvent := &api.JobUnableToScheduleEvent{
+		JobId:        js.job.Id,
+		JobSetId:     js.job.JobSetId,
+		Queue:        js.job.Queue,
+		Created:      js.clock.Now(),
+		ClusterId:    cluster,
+		Reason:       "unable to schedule reason",
+		KubernetesId: k8sId,
+		NodeName:     node,
+	}
+	assert.NoError(js.t, js.jobStore.RecordJobUnableToSchedule(unableToScheduleEvent))
+	return js
+}

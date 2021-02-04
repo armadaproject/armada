@@ -51,16 +51,17 @@ var (
 	job_job       = goqu.I("job.job")
 
 	// Columns: job_run table
-	jobRun_runId     = goqu.I("job_run.run_id")
-	jobRun_jobId     = goqu.I("job_run.job_id")
-	jobRun_podNumber = goqu.I("job_run.pod_number")
-	jobRun_cluster   = goqu.I("job_run.cluster")
-	jobRun_node      = goqu.I("job_run.node")
-	jobRun_created   = goqu.I("job_run.created")
-	jobRun_started   = goqu.I("job_run.started")
-	jobRun_finished  = goqu.I("job_run.finished")
-	jobRun_succeeded = goqu.I("job_run.succeeded")
-	jobRun_error     = goqu.I("job_run.error")
+	jobRun_runId            = goqu.I("job_run.run_id")
+	jobRun_jobId            = goqu.I("job_run.job_id")
+	jobRun_podNumber        = goqu.I("job_run.pod_number")
+	jobRun_cluster          = goqu.I("job_run.cluster")
+	jobRun_node             = goqu.I("job_run.node")
+	jobRun_created          = goqu.I("job_run.created")
+	jobRun_started          = goqu.I("job_run.started")
+	jobRun_finished         = goqu.I("job_run.finished")
+	jobRun_succeeded        = goqu.I("job_run.succeeded")
+	jobRun_error            = goqu.I("job_run.error")
+	jobRun_unableToSchedule = goqu.I("job_run.unable_to_schedule")
 )
 
 type JobRow struct {
@@ -96,28 +97,32 @@ var FiltersForState = map[JobState][]goqu.Expression{
 	JobQueued: {
 		job_submitted.IsNotNull(),
 		job_cancelled.IsNull(),
-		goqu.MAX(jobRun_created).IsNull(),
-		goqu.MAX(jobRun_started).IsNull(),
-		goqu.MAX(jobRun_finished).IsNull(),
+		jobRun_created.IsNull(),
+		jobRun_started.IsNull(),
+		jobRun_finished.IsNull(),
+		jobRun_unableToSchedule.IsNull(),
 	},
 	JobPending: {
 		job_cancelled.IsNull(),
-		goqu.MAX(jobRun_created).IsNotNull(),
-		goqu.MAX(jobRun_started).IsNull(),
-		goqu.MAX(jobRun_finished).IsNull(),
+		jobRun_created.IsNotNull(),
+		jobRun_started.IsNull(),
+		jobRun_finished.IsNull(),
+		jobRun_unableToSchedule.IsNull(),
 	},
 	JobRunning: {
 		job_cancelled.IsNull(),
-		goqu.MAX(jobRun_started).IsNotNull(),
-		goqu.MAX(jobRun_finished).IsNull(),
+		jobRun_started.IsNotNull(),
+		jobRun_finished.IsNull(),
+		jobRun_unableToSchedule.IsNull(),
 	},
 	JobSucceeded: {
 		job_cancelled.IsNull(),
-		goqu.MAX(jobRun_finished).IsNotNull(),
-		BOOL_OR(jobRun_succeeded).IsTrue(),
+		jobRun_finished.IsNotNull(),
+		jobRun_succeeded.IsTrue(),
+		jobRun_unableToSchedule.IsNull(),
 	},
 	JobFailed: {
-		BOOL_OR(jobRun_succeeded).IsFalse(),
+		jobRun_succeeded.IsFalse(),
 	},
 	JobCancelled: {
 		job_cancelled.IsNotNull(),

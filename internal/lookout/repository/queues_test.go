@@ -36,11 +36,13 @@ func TestGetQueueInfos_Counts(t *testing.T) {
 		NewJobSimulator(t, jobStore, &DefaultClock{}).
 			CreateJob(queue).
 			Pending(cluster, "a1").
+			UnableToSchedule(cluster, "a1", node).
 			Pending(cluster, "a2")
 
 		NewJobSimulator(t, jobStore, &DefaultClock{}).
 			CreateJob(queue).
 			Pending(cluster, "b1").
+			UnableToSchedule(cluster, "b1", node).
 			Running(cluster, "b2", node)
 
 		NewJobSimulator(t, jobStore, &DefaultClock{}).
@@ -49,6 +51,7 @@ func TestGetQueueInfos_Counts(t *testing.T) {
 		NewJobSimulator(t, jobStore, &DefaultClock{}).
 			CreateJob(queue).
 			Pending(cluster, "c1").
+			UnableToSchedule(cluster, "c1", node).
 			Running(cluster, "c2", node).
 			Succeeded(cluster, "c2", node)
 
@@ -228,21 +231,25 @@ func TestGetQueueInfos_IncludeLongestRunningJob(t *testing.T) {
 		NewJobSimulator(t, jobStore, NewIncrementClock(*Increment(time1, 10))).
 			CreateJob(queue).
 			Pending(cluster, "a1").
+			UnableToSchedule(cluster, "a1", node).
 			Running(cluster, "a2", node)
 
 		NewJobSimulator(t, jobStore, NewIncrementClock(*Increment(time1, 5))).
 			CreateJob(queue).
 			Pending(cluster, "b1").
+			UnableToSchedule(cluster, "b1", node).
 			Running(cluster, "b2", node)
 
 		longestRunning := NewJobSimulator(t, jobStore, NewIncrementClock(*Increment(time1, 1))).
 			CreateJob(queue).
 			Pending(cluster, "d1").
+			UnableToSchedule(cluster, "d1", node).
 			Running(cluster, "d2", node)
 
 		NewJobSimulator(t, jobStore, NewIncrementClock(time1)).
 			CreateJob(queue).
 			Running(cluster, "e1", node).
+			UnableToSchedule(cluster, "e1", node).
 			Succeeded(cluster, "e2", node)
 
 		NewJobSimulator(t, jobStore, NewIncrementClock(time1)).
@@ -262,25 +269,26 @@ func TestGetQueueInfos_IncludeLongestRunningJob(t *testing.T) {
 		AssertRunInfosEquivalent(t, &lookout.RunInfo{
 			K8SId:     "d1",
 			Cluster:   cluster,
-			Node:      "",
+			Node:      node,
 			Succeeded: false,
 			Created:   Increment(time1, 2),
 			Started:   nil,
-			Finished:  nil,
+			Finished:  Increment(time1, 3),
 			Error:     "",
 		}, queueInfos[0].LongestRunningJob.Runs[0])
+
+		startRunningTime := *Increment(time1, 4)
 		AssertRunInfosEquivalent(t, &lookout.RunInfo{
 			K8SId:     "d2",
 			Cluster:   cluster,
 			Node:      node,
 			Succeeded: false,
 			Created:   nil,
-			Started:   Increment(time1, 3),
+			Started:   &startRunningTime,
 			Finished:  nil,
 			Error:     "",
 		}, queueInfos[0].LongestRunningJob.Runs[1])
 
-		startRunningTime := *Increment(time1, 3)
 		assert.Equal(t, types.DurationProto(time2.Sub(startRunningTime).Round(time.Second)), queueInfos[0].LongestRunningDuration)
 	})
 }
@@ -306,16 +314,19 @@ func TestGetQueueInfos_MultipleQueues(t *testing.T) {
 		NewJobSimulator(t, jobStore, NewIncrementClock(*Increment(startTime, 5))).
 			CreateJob(queue).
 			Pending(cluster, "b1").
+			UnableToSchedule(cluster, "b1", node).
 			Running(cluster, "b2", node)
 
 		longestRunning1 := NewJobSimulator(t, jobStore, NewIncrementClock(startTime)).
 			CreateJob(queue).
 			Pending(cluster, "c1").
+			UnableToSchedule(cluster, "c1", node).
 			Running(cluster, "c2", node)
 
 		NewJobSimulator(t, jobStore, NewIncrementClock(startTime)).
 			CreateJob(queue).
 			Pending(cluster, "d1").
+			UnableToSchedule(cluster, "d1", node).
 			Running(cluster, "d2", node).
 			Succeeded(cluster, "d2", node)
 
@@ -345,6 +356,7 @@ func TestGetQueueInfos_MultipleQueues(t *testing.T) {
 		NewJobSimulator(t, jobStore, NewIncrementClock(*Increment(startTime, 1))).
 			CreateJob(queue2).
 			Pending(cluster, "h1").
+			UnableToSchedule(cluster, "h1", node).
 			Running(cluster, "h2", node)
 
 		queueInfos, err := jobRepo.GetQueueInfos(ctx)
@@ -375,11 +387,11 @@ func TestGetQueueInfos_MultipleQueues(t *testing.T) {
 		AssertRunInfosEquivalent(t, &lookout.RunInfo{
 			K8SId:     "c1",
 			Cluster:   cluster,
-			Node:      "",
+			Node:      node,
 			Succeeded: false,
 			Created:   Increment(startTime, 1),
 			Started:   nil,
-			Finished:  nil,
+			Finished:  Increment(startTime, 2),
 			Error:     "",
 		}, queueInfos[0].LongestRunningJob.Runs[0])
 		AssertRunInfosEquivalent(t, &lookout.RunInfo{
@@ -388,7 +400,7 @@ func TestGetQueueInfos_MultipleQueues(t *testing.T) {
 			Node:      node,
 			Succeeded: false,
 			Created:   nil,
-			Started:   Increment(startTime, 2),
+			Started:   Increment(startTime, 3),
 			Finished:  nil,
 			Error:     "",
 		}, queueInfos[0].LongestRunningJob.Runs[1])

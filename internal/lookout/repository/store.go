@@ -20,6 +20,7 @@ type JobRecorder interface {
 	RecordJobRunning(event *api.JobRunningEvent) error
 	RecordJobSucceeded(event *api.JobSucceededEvent) error
 	RecordJobFailed(event *api.JobFailedEvent) error
+	RecordJobUnableToSchedule(event *api.JobUnableToScheduleEvent) error
 }
 
 type SQLJobStore struct {
@@ -104,6 +105,16 @@ func (r *SQLJobStore) RecordJobFailed(event *api.JobFailedEvent) error {
 	}
 
 	return r.updateJobRun(event, k8sId, fields, values)
+}
+
+func (r *SQLJobStore) RecordJobUnableToSchedule(event *api.JobUnableToScheduleEvent) error {
+	fields := []string{"finished", "unable_to_schedule"}
+	values := []interface{}{event.Created, true}
+	if event.NodeName != "" {
+		fields = append(fields, "node")
+		values = append(values, event.NodeName)
+	}
+	return r.updateJobRun(event, event.KubernetesId, fields, values)
 }
 
 func (r *SQLJobStore) updateJobRun(event api.KubernetesEvent, k8sId string, fields []string, values []interface{}) error {

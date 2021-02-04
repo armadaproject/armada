@@ -11,7 +11,7 @@ import (
 	"github.com/G-Research/armada/pkg/api/lookout"
 )
 
-func TestGetJobsInQueue_GetNoJobsIfQueueDoesNotExist(t *testing.T) {
+func TestGetJobs_GetNoJobsIfQueueDoesNotExist(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db)
 
@@ -38,7 +38,7 @@ func TestGetJobsInQueue_GetNoJobsIfQueueDoesNotExist(t *testing.T) {
 	})
 }
 
-func TestGetJobsInQueue_GetSucceededJobFromQueue(t *testing.T) {
+func TestGetJobs_GetSucceededJobFromQueue(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
@@ -79,7 +79,7 @@ func TestGetJobsInQueue_GetSucceededJobFromQueue(t *testing.T) {
 	})
 }
 
-func TestGetJobsInQueue_GetFailedJobFromQueue(t *testing.T) {
+func TestGetJobs_GetFailedJobFromQueue(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
@@ -121,7 +121,7 @@ func TestGetJobsInQueue_GetFailedJobFromQueue(t *testing.T) {
 	})
 }
 
-func TestGetJobsInQueue_GetCancelledJobFromQueue(t *testing.T) {
+func TestGetJobs_GetCancelledJobFromQueue(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
@@ -160,7 +160,7 @@ func TestGetJobsInQueue_GetCancelledJobFromQueue(t *testing.T) {
 	})
 }
 
-func TestGetJobsInQueue_GetMultipleRunJobFromQueue(t *testing.T) {
+func TestGetJobs_GetMultipleRunJobFromQueue(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
@@ -170,6 +170,7 @@ func TestGetJobsInQueue_GetMultipleRunJobFromQueue(t *testing.T) {
 		retried := NewJobSimulator(t, jobStore, NewIncrementClock(startTime)).
 			CreateJob(queue).
 			Pending(cluster, k8sId1).
+			UnableToSchedule(cluster, k8sId1, node).
 			Pending(cluster, k8sId2).
 			Running(cluster, k8sId2, node).
 			Succeeded(cluster, k8sId2, node)
@@ -190,23 +191,24 @@ func TestGetJobsInQueue_GetMultipleRunJobFromQueue(t *testing.T) {
 		AssertRunInfosEquivalent(t, &lookout.RunInfo{
 			K8SId:     k8sId1,
 			Cluster:   cluster,
-			Node:      "",
+			Node:      node,
 			Succeeded: false,
 			Created:   Increment(startTime, 1),
+			Finished:  Increment(startTime, 2),
 		}, jobInfo.Runs[0])
 		AssertRunInfosEquivalent(t, &lookout.RunInfo{
 			K8SId:     k8sId2,
 			Cluster:   cluster,
 			Node:      node,
 			Succeeded: true,
-			Created:   Increment(startTime, 2),
-			Started:   Increment(startTime, 3),
-			Finished:  Increment(startTime, 4),
+			Created:   Increment(startTime, 3),
+			Started:   Increment(startTime, 4),
+			Finished:  Increment(startTime, 5),
 		}, jobInfo.Runs[1])
 	})
 }
 
-func TestGetJobsInQueue_GetJobsOrderedFromOldestToNewest(t *testing.T) {
+func TestGetJobs_GetJobsOrderedFromOldestToNewest(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
@@ -218,18 +220,18 @@ func TestGetJobsInQueue_GetJobsOrderedFromOldestToNewest(t *testing.T) {
 
 		third := NewJobSimulator(t, jobStore, &DefaultClock{}).
 			CreateJobWithId(queue, jobId3).
-			Pending(cluster, util.NewULID()).
-			Running(cluster, util.NewULID(), node)
+			Pending(cluster, k8sId1).
+			Running(cluster, k8sId1, node)
 
 		second := NewJobSimulator(t, jobStore, &DefaultClock{}).
 			CreateJobWithId(queue, jobId2).
-			Pending(cluster, util.NewULID()).
-			Running(cluster, util.NewULID(), node)
+			Pending(cluster, k8sId2).
+			Running(cluster, k8sId2, node)
 
 		first := NewJobSimulator(t, jobStore, &DefaultClock{}).
 			CreateJobWithId(queue, jobId1).
-			Pending(cluster, util.NewULID()).
-			Running(cluster, util.NewULID(), node)
+			Pending(cluster, k8sId3).
+			Running(cluster, k8sId3, node)
 
 		jobInfos, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
 			Queue: queue,
@@ -244,7 +246,7 @@ func TestGetJobsInQueue_GetJobsOrderedFromOldestToNewest(t *testing.T) {
 	})
 }
 
-func TestGetJobsInQueue_GetJobsOrderedFromNewestToOldest(t *testing.T) {
+func TestGetJobs_GetJobsOrderedFromNewestToOldest(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
@@ -256,18 +258,18 @@ func TestGetJobsInQueue_GetJobsOrderedFromNewestToOldest(t *testing.T) {
 
 		first := NewJobSimulator(t, jobStore, &DefaultClock{}).
 			CreateJobWithId(queue, jobId1).
-			Pending(cluster, util.NewULID()).
-			Running(cluster, util.NewULID(), node)
+			Pending(cluster, k8sId1).
+			Running(cluster, k8sId1, node)
 
 		second := NewJobSimulator(t, jobStore, &DefaultClock{}).
 			CreateJobWithId(queue, jobId2).
-			Pending(cluster, util.NewULID()).
-			Running(cluster, util.NewULID(), node)
+			Pending(cluster, k8sId2).
+			Running(cluster, k8sId2, node)
 
 		third := NewJobSimulator(t, jobStore, &DefaultClock{}).
 			CreateJobWithId(queue, jobId3).
-			Pending(cluster, util.NewULID()).
-			Running(cluster, util.NewULID(), node)
+			Pending(cluster, k8sId3).
+			Running(cluster, k8sId3, node)
 
 		jobInfos, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
 			Queue:       queue,
@@ -283,7 +285,7 @@ func TestGetJobsInQueue_GetJobsOrderedFromNewestToOldest(t *testing.T) {
 	})
 }
 
-func TestGetJobsInQueue_FilterQueuedJobs(t *testing.T) {
+func TestGetJobs_FilterQueuedJobs(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
@@ -298,6 +300,7 @@ func TestGetJobsInQueue_FilterQueuedJobs(t *testing.T) {
 		NewJobSimulator(t, jobStore, &DefaultClock{}).
 			CreateJob(queue).
 			Pending(cluster, k8sId2).
+			UnableToSchedule(cluster, k8sId2, node).
 			Pending(cluster, k8sId3).
 			Running(cluster, k8sId3, node)
 
@@ -329,7 +332,7 @@ func TestGetJobsInQueue_FilterQueuedJobs(t *testing.T) {
 	})
 }
 
-func TestGetJobsInQueue_FilterPendingJobs(t *testing.T) {
+func TestGetJobs_FilterPendingJobs(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
@@ -344,6 +347,7 @@ func TestGetJobsInQueue_FilterPendingJobs(t *testing.T) {
 		NewJobSimulator(t, jobStore, &DefaultClock{}).
 			CreateJob(queue).
 			Pending(cluster, k8sId2).
+			UnableToSchedule(cluster, k8sId2, node).
 			Pending(cluster, k8sId3).
 			Running(cluster, k8sId3, node)
 
@@ -375,7 +379,7 @@ func TestGetJobsInQueue_FilterPendingJobs(t *testing.T) {
 	})
 }
 
-func TestGetJobsInQueue_FilterRunningJobs(t *testing.T) {
+func TestGetJobs_FilterRunningJobs(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
@@ -390,6 +394,7 @@ func TestGetJobsInQueue_FilterRunningJobs(t *testing.T) {
 		running := NewJobSimulator(t, jobStore, &DefaultClock{}).
 			CreateJob(queue).
 			Pending(cluster, k8sId2).
+			UnableToSchedule(cluster, k8sId2, node).
 			Pending(cluster, k8sId3).
 			Running(cluster, k8sId3, node)
 
@@ -421,7 +426,7 @@ func TestGetJobsInQueue_FilterRunningJobs(t *testing.T) {
 	})
 }
 
-func TestGetJobsInQueue_FilterSucceededJobs(t *testing.T) {
+func TestGetJobs_FilterSucceededJobs(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
@@ -436,6 +441,7 @@ func TestGetJobsInQueue_FilterSucceededJobs(t *testing.T) {
 		NewJobSimulator(t, jobStore, &DefaultClock{}).
 			CreateJob(queue).
 			Pending(cluster, k8sId2).
+			UnableToSchedule(cluster, k8sId2, node).
 			Pending(cluster, k8sId3).
 			Running(cluster, k8sId3, node)
 
@@ -467,7 +473,7 @@ func TestGetJobsInQueue_FilterSucceededJobs(t *testing.T) {
 	})
 }
 
-func TestGetJobsInQueue_FilterFailedJobs(t *testing.T) {
+func TestGetJobs_FilterFailedJobs(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
@@ -482,6 +488,7 @@ func TestGetJobsInQueue_FilterFailedJobs(t *testing.T) {
 		NewJobSimulator(t, jobStore, &DefaultClock{}).
 			CreateJob(queue).
 			Pending(cluster, k8sId2).
+			UnableToSchedule(cluster, k8sId2, node).
 			Pending(cluster, k8sId3).
 			Running(cluster, k8sId3, node)
 
@@ -513,7 +520,7 @@ func TestGetJobsInQueue_FilterFailedJobs(t *testing.T) {
 	})
 }
 
-func TestGetJobsInQueue_FilterCancelledJobs(t *testing.T) {
+func TestGetJobs_FilterCancelledJobs(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
@@ -528,6 +535,7 @@ func TestGetJobsInQueue_FilterCancelledJobs(t *testing.T) {
 		NewJobSimulator(t, jobStore, &DefaultClock{}).
 			CreateJob(queue).
 			Pending(cluster, k8sId2).
+			UnableToSchedule(cluster, k8sId2, node).
 			Pending(cluster, k8sId3).
 			Running(cluster, k8sId3, node)
 
@@ -559,7 +567,7 @@ func TestGetJobsInQueue_FilterCancelledJobs(t *testing.T) {
 	})
 }
 
-func TestGetJobsInQueue_ErrorsIfUnknownStateIsGiven(t *testing.T) {
+func TestGetJobs_ErrorsIfUnknownStateIsGiven(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
 		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
 
@@ -573,7 +581,7 @@ func TestGetJobsInQueue_ErrorsIfUnknownStateIsGiven(t *testing.T) {
 	})
 }
 
-func TestGetJobsInQueue_FilterMultipleStates(t *testing.T) {
+func TestGetJobs_FilterMultipleStates(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
@@ -588,6 +596,7 @@ func TestGetJobsInQueue_FilterMultipleStates(t *testing.T) {
 		running := NewJobSimulator(t, jobStore, &DefaultClock{}).
 			CreateJob(queue).
 			Pending(cluster, k8sId2).
+			UnableToSchedule(cluster, k8sId2, node).
 			Pending(cluster, k8sId3).
 			Running(cluster, k8sId3, node)
 
@@ -629,7 +638,7 @@ func TestGetJobsInQueue_FilterMultipleStates(t *testing.T) {
 	})
 }
 
-func TestGetJobsInQueue_FilterBySingleJobSet(t *testing.T) {
+func TestGetJobs_FilterBySingleJobSet(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
@@ -648,6 +657,7 @@ func TestGetJobsInQueue_FilterBySingleJobSet(t *testing.T) {
 		job3 := NewJobSimulator(t, jobStore, &DefaultClock{}).
 			CreateJobWithJobSet(queue, jobSet2).
 			Pending(cluster, k8sId2).
+			UnableToSchedule(cluster, k8sId2, node).
 			Pending(cluster, k8sId3).
 			Running(cluster, k8sId3, node)
 
@@ -697,7 +707,7 @@ func TestGetJobsInQueue_FilterBySingleJobSet(t *testing.T) {
 	})
 }
 
-func TestGetJobsInQueue_FilterByMultipleJobSets(t *testing.T) {
+func TestGetJobs_FilterByMultipleJobSets(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
@@ -716,6 +726,7 @@ func TestGetJobsInQueue_FilterByMultipleJobSets(t *testing.T) {
 		job3 := NewJobSimulator(t, jobStore, &DefaultClock{}).
 			CreateJobWithJobSet(queue, jobSet2).
 			Pending(cluster, k8sId2).
+			UnableToSchedule(cluster, k8sId2, node).
 			Pending(cluster, k8sId3).
 			Running(cluster, k8sId3, node)
 
@@ -747,7 +758,7 @@ func TestGetJobsInQueue_FilterByMultipleJobSets(t *testing.T) {
 	})
 }
 
-func TestGetJobsInQueue_FilterByJobSetStartingWith(t *testing.T) {
+func TestGetJobs_FilterByJobSetStartingWith(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
@@ -766,6 +777,7 @@ func TestGetJobsInQueue_FilterByJobSetStartingWith(t *testing.T) {
 		job3 := NewJobSimulator(t, jobStore, &DefaultClock{}).
 			CreateJobWithJobSet(queue, jobSet2).
 			Pending(cluster, k8sId2).
+			UnableToSchedule(cluster, k8sId2, node).
 			Pending(cluster, k8sId3).
 			Running(cluster, k8sId3, node)
 
@@ -799,7 +811,7 @@ func TestGetJobsInQueue_FilterByJobSetStartingWith(t *testing.T) {
 	})
 }
 
-func TestGetJobsInQueue_FilterByMultipleJobSetStartingWith(t *testing.T) {
+func TestGetJobs_FilterByMultipleJobSetStartingWith(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
@@ -819,6 +831,7 @@ func TestGetJobsInQueue_FilterByMultipleJobSetStartingWith(t *testing.T) {
 		job3 := NewJobSimulator(t, jobStore, &DefaultClock{}).
 			CreateJobWithJobSet(queue, jobSet2).
 			Pending(cluster, k8sId2).
+			UnableToSchedule(cluster, k8sId2, node).
 			Pending(cluster, k8sId3).
 			Running(cluster, k8sId3, node)
 
@@ -851,7 +864,7 @@ func TestGetJobsInQueue_FilterByMultipleJobSetStartingWith(t *testing.T) {
 	})
 }
 
-func TestGetJobsInQueue_FilterByJobIdIfNoQueueIsSpecified(t *testing.T) {
+func TestGetJobs_FilterByJobIdIfNoQueueIsSpecified(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
@@ -866,6 +879,7 @@ func TestGetJobsInQueue_FilterByJobIdIfNoQueueIsSpecified(t *testing.T) {
 		NewJobSimulator(t, jobStore, &DefaultClock{}).
 			CreateJob(queue).
 			Pending(cluster, k8sId2).
+			UnableToSchedule(cluster, k8sId2, node).
 			Pending(cluster, k8sId3).
 			Running(cluster, k8sId3, node)
 
@@ -893,7 +907,7 @@ func TestGetJobsInQueue_FilterByJobIdIfNoQueueIsSpecified(t *testing.T) {
 	})
 }
 
-func TestGetJobsInQueue_FilterByJobIdIfQueueIsSpecified(t *testing.T) {
+func TestGetJobs_FilterByJobIdIfQueueIsSpecified(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
@@ -908,6 +922,7 @@ func TestGetJobsInQueue_FilterByJobIdIfQueueIsSpecified(t *testing.T) {
 		job := NewJobSimulator(t, jobStore, &DefaultClock{}).
 			CreateJob(queue).
 			Pending(cluster, k8sId2).
+			UnableToSchedule(cluster, k8sId2, node).
 			Pending(cluster, k8sId3).
 			Running(cluster, k8sId3, node)
 
@@ -936,7 +951,7 @@ func TestGetJobsInQueue_FilterByJobIdIfQueueIsSpecified(t *testing.T) {
 	})
 }
 
-func TestGetJobsInQueue_FilterByJobIdWithWrongQueue(t *testing.T) {
+func TestGetJobs_FilterByJobIdWithWrongQueue(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
@@ -951,6 +966,7 @@ func TestGetJobsInQueue_FilterByJobIdWithWrongQueue(t *testing.T) {
 		NewJobSimulator(t, jobStore, &DefaultClock{}).
 			CreateJob(queue).
 			Pending(cluster, k8sId2).
+			UnableToSchedule(cluster, k8sId2, node).
 			Pending(cluster, k8sId3).
 			Running(cluster, k8sId3, node)
 
@@ -978,7 +994,7 @@ func TestGetJobsInQueue_FilterByJobIdWithWrongQueue(t *testing.T) {
 	})
 }
 
-func TestGetJobsInQueue_FilterByJobIdWithWrongJobSet(t *testing.T) {
+func TestGetJobs_FilterByJobIdWithWrongJobSet(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
@@ -993,6 +1009,7 @@ func TestGetJobsInQueue_FilterByJobIdWithWrongJobSet(t *testing.T) {
 		NewJobSimulator(t, jobStore, &DefaultClock{}).
 			CreateJob(queue).
 			Pending(cluster, k8sId2).
+			UnableToSchedule(cluster, k8sId2, node).
 			Pending(cluster, k8sId3).
 			Running(cluster, k8sId3, node)
 
@@ -1020,7 +1037,7 @@ func TestGetJobsInQueue_FilterByJobIdWithWrongJobSet(t *testing.T) {
 	})
 }
 
-func TestGetJobsInQueue_TakeOldestJobsFirst(t *testing.T) {
+func TestGetJobs_TakeOldestJobsFirst(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
@@ -1032,11 +1049,13 @@ func TestGetJobsInQueue_TakeOldestJobsFirst(t *testing.T) {
 
 		for i := 0; i < nJobs; i++ {
 			k8sId := util.NewULID()
+			otherK8sId := util.NewULID()
 			allJobs[i] = NewJobSimulator(t, jobStore, &DefaultClock{}).
 				CreateJob(queue).
-				Pending(cluster, util.NewULID()).
 				Pending(cluster, k8sId).
-				Running(cluster, k8sId, node)
+				UnableToSchedule(cluster, k8sId, node).
+				Pending(cluster, otherK8sId).
+				Running(cluster, otherK8sId, node)
 		}
 
 		jobInfos, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
@@ -1051,7 +1070,7 @@ func TestGetJobsInQueue_TakeOldestJobsFirst(t *testing.T) {
 	})
 }
 
-func TestGetJobsInQueue_TakeNewestJobsFirst(t *testing.T) {
+func TestGetJobs_TakeNewestJobsFirst(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
@@ -1063,11 +1082,13 @@ func TestGetJobsInQueue_TakeNewestJobsFirst(t *testing.T) {
 
 		for i := 0; i < nJobs; i++ {
 			k8sId := util.NewULID()
+			otherK8sId := util.NewULID()
 			allJobs[i] = NewJobSimulator(t, jobStore, &DefaultClock{}).
 				CreateJob(queue).
-				Pending(cluster, util.NewULID()).
 				Pending(cluster, k8sId).
-				Running(cluster, k8sId, node)
+				UnableToSchedule(cluster, k8sId, node).
+				Pending(cluster, otherK8sId).
+				Running(cluster, otherK8sId, node)
 		}
 
 		jobInfos, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
@@ -1083,7 +1104,7 @@ func TestGetJobsInQueue_TakeNewestJobsFirst(t *testing.T) {
 	})
 }
 
-func TestGetJobsInQueue_SkipFirstOldestJobs(t *testing.T) {
+func TestGetJobs_SkipFirstOldestJobs(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
@@ -1096,11 +1117,13 @@ func TestGetJobsInQueue_SkipFirstOldestJobs(t *testing.T) {
 
 		for i := 0; i < nJobs; i++ {
 			k8sId := util.NewULID()
+			otherK8sId := util.NewULID()
 			allJobs[i] = NewJobSimulator(t, jobStore, &DefaultClock{}).
 				CreateJob(queue).
-				Pending(cluster, util.NewULID()).
 				Pending(cluster, k8sId).
-				Running(cluster, k8sId, node)
+				UnableToSchedule(cluster, k8sId, node).
+				Pending(cluster, otherK8sId).
+				Running(cluster, otherK8sId, node)
 		}
 
 		jobInfos, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
@@ -1116,7 +1139,7 @@ func TestGetJobsInQueue_SkipFirstOldestJobs(t *testing.T) {
 	})
 }
 
-func TestGetJobsInQueue_SkipFirstNewestJobs(t *testing.T) {
+func TestGetJobs_SkipFirstNewestJobs(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
@@ -1129,11 +1152,12 @@ func TestGetJobsInQueue_SkipFirstNewestJobs(t *testing.T) {
 
 		for i := 0; i < nJobs; i++ {
 			k8sId := util.NewULID()
+			otherK8sId := util.NewULID()
 			allJobs[i] = NewJobSimulator(t, jobStore, &DefaultClock{}).
 				CreateJob(queue).
-				Pending(cluster, util.NewULID()).
-				Pending(cluster, k8sId).
-				Running(cluster, k8sId, node)
+				UnableToSchedule(cluster, k8sId, node).
+				Pending(cluster, otherK8sId).
+				Running(cluster, otherK8sId, node)
 		}
 
 		jobInfos, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{

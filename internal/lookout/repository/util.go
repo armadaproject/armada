@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/doug-martin/goqu/v9"
-	"github.com/doug-martin/goqu/v9/exp"
 	"github.com/lib/pq"
 )
 
@@ -59,10 +58,6 @@ func createInsertQuery(table string, fields []string, values []interface{}) stri
 		insertSql += ")"
 	}
 	return insertSql
-}
-
-func BOOL_OR(col interface{}) exp.SQLFunctionExpression {
-	return goqu.Func("BOOL_OR", col)
 }
 
 func ParseNullString(nullString sql.NullString) string {
