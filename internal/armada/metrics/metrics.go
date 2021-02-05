@@ -44,6 +44,13 @@ var queuePriorityDesc = prometheus.NewDesc(
 	nil,
 )
 
+var queueQueuedDesc = prometheus.NewDesc(
+	MetricPrefix+"queue_resource_queued",
+	"Resource required by queued jobs",
+	[]string{"queueName", "resourceType"},
+	nil,
+)
+
 var queueAllocatedDesc = prometheus.NewDesc(
 	MetricPrefix+"queue_resource_allocated",
 	"Resource allocated to running jobs of a queue",
@@ -93,6 +100,13 @@ func (c *QueueInfoCollector) Collect(metrics chan<- prometheus.Metric) {
 		return
 	}
 
+	queueResources, e := c.jobRepository.GetQueueResources(queues)
+	if e != nil {
+		log.Errorf("Error while getting queue resources %s", e)
+		recordInvalidMetrics(metrics, e)
+		return
+	}
+
 	usageReports, e := c.usageRepository.GetClusterUsageReports()
 	if e != nil {
 		log.Errorf("Error while getting queue usage metrics %s", e)
@@ -116,6 +130,12 @@ func (c *QueueInfoCollector) Collect(metrics chan<- prometheus.Metric) {
 
 	for i, q := range queues {
 		metrics <- prometheus.MustNewConstMetric(queueSizeDesc, prometheus.GaugeValue, float64(queueSizes[i]), q.Name)
+	}
+
+	for i, q := range queues {
+		for resourceType, amount := range queueResources[i] {
+			metrics <- prometheus.MustNewConstMetric(queueQueuedDesc, prometheus.GaugeValue, amount, q.Name, resourceType)
+		}
 	}
 
 	for cluster, report := range activeClusterReports {

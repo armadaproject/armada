@@ -24,6 +24,7 @@ const jobSetPrefix = "Job:Set:"
 const jobLeasedPrefix = "Job:Leased:"
 const jobClusterMapKey = "Job:ClusterId"
 const jobRetriesPrefix = "Job:Retries:"
+const jobQueuedResources = "Job:QueuedResources:"
 
 type JobQueueRepository interface {
 	PeekQueue(queue string, limit int64) ([]*api.Job, error)
@@ -37,6 +38,7 @@ type JobRepository interface {
 	GetExistingJobsByIds(ids []string) ([]*api.Job, error)
 	FilterActiveQueues(queues []*api.Queue) ([]*api.Queue, error)
 	GetQueueSizes(queues []*api.Queue) (sizes []int64, e error)
+	GetQueueResources(queues []*api.Queue) (sizes []common.ComputeResourcesFloat, e error)
 	RenewLease(clusterId string, jobIds []string) (renewed []string, e error)
 	ExpireLeases(queue string, deadline time.Time) (expired []*api.Job, e error)
 	ReturnLease(clusterId string, jobId string) (returnedJob *api.Job, err error)
@@ -137,7 +139,7 @@ type SubmitJobResult struct {
 }
 
 func (repo *RedisJobRepository) AddJobs(jobs []*api.Job) ([]*SubmitJobResult, error) {
-	pipe := repo.db.Pipeline()
+	pipe := repo.db.TxPipeline()
 
 	submitResults := make([]*submitJobRedisResponse, 0, len(jobs))
 
@@ -158,6 +160,11 @@ func (repo *RedisJobRepository) AddJobs(jobs []*api.Job) ([]*SubmitJobResult, er
 		submitResult.saveJobResult = pipe.Set(jobObjectPrefix+job.Id, jobData, 0)
 		submitResult.jobSetIndexResult = pipe.SAdd(jobSetPrefix+job.JobSetId, job.Id)
 		submitResults = append(submitResults, submitResult)
+
+		jobResources := common.TotalJobResourceRequest(job).AsFloat()
+		for k, v := range jobResources {
+			pipe.HIncrByFloat(jobQueuedResources+job.Queue, k, v)
+		}
 	}
 
 	_, _ = pipe.Exec() // ignoring error here as it will be part of individual commands
@@ -435,6 +442,30 @@ func (repo *RedisJobRepository) GetQueueSizes(queues []*api.Queue) (sizes []int6
 	return sizes, nil
 }
 
+func (repo *RedisJobRepository) GetQueueResources(queues []*api.Queue) ([]common.ComputeResourcesFloat, error) {
+	pipe := repo.db.Pipeline()
+	cmds := []*redis.StringStringMapCmd{}
+	for _, queue := range queues {
+		cmds = append(cmds, pipe.HGetAll(jobQueuedResources+queue.Name))
+	}
+	_, e := pipe.Exec()
+	if e != nil {
+		return nil, e
+	}
+
+	result := []common.ComputeResourcesFloat{}
+	for _, cmd := range cmds {
+		stringResources := cmd.Val()
+		resources := common.ComputeResourcesFloat{}
+		for k, v := range stringResources {
+			f, _ := strconv.ParseFloat(v, 64)
+			resources[k] = f
+		}
+		result = append(result, resources)
+	}
+	return result, nil
+}
+
 func (repo *RedisJobRepository) GetActiveJobIds(queue string, jobSetId string) ([]string, error) {
 
 	queuedIds, e := repo.db.ZRange(jobQueuePrefix+queue, 0, -1).Result()
@@ -579,7 +610,8 @@ func (repo *RedisJobRepository) leaseJobs(clusterId string, jobs []*api.Job) ([]
 
 	cmds := make(map[string]*redis.Cmd)
 	for _, job := range jobs {
-		cmds[job.Id] = leaseJob(pipe, job.Queue, clusterId, job.Id, now)
+		jobResources := common.TotalJobResourceRequest(job)
+		cmds[job.Id] = leaseJob(pipe, job.Queue, clusterId, job.Id, now, jobResources)
 	}
 	_, e := pipe.Exec()
 	if e != nil {
@@ -624,9 +656,14 @@ func (repo *RedisJobRepository) applyDefaults(spec *v1.PodSpec) {
 	}
 }
 
-func leaseJob(db redis.Cmdable, queueName string, clusterId string, jobId string, now time.Time) *redis.Cmd {
-	return leaseJobScript.Run(db, []string{jobQueuePrefix + queueName, jobLeasedPrefix + queueName, jobClusterMapKey},
-		clusterId, jobId, float64(now.UnixNano()))
+func leaseJob(db redis.Cmdable, queueName string, clusterId string, jobId string, now time.Time, resources common.ComputeResources) *redis.Cmd {
+	arguments := []interface{}{clusterId, jobId, float64(now.UnixNano())}
+	for k, v := range resources.AsFloat() {
+		// resources are removed from queued counters
+		arguments = append(arguments, k, -v)
+	}
+	return leaseJobScript.Run(db, []string{jobQueuePrefix + queueName, jobLeasedPrefix + queueName, jobClusterMapKey, jobQueuedResources + queueName},
+		arguments...)
 }
 
 const alreadyAllocatedByDifferentCluster = -42
@@ -636,6 +673,7 @@ var leaseJobScript = redis.NewScript(`
 local queue = KEYS[1]
 local leasedJobsSet = KEYS[2]
 local clusterAssociation = KEYS[3]
+local statsKey = KEYS[4]
 
 local clusterId = ARGV[1]
 local jobId = ARGV[2]
@@ -645,6 +683,11 @@ local exists = redis.call('ZREM', queue, jobId)
 
 if exists == 1 then 
 	redis.call('HSET', clusterAssociation, jobId, clusterId)
+	local i = 4
+	while ARGV[i] ~= nil do
+		redis.call('HINCRBYFLOAT', statsKey, ARGV[i], ARGV[i + 1])
+		i = i + 2
+	end
 	return redis.call('ZADD', leasedJobsSet, currentTime, jobId)
 else
 	local currentClusterId = redis.call('HGET', clusterAssociation, jobId)
