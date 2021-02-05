@@ -180,7 +180,7 @@ func (js *JobSimulator) Failed(cluster string, k8sId string, node string, error 
 		JobId:        js.job.Id,
 		JobSetId:     js.job.JobSetId,
 		Queue:        js.job.Queue,
-		Created:      time.Now(),
+		Created:      js.clock.Now(),
 		ClusterId:    cluster,
 		Reason:       error,
 		ExitCodes:    nil,
