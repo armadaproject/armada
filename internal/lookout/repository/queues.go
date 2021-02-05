@@ -27,8 +27,6 @@ func (r *SQLJobRepository) GetQueueInfos(ctx context.Context) ([]*lookout.QueueI
 		return nil, err
 	}
 
-	fmt.Println(queries)
-
 	rows, err := r.goquDb.Db.QueryContext(ctx, queries)
 	if err != nil {
 		return nil, err
