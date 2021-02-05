@@ -134,12 +134,12 @@ func TestGetQueueInfos_IncludeOldestQueuedJob(t *testing.T) {
 
 		NewJobSimulator(t, jobStore).
 			CreateJobAtTime(queue, someTime).
-			PendingAtTime(cluster, "f",*Increment(someTime, 1))
+			PendingAtTime(cluster, "f", *Increment(someTime, 1))
 
 		NewJobSimulator(t, jobStore).
 			CreateJobAtTime(queue, *Increment(someTime, 10)).
 			PendingAtTime(cluster, "a", *Increment(someTime, 11)).
-			RunningAtTime(cluster, "a", node,*Increment(someTime, 12))
+			RunningAtTime(cluster, "a", node, *Increment(someTime, 12))
 
 		NewJobSimulator(t, jobStore).
 			CreateJobAtTime(queue, *Increment(someTime, 5)).
