@@ -55,7 +55,7 @@ func (d *StuckPodDetector) determineStuckPodState(pod *v1.Pod) (err error, retry
 
 	retryable, message = util.DiagnoseStuckPod(pod, podEvents)
 	if retryable {
-		message = fmt.Sprintf("Unable to schedule pod, Armada will retrun lease and retry.\n%s", message)
+		message = fmt.Sprintf("Unable to schedule pod, Armada will return lease and retry.\n%s", message)
 	} else {
 		message = fmt.Sprintf("Unable to schedule pod with unrecoverable problem, Armada will not retry.\n%s", message)
 	}
