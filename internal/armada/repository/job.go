@@ -25,6 +25,8 @@ const jobLeasedPrefix = "Job:Leased:"
 const jobClusterMapKey = "Job:ClusterId"
 const jobRetriesPrefix = "Job:Retries:"
 
+const queueResourcesBatchSize = 20000
+
 type JobQueueRepository interface {
 	PeekQueue(queue string, limit int64) ([]*api.Job, error)
 	TryLeaseJobs(clusterId string, queue string, jobs []*api.Job) ([]*api.Job, error)
@@ -446,10 +448,9 @@ func (repo *RedisJobRepository) GetQueueResources(queues []*api.Queue) ([]common
 
 		resources := common.ComputeResources{}
 
-		const batch = 20000
 		for len(queuedIds) > 0 {
-			take := batch
-			if len(queuedIds) < batch {
+			take := queueResourcesBatchSize
+			if len(queuedIds) < queueResourcesBatchSize {
 				take = len(queuedIds)
 			}
 			queuedJobs, e := repo.GetExistingJobsByIds(queuedIds[0:take])
