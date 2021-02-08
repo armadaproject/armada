@@ -116,6 +116,7 @@ func (c *FakeClusterContext) SubmitPod(pod *v1.Pod, owner string) (*v1.Pod, erro
 		for {
 			c.rwLock.Lock()
 			if _, exists := c.pods[saved.Name]; !exists {
+				c.rwLock.Unlock()
 				return // The pod was deleted
 			}
 			scheduled := c.trySchedule(saved)
