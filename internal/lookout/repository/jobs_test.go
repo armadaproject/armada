@@ -2,6 +2,7 @@ package repository
 
 import (
 	"testing"
+	"time"
 
 	"github.com/doug-martin/goqu/v9"
 	"github.com/stretchr/testify/assert"
@@ -42,11 +43,15 @@ func TestGetJobs_GetSucceededJobFromQueue(t *testing.T) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
 
+		pendingTime := someTime.Add(time.Second)
+		runningTime := someTime.Add(2*time.Second)
+		succeededTime := someTime.Add(3*time.Second)
+
 		succeeded := NewJobSimulator(t, jobStore).
 			CreateJobAtTime(queue, someTime).
-			PendingAtTime(cluster, k8sId1, *Increment(someTime, 1)).
-			RunningAtTime(cluster, k8sId1, node, *Increment(someTime, 2)).
-			SucceededAtTime(cluster, k8sId1, node, *Increment(someTime, 3))
+			PendingAtTime(cluster, k8sId1, pendingTime).
+			RunningAtTime(cluster, k8sId1, node, runningTime).
+			SucceededAtTime(cluster, k8sId1, node, succeededTime)
 
 		jobInfos, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
 			Queue: queue,
@@ -69,9 +74,9 @@ func TestGetJobs_GetSucceededJobFromQueue(t *testing.T) {
 			Cluster:   cluster,
 			Node:      node,
 			Succeeded: true,
-			Created:   Increment(someTime, 1),
-			Started:   Increment(someTime, 2),
-			Finished:  Increment(someTime, 3),
+			Created:   &pendingTime,
+			Started:   &runningTime,
+			Finished:  &succeededTime,
 		}, runInfo)
 	})
 }
@@ -81,13 +86,16 @@ func TestGetJobs_GetFailedJobFromQueue(t *testing.T) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
 
+		pendingTime := someTime.Add(time.Second)
+		runningTime := someTime.Add(2*time.Second)
+		failedTime := someTime.Add(3*time.Second)
 		failureReason := "Something bad happened"
 
 		failed := NewJobSimulator(t, jobStore).
 			CreateJobAtTime(queue, someTime).
-			PendingAtTime(cluster, k8sId1, *Increment(someTime, 1)).
-			RunningAtTime(cluster, k8sId1, node, *Increment(someTime, 2)).
-			FailedAtTime(cluster, k8sId1, node, failureReason, *Increment(someTime, 3))
+			PendingAtTime(cluster, k8sId1, pendingTime).
+			RunningAtTime(cluster, k8sId1, node, runningTime).
+			FailedAtTime(cluster, k8sId1, node, failureReason, failedTime)
 
 		jobInfos, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
 			Queue: queue,
@@ -109,9 +117,9 @@ func TestGetJobs_GetFailedJobFromQueue(t *testing.T) {
 			Cluster:   cluster,
 			Node:      node,
 			Succeeded: false,
-			Created:   Increment(someTime, 1),
-			Started:   Increment(someTime, 2),
-			Finished:  Increment(someTime, 3),
+			Created:   &pendingTime,
+			Started:   &runningTime,
+			Finished:  &failedTime,
 			Error:     failureReason,
 		}, jobInfo.Runs[0])
 	})
@@ -122,11 +130,15 @@ func TestGetJobs_GetCancelledJobFromQueue(t *testing.T) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
 
+		pendingTime := someTime.Add(time.Second)
+		runningTime := someTime.Add(2*time.Second)
+		cancelledTime := someTime.Add(3*time.Second)
+
 		cancelled := NewJobSimulator(t, jobStore).
 			CreateJobAtTime(queue, someTime).
-			PendingAtTime(cluster, k8sId1, *Increment(someTime, 1)).
-			RunningAtTime(cluster, k8sId1, node, *Increment(someTime, 2)).
-			CancelledAtTime(*Increment(someTime, 3))
+			PendingAtTime(cluster, k8sId1, pendingTime).
+			RunningAtTime(cluster, k8sId1, node, runningTime).
+			CancelledAtTime(cancelledTime)
 
 		jobInfos, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
 			Queue: queue,
@@ -138,7 +150,7 @@ func TestGetJobs_GetCancelledJobFromQueue(t *testing.T) {
 		jobInfo := jobInfos[0]
 		AssertJobsAreEquivalent(t, cancelled.job, jobInfo.Job)
 
-		AssertTimesApproxEqual(t, Increment(someTime, 3), jobInfo.Cancelled)
+		AssertTimesApproxEqual(t, &cancelledTime, jobInfo.Cancelled)
 
 		assert.Equal(t, string(JobCancelled), jobInfo.JobState)
 
@@ -148,8 +160,8 @@ func TestGetJobs_GetCancelledJobFromQueue(t *testing.T) {
 			Cluster:   cluster,
 			Node:      node,
 			Succeeded: false,
-			Created:   Increment(someTime, 1),
-			Started:   Increment(someTime, 2),
+			Created:   &pendingTime,
+			Started:   &runningTime,
 		}, jobInfo.Runs[0])
 	})
 }
@@ -159,13 +171,19 @@ func TestGetJobs_GetMultipleRunJobFromQueue(t *testing.T) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
 
+		pendingTime1 := someTime.Add(time.Second)
+		unableToScheduleTime := someTime.Add(2*time.Second)
+		pendingTime2 := someTime.Add(3*time.Second)
+		runningTime := someTime.Add(4*time.Second)
+		succeededTime := someTime.Add(5*time.Second)
+
 		retried := NewJobSimulator(t, jobStore).
 			CreateJobAtTime(queue, someTime).
-			PendingAtTime(cluster, k8sId1, *Increment(someTime, 1)).
-			UnableToScheduleAtTime(cluster, k8sId1, node, *Increment(someTime, 2)).
-			PendingAtTime(cluster, k8sId2, *Increment(someTime, 3)).
-			RunningAtTime(cluster, k8sId2, node, *Increment(someTime, 4)).
-			SucceededAtTime(cluster, k8sId2, node, *Increment(someTime, 5))
+			PendingAtTime(cluster, k8sId1, pendingTime1).
+			UnableToScheduleAtTime(cluster, k8sId1, node, unableToScheduleTime).
+			PendingAtTime(cluster, k8sId2, pendingTime2).
+			RunningAtTime(cluster, k8sId2, node, runningTime).
+			SucceededAtTime(cluster, k8sId2, node, succeededTime)
 
 		jobInfos, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
 			Queue: queue,
@@ -185,17 +203,17 @@ func TestGetJobs_GetMultipleRunJobFromQueue(t *testing.T) {
 			Cluster:   cluster,
 			Node:      node,
 			Succeeded: false,
-			Created:   Increment(someTime, 1),
-			Finished:  Increment(someTime, 2),
+			Created:   &pendingTime1,
+			Finished:  &unableToScheduleTime,
 		}, jobInfo.Runs[0])
 		AssertRunInfosEquivalent(t, &lookout.RunInfo{
 			K8SId:     k8sId2,
 			Cluster:   cluster,
 			Node:      node,
 			Succeeded: true,
-			Created:   Increment(someTime, 3),
-			Started:   Increment(someTime, 4),
-			Finished:  Increment(someTime, 5),
+			Created:   &pendingTime2,
+			Started:   &runningTime,
+			Finished:  &succeededTime,
 		}, jobInfo.Runs[1])
 	})
 }

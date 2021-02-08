@@ -59,12 +59,6 @@ func AssertTimesApproxEqual(t *testing.T, expected *time.Time, actual *time.Time
 	assert.Equal(t, expected.Round(time.Second).UTC(), actual.Round(time.Second).UTC())
 }
 
-// Increment given time by a number of minutes, returns pointer to new time
-func Increment(t time.Time, x int) *time.Time {
-	i := t.Add(time.Minute * time.Duration(x))
-	return &i
-}
-
 type JobSimulator struct {
 	t        *testing.T
 	jobStore JobRecorder
