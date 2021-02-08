@@ -1,9 +1,14 @@
 .job-sets {
+    display: flex;
     margin-top: 1em;
+    flex-direction: column;
+    max-height: 80vh;
 }
 
 .job-sets-header {
+    flex: 0 1 auto;
     margin-top: 0.66em;
+    margin-bottom: 0.66em;
     display: flex;
     flex-direction: row;
     justify-content: space-between;
@@ -19,6 +24,10 @@
     display: flex;
     justify-content: center;
     align-items: center;
+}
+
+.job-sets-content {
+    flex: 1 1 auto;
 }
 
 .link {

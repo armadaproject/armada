@@ -1,6 +1,14 @@
-import { LookoutApi, LookoutJobInfo, LookoutJobSetInfo, LookoutQueueInfo, LookoutRunInfo } from '../openapi/lookout'
+import {
+  LookoutApi,
+  LookoutDurationStats,
+  LookoutJobInfo,
+  LookoutJobSetInfo,
+  LookoutQueueInfo,
+  LookoutRunInfo
+} from '../openapi/lookout'
 import { SubmitApi } from '../openapi/armada'
 import { reverseMap } from "../utils";
+import { duration } from "@material-ui/core";
 
 export type QueueInfo = {
   queue: string
@@ -21,6 +29,18 @@ export type JobSet = {
   jobsRunning: number
   jobsSucceeded: number
   jobsFailed: number
+
+  runningStats?: DurationStats
+  queuedStats?: DurationStats
+}
+
+export type DurationStats = {
+  shortest: number
+  longest: number
+  average: number
+  median: number
+  q1: number
+  q3: number
 }
 
 export interface GetJobsRequest {
@@ -217,6 +237,31 @@ function jobSetToViewModel(jobSet: LookoutJobSetInfo): JobSet {
     jobsRunning: jobSet.jobsRunning ?? 0,
     jobsSucceeded: jobSet.jobsSucceeded ?? 0,
     jobsFailed: jobSet.jobsFailed ?? 0,
+    runningStats: durationStatsToViewModel(jobSet.runningStats),
+    queuedStats: durationStatsToViewModel(jobSet.queuedStats),
+  }
+}
+
+function durationStatsToViewModel(durationStats?: LookoutDurationStats): DurationStats | undefined {
+  if (!(
+    durationStats &&
+    durationStats.shortest &&
+    durationStats.longest &&
+    durationStats.average &&
+    durationStats.median &&
+    durationStats.q1 &&
+    durationStats.q3
+  )) {
+    return undefined
+  }
+
+  return {
+    shortest: getDurationSeconds(durationStats.shortest),
+    longest: getDurationSeconds(durationStats.longest),
+    average: getDurationSeconds(durationStats.average),
+    median: getDurationSeconds(durationStats.median),
+    q1: getDurationSeconds(durationStats.q1),
+    q3: getDurationSeconds(durationStats.q3),
   }
 }
 
@@ -247,6 +292,11 @@ function getDurationString(durationFromApi: any): string {
   }
 
   return segments.join(" ")
+}
+
+function getDurationSeconds(durationFromApi: any): number {
+  durationFromApi = durationFromApi as { seconds: number }
+  return durationFromApi.seconds
 }
 
 function jobInfoToJobRunViewModel(jobInfo: LookoutJobInfo): JobRun[] {

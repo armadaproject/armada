@@ -2,7 +2,7 @@ import React from "react"
 import { RouteComponentProps, withRouter } from "react-router-dom";
 import * as queryString from "querystring";
 
-import JobSets from "../components/JobSets";
+import JobSets from "../components/job-sets/JobSets";
 import JobService, { JobSet } from "../services/JobService";
 import { debounced } from "../utils";
 
@@ -110,7 +110,7 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
       jobSets={this.state.jobSets}
       onQueueChange={this.setQueue}
       onRefresh={this.refresh}
-      onJobSetStatsClick={this.navigateToJobSetForState} />
+      onJobSetClick={this.navigateToJobSetForState} />
   }
 }
 
