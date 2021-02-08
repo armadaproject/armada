@@ -1,6 +1,8 @@
 package metrics
 
 import (
+	"sync"
+
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 
@@ -17,9 +19,9 @@ func ExposeDataMetrics(
 	usageRepository repository.UsageRepository,
 ) *QueueInfoCollector {
 	collector := &QueueInfoCollector{
-		queueRepository,
-		jobRepository,
-		usageRepository}
+		queueRepository: queueRepository,
+		jobRepository:   jobRepository,
+		usageRepository: usageRepository}
 	prometheus.MustRegister(collector)
 	return collector
 }
@@ -28,6 +30,9 @@ type QueueInfoCollector struct {
 	queueRepository repository.QueueRepository
 	jobRepository   repository.JobRepository
 	usageRepository repository.UsageRepository
+
+	refreshMutex           sync.Mutex
+	queuedResourcesByQueue map[string]common.ComputeResourcesFloat
 }
 
 var queueSizeDesc = prometheus.NewDesc(
@@ -44,7 +49,7 @@ var queuePriorityDesc = prometheus.NewDesc(
 	nil,
 )
 
-var queueQueuedDesc = prometheus.NewDesc(
+var queueResourcesDesc = prometheus.NewDesc(
 	MetricPrefix+"queue_resource_queued",
 	"Resource required by queued jobs",
 	[]string{"queueName", "resourceType"},
@@ -79,6 +84,36 @@ var clusterAvailableCapacity = prometheus.NewDesc(
 	nil,
 )
 
+func (c *QueueInfoCollector) RefreshMetrics() {
+	queues, e := c.queueRepository.GetAllQueues()
+	if e != nil {
+		log.Errorf("Error while getting queue metrics %s", e)
+		return
+	}
+
+	queueResources, e := c.jobRepository.GetQueueResources(queues)
+	if e != nil {
+		log.Errorf("Error while getting queue resources %s", e)
+		return
+	}
+
+	resourceUsage := map[string]common.ComputeResourcesFloat{}
+	for i, q := range queues {
+		resourceUsage[q.Name] = queueResources[i]
+	}
+
+	c.refreshMutex.Lock()
+	defer c.refreshMutex.Unlock()
+	c.queuedResourcesByQueue = resourceUsage
+}
+
+func (c *QueueInfoCollector) GetQueueResources() map[string]common.ComputeResourcesFloat {
+	c.refreshMutex.Lock()
+	defer c.refreshMutex.Unlock()
+	return c.queuedResourcesByQueue
+
+}
+
 func (c *QueueInfoCollector) Describe(desc chan<- *prometheus.Desc) {
 	desc <- queueSizeDesc
 	desc <- queuePriorityDesc
@@ -96,13 +131,6 @@ func (c *QueueInfoCollector) Collect(metrics chan<- prometheus.Metric) {
 	queueSizes, e := c.jobRepository.GetQueueSizes(queues)
 	if e != nil {
 		log.Errorf("Error while getting queue size metrics %s", e)
-		recordInvalidMetrics(metrics, e)
-		return
-	}
-
-	queueResources, e := c.jobRepository.GetQueueResources(queues)
-	if e != nil {
-		log.Errorf("Error while getting queue resources %s", e)
 		recordInvalidMetrics(metrics, e)
 		return
 	}
@@ -132,9 +160,12 @@ func (c *QueueInfoCollector) Collect(metrics chan<- prometheus.Metric) {
 		metrics <- prometheus.MustNewConstMetric(queueSizeDesc, prometheus.GaugeValue, float64(queueSizes[i]), q.Name)
 	}
 
-	for i, q := range queues {
-		for resourceType, amount := range queueResources[i] {
-			metrics <- prometheus.MustNewConstMetric(queueQueuedDesc, prometheus.GaugeValue, amount, q.Name, resourceType)
+	queueResources := c.GetQueueResources()
+	for _, q := range queues {
+		if resources, exists := queueResources[q.Name]; exists {
+			for resourceType, amount := range resources {
+				metrics <- prometheus.MustNewConstMetric(queueResourcesDesc, prometheus.GaugeValue, amount, q.Name, resourceType)
+			}
 		}
 	}
 
@@ -182,5 +213,6 @@ func (c *QueueInfoCollector) Collect(metrics chan<- prometheus.Metric) {
 func recordInvalidMetrics(metrics chan<- prometheus.Metric, e error) {
 	metrics <- prometheus.NewInvalidMetric(queueSizeDesc, e)
 	metrics <- prometheus.NewInvalidMetric(queuePriorityDesc, e)
+	metrics <- prometheus.NewInvalidMetric(queueResourcesDesc, e)
 	metrics <- prometheus.NewInvalidMetric(queueAllocatedDesc, e)
 }

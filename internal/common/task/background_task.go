@@ -51,7 +51,7 @@ func (m *BackgroundTaskManager) startBackgroundTask(task *task) {
 		prometheus.HistogramOpts{
 			Name:    m.metricsPrefix + task.metricName + "_latency_seconds",
 			Help:    "Background loop " + task.metricName + " latency in seconds",
-			Buckets: prometheus.ExponentialBuckets(0.01, 2, 10),
+			Buckets: prometheus.ExponentialBuckets(0.01, 2, 15),
 		})
 
 	m.wg.Add(1)
