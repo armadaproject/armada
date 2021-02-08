@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"github.com/gogo/protobuf/types"
 	"testing"
 	"time"
 
@@ -57,6 +58,20 @@ func AssertTimesApproxEqual(t *testing.T, expected *time.Time, actual *time.Time
 		return
 	}
 	assert.Equal(t, expected.Round(time.Second).UTC(), actual.Round(time.Second).UTC())
+}
+
+func AssertProtoDurationsApproxEqual(t *testing.T, expected *types.Duration, actual *types.Duration) {
+	t.Helper()
+	if expected == nil {
+		assert.Nil(t, actual)
+		return
+	}
+	expectedDuration, err := types.DurationFromProto(expected)
+	assert.Nil(t, err)
+	actualDuration, err := types.DurationFromProto(actual)
+	assert.Nil(t, err)
+
+	assert.Equal(t, expectedDuration.Round(time.Second), actualDuration.Round(time.Second))
 }
 
 type JobSimulator struct {

@@ -178,6 +178,29 @@
       "title": "Type represents the stored type of IntOrString.",
       "x-go-package": "k8s.io/apimachinery/pkg/util/intstr"
     },
+    "lookoutDurationStats": {
+      "type": "object",
+      "properties": {
+        "average": {
+          "type": "string"
+        },
+        "longest": {
+          "type": "string"
+        },
+        "median": {
+          "type": "string"
+        },
+        "q1": {
+          "type": "string"
+        },
+        "q3": {
+          "type": "string"
+        },
+        "shortest": {
+          "type": "string"
+        }
+      }
+    },
     "lookoutGetJobSetsRequest": {
       "type": "object",
       "properties": {
@@ -291,6 +314,12 @@
         },
         "queue": {
           "type": "string"
+        },
+        "queuedStats": {
+          "$ref": "#/definitions/lookoutDurationStats"
+        },
+        "runningStats": {
+          "$ref": "#/definitions/lookoutDurationStats"
         }
       }
     },

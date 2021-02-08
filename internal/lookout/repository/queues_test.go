@@ -172,7 +172,7 @@ func TestGetQueueInfos_IncludeOldestQueuedJob(t *testing.T) {
 
 		assert.Equal(t, 0, len(queueInfos[0].OldestQueuedJob.Runs))
 
-		assert.Equal(t, types.DurationProto(someTime2.Sub(submissionTime).Round(time.Second)), queueInfos[0].OldestQueuedDuration)
+		AssertProtoDurationsApproxEqual(t, types.DurationProto(someTime2.Sub(submissionTime)), queueInfos[0].OldestQueuedDuration)
 	})
 }
 
@@ -287,7 +287,7 @@ func TestGetQueueInfos_IncludeLongestRunningJob(t *testing.T) {
 			Error:     "",
 		}, queueInfos[0].LongestRunningJob.Runs[1])
 
-		assert.Equal(t, types.DurationProto(someTime2.Sub(runningTime).Round(time.Second)), queueInfos[0].LongestRunningDuration)
+		AssertProtoDurationsApproxEqual(t, types.DurationProto(someTime2.Sub(runningTime)), queueInfos[0].LongestRunningDuration)
 	})
 }
 
