@@ -98,13 +98,7 @@ func (c *FakeClusterContext) GetPodEvents(pod *v1.Pod) ([]*v1.Event, error) {
 }
 
 func (c *FakeClusterContext) SubmitPod(pod *v1.Pod, owner string) (*v1.Pod, error) {
-	c.rwLock.Lock()
-	pod.Status.Phase = v1.PodPending
-	pod.CreationTimestamp = metav1.Now()
-	pod.UID = types.UID("fake-pod--" + util.NewULID()) // ULID is 26 characters, but kubernetes UID can be 36
-	saved := pod.DeepCopy()
-	c.pods[pod.Name] = saved
-	c.rwLock.Unlock()
+	saved := c.savePod(pod)
 
 	for _, h := range c.handlers {
 		h.AddFunc(pod)
@@ -114,15 +108,12 @@ func (c *FakeClusterContext) SubmitPod(pod *v1.Pod, owner string) (*v1.Pod, erro
 		time.Sleep(time.Duration(rand.Float32()+1) * 100 * time.Millisecond)
 
 		for {
-			c.rwLock.Lock()
-			if _, exists := c.pods[saved.Name]; !exists {
-				c.rwLock.Unlock()
-				return // The pod was deleted
-			}
-			scheduled := c.trySchedule(saved)
-			c.rwLock.Unlock()
+			scheduled, removed := c.trySchedule(saved)
 			if scheduled {
 				break
+			}
+			if removed {
+				return
 			}
 			time.Sleep(100 * time.Millisecond)
 		}
@@ -132,14 +123,10 @@ func (c *FakeClusterContext) SubmitPod(pod *v1.Pod, owner string) (*v1.Pod, erro
 			StartedAt: start,
 		}})
 
-		c.rwLock.Lock()
-		runtime := extractSleepTime(saved)
-		c.rwLock.Unlock()
+		runtime := c.extractSleepTime(saved)
 		time.Sleep(time.Duration(runtime) * time.Second)
 
-		c.rwLock.Lock()
 		c.deallocate(saved)
-		c.rwLock.Unlock()
 
 		c.updateStatus(saved, v1.PodSucceeded, v1.ContainerState{Terminated: &v1.ContainerStateTerminated{
 			StartedAt:  start,
@@ -149,6 +136,18 @@ func (c *FakeClusterContext) SubmitPod(pod *v1.Pod, owner string) (*v1.Pod, erro
 	}()
 
 	return pod, nil
+}
+
+func (c *FakeClusterContext) savePod(pod *v1.Pod) *v1.Pod {
+	c.rwLock.Lock()
+	defer c.rwLock.Unlock()
+
+	pod.Status.Phase = v1.PodPending
+	pod.CreationTimestamp = metav1.Now()
+	pod.UID = types.UID("fake-pod--" + util.NewULID()) // ULID is 26 characters, but kubernetes UID can be 36
+	saved := pod.DeepCopy()
+	c.pods[pod.Name] = saved
+	return saved
 }
 
 func (c *FakeClusterContext) updateStatus(saved *v1.Pod, phase v1.PodPhase, state v1.ContainerState) (*v1.Pod, *v1.Pod) {
@@ -174,7 +173,10 @@ func (c *FakeClusterContext) updateStatus(saved *v1.Pod, phase v1.PodPhase, stat
 	return oldPod, newPod
 }
 
-func extractSleepTime(pod *v1.Pod) float32 {
+func (c *FakeClusterContext) extractSleepTime(pod *v1.Pod) float32 {
+	c.rwLock.Lock()
+	defer c.rwLock.Unlock()
+
 	command := append(pod.Spec.Containers[0].Command, pod.Spec.Containers[0].Args...)
 	commandString := strings.Join(command, " ")
 
@@ -245,8 +247,13 @@ func (c *FakeClusterContext) addNodes(specs []*NodeSpec) {
 	}
 }
 
-func (c *FakeClusterContext) trySchedule(pod *v1.Pod) bool {
-	// this method is executed inside lock
+func (c *FakeClusterContext) trySchedule(pod *v1.Pod) (scheduled bool, removed bool) {
+	c.rwLock.Lock()
+	defer c.rwLock.Unlock()
+
+	if _, exists := c.pods[pod.Name]; !exists {
+		return false, true
+	}
 
 	// fill more busy nodes first
 	sort.Slice(c.nodes, func(i, j int) bool {
@@ -264,13 +271,16 @@ func (c *FakeClusterContext) trySchedule(pod *v1.Pod) bool {
 			resources := common.TotalPodResourceRequest(&pod.Spec)
 			c.nodeAvailableResource[n.Name].Sub(resources)
 			pod.Spec.NodeName = n.Name
-			return true
+			return true, false
 		}
 	}
-	return false
+	return false, false
 }
 
 func (c *FakeClusterContext) deallocate(pod *v1.Pod) {
+	c.rwLock.Lock()
+	defer c.rwLock.Unlock()
+
 	resources := common.TotalPodResourceRequest(&pod.Spec)
 	c.nodeAvailableResource[pod.Spec.NodeName].Add(resources)
 }
