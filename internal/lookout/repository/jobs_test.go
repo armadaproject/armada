@@ -15,14 +15,14 @@ func TestGetJobs_GetNoJobsIfQueueDoesNotExist(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db)
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJob("queue-1")
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJob("queue-2").
 			Pending(cluster, k8sId1)
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJob("queue-2").
 			Pending(cluster, k8sId2).
 			Running(cluster, k8sId2, node)
@@ -43,13 +43,15 @@ func TestGetJobs_GetSucceededJobFromQueue(t *testing.T) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
 
-		startTime := time.Now()
+		pendingTime := someTime.Add(time.Second)
+		runningTime := someTime.Add(2 * time.Second)
+		succeededTime := someTime.Add(3 * time.Second)
 
-		succeeded := NewJobSimulator(t, jobStore, NewIncrementClock(startTime)).
-			CreateJob(queue).
-			Pending(cluster, k8sId1).
-			Running(cluster, k8sId1, node).
-			Succeeded(cluster, k8sId1, node)
+		succeeded := NewJobSimulator(t, jobStore).
+			CreateJobAtTime(queue, someTime).
+			PendingAtTime(cluster, k8sId1, pendingTime).
+			RunningAtTime(cluster, k8sId1, node, runningTime).
+			SucceededAtTime(cluster, k8sId1, node, succeededTime)
 
 		jobInfos, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
 			Queue: queue,
@@ -72,9 +74,9 @@ func TestGetJobs_GetSucceededJobFromQueue(t *testing.T) {
 			Cluster:   cluster,
 			Node:      node,
 			Succeeded: true,
-			Created:   Increment(startTime, 1),
-			Started:   Increment(startTime, 2),
-			Finished:  Increment(startTime, 3),
+			Created:   &pendingTime,
+			Started:   &runningTime,
+			Finished:  &succeededTime,
 		}, runInfo)
 	})
 }
@@ -84,14 +86,16 @@ func TestGetJobs_GetFailedJobFromQueue(t *testing.T) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
 
-		startTime := time.Now()
+		pendingTime := someTime.Add(time.Second)
+		runningTime := someTime.Add(2 * time.Second)
+		failedTime := someTime.Add(3 * time.Second)
 		failureReason := "Something bad happened"
 
-		failed := NewJobSimulator(t, jobStore, NewIncrementClock(startTime)).
-			CreateJob(queue).
-			Pending(cluster, k8sId1).
-			Running(cluster, k8sId1, node).
-			Failed(cluster, k8sId1, node, failureReason)
+		failed := NewJobSimulator(t, jobStore).
+			CreateJobAtTime(queue, someTime).
+			PendingAtTime(cluster, k8sId1, pendingTime).
+			RunningAtTime(cluster, k8sId1, node, runningTime).
+			FailedAtTime(cluster, k8sId1, node, failureReason, failedTime)
 
 		jobInfos, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
 			Queue: queue,
@@ -113,9 +117,9 @@ func TestGetJobs_GetFailedJobFromQueue(t *testing.T) {
 			Cluster:   cluster,
 			Node:      node,
 			Succeeded: false,
-			Created:   Increment(startTime, 1),
-			Started:   Increment(startTime, 2),
-			Finished:  Increment(startTime, 3),
+			Created:   &pendingTime,
+			Started:   &runningTime,
+			Finished:  &failedTime,
 			Error:     failureReason,
 		}, jobInfo.Runs[0])
 	})
@@ -126,13 +130,15 @@ func TestGetJobs_GetCancelledJobFromQueue(t *testing.T) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
 
-		startTime := time.Now()
+		pendingTime := someTime.Add(time.Second)
+		runningTime := someTime.Add(2 * time.Second)
+		cancelledTime := someTime.Add(3 * time.Second)
 
-		cancelled := NewJobSimulator(t, jobStore, NewIncrementClock(startTime)).
-			CreateJob(queue).
-			Pending(cluster, k8sId1).
-			Running(cluster, k8sId1, node).
-			Cancelled()
+		cancelled := NewJobSimulator(t, jobStore).
+			CreateJobAtTime(queue, someTime).
+			PendingAtTime(cluster, k8sId1, pendingTime).
+			RunningAtTime(cluster, k8sId1, node, runningTime).
+			CancelledAtTime(cancelledTime)
 
 		jobInfos, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
 			Queue: queue,
@@ -144,7 +150,7 @@ func TestGetJobs_GetCancelledJobFromQueue(t *testing.T) {
 		jobInfo := jobInfos[0]
 		AssertJobsAreEquivalent(t, cancelled.job, jobInfo.Job)
 
-		AssertTimesApproxEqual(t, Increment(startTime, 3), jobInfo.Cancelled)
+		AssertTimesApproxEqual(t, &cancelledTime, jobInfo.Cancelled)
 
 		assert.Equal(t, string(JobCancelled), jobInfo.JobState)
 
@@ -154,8 +160,8 @@ func TestGetJobs_GetCancelledJobFromQueue(t *testing.T) {
 			Cluster:   cluster,
 			Node:      node,
 			Succeeded: false,
-			Created:   Increment(startTime, 1),
-			Started:   Increment(startTime, 2),
+			Created:   &pendingTime,
+			Started:   &runningTime,
 		}, jobInfo.Runs[0])
 	})
 }
@@ -165,15 +171,19 @@ func TestGetJobs_GetMultipleRunJobFromQueue(t *testing.T) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
 
-		startTime := time.Now()
+		pendingTime1 := someTime.Add(time.Second)
+		unableToScheduleTime := someTime.Add(2 * time.Second)
+		pendingTime2 := someTime.Add(3 * time.Second)
+		runningTime := someTime.Add(4 * time.Second)
+		succeededTime := someTime.Add(5 * time.Second)
 
-		retried := NewJobSimulator(t, jobStore, NewIncrementClock(startTime)).
-			CreateJob(queue).
-			Pending(cluster, k8sId1).
-			UnableToSchedule(cluster, k8sId1, node).
-			Pending(cluster, k8sId2).
-			Running(cluster, k8sId2, node).
-			Succeeded(cluster, k8sId2, node)
+		retried := NewJobSimulator(t, jobStore).
+			CreateJobAtTime(queue, someTime).
+			PendingAtTime(cluster, k8sId1, pendingTime1).
+			UnableToScheduleAtTime(cluster, k8sId1, node, unableToScheduleTime).
+			PendingAtTime(cluster, k8sId2, pendingTime2).
+			RunningAtTime(cluster, k8sId2, node, runningTime).
+			SucceededAtTime(cluster, k8sId2, node, succeededTime)
 
 		jobInfos, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
 			Queue: queue,
@@ -193,17 +203,17 @@ func TestGetJobs_GetMultipleRunJobFromQueue(t *testing.T) {
 			Cluster:   cluster,
 			Node:      node,
 			Succeeded: false,
-			Created:   Increment(startTime, 1),
-			Finished:  Increment(startTime, 2),
+			Created:   &pendingTime1,
+			Finished:  &unableToScheduleTime,
 		}, jobInfo.Runs[0])
 		AssertRunInfosEquivalent(t, &lookout.RunInfo{
 			K8SId:     k8sId2,
 			Cluster:   cluster,
 			Node:      node,
 			Succeeded: true,
-			Created:   Increment(startTime, 3),
-			Started:   Increment(startTime, 4),
-			Finished:  Increment(startTime, 5),
+			Created:   &pendingTime2,
+			Started:   &runningTime,
+			Finished:  &succeededTime,
 		}, jobInfo.Runs[1])
 	})
 }
@@ -218,17 +228,17 @@ func TestGetJobs_GetJobsOrderedFromOldestToNewest(t *testing.T) {
 		jobId2 := "b"
 		jobId3 := "c"
 
-		third := NewJobSimulator(t, jobStore, &DefaultClock{}).
+		third := NewJobSimulator(t, jobStore).
 			CreateJobWithId(queue, jobId3).
 			Pending(cluster, k8sId1).
 			Running(cluster, k8sId1, node)
 
-		second := NewJobSimulator(t, jobStore, &DefaultClock{}).
+		second := NewJobSimulator(t, jobStore).
 			CreateJobWithId(queue, jobId2).
 			Pending(cluster, k8sId2).
 			Running(cluster, k8sId2, node)
 
-		first := NewJobSimulator(t, jobStore, &DefaultClock{}).
+		first := NewJobSimulator(t, jobStore).
 			CreateJobWithId(queue, jobId1).
 			Pending(cluster, k8sId3).
 			Running(cluster, k8sId3, node)
@@ -256,17 +266,17 @@ func TestGetJobs_GetJobsOrderedFromNewestToOldest(t *testing.T) {
 		jobId2 := "b"
 		jobId3 := "c"
 
-		first := NewJobSimulator(t, jobStore, &DefaultClock{}).
+		first := NewJobSimulator(t, jobStore).
 			CreateJobWithId(queue, jobId1).
 			Pending(cluster, k8sId1).
 			Running(cluster, k8sId1, node)
 
-		second := NewJobSimulator(t, jobStore, &DefaultClock{}).
+		second := NewJobSimulator(t, jobStore).
 			CreateJobWithId(queue, jobId2).
 			Pending(cluster, k8sId2).
 			Running(cluster, k8sId2, node)
 
-		third := NewJobSimulator(t, jobStore, &DefaultClock{}).
+		third := NewJobSimulator(t, jobStore).
 			CreateJobWithId(queue, jobId3).
 			Pending(cluster, k8sId3).
 			Running(cluster, k8sId3, node)
@@ -290,31 +300,31 @@ func TestGetJobs_FilterQueuedJobs(t *testing.T) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
 
-		queued := NewJobSimulator(t, jobStore, &DefaultClock{}).
+		queued := NewJobSimulator(t, jobStore).
 			CreateJob(queue)
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJob(queue).
 			Pending(cluster, k8sId1)
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJob(queue).
 			Pending(cluster, k8sId2).
 			UnableToSchedule(cluster, k8sId2, node).
 			Pending(cluster, k8sId3).
 			Running(cluster, k8sId3, node)
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJob(queue).
 			Pending(cluster, k8sId4).
 			Running(cluster, k8sId4, node).
 			Succeeded(cluster, k8sId4, node)
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJob(queue).
 			Failed(cluster, k8sId5, node, "Something bad")
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJob(queue).
 			Cancelled()
 
@@ -337,31 +347,31 @@ func TestGetJobs_FilterPendingJobs(t *testing.T) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJob(queue)
 
-		pending := NewJobSimulator(t, jobStore, &DefaultClock{}).
+		pending := NewJobSimulator(t, jobStore).
 			CreateJob(queue).
 			Pending(cluster, k8sId1)
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJob(queue).
 			Pending(cluster, k8sId2).
 			UnableToSchedule(cluster, k8sId2, node).
 			Pending(cluster, k8sId3).
 			Running(cluster, k8sId3, node)
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJob(queue).
 			Pending(cluster, k8sId4).
 			Running(cluster, k8sId4, node).
 			Succeeded(cluster, k8sId4, node)
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJob(queue).
 			Failed(cluster, k8sId5, node, "Something bad")
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJob(queue).
 			Cancelled()
 
@@ -384,31 +394,31 @@ func TestGetJobs_FilterRunningJobs(t *testing.T) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJob(queue)
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJob(queue).
 			Pending(cluster, k8sId1)
 
-		running := NewJobSimulator(t, jobStore, &DefaultClock{}).
+		running := NewJobSimulator(t, jobStore).
 			CreateJob(queue).
 			Pending(cluster, k8sId2).
 			UnableToSchedule(cluster, k8sId2, node).
 			Pending(cluster, k8sId3).
 			Running(cluster, k8sId3, node)
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJob(queue).
 			Pending(cluster, k8sId4).
 			Running(cluster, k8sId4, node).
 			Succeeded(cluster, k8sId4, node)
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJob(queue).
 			Failed(cluster, k8sId5, node, "Something bad")
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJob(queue).
 			Cancelled()
 
@@ -431,31 +441,31 @@ func TestGetJobs_FilterSucceededJobs(t *testing.T) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJob(queue)
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJob(queue).
 			Pending(cluster, k8sId1)
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJob(queue).
 			Pending(cluster, k8sId2).
 			UnableToSchedule(cluster, k8sId2, node).
 			Pending(cluster, k8sId3).
 			Running(cluster, k8sId3, node)
 
-		succeeded := NewJobSimulator(t, jobStore, &DefaultClock{}).
+		succeeded := NewJobSimulator(t, jobStore).
 			CreateJob(queue).
 			Pending(cluster, k8sId4).
 			Running(cluster, k8sId4, node).
 			Succeeded(cluster, k8sId4, node)
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJob(queue).
 			Failed(cluster, k8sId5, node, "Something bad")
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJob(queue).
 			Cancelled()
 
@@ -478,31 +488,31 @@ func TestGetJobs_FilterFailedJobs(t *testing.T) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJob(queue)
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJob(queue).
 			Pending(cluster, k8sId1)
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJob(queue).
 			Pending(cluster, k8sId2).
 			UnableToSchedule(cluster, k8sId2, node).
 			Pending(cluster, k8sId3).
 			Running(cluster, k8sId3, node)
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJob(queue).
 			Pending(cluster, k8sId4).
 			Running(cluster, k8sId4, node).
 			Succeeded(cluster, k8sId4, node)
 
-		failed := NewJobSimulator(t, jobStore, &DefaultClock{}).
+		failed := NewJobSimulator(t, jobStore).
 			CreateJob(queue).
 			Failed(cluster, k8sId5, node, "Something bad")
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJob(queue).
 			Cancelled()
 
@@ -525,31 +535,31 @@ func TestGetJobs_FilterCancelledJobs(t *testing.T) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJob(queue)
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJob(queue).
 			Pending(cluster, k8sId1)
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJob(queue).
 			Pending(cluster, k8sId2).
 			UnableToSchedule(cluster, k8sId2, node).
 			Pending(cluster, k8sId3).
 			Running(cluster, k8sId3, node)
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJob(queue).
 			Pending(cluster, k8sId4).
 			Running(cluster, k8sId4, node).
 			Succeeded(cluster, k8sId4, node)
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJob(queue).
 			Failed(cluster, k8sId5, node, "Something bad")
 
-		cancelled := NewJobSimulator(t, jobStore, &DefaultClock{}).
+		cancelled := NewJobSimulator(t, jobStore).
 			CreateJob(queue).
 			Cancelled()
 
@@ -586,31 +596,31 @@ func TestGetJobs_FilterMultipleStates(t *testing.T) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
 
-		queued := NewJobSimulator(t, jobStore, &DefaultClock{}).
+		queued := NewJobSimulator(t, jobStore).
 			CreateJob(queue)
 
-		pending := NewJobSimulator(t, jobStore, &DefaultClock{}).
+		pending := NewJobSimulator(t, jobStore).
 			CreateJob(queue).
 			Pending(cluster, k8sId1)
 
-		running := NewJobSimulator(t, jobStore, &DefaultClock{}).
+		running := NewJobSimulator(t, jobStore).
 			CreateJob(queue).
 			Pending(cluster, k8sId2).
 			UnableToSchedule(cluster, k8sId2, node).
 			Pending(cluster, k8sId3).
 			Running(cluster, k8sId3, node)
 
-		succeeded := NewJobSimulator(t, jobStore, &DefaultClock{}).
+		succeeded := NewJobSimulator(t, jobStore).
 			CreateJob(queue).
 			Pending(cluster, k8sId4).
 			Running(cluster, k8sId4, node).
 			Succeeded(cluster, k8sId4, node)
 
-		failed := NewJobSimulator(t, jobStore, &DefaultClock{}).
+		failed := NewJobSimulator(t, jobStore).
 			CreateJob(queue).
 			Failed(cluster, k8sId5, node, "Something bad")
 
-		cancelled := NewJobSimulator(t, jobStore, &DefaultClock{}).
+		cancelled := NewJobSimulator(t, jobStore).
 			CreateJob(queue).
 			Cancelled()
 
@@ -647,31 +657,31 @@ func TestGetJobs_FilterBySingleJobSet(t *testing.T) {
 		jobSet2 := "job-set-2"
 		jobSet3 := "job-set-3"
 
-		job1 := NewJobSimulator(t, jobStore, &DefaultClock{}).
+		job1 := NewJobSimulator(t, jobStore).
 			CreateJobWithJobSet(queue, jobSet1)
 
-		job2 := NewJobSimulator(t, jobStore, &DefaultClock{}).
+		job2 := NewJobSimulator(t, jobStore).
 			CreateJobWithJobSet(queue, jobSet1).
 			Pending(cluster, k8sId1)
 
-		job3 := NewJobSimulator(t, jobStore, &DefaultClock{}).
+		job3 := NewJobSimulator(t, jobStore).
 			CreateJobWithJobSet(queue, jobSet2).
 			Pending(cluster, k8sId2).
 			UnableToSchedule(cluster, k8sId2, node).
 			Pending(cluster, k8sId3).
 			Running(cluster, k8sId3, node)
 
-		job4 := NewJobSimulator(t, jobStore, &DefaultClock{}).
+		job4 := NewJobSimulator(t, jobStore).
 			CreateJobWithJobSet(queue, jobSet2).
 			Pending(cluster, k8sId4).
 			Running(cluster, k8sId4, node).
 			Succeeded(cluster, k8sId4, node)
 
-		job5 := NewJobSimulator(t, jobStore, &DefaultClock{}).
+		job5 := NewJobSimulator(t, jobStore).
 			CreateJobWithJobSet(queue, jobSet3).
 			Failed(cluster, k8sId5, node, "Something bad")
 
-		job6 := NewJobSimulator(t, jobStore, &DefaultClock{}).
+		job6 := NewJobSimulator(t, jobStore).
 			CreateJobWithJobSet(queue, jobSet3).
 			Cancelled()
 
@@ -716,31 +726,31 @@ func TestGetJobs_FilterByMultipleJobSets(t *testing.T) {
 		jobSet2 := "job-set-2"
 		jobSet3 := "job-set-3"
 
-		job1 := NewJobSimulator(t, jobStore, &DefaultClock{}).
+		job1 := NewJobSimulator(t, jobStore).
 			CreateJobWithJobSet(queue, jobSet1)
 
-		job2 := NewJobSimulator(t, jobStore, &DefaultClock{}).
+		job2 := NewJobSimulator(t, jobStore).
 			CreateJobWithJobSet(queue, jobSet1).
 			Pending(cluster, k8sId1)
 
-		job3 := NewJobSimulator(t, jobStore, &DefaultClock{}).
+		job3 := NewJobSimulator(t, jobStore).
 			CreateJobWithJobSet(queue, jobSet2).
 			Pending(cluster, k8sId2).
 			UnableToSchedule(cluster, k8sId2, node).
 			Pending(cluster, k8sId3).
 			Running(cluster, k8sId3, node)
 
-		job4 := NewJobSimulator(t, jobStore, &DefaultClock{}).
+		job4 := NewJobSimulator(t, jobStore).
 			CreateJobWithJobSet(queue, jobSet2).
 			Pending(cluster, k8sId4).
 			Running(cluster, k8sId4, node).
 			Succeeded(cluster, k8sId4, node)
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJobWithJobSet(queue, jobSet3).
 			Failed(cluster, k8sId5, node, "Something bad")
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJobWithJobSet(queue, jobSet3).
 			Cancelled()
 
@@ -767,31 +777,31 @@ func TestGetJobs_FilterByJobSetStartingWith(t *testing.T) {
 		jobSet2 := "job-set-2"
 		jobSet3 := "job-set-3"
 
-		job1 := NewJobSimulator(t, jobStore, &DefaultClock{}).
+		job1 := NewJobSimulator(t, jobStore).
 			CreateJobWithJobSet(queue, jobSet1)
 
-		job2 := NewJobSimulator(t, jobStore, &DefaultClock{}).
+		job2 := NewJobSimulator(t, jobStore).
 			CreateJobWithJobSet(queue, jobSet1).
 			Pending(cluster, k8sId1)
 
-		job3 := NewJobSimulator(t, jobStore, &DefaultClock{}).
+		job3 := NewJobSimulator(t, jobStore).
 			CreateJobWithJobSet(queue, jobSet2).
 			Pending(cluster, k8sId2).
 			UnableToSchedule(cluster, k8sId2, node).
 			Pending(cluster, k8sId3).
 			Running(cluster, k8sId3, node)
 
-		job4 := NewJobSimulator(t, jobStore, &DefaultClock{}).
+		job4 := NewJobSimulator(t, jobStore).
 			CreateJobWithJobSet(queue, jobSet2).
 			Pending(cluster, k8sId4).
 			Running(cluster, k8sId4, node).
 			Succeeded(cluster, k8sId4, node)
 
-		job5 := NewJobSimulator(t, jobStore, &DefaultClock{}).
+		job5 := NewJobSimulator(t, jobStore).
 			CreateJobWithJobSet(queue, jobSet3).
 			Failed(cluster, k8sId5, node, "Something bad")
 
-		job6 := NewJobSimulator(t, jobStore, &DefaultClock{}).
+		job6 := NewJobSimulator(t, jobStore).
 			CreateJobWithJobSet(queue, jobSet3).
 			Cancelled()
 
@@ -821,31 +831,31 @@ func TestGetJobs_FilterByMultipleJobSetStartingWith(t *testing.T) {
 		jobSet3 := "world-3"
 		jobSet4 := "other-job-set"
 
-		job1 := NewJobSimulator(t, jobStore, &DefaultClock{}).
+		job1 := NewJobSimulator(t, jobStore).
 			CreateJobWithJobSet(queue, jobSet1)
 
-		job2 := NewJobSimulator(t, jobStore, &DefaultClock{}).
+		job2 := NewJobSimulator(t, jobStore).
 			CreateJobWithJobSet(queue, jobSet1).
 			Pending(cluster, k8sId1)
 
-		job3 := NewJobSimulator(t, jobStore, &DefaultClock{}).
+		job3 := NewJobSimulator(t, jobStore).
 			CreateJobWithJobSet(queue, jobSet2).
 			Pending(cluster, k8sId2).
 			UnableToSchedule(cluster, k8sId2, node).
 			Pending(cluster, k8sId3).
 			Running(cluster, k8sId3, node)
 
-		job4 := NewJobSimulator(t, jobStore, &DefaultClock{}).
+		job4 := NewJobSimulator(t, jobStore).
 			CreateJobWithJobSet(queue, jobSet2).
 			Pending(cluster, k8sId4).
 			Running(cluster, k8sId4, node).
 			Succeeded(cluster, k8sId4, node)
 
-		job5 := NewJobSimulator(t, jobStore, &DefaultClock{}).
+		job5 := NewJobSimulator(t, jobStore).
 			CreateJobWithJobSet(queue, jobSet3).
 			Failed(cluster, k8sId5, node, "Something bad")
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJobWithJobSet(queue, jobSet4).
 			Cancelled()
 
@@ -869,31 +879,31 @@ func TestGetJobs_FilterByJobIdIfNoQueueIsSpecified(t *testing.T) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
 
-		job := NewJobSimulator(t, jobStore, &DefaultClock{}).
+		job := NewJobSimulator(t, jobStore).
 			CreateJob(queue)
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJob(queue).
 			Pending(cluster, k8sId1)
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJob(queue).
 			Pending(cluster, k8sId2).
 			UnableToSchedule(cluster, k8sId2, node).
 			Pending(cluster, k8sId3).
 			Running(cluster, k8sId3, node)
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJob(queue).
 			Pending(cluster, k8sId4).
 			Running(cluster, k8sId4, node).
 			Succeeded(cluster, k8sId4, node)
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJob(queue).
 			Failed(cluster, k8sId5, node, "Something bad")
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJob(queue).
 			Cancelled()
 
@@ -912,31 +922,31 @@ func TestGetJobs_FilterByJobIdIfQueueIsSpecified(t *testing.T) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJob(queue)
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJob(queue).
 			Pending(cluster, k8sId1)
 
-		job := NewJobSimulator(t, jobStore, &DefaultClock{}).
+		job := NewJobSimulator(t, jobStore).
 			CreateJob(queue).
 			Pending(cluster, k8sId2).
 			UnableToSchedule(cluster, k8sId2, node).
 			Pending(cluster, k8sId3).
 			Running(cluster, k8sId3, node)
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJob(queue).
 			Pending(cluster, k8sId4).
 			Running(cluster, k8sId4, node).
 			Succeeded(cluster, k8sId4, node)
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJob(queue).
 			Failed(cluster, k8sId5, node, "Something bad")
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJob(queue).
 			Cancelled()
 
@@ -956,31 +966,31 @@ func TestGetJobs_FilterByJobIdWithWrongQueue(t *testing.T) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJob(queue)
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJob(queue).
 			Pending(cluster, k8sId1)
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJob(queue).
 			Pending(cluster, k8sId2).
 			UnableToSchedule(cluster, k8sId2, node).
 			Pending(cluster, k8sId3).
 			Running(cluster, k8sId3, node)
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJob(queue).
 			Pending(cluster, k8sId4).
 			Running(cluster, k8sId4, node).
 			Succeeded(cluster, k8sId4, node)
 
-		job := NewJobSimulator(t, jobStore, &DefaultClock{}).
+		job := NewJobSimulator(t, jobStore).
 			CreateJob(queue).
 			Failed(cluster, k8sId5, node, "Something bad")
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJob(queue).
 			Cancelled()
 
@@ -999,31 +1009,31 @@ func TestGetJobs_FilterByJobIdWithWrongJobSet(t *testing.T) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJob(queue)
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJob(queue).
 			Pending(cluster, k8sId1)
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJob(queue).
 			Pending(cluster, k8sId2).
 			UnableToSchedule(cluster, k8sId2, node).
 			Pending(cluster, k8sId3).
 			Running(cluster, k8sId3, node)
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJob(queue).
 			Pending(cluster, k8sId4).
 			Running(cluster, k8sId4, node).
 			Succeeded(cluster, k8sId4, node)
 
-		job := NewJobSimulator(t, jobStore, &DefaultClock{}).
+		job := NewJobSimulator(t, jobStore).
 			CreateJobWithJobSet(queue, "job-set").
 			Failed(cluster, k8sId5, node, "Something bad")
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJob(queue).
 			Cancelled()
 
@@ -1050,7 +1060,7 @@ func TestGetJobs_TakeOldestJobsFirst(t *testing.T) {
 		for i := 0; i < nJobs; i++ {
 			k8sId := util.NewULID()
 			otherK8sId := util.NewULID()
-			allJobs[i] = NewJobSimulator(t, jobStore, &DefaultClock{}).
+			allJobs[i] = NewJobSimulator(t, jobStore).
 				CreateJob(queue).
 				Pending(cluster, k8sId).
 				UnableToSchedule(cluster, k8sId, node).
@@ -1083,7 +1093,7 @@ func TestGetJobs_TakeNewestJobsFirst(t *testing.T) {
 		for i := 0; i < nJobs; i++ {
 			k8sId := util.NewULID()
 			otherK8sId := util.NewULID()
-			allJobs[i] = NewJobSimulator(t, jobStore, &DefaultClock{}).
+			allJobs[i] = NewJobSimulator(t, jobStore).
 				CreateJob(queue).
 				Pending(cluster, k8sId).
 				UnableToSchedule(cluster, k8sId, node).
@@ -1118,7 +1128,7 @@ func TestGetJobs_SkipFirstOldestJobs(t *testing.T) {
 		for i := 0; i < nJobs; i++ {
 			k8sId := util.NewULID()
 			otherK8sId := util.NewULID()
-			allJobs[i] = NewJobSimulator(t, jobStore, &DefaultClock{}).
+			allJobs[i] = NewJobSimulator(t, jobStore).
 				CreateJob(queue).
 				Pending(cluster, k8sId).
 				UnableToSchedule(cluster, k8sId, node).
@@ -1153,7 +1163,7 @@ func TestGetJobs_SkipFirstNewestJobs(t *testing.T) {
 		for i := 0; i < nJobs; i++ {
 			k8sId := util.NewULID()
 			otherK8sId := util.NewULID()
-			allJobs[i] = NewJobSimulator(t, jobStore, &DefaultClock{}).
+			allJobs[i] = NewJobSimulator(t, jobStore).
 				CreateJob(queue).
 				UnableToSchedule(cluster, k8sId, node).
 				Pending(cluster, otherK8sId).

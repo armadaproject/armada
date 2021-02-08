@@ -14,16 +14,18 @@ import (
 )
 
 var (
-	queue   = "queue"
-	queue2  = "queue2"
-	cluster = "cluster"
-	k8sId1  = util.NewULID()
-	k8sId2  = util.NewULID()
-	k8sId3  = util.NewULID()
-	k8sId4  = util.NewULID()
-	k8sId5  = util.NewULID()
-	node    = "node"
-	ctx     = context.Background()
+	queue        = "queue"
+	queue2       = "queue2"
+	cluster      = "cluster"
+	k8sId1       = util.NewULID()
+	k8sId2       = util.NewULID()
+	k8sId3       = util.NewULID()
+	k8sId4       = util.NewULID()
+	k8sId5       = util.NewULID()
+	node         = "node"
+	someTimeUnix = int64(1612546858)
+	someTime     = time.Unix(someTimeUnix, 0)
+	ctx          = context.Background()
 )
 
 func AssertJobsAreEquivalent(t *testing.T, expected *api.Job, actual *api.Job) {
@@ -43,7 +45,7 @@ func AssertRunInfosEquivalent(t *testing.T, expected *lookout.RunInfo, actual *l
 	assert.Equal(t, expected.Succeeded, actual.Succeeded)
 	AssertTimesApproxEqual(t, expected.Created, actual.Created)
 	AssertTimesApproxEqual(t, expected.Started, actual.Started)
-	AssertTimesApproxEqual(t, expected.Finished, expected.Finished)
+	AssertTimesApproxEqual(t, expected.Finished, actual.Finished)
 	assert.Equal(t, expected.Error, actual.Error)
 }
 
@@ -54,19 +56,12 @@ func AssertTimesApproxEqual(t *testing.T, expected *time.Time, actual *time.Time
 		assert.Nil(t, actual)
 		return
 	}
-	assert.Equal(t, expected.Round(time.Millisecond).UTC(), actual.Round(time.Millisecond).UTC())
-}
-
-// Increment given time by a number of minutes, returns pointer to new time
-func Increment(t time.Time, x int) *time.Time {
-	i := t.Add(time.Minute * time.Duration(x))
-	return &i
+	assert.Equal(t, expected.Round(time.Second).UTC(), actual.Round(time.Second).UTC())
 }
 
 type JobSimulator struct {
 	t        *testing.T
 	jobStore JobRecorder
-	clock    Clock
 	job      *api.Job
 }
 
@@ -78,46 +73,31 @@ func (c *DummyClock) Now() time.Time {
 	return c.t
 }
 
-type incrementClock struct {
-	startTime  time.Time
-	increments int
-}
-
-func NewIncrementClock(startTime time.Time) *incrementClock {
-	return &incrementClock{
-		startTime:  startTime,
-		increments: 0,
-	}
-}
-
-func (c *incrementClock) Now() time.Time {
-	t := Increment(c.startTime, c.increments)
-	c.increments++
-	return *t
-}
-
-func NewJobSimulator(t *testing.T, jobStore JobRecorder, timeProvider Clock) *JobSimulator {
+func NewJobSimulator(t *testing.T, jobStore JobRecorder) *JobSimulator {
 	return &JobSimulator{
 		t:        t,
 		jobStore: jobStore,
-		clock:    timeProvider,
 		job:      nil,
 	}
 }
 
 func (js *JobSimulator) CreateJob(queue string) *JobSimulator {
-	return js.CreateJobWithOpts(queue, util.NewULID(), "job-set")
+	return js.CreateJobWithOpts(queue, util.NewULID(), "job-set", time.Now())
 }
 
 func (js *JobSimulator) CreateJobWithId(queue string, id string) *JobSimulator {
-	return js.CreateJobWithOpts(queue, id, "job-set")
+	return js.CreateJobWithOpts(queue, id, "job-set", time.Now())
 }
 
 func (js *JobSimulator) CreateJobWithJobSet(queue string, jobSetId string) *JobSimulator {
-	return js.CreateJobWithOpts(queue, util.NewULID(), jobSetId)
+	return js.CreateJobWithOpts(queue, util.NewULID(), jobSetId, time.Now())
 }
 
-func (js *JobSimulator) CreateJobWithOpts(queue string, jobId string, jobSetId string) *JobSimulator {
+func (js *JobSimulator) CreateJobAtTime(queue string, time time.Time) *JobSimulator {
+	return js.CreateJobWithOpts(queue, util.NewULID(), "job-set", time)
+}
+
+func (js *JobSimulator) CreateJobWithOpts(queue string, jobId string, jobSetId string, time time.Time) *JobSimulator {
 	js.job = &api.Job{
 		Id:          jobId,
 		JobSetId:    jobSetId,
@@ -128,18 +108,22 @@ func (js *JobSimulator) CreateJobWithOpts(queue string, jobId string, jobSetId s
 		Owner:       "user",
 		Priority:    10,
 		PodSpec:     &v1.PodSpec{},
-		Created:     js.clock.Now(),
+		Created:     time,
 	}
 	assert.NoError(js.t, js.jobStore.RecordJob(js.job))
 	return js
 }
 
 func (js *JobSimulator) Pending(cluster string, k8sId string) *JobSimulator {
+	return js.PendingAtTime(cluster, k8sId, time.Now())
+}
+
+func (js *JobSimulator) PendingAtTime(cluster string, k8sId string, time time.Time) *JobSimulator {
 	event := &api.JobPendingEvent{
 		JobId:        js.job.Id,
 		JobSetId:     js.job.JobSetId,
 		Queue:        js.job.Queue,
-		Created:      js.clock.Now(),
+		Created:      time,
 		ClusterId:    cluster,
 		KubernetesId: k8sId,
 	}
@@ -148,11 +132,15 @@ func (js *JobSimulator) Pending(cluster string, k8sId string) *JobSimulator {
 }
 
 func (js *JobSimulator) Running(cluster string, k8sId string, node string) *JobSimulator {
+	return js.RunningAtTime(cluster, k8sId, node, time.Now())
+}
+
+func (js *JobSimulator) RunningAtTime(cluster string, k8sId string, node string, time time.Time) *JobSimulator {
 	event := &api.JobRunningEvent{
 		JobId:        js.job.Id,
 		JobSetId:     js.job.JobSetId,
 		Queue:        js.job.Queue,
-		Created:      js.clock.Now(),
+		Created:      time,
 		ClusterId:    cluster,
 		KubernetesId: k8sId,
 		NodeName:     node,
@@ -162,11 +150,15 @@ func (js *JobSimulator) Running(cluster string, k8sId string, node string) *JobS
 }
 
 func (js *JobSimulator) Succeeded(cluster string, k8sId string, node string) *JobSimulator {
+	return js.SucceededAtTime(cluster, k8sId, node, time.Now())
+}
+
+func (js *JobSimulator) SucceededAtTime(cluster string, k8sId string, node string, time time.Time) *JobSimulator {
 	event := &api.JobSucceededEvent{
 		JobId:        js.job.Id,
 		JobSetId:     js.job.JobSetId,
 		Queue:        js.job.Queue,
-		Created:      js.clock.Now(),
+		Created:      time,
 		ClusterId:    cluster,
 		KubernetesId: k8sId,
 		NodeName:     node,
@@ -176,11 +168,15 @@ func (js *JobSimulator) Succeeded(cluster string, k8sId string, node string) *Jo
 }
 
 func (js *JobSimulator) Failed(cluster string, k8sId string, node string, error string) *JobSimulator {
+	return js.FailedAtTime(cluster, k8sId, node, error, time.Now())
+}
+
+func (js *JobSimulator) FailedAtTime(cluster string, k8sId string, node string, error string, time time.Time) *JobSimulator {
 	failedEvent := &api.JobFailedEvent{
 		JobId:        js.job.Id,
 		JobSetId:     js.job.JobSetId,
 		Queue:        js.job.Queue,
-		Created:      time.Now(),
+		Created:      time,
 		ClusterId:    cluster,
 		Reason:       error,
 		ExitCodes:    nil,
@@ -192,22 +188,30 @@ func (js *JobSimulator) Failed(cluster string, k8sId string, node string, error 
 }
 
 func (js *JobSimulator) Cancelled() *JobSimulator {
+	return js.CancelledAtTime(time.Now())
+}
+
+func (js *JobSimulator) CancelledAtTime(time time.Time) *JobSimulator {
 	cancelledEvent := &api.JobCancelledEvent{
 		JobId:    js.job.Id,
 		JobSetId: js.job.JobSetId,
 		Queue:    js.job.Queue,
-		Created:  js.clock.Now(),
+		Created:  time,
 	}
 	assert.NoError(js.t, js.jobStore.MarkCancelled(cancelledEvent))
 	return js
 }
 
 func (js *JobSimulator) UnableToSchedule(cluster string, k8sId string, node string) *JobSimulator {
+	return js.UnableToScheduleAtTime(cluster, k8sId, node, time.Now())
+}
+
+func (js *JobSimulator) UnableToScheduleAtTime(cluster string, k8sId string, node string, time time.Time) *JobSimulator {
 	unableToScheduleEvent := &api.JobUnableToScheduleEvent{
 		JobId:        js.job.Id,
 		JobSetId:     js.job.JobSetId,
 		Queue:        js.job.Queue,
-		Created:      js.clock.Now(),
+		Created:      time,
 		ClusterId:    cluster,
 		Reason:       "unable to schedule reason",
 		KubernetesId: k8sId,
