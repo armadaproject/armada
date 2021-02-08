@@ -16,7 +16,7 @@ func TestGetQueueInfos_WithNoJobs(t *testing.T) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJob(queue).
 			Pending(cluster, k8sId3).
 			Running(cluster, k8sId3, node).
@@ -33,22 +33,25 @@ func TestGetQueueInfos_Counts(t *testing.T) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJob(queue).
 			Pending(cluster, "a1").
+			UnableToSchedule(cluster, "a1", node).
 			Pending(cluster, "a2")
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJob(queue).
 			Pending(cluster, "b1").
+			UnableToSchedule(cluster, "b1", node).
 			Running(cluster, "b2", node)
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJob(queue)
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJob(queue).
 			Pending(cluster, "c1").
+			UnableToSchedule(cluster, "c1", node).
 			Running(cluster, "c2", node).
 			Succeeded(cluster, "c2", node)
 
@@ -69,39 +72,37 @@ func TestGetQueueInfos_OldestQueuedJobIsNilIfNoJobsAreQueued(t *testing.T) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
 
-		startTime := time.Now()
+		NewJobSimulator(t, jobStore).
+			CreateJobAtTime(queue, someTime.Add(5*time.Second)).
+			PendingAtTime(cluster, "c", someTime.Add(6*time.Second))
 
-		NewJobSimulator(t, jobStore, NewIncrementClock(*Increment(startTime, 5))).
-			CreateJob(queue).
-			Pending(cluster, "c")
+		NewJobSimulator(t, jobStore).
+			CreateJobAtTime(queue, someTime).
+			PendingAtTime(cluster, "f", someTime.Add(time.Second))
 
-		NewJobSimulator(t, jobStore, NewIncrementClock(startTime)).
-			CreateJob(queue).
-			Pending(cluster, "f")
+		NewJobSimulator(t, jobStore).
+			CreateJobAtTime(queue, someTime.Add(10*time.Second)).
+			PendingAtTime(cluster, "a", someTime.Add(11*time.Second)).
+			RunningAtTime(cluster, "a", node, someTime.Add(12*time.Second))
 
-		NewJobSimulator(t, jobStore, NewIncrementClock(*Increment(startTime, 10))).
-			CreateJob(queue).
-			Pending(cluster, "a").
-			Running(cluster, "a", node)
+		NewJobSimulator(t, jobStore).
+			CreateJobAtTime(queue, someTime.Add(5*time.Second)).
+			PendingAtTime(cluster, "b", someTime.Add(6*time.Second)).
+			RunningAtTime(cluster, "b", node, someTime.Add(7*time.Second))
 
-		NewJobSimulator(t, jobStore, NewIncrementClock(*Increment(startTime, 5))).
-			CreateJob(queue).
-			Pending(cluster, "b").
-			Running(cluster, "b", node)
+		NewJobSimulator(t, jobStore).
+			CreateJobAtTime(queue, someTime.Add(time.Second)).
+			RunningAtTime(cluster, "d", node, someTime.Add(2*time.Second))
 
-		NewJobSimulator(t, jobStore, NewIncrementClock(*Increment(startTime, 1))).
-			CreateJob(queue).
-			Running(cluster, "d", node)
+		NewJobSimulator(t, jobStore).
+			CreateJobAtTime(queue, someTime).
+			RunningAtTime(cluster, "e", node, someTime.Add(time.Second)).
+			SucceededAtTime(cluster, "e", node, someTime.Add(2*time.Second))
 
-		NewJobSimulator(t, jobStore, NewIncrementClock(startTime)).
-			CreateJob(queue).
-			Running(cluster, "e", node).
-			Succeeded(cluster, "e", node)
-
-		NewJobSimulator(t, jobStore, NewIncrementClock(startTime)).
-			CreateJob(queue).
-			Running(cluster, "g", node).
-			Cancelled()
+		NewJobSimulator(t, jobStore).
+			CreateJobAtTime(queue, someTime).
+			RunningAtTime(cluster, "g", node, someTime.Add(time.Second)).
+			CancelledAtTime(someTime.Add(2 * time.Second))
 
 		queueInfos, err := jobRepo.GetQueueInfos(ctx)
 		assert.NoError(t, err)
@@ -113,52 +114,53 @@ func TestGetQueueInfos_OldestQueuedJobIsNilIfNoJobsAreQueued(t *testing.T) {
 
 func TestGetQueueInfos_IncludeOldestQueuedJob(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
-		time1 := time.Now()
-		time2 := time1.Add(5*time.Hour + 4*time.Minute + 3*time.Second + 300*time.Millisecond)
+		someTime2 := someTime.Add(5*time.Hour + 4*time.Minute + 3*time.Second)
 
 		jobStore := NewSQLJobStore(db)
-		jobRepo := NewSQLJobRepository(db, &DummyClock{time2})
+		jobRepo := NewSQLJobRepository(db, &DummyClock{someTime2})
 
-		NewJobSimulator(t, jobStore, NewIncrementClock(*Increment(time1, 5))).
-			CreateJob(queue)
+		submissionTime := someTime.Add(time.Second)
 
-		oldestQueued := NewJobSimulator(t, jobStore, NewIncrementClock(*Increment(time1, 1))).
-			CreateJob(queue)
+		NewJobSimulator(t, jobStore).
+			CreateJobAtTime(queue, someTime.Add(5*time.Second))
 
-		NewJobSimulator(t, jobStore, NewIncrementClock(*Increment(time1, 10))).
-			CreateJob(queue)
+		oldestQueued := NewJobSimulator(t, jobStore).
+			CreateJobAtTime(queue, submissionTime)
 
-		NewJobSimulator(t, jobStore, NewIncrementClock(*Increment(time1, 5))).
-			CreateJob(queue).
-			Pending(cluster, "c")
+		NewJobSimulator(t, jobStore).
+			CreateJobAtTime(queue, someTime.Add(10*time.Second))
 
-		NewJobSimulator(t, jobStore, NewIncrementClock(time1)).
-			CreateJob(queue).
-			Pending(cluster, "f")
+		NewJobSimulator(t, jobStore).
+			CreateJobAtTime(queue, someTime.Add(5*time.Second)).
+			PendingAtTime(cluster, "c", someTime.Add(6*time.Second))
 
-		NewJobSimulator(t, jobStore, NewIncrementClock(*Increment(time1, 10))).
-			CreateJob(queue).
-			Pending(cluster, "a").
-			Running(cluster, "a", node)
+		NewJobSimulator(t, jobStore).
+			CreateJobAtTime(queue, someTime).
+			PendingAtTime(cluster, "f", someTime.Add(1*time.Second))
 
-		NewJobSimulator(t, jobStore, NewIncrementClock(*Increment(time1, 5))).
-			CreateJob(queue).
-			Pending(cluster, "b").
-			Running(cluster, "b", node)
+		NewJobSimulator(t, jobStore).
+			CreateJobAtTime(queue, someTime.Add(10*time.Second)).
+			PendingAtTime(cluster, "a", someTime.Add(11*time.Second)).
+			RunningAtTime(cluster, "a", node, someTime.Add(12*time.Second))
 
-		NewJobSimulator(t, jobStore, NewIncrementClock(time1)).
-			CreateJob(queue).
-			Running(cluster, "d", node)
+		NewJobSimulator(t, jobStore).
+			CreateJobAtTime(queue, someTime.Add(5*time.Second)).
+			PendingAtTime(cluster, "b", someTime.Add(6*time.Second)).
+			RunningAtTime(cluster, "b", node, someTime.Add(7*time.Second))
 
-		NewJobSimulator(t, jobStore, NewIncrementClock(time1)).
-			CreateJob(queue).
-			Running(cluster, "e", node).
-			Succeeded(cluster, "e", node)
+		NewJobSimulator(t, jobStore).
+			CreateJobAtTime(queue, someTime).
+			RunningAtTime(cluster, "d", node, someTime.Add(time.Second))
 
-		NewJobSimulator(t, jobStore, NewIncrementClock(time1)).
-			CreateJob(queue).
-			Running(cluster, "g", node).
-			Cancelled()
+		NewJobSimulator(t, jobStore).
+			CreateJobAtTime(queue, someTime).
+			RunningAtTime(cluster, "e", node, someTime.Add(time.Second)).
+			SucceededAtTime(cluster, "e", node, someTime.Add(2*time.Second))
+
+		NewJobSimulator(t, jobStore).
+			CreateJobAtTime(queue, someTime).
+			RunningAtTime(cluster, "g", node, someTime.Add(time.Second)).
+			CancelledAtTime(someTime.Add(2 * time.Second))
 
 		queueInfos, err := jobRepo.GetQueueInfos(ctx)
 		assert.NoError(t, err)
@@ -170,8 +172,7 @@ func TestGetQueueInfos_IncludeOldestQueuedJob(t *testing.T) {
 
 		assert.Equal(t, 0, len(queueInfos[0].OldestQueuedJob.Runs))
 
-		submissionTime := *Increment(time1, 1)
-		assert.Equal(t, types.DurationProto(time2.Sub(submissionTime).Round(time.Second)), queueInfos[0].OldestQueuedDuration)
+		assert.Equal(t, types.DurationProto(someTime2.Sub(submissionTime).Round(time.Second)), queueInfos[0].OldestQueuedDuration)
 	})
 }
 
@@ -180,23 +181,21 @@ func TestGetQueueInfos_LongestRunningJobIsNilIfNoJobsAreRunning(t *testing.T) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
 
-		startTime := time.Now()
+		NewJobSimulator(t, jobStore).
+			CreateJobAtTime(queue, someTime)
 
-		NewJobSimulator(t, jobStore, NewIncrementClock(startTime)).
-			CreateJob(queue)
+		NewJobSimulator(t, jobStore).
+			CreateJobAtTime(queue, someTime).
+			PendingAtTime(cluster, "f", someTime.Add(time.Second))
 
-		NewJobSimulator(t, jobStore, NewIncrementClock(startTime)).
-			CreateJob(queue).
-			Pending(cluster, "f")
+		NewJobSimulator(t, jobStore).
+			CreateJobAtTime(queue, someTime.Add(5*time.Second)).
+			PendingAtTime(cluster, "c", someTime.Add(6*time.Second))
 
-		NewJobSimulator(t, jobStore, NewIncrementClock(*Increment(startTime, 5))).
-			CreateJob(queue).
-			Pending(cluster, "c")
-
-		NewJobSimulator(t, jobStore, NewIncrementClock(startTime)).
-			CreateJob(queue).
-			Running(cluster, "e", node).
-			Succeeded(cluster, "e", node)
+		NewJobSimulator(t, jobStore).
+			CreateJobAtTime(queue, someTime).
+			RunningAtTime(cluster, "e", node, someTime.Add(time.Second)).
+			SucceededAtTime(cluster, "e", node, someTime.Add(2*time.Second))
 
 		queueInfos, err := jobRepo.GetQueueInfos(ctx)
 		assert.NoError(t, err)
@@ -208,47 +207,54 @@ func TestGetQueueInfos_LongestRunningJobIsNilIfNoJobsAreRunning(t *testing.T) {
 
 func TestGetQueueInfos_IncludeLongestRunningJob(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
-		time1 := time.Now()
-		time2 := time1.Add(5*time.Hour + 4*time.Minute + 3*time.Second + 300*time.Millisecond)
+		someTime2 := someTime.Add(5*time.Hour + 4*time.Minute + 3*time.Second)
 
 		jobStore := NewSQLJobStore(db)
-		jobRepo := NewSQLJobRepository(db, &DummyClock{time2})
+		jobRepo := NewSQLJobRepository(db, &DummyClock{someTime2})
 
-		NewJobSimulator(t, jobStore, NewIncrementClock(time1)).
-			CreateJob(queue)
+		pendingTime := someTime.Add(2 * time.Second)
+		unableToScheduleTime := someTime.Add(3 * time.Second)
+		runningTime := someTime.Add(4 * time.Second)
 
-		NewJobSimulator(t, jobStore, NewIncrementClock(*Increment(time1, 5))).
-			CreateJob(queue).
-			Pending(cluster, "c")
+		NewJobSimulator(t, jobStore).
+			CreateJobAtTime(queue, someTime)
 
-		NewJobSimulator(t, jobStore, NewIncrementClock(time1)).
-			CreateJob(queue).
-			Pending(cluster, "f")
+		NewJobSimulator(t, jobStore).
+			CreateJobAtTime(queue, someTime.Add(5*time.Second)).
+			PendingAtTime(cluster, "c", someTime.Add(6*time.Second))
 
-		NewJobSimulator(t, jobStore, NewIncrementClock(*Increment(time1, 10))).
-			CreateJob(queue).
-			Pending(cluster, "a1").
-			Running(cluster, "a2", node)
+		NewJobSimulator(t, jobStore).
+			CreateJobAtTime(queue, someTime).
+			PendingAtTime(cluster, "f", someTime.Add(time.Second))
 
-		NewJobSimulator(t, jobStore, NewIncrementClock(*Increment(time1, 5))).
-			CreateJob(queue).
-			Pending(cluster, "b1").
-			Running(cluster, "b2", node)
+		NewJobSimulator(t, jobStore).
+			CreateJobAtTime(queue, someTime.Add(10*time.Second)).
+			PendingAtTime(cluster, "a1", someTime.Add(11*time.Second)).
+			UnableToScheduleAtTime(cluster, "a1", node, someTime.Add(12*time.Second)).
+			RunningAtTime(cluster, "a2", node, someTime.Add(13*time.Second))
 
-		longestRunning := NewJobSimulator(t, jobStore, NewIncrementClock(*Increment(time1, 1))).
-			CreateJob(queue).
-			Pending(cluster, "d1").
-			Running(cluster, "d2", node)
+		NewJobSimulator(t, jobStore).
+			CreateJobAtTime(queue, someTime.Add(5*time.Second)).
+			PendingAtTime(cluster, "b1", someTime.Add(6*time.Second)).
+			UnableToScheduleAtTime(cluster, "b1", node, someTime.Add(7*time.Second)).
+			RunningAtTime(cluster, "b2", node, someTime.Add(8*time.Second))
 
-		NewJobSimulator(t, jobStore, NewIncrementClock(time1)).
-			CreateJob(queue).
-			Running(cluster, "e1", node).
-			Succeeded(cluster, "e2", node)
+		longestRunning := NewJobSimulator(t, jobStore).
+			CreateJobAtTime(queue, someTime.Add(time.Second)).
+			PendingAtTime(cluster, "d1", pendingTime).
+			UnableToScheduleAtTime(cluster, "d1", node, unableToScheduleTime).
+			RunningAtTime(cluster, "d2", node, runningTime)
 
-		NewJobSimulator(t, jobStore, NewIncrementClock(time1)).
-			CreateJob(queue).
-			Running(cluster, "g", node).
-			Cancelled()
+		NewJobSimulator(t, jobStore).
+			CreateJobAtTime(queue, someTime).
+			RunningAtTime(cluster, "e1", node, someTime.Add(time.Second)).
+			UnableToScheduleAtTime(cluster, "e1", node, someTime.Add(2*time.Second)).
+			SucceededAtTime(cluster, "e2", node, someTime.Add(3*time.Second))
+
+		NewJobSimulator(t, jobStore).
+			CreateJobAtTime(queue, someTime).
+			RunningAtTime(cluster, "g", node, someTime.Add(time.Second)).
+			CancelledAtTime(someTime.Add(2 * time.Second))
 
 		queueInfos, err := jobRepo.GetQueueInfos(ctx)
 		assert.NoError(t, err)
@@ -262,26 +268,26 @@ func TestGetQueueInfos_IncludeLongestRunningJob(t *testing.T) {
 		AssertRunInfosEquivalent(t, &lookout.RunInfo{
 			K8SId:     "d1",
 			Cluster:   cluster,
-			Node:      "",
+			Node:      node,
 			Succeeded: false,
-			Created:   Increment(time1, 2),
+			Created:   &pendingTime,
 			Started:   nil,
-			Finished:  nil,
+			Finished:  &unableToScheduleTime,
 			Error:     "",
 		}, queueInfos[0].LongestRunningJob.Runs[0])
+
 		AssertRunInfosEquivalent(t, &lookout.RunInfo{
 			K8SId:     "d2",
 			Cluster:   cluster,
 			Node:      node,
 			Succeeded: false,
 			Created:   nil,
-			Started:   Increment(time1, 3),
+			Started:   &runningTime,
 			Finished:  nil,
 			Error:     "",
 		}, queueInfos[0].LongestRunningJob.Runs[1])
 
-		startRunningTime := *Increment(time1, 3)
-		assert.Equal(t, types.DurationProto(time2.Sub(startRunningTime).Round(time.Second)), queueInfos[0].LongestRunningDuration)
+		assert.Equal(t, types.DurationProto(someTime2.Sub(runningTime).Round(time.Second)), queueInfos[0].LongestRunningDuration)
 	})
 }
 
@@ -290,62 +296,70 @@ func TestGetQueueInfos_MultipleQueues(t *testing.T) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
 
-		startTime := time.Now()
+		queue1PendingTime := someTime.Add(time.Second)
+		queue1UnableToScheduleTime := someTime.Add(2 * time.Second)
+		queue1RunningTime := someTime.Add(3 * time.Second)
+
+		queue2RunningTime := someTime.Add(time.Second)
 
 		// Queue 1
-		NewJobSimulator(t, jobStore, NewIncrementClock(*Increment(startTime, 5))).
-			CreateJob(queue)
+		NewJobSimulator(t, jobStore).
+			CreateJobAtTime(queue, someTime.Add(5*time.Second))
 
-		oldestQueued1 := NewJobSimulator(t, jobStore, NewIncrementClock(startTime)).
-			CreateJob(queue)
+		oldestQueued1 := NewJobSimulator(t, jobStore).
+			CreateJobAtTime(queue, someTime)
 
-		NewJobSimulator(t, jobStore, NewIncrementClock(startTime)).
-			CreateJob(queue).
-			Pending(cluster, "a")
+		NewJobSimulator(t, jobStore).
+			CreateJobAtTime(queue, someTime).
+			PendingAtTime(cluster, "a", someTime.Add(time.Second))
 
-		NewJobSimulator(t, jobStore, NewIncrementClock(*Increment(startTime, 5))).
-			CreateJob(queue).
-			Pending(cluster, "b1").
-			Running(cluster, "b2", node)
+		NewJobSimulator(t, jobStore).
+			CreateJobAtTime(queue, someTime.Add(5*time.Second)).
+			PendingAtTime(cluster, "b1", someTime.Add(6*time.Second)).
+			UnableToScheduleAtTime(cluster, "b1", node, someTime.Add(7*time.Second)).
+			RunningAtTime(cluster, "b2", node, someTime.Add(8*time.Second))
 
-		longestRunning1 := NewJobSimulator(t, jobStore, NewIncrementClock(startTime)).
-			CreateJob(queue).
-			Pending(cluster, "c1").
-			Running(cluster, "c2", node)
+		longestRunning1 := NewJobSimulator(t, jobStore).
+			CreateJobAtTime(queue, someTime).
+			PendingAtTime(cluster, "c1", queue1PendingTime).
+			UnableToScheduleAtTime(cluster, "c1", node, queue1UnableToScheduleTime).
+			RunningAtTime(cluster, "c2", node, queue1RunningTime)
 
-		NewJobSimulator(t, jobStore, NewIncrementClock(startTime)).
-			CreateJob(queue).
-			Pending(cluster, "d1").
-			Running(cluster, "d2", node).
-			Succeeded(cluster, "d2", node)
+		NewJobSimulator(t, jobStore).
+			CreateJobAtTime(queue, someTime).
+			PendingAtTime(cluster, "d1", someTime.Add(time.Second)).
+			UnableToScheduleAtTime(cluster, "d1", node, someTime.Add(2*time.Second)).
+			RunningAtTime(cluster, "d2", node, someTime.Add(3*time.Second)).
+			SucceededAtTime(cluster, "d2", node, someTime.Add(4*time.Second))
 
-		NewJobSimulator(t, jobStore, NewIncrementClock(startTime)).
-			CreateJob(queue).
-			Cancelled()
+		NewJobSimulator(t, jobStore).
+			CreateJobAtTime(queue, someTime).
+			CancelledAtTime(someTime.Add(time.Second))
 
 		// Queue 2
-		NewJobSimulator(t, jobStore, NewIncrementClock(*Increment(startTime, 5))).
-			CreateJob(queue2)
+		NewJobSimulator(t, jobStore).
+			CreateJobAtTime(queue2, someTime.Add(5*time.Second))
 
-		oldestQueued2 := NewJobSimulator(t, jobStore, NewIncrementClock(startTime)).
-			CreateJob(queue2)
+		oldestQueued2 := NewJobSimulator(t, jobStore).
+			CreateJobAtTime(queue2, someTime)
 
-		NewJobSimulator(t, jobStore, NewIncrementClock(startTime)).
-			CreateJob(queue2).
-			Pending(cluster, "e")
+		NewJobSimulator(t, jobStore).
+			CreateJobAtTime(queue2, someTime).
+			PendingAtTime(cluster, "e", someTime.Add(1*time.Second))
 
-		NewJobSimulator(t, jobStore, NewIncrementClock(*Increment(startTime, 5))).
-			CreateJob(queue2).
-			Running(cluster, "f", node)
+		NewJobSimulator(t, jobStore).
+			CreateJobAtTime(queue2, someTime.Add(5*time.Second)).
+			RunningAtTime(cluster, "f", node, someTime.Add(6*time.Second))
 
-		longestRunning2 := NewJobSimulator(t, jobStore, NewIncrementClock(startTime)).
-			CreateJob(queue2).
-			Running(cluster, "g", node)
+		longestRunning2 := NewJobSimulator(t, jobStore).
+			CreateJobAtTime(queue2, someTime).
+			RunningAtTime(cluster, "g", node, queue2RunningTime)
 
-		NewJobSimulator(t, jobStore, NewIncrementClock(*Increment(startTime, 1))).
-			CreateJob(queue2).
-			Pending(cluster, "h1").
-			Running(cluster, "h2", node)
+		NewJobSimulator(t, jobStore).
+			CreateJobAtTime(queue2, someTime.Add(time.Second)).
+			PendingAtTime(cluster, "h1", someTime.Add(2*time.Second)).
+			UnableToScheduleAtTime(cluster, "h1", node, someTime.Add(3*time.Second)).
+			RunningAtTime(cluster, "h2", node, someTime.Add(4*time.Second))
 
 		queueInfos, err := jobRepo.GetQueueInfos(ctx)
 		assert.NoError(t, err)
@@ -373,24 +387,17 @@ func TestGetQueueInfos_MultipleQueues(t *testing.T) {
 		assert.Equal(t, string(JobRunning), queueInfos[0].LongestRunningJob.JobState)
 		assert.Equal(t, 2, len(queueInfos[0].LongestRunningJob.Runs))
 		AssertRunInfosEquivalent(t, &lookout.RunInfo{
-			K8SId:     "c1",
-			Cluster:   cluster,
-			Node:      "",
-			Succeeded: false,
-			Created:   Increment(startTime, 1),
-			Started:   nil,
-			Finished:  nil,
-			Error:     "",
+			K8SId:    "c1",
+			Cluster:  cluster,
+			Node:     node,
+			Created:  &queue1PendingTime,
+			Finished: &queue1UnableToScheduleTime,
 		}, queueInfos[0].LongestRunningJob.Runs[0])
 		AssertRunInfosEquivalent(t, &lookout.RunInfo{
-			K8SId:     "c2",
-			Cluster:   cluster,
-			Node:      node,
-			Succeeded: false,
-			Created:   nil,
-			Started:   Increment(startTime, 2),
-			Finished:  nil,
-			Error:     "",
+			K8SId:   "c2",
+			Cluster: cluster,
+			Node:    node,
+			Started: &queue1RunningTime,
 		}, queueInfos[0].LongestRunningJob.Runs[1])
 
 		AssertJobsAreEquivalent(t, oldestQueued2.job, queueInfos[1].OldestQueuedJob.Job)
@@ -403,14 +410,10 @@ func TestGetQueueInfos_MultipleQueues(t *testing.T) {
 		assert.Equal(t, string(JobRunning), queueInfos[1].LongestRunningJob.JobState)
 		assert.Equal(t, 1, len(queueInfos[1].LongestRunningJob.Runs))
 		AssertRunInfosEquivalent(t, &lookout.RunInfo{
-			K8SId:     "g",
-			Cluster:   cluster,
-			Node:      node,
-			Succeeded: false,
-			Created:   nil,
-			Started:   Increment(startTime, 1),
-			Finished:  nil,
-			Error:     "",
+			K8SId:   "g",
+			Cluster: cluster,
+			Node:    node,
+			Started: &queue2RunningTime,
 		}, queueInfos[1].LongestRunningJob.Runs[0])
 	})
 }

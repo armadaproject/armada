@@ -13,10 +13,10 @@ func TestGetJobSetInfos_GetNoJobSetsIfQueueDoesNotExist(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db)
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJob("queue-1")
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJob("queue-2").
 			Pending(cluster, k8sId1)
 
@@ -32,10 +32,10 @@ func TestGetJobSetInfos_GetsJobSetWithNoFinishedJobs(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db)
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJobWithJobSet(queue, "job-set")
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJobWithJobSet(queue, "job-set").
 			Pending(cluster, k8sId1)
 
@@ -59,12 +59,12 @@ func TestGetJobSetInfos_GetsJobSetWithOnlyFinishedJobs(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db)
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJobWithJobSet(queue, "job-set").
 			Running(cluster, k8sId1, node).
 			Succeeded(cluster, k8sId1, node)
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJobWithJobSet(queue, "job-set").
 			Pending(cluster, k8sId2).
 			Failed(cluster, k8sId2, node, "some error")
@@ -90,34 +90,39 @@ func TestGetJobSetInfos_JobSetsCounts(t *testing.T) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJobWithJobSet(queue, "job-set-1").
 			Pending(cluster, "a1").
+			UnableToSchedule(cluster, "a1", node).
 			Pending(cluster, "a2")
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJobWithJobSet(queue, "job-set-1").
 			Pending(cluster, "b1").
+			UnableToSchedule(cluster, "b1", node).
 			Running(cluster, "b2", node)
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJobWithJobSet(queue, "job-set-1")
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJobWithJobSet(queue, "job-set-1").
 			Pending(cluster, "c1").
+			UnableToSchedule(cluster, "c1", node).
 			Running(cluster, "c2", node).
 			Succeeded(cluster, "c2", node)
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJobWithJobSet(queue, "job-set-1").
 			Pending(cluster, "d1").
+			UnableToSchedule(cluster, "d1", node).
 			Running(cluster, "d2", node).
 			Failed(cluster, "d2", node, "something bad")
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJobWithJobSet(queue, "job-set-1").
 			Pending(cluster, "e1").
+			UnableToSchedule(cluster, "e1", node).
 			Running(cluster, "e2", node).
 			Cancelled()
 
@@ -142,51 +147,57 @@ func TestGetJobSetInfos_MultipleJobSetsCounts(t *testing.T) {
 		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
 
 		// Job set 1
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJobWithJobSet(queue, "job-set-1")
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJobWithJobSet(queue, "job-set-1")
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJobWithJobSet(queue, "job-set-1").
 			Pending(cluster, "a1").
+			UnableToSchedule(cluster, "a1", node).
 			Pending(cluster, "a2")
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJobWithJobSet(queue, "job-set-1").
 			Pending(cluster, "b1").
+			UnableToSchedule(cluster, "b1", node).
 			Running(cluster, "b2", node)
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJobWithJobSet(queue, "job-set-1").
 			Pending(cluster, "c1").
+			UnableToSchedule(cluster, "c1", node).
 			Running(cluster, "c2", node).
 			Succeeded(cluster, "c2", node)
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJobWithJobSet(queue, "job-set-1").
 			Pending(cluster, "d1").
+			UnableToSchedule(cluster, "d1", node).
 			Running(cluster, "d2", node).
 			Failed(cluster, "d2", node, "something bad")
 
 		// Job set 2
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJobWithJobSet(queue, "job-set-2")
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJobWithJobSet(queue, "job-set-2").
 			Pending(cluster, "e1")
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJobWithJobSet(queue, "job-set-2").
 			Pending(cluster, "f1").
+			UnableToSchedule(cluster, "f1", node).
 			Running(cluster, "f2", node).
 			Succeeded(cluster, "f2", node)
 
-		NewJobSimulator(t, jobStore, &DefaultClock{}).
+		NewJobSimulator(t, jobStore).
 			CreateJobWithJobSet(queue, "job-set-2").
 			Pending(cluster, "h1").
+			UnableToSchedule(cluster, "h1", node).
 			Running(cluster, "h2", node).
 			Failed(cluster, "h2", node, "something bad")
 

@@ -84,10 +84,10 @@ func (p *EventProcessor) processEvent(event api.Event) error {
 		// TODO record leasing as messages?
 
 	case *api.JobUnableToScheduleEvent:
-		// TODO record to message log?
+		return p.recorder.RecordJobUnableToSchedule(typed)
 
 	case *api.JobReprioritizedEvent:
-		p.recorder.RecordJobPriorityChange(typed)
+		return p.recorder.RecordJobPriorityChange(typed)
 
 	case *api.JobCancellingEvent: // noop
 	case *api.JobCancelledEvent:

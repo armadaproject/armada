@@ -373,6 +373,9 @@ func SwaggerJsonTemplate() string {
 		"        },\n" +
 		"        \"succeeded\": {\n" +
 		"          \"type\": \"boolean\"\n" +
+		"        },\n" +
+		"        \"unableToSchedule\": {\n" +
+		"          \"type\": \"boolean\"\n" +
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
