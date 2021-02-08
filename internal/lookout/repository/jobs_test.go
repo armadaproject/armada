@@ -44,8 +44,8 @@ func TestGetJobs_GetSucceededJobFromQueue(t *testing.T) {
 		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
 
 		pendingTime := someTime.Add(time.Second)
-		runningTime := someTime.Add(2*time.Second)
-		succeededTime := someTime.Add(3*time.Second)
+		runningTime := someTime.Add(2 * time.Second)
+		succeededTime := someTime.Add(3 * time.Second)
 
 		succeeded := NewJobSimulator(t, jobStore).
 			CreateJobAtTime(queue, someTime).
@@ -87,8 +87,8 @@ func TestGetJobs_GetFailedJobFromQueue(t *testing.T) {
 		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
 
 		pendingTime := someTime.Add(time.Second)
-		runningTime := someTime.Add(2*time.Second)
-		failedTime := someTime.Add(3*time.Second)
+		runningTime := someTime.Add(2 * time.Second)
+		failedTime := someTime.Add(3 * time.Second)
 		failureReason := "Something bad happened"
 
 		failed := NewJobSimulator(t, jobStore).
@@ -131,8 +131,8 @@ func TestGetJobs_GetCancelledJobFromQueue(t *testing.T) {
 		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
 
 		pendingTime := someTime.Add(time.Second)
-		runningTime := someTime.Add(2*time.Second)
-		cancelledTime := someTime.Add(3*time.Second)
+		runningTime := someTime.Add(2 * time.Second)
+		cancelledTime := someTime.Add(3 * time.Second)
 
 		cancelled := NewJobSimulator(t, jobStore).
 			CreateJobAtTime(queue, someTime).
@@ -172,10 +172,10 @@ func TestGetJobs_GetMultipleRunJobFromQueue(t *testing.T) {
 		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
 
 		pendingTime1 := someTime.Add(time.Second)
-		unableToScheduleTime := someTime.Add(2*time.Second)
-		pendingTime2 := someTime.Add(3*time.Second)
-		runningTime := someTime.Add(4*time.Second)
-		succeededTime := someTime.Add(5*time.Second)
+		unableToScheduleTime := someTime.Add(2 * time.Second)
+		pendingTime2 := someTime.Add(3 * time.Second)
+		runningTime := someTime.Add(4 * time.Second)
+		succeededTime := someTime.Add(5 * time.Second)
 
 		retried := NewJobSimulator(t, jobStore).
 			CreateJobAtTime(queue, someTime).

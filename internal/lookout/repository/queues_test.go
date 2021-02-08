@@ -102,7 +102,7 @@ func TestGetQueueInfos_OldestQueuedJobIsNilIfNoJobsAreQueued(t *testing.T) {
 		NewJobSimulator(t, jobStore).
 			CreateJobAtTime(queue, someTime).
 			RunningAtTime(cluster, "g", node, someTime.Add(time.Second)).
-			CancelledAtTime(someTime.Add(2*time.Second))
+			CancelledAtTime(someTime.Add(2 * time.Second))
 
 		queueInfos, err := jobRepo.GetQueueInfos(ctx)
 		assert.NoError(t, err)
@@ -160,7 +160,7 @@ func TestGetQueueInfos_IncludeOldestQueuedJob(t *testing.T) {
 		NewJobSimulator(t, jobStore).
 			CreateJobAtTime(queue, someTime).
 			RunningAtTime(cluster, "g", node, someTime.Add(time.Second)).
-			CancelledAtTime(someTime.Add(2*time.Second))
+			CancelledAtTime(someTime.Add(2 * time.Second))
 
 		queueInfos, err := jobRepo.GetQueueInfos(ctx)
 		assert.NoError(t, err)
@@ -212,9 +212,9 @@ func TestGetQueueInfos_IncludeLongestRunningJob(t *testing.T) {
 		jobStore := NewSQLJobStore(db)
 		jobRepo := NewSQLJobRepository(db, &DummyClock{someTime2})
 
-		pendingTime := someTime.Add(2*time.Second)
-		unableToScheduleTime := someTime.Add(3*time.Second)
-		runningTime := someTime.Add(4*time.Second)
+		pendingTime := someTime.Add(2 * time.Second)
+		unableToScheduleTime := someTime.Add(3 * time.Second)
+		runningTime := someTime.Add(4 * time.Second)
 
 		NewJobSimulator(t, jobStore).
 			CreateJobAtTime(queue, someTime)
@@ -254,7 +254,7 @@ func TestGetQueueInfos_IncludeLongestRunningJob(t *testing.T) {
 		NewJobSimulator(t, jobStore).
 			CreateJobAtTime(queue, someTime).
 			RunningAtTime(cluster, "g", node, someTime.Add(time.Second)).
-			CancelledAtTime(someTime.Add(2*time.Second))
+			CancelledAtTime(someTime.Add(2 * time.Second))
 
 		queueInfos, err := jobRepo.GetQueueInfos(ctx)
 		assert.NoError(t, err)
@@ -297,8 +297,8 @@ func TestGetQueueInfos_MultipleQueues(t *testing.T) {
 		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
 
 		queue1PendingTime := someTime.Add(time.Second)
-		queue1UnableToScheduleTime := someTime.Add(2*time.Second)
-		queue1RunningTime := someTime.Add(3*time.Second)
+		queue1UnableToScheduleTime := someTime.Add(2 * time.Second)
+		queue1RunningTime := someTime.Add(3 * time.Second)
 
 		queue2RunningTime := someTime.Add(time.Second)
 
@@ -387,17 +387,17 @@ func TestGetQueueInfos_MultipleQueues(t *testing.T) {
 		assert.Equal(t, string(JobRunning), queueInfos[0].LongestRunningJob.JobState)
 		assert.Equal(t, 2, len(queueInfos[0].LongestRunningJob.Runs))
 		AssertRunInfosEquivalent(t, &lookout.RunInfo{
-			K8SId:     "c1",
-			Cluster:   cluster,
-			Node:      node,
-			Created:   &queue1PendingTime,
-			Finished:  &queue1UnableToScheduleTime,
+			K8SId:    "c1",
+			Cluster:  cluster,
+			Node:     node,
+			Created:  &queue1PendingTime,
+			Finished: &queue1UnableToScheduleTime,
 		}, queueInfos[0].LongestRunningJob.Runs[0])
 		AssertRunInfosEquivalent(t, &lookout.RunInfo{
-			K8SId:     "c2",
-			Cluster:   cluster,
-			Node:      node,
-			Started:   &queue1RunningTime,
+			K8SId:   "c2",
+			Cluster: cluster,
+			Node:    node,
+			Started: &queue1RunningTime,
 		}, queueInfos[0].LongestRunningJob.Runs[1])
 
 		AssertJobsAreEquivalent(t, oldestQueued2.job, queueInfos[1].OldestQueuedJob.Job)
@@ -410,10 +410,10 @@ func TestGetQueueInfos_MultipleQueues(t *testing.T) {
 		assert.Equal(t, string(JobRunning), queueInfos[1].LongestRunningJob.JobState)
 		assert.Equal(t, 1, len(queueInfos[1].LongestRunningJob.Runs))
 		AssertRunInfosEquivalent(t, &lookout.RunInfo{
-			K8SId:     "g",
-			Cluster:   cluster,
-			Node:      node,
-			Started:   &queue2RunningTime,
+			K8SId:   "g",
+			Cluster: cluster,
+			Node:    node,
+			Started: &queue2RunningTime,
 		}, queueInfos[1].LongestRunningJob.Runs[0])
 	})
 }
