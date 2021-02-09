@@ -235,38 +235,6 @@ jobs:
             docker tag armada-lookout gresearchdev/armada-lookout-dev:${TAG}
             docker push gresearchdev/armada-lookout-dev:${TAG}
 
-  deploy:
-    docker:
-      - image: alpine/helm:2.13.1
-    working_directory: /go/src/github.com/G-Research/armada
-    steps:
-      - checkout
-      - run:
-          name: "Extract config files from environment variables"
-          command: |
-            echo $ARMADA_CONFIG | base64 -d > armada_config.yaml
-            echo $EXECUTOR_CONFIG | base64 -d > executor_config.yaml
-      - run:
-          name: "Deploy to services"
-          command: |
-            echo $KUBECONFIG_SERVICES | base64 -d > kubeconfig_services_decoded.yaml
-            export KUBECONFIG=./kubeconfig_services_decoded.yaml
-            if timeout 15 helm list; then
-              helm upgrade --install armada --namespace=armada ./deployment/armada/ -f ./armada_config.yaml --set image.repository=gresearchdev/armada-server-dev --set image.tag="${CIRCLE_SHA1}"
-            else
-              echo Unable to connect to services cluster
-            fi
-      - deploy-executor:
-          worker-id: "1"
-      - deploy-executor:
-          worker-id: "2"
-      - deploy-executor:
-          worker-id: "3"
-      - deploy-executor:
-          worker-id: "4"
-      - deploy-executor:
-          worker-id: "5"
-
   release:
     docker:
       - image: circleci/golang:1.12.6
@@ -347,12 +315,6 @@ workflows:
       - code_style
       - test
       - build
-      - deploy:
-          requires:
-            - build
-          filters:
-            branches:
-              only: master
       - release:
           filters:
             tags:
