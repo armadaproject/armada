@@ -106,7 +106,7 @@ commands:
 jobs:
   build:
     machine:
-      docker_layer_caching: true
+      docker_layer_caching: false
       image: ubuntu-2004:202101-01
     environment:
       GO111MODULE: "on"
