@@ -23,6 +23,9 @@ spec:
         - record: armada:queue:ideal_current_share
           expr: (armada:queue:size > bool 1) * (1 / armada:queue:priority) / scalar(sum((armada:queue:size > bool 1) * (1 / armada:queue:priority))) * 100
 
+        - record: armada:queue:resource:queued
+          expr: avg(armada_queue_resource_queued) by (queueName, resourceType)
+
         - record: armada:queue:resource:allocated
           expr: avg(sum(armada_queue_resource_allocated) by (cluster, pod, queueName, resourceType)) by (cluster, queueName, resourceType)
 
