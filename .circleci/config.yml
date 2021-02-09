@@ -104,6 +104,64 @@ commands:
           git push -q origin HEAD
 
 jobs:
+  code_style:
+    machine:
+      docker_layer_caching: false
+      image: ubuntu-2004:202101-01
+    environment:
+      GO111MODULE: "on"
+      GOPATH: "/home/circleci/go"
+      GOCACHE: "/home/circleci/go/cache"
+    working_directory: ~/go/src/github.com/G-Research/armada
+    steps:
+      - checkout
+      - run:
+          name: ineffassign
+          command: |
+            cd /tmp
+            go get -u github.com/gordonklaus/ineffassign
+            cd ~/go/src/github.com/G-Research/armada
+            ineffassign ./...
+
+      - run:
+          name: Check formatting
+          command: |
+            exit $(go run golang.org/x/tools/cmd/goimports -l -local "github.com/G-Research/armada" . | wc -l)
+
+      - run:
+          name: Check generated files
+          command: |
+            make proto
+            git status -s -uno
+            exit $(git status -s -uno | wc -l)
+
+  test:
+    machine:
+      docker_layer_caching: false
+      image: ubuntu-2004:202101-01
+    environment:
+      GO111MODULE: "on"
+      GOPATH: "/home/circleci/go"
+      GOCACHE: "/home/circleci/go/cache"
+    working_directory: ~/go/src/github.com/G-Research/armada
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - machine-go-mod-v1-tests-{{ checksum "go.sum" }}
+
+      - run:
+          name: Test
+          command: make tests
+
+      - run: cat go.sum
+
+      - save_cache:
+          key: machine-go-mod-v1-tests-{{ checksum "go.sum" }}
+          paths:
+            - "/home/circleci/go/pkg/mod"
+            - "/home/circleci/go/cache"
+
   build:
     machine:
       docker_layer_caching: false
@@ -125,10 +183,6 @@ jobs:
             - machine-go-mod-v1-{{ checksum "go.sum" }}
 
       - run:
-          name: Test
-          command: make tests
-
-      - run:
           name: Build & Run e2e tests
           command: make build-ci tests-e2e
 
@@ -139,27 +193,6 @@ jobs:
           paths:
             - "/home/circleci/go/pkg/mod"
             - "/home/circleci/go/cache"
-
-      - run:
-          name: ineffassign
-          command: |
-            cd /tmp
-            go get -u github.com/gordonklaus/ineffassign
-            cd ~/go/src/github.com/G-Research/armada
-            ineffassign ./...
-
-      - run:
-          name: Check formatting
-          command: |
-            exit $(go run golang.org/x/tools/cmd/goimports -l -local "github.com/G-Research/armada" . | wc -l)
-
-      - run:
-          name: Check generated files
-          command: |
-            make proto
-            git status -s -uno
-            exit $(git status -s -uno | wc -l)
-
 
       - store_artifacts:
           path: bin/armadactl
@@ -201,38 +234,6 @@ jobs:
 
             docker tag armada-lookout gresearchdev/armada-lookout-dev:${TAG}
             docker push gresearchdev/armada-lookout-dev:${TAG}
-
-  deploy:
-    docker:
-      - image: alpine/helm:2.13.1
-    working_directory: /go/src/github.com/G-Research/armada
-    steps:
-      - checkout
-      - run:
-          name: "Extract config files from environment variables"
-          command: |
-            echo $ARMADA_CONFIG | base64 -d > armada_config.yaml
-            echo $EXECUTOR_CONFIG | base64 -d > executor_config.yaml
-      - run:
-          name: "Deploy to services"
-          command: |
-            echo $KUBECONFIG_SERVICES | base64 -d > kubeconfig_services_decoded.yaml
-            export KUBECONFIG=./kubeconfig_services_decoded.yaml
-            if timeout 15 helm list; then
-              helm upgrade --install armada --namespace=armada ./deployment/armada/ -f ./armada_config.yaml --set image.repository=gresearchdev/armada-server-dev --set image.tag="${CIRCLE_SHA1}"
-            else
-              echo Unable to connect to services cluster
-            fi
-      - deploy-executor:
-          worker-id: "1"
-      - deploy-executor:
-          worker-id: "2"
-      - deploy-executor:
-          worker-id: "3"
-      - deploy-executor:
-          worker-id: "4"
-      - deploy-executor:
-          worker-id: "5"
 
   release:
     docker:
@@ -311,13 +312,9 @@ workflows:
   version: 2
   build_and_deploy:
     jobs:
+      - code_style
+      - test
       - build
-      - deploy:
-          requires:
-            - build
-          filters:
-            branches:
-              only: master
       - release:
           filters:
             tags:
