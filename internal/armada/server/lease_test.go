@@ -11,6 +11,7 @@ import (
 	"github.com/G-Research/armada/internal/armada/authorization"
 	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/G-Research/armada/internal/armada/repository"
+	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/pkg/api"
 )
 
@@ -234,6 +235,10 @@ func (repo *mockJobRepository) PeekQueue(queue string, limit int64) ([]*api.Job,
 
 func (repo *mockJobRepository) TryLeaseJobs(clusterId string, queue string, jobs []*api.Job) ([]*api.Job, error) {
 	return []*api.Job{}, nil
+}
+
+func (repo *mockJobRepository) GetQueueResources(queues []*api.Queue) (sizes []common.ComputeResourcesFloat, e error) {
+	return []common.ComputeResourcesFloat{}, nil
 }
 
 type fakeQueueRepository struct{}
