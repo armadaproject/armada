@@ -46,3 +46,5 @@ queueManagement:
 eventRetention:
   expiryEnabled: true
   retentionDuration: 336h # Specified as a Go duration
+metrics:
+  refreshInterval: 10s
