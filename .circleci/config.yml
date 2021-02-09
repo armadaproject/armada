@@ -107,7 +107,7 @@ jobs:
   build:
     machine:
       docker_layer_caching: true
-      image: ubuntu-2004:202010-01
+      image: ubuntu-2004:202101-01
     environment:
       GO111MODULE: "on"
       GOPATH: "/home/circleci/go"
