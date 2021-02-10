@@ -3,11 +3,12 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"sort"
+	"time"
+
 	"github.com/doug-martin/goqu/v9"
 	"github.com/gogo/protobuf/types"
 	"github.com/lib/pq"
-	"sort"
-	"time"
 
 	"github.com/G-Research/armada/pkg/api/lookout"
 )

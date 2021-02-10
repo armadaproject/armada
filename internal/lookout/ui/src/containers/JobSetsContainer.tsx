@@ -10,30 +10,47 @@ type JobSetsContainerProps = {
   jobService: JobService
 } & RouteComponentProps
 
-interface JobSetsContainerState {
+type JobSetsContainerParams = {
   queue: string
-  jobSets: JobSet[]
+  currentView: JobSetsView
 }
 
-function makeQueryString(queue: string): string {
-  if (!queue) {
-    return ""
-  }
+type JobSetsContainerState = {
+  jobSets: JobSet[]
+} & JobSetsContainerParams
 
-  const queryObject = {
-    queue: queue
+export type JobSetsView = "job-counts" | "runtime" | "queued-time"
+
+type JobSetsQueryParams = {
+  queue?: string
+  view?: string
+}
+
+export function isJobSetsView(val: string): val is JobSetsView {
+  return ["job-counts", "runtime", "queued-time"].includes(val)
+}
+
+function makeQueryString(queue: string, view: JobSetsView): string {
+  const queryObject: JobSetsQueryParams = {}
+
+  if (queue) {
+    queryObject.queue = queue
   }
+  queryObject.view = view
 
   return queryString.stringify(queryObject)
 }
 
-function getQueueFromQueryString(query: string): string {
+function getParamsFromQueryString(query: string): JobSetsContainerParams {
   if (query[0] === "?") {
     query = query.slice(1)
   }
-  const params = queryString.parse(query) as { queue?: string }
+  const params = queryString.parse(query) as JobSetsQueryParams
 
-  return params.queue ?? ""
+  return {
+    queue: params.queue ?? "",
+    currentView: params.view && isJobSetsView(params.view) ? params.view : "job-counts",
+  }
 }
 
 class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsContainerState> {
@@ -43,9 +60,11 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
     this.state ={
       queue: "",
       jobSets: [],
+      currentView: "job-counts",
     }
 
     this.setQueue = this.setQueue.bind(this)
+    this.setView = this.setView.bind(this)
     this.refresh = this.refresh.bind(this)
     this.navigateToJobSetForState = this.navigateToJobSetForState.bind(this)
 
@@ -53,11 +72,12 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
   }
 
   async componentDidMount() {
-    const queue = getQueueFromQueryString(this.props.location.search)
-    const jobSets = await this.fetchJobSets(queue)
+    const params = getParamsFromQueryString(this.props.location.search)
+    const jobSets = await this.fetchJobSets(params.queue)
 
     this.setState({
-      queue: queue,
+      ...this.state,
+      ...params,
       jobSets: jobSets,
     })
   }
@@ -65,7 +85,7 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
   async setQueue(queue: string) {
     this.props.history.push({
       ...this.props.location,
-      search: makeQueryString(queue),
+      search: makeQueryString(queue, this.state.currentView),
     })
     await this.setStateAsync({
       ...this.state,
@@ -88,6 +108,18 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
     })
   }
 
+  setView(view: JobSetsView) {
+    this.props.history.push({
+      ...this.props.location,
+      search: makeQueryString(this.state.queue, view),
+    })
+
+    this.setState({
+      ...this.state,
+      currentView: view,
+    })
+  }
+
   navigateToJobSetForState(jobSet: string, jobState: string) {
     this.props.history.push({
       ...this.props.location,
@@ -107,8 +139,10 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
   render() {
     return <JobSets
       queue={this.state.queue}
+      view={this.state.currentView}
       jobSets={this.state.jobSets}
       onQueueChange={this.setQueue}
+      onViewChange={this.setView}
       onRefresh={this.refresh}
       onJobSetClick={this.navigateToJobSetForState} />
   }

@@ -1,14 +1,14 @@
 package repository
 
 import (
-	"github.com/G-Research/armada/internal/common/util"
-	"github.com/gogo/protobuf/types"
 	"testing"
 	"time"
 
 	"github.com/doug-martin/goqu/v9"
+	"github.com/gogo/protobuf/types"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/pkg/api/lookout"
 )
 
@@ -371,7 +371,7 @@ func TestGetJobSetInfos_GetQueuedStats(t *testing.T) {
 		}
 
 		NewJobSimulator(t, jobStore).
-			CreateJobWithOpts(queue, util.NewULID(), "job-set-2", someTime.Add(20 * time.Minute))
+			CreateJobWithOpts(queue, util.NewULID(), "job-set-2", someTime.Add(20*time.Minute))
 
 		jobSets, err := jobRepo.GetJobSetInfos(ctx, &lookout.GetJobSetsRequest{Queue: queue})
 		assert.NoError(t, err)

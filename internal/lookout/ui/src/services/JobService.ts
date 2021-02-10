@@ -8,7 +8,7 @@ import {
 } from '../openapi/lookout'
 import { SubmitApi } from '../openapi/armada'
 import { reverseMap } from "../utils";
-import { duration } from "@material-ui/core";
+import { makeTestJobSets } from "./testdata";
 
 export type QueueInfo = {
   queue: string
@@ -130,6 +130,14 @@ export default class JobService {
   }
 
   async getJobSets(queue: string): Promise<JobSet[]> {
+    if (queue === "test") {
+      return makeTestJobSets(20)
+    }
+
+    if (queue === "test2") {
+      return makeTestJobSets(5)
+    }
+
     const jobSetsFromApi = await this.lookoutApi.getJobSets({
       body: {
         queue: queue

@@ -11,6 +11,8 @@ import {
 
 import { JobSet } from "../../services/JobService";
 
+import "./JobSetTable.css"
+
 interface JobSetTableProps {
   jobSets: JobSet[]
   onJobSetClick: (jobSet: string, state: string) => void
@@ -18,8 +20,8 @@ interface JobSetTableProps {
 
 export default function JobSetTable(props: JobSetTableProps) {
   return (
-    <TableContainer component={Paper} className="job-sets-table">
-      <Table aria-label="job-sets-table" stickyHeader={true}>
+    <TableContainer component={Paper} className="job-set-table">
+      <Table aria-label="job-set-table" stickyHeader={true}>
         <TableHead>
           <TableRow>
             <TableCell>Job Set</TableCell>
