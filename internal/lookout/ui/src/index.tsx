@@ -4,26 +4,29 @@ import ReactDOM from 'react-dom';
 import { App } from './App';
 import reportWebVitals from './reportWebVitals';
 import JobService from './services/JobService';
-import { LookoutApi, Configuration  as LookoutConfiguration } from './openapi/lookout';
-import { SubmitApi, Configuration as SubmitConfiguration } from "./openapi/armada";
+import { Configuration as LookoutConfiguration, LookoutApi } from './openapi/lookout';
+import { Configuration as SubmitConfiguration, SubmitApi } from "./openapi/armada";
+import { getUIConfig } from "./utils";
 
 import 'react-virtualized/styles.css'
 import './index.css';
 
-let jobService = new JobService(
-  new LookoutApi(new LookoutConfiguration({ basePath: "" })),
-  new SubmitApi(new SubmitConfiguration({
-    basePath: process.env.REACT_APP_ARMADA_API_BASE_URL,
-    credentials: "include",
-  }))
-)
+(async () => {
+  const uiConfig = await getUIConfig()
+  console.log(uiConfig)
 
-ReactDOM.render(
-  <App jobService={jobService} />,
-  document.getElementById('root')
-);
+  const jobService = new JobService(
+    new LookoutApi(new LookoutConfiguration({ basePath: "" })),
+    new SubmitApi(new SubmitConfiguration({
+      basePath: uiConfig.armadaApiBaseUrl,
+      credentials: "include",
+    }))
+  );
 
-// If you want to start measuring performance in your app, pass a function
-// to log results (for example: reportWebVitals(console.log))
-// or send to an analytics endpoint. Learn more: https://bit.ly/CRA-vitals
-reportWebVitals();
+  ReactDOM.render(
+    <App jobService={jobService}/>,
+    document.getElementById('root')
+  );
+
+  reportWebVitals();
+})()
