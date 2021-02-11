@@ -35,6 +35,7 @@ type ArmadaConfig struct {
 	Scheduling      SchedulingConfig
 	QueueManagement QueueManagementConfig
 	EventRetention  EventRetentionPolicy
+	Metrics         MetricsConfig
 }
 
 type OpenIdAuthenticationConfig struct {
@@ -90,4 +91,8 @@ type NatsConfig struct {
 type QueueManagementConfig struct {
 	AutoCreateQueues      bool
 	DefaultPriorityFactor float64
+}
+
+type MetricsConfig struct {
+	RefreshInterval time.Duration
 }

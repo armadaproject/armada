@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"net/http"
 	"os"
 	"os/signal"
@@ -61,6 +62,11 @@ func main() {
 		lookoutApi.SwaggerJsonTemplate(),
 		lookoutApi.RegisterLookoutHandler)
 
+	// UI config
+	mux.HandleFunc("/config", func(w http.ResponseWriter, r *http.Request) {
+		configHandler(config.UIConfig, w)
+	})
+
 	// server static UI files
 	mux.Handle("/", http.FileServer(serve.CreateDirWithIndexFallback("./internal/lookout/ui/build")))
 
@@ -74,4 +80,13 @@ func main() {
 		shutdownServer()
 	}()
 	wg.Wait()
+}
+
+func configHandler(config configuration.LookoutUIConfig, w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "application/json")
+
+	err := json.NewEncoder(w).Encode(config)
+	if err != nil {
+		w.WriteHeader(500)
+	}
 }

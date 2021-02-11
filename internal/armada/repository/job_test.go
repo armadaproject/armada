@@ -342,6 +342,25 @@ func TestRetriesOfDeletedJobShouldBeZero(t *testing.T) {
 	})
 }
 
+func TestGetQueueResources(t *testing.T) {
+	withRepository(func(r *RedisJobRepository) {
+		for i := 0; i < 10; i++ {
+			addTestJob(t, r, "q1")
+		}
+		for i := 0; i < 5; i++ {
+			addTestJob(t, r, "q2")
+		}
+
+		resources, err := r.GetQueueResources([]*api.Queue{{Name: "q1"}, {Name: "q2"}})
+
+		assert.Nil(t, err)
+		assert.Equal(t, []common.ComputeResourcesFloat{
+			{"cpu": 10, "memory": common.QuantityAsFloat64(resource.MustParse("5120Mi"))},
+			{"cpu": 5, "memory": common.QuantityAsFloat64(resource.MustParse("2560Mi"))},
+		}, resources)
+	})
+}
+
 func addLeasedJob(t *testing.T, r *RedisJobRepository, queue string, cluster string) *api.Job {
 	job := addTestJob(t, r, queue)
 	leased, e := r.TryLeaseJobs(cluster, queue, []*api.Job{job})

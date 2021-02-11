@@ -25,6 +25,8 @@ const jobLeasedPrefix = "Job:Leased:"
 const jobClusterMapKey = "Job:ClusterId"
 const jobRetriesPrefix = "Job:Retries:"
 
+const queueResourcesBatchSize = 20000
+
 type JobQueueRepository interface {
 	PeekQueue(queue string, limit int64) ([]*api.Job, error)
 	TryLeaseJobs(clusterId string, queue string, jobs []*api.Job) ([]*api.Job, error)
@@ -37,6 +39,7 @@ type JobRepository interface {
 	GetExistingJobsByIds(ids []string) ([]*api.Job, error)
 	FilterActiveQueues(queues []*api.Queue) ([]*api.Queue, error)
 	GetQueueSizes(queues []*api.Queue) (sizes []int64, e error)
+	GetQueueResources(queues []*api.Queue) (sizes []common.ComputeResourcesFloat, e error)
 	RenewLease(clusterId string, jobIds []string) (renewed []string, e error)
 	ExpireLeases(queue string, deadline time.Time) (expired []*api.Job, e error)
 	ReturnLease(clusterId string, jobId string) (returnedJob *api.Job, err error)
@@ -137,7 +140,7 @@ type SubmitJobResult struct {
 }
 
 func (repo *RedisJobRepository) AddJobs(jobs []*api.Job) ([]*SubmitJobResult, error) {
-	pipe := repo.db.Pipeline()
+	pipe := repo.db.TxPipeline()
 
 	submitResults := make([]*submitJobRedisResponse, 0, len(jobs))
 
@@ -433,6 +436,38 @@ func (repo *RedisJobRepository) GetQueueSizes(queues []*api.Queue) (sizes []int6
 		sizes = append(sizes, cmd.Val())
 	}
 	return sizes, nil
+}
+
+func (repo *RedisJobRepository) GetQueueResources(queues []*api.Queue) ([]common.ComputeResourcesFloat, error) {
+	result := []common.ComputeResourcesFloat{}
+	for _, queue := range queues {
+		queuedIds, e := repo.db.ZRange(jobQueuePrefix+queue.Name, 0, -1).Result()
+		if e != nil {
+			return nil, e
+		}
+
+		resources := common.ComputeResources{}
+
+		for len(queuedIds) > 0 {
+			take := queueResourcesBatchSize
+			if len(queuedIds) < queueResourcesBatchSize {
+				take = len(queuedIds)
+			}
+			queuedJobs, e := repo.GetExistingJobsByIds(queuedIds[0:take])
+			queuedIds = queuedIds[take:]
+
+			if e != nil {
+				return nil, e
+			}
+			for _, job := range queuedJobs {
+				resources.Add(common.TotalJobResourceRequest(job))
+			}
+
+		}
+
+		result = append(result, resources.AsFloat())
+	}
+	return result, nil
 }
 
 func (repo *RedisJobRepository) GetActiveJobIds(queue string, jobSetId string) ([]string, error) {
