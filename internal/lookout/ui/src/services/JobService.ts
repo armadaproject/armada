@@ -7,8 +7,8 @@ import {
   LookoutRunInfo
 } from '../openapi/lookout'
 import { SubmitApi } from '../openapi/armada'
-import { reverseMap } from "../utils";
-import { makeTestJobSets } from "./testdata";
+import { reverseMap, secondsToDurationString } from "../utils";
+import { makeTestJobSets, makeTestOverview } from "./testdata";
 
 export type QueueInfo = {
   queue: string
@@ -110,6 +110,8 @@ export const JOB_STATES_FOR_DISPLAY = [
   "Cancelled",
 ]
 
+const TEST_FLAG = true
+
 export default class JobService {
 
   lookoutApi: LookoutApi
@@ -121,6 +123,10 @@ export default class JobService {
   }
 
   async getOverview(): Promise<QueueInfo[]> {
+    if (TEST_FLAG) {
+      return makeTestOverview(20)
+    }
+
     const queueInfosFromApi = await this.lookoutApi.overview()
     if (!queueInfosFromApi.queues) {
       return []
@@ -275,31 +281,7 @@ function durationStatsToViewModel(durationStats?: LookoutDurationStats): Duratio
 
 function getDurationString(durationFromApi: any): string {
   durationFromApi = durationFromApi as { seconds: number }
-  const totalSeconds = durationFromApi.seconds
-  const days = Math.floor(totalSeconds / (24 * 3600))
-  const hours = Math.floor(totalSeconds / 3600) % 24
-  const minutes = Math.floor((totalSeconds % 3600) / 60)
-  const seconds = totalSeconds % 60
-
-  const segments: string[] = []
-
-  if (days > 0) {
-    segments.push(`${days}d`)
-  }
-  if (hours > 0) {
-    segments.push(`${hours}h`)
-  }
-  if (minutes > 0) {
-    segments.push(`${minutes}m`)
-  }
-  if (seconds > 0) {
-    segments.push(`${seconds}s`)
-  }
-  if (segments.length === 0) {
-    return "Just now"
-  }
-
-  return segments.join(" ")
+  return secondsToDurationString(durationFromApi.seconds)
 }
 
 function getDurationSeconds(durationFromApi: any): number {

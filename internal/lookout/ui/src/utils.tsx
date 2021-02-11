@@ -16,3 +16,31 @@ export function debounced(fn: (...args: any[]) => Promise<any>, delay: number): 
     })
   }
 }
+
+export function secondsToDurationString(totalSeconds: number): string {
+  totalSeconds = Math.round(totalSeconds)
+  const days = Math.floor(totalSeconds / (24 * 3600))
+  const hours = Math.floor(totalSeconds / 3600) % 24
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+
+  const segments: string[] = []
+
+  if (days > 0) {
+    segments.push(`${days}d`)
+  }
+  if (hours > 0) {
+    segments.push(`${hours}h`)
+  }
+  if (minutes > 0) {
+    segments.push(`${minutes}m`)
+  }
+  if (seconds > 0) {
+    segments.push(`${seconds}s`)
+  }
+  if (segments.length === 0) {
+    return "0s"
+  }
+
+  return segments.join(" ")
+}

@@ -1,4 +1,4 @@
-import { DurationStats, JobSet } from "./JobService";
+import { DurationStats, JobSet, QueueInfo } from "./JobService";
 
 function makeId(length: number): string {
   let result = '';
@@ -15,7 +15,7 @@ function randInt(low: number, high: number): number {
 }
 
 export function makeTestJobSets(nJobSets: number): JobSet[] {
-  const idLen = 10
+  const idLen = 16
 
   const result: JobSet[] = []
 
@@ -30,6 +30,25 @@ export function makeTestJobSets(nJobSets: number): JobSet[] {
       jobsFailed: randInt(10, 20),
       runningStats: makeRandomStats(),
       queuedStats: makeRandomStats(),
+    })
+  }
+
+  return result
+}
+
+export function makeTestOverview(nQueues: number): QueueInfo[] {
+  const idLen = 16
+
+  const result: QueueInfo[] = []
+
+  for (let i = 0; i < nQueues; i++) {
+    result.push({
+      queue: makeId(idLen),
+      jobsQueued: randInt(0, 10),
+      jobsPending: randInt(0, 10),
+      jobsRunning: randInt(0, 10),
+      oldestQueuedDuration: "-",
+      longestRunningDuration: "-",
     })
   }
 

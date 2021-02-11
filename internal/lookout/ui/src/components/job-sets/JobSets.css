@@ -1,10 +1,13 @@
 .job-sets {
-    display: flex;
+    flex: 1 0 auto;
+    width: 100%;
+    display: flex !important;
     margin-top: 1em;
     flex-direction: column;
 }
 
 .job-sets-header {
+    width: 100%;
     flex: 0 1 auto;
     margin-top: 0.66em;
     margin-bottom: 0.66em;
@@ -15,7 +18,6 @@
 
 .job-sets-header .title {
     margin-left: 16px;
-    margin-bottom: 0.6em;
 }
 
 .job-sets-header .job-sets-params {
@@ -38,7 +40,8 @@
 }
 
 .job-sets-content {
-    flex: 1 1 auto;
+    width: 100%;
+    flex: 1 0 auto;
 }
 
 .link {
