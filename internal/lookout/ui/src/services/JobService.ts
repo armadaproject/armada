@@ -115,8 +115,6 @@ export const JOB_STATES_FOR_DISPLAY = [
   "Cancelled",
 ]
 
-const TEST_FLAG = true
-
 export default class JobService {
 
   lookoutApi: LookoutApi
