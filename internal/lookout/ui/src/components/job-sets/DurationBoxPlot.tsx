@@ -46,9 +46,14 @@ function DurationBoxPlot(props: TestBoxPlotProps) {
     domain: props.names,
   });
 
-  const minDuration = Math.min(...props.durations.map(d => d.shortest))
-  const maxDuration = Math.max(...props.durations.map(d => d.longest))
-  const fivePercent = Math.round((maxDuration - minDuration) * 0.05)
+  let minDuration = Math.min(...props.durations.map(d => d.shortest))
+  let maxDuration = Math.max(...props.durations.map(d => d.longest))
+  if (isNaN(minDuration) || isNaN(maxDuration)) {
+    minDuration = 0
+    maxDuration = 0
+  }
+
+  const fivePercent = Math.min(1, Math.round((maxDuration - minDuration) * 0.05))
 
   const durationScale = scaleLinear<number>({
     range: [LEFT_PADDING, props.totalWidth - RIGHT_PADDING],
@@ -203,8 +208,7 @@ function DurationBoxPlot(props: TestBoxPlotProps) {
         <Tooltip
           top={props.tooltipTop}
           left={props.tooltipLeft}
-          style={{ ...defaultTooltipStyles, backgroundColor: '#283238', color: 'white' }}
-        >
+          style={{ ...defaultTooltipStyles, backgroundColor: '#283238', color: 'white' }}>
           <div>
             <strong>{props.tooltipData.name}</strong>
           </div>

@@ -10,6 +10,11 @@ import { SubmitApi } from '../openapi/armada'
 import { reverseMap, secondsToDurationString } from "../utils";
 import { makeTestJobSets, makeTestOverview } from "./testdata";
 
+type DurationFromApi = {
+  seconds?: number
+  nanos?: number
+}
+
 export type QueueInfo = {
   queue: string
   jobsQueued: number
@@ -123,10 +128,6 @@ export default class JobService {
   }
 
   async getOverview(): Promise<QueueInfo[]> {
-    if (TEST_FLAG) {
-      return makeTestOverview(20)
-    }
-
     const queueInfosFromApi = await this.lookoutApi.overview()
     if (!queueInfosFromApi.queues) {
       return []
@@ -155,6 +156,7 @@ export default class JobService {
 
     return jobSetsFromApi.jobSetInfos.map(jobSetToViewModel)
   }
+
 
   async getJobsInQueue(getJobsRequest: GetJobsRequest): Promise<JobRun[]> {
     const jobStatesForApi = getJobsRequest.jobStates.map(getJobStateForApi)
@@ -280,13 +282,27 @@ function durationStatsToViewModel(durationStats?: LookoutDurationStats): Duratio
 }
 
 function getDurationString(durationFromApi: any): string {
-  durationFromApi = durationFromApi as { seconds: number }
-  return secondsToDurationString(durationFromApi.seconds)
+  const totalSeconds = getDurationSeconds(durationFromApi)
+  return secondsToDurationString(totalSeconds)
 }
 
 function getDurationSeconds(durationFromApi: any): number {
-  durationFromApi = durationFromApi as { seconds: number }
-  return durationFromApi.seconds
+  durationFromApi = durationFromApi as DurationFromApi
+  let totalSeconds = 0
+  if (!durationFromApi.seconds) {
+    console.log("FUCK")
+    console.log(durationFromApi)
+  }
+
+  if (durationFromApi.seconds) {
+    totalSeconds += durationFromApi.seconds
+  }
+
+  if (durationFromApi.nanos) {
+    totalSeconds += durationFromApi.nanos / 1e9
+  }
+
+  return totalSeconds
 }
 
 function jobInfoToJobRunViewModel(jobInfo: LookoutJobInfo): JobRun[] {

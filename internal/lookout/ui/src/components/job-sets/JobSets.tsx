@@ -7,7 +7,7 @@ import {
 } from "@material-ui/core";
 import RefreshIcon from "@material-ui/icons/Refresh"
 
-import { DurationStats, JOB_STATES_FOR_DISPLAY, JobSet } from "../../services/JobService";
+import { DurationStats, JobSet } from "../../services/JobService";
 
 import './JobSets.css'
 import JobSetTable from "./JobSetTable";
