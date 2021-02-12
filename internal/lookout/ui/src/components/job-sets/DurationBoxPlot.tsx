@@ -1,14 +1,12 @@
 import React from 'react';
 import { Group } from '@visx/group';
-import { ViolinPlot, BoxPlot } from '@visx/stats';
+import { BoxPlot } from '@visx/stats';
 import { Circle } from '@visx/shape'
-import { LinearGradient } from '@visx/gradient';
 import { scaleBand, scaleLinear } from '@visx/scale';
 import { withTooltip, Tooltip, defaultStyles as defaultTooltipStyles } from '@visx/tooltip';
 import { WithTooltipProvidedProps } from '@visx/tooltip/lib/enhancers/withTooltip';
-import { PatternLines } from '@visx/pattern';
-import { Axis, AxisTop, AxisLeft } from '@visx/axis';
-import { GridRows, GridColumns } from '@visx/grid';
+import { AxisTop, AxisLeft } from '@visx/axis';
+import { GridColumns } from '@visx/grid';
 import { DurationStats } from "../../services/JobService";
 import { secondsToDurationString } from "../../utils";
 

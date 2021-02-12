@@ -8,7 +8,7 @@ import {
 } from '../openapi/lookout'
 import { SubmitApi } from '../openapi/armada'
 import { reverseMap, secondsToDurationString } from "../utils";
-import { makeTestJobSets, makeTestOverview } from "./testdata";
+import { makeTestJobSets } from "./testdata";
 
 type DurationFromApi = {
   seconds?: number
