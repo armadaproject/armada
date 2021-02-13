@@ -41,15 +41,11 @@ All the commands below should be executed in Git Bash.
 
 ### Helm
 
-Make sure helm is configured to use the official Helm stable charts:
+Make sure Helm is configured to use the required chart repos:
 
 ```bash
-helm repo add stable https://kubernetes-charts.storage.googleapis.com/
-```
-
-And add the G-Research helm charts repository, too:
-
-```bash
+helm repo add stable https://charts.helm.sh/stable
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
 helm repo add gresearch https://g-research.github.io/charts/
 ```
 
@@ -71,13 +67,13 @@ All commands are intended to be run from the root of the repository.
 kind create cluster --name quickstart-armada-server --config ./docs/quickstart/kind-config-server.yaml
 
 # Set cluster as current context
-export KUBECONFIG="$(kind get kubeconfig-path --name="quickstart-armada-server")"
+kind export kubeconfig --name=quickstart-armada-server
 
 # Install Redis
 helm install redis stable/redis-ha -f docs/quickstart/redis-values.yaml
 
 # Install Prometheus
-helm install prometheus-operator stable/prometheus-operator -f docs/quickstart/server-prometheus-values.yaml
+helm install kube-prometheus-stack prometheus-community/kube-prometheus-stack -f docs/quickstart/server-prometheus-values.yaml
 
 # Install Armada server
 helm install armada-server gresearch/armada -f ./docs/quickstart/server-values.yaml
@@ -94,10 +90,10 @@ First executor:
 kind create cluster --name quickstart-armada-executor-0 --config ./docs/quickstart/kind-config-executor.yaml
 
 # Set cluster as current context
-export KUBECONFIG="$(kind get kubeconfig-path --name="quickstart-armada-executor-0")"
+kind export kubeconfig --name=quickstart-armada-executor-0
 
 # Install Prometheus
-helm install prometheus-operator stable/prometheus-operator -f docs/quickstart/executor-prometheus-values.yaml
+helm install kube-prometheus-stack prometheus-community/kube-prometheus-stack -f docs/quickstart/executor-prometheus-values.yaml
 
 # Install executor
 helm install armada-executor gresearch/armada-executor --set applicationConfig.apiConnection.armadaUrl="$SERVER_IP:30000" -f docs/quickstart/executor-values.yaml
@@ -113,10 +109,10 @@ Second executor:
 kind create cluster --name quickstart-armada-executor-1 --config ./docs/quickstart/kind-config-executor.yaml
 
 # Set cluster as current context
-export KUBECONFIG="$(kind get kubeconfig-path --name="quickstart-armada-executor-1")"
+kind export kubeconfig --name=quickstart-armada-executor-1
 
 # Install Prometheus
-helm install prometheus-operator stable/prometheus-operator -f docs/quickstart/executor-prometheus-values.yaml
+helm install kube-prometheus-stack prometheus-community/kube-prometheus-stack -f docs/quickstart/executor-prometheus-values.yaml
 
 # Install executor
 helm install armada-executor gresearch/armada-executor --set applicationConfig.apiConnection.armadaUrl="$SERVER_IP:30000" -f docs/quickstart/executor-values.yaml
