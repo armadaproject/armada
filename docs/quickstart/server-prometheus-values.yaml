@@ -13,6 +13,8 @@ grafana:
 prometheusOperator:
   admissionWebhooks:
     enabled: false
+  tls:
+    enabled: false
   tlsProxy:
     enabled: false
   createCustomResource: false
