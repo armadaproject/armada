@@ -46,7 +46,7 @@ Make sure Helm is configured to use the required chart repos:
 ```bash
 helm repo add stable https://charts.helm.sh/stable
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
-helm repo add gresearch https://g-research.github.io/charts/
+helm repo add gresearch https://g-research.github.io/charts
 ```
 
 ## Installation
