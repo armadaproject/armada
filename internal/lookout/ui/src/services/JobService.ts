@@ -280,7 +280,6 @@ function getDurationSeconds(durationFromApi: any): number {
   durationFromApi = durationFromApi as DurationFromApi
   let totalSeconds = 0
   if (!durationFromApi.seconds) {
-    console.log("FUCK")
     console.log(durationFromApi)
   }
 
