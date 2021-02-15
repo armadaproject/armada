@@ -190,7 +190,6 @@ export default class JobService {
           result.cancelledJobs.push(job)
         }
       } catch (e) {
-        console.log("HIT")
         console.error(e)
         result.failedJobCancellations.push({ job: job, error: e.toString() })
       }
@@ -279,9 +278,6 @@ function getDurationString(durationFromApi: any): string {
 function getDurationSeconds(durationFromApi: any): number {
   durationFromApi = durationFromApi as DurationFromApi
   let totalSeconds = 0
-  if (!durationFromApi.seconds) {
-    console.log(durationFromApi)
-  }
 
   if (durationFromApi.seconds) {
     totalSeconds += durationFromApi.seconds
