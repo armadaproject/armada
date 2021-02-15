@@ -264,9 +264,9 @@ func TestGetJobSetInfos_GetRunningStats(t *testing.T) {
 			otherK8sId := util.NewULID()
 			itTime := someTime.Add(time.Duration(i) * time.Minute)
 			NewJobSimulator(t, jobStore).
-				CreateJobAtTime(queue, itTime).
-				UnableToScheduleAtTime(cluster, k8sId, node, itTime).
-				PendingAtTime(cluster, otherK8sId, itTime).
+				CreateJobAtTime(queue, someTime).
+				UnableToScheduleAtTime(cluster, k8sId, node, someTime).
+				PendingAtTime(cluster, otherK8sId, someTime).
 				RunningAtTime(cluster, otherK8sId, node, itTime)
 
 			NewJobSimulator(t, jobStore).

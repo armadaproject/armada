@@ -91,21 +91,47 @@ func (r *SQLJobRepository) createJobSetsDataset(opts *lookout.GetJobSetsRequest)
 		GroupBy(job_jobset).
 		As("finished_counts")
 
-	runningStatsDs := r.getStatsDs(goqu.And(
-		job_queue.Eq(opts.Queue),
-		job_cancelled.IsNull(),
-		jobRun_finished.IsNull(),
-		jobRun_started.IsNotNull(),
-		jobRun_unableToSchedule.IsNull())).As("running_stats")
+	runningStatsDs := r.goquDb.
+		From(jobTable).
+		LeftJoin(jobRunTable, goqu.On(job_jobId.Eq(jobRun_jobId))).
+		Select(
+			job_jobset,
+			goqu.MIN(jobRun_started).As("min"),
+			goqu.MAX(jobRun_started).As("max"),
+			goqu.L("to_timestamp(AVG(EXTRACT(EPOCH FROM job_run.started))) AS average"),
+			goqu.L("to_timestamp(percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM job_run.started))) AS median"),
+			goqu.L("to_timestamp(percentile_cont(0.25) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM job_run.started))) AS q1"),
+			goqu.L("to_timestamp(percentile_cont(0.75) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM job_run.started))) AS q3")).
+		Where(goqu.And(
+			job_queue.Eq(opts.Queue),
+			job_cancelled.IsNull(),
+			jobRun_finished.IsNull(),
+			jobRun_started.IsNotNull(),
+			jobRun_unableToSchedule.IsNull())).
+		GroupBy(job_jobset).
+		As("running_stats")
 
-	queuedStatsDs := r.getStatsDs(goqu.And(
-		job_queue.Eq(opts.Queue),
-		job_submitted.IsNotNull(),
-		job_cancelled.IsNull(),
-		jobRun_created.IsNull(),
-		jobRun_started.IsNull(),
-		jobRun_finished.IsNull(),
-		jobRun_unableToSchedule.IsNull())).As("queued_stats")
+	queuedStatsDs := r.goquDb.
+		From(jobTable).
+		LeftJoin(jobRunTable, goqu.On(job_jobId.Eq(jobRun_jobId))).
+		Select(
+			job_jobset,
+			goqu.MIN(job_submitted).As("min"),
+			goqu.MAX(job_submitted).As("max"),
+			goqu.L("to_timestamp(AVG(EXTRACT(EPOCH FROM job.submitted))) AS average"),
+			goqu.L("to_timestamp(percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM job.submitted))) AS median"),
+			goqu.L("to_timestamp(percentile_cont(0.25) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM job.submitted))) AS q1"),
+			goqu.L("to_timestamp(percentile_cont(0.75) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM job.submitted))) AS q3")).
+		Where(goqu.And(
+			job_queue.Eq(opts.Queue),
+			job_submitted.IsNotNull(),
+			job_cancelled.IsNull(),
+			jobRun_created.IsNull(),
+			jobRun_started.IsNull(),
+			jobRun_finished.IsNull(),
+			jobRun_unableToSchedule.IsNull())).
+		GroupBy(job_jobset).
+		As("queued_stats")
 
 	ds := r.goquDb.
 		From(countsDs).
@@ -133,22 +159,6 @@ func (r *SQLJobRepository) createJobSetsDataset(opts *lookout.GetJobSetsRequest)
 			goqu.I("queued_stats.q3").As("queued_q3"))
 
 	return ds
-}
-
-func (r *SQLJobRepository) getStatsDs(filters ...goqu.Expression) *goqu.SelectDataset {
-	return r.goquDb.
-		From(jobTable).
-		LeftJoin(jobRunTable, goqu.On(job_jobId.Eq(jobRun_jobId))).
-		Select(
-			job_jobset,
-			goqu.MIN(job_submitted).As("min"),
-			goqu.MAX(job_submitted).As("max"),
-			goqu.L("to_timestamp(AVG(EXTRACT(EPOCH FROM job.submitted))) AS average"),
-			goqu.L("to_timestamp(percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM job.submitted))) AS median"),
-			goqu.L("to_timestamp(percentile_cont(0.25) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM job.submitted))) AS q1"),
-			goqu.L("to_timestamp(percentile_cont(0.75) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM job.submitted))) AS q3")).
-		Where(filters...).
-		GroupBy(job_jobset)
 }
 
 func (r *SQLJobRepository) rowsToJobSets(rows []*jobSetCountsRow, queue string) []*lookout.JobSetInfo {
