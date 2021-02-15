@@ -3,9 +3,9 @@ import { Group } from '@visx/group';
 import { BoxPlot } from '@visx/stats';
 import { Circle } from '@visx/shape'
 import { scaleBand, scaleLinear } from '@visx/scale';
-import { withTooltip, Tooltip, defaultStyles as defaultTooltipStyles } from '@visx/tooltip';
+import { defaultStyles as defaultTooltipStyles, TooltipWithBounds, withTooltip } from '@visx/tooltip';
 import { WithTooltipProvidedProps } from '@visx/tooltip/lib/enhancers/withTooltip';
-import { AxisTop, AxisLeft } from '@visx/axis';
+import { AxisLeft, AxisTop } from '@visx/axis';
 import { GridColumns } from '@visx/grid';
 import { DurationStats } from "../../services/JobService";
 import { secondsToDurationString } from "../../utils";
@@ -64,7 +64,7 @@ function DurationBoxPlot(props: TestBoxPlotProps) {
   const boxWidth = constrainedWidth * 0.6
 
   return props.totalWidth < 10 || props.durations.length === 0 ? null : (
-    <div style={{}}>
+    <div>
       <svg width={props.totalWidth} height={totalHeight}>
         <GridColumns
           scale={durationScale}
@@ -145,7 +145,7 @@ function DurationBoxPlot(props: TestBoxPlotProps) {
                   boxProps={{
                     onMouseOver: () => {
                       props.showTooltip({
-                        tooltipTop: nameScale(name) ?? 40,
+                        tooltipTop: (nameScale(name) ?? 40) - bandwidth * 0.5,
                         tooltipLeft: durationScale(d.median),
                         tooltipData: {
                           min: d.shortest,
@@ -203,7 +203,7 @@ function DurationBoxPlot(props: TestBoxPlotProps) {
       </svg>
 
       {props.tooltipOpen && props.tooltipData && (
-        <Tooltip
+        <TooltipWithBounds
           top={props.tooltipTop}
           left={props.tooltipLeft}
           style={{ ...defaultTooltipStyles, backgroundColor: '#283238', color: 'white' }}>
@@ -218,7 +218,7 @@ function DurationBoxPlot(props: TestBoxPlotProps) {
             {props.tooltipData.firstQuartile && <div>first quartile: {secondsToDurationString(props.tooltipData.firstQuartile)}</div>}
             {props.tooltipData.min && <div>min: {secondsToDurationString(props.tooltipData.min)}</div>}
           </div>
-        </Tooltip>
+        </TooltipWithBounds>
       )}
     </div>
   )
