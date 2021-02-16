@@ -1,6 +1,19 @@
-import { LookoutApi, LookoutJobInfo, LookoutJobSetInfo, LookoutQueueInfo, LookoutRunInfo } from '../openapi/lookout'
+import {
+  LookoutApi,
+  LookoutDurationStats,
+  LookoutJobInfo,
+  LookoutJobSetInfo,
+  LookoutQueueInfo,
+  LookoutRunInfo
+} from '../openapi/lookout'
 import { SubmitApi } from '../openapi/armada'
-import { reverseMap } from "../utils";
+
+import { reverseMap, secondsToDurationString } from "../utils";
+
+type DurationFromApi = {
+  seconds?: number
+  nanos?: number
+}
 
 export type QueueInfo = {
   queue: string
@@ -21,6 +34,18 @@ export type JobSet = {
   jobsRunning: number
   jobsSucceeded: number
   jobsFailed: number
+
+  runningStats?: DurationStats
+  queuedStats?: DurationStats
+}
+
+export type DurationStats = {
+  shortest: number
+  longest: number
+  average: number
+  median: number
+  q1: number
+  q3: number
 }
 
 export interface GetJobsRequest {
@@ -122,6 +147,7 @@ export default class JobService {
     return jobSetsFromApi.jobSetInfos.map(jobSetToViewModel)
   }
 
+
   async getJobsInQueue(getJobsRequest: GetJobsRequest): Promise<JobRun[]> {
     const jobStatesForApi = getJobsRequest.jobStates.map(getJobStateForApi)
     const jobSetsForApi = getJobsRequest.jobSets.map(escapeBackslashes)
@@ -164,7 +190,6 @@ export default class JobService {
           result.cancelledJobs.push(job)
         }
       } catch (e) {
-        console.log("HIT")
         console.error(e)
         result.failedJobCancellations.push({ job: job, error: e.toString() })
       }
@@ -217,36 +242,52 @@ function jobSetToViewModel(jobSet: LookoutJobSetInfo): JobSet {
     jobsRunning: jobSet.jobsRunning ?? 0,
     jobsSucceeded: jobSet.jobsSucceeded ?? 0,
     jobsFailed: jobSet.jobsFailed ?? 0,
+    runningStats: durationStatsToViewModel(jobSet.runningStats),
+    queuedStats: durationStatsToViewModel(jobSet.queuedStats),
+  }
+}
+
+function durationStatsToViewModel(durationStats?: LookoutDurationStats): DurationStats | undefined {
+  if (!(
+    durationStats &&
+    durationStats.shortest &&
+    durationStats.longest &&
+    durationStats.average &&
+    durationStats.median &&
+    durationStats.q1 &&
+    durationStats.q3
+  )) {
+    return undefined
+  }
+
+  return {
+    shortest: getDurationSeconds(durationStats.shortest),
+    longest: getDurationSeconds(durationStats.longest),
+    average: getDurationSeconds(durationStats.average),
+    median: getDurationSeconds(durationStats.median),
+    q1: getDurationSeconds(durationStats.q1),
+    q3: getDurationSeconds(durationStats.q3),
   }
 }
 
 function getDurationString(durationFromApi: any): string {
-  durationFromApi = durationFromApi as { seconds: number }
-  const totalSeconds = durationFromApi.seconds
-  const days = Math.floor(totalSeconds / (24 * 3600))
-  const hours = Math.floor(totalSeconds / 3600) % 24
-  const minutes = Math.floor((totalSeconds % 3600) / 60)
-  const seconds = totalSeconds % 60
+  const totalSeconds = getDurationSeconds(durationFromApi)
+  return secondsToDurationString(totalSeconds)
+}
 
-  const segments: string[] = []
+function getDurationSeconds(durationFromApi: any): number {
+  durationFromApi = durationFromApi as DurationFromApi
+  let totalSeconds = 0
 
-  if (days > 0) {
-    segments.push(`${days}d`)
-  }
-  if (hours > 0) {
-    segments.push(`${hours}h`)
-  }
-  if (minutes > 0) {
-    segments.push(`${minutes}m`)
-  }
-  if (seconds > 0) {
-    segments.push(`${seconds}s`)
-  }
-  if (segments.length === 0) {
-    return "Just now"
+  if (durationFromApi.seconds) {
+    totalSeconds += durationFromApi.seconds
   }
 
-  return segments.join(" ")
+  if (durationFromApi.nanos) {
+    totalSeconds += durationFromApi.nanos / 1e9
+  }
+
+  return totalSeconds
 }
 
 function jobInfoToJobRunViewModel(jobInfo: LookoutJobInfo): JobRun[] {

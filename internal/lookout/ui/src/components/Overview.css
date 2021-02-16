@@ -1,8 +1,15 @@
 .overview {
+  width: 100%;
+  flex: 1 0 auto;
   margin-top: 1em;
+  display: flex !important;
+  flex-direction: column;
+  align-items: center;
 }
 
 .overview-header {
+  width: 100%;
+  flex: 0 1 auto;
   display: flex;
   flex-direction: row;
   justify-content: space-between;
@@ -23,6 +30,11 @@
 .details-button-cell {
   max-width: 4em;
   padding: 0;
+}
+
+.overview-table {
+  width: 100%;
+  flex: 1 0 auto;
 }
 
 .link {
