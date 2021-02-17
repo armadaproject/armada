@@ -61,7 +61,6 @@ func (r *SQLJobRepository) queryJobs(ctx context.Context, opts *lookout.GetJobsR
 func (r *SQLJobRepository) createJobsDataset(opts *lookout.GetJobsRequest) *goqu.SelectDataset {
 	subDs := r.goquDb.
 		From(jobTable).
-		LeftJoin(jobRunTable, goqu.On(job_jobId.Eq(jobRun_jobId))).
 		Select(job_jobId).
 		Where(goqu.And(createWhereFilters(opts)...)).
 		Order(createJobOrdering(opts.NewestFirst)).
@@ -108,7 +107,9 @@ func createWhereFilters(opts *lookout.GetJobsRequest) []goqu.Expression {
 
 	filters = append(filters, goqu.Or(createJobSetFilters(opts.JobSetIds)...))
 
-	filters = append(filters, goqu.Or(createJobStateFilters(opts.JobStates)...))
+	if len(opts.JobStates) > 0 {
+		filters = append(filters, createJobStateFilter(opts.JobStates))
+	}
 
 	return filters
 }
@@ -122,22 +123,12 @@ func createJobSetFilters(jobSetIds []string) []goqu.Expression {
 	return filters
 }
 
-func createJobStateFilters(jobStates []string) []goqu.Expression {
-	if len(jobStates) == 0 {
-		// If all states are to be included, include all scheduled job runs,
-		// or any failed runs
-		return []goqu.Expression{
-			jobRun_unableToSchedule.IsNull(),
-			goqu.And(jobRun_unableToSchedule.IsNotNull(), jobRun_succeeded.IsFalse()),
-		}
+func createJobStateFilter(jobStates []string) goqu.Expression {
+	stateInts := make([]interface{}, len(jobStates))
+	for i, state := range jobStates {
+		stateInts[i] = JobStateToIntMap[JobState(state)]
 	}
-
-	filters := make([]goqu.Expression, 0)
-	for _, state := range jobStates {
-		filter := goqu.And(FiltersForState[JobState(state)]...)
-		filters = append(filters, filter)
-	}
-	return filters
+	return job_state.In(stateInts...)
 }
 
 func createJobOrdering(newestFirst bool) exp.OrderedExpression {

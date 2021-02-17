@@ -2,12 +2,13 @@ package repository
 
 import (
 	"database/sql"
-	"fmt"
 	"strings"
 	"time"
 
 	"github.com/doug-martin/goqu/v9"
 	"github.com/lib/pq"
+
+	"github.com/G-Research/armada/internal/common/util"
 )
 
 type Clock interface {
@@ -18,46 +19,35 @@ type DefaultClock struct{}
 
 func (c *DefaultClock) Now() time.Time { return time.Now() }
 
-func insert(db *goqu.Database, table string, fields []string, values []interface{}) (sql.Result, error) {
-	insertSql := createInsertQuery(table, fields, values)
-
-	return db.Exec(insertSql, values...)
-}
-
-func upsert(db *goqu.Database, table string, key string, fields []string, values []interface{}) (sql.Result, error) {
-	return upsertCombinedKey(db, table, []string{key}, fields, values)
-}
-
-func upsertCombinedKey(db *goqu.Database, table string, key []string, fields []string, values []interface{}) (sql.Result, error) {
-	insertSql := createInsertQuery(table, append(key, fields...), values)
-	insertSql += " ON CONFLICT (" + strings.Join(key, ",") + ") DO UPDATE SET "
-
-	for i, f := range fields {
-		if i != 0 {
-			insertSql += ","
-		}
-		insertSql += f + " = EXCLUDED." + f
+func upsert(db *goqu.Database, table interface{}, keys []string, records []goqu.Record) error {
+	if len(records) == 0 {
+		return nil
 	}
 
-	return db.Exec(insertSql, values...)
+	// TODO: should check for the union of fields among all records
+	aRecord := records[0]
+	onConflictDefaults := goqu.Record{}
+	for field := range aRecord {
+		if util.ContainsString(keys, field) {
+			continue
+		}
+		onConflictDefaults[field] = goqu.L("EXCLUDED." + field)
+	}
+
+	ds := db.Insert(table).
+		Rows(recordsToInterfaces(records)...).
+		OnConflict(goqu.DoUpdate(strings.Join(keys, ", "), onConflictDefaults))
+
+	_, err := ds.Prepared(true).Executor().Exec()
+	return err
 }
 
-func createInsertQuery(table string, fields []string, values []interface{}) string {
-	insertSql := "INSERT INTO " + table + "(" + strings.Join(fields, ",") + ") VALUES "
-	for i := 0; i < len(values); i += len(fields) {
-		if i != 0 {
-			insertSql += ","
-		}
-		insertSql += "("
-		for k, _ := range fields {
-			if k != 0 {
-				insertSql += ","
-			}
-			insertSql += fmt.Sprintf("$%d", i+k+1)
-		}
-		insertSql += ")"
+func recordsToInterfaces(records []goqu.Record) []interface{} {
+	out := make([]interface{}, len(records))
+	for i, record := range records {
+		out[i] = record
 	}
-	return insertSql
+	return out
 }
 
 func ParseNullString(nullString sql.NullString) string {

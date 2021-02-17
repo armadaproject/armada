@@ -36,16 +36,59 @@ func (r *SQLJobStore) RecordJob(job *api.Job) error {
 	if err != nil {
 		return err
 	}
-	_, err = upsert(r.db, "job",
-		"job_id", []string{"queue", "owner", "jobset", "priority", "submitted", "job"},
-		[]interface{}{job.Id, job.Queue, job.Owner, job.JobSetId, job.Priority, job.Created, jobJson})
+
+	ds := r.db.Insert(jobTable).
+		Rows(goqu.Record{
+			"job_id":     job.Id,
+			"queue":      job.Queue,
+			"owner":      job.Owner,
+			"jobset":     job.JobSetId,
+			"priority":   job.Priority,
+			"submitted":  job.Created,
+			"job":        jobJson,
+			"state":      JobStateToIntMap[JobQueued],
+			"last_event": job.Created,
+		}).
+		OnConflict(goqu.DoUpdate("job_id", goqu.Record{
+			"queue":     job.Queue,
+			"owner":     job.Owner,
+			"jobset":    job.JobSetId,
+			"priority":  job.Priority,
+			"submitted": job.Created,
+			"job":       jobJson,
+			"state": goqu.Case().
+				When(job_lastEvent.Lte(job.Created), JobStateToIntMap[JobQueued]).
+				Else(job_state),
+			"last_event": goqu.Case().
+				When(job_lastEvent.Lte(job.Created), job.Created).
+				Else(job_lastEvent),
+		}))
+
+	_, err = ds.Prepared(true).Executor().Exec()
 	return err
 }
 
 func (r *SQLJobStore) MarkCancelled(event *api.JobCancelledEvent) error {
-	_, err := upsert(r.db, "job",
-		"job_id", []string{"queue", "jobset", "cancelled"},
-		[]interface{}{event.JobId, event.Queue, event.JobSetId, event.Created})
+	ds := r.db.Insert(jobTable).
+		Rows(goqu.Record{
+			"job_id":     event.JobId,
+			"queue":      event.Queue,
+			"jobset":     event.JobSetId,
+			"cancelled":  event.Created,
+			"state":      JobStateToIntMap[JobCancelled],
+			"last_event": event.Created,
+		}).
+		OnConflict(goqu.DoUpdate("job_id", goqu.Record{
+			"queue":     event.Queue,
+			"jobset":    event.JobSetId,
+			"cancelled": event.Created,
+			"state":     JobStateToIntMap[JobCancelled],
+			"last_event": goqu.Case().
+				When(job_lastEvent.Lte(event.Created), event.Created).
+				Else(job_lastEvent),
+		}))
+
+	_, err := ds.Prepared(true).Executor().Exec()
 	return err
 }
 
@@ -54,34 +97,128 @@ func (r *SQLJobStore) RecordJobPriorityChange(event *api.JobReprioritizedEvent) 
 }
 
 func (r *SQLJobStore) RecordJobPending(event *api.JobPendingEvent) error {
-	fields := []string{"created"}
-	values := []interface{}{event.Created}
-	return r.updateJobRun(event, event.KubernetesId, fields, values)
+	jobDs := r.db.Insert(jobTable).
+		Rows(goqu.Record{
+			"job_id":     event.JobId,
+			"queue":      event.Queue,
+			"jobset":     event.JobSetId,
+			"state":      JobStateToIntMap[JobPending],
+			"last_event": event.Created,
+		}).
+		OnConflict(goqu.DoUpdate("job_id", goqu.Record{
+			"queue":  event.Queue,
+			"jobset": event.JobSetId,
+			"state": goqu.Case().
+				When(job_lastEvent.Lte(event.Created), JobStateToIntMap[JobPending]).
+				Else(job_state),
+			"last_event": goqu.Case().
+				When(job_lastEvent.Lte(event.Created), event.Created).
+				Else(job_lastEvent),
+		}))
+
+	if _, err := jobDs.Prepared(true).Executor().Exec(); err != nil {
+		return err
+	}
+
+	return r.upsertJobRun(goqu.Record{
+		"run_id":     event.GetKubernetesId(),
+		"job_id":     event.GetJobId(),
+		"cluster":    event.GetClusterId(),
+		"pod_number": event.GetPodNumber(),
+		"created":    event.GetCreated(),
+	})
 }
 
 func (r *SQLJobStore) RecordJobRunning(event *api.JobRunningEvent) error {
-	fields := []string{"started"}
-	values := []interface{}{event.Created}
-	if event.NodeName != "" {
-		fields = append(fields, "node")
-		values = append(values, event.NodeName)
+	jobDs := r.db.Insert(jobTable).
+		Rows(goqu.Record{
+			"job_id":     event.JobId,
+			"queue":      event.Queue,
+			"jobset":     event.JobSetId,
+			"state":      JobStateToIntMap[JobRunning],
+			"last_event": event.Created,
+		}).
+		OnConflict(goqu.DoUpdate("job_id", goqu.Record{
+			"state": goqu.Case().
+				When(job_lastEvent.Lte(event.Created), JobStateToIntMap[JobRunning]).
+				Else(job_state),
+			"last_event": goqu.Case().
+				When(job_lastEvent.Lte(event.Created), event.Created).
+				Else(job_lastEvent),
+		}))
+
+	if _, err := jobDs.Prepared(true).Executor().Exec(); err != nil {
+		return err
 	}
-	return r.updateJobRun(event, event.KubernetesId, fields, values)
+
+	jobRunRecord := goqu.Record{
+		"run_id":     event.GetKubernetesId(),
+		"job_id":     event.GetJobId(),
+		"cluster":    event.GetClusterId(),
+		"pod_number": event.GetPodNumber(),
+		"started":    event.GetCreated(),
+	}
+	if event.GetNodeName() != "" {
+		jobRunRecord["node"] = event.GetNodeName()
+	}
+	return r.upsertJobRun(jobRunRecord)
 }
 
 func (r *SQLJobStore) RecordJobSucceeded(event *api.JobSucceededEvent) error {
-	fields := []string{"finished", "succeeded"}
-	values := []interface{}{event.Created, true}
-	if event.NodeName != "" {
-		fields = append(fields, "node")
-		values = append(values, event.NodeName)
+	ds := r.db.Insert(jobTable).
+		Rows(goqu.Record{
+			"job_id":     event.JobId,
+			"queue":      event.Queue,
+			"jobset":     event.JobSetId,
+			"state":      JobStateToIntMap[JobSucceeded],
+			"last_event": event.Created,
+		}).
+		OnConflict(goqu.DoUpdate("job_id", goqu.Record{
+			"state": goqu.Case().
+				When(job_state.Neq(JobStateToIntMap[JobFailed]), JobStateToIntMap[JobSucceeded]).
+				Else(job_state),
+			"last_event": goqu.Case().
+				When(job_lastEvent.Lte(event.Created), event.Created).
+				Else(job_lastEvent),
+		}))
+
+	if _, err := ds.Prepared(true).Executor().Exec(); err != nil {
+		return err
 	}
-	return r.updateJobRun(event, event.KubernetesId, fields, values)
+
+	jobRunRecord := goqu.Record{
+		"run_id":     event.GetKubernetesId(),
+		"job_id":     event.GetJobId(),
+		"cluster":    event.GetClusterId(),
+		"pod_number": event.GetPodNumber(),
+		"finished":   event.GetCreated(),
+		"succeeded":  true,
+	}
+	if event.GetNodeName() != "" {
+		jobRunRecord["node"] = event.GetNodeName()
+	}
+	return r.upsertJobRun(jobRunRecord)
 }
 
 func (r *SQLJobStore) RecordJobFailed(event *api.JobFailedEvent) error {
-	fields := []string{"finished", "succeeded", "error"}
-	values := []interface{}{event.Created, false, fmt.Sprintf("%.2048s", event.Reason)}
+	jobDs := r.db.Insert(jobTable).
+		Rows(goqu.Record{
+			"job_id":     event.JobId,
+			"queue":      event.Queue,
+			"jobset":     event.JobSetId,
+			"state":      JobStateToIntMap[JobFailed],
+			"last_event": event.Created,
+		}).
+		OnConflict(goqu.DoUpdate("job_id", goqu.Record{
+			"state": JobStateToIntMap[JobFailed],
+			"last_event": goqu.Case().
+				When(job_lastEvent.Lte(event.Created), event.Created).
+				Else(job_lastEvent),
+		}))
+
+	if _, err := jobDs.Prepared(true).Executor().Exec(); err != nil {
+		return err
+	}
 
 	// If job fails before a pod is created, we generate a new ULID
 	k8sId := event.KubernetesId
@@ -89,37 +226,55 @@ func (r *SQLJobStore) RecordJobFailed(event *api.JobFailedEvent) error {
 		k8sId = util.NewULID() + "-nopod"
 	}
 
-	if event.NodeName != "" {
-		fields = append(fields, "node")
-		values = append(values, event.NodeName)
+	if err := r.upsertContainers(k8sId, event.ExitCodes); err != nil {
+		return err
 	}
 
-	// TODO update in one call?
-	for name, code := range event.ExitCodes {
-		_, err := upsertCombinedKey(r.db, "job_run_container",
-			[]string{"run_id", "container_name"}, []string{"exit_code"},
-			[]interface{}{k8sId, name, code})
-		if err != nil {
-			return err
-		}
+	jobRunRecord := goqu.Record{
+		"run_id":     k8sId,
+		"job_id":     event.GetJobId(),
+		"cluster":    event.GetClusterId(),
+		"pod_number": event.GetPodNumber(),
+		"finished":   event.GetCreated(),
+		"succeeded":  false,
+		"error":      fmt.Sprintf("%.2048s", event.GetReason()),
 	}
-
-	return r.updateJobRun(event, k8sId, fields, values)
+	if event.GetNodeName() != "" {
+		jobRunRecord["node"] = event.GetNodeName()
+	}
+	return r.upsertJobRun(jobRunRecord)
 }
 
 func (r *SQLJobStore) RecordJobUnableToSchedule(event *api.JobUnableToScheduleEvent) error {
-	fields := []string{"finished", "unable_to_schedule"}
-	values := []interface{}{event.Created, true}
-	if event.NodeName != "" {
-		fields = append(fields, "node")
-		values = append(values, event.NodeName)
+	jobRunRecord := goqu.Record{
+		"run_id":             event.GetKubernetesId(),
+		"job_id":             event.GetJobId(),
+		"cluster":            event.GetClusterId(),
+		"pod_number":         event.GetPodNumber(),
+		"finished":           event.GetCreated(),
+		"unable_to_schedule": true,
 	}
-	return r.updateJobRun(event, event.KubernetesId, fields, values)
+	if event.GetNodeName() != "" {
+		jobRunRecord["node"] = event.GetNodeName()
+	}
+	return r.upsertJobRun(jobRunRecord)
 }
 
-func (r *SQLJobStore) updateJobRun(event api.KubernetesEvent, k8sId string, fields []string, values []interface{}) error {
-	_, err := upsert(r.db, "job_run",
-		"run_id", append([]string{"job_id", "cluster", "pod_number"}, fields...),
-		append([]interface{}{k8sId, event.GetJobId(), event.GetClusterId(), event.GetPodNumber()}, values...))
-	return err
+func (r *SQLJobStore) upsertJobRun(record goqu.Record) error {
+	return upsert(r.db, jobRunTable, []string{"run_id"}, []goqu.Record{record})
+}
+
+func (r *SQLJobStore) upsertContainers(k8sId string, exitCodes map[string]int32) error {
+	containerRecords := make([]goqu.Record, len(exitCodes))
+	i := 0
+	for name, code := range exitCodes {
+		containerRecords[i] = goqu.Record{
+			"run_id":         k8sId,
+			"container_name": name,
+			"exit_code":      code,
+		}
+		i++
+	}
+
+	return upsert(r.db, jobRunContainerTable, []string{"run_id", "container_name"}, containerRecords)
 }
