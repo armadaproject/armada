@@ -24,7 +24,8 @@ func ExposeDataMetrics(
 		queueRepository:          queueRepository,
 		jobRepository:            jobRepository,
 		usageRepository:          usageRepository,
-		schedulingInfoRepository: schedulingInfoRepository}
+		schedulingInfoRepository: schedulingInfoRepository,
+		queuedResources:          map[string]map[string]common.ComputeResourcesFloat{}}
 	prometheus.MustRegister(collector)
 	return collector
 }
@@ -113,14 +114,14 @@ func (c *QueueInfoCollector) RefreshMetrics() {
 				if scheduling.MatchSchedulingRequirementsOnAnyCluster(job, info) {
 					r, exists := resourceUsageByPool[pool]
 					if !exists {
-						r := common.ComputeResources{}
+						r = common.ComputeResources{}
 						resourceUsageByPool[pool] = r
 					}
 					r.Add(jobResources)
 				}
 			}
 		})
-		if e != nil {
+		if err != nil {
 			log.Errorf("Error while getting queue %s resources %s", queue.Name, err)
 		}
 		c.updateQueuedResource(queue.Name, resourceUsageByPool)
