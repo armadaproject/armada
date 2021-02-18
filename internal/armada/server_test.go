@@ -3,6 +3,9 @@ package armada
 import (
 	"context"
 	"log"
+	"net"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -158,9 +161,17 @@ func withRunningServer(action func(client api.SubmitClient, leaseClient api.Aggr
 
 	// cleanup prometheus in case there are registered metrics already present
 	prometheus.DefaultRegisterer = prometheus.NewRegistry()
+
+	// get free port
+	l, _ := net.Listen("tcp", ":0")
+	l.Close()
+	freeAddress := l.Addr().String()
+	parts := strings.Split(freeAddress, ":")
+	port, _ := strconv.Atoi(parts[len(parts)-1])
+
 	shutdown, _ := Serve(&configuration.ArmadaConfig{
 		AnonymousAuth: true,
-		GrpcPort:      50052,
+		GrpcPort:      uint16(port),
 		Redis: redis.UniversalOptions{
 			Addrs: []string{minidb.Addr()},
 			DB:    0,
@@ -184,7 +195,7 @@ func withRunningServer(action func(client api.SubmitClient, leaseClient api.Aggr
 	})
 	defer shutdown()
 
-	conn, err := grpc.Dial("localhost:50052", grpc.WithInsecure(), grpc.WithDefaultCallOptions(grpc.WaitForReady(true)))
+	conn, err := grpc.Dial(freeAddress, grpc.WithInsecure(), grpc.WithDefaultCallOptions(grpc.WaitForReady(true)))
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
 	}
