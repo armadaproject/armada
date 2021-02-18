@@ -19,6 +19,7 @@ import (
 
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/internal/common/util"
+	"github.com/G-Research/armada/internal/executor/configuration"
 	"github.com/G-Research/armada/internal/executor/context"
 )
 
@@ -43,6 +44,7 @@ var DefaultNodeSpec = []*NodeSpec{
 
 type FakeClusterContext struct {
 	clusterId             string
+	pool                  string
 	handlers              []*cache.ResourceEventHandlerFuncs
 	rwLock                sync.RWMutex
 	pods                  map[string]*v1.Pod
@@ -50,9 +52,10 @@ type FakeClusterContext struct {
 	nodeAvailableResource map[string]common.ComputeResources
 }
 
-func NewFakeClusterContext(clusterId string, nodeSpecs []*NodeSpec) context.ClusterContext {
+func NewFakeClusterContext(appConfig configuration.ApplicationConfiguration, nodeSpecs []*NodeSpec) context.ClusterContext {
 	c := &FakeClusterContext{
-		clusterId:             clusterId,
+		clusterId:             appConfig.ClusterId,
+		pool:                  appConfig.Pool,
 		pods:                  map[string]*v1.Pod{},
 		nodeAvailableResource: map[string]common.ComputeResources{},
 	}
@@ -224,6 +227,10 @@ func (c *FakeClusterContext) DeletePods(pods []*v1.Pod) {
 
 func (c *FakeClusterContext) GetClusterId() string {
 	return c.clusterId
+}
+
+func (c FakeClusterContext) GetClusterPool() string {
+	return c.pool
 }
 
 func (c *FakeClusterContext) addNodes(specs []*NodeSpec) {

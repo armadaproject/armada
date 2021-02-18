@@ -70,6 +70,7 @@ func (jobLeaseService *JobLeaseService) RequestJobLeases(availableResource *comm
 
 	leaseRequest := api.LeaseRequest{
 		ClusterId:           jobLeaseService.clusterContext.GetClusterId(),
+		Pool:                jobLeaseService.clusterContext.GetClusterPool(),
 		Resources:           *availableResource,
 		ClusterLeasedReport: clusterLeasedReport,
 		Nodes:               nodes,

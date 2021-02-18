@@ -10,6 +10,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/G-Research/armada/internal/common"
+	"github.com/G-Research/armada/internal/executor/configuration"
 	"github.com/G-Research/armada/internal/executor/domain"
 	fakeContext "github.com/G-Research/armada/internal/executor/fake/context"
 	"github.com/G-Research/armada/pkg/api"
@@ -22,7 +23,7 @@ var testPodResources = common.ComputeResources{
 
 func TestUtilisationEventReporter_ReportUtilisationEvents(t *testing.T) {
 	reportingPeriod := 100 * time.Millisecond
-	clusterContext := fakeContext.NewFakeClusterContext("test", nil)
+	clusterContext := fakeContext.NewFakeClusterContext(configuration.ApplicationConfiguration{ClusterId: "test", Pool: "pool"}, nil)
 	fakeEventReporter := &FakeEventReporter{}
 	reporter := NewUtilisationEventReporter(clusterContext, &fakePodUtilisation{}, fakeEventReporter, reportingPeriod)
 

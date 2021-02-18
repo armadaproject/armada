@@ -28,6 +28,7 @@ message Job {
 
 message LeaseRequest {
     string ClusterId = 1;
+    string Pool = 8;
     map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> resources = 2 [(gogoproto.nullable) = false];
     ClusterLeasedReport cluster_leased_report  = 4 [(gogoproto.nullable) = false];
     map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> minimum_job_size = 6 [(gogoproto.nullable) = false];
@@ -51,6 +52,7 @@ message NodeType {
 // Used to store last info in Redis
 message ClusterSchedulingInfoReport {
     string cluster_id = 1;
+    string Pool = 7;
     google.protobuf.Timestamp report_time = 2 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
     repeated NodeType node_types = 5;
     map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> minimum_job_size = 6 [(gogoproto.nullable) = false];
