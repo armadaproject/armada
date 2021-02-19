@@ -266,17 +266,17 @@ func TestGetJobSetInfos_GetRunningStats(t *testing.T) {
 				Pending(cluster, otherK8sId).
 				RunningAtTime(cluster, otherK8sId, node, itTime)
 
-			//NewJobSimulator(t, jobStore).
-			//	CreateJobAtTime(queue, someTime)
-			//
-			//NewJobSimulator(t, jobStore).
-			//	CreateJobAtTime(queue, someTime).
-			//	RunningAtTime(cluster, util.NewULID(), node, someTime).
-			//	FailedAtTime(cluster, util.NewULID(), node, "an error", someTime)
-			//
-			//NewJobSimulator(t, jobStore).
-			//	CreateJobAtTime(queue, someTime).
-			//	CancelledAtTime(someTime)
+			NewJobSimulator(t, jobStore).
+				CreateJob(queue)
+
+			NewJobSimulator(t, jobStore).
+				CreateJob(queue).
+				Running(cluster, util.NewULID(), node).
+				Failed(cluster, util.NewULID(), node, "an error")
+
+			NewJobSimulator(t, jobStore).
+				CreateJob(queue).
+				Cancelled()
 		}
 
 		// All the same, except for last
@@ -290,11 +290,11 @@ func TestGetJobSetInfos_GetRunningStats(t *testing.T) {
 				RunningAtTime(cluster, otherK8sId, node, someTime)
 
 			NewJobSimulator(t, jobStore).
-				CreateJobWithOpts(queue, util.NewULID(), "job-set-2", someTime)
+				CreateJobWithJobSet(queue, "job-set-2")
 
 			NewJobSimulator(t, jobStore).
-				CreateJobWithOpts(queue, util.NewULID(), "job-set-2", someTime).
-				CancelledAtTime(someTime)
+				CreateJobWithJobSet(queue, "job-set-2").
+				Cancelled()
 		}
 
 		otherTime := someTime.Add(10 * time.Minute)
@@ -342,24 +342,24 @@ func TestGetJobSetInfos_GetQueuedStats(t *testing.T) {
 			otherK8sId := util.NewULID()
 			itTime := someTime.Add(time.Duration(i) * time.Minute)
 			NewJobSimulator(t, jobStore).
-				CreateJobAtTime(queue, someTime).
-				PendingAtTime(cluster, k8sId, someTime).
-				PendingAtTime(cluster, otherK8sId, someTime).
-				RunningAtTime(cluster, otherK8sId, node, someTime)
+				CreateJob(queue).
+				Pending(cluster, k8sId).
+				Pending(cluster, otherK8sId).
+				Running(cluster, otherK8sId, node)
 
 			NewJobSimulator(t, jobStore).
 				CreateJobAtTime(queue, itTime)
 
 			NewJobSimulator(t, jobStore).
-				CreateJobAtTime(queue, someTime).
-				CancelledAtTime(someTime)
+				CreateJob(queue).
+				Cancelled()
 		}
 
 		for i := 0; i < 10; i++ {
 			k8sId := util.NewULID()
 			otherK8sId := util.NewULID()
 			NewJobSimulator(t, jobStore).
-				CreateJobWithOpts(queue, util.NewULID(), "job-set-2", someTime).
+				CreateJobWithJobSet(queue, "job-set-2").
 				UnableToSchedule(cluster, k8sId, node).
 				Pending(cluster, otherK8sId).
 				Running(cluster, otherK8sId, node)
@@ -368,7 +368,7 @@ func TestGetJobSetInfos_GetQueuedStats(t *testing.T) {
 				CreateJobWithOpts(queue, util.NewULID(), "job-set-2", someTime)
 
 			NewJobSimulator(t, jobStore).
-				CreateJobWithOpts(queue, util.NewULID(), "job-set-2", someTime).
+				CreateJobWithJobSet(queue, "job-set-2").
 				Cancelled()
 		}
 
