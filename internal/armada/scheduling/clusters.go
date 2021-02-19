@@ -33,8 +33,8 @@ func FilterPoolClusters(pool string, reports map[string]*api.ClusterUsageReport)
 func GroupByPool(reports map[string]*api.ClusterUsageReport) map[string]map[string]*api.ClusterUsageReport {
 	result := map[string]map[string]*api.ClusterUsageReport{}
 	for id, report := range reports {
-		poolReports := result[report.Pool]
-		if poolReports == nil {
+		poolReports, ok := result[report.Pool]
+		if !ok {
 			poolReports = map[string]*api.ClusterUsageReport{}
 			result[report.Pool] = poolReports
 		}
@@ -68,8 +68,8 @@ func FilterActiveClusterSchedulingInfoReports(reports map[string]*api.ClusterSch
 func GroupSchedulingInfoByPool(reports map[string]*api.ClusterSchedulingInfoReport) map[string]map[string]*api.ClusterSchedulingInfoReport {
 	result := map[string]map[string]*api.ClusterSchedulingInfoReport{}
 	for id, report := range reports {
-		poolReports := result[report.Pool]
-		if poolReports == nil {
+		poolReports, ok := result[report.Pool]
+		if !ok {
 			poolReports = map[string]*api.ClusterSchedulingInfoReport{}
 			result[report.Pool] = poolReports
 		}
