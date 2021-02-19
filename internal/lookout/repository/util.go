@@ -28,10 +28,9 @@ func upsert(db *goqu.Database, table interface{}, keys []string, records []goqu.
 	aRecord := records[0]
 	onConflictDefaults := goqu.Record{}
 	for field := range aRecord {
-		if util.ContainsString(keys, field) {
-			continue
+		if !util.ContainsString(keys, field) {
+			onConflictDefaults[field] = goqu.L("EXCLUDED." + field)
 		}
-		onConflictDefaults[field] = goqu.L("EXCLUDED." + field)
 	}
 
 	ds := db.Insert(table).
