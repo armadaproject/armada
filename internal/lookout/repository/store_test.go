@@ -6,149 +6,93 @@ import (
 	"testing"
 	"time"
 
-	"github.com/doug-martin/goqu/v9"
-	"github.com/stretchr/testify/assert"
-	v1 "k8s.io/api/core/v1"
-
 	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/lookout/repository/schema"
 	"github.com/G-Research/armada/pkg/api"
-	"github.com/G-Research/armada/pkg/api/lookout"
+	"github.com/doug-martin/goqu/v9"
+	"github.com/stretchr/testify/assert"
 )
 
-func Test_RecordEvents(t *testing.T) {
-	withDatabase(t, func(db *goqu.Database) {
-		jobRepo := NewSQLJobStore(db)
-
-		job := &api.Job{
-			Id:          util.NewULID(),
-			JobSetId:    "job-set",
-			Queue:       "queue",
-			Namespace:   "nameSpace",
-			Labels:      nil,
-			Annotations: nil,
-			Owner:       "user",
-			Priority:    0,
-			PodSpec:     &v1.PodSpec{},
-			Created:     time.Now(),
-		}
-
-		k8sId := util.NewULID()
-		cluster := "cluster"
-		node := "node"
-
-		err := jobRepo.RecordJob(job)
-		assert.NoError(t, err)
-
-		err = jobRepo.RecordJobPending(&api.JobPendingEvent{
-			JobId:        job.Id,
-			JobSetId:     job.JobSetId,
-			Queue:        job.Queue,
-			Created:      time.Now(),
-			ClusterId:    cluster,
-			KubernetesId: k8sId,
-		})
-		assert.NoError(t, err)
-
-		err = jobRepo.RecordJobRunning(&api.JobRunningEvent{
-			JobId:        job.Id,
-			JobSetId:     job.JobSetId,
-			Queue:        job.Queue,
-			Created:      time.Now(),
-			ClusterId:    cluster,
-			KubernetesId: k8sId,
-			NodeName:     node,
-		})
-		assert.NoError(t, err)
-
-		err = jobRepo.RecordJobFailed(&api.JobFailedEvent{
-			JobId:        job.Id,
-			JobSetId:     job.JobSetId,
-			Queue:        job.Queue,
-			Created:      time.Now(),
-			ClusterId:    cluster,
-			Reason:       "42",
-			ExitCodes:    map[string]int32{"job": -1},
-			KubernetesId: k8sId,
-			NodeName:     node,
-		})
-		assert.NoError(t, err)
-
-		err = jobRepo.MarkCancelled(&api.JobCancelledEvent{
-			JobId:    job.Id,
-			JobSetId: job.JobSetId,
-			Queue:    job.Queue,
-			Created:  time.Now(),
-		})
-		assert.NoError(t, err)
-
-		assert.Equal(t, 1, selectInt(t, db,
-			"SELECT count(*) FROM job"))
-		assert.Equal(t, 1, selectInt(t, db,
-			"SELECT count(*) FROM job_run WHERE created IS NOT NULL AND started IS NOT NULL AND finished IS NOT NULL"))
-		assert.Equal(t, 1, selectInt(t, db,
-			"SELECT count(*) FROM job_run_container"))
-		assert.Equal(t, JobStateToIntMap[JobCancelled], selectInt(t, db,
-			"SELECT state FROM job"))
-	})
-}
-
-func Test_RecordFinishedWithoutExitCodes(t *testing.T) {
+func Test_RecordRunEvents(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db)
 
-		err := jobStore.RecordJobFailed(&api.JobFailedEvent{
-			JobId:        "job-1",
-			JobSetId:     "job-set",
-			Queue:        "queue",
+		jobId := util.NewULID()
+
+		err := jobStore.RecordJobPending(&api.JobPendingEvent{
+			JobId:        jobId,
+			Queue:        queue,
 			Created:      time.Now(),
-			ClusterId:    cluster,
-			Reason:       "42",
-			ExitCodes:    nil,
-			KubernetesId: "a1",
-			NodeName:     node,
+			KubernetesId: k8sId1,
 		})
 		assert.NoError(t, err)
 
-		assert.Equal(t, 0, selectInt(t, db,
-			"SELECT COUNT(*) FROM job_run_container"))
-	})
-}
-
-func Test_RecordMultipleContainers(t *testing.T) {
-	withDatabase(t, func(db *goqu.Database) {
-		jobStore := NewSQLJobStore(db)
-
-		err := jobStore.RecordJobFailed(&api.JobFailedEvent{
-			JobId:        "job-1",
-			JobSetId:     "job-set",
-			Queue:        "queue",
+		err = jobStore.RecordJobRunning(&api.JobRunningEvent{
+			JobId:        jobId,
+			Queue:        queue,
 			Created:      time.Now(),
-			ClusterId:    cluster,
-			Reason:       "42",
-			ExitCodes:    map[string]int32{"container-1": -1},
-			KubernetesId: "a1",
-			NodeName:     node,
+			KubernetesId: k8sId1,
 		})
 		assert.NoError(t, err)
 
 		err = jobStore.RecordJobFailed(&api.JobFailedEvent{
-			JobId:        "job-1",
-			JobSetId:     "job-set",
-			Queue:        "queue",
+			JobId:        jobId,
+			Queue:        queue,
 			Created:      time.Now(),
-			ClusterId:    cluster,
-			Reason:       "42",
-			ExitCodes:    map[string]int32{"container-1": 2, "container-2": 3},
-			KubernetesId: "a1",
-			NodeName:     node,
+			KubernetesId: k8sId1,
 		})
 		assert.NoError(t, err)
 
-		assert.Equal(t, 3, selectInt(t, db,
-			"SELECT exit_code FROM job_run_container WHERE run_id = 'a1' AND container_name = 'container-2'"))
-		assert.Equal(t, 2, selectInt(t, db,
-			"SELECT exit_code FROM job_run_container WHERE run_id = 'a1' AND container_name = 'container-1'"))
+		assert.Equal(t, 1, selectInt(t, db,
+			"SELECT count(*) FROM job_run WHERE created IS NOT NULL AND started IS NOT NULL AND finished IS NOT NULL"))
+	})
+}
+
+func Test_RunContainers(t *testing.T) {
+	t.Run("no exit codes", func(t *testing.T) {
+		withDatabase(t, func(db *goqu.Database) {
+			jobStore := NewSQLJobStore(db)
+
+			err := jobStore.RecordJobFailed(&api.JobFailedEvent{
+				JobId:        "job-1",
+				Queue:        queue,
+				Created:      time.Now(),
+				KubernetesId: "a1",
+			})
+			assert.NoError(t, err)
+
+			assert.Equal(t, 0, selectInt(t, db,
+				"SELECT COUNT(*) FROM job_run_container"))
+		})
+	})
+
+	t.Run("multiple containers", func(t *testing.T) {
+		withDatabase(t, func(db *goqu.Database) {
+			jobStore := NewSQLJobStore(db)
+
+			err := jobStore.RecordJobFailed(&api.JobFailedEvent{
+				JobId:        "job-1",
+				Queue:        queue,
+				Created:      time.Now(),
+				ExitCodes:    map[string]int32{"container-1": -1},
+				KubernetesId: "a1",
+			})
+			assert.NoError(t, err)
+
+			err = jobStore.RecordJobFailed(&api.JobFailedEvent{
+				JobId:        "job-1",
+				Queue:        queue,
+				Created:      time.Now(),
+				ExitCodes:    map[string]int32{"container-1": 2, "container-2": 3},
+				KubernetesId: "a1",
+			})
+			assert.NoError(t, err)
+
+			assert.Equal(t, 3, selectInt(t, db,
+				"SELECT exit_code FROM job_run_container WHERE run_id = 'a1' AND container_name = 'container-2'"))
+			assert.Equal(t, 2, selectInt(t, db,
+				"SELECT exit_code FROM job_run_container WHERE run_id = 'a1' AND container_name = 'container-1'"))
+		})
 	})
 }
 
@@ -158,53 +102,43 @@ func Test_RecordNullNodeIfEmptyString(t *testing.T) {
 
 		err := jobStore.RecordJobRunning(&api.JobRunningEvent{
 			JobId:        "job-1",
-			JobSetId:     "job-set",
 			Queue:        queue,
 			Created:      time.Now(),
-			ClusterId:    cluster,
 			KubernetesId: "a1",
 		})
 		assert.NoError(t, err)
 
 		err = jobStore.RecordJobFailed(&api.JobFailedEvent{
 			JobId:        "job-1",
-			JobSetId:     "job-set",
 			Queue:        queue,
 			Created:      time.Now(),
-			ClusterId:    cluster,
-			Reason:       "42",
-			ExitCodes:    map[string]int32{"job": -1},
 			KubernetesId: "a2",
 		})
 		assert.NoError(t, err)
 
 		err = jobStore.RecordJobSucceeded(&api.JobSucceededEvent{
 			JobId:        "job-1",
-			JobSetId:     "job-set",
 			Queue:        queue,
 			Created:      time.Now(),
-			ClusterId:    cluster,
 			KubernetesId: "a3",
 		})
 		assert.NoError(t, err)
 
 		err = jobStore.RecordJobUnableToSchedule(&api.JobUnableToScheduleEvent{
 			JobId:        "job-1",
-			JobSetId:     "job-set",
 			Queue:        queue,
 			Created:      time.Now(),
-			ClusterId:    cluster,
 			KubernetesId: "a4",
 		})
 		assert.NoError(t, err)
 
-		assert.Equal(t, false, selectNullString(t, db,
+		assert.False(t, selectNullString(t, db,
 			"SELECT node FROM job_run WHERE run_id = 'a1'").Valid)
-		assert.Equal(t, false, selectNullString(t, db,
+		assert.False(t, selectNullString(t, db,
 			"SELECT node FROM job_run WHERE run_id = 'a2'").Valid)
-		assert.Equal(t, false, selectNullString(t, db,
+		assert.False(t, selectNullString(t, db,
 			"SELECT node FROM job_run WHERE run_id = 'a3'").Valid)
-		assert.Equal(t, false, selectNullString(t, db,
+		assert.False(t, selectNullString(t, db,
 			"SELECT node FROM job_run WHERE run_id = 'a4'").Valid)
 	})
 }
@@ -213,34 +147,13 @@ func Test_RecordLongError(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
 		jobRepo := NewSQLJobStore(db)
 
-		job := &api.Job{
-			Id:          util.NewULID(),
-			JobSetId:    "job-set",
-			Queue:       "queue",
-			Namespace:   "nameSpace",
-			Labels:      nil,
-			Annotations: nil,
-			Owner:       "user",
-			Priority:    0,
-			PodSpec:     &v1.PodSpec{},
-			Created:     time.Now(),
-		}
-
-		err := jobRepo.RecordJob(job)
-		assert.NoError(t, err)
-
-		err = jobRepo.RecordJobFailed(&api.JobFailedEvent{
-			JobId:        job.Id,
-			JobSetId:     job.JobSetId,
-			Queue:        job.Queue,
+		err := jobRepo.RecordJobFailed(&api.JobFailedEvent{
+			JobId:        "job-1",
+			Queue:        queue,
 			Created:      time.Now(),
-			ClusterId:    cluster,
 			Reason:       strings.Repeat("long error test ", 1000),
-			ExitCodes:    nil,
 			KubernetesId: util.NewULID(),
-			NodeName:     "node",
 		})
-
 		assert.NoError(t, err)
 	})
 }
@@ -248,73 +161,27 @@ func Test_RecordLongError(t *testing.T) {
 func Test_EmptyRunId(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db)
-		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
 
-		job_1 := &api.Job{
-			Id:          util.NewULID(),
-			JobSetId:    "job-set",
-			Queue:       "queue",
-			Namespace:   "nameSpace",
-			Labels:      nil,
-			Annotations: nil,
-			Owner:       "user",
-			Priority:    0,
-			PodSpec:     &v1.PodSpec{},
-			Created:     time.Now(),
-		}
-		err := jobStore.RecordJob(job_1)
-		assert.NoError(t, err)
-
-		err = jobStore.RecordJobFailed(&api.JobFailedEvent{
-			JobId:        job_1.Id,
-			JobSetId:     job_1.JobSetId,
-			Queue:        job_1.Queue,
+		err := jobStore.RecordJobFailed(&api.JobFailedEvent{
+			JobId:        "job-1",
+			Queue:        queue,
 			Created:      time.Now(),
-			ClusterId:    cluster,
-			Reason:       "error",
-			ExitCodes:    nil,
 			KubernetesId: "",
-			NodeName:     "node",
 		})
 		assert.NoError(t, err)
 
-		job_2 := &api.Job{
-			Id:          util.NewULID(),
-			JobSetId:    "job-set-2",
-			Queue:       "queue-2",
-			Namespace:   "nameSpace-2",
-			Labels:      nil,
-			Annotations: nil,
-			Owner:       "user",
-			Priority:    0,
-			PodSpec:     &v1.PodSpec{},
-			Created:     time.Now(),
-		}
-		err = jobStore.RecordJob(job_2)
-		assert.NoError(t, err)
-
 		err = jobStore.RecordJobFailed(&api.JobFailedEvent{
-			JobId:        job_2.Id,
-			JobSetId:     job_2.JobSetId,
-			Queue:        job_2.Queue,
+			JobId:        "job-2",
+			Queue:        queue,
 			Created:      time.Now(),
-			ClusterId:    cluster,
-			Reason:       "other error",
-			ExitCodes:    nil,
 			KubernetesId: "",
-			NodeName:     "node-2",
 		})
 		assert.NoError(t, err)
 
-		received1, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{JobId: job_1.Id})
-		assert.NoError(t, err)
-		assert.Equal(t, 1, len(received1))
-		assert.Equal(t, string(JobFailed), received1[0].JobState)
-
-		received2, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{JobId: job_1.Id})
-		assert.NoError(t, err)
-		assert.Equal(t, 1, len(received2))
-		assert.Equal(t, string(JobFailed), received2[0].JobState)
+		assert.Equal(t, JobStateToIntMap[JobFailed], selectInt(t, db,
+			"SELECT state FROM job WHERE job.job_id = 'job-1'"))
+		assert.Equal(t, JobStateToIntMap[JobFailed], selectInt(t, db,
+			"SELECT state FROM job WHERE job.job_id = 'job-2'"))
 	})
 }
 
@@ -322,30 +189,11 @@ func Test_UnableToSchedule(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db)
 
-		job := &api.Job{
-			Id:          util.NewULID(),
-			JobSetId:    "job-set",
-			Queue:       "queue",
-			Namespace:   "nameSpace",
-			Labels:      nil,
-			Annotations: nil,
-			Owner:       "user",
-			Priority:    0,
-			PodSpec:     &v1.PodSpec{},
-			Created:     time.Now(),
-		}
-		err := jobStore.RecordJob(job)
-		assert.NoError(t, err)
-
-		err = jobStore.RecordJobUnableToSchedule(&api.JobUnableToScheduleEvent{
-			JobId:        job.Id,
-			JobSetId:     job.JobSetId,
-			Queue:        job.Queue,
+		err := jobStore.RecordJobUnableToSchedule(&api.JobUnableToScheduleEvent{
+			JobId:        util.NewULID(),
+			Queue:        queue,
 			Created:      time.Now(),
-			ClusterId:    cluster,
-			Reason:       "other error",
 			KubernetesId: util.NewULID(),
-			NodeName:     "node-2",
 		})
 		assert.NoError(t, err)
 
@@ -356,98 +204,392 @@ func Test_UnableToSchedule(t *testing.T) {
 	})
 }
 
-func Test_MostRecentJobStateIsRecorded(t *testing.T) {
-	withDatabase(t, func(db *goqu.Database) {
-		jobStore := NewSQLJobStore(db)
+func Test_Queued(t *testing.T) {
+	t.Run("queued", func(t *testing.T) {
+		withDatabase(t, func(db *goqu.Database) {
+			jobStore := NewSQLJobStore(db)
 
-		jobId := util.NewULID()
+			err := jobStore.RecordJob(&api.Job{
+				Id: util.NewULID(),
+				Queue:   queue,
+				Created: someTime,
+			})
+			assert.NoError(t, err)
 
-		err := jobStore.RecordJobRunning(&api.JobRunningEvent{
-			JobId:        jobId,
-			JobSetId:     "job-set",
-			Queue:        "queue",
-			Created:      someTime.Add(5 * time.Minute),
-			ClusterId:    "cluster",
-			KubernetesId: k8sId1,
-			NodeName:     "node",
-			PodNumber:    0,
+			assert.Equal(t, JobStateToIntMap[JobQueued], selectInt(t, db,
+				"SELECT state FROM job"))
 		})
-		assert.NoError(t, err)
+	})
 
-		err = jobStore.RecordJobPending(&api.JobPendingEvent{
-			JobId:        jobId,
-			JobSetId:     "job-set",
-			Queue:        "queue",
-			Created:      someTime.Add(3),
-			ClusterId:    "cluster",
-			KubernetesId: k8sId1,
-			PodNumber:    0,
+	t.Run("queued after pending", func(t *testing.T) {
+		withDatabase(t, func(db *goqu.Database) {
+			jobStore := NewSQLJobStore(db)
+			jobId := util.NewULID()
+
+			err := jobStore.RecordJobPending(&api.JobPendingEvent{
+				JobId:        jobId,
+				Queue:        queue,
+				Created:      someTime.Add(1 * time.Minute),
+				KubernetesId: k8sId1,
+			})
+			assert.NoError(t, err)
+
+			err = jobStore.RecordJob(&api.Job{
+				Id:          jobId,
+				Queue:       "queue",
+				Created:     someTime,
+			})
+			assert.NoError(t, err)
+
+			assert.Equal(t, JobStateToIntMap[JobPending], selectInt(t, db,
+				"SELECT state FROM job"))
 		})
-		assert.NoError(t, err)
-
-		job := &api.Job{
-			Id:          jobId,
-			JobSetId:    "job-set",
-			Queue:       "queue",
-			Namespace:   "nameSpace",
-			Labels:      nil,
-			Annotations: nil,
-			Owner:       "user",
-			Priority:    0,
-			PodSpec:     &v1.PodSpec{},
-			Created:     someTime,
-		}
-		err = jobStore.RecordJob(job)
-		assert.NoError(t, err)
-		assert.Equal(t, JobStateToIntMap[JobRunning], selectInt(t, db,
-			"SELECT state FROM job"))
 	})
 }
 
-func Test_MultiNodeJobWithOneFailure(t *testing.T) {
+func Test_Pending(t *testing.T) {
+	t.Run("single node job, pending", func(t *testing.T) {
+		withDatabase(t, func(db *goqu.Database) {
+			jobStore := NewSQLJobStore(db)
+			jobId := util.NewULID()
+
+			err := jobStore.RecordJobPending(&api.JobPendingEvent{
+				JobId:        jobId,
+				Queue:        queue,
+				Created:      someTime,
+				KubernetesId: k8sId1,
+			})
+			assert.NoError(t, err)
+
+			assert.Equal(t, JobStateToIntMap[JobPending], selectInt(t, db,
+				"SELECT state FROM job"))
+		})
+	})
+
+	t.Run("single node job, pending after running, same pod", func(t *testing.T) {
+		withDatabase(t, func(db *goqu.Database) {
+			jobStore := NewSQLJobStore(db)
+			jobId := util.NewULID()
+
+			err := jobStore.RecordJobRunning(&api.JobRunningEvent{
+				JobId:        jobId,
+				Queue:        queue,
+				Created:      someTime.Add(5 * time.Minute),
+				KubernetesId: k8sId1,
+			})
+			assert.NoError(t, err)
+
+			err = jobStore.RecordJobPending(&api.JobPendingEvent{
+				JobId:        jobId,
+				Queue:        queue,
+				Created:      someTime,
+				KubernetesId: k8sId1,
+			})
+			assert.NoError(t, err)
+
+			assert.Equal(t, JobStateToIntMap[JobRunning], selectInt(t, db,
+				"SELECT state FROM job"))
+		})
+	})
+
+	t.Run("single node job, pending after running, different pod", func(t *testing.T) {
+		withDatabase(t, func(db *goqu.Database) {
+			jobStore := NewSQLJobStore(db)
+			jobId := util.NewULID()
+
+			err := jobStore.RecordJobRunning(&api.JobRunningEvent{
+				JobId:        jobId,
+				Queue:        queue,
+				Created:      someTime,
+				KubernetesId: k8sId1,
+			})
+			assert.NoError(t, err)
+
+			err = jobStore.RecordJobPending(&api.JobPendingEvent{
+				JobId:        jobId,
+				Queue:        queue,
+				Created:      someTime.Add(5 * time.Minute),
+				KubernetesId: k8sId2,
+			})
+			assert.NoError(t, err)
+
+			assert.Equal(t, JobStateToIntMap[JobPending], selectInt(t, db,
+				"SELECT state FROM job"))
+		})
+	})
+
+	t.Run("multi node job, pending after running", func(t *testing.T) {
+		withDatabase(t, func(db *goqu.Database) {
+			jobStore := NewSQLJobStore(db)
+			jobId := util.NewULID()
+
+			err := jobStore.RecordJobRunning(&api.JobRunningEvent{
+				JobId:        jobId,
+				Queue:        queue,
+				Created:      someTime.Add(3 * time.Minute),
+				KubernetesId: k8sId2,
+				PodNumber:    1,
+			})
+			assert.NoError(t, err)
+
+			err = jobStore.RecordJobPending(&api.JobPendingEvent{
+				JobId:        jobId,
+				Queue:        queue,
+				Created:      someTime,
+				KubernetesId: k8sId1,
+				PodNumber:    0,
+			})
+			assert.NoError(t, err)
+
+			assert.Equal(t, JobStateToIntMap[JobPending], selectInt(t, db,
+				"SELECT state FROM job"))
+		})
+	})
+}
+
+func Test_Running(t *testing.T) {
+	t.Run("single node job, running", func(t *testing.T) {
+		withDatabase(t, func(db *goqu.Database) {
+			jobStore := NewSQLJobStore(db)
+
+			err := jobStore.RecordJobRunning(&api.JobRunningEvent{
+				JobId:        util.NewULID(),
+				Queue:        queue,
+				Created:      someTime.Add(3 * time.Minute),
+				KubernetesId: k8sId2,
+			})
+			assert.NoError(t, err)
+
+			assert.Equal(t, JobStateToIntMap[JobRunning], selectInt(t, db,
+				"SELECT state FROM job"))
+		})
+	})
+
+	t.Run("single node job, running after pending in separate pod", func(t *testing.T) {
+		withDatabase(t, func(db *goqu.Database) {
+			jobStore := NewSQLJobStore(db)
+			jobId := util.NewULID()
+
+			err := jobStore.RecordJobPending(&api.JobPendingEvent{
+				JobId:        jobId,
+				Queue:        queue,
+				Created:      someTime.Add(3 * time.Minute),
+				KubernetesId: k8sId2,
+			})
+			assert.NoError(t, err)
+
+			err = jobStore.RecordJobRunning(&api.JobRunningEvent{
+				JobId:        jobId,
+				Queue:        queue,
+				Created:      someTime,
+				KubernetesId: k8sId1,
+			})
+			assert.NoError(t, err)
+
+			assert.Equal(t, JobStateToIntMap[JobPending], selectInt(t, db,
+				"SELECT state FROM job"))
+		})
+	})
+
+	t.Run("single node job, running after success", func(t *testing.T) {
+		withDatabase(t, func(db *goqu.Database) {
+			jobStore := NewSQLJobStore(db)
+			jobId := util.NewULID()
+
+			err := jobStore.RecordJobSucceeded(&api.JobSucceededEvent{
+				JobId:        jobId,
+				Queue:        queue,
+				Created:      someTime.Add(3 * time.Minute),
+				KubernetesId: k8sId1,
+			})
+			assert.NoError(t, err)
+
+			err = jobStore.RecordJobRunning(&api.JobRunningEvent{
+				JobId:        jobId,
+				Queue:        queue,
+				Created:      someTime,
+				KubernetesId: k8sId1,
+			})
+			assert.NoError(t, err)
+
+			assert.Equal(t, JobStateToIntMap[JobSucceeded], selectInt(t, db,
+				"SELECT state FROM job"))
+		})
+	})
+
+	t.Run("multi node job, running after success", func(t *testing.T) {
+		withDatabase(t, func(db *goqu.Database) {
+			jobStore := NewSQLJobStore(db)
+			jobId := util.NewULID()
+
+			err := jobStore.RecordJobSucceeded(&api.JobSucceededEvent{
+				JobId:        jobId,
+				Queue:        queue,
+				Created:      someTime.Add(3 * time.Minute),
+				KubernetesId: k8sId1,
+				PodNumber:    0,
+			})
+			assert.NoError(t, err)
+
+			err = jobStore.RecordJobRunning(&api.JobRunningEvent{
+				JobId:        jobId,
+				Queue:        queue,
+				Created:      someTime,
+				KubernetesId: k8sId2,
+				PodNumber:    1,
+			})
+			assert.NoError(t, err)
+
+			assert.Equal(t, JobStateToIntMap[JobRunning], selectInt(t, db,
+				"SELECT state FROM job"))
+		})
+	})
+}
+
+func Test_Succeeded(t *testing.T) {
+	t.Run("multi node job, not all successes", func(t *testing.T) {
+		withDatabase(t, func(db *goqu.Database) {
+			jobStore := NewSQLJobStore(db)
+			jobId := util.NewULID()
+
+			err := jobStore.RecordJobSucceeded(&api.JobSucceededEvent{
+				JobId:        jobId,
+				Queue:        queue,
+				Created:      someTime,
+				KubernetesId: k8sId1,
+				PodNumber:    0,
+			})
+			assert.NoError(t, err)
+
+			err = jobStore.RecordJobSucceeded(&api.JobSucceededEvent{
+				JobId:        jobId,
+				Queue:        queue,
+				Created:      someTime,
+				KubernetesId: k8sId2,
+				PodNumber:    1,
+			})
+			assert.NoError(t, err)
+
+			err = jobStore.RecordJobPending(&api.JobPendingEvent{
+				JobId:        jobId,
+				Queue:        queue,
+				Created:      someTime,
+				KubernetesId: k8sId3,
+				PodNumber:    2,
+			})
+			assert.NoError(t, err)
+
+			assert.Equal(t, JobStateToIntMap[JobPending], selectInt(t, db,
+				"SELECT state FROM job"))
+		})
+	})
+
+	t.Run("multi node job, all successes", func(t *testing.T) {
+		withDatabase(t, func(db *goqu.Database) {
+			jobStore := NewSQLJobStore(db)
+			jobId := util.NewULID()
+
+			err := jobStore.RecordJobSucceeded(&api.JobSucceededEvent{
+				JobId:        jobId,
+				Queue:        queue,
+				Created:      someTime,
+				KubernetesId: k8sId1,
+				PodNumber:    0,
+			})
+			assert.NoError(t, err)
+
+			err = jobStore.RecordJobSucceeded(&api.JobSucceededEvent{
+				JobId:        jobId,
+				Queue:        queue,
+				Created:      someTime,
+				KubernetesId: k8sId2,
+				PodNumber:    1,
+			})
+			assert.NoError(t, err)
+
+			err = jobStore.RecordJobSucceeded(&api.JobSucceededEvent{
+				JobId:        jobId,
+				Queue:        queue,
+				Created:      someTime,
+				KubernetesId: k8sId3,
+				PodNumber:    2,
+			})
+			assert.NoError(t, err)
+
+			assert.Equal(t, JobStateToIntMap[JobSucceeded], selectInt(t, db,
+				"SELECT state FROM job"))
+		})
+	})
+}
+
+func Test_Failed(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db)
-
 		jobId := util.NewULID()
 
-		err := jobStore.RecordJobSucceeded(&api.JobSucceededEvent{
+		err := jobStore.RecordJobFailed(&api.JobFailedEvent{
 			JobId:        jobId,
-			JobSetId:     "job-set",
 			Queue:        "queue",
-			Created:      someTime.Add(5 * time.Minute),
-			ClusterId:    "cluster",
+			Created:      someTime,
 			KubernetesId: k8sId1,
-			NodeName:     "node",
 			PodNumber:    0,
 		})
 		assert.NoError(t, err)
 
-		err = jobStore.RecordJobFailed(&api.JobFailedEvent{
+		err = jobStore.RecordJobSucceeded(&api.JobSucceededEvent{
 			JobId:        jobId,
-			JobSetId:     "job-set",
 			Queue:        "queue",
-			Created:      someTime.Add(3 * time.Minute),
-			ClusterId:    "cluster",
+			Created:      someTime,
 			KubernetesId: k8sId2,
-			NodeName:     "node",
 			PodNumber:    1,
 		})
 		assert.NoError(t, err)
 
 		err = jobStore.RecordJobSucceeded(&api.JobSucceededEvent{
 			JobId:        jobId,
-			JobSetId:     "job-set",
 			Queue:        "queue",
 			Created:      someTime,
-			ClusterId:    "cluster",
 			KubernetesId: k8sId3,
-			NodeName:     "node",
 			PodNumber:    2,
 		})
 		assert.NoError(t, err)
 
-		assert.NoError(t, err)
 		assert.Equal(t, JobStateToIntMap[JobFailed], selectInt(t, db,
+			"SELECT state FROM job"))
+	})
+}
+
+func Test_Cancelled(t *testing.T) {
+	withDatabase(t, func(db *goqu.Database) {
+		jobStore := NewSQLJobStore(db)
+		jobId := util.NewULID()
+
+		err := jobStore.RecordJobPending(&api.JobPendingEvent{
+			JobId:        jobId,
+			Queue:        "queue",
+			Created:      someTime,
+			KubernetesId: k8sId1,
+			PodNumber:    0,
+		})
+		assert.NoError(t, err)
+
+		err = jobStore.RecordJobRunning(&api.JobRunningEvent{
+			JobId:        jobId,
+			Queue:        "queue",
+			Created:      someTime,
+			KubernetesId: k8sId2,
+			PodNumber:    1,
+		})
+		assert.NoError(t, err)
+
+		err = jobStore.MarkCancelled(&api.JobCancelledEvent{
+			JobId:   jobId,
+			Queue:   "queue",
+			Created: someTime,
+		})
+		assert.NoError(t, err)
+
+		assert.Equal(t, JobStateToIntMap[JobCancelled], selectInt(t, db,
 			"SELECT state FROM job"))
 	})
 }

@@ -50,7 +50,6 @@ var (
 	job_submitted = goqu.I("job.submitted")
 	job_cancelled = goqu.I("job.cancelled")
 	job_job       = goqu.I("job.job")
-	job_lastEvent = goqu.I("job.last_event")
 	job_state     = goqu.I("job.state")
 
 	// Columns: job_run table
@@ -75,6 +74,7 @@ type JobRow struct {
 	Submitted pq.NullTime     `db:"submitted"`
 	Cancelled pq.NullTime     `db:"cancelled"`
 	JobJson   sql.NullString  `db:"job"`
+	State     sql.NullInt64   `db:"state"`
 	RunId     sql.NullString  `db:"run_id"`
 	PodNumber sql.NullInt64   `db:"pod_number"`
 	Cluster   sql.NullString  `db:"cluster"`
@@ -96,12 +96,21 @@ var AllJobStates = []JobState{
 }
 
 var JobStateToIntMap = map[JobState]int{
-	"QUEUED":    1,
-	"PENDING":   2,
-	"RUNNING":   3,
-	"SUCCEEDED": 4,
-	"FAILED":    5,
-	"CANCELLED": 6,
+	JobQueued:    1,
+	JobPending:   2,
+	JobRunning:   3,
+	JobSucceeded: 4,
+	JobFailed:    5,
+	JobCancelled: 6,
+}
+
+var IntToJobStateMap = map[int]JobState{
+	1: JobQueued,
+	2: JobPending,
+	3: JobRunning,
+	4: JobSucceeded,
+	5: JobFailed,
+	6: JobCancelled,
 }
 
 func NewSQLJobRepository(db *goqu.Database, clock Clock) *SQLJobRepository {
