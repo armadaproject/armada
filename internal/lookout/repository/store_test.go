@@ -6,11 +6,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/doug-martin/goqu/v9"
+	"github.com/stretchr/testify/assert"
+
 	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/lookout/repository/schema"
 	"github.com/G-Research/armada/pkg/api"
-	"github.com/doug-martin/goqu/v9"
-	"github.com/stretchr/testify/assert"
 )
 
 func Test_RecordRunEvents(t *testing.T) {
@@ -210,7 +211,7 @@ func Test_Queued(t *testing.T) {
 			jobStore := NewSQLJobStore(db)
 
 			err := jobStore.RecordJob(&api.Job{
-				Id: util.NewULID(),
+				Id:      util.NewULID(),
 				Queue:   queue,
 				Created: someTime,
 			})
@@ -235,9 +236,9 @@ func Test_Queued(t *testing.T) {
 			assert.NoError(t, err)
 
 			err = jobStore.RecordJob(&api.Job{
-				Id:          jobId,
-				Queue:       "queue",
-				Created:     someTime,
+				Id:      jobId,
+				Queue:   "queue",
+				Created: someTime,
 			})
 			assert.NoError(t, err)
 
