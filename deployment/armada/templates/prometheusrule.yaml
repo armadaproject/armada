@@ -21,7 +21,11 @@ spec:
           expr: avg(sum(armada_queue_priority) by (pool, queueName, pod)) by (pool, queueName)
 
         - record: armada:queue:ideal_current_share
-          expr: (armada:queue:size > bool 1) * (1 / armada:queue:priority) / scalar(sum((armada:queue:size > bool 1) * (1 / armada:queue:priority))) * 100
+          expr: >
+            (sum(armada:queue:resource:queued{resourceType="cpu} > bool 0) by (queueName, pool) * (1 / armada:queue:priority))
+            / ignoring(queueName) group_left
+            sum(sum(armada:queue:resource:queued{resourceType="cpu} > bool 0) by (queueName, pool) * (1 / armada:queue:priority)) by (pool)
+            * 100
 
         - record: armada:queue:resource:queued
           expr: avg(armada_queue_resource_queued) by (pool, queueName, resourceType)
