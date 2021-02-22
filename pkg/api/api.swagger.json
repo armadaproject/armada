@@ -235,6 +235,36 @@
         }
       }
     },
+    "apiCause": {
+      "type": "string",
+      "default": "Error",
+      "enum": [
+        "Error",
+        "Evicted",
+        "OOM"
+      ]
+    },
+    "apiContainerStatus": {
+      "type": "object",
+      "properties": {
+        "cause": {
+          "$ref": "#/definitions/apiCause"
+        },
+        "exitCode": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "message": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        }
+      }
+    },
     "apiEventMessage": {
       "type": "object",
       "properties": {
@@ -406,8 +436,17 @@
     "apiJobFailedEvent": {
       "type": "object",
       "properties": {
+        "cause": {
+          "$ref": "#/definitions/apiCause"
+        },
         "clusterId": {
           "type": "string"
+        },
+        "containerStatuses": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiContainerStatus"
+          }
         },
         "created": {
           "type": "string",

@@ -91,10 +91,12 @@ message JobFailedEvent {
     google.protobuf.Timestamp created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
     string cluster_id = 5;
     string reason = 6;
-    map<string, int32> exit_codes = 7;
+    map<string, int32> exit_codes = 7 [deprecated = true];
     string kubernetes_id = 8;
     string node_name = 9;
     int32 pod_number = 10;
+    repeated ContainerStatus container_statuses = 11;
+    Cause cause = 12;
 }
 
 message JobSucceededEvent {
@@ -167,6 +169,20 @@ message EventMessage {
         JobTerminatedEvent terminated = 14;
         JobUtilisationEvent utilisation = 15;
     }
+}
+
+enum Cause {
+    Error = 0;
+    Evicted = 1;
+    OOM = 2;
+}
+
+message ContainerStatus {
+    string name = 1;
+    int32 exitCode = 2;
+    string message = 3;
+    string reason = 4;
+    Cause cause = 5;
 }
 
 message EventList {
