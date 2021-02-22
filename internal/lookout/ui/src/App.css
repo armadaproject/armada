@@ -1,10 +1,11 @@
-.container {
+.app-container {
   display: flex;
   flex-direction: column;
   height: 100%;
 }
 
-.content {
-  display: flex;
+.app-content {
   height: 100%;
+  display: flex;
+  flex-direction: column;
 }
