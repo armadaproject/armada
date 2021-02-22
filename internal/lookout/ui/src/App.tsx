@@ -38,9 +38,9 @@ export function App(services: { jobService: JobService; }) {
   return (
     <ThemeProvider theme={theme}>
       <Router>
-        <div className="container">
+        <div className="app-container">
           <NavBar/>
-          <div className="content">
+          <div className="app-content">
             <Switch>
               <Route exact path="/">
                 <OverviewContainer jobService={services.jobService} />

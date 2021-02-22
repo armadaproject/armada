@@ -13,7 +13,6 @@ import './index.css';
 
 (async () => {
   const uiConfig = await getUIConfig()
-  console.log(uiConfig)
 
   const jobService = new JobService(
     new LookoutApi(new LookoutConfiguration({ basePath: "" })),

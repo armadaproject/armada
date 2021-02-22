@@ -189,6 +189,29 @@ func SwaggerJsonTemplate() string {
 		"      \"title\": \"Type represents the stored type of IntOrString.\",\n" +
 		"      \"x-go-package\": \"k8s.io/apimachinery/pkg/util/intstr\"\n" +
 		"    },\n" +
+		"    \"lookoutDurationStats\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"average\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"longest\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"median\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"q1\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"q3\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"shortest\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
 		"    \"lookoutGetJobSetsRequest\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
@@ -302,6 +325,12 @@ func SwaggerJsonTemplate() string {
 		"        },\n" +
 		"        \"queue\": {\n" +
 		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"queuedStats\": {\n" +
+		"          \"$ref\": \"#/definitions/lookoutDurationStats\"\n" +
+		"        },\n" +
+		"        \"runningStats\": {\n" +
+		"          \"$ref\": \"#/definitions/lookoutDurationStats\"\n" +
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +

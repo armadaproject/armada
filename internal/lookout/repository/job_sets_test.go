@@ -2,10 +2,13 @@ package repository
 
 import (
 	"testing"
+	"time"
 
 	"github.com/doug-martin/goqu/v9"
+	"github.com/gogo/protobuf/types"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/pkg/api/lookout"
 )
 
@@ -225,6 +228,183 @@ func TestGetJobSetInfos_MultipleJobSetsCounts(t *testing.T) {
 			JobsFailed:    1,
 		}, jobSetInfos[1])
 	})
+}
+
+func TestGetJobSetInfos_StatsWithNoRunningOrQueuedJobs(t *testing.T) {
+	withDatabase(t, func(db *goqu.Database) {
+		jobStore := NewSQLJobStore(db)
+		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
+
+		NewJobSimulator(t, jobStore).
+			CreateJob(queue).
+			UnableToSchedule(cluster, k8sId1, node).
+			Pending(cluster, k8sId2).
+			Running(cluster, k8sId2, node).
+			Succeeded(cluster, k8sId2, node)
+
+		jobSets, err := jobRepo.GetJobSetInfos(ctx, &lookout.GetJobSetsRequest{Queue: queue})
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(jobSets))
+
+		assert.Nil(t, jobSets[0].RunningStats)
+		assert.Nil(t, jobSets[0].QueuedStats)
+	})
+}
+
+func TestGetJobSetInfos_GetRunningStats(t *testing.T) {
+	withDatabase(t, func(db *goqu.Database) {
+		jobStore := NewSQLJobStore(db)
+
+		currentTime := someTime.Add(20 * time.Minute)
+
+		jobRepo := NewSQLJobRepository(db, &DummyClock{currentTime})
+
+		for i := 0; i < 11; i++ {
+			k8sId := util.NewULID()
+			otherK8sId := util.NewULID()
+			itTime := someTime.Add(time.Duration(i) * time.Minute)
+			NewJobSimulator(t, jobStore).
+				CreateJobAtTime(queue, someTime).
+				UnableToScheduleAtTime(cluster, k8sId, node, someTime).
+				PendingAtTime(cluster, otherK8sId, someTime).
+				RunningAtTime(cluster, otherK8sId, node, itTime)
+
+			NewJobSimulator(t, jobStore).
+				CreateJobAtTime(queue, someTime)
+
+			NewJobSimulator(t, jobStore).
+				CreateJobAtTime(queue, someTime).
+				CancelledAtTime(someTime)
+		}
+
+		// All the same, except for last
+		for i := 0; i < 10; i++ {
+			k8sId := util.NewULID()
+			otherK8sId := util.NewULID()
+			NewJobSimulator(t, jobStore).
+				CreateJobWithOpts(queue, util.NewULID(), "job-set-2", someTime).
+				UnableToScheduleAtTime(cluster, k8sId, node, someTime).
+				PendingAtTime(cluster, otherK8sId, someTime).
+				RunningAtTime(cluster, otherK8sId, node, someTime)
+
+			NewJobSimulator(t, jobStore).
+				CreateJobWithOpts(queue, util.NewULID(), "job-set-2", someTime)
+
+			NewJobSimulator(t, jobStore).
+				CreateJobWithOpts(queue, util.NewULID(), "job-set-2", someTime).
+				CancelledAtTime(someTime)
+		}
+
+		otherTime := someTime.Add(10 * time.Minute)
+		NewJobSimulator(t, jobStore).
+			CreateJobWithOpts(queue, util.NewULID(), "job-set-2", otherTime).
+			UnableToScheduleAtTime(cluster, k8sId1, node, otherTime).
+			PendingAtTime(cluster, k8sId2, otherTime).
+			RunningAtTime(cluster, k8sId2, node, otherTime)
+
+		jobSets, err := jobRepo.GetJobSetInfos(ctx, &lookout.GetJobSetsRequest{Queue: queue})
+		assert.NoError(t, err)
+		assert.Equal(t, 2, len(jobSets))
+
+		assertDurationStatsAreEqual(t, &lookout.DurationStats{
+			Shortest: types.DurationProto(10 * time.Minute),
+			Longest:  types.DurationProto(20 * time.Minute),
+			Average:  types.DurationProto(15 * time.Minute),
+			Median:   types.DurationProto(15 * time.Minute),
+			Q1:       types.DurationProto(12*time.Minute + 30*time.Second),
+			Q3:       types.DurationProto(17*time.Minute + 30*time.Second),
+		}, jobSets[0].RunningStats)
+
+		assertDurationStatsAreEqual(t, &lookout.DurationStats{
+			Shortest: types.DurationProto(10 * time.Minute),
+			Longest:  types.DurationProto(20 * time.Minute),
+			Average:  types.DurationProto(19*time.Minute + 5*time.Second),
+			Median:   types.DurationProto(20 * time.Minute),
+			Q1:       types.DurationProto(20 * time.Minute),
+			Q3:       types.DurationProto(20 * time.Minute),
+		}, jobSets[1].RunningStats)
+	})
+}
+
+func TestGetJobSetInfos_GetQueuedStats(t *testing.T) {
+	withDatabase(t, func(db *goqu.Database) {
+		jobStore := NewSQLJobStore(db)
+
+		someTime := time.Now()
+		currentTime := someTime.Add(30 * time.Minute)
+
+		jobRepo := NewSQLJobRepository(db, &DummyClock{currentTime})
+
+		for i := 0; i < 11; i++ {
+			k8sId := util.NewULID()
+			otherK8sId := util.NewULID()
+			itTime := someTime.Add(time.Duration(i) * time.Minute)
+			NewJobSimulator(t, jobStore).
+				CreateJobAtTime(queue, someTime).
+				UnableToScheduleAtTime(cluster, k8sId, node, someTime).
+				PendingAtTime(cluster, otherK8sId, someTime).
+				RunningAtTime(cluster, otherK8sId, node, someTime)
+
+			NewJobSimulator(t, jobStore).
+				CreateJobAtTime(queue, itTime)
+
+			NewJobSimulator(t, jobStore).
+				CreateJobAtTime(queue, someTime).
+				CancelledAtTime(someTime)
+		}
+
+		for i := 0; i < 10; i++ {
+			k8sId := util.NewULID()
+			otherK8sId := util.NewULID()
+			NewJobSimulator(t, jobStore).
+				CreateJobWithOpts(queue, util.NewULID(), "job-set-2", someTime).
+				UnableToSchedule(cluster, k8sId, node).
+				Pending(cluster, otherK8sId).
+				Running(cluster, otherK8sId, node)
+
+			NewJobSimulator(t, jobStore).
+				CreateJobWithOpts(queue, util.NewULID(), "job-set-2", someTime)
+
+			NewJobSimulator(t, jobStore).
+				CreateJobWithOpts(queue, util.NewULID(), "job-set-2", someTime).
+				Cancelled()
+		}
+
+		NewJobSimulator(t, jobStore).
+			CreateJobWithOpts(queue, util.NewULID(), "job-set-2", someTime.Add(20*time.Minute))
+
+		jobSets, err := jobRepo.GetJobSetInfos(ctx, &lookout.GetJobSetsRequest{Queue: queue})
+		assert.NoError(t, err)
+		assert.Equal(t, 2, len(jobSets))
+
+		assertDurationStatsAreEqual(t, &lookout.DurationStats{
+			Shortest: types.DurationProto(20 * time.Minute),
+			Longest:  types.DurationProto(30 * time.Minute),
+			Average:  types.DurationProto(25 * time.Minute),
+			Median:   types.DurationProto(25 * time.Minute),
+			Q1:       types.DurationProto(22*time.Minute + 30*time.Second),
+			Q3:       types.DurationProto(27*time.Minute + 30*time.Second),
+		}, jobSets[0].QueuedStats)
+
+		assertDurationStatsAreEqual(t, &lookout.DurationStats{
+			Shortest: types.DurationProto(10 * time.Minute),
+			Longest:  types.DurationProto(30 * time.Minute),
+			Average:  types.DurationProto(28*time.Minute + 11*time.Second),
+			Median:   types.DurationProto(30 * time.Minute),
+			Q1:       types.DurationProto(30 * time.Minute),
+			Q3:       types.DurationProto(30 * time.Minute),
+		}, jobSets[1].QueuedStats)
+	})
+}
+
+func assertDurationStatsAreEqual(t *testing.T, expected *lookout.DurationStats, actual *lookout.DurationStats) {
+	t.Helper()
+	AssertProtoDurationsApproxEqual(t, expected.Longest, actual.Longest)
+	AssertProtoDurationsApproxEqual(t, expected.Shortest, actual.Shortest)
+	AssertProtoDurationsApproxEqual(t, expected.Average, actual.Average)
+	AssertProtoDurationsApproxEqual(t, expected.Median, actual.Median)
+	AssertProtoDurationsApproxEqual(t, expected.Q1, actual.Q1)
+	AssertProtoDurationsApproxEqual(t, expected.Q3, actual.Q3)
 }
 
 func assertJobSetInfosAreEqual(t *testing.T, expected *lookout.JobSetInfo, actual *lookout.JobSetInfo) {
