@@ -124,7 +124,7 @@ func (allocationService *ClusterAllocationService) failJobs(failedSubmissions []
 	toBeReportedDone := make([]string, 0, 10)
 
 	for _, details := range failedSubmissions {
-		failEvent := reporter.CreateJobFailedEvent(details.pod, details.error.Status().Message, map[string]int32{}, allocationService.clusterContext.GetClusterId())
+		failEvent := reporter.CreateSimpleJobFailedEvent(details.pod, details.error.Status().Message, allocationService.clusterContext.GetClusterId())
 		err := allocationService.eventReporter.Report(failEvent)
 
 		if err == nil {
