@@ -18,6 +18,7 @@ var imagePullBackOffStatesSet = util.StringListToSet([]string{"ImagePullBackOff"
 var invalidImageNameStatesSet = util.StringListToSet([]string{"InvalidImageName"})
 
 const oomKilledReason = "OOMKilled"
+const evictedReason = "Evicted"
 
 func ExtractPodStuckReason(pod *v1.Pod) string {
 	containerStatuses := pod.Status.ContainerStatuses
@@ -59,7 +60,7 @@ func ExtractPodFailedReason(pod *v1.Pod) string {
 }
 
 func ExtractPodFailedCause(pod *v1.Pod) api.Cause {
-	if pod.Status.Reason == api.Cause_Evicted.String() {
+	if pod.Status.Reason == evictedReason {
 		return api.Cause_Evicted
 	}
 	containerStatuses := pod.Status.ContainerStatuses
