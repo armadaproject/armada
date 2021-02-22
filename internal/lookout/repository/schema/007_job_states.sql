@@ -22,7 +22,7 @@ FROM (
         joined_runs.pod_number,
         CASE
             WHEN joined_runs.finished IS NOT NULL AND joined_runs.succeeded IS TRUE THEN 4 -- succeeded
-            WHEN joined_runs.finished IS NOT NULL AND joined_runs.succeeded IS FALSE THEN 5 -- failed
+            WHEN joined_runs.finished IS NOT NULL AND (joined_runs.succeeded IS FALSE OR joined_runs.succeeded IS NULL) THEN 5 -- failed
             WHEN joined_runs.started IS NOT NULL THEN 3 -- running
             WHEN joined_runs.created IS NOT NULL THEN 2 -- pending
             ELSE 1 -- queued
