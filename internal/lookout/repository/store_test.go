@@ -146,9 +146,9 @@ func Test_RecordNullNodeIfEmptyString(t *testing.T) {
 
 func Test_RecordLongError(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
-		jobRepo := NewSQLJobStore(db)
+		jobStore := NewSQLJobStore(db)
 
-		err := jobRepo.RecordJobFailed(&api.JobFailedEvent{
+		err := jobStore.RecordJobFailed(&api.JobFailedEvent{
 			JobId:        "job-1",
 			Queue:        queue,
 			Created:      time.Now(),
