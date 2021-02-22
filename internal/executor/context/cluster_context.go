@@ -16,6 +16,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/G-Research/armada/internal/executor/cluster"
+	"github.com/G-Research/armada/internal/executor/configuration"
 	"github.com/G-Research/armada/internal/executor/domain"
 	"github.com/G-Research/armada/internal/executor/util"
 )
@@ -36,12 +37,14 @@ type ClusterContext interface {
 	DeletePods(pods []*v1.Pod)
 
 	GetClusterId() string
+	GetClusterPool() string
 
 	Stop()
 }
 
 type KubernetesClusterContext struct {
 	clusterId                string
+	pool                     string
 	submittedPods            util.PodCache
 	podsToDelete             util.PodCache
 	podInformer              informer.PodInformer
@@ -56,8 +59,12 @@ func (c *KubernetesClusterContext) GetClusterId() string {
 	return c.clusterId
 }
 
+func (c *KubernetesClusterContext) GetClusterPool() string {
+	return c.pool
+}
+
 func NewClusterContext(
-	clusterId string,
+	configuration configuration.ApplicationConfiguration,
 	minTimeBetweenRepeatDeletionCalls time.Duration,
 	kubernetesClientProvider cluster.KubernetesClientProvider) *KubernetesClusterContext {
 
@@ -66,7 +73,8 @@ func NewClusterContext(
 	factory := informers.NewSharedInformerFactoryWithOptions(kubernetesClient, 0)
 
 	context := &KubernetesClusterContext{
-		clusterId:                clusterId,
+		clusterId:                configuration.ClusterId,
+		pool:                     configuration.Pool,
 		submittedPods:            util.NewTimeExpiringPodCache(time.Minute, time.Second, "submitted_job"),
 		podsToDelete:             util.NewTimeExpiringPodCache(minTimeBetweenRepeatDeletionCalls, time.Second, "deleted_job"),
 		stopper:                  make(chan struct{}),

@@ -154,21 +154,12 @@ func (server *SubmitServer) validateJobsCanBeScheduled(jobs []*api.Job) error {
 
 	activeClusterSchedulingInfo := scheduling.FilterActiveClusterSchedulingInfoReports(allClusterSchedulingInfo)
 	for i, job := range jobs {
-		if !validateJobCanBeScheduled(job, activeClusterSchedulingInfo) {
+		if !scheduling.MatchSchedulingRequirementsOnAnyCluster(job, activeClusterSchedulingInfo) {
 			return fmt.Errorf("job with index %d is not schedulable on any cluster", i)
 		}
 	}
 
 	return nil
-}
-
-func validateJobCanBeScheduled(job *api.Job, allClusterSchedulingInfos map[string]*api.ClusterSchedulingInfoReport) bool {
-	for _, schedulingInfo := range allClusterSchedulingInfos {
-		if scheduling.MatchSchedulingRequirements(job, schedulingInfo) {
-			return true
-		}
-	}
-	return false
 }
 
 func (server *SubmitServer) CancelJobs(ctx context.Context, request *api.JobCancelRequest) (*api.CancellationResult, error) {

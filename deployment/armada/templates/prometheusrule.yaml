@@ -18,19 +18,23 @@ spec:
           expr: avg(sum(armada_queue_size) by (queueName, pod)) by (queueName) > 0
 
         - record: armada:queue:priority
-          expr: avg(sum(armada_queue_priority) by (queueName, pod)) by (queueName)
+          expr: avg(sum(armada_queue_priority) by (pool, queueName, pod)) by (pool, queueName)
 
         - record: armada:queue:ideal_current_share
-          expr: (armada:queue:size > bool 1) * (1 / armada:queue:priority) / scalar(sum((armada:queue:size > bool 1) * (1 / armada:queue:priority))) * 100
+          expr: >
+            (sum(armada:queue:resource:queued{resourceType="cpu"} > bool 0) by (queueName, pool) * (1 / armada:queue:priority))
+            / ignoring(queueName) group_left
+            sum(sum(armada:queue:resource:queued{resourceType="cpu"} > bool 0) by (queueName, pool) * (1 / armada:queue:priority)) by (pool)
+            * 100
 
         - record: armada:queue:resource:queued
-          expr: avg(armada_queue_resource_queued) by (queueName, resourceType)
+          expr: avg(armada_queue_resource_queued) by (pool, queueName, resourceType)
 
         - record: armada:queue:resource:allocated
-          expr: avg(sum(armada_queue_resource_allocated) by (cluster, pod, queueName, resourceType)) by (cluster, queueName, resourceType)
+          expr: avg(sum(armada_queue_resource_allocated) by (pool, cluster, pod, queueName, resourceType)) by (pool, cluster, queueName, resourceType)
 
         - record: armada:queue:resource:used
-          expr: avg(sum(armada_queue_resource_used) by (cluster, pod, queueName, resourceType)) by (cluster, queueName, resourceType)
+          expr: avg(sum(armada_queue_resource_used) by (pool, cluster, pod, queueName, resourceType)) by (pool, cluster, queueName, resourceType)
 
         - record: armada:grpc:server:histogram95
           expr: histogram_quantile(0.95, sum(rate(grpc_server_handling_seconds_bucket{grpc_type!="server_stream"}[2m])) by (grpc_method,grpc_service, le))
@@ -42,8 +46,8 @@ spec:
           expr: sum(rate(log_messages[2m])) by (level)
 
         - record: armada:resource:available_capacity
-          expr: avg(armada_cluster_available_capacity) by (cluster, resourceType)
+          expr: avg(armada_cluster_available_capacity) by (pool, cluster, resourceType)
 
         - record: armada:resource:capacity
-          expr: avg(armada_cluster_capacity) by (cluster, resourceType)
+          expr: avg(armada_cluster_capacity) by (pool, cluster, resourceType)
 {{- end }}
