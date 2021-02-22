@@ -22,9 +22,9 @@ spec:
 
         - record: armada:queue:ideal_current_share
           expr: >
-            (sum(armada:queue:resource:queued{resourceType="cpu} > bool 0) by (queueName, pool) * (1 / armada:queue:priority))
+            (sum(armada:queue:resource:queued{resourceType="cpu"} > bool 0) by (queueName, pool) * (1 / armada:queue:priority))
             / ignoring(queueName) group_left
-            sum(sum(armada:queue:resource:queued{resourceType="cpu} > bool 0) by (queueName, pool) * (1 / armada:queue:priority)) by (pool)
+            sum(sum(armada:queue:resource:queued{resourceType="cpu"} > bool 0) by (queueName, pool) * (1 / armada:queue:priority)) by (pool)
             * 100
 
         - record: armada:queue:resource:queued
