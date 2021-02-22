@@ -40,7 +40,13 @@ func CreateEventForCurrentState(pod *v1.Pod, clusterId string) (api.Event, error
 			NodeName:     pod.Spec.NodeName,
 		}, nil
 	case v1.PodFailed:
-		return CreateJobFailedEvent(pod, util.ExtractPodFailedReason(pod), util.ExtractPodExitCodes(pod), clusterId), nil
+		return CreateJobFailedEvent(
+			pod,
+			util.ExtractPodFailedReason(pod),
+			util.ExtractPodFailedCause(pod),
+			util.ExtractFailedPodContainerStatuses(pod),
+			util.ExtractPodExitCodes(pod),
+			clusterId), nil
 	case v1.PodSucceeded:
 		return &api.JobSucceededEvent{
 			JobId:        pod.Labels[domain.JobId],
@@ -91,18 +97,25 @@ func CreateJobLeaseReturnedEvent(pod *v1.Pod, reason string, clusterId string) a
 	}
 }
 
-func CreateJobFailedEvent(pod *v1.Pod, reason string, exitCodes map[string]int32, clusterId string) api.Event {
+func CreateSimpleJobFailedEvent(pod *v1.Pod, reason string, clusterId string) api.Event {
+	return CreateJobFailedEvent(pod, reason, api.Cause_Error, []*api.ContainerStatus{}, map[string]int32{}, clusterId)
+}
+
+func CreateJobFailedEvent(pod *v1.Pod, reason string, cause api.Cause, containerStatuses []*api.ContainerStatus,
+	exitCodes map[string]int32, clusterId string) api.Event {
 	return &api.JobFailedEvent{
-		JobId:        pod.Labels[domain.JobId],
-		JobSetId:     pod.Annotations[domain.JobSetId],
-		Queue:        pod.Labels[domain.Queue],
-		Created:      time.Now(),
-		ClusterId:    clusterId,
-		Reason:       reason,
-		ExitCodes:    exitCodes,
-		KubernetesId: string(pod.ObjectMeta.UID),
-		PodNumber:    getPodNumber(pod),
-		NodeName:     pod.Spec.NodeName,
+		JobId:             pod.Labels[domain.JobId],
+		JobSetId:          pod.Annotations[domain.JobSetId],
+		Queue:             pod.Labels[domain.Queue],
+		Created:           time.Now(),
+		ClusterId:         clusterId,
+		Reason:            reason,
+		ExitCodes:         exitCodes,
+		KubernetesId:      string(pod.ObjectMeta.UID),
+		PodNumber:         getPodNumber(pod),
+		NodeName:          pod.Spec.NodeName,
+		ContainerStatuses: containerStatuses,
+		Cause:             cause,
 	}
 }
 

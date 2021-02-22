@@ -246,6 +246,36 @@ func SwaggerJsonTemplate() string {
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
+		"    \"apiCause\": {\n" +
+		"      \"type\": \"string\",\n" +
+		"      \"default\": \"Error\",\n" +
+		"      \"enum\": [\n" +
+		"        \"Error\",\n" +
+		"        \"Evicted\",\n" +
+		"        \"OOM\"\n" +
+		"      ]\n" +
+		"    },\n" +
+		"    \"apiContainerStatus\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"cause\": {\n" +
+		"          \"$ref\": \"#/definitions/apiCause\"\n" +
+		"        },\n" +
+		"        \"exitCode\": {\n" +
+		"          \"type\": \"integer\",\n" +
+		"          \"format\": \"int32\"\n" +
+		"        },\n" +
+		"        \"message\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"name\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"reason\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
 		"    \"apiEventMessage\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
@@ -417,8 +447,17 @@ func SwaggerJsonTemplate() string {
 		"    \"apiJobFailedEvent\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
+		"        \"cause\": {\n" +
+		"          \"$ref\": \"#/definitions/apiCause\"\n" +
+		"        },\n" +
 		"        \"clusterId\": {\n" +
 		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"containerStatuses\": {\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/apiContainerStatus\"\n" +
+		"          }\n" +
 		"        },\n" +
 		"        \"created\": {\n" +
 		"          \"type\": \"string\",\n" +

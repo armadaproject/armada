@@ -7,6 +7,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/G-Research/armada/internal/common/util"
+	"github.com/G-Research/armada/pkg/api"
 )
 
 var expectedWarningsEventReasons = util.StringListToSet([]string{
@@ -15,6 +16,9 @@ var expectedWarningsEventReasons = util.StringListToSet([]string{
 })
 var imagePullBackOffStatesSet = util.StringListToSet([]string{"ImagePullBackOff", "ErrImagePull"})
 var invalidImageNameStatesSet = util.StringListToSet([]string{"InvalidImageName"})
+
+const oomKilledReason = "OOMKilled"
+const evictedReason = "Evicted"
 
 func ExtractPodStuckReason(pod *v1.Pod) string {
 	containerStatuses := pod.Status.ContainerStatuses
@@ -37,6 +41,9 @@ func ExtractPodStuckReason(pod *v1.Pod) string {
 }
 
 func ExtractPodFailedReason(pod *v1.Pod) string {
+	if pod.Status.Message != "" {
+		return pod.Status.Message
+	}
 	containerStatuses := pod.Status.ContainerStatuses
 	containerStatuses = append(containerStatuses, pod.Status.InitContainerStatuses...)
 
@@ -52,6 +59,21 @@ func ExtractPodFailedReason(pod *v1.Pod) string {
 	return failedMessage
 }
 
+func ExtractPodFailedCause(pod *v1.Pod) api.Cause {
+	if pod.Status.Reason == evictedReason {
+		return api.Cause_Evicted
+	}
+	containerStatuses := pod.Status.ContainerStatuses
+	containerStatuses = append(containerStatuses, pod.Status.InitContainerStatuses...)
+
+	for _, containerStatus := range containerStatuses {
+		if isOom(containerStatus) {
+			return api.Cause_OOM
+		}
+	}
+	return api.Cause_Error
+}
+
 func ExtractPodExitCodes(pod *v1.Pod) map[string]int32 {
 	containerStatuses := pod.Status.ContainerStatuses
 	containerStatuses = append(containerStatuses, pod.Status.InitContainerStatuses...)
@@ -65,6 +87,35 @@ func ExtractPodExitCodes(pod *v1.Pod) map[string]int32 {
 	}
 
 	return exitCodes
+}
+
+func ExtractFailedPodContainerStatuses(pod *v1.Pod) []*api.ContainerStatus {
+	containerStatuses := pod.Status.ContainerStatuses
+	containerStatuses = append(containerStatuses, pod.Status.InitContainerStatuses...)
+
+	returnStatuses := make([]*api.ContainerStatus, 0, len(containerStatuses))
+
+	for _, containerStatus := range containerStatuses {
+		status := &api.ContainerStatus{
+			Name:  containerStatus.Name,
+			Cause: api.Cause_Error,
+		}
+		if isOom(containerStatus) {
+			status.Cause = api.Cause_OOM
+		}
+		if containerStatus.State.Terminated != nil {
+			status.ExitCode = containerStatus.State.Terminated.ExitCode
+			status.Message = containerStatus.State.Terminated.Message
+			status.Reason = containerStatus.State.Terminated.Reason
+		}
+		returnStatuses = append(returnStatuses, status)
+	}
+
+	return returnStatuses
+}
+
+func isOom(containerStatus v1.ContainerStatus) bool {
+	return containerStatus.State.Terminated != nil && containerStatus.State.Terminated.Reason == oomKilledReason
 }
 
 func DiagnoseStuckPod(pod *v1.Pod, podEvents []*v1.Event) (retryable bool, message string) {
