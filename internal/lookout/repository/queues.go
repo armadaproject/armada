@@ -16,9 +16,9 @@ import (
 )
 
 type countsRow struct {
-	Jobs        uint32 `db:"jobs"`
-	JobsCreated uint32 `db:"jobs_created"`
-	JobsStarted uint32 `db:"jobs_started"`
+	Queued  uint32 `db:"queued"`
+	Pending uint32 `db:"pending"`
+	Running uint32 `db:"running"`
 }
 
 func (r *SQLJobRepository) GetQueueInfos(ctx context.Context) ([]*lookout.QueueInfo, error) {
@@ -49,18 +49,12 @@ func (r *SQLJobRepository) GetQueueInfos(ctx context.Context) ([]*lookout.QueueI
 func (r *SQLJobRepository) getQueuesSql() (string, error) {
 	countsDs := r.goquDb.
 		From(jobTable).
-		LeftJoin(jobRunTable, goqu.On(job_jobId.Eq(jobRun_jobId))).
 		Select(
 			job_queue,
-			goqu.COUNT("*").As("jobs"),
-			goqu.COUNT(goqu.COALESCE(
-				jobRun_created,
-				jobRun_started)).As("jobs_created"),
-			goqu.COUNT(jobRun_started).As("jobs_started")).
-		Where(goqu.And(
-			job_cancelled.IsNull(),
-			jobRun_finished.IsNull(),
-			jobRun_unableToSchedule.IsNull())).
+			goqu.L("COUNT(*) FILTER (WHERE job.state = 1)").As("queued"),
+			goqu.L("COUNT(*) FILTER (WHERE job.state = 2)").As("pending"),
+			goqu.L("COUNT(*) FILTER (WHERE job.state = 3)").As("running")).
+		Where(job_state.In(JobStateToIntMap[JobQueued], JobStateToIntMap[JobPending], JobStateToIntMap[JobRunning])).
 		GroupBy(job_queue).
 		As("counts")
 
@@ -78,7 +72,7 @@ func (r *SQLJobRepository) getQueuesSql() (string, error) {
 			jobRun_started,
 			jobRun_finished).
 		Distinct(job_queue).
-		Where(goqu.And(FiltersForState[JobQueued]...)).
+		Where(job_state.Eq(JobStateToIntMap[JobQueued])).
 		Order(job_queue.Asc(), job_submitted.Asc()).
 		As("oldest_queued")
 
@@ -94,7 +88,7 @@ func (r *SQLJobRepository) getQueuesSql() (string, error) {
 			job_submitted,
 			jobRun_started).
 		Distinct(job_queue).
-		Where(goqu.And(FiltersForState[JobRunning]...)).
+		Where(job_state.Eq(JobStateToIntMap[JobRunning])).
 		Order(job_queue.Asc(), jobRun_started.Asc()).
 		As("longest_running_sub") // Identify longest Running jobs
 
@@ -253,15 +247,15 @@ func setJobCounts(rows *sql.Rows, queueInfoMap map[string]*lookout.QueueInfo) er
 			queue string
 			row   countsRow
 		)
-		err := rows.Scan(&queue, &row.Jobs, &row.JobsCreated, &row.JobsStarted)
+		err := rows.Scan(&queue, &row.Queued, &row.Pending, &row.Running)
 		if err != nil {
 			return err
 		}
 		queueInfoMap[queue] = &lookout.QueueInfo{
 			Queue:             queue,
-			JobsQueued:        row.Jobs - row.JobsCreated,
-			JobsPending:       row.JobsCreated - row.JobsStarted,
-			JobsRunning:       row.JobsStarted,
+			JobsQueued:        row.Queued,
+			JobsPending:       row.Pending,
+			JobsRunning:       row.Running,
 			OldestQueuedJob:   nil,
 			LongestRunningJob: nil,
 		}

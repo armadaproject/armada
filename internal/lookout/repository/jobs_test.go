@@ -606,7 +606,6 @@ func TestGetJobs_FilterMultipleStates(t *testing.T) {
 		running := NewJobSimulator(t, jobStore).
 			CreateJob(queue).
 			Pending(cluster, k8sId2).
-			UnableToSchedule(cluster, k8sId2, node).
 			Pending(cluster, k8sId3).
 			Running(cluster, k8sId3, node)
 
