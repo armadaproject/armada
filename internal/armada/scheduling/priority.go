@@ -34,14 +34,11 @@ func CalculateQueuesPriorityInfo(clusterPriorities map[string]map[string]float64
 	return resultPriorityMap
 }
 
-func CalculatePriorityUpdateFromReports(reports map[string]*api.ClusterUsageReport, report *api.ClusterUsageReport, previousPriority map[string]float64, halfTime time.Duration) map[string]float64 {
-	previousReport := reports[report.ClusterId]
+func CalculatePriorityUpdate(resourceScarcity map[string]float64, previousReport *api.ClusterUsageReport, report *api.ClusterUsageReport, previousPriority map[string]float64, halfTime time.Duration) map[string]float64 {
 	timeChange := time.Minute
 	if previousReport != nil {
 		timeChange = report.ReportTime.Sub(previousReport.ReportTime)
 	}
-	reports[report.ClusterId] = report
-	resourceScarcity := ResourceScarcityFromReports(reports)
 	usage := usageFromQueueReports(resourceScarcity, report.Queues)
 	newPriority := calculatePriorityUpdate(usage, previousPriority, timeChange, halfTime)
 	return newPriority

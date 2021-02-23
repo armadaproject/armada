@@ -38,7 +38,8 @@ type leaseContext struct {
 func LeaseJobs(ctx context.Context,
 	config *configuration.SchedulingConfig,
 	jobQueueRepository repository.JobQueueRepository,
-	onJobLease func([]*api.Job), request *api.LeaseRequest,
+	onJobLease func([]*api.Job),
+	request *api.LeaseRequest,
 	nodeResources []*nodeTypeAllocation,
 	activeClusterReports map[string]*api.ClusterUsageReport,
 	activeClusterLeaseJobReports map[string]*api.ClusterLeasedReport,
@@ -64,7 +65,10 @@ func LeaseJobs(ctx context.Context,
 	}
 
 	activeQueuePriority := CalculateQueuesPriorityInfo(clusterPriorities, activeClusterReports, activeQueues)
-	scarcity := ResourceScarcityFromReports(activeClusterReports)
+	scarcity := config.GetResourceScarcity(request.Pool)
+	if scarcity == nil {
+		scarcity = ResourceScarcityFromReports(activeClusterReports)
+	}
 	activeQueueSchedulingInfo := SliceResourceWithLimits(scarcity, queueSchedulingInfo, activeQueuePriority, resourcesToSchedule)
 
 	lc := &leaseContext{
