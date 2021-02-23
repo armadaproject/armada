@@ -10,11 +10,11 @@ CREATE OR REPLACE TEMP VIEW run_state_counts AS
 SELECT
     run_states.job_id,
     COUNT(*) AS total,
-            COUNT(*) FILTER (WHERE run_state = 1) AS queued,
-            COUNT(*) FILTER (WHERE run_state = 2) AS pending,
-            COUNT(*) FILTER (WHERE run_state = 3) AS running,
-            COUNT(*) FILTER (WHERE run_state = 4) AS succeeded,
-            COUNT(*) FILTER (WHERE run_state = 5) AS failed
+    COUNT(*) FILTER (WHERE run_state = 1) AS queued,
+    COUNT(*) FILTER (WHERE run_state = 2) AS pending,
+    COUNT(*) FILTER (WHERE run_state = 3) AS running,
+    COUNT(*) FILTER (WHERE run_state = 4) AS succeeded,
+    COUNT(*) FILTER (WHERE run_state = 5) AS failed
 FROM (
     -- Collect run states for each pod in each job (i.e. the state of each pod)
     SELECT DISTINCT ON (joined_runs.job_id, joined_runs.pod_number)
@@ -26,11 +26,11 @@ FROM (
             WHEN joined_runs.started IS NOT NULL THEN 3 -- running
             WHEN joined_runs.created IS NOT NULL THEN 2 -- pending
             ELSE 1 -- queued
-            END AS run_state
+        END AS run_state
     FROM (
         -- Assume job table is populated
         SELECT
-            job.job_id AS job_id,
+            job.job_id,
             job.submitted,
             job_run.pod_number,
             job_run.created,
