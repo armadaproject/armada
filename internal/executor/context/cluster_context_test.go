@@ -18,6 +18,7 @@ import (
 	clientTesting "k8s.io/client-go/testing"
 
 	util2 "github.com/G-Research/armada/internal/common/util"
+	"github.com/G-Research/armada/internal/executor/configuration"
 	"github.com/G-Research/armada/internal/executor/domain"
 	"github.com/G-Research/armada/internal/executor/util"
 )
@@ -38,7 +39,7 @@ func setupTestWithMinRepeatedDeletePeriod(minRepeatedDeletePeriod time.Duration)
 	clientProvider := &FakeClientProvider{FakeClient: client}
 
 	clusterContext := NewClusterContext(
-		"test-cluster-1",
+		configuration.ApplicationConfiguration{ClusterId: "test-cluster-1", Pool: "pool"},
 		minRepeatedDeletePeriod,
 		clientProvider,
 	)

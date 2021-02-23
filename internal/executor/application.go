@@ -33,7 +33,7 @@ func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGrou
 	}
 
 	clusterContext := context.NewClusterContext(
-		config.Application.ClusterId,
+		config.Application,
 		2*time.Minute,
 		kubernetesClientProvider)
 

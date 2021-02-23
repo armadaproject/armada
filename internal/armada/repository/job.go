@@ -39,7 +39,7 @@ type JobRepository interface {
 	GetExistingJobsByIds(ids []string) ([]*api.Job, error)
 	FilterActiveQueues(queues []*api.Queue) ([]*api.Queue, error)
 	GetQueueSizes(queues []*api.Queue) (sizes []int64, e error)
-	GetQueueResources(queues []*api.Queue) (sizes []common.ComputeResourcesFloat, e error)
+	IterateQueueJobs(queueName string, action func(*api.Job)) error
 	RenewLease(clusterId string, jobIds []string) (renewed []string, e error)
 	ExpireLeases(queue string, deadline time.Time) (expired []*api.Job, e error)
 	ReturnLease(clusterId string, jobId string) (returnedJob *api.Job, err error)
@@ -438,36 +438,28 @@ func (repo *RedisJobRepository) GetQueueSizes(queues []*api.Queue) (sizes []int6
 	return sizes, nil
 }
 
-func (repo *RedisJobRepository) GetQueueResources(queues []*api.Queue) ([]common.ComputeResourcesFloat, error) {
-	result := []common.ComputeResourcesFloat{}
-	for _, queue := range queues {
-		queuedIds, e := repo.db.ZRange(jobQueuePrefix+queue.Name, 0, -1).Result()
-		if e != nil {
-			return nil, e
-		}
-
-		resources := common.ComputeResources{}
-
-		for len(queuedIds) > 0 {
-			take := queueResourcesBatchSize
-			if len(queuedIds) < queueResourcesBatchSize {
-				take = len(queuedIds)
-			}
-			queuedJobs, e := repo.GetExistingJobsByIds(queuedIds[0:take])
-			queuedIds = queuedIds[take:]
-
-			if e != nil {
-				return nil, e
-			}
-			for _, job := range queuedJobs {
-				resources.Add(common.TotalJobResourceRequest(job))
-			}
-
-		}
-
-		result = append(result, resources.AsFloat())
+func (repo *RedisJobRepository) IterateQueueJobs(queueName string, action func(*api.Job)) error {
+	queuedIds, e := repo.db.ZRange(jobQueuePrefix+queueName, 0, -1).Result()
+	if e != nil {
+		return e
 	}
-	return result, nil
+	for len(queuedIds) > 0 {
+		take := queueResourcesBatchSize
+		if len(queuedIds) < queueResourcesBatchSize {
+			take = len(queuedIds)
+		}
+		queuedJobs, e := repo.GetExistingJobsByIds(queuedIds[0:take])
+		queuedIds = queuedIds[take:]
+
+		if e != nil {
+			return e
+		}
+		for _, job := range queuedJobs {
+			action(job)
+		}
+
+	}
+	return nil
 }
 
 func (repo *RedisJobRepository) GetActiveJobIds(queue string, jobSetId string) ([]string, error) {

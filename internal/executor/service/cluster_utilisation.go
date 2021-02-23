@@ -70,6 +70,7 @@ func (clusterUtilisationService *ClusterUtilisationService) ReportClusterUtilisa
 
 	clusterUsage := api.ClusterUsageReport{
 		ClusterId:                clusterUtilisationService.clusterContext.GetClusterId(),
+		Pool:                     clusterUtilisationService.clusterContext.GetClusterPool(),
 		ReportTime:               time.Now(),
 		Queues:                   queueReports,
 		ClusterCapacity:          totalNodeResource,

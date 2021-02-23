@@ -14,6 +14,7 @@ import (
 func CreateClusterSchedulingInfoReport(leaseRequest *api.LeaseRequest, nodeAllocations []*nodeTypeAllocation) *api.ClusterSchedulingInfoReport {
 	return &api.ClusterSchedulingInfoReport{
 		ClusterId:      leaseRequest.ClusterId,
+		Pool:           leaseRequest.Pool,
 		ReportTime:     time.Now(),
 		NodeTypes:      extractNodeTypes(nodeAllocations),
 		MinimumJobSize: leaseRequest.MinimumJobSize,
@@ -43,6 +44,15 @@ func MatchSchedulingRequirements(job *api.Job, schedulingInfo *api.ClusterSchedu
 		}
 	}
 	return true
+}
+
+func MatchSchedulingRequirementsOnAnyCluster(job *api.Job, allClusterSchedulingInfos map[string]*api.ClusterSchedulingInfoReport) bool {
+	for _, schedulingInfo := range allClusterSchedulingInfos {
+		if MatchSchedulingRequirements(job, schedulingInfo) {
+			return true
+		}
+	}
+	return false
 }
 
 func isLargeEnough(job *api.Job, minimumJobSize common.ComputeResources) bool {

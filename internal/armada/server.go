@@ -108,7 +108,7 @@ func Serve(config *configuration.ArmadaConfig) (func(), *sync.WaitGroup) {
 		log.Fatalf("failed to listen: %v", err)
 	}
 
-	collector := metrics.ExposeDataMetrics(queueRepository, jobRepository, usageRepository)
+	collector := metrics.ExposeDataMetrics(queueRepository, jobRepository, usageRepository, schedulingInfoRepository)
 	taskManager.Register(collector.RefreshMetrics, config.Metrics.RefreshInterval, "refresh_metrics")
 
 	api.RegisterSubmitServer(grpcServer, submitServer)

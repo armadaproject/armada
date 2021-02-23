@@ -9,6 +9,7 @@ import (
 	"github.com/G-Research/armada/internal/armada/repository"
 	"github.com/G-Research/armada/internal/armada/scheduling"
 	"github.com/G-Research/armada/internal/common"
+	"github.com/G-Research/armada/pkg/api"
 )
 
 const MetricPrefix = "armada_"
@@ -17,22 +18,26 @@ func ExposeDataMetrics(
 	queueRepository repository.QueueRepository,
 	jobRepository repository.JobRepository,
 	usageRepository repository.UsageRepository,
+	schedulingInfoRepository repository.SchedulingInfoRepository,
 ) *QueueInfoCollector {
 	collector := &QueueInfoCollector{
-		queueRepository: queueRepository,
-		jobRepository:   jobRepository,
-		usageRepository: usageRepository}
+		queueRepository:          queueRepository,
+		jobRepository:            jobRepository,
+		usageRepository:          usageRepository,
+		schedulingInfoRepository: schedulingInfoRepository,
+		queuedResources:          map[string]map[string]common.ComputeResourcesFloat{}}
 	prometheus.MustRegister(collector)
 	return collector
 }
 
 type QueueInfoCollector struct {
-	queueRepository repository.QueueRepository
-	jobRepository   repository.JobRepository
-	usageRepository repository.UsageRepository
+	queueRepository          repository.QueueRepository
+	jobRepository            repository.JobRepository
+	usageRepository          repository.UsageRepository
+	schedulingInfoRepository repository.SchedulingInfoRepository
 
-	refreshMutex           sync.Mutex
-	queuedResourcesByQueue map[string]common.ComputeResourcesFloat
+	refreshMutex    sync.Mutex
+	queuedResources map[string]map[string]common.ComputeResourcesFloat
 }
 
 var queueSizeDesc = prometheus.NewDesc(
@@ -45,42 +50,42 @@ var queueSizeDesc = prometheus.NewDesc(
 var queuePriorityDesc = prometheus.NewDesc(
 	MetricPrefix+"queue_priority",
 	"Priority of a queue",
-	[]string{"queueName"},
+	[]string{"pool", "queueName"},
 	nil,
 )
 
 var queueResourcesDesc = prometheus.NewDesc(
 	MetricPrefix+"queue_resource_queued",
 	"Resource required by queued jobs",
-	[]string{"queueName", "resourceType"},
+	[]string{"pool", "queueName", "resourceType"},
 	nil,
 )
 
 var queueAllocatedDesc = prometheus.NewDesc(
 	MetricPrefix+"queue_resource_allocated",
 	"Resource allocated to running jobs of a queue",
-	[]string{"cluster", "queueName", "resourceType"},
+	[]string{"cluster", "pool", "queueName", "resourceType"},
 	nil,
 )
 
 var queueUsedDesc = prometheus.NewDesc(
 	MetricPrefix+"queue_resource_used",
 	"Resource actually being used by running jobs of a queue",
-	[]string{"cluster", "queueName", "resourceType"},
+	[]string{"cluster", "pool", "queueName", "resourceType"},
 	nil,
 )
 
 var clusterCapacityDesc = prometheus.NewDesc(
 	MetricPrefix+"cluster_capacity",
 	"Cluster capacity",
-	[]string{"cluster", "resourceType"},
+	[]string{"cluster", "pool", "resourceType"},
 	nil,
 )
 
 var clusterAvailableCapacity = prometheus.NewDesc(
 	MetricPrefix+"cluster_available_capacity",
 	"Cluster capacity available for Armada jobs",
-	[]string{"cluster", "resourceType"},
+	[]string{"cluster", "pool", "resourceType"},
 	nil,
 )
 
@@ -91,27 +96,52 @@ func (c *QueueInfoCollector) RefreshMetrics() {
 		return
 	}
 
-	queueResources, e := c.jobRepository.GetQueueResources(queues)
+	clusterInfo, e := c.schedulingInfoRepository.GetClusterSchedulingInfo()
 	if e != nil {
-		log.Errorf("Error while getting queue resources %s", e)
+		log.Errorf("Error while getting cluster reports %s", e)
 		return
 	}
 
-	resourceUsage := map[string]common.ComputeResourcesFloat{}
-	for i, q := range queues {
-		resourceUsage[q.Name] = queueResources[i]
-	}
+	activeClusterInfo := scheduling.FilterActiveClusterSchedulingInfoReports(clusterInfo)
+	clusterInfoByPool := scheduling.GroupSchedulingInfoByPool(activeClusterInfo)
 
-	c.refreshMutex.Lock()
-	defer c.refreshMutex.Unlock()
-	c.queuedResourcesByQueue = resourceUsage
+	for _, queue := range queues {
+		resourceUsageByPool := map[string]common.ComputeResources{}
+
+		err := c.jobRepository.IterateQueueJobs(queue.Name, func(job *api.Job) {
+			jobResources := common.TotalJobResourceRequest(job)
+			for pool, info := range clusterInfoByPool {
+				if scheduling.MatchSchedulingRequirementsOnAnyCluster(job, info) {
+					r, exists := resourceUsageByPool[pool]
+					if !exists {
+						r = common.ComputeResources{}
+						resourceUsageByPool[pool] = r
+					}
+					r.Add(jobResources)
+				}
+			}
+		})
+		if err != nil {
+			log.Errorf("Error while getting queue %s resources %s", queue.Name, err)
+		}
+		c.updateQueuedResource(queue.Name, resourceUsageByPool)
+	}
 }
 
-func (c *QueueInfoCollector) GetQueueResources() map[string]common.ComputeResourcesFloat {
+func (c *QueueInfoCollector) updateQueuedResource(queueName string, resourcesByPool map[string]common.ComputeResources) {
 	c.refreshMutex.Lock()
 	defer c.refreshMutex.Unlock()
-	return c.queuedResourcesByQueue
+	floatResourcesByPool := map[string]common.ComputeResourcesFloat{}
+	for pool, res := range resourcesByPool {
+		floatResourcesByPool[pool] = res.AsFloat()
+	}
+	c.queuedResources[queueName] = floatResourcesByPool
+}
 
+func (c *QueueInfoCollector) GetQueueResources(queueName string) map[string]common.ComputeResourcesFloat {
+	c.refreshMutex.Lock()
+	defer c.refreshMutex.Unlock()
+	return c.queuedResources[queueName]
 }
 
 func (c *QueueInfoCollector) Describe(desc chan<- *prometheus.Desc) {
@@ -150,21 +180,26 @@ func (c *QueueInfoCollector) Collect(metrics chan<- prometheus.Metric) {
 		return
 	}
 
-	queuePriority := scheduling.CalculateQueuesPriorityInfo(clusterPriorities, activeClusterReports, queues)
-
-	for queue, priority := range queuePriority {
-		metrics <- prometheus.MustNewConstMetric(queuePriorityDesc, prometheus.GaugeValue, priority.Priority, queue.Name)
+	clustersByPool := scheduling.GroupByPool(activeClusterReports)
+	for pool, poolReports := range clustersByPool {
+		poolPriorities := map[string]map[string]float64{}
+		for cluster := range poolReports {
+			poolPriorities[cluster] = clusterPriorities[cluster]
+		}
+		queuePriority := scheduling.CalculateQueuesPriorityInfo(poolPriorities, poolReports, queues)
+		for queue, priority := range queuePriority {
+			metrics <- prometheus.MustNewConstMetric(queuePriorityDesc, prometheus.GaugeValue, priority.Priority, pool, queue.Name)
+		}
 	}
 
 	for i, q := range queues {
 		metrics <- prometheus.MustNewConstMetric(queueSizeDesc, prometheus.GaugeValue, float64(queueSizes[i]), q.Name)
 	}
 
-	queueResources := c.GetQueueResources()
 	for _, q := range queues {
-		if resources, exists := queueResources[q.Name]; exists {
-			for resourceType, amount := range resources {
-				metrics <- prometheus.MustNewConstMetric(queueResourcesDesc, prometheus.GaugeValue, amount, q.Name, resourceType)
+		for pool, poolResources := range c.GetQueueResources(q.Name) {
+			for resourceType, amount := range poolResources {
+				metrics <- prometheus.MustNewConstMetric(queueResourcesDesc, prometheus.GaugeValue, amount, pool, q.Name, resourceType)
 			}
 		}
 	}
@@ -177,6 +212,7 @@ func (c *QueueInfoCollector) Collect(metrics chan<- prometheus.Metric) {
 					prometheus.GaugeValue,
 					common.QuantityAsFloat64(value),
 					cluster,
+					report.Pool,
 					queueReport.Name,
 					resourceType)
 			}
@@ -186,6 +222,7 @@ func (c *QueueInfoCollector) Collect(metrics chan<- prometheus.Metric) {
 					prometheus.GaugeValue,
 					common.QuantityAsFloat64(value),
 					cluster,
+					report.Pool,
 					queueReport.Name,
 					resourceType)
 			}
@@ -196,6 +233,7 @@ func (c *QueueInfoCollector) Collect(metrics chan<- prometheus.Metric) {
 				prometheus.GaugeValue,
 				common.QuantityAsFloat64(value),
 				cluster,
+				report.Pool,
 				resourceType)
 		}
 
@@ -205,6 +243,7 @@ func (c *QueueInfoCollector) Collect(metrics chan<- prometheus.Metric) {
 				prometheus.GaugeValue,
 				common.QuantityAsFloat64(value),
 				cluster,
+				report.Pool,
 				resourceType)
 		}
 	}

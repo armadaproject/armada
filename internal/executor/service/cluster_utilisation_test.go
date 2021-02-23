@@ -10,12 +10,15 @@ import (
 
 	"github.com/G-Research/armada/internal/common"
 	util2 "github.com/G-Research/armada/internal/common/util"
+	"github.com/G-Research/armada/internal/executor/configuration"
 	"github.com/G-Research/armada/internal/executor/domain"
 	fakeContext "github.com/G-Research/armada/internal/executor/fake/context"
 )
 
+var testAppConfig = configuration.ApplicationConfiguration{ClusterId: "test", Pool: "pool"}
+
 func TestFilterAvailableProcessingNodes_ShouldReturnAvailableProcessingNodes(t *testing.T) {
-	context := fakeContext.NewFakeClusterContext("test", nil)
+	context := fakeContext.NewFakeClusterContext(testAppConfig, nil)
 	service := NewClusterUtilisationService(context, nil, nil, nil, nil)
 
 	node := v1.Node{
@@ -32,7 +35,7 @@ func TestFilterAvailableProcessingNodes_ShouldReturnAvailableProcessingNodes(t *
 }
 
 func TestFilterAvailableProcessingNodes_ShouldFilterUnschedulableNodes(t *testing.T) {
-	context := fakeContext.NewFakeClusterContext("test", nil)
+	context := fakeContext.NewFakeClusterContext(testAppConfig, nil)
 	service := NewClusterUtilisationService(context, nil, nil, nil, nil)
 
 	node := v1.Node{
@@ -49,7 +52,7 @@ func TestFilterAvailableProcessingNodes_ShouldFilterUnschedulableNodes(t *testin
 }
 
 func TestFilterAvailableProcessingNodes_ShouldFilterNodesWithNoScheduleTaint(t *testing.T) {
-	context := fakeContext.NewFakeClusterContext("test", nil)
+	context := fakeContext.NewFakeClusterContext(testAppConfig, nil)
 	service := NewClusterUtilisationService(context, nil, nil, nil, nil)
 
 	taint := v1.Taint{

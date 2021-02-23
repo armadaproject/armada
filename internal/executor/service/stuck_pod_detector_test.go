@@ -262,3 +262,7 @@ func (c *syncFakeClusterContext) DeletePods(pods []*v1.Pod) {
 func (c *syncFakeClusterContext) GetClusterId() string {
 	return "cluster-id-1"
 }
+
+func (c *syncFakeClusterContext) GetClusterPool() string {
+	return "pool"
+}
