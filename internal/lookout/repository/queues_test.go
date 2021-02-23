@@ -36,7 +36,6 @@ func TestGetQueueInfos_Counts(t *testing.T) {
 		NewJobSimulator(t, jobStore).
 			CreateJob(queue).
 			Pending(cluster, "a1").
-			UnableToSchedule(cluster, "a1", node).
 			Pending(cluster, "a2")
 
 		NewJobSimulator(t, jobStore).
@@ -51,7 +50,6 @@ func TestGetQueueInfos_Counts(t *testing.T) {
 		NewJobSimulator(t, jobStore).
 			CreateJob(queue).
 			Pending(cluster, "c1").
-			UnableToSchedule(cluster, "c1", node).
 			Running(cluster, "c2", node).
 			Succeeded(cluster, "c2", node)
 
