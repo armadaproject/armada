@@ -24,7 +24,7 @@ func CalculateQueuesPriorityInfo(clusterPriorities map[string]map[string]float64
 		priority := minPriority
 		currentPriority, ok := queuePriority[queue.Name]
 		if ok {
-			priority = math.Max(currentPriority*queue.PriorityFactor, minPriority)
+			priority = math.Max(currentPriority, minPriority) * queue.PriorityFactor
 		}
 		resultPriorityMap[queue] = QueuePriorityInfo{
 			Priority:     priority,
