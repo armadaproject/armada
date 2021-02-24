@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/G-Research/armada/internal/armada/repository"
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/pkg/api"
@@ -65,7 +66,7 @@ func withUsageServer(action func(s *UsageServer)) {
 
 	repo := repository.NewRedisUsageRepository(redisClient)
 	queueRepo := repository.NewRedisQueueRepository(redisClient)
-	server := NewUsageServer(&FakePermissionChecker{}, time.Minute, repo, queueRepo)
+	server := NewUsageServer(&FakePermissionChecker{}, time.Minute, &configuration.SchedulingConfig{}, repo, queueRepo)
 
 	action(server)
 }

@@ -17,7 +17,7 @@ import (
 type UsageServer struct {
 	permissions      authorization.PermissionChecker
 	priorityHalfTime time.Duration
-	schedulingConfig configuration.SchedulingConfig
+	schedulingConfig *configuration.SchedulingConfig
 	usageRepository  repository.UsageRepository
 	queueRepository  repository.QueueRepository
 }
@@ -25,7 +25,7 @@ type UsageServer struct {
 func NewUsageServer(
 	permissions authorization.PermissionChecker,
 	priorityHalfTime time.Duration,
-	schedulingConfig configuration.SchedulingConfig,
+	schedulingConfig *configuration.SchedulingConfig,
 	usageRepository repository.UsageRepository,
 	queueRepository repository.QueueRepository) *UsageServer {
 
