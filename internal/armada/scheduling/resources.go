@@ -116,7 +116,7 @@ func sliceResource(resourceScarcity map[string]float64, queuePriorities map[*api
 func ResourcesAsUsage(resourceScarcity map[string]float64, resources common.ComputeResources) float64 {
 	usage := 0.0
 	for resourceName, quantity := range resources {
-		scarcity := util.GetOrDefault(resourceScarcity, resourceName, 1)
+		scarcity := util.GetOrDefault(resourceScarcity, resourceName, 0)
 		usage += common.QuantityAsFloat64(quantity) * scarcity
 	}
 	return usage
@@ -125,7 +125,7 @@ func ResourcesAsUsage(resourceScarcity map[string]float64, resources common.Comp
 func ResourcesFloatAsUsage(resourceScarcity map[string]float64, resources common.ComputeResourcesFloat) float64 {
 	usage := 0.0
 	for resourceName, quantity := range resources {
-		scarcity := util.GetOrDefault(resourceScarcity, resourceName, 1)
+		scarcity := util.GetOrDefault(resourceScarcity, resourceName, 0)
 		usage += quantity * scarcity
 	}
 	return usage

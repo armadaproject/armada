@@ -43,11 +43,10 @@ func GroupByPool(reports map[string]*api.ClusterUsageReport) map[string]map[stri
 	return result
 }
 
-func FilterActiveClusterLeasedReports(reports map[string]*api.ClusterLeasedReport) map[string]*api.ClusterLeasedReport {
+func FilterClusterLeasedReports(ids []string, reports map[string]*api.ClusterLeasedReport) map[string]*api.ClusterLeasedReport {
 	result := map[string]*api.ClusterLeasedReport{}
-	now := time.Now()
-	for id, report := range reports {
-		if report.ReportTime.Add(activeClusterExpiry).After(now) {
+	for _, id := range ids {
+		if report, ok := reports[id]; ok {
 			result[id] = report
 		}
 	}

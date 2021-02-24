@@ -85,7 +85,8 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 
 	activeClusterReports := scheduling.FilterActiveClusters(usageReports)
 	activePoolClusterReports := scheduling.FilterPoolClusters(request.Pool, activeClusterReports)
-	clusterPriorities, e := q.usageRepository.GetClusterPriorities(scheduling.GetClusterReportIds(activePoolClusterReports))
+	activePoolCLusterIds := scheduling.GetClusterReportIds(activePoolClusterReports)
+	clusterPriorities, e := q.usageRepository.GetClusterPriorities(activePoolCLusterIds)
 	if e != nil {
 		return nil, e
 	}
@@ -94,8 +95,7 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 	if e != nil {
 		return nil, e
 	}
-	clusterLeasedJobReports = scheduling.FilterActiveClusterLeasedReports(clusterLeasedJobReports)
-
+	poolLeasedJobReports := scheduling.FilterClusterLeasedReports(activePoolCLusterIds, clusterLeasedJobReports)
 	jobs, e := scheduling.LeaseJobs(
 		ctx,
 		&q.schedulingConfig,
@@ -104,7 +104,7 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 		request,
 		nodeResources,
 		activePoolClusterReports,
-		clusterLeasedJobReports,
+		poolLeasedJobReports,
 		clusterPriorities,
 		activeQueues)
 

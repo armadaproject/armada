@@ -63,6 +63,8 @@ type SchedulingConfig struct {
 	Lease                                     LeaseSettings
 	DefaultJobLimits                          common.ComputeResources
 	MaxRetries                                uint // Maximum number of retries before a Job is failed
+	ResourceScarcity                          map[string]float64
+	PoolResourceScarcity                      map[string]map[string]float64
 }
 
 type EventRetentionPolicy struct {
