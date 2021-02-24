@@ -17,7 +17,7 @@ import (
 )
 
 func TestUsageServer_ReportUsage(t *testing.T) {
-	withUsageServer(func(s *UsageServer) {
+	withUsageServer(&configuration.SchedulingConfig{}, func(s *UsageServer) {
 		now := time.Now()
 		cpu, _ := resource.ParseQuantity("10")
 		memory, _ := resource.ParseQuantity("360Gi")
@@ -41,6 +41,31 @@ func TestUsageServer_ReportUsage(t *testing.T) {
 	})
 }
 
+func TestUsageServer_ReportUsageWithDefinedScarcity(t *testing.T) {
+	withUsageServer(&configuration.SchedulingConfig{ResourceScarcity: map[string]float64{"cpu": 1.0}}, func(s *UsageServer) {
+		now := time.Now()
+		cpu, _ := resource.ParseQuantity("10")
+		memory, _ := resource.ParseQuantity("360Gi")
+
+		err := s.queueRepository.CreateQueue(&api.Queue{Name: "q1", PriorityFactor: 1})
+		assert.Nil(t, err)
+
+		_, err = s.ReportUsage(context.Background(), oneQueueReport(now, cpu, memory))
+		assert.Nil(t, err)
+
+		priority, err := s.usageRepository.GetClusterPriority("clusterA")
+		assert.Nil(t, err)
+		assert.Equal(t, 5.0, priority["q1"], "Priority should be updated for the new cluster.")
+
+		_, err = s.ReportUsage(context.Background(), oneQueueReport(now.Add(time.Minute), cpu, memory))
+		assert.Nil(t, err)
+
+		priority, err = s.usageRepository.GetClusterPriority("clusterA")
+		assert.Nil(t, err)
+		assert.Equal(t, 7.5, priority["q1"], "Priority should be updated considering previous report.")
+	})
+}
+
 func oneQueueReport(t time.Time, cpu resource.Quantity, memory resource.Quantity) *api.ClusterUsageReport {
 	return &api.ClusterUsageReport{
 		ClusterId:       "clusterA",
@@ -55,7 +80,7 @@ func oneQueueReport(t time.Time, cpu resource.Quantity, memory resource.Quantity
 	}
 }
 
-func withUsageServer(action func(s *UsageServer)) {
+func withUsageServer(schedulingConfig *configuration.SchedulingConfig, action func(s *UsageServer)) {
 	db, err := miniredis.Run()
 	if err != nil {
 		panic(err)
@@ -66,7 +91,7 @@ func withUsageServer(action func(s *UsageServer)) {
 
 	repo := repository.NewRedisUsageRepository(redisClient)
 	queueRepo := repository.NewRedisQueueRepository(redisClient)
-	server := NewUsageServer(&FakePermissionChecker{}, time.Minute, &configuration.SchedulingConfig{}, repo, queueRepo)
+	server := NewUsageServer(&FakePermissionChecker{}, time.Minute, schedulingConfig, repo, queueRepo)
 
 	action(server)
 }
