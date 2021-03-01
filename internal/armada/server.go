@@ -15,6 +15,7 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/G-Research/armada/internal/armada/authorization"
+	"github.com/G-Research/armada/internal/armada/cache"
 	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/G-Research/armada/internal/armada/metrics"
 	"github.com/G-Research/armada/internal/armada/repository"
@@ -41,6 +42,9 @@ func Serve(config *configuration.ArmadaConfig) (func(), *sync.WaitGroup) {
 	usageRepository := repository.NewRedisUsageRepository(db)
 	queueRepository := repository.NewRedisQueueRepository(db)
 	schedulingInfoRepository := repository.NewRedisSchedulingInfoRepository(db)
+
+	queueCache := cache.NewQueueCache(queueRepository, jobRepository, schedulingInfoRepository)
+	taskManager.Register(queueCache.Refresh, config.Metrics.RefreshInterval, "refresh_queue_cache")
 
 	redisEventRepository := repository.NewRedisEventRepository(eventsDb, config.EventRetention)
 	var eventStore repository.EventStore
@@ -97,7 +101,7 @@ func Serve(config *configuration.ArmadaConfig) (func(), *sync.WaitGroup) {
 
 	submitServer := server.NewSubmitServer(permissions, jobRepository, queueRepository, eventStore, schedulingInfoRepository, &config.QueueManagement)
 	usageServer := server.NewUsageServer(permissions, config.PriorityHalfTime, &config.Scheduling, usageRepository, queueRepository)
-	aggregatedQueueServer := server.NewAggregatedQueueServer(permissions, config.Scheduling, jobRepository, queueRepository, usageRepository, eventStore, schedulingInfoRepository)
+	aggregatedQueueServer := server.NewAggregatedQueueServer(permissions, config.Scheduling, jobRepository, queueCache, queueRepository, usageRepository, eventStore, schedulingInfoRepository)
 	eventServer := server.NewEventServer(permissions, redisEventRepository, eventStore)
 	leaseManager := scheduling.NewLeaseManager(jobRepository, queueRepository, eventStore, config.Scheduling.Lease.ExpireAfter)
 
@@ -108,8 +112,7 @@ func Serve(config *configuration.ArmadaConfig) (func(), *sync.WaitGroup) {
 		log.Fatalf("failed to listen: %v", err)
 	}
 
-	collector := metrics.ExposeDataMetrics(queueRepository, jobRepository, usageRepository, schedulingInfoRepository)
-	taskManager.Register(collector.RefreshMetrics, config.Metrics.RefreshInterval, "refresh_metrics")
+	metrics.ExposeDataMetrics(queueRepository, jobRepository, usageRepository, schedulingInfoRepository, queueCache)
 
 	api.RegisterSubmitServer(grpcServer, submitServer)
 	api.RegisterUsageServer(grpcServer, usageServer)

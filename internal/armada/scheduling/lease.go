@@ -10,16 +10,20 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/G-Research/armada/internal/armada/configuration"
-	"github.com/G-Research/armada/internal/armada/repository"
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/pkg/api"
 )
 
 const maxJobsPerLease = 10000
 
+type JobQueue interface {
+	PeekClusterQueue(clusterId, queue string, limit int64) ([]*api.Job, error)
+	TryLeaseJobs(clusterId string, queue string, jobs []*api.Job) ([]*api.Job, error)
+}
+
 type leaseContext struct {
 	schedulingConfig *configuration.SchedulingConfig
-	repository       repository.JobQueueRepository
+	queue            JobQueue
 	onJobsLeased     func([]*api.Job)
 
 	ctx       context.Context
@@ -37,7 +41,7 @@ type leaseContext struct {
 
 func LeaseJobs(ctx context.Context,
 	config *configuration.SchedulingConfig,
-	jobQueueRepository repository.JobQueueRepository,
+	jobQueue JobQueue,
 	onJobLease func([]*api.Job),
 	request *api.LeaseRequest,
 	nodeResources []*nodeTypeAllocation,
@@ -73,7 +77,7 @@ func LeaseJobs(ctx context.Context,
 
 	lc := &leaseContext{
 		schedulingConfig: config,
-		repository:       jobQueueRepository,
+		queue:            jobQueue,
 
 		ctx:       ctx,
 		clusterId: request.ClusterId,
@@ -234,7 +238,7 @@ func (c *leaseContext) leaseJobs(queue *api.Queue, slice common.ComputeResources
 
 		topJobs, ok := c.queueCache[queue.Name]
 		if !ok || len(topJobs) < int(c.schedulingConfig.QueueLeaseBatchSize/2) {
-			newTop, e := c.repository.PeekQueue(queue.Name, int64(c.schedulingConfig.QueueLeaseBatchSize))
+			newTop, e := c.queue.PeekClusterQueue(c.clusterId, queue.Name, int64(c.schedulingConfig.QueueLeaseBatchSize))
 			if e != nil {
 				return nil, slice, e
 			}
@@ -265,7 +269,7 @@ func (c *leaseContext) leaseJobs(queue *api.Queue, slice common.ComputeResources
 		}
 		c.queueCache[queue.Name] = removeJobs(c.queueCache[queue.Name], candidates)
 
-		leased, e := c.repository.TryLeaseJobs(c.clusterId, queue.Name, candidates)
+		leased, e := c.queue.TryLeaseJobs(c.clusterId, queue.Name, candidates)
 		if e != nil {
 			return nil, slice, e
 		}

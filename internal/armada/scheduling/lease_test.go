@@ -54,7 +54,7 @@ func Test_distributeRemainder_highPriorityUserDoesNotBlockOthers(t *testing.T) {
 	impossiblePodSpec := classicPodSpec.DeepCopy()
 	impossiblePodSpec.NodeSelector = map[string]string{"impossible": "label"}
 
-	repository := &fakeJobQueueRepository{
+	jobQueue := &fakeJobQueue{
 		jobsByQueue: map[string][]*api.Job{
 			"queue1": {
 				&api.Job{PodSpec: classicPodSpec},
@@ -86,7 +86,7 @@ func Test_distributeRemainder_highPriorityUserDoesNotBlockOthers(t *testing.T) {
 		resourceScarcity:    scarcity,
 		priorities:          priorities,
 		queueSchedulingInfo: SliceResourceWithLimits(scarcity, schedulingInfo, priorities, requestSize.AsFloat()),
-		repository:          repository,
+		queue:               jobQueue,
 		queueCache:          map[string][]*api.Job{},
 	}
 
@@ -113,7 +113,7 @@ func Test_distributeRemainder_DoesNotExceedSchedulingLimits(t *testing.T) {
 		queue1: {remainingSchedulingLimit: resourceLimit, schedulingShare: resourceLimit, adjustedShare: resourceLimit},
 	}
 
-	repository := &fakeJobQueueRepository{
+	repository := &fakeJobQueue{
 		jobsByQueue: map[string][]*api.Job{
 			"queue1": {
 				&api.Job{PodSpec: classicPodSpec},
@@ -144,7 +144,7 @@ func Test_distributeRemainder_DoesNotExceedSchedulingLimits(t *testing.T) {
 		resourceScarcity:    scarcity,
 		priorities:          priorities,
 		queueSchedulingInfo: SliceResourceWithLimits(scarcity, schedulingInfo, priorities, requestSize.AsFloat()),
-		repository:          repository,
+		queue:               repository,
 		queueCache:          map[string][]*api.Job{},
 	}
 
@@ -219,11 +219,11 @@ var classicPodSpec = &v1.PodSpec{
 			Limits:   v1.ResourceList{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Mi")},
 		}}}}
 
-type fakeJobQueueRepository struct {
+type fakeJobQueue struct {
 	jobsByQueue map[string][]*api.Job
 }
 
-func (r *fakeJobQueueRepository) PeekQueue(queue string, limit int64) ([]*api.Job, error) {
+func (r *fakeJobQueue) PeekClusterQueue(clusterId, queue string, limit int64) ([]*api.Job, error) {
 	jobs, exists := r.jobsByQueue[queue]
 	if !exists {
 		return []*api.Job{}, nil
@@ -234,7 +234,7 @@ func (r *fakeJobQueueRepository) PeekQueue(queue string, limit int64) ([]*api.Jo
 	return jobs, nil
 }
 
-func (r *fakeJobQueueRepository) TryLeaseJobs(clusterId string, queue string, jobs []*api.Job) ([]*api.Job, error) {
+func (r *fakeJobQueue) TryLeaseJobs(clusterId string, queue string, jobs []*api.Job) ([]*api.Job, error) {
 	remainingJobs := []*api.Job{}
 outer:
 	for _, j := range r.jobsByQueue[queue] {
