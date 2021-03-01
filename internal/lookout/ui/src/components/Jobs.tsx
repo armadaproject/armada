@@ -6,7 +6,7 @@ import JobTableHeader from "./JobTableHeader";
 import JobRow from "./JobRow";
 import HeaderRow from "./HeaderRow";
 import LoadingRow from "./LoadingRow";
-import JobIdCell from "./JobIdCell";
+import LinkCell from "./LinkCell";
 
 import './Jobs.css'
 
@@ -159,7 +159,7 @@ export default class Jobs extends React.Component<JobsProps, {}> {
                       width={0.2 * width}
                       label="Id"
                       cellRenderer={(cellProps) => (
-                        <JobIdCell onClick={() => this.props.onJobIdClick(cellProps.rowIndex)} {...cellProps} />
+                        <LinkCell onClick={() => this.props.onJobIdClick(cellProps.rowIndex)} {...cellProps} />
                       )} />
                     <Column dataKey="podNumber" width={0.1 * width} label="Pod" />
                     <Column dataKey="owner" width={0.2 * width} label="Owner" />

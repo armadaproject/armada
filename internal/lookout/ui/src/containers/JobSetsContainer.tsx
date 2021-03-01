@@ -73,11 +73,14 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
 
   async componentDidMount() {
     const params = getParamsFromQueryString(this.props.location.search)
-    const jobSets = await this.fetchJobSets(params.queue)
-
-    this.setState({
+    await this.setStateAsync({
       ...this.state,
       ...params,
+    })
+
+    const jobSets = await this.fetchJobSets(params.queue)
+    this.setState({
+      ...this.state,
       jobSets: jobSets,
     })
   }

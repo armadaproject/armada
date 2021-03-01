@@ -14,10 +14,11 @@ import RefreshIcon from "@material-ui/icons/Refresh"
 import { DurationStats, JobSet } from "../../services/JobService";
 
 import './JobSets.css'
-import JobSetTable from "./JobSetTable";
+import JobSetTable2 from "./JobSetTable";
 import { isJobSetsView, JobSetsView } from "../../containers/JobSetsContainer";
 import DurationBoxPlot from "./DurationBoxPlot";
 import { AutoSizer } from "react-virtualized";
+import JobSetRuntimes from "./JobSetRuntimes";
 
 interface JobSetsProps {
   queue: string
@@ -43,7 +44,7 @@ const menuProps: Partial<MenuProps> = {
 
 export default function JobSets(props: JobSetsProps) {
   let content = (height: number, width: number) => (
-    <JobSetTable
+    <JobSetTable2
       height={height}
       width={width}
       jobSets={props.jobSets}
@@ -85,6 +86,9 @@ export default function JobSets(props: JobSetsProps) {
           names={filtered.map(js => js.jobSet)}
           durations={filtered.map(js => js.runningStats as DurationStats)}/>
       </div>
+    )
+    content = (height: number, width: number) => (
+      <JobSetRuntimes height={height} width={width} jobSets={props.jobSets}/>
     )
   }
 
