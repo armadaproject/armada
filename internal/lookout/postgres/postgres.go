@@ -2,11 +2,21 @@ package postgres
 
 import (
 	"database/sql"
+	"github.com/G-Research/armada/internal/lookout/configuration"
 	"strings"
 )
 
-func Open(connectionString map[string]string) (*sql.DB, error) {
-	return sql.Open("postgres", createConnectionString(connectionString))
+func Open(config configuration.PostgresConfig) (*sql.DB, error) {
+	db, err := sql.Open("postgres", createConnectionString(config.Connection))
+	if err != nil {
+		return nil, err
+	}
+
+	db.SetMaxOpenConns(config.MaxOpenConns)
+	db.SetMaxIdleConns(config.MaxIdleConns)
+	db.SetConnMaxLifetime(config.ConnMaxLifetime)
+
+	return db, nil
 }
 
 func createConnectionString(values map[string]string) string {

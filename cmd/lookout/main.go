@@ -25,7 +25,7 @@ const MigrateDatabase string = "migrateDatabase"
 
 func init() {
 	pflag.String(CustomConfigLocation, "", "Fully qualified path to application configuration file")
-	pflag.Bool(MigrateDatabase, false, "Migrate databse instead of running server")
+	pflag.Bool(MigrateDatabase, false, "Migrate database instead of running server")
 	pflag.Parse()
 }
 
@@ -38,11 +38,10 @@ func main() {
 	common.LoadConfig(&config, "./config/lookout", userSpecifiedConfig)
 
 	if viper.GetBool(MigrateDatabase) {
-		db, err := postgres.Open(config.Postgres.Connection)
+		db, err := postgres.Open(config.Postgres)
 		if err != nil {
 			panic(err)
 		}
-		lookout.ConfigurePostgresDb(db, config.Postgres)
 
 		err = schema.UpdateDatabase(db)
 		if err != nil {

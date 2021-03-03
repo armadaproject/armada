@@ -60,7 +60,11 @@ build-docker-lookout:
 	$(gobuildlinux) -o ./bin/linux/lookout cmd/lookout/main.go
 	docker build $(dockerFlags) -t armada-lookout -f ./build/lookout/Dockerfile .
 
-build-docker: build-docker-server build-docker-executor build-docker-armadactl build-docker-armada-load-tester build-docker-fakeexecutor build-docker-lookout
+build-docker-lookout-migration:
+	$(gobuildlinux) -o ./bin/linux/lookout-migration cmd/lookout-migration/main.go
+    docker build $(dockerFlags) -t armada-lookout-migration -f ./build/lookout-migration/Dockerfile .
+
+build-docker: build-docker-server build-docker-executor build-docker-armadactl build-docker-armada-load-tester build-docker-fakeexecutor build-docker-lookout build-docker-lookout-migration
 
 build-ci: gobuild=$(gobuildlinux)
 build-ci: build-docker build-armadactl build-load-tester
