@@ -1,6 +1,7 @@
 package lookout
 
 import (
+	"database/sql"
 	"fmt"
 	"net"
 	"strings"
@@ -29,6 +30,12 @@ func (l LogRusLogger) Printf(format string, v ...interface{}) {
 	log.Debugf(format, v...)
 }
 
+func ConfigurePostgresDb(db *sql.DB, postgresConfig configuration.PostgresConfig) {
+	db.SetMaxOpenConns(postgresConfig.MaxOpenConns)
+	db.SetMaxIdleConns(postgresConfig.MaxIdleConns)
+	db.SetConnMaxLifetime(postgresConfig.ConnMaxLifetime)
+}
+
 func StartUp(config configuration.LookoutConfiguration) (func(), *sync.WaitGroup) {
 
 	wg := &sync.WaitGroup{}
@@ -36,10 +43,12 @@ func StartUp(config configuration.LookoutConfiguration) (func(), *sync.WaitGroup
 
 	grpcServer := grpc.CreateGrpcServer([]authorization.AuthService{&authorization.AnonymousAuthService{}})
 
-	db, err := postgres.Open(config.PostgresConnection)
+	db, err := postgres.Open(config.Postgres.Connection)
 	if err != nil {
 		panic(err)
 	}
+	ConfigurePostgresDb(db, config.Postgres)
+
 	goquDb := goqu.New("postgres", db)
 	goquDb.Logger(&LogRusLogger{})
 
