@@ -2,6 +2,13 @@ interface UIConfig {
   armadaApiBaseUrl: string
 }
 
+export interface Padding {
+  top: number
+  bottom: number
+  left: number
+  right: number
+}
+
 export async function getUIConfig(): Promise<UIConfig> {
   const config = {
     armadaApiBaseUrl: ""

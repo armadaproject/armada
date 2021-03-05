@@ -7,7 +7,6 @@ import {
   LookoutRunInfo
 } from '../openapi/lookout'
 import { SubmitApi } from '../openapi/armada'
-
 import { reverseMap, secondsToDurationString } from "../utils";
 
 type DurationFromApi = {

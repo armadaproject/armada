@@ -10,15 +10,14 @@ import {
   MenuProps,
 } from "@material-ui/core";
 import RefreshIcon from "@material-ui/icons/Refresh"
+import { AutoSizer } from "react-virtualized";
 
+import DurationPlotsTable from "./DurationPlotsTable";
+import JobSetTable from "./JobSetTable";
+import { isJobSetsView, JobSetsView } from "../../containers/JobSetsContainer";
 import { DurationStats, JobSet } from "../../services/JobService";
 
 import './JobSets.css'
-import JobSetTable2 from "./JobSetTable";
-import { isJobSetsView, JobSetsView } from "../../containers/JobSetsContainer";
-import DurationBoxPlot from "./DurationBoxPlot";
-import { AutoSizer } from "react-virtualized";
-import JobSetRuntimes from "./JobSetRuntimes";
 
 interface JobSetsProps {
   queue: string
@@ -40,11 +39,11 @@ const menuProps: Partial<MenuProps> = {
     horizontal: "left",
   },
   getContentAnchorEl: null,
-};
+}
 
 export default function JobSets(props: JobSetsProps) {
   let content = (height: number, width: number) => (
-    <JobSetTable2
+    <JobSetTable
       height={height}
       width={width}
       jobSets={props.jobSets}
@@ -53,42 +52,27 @@ export default function JobSets(props: JobSetsProps) {
   if (props.view === "queued-time") {
     const filtered = props.jobSets.filter(js => js.queuedStats)
     content = (height: number, width: number) => (
-      <div style={{
-        height: height,
-        width: width,
-        overflowY: "auto",
-        overflowX: "hidden",
-      }}>
-        <DurationBoxPlot
-          primaryColor={"#00bcd4"}
-          secondaryColor={"#673ab7"}
-          totalWidth={width}
-          singlePlotHeight={64}
-          names={filtered.map(js => js.jobSet)}
-          durations={filtered.map(js => js.queuedStats as DurationStats)}/>
-      </div>
+      <DurationPlotsTable
+        height={height}
+        width={width}
+        names={filtered.map(js => js.jobSet)}
+        durations={filtered.map(js => js.queuedStats as DurationStats)}
+        primaryColor={"#00bcd4"}
+        secondaryColor={"#673ab7"}
+        percentagePlotWidth={0.7}/>
     )
   }
   if (props.view === "runtime") {
     const filtered = props.jobSets.filter(js => js.runningStats)
     content = (height: number, width: number) => (
-      <div style={{
-        height: height,
-        width: width,
-        overflowY: "auto",
-        overflowX: "hidden",
-      }}>
-        <DurationBoxPlot
-          primaryColor={"#4caf50"}
-          secondaryColor={"#3f51b5"}
-          totalWidth={width}
-          singlePlotHeight={64}
-          names={filtered.map(js => js.jobSet)}
-          durations={filtered.map(js => js.runningStats as DurationStats)}/>
-      </div>
-    )
-    content = (height: number, width: number) => (
-      <JobSetRuntimes height={height} width={width} jobSets={props.jobSets}/>
+      <DurationPlotsTable
+        height={height}
+        width={width}
+        names={filtered.map(js => js.jobSet)}
+        durations={filtered.map(js => js.runningStats as DurationStats)}
+        primaryColor={"#4caf50"}
+        secondaryColor={"#3f51b5"}
+        percentagePlotWidth={0.7}/>
     )
   }
 
