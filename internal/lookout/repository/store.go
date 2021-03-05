@@ -1,7 +1,6 @@
 package repository
 
 import (
-	"database/sql"
 	"encoding/json"
 	"fmt"
 
@@ -26,7 +25,6 @@ type JobRecorder interface {
 }
 
 type SQLJobStore struct {
-	dbSql *sql.DB
 	db *goqu.Database
 }
 
