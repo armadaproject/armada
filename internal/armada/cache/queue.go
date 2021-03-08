@@ -42,7 +42,7 @@ func NewQueueCache(
 func (c *QueueCache) Refresh() {
 	queues, e := c.queueRepository.GetAllQueues()
 	if e != nil {
-		log.Errorf("Error while getting queue metrics %s", e)
+		log.Errorf("Error while getting queues %s", e)
 		return
 	}
 
