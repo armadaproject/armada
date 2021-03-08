@@ -38,10 +38,12 @@ func main() {
 	common.LoadConfig(&config, "./config/lookout", userSpecifiedConfig)
 
 	if viper.GetBool(MigrateDatabase) {
-		db, err := postgres.Open(config.PostgresConnection)
+		db, err := postgres.Open(config.Postgres.Connection)
 		if err != nil {
 			panic(err)
 		}
+		lookout.ConfigurePostgresDb(db, config.Postgres)
+
 		err = schema.UpdateDatabase(db)
 		if err != nil {
 			panic(err)
