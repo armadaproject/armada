@@ -7,9 +7,9 @@ type JobIdCellProps = {
   onClick: () => void
 } & TableCellProps
 
-export default function JobIdCell(props: JobIdCellProps) {
+export default function LinkCell(props: JobIdCellProps) {
   return (
-    <div className="job-id-cell" onClick={props.onClick}>
+    <div className="link" onClick={props.onClick}>
       {props.cellData}
     </div>
   )
