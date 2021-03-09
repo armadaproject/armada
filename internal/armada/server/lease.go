@@ -21,6 +21,7 @@ type AggregatedQueueServer struct {
 	permissions              authorization.PermissionChecker
 	schedulingConfig         configuration.SchedulingConfig
 	jobRepository            repository.JobRepository
+	jobQueue                 scheduling.JobQueue
 	queueRepository          repository.QueueRepository
 	usageRepository          repository.UsageRepository
 	eventStore               repository.EventStore
@@ -31,6 +32,7 @@ func NewAggregatedQueueServer(
 	permissions authorization.PermissionChecker,
 	schedulingConfig configuration.SchedulingConfig,
 	jobRepository repository.JobRepository,
+	jobQueue scheduling.JobQueue,
 	queueRepository repository.QueueRepository,
 	usageRepository repository.UsageRepository,
 	eventStore repository.EventStore,
@@ -39,6 +41,7 @@ func NewAggregatedQueueServer(
 	return &AggregatedQueueServer{
 		permissions:              permissions,
 		schedulingConfig:         schedulingConfig,
+		jobQueue:                 jobQueue,
 		jobRepository:            jobRepository,
 		queueRepository:          queueRepository,
 		usageRepository:          usageRepository,
@@ -99,7 +102,7 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 	jobs, e := scheduling.LeaseJobs(
 		ctx,
 		&q.schedulingConfig,
-		q.jobRepository,
+		q.jobQueue,
 		func(jobs []*api.Job) { reportJobsLeased(q.eventStore, jobs, request.ClusterId) },
 		request,
 		nodeResources,

@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/G-Research/armada/internal/armada/authorization"
+	"github.com/G-Research/armada/internal/armada/cache"
 	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/G-Research/armada/internal/armada/repository"
 	"github.com/G-Research/armada/pkg/api"
@@ -112,16 +113,19 @@ func TestAggregatedQueueServer_ReturningLeaseMoreThanMaxRetriesSendsJobFailedEve
 func makeAggregatedQueueServerWithTestDoubles(maxRetries uint) (*mockJobRepository, *fakeEventStore, *AggregatedQueueServer) {
 	mockJobRepository := newMockJobRepository()
 	fakeEventStore := &fakeEventStore{}
+	fakeQueueRepository := &fakeQueueRepository{}
+	fakeSchedulingInfoRepository := &fakeSchedulingInfoRepository{}
 	return mockJobRepository, fakeEventStore, NewAggregatedQueueServer(
 		&FakePermissionChecker{},
 		configuration.SchedulingConfig{
 			MaxRetries: maxRetries,
 		},
 		mockJobRepository,
-		&fakeQueueRepository{},
+		cache.NewQueueCache(fakeQueueRepository, mockJobRepository, fakeSchedulingInfoRepository),
+		fakeQueueRepository,
 		&fakeUsageRepository{},
 		fakeEventStore,
-		&fakeSchedulingInfoRepository{})
+		fakeSchedulingInfoRepository)
 }
 
 type mockJobRepository struct {
@@ -146,6 +150,10 @@ func newMockJobRepository() *mockJobRepository {
 		returnLeaseArg2:  "",
 		deleteJobsArg:    nil,
 	}
+}
+
+func (repo *mockJobRepository) GetQueueJobIds(queueName string) ([]string, error) {
+	return []string{}, nil
 }
 
 func (repo *mockJobRepository) CreateJobs(request *api.JobSubmitRequest, principal authorization.Principal) ([]*api.Job, error) {
