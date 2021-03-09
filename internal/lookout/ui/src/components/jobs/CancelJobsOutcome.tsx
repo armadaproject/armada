@@ -12,7 +12,7 @@ import {
 } from "@material-ui/core";
 import { makeStyles } from "@material-ui/core/styles";
 
-import { CancelJobsResult } from "../services/JobService";
+import { CancelJobsResult } from "../../services/JobService";
 import LoadingButton from "./LoadingButton";
 
 const useStyles = makeStyles((theme: Theme) =>

@@ -14,7 +14,7 @@ import { ExpandLess, ExpandMore } from "@material-ui/icons"
 import { RunDetailsRows } from "./RunDetailsRows";
 import { Run } from "../../services/JobService";
 
-import "./SchedulingHistory.css"
+import "./PreviousRuns.css"
 
 interface SchedulingHistoryProps {
   runs: Run[]
@@ -22,10 +22,10 @@ interface SchedulingHistoryProps {
   onToggleExpand: (k8sId: string, isExpanded: boolean) => void
 }
 
-export function SchedulingHistory(props: SchedulingHistoryProps) {
+export function PreviousRuns(props: SchedulingHistoryProps) {
   return <Fragment>
-    <h3 className="scheduling-history-title">Scheduling history</h3>
-    <div className="scheduling-history">
+    <h3 className="previous-runs-title">Previous runs</h3>
+    <div className="previous-runs">
       <List
         component={Paper}>
         {props.runs && props.runs.map(run => (

@@ -18,6 +18,10 @@ export function RunDetailsRows(props: RunDetailsRowsProps) {
         <TableCell>{props.run.cluster}</TableCell>
       </TableRow>
       <TableRow className="field">
+        <TableCell className="field-label">Pod number</TableCell>
+        <TableCell>{props.run.podNumber}</TableCell>
+      </TableRow>
+      <TableRow className="field">
         <TableCell className="field-label">Kubernetes Id</TableCell>
         <TableCell>{props.run.k8sId}</TableCell>
       </TableRow>
