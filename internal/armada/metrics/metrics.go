@@ -1,31 +1,33 @@
 package metrics
 
 import (
-	"sync"
-
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/G-Research/armada/internal/armada/repository"
 	"github.com/G-Research/armada/internal/armada/scheduling"
 	"github.com/G-Research/armada/internal/common"
-	"github.com/G-Research/armada/pkg/api"
 )
 
 const MetricPrefix = "armada_"
+
+type QueueMetricProvider interface {
+	GetQueuedResources(queueName string) map[string]common.ComputeResourcesFloat
+}
 
 func ExposeDataMetrics(
 	queueRepository repository.QueueRepository,
 	jobRepository repository.JobRepository,
 	usageRepository repository.UsageRepository,
 	schedulingInfoRepository repository.SchedulingInfoRepository,
+	queueMetrics QueueMetricProvider,
 ) *QueueInfoCollector {
 	collector := &QueueInfoCollector{
 		queueRepository:          queueRepository,
 		jobRepository:            jobRepository,
 		usageRepository:          usageRepository,
 		schedulingInfoRepository: schedulingInfoRepository,
-		queuedResources:          map[string]map[string]common.ComputeResourcesFloat{}}
+		queueMetrics:             queueMetrics}
 	prometheus.MustRegister(collector)
 	return collector
 }
@@ -35,9 +37,7 @@ type QueueInfoCollector struct {
 	jobRepository            repository.JobRepository
 	usageRepository          repository.UsageRepository
 	schedulingInfoRepository repository.SchedulingInfoRepository
-
-	refreshMutex    sync.Mutex
-	queuedResources map[string]map[string]common.ComputeResourcesFloat
+	queueMetrics             QueueMetricProvider
 }
 
 var queueSizeDesc = prometheus.NewDesc(
@@ -88,61 +88,6 @@ var clusterAvailableCapacity = prometheus.NewDesc(
 	[]string{"cluster", "pool", "resourceType"},
 	nil,
 )
-
-func (c *QueueInfoCollector) RefreshMetrics() {
-	queues, e := c.queueRepository.GetAllQueues()
-	if e != nil {
-		log.Errorf("Error while getting queue metrics %s", e)
-		return
-	}
-
-	clusterInfo, e := c.schedulingInfoRepository.GetClusterSchedulingInfo()
-	if e != nil {
-		log.Errorf("Error while getting cluster reports %s", e)
-		return
-	}
-
-	activeClusterInfo := scheduling.FilterActiveClusterSchedulingInfoReports(clusterInfo)
-	clusterInfoByPool := scheduling.GroupSchedulingInfoByPool(activeClusterInfo)
-
-	for _, queue := range queues {
-		resourceUsageByPool := map[string]common.ComputeResources{}
-
-		err := c.jobRepository.IterateQueueJobs(queue.Name, func(job *api.Job) {
-			jobResources := common.TotalJobResourceRequest(job)
-			for pool, info := range clusterInfoByPool {
-				if scheduling.MatchSchedulingRequirementsOnAnyCluster(job, info) {
-					r, exists := resourceUsageByPool[pool]
-					if !exists {
-						r = common.ComputeResources{}
-						resourceUsageByPool[pool] = r
-					}
-					r.Add(jobResources)
-				}
-			}
-		})
-		if err != nil {
-			log.Errorf("Error while getting queue %s resources %s", queue.Name, err)
-		}
-		c.updateQueuedResource(queue.Name, resourceUsageByPool)
-	}
-}
-
-func (c *QueueInfoCollector) updateQueuedResource(queueName string, resourcesByPool map[string]common.ComputeResources) {
-	c.refreshMutex.Lock()
-	defer c.refreshMutex.Unlock()
-	floatResourcesByPool := map[string]common.ComputeResourcesFloat{}
-	for pool, res := range resourcesByPool {
-		floatResourcesByPool[pool] = res.AsFloat()
-	}
-	c.queuedResources[queueName] = floatResourcesByPool
-}
-
-func (c *QueueInfoCollector) GetQueueResources(queueName string) map[string]common.ComputeResourcesFloat {
-	c.refreshMutex.Lock()
-	defer c.refreshMutex.Unlock()
-	return c.queuedResources[queueName]
-}
 
 func (c *QueueInfoCollector) Describe(desc chan<- *prometheus.Desc) {
 	desc <- queueSizeDesc
@@ -197,7 +142,7 @@ func (c *QueueInfoCollector) Collect(metrics chan<- prometheus.Metric) {
 	}
 
 	for _, q := range queues {
-		for pool, poolResources := range c.GetQueueResources(q.Name) {
+		for pool, poolResources := range c.queueMetrics.GetQueuedResources(q.Name) {
 			for resourceType, amount := range poolResources {
 				metrics <- prometheus.MustNewConstMetric(queueResourcesDesc, prometheus.GaugeValue, amount, pool, q.Name, resourceType)
 			}

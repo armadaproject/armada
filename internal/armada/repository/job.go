@@ -27,19 +27,16 @@ const jobRetriesPrefix = "Job:Retries:"
 
 const queueResourcesBatchSize = 20000
 
-type JobQueueRepository interface {
+type JobRepository interface {
 	PeekQueue(queue string, limit int64) ([]*api.Job, error)
 	TryLeaseJobs(clusterId string, queue string, jobs []*api.Job) ([]*api.Job, error)
-}
-
-type JobRepository interface {
-	JobQueueRepository
 	CreateJobs(request *api.JobSubmitRequest, principal authorization.Principal) ([]*api.Job, error)
 	AddJobs(job []*api.Job) ([]*SubmitJobResult, error)
 	GetExistingJobsByIds(ids []string) ([]*api.Job, error)
 	FilterActiveQueues(queues []*api.Queue) ([]*api.Queue, error)
 	GetQueueSizes(queues []*api.Queue) (sizes []int64, e error)
 	IterateQueueJobs(queueName string, action func(*api.Job)) error
+	GetQueueJobIds(queueName string) ([]string, error)
 	RenewLease(clusterId string, jobIds []string) (renewed []string, e error)
 	ExpireLeases(queue string, deadline time.Time) (expired []*api.Job, e error)
 	ReturnLease(clusterId string, jobId string) (returnedJob *api.Job, err error)
@@ -439,7 +436,7 @@ func (repo *RedisJobRepository) GetQueueSizes(queues []*api.Queue) (sizes []int6
 }
 
 func (repo *RedisJobRepository) IterateQueueJobs(queueName string, action func(*api.Job)) error {
-	queuedIds, e := repo.db.ZRange(jobQueuePrefix+queueName, 0, -1).Result()
+	queuedIds, e := repo.GetQueueJobIds(queueName)
 	if e != nil {
 		return e
 	}
@@ -460,6 +457,11 @@ func (repo *RedisJobRepository) IterateQueueJobs(queueName string, action func(*
 
 	}
 	return nil
+}
+
+func (repo *RedisJobRepository) GetQueueJobIds(queueName string) ([]string, error) {
+	queuedIds, e := repo.db.ZRange(jobQueuePrefix+queueName, 0, -1).Result()
+	return queuedIds, e
 }
 
 func (repo *RedisJobRepository) GetActiveJobIds(queue string, jobSetId string) ([]string, error) {
