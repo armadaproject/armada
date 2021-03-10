@@ -1,10 +1,10 @@
-.scheduling-history-title {
+.previous-runs-title {
     margin-top: 2em;
     margin-left: 16px;
     width: 100%;
 }
 
-.scheduling-history {
+.previous-runs {
     margin-bottom: 1em;
     width: 85%;
     align-self: center;

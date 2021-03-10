@@ -1,12 +1,12 @@
 import React from 'react'
 import { AutoSizer, Column, InfiniteLoader, Table } from "react-virtualized"
 
-import { Job, JobRun } from "../services/JobService"
+import { Job } from "../../services/JobService"
 import JobTableHeader from "./JobTableHeader";
 import JobRow from "./JobRow";
 import HeaderRow from "./HeaderRow";
 import LoadingRow from "./LoadingRow";
-import LinkCell from "./LinkCell";
+import LinkCell from "../LinkCell";
 
 import './Jobs.css'
 
@@ -28,7 +28,7 @@ type JobsProps = {
   onOrderChange: (newestFirst: boolean) => Promise<void>
   onJobIdChange: (jobId: string) => Promise<void>
   onRefresh: () => Promise<void>
-  onSelectJob: (job: JobRun, selected: boolean) => Promise<void>
+  onSelectJob: (job: Job, selected: boolean) => Promise<void>
   onCancelJobsClick: () => void
   onJobIdClick: (jobIndex: number) => void
 }
@@ -161,12 +161,10 @@ export default class Jobs extends React.Component<JobsProps, {}> {
                       cellRenderer={(cellProps) => (
                         <LinkCell onClick={() => this.props.onJobIdClick(cellProps.rowIndex)} {...cellProps} />
                       )} />
-                    <Column dataKey="podNumber" width={0.1 * width} label="Pod" />
                     <Column dataKey="owner" width={0.2 * width} label="Owner" />
                     <Column dataKey="jobSet" width={0.2 * width} label="Job Set" />
                     <Column dataKey="submissionTime" width={0.2 * width} label="Submission Time" />
-                    <Column dataKey="jobState" width={0.1 * width} label="State"/>
-                    <Column dataKey="runState" width={0.1 * width} label="Run State"/>
+                    <Column dataKey="jobState" width={0.2 * width} label="State"/>
                   </Table>
                 )}
               </AutoSizer>

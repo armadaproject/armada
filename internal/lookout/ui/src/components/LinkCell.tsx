@@ -1,7 +1,7 @@
 import React from "react"
 import { TableCellProps } from "react-virtualized"
 
-import "./Cell.css"
+import "./LinkCell.css"
 
 type JobIdCellProps = {
   onClick: () => void

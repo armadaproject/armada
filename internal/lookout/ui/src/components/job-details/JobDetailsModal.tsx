@@ -1,6 +1,6 @@
 import React from 'react'
 
-import { JobRun } from "../../services/JobService"
+import { Job } from "../../services/JobService"
 import { Dialog, DialogTitle } from "@material-ui/core"
 import JobDetails from "./JobDetails"
 
@@ -8,7 +8,7 @@ import "./JobDetailsModal.css"
 
 export interface JobDetailsModalContext {
   open: boolean
-  job?: JobRun
+  job?: Job
   expandedItems: Set<string>
 }
 

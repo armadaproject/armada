@@ -14,7 +14,7 @@ import {
 import RefreshIcon from '@material-ui/icons/Refresh';
 import CancelIcon from "@material-ui/icons/Cancel"
 
-import { JOB_STATES_FOR_DISPLAY } from "../services/JobService";
+import { JOB_STATES_FOR_DISPLAY } from "../../services/JobService";
 import './JobTableHeader.css'
 
 type JobTableHeaderProps = {

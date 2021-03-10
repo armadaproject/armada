@@ -2,7 +2,7 @@ import React, { Fragment } from 'react'
 import { RouteComponentProps, withRouter } from 'react-router-dom';
 
 import Overview from "../components/Overview"
-import JobService, { JobRun, QueueInfo } from "../services/JobService";
+import JobService, { Job, QueueInfo } from "../services/JobService";
 import JobDetailsModal, { JobDetailsModalContext, toggleExpanded } from "../components/job-details/JobDetailsModal";
 
 type OverviewContainerProps = {
@@ -80,7 +80,7 @@ class OverviewContainer extends React.Component<OverviewContainerProps, Overview
       return;
     }
 
-    let job: JobRun | undefined
+    let job: Job | undefined
     if (queueInfo.oldestQueuedJob && jobId === queueInfo.oldestQueuedJob.jobId) {
       job = queueInfo.oldestQueuedJob
     } else if (queueInfo.longestRunningJob && jobId === queueInfo.longestRunningJob.jobId) {
