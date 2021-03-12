@@ -2,6 +2,7 @@ package client
 
 import (
 	"github.com/G-Research/armada/internal/common"
+	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/pkg/api"
 )
 
@@ -23,6 +24,7 @@ func DeleteQueue(submitClient api.SubmitClient, name string) error {
 }
 
 func SubmitJobs(submitClient api.SubmitClient, request *api.JobSubmitRequest) (*api.JobSubmitResponse, error) {
+	AddClientIds(request.JobRequestItems)
 	ctx, cancel := common.ContextWithDefaultTimeout()
 	defer cancel()
 	return submitClient.SubmitJobs(ctx, request)
@@ -44,6 +46,14 @@ func CreateChunkedSubmitRequests(queue string, jobSetId string, jobs []*api.JobS
 	}
 
 	return requests
+}
+
+func AddClientIds(jobs []*api.JobSubmitRequestItem) {
+	for _, j := range jobs {
+		if j.ClientId == "" {
+			j.ClientId = util.NewULID()
+		}
+	}
 }
 
 func min(a, b int) int {
