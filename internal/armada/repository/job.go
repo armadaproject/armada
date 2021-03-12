@@ -25,6 +25,7 @@ const jobLeasedPrefix = "Job:Leased:"
 const jobClusterMapKey = "Job:ClusterId"
 const jobRetriesPrefix = "Job:Retries:"
 const jobClientIdPrefix = "job:ClientId:"
+const keySeparator = ":"
 
 const queueResourcesBatchSize = 20000
 
@@ -634,9 +635,8 @@ func (repo *RedisJobRepository) applyDefaults(spec *v1.PodSpec) {
 }
 
 func addJob(db redis.Cmdable, job *api.Job, jobData *[]byte) *redis.Cmd {
-
 	return addJobScript.Run(db,
-		[]string{jobQueuePrefix + job.Queue, jobObjectPrefix + job.Id, jobSetPrefix + job.JobSetId, jobClientIdPrefix + job.ClientId},
+		[]string{jobQueuePrefix + job.Queue, jobObjectPrefix + job.Id, jobSetPrefix + job.JobSetId, jobClientIdPrefix + job.Queue + keySeparator + job.ClientId},
 		job.Id, job.Priority, *jobData, job.ClientId)
 }
 
