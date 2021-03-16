@@ -347,6 +347,9 @@ func SwaggerJsonTemplate() string {
 		"            \"type\": \"string\"\n" +
 		"          }\n" +
 		"        },\n" +
+		"        \"clientId\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
 		"        \"created\": {\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"format\": \"date-time\"\n" +
@@ -712,6 +715,9 @@ func SwaggerJsonTemplate() string {
 		"          \"additionalProperties\": {\n" +
 		"            \"type\": \"string\"\n" +
 		"          }\n" +
+		"        },\n" +
+		"        \"clientId\": {\n" +
+		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"labels\": {\n" +
 		"          \"type\": \"object\",\n" +

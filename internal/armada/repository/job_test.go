@@ -14,6 +14,22 @@ import (
 	"github.com/G-Research/armada/pkg/api"
 )
 
+func TestJobDoubleSubmit(t *testing.T) {
+	withRepository(func(r *RedisJobRepository) {
+		job1 := addTestJobWithClientId(t, r, "queue1", "my-job-1")
+		job2 := addTestJobWithClientId(t, r, "queue1", "my-job-1")
+		assert.Equal(t, job1.Id, job2.Id)
+	})
+}
+
+func TestJobAddDifferentQueuesCanHaveSameClientId(t *testing.T) {
+	withRepository(func(r *RedisJobRepository) {
+		job1 := addTestJobWithClientId(t, r, "queue1", "my-job-1")
+		job2 := addTestJobWithClientId(t, r, "queue2", "my-job-1")
+		assert.NotEqual(t, job1.Id, job2.Id)
+	})
+}
+
 func TestJobCanBeLeasedOnlyOnce(t *testing.T) {
 	withRepository(func(r *RedisJobRepository) {
 
@@ -266,7 +282,7 @@ func TestCreateJob_ApplyDefaultLimitss(t *testing.T) {
 				resources.Requests = *requirements
 				resources.Limits = *requirements
 			}
-			job := addTestJobWithRequirements(t, r, "test", resources)
+			job := addTestJobWithRequirements(t, r, "test", "", resources)
 			assert.Equal(t, expected, job.PodSpec.Containers[0].Resources.Limits)
 			assert.Equal(t, expected, job.PodSpec.Containers[0].Resources.Requests)
 		}
@@ -371,16 +387,20 @@ func addLeasedJob(t *testing.T, r *RedisJobRepository, queue string, cluster str
 }
 
 func addTestJob(t *testing.T, r *RedisJobRepository, queue string) *api.Job {
+	return addTestJobWithClientId(t, r, queue, "")
+}
+
+func addTestJobWithClientId(t *testing.T, r *RedisJobRepository, queue string, clientId string) *api.Job {
 	cpu := resource.MustParse("1")
 	memory := resource.MustParse("512Mi")
 
-	return addTestJobWithRequirements(t, r, queue, v1.ResourceRequirements{
+	return addTestJobWithRequirements(t, r, queue, clientId, v1.ResourceRequirements{
 		Limits:   v1.ResourceList{"cpu": cpu, "memory": memory},
 		Requests: v1.ResourceList{"cpu": cpu, "memory": memory},
 	})
 }
 
-func addTestJobWithRequirements(t *testing.T, r *RedisJobRepository, queue string, requirements v1.ResourceRequirements) *api.Job {
+func addTestJobWithRequirements(t *testing.T, r *RedisJobRepository, queue string, clientId string, requirements v1.ResourceRequirements) *api.Job {
 
 	jobs, e := r.CreateJobs(&api.JobSubmitRequest{
 		Queue:    queue,
@@ -388,6 +408,7 @@ func addTestJobWithRequirements(t *testing.T, r *RedisJobRepository, queue strin
 		JobRequestItems: []*api.JobSubmitRequestItem{
 			{
 				Priority: 1,
+				ClientId: clientId,
 				PodSpec: &v1.PodSpec{
 					Containers: []v1.Container{
 						{
@@ -402,8 +423,9 @@ func addTestJobWithRequirements(t *testing.T, r *RedisJobRepository, queue strin
 
 	results, e := r.AddJobs(jobs)
 	assert.Nil(t, e)
-	for _, result := range results {
+	for i, result := range results {
 		assert.Empty(t, result.Error)
+		jobs[i].Id = result.JobId // Update job ids for tests to be able to test the duplicate detection
 	}
 	return jobs[0]
 }
