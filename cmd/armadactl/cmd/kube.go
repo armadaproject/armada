@@ -20,12 +20,13 @@ func init() {
 		"jobId", "", "job to cancel")
 	kubeCmd.MarkFlagRequired("jobId")
 	kubeCmd.Flags().String(
-		"queue", "", "queue to cancel jobs from (requires job set to be specified)")
+		"queue", "", "queue of the job")
 	kubeCmd.MarkFlagRequired("queue")
 	kubeCmd.Flags().String(
-		"jobSet", "", "jobSet to cancel (requires queue to be specified)")
+		"jobSet", "", "jobSet of the job")
 	kubeCmd.MarkFlagRequired("jobSet")
-
+	kubeCmd.Flags().Int(
+		"podNumber", 0, "[optional] for jobs with multiple pods, index of the pod")
 	kubeCmd.FParseErrWhitelist.UnknownFlags = true
 }
 
@@ -45,6 +46,7 @@ In bash, you can execute it directly like this:
 		jobId, _ := cmd.Flags().GetString("jobId")
 		queue, _ := cmd.Flags().GetString("queue")
 		jobSetId, _ := cmd.Flags().GetString("jobSet")
+		podNumber, _ := cmd.Flags().GetInt("podNumber")
 
 		verb := strings.Join(args, " ")
 
@@ -62,7 +64,7 @@ In bash, you can execute it directly like this:
 				log.Fatalf("The job have no cluster allocated.")
 			}
 
-			cmd := client.GetKubectlCommand(jobInfo.ClusterId, jobInfo.Job.Namespace, jobId, verb)
+			cmd := client.GetKubectlCommand(jobInfo.ClusterId, jobInfo.Job.Namespace, jobId, podNumber, verb)
 
 			fmt.Println(cmd)
 		})
