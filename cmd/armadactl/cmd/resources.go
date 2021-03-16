@@ -17,7 +17,7 @@ func init() {
 }
 
 var resourcesCmd = &cobra.Command{
-	Use:   "resources",
+	Use:   "resources <queue> <jobSet>",
 	Short: "Prints out maximum resource usage for individual jobs.",
 	Long:  `Prints out maximum resource usage for individual jobs in job set.`,
 	Args:  cobra.ExactArgs(2),
