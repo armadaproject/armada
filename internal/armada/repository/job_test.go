@@ -22,6 +22,14 @@ func TestJobDoubleSubmit(t *testing.T) {
 	})
 }
 
+func TestJobAddDifferentQueuesCanHaveSameClientId(t *testing.T) {
+	withRepository(func(r *RedisJobRepository) {
+		job1 := addTestJobWithClientId(t, r, "queue1", "my-job-1")
+		job2 := addTestJobWithClientId(t, r, "queue2", "my-job-1")
+		assert.NotEqual(t, job1.Id, job2.Id)
+	})
+}
+
 func TestJobCanBeLeasedOnlyOnce(t *testing.T) {
 	withRepository(func(r *RedisJobRepository) {
 
