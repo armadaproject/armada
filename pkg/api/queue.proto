@@ -13,6 +13,7 @@ option (gogoproto.stringer_all) = true;
 
 message Job {
     string id = 1;
+    string client_id = 13;
     string job_set_id = 2;
     string queue = 3;
     string namespace = 7;
