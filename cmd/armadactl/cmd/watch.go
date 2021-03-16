@@ -61,7 +61,7 @@ var watchCmd = &cobra.Command{
 						jobInfo := state.GetJobInfo(event.JobId)
 						if jobInfo != nil && jobInfo.ClusterId != "" && jobInfo.Job != nil {
 							log.Errorf("You might be able to get the pod logs by running (logs are available for limited time):\n%s --tail=50\n",
-								client.GetKubectlCommand(jobInfo.ClusterId, jobInfo.Job.Namespace, event.JobId, "logs"))
+								client.GetKubectlCommand(jobInfo.ClusterId, jobInfo.Job.Namespace, event.JobId, int(event.PodNumber), "logs"))
 						}
 					default:
 						printSummary(state, e)
