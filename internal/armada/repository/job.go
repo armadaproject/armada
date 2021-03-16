@@ -24,6 +24,8 @@ const jobSetPrefix = "Job:Set:"
 const jobLeasedPrefix = "Job:Leased:"
 const jobClusterMapKey = "Job:ClusterId"
 const jobRetriesPrefix = "Job:Retries:"
+const jobClientIdPrefix = "job:ClientId:"
+const keySeparator = ":"
 
 const queueResourcesBatchSize = 20000
 
@@ -102,6 +104,7 @@ func (repo *RedisJobRepository) CreateJobs(request *api.JobSubmitRequest, princi
 
 		j := &api.Job{
 			Id:       util.NewULID(),
+			ClientId: item.ClientId,
 			Queue:    request.Queue,
 			JobSetId: request.JobSetId,
 
@@ -124,61 +127,39 @@ func (repo *RedisJobRepository) CreateJobs(request *api.JobSubmitRequest, princi
 	return jobs, nil
 }
 
-type submitJobRedisResponse struct {
-	job               *api.Job
-	queueJobResult    *redis.IntCmd
-	saveJobResult     *redis.StatusCmd
-	jobSetIndexResult *redis.IntCmd
-}
-
 type SubmitJobResult struct {
-	Job   *api.Job
+	JobId string
 	Error error
 }
 
 func (repo *RedisJobRepository) AddJobs(jobs []*api.Job) ([]*SubmitJobResult, error) {
-	pipe := repo.db.TxPipeline()
+	pipe := repo.db.Pipeline()
 
-	submitResults := make([]*submitJobRedisResponse, 0, len(jobs))
+	addJobScript.Load(pipe)
+
+	saveResults := make([]*redis.Cmd, 0, len(jobs))
 
 	for _, job := range jobs {
-		submitResult := &submitJobRedisResponse{job: job}
-
 		jobData, e := proto.Marshal(job)
 		if e != nil {
 			return nil, e
 		}
 
-		submitResult.queueJobResult =
-			pipe.ZAdd(jobQueuePrefix+job.Queue, redis.Z{
-				Member: job.Id,
-				Score:  job.Priority},
-			)
-
-		submitResult.saveJobResult = pipe.Set(jobObjectPrefix+job.Id, jobData, 0)
-		submitResult.jobSetIndexResult = pipe.SAdd(jobSetPrefix+job.JobSetId, job.Id)
-		submitResults = append(submitResults, submitResult)
+		result := addJob(pipe, job, &jobData)
+		saveResults = append(saveResults, result)
 	}
 
 	_, _ = pipe.Exec() // ignoring error here as it will be part of individual commands
 
 	result := make([]*SubmitJobResult, 0, len(jobs))
-	for _, submitResult := range submitResults {
-		response := &SubmitJobResult{Job: submitResult.job}
-
-		if _, e := submitResult.queueJobResult.Result(); e != nil {
-			response.Error = e
+	for _, saveResult := range saveResults {
+		resultJobId, err := saveResult.String()
+		submitJobResult := &SubmitJobResult{
+			JobId: resultJobId,
+			Error: err,
 		}
-		if _, e := submitResult.saveJobResult.Result(); e != nil {
-			response.Error = e
-		}
-		if _, e := submitResult.jobSetIndexResult.Result(); e != nil {
-			response.Error = e
-		}
-
-		result = append(result, response)
+		result = append(result, submitJobResult)
 	}
-
 	return result, nil
 }
 
@@ -652,6 +633,38 @@ func (repo *RedisJobRepository) applyDefaults(spec *v1.PodSpec) {
 		}
 	}
 }
+
+func addJob(db redis.Cmdable, job *api.Job, jobData *[]byte) *redis.Cmd {
+	return addJobScript.Run(db,
+		[]string{jobQueuePrefix + job.Queue, jobObjectPrefix + job.Id, jobSetPrefix + job.JobSetId, jobClientIdPrefix + job.Queue + keySeparator + job.ClientId},
+		job.Id, job.Priority, *jobData, job.ClientId)
+}
+
+var addJobScript = redis.NewScript(`
+local queueKey = KEYS[1]
+local jobKey = KEYS[2]
+local jobSetKey = KEYS[3]
+local jobClientIdKey = KEYS[4]
+
+local jobId = ARGV[1]
+local jobPriority = ARGV[2]
+local jobData = ARGV[3]
+local clientId = ARGV[4]
+
+if clientId ~= '' then
+	local existingJobId = redis.call('GET', jobClientIdKey)
+	if existingJobId then 
+		return existingJobId
+	end
+	redis.call('SET', jobClientIdKey, jobId, 'EX', 14400)
+end
+
+redis.call('SET', jobKey, jobData)
+redis.call('SADD', jobSetKey, jobId)
+redis.call('ZADD', queueKey, jobPriority, jobId)
+
+return jobId
+`)
 
 func leaseJob(db redis.Cmdable, queueName string, clusterId string, jobId string, now time.Time) *redis.Cmd {
 	return leaseJobScript.Run(db, []string{jobQueuePrefix + queueName, jobLeasedPrefix + queueName, jobClusterMapKey},

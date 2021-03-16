@@ -336,6 +336,9 @@
             "type": "string"
           }
         },
+        "clientId": {
+          "type": "string"
+        },
         "created": {
           "type": "string",
           "format": "date-time"
@@ -701,6 +704,9 @@
           "additionalProperties": {
             "type": "string"
           }
+        },
+        "clientId": {
+          "type": "string"
         },
         "labels": {
           "type": "object",

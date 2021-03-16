@@ -131,7 +131,7 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 	}
 
 	for _, submissionResult := range submissionResults {
-		jobResponse := &api.JobSubmitResponseItem{JobId: submissionResult.Job.Id}
+		jobResponse := &api.JobSubmitResponseItem{JobId: submissionResult.JobId}
 		if submissionResult.Error != nil {
 			jobResponse.Error = submissionResult.Error.Error()
 		}

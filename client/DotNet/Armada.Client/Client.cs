@@ -54,6 +54,14 @@ namespace GResearch.Armada.Client
     public partial class ApiJobTerminatedEvent : IEvent {}
     public partial class ApiJobUtilisationEvent : IEvent {}
 
+    public partial class ApiJobSubmitRequestItem
+    {
+        public ApiJobSubmitRequestItem()
+        {
+            ClientId = Guid.NewGuid().ToString("N");
+        }
+    }
+
     public class StreamResponse<T>
     {
         public T Result { get; set; }

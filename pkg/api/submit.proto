@@ -14,6 +14,7 @@ option (gogoproto.stringer_all) = true;
 message JobSubmitRequestItem {
     double priority = 1;
     string namespace = 3;
+    string client_id = 8;
     map<string, string> labels = 4;
     map<string, string> annotations = 5;
     map<string, string> required_node_labels = 6 [deprecated = true]; // Use PodSpec.NodeSelector instead

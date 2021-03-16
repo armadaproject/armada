@@ -108,6 +108,9 @@
             "type": "string"
           }
         },
+        "clientId": {
+          "type": "string"
+        },
         "created": {
           "type": "string",
           "format": "date-time"
