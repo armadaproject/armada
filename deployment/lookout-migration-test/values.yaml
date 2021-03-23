@@ -1,0 +1,26 @@
+image:
+  repository: localhost:5000/armada-lookout-migration
+  tag: latest
+resources:
+  limits:
+    memory: 256Mi
+    cpu: 200m
+  requests:
+    memory: 128Mi
+    cpu: 100m
+additionalLabels: {}
+customServiceAccount: null
+serviceAccount: null
+
+migrationConfig:
+  postgres:
+    maxOpenConns: 10
+    maxIdleConns: 2
+    connMaxLifetime: 30m
+    connection:
+      host: localhost
+      port: 5432
+      user: postgres
+      password: psw
+      dbname: postgres
+      sslmode: disable

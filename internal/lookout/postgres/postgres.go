@@ -2,8 +2,11 @@ package postgres
 
 import (
 	"database/sql"
-	"github.com/G-Research/armada/internal/lookout/configuration"
 	"strings"
+
+	_ "github.com/lib/pq"
+
+	"github.com/G-Research/armada/internal/lookout/configuration"
 )
 
 func Open(config configuration.PostgresConfig) (*sql.DB, error) {

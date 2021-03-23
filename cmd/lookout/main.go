@@ -15,8 +15,6 @@ import (
 	"github.com/G-Research/armada/internal/common/serve"
 	"github.com/G-Research/armada/internal/lookout"
 	"github.com/G-Research/armada/internal/lookout/configuration"
-	"github.com/G-Research/armada/internal/lookout/postgres"
-	"github.com/G-Research/armada/internal/lookout/repository/schema"
 	lookoutApi "github.com/G-Research/armada/pkg/api/lookout"
 )
 
@@ -36,19 +34,6 @@ func main() {
 	var config configuration.LookoutConfiguration
 	userSpecifiedConfig := viper.GetString(CustomConfigLocation)
 	common.LoadConfig(&config, "./config/lookout", userSpecifiedConfig)
-
-	if viper.GetBool(MigrateDatabase) {
-		db, err := postgres.Open(config.Postgres)
-		if err != nil {
-			panic(err)
-		}
-
-		err = schema.UpdateDatabase(db)
-		if err != nil {
-			panic(err)
-		}
-		os.Exit(0)
-	}
 
 	shutdownChannel := make(chan os.Signal, 1)
 	signal.Notify(shutdownChannel, syscall.SIGINT, syscall.SIGTERM)

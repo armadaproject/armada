@@ -7,6 +7,7 @@ RUN addgroup -S -g 2000 armada && adduser -S -u 1000 armada -G armada
 USER armada
 
 COPY ./bin/linux/lookout-migration /app/
+COPY ./config/lookout-migration/ /app/config/lookout-migration
 
 WORKDIR /app
 
