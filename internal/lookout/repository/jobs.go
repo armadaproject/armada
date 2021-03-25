@@ -155,6 +155,7 @@ func rowsToJobs(rows []*JobRow) []*lookout.JobInfo {
 					Cancelled: ParseNullTime(row.Cancelled),
 					JobState:  state,
 					Runs:      []*lookout.RunInfo{},
+					JobJson:   ParseNullString(row.JobJson),
 				}
 			}
 

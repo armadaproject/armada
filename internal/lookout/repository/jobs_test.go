@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -8,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/G-Research/armada/internal/common/util"
+	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/api/lookout"
 )
 
@@ -1180,5 +1182,29 @@ func TestGetJobs_SkipFirstNewestJobs(t *testing.T) {
 		for i := 0; i < take; i++ {
 			AssertJobsAreEquivalent(t, allJobs[nJobs-skip-i-1].job, jobInfos[i].Job)
 		}
+	})
+}
+
+func TestGetJobs_GetJobJson(t *testing.T) {
+	withDatabase(t, func(db *goqu.Database) {
+		jobStore := NewSQLJobStore(db)
+		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
+
+		queued := NewJobSimulator(t, jobStore).
+			CreateJob(queue)
+
+		jobInfos, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
+			NewestFirst: true,
+			Queue:       queue,
+			Take:        uint32(10),
+			Skip:        uint32(0),
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(jobInfos))
+
+		var job *api.Job
+		err = json.Unmarshal([]byte(jobInfos[0].JobJson), &job)
+		assert.NoError(t, err)
+		AssertJobsAreEquivalent(t, queued.job, job)
 	})
 }

@@ -56,6 +56,7 @@ export default class Jobs extends React.Component<JobsProps, {}> {
         queue: "",
         submissionTime: "",
         runs: [],
+        jobYaml: "",
       }
     }
   }
