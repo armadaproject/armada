@@ -1204,6 +1204,7 @@ func TestGetJobs_GetJobJson(t *testing.T) {
 
 		var job *api.Job
 		err = json.Unmarshal([]byte(jobInfos[0].JobJson), &job)
+		assert.NoError(t, err)
 		AssertJobsAreEquivalent(t, queued.job, job)
 	})
 }
