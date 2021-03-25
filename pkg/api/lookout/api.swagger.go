@@ -461,6 +461,11 @@ func SwaggerJsonTemplate() string {
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
+		"    \"typesUID\": {\n" +
+		"      \"description\": \"UID is a type that holds unique ID values, including UUIDs.  Because we\\ndon't ONLY use UUIDs, this is an alias to string.  Being a type captures\\nintent and helps make sure that UIDs and names do not get conflated.\",\n" +
+		"      \"type\": \"string\",\n" +
+		"      \"x-go-package\": \"k8s.io/apimachinery/pkg/types\"\n" +
+		"    },\n" +
 		"    \"v1AWSElasticBlockStoreVolumeSource\": {\n" +
 		"      \"description\": \"An AWS EBS disk must exist before mounting to a container. The disk\\nmust also be in the same AWS zone as the kubelet. An AWS EBS disk\\ncan only be mounted as read/write once. AWS EBS volumes support\\nownership management and SELinux relabeling.\",\n" +
 		"      \"type\": \"object\",\n" +
@@ -766,7 +771,7 @@ func SwaggerJsonTemplate() string {
 		"      \"title\": \"Adapts a ConfigMap into a volume.\",\n" +
 		"      \"properties\": {\n" +
 		"        \"defaultMode\": {\n" +
-		"          \"description\": \"Optional: mode bits to use on created files by default. Must be a\\nvalue between 0 and 0777. Defaults to 0644.\\nDirectories within the path are not affected by this setting.\\nThis might be in conflict with other options that affect the file\\nmode, like fsGroup, and the result can be other mode bits set.\\n+optional\",\n" +
+		"          \"description\": \"Optional: mode bits used to set permissions on created files by default.\\nMust be an octal value between 0000 and 0777 or a decimal value between 0 and 511.\\nYAML accepts both octal and decimal values, JSON requires decimal values for mode bits.\\nDefaults to 0644.\\nDirectories within the path are not affected by this setting.\\nThis might be in conflict with other options that affect the file\\nmode, like fsGroup, and the result can be other mode bits set.\\n+optional\",\n" +
 		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int32\",\n" +
 		"          \"x-go-name\": \"DefaultMode\"\n" +
@@ -891,7 +896,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"TTY\"\n" +
 		"        },\n" +
 		"        \"volumeDevices\": {\n" +
-		"          \"description\": \"volumeDevices is the list of block devices to be used by the container.\\nThis is a beta feature.\\n+patchMergeKey=devicePath\\n+patchStrategy=merge\\n+optional\",\n" +
+		"          \"description\": \"volumeDevices is the list of block devices to be used by the container.\\n+patchMergeKey=devicePath\\n+patchStrategy=merge\\n+optional\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1VolumeDevice\"\n" +
@@ -975,7 +980,7 @@ func SwaggerJsonTemplate() string {
 		"          \"$ref\": \"#/definitions/v1ObjectFieldSelector\"\n" +
 		"        },\n" +
 		"        \"mode\": {\n" +
-		"          \"description\": \"Optional: mode bits to use on this file, must be a value between 0\\nand 0777. If not specified, the volume defaultMode will be used.\\nThis might be in conflict with other options that affect the file\\nmode, like fsGroup, and the result can be other mode bits set.\\n+optional\",\n" +
+		"          \"description\": \"Optional: mode bits used to set permissions on this file, must be an octal value\\nbetween 0000 and 0777 or a decimal value between 0 and 511.\\nYAML accepts both octal and decimal values, JSON requires decimal values for mode bits.\\nIf not specified, the volume defaultMode will be used.\\nThis might be in conflict with other options that affect the file\\nmode, like fsGroup, and the result can be other mode bits set.\\n+optional\",\n" +
 		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int32\",\n" +
 		"          \"x-go-name\": \"Mode\"\n" +
@@ -997,7 +1002,7 @@ func SwaggerJsonTemplate() string {
 		"      \"title\": \"DownwardAPIVolumeSource represents a volume containing downward API info.\",\n" +
 		"      \"properties\": {\n" +
 		"        \"defaultMode\": {\n" +
-		"          \"description\": \"Optional: mode bits to use on created files by default. Must be a\\nvalue between 0 and 0777. Defaults to 0644.\\nDirectories within the path are not affected by this setting.\\nThis might be in conflict with other options that affect the file\\nmode, like fsGroup, and the result can be other mode bits set.\\n+optional\",\n" +
+		"          \"description\": \"Optional: mode bits to use on created files by default. Must be a\\nOptional: mode bits used to set permissions on created files by default.\\nMust be an octal value between 0000 and 0777 or a decimal value between 0 and 511.\\nYAML accepts both octal and decimal values, JSON requires decimal values for mode bits.\\nDefaults to 0644.\\nDirectories within the path are not affected by this setting.\\nThis might be in conflict with other options that affect the file\\nmode, like fsGroup, and the result can be other mode bits set.\\n+optional\",\n" +
 		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int32\",\n" +
 		"          \"x-go-name\": \"DefaultMode\"\n" +
@@ -1188,7 +1193,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"TTY\"\n" +
 		"        },\n" +
 		"        \"volumeDevices\": {\n" +
-		"          \"description\": \"volumeDevices is the list of block devices to be used by the container.\\nThis is a beta feature.\\n+patchMergeKey=devicePath\\n+patchStrategy=merge\\n+optional\",\n" +
+		"          \"description\": \"volumeDevices is the list of block devices to be used by the container.\\n+patchMergeKey=devicePath\\n+patchStrategy=merge\\n+optional\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1VolumeDevice\"\n" +
@@ -1310,7 +1315,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"TTY\"\n" +
 		"        },\n" +
 		"        \"volumeDevices\": {\n" +
-		"          \"description\": \"volumeDevices is the list of block devices to be used by the container.\\nThis is a beta feature.\\n+patchMergeKey=devicePath\\n+patchStrategy=merge\\n+optional\",\n" +
+		"          \"description\": \"volumeDevices is the list of block devices to be used by the container.\\n+patchMergeKey=devicePath\\n+patchStrategy=merge\\n+optional\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1VolumeDevice\"\n" +
@@ -1329,6 +1334,21 @@ func SwaggerJsonTemplate() string {
 		"          \"description\": \"Container's working directory.\\nIf not specified, the container runtime's default will be used, which\\nmight be configured in the container image.\\nCannot be updated.\\n+optional\",\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"x-go-name\": \"WorkingDir\"\n" +
+		"        }\n" +
+		"      },\n" +
+		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
+		"    },\n" +
+		"    \"v1EphemeralVolumeSource\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"title\": \"Represents an ephemeral volume that is handled by a normal storage driver.\",\n" +
+		"      \"properties\": {\n" +
+		"        \"readOnly\": {\n" +
+		"          \"description\": \"Specifies a read-only configuration for the volume.\\nDefaults to false (read/write).\\n+optional\",\n" +
+		"          \"type\": \"boolean\",\n" +
+		"          \"x-go-name\": \"ReadOnly\"\n" +
+		"        },\n" +
+		"        \"volumeClaimTemplate\": {\n" +
+		"          \"$ref\": \"#/definitions/v1PersistentVolumeClaimTemplate\"\n" +
 		"        }\n" +
 		"      },\n" +
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
@@ -1387,6 +1407,12 @@ func SwaggerJsonTemplate() string {
 		"        }\n" +
 		"      },\n" +
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
+		"    },\n" +
+		"    \"v1FieldsV1\": {\n" +
+		"      \"description\": \"Each key is either a '.' representing the field itself, and will always map to an empty set,\\nor a string representing a sub-field or item. The string will follow one of these four formats:\\n'f:\\u003cname\\u003e', where \\u003cname\\u003e is the name of a field in a struct, or key in a map\\n'v:\\u003cvalue\\u003e', where \\u003cvalue\\u003e is the exact json formatted value of a list item\\n'i:\\u003cindex\\u003e', where \\u003cindex\\u003e is position of a item in a list\\n'k:\\u003ckeys\\u003e', where \\u003ckeys\\u003e is a map of  a list item's key fields to their unique values\\nIf a key maps to an empty Fields value, the field that key represents is part of the set.\\n\\nThe exact format is defined in sigs.k8s.io/structured-merge-diff\\n+protobuf.options.(gogoproto.goproto_stringer)=false\",\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"title\": \"FieldsV1 stores a set of fields in a data structure like a Trie, in JSON format.\",\n" +
+		"      \"x-go-package\": \"k8s.io/apimachinery/pkg/apis/meta/v1\"\n" +
 		"    },\n" +
 		"    \"v1FlexVolumeSource\": {\n" +
 		"      \"description\": \"FlexVolume represents a generic volume resource that is\\nprovisioned/attached using an exec based plugin.\",\n" +
@@ -1693,7 +1719,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"Key\"\n" +
 		"        },\n" +
 		"        \"mode\": {\n" +
-		"          \"description\": \"Optional: mode bits to use on this file, must be a value between 0\\nand 0777. If not specified, the volume defaultMode will be used.\\nThis might be in conflict with other options that affect the file\\nmode, like fsGroup, and the result can be other mode bits set.\\n+optional\",\n" +
+		"          \"description\": \"Optional: mode bits used to set permissions on this file.\\nMust be an octal value between 0000 and 0777 or a decimal value between 0 and 511.\\nYAML accepts both octal and decimal values, JSON requires decimal values for mode bits.\\nIf not specified, the volume defaultMode will be used.\\nThis might be in conflict with other options that affect the file\\nmode, like fsGroup, and the result can be other mode bits set.\\n+optional\",\n" +
 		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int32\",\n" +
 		"          \"x-go-name\": \"Mode\"\n" +
@@ -1707,7 +1733,7 @@ func SwaggerJsonTemplate() string {
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
 		"    \"v1LabelSelector\": {\n" +
-		"      \"description\": \"A label selector is a label query over a set of resources. The result of matchLabels and\\nmatchExpressions are ANDed. An empty label selector matches all objects. A null\\nlabel selector matches no objects.\",\n" +
+		"      \"description\": \"A label selector is a label query over a set of resources. The result of matchLabels and\\nmatchExpressions are ANDed. An empty label selector matches all objects. A null\\nlabel selector matches no objects.\\n+structType=atomic\",\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
 		"        \"matchExpressions\": {\n" +
@@ -1781,6 +1807,42 @@ func SwaggerJsonTemplate() string {
 		"        }\n" +
 		"      },\n" +
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
+		"    },\n" +
+		"    \"v1ManagedFieldsEntry\": {\n" +
+		"      \"description\": \"ManagedFieldsEntry is a workflow-id, a FieldSet and the group version of the resource\\nthat the fieldset applies to.\",\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"apiVersion\": {\n" +
+		"          \"description\": \"APIVersion defines the version of this resource that this field set\\napplies to. The format is \\\"group/version\\\" just like the top-level\\nAPIVersion field. It is necessary to track the version of a field\\nset because it cannot be automatically converted.\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"APIVersion\"\n" +
+		"        },\n" +
+		"        \"fieldsType\": {\n" +
+		"          \"description\": \"FieldsType is the discriminator for the different fields format and version.\\nThere is currently only one possible value: \\\"FieldsV1\\\"\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"FieldsType\"\n" +
+		"        },\n" +
+		"        \"fieldsV1\": {\n" +
+		"          \"$ref\": \"#/definitions/v1FieldsV1\"\n" +
+		"        },\n" +
+		"        \"manager\": {\n" +
+		"          \"description\": \"Manager is an identifier of the workflow managing these fields.\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"Manager\"\n" +
+		"        },\n" +
+		"        \"operation\": {\n" +
+		"          \"$ref\": \"#/definitions/v1ManagedFieldsOperationType\"\n" +
+		"        },\n" +
+		"        \"time\": {\n" +
+		"          \"$ref\": \"#/definitions/v1Time\"\n" +
+		"        }\n" +
+		"      },\n" +
+		"      \"x-go-package\": \"k8s.io/apimachinery/pkg/apis/meta/v1\"\n" +
+		"    },\n" +
+		"    \"v1ManagedFieldsOperationType\": {\n" +
+		"      \"type\": \"string\",\n" +
+		"      \"title\": \"ManagedFieldsOperationType is the type of operation which lead to a ManagedFieldsEntry being created.\",\n" +
+		"      \"x-go-package\": \"k8s.io/apimachinery/pkg/apis/meta/v1\"\n" +
 		"    },\n" +
 		"    \"v1MountPropagationMode\": {\n" +
 		"      \"type\": \"string\",\n" +
@@ -1911,6 +1973,281 @@ func SwaggerJsonTemplate() string {
 		"      },\n" +
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
+		"    \"v1ObjectMeta\": {\n" +
+		"      \"description\": \"ObjectMeta is metadata that all persisted resources must have, which includes all objects\\nusers must create.\",\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"annotations\": {\n" +
+		"          \"description\": \"Annotations is an unstructured key value map stored with a resource that may be\\nset by external tools to store and retrieve arbitrary metadata. They are not\\nqueryable and should be preserved when modifying objects.\\nMore info: http://kubernetes.io/docs/user-guide/annotations\\n+optional\",\n" +
+		"          \"type\": \"object\",\n" +
+		"          \"additionalProperties\": {\n" +
+		"            \"type\": \"string\"\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"Annotations\"\n" +
+		"        },\n" +
+		"        \"clusterName\": {\n" +
+		"          \"description\": \"The name of the cluster which the object belongs to.\\nThis is used to distinguish resources with same name and namespace in different clusters.\\nThis field is not set anywhere right now and apiserver is going to ignore it if set in create or update request.\\n+optional\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"ClusterName\"\n" +
+		"        },\n" +
+		"        \"creationTimestamp\": {\n" +
+		"          \"$ref\": \"#/definitions/v1Time\"\n" +
+		"        },\n" +
+		"        \"deletionGracePeriodSeconds\": {\n" +
+		"          \"description\": \"Number of seconds allowed for this object to gracefully terminate before\\nit will be removed from the system. Only set when deletionTimestamp is also set.\\nMay only be shortened.\\nRead-only.\\n+optional\",\n" +
+		"          \"type\": \"integer\",\n" +
+		"          \"format\": \"int64\",\n" +
+		"          \"x-go-name\": \"DeletionGracePeriodSeconds\"\n" +
+		"        },\n" +
+		"        \"deletionTimestamp\": {\n" +
+		"          \"$ref\": \"#/definitions/v1Time\"\n" +
+		"        },\n" +
+		"        \"finalizers\": {\n" +
+		"          \"description\": \"Must be empty before the object is deleted from the registry. Each entry\\nis an identifier for the responsible component that will remove the entry\\nfrom the list. If the deletionTimestamp of the object is non-nil, entries\\nin this list can only be removed.\\nFinalizers may be processed and removed in any order.  Order is NOT enforced\\nbecause it introduces significant risk of stuck finalizers.\\nfinalizers is a shared field, any actor with permission can reorder it.\\nIf the finalizer list is processed in order, then this can lead to a situation\\nin which the component responsible for the first finalizer in the list is\\nwaiting for a signal (field value, external system, or other) produced by a\\ncomponent responsible for a finalizer later in the list, resulting in a deadlock.\\nWithout enforced ordering finalizers are free to order amongst themselves and\\nare not vulnerable to ordering changes in the list.\\n+optional\\n+patchStrategy=merge\",\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"type\": \"string\"\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"Finalizers\"\n" +
+		"        },\n" +
+		"        \"generateName\": {\n" +
+		"          \"description\": \"GenerateName is an optional prefix, used by the server, to generate a unique\\nname ONLY IF the Name field has not been provided.\\nIf this field is used, the name returned to the client will be different\\nthan the name passed. This value will also be combined with a unique suffix.\\nThe provided value has the same validation rules as the Name field,\\nand may be truncated by the length of the suffix required to make the value\\nunique on the server.\\n\\nIf this field is specified and the generated name exists, the server will\\nNOT return a 409 - instead, it will either return 201 Created or 500 with Reason\\nServerTimeout indicating a unique name could not be found in the time allotted, and the client\\nshould retry (optionally after the time indicated in the Retry-After header).\\n\\nApplied only if Name is not specified.\\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#idempotency\\n+optional\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"GenerateName\"\n" +
+		"        },\n" +
+		"        \"generation\": {\n" +
+		"          \"description\": \"A sequence number representing a specific generation of the desired state.\\nPopulated by the system. Read-only.\\n+optional\",\n" +
+		"          \"type\": \"integer\",\n" +
+		"          \"format\": \"int64\",\n" +
+		"          \"x-go-name\": \"Generation\"\n" +
+		"        },\n" +
+		"        \"labels\": {\n" +
+		"          \"description\": \"Map of string keys and values that can be used to organize and categorize\\n(scope and select) objects. May match selectors of replication controllers\\nand services.\\nMore info: http://kubernetes.io/docs/user-guide/labels\\n+optional\",\n" +
+		"          \"type\": \"object\",\n" +
+		"          \"additionalProperties\": {\n" +
+		"            \"type\": \"string\"\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"Labels\"\n" +
+		"        },\n" +
+		"        \"managedFields\": {\n" +
+		"          \"description\": \"ManagedFields maps workflow-id and version to the set of fields\\nthat are managed by that workflow. This is mostly for internal\\nhousekeeping, and users typically shouldn't need to set or\\nunderstand this field. A workflow can be the user's name, a\\ncontroller's name, or the name of a specific apply path like\\n\\\"ci-cd\\\". The set of fields is always in the version that the\\nworkflow used when modifying the object.\\n\\n+optional\",\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/v1ManagedFieldsEntry\"\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"ManagedFields\"\n" +
+		"        },\n" +
+		"        \"name\": {\n" +
+		"          \"description\": \"Name must be unique within a namespace. Is required when creating resources, although\\nsome resources may allow a client to request the generation of an appropriate name\\nautomatically. Name is primarily intended for creation idempotence and configuration\\ndefinition.\\nCannot be updated.\\nMore info: http://kubernetes.io/docs/user-guide/identifiers#names\\n+optional\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"Name\"\n" +
+		"        },\n" +
+		"        \"namespace\": {\n" +
+		"          \"description\": \"Namespace defines the space within which each name must be unique. An empty namespace is\\nequivalent to the \\\"default\\\" namespace, but \\\"default\\\" is the canonical representation.\\nNot all objects are required to be scoped to a namespace - the value of this field for\\nthose objects will be empty.\\n\\nMust be a DNS_LABEL.\\nCannot be updated.\\nMore info: http://kubernetes.io/docs/user-guide/namespaces\\n+optional\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"Namespace\"\n" +
+		"        },\n" +
+		"        \"ownerReferences\": {\n" +
+		"          \"description\": \"List of objects depended by this object. If ALL objects in the list have\\nbeen deleted, this object will be garbage collected. If this object is managed by a controller,\\nthen an entry in this list will point to this controller, with the controller field set to true.\\nThere cannot be more than one managing controller.\\n+optional\\n+patchMergeKey=uid\\n+patchStrategy=merge\",\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/v1OwnerReference\"\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"OwnerReferences\"\n" +
+		"        },\n" +
+		"        \"resourceVersion\": {\n" +
+		"          \"description\": \"An opaque value that represents the internal version of this object that can\\nbe used by clients to determine when objects have changed. May be used for optimistic\\nconcurrency, change detection, and the watch operation on a resource or set of resources.\\nClients must treat these values as opaque and passed unmodified back to the server.\\nThey may only be valid for a particular resource or set of resources.\\n\\nPopulated by the system.\\nRead-only.\\nValue must be treated as opaque by clients and .\\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#concurrency-control-and-consistency\\n+optional\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"ResourceVersion\"\n" +
+		"        },\n" +
+		"        \"selfLink\": {\n" +
+		"          \"description\": \"SelfLink is a URL representing this object.\\nPopulated by the system.\\nRead-only.\\n\\nDEPRECATED\\nKubernetes will stop propagating this field in 1.20 release and the field is planned\\nto be removed in 1.21 release.\\n+optional\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"SelfLink\"\n" +
+		"        },\n" +
+		"        \"uid\": {\n" +
+		"          \"$ref\": \"#/definitions/typesUID\"\n" +
+		"        }\n" +
+		"      },\n" +
+		"      \"x-go-package\": \"k8s.io/apimachinery/pkg/apis/meta/v1\"\n" +
+		"    },\n" +
+		"    \"v1OwnerReference\": {\n" +
+		"      \"description\": \"OwnerReference contains enough information to let you identify an owning\\nobject. An owning object must be in the same namespace as the dependent, or\\nbe cluster-scoped, so there is no namespace field.\",\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"apiVersion\": {\n" +
+		"          \"description\": \"API version of the referent.\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"APIVersion\"\n" +
+		"        },\n" +
+		"        \"blockOwnerDeletion\": {\n" +
+		"          \"description\": \"If true, AND if the owner has the \\\"foregroundDeletion\\\" finalizer, then\\nthe owner cannot be deleted from the key-value store until this\\nreference is removed.\\nDefaults to false.\\nTo set this field, a user needs \\\"delete\\\" permission of the owner,\\notherwise 422 (Unprocessable Entity) will be returned.\\n+optional\",\n" +
+		"          \"type\": \"boolean\",\n" +
+		"          \"x-go-name\": \"BlockOwnerDeletion\"\n" +
+		"        },\n" +
+		"        \"controller\": {\n" +
+		"          \"description\": \"If true, this reference points to the managing controller.\\n+optional\",\n" +
+		"          \"type\": \"boolean\",\n" +
+		"          \"x-go-name\": \"Controller\"\n" +
+		"        },\n" +
+		"        \"kind\": {\n" +
+		"          \"description\": \"Kind of the referent.\\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"Kind\"\n" +
+		"        },\n" +
+		"        \"name\": {\n" +
+		"          \"description\": \"Name of the referent.\\nMore info: http://kubernetes.io/docs/user-guide/identifiers#names\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"Name\"\n" +
+		"        },\n" +
+		"        \"uid\": {\n" +
+		"          \"$ref\": \"#/definitions/typesUID\"\n" +
+		"        }\n" +
+		"      },\n" +
+		"      \"x-go-package\": \"k8s.io/apimachinery/pkg/apis/meta/v1\"\n" +
+		"    },\n" +
+		"    \"v1PersistentVolumeAccessMode\": {\n" +
+		"      \"type\": \"string\",\n" +
+		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
+		"    },\n" +
+		"    \"v1PersistentVolumeClaimSpec\": {\n" +
+		"      \"description\": \"PersistentVolumeClaimSpec describes the common attributes of storage devices\\nand allows a Source for provider-specific attributes\",\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"accessModes\": {\n" +
+		"          \"description\": \"AccessModes contains the desired access modes the volume should have.\\nMore info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#access-modes-1\\n+optional\",\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/v1PersistentVolumeAccessMode\"\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"AccessModes\"\n" +
+		"        },\n" +
+		"        \"dataSource\": {\n" +
+		"          \"$ref\": \"#/definitions/v1TypedLocalObjectReference\"\n" +
+		"        },\n" +
+		"        \"resources\": {\n" +
+		"          \"$ref\": \"#/definitions/v1ResourceRequirements\"\n" +
+		"        },\n" +
+		"        \"selector\": {\n" +
+		"          \"$ref\": \"#/definitions/v1LabelSelector\"\n" +
+		"        },\n" +
+		"        \"storageClassName\": {\n" +
+		"          \"description\": \"Name of the StorageClass required by the claim.\\nMore info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#class-1\\n+optional\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"StorageClassName\"\n" +
+		"        },\n" +
+		"        \"volumeMode\": {\n" +
+		"          \"$ref\": \"#/definitions/v1PersistentVolumeMode\"\n" +
+		"        },\n" +
+		"        \"volumeName\": {\n" +
+		"          \"description\": \"VolumeName is the binding reference to the PersistentVolume backing this claim.\\n+optional\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"VolumeName\"\n" +
+		"        }\n" +
+		"      },\n" +
+		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
+		"    },\n" +
+		"    \"v1PersistentVolumeClaimTemplate\": {\n" +
+		"      \"description\": \"PersistentVolumeClaimTemplate is used to produce\\nPersistentVolumeClaim objects as part of an EphemeralVolumeSource.\",\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"annotations\": {\n" +
+		"          \"description\": \"Annotations is an unstructured key value map stored with a resource that may be\\nset by external tools to store and retrieve arbitrary metadata. They are not\\nqueryable and should be preserved when modifying objects.\\nMore info: http://kubernetes.io/docs/user-guide/annotations\\n+optional\",\n" +
+		"          \"type\": \"object\",\n" +
+		"          \"additionalProperties\": {\n" +
+		"            \"type\": \"string\"\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"Annotations\"\n" +
+		"        },\n" +
+		"        \"clusterName\": {\n" +
+		"          \"description\": \"The name of the cluster which the object belongs to.\\nThis is used to distinguish resources with same name and namespace in different clusters.\\nThis field is not set anywhere right now and apiserver is going to ignore it if set in create or update request.\\n+optional\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"ClusterName\"\n" +
+		"        },\n" +
+		"        \"creationTimestamp\": {\n" +
+		"          \"$ref\": \"#/definitions/v1Time\"\n" +
+		"        },\n" +
+		"        \"deletionGracePeriodSeconds\": {\n" +
+		"          \"description\": \"Number of seconds allowed for this object to gracefully terminate before\\nit will be removed from the system. Only set when deletionTimestamp is also set.\\nMay only be shortened.\\nRead-only.\\n+optional\",\n" +
+		"          \"type\": \"integer\",\n" +
+		"          \"format\": \"int64\",\n" +
+		"          \"x-go-name\": \"DeletionGracePeriodSeconds\"\n" +
+		"        },\n" +
+		"        \"deletionTimestamp\": {\n" +
+		"          \"$ref\": \"#/definitions/v1Time\"\n" +
+		"        },\n" +
+		"        \"finalizers\": {\n" +
+		"          \"description\": \"Must be empty before the object is deleted from the registry. Each entry\\nis an identifier for the responsible component that will remove the entry\\nfrom the list. If the deletionTimestamp of the object is non-nil, entries\\nin this list can only be removed.\\nFinalizers may be processed and removed in any order.  Order is NOT enforced\\nbecause it introduces significant risk of stuck finalizers.\\nfinalizers is a shared field, any actor with permission can reorder it.\\nIf the finalizer list is processed in order, then this can lead to a situation\\nin which the component responsible for the first finalizer in the list is\\nwaiting for a signal (field value, external system, or other) produced by a\\ncomponent responsible for a finalizer later in the list, resulting in a deadlock.\\nWithout enforced ordering finalizers are free to order amongst themselves and\\nare not vulnerable to ordering changes in the list.\\n+optional\\n+patchStrategy=merge\",\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"type\": \"string\"\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"Finalizers\"\n" +
+		"        },\n" +
+		"        \"generateName\": {\n" +
+		"          \"description\": \"GenerateName is an optional prefix, used by the server, to generate a unique\\nname ONLY IF the Name field has not been provided.\\nIf this field is used, the name returned to the client will be different\\nthan the name passed. This value will also be combined with a unique suffix.\\nThe provided value has the same validation rules as the Name field,\\nand may be truncated by the length of the suffix required to make the value\\nunique on the server.\\n\\nIf this field is specified and the generated name exists, the server will\\nNOT return a 409 - instead, it will either return 201 Created or 500 with Reason\\nServerTimeout indicating a unique name could not be found in the time allotted, and the client\\nshould retry (optionally after the time indicated in the Retry-After header).\\n\\nApplied only if Name is not specified.\\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#idempotency\\n+optional\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"GenerateName\"\n" +
+		"        },\n" +
+		"        \"generation\": {\n" +
+		"          \"description\": \"A sequence number representing a specific generation of the desired state.\\nPopulated by the system. Read-only.\\n+optional\",\n" +
+		"          \"type\": \"integer\",\n" +
+		"          \"format\": \"int64\",\n" +
+		"          \"x-go-name\": \"Generation\"\n" +
+		"        },\n" +
+		"        \"labels\": {\n" +
+		"          \"description\": \"Map of string keys and values that can be used to organize and categorize\\n(scope and select) objects. May match selectors of replication controllers\\nand services.\\nMore info: http://kubernetes.io/docs/user-guide/labels\\n+optional\",\n" +
+		"          \"type\": \"object\",\n" +
+		"          \"additionalProperties\": {\n" +
+		"            \"type\": \"string\"\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"Labels\"\n" +
+		"        },\n" +
+		"        \"managedFields\": {\n" +
+		"          \"description\": \"ManagedFields maps workflow-id and version to the set of fields\\nthat are managed by that workflow. This is mostly for internal\\nhousekeeping, and users typically shouldn't need to set or\\nunderstand this field. A workflow can be the user's name, a\\ncontroller's name, or the name of a specific apply path like\\n\\\"ci-cd\\\". The set of fields is always in the version that the\\nworkflow used when modifying the object.\\n\\n+optional\",\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/v1ManagedFieldsEntry\"\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"ManagedFields\"\n" +
+		"        },\n" +
+		"        \"name\": {\n" +
+		"          \"description\": \"Name must be unique within a namespace. Is required when creating resources, although\\nsome resources may allow a client to request the generation of an appropriate name\\nautomatically. Name is primarily intended for creation idempotence and configuration\\ndefinition.\\nCannot be updated.\\nMore info: http://kubernetes.io/docs/user-guide/identifiers#names\\n+optional\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"Name\"\n" +
+		"        },\n" +
+		"        \"namespace\": {\n" +
+		"          \"description\": \"Namespace defines the space within which each name must be unique. An empty namespace is\\nequivalent to the \\\"default\\\" namespace, but \\\"default\\\" is the canonical representation.\\nNot all objects are required to be scoped to a namespace - the value of this field for\\nthose objects will be empty.\\n\\nMust be a DNS_LABEL.\\nCannot be updated.\\nMore info: http://kubernetes.io/docs/user-guide/namespaces\\n+optional\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"Namespace\"\n" +
+		"        },\n" +
+		"        \"ownerReferences\": {\n" +
+		"          \"description\": \"List of objects depended by this object. If ALL objects in the list have\\nbeen deleted, this object will be garbage collected. If this object is managed by a controller,\\nthen an entry in this list will point to this controller, with the controller field set to true.\\nThere cannot be more than one managing controller.\\n+optional\\n+patchMergeKey=uid\\n+patchStrategy=merge\",\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/v1OwnerReference\"\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"OwnerReferences\"\n" +
+		"        },\n" +
+		"        \"resourceVersion\": {\n" +
+		"          \"description\": \"An opaque value that represents the internal version of this object that can\\nbe used by clients to determine when objects have changed. May be used for optimistic\\nconcurrency, change detection, and the watch operation on a resource or set of resources.\\nClients must treat these values as opaque and passed unmodified back to the server.\\nThey may only be valid for a particular resource or set of resources.\\n\\nPopulated by the system.\\nRead-only.\\nValue must be treated as opaque by clients and .\\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#concurrency-control-and-consistency\\n+optional\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"ResourceVersion\"\n" +
+		"        },\n" +
+		"        \"selfLink\": {\n" +
+		"          \"description\": \"SelfLink is a URL representing this object.\\nPopulated by the system.\\nRead-only.\\n\\nDEPRECATED\\nKubernetes will stop propagating this field in 1.20 release and the field is planned\\nto be removed in 1.21 release.\\n+optional\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"SelfLink\"\n" +
+		"        },\n" +
+		"        \"spec\": {\n" +
+		"          \"$ref\": \"#/definitions/v1PersistentVolumeClaimSpec\"\n" +
+		"        },\n" +
+		"        \"uid\": {\n" +
+		"          \"$ref\": \"#/definitions/typesUID\"\n" +
+		"        }\n" +
+		"      },\n" +
+		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
+		"    },\n" +
 		"    \"v1PersistentVolumeClaimVolumeSource\": {\n" +
 		"      \"description\": \"This volume finds the bound PV and mounts that volume for the pod. A\\nPersistentVolumeClaimVolumeSource is, essentially, a wrapper around another\\ntype of volume that is owned by someone else (the system).\",\n" +
 		"      \"type\": \"object\",\n" +
@@ -1927,6 +2264,11 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"ReadOnly\"\n" +
 		"        }\n" +
 		"      },\n" +
+		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
+		"    },\n" +
+		"    \"v1PersistentVolumeMode\": {\n" +
+		"      \"type\": \"string\",\n" +
+		"      \"title\": \"PersistentVolumeMode describes how a volume is intended to be consumed, either Block or Filesystem.\",\n" +
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
 		"    \"v1PhotonPersistentDiskVolumeSource\": {\n" +
@@ -2068,6 +2410,11 @@ func SwaggerJsonTemplate() string {
 		"      },\n" +
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
+		"    \"v1PodFSGroupChangePolicy\": {\n" +
+		"      \"description\": \"PodFSGroupChangePolicy holds policies that will be used for applying fsGroup to a volume\\nwhen volume is mounted.\",\n" +
+		"      \"type\": \"string\",\n" +
+		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
+		"    },\n" +
 		"    \"v1PodReadinessGate\": {\n" +
 		"      \"description\": \"PodReadinessGate contains the reference to a pod condition\",\n" +
 		"      \"type\": \"object\",\n" +
@@ -2089,6 +2436,9 @@ func SwaggerJsonTemplate() string {
 		"          \"format\": \"int64\",\n" +
 		"          \"x-go-name\": \"FSGroup\"\n" +
 		"        },\n" +
+		"        \"fsGroupChangePolicy\": {\n" +
+		"          \"$ref\": \"#/definitions/v1PodFSGroupChangePolicy\"\n" +
+		"        },\n" +
 		"        \"runAsGroup\": {\n" +
 		"          \"description\": \"The GID to run the entrypoint of the container process.\\nUses runtime default if unset.\\nMay also be set in SecurityContext.  If set in both SecurityContext and\\nPodSecurityContext, the value specified in SecurityContext takes precedence\\nfor that container.\\n+optional\",\n" +
 		"          \"type\": \"integer\",\n" +
@@ -2108,6 +2458,9 @@ func SwaggerJsonTemplate() string {
 		"        },\n" +
 		"        \"seLinuxOptions\": {\n" +
 		"          \"$ref\": \"#/definitions/v1SELinuxOptions\"\n" +
+		"        },\n" +
+		"        \"seccompProfile\": {\n" +
+		"          \"$ref\": \"#/definitions/v1SeccompProfile\"\n" +
 		"        },\n" +
 		"        \"supplementalGroups\": {\n" +
 		"          \"description\": \"A list of groups applied to the first process run in each container, in addition\\nto the container's primary GID.  If unspecified, no groups will be added to\\nany container.\\n+optional\",\n" +
@@ -2285,6 +2638,11 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"string\",\n" +
 		"          \"x-go-name\": \"ServiceAccountName\"\n" +
 		"        },\n" +
+		"        \"setHostnameAsFQDN\": {\n" +
+		"          \"description\": \"If true the pod's hostname will be configured as the pod's FQDN, rather than the leaf name (the default).\\nIn Linux containers, this means setting the FQDN in the hostname field of the kernel (the nodename field of struct utsname).\\nIn Windows containers, this means setting the registry value of hostname for the registry key HKEY_LOCAL_MACHINE\\\\\\\\SYSTEM\\\\\\\\CurrentControlSet\\\\\\\\Services\\\\\\\\Tcpip\\\\\\\\Parameters to FQDN.\\nIf a pod does not have FQDN, this has no effect.\\nDefault to false.\\n+optional\",\n" +
+		"          \"type\": \"boolean\",\n" +
+		"          \"x-go-name\": \"SetHostnameAsFQDN\"\n" +
+		"        },\n" +
 		"        \"shareProcessNamespace\": {\n" +
 		"          \"description\": \"Share a single process namespace between all of the containers in a pod.\\nWhen this is set containers will be able to view and signal processes from other containers\\nin the same pod, and the first process in each container will not be assigned PID 1.\\nHostPID and ShareProcessNamespace cannot both be set.\\nOptional: Default to false.\\n+k8s:conversion-gen=false\\n+optional\",\n" +
 		"          \"type\": \"boolean\",\n" +
@@ -2310,7 +2668,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"Tolerations\"\n" +
 		"        },\n" +
 		"        \"topologySpreadConstraints\": {\n" +
-		"          \"description\": \"TopologySpreadConstraints describes how a group of pods ought to spread across topology\\ndomains. Scheduler will schedule pods in a way which abides by the constraints.\\nThis field is alpha-level and is only honored by clusters that enables the EvenPodsSpread\\nfeature.\\nAll topologySpreadConstraints are ANDed.\\n+optional\\n+patchMergeKey=topologyKey\\n+patchStrategy=merge\\n+listType=map\\n+listMapKey=topologyKey\\n+listMapKey=whenUnsatisfiable\",\n" +
+		"          \"description\": \"TopologySpreadConstraints describes how a group of pods ought to spread across topology\\ndomains. Scheduler will schedule pods in a way which abides by the constraints.\\nAll topologySpreadConstraints are ANDed.\\n+optional\\n+patchMergeKey=topologyKey\\n+patchStrategy=merge\\n+listType=map\\n+listMapKey=topologyKey\\n+listMapKey=whenUnsatisfiable\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1TopologySpreadConstraint\"\n" +
@@ -2426,13 +2784,13 @@ func SwaggerJsonTemplate() string {
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
 		"        \"defaultMode\": {\n" +
-		"          \"description\": \"Mode bits to use on created files by default. Must be a value between\\n0 and 0777.\\nDirectories within the path are not affected by this setting.\\nThis might be in conflict with other options that affect the file\\nmode, like fsGroup, and the result can be other mode bits set.\\n+optional\",\n" +
+		"          \"description\": \"Mode bits used to set permissions on created files by default.\\nMust be an octal value between 0000 and 0777 or a decimal value between 0 and 511.\\nYAML accepts both octal and decimal values, JSON requires decimal values for mode bits.\\nDirectories within the path are not affected by this setting.\\nThis might be in conflict with other options that affect the file\\nmode, like fsGroup, and the result can be other mode bits set.\\n+optional\",\n" +
 		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int32\",\n" +
 		"          \"x-go-name\": \"DefaultMode\"\n" +
 		"        },\n" +
 		"        \"sources\": {\n" +
-		"          \"description\": \"list of volume projections\",\n" +
+		"          \"description\": \"list of volume projections\\n+optional\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1VolumeProjection\"\n" +
@@ -2668,6 +3026,27 @@ func SwaggerJsonTemplate() string {
 		"      },\n" +
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
+		"    \"v1SeccompProfile\": {\n" +
+		"      \"description\": \"Only one profile source may be set.\\n+union\",\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"title\": \"SeccompProfile defines a pod/container's seccomp profile settings.\",\n" +
+		"      \"properties\": {\n" +
+		"        \"localhostProfile\": {\n" +
+		"          \"description\": \"localhostProfile indicates a profile defined in a file on the node should be used.\\nThe profile must be preconfigured on the node to work.\\nMust be a descending path, relative to the kubelet's configured seccomp profile location.\\nMust only be set if type is \\\"Localhost\\\".\\n+optional\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"LocalhostProfile\"\n" +
+		"        },\n" +
+		"        \"type\": {\n" +
+		"          \"$ref\": \"#/definitions/v1SeccompProfileType\"\n" +
+		"        }\n" +
+		"      },\n" +
+		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
+		"    },\n" +
+		"    \"v1SeccompProfileType\": {\n" +
+		"      \"type\": \"string\",\n" +
+		"      \"title\": \"SeccompProfileType defines the supported seccomp profile types.\",\n" +
+		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
+		"    },\n" +
 		"    \"v1SecretEnvSource\": {\n" +
 		"      \"description\": \"The contents of the target Secret's Data field will represent the\\nkey-value pairs as environment variables.\",\n" +
 		"      \"type\": \"object\",\n" +
@@ -2740,7 +3119,7 @@ func SwaggerJsonTemplate() string {
 		"      \"title\": \"Adapts a Secret into a volume.\",\n" +
 		"      \"properties\": {\n" +
 		"        \"defaultMode\": {\n" +
-		"          \"description\": \"Optional: mode bits to use on created files by default. Must be a\\nvalue between 0 and 0777. Defaults to 0644.\\nDirectories within the path are not affected by this setting.\\nThis might be in conflict with other options that affect the file\\nmode, like fsGroup, and the result can be other mode bits set.\\n+optional\",\n" +
+		"          \"description\": \"Optional: mode bits used to set permissions on created files by default.\\nMust be an octal value between 0000 and 0777 or a decimal value between 0 and 511.\\nYAML accepts both octal and decimal values, JSON requires decimal values\\nfor mode bits. Defaults to 0644.\\nDirectories within the path are not affected by this setting.\\nThis might be in conflict with other options that affect the file\\nmode, like fsGroup, and the result can be other mode bits set.\\n+optional\",\n" +
 		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int32\",\n" +
 		"          \"x-go-name\": \"DefaultMode\"\n" +
@@ -2811,6 +3190,9 @@ func SwaggerJsonTemplate() string {
 		"        },\n" +
 		"        \"seLinuxOptions\": {\n" +
 		"          \"$ref\": \"#/definitions/v1SELinuxOptions\"\n" +
+		"        },\n" +
+		"        \"seccompProfile\": {\n" +
+		"          \"$ref\": \"#/definitions/v1SeccompProfile\"\n" +
 		"        },\n" +
 		"        \"windowsOptions\": {\n" +
 		"          \"$ref\": \"#/definitions/v1WindowsSecurityContextOptions\"\n" +
@@ -2917,6 +3299,13 @@ func SwaggerJsonTemplate() string {
 		"      \"title\": \"TerminationMessagePolicy describes how termination messages are retrieved from a container.\",\n" +
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
+		"    \"v1Time\": {\n" +
+		"      \"description\": \"Programs using times should typically store and pass them as values,\\nnot pointers. That is, time variables and struct fields should be of\\ntype time.Time, not *time.Time.\\n\\nA Time value can be used by multiple goroutines simultaneously except\\nthat the methods GobDecode, UnmarshalBinary, UnmarshalJSON and\\nUnmarshalText are not concurrency-safe.\\n\\nTime instants can be compared using the Before, After, and Equal methods.\\nThe Sub method subtracts two instants, producing a Duration.\\nThe Add method adds a Time and a Duration, producing a Time.\\n\\nThe zero value of type Time is January 1, year 1, 00:00:00.000000000 UTC.\\nAs this time is unlikely to come up in practice, the IsZero method gives\\na simple way of detecting a time that has not been initialized explicitly.\\n\\nEach Time has associated with it a Location, consulted when computing the\\npresentation form of the time, such as in the Format, Hour, and Year methods.\\nThe methods Local, UTC, and In return a Time with a specific location.\\nChanging the location in this way changes only the presentation; it does not\\nchange the instant in time being denoted and therefore does not affect the\\ncomputations described in earlier paragraphs.\\n\\nRepresentations of a Time value saved by the GobEncode, MarshalBinary,\\nMarshalJSON, and MarshalText methods store the Time.Location's offset, but not\\nthe location name. They therefore lose information about Daylight Saving Time.\\n\\nIn addition to the required “wall clock” reading, a Time may contain an optional\\nreading of the current process's monotonic clock, to provide additional precision\\nfor comparison or subtraction.\\nSee the “Monotonic Clocks” section in the package documentation for details.\\n\\nNote that the Go == operator compares not just the time instant but also the\\nLocation and the monotonic clock reading. Therefore, Time values should not\\nbe used as map or database keys without first guaranteeing that the\\nidentical Location has been set for all values, which can be achieved\\nthrough use of the UTC or Local method, and that the monotonic clock reading\\nhas been stripped by setting t = t.Round(0). In general, prefer t.Equal(u)\\nto t == u, since t.Equal uses the most accurate comparison available and\\ncorrectly handles the case when only one of its arguments has a monotonic\\nclock reading.\",\n" +
+		"      \"type\": \"string\",\n" +
+		"      \"format\": \"date-time\",\n" +
+		"      \"title\": \"A Time represents an instant in time with nanosecond precision.\",\n" +
+		"      \"x-go-package\": \"k8s.io/apimachinery/pkg/apis/meta/v1\"\n" +
+		"    },\n" +
 		"    \"v1Toleration\": {\n" +
 		"      \"description\": \"The pod this Toleration is attached to tolerates any taint that matches\\nthe triple \\u003ckey,value,effect\\u003e using the matching operator \\u003coperator\\u003e.\",\n" +
 		"      \"type\": \"object\",\n" +
@@ -2959,7 +3348,7 @@ func SwaggerJsonTemplate() string {
 		"          \"$ref\": \"#/definitions/v1LabelSelector\"\n" +
 		"        },\n" +
 		"        \"maxSkew\": {\n" +
-		"          \"description\": \"MaxSkew describes the degree to which pods may be unevenly distributed.\\nIt's the maximum permitted difference between the number of matching pods in\\nany two topology domains of a given topology type.\\nFor example, in a 3-zone cluster, MaxSkew is set to 1, and pods with the same\\nlabelSelector spread as 1/1/0:\\n+-------+-------+-------+\\n zone1 | zone2 | zone3 |\\n+-------+-------+-------+\\n   P   |   P   |       |\\n+-------+-------+-------+\\nif MaxSkew is 1, incoming pod can only be scheduled to zone3 to become 1/1/1;\\nscheduling it onto zone1(zone2) would make the ActualSkew(2-0) on zone1(zone2)\\nviolate MaxSkew(1).\\nif MaxSkew is 2, incoming pod can be scheduled onto any zone.\\nIt's a required field. Default value is 1 and 0 is not allowed.\",\n" +
+		"          \"description\": \"MaxSkew describes the degree to which pods may be unevenly distributed.\\nWhen `whenUnsatisfiable=DoNotSchedule`, it is the maximum permitted difference\\nbetween the number of matching pods in the target topology and the global minimum.\\nFor example, in a 3-zone cluster, MaxSkew is set to 1, and pods with the same\\nlabelSelector spread as 1/1/0:\\n+-------+-------+-------+\\n zone1 | zone2 | zone3 |\\n+-------+-------+-------+\\n   P   |   P   |       |\\n+-------+-------+-------+\\nif MaxSkew is 1, incoming pod can only be scheduled to zone3 to become 1/1/1;\\nscheduling it onto zone1(zone2) would make the ActualSkew(2-0) on zone1(zone2)\\nviolate MaxSkew(1).\\nif MaxSkew is 2, incoming pod can be scheduled onto any zone.\\nWhen `whenUnsatisfiable=ScheduleAnyway`, it is used to give higher precedence\\nto topologies that satisfy it.\\nIt's a required field. Default value is 1 and 0 is not allowed.\",\n" +
 		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int32\",\n" +
 		"          \"x-go-name\": \"MaxSkew\"\n" +
@@ -2971,6 +3360,28 @@ func SwaggerJsonTemplate() string {
 		"        },\n" +
 		"        \"whenUnsatisfiable\": {\n" +
 		"          \"$ref\": \"#/definitions/v1UnsatisfiableConstraintAction\"\n" +
+		"        }\n" +
+		"      },\n" +
+		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
+		"    },\n" +
+		"    \"v1TypedLocalObjectReference\": {\n" +
+		"      \"description\": \"TypedLocalObjectReference contains enough information to let you locate the\\ntyped referenced object inside the same namespace.\",\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"apiGroup\": {\n" +
+		"          \"description\": \"APIGroup is the group for the resource being referenced.\\nIf APIGroup is not specified, the specified Kind must be in the core API group.\\nFor any other third-party types, APIGroup is required.\\n+optional\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"APIGroup\"\n" +
+		"        },\n" +
+		"        \"kind\": {\n" +
+		"          \"description\": \"Kind is the type of resource being referenced\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"Kind\"\n" +
+		"        },\n" +
+		"        \"name\": {\n" +
+		"          \"description\": \"Name is the name of resource being referenced\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"Name\"\n" +
 		"        }\n" +
 		"      },\n" +
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
@@ -3014,6 +3425,9 @@ func SwaggerJsonTemplate() string {
 		"        },\n" +
 		"        \"emptyDir\": {\n" +
 		"          \"$ref\": \"#/definitions/v1EmptyDirVolumeSource\"\n" +
+		"        },\n" +
+		"        \"ephemeral\": {\n" +
+		"          \"$ref\": \"#/definitions/v1EphemeralVolumeSource\"\n" +
 		"        },\n" +
 		"        \"fc\": {\n" +
 		"          \"$ref\": \"#/definitions/v1FCVolumeSource\"\n" +
@@ -3183,6 +3597,9 @@ func SwaggerJsonTemplate() string {
 		"        \"emptyDir\": {\n" +
 		"          \"$ref\": \"#/definitions/v1EmptyDirVolumeSource\"\n" +
 		"        },\n" +
+		"        \"ephemeral\": {\n" +
+		"          \"$ref\": \"#/definitions/v1EphemeralVolumeSource\"\n" +
+		"        },\n" +
 		"        \"fc\": {\n" +
 		"          \"$ref\": \"#/definitions/v1FCVolumeSource\"\n" +
 		"        },\n" +
@@ -3291,17 +3708,17 @@ func SwaggerJsonTemplate() string {
 		"      \"title\": \"WindowsSecurityContextOptions contain Windows-specific options and credentials.\",\n" +
 		"      \"properties\": {\n" +
 		"        \"gmsaCredentialSpec\": {\n" +
-		"          \"description\": \"GMSACredentialSpec is where the GMSA admission webhook\\n(https://github.com/kubernetes-sigs/windows-gmsa) inlines the contents of the\\nGMSA credential spec named by the GMSACredentialSpecName field.\\nThis field is alpha-level and is only honored by servers that enable the WindowsGMSA feature flag.\\n+optional\",\n" +
+		"          \"description\": \"GMSACredentialSpec is where the GMSA admission webhook\\n(https://github.com/kubernetes-sigs/windows-gmsa) inlines the contents of the\\nGMSA credential spec named by the GMSACredentialSpecName field.\\n+optional\",\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"x-go-name\": \"GMSACredentialSpec\"\n" +
 		"        },\n" +
 		"        \"gmsaCredentialSpecName\": {\n" +
-		"          \"description\": \"GMSACredentialSpecName is the name of the GMSA credential spec to use.\\nThis field is alpha-level and is only honored by servers that enable the WindowsGMSA feature flag.\\n+optional\",\n" +
+		"          \"description\": \"GMSACredentialSpecName is the name of the GMSA credential spec to use.\\n+optional\",\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"x-go-name\": \"GMSACredentialSpecName\"\n" +
 		"        },\n" +
 		"        \"runAsUserName\": {\n" +
-		"          \"description\": \"The UserName in Windows to run the entrypoint of the container process.\\nDefaults to the user specified in image metadata if unspecified.\\nMay also be set in PodSecurityContext. If set in both SecurityContext and\\nPodSecurityContext, the value specified in SecurityContext takes precedence.\\nThis field is beta-level and may be disabled with the WindowsRunAsUserName feature flag.\\n+optional\",\n" +
+		"          \"description\": \"The UserName in Windows to run the entrypoint of the container process.\\nDefaults to the user specified in image metadata if unspecified.\\nMay also be set in PodSecurityContext. If set in both SecurityContext and\\nPodSecurityContext, the value specified in SecurityContext takes precedence.\\n+optional\",\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"x-go-name\": \"RunAsUserName\"\n" +
 		"        }\n" +
