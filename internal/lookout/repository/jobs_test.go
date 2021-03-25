@@ -2,7 +2,6 @@ package repository
 
 import (
 	"encoding/json"
-	"github.com/G-Research/armada/pkg/api"
 	"testing"
 	"time"
 
@@ -10,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/G-Research/armada/internal/common/util"
+	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/api/lookout"
 )
 
@@ -1207,4 +1207,3 @@ func TestGetJobs_GetJobJson(t *testing.T) {
 		AssertJobsAreEquivalent(t, queued.job, job)
 	})
 }
-
