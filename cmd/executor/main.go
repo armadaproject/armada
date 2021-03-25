@@ -5,12 +5,14 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/internal/executor"
 	"github.com/G-Research/armada/internal/executor/configuration"
+	"github.com/G-Research/armada/internal/executor/metrics"
 )
 
 const CustomConfigLocation string = "config"
@@ -31,7 +33,8 @@ func main() {
 	shutdownChannel := make(chan os.Signal, 1)
 	signal.Notify(shutdownChannel, syscall.SIGINT, syscall.SIGTERM)
 
-	shutdownMetricServer := common.ServeMetrics(config.Metric.Port)
+	shutdownMetricServer := common.ServeMetricsFor(config.Metric.Port,
+		prometheus.Gatherers{metrics.GetMetricsGatherer()})
 	defer shutdownMetricServer()
 
 	shutdown, wg := executor.StartUp(config)

@@ -1,6 +1,7 @@
 package context
 
 import (
+	ctx "context"
 	"errors"
 	"testing"
 	"time"
@@ -325,7 +326,7 @@ func TestKubernetesClusterContext_GetNodes(t *testing.T) {
 		},
 	}
 
-	_, err := client.CoreV1().Nodes().Create(node)
+	_, err := client.CoreV1().Nodes().Create(ctx.Background(), node, metav1.CreateOptions{})
 	assert.Nil(t, err)
 
 	nodeFound := waitForCondition(func() bool {

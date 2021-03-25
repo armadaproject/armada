@@ -1,18 +1,23 @@
 package service
 
 import (
+	ctx "context"
 	"strings"
 	"sync"
 
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 	"k8s.io/metrics/pkg/apis/metrics/v1beta1"
 	metrics_server "k8s.io/metrics/pkg/client/clientset/versioned"
 
 	"github.com/G-Research/armada/internal/common"
+	commonUtil "github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/executor/context"
 	"github.com/G-Research/armada/internal/executor/domain"
+	"github.com/G-Research/armada/internal/executor/util"
 )
 
 type PodUtilisationService interface {
@@ -57,29 +62,88 @@ func (q *MetricsServerPodUtilisationService) GetPodUtilisation(pod *v1.Pod) comm
 	return utilisation.DeepCopy()
 }
 
-func (q *MetricsServerPodUtilisationService) updatePodUtilisationData(metrics map[string]common.ComputeResources) {
+func (q *MetricsServerPodUtilisationService) updatePodUtilisation(name string, resources common.ComputeResources) {
 	q.dataAccessMutex.Lock()
 	defer q.dataAccessMutex.Unlock()
-	q.podUtilisationData = metrics
+	q.podUtilisationData[name] = resources
+}
+
+func (q *MetricsServerPodUtilisationService) removeFinishedPods(podNames map[string]bool) {
+	q.dataAccessMutex.Lock()
+	defer q.dataAccessMutex.Unlock()
+	for name := range q.podUtilisationData {
+		if !podNames[name] {
+			delete(q.podUtilisationData, name)
+		}
+	}
 }
 
 func (q *MetricsServerPodUtilisationService) RefreshUtilisationData() {
-	usage, err := q.getUtilisationMetricsForManagedPods()
+	nodes, err := q.clusterContext.GetNodes()
 	if err != nil {
-		log.Errorf("Failed to get required information to update pod utilisation data because %s", err)
+		log.Errorf("Failed to retrieve nodes from context: %s", err)
 	}
 
-	podMetrics := make(map[string]common.ComputeResources)
-	for _, pod := range usage.Items {
-		totalResources := make(common.ComputeResources)
-		for _, container := range pod.Containers {
-			containerResource := common.FromResourceList(container.Usage)
-			totalResources.Add(containerResource)
+	pods, err := q.clusterContext.GetActiveBatchPods()
+	if err != nil {
+		log.Errorf("Failed to retrieve pods from context: %s", err)
+	}
+	podNames := commonUtil.StringListToSet(util.ExtractNames(pods))
+
+	summaries := make(chan *v1alpha1.Summary, len(nodes))
+	wg := sync.WaitGroup{}
+	for _, n := range nodes {
+		wg.Add(1)
+		go func(node *v1.Node) {
+			summary, err := q.clusterContext.GetNodeStatsSummary(node)
+			if err != nil {
+				log.Errorf("Error when getting stats for node %s: %s", node.Name, err)
+				wg.Done()
+				return
+			}
+			summaries <- summary
+			wg.Done()
+		}(n)
+	}
+	go func() {
+		wg.Wait()
+		close(summaries)
+	}()
+
+	for s := range summaries {
+		for _, pod := range s.Pods {
+			if podNames[pod.PodRef.Name] {
+				q.updatePodStats(pod)
+			}
 		}
-		podMetrics[pod.Name] = totalResources
 	}
 
-	q.updatePodUtilisationData(podMetrics)
+	q.removeFinishedPods(podNames)
+}
+
+func (q *MetricsServerPodUtilisationService) updatePodStats(podStats v1alpha1.PodStats) {
+
+	resources := common.ComputeResources{}
+	resources["cpu"] = *resource.NewScaledQuantity(int64(*podStats.CPU.UsageNanoCores), -9)
+	resources["memory"] = *resource.NewQuantity(int64(*podStats.Memory.WorkingSetBytes), resource.BinarySI)
+	resources["ephemeral-storage"] = *resource.NewQuantity(int64(*podStats.EphemeralStorage.UsedBytes), resource.BinarySI)
+
+	var (
+		acceleratorDutyCycles int64
+		acceleratorUsedMemory int64
+	)
+
+	// add custom metrics for gpu
+	for _, c := range podStats.Containers {
+		for _, a := range c.Accelerators {
+			acceleratorDutyCycles += int64(a.DutyCycle)
+			acceleratorUsedMemory += int64(a.MemoryUsed)
+		}
+	}
+
+	resources[domain.AcceleratorDutyCycle] = *resource.NewScaledQuantity(acceleratorDutyCycles, -2)
+	resources[domain.AcceleratorMemory] = *resource.NewScaledQuantity(acceleratorUsedMemory, -2)
+	q.updatePodUtilisation(podStats.PodRef.Name, resources)
 }
 
 func (q *MetricsServerPodUtilisationService) getUtilisationMetricsForManagedPods() (*v1beta1.PodMetricsList, error) {
@@ -90,5 +154,5 @@ func (q *MetricsServerPodUtilisationService) getUtilisationMetricsForManagedPods
 		LabelSelector: strings.Join(managedPodLabels, ","),
 	}
 
-	return q.metricsServerClient.MetricsV1beta1().PodMetricses(metav1.NamespaceAll).List(listOptions)
+	return q.metricsServerClient.MetricsV1beta1().PodMetricses(metav1.NamespaceAll).List(ctx.Background(), listOptions)
 }
