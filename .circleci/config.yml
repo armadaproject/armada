@@ -133,7 +133,7 @@ jobs:
           command: |
             make proto
             git status -s -uno
-            git diff
+            git --no-pager diff
             exit $(git status -s -uno | wc -l)
 
   test:
