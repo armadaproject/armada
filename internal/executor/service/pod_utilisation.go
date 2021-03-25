@@ -1,17 +1,12 @@
 package service
 
 import (
-	ctx "context"
-	"strings"
 	"sync"
 
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/kubelet/pkg/apis/stats/v1alpha1"
-	"k8s.io/metrics/pkg/apis/metrics/v1beta1"
-	metrics_server "k8s.io/metrics/pkg/client/clientset/versioned"
 
 	"github.com/G-Research/armada/internal/common"
 	commonUtil "github.com/G-Research/armada/internal/common/util"
@@ -25,17 +20,15 @@ type PodUtilisationService interface {
 }
 
 type MetricsServerPodUtilisationService struct {
-	clusterContext      context.ClusterContext
-	metricsServerClient metrics_server.Interface
-	podUtilisationData  map[string]common.ComputeResources
-	dataAccessMutex     sync.Mutex
+	clusterContext     context.ClusterContext
+	podUtilisationData map[string]common.ComputeResources
+	dataAccessMutex    sync.Mutex
 }
 
-func NewMetricsServerQueueUtilisationService(clusterContext context.ClusterContext, metricsServerClient metrics_server.Interface) *MetricsServerPodUtilisationService {
+func NewMetricsServerQueueUtilisationService(clusterContext context.ClusterContext) *MetricsServerPodUtilisationService {
 	return &MetricsServerPodUtilisationService{
-		clusterContext:      clusterContext,
-		metricsServerClient: metricsServerClient,
-		dataAccessMutex:     sync.Mutex{},
+		clusterContext:  clusterContext,
+		dataAccessMutex: sync.Mutex{},
 	}
 }
 
@@ -144,15 +137,4 @@ func (q *MetricsServerPodUtilisationService) updatePodStats(podStats v1alpha1.Po
 	resources[domain.AcceleratorDutyCycle] = *resource.NewScaledQuantity(acceleratorDutyCycles, -2)
 	resources[domain.AcceleratorMemory] = *resource.NewScaledQuantity(acceleratorUsedMemory, -2)
 	q.updatePodUtilisation(podStats.PodRef.Name, resources)
-}
-
-func (q *MetricsServerPodUtilisationService) getUtilisationMetricsForManagedPods() (*v1beta1.PodMetricsList, error) {
-	managedPodLabels := make([]string, 0, 1)
-	managedPodLabels = append(managedPodLabels, domain.JobId)
-
-	listOptions := metav1.ListOptions{
-		LabelSelector: strings.Join(managedPodLabels, ","),
-	}
-
-	return q.metricsServerClient.MetricsV1beta1().PodMetricses(metav1.NamespaceAll).List(ctx.Background(), listOptions)
 }
