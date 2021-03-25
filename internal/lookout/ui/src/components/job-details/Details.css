@@ -22,17 +22,41 @@
     align-items: center;
 }
 
-.content {
+.details-content {
+    max-width: 100%;
     display: flex;
     flex-direction: column;
 }
 
+.details-table-container {
+    width: 100%;
+    table-layout: fixed;
+}
+
 .field-label {
+    width: 30%;
     font-weight: bold !important;
+}
+
+.field-value {
+    width: 70% !important;
+    white-space: normal;
+    word-wrap: break-word;
 }
 
 .error-message {
     font-family: monospace !important;
     background-color: #f9f2f4;
     color: #c7254e !important;
+}
+
+.details-yaml-container {
+    margin: 1em 1em 2em 1em;
+}
+
+.details-yaml {
+    width: 100%;
+    white-space: pre-wrap;
+    font-family: monospace;
+    word-wrap: break-word;
 }

@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"encoding/json"
+	"github.com/G-Research/armada/pkg/api"
 	"testing"
 	"time"
 
@@ -1182,3 +1184,27 @@ func TestGetJobs_SkipFirstNewestJobs(t *testing.T) {
 		}
 	})
 }
+
+func TestGetJobs_GetJobJson(t *testing.T) {
+	withDatabase(t, func(db *goqu.Database) {
+		jobStore := NewSQLJobStore(db)
+		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
+
+		queued := NewJobSimulator(t, jobStore).
+			CreateJob(queue)
+
+		jobInfos, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
+			NewestFirst: true,
+			Queue:       queue,
+			Take:        uint32(10),
+			Skip:        uint32(0),
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(jobInfos))
+
+		var job *api.Job
+		err = json.Unmarshal([]byte(jobInfos[0].JobJson), &job)
+		AssertJobsAreEquivalent(t, queued.job, job)
+	})
+}
+

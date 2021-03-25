@@ -1,3 +1,5 @@
+import yaml from 'js-yaml'
+
 import {
   LookoutApi,
   LookoutDurationStats,
@@ -67,6 +69,7 @@ export type Job = {
   cancelledTime?: string
   jobState: string
   runs: Run[]
+  jobYaml: string
 }
 
 export type Run = {
@@ -295,6 +298,7 @@ function jobInfoToViewModel(jobInfo: LookoutJobInfo): Job {
   const cancelledTime = jobInfo.cancelled ? dateToString(jobInfo.cancelled) : undefined
   const jobState = JOB_STATE_MAP.get(jobInfo.jobState ?? "") ?? "Unknown"
   const runs = getRuns(jobInfo)
+  const jobYaml = jobInfo.jobJson ? jobJsonToYaml(jobInfo.jobJson) : ""
 
   return {
     jobId: jobId,
@@ -306,6 +310,7 @@ function jobInfoToViewModel(jobInfo: LookoutJobInfo): Job {
     cancelledTime: cancelledTime,
     jobState: jobState,
     runs: runs,
+    jobYaml: jobYaml,
   }
 }
 
@@ -353,6 +358,10 @@ function runInfoToViewModel(run: LookoutRunInfo): Run {
     finishTime: run.finished ? dateToString(run.finished) : undefined,
     podNumber: run.podNumber ?? 0,
   }
+}
+
+function jobJsonToYaml(jobJson: string): string {
+  return yaml.dump(JSON.parse(jobJson))
 }
 
 function getJobStateForApi(displayedJobState: string): string {

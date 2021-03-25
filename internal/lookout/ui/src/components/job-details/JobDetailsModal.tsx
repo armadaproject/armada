@@ -33,13 +33,14 @@ export default function JobDetailsModal(props: JobDetailsModalProps) {
       open={props.open}
       aria-labelledby="job-details-dialog-title"
       onClose={props.onClose}
-      fullWidth={true}>
+      fullWidth={true}
+      maxWidth={"md"}>
       <DialogTitle id="job-details-dialog-title">Job details</DialogTitle>
       <div className="dialog-body">
       {props.job && <JobDetails
         job={props.job}
         expandedItems={props.expandedItems}
-        onToggleExpand={props.onToggleExpanded} />}
+        onToggleExpand={props.onToggleExpanded}/>}
       </div>
     </Dialog>
   )
