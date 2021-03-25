@@ -79,7 +79,7 @@ export default function JobDetails(props: DetailsProps) {
         <Accordion>
           <AccordionSummary
             expandIcon={<ExpandMore/>}>
-            <h3>Show Job YAML</h3>
+            <h3>Job YAML</h3>
           </AccordionSummary>
           <AccordionDetails>
             <p className="details-yaml">
