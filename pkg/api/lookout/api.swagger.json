@@ -278,6 +278,9 @@
         "job": {
           "$ref": "#/definitions/apiJob"
         },
+        "jobJson": {
+          "type": "string"
+        },
         "jobState": {
           "type": "string"
         },
