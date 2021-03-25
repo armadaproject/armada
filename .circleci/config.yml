@@ -133,6 +133,7 @@ jobs:
           command: |
             make proto
             git status -s -uno
+            git diff
             exit $(git status -s -uno | wc -l)
 
   test:
