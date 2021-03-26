@@ -241,16 +241,15 @@ func (apiLoadTester ArmadaLoadTester) monitorJobsUntilCompletion(ctx context.Con
 func createJobSubmitRequestItems(jobDescs []*domain.JobSubmissionDescription) []*api.JobSubmitRequestItem {
 	requestItems := []*api.JobSubmitRequestItem{}
 	for _, jobDesc := range jobDescs {
-		job := api.JobSubmitRequestItem{
-			Priority:           jobDesc.Priority,
-			Namespace:          jobDesc.Namespace,
-			Annotations:        jobDesc.Annotations,
-			Labels:             jobDesc.Labels,
-			RequiredNodeLabels: jobDesc.RequiredNodeLabels,
-			PodSpec:            jobDesc.Spec,
-		}
 		for i := 0; i < jobDesc.Count; i++ {
-			requestItems = append(requestItems, &job)
+			requestItems = append(requestItems, &api.JobSubmitRequestItem{
+				Priority:           jobDesc.Priority,
+				Namespace:          jobDesc.Namespace,
+				Annotations:        jobDesc.Annotations,
+				Labels:             jobDesc.Labels,
+				RequiredNodeLabels: jobDesc.RequiredNodeLabels,
+				PodSpec:            jobDesc.Spec,
+			})
 		}
 	}
 	return requestItems
