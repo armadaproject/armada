@@ -244,6 +244,9 @@
         "newestFirst": {
           "type": "boolean"
         },
+        "owner": {
+          "type": "string"
+        },
         "queue": {
           "type": "string"
         },

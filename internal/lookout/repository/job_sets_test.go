@@ -365,7 +365,7 @@ func TestGetJobSetInfos_GetQueuedStats(t *testing.T) {
 				Running(cluster, otherK8sId, node)
 
 			NewJobSimulator(t, jobStore).
-				CreateJobWithOpts(queue, util.NewULID(), "job-set-2", someTime)
+				CreateJobWithOpts(queue, util.NewULID(), "job-set-2", "user", someTime)
 
 			NewJobSimulator(t, jobStore).
 				CreateJobWithJobSet(queue, "job-set-2").
@@ -373,7 +373,7 @@ func TestGetJobSetInfos_GetQueuedStats(t *testing.T) {
 		}
 
 		NewJobSimulator(t, jobStore).
-			CreateJobWithOpts(queue, util.NewULID(), "job-set-2", someTime.Add(20*time.Minute))
+			CreateJobWithOpts(queue, util.NewULID(), "job-set-2", "user", someTime.Add(20*time.Minute))
 
 		jobSets, err := jobRepo.GetJobSetInfos(ctx, &lookout.GetJobSetsRequest{Queue: queue})
 		assert.NoError(t, err)

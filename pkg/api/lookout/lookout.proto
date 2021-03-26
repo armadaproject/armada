@@ -91,6 +91,7 @@ message GetJobsRequest {
     uint32 take = 5;
     uint32 skip = 6;
     string jobId = 7;
+    string owner = 8;
 }
 
 message GetJobsResponse {

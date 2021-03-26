@@ -97,13 +97,16 @@ func (r *SQLJobRepository) createJobsDataset(opts *lookout.GetJobsRequest) *goqu
 func createWhereFilters(opts *lookout.GetJobsRequest) []goqu.Expression {
 	filters := make([]goqu.Expression, 0)
 
-	if opts.JobId != "" && opts.Queue == "" {
-		filters = append(filters, job_jobId.Eq(opts.JobId))
-	} else if opts.Queue != "" && opts.JobId == "" {
-		filters = append(filters, job_queue.Eq(opts.Queue))
-	} else {
-		filters = append(filters, job_jobId.Eq(opts.JobId))
-		filters = append(filters, job_queue.Eq(opts.Queue))
+	if opts.Queue != "" {
+		filters = append(filters, StartsWith(job_queue, opts.Queue))
+	}
+
+	if opts.JobId != "" {
+		filters = append(filters, StartsWith(job_jobId, opts.JobId))
+	}
+
+	if opts.Owner != "" {
+		filters = append(filters, StartsWith(job_owner, opts.Owner))
 	}
 
 	filters = append(filters, goqu.Or(createJobSetFilters(opts.JobSetIds)...))
@@ -118,7 +121,7 @@ func createWhereFilters(opts *lookout.GetJobsRequest) []goqu.Expression {
 func createJobSetFilters(jobSetIds []string) []goqu.Expression {
 	filters := make([]goqu.Expression, 0)
 	for _, jobSetId := range jobSetIds {
-		filter := job_jobset.Like(jobSetId + "%")
+		filter := StartsWith(job_jobset, jobSetId)
 		filters = append(filters, filter)
 	}
 	return filters
