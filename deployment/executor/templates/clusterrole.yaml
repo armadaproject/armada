@@ -33,3 +33,9 @@ rules:
   - users
   verbs:
   - impersonate
+- apiGroups:
+    - ""
+  resources:
+    - nodes/proxy
+  verbs:
+    - get
