@@ -3,6 +3,7 @@ package context
 import (
 	ctx "context"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -185,14 +186,15 @@ func (c *KubernetesClusterContext) GetNodeStatsSummary(node *v1.Node) (*v1alpha1
 
 	res := request.Do(ctx.Background())
 	rawJson, err := res.Raw()
+	log.Infof("raw_json:", string(rawJson))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("request error %s", err)
 	}
 
 	summary := &v1alpha1.Summary{}
 	err = json.Unmarshal(rawJson, summary)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to unmarshal %s", err)
 	}
 	return summary, nil
 }
