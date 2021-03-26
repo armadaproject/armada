@@ -186,9 +186,9 @@ func (c *KubernetesClusterContext) GetNodeStatsSummary(node *v1.Node) (*v1alpha1
 
 	res := request.Do(ctx.Background())
 	rawJson, err := res.Raw()
-	log.Infof("raw_json:", string(rawJson))
+
 	if err != nil {
-		return nil, fmt.Errorf("request error %s", err)
+		return nil, fmt.Errorf("request error %s (body %s)", err, string(rawJson))
 	}
 
 	summary := &v1alpha1.Summary{}
