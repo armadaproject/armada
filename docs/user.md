@@ -54,10 +54,26 @@ queue: test
 priority: 0
 jobSetId: multi-node-set1
 podSpecs:
-  - containers:
-    ... 
-  - containers:
-    ... 
+  - terminationGracePeriodSeconds: 0
+    restartPolicy: Never
+    containers:
+      - name: sleep
+        imagePullPolicy: IfNotPresent
+        image: busybox:latest
+        args:
+          - sleep
+          - 60s
+        resources:
+          limits:
+            memory: 64Mi
+            cpu: 150m
+          requests:
+            memory: 64Mi
+            cpu: 150m 
+  - terminationGracePeriodSeconds: 0
+    restartPolicy: Never
+    containers:
+      ... 
 ```
 
 Armada will schedule this type of job on one cluster, and the pods will be created at the same 
