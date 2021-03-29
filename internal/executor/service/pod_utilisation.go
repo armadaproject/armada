@@ -107,7 +107,7 @@ func (q *MetricsServerPodUtilisationService) RefreshUtilisationData() {
 	for s := range summaries {
 		for _, pod := range s.Pods {
 			if podNames[pod.PodRef.Name] {
-				q.updatePodStats(pod)
+				q.updatePodStats(&pod)
 			}
 		}
 	}
@@ -115,15 +115,16 @@ func (q *MetricsServerPodUtilisationService) RefreshUtilisationData() {
 	q.removeFinishedPods(podNames)
 }
 
-func (q *MetricsServerPodUtilisationService) updatePodStats(podStats v1alpha1.PodStats) {
+func (q *MetricsServerPodUtilisationService) updatePodStats(podStats *v1alpha1.PodStats) {
 
 	resources := common.ComputeResources{}
-	resources["cpu"] = *resource.NewScaledQuantity(int64(*podStats.CPU.UsageNanoCores), -9)
 
+	if podStats.CPU != nil && podStats.CPU.UsageNanoCores != nil {
+		resources["cpu"] = *resource.NewScaledQuantity(int64(*podStats.CPU.UsageNanoCores), -9)
+	}
 	if podStats.Memory != nil && podStats.Memory.WorkingSetBytes != nil {
 		resources["memory"] = *resource.NewQuantity(int64(*podStats.Memory.WorkingSetBytes), resource.BinarySI)
 	}
-
 	if podStats.EphemeralStorage != nil && podStats.EphemeralStorage.UsedBytes != nil {
 		resources["ephemeral-storage"] = *resource.NewQuantity(int64(*podStats.EphemeralStorage.UsedBytes), resource.BinarySI)
 	}
