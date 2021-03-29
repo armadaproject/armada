@@ -9,6 +9,9 @@ import LoadingRow from "./LoadingRow";
 import LinkCell from "../LinkCell";
 
 import './Jobs.css'
+import SearchHeaderCell from "./SearchHeaderCell";
+import JobStatesHeaderCell from "./JobStatesHeaderCell";
+import SubmissionTimeHeaderCell from "./SubmissionTimeHeaderCell";
 
 type JobsProps = {
   jobs: Job[]
@@ -18,6 +21,7 @@ type JobsProps = {
   jobStates: string[]
   newestFirst: boolean
   jobId: string
+  owner: string
   selectedJobs: Map<string, Job>
   cancelJobsButtonIsEnabled: boolean
   fetchJobs: (start: number, stop: number) => Promise<Job[]>
@@ -27,6 +31,7 @@ type JobsProps = {
   onJobStatesChange: (jobStates: string[]) => Promise<void>
   onOrderChange: (newestFirst: boolean) => Promise<void>
   onJobIdChange: (jobId: string) => Promise<void>
+  onOwnerChange: (owner: string) => Promise<void>
   onRefresh: () => Promise<void>
   onSelectJob: (job: Job, selected: boolean) => Promise<void>
   onCancelJobsClick: () => void
@@ -66,6 +71,7 @@ export default class Jobs extends React.Component<JobsProps, {}> {
   }
 
   render() {
+    console.log("inj", this.props.jobStates)
     const rowCount = this.props.canLoadMore ? this.props.jobs.length + 1 : this.props.jobs.length
 
     return (
@@ -146,26 +152,94 @@ export default class Jobs extends React.Component<JobsProps, {}> {
                     headerRowRenderer={(tableHeaderRowProps) => {
                       return <HeaderRow {...tableHeaderRowProps}/>
                     }}
-                    headerHeight={40}
+                    headerHeight={60}
                     height={height}
-                    width={width}
-                    sortBy={"submissionTime"}
-                    sortDirection={this.props.newestFirst ? "DESC" : "ASC"}
-                    sort={async () => {
-                      await this.props.onOrderChange(!this.props.newestFirst)
-                      this.resetCache()
-                    }}>
+                    width={width}>
+                    <Column
+                      dataKey="queue"
+                      width={width / 6}
+                      label="Queue"
+                      headerRenderer={headerProps => (
+                        <SearchHeaderCell
+                          headerLabel={"Queue"}
+                          value={this.props.queue}
+                          onChange={async queue => {
+                            await this.props.onQueueChange(queue)
+                            this.resetCache()
+                          }}
+                          {...headerProps}/>
+                      )}/>
                     <Column
                       dataKey="jobId"
-                      width={0.2 * width}
+                      width={width / 6}
                       label="Id"
                       cellRenderer={(cellProps) => (
                         <LinkCell onClick={() => this.props.onJobIdClick(cellProps.rowIndex)} {...cellProps} />
-                      )} />
-                    <Column dataKey="owner" width={0.2 * width} label="Owner" />
-                    <Column dataKey="jobSet" width={0.2 * width} label="Job Set" />
-                    <Column dataKey="submissionTime" width={0.2 * width} label="Submission Time" />
-                    <Column dataKey="jobState" width={0.2 * width} label="State"/>
+                      )}
+                      headerRenderer={headerProps => (
+                        <SearchHeaderCell
+                          headerLabel={"Id"}
+                          value={this.props.jobId}
+                          onChange={async jobId => {
+                            await this.props.onJobIdChange(jobId)
+                            this.resetCache()
+                          }}
+                          {...headerProps}/>
+                      )}/>
+                    <Column
+                      dataKey="owner"
+                      width={width / 6}
+                      label="Owner"
+                      headerRenderer={headerProps => (
+                        <SearchHeaderCell
+                          headerLabel={"Owner"}
+                          value={this.props.owner}
+                          onChange={async owner => {
+                            await this.props.onOwnerChange(owner)
+                            this.resetCache()
+                          }}
+                          {...headerProps}/>
+                      )}/>
+                    <Column
+                      dataKey="jobSet"
+                      width={width / 6}
+                      label="Job Set"
+                      headerRenderer={headerProps => (
+                        <SearchHeaderCell
+                          headerLabel={"Job Set"}
+                          value={this.props.jobSet}
+                          onChange={async jobSet => {
+                            await this.props.onJobSetChange(jobSet)
+                            this.resetCache()
+                          }}
+                          {...headerProps}/>
+                      )}/>
+                    <Column
+                      dataKey="submissionTime"
+                      width={width / 6}
+                      label="Submission Time"
+                      headerRenderer={headerProps => (
+                        <SubmissionTimeHeaderCell
+                          newestFirst={this.props.newestFirst}
+                          onOrderChange={async newestFirst => {
+                            await this.props.onOrderChange(newestFirst)
+                            this.resetCache()
+                          }}
+                          {...headerProps}/>
+                      )}/>
+                    <Column
+                      dataKey="jobState"
+                      width={width / 6}
+                      label="State"
+                      headerRenderer={headerProps => (
+                        <JobStatesHeaderCell
+                          jobStates={this.props.jobStates}
+                          onJobStatesChange={async jobStates => {
+                            await this.props.onJobStatesChange(jobStates)
+                            this.resetCache()
+                          }}
+                          {...headerProps}/>
+                      )}/>
                   </Table>
                 )}
               </AutoSizer>

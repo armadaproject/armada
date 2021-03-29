@@ -1,4 +1,5 @@
 .link {
+    width: 100%;
     color: blue;
     white-space: nowrap;
     overflow: hidden;

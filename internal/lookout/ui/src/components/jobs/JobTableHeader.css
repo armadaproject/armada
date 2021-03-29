@@ -2,8 +2,6 @@
   display: flex;
   justify-content: space-between;
   flex-direction: row;
-  margin-top: 1em;
-  padding-bottom: 0.5em;
   border-bottom: 1px solid lightgrey;
 }
 
@@ -12,13 +10,6 @@
   display: flex;
   flex-direction: row;
   justify-content: flex-start;
-  align-items: center;
-}
-
-.job-table-header .center {
-  flex: 1 1 auto;
-  display: flex;
-  justify-content: center;
   align-items: center;
 }
 
@@ -34,15 +25,6 @@
   margin-bottom: 0.5em;
 }
 
-.order-width {
-  width: 6em;
-}
-
-.job-table-header .center > .filter {
-  margin-left: 1em;
-  margin-right: 1em;
-}
-
 .job-table-header .left {
   margin-left: 1em;
 }
@@ -52,5 +34,5 @@
 }
 
 .job-table-header .right .cancel-jobs {
-  margin-right: 1em;
+  margin-right: 4em;
 }
