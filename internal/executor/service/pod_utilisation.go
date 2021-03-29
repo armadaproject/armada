@@ -119,23 +119,35 @@ func (q *MetricsServerPodUtilisationService) updatePodStats(podStats v1alpha1.Po
 
 	resources := common.ComputeResources{}
 	resources["cpu"] = *resource.NewScaledQuantity(int64(*podStats.CPU.UsageNanoCores), -9)
-	resources["memory"] = *resource.NewQuantity(int64(*podStats.Memory.WorkingSetBytes), resource.BinarySI)
-	resources["ephemeral-storage"] = *resource.NewQuantity(int64(*podStats.EphemeralStorage.UsedBytes), resource.BinarySI)
+
+	if podStats.Memory != nil && podStats.Memory.WorkingSetBytes != nil {
+		resources["memory"] = *resource.NewQuantity(int64(*podStats.Memory.WorkingSetBytes), resource.BinarySI)
+	}
+
+	if podStats.EphemeralStorage != nil && podStats.EphemeralStorage.UsedBytes != nil {
+		resources["ephemeral-storage"] = *resource.NewQuantity(int64(*podStats.EphemeralStorage.UsedBytes), resource.BinarySI)
+	}
 
 	var (
 		acceleratorDutyCycles int64
 		acceleratorUsedMemory int64
+		accelerator           bool
 	)
 
 	// add custom metrics for gpu
 	for _, c := range podStats.Containers {
 		for _, a := range c.Accelerators {
+			log.Info("Detected accelerator: %s %s", a.Make, a.Model)
+			accelerator = true
 			acceleratorDutyCycles += int64(a.DutyCycle)
 			acceleratorUsedMemory += int64(a.MemoryUsed)
 		}
 	}
 
-	resources[domain.AcceleratorDutyCycle] = *resource.NewScaledQuantity(acceleratorDutyCycles, -2)
-	resources[domain.AcceleratorMemory] = *resource.NewScaledQuantity(acceleratorUsedMemory, -2)
+	if accelerator {
+		resources[domain.AcceleratorDutyCycle] = *resource.NewScaledQuantity(acceleratorDutyCycles, -2)
+		resources[domain.AcceleratorMemory] = *resource.NewScaledQuantity(acceleratorUsedMemory, -2)
+	}
+
 	q.updatePodUtilisation(podStats.PodRef.Name, resources)
 }
