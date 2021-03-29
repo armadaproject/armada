@@ -27,8 +27,9 @@ type MetricsServerPodUtilisationService struct {
 
 func NewMetricsServerQueueUtilisationService(clusterContext context.ClusterContext) *MetricsServerPodUtilisationService {
 	return &MetricsServerPodUtilisationService{
-		clusterContext:  clusterContext,
-		dataAccessMutex: sync.Mutex{},
+		clusterContext:     clusterContext,
+		podUtilisationData: map[string]common.ComputeResources{},
+		dataAccessMutex:    sync.Mutex{},
 	}
 }
 
