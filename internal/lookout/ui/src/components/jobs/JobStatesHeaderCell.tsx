@@ -32,7 +32,6 @@ const menuProps: Partial<MenuProps> = {
 };
 
 export default function JobStatesHeaderCell(props: JobStatesHeaderCellProps) {
-  console.log("in", props.jobStates)
   return (
     <div className="job-states-header-cell">
       <InputLabel shrink={true} id="job-table-state-select-label">Job states</InputLabel>
@@ -44,7 +43,6 @@ export default function JobStatesHeaderCell(props: JobStatesHeaderCellProps) {
         onChange={(event) => {
           const newJobStates = (event.target.value as string[])
             .filter(jobState => (JOB_STATES_FOR_DISPLAY).includes(jobState))
-          console.log("New selected", newJobStates)
           props.onJobStatesChange(newJobStates)
         }}
         input={<Input/>}

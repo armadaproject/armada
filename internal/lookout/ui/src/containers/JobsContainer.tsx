@@ -59,7 +59,7 @@ export function makeQueryStringFromFilters(filters: JobFilters): string {
     queryObject.job_set = filters.jobSet
   }
   if (filters.jobStates) {
-    queryObject.job_states = filters.jobSet
+    queryObject.job_states = filters.jobStates
   }
   if (filters.newestFirst != null) {
     queryObject.newest_first = filters.newestFirst
@@ -205,7 +205,6 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
   }
 
   async jobStatesChange(jobStates: string[]) {
-    console.log(jobStates)
     const filters = {
       ...this.state,
       jobStates: jobStates
@@ -413,7 +412,6 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
   }
 
   private async setFilters(filters: JobFilters) {
-    console.log(filters)
     await this.setStateAsync({
       ...this.state,
       ...filters,

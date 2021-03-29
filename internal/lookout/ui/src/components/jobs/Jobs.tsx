@@ -71,7 +71,6 @@ export default class Jobs extends React.Component<JobsProps, {}> {
   }
 
   render() {
-    console.log("inj", this.props.jobStates)
     const rowCount = this.props.canLoadMore ? this.props.jobs.length + 1 : this.props.jobs.length
 
     return (
