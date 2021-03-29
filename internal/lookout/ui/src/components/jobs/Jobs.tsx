@@ -152,7 +152,7 @@ export default class Jobs extends React.Component<JobsProps, {}> {
                       return <HeaderRow {...tableHeaderRowProps}/>
                     }}
                     headerHeight={60}
-                    height={height}
+                    height={height - 1}
                     width={width}>
                     <Column
                       dataKey="queue"
