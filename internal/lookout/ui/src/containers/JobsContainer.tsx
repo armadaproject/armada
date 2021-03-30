@@ -27,6 +27,7 @@ export interface JobFilters {
   jobStates: string[]
   newestFirst: boolean
   jobId: string
+  owner: string
 }
 
 type JobFiltersQueryParams = {
@@ -35,6 +36,7 @@ type JobFiltersQueryParams = {
   job_states?: string[] | string
   newest_first?: boolean
   job_id?: string
+  owner?: string
 }
 
 const QUERY_STRING_OPTIONS: ParseOptions | StringifyOptions = {
@@ -51,34 +53,22 @@ const CANCELLABLE_JOB_STATES = [
 export function makeQueryStringFromFilters(filters: JobFilters): string {
   let queryObject: JobFiltersQueryParams = {}
   if (filters.queue) {
-    queryObject = {
-      ...queryObject,
-      queue: filters.queue,
-    }
+    queryObject.queue = filters.queue
   }
   if (filters.jobSet) {
-    queryObject = {
-      ...queryObject,
-      job_set: filters.jobSet,
-    }
+    queryObject.job_set = filters.jobSet
   }
   if (filters.jobStates) {
-    queryObject = {
-      ...queryObject,
-      job_states: filters.jobStates,
-    }
+    queryObject.job_states = filters.jobStates
   }
   if (filters.newestFirst != null) {
-    queryObject = {
-      ...queryObject,
-      newest_first: filters.newestFirst,
-    }
+    queryObject.newest_first = filters.newestFirst
   }
   if (filters.jobId) {
-    queryObject = {
-      ...queryObject,
-      job_id: filters.jobId,
-    }
+    queryObject.job_id = filters.jobId
+  }
+  if (filters.owner) {
+    queryObject.owner = filters.owner
   }
 
   return queryString.stringify(queryObject, QUERY_STRING_OPTIONS)
@@ -93,6 +83,7 @@ export function makeFiltersFromQueryString(query: string): JobFilters {
     jobStates: [],
     newestFirst: true,
     jobId: "",
+    owner: "",
   }
   if (params.queue) {
     filters.queue = params.queue
@@ -108,6 +99,9 @@ export function makeFiltersFromQueryString(query: string): JobFilters {
   }
   if (params.job_id) {
     filters.jobId = params.job_id
+  }
+  if (params.owner) {
+    filters.owner = params.owner
   }
 
   return filters
@@ -135,6 +129,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
       jobStates: [],
       newestFirst: true,
       jobId: "",
+      owner: "",
     }
     this.state = {
       ...initialFilters,
@@ -162,6 +157,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     this.jobStatesChange = this.jobStatesChange.bind(this)
     this.orderChange = this.orderChange.bind(this)
     this.jobIdChange = this.jobIdChange.bind(this)
+    this.ownerChange = this.ownerChange.bind(this)
     this.refresh = this.refresh.bind(this)
 
     this.selectJob = this.selectJob.bind(this)
@@ -228,6 +224,14 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     const filters = {
       ...this.state,
       jobId: jobId,
+    }
+    await this.setFilters(filters)
+  }
+
+  async ownerChange(owner: string) {
+    const filters = {
+      ...this.state,
+      owner: owner,
     }
     await this.setFilters(filters)
   }
@@ -396,6 +400,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
       newestFirst: filters.newestFirst,
       jobStates: filters.jobStates,
       jobId: filters.jobId,
+      owner: filters.owner,
     })
 
     let canLoadMore = true
@@ -463,6 +468,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
           jobStates={this.state.jobStates}
           newestFirst={this.state.newestFirst}
           jobId={this.state.jobId}
+          owner={this.state.owner}
           selectedJobs={this.state.selectedJobs}
           cancelJobsButtonIsEnabled={this.selectedJobsAreCancellable()}
           fetchJobs={this.serveJobs}
@@ -472,6 +478,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
           onJobStatesChange={this.jobStatesChange}
           onOrderChange={this.orderChange}
           onJobIdChange={this.jobIdChange}
+          onOwnerChange={this.ownerChange}
           onRefresh={this.refresh}
           onSelectJob={this.selectJob}
           onCancelJobsClick={() => this.setCancelJobsModalState("CancelJobs")}

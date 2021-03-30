@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/doug-martin/goqu/v9"
+	"github.com/doug-martin/goqu/v9/exp"
 	"github.com/lib/pq"
 
 	"github.com/G-Research/armada/internal/common/util"
@@ -47,6 +48,10 @@ func recordsToInterfaces(records []goqu.Record) []interface{} {
 		out[i] = record
 	}
 	return out
+}
+
+func StartsWith(field exp.IdentifierExpression, pattern string) goqu.Expression {
+	return field.Like(pattern + "%")
 }
 
 func ParseNullString(nullString sql.NullString) string {
