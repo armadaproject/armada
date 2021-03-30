@@ -57,6 +57,7 @@ export interface GetJobsRequest {
   newestFirst: boolean,
   jobStates: string[],
   jobId: string,
+  owner: string,
 }
 
 export type Job = {
@@ -159,6 +160,7 @@ export default class JobService {
           newestFirst: getJobsRequest.newestFirst,
           jobStates: jobStatesForApi,
           jobId: getJobsRequest.jobId,
+          owner: getJobsRequest.owner,
         }
       });
       if (response.jobInfos) {

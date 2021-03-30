@@ -255,6 +255,9 @@ func SwaggerJsonTemplate() string {
 		"        \"newestFirst\": {\n" +
 		"          \"type\": \"boolean\"\n" +
 		"        },\n" +
+		"        \"owner\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
 		"        \"queue\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +

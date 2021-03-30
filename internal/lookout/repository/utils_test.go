@@ -97,22 +97,32 @@ func NewJobSimulator(t *testing.T, jobStore JobRecorder) *JobSimulator {
 }
 
 func (js *JobSimulator) CreateJob(queue string) *JobSimulator {
-	return js.CreateJobWithOpts(queue, util.NewULID(), "job-set", time.Now())
+	return js.CreateJobWithOpts(queue, util.NewULID(), "job-set", "user", time.Now())
 }
 
 func (js *JobSimulator) CreateJobWithId(queue string, id string) *JobSimulator {
-	return js.CreateJobWithOpts(queue, id, "job-set", time.Now())
+	return js.CreateJobWithOpts(queue, id, "job-set", "user", time.Now())
 }
 
 func (js *JobSimulator) CreateJobWithJobSet(queue string, jobSetId string) *JobSimulator {
-	return js.CreateJobWithOpts(queue, util.NewULID(), jobSetId, time.Now())
+	return js.CreateJobWithOpts(queue, util.NewULID(), jobSetId, "user", time.Now())
+}
+
+func (js *JobSimulator) CreateJobWithOwner(queue string, owner string) *JobSimulator {
+	return js.CreateJobWithOpts(queue, util.NewULID(), "job-set", owner, time.Now())
 }
 
 func (js *JobSimulator) CreateJobAtTime(queue string, time time.Time) *JobSimulator {
-	return js.CreateJobWithOpts(queue, util.NewULID(), "job-set", time)
+	return js.CreateJobWithOpts(queue, util.NewULID(), "job-set", "user", time)
 }
 
-func (js *JobSimulator) CreateJobWithOpts(queue string, jobId string, jobSetId string, time time.Time) *JobSimulator {
+func (js *JobSimulator) CreateJobWithOpts(
+	queue string,
+	jobId string,
+	jobSetId string,
+	owner string,
+	time time.Time,
+) *JobSimulator {
 	js.job = &api.Job{
 		Id:          jobId,
 		JobSetId:    jobSetId,
@@ -120,7 +130,7 @@ func (js *JobSimulator) CreateJobWithOpts(queue string, jobId string, jobSetId s
 		Namespace:   "nameSpace",
 		Labels:      nil,
 		Annotations: nil,
-		Owner:       "user",
+		Owner:       owner,
 		Priority:    10,
 		PodSpec:     &v1.PodSpec{},
 		Created:     time,
