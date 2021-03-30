@@ -8,6 +8,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/internal/executor/context"
@@ -265,4 +266,8 @@ func (c *syncFakeClusterContext) GetClusterId() string {
 
 func (c *syncFakeClusterContext) GetClusterPool() string {
 	return "pool"
+}
+
+func (c *syncFakeClusterContext) GetNodeStatsSummary(node *v1.Node) (*v1alpha1.Summary, error) {
+	return &v1alpha1.Summary{}, nil
 }

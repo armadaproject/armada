@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/mitchellh/mapstructure"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
@@ -109,11 +110,15 @@ func readEnvironmentLogLevel() log.Level {
 }
 
 func ServeMetrics(port uint16) (shutdown func()) {
+	return ServeMetricsFor(port, prometheus.DefaultGatherer)
+}
+
+func ServeMetricsFor(port uint16, gatherer prometheus.Gatherer) (shutdown func()) {
 	hook := promrus.MustNewPrometheusHook()
 	log.AddHook(hook)
 
 	mux := http.NewServeMux()
-	mux.Handle("/metrics", promhttp.Handler())
+	mux.Handle("/metrics", promhttp.HandlerFor(gatherer, promhttp.HandlerOpts{}))
 	return ServeHttp(port, mux)
 }
 

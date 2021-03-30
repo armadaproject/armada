@@ -8,7 +8,6 @@ import (
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
-	metrics_server "k8s.io/metrics/pkg/client/clientset/versioned"
 
 	"github.com/G-Research/armada/internal/common/task"
 	"github.com/G-Research/armada/internal/executor/cluster"
@@ -54,15 +53,6 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 		os.Exit(-1)
 	}
 
-	var metricsServerClient *metrics_server.Clientset
-	if config.Metric.ExposeQueueUsageMetrics && kubernetesClientProvider != nil {
-		metricsServerClient, err = metrics_server.NewForConfig(kubernetesClientProvider.ClientConfig())
-		if err != nil {
-			log.Errorf("Failed to connect to metrics server because: %s", err)
-			os.Exit(-1)
-		}
-	}
-
 	queueClient := api.NewAggregatedQueueClient(conn)
 	usageClient := api.NewUsageClient(conn)
 	eventClient := api.NewEventClient(conn)
@@ -82,8 +72,7 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 		config.Kubernetes.MinimumJobSize)
 
 	queueUtilisationService := service.NewMetricsServerQueueUtilisationService(
-		clusterContext,
-		metricsServerClient)
+		clusterContext)
 
 	clusterUtilisationService := service.NewClusterUtilisationService(
 		clusterContext,

@@ -16,6 +16,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/internal/common/util"
@@ -231,6 +232,10 @@ func (c *FakeClusterContext) GetClusterId() string {
 
 func (c FakeClusterContext) GetClusterPool() string {
 	return c.pool
+}
+
+func (c FakeClusterContext) GetNodeStatsSummary(node *v1.Node) (*v1alpha1.Summary, error) {
+	return &v1alpha1.Summary{}, nil
 }
 
 func (c *FakeClusterContext) addNodes(specs []*NodeSpec) {

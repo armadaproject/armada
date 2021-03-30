@@ -1,81 +1,17 @@
-/*
-Copyright 2016 The Kubernetes Authors.
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-    http://www.apache.org/licenses/LICENSE-2.0
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-// Package prometheus creates and registers prometheus metrics with
-// rest clients. To use this package, you just have to import it.
 package metrics
 
 import (
-	"net/url"
-	"time"
-
-	"k8s.io/client-go/tools/metrics"
-
 	"github.com/prometheus/client_golang/prometheus"
+	"k8s.io/component-base/metrics/legacyregistry"
+	_ "k8s.io/component-base/metrics/prometheus/clientgo"
 )
 
-var (
-	// requestLatency is a Prometheus Summary metric type partitioned by
-	// "verb" and "url" labels. It is used for the rest client latency metrics.
-	requestLatency = prometheus.NewHistogramVec(
-		prometheus.HistogramOpts{
-			Name:    "rest_client_request_duration_seconds",
-			Help:    "Request latency in seconds. Broken down by verb and URL.",
-			Buckets: prometheus.ExponentialBuckets(0.001, 2, 10),
-		},
-		[]string{"verb", "url"},
-	)
-
-	// deprecatedRequestLatency is deprecated, please use requestLatency.
-	deprecatedRequestLatency = prometheus.NewHistogramVec(
-		prometheus.HistogramOpts{
-			Name:    "rest_client_request_latency_seconds",
-			Help:    "(Deprecated) Request latency in seconds. Broken down by verb and URL.",
-			Buckets: prometheus.ExponentialBuckets(0.001, 2, 10),
-		},
-		[]string{"verb", "url"},
-	)
-
-	requestResult = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "rest_client_requests_total",
-			Help: "Number of HTTP requests, partitioned by status code, method, and host.",
-		},
-		[]string{"code", "method", "host"},
-	)
-)
-
-func init() {
-	prometheus.MustRegister(requestLatency)
-	prometheus.MustRegister(deprecatedRequestLatency)
-	prometheus.MustRegister(requestResult)
-	metrics.Register(&latencyAdapter{m: requestLatency, dm: deprecatedRequestLatency}, &resultAdapter{requestResult})
-}
-
-type latencyAdapter struct {
-	m  *prometheus.HistogramVec
-	dm *prometheus.HistogramVec
-}
-
-func (l *latencyAdapter) Observe(verb string, u url.URL, latency time.Duration) {
-	l.m.WithLabelValues(verb, u.String()).Observe(latency.Seconds())
-	l.dm.WithLabelValues(verb, u.String()).Observe(latency.Seconds())
-}
-
-type resultAdapter struct {
-	m *prometheus.CounterVec
-}
-
-func (r *resultAdapter) Increment(code, method, host string) {
-	r.m.WithLabelValues(code, method, host).Inc()
+func GetMetricsGatherer() prometheus.Gatherer {
+	// kubernetes component-base metric registry includes GO & Process collector, unregistering them in
+	// DefaultRegisterer prevents error from duplicate metrics
+	// Using just component-base does not currently work with promrus package
+	// Unregister works even on different instance as collectors are tracked by id composed from descriptions
+	prometheus.DefaultRegisterer.Unregister(prometheus.NewGoCollector())
+	prometheus.DefaultRegisterer.Unregister(prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}))
+	return prometheus.Gatherers{legacyregistry.DefaultGatherer, prometheus.DefaultGatherer}
 }

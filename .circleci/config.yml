@@ -133,6 +133,7 @@ jobs:
           command: |
             make proto
             git status -s -uno
+            git --no-pager diff
             exit $(git status -s -uno | wc -l)
 
   test:
@@ -237,7 +238,7 @@ jobs:
 
   release:
     docker:
-      - image: circleci/golang:1.12.6
+      - image: cimg/go:1.16.2
         environment:
           GO111MODULE: "on"
     working_directory: /go/src/github.com/G-Research/armada

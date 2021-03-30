@@ -1,7 +1,9 @@
 package context
 
 import (
+	ctx "context"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -14,6 +16,7 @@ import (
 	informer "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 
 	"github.com/G-Research/armada/internal/executor/cluster"
 	"github.com/G-Research/armada/internal/executor/configuration"
@@ -30,6 +33,7 @@ type ClusterContext interface {
 	GetAllPods() ([]*v1.Pod, error)
 	GetActiveBatchPods() ([]*v1.Pod, error)
 	GetNodes() ([]*v1.Node, error)
+	GetNodeStatsSummary(*v1.Node) (*v1alpha1.Summary, error)
 	GetPodEvents(pod *v1.Pod) ([]*v1.Event, error)
 
 	SubmitPod(pod *v1.Pod, owner string) (*v1.Pod, error)
@@ -171,6 +175,30 @@ func (c *KubernetesClusterContext) GetNodes() ([]*v1.Node, error) {
 	return c.nodeInformer.Lister().List(labels.Everything())
 }
 
+func (c *KubernetesClusterContext) GetNodeStatsSummary(node *v1.Node) (*v1alpha1.Summary, error) {
+	request := c.kubernetesClient.
+		CoreV1().
+		RESTClient().
+		Get().
+		Resource("nodes").
+		Name(node.Name).
+		SubResource("proxy", "stats", "summary")
+
+	res := request.Do(ctx.Background())
+	rawJson, err := res.Raw()
+
+	if err != nil {
+		return nil, fmt.Errorf("request error %s (body %s)", err, string(rawJson))
+	}
+
+	summary := &v1alpha1.Summary{}
+	err = json.Unmarshal(rawJson, summary)
+	if err != nil {
+		return nil, fmt.Errorf("unable to unmarshal %s", err)
+	}
+	return summary, nil
+}
+
 func (c *KubernetesClusterContext) SubmitPod(pod *v1.Pod, owner string) (*v1.Pod, error) {
 
 	c.submittedPods.Add(pod)
@@ -179,7 +207,7 @@ func (c *KubernetesClusterContext) SubmitPod(pod *v1.Pod, owner string) (*v1.Pod
 		return nil, err
 	}
 
-	returnedPod, err := ownerClient.CoreV1().Pods(pod.Namespace).Create(pod)
+	returnedPod, err := ownerClient.CoreV1().Pods(pod.Namespace).Create(ctx.Background(), pod, metav1.CreateOptions{})
 
 	if err != nil {
 		c.submittedPods.Delete(util.ExtractJobId(pod))
@@ -197,7 +225,7 @@ func (c *KubernetesClusterContext) AddAnnotation(pod *v1.Pod, annotations map[st
 	if err != nil {
 		return err
 	}
-	_, err = c.kubernetesClient.CoreV1().Pods(pod.Namespace).Patch(pod.Name, types.StrategicMergePatchType, patchBytes)
+	_, err = c.kubernetesClient.CoreV1().Pods(pod.Namespace).Patch(ctx.Background(), pod.Name, types.StrategicMergePatchType, patchBytes, metav1.PatchOptions{})
 	if err != nil {
 		return err
 	}
@@ -218,7 +246,7 @@ func (c *KubernetesClusterContext) ProcessPodsToDelete() {
 		if podToDelete == nil {
 			continue
 		}
-		err := c.kubernetesClient.CoreV1().Pods(podToDelete.Namespace).Delete(podToDelete.Name, &deleteOptions)
+		err := c.kubernetesClient.CoreV1().Pods(podToDelete.Namespace).Delete(ctx.Background(), podToDelete.Name, deleteOptions)
 		jobId := util.ExtractJobId(podToDelete)
 		if err == nil || errors.IsNotFound(err) {
 			c.podsToDelete.Update(jobId, nil)

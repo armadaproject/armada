@@ -1611,8 +1611,10 @@ namespace GResearch.Armada.Client
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1ConfigMapVolumeSource 
     {
-        /// <summary>Optional: mode bits to use on created files by default. Must be a
-        /// value between 0 and 0777. Defaults to 0644.
+        /// <summary>Optional: mode bits used to set permissions on created files by default.
+        /// Must be an octal value between 0000 and 0777 or a decimal value between 0 and 511.
+        /// YAML accepts both octal and decimal values, JSON requires decimal values for mode bits.
+        /// Defaults to 0644.
         /// Directories within the path are not affected by this setting.
         /// This might be in conflict with other options that affect the file
         /// mode, like fsGroup, and the result can be other mode bits set.
@@ -1781,7 +1783,6 @@ namespace GResearch.Armada.Client
         public bool? Tty { get; set; }
     
         /// <summary>volumeDevices is the list of block devices to be used by the container.
-        /// This is a beta feature.
         /// +patchMergeKey=devicePath
         /// +patchStrategy=merge
         /// +optional</summary>
@@ -1861,8 +1862,10 @@ namespace GResearch.Armada.Client
         [Newtonsoft.Json.JsonProperty("fieldRef", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public V1ObjectFieldSelector FieldRef { get; set; }
     
-        /// <summary>Optional: mode bits to use on this file, must be a value between 0
-        /// and 0777. If not specified, the volume defaultMode will be used.
+        /// <summary>Optional: mode bits used to set permissions on this file, must be an octal value
+        /// between 0000 and 0777 or a decimal value between 0 and 511.
+        /// YAML accepts both octal and decimal values, JSON requires decimal values for mode bits.
+        /// If not specified, the volume defaultMode will be used.
         /// This might be in conflict with other options that affect the file
         /// mode, like fsGroup, and the result can be other mode bits set.
         /// +optional</summary>
@@ -1884,7 +1887,10 @@ namespace GResearch.Armada.Client
     public partial class V1DownwardAPIVolumeSource 
     {
         /// <summary>Optional: mode bits to use on created files by default. Must be a
-        /// value between 0 and 0777. Defaults to 0644.
+        /// Optional: mode bits used to set permissions on created files by default.
+        /// Must be an octal value between 0000 and 0777 or a decimal value between 0 and 511.
+        /// YAML accepts both octal and decimal values, JSON requires decimal values for mode bits.
+        /// Defaults to 0644.
         /// Directories within the path are not affected by this setting.
         /// This might be in conflict with other options that affect the file
         /// mode, like fsGroup, and the result can be other mode bits set.
@@ -2110,7 +2116,6 @@ namespace GResearch.Armada.Client
         public bool? Tty { get; set; }
     
         /// <summary>volumeDevices is the list of block devices to be used by the container.
-        /// This is a beta feature.
         /// +patchMergeKey=devicePath
         /// +patchStrategy=merge
         /// +optional</summary>
@@ -2259,7 +2264,6 @@ namespace GResearch.Armada.Client
         public bool? Tty { get; set; }
     
         /// <summary>volumeDevices is the list of block devices to be used by the container.
-        /// This is a beta feature.
         /// +patchMergeKey=devicePath
         /// +patchStrategy=merge
         /// +optional</summary>
@@ -2281,6 +2285,21 @@ namespace GResearch.Armada.Client
         /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("workingDir", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string WorkingDir { get; set; }
+    
+    
+    }
+    
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
+    public partial class V1EphemeralVolumeSource 
+    {
+        /// <summary>Specifies a read-only configuration for the volume.
+        /// Defaults to false (read/write).
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("readOnly", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public bool? ReadOnly { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("volumeClaimTemplate", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1PersistentVolumeClaimTemplate VolumeClaimTemplate { get; set; }
     
     
     }
@@ -2335,6 +2354,22 @@ namespace GResearch.Armada.Client
         [Newtonsoft.Json.JsonProperty("wwids", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.ICollection<string> Wwids { get; set; }
     
+    
+    }
+    
+    /// <summary>Each key is either a '.' representing the field itself, and will always map to an empty set,
+    /// or a string representing a sub-field or item. The string will follow one of these four formats:
+    /// 'f:&lt;name&gt;', where &lt;name&gt; is the name of a field in a struct, or key in a map
+    /// 'v:&lt;value&gt;', where &lt;value&gt; is the exact json formatted value of a list item
+    /// 'i:&lt;index&gt;', where &lt;index&gt; is position of a item in a list
+    /// 'k:&lt;keys&gt;', where &lt;keys&gt; is a map of  a list item's key fields to their unique values
+    /// If a key maps to an empty Fields value, the field that key represents is part of the set.
+    /// 
+    /// The exact format is defined in sigs.k8s.io/structured-merge-diff
+    /// +protobuf.options.(gogoproto.goproto_stringer)=false</summary>
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
+    public partial class V1FieldsV1 
+    {
     
     }
     
@@ -2647,8 +2682,10 @@ namespace GResearch.Armada.Client
         [Newtonsoft.Json.JsonProperty("key", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Key { get; set; }
     
-        /// <summary>Optional: mode bits to use on this file, must be a value between 0
-        /// and 0777. If not specified, the volume defaultMode will be used.
+        /// <summary>Optional: mode bits used to set permissions on this file.
+        /// Must be an octal value between 0000 and 0777 or a decimal value between 0 and 511.
+        /// YAML accepts both octal and decimal values, JSON requires decimal values for mode bits.
+        /// If not specified, the volume defaultMode will be used.
         /// This might be in conflict with other options that affect the file
         /// mode, like fsGroup, and the result can be other mode bits set.
         /// +optional</summary>
@@ -2667,7 +2704,8 @@ namespace GResearch.Armada.Client
     
     /// <summary>A label selector is a label query over a set of resources. The result of matchLabels and
     /// matchExpressions are ANDed. An empty label selector matches all objects. A null
-    /// label selector matches no objects.</summary>
+    /// label selector matches no objects.
+    /// +structType=atomic</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1LabelSelector 
     {
@@ -2737,6 +2775,39 @@ namespace GResearch.Armada.Client
         /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("name", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Name { get; set; }
+    
+    
+    }
+    
+    /// <summary>ManagedFieldsEntry is a workflow-id, a FieldSet and the group version of the resource
+    /// that the fieldset applies to.</summary>
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
+    public partial class V1ManagedFieldsEntry 
+    {
+        /// <summary>APIVersion defines the version of this resource that this field set
+        /// applies to. The format is "group/version" just like the top-level
+        /// APIVersion field. It is necessary to track the version of a field
+        /// set because it cannot be automatically converted.</summary>
+        [Newtonsoft.Json.JsonProperty("apiVersion", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string ApiVersion { get; set; }
+    
+        /// <summary>FieldsType is the discriminator for the different fields format and version.
+        /// There is currently only one possible value: "FieldsV1"</summary>
+        [Newtonsoft.Json.JsonProperty("fieldsType", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string FieldsType { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("fieldsV1", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1FieldsV1 FieldsV1 { get; set; }
+    
+        /// <summary>Manager is an identifier of the workflow managing these fields.</summary>
+        [Newtonsoft.Json.JsonProperty("manager", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Manager { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("operation", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Operation { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("time", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.DateTimeOffset? Time { get; set; }
     
     
     }
@@ -2855,6 +2926,407 @@ namespace GResearch.Armada.Client
         /// <summary>Path of the field to select in the specified API version.</summary>
         [Newtonsoft.Json.JsonProperty("fieldPath", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string FieldPath { get; set; }
+    
+    
+    }
+    
+    /// <summary>ObjectMeta is metadata that all persisted resources must have, which includes all objects
+    /// users must create.</summary>
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
+    public partial class V1ObjectMeta 
+    {
+        /// <summary>Annotations is an unstructured key value map stored with a resource that may be
+        /// set by external tools to store and retrieve arbitrary metadata. They are not
+        /// queryable and should be preserved when modifying objects.
+        /// More info: http://kubernetes.io/docs/user-guide/annotations
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("annotations", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.IDictionary<string, string> Annotations { get; set; }
+    
+        /// <summary>The name of the cluster which the object belongs to.
+        /// This is used to distinguish resources with same name and namespace in different clusters.
+        /// This field is not set anywhere right now and apiserver is going to ignore it if set in create or update request.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("clusterName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string ClusterName { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("creationTimestamp", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.DateTimeOffset? CreationTimestamp { get; set; }
+    
+        /// <summary>Number of seconds allowed for this object to gracefully terminate before
+        /// it will be removed from the system. Only set when deletionTimestamp is also set.
+        /// May only be shortened.
+        /// Read-only.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("deletionGracePeriodSeconds", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public long? DeletionGracePeriodSeconds { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("deletionTimestamp", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.DateTimeOffset? DeletionTimestamp { get; set; }
+    
+        /// <summary>Must be empty before the object is deleted from the registry. Each entry
+        /// is an identifier for the responsible component that will remove the entry
+        /// from the list. If the deletionTimestamp of the object is non-nil, entries
+        /// in this list can only be removed.
+        /// Finalizers may be processed and removed in any order.  Order is NOT enforced
+        /// because it introduces significant risk of stuck finalizers.
+        /// finalizers is a shared field, any actor with permission can reorder it.
+        /// If the finalizer list is processed in order, then this can lead to a situation
+        /// in which the component responsible for the first finalizer in the list is
+        /// waiting for a signal (field value, external system, or other) produced by a
+        /// component responsible for a finalizer later in the list, resulting in a deadlock.
+        /// Without enforced ordering finalizers are free to order amongst themselves and
+        /// are not vulnerable to ordering changes in the list.
+        /// +optional
+        /// +patchStrategy=merge</summary>
+        [Newtonsoft.Json.JsonProperty("finalizers", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<string> Finalizers { get; set; }
+    
+        /// <summary>GenerateName is an optional prefix, used by the server, to generate a unique
+        /// name ONLY IF the Name field has not been provided.
+        /// If this field is used, the name returned to the client will be different
+        /// than the name passed. This value will also be combined with a unique suffix.
+        /// The provided value has the same validation rules as the Name field,
+        /// and may be truncated by the length of the suffix required to make the value
+        /// unique on the server.
+        /// 
+        /// If this field is specified and the generated name exists, the server will
+        /// NOT return a 409 - instead, it will either return 201 Created or 500 with Reason
+        /// ServerTimeout indicating a unique name could not be found in the time allotted, and the client
+        /// should retry (optionally after the time indicated in the Retry-After header).
+        /// 
+        /// Applied only if Name is not specified.
+        /// More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#idempotency
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("generateName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string GenerateName { get; set; }
+    
+        /// <summary>A sequence number representing a specific generation of the desired state.
+        /// Populated by the system. Read-only.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("generation", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public long? Generation { get; set; }
+    
+        /// <summary>Map of string keys and values that can be used to organize and categorize
+        /// (scope and select) objects. May match selectors of replication controllers
+        /// and services.
+        /// More info: http://kubernetes.io/docs/user-guide/labels
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("labels", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.IDictionary<string, string> Labels { get; set; }
+    
+        /// <summary>ManagedFields maps workflow-id and version to the set of fields
+        /// that are managed by that workflow. This is mostly for internal
+        /// housekeeping, and users typically shouldn't need to set or
+        /// understand this field. A workflow can be the user's name, a
+        /// controller's name, or the name of a specific apply path like
+        /// "ci-cd". The set of fields is always in the version that the
+        /// workflow used when modifying the object.
+        /// 
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("managedFields", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<V1ManagedFieldsEntry> ManagedFields { get; set; }
+    
+        /// <summary>Name must be unique within a namespace. Is required when creating resources, although
+        /// some resources may allow a client to request the generation of an appropriate name
+        /// automatically. Name is primarily intended for creation idempotence and configuration
+        /// definition.
+        /// Cannot be updated.
+        /// More info: http://kubernetes.io/docs/user-guide/identifiers#names
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("name", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Name { get; set; }
+    
+        /// <summary>Namespace defines the space within which each name must be unique. An empty namespace is
+        /// equivalent to the "default" namespace, but "default" is the canonical representation.
+        /// Not all objects are required to be scoped to a namespace - the value of this field for
+        /// those objects will be empty.
+        /// 
+        /// Must be a DNS_LABEL.
+        /// Cannot be updated.
+        /// More info: http://kubernetes.io/docs/user-guide/namespaces
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("namespace", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Namespace { get; set; }
+    
+        /// <summary>List of objects depended by this object. If ALL objects in the list have
+        /// been deleted, this object will be garbage collected. If this object is managed by a controller,
+        /// then an entry in this list will point to this controller, with the controller field set to true.
+        /// There cannot be more than one managing controller.
+        /// +optional
+        /// +patchMergeKey=uid
+        /// +patchStrategy=merge</summary>
+        [Newtonsoft.Json.JsonProperty("ownerReferences", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<V1OwnerReference> OwnerReferences { get; set; }
+    
+        /// <summary>An opaque value that represents the internal version of this object that can
+        /// be used by clients to determine when objects have changed. May be used for optimistic
+        /// concurrency, change detection, and the watch operation on a resource or set of resources.
+        /// Clients must treat these values as opaque and passed unmodified back to the server.
+        /// They may only be valid for a particular resource or set of resources.
+        /// 
+        /// Populated by the system.
+        /// Read-only.
+        /// Value must be treated as opaque by clients and .
+        /// More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#concurrency-control-and-consistency
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("resourceVersion", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string ResourceVersion { get; set; }
+    
+        /// <summary>SelfLink is a URL representing this object.
+        /// Populated by the system.
+        /// Read-only.
+        /// 
+        /// DEPRECATED
+        /// Kubernetes will stop propagating this field in 1.20 release and the field is planned
+        /// to be removed in 1.21 release.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("selfLink", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string SelfLink { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("uid", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Uid { get; set; }
+    
+    
+    }
+    
+    /// <summary>OwnerReference contains enough information to let you identify an owning
+    /// object. An owning object must be in the same namespace as the dependent, or
+    /// be cluster-scoped, so there is no namespace field.</summary>
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
+    public partial class V1OwnerReference 
+    {
+        /// <summary>API version of the referent.</summary>
+        [Newtonsoft.Json.JsonProperty("apiVersion", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string ApiVersion { get; set; }
+    
+        /// <summary>If true, AND if the owner has the "foregroundDeletion" finalizer, then
+        /// the owner cannot be deleted from the key-value store until this
+        /// reference is removed.
+        /// Defaults to false.
+        /// To set this field, a user needs "delete" permission of the owner,
+        /// otherwise 422 (Unprocessable Entity) will be returned.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("blockOwnerDeletion", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public bool? BlockOwnerDeletion { get; set; }
+    
+        /// <summary>If true, this reference points to the managing controller.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("controller", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public bool? Controller { get; set; }
+    
+        /// <summary>Kind of the referent.
+        /// More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds</summary>
+        [Newtonsoft.Json.JsonProperty("kind", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Kind { get; set; }
+    
+        /// <summary>Name of the referent.
+        /// More info: http://kubernetes.io/docs/user-guide/identifiers#names</summary>
+        [Newtonsoft.Json.JsonProperty("name", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Name { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("uid", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Uid { get; set; }
+    
+    
+    }
+    
+    /// <summary>PersistentVolumeClaimSpec describes the common attributes of storage devices
+    /// and allows a Source for provider-specific attributes</summary>
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
+    public partial class V1PersistentVolumeClaimSpec 
+    {
+        /// <summary>AccessModes contains the desired access modes the volume should have.
+        /// More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#access-modes-1
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("accessModes", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<string> AccessModes { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("dataSource", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1TypedLocalObjectReference DataSource { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("resources", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1ResourceRequirements Resources { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("selector", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1LabelSelector Selector { get; set; }
+    
+        /// <summary>Name of the StorageClass required by the claim.
+        /// More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#class-1
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("storageClassName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string StorageClassName { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("volumeMode", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string VolumeMode { get; set; }
+    
+        /// <summary>VolumeName is the binding reference to the PersistentVolume backing this claim.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("volumeName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string VolumeName { get; set; }
+    
+    
+    }
+    
+    /// <summary>PersistentVolumeClaimTemplate is used to produce
+    /// PersistentVolumeClaim objects as part of an EphemeralVolumeSource.</summary>
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
+    public partial class V1PersistentVolumeClaimTemplate 
+    {
+        /// <summary>Annotations is an unstructured key value map stored with a resource that may be
+        /// set by external tools to store and retrieve arbitrary metadata. They are not
+        /// queryable and should be preserved when modifying objects.
+        /// More info: http://kubernetes.io/docs/user-guide/annotations
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("annotations", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.IDictionary<string, string> Annotations { get; set; }
+    
+        /// <summary>The name of the cluster which the object belongs to.
+        /// This is used to distinguish resources with same name and namespace in different clusters.
+        /// This field is not set anywhere right now and apiserver is going to ignore it if set in create or update request.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("clusterName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string ClusterName { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("creationTimestamp", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.DateTimeOffset? CreationTimestamp { get; set; }
+    
+        /// <summary>Number of seconds allowed for this object to gracefully terminate before
+        /// it will be removed from the system. Only set when deletionTimestamp is also set.
+        /// May only be shortened.
+        /// Read-only.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("deletionGracePeriodSeconds", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public long? DeletionGracePeriodSeconds { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("deletionTimestamp", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.DateTimeOffset? DeletionTimestamp { get; set; }
+    
+        /// <summary>Must be empty before the object is deleted from the registry. Each entry
+        /// is an identifier for the responsible component that will remove the entry
+        /// from the list. If the deletionTimestamp of the object is non-nil, entries
+        /// in this list can only be removed.
+        /// Finalizers may be processed and removed in any order.  Order is NOT enforced
+        /// because it introduces significant risk of stuck finalizers.
+        /// finalizers is a shared field, any actor with permission can reorder it.
+        /// If the finalizer list is processed in order, then this can lead to a situation
+        /// in which the component responsible for the first finalizer in the list is
+        /// waiting for a signal (field value, external system, or other) produced by a
+        /// component responsible for a finalizer later in the list, resulting in a deadlock.
+        /// Without enforced ordering finalizers are free to order amongst themselves and
+        /// are not vulnerable to ordering changes in the list.
+        /// +optional
+        /// +patchStrategy=merge</summary>
+        [Newtonsoft.Json.JsonProperty("finalizers", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<string> Finalizers { get; set; }
+    
+        /// <summary>GenerateName is an optional prefix, used by the server, to generate a unique
+        /// name ONLY IF the Name field has not been provided.
+        /// If this field is used, the name returned to the client will be different
+        /// than the name passed. This value will also be combined with a unique suffix.
+        /// The provided value has the same validation rules as the Name field,
+        /// and may be truncated by the length of the suffix required to make the value
+        /// unique on the server.
+        /// 
+        /// If this field is specified and the generated name exists, the server will
+        /// NOT return a 409 - instead, it will either return 201 Created or 500 with Reason
+        /// ServerTimeout indicating a unique name could not be found in the time allotted, and the client
+        /// should retry (optionally after the time indicated in the Retry-After header).
+        /// 
+        /// Applied only if Name is not specified.
+        /// More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#idempotency
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("generateName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string GenerateName { get; set; }
+    
+        /// <summary>A sequence number representing a specific generation of the desired state.
+        /// Populated by the system. Read-only.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("generation", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public long? Generation { get; set; }
+    
+        /// <summary>Map of string keys and values that can be used to organize and categorize
+        /// (scope and select) objects. May match selectors of replication controllers
+        /// and services.
+        /// More info: http://kubernetes.io/docs/user-guide/labels
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("labels", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.IDictionary<string, string> Labels { get; set; }
+    
+        /// <summary>ManagedFields maps workflow-id and version to the set of fields
+        /// that are managed by that workflow. This is mostly for internal
+        /// housekeeping, and users typically shouldn't need to set or
+        /// understand this field. A workflow can be the user's name, a
+        /// controller's name, or the name of a specific apply path like
+        /// "ci-cd". The set of fields is always in the version that the
+        /// workflow used when modifying the object.
+        /// 
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("managedFields", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<V1ManagedFieldsEntry> ManagedFields { get; set; }
+    
+        /// <summary>Name must be unique within a namespace. Is required when creating resources, although
+        /// some resources may allow a client to request the generation of an appropriate name
+        /// automatically. Name is primarily intended for creation idempotence and configuration
+        /// definition.
+        /// Cannot be updated.
+        /// More info: http://kubernetes.io/docs/user-guide/identifiers#names
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("name", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Name { get; set; }
+    
+        /// <summary>Namespace defines the space within which each name must be unique. An empty namespace is
+        /// equivalent to the "default" namespace, but "default" is the canonical representation.
+        /// Not all objects are required to be scoped to a namespace - the value of this field for
+        /// those objects will be empty.
+        /// 
+        /// Must be a DNS_LABEL.
+        /// Cannot be updated.
+        /// More info: http://kubernetes.io/docs/user-guide/namespaces
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("namespace", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Namespace { get; set; }
+    
+        /// <summary>List of objects depended by this object. If ALL objects in the list have
+        /// been deleted, this object will be garbage collected. If this object is managed by a controller,
+        /// then an entry in this list will point to this controller, with the controller field set to true.
+        /// There cannot be more than one managing controller.
+        /// +optional
+        /// +patchMergeKey=uid
+        /// +patchStrategy=merge</summary>
+        [Newtonsoft.Json.JsonProperty("ownerReferences", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<V1OwnerReference> OwnerReferences { get; set; }
+    
+        /// <summary>An opaque value that represents the internal version of this object that can
+        /// be used by clients to determine when objects have changed. May be used for optimistic
+        /// concurrency, change detection, and the watch operation on a resource or set of resources.
+        /// Clients must treat these values as opaque and passed unmodified back to the server.
+        /// They may only be valid for a particular resource or set of resources.
+        /// 
+        /// Populated by the system.
+        /// Read-only.
+        /// Value must be treated as opaque by clients and .
+        /// More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#concurrency-control-and-consistency
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("resourceVersion", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string ResourceVersion { get; set; }
+    
+        /// <summary>SelfLink is a URL representing this object.
+        /// Populated by the system.
+        /// Read-only.
+        /// 
+        /// DEPRECATED
+        /// Kubernetes will stop propagating this field in 1.20 release and the field is planned
+        /// to be removed in 1.21 release.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("selfLink", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string SelfLink { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("spec", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1PersistentVolumeClaimSpec Spec { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("uid", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Uid { get; set; }
     
     
     }
@@ -3056,6 +3528,9 @@ namespace GResearch.Armada.Client
         [Newtonsoft.Json.JsonProperty("fsGroup", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public long? FsGroup { get; set; }
     
+        [Newtonsoft.Json.JsonProperty("fsGroupChangePolicy", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string FsGroupChangePolicy { get; set; }
+    
         /// <summary>The GID to run the entrypoint of the container process.
         /// Uses runtime default if unset.
         /// May also be set in SecurityContext.  If set in both SecurityContext and
@@ -3086,6 +3561,9 @@ namespace GResearch.Armada.Client
     
         [Newtonsoft.Json.JsonProperty("seLinuxOptions", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public V1SELinuxOptions SeLinuxOptions { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("seccompProfile", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1SeccompProfile SeccompProfile { get; set; }
     
         /// <summary>A list of groups applied to the first process run in each container, in addition
         /// to the container's primary GID.  If unspecified, no groups will be added to
@@ -3303,6 +3781,15 @@ namespace GResearch.Armada.Client
         [Newtonsoft.Json.JsonProperty("serviceAccountName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string ServiceAccountName { get; set; }
     
+        /// <summary>If true the pod's hostname will be configured as the pod's FQDN, rather than the leaf name (the default).
+        /// In Linux containers, this means setting the FQDN in the hostname field of the kernel (the nodename field of struct utsname).
+        /// In Windows containers, this means setting the registry value of hostname for the registry key HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters to FQDN.
+        /// If a pod does not have FQDN, this has no effect.
+        /// Default to false.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("setHostnameAsFQDN", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public bool? SetHostnameAsFQDN { get; set; }
+    
         /// <summary>Share a single process namespace between all of the containers in a pod.
         /// When this is set containers will be able to view and signal processes from other containers
         /// in the same pod, and the first process in each container will not be assigned PID 1.
@@ -3337,8 +3824,6 @@ namespace GResearch.Armada.Client
     
         /// <summary>TopologySpreadConstraints describes how a group of pods ought to spread across topology
         /// domains. Scheduler will schedule pods in a way which abides by the constraints.
-        /// This field is alpha-level and is only honored by clusters that enables the EvenPodsSpread
-        /// feature.
         /// All topologySpreadConstraints are ANDed.
         /// +optional
         /// +patchMergeKey=topologyKey
@@ -3449,8 +3934,9 @@ namespace GResearch.Armada.Client
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1ProjectedVolumeSource 
     {
-        /// <summary>Mode bits to use on created files by default. Must be a value between
-        /// 0 and 0777.
+        /// <summary>Mode bits used to set permissions on created files by default.
+        /// Must be an octal value between 0000 and 0777 or a decimal value between 0 and 511.
+        /// YAML accepts both octal and decimal values, JSON requires decimal values for mode bits.
         /// Directories within the path are not affected by this setting.
         /// This might be in conflict with other options that affect the file
         /// mode, like fsGroup, and the result can be other mode bits set.
@@ -3458,7 +3944,8 @@ namespace GResearch.Armada.Client
         [Newtonsoft.Json.JsonProperty("defaultMode", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public int? DefaultMode { get; set; }
     
-        /// <summary>list of volume projections</summary>
+        /// <summary>list of volume projections
+        /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("sources", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.ICollection<V1VolumeProjection> Sources { get; set; }
     
@@ -3685,6 +4172,25 @@ namespace GResearch.Armada.Client
     
     }
     
+    /// <summary>Only one profile source may be set.
+    /// +union</summary>
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
+    public partial class V1SeccompProfile 
+    {
+        /// <summary>localhostProfile indicates a profile defined in a file on the node should be used.
+        /// The profile must be preconfigured on the node to work.
+        /// Must be a descending path, relative to the kubelet's configured seccomp profile location.
+        /// Must only be set if type is "Localhost".
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("localhostProfile", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string LocalhostProfile { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("type", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Type { get; set; }
+    
+    
+    }
+    
     /// <summary>The contents of the target Secret's Data field will represent the
     /// key-value pairs as environment variables.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
@@ -3766,8 +4272,10 @@ namespace GResearch.Armada.Client
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1SecretVolumeSource 
     {
-        /// <summary>Optional: mode bits to use on created files by default. Must be a
-        /// value between 0 and 0777. Defaults to 0644.
+        /// <summary>Optional: mode bits used to set permissions on created files by default.
+        /// Must be an octal value between 0000 and 0777 or a decimal value between 0 and 511.
+        /// YAML accepts both octal and decimal values, JSON requires decimal values
+        /// for mode bits. Defaults to 0644.
         /// Directories within the path are not affected by this setting.
         /// This might be in conflict with other options that affect the file
         /// mode, like fsGroup, and the result can be other mode bits set.
@@ -3862,6 +4370,9 @@ namespace GResearch.Armada.Client
     
         [Newtonsoft.Json.JsonProperty("seLinuxOptions", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public V1SELinuxOptions SeLinuxOptions { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("seccompProfile", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1SeccompProfile SeccompProfile { get; set; }
     
         [Newtonsoft.Json.JsonProperty("windowsOptions", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public V1WindowsSecurityContextOptions WindowsOptions { get; set; }
@@ -4010,8 +4521,8 @@ namespace GResearch.Armada.Client
         public V1LabelSelector LabelSelector { get; set; }
     
         /// <summary>MaxSkew describes the degree to which pods may be unevenly distributed.
-        /// It's the maximum permitted difference between the number of matching pods in
-        /// any two topology domains of a given topology type.
+        /// When `whenUnsatisfiable=DoNotSchedule`, it is the maximum permitted difference
+        /// between the number of matching pods in the target topology and the global minimum.
         /// For example, in a 3-zone cluster, MaxSkew is set to 1, and pods with the same
         /// labelSelector spread as 1/1/0:
         /// +-------+-------+-------+
@@ -4023,6 +4534,8 @@ namespace GResearch.Armada.Client
         /// scheduling it onto zone1(zone2) would make the ActualSkew(2-0) on zone1(zone2)
         /// violate MaxSkew(1).
         /// if MaxSkew is 2, incoming pod can be scheduled onto any zone.
+        /// When `whenUnsatisfiable=ScheduleAnyway`, it is used to give higher precedence
+        /// to topologies that satisfy it.
         /// It's a required field. Default value is 1 and 0 is not allowed.</summary>
         [Newtonsoft.Json.JsonProperty("maxSkew", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public int? MaxSkew { get; set; }
@@ -4037,6 +4550,29 @@ namespace GResearch.Armada.Client
     
         [Newtonsoft.Json.JsonProperty("whenUnsatisfiable", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string WhenUnsatisfiable { get; set; }
+    
+    
+    }
+    
+    /// <summary>TypedLocalObjectReference contains enough information to let you locate the
+    /// typed referenced object inside the same namespace.</summary>
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
+    public partial class V1TypedLocalObjectReference 
+    {
+        /// <summary>APIGroup is the group for the resource being referenced.
+        /// If APIGroup is not specified, the specified Kind must be in the core API group.
+        /// For any other third-party types, APIGroup is required.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("apiGroup", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string ApiGroup { get; set; }
+    
+        /// <summary>Kind is the type of resource being referenced</summary>
+        [Newtonsoft.Json.JsonProperty("kind", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Kind { get; set; }
+    
+        /// <summary>Name is the name of resource being referenced</summary>
+        [Newtonsoft.Json.JsonProperty("name", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Name { get; set; }
     
     
     }
@@ -4070,6 +4606,9 @@ namespace GResearch.Armada.Client
     
         [Newtonsoft.Json.JsonProperty("emptyDir", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public V1EmptyDirVolumeSource EmptyDir { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("ephemeral", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1EphemeralVolumeSource Ephemeral { get; set; }
     
         [Newtonsoft.Json.JsonProperty("fc", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public V1FCVolumeSource Fc { get; set; }
@@ -4239,6 +4778,9 @@ namespace GResearch.Armada.Client
         [Newtonsoft.Json.JsonProperty("emptyDir", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public V1EmptyDirVolumeSource EmptyDir { get; set; }
     
+        [Newtonsoft.Json.JsonProperty("ephemeral", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1EphemeralVolumeSource Ephemeral { get; set; }
+    
         [Newtonsoft.Json.JsonProperty("fc", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public V1FCVolumeSource Fc { get; set; }
     
@@ -4347,13 +4889,11 @@ namespace GResearch.Armada.Client
         /// <summary>GMSACredentialSpec is where the GMSA admission webhook
         /// (https://github.com/kubernetes-sigs/windows-gmsa) inlines the contents of the
         /// GMSA credential spec named by the GMSACredentialSpecName field.
-        /// This field is alpha-level and is only honored by servers that enable the WindowsGMSA feature flag.
         /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("gmsaCredentialSpec", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string GmsaCredentialSpec { get; set; }
     
         /// <summary>GMSACredentialSpecName is the name of the GMSA credential spec to use.
-        /// This field is alpha-level and is only honored by servers that enable the WindowsGMSA feature flag.
         /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("gmsaCredentialSpecName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string GmsaCredentialSpecName { get; set; }
@@ -4362,7 +4902,6 @@ namespace GResearch.Armada.Client
         /// Defaults to the user specified in image metadata if unspecified.
         /// May also be set in PodSecurityContext. If set in both SecurityContext and
         /// PodSecurityContext, the value specified in SecurityContext takes precedence.
-        /// This field is beta-level and may be disabled with the WindowsRunAsUserName feature flag.
         /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("runAsUserName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string RunAsUserName { get; set; }
