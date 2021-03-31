@@ -30,7 +30,3 @@ type LookoutConfiguration struct {
 	Nats     NatsConfig
 	Postgres PostgresConfig
 }
-
-type LookoutMigrationConfiguration struct {
-	Postgres PostgresConfig
-}
