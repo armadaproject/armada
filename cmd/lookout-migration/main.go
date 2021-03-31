@@ -30,9 +30,6 @@ func main() {
 		panic(err)
 	}
 
-	// TODO:
-	// * CircleCI building & deployment
-	// * K8s stuff?
 	err = schema.UpdateDatabase(db)
 	if err != nil {
 		panic(err)
