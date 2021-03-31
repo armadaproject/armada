@@ -1,5 +1,0 @@
-apiVersion: v1
-description: A Helm chart for the Armada Lookout database migration job
-name: armada-lookout-migration
-version: 0.0.1
-appVersion: 0.0.1
