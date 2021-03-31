@@ -237,9 +237,6 @@ jobs:
             docker tag armada-lookout gresearchdev/armada-lookout-dev:${TAG}
             docker push gresearchdev/armada-lookout-dev:${TAG}
 
-            docker tag armada-lookout-migration gresearchdev/armada-lookout-migration-dev:${TAG}
-            docker push gresearchdev/armada-lookout-migration-dev:${TAG}
-
   release:
     docker:
       - image: cimg/go:1.16.2
@@ -289,10 +286,6 @@ jobs:
             docker pull gresearchdev/armada-lookout-dev:${TAG}
             docker tag gresearchdev/armada-lookout-dev:${TAG} gresearchdev/armada-lookout:${RELEASE_TAG}
             docker push gresearchdev/armada-lookout:${RELEASE_TAG}
-
-            docker pull gresearchdev/armada-lookout-migration-dev:${TAG}
-            docker tag gresearchdev/armada-lookout-migration-dev:${TAG} gresearchdev/armada-lookout-migration:${RELEASE_TAG}
-            docker push gresearchdev/armada-lookout-migration:${RELEASE_TAG}
 
       - install-helm-client
 

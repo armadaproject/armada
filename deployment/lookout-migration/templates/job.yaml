@@ -24,8 +24,9 @@ spec:
           imagePullPolicy: IfNotPresent
           image: {{ .Values.image.repository }}:{{ required "A value is required for .Values.image.tag" .Values.image.tag }}
           args:
+            - --migrateDatabase
             - --config
-            - /config/job_config.yaml
+            - /config/application_config.yaml
           {{- if .Values.env }}
           env:
             {{- toYaml .Values.env | nindent 12 -}}
@@ -33,8 +34,8 @@ spec:
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           volumeMounts:
-            - name: migration-config
-              mountPath: /config/job_config.yaml
+            - name: user-config
+              mountPath: /config/application_config.yaml
               subPath: {{ include "lookout.config.filename" . }}
               readOnly: true
             {{- if .Values.additionalVolumeMounts }}
@@ -43,7 +44,7 @@ spec:
           securityContext:
             allowPrivilegeEscalation: false
       volumes:
-        - name: migration-config
+        - name: user-config
           secret:
             secretName: {{ include "lookout.config.name" . }}
         {{- if .Values.additionalVolumes }}
