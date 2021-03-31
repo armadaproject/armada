@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 
@@ -25,8 +24,6 @@ func main() {
 	var config configuration.LookoutMigrationConfiguration
 	userSpecifiedConfig := viper.GetString(CustomConfigLocation)
 	common.LoadConfig(&config, "./config/lookout-migration", userSpecifiedConfig)
-
-	fmt.Println(config.Postgres.Connection)
 
 	db, err := postgres.Open(config.Postgres)
 	if err != nil {
