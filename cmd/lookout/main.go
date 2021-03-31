@@ -2,8 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"github.com/G-Research/armada/internal/lookout/postgres"
-	"github.com/G-Research/armada/internal/lookout/repository/schema"
 	"net/http"
 	"os"
 	"os/signal"
@@ -17,6 +15,8 @@ import (
 	"github.com/G-Research/armada/internal/common/serve"
 	"github.com/G-Research/armada/internal/lookout"
 	"github.com/G-Research/armada/internal/lookout/configuration"
+	"github.com/G-Research/armada/internal/lookout/postgres"
+	"github.com/G-Research/armada/internal/lookout/repository/schema"
 	lookoutApi "github.com/G-Research/armada/pkg/api/lookout"
 )
 
