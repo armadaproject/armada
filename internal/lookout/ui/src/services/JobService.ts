@@ -28,7 +28,7 @@ export type QueueInfo = {
 }
 
 export type JobSet = {
-  jobSet: string
+  jobSetId: string
   queue: string
   jobsQueued: number
   jobsPending: number
@@ -88,6 +88,14 @@ export type Run = {
 export type CancelJobsResult = {
   cancelledJobs: Job[]
   failedJobCancellations: FailedJobCancellation[]
+}
+
+export type CancelJobSetsResult = {
+  cancelledJobSets: JobSet[]
+  failedJobSetCancellations: {
+    jobSet: JobSet
+    error: string
+  }[]
 }
 
 export type FailedJobCancellation = {
@@ -191,7 +199,33 @@ export default class JobService {
         }
       } catch (e) {
         console.error(e)
-        result.failedJobCancellations.push({ job: job, error: e.toString() })
+        const text = await getErrorMessage(e)
+        result.failedJobCancellations.push({ job: job, error: text })
+      }
+    }
+    return result
+  }
+
+  async cancelJobSets(queue: string, jobSets: JobSet[]): Promise<CancelJobSetsResult> {
+    const result: CancelJobSetsResult = { cancelledJobSets: [], failedJobSetCancellations: [] }
+    for (let jobSet of jobSets) {
+      try {
+        const apiResult = await this.submitApi.cancelJobs({
+          body: {
+            queue: queue,
+            jobSetId: jobSet.jobSetId,
+          },
+        })
+
+        if (apiResult.cancelledIds?.length) {
+          result.cancelledJobSets.push(jobSet)
+        } else {
+          result.failedJobSetCancellations.push({ jobSet: jobSet, error: "No job was cancelled"})
+        }
+      } catch (e) {
+        console.error(e)
+        const text = await getErrorMessage(e)
+        result.failedJobSetCancellations.push({ jobSet: jobSet, error: text })
       }
     }
     return result
@@ -235,7 +269,7 @@ function queueInfoToViewModel(queueInfo: LookoutQueueInfo): QueueInfo {
 
 function jobSetToViewModel(jobSet: LookoutJobSetInfo): JobSet {
   return {
-    jobSet: jobSet.jobSet ?? "Unknown job set",
+    jobSetId: jobSet.jobSet ?? "Unknown job set",
     queue: jobSet.queue ?? "Unknown queue",
     jobsQueued: jobSet.jobsQueued ?? 0,
     jobsPending: jobSet.jobsPending ?? 0,
@@ -372,4 +406,10 @@ function getJobStateForApi(displayedJobState: string): string {
     throw new Error(`Unrecognized job state: "${displayedJobState}"`)
   }
   return jobState
+}
+
+async function getErrorMessage(error: any): Promise<string> {
+  const json = await error.json()
+  const errorMessage = json.message
+  return errorMessage ?? "Unknown error"
 }

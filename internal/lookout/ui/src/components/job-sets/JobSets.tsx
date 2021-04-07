@@ -8,6 +8,7 @@ import {
   Select,
   MenuItem,
   MenuProps,
+  Button,
 } from "@material-ui/core";
 import RefreshIcon from "@material-ui/icons/Refresh"
 import { AutoSizer } from "react-virtualized";
@@ -16,6 +17,7 @@ import DurationPlotsTable from "./DurationPlotsTable";
 import JobSetTable from "./JobSetTable";
 import { isJobSetsView, JobSetsView } from "../../containers/JobSetsContainer";
 import { DurationStats, JobSet } from "../../services/JobService";
+import CancelIcon from "@material-ui/icons/Cancel";
 
 import './JobSets.css'
 
@@ -23,10 +25,14 @@ interface JobSetsProps {
   queue: string
   view: JobSetsView
   jobSets: JobSet[]
+  selectedJobSets: Map<string, JobSet>
+  canCancel: boolean
   onQueueChange: (queue: string) => void
   onViewChange: (view: JobSetsView) => void
   onRefresh: () => void
   onJobSetClick: (jobSet: string, jobState: string) => void
+  onSelectJobSet: (jobSet: JobSet, selected: boolean) => void
+  onCancelJobSetsClick: () => void
 }
 
 const menuProps: Partial<MenuProps> = {
@@ -47,7 +53,9 @@ export default function JobSets(props: JobSetsProps) {
       height={height}
       width={width}
       jobSets={props.jobSets}
-      onJobSetClick={props.onJobSetClick}/>
+      selectedJobSets={props.selectedJobSets}
+      onJobSetClick={props.onJobSetClick}
+      onSelectJobSet={props.onSelectJobSet}/>
   )
   if (props.view === "queued-time") {
     const filtered = props.jobSets.filter(js => js.queuedStats)
@@ -55,7 +63,7 @@ export default function JobSets(props: JobSetsProps) {
       <DurationPlotsTable
         height={height}
         width={width}
-        names={filtered.map(js => js.jobSet)}
+        names={filtered.map(js => js.jobSetId)}
         durations={filtered.map(js => js.queuedStats as DurationStats)}
         primaryColor={"#00bcd4"}
         secondaryColor={"#673ab7"}
@@ -68,7 +76,7 @@ export default function JobSets(props: JobSetsProps) {
       <DurationPlotsTable
         height={height}
         width={width}
-        names={filtered.map(js => js.jobSet)}
+        names={filtered.map(js => js.jobSetId)}
         durations={filtered.map(js => js.runningStats as DurationStats)}
         primaryColor={"#4caf50"}
         secondaryColor={"#3f51b5"}
@@ -110,13 +118,25 @@ export default function JobSets(props: JobSetsProps) {
             </FormControl>
           </div>
         </div>
-        <div className="refresh-button">
-          <IconButton
-            title={"Refresh"}
-            onClick={props.onRefresh}
-            color={"primary"}>
-            <RefreshIcon/>
-          </IconButton>
+        <div className="job-sets-actions">
+          <div className="cancel-button">
+            <Button
+              disabled={!props.canCancel}
+              variant="contained"
+              color="secondary"
+              startIcon={<CancelIcon/>}
+              onClick={props.onCancelJobSetsClick}>
+              Cancel
+            </Button>
+          </div>
+          <div className="refresh-button">
+            <IconButton
+              title={"Refresh"}
+              onClick={props.onRefresh}
+              color={"primary"}>
+              <RefreshIcon/>
+            </IconButton>
+          </div>
         </div>
       </div>
       <div className="job-sets-content">

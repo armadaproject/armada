@@ -4,13 +4,13 @@ import { Checkbox } from "@material-ui/core";
 
 import "./Row.css"
 
-interface JobRowProps extends TableRowProps {
+interface CheckboxRowProps extends TableRowProps {
   isChecked: boolean
   onChangeChecked: (checked: boolean) => void
   tableKey: string
 }
 
-export default function JobRow(props: JobRowProps) {
+export default function CheckboxRow(props: CheckboxRowProps) {
   return (
     <div key={props.tableKey} className={"job-row " + props.className} style={props.style}>
       <div className="select-box">
