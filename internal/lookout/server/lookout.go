@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"github.com/G-Research/armada/internal/lookout/metrics"
 
 	"github.com/gogo/protobuf/types"
 	"google.golang.org/grpc/codes"
@@ -20,6 +21,7 @@ func NewLookoutServer(jobRepository repository.JobRepository) *LookoutServer {
 }
 
 func (s *LookoutServer) Overview(ctx context.Context, _ *types.Empty) (*lookout.SystemOverview, error) {
+	metrics.RequestsTotalCounter.Inc()
 	queues, err := s.jobRepository.GetQueueInfos(ctx)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to query queue stats: %s", err)

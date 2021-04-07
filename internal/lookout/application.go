@@ -2,6 +2,7 @@ package lookout
 
 import (
 	"fmt"
+	"github.com/G-Research/armada/internal/lookout/metrics"
 	"net"
 	"strings"
 	"sync"
@@ -62,6 +63,7 @@ func StartUp(config configuration.LookoutConfiguration) (func(), *sync.WaitGroup
 	lookoutServer := server.NewLookoutServer(jobRepository)
 	lookout.RegisterLookoutServer(grpcServer, lookoutServer)
 
+	metrics.ExposeLookoutMetrics()
 	grpc_prometheus.Register(grpcServer)
 
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", config.GrpcPort))
