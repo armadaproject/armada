@@ -249,7 +249,10 @@ jobs:
 
       - run:
           name: Build armadactl release artifacts
-          command: make build-armadactl-release RELEASE_VERSION=${CIRCLE_TAG}
+          command: |
+            make build-armadactl-release RELEASE_VERSION=${CIRCLE_TAG}
+            pwd
+            ls -la
 
       - store_artifacts:
           path: dist/*
