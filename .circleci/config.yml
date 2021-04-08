@@ -253,9 +253,11 @@ jobs:
             make build-armadactl-release RELEASE_VERSION=${CIRCLE_TAG}
             pwd
             ls -la
+            ls ./dist
+            ls ./bin
 
       - store_artifacts:
-          path: dist/*
+          path: ./dist/*
 
   release:
     docker:
