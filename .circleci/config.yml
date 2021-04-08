@@ -237,12 +237,29 @@ jobs:
             docker tag armada-lookout gresearchdev/armada-lookout-dev:${TAG}
             docker push gresearchdev/armada-lookout-dev:${TAG}
 
+  release-test:
+    docker:
+      - image: cimg/go:1.16.2
+        environment:
+          GO111MODULE: "on"
+    working_directory: ~/go/src/github.com/G-Research/armada
+    steps:
+      - checkout
+      - setup_remote_docker
+
+      - run:
+          name: Build armadactl release artifacts
+          command: make build-armadactl-release RELEASE_VERSION=${CIRCLE_TAG}
+
+      - store_artifacts:
+          path: dist/*
+
   release:
     docker:
       - image: cimg/go:1.16.2
         environment:
           GO111MODULE: "on"
-    working_directory: /go/src/github.com/G-Research/armada
+    working_directory: ~/go/src/github.com/G-Research/armada
     steps:
       - checkout
       - setup_remote_docker
@@ -317,6 +334,7 @@ workflows:
       - code_style
       - test
       - build
+      - release-test
       - release:
           filters:
             tags:
