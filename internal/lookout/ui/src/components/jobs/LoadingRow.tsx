@@ -1,7 +1,7 @@
 import React from "react"
 import { TableRowProps } from "react-virtualized";
 
-import "./Row.css"
+import "../Row.css"
 
 export default function LoadingRow(props: TableRowProps) {
   return (

@@ -6,17 +6,22 @@ import { JobSet } from "../../services/JobService";
 import LinkCell from "../LinkCell";
 
 import "./JobSetTable.css"
+import CheckboxRow from "../CheckboxRow";
+import CheckboxHeaderRow from "../CheckboxHeaderRow";
 
 interface JobSetTableProps {
   height: number
   width: number
   jobSets: JobSet[]
+  selectedJobSets: Map<string, JobSet>
   onJobSetClick: (jobSet: string, state: string) => void
+  onSelectJobSet: (jobSet: JobSet, selected: boolean) => void
 }
+
 function cellRendererForState(cellProps: TableCellProps, onJobSetClick: (jobSet: string, state: string) => void, state: string) {
   if (cellProps.cellData) {
     return <LinkCell onClick={() =>
-      onJobSetClick((cellProps.rowData as JobSet).jobSet, state)} {...cellProps}/>
+      onJobSetClick((cellProps.rowData as JobSet).jobSetId, state)} {...cellProps}/>
   }
   return defaultTableCellRenderer(cellProps)
 }
@@ -34,8 +39,20 @@ export default function JobSetTable(props: JobSetTableProps) {
         headerHeight={40}
         height={props.height}
         width={props.width}
-        headerClassName="job-set-table-header">
-        <Column dataKey="jobSet" width={0.25 * props.width} label="Job Set"/>
+        headerClassName="job-set-table-header"
+        rowRenderer={(tableRowProps) => {
+          return (
+            <CheckboxRow
+              isChecked={props.selectedJobSets.has(tableRowProps.rowData.jobSetId)}
+              onChangeChecked={(selected) => props.onSelectJobSet(tableRowProps.rowData, selected)}
+              tableKey={tableRowProps.key}
+              {...tableRowProps}/>
+          )
+        }}
+        headerRowRenderer={(tableHeaderRowProps) => {
+          return <CheckboxHeaderRow {...tableHeaderRowProps}/>
+        }}>
+        <Column dataKey="jobSetId" width={0.25 * props.width} label="Job Set"/>
         <Column
           dataKey="jobsQueued"
           width={0.15 * props.width}
