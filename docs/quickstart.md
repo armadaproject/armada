@@ -255,3 +255,7 @@ Grafana:
 ![Armada Grafana dashboard](./quickstart/grafana-screenshot.png "Armada Grafana dashboard")
 
 Note that the jobs in this demo simply run the `sleep` command so do not consume much resource.
+
+Lookout:
+
+![Lookout UI](./quickstart/lookout.png "Lookout UI")
