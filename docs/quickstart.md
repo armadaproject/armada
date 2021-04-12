@@ -44,9 +44,10 @@ All the commands below should be executed in Git Bash.
 Make sure Helm is configured to use the required chart repos:
 
 ```bash
-helm repo add stable https://charts.helm.sh/stable
+helm repo add dandydev https://dandydeveloper.github.io/charts
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
 helm repo add gresearch https://g-research.github.io/charts
+helm repo update
 ```
 
 ## Installation
@@ -70,7 +71,10 @@ kind create cluster --name quickstart-armada-server --config ./docs/quickstart/k
 kind export kubeconfig --name=quickstart-armada-server
 
 # Install Redis
-helm install redis stable/redis-ha -f docs/quickstart/redis-values.yaml
+helm install redis dandydev/redis-ha -f docs/quickstart/redis-values.yaml
+
+# Install nats-streaming
+helm install nats nats/stan
 
 # Install Prometheus
 helm install kube-prometheus-stack prometheus-community/kube-prometheus-stack -f docs/quickstart/server-prometheus-values.yaml
@@ -121,6 +125,29 @@ helm install armada-executor-cluster-monitoring gresearch/executor-cluster-monit
 # Get executor IP for Grafana
 EXECUTOR_1_IP=$(kubectl get nodes quickstart-armada-executor-1-worker -o jsonpath='{.status.addresses[?(@.type=="InternalIP")].address}')
 ```
+
+### Armada Lookout UI
+
+```bash
+# Set cluster as current context
+kind export kubeconfig --name=quickstart-armada-server
+
+# Install postgres
+helm install postgres bitnami/postgresql --set postgresqlPassword=psw
+
+# Run database migration
+helm install lookout-migration gresearch/armada-lookout-migration -f docs/quickstart/lookout-values.yaml
+
+# Install Armada Lookout
+helm install lookout gresearch/armada-lookout -f docs/quickstart/lookout-values.yaml
+```
+
+You can view the UI by running the following:
+```bash
+kubectl port-forward svc/armada-lookout 8080:8080
+```
+You will be able to view Lookout at `http://localhost:8080`.
+
 ### Grafana configuration
 
 ```bash
@@ -228,3 +255,7 @@ Grafana:
 ![Armada Grafana dashboard](./quickstart/grafana-screenshot.png "Armada Grafana dashboard")
 
 Note that the jobs in this demo simply run the `sleep` command so do not consume much resource.
+
+Lookout:
+
+![Lookout UI](./quickstart/lookout.png "Lookout UI")
