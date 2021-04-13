@@ -61,9 +61,9 @@ func StartUp(config configuration.LookoutConfiguration) (func(), *sync.WaitGroup
 	eventProcessor.Start()
 
 	dbMetricsProvider := metrics.NewLookoutSqlDbMetricsProvider(db, config.Postgres)
-	metricsCollector := metrics.ExposeLookoutMetrics(dbMetricsProvider)
+	metrics.ExposeLookoutMetrics(dbMetricsProvider)
 
-	lookoutServer := server.NewLookoutServer(jobRepository, metricsCollector)
+	lookoutServer := server.NewLookoutServer(jobRepository)
 	lookout.RegisterLookoutServer(grpcServer, lookoutServer)
 
 	grpc_prometheus.Register(grpcServer)
