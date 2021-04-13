@@ -49,4 +49,3 @@ func (c *LookoutApiCollector) Collect(metrics chan<- prometheus.Metric) {
 	metrics <- prometheus.MustNewConstMetric(dbOpenConnectionsDesc, prometheus.GaugeValue, float64(nOpenConnections))
 	metrics <- prometheus.MustNewConstMetric(dbOpenConnectionsUtilizationDesc, prometheus.GaugeValue, openConnectionsUtilization)
 }
-
