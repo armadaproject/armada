@@ -1,20 +1,10 @@
 package metrics
 
 import (
-	"time"
-
 	"github.com/prometheus/client_golang/prometheus"
 )
 
 const MetricPrefix = "lookout_"
-
-const StatusOk = "ok"
-const StatusError = "error"
-
-var requestsDurationHist = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-	Name: MetricPrefix + "request_duration_seconds",
-	Help: "Duration of each request",
-}, []string{"endpoint", "status"})
 
 var dbOpenConnectionsDesc = prometheus.NewDesc(
 	MetricPrefix+"db_open_connections_total",
@@ -33,7 +23,6 @@ var dbOpenConnectionsUtilizationDesc = prometheus.NewDesc(
 type LookoutCollector interface {
 	Describe(desc chan<- *prometheus.Desc)
 	Collect(metrics chan<- prometheus.Metric)
-	RecordRequestDuration(duration time.Duration, endpoint string, status string)
 }
 
 type LookoutApiCollector struct {
@@ -45,7 +34,6 @@ func ExposeLookoutMetrics(lookoutDbMetricsProvider LookoutDbMetricsProvider) Loo
 		lookoutDbMetricsProvider: lookoutDbMetricsProvider,
 	}
 	prometheus.MustRegister(collector)
-	prometheus.MustRegister(requestsDurationHist)
 	return collector
 }
 
@@ -62,6 +50,3 @@ func (c *LookoutApiCollector) Collect(metrics chan<- prometheus.Metric) {
 	metrics <- prometheus.MustNewConstMetric(dbOpenConnectionsUtilizationDesc, prometheus.GaugeValue, openConnectionsUtilization)
 }
 
-func (c *LookoutApiCollector) RecordRequestDuration(duration time.Duration, endpoint string, status string) {
-	requestsDurationHist.WithLabelValues(endpoint, status).Observe(duration.Seconds())
-}
