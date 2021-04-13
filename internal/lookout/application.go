@@ -2,7 +2,6 @@ package lookout
 
 import (
 	"fmt"
-	"github.com/G-Research/armada/internal/lookout/metrics"
 	"net"
 	"strings"
 	"sync"
@@ -18,6 +17,7 @@ import (
 	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/lookout/configuration"
 	"github.com/G-Research/armada/internal/lookout/events"
+	"github.com/G-Research/armada/internal/lookout/metrics"
 	"github.com/G-Research/armada/internal/lookout/postgres"
 	"github.com/G-Research/armada/internal/lookout/repository"
 	"github.com/G-Research/armada/internal/lookout/server"
@@ -60,10 +60,12 @@ func StartUp(config configuration.LookoutConfiguration) (func(), *sync.WaitGroup
 	eventProcessor := events.NewEventProcessor(conn, jobStore, config.Nats.Subject, config.Nats.QueueGroup)
 	eventProcessor.Start()
 
-	lookoutServer := server.NewLookoutServer(jobRepository)
+	dbMetricsProvider := metrics.NewLookoutSqlDbMetricsProvider(db, config.Postgres)
+	metricsCollector := metrics.ExposeLookoutMetrics(dbMetricsProvider)
+
+	lookoutServer := server.NewLookoutServer(jobRepository, metricsCollector)
 	lookout.RegisterLookoutServer(grpcServer, lookoutServer)
 
-	metrics.ExposeLookoutMetrics()
 	grpc_prometheus.Register(grpcServer)
 
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", config.GrpcPort))
