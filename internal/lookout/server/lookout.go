@@ -12,7 +12,7 @@ import (
 )
 
 type LookoutServer struct {
-	jobRepository    repository.JobRepository
+	jobRepository repository.JobRepository
 }
 
 func NewLookoutServer(jobRepository repository.JobRepository) *LookoutServer {
