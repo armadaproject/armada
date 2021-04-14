@@ -46,7 +46,7 @@ func (r *SQLJobStore) RecordJob(job *api.Job) error {
 			"owner":     job.Owner,
 			"jobset":    job.JobSetId,
 			"priority":  job.Priority,
-			"submitted": job.Created,
+			"submitted": ToUTC(job.Created),
 			"job":       jobJson,
 			"state":     JobStateToIntMap[JobQueued],
 		}).
@@ -55,7 +55,7 @@ func (r *SQLJobStore) RecordJob(job *api.Job) error {
 			"owner":     job.Owner,
 			"jobset":    job.JobSetId,
 			"priority":  job.Priority,
-			"submitted": job.Created,
+			"submitted": ToUTC(job.Created),
 			"job":       jobJson,
 			"state":     r.determineJobState(),
 		}))
@@ -70,13 +70,13 @@ func (r *SQLJobStore) MarkCancelled(event *api.JobCancelledEvent) error {
 			"job_id":    event.JobId,
 			"queue":     event.Queue,
 			"jobset":    event.JobSetId,
-			"cancelled": event.Created,
+			"cancelled": ToUTC(event.Created),
 			"state":     JobStateToIntMap[JobCancelled],
 		}).
 		OnConflict(goqu.DoUpdate("job_id", goqu.Record{
 			"queue":     event.Queue,
 			"jobset":    event.JobSetId,
-			"cancelled": event.Created,
+			"cancelled": ToUTC(event.Created),
 			"state":     JobStateToIntMap[JobCancelled],
 		}))
 
@@ -94,7 +94,7 @@ func (r *SQLJobStore) RecordJobPending(event *api.JobPendingEvent) error {
 		"job_id":     event.GetJobId(),
 		"cluster":    event.GetClusterId(),
 		"pod_number": event.GetPodNumber(),
-		"created":    event.GetCreated(),
+		"created":    ToUTC(event.GetCreated()),
 	}); err != nil {
 		return err
 	}
@@ -124,7 +124,7 @@ func (r *SQLJobStore) RecordJobRunning(event *api.JobRunningEvent) error {
 		"job_id":     event.GetJobId(),
 		"cluster":    event.GetClusterId(),
 		"pod_number": event.GetPodNumber(),
-		"started":    event.GetCreated(),
+		"started":    ToUTC(event.GetCreated()),
 	}
 	if event.GetNodeName() != "" {
 		jobRunRecord["node"] = event.GetNodeName()
@@ -155,7 +155,7 @@ func (r *SQLJobStore) RecordJobSucceeded(event *api.JobSucceededEvent) error {
 		"job_id":     event.GetJobId(),
 		"cluster":    event.GetClusterId(),
 		"pod_number": event.GetPodNumber(),
-		"finished":   event.GetCreated(),
+		"finished":   ToUTC(event.GetCreated()),
 		"succeeded":  true,
 	}
 	if event.GetNodeName() != "" {
@@ -193,7 +193,7 @@ func (r *SQLJobStore) RecordJobFailed(event *api.JobFailedEvent) error {
 		"job_id":     event.GetJobId(),
 		"cluster":    event.GetClusterId(),
 		"pod_number": event.GetPodNumber(),
-		"finished":   event.GetCreated(),
+		"finished":   ToUTC(event.GetCreated()),
 		"succeeded":  false,
 		"error":      fmt.Sprintf("%.2048s", event.GetReason()),
 	}
@@ -229,7 +229,7 @@ func (r *SQLJobStore) RecordJobUnableToSchedule(event *api.JobUnableToScheduleEv
 		"job_id":             event.GetJobId(),
 		"cluster":            event.GetClusterId(),
 		"pod_number":         event.GetPodNumber(),
-		"finished":           event.GetCreated(),
+		"finished":           ToUTC(event.GetCreated()),
 		"unable_to_schedule": true,
 	}
 	if event.GetNodeName() != "" {
