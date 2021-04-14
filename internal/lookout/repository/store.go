@@ -3,6 +3,7 @@ package repository
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/doug-martin/goqu/v9"
 	"github.com/doug-martin/goqu/v9/exp"
@@ -25,11 +26,12 @@ type JobRecorder interface {
 }
 
 type SQLJobStore struct {
-	db *goqu.Database
+	db               *goqu.Database
+	annotationPrefix string
 }
 
-func NewSQLJobStore(db *goqu.Database) *SQLJobStore {
-	return &SQLJobStore{db: db}
+func NewSQLJobStore(db *goqu.Database, annotationPrefix string) *SQLJobStore {
+	return &SQLJobStore{db: db, annotationPrefix: annotationPrefix}
 }
 
 func (r *SQLJobStore) RecordJob(job *api.Job) error {
@@ -260,15 +262,16 @@ func (r *SQLJobStore) upsertContainers(k8sId string, exitCodes map[string]int32)
 }
 
 func (r *SQLJobStore) upsertAnnotations(jobId string, annotations map[string]string) error {
-	annotationRecords := make([]goqu.Record, len(annotations))
-	i := 0
+	var annotationRecords []goqu.Record
 	for key, value := range annotations {
-		annotationRecords[i] = goqu.Record{
-			"job_id": jobId,
-			"key": key,
-			"value": value,
+		if strings.HasPrefix(key, r.annotationPrefix) && len(key) > len(r.annotationPrefix) {
+			trimmedKey := key[len(r.annotationPrefix):]
+			annotationRecords = append(annotationRecords, goqu.Record{
+				"job_id": jobId,
+				"key":    trimmedKey,
+				"value":  value,
+			})
 		}
-		i++
 	}
 
 	return upsert(r.db, annotationTable, []string{"job_id", "key"}, annotationRecords)

@@ -25,7 +25,8 @@ type LookoutConfiguration struct {
 	GrpcPort    uint16
 	MetricsPort uint16
 
-	UIConfig LookoutUIConfig
+	UIConfig         LookoutUIConfig
+	AnnotationPrefix string
 
 	Nats     NatsConfig
 	Postgres PostgresConfig
