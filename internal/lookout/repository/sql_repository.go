@@ -40,6 +40,7 @@ var (
 	jobTable             = goqu.T("job")
 	jobRunTable          = goqu.T("job_run")
 	jobRunContainerTable = goqu.T("job_run_container")
+	annotationTable      = goqu.T("annotation")
 
 	// Columns: job table
 	job_jobId     = goqu.I("job.job_id")
@@ -63,6 +64,11 @@ var (
 	jobRun_finished  = goqu.I("job_run.finished")
 	jobRun_succeeded = goqu.I("job_run.succeeded")
 	jobRun_error     = goqu.I("job_run.error")
+
+	// Columns: annotation table
+	annotation_jobId = goqu.I("annotation.job_id")
+	annotation_key   = goqu.I("annotation.key")
+	annotation_value = goqu.I("annotation.value")
 )
 
 type JobRow struct {

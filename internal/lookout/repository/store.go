@@ -114,7 +114,6 @@ func (r *SQLJobStore) RecordJobPending(event *api.JobPendingEvent) error {
 		}))
 
 	_, err := jobDs.Prepared(true).Executor().Exec()
-
 	return err
 }
 

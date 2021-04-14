@@ -159,6 +159,42 @@ func Test_RecordLongError(t *testing.T) {
 	})
 }
 
+func Test_RecordAnnotations(t *testing.T) {
+	t.Run("no annotations", func(t *testing.T) {
+		withDatabase(t, func(db *goqu.Database) {
+			jobStore := NewSQLJobStore(db)
+
+			err := jobStore.RecordJob(&api.Job{
+				Id:      util.NewULID(),
+				Queue:   queue,
+				Created: someTime,
+			})
+			assert.NoError(t, err)
+			assert.Equal(t, 0, selectInt(t, db,
+				"SELECT COUNT(*) FROM annotation"))
+		})
+	})
+
+	t.Run("some annotations", func(t *testing.T) {
+		withDatabase(t, func(db *goqu.Database) {
+			jobStore := NewSQLJobStore(db)
+
+			err := jobStore.RecordJob(&api.Job{
+				Id:      util.NewULID(),
+				Queue:   queue,
+				Created: someTime,
+				Annotations: map[string]string{
+					"first":  "some",
+					"second": "value",
+				},
+			})
+			assert.NoError(t, err)
+			assert.Equal(t, 2, selectInt(t, db,
+				"SELECT COUNT(*) FROM annotation"))
+		})
+	})
+}
+
 func Test_EmptyRunId(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db)
