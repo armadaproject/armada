@@ -4,7 +4,7 @@ metricsPort: 9009
 
 uiConfig:
   armadaApiBaseUrl: "http://localhost:8080"
-  annotationPrefix: "armada/"
+  annotationPrefix: "armadaproject.io/"
 
 postgres:
   maxOpenConns: 100
