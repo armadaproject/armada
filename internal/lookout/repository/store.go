@@ -262,6 +262,7 @@ func (r *SQLJobStore) upsertContainers(k8sId string, exitCodes map[string]int32)
 }
 
 func (r *SQLJobStore) upsertAnnotations(jobId string, annotations map[string]string) error {
+	// Note: annotations are stored without the prefix
 	var annotationRecords []goqu.Record
 	for key, value := range annotations {
 		if strings.HasPrefix(key, r.annotationPrefix) && len(key) > len(r.annotationPrefix) {

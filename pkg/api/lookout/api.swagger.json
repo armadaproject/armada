@@ -226,6 +226,12 @@
     "lookoutGetJobsRequest": {
       "type": "object",
       "properties": {
+        "annotations": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
         "jobId": {
           "type": "string"
         },

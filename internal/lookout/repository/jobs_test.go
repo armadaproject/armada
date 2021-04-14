@@ -1124,7 +1124,100 @@ func TestGetJobs_FilterByOwnerStartsWith(t *testing.T) {
 
 func TestGetJobs_FilterBySingleAnnotation(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
+		jobStore := NewSQLJobStore(db, "prefix/")
+		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
 
+		job := NewJobSimulator(t, jobStore).
+			CreateJobWithAnnotations(queue, map[string]string{
+				"prefix/a": "a",
+				"b": "b",
+			})
+
+		NewJobSimulator(t, jobStore).
+			CreateJobWithAnnotations(queue, map[string]string{
+				"a": "a",
+				"prefix/b": "b",
+			})
+
+		jobInfos, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
+			Annotations: map[string]string{
+				"a": "a",
+			},
+			Take: 10,
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(jobInfos))
+		AssertJobsAreEquivalent(t, job.job, jobInfos[0].Job)
+	})
+}
+
+func TestGetJobs_FilterByMultipleAnnotations(t *testing.T) {
+	withDatabase(t, func(db *goqu.Database) {
+		jobStore := NewSQLJobStore(db, "prefix/")
+		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
+
+		first := NewJobSimulator(t, jobStore).
+			CreateJobWithAnnotations(queue, map[string]string{
+				"prefix/a": "a",
+				"c": "c",
+			})
+
+		second := NewJobSimulator(t, jobStore).
+			CreateJobWithAnnotations(queue, map[string]string{
+				"prefix/b": "b",
+			})
+
+		NewJobSimulator(t, jobStore).
+			CreateJobWithAnnotations(queue, map[string]string{
+				"a": "a",
+				"prefix/c": "c",
+			})
+
+		jobInfos, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
+			Annotations: map[string]string{
+				"a": "a",
+				"b": "b",
+			},
+			Take: 10,
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, 2, len(jobInfos))
+		AssertJobsAreEquivalent(t, first.job, jobInfos[0].Job)
+		AssertJobsAreEquivalent(t, second.job, jobInfos[1].Job)
+	})
+}
+
+func TestGetJobs_FilterByAnnotationWithValueStartingWith(t *testing.T) {
+	withDatabase(t, func(db *goqu.Database) {
+		jobStore := NewSQLJobStore(db, "prefix/")
+		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
+
+		first := NewJobSimulator(t, jobStore).
+			CreateJobWithAnnotations(queue, map[string]string{
+				"prefix/a": "aab",
+				"c": "c",
+			})
+
+		second := NewJobSimulator(t, jobStore).
+			CreateJobWithAnnotations(queue, map[string]string{
+				"prefix/a": "aac",
+			})
+
+		NewJobSimulator(t, jobStore).
+			CreateJobWithAnnotations(queue, map[string]string{
+				"prefix/a": "abc",
+			})
+
+		jobInfos, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
+			Annotations: map[string]string{
+				"a": "aa",
+			},
+			Take: 10,
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, 2, len(jobInfos))
+		AssertJobsAreEquivalent(t, first.job, jobInfos[0].Job)
+		AssertJobsAreEquivalent(t, second.job, jobInfos[1].Job)
 	})
 }
 
