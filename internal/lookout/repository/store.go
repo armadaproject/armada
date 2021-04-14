@@ -60,8 +60,11 @@ func (r *SQLJobStore) RecordJob(job *api.Job) error {
 			"state":     r.determineJobState(),
 		}))
 
-	_, err = ds.Prepared(true).Executor().Exec()
-	return err
+	if _, err = ds.Prepared(true).Executor().Exec(); err != nil {
+		return err
+	}
+
+	return r.upsertAnnotations(job.Id, job.Annotations)
 }
 
 func (r *SQLJobStore) MarkCancelled(event *api.JobCancelledEvent) error {
@@ -254,6 +257,21 @@ func (r *SQLJobStore) upsertContainers(k8sId string, exitCodes map[string]int32)
 	}
 
 	return upsert(r.db, jobRunContainerTable, []string{"run_id", "container_name"}, containerRecords)
+}
+
+func (r *SQLJobStore) upsertAnnotations(jobId string, annotations map[string]string) error {
+	annotationRecords := make([]goqu.Record, len(annotations))
+	i := 0
+	for key, value := range annotations {
+		annotationRecords[i] = goqu.Record{
+			"job_id": jobId,
+			"key": key,
+			"value": value,
+		}
+		i++
+	}
+
+	return upsert(r.db, annotationTable, []string{"job_id", "key"}, annotationRecords)
 }
 
 func (r *SQLJobStore) determineJobState() exp.CaseExpression {
