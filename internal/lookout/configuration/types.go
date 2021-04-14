@@ -11,6 +11,7 @@ type NatsConfig struct {
 
 type LookoutUIConfig struct {
 	ArmadaApiBaseUrl string
+	AnnotationPrefix string
 }
 
 type PostgresConfig struct {
@@ -25,8 +26,7 @@ type LookoutConfiguration struct {
 	GrpcPort    uint16
 	MetricsPort uint16
 
-	UIConfig         LookoutUIConfig
-	AnnotationPrefix string
+	UIConfig LookoutUIConfig
 
 	Nats     NatsConfig
 	Postgres PostgresConfig

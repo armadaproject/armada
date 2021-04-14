@@ -1130,12 +1130,12 @@ func TestGetJobs_FilterBySingleAnnotation(t *testing.T) {
 		job := NewJobSimulator(t, jobStore).
 			CreateJobWithAnnotations(queue, map[string]string{
 				"prefix/a": "a",
-				"b": "b",
+				"b":        "b",
 			})
 
 		NewJobSimulator(t, jobStore).
 			CreateJobWithAnnotations(queue, map[string]string{
-				"a": "a",
+				"a":        "a",
 				"prefix/b": "b",
 			})
 
@@ -1159,7 +1159,7 @@ func TestGetJobs_FilterByMultipleAnnotations(t *testing.T) {
 		first := NewJobSimulator(t, jobStore).
 			CreateJobWithAnnotations(queue, map[string]string{
 				"prefix/a": "a",
-				"c": "c",
+				"c":        "c",
 			})
 
 		second := NewJobSimulator(t, jobStore).
@@ -1169,7 +1169,7 @@ func TestGetJobs_FilterByMultipleAnnotations(t *testing.T) {
 
 		NewJobSimulator(t, jobStore).
 			CreateJobWithAnnotations(queue, map[string]string{
-				"a": "a",
+				"a":        "a",
 				"prefix/c": "c",
 			})
 
@@ -1195,7 +1195,7 @@ func TestGetJobs_FilterByAnnotationWithValueStartingWith(t *testing.T) {
 		first := NewJobSimulator(t, jobStore).
 			CreateJobWithAnnotations(queue, map[string]string{
 				"prefix/a": "aab",
-				"c": "c",
+				"c":        "c",
 			})
 
 		second := NewJobSimulator(t, jobStore).
