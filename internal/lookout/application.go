@@ -17,6 +17,7 @@ import (
 	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/lookout/configuration"
 	"github.com/G-Research/armada/internal/lookout/events"
+	"github.com/G-Research/armada/internal/lookout/metrics"
 	"github.com/G-Research/armada/internal/lookout/postgres"
 	"github.com/G-Research/armada/internal/lookout/repository"
 	"github.com/G-Research/armada/internal/lookout/server"
@@ -58,6 +59,9 @@ func StartUp(config configuration.LookoutConfiguration) (func(), *sync.WaitGroup
 	}
 	eventProcessor := events.NewEventProcessor(conn, jobStore, config.Nats.Subject, config.Nats.QueueGroup)
 	eventProcessor.Start()
+
+	dbMetricsProvider := metrics.NewLookoutSqlDbMetricsProvider(db, config.Postgres)
+	metrics.ExposeLookoutMetrics(dbMetricsProvider)
 
 	lookoutServer := server.NewLookoutServer(jobRepository)
 	lookout.RegisterLookoutServer(grpcServer, lookoutServer)
