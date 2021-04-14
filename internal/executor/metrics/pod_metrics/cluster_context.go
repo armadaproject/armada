@@ -5,6 +5,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/G-Research/armada/internal/common"
@@ -15,9 +16,10 @@ import (
 )
 
 const (
-	leasedPhase = "Leased"
-	queueLabel  = "queue"
-	phaseLabel  = "phase"
+	leasedPhase       = "Leased"
+	queueLabel        = "queue"
+	phaseLabel        = "phase"
+	resourceTypeLabel = "resourceType"
 )
 
 type ClusterContextMetrics struct {
@@ -27,12 +29,10 @@ type ClusterContextMetrics struct {
 
 	knownQueues map[string]bool
 
-	podCountTotal    *prometheus.CounterVec
-	podCount         *prometheus.GaugeVec
-	podCpuRequest    *prometheus.GaugeVec
-	podCpuUsage      *prometheus.GaugeVec
-	podMemoryRequest *prometheus.GaugeVec
-	podMemoryUsage   *prometheus.GaugeVec
+	podCountTotal      *prometheus.CounterVec
+	podCount           *prometheus.GaugeVec
+	podResourceRequest *prometheus.GaugeVec
+	podResourceUsage   *prometheus.GaugeVec
 
 	nodeCount           prometheus.Gauge
 	nodeCpuAvailable    prometheus.Gauge
@@ -60,30 +60,18 @@ func NewClusterContextMetrics(context context.ClusterContext, utilisationService
 				Help: "Pods in different phases by queue",
 			},
 			[]string{queueLabel, phaseLabel}),
-		podCpuRequest: promauto.NewGaugeVec(
+		podResourceRequest: promauto.NewGaugeVec(
 			prometheus.GaugeOpts{
-				Name: metrics.ArmadaExecutorMetricsPrefix + "job_pod_cpu_request",
+				Name: metrics.ArmadaExecutorMetricsPrefix + "job_pod_resource_request",
 				Help: "Pod cpu requests in different phases by queue",
 			},
-			[]string{queueLabel, phaseLabel}),
-		podCpuUsage: promauto.NewGaugeVec(
+			[]string{queueLabel, phaseLabel, resourceTypeLabel}),
+		podResourceUsage: promauto.NewGaugeVec(
 			prometheus.GaugeOpts{
-				Name: metrics.ArmadaExecutorMetricsPrefix + "job_pod_cpu_usage",
-				Help: "Pod cpu usage in different phases by queue",
+				Name: metrics.ArmadaExecutorMetricsPrefix + "job_pod_resource_usage",
+				Help: "Pod cpu requests in different phases by queue",
 			},
-			[]string{queueLabel, phaseLabel}),
-		podMemoryRequest: promauto.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Name: metrics.ArmadaExecutorMetricsPrefix + "job_pod_memory_request_bytes",
-				Help: "Pod memory requests in different phases by queue",
-			},
-			[]string{queueLabel, phaseLabel}),
-		podMemoryUsage: promauto.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Name: metrics.ArmadaExecutorMetricsPrefix + "job_pod_memory_usage_bytes",
-				Help: "Pod memory usage in different phases by queue",
-			},
-			[]string{queueLabel, phaseLabel}),
+			[]string{queueLabel, phaseLabel, resourceTypeLabel}),
 		nodeCount: promauto.NewGauge(
 			prometheus.GaugeOpts{
 				Name: metrics.ArmadaExecutorMetricsPrefix + "available_node_count",
@@ -140,11 +128,9 @@ func (m *ClusterContextMetrics) reportPhase(pod *v1.Pod) {
 }
 
 type podMetric struct {
-	cpuRequest    float64
-	cpuUsage      float64
-	memoryRequest float64
-	memoryUsage   float64
-	count         float64
+	resourceRequest common.ComputeResources
+	resourceUsage   common.ComputeResources
+	count           float64
 }
 
 func (m *ClusterContextMetrics) UpdateMetrics() {
@@ -172,14 +158,12 @@ func (m *ClusterContextMetrics) UpdateMetrics() {
 			podMetrics[queue] = queueMetric
 		}
 
-		request := common.TotalPodResourceRequest(&pod.Spec).AsFloat()
-		usage := m.queueUtilisationService.GetPodUtilisation(pod).AsFloat()
+		request := common.TotalPodResourceRequest(&pod.Spec)
+		usage := m.queueUtilisationService.GetPodUtilisation(pod)
 
 		queueMetric[phase].count++
-		queueMetric[phase].memoryRequest += request[string(v1.ResourceMemory)]
-		queueMetric[phase].memoryUsage += usage[string(v1.ResourceMemory)]
-		queueMetric[phase].cpuRequest += request[string(v1.ResourceCPU)]
-		queueMetric[phase].cpuUsage += usage[string(v1.ResourceCPU)]
+		queueMetric[phase].resourceRequest.Add(request)
+		queueMetric[phase].resourceUsage.Add(usage)
 	}
 
 	// reset metric for queues without pods
@@ -194,11 +178,13 @@ func (m *ClusterContextMetrics) UpdateMetrics() {
 		m.knownQueues[queue] = true
 
 		for phase, phaseMetric := range queueMetric {
+			for resourceType, request := range phaseMetric.resourceRequest {
+				m.podResourceRequest.WithLabelValues(queue, phase, resourceType).Set(common.QuantityAsFloat64(request))
+			}
+			for resourceType, usage := range phaseMetric.resourceUsage {
+				m.podResourceUsage.WithLabelValues(queue, phase, resourceType).Set(common.QuantityAsFloat64(usage))
+			}
 			m.podCount.WithLabelValues(queue, phase).Set(phaseMetric.count)
-			m.podCpuRequest.WithLabelValues(queue, phase).Set(phaseMetric.cpuRequest)
-			m.podCpuUsage.WithLabelValues(queue, phase).Set(phaseMetric.cpuUsage)
-			m.podMemoryRequest.WithLabelValues(queue, phase).Set(phaseMetric.memoryRequest)
-			m.podMemoryUsage.WithLabelValues(queue, phase).Set(phaseMetric.memoryUsage)
 		}
 	}
 
@@ -224,12 +210,17 @@ func (m *ClusterContextMetrics) UpdateMetrics() {
 }
 
 func createPodPhaseMetric() map[string]*podMetric {
+	zeroComputeResource := common.ComputeResources{
+		"cpu":               resource.MustParse("0"),
+		"memory":            resource.MustParse("0"),
+		"ephemeral-storage": resource.MustParse("0"),
+	}
 	return map[string]*podMetric{
-		leasedPhase:             {},
-		string(v1.PodPending):   {},
-		string(v1.PodRunning):   {},
-		string(v1.PodSucceeded): {},
-		string(v1.PodFailed):    {},
-		string(v1.PodUnknown):   {},
+		leasedPhase:             {resourceRequest: zeroComputeResource.DeepCopy(), resourceUsage: zeroComputeResource.DeepCopy()},
+		string(v1.PodPending):   {resourceRequest: zeroComputeResource.DeepCopy(), resourceUsage: zeroComputeResource.DeepCopy()},
+		string(v1.PodRunning):   {resourceRequest: zeroComputeResource.DeepCopy(), resourceUsage: zeroComputeResource.DeepCopy()},
+		string(v1.PodSucceeded): {resourceRequest: zeroComputeResource.DeepCopy(), resourceUsage: zeroComputeResource.DeepCopy()},
+		string(v1.PodFailed):    {resourceRequest: zeroComputeResource.DeepCopy(), resourceUsage: zeroComputeResource.DeepCopy()},
+		string(v1.PodUnknown):   {resourceRequest: zeroComputeResource.DeepCopy(), resourceUsage: zeroComputeResource.DeepCopy()},
 	}
 }
