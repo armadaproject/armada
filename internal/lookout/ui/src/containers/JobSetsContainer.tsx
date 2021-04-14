@@ -1,10 +1,11 @@
-import React from "react"
+import React, { Fragment } from "react"
 import { RouteComponentProps, withRouter } from "react-router-dom";
 import * as queryString from "querystring";
 
 import JobSets from "../components/job-sets/JobSets";
 import JobService, { JobSet } from "../services/JobService";
 import { debounced } from "../utils";
+import CancelJobSetsDialog, { CancelJobSetsDialogContext, CancelJobSetsDialogState } from "../components/job-sets/CancelJobSetsDialog";
 
 type JobSetsContainerProps = {
   jobService: JobService
@@ -15,8 +16,12 @@ type JobSetsContainerParams = {
   currentView: JobSetsView
 }
 
+export type CancelJobSetsRequestStatus = "Loading" | "Idle"
+
 type JobSetsContainerState = {
   jobSets: JobSet[]
+  selectedJobSets: Map<string, JobSet>
+  cancelJobSetsDialogContext: CancelJobSetsDialogContext
 } & JobSetsContainerParams
 
 export type JobSetsView = "job-counts" | "runtime" | "queued-time"
@@ -57,16 +62,27 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
   constructor(props: JobSetsContainerProps) {
     super(props)
 
-    this.state ={
+    this.state = {
       queue: "",
       jobSets: [],
       currentView: "job-counts",
+      selectedJobSets: new Map<string, JobSet>(),
+      cancelJobSetsDialogContext: {
+        dialogState: "None",
+        queue: "",
+        jobSetsToCancel: [],
+        cancelJobSetsResult: { cancelledJobSets: [], failedJobSetCancellations: [] },
+        cancelJobSetsRequestStatus: "Idle",
+      }
     }
 
     this.setQueue = this.setQueue.bind(this)
     this.setView = this.setView.bind(this)
     this.refresh = this.refresh.bind(this)
     this.navigateToJobSetForState = this.navigateToJobSetForState.bind(this)
+    this.selectJobSet = this.selectJobSet.bind(this)
+    this.setCancelJobSetsDialogState = this.setCancelJobSetsDialogState.bind(this)
+    this.cancelJobs = this.cancelJobs.bind(this)
 
     this.fetchJobSets = debounced(this.fetchJobSets.bind(this), 100)
   }
@@ -78,11 +94,7 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
       ...params,
     })
 
-    const jobSets = await this.fetchJobSets(params.queue)
-    this.setState({
-      ...this.state,
-      jobSets: jobSets,
-    })
+    await this.loadJobSets()
   }
 
   async setQueue(queue: string) {
@@ -96,19 +108,76 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
     })
 
     // Performed separately because debounced
-    const jobSets = await this.fetchJobSets(queue)
-    this.setState({
-      ...this.state,
-      jobSets: jobSets,
-    })
+    await this.loadJobSets()
   }
 
   async refresh() {
-    const jobSets = await this.fetchJobSets(this.state.queue)
+    await this.loadJobSets()
+  }
+
+  selectJobSet(jobSet: JobSet, selected: boolean) {
+    const selectedJobSets = new Map<string, JobSet>(this.state.selectedJobSets)
+    if (selected) {
+      selectedJobSets.set(jobSet.jobSetId, jobSet)
+    } else {
+      if (selectedJobSets.has(jobSet.jobSetId)) {
+        selectedJobSets.delete(jobSet.jobSetId)
+      }
+    }
+
+    const cancellableJobSets = JobSetsContainer.getCancellableSelectedJobSets(selectedJobSets)
     this.setState({
       ...this.state,
-      jobSets: jobSets,
+      selectedJobSets: selectedJobSets,
+      cancelJobSetsDialogContext: {
+        ...this.state.cancelJobSetsDialogContext,
+        jobSetsToCancel: cancellableJobSets,
+      },
     })
+  }
+
+  setCancelJobSetsDialogState(dialogState: CancelJobSetsDialogState) {
+    this.setState({
+      ...this.state,
+      cancelJobSetsDialogContext: {
+        ...this.state.cancelJobSetsDialogContext,
+        dialogState: dialogState,
+      },
+    })
+  }
+
+  async cancelJobs() {
+    if (this.state.cancelJobSetsDialogContext.cancelJobSetsRequestStatus === "Loading") {
+      return
+    }
+
+    this.setState({
+      ...this.state,
+      cancelJobSetsDialogContext: {
+        ...this.state.cancelJobSetsDialogContext,
+        cancelJobSetsRequestStatus: "Loading",
+      },
+    })
+
+    const cancelJobSetsResult = await this.props.jobService.cancelJobSets(
+      this.state.queue,
+      this.state.cancelJobSetsDialogContext.jobSetsToCancel
+    )
+
+    this.setState({
+      ...this.state,
+      cancelJobSetsDialogContext: {
+        ...this.state.cancelJobSetsDialogContext,
+        jobSetsToCancel: cancelJobSetsResult.failedJobSetCancellations.map(failed => failed.jobSet),
+        cancelJobSetsResult: cancelJobSetsResult,
+        dialogState: "CancelJobSetsResult",
+        cancelJobSetsRequestStatus: "Idle",
+      },
+    })
+
+    if (cancelJobSetsResult.cancelledJobSets.length > 0) { // Some succeed
+      await this.loadJobSets()
+    }
   }
 
   setView(view: JobSetsView) {
@@ -120,6 +189,7 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
     this.setState({
       ...this.state,
       currentView: view,
+      selectedJobSets: new Map<string, JobSet>(),
     })
   }
 
@@ -131,6 +201,15 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
     })
   }
 
+  private async loadJobSets() {
+    const jobSets = await this.props.jobService.getJobSets(this.state.queue)
+    this.setState({
+      ...this.state,
+      selectedJobSets: new Map<string, JobSet>(),
+      jobSets: jobSets,
+    })
+  }
+
   private fetchJobSets(queue: string): Promise<JobSet[]> {
     return this.props.jobService.getJobSets(queue)
   }
@@ -139,15 +218,36 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
     return new Promise(resolve => this.setState(state, resolve))
   }
 
+  private static getCancellableSelectedJobSets(selectedJobSets: Map<string, JobSet>): JobSet[] {
+    return Array.from(selectedJobSets.values())
+      .filter(jobSet => jobSet.jobsQueued > 0 || jobSet.jobsPending > 0 || jobSet.jobsRunning > 0)
+  }
+
   render() {
-    return <JobSets
-      queue={this.state.queue}
-      view={this.state.currentView}
-      jobSets={this.state.jobSets}
-      onQueueChange={this.setQueue}
-      onViewChange={this.setView}
-      onRefresh={this.refresh}
-      onJobSetClick={this.navigateToJobSetForState} />
+    return (
+      <Fragment>
+        <CancelJobSetsDialog
+          dialogState={this.state.cancelJobSetsDialogContext.dialogState}
+          queue={this.state.queue}
+          jobSetsToCancel={this.state.cancelJobSetsDialogContext.jobSetsToCancel}
+          cancelJobSetsResult={this.state.cancelJobSetsDialogContext.cancelJobSetsResult}
+          cancelJobSetsRequestStatus={this.state.cancelJobSetsDialogContext.cancelJobSetsRequestStatus}
+          onCancelJobSets={this.cancelJobs}
+          onClose={() => this.setCancelJobSetsDialogState("None")}/>
+        <JobSets
+          canCancel={this.state.currentView === "job-counts" && this.state.cancelJobSetsDialogContext.jobSetsToCancel.length > 0}
+          queue={this.state.queue}
+          view={this.state.currentView}
+          jobSets={this.state.jobSets}
+          selectedJobSets={this.state.selectedJobSets}
+          onQueueChange={this.setQueue}
+          onViewChange={this.setView}
+          onRefresh={this.refresh}
+          onJobSetClick={this.navigateToJobSetForState}
+          onSelectJobSet={this.selectJobSet}
+          onCancelJobSetsClick={() => this.setCancelJobSetsDialogState("CancelJobSets")}/>
+      </Fragment>
+    )
   }
 }
 

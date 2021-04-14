@@ -3,8 +3,8 @@ import { AutoSizer, Column, InfiniteLoader, Table } from "react-virtualized"
 
 import { Job } from "../../services/JobService"
 import JobTableHeader from "./JobTableHeader";
-import JobRow from "./JobRow";
-import HeaderRow from "./HeaderRow";
+import CheckboxRow from "../CheckboxRow";
+import CheckboxHeaderRow from "../CheckboxHeaderRow";
 import LoadingRow from "./LoadingRow";
 import LinkCell from "../LinkCell";
 
@@ -138,7 +138,7 @@ export default class Jobs extends React.Component<JobsProps, {}> {
                         selected = true
                       }
                       return (
-                        <JobRow
+                        <CheckboxRow
                           isChecked={selected}
                           onChangeChecked={async (selected) => {
                             await this.props.onSelectJob(tableRowProps.rowData, selected)
@@ -149,7 +149,7 @@ export default class Jobs extends React.Component<JobsProps, {}> {
                       )
                     }}
                     headerRowRenderer={(tableHeaderRowProps) => {
-                      return <HeaderRow {...tableHeaderRowProps}/>
+                      return <CheckboxHeaderRow {...tableHeaderRowProps}/>
                     }}
                     headerHeight={60}
                     height={height - 1}

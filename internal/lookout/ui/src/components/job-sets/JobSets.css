@@ -26,6 +26,17 @@
     align-items: center;
 }
 
+.job-sets-header .job-sets-actions {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.job-sets-header .job-sets-actions .cancel-button {
+    margin-right: 4em;
+}
+
 .job-sets-field {
     min-width: 8em;
     margin-right: 1em;

@@ -242,7 +242,7 @@ jobs:
       - image: cimg/go:1.16.2
         environment:
           GO111MODULE: "on"
-    working_directory: /go/src/github.com/G-Research/armada
+    working_directory: ~/go/src/github.com/G-Research/armada
     steps:
       - checkout
       - setup_remote_docker
