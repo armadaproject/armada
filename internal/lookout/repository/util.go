@@ -20,6 +20,11 @@ type DefaultClock struct{}
 
 func (c *DefaultClock) Now() time.Time { return time.Now() }
 
+func ToUTC(t time.Time) time.Time {
+	location, _ := time.LoadLocation("UTC")
+	return t.In(location)
+}
+
 func upsert(db *goqu.Database, table interface{}, keys []string, records []goqu.Record) error {
 	if len(records) == 0 {
 		return nil
