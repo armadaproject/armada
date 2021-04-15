@@ -15,6 +15,7 @@ namespace GResearch.Armada.Client.Test
     public class Tests
     {
         [Test]
+        [Explicit("Intended for manual testing against armada server with proxy.")]
         public async Task TestWatchingEvents()
         {
             var client = new ArmadaClient("http://localhost:8080", new HttpClient());
@@ -40,6 +41,7 @@ namespace GResearch.Armada.Client.Test
         }
         
         [Test]
+        [Explicit("Intended for manual testing against armada server with proxy.")]
         public async Task TestGetJobEvents()
         {
             var queue = "test";
