@@ -20,8 +20,7 @@ namespace GResearch.Armada.Client
         Task<ApiCancellationResult> CancelJobsAsync(ApiJobCancelRequest body);
         Task<ApiJobSubmitResponse> SubmitJobsAsync(ApiJobSubmitRequest body);
         Task<object> CreateQueueAsync(string name, ApiQueue body);
-        Task<IEnumerable<StreamResponse<ApiEventStreamMessage>>> GetJobEvents(string queue, string jobSetId, CancellationToken ct, string fromMessage = null);
-        Task<IEnumerable<StreamResponse<ApiEventStreamMessage>>> GetJobEventsStream(string queue, string jobSetId, string fromMessage = null, bool watch = false);
+        Task<IEnumerable<StreamResponse<ApiEventStreamMessage>>> GetJobEventsStream(string queue, string jobSetId, CancellationToken ct, string fromMessage = null);
         Task WatchEvents(
             string queue,
             string jobSetId,
@@ -71,7 +70,7 @@ namespace GResearch.Armada.Client
 
     public partial class ArmadaClient : IArmadaClient
     {       
-        public async Task<IEnumerable<StreamResponse<ApiEventStreamMessage>>> GetJobEvents(
+        public async Task<IEnumerable<StreamResponse<ApiEventStreamMessage>>> GetJobEventsStream(
             string queue, string jobSetId, CancellationToken ct, string fromMessageId = null)
         {
             var events = new List<StreamResponse<ApiEventStreamMessage>>(); 
@@ -82,31 +81,6 @@ namespace GResearch.Armada.Client
                 });           
             return events;
         }        
-        
-        public async Task<IEnumerable<StreamResponse<ApiEventStreamMessage>>> GetJobEventsStream(
-            string queue, string jobSetId, string fromMessageId = null, bool watch = false)
-        {
-            var fileResponse = await GetJobSetEventsCoreAsync(queue, jobSetId,
-                new ApiJobSetRequest {FromMessageId = fromMessageId, Watch = watch});
-            return ReadEventStream(fileResponse.Stream);
-        }
-        
-        private IEnumerable<StreamResponse<ApiEventStreamMessage>> ReadEventStream(Stream stream)
-        {
-            using (var reader = new StreamReader(stream))
-            {
-                while (!reader.EndOfStream)
-                {
-                    var line = reader.ReadLine();
-                    
-                    var (_, eventMessage) = ProcessEventLine(null, line);
-                    if (eventMessage != null)
-                    {
-                        yield return eventMessage;
-                    }
-                }
-            }
-        }
 
         public async Task WatchEvents(
             string queue,

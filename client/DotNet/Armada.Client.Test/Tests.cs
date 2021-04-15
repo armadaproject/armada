@@ -41,32 +41,6 @@ namespace GResearch.Armada.Client.Test
         }
         
         [Test]
-        [Explicit("Intended for manual testing against armada server with proxy.")]
-        public async Task TestGetJobEvents()
-        {
-            var queue = "test";
-            var jobSet = $"set-{Guid.NewGuid()}";
-
-            IArmadaClient client = new ArmadaClient("http://localhost:8080", new HttpClient());
-            await client.CreateQueueAsync(queue, new ApiQueue {PriorityFactor = 200});
-
-            var request = CreateJobRequest(jobSet);
-
-            var response = await client.SubmitJobsAsync(request);
-            var cancelResponse =
-                await client.CancelJobsAsync(new ApiJobCancelRequest {Queue = "test", JobSetId = jobSet});
-            using (var cts = new CancellationTokenSource()) {
-                await Task.Delay(TimeSpan.FromMinutes(2));
-                var events = await client.GetJobEvents(queue, jobSet, cts.Token);
-                var allEvents = events.ToList();
-
-                Assert.That(allEvents, Is.Not.Empty);
-                Assert.That(allEvents[0].Result.Message.Submitted, Is.Not.Null);
-                Assert.That(allEvents.Count == 4);
-            }
-        }
-        
-        [Test]
         public async Task TestSimpleJobSubmitFlow()
         {
             var queue = "test";
@@ -80,7 +54,9 @@ namespace GResearch.Armada.Client.Test
             var response = await client.SubmitJobsAsync(request);
             var cancelResponse =
                 await client.CancelJobsAsync(new ApiJobCancelRequest {Queue = "test", JobSetId = jobSet});
-            var events = await client.GetJobEventsStream(queue, jobSet, watch: false);
+            CancellationTokenSource cts = new CancellationTokenSource();
+            cts.CancelAfter(TimeSpan.FromMinutes(2));
+            var events = await client.GetJobEventsStream(queue, jobSet, cts.Token);
             var allEvents = events.ToList();
 
             Assert.That(allEvents, Is.Not.Empty);
@@ -101,7 +77,7 @@ namespace GResearch.Armada.Client.Test
                     {""a"":""b""}");
 
             IArmadaClient client = new ArmadaClient("http://localhost:8080", new HttpClient(mockHttp));
-            var events = (await client.GetJobEventsStream("queue", "jobSet", watch: false)).ToList();
+            var events = (await client.GetJobEventsStream("queue", "jobSet", new CancellationToken())).ToList();
             Assert.That(events.Count(), Is.EqualTo(2));
             Assert.That(events[0].Result.Message.Event, Is.Not.Null);
             Assert.That(events[1].Error, Is.EqualTo("test error"));
