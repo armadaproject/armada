@@ -130,19 +130,34 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 		JobResponseItems: make([]*api.JobSubmitResponseItem, 0, len(submissionResults)),
 	}
 
-	for _, submissionResult := range submissionResults {
+	createdJobs := []*api.Job{}
+	doubleSubmits := []*repository.SubmitJobResult{}
+	for i, submissionResult := range submissionResults {
 		jobResponse := &api.JobSubmitResponseItem{JobId: submissionResult.JobId}
 		if submissionResult.Error != nil {
 			jobResponse.Error = submissionResult.Error.Error()
 		}
 		result.JobResponseItems = append(result.JobResponseItems, jobResponse)
+
+		jobs[i].Id = submissionResult.JobId
+		if submissionResult.Error == nil {
+			if submissionResult.DuplicateDetected {
+				doubleSubmits = append(doubleSubmits, submissionResult)
+			} else {
+				createdJobs = append(createdJobs, jobs[i])
+			}
+		}
 	}
 
-	e = reportQueued(server.eventStore, jobs)
+	e = reportDuplicateDetected(server.eventStore, doubleSubmits)
 	if e != nil {
-		return result, status.Errorf(codes.Aborted, e.Error())
+		return result, status.Errorf(codes.Internal, e.Error())
 	}
 
+	e = reportQueued(server.eventStore, createdJobs)
+	if e != nil {
+		return result, status.Errorf(codes.Internal, e.Error())
+	}
 	return result, nil
 }
 

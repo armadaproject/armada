@@ -66,6 +66,9 @@ func (p *EventProcessor) processEvent(event api.Event) error {
 	case *api.JobQueuedEvent:
 		// this event just attest saving job to redis
 
+	case *api.JobDuplicateFoundEvent:
+		return p.recorder.RecordJobDuplicate(typed)
+
 	case *api.JobPendingEvent:
 		return p.recorder.RecordJobPending(typed)
 

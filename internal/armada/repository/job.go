@@ -128,8 +128,10 @@ func (repo *RedisJobRepository) CreateJobs(request *api.JobSubmitRequest, princi
 }
 
 type SubmitJobResult struct {
-	JobId string
-	Error error
+	JobId             string
+	SubmittedJob      *api.Job
+	DuplicateDetected bool
+	Error             error
 }
 
 func (repo *RedisJobRepository) AddJobs(jobs []*api.Job) ([]*SubmitJobResult, error) {
@@ -152,11 +154,13 @@ func (repo *RedisJobRepository) AddJobs(jobs []*api.Job) ([]*SubmitJobResult, er
 	_, _ = pipe.Exec() // ignoring error here as it will be part of individual commands
 
 	result := make([]*SubmitJobResult, 0, len(jobs))
-	for _, saveResult := range saveResults {
+	for i, saveResult := range saveResults {
 		resultJobId, err := saveResult.String()
 		submitJobResult := &SubmitJobResult{
-			JobId: resultJobId,
-			Error: err,
+			JobId:             resultJobId,
+			SubmittedJob:      jobs[i],
+			Error:             err,
+			DuplicateDetected: resultJobId != jobs[i].Id,
 		}
 		result = append(result, submitJobResult)
 	}
