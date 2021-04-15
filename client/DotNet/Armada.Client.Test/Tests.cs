@@ -39,7 +39,7 @@ namespace GResearch.Armada.Client.Test
                 Assert.That(eventCount, Is.EqualTo(4));
             }
         }
-        
+
         [Test]
         public async Task TestSimpleJobSubmitFlow()
         {
