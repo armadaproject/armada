@@ -15,7 +15,6 @@ namespace GResearch.Armada.Client.Test
     public class Tests
     {
         [Test]
-        [Explicit("Intended for manual testing against armada server with proxy.")]
         public async Task TestWatchingEvents()
         {
             var client = new ArmadaClient("http://localhost:8080", new HttpClient());
@@ -39,7 +38,32 @@ namespace GResearch.Armada.Client.Test
                 Assert.That(eventCount, Is.EqualTo(4));
             }
         }
+        
+        [Test]
+        public async Task TestGetJobEvents()
+        {
+            var queue = "test";
+            var jobSet = $"set-{Guid.NewGuid()}";
 
+            IArmadaClient client = new ArmadaClient("http://localhost:8080", new HttpClient());
+            await client.CreateQueueAsync(queue, new ApiQueue {PriorityFactor = 200});
+
+            var request = CreateJobRequest(jobSet);
+
+            var response = await client.SubmitJobsAsync(request);
+            var cancelResponse =
+                await client.CancelJobsAsync(new ApiJobCancelRequest {Queue = "test", JobSetId = jobSet});
+            using (var cts = new CancellationTokenSource()) {
+                await Task.Delay(TimeSpan.FromMinutes(2));
+                var events = await client.GetJobEvents(queue, jobSet, cts.Token);
+                var allEvents = events.ToList();
+
+                Assert.That(allEvents, Is.Not.Empty);
+                Assert.That(allEvents[0].Result.Message.Submitted, Is.Not.Null);
+                Assert.That(allEvents.Count == 4);
+            }
+        }
+        
         [Test]
         public async Task TestSimpleJobSubmitFlow()
         {

@@ -20,6 +20,7 @@ namespace GResearch.Armada.Client
         Task<ApiCancellationResult> CancelJobsAsync(ApiJobCancelRequest body);
         Task<ApiJobSubmitResponse> SubmitJobsAsync(ApiJobSubmitRequest body);
         Task<object> CreateQueueAsync(string name, ApiQueue body);
+        Task<IEnumerable<StreamResponse<ApiEventStreamMessage>>> GetJobEvents(string queue, string jobSetId, CancellationToken ct, string fromMessage = null);
         Task<IEnumerable<StreamResponse<ApiEventStreamMessage>>> GetJobEventsStream(string queue, string jobSetId, string fromMessage = null, bool watch = false);
         Task WatchEvents(
             string queue,
@@ -69,7 +70,19 @@ namespace GResearch.Armada.Client
     }
 
     public partial class ArmadaClient : IArmadaClient
-    {
+    {       
+        public async Task<IEnumerable<StreamResponse<ApiEventStreamMessage>>> GetJobEvents(
+            string queue, string jobSetId, CancellationToken ct, string fromMessageId = null)
+        {
+            var events = new List<StreamResponse<ApiEventStreamMessage>>(); 
+            await WatchEvents(queue, jobSetId, fromMessageId, false, 5, ct,
+                e =>
+                {
+                    events.Add(e);
+                });           
+            return events;
+        }        
+        
         public async Task<IEnumerable<StreamResponse<ApiEventStreamMessage>>> GetJobEventsStream(
             string queue, string jobSetId, string fromMessageId = null, bool watch = false)
         {
@@ -103,27 +116,44 @@ namespace GResearch.Armada.Client
             Action<StreamResponse<ApiEventStreamMessage>> onMessage,
             Action<Exception> onException = null)
         {
-            var failCount = 0;
+            await WatchEvents(queue, jobSetId, fromMessageId, true, -1, ct, onMessage,  onException);
+        }
+
+        private async Task WatchEvents(
+            string queue,
+            string jobSetId, 
+            string fromMessageId,
+            bool watch,
+            int consecutiveErrorTolerance,
+            CancellationToken ct, 
+            Action<StreamResponse<ApiEventStreamMessage>> onMessage,
+            Action<Exception> onException = null)
+        {
+            var consecutiveErrorsCount = 0;
             while (!ct.IsCancellationRequested)
             {
                 try
                 {
                     using (var fileResponse = await GetJobSetEventsCoreAsync(queue, jobSetId,
-                        new ApiJobSetRequest {FromMessageId = fromMessageId, Watch = true}, ct))
+                        new ApiJobSetRequest {FromMessageId = fromMessageId, Watch = watch}, ct))
                     using (var reader = new StreamReader(fileResponse.Stream))
                     {
                         try
                         {
-                            failCount = 0;
                             while (!ct.IsCancellationRequested && !reader.EndOfStream)
                             {
                                 var line = await reader.ReadLineAsync();
+                                consecutiveErrorsCount = 0;
                                 var (newMessageId, eventMessage) = ProcessEventLine(fromMessageId, line);
                                 fromMessageId = newMessageId;
                                 if (eventMessage != null)
                                 {
                                     onMessage(eventMessage);
                                 }
+                            }                            
+                            if (reader.EndOfStream && !watch)
+                            {
+                                return;
                             }
                         }
                         catch (IOException)
@@ -138,10 +168,14 @@ namespace GResearch.Armada.Client
                 }
                 catch (Exception e)
                 {
-                    failCount++;
+                    if (consecutiveErrorTolerance > 0 && consecutiveErrorsCount > consecutiveErrorTolerance)
+                    {
+                        throw;
+                    }
+                    consecutiveErrorsCount++;
                     onException?.Invoke(e);
                     // gradually back off
-                    await Task.Delay(TimeSpan.FromSeconds(Math.Min(300, Math.Pow(2 ,failCount))), ct);
+                    await Task.Delay(TimeSpan.FromSeconds(Math.Min(300, Math.Pow(2 ,consecutiveErrorsCount))), ct);
                 }
             }
         }
