@@ -20,7 +20,9 @@ func NewNatsEventStore(connection *stanUtil.DurableConnection, subject string) *
 }
 
 func (n *NatsEventStore) ReportEvents(messages []*api.EventMessage) error {
-
+	if len(messages) == 0 {
+		return nil
+	}
 	errors := make(chan error, len(messages))
 	for _, m := range messages {
 		messageData, e := proto.Marshal(m)
