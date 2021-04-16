@@ -124,7 +124,7 @@ func connectionDetails() *client.ApiConnectionDetails {
 
 func submitJobsAndWatch(t *testing.T, submitClient api.SubmitClient, eventsClient api.EventClient, jobRequest *api.JobSubmitRequest) map[domain.JobStatus]bool {
 	_, err := client.SubmitJobs(submitClient, jobRequest)
-	assert.Nil(t, err)
+	assert.NoError(t, err, fmt.Sprintf("Error: %s", err))
 	receivedEvents := make(map[domain.JobStatus]bool)
 	timeout, _ := context.WithTimeout(context.Background(), 60*time.Second)
 	client.WatchJobSet(eventsClient, jobRequest.Queue, jobRequest.JobSetId, true, timeout, func(state *domain.WatchContext, e api.Event) bool {
