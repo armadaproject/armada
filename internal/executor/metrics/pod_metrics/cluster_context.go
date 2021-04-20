@@ -34,11 +34,9 @@ type ClusterContextMetrics struct {
 	podResourceRequest *prometheus.GaugeVec
 	podResourceUsage   *prometheus.GaugeVec
 
-	nodeCount           prometheus.Gauge
-	nodeCpuAvailable    prometheus.Gauge
-	nodeCpuTotal        prometheus.Gauge
-	nodeMemoryAvailable prometheus.Gauge
-	nodeMemoryTotal     prometheus.Gauge
+	nodeCount             prometheus.Gauge
+	nodeAvailableResource *prometheus.GaugeVec
+	nodeTotalResource     *prometheus.GaugeVec
 }
 
 func NewClusterContextMetrics(context context.ClusterContext, utilisationService service.UtilisationService, queueUtilisationService service.PodUtilisationService) *ClusterContextMetrics {
@@ -63,13 +61,13 @@ func NewClusterContextMetrics(context context.ClusterContext, utilisationService
 		podResourceRequest: promauto.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: metrics.ArmadaExecutorMetricsPrefix + "job_pod_resource_request",
-				Help: "Pod cpu requests in different phases by queue",
+				Help: "Pod resource requests in different phases by queue",
 			},
 			[]string{queueLabel, phaseLabel, resourceTypeLabel}),
 		podResourceUsage: promauto.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: metrics.ArmadaExecutorMetricsPrefix + "job_pod_resource_usage",
-				Help: "Pod cpu requests in different phases by queue",
+				Help: "Pod resource usage in different phases by queue",
 			},
 			[]string{queueLabel, phaseLabel, resourceTypeLabel}),
 		nodeCount: promauto.NewGauge(
@@ -77,26 +75,18 @@ func NewClusterContextMetrics(context context.ClusterContext, utilisationService
 				Name: metrics.ArmadaExecutorMetricsPrefix + "available_node_count",
 				Help: "Number of nodes available for Armada jobs",
 			}),
-		nodeCpuAvailable: promauto.NewGauge(
+		nodeAvailableResource: promauto.NewGaugeVec(
 			prometheus.GaugeOpts{
-				Name: metrics.ArmadaExecutorMetricsPrefix + "available_node_allocatable_cpu",
-				Help: "Number of cpus available for Armada jobs",
-			}),
-		nodeCpuTotal: promauto.NewGauge(
+				Name: metrics.ArmadaExecutorMetricsPrefix + "available_node_resource_allocatable",
+				Help: "Resource allocatable on nodes available for Armada jobs",
+			},
+			[]string{resourceTypeLabel}),
+		nodeTotalResource: promauto.NewGaugeVec(
 			prometheus.GaugeOpts{
-				Name: metrics.ArmadaExecutorMetricsPrefix + "available_node_total_cpu",
-				Help: "Number of cpus on nodes available for Armada jobs",
-			}),
-		nodeMemoryAvailable: promauto.NewGauge(
-			prometheus.GaugeOpts{
-				Name: metrics.ArmadaExecutorMetricsPrefix + "available_node_allocatable_memory_bytes",
-				Help: "Memory available for Armada jobs",
-			}),
-		nodeMemoryTotal: promauto.NewGauge(
-			prometheus.GaugeOpts{
-				Name: metrics.ArmadaExecutorMetricsPrefix + "available_node_total_memory_bytes",
-				Help: "Memory on nodes available  for Armada jobs",
-			}),
+				Name: metrics.ArmadaExecutorMetricsPrefix + "available_node_resource_total",
+				Help: "Total resource on nodes available for Armada jobs",
+			},
+			[]string{resourceTypeLabel}),
 	}
 
 	context.AddPodEventHandler(cache.ResourceEventHandlerFuncs{
@@ -199,14 +189,17 @@ func (m *ClusterContextMetrics) UpdateMetrics() {
 		log.Errorf("Failed to get required information to report cluster usage because %s", err)
 		return
 	}
-	totalNodeResource := common.CalculateTotalResource(allAvailableProcessingNodes).AsFloat()
-	availableNodeResource := allocatableNodeResource.AsFloat()
+	availableNodeResource := *allocatableNodeResource
+	totalNodeResource := common.CalculateTotalResource(allAvailableProcessingNodes)
 
 	m.nodeCount.Set(float64(len(allAvailableProcessingNodes)))
-	m.nodeCpuAvailable.Set(availableNodeResource[string(v1.ResourceCPU)])
-	m.nodeCpuTotal.Set(totalNodeResource[string(v1.ResourceCPU)])
-	m.nodeMemoryAvailable.Set(availableNodeResource[string(v1.ResourceMemory)])
-	m.nodeMemoryTotal.Set(totalNodeResource[string(v1.ResourceMemory)])
+	for resourceType, allocatable := range availableNodeResource {
+		m.nodeAvailableResource.WithLabelValues(resourceType).Set(common.QuantityAsFloat64(allocatable))
+	}
+
+	for resourceType, allocatable := range totalNodeResource {
+		m.nodeTotalResource.WithLabelValues(resourceType).Set(common.QuantityAsFloat64(allocatable))
+	}
 }
 
 func createPodPhaseMetric() map[string]*podMetric {
