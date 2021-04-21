@@ -4,6 +4,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/G-Research/armada/internal/armada/cache"
 	"github.com/G-Research/armada/internal/armada/repository"
 	"github.com/G-Research/armada/internal/armada/scheduling"
 	"github.com/G-Research/armada/internal/common"
@@ -13,6 +14,7 @@ const MetricPrefix = "armada_"
 
 type QueueMetricProvider interface {
 	GetQueuedResources(queueName string) map[string]common.ComputeResourcesFloat
+	GetQueueDurations(queueName string) *cache.DurationMetrics
 }
 
 func ExposeDataMetrics(
@@ -61,6 +63,27 @@ var queueResourcesDesc = prometheus.NewDesc(
 	nil,
 )
 
+var minQueueDurationDesc = prometheus.NewDesc(
+	MetricPrefix+"job_min_queued_seconds",
+	"Min queue time for Armada jobs",
+	[]string{"queueName"},
+	nil,
+)
+
+var maxQueueDurationDesc = prometheus.NewDesc(
+	MetricPrefix+"job_max_queued_seconds",
+	"Max queue time for Armada jobs",
+	[]string{"queueName"},
+	nil,
+)
+
+var queueDurationDesc = prometheus.NewDesc(
+	MetricPrefix+"job_queued_seconds",
+	"Queued time for Armada jobs",
+	[]string{"queueName"},
+	nil,
+)
+
 var queueAllocatedDesc = prometheus.NewDesc(
 	MetricPrefix+"queue_resource_allocated",
 	"Resource allocated to running jobs of a queue",
@@ -92,6 +115,9 @@ var clusterAvailableCapacity = prometheus.NewDesc(
 func (c *QueueInfoCollector) Describe(desc chan<- *prometheus.Desc) {
 	desc <- queueSizeDesc
 	desc <- queuePriorityDesc
+	desc <- queueDurationDesc
+	desc <- minQueueDurationDesc
+	desc <- maxQueueDurationDesc
 }
 
 func (c *QueueInfoCollector) Collect(metrics chan<- prometheus.Metric) {
@@ -139,9 +165,14 @@ func (c *QueueInfoCollector) Collect(metrics chan<- prometheus.Metric) {
 
 	for i, q := range queues {
 		metrics <- prometheus.MustNewConstMetric(queueSizeDesc, prometheus.GaugeValue, float64(queueSizes[i]), q.Name)
-	}
+		queueDurations := c.queueMetrics.GetQueueDurations(q.Name)
+		if queueDurations.GetCount() > 0 {
+			metrics <- prometheus.MustNewConstHistogram(queueDurationDesc, queueDurations.GetCount(),
+				queueDurations.GetSum(), queueDurations.GetBuckets(), q.Name)
+			metrics <- prometheus.MustNewConstMetric(minQueueDurationDesc, prometheus.GaugeValue, queueDurations.GetMin(), q.Name)
+			metrics <- prometheus.MustNewConstMetric(maxQueueDurationDesc, prometheus.GaugeValue, queueDurations.GetMax(), q.Name)
+		}
 
-	for _, q := range queues {
 		for pool, poolResources := range c.queueMetrics.GetQueuedResources(q.Name) {
 			for resourceType, amount := range poolResources {
 				metrics <- prometheus.MustNewConstMetric(queueResourcesDesc, prometheus.GaugeValue, amount, pool, q.Name, resourceType)

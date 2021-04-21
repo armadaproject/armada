@@ -2,6 +2,7 @@ package cache
 
 import (
 	"sync"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 
@@ -20,6 +21,7 @@ type QueueCache struct {
 	schedulingInfoRepository repository.SchedulingInfoRepository
 
 	refreshMutex           sync.Mutex
+	queueDurations         map[string]*DurationMetrics
 	queuedResources        map[string]map[string]common.ComputeResourcesFloat
 	queueNonMatchingJobIds map[string]map[string]stringSet
 }
@@ -33,6 +35,7 @@ func NewQueueCache(
 		queueRepository:          queueRepository,
 		jobRepository:            jobRepository,
 		schedulingInfoRepository: schedulingInfoRepository,
+		queueDurations:           map[string]*DurationMetrics{},
 		queuedResources:          map[string]map[string]common.ComputeResourcesFloat{},
 		queueNonMatchingJobIds:   map[string]map[string]stringSet{}}
 
@@ -58,10 +61,14 @@ func (c *QueueCache) Refresh() {
 	for _, queue := range queues {
 		resourceUsageByPool := map[string]common.ComputeResources{}
 		nonMatchingJobs := map[string]stringSet{}
-
+		durationMetrics := NewDefaultJobDurationMetrics()
+		currentTime := time.Now()
 		err := c.jobRepository.IterateQueueJobs(queue.Name, func(job *api.Job) {
 			jobResources := common.TotalJobResourceRequest(job)
 			nonMatchingClusters := stringSet{}
+
+			queuedTime := currentTime.Sub(job.Created)
+			durationMetrics.Record(queuedTime.Seconds())
 
 			for pool, infos := range clusterInfoByPool {
 				matches := false
@@ -91,7 +98,15 @@ func (c *QueueCache) Refresh() {
 
 		c.updateQueuedNonMatchingJobs(queue.Name, nonMatchingJobs)
 		c.updateQueuedResource(queue.Name, resourceUsageByPool)
+		c.updateQueueDurations(queue.Name, durationMetrics)
 	}
+}
+
+func (c *QueueCache) updateQueueDurations(queueName string, durationMetrics *DurationMetrics) {
+	c.refreshMutex.Lock()
+	defer c.refreshMutex.Unlock()
+
+	c.queueDurations[queueName] = durationMetrics
 }
 
 func (c *QueueCache) updateQueuedResource(queueName string, resourcesByPool map[string]common.ComputeResources) {
@@ -114,6 +129,12 @@ func (c *QueueCache) GetQueuedResources(queueName string) map[string]common.Comp
 	c.refreshMutex.Lock()
 	defer c.refreshMutex.Unlock()
 	return c.queuedResources[queueName]
+}
+
+func (c *QueueCache) GetQueueDurations(queueName string) *DurationMetrics {
+	c.refreshMutex.Lock()
+	defer c.refreshMutex.Unlock()
+	return c.queueDurations[queueName]
 }
 
 func (c *QueueCache) getNonSchedulableJobIds(queueName string) map[string]stringSet {
