@@ -22,24 +22,52 @@ const (
 	resourceTypeLabel = "resourceType"
 )
 
+var podCountDesc = prometheus.NewDesc(
+	metrics.ArmadaExecutorMetricsPrefix+"job_pod",
+	"Pods in different phases by queue",
+	[]string{queueLabel, phaseLabel}, nil,
+)
+
+var podResourceRequestDesc = prometheus.NewDesc(
+	metrics.ArmadaExecutorMetricsPrefix+"job_pod_resource_request",
+	"Pod resource requests in different phases by queue",
+	[]string{queueLabel, phaseLabel, resourceTypeLabel}, nil,
+)
+
+var podResourceUsageDesc = prometheus.NewDesc(
+	metrics.ArmadaExecutorMetricsPrefix+"job_pod_resource_usage",
+	"Pod resource usage in different phases by queue",
+	[]string{queueLabel, phaseLabel, resourceTypeLabel}, nil,
+)
+
+var nodeCountDesc = prometheus.NewDesc(
+	metrics.ArmadaExecutorMetricsPrefix+"available_node_count",
+	"Number of nodes available for Armada jobs",
+	nil, nil,
+)
+
+var nodeAvailableResourceDesc = prometheus.NewDesc(
+	metrics.ArmadaExecutorMetricsPrefix+"available_node_resource_allocatable",
+	"Resource allocatable on nodes available for Armada jobs",
+	[]string{resourceTypeLabel}, nil,
+)
+
+var nodeTotalResourceDesc = prometheus.NewDesc(
+	metrics.ArmadaExecutorMetricsPrefix+"available_node_resource_total",
+	"Total resource on nodes available for Armada jobs",
+	[]string{resourceTypeLabel}, nil,
+)
+
 type ClusterContextMetrics struct {
 	context                 context.ClusterContext
 	utilisationService      service.UtilisationService
 	queueUtilisationService service.PodUtilisationService
 
-	knownQueues map[string]bool
-
-	podCountTotal      *prometheus.CounterVec
-	podCount           *prometheus.GaugeVec
-	podResourceRequest *prometheus.GaugeVec
-	podResourceUsage   *prometheus.GaugeVec
-
-	nodeCount             prometheus.Gauge
-	nodeAvailableResource *prometheus.GaugeVec
-	nodeTotalResource     *prometheus.GaugeVec
+	knownQueues   map[string]bool
+	podCountTotal *prometheus.CounterVec
 }
 
-func NewClusterContextMetrics(context context.ClusterContext, utilisationService service.UtilisationService, queueUtilisationService service.PodUtilisationService) *ClusterContextMetrics {
+func ExposeClusterContextMetrics(context context.ClusterContext, utilisationService service.UtilisationService, queueUtilisationService service.PodUtilisationService) *ClusterContextMetrics {
 	m := &ClusterContextMetrics{
 		context:                 context,
 		utilisationService:      utilisationService,
@@ -51,42 +79,6 @@ func NewClusterContextMetrics(context context.ClusterContext, utilisationService
 				Help: "Counter for pods in different phases by queue",
 			},
 			[]string{queueLabel, phaseLabel}),
-
-		podCount: promauto.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Name: metrics.ArmadaExecutorMetricsPrefix + "job_pod",
-				Help: "Pods in different phases by queue",
-			},
-			[]string{queueLabel, phaseLabel}),
-		podResourceRequest: promauto.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Name: metrics.ArmadaExecutorMetricsPrefix + "job_pod_resource_request",
-				Help: "Pod resource requests in different phases by queue",
-			},
-			[]string{queueLabel, phaseLabel, resourceTypeLabel}),
-		podResourceUsage: promauto.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Name: metrics.ArmadaExecutorMetricsPrefix + "job_pod_resource_usage",
-				Help: "Pod resource usage in different phases by queue",
-			},
-			[]string{queueLabel, phaseLabel, resourceTypeLabel}),
-		nodeCount: promauto.NewGauge(
-			prometheus.GaugeOpts{
-				Name: metrics.ArmadaExecutorMetricsPrefix + "available_node_count",
-				Help: "Number of nodes available for Armada jobs",
-			}),
-		nodeAvailableResource: promauto.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Name: metrics.ArmadaExecutorMetricsPrefix + "available_node_resource_allocatable",
-				Help: "Resource allocatable on nodes available for Armada jobs",
-			},
-			[]string{resourceTypeLabel}),
-		nodeTotalResource: promauto.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Name: metrics.ArmadaExecutorMetricsPrefix + "available_node_resource_total",
-				Help: "Total resource on nodes available for Armada jobs",
-			},
-			[]string{resourceTypeLabel}),
 	}
 
 	context.AddPodEventHandler(cache.ResourceEventHandlerFuncs{
@@ -106,6 +98,7 @@ func NewClusterContextMetrics(context context.ClusterContext, utilisationService
 			m.reportPhase(newPod)
 		},
 	})
+	prometheus.MustRegister(m)
 	return m
 }
 
@@ -123,10 +116,21 @@ type podMetric struct {
 	count           float64
 }
 
-func (m *ClusterContextMetrics) UpdateMetrics() {
+func (m *ClusterContextMetrics) Describe(desc chan<- *prometheus.Desc) {
+	desc <- podCountDesc
+	desc <- podResourceRequestDesc
+	desc <- podResourceUsageDesc
+	desc <- nodeCountDesc
+	desc <- nodeAvailableResourceDesc
+	desc <- nodeTotalResourceDesc
+}
+
+func (m *ClusterContextMetrics) Collect(metrics chan<- prometheus.Metric) {
 	pods, e := m.context.GetBatchPods()
 	if e != nil {
-		log.Errorf("Unable to update metrics: %v", e)
+		log.Errorf("Unable to batch pods to calculate pod metrics because: %v", e)
+		recordInvalidMetrics(metrics, e)
+		return
 	}
 
 	podMetrics := map[string]map[string]*podMetric{}
@@ -169,36 +173,40 @@ func (m *ClusterContextMetrics) UpdateMetrics() {
 
 		for phase, phaseMetric := range queueMetric {
 			for resourceType, request := range phaseMetric.resourceRequest {
-				m.podResourceRequest.WithLabelValues(queue, phase, resourceType).Set(common.QuantityAsFloat64(request))
+				metrics <- prometheus.MustNewConstMetric(podResourceRequestDesc, prometheus.GaugeValue,
+					common.QuantityAsFloat64(request), queue, phase, resourceType)
 			}
 			for resourceType, usage := range phaseMetric.resourceUsage {
-				m.podResourceUsage.WithLabelValues(queue, phase, resourceType).Set(common.QuantityAsFloat64(usage))
+				metrics <- prometheus.MustNewConstMetric(podResourceUsageDesc, prometheus.GaugeValue,
+					common.QuantityAsFloat64(usage), queue, phase, resourceType)
 			}
-			m.podCount.WithLabelValues(queue, phase).Set(phaseMetric.count)
+			metrics <- prometheus.MustNewConstMetric(podCountDesc, prometheus.GaugeValue, phaseMetric.count, queue, phase)
 		}
 	}
 
 	allAvailableProcessingNodes, err := m.utilisationService.GetAllAvailableProcessingNodes()
 	if err != nil {
 		log.Errorf("Failed to get required information to report cluster usage because %s", err)
+		recordInvalidMetrics(metrics, e)
 		return
 	}
 
 	allocatableNodeResource, err := m.utilisationService.GetTotalAllocatableClusterCapacity()
 	if err != nil {
 		log.Errorf("Failed to get required information to report cluster usage because %s", err)
+		recordInvalidMetrics(metrics, e)
 		return
 	}
 	availableNodeResource := *allocatableNodeResource
 	totalNodeResource := common.CalculateTotalResource(allAvailableProcessingNodes)
 
-	m.nodeCount.Set(float64(len(allAvailableProcessingNodes)))
+	metrics <- prometheus.MustNewConstMetric(nodeCountDesc, prometheus.GaugeValue, float64(len(allAvailableProcessingNodes)))
 	for resourceType, allocatable := range availableNodeResource {
-		m.nodeAvailableResource.WithLabelValues(resourceType).Set(common.QuantityAsFloat64(allocatable))
+		metrics <- prometheus.MustNewConstMetric(nodeAvailableResourceDesc, prometheus.GaugeValue, common.QuantityAsFloat64(allocatable), resourceType)
 	}
 
-	for resourceType, allocatable := range totalNodeResource {
-		m.nodeTotalResource.WithLabelValues(resourceType).Set(common.QuantityAsFloat64(allocatable))
+	for resourceType, total := range totalNodeResource {
+		metrics <- prometheus.MustNewConstMetric(nodeTotalResourceDesc, prometheus.GaugeValue, common.QuantityAsFloat64(total), resourceType)
 	}
 }
 
@@ -216,4 +224,13 @@ func createPodPhaseMetric() map[string]*podMetric {
 		string(v1.PodFailed):    {resourceRequest: zeroComputeResource.DeepCopy(), resourceUsage: zeroComputeResource.DeepCopy()},
 		string(v1.PodUnknown):   {resourceRequest: zeroComputeResource.DeepCopy(), resourceUsage: zeroComputeResource.DeepCopy()},
 	}
+}
+
+func recordInvalidMetrics(metrics chan<- prometheus.Metric, e error) {
+	metrics <- prometheus.NewInvalidMetric(podCountDesc, e)
+	metrics <- prometheus.NewInvalidMetric(podResourceRequestDesc, e)
+	metrics <- prometheus.NewInvalidMetric(podResourceUsageDesc, e)
+	metrics <- prometheus.NewInvalidMetric(nodeCountDesc, e)
+	metrics <- prometheus.NewInvalidMetric(nodeAvailableResourceDesc, e)
+	metrics <- prometheus.NewInvalidMetric(nodeTotalResourceDesc, e)
 }
