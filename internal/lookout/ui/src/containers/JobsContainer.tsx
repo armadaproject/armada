@@ -19,6 +19,7 @@ interface JobsContainerState extends JobFilters {
   selectedJobs: Map<string, Job>
   cancelJobsModalContext: CancelJobsModalContext
   jobDetailsModalContext: JobDetailsModalContext
+  columnContext: ColumnContext
 }
 
 export interface JobFilters {
@@ -39,6 +40,17 @@ type JobFiltersQueryParams = {
   owner?: string
 }
 
+interface ColumnContext {
+  default: ColumnSpec[]
+  additional: ColumnSpec[]
+  selected: Set<string>
+}
+
+interface ColumnSpec {
+  id: string
+  name: string
+}
+
 const QUERY_STRING_OPTIONS: ParseOptions | StringifyOptions = {
   arrayFormat: "comma",
   parseBooleans: true,
@@ -48,6 +60,33 @@ const CANCELLABLE_JOB_STATES = [
   "Queued",
   "Pending",
   "Running",
+]
+
+const DEFAULT_COLUMNS = [
+  {
+    id: "queue",
+    name: "Queue",
+  },
+  {
+    id: "jobId",
+    name: "Job Id",
+  },
+  {
+    id: "owner",
+    name: "Owner",
+  },
+  {
+    id: "jobSet",
+    name: "Job Set",
+  },
+  {
+    id: "submissionTime",
+    name: "Submission Time",
+  },
+  {
+    id: "jobState",
+    name: "Job State",
+  },
 ]
 
 export function makeQueryStringFromFilters(filters: JobFilters): string {
@@ -146,6 +185,11 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
         open: false,
         job: undefined,
         expandedItems: new Set(),
+      },
+      columnContext: {
+        default: DEFAULT_COLUMNS,
+        additional: [],
+        selected: new Set<string>(DEFAULT_COLUMNS.map(c => c.id)),
       }
     }
 
@@ -167,6 +211,8 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     this.openJobDetailsModal = this.openJobDetailsModal.bind(this)
     this.toggleExpanded = this.toggleExpanded.bind(this)
     this.closeJobDetailsModal = this.closeJobDetailsModal.bind(this)
+
+    this.selectColumn = this.selectColumn.bind(this)
   }
 
   componentDidMount() {
@@ -370,6 +416,25 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     })
   }
 
+  selectColumn(id: string, selected: boolean) {
+    const selectedColumns = new Set<string>(this.state.columnContext.selected)
+    if (selected) {
+      selectedColumns.add(id)
+    }
+
+    if (!selected && selectedColumns.has(id)) {
+      selectedColumns.delete(id)
+    }
+
+    this.setState({
+      ...this.state,
+      columnContext: {
+        ...this.state.columnContext,
+        selected: selectedColumns,
+      }
+    })
+  }
+
   private async loadJobInfosForRange(start: number, stop: number) {
     let allJobInfos = this.state.jobs
     let canLoadMore = true
@@ -470,6 +535,8 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
           jobId={this.state.jobId}
           owner={this.state.owner}
           selectedJobs={this.state.selectedJobs}
+          defaultColumns={this.state.columnContext.default}
+          selectedColumns={this.state.columnContext.selected}
           cancelJobsButtonIsEnabled={this.selectedJobsAreCancellable()}
           fetchJobs={this.serveJobs}
           isLoaded={this.jobIsLoaded}
@@ -482,7 +549,8 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
           onRefresh={this.refresh}
           onSelectJob={this.selectJob}
           onCancelJobsClick={() => this.setCancelJobsModalState("CancelJobs")}
-          onJobIdClick={this.openJobDetailsModal}/>
+          onJobIdClick={this.openJobDetailsModal}
+          onSelectColumn={this.selectColumn}/>
       </Fragment>
     )
   }

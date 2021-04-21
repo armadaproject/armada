@@ -12,6 +12,7 @@ import './Jobs.css'
 import SearchHeaderCell from "./SearchHeaderCell";
 import JobStatesHeaderCell from "./JobStatesHeaderCell";
 import SubmissionTimeHeaderCell from "./SubmissionTimeHeaderCell";
+import { ColumnSpec } from "../../containers/JobTableColumnActions";
 
 type JobsProps = {
   jobs: Job[]
@@ -24,6 +25,8 @@ type JobsProps = {
   owner: string
   selectedJobs: Map<string, Job>
   cancelJobsButtonIsEnabled: boolean
+  defaultColumns: ColumnSpec[]
+  selectedColumns: Set<string>
   fetchJobs: (start: number, stop: number) => Promise<Job[]>
   isLoaded: (index: number) => boolean
   onQueueChange: (queue: string) => Promise<void>
@@ -36,6 +39,7 @@ type JobsProps = {
   onSelectJob: (job: Job, selected: boolean) => Promise<void>
   onCancelJobsClick: () => void
   onJobIdClick: (jobIndex: number) => void
+  onSelectColumn: (id: string, selected: boolean) => void
 }
 
 export default class Jobs extends React.Component<JobsProps, {}> {
@@ -83,6 +87,8 @@ export default class Jobs extends React.Component<JobsProps, {}> {
             jobId={this.props.jobId}
             jobStates={this.props.jobStates}
             canCancel={this.props.cancelJobsButtonIsEnabled}
+            defaultColumns={this.props.defaultColumns}
+            selectedColumns={this.props.selectedColumns}
             onQueueChange={async queue => {
               await this.props.onQueueChange(queue)
               this.resetCache()
@@ -107,7 +113,8 @@ export default class Jobs extends React.Component<JobsProps, {}> {
               await this.props.onRefresh()
               this.resetCache()
             }}
-            onCancelJobsClick={this.props.onCancelJobsClick}/>
+            onCancelJobsClick={this.props.onCancelJobsClick}
+            onSelectColumn={this.props.onSelectColumn}/>
         </div>
         <div className="job-table">
           <InfiniteLoader
@@ -154,7 +161,7 @@ export default class Jobs extends React.Component<JobsProps, {}> {
                     headerHeight={60}
                     height={height - 1}
                     width={width}>
-                    <Column
+                    {this.props.selectedColumns.has("queue") && <Column
                       dataKey="queue"
                       width={width / 6}
                       label="Queue"
@@ -167,8 +174,8 @@ export default class Jobs extends React.Component<JobsProps, {}> {
                             this.resetCache()
                           }}
                           {...headerProps}/>
-                      )}/>
-                    <Column
+                      )}/>}
+                    {this.props.selectedColumns.has("jobId") && <Column
                       dataKey="jobId"
                       width={width / 6}
                       label="Id"
@@ -184,8 +191,8 @@ export default class Jobs extends React.Component<JobsProps, {}> {
                             this.resetCache()
                           }}
                           {...headerProps}/>
-                      )}/>
-                    <Column
+                      )}/>}
+                    {this.props.selectedColumns.has("owner") && <Column
                       dataKey="owner"
                       width={width / 6}
                       label="Owner"
@@ -198,8 +205,8 @@ export default class Jobs extends React.Component<JobsProps, {}> {
                             this.resetCache()
                           }}
                           {...headerProps}/>
-                      )}/>
-                    <Column
+                      )}/>}
+                    {this.props.selectedColumns.has("jobSet") && <Column
                       dataKey="jobSet"
                       width={width / 6}
                       label="Job Set"
@@ -212,8 +219,8 @@ export default class Jobs extends React.Component<JobsProps, {}> {
                             this.resetCache()
                           }}
                           {...headerProps}/>
-                      )}/>
-                    <Column
+                      )}/>}
+                    {this.props.selectedColumns.has("submissionTime") && <Column
                       dataKey="submissionTime"
                       width={width / 6}
                       label="Submission Time"
@@ -225,8 +232,8 @@ export default class Jobs extends React.Component<JobsProps, {}> {
                             this.resetCache()
                           }}
                           {...headerProps}/>
-                      )}/>
-                    <Column
+                      )}/>}
+                    {this.props.selectedColumns.has("jobState") && <Column
                       dataKey="jobState"
                       width={width / 6}
                       label="State"
@@ -238,7 +245,7 @@ export default class Jobs extends React.Component<JobsProps, {}> {
                             this.resetCache()
                           }}
                           {...headerProps}/>
-                      )}/>
+                      )}/>}
                   </Table>
                 )}
               </AutoSizer>
