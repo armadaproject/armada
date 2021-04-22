@@ -248,6 +248,18 @@ func (repo *mockJobRepository) IterateQueueJobs(queueName string, action func(*a
 	return nil
 }
 
+func (repo *mockJobRepository) GetLeasedJobIds(queue string) ([]string, error) {
+	return []string{}, nil
+}
+
+func (repo *mockJobRepository) UpdateStartTime(jobId string, clusterId string, startTime time.Time) error {
+	return nil
+}
+
+func (repo *mockJobRepository) GetStartTimes(jobIds []string) (map[string]time.Time, error) {
+	return map[string]time.Time{}, nil
+}
+
 type fakeQueueRepository struct{}
 
 func (repo *fakeQueueRepository) GetAllQueues() ([]*api.Queue, error) {
