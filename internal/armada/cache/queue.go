@@ -6,6 +6,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
+	"github.com/G-Research/armada/internal/armada/metrics"
 	"github.com/G-Research/armada/internal/armada/repository"
 	"github.com/G-Research/armada/internal/armada/scheduling"
 	"github.com/G-Research/armada/internal/common"
@@ -21,7 +22,7 @@ type QueueCache struct {
 	schedulingInfoRepository repository.SchedulingInfoRepository
 
 	refreshMutex           sync.Mutex
-	queueDurations         map[string]*DurationMetrics
+	queueDurations         map[string]*metrics.DurationMetrics
 	queuedResources        map[string]map[string]common.ComputeResourcesFloat
 	queueNonMatchingJobIds map[string]map[string]stringSet
 }
@@ -35,7 +36,7 @@ func NewQueueCache(
 		queueRepository:          queueRepository,
 		jobRepository:            jobRepository,
 		schedulingInfoRepository: schedulingInfoRepository,
-		queueDurations:           map[string]*DurationMetrics{},
+		queueDurations:           map[string]*metrics.DurationMetrics{},
 		queuedResources:          map[string]map[string]common.ComputeResourcesFloat{},
 		queueNonMatchingJobIds:   map[string]map[string]stringSet{}}
 
@@ -61,14 +62,14 @@ func (c *QueueCache) Refresh() {
 	for _, queue := range queues {
 		resourceUsageByPool := map[string]common.ComputeResources{}
 		nonMatchingJobs := map[string]stringSet{}
-		queueDurationMetrics := NewDefaultJobDurationMetrics()
+		queueDurationMetricsRecorder := metrics.NewDefaultJobDurationMetricsRecorder()
 		currentTime := time.Now()
 		err := c.jobRepository.IterateQueueJobs(queue.Name, func(job *api.Job) {
 			jobResources := common.TotalJobResourceRequest(job)
 			nonMatchingClusters := stringSet{}
 
 			queuedTime := currentTime.Sub(job.Created)
-			queueDurationMetrics.Record(queuedTime.Seconds())
+			queueDurationMetricsRecorder.Record(queuedTime.Seconds())
 
 			for pool, infos := range clusterInfoByPool {
 				matches := false
@@ -98,11 +99,11 @@ func (c *QueueCache) Refresh() {
 
 		c.updateQueuedNonMatchingJobs(queue.Name, nonMatchingJobs)
 		c.updateQueuedResource(queue.Name, resourceUsageByPool)
-		c.updateQueueDurations(queue.Name, queueDurationMetrics)
+		c.updateQueueDurations(queue.Name, queueDurationMetricsRecorder.GetMetrics())
 	}
 }
 
-func (c *QueueCache) updateQueueDurations(queueName string, durationMetrics *DurationMetrics) {
+func (c *QueueCache) updateQueueDurations(queueName string, durationMetrics *metrics.DurationMetrics) {
 	c.refreshMutex.Lock()
 	defer c.refreshMutex.Unlock()
 
@@ -131,7 +132,7 @@ func (c *QueueCache) GetQueuedResources(queueName string) map[string]common.Comp
 	return c.queuedResources[queueName]
 }
 
-func (c *QueueCache) GetQueueDurations(queueName string) *DurationMetrics {
+func (c *QueueCache) GetQueueDurations(queueName string) *metrics.DurationMetrics {
 	c.refreshMutex.Lock()
 	defer c.refreshMutex.Unlock()
 	return c.queueDurations[queueName]
