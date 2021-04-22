@@ -85,6 +85,8 @@ func Serve(config *configuration.ArmadaConfig) (func(), *sync.WaitGroup) {
 		eventStore = repository.NewNatsEventStore(conn, config.EventsNats.Subject)
 		eventProcessor := repository.NewNatsEventRedisProcessor(conn, redisEventRepository, config.EventsNats.Subject, config.EventsNats.QueueGroup)
 		eventProcessor.Start()
+		jobStatusProcessor := repository.NewNatsEventJobStatusProcessor(conn, jobRepository, config.EventsNats.Subject, "job-status")
+		jobStatusProcessor.Start()
 
 		stopSubscription = func() {
 			err := conn.Close()

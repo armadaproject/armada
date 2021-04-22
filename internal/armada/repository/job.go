@@ -19,6 +19,7 @@ import (
 )
 
 const jobObjectPrefix = "Job:"
+const jobStartTimePrefix = "Job:StartTime"
 const jobQueuePrefix = "Job:Queue:"
 const jobSetPrefix = "Job:Set:"
 const jobLeasedPrefix = "Job:Leased:"
@@ -44,6 +45,9 @@ type JobRepository interface {
 	ReturnLease(clusterId string, jobId string) (returnedJob *api.Job, err error)
 	DeleteJobs(jobs []*api.Job) map[*api.Job]error
 	GetActiveJobIds(queue string, jobSetId string) ([]string, error)
+	GetLeasedJobIds(queue string) ([]string, error)
+	UpdateStartTime(jobId string, clusterId string, startTime time.Time) error
+	GetStartTimes(jobIds []string) (map[string]time.Time, error)
 	GetQueueActiveJobSets(queue string) ([]*api.JobSetInfo, error)
 	AddRetryAttempt(jobId string) error
 	GetNumberOfRetryAttempts(jobId string) (int, error)
@@ -197,6 +201,7 @@ type deleteJobRedisResponse struct {
 	removeFromLeasedResult         *redis.IntCmd
 	removeFromQueueResult          *redis.IntCmd
 	removeClusterAssociationResult *redis.IntCmd
+	removeStartTimeResult          *redis.IntCmd
 	setJobExpiryResult             *redis.BoolCmd
 	deleteJobSetIndexResult        *redis.IntCmd
 	deleteJobRetriesResult         *redis.IntCmd
@@ -211,6 +216,7 @@ func (repo *RedisJobRepository) DeleteJobs(jobs []*api.Job) map[*api.Job]error {
 		deletionResult.removeFromQueueResult = pipe.ZRem(jobQueuePrefix+job.Queue, job.Id)
 		deletionResult.removeFromLeasedResult = pipe.ZRem(jobLeasedPrefix+job.Queue, job.Id)
 		deletionResult.removeClusterAssociationResult = pipe.HDel(jobClusterMapKey, job.Id)
+		deletionResult.removeStartTimeResult = pipe.HDel(jobStartTimePrefix, job.Id)
 		deletionResult.deleteJobSetIndexResult = pipe.SRem(jobSetPrefix+job.JobSetId, job.Id)
 		deletionResult.deleteJobRetriesResult = pipe.Del(jobRetriesPrefix + job.Id)
 
@@ -284,6 +290,12 @@ func processDeletionResponse(deletionResponse *deleteJobRedisResponse) (int64, e
 	}
 
 	modified, e = deletionResponse.removeClusterAssociationResult.Result()
+	totalUpdates += modified
+	if e != nil {
+		errorMessage = e
+	}
+
+	modified, e = deletionResponse.removeStartTimeResult.Result()
 	totalUpdates += modified
 	if e != nil {
 		errorMessage = e
@@ -438,6 +450,44 @@ func (repo *RedisJobRepository) IterateQueueJobs(queueName string, action func(*
 
 	}
 	return nil
+}
+
+func (repo *RedisJobRepository) GetLeasedJobIds(queue string) ([]string, error) {
+	return repo.db.ZRange(jobLeasedPrefix+queue, 0, -1).Result()
+}
+
+func (repo *RedisJobRepository) UpdateStartTime(jobId string, clusterId string, startTime time.Time) error {
+	// TODO do with script to ensure current cluster matches
+
+	output := repo.db.HSet(jobStartTimePrefix, jobId, startTime.Format(time.UnixDate))
+	return output.Err()
+}
+
+func (repo *RedisJobRepository) GetStartTimes(jobIds []string) (map[string]time.Time, error) {
+	// TODO Only load start times for specific job ids
+	startTimes := make(map[string]time.Time, len(jobIds))
+
+	output := repo.db.HGetAll(jobStartTimePrefix)
+	if output.Err() != nil {
+		return startTimes, output.Err()
+	}
+
+	result, err := output.Result()
+	if err != nil {
+		return startTimes, err
+	}
+
+	for _, jobId := range jobIds {
+		if startTimeStr, present := result[jobId]; present {
+			startTime, err := time.Parse(time.UnixDate, startTimeStr)
+			if err != nil {
+				log.Errorf("Failed to parse start time for job %s because %s", jobId, err)
+				continue
+			}
+			startTimes[jobId] = startTime
+		}
+	}
+	return startTimes, nil
 }
 
 func (repo *RedisJobRepository) GetQueueJobIds(queueName string) ([]string, error) {

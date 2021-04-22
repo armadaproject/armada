@@ -1,6 +1,8 @@
 package metrics
 
 import (
+	"time"
+
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 
@@ -8,6 +10,7 @@ import (
 	"github.com/G-Research/armada/internal/armada/repository"
 	"github.com/G-Research/armada/internal/armada/scheduling"
 	"github.com/G-Research/armada/internal/common"
+	"github.com/G-Research/armada/pkg/api"
 )
 
 const MetricPrefix = "armada_"
@@ -15,6 +18,7 @@ const MetricPrefix = "armada_"
 type QueueMetricProvider interface {
 	GetQueuedResources(queueName string) map[string]common.ComputeResourcesFloat
 	GetQueueDurations(queueName string) *cache.DurationMetrics
+	//GetRunTimeDurations(queueName string) *cache.DurationMetrics
 }
 
 func ExposeDataMetrics(
@@ -84,6 +88,27 @@ var queueDurationDesc = prometheus.NewDesc(
 	nil,
 )
 
+var minJobRunDurationDesc = prometheus.NewDesc(
+	MetricPrefix+"job_min_run_time_seconds",
+	"Min run time for Armada jobs",
+	[]string{"queueName"},
+	nil,
+)
+
+var maxJobRunDurationDesc = prometheus.NewDesc(
+	MetricPrefix+"job_max_run_time_seconds",
+	"Max run time for Armada jobs",
+	[]string{"queueName"},
+	nil,
+)
+
+var jobRunDurationDesc = prometheus.NewDesc(
+	MetricPrefix+"job_run_time_seconds",
+	"Run time for Armada jobs",
+	[]string{"queueName"},
+	nil,
+)
+
 var queueAllocatedDesc = prometheus.NewDesc(
 	MetricPrefix+"queue_resource_allocated",
 	"Resource allocated to running jobs of a queue",
@@ -143,6 +168,8 @@ func (c *QueueInfoCollector) Collect(metrics chan<- prometheus.Metric) {
 		return
 	}
 
+	runDurations := c.calculateRunningJobRunDurations(queues)
+
 	activeClusterReports := scheduling.FilterActiveClusters(usageReports)
 	clusterPriorities, e := c.usageRepository.GetClusterPriorities(scheduling.GetClusterReportIds(activeClusterReports))
 	if e != nil {
@@ -171,6 +198,14 @@ func (c *QueueInfoCollector) Collect(metrics chan<- prometheus.Metric) {
 				queueDurations.GetSum(), queueDurations.GetBuckets(), q.Name)
 			metrics <- prometheus.MustNewConstMetric(minQueueDurationDesc, prometheus.GaugeValue, queueDurations.GetMin(), q.Name)
 			metrics <- prometheus.MustNewConstMetric(maxQueueDurationDesc, prometheus.GaugeValue, queueDurations.GetMax(), q.Name)
+		}
+
+		runningJobDuration := runDurations[q.Name]
+		if runningJobDuration.GetCount() > 0 {
+			metrics <- prometheus.MustNewConstHistogram(jobRunDurationDesc, runningJobDuration.GetCount(),
+				runningJobDuration.GetSum(), runningJobDuration.GetBuckets(), q.Name)
+			metrics <- prometheus.MustNewConstMetric(minJobRunDurationDesc, prometheus.GaugeValue, runningJobDuration.GetMin(), q.Name)
+			metrics <- prometheus.MustNewConstMetric(maxJobRunDurationDesc, prometheus.GaugeValue, runningJobDuration.GetMax(), q.Name)
 		}
 
 		for pool, poolResources := range c.queueMetrics.GetQueuedResources(q.Name) {
@@ -223,6 +258,36 @@ func (c *QueueInfoCollector) Collect(metrics chan<- prometheus.Metric) {
 				resourceType)
 		}
 	}
+}
+
+func (c *QueueInfoCollector) calculateRunningJobRunDurations(queues []*api.Queue) map[string]*cache.DurationMetrics {
+	runDurationMetrics := make(map[string]*cache.DurationMetrics)
+	for _, queue := range queues {
+		now := time.Now()
+		runDurations := cache.NewDefaultJobDurationMetrics()
+
+		leasedJobs, e := c.jobRepository.GetLeasedJobIds(queue.Name)
+		if e != nil {
+			log.Errorf("Error getting queue(%s) run duration metrics %s", queue.Name, e)
+			runDurationMetrics[queue.Name] = runDurations
+			continue
+		}
+
+		startTimes, e := c.jobRepository.GetStartTimes(leasedJobs)
+		if e != nil {
+			log.Errorf("Error getting queue(%s) run duration metrics %s", queue.Name, e)
+			runDurationMetrics[queue.Name] = runDurations
+			continue
+		}
+
+		for _, startTime := range startTimes {
+			runTime := now.Sub(startTime)
+			runDurations.Record(runTime.Seconds())
+		}
+
+		runDurationMetrics[queue.Name] = runDurations
+	}
+	return runDurationMetrics
 }
 
 func recordInvalidMetrics(metrics chan<- prometheus.Metric, e error) {

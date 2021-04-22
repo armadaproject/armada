@@ -61,14 +61,14 @@ func (c *QueueCache) Refresh() {
 	for _, queue := range queues {
 		resourceUsageByPool := map[string]common.ComputeResources{}
 		nonMatchingJobs := map[string]stringSet{}
-		durationMetrics := NewDefaultJobDurationMetrics()
+		queueDurationMetrics := NewDefaultJobDurationMetrics()
 		currentTime := time.Now()
 		err := c.jobRepository.IterateQueueJobs(queue.Name, func(job *api.Job) {
 			jobResources := common.TotalJobResourceRequest(job)
 			nonMatchingClusters := stringSet{}
 
 			queuedTime := currentTime.Sub(job.Created)
-			durationMetrics.Record(queuedTime.Seconds())
+			queueDurationMetrics.Record(queuedTime.Seconds())
 
 			for pool, infos := range clusterInfoByPool {
 				matches := false
@@ -98,7 +98,7 @@ func (c *QueueCache) Refresh() {
 
 		c.updateQueuedNonMatchingJobs(queue.Name, nonMatchingJobs)
 		c.updateQueuedResource(queue.Name, resourceUsageByPool)
-		c.updateQueueDurations(queue.Name, durationMetrics)
+		c.updateQueueDurations(queue.Name, queueDurationMetrics)
 	}
 }
 
