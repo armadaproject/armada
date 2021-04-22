@@ -128,7 +128,21 @@ func (m *ClusterContextMetrics) Describe(desc chan<- *prometheus.Desc) {
 func (m *ClusterContextMetrics) Collect(metrics chan<- prometheus.Metric) {
 	pods, e := m.context.GetBatchPods()
 	if e != nil {
-		log.Errorf("Unable to batch pods to calculate pod metrics because: %v", e)
+		log.Errorf("Unable to get batch pods to calculate pod metrics because: %v", e)
+		recordInvalidMetrics(metrics, e)
+		return
+	}
+
+	allAvailableProcessingNodes, err := m.utilisationService.GetAllAvailableProcessingNodes()
+	if err != nil {
+		log.Errorf("Failed to get required information to calculate node metrics because %s", err)
+		recordInvalidMetrics(metrics, e)
+		return
+	}
+
+	allocatableNodeResource, err := m.utilisationService.GetTotalAllocatableClusterCapacity()
+	if err != nil {
+		log.Errorf("Failed to get required information to calculate node metrics because %s", err)
 		recordInvalidMetrics(metrics, e)
 		return
 	}
@@ -184,19 +198,6 @@ func (m *ClusterContextMetrics) Collect(metrics chan<- prometheus.Metric) {
 		}
 	}
 
-	allAvailableProcessingNodes, err := m.utilisationService.GetAllAvailableProcessingNodes()
-	if err != nil {
-		log.Errorf("Failed to get required information to report cluster usage because %s", err)
-		recordInvalidMetrics(metrics, e)
-		return
-	}
-
-	allocatableNodeResource, err := m.utilisationService.GetTotalAllocatableClusterCapacity()
-	if err != nil {
-		log.Errorf("Failed to get required information to report cluster usage because %s", err)
-		recordInvalidMetrics(metrics, e)
-		return
-	}
 	availableNodeResource := *allocatableNodeResource
 	totalNodeResource := common.CalculateTotalResource(allAvailableProcessingNodes)
 
