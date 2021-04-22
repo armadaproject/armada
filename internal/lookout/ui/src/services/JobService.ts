@@ -233,7 +233,7 @@ export default class JobService {
 }
 
 function escapeBackslashes(str: string) {
-  return str.replaceAll("\\", "\\\\")
+  return str.split('\\').join('\\\\')
 }
 
 function queueInfoToViewModel(queueInfo: LookoutQueueInfo): QueueInfo {
