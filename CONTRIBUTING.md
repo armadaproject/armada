@@ -19,7 +19,7 @@ If you spot a bug, then please raise an issue in our main GitHub project:
 
 Likewise, if you have developed a cool new feature or improvement, then send us a pull request!
 
-If you want to brainstorm a potential new feature, hop on over to our Gitter room, listed below.
+If you want to brainstorm a potential new feature, hop on over to the Discussions page, listed below.
 
 
 ## Discussions
