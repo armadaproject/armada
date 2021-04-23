@@ -22,13 +22,12 @@ Likewise, if you have developed a cool new feature or improvement, then send us 
 If you want to brainstorm a potential new feature, hop on over to our Gitter room, listed below.
 
 
-## Gitter
+## Discussions
 
-Sometimes, it's good to hash things out in real time.  We have a Gitter community where you can chat with other Armada developers and get feedback and support (even if it's just moral support!).
+Sometimes, it's good to hash things out in real time.  GH Discussions is a place to chat with other Armada developers and get feedback and support (even if it's just moral support!).
 
-To join our Gitter community, use this link:
-
-* [https://gitter.im/ArmadaProject/community](https://gitter.im/ArmadaProject/community)
+To join the conversation there, go to Discussions: 
+* [https://github.com/G-Research/armada/discussions](https://github.com/G-Research/armada/discussions)
 
 ## License
 
