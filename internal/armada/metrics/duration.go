@@ -55,6 +55,7 @@ func (d *DurationMetricsRecorder) Record(value float64) {
 		}
 	}
 }
+
 func (d *DurationMetricsRecorder) calculateMedian() float64 {
 	if len(d.values) == 0 {
 		return 0

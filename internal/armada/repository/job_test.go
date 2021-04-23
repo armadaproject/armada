@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"math"
 	"testing"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 
 	"github.com/G-Research/armada/internal/armada/authorization"
 	"github.com/G-Research/armada/internal/common"
+	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/pkg/api"
 )
 
@@ -227,6 +229,78 @@ func TestGetActiveJobIds(t *testing.T) {
 		ids, e := r.GetActiveJobIds("queue1", "set1")
 		assert.Nil(t, e)
 		assert.Equal(t, 2, len(ids))
+	})
+}
+
+func TestGetLeasedJobIds(t *testing.T) {
+	withRepository(func(r *RedisJobRepository) {
+		addTestJob(t, r, "queue1")
+		leasedJob1 := addLeasedJob(t, r, "queue1", "cluster1")
+		leasedJob2 := addLeasedJob(t, r, "queue1", "cluster2")
+		addTestJob(t, r, "queue2")
+		addLeasedJob(t, r, "queue2", "cluster1")
+
+		ids, e := r.GetLeasedJobIds("queue1")
+		assert.Nil(t, e)
+		assert.Equal(t, 2, len(ids))
+		idsSet := util.StringListToSet(ids)
+		assert.True(t, idsSet[leasedJob1.Id])
+		assert.True(t, idsSet[leasedJob2.Id])
+	})
+}
+
+func TestUpdateStartTime(t *testing.T) {
+	withRepository(func(r *RedisJobRepository) {
+		leasedJob := addLeasedJob(t, r, "queue1", "cluster1")
+
+		startTime := time.Now()
+		err := r.UpdateStartTime(leasedJob.Id, "cluster1", startTime)
+		assert.Nil(t, err)
+	})
+}
+
+//func TestUpdateStartTime_NonExistentJob(t *testing.T) {
+//	withRepository(func(r *RedisJobRepository) {
+//		startTime := time.Now()
+//		err := r.UpdateStartTime("NonExistent", "cluster1", startTime)
+//		assert.NotNil(t, err)
+//	})
+//}
+
+// Saving/reading the start time shouldn't adjust the actual time it happened
+// i.e If the start time happened "now" but in a different time zone, the difference between the start time and now should be ~0 seconds
+func TestSaveAndRetrieveStartTime_HandlesDifferentTimeZones(t *testing.T) {
+	withRepository(func(r *RedisJobRepository) {
+		loc, err := time.LoadLocation("Asia/Shanghai")
+		assert.Nil(t, err)
+		now := time.Now().UTC()
+		leasedJob := addLeasedJob(t, r, "queue1", "cluster1")
+
+		startTime := now.In(loc)
+		err = r.UpdateStartTime(leasedJob.Id, "cluster1", startTime)
+		assert.Nil(t, err)
+
+		startTimes, err := r.GetStartTimes([]string{leasedJob.Id})
+		assert.Nil(t, err)
+		diff := startTimes[leasedJob.Id].Sub(now).Seconds()
+		diff = math.Abs(diff)
+		assert.True(t, diff < float64(1))
+	})
+}
+
+func TestGetStartTimes(t *testing.T) {
+	withRepository(func(r *RedisJobRepository) {
+		leasedJob1 := addLeasedJob(t, r, "queue1", "cluster1")
+		leasedJob2 := addLeasedJob(t, r, "queue1", "cluster2")
+
+		startTime := time.Now()
+		err := r.UpdateStartTime(leasedJob1.Id, "cluster1", startTime)
+		assert.Nil(t, err)
+
+		startTimes, err := r.GetStartTimes([]string{leasedJob1.Id, leasedJob2.Id})
+		assert.Nil(t, err)
+		assert.Equal(t, 1, len(startTimes))
+		assert.Equal(t, startTimes[leasedJob1.Id].Format(time.RFC1123Z), startTime.Format(time.RFC1123Z))
 	})
 }
 

@@ -458,28 +458,29 @@ func (repo *RedisJobRepository) GetLeasedJobIds(queue string) ([]string, error) 
 
 func (repo *RedisJobRepository) UpdateStartTime(jobId string, clusterId string, startTime time.Time) error {
 	// TODO do with script to ensure current cluster matches
+	// TODO check job exists
 
-	output := repo.db.HSet(jobStartTimePrefix, jobId, startTime.Format(time.UnixDate))
+	output := repo.db.HSet(jobStartTimePrefix, jobId, startTime.Format(time.RFC1123Z))
 	return output.Err()
 }
 
 func (repo *RedisJobRepository) GetStartTimes(jobIds []string) (map[string]time.Time, error) {
-	// TODO Only load start times for specific job ids
 	startTimes := make(map[string]time.Time, len(jobIds))
-
-	output := repo.db.HGetAll(jobStartTimePrefix)
-	if output.Err() != nil {
-		return startTimes, output.Err()
-	}
-
-	result, err := output.Result()
-	if err != nil {
-		return startTimes, err
-	}
+	pipe := repo.db.Pipeline()
+	cmds := make(map[string]*redis.StringCmd, len(jobIds))
 
 	for _, jobId := range jobIds {
-		if startTimeStr, present := result[jobId]; present {
-			startTime, err := time.Parse(time.UnixDate, startTimeStr)
+		cmds[jobId] = pipe.HGet(jobStartTimePrefix, jobId)
+	}
+
+	_, e := pipe.Exec()
+	if e != nil && e != redis.Nil {
+		return startTimes, e
+	}
+
+	for jobId, cmd := range cmds {
+		if cmd.Val() != "" {
+			startTime, err := time.Parse(time.RFC1123Z, cmd.Val())
 			if err != nil {
 				log.Errorf("Failed to parse start time for job %s because %s", jobId, err)
 				continue
@@ -487,6 +488,7 @@ func (repo *RedisJobRepository) GetStartTimes(jobIds []string) (map[string]time.
 			startTimes[jobId] = startTime
 		}
 	}
+
 	return startTimes, nil
 }
 
