@@ -259,13 +259,45 @@ func TestUpdateStartTime(t *testing.T) {
 	})
 }
 
-//func TestUpdateStartTime_NonExistentJob(t *testing.T) {
-//	withRepository(func(r *RedisJobRepository) {
-//		startTime := time.Now()
-//		err := r.UpdateStartTime("NonExistent", "cluster1", startTime)
-//		assert.NotNil(t, err)
-//	})
-//}
+func TestUpdateStartTime_ForClusterJobNotAssociatedWith(t *testing.T) {
+	withRepository(func(r *RedisJobRepository) {
+		leasedJob := addLeasedJob(t, r, "queue1", "cluster1")
+
+		startTime := time.Now()
+		startTimePlusOneHour := time.Now().Add(time.Hour)
+		err := r.UpdateStartTime(leasedJob.Id, "cluster1", startTimePlusOneHour)
+		assert.Nil(t, err)
+		err = r.UpdateStartTime(leasedJob.Id, "cluster2", startTime)
+		assert.NotNil(t, err)
+	})
+}
+
+func TestUpdateStartTime_UsesEarlierTime(t *testing.T) {
+	withRepository(func(r *RedisJobRepository) {
+		leasedJob := addLeasedJob(t, r, "queue1", "cluster1")
+
+		startTime := time.Now()
+		startTimePlusOneHour := time.Now().Add(time.Hour)
+		err := r.UpdateStartTime(leasedJob.Id, "cluster1", startTime)
+		assert.Nil(t, err)
+		err = r.UpdateStartTime(leasedJob.Id, "cluster1", startTimePlusOneHour)
+		assert.Nil(t, err)
+
+		startTimes, err := r.GetStartTimes([]string{leasedJob.Id})
+		assert.Nil(t, err)
+		assert.Equal(t, 1, len(startTimes))
+		assert.Equal(t, startTimes[leasedJob.Id].UTC(), startTime.UTC())
+		assert.NotEqual(t, startTimes[leasedJob.Id].UTC(), startTimePlusOneHour.UTC())
+	})
+}
+
+func TestUpdateStartTime_NonExistentJob(t *testing.T) {
+	withRepository(func(r *RedisJobRepository) {
+		startTime := time.Now()
+		err := r.UpdateStartTime("NonExistent", "cluster1", startTime)
+		assert.NotNil(t, err)
+	})
+}
 
 // Saving/reading the start time shouldn't adjust the actual time it happened
 // i.e If the start time happened "now" but in a different time zone, the difference between the start time and now should be ~0 seconds
@@ -284,6 +316,7 @@ func TestSaveAndRetrieveStartTime_HandlesDifferentTimeZones(t *testing.T) {
 		assert.Nil(t, err)
 		diff := startTimes[leasedJob.Id].Sub(now).Seconds()
 		diff = math.Abs(diff)
+		assert.Equal(t, 1, len(startTimes))
 		assert.True(t, diff < float64(1))
 	})
 }
@@ -300,7 +333,7 @@ func TestGetStartTimes(t *testing.T) {
 		startTimes, err := r.GetStartTimes([]string{leasedJob1.Id, leasedJob2.Id})
 		assert.Nil(t, err)
 		assert.Equal(t, 1, len(startTimes))
-		assert.Equal(t, startTimes[leasedJob1.Id].Format(time.RFC1123Z), startTime.Format(time.RFC1123Z))
+		assert.Equal(t, startTimes[leasedJob1.Id].UTC(), startTime.UTC())
 	})
 }
 

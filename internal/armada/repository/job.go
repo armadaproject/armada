@@ -364,6 +364,7 @@ func (repo *RedisJobRepository) GetExistingJobsByIds(ids []string) ([]*api.Job, 
 		if e != nil {
 			if e == redis.Nil {
 				log.Warnf("No job found with with job id %s", ids[index])
+				continue
 			} else {
 				return nil, e
 			}
@@ -457,12 +458,53 @@ func (repo *RedisJobRepository) GetLeasedJobIds(queue string) ([]string, error) 
 }
 
 func (repo *RedisJobRepository) UpdateStartTime(jobId string, clusterId string, startTime time.Time) error {
-	// TODO do with script to ensure current cluster matches
-	// TODO check job exists
+	// This is a bit naive, we will update to the earliest start time provided
+	// TODO When we have a proper concept of lease, associate start time with that specific lease (ideally earliest value for that lease)
 
-	output := repo.db.HSet(jobStartTimePrefix, jobId, startTime.Format(time.RFC1123Z))
-	return output.Err()
+	jobs, e := repo.GetExistingJobsByIds([]string{jobId})
+	if e != nil {
+		return e
+	}
+
+	if len(jobs) <= 0 {
+		return fmt.Errorf("failed to update start time for job %s as no job found with that id", jobId)
+	}
+
+	output := updateStartTimeScript.Run(repo.db, []string{jobStartTimePrefix, jobClusterMapKey}, clusterId, jobId, startTime.UnixNano())
+
+	value, e := output.Int()
+	if value == allocatedToDifferentCluster {
+		return fmt.Errorf("failed to update start time for job %s as job allocated to different cluster", jobId)
+	}
+
+	return e
 }
+
+const allocatedToDifferentCluster = -41
+
+var updateStartTimeScript = redis.NewScript(`
+local startTimeKey = KEYS[1]
+local clusterAssociation = KEYS[2]
+
+local clusterId = ARGV[1]
+local jobId = ARGV[2]
+local startTime = ARGV[3]
+local startTimeNumber = tonumber(ARGV[3])
+
+local currentClusterId = redis.call('HGET', clusterAssociation, jobId)
+	
+if currentClusterId ~= clusterId then
+	return -41
+end
+
+local currentStartTime = tonumber(redis.call('HGET', startTimeKey, jobId))
+
+if currentStartTime ~= nil and currentStartTime < startTimeNumber then
+	return 0
+end
+
+return redis.call('HSET', startTimeKey, jobId, startTime)
+`)
 
 func (repo *RedisJobRepository) GetStartTimes(jobIds []string) (map[string]time.Time, error) {
 	startTimes := make(map[string]time.Time, len(jobIds))
@@ -480,12 +522,12 @@ func (repo *RedisJobRepository) GetStartTimes(jobIds []string) (map[string]time.
 
 	for jobId, cmd := range cmds {
 		if cmd.Val() != "" {
-			startTime, err := time.Parse(time.RFC1123Z, cmd.Val())
+			i, err := strconv.ParseInt(cmd.Val(), 10, 64)
 			if err != nil {
 				log.Errorf("Failed to parse start time for job %s because %s", jobId, err)
 				continue
 			}
-			startTimes[jobId] = startTime
+			startTimes[jobId] = time.Unix(0, i)
 		}
 	}
 
