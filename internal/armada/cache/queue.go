@@ -22,7 +22,7 @@ type QueueCache struct {
 	schedulingInfoRepository repository.SchedulingInfoRepository
 
 	refreshMutex           sync.Mutex
-	queueDurations         map[string]*metrics.DurationMetrics
+	queueDurations         map[string]map[string]*metrics.DurationMetrics
 	queuedResources        map[string]map[string]common.ComputeResourcesFloat
 	queueNonMatchingJobIds map[string]map[string]stringSet
 }
@@ -36,7 +36,7 @@ func NewQueueCache(
 		queueRepository:          queueRepository,
 		jobRepository:            jobRepository,
 		schedulingInfoRepository: schedulingInfoRepository,
-		queueDurations:           map[string]*metrics.DurationMetrics{},
+		queueDurations:           map[string]map[string]*metrics.DurationMetrics{},
 		queuedResources:          map[string]map[string]common.ComputeResourcesFloat{},
 		queueNonMatchingJobIds:   map[string]map[string]stringSet{}}
 
@@ -62,14 +62,12 @@ func (c *QueueCache) Refresh() {
 	for _, queue := range queues {
 		resourceUsageByPool := map[string]common.ComputeResources{}
 		nonMatchingJobs := map[string]stringSet{}
-		queueDurationMetricsRecorder := metrics.NewDefaultJobDurationMetricsRecorder()
+		queueDurationByPool := map[string]*metrics.DurationMetricsRecorder{}
 		currentTime := time.Now()
 		err := c.jobRepository.IterateQueueJobs(queue.Name, func(job *api.Job) {
 			jobResources := common.TotalJobResourceRequest(job)
 			nonMatchingClusters := stringSet{}
-
 			queuedTime := currentTime.Sub(job.Created)
-			queueDurationMetricsRecorder.Record(queuedTime.Seconds())
 
 			for pool, infos := range clusterInfoByPool {
 				matches := false
@@ -88,6 +86,13 @@ func (c *QueueCache) Refresh() {
 						resourceUsageByPool[pool] = r
 					}
 					r.Add(jobResources)
+
+					qd, exists := queueDurationByPool[pool]
+					if !exists {
+						qd = metrics.NewDefaultJobDurationMetricsRecorder()
+						queueDurationByPool[pool] = qd
+					}
+					qd.Record(queuedTime.Seconds())
 				}
 			}
 			nonMatchingJobs[job.Id] = nonMatchingClusters
@@ -99,15 +104,18 @@ func (c *QueueCache) Refresh() {
 
 		c.updateQueuedNonMatchingJobs(queue.Name, nonMatchingJobs)
 		c.updateQueuedResource(queue.Name, resourceUsageByPool)
-		c.updateQueueDurations(queue.Name, queueDurationMetricsRecorder.GetMetrics())
+		c.updateQueueDurations(queue.Name, queueDurationByPool)
 	}
 }
 
-func (c *QueueCache) updateQueueDurations(queueName string, durationMetrics *metrics.DurationMetrics) {
+func (c *QueueCache) updateQueueDurations(queueName string, queueDurationsByPool map[string]*metrics.DurationMetricsRecorder) {
 	c.refreshMutex.Lock()
 	defer c.refreshMutex.Unlock()
-
-	c.queueDurations[queueName] = durationMetrics
+	durationMetricsByPool := make(map[string]*metrics.DurationMetrics, len(queueDurationsByPool))
+	for pool, queueDurations := range queueDurationsByPool {
+		durationMetricsByPool[pool] = queueDurations.GetMetrics()
+	}
+	c.queueDurations[queueName] = durationMetricsByPool
 }
 
 func (c *QueueCache) updateQueuedResource(queueName string, resourcesByPool map[string]common.ComputeResources) {
@@ -132,7 +140,7 @@ func (c *QueueCache) GetQueuedResources(queueName string) map[string]common.Comp
 	return c.queuedResources[queueName]
 }
 
-func (c *QueueCache) GetQueueDurations(queueName string) *metrics.DurationMetrics {
+func (c *QueueCache) GetQueueDurations(queueName string) map[string]*metrics.DurationMetrics {
 	c.refreshMutex.Lock()
 	defer c.refreshMutex.Unlock()
 	return c.queueDurations[queueName]
