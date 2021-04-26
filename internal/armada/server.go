@@ -65,12 +65,22 @@ func Serve(config *configuration.ArmadaConfig) (func(), *sync.WaitGroup) {
 			MinBytes: 0,    // 10KB
 			MaxBytes: 10e6, // 10MB
 		})
+		jobStatusReader := kafka.NewReader(kafka.ReaderConfig{
+			Brokers:  config.EventsKafka.Brokers,
+			GroupID:  config.EventsKafka.JobStatusConsumerGroupID,
+			Topic:    config.EventsKafka.Topic,
+			MaxWait:  500 * time.Millisecond,
+			MinBytes: 0,    // 10KB
+			MaxBytes: 10e6, // 10MB
+		})
 
 		eventStore = repository.NewKafkaEventStore(writer)
 		eventProcessor := repository.NewKafkaEventRedisProcessor(reader, redisEventRepository)
+		jobStatusEventProcessor := repository.NewKafkaJobStatusProcessor(jobStatusReader, jobRepository)
 
 		//TODO: Remove this metric, and add one to track event delay
 		taskManager.Register(eventProcessor.ProcessEvents, 100*time.Millisecond, "kafka_redis_processor")
+		taskManager.Register(jobStatusEventProcessor.ProcessEvents, 100*time.Millisecond, "kafka_job_status_processor")
 
 	} else if len(config.EventsNats.Servers) > 0 {
 
@@ -85,7 +95,7 @@ func Serve(config *configuration.ArmadaConfig) (func(), *sync.WaitGroup) {
 		eventStore = repository.NewNatsEventStore(conn, config.EventsNats.Subject)
 		eventProcessor := repository.NewNatsEventRedisProcessor(conn, redisEventRepository, config.EventsNats.Subject, config.EventsNats.QueueGroup)
 		eventProcessor.Start()
-		jobStatusProcessor := repository.NewNatsEventJobStatusProcessor(conn, jobRepository, config.EventsNats.Subject, "job-status")
+		jobStatusProcessor := repository.NewNatsEventJobStatusProcessor(conn, jobRepository, config.EventsNats.Subject, config.EventsNats.JobStatusGroup)
 		jobStatusProcessor.Start()
 
 		stopSubscription = func() {
