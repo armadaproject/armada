@@ -337,8 +337,11 @@ func (c *QueueInfoCollector) calculateRunningJobRunDurations(
 			}
 		}
 
-		for pool, durations := range metricsRecorderByPool {
-			runDurationMetrics[queue.Name][pool] = durations.GetMetrics()
+		if len(metricsRecorderByPool) > 0 {
+			runDurationMetrics[queue.Name] = make(map[string]*DurationMetrics, len(metricsRecorderByPool))
+			for pool, durations := range metricsRecorderByPool {
+				runDurationMetrics[queue.Name][pool] = durations.GetMetrics()
+			}
 		}
 	}
 	return runDurationMetrics
