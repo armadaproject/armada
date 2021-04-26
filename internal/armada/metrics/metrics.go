@@ -15,8 +15,8 @@ import (
 const MetricPrefix = "armada_"
 
 type QueueMetricProvider interface {
-	GetQueuedResources(queueName string) map[string]common.ComputeResourcesFloat
-	GetQueueDurations(queueName string) map[string]*DurationMetrics
+	GetQueuedResources(queueName string) map[string]ResourceMetrics
+	GetQueueDurations(queueName string) map[string]*FloatMetrics
 }
 
 func ExposeDataMetrics(
@@ -240,7 +240,7 @@ func (c *QueueInfoCollector) Collect(metrics chan<- prometheus.Metric) {
 
 		for pool, poolResources := range c.queueMetrics.GetQueuedResources(q.Name) {
 			for resourceType, amount := range poolResources {
-				metrics <- prometheus.MustNewConstMetric(queueResourcesDesc, prometheus.GaugeValue, amount, pool, q.Name, resourceType)
+				metrics <- prometheus.MustNewConstMetric(queueResourcesDesc, prometheus.GaugeValue, amount.GetSum(), pool, q.Name, resourceType)
 			}
 		}
 	}
@@ -291,12 +291,12 @@ func (c *QueueInfoCollector) Collect(metrics chan<- prometheus.Metric) {
 }
 
 func (c *QueueInfoCollector) calculateRunningJobRunDurations(
-	queues []*api.Queue, clusterSchedulingInfoByPool map[string]map[string]*api.ClusterSchedulingInfoReport) map[string]map[string]*DurationMetrics {
+	queues []*api.Queue, clusterSchedulingInfoByPool map[string]map[string]*api.ClusterSchedulingInfoReport) map[string]map[string]*FloatMetrics {
 
-	runDurationMetrics := make(map[string]map[string]*DurationMetrics)
+	runDurationMetrics := make(map[string]map[string]*FloatMetrics)
 
 	for _, queue := range queues {
-		metricsRecorderByPool := make(map[string]*DurationMetricsRecorder)
+		metricsRecorderByPool := make(map[string]*FloatMetricsRecorder)
 		leasedJobsIds, e := c.jobRepository.GetLeasedJobIds(queue.Name)
 		if e != nil {
 			log.Errorf("Error getting queue(%s) run duration metrics %s", queue.Name, e)
@@ -338,7 +338,7 @@ func (c *QueueInfoCollector) calculateRunningJobRunDurations(
 		}
 
 		if len(metricsRecorderByPool) > 0 {
-			runDurationMetrics[queue.Name] = make(map[string]*DurationMetrics, len(metricsRecorderByPool))
+			runDurationMetrics[queue.Name] = make(map[string]*FloatMetrics, len(metricsRecorderByPool))
 			for pool, durations := range metricsRecorderByPool {
 				runDurationMetrics[queue.Name][pool] = durations.GetMetrics()
 			}
