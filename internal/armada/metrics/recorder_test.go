@@ -67,7 +67,7 @@ func TestBuckets(t *testing.T) {
 		float64(100):  uint64(4),
 		float64(1000): uint64(6),
 	}
-	metricsRecorder := NewDurationMetrics(10, 100, 1000)
+	metricsRecorder := NewFloatMetricsRecorder(10, 100, 1000)
 	for _, value := range []float64{1, 10, 50, 100, 500, 1000, 5000} {
 		metricsRecorder.Record(value)
 	}
@@ -75,7 +75,7 @@ func TestBuckets(t *testing.T) {
 	assert.Equal(t, expected, metricsRecorder.GetMetrics().GetBuckets())
 }
 
-func recordMetrics(testValues []float64) *DurationMetricsRecorder {
+func recordMetrics(testValues []float64) *FloatMetricsRecorder {
 	metricsRecorder := NewDefaultJobDurationMetricsRecorder()
 	for _, value := range testValues {
 		metricsRecorder.Record(value)

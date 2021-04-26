@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-type DurationMetricsRecorder struct {
+type FloatMetricsRecorder struct {
 	min     float64
 	max     float64
 	sum     float64
@@ -14,19 +14,19 @@ type DurationMetricsRecorder struct {
 	buckets map[float64]uint64
 }
 
-func NewDurationMetrics(buckets ...float64) *DurationMetricsRecorder {
+func NewFloatMetricsRecorder(buckets ...float64) *FloatMetricsRecorder {
 	bucketsMap := make(map[float64]uint64, len(buckets))
 	for _, bucket := range buckets {
 		bucketsMap[bucket] = 0
 	}
-	return &DurationMetricsRecorder{
+	return &FloatMetricsRecorder{
 		values:  make([]float64, 0, 10),
 		buckets: bucketsMap,
 	}
 }
 
-func NewDefaultJobDurationMetricsRecorder() *DurationMetricsRecorder {
-	return NewDurationMetrics(
+func NewDefaultJobDurationMetricsRecorder() *FloatMetricsRecorder {
+	return NewFloatMetricsRecorder(
 		(time.Minute).Seconds(),
 		(time.Minute * 10).Seconds(),
 		(time.Minute * 30).Seconds(),
@@ -38,7 +38,7 @@ func NewDefaultJobDurationMetricsRecorder() *DurationMetricsRecorder {
 		(time.Hour * 24 * 7).Seconds())
 }
 
-func (d *DurationMetricsRecorder) Record(value float64) {
+func (d *FloatMetricsRecorder) Record(value float64) {
 	if d.count == 0 || value < d.min {
 		d.min = value
 	}
@@ -56,7 +56,7 @@ func (d *DurationMetricsRecorder) Record(value float64) {
 	}
 }
 
-func (d *DurationMetricsRecorder) calculateMedian() float64 {
+func (d *FloatMetricsRecorder) calculateMedian() float64 {
 	if len(d.values) == 0 {
 		return 0
 	}
@@ -70,18 +70,22 @@ func (d *DurationMetricsRecorder) calculateMedian() float64 {
 	return (d.values[medianPosition-1] + d.values[medianPosition]) / 2
 }
 
-func (d *DurationMetricsRecorder) GetMetrics() *DurationMetrics {
-	return &DurationMetrics{
+func (d *FloatMetricsRecorder) GetMetrics() *FloatMetrics {
+	copyBuckets := make(map[float64]uint64, len(d.buckets))
+	for key, value := range d.buckets {
+		copyBuckets[key] = value
+	}
+	return &FloatMetrics{
 		min:     d.min,
 		max:     d.max,
 		median:  d.calculateMedian(),
 		sum:     d.sum,
 		count:   d.count,
-		buckets: d.buckets,
+		buckets: copyBuckets,
 	}
 }
 
-type DurationMetrics struct {
+type FloatMetrics struct {
 	min     float64
 	max     float64
 	median  float64
@@ -90,27 +94,27 @@ type DurationMetrics struct {
 	buckets map[float64]uint64
 }
 
-func (d *DurationMetrics) GetMin() float64 {
+func (d *FloatMetrics) GetMin() float64 {
 	return d.min
 }
 
-func (d *DurationMetrics) GetMax() float64 {
+func (d *FloatMetrics) GetMax() float64 {
 	return d.max
 }
 
-func (d *DurationMetrics) GetMedian() float64 {
+func (d *FloatMetrics) GetMedian() float64 {
 	return d.median
 }
 
-func (d *DurationMetrics) GetCount() uint64 {
+func (d *FloatMetrics) GetCount() uint64 {
 	return d.count
 }
 
-func (d *DurationMetrics) GetSum() float64 {
+func (d *FloatMetrics) GetSum() float64 {
 	return d.sum
 }
 
-func (d *DurationMetrics) GetBuckets() map[float64]uint64 {
+func (d *FloatMetrics) GetBuckets() map[float64]uint64 {
 	copyBuckets := make(map[float64]uint64, len(d.buckets))
 	for key, value := range d.buckets {
 		copyBuckets[key] = value
