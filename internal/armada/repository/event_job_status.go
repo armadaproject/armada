@@ -49,7 +49,9 @@ func (p *NatsEventJobStatusProcessor) handleMessage(msg *stan.Msg) {
 			err = p.jobRepository.UpdateStartTime(event.JobId, event.ClusterId, event.Created)
 			if err != nil {
 				log.Errorf("Error while updating job start time: %v", err)
-				return
+				if err.Error() != JobNotFound {
+					return
+				}
 			}
 		}
 	}
@@ -93,7 +95,9 @@ func (p *KafkaEventJobStatusProcessor) ProcessEvents() {
 			err := p.jobRepository.UpdateStartTime(event.JobId, event.ClusterId, event.Created)
 			if err != nil {
 				log.Errorf("Error while updating job start time: %v", err)
-				return
+				if err.Error() != JobNotFound {
+					return
+				}
 			}
 		}
 	}
