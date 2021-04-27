@@ -103,24 +103,21 @@ func (c *QueueCache) Refresh() {
 		}
 
 		c.updateQueuedNonMatchingJobs(queue.Name, nonMatchingJobs)
-		c.updateQueuedResource(queue.Name, resourceUsageByPool)
-		c.updateQueueDurations(queue.Name, queueDurationByPool)
+		c.updateQueueMetrics(queue.Name, resourceUsageByPool, queueDurationByPool)
 	}
 }
 
-func (c *QueueCache) updateQueueDurations(queueName string, queueDurationsByPool map[string]*metrics.FloatMetricsRecorder) {
+func (c *QueueCache) updateQueueMetrics(queueName string, resourcesByPool map[string]*metrics.ResourceMetricsRecorder,
+	queueDurationsByPool map[string]*metrics.FloatMetricsRecorder) {
 	c.refreshMutex.Lock()
 	defer c.refreshMutex.Unlock()
+
 	durationMetricsByPool := make(map[string]*metrics.FloatMetrics, len(queueDurationsByPool))
 	for pool, queueDurations := range queueDurationsByPool {
 		durationMetricsByPool[pool] = queueDurations.GetMetrics()
 	}
 	c.queueDurations[queueName] = durationMetricsByPool
-}
 
-func (c *QueueCache) updateQueuedResource(queueName string, resourcesByPool map[string]*metrics.ResourceMetricsRecorder) {
-	c.refreshMutex.Lock()
-	defer c.refreshMutex.Unlock()
 	resourceMetricsByPool := make(map[string]metrics.ResourceMetrics, len(resourcesByPool))
 	for pool, res := range resourcesByPool {
 		resourceMetricsByPool[pool] = res.GetMetrics()
@@ -134,16 +131,13 @@ func (c *QueueCache) updateQueuedNonMatchingJobs(queueName string, nonMatchingCl
 	c.queueNonMatchingJobIds[queueName] = nonMatchingClustersById
 }
 
-func (c *QueueCache) GetQueuedResources(queueName string) map[string]metrics.ResourceMetrics {
+func (c *QueueCache) GetQueueMetrics(queueName string) *metrics.QueueMetrics {
 	c.refreshMutex.Lock()
 	defer c.refreshMutex.Unlock()
-	return c.queuedResources[queueName]
-}
-
-func (c *QueueCache) GetQueueDurations(queueName string) map[string]*metrics.FloatMetrics {
-	c.refreshMutex.Lock()
-	defer c.refreshMutex.Unlock()
-	return c.queueDurations[queueName]
+	return &metrics.QueueMetrics{
+		Resources: c.queuedResources[queueName],
+		Durations: c.queueDurations[queueName],
+	}
 }
 
 func (c *QueueCache) getNonSchedulableJobIds(queueName string) map[string]stringSet {

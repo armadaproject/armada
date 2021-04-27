@@ -15,8 +15,7 @@ import (
 const MetricPrefix = "armada_"
 
 type QueueMetricProvider interface {
-	GetQueuedResources(queueName string) map[string]ResourceMetrics
-	GetQueueDurations(queueName string) map[string]*FloatMetrics
+	GetQueueMetrics(queueName string) *QueueMetrics
 }
 
 func ExposeDataMetrics(
@@ -47,7 +46,7 @@ type QueueInfoCollector struct {
 var queueSizeDesc = prometheus.NewDesc(
 	MetricPrefix+"queue_size",
 	"Number of jobs in a queue",
-	[]string{"queueName"},
+	[]string{"pool", "queueName"},
 	nil,
 )
 
@@ -267,7 +266,8 @@ func (c *QueueInfoCollector) Collect(metrics chan<- prometheus.Metric) {
 
 	for i, q := range queues {
 		metrics <- prometheus.MustNewConstMetric(queueSizeDesc, prometheus.GaugeValue, float64(queueSizes[i]), q.Name)
-		for pool, queueDurations := range c.queueMetrics.GetQueueDurations(q.Name) {
+		queueMetrics := c.queueMetrics.GetQueueMetrics(q.Name)
+		for pool, queueDurations := range queueMetrics.Durations {
 			if queueDurations.GetCount() > 0 {
 				metrics <- prometheus.MustNewConstHistogram(queueDurationDesc, queueDurations.GetCount(),
 					queueDurations.GetSum(), queueDurations.GetBuckets(), pool, q.Name)
@@ -287,7 +287,7 @@ func (c *QueueInfoCollector) Collect(metrics chan<- prometheus.Metric) {
 			}
 		}
 
-		for pool, poolResources := range c.queueMetrics.GetQueuedResources(q.Name) {
+		for pool, poolResources := range queueMetrics.Resources {
 			for resourceType, amount := range poolResources {
 				if amount.GetCount() > 0 {
 					metrics <- prometheus.MustNewConstMetric(queueResourcesDesc, prometheus.GaugeValue, amount.GetSum(), pool, q.Name, resourceType)
