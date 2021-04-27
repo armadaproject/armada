@@ -46,7 +46,7 @@ type QueueInfoCollector struct {
 var queueSizeDesc = prometheus.NewDesc(
 	MetricPrefix+"queue_size",
 	"Number of jobs in a queue",
-	[]string{"pool", "queueName"},
+	[]string{"queueName"},
 	nil,
 )
 
