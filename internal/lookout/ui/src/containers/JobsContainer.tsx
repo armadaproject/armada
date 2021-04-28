@@ -2,7 +2,7 @@ import React, { Fragment } from 'react'
 import { RouteComponentProps, withRouter } from 'react-router-dom'
 import queryString, { ParseOptions, StringifyOptions } from 'query-string'
 
-import JobService, { Job, JOB_STATES_FOR_DISPLAY } from "../services/JobService"
+import JobService, { GetJobsRequest, Job, JOB_STATES_FOR_DISPLAY } from "../services/JobService"
 import Jobs from "../components/jobs/Jobs"
 import CancelJobsModal, { CancelJobsModalContext, CancelJobsModalState } from "../components/jobs/CancelJobsModal";
 import JobDetailsModal, { JobDetailsModalContext, toggleExpanded } from "../components/job-details/JobDetailsModal";
@@ -13,13 +13,23 @@ type JobsContainerProps = {
 
 export type CancelJobsRequestStatus = "Loading" | "Idle"
 
-interface JobsContainerState extends JobFilters {
+interface JobsContainerState {
   jobs: Job[]
   canLoadMore: boolean
   selectedJobs: Map<string, Job>
+  defaultColumns: ColumnSpec<string | boolean | string[]>[]
+  annotationColumns: ColumnSpec<string>[]
   cancelJobsModalContext: CancelJobsModalContext
   jobDetailsModalContext: JobDetailsModalContext
-  columnContext: ColumnContext
+}
+
+export type ColumnSpec<T> = {
+  id: string
+  name: string
+  accessor: string
+  isDisabled: boolean
+  filter: T
+  defaultFilter: T
 }
 
 export interface JobFilters {
@@ -38,17 +48,6 @@ type JobFiltersQueryParams = {
   newest_first?: boolean
   job_id?: string
   owner?: string
-}
-
-interface ColumnContext {
-  default: ColumnSpec[]
-  additional: ColumnSpec[]
-  selected: Set<string>
-}
-
-interface ColumnSpec {
-  id: string
-  name: string
 }
 
 const QUERY_STRING_OPTIONS: ParseOptions | StringifyOptions = {
@@ -171,10 +170,60 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
       owner: "",
     }
     this.state = {
-      ...initialFilters,
       jobs: [],
       canLoadMore: true,
       selectedJobs: new Map<string, Job>(),
+      defaultColumns: [
+        {
+          id: "queue",
+          name: "Queue",
+          accessor: "queue",
+          isDisabled: false,
+          filter: "",
+          defaultFilter: "",
+        },
+        {
+          id: "jobId",
+          name: "Job Id",
+          accessor: "jobId",
+          isDisabled: false,
+          filter: "",
+          defaultFilter: "",
+        },
+        {
+          id: "owner",
+          name: "Owner",
+          accessor: "owner",
+          isDisabled: false,
+          filter: "",
+          defaultFilter: "",
+        },
+        {
+          id: "jobSet",
+          name: "Job Set",
+          accessor: "jobSet",
+          isDisabled: false,
+          filter: "",
+          defaultFilter: "",
+        },
+        {
+          id: "submissionTime",
+          name: "Submission Time",
+          accessor: "submissionTime",
+          isDisabled: false,
+          filter: true,
+          defaultFilter: true,
+        },
+        {
+          id: "jobSet",
+          name: "JobSet",
+          accessor: "jobSet",
+          isDisabled: false,
+          filter: [],
+          defaultFilter: [],
+        },
+      ],
+      annotationColumns: [],
       cancelJobsModalContext: {
         modalState: "None",
         jobsToCancel: [],
@@ -186,22 +235,13 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
         job: undefined,
         expandedItems: new Set(),
       },
-      columnContext: {
-        default: DEFAULT_COLUMNS,
-        additional: [],
-        selected: new Set<string>(DEFAULT_COLUMNS.map(c => c.id)),
-      }
     }
 
     this.serveJobs = this.serveJobs.bind(this)
     this.jobIsLoaded = this.jobIsLoaded.bind(this)
 
-    this.queueChange = this.queueChange.bind(this)
-    this.jobSetChange = this.jobSetChange.bind(this)
-    this.jobStatesChange = this.jobStatesChange.bind(this)
-    this.orderChange = this.orderChange.bind(this)
-    this.jobIdChange = this.jobIdChange.bind(this)
-    this.ownerChange = this.ownerChange.bind(this)
+    this.changeColumnFilter = this.changeColumnFilter.bind(this)
+    this.disableColumn = this.disableColumn.bind(this)
     this.refresh = this.refresh.bind(this)
 
     this.selectJob = this.selectJob.bind(this)
@@ -211,16 +251,16 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     this.openJobDetailsModal = this.openJobDetailsModal.bind(this)
     this.toggleExpanded = this.toggleExpanded.bind(this)
     this.closeJobDetailsModal = this.closeJobDetailsModal.bind(this)
-
-    this.selectColumn = this.selectColumn.bind(this)
   }
 
   componentDidMount() {
+    /*
     const filters = makeFiltersFromQueryString(this.props.location.search)
     this.setState({
       ...this.state,
       ...filters,
     })
+     */
   }
 
   async serveJobs(start: number, stop: number): Promise<Job[]> {
@@ -234,52 +274,42 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     return !!this.state.jobs[index]
   }
 
-  async queueChange(queue: string) {
-    const filters = {
-      ...this.state,
-      queue: queue
+  async changeColumnFilter(columnId: string, newValue: string | boolean | string[]) {
+    for (let i = 0; i < this.state.defaultColumns.length; i++) {
+      const col = this.state.defaultColumns[i]
+      if (col.id === columnId) {
+        col.filter = newValue
+      }
     }
-    await this.setFilters(filters)
+
+    for (let i = 0; i < this.state.annotationColumns.length; i++) {
+      const col = this.state.annotationColumns[i]
+      if (col.id === columnId) {
+        col.filter = newValue as string
+      }
+    }
+
+    await this.setFilters(this.state)
   }
 
-  async jobSetChange(jobSet: string) {
-    const filters = {
-      ...this.state,
-      jobSet: jobSet
+  async disableColumn(columnId: string, isDisabled: boolean) {
+    for (let i = 0; i < this.state.defaultColumns.length; i++) {
+      const col = this.state.defaultColumns[i]
+      if (col.id === columnId) {
+        col.isDisabled = isDisabled
+        col.filter = col.defaultFilter
+      }
     }
-    await this.setFilters(filters)
-  }
 
-  async jobStatesChange(jobStates: string[]) {
-    const filters = {
-      ...this.state,
-      jobStates: jobStates
+    for (let i = 0; i < this.state.annotationColumns.length; i++) {
+      const col = this.state.annotationColumns[i]
+      if (col.id === columnId) {
+        col.isDisabled = isDisabled
+        col.filter = col.defaultFilter
+      }
     }
-    await this.setFilters(filters)
-  }
 
-  async orderChange(newestFirst: boolean) {
-    const filters = {
-      ...this.state,
-      newestFirst: newestFirst
-    }
-    await this.setFilters(filters)
-  }
-
-  async jobIdChange(jobId: string) {
-    const filters = {
-      ...this.state,
-      jobId: jobId,
-    }
-    await this.setFilters(filters)
-  }
-
-  async ownerChange(owner: string) {
-    const filters = {
-      ...this.state,
-      owner: owner,
-    }
-    await this.setFilters(filters)
+    await this.setFilters(this.state)
   }
 
   async refresh() {
@@ -416,31 +446,13 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     })
   }
 
-  selectColumn(id: string, selected: boolean) {
-    const selectedColumns = new Set<string>(this.state.columnContext.selected)
-    if (selected) {
-      selectedColumns.add(id)
-    }
-
-    if (!selected && selectedColumns.has(id)) {
-      selectedColumns.delete(id)
-    }
-
-    this.setState({
-      ...this.state,
-      columnContext: {
-        ...this.state.columnContext,
-        selected: selectedColumns,
-      }
-    })
-  }
-
   private async loadJobInfosForRange(start: number, stop: number) {
     let allJobInfos = this.state.jobs
     let canLoadMore = true
 
     while (start >= allJobInfos.length || stop >= allJobInfos.length) {
-      const [newJobInfos, canLoadNext] = await this.fetchNextJobInfos(this.state, this.state.jobs.length)
+      const request = this.getJobsRequest(allJobInfos.length)
+      const [newJobInfos, canLoadNext] = await this.fetchNextJobInfos(request)
       allJobInfos = allJobInfos.concat(newJobInfos)
       canLoadMore = canLoadNext
 
@@ -456,17 +468,38 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     })
   }
 
-  private async fetchNextJobInfos(filters: JobFilters, startIndex: number): Promise<[Job[], boolean]> {
-    const newJobInfos = await this.props.jobService.getJobs({
-      queue: filters.queue,
+  private getJobsRequest(startIndex: number): GetJobsRequest {
+    let request: GetJobsRequest = {
+      queue: "",
+      jobId: "",
+      owner: "",
+      jobSets: [],
+      newestFirst: true,
+      jobStates: [],
       take: BATCH_SIZE,
       skip: startIndex,
-      jobSets: [filters.jobSet],
-      newestFirst: filters.newestFirst,
-      jobStates: filters.jobStates,
-      jobId: filters.jobId,
-      owner: filters.owner,
-    })
+    }
+    for (let col of this.state.defaultColumns) {
+      if (col.id === "queue") {
+        request.queue = col.filter as string
+      } else if (col.id === "jobId") {
+        request.jobId = col.filter as string
+      } else if (col.id === "owner") {
+        request.owner = col.filter as string
+      } else if (col.id === "jobSet") {
+        request.jobSets = [col.filter as string]
+      } else if (col.id === "submissionTime") {
+        request.newestFirst = col.filter as boolean
+      } else if (col.id === "jobState") {
+        request.jobStates = col.filter as string[]
+      }
+    }
+
+    return request
+  }
+
+  private async fetchNextJobInfos(getJobsRequest: GetJobsRequest): Promise<[Job[], boolean]> {
+    const newJobInfos = await this.props.jobService.getJobs(getJobsRequest)
 
     let canLoadMore = true
     if (newJobInfos.length < BATCH_SIZE) {
@@ -476,15 +509,14 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     return [newJobInfos, canLoadMore]
   }
 
-  private async setFilters(filters: JobFilters) {
+  private async setFilters(updatedState: JobsContainerState) {
     await this.setStateAsync({
-      ...this.state,
-      ...filters,
+      ...updatedState,
       jobs: [],
       canLoadMore: true,
       selectedJobs: new Map<string, Job>(),
     })
-    this.setUrlParams()
+    // this.setUrlParams()
   }
 
   private setStateAsync(state: JobsContainerState): Promise<void> {
@@ -494,7 +526,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
   private setUrlParams() {
     this.props.history.push({
       ...this.props.location,
-      search: makeQueryStringFromFilters(this.state),
+      // search: makeQueryStringFromFilters(this.state),
     })
   }
 
@@ -524,33 +556,22 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
           job={this.state.jobDetailsModalContext.job}
           expandedItems={this.state.jobDetailsModalContext.expandedItems}
           onToggleExpanded={this.toggleExpanded}
-          onClose={this.closeJobDetailsModal} />
+          onClose={this.closeJobDetailsModal}/>
         <Jobs
           jobs={this.state.jobs}
           canLoadMore={this.state.canLoadMore}
-          queue={this.state.queue}
-          jobSet={this.state.jobSet}
-          jobStates={this.state.jobStates}
-          newestFirst={this.state.newestFirst}
-          jobId={this.state.jobId}
-          owner={this.state.owner}
+          defaultColumns={this.state.defaultColumns}
+          annotationColumns={this.state.annotationColumns}
           selectedJobs={this.state.selectedJobs}
-          defaultColumns={this.state.columnContext.default}
-          selectedColumns={this.state.columnContext.selected}
           cancelJobsButtonIsEnabled={this.selectedJobsAreCancellable()}
           fetchJobs={this.serveJobs}
           isLoaded={this.jobIsLoaded}
-          onQueueChange={this.queueChange}
-          onJobSetChange={this.jobSetChange}
-          onJobStatesChange={this.jobStatesChange}
-          onOrderChange={this.orderChange}
-          onJobIdChange={this.jobIdChange}
-          onOwnerChange={this.ownerChange}
+          onChangeColumn={this.changeColumnFilter}
+          onDisableColumn={this.disableColumn}
           onRefresh={this.refresh}
           onSelectJob={this.selectJob}
           onCancelJobsClick={() => this.setCancelJobsModalState("CancelJobs")}
-          onJobIdClick={this.openJobDetailsModal}
-          onSelectColumn={this.selectColumn}/>
+          onJobIdClick={this.openJobDetailsModal}/>
       </Fragment>
     )
   }

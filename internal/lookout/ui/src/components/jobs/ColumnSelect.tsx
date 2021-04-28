@@ -11,18 +11,17 @@ import {
   TextField
 } from "@material-ui/core";
 import { Add, Clear } from "@material-ui/icons";
-import { ColumnSpec } from "../../containers/JobTableColumnActions";
+import { ColumnSpec } from "../../containers/JobsContainer";
 
 type ColumnSelectProps = {
-  selectedColumns: Set<string>
-  defaultColumns: ColumnSpec[]
-  additionalColumns: ColumnSpec[]
+  defaultColumns: ColumnSpec<string | boolean | string[]>[]
+  annotationColumns: ColumnSpec<string>[]
   inputLabel: string
   addColumnText: string
-  onSelect: (id: string, selected: boolean) => void
-  onDeleteColumn: (col: string) => void
+  onDisableColumn: (columnId: string, isDisabled: boolean) => void
+  onDeleteColumn: (columnId: string) => void
   onAddColumn: () => void
-  onChange: (id: string, newValue: string) => void
+  onEditColumn: (columnId: string, newValue: string) => void
 }
 
 const ITEM_HEIGHT = 64
@@ -45,10 +44,28 @@ const menuProps: Partial<MenuProps> = {
   getContentAnchorEl: null,
 }
 
+function countTotalSelected(defaultColumns: ColumnSpec<any>[], annotationColumns: ColumnSpec<any>[]): number {
+  let count = 0
+
+  for (let col of defaultColumns) {
+    if (col.isDisabled) {
+      count++
+    }
+  }
+
+  for (let col of annotationColumns) {
+    if (col.isDisabled) {
+      count++
+    }
+  }
+
+  return count
+}
+
 export default function ColumnSelect(props: ColumnSelectProps) {
   if (menuProps.PaperProps && menuProps.PaperProps.style) {
     menuProps.PaperProps.style.maxHeight = ITEM_HEIGHT *
-      (props.defaultColumns.length + props.additionalColumns.length + 1) +
+      (props.defaultColumns.length + props.annotationColumns.length + 1) +
       ITEM_PADDING_TOP
   }
 
@@ -61,23 +78,23 @@ export default function ColumnSelect(props: ColumnSelectProps) {
         multiple
         input={<Input/>}
         value={[]}
-        renderValue={() => `${props.selectedColumns.size} selected`}
+        renderValue={() => `${countTotalSelected(props.defaultColumns, props.annotationColumns)} selected`}
         displayEmpty={true}
         MenuProps={menuProps}
         className="job-states-header-cell-select">
         {props.defaultColumns.map(col => (
           <ListItem key={col.id} value={col.name} style={{ height: ITEM_HEIGHT }}>
             <Checkbox
-              checked={props.selectedColumns.has(col.id)}
-              onChange={event => props.onSelect(col.id, event.target.checked)}/>
+              checked={!col.isDisabled}
+              onChange={event => props.onDisableColumn(col.id, !event.target.checked)}/>
             <ListItemText primary={col.name}/>
           </ListItem>
         ))}
-        {props.additionalColumns.map(col => (
+        {props.annotationColumns.map(col => (
           <ListItem key={col.id} value={col.name} style={{ height: ITEM_HEIGHT }}>
             <Checkbox
-              checked={props.selectedColumns.has(col.id)}
-              onChange={event => props.onSelect(col.id, event.target.checked)}/>
+              checked={!col.isDisabled}
+              onChange={event => props.onDisableColumn(col.id, !event.target.checked)}/>
             <TextField
               label={props.inputLabel}
               value={col.name}
