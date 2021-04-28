@@ -204,10 +204,16 @@ func (c *QueueInfoCollector) Describe(desc chan<- *prometheus.Desc) {
 	desc <- minQueueDurationDesc
 	desc <- maxQueueDurationDesc
 	desc <- medianQueueDurationDesc
+	desc <- minQueueResourcesDesc
+	desc <- maxQueueResourcesDesc
+	desc <- medianQueueResourcesDesc
 	desc <- jobRunDurationDesc
 	desc <- minJobRunDurationDesc
 	desc <- maxJobRunDurationDesc
 	desc <- medianJobRunDurationDesc
+	desc <- minQueueAllocatedDesc
+	desc <- maxQueueAllocatedDesc
+	desc <- medianQueueAllocatedDesc
 }
 
 func (c *QueueInfoCollector) Collect(metrics chan<- prometheus.Metric) {
@@ -435,4 +441,18 @@ func recordInvalidMetrics(metrics chan<- prometheus.Metric, e error) {
 	metrics <- prometheus.NewInvalidMetric(queuePriorityDesc, e)
 	metrics <- prometheus.NewInvalidMetric(queueResourcesDesc, e)
 	metrics <- prometheus.NewInvalidMetric(queueAllocatedDesc, e)
+	metrics <- prometheus.NewInvalidMetric(queueDurationDesc, e)
+	metrics <- prometheus.NewInvalidMetric(minQueueDurationDesc, e)
+	metrics <- prometheus.NewInvalidMetric(maxQueueDurationDesc, e)
+	metrics <- prometheus.NewInvalidMetric(medianQueueDurationDesc, e)
+	metrics <- prometheus.NewInvalidMetric(minQueueResourcesDesc, e)
+	metrics <- prometheus.NewInvalidMetric(maxQueueResourcesDesc, e)
+	metrics <- prometheus.NewInvalidMetric(medianQueueResourcesDesc, e)
+	metrics <- prometheus.NewInvalidMetric(jobRunDurationDesc, e)
+	metrics <- prometheus.NewInvalidMetric(minJobRunDurationDesc, e)
+	metrics <- prometheus.NewInvalidMetric(maxJobRunDurationDesc, e)
+	metrics <- prometheus.NewInvalidMetric(medianJobRunDurationDesc, e)
+	metrics <- prometheus.NewInvalidMetric(minQueueAllocatedDesc, e)
+	metrics <- prometheus.NewInvalidMetric(maxQueueAllocatedDesc, e)
+	metrics <- prometheus.NewInvalidMetric(medianQueueAllocatedDesc, e)
 }
