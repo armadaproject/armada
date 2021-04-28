@@ -29,7 +29,6 @@ type TaskConfiguration struct {
 	AllocateSpareClusterCapacityInterval  time.Duration
 	StuckPodScanInterval                  time.Duration
 	PodDeletionInterval                   time.Duration
-	PodMetricsInterval                    time.Duration
 	QueueUsageDataRefreshInterval         time.Duration
 	UtilisationEventProcessingInterval    time.Duration
 	UtilisationEventReportingInterval     time.Duration
