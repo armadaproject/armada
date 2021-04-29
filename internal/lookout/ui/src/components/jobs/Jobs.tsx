@@ -7,7 +7,7 @@ import CheckboxRow from "../CheckboxRow";
 import CheckboxHeaderRow from "../CheckboxHeaderRow";
 import LoadingRow from "./LoadingRow";
 import { ColumnSpec } from "../../containers/JobsContainer";
-import columnWrapper from "./ColumnWrapper";
+import columnWrapper from "./columnWrapper";
 
 import './Jobs.css'
 
@@ -66,11 +66,7 @@ export default class Jobs extends React.Component<JobsProps, {}> {
   }
 
   render() {
-    //if (this.props.forceRefresh) {
     this.resetCache()
-    // this.infiniteLoader.current?.forceUpdate()
-      //this.props.resetRefresh()
-    //}
 
     const rowCount = this.props.canLoadMore ? this.props.jobs.length + 1 : this.props.jobs.length
     return (
@@ -80,10 +76,7 @@ export default class Jobs extends React.Component<JobsProps, {}> {
             defaultColumns={this.props.defaultColumns}
             annotationColumns={this.props.annotationColumns}
             canCancel={this.props.cancelJobsButtonIsEnabled}
-            onRefresh={async () => {
-              await this.props.onRefresh()
-              this.resetCache()
-            }}
+            onRefresh={this.props.onRefresh}
             onCancelJobsClick={this.props.onCancelJobsClick}
             onDisableColumn={this.props.onDisableColumn}
             onDeleteColumn={this.props.onDeleteColumn}
@@ -139,9 +132,10 @@ export default class Jobs extends React.Component<JobsProps, {}> {
                         col.id,
                         col,
                         width / this.props.defaultColumns.filter(c => !c.isDisabled).length,
-                        newValue => {
+                        (newValue: string | boolean | string[]) => {
                           this.props.onChangeColumn(col.id, newValue)
-                        }))}
+                        },
+                        this.props.onJobIdClick))}
                   </Table>
                 )}
               </AutoSizer>

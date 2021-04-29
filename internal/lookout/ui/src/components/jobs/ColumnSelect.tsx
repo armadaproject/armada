@@ -69,8 +69,6 @@ export default function ColumnSelect(props: ColumnSelectProps) {
       ITEM_PADDING_TOP
   }
 
-  console.log("ColumnSelect", props.annotationColumns)
-
   return (
     <div className="job-states-header-cell">
       <InputLabel shrink={true} id="job-table-state-select-label">Columns</InputLabel>
