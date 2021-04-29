@@ -2,9 +2,11 @@ package cache
 
 import (
 	"sync"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 
+	"github.com/G-Research/armada/internal/armada/metrics"
 	"github.com/G-Research/armada/internal/armada/repository"
 	"github.com/G-Research/armada/internal/armada/scheduling"
 	"github.com/G-Research/armada/internal/common"
@@ -20,7 +22,8 @@ type QueueCache struct {
 	schedulingInfoRepository repository.SchedulingInfoRepository
 
 	refreshMutex           sync.Mutex
-	queuedResources        map[string]map[string]common.ComputeResourcesFloat
+	queueDurations         map[string]map[string]*metrics.FloatMetrics
+	queuedResources        map[string]map[string]metrics.ResourceMetrics
 	queueNonMatchingJobIds map[string]map[string]stringSet
 }
 
@@ -33,7 +36,8 @@ func NewQueueCache(
 		queueRepository:          queueRepository,
 		jobRepository:            jobRepository,
 		schedulingInfoRepository: schedulingInfoRepository,
-		queuedResources:          map[string]map[string]common.ComputeResourcesFloat{},
+		queueDurations:           map[string]map[string]*metrics.FloatMetrics{},
+		queuedResources:          map[string]map[string]metrics.ResourceMetrics{},
 		queueNonMatchingJobIds:   map[string]map[string]stringSet{}}
 
 	return collector
@@ -56,12 +60,14 @@ func (c *QueueCache) Refresh() {
 	clusterInfoByPool := scheduling.GroupSchedulingInfoByPool(activeClusterInfo)
 
 	for _, queue := range queues {
-		resourceUsageByPool := map[string]common.ComputeResources{}
+		resourceUsageByPool := map[string]*metrics.ResourceMetricsRecorder{}
 		nonMatchingJobs := map[string]stringSet{}
-
+		queueDurationByPool := map[string]*metrics.FloatMetricsRecorder{}
+		currentTime := time.Now()
 		err := c.jobRepository.IterateQueueJobs(queue.Name, func(job *api.Job) {
 			jobResources := common.TotalJobResourceRequest(job)
 			nonMatchingClusters := stringSet{}
+			queuedTime := currentTime.Sub(job.Created)
 
 			for pool, infos := range clusterInfoByPool {
 				matches := false
@@ -76,10 +82,17 @@ func (c *QueueCache) Refresh() {
 				if matches {
 					r, exists := resourceUsageByPool[pool]
 					if !exists {
-						r = common.ComputeResources{}
+						r = metrics.NewResourceMetricsRecorder()
 						resourceUsageByPool[pool] = r
 					}
-					r.Add(jobResources)
+					r.Record(jobResources.AsFloat())
+
+					qd, exists := queueDurationByPool[pool]
+					if !exists {
+						qd = metrics.NewDefaultJobDurationMetricsRecorder()
+						queueDurationByPool[pool] = qd
+					}
+					qd.Record(queuedTime.Seconds())
 				}
 			}
 			nonMatchingJobs[job.Id] = nonMatchingClusters
@@ -90,18 +103,26 @@ func (c *QueueCache) Refresh() {
 		}
 
 		c.updateQueuedNonMatchingJobs(queue.Name, nonMatchingJobs)
-		c.updateQueuedResource(queue.Name, resourceUsageByPool)
+		c.updateQueueMetrics(queue.Name, resourceUsageByPool, queueDurationByPool)
 	}
 }
 
-func (c *QueueCache) updateQueuedResource(queueName string, resourcesByPool map[string]common.ComputeResources) {
+func (c *QueueCache) updateQueueMetrics(queueName string, resourcesByPool map[string]*metrics.ResourceMetricsRecorder,
+	queueDurationsByPool map[string]*metrics.FloatMetricsRecorder) {
 	c.refreshMutex.Lock()
 	defer c.refreshMutex.Unlock()
-	floatResourcesByPool := map[string]common.ComputeResourcesFloat{}
-	for pool, res := range resourcesByPool {
-		floatResourcesByPool[pool] = res.AsFloat()
+
+	durationMetricsByPool := make(map[string]*metrics.FloatMetrics, len(queueDurationsByPool))
+	for pool, queueDurations := range queueDurationsByPool {
+		durationMetricsByPool[pool] = queueDurations.GetMetrics()
 	}
-	c.queuedResources[queueName] = floatResourcesByPool
+	c.queueDurations[queueName] = durationMetricsByPool
+
+	resourceMetricsByPool := make(map[string]metrics.ResourceMetrics, len(resourcesByPool))
+	for pool, res := range resourcesByPool {
+		resourceMetricsByPool[pool] = res.GetMetrics()
+	}
+	c.queuedResources[queueName] = resourceMetricsByPool
 }
 
 func (c *QueueCache) updateQueuedNonMatchingJobs(queueName string, nonMatchingClustersById map[string]stringSet) {
@@ -110,10 +131,13 @@ func (c *QueueCache) updateQueuedNonMatchingJobs(queueName string, nonMatchingCl
 	c.queueNonMatchingJobIds[queueName] = nonMatchingClustersById
 }
 
-func (c *QueueCache) GetQueuedResources(queueName string) map[string]common.ComputeResourcesFloat {
+func (c *QueueCache) GetQueueMetrics(queueName string) *metrics.QueueMetrics {
 	c.refreshMutex.Lock()
 	defer c.refreshMutex.Unlock()
-	return c.queuedResources[queueName]
+	return &metrics.QueueMetrics{
+		Resources: c.queuedResources[queueName],
+		Durations: c.queueDurations[queueName],
+	}
 }
 
 func (c *QueueCache) getNonSchedulableJobIds(queueName string) map[string]stringSet {
