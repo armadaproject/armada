@@ -48,7 +48,9 @@ function NavBar(props: RouteComponentProps) {
   return (
     <AppBar position="static">
       <Toolbar className="toolbar">
-        <div className="title">
+        <div className="title" onClick={() => {
+            props.history.push("/")
+          }}>
           <img
             className="logo"
             src={process.env.PUBLIC_URL + "./Armada-white-rectangle.png"}
