@@ -139,7 +139,6 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 		}
 		result.JobResponseItems = append(result.JobResponseItems, jobResponse)
 
-		jobs[i].Id = submissionResult.JobId
 		if submissionResult.Error == nil {
 			if submissionResult.DuplicateDetected {
 				doubleSubmits = append(doubleSubmits, submissionResult)
