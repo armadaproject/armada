@@ -19,6 +19,7 @@ import (
 )
 
 const jobObjectPrefix = "Job:"
+const jobStartTimePrefix = "Job:StartTime"
 const jobQueuePrefix = "Job:Queue:"
 const jobSetPrefix = "Job:Set:"
 const jobLeasedPrefix = "Job:Leased:"
@@ -28,6 +29,8 @@ const jobClientIdPrefix = "job:ClientId:"
 const keySeparator = ":"
 
 const queueResourcesBatchSize = 20000
+
+const JobNotFound = "no job found with provided Id"
 
 type JobRepository interface {
 	PeekQueue(queue string, limit int64) ([]*api.Job, error)
@@ -44,6 +47,9 @@ type JobRepository interface {
 	ReturnLease(clusterId string, jobId string) (returnedJob *api.Job, err error)
 	DeleteJobs(jobs []*api.Job) map[*api.Job]error
 	GetActiveJobIds(queue string, jobSetId string) ([]string, error)
+	GetLeasedJobIds(queue string) ([]string, error)
+	UpdateStartTime(jobId string, clusterId string, startTime time.Time) error
+	GetStartTimes(jobIds []string) (map[string]time.Time, error)
 	GetQueueActiveJobSets(queue string) ([]*api.JobSetInfo, error)
 	AddRetryAttempt(jobId string) error
 	GetNumberOfRetryAttempts(jobId string) (int, error)
@@ -197,6 +203,7 @@ type deleteJobRedisResponse struct {
 	removeFromLeasedResult         *redis.IntCmd
 	removeFromQueueResult          *redis.IntCmd
 	removeClusterAssociationResult *redis.IntCmd
+	removeStartTimeResult          *redis.IntCmd
 	setJobExpiryResult             *redis.BoolCmd
 	deleteJobSetIndexResult        *redis.IntCmd
 	deleteJobRetriesResult         *redis.IntCmd
@@ -211,6 +218,7 @@ func (repo *RedisJobRepository) DeleteJobs(jobs []*api.Job) map[*api.Job]error {
 		deletionResult.removeFromQueueResult = pipe.ZRem(jobQueuePrefix+job.Queue, job.Id)
 		deletionResult.removeFromLeasedResult = pipe.ZRem(jobLeasedPrefix+job.Queue, job.Id)
 		deletionResult.removeClusterAssociationResult = pipe.HDel(jobClusterMapKey, job.Id)
+		deletionResult.removeStartTimeResult = pipe.Del(jobStartTimePrefix + job.Id)
 		deletionResult.deleteJobSetIndexResult = pipe.SRem(jobSetPrefix+job.JobSetId, job.Id)
 		deletionResult.deleteJobRetriesResult = pipe.Del(jobRetriesPrefix + job.Id)
 
@@ -289,6 +297,12 @@ func processDeletionResponse(deletionResponse *deleteJobRedisResponse) (int64, e
 		errorMessage = e
 	}
 
+	modified, e = deletionResponse.removeStartTimeResult.Result()
+	totalUpdates += modified
+	if e != nil {
+		errorMessage = e
+	}
+
 	modified, e = deletionResponse.deleteJobRetriesResult.Result()
 	totalUpdates += modified
 	if e != nil {
@@ -352,6 +366,7 @@ func (repo *RedisJobRepository) GetExistingJobsByIds(ids []string) ([]*api.Job, 
 		if e != nil {
 			if e == redis.Nil {
 				log.Warnf("No job found with with job id %s", ids[index])
+				continue
 			} else {
 				return nil, e
 			}
@@ -438,6 +453,118 @@ func (repo *RedisJobRepository) IterateQueueJobs(queueName string, action func(*
 
 	}
 	return nil
+}
+
+func (repo *RedisJobRepository) GetLeasedJobIds(queue string) ([]string, error) {
+	return repo.db.ZRange(jobLeasedPrefix+queue, 0, -1).Result()
+}
+
+func (repo *RedisJobRepository) getAssociatedCluster(jobIds []string) (map[string]string, error) {
+	associatedCluster := make(map[string]string, len(jobIds))
+	pipe := repo.db.Pipeline()
+	cmds := make(map[string]*redis.StringCmd, len(jobIds))
+
+	for _, jobId := range jobIds {
+		cmds[jobId] = pipe.HGet(jobClusterMapKey, jobId)
+	}
+
+	_, e := pipe.Exec()
+	if e != nil && e != redis.Nil {
+		return associatedCluster, e
+	}
+
+	for jobId, cmd := range cmds {
+		err := cmd.Err()
+		if err != nil && err != redis.Nil {
+			return map[string]string{}, err
+		}
+		clusterId := cmd.Val()
+		if clusterId != "" {
+			associatedCluster[jobId] = cmd.Val()
+		}
+	}
+
+	return associatedCluster, nil
+}
+
+func (repo *RedisJobRepository) UpdateStartTime(jobId string, clusterId string, startTime time.Time) error {
+	// This is a bit naive, we set the start time to be associated with the job id + cluster id provided
+	// We only save the earliest start time for each job id + cluster id combination
+	// We have to save against cluster id to handle when a lease expires and a job starts on another cluster
+	// However this is not full proof and in very rare situations a job could start twice on the same cluster and this value will be wrong
+	// TODO When we have a proper concept of lease, associate start time with that specific lease (ideally earliest value for that lease)
+
+	jobs, e := repo.GetExistingJobsByIds([]string{jobId})
+	if e != nil {
+		return e
+	}
+
+	if len(jobs) <= 0 {
+		return fmt.Errorf(JobNotFound)
+	}
+
+	output := updateStartTimeScript.Run(repo.db, []string{jobStartTimePrefix + jobId, jobClusterMapKey}, clusterId, startTime.UnixNano())
+
+	return output.Err()
+}
+
+var updateStartTimeScript = redis.NewScript(`
+local startTimeKey = KEYS[1]
+local clusterAssociation = KEYS[2]
+
+local clusterId = ARGV[1]
+local startTime = ARGV[2]
+local startTimeNumber = tonumber(ARGV[2])
+
+local currentStartTime = tonumber(redis.call('HGET', startTimeKey, clusterId))
+
+if currentStartTime ~= nil and currentStartTime < startTimeNumber then
+	return 0
+end
+
+return redis.call('HSET', startTimeKey, clusterId, startTime)
+`)
+
+/*
+ Returns the start time of each job id for the cluster they are currently associated with (leased by)
+ Jobs with no value will be omitted from the results, which happens in the following cases:
+ - The job is not associated with a cluster
+ - The job has does not have a start time for the cluster it is associated with
+*/
+func (repo *RedisJobRepository) GetStartTimes(jobIds []string) (map[string]time.Time, error) {
+	startTimes := make(map[string]time.Time, len(jobIds))
+
+	associatedClusters, err := repo.getAssociatedCluster(jobIds)
+	if err != nil {
+		return startTimes, err
+	}
+
+	pipe := repo.db.Pipeline()
+	cmds := make(map[string]*redis.StringCmd, len(jobIds))
+
+	for _, jobId := range jobIds {
+		if clusterId, present := associatedClusters[jobId]; present {
+			cmds[jobId] = pipe.HGet(jobStartTimePrefix+jobId, clusterId)
+		}
+	}
+
+	_, e := pipe.Exec()
+	if e != nil && e != redis.Nil {
+		return startTimes, e
+	}
+
+	for jobId, cmd := range cmds {
+		if cmd.Val() != "" {
+			i, err := strconv.ParseInt(cmd.Val(), 10, 64)
+			if err != nil {
+				log.Errorf("Failed to parse start time for job %s because %s", jobId, err)
+				continue
+			}
+			startTimes[jobId] = time.Unix(0, i)
+		}
+	}
+
+	return startTimes, nil
 }
 
 func (repo *RedisJobRepository) GetQueueJobIds(queueName string) ([]string, error) {
