@@ -21,7 +21,7 @@ type ColumnSelectProps = {
   onDisableColumn: (columnId: string, isDisabled: boolean) => void
   onDeleteColumn: (columnId: string) => void
   onAddColumn: () => void
-  onEditColumn: (columnId: string, newValue: string) => void
+  onEditColumn: (columnId: string, newKey: string) => void
 }
 
 const ITEM_HEIGHT = 64
@@ -48,13 +48,13 @@ function countTotalSelected(defaultColumns: ColumnSpec<any>[], annotationColumns
   let count = 0
 
   for (let col of defaultColumns) {
-    if (col.isDisabled) {
+    if (!col.isDisabled) {
       count++
     }
   }
 
   for (let col of annotationColumns) {
-    if (col.isDisabled) {
+    if (!col.isDisabled) {
       count++
     }
   }
@@ -68,6 +68,8 @@ export default function ColumnSelect(props: ColumnSelectProps) {
       (props.defaultColumns.length + props.annotationColumns.length + 1) +
       ITEM_PADDING_TOP
   }
+
+  console.log("ColumnSelect", props.annotationColumns)
 
   return (
     <div className="job-states-header-cell">
@@ -98,7 +100,9 @@ export default function ColumnSelect(props: ColumnSelectProps) {
             <TextField
               label={props.inputLabel}
               value={col.name}
-              onChange={() => {}}
+              onChange={event => {
+                props.onEditColumn(col.id, event.target.value)
+              }}
               InputProps={{
                 endAdornment: (
                   <InputAdornment position="end">
@@ -109,8 +113,9 @@ export default function ColumnSelect(props: ColumnSelectProps) {
           </ListItem>
         ))}
         <MenuItem style={{
-          height: ITEM_HEIGHT,
-        }}>
+            height: ITEM_HEIGHT,
+          }}
+          onClick={props.onAddColumn}>
           <div style={{
             paddingLeft: 8,
             paddingRight: 16,

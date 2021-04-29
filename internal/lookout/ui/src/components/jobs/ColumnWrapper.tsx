@@ -6,6 +6,7 @@ import JobStatesHeaderCell from "./JobStatesHeaderCell";
 import SearchHeaderCell from "./SearchHeaderCell";
 
 export default function columnWrapper(
+  key: string,
   columnSpec: ColumnSpec<string | boolean | string[]>,
   width: number,
   onChange: (val: string | boolean | string[]) => void
@@ -15,6 +16,7 @@ export default function columnWrapper(
   if (columnSpec.id === "submissionTime") {
     column = (
       <Column
+        key={key}
         dataKey={columnSpec.accessor}
         width={width}
         label={columnSpec.name}
@@ -28,6 +30,7 @@ export default function columnWrapper(
   } else if (columnSpec.id === "jobState") {
     column = (
       <Column
+        key={key}
         dataKey={columnSpec.accessor}
         width={width}
         label={columnSpec.name}
@@ -41,6 +44,7 @@ export default function columnWrapper(
   } else {
     column = (
       <Column
+        key={key}
         dataKey={columnSpec.accessor}
         width={width}
         label={columnSpec.name}

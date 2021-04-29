@@ -18,14 +18,19 @@ type JobsProps = {
   annotationColumns: ColumnSpec<string>[]
   selectedJobs: Map<string, Job>
   cancelJobsButtonIsEnabled: boolean
+  forceRefresh: boolean
   fetchJobs: (start: number, stop: number) => Promise<Job[]>
   isLoaded: (index: number) => boolean
-  onChangeColumn: (columnId: string, newValue: string | boolean | string[]) => Promise<void>
-  onDisableColumn: (columnId: string, isDisabled: boolean) => Promise<void>
-  onRefresh: () => Promise<void>
-  onSelectJob: (job: Job, selected: boolean) => Promise<void>
+  onChangeColumn: (columnId: string, newValue: string | boolean | string[]) => void
+  onDisableColumn: (columnId: string, isDisabled: boolean) => void
+  onDeleteColumn: (columnId: string) => void
+  onAddColumn: () => void
+  onEditColumn: (columnId: string, newKey: string) => void
+  onRefresh: () => void
+  onSelectJob: (job: Job, selected: boolean) => void
   onCancelJobsClick: () => void
   onJobIdClick: (jobIndex: number) => void
+  resetRefresh: () => void
 }
 
 export default class Jobs extends React.Component<JobsProps, {}> {
@@ -61,8 +66,13 @@ export default class Jobs extends React.Component<JobsProps, {}> {
   }
 
   render() {
-    const rowCount = this.props.canLoadMore ? this.props.jobs.length + 1 : this.props.jobs.length
+    //if (this.props.forceRefresh) {
+    this.resetCache()
+    // this.infiniteLoader.current?.forceUpdate()
+      //this.props.resetRefresh()
+    //}
 
+    const rowCount = this.props.canLoadMore ? this.props.jobs.length + 1 : this.props.jobs.length
     return (
       <div className="jobs">
         <div className="job-table-header-container">
@@ -75,7 +85,10 @@ export default class Jobs extends React.Component<JobsProps, {}> {
               this.resetCache()
             }}
             onCancelJobsClick={this.props.onCancelJobsClick}
-            onDisableColumn={this.props.onDisableColumn}/>
+            onDisableColumn={this.props.onDisableColumn}
+            onDeleteColumn={this.props.onDeleteColumn}
+            onAddColumn={this.props.onAddColumn}
+            onEditColumn={this.props.onEditColumn}/>
         </div>
         <div className="job-table">
           <InfiniteLoader
@@ -91,6 +104,7 @@ export default class Jobs extends React.Component<JobsProps, {}> {
               <AutoSizer>
                 {({ height, width }) => (
                   <Table
+                    gridStyle={{ overflowY: "scroll" }}
                     onRowsRendered={onRowsRendered}
                     ref={registerChild}
                     rowCount={rowCount}
@@ -108,10 +122,7 @@ export default class Jobs extends React.Component<JobsProps, {}> {
                       return (
                         <CheckboxRow
                           isChecked={selected}
-                          onChangeChecked={async (selected) => {
-                            await this.props.onSelectJob(tableRowProps.rowData, selected)
-                            this.infiniteLoader.current?.forceUpdate()
-                          }}
+                          onChangeChecked={selected => this.props.onSelectJob(tableRowProps.rowData, selected)}
                           tableKey={tableRowProps.key}
                           {...tableRowProps} />
                       )
@@ -123,12 +134,13 @@ export default class Jobs extends React.Component<JobsProps, {}> {
                     height={height - 1}
                     width={width}>
                     {this.props.defaultColumns
-                      .filter(c => !c.isDisabled)
-                      .map(c => columnWrapper(
-                        c,
-                        width / this.props.defaultColumns.length,
+                      .filter(col => !col.isDisabled)
+                      .map(col => columnWrapper(
+                        col.id,
+                        col,
+                        width / this.props.defaultColumns.filter(c => !c.isDisabled).length,
                         newValue => {
-                          this.props.onChangeColumn(c.id, newValue)
+                          this.props.onChangeColumn(col.id, newValue)
                         }))}
                   </Table>
                 )}
@@ -139,4 +151,5 @@ export default class Jobs extends React.Component<JobsProps, {}> {
       </div>
     )
   }
+
 }
