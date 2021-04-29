@@ -28,6 +28,26 @@ func reportQueued(repository repository.EventStore, jobs []*api.Job) error {
 	return e
 }
 
+func reportDuplicateDetected(repository repository.EventStore, results []*repository.SubmitJobResult) error {
+	events := []*api.EventMessage{}
+	now := time.Now()
+	for _, result := range results {
+		event, e := api.Wrap(&api.JobDuplicateFoundEvent{
+			JobId:         result.SubmittedJob.Id,
+			Queue:         result.SubmittedJob.Queue,
+			JobSetId:      result.SubmittedJob.JobSetId,
+			Created:       now,
+			OriginalJobId: result.JobId,
+		})
+		if e != nil {
+			return e
+		}
+		events = append(events, event)
+	}
+	e := repository.ReportEvents(events)
+	return e
+}
+
 func reportSubmitted(repository repository.EventStore, jobs []*api.Job) error {
 	events := []*api.EventMessage{}
 	now := time.Now()

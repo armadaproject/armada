@@ -35,7 +35,10 @@ func (repo *RedisEventRepository) ReportEvent(message *api.EventMessage) error {
 	return repo.ReportEvents([]*api.EventMessage{message})
 }
 
-func (repo *RedisEventRepository) ReportEvents(message []*api.EventMessage) error {
+func (repo *RedisEventRepository) ReportEvents(messages []*api.EventMessage) error {
+	if len(messages) == 0 {
+		return nil
+	}
 
 	type eventData struct {
 		key  string
@@ -44,7 +47,7 @@ func (repo *RedisEventRepository) ReportEvents(message []*api.EventMessage) erro
 	data := []eventData{}
 	uniqueJobSets := make(map[string]bool)
 
-	for _, m := range message {
+	for _, m := range messages {
 		event, e := api.UnwrapEvent(m)
 		if e != nil {
 			return e

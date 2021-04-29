@@ -22,6 +22,7 @@ type JobRecorder interface {
 	RecordJobSucceeded(event *api.JobSucceededEvent) error
 	RecordJobFailed(event *api.JobFailedEvent) error
 	RecordJobUnableToSchedule(event *api.JobUnableToScheduleEvent) error
+	RecordJobDuplicate(event *api.JobDuplicateFoundEvent) error
 }
 
 type SQLJobStore struct {
@@ -86,6 +87,25 @@ func (r *SQLJobStore) MarkCancelled(event *api.JobCancelledEvent) error {
 
 func (r *SQLJobStore) RecordJobPriorityChange(event *api.JobReprioritizedEvent) error {
 	panic("implement me")
+}
+
+func (r *SQLJobStore) RecordJobDuplicate(event *api.JobDuplicateFoundEvent) error {
+	ds := r.db.Insert(jobTable).
+		With("run_states", r.getRunStateCounts(event.GetJobId())).
+		Rows(goqu.Record{
+			"job_id":    event.JobId,
+			"queue":     event.Queue,
+			"jobset":    event.JobSetId,
+			"duplicate": true,
+			"state":     JobStateToIntMap[JobDuplicate],
+		}).
+		OnConflict(goqu.DoUpdate("job_id", goqu.Record{
+			"state":     JobStateToIntMap[JobDuplicate],
+			"duplicate": true,
+		}))
+
+	_, err := ds.Prepared(true).Executor().Exec()
+	return err
 }
 
 func (r *SQLJobStore) RecordJobPending(event *api.JobPendingEvent) error {
@@ -259,6 +279,7 @@ func (r *SQLJobStore) upsertContainers(k8sId string, exitCodes map[string]int32)
 
 func (r *SQLJobStore) determineJobState() exp.CaseExpression {
 	return goqu.Case().
+		When(job_duplicate.Eq(true), stateAsLiteral(JobDuplicate)).
 		When(job_state.Eq(stateAsLiteral(JobCancelled)), stateAsLiteral(JobCancelled)).
 		When(r.db.Select(goqu.I("run_states.failed").Gt(0)).
 			From("run_states"), stateAsLiteral(JobFailed)).

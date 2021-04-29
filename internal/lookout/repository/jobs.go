@@ -112,7 +112,9 @@ func createWhereFilters(opts *lookout.GetJobsRequest) []goqu.Expression {
 	filters = append(filters, goqu.Or(createJobSetFilters(opts.JobSetIds)...))
 
 	if len(opts.JobStates) > 0 {
-		filters = append(filters, createJobStateFilter(opts.JobStates))
+		filters = append(filters, createJobStateFilter(toJobStates(opts.JobStates)))
+	} else {
+		filters = append(filters, createJobStateFilter(defaultQueryStates))
 	}
 
 	return filters
@@ -127,10 +129,18 @@ func createJobSetFilters(jobSetIds []string) []goqu.Expression {
 	return filters
 }
 
-func createJobStateFilter(jobStates []string) goqu.Expression {
+func toJobStates(jobStates []string) []JobState {
+	result := []JobState{}
+	for _, state := range jobStates {
+		result = append(result, JobState(state))
+	}
+	return result
+}
+
+func createJobStateFilter(jobStates []JobState) goqu.Expression {
 	stateInts := make([]interface{}, len(jobStates))
 	for i, state := range jobStates {
-		stateInts[i] = JobStateToIntMap[JobState(state)]
+		stateInts[i] = JobStateToIntMap[state]
 	}
 	return job_state.In(stateInts...)
 }

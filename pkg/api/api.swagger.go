@@ -285,6 +285,9 @@ func SwaggerJsonTemplate() string {
 		"        \"cancelling\": {\n" +
 		"          \"$ref\": \"#/definitions/apiJobCancellingEvent\"\n" +
 		"        },\n" +
+		"        \"duplicateFound\": {\n" +
+		"          \"$ref\": \"#/definitions/apiJobDuplicateFoundEvent\"\n" +
+		"        },\n" +
 		"        \"failed\": {\n" +
 		"          \"$ref\": \"#/definitions/apiJobFailedEvent\"\n" +
 		"        },\n" +
@@ -440,6 +443,27 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"jobSetId\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"queue\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"apiJobDuplicateFoundEvent\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"created\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"format\": \"date-time\"\n" +
+		"        },\n" +
+		"        \"jobId\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"jobSetId\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"originalJobId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"queue\": {\n" +
