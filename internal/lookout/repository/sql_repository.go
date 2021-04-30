@@ -66,9 +66,9 @@ var (
 	jobRun_error     = goqu.I("job_run.error")
 
 	// Columns: annotation table
-	annotation_jobId = goqu.I("annotation.job_id")
-	annotation_key   = goqu.I("annotation.key")
-	annotation_value = goqu.I("annotation.value")
+	annotation_jobId = goqu.I("user_annotation_lookup.job_id")
+	annotation_key   = goqu.I("user_annotation_lookup.key")
+	annotation_value = goqu.I("user_annotation_lookup.value")
 )
 
 type JobRow struct {
