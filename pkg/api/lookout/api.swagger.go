@@ -237,12 +237,6 @@ func SwaggerJsonTemplate() string {
 		"    \"lookoutGetJobsRequest\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
-		"        \"annotations\": {\n" +
-		"          \"type\": \"object\",\n" +
-		"          \"additionalProperties\": {\n" +
-		"            \"type\": \"string\"\n" +
-		"          }\n" +
-		"        },\n" +
 		"        \"jobId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
@@ -274,6 +268,12 @@ func SwaggerJsonTemplate() string {
 		"        \"take\": {\n" +
 		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int64\"\n" +
+		"        },\n" +
+		"        \"userAnnotations\": {\n" +
+		"          \"type\": \"object\",\n" +
+		"          \"additionalProperties\": {\n" +
+		"            \"type\": \"string\"\n" +
+		"          }\n" +
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +

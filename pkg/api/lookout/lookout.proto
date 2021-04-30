@@ -92,7 +92,7 @@ message GetJobsRequest {
     uint32 skip = 6;
     string jobId = 7;
     string owner = 8;
-    map<string, string> annotations = 9;
+    map<string, string> user_annotations = 9;
 }
 
 message GetJobsResponse {

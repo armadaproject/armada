@@ -10,8 +10,8 @@ type NatsConfig struct {
 }
 
 type LookoutUIConfig struct {
-	ArmadaApiBaseUrl string
-	AnnotationPrefix string
+	ArmadaApiBaseUrl     string
+	UserAnnotationPrefix string
 }
 
 type PostgresConfig struct {

@@ -61,7 +61,7 @@ func (r *SQLJobRepository) queryJobs(ctx context.Context, opts *lookout.GetJobsR
 func (r *SQLJobRepository) createJobsDataset(opts *lookout.GetJobsRequest) *goqu.SelectDataset {
 	subDs := r.goquDb.
 		From(jobTable).
-		LeftJoin(annotationTable, goqu.On(job_jobId.Eq(annotation_jobId))).
+		LeftJoin(userAnnotationLookupTable, goqu.On(job_jobId.Eq(annotation_jobId))).
 		Select(job_jobId).
 		Where(goqu.And(createWhereFilters(opts)...)).
 		Order(createJobOrdering(opts.NewestFirst)).
@@ -112,7 +112,7 @@ func createWhereFilters(opts *lookout.GetJobsRequest) []goqu.Expression {
 
 	filters = append(filters, goqu.Or(createJobSetFilters(opts.JobSetIds)...))
 
-	filters = append(filters, goqu.Or(createAnnotationFilters(opts.Annotations)...))
+	filters = append(filters, goqu.Or(createUserAnnotationFilters(opts.UserAnnotations)...))
 
 	if len(opts.JobStates) > 0 {
 		filters = append(filters, createJobStateFilter(opts.JobStates))
@@ -130,7 +130,7 @@ func createJobSetFilters(jobSetIds []string) []goqu.Expression {
 	return filters
 }
 
-func createAnnotationFilters(annotations map[string]string) []goqu.Expression {
+func createUserAnnotationFilters(annotations map[string]string) []goqu.Expression {
 	var filters []goqu.Expression
 	for key, value := range annotations {
 		filter := goqu.And(

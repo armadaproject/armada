@@ -45,7 +45,7 @@ func StartUp(config configuration.LookoutConfiguration) (func(), *sync.WaitGroup
 	goquDb := goqu.New("postgres", db)
 	goquDb.Logger(&LogRusLogger{})
 
-	jobStore := repository.NewSQLJobStore(goquDb, config.UIConfig.AnnotationPrefix)
+	jobStore := repository.NewSQLJobStore(goquDb, config.UIConfig.UserAnnotationPrefix)
 	jobRepository := repository.NewSQLJobRepository(goquDb, &repository.DefaultClock{})
 
 	conn, err := stanUtil.DurableConnect(
