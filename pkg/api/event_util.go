@@ -35,6 +35,8 @@ func UnwrapEvent(message *EventMessage) (Event, error) {
 		return event.Submitted, nil
 	case *EventMessage_Queued:
 		return event.Queued, nil
+	case *EventMessage_DuplicateFound:
+		return event.DuplicateFound, nil
 	case *EventMessage_Leased:
 		return event.Leased, nil
 	case *EventMessage_LeaseReturned:
@@ -77,6 +79,12 @@ func Wrap(event Event) (*EventMessage, error) {
 		return &EventMessage{
 			Events: &EventMessage_Queued{
 				Queued: typed,
+			},
+		}, nil
+	case *JobDuplicateFoundEvent:
+		return &EventMessage{
+			Events: &EventMessage_DuplicateFound{
+				DuplicateFound: typed,
 			},
 		}, nil
 	case *JobLeasedEvent:

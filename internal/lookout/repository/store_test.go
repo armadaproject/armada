@@ -595,6 +595,57 @@ func Test_Cancelled(t *testing.T) {
 	})
 }
 
+func Test_Duplicate(t *testing.T) {
+	withDatabase(t, func(db *goqu.Database) {
+		jobStore := NewSQLJobStore(db)
+		jobId := util.NewULID()
+
+		err := jobStore.RecordJob(&api.Job{
+			Id:      jobId,
+			Queue:   "queue",
+			Created: someTime,
+		})
+		assert.NoError(t, err)
+
+		err = jobStore.RecordJobDuplicate(&api.JobDuplicateFoundEvent{
+			JobId:         jobId,
+			Queue:         "queue",
+			Created:       someTime,
+			OriginalJobId: util.NewULID(),
+		})
+		assert.NoError(t, err)
+
+		assert.Equal(t, JobStateToIntMap[JobDuplicate], selectInt(t, db,
+			"SELECT state FROM job"))
+	})
+}
+
+func Test_DuplicateOutOfOrder(t *testing.T) {
+	withDatabase(t, func(db *goqu.Database) {
+		jobStore := NewSQLJobStore(db)
+		jobId := util.NewULID()
+
+		err := jobStore.RecordJobDuplicate(&api.JobDuplicateFoundEvent{
+			JobId:         jobId,
+			Queue:         "queue",
+			Created:       someTime,
+			OriginalJobId: util.NewULID(),
+		})
+		assert.NoError(t, err)
+
+		err = jobStore.RecordJob(&api.Job{
+			Id:      jobId,
+			Queue:   "queue",
+			Created: someTime,
+		})
+		assert.NoError(t, err)
+
+		assert.Equal(t, JobStateToIntMap[JobDuplicate], selectInt(t, db,
+			"SELECT state FROM job"))
+
+	})
+}
+
 func selectInt(t *testing.T, db *goqu.Database, query string) int {
 	r, err := db.Query(query)
 	assert.NoError(t, err)

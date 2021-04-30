@@ -20,6 +20,10 @@ func NewKafkaEventStore(writer *kafka.Writer) *KafkaEventStore {
 }
 
 func (k *KafkaEventStore) ReportEvents(messages []*api.EventMessage) error {
+	if len(messages) == 0 {
+		return nil
+	}
+
 	kafkaMessages := []kafka.Message{}
 
 	for _, m := range messages {

@@ -245,3 +245,15 @@ func (js *JobSimulator) UnableToScheduleAtTime(cluster string, k8sId string, nod
 	assert.NoError(js.t, js.jobStore.RecordJobUnableToSchedule(unableToScheduleEvent))
 	return js
 }
+
+func (js *JobSimulator) Duplicate(originalJobId string) *JobSimulator {
+	duplicateFoundEvent := &api.JobDuplicateFoundEvent{
+		JobId:         js.job.Id,
+		JobSetId:      js.job.JobSetId,
+		Queue:         js.job.Queue,
+		Created:       time.Now(),
+		OriginalJobId: originalJobId,
+	}
+	assert.NoError(js.t, js.jobStore.RecordJobDuplicate(duplicateFoundEvent))
+	return js
+}
