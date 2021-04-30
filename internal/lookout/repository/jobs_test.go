@@ -1429,3 +1429,37 @@ func TestGetJobs_SkipFirstNewestJobs(t *testing.T) {
 		}
 	})
 }
+
+func TestGetJobs_RemovesDuplicateJobsByDefault(t *testing.T) {
+	withDatabase(t, func(db *goqu.Database) {
+		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
+		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
+
+		correctJob := NewJobSimulator(t, jobStore).
+			CreateJobWithId(queue, "correct").
+			Pending(cluster, k8sId2).
+			Running(cluster, k8sId2, node)
+
+		duplicate := NewJobSimulator(t, jobStore).
+			CreateJobWithId(queue, "duplicate").
+			Duplicate("correct")
+
+		jobInfos, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
+			Take:        10,
+			NewestFirst: false,
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(jobInfos))
+		AssertJobsAreEquivalent(t, correctJob.job, jobInfos[0].Job)
+
+		jobInfos, err = jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
+			Take:        10,
+			NewestFirst: false,
+			JobStates:   []string{string(JobDuplicate)},
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(jobInfos))
+		AssertJobsAreEquivalent(t, duplicate.job, jobInfos[0].Job)
+
+	})
+}

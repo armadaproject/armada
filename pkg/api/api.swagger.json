@@ -274,6 +274,9 @@
         "cancelling": {
           "$ref": "#/definitions/apiJobCancellingEvent"
         },
+        "duplicateFound": {
+          "$ref": "#/definitions/apiJobDuplicateFoundEvent"
+        },
         "failed": {
           "$ref": "#/definitions/apiJobFailedEvent"
         },
@@ -429,6 +432,27 @@
           "type": "string"
         },
         "jobSetId": {
+          "type": "string"
+        },
+        "queue": {
+          "type": "string"
+        }
+      }
+    },
+    "apiJobDuplicateFoundEvent": {
+      "type": "object",
+      "properties": {
+        "created": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "jobId": {
+          "type": "string"
+        },
+        "jobSetId": {
+          "type": "string"
+        },
+        "originalJobId": {
           "type": "string"
         },
         "queue": {
