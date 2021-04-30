@@ -173,7 +173,7 @@ func Test_RecordAnnotations(t *testing.T) {
 			})
 			assert.NoError(t, err)
 			assert.Equal(t, 0, selectInt(t, db,
-				"SELECT COUNT(*) FROM annotation"))
+				"SELECT COUNT(*) FROM user_annotation_lookup"))
 		})
 	})
 
@@ -194,7 +194,7 @@ func Test_RecordAnnotations(t *testing.T) {
 			})
 			assert.NoError(t, err)
 			assert.Equal(t, 2, selectInt(t, db,
-				"SELECT COUNT(*) FROM annotation"))
+				"SELECT COUNT(*) FROM user_annotation_lookup"))
 		})
 	})
 }
