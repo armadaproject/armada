@@ -535,7 +535,7 @@ type RunInfo struct {
 }
 
 /*
- Returns the start time of each job id for the cluster they are currently associated with (leased by)
+ Returns the run info of each job id for the cluster they are currently associated with (leased by)
  Jobs with no value will be omitted from the results, which happens in the following cases:
  - The job is not associated with a cluster
  - The job has does not have a start time for the cluster it is associated with
