@@ -27,12 +27,12 @@ type JobRecorder interface {
 }
 
 type SQLJobStore struct {
-	db               *goqu.Database
-	annotationPrefix string
+	db                   *goqu.Database
+	userAnnotationPrefix string
 }
 
 func NewSQLJobStore(db *goqu.Database, annotationPrefix string) *SQLJobStore {
-	return &SQLJobStore{db: db, annotationPrefix: annotationPrefix}
+	return &SQLJobStore{db: db, userAnnotationPrefix: annotationPrefix}
 }
 
 func (r *SQLJobStore) RecordJob(job *api.Job) error {
@@ -284,8 +284,8 @@ func (r *SQLJobStore) upsertContainers(k8sId string, exitCodes map[string]int32)
 func (r *SQLJobStore) upsertUserAnnotations(jobId string, annotations map[string]string) error {
 	var annotationRecords []goqu.Record
 	for key, value := range annotations {
-		if strings.HasPrefix(key, r.annotationPrefix) && len(key) > len(r.annotationPrefix) {
-			trimmedKey := key[len(r.annotationPrefix):]
+		if strings.HasPrefix(key, r.userAnnotationPrefix) && len(key) > len(r.userAnnotationPrefix) {
+			trimmedKey := key[len(r.userAnnotationPrefix):]
 			annotationRecords = append(annotationRecords, goqu.Record{
 				"job_id": jobId,
 				"key":    trimmedKey,
