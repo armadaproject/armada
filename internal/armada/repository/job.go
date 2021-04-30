@@ -49,7 +49,7 @@ type JobRepository interface {
 	GetActiveJobIds(queue string, jobSetId string) ([]string, error)
 	GetLeasedJobIds(queue string) ([]string, error)
 	UpdateStartTime(jobId string, clusterId string, startTime time.Time) error
-	GetStartTimes(jobIds []string) (map[string]time.Time, error)
+	GetJobRunInfos(jobIds []string) (map[string]*RunInfo, error)
 	GetQueueActiveJobSets(queue string) ([]*api.JobSetInfo, error)
 	AddRetryAttempt(jobId string) error
 	GetNumberOfRetryAttempts(jobId string) (int, error)
@@ -529,18 +529,23 @@ end
 return redis.call('HSET', startTimeKey, clusterId, startTime)
 `)
 
+type RunInfo struct {
+	StartTime        time.Time
+	CurrentClusterId string
+}
+
 /*
  Returns the start time of each job id for the cluster they are currently associated with (leased by)
  Jobs with no value will be omitted from the results, which happens in the following cases:
  - The job is not associated with a cluster
  - The job has does not have a start time for the cluster it is associated with
 */
-func (repo *RedisJobRepository) GetStartTimes(jobIds []string) (map[string]time.Time, error) {
-	startTimes := make(map[string]time.Time, len(jobIds))
+func (repo *RedisJobRepository) GetJobRunInfos(jobIds []string) (map[string]*RunInfo, error) {
+	runInfos := make(map[string]*RunInfo, len(jobIds))
 
 	associatedClusters, err := repo.getAssociatedCluster(jobIds)
 	if err != nil {
-		return startTimes, err
+		return runInfos, err
 	}
 
 	pipe := repo.db.Pipeline()
@@ -554,7 +559,7 @@ func (repo *RedisJobRepository) GetStartTimes(jobIds []string) (map[string]time.
 
 	_, e := pipe.Exec()
 	if e != nil && e != redis.Nil {
-		return startTimes, e
+		return runInfos, e
 	}
 
 	for jobId, cmd := range cmds {
@@ -564,11 +569,14 @@ func (repo *RedisJobRepository) GetStartTimes(jobIds []string) (map[string]time.
 				log.Errorf("Failed to parse start time for job %s because %s", jobId, err)
 				continue
 			}
-			startTimes[jobId] = time.Unix(0, i)
+			runInfos[jobId] = &RunInfo{
+				StartTime:        time.Unix(0, i),
+				CurrentClusterId: associatedClusters[jobId],
+			}
 		}
 	}
 
-	return startTimes, nil
+	return runInfos, nil
 }
 
 func (repo *RedisJobRepository) GetQueueJobIds(queueName string) ([]string, error) {
