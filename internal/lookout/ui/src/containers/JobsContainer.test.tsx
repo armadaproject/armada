@@ -1,4 +1,4 @@
-import { JobFilters, makeFiltersFromQueryString, makeQueryStringFromFilters } from "./JobsContainer";
+import { JobFilters, makeFiltersFromQueryString, makeQueryString } from "./JobsContainer";
 
 function assertStringHasQueryParams(expected: string[], actual: string) {
   const actualQueryParams = actual.split("&")
@@ -13,7 +13,7 @@ describe("makeQueryStringFromFilters", () => {
       jobStates: [],
       newestFirst: false,
     }
-    const queryString = makeQueryStringFromFilters(filters)
+    const queryString = makeQueryString(filters)
     assertStringHasQueryParams(["queue=test", "newest_first=false"], queryString)
   })
 
@@ -24,7 +24,7 @@ describe("makeQueryStringFromFilters", () => {
       jobStates: [],
       newestFirst: false,
     }
-    const queryString = makeQueryStringFromFilters(filters)
+    const queryString = makeQueryString(filters)
     assertStringHasQueryParams(["job_set=job-set", "newest_first=false"], queryString)
   })
 
@@ -35,7 +35,7 @@ describe("makeQueryStringFromFilters", () => {
       jobStates: ["Queued"],
       newestFirst: false,
     }
-    const queryString = makeQueryStringFromFilters(filters)
+    const queryString = makeQueryString(filters)
     assertStringHasQueryParams(["job_states=Queued", "newest_first=false"], queryString)
   })
 
@@ -46,7 +46,7 @@ describe("makeQueryStringFromFilters", () => {
       jobStates: ["Queued", "Running", "Cancelled"],
       newestFirst: false,
     }
-    const queryString = makeQueryStringFromFilters(filters)
+    const queryString = makeQueryString(filters)
     assertStringHasQueryParams(["job_states=Queued,Running,Cancelled", "newest_first=false"], queryString)
   })
 
@@ -57,7 +57,7 @@ describe("makeQueryStringFromFilters", () => {
       jobStates: [],
       newestFirst: true,
     }
-    const queryString = makeQueryStringFromFilters(filters)
+    const queryString = makeQueryString(filters)
     assertStringHasQueryParams(["newest_first=true"], queryString)
   })
 
@@ -68,7 +68,7 @@ describe("makeQueryStringFromFilters", () => {
       jobStates: ["Pending", "Succeeded", "Failed"],
       newestFirst: true,
     }
-    const queryString = makeQueryStringFromFilters(filters)
+    const queryString = makeQueryString(filters)
     assertStringHasQueryParams([
       "queue=other-test",
       "job_set=other-job-set",

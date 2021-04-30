@@ -64,51 +64,29 @@ const CANCELLABLE_JOB_STATES = [
   "Running",
 ]
 
-const DEFAULT_COLUMNS = [
-  {
-    id: "queue",
-    name: "Queue",
-  },
-  {
-    id: "jobId",
-    name: "Job Id",
-  },
-  {
-    id: "owner",
-    name: "Owner",
-  },
-  {
-    id: "jobSet",
-    name: "Job Set",
-  },
-  {
-    id: "submissionTime",
-    name: "Submission Time",
-  },
-  {
-    id: "jobState",
-    name: "Job State",
-  },
-]
-
-export function makeQueryStringFromFilters(filters: JobFilters): string {
-  let queryObject: JobFiltersQueryParams = {}
-  if (filters.queue) {
-    queryObject.queue = filters.queue
+export function makeQueryString(columns: ColumnSpec<string | boolean | string[]>[]): string {
+  const columnMap = new Map<string, ColumnSpec<string | boolean | string[]>>()
+  for (let col of columns) {
+    columnMap.set(col.id, col)
   }
-  if (filters.jobSet) {
+
+  let queryObject: JobFiltersQueryParams = {}
+  if (columnMap.get("queue")) {
+    queryObject.queue = columnMap.get("queue")?.filter as string
+  }
+  if (columnMap.get("jobSet")) {
     queryObject.job_set = filters.jobSet
   }
-  if (filters.jobStates) {
+  if (columnMap.get("jobState")) {
     queryObject.job_states = filters.jobStates
   }
-  if (filters.newestFirst != null) {
+  if (columnMap.get("submissionTime")) {
     queryObject.newest_first = filters.newestFirst
   }
-  if (filters.jobId) {
+  if (columnMap.get("jobId")) {
     queryObject.job_id = filters.jobId
   }
-  if (filters.owner) {
+  if (columnMap.get("owner")) {
     queryObject.owner = filters.owner
   }
 
