@@ -70,72 +70,59 @@ export function makeQueryString(columns: ColumnSpec<string | boolean | string[]>
     columnMap.set(col.id, col)
   }
 
+  const queueCol = columnMap.get("queue")
+  const jobSetCol = columnMap.get("jobSet")
+  const jobStateCol = columnMap.get("jobState")
+  const submissionTimeCol = columnMap.get("submissionTime")
+  const jobIdCol = columnMap.get("jobId")
+  const ownerCol = columnMap.get("owner")
+
   let queryObject: JobFiltersQueryParams = {}
-  if (columnMap.get("queue")) {
-    queryObject.queue = columnMap.get("queue")?.filter as string
+  if (queueCol && queueCol.filter) {
+    queryObject.queue = queueCol.filter as string
   }
-  if (columnMap.get("jobSet")) {
-    queryObject.job_set = filters.jobSet
+  if (jobSetCol && jobSetCol.filter) {
+    queryObject.job_set = jobSetCol.filter as string
   }
-  if (columnMap.get("jobState")) {
-    queryObject.job_states = filters.jobStates
+  if (jobStateCol && jobStateCol.filter) {
+    queryObject.job_states = jobStateCol.filter as string[]
   }
-  if (columnMap.get("submissionTime")) {
-    queryObject.newest_first = filters.newestFirst
+  if (submissionTimeCol) {
+    queryObject.newest_first = submissionTimeCol.filter as boolean
   }
-  if (columnMap.get("jobId")) {
-    queryObject.job_id = filters.jobId
+  if (jobIdCol && jobIdCol.filter) {
+    queryObject.job_id = jobIdCol.filter as string
   }
-  if (columnMap.get("owner")) {
-    queryObject.owner = filters.owner
+  if (ownerCol && ownerCol.filter) {
+    queryObject.owner = ownerCol.filter as string
   }
 
   return queryString.stringify(queryObject, QUERY_STRING_OPTIONS)
 }
 
-export function makeFiltersFromQueryString(query: string): JobFilters {
+export function updateColumnsFromQueryString(query: string, columns: ColumnSpec<string | boolean | string[]>[]) {
   const params = queryString.parse(query, QUERY_STRING_OPTIONS) as JobFiltersQueryParams
 
-  let filters: JobFilters = {
-    queue: "",
-    jobSet: "",
-    jobStates: [],
-    newestFirst: true,
-    jobId: "",
-    owner: "",
-  }
-  if (params.queue) {
-    filters.queue = params.queue
-  }
-  if (params.job_set) {
-    filters.jobSet = params.job_set
-  }
-  if (params.job_states) {
-    filters.jobStates = parseJobStates(params.job_states)
-  }
-  if (params.newest_first != null) {
-    filters.newestFirst = params.newest_first
-  }
-  if (params.job_id) {
-    filters.jobId = params.job_id
-  }
-  if (params.owner) {
-    filters.owner = params.owner
-  }
-
-  return filters
-}
-
-function parseJobStates(jobStates: string[] | string): string[] {
-  if (!Array.isArray(jobStates)) {
-    if (JOB_STATES_FOR_DISPLAY.includes(jobStates)) {
-      return [jobStates]
-    } else {
-      return []
+  for (let col of columns) {
+    if (col.id === "queue" && params.queue) {
+      col.filter = params.queue
+    }
+    if (col.id === "jobSet" && params.job_set) {
+      col.filter = params.job_set
+    }
+    if (col.id === "jobState" && params.job_states) {
+      col.filter = params.job_states
+    }
+    if (col.id === "submissionTime" && params.newest_first) {
+      col.filter = params.newest_first
+    }
+    if (col.id === "jobId" && params.job_id) {
+      col.filter = params.job_id
+    }
+    if (col.id === "owner" && params.owner) {
+      col.filter = params.owner
     }
   }
-
-  return jobStates.filter(jobState => JOB_STATES_FOR_DISPLAY.includes(jobState))
 }
 
 class JobsContainer extends React.Component<JobsContainerProps, JobsContainerState> {
@@ -243,13 +230,10 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
   }
 
   componentDidMount() {
-    /*
-    const filters = makeFiltersFromQueryString(this.props.location.search)
+    updateColumnsFromQueryString(this.props.location.search, this.state.defaultColumns)
     this.setState({
       ...this.state,
-      ...filters,
     })
-     */
   }
 
   async serveJobs(start: number, stop: number): Promise<Job[]> {
@@ -547,7 +531,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
       selectedJobs: new Map<string, Job>(),
       forceRefresh: true,
     })
-    // this.setUrlParams()
+    this.setUrlParams()
   }
 
   private setStateAsync(state: JobsContainerState): Promise<void> {
@@ -557,7 +541,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
   private setUrlParams() {
     this.props.history.push({
       ...this.props.location,
-      // search: makeQueryStringFromFilters(this.state),
+      search: makeQueryString(this.state.defaultColumns),
     })
   }
 

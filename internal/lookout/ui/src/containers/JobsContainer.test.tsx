@@ -1,4 +1,4 @@
-import { JobFilters, makeFiltersFromQueryString, makeQueryString } from "./JobsContainer";
+import { JobFilters, updateColumnsFromQueryString, makeQueryString } from "./JobsContainer";
 
 function assertStringHasQueryParams(expected: string[], actual: string) {
   const actualQueryParams = actual.split("&")
@@ -81,7 +81,7 @@ describe("makeQueryStringFromFilters", () => {
 describe("makeFiltersFromQueryString", () => {
   test("empty string returns default filters", () => {
     const query = ""
-    const filters = makeFiltersFromQueryString(query)
+    const filters = updateColumnsFromQueryString(query)
     expect(filters).toStrictEqual({
       queue: "",
       jobSet: "",
@@ -92,7 +92,7 @@ describe("makeFiltersFromQueryString", () => {
 
   test("makes filter with queue", () => {
     const query = "queue=test"
-    const filters = makeFiltersFromQueryString(query)
+    const filters = updateColumnsFromQueryString(query)
     expect(filters).toStrictEqual({
       queue: "test",
       jobSet: "",
@@ -103,7 +103,7 @@ describe("makeFiltersFromQueryString", () => {
 
   test("makes filter with job set", () => {
     const query = "job_set=job-set"
-    const filters = makeFiltersFromQueryString(query)
+    const filters = updateColumnsFromQueryString(query)
     expect(filters).toStrictEqual({
       queue: "",
       jobSet: "job-set",
@@ -114,7 +114,7 @@ describe("makeFiltersFromQueryString", () => {
 
   test("makes filter with single job state", () => {
     const query = "job_states=Queued"
-    const filters = makeFiltersFromQueryString(query)
+    const filters = updateColumnsFromQueryString(query)
     expect(filters).toStrictEqual({
       queue: "",
       jobSet: "",
@@ -125,7 +125,7 @@ describe("makeFiltersFromQueryString", () => {
 
   test("makes filter with multiple job states", () => {
     const query = "job_states=Queued,Pending,Running"
-    const filters = makeFiltersFromQueryString(query)
+    const filters = updateColumnsFromQueryString(query)
     expect(filters).toStrictEqual({
       queue: "",
       jobSet: "",
@@ -136,7 +136,7 @@ describe("makeFiltersFromQueryString", () => {
 
   const orderingsCases = [["newest_first=true", true], ["newest_first=false", false]]
   test.each(orderingsCases)("makes filter with ordering %p", (query, expectedOrdering) => {
-    const filters = makeFiltersFromQueryString(query as string)
+    const filters = updateColumnsFromQueryString(query as string)
     expect(filters).toStrictEqual({
       queue: "",
       jobSet: "",
@@ -147,7 +147,7 @@ describe("makeFiltersFromQueryString", () => {
 
   test("makes filter with everything", () => {
     const query = "queue=test&job_set=job-set-1&job_states=Queued,Succeeded,Pending&newest_first=false"
-    const filters = makeFiltersFromQueryString(query)
+    const filters = updateColumnsFromQueryString(query)
     expect(filters).toStrictEqual({
       queue: "test",
       jobSet: "job-set-1",
@@ -161,7 +161,7 @@ describe("makeFiltersFromQueryString", () => {
     ["job_states=Cancelled,SomethingElse,Succeeded,Failed", ["Cancelled", "Succeeded", "Failed"]],
   ]
   test.each(nonExistentJobStatesCases)("non existent job states are ignored %p", (query, expectedJobStates) => {
-    const filters = makeFiltersFromQueryString(query as string)
+    const filters = updateColumnsFromQueryString(query as string)
     expect(filters).toStrictEqual({
       queue: "",
       jobSet: "",
@@ -172,7 +172,7 @@ describe("makeFiltersFromQueryString", () => {
 
   test("other query parameters are ignored", () => {
     const query = "something=else"
-    const filters = makeFiltersFromQueryString(query)
+    const filters = updateColumnsFromQueryString(query)
     expect(filters).toStrictEqual({
       queue: "",
       jobSet: "",

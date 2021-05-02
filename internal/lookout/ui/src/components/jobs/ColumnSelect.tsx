@@ -1,8 +1,7 @@
 import React from 'react';
 import {
-  Checkbox,
+  Checkbox, IconButton,
   Input,
-  InputAdornment,
   InputLabel, ListItem,
   ListItemText,
   MenuItem,
@@ -11,6 +10,7 @@ import {
   TextField
 } from "@material-ui/core";
 import { Add, Clear } from "@material-ui/icons";
+
 import { ColumnSpec } from "../../containers/JobsContainer";
 
 type ColumnSelectProps = {
@@ -25,12 +25,12 @@ type ColumnSelectProps = {
 }
 
 const ITEM_HEIGHT = 64
-const ITEM_PADDING_TOP = 16
 const menuProps: Partial<MenuProps> = {
   PaperProps: {
     style: {
-      maxHeight: ITEM_HEIGHT + ITEM_PADDING_TOP,
-      width: 250,
+      maxHeight: "90%",
+      width: 300,
+      overflowY: "auto",
     },
   },
   anchorOrigin: {
@@ -63,12 +63,6 @@ function countTotalSelected(defaultColumns: ColumnSpec<any>[], annotationColumns
 }
 
 export default function ColumnSelect(props: ColumnSelectProps) {
-  if (menuProps.PaperProps && menuProps.PaperProps.style) {
-    menuProps.PaperProps.style.maxHeight = ITEM_HEIGHT *
-      (props.defaultColumns.length + props.annotationColumns.length + 1) +
-      ITEM_PADDING_TOP
-  }
-
   return (
     <div className="job-states-header-cell">
       <InputLabel shrink={true} id="job-table-state-select-label">Columns</InputLabel>
@@ -100,14 +94,15 @@ export default function ColumnSelect(props: ColumnSelectProps) {
               value={col.name}
               onChange={event => {
                 props.onEditColumn(col.id, event.target.value)
-              }}
-              InputProps={{
-                endAdornment: (
-                  <InputAdornment position="end">
-                    <Clear/>
-                  </InputAdornment>
-                ),
               }}/>
+            <IconButton color="secondary" component="span" style={{
+              marginLeft: "0.5em",
+              height: ITEM_HEIGHT / 2,
+              width: ITEM_HEIGHT / 2,
+            }}
+            onClick={() => props.onDeleteColumn(col.id)}>
+              <Clear/>
+            </IconButton>
           </ListItem>
         ))}
         <MenuItem style={{

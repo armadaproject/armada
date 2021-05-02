@@ -126,12 +126,13 @@ export default class Jobs extends React.Component<JobsProps, {}> {
                     headerHeight={60}
                     height={height - 1}
                     width={width}>
-                    {this.props.defaultColumns
+                    {this.props.defaultColumns.concat(this.props.annotationColumns)
                       .filter(col => !col.isDisabled)
                       .map(col => columnWrapper(
                         col.id,
                         col,
-                        width / this.props.defaultColumns.filter(c => !c.isDisabled).length,
+                        width / this.props.defaultColumns.concat(this.props.annotationColumns)
+                          .filter(c => !c.isDisabled).length,
                         (newValue: string | boolean | string[]) => {
                           this.props.onChangeColumn(col.id, newValue)
                         },
@@ -145,5 +146,4 @@ export default class Jobs extends React.Component<JobsProps, {}> {
       </div>
     )
   }
-
 }
