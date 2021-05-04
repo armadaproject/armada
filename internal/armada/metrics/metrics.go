@@ -247,8 +247,7 @@ func (c *QueueInfoCollector) Collect(metrics chan<- prometheus.Metric) {
 	}
 
 	activeClusterInfo := scheduling.FilterActiveClusterSchedulingInfoReports(clusterSchedulingInfo)
-	clusterSchedulingInfoByPool := scheduling.GroupSchedulingInfoByPool(activeClusterInfo)
-	runDurationsByPool, runResourceByPool := c.calculateRunningJobStats(queues, clusterSchedulingInfoByPool)
+	runDurationsByPool, runResourceByPool := c.calculateRunningJobStats(queues, activeClusterInfo)
 
 	activeClusterReports := scheduling.FilterActiveClusters(usageReports)
 	clusterPriorities, e := c.usageRepository.GetClusterPriorities(scheduling.GetClusterReportIds(activeClusterReports))
@@ -362,11 +361,16 @@ func (c *QueueInfoCollector) Collect(metrics chan<- prometheus.Metric) {
 }
 
 func (c *QueueInfoCollector) calculateRunningJobStats(
-	queues []*api.Queue, clusterSchedulingInfoByPool map[string]map[string]*api.ClusterSchedulingInfoReport) (
+	queues []*api.Queue, activeClusterInfos map[string]*api.ClusterSchedulingInfoReport) (
 	map[string]map[string]*FloatMetrics, map[string]map[string]ResourceMetrics) {
 
 	runDurationMetrics := make(map[string]map[string]*FloatMetrics)
 	runResourceMetrics := make(map[string]map[string]ResourceMetrics)
+
+	clusterIdToPool := map[string]string{}
+	for _, clusterInfo := range activeClusterInfos {
+		clusterIdToPool[clusterInfo.ClusterId] = clusterInfo.Pool
+	}
 
 	for _, queue := range queues {
 		durationMetricsRecorderByPool := make(map[string]*FloatMetricsRecorder)
@@ -383,7 +387,7 @@ func (c *QueueInfoCollector) calculateRunningJobStats(
 			continue
 		}
 
-		startTimes, e := c.jobRepository.GetStartTimes(leasedJobsIds)
+		runInfo, e := c.jobRepository.GetJobRunInfos(leasedJobsIds)
 		if e != nil {
 			log.Errorf("Error getting queue(%s) run duration metrics %s", queue.Name, e)
 			continue
@@ -391,32 +395,30 @@ func (c *QueueInfoCollector) calculateRunningJobStats(
 
 		now := time.Now()
 		for _, job := range leasedJobs {
-			startTime, present := startTimes[job.Id]
+			runInfo, present := runInfo[job.Id]
+			if !present {
+				continue
+			}
+			pool, present := clusterIdToPool[runInfo.CurrentClusterId]
 			if !present {
 				continue
 			}
 			jobResources := common.TotalJobResourceRequest(job)
-			runTime := now.Sub(startTime)
+			runTime := now.Sub(runInfo.StartTime)
 
-			for pool, infos := range clusterSchedulingInfoByPool {
-				for _, schedulingInfo := range infos {
-					if scheduling.MatchSchedulingRequirements(job, schedulingInfo) {
-						r, exists := durationMetricsRecorderByPool[pool]
-						if !exists {
-							r = NewDefaultJobDurationMetricsRecorder()
-							durationMetricsRecorderByPool[pool] = r
-						}
-						r.Record(runTime.Seconds())
-
-						resource, exists := resourceMetricsRecorderByPool[pool]
-						if !exists {
-							resource = NewResourceMetricsRecorder()
-							resourceMetricsRecorderByPool[pool] = resource
-						}
-						resource.Record(jobResources.AsFloat())
-					}
-				}
+			r, exists := durationMetricsRecorderByPool[pool]
+			if !exists {
+				r = NewDefaultJobDurationMetricsRecorder()
+				durationMetricsRecorderByPool[pool] = r
 			}
+			r.Record(runTime.Seconds())
+
+			resource, exists := resourceMetricsRecorderByPool[pool]
+			if !exists {
+				resource = NewResourceMetricsRecorder()
+				resourceMetricsRecorderByPool[pool] = resource
+			}
+			resource.Record(jobResources.AsFloat())
 		}
 
 		if len(durationMetricsRecorderByPool) > 0 {
