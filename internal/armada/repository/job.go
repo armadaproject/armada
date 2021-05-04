@@ -87,6 +87,11 @@ func (repo *RedisJobRepository) CreateJobs(request *api.JobSubmitRequest, princi
 			return nil, fmt.Errorf("job with index %v has no pod spec", i)
 		}
 
+		e := validation.ValidateJobSubmitRequestItem(item)
+		if e != nil {
+			return nil, fmt.Errorf("job with index %v: %v", i, e)
+		}
+
 		namespace := item.Namespace
 		if namespace == "" {
 			namespace = "default"
@@ -119,6 +124,7 @@ func (repo *RedisJobRepository) CreateJobs(request *api.JobSubmitRequest, princi
 			Annotations: item.Annotations,
 
 			RequiredNodeLabels: item.RequiredNodeLabels,
+			Ingress:            item.Ingress,
 
 			Priority: item.Priority,
 

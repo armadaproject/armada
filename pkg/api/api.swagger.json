@@ -280,6 +280,9 @@
         "failed": {
           "$ref": "#/definitions/apiJobFailedEvent"
         },
+        "ingressInfo": {
+          "$ref": "#/definitions/apiJobIngressInfoEvent"
+        },
         "leaseExpired": {
           "$ref": "#/definitions/apiJobLeaseExpiredEvent"
         },
@@ -330,6 +333,28 @@
         }
       }
     },
+    "apiIngressConfig": {
+      "type": "object",
+      "properties": {
+        "ports": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "type": {
+          "$ref": "#/definitions/apiIngressType"
+        }
+      }
+    },
+    "apiIngressType": {
+      "type": "string",
+      "default": "Http",
+      "enum": [
+        "Http"
+      ]
+    },
     "apiJob": {
       "type": "object",
       "properties": {
@@ -348,6 +373,12 @@
         },
         "id": {
           "type": "string"
+        },
+        "ingress": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiIngressConfig"
+          }
         },
         "jobSetId": {
           "type": "string"
@@ -506,6 +537,43 @@
           "type": "string"
         },
         "reason": {
+          "type": "string"
+        }
+      }
+    },
+    "apiJobIngressInfoEvent": {
+      "type": "object",
+      "properties": {
+        "clusterId": {
+          "type": "string"
+        },
+        "created": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "ingressAddresses": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "jobId": {
+          "type": "string"
+        },
+        "jobSetId": {
+          "type": "string"
+        },
+        "kubernetesId": {
+          "type": "string"
+        },
+        "nodeName": {
+          "type": "string"
+        },
+        "podNumber": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "queue": {
           "type": "string"
         }
       }
@@ -731,6 +799,12 @@
         },
         "clientId": {
           "type": "string"
+        },
+        "ingress": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiIngressConfig"
+          }
         },
         "labels": {
           "type": "object",

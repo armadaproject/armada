@@ -110,6 +110,28 @@ func SwaggerJsonTemplate() string {
 		"    }\n" +
 		"  },\n" +
 		"  \"definitions\": {\n" +
+		"    \"apiIngressConfig\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"ports\": {\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"type\": \"integer\",\n" +
+		"            \"format\": \"int64\"\n" +
+		"          }\n" +
+		"        },\n" +
+		"        \"type\": {\n" +
+		"          \"$ref\": \"#/definitions/apiIngressType\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"apiIngressType\": {\n" +
+		"      \"type\": \"string\",\n" +
+		"      \"default\": \"Http\",\n" +
+		"      \"enum\": [\n" +
+		"        \"Http\"\n" +
+		"      ]\n" +
+		"    },\n" +
 		"    \"apiJob\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
@@ -128,6 +150,12 @@ func SwaggerJsonTemplate() string {
 		"        },\n" +
 		"        \"id\": {\n" +
 		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"ingress\": {\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/apiIngressConfig\"\n" +
+		"          }\n" +
 		"        },\n" +
 		"        \"jobSetId\": {\n" +
 		"          \"type\": \"string\"\n" +

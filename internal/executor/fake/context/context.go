@@ -35,9 +35,9 @@ type NodeSpec struct {
 var DefaultNodeSpec = []*NodeSpec{
 	{
 		Name:  "worker",
-		Count: 500,
+		Count: 1,
 		Allocatable: map[v1.ResourceName]resource.Quantity{
-			"cpu":    resource.MustParse("8"),
+			"cpu":    resource.MustParse("2"),
 			"memory": resource.MustParse("128Gi"),
 		},
 	},
@@ -152,6 +152,14 @@ func (c *FakeClusterContext) savePod(pod *v1.Pod) *v1.Pod {
 	saved := pod.DeepCopy()
 	c.pods[pod.Name] = saved
 	return saved
+}
+
+func (c *FakeClusterContext) SubmitService(service *v1.Service) (*v1.Service, error) {
+	return nil, fmt.Errorf("Services not implemented in FakeClusterContext")
+}
+
+func (c *FakeClusterContext) GetAssociatedService(pod *v1.Pod) (*v1.Service, error) {
+	return nil, fmt.Errorf("Services not implemented in FakeClusterContext")
 }
 
 func (c *FakeClusterContext) updateStatus(saved *v1.Pod, phase v1.PodPhase, state v1.ContainerState) (*v1.Pod, *v1.Pod) {

@@ -10,6 +10,7 @@ import (
 
 	"github.com/G-Research/armada/internal/common"
 	clusterContext "github.com/G-Research/armada/internal/executor/context"
+	domain2 "github.com/G-Research/armada/internal/executor/domain"
 	"github.com/G-Research/armada/internal/executor/util"
 	"github.com/G-Research/armada/pkg/api"
 )
@@ -111,6 +112,10 @@ func (eventReporter *JobEventReporter) reportCurrentStatus(pod *v1.Pod) {
 			}
 		}
 	})
+
+	if pod.Status.Phase == v1.PodRunning && requiresIngressToBeReported(pod) {
+		eventReporter.reportIngressInfoEvent(pod)
+	}
 }
 
 func (eventReporter *JobEventReporter) QueueEvent(event api.Event, callback func(error)) {
@@ -202,6 +207,14 @@ func (eventReporter *JobEventReporter) addAnnotationToMarkStateReported(pod *v1.
 	return eventReporter.clusterContext.AddAnnotation(pod, annotations)
 }
 
+func (eventReporter *JobEventReporter) addAnnotationToMarkIngressReported(pod *v1.Pod) error {
+	annotations := make(map[string]string)
+	annotationName := domain2.IngressReported
+	annotations[annotationName] = time.Now().String()
+
+	return eventReporter.clusterContext.AddAnnotation(pod, annotations)
+}
+
 func (eventReporter *JobEventReporter) ReportMissingJobEvents() {
 	allBatchPods, err := eventReporter.clusterContext.GetActiveBatchPods()
 	if err != nil {
@@ -215,6 +228,57 @@ func (eventReporter *JobEventReporter) ReportMissingJobEvents() {
 			eventReporter.reportCurrentStatus(pod)
 		}
 	}
+
+	podWithIngressNotReported := util.FilterPods(allBatchPods, func(pod *v1.Pod) bool {
+		return pod.Status.Phase == v1.PodRunning &&
+			requiresIngressToBeReported(pod) &&
+			HasPodBeenInStateForLongerThanGivenDuration(pod, 15*time.Second)
+	})
+
+	for _, pod := range podWithIngressNotReported {
+		if !eventReporter.hasPendingEvents(pod) {
+			eventReporter.reportIngressInfoEvent(pod)
+		}
+	}
+}
+
+func (eventReporter *JobEventReporter) reportIngressInfoEvent(pod *v1.Pod) {
+	associatedService, err := eventReporter.clusterContext.GetAssociatedService(pod)
+	if err != nil {
+		log.Errorf("Failed to report event JobIngressInfoEvent for pod %s because %s", pod.Name, err)
+		return
+	}
+	if associatedService == nil {
+		return
+	}
+
+	ingressInfoEvent, err := CreateJobIngressInfoEvent(pod, eventReporter.clusterContext.GetClusterId(), associatedService)
+	if err != nil {
+		log.Errorf("Failed to report event JobIngressInfoEvent for pod %s because %s", pod.Name, err)
+		return
+	}
+	eventReporter.QueueEvent(ingressInfoEvent, func(err error) {
+		if err != nil {
+			log.Errorf("Failed to report event JobIngressInfoEvent for pod %s because %s", pod.Name, err)
+			return
+		}
+
+		err = eventReporter.addAnnotationToMarkIngressReported(pod)
+		if err != nil {
+			log.Errorf("Failed to add ingress reported annotation %s to pod %s because %s", string(pod.Status.Phase), pod.Name, err)
+			return
+		}
+	})
+}
+
+func requiresIngressToBeReported(pod *v1.Pod) bool {
+	if value, exists := pod.Annotations[domain2.HasIngress]; !exists || value != "true" {
+		return false
+	}
+	if _, exists := pod.Annotations[domain2.IngressReported]; exists {
+		return false
+	}
+	return true
 }
 
 func (eventReporter *JobEventReporter) hasPendingEvents(pod *v1.Pod) bool {

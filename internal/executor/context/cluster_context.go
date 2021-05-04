@@ -35,8 +35,10 @@ type ClusterContext interface {
 	GetNodes() ([]*v1.Node, error)
 	GetNodeStatsSummary(*v1.Node) (*v1alpha1.Summary, error)
 	GetPodEvents(pod *v1.Pod) ([]*v1.Event, error)
+	GetAssociatedService(pod *v1.Pod) (*v1.Service, error)
 
 	SubmitPod(pod *v1.Pod, owner string) (*v1.Pod, error)
+	SubmitService(service *v1.Service) (*v1.Service, error)
 	AddAnnotation(pod *v1.Pod, annotations map[string]string) error
 	DeletePods(pods []*v1.Pod)
 
@@ -53,6 +55,7 @@ type KubernetesClusterContext struct {
 	podsToDelete             util.PodCache
 	podInformer              informer.PodInformer
 	nodeInformer             informer.NodeInformer
+	serviceInformer          informer.ServiceInformer
 	stopper                  chan struct{}
 	kubernetesClient         kubernetes.Interface
 	kubernetesClientProvider cluster.KubernetesClientProvider
@@ -85,6 +88,7 @@ func NewClusterContext(
 		podInformer:              factory.Core().V1().Pods(),
 		nodeInformer:             factory.Core().V1().Nodes(),
 		eventInformer:            factory.Core().V1().Events(),
+		serviceInformer:          factory.Core().V1().Services(),
 		kubernetesClient:         kubernetesClient,
 		kubernetesClientProvider: kubernetesClientProvider,
 	}
@@ -102,6 +106,7 @@ func NewClusterContext(
 
 	//Use node informer so it is initialized properly
 	context.nodeInformer.Lister()
+	context.serviceInformer.Lister()
 
 	err := context.eventInformer.Informer().AddIndexers(cache.Indexers{podByUIDIndex: indexPodByUID})
 	if err != nil {
@@ -215,6 +220,10 @@ func (c *KubernetesClusterContext) SubmitPod(pod *v1.Pod, owner string) (*v1.Pod
 	return returnedPod, err
 }
 
+func (c *KubernetesClusterContext) SubmitService(service *v1.Service) (*v1.Service, error) {
+	return c.kubernetesClient.CoreV1().Services(service.Namespace).Create(ctx.Background(), service, metav1.CreateOptions{})
+}
+
 func (c *KubernetesClusterContext) AddAnnotation(pod *v1.Pod, annotations map[string]string) error {
 	patch := &domain.Patch{
 		MetaData: metav1.ObjectMeta{
@@ -255,6 +264,10 @@ func (c *KubernetesClusterContext) ProcessPodsToDelete() {
 			c.podsToDelete.Delete(jobId)
 		}
 	}
+}
+
+func (c *KubernetesClusterContext) GetAssociatedService(pod *v1.Pod) (*v1.Service, error) {
+	return c.serviceInformer.Lister().Services(pod.Namespace).Get(pod.Name)
 }
 
 func createPodDeletionDeleteOptions() metav1.DeleteOptions {

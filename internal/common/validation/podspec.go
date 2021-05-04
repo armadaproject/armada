@@ -27,7 +27,7 @@ func ValidatePodSpec(spec *v1.PodSpec) error {
 			return fmt.Errorf("container %v does not havee resource request and limit equal (this is currently not supported)", container.Name)
 		}
 	}
-	return nil
+	return validatePorts(spec)
 }
 
 func resourceListEquals(a v1.ResourceList, b v1.ResourceList) bool {
@@ -40,4 +40,20 @@ func resourceListEquals(a v1.ResourceList, b v1.ResourceList) bool {
 		}
 	}
 	return true
+}
+
+func validatePorts(podSpec *v1.PodSpec) error {
+	existingPortSet := make(map[int32]int)
+	for index, container := range podSpec.Containers {
+		for _, port := range container.Ports {
+			if existingIndex, existing := existingPortSet[port.ContainerPort]; existing {
+				return fmt.Errorf(
+					"container port %d is exposed multiple times, specified in containers with indexes %d, %d. Should only be exposed once",
+					port.ContainerPort, existingIndex, index)
+			} else {
+				existingPortSet[port.ContainerPort] = index
+			}
+		}
+	}
+	return nil
 }
