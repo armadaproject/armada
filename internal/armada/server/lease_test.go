@@ -256,8 +256,8 @@ func (repo *mockJobRepository) UpdateStartTime(jobId string, clusterId string, s
 	return nil
 }
 
-func (repo *mockJobRepository) GetStartTimes(jobIds []string) (map[string]time.Time, error) {
-	return map[string]time.Time{}, nil
+func (repo *mockJobRepository) GetJobRunInfos(jobIds []string) (map[string]*repository.RunInfo, error) {
+	return map[string]*repository.RunInfo{}, nil
 }
 
 type fakeQueueRepository struct{}
