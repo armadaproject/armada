@@ -3,6 +3,7 @@ package repository
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/doug-martin/goqu/v9"
 	"github.com/doug-martin/goqu/v9/exp"
@@ -22,14 +23,16 @@ type JobRecorder interface {
 	RecordJobSucceeded(event *api.JobSucceededEvent) error
 	RecordJobFailed(event *api.JobFailedEvent) error
 	RecordJobUnableToSchedule(event *api.JobUnableToScheduleEvent) error
+	RecordJobDuplicate(event *api.JobDuplicateFoundEvent) error
 }
 
 type SQLJobStore struct {
-	db *goqu.Database
+	db                   *goqu.Database
+	userAnnotationPrefix string
 }
 
-func NewSQLJobStore(db *goqu.Database) *SQLJobStore {
-	return &SQLJobStore{db: db}
+func NewSQLJobStore(db *goqu.Database, annotationPrefix string) *SQLJobStore {
+	return &SQLJobStore{db: db, userAnnotationPrefix: annotationPrefix}
 }
 
 func (r *SQLJobStore) RecordJob(job *api.Job) error {
@@ -60,8 +63,11 @@ func (r *SQLJobStore) RecordJob(job *api.Job) error {
 			"state":     r.determineJobState(),
 		}))
 
-	_, err = ds.Prepared(true).Executor().Exec()
-	return err
+	if _, err = ds.Prepared(true).Executor().Exec(); err != nil {
+		return err
+	}
+
+	return r.upsertUserAnnotations(job.Id, job.Annotations)
 }
 
 func (r *SQLJobStore) MarkCancelled(event *api.JobCancelledEvent) error {
@@ -86,6 +92,25 @@ func (r *SQLJobStore) MarkCancelled(event *api.JobCancelledEvent) error {
 
 func (r *SQLJobStore) RecordJobPriorityChange(event *api.JobReprioritizedEvent) error {
 	panic("implement me")
+}
+
+func (r *SQLJobStore) RecordJobDuplicate(event *api.JobDuplicateFoundEvent) error {
+	ds := r.db.Insert(jobTable).
+		With("run_states", r.getRunStateCounts(event.GetJobId())).
+		Rows(goqu.Record{
+			"job_id":    event.JobId,
+			"queue":     event.Queue,
+			"jobset":    event.JobSetId,
+			"duplicate": true,
+			"state":     JobStateToIntMap[JobDuplicate],
+		}).
+		OnConflict(goqu.DoUpdate("job_id", goqu.Record{
+			"state":     JobStateToIntMap[JobDuplicate],
+			"duplicate": true,
+		}))
+
+	_, err := ds.Prepared(true).Executor().Exec()
+	return err
 }
 
 func (r *SQLJobStore) RecordJobPending(event *api.JobPendingEvent) error {
@@ -114,7 +139,6 @@ func (r *SQLJobStore) RecordJobPending(event *api.JobPendingEvent) error {
 		}))
 
 	_, err := jobDs.Prepared(true).Executor().Exec()
-
 	return err
 }
 
@@ -257,8 +281,25 @@ func (r *SQLJobStore) upsertContainers(k8sId string, exitCodes map[string]int32)
 	return upsert(r.db, jobRunContainerTable, []string{"run_id", "container_name"}, containerRecords)
 }
 
+func (r *SQLJobStore) upsertUserAnnotations(jobId string, annotations map[string]string) error {
+	var annotationRecords []goqu.Record
+	for key, value := range annotations {
+		if strings.HasPrefix(key, r.userAnnotationPrefix) && len(key) > len(r.userAnnotationPrefix) {
+			trimmedKey := key[len(r.userAnnotationPrefix):]
+			annotationRecords = append(annotationRecords, goqu.Record{
+				"job_id": jobId,
+				"key":    trimmedKey,
+				"value":  value,
+			})
+		}
+	}
+
+	return upsert(r.db, userAnnotationLookupTable, []string{"job_id", "key"}, annotationRecords)
+}
+
 func (r *SQLJobStore) determineJobState() exp.CaseExpression {
 	return goqu.Case().
+		When(job_duplicate.Eq(true), stateAsLiteral(JobDuplicate)).
 		When(job_state.Eq(stateAsLiteral(JobCancelled)), stateAsLiteral(JobCancelled)).
 		When(r.db.Select(goqu.I("run_states.failed").Gt(0)).
 			From("run_states"), stateAsLiteral(JobFailed)).

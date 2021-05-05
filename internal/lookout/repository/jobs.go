@@ -61,6 +61,7 @@ func (r *SQLJobRepository) queryJobs(ctx context.Context, opts *lookout.GetJobsR
 func (r *SQLJobRepository) createJobsDataset(opts *lookout.GetJobsRequest) *goqu.SelectDataset {
 	subDs := r.goquDb.
 		From(jobTable).
+		LeftJoin(userAnnotationLookupTable, goqu.On(job_jobId.Eq(annotation_jobId))).
 		Select(job_jobId).
 		Where(goqu.And(createWhereFilters(opts)...)).
 		Order(createJobOrdering(opts.NewestFirst)).
@@ -95,7 +96,7 @@ func (r *SQLJobRepository) createJobsDataset(opts *lookout.GetJobsRequest) *goqu
 }
 
 func createWhereFilters(opts *lookout.GetJobsRequest) []goqu.Expression {
-	filters := make([]goqu.Expression, 0)
+	var filters []goqu.Expression
 
 	if opts.Queue != "" {
 		filters = append(filters, StartsWith(job_queue, opts.Queue))
@@ -111,15 +112,19 @@ func createWhereFilters(opts *lookout.GetJobsRequest) []goqu.Expression {
 
 	filters = append(filters, goqu.Or(createJobSetFilters(opts.JobSetIds)...))
 
+	filters = append(filters, goqu.Or(createUserAnnotationFilters(opts.UserAnnotations)...))
+
 	if len(opts.JobStates) > 0 {
-		filters = append(filters, createJobStateFilter(opts.JobStates))
+		filters = append(filters, createJobStateFilter(toJobStates(opts.JobStates)))
+	} else {
+		filters = append(filters, createJobStateFilter(defaultQueryStates))
 	}
 
 	return filters
 }
 
 func createJobSetFilters(jobSetIds []string) []goqu.Expression {
-	filters := make([]goqu.Expression, 0)
+	var filters []goqu.Expression
 	for _, jobSetId := range jobSetIds {
 		filter := StartsWith(job_jobset, jobSetId)
 		filters = append(filters, filter)
@@ -127,10 +132,29 @@ func createJobSetFilters(jobSetIds []string) []goqu.Expression {
 	return filters
 }
 
-func createJobStateFilter(jobStates []string) goqu.Expression {
+func createUserAnnotationFilters(annotations map[string]string) []goqu.Expression {
+	var filters []goqu.Expression
+	for key, value := range annotations {
+		filter := goqu.And(
+			annotation_key.Eq(key),
+			StartsWith(annotation_value, value))
+		filters = append(filters, filter)
+	}
+	return filters
+}
+
+func toJobStates(jobStates []string) []JobState {
+	result := []JobState{}
+	for _, state := range jobStates {
+		result = append(result, JobState(state))
+	}
+	return result
+}
+
+func createJobStateFilter(jobStates []JobState) goqu.Expression {
 	stateInts := make([]interface{}, len(jobStates))
 	for i, state := range jobStates {
-		stateInts[i] = JobStateToIntMap[JobState(state)]
+		stateInts[i] = JobStateToIntMap[state]
 	}
 	return job_state.In(stateInts...)
 }

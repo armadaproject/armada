@@ -97,23 +97,27 @@ func NewJobSimulator(t *testing.T, jobStore JobRecorder) *JobSimulator {
 }
 
 func (js *JobSimulator) CreateJob(queue string) *JobSimulator {
-	return js.CreateJobWithOpts(queue, util.NewULID(), "job-set", "user", time.Now())
+	return js.CreateJobWithOpts(queue, util.NewULID(), "job-set", "user", time.Now(), nil)
 }
 
 func (js *JobSimulator) CreateJobWithId(queue string, id string) *JobSimulator {
-	return js.CreateJobWithOpts(queue, id, "job-set", "user", time.Now())
+	return js.CreateJobWithOpts(queue, id, "job-set", "user", time.Now(), nil)
 }
 
 func (js *JobSimulator) CreateJobWithJobSet(queue string, jobSetId string) *JobSimulator {
-	return js.CreateJobWithOpts(queue, util.NewULID(), jobSetId, "user", time.Now())
+	return js.CreateJobWithOpts(queue, util.NewULID(), jobSetId, "user", time.Now(), nil)
 }
 
 func (js *JobSimulator) CreateJobWithOwner(queue string, owner string) *JobSimulator {
-	return js.CreateJobWithOpts(queue, util.NewULID(), "job-set", owner, time.Now())
+	return js.CreateJobWithOpts(queue, util.NewULID(), "job-set", owner, time.Now(), nil)
 }
 
 func (js *JobSimulator) CreateJobAtTime(queue string, time time.Time) *JobSimulator {
-	return js.CreateJobWithOpts(queue, util.NewULID(), "job-set", "user", time)
+	return js.CreateJobWithOpts(queue, util.NewULID(), "job-set", "user", time, nil)
+}
+
+func (js *JobSimulator) CreateJobWithAnnotations(queue string, annotations map[string]string) *JobSimulator {
+	return js.CreateJobWithOpts(queue, util.NewULID(), "job-set", "user", time.Now(), annotations)
 }
 
 func (js *JobSimulator) CreateJobWithOpts(
@@ -122,6 +126,7 @@ func (js *JobSimulator) CreateJobWithOpts(
 	jobSetId string,
 	owner string,
 	time time.Time,
+	annotations map[string]string,
 ) *JobSimulator {
 	js.job = &api.Job{
 		Id:          jobId,
@@ -129,7 +134,7 @@ func (js *JobSimulator) CreateJobWithOpts(
 		Queue:       queue,
 		Namespace:   "nameSpace",
 		Labels:      nil,
-		Annotations: nil,
+		Annotations: annotations,
 		Owner:       owner,
 		Priority:    10,
 		PodSpec:     &v1.PodSpec{},
@@ -243,5 +248,17 @@ func (js *JobSimulator) UnableToScheduleAtTime(cluster string, k8sId string, nod
 		NodeName:     node,
 	}
 	assert.NoError(js.t, js.jobStore.RecordJobUnableToSchedule(unableToScheduleEvent))
+	return js
+}
+
+func (js *JobSimulator) Duplicate(originalJobId string) *JobSimulator {
+	duplicateFoundEvent := &api.JobDuplicateFoundEvent{
+		JobId:         js.job.Id,
+		JobSetId:      js.job.JobSetId,
+		Queue:         js.job.Queue,
+		Created:       time.Now(),
+		OriginalJobId: originalJobId,
+	}
+	assert.NoError(js.t, js.jobStore.RecordJobDuplicate(duplicateFoundEvent))
 	return js
 }

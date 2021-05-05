@@ -268,6 +268,12 @@ func SwaggerJsonTemplate() string {
 		"        \"take\": {\n" +
 		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int64\"\n" +
+		"        },\n" +
+		"        \"userAnnotations\": {\n" +
+		"          \"type\": \"object\",\n" +
+		"          \"additionalProperties\": {\n" +
+		"            \"type\": \"string\"\n" +
+		"          }\n" +
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +

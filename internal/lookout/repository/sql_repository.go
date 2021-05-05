@@ -22,6 +22,7 @@ const (
 	JobSucceeded JobState = "SUCCEEDED"
 	JobFailed    JobState = "FAILED"
 	JobCancelled JobState = "CANCELLED"
+	JobDuplicate JobState = "DUPLICATE"
 )
 
 type JobRepository interface {
@@ -37,9 +38,10 @@ type SQLJobRepository struct {
 
 var (
 	// Tables
-	jobTable             = goqu.T("job")
-	jobRunTable          = goqu.T("job_run")
-	jobRunContainerTable = goqu.T("job_run_container")
+	jobTable                  = goqu.T("job")
+	jobRunTable               = goqu.T("job_run")
+	jobRunContainerTable      = goqu.T("job_run_container")
+	userAnnotationLookupTable = goqu.T("user_annotation_lookup")
 
 	// Columns: job table
 	job_jobId     = goqu.I("job.job_id")
@@ -51,6 +53,7 @@ var (
 	job_cancelled = goqu.I("job.cancelled")
 	job_job       = goqu.I("job.job")
 	job_state     = goqu.I("job.state")
+	job_duplicate = goqu.I("job.duplicate")
 
 	// Columns: job_run table
 	jobRun_runId     = goqu.I("job_run.run_id")
@@ -63,6 +66,11 @@ var (
 	jobRun_finished  = goqu.I("job_run.finished")
 	jobRun_succeeded = goqu.I("job_run.succeeded")
 	jobRun_error     = goqu.I("job_run.error")
+
+	// Columns: annotation table
+	annotation_jobId = goqu.I("user_annotation_lookup.job_id")
+	annotation_key   = goqu.I("user_annotation_lookup.key")
+	annotation_value = goqu.I("user_annotation_lookup.value")
 )
 
 type JobRow struct {
@@ -93,6 +101,7 @@ var AllJobStates = []JobState{
 	JobSucceeded,
 	JobFailed,
 	JobCancelled,
+	JobDuplicate,
 }
 
 var JobStateToIntMap = map[JobState]int{
@@ -102,6 +111,7 @@ var JobStateToIntMap = map[JobState]int{
 	JobSucceeded: 4,
 	JobFailed:    5,
 	JobCancelled: 6,
+	JobDuplicate: 7,
 }
 
 var IntToJobStateMap = map[int]JobState{
@@ -111,6 +121,16 @@ var IntToJobStateMap = map[int]JobState{
 	4: JobSucceeded,
 	5: JobFailed,
 	6: JobCancelled,
+	7: JobDuplicate,
+}
+
+var defaultQueryStates = []JobState{
+	JobQueued,
+	JobPending,
+	JobRunning,
+	JobSucceeded,
+	JobFailed,
+	JobCancelled,
 }
 
 func NewSQLJobRepository(db *goqu.Database, clock Clock) *SQLJobRepository {

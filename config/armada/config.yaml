@@ -43,6 +43,12 @@ scheduling:
   maxRetries: 5
 queueManagement:
   defaultPriorityFactor: 1000
+eventsNats:
+  queueGroup: "ArmadaEventRedisProcessor"
+  jobStatusGroup: "ArmadaEventJobStatusProcessor"
+eventsKafka:
+  consumerGroupID: "KafkaEventRedisProcessor"
+  jobStatusConsumerGroupID: "KafkaEventJobStatusProcessor"
 eventRetention:
   expiryEnabled: true
   retentionDuration: 336h # Specified as a Go duration

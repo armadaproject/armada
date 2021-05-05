@@ -78,16 +78,18 @@ type LeaseSettings struct {
 }
 
 type KafkaConfig struct {
-	Brokers         []string
-	Topic           string
-	ConsumerGroupID string
+	Brokers                  []string
+	Topic                    string
+	ConsumerGroupID          string
+	JobStatusConsumerGroupID string
 }
 
 type NatsConfig struct {
-	Servers    []string
-	ClusterID  string
-	Subject    string
-	QueueGroup string
+	Servers        []string
+	ClusterID      string
+	Subject        string
+	QueueGroup     string
+	JobStatusGroup string
 }
 
 type QueueManagementConfig struct {

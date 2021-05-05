@@ -61,15 +61,9 @@ func TestSubmitServer_SubmitJob_AddsExpectedEventsInCorrectOrder(t *testing.T) {
 		_, err := s.SubmitJobs(context.Background(), jobRequest)
 		assert.Empty(t, err)
 
-		messages, err := events.ReadEvents("test", jobSetId, "", 100, 5*time.Second)
-
-		assert.Empty(t, err)
+		messages, err := readJobEvents(events, jobSetId)
+		assert.NoError(t, err)
 		assert.Equal(t, len(messages), 2)
-
-		//Sort events based on Redis stream ID order (Actual stored order)
-		sort.Slice(messages, func(i, j int) bool {
-			return messages[i].Id < messages[j].Id
-		})
 
 		firstEvent := messages[0]
 		secondEvent := messages[1]
@@ -114,6 +108,51 @@ func TestSubmitServer_SubmitJob_ReturnsJobItemsInTheSameOrderTheyWereSubmitted(t
 	})
 }
 
+func TestSubmitServer_SubmitJobs_HandlesDoubleSubmit(t *testing.T) {
+	withSubmitServer(func(s *SubmitServer, events repository.EventRepository) {
+		jobSetId := util.NewULID()
+		jobRequest := createJobRequest(jobSetId, 1)
+
+		result, err := s.SubmitJobs(context.Background(), jobRequest)
+		assert.NoError(t, err)
+
+		result2, err := s.SubmitJobs(context.Background(), jobRequest)
+		assert.NoError(t, err)
+
+		assert.Equal(t, result.JobResponseItems[0].JobId, result2.JobResponseItems[0].JobId)
+
+		messages, err := readJobEvents(events, jobSetId)
+		assert.NoError(t, err)
+		assert.Equal(t, len(messages), 4)
+
+		submitted := messages[0].Message.GetSubmitted()
+		queued := messages[1].Message.GetQueued()
+		submitted2 := messages[2].Message.GetSubmitted()
+		duplicateFound := messages[3].Message.GetDuplicateFound()
+
+		assert.NotNil(t, submitted)
+		assert.NotNil(t, queued)
+		assert.NotNil(t, submitted2)
+		assert.NotNil(t, duplicateFound)
+
+		assert.Equal(t, duplicateFound.OriginalJobId, submitted.JobId)
+		assert.Equal(t, duplicateFound.JobId, submitted2.JobId)
+	})
+}
+
+func readJobEvents(events repository.EventRepository, jobSetId string) ([]*api.EventStreamMessage, error) {
+	messages, err := events.ReadEvents("test", jobSetId, "", 100, 5*time.Second)
+	if err != nil {
+		return nil, err
+	}
+
+	//Sort events based on Redis stream ID order (Actual stored order)
+	sort.Slice(messages, func(i, j int) bool {
+		return messages[i].Id < messages[j].Id
+	})
+	return messages, nil
+}
+
 func createJobRequest(jobSetId string, numberOfJobs int) *api.JobSubmitRequest {
 	return &api.JobSubmitRequest{
 		JobSetId:        jobSetId,
@@ -130,7 +169,8 @@ func createJobRequestItems(numberOfJobs int) []*api.JobSubmitRequestItem {
 
 	for i := 0; i < numberOfJobs; i++ {
 		item := &api.JobSubmitRequestItem{
-			PodSpec: &v1.PodSpec{
+			ClientId: util.NewULID(),
+			PodSpecs: []*v1.PodSpec{{
 				Containers: []v1.Container{
 					{
 						Name:  fmt.Sprintf("Container %d", i),
@@ -142,7 +182,7 @@ func createJobRequestItems(numberOfJobs int) []*api.JobSubmitRequestItem {
 						},
 					},
 				},
-			},
+			}},
 			Priority: 0,
 		}
 		jobRequestItems = append(jobRequestItems, item)

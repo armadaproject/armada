@@ -14,9 +14,11 @@ import (
 	"github.com/G-Research/armada/pkg/api"
 )
 
+const userAnnotationPrefix = "test_prefix/"
+
 func Test_RecordRunEvents(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
-		jobStore := NewSQLJobStore(db)
+		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
 
 		jobId := util.NewULID()
 
@@ -52,7 +54,7 @@ func Test_RecordRunEvents(t *testing.T) {
 func Test_RunContainers(t *testing.T) {
 	t.Run("no exit codes", func(t *testing.T) {
 		withDatabase(t, func(db *goqu.Database) {
-			jobStore := NewSQLJobStore(db)
+			jobStore := NewSQLJobStore(db, userAnnotationPrefix)
 
 			err := jobStore.RecordJobFailed(&api.JobFailedEvent{
 				JobId:        "job-1",
@@ -69,7 +71,7 @@ func Test_RunContainers(t *testing.T) {
 
 	t.Run("multiple containers", func(t *testing.T) {
 		withDatabase(t, func(db *goqu.Database) {
-			jobStore := NewSQLJobStore(db)
+			jobStore := NewSQLJobStore(db, userAnnotationPrefix)
 
 			err := jobStore.RecordJobFailed(&api.JobFailedEvent{
 				JobId:        "job-1",
@@ -99,7 +101,7 @@ func Test_RunContainers(t *testing.T) {
 
 func Test_RecordNullNodeIfEmptyString(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
-		jobStore := NewSQLJobStore(db)
+		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
 
 		err := jobStore.RecordJobRunning(&api.JobRunningEvent{
 			JobId:        "job-1",
@@ -146,7 +148,7 @@ func Test_RecordNullNodeIfEmptyString(t *testing.T) {
 
 func Test_RecordLongError(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
-		jobStore := NewSQLJobStore(db)
+		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
 
 		err := jobStore.RecordJobFailed(&api.JobFailedEvent{
 			JobId:        "job-1",
@@ -159,9 +161,47 @@ func Test_RecordLongError(t *testing.T) {
 	})
 }
 
+func Test_RecordAnnotations(t *testing.T) {
+	t.Run("no annotations", func(t *testing.T) {
+		withDatabase(t, func(db *goqu.Database) {
+			jobStore := NewSQLJobStore(db, userAnnotationPrefix)
+
+			err := jobStore.RecordJob(&api.Job{
+				Id:      util.NewULID(),
+				Queue:   queue,
+				Created: someTime,
+			})
+			assert.NoError(t, err)
+			assert.Equal(t, 0, selectInt(t, db,
+				"SELECT COUNT(*) FROM user_annotation_lookup"))
+		})
+	})
+
+	t.Run("some annotations with correct prefix", func(t *testing.T) {
+		withDatabase(t, func(db *goqu.Database) {
+			jobStore := NewSQLJobStore(db, "prefix/")
+
+			err := jobStore.RecordJob(&api.Job{
+				Id:      util.NewULID(),
+				Queue:   queue,
+				Created: someTime,
+				Annotations: map[string]string{
+					"prefix/first": "some",
+					"second":       "value",
+					"prefix/third": "other",
+					"prefix/":      "nothing",
+				},
+			})
+			assert.NoError(t, err)
+			assert.Equal(t, 2, selectInt(t, db,
+				"SELECT COUNT(*) FROM user_annotation_lookup"))
+		})
+	})
+}
+
 func Test_EmptyRunId(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
-		jobStore := NewSQLJobStore(db)
+		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
 
 		err := jobStore.RecordJobFailed(&api.JobFailedEvent{
 			JobId:        "job-1",
@@ -188,7 +228,7 @@ func Test_EmptyRunId(t *testing.T) {
 
 func Test_UnableToSchedule(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
-		jobStore := NewSQLJobStore(db)
+		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
 
 		err := jobStore.RecordJobUnableToSchedule(&api.JobUnableToScheduleEvent{
 			JobId:        util.NewULID(),
@@ -208,7 +248,7 @@ func Test_UnableToSchedule(t *testing.T) {
 func Test_Queued(t *testing.T) {
 	t.Run("queued", func(t *testing.T) {
 		withDatabase(t, func(db *goqu.Database) {
-			jobStore := NewSQLJobStore(db)
+			jobStore := NewSQLJobStore(db, userAnnotationPrefix)
 
 			err := jobStore.RecordJob(&api.Job{
 				Id:      util.NewULID(),
@@ -224,7 +264,7 @@ func Test_Queued(t *testing.T) {
 
 	t.Run("queued after pending", func(t *testing.T) {
 		withDatabase(t, func(db *goqu.Database) {
-			jobStore := NewSQLJobStore(db)
+			jobStore := NewSQLJobStore(db, userAnnotationPrefix)
 			jobId := util.NewULID()
 
 			err := jobStore.RecordJobPending(&api.JobPendingEvent{
@@ -251,7 +291,7 @@ func Test_Queued(t *testing.T) {
 func Test_Pending(t *testing.T) {
 	t.Run("single node job, pending", func(t *testing.T) {
 		withDatabase(t, func(db *goqu.Database) {
-			jobStore := NewSQLJobStore(db)
+			jobStore := NewSQLJobStore(db, userAnnotationPrefix)
 			jobId := util.NewULID()
 
 			err := jobStore.RecordJobPending(&api.JobPendingEvent{
@@ -269,7 +309,7 @@ func Test_Pending(t *testing.T) {
 
 	t.Run("single node job, pending after running, same pod", func(t *testing.T) {
 		withDatabase(t, func(db *goqu.Database) {
-			jobStore := NewSQLJobStore(db)
+			jobStore := NewSQLJobStore(db, userAnnotationPrefix)
 			jobId := util.NewULID()
 
 			err := jobStore.RecordJobRunning(&api.JobRunningEvent{
@@ -295,7 +335,7 @@ func Test_Pending(t *testing.T) {
 
 	t.Run("single node job, pending after running, different pod", func(t *testing.T) {
 		withDatabase(t, func(db *goqu.Database) {
-			jobStore := NewSQLJobStore(db)
+			jobStore := NewSQLJobStore(db, userAnnotationPrefix)
 			jobId := util.NewULID()
 
 			err := jobStore.RecordJobRunning(&api.JobRunningEvent{
@@ -321,7 +361,7 @@ func Test_Pending(t *testing.T) {
 
 	t.Run("multi node job, pending after running", func(t *testing.T) {
 		withDatabase(t, func(db *goqu.Database) {
-			jobStore := NewSQLJobStore(db)
+			jobStore := NewSQLJobStore(db, userAnnotationPrefix)
 			jobId := util.NewULID()
 
 			err := jobStore.RecordJobRunning(&api.JobRunningEvent{
@@ -351,7 +391,7 @@ func Test_Pending(t *testing.T) {
 func Test_Running(t *testing.T) {
 	t.Run("single node job, running", func(t *testing.T) {
 		withDatabase(t, func(db *goqu.Database) {
-			jobStore := NewSQLJobStore(db)
+			jobStore := NewSQLJobStore(db, userAnnotationPrefix)
 
 			err := jobStore.RecordJobRunning(&api.JobRunningEvent{
 				JobId:        util.NewULID(),
@@ -368,7 +408,7 @@ func Test_Running(t *testing.T) {
 
 	t.Run("single node job, running after pending in separate pod", func(t *testing.T) {
 		withDatabase(t, func(db *goqu.Database) {
-			jobStore := NewSQLJobStore(db)
+			jobStore := NewSQLJobStore(db, userAnnotationPrefix)
 			jobId := util.NewULID()
 
 			err := jobStore.RecordJobPending(&api.JobPendingEvent{
@@ -394,7 +434,7 @@ func Test_Running(t *testing.T) {
 
 	t.Run("single node job, running after success", func(t *testing.T) {
 		withDatabase(t, func(db *goqu.Database) {
-			jobStore := NewSQLJobStore(db)
+			jobStore := NewSQLJobStore(db, userAnnotationPrefix)
 			jobId := util.NewULID()
 
 			err := jobStore.RecordJobSucceeded(&api.JobSucceededEvent{
@@ -420,7 +460,7 @@ func Test_Running(t *testing.T) {
 
 	t.Run("multi node job, running after success", func(t *testing.T) {
 		withDatabase(t, func(db *goqu.Database) {
-			jobStore := NewSQLJobStore(db)
+			jobStore := NewSQLJobStore(db, userAnnotationPrefix)
 			jobId := util.NewULID()
 
 			err := jobStore.RecordJobSucceeded(&api.JobSucceededEvent{
@@ -450,7 +490,7 @@ func Test_Running(t *testing.T) {
 func Test_Succeeded(t *testing.T) {
 	t.Run("multi node job, not all successes", func(t *testing.T) {
 		withDatabase(t, func(db *goqu.Database) {
-			jobStore := NewSQLJobStore(db)
+			jobStore := NewSQLJobStore(db, userAnnotationPrefix)
 			jobId := util.NewULID()
 
 			err := jobStore.RecordJobSucceeded(&api.JobSucceededEvent{
@@ -487,7 +527,7 @@ func Test_Succeeded(t *testing.T) {
 
 	t.Run("multi node job, all successes", func(t *testing.T) {
 		withDatabase(t, func(db *goqu.Database) {
-			jobStore := NewSQLJobStore(db)
+			jobStore := NewSQLJobStore(db, userAnnotationPrefix)
 			jobId := util.NewULID()
 
 			err := jobStore.RecordJobSucceeded(&api.JobSucceededEvent{
@@ -525,7 +565,7 @@ func Test_Succeeded(t *testing.T) {
 
 func Test_Failed(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
-		jobStore := NewSQLJobStore(db)
+		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
 		jobId := util.NewULID()
 
 		err := jobStore.RecordJobFailed(&api.JobFailedEvent{
@@ -562,7 +602,7 @@ func Test_Failed(t *testing.T) {
 
 func Test_Cancelled(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
-		jobStore := NewSQLJobStore(db)
+		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
 		jobId := util.NewULID()
 
 		err := jobStore.RecordJobPending(&api.JobPendingEvent{
@@ -592,6 +632,57 @@ func Test_Cancelled(t *testing.T) {
 
 		assert.Equal(t, JobStateToIntMap[JobCancelled], selectInt(t, db,
 			"SELECT state FROM job"))
+	})
+}
+
+func Test_Duplicate(t *testing.T) {
+	withDatabase(t, func(db *goqu.Database) {
+		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
+		jobId := util.NewULID()
+
+		err := jobStore.RecordJob(&api.Job{
+			Id:      jobId,
+			Queue:   "queue",
+			Created: someTime,
+		})
+		assert.NoError(t, err)
+
+		err = jobStore.RecordJobDuplicate(&api.JobDuplicateFoundEvent{
+			JobId:         jobId,
+			Queue:         "queue",
+			Created:       someTime,
+			OriginalJobId: util.NewULID(),
+		})
+		assert.NoError(t, err)
+
+		assert.Equal(t, JobStateToIntMap[JobDuplicate], selectInt(t, db,
+			"SELECT state FROM job"))
+	})
+}
+
+func Test_DuplicateOutOfOrder(t *testing.T) {
+	withDatabase(t, func(db *goqu.Database) {
+		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
+		jobId := util.NewULID()
+
+		err := jobStore.RecordJobDuplicate(&api.JobDuplicateFoundEvent{
+			JobId:         jobId,
+			Queue:         "queue",
+			Created:       someTime,
+			OriginalJobId: util.NewULID(),
+		})
+		assert.NoError(t, err)
+
+		err = jobStore.RecordJob(&api.Job{
+			Id:      jobId,
+			Queue:   "queue",
+			Created: someTime,
+		})
+		assert.NoError(t, err)
+
+		assert.Equal(t, JobStateToIntMap[JobDuplicate], selectInt(t, db,
+			"SELECT state FROM job"))
+
 	})
 }
 

@@ -257,6 +257,12 @@
         "take": {
           "type": "integer",
           "format": "int64"
+        },
+        "userAnnotations": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
         }
       }
     },
