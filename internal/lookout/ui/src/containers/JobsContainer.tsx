@@ -35,15 +35,6 @@ export type ColumnSpec<T> = {
   defaultFilter: T
 }
 
-export interface JobFilters {
-  queue: string
-  jobSet: string
-  jobStates: string[]
-  newestFirst: boolean
-  jobId: string
-  owner: string
-}
-
 type JobFiltersQueryParams = {
   queue?: string
   job_set?: string
@@ -111,9 +102,9 @@ export function updateColumnsFromQueryString(query: string, columns: ColumnSpec<
       col.filter = params.job_set
     }
     if (col.id === "jobState" && params.job_states) {
-      col.filter = params.job_states
+      col.filter = parseJobStates(params.job_states)
     }
-    if (col.id === "submissionTime" && params.newest_first) {
+    if (col.id === "submissionTime" && params.newest_first !== undefined) {
       col.filter = params.newest_first
     }
     if (col.id === "jobId" && params.job_id) {
@@ -125,18 +116,21 @@ export function updateColumnsFromQueryString(query: string, columns: ColumnSpec<
   }
 }
 
+function parseJobStates(jobStates: string[] | string): string[] {
+  if (!Array.isArray(jobStates)) {
+    if (JOB_STATES_FOR_DISPLAY.includes(jobStates)) {
+      return [jobStates]
+    } else {
+      return []
+    }
+  }
+
+  return jobStates.filter(jobState => JOB_STATES_FOR_DISPLAY.includes(jobState))
+}
+
 class JobsContainer extends React.Component<JobsContainerProps, JobsContainerState> {
   constructor(props: JobsContainerProps) {
     super(props)
-
-    const initialFilters = {
-      queue: "",
-      jobSet: "",
-      jobStates: [],
-      newestFirst: true,
-      jobId: "",
-      owner: "",
-    }
     this.state = {
       jobs: [],
       canLoadMore: true,
