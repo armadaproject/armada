@@ -48,6 +48,7 @@ const QUERY_STRING_OPTIONS: ParseOptions | StringifyOptions = {
   arrayFormat: "comma",
   parseBooleans: true,
 }
+const LOCAL_STORAGE_KEY = "armada_lookout_annotation_columns"
 const BATCH_SIZE = 100
 const CANCELLABLE_JOB_STATES = [
   "Queued",
@@ -218,15 +219,22 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
 
     this.addAnnotationColumn = this.addAnnotationColumn.bind(this)
     this.deleteAnnotationColumn = this.deleteAnnotationColumn.bind(this)
-    this.editAnnotationColumnKey = this.editAnnotationColumnKey.bind(this)
+    this.changeAnnotationColumnKey = this.changeAnnotationColumnKey.bind(this)
 
     this.fetchNextJobInfos = debounced(this.fetchNextJobInfos.bind(this), 100)
   }
 
   componentDidMount() {
+    let annotationColumnsJson = localStorage.getItem(LOCAL_STORAGE_KEY)
+    let annotationColumns: ColumnSpec<string>[] | undefined
+    if (annotationColumnsJson) {
+      annotationColumns = JSON.parse(annotationColumnsJson) as ColumnSpec<string>[]
+    }
+
     updateColumnsFromQueryString(this.props.location.search, this.state.defaultColumns)
     this.setState({
       ...this.state,
+      annotationColumns: annotationColumns ?? []
     })
   }
 
@@ -255,6 +263,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     }
 
     this.setFilters(this.state)
+    this.saveAnnotationColumns()
   }
 
   disableColumn(columnId: string, isDisabled: boolean) {
@@ -273,6 +282,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     }
 
     this.setFilters(this.state)
+    this.saveAnnotationColumns()
   }
 
   addAnnotationColumn() {
@@ -286,7 +296,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     }
     this.state.annotationColumns.push(newCol)
     this.setFilters(this.state)
-    console.log(this.state.annotationColumns)
+    this.saveAnnotationColumns()
   }
 
   deleteAnnotationColumn(columnId: string) {
@@ -299,10 +309,10 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
 
     this.state.annotationColumns.splice(toRemove, 1)
     this.setFilters(this.state)
+    this.saveAnnotationColumns()
   }
 
-  editAnnotationColumnKey(columnId: string, newKey: string) {
-    console.log("EDIT", columnId, newKey)
+  changeAnnotationColumnKey(columnId: string, newKey: string) {
     for (let col of this.state.annotationColumns) {
       if (col.id === columnId) {
         col.name = newKey
@@ -310,6 +320,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
       }
     }
     this.setFilters(this.state)
+    this.saveAnnotationColumns()
   }
 
   refresh() {
@@ -486,7 +497,9 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
       jobStates: [],
       take: BATCH_SIZE,
       skip: startIndex,
+      annotations: {},
     }
+
     for (let col of this.state.defaultColumns) {
       if (col.id === "queue") {
         request.queue = col.filter as string
@@ -500,6 +513,11 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
         request.newestFirst = col.filter as boolean
       } else if (col.id === "jobState") {
         request.jobStates = col.filter as string[]
+      }
+    }
+    for (let col of this.state.annotationColumns) {
+      if (col.filter) {
+        request.annotations[col.accessor] = col.filter as string
       }
     }
 
@@ -539,6 +557,10 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     })
   }
 
+  private saveAnnotationColumns() {
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(this.state.annotationColumns))
+  }
+
   private selectedJobsAreCancellable(): boolean {
     return Array.from(this.state.selectedJobs.values())
       .map(job => job.jobState)
@@ -576,11 +598,11 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
           cancelJobsButtonIsEnabled={this.selectedJobsAreCancellable()}
           fetchJobs={this.serveJobs}
           isLoaded={this.jobIsLoaded}
-          onChangeColumn={this.changeColumnFilter}
+          onChangeColumnValue={this.changeColumnFilter}
           onDisableColumn={this.disableColumn}
           onDeleteColumn={this.deleteAnnotationColumn}
           onAddColumn={this.addAnnotationColumn}
-          onEditColumn={this.editAnnotationColumnKey}
+          onChangeAnnotationColumnKey={this.changeAnnotationColumnKey}
           onRefresh={this.refresh}
           onSelectJob={this.selectJob}
           onCancelJobsClick={() => this.setCancelJobsModalState("CancelJobs")}

@@ -21,11 +21,11 @@ type JobsProps = {
   forceRefresh: boolean
   fetchJobs: (start: number, stop: number) => Promise<Job[]>
   isLoaded: (index: number) => boolean
-  onChangeColumn: (columnId: string, newValue: string | boolean | string[]) => void
+  onChangeColumnValue: (columnId: string, newValue: string | boolean | string[]) => void
   onDisableColumn: (columnId: string, isDisabled: boolean) => void
   onDeleteColumn: (columnId: string) => void
   onAddColumn: () => void
-  onEditColumn: (columnId: string, newKey: string) => void
+  onChangeAnnotationColumnKey: (columnId: string, newKey: string) => void
   onRefresh: () => void
   onSelectJob: (job: Job, selected: boolean) => void
   onCancelJobsClick: () => void
@@ -57,6 +57,7 @@ export default class Jobs extends React.Component<JobsProps, {}> {
         submissionTime: "",
         runs: [],
         jobYaml: "",
+        annotations: {},
       }
     }
   }
@@ -81,7 +82,7 @@ export default class Jobs extends React.Component<JobsProps, {}> {
             onDisableColumn={this.props.onDisableColumn}
             onDeleteColumn={this.props.onDeleteColumn}
             onAddColumn={this.props.onAddColumn}
-            onEditColumn={this.props.onEditColumn}/>
+            onChangeAnnotationColumnKey={this.props.onChangeAnnotationColumnKey}/>
         </div>
         <div className="job-table">
           <InfiniteLoader
@@ -134,7 +135,7 @@ export default class Jobs extends React.Component<JobsProps, {}> {
                         width / this.props.defaultColumns.concat(this.props.annotationColumns)
                           .filter(c => !c.isDisabled).length,
                         (newValue: string | boolean | string[]) => {
-                          this.props.onChangeColumn(col.id, newValue)
+                          this.props.onChangeColumnValue(col.id, newValue)
                         },
                         this.props.onJobIdClick))}
                   </Table>

@@ -1,6 +1,7 @@
 import React from 'react';
 import { ColumnSpec } from "../../containers/JobsContainer";
 import { Column } from "react-virtualized";
+import { Job } from "../../services/JobService";
 import SubmissionTimeHeaderCell from "./SubmissionTimeHeaderCell";
 import JobStatesHeaderCell from "./JobStatesHeaderCell";
 import SearchHeaderCell from "./SearchHeaderCell";
@@ -51,6 +52,7 @@ export default function columnWrapper(
     case "jobId": {
       column = (
         <Column
+          key={key}
           dataKey={columnSpec.accessor}
           width={width}
           label={columnSpec.name}
@@ -67,11 +69,36 @@ export default function columnWrapper(
       )
       break;
     }
+    case "queue":
+    case "jobSet":
+    case "owner": {
+      column = (
+        <Column
+          key={key}
+          dataKey={columnSpec.accessor}
+          width={width}
+          label={columnSpec.name}
+          headerRenderer={headerProps => (
+            <SearchHeaderCell
+              headerLabel={columnSpec.name}
+              value={columnSpec.filter as string}
+              onChange={onChange}
+              {...headerProps}/>
+          )}/>
+      )
+      break;
+    }
     default: {
       column = (
         <Column
           key={key}
           dataKey={columnSpec.accessor}
+          cellDataGetter={({dataKey, rowData}) => {
+            const job = rowData as Job
+            if (job.annotations[dataKey]) {
+              return job.annotations[dataKey]
+            }
+          }}
           width={width}
           label={columnSpec.name}
           headerRenderer={headerProps => (

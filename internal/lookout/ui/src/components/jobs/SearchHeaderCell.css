@@ -1,6 +1,7 @@
 .search-header {
     width: 100%;
     padding: 0 1em 0 0;
+    text-transform: none;
 }
 
 .search-header-text-field {

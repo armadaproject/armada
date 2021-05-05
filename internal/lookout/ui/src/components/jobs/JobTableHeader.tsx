@@ -16,7 +16,7 @@ type JobTableHeaderProps = {
   onDisableColumn: (id: string, isDisabled: boolean) => void
   onDeleteColumn: (columnId: string) => void
   onAddColumn: () => void
-  onEditColumn: (columnId: string, newKey: string) => void
+  onChangeAnnotationColumnKey: (columnId: string, newKey: string) => void
 }
 
 export default function JobTableHeader(props: JobTableHeaderProps) {
@@ -35,7 +35,7 @@ export default function JobTableHeader(props: JobTableHeaderProps) {
             onDisableColumn={props.onDisableColumn}
             onDeleteColumn={props.onDeleteColumn}
             onAddColumn={props.onAddColumn}
-            onEditColumn={props.onEditColumn}/>
+            onChangeAnnotationColumnKey={props.onChangeAnnotationColumnKey}/>
         </div>
         <div className="cancel-jobs">
           <Button

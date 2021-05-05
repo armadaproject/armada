@@ -21,7 +21,7 @@ type ColumnSelectProps = {
   onDisableColumn: (columnId: string, isDisabled: boolean) => void
   onDeleteColumn: (columnId: string) => void
   onAddColumn: () => void
-  onEditColumn: (columnId: string, newKey: string) => void
+  onChangeAnnotationColumnKey: (columnId: string, newKey: string) => void
 }
 
 const ITEM_HEIGHT = 64
@@ -90,10 +90,11 @@ export default function ColumnSelect(props: ColumnSelectProps) {
               checked={!col.isDisabled}
               onChange={event => props.onDisableColumn(col.id, !event.target.checked)}/>
             <TextField
+              onKeyDown={e => e.stopPropagation()} // For input to work in select menu
               label={props.inputLabel}
               value={col.name}
               onChange={event => {
-                props.onEditColumn(col.id, event.target.value)
+                props.onChangeAnnotationColumnKey(col.id, event.target.value)
               }}/>
             <IconButton color="secondary" component="span" style={{
               marginLeft: "0.5em",

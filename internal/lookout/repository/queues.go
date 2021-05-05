@@ -68,6 +68,7 @@ func (r *SQLJobRepository) getQueuesSql() (string, error) {
 			job_owner,
 			job_priority,
 			job_submitted,
+			job_job,
 			jobRun_created,
 			jobRun_started,
 			jobRun_finished).
@@ -86,6 +87,7 @@ func (r *SQLJobRepository) getQueuesSql() (string, error) {
 			job_owner,
 			job_priority,
 			job_submitted,
+			job_job,
 			jobRun_started).
 		Distinct(job_queue).
 		Where(job_state.Eq(JobStateToIntMap[JobRunning])).
@@ -102,6 +104,7 @@ func (r *SQLJobRepository) getQueuesSql() (string, error) {
 			goqu.I("longest_running_sub.owner"),
 			goqu.I("longest_running_sub.priority"),
 			goqu.I("longest_running_sub.submitted"),
+			goqu.I("longest_running_sub.job"),
 			jobRun_runId,
 			jobRun_cluster,
 			jobRun_node,
@@ -171,6 +174,7 @@ func (r *SQLJobRepository) setOldestQueuedJob(rows *sql.Rows, queueInfoMap map[s
 			&row.Owner,
 			&row.Priority,
 			&row.Submitted,
+			&row.JobJson,
 			&row.Created,
 			&row.Started,
 			&row.Finished)
@@ -179,8 +183,12 @@ func (r *SQLJobRepository) setOldestQueuedJob(rows *sql.Rows, queueInfoMap map[s
 		}
 		if row.Queue.Valid {
 			if queueInfo, ok := queueInfoMap[row.Queue.String]; queueInfo != nil && ok {
+				job, err := makeJobFromRow(&row)
+				if err != nil {
+					return err
+				}
 				queueInfo.OldestQueuedJob = &lookout.JobInfo{
-					Job:       makeJobFromRow(&row),
+					Job:       job,
 					Runs:      []*lookout.RunInfo{},
 					Cancelled: nil,
 					JobState:  string(JobQueued),
@@ -204,6 +212,7 @@ func (r *SQLJobRepository) setLongestRunningJob(rows *sql.Rows, queueInfoMap map
 			&row.Owner,
 			&row.Priority,
 			&row.Submitted,
+			&row.JobJson,
 			&row.RunId,
 			&row.Cluster,
 			&row.Node,
@@ -218,8 +227,12 @@ func (r *SQLJobRepository) setLongestRunningJob(rows *sql.Rows, queueInfoMap map
 				if queueInfo.LongestRunningJob != nil {
 					queueInfo.LongestRunningJob.Runs = append(queueInfo.LongestRunningJob.Runs, makeRunFromRow(&row))
 				} else {
+					job, err := makeJobFromRow(&row)
+					if err != nil {
+						return err
+					}
 					queueInfo.LongestRunningJob = &lookout.JobInfo{
-						Job:       makeJobFromRow(&row),
+						Job:       job,
 						Runs:      []*lookout.RunInfo{makeRunFromRow(&row)},
 						Cancelled: nil,
 						JobState:  string(JobRunning),
