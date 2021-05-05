@@ -90,7 +90,7 @@ func (d *StuckPodDetector) onStuckPodDeleted(record *stuckJobRecord) (resolved b
 		// This is preferred over returning Failed event early as user could retry based on failed even but the job could be running
 		for _, pod := range record.job.Pods {
 			message := record.message
-			if pod != record.pod {
+			if pod.UID != record.pod.UID {
 				message = fmt.Sprintf("Peer pod %d stuck.", util.ExtractPodNumber(record.pod))
 			}
 			event := reporter.CreateSimpleJobFailedEvent(pod, message, d.clusterContext.GetClusterId())
@@ -119,7 +119,18 @@ func (d *StuckPodDetector) HandleStuckPods() {
 		}
 
 		for _, pod := range job.Pods {
-			if (pod.Status.Phase == v1.PodUnknown || pod.Status.Phase == v1.PodPending) && reporter.HasPodBeenInStateForLongerThanGivenDuration(pod, d.stuckPodExpiry) {
+			if pod.DeletionTimestamp != nil && pod.DeletionTimestamp.Add(d.stuckPodExpiry).Before(time.Now()) {
+				// pod is stuck in terminating phase, this sometimes happen on node failure
+				// its safer to produce failed event than retrying as the job might have run already
+				d.stuckJobCache[job.JobId] = &stuckJobRecord{
+					job:       job,
+					pod:       pod.DeepCopy(),
+					message:   "pod stuck in terminating phase, this might be due to platform problems",
+					retryable: false}
+
+			} else if (pod.Status.Phase == v1.PodUnknown || pod.Status.Phase == v1.PodPending) &&
+				reporter.HasPodBeenInStateForLongerThanGivenDuration(pod, d.stuckPodExpiry) {
+
 				err, retryable, message := d.determineStuckPodState(pod)
 				if err == nil {
 					d.stuckJobCache[job.JobId] = &stuckJobRecord{

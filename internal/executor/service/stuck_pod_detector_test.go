@@ -8,10 +8,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 
 	"github.com/G-Research/armada/internal/common"
+	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/executor/context"
 	"github.com/G-Research/armada/internal/executor/domain"
 	"github.com/G-Research/armada/internal/executor/job_context"
@@ -19,7 +21,7 @@ import (
 )
 
 func TestStuckPodDetector_DoesNothingIfNoPodsAreFound(t *testing.T) {
-	_, mockLeaseService, stuckPodDetector := makeStuckPodDetectorWithTestDoubles()
+	_, mockLeaseService, _, stuckPodDetector := makeStuckPodDetectorWithTestDoubles()
 
 	stuckPodDetector.HandleStuckPods()
 
@@ -31,7 +33,7 @@ func TestStuckPodDetector_DoesNothingIfNoPodsAreFound(t *testing.T) {
 func TestStuckPodDetector_DoesNothingIfNoStuckPodsAreFound(t *testing.T) {
 	runningPod := makeRunningPod()
 
-	fakeClusterContext, mockLeaseService, stuckPodDetector := makeStuckPodDetectorWithTestDoubles()
+	fakeClusterContext, mockLeaseService, _, stuckPodDetector := makeStuckPodDetectorWithTestDoubles()
 
 	addPod(t, fakeClusterContext, runningPod)
 
@@ -45,7 +47,7 @@ func TestStuckPodDetector_DoesNothingIfNoStuckPodsAreFound(t *testing.T) {
 func TestStuckPodDetector_DeletesPodAndReportsDoneIfStuckAndUnretryable(t *testing.T) {
 	unretryableStuckPod := makeUnretryableStuckPod()
 
-	fakeClusterContext, mockLeaseService, stuckPodDetector := makeStuckPodDetectorWithTestDoubles()
+	fakeClusterContext, mockLeaseService, eventsReporter, stuckPodDetector := makeStuckPodDetectorWithTestDoubles()
 
 	addPod(t, fakeClusterContext, unretryableStuckPod)
 
@@ -57,12 +59,43 @@ func TestStuckPodDetector_DeletesPodAndReportsDoneIfStuckAndUnretryable(t *testi
 	assert.Zero(t, mockLeaseService.returnLeaseCalls)
 
 	mockLeaseService.assertReportDoneCalledOnceWith(t, []string{unretryableStuckPod.Labels[domain.JobId]})
+
+	_, ok := eventsReporter.receivedEvents[0].(*api.JobUnableToScheduleEvent)
+	assert.True(t, ok)
+
+	stuckPodDetector.HandleStuckPods()
+
+	failedEvent, ok := eventsReporter.receivedEvents[1].(*api.JobFailedEvent)
+	assert.True(t, ok)
+	assert.Contains(t, failedEvent.Reason, "unrecoverable problem")
+}
+
+func TestStuckPodDetector_DeletesPodAndReportsFailedIfStuckTerminating(t *testing.T) {
+	terminatingPod := makeTerminatingPod()
+
+	fakeClusterContext, mockLeaseService, eventsReporter, stuckPodDetector := makeStuckPodDetectorWithTestDoubles()
+
+	addPod(t, fakeClusterContext, terminatingPod)
+
+	stuckPodDetector.HandleStuckPods()
+
+	remainingActivePods := getActivePods(t, fakeClusterContext)
+	assert.Equal(t, []*v1.Pod{}, remainingActivePods)
+
+	assert.Zero(t, mockLeaseService.returnLeaseCalls)
+	mockLeaseService.assertReportDoneCalledOnceWith(t, []string{terminatingPod.Labels[domain.JobId]})
+
+	stuckPodDetector.HandleStuckPods()
+
+	failedEvent, ok := eventsReporter.receivedEvents[0].(*api.JobFailedEvent)
+	assert.True(t, ok)
+	assert.Contains(t, failedEvent.Reason, "terminating")
 }
 
 func TestStuckPodDetector_ReturnsLeaseAndDeletesRetryableStuckPod(t *testing.T) {
 	retryableStuckPod := makeRetryableStuckPod()
 
-	fakeClusterContext, mockLeaseService, stuckPodDetector := makeStuckPodDetectorWithTestDoubles()
+	fakeClusterContext, mockLeaseService, _, stuckPodDetector := makeStuckPodDetectorWithTestDoubles()
 
 	addPod(t, fakeClusterContext, retryableStuckPod)
 
@@ -101,6 +134,13 @@ func getActivePods(t *testing.T, clusterContext context.ClusterContext) []*v1.Po
 
 func makeRunningPod() *v1.Pod {
 	return makeTestPod(v1.PodStatus{Phase: "Running"})
+}
+
+func makeTerminatingPod() *v1.Pod {
+	pod := makeTestPod(v1.PodStatus{Phase: "Running"})
+	t := metav1.NewTime(time.Now().Add(-time.Hour))
+	pod.DeletionTimestamp = &t
+	return pod
 }
 
 func makeUnretryableStuckPod() *v1.Pod {
@@ -146,6 +186,7 @@ func makeTestPod(status v1.PodStatus) *v1.Pod {
 				domain.JobSetId: "job-set-id-1",
 			},
 			CreationTimestamp: metav1.Time{time.Now().Add(-10 * time.Minute)},
+			UID:               types.UID(util.NewULID()),
 		},
 		Status: status,
 	}
@@ -159,19 +200,20 @@ func addPod(t *testing.T, fakeClusterContext context.ClusterContext, runningPod 
 	}
 }
 
-func makeStuckPodDetectorWithTestDoubles() (context.ClusterContext, *mockLeaseService, *StuckPodDetector) {
+func makeStuckPodDetectorWithTestDoubles() (context.ClusterContext, *mockLeaseService, *FakeEventReporter, *StuckPodDetector) {
 	fakeClusterContext := newSyncFakeClusterContext()
 	jobContext := job_context.NewClusterJobContext(fakeClusterContext)
 	mockLeaseService := NewMockLeaseService()
+	eventReporter := &FakeEventReporter{nil}
 
 	stuckPodDetector := NewPodProgressMonitorService(
 		fakeClusterContext,
 		jobContext,
-		&FakeEventReporter{nil},
+		eventReporter,
 		mockLeaseService,
 		time.Second)
 
-	return fakeClusterContext, mockLeaseService, stuckPodDetector
+	return fakeClusterContext, mockLeaseService, eventReporter, stuckPodDetector
 }
 
 type mockLeaseService struct {
