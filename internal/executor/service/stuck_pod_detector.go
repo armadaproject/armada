@@ -23,11 +23,10 @@ type StuckPodDetector struct {
 }
 
 type stuckJobRecord struct {
-	job         *job_context.RunningJob
-	pod         *v1.Pod
-	message     string
-	podMessages map[*v1.Pod]string
-	retryable   bool
+	job       *job_context.RunningJob
+	pod       *v1.Pod
+	message   string
+	retryable bool
 }
 
 func NewPodProgressMonitorService(
