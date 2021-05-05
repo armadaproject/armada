@@ -260,12 +260,12 @@ func makeJobFromRow(row *JobRow) (*api.Job, error) {
 	}
 
 	return &api.Job{
-		Id:       ParseNullString(row.JobId),
-		JobSetId: ParseNullString(row.JobSet),
-		Queue:    ParseNullString(row.Queue),
-		Owner:    ParseNullString(row.Owner),
-		Priority: ParseNullFloat(row.Priority),
-		Created:  ParseNullTimeDefault(row.Submitted),
+		Id:          ParseNullString(row.JobId),
+		JobSetId:    ParseNullString(row.JobSet),
+		Queue:       ParseNullString(row.Queue),
+		Owner:       ParseNullString(row.Owner),
+		Priority:    ParseNullFloat(row.Priority),
+		Created:     ParseNullTimeDefault(row.Submitted),
 		Annotations: jobFromJson.Annotations,
 	}, nil
 }

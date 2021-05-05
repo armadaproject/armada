@@ -96,50 +96,53 @@ export default class Jobs extends React.Component<JobsProps, {}> {
             rowCount={rowCount}>
             {({ onRowsRendered, registerChild }) => (
               <AutoSizer>
-                {({ height, width }) => (
-                  <Table
-                    gridStyle={{ overflowY: "scroll" }}
-                    onRowsRendered={onRowsRendered}
-                    ref={registerChild}
-                    rowCount={rowCount}
-                    rowHeight={40}
-                    rowGetter={this.rowGetter}
-                    rowRenderer={(tableRowProps) => {
-                      if (tableRowProps.rowData.jobId === "Loading") {
-                        return <LoadingRow {...tableRowProps} />
-                      }
+                {({ height, width }) => {
+                  const enabledColumns = this.props.defaultColumns
+                    .concat(this.props.annotationColumns)
+                    .filter(col => !col.isDisabled)
+                  return (
+                    <Table
+                      gridStyle={{ overflowY: "scroll" }}
+                      onRowsRendered={onRowsRendered}
+                      ref={registerChild}
+                      rowCount={rowCount}
+                      rowHeight={40}
+                      rowGetter={this.rowGetter}
+                      rowRenderer={(tableRowProps) => {
+                        if (tableRowProps.rowData.jobId === "Loading") {
+                          return <LoadingRow {...tableRowProps} />
+                        }
 
-                      let selected = false
-                      if (this.props.selectedJobs.has(tableRowProps.rowData.jobId)) {
-                        selected = true
-                      }
-                      return (
-                        <CheckboxRow
-                          isChecked={selected}
-                          onChangeChecked={selected => this.props.onSelectJob(tableRowProps.rowData, selected)}
-                          tableKey={tableRowProps.key}
-                          {...tableRowProps} />
-                      )
-                    }}
-                    headerRowRenderer={(tableHeaderRowProps) => {
-                      return <CheckboxHeaderRow {...tableHeaderRowProps}/>
-                    }}
-                    headerHeight={60}
-                    height={height - 1}
-                    width={width}>
-                    {this.props.defaultColumns.concat(this.props.annotationColumns)
-                      .filter(col => !col.isDisabled)
-                      .map(col => columnWrapper(
-                        col.id,
-                        col,
-                        width / this.props.defaultColumns.concat(this.props.annotationColumns)
-                          .filter(c => !c.isDisabled).length,
-                        (newValue: string | boolean | string[]) => {
-                          this.props.onChangeColumnValue(col.id, newValue)
-                        },
-                        this.props.onJobIdClick))}
-                  </Table>
-                )}
+                        let selected = false
+                        if (this.props.selectedJobs.has(tableRowProps.rowData.jobId)) {
+                          selected = true
+                        }
+                        return (
+                          <CheckboxRow
+                            isChecked={selected}
+                            onChangeChecked={selected => this.props.onSelectJob(tableRowProps.rowData, selected)}
+                            tableKey={tableRowProps.key}
+                            {...tableRowProps} />
+                        )
+                      }}
+                      headerRowRenderer={(tableHeaderRowProps) => {
+                        return <CheckboxHeaderRow {...tableHeaderRowProps}/>
+                      }}
+                      headerHeight={60}
+                      height={height - 1}
+                      width={width}>
+                      {enabledColumns
+                        .map(col => columnWrapper(
+                          col.id,
+                          col,
+                          width / enabledColumns.length,
+                          (newValue: string | boolean | string[]) => {
+                            this.props.onChangeColumnValue(col.id, newValue)
+                          },
+                          this.props.onJobIdClick))}
+                    </Table>
+                  )
+                }}
               </AutoSizer>
             )}
           </InfiniteLoader>
