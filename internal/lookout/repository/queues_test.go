@@ -13,7 +13,7 @@ import (
 
 func TestGetQueueInfos_WithNoJobs(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
-		jobStore := NewSQLJobStore(db)
+		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
 		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
 
 		NewJobSimulator(t, jobStore).
@@ -30,7 +30,7 @@ func TestGetQueueInfos_WithNoJobs(t *testing.T) {
 
 func TestGetQueueInfos_Counts(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
-		jobStore := NewSQLJobStore(db)
+		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
 		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
 
 		NewJobSimulator(t, jobStore).
@@ -67,7 +67,7 @@ func TestGetQueueInfos_Counts(t *testing.T) {
 
 func TestGetQueueInfos_OldestQueuedJobIsNilIfNoJobsAreQueued(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
-		jobStore := NewSQLJobStore(db)
+		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
 		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
 
 		NewJobSimulator(t, jobStore).
@@ -114,7 +114,7 @@ func TestGetQueueInfos_IncludeOldestQueuedJob(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
 		someTime2 := someTime.Add(5*time.Hour + 4*time.Minute + 3*time.Second)
 
-		jobStore := NewSQLJobStore(db)
+		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
 		jobRepo := NewSQLJobRepository(db, &DummyClock{someTime2})
 
 		submissionTime := someTime.Add(time.Second)
@@ -176,7 +176,7 @@ func TestGetQueueInfos_IncludeOldestQueuedJob(t *testing.T) {
 
 func TestGetQueueInfos_LongestRunningJobIsNilIfNoJobsAreRunning(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
-		jobStore := NewSQLJobStore(db)
+		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
 		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
 
 		NewJobSimulator(t, jobStore).
@@ -207,7 +207,7 @@ func TestGetQueueInfos_IncludeLongestRunningJob(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
 		someTime2 := someTime.Add(5*time.Hour + 4*time.Minute + 3*time.Second)
 
-		jobStore := NewSQLJobStore(db)
+		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
 		jobRepo := NewSQLJobRepository(db, &DummyClock{someTime2})
 
 		pendingTime := someTime.Add(2 * time.Second)
@@ -291,7 +291,7 @@ func TestGetQueueInfos_IncludeLongestRunningJob(t *testing.T) {
 
 func TestGetQueueInfos_MultipleQueues(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
-		jobStore := NewSQLJobStore(db)
+		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
 		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
 
 		queue1PendingTime := someTime.Add(time.Second)
