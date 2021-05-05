@@ -501,18 +501,31 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     }
 
     for (let col of this.state.defaultColumns) {
-      if (col.id === "queue") {
-        request.queue = col.filter as string
-      } else if (col.id === "jobId") {
-        request.jobId = col.filter as string
-      } else if (col.id === "owner") {
-        request.owner = col.filter as string
-      } else if (col.id === "jobSet") {
-        request.jobSets = [col.filter as string]
-      } else if (col.id === "submissionTime") {
-        request.newestFirst = col.filter as boolean
-      } else if (col.id === "jobState") {
-        request.jobStates = col.filter as string[]
+      switch (col.id) {
+        case "queue": {
+          request.queue = col.filter as string
+          break
+        }
+        case "jobId": {
+          request.jobId = col.filter as string
+          break
+        }
+        case "owner": {
+          request.owner = col.filter as string
+          break
+        }
+        case "jobSet": {
+          request.jobSets = [col.filter as string]
+          break
+        }
+        case "submissionTime": {
+          request.newestFirst = col.filter as boolean
+          break
+        }
+        case "jobState": {
+          request.jobStates = col.filter as string[]
+          break
+        }
       }
     }
     for (let col of this.state.annotationColumns) {

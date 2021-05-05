@@ -1,6 +1,7 @@
 import React from 'react';
-import { ColumnSpec } from "../../containers/JobsContainer";
 import { Column } from "react-virtualized";
+
+import { ColumnSpec } from "../../containers/JobsContainer";
 import { Job } from "../../services/JobService";
 import SubmissionTimeHeaderCell from "./SubmissionTimeHeaderCell";
 import JobStatesHeaderCell from "./JobStatesHeaderCell";
@@ -93,7 +94,7 @@ export default function columnWrapper(
         <Column
           key={key}
           dataKey={columnSpec.accessor}
-          cellDataGetter={({dataKey, rowData}) => {
+          cellDataGetter={({ dataKey, rowData }) => {
             const job = rowData as Job
             if (job.annotations[dataKey]) {
               return job.annotations[dataKey]

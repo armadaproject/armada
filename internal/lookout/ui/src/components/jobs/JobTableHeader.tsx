@@ -3,9 +3,10 @@ import { Button, IconButton } from "@material-ui/core"
 import RefreshIcon from '@material-ui/icons/Refresh'
 import CancelIcon from "@material-ui/icons/Cancel"
 
-import './JobTableHeader.css'
 import ColumnSelect from "./ColumnSelect";
 import { ColumnSpec } from "../../containers/JobsContainer";
+
+import './JobTableHeader.css'
 
 type JobTableHeaderProps = {
   defaultColumns: ColumnSpec<string | boolean | string[]>[]
