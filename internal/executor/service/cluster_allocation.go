@@ -119,7 +119,8 @@ func (allocationService *ClusterAllocationService) submitPod(job *api.Job, i int
 		_, err = allocationService.clusterContext.SubmitService(service)
 		return pod, err
 	} else {
-		return allocationService.clusterContext.SubmitPod(pod, job.Owner)
+		_, err := allocationService.clusterContext.SubmitPod(pod, job.Owner)
+		return pod, err
 	}
 }
 
