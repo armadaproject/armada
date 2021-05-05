@@ -3,6 +3,7 @@ package repository
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/doug-martin/goqu/v9"
 	"github.com/doug-martin/goqu/v9/exp"
@@ -26,11 +27,12 @@ type JobRecorder interface {
 }
 
 type SQLJobStore struct {
-	db *goqu.Database
+	db                   *goqu.Database
+	userAnnotationPrefix string
 }
 
-func NewSQLJobStore(db *goqu.Database) *SQLJobStore {
-	return &SQLJobStore{db: db}
+func NewSQLJobStore(db *goqu.Database, annotationPrefix string) *SQLJobStore {
+	return &SQLJobStore{db: db, userAnnotationPrefix: annotationPrefix}
 }
 
 func (r *SQLJobStore) RecordJob(job *api.Job) error {
@@ -61,8 +63,11 @@ func (r *SQLJobStore) RecordJob(job *api.Job) error {
 			"state":     r.determineJobState(),
 		}))
 
-	_, err = ds.Prepared(true).Executor().Exec()
-	return err
+	if _, err = ds.Prepared(true).Executor().Exec(); err != nil {
+		return err
+	}
+
+	return r.upsertUserAnnotations(job.Id, job.Annotations)
 }
 
 func (r *SQLJobStore) MarkCancelled(event *api.JobCancelledEvent) error {
@@ -134,7 +139,6 @@ func (r *SQLJobStore) RecordJobPending(event *api.JobPendingEvent) error {
 		}))
 
 	_, err := jobDs.Prepared(true).Executor().Exec()
-
 	return err
 }
 
@@ -275,6 +279,22 @@ func (r *SQLJobStore) upsertContainers(k8sId string, exitCodes map[string]int32)
 	}
 
 	return upsert(r.db, jobRunContainerTable, []string{"run_id", "container_name"}, containerRecords)
+}
+
+func (r *SQLJobStore) upsertUserAnnotations(jobId string, annotations map[string]string) error {
+	var annotationRecords []goqu.Record
+	for key, value := range annotations {
+		if strings.HasPrefix(key, r.userAnnotationPrefix) && len(key) > len(r.userAnnotationPrefix) {
+			trimmedKey := key[len(r.userAnnotationPrefix):]
+			annotationRecords = append(annotationRecords, goqu.Record{
+				"job_id": jobId,
+				"key":    trimmedKey,
+				"value":  value,
+			})
+		}
+	}
+
+	return upsert(r.db, userAnnotationLookupTable, []string{"job_id", "key"}, annotationRecords)
 }
 
 func (r *SQLJobStore) determineJobState() exp.CaseExpression {

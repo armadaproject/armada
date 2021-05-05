@@ -38,9 +38,10 @@ type SQLJobRepository struct {
 
 var (
 	// Tables
-	jobTable             = goqu.T("job")
-	jobRunTable          = goqu.T("job_run")
-	jobRunContainerTable = goqu.T("job_run_container")
+	jobTable                  = goqu.T("job")
+	jobRunTable               = goqu.T("job_run")
+	jobRunContainerTable      = goqu.T("job_run_container")
+	userAnnotationLookupTable = goqu.T("user_annotation_lookup")
 
 	// Columns: job table
 	job_jobId     = goqu.I("job.job_id")
@@ -65,6 +66,11 @@ var (
 	jobRun_finished  = goqu.I("job_run.finished")
 	jobRun_succeeded = goqu.I("job_run.succeeded")
 	jobRun_error     = goqu.I("job_run.error")
+
+	// Columns: annotation table
+	annotation_jobId = goqu.I("user_annotation_lookup.job_id")
+	annotation_key   = goqu.I("user_annotation_lookup.key")
+	annotation_value = goqu.I("user_annotation_lookup.value")
 )
 
 type JobRow struct {
