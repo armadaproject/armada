@@ -1159,17 +1159,20 @@ func TestGetJobs_FilterByMultipleAnnotations(t *testing.T) {
 		first := NewJobSimulator(t, jobStore).
 			CreateJobWithAnnotations(queue, map[string]string{
 				"prefix/a": "a",
+				"prefix/b": "b",
 				"c":        "c",
 			})
 
 		second := NewJobSimulator(t, jobStore).
 			CreateJobWithAnnotations(queue, map[string]string{
+				"prefix/a": "a",
 				"prefix/b": "b",
 			})
 
 		NewJobSimulator(t, jobStore).
 			CreateJobWithAnnotations(queue, map[string]string{
 				"a":        "a",
+				"prefix/b": "b",
 				"prefix/c": "c",
 			})
 
@@ -1311,7 +1314,11 @@ func TestGetJobs_TakeOldestJobsFirst(t *testing.T) {
 			k8sId := util.NewULID()
 			otherK8sId := util.NewULID()
 			allJobs[i] = NewJobSimulator(t, jobStore).
-				CreateJob(queue).
+				CreateJobWithAnnotations(queue, map[string]string{
+					userAnnotationPrefix + "a": "a",
+					userAnnotationPrefix + "b": "b",
+					userAnnotationPrefix + "c": "c",
+				}).
 				Pending(cluster, k8sId).
 				UnableToSchedule(cluster, k8sId, node).
 				Pending(cluster, otherK8sId).
@@ -1343,7 +1350,11 @@ func TestGetJobs_TakeNewestJobsFirst(t *testing.T) {
 			k8sId := util.NewULID()
 			otherK8sId := util.NewULID()
 			allJobs[i] = NewJobSimulator(t, jobStore).
-				CreateJob(queue).
+				CreateJobWithAnnotations(queue, map[string]string{
+					userAnnotationPrefix + "a": "a",
+					userAnnotationPrefix + "b": "b",
+					userAnnotationPrefix + "c": "c",
+				}).
 				Pending(cluster, k8sId).
 				UnableToSchedule(cluster, k8sId, node).
 				Pending(cluster, otherK8sId).

@@ -19,7 +19,8 @@ import './index.css';
     new SubmitApi(new SubmitConfiguration({
       basePath: uiConfig.armadaApiBaseUrl,
       credentials: "include",
-    }))
+    })),
+    uiConfig.userAnnotationPrefix,
   );
 
   ReactDOM.render(

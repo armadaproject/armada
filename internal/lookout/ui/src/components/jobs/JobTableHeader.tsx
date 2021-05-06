@@ -3,22 +3,21 @@ import { Button, IconButton } from "@material-ui/core"
 import RefreshIcon from '@material-ui/icons/Refresh'
 import CancelIcon from "@material-ui/icons/Cancel"
 
+import ColumnSelect from "./ColumnSelect";
+import { ColumnSpec } from "../../containers/JobsContainer";
+
 import './JobTableHeader.css'
 
 type JobTableHeaderProps = {
-  queue: string
-  jobSet: string
-  jobStates: string[]
-  newestFirst: boolean
-  jobId: string
+  defaultColumns: ColumnSpec<string | boolean | string[]>[]
+  annotationColumns: ColumnSpec<string>[]
   canCancel: boolean
-  onQueueChange: (queue: string) => void
-  onJobSetChange: (jobSet: string) => void
-  onJobStatesChange: (jobStates: string[]) => void
-  onOrderChange: (newestFirst: boolean) => void
-  onJobIdChange: (jobId: string) => void
   onRefresh: () => void
   onCancelJobsClick: () => void
+  onDisableColumn: (id: string, isDisabled: boolean) => void
+  onDeleteColumn: (columnId: string) => void
+  onAddColumn: () => void
+  onChangeAnnotationColumnKey: (columnId: string, newKey: string) => void
 }
 
 export default function JobTableHeader(props: JobTableHeaderProps) {
@@ -28,6 +27,17 @@ export default function JobTableHeader(props: JobTableHeaderProps) {
         <h2 className="title">Jobs</h2>
       </div>
       <div className="right">
+        <div className="select-columns">
+          <ColumnSelect
+            defaultColumns={props.defaultColumns}
+            annotationColumns={props.annotationColumns}
+            inputLabel={"Annotation key"}
+            addColumnText={"Add column for annotation"}
+            onDisableColumn={props.onDisableColumn}
+            onDeleteColumn={props.onDeleteColumn}
+            onAddColumn={props.onAddColumn}
+            onChangeAnnotationColumnKey={props.onChangeAnnotationColumnKey}/>
+        </div>
         <div className="cancel-jobs">
           <Button
             disabled={!props.canCancel}

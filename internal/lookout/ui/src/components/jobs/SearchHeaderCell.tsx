@@ -17,8 +17,9 @@ export default function SearchHeaderCell(props: SearchHeaderCellProps) {
         InputProps={{
           className: "search-header-text-field-input",
         }}
-        label={props.headerLabel}
+        label={props.headerLabel ? props.headerLabel : "Blank column"}
         value={props.value}
+        disabled={props.headerLabel === ""}
         onChange={event => props.onChange(event.target.value)}
         className="search-header-text-field"/>
     </div>
