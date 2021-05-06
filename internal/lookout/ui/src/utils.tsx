@@ -1,5 +1,6 @@
 interface UIConfig {
   armadaApiBaseUrl: string
+  userAnnotationPrefix: string
 }
 
 export interface Padding {
@@ -11,7 +12,8 @@ export interface Padding {
 
 export async function getUIConfig(): Promise<UIConfig> {
   const config = {
-    armadaApiBaseUrl: ""
+    armadaApiBaseUrl: "",
+    userAnnotationPrefix: "",
   }
 
   try {
@@ -19,6 +21,9 @@ export async function getUIConfig(): Promise<UIConfig> {
     const json = await response.json()
     if (json.ArmadaApiBaseUrl) {
       config.armadaApiBaseUrl = json.ArmadaApiBaseUrl
+    }
+    if (json.UserAnnotationPrefix) {
+      config.userAnnotationPrefix = json.UserAnnotationPrefix
     }
   } catch (e) {
     console.error(e)
