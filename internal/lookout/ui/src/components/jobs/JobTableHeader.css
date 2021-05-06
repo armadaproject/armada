@@ -36,3 +36,7 @@
 .job-table-header .right .cancel-jobs {
   margin-right: 4em;
 }
+
+.job-table-header .right .select-columns {
+  margin-right: 4em;
+}
