@@ -30,8 +30,8 @@ func TestBindJsonOrYaml_IngressType(t *testing.T) {
 	submitFile := &domain.JobSubmitFile{}
 	err := BindJsonOrYaml(filepath.Join("testdata", "jobs-ingress.yaml"), submitFile)
 	assert.NoError(t, err)
-	assert.Equal(t, submitFile.Jobs[0].Ingress[0].Type, api.IngressType_Http)
-	assert.Equal(t, submitFile.Jobs[0].Ingress[1].Type, api.IngressType_Http)
+	assert.Equal(t, submitFile.Jobs[0].Ingress[0].Type, api.IngressType_NodePort)
+	assert.Equal(t, submitFile.Jobs[0].Ingress[1].Type, api.IngressType_NodePort)
 }
 
 func getExpectedJobSubmitFile(t *testing.T) *domain.JobSubmitFile {

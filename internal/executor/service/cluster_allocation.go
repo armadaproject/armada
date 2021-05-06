@@ -137,7 +137,7 @@ func getServicePorts(job *api.Job, podSpec *v1.PodSpec) []v1.ServicePort {
 			if port.HostPort > 0 {
 				continue
 			}
-			if shouldExposePortWithHttp(port, job) {
+			if shouldExposeWithNodePort(port, job) {
 				servicePort := v1.ServicePort{
 					Port:     port.ContainerPort,
 					Protocol: port.Protocol,
@@ -160,9 +160,10 @@ func contains(portConfig *api.IngressConfig, port uint32) bool {
 	return false
 }
 
-func shouldExposePortWithHttp(port v1.ContainerPort, job *api.Job) bool {
+func shouldExposeWithNodePort(port v1.ContainerPort, job *api.Job) bool {
 	for _, ingressConfig := range job.Ingress {
-		if contains(ingressConfig, uint32(port.ContainerPort)) {
+		if ingressConfig.Type == api.IngressType_NodePort &&
+			contains(ingressConfig, uint32(port.ContainerPort)) {
 			return true
 		}
 	}

@@ -350,9 +350,9 @@
     },
     "apiIngressType": {
       "type": "string",
-      "default": "Http",
+      "default": "NodePort",
       "enum": [
-        "Http"
+        "NodePort"
       ]
     },
     "apiJob": {

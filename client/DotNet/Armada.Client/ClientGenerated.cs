@@ -687,8 +687,8 @@ namespace GResearch.Armada.Client
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public enum ApiIngressType
     {
-        [System.Runtime.Serialization.EnumMember(Value = @"Http")]
-        Http = 0,
+        [System.Runtime.Serialization.EnumMember(Value = @"NodePort")]
+        NodePort = 0,
     
     }
     

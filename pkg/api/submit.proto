@@ -29,7 +29,7 @@ message IngressConfig {
 }
 
 enum IngressType {
-    Http = 0;
+    NodePort = 0;
 }
 
 // swagger:model

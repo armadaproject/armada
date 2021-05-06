@@ -127,9 +127,9 @@ func SwaggerJsonTemplate() string {
 		"    },\n" +
 		"    \"apiIngressType\": {\n" +
 		"      \"type\": \"string\",\n" +
-		"      \"default\": \"Http\",\n" +
+		"      \"default\": \"NodePort\",\n" +
 		"      \"enum\": [\n" +
-		"        \"Http\"\n" +
+		"        \"NodePort\"\n" +
 		"      ]\n" +
 		"    },\n" +
 		"    \"apiJob\": {\n" +
