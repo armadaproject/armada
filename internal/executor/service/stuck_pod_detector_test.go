@@ -289,11 +289,15 @@ func (c *syncFakeClusterContext) GetPodEvents(pod *v1.Pod) ([]*v1.Event, error) 
 }
 
 func (c *syncFakeClusterContext) SubmitService(service *v1.Service) (*v1.Service, error) {
-	return nil, fmt.Errorf("Services not implemented in FakeClusterContext")
+	return nil, fmt.Errorf("Services not implemented in syncFakeClusterContext")
 }
 
-func (c *syncFakeClusterContext) GetAssociatedService(pod *v1.Pod) (*v1.Service, error) {
-	return nil, fmt.Errorf("Services not implemented in FakeClusterContext")
+func (c *syncFakeClusterContext) GetService(name string, namespace string) (*v1.Service, error) {
+	return nil, fmt.Errorf("Services not implemented in syncFakeClusterContext")
+}
+
+func (c *syncFakeClusterContext) DeleteService(service *v1.Service) error {
+	return fmt.Errorf("Services not implemented in syncFakeClusterContext")
 }
 
 func (c *syncFakeClusterContext) SubmitPod(pod *v1.Pod, owner string) (*v1.Pod, error) {

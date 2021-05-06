@@ -158,8 +158,12 @@ func (c *FakeClusterContext) SubmitService(service *v1.Service) (*v1.Service, er
 	return nil, fmt.Errorf("Services not implemented in FakeClusterContext")
 }
 
-func (c *FakeClusterContext) GetAssociatedService(pod *v1.Pod) (*v1.Service, error) {
+func (c *FakeClusterContext) GetService(name string, namespace string) (*v1.Service, error) {
 	return nil, fmt.Errorf("Services not implemented in FakeClusterContext")
+}
+
+func (c *FakeClusterContext) DeleteService(service *v1.Service) error {
+	return fmt.Errorf("Services not implemented in FakeClusterContext")
 }
 
 func (c *FakeClusterContext) updateStatus(saved *v1.Pod, phase v1.PodPhase, state v1.ContainerState) (*v1.Pod, *v1.Pod) {
