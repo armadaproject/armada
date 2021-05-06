@@ -48,7 +48,7 @@ function NavBar(props: RouteComponentProps) {
   return (
     <AppBar position="static">
       <Toolbar className="toolbar">
-        <div className="title">
+        <a href="/" className="title">
           <img
             className="logo"
             src={process.env.PUBLIC_URL + "./Armada-white-rectangle.png"}
@@ -56,7 +56,7 @@ function NavBar(props: RouteComponentProps) {
           <Typography variant="h6" className="app-name">
             Lookout
           </Typography>
-        </div>
+        </a>
         <div className="nav-items">
           <Tabs
             value={currentValue}
