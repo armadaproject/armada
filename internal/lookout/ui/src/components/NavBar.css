@@ -10,7 +10,8 @@
   flex-direction: row;
   justify-content: flex-start;
   align-items: center;
-  cursor: pointer;
+  text-decoration: none;
+  color: white;
 }
 
 .toolbar .title .logo {
