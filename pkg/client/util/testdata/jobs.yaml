@@ -3,7 +3,6 @@ jobSetId: job-set-1
 jobs:
   - priority: 0
     podSpec:
-      terminationGracePeriodSeconds: 0
       restartPolicy: Never
       containers:
         - name: sleep
@@ -13,11 +12,11 @@ jobs:
             - sh
             - -c
           args:
-            - sleep $(( (RANDOM % 30) + 30 ))
+            - sleep 60
           resources:
             limits:
-              memory: 64Mi
-              cpu: 150m
+              memory: 1Gi
+              cpu: 1
             requests:
-              memory: 64Mi
-              cpu: 150m
+              memory: 1Gi
+              cpu: 1

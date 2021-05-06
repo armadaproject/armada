@@ -243,7 +243,7 @@ func (eventReporter *JobEventReporter) ReportMissingJobEvents() {
 }
 
 func (eventReporter *JobEventReporter) reportIngressInfoEvent(pod *v1.Pod) {
-	associatedService, err := eventReporter.clusterContext.GetAssociatedService(pod)
+	associatedService, err := eventReporter.clusterContext.GetService(pod.Name, pod.Namespace)
 	if err != nil {
 		log.Errorf("Failed to report event JobIngressInfoEvent for pod %s because %s", pod.Name, err)
 		return
@@ -272,7 +272,7 @@ func (eventReporter *JobEventReporter) reportIngressInfoEvent(pod *v1.Pod) {
 }
 
 func requiresIngressToBeReported(pod *v1.Pod) bool {
-	if value, exists := pod.Annotations[domain2.HasIngress]; !exists || value != "true" {
+	if !util.HasIngress(pod) {
 		return false
 	}
 	if _, exists := pod.Annotations[domain2.IngressReported]; exists {

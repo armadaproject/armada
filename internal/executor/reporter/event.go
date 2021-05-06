@@ -98,8 +98,11 @@ func CreateJobLeaseReturnedEvent(pod *v1.Pod, reason string, clusterId string) a
 }
 
 func CreateJobIngressInfoEvent(pod *v1.Pod, clusterId string, associatedService *v1.Service) (api.Event, error) {
-	if pod.Spec.NodeName == "" {
-		return nil, fmt.Errorf("unable to create JobIngressInfoEvent for pod %s, as pod is not allocated to a node", pod.Name)
+	if pod.Spec.NodeName == "" || pod.Status.HostIP == "" {
+		return nil, fmt.Errorf("unable to create JobIngressInfoEvent for pod %s (%s), as pod is not allocated to a node", pod.Name, pod.Namespace)
+	}
+	if associatedService == nil {
+		return nil, fmt.Errorf("unable to create JobIngressInfoEvent for pod %s (%s), as no associated ingress provided", pod.Name, pod.Namespace)
 	}
 	containerPortMapping := map[int32]string{}
 	for _, servicePort := range associatedService.Spec.Ports {

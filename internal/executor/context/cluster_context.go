@@ -35,12 +35,13 @@ type ClusterContext interface {
 	GetNodes() ([]*v1.Node, error)
 	GetNodeStatsSummary(*v1.Node) (*v1alpha1.Summary, error)
 	GetPodEvents(pod *v1.Pod) ([]*v1.Event, error)
-	GetAssociatedService(pod *v1.Pod) (*v1.Service, error)
+	GetService(name string, namespace string) (*v1.Service, error)
 
 	SubmitPod(pod *v1.Pod, owner string) (*v1.Pod, error)
 	SubmitService(service *v1.Service) (*v1.Service, error)
 	AddAnnotation(pod *v1.Pod, annotations map[string]string) error
 	DeletePods(pods []*v1.Pod)
+	DeleteService(service *v1.Service) error
 
 	GetClusterId() string
 	GetClusterPool() string
@@ -247,10 +248,19 @@ func (c *KubernetesClusterContext) DeletePods(pods []*v1.Pod) {
 	}
 }
 
+func (c *KubernetesClusterContext) DeleteService(service *v1.Service) error {
+	deleteOptions := createDeleteOptions()
+	err := c.kubernetesClient.CoreV1().Services(service.Namespace).Delete(ctx.Background(), service.Name, deleteOptions)
+	if err != nil && errors.IsNotFound(err) {
+		return nil
+	}
+	return err
+}
+
 func (c *KubernetesClusterContext) ProcessPodsToDelete() {
 	pods := c.podsToDelete.GetAll()
 
-	deleteOptions := createPodDeletionDeleteOptions()
+	deleteOptions := createDeleteOptions()
 	for _, podToDelete := range pods {
 		if podToDelete == nil {
 			continue
@@ -266,11 +276,15 @@ func (c *KubernetesClusterContext) ProcessPodsToDelete() {
 	}
 }
 
-func (c *KubernetesClusterContext) GetAssociatedService(pod *v1.Pod) (*v1.Service, error) {
-	return c.serviceInformer.Lister().Services(pod.Namespace).Get(pod.Name)
+func (c *KubernetesClusterContext) GetService(name string, namespace string) (*v1.Service, error) {
+	service, err := c.serviceInformer.Lister().Services(namespace).Get(name)
+	if err != nil && errors.IsNotFound(err) {
+		return nil, nil
+	}
+	return service, err
 }
 
-func createPodDeletionDeleteOptions() metav1.DeleteOptions {
+func createDeleteOptions() metav1.DeleteOptions {
 	gracePeriod := int64(0)
 	deleteOptions := metav1.DeleteOptions{
 		GracePeriodSeconds: &gracePeriod,
