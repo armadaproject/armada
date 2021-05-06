@@ -14,7 +14,7 @@ import (
 
 func TestGetJobSetInfos_GetNoJobSetsIfQueueDoesNotExist(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
-		jobStore := NewSQLJobStore(db)
+		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
 
 		NewJobSimulator(t, jobStore).
 			CreateJob("queue-1")
@@ -33,7 +33,7 @@ func TestGetJobSetInfos_GetNoJobSetsIfQueueDoesNotExist(t *testing.T) {
 
 func TestGetJobSetInfos_GetsJobSetWithNoFinishedJobs(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
-		jobStore := NewSQLJobStore(db)
+		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
 
 		NewJobSimulator(t, jobStore).
 			CreateJobWithJobSet(queue, "job-set")
@@ -60,7 +60,7 @@ func TestGetJobSetInfos_GetsJobSetWithNoFinishedJobs(t *testing.T) {
 
 func TestGetJobSetInfos_GetsJobSetWithOnlyFinishedJobs(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
-		jobStore := NewSQLJobStore(db)
+		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
 
 		NewJobSimulator(t, jobStore).
 			CreateJobWithJobSet(queue, "job-set").
@@ -90,7 +90,7 @@ func TestGetJobSetInfos_GetsJobSetWithOnlyFinishedJobs(t *testing.T) {
 
 func TestGetJobSetInfos_JobSetsCounts(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
-		jobStore := NewSQLJobStore(db)
+		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
 		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
 
 		NewJobSimulator(t, jobStore).
@@ -143,7 +143,7 @@ func TestGetJobSetInfos_JobSetsCounts(t *testing.T) {
 
 func TestGetJobSetInfos_MultipleJobSetsCounts(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
-		jobStore := NewSQLJobStore(db)
+		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
 		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
 
 		// Job set 1
@@ -229,7 +229,7 @@ func TestGetJobSetInfos_MultipleJobSetsCounts(t *testing.T) {
 
 func TestGetJobSetInfos_StatsWithNoRunningOrQueuedJobs(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
-		jobStore := NewSQLJobStore(db)
+		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
 		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
 
 		NewJobSimulator(t, jobStore).
@@ -250,7 +250,7 @@ func TestGetJobSetInfos_StatsWithNoRunningOrQueuedJobs(t *testing.T) {
 
 func TestGetJobSetInfos_GetRunningStats(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
-		jobStore := NewSQLJobStore(db)
+		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
 
 		currentTime := someTime.Add(20 * time.Minute)
 
@@ -330,7 +330,7 @@ func TestGetJobSetInfos_GetRunningStats(t *testing.T) {
 
 func TestGetJobSetInfos_GetQueuedStats(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
-		jobStore := NewSQLJobStore(db)
+		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
 
 		someTime := time.Now()
 		currentTime := someTime.Add(30 * time.Minute)
@@ -365,7 +365,7 @@ func TestGetJobSetInfos_GetQueuedStats(t *testing.T) {
 				Running(cluster, otherK8sId, node)
 
 			NewJobSimulator(t, jobStore).
-				CreateJobWithOpts(queue, util.NewULID(), "job-set-2", "user", someTime)
+				CreateJobWithOpts(queue, util.NewULID(), "job-set-2", "user", someTime, nil)
 
 			NewJobSimulator(t, jobStore).
 				CreateJobWithJobSet(queue, "job-set-2").
@@ -373,7 +373,7 @@ func TestGetJobSetInfos_GetQueuedStats(t *testing.T) {
 		}
 
 		NewJobSimulator(t, jobStore).
-			CreateJobWithOpts(queue, util.NewULID(), "job-set-2", "user", someTime.Add(20*time.Minute))
+			CreateJobWithOpts(queue, util.NewULID(), "job-set-2", "user", someTime.Add(20*time.Minute), nil)
 
 		jobSets, err := jobRepo.GetJobSetInfos(ctx, &lookout.GetJobSetsRequest{Queue: queue})
 		assert.NoError(t, err)

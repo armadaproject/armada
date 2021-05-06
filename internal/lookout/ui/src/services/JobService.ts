@@ -58,6 +58,7 @@ export interface GetJobsRequest {
   jobStates: string[],
   jobId: string,
   owner: string,
+  annotations: { [key: string]: string }
 }
 
 export type Job = {
@@ -71,6 +72,7 @@ export type Job = {
   jobState: string
   runs: Run[]
   jobYaml: string
+  annotations: { [key: string]: string }
 }
 
 export type Run = {
@@ -126,10 +128,12 @@ export default class JobService {
 
   lookoutApi: LookoutApi
   submitApi: SubmitApi
+  userAnnotationPrefix: string
 
-  constructor(lookoutAPi: LookoutApi, submitApi: SubmitApi) {
+  constructor(lookoutAPi: LookoutApi, submitApi: SubmitApi, userAnnotationPrefix: string) {
     this.lookoutApi = lookoutAPi
     this.submitApi = submitApi
+    this.userAnnotationPrefix = userAnnotationPrefix
   }
 
   async getOverview(): Promise<QueueInfo[]> {
@@ -138,7 +142,7 @@ export default class JobService {
       return []
     }
 
-    return queueInfosFromApi.queues.map(queueInfoToViewModel)
+    return queueInfosFromApi.queues.map(queueInfo => this.queueInfoToViewModel(queueInfo))
   }
 
   async getJobSets(queue: string): Promise<JobSet[]> {
@@ -169,10 +173,11 @@ export default class JobService {
           jobStates: jobStatesForApi,
           jobId: getJobsRequest.jobId,
           owner: getJobsRequest.owner,
+          userAnnotations: getJobsRequest.annotations,
         }
       });
       if (response.jobInfos) {
-        return response.jobInfos.map(jobInfoToViewModel)
+        return response.jobInfos.map(jobInfo => this.jobInfoToViewModel(jobInfo))
       }
     } catch (e) {
       console.error(await e.json())
@@ -230,41 +235,79 @@ export default class JobService {
     }
     return result
   }
+
+  private queueInfoToViewModel(queueInfo: LookoutQueueInfo): QueueInfo {
+    let oldestQueuedJob: Job | undefined
+    let oldestQueuedDuration = "-"
+    if (queueInfo.oldestQueuedJob) {
+      oldestQueuedJob = this.jobInfoToViewModel(queueInfo.oldestQueuedJob)
+    }
+    if (queueInfo.oldestQueuedDuration) {
+      oldestQueuedDuration = getDurationString(queueInfo.oldestQueuedDuration)
+    }
+
+    let longestRunningJob: Job | undefined
+    let longestRunningJobDuration = "-"
+    if (queueInfo.longestRunningJob) {
+      longestRunningJob = this.jobInfoToViewModel(queueInfo.longestRunningJob)
+    }
+    if (queueInfo.longestRunningDuration) {
+      longestRunningJobDuration = getDurationString(queueInfo.longestRunningDuration)
+    }
+
+    return {
+      queue: queueInfo.queue ?? "Unknown queue",
+      jobsQueued: queueInfo.jobsQueued ?? 0,
+      jobsPending: queueInfo.jobsPending ?? 0,
+      jobsRunning: queueInfo.jobsRunning ?? 0,
+      oldestQueuedJob: oldestQueuedJob,
+      longestRunningJob: longestRunningJob,
+      oldestQueuedDuration: oldestQueuedDuration,
+      longestRunningDuration: longestRunningJobDuration,
+    }
+  }
+
+  private jobInfoToViewModel(jobInfo: LookoutJobInfo): Job {
+    const jobId = jobInfo.job?.id ?? "-"
+    const queue = jobInfo.job?.queue ?? "-"
+    const owner = jobInfo.job?.owner ?? "-"
+    const jobSet = jobInfo.job?.jobSetId ?? "-"
+    const priority = jobInfo.job?.priority ?? 0
+    const submissionTime = dateToString(jobInfo.job?.created ?? new Date())
+    const cancelledTime = jobInfo.cancelled ? dateToString(jobInfo.cancelled) : undefined
+    const jobState = JOB_STATE_MAP.get(jobInfo.jobState ?? "") ?? "Unknown"
+    const runs = getRuns(jobInfo)
+    const jobYaml = jobInfo.jobJson ? jobJsonToYaml(jobInfo.jobJson) : ""
+    const annotations = jobInfo.job?.annotations ? this.getAnnotations(jobInfo.job?.annotations) : {}
+
+    return {
+      jobId: jobId,
+      queue: queue,
+      owner: owner,
+      jobSet: jobSet,
+      priority: priority,
+      submissionTime: submissionTime,
+      cancelledTime: cancelledTime,
+      jobState: jobState,
+      runs: runs,
+      jobYaml: jobYaml,
+      annotations: annotations,
+    }
+  }
+
+  private getAnnotations(annotations: { [key: string]: string }): { [key: string]: string } {
+    const userAnnotations: { [key: string]: string } ={}
+    for (let key in annotations) {
+      if (key.startsWith(this.userAnnotationPrefix)) {
+        userAnnotations[key.substring(this.userAnnotationPrefix.length)] = annotations[key]
+      }
+    }
+    return userAnnotations
+  }
 }
 
 function escapeBackslashes(str: string) {
   return str.split('\\').join('\\\\')
-}
-
-function queueInfoToViewModel(queueInfo: LookoutQueueInfo): QueueInfo {
-  let oldestQueuedJob: Job | undefined
-  let oldestQueuedDuration = "-"
-  if (queueInfo.oldestQueuedJob) {
-    oldestQueuedJob = jobInfoToViewModel(queueInfo.oldestQueuedJob)
-  }
-  if (queueInfo.oldestQueuedDuration) {
-    oldestQueuedDuration = getDurationString(queueInfo.oldestQueuedDuration)
-  }
-
-  let longestRunningJob: Job | undefined
-  let longestRunningJobDuration = "-"
-  if (queueInfo.longestRunningJob) {
-    longestRunningJob = jobInfoToViewModel(queueInfo.longestRunningJob)
-  }
-  if (queueInfo.longestRunningDuration) {
-    longestRunningJobDuration = getDurationString(queueInfo.longestRunningDuration)
-  }
-
-  return {
-    queue: queueInfo.queue ?? "Unknown queue",
-    jobsQueued: queueInfo.jobsQueued ?? 0,
-    jobsPending: queueInfo.jobsPending ?? 0,
-    jobsRunning: queueInfo.jobsRunning ?? 0,
-    oldestQueuedJob: oldestQueuedJob,
-    longestRunningJob: longestRunningJob,
-    oldestQueuedDuration: oldestQueuedDuration,
-    longestRunningDuration: longestRunningJobDuration,
-  }
 }
 
 function jobSetToViewModel(jobSet: LookoutJobSetInfo): JobSet {
@@ -322,32 +365,6 @@ function getDurationSeconds(durationFromApi: any): number {
   }
 
   return totalSeconds
-}
-
-function jobInfoToViewModel(jobInfo: LookoutJobInfo): Job {
-  const jobId = jobInfo.job?.id ?? "-"
-  const queue = jobInfo.job?.queue ?? "-"
-  const owner = jobInfo.job?.owner ?? "-"
-  const jobSet = jobInfo.job?.jobSetId ?? "-"
-  const priority = jobInfo.job?.priority ?? 0
-  const submissionTime = dateToString(jobInfo.job?.created ?? new Date())
-  const cancelledTime = jobInfo.cancelled ? dateToString(jobInfo.cancelled) : undefined
-  const jobState = JOB_STATE_MAP.get(jobInfo.jobState ?? "") ?? "Unknown"
-  const runs = getRuns(jobInfo)
-  const jobYaml = jobInfo.jobJson ? jobJsonToYaml(jobInfo.jobJson) : ""
-
-  return {
-    jobId: jobId,
-    queue: queue,
-    owner: owner,
-    jobSet: jobSet,
-    priority: priority,
-    submissionTime: submissionTime,
-    cancelledTime: cancelledTime,
-    jobState: jobState,
-    runs: runs,
-    jobYaml: jobYaml,
-  }
 }
 
 function dateToString(date: Date): string {

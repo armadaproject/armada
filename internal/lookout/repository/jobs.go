@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sort"
 
@@ -22,7 +23,10 @@ func (r *SQLJobRepository) GetJobs(ctx context.Context, opts *lookout.GetJobsReq
 		return nil, err
 	}
 
-	result := rowsToJobs(rows)
+	result, err := rowsToJobs(rows)
+	if err != nil {
+		return nil, err
+	}
 	sortJobsByJobId(result, opts.NewestFirst)
 
 	return result, nil
@@ -62,7 +66,7 @@ func (r *SQLJobRepository) createJobsDataset(opts *lookout.GetJobsRequest) *goqu
 	subDs := r.goquDb.
 		From(jobTable).
 		Select(job_jobId).
-		Where(goqu.And(createWhereFilters(opts)...)).
+		Where(goqu.And(r.createWhereFilters(opts)...)).
 		Order(createJobOrdering(opts.NewestFirst)).
 		Limit(uint(opts.Take)).
 		Offset(uint(opts.Skip))
@@ -94,8 +98,8 @@ func (r *SQLJobRepository) createJobsDataset(opts *lookout.GetJobsRequest) *goqu
 	return ds
 }
 
-func createWhereFilters(opts *lookout.GetJobsRequest) []goqu.Expression {
-	filters := make([]goqu.Expression, 0)
+func (r *SQLJobRepository) createWhereFilters(opts *lookout.GetJobsRequest) []goqu.Expression {
+	var filters []goqu.Expression
 
 	if opts.Queue != "" {
 		filters = append(filters, StartsWith(job_queue, opts.Queue))
@@ -111,6 +115,10 @@ func createWhereFilters(opts *lookout.GetJobsRequest) []goqu.Expression {
 
 	filters = append(filters, goqu.Or(createJobSetFilters(opts.JobSetIds)...))
 
+	if len(opts.UserAnnotations) > 0 {
+		filters = append(filters, r.createUserAnnotationsFilter(opts.UserAnnotations))
+	}
+
 	if len(opts.JobStates) > 0 {
 		filters = append(filters, createJobStateFilter(toJobStates(opts.JobStates)))
 	} else {
@@ -120,8 +128,36 @@ func createWhereFilters(opts *lookout.GetJobsRequest) []goqu.Expression {
 	return filters
 }
 
+func (r *SQLJobRepository) createUserAnnotationsFilter(annotations map[string]string) goqu.Expression {
+	var caseFilters []goqu.Expression
+	var whenFilters []goqu.Expression
+
+	for key, value := range annotations {
+		caseFilters = append(caseFilters, goqu.And(
+			annotation_key.Eq(key),
+			StartsWith(annotation_value, value)))
+		whenFilters = append(whenFilters, annotation_key.Eq(key))
+	}
+
+	subDs := r.goquDb.From(userAnnotationLookupTable).
+		Select(
+			annotation_jobId,
+			goqu.SUM(
+				goqu.Case().
+					When(goqu.Or(caseFilters...), goqu.L("1")).
+					Else(goqu.L("0"))).As("total_matches")).
+		Where(goqu.Or(whenFilters...)).
+		GroupBy(annotation_jobId).
+		As("annotation_matches")
+
+	return job_jobId.In(
+		r.goquDb.From(subDs).
+			Select(goqu.I("annotation_matches.job_id")).
+			Where(goqu.I("annotation_matches.total_matches").Eq(len(annotations))))
+}
+
 func createJobSetFilters(jobSetIds []string) []goqu.Expression {
-	filters := make([]goqu.Expression, 0)
+	var filters []goqu.Expression
 	for _, jobSetId := range jobSetIds {
 		filter := StartsWith(job_jobset, jobSetId)
 		filters = append(filters, filter)
@@ -152,7 +188,7 @@ func createJobOrdering(newestFirst bool) exp.OrderedExpression {
 	return job_jobId.Asc()
 }
 
-func rowsToJobs(rows []*JobRow) []*lookout.JobInfo {
+func rowsToJobs(rows []*JobRow) ([]*lookout.JobInfo, error) {
 	jobMap := make(map[string]*lookout.JobInfo)
 
 	for _, row := range rows {
@@ -163,8 +199,12 @@ func rowsToJobs(rows []*JobRow) []*lookout.JobInfo {
 				if row.State.Valid {
 					state = string(IntToJobStateMap[int(row.State.Int64)])
 				}
+				job, err := makeJobFromRow(row)
+				if err != nil {
+					return nil, err
+				}
 				jobMap[jobId] = &lookout.JobInfo{
-					Job:       makeJobFromRow(row),
+					Job:       job,
 					Cancelled: ParseNullTime(row.Cancelled),
 					JobState:  state,
 					Runs:      []*lookout.RunInfo{},
@@ -184,7 +224,7 @@ func rowsToJobs(rows []*JobRow) []*lookout.JobInfo {
 		updateRunStates(jobInfo)
 	}
 
-	return jobMapToSlice(jobMap)
+	return jobMapToSlice(jobMap), nil
 }
 
 func jobMapToSlice(jobMap map[string]*lookout.JobInfo) []*lookout.JobInfo {
@@ -207,18 +247,27 @@ func sortJobsByJobId(jobInfos []*lookout.JobInfo, descending bool) {
 	})
 }
 
-func makeJobFromRow(row *JobRow) *api.Job {
+func makeJobFromRow(row *JobRow) (*api.Job, error) {
 	if row == nil {
-		return nil
+		return nil, nil
 	}
+
+	var jobFromJson api.Job
+	jobJson := ParseNullString(row.JobJson)
+	err := json.Unmarshal([]byte(jobJson), &jobFromJson)
+	if err != nil {
+		return nil, fmt.Errorf("error while parsing job json: %v", err)
+	}
+
 	return &api.Job{
-		Id:       ParseNullString(row.JobId),
-		JobSetId: ParseNullString(row.JobSet),
-		Queue:    ParseNullString(row.Queue),
-		Owner:    ParseNullString(row.Owner),
-		Priority: ParseNullFloat(row.Priority),
-		Created:  ParseNullTimeDefault(row.Submitted),
-	}
+		Id:          ParseNullString(row.JobId),
+		JobSetId:    ParseNullString(row.JobSet),
+		Queue:       ParseNullString(row.Queue),
+		Owner:       ParseNullString(row.Owner),
+		Priority:    ParseNullFloat(row.Priority),
+		Created:     ParseNullTimeDefault(row.Submitted),
+		Annotations: jobFromJson.Annotations,
+	}, nil
 }
 
 func makeRunFromRow(row *JobRow) *lookout.RunInfo {

@@ -6,9 +6,9 @@
     justify-content: space-between;
     align-items: center;
     cursor: pointer;
+    text-transform: none;
 }
 
 .submission-time-header-cell-label {
-    text-transform: uppercase;
     font-weight: normal !important;
 }

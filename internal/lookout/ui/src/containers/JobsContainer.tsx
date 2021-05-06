@@ -1,11 +1,13 @@
 import React, { Fragment } from 'react'
 import { RouteComponentProps, withRouter } from 'react-router-dom'
 import queryString, { ParseOptions, StringifyOptions } from 'query-string'
+import { v4 as uuidv4 } from 'uuid';
 
-import JobService, { Job, JOB_STATES_FOR_DISPLAY } from "../services/JobService"
+import JobService, { GetJobsRequest, Job, JOB_STATES_FOR_DISPLAY } from "../services/JobService"
 import Jobs from "../components/jobs/Jobs"
 import CancelJobsModal, { CancelJobsModalContext, CancelJobsModalState } from "../components/jobs/CancelJobsModal";
 import JobDetailsModal, { JobDetailsModalContext, toggleExpanded } from "../components/job-details/JobDetailsModal";
+import { debounced } from "../utils";
 
 type JobsContainerProps = {
   jobService: JobService
@@ -13,21 +15,24 @@ type JobsContainerProps = {
 
 export type CancelJobsRequestStatus = "Loading" | "Idle"
 
-interface JobsContainerState extends JobFilters {
+interface JobsContainerState {
   jobs: Job[]
   canLoadMore: boolean
   selectedJobs: Map<string, Job>
+  defaultColumns: ColumnSpec<string | boolean | string[]>[]
+  annotationColumns: ColumnSpec<string>[]
   cancelJobsModalContext: CancelJobsModalContext
   jobDetailsModalContext: JobDetailsModalContext
+  forceRefresh: boolean
 }
 
-export interface JobFilters {
-  queue: string
-  jobSet: string
-  jobStates: string[]
-  newestFirst: boolean
-  jobId: string
-  owner: string
+export type ColumnSpec<T> = {
+  id: string
+  name: string
+  accessor: string
+  isDisabled: boolean
+  filter: T
+  defaultFilter: T
 }
 
 type JobFiltersQueryParams = {
@@ -43,6 +48,7 @@ const QUERY_STRING_OPTIONS: ParseOptions | StringifyOptions = {
   arrayFormat: "comma",
   parseBooleans: true,
 }
+const LOCAL_STORAGE_KEY = "armada_lookout_annotation_columns"
 const BATCH_SIZE = 100
 const CANCELLABLE_JOB_STATES = [
   "Queued",
@@ -50,61 +56,65 @@ const CANCELLABLE_JOB_STATES = [
   "Running",
 ]
 
-export function makeQueryStringFromFilters(filters: JobFilters): string {
+export function makeQueryString(columns: ColumnSpec<string | boolean | string[]>[]): string {
+  const columnMap = new Map<string, ColumnSpec<string | boolean | string[]>>()
+  for (let col of columns) {
+    columnMap.set(col.id, col)
+  }
+
+  const queueCol = columnMap.get("queue")
+  const jobSetCol = columnMap.get("jobSet")
+  const jobStateCol = columnMap.get("jobState")
+  const submissionTimeCol = columnMap.get("submissionTime")
+  const jobIdCol = columnMap.get("jobId")
+  const ownerCol = columnMap.get("owner")
+
   let queryObject: JobFiltersQueryParams = {}
-  if (filters.queue) {
-    queryObject.queue = filters.queue
+  if (queueCol && queueCol.filter) {
+    queryObject.queue = queueCol.filter as string
   }
-  if (filters.jobSet) {
-    queryObject.job_set = filters.jobSet
+  if (jobSetCol && jobSetCol.filter) {
+    queryObject.job_set = jobSetCol.filter as string
   }
-  if (filters.jobStates) {
-    queryObject.job_states = filters.jobStates
+  if (jobStateCol && jobStateCol.filter) {
+    queryObject.job_states = jobStateCol.filter as string[]
   }
-  if (filters.newestFirst != null) {
-    queryObject.newest_first = filters.newestFirst
+  if (submissionTimeCol) {
+    queryObject.newest_first = submissionTimeCol.filter as boolean
   }
-  if (filters.jobId) {
-    queryObject.job_id = filters.jobId
+  if (jobIdCol && jobIdCol.filter) {
+    queryObject.job_id = jobIdCol.filter as string
   }
-  if (filters.owner) {
-    queryObject.owner = filters.owner
+  if (ownerCol && ownerCol.filter) {
+    queryObject.owner = ownerCol.filter as string
   }
 
   return queryString.stringify(queryObject, QUERY_STRING_OPTIONS)
 }
 
-export function makeFiltersFromQueryString(query: string): JobFilters {
+export function updateColumnsFromQueryString(query: string, columns: ColumnSpec<string | boolean | string[]>[]) {
   const params = queryString.parse(query, QUERY_STRING_OPTIONS) as JobFiltersQueryParams
 
-  let filters: JobFilters = {
-    queue: "",
-    jobSet: "",
-    jobStates: [],
-    newestFirst: true,
-    jobId: "",
-    owner: "",
+  for (let col of columns) {
+    if (col.id === "queue" && params.queue) {
+      col.filter = params.queue
+    }
+    if (col.id === "jobSet" && params.job_set) {
+      col.filter = params.job_set
+    }
+    if (col.id === "jobState" && params.job_states) {
+      col.filter = parseJobStates(params.job_states)
+    }
+    if (col.id === "submissionTime" && params.newest_first !== undefined) {
+      col.filter = params.newest_first
+    }
+    if (col.id === "jobId" && params.job_id) {
+      col.filter = params.job_id
+    }
+    if (col.id === "owner" && params.owner) {
+      col.filter = params.owner
+    }
   }
-  if (params.queue) {
-    filters.queue = params.queue
-  }
-  if (params.job_set) {
-    filters.jobSet = params.job_set
-  }
-  if (params.job_states) {
-    filters.jobStates = parseJobStates(params.job_states)
-  }
-  if (params.newest_first != null) {
-    filters.newestFirst = params.newest_first
-  }
-  if (params.job_id) {
-    filters.jobId = params.job_id
-  }
-  if (params.owner) {
-    filters.owner = params.owner
-  }
-
-  return filters
 }
 
 function parseJobStates(jobStates: string[] | string): string[] {
@@ -122,20 +132,61 @@ function parseJobStates(jobStates: string[] | string): string[] {
 class JobsContainer extends React.Component<JobsContainerProps, JobsContainerState> {
   constructor(props: JobsContainerProps) {
     super(props)
-
-    const initialFilters = {
-      queue: "",
-      jobSet: "",
-      jobStates: [],
-      newestFirst: true,
-      jobId: "",
-      owner: "",
-    }
     this.state = {
-      ...initialFilters,
       jobs: [],
       canLoadMore: true,
       selectedJobs: new Map<string, Job>(),
+      defaultColumns: [
+        {
+          id: "queue",
+          name: "Queue",
+          accessor: "queue",
+          isDisabled: false,
+          filter: "",
+          defaultFilter: "",
+        },
+        {
+          id: "jobId",
+          name: "Job Id",
+          accessor: "jobId",
+          isDisabled: false,
+          filter: "",
+          defaultFilter: "",
+        },
+        {
+          id: "owner",
+          name: "Owner",
+          accessor: "owner",
+          isDisabled: false,
+          filter: "",
+          defaultFilter: "",
+        },
+        {
+          id: "jobSet",
+          name: "Job Set",
+          accessor: "jobSet",
+          isDisabled: false,
+          filter: "",
+          defaultFilter: "",
+        },
+        {
+          id: "submissionTime",
+          name: "Submission Time",
+          accessor: "submissionTime",
+          isDisabled: false,
+          filter: true,
+          defaultFilter: true,
+        },
+        {
+          id: "jobState",
+          name: "State",
+          accessor: "jobState",
+          isDisabled: false,
+          filter: [],
+          defaultFilter: [],
+        },
+      ],
+      annotationColumns: [],
       cancelJobsModalContext: {
         modalState: "None",
         jobsToCancel: [],
@@ -146,19 +197,17 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
         open: false,
         job: undefined,
         expandedItems: new Set(),
-      }
+      },
+      forceRefresh: false,
     }
 
     this.serveJobs = this.serveJobs.bind(this)
     this.jobIsLoaded = this.jobIsLoaded.bind(this)
 
-    this.queueChange = this.queueChange.bind(this)
-    this.jobSetChange = this.jobSetChange.bind(this)
-    this.jobStatesChange = this.jobStatesChange.bind(this)
-    this.orderChange = this.orderChange.bind(this)
-    this.jobIdChange = this.jobIdChange.bind(this)
-    this.ownerChange = this.ownerChange.bind(this)
+    this.changeColumnFilter = this.changeColumnFilter.bind(this)
+    this.disableColumn = this.disableColumn.bind(this)
     this.refresh = this.refresh.bind(this)
+    this.resetRefresh = this.resetRefresh.bind(this)
 
     this.selectJob = this.selectJob.bind(this)
     this.setCancelJobsModalState = this.setCancelJobsModalState.bind(this)
@@ -167,13 +216,25 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     this.openJobDetailsModal = this.openJobDetailsModal.bind(this)
     this.toggleExpanded = this.toggleExpanded.bind(this)
     this.closeJobDetailsModal = this.closeJobDetailsModal.bind(this)
+
+    this.addAnnotationColumn = this.addAnnotationColumn.bind(this)
+    this.deleteAnnotationColumn = this.deleteAnnotationColumn.bind(this)
+    this.changeAnnotationColumnKey = this.changeAnnotationColumnKey.bind(this)
+
+    this.fetchNextJobInfos = debounced(this.fetchNextJobInfos.bind(this), 100)
   }
 
   componentDidMount() {
-    const filters = makeFiltersFromQueryString(this.props.location.search)
+    let annotationColumnsJson = localStorage.getItem(LOCAL_STORAGE_KEY)
+    let annotationColumns: ColumnSpec<string>[] | undefined
+    if (annotationColumnsJson) {
+      annotationColumns = JSON.parse(annotationColumnsJson) as ColumnSpec<string>[]
+    }
+
+    updateColumnsFromQueryString(this.props.location.search, this.state.defaultColumns)
     this.setState({
       ...this.state,
-      ...filters,
+      annotationColumns: annotationColumns ?? []
     })
   }
 
@@ -188,59 +249,92 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     return !!this.state.jobs[index]
   }
 
-  async queueChange(queue: string) {
-    const filters = {
-      ...this.state,
-      queue: queue
+  changeColumnFilter(columnId: string, newValue: string | boolean | string[]) {
+    for (let col of this.state.defaultColumns) {
+      if (col.id === columnId) {
+        col.filter = newValue
+      }
     }
-    await this.setFilters(filters)
-  }
 
-  async jobSetChange(jobSet: string) {
-    const filters = {
-      ...this.state,
-      jobSet: jobSet
+    for (let col of this.state.annotationColumns) {
+      if (col.id === columnId) {
+        col.filter = newValue as string
+      }
     }
-    await this.setFilters(filters)
+
+    this.setFilters(this.state)
+    this.saveAnnotationColumns()
   }
 
-  async jobStatesChange(jobStates: string[]) {
-    const filters = {
-      ...this.state,
-      jobStates: jobStates
+  disableColumn(columnId: string, isDisabled: boolean) {
+    for (let col of this.state.defaultColumns) {
+      if (col.id === columnId) {
+        col.isDisabled = isDisabled
+        col.filter = col.defaultFilter
+      }
     }
-    await this.setFilters(filters)
-  }
 
-  async orderChange(newestFirst: boolean) {
-    const filters = {
-      ...this.state,
-      newestFirst: newestFirst
+    for (let col of this.state.annotationColumns) {
+      if (col.id === columnId) {
+        col.isDisabled = isDisabled
+        col.filter = col.defaultFilter
+      }
     }
-    await this.setFilters(filters)
+
+    this.setFilters(this.state)
+    this.saveAnnotationColumns()
   }
 
-  async jobIdChange(jobId: string) {
-    const filters = {
-      ...this.state,
-      jobId: jobId,
+  addAnnotationColumn() {
+    const newCol = {
+      id: uuidv4(),
+      name: "",
+      accessor: "",
+      isDisabled: false,
+      filter: "",
+      defaultFilter: "",
     }
-    await this.setFilters(filters)
+    this.state.annotationColumns.push(newCol)
+    this.setFilters(this.state)
+    this.saveAnnotationColumns()
   }
 
-  async ownerChange(owner: string) {
-    const filters = {
-      ...this.state,
-      owner: owner,
+  deleteAnnotationColumn(columnId: string) {
+    let toRemove = -1
+    for (let i = 0; i < this.state.annotationColumns.length; i++) {
+      if (this.state.annotationColumns[i].id === columnId) {
+        toRemove = i
+      }
     }
-    await this.setFilters(filters)
+
+    this.state.annotationColumns.splice(toRemove, 1)
+    this.setFilters(this.state)
+    this.saveAnnotationColumns()
   }
 
-  async refresh() {
-    await this.setFilters(this.state)
+  changeAnnotationColumnKey(columnId: string, newKey: string) {
+    for (let col of this.state.annotationColumns) {
+      if (col.id === columnId) {
+        col.name = newKey
+        col.accessor = newKey
+      }
+    }
+    this.setFilters(this.state)
+    this.saveAnnotationColumns()
   }
 
-  async selectJob(job: Job, selected: boolean) {
+  refresh() {
+    this.setFilters(this.state)
+  }
+
+  resetRefresh() {
+    this.setState({
+      ...this.state,
+      forceRefresh: false,
+    })
+  }
+
+  selectJob(job: Job, selected: boolean) {
     const jobId = job.jobId
     const selectedJobs = new Map<string, Job>(this.state.selectedJobs)
     if (selected) {
@@ -251,13 +345,14 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
       }
     }
     const cancellableJobs = this.getCancellableSelectedJobs(selectedJobs)
-    await this.setStateAsync({
+    this.setState({
       ...this.state,
       selectedJobs: selectedJobs,
       cancelJobsModalContext: {
         ...this.state.cancelJobsModalContext,
         jobsToCancel: cancellableJobs,
       },
+      forceRefresh: true,
     })
   }
 
@@ -375,7 +470,8 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     let canLoadMore = true
 
     while (start >= allJobInfos.length || stop >= allJobInfos.length) {
-      const [newJobInfos, canLoadNext] = await this.fetchNextJobInfos(this.state, this.state.jobs.length)
+      const request = this.getJobsRequest(allJobInfos.length)
+      const [newJobInfos, canLoadNext] = await this.fetchNextJobInfos(request)
       allJobInfos = allJobInfos.concat(newJobInfos)
       canLoadMore = canLoadNext
 
@@ -391,17 +487,58 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     })
   }
 
-  private async fetchNextJobInfos(filters: JobFilters, startIndex: number): Promise<[Job[], boolean]> {
-    const newJobInfos = await this.props.jobService.getJobs({
-      queue: filters.queue,
+  private getJobsRequest(startIndex: number): GetJobsRequest {
+    let request: GetJobsRequest = {
+      queue: "",
+      jobId: "",
+      owner: "",
+      jobSets: [],
+      newestFirst: true,
+      jobStates: [],
       take: BATCH_SIZE,
       skip: startIndex,
-      jobSets: [filters.jobSet],
-      newestFirst: filters.newestFirst,
-      jobStates: filters.jobStates,
-      jobId: filters.jobId,
-      owner: filters.owner,
-    })
+      annotations: {},
+    }
+
+    for (let col of this.state.defaultColumns) {
+      switch (col.id) {
+        case "queue": {
+          request.queue = col.filter as string
+          break
+        }
+        case "jobId": {
+          request.jobId = col.filter as string
+          break
+        }
+        case "owner": {
+          request.owner = col.filter as string
+          break
+        }
+        case "jobSet": {
+          request.jobSets = [col.filter as string]
+          break
+        }
+        case "submissionTime": {
+          request.newestFirst = col.filter as boolean
+          break
+        }
+        case "jobState": {
+          request.jobStates = col.filter as string[]
+          break
+        }
+      }
+    }
+    for (let col of this.state.annotationColumns) {
+      if (col.filter) {
+        request.annotations[col.accessor] = col.filter as string
+      }
+    }
+
+    return request
+  }
+
+  private async fetchNextJobInfos(getJobsRequest: GetJobsRequest): Promise<[Job[], boolean]> {
+    const newJobInfos = await this.props.jobService.getJobs(getJobsRequest)
 
     let canLoadMore = true
     if (newJobInfos.length < BATCH_SIZE) {
@@ -411,13 +548,13 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     return [newJobInfos, canLoadMore]
   }
 
-  private async setFilters(filters: JobFilters) {
-    await this.setStateAsync({
-      ...this.state,
-      ...filters,
+  private setFilters(updatedState: JobsContainerState) {
+    this.setState({
+      ...updatedState,
       jobs: [],
       canLoadMore: true,
       selectedJobs: new Map<string, Job>(),
+      forceRefresh: true,
     })
     this.setUrlParams()
   }
@@ -429,8 +566,12 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
   private setUrlParams() {
     this.props.history.push({
       ...this.props.location,
-      search: makeQueryStringFromFilters(this.state),
+      search: makeQueryString(this.state.defaultColumns),
     })
+  }
+
+  private saveAnnotationColumns() {
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(this.state.annotationColumns))
   }
 
   private selectedJobsAreCancellable(): boolean {
@@ -459,30 +600,27 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
           job={this.state.jobDetailsModalContext.job}
           expandedItems={this.state.jobDetailsModalContext.expandedItems}
           onToggleExpanded={this.toggleExpanded}
-          onClose={this.closeJobDetailsModal} />
+          onClose={this.closeJobDetailsModal}/>
         <Jobs
           jobs={this.state.jobs}
           canLoadMore={this.state.canLoadMore}
-          queue={this.state.queue}
-          jobSet={this.state.jobSet}
-          jobStates={this.state.jobStates}
-          newestFirst={this.state.newestFirst}
-          jobId={this.state.jobId}
-          owner={this.state.owner}
+          defaultColumns={this.state.defaultColumns}
+          annotationColumns={this.state.annotationColumns}
           selectedJobs={this.state.selectedJobs}
+          forceRefresh={this.state.forceRefresh}
           cancelJobsButtonIsEnabled={this.selectedJobsAreCancellable()}
           fetchJobs={this.serveJobs}
           isLoaded={this.jobIsLoaded}
-          onQueueChange={this.queueChange}
-          onJobSetChange={this.jobSetChange}
-          onJobStatesChange={this.jobStatesChange}
-          onOrderChange={this.orderChange}
-          onJobIdChange={this.jobIdChange}
-          onOwnerChange={this.ownerChange}
+          onChangeColumnValue={this.changeColumnFilter}
+          onDisableColumn={this.disableColumn}
+          onDeleteColumn={this.deleteAnnotationColumn}
+          onAddColumn={this.addAnnotationColumn}
+          onChangeAnnotationColumnKey={this.changeAnnotationColumnKey}
           onRefresh={this.refresh}
           onSelectJob={this.selectJob}
           onCancelJobsClick={() => this.setCancelJobsModalState("CancelJobs")}
-          onJobIdClick={this.openJobDetailsModal}/>
+          onJobIdClick={this.openJobDetailsModal}
+          resetRefresh={this.resetRefresh}/>
       </Fragment>
     )
   }
