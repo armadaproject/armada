@@ -174,8 +174,6 @@ func (jobLeaseService *JobLeaseService) renewJobLeases(jobs []*job_context.Runni
 	jobIds := extractJobIds(jobs)
 	log.Infof("Renewing lease for %s", strings.Join(jobIds, ","))
 
-	jobLeaseService.jobContext.RegisterActiveJobs(jobIds)
-
 	ctx, cancel := common.ContextWithDefaultTimeout()
 	defer cancel()
 	renewedJobIds, err := jobLeaseService.queueClient.RenewLease(ctx,
@@ -189,6 +187,10 @@ func (jobLeaseService *JobLeaseService) renewJobLeases(jobs []*job_context.Runni
 
 	failedIds := commonUtil.SubtractStringList(jobIds, renewedJobIds.Ids)
 	failedPods := filterPodsByJobId(extractPods(jobs), failedIds)
+
+	jobLeaseService.jobContext.RegisterActiveJobs(renewedJobIds.Ids)
+	jobLeaseService.jobContext.RegisterDoneJobs(failedIds)
+
 	if len(failedIds) > 0 {
 		log.Warnf("Server has prevented renewing of job lease for jobs %s", strings.Join(failedIds, ","))
 		jobLeaseService.clusterContext.DeletePods(failedPods)
