@@ -45,6 +45,8 @@ All jobs of priority 0 will be taken from the queue before any with priority 1 a
 
 **Note: Job resource request and limit should be equal. Armada does not support limit > request currently.**
 
+For more details on  options are available for an Armada Job see [here](job.md)
+
 #### Multi node jobs
 
 Certain workloads requires multiple pods starting at the same time, job specification can contain multiple podSpecs this way:
@@ -81,6 +83,9 @@ time. If for any reason any of the pods can't start, all pods will be eventually
  `stuckPodExpiry` timeout). If the problem is deemed to be recoverable, the job will be retried.
 
 All events related to multi node job pods have identifier `podNumber` which corresponds with index of pod in the `podSpecs` list. 
+
+
+
 
 ### Job Set
 
