@@ -94,6 +94,8 @@ func (jobLeaseService *JobLeaseService) ReturnLease(pod *v1.Pod) error {
 	log.Infof("Returning lease for job %s", jobId)
 	_, err := jobLeaseService.queueClient.ReturnLease(ctx, &api.ReturnLeaseRequest{ClusterId: jobLeaseService.clusterContext.GetClusterId(), JobId: jobId})
 
+	jobLeaseService.jobContext.RegisterDoneJobs([]string{jobId})
+
 	return err
 }
 
@@ -143,6 +145,9 @@ func (jobLeaseService *JobLeaseService) ReportDone(jobIds []string) error {
 	defer cancel()
 	log.Infof("Reporting done for jobs %s", strings.Join(jobIds, ","))
 	_, err := jobLeaseService.queueClient.ReportDone(ctx, &api.IdList{Ids: jobIds})
+
+	jobLeaseService.jobContext.RegisterDoneJobs(jobIds)
+
 	return err
 }
 
@@ -168,6 +173,8 @@ func (jobLeaseService *JobLeaseService) renewJobLeases(jobs []*job_context.Runni
 	}
 	jobIds := extractJobIds(jobs)
 	log.Infof("Renewing lease for %s", strings.Join(jobIds, ","))
+
+	jobLeaseService.jobContext.RegisterActiveJobs(jobIds)
 
 	ctx, cancel := common.ContextWithDefaultTimeout()
 	defer cancel()
