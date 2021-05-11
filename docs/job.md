@@ -54,8 +54,8 @@ Fields:
     - To always create a new job, don't specify this field
  - (6) These labels will be added to all pods created as part of this Job
  - (7) These annotations will be added to all pods created as part of this Job
- - (8) A list of ports that will be exposed with the specified type
-    - The ingress will only exopse ports for pods that also expose the corresponding port via containerPort
+ - (8) A list of ports that will be exposed with the specified ingress type
+    - The ingress will only expose ports for pods that also expose the corresponding port via containerPort
  - (9) A list of podSpecs that will determine the pods being created as part of the Job.
- 
+    - Typically only one podSpec would be here, unless you are using mutli node jobs
  
