@@ -43,3 +43,37 @@ func Test_ValidatePodSpec_checkForResources(t *testing.T) {
 		}},
 	}))
 }
+
+func Test_ValidatePodSpec_checkForPortConfiguration(t *testing.T) {
+	portsUniqueToContainer := &v1.PodSpec{
+		Containers: []v1.Container{
+			{
+				Ports: []v1.ContainerPort{
+					{ContainerPort: 80},
+				},
+			},
+			{
+				Ports: []v1.ContainerPort{
+					{ContainerPort: 8080},
+				},
+			},
+		},
+	}
+
+	portExposeOverMultipleContainers := &v1.PodSpec{
+		Containers: []v1.Container{
+			{
+				Ports: []v1.ContainerPort{
+					{ContainerPort: 80},
+				},
+			},
+			{
+				Ports: []v1.ContainerPort{
+					{ContainerPort: 80},
+				},
+			},
+		},
+	}
+	assert.Error(t, ValidatePodSpec(portsUniqueToContainer))
+	assert.Error(t, ValidatePodSpec(portExposeOverMultipleContainers))
+}

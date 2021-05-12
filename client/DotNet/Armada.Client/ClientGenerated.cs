@@ -617,6 +617,9 @@ namespace GResearch.Armada.Client
         [Newtonsoft.Json.JsonProperty("failed", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public ApiJobFailedEvent Failed { get; set; }
     
+        [Newtonsoft.Json.JsonProperty("ingressInfo", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public ApiJobIngressInfoEvent IngressInfo { get; set; }
+    
         [Newtonsoft.Json.JsonProperty("leaseExpired", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public ApiJobLeaseExpiredEvent LeaseExpired { get; set; }
     
@@ -669,6 +672,27 @@ namespace GResearch.Armada.Client
     }
     
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
+    public partial class ApiIngressConfig 
+    {
+        [Newtonsoft.Json.JsonProperty("ports", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<long> Ports { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("type", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        [Newtonsoft.Json.JsonConverter(typeof(Newtonsoft.Json.Converters.StringEnumConverter))]
+        public ApiIngressType? Type { get; set; }
+    
+    
+    }
+    
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
+    public enum ApiIngressType
+    {
+        [System.Runtime.Serialization.EnumMember(Value = @"NodePort")]
+        NodePort = 0,
+    
+    }
+    
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class ApiJob 
     {
         [Newtonsoft.Json.JsonProperty("annotations", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
@@ -682,6 +706,9 @@ namespace GResearch.Armada.Client
     
         [Newtonsoft.Json.JsonProperty("id", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Id { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("ingress", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<ApiIngressConfig> Ingress { get; set; }
     
         [Newtonsoft.Json.JsonProperty("jobSetId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string JobSetId { get; set; }
@@ -824,6 +851,39 @@ namespace GResearch.Armada.Client
     
         [Newtonsoft.Json.JsonProperty("reason", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Reason { get; set; }
+    
+    
+    }
+    
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
+    public partial class ApiJobIngressInfoEvent 
+    {
+        [Newtonsoft.Json.JsonProperty("clusterId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string ClusterId { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("created", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.DateTimeOffset? Created { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("ingressAddresses", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.IDictionary<string, string> IngressAddresses { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("jobId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string JobId { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("jobSetId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string JobSetId { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("kubernetesId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string KubernetesId { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("nodeName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string NodeName { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("podNumber", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public int? PodNumber { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("queue", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Queue { get; set; }
     
     
     }
@@ -1040,6 +1100,9 @@ namespace GResearch.Armada.Client
     
         [Newtonsoft.Json.JsonProperty("clientId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string ClientId { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("ingress", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<ApiIngressConfig> Ingress { get; set; }
     
         [Newtonsoft.Json.JsonProperty("labels", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.IDictionary<string, string> Labels { get; set; }

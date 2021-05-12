@@ -94,6 +94,8 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 		jobLeaseService,
 		clusterUtilisationService)
 
+	service.RunIngressCleanup(clusterContext)
+
 	pod_metrics.ExposeClusterContextMetrics(clusterContext, clusterUtilisationService, queueUtilisationService)
 
 	taskManager.Register(clusterUtilisationService.ReportClusterUtilisation, config.Task.UtilisationReportingInterval, "utilisation_reporting")

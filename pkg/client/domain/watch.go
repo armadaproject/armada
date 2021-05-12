@@ -215,6 +215,8 @@ func updateJobInfo(info *JobInfo, event api.Event) {
 		// TODO
 	case *api.JobTerminatedEvent:
 		// NOOP
+	case *api.JobIngressInfoEvent:
+		// NOOP
 	case *api.JobUtilisationEvent:
 		info.MaxUsedResources.Max(typed.MaxResourcesForPeriod)
 	}
