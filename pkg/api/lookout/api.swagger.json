@@ -99,6 +99,28 @@
     }
   },
   "definitions": {
+    "apiIngressConfig": {
+      "type": "object",
+      "properties": {
+        "ports": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "type": {
+          "$ref": "#/definitions/apiIngressType"
+        }
+      }
+    },
+    "apiIngressType": {
+      "type": "string",
+      "default": "NodePort",
+      "enum": [
+        "NodePort"
+      ]
+    },
     "apiJob": {
       "type": "object",
       "properties": {
@@ -117,6 +139,12 @@
         },
         "id": {
           "type": "string"
+        },
+        "ingress": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiIngressConfig"
+          }
         },
         "jobSetId": {
           "type": "string"

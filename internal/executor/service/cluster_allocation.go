@@ -74,8 +74,7 @@ func (allocationService *ClusterAllocationService) submitJobs(jobsToSubmit []*ap
 	for _, job := range jobsToSubmit {
 		jobPods := []*v1.Pod{}
 		for i, _ := range job.GetAllPodSpecs() {
-			pod := createPod(job, i)
-			_, err := allocationService.clusterContext.SubmitPod(pod, job.Owner)
+			pod, err := allocationService.submitPod(job, i)
 			jobPods = append(jobPods, pod)
 
 			if err != nil {
@@ -103,6 +102,76 @@ func (allocationService *ClusterAllocationService) submitJobs(jobsToSubmit []*ap
 	if err != nil {
 		log.Errorf("Failed to report failed jobs as done because %s", err)
 	}
+}
+
+func (allocationService *ClusterAllocationService) submitPod(job *api.Job, i int) (*v1.Pod, error) {
+	pod := createPod(job, i)
+
+	if exposesPorts(job, &pod.Spec) {
+		pod.Annotations = mergeMaps(pod.Annotations, map[string]string{
+			domain.HasIngress: "true",
+		})
+		submittedPod, err := allocationService.clusterContext.SubmitPod(pod, job.Owner)
+		if err != nil {
+			return pod, err
+		}
+		service := createService(job, submittedPod)
+		_, err = allocationService.clusterContext.SubmitService(service)
+		return pod, err
+	} else {
+		_, err := allocationService.clusterContext.SubmitPod(pod, job.Owner)
+		return pod, err
+	}
+}
+
+func getServicePorts(job *api.Job, podSpec *v1.PodSpec) []v1.ServicePort {
+	var servicePorts []v1.ServicePort
+	if job.Ingress == nil || len(job.Ingress) == 0 {
+		return servicePorts
+	}
+
+	for _, container := range podSpec.Containers {
+		ports := container.Ports
+		for _, port := range ports {
+			//Don't expose host via service, this will already be handled by kubernetes
+			if port.HostPort > 0 {
+				continue
+			}
+			if shouldExposeWithNodePort(port, job) {
+				servicePort := v1.ServicePort{
+					Port:     port.ContainerPort,
+					Protocol: port.Protocol,
+				}
+
+				servicePorts = append(servicePorts, servicePort)
+			}
+		}
+	}
+
+	return servicePorts
+}
+
+func contains(portConfig *api.IngressConfig, port uint32) bool {
+	for _, p := range portConfig.Ports {
+		if p == port {
+			return true
+		}
+	}
+	return false
+}
+
+func shouldExposeWithNodePort(port v1.ContainerPort, job *api.Job) bool {
+	for _, ingressConfig := range job.Ingress {
+		if ingressConfig.Type == api.IngressType_NodePort &&
+			contains(ingressConfig, uint32(port.ContainerPort)) {
+			return true
+		}
+	}
+	return false
+}
+
+func exposesPorts(job *api.Job, podSpec *v1.PodSpec) bool {
+	return len(getServicePorts(job, podSpec)) > 0
 }
 
 func isNotRecoverable(status metav1.Status) bool {
@@ -148,6 +217,45 @@ func (allocationService *ClusterAllocationService) returnLease(pod *v1.Pod, reas
 			log.Errorf("Failed to report event %+v because %s", leaseReturnedEvent, err)
 		}
 	}
+}
+
+func createService(job *api.Job, pod *v1.Pod) *v1.Service {
+	servicePorts := getServicePorts(job, &pod.Spec)
+
+	ownerReference := metav1.OwnerReference{
+		APIVersion: "v1",
+		Kind:       "Pod",
+		Name:       pod.Name,
+		UID:        pod.UID,
+	}
+	serviceSpec := v1.ServiceSpec{
+		Type: v1.ServiceTypeNodePort,
+		Selector: map[string]string{
+			domain.JobId:     pod.Labels[domain.JobId],
+			domain.Queue:     pod.Labels[domain.Queue],
+			domain.PodNumber: pod.Labels[domain.PodNumber],
+		},
+		Ports: servicePorts,
+	}
+	labels := mergeMaps(job.Labels, map[string]string{
+		domain.JobId:     pod.Labels[domain.JobId],
+		domain.Queue:     pod.Labels[domain.Queue],
+		domain.PodNumber: pod.Labels[domain.PodNumber],
+	})
+	annotation := mergeMaps(job.Annotations, map[string]string{
+		domain.JobSetId: job.JobSetId,
+	})
+	service := &v1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            pod.Name,
+			Labels:          labels,
+			Annotations:     annotation,
+			Namespace:       job.Namespace,
+			OwnerReferences: []metav1.OwnerReference{ownerReference},
+		},
+		Spec: serviceSpec,
+	}
+	return service
 }
 
 func createPod(job *api.Job, i int) *v1.Pod {

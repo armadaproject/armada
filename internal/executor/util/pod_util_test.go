@@ -45,6 +45,31 @@ func TestIsInTerminalState_ShouldReturnFalseWhenPodInNonTerminalState(t *testing
 	assert.False(t, inTerminatedState)
 }
 
+func TestHasIngress(t *testing.T) {
+	pod := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Annotations: map[string]string{domain.HasIngress: "true"},
+		},
+	}
+
+	assert.True(t, HasIngress(pod))
+}
+
+func TestHasIngress_WhenAnnotationNotPresent(t *testing.T) {
+	pod := &v1.Pod{}
+	assert.False(t, HasIngress(pod))
+}
+
+func TestHasIngress_WhenAnnotationNotSetToTrue(t *testing.T) {
+	pod := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Annotations: map[string]string{domain.HasIngress: "other value"},
+		},
+	}
+
+	assert.False(t, HasIngress(pod))
+}
+
 func TestIsManagedPod_ReturnsTrueIfJobIdLabelPresent(t *testing.T) {
 	pod := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{

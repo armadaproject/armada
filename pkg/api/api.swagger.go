@@ -291,6 +291,9 @@ func SwaggerJsonTemplate() string {
 		"        \"failed\": {\n" +
 		"          \"$ref\": \"#/definitions/apiJobFailedEvent\"\n" +
 		"        },\n" +
+		"        \"ingressInfo\": {\n" +
+		"          \"$ref\": \"#/definitions/apiJobIngressInfoEvent\"\n" +
+		"        },\n" +
 		"        \"leaseExpired\": {\n" +
 		"          \"$ref\": \"#/definitions/apiJobLeaseExpiredEvent\"\n" +
 		"        },\n" +
@@ -341,6 +344,28 @@ func SwaggerJsonTemplate() string {
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
+		"    \"apiIngressConfig\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"ports\": {\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"type\": \"integer\",\n" +
+		"            \"format\": \"int64\"\n" +
+		"          }\n" +
+		"        },\n" +
+		"        \"type\": {\n" +
+		"          \"$ref\": \"#/definitions/apiIngressType\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"apiIngressType\": {\n" +
+		"      \"type\": \"string\",\n" +
+		"      \"default\": \"NodePort\",\n" +
+		"      \"enum\": [\n" +
+		"        \"NodePort\"\n" +
+		"      ]\n" +
+		"    },\n" +
 		"    \"apiJob\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
@@ -359,6 +384,12 @@ func SwaggerJsonTemplate() string {
 		"        },\n" +
 		"        \"id\": {\n" +
 		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"ingress\": {\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/apiIngressConfig\"\n" +
+		"          }\n" +
 		"        },\n" +
 		"        \"jobSetId\": {\n" +
 		"          \"type\": \"string\"\n" +
@@ -517,6 +548,43 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"reason\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"apiJobIngressInfoEvent\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"clusterId\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"created\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"format\": \"date-time\"\n" +
+		"        },\n" +
+		"        \"ingressAddresses\": {\n" +
+		"          \"type\": \"object\",\n" +
+		"          \"additionalProperties\": {\n" +
+		"            \"type\": \"string\"\n" +
+		"          }\n" +
+		"        },\n" +
+		"        \"jobId\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"jobSetId\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"kubernetesId\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"nodeName\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"podNumber\": {\n" +
+		"          \"type\": \"integer\",\n" +
+		"          \"format\": \"int32\"\n" +
+		"        },\n" +
+		"        \"queue\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        }\n" +
 		"      }\n" +
@@ -742,6 +810,12 @@ func SwaggerJsonTemplate() string {
 		"        },\n" +
 		"        \"clientId\": {\n" +
 		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"ingress\": {\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/apiIngressConfig\"\n" +
+		"          }\n" +
 		"        },\n" +
 		"        \"labels\": {\n" +
 		"          \"type\": \"object\",\n" +

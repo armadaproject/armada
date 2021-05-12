@@ -20,6 +20,11 @@ func init() {
 	managedPodSelector = createLabelSelectorForManagedPods()
 }
 
+func HasIngress(pod *v1.Pod) bool {
+	value, exists := pod.Annotations[domain.HasIngress]
+	return exists && value == "true"
+}
+
 func IsInTerminalState(pod *v1.Pod) bool {
 	podPhase := pod.Status.Phase
 	if podPhase == v1.PodSucceeded || podPhase == v1.PodFailed {

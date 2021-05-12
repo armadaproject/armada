@@ -102,6 +102,8 @@ func (p *EventProcessor) processEvent(event api.Event) error {
 
 	case *api.JobUtilisationEvent:
 		// TODO
+
+	case *api.JobIngressInfoEvent: // noop
 	}
 
 	return nil
