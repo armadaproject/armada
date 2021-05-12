@@ -273,7 +273,25 @@ func (r *SQLJobStore) RecordJobTerminated(event *api.JobTerminatedEvent) error {
 		"succeeded":  false,
 		"error":      event.Reason,
 	}
-	return r.upsertJobRun(jobRunRecord)
+
+	if err := r.upsertJobRun(jobRunRecord); err != nil {
+		return err
+	}
+
+	jobDs := r.db.Insert(jobTable).
+		With("run_states", r.getRunStateCounts(event.GetJobId())).
+		Rows(goqu.Record{
+			"job_id": event.JobId,
+			"queue":  event.Queue,
+			"jobset": event.JobSetId,
+			"state":  JobStateToIntMap[JobFailed],
+		}).
+		OnConflict(goqu.DoUpdate("job_id", goqu.Record{
+			"state": r.determineJobState(),
+		}))
+
+	_, err := jobDs.Prepared(true).Executor().Exec()
+	return err
 }
 
 func (r *SQLJobStore) upsertJobRun(record goqu.Record) error {
