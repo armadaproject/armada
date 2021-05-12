@@ -132,3 +132,16 @@ func CreateJobUtilisationEvent(pod *v1.Pod, maxResources common.ComputeResources
 		NodeName:              pod.Spec.NodeName,
 	}
 }
+
+func CreateJobTerminatedEvent(pod *v1.Pod, reason string, clusterId string) api.Event {
+	return &api.JobTerminatedEvent{
+		JobId:        pod.Labels[domain.JobId],
+		JobSetId:     pod.Annotations[domain.JobSetId],
+		Queue:        pod.Labels[domain.Queue],
+		Created:      time.Now(),
+		ClusterId:    clusterId,
+		KubernetesId: string(pod.ObjectMeta.UID),
+		PodNumber:    getPodNumber(pod),
+		Reason:       reason,
+	}
+}

@@ -30,6 +30,7 @@ type LeaseService interface {
 type JobLeaseService struct {
 	clusterContext  context2.ClusterContext
 	jobContext      job_context.JobContext
+	eventReporter   reporter.EventReporter
 	queueClient     api.AggregatedQueueClient
 	minimumPodAge   time.Duration
 	failedPodExpiry time.Duration
@@ -39,6 +40,7 @@ type JobLeaseService struct {
 func NewJobLeaseService(
 	clusterContext context2.ClusterContext,
 	jobContext job_context.JobContext,
+	eventReporter reporter.EventReporter,
 	queueClient api.AggregatedQueueClient,
 	minimumPodAge time.Duration,
 	failedPodExpiry time.Duration,
@@ -47,6 +49,7 @@ func NewJobLeaseService(
 	return &JobLeaseService{
 		clusterContext:  clusterContext,
 		jobContext:      jobContext,
+		eventReporter:   eventReporter,
 		queueClient:     queueClient,
 		minimumPodAge:   minimumPodAge,
 		failedPodExpiry: failedPodExpiry,
@@ -193,6 +196,7 @@ func (jobLeaseService *JobLeaseService) renewJobLeases(jobs []*job_context.Runni
 
 	if len(failedIds) > 0 {
 		log.Warnf("Server has prevented renewing of job lease for jobs %s", strings.Join(failedIds, ","))
+		jobLeaseService.reportTerminated(failedPods)
 		jobLeaseService.clusterContext.DeletePods(failedPods)
 	}
 }
@@ -205,6 +209,15 @@ func (jobLeaseService *JobLeaseService) markAsDone(pods []*v1.Pod) {
 		if err != nil {
 			log.Warnf("Failed to annotate pod as done: %v", err)
 		}
+	}
+}
+
+func (jobLeaseService *JobLeaseService) reportTerminated(pods []*v1.Pod) {
+	for _, pod := range pods {
+		event := reporter.CreateJobTerminatedEvent(pod, "Pod terminated because lease could not be renewed.", jobLeaseService.clusterContext.GetClusterId())
+		jobLeaseService.eventReporter.QueueEvent(event, func(err error) {
+			log.Errorf("Failed to report terminated pod %s: %s", pod.Name, err)
+		})
 	}
 }
 

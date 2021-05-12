@@ -24,6 +24,7 @@ type JobRecorder interface {
 	RecordJobFailed(event *api.JobFailedEvent) error
 	RecordJobUnableToSchedule(event *api.JobUnableToScheduleEvent) error
 	RecordJobDuplicate(event *api.JobDuplicateFoundEvent) error
+	RecordJobTerminated(event *api.JobTerminatedEvent) error
 }
 
 type SQLJobStore struct {
@@ -258,6 +259,19 @@ func (r *SQLJobStore) RecordJobUnableToSchedule(event *api.JobUnableToScheduleEv
 	}
 	if event.GetNodeName() != "" {
 		jobRunRecord["node"] = event.GetNodeName()
+	}
+	return r.upsertJobRun(jobRunRecord)
+}
+
+func (r *SQLJobStore) RecordJobTerminated(event *api.JobTerminatedEvent) error {
+	jobRunRecord := goqu.Record{
+		"run_id":     event.GetKubernetesId(),
+		"job_id":     event.GetJobId(),
+		"cluster":    event.GetClusterId(),
+		"pod_number": event.GetPodNumber(),
+		"finished":   ToUTC(event.GetCreated()),
+		"succeeded":  false,
+		"error":      event.Reason,
 	}
 	return r.upsertJobRun(jobRunRecord)
 }

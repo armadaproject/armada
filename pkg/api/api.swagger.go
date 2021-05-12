@@ -864,7 +864,17 @@ func SwaggerJsonTemplate() string {
 		"        \"jobSetId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
+		"        \"kubernetesId\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"podNumber\": {\n" +
+		"          \"type\": \"integer\",\n" +
+		"          \"format\": \"int32\"\n" +
+		"        },\n" +
 		"        \"queue\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"reason\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        }\n" +
 		"      }\n" +
