@@ -45,6 +45,8 @@ All jobs of priority 0 will be taken from the queue before any with priority 1 a
 
 **Note: Job resource request and limit should be equal. Armada does not support limit > request currently.**
 
+For more details on the options available for an Armada Job see [here](job.md)
+
 #### Multi node jobs
 
 Certain workloads requires multiple pods starting at the same time, job specification can contain multiple podSpecs this way:
