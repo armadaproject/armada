@@ -18,14 +18,14 @@ import (
 	"github.com/G-Research/armada/pkg/api"
 )
 
-const jobObjectPrefix = "Job:"
-const jobStartTimePrefix = "Job:StartTime"
-const jobQueuePrefix = "Job:Queue:"
-const jobSetPrefix = "Job:Set:"
-const jobLeasedPrefix = "Job:Leased:"
-const jobClusterMapKey = "Job:ClusterId"
-const jobRetriesPrefix = "Job:Retries:"
-const jobClientIdPrefix = "job:ClientId:"
+const jobObjectPrefix = "Job:"             // {jobId}            - job protobuf object
+const jobStartTimePrefix = "Job:StartTime" // {jobId}            - map clusterId -> startTime
+const jobQueuePrefix = "Job:Queue:"        // {queue}            - sorted set of jobIds by priority
+const jobLeasedPrefix = "Job:Leased:"      // {queue}            - sorted set of jobIds by lease renewal time
+const jobSetPrefix = "Job:Set:"            // {jobSetId}         - set of jobIds
+const jobClusterMapKey = "Job:ClusterId"   //                    - map jobId -> cluster
+const jobRetriesPrefix = "Job:Retries:"    // {jobId}            - number of retry attempts
+const jobClientIdPrefix = "job:ClientId:"  // {queue}:{clientId} - corresponding jobId
 const keySeparator = ":"
 
 const queueResourcesBatchSize = 20000

@@ -686,6 +686,40 @@ func Test_DuplicateOutOfOrder(t *testing.T) {
 	})
 }
 
+func Test_JobTerminatedEvent(t *testing.T) {
+	withDatabase(t, func(db *goqu.Database) {
+		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
+		jobId := util.NewULID()
+
+		err := jobStore.RecordJobRunning(&api.JobRunningEvent{
+			JobId:        jobId,
+			JobSetId:     "job-set",
+			Queue:        "queue",
+			Created:      someTime,
+			KubernetesId: k8sId2,
+			ClusterId:    "cluster1",
+			PodNumber:    0,
+		})
+		assert.NoError(t, err)
+
+		err = jobStore.RecordJobTerminated(&api.JobTerminatedEvent{
+			JobId:        jobId,
+			JobSetId:     "job-set",
+			Queue:        "queue",
+			Created:      someTime,
+			ClusterId:    "cluster1",
+			KubernetesId: k8sId2,
+			PodNumber:    0,
+			Reason:       "Termination reason",
+		})
+		assert.NoError(t, err)
+
+		assert.Equal(t, JobStateToIntMap[JobFailed], selectInt(t, db,
+			"SELECT state FROM job"))
+
+	})
+}
+
 func selectInt(t *testing.T, db *goqu.Database, query string) int {
 	r, err := db.Query(query)
 	assert.NoError(t, err)
