@@ -80,6 +80,18 @@ message JobRunningEvent {
     int32 pod_number = 8;
 }
 
+message JobIngressInfoEvent {
+    string job_id = 1;
+    string job_set_id = 2;
+    string queue = 3;
+    google.protobuf.Timestamp created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+    string cluster_id = 5;
+    string kubernetes_id = 6;
+    string node_name = 7;
+    int32 pod_number = 8;
+    map<int32, string> ingress_addresses = 9;
+}
+
 message JobUnableToScheduleEvent {
     string job_id = 1;
     string job_set_id = 2;
@@ -180,6 +192,7 @@ message EventMessage {
         JobCancelledEvent cancelled = 13;
         JobTerminatedEvent terminated = 14;
         JobUtilisationEvent utilisation = 15;
+        JobIngressInfoEvent ingress_info = 17;
     }
 }
 

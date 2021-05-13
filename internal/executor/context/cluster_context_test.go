@@ -74,6 +74,77 @@ func TestKubernetesClusterContext_ProcessPodsToDelete_DoesNotCallClient_WhenNoPo
 	assert.Equal(t, len(client.Fake.Actions()), 0)
 }
 
+func TestKubernetesClusterContext_SubmitService(t *testing.T) {
+	clusterContext, client := setupTest()
+
+	service := createService()
+	client.Fake.ClearActions()
+
+	_, err := clusterContext.SubmitService(service)
+	assert.Nil(t, err)
+
+	assert.Equal(t, len(client.Fake.Actions()), 1)
+	assert.True(t, client.Fake.Actions()[0].Matches("create", "services"))
+
+	createAction, ok := client.Fake.Actions()[0].(clientTesting.CreateAction)
+	assert.True(t, ok)
+	assert.Equal(t, createAction.GetObject(), service)
+}
+
+func TestKubernetesClusterContext_DeleteService(t *testing.T) {
+	clusterContext, client := setupTest()
+
+	service := createService()
+
+	_, err := clusterContext.SubmitService(service)
+	assert.NoError(t, err)
+	client.Fake.ClearActions()
+
+	err = clusterContext.DeleteService(service)
+	assert.NoError(t, err)
+
+	assert.Equal(t, len(client.Fake.Actions()), 1)
+	assert.True(t, client.Fake.Actions()[0].Matches("delete", "services"))
+
+	deleteAction, ok := client.Fake.Actions()[0].(clientTesting.DeleteAction)
+	assert.True(t, ok)
+	assert.Equal(t, deleteAction.GetName(), service.Name)
+}
+
+func TestKubernetesClusterContext_DeleteService_NonExistent(t *testing.T) {
+	clusterContext, _ := setupTest()
+	service := createService()
+
+	err := clusterContext.DeleteService(service)
+	assert.NoError(t, err)
+}
+
+func TestKubernetesClusterContext_GetService(t *testing.T) {
+	clusterContext, client := setupTest()
+
+	service := createService()
+
+	_, err := clusterContext.SubmitService(service)
+	assert.NoError(t, err)
+	waitForServiceContextSync(t, clusterContext, service)
+	client.Fake.ClearActions()
+
+	result, err := clusterContext.GetService(service.Name, service.Namespace)
+	assert.NoError(t, err)
+
+	assert.NotNil(t, result)
+	assert.Equal(t, service.Name, result.Name)
+}
+
+func TestKubernetesClusterContext_GetService_NonExistent(t *testing.T) {
+	clusterContext, _ := setupTest()
+	service := createService()
+
+	result, err := clusterContext.GetService(service.Name, service.Namespace)
+	assert.NoError(t, err)
+	assert.Nil(t, result)
+}
+
 func TestKubernetesClusterContext_ProcessPodsToDelete_CallDeleteOnClient_WhenPodsMarkedForDeletion(t *testing.T) {
 	clusterContext, client := setupTest()
 
@@ -383,6 +454,24 @@ func waitForContextSync(t *testing.T, context *KubernetesClusterContext, pods []
 	}
 }
 
+func waitForServiceContextSync(t *testing.T, context *KubernetesClusterContext, createdService *v1.Service) {
+	synced := waitForCondition(func() bool {
+		existingServices, err := context.serviceInformer.Lister().List(labels.Everything())
+		assert.Nil(t, err)
+
+		for _, service := range existingServices {
+			if service.Name == createdService.Name {
+				return true
+			}
+		}
+		return false
+	})
+	if !synced {
+		t.Error("Timed out waiting for context sync. Submitted service was never synced to context.")
+		t.Fail()
+	}
+}
+
 func waitForCondition(conditionCheck func() bool) bool {
 	conditionMet := false
 	for i := 0; i < 20; i++ {
@@ -411,6 +500,15 @@ func createBatchPod() *v1.Pod {
 
 func createPod() *v1.Pod {
 	return &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      util2.NewULID(),
+			Namespace: "default",
+		},
+	}
+}
+
+func createService() *v1.Service {
+	return &v1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      util2.NewULID(),
 			Namespace: "default",
