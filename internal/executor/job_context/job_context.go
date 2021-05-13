@@ -1,6 +1,8 @@
 package job_context
 
 import (
+	"sync"
+
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/G-Research/armada/internal/executor/context"
@@ -15,13 +17,27 @@ type RunningJob struct {
 type JobContext interface {
 	GetRunningJobs() ([]*RunningJob, error)
 	DeleteJobs(jobs []*RunningJob)
+	RegisterActiveJobs(ids []string)
+	RegisterDoneJobs(ids []string)
+	IsActiveJob(id string) bool
 }
 
 type ClusterJobContext struct {
 	clusterContext context.ClusterContext
+
+	activeJobIds      map[string]bool
+	activeJobIdsMutex sync.Mutex
 }
 
-func (c ClusterJobContext) GetRunningJobs() ([]*RunningJob, error) {
+func NewClusterJobContext(clusterContext context.ClusterContext) *ClusterJobContext {
+	return &ClusterJobContext{
+		clusterContext:    clusterContext,
+		activeJobIds:      map[string]bool{},
+		activeJobIdsMutex: sync.Mutex{},
+	}
+}
+
+func (c *ClusterJobContext) GetRunningJobs() ([]*RunningJob, error) {
 	pods, err := c.clusterContext.GetActiveBatchPods()
 	if err != nil {
 		return nil, err
@@ -29,14 +45,10 @@ func (c ClusterJobContext) GetRunningJobs() ([]*RunningJob, error) {
 	return groupRunningJobs(pods), nil
 }
 
-func (c ClusterJobContext) DeleteJobs(jobs []*RunningJob) {
+func (c *ClusterJobContext) DeleteJobs(jobs []*RunningJob) {
 	for _, job := range jobs {
 		c.clusterContext.DeletePods(job.Pods)
 	}
-}
-
-func NewClusterJobContext(clusterContext context.ClusterContext) *ClusterJobContext {
-	return &ClusterJobContext{clusterContext: clusterContext}
 }
 
 func groupRunningJobs(pods []*v1.Pod) []*RunningJob {
@@ -53,4 +65,29 @@ func groupRunningJobs(pods []*v1.Pod) []*RunningJob {
 		})
 	}
 	return result
+}
+
+func (c *ClusterJobContext) IsActiveJob(id string) bool {
+	c.activeJobIdsMutex.Lock()
+	defer c.activeJobIdsMutex.Unlock()
+
+	return c.activeJobIds[id]
+}
+
+func (c *ClusterJobContext) RegisterActiveJobs(ids []string) {
+	c.activeJobIdsMutex.Lock()
+	defer c.activeJobIdsMutex.Unlock()
+
+	for _, id := range ids {
+		c.activeJobIds[id] = true
+	}
+}
+
+func (c *ClusterJobContext) RegisterDoneJobs(ids []string) {
+	c.activeJobIdsMutex.Lock()
+	defer c.activeJobIdsMutex.Unlock()
+
+	for _, id := range ids {
+		delete(c.activeJobIds, id)
+	}
 }
