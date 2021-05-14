@@ -19,21 +19,25 @@ type PermissionChecker interface {
 type PrincipalPermissionChecker struct {
 	permissionGroupMap map[permissions.Permission][]string
 	permissionScopeMap map[permissions.Permission][]string
+	permissionClaimMap map[permissions.Permission][]string
 }
 
 func NewPrincipalPermissionChecker(
 	permissionGroupMap map[permissions.Permission][]string,
-	permissionScopeMap map[permissions.Permission][]string) *PrincipalPermissionChecker {
+	permissionScopeMap map[permissions.Permission][]string,
+	permissionClaimMap map[permissions.Permission][]string) *PrincipalPermissionChecker {
 
 	return &PrincipalPermissionChecker{
 		permissionGroupMap: permissionGroupMap,
-		permissionScopeMap: permissionScopeMap}
+		permissionScopeMap: permissionScopeMap,
+		permissionClaimMap: permissionClaimMap}
 }
 
 func (checker *PrincipalPermissionChecker) UserHasPermission(ctx context.Context, perm permissions.Permission) bool {
 	principal := GetPrincipal(ctx)
 	return hasPermission(perm, checker.permissionScopeMap, func(scope string) bool { return principal.HasScope(scope) }) ||
-		hasPermission(perm, checker.permissionGroupMap, func(group string) bool { return principal.IsInGroup(group) })
+		hasPermission(perm, checker.permissionGroupMap, func(group string) bool { return principal.IsInGroup(group) }) ||
+		hasPermission(perm, checker.permissionClaimMap, func(claim string) bool { return principal.HasClaim(claim) })
 }
 
 func (checker *PrincipalPermissionChecker) UserOwns(ctx context.Context, obj Owned) bool {
