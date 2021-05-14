@@ -104,7 +104,7 @@ func requestDeviceAuthorization(c *http.Client, config DeviceDetails) (*deviceFl
 func makeErrorForHTTPResponse(resp *http.Response) error {
 	bodyBytes, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return err
+		bodyBytes = []byte(err.Error())
 	}
 	return fmt.Errorf("%s %s returned HTTP %s; \n\n %#q", resp.Request.Method, resp.Request.URL, resp.Status, bodyBytes)
 }
