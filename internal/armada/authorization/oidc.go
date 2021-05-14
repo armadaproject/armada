@@ -27,10 +27,9 @@ func NewOpenIdAuthServiceForProvider(ctx context.Context, config *configuration.
 		return nil, err
 	}
 
-	//We use verifier to verify Access Token, there might not be an clientId in audience claim
 	verifier := provider.Verifier(&oidc.Config{
-		SkipClientIDCheck: true,
-		ClientID:          "",
+		SkipClientIDCheck: config.SkipClientIDCheck,
+		ClientID:          config.ClientId,
 	})
 	return NewOpenIdAuthService(verifier, config.GroupsClaim), nil
 }
@@ -51,26 +50,26 @@ func (authService *OpenIdAuthService) Authenticate(ctx context.Context) (Princip
 		return nil, status.Errorf(codes.Unauthenticated, err.Error())
 	}
 
-	return NewStaticPrincipalWithScopes(
-		verifiedToken.Subject,
-		authService.extractGroups(verifiedToken),
-		authService.extractScopes(verifiedToken)), nil
-}
-
-func (authService *OpenIdAuthService) extractGroups(token *oidc.IDToken) []string {
-	rawClaims := map[string]*json.RawMessage{}
-	err := token.Claims(&rawClaims)
+	rawClaims, err := extractRawClaims(verifiedToken)
 	if err != nil {
-		return []string{}
+		return nil, err
 	}
 
+	return NewStaticPrincipalWithScopesAndClaims(
+		verifiedToken.Subject,
+		authService.extractGroups(rawClaims),
+		authService.extractScopes(verifiedToken),
+		authService.extractClaims(rawClaims)), nil
+}
+
+func (authService *OpenIdAuthService) extractGroups(rawClaims map[string]*json.RawMessage) []string {
 	rawGroups, ok := rawClaims[authService.groupsClaim]
 	if !ok {
 		return []string{}
 	}
 
 	groups := []string{}
-	err = json.Unmarshal(*rawGroups, &groups)
+	err := json.Unmarshal(*rawGroups, &groups)
 	if err != nil {
 		return []string{}
 	}
@@ -86,4 +85,22 @@ func (authService *OpenIdAuthService) extractScopes(token *oidc.IDToken) []strin
 		return []string{}
 	}
 	return strings.Split(scopeClaim.Scope, " ")
+}
+
+func (authService *OpenIdAuthService) extractClaims(rawClaims map[string]*json.RawMessage) []string {
+
+	claims := []string{}
+	for key := range rawClaims {
+		claims = append(claims, key)
+	}
+	return claims
+}
+
+func extractRawClaims(token *oidc.IDToken) (map[string]*json.RawMessage, error) {
+	rawClaims := map[string]*json.RawMessage{}
+	err := token.Claims(&rawClaims)
+	if err != nil {
+		return nil, err
+	}
+	return rawClaims, nil
 }
