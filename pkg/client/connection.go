@@ -17,6 +17,7 @@ type ApiConnectionDetails struct {
 	ArmadaUrl                   string
 	BasicAuth                   common.LoginCredentials
 	OpenIdAuth                  oidc.PKCEDetails
+	OpenIdDeviceAuth            oidc.DeviceDetails
 	OpenIdPasswordAuth          oidc.ClientPasswordDetails
 	OpenIdClientCredentialsAuth oidc.ClientCredentialsDetails
 	KerberosAuth                kerberos.ClientConfig
@@ -57,6 +58,9 @@ func perRpcCredentials(config *ApiConnectionDetails) (credentials.PerRPCCredenti
 
 	} else if config.OpenIdAuth.ProviderUrl != "" {
 		return oidc.AuthenticatePkce(config.OpenIdAuth)
+
+	} else if config.OpenIdDeviceAuth.ProviderUrl != "" {
+		return oidc.AuthenticateDevice(config.OpenIdDeviceAuth)
 
 	} else if config.OpenIdPasswordAuth.ProviderUrl != "" {
 		return oidc.AuthenticateWithPassword(config.OpenIdPasswordAuth)

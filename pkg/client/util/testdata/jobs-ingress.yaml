@@ -1,0 +1,35 @@
+queue: test
+jobSetId: job-set-1
+jobs:
+  - priority: 0
+    ingress:
+      - type: Http
+        ports:
+          - 80
+      - type: 0
+        ports:
+          - 8080
+    podSpec:
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      containers:
+        - name: sleep
+          imagePullPolicy: IfNotPresent
+          image: alpine:latest
+          command:
+            - sh
+            - -c
+          args:
+            - sleep $(( (RANDOM % 30) + 30 ))
+          resources:
+            limits:
+              memory: 64Mi
+              cpu: 150m
+            requests:
+              memory: 64Mi
+              cpu: 150m
+          ports:
+            - containerPort: 80
+              protocol: TCP
+              name: http
+

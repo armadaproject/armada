@@ -6,6 +6,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/tools/cache"
 
 	"github.com/G-Research/armada/internal/executor/context"
 	"github.com/G-Research/armada/internal/executor/job_context"
@@ -36,7 +37,7 @@ func NewPodProgressMonitorService(
 	jobLeaseService LeaseService,
 	stuckPodExpiry time.Duration) *StuckPodDetector {
 
-	return &StuckPodDetector{
+	detector := &StuckPodDetector{
 		clusterContext:  clusterContext,
 		jobContext:      jobContext,
 		eventReporter:   eventReporter,
@@ -44,6 +45,19 @@ func NewPodProgressMonitorService(
 		jobLeaseService: jobLeaseService,
 		stuckPodExpiry:  stuckPodExpiry,
 	}
+
+	clusterContext.AddPodEventHandler(cache.ResourceEventHandlerFuncs{
+		DeleteFunc: func(obj interface{}) {
+			pod, ok := obj.(*v1.Pod)
+			if !ok {
+				log.Errorf("Failed to process pod event due to it being an unexpected type. Failed to process %+v", obj)
+				return
+			}
+			detector.handleDeletedPod(pod)
+		},
+	})
+
+	return detector
 }
 
 func (d *StuckPodDetector) determineStuckPodState(pod *v1.Pod) (err error, retryable bool, message string) {
@@ -192,5 +206,21 @@ func (d *StuckPodDetector) markStuckPodsForDeletion(records []*stuckJobRecord) {
 		d.jobContext.DeleteJobs(remainingRetryableJobs)
 	} else {
 		d.jobContext.DeleteJobs(append(remainingRetryableJobs, remainingNonRetryableJobs...))
+	}
+}
+
+func (d *StuckPodDetector) handleDeletedPod(pod *v1.Pod) {
+	// fail jobs which had their pod deleted externally
+	jobId := util.ExtractJobId(pod)
+	if jobId != "" && d.jobContext.IsActiveJob(jobId) {
+		err := d.jobLeaseService.ReportDone([]string{jobId})
+		if err == nil {
+			err := d.eventReporter.Report(reporter.CreateSimpleJobFailedEvent(pod, "Pod of the active job was deleted.", d.clusterContext.GetClusterId()))
+			if err != nil {
+				log.Errorf("Failed to report externally deleted job finished %s", err)
+			}
+		} else {
+			log.Errorf("Failed to report externally deleted job done %s", err)
+		}
 	}
 }

@@ -26,12 +26,14 @@ type Principal interface {
 	GetName() string
 	IsInGroup(group string) bool
 	HasScope(scope string) bool
+	HasClaim(claim string) bool
 }
 
 type StaticPrincipal struct {
 	name   string
 	groups map[string]bool
 	scopes map[string]bool
+	claims map[string]bool
 }
 
 func NewStaticPrincipal(name string, groups []string) *StaticPrincipal {
@@ -39,14 +41,16 @@ func NewStaticPrincipal(name string, groups []string) *StaticPrincipal {
 		name,
 		util.StringListToSet(append(groups, EveryoneGroup)),
 		map[string]bool{},
+		map[string]bool{},
 	}
 }
 
-func NewStaticPrincipalWithScopes(name string, groups []string, scopes []string) *StaticPrincipal {
+func NewStaticPrincipalWithScopesAndClaims(name string, groups []string, scopes []string, claims []string) *StaticPrincipal {
 	return &StaticPrincipal{
 		name,
 		util.StringListToSet(append(groups, EveryoneGroup)),
 		util.StringListToSet(scopes),
+		util.StringListToSet(claims),
 	}
 }
 
@@ -56,6 +60,10 @@ func (p *StaticPrincipal) IsInGroup(group string) bool {
 
 func (p *StaticPrincipal) HasScope(scope string) bool {
 	return p.scopes[scope]
+}
+
+func (p *StaticPrincipal) HasClaim(claim string) bool {
+	return p.claims[claim]
 }
 
 func (p *StaticPrincipal) GetName() string {

@@ -97,6 +97,32 @@ func CreateJobLeaseReturnedEvent(pod *v1.Pod, reason string, clusterId string) a
 	}
 }
 
+func CreateJobIngressInfoEvent(pod *v1.Pod, clusterId string, associatedService *v1.Service) (api.Event, error) {
+	if pod.Spec.NodeName == "" || pod.Status.HostIP == "" {
+		return nil, fmt.Errorf("unable to create JobIngressInfoEvent for pod %s (%s), as pod is not allocated to a node", pod.Name, pod.Namespace)
+	}
+	if associatedService == nil {
+		return nil, fmt.Errorf("unable to create JobIngressInfoEvent for pod %s (%s), as no associated ingress provided", pod.Name, pod.Namespace)
+	}
+	containerPortMapping := map[int32]string{}
+	for _, servicePort := range associatedService.Spec.Ports {
+		externalAddress := fmt.Sprintf("%s:%d", pod.Status.HostIP, servicePort.NodePort)
+		containerPortMapping[servicePort.Port] = externalAddress
+	}
+
+	return &api.JobIngressInfoEvent{
+		JobId:            pod.Labels[domain.JobId],
+		JobSetId:         pod.Annotations[domain.JobSetId],
+		Queue:            pod.Labels[domain.Queue],
+		Created:          time.Now(),
+		ClusterId:        clusterId,
+		KubernetesId:     string(pod.ObjectMeta.UID),
+		PodNumber:        getPodNumber(pod),
+		NodeName:         pod.Spec.NodeName,
+		IngressAddresses: containerPortMapping,
+	}, nil
+}
+
 func CreateSimpleJobFailedEvent(pod *v1.Pod, reason string, clusterId string) api.Event {
 	return CreateJobFailedEvent(pod, reason, api.Cause_Error, []*api.ContainerStatus{}, map[string]int32{}, clusterId)
 }
@@ -130,5 +156,18 @@ func CreateJobUtilisationEvent(pod *v1.Pod, maxResources common.ComputeResources
 		KubernetesId:          string(pod.ObjectMeta.UID),
 		PodNumber:             getPodNumber(pod),
 		NodeName:              pod.Spec.NodeName,
+	}
+}
+
+func CreateJobTerminatedEvent(pod *v1.Pod, reason string, clusterId string) api.Event {
+	return &api.JobTerminatedEvent{
+		JobId:        pod.Labels[domain.JobId],
+		JobSetId:     pod.Annotations[domain.JobSetId],
+		Queue:        pod.Labels[domain.Queue],
+		Created:      time.Now(),
+		ClusterId:    clusterId,
+		KubernetesId: string(pod.ObjectMeta.UID),
+		PodNumber:    getPodNumber(pod),
+		Reason:       reason,
 	}
 }

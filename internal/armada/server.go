@@ -109,7 +109,7 @@ func Serve(config *configuration.ArmadaConfig) (func(), *sync.WaitGroup) {
 		eventStore = redisEventRepository
 	}
 
-	permissions := authorization.NewPrincipalPermissionChecker(config.PermissionGroupMapping, config.PermissionScopeMapping)
+	permissions := authorization.NewPrincipalPermissionChecker(config.PermissionGroupMapping, config.PermissionScopeMapping, config.PermissionClaimMapping)
 
 	submitServer := server.NewSubmitServer(permissions, jobRepository, queueRepository, eventStore, schedulingInfoRepository, &config.QueueManagement)
 	usageServer := server.NewUsageServer(permissions, config.PriorityHalfTime, &config.Scheduling, usageRepository, queueRepository)

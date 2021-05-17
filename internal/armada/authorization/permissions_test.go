@@ -11,9 +11,10 @@ import (
 
 func TestPrincipalPermissionChecker_UserHavePermission(t *testing.T) {
 
-	checker := NewPrincipalPermissionChecker(map[permissions.Permission][]string{
-		permissions.SubmitJobs: {"submitterGroup", "admin"},
-	}, map[permissions.Permission][]string{})
+	checker := NewPrincipalPermissionChecker(
+		map[permissions.Permission][]string{permissions.SubmitJobs: {"submitterGroup", "admin"}},
+		map[permissions.Permission][]string{},
+		map[permissions.Permission][]string{})
 
 	admin := NewStaticPrincipal("me", []string{"admin"})
 	submitter := NewStaticPrincipal("me", []string{"submitterGroup"})

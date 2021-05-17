@@ -1,0 +1,22 @@
+queue: test
+jobSetId: job-set-1
+jobs:
+  - priority: 0
+    podSpec:
+      restartPolicy: Never
+      containers:
+        - name: sleep
+          imagePullPolicy: IfNotPresent
+          image: alpine:latest
+          command:
+            - sh
+            - -c
+          args:
+            - sleep 60
+          resources:
+            limits:
+              memory: 1Gi
+              cpu: 1
+            requests:
+              memory: 1Gi
+              cpu: 1

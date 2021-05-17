@@ -66,6 +66,7 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 	jobLeaseService := service.NewJobLeaseService(
 		clusterContext,
 		jobContext,
+		eventReporter,
 		queueClient,
 		config.Kubernetes.MinimumPodAge,
 		config.Kubernetes.FailedPodExpiry,
@@ -93,6 +94,8 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 		eventReporter,
 		jobLeaseService,
 		clusterUtilisationService)
+
+	service.RunIngressCleanup(clusterContext)
 
 	pod_metrics.ExposeClusterContextMetrics(clusterContext, clusterUtilisationService, queueUtilisationService)
 

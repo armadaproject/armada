@@ -98,10 +98,12 @@ func (p *EventProcessor) processEvent(event api.Event) error {
 		return p.recorder.MarkCancelled(typed)
 
 	case *api.JobTerminatedEvent:
-		// not used currently
+		return p.recorder.RecordJobTerminated(typed)
 
 	case *api.JobUtilisationEvent:
 		// TODO
+
+	case *api.JobIngressInfoEvent: // noop
 	}
 
 	return nil

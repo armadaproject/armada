@@ -31,6 +31,7 @@ type ArmadaConfig struct {
 	Kerberos               KerberosAuthenticationConfig
 	PermissionGroupMapping map[permissions.Permission][]string
 	PermissionScopeMapping map[permissions.Permission][]string
+	PermissionClaimMapping map[permissions.Permission][]string
 
 	Scheduling      SchedulingConfig
 	QueueManagement QueueManagementConfig
@@ -41,6 +42,12 @@ type ArmadaConfig struct {
 type OpenIdAuthenticationConfig struct {
 	ProviderUrl string
 	GroupsClaim string
+
+	// If your OIDC provider signs token with key intended solely for this application and audience claim does not
+	// contain any clientId, you can disable client ID check.
+	// Otherwise clientId is required
+	SkipClientIDCheck bool
+	ClientId          string
 }
 
 type BasicAuthenticationConfig struct {

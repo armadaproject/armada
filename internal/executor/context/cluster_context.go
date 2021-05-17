@@ -35,10 +35,13 @@ type ClusterContext interface {
 	GetNodes() ([]*v1.Node, error)
 	GetNodeStatsSummary(*v1.Node) (*v1alpha1.Summary, error)
 	GetPodEvents(pod *v1.Pod) ([]*v1.Event, error)
+	GetService(name string, namespace string) (*v1.Service, error)
 
 	SubmitPod(pod *v1.Pod, owner string) (*v1.Pod, error)
+	SubmitService(service *v1.Service) (*v1.Service, error)
 	AddAnnotation(pod *v1.Pod, annotations map[string]string) error
 	DeletePods(pods []*v1.Pod)
+	DeleteService(service *v1.Service) error
 
 	GetClusterId() string
 	GetClusterPool() string
@@ -53,6 +56,7 @@ type KubernetesClusterContext struct {
 	podsToDelete             util.PodCache
 	podInformer              informer.PodInformer
 	nodeInformer             informer.NodeInformer
+	serviceInformer          informer.ServiceInformer
 	stopper                  chan struct{}
 	kubernetesClient         kubernetes.Interface
 	kubernetesClientProvider cluster.KubernetesClientProvider
@@ -85,6 +89,7 @@ func NewClusterContext(
 		podInformer:              factory.Core().V1().Pods(),
 		nodeInformer:             factory.Core().V1().Nodes(),
 		eventInformer:            factory.Core().V1().Events(),
+		serviceInformer:          factory.Core().V1().Services(),
 		kubernetesClient:         kubernetesClient,
 		kubernetesClientProvider: kubernetesClientProvider,
 	}
@@ -102,6 +107,7 @@ func NewClusterContext(
 
 	//Use node informer so it is initialized properly
 	context.nodeInformer.Lister()
+	context.serviceInformer.Lister()
 
 	err := context.eventInformer.Informer().AddIndexers(cache.Indexers{podByUIDIndex: indexPodByUID})
 	if err != nil {
@@ -215,6 +221,10 @@ func (c *KubernetesClusterContext) SubmitPod(pod *v1.Pod, owner string) (*v1.Pod
 	return returnedPod, err
 }
 
+func (c *KubernetesClusterContext) SubmitService(service *v1.Service) (*v1.Service, error) {
+	return c.kubernetesClient.CoreV1().Services(service.Namespace).Create(ctx.Background(), service, metav1.CreateOptions{})
+}
+
 func (c *KubernetesClusterContext) AddAnnotation(pod *v1.Pod, annotations map[string]string) error {
 	patch := &domain.Patch{
 		MetaData: metav1.ObjectMeta{
@@ -238,10 +248,19 @@ func (c *KubernetesClusterContext) DeletePods(pods []*v1.Pod) {
 	}
 }
 
+func (c *KubernetesClusterContext) DeleteService(service *v1.Service) error {
+	deleteOptions := createDeleteOptions()
+	err := c.kubernetesClient.CoreV1().Services(service.Namespace).Delete(ctx.Background(), service.Name, deleteOptions)
+	if err != nil && errors.IsNotFound(err) {
+		return nil
+	}
+	return err
+}
+
 func (c *KubernetesClusterContext) ProcessPodsToDelete() {
 	pods := c.podsToDelete.GetAll()
 
-	deleteOptions := createPodDeletionDeleteOptions()
+	deleteOptions := createDeleteOptions()
 	for _, podToDelete := range pods {
 		if podToDelete == nil {
 			continue
@@ -257,7 +276,15 @@ func (c *KubernetesClusterContext) ProcessPodsToDelete() {
 	}
 }
 
-func createPodDeletionDeleteOptions() metav1.DeleteOptions {
+func (c *KubernetesClusterContext) GetService(name string, namespace string) (*v1.Service, error) {
+	service, err := c.serviceInformer.Lister().Services(namespace).Get(name)
+	if err != nil && errors.IsNotFound(err) {
+		return nil, nil
+	}
+	return service, err
+}
+
+func createDeleteOptions() metav1.DeleteOptions {
 	gracePeriod := int64(0)
 	deleteOptions := metav1.DeleteOptions{
 		GracePeriodSeconds: &gracePeriod,
