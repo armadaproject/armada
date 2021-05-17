@@ -13,7 +13,6 @@ import (
 
 	openId "github.com/coreos/go-oidc"
 	"golang.org/x/oauth2"
-)
 
 type DeviceDetails struct {
 	ProviderUrl string
@@ -51,15 +50,17 @@ func AuthenticateDevice(config DeviceDetails) (*TokenCredentials, error) {
 
 	for {
 		time.Sleep(time.Duration(deviceFlowResponse.Interval) * time.Second)
-		token, err := oauth.Exchange(ctx, "",
-			oauth2.SetAuthURLParam("client_id", config.ClientId),
-			oauth2.SetAuthURLParam("device_code", deviceFlowResponse.DeviceCode),
-			oauth2.SetAuthURLParam("grant_type", "urn:ietf:params:oauth:grant-type:device_code"))
 
+		token, err := requestToken(c, config, deviceFlowResponse.DeviceCode)
 		if err == nil {
 			return &TokenCredentials{oauth.TokenSource(ctx, token)}, nil
-		} else if err == keepPolling {
+		} else if err.Error() == authorizationPending {
 			continue
+		} else if err.Error() == slowDown {
+			time.Sleep(time.Duration(deviceFlowResponse.Interval) * time.Second)
+			continue
+		} else if err.Error() == expiredToken {
+			return nil, errors.New("token expired, please login again")
 		} else {
 			return nil, err
 		}
@@ -75,7 +76,13 @@ type deviceFlowResponse struct {
 	VerificationUriComplete string `json:"verification_uri_complete"`
 }
 
-var keepPolling = errors.New("keep polling")
+type oauthErrorResponse struct {
+	Error string `json:"error"`
+}
+
+var authorizationPending = "authorization_pending"
+var expiredToken = "expiredtoken"
+var slowDown = "slow_down"
 
 func requestDeviceAuthorization(c *http.Client, config DeviceDetails) (*deviceFlowResponse, error) {
 	resp, err := c.PostForm(config.ProviderUrl+"/connect/deviceauthorization",
@@ -101,10 +108,41 @@ func requestDeviceAuthorization(c *http.Client, config DeviceDetails) (*deviceFl
 	return &deviceFlowResponse, nil
 }
 
+func requestToken(c *http.Client, config DeviceDetails, deviceCode string) (*oauth2.Token, error) {
+	resp, err := c.PostForm(config.ProviderUrl+"/connect/token",
+		url.Values{
+			"client_id":   {config.ClientId},
+			"device_code": {deviceCode},
+			"grant_type":  {"urn:ietf:params:oauth:grant-type:device_code"},
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == 200 {
+		var token oauth2.Token
+		err = json.NewDecoder(resp.Body).Decode(&token)
+		if err != nil {
+			return nil, err
+		}
+		return &token, nil
+	} else if resp.StatusCode == 400 {
+		var errResp oauthErrorResponse
+		err = json.NewDecoder(resp.Body).Decode(&errResp)
+		if err != nil {
+			return nil, err
+		}
+		return nil, errors.New(errResp.Error)
+	}
+	return nil, makeErrorForHTTPResponse(resp)
+}
+
 func makeErrorForHTTPResponse(resp *http.Response) error {
 	bodyBytes, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		bodyBytes = []byte(err.Error())
+		return err
 	}
 	return fmt.Errorf("%s %s returned HTTP %s; \n\n %#q", resp.Request.Method, resp.Request.URL, resp.Status, bodyBytes)
 }
