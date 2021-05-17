@@ -9,8 +9,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"os/exec"
-	"runtime"
 	"strconv"
 	"strings"
 
@@ -95,7 +93,7 @@ func AuthenticatePkce(config PKCEDetails) (*TokenCredentials, error) {
 
 	go server.Serve(listener)
 
-	cmd, err := openbrowser("http://" + localUrl)
+	cmd, err := openBrowser("http://" + localUrl)
 	defer cmd.Process.Kill()
 
 	if err != nil {
@@ -117,21 +115,4 @@ func randomStringBase64() string {
 		panic(err)
 	}
 	return strings.Replace(base64.URLEncoding.EncodeToString(b), "=", "", -1)
-}
-
-func openbrowser(url string) (*exec.Cmd, error) {
-	cmd := browserCommand(url)
-	return cmd, cmd.Start()
-}
-
-func browserCommand(url string) *exec.Cmd {
-	switch runtime.GOOS {
-	case "linux":
-		return exec.Command("xdg-open", url)
-	case "windows":
-		return exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
-	case "darwin":
-		return exec.Command("open", url)
-	}
-	panic(fmt.Errorf("unsupported platform"))
 }
