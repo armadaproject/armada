@@ -13,6 +13,7 @@ import (
 
 	openId "github.com/coreos/go-oidc"
 	"golang.org/x/oauth2"
+)
 
 type DeviceDetails struct {
 	ProviderUrl string
