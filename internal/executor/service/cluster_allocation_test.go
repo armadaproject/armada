@@ -17,6 +17,7 @@ func TestCreateLabels_CreatesExpectedLabels(t *testing.T) {
 		Id:       "Id",
 		JobSetId: "JobSetId",
 		Queue:    "Queue1",
+		Owner:    "Owner",
 		PodSpec:  makePodSpec(),
 	}
 
@@ -29,6 +30,7 @@ func TestCreateLabels_CreatesExpectedLabels(t *testing.T) {
 
 	expectedAnotations := map[string]string{
 		domain.JobSetId: job.JobSetId,
+		domain.Owner:    job.Owner,
 	}
 
 	result := createPod(&job, 0)
@@ -53,6 +55,7 @@ func TestCreatePod_CreatesExpectedPod(t *testing.T) {
 		Id:          "Id",
 		JobSetId:    "JobSetId",
 		Queue:       "Queue1",
+		Owner:       "User1",
 		PodSpec:     podSpec,
 		Annotations: map[string]string{"annotation": "test"},
 		Labels:      map[string]string{"label": "test"},
@@ -72,6 +75,7 @@ func TestCreatePod_CreatesExpectedPod(t *testing.T) {
 			},
 			Annotations: map[string]string{
 				domain.JobSetId: job.JobSetId,
+				domain.Owner:    job.Owner,
 				"annotation":    "test",
 			},
 		},
