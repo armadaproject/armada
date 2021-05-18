@@ -244,6 +244,7 @@ func createService(job *api.Job, pod *v1.Pod) *v1.Service {
 	})
 	annotation := mergeMaps(job.Annotations, map[string]string{
 		domain.JobSetId: job.JobSetId,
+		domain.Owner:    job.Owner,
 	})
 	service := &v1.Service{
 		ObjectMeta: metav1.ObjectMeta{
@@ -271,6 +272,7 @@ func createPod(job *api.Job, i int) *v1.Pod {
 	})
 	annotation := mergeMaps(job.Annotations, map[string]string{
 		domain.JobSetId: job.JobSetId,
+		domain.Owner:    job.Owner,
 	})
 
 	setRestartPolicyNever(podSpec)
