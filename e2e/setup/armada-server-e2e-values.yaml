@@ -1,0 +1,39 @@
+ingressClass: "nginx"
+clusterIssuer: "dummy-value"
+hostnames:
+  - "dummy-value"
+replicas: 1
+
+applicationConfig:
+  redis:
+    addrs:
+      - "redis-master.default.svc.cluster.local:6379"
+  eventsRedis:
+    addrs:
+      - "redis-master.default.svc.cluster.local:6379"
+  eventsNats:
+    servers:
+      - nats://nats:4222
+    clusterID: nats
+    subject: ArmadaTest
+    queueGroup: ArmadaEventRedisProcessor
+  auth:
+    basicAuth:
+      enableAuthentication: false
+    anonymousAuth: true
+    permissionGroupMapping:
+      submit_jobs: ["everyone"]
+      submit_any_jobs: ["everyone"]
+      create_queue: ["everyone"]
+      delete_queue: ["everyone"]
+      cancel_jobs: ["everyone"]
+      cancel_any_jobs: ["everyone"]
+      reprioritize_jobs: ["everyone"]
+      reprioritize_any_jobs: ["everyone"]
+      watch_all_events: ["everyone"]
+      execute_jobs: ["everyone"]
+
+prometheus:
+  enabled: false
+
+nodePort: 30000

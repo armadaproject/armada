@@ -38,6 +38,7 @@ endif
 # use bash for running:
 export SHELL:=/bin/bash
 export SHELLOPTS:=$(if $(SHELLOPTS),$(SHELLOPTS):)pipefail:errexit
+export KUBECONFIG:=e2e/setup/config
 
 gobuildlinux = GOOS=linux GARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w"
 gobuild = go build
@@ -110,6 +111,10 @@ build-docker-binoculars:
 
 build-docker: build-docker-server build-docker-executor build-docker-armadactl build-docker-armada-load-tester build-docker-fakeexecutor build-docker-lookout build-docker-binoculars
 
+build-docker-e2e-tests: build-ci
+	docker build $(dockerFlags) -t tests/armada-server:latest -f ./build/armada/Dockerfile .
+	docker build $(dockerFlags) -t tests/armada-executor:latest -f ./build/executor/Dockerfile .
+
 build-ci: gobuild=$(gobuildlinux)
 build-ci: build-docker build-armadactl build-armadactl-multiplatform build-load-tester
 
@@ -126,43 +131,44 @@ tests:
 	go test -v ./pkg/...
 	go test -v ./cmd/...
 
-e2e-start-cluster:
-	./e2e/setup/setup_cluster_ci.sh
-	./e2e/setup/setup_kube_config_ci.sh
-	KUBECONFIG=.kube/config kubectl apply -f ./e2e/setup/namespace-with-anonymous-user.yaml
-	docker run -d --name nats -p 4223:4223 -p 8223:8223 nats-streaming -p 4223 -m 8223
+e2e-create-cluster: build-docker-e2e-tests
+	go get sigs.k8s.io/kind@v0.11.1
+	kind create cluster --config e2e/setup/kind-confg-server.yaml
+	kubectl apply -f ./e2e/setup/namespace-with-anonymous-user.yaml
+	helm repo add nats https://nats-io.github.io/k8s/helm/charts
+	helm repo add bitnami https://charts.bitnami.com/bitnami
+	helm repo update
+	helm install redis bitnami/redis \
+		--set architecture=standalone \
+		--set auth.sentinel=false \
+		--set auth.enabled=false \
+		--wait
+	helm install nats nats/stan --wait
+	kind load docker-image tests/armada-server:latest --name e2e
+	kind load docker-image tests/armada-executor:latest --name e2e	
 
-e2e-stop-cluster:
-	docker stop kube nats
-	docker rm kube nats
+e2e-install-armada:
+	find . \( -name "Chart.yaml" -o -name "values.yaml" \) -exec sed -i s/LATEST/1.0.0/ {} +
+	helm install -f e2e/setup/armada-server-e2e-values.yaml armada-server ./deployment/armada \
+		--set image.repository=tests/armada-server \
+		--set image.tag=latest \
+		--wait
+	helm install -f e2e/setup/executor-e2e-values.yaml armada-executor ./deployment/executor \
+		--set applicationConfig.apiConnection.armadaUrl="armada:50051" \
+		--set image.repository=tests/armada-executor \
+		--set image.tag=latest \
+		--wait
 
-.ONESHELL:
-tests-e2e: e2e-start-cluster build-docker
-	docker run -d --name redis -p=6379:6379 redis
-	docker run -d --name server --network=host -p=50051:50051 \
-		-v $(shell pwd)/e2e:/e2e \
-		armada ./server --config /e2e/setup/insecure-armada-auth-config.yaml --config /e2e/setup/nats/armada-config.yaml
-	docker run -d --name executor --network=host -v $(shell pwd)/.kube/config:/kube/config \
-		-e KUBECONFIG=/kube/config \
-		-e ARMADA_KUBERNETES_IMPERSONATEUSERS=true \
-		-e ARMADA_KUBERNETES_STUCKPODEXPIRY=15s \
-		armada-executor
-	function tearDown {
-		echo -e "\nexecutor logs:"
-		docker logs executor
-		echo -e "\nserver logs:"
-		docker logs server
-		docker stop executor server redis
-		docker rm executor server redis
-	}
-	trap tearDown EXIT
-	sleep 10
-	echo -e "\nrunning test:"
+tests-e2e: e2e-create-cluster e2e-install-armada
+	go get github.com/G-Research/armada/pkg/client
 	INTEGRATION_ENABLED=true PATH=${PATH}:${PWD}/bin go test -v ./e2e/test/... -count=1
+
+e2e-delete-cluster:
+	kind delete cluster --name=e2e 
 
 proto:
 	docker build $(dockerFlags) -t armada-proto -f ./build/proto/Dockerfile .
-	docker run -it --rm -v $(shell pwd):/go/src/armada -w /go/src/armada armada-proto ./scripts/proto.sh
+	docker run -i --rm -v $(shell pwd):/go/src/armada -w /go/src/armada armada-proto ./scripts/proto.sh
 
 generate:
 	go run github.com/rakyll/statik \
