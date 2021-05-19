@@ -1,0 +1,164 @@
+name: Release
+
+env:
+  GO111MODULE: "on"
+  GOPATH: "/home/runner/work/armada/armada/go"
+  GOCACHE: "/home/runner/.cache/go-build"
+
+on: 
+  push:
+    tags: 
+      - 'v*'
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-20.04
+    env:
+      GO111MODULE: "on"
+      DOCKERHUB_PASS: ${{ secrets.DOCKERHUB_PASS }}
+      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
+    steps:
+      - name: Checkout code into the Go module directory
+        uses: actions/checkout@v2
+        with:
+          path: ${{ env.GOPATH }}/src/github.com/G-Research/armada
+      
+      - name: Build armadactl release artifacts
+        run: |
+          TAG=${GITHUB_REF##*/}
+          make build-armadactl-release RELEASE_VERSION=${TAG}
+        working-directory: ${{ env.GOPATH }}/src/github.com/G-Research/armada
+
+      - name: Archive production artifacts  
+        uses: actions/upload-artifact@v2
+        with:
+          name: dist
+          path: ${{ env.GOPATH }}/src/github.com/G-Research/armada/dist/*
+
+      #### Publish release
+      - name: Upload artifacts to Github release
+        uses: ncipollo/release-action@v1.8.6
+        with:
+          artifacts: "${{ env.GOPATH }}/src/github.com/G-Research/armada/dist/*"
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag: ${{ github.event.release.tag_name }} 
+
+      - name: Push Release Image
+        run: |
+          if [ -z "${DOCKERHUB_USER}" ]
+            then
+              echo "Do not push image inside fork."
+              exit 0
+          fi
+
+          TAG=${GITHUB_SHA}
+          RELEASE_TAG=${GITHUB_REF##*/}
+
+          echo ${DOCKERHUB_PASS} | docker login -u ${DOCKERHUB_USER} --password-stdin
+
+
+          docker pull gresearchdev/armada-server-dev:${TAG}
+          docker tag gresearchdev/armada-server-dev:${TAG} gresearchdev/armada-server:${RELEASE_TAG}
+          docker push gresearchdev/armada-server:${RELEASE_TAG}
+
+          docker pull gresearchdev/armada-executor-dev:${TAG}
+          docker tag gresearchdev/armada-executor-dev:${TAG} gresearchdev/armada-executor:${RELEASE_TAG}
+          docker push gresearchdev/armada-executor:${RELEASE_TAG}
+
+          docker pull gresearchdev/armada-armadactl-dev:${TAG}
+          docker tag gresearchdev/armada-armadactl-dev:${TAG} gresearchdev/armada-armadactl:${RELEASE_TAG}
+          docker push gresearchdev/armada-armadactl:${RELEASE_TAG}
+
+          docker pull gresearchdev/armada-lookout-dev:${TAG}
+          docker tag gresearchdev/armada-lookout-dev:${TAG} gresearchdev/armada-lookout:${RELEASE_TAG}
+          docker push gresearchdev/armada-lookout:${RELEASE_TAG}
+
+          docker pull gresearchdev/armada-binoculars-dev:${TAG}
+          docker tag gresearchdev/armada-binoculars-dev:${TAG} gresearchdev/armada-binoculars:${RELEASE_TAG}
+          docker push gresearchdev/armada-binoculars:${RELEASE_TAG}
+
+          rm -v /home/runner/.docker/config.json
+        working-directory: ${{ env.GOPATH }}/src/github.com/G-Research/armada
+
+  update-charts:
+    needs: [release]
+    name: Publish Armada charts
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Set .ssh directory and GIT_SSH_COMMAND
+        run: |
+          export SSH_CONFIG_DIR="/home/runner/.ssh"
+          export GIT_SSH_COMMAND="ssh -o UserKnownHostsFile=$SSH_CONFIG_DIR/known_hosts"
+          
+          mkdir -p $SSH_CONFIG_DIR
+          echo 'github.com ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAq2A7hRGmdnm9tUDbO9IDSwBK6TbQa+PXYPCPy6rbTrTtw7PHkccKrpp0yVhp5HdEIcKr6pLlVDBfOLX9QUsyCOV0wzfjIJNlGEYsdlLJizHhbn2mUjvSAHQqZETYP81eFzLQNnPHt4EVVUh7VfDESU84KezmD5QlWpXLmvU31/yMf+Se8xhHTvKSCZIFImWwoG6mbUoWf9nzpIoaSjB+weqqUUmpaaasXVal72J+UX2B+2RPW3RcT0eOzQgqlJL3RKrTJvdsjE3JEAvGq3lGHSZXy28G3skua2SmVi/w4yCE6gbODqnTWlg7+wC604ydGXA8VJiS5ap43JXiUFFAaQ==' >> $SSH_CONFIG_DIR/known_hosts
+
+          eval "$(ssh-agent -s)"
+          echo -e "${{ secrets.ARMADA_CHART_UPDATE_KEY }}" | ssh-add - > /dev/null
+          git clone -q git@github.com:G-Research/charts.git
+        working-directory: ${{ env.GOPATH }}/src/github.com/G-Research/charts
+
+      - name: Update version, appVersion and image tag to match current $RELEASE_TAG
+        run: |
+          RELEASE_TAG=${GITHUB_REF##*/}
+          echo release version is $RELEASE_TAG
+          find . \( -name "Chart.yaml" -o -name "values.yaml" \) -exec sed -i s/LATEST/$RELEASE_TAG/ {} +
+
+          helm package ../armada/deployment/armada/ -d armada/
+          helm package ../armada/deployment/executor -d armada/
+          helm package ../armada/deployment/executor-cluster-monitoring/ -d armada/
+          helm package ../armada/deployment/lookout/ -d armada/
+          helm package ../armada/deployment/lookout-migration/ -d armada/
+          helm package ../armada/deployment/binoculars/ -d armada/
+          helm repo index .
+        working-directory: ${{ env.GOPATH }}/src/github.com/G-Research/charts
+
+      - name: Commit and push updated charts
+        run: |
+          RELEASE_TAG=${GITHUB_REF##*/}
+          cd charts
+          git checkout -b github-armada_$RELEASE_TAG
+          git add ./armada
+          git -c user.name='GR OSS' -c user.email=github@gr-oss.io commit -qam "Pushing new helm charts at version $RELEASE_TAG"
+          eval "$(ssh-agent -s)"
+          echo -e "${{ secrets.ARMADA_CHART_UPDATE_KEY }}" | ssh-add - > /dev/null
+          git push -q origin HEAD
+        working-directory: ${{ env.GOPATH }}/src/github.com/G-Research/charts
+
+  release-dotnet-client:
+    name: Release DotNet client
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          path: ${{ env.GOPATH }}/src/github.com/G-Research/armada
+
+      - uses: actions/setup-dotnet@v1
+        with:
+          dotnet-version: '3.0.101' 
+          source-url: "https://api.nuget.org/v3/index.json"
+        env:
+          NUGET_AUTH_TOKEN: ${{ secrets.NUGET_API_KEY }}
+
+      - name: Release dotnet client
+        run: |
+          RELEASE_TAG_RAW=${GITHUB_REF##*/}
+          RELEASE_TAG=${RELEASE_TAG_RAW:1}
+
+          echo $RELEASE_TAG
+          cat /home/runner/work/armada/nuget.config
+          dotnet pack client/DotNet/Armada.Client/Armada.Client.csproj -c Release -p:PackageVersion=${RELEASE_TAG} -o ./bin/client/DotNet
+          dotnet nuget push ./bin/client/DotNet/G-Research.Armada.Client.${RELEASE_TAG}.nupkg -k ${{ secrets.NUGET_API_KEY }} -s https://api.nuget.org/v3/index.json
+        working-directory: ${{ env.GOPATH }}/src/github.com/G-Research/armada
+
+      - name: Archive production artifacts
+        uses: actions/upload-artifact@v2
+        with:
+          name: dist
+          path: ${{ env.GOPATH }}/src/github.com/G-Research/armada/bin/client/DotNet/*

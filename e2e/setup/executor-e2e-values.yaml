@@ -1,0 +1,15 @@
+ingressClass: "nginx"
+clusterIssuer: "dummy-value"
+hostnames:
+  - "dummy-value"
+
+applicationConfig:
+  apiConnection:
+    armadaUrl: "armada:50051"
+    forceNoTls: true
+  kubernetes:
+    impersonateUsers: true
+    stuckPodExpiry: 15s
+
+prometheus:
+  enabled: false

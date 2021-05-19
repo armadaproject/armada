@@ -1,42 +1,191 @@
-name: Deploy GH Pages
+name: CI
 
-on:
+defaults:
+  run:
+    shell: bash
+
+env:
+  GO111MODULE: "on"
+  GOPATH: "/home/runner/work/armada/armada/go"
+  GOCACHE: "/home/runner/.cache/go-build"
+  KUBECONFIG: "/home/runner/work/armada/armada/go/src/github.com/G-Research/armada/e2e/setup/config"
+  GOVERSION: "1.16"
+
+on: 
   push:
-    branches: 
-      - master 
-    paths:
+    branches:
+      - '*'
+    pull_request:
+      branches:
+        - master
+    tags-ignore:
+      - '**'
+    paths-ignore:
       - 'docs/*.md'
       - 'docs/quickstart'
       - '*.md'
+      - '**/release.yml'
+      - '**/pages.yml'
 
 jobs:
-  deploy-gh-pages:
-    runs-on: ubuntu-latest
+  code_styles:
+    name: Code style
+    runs-on: ubuntu-20.04
     steps:
-      - name: Checkout master
+      - name: Install Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: ${{ env.GOVERSION }}
+      - name: Checkout code into the Go module directory
         uses: actions/checkout@v2
         with:
-          path: master
+          path: ${{ env.GOPATH }}/src/github.com/G-Research/armada
 
-      - name: Checkout gh-pages branch
+      - name: Check Go formatting
+        run: |
+          go install golang.org/x/tools/cmd/goimports@v0.1.1
+          if [ $(goimports -l -local "github.com/G-Research/armada" | wc -l) -eq 0 ]; then exit 0; else exit 1; fi
+
+      - name: Run ineffassign
+        run: |
+          cd /tmp
+          go get -u github.com/gordonklaus/ineffassign
+          cd ${{ env.GOPATH }}/src/github.com/G-Research/armada
+          ineffassign ./...
+        working-directory: ${{ env.GOPATH }}/src/github.com/G-Research/armada
+          
+      - name: Check TypeScript formatting
+        run: |
+          npm ci && npm run fmt || exit 1
+          exit $(git status -s -uno | wc -l)
+        working-directory: ${{ env.GOPATH }}/src/github.com/G-Research/armada/internal/lookout/ui
+
+      - name: Check generated files
+        run: |
+          make proto
+          git status -s -uno
+          git --no-pager diff
+          git status -s -uno
+          exit $(git status -s -uno | wc -l)
+        working-directory: ${{ env.GOPATH }}/src/github.com/G-Research/armada
+
+  test:
+    name: Test
+    needs: [code_styles]
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Install Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: ${{ env.GOVERSION }}
+      - name: Checkout code into the Go module directory
         uses: actions/checkout@v2
         with:
-          ref: 'gh-pages'
-          path: gh-pages
-    
-      - name: Copy site files
-        run: |
-          cp master/docs/*.md gh-pages/
-          cp -r master/docs/quickstart gh-pages/_pages
-          cp master/CODE_OF_CONDUCT.md master/CONTRIBUTING.md gh-pages/_pages/
+          path: ${{ env.GOPATH }}/src/github.com/G-Research/armada
+            
+      - uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+            /home/runner/.cache/go-build
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
 
-      - name: Commit GH Pages
-        run: |
-          cd gh-pages
-          git config user.name armada-admin
-          git config user.email admin@armadaproject.io
-          git add . _pages
-          git diff --quiet && git diff --staged --quiet || git commit -m "Updating Github Pages branch with latest Master changes"
-          git push
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Run tests
+        run: make tests
+        working-directory: ${{ env.GOPATH }}/src/github.com/G-Research/armada
+
+      - name: Check go.sum
+        run: cat go.sum
+        working-directory: ${{ env.GOPATH }}/src/github.com/G-Research/armada
+
+  build:
+    name: Build
+    needs: [test] 
+    runs-on: ubuntu-20.04
+    env:
+      DOCKERHUB_PASS: ${{ secrets.DOCKERHUB_PASS }}
+      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
+    steps:
+      - name: Install Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: ${{ env.GOVERSION }}
+      - name: Checkout code into the Go module directory
+        uses: actions/checkout@v2
+        with:
+          path: ${{ env.GOPATH }}/src/github.com/G-Research/armada
+
+      - name: Build & Run e2e tests
+        run: make tests-e2e
+        working-directory: ${{ env.GOPATH }}/src/github.com/G-Research/armada
+
+      - name: Delete cluster
+        if: always()
+        run: make e2e-delete-cluster
+        working-directory: ${{ env.GOPATH }}/src/github.com/G-Research/armada
+
+      - name: Check go.sum
+        run: cat go.sum
+        working-directory: ${{ env.GOPATH }}/src/github.com/G-Research/armada
+
+      - uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+            /home/runner/.cache/go-build
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Archive production artifacts
+        uses: actions/upload-artifact@v2
+        with:
+          name: armadactl
+          path: |
+            ${{ env.GOPATH }}/src/github.com/G-Research/armada/bin/armadactl
+
+      - name: Push Dev Image
+        run: | 
+          if [ -z "${DOCKERHUB_USER}" ] 
+            then
+              echo "Do not push image inside fork."
+              exit 0
+          fi
+
+          TAG=${GITHUB_SHA}
+          BRANCH=${GITHUB_REF##*/}
+
+          if [ ${BRANCH} != master ]
+            then
+              TAG=branch-$(echo -n ${BRANCH} | sed 's|/|-|g')-${GITHUB_SHA}
+          fi
+
+          echo ${DOCKERHUB_PASS} | docker login -u ${DOCKERHUB_USER} --password-stdin
+
+          docker tag armada gresearchdev/armada-server-dev:${TAG}
+          docker push gresearchdev/armada-server-dev:${TAG}
+
+          docker tag armada-executor gresearchdev/armada-executor-dev:${TAG}
+          docker push gresearchdev/armada-executor-dev:${TAG}
+
+          docker tag armadactl gresearchdev/armada-armadactl-dev:${TAG}
+          docker push gresearchdev/armada-armadactl-dev:${TAG}
+
+          docker tag armada-load-tester gresearchdev/armada-load-tester-dev:${TAG}
+          docker push gresearchdev/armada-load-tester-dev:${TAG}
+
+          docker tag armada-fakeexecutor gresearchdev/armada-fakeexecutor-dev:${TAG}
+          docker push gresearchdev/armada-fakeexecutor-dev:${TAG}
+
+          docker tag armada-lookout gresearchdev/armada-lookout-dev:${TAG}
+          docker push gresearchdev/armada-lookout-dev:${TAG}
+          
+          docker tag armada-binoculars gresearchdev/armada-binoculars-dev:${TAG}
+          docker push gresearchdev/armada-binoculars-dev:${TAG}
+
+          rm -v /home/runner/.docker/config.json
+        working-directory: ${{ env.GOPATH }}/src/github.com/G-Research/armada
