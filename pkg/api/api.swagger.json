@@ -241,7 +241,8 @@
       "enum": [
         "Error",
         "Evicted",
-        "OOM"
+        "OOM",
+        "DeadlineExceeded"
       ]
     },
     "apiContainerStatus": {

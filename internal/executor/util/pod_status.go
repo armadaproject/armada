@@ -19,6 +19,7 @@ var invalidImageNameStatesSet = util.StringListToSet([]string{"InvalidImageName"
 
 const oomKilledReason = "OOMKilled"
 const evictedReason = "Evicted"
+const deadlineExceeded = "DeadlineExceeded"
 
 func ExtractPodStuckReason(pod *v1.Pod) string {
 	containerStatuses := pod.Status.ContainerStatuses
@@ -63,6 +64,10 @@ func ExtractPodFailedCause(pod *v1.Pod) api.Cause {
 	if pod.Status.Reason == evictedReason {
 		return api.Cause_Evicted
 	}
+	if pod.Status.Reason == deadlineExceeded {
+		return api.Cause_DeadlineExceeded
+	}
+
 	containerStatuses := pod.Status.ContainerStatuses
 	containerStatuses = append(containerStatuses, pod.Status.InitContainerStatuses...)
 
@@ -96,6 +101,11 @@ func ExtractFailedPodContainerStatuses(pod *v1.Pod) []*api.ContainerStatus {
 	returnStatuses := make([]*api.ContainerStatus, 0, len(containerStatuses))
 
 	for _, containerStatus := range containerStatuses {
+		if containerStatus.State.Terminated == nil {
+			//For some errors, Kubernetes confusingly leaves the containers in state running even though they are killed on the host
+			//Skip them to avoid confusion
+			continue
+		}
 		status := &api.ContainerStatus{
 			Name:  containerStatus.Name,
 			Cause: api.Cause_Error,

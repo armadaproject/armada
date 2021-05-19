@@ -3,9 +3,11 @@ package util
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/G-Research/armada/pkg/api"
 )
@@ -13,11 +15,13 @@ import (
 var evictedPod *v1.Pod
 var oomPod *v1.Pod
 var customErrorPod *v1.Pod
+var deadlineExceededPod *v1.Pod
 
 func init() {
 	evictedPod = createEvictedPod()
 	oomPod = createFailedPod(createOomContainerStatus())
 	customErrorPod = createFailedPod(createCustomErrorContainerStatus())
+	deadlineExceededPod = createDeadlineExceededPod()
 }
 
 func TestContainersAreRetryable_ReturnTrue_WhenNoContainerInImagePullBackoff(t *testing.T) {
@@ -126,6 +130,9 @@ func TestExtractPodFailedReason(t *testing.T) {
 	failedReason := ExtractPodFailedReason(evictedPod)
 	assert.Equal(t, failedReason, evictedPod.Status.Message)
 
+	failedReason = ExtractPodFailedReason(deadlineExceededPod)
+	assert.Equal(t, failedReason, deadlineExceededPod.Status.Message)
+
 	failedReason = ExtractPodFailedReason(oomPod)
 	assert.True(t, strings.Contains(failedReason, oomPod.Status.ContainerStatuses[0].State.Terminated.Reason))
 
@@ -137,6 +144,9 @@ func TestExtractPodFailedCause(t *testing.T) {
 	failedCause := ExtractPodFailedCause(evictedPod)
 	assert.Equal(t, failedCause, api.Cause_Evicted)
 
+	failedCause = ExtractPodFailedCause(deadlineExceededPod)
+	assert.Equal(t, failedCause, api.Cause_DeadlineExceeded)
+
 	failedCause = ExtractPodFailedCause(oomPod)
 	assert.Equal(t, failedCause, api.Cause_OOM)
 
@@ -146,6 +156,9 @@ func TestExtractPodFailedCause(t *testing.T) {
 
 func TestExtractFailedPodContainerStatuses(t *testing.T) {
 	containerStatuses := ExtractFailedPodContainerStatuses(evictedPod)
+	assert.Equal(t, len(containerStatuses), 0)
+
+	containerStatuses = ExtractFailedPodContainerStatuses(deadlineExceededPod)
 	assert.Equal(t, len(containerStatuses), 0)
 
 	containerStatuses = ExtractFailedPodContainerStatuses(oomPod)
@@ -199,6 +212,26 @@ func createEvictedPod() *v1.Pod {
 			Phase:   v1.PodFailed,
 			Reason:  "Evicted",
 			Message: "Pod ephemeral local storage usage exceeds the total limit of containers 1Gi.",
+		},
+	}
+}
+
+func createDeadlineExceededPod() *v1.Pod {
+	//For some reason on DeadlineExceeded, Kubernetes leaves the container statuses as Running even though it kills them on the host
+	containerStatus := v1.ContainerStatus{
+		Name: "app",
+		State: v1.ContainerState{
+			Running: &v1.ContainerStateRunning{
+				StartedAt: metav1.NewTime(time.Now()),
+			},
+		},
+	}
+	return &v1.Pod{
+		Status: v1.PodStatus{
+			Phase:             v1.PodFailed,
+			Reason:            "DeadlineExceeded",
+			Message:           "Pod was active on the node longer than the specified deadline",
+			ContainerStatuses: []v1.ContainerStatus{containerStatus},
 		},
 	}
 }
