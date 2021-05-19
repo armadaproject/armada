@@ -101,7 +101,7 @@ func NewClusterContext(
 				log.Errorf("Failed to process pod event due to it being an unexpected type. Failed to process %+v", obj)
 				return
 			}
-			context.submittedPods.Delete(util.ExtractJobId(pod))
+			context.submittedPods.Delete(util.ExtractPodKey(pod))
 		},
 	})
 
@@ -216,7 +216,7 @@ func (c *KubernetesClusterContext) SubmitPod(pod *v1.Pod, owner string) (*v1.Pod
 	returnedPod, err := ownerClient.CoreV1().Pods(pod.Namespace).Create(ctx.Background(), pod, metav1.CreateOptions{})
 
 	if err != nil {
-		c.submittedPods.Delete(util.ExtractJobId(pod))
+		c.submittedPods.Delete(util.ExtractPodKey(pod))
 	}
 	return returnedPod, err
 }
@@ -266,12 +266,12 @@ func (c *KubernetesClusterContext) ProcessPodsToDelete() {
 			continue
 		}
 		err := c.kubernetesClient.CoreV1().Pods(podToDelete.Namespace).Delete(ctx.Background(), podToDelete.Name, deleteOptions)
-		jobId := util.ExtractJobId(podToDelete)
+		podId := util.ExtractPodKey(podToDelete)
 		if err == nil || errors.IsNotFound(err) {
-			c.podsToDelete.Update(jobId, nil)
+			c.podsToDelete.Update(podId, nil)
 		} else {
 			log.Errorf("Failed to delete pod %s/%s because %s", podToDelete.Namespace, podToDelete.Name, err)
-			c.podsToDelete.Delete(jobId)
+			c.podsToDelete.Delete(podId)
 		}
 	}
 }

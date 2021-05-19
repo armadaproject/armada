@@ -441,7 +441,7 @@ func waitForContextSync(t *testing.T, context *KubernetesClusterContext, pods []
 				allSync = false
 				break
 			}
-			if cachedPod := context.submittedPods.Get(pod.Labels[domain.JobId]); cachedPod != nil {
+			if cachedPod := context.submittedPods.Get(util.ExtractPodKey(pod)); cachedPod != nil {
 				allSync = false
 				break
 			}

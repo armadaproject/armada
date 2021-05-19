@@ -216,7 +216,9 @@ func (jobLeaseService *JobLeaseService) reportTerminated(pods []*v1.Pod) {
 	for _, pod := range pods {
 		event := reporter.CreateJobTerminatedEvent(pod, "Pod terminated because lease could not be renewed.", jobLeaseService.clusterContext.GetClusterId())
 		jobLeaseService.eventReporter.QueueEvent(event, func(err error) {
-			log.Errorf("Failed to report terminated pod %s: %s", pod.Name, err)
+			if err != nil {
+				log.Errorf("Failed to report terminated pod %s: %s", pod.Name, err)
+			}
 		})
 	}
 }
