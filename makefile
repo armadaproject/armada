@@ -92,7 +92,7 @@ e2e-stop-cluster:
 .ONESHELL:
 tests-e2e: e2e-start-cluster build-docker
 	docker run -d --name redis -p=6379:6379 redis
-	docker run -d --name server --network=host -p=50051:50051 \
+	docker run -d --name server --network=host \
 		-v $(shell pwd)/e2e:/e2e \
 		armada ./server --config /e2e/setup/nats/armada-config.yaml
 	docker run -d --name executor --network=host -v $(shell pwd)/.kube/config:/kube/config \
@@ -109,13 +109,14 @@ tests-e2e: e2e-start-cluster build-docker
 		docker rm executor server redis
 	}
 	trap tearDown EXIT
-	sleep 10
 	echo -e "\nrunning test:"
-	INTEGRATION_ENABLED=true PATH=${PATH}:${PWD}/bin go test -v ./e2e/test/... -count=1
+	export PATH=${PATH}:${PWD}/bin
+	export INTEGRATION_ENABLED=true
+	go test -v ./e2e/test/... -count=1
 
 proto:
 	docker build $(dockerFlags) -t armada-proto -f ./build/proto/Dockerfile .
-	docker run -it --rm -v $(shell pwd):/go/src/armada -w /go/src/armada armada-proto ./scripts/proto.sh
+	docker run -i --rm -v $(shell pwd):/go/src/armada -w /go/src/armada armada-proto ./scripts/proto.sh
 
 generate:
 	go run github.com/rakyll/statik \
