@@ -23,7 +23,7 @@ func TestMapPodCache_Add(t *testing.T) {
 	cache := NewTimeExpiringPodCache(time.Minute, time.Second, "metric1")
 	cache.Add(pod)
 
-	assert.Equal(t, pod, cache.Get("job1"))
+	assert.Equal(t, pod, cache.Get(ExtractPodKey(pod)))
 }
 
 func TestMapPodCache_Add_Expires(t *testing.T) {
@@ -33,7 +33,7 @@ func TestMapPodCache_Add_Expires(t *testing.T) {
 	cache := NewTimeExpiringPodCache(time.Second/10, time.Second/100, "metric1")
 	cache.Add(pod)
 
-	assert.Equal(t, pod, cache.Get("job1"))
+	assert.Equal(t, pod, cache.Get(ExtractPodKey(pod)))
 
 	time.Sleep(time.Second / 5)
 
@@ -52,7 +52,7 @@ func TestMapPodCache_AddIfNotExists(t *testing.T) {
 	cache := NewTimeExpiringPodCache(time.Minute, time.Second, "metric1")
 	assert.True(t, cache.AddIfNotExists(pod1))
 	assert.False(t, cache.AddIfNotExists(pod2))
-	assert.Equal(t, "1", cache.Get("job1").Name)
+	assert.Equal(t, "1", cache.Get(ExtractPodKey(pod1)).Name)
 }
 
 func TestMapPodCache_Update(t *testing.T) {
@@ -64,11 +64,11 @@ func TestMapPodCache_Update(t *testing.T) {
 	pod2.Name = "2"
 
 	cache := NewTimeExpiringPodCache(time.Minute, time.Second, "metric1")
-	assert.False(t, cache.Update("job1", pod1))
+	assert.False(t, cache.Update(ExtractPodKey(pod1), pod1))
 	assert.Equal(t, 0, len(cache.GetAll()))
 	cache.Add(pod1)
-	assert.True(t, cache.Update("job1", pod2))
-	assert.Equal(t, "2", cache.Get("job1").Name)
+	assert.True(t, cache.Update(ExtractPodKey(pod2), pod2))
+	assert.Equal(t, "2", cache.Get(ExtractPodKey(pod1)).Name)
 }
 
 func TestMapPodCache_Delete(t *testing.T) {
@@ -78,10 +78,10 @@ func TestMapPodCache_Delete(t *testing.T) {
 	cache := NewTimeExpiringPodCache(time.Minute, time.Second, "metric1")
 
 	cache.Add(pod)
-	assert.NotNil(t, cache.Get("job1"))
+	assert.NotNil(t, cache.Get(ExtractPodKey(pod)))
 
-	cache.Delete("job1")
-	assert.Nil(t, cache.Get("job1"))
+	cache.Delete(ExtractPodKey(pod))
+	assert.Nil(t, cache.Get(ExtractPodKey(pod)))
 }
 
 func TestMapPodCache_Delete_DoNotFailOnUnrecognisedKey(t *testing.T) {
@@ -101,7 +101,7 @@ func TestNewMapPodCache_Get_ReturnsCopy(t *testing.T) {
 
 	cache.Add(pod)
 
-	result := cache.Get("job1")
+	result := cache.Get(ExtractPodKey(pod))
 	assert.Equal(t, result, pod)
 
 	pod.Namespace = "new value"
@@ -149,7 +149,10 @@ func TestMapPodCache_GetReturnsACopy(t *testing.T) {
 func makeManagedPod(jobId string) *v1.Pod {
 	pod := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Labels: map[string]string{domain.JobId: jobId},
+			Labels: map[string]string{
+				domain.JobId:     jobId,
+				domain.PodNumber: "0",
+			},
 		},
 	}
 	return &pod
