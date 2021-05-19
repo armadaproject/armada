@@ -315,7 +315,11 @@ workflows:
   build_and_deploy:
     jobs:
       - code_style
-      - test
+      - test:
+          filters:
+            branches:
+              ignore: 
+                - gh-pages
       - build
       - release:
           filters:
@@ -329,4 +333,3 @@ workflows:
               only: /.*/
             branches:
               ignore: /.*/
-
