@@ -16,8 +16,8 @@ type PodCache interface {
 	Add(pod *v1.Pod)
 	AddIfNotExists(pod *v1.Pod) bool
 	Update(key string, pod *v1.Pod) bool
-	Delete(jobId string)
-	Get(jobId string) *v1.Pod
+	Delete(podId string)
+	Get(podId string) *v1.Pod
 	GetAll() []*v1.Pod
 }
 
@@ -41,7 +41,7 @@ func NewTimeExpiringPodCache(expiry time.Duration, cleanUpInterval time.Duration
 		sizeGauge: promauto.NewGauge(
 			prometheus.GaugeOpts{
 				Name: metrics.ArmadaExecutorMetricsPrefix + metricName + "_cache_size",
-				Help: "Number of jobs in the submitted job cache",
+				Help: "Number of pods in the pod cache",
 			},
 		),
 	}
@@ -50,58 +50,58 @@ func NewTimeExpiringPodCache(expiry time.Duration, cleanUpInterval time.Duration
 }
 
 func (podCache *mapPodCache) Add(pod *v1.Pod) {
-	jobId := ExtractJobId(pod)
+	podId := ExtractPodKey(pod)
 
 	podCache.rwLock.Lock()
 	defer podCache.rwLock.Unlock()
 
-	podCache.records[jobId] = cacheRecord{pod: pod.DeepCopy(), expiry: time.Now().Add(podCache.defaultExpiry)}
+	podCache.records[podId] = cacheRecord{pod: pod.DeepCopy(), expiry: time.Now().Add(podCache.defaultExpiry)}
 	podCache.sizeGauge.Inc()
 }
 
 func (podCache *mapPodCache) AddIfNotExists(pod *v1.Pod) bool {
-	jobId := ExtractJobId(pod)
+	podId := ExtractPodKey(pod)
 
 	podCache.rwLock.Lock()
 	defer podCache.rwLock.Unlock()
 
-	existing, ok := podCache.records[jobId]
+	existing, ok := podCache.records[podId]
 	exists := ok && existing.expiry.After(time.Now())
 	if !exists {
-		podCache.records[jobId] = cacheRecord{pod: pod.DeepCopy(), expiry: time.Now().Add(podCache.defaultExpiry)}
+		podCache.records[podId] = cacheRecord{pod: pod.DeepCopy(), expiry: time.Now().Add(podCache.defaultExpiry)}
 		podCache.sizeGauge.Inc()
 	}
 	return !exists
 }
 
-func (podCache *mapPodCache) Update(jobId string, pod *v1.Pod) bool {
+func (podCache *mapPodCache) Update(podId string, pod *v1.Pod) bool {
 	podCache.rwLock.Lock()
 	defer podCache.rwLock.Unlock()
 
-	existing, ok := podCache.records[jobId]
+	existing, ok := podCache.records[podId]
 	exists := ok && existing.expiry.After(time.Now())
 	if exists {
-		podCache.records[jobId] = cacheRecord{pod: pod.DeepCopy(), expiry: time.Now().Add(podCache.defaultExpiry)}
+		podCache.records[podId] = cacheRecord{pod: pod.DeepCopy(), expiry: time.Now().Add(podCache.defaultExpiry)}
 	}
 	return ok
 }
 
-func (podCache *mapPodCache) Delete(jobId string) {
+func (podCache *mapPodCache) Delete(podId string) {
 	podCache.rwLock.Lock()
 	defer podCache.rwLock.Unlock()
 
-	_, ok := podCache.records[jobId]
+	_, ok := podCache.records[podId]
 	if ok {
-		delete(podCache.records, jobId)
+		delete(podCache.records, podId)
 		podCache.sizeGauge.Dec()
 	}
 }
 
-func (podCache *mapPodCache) Get(jobId string) *v1.Pod {
+func (podCache *mapPodCache) Get(podId string) *v1.Pod {
 	podCache.rwLock.Lock()
 	defer podCache.rwLock.Unlock()
 
-	record := podCache.records[jobId]
+	record := podCache.records[podId]
 	if record.expiry.After(time.Now()) {
 		return record.pod.DeepCopy()
 	}
