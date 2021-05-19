@@ -9,6 +9,8 @@
     <Copyright>Copyright G-Research 2019</Copyright>
     <PackageProjectUrl>https://github.com/G-Research/armada</PackageProjectUrl>
     <PackageTags>armada gresearch g-research .net c# dotnet</PackageTags>
+    <RepositoryType>git</RepositoryType>
+    <RepositoryUrl>https://github.com/ljubon/armada</RepositoryUrl>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
     <RootNamespace>GResearch.Armada.Client</RootNamespace>
   </PropertyGroup>

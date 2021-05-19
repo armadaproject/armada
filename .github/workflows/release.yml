@@ -1,0 +1,123 @@
+name: Release
+
+env:
+  GO111MODULE: "on"
+  GOPATH: "/home/runner/work/armada/armada/go"
+  GOCACHE: "/home/runner/.cache/go-build"
+
+on: 
+  push:
+    tags: 
+      - 'v*'
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-20.04
+    env:
+      GO111MODULE: "on"
+    steps:
+      - name: Checkout code into the Go module directory
+        uses: actions/checkout@v2
+        with:
+          path: ${{ env.GOPATH }}/src/github.com/G-Research/armada
+      
+      - name: Build armadactl release artifacts
+        run: |
+          TAG=${GITHUB_REF##*/}
+          make build-armadactl-release RELEASE_VERSION=${TAG}
+        working-directory: ${{ env.GOPATH }}/src/github.com/G-Research/armada
+
+      - name: Archive production artifacts  
+        uses: actions/upload-artifact@v2
+        with:
+          name: dist
+          path: |
+            ${{ env.GOPATH }}/src/github.com/G-Research/armada/dist/*
+
+      #### Publish release
+      - name: Upload artifacts to Github release #TODO change RELEASE_TOKEN
+        uses: ncipollo/release-action@v1.8.6
+        with:
+          artifacts: "${{ env.GOPATH }}/src/github.com/G-Research/armada/dist/*"
+          token: ${{ secrets.RELEASE_TOKEN }}
+          tag: ${{ github.event.release.tag_name }} 
+
+      - name: Update release summmary
+        run: |
+          ./scripts/add-checksum-summary.sh ${{ secrets.GITHUB_TOKEN }} ${GITHUB_REF##*/}
+        working-directory: ${{ env.GOPATH }}/src/github.com/G-Research/armada
+
+  release-dotnet-client:
+    name: Release DotNet client
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          path: ${{ env.GOPATH }}/src/github.com/G-Research/armada
+
+      - uses: actions/setup-dotnet@v1
+        with:
+          dotnet-version: '3.0.101' 
+          source-url: "https://nuget.pkg.github.com/ljubon/index.json"
+        env:
+          NUGET_AUTH_TOKEN: ${{ secrets.PAT_LJUBOOPS }}
+
+      - name: Release dotnet client #TODO change RepositoryUrl in *.csproj, replace PAT_LJUBOOPS
+        run: |
+          RELEASE_TAG_RAW=${GITHUB_REF##*/}
+          RELEASE_TAG=${RELEASE_TAG_RAW:1}
+
+          echo $RELEASE_TAG
+          ls -larth
+          cat /home/runner/work/armada/nuget.config
+          dotnet pack client/DotNet/Armada.Client/Armada.Client.csproj -c Release -p:PackageVersion=${RELEASE_TAG} -o ./bin/client/DotNet
+          dotnet nuget push ./bin/client/DotNet/G-Research.Armada.Client.${RELEASE_TAG}.nupkg --api-key ${{ secrets.PAT_LJUBOOPS }}
+        working-directory: ${{ env.GOPATH }}/src/github.com/G-Research/armada
+
+      - name: Archive production artifacts
+        uses: actions/upload-artifact@v2
+        with:
+          name: dist
+          path: |
+            ${{ env.GOPATH }}/src/github.com/G-Research/armada/bin/client/DotNet/*
+
+  update-charts:
+    needs: [release, release-dotnet-client]
+    name: Publish Armada charts
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Install Step
+        env: 
+          VERSION: 0.15.16
+        run: |
+          curl -sLO https://github.com/smallstep/cli/releases/download/v${VERSION}/step-cli_${VERSION}_amd64.deb
+          sudo dpkg -i step-cli_${VERSION}_amd64.deb
+          rm step-cli_${VERSION}_amd64.deb
+
+      - name: Acquire access token #TODO Change APP_ID, APP_PEM, INSTALLATION_ID
+        id: token
+        env: 
+          APP_ID: ${{ secrets.APP_ID }}
+          APP_PEM: ${{ secrets.GH_APP_PEM }}
+          INSTALLATION_ID: ${{ secrets.INSTALLATION_ID }}
+        run: |
+          echo "$APP_PEM" > key.pem
+          trap "rm -f key.pem" EXIT
+          APP_TOKEN=$(step crypto jwt sign --key key.pem --issuer $APP_ID --expiration $(date --date '+5 min' +'%s') --subtle </dev/null)
+          ACCESS_TOKEN=$(curl -s -X POST -H "Accept: application/vnd.github.v3+json" -H "Authorization:Bearer $APP_TOKEN" https://api.github.com/app/installations/$INSTALLATION_ID/access_tokens | jq -r '.token')
+          echo "::set-output name=token::$ACCESS_TOKEN"
+
+      - name: Trigger remote workflow #TODO Change TOKEN, REPO, REF, project
+        env: 
+          GITHUB_TOKEN: ${{ steps.token.outputs.token }}
+          REPO: ljubon/charts
+          REF: test-dispatcher
+          WORKFLOW: gh-pages.yml
+        run: |
+          gh workflow run $WORKFLOW --repo $REPO --ref $REF --field project="ljubon/armada" --field ref="${GITHUB_REF##*/}"
