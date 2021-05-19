@@ -1,42 +1,188 @@
-name: Deploy GH Pages
+# Pre-merge TODO list
+# 1. change DOCKERTOKEN and DOCKERUSERNAME
+name: CI
 
-on:
+defaults:
+  run:
+    shell: bash
+
+env:
+  GO111MODULE: "on"
+  GOPATH: "/home/runner/work/armada/armada/go"
+  GOCACHE: "/home/runner/.cache/go-build"
+
+on: 
   push:
-    branches: 
-      - master 
-    paths:
+    branches:
+      - '**'
+    pull_request:
+      branches:
+        - master
+    tags-ignore:
+      - '**'
+    paths-ignore:
       - 'docs/*.md'
       - 'docs/quickstart'
       - '*.md'
+      - '**/release.yml'
+      - '**/pages.yml'
 
 jobs:
-  deploy-gh-pages:
-    runs-on: ubuntu-latest
+  code_styles:
+    name: Code style
+    runs-on: ubuntu-20.04
     steps:
-      - name: Checkout master
+      - name: Install Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: '1.16'
+      - name: Checkout code into the Go module directory
         uses: actions/checkout@v2
         with:
-          path: master
+          path: ${{ env.GOPATH }}/src/github.com/G-Research/armada
+          
+      - name: Run ineffassign
+        run: |
+          cd /tmp
+          go install github.com/gordonklaus/ineffassign@latest
+          cd ${{ env.GOPATH }}/src/github.com/G-Research/armada
+          echo "Run ineffassign..."
+          ineffassign ./...
 
-      - name: Checkout gh-pages branch
+      - name: Check formatting
+        run: |
+          go install golang.org/x/tools/cmd/goimports@v0.1.1
+          if [ $(goimports -l -local "github.com/G-Research/armada" | wc -l) -eq 0 ]; then exit 0; else exit 1; fi
+
+      - name: Check generated files
+        run: |
+          make proto
+          git status -s -uno
+          git --no-pager diff
+        working-directory: ${{ env.GOPATH }}/src/github.com/G-Research/armada
+
+  test:
+    name: Test
+    needs: [code_styles]
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Install Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: '1.16'
+      - name: Checkout code into the Go module directory
         uses: actions/checkout@v2
         with:
-          ref: 'gh-pages'
-          path: gh-pages
-    
-      - name: Copy site files
-        run: |
-          cp master/docs/*.md gh-pages/
-          cp -r master/docs/quickstart gh-pages/_pages
-          cp master/CODE_OF_CONDUCT.md master/CONTRIBUTING.md gh-pages/_pages/
+          path: ${{ env.GOPATH }}/src/github.com/G-Research/armada
 
-      - name: Commit GH Pages
+      - uses: actions/cache@v2
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+            /home/runner/.cache/go-build
+            ~/Library/Caches/go-build
+            %LocalAppData%\go-build
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Run tests
         run: |
-          cd gh-pages
-          git config user.name armada-admin
-          git config user.email admin@armadaproject.io
-          git add . _pages
-          git diff --quiet && git diff --staged --quiet || git commit -m "Updating Github Pages branch with latest Master changes"
-          git push
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          make tests
+        working-directory: ${{ env.GOPATH }}/src/github.com/G-Research/armada
+
+      - name: Check go.sum
+        run: |
+          cat go.sum
+        working-directory: ${{ env.GOPATH }}/src/github.com/G-Research/armada
+
+
+  build:
+    name: Build
+    needs: [test] 
+    runs-on: ubuntu-20.04
+    env: #TODO change DOCKERTOKEN and DOCKERUSERNAME
+      dockerToken: ${{ secrets.DOCKERTOKEN }}
+      dockerUsername: ${{ secrets.DOCKERUSERNAME }}
+    steps:
+      - name: Install Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: '1.16'
+      - name: Checkout code into the Go module directory
+        uses: actions/checkout@v2
+        with:
+          path: ${{ env.GOPATH }}/src/github.com/G-Research/armada
+
+      - name: Start cluster for e2e tests
+        run: |
+          ./e2e/setup/setup_cluster_ci.sh
+        working-directory: ${{ env.GOPATH }}/src/github.com/G-Research/armada
+
+      - name: Build & Run e2e tests
+        run: | 
+          make build-ci tests-e2e 
+        working-directory: ${{ env.GOPATH }}/src/github.com/G-Research/armada
+
+      - name: Check go.sum
+        run: |
+          cat go.sum
+        working-directory: ${{ env.GOPATH }}/src/github.com/G-Research/armada
+
+      - uses: actions/cache@v2
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+            /home/runner/.cache/go-build
+            ~/Library/Caches/go-build
+            %LocalAppData%\go-build
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Archive production artifacts
+        uses: actions/upload-artifact@v2
+        with:
+          name: armadactl
+          path: |
+            ${{ env.GOPATH }}/src/github.com/G-Research/armada/bin/armadactl
+
+      - name: Push Image #TODO
+        run: |
+          if [ -z "${dockerUsername}" ]
+            then
+              echo "Do not push image inside fork."
+              exit 0
+          fi
+
+          TAG=${GITHUB_SHA}
+          BRANCH=${GITHUB_REF##*/}
+
+          if [ ${BRANCH} != master ]
+            then
+              TAG=branch-$(echo -n ${BRANCH} | sed 's|/|-|g')-${GITHUB_SHA}
+          fi
+
+
+          echo ${dockerToken} | docker login -u ${dockerUsername} --password-stdin
+
+          docker tag armada ljubon/armada-server-dev:${TAG}
+          docker push ljubon/armada-server-dev:${TAG}
+
+          docker tag armada-executor ljubon/armada-executor-dev:${TAG}
+          docker push ljubon/armada-executor-dev:${TAG}
+
+          docker tag armadactl ljubon/armada-armadactl-dev:${TAG}
+          docker push ljubon/armada-armadactl-dev:${TAG}
+
+          docker tag armada-load-tester ljubon/armada-load-tester-dev:${TAG}
+          docker push ljubon/armada-load-tester-dev:${TAG}
+
+          docker tag armada-fakeexecutor ljubon/armada-fakeexecutor-dev:${TAG}
+          docker push ljubon/armada-fakeexecutor-dev:${TAG}
+
+          docker tag armada-lookout ljubon/armada-lookout-dev:${TAG}
+          docker push ljubon/armada-lookout-dev:${TAG}
+        working-directory: ${{ env.GOPATH }}/src/github.com/G-Research/armada
