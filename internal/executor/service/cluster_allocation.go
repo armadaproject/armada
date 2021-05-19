@@ -139,6 +139,7 @@ func getServicePorts(job *api.Job, podSpec *v1.PodSpec) []v1.ServicePort {
 			}
 			if shouldExposeWithNodePort(port, job) {
 				servicePort := v1.ServicePort{
+					Name:     fmt.Sprintf("%s-%d", container.Name, port.ContainerPort),
 					Port:     port.ContainerPort,
 					Protocol: port.Protocol,
 				}
