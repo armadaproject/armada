@@ -3,7 +3,7 @@ jobSetId: job-set-1
 jobs:
   - priority: 0
     ingress:
-      - type: Http
+      - type: NodePort
         ports:
           - 80
       - type: 0
