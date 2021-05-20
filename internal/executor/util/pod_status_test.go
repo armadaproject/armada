@@ -217,7 +217,7 @@ func createEvictedPod() *v1.Pod {
 }
 
 func createDeadlineExceededPod() *v1.Pod {
-	//For some reason on DeadlineExceeded, Kubernetes leaves the container statuses as Running even though it kills them on the host
+	//For DeadlineExceeded, Kubernetes leaves the container statuses as Running even though it kills them on the host
 	containerStatus := v1.ContainerStatus{
 		Name: "app",
 		State: v1.ContainerState{

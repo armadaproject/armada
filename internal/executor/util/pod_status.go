@@ -102,8 +102,8 @@ func ExtractFailedPodContainerStatuses(pod *v1.Pod) []*api.ContainerStatus {
 
 	for _, containerStatus := range containerStatuses {
 		if containerStatus.State.Terminated == nil {
-			//For some errors, Kubernetes confusingly leaves the containers in state running even though they are killed on the host
-			//Skip them to avoid confusion
+			//This function is meant to be finding exit stauses of containers
+			//Skip non-finished pods
 			continue
 		}
 		status := &api.ContainerStatus{
@@ -113,11 +113,9 @@ func ExtractFailedPodContainerStatuses(pod *v1.Pod) []*api.ContainerStatus {
 		if isOom(containerStatus) {
 			status.Cause = api.Cause_OOM
 		}
-		if containerStatus.State.Terminated != nil {
-			status.ExitCode = containerStatus.State.Terminated.ExitCode
-			status.Message = containerStatus.State.Terminated.Message
-			status.Reason = containerStatus.State.Terminated.Reason
-		}
+		status.ExitCode = containerStatus.State.Terminated.ExitCode
+		status.Message = containerStatus.State.Terminated.Message
+		status.Reason = containerStatus.State.Terminated.Reason
 		returnStatuses = append(returnStatuses, status)
 	}
 
