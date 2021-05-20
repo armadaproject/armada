@@ -19,6 +19,7 @@ var invalidImageNameStatesSet = util.StringListToSet([]string{"InvalidImageName"
 
 const oomKilledReason = "OOMKilled"
 const evictedReason = "Evicted"
+const deadlineExceeded = "DeadlineExceeded"
 
 func ExtractPodStuckReason(pod *v1.Pod) string {
 	containerStatuses := pod.Status.ContainerStatuses
@@ -63,6 +64,10 @@ func ExtractPodFailedCause(pod *v1.Pod) api.Cause {
 	if pod.Status.Reason == evictedReason {
 		return api.Cause_Evicted
 	}
+	if pod.Status.Reason == deadlineExceeded {
+		return api.Cause_DeadlineExceeded
+	}
+
 	containerStatuses := pod.Status.ContainerStatuses
 	containerStatuses = append(containerStatuses, pod.Status.InitContainerStatuses...)
 
@@ -96,6 +101,11 @@ func ExtractFailedPodContainerStatuses(pod *v1.Pod) []*api.ContainerStatus {
 	returnStatuses := make([]*api.ContainerStatus, 0, len(containerStatuses))
 
 	for _, containerStatus := range containerStatuses {
+		if containerStatus.State.Terminated == nil {
+			//This function is meant to be finding exit stauses of containers
+			//Skip non-finished containers
+			continue
+		}
 		status := &api.ContainerStatus{
 			Name:  containerStatus.Name,
 			Cause: api.Cause_Error,
@@ -103,11 +113,9 @@ func ExtractFailedPodContainerStatuses(pod *v1.Pod) []*api.ContainerStatus {
 		if isOom(containerStatus) {
 			status.Cause = api.Cause_OOM
 		}
-		if containerStatus.State.Terminated != nil {
-			status.ExitCode = containerStatus.State.Terminated.ExitCode
-			status.Message = containerStatus.State.Terminated.Message
-			status.Reason = containerStatus.State.Terminated.Reason
-		}
+		status.ExitCode = containerStatus.State.Terminated.ExitCode
+		status.Message = containerStatus.State.Terminated.Message
+		status.Reason = containerStatus.State.Terminated.Reason
 		returnStatuses = append(returnStatuses, status)
 	}
 
