@@ -103,7 +103,7 @@ func ExtractFailedPodContainerStatuses(pod *v1.Pod) []*api.ContainerStatus {
 	for _, containerStatus := range containerStatuses {
 		if containerStatus.State.Terminated == nil {
 			//This function is meant to be finding exit stauses of containers
-			//Skip non-finished pods
+			//Skip non-finished containers
 			continue
 		}
 		status := &api.ContainerStatus{
