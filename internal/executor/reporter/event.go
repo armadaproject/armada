@@ -27,6 +27,8 @@ func CreateEventForCurrentState(pod *v1.Pod, clusterId string) (api.Event, error
 			ClusterId:    clusterId,
 			KubernetesId: string(pod.ObjectMeta.UID),
 			PodNumber:    getPodNumber(pod),
+			PodName:      pod.Name,
+			PodNamespace: pod.Namespace,
 		}, nil
 	case v1.PodRunning:
 		return &api.JobRunningEvent{
@@ -37,6 +39,8 @@ func CreateEventForCurrentState(pod *v1.Pod, clusterId string) (api.Event, error
 			ClusterId:    clusterId,
 			KubernetesId: string(pod.ObjectMeta.UID),
 			PodNumber:    getPodNumber(pod),
+			PodName:      pod.Name,
+			PodNamespace: pod.Namespace,
 			NodeName:     pod.Spec.NodeName,
 		}, nil
 	case v1.PodFailed:
@@ -56,6 +60,8 @@ func CreateEventForCurrentState(pod *v1.Pod, clusterId string) (api.Event, error
 			ClusterId:    clusterId,
 			KubernetesId: string(pod.ObjectMeta.UID),
 			PodNumber:    getPodNumber(pod),
+			PodName:      pod.Name,
+			PodNamespace: pod.Namespace,
 			NodeName:     pod.Spec.NodeName,
 		}, nil
 	default:
@@ -82,6 +88,8 @@ func CreateJobUnableToScheduleEvent(pod *v1.Pod, reason string, clusterId string
 		Reason:       reason,
 		KubernetesId: string(pod.ObjectMeta.UID),
 		PodNumber:    getPodNumber(pod),
+		PodName:      pod.Name,
+		PodNamespace: pod.Namespace,
 		NodeName:     pod.Spec.NodeName,
 	}
 }
@@ -118,6 +126,8 @@ func CreateJobIngressInfoEvent(pod *v1.Pod, clusterId string, associatedService 
 		ClusterId:        clusterId,
 		KubernetesId:     string(pod.ObjectMeta.UID),
 		PodNumber:        getPodNumber(pod),
+		PodName:          pod.Name,
+		PodNamespace:     pod.Namespace,
 		NodeName:         pod.Spec.NodeName,
 		IngressAddresses: containerPortMapping,
 	}, nil
@@ -139,6 +149,8 @@ func CreateJobFailedEvent(pod *v1.Pod, reason string, cause api.Cause, container
 		ExitCodes:         exitCodes,
 		KubernetesId:      string(pod.ObjectMeta.UID),
 		PodNumber:         getPodNumber(pod),
+		PodName:           pod.Name,
+		PodNamespace:      pod.Namespace,
 		NodeName:          pod.Spec.NodeName,
 		ContainerStatuses: containerStatuses,
 		Cause:             cause,
@@ -155,6 +167,8 @@ func CreateJobUtilisationEvent(pod *v1.Pod, maxResources common.ComputeResources
 		MaxResourcesForPeriod: maxResources,
 		KubernetesId:          string(pod.ObjectMeta.UID),
 		PodNumber:             getPodNumber(pod),
+		PodName:               pod.Name,
+		PodNamespace:          pod.Namespace,
 		NodeName:              pod.Spec.NodeName,
 	}
 }
@@ -168,6 +182,8 @@ func CreateJobTerminatedEvent(pod *v1.Pod, reason string, clusterId string) api.
 		ClusterId:    clusterId,
 		KubernetesId: string(pod.ObjectMeta.UID),
 		PodNumber:    getPodNumber(pod),
+		PodName:      pod.Name,
+		PodNamespace: pod.Namespace,
 		Reason:       reason,
 	}
 }

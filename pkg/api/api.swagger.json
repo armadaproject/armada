@@ -529,6 +529,12 @@
         "nodeName": {
           "type": "string"
         },
+        "podName": {
+          "type": "string"
+        },
+        "podNamespace": {
+          "type": "string"
+        },
         "podNumber": {
           "type": "integer",
           "format": "int32"
@@ -567,6 +573,12 @@
           "type": "string"
         },
         "nodeName": {
+          "type": "string"
+        },
+        "podName": {
+          "type": "string"
+        },
+        "podNamespace": {
           "type": "string"
         },
         "podNumber": {
@@ -660,6 +672,12 @@
         "kubernetesId": {
           "type": "string"
         },
+        "podName": {
+          "type": "string"
+        },
+        "podNamespace": {
+          "type": "string"
+        },
         "podNumber": {
           "type": "integer",
           "format": "int32"
@@ -725,6 +743,12 @@
           "type": "string"
         },
         "nodeName": {
+          "type": "string"
+        },
+        "podName": {
+          "type": "string"
+        },
+        "podNamespace": {
           "type": "string"
         },
         "podNumber": {
@@ -902,6 +926,12 @@
         "nodeName": {
           "type": "string"
         },
+        "podName": {
+          "type": "string"
+        },
+        "podNamespace": {
+          "type": "string"
+        },
         "podNumber": {
           "type": "integer",
           "format": "int32"
@@ -928,6 +958,12 @@
           "type": "string"
         },
         "kubernetesId": {
+          "type": "string"
+        },
+        "podName": {
+          "type": "string"
+        },
+        "podNamespace": {
           "type": "string"
         },
         "podNumber": {
@@ -962,6 +998,12 @@
           "type": "string"
         },
         "nodeName": {
+          "type": "string"
+        },
+        "podName": {
+          "type": "string"
+        },
+        "podNamespace": {
           "type": "string"
         },
         "podNumber": {
@@ -1002,6 +1044,12 @@
           "type": "string"
         },
         "nodeName": {
+          "type": "string"
+        },
+        "podName": {
+          "type": "string"
+        },
+        "podNamespace": {
           "type": "string"
         },
         "podNumber": {
