@@ -75,6 +75,7 @@ tests:
 	}
 	trap tearDown EXIT
 	go test -v ./internal/...
+	go test -v ./pkg/...
 
 e2e-start-cluster:
 	./e2e/setup/setup_cluster_ci.sh
