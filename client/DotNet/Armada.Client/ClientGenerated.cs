@@ -578,6 +578,9 @@ namespace GResearch.Armada.Client
         [System.Runtime.Serialization.EnumMember(Value = @"OOM")]
         OOM = 2,
     
+        [System.Runtime.Serialization.EnumMember(Value = @"DeadlineExceeded")]
+        DeadlineExceeded = 3,
+    
     }
     
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
