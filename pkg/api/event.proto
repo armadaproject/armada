@@ -67,6 +67,8 @@ message JobPendingEvent {
     string cluster_id = 5;
     string kubernetes_id = 6;
     int32 pod_number = 7;
+    string pod_name = 8;
+    string pod_namespace = 9;
 }
 
 message JobRunningEvent {
@@ -78,6 +80,8 @@ message JobRunningEvent {
     string kubernetes_id = 6;
     string node_name = 7;
     int32 pod_number = 8;
+    string pod_name = 9;
+    string pod_namespace = 10;
 }
 
 message JobIngressInfoEvent {
@@ -89,6 +93,8 @@ message JobIngressInfoEvent {
     string kubernetes_id = 6;
     string node_name = 7;
     int32 pod_number = 8;
+    string pod_name = 10;
+    string pod_namespace = 11;
     map<int32, string> ingress_addresses = 9;
 }
 
@@ -102,6 +108,8 @@ message JobUnableToScheduleEvent {
     string kubernetes_id = 7;
     string node_name = 8;
     int32 pod_number = 9;
+    string pod_name = 10;
+    string pod_namespace = 11;
 }
 
 message JobFailedEvent {
@@ -115,6 +123,8 @@ message JobFailedEvent {
     string kubernetes_id = 8;
     string node_name = 9;
     int32 pod_number = 10;
+    string pod_name = 13;
+    string pod_namespace = 14;
     repeated ContainerStatus container_statuses = 11;
     Cause cause = 12;
 }
@@ -128,6 +138,8 @@ message JobSucceededEvent {
     string kubernetes_id = 6;
     string node_name = 7;
     int32 pod_number = 8;
+    string pod_name = 9;
+    string pod_namespace = 10;
 }
 
 message JobUtilisationEvent {
@@ -140,6 +152,8 @@ message JobUtilisationEvent {
     map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> MaxResourcesForPeriod = 7 [(gogoproto.nullable) = false];
     string node_name = 8;
     int32 pod_number = 9;
+    string pod_name = 10;
+    string pod_namespace = 11;
 }
 
 message JobReprioritizedEvent {
@@ -171,6 +185,8 @@ message JobTerminatedEvent {
     string cluster_id = 5;
     string kubernetes_id = 6;
     int32 pod_number = 7;
+    string pod_name = 9;
+    string pod_namespace = 10;
     string reason = 8;
 }
 
