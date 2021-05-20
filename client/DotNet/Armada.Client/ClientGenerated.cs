@@ -843,6 +843,12 @@ namespace GResearch.Armada.Client
         [Newtonsoft.Json.JsonProperty("nodeName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string NodeName { get; set; }
     
+        [Newtonsoft.Json.JsonProperty("podName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string PodName { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("podNamespace", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string PodNamespace { get; set; }
+    
         [Newtonsoft.Json.JsonProperty("podNumber", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public int? PodNumber { get; set; }
     
@@ -878,6 +884,12 @@ namespace GResearch.Armada.Client
     
         [Newtonsoft.Json.JsonProperty("nodeName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string NodeName { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("podName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string PodName { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("podNamespace", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string PodNamespace { get; set; }
     
         [Newtonsoft.Json.JsonProperty("podNumber", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public int? PodNumber { get; set; }
@@ -969,6 +981,12 @@ namespace GResearch.Armada.Client
         [Newtonsoft.Json.JsonProperty("kubernetesId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string KubernetesId { get; set; }
     
+        [Newtonsoft.Json.JsonProperty("podName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string PodName { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("podNamespace", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string PodNamespace { get; set; }
+    
         [Newtonsoft.Json.JsonProperty("podNumber", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public int? PodNumber { get; set; }
     
@@ -1034,6 +1052,12 @@ namespace GResearch.Armada.Client
     
         [Newtonsoft.Json.JsonProperty("nodeName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string NodeName { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("podName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string PodName { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("podNamespace", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string PodNamespace { get; set; }
     
         [Newtonsoft.Json.JsonProperty("podNumber", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public int? PodNumber { get; set; }
@@ -1188,6 +1212,12 @@ namespace GResearch.Armada.Client
         [Newtonsoft.Json.JsonProperty("nodeName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string NodeName { get; set; }
     
+        [Newtonsoft.Json.JsonProperty("podName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string PodName { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("podNamespace", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string PodNamespace { get; set; }
+    
         [Newtonsoft.Json.JsonProperty("podNumber", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public int? PodNumber { get; set; }
     
@@ -1214,6 +1244,12 @@ namespace GResearch.Armada.Client
     
         [Newtonsoft.Json.JsonProperty("kubernetesId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string KubernetesId { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("podName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string PodName { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("podNamespace", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string PodNamespace { get; set; }
     
         [Newtonsoft.Json.JsonProperty("podNumber", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public int? PodNumber { get; set; }
@@ -1247,6 +1283,12 @@ namespace GResearch.Armada.Client
     
         [Newtonsoft.Json.JsonProperty("nodeName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string NodeName { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("podName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string PodName { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("podNamespace", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string PodNamespace { get; set; }
     
         [Newtonsoft.Json.JsonProperty("podNumber", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public int? PodNumber { get; set; }
@@ -1283,6 +1325,12 @@ namespace GResearch.Armada.Client
     
         [Newtonsoft.Json.JsonProperty("nodeName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string NodeName { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("podName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string PodName { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("podNamespace", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string PodNamespace { get; set; }
     
         [Newtonsoft.Json.JsonProperty("podNumber", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public int? PodNumber { get; set; }
