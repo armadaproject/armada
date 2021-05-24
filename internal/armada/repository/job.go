@@ -592,15 +592,21 @@ func (repo *RedisJobRepository) GetQueueJobIds(queueName string) ([]string, erro
 
 func (repo *RedisJobRepository) GetActiveJobIds(queue string, jobSetId string) ([]string, error) {
 
-	queuedIds, e := repo.db.ZRange(jobQueuePrefix+queue, 0, -1).Result()
+	tx := repo.db.TxPipeline()
+	queuedIdsCommand := tx.ZRange(jobQueuePrefix+queue, 0, -1)
+	leasedIdsCommand := tx.ZRange(jobLeasedPrefix+queue, 0, -1)
+	jobSetIdsCommand := tx.SMembers(jobSetPrefix + jobSetId)
+	_, _ = tx.Exec()
+
+	queuedIds, e := queuedIdsCommand.Result()
 	if e != nil {
 		return nil, e
 	}
-	leasedIds, e := repo.db.ZRange(jobLeasedPrefix+queue, 0, -1).Result()
+	leasedIds, e := leasedIdsCommand.Result()
 	if e != nil {
 		return nil, e
 	}
-	jobSetIds, e := repo.db.SMembers(jobSetPrefix + jobSetId).Result()
+	jobSetIds, e := jobSetIdsCommand.Result()
 	if e != nil {
 		return nil, e
 	}
@@ -617,11 +623,16 @@ func (repo *RedisJobRepository) GetActiveJobIds(queue string, jobSetId string) (
 
 func (repo *RedisJobRepository) GetQueueActiveJobSets(queue string) ([]*api.JobSetInfo, error) {
 
-	queuedIds, e := repo.db.ZRange(jobQueuePrefix+queue, 0, -1).Result()
+	tx := repo.db.TxPipeline()
+	queuedIdsCommand := tx.ZRange(jobQueuePrefix+queue, 0, -1)
+	leasedIdsCommand := tx.ZRange(jobLeasedPrefix+queue, 0, -1)
+	_, _ = tx.Exec()
+
+	queuedIds, e := queuedIdsCommand.Result()
 	if e != nil {
 		return nil, e
 	}
-	leasedIds, e := repo.db.ZRange(jobLeasedPrefix+queue, 0, -1).Result()
+	leasedIds, e := leasedIdsCommand.Result()
 	if e != nil {
 		return nil, e
 	}
