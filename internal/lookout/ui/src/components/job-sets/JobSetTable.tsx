@@ -1,14 +1,15 @@
 import React from "react"
 
 import { TableCellProps, Table as VirtualizedTable } from "react-virtualized"
-import { Column, defaultTableCellRenderer } from "react-virtualized"
 
 import { JobSet } from "../../services/JobService"
 import CheckboxHeaderRow from "../CheckboxHeaderRow"
+
+import "./JobSetTable.css"
 import CheckboxRow from "../CheckboxRow"
 import LinkCell from "../LinkCell"
 
-import "./JobSetTable.css"
+import { Column, defaultTableCellRenderer } from "react-virtualized"
 
 interface JobSetTableProps {
   height: number

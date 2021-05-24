@@ -125,7 +125,13 @@ jobs:
             ineffassign ./...
 
       - run:
-          name: Check formatting
+          name: Check TypeScript formatting
+          command: |
+            cd ./internal/lookout/ui && npm run fmt && cd -
+            exit $(git status -s -uno | wc -l)
+
+      - run:
+          name: Check Go formatting
           command: |
             exit $(go run golang.org/x/tools/cmd/goimports -l -local "github.com/G-Research/armada" . | wc -l)
 
