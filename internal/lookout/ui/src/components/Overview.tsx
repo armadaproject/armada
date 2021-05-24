@@ -15,9 +15,9 @@ import {
 } from "@material-ui/core"
 import MoreVert from "@material-ui/icons/MoreVert"
 import RefreshIcon from "@material-ui/icons/Refresh"
-import { AutoSizer } from "react-virtualized"
 
 import { QueueInfo } from "../services/JobService"
+import { AutoSizer } from "react-virtualized"
 
 import "./Overview.css"
 
