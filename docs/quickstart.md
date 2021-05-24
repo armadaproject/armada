@@ -47,6 +47,7 @@ Make sure Helm is configured to use the required chart repos:
 helm repo add dandydev https://dandydeveloper.github.io/charts
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
 helm repo add nats https://nats-io.github.io/k8s/helm/charts
+helm repo add bitnami https://charts.bitnami.com/bitnami
 helm repo add gresearch https://g-research.github.io/charts
 helm repo update
 ```
