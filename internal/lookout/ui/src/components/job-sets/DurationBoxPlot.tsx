@@ -1,15 +1,16 @@
-import React from 'react'
-import { BoxPlot } from "@visx/stats";
-import { Circle } from "@visx/shape";
-import { scaleBand, scaleLinear } from "@visx/scale";
-import { WithTooltipProvidedProps } from "@visx/tooltip/lib/enhancers/withTooltip";
-import { TooltipWithBounds, withTooltip } from "@visx/tooltip";
-import { defaultStyles as defaultTooltipStyles } from "@visx/tooltip/lib/tooltips/Tooltip";
-import { Grid } from '@visx/grid';
+import React from "react"
 
-import DurationTooltip, { DurationTooltipProps } from "./DurationTooltip";
-import { DurationStats } from "../../services/JobService";
-import { Padding } from "../../utils";
+import { Grid } from "@visx/grid"
+import { scaleBand, scaleLinear } from "@visx/scale"
+import { Circle } from "@visx/shape"
+import { BoxPlot } from "@visx/stats"
+import { TooltipWithBounds, withTooltip } from "@visx/tooltip"
+import { WithTooltipProvidedProps } from "@visx/tooltip/lib/enhancers/withTooltip"
+import { defaultStyles as defaultTooltipStyles } from "@visx/tooltip/lib/tooltips/Tooltip"
+
+import { DurationStats } from "../../services/JobService"
+import { Padding } from "../../utils"
+import DurationTooltip, { DurationTooltipProps } from "./DurationTooltip"
 
 type DurationBoxPlotData = {
   width: number
@@ -49,7 +50,8 @@ function DurationBoxPlot(props: DurationBoxPlotProps) {
             height={props.height}
             numTicksColumns={10}
             numTicksRows={1}
-            stroke={"#E0E0E0"}/>
+            stroke={"#E0E0E0"}
+          />
           <BoxPlot
             horizontal={true}
             min={props.duration.shortest}
@@ -108,7 +110,7 @@ function DurationBoxPlot(props: DurationBoxPlotProps) {
                 })
               },
               onMouseLeave: () => {
-                props.hideTooltip();
+                props.hideTooltip()
               },
             }}
             medianProps={{
@@ -122,7 +124,7 @@ function DurationBoxPlot(props: DurationBoxPlotProps) {
                 })
               },
               onMouseLeave: () => {
-                props.hideTooltip();
+                props.hideTooltip()
               },
             }}
           />
@@ -142,7 +144,8 @@ function DurationBoxPlot(props: DurationBoxPlotProps) {
             }}
             onMouseLeave={() => {
               props.hideTooltip()
-            }}/>
+            }}
+          />
         </g>
       </svg>
 
@@ -150,8 +153,9 @@ function DurationBoxPlot(props: DurationBoxPlotProps) {
         <TooltipWithBounds
           top={props.tooltipTop}
           left={props.tooltipLeft}
-          style={{ ...defaultTooltipStyles, backgroundColor: '#283238', color: 'white' }}>
-          <DurationTooltip {...props.tooltipData}/>
+          style={{ ...defaultTooltipStyles, backgroundColor: "#283238", color: "white" }}
+        >
+          <DurationTooltip {...props.tooltipData} />
         </TooltipWithBounds>
       )}
     </div>

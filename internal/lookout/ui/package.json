@@ -6,7 +6,9 @@
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
-    "openapi": "docker run --rm -u $(id -u ${USER}):$(id -g ${USER}) -v \"${PWD}/../../../:/project\" openapitools/openapi-generator-cli bash -c \"/usr/local/bin/docker-entrypoint.sh generate -i /project/pkg/api/lookout/api.swagger.json -g typescript-fetch -o /project/internal/lookout/ui/src/openapi/lookout && /usr/local/bin/docker-entrypoint.sh generate -i /project/pkg/api/api.swagger.json -g typescript-fetch -o /project/internal/lookout/ui/src/openapi/armada\""
+    "openapi": "docker run --rm -u $(id -u ${USER}):$(id -g ${USER}) -v \"${PWD}/../../../:/project\" openapitools/openapi-generator-cli bash -c \"/usr/local/bin/docker-entrypoint.sh generate -i /project/pkg/api/lookout/api.swagger.json -g typescript-fetch -o /project/internal/lookout/ui/src/openapi/lookout && /usr/local/bin/docker-entrypoint.sh generate -i /project/pkg/api/api.swagger.json -g typescript-fetch -o /project/internal/lookout/ui/src/openapi/armada\"",
+    "lint": "eslint ./src/**/*.{js,ts,tsx}",
+    "fmt": "eslint ./src/**/*.{js,ts,tsx} --fix"
   },
   "dependencies": {
     "@material-ui/core": "^4.11.0",
@@ -22,10 +24,17 @@
     "@types/react-router-dom": "^5.1.6",
     "@types/react-virtualized": "^9.21.10",
     "@types/uuid": "^8.3.0",
+    "@typescript-eslint/eslint-plugin": "^4.24.0",
+    "@typescript-eslint/parser": "^4.24.0",
     "@visx/mock-data": "^1.0.0",
     "@visx/stats": "^1.4.0",
     "@visx/visx": "^1.4.0",
+    "eslint": "^7.26.0",
+    "eslint-config-prettier": "^8.3.0",
+    "eslint-plugin-import": "^2.23.3",
+    "eslint-plugin-prettier": "^3.4.0",
     "js-yaml": "^4.0.0",
+    "prettier": "^2.3.0",
     "query-string": "^6.13.7",
     "react": "^17.0.1",
     "react-dom": "^17.0.1",
@@ -35,12 +44,6 @@
     "typescript": "^4.0.5",
     "uuid": "^8.3.2",
     "web-vitals": "^0.2.4"
-  },
-  "eslintConfig": {
-    "extends": [
-      "react-app",
-      "react-app/jest"
-    ]
   },
   "browserslist": {
     "production": [

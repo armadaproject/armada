@@ -1,13 +1,14 @@
-import React, { Fragment } from 'react'
-import { RouteComponentProps, withRouter } from 'react-router-dom'
-import queryString, { ParseOptions, StringifyOptions } from 'query-string'
-import { v4 as uuidv4 } from 'uuid';
+import React, { Fragment } from "react"
 
-import JobService, { GetJobsRequest, Job, JOB_STATES_FOR_DISPLAY } from "../services/JobService"
+import queryString, { ParseOptions, StringifyOptions } from "query-string"
+import { RouteComponentProps, withRouter } from "react-router-dom"
+import { v4 as uuidv4 } from "uuid"
+
+import JobDetailsModal, { JobDetailsModalContext, toggleExpanded } from "../components/job-details/JobDetailsModal"
+import CancelJobsModal, { CancelJobsModalContext, CancelJobsModalState } from "../components/jobs/CancelJobsModal"
 import Jobs from "../components/jobs/Jobs"
-import CancelJobsModal, { CancelJobsModalContext, CancelJobsModalState } from "../components/jobs/CancelJobsModal";
-import JobDetailsModal, { JobDetailsModalContext, toggleExpanded } from "../components/job-details/JobDetailsModal";
-import { debounced } from "../utils";
+import JobService, { GetJobsRequest, JOB_STATES_FOR_DISPLAY, Job } from "../services/JobService"
+import { debounced } from "../utils"
 
 type JobsContainerProps = {
   jobService: JobService
@@ -50,15 +51,11 @@ const QUERY_STRING_OPTIONS: ParseOptions | StringifyOptions = {
 }
 const LOCAL_STORAGE_KEY = "armada_lookout_annotation_columns"
 const BATCH_SIZE = 100
-const CANCELLABLE_JOB_STATES = [
-  "Queued",
-  "Pending",
-  "Running",
-]
+const CANCELLABLE_JOB_STATES = ["Queued", "Pending", "Running"]
 
 export function makeQueryString(columns: ColumnSpec<string | boolean | string[]>[]): string {
   const columnMap = new Map<string, ColumnSpec<string | boolean | string[]>>()
-  for (let col of columns) {
+  for (const col of columns) {
     columnMap.set(col.id, col)
   }
 
@@ -69,7 +66,7 @@ export function makeQueryString(columns: ColumnSpec<string | boolean | string[]>
   const jobIdCol = columnMap.get("jobId")
   const ownerCol = columnMap.get("owner")
 
-  let queryObject: JobFiltersQueryParams = {}
+  const queryObject: JobFiltersQueryParams = {}
   if (queueCol && queueCol.filter) {
     queryObject.queue = queueCol.filter as string
   }
@@ -95,7 +92,7 @@ export function makeQueryString(columns: ColumnSpec<string | boolean | string[]>
 export function updateColumnsFromQueryString(query: string, columns: ColumnSpec<string | boolean | string[]>[]) {
   const params = queryString.parse(query, QUERY_STRING_OPTIONS) as JobFiltersQueryParams
 
-  for (let col of columns) {
+  for (const col of columns) {
     if (col.id === "queue" && params.queue) {
       col.filter = params.queue
     }
@@ -126,7 +123,7 @@ function parseJobStates(jobStates: string[] | string): string[] {
     }
   }
 
-  return jobStates.filter(jobState => JOB_STATES_FOR_DISPLAY.includes(jobState))
+  return jobStates.filter((jobState) => JOB_STATES_FOR_DISPLAY.includes(jobState))
 }
 
 class JobsContainer extends React.Component<JobsContainerProps, JobsContainerState> {
@@ -225,7 +222,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
   }
 
   componentDidMount() {
-    let annotationColumnsJson = localStorage.getItem(LOCAL_STORAGE_KEY)
+    const annotationColumnsJson = localStorage.getItem(LOCAL_STORAGE_KEY)
     let annotationColumns: ColumnSpec<string>[] | undefined
     if (annotationColumnsJson) {
       annotationColumns = JSON.parse(annotationColumnsJson) as ColumnSpec<string>[]
@@ -234,13 +231,13 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     updateColumnsFromQueryString(this.props.location.search, this.state.defaultColumns)
     this.setState({
       ...this.state,
-      annotationColumns: annotationColumns ?? []
+      annotationColumns: annotationColumns ?? [],
     })
   }
 
   async serveJobs(start: number, stop: number): Promise<Job[]> {
     if (start >= this.state.jobs.length || stop >= this.state.jobs.length) {
-      await this.loadJobInfosForRange(start, stop);
+      await this.loadJobInfosForRange(start, stop)
     }
     return Promise.resolve(this.state.jobs.slice(start, stop))
   }
@@ -250,13 +247,13 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
   }
 
   changeColumnFilter(columnId: string, newValue: string | boolean | string[]) {
-    for (let col of this.state.defaultColumns) {
+    for (const col of this.state.defaultColumns) {
       if (col.id === columnId) {
         col.filter = newValue
       }
     }
 
-    for (let col of this.state.annotationColumns) {
+    for (const col of this.state.annotationColumns) {
       if (col.id === columnId) {
         col.filter = newValue as string
       }
@@ -267,14 +264,14 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
   }
 
   disableColumn(columnId: string, isDisabled: boolean) {
-    for (let col of this.state.defaultColumns) {
+    for (const col of this.state.defaultColumns) {
       if (col.id === columnId) {
         col.isDisabled = isDisabled
         col.filter = col.defaultFilter
       }
     }
 
-    for (let col of this.state.annotationColumns) {
+    for (const col of this.state.annotationColumns) {
       if (col.id === columnId) {
         col.isDisabled = isDisabled
         col.filter = col.defaultFilter
@@ -313,7 +310,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
   }
 
   changeAnnotationColumnKey(columnId: string, newKey: string) {
-    for (let col of this.state.annotationColumns) {
+    for (const col of this.state.annotationColumns) {
       if (col.id === columnId) {
         col.name = newKey
         col.accessor = newKey
@@ -379,7 +376,8 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
       },
     })
     const cancelJobsResult = await this.props.jobService.cancelJobs(this.state.cancelJobsModalContext.jobsToCancel)
-    if (cancelJobsResult.failedJobCancellations.length === 0) { // All succeeded
+    if (cancelJobsResult.failedJobCancellations.length === 0) {
+      // All succeeded
       this.setState({
         ...this.state,
         jobs: [],
@@ -392,7 +390,8 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
           cancelJobsRequestStatus: "Idle",
         },
       })
-    } else if (cancelJobsResult.cancelledJobs.length === 0) { // All failed
+    } else if (cancelJobsResult.cancelledJobs.length === 0) {
+      // All failed
       this.setState({
         ...this.state,
         cancelJobsModalContext: {
@@ -402,7 +401,8 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
           cancelJobsRequestStatus: "Idle",
         },
       })
-    } else { // Some succeeded, some failed
+    } else {
+      // Some succeeded, some failed
       this.setState({
         ...this.state,
         jobs: [],
@@ -410,7 +410,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
         selectedJobs: new Map<string, Job>(),
         cancelJobsModalContext: {
           ...this.state.cancelJobsModalContext,
-          jobsToCancel: cancelJobsResult.failedJobCancellations.map(failed => failed.job),
+          jobsToCancel: cancelJobsResult.failedJobCancellations.map((failed) => failed.job),
           cancelJobsResult: cancelJobsResult,
           modalState: "CancelJobsResult",
           cancelJobsRequestStatus: "Idle",
@@ -443,7 +443,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
       jobDetailsModalContext: {
         ...this.state.jobDetailsModalContext,
         expandedItems: newExpanded,
-      }
+      },
     })
   }
 
@@ -453,7 +453,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
       jobDetailsModalContext: {
         ...this.state.jobDetailsModalContext,
         open: false,
-      }
+      },
     })
   }
 
@@ -461,7 +461,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     this.props.history.push({
       ...this.props.location,
       pathname: "/job-details",
-      search: `id=${jobId}`
+      search: `id=${jobId}`,
     })
   }
 
@@ -488,7 +488,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
   }
 
   private getJobsRequest(startIndex: number): GetJobsRequest {
-    let request: GetJobsRequest = {
+    const request: GetJobsRequest = {
       queue: "",
       jobId: "",
       owner: "",
@@ -500,7 +500,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
       annotations: {},
     }
 
-    for (let col of this.state.defaultColumns) {
+    for (const col of this.state.defaultColumns) {
       switch (col.id) {
         case "queue": {
           request.queue = col.filter as string
@@ -528,7 +528,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
         }
       }
     }
-    for (let col of this.state.annotationColumns) {
+    for (const col of this.state.annotationColumns) {
       if (col.filter) {
         request.annotations[col.accessor] = col.filter as string
       }
@@ -560,7 +560,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
   }
 
   private setStateAsync(state: JobsContainerState): Promise<void> {
-    return new Promise(resolve => this.setState(state, resolve))
+    return new Promise((resolve) => this.setState(state, resolve))
   }
 
   private setUrlParams() {
@@ -576,13 +576,12 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
 
   private selectedJobsAreCancellable(): boolean {
     return Array.from(this.state.selectedJobs.values())
-      .map(job => job.jobState)
-      .some(jobState => CANCELLABLE_JOB_STATES.includes(jobState))
+      .map((job) => job.jobState)
+      .some((jobState) => CANCELLABLE_JOB_STATES.includes(jobState))
   }
 
   private getCancellableSelectedJobs(selectedJobs: Map<string, Job>): Job[] {
-    return Array.from(selectedJobs.values())
-      .filter(job => CANCELLABLE_JOB_STATES.includes(job.jobState))
+    return Array.from(selectedJobs.values()).filter((job) => CANCELLABLE_JOB_STATES.includes(job.jobState))
   }
 
   render() {
@@ -594,13 +593,15 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
           cancelJobsResult={this.state.cancelJobsModalContext.cancelJobsResult}
           cancelJobsRequestStatus={this.state.cancelJobsModalContext.cancelJobsRequestStatus}
           onCancelJobs={this.cancelJobs}
-          onClose={() => this.setCancelJobsModalState("None")}/>
+          onClose={() => this.setCancelJobsModalState("None")}
+        />
         <JobDetailsModal
           open={this.state.jobDetailsModalContext.open}
           job={this.state.jobDetailsModalContext.job}
           expandedItems={this.state.jobDetailsModalContext.expandedItems}
           onToggleExpanded={this.toggleExpanded}
-          onClose={this.closeJobDetailsModal}/>
+          onClose={this.closeJobDetailsModal}
+        />
         <Jobs
           jobs={this.state.jobs}
           canLoadMore={this.state.canLoadMore}
@@ -620,7 +621,8 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
           onSelectJob={this.selectJob}
           onCancelJobsClick={() => this.setCancelJobsModalState("CancelJobs")}
           onJobIdClick={this.openJobDetailsModal}
-          resetRefresh={this.resetRefresh}/>
+          resetRefresh={this.resetRefresh}
+        />
       </Fragment>
     )
   }

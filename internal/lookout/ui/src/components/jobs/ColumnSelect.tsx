@@ -1,17 +1,20 @@
-import React from 'react';
+import React from "react"
+
 import {
-  Checkbox, IconButton,
+  Checkbox,
+  IconButton,
   Input,
-  InputLabel, ListItem,
+  InputLabel,
+  ListItem,
   ListItemText,
   MenuItem,
   MenuProps,
   Select,
-  TextField
-} from "@material-ui/core";
-import { Add, Clear } from "@material-ui/icons";
+  TextField,
+} from "@material-ui/core"
+import { Add, Clear } from "@material-ui/icons"
 
-import { ColumnSpec } from "../../containers/JobsContainer";
+import { ColumnSpec } from "../../containers/JobsContainer"
 
 type ColumnSelectProps = {
   defaultColumns: ColumnSpec<string | boolean | string[]>[]
@@ -47,13 +50,13 @@ const menuProps: Partial<MenuProps> = {
 function countTotalSelected(defaultColumns: ColumnSpec<any>[], annotationColumns: ColumnSpec<any>[]): number {
   let count = 0
 
-  for (let col of defaultColumns) {
+  for (const col of defaultColumns) {
     if (!col.isDisabled) {
       count++
     }
   }
 
-  for (let col of annotationColumns) {
+  for (const col of annotationColumns) {
     if (!col.isDisabled) {
       count++
     }
@@ -65,61 +68,75 @@ function countTotalSelected(defaultColumns: ColumnSpec<any>[], annotationColumns
 export default function ColumnSelect(props: ColumnSelectProps) {
   return (
     <div className="job-states-header-cell">
-      <InputLabel shrink={true} id="job-table-state-select-label">Columns</InputLabel>
+      <InputLabel shrink={true} id="job-table-state-select-label">
+        Columns
+      </InputLabel>
       <Select
         labelId="job-table-state-select-label"
         id="job-table-state-select"
         multiple
-        input={<Input/>}
+        input={<Input />}
         value={[]}
         renderValue={() => `${countTotalSelected(props.defaultColumns, props.annotationColumns)} selected`}
         displayEmpty={true}
         MenuProps={menuProps}
-        className="job-states-header-cell-select">
-        {props.defaultColumns.map(col => (
+        className="job-states-header-cell-select"
+      >
+        {props.defaultColumns.map((col) => (
           <ListItem key={col.id} value={col.name} style={{ height: ITEM_HEIGHT }}>
             <Checkbox
               checked={!col.isDisabled}
-              onChange={event => props.onDisableColumn(col.id, !event.target.checked)}/>
-            <ListItemText primary={col.name}/>
+              onChange={(event) => props.onDisableColumn(col.id, !event.target.checked)}
+            />
+            <ListItemText primary={col.name} />
           </ListItem>
         ))}
-        {props.annotationColumns.map(col => (
+        {props.annotationColumns.map((col) => (
           <ListItem key={col.id} value={col.name} style={{ height: ITEM_HEIGHT }}>
             <Checkbox
               checked={!col.isDisabled}
-              onChange={event => props.onDisableColumn(col.id, !event.target.checked)}/>
+              onChange={(event) => props.onDisableColumn(col.id, !event.target.checked)}
+            />
             <TextField
-              onKeyDown={e => e.stopPropagation()} // For input to work in select menu
+              onKeyDown={(e) => e.stopPropagation()} // For input to work in select menu
               label={props.inputLabel}
               value={col.name}
-              onChange={event => {
+              onChange={(event) => {
                 props.onChangeAnnotationColumnKey(col.id, event.target.value)
-              }}/>
-            <IconButton color="secondary" component="span" style={{
-              marginLeft: "0.5em",
-              height: ITEM_HEIGHT / 2,
-              width: ITEM_HEIGHT / 2,
-            }}
-            onClick={() => props.onDeleteColumn(col.id)}>
-              <Clear/>
+              }}
+            />
+            <IconButton
+              color="secondary"
+              component="span"
+              style={{
+                marginLeft: "0.5em",
+                height: ITEM_HEIGHT / 2,
+                width: ITEM_HEIGHT / 2,
+              }}
+              onClick={() => props.onDeleteColumn(col.id)}
+            >
+              <Clear />
             </IconButton>
           </ListItem>
         ))}
-        <MenuItem style={{
+        <MenuItem
+          style={{
             height: ITEM_HEIGHT,
           }}
-          onClick={props.onAddColumn}>
-          <div style={{
-            paddingLeft: 8,
-            paddingRight: 16,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}>
-            <Add/>
+          onClick={props.onAddColumn}
+        >
+          <div
+            style={{
+              paddingLeft: 8,
+              paddingRight: 16,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Add />
           </div>
-          <ListItemText secondary={props.addColumnText}/>
+          <ListItemText secondary={props.addColumnText} />
         </MenuItem>
       </Select>
     </div>

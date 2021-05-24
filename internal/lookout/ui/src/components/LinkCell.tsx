@@ -1,4 +1,5 @@
 import React from "react"
+
 import { TableCellProps } from "react-virtualized"
 
 import "./LinkCell.css"
