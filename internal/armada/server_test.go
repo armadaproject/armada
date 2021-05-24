@@ -187,6 +187,10 @@ func withRunningServer(action func(client api.SubmitClient, leaseClient api.Aggr
 		},
 		Scheduling: configuration.SchedulingConfig{
 			QueueLeaseBatchSize: 100,
+			Lease: configuration.LeaseSettings{
+				ExpireAfter:        time.Minute * 15,
+				ExpiryLoopInterval: time.Second * 5,
+			},
 		},
 		QueueManagement: configuration.QueueManagementConfig{
 			AutoCreateQueues:      true,
