@@ -35,9 +35,9 @@ type NodeSpec struct {
 var DefaultNodeSpec = []*NodeSpec{
 	{
 		Name:  "worker",
-		Count: 1,
+		Count: 500,
 		Allocatable: map[v1.ResourceName]resource.Quantity{
-			"cpu":    resource.MustParse("2"),
+			"cpu":    resource.MustParse("8"),
 			"memory": resource.MustParse("128Gi"),
 		},
 	},
@@ -105,7 +105,9 @@ func (c *FakeClusterContext) SubmitPod(pod *v1.Pod, owner string) (*v1.Pod, erro
 	saved := c.savePod(pod)
 
 	for _, h := range c.handlers {
-		h.AddFunc(pod)
+		if h.AddFunc != nil {
+			h.AddFunc(pod)
+		}
 	}
 
 	go func() {
@@ -184,7 +186,9 @@ func (c *FakeClusterContext) updateStatus(saved *v1.Pod, phase v1.PodPhase, stat
 	newPod := saved.DeepCopy()
 	c.rwLock.Unlock()
 	for _, h := range c.handlers {
-		h.UpdateFunc(oldPod, newPod)
+		if h.UpdateFunc != nil {
+			h.UpdateFunc(oldPod, newPod)
+		}
 	}
 	return oldPod, newPod
 }
