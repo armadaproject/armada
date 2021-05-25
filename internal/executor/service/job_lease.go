@@ -23,7 +23,7 @@ const jobDoneAnnotation = "reported_done"
 
 type LeaseService interface {
 	ReturnLease(pod *v1.Pod) error
-	RequestJobLeases(availableResource *common.ComputeResources, nodes []api.NodeInfo, leasedResourceByQueue map[string]common.ComputeResources) ([]*api.Job, error)
+	RequestJobLeases(availableResource common.ComputeResources, nodes []api.NodeInfo, autoscalingPools []api.AutoscalingPool, leasedResourceByQueue map[string]common.ComputeResources) ([]*api.Job, error)
 	ReportDone(jobIds []string) error
 }
 
@@ -56,7 +56,7 @@ func NewJobLeaseService(
 		minimumJobSize:  minimumJobSize}
 }
 
-func (jobLeaseService *JobLeaseService) RequestJobLeases(availableResource *common.ComputeResources, nodes []api.NodeInfo, leasedResourceByQueue map[string]common.ComputeResources) ([]*api.Job, error) {
+func (jobLeaseService *JobLeaseService) RequestJobLeases(availableResource common.ComputeResources, nodes []api.NodeInfo, autoscalingPools []api.AutoscalingPool, leasedResourceByQueue map[string]common.ComputeResources) ([]*api.Job, error) {
 	leasedQueueReports := make([]*api.QueueLeasedReport, 0, len(leasedResourceByQueue))
 	for queueName, leasedResource := range leasedResourceByQueue {
 		leasedQueueReport := &api.QueueLeasedReport{
@@ -74,7 +74,8 @@ func (jobLeaseService *JobLeaseService) RequestJobLeases(availableResource *comm
 	leaseRequest := api.LeaseRequest{
 		ClusterId:           jobLeaseService.clusterContext.GetClusterId(),
 		Pool:                jobLeaseService.clusterContext.GetClusterPool(),
-		Resources:           *availableResource,
+		Resources:           availableResource,
+		AutoscalingPools:    autoscalingPools,
 		ClusterLeasedReport: clusterLeasedReport,
 		Nodes:               nodes,
 		MinimumJobSize:      jobLeaseService.minimumJobSize,

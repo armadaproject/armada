@@ -36,6 +36,7 @@ message LeaseRequest {
     ClusterLeasedReport cluster_leased_report  = 4 [(gogoproto.nullable) = false];
     map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> minimum_job_size = 6 [(gogoproto.nullable) = false];
     repeated NodeInfo nodes = 7 [(gogoproto.nullable) = false];
+    repeated AutoscalingPool autoscaling_pools = 9 [(gogoproto.nullable) = false];
 }
 
 message NodeInfo {
@@ -52,15 +53,20 @@ message NodeType {
     map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> allocatable_resources = 3 [(gogoproto.nullable) = false];
 }
 
-// Used to store last info in Redis
-message ClusterSchedulingInfoReport {
+ // Used to store last info in Redis
+ message ClusterSchedulingInfoReport {
     string cluster_id = 1;
     string pool = 7;
     google.protobuf.Timestamp report_time = 2 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
     repeated NodeType node_types = 5;
     map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> minimum_job_size = 6 [(gogoproto.nullable) = false];
+    repeated AutoscalingPool autoscaling_pools = 8 [(gogoproto.nullable) = false];
 }
 
+message AutoscalingPool {
+    NodeType node_type = 1;
+    int32 max_node_count = 2;
+}
 
 message QueueLeasedReport {
     string name = 1;

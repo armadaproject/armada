@@ -80,7 +80,9 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 	}
 
 	nodeResources := scheduling.AggregateNodeTypeAllocations(request.Nodes)
-	clusterSchedulingInfo := scheduling.CreateClusterSchedulingInfoReport(request, nodeResources)
+	dormantNodeResources := scheduling.CalculateDormantResources(nodeResources, request.AutoscalingPools)
+
+	clusterSchedulingInfo := scheduling.CreateClusterSchedulingInfoReport(request, nodeResources, request.AutoscalingPools)
 	e = q.schedulingInfoRepository.UpdateClusterSchedulingInfo(clusterSchedulingInfo)
 	if e != nil {
 		return nil, e
@@ -99,17 +101,7 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 		return nil, e
 	}
 	poolLeasedJobReports := scheduling.FilterClusterLeasedReports(activePoolCLusterIds, clusterLeasedJobReports)
-	jobs, e := scheduling.LeaseJobs(
-		ctx,
-		&q.schedulingConfig,
-		q.jobQueue,
-		func(jobs []*api.Job) { reportJobsLeased(q.eventStore, jobs, request.ClusterId) },
-		request,
-		nodeResources,
-		activePoolClusterReports,
-		poolLeasedJobReports,
-		clusterPriorities,
-		activeQueues)
+	jobs, e := scheduling.LeaseJobs(ctx, &q.schedulingConfig, q.jobQueue, func(jobs []*api.Job) { reportJobsLeased(q.eventStore, jobs, request.ClusterId) }, nodeResources, activePoolClusterReports, request, poolLeasedJobReports, clusterPriorities, activeQueues)
 
 	if e != nil {
 		return nil, e

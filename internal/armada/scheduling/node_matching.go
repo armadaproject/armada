@@ -11,13 +11,14 @@ import (
 	"github.com/G-Research/armada/pkg/api"
 )
 
-func CreateClusterSchedulingInfoReport(leaseRequest *api.LeaseRequest, nodeAllocations []*nodeTypeAllocation) *api.ClusterSchedulingInfoReport {
+func CreateClusterSchedulingInfoReport(leaseRequest *api.LeaseRequest, nodeAllocations []*nodeTypeAllocation, autoscalingPools []api.AutoscalingPool) *api.ClusterSchedulingInfoReport {
 	return &api.ClusterSchedulingInfoReport{
-		ClusterId:      leaseRequest.ClusterId,
-		Pool:           leaseRequest.Pool,
-		ReportTime:     time.Now(),
-		NodeTypes:      extractNodeTypes(nodeAllocations),
-		MinimumJobSize: leaseRequest.MinimumJobSize,
+		ClusterId:        leaseRequest.ClusterId,
+		Pool:             leaseRequest.Pool,
+		ReportTime:       time.Now(),
+		NodeTypes:        extractNodeTypes(nodeAllocations),
+		MinimumJobSize:   leaseRequest.MinimumJobSize,
+		AutoscalingPools: autoscalingPools,
 	}
 }
 
@@ -185,6 +186,10 @@ func AggregateNodeTypeAllocations(nodes []api.NodeInfo) []*nodeTypeAllocation {
 	})
 
 	return result
+}
+
+func CalculateDormantResources([]*nodeTypeAllocation, []api.AutoscalingPool) []*nodeTypeAllocation {
+
 }
 
 func createNodeDescription(n *api.NodeInfo) string {

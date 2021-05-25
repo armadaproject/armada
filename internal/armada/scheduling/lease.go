@@ -43,12 +43,11 @@ func LeaseJobs(ctx context.Context,
 	config *configuration.SchedulingConfig,
 	jobQueue JobQueue,
 	onJobLease func([]*api.Job),
-	request *api.LeaseRequest,
 	nodeResources []*nodeTypeAllocation,
 	activeClusterReports map[string]*api.ClusterUsageReport,
+	request *api.LeaseRequest,
 	activeClusterLeaseJobReports map[string]*api.ClusterLeasedReport,
-	clusterPriorities map[string]map[string]float64,
-	activeQueues []*api.Queue) ([]*api.Job, error) {
+	clusterPriorities map[string]map[string]float64, activeQueues []*api.Queue) ([]*api.Job, error) {
 
 	resourcesToSchedule := common.ComputeResources(request.Resources).AsFloat()
 	currentClusterReport, ok := activeClusterReports[request.ClusterId]

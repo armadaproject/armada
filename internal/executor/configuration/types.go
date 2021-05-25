@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/G-Research/armada/internal/common"
+	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/client"
 )
 
@@ -20,6 +21,7 @@ type KubernetesConfiguration struct {
 	FailedPodExpiry   time.Duration
 	StuckPodExpiry    time.Duration
 	MinimumJobSize    common.ComputeResources
+	AutoscalingPools  []AutoScalingPool
 }
 
 type TaskConfiguration struct {
@@ -46,4 +48,9 @@ type ExecutorConfiguration struct {
 
 	Kubernetes KubernetesConfiguration
 	Task       TaskConfiguration
+}
+
+type AutoScalingPool struct {
+	NodeType     api.NodeType
+	MaximumCount int
 }

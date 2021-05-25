@@ -27,6 +27,7 @@ type ClusterUtilisationService struct {
 	usageClient             api.UsageClient
 	trackedNodeLabels       []string
 	toleratedTaints         map[string]bool
+	autoscalingPools        []api.AutoscalingPool
 }
 
 func NewClusterUtilisationService(
@@ -34,7 +35,8 @@ func NewClusterUtilisationService(
 	queueUtilisationService PodUtilisationService,
 	usageClient api.UsageClient,
 	trackedNodeLabels []string,
-	toleratedTaints []string) *ClusterUtilisationService {
+	toleratedTaints []string,
+	autoscalingPools []api.AutoscalingPool) *ClusterUtilisationService {
 
 	return &ClusterUtilisationService{
 		clusterContext:          clusterContext,
@@ -42,6 +44,7 @@ func NewClusterUtilisationService(
 		usageClient:             usageClient,
 		trackedNodeLabels:       trackedNodeLabels,
 		toleratedTaints:         util.StringListToSet(toleratedTaints),
+		autoscalingPools:        autoscalingPools,
 	}
 }
 
@@ -86,8 +89,9 @@ func (clusterUtilisationService *ClusterUtilisationService) ReportClusterUtilisa
 }
 
 type ClusterAvailableCapacityReport struct {
-	AvailableCapacity *common.ComputeResources
+	AvailableCapacity common.ComputeResources
 	Nodes             []api.NodeInfo
+	AutoscalingPools  []api.AutoscalingPool
 }
 
 func (clusterUtilisationService *ClusterUtilisationService) GetAvailableClusterCapacity() (*ClusterAvailableCapacityReport, error) {
@@ -127,8 +131,9 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAvailableClusterC
 	}
 
 	return &ClusterAvailableCapacityReport{
-		AvailableCapacity: &availableResource,
+		AvailableCapacity: availableResource,
 		Nodes:             nodes,
+		AutoscalingPools:  clusterUtilisationService.autoscalingPools,
 	}, nil
 }
 
