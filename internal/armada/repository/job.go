@@ -127,11 +127,11 @@ func (repo *RedisJobRepository) CreateJobs(request *api.JobSubmitRequest, owner 
 
 			Priority: item.Priority,
 
-			PodSpec:             item.PodSpec,
-			PodSpecs:            item.PodSpecs,
-			Created:             time.Now(),
-			Owner:               owner,
-			OwnershipUserGroups: ownershipGroups,
+			PodSpec:                  item.PodSpec,
+			PodSpecs:                 item.PodSpecs,
+			Created:                  time.Now(),
+			Owner:                    owner,
+			QueueOwnershipUserGroups: ownershipGroups,
 		}
 		jobs = append(jobs, j)
 	}
