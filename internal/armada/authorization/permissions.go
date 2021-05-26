@@ -59,10 +59,6 @@ func (checker *PrincipalPermissionChecker) UserOwns(ctx context.Context, obj Own
 	return len(ownershipGoups) > 0, ownershipGoups
 }
 
-func (checker *PrincipalPermissionChecker) GetUserOwnership(ctx context.Context, obj Owned) bool {
-	panic("implement me")
-}
-
 func hasPermission(perm permissions.Permission, permMap map[permissions.Permission][]string, assert func(string) bool) bool {
 	allowedValues, ok := permMap[perm]
 	if !ok {
