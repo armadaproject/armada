@@ -54,7 +54,7 @@ func TestKubernetesClusterContext_SubmitPod(t *testing.T) {
 	pod := createBatchPod()
 	client.Fake.ClearActions()
 
-	_, err := clusterContext.SubmitPod(pod, "user1")
+	_, err := clusterContext.SubmitPod(pod, "user1", []string{})
 	assert.Nil(t, err)
 
 	assert.Equal(t, len(client.Fake.Actions()), 1)
@@ -341,7 +341,7 @@ func TestKubernetesClusterContext_GetBatchPods_DoesNotShowTransient_OnSubmitFail
 	})
 
 	batchPod := createBatchPod()
-	_, err := clusterContext.SubmitPod(batchPod, "user")
+	_, err := clusterContext.SubmitPod(batchPod, "user", []string{})
 	assert.NotNil(t, err)
 
 	allPods, err := clusterContext.GetBatchPods()
@@ -411,13 +411,13 @@ func TestKubernetesClusterContext_GetNodes(t *testing.T) {
 func TestKubernetesClusterContext_Submit_UseUserSpecificClient(t *testing.T) {
 	clusterContext, provider := setupTestWithProvider()
 
-	_, err := clusterContext.SubmitPod(createBatchPod(), "user")
+	_, err := clusterContext.SubmitPod(createBatchPod(), "user", []string{})
 	assert.Nil(t, err)
 	assert.Contains(t, provider.users, "user")
 }
 
 func submitPod(t *testing.T, context ClusterContext, pod *v1.Pod) {
-	_, err := context.SubmitPod(pod, "user")
+	_, err := context.SubmitPod(pod, "user", []string{})
 	assert.Nil(t, err)
 }
 
@@ -521,7 +521,7 @@ type FakeClientProvider struct {
 	users      []string
 }
 
-func (p *FakeClientProvider) ClientForUser(user string) (kubernetes.Interface, error) {
+func (p *FakeClientProvider) ClientForUser(user string, groups []string) (kubernetes.Interface, error) {
 	p.users = append(p.users, user)
 	return p.FakeClient, nil
 }

@@ -111,7 +111,7 @@ func (allocationService *ClusterAllocationService) submitPod(job *api.Job, i int
 		pod.Annotations = mergeMaps(pod.Annotations, map[string]string{
 			domain.HasIngress: "true",
 		})
-		submittedPod, err := allocationService.clusterContext.SubmitPod(pod, job.Owner)
+		submittedPod, err := allocationService.clusterContext.SubmitPod(pod, job.Owner, job.QueueOwnershipUserGroups)
 		if err != nil {
 			return pod, err
 		}
@@ -119,7 +119,7 @@ func (allocationService *ClusterAllocationService) submitPod(job *api.Job, i int
 		_, err = allocationService.clusterContext.SubmitService(service)
 		return pod, err
 	} else {
-		_, err := allocationService.clusterContext.SubmitPod(pod, job.Owner)
+		_, err := allocationService.clusterContext.SubmitPod(pod, job.Owner, job.QueueOwnershipUserGroups)
 		return pod, err
 	}
 }

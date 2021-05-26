@@ -101,7 +101,7 @@ func (c *FakeClusterContext) GetPodEvents(pod *v1.Pod) ([]*v1.Event, error) {
 	return []*v1.Event{}, nil
 }
 
-func (c *FakeClusterContext) SubmitPod(pod *v1.Pod, owner string) (*v1.Pod, error) {
+func (c *FakeClusterContext) SubmitPod(pod *v1.Pod, owner string, ownerGroups []string) (*v1.Pod, error) {
 	saved := c.savePod(pod)
 
 	for _, h := range c.handlers {
