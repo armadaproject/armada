@@ -10,7 +10,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/G-Research/armada/internal/armada/authorization"
 	"github.com/G-Research/armada/internal/armada/repository"
 	"github.com/G-Research/armada/pkg/api"
 )
@@ -169,7 +168,7 @@ func addTestJobWithRequirements(t *testing.T, r *repository.RedisJobRepository, 
 				},
 			},
 		},
-	}, authorization.NewStaticPrincipal("user", []string{}))
+	}, "user", []string{})
 	assert.NoError(t, e)
 
 	results, e := r.AddJobs(jobs)

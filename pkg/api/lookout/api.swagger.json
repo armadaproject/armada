@@ -177,6 +177,12 @@
         "queue": {
           "type": "string"
         },
+        "queueOwnershipUserGroups": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
         "requiredNodeLabels": {
           "type": "object",
           "additionalProperties": {

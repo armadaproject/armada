@@ -37,7 +37,7 @@ type ClusterContext interface {
 	GetPodEvents(pod *v1.Pod) ([]*v1.Event, error)
 	GetService(name string, namespace string) (*v1.Service, error)
 
-	SubmitPod(pod *v1.Pod, owner string) (*v1.Pod, error)
+	SubmitPod(pod *v1.Pod, owner string, ownerGroups []string) (*v1.Pod, error)
 	SubmitService(service *v1.Service) (*v1.Service, error)
 	AddAnnotation(pod *v1.Pod, annotations map[string]string) error
 	DeletePods(pods []*v1.Pod)
@@ -205,10 +205,10 @@ func (c *KubernetesClusterContext) GetNodeStatsSummary(node *v1.Node) (*v1alpha1
 	return summary, nil
 }
 
-func (c *KubernetesClusterContext) SubmitPod(pod *v1.Pod, owner string) (*v1.Pod, error) {
+func (c *KubernetesClusterContext) SubmitPod(pod *v1.Pod, owner string, ownerGroups []string) (*v1.Pod, error) {
 
 	c.submittedPods.Add(pod)
-	ownerClient, err := c.kubernetesClientProvider.ClientForUser(owner)
+	ownerClient, err := c.kubernetesClientProvider.ClientForUser(owner, ownerGroups)
 	if err != nil {
 		return nil, err
 	}

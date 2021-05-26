@@ -725,6 +725,9 @@ namespace GResearch.Armada.Client
         [Newtonsoft.Json.JsonProperty("owner", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Owner { get; set; }
     
+        [Newtonsoft.Json.JsonProperty("ownershipUserGroups", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<string> OwnershipUserGroups { get; set; }
+    
         [Newtonsoft.Json.JsonProperty("podSpec", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public V1PodSpec PodSpec { get; set; }
     

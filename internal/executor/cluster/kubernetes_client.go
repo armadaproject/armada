@@ -10,7 +10,7 @@ import (
 )
 
 type KubernetesClientProvider interface {
-	ClientForUser(user string) (kubernetes.Interface, error)
+	ClientForUser(user string, groups []string) (kubernetes.Interface, error)
 	Client() kubernetes.Interface
 	ClientConfig() *rest.Config
 }
@@ -50,12 +50,12 @@ func (c *ConfigKubernetesClientProvider) ClientConfig() *rest.Config {
 	return c.restConfig
 }
 
-func (c *ConfigKubernetesClientProvider) ClientForUser(user string) (kubernetes.Interface, error) {
+func (c *ConfigKubernetesClientProvider) ClientForUser(user string, groups []string) (kubernetes.Interface, error) {
 	if !c.impersonateUsers {
 		return c.client, nil
 	}
 	config := *c.restConfig // shallow copy of the config
-	config.Impersonate = rest.ImpersonationConfig{UserName: user}
+	config.Impersonate = rest.ImpersonationConfig{UserName: user, Groups: groups}
 	return kubernetes.NewForConfig(&config)
 }
 
