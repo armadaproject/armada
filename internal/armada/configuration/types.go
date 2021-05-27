@@ -58,6 +58,14 @@ type KerberosAuthenticationConfig struct {
 	KeytabLocation string
 	PrincipalName  string
 	UserNameSuffix string
+	LDAP           LDAPConfig
+}
+
+type LDAPConfig struct {
+	URL             string
+	Username        string
+	Password        string
+	GroupSearchBase string
 }
 
 type SchedulingConfig struct {

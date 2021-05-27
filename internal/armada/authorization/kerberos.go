@@ -18,6 +18,7 @@ import (
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 
+	"github.com/G-Research/armada/internal/armada/authorization/groups"
 	"github.com/G-Research/armada/internal/armada/configuration"
 )
 
@@ -38,9 +39,10 @@ type KerberosAuthService struct {
 	kt             *keytab.Keytab
 	userNameSuffix string
 	settings       []func(*service.Settings)
+	groupLookup    groups.GroupLookup
 }
 
-func NewKerberosAuthService(config *configuration.KerberosAuthenticationConfig) (*KerberosAuthService, error) {
+func NewKerberosAuthService(config *configuration.KerberosAuthenticationConfig, groupLookup groups.GroupLookup) (*KerberosAuthService, error) {
 	kt, err := keytab.Load(config.KeytabLocation)
 	if err != nil {
 		return nil, err
@@ -55,6 +57,7 @@ func NewKerberosAuthService(config *configuration.KerberosAuthenticationConfig) 
 		kt:             kt,
 		userNameSuffix: config.UserNameSuffix,
 		settings:       settings,
+		groupLookup:    groupLookup,
 	}, nil
 }
 
@@ -103,12 +106,22 @@ func (authService *KerberosAuthService) Authenticate(ctx context.Context) (Princ
 		id := credentialsContext.Value(ctxCredentials).(*credentials.Credentials)
 		if adCredentials, ok := id.Attributes()[credentials.AttributeKeyADCredentials].(credentials.ADCredentials); ok {
 			user := adCredentials.EffectiveName + authService.userNameSuffix
-			groups := adCredentials.GroupMembershipSIDs
 
-			// Original library sets ticket accepted header here, but this breaks python request-negotiate-sspi module
+			var userGroups []string
+			if authService.groupLookup != nil {
+				userGroups, err = authService.groupLookup.GetGroupNames(adCredentials.GroupMembershipSIDs)
+				if err != nil {
+					return nil, err
+				}
+			} else {
+				userGroups = adCredentials.GroupMembershipSIDs
+			}
+
+			// Original library sets ticket accepted header here, but this breaks python
+			// request-negotiate-sspi module
 			// removing the header as workaround before moving away from kerberos
 			// _ = grpc.SetHeader(ctx, metadata.Pairs(spnego.HTTPHeaderAuthResponse, spnegoNegTokenRespKRBAcceptCompleted))
-			return NewStaticPrincipal(user, groups), nil
+			return NewStaticPrincipal(user, userGroups), nil
 		}
 		log.Error("Failed to read ad credentials")
 		return nil, status.Errorf(codes.Unauthenticated, "Failed to read ad credentials")
