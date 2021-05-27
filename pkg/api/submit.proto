@@ -46,6 +46,23 @@ message JobCancelRequest {
     string queue = 3;
 }
 
+// swagger:model
+message JobReprioritizeRequest {
+    string job_id = 1;
+    string job_set_id = 2;
+    string queue = 3;
+}
+
+// swagger:model
+message JobReprioritizeResponse {
+    repeated JobReprioritizeResponseItem job_response_items = 1;
+}
+
+message JobReprioritizeResponseItem {
+    string job_id = 1;
+    string error = 2;
+}
+
 message JobSubmitResponseItem {
     string job_id = 1;
     string error = 2;

@@ -413,7 +413,7 @@ func TestCreateJob_ApplyDefaultLimitss(t *testing.T) {
 				resources.Requests = *requirements
 				resources.Limits = *requirements
 			}
-			job := addTestJobWithRequirements(t, r, "test", "", resources)
+			job := addTestJobWithRequirements(t, r, "test", "", 1, resources)
 			assert.Equal(t, expected, job.PodSpec.Containers[0].Resources.Limits)
 			assert.Equal(t, expected, job.PodSpec.Containers[0].Resources.Requests)
 		}
@@ -508,6 +508,13 @@ func TestIterateQueueJobs(t *testing.T) {
 	})
 }
 
+func TestReprioritizeJobByIdt *testing.T) {
+	withRepository(func(r *RedisJobRepository) {
+		addTestJobWithPriority(t, r, "q1", 1)
+
+	})
+}
+
 func addLeasedJob(t *testing.T, r *RedisJobRepository, queue string, cluster string) *api.Job {
 	job := addTestJob(t, r, queue)
 	leased, e := r.TryLeaseJobs(cluster, queue, []*api.Job{job})
@@ -525,20 +532,30 @@ func addTestJobWithClientId(t *testing.T, r *RedisJobRepository, queue string, c
 	cpu := resource.MustParse("1")
 	memory := resource.MustParse("512Mi")
 
-	return addTestJobWithRequirements(t, r, queue, clientId, v1.ResourceRequirements{
+	return addTestJobWithRequirements(t, r, queue, clientId, 1, v1.ResourceRequirements{
 		Limits:   v1.ResourceList{"cpu": cpu, "memory": memory},
 		Requests: v1.ResourceList{"cpu": cpu, "memory": memory},
 	})
 }
 
-func addTestJobWithRequirements(t *testing.T, r *RedisJobRepository, queue string, clientId string, requirements v1.ResourceRequirements) *api.Job {
+func addTestJobWithPriority(t *testing.T, r *RedisJobRepository, queue string, priority float64) *api.Job {
+	cpu := resource.MustParse("1")
+	memory := resource.MustParse("512Mi")
+
+	return addTestJobWithRequirements(t, r, queue, "", priority, v1.ResourceRequirements{
+		Limits:   v1.ResourceList{"cpu": cpu, "memory": memory},
+		Requests: v1.ResourceList{"cpu": cpu, "memory": memory},
+	})
+}
+
+func addTestJobWithRequirements(t *testing.T, r *RedisJobRepository, queue string, clientId string, priority float64, requirements v1.ResourceRequirements) *api.Job {
 
 	jobs, e := r.CreateJobs(&api.JobSubmitRequest{
 		Queue:    queue,
 		JobSetId: "set1",
 		JobRequestItems: []*api.JobSubmitRequestItem{
 			{
-				Priority: 1,
+				Priority: priority,
 				ClientId: clientId,
 				PodSpec: &v1.PodSpec{
 					Containers: []v1.Container{
