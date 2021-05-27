@@ -1,4 +1,5 @@
-import React from 'react'
+import React from "react"
+
 import {
   Accordion,
   AccordionDetails,
@@ -8,14 +9,14 @@ import {
   TableCell,
   TableContainer,
   TableRow,
-} from "@material-ui/core";
-import { ExpandMore } from "@material-ui/icons";
+} from "@material-ui/core"
+import { ExpandMore } from "@material-ui/icons"
 
-import { Job } from "../../services/JobService";
-import { RunDetailsRows } from "./RunDetailsRows";
-import { PreviousRuns } from "./PreviousRuns";
+import { Job } from "../../services/JobService"
+import { PreviousRuns } from "./PreviousRuns"
+import { RunDetailsRows } from "./RunDetailsRows"
 
-import './Details.css'
+import "./Details.css"
 
 interface DetailsProps {
   job: Job
@@ -60,34 +61,31 @@ export default function JobDetails(props: DetailsProps) {
               <TableCell className="field-label">Submitted</TableCell>
               <TableCell className="field-value">{props.job.submissionTime}</TableCell>
             </TableRow>
-            {props.job.cancelledTime &&
-            <TableRow>
-              <TableCell className="field-label">Cancelled</TableCell>
-              <TableCell className="field-value">{props.job.cancelledTime}</TableCell>
-            </TableRow>}
-            {lastRun && <RunDetailsRows run={lastRun}/>}
+            {props.job.cancelledTime && (
+              <TableRow>
+                <TableCell className="field-label">Cancelled</TableCell>
+                <TableCell className="field-value">{props.job.cancelledTime}</TableCell>
+              </TableRow>
+            )}
+            {lastRun && <RunDetailsRows run={lastRun} />}
           </TableBody>
         </Table>
       </TableContainer>
-      {initRuns &&
-      <PreviousRuns
-        runs={initRuns}
-        expandedItems={props.expandedItems}
-        onToggleExpand={props.onToggleExpand}/>}
-      {props.job.jobYaml &&
-      <div className="details-yaml-container">
-        <Accordion>
-          <AccordionSummary
-            expandIcon={<ExpandMore/>}>
-            <h3>Job YAML</h3>
-          </AccordionSummary>
-          <AccordionDetails>
-            <p className="details-yaml">
-              {props.job.jobYaml}
-            </p>
-          </AccordionDetails>
-        </Accordion>
-      </div>}
+      {initRuns && (
+        <PreviousRuns runs={initRuns} expandedItems={props.expandedItems} onToggleExpand={props.onToggleExpand} />
+      )}
+      {props.job.jobYaml && (
+        <div className="details-yaml-container">
+          <Accordion>
+            <AccordionSummary expandIcon={<ExpandMore />}>
+              <h3>Job YAML</h3>
+            </AccordionSummary>
+            <AccordionDetails>
+              <p className="details-yaml">{props.job.jobYaml}</p>
+            </AccordionDetails>
+          </Accordion>
+        </div>
+      )}
     </div>
   )
 }

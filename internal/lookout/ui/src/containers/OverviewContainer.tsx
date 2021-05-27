@@ -1,9 +1,10 @@
-import React, { Fragment } from 'react'
-import { RouteComponentProps, withRouter } from 'react-router-dom';
+import React, { Fragment } from "react"
+
+import { RouteComponentProps, withRouter } from "react-router-dom"
 
 import Overview from "../components/Overview"
-import JobService, { Job, QueueInfo } from "../services/JobService";
-import JobDetailsModal, { JobDetailsModalContext, toggleExpanded } from "../components/job-details/JobDetailsModal";
+import JobDetailsModal, { JobDetailsModalContext, toggleExpanded } from "../components/job-details/JobDetailsModal"
+import JobService, { Job, QueueInfo } from "../services/JobService"
 
 type OverviewContainerProps = {
   jobService: JobService
@@ -26,7 +27,7 @@ class OverviewContainer extends React.Component<OverviewContainerProps, Overview
       modalContext: {
         open: false,
         expandedItems: new Set(),
-      }
+      },
     }
 
     this.fetchQueueInfos = this.fetchQueueInfos.bind(this)
@@ -46,7 +47,7 @@ class OverviewContainer extends React.Component<OverviewContainerProps, Overview
   async fetchQueueInfos() {
     const queueInfos = await this.props.jobService.getOverview()
     this.setState({
-      queueInfos: queueInfos
+      queueInfos: queueInfos,
     })
   }
 
@@ -77,7 +78,7 @@ class OverviewContainer extends React.Component<OverviewContainerProps, Overview
   openModalForJob(jobId: string, queue: string) {
     const queueInfo = this.state.queueInfos.find((queueInfo) => queueInfo.queue === queue)
     if (!queueInfo) {
-      return;
+      return
     }
 
     let job: Job | undefined
@@ -107,7 +108,7 @@ class OverviewContainer extends React.Component<OverviewContainerProps, Overview
       modalContext: {
         ...this.state.modalContext,
         expandedItems: newExpanded,
-      }
+      },
     })
   }
 
@@ -117,7 +118,7 @@ class OverviewContainer extends React.Component<OverviewContainerProps, Overview
       modalContext: {
         ...this.state.modalContext,
         open: false,
-      }
+      },
     })
   }
 
@@ -129,7 +130,8 @@ class OverviewContainer extends React.Component<OverviewContainerProps, Overview
           onClose={this.closeModal}
           open={this.state.modalContext.open}
           job={this.state.modalContext.job}
-          expandedItems={this.state.modalContext.expandedItems} />
+          expandedItems={this.state.modalContext.expandedItems}
+        />
         <Overview
           queueInfos={this.state.queueInfos}
           openQueueMenu={this.state.openQueueMenu}
@@ -138,7 +140,8 @@ class OverviewContainer extends React.Component<OverviewContainerProps, Overview
           onJobClick={this.openModalForJob}
           onSetQueueMenu={this.setOpenQueueMenu}
           onQueueMenuJobSetsClick={this.navigateToJobSets}
-          onQueueMenuJobsClick={this.navigateToJobs} />
+          onQueueMenuJobsClick={this.navigateToJobs}
+        />
       </Fragment>
     )
   }

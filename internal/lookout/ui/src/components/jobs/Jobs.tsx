@@ -1,15 +1,16 @@
-import React from 'react'
+import React from "react"
+
 import { AutoSizer, InfiniteLoader, Table } from "react-virtualized"
 
+import { ColumnSpec } from "../../containers/JobsContainer"
 import { Job } from "../../services/JobService"
-import JobTableHeader from "./JobTableHeader";
-import CheckboxRow from "../CheckboxRow";
-import CheckboxHeaderRow from "../CheckboxHeaderRow";
-import LoadingRow from "./LoadingRow";
-import { ColumnSpec } from "../../containers/JobsContainer";
-import columnWrapper from "./columnWrapper";
+import CheckboxHeaderRow from "../CheckboxHeaderRow"
+import CheckboxRow from "../CheckboxRow"
+import JobTableHeader from "./JobTableHeader"
+import LoadingRow from "./LoadingRow"
+import columnWrapper from "./columnWrapper"
 
-import './Jobs.css'
+import "./Jobs.css"
 
 type JobsProps = {
   jobs: Job[]
@@ -33,7 +34,7 @@ type JobsProps = {
   resetRefresh: () => void
 }
 
-export default class Jobs extends React.Component<JobsProps, {}> {
+export default class Jobs extends React.Component<JobsProps, Record<string, never>> {
   infiniteLoader: React.RefObject<InfiniteLoader>
 
   constructor(props: JobsProps) {
@@ -82,7 +83,8 @@ export default class Jobs extends React.Component<JobsProps, {}> {
             onDisableColumn={this.props.onDisableColumn}
             onDeleteColumn={this.props.onDeleteColumn}
             onAddColumn={this.props.onAddColumn}
-            onChangeAnnotationColumnKey={this.props.onChangeAnnotationColumnKey}/>
+            onChangeAnnotationColumnKey={this.props.onChangeAnnotationColumnKey}
+          />
         </div>
         <div className="job-table">
           <InfiniteLoader
@@ -91,15 +93,16 @@ export default class Jobs extends React.Component<JobsProps, {}> {
               return this.props.isLoaded(index)
             }}
             loadMoreRows={({ startIndex, stopIndex }) => {
-              return this.props.fetchJobs(startIndex, stopIndex + 1)  // stopIndex is inclusive
+              return this.props.fetchJobs(startIndex, stopIndex + 1) // stopIndex is inclusive
             }}
-            rowCount={rowCount}>
+            rowCount={rowCount}
+          >
             {({ onRowsRendered, registerChild }) => (
               <AutoSizer>
                 {({ height, width }) => {
                   const enabledColumns = this.props.defaultColumns
                     .concat(this.props.annotationColumns)
-                    .filter(col => !col.isDisabled)
+                    .filter((col) => !col.isDisabled)
                   return (
                     <Table
                       gridStyle={{ overflowY: "scroll" }}
@@ -120,26 +123,30 @@ export default class Jobs extends React.Component<JobsProps, {}> {
                         return (
                           <CheckboxRow
                             isChecked={selected}
-                            onChangeChecked={selected => this.props.onSelectJob(tableRowProps.rowData, selected)}
+                            onChangeChecked={(selected) => this.props.onSelectJob(tableRowProps.rowData, selected)}
                             tableKey={tableRowProps.key}
-                            {...tableRowProps} />
+                            {...tableRowProps}
+                          />
                         )
                       }}
                       headerRowRenderer={(tableHeaderRowProps) => {
-                        return <CheckboxHeaderRow {...tableHeaderRowProps}/>
+                        return <CheckboxHeaderRow {...tableHeaderRowProps} />
                       }}
                       headerHeight={60}
                       height={height - 1}
-                      width={width}>
-                      {enabledColumns
-                        .map(col => columnWrapper(
+                      width={width}
+                    >
+                      {enabledColumns.map((col) =>
+                        columnWrapper(
                           col.id,
                           col,
                           width / enabledColumns.length,
                           (newValue: string | boolean | string[]) => {
                             this.props.onChangeColumnValue(col.id, newValue)
                           },
-                          this.props.onJobIdClick))}
+                          this.props.onJobIdClick,
+                        ),
+                      )}
                     </Table>
                   )
                 }}

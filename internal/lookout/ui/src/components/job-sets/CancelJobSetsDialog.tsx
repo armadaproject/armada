@@ -1,10 +1,11 @@
-import React from "react";
+import React from "react"
 
-import { Dialog, DialogContent, DialogTitle } from "@material-ui/core";
-import { CancelJobSetsResult, JobSet } from "../../services/JobService";
-import { CancelJobSetsRequestStatus } from "../../containers/JobSetsContainer";
-import CancelJobSets from "./CancelJobSets";
-import CancelJobSetsOutcome from "./CancelJobSetsOutcome";
+import { Dialog, DialogContent, DialogTitle } from "@material-ui/core"
+
+import { CancelJobSetsRequestStatus } from "../../containers/JobSetsContainer"
+import { CancelJobSetsResult, JobSet } from "../../services/JobService"
+import CancelJobSets from "./CancelJobSets"
+import CancelJobSetsOutcome from "./CancelJobSetsOutcome"
 
 export type CancelJobSetsDialogState = "CancelJobSets" | "CancelJobSetsResult" | "None"
 
@@ -25,14 +26,15 @@ export default function CancelJobSetsDialog(props: CancelJobSetsProps) {
   const isOpen = props.dialogState === "CancelJobSets" || props.dialogState === "CancelJobSetsResult"
   const isLoading = props.cancelJobSetsRequestStatus === "Loading"
 
-  let content = <div/>
+  let content = <div />
   if (props.dialogState === "CancelJobSets") {
     content = (
       <CancelJobSets
         queue={props.queue}
         jobSets={props.jobSetsToCancel}
         isLoading={isLoading}
-        onCancelJobSets={props.onCancelJobSets}/>
+        onCancelJobSets={props.onCancelJobSets}
+      />
     )
   }
   if (props.dialogState === "CancelJobSetsResult") {
@@ -40,7 +42,8 @@ export default function CancelJobSetsDialog(props: CancelJobSetsProps) {
       <CancelJobSetsOutcome
         cancelJobSetsResult={props.cancelJobSetsResult}
         isLoading={isLoading}
-        onCancelJobs={props.onCancelJobSets}/>
+        onCancelJobs={props.onCancelJobSets}
+      />
     )
   }
 
@@ -50,11 +53,10 @@ export default function CancelJobSetsDialog(props: CancelJobSetsProps) {
       aria-labelledby="cancel-job-sets-modal-title"
       aria-describedby="cancel-job-sets-modal-description"
       onClose={props.onClose}
-      maxWidth={"md"}>
-        <DialogTitle id="cancel-job-sets-dialog-title">Cancel Job Sets</DialogTitle>
-        <DialogContent>
-          {content}
-        </DialogContent>
+      maxWidth={"md"}
+    >
+      <DialogTitle id="cancel-job-sets-dialog-title">Cancel Job Sets</DialogTitle>
+      <DialogContent>{content}</DialogContent>
     </Dialog>
   )
 }

@@ -1,18 +1,20 @@
-import React, { Ref } from "react";
+import React, { Ref } from "react"
+
 import {
-  createStyles,
   Paper,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
-  TableRow, Theme
-} from "@material-ui/core";
-import { makeStyles } from "@material-ui/core/styles";
+  TableRow,
+  Theme,
+  createStyles,
+} from "@material-ui/core"
+import { makeStyles } from "@material-ui/core/styles"
 
-import { Job } from "../../services/JobService";
-import LoadingButton from "./LoadingButton";
+import { Job } from "../../services/JobService"
+import LoadingButton from "./LoadingButton"
 
 const useStyles = makeStyles((theme: Theme) =>
   createStyles({
@@ -51,14 +53,10 @@ const CancelJobs = React.forwardRef((props: CancelJobsProps, ref: Ref<any>) => {
 
   return (
     <div ref={ref} className={classes.paper}>
-      <h2
-        id="cancel-jobs-modal-title"
-        className="cancel-jobs-modal-title">
+      <h2 id="cancel-jobs-modal-title" className="cancel-jobs-modal-title">
         Cancel jobs
       </h2>
-      <p
-        id="cancel-jobs-modal-description"
-        className="cancel-jobs-modal-description">
+      <p id="cancel-jobs-modal-description" className="cancel-jobs-modal-description">
         The following jobs will be cancelled:
       </p>
       <TableContainer component={Paper} className={classes.container}>
@@ -84,10 +82,7 @@ const CancelJobs = React.forwardRef((props: CancelJobsProps, ref: Ref<any>) => {
         </Table>
       </TableContainer>
       <div className={classes.button}>
-        <LoadingButton
-          content={"Cancel Jobs"}
-          isLoading={props.isLoading}
-          onClick={props.onCancelJobs} />
+        <LoadingButton content={"Cancel Jobs"} isLoading={props.isLoading} onClick={props.onCancelJobs} />
       </div>
     </div>
   )

@@ -1,7 +1,9 @@
-import React from "react";
-import { AxisTop } from '@visx/axis';
-import { Padding, secondsToDurationString } from "../../utils";
-import { scaleLinear } from "@visx/scale";
+import React from "react"
+
+import { AxisTop } from "@visx/axis"
+import { scaleLinear } from "@visx/scale"
+
+import { Padding, secondsToDurationString } from "../../utils"
 
 type DurationAxisProps = {
   height: number
@@ -30,7 +32,8 @@ export default function DurationAxis(props: DurationAxisProps) {
           dy: "-0.75em",
           textAnchor: "middle",
           fontSize: 12,
-        })}/>
+        })}
+      />
     </svg>
   )
 }
