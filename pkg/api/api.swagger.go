@@ -423,6 +423,12 @@ func SwaggerJsonTemplate() string {
 		"        \"queue\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
+		"        \"queueOwnershipUserGroups\": {\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"type\": \"string\"\n" +
+		"          }\n" +
+		"        },\n" +
 		"        \"requiredNodeLabels\": {\n" +
 		"          \"type\": \"object\",\n" +
 		"          \"additionalProperties\": {\n" +
