@@ -93,7 +93,8 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 		clusterContext,
 		eventReporter,
 		jobLeaseService,
-		clusterUtilisationService)
+		clusterUtilisationService,
+		config.Kubernetes.PodDefaults)
 
 	service.RunIngressCleanup(clusterContext)
 

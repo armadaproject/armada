@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/G-Research/armada/internal/common"
+	"github.com/G-Research/armada/internal/executor/configuration"
 	"github.com/G-Research/armada/internal/executor/domain"
 	"github.com/G-Research/armada/pkg/api"
 
@@ -28,15 +29,15 @@ func TestCreateLabels_CreatesExpectedLabels(t *testing.T) {
 		domain.PodCount:  "1",
 	}
 
-	expectedAnotations := map[string]string{
+	expectedAnnotations := map[string]string{
 		domain.JobSetId: job.JobSetId,
 		domain.Owner:    job.Owner,
 	}
 
-	result := createPod(&job, 0)
+	result := createPod(&job, &configuration.PodDefaults{}, 0)
 
 	assert.Equal(t, result.Labels, expectedLabels)
-	assert.Equal(t, result.Annotations, expectedAnotations)
+	assert.Equal(t, result.Annotations, expectedAnnotations)
 }
 
 func TestSetRestartPolicyNever_OverwritesExistingValue(t *testing.T) {
@@ -82,8 +83,39 @@ func TestCreatePod_CreatesExpectedPod(t *testing.T) {
 		Spec: *podSpec,
 	}
 
-	result := createPod(&job, 0)
+	result := createPod(&job, &configuration.PodDefaults{}, 0)
 	assert.Equal(t, result, &expectedOutput)
+}
+
+func TestApplyDefaults(t *testing.T) {
+	schedulerName := "OtherScheduler"
+
+	podSpec := makePodSpec()
+	expected := podSpec.DeepCopy()
+	expected.SchedulerName = schedulerName
+
+	applyDefaults(podSpec, &configuration.PodDefaults{SchedulerName: schedulerName})
+	assert.Equal(t, expected, podSpec)
+}
+
+func TestApplyDefaults_HandleEmptyDefaults(t *testing.T) {
+	podSpecOriginal := makePodSpec()
+	podSpec := podSpecOriginal.DeepCopy()
+
+	applyDefaults(podSpec, nil)
+	assert.Equal(t, podSpecOriginal, podSpec)
+
+	applyDefaults(podSpec, &configuration.PodDefaults{})
+	assert.Equal(t, podSpecOriginal, podSpec)
+}
+
+func TestApplyDefaults_DoesNotOverrideExistingValues(t *testing.T) {
+	podSpecOriginal := makePodSpec()
+	podSpecOriginal.SchedulerName = "Scheduler"
+
+	podSpec := podSpecOriginal.DeepCopy()
+	applyDefaults(podSpec, &configuration.PodDefaults{SchedulerName: "OtherScheduler"})
+	assert.Equal(t, podSpecOriginal, podSpec)
 }
 
 func makePodSpec() *v1.PodSpec {
