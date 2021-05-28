@@ -1,25 +1,26 @@
-import React from 'react'
+import React from "react"
+
 import {
+  Button,
   Container,
   FormControl,
   IconButton,
   InputLabel,
-  TextField,
-  Select,
   MenuItem,
   MenuProps,
-  Button,
-} from "@material-ui/core";
+  Select,
+  TextField,
+} from "@material-ui/core"
+import CancelIcon from "@material-ui/icons/Cancel"
 import RefreshIcon from "@material-ui/icons/Refresh"
-import { AutoSizer } from "react-virtualized";
+import { AutoSizer } from "react-virtualized"
 
-import DurationPlotsTable from "./DurationPlotsTable";
-import JobSetTable from "./JobSetTable";
-import { isJobSetsView, JobSetsView } from "../../containers/JobSetsContainer";
-import { DurationStats, JobSet } from "../../services/JobService";
-import CancelIcon from "@material-ui/icons/Cancel";
+import { JobSetsView, isJobSetsView } from "../../containers/JobSetsContainer"
+import { DurationStats, JobSet } from "../../services/JobService"
+import DurationPlotsTable from "./DurationPlotsTable"
+import JobSetTable from "./JobSetTable"
 
-import './JobSets.css'
+import "./JobSets.css"
 
 interface JobSetsProps {
   queue: string
@@ -55,32 +56,35 @@ export default function JobSets(props: JobSetsProps) {
       jobSets={props.jobSets}
       selectedJobSets={props.selectedJobSets}
       onJobSetClick={props.onJobSetClick}
-      onSelectJobSet={props.onSelectJobSet}/>
+      onSelectJobSet={props.onSelectJobSet}
+    />
   )
   if (props.view === "queued-time") {
-    const filtered = props.jobSets.filter(js => js.queuedStats)
+    const filtered = props.jobSets.filter((js) => js.queuedStats)
     content = (height: number, width: number) => (
       <DurationPlotsTable
         height={height}
         width={width}
-        names={filtered.map(js => js.jobSetId)}
-        durations={filtered.map(js => js.queuedStats as DurationStats)}
+        names={filtered.map((js) => js.jobSetId)}
+        durations={filtered.map((js) => js.queuedStats as DurationStats)}
         primaryColor={"#00bcd4"}
         secondaryColor={"#673ab7"}
-        percentagePlotWidth={0.7}/>
+        percentagePlotWidth={0.7}
+      />
     )
   }
   if (props.view === "runtime") {
-    const filtered = props.jobSets.filter(js => js.runningStats)
+    const filtered = props.jobSets.filter((js) => js.runningStats)
     content = (height: number, width: number) => (
       <DurationPlotsTable
         height={height}
         width={width}
-        names={filtered.map(js => js.jobSetId)}
-        durations={filtered.map(js => js.runningStats as DurationStats)}
+        names={filtered.map((js) => js.jobSetId)}
+        durations={filtered.map((js) => js.runningStats as DurationStats)}
         primaryColor={"#4caf50"}
         secondaryColor={"#3f51b5"}
-        percentagePlotWidth={0.7}/>
+        percentagePlotWidth={0.7}
+      />
     )
   }
 
@@ -97,7 +101,8 @@ export default function JobSets(props: JobSetsProps) {
                 props.onQueueChange(event.target.value)
               }}
               label="Queue"
-              variant="outlined"/>
+              variant="outlined"
+            />
           </div>
           <div className="job-sets-field">
             <FormControl className="job-sets-field">
@@ -110,7 +115,8 @@ export default function JobSets(props: JobSetsProps) {
                     props.onViewChange(value)
                   }
                 }}
-                MenuProps={menuProps}>
+                MenuProps={menuProps}
+              >
                 <MenuItem value={"job-counts"}>Job counts</MenuItem>
                 <MenuItem value={"runtime"}>Runtime</MenuItem>
                 <MenuItem value={"queued-time"}>Queued time</MenuItem>
@@ -124,17 +130,15 @@ export default function JobSets(props: JobSetsProps) {
               disabled={!props.canCancel}
               variant="contained"
               color="secondary"
-              startIcon={<CancelIcon/>}
-              onClick={props.onCancelJobSetsClick}>
+              startIcon={<CancelIcon />}
+              onClick={props.onCancelJobSetsClick}
+            >
               Cancel
             </Button>
           </div>
           <div className="refresh-button">
-            <IconButton
-              title={"Refresh"}
-              onClick={props.onRefresh}
-              color={"primary"}>
-              <RefreshIcon/>
+            <IconButton title={"Refresh"} onClick={props.onRefresh} color={"primary"}>
+              <RefreshIcon />
             </IconButton>
           </div>
         </div>

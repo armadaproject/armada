@@ -1,11 +1,12 @@
 import React from "react"
-import { Backdrop, createStyles, Fade, Modal, } from "@material-ui/core";
-import { makeStyles } from "@material-ui/core/styles";
 
-import { CancelJobsResult, Job } from "../../services/JobService";
-import { CancelJobsRequestStatus } from "../../containers/JobsContainer";
-import CancelJobs from "./CancelJobs";
-import CancelJobsOutcome from "./CancelJobsOutcome";
+import { Backdrop, Fade, Modal, createStyles } from "@material-ui/core"
+import { makeStyles } from "@material-ui/core/styles"
+
+import { CancelJobsRequestStatus } from "../../containers/JobsContainer"
+import { CancelJobsResult, Job } from "../../services/JobService"
+import CancelJobs from "./CancelJobs"
+import CancelJobsOutcome from "./CancelJobsOutcome"
 
 export type CancelJobsModalState = "CancelJobs" | "CancelJobsResult" | "None"
 
@@ -24,10 +25,10 @@ interface CancelJobsDialogProps extends CancelJobsModalContext {
 const useStyles = makeStyles(() =>
   createStyles({
     modal: {
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-    }
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+    },
   }),
 )
 
@@ -36,21 +37,17 @@ export default function CancelJobsModal(props: CancelJobsDialogProps) {
   const isOpen = props.modalState === "CancelJobs" || props.modalState === "CancelJobsResult"
   const isLoading = props.cancelJobsRequestStatus === "Loading"
 
-  let content = <div/>
+  let content = <div />
   if (props.modalState === "CancelJobs") {
-    content = (
-      <CancelJobs
-        jobsToCancel={props.jobsToCancel}
-        isLoading={isLoading}
-        onCancelJobs={props.onCancelJobs}/>
-    )
+    content = <CancelJobs jobsToCancel={props.jobsToCancel} isLoading={isLoading} onCancelJobs={props.onCancelJobs} />
   }
   if (props.modalState === "CancelJobsResult") {
     content = (
       <CancelJobsOutcome
         cancelJobsResult={props.cancelJobsResult}
         isLoading={isLoading}
-        onCancelJobs={props.onCancelJobs}/>
+        onCancelJobs={props.onCancelJobs}
+      />
     )
   }
 
@@ -65,11 +62,10 @@ export default function CancelJobsModal(props: CancelJobsDialogProps) {
       BackdropProps={{
         timeout: 500,
       }}
-      onClose={props.onClose}>
+      onClose={props.onClose}
+    >
       <>
-        <Fade in={isOpen}>
-          {content}
-        </Fade>
+        <Fade in={isOpen}>{content}</Fade>
       </>
     </Modal>
   )
