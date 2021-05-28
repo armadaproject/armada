@@ -38,10 +38,11 @@ const (
 )
 
 type KerberosAuthService struct {
-	kt             *keytab.Keytab
-	userNameSuffix string
-	settings       []func(*service.Settings)
-	groupLookup    groups.GroupLookup
+	kt              *keytab.Keytab
+	userNameSuffix  string
+	groupNameSuffix string
+	settings        []func(*service.Settings)
+	groupLookup     groups.GroupLookup
 }
 
 func NewKerberosAuthService(config *configuration.KerberosAuthenticationConfig, groupLookup groups.GroupLookup) (*KerberosAuthService, error) {
@@ -56,10 +57,11 @@ func NewKerberosAuthService(config *configuration.KerberosAuthenticationConfig, 
 	}
 
 	return &KerberosAuthService{
-		kt:             kt,
-		userNameSuffix: config.UserNameSuffix,
-		settings:       settings,
-		groupLookup:    groupLookup,
+		kt:              kt,
+		userNameSuffix:  config.UserNameSuffix,
+		groupNameSuffix: config.GroupNameSuffix,
+		settings:        settings,
+		groupLookup:     groupLookup,
 	}, nil
 }
 
@@ -116,14 +118,9 @@ func (authService *KerberosAuthService) Authenticate(ctx context.Context) (Princ
 				}
 			}
 
-			var userGroups []string
-			if authService.groupLookup != nil {
-				userGroups, err = authService.groupLookup.GetGroupNames(groupSIDs)
-				if err != nil {
-					return nil, err
-				}
-			} else {
-				userGroups = groupSIDs
+			userGroups, err := authService.mapUserGroups(groupSIDs)
+			if err != nil {
+				return nil, err
 			}
 
 			// Original library sets ticket accepted header here, but this breaks python
@@ -140,4 +137,19 @@ func (authService *KerberosAuthService) Authenticate(ctx context.Context) (Princ
 		_ = grpc.SetHeader(ctx, metadata.Pairs(spnego.HTTPHeaderAuthResponse, spnegoNegTokenRespReject))
 		return nil, status.Errorf(codes.Unauthenticated, "SPNEGO Kerberos authentication failed")
 	}
+}
+
+func (authService *KerberosAuthService) mapUserGroups(groupSIDs []string) ([]string, error) {
+	if authService.groupLookup != nil {
+		userGroups, err := authService.groupLookup.GetGroupNames(groupSIDs)
+		if err != nil {
+			return nil, err
+		}
+		prefixedUserGroups := []string{}
+		for _, group := range userGroups {
+			prefixedUserGroups = append(groupSIDs, group+authService.groupNameSuffix)
+		}
+		return prefixedUserGroups, nil
+	}
+	return groupSIDs, nil
 }

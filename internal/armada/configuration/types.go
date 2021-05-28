@@ -55,10 +55,11 @@ type BasicAuthenticationConfig struct {
 }
 
 type KerberosAuthenticationConfig struct {
-	KeytabLocation string
-	PrincipalName  string
-	UserNameSuffix string
-	LDAP           LDAPConfig
+	KeytabLocation  string
+	PrincipalName   string
+	UserNameSuffix  string
+	GroupNameSuffix string
+	LDAP            LDAPConfig
 }
 
 type LDAPConfig struct {
