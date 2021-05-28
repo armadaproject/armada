@@ -24,10 +24,15 @@ type LDAPGroupLookup struct {
 }
 
 func NewLDAPGroupLookup(config configuration.LDAPConfig) *LDAPGroupLookup {
+	expiry := config.CacheExpiry
+	if expiry == 0 {
+		expiry = 5 * time.Minute
+	}
+
 	return &LDAPGroupLookup{
 		config:      config,
 		cache:       map[string]cacheRecord{},
-		cacheExpiry: 5 * time.Minute,
+		cacheExpiry: expiry,
 	}
 }
 

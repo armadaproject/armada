@@ -126,8 +126,6 @@ func (authService *KerberosAuthService) Authenticate(ctx context.Context) (Princ
 				userGroups = groupSIDs
 			}
 
-			log.Infof("Domain ID: %s", adCredentials.LogonDomainID)
-
 			// Original library sets ticket accepted header here, but this breaks python
 			// request-negotiate-sspi module
 			// removing the header as workaround before moving away from kerberos

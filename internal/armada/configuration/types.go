@@ -66,6 +66,7 @@ type LDAPConfig struct {
 	Username        string
 	Password        string
 	GroupSearchBase string
+	CacheExpiry     time.Duration
 }
 
 type SchedulingConfig struct {
