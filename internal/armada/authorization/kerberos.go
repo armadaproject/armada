@@ -33,6 +33,8 @@ const (
 	spnegoNegTokenRespIncompleteKRB5 = "Negotiate oRQwEqADCgEBoQsGCSqGSIb3EgECAg=="
 	// ctxCredentials is the SPNEGO context key holding the credentials jcmturner/goidentity/Identity object.
 	ctxCredentials = "github.com/jcmturner/gokrb5/v8/ctxCredentials"
+
+	SIDAuthenticationAuthorityAssertedIdentity = "S-1-18-1"
 )
 
 type KerberosAuthService struct {
@@ -107,15 +109,24 @@ func (authService *KerberosAuthService) Authenticate(ctx context.Context) (Princ
 		if adCredentials, ok := id.Attributes()[credentials.AttributeKeyADCredentials].(credentials.ADCredentials); ok {
 			user := adCredentials.EffectiveName + authService.userNameSuffix
 
+			groupSIDs := []string{}
+			for _, sid := range adCredentials.GroupMembershipSIDs {
+				if sid != SIDAuthenticationAuthorityAssertedIdentity {
+					groupSIDs = append(groupSIDs, sid)
+				}
+			}
+
 			var userGroups []string
 			if authService.groupLookup != nil {
-				userGroups, err = authService.groupLookup.GetGroupNames(adCredentials.GroupMembershipSIDs)
+				userGroups, err = authService.groupLookup.GetGroupNames(groupSIDs)
 				if err != nil {
 					return nil, err
 				}
 			} else {
-				userGroups = adCredentials.GroupMembershipSIDs
+				userGroups = groupSIDs
 			}
+
+			log.Errorf("Domain ID: ", adCredentials.LogonDomainID)
 
 			// Original library sets ticket accepted header here, but this breaks python
 			// request-negotiate-sspi module
