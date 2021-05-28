@@ -3,6 +3,7 @@ package groups
 import (
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-ldap/ldap/v3"
@@ -19,6 +20,7 @@ type LDAPGroupLookup struct {
 	config      configuration.LDAPConfig
 	cache       map[string]cacheRecord
 	cacheExpiry time.Duration
+	mutex       sync.Mutex
 }
 
 func NewLDAPGroupLookup(config configuration.LDAPConfig) *LDAPGroupLookup {
@@ -39,22 +41,67 @@ func (lookup *LDAPGroupLookup) GetGroupNames(SIDs []string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	result := lookup.readFromCache(SIDs)
+	return result, nil
+}
+
+func (lookup *LDAPGroupLookup) readFromCache(SIDs []string) []string {
+	lookup.mutex.Lock()
+	defer lookup.mutex.Unlock()
 
 	result := []string{}
 	for _, sid := range SIDs {
 		record, ok := lookup.cache[sid]
-		if ok {
+		if ok && record.name != "" {
 			result = append(result, record.name)
-		} else {
-			log.Errorf("could not find group name for %s", sid)
 		}
 	}
-	return result, nil
+	return result
 }
 
 func (lookup *LDAPGroupLookup) updateCache(SIDs []string) error {
 
-	log.Infof("Looking up group SIDS: %v", SIDs)
+	missing := lookup.getMissingGroups(SIDs)
+
+	if len(missing) == 0 {
+		return nil
+	}
+
+	groupNames, err := lookup.getGroupNames(missing)
+	if err != nil {
+		return err
+	}
+
+	lookup.saveInCache(SIDs, groupNames)
+	return nil
+}
+
+func (lookup *LDAPGroupLookup) saveInCache(SIDs []string, groupNames map[string]string) {
+	lookup.mutex.Lock()
+	defer lookup.mutex.Unlock()
+
+	for sid, name := range groupNames {
+		lookup.cache[sid] = cacheRecord{
+			name:    name,
+			created: time.Now(),
+		}
+	}
+
+	for _, sid := range SIDs {
+		_, exists := lookup.cache[sid]
+		if !exists {
+			lookup.cache[sid] = cacheRecord{
+				name:    "",
+				created: time.Now(),
+			}
+			log.Warnf("Could not find group name for %s", sid)
+		}
+	}
+}
+
+func (lookup *LDAPGroupLookup) getMissingGroups(SIDs []string) []string {
+	lookup.mutex.Lock()
+	defer lookup.mutex.Unlock()
 
 	deadline := time.Now().Add(-lookup.cacheExpiry)
 	missing := []string{}
@@ -64,21 +111,7 @@ func (lookup *LDAPGroupLookup) updateCache(SIDs []string) error {
 			missing = append(missing, sid)
 		}
 	}
-
-	groupNames, err := lookup.getGroupNames(missing)
-	if err != nil {
-		return err
-	}
-
-	log.Infof("Found group names: %v", groupNames)
-
-	for sid, name := range groupNames {
-		lookup.cache[sid] = cacheRecord{
-			name:    name,
-			created: time.Now(),
-		}
-	}
-	return nil
+	return missing
 }
 
 func (lookup *LDAPGroupLookup) getGroupNames(SIDs []string) (map[string]string, error) {
