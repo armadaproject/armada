@@ -72,6 +72,38 @@
         "tags": [
           "Submit"
         ],
+        "operationId": "CancelJobs",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiJobCancelRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiCancellationResult"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        }
+      }
+    },
+    "/v1/job/reprioritize": {
+      "post": {
+        "tags": [
+          "Submit"
+        ],
         "operationId": "ReprioritizeJobs",
         "parameters": [
           {

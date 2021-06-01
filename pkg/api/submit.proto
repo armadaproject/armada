@@ -119,7 +119,7 @@ service Submit {
     }
     rpc ReprioritizeJobs (JobReprioritizeRequest) returns (JobReprioritizeResponse) {
         option (google.api.http) = {
-            post: "/v1/job/cancel"
+            post: "/v1/job/reprioritize"
             body: "*"
         };
     }
