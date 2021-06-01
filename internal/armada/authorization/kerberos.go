@@ -147,7 +147,7 @@ func (authService *KerberosAuthService) mapUserGroups(groupSIDs []string) ([]str
 		}
 		prefixedUserGroups := []string{}
 		for _, group := range userGroups {
-			prefixedUserGroups = append(groupSIDs, group+authService.groupNameSuffix)
+			prefixedUserGroups = append(prefixedUserGroups, group+authService.groupNameSuffix)
 		}
 		return prefixedUserGroups, nil
 	}
