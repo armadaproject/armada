@@ -72,14 +72,14 @@
         "tags": [
           "Submit"
         ],
-        "operationId": "CancelJobs",
+        "operationId": "ReprioritizeJobs",
         "parameters": [
           {
             "name": "body",
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/apiJobCancelRequest"
+              "$ref": "#/definitions/apiJobReprioritizeRequest"
             }
           }
         ],
@@ -87,7 +87,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/apiCancellationResult"
+              "$ref": "#/definitions/apiJobReprioritizeResponse"
             }
           },
           "default": {
@@ -709,6 +709,36 @@
         },
         "queue": {
           "type": "string"
+        }
+      }
+    },
+    "apiJobReprioritizeRequest": {
+      "type": "object",
+      "title": "swagger:model",
+      "properties": {
+        "jobIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "jobSetId": {
+          "type": "string"
+        },
+        "queue": {
+          "type": "string"
+        }
+      }
+    },
+    "apiJobReprioritizeResponse": {
+      "type": "object",
+      "title": "swagger:model",
+      "properties": {
+        "reprioritizedIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       }
     },

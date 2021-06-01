@@ -83,14 +83,14 @@ func SwaggerJsonTemplate() string {
 		"        \"tags\": [\n" +
 		"          \"Submit\"\n" +
 		"        ],\n" +
-		"        \"operationId\": \"CancelJobs\",\n" +
+		"        \"operationId\": \"ReprioritizeJobs\",\n" +
 		"        \"parameters\": [\n" +
 		"          {\n" +
 		"            \"name\": \"body\",\n" +
 		"            \"in\": \"body\",\n" +
 		"            \"required\": true,\n" +
 		"            \"schema\": {\n" +
-		"              \"$ref\": \"#/definitions/apiJobCancelRequest\"\n" +
+		"              \"$ref\": \"#/definitions/apiJobReprioritizeRequest\"\n" +
 		"            }\n" +
 		"          }\n" +
 		"        ],\n" +
@@ -98,7 +98,7 @@ func SwaggerJsonTemplate() string {
 		"          \"200\": {\n" +
 		"            \"description\": \"A successful response.\",\n" +
 		"            \"schema\": {\n" +
-		"              \"$ref\": \"#/definitions/apiCancellationResult\"\n" +
+		"              \"$ref\": \"#/definitions/apiJobReprioritizeResponse\"\n" +
 		"            }\n" +
 		"          },\n" +
 		"          \"default\": {\n" +
@@ -720,6 +720,36 @@ func SwaggerJsonTemplate() string {
 		"        },\n" +
 		"        \"queue\": {\n" +
 		"          \"type\": \"string\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"apiJobReprioritizeRequest\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"title\": \"swagger:model\",\n" +
+		"      \"properties\": {\n" +
+		"        \"jobIds\": {\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"type\": \"string\"\n" +
+		"          }\n" +
+		"        },\n" +
+		"        \"jobSetId\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"queue\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"apiJobReprioritizeResponse\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"title\": \"swagger:model\",\n" +
+		"      \"properties\": {\n" +
+		"        \"reprioritizedIds\": {\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"type\": \"string\"\n" +
+		"          }\n" +
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +

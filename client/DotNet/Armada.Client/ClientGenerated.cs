@@ -125,15 +125,15 @@ namespace GResearch.Armada.Client
     
         /// <returns>A successful response.</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public System.Threading.Tasks.Task<ApiCancellationResult> CancelJobsAsync(ApiJobCancelRequest body)
+        public System.Threading.Tasks.Task<ApiJobReprioritizeResponse> ReprioritizeJobsAsync(ApiJobReprioritizeRequest body)
         {
-            return CancelJobsAsync(body, System.Threading.CancellationToken.None);
+            return ReprioritizeJobsAsync(body, System.Threading.CancellationToken.None);
         }
     
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <returns>A successful response.</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public async System.Threading.Tasks.Task<ApiCancellationResult> CancelJobsAsync(ApiJobCancelRequest body, System.Threading.CancellationToken cancellationToken)
+        public async System.Threading.Tasks.Task<ApiJobReprioritizeResponse> ReprioritizeJobsAsync(ApiJobReprioritizeRequest body, System.Threading.CancellationToken cancellationToken)
         {
             var urlBuilder_ = new System.Text.StringBuilder();
             urlBuilder_.Append(BaseUrl != null ? BaseUrl.TrimEnd('/') : "").Append("/v1/job/cancel");
@@ -169,7 +169,7 @@ namespace GResearch.Armada.Client
                         var status_ = ((int)response_.StatusCode).ToString();
                         if (status_ == "200") 
                         {
-                            var objectResponse_ = await ReadObjectResponseAsync<ApiCancellationResult>(response_, headers_).ConfigureAwait(false);
+                            var objectResponse_ = await ReadObjectResponseAsync<ApiJobReprioritizeResponse>(response_, headers_).ConfigureAwait(false);
                             return objectResponse_.Object;
                         }
                         else
@@ -1016,6 +1016,30 @@ namespace GResearch.Armada.Client
     
         [Newtonsoft.Json.JsonProperty("queue", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Queue { get; set; }
+    
+    
+    }
+    
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
+    public partial class ApiJobReprioritizeRequest 
+    {
+        [Newtonsoft.Json.JsonProperty("jobIds", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<string> JobIds { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("jobSetId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string JobSetId { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("queue", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Queue { get; set; }
+    
+    
+    }
+    
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
+    public partial class ApiJobReprioritizeResponse 
+    {
+        [Newtonsoft.Json.JsonProperty("reprioritizedIds", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<string> ReprioritizedIds { get; set; }
     
     
     }
