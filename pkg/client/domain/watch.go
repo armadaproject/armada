@@ -211,6 +211,8 @@ func updateJobInfo(info *JobInfo, event api.Event) {
 
 	case *api.JobUnableToScheduleEvent:
 		// NOOP
+	case *api.JobReprioritizingEvent:
+		// TODO
 	case *api.JobReprioritizedEvent:
 		// TODO
 	case *api.JobTerminatedEvent:

@@ -55,6 +55,8 @@ func UnwrapEvent(message *EventMessage) (Event, error) {
 		return event.Failed, nil
 	case *EventMessage_Succeeded:
 		return event.Succeeded, nil
+	case *EventMessage_Reprioritizing:
+		return event.Reprioritizing, nil
 	case *EventMessage_Reprioritized:
 		return event.Reprioritized, nil
 	case *EventMessage_Cancelling:
@@ -137,6 +139,12 @@ func Wrap(event Event) (*EventMessage, error) {
 		return &EventMessage{
 			Events: &EventMessage_Succeeded{
 				Succeeded: typed,
+			},
+		}, nil
+	case *JobReprioritizingEvent:
+		return &EventMessage{
+			Events: &EventMessage_Reprioritizing{
+				Reprioritizing: typed,
 			},
 		}, nil
 	case *JobReprioritizedEvent:

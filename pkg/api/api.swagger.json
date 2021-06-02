@@ -334,6 +334,9 @@
         "reprioritized": {
           "$ref": "#/definitions/apiJobReprioritizedEvent"
         },
+        "reprioritizing": {
+          "$ref": "#/definitions/apiJobReprioritizingEvent"
+        },
         "running": {
           "$ref": "#/definitions/apiJobRunningEvent"
         },
@@ -757,6 +760,10 @@
         "jobSetId": {
           "type": "string"
         },
+        "newPriority": {
+          "type": "number",
+          "format": "double"
+        },
         "queue": {
           "type": "string"
         }
@@ -786,6 +793,32 @@
         },
         "jobSetId": {
           "type": "string"
+        },
+        "newPriority": {
+          "type": "number",
+          "format": "double"
+        },
+        "queue": {
+          "type": "string"
+        }
+      }
+    },
+    "apiJobReprioritizingEvent": {
+      "type": "object",
+      "properties": {
+        "created": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "jobId": {
+          "type": "string"
+        },
+        "jobSetId": {
+          "type": "string"
+        },
+        "newPriority": {
+          "type": "number",
+          "format": "double"
         },
         "queue": {
           "type": "string"

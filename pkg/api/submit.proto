@@ -51,6 +51,7 @@ message JobReprioritizeRequest {
     repeated string job_ids = 1;
     string job_set_id = 2;
     string queue = 3;
+    double new_priority = 4;
 }
 
 // swagger:model

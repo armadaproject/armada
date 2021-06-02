@@ -345,6 +345,9 @@ func SwaggerJsonTemplate() string {
 		"        \"reprioritized\": {\n" +
 		"          \"$ref\": \"#/definitions/apiJobReprioritizedEvent\"\n" +
 		"        },\n" +
+		"        \"reprioritizing\": {\n" +
+		"          \"$ref\": \"#/definitions/apiJobReprioritizingEvent\"\n" +
+		"        },\n" +
 		"        \"running\": {\n" +
 		"          \"$ref\": \"#/definitions/apiJobRunningEvent\"\n" +
 		"        },\n" +
@@ -768,6 +771,10 @@ func SwaggerJsonTemplate() string {
 		"        \"jobSetId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
+		"        \"newPriority\": {\n" +
+		"          \"type\": \"number\",\n" +
+		"          \"format\": \"double\"\n" +
+		"        },\n" +
 		"        \"queue\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        }\n" +
@@ -797,6 +804,32 @@ func SwaggerJsonTemplate() string {
 		"        },\n" +
 		"        \"jobSetId\": {\n" +
 		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"newPriority\": {\n" +
+		"          \"type\": \"number\",\n" +
+		"          \"format\": \"double\"\n" +
+		"        },\n" +
+		"        \"queue\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"apiJobReprioritizingEvent\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"created\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"format\": \"date-time\"\n" +
+		"        },\n" +
+		"        \"jobId\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"jobSetId\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"newPriority\": {\n" +
+		"          \"type\": \"number\",\n" +
+		"          \"format\": \"double\"\n" +
 		"        },\n" +
 		"        \"queue\": {\n" +
 		"          \"type\": \"string\"\n" +
