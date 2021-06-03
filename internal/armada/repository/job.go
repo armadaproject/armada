@@ -48,6 +48,7 @@ type JobRepository interface {
 	GetActiveJobIds(queue string, jobSetId string) ([]string, error)
 	GetLeasedJobIds(queue string) ([]string, error)
 	UpdateStartTime(jobId string, clusterId string, startTime time.Time) error
+	UpdatePriority(job *api.Job, newPriority float64) error
 	GetJobRunInfos(jobIds []string) (map[string]*RunInfo, error)
 	GetQueueActiveJobSets(queue string) ([]*api.JobSetInfo, error)
 	AddRetryAttempt(jobId string) error
@@ -197,7 +198,7 @@ func (repo *RedisJobRepository) ReturnLease(clusterId string, jobId string) (ret
 	}
 	job := jobs[0]
 
-	returned, e := returnLease(repo.db, clusterId, job.Queue, job.Id, job.Created).Int()
+	returned, e := returnLease(repo.db, clusterId, job.Queue, job.Id, job.Priority).Int()
 	if e != nil {
 		return nil, e
 	}
@@ -535,6 +536,52 @@ end
 return redis.call('HSET', startTimeKey, clusterId, startTime)
 `)
 
+func (repo *RedisJobRepository) UpdatePriority(job *api.Job, newPriority float64) error {
+	job.Priority = newPriority
+	jobData, err := proto.Marshal(job)
+	if err != nil {
+		return err
+	}
+
+	result, err := updatePriority(repo.db, job, newPriority, &jobData).Int()
+	if err != nil {
+		return err
+	}
+	if result == updatePriorityJobDoesNotExist {
+		return fmt.Errorf("job with id %q not found among queued jobs", job.Id)
+	}
+
+	return nil
+}
+
+func updatePriority(db redis.Cmdable, job *api.Job, newPriority float64, jobData *[]byte) *redis.Cmd {
+	return updatePriorityScript.Run(db,
+		[]string{jobQueuePrefix + job.Queue, jobObjectPrefix + job.Id},
+		job.Id, newPriority, *jobData)
+}
+
+const updatePriorityJobDoesNotExist = -100
+
+var updatePriorityScript = redis.NewScript(`
+local queue = KEYS[1]
+local job = KEYS[2]
+
+local jobId = ARGV[1]
+local newPriority = ARGV[2]
+local jobData = ARGV[3]
+
+local exists = redis.call('ZSCORE', queue, jobId)
+
+if exists ~= false then
+	redis.call('SET', job, jobData)
+	redis.call('ZADD', queue, newPriority, jobId)
+else
+	return -100
+end
+
+return 0
+`)
+
 type RunInfo struct {
 	StartTime        time.Time
 	CurrentClusterId string
@@ -695,7 +742,7 @@ func (repo *RedisJobRepository) ExpireLeases(queue string, deadline time.Time) (
 	pipe := repo.db.Pipeline()
 	expireScript.Load(pipe)
 	for _, job := range expiringJobs {
-		cmds[job] = expire(pipe, job.Queue, job.Id, job.Created, deadline)
+		cmds[job] = expire(pipe, job.Queue, job.Id, job.Priority, deadline)
 	}
 	_, e = pipe.Exec()
 
@@ -860,9 +907,9 @@ else
 end
 `)
 
-func expire(db redis.Cmdable, queueName string, jobId string, created time.Time, deadline time.Time) *redis.Cmd {
+func expire(db redis.Cmdable, queueName string, jobId string, priority float64, deadline time.Time) *redis.Cmd {
 	return expireScript.Run(db, []string{jobQueuePrefix + queueName, jobLeasedPrefix + queueName, jobClusterMapKey},
-		jobId, float64(created.UnixNano()), float64(deadline.UnixNano()))
+		jobId, priority, float64(deadline.UnixNano()))
 }
 
 var expireScript = redis.NewScript(`
@@ -871,7 +918,7 @@ local leasedJobsSet = KEYS[2]
 local clusterAssociation = KEYS[3]
 
 local jobId = ARGV[1]
-local created = tonumber(ARGV[2])
+local priority = tonumber(ARGV[2])
 local deadline = tonumber(ARGV[3])
 
 local leasedTime = tonumber(redis.call('ZSCORE', leasedJobsSet, jobId))
@@ -880,16 +927,16 @@ if leasedTime ~= nil and leasedTime < deadline then
 	redis.call('HDEL', clusterAssociation, jobId)
 	local exists = redis.call('ZREM', leasedJobsSet, jobId)
 	if exists ~= 0 then
-		return redis.call('ZADD', queue, created, jobId)
+		return redis.call('ZADD', queue, priority, jobId)
 	else
 		return 0
 	end
 end
 `)
 
-func returnLease(db redis.Cmdable, clusterId string, queueName string, jobId string, created time.Time) *redis.Cmd {
+func returnLease(db redis.Cmdable, clusterId string, queueName string, jobId string, priority float64) *redis.Cmd {
 	return returnLeaseScript.Run(db, []string{jobQueuePrefix + queueName, jobLeasedPrefix + queueName, jobClusterMapKey},
-		clusterId, jobId, float64(created.UnixNano()))
+		clusterId, jobId, priority)
 }
 
 var returnLeaseScript = redis.NewScript(`
@@ -899,7 +946,7 @@ local clusterAssociation = KEYS[3]
 
 local clusterId = ARGV[1]
 local jobId = ARGV[2]
-local created = tonumber(ARGV[3])
+local priority = tonumber(ARGV[3])
 
 local currentClusterId = redis.call('HGET', clusterAssociation, jobId)
 
@@ -907,7 +954,7 @@ if currentClusterId == clusterId then
 	redis.call('HDEL', clusterAssociation, jobId)
 	local exists = redis.call('ZREM', leasedJobsSet, jobId)
 	if exists ~= 0 then
-		return redis.call('ZADD', queue, created, jobId)
+		return redis.call('ZADD', queue, priority, jobId)
 	else
 		return 0
 	end

@@ -255,6 +255,10 @@ func (repo *mockJobRepository) UpdateStartTime(jobId string, clusterId string, s
 	return nil
 }
 
+func (repo *mockJobRepository) UpdatePriority(job *api.Job, priority float64) error {
+	return nil
+}
+
 func (repo *mockJobRepository) GetJobRunInfos(jobIds []string) (map[string]*repository.RunInfo, error) {
 	return map[string]*repository.RunInfo{}, nil
 }

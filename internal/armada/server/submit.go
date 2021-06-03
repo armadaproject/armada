@@ -231,8 +231,49 @@ func (server *SubmitServer) cancelJobs(ctx context.Context, queue string, jobs [
 }
 
 func (server *SubmitServer) ReprioritizeJobs(ctx context.Context, request *api.JobReprioritizeRequest) (*api.JobReprioritizeResponse, error) {
-	// TODO: Implement me
-	return &api.JobReprioritizeResponse{ReprioritizedIds: []string{}}, nil
+	var jobs []*api.Job
+	if len(request.JobIds) > 0 {
+		existingJobs, err := server.jobRepository.GetExistingJobsByIds(request.JobIds)
+		if err != nil {
+			return nil, err
+		}
+		jobs = existingJobs
+	} else if request.Queue != "" && request.JobSetId != "" {
+		ids, e := server.jobRepository.GetActiveJobIds(request.Queue, request.JobSetId)
+		if e != nil {
+			return nil, status.Errorf(codes.Aborted, e.Error())
+		}
+		existingJobs, e := server.jobRepository.GetExistingJobsByIds(ids)
+		if e != nil {
+			return nil, status.Errorf(codes.Internal, e.Error())
+		}
+		jobs = existingJobs
+	}
+
+	err := reportJobsReprioritizing(server.eventStore, jobs, request.NewPriority)
+	if err != nil {
+		return nil, err
+	}
+
+	var reprioritizedJobs []*api.Job
+	for _, job := range jobs {
+		err = server.jobRepository.UpdatePriority(job, request.NewPriority)
+		if err != nil {
+			log.Errorf("error when reprioritizing job with id %s: %s", job.Id, err.Error())
+		} else {
+			reprioritizedJobs = append(reprioritizedJobs, job)
+		}
+	}
+	err = reportJobsReprioritized(server.eventStore, reprioritizedJobs, request.NewPriority)
+	if err != nil {
+		return nil, err
+	}
+
+	reprioritizedIds := make([]string, len(reprioritizedJobs))
+	for i, job := range reprioritizedJobs {
+		reprioritizedIds[i] = job.Id
+	}
+	return &api.JobReprioritizeResponse{ReprioritizedIds: reprioritizedIds}, nil
 }
 
 func (server *SubmitServer) checkQueuePermission(

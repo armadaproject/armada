@@ -16,7 +16,6 @@ import (
 type JobRecorder interface {
 	RecordJob(job *api.Job) error
 	MarkCancelled(*api.JobCancelledEvent) error
-	RecordJobPriorityChange(event *api.JobReprioritizedEvent) error
 
 	RecordJobPending(event *api.JobPendingEvent) error
 	RecordJobRunning(event *api.JobRunningEvent) error
@@ -25,6 +24,7 @@ type JobRecorder interface {
 	RecordJobUnableToSchedule(event *api.JobUnableToScheduleEvent) error
 	RecordJobDuplicate(event *api.JobDuplicateFoundEvent) error
 	RecordJobTerminated(event *api.JobTerminatedEvent) error
+	RecordJobReprioritized(event *api.JobReprioritizedEvent) error
 }
 
 type SQLJobStore struct {
@@ -91,8 +91,22 @@ func (r *SQLJobStore) MarkCancelled(event *api.JobCancelledEvent) error {
 	return err
 }
 
-func (r *SQLJobStore) RecordJobPriorityChange(event *api.JobReprioritizedEvent) error {
-	panic("implement me")
+func (r *SQLJobStore) RecordJobReprioritized(event *api.JobReprioritizedEvent) error {
+	ds := r.db.Insert(jobTable).
+		Rows(goqu.Record{
+			"job_id":   event.JobId,
+			"queue":    event.Queue,
+			"jobset":   event.JobSetId,
+			"priority": event.NewPriority,
+		}).
+		OnConflict(goqu.DoUpdate("job_id", goqu.Record{
+			"queue":    event.Queue,
+			"jobset":   event.JobSetId,
+			"priority": event.NewPriority,
+		}))
+
+	_, err := ds.Prepared(true).Executor().Exec()
+	return err
 }
 
 func (r *SQLJobStore) RecordJobDuplicate(event *api.JobDuplicateFoundEvent) error {

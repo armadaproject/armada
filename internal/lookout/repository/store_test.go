@@ -720,11 +720,47 @@ func Test_JobTerminatedEvent(t *testing.T) {
 	})
 }
 
+func Test_JobReprioritizedEvent(t *testing.T) {
+	withDatabase(t, func(db *goqu.Database) {
+		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
+		jobId := util.NewULID()
+
+		err := jobStore.RecordJob(&api.Job{
+			Id:      jobId,
+			Queue:   "queue",
+			Created: someTime,
+		})
+		assert.NoError(t, err)
+
+		err = jobStore.RecordJobReprioritized(&api.JobReprioritizedEvent{
+			JobId:       jobId,
+			JobSetId:    "job-set",
+			Queue:       "queue",
+			Created:     someTime,
+			NewPriority: 123,
+		})
+		assert.NoError(t, err)
+
+		assert.Equal(t, float64(123), selectDouble(t, db,
+			"SELECT priority FROM job"))
+	})
+}
+
 func selectInt(t *testing.T, db *goqu.Database, query string) int {
 	r, err := db.Query(query)
 	assert.NoError(t, err)
 	r.Next()
 	var value int
+	err = r.Scan(&value)
+	assert.NoError(t, err)
+	return value
+}
+
+func selectDouble(t *testing.T, db *goqu.Database, query string) float64 {
+	r, err := db.Query(query)
+	assert.NoError(t, err)
+	r.Next()
+	var value float64
 	err = r.Scan(&value)
 	assert.NoError(t, err)
 	return value
