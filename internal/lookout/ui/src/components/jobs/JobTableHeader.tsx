@@ -51,6 +51,17 @@ export default function JobTableHeader(props: JobTableHeaderProps) {
             Cancel
           </Button>
         </div>
+        <div className="reprioritize-jobs">
+          <Button
+            disabled={!props.canCancel}
+            variant="contained"
+            color="secondary"
+            startIcon={<CancelIcon />}
+            onClick={props.onCancelJobsClick}
+          >
+            Reprioritize
+          </Button>
+        </div>
         <div className="refresh">
           <IconButton onClick={props.onRefresh} color="primary">
             <RefreshIcon />

@@ -100,6 +100,19 @@ export type CancelJobSetsResult = {
   }[]
 }
 
+export type ReprioritizeJobsResult = {
+  reprioritizedJobs: Job[]
+  error: string
+}
+
+export type ReprioritizeJobSetResult = {
+  reprioritizedJobSets: JobSet[]
+  failedJobSetReprioritizations: {
+    jobSet: JobSet
+    error: string
+  }[]
+}
+
 export type FailedJobCancellation = {
   job: Job
   error: string
@@ -220,6 +233,61 @@ export default class JobService {
         console.error(e)
         const text = await getErrorMessage(e)
         result.failedJobSetCancellations.push({ jobSet: jobSet, error: text })
+      }
+    }
+    return result
+  }
+
+  async reprioritizeJobs(jobs: Job[]): Promise<ReprioritizeJobsResult> {
+    const result: ReprioritizeJobsResult = { reprioritizedJobs: [], error: "" }
+    const jobIds: string[] = []
+    for (const job of jobs) {
+      jobIds.push(job.jobId)
+    }
+    try {
+      const apiResult = await this.submitApi.reprioritizeJobs({
+        body: {
+          jobIds: jobIds,
+          //TODO Remove
+          newPriority: 100,
+        },
+      })
+
+      if (apiResult.reprioritizedIds?.length) {
+        result.reprioritizedJobs = jobs
+      } else {
+        result.error = "No job was reprioritized"
+      }
+    } catch (e) {
+      console.error(e)
+      result.error = await getErrorMessage(e)
+    }
+    return result
+  }
+
+  async reprioritizeJobSets(queue: string, jobSets: JobSet[]): Promise<ReprioritizeJobSetResult> {
+    const result: ReprioritizeJobSetResult = { reprioritizedJobSets: [], failedJobSetReprioritizations: [] }
+
+    for (const jobSet of jobSets) {
+      try {
+        const apiResult = await this.submitApi.reprioritizeJobs({
+          body: {
+            queue: queue,
+            jobSetId: jobSet.jobSetId,
+            //TODO Remove
+            newPriority: 100,
+          },
+        })
+
+        if (apiResult.reprioritizedIds?.length) {
+          result.reprioritizedJobSets.push(jobSet)
+        } else {
+          result.failedJobSetReprioritizations.push({ jobSet: jobSet, error: "No job was cancelled" })
+        }
+      } catch (e) {
+        console.error(e)
+        const text = await getErrorMessage(e)
+        result.failedJobSetReprioritizations.push({ jobSet: jobSet, error: text })
       }
     }
     return result
