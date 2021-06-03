@@ -508,7 +508,7 @@ func TestIterateQueueJobs(t *testing.T) {
 	})
 }
 
-func TestReprioritizeJobByIdt (t *testing.T) {
+func TestReprioritizeJobByIdt(t *testing.T) {
 	withRepository(func(r *RedisJobRepository) {
 		addTestJobWithPriority(t, r, "q1", 1)
 

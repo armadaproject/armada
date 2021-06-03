@@ -212,7 +212,7 @@ func TestSubmitServer_ReprioritizeJobs(t *testing.T) {
 
 			messages, err := readJobEvents(events, jobSetId)
 			assert.NoError(t, err)
-			assert.Equal(t, 4 * 3, len(messages))
+			assert.Equal(t, 4*3, len(messages))
 		})
 	})
 
@@ -265,8 +265,8 @@ func TestSubmitServer_ReprioritizeJobs(t *testing.T) {
 			}
 
 			reprioritizeResult, err := s.ReprioritizeJobs(context.Background(), &api.JobReprioritizeRequest{
-				JobSetId: jobSetId,
-				Queue: "test",
+				JobSetId:    jobSetId,
+				Queue:       "test",
 				NewPriority: 678,
 			})
 			assert.NoError(t, err)
@@ -280,7 +280,7 @@ func TestSubmitServer_ReprioritizeJobs(t *testing.T) {
 
 			messages, err := readJobEvents(events, jobSetId)
 			assert.NoError(t, err)
-			assert.Equal(t, 4 * 3, len(messages))
+			assert.Equal(t, 4*3, len(messages))
 		})
 	})
 }
