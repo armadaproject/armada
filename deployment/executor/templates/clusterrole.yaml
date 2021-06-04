@@ -42,6 +42,7 @@ rules:
   - ""
   resources:
   - users
+  - groups
   verbs:
   - impersonate
 - apiGroups:
