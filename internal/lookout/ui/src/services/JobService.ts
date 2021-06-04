@@ -1,15 +1,15 @@
-import yaml from 'js-yaml'
+import yaml from "js-yaml"
 
+import { SubmitApi } from "../openapi/armada"
 import {
   LookoutApi,
   LookoutDurationStats,
   LookoutJobInfo,
   LookoutJobSetInfo,
   LookoutQueueInfo,
-  LookoutRunInfo
-} from '../openapi/lookout'
-import { SubmitApi } from '../openapi/armada'
-import { reverseMap, secondsToDurationString } from "../utils";
+  LookoutRunInfo,
+} from "../openapi/lookout"
+import { reverseMap, secondsToDurationString } from "../utils"
 
 type DurationFromApi = {
   seconds?: number
@@ -50,14 +50,14 @@ export type DurationStats = {
 }
 
 export interface GetJobsRequest {
-  queue: string,
-  take: number,
-  skip: number,
-  jobSets: string[],
-  newestFirst: boolean,
-  jobStates: string[],
-  jobId: string,
-  owner: string,
+  queue: string
+  take: number
+  skip: number
+  jobSets: string[]
+  newestFirst: boolean
+  jobStates: string[]
+  jobId: string
+  owner: string
   annotations: { [key: string]: string }
 }
 
@@ -115,17 +115,9 @@ JOB_STATE_MAP.set("CANCELLED", "Cancelled")
 
 const INVERSE_JOB_STATE_MAP = reverseMap(JOB_STATE_MAP)
 
-export const JOB_STATES_FOR_DISPLAY = [
-  "Queued",
-  "Pending",
-  "Running",
-  "Succeeded",
-  "Failed",
-  "Cancelled",
-]
+export const JOB_STATES_FOR_DISPLAY = ["Queued", "Pending", "Running", "Succeeded", "Failed", "Cancelled"]
 
 export default class JobService {
-
   lookoutApi: LookoutApi
   submitApi: SubmitApi
   userAnnotationPrefix: string
@@ -142,14 +134,14 @@ export default class JobService {
       return []
     }
 
-    return queueInfosFromApi.queues.map(queueInfo => this.queueInfoToViewModel(queueInfo))
+    return queueInfosFromApi.queues.map((queueInfo) => this.queueInfoToViewModel(queueInfo))
   }
 
   async getJobSets(queue: string): Promise<JobSet[]> {
     const jobSetsFromApi = await this.lookoutApi.getJobSets({
       body: {
-        queue: queue
-      }
+        queue: queue,
+      },
     })
     if (!jobSetsFromApi.jobSetInfos) {
       return []
@@ -157,7 +149,6 @@ export default class JobService {
 
     return jobSetsFromApi.jobSetInfos.map(jobSetToViewModel)
   }
-
 
   async getJobs(getJobsRequest: GetJobsRequest): Promise<Job[]> {
     const jobStatesForApi = getJobsRequest.jobStates.map(getJobStateForApi)
@@ -174,10 +165,10 @@ export default class JobService {
           jobId: getJobsRequest.jobId,
           owner: getJobsRequest.owner,
           userAnnotations: getJobsRequest.annotations,
-        }
-      });
+        },
+      })
       if (response.jobInfos) {
-        return response.jobInfos.map(jobInfo => this.jobInfoToViewModel(jobInfo))
+        return response.jobInfos.map((jobInfo) => this.jobInfoToViewModel(jobInfo))
       }
     } catch (e) {
       console.error(await e.json())
@@ -187,7 +178,7 @@ export default class JobService {
 
   async cancelJobs(jobs: Job[]): Promise<CancelJobsResult> {
     const result: CancelJobsResult = { cancelledJobs: [], failedJobCancellations: [] }
-    for (let job of jobs) {
+    for (const job of jobs) {
       try {
         const apiResult = await this.submitApi.cancelJobs({
           body: {
@@ -195,9 +186,7 @@ export default class JobService {
           },
         })
 
-        if (!apiResult.cancelledIds ||
-          apiResult.cancelledIds.length !== 1 ||
-          apiResult.cancelledIds[0] !== job.jobId) {
+        if (!apiResult.cancelledIds || apiResult.cancelledIds.length !== 1 || apiResult.cancelledIds[0] !== job.jobId) {
           result.failedJobCancellations.push({ job: job, error: "No job was cancelled" })
         } else {
           result.cancelledJobs.push(job)
@@ -213,7 +202,7 @@ export default class JobService {
 
   async cancelJobSets(queue: string, jobSets: JobSet[]): Promise<CancelJobSetsResult> {
     const result: CancelJobSetsResult = { cancelledJobSets: [], failedJobSetCancellations: [] }
-    for (let jobSet of jobSets) {
+    for (const jobSet of jobSets) {
       try {
         const apiResult = await this.submitApi.cancelJobs({
           body: {
@@ -225,7 +214,7 @@ export default class JobService {
         if (apiResult.cancelledIds?.length) {
           result.cancelledJobSets.push(jobSet)
         } else {
-          result.failedJobSetCancellations.push({ jobSet: jobSet, error: "No job was cancelled"})
+          result.failedJobSetCancellations.push({ jobSet: jobSet, error: "No job was cancelled" })
         }
       } catch (e) {
         console.error(e)
@@ -296,8 +285,8 @@ export default class JobService {
   }
 
   private getAnnotations(annotations: { [key: string]: string }): { [key: string]: string } {
-    const userAnnotations: { [key: string]: string } ={}
-    for (let key in annotations) {
+    const userAnnotations: { [key: string]: string } = {}
+    for (const key in annotations) {
       if (key.startsWith(this.userAnnotationPrefix)) {
         userAnnotations[key.substring(this.userAnnotationPrefix.length)] = annotations[key]
       }
@@ -307,7 +296,7 @@ export default class JobService {
 }
 
 function escapeBackslashes(str: string) {
-  return str.split('\\').join('\\\\')
+  return str.split("\\").join("\\\\")
 }
 
 function jobSetToViewModel(jobSet: LookoutJobSetInfo): JobSet {
@@ -325,15 +314,17 @@ function jobSetToViewModel(jobSet: LookoutJobSetInfo): JobSet {
 }
 
 function durationStatsToViewModel(durationStats?: LookoutDurationStats): DurationStats | undefined {
-  if (!(
-    durationStats &&
-    durationStats.shortest &&
-    durationStats.longest &&
-    durationStats.average &&
-    durationStats.median &&
-    durationStats.q1 &&
-    durationStats.q3
-  )) {
+  if (
+    !(
+      durationStats &&
+      durationStats.shortest &&
+      durationStats.longest &&
+      durationStats.average &&
+      durationStats.median &&
+      durationStats.q1 &&
+      durationStats.q3
+    )
+  ) {
     return undefined
   }
 

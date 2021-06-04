@@ -1,12 +1,13 @@
 import React from "react"
+
 import { Button, IconButton } from "@material-ui/core"
-import RefreshIcon from '@material-ui/icons/Refresh'
 import CancelIcon from "@material-ui/icons/Cancel"
+import RefreshIcon from "@material-ui/icons/Refresh"
 
-import ColumnSelect from "./ColumnSelect";
-import { ColumnSpec } from "../../containers/JobsContainer";
+import { ColumnSpec } from "../../containers/JobsContainer"
+import ColumnSelect from "./ColumnSelect"
 
-import './JobTableHeader.css'
+import "./JobTableHeader.css"
 
 type JobTableHeaderProps = {
   defaultColumns: ColumnSpec<string | boolean | string[]>[]
@@ -36,21 +37,23 @@ export default function JobTableHeader(props: JobTableHeaderProps) {
             onDisableColumn={props.onDisableColumn}
             onDeleteColumn={props.onDeleteColumn}
             onAddColumn={props.onAddColumn}
-            onChangeAnnotationColumnKey={props.onChangeAnnotationColumnKey}/>
+            onChangeAnnotationColumnKey={props.onChangeAnnotationColumnKey}
+          />
         </div>
         <div className="cancel-jobs">
           <Button
             disabled={!props.canCancel}
             variant="contained"
             color="secondary"
-            startIcon={<CancelIcon/>}
-            onClick={props.onCancelJobsClick}>
+            startIcon={<CancelIcon />}
+            onClick={props.onCancelJobsClick}
+          >
             Cancel
           </Button>
         </div>
         <div className="refresh">
           <IconButton onClick={props.onRefresh} color="primary">
-            <RefreshIcon/>
+            <RefreshIcon />
           </IconButton>
         </div>
       </div>

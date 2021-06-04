@@ -11,6 +11,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/G-Research/armada/internal/common"
+	"github.com/G-Research/armada/internal/executor/configuration"
 	"github.com/G-Research/armada/internal/executor/context"
 	"github.com/G-Research/armada/internal/executor/domain"
 	"github.com/G-Research/armada/internal/executor/reporter"
@@ -25,19 +26,22 @@ type ClusterAllocationService struct {
 	eventReporter      reporter.EventReporter
 	utilisationService UtilisationService
 	clusterContext     context.ClusterContext
+	podDefaults        *configuration.PodDefaults
 }
 
 func NewClusterAllocationService(
 	clusterContext context.ClusterContext,
 	eventReporter reporter.EventReporter,
 	leaseService LeaseService,
-	utilisationService UtilisationService) *ClusterAllocationService {
+	utilisationService UtilisationService,
+	podDefaults *configuration.PodDefaults) *ClusterAllocationService {
 
 	return &ClusterAllocationService{
 		leaseService:       leaseService,
 		eventReporter:      eventReporter,
 		utilisationService: utilisationService,
-		clusterContext:     clusterContext}
+		clusterContext:     clusterContext,
+		podDefaults:        podDefaults}
 }
 
 func (allocationService *ClusterAllocationService) AllocateSpareClusterCapacity() {
@@ -105,7 +109,7 @@ func (allocationService *ClusterAllocationService) submitJobs(jobsToSubmit []*ap
 }
 
 func (allocationService *ClusterAllocationService) submitPod(job *api.Job, i int) (*v1.Pod, error) {
-	pod := createPod(job, i)
+	pod := createPod(job, allocationService.podDefaults, i)
 
 	if exposesPorts(job, &pod.Spec) {
 		pod.Annotations = mergeMaps(pod.Annotations, map[string]string{
@@ -260,10 +264,11 @@ func createService(job *api.Job, pod *v1.Pod) *v1.Service {
 	return service
 }
 
-func createPod(job *api.Job, i int) *v1.Pod {
+func createPod(job *api.Job, defaults *configuration.PodDefaults, i int) *v1.Pod {
 
 	allPodSpecs := job.GetAllPodSpecs()
 	podSpec := allPodSpecs[i]
+	applyDefaults(podSpec, defaults)
 
 	labels := mergeMaps(job.Labels, map[string]string{
 		domain.JobId:     job.Id,
@@ -289,6 +294,15 @@ func createPod(job *api.Job, i int) *v1.Pod {
 	}
 
 	return pod
+}
+
+func applyDefaults(spec *v1.PodSpec, defaults *configuration.PodDefaults) {
+	if defaults == nil {
+		return
+	}
+	if defaults.SchedulerName != "" && spec.SchedulerName == "" {
+		spec.SchedulerName = defaults.SchedulerName
+	}
 }
 
 func setRestartPolicyNever(podSpec *v1.PodSpec) {

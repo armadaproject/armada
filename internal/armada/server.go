@@ -15,6 +15,7 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/G-Research/armada/internal/armada/authorization"
+	"github.com/G-Research/armada/internal/armada/authorization/groups"
 	"github.com/G-Research/armada/internal/armada/cache"
 	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/G-Research/armada/internal/armada/metrics"
@@ -178,7 +179,12 @@ func createServer(config *configuration.ArmadaConfig) *grpc.Server {
 
 	// Kerberos should be the last service as it is adding WWW-Authenticate header for unauthenticated response
 	if config.Kerberos.KeytabLocation != "" {
-		kerberosAuthService, err := authorization.NewKerberosAuthService(&config.Kerberos)
+		var groupLookup groups.GroupLookup
+		if config.Kerberos.LDAP.Username != "" {
+			groupLookup = groups.NewLDAPGroupLookup(config.Kerberos.LDAP)
+		}
+
+		kerberosAuthService, err := authorization.NewKerberosAuthService(&config.Kerberos, groupLookup)
 		if err != nil {
 			panic(err)
 		}

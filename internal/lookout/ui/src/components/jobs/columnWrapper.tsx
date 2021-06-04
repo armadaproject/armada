@@ -1,12 +1,13 @@
-import React from 'react';
-import { Column } from "react-virtualized";
+import React from "react"
 
-import { ColumnSpec } from "../../containers/JobsContainer";
-import { Job } from "../../services/JobService";
-import SubmissionTimeHeaderCell from "./SubmissionTimeHeaderCell";
-import JobStatesHeaderCell from "./JobStatesHeaderCell";
-import SearchHeaderCell from "./SearchHeaderCell";
-import LinkCell from "../LinkCell";
+import { Column } from "react-virtualized"
+
+import { ColumnSpec } from "../../containers/JobsContainer"
+import { Job } from "../../services/JobService"
+import LinkCell from "../LinkCell"
+import JobStatesHeaderCell from "./JobStatesHeaderCell"
+import SearchHeaderCell from "./SearchHeaderCell"
+import SubmissionTimeHeaderCell from "./SubmissionTimeHeaderCell"
 
 export default function columnWrapper(
   key: string,
@@ -25,14 +26,16 @@ export default function columnWrapper(
           dataKey={columnSpec.accessor}
           width={width}
           label={columnSpec.name}
-          headerRenderer={headerProps => (
+          headerRenderer={(headerProps) => (
             <SubmissionTimeHeaderCell
               newestFirst={columnSpec.filter as boolean}
               onOrderChange={onChange}
-              {...headerProps}/>
-          )}/>
+              {...headerProps}
+            />
+          )}
+        />
       )
-      break;
+      break
     }
     case "jobState": {
       column = (
@@ -41,14 +44,16 @@ export default function columnWrapper(
           dataKey={columnSpec.accessor}
           width={width}
           label={columnSpec.name}
-          headerRenderer={headerProps => (
+          headerRenderer={(headerProps) => (
             <JobStatesHeaderCell
               jobStates={columnSpec.filter as string[]}
               onJobStatesChange={onChange}
-              {...headerProps}/>
-          )}/>
+              {...headerProps}
+            />
+          )}
+        />
       )
-      break;
+      break
     }
     case "jobId": {
       column = (
@@ -57,18 +62,18 @@ export default function columnWrapper(
           dataKey={columnSpec.accessor}
           width={width}
           label={columnSpec.name}
-          cellRenderer={(cellProps) => (
-            <LinkCell onClick={() => onJobIdClick(cellProps.rowIndex)} {...cellProps}/>
-          )}
-          headerRenderer={headerProps => (
+          cellRenderer={(cellProps) => <LinkCell onClick={() => onJobIdClick(cellProps.rowIndex)} {...cellProps} />}
+          headerRenderer={(headerProps) => (
             <SearchHeaderCell
               headerLabel={columnSpec.name}
               value={columnSpec.filter as string}
               onChange={onChange}
-              {...headerProps}/>
-          )}/>
+              {...headerProps}
+            />
+          )}
+        />
       )
-      break;
+      break
     }
     case "queue":
     case "jobSet":
@@ -79,15 +84,17 @@ export default function columnWrapper(
           dataKey={columnSpec.accessor}
           width={width}
           label={columnSpec.name}
-          headerRenderer={headerProps => (
+          headerRenderer={(headerProps) => (
             <SearchHeaderCell
               headerLabel={columnSpec.name}
               value={columnSpec.filter as string}
               onChange={onChange}
-              {...headerProps}/>
-          )}/>
+              {...headerProps}
+            />
+          )}
+        />
       )
-      break;
+      break
     }
     default: {
       column = (
@@ -102,15 +109,17 @@ export default function columnWrapper(
           }}
           width={width}
           label={columnSpec.name}
-          headerRenderer={headerProps => (
+          headerRenderer={(headerProps) => (
             <SearchHeaderCell
               headerLabel={columnSpec.name}
               value={columnSpec.filter as string}
               onChange={onChange}
-              {...headerProps}/>
-          )}/>
+              {...headerProps}
+            />
+          )}
+        />
       )
-      break;
+      break
     }
   }
 

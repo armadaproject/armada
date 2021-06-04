@@ -1,9 +1,10 @@
 import React from "react"
-import { Table, TableHeaderRowProps, TableRowProps } from "react-virtualized";
 
-import { DurationStats } from "../../services/JobService";
-import DurationBoxPlot from "./DurationBoxPlot";
-import DurationAxis from "./DurationAxis";
+import { Table, TableHeaderRowProps, TableRowProps } from "react-virtualized"
+
+import { DurationStats } from "../../services/JobService"
+import DurationAxis from "./DurationAxis"
+import DurationBoxPlot from "./DurationBoxPlot"
 
 import "./DurationPlotsTable.css"
 
@@ -30,7 +31,7 @@ function renderHeader(
   minValue: number,
   maxValue: number,
   percentagePlotWidth: number,
-  headerRowProps: TableHeaderRowProps
+  headerRowProps: TableHeaderRowProps,
 ) {
   const width = headerRowProps.style.width as number
   const height = headerRowProps.style.height as number
@@ -39,32 +40,32 @@ function renderHeader(
 
   return (
     <div className="duration-plots-table-row" style={headerRowProps.style}>
-      <div style={{
-        width: nameWidth,
-        height: height,
-      }}/>
-      <div style={{
-        width: plotWidth,
-        height: height,
-      }}>
+      <div
+        style={{
+          width: nameWidth,
+          height: height,
+        }}
+      />
+      <div
+        style={{
+          width: plotWidth,
+          height: height,
+        }}
+      >
         <DurationAxis
           height={height}
           width={plotWidth}
           padding={PADDING}
           minValue={minValue}
           maxValue={maxValue}
-          nTicks={N_TICKS}/>
+          nTicks={N_TICKS}
+        />
       </div>
     </div>
   )
 }
 
-function renderRow(
-  minValue: number,
-  maxValue: number,
-  props: DurationPlotsTableProps,
-  rowProps: TableRowProps,
-) {
+function renderRow(minValue: number, maxValue: number, props: DurationPlotsTableProps, rowProps: TableRowProps) {
   const width = rowProps.style.width as number
   const height = rowProps.style.height as number
   const plotWidth = Math.round(width * props.percentagePlotWidth)
@@ -72,15 +73,20 @@ function renderRow(
 
   return (
     <div key={rowProps.key} className="duration-plots-table-row" style={rowProps.style}>
-      <div className="duration-plots-table-row-name" style={{
-        width: nameWidth,
-      }}>
+      <div
+        className="duration-plots-table-row-name"
+        style={{
+          width: nameWidth,
+        }}
+      >
         {props.names[rowProps.index]}
       </div>
-      <div style={{
-        height: height,
-        width: plotWidth,
-      }}>
+      <div
+        style={{
+          height: height,
+          width: plotWidth,
+        }}
+      >
         <DurationBoxPlot
           width={plotWidth}
           height={height}
@@ -91,7 +97,8 @@ function renderRow(
           boxWidth={32}
           maxValue={maxValue}
           minValue={minValue}
-          nTicks={N_TICKS}/>
+          nTicks={N_TICKS}
+        />
       </div>
     </div>
   )
@@ -99,11 +106,11 @@ function renderRow(
 
 export default function DurationPlotsTable(props: DurationPlotsTableProps) {
   if (props.durations.length === 0) {
-    return <div/>
+    return <div />
   }
 
-  let minDuration = Math.min(...props.durations.map(d => d.shortest))
-  let maxDuration = Math.max(...props.durations.map(d => d.longest))
+  let minDuration = Math.min(...props.durations.map((d) => d.shortest))
+  let maxDuration = Math.max(...props.durations.map((d) => d.longest))
   if (isNaN(minDuration) || isNaN(maxDuration)) {
     minDuration = 0
     maxDuration = 0
@@ -113,10 +120,12 @@ export default function DurationPlotsTable(props: DurationPlotsTableProps) {
   const maxValue = maxDuration + fivePercent
 
   return (
-    <div style={{
-      height: props.height,
-      width: props.width,
-    }}>
+    <div
+      style={{
+        height: props.height,
+        width: props.width,
+      }}
+    >
       <Table
         height={props.height}
         width={props.width}
@@ -125,10 +134,11 @@ export default function DurationPlotsTable(props: DurationPlotsTableProps) {
         rowHeight={80}
         headerHeight={50}
         className="duration-plots-table"
-        headerRowRenderer={headerRowProps =>
-          renderHeader(minValue, maxValue, props.percentagePlotWidth, headerRowProps)}
-        rowRenderer={rowProps =>
-          renderRow(minValue, maxValue, props, rowProps)}/>
+        headerRowRenderer={(headerRowProps) =>
+          renderHeader(minValue, maxValue, props.percentagePlotWidth, headerRowProps)
+        }
+        rowRenderer={(rowProps) => renderRow(minValue, maxValue, props, rowProps)}
+      />
     </div>
   )
 }

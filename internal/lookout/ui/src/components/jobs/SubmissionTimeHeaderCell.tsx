@@ -1,8 +1,9 @@
-import React from 'react'
+import React from "react"
+
 import { ArrowDropDown, ArrowDropUp } from "@material-ui/icons"
 import { TableHeaderProps } from "react-virtualized"
 
-import './SubmissionTimeHeaderCell.css'
+import "./SubmissionTimeHeaderCell.css"
 
 type SubmissionTimeHeaderCellProps = {
   newestFirst: boolean
@@ -11,15 +12,9 @@ type SubmissionTimeHeaderCellProps = {
 
 export default function SubmissionTimeHeaderCell(props: SubmissionTimeHeaderCellProps) {
   return (
-    <div
-      className="submission-time-header-cell"
-      onClick={() => props.onOrderChange(!props.newestFirst)}>
-      <div className="submission-time-header-cell-label">
-        Submission Time
-      </div>
-      <div className="submission-time-header-cell-icon">
-        {props.newestFirst ? <ArrowDropDown/> : <ArrowDropUp/>}
-      </div>
+    <div className="submission-time-header-cell" onClick={() => props.onOrderChange(!props.newestFirst)}>
+      <div className="submission-time-header-cell-label">Submission Time</div>
+      <div className="submission-time-header-cell-icon">{props.newestFirst ? <ArrowDropDown /> : <ArrowDropUp />}</div>
     </div>
   )
 }

@@ -1,6 +1,7 @@
 import React from "react"
-import { TableRowProps } from "react-virtualized";
-import { Checkbox } from "@material-ui/core";
+
+import { Checkbox } from "@material-ui/core"
+import { TableRowProps } from "react-virtualized"
 
 import "./Row.css"
 
@@ -14,9 +15,11 @@ export default function CheckboxRow(props: CheckboxRowProps) {
   return (
     <div key={props.tableKey} className={"job-row " + props.className} style={props.style}>
       <div className="select-box">
-        <Checkbox color={"secondary"}
+        <Checkbox
+          color={"secondary"}
           checked={props.isChecked}
-          onChange={(event) => props.onChangeChecked(event.target.checked)} />
+          onChange={(event) => props.onChangeChecked(event.target.checked)}
+        />
       </div>
       {props.columns}
     </div>

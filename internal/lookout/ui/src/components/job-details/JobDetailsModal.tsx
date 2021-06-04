@@ -1,7 +1,8 @@
-import React from 'react'
+import React from "react"
+
+import { Dialog, DialogTitle } from "@material-ui/core"
 
 import { Job } from "../../services/JobService"
-import { Dialog, DialogTitle } from "@material-ui/core"
 import JobDetails from "./JobDetails"
 
 import "./JobDetailsModal.css"
@@ -34,13 +35,13 @@ export default function JobDetailsModal(props: JobDetailsModalProps) {
       aria-labelledby="job-details-dialog-title"
       onClose={props.onClose}
       fullWidth={true}
-      maxWidth={"md"}>
+      maxWidth={"md"}
+    >
       <DialogTitle id="job-details-dialog-title">Job details</DialogTitle>
       <div className="dialog-body">
-      {props.job && <JobDetails
-        job={props.job}
-        expandedItems={props.expandedItems}
-        onToggleExpand={props.onToggleExpanded}/>}
+        {props.job && (
+          <JobDetails job={props.job} expandedItems={props.expandedItems} onToggleExpand={props.onToggleExpanded} />
+        )}
       </div>
     </Dialog>
   )
