@@ -2,6 +2,7 @@ package repository
 
 import (
 	"database/sql"
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -721,28 +722,65 @@ func Test_JobTerminatedEvent(t *testing.T) {
 }
 
 func Test_JobReprioritizedEvent(t *testing.T) {
-	withDatabase(t, func(db *goqu.Database) {
-		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
-		jobId := util.NewULID()
+	t.Run("after job created", func(t *testing.T) {
+		withDatabase(t, func(db *goqu.Database) {
+			jobStore := NewSQLJobStore(db, userAnnotationPrefix)
+			jobId := util.NewULID()
 
-		err := jobStore.RecordJob(&api.Job{
-			Id:      jobId,
-			Queue:   "queue",
-			Created: someTime,
+			err := jobStore.RecordJob(&api.Job{
+				Id:      jobId,
+				Queue:   "queue",
+				Created: someTime,
+			})
+			assert.NoError(t, err)
+
+			err = jobStore.RecordJobReprioritized(&api.JobReprioritizedEvent{
+				JobId:       jobId,
+				JobSetId:    "job-set",
+				Queue:       "queue",
+				Created:     someTime,
+				NewPriority: 123,
+			})
+			assert.NoError(t, err)
+
+			assert.Equal(t, float64(123), selectDouble(t, db,
+				"SELECT priority FROM job"))
+
+			var job api.Job
+			jobJson := ParseNullString(selectNullString(t, db, "SELECT job FROM job"))
+			_ = json.Unmarshal([]byte(jobJson), &job)
+			assert.Equal(t, float64(123), job.Priority)
 		})
-		assert.NoError(t, err)
+	})
 
-		err = jobStore.RecordJobReprioritized(&api.JobReprioritizedEvent{
-			JobId:       jobId,
-			JobSetId:    "job-set",
-			Queue:       "queue",
-			Created:     someTime,
-			NewPriority: 123,
+	t.Run("multiple events without job submission", func(t *testing.T) {
+		withDatabase(t, func(db *goqu.Database) {
+			jobStore := NewSQLJobStore(db, userAnnotationPrefix)
+			jobId := util.NewULID()
+
+			err := jobStore.RecordJobReprioritized(&api.JobReprioritizedEvent{
+				JobId:       jobId,
+				JobSetId:    "job-set",
+				Queue:       "queue",
+				Created:     someTime,
+				NewPriority: 123,
+			})
+			assert.NoError(t, err)
+
+			err = jobStore.RecordJobReprioritized(&api.JobReprioritizedEvent{
+				JobId:       jobId,
+				JobSetId:    "job-set",
+				Queue:       "queue",
+				Created:     someTime,
+				NewPriority: 256,
+			})
+			assert.NoError(t, err)
+
+			assert.Equal(t, float64(256), selectDouble(t, db,
+				"SELECT priority FROM job"))
+			assert.False(t, selectNullString(t, db,
+				"SELECT job FROM job").Valid)
 		})
-		assert.NoError(t, err)
-
-		assert.Equal(t, float64(123), selectDouble(t, db,
-			"SELECT priority FROM job"))
 	})
 }
 

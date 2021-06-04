@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -91,21 +92,32 @@ func (r *SQLJobStore) MarkCancelled(event *api.JobCancelledEvent) error {
 	return err
 }
 
+type jobJsonRow struct {
+	JobJson sql.NullString `db:"job"`
+}
+
 func (r *SQLJobStore) RecordJobReprioritized(event *api.JobReprioritizedEvent) error {
+	updatedJobJson, err := r.getUpdatedJobJson(event)
+	if err != nil {
+		return err
+	}
+
 	ds := r.db.Insert(jobTable).
 		Rows(goqu.Record{
 			"job_id":   event.JobId,
 			"queue":    event.Queue,
 			"jobset":   event.JobSetId,
 			"priority": event.NewPriority,
+			"job":      updatedJobJson,
 		}).
 		OnConflict(goqu.DoUpdate("job_id", goqu.Record{
 			"queue":    event.Queue,
 			"jobset":   event.JobSetId,
 			"priority": event.NewPriority,
+			"job":      updatedJobJson,
 		}))
 
-	_, err := ds.Prepared(true).Executor().Exec()
+	_, err = ds.Prepared(true).Executor().Exec()
 	return err
 }
 
@@ -306,6 +318,36 @@ func (r *SQLJobStore) RecordJobTerminated(event *api.JobTerminatedEvent) error {
 
 	_, err := jobDs.Prepared(true).Executor().Exec()
 	return err
+}
+
+func (r *SQLJobStore) getUpdatedJobJson(event *api.JobReprioritizedEvent) (sql.NullString, error) {
+	selectDs := r.db.From(jobTable).
+		Select(job_job).
+		Where(job_jobId.Eq(event.JobId))
+
+	jobsInQueueRows := make([]*JobRow, 0)
+	err := selectDs.Prepared(true).ScanStructs(&jobsInQueueRows)
+	if err != nil {
+		return NewNullString(""), err
+	}
+	if len(jobsInQueueRows) == 0 {
+		return NewNullString(""), nil
+	}
+
+	var jobFromJson api.Job
+	jobJson := ParseNullString(jobsInQueueRows[0].JobJson)
+	err = json.Unmarshal([]byte(jobJson), &jobFromJson)
+	// We don't care about parsing errors, the JSON will not be updated
+	if err != nil {
+		return NewNullString(""), nil
+	}
+
+	jobFromJson.Priority = event.NewPriority
+	updatedJobJson, err := json.Marshal(jobFromJson)
+	if err != nil {
+		return NewNullString(""), nil
+	}
+	return NewNullString(string(updatedJobJson)), nil
 }
 
 func (r *SQLJobStore) upsertJobRun(record goqu.Record) error {
