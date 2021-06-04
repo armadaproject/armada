@@ -13,8 +13,10 @@ type JobTableHeaderProps = {
   defaultColumns: ColumnSpec<string | boolean | string[]>[]
   annotationColumns: ColumnSpec<string>[]
   canCancel: boolean
+  canReprioritize: boolean
   onRefresh: () => void
   onCancelJobsClick: () => void
+  onReprioritizeJobsClick: () => void
   onDisableColumn: (id: string, isDisabled: boolean) => void
   onDeleteColumn: (columnId: string) => void
   onAddColumn: () => void
@@ -53,11 +55,11 @@ export default function JobTableHeader(props: JobTableHeaderProps) {
         </div>
         <div className="reprioritize-jobs">
           <Button
-            disabled={!props.canCancel}
+            disabled={!props.canReprioritize}
             variant="contained"
             color="secondary"
             startIcon={<CancelIcon />}
-            onClick={props.onCancelJobsClick}
+            onClick={props.onReprioritizeJobsClick}
           >
             Reprioritize
           </Button>
