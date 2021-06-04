@@ -194,7 +194,7 @@ func makeTestPod(status v1.PodStatus) *v1.Pod {
 
 func addPod(t *testing.T, fakeClusterContext context.ClusterContext, runningPod *v1.Pod) {
 	t.Helper()
-	_, err := fakeClusterContext.SubmitPod(runningPod, "owner-1")
+	_, err := fakeClusterContext.SubmitPod(runningPod, "owner-1", []string{})
 	if err != nil {
 		t.Error(err)
 	}
@@ -300,7 +300,7 @@ func (c *syncFakeClusterContext) DeleteService(service *v1.Service) error {
 	return fmt.Errorf("Services not implemented in syncFakeClusterContext")
 }
 
-func (c *syncFakeClusterContext) SubmitPod(pod *v1.Pod, owner string) (*v1.Pod, error) {
+func (c *syncFakeClusterContext) SubmitPod(pod *v1.Pod, owner string, ownerGroups []string) (*v1.Pod, error) {
 	c.pods[pod.Labels[domain.JobId]] = pod
 	return pod, nil
 }

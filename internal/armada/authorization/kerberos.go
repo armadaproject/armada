@@ -18,6 +18,7 @@ import (
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 
+	"github.com/G-Research/armada/internal/armada/authorization/groups"
 	"github.com/G-Research/armada/internal/armada/configuration"
 )
 
@@ -32,15 +33,19 @@ const (
 	spnegoNegTokenRespIncompleteKRB5 = "Negotiate oRQwEqADCgEBoQsGCSqGSIb3EgECAg=="
 	// ctxCredentials is the SPNEGO context key holding the credentials jcmturner/goidentity/Identity object.
 	ctxCredentials = "github.com/jcmturner/gokrb5/v8/ctxCredentials"
+
+	SIDAuthenticationAuthorityAssertedIdentity = "S-1-18-1"
 )
 
 type KerberosAuthService struct {
-	kt             *keytab.Keytab
-	userNameSuffix string
-	settings       []func(*service.Settings)
+	kt              *keytab.Keytab
+	userNameSuffix  string
+	groupNameSuffix string
+	settings        []func(*service.Settings)
+	groupLookup     groups.GroupLookup
 }
 
-func NewKerberosAuthService(config *configuration.KerberosAuthenticationConfig) (*KerberosAuthService, error) {
+func NewKerberosAuthService(config *configuration.KerberosAuthenticationConfig, groupLookup groups.GroupLookup) (*KerberosAuthService, error) {
 	kt, err := keytab.Load(config.KeytabLocation)
 	if err != nil {
 		return nil, err
@@ -52,9 +57,11 @@ func NewKerberosAuthService(config *configuration.KerberosAuthenticationConfig) 
 	}
 
 	return &KerberosAuthService{
-		kt:             kt,
-		userNameSuffix: config.UserNameSuffix,
-		settings:       settings,
+		kt:              kt,
+		userNameSuffix:  config.UserNameSuffix,
+		groupNameSuffix: config.GroupNameSuffix,
+		settings:        settings,
+		groupLookup:     groupLookup,
 	}, nil
 }
 
@@ -103,12 +110,24 @@ func (authService *KerberosAuthService) Authenticate(ctx context.Context) (Princ
 		id := credentialsContext.Value(ctxCredentials).(*credentials.Credentials)
 		if adCredentials, ok := id.Attributes()[credentials.AttributeKeyADCredentials].(credentials.ADCredentials); ok {
 			user := adCredentials.EffectiveName + authService.userNameSuffix
-			groups := adCredentials.GroupMembershipSIDs
 
-			// Original library sets ticket accepted header here, but this breaks python request-negotiate-sspi module
+			groupSIDs := []string{}
+			for _, sid := range adCredentials.GroupMembershipSIDs {
+				if sid != SIDAuthenticationAuthorityAssertedIdentity {
+					groupSIDs = append(groupSIDs, sid)
+				}
+			}
+
+			userGroups, err := authService.mapUserGroups(groupSIDs)
+			if err != nil {
+				return nil, err
+			}
+
+			// Original library sets ticket accepted header here, but this breaks python
+			// request-negotiate-sspi module
 			// removing the header as workaround before moving away from kerberos
 			// _ = grpc.SetHeader(ctx, metadata.Pairs(spnego.HTTPHeaderAuthResponse, spnegoNegTokenRespKRBAcceptCompleted))
-			return NewStaticPrincipal(user, groups), nil
+			return NewStaticPrincipal(user, userGroups), nil
 		}
 		log.Error("Failed to read ad credentials")
 		return nil, status.Errorf(codes.Unauthenticated, "Failed to read ad credentials")
@@ -118,4 +137,19 @@ func (authService *KerberosAuthService) Authenticate(ctx context.Context) (Princ
 		_ = grpc.SetHeader(ctx, metadata.Pairs(spnego.HTTPHeaderAuthResponse, spnegoNegTokenRespReject))
 		return nil, status.Errorf(codes.Unauthenticated, "SPNEGO Kerberos authentication failed")
 	}
+}
+
+func (authService *KerberosAuthService) mapUserGroups(groupSIDs []string) ([]string, error) {
+	if authService.groupLookup != nil {
+		userGroups, err := authService.groupLookup.GetGroupNames(groupSIDs)
+		if err != nil {
+			return nil, err
+		}
+		prefixedUserGroups := []string{}
+		for _, group := range userGroups {
+			prefixedUserGroups = append(prefixedUserGroups, group+authService.groupNameSuffix)
+		}
+		return prefixedUserGroups, nil
+	}
+	return groupSIDs, nil
 }

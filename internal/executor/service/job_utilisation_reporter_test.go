@@ -45,7 +45,7 @@ func TestUtilisationEventReporter_ReportUtilisationEvents(t *testing.T) {
 					podResources, podResources,
 				},
 			},
-		}}}, "owner")
+		}}}, "owner", nil)
 
 	deadline := time.Now().Add(time.Second)
 	for {

@@ -1,14 +1,15 @@
-import React from 'react';
-import { BrowserRouter as Router, Switch, Route } from 'react-router-dom'
-import { ThemeProvider, createMuiTheme } from "@material-ui/core";
+import React from "react"
 
-import JobService from './services/JobService';
-import OverviewContainer from './containers/OverviewContainer'
-import JobSetsContainer from "./containers/JobSetsContainer";
-import JobsContainer from "./containers/JobsContainer";
-import NavBar from "./components/NavBar";
+import { ThemeProvider, createMuiTheme } from "@material-ui/core"
+import { Route, BrowserRouter as Router, Switch } from "react-router-dom"
 
-import './App.css';
+import NavBar from "./components/NavBar"
+import JobSetsContainer from "./containers/JobSetsContainer"
+import JobsContainer from "./containers/JobsContainer"
+import OverviewContainer from "./containers/OverviewContainer"
+import JobService from "./services/JobService"
+
+import "./App.css"
 
 const theme = createMuiTheme({
   palette: {
@@ -30,16 +31,16 @@ const theme = createMuiTheme({
       "'Droid Sans'",
       "'Helvetica Neue'",
       "sans-serif",
-    ].join(','),
+    ].join(","),
   },
 })
 
-export function App(services: { jobService: JobService; }) {
+export function App(services: { jobService: JobService }) {
   return (
     <ThemeProvider theme={theme}>
       <Router>
         <div className="app-container">
-          <NavBar/>
+          <NavBar />
           <div className="app-content">
             <Switch>
               <Route exact path="/">
@@ -56,5 +57,5 @@ export function App(services: { jobService: JobService; }) {
         </div>
       </Router>
     </ThemeProvider>
-  );
+  )
 }

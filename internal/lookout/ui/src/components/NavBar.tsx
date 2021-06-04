@@ -1,6 +1,7 @@
-import React from 'react'
-import { AppBar, Tab, Tabs, Toolbar, Typography } from "@material-ui/core";
-import { Link, withRouter, RouteComponentProps } from "react-router-dom";
+import React from "react"
+
+import { AppBar, Tab, Tabs, Toolbar, Typography } from "@material-ui/core"
+import { Link, RouteComponentProps, withRouter } from "react-router-dom"
 
 import "./NavBar.css"
 
@@ -12,16 +13,16 @@ interface Page {
 const PAGES: Page[] = [
   {
     title: "Overview",
-    location: "/"
+    location: "/",
   },
   {
     title: "Job Sets",
-    location: "/job-sets"
+    location: "/job-sets",
   },
   {
     title: "Jobs",
-    location: "/jobs"
-  }
+    location: "/jobs",
+  },
 ]
 
 // Creates mapping from location to index of element in ordered navbar
@@ -43,16 +44,13 @@ function locationFromIndex(pages: Page[], index: number): string {
 }
 
 function NavBar(props: RouteComponentProps) {
-  const currentLocation = props.location.pathname;
+  const currentLocation = props.location.pathname
   const currentValue = locationMap.has(currentLocation) ? locationMap.get(currentLocation) : 0
   return (
     <AppBar position="static">
       <Toolbar className="toolbar">
         <a href="/" className="title">
-          <img
-            className="logo"
-            src={process.env.PUBLIC_URL + "./Armada-white-rectangle.png"}
-            alt={""} />
+          <img className="logo" src={process.env.PUBLIC_URL + "./Armada-white-rectangle.png"} alt={""} />
           <Typography variant="h6" className="app-name">
             Lookout
           </Typography>
@@ -63,12 +61,11 @@ function NavBar(props: RouteComponentProps) {
             onChange={(event, newIndex) => {
               const newLocation = locationFromIndex(PAGES, newIndex)
               props.history.push(newLocation)
-            }}>
-            {
-              PAGES.map((page, idx) => (
-                <Tab key={idx} label={page.title} component={Link} to={page.location} />
-              ))
-            }
+            }}
+          >
+            {PAGES.map((page, idx) => (
+              <Tab key={idx} label={page.title} component={Link} to={page.location} />
+            ))}
           </Tabs>
         </div>
       </Toolbar>
@@ -76,4 +73,4 @@ function NavBar(props: RouteComponentProps) {
   )
 }
 
-export default withRouter(NavBar);
+export default withRouter(NavBar)

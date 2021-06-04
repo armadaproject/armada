@@ -100,13 +100,14 @@ func (server *SubmitServer) DeleteQueue(ctx context.Context, request *api.QueueD
 }
 
 func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRequest) (*api.JobSubmitResponse, error) {
-	if e := server.checkQueuePermission(ctx, req.Queue, true, permissions.SubmitJobs, permissions.SubmitAnyJobs); e != nil {
+	e, ownershipGroups := server.checkQueuePermission(ctx, req.Queue, true, permissions.SubmitJobs, permissions.SubmitAnyJobs)
+	if e != nil {
 		return nil, e
 	}
 
 	principal := authorization.GetPrincipal(ctx)
 
-	jobs, e := server.jobRepository.CreateJobs(req, principal)
+	jobs, e := server.jobRepository.CreateJobs(req, principal.GetName(), ownershipGroups)
 	if e != nil {
 		return nil, status.Errorf(codes.InvalidArgument, e.Error())
 	}
@@ -200,7 +201,7 @@ func (server *SubmitServer) CancelJobs(ctx context.Context, request *api.JobCanc
 }
 
 func (server *SubmitServer) cancelJobs(ctx context.Context, queue string, jobs []*api.Job) (*api.CancellationResult, error) {
-	if e := server.checkQueuePermission(ctx, queue, false, permissions.CancelJobs, permissions.CancelAnyJobs); e != nil {
+	if e, _ := server.checkQueuePermission(ctx, queue, false, permissions.CancelJobs, permissions.CancelAnyJobs); e != nil {
 		return nil, e
 	}
 
@@ -234,7 +235,7 @@ func (server *SubmitServer) checkQueuePermission(
 	queueName string,
 	attemptToCreate bool,
 	basicPermission permissions.Permission,
-	allQueuesPermission permissions.Permission) error {
+	allQueuesPermission permissions.Permission) (e error, ownershipGroups []string) {
 
 	queue, e := server.queueRepository.GetQueue(queueName)
 	if e != nil {
@@ -248,19 +249,20 @@ func (server *SubmitServer) checkQueuePermission(
 			}
 			e := server.queueRepository.CreateQueue(queue)
 			if e != nil {
-				return status.Errorf(codes.Aborted, e.Error())
+				return status.Errorf(codes.Aborted, e.Error()), []string{}
 			}
-			return nil
+			return nil, []string{}
 		} else {
-			return status.Errorf(codes.NotFound, "Could not load queue: %s", e.Error())
+			return status.Errorf(codes.NotFound, "Could not load queue: %s", e.Error()), []string{}
 		}
 	}
 	permissionToCheck := basicPermission
-	if !server.permissions.UserOwns(ctx, queue) {
+	owned, groups := server.permissions.UserOwns(ctx, queue)
+	if !owned {
 		permissionToCheck = allQueuesPermission
 	}
 	if e := checkPermission(server.permissions, ctx, permissionToCheck); e != nil {
-		return e
+		return e, []string{}
 	}
-	return nil
+	return nil, groups
 }

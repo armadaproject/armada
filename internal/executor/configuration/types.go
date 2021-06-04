@@ -13,6 +13,10 @@ type ApplicationConfiguration struct {
 	Pool      string
 }
 
+type PodDefaults struct {
+	SchedulerName string
+}
+
 type KubernetesConfiguration struct {
 	ImpersonateUsers  bool
 	TrackedNodeLabels []string
@@ -22,6 +26,7 @@ type KubernetesConfiguration struct {
 	StuckPodExpiry    time.Duration
 	MinimumJobSize    common.ComputeResources
 	AutoscalingPools  []AutoScalingPool
+	PodDefaults       *PodDefaults
 }
 
 type TaskConfiguration struct {

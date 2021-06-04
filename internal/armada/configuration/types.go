@@ -55,9 +55,19 @@ type BasicAuthenticationConfig struct {
 }
 
 type KerberosAuthenticationConfig struct {
-	KeytabLocation string
-	PrincipalName  string
-	UserNameSuffix string
+	KeytabLocation  string
+	PrincipalName   string
+	UserNameSuffix  string
+	GroupNameSuffix string
+	LDAP            LDAPConfig
+}
+
+type LDAPConfig struct {
+	URL             string
+	Username        string
+	Password        string
+	GroupSearchBase string
+	CacheExpiry     time.Duration
 }
 
 type SchedulingConfig struct {

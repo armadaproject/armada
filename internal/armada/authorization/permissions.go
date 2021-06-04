@@ -13,7 +13,7 @@ type Owned interface {
 
 type PermissionChecker interface {
 	UserHasPermission(ctx context.Context, perm permissions.Permission) bool
-	UserOwns(ctx context.Context, obj Owned) bool
+	UserOwns(ctx context.Context, obj Owned) (owned bool, ownershipGroups []string)
 }
 
 type PrincipalPermissionChecker struct {
@@ -40,22 +40,23 @@ func (checker *PrincipalPermissionChecker) UserHasPermission(ctx context.Context
 		hasPermission(perm, checker.permissionClaimMap, func(claim string) bool { return principal.HasClaim(claim) })
 }
 
-func (checker *PrincipalPermissionChecker) UserOwns(ctx context.Context, obj Owned) bool {
+func (checker *PrincipalPermissionChecker) UserOwns(ctx context.Context, obj Owned) (owned bool, ownershipGoups []string) {
 	principal := GetPrincipal(ctx)
 	currentUserName := principal.GetName()
 
 	for _, userName := range obj.GetUserOwners() {
 		if userName == currentUserName {
-			return true
+			return true, []string{}
 		}
 	}
 
+	ownershipGoups = []string{}
 	for _, group := range obj.GetGroupOwners() {
 		if principal.IsInGroup(group) {
-			return true
+			ownershipGoups = append(ownershipGoups, group)
 		}
 	}
-	return false
+	return len(ownershipGoups) > 0, ownershipGoups
 }
 
 func hasPermission(perm permissions.Permission, permMap map[permissions.Permission][]string, assert func(string) bool) bool {

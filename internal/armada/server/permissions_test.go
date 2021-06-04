@@ -9,8 +9,8 @@ import (
 
 type FakePermissionChecker struct{}
 
-func (FakePermissionChecker) UserOwns(ctx context.Context, obj authorization.Owned) bool {
-	return true
+func (c FakePermissionChecker) UserOwns(ctx context.Context, obj authorization.Owned) (owned bool, ownershipGroups []string) {
+	return true, []string{}
 }
 
 func (FakePermissionChecker) UserHasPermission(ctx context.Context, perm permissions.Permission) bool {

@@ -1,8 +1,9 @@
-import React from 'react'
+import React from "react"
+
 import { TextField } from "@material-ui/core"
 import { TableHeaderProps } from "react-virtualized"
 
-import './SearchHeaderCell.css'
+import "./SearchHeaderCell.css"
 
 type SearchHeaderCellProps = {
   headerLabel: string
@@ -20,8 +21,9 @@ export default function SearchHeaderCell(props: SearchHeaderCellProps) {
         label={props.headerLabel ? props.headerLabel : "Blank column"}
         value={props.value}
         disabled={props.headerLabel === ""}
-        onChange={event => props.onChange(event.target.value)}
-        className="search-header-text-field"/>
+        onChange={(event) => props.onChange(event.target.value)}
+        className="search-header-text-field"
+      />
     </div>
   )
 }

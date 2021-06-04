@@ -11,7 +11,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/G-Research/armada/internal/armada/authorization"
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/common/validation"
@@ -35,7 +34,7 @@ const JobNotFound = "no job found with provided Id"
 type JobRepository interface {
 	PeekQueue(queue string, limit int64) ([]*api.Job, error)
 	TryLeaseJobs(clusterId string, queue string, jobs []*api.Job) ([]*api.Job, error)
-	CreateJobs(request *api.JobSubmitRequest, principal authorization.Principal) ([]*api.Job, error)
+	CreateJobs(request *api.JobSubmitRequest, owner string, ownershipGroups []string) ([]*api.Job, error)
 	AddJobs(job []*api.Job) ([]*SubmitJobResult, error)
 	GetExistingJobsByIds(ids []string) ([]*api.Job, error)
 	FilterActiveQueues(queues []*api.Queue) ([]*api.Queue, error)
@@ -67,7 +66,7 @@ func NewRedisJobRepository(db redis.UniversalClient, defaultJobLimits common.Com
 	return &RedisJobRepository{db: db, defaultJobLimits: defaultJobLimits}
 }
 
-func (repo *RedisJobRepository) CreateJobs(request *api.JobSubmitRequest, principal authorization.Principal) ([]*api.Job, error) {
+func (repo *RedisJobRepository) CreateJobs(request *api.JobSubmitRequest, owner string, ownershipGroups []string) ([]*api.Job, error) {
 	jobs := make([]*api.Job, 0, len(request.JobRequestItems))
 
 	if request.JobSetId == "" {
@@ -128,10 +127,11 @@ func (repo *RedisJobRepository) CreateJobs(request *api.JobSubmitRequest, princi
 
 			Priority: item.Priority,
 
-			PodSpec:  item.PodSpec,
-			PodSpecs: item.PodSpecs,
-			Created:  time.Now(),
-			Owner:    principal.GetName(),
+			PodSpec:                  item.PodSpec,
+			PodSpecs:                 item.PodSpecs,
+			Created:                  time.Now(),
+			Owner:                    owner,
+			QueueOwnershipUserGroups: ownershipGroups,
 		}
 		jobs = append(jobs, j)
 	}
@@ -592,15 +592,21 @@ func (repo *RedisJobRepository) GetQueueJobIds(queueName string) ([]string, erro
 
 func (repo *RedisJobRepository) GetActiveJobIds(queue string, jobSetId string) ([]string, error) {
 
-	queuedIds, e := repo.db.ZRange(jobQueuePrefix+queue, 0, -1).Result()
+	tx := repo.db.TxPipeline()
+	queuedIdsCommand := tx.ZRange(jobQueuePrefix+queue, 0, -1)
+	leasedIdsCommand := tx.ZRange(jobLeasedPrefix+queue, 0, -1)
+	jobSetIdsCommand := tx.SMembers(jobSetPrefix + jobSetId)
+	_, _ = tx.Exec()
+
+	queuedIds, e := queuedIdsCommand.Result()
 	if e != nil {
 		return nil, e
 	}
-	leasedIds, e := repo.db.ZRange(jobLeasedPrefix+queue, 0, -1).Result()
+	leasedIds, e := leasedIdsCommand.Result()
 	if e != nil {
 		return nil, e
 	}
-	jobSetIds, e := repo.db.SMembers(jobSetPrefix + jobSetId).Result()
+	jobSetIds, e := jobSetIdsCommand.Result()
 	if e != nil {
 		return nil, e
 	}
@@ -617,11 +623,16 @@ func (repo *RedisJobRepository) GetActiveJobIds(queue string, jobSetId string) (
 
 func (repo *RedisJobRepository) GetQueueActiveJobSets(queue string) ([]*api.JobSetInfo, error) {
 
-	queuedIds, e := repo.db.ZRange(jobQueuePrefix+queue, 0, -1).Result()
+	tx := repo.db.TxPipeline()
+	queuedIdsCommand := tx.ZRange(jobQueuePrefix+queue, 0, -1)
+	leasedIdsCommand := tx.ZRange(jobLeasedPrefix+queue, 0, -1)
+	_, _ = tx.Exec()
+
+	queuedIds, e := queuedIdsCommand.Result()
 	if e != nil {
 		return nil, e
 	}
-	leasedIds, e := repo.db.ZRange(jobLeasedPrefix+queue, 0, -1).Result()
+	leasedIds, e := leasedIdsCommand.Result()
 	if e != nil {
 		return nil, e
 	}

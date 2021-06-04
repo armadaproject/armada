@@ -1,4 +1,4 @@
-import { updateColumnsFromQueryString, makeQueryString } from "./JobsContainer";
+import { makeQueryString, updateColumnsFromQueryString } from "./JobsContainer"
 
 function assertStringHasQueryParams(expected: string[], actual: string) {
   const actualQueryParams = actual.split("&")
@@ -117,12 +117,10 @@ describe("makeQueryString", () => {
       },
     ]
     const queryString = makeQueryString(columns)
-    assertStringHasQueryParams([
-      "queue=other-test",
-      "job_set=other-job-set",
-      "job_states=Pending,Succeeded,Failed",
-      "newest_first=true",
-    ], queryString)
+    assertStringHasQueryParams(
+      ["queue=other-test", "job_set=other-job-set", "job_states=Pending,Succeeded,Failed", "newest_first=true"],
+      queryString,
+    )
   })
 })
 
@@ -191,7 +189,10 @@ describe("updateColumnsFromQueryString", () => {
     expect(columns[0].filter).toStrictEqual(["Queued", "Pending", "Running"])
   })
 
-  const orderingsCases = [["newest_first=true", true], ["newest_first=false", false]]
+  const orderingsCases = [
+    ["newest_first=true", true],
+    ["newest_first=false", false],
+  ]
   test.each(orderingsCases)("updates ordering %p", (query, expectedOrdering) => {
     const columns = [
       {
