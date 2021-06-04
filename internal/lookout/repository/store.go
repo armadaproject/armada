@@ -328,10 +328,10 @@ func (r *SQLJobStore) getUpdatedJobJson(event *api.JobReprioritizedEvent) (sql.N
 	jobsInQueueRows := make([]*JobRow, 0)
 	err := selectDs.Prepared(true).ScanStructs(&jobsInQueueRows)
 	if err != nil {
-		return NewNullString(""), err
+		return sql.NullString{}, err
 	}
 	if len(jobsInQueueRows) == 0 {
-		return NewNullString(""), nil
+		return sql.NullString{}, nil
 	}
 
 	var jobFromJson api.Job
@@ -339,13 +339,13 @@ func (r *SQLJobStore) getUpdatedJobJson(event *api.JobReprioritizedEvent) (sql.N
 	err = json.Unmarshal([]byte(jobJson), &jobFromJson)
 	// We don't care about parsing errors, the JSON will not be updated
 	if err != nil {
-		return NewNullString(""), nil
+		return sql.NullString{}, nil
 	}
 
 	jobFromJson.Priority = event.NewPriority
 	updatedJobJson, err := json.Marshal(jobFromJson)
 	if err != nil {
-		return NewNullString(""), nil
+		return sql.NullString{}, nil
 	}
 	return NewNullString(string(updatedJobJson)), nil
 }
