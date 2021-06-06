@@ -238,7 +238,7 @@ export default class JobService {
     return result
   }
 
-  async reprioritizeJobs(jobs: Job[]): Promise<ReprioritizeJobsResult> {
+  async reprioritizeJobs(jobs: Job[], newPriority: number): Promise<ReprioritizeJobsResult> {
     const result: ReprioritizeJobsResult = { reprioritizedJobs: [], error: "" }
     const jobIds: string[] = []
     for (const job of jobs) {
@@ -248,8 +248,7 @@ export default class JobService {
       const apiResult = await this.submitApi.reprioritizeJobs({
         body: {
           jobIds: jobIds,
-          //TODO Remove
-          newPriority: 100,
+          newPriority: newPriority,
         },
       })
 

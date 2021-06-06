@@ -12,6 +12,8 @@ export type ReprioritizeJobsModalState = "ReprioritizeJobs" | "ReprioritizeJobsR
 
 export interface ReprioritizeJobsModalContext {
   modalState: ReprioritizeJobsModalState
+  newPriority: number
+  isValid: boolean
   jobsToReprioritize: Job[]
   reprioritizeJobsResult: ReprioritizeJobsResult
   reprioritizeJobsRequestStatus: ReprioritizeJobsRequestStatus
@@ -19,6 +21,7 @@ export interface ReprioritizeJobsModalContext {
 
 interface ReprioritizeJobsDialogProps extends ReprioritizeJobsModalContext {
   onReprioritizeJobs: () => void
+  onPriorityChange: (e: any) => void
   onClose: () => void
 }
 
@@ -43,7 +46,9 @@ export default function ReprioritizeJobsModal(props: ReprioritizeJobsDialogProps
       <ReprioritizeJobs
         jobsToReprioritize={props.jobsToReprioritize}
         isLoading={isLoading}
+        isValid={props.isValid}
         onReprioritizeJobs={props.onReprioritizeJobs}
+        onPriorityChange={props.onPriorityChange}
       />
     )
   }

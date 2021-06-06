@@ -2,6 +2,7 @@ import React from "react"
 
 import { Button, IconButton } from "@material-ui/core"
 import CancelIcon from "@material-ui/icons/Cancel"
+import LowPriority from "@material-ui/icons/LowPriority"
 import RefreshIcon from "@material-ui/icons/Refresh"
 
 import { ColumnSpec } from "../../containers/JobsContainer"
@@ -42,6 +43,17 @@ export default function JobTableHeader(props: JobTableHeaderProps) {
             onChangeAnnotationColumnKey={props.onChangeAnnotationColumnKey}
           />
         </div>
+        <div className="reprioritize-jobs">
+          <Button
+            disabled={!props.canReprioritize}
+            variant="contained"
+            color="primary"
+            onClick={props.onReprioritizeJobsClick}
+            startIcon={<LowPriority />}
+          >
+            Reprioritize
+          </Button>
+        </div>
         <div className="cancel-jobs">
           <Button
             disabled={!props.canCancel}
@@ -51,17 +63,6 @@ export default function JobTableHeader(props: JobTableHeaderProps) {
             onClick={props.onCancelJobsClick}
           >
             Cancel
-          </Button>
-        </div>
-        <div className="reprioritize-jobs">
-          <Button
-            disabled={!props.canReprioritize}
-            variant="contained"
-            color="secondary"
-            startIcon={<CancelIcon />}
-            onClick={props.onReprioritizeJobsClick}
-          >
-            Reprioritize
           </Button>
         </div>
         <div className="refresh">

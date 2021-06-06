@@ -10,6 +10,7 @@ import {
   TableRow,
   Theme,
   createStyles,
+  TextField,
 } from "@material-ui/core"
 import { makeStyles } from "@material-ui/core/styles"
 
@@ -45,7 +46,9 @@ const useStyles = makeStyles((theme: Theme) =>
 type ReprioritizeJobsProps = {
   jobsToReprioritize: Job[]
   isLoading: boolean
+  isValid: boolean
   onReprioritizeJobs: () => void
+  onPriorityChange: (e: any) => void
 }
 
 const ReprioritizeJobs = React.forwardRef((props: ReprioritizeJobsProps, ref: Ref<any>) => {
@@ -83,8 +86,22 @@ const ReprioritizeJobs = React.forwardRef((props: ReprioritizeJobsProps, ref: Re
           </TableBody>
         </Table>
       </TableContainer>
+      <TextField
+        autoFocus={true}
+        placeholder={"New priority"}
+        margin={"normal"}
+        type={"text"}
+        error={!props.isValid}
+        helperText={!props.isValid ? "Value must be a number >= 0" : " "}
+        onChange={props.onPriorityChange}
+      />
       <div className={classes.button}>
-        <LoadingButton content={"Reprioritize Jobs"} isLoading={props.isLoading} onClick={props.onReprioritizeJobs} />
+        <LoadingButton
+          content={"Reprioritize Jobs"}
+          isDisabled={!props.isValid}
+          isLoading={props.isLoading}
+          onClick={props.onReprioritizeJobs}
+        />
       </div>
     </div>
   )
