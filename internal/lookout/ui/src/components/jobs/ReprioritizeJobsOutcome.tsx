@@ -59,6 +59,7 @@ const useStyles = makeStyles((theme: Theme) =>
 
 type ReprioritizeJobsOutcomeProps = {
   reprioritizeJobsResult: ReprioritizeJobsResult
+  newPriority: number
   isLoading: boolean
   onReprioritizeJobs: () => void
 }
@@ -98,13 +99,39 @@ const ReprioritizeJobsOutcome = React.forwardRef((props: ReprioritizeJobsOutcome
           </TableContainer>
         </Fragment>
       )}
-      {props.reprioritizeJobsResult.error.length > 0 && (
+      {props.reprioritizeJobsResult.failedJobReprioritizations.length > 0 && (
         <Fragment>
           <p id="cancel-jobs-modal-description" className="cancel-jobs-modal-description">
-            Failed to reprioritize jobs because {props.reprioritizeJobsResult.error}
+            Failed to reprioritize the following jobs:
           </p>
+          <TableContainer component={Paper} className={classes.container}>
+            <Table stickyHeader>
+              <TableHead className={classes.failureHeader}>
+                <TableRow>
+                  <TableCell className={classes.failureHeader}>Id</TableCell>
+                  <TableCell className={classes.failureHeader}>Job Set</TableCell>
+                  <TableCell className={classes.failureHeader}>Submission Time</TableCell>
+                  <TableCell className={classes.failureHeader}>Error</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody className={classes.failure}>
+                {props.reprioritizeJobsResult.failedJobReprioritizations.map((failed) => (
+                  <TableRow key={failed.job.jobId}>
+                    <TableCell>{failed.job.jobId}</TableCell>
+                    <TableCell>{failed.job.jobSet}</TableCell>
+                    <TableCell>{failed.job.submissionTime}</TableCell>
+                    <TableCell>{failed.error}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
           <div className={classes.button}>
-            <LoadingButton content={"Retry"} isLoading={props.isLoading} onClick={props.onReprioritizeJobs} />
+            <LoadingButton
+              content={"Retry - New priority " + props.newPriority}
+              isLoading={props.isLoading}
+              onClick={props.onReprioritizeJobs}
+            />
           </div>
         </Fragment>
       )}

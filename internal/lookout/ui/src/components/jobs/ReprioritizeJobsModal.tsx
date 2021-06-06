@@ -1,6 +1,6 @@
 import React from "react"
 
-import { Backdrop, Fade, Modal, createStyles } from "@material-ui/core"
+import { Backdrop, Fade, createStyles, Modal } from "@material-ui/core"
 import { makeStyles } from "@material-ui/core/styles"
 
 import { ReprioritizeJobsRequestStatus } from "../../containers/JobsContainer"
@@ -57,6 +57,7 @@ export default function ReprioritizeJobsModal(props: ReprioritizeJobsDialogProps
       <ReprioritizeJobsOutcome
         reprioritizeJobsResult={props.reprioritizeJobsResult}
         isLoading={isLoading}
+        newPriority={props.newPriority}
         onReprioritizeJobs={props.onReprioritizeJobs}
       />
     )

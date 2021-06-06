@@ -33,7 +33,7 @@ interface JobsContainerState {
   forceRefresh: boolean
 }
 
-const re = new RegExp("^([0-9]+)$")
+const newPriorityRegex = new RegExp("^([0-9]+)$")
 
 export type ColumnSpec<T> = {
   id: string
@@ -204,7 +204,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
         jobsToReprioritize: [],
         newPriority: 0,
         isValid: false,
-        reprioritizeJobsResult: { reprioritizedJobs: [], error: "" },
+        reprioritizeJobsResult: { reprioritizedJobs: [], failedJobReprioritizations: [] },
         reprioritizeJobsRequestStatus: "Idle",
       },
       jobDetailsModalContext: {
@@ -239,7 +239,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     this.changeAnnotationColumnKey = this.changeAnnotationColumnKey.bind(this)
 
     this.fetchNextJobInfos = debounced(this.fetchNextJobInfos.bind(this), 100)
-    this.handleEvent = this.handleEvent.bind(this)
+    this.handlePriorityChange = this.handlePriorityChange.bind(this)
   }
 
   componentDidMount() {
@@ -471,7 +471,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
       this.state.reprioritizeJobsModalContext.jobsToReprioritize,
       this.state.reprioritizeJobsModalContext.newPriority,
     )
-    if (reprioritizeJobsResult.error.length === 0) {
+    if (reprioritizeJobsResult.failedJobReprioritizations.length === 0) {
       // Succeeded
       this.setState({
         ...this.state,
@@ -487,12 +487,27 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
           reprioritizeJobsRequestStatus: "Idle",
         },
       })
-    } else {
+    } else if (reprioritizeJobsResult.reprioritizedJobs.length === 0) {
       // Failure
       this.setState({
         ...this.state,
         reprioritizeJobsModalContext: {
           ...this.state.reprioritizeJobsModalContext,
+          reprioritizeJobsResult: reprioritizeJobsResult,
+          modalState: "ReprioritizeJobsResult",
+          reprioritizeJobsRequestStatus: "Idle",
+        },
+      })
+    } else {
+      // Some succeeded, some failed
+      this.setState({
+        ...this.state,
+        jobs: [],
+        canLoadMore: true,
+        selectedJobs: new Map<string, Job>(),
+        reprioritizeJobsModalContext: {
+          ...this.state.reprioritizeJobsModalContext,
+          jobsToReprioritize: reprioritizeJobsResult.failedJobReprioritizations.map((failed) => failed.job),
           reprioritizeJobsResult: reprioritizeJobsResult,
           modalState: "ReprioritizeJobsResult",
           reprioritizeJobsRequestStatus: "Idle",
@@ -547,16 +562,15 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     })
   }
 
-  handleEvent(e: any) {
-    console.log(e.target.value)
+  handlePriorityChange(e: any) {
     const i = e.target.value
-    const valid = re.test(i) && i.length > 0
+    const valid = newPriorityRegex.test(i) && i.length > 0
     this.setState({
       ...this.state,
       reprioritizeJobsModalContext: {
         ...this.state.reprioritizeJobsModalContext,
         isValid: valid,
-        newPriority: i,
+        newPriority: Number(i),
       },
     })
   }
@@ -709,7 +723,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
           isValid={this.state.reprioritizeJobsModalContext.isValid}
           newPriority={this.state.reprioritizeJobsModalContext.newPriority}
           onReprioritizeJobs={this.reprioritizeJobs}
-          onPriorityChange={this.handleEvent}
+          onPriorityChange={this.handlePriorityChange}
           onClose={() => this.setReprioritizeJobsModalState("None")}
         />
         <JobDetailsModal

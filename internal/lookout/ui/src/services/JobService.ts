@@ -100,9 +100,14 @@ export type CancelJobSetsResult = {
   }[]
 }
 
+export type FailedJobCancellation = {
+  job: Job
+  error: string
+}
+
 export type ReprioritizeJobsResult = {
   reprioritizedJobs: Job[]
-  error: string
+  failedJobReprioritizations: FailedJobReprioritizations[]
 }
 
 export type ReprioritizeJobSetResult = {
@@ -113,7 +118,7 @@ export type ReprioritizeJobSetResult = {
   }[]
 }
 
-export type FailedJobCancellation = {
+export type FailedJobReprioritizations = {
   job: Job
   error: string
 }
@@ -239,7 +244,7 @@ export default class JobService {
   }
 
   async reprioritizeJobs(jobs: Job[], newPriority: number): Promise<ReprioritizeJobsResult> {
-    const result: ReprioritizeJobsResult = { reprioritizedJobs: [], error: "" }
+    const result: ReprioritizeJobsResult = { reprioritizedJobs: [], failedJobReprioritizations: [] }
     const jobIds: string[] = []
     for (const job of jobs) {
       jobIds.push(job.jobId)
@@ -252,14 +257,17 @@ export default class JobService {
         },
       })
 
+      // TODO
       if (apiResult.reprioritizedIds?.length) {
         result.reprioritizedJobs = jobs
-      } else {
-        result.error = "No job was reprioritized"
       }
     } catch (e) {
       console.error(e)
-      result.error = await getErrorMessage(e)
+
+      const errorMessage = await getErrorMessage(e)
+      for (const job of jobs) {
+        result.failedJobReprioritizations.push({ job: job, error: errorMessage })
+      }
     }
     return result
   }
