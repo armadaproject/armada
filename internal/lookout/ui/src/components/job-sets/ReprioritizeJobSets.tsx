@@ -5,7 +5,7 @@ import { List, ListItem, ListItemText, Paper, TextField } from "@material-ui/cor
 import { JobSet } from "../../services/JobService"
 import LoadingButton from "../jobs/LoadingButton"
 
-import "./CancelJobSets.css"
+import "./JobSetActions.css"
 
 type ReprioritizeJobSetsProps = {
   queue: string
@@ -18,9 +18,9 @@ type ReprioritizeJobSetsProps = {
 
 export default function ReprioritizeJobSets(props: ReprioritizeJobSetsProps) {
   return (
-    <div className="cancel-job-sets-container">
-      <p className="cancel-job-sets-text">The following Job Sets in queue {props.queue} will be reprioritized:</p>
-      <List component={Paper} className="cancel-job-sets-table-container">
+    <div className="job-sets-action-container">
+      <p className="job-sets-action-text">The following Job Sets in queue {props.queue} will be reprioritized:</p>
+      <List component={Paper} className="job-sets-action-table-container">
         {props.jobSets.map((jobSet) => (
           <ListItem key={jobSet.jobSetId}>
             <ListItemText className="cancel-job-sets-wrap">{jobSet.jobSetId}</ListItemText>

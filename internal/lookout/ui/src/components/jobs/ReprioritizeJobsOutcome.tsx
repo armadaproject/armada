@@ -69,12 +69,12 @@ const ReprioritizeJobsOutcome = React.forwardRef((props: ReprioritizeJobsOutcome
 
   return (
     <div ref={ref} className={classes.paper}>
-      <h2 id="cancel-jobs-modal-title" className="cancel-jobs-modal-title">
+      <h2 id="reprioritize-jobs-modal-title" className="reprioritize-jobs-modal-title">
         Reprioritize jobs
       </h2>
       {props.reprioritizeJobsResult.reprioritizedJobs.length > 0 && (
         <Fragment>
-          <p id="cancel-jobs-modal-description" className="cancel-jobs-modal-description">
+          <p id="reprioritize-jobs-modal-description" className="reprioritize-jobs-modal-description">
             The following jobs were reprioritized successfully:
           </p>
           <TableContainer component={Paper} className={classes.container}>
@@ -101,7 +101,7 @@ const ReprioritizeJobsOutcome = React.forwardRef((props: ReprioritizeJobsOutcome
       )}
       {props.reprioritizeJobsResult.failedJobReprioritizations.length > 0 && (
         <Fragment>
-          <p id="cancel-jobs-modal-description" className="cancel-jobs-modal-description">
+          <p id="reprioritize-jobs-modal-description" className="reprioritize-jobs-modal-description">
             Failed to reprioritize the following jobs:
           </p>
           <TableContainer component={Paper} className={classes.container}>

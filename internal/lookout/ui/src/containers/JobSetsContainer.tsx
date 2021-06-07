@@ -314,9 +314,7 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
   }
 
   private static getReprioritizeableJobSets(selectedJobSets: Map<string, JobSet>): JobSet[] {
-    return Array.from(selectedJobSets.values()).filter(
-      (jobSet) => jobSet.jobsQueued > 0 || jobSet.jobsPending > 0 || jobSet.jobsRunning > 0,
-    )
+    return Array.from(selectedJobSets.values()).filter((jobSet) => jobSet.jobsQueued > 0)
   }
 
   render() {

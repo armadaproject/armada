@@ -56,10 +56,10 @@ const ReprioritizeJobs = React.forwardRef((props: ReprioritizeJobsProps, ref: Re
 
   return (
     <div ref={ref} className={classes.paper}>
-      <h2 id="cancel-jobs-modal-title" className="cancel-jobs-modal-title">
+      <h2 id="reprioritize-jobs-modal-title" className="reprioritize-jobs-modal-title">
         Reprioritize jobs
       </h2>
-      <p id="cancel-jobs-modal-description" className="cancel-jobs-modal-description">
+      <p id="reprioritize-jobs-modal-description" className="reprioritize-jobs-modal-description">
         The following jobs will be reprioritized:
       </p>
       <TableContainer component={Paper} className={classes.container}>

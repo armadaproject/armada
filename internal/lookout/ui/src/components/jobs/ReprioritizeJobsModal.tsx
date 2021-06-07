@@ -65,8 +65,8 @@ export default function ReprioritizeJobsModal(props: ReprioritizeJobsDialogProps
 
   return (
     <Modal
-      aria-labelledby="cancel-jobs-modal-title"
-      aria-describedby="cancel-jobs-modal-description"
+      aria-labelledby="reprioritize-jobs-modal-title"
+      aria-describedby="reprioritize-jobs-modal-description"
       open={isOpen}
       className={classes.modal}
       closeAfterTransition

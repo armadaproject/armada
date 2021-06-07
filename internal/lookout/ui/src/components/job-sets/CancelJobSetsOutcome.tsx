@@ -16,7 +16,7 @@ import {
 import { CancelJobSetsResult } from "../../services/JobService"
 import LoadingButton from "../jobs/LoadingButton"
 
-import "./CancelJobSets.css"
+import "./JobSetActions.css"
 
 type CancelJobSetsOutcomeProps = {
   cancelJobSetsResult: CancelJobSetsResult
@@ -26,7 +26,7 @@ type CancelJobSetsOutcomeProps = {
 
 export default function CancelJobSetsOutcome(props: CancelJobSetsOutcomeProps) {
   return (
-    <div className="cancel-job-sets-container">
+    <div className="job-sets-action-container">
       {props.cancelJobSetsResult.cancelledJobSets.length > 0 && (
         <Fragment>
           <p className="cancel-job-sets-text">The following Job Sets were cancelled successfully:</p>

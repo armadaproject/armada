@@ -16,7 +16,7 @@ import {
 import { ReprioritizeJobSetResult } from "../../services/JobService"
 import LoadingButton from "../jobs/LoadingButton"
 
-import "./CancelJobSets.css"
+import "./JobSetActions.css"
 
 type ReprioritizeJobSetsOutcomeProps = {
   reprioritizeJobSetResult: ReprioritizeJobSetResult
@@ -27,7 +27,7 @@ type ReprioritizeJobSetsOutcomeProps = {
 
 export default function ReprioritizeJobSetsOutcome(props: ReprioritizeJobSetsOutcomeProps) {
   return (
-    <div className="cancel-job-sets-container">
+    <div className="job-sets-action-container">
       {props.reprioritizeJobSetResult.reprioritizedJobSets.length > 0 && (
         <Fragment>
           <p className="cancel-job-sets-text">The following Job Sets were reprioritized successfully:</p>
