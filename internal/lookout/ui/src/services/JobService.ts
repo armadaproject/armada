@@ -272,7 +272,7 @@ export default class JobService {
     return result
   }
 
-  async reprioritizeJobSets(queue: string, jobSets: JobSet[]): Promise<ReprioritizeJobSetResult> {
+  async reprioritizeJobSets(queue: string, jobSets: JobSet[], newPriority: number): Promise<ReprioritizeJobSetResult> {
     const result: ReprioritizeJobSetResult = { reprioritizedJobSets: [], failedJobSetReprioritizations: [] }
 
     for (const jobSet of jobSets) {
@@ -281,11 +281,11 @@ export default class JobService {
           body: {
             queue: queue,
             jobSetId: jobSet.jobSetId,
-            //TODO Remove
-            newPriority: 100,
+            newPriority: newPriority,
           },
         })
 
+        //TODO handle partial failure
         if (apiResult.reprioritizedIds?.length) {
           result.reprioritizedJobSets.push(jobSet)
         } else {
