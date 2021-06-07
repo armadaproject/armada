@@ -51,6 +51,7 @@ export default function JobSetTable(props: JobSetTableProps) {
             <CheckboxRow
               isChecked={props.selectedJobSets.has(tableRowProps.rowData.jobSetId)}
               onChangeChecked={(selected) => props.onSelectJobSet(tableRowProps.rowData, selected)}
+              onChangeCheckedShift={(selected) => console.log("nothing")}
               tableKey={tableRowProps.key}
               {...tableRowProps}
             />

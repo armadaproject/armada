@@ -19,7 +19,6 @@ type JobsProps = {
   annotationColumns: ColumnSpec<string>[]
   selectedJobs: Map<string, Job>
   cancelJobsButtonIsEnabled: boolean
-  forceRefresh: boolean
   fetchJobs: (start: number, stop: number) => Promise<Job[]>
   isLoaded: (index: number) => boolean
   onChangeColumnValue: (columnId: string, newValue: string | boolean | string[]) => void
@@ -29,6 +28,7 @@ type JobsProps = {
   onChangeAnnotationColumnKey: (columnId: string, newKey: string) => void
   onRefresh: () => void
   onSelectJob: (job: Job, selected: boolean) => void
+  onShiftSelect: (index: number, selected: boolean) => void
   onCancelJobsClick: () => void
   onJobIdClick: (jobIndex: number) => void
   resetRefresh: () => void
@@ -124,6 +124,7 @@ export default class Jobs extends React.Component<JobsProps, Record<string, neve
                           <CheckboxRow
                             isChecked={selected}
                             onChangeChecked={(selected) => this.props.onSelectJob(tableRowProps.rowData, selected)}
+                            onChangeCheckedShift={(selected) => this.props.onShiftSelect(tableRowProps.index, selected)}
                             tableKey={tableRowProps.key}
                             {...tableRowProps}
                           />
