@@ -773,9 +773,9 @@
       "type": "object",
       "title": "swagger:model",
       "properties": {
-        "reprioritizedIds": {
-          "type": "array",
-          "items": {
+        "reprioritizationResults": {
+          "type": "object",
+          "additionalProperties": {
             "type": "string"
           }
         }

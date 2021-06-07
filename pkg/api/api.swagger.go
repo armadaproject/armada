@@ -784,9 +784,9 @@ func SwaggerJsonTemplate() string {
 		"      \"type\": \"object\",\n" +
 		"      \"title\": \"swagger:model\",\n" +
 		"      \"properties\": {\n" +
-		"        \"reprioritizedIds\": {\n" +
-		"          \"type\": \"array\",\n" +
-		"          \"items\": {\n" +
+		"        \"reprioritizationResults\": {\n" +
+		"          \"type\": \"object\",\n" +
+		"          \"additionalProperties\": {\n" +
 		"            \"type\": \"string\"\n" +
 		"          }\n" +
 		"        }\n" +

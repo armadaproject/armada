@@ -143,12 +143,12 @@ func TestSubmitServer_SubmitJobs_HandlesDoubleSubmit(t *testing.T) {
 func TestSubmitServer_ReprioritizeJobs(t *testing.T) {
 	t.Run("job that doesn't exist", func(t *testing.T) {
 		withSubmitServerAndRepos(func(s *SubmitServer, jobRepo repository.JobRepository, events repository.EventRepository) {
-			reprioritizeResult, err := s.ReprioritizeJobs(context.Background(), &api.JobReprioritizeRequest{
+			reprioritizeResponse, err := s.ReprioritizeJobs(context.Background(), &api.JobReprioritizeRequest{
 				JobIds:      []string{util.NewULID()},
 				NewPriority: 123,
 			})
 			assert.NoError(t, err)
-			assert.Equal(t, 0, len(reprioritizeResult.ReprioritizedIds))
+			assert.Equal(t, 0, len(reprioritizeResponse.ReprioritizationResults))
 		})
 	})
 
@@ -161,13 +161,15 @@ func TestSubmitServer_ReprioritizeJobs(t *testing.T) {
 			assert.NoError(t, err)
 			jobId := submitResult.JobResponseItems[0].JobId
 
-			reprioritizeResult, err := s.ReprioritizeJobs(context.Background(), &api.JobReprioritizeRequest{
+			reprioritizeResponse, err := s.ReprioritizeJobs(context.Background(), &api.JobReprioritizeRequest{
 				JobIds:      []string{jobId},
 				NewPriority: 123,
 			})
 			assert.NoError(t, err)
-			assert.Equal(t, 1, len(reprioritizeResult.ReprioritizedIds))
-			assert.Equal(t, jobId, reprioritizeResult.ReprioritizedIds[0])
+			assert.Equal(t, 1, len(reprioritizeResponse.ReprioritizationResults))
+			errorString, ok := reprioritizeResponse.ReprioritizationResults[jobId]
+			assert.True(t, ok)
+			assert.Empty(t, errorString)
 
 			jobs, err := jobRepo.PeekQueue("test", 100)
 			assert.NoError(t, err)
@@ -197,12 +199,12 @@ func TestSubmitServer_ReprioritizeJobs(t *testing.T) {
 				jobIds = append(jobIds, item.JobId)
 			}
 
-			reprioritizeResult, err := s.ReprioritizeJobs(context.Background(), &api.JobReprioritizeRequest{
+			reprioritizeResponse, err := s.ReprioritizeJobs(context.Background(), &api.JobReprioritizeRequest{
 				JobIds:      jobIds,
 				NewPriority: 256,
 			})
 			assert.NoError(t, err)
-			assert.Equal(t, 3, len(reprioritizeResult.ReprioritizedIds))
+			assert.Equal(t, 3, len(reprioritizeResponse.ReprioritizationResults))
 
 			jobs, err := jobRepo.GetExistingJobsByIds(jobIds)
 			assert.NoError(t, err)
@@ -231,24 +233,28 @@ func TestSubmitServer_ReprioritizeJobs(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Equal(t, 1, len(leased))
 
-			reprioritizeResult, err := s.ReprioritizeJobs(context.Background(), &api.JobReprioritizeRequest{
+			reprioritizeResponse, err := s.ReprioritizeJobs(context.Background(), &api.JobReprioritizeRequest{
 				JobIds:      []string{jobId},
 				NewPriority: 123,
 			})
 			assert.NoError(t, err)
-			assert.Equal(t, 0, len(reprioritizeResult.ReprioritizedIds))
+			assert.Equal(t, 1, len(reprioritizeResponse.ReprioritizationResults))
+			errorString, ok := reprioritizeResponse.ReprioritizationResults[jobId]
+			assert.True(t, ok)
+			assert.Empty(t, errorString)
 
 			jobs, err = jobRepo.GetExistingJobsByIds([]string{jobId})
 			assert.NoError(t, err)
-			assert.Equal(t, float64(0), jobs[0].Priority)
+			assert.Equal(t, float64(123), jobs[0].Priority)
 
 			messages, err := readJobEvents(events, jobSetId)
 			assert.NoError(t, err)
-			assert.Equal(t, 3, len(messages))
+			assert.Equal(t, 4, len(messages))
 
 			assert.NotNil(t, messages[0].Message.GetSubmitted())
 			assert.NotNil(t, messages[1].Message.GetQueued())
 			assert.NotNil(t, messages[2].Message.GetReprioritizing())
+			assert.NotNil(t, messages[3].Message.GetReprioritized())
 		})
 	})
 
@@ -264,13 +270,13 @@ func TestSubmitServer_ReprioritizeJobs(t *testing.T) {
 				jobIds = append(jobIds, item.JobId)
 			}
 
-			reprioritizeResult, err := s.ReprioritizeJobs(context.Background(), &api.JobReprioritizeRequest{
+			reprioritizeResponse, err := s.ReprioritizeJobs(context.Background(), &api.JobReprioritizeRequest{
 				JobSetId:    jobSetId,
 				Queue:       "test",
 				NewPriority: 678,
 			})
 			assert.NoError(t, err)
-			assert.Equal(t, 3, len(reprioritizeResult.ReprioritizedIds))
+			assert.Equal(t, 3, len(reprioritizeResponse.ReprioritizationResults))
 
 			jobs, err := jobRepo.GetExistingJobsByIds(jobIds)
 			assert.NoError(t, err)
@@ -281,6 +287,47 @@ func TestSubmitServer_ReprioritizeJobs(t *testing.T) {
 			messages, err := readJobEvents(events, jobSetId)
 			assert.NoError(t, err)
 			assert.Equal(t, 4*3, len(messages))
+		})
+	})
+
+	t.Run("updating priority after lease keeps priority", func(t *testing.T) {
+		withSubmitServerAndRepos(func(s *SubmitServer, jobRepo repository.JobRepository, events repository.EventRepository) {
+			jobSetId := util.NewULID()
+			jobRequest := createJobRequest(jobSetId, 3)
+
+			submitResult, err := s.SubmitJobs(context.Background(), jobRequest)
+			assert.NoError(t, err)
+			var jobIds []string
+			for _, item := range submitResult.JobResponseItems {
+				jobIds = append(jobIds, item.JobId)
+			}
+
+			jobs, err := s.jobRepository.GetExistingJobsByIds(jobIds)
+			assert.NoError(t, err)
+			selectedJob := jobs[1]
+			clusterId := "some-cluster"
+
+			leased, err := jobRepo.TryLeaseJobs(clusterId, "test", []*api.Job{selectedJob})
+			assert.NoError(t, err)
+			assert.Equal(t, 1, len(leased))
+
+			reprioritizeResponse, err := s.ReprioritizeJobs(context.Background(), &api.JobReprioritizeRequest{
+				JobIds:      []string{selectedJob.Id},
+				NewPriority: 1000,
+			})
+			assert.NoError(t, err)
+			assert.Equal(t, 1, len(reprioritizeResponse.ReprioritizationResults))
+			errorString, ok := reprioritizeResponse.ReprioritizationResults[selectedJob.Id]
+			assert.True(t, ok)
+			assert.Empty(t, errorString)
+
+			_, err = jobRepo.ReturnLease(clusterId, selectedJob.Id)
+			assert.NoError(t, err)
+
+			jobs, err = jobRepo.PeekQueue("test", 100)
+			assert.NoError(t, err)
+			assert.Equal(t, selectedJob.Id, jobs[2].Id)
+			assert.Equal(t, float64(1000), jobs[2].Priority)
 		})
 	})
 }

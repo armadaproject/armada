@@ -536,6 +536,7 @@ end
 return redis.call('HSET', startTimeKey, clusterId, startTime)
 `)
 
+// Updates priority if job exists, does not error if job doesn't exist
 func (repo *RedisJobRepository) UpdatePriority(job *api.Job, newPriority float64) error {
 	job.Priority = newPriority
 	jobData, err := proto.Marshal(job)
@@ -543,12 +544,9 @@ func (repo *RedisJobRepository) UpdatePriority(job *api.Job, newPriority float64
 		return err
 	}
 
-	result, err := updatePriority(repo.db, job, newPriority, &jobData).Int()
+	_, err = updatePriority(repo.db, job, newPriority, &jobData).Int()
 	if err != nil {
 		return err
-	}
-	if result == updatePriorityJobDoesNotExist {
-		return fmt.Errorf("job with id %q not found among queued jobs", job.Id)
 	}
 
 	return nil
@@ -560,8 +558,6 @@ func updatePriority(db redis.Cmdable, job *api.Job, newPriority float64, jobData
 		job.Id, newPriority, *jobData)
 }
 
-const updatePriorityJobDoesNotExist = -100
-
 var updatePriorityScript = redis.NewScript(`
 local queue = KEYS[1]
 local job = KEYS[2]
@@ -570,13 +566,20 @@ local jobId = ARGV[1]
 local newPriority = ARGV[2]
 local jobData = ARGV[3]
 
-local exists = redis.call('ZSCORE', queue, jobId)
+local exists = redis.call('GET', job)
+local existsQueued = redis.call('ZSCORE', queue, jobId)
 
-if exists ~= false then
-	redis.call('SET', job, jobData)
+if exists then
+	local ttl = redis.call('TTL', job)
+	if ttl > 0 then
+		redis.call('SETEX', job, ttl, jobData)
+	else
+		redis.call('SET', job, jobData)
+	end
+end
+
+if existsQueued then
 	redis.call('ZADD', queue, newPriority, jobId)
-else
-	return -100
 end
 
 return 0

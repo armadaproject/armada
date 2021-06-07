@@ -230,6 +230,7 @@ func (server *SubmitServer) cancelJobs(ctx context.Context, queue string, jobs [
 	return &api.CancellationResult{cancelledIds}, nil
 }
 
+// Returns mapping from job id to error (if present), for all existing jobs
 func (server *SubmitServer) ReprioritizeJobs(ctx context.Context, request *api.JobReprioritizeRequest) (*api.JobReprioritizeResponse, error) {
 	var jobs []*api.Job
 	if len(request.JobIds) > 0 {
@@ -255,25 +256,24 @@ func (server *SubmitServer) ReprioritizeJobs(ctx context.Context, request *api.J
 		return nil, err
 	}
 
+	results := make(map[string]string)
 	var reprioritizedJobs []*api.Job
 	for _, job := range jobs {
+		var errorString string
 		err = server.jobRepository.UpdatePriority(job, request.NewPriority)
 		if err != nil {
-			log.Errorf("error when reprioritizing job with id %s: %s", job.Id, err.Error())
+			errorString = err.Error()
 		} else {
 			reprioritizedJobs = append(reprioritizedJobs, job)
 		}
+		results[job.Id] = errorString
 	}
 	err = reportJobsReprioritized(server.eventStore, reprioritizedJobs, request.NewPriority)
 	if err != nil {
 		return nil, err
 	}
 
-	reprioritizedIds := make([]string, len(reprioritizedJobs))
-	for i, job := range reprioritizedJobs {
-		reprioritizedIds[i] = job.Id
-	}
-	return &api.JobReprioritizeResponse{ReprioritizedIds: reprioritizedIds}, nil
+	return &api.JobReprioritizeResponse{ReprioritizationResults: results}, nil
 }
 
 func (server *SubmitServer) checkQueuePermission(

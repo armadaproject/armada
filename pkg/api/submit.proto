@@ -56,7 +56,7 @@ message JobReprioritizeRequest {
 
 // swagger:model
 message JobReprioritizeResponse {
-    repeated string reprioritized_ids = 1 [(gogoproto.jsontag) = "reprioritizedIds"];
+    map<string, string> reprioritization_results = 1;
 }
 
 message JobSubmitResponseItem {
