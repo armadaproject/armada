@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"strconv"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -20,16 +21,20 @@ func init() {
 		"queue", "", "Queue including jobs to be reprioritized (requires job set to be specified)")
 	reprioritizeCmd.Flags().String(
 		"jobSet", "", "Job set including jobs to be reprioritized (requires queue to be specified)")
-	reprioritizeCmd.Flags().Float64(
-		"priority", 0, "New priority to assign to job(s)")
 }
 
 var reprioritizeCmd = &cobra.Command{
-	Use:   "reprioritize",
+	Use:   "reprioritize PRIORITY",
 	Short: "Reprioritize jobs in Armada",
 	Long:  `Change the priority of a single or multiple jobs by specifying either a job id or a combination of queue & job set.`,
-	Args:  cobra.ExactArgs(0),
+	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
+		priorityString := args[0]
+		priority, err := strconv.ParseFloat(priorityString, 64)
+		if err != nil {
+			exitWithError(err)
+		}
+
 		apiConnectionDetails := client.ExtractCommandlineArmadaApiConnectionDetails()
 
 		client.WithConnection(apiConnectionDetails, func(conn *grpc.ClientConn) {
@@ -38,7 +43,6 @@ var reprioritizeCmd = &cobra.Command{
 			jobId, _ := cmd.Flags().GetString("jobId")
 			queue, _ := cmd.Flags().GetString("queue")
 			jobSet, _ := cmd.Flags().GetString("jobSet")
-			priority, _ := cmd.Flags().GetFloat64("priority")
 			var jobIds []string
 			if jobId != "" {
 				jobIds = append(jobIds, jobId)
