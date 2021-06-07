@@ -257,9 +257,17 @@ export default class JobService {
         },
       })
 
-      // TODO
-      if (apiResult.reprioritizedIds?.length) {
-        result.reprioritizedJobs = jobs
+      for (const job of jobs) {
+        if (apiResult.reprioritizationErrors?.hasOwnProperty(job.jobId)) {
+          const error = apiResult.reprioritizationErrors[job.jobId]
+          if (error === "") {
+            result.reprioritizedJobs.push(job)
+          } else {
+            result.failedJobReprioritizations.push({ job: job, error: error })
+          }
+        } else {
+          result.reprioritizedJobs.push(job)
+        }
       }
     } catch (e) {
       console.error(e)
@@ -284,12 +292,23 @@ export default class JobService {
             newPriority: newPriority,
           },
         })
-
-        //TODO handle partial failure
-        if (apiResult.reprioritizedIds?.length) {
+        let errorCount = 0
+        let successCount = 0
+        let error = ""
+        for (const key in apiResult.reprioritizationErrors) {
+          const e = apiResult.reprioritizationErrors[key]
+          if (e !== "") {
+            errorCount++
+            error = e
+          } else {
+            successCount++
+          }
+        }
+        if (errorCount === 0) {
           result.reprioritizedJobSets.push(jobSet)
         } else {
-          result.failedJobSetReprioritizations.push({ jobSet: jobSet, error: "No job was cancelled" })
+          const message: string = "Reprioritised: " + successCount + " Failed: " + errorCount + " Reason: " + error
+          result.failedJobSetReprioritizations.push({ jobSet: jobSet, error: message })
         }
       } catch (e) {
         console.error(e)
