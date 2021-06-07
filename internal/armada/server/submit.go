@@ -270,17 +270,21 @@ func (server *SubmitServer) reprioritizeJobs(err error, jobs []*api.Job, request
 		return nil, err
 	}
 
-	results := make(map[string]string)
-	var reprioritizedJobs []*api.Job
+	results, err := server.jobRepository.UpdatePriority(jobs, request.NewPriority)
+	if err != nil {
+		return nil, err
+	}
+
+	jobMap := make(map[string]*api.Job)
 	for _, job := range jobs {
-		var errorString string
-		err = server.jobRepository.UpdatePriority(job, request.NewPriority)
-		if err != nil {
-			errorString = err.Error()
-		} else {
-			reprioritizedJobs = append(reprioritizedJobs, job)
+		jobMap[job.Id] = job
+	}
+
+	var reprioritizedJobs []*api.Job
+	for jobId, errorString := range results {
+		if errorString == "" {
+			reprioritizedJobs = append(reprioritizedJobs, jobMap[jobId])
 		}
-		results[job.Id] = errorString
 	}
 
 	err = reportJobsReprioritized(server.eventStore, reprioritizedJobs, request.NewPriority)

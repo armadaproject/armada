@@ -48,7 +48,7 @@ type JobRepository interface {
 	GetActiveJobIds(queue string, jobSetId string) ([]string, error)
 	GetLeasedJobIds(queue string) ([]string, error)
 	UpdateStartTime(jobId string, clusterId string, startTime time.Time) error
-	UpdatePriority(job *api.Job, newPriority float64) error
+	UpdatePriority(jobs []*api.Job, newPriority float64) (map[string]string, error)
 	GetJobRunInfos(jobIds []string) (map[string]*RunInfo, error)
 	GetQueueActiveJobSets(queue string) ([]*api.JobSetInfo, error)
 	AddRetryAttempt(jobId string) error
@@ -537,19 +537,40 @@ return redis.call('HSET', startTimeKey, clusterId, startTime)
 `)
 
 // Updates priority if job exists, does not error if job doesn't exist
-func (repo *RedisJobRepository) UpdatePriority(job *api.Job, newPriority float64) error {
-	job.Priority = newPriority
-	jobData, err := proto.Marshal(job)
-	if err != nil {
-		return err
+func (repo *RedisJobRepository) UpdatePriority(jobs []*api.Job, newPriority float64) (map[string]string, error) {
+	jobDatas := make([][]byte, len(jobs))
+	for i, job := range jobs {
+		job.Priority = newPriority
+		jobData, err := proto.Marshal(job)
+		jobDatas[i] = jobData
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	_, err = updatePriority(repo.db, job, newPriority, &jobData).Int()
+	commands := make([]*redis.Cmd, len(jobs))
+	pipe := repo.db.Pipeline()
+	updatePriorityScript.Load(pipe)
+
+	for i, job := range jobs {
+		commands[i] = updatePriority(pipe, job, newPriority, &jobDatas[i])
+	}
+	_, err := pipe.Exec()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	result := make(map[string]string)
+	for i, cmd := range commands {
+		err := cmd.Err()
+		var errorString string
+		if err != nil {
+			errorString = err.Error()
+		}
+		result[jobs[i].Id] = errorString
+	}
+
+	return result, nil
 }
 
 func updatePriority(db redis.Cmdable, job *api.Job, newPriority float64, jobData *[]byte) *redis.Cmd {
@@ -558,6 +579,7 @@ func updatePriority(db redis.Cmdable, job *api.Job, newPriority float64, jobData
 		job.Id, newPriority, *jobData)
 }
 
+// If the job key has a defined TTL, it implies that the job has finished and updating priority is irrelevant
 var updatePriorityScript = redis.NewScript(`
 local queue = KEYS[1]
 local job = KEYS[2]
@@ -571,9 +593,7 @@ local existsQueued = redis.call('ZSCORE', queue, jobId)
 
 if exists then
 	local ttl = redis.call('TTL', job)
-	if ttl > 0 then
-		redis.call('SETEX', job, ttl, jobData)
-	else
+	if ttl < 0 then
 		redis.call('SET', job, jobData)
 	end
 end

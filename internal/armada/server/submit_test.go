@@ -165,6 +165,7 @@ func TestSubmitServer_ReprioritizeJobs(t *testing.T) {
 				JobIds:      []string{jobId},
 				NewPriority: 123,
 			})
+			fmt.Println(reprioritizeResponse)
 			assert.NoError(t, err)
 			assert.Equal(t, 1, len(reprioritizeResponse.ReprioritizationResults))
 			errorString, ok := reprioritizeResponse.ReprioritizationResults[jobId]
