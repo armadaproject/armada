@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"strings"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -56,10 +55,46 @@ var reprioritizeCmd = &cobra.Command{
 			if err != nil {
 				exitWithError(err)
 			}
-			if len(result.ReprioritizedIds) == 0 {
-				exitWithError(fmt.Errorf("no jobs were reprioritized"))
+
+			err = reportResults(result.ReprioritizationResults)
+			if err != nil {
+				exitWithError(err)
 			}
-			log.Infof("Reprioritization request submitted for jobs: %s", strings.Join(result.ReprioritizedIds, ", "))
 		})
 	},
+}
+
+func reportResults(results map[string]string) error {
+	if len(results) == 0 {
+		return fmt.Errorf("no jobs were reprioritized")
+	}
+
+	var reprioritizedIds []string
+	erroredIds := make(map[string]string)
+	for jobId, errorString := range results {
+		if errorString != "" {
+			erroredIds[jobId] = errorString
+		} else {
+			reprioritizedIds = append(reprioritizedIds, jobId)
+		}
+	}
+
+	if len(reprioritizedIds) > 0 {
+		log.Infof("The following jobs were reprioritized:")
+		for _, jobId := range reprioritizedIds {
+			log.Infof("%s", jobId)
+		}
+	}
+
+	if len(erroredIds) > 0 {
+		log.Infof("\nThe following jobs failed to reprioritize with errors:")
+		for jobId, errorString := range erroredIds {
+			log.Infof("%s: %s", jobId, errorString)
+		}
+	}
+
+	if len(erroredIds) > 0 {
+		return fmt.Errorf("Some jobs failed to be reprioritized")
+	}
+	return nil
 }
