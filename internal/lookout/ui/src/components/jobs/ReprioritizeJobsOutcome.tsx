@@ -110,6 +110,7 @@ const ReprioritizeJobsOutcome = React.forwardRef((props: ReprioritizeJobsOutcome
                 <TableRow>
                   <TableCell className={classes.failureHeader}>Id</TableCell>
                   <TableCell className={classes.failureHeader}>Job Set</TableCell>
+                  <TableCell className={classes.failureHeader}>Current Priority</TableCell>
                   <TableCell className={classes.failureHeader}>Submission Time</TableCell>
                   <TableCell className={classes.failureHeader}>Error</TableCell>
                 </TableRow>
@@ -119,6 +120,7 @@ const ReprioritizeJobsOutcome = React.forwardRef((props: ReprioritizeJobsOutcome
                   <TableRow key={failed.job.jobId}>
                     <TableCell>{failed.job.jobId}</TableCell>
                     <TableCell>{failed.job.jobSet}</TableCell>
+                    <TableCell>{failed.job.priority}</TableCell>
                     <TableCell>{failed.job.submissionTime}</TableCell>
                     <TableCell>{failed.error}</TableCell>
                   </TableRow>

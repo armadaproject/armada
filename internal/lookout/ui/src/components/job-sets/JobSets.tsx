@@ -128,7 +128,7 @@ export default function JobSets(props: JobSetsProps) {
           </div>
         </div>
         <div className="job-sets-actions">
-          <div className="cancel-button">
+          <div className="reprioritize-button">
             <Button
               disabled={!props.canReprioritize}
               variant="contained"

@@ -69,8 +69,8 @@ const ReprioritizeJobs = React.forwardRef((props: ReprioritizeJobsProps, ref: Re
               <TableCell>Id</TableCell>
               <TableCell>Job Set</TableCell>
               <TableCell>State</TableCell>
-              <TableCell>Submission Time</TableCell>
               <TableCell>Current Priority</TableCell>
+              <TableCell>Submission Time</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -79,8 +79,8 @@ const ReprioritizeJobs = React.forwardRef((props: ReprioritizeJobsProps, ref: Re
                 <TableCell>{job.jobId}</TableCell>
                 <TableCell>{job.jobSet}</TableCell>
                 <TableCell>{job.jobState}</TableCell>
-                <TableCell>{job.submissionTime}</TableCell>
                 <TableCell>{job.priority}</TableCell>
+                <TableCell>{job.submissionTime}</TableCell>
               </TableRow>
             ))}
           </TableBody>
