@@ -214,8 +214,8 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
       },
     })
 
-    if (cancelJobSetsResult.cancelledJobSets.length > 0) {
-      // Some succeed
+    if (cancelJobSetsResult.failedJobSetCancellations.length === 0) {
+      // All succeeded
       await this.loadJobSets()
     }
   }
@@ -250,8 +250,8 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
       },
     })
 
-    if (reprioritizeJobSetsResult.reprioritizedJobSets.length > 0) {
-      // Some succeed
+    if (reprioritizeJobSetsResult.failedJobSetReprioritizations.length === 0) {
+      // All succeeded
       await this.loadJobSets()
     }
   }
@@ -296,6 +296,14 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
       ...this.state,
       selectedJobSets: new Map<string, JobSet>(),
       jobSets: jobSets,
+      cancelJobSetsDialogContext: {
+        ...this.state.cancelJobSetsDialogContext,
+        jobSetsToCancel: [],
+      },
+      reprioritizeJobSetsDialogContext: {
+        ...this.state.reprioritizeJobSetsDialogContext,
+        jobSetsToReprioritize: [],
+      },
     })
   }
 
