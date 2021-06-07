@@ -508,13 +508,6 @@ func TestIterateQueueJobs(t *testing.T) {
 	})
 }
 
-func TestReprioritizeJobByIdt(t *testing.T) {
-	withRepository(func(r *RedisJobRepository) {
-		addTestJobWithPriority(t, r, "q1", 1)
-
-	})
-}
-
 func addLeasedJob(t *testing.T, r *RedisJobRepository, queue string, cluster string) *api.Job {
 	job := addTestJob(t, r, queue)
 	leased, e := r.TryLeaseJobs(cluster, queue, []*api.Job{job})
