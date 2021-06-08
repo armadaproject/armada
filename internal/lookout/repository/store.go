@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -16,7 +17,6 @@ import (
 type JobRecorder interface {
 	RecordJob(job *api.Job) error
 	MarkCancelled(*api.JobCancelledEvent) error
-	RecordJobPriorityChange(event *api.JobReprioritizedEvent) error
 
 	RecordJobPending(event *api.JobPendingEvent) error
 	RecordJobRunning(event *api.JobRunningEvent) error
@@ -25,6 +25,7 @@ type JobRecorder interface {
 	RecordJobUnableToSchedule(event *api.JobUnableToScheduleEvent) error
 	RecordJobDuplicate(event *api.JobDuplicateFoundEvent) error
 	RecordJobTerminated(event *api.JobTerminatedEvent) error
+	RecordJobReprioritized(event *api.JobReprioritizedEvent) error
 }
 
 type SQLJobStore struct {
@@ -91,8 +92,33 @@ func (r *SQLJobStore) MarkCancelled(event *api.JobCancelledEvent) error {
 	return err
 }
 
-func (r *SQLJobStore) RecordJobPriorityChange(event *api.JobReprioritizedEvent) error {
-	panic("implement me")
+type jobJsonRow struct {
+	JobJson sql.NullString `db:"job"`
+}
+
+func (r *SQLJobStore) RecordJobReprioritized(event *api.JobReprioritizedEvent) error {
+	updatedJobJson, err := r.getUpdatedJobJson(event)
+	if err != nil {
+		return err
+	}
+
+	ds := r.db.Insert(jobTable).
+		Rows(goqu.Record{
+			"job_id":   event.JobId,
+			"queue":    event.Queue,
+			"jobset":   event.JobSetId,
+			"priority": event.NewPriority,
+			"job":      updatedJobJson,
+		}).
+		OnConflict(goqu.DoUpdate("job_id", goqu.Record{
+			"queue":    event.Queue,
+			"jobset":   event.JobSetId,
+			"priority": event.NewPriority,
+			"job":      updatedJobJson,
+		}))
+
+	_, err = ds.Prepared(true).Executor().Exec()
+	return err
 }
 
 func (r *SQLJobStore) RecordJobDuplicate(event *api.JobDuplicateFoundEvent) error {
@@ -292,6 +318,36 @@ func (r *SQLJobStore) RecordJobTerminated(event *api.JobTerminatedEvent) error {
 
 	_, err := jobDs.Prepared(true).Executor().Exec()
 	return err
+}
+
+func (r *SQLJobStore) getUpdatedJobJson(event *api.JobReprioritizedEvent) (sql.NullString, error) {
+	selectDs := r.db.From(jobTable).
+		Select(job_job).
+		Where(job_jobId.Eq(event.JobId))
+
+	jobsInQueueRows := make([]*JobRow, 0)
+	err := selectDs.Prepared(true).ScanStructs(&jobsInQueueRows)
+	if err != nil {
+		return sql.NullString{}, err
+	}
+	if len(jobsInQueueRows) == 0 {
+		return sql.NullString{}, nil
+	}
+
+	var jobFromJson api.Job
+	jobJson := ParseNullString(jobsInQueueRows[0].JobJson)
+	err = json.Unmarshal([]byte(jobJson), &jobFromJson)
+	// We don't care about parsing errors, the JSON will not be updated
+	if err != nil {
+		return sql.NullString{}, nil
+	}
+
+	jobFromJson.Priority = event.NewPriority
+	updatedJobJson, err := json.Marshal(jobFromJson)
+	if err != nil {
+		return sql.NullString{}, nil
+	}
+	return NewNullString(string(updatedJobJson)), nil
 }
 
 func (r *SQLJobStore) upsertJobRun(record goqu.Record) error {

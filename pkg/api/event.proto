@@ -156,11 +156,20 @@ message JobUtilisationEvent {
     string pod_namespace = 11;
 }
 
+message JobReprioritizingEvent {
+    string job_id = 1;
+    string job_set_id = 2;
+    string queue = 3;
+    google.protobuf.Timestamp created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+    double new_priority = 5;
+}
+
 message JobReprioritizedEvent {
     string job_id = 1;
     string job_set_id = 2;
     string queue = 3;
     google.protobuf.Timestamp created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+    double new_priority = 5;
 }
 
 message JobCancellingEvent {
@@ -209,6 +218,7 @@ message EventMessage {
         JobTerminatedEvent terminated = 14;
         JobUtilisationEvent utilisation = 15;
         JobIngressInfoEvent ingress_info = 17;
+        JobReprioritizingEvent reprioritizing = 18;
     }
 }
 

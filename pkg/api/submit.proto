@@ -46,6 +46,19 @@ message JobCancelRequest {
     string queue = 3;
 }
 
+// swagger:model
+message JobReprioritizeRequest {
+    repeated string job_ids = 1;
+    string job_set_id = 2;
+    string queue = 3;
+    double new_priority = 4;
+}
+
+// swagger:model
+message JobReprioritizeResponse {
+    map<string, string> reprioritization_results = 1;
+}
+
 message JobSubmitResponseItem {
     string job_id = 1;
     string error = 2;
@@ -102,6 +115,12 @@ service Submit {
     rpc CancelJobs (JobCancelRequest) returns (CancellationResult) {
         option (google.api.http) = {
             post: "/v1/job/cancel"
+            body: "*"
+        };
+    }
+    rpc ReprioritizeJobs (JobReprioritizeRequest) returns (JobReprioritizeResponse) {
+        option (google.api.http) = {
+            post: "/v1/job/reprioritize"
             body: "*"
         };
     }

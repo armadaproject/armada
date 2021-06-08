@@ -59,6 +59,16 @@ func StartsWith(field exp.IdentifierExpression, pattern string) goqu.Expression 
 	return field.Like(pattern + "%")
 }
 
+func NewNullString(s string) sql.NullString {
+	if len(s) == 0 {
+		return sql.NullString{}
+	}
+	return sql.NullString{
+		String: s,
+		Valid:  true,
+	}
+}
+
 func ParseNullString(nullString sql.NullString) string {
 	if !nullString.Valid {
 		return ""

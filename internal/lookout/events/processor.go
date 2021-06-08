@@ -90,7 +90,7 @@ func (p *EventProcessor) processEvent(event api.Event) error {
 		return p.recorder.RecordJobUnableToSchedule(typed)
 
 	case *api.JobReprioritizedEvent:
-		return p.recorder.RecordJobPriorityChange(typed)
+		return p.recorder.RecordJobReprioritized(typed)
 
 	case *api.JobCancellingEvent: // noop
 	case *api.JobCancelledEvent:
