@@ -258,8 +258,8 @@ export default class JobService {
       })
 
       for (const job of jobs) {
-        if (apiResult.reprioritizationErrors?.hasOwnProperty(job.jobId)) {
-          const error = apiResult.reprioritizationErrors[job.jobId]
+        if (apiResult.reprioritizationResults?.hasOwnProperty(job.jobId)) {
+          const error = apiResult.reprioritizationResults[job.jobId]
           if (error === "") {
             result.reprioritizedJobs.push(job)
           } else {
@@ -295,8 +295,8 @@ export default class JobService {
         let errorCount = 0
         let successCount = 0
         let error = ""
-        for (const key in apiResult.reprioritizationErrors) {
-          const e = apiResult.reprioritizationErrors[key]
+        for (const key in apiResult.reprioritizationResults) {
+          const e = apiResult.reprioritizationResults[key]
           if (e !== "") {
             errorCount++
             error = e
