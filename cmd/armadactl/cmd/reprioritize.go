@@ -24,7 +24,7 @@ func init() {
 }
 
 var reprioritizeCmd = &cobra.Command{
-	Use:   "reprioritize PRIORITY",
+	Use:   "reprioritize <priority>",
 	Short: "Reprioritize jobs in Armada",
 	Long:  `Change the priority of a single or multiple jobs by specifying either a job id or a combination of queue & job set.`,
 	Args:  cobra.ExactArgs(1),
