@@ -17,6 +17,8 @@ interface JobSetTableProps {
   selectedJobSets: Map<string, JobSet>
   onJobSetClick: (jobSet: string, state: string) => void
   onSelectJobSet: (jobSet: JobSet, selected: boolean) => void
+  onShiftSelectJobSet: (index: number, selected: boolean) => void
+  onDeselectAll: () => void
 }
 
 function cellRendererForState(
@@ -42,7 +44,7 @@ export default function JobSetTable(props: JobSetTableProps) {
         rowGetter={({ index }) => props.jobSets[index]}
         rowCount={props.jobSets.length}
         rowHeight={40}
-        headerHeight={40}
+        headerHeight={60}
         height={props.height}
         width={props.width}
         headerClassName="job-set-table-header"
@@ -51,14 +53,20 @@ export default function JobSetTable(props: JobSetTableProps) {
             <CheckboxRow
               isChecked={props.selectedJobSets.has(tableRowProps.rowData.jobSetId)}
               onChangeChecked={(selected) => props.onSelectJobSet(tableRowProps.rowData, selected)}
-              onChangeCheckedShift={(selected) => console.log("nothing")}
+              onChangeCheckedShift={(selected) => props.onShiftSelectJobSet(tableRowProps.index, selected)}
               tableKey={tableRowProps.key}
               {...tableRowProps}
             />
           )
         }}
         headerRowRenderer={(tableHeaderRowProps) => {
-          return <CheckboxHeaderRow {...tableHeaderRowProps} />
+          return (
+            <CheckboxHeaderRow
+              deselectEnabled={props.selectedJobSets.size > 0}
+              onDeselectAll={() => props.onDeselectAll()}
+              {...tableHeaderRowProps}
+            />
+          )
         }}
       >
         <Column dataKey="jobSetId" width={0.25 * props.width} label="Job Set" />

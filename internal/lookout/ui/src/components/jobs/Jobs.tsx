@@ -29,6 +29,7 @@ type JobsProps = {
   onRefresh: () => void
   onSelectJob: (job: Job, selected: boolean) => void
   onShiftSelect: (index: number, selected: boolean) => void
+  onDeselectAll: () => void
   onCancelJobsClick: () => void
   onJobIdClick: (jobIndex: number) => void
   resetRefresh: () => void
@@ -131,7 +132,13 @@ export default class Jobs extends React.Component<JobsProps, Record<string, neve
                         )
                       }}
                       headerRowRenderer={(tableHeaderRowProps) => {
-                        return <CheckboxHeaderRow {...tableHeaderRowProps} />
+                        return (
+                          <CheckboxHeaderRow
+                            deselectEnabled={this.props.selectedJobs.size > 0}
+                            onDeselectAll={this.props.onDeselectAll}
+                            {...tableHeaderRowProps}
+                          />
+                        )
                       }}
                       headerHeight={60}
                       height={height - 1}

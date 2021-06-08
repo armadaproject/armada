@@ -9,7 +9,7 @@ import CancelJobSetsDialog, {
   CancelJobSetsDialogState,
 } from "../components/job-sets/CancelJobSetsDialog"
 import JobSets from "../components/job-sets/JobSets"
-import JobService, { JobSet } from "../services/JobService"
+import JobService, { Job, JobSet } from "../services/JobService"
 import { debounced } from "../utils"
 
 type JobSetsContainerProps = {
@@ -86,6 +86,8 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
     this.refresh = this.refresh.bind(this)
     this.navigateToJobSetForState = this.navigateToJobSetForState.bind(this)
     this.selectJobSet = this.selectJobSet.bind(this)
+    this.shiftSelectJobSet = this.shiftSelectJobSet.bind(this)
+    this.deselectAll = this.deselectAll.bind(this)
     this.setCancelJobSetsDialogState = this.setCancelJobSetsDialogState.bind(this)
     this.cancelJobs = this.cancelJobs.bind(this)
 
@@ -137,6 +139,58 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
       cancelJobSetsDialogContext: {
         ...this.state.cancelJobSetsDialogContext,
         jobSetsToCancel: cancellableJobSets,
+      },
+    })
+  }
+
+  shiftSelectJobSet(index: number, selected: boolean) {
+    if (index >= this.state.jobSets.length || index < 0) {
+      return
+    }
+    const job = this.state.jobSets[index]
+
+    if (!selected || this.state.selectedJobSets.size === 0) {
+      return this.selectJobSet(job, selected)
+    }
+
+    let firstSelectedIndex = 0
+    for (let i = 0; i < this.state.jobSets.length; i++) {
+      if (this.state.selectedJobSets.has(this.state.jobSets[i].jobSetId)) {
+        firstSelectedIndex = i
+        break
+      }
+    }
+
+    const selectedJobSets = new Map<string, JobSet>(this.state.selectedJobSets)
+    let start = firstSelectedIndex
+    let end = index
+    if (index < firstSelectedIndex) {
+      start = index
+      end = firstSelectedIndex
+    }
+
+    for (let i = start; i <= end; i++) {
+      selectedJobSets.set(this.state.jobSets[i].jobSetId, this.state.jobSets[i])
+    }
+
+    const cancellableJobSets = JobSetsContainer.getCancellableSelectedJobSets(selectedJobSets)
+    this.setState({
+      ...this.state,
+      selectedJobSets: selectedJobSets,
+      cancelJobSetsDialogContext: {
+        ...this.state.cancelJobSetsDialogContext,
+        jobSetsToCancel: cancellableJobSets,
+      },
+    })
+  }
+
+  deselectAll() {
+    this.setState({
+      ...this.state,
+      selectedJobSets: new Map<string, JobSet>(),
+      cancelJobSetsDialogContext: {
+        ...this.state.cancelJobSetsDialogContext,
+        jobSetsToCancel: [],
       },
     })
   }
@@ -255,6 +309,8 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
           onRefresh={this.refresh}
           onJobSetClick={this.navigateToJobSetForState}
           onSelectJobSet={this.selectJobSet}
+          onShiftSelectJobSet={this.shiftSelectJobSet}
+          onDeselectAll={this.deselectAll}
           onCancelJobSetsClick={() => this.setCancelJobSetsDialogState("CancelJobSets")}
         />
       </Fragment>

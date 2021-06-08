@@ -206,6 +206,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
 
     this.selectJob = this.selectJob.bind(this)
     this.shiftSelectJob = this.shiftSelectJob.bind(this)
+    this.deselectAll = this.deselectAll.bind(this)
     this.setCancelJobsModalState = this.setCancelJobsModalState.bind(this)
     this.cancelJobs = this.cancelJobs.bind(this)
 
@@ -330,7 +331,6 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
   }
 
   selectJob(job: Job, selected: boolean) {
-    console.log("HIT3")
     const jobId = job.jobId
     const selectedJobs = new Map<string, Job>(this.state.selectedJobs)
     if (selected) {
@@ -352,7 +352,6 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
   }
 
   shiftSelectJob(index: number, selected: boolean) {
-    console.log("HIT2")
     if (index >= this.state.jobs.length || index < 0) {
       return
     }
@@ -389,6 +388,17 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
       cancelJobsModalContext: {
         ...this.state.cancelJobsModalContext,
         jobsToCancel: cancellableJobs,
+      },
+    })
+  }
+
+  deselectAll() {
+    this.setState({
+      ...this.state,
+      selectedJobs: new Map<string, Job>(),
+      cancelJobsModalContext: {
+        ...this.state.cancelJobsModalContext,
+        jobsToCancel: [],
       },
     })
   }
@@ -658,6 +668,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
           onRefresh={this.refresh}
           onSelectJob={this.selectJob}
           onShiftSelect={this.shiftSelectJob}
+          onDeselectAll={this.deselectAll}
           onCancelJobsClick={() => this.setCancelJobsModalState("CancelJobs")}
           onJobIdClick={this.openJobDetailsModal}
           resetRefresh={this.resetRefresh}

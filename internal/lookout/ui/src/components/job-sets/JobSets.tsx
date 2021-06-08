@@ -33,6 +33,8 @@ interface JobSetsProps {
   onRefresh: () => void
   onJobSetClick: (jobSet: string, jobState: string) => void
   onSelectJobSet: (jobSet: JobSet, selected: boolean) => void
+  onShiftSelectJobSet: (index: number, selected: boolean) => void
+  onDeselectAll: () => void
   onCancelJobSetsClick: () => void
 }
 
@@ -57,6 +59,8 @@ export default function JobSets(props: JobSetsProps) {
       selectedJobSets={props.selectedJobSets}
       onJobSetClick={props.onJobSetClick}
       onSelectJobSet={props.onSelectJobSet}
+      onShiftSelectJobSet={props.onShiftSelectJobSet}
+      onDeselectAll={props.onDeselectAll}
     />
   )
   if (props.view === "queued-time") {

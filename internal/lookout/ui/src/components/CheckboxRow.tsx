@@ -37,9 +37,7 @@ export default function CheckboxRow(props: CheckboxRowProps) {
         <Checkbox
           color={"secondary"}
           checked={props.isChecked}
-          onChange={(event) => console.log("Bounce")}
           onClick={(event) => {
-            console.log("HIT", event.shiftKey)
             if (event.shiftKey) {
               props.onChangeCheckedShift(!props.isChecked)
             } else {
