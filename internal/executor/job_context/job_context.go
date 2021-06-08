@@ -46,7 +46,11 @@ func (c *ClusterJobContext) GetRunningJobs() ([]*RunningJob, error) {
 }
 
 func (c *ClusterJobContext) DeleteJobs(jobs []*RunningJob) {
+	c.activeJobIdsMutex.Lock()
+	defer c.activeJobIdsMutex.Unlock()
+
 	for _, job := range jobs {
+		delete(c.activeJobIds, job.JobId)
 		c.clusterContext.DeletePods(job.Pods)
 	}
 }
