@@ -9,7 +9,7 @@ import CancelJobSetsDialog, {
   CancelJobSetsDialogState,
 } from "../components/job-sets/CancelJobSetsDialog"
 import JobSets from "../components/job-sets/JobSets"
-import JobService, { Job, JobSet } from "../services/JobService"
+import JobService, { JobSet } from "../services/JobService"
 import { debounced } from "../utils"
 
 type JobSetsContainerProps = {

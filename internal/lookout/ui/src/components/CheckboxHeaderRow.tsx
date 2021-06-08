@@ -1,6 +1,5 @@
 import React from "react"
 
-import { Tooltip } from "@material-ui/core"
 import { Checkbox } from "@material-ui/core"
 import { TableHeaderRowProps } from "react-virtualized"
 
