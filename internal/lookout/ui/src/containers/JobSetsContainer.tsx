@@ -310,7 +310,7 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
           onJobSetClick={this.navigateToJobSetForState}
           onSelectJobSet={this.selectJobSet}
           onShiftSelectJobSet={this.shiftSelectJobSet}
-          onDeselectAll={this.deselectAll}
+          onDeselectAllClick={this.deselectAll}
           onCancelJobSetsClick={() => this.setCancelJobSetsDialogState("CancelJobSets")}
         />
       </Fragment>

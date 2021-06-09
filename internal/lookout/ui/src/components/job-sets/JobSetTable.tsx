@@ -18,7 +18,7 @@ interface JobSetTableProps {
   onJobSetClick: (jobSet: string, state: string) => void
   onSelectJobSet: (jobSet: JobSet, selected: boolean) => void
   onShiftSelectJobSet: (index: number, selected: boolean) => void
-  onDeselectAll: () => void
+  onDeselectAllClick: () => void
 }
 
 function cellRendererForState(
@@ -63,7 +63,7 @@ export default function JobSetTable(props: JobSetTableProps) {
           return (
             <CheckboxHeaderRow
               deselectEnabled={props.selectedJobSets.size > 0}
-              onDeselectAll={() => props.onDeselectAll()}
+              onDeselectAllClick={() => props.onDeselectAllClick()}
               {...tableHeaderRowProps}
             />
           )

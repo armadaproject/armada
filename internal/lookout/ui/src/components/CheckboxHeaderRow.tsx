@@ -7,7 +7,7 @@ import "./Row.css"
 
 export type CheckboxHeaderRowProps = {
   deselectEnabled: boolean
-  onDeselectAll: () => void
+  onDeselectAllClick: () => void
 } & TableHeaderRowProps
 
 export default function CheckboxHeaderRow(props: CheckboxHeaderRowProps) {
@@ -18,7 +18,7 @@ export default function CheckboxHeaderRow(props: CheckboxHeaderRowProps) {
           checked={props.deselectEnabled}
           disabled={!props.deselectEnabled}
           indeterminate={props.deselectEnabled}
-          onClick={props.onDeselectAll}
+          onClick={props.onDeselectAllClick}
         />
       </div>
       {props.columns}

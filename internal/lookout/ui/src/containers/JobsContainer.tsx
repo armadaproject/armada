@@ -668,7 +668,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
           onRefresh={this.refresh}
           onSelectJob={this.selectJob}
           onShiftSelect={this.shiftSelectJob}
-          onDeselectAll={this.deselectAll}
+          onDeselectAllClick={this.deselectAll}
           onCancelJobsClick={() => this.setCancelJobsModalState("CancelJobs")}
           onJobIdClick={this.openJobDetailsModal}
           resetRefresh={this.resetRefresh}
