@@ -147,10 +147,10 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
     if (index >= this.state.jobSets.length || index < 0) {
       return
     }
-    const job = this.state.jobSets[index]
+    const jobSet = this.state.jobSets[index]
 
     if (!selected || this.state.selectedJobSets.size === 0) {
-      return this.selectJobSet(job, selected)
+      return this.selectJobSet(jobSet, selected)
     }
 
     let firstSelectedIndex = 0
