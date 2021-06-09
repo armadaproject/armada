@@ -230,6 +230,83 @@ func (server *SubmitServer) cancelJobs(ctx context.Context, queue string, jobs [
 	return &api.CancellationResult{cancelledIds}, nil
 }
 
+// Returns mapping from job id to error (if present), for all existing jobs
+func (server *SubmitServer) ReprioritizeJobs(ctx context.Context, request *api.JobReprioritizeRequest) (*api.JobReprioritizeResponse, error) {
+	var jobs []*api.Job
+	if len(request.JobIds) > 0 {
+		existingJobs, err := server.jobRepository.GetExistingJobsByIds(request.JobIds)
+		if err != nil {
+			return nil, err
+		}
+		jobs = existingJobs
+	} else if request.Queue != "" && request.JobSetId != "" {
+		ids, e := server.jobRepository.GetActiveJobIds(request.Queue, request.JobSetId)
+		if e != nil {
+			return nil, status.Errorf(codes.Aborted, e.Error())
+		}
+		existingJobs, e := server.jobRepository.GetExistingJobsByIds(ids)
+		if e != nil {
+			return nil, status.Errorf(codes.Internal, e.Error())
+		}
+		jobs = existingJobs
+	}
+
+	err := server.checkReprioritizePerms(ctx, jobs)
+	if err != nil {
+		return nil, err
+	}
+
+	results, err := server.reprioritizeJobs(err, jobs, request)
+	if err != nil {
+		return nil, err
+	}
+
+	return &api.JobReprioritizeResponse{ReprioritizationResults: results}, nil
+}
+
+func (server *SubmitServer) reprioritizeJobs(err error, jobs []*api.Job, request *api.JobReprioritizeRequest) (map[string]string, error) {
+	err = reportJobsReprioritizing(server.eventStore, jobs, request.NewPriority)
+	if err != nil {
+		return nil, err
+	}
+
+	results, err := server.jobRepository.UpdatePriority(jobs, request.NewPriority)
+	if err != nil {
+		return nil, err
+	}
+
+	jobMap := make(map[string]*api.Job)
+	for _, job := range jobs {
+		jobMap[job.Id] = job
+	}
+
+	var reprioritizedJobs []*api.Job
+	for jobId, errorString := range results {
+		if errorString == "" {
+			reprioritizedJobs = append(reprioritizedJobs, jobMap[jobId])
+		}
+	}
+
+	err = reportJobsReprioritized(server.eventStore, reprioritizedJobs, request.NewPriority)
+	if err != nil {
+		return nil, err
+	}
+	return results, nil
+}
+
+func (server *SubmitServer) checkReprioritizePerms(ctx context.Context, jobs []*api.Job) error {
+	queues := make(map[string]bool)
+	for _, job := range jobs {
+		queues[job.Queue] = true
+	}
+	for queue, _ := range queues {
+		if e, _ := server.checkQueuePermission(ctx, queue, false, permissions.ReprioritizeJobs, permissions.ReprioritizeAnyJobs); e != nil {
+			return e
+		}
+	}
+	return nil
+}
+
 func (server *SubmitServer) checkQueuePermission(
 	ctx context.Context,
 	queueName string,

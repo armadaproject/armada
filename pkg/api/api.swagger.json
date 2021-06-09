@@ -99,6 +99,38 @@
         }
       }
     },
+    "/v1/job/reprioritize": {
+      "post": {
+        "tags": [
+          "Submit"
+        ],
+        "operationId": "ReprioritizeJobs",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiJobReprioritizeRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiJobReprioritizeResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        }
+      }
+    },
     "/v1/job/submit": {
       "post": {
         "tags": [
@@ -301,6 +333,9 @@
         },
         "reprioritized": {
           "$ref": "#/definitions/apiJobReprioritizedEvent"
+        },
+        "reprioritizing": {
+          "$ref": "#/definitions/apiJobReprioritizingEvent"
         },
         "running": {
           "$ref": "#/definitions/apiJobRunningEvent"
@@ -712,6 +747,40 @@
         }
       }
     },
+    "apiJobReprioritizeRequest": {
+      "type": "object",
+      "title": "swagger:model",
+      "properties": {
+        "jobIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "jobSetId": {
+          "type": "string"
+        },
+        "newPriority": {
+          "type": "number",
+          "format": "double"
+        },
+        "queue": {
+          "type": "string"
+        }
+      }
+    },
+    "apiJobReprioritizeResponse": {
+      "type": "object",
+      "title": "swagger:model",
+      "properties": {
+        "reprioritizationResults": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      }
+    },
     "apiJobReprioritizedEvent": {
       "type": "object",
       "properties": {
@@ -724,6 +793,32 @@
         },
         "jobSetId": {
           "type": "string"
+        },
+        "newPriority": {
+          "type": "number",
+          "format": "double"
+        },
+        "queue": {
+          "type": "string"
+        }
+      }
+    },
+    "apiJobReprioritizingEvent": {
+      "type": "object",
+      "properties": {
+        "created": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "jobId": {
+          "type": "string"
+        },
+        "jobSetId": {
+          "type": "string"
+        },
+        "newPriority": {
+          "type": "number",
+          "format": "double"
         },
         "queue": {
           "type": "string"
