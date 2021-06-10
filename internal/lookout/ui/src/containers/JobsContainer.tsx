@@ -7,7 +7,7 @@ import { v4 as uuidv4 } from "uuid"
 import JobDetailsModal, { JobDetailsModalContext, toggleExpanded } from "../components/job-details/JobDetailsModal"
 import CancelJobsModal, { CancelJobsModalContext, CancelJobsModalState } from "../components/jobs/CancelJobsModal"
 import Jobs from "../components/jobs/Jobs"
-import JobService, { GetJobsRequest, JOB_STATES_FOR_DISPLAY, Job, JobSet } from "../services/JobService"
+import JobService, { GetJobsRequest, JOB_STATES_FOR_DISPLAY, Job } from "../services/JobService"
 import { debounced, selectItem } from "../utils"
 
 type JobsContainerProps = {

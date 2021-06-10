@@ -1,5 +1,3 @@
-import { JobSet } from "./services/JobService"
-
 interface UIConfig {
   armadaApiBaseUrl: string
   userAnnotationPrefix: string
