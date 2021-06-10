@@ -126,6 +126,9 @@ func (jobLeaseService *JobLeaseService) ManageJobLeases() {
 	}
 
 	podsToCleanup := util.FilterPods(extractPods(jobs), jobLeaseService.canBeRemoved)
+	for _, pod := range podsToCleanup {
+		log.Infof("Delete pod %s via ManageJobLeases", pod.Name)
+	}
 	jobLeaseService.clusterContext.DeletePods(podsToCleanup)
 }
 
@@ -196,6 +199,9 @@ func (jobLeaseService *JobLeaseService) renewJobLeases(jobs []*job_context.Runni
 
 	if len(failedIds) > 0 {
 		log.Warnf("Server has prevented renewing of job lease for jobs %s", strings.Join(failedIds, ","))
+		for _, pod := range failedPods {
+			log.Infof("Delete pod %s via renewJobLeases", pod.Name)
+		}
 		jobLeaseService.reportTerminated(failedPods)
 		jobLeaseService.clusterContext.DeletePods(failedPods)
 	}

@@ -96,6 +96,9 @@ func (allocationService *ClusterAllocationService) submitJobs(jobsToSubmit []*ap
 					allocationService.returnLease(pod, fmt.Sprintf("Failed to submit pod because %s", err))
 				}
 				// remove just created pods
+				for _, pod := range jobPods {
+					log.Infof("Delete pod %s via SubmitJobs", pod.Name)
+				}
 				allocationService.clusterContext.DeletePods(jobPods)
 				break
 			}
