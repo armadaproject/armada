@@ -3,6 +3,7 @@ package job_context
 import (
 	"sync"
 
+	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/G-Research/armada/internal/executor/context"
@@ -51,6 +52,7 @@ func (c *ClusterJobContext) DeleteJobs(jobs []*RunningJob) {
 
 	for _, job := range jobs {
 		delete(c.activeJobIds, job.JobId)
+		log.Infof("Delete job id %s via JobContext", job.JobId)
 		c.clusterContext.DeletePods(job.Pods)
 	}
 }
