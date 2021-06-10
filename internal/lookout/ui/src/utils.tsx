@@ -1,3 +1,5 @@
+import { JobSet } from "./services/JobService"
+
 interface UIConfig {
   armadaApiBaseUrl: string
   userAnnotationPrefix: string
@@ -77,4 +79,12 @@ export function secondsToDurationString(totalSeconds: number): string {
   }
 
   return segments.join(" ")
+}
+
+export function selectItem<V>(key: string, item: V, selectedMap: Map<string, V>, isSelected: boolean) {
+  if (isSelected) {
+    selectedMap.set(key, item)
+  } else if (selectedMap.has(key)) {
+    selectedMap.delete(key)
+  }
 }

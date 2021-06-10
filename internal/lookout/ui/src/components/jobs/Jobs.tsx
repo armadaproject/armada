@@ -27,7 +27,7 @@ type JobsProps = {
   onAddColumn: () => void
   onChangeAnnotationColumnKey: (columnId: string, newKey: string) => void
   onRefresh: () => void
-  onSelectJob: (job: Job, selected: boolean) => void
+  onSelectJob: (index: number, selected: boolean) => void
   onShiftSelect: (index: number, selected: boolean) => void
   onDeselectAllClick: () => void
   onCancelJobsClick: () => void
@@ -124,7 +124,7 @@ export default class Jobs extends React.Component<JobsProps, Record<string, neve
                         return (
                           <CheckboxRow
                             isChecked={selected}
-                            onChangeChecked={(selected) => this.props.onSelectJob(tableRowProps.rowData, selected)}
+                            onChangeChecked={(selected) => this.props.onSelectJob(tableRowProps.index, selected)}
                             onChangeCheckedShift={(selected) => this.props.onShiftSelect(tableRowProps.index, selected)}
                             tableKey={tableRowProps.key}
                             {...tableRowProps}

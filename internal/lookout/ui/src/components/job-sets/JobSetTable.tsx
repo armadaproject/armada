@@ -16,7 +16,7 @@ interface JobSetTableProps {
   jobSets: JobSet[]
   selectedJobSets: Map<string, JobSet>
   onJobSetClick: (jobSet: string, state: string) => void
-  onSelectJobSet: (jobSet: JobSet, selected: boolean) => void
+  onSelectJobSet: (index: number, selected: boolean) => void
   onShiftSelectJobSet: (index: number, selected: boolean) => void
   onDeselectAllClick: () => void
 }
@@ -52,7 +52,7 @@ export default function JobSetTable(props: JobSetTableProps) {
           return (
             <CheckboxRow
               isChecked={props.selectedJobSets.has(tableRowProps.rowData.jobSetId)}
-              onChangeChecked={(selected) => props.onSelectJobSet(tableRowProps.rowData, selected)}
+              onChangeChecked={(selected) => props.onSelectJobSet(tableRowProps.index, selected)}
               onChangeCheckedShift={(selected) => props.onShiftSelectJobSet(tableRowProps.index, selected)}
               tableKey={tableRowProps.key}
               {...tableRowProps}

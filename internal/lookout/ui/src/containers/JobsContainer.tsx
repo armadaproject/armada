@@ -7,8 +7,8 @@ import { v4 as uuidv4 } from "uuid"
 import JobDetailsModal, { JobDetailsModalContext, toggleExpanded } from "../components/job-details/JobDetailsModal"
 import CancelJobsModal, { CancelJobsModalContext, CancelJobsModalState } from "../components/jobs/CancelJobsModal"
 import Jobs from "../components/jobs/Jobs"
-import JobService, { GetJobsRequest, JOB_STATES_FOR_DISPLAY, Job } from "../services/JobService"
-import { debounced } from "../utils"
+import JobService, { GetJobsRequest, JOB_STATES_FOR_DISPLAY, Job, JobSet } from "../services/JobService"
+import { debounced, selectItem } from "../utils"
 
 type JobsContainerProps = {
   jobService: JobService
@@ -20,6 +20,7 @@ interface JobsContainerState {
   jobs: Job[]
   canLoadMore: boolean
   selectedJobs: Map<string, Job>
+  lastSelectedIndex: number
   defaultColumns: ColumnSpec<string | boolean | string[]>[]
   annotationColumns: ColumnSpec<string>[]
   cancelJobsModalContext: CancelJobsModalContext
@@ -132,6 +133,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
       jobs: [],
       canLoadMore: true,
       selectedJobs: new Map<string, Job>(),
+      lastSelectedIndex: 0,
       defaultColumns: [
         {
           id: "queue",
@@ -330,20 +332,20 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     })
   }
 
-  selectJob(job: Job, selected: boolean) {
-    const jobId = job.jobId
-    const selectedJobs = new Map<string, Job>(this.state.selectedJobs)
-    if (selected) {
-      selectedJobs.set(jobId, job)
-    } else {
-      if (selectedJobs.has(jobId)) {
-        selectedJobs.delete(jobId)
-      }
+  selectJob(index: number, selected: boolean) {
+    if (index < 0 || index >= this.state.jobs.length) {
+      return
     }
+    const job = this.state.jobs[index]
+
+    const selectedJobs = new Map<string, Job>(this.state.selectedJobs)
+    selectItem(job.jobId, job, selectedJobs, selected)
+
     const cancellableJobs = this.getCancellableSelectedJobs(selectedJobs)
     this.setState({
       ...this.state,
       selectedJobs: selectedJobs,
+      lastSelectedIndex: index,
       cancelJobsModalContext: {
         ...this.state.cancelJobsModalContext,
         jobsToCancel: cancellableJobs,
@@ -355,36 +357,20 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     if (index >= this.state.jobs.length || index < 0) {
       return
     }
-    const job = this.state.jobs[index]
 
-    if (!selected || this.state.selectedJobs.size === 0) {
-      return this.selectJob(job, selected)
-    }
-
-    let firstSelectedIndex = 0
-    for (let i = 0; i < this.state.jobs.length; i++) {
-      if (this.state.selectedJobs.has(this.state.jobs[i].jobId)) {
-        firstSelectedIndex = i
-        break
-      }
-    }
+    const [start, end] = [this.state.lastSelectedIndex, index].sort()
 
     const selectedJobs = new Map<string, Job>(this.state.selectedJobs)
-    let start = firstSelectedIndex
-    let end = index
-    if (index < firstSelectedIndex) {
-      start = index
-      end = firstSelectedIndex
-    }
-
     for (let i = start; i <= end; i++) {
-      selectedJobs.set(this.state.jobs[i].jobId, this.state.jobs[i])
+      const job = this.state.jobs[i]
+      selectItem(job.jobId, job, selectedJobs, selected)
     }
 
     const cancellableJobs = this.getCancellableSelectedJobs(selectedJobs)
     this.setState({
       ...this.state,
       selectedJobs: selectedJobs,
+      lastSelectedIndex: index,
       cancelJobsModalContext: {
         ...this.state.cancelJobsModalContext,
         jobsToCancel: cancellableJobs,
@@ -396,6 +382,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     this.setState({
       ...this.state,
       selectedJobs: new Map<string, Job>(),
+      lastSelectedIndex: 0,
       cancelJobsModalContext: {
         ...this.state.cancelJobsModalContext,
         jobsToCancel: [],

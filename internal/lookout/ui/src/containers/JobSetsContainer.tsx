@@ -10,7 +10,7 @@ import CancelJobSetsDialog, {
 } from "../components/job-sets/CancelJobSetsDialog"
 import JobSets from "../components/job-sets/JobSets"
 import JobService, { JobSet } from "../services/JobService"
-import { debounced } from "../utils"
+import { debounced, selectItem } from "../utils"
 
 type JobSetsContainerProps = {
   jobService: JobService
@@ -26,6 +26,7 @@ export type CancelJobSetsRequestStatus = "Loading" | "Idle"
 type JobSetsContainerState = {
   jobSets: JobSet[]
   selectedJobSets: Map<string, JobSet>
+  lastSelectedIndex: number
   cancelJobSetsDialogContext: CancelJobSetsDialogContext
 } & JobSetsContainerParams
 
@@ -72,6 +73,7 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
       jobSets: [],
       currentView: "job-counts",
       selectedJobSets: new Map<string, JobSet>(),
+      lastSelectedIndex: 0,
       cancelJobSetsDialogContext: {
         dialogState: "None",
         queue: "",
@@ -122,20 +124,20 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
     await this.loadJobSets()
   }
 
-  selectJobSet(jobSet: JobSet, selected: boolean) {
-    const selectedJobSets = new Map<string, JobSet>(this.state.selectedJobSets)
-    if (selected) {
-      selectedJobSets.set(jobSet.jobSetId, jobSet)
-    } else {
-      if (selectedJobSets.has(jobSet.jobSetId)) {
-        selectedJobSets.delete(jobSet.jobSetId)
-      }
+  selectJobSet(index: number, selected: boolean) {
+    if (index < 0 || index >= this.state.jobSets.length) {
+      return
     }
+    const jobSet = this.state.jobSets[index]
+
+    const selectedJobSets = new Map<string, JobSet>(this.state.selectedJobSets)
+    selectItem(jobSet.jobSetId, jobSet, selectedJobSets, selected)
 
     const cancellableJobSets = JobSetsContainer.getCancellableSelectedJobSets(selectedJobSets)
     this.setState({
       ...this.state,
       selectedJobSets: selectedJobSets,
+      lastSelectedIndex: index,
       cancelJobSetsDialogContext: {
         ...this.state.cancelJobSetsDialogContext,
         jobSetsToCancel: cancellableJobSets,
@@ -147,36 +149,20 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
     if (index >= this.state.jobSets.length || index < 0) {
       return
     }
-    const jobSet = this.state.jobSets[index]
 
-    if (!selected || this.state.selectedJobSets.size === 0) {
-      return this.selectJobSet(jobSet, selected)
-    }
-
-    let firstSelectedIndex = 0
-    for (let i = 0; i < this.state.jobSets.length; i++) {
-      if (this.state.selectedJobSets.has(this.state.jobSets[i].jobSetId)) {
-        firstSelectedIndex = i
-        break
-      }
-    }
+    const [start, end] = [this.state.lastSelectedIndex, index].sort()
 
     const selectedJobSets = new Map<string, JobSet>(this.state.selectedJobSets)
-    let start = firstSelectedIndex
-    let end = index
-    if (index < firstSelectedIndex) {
-      start = index
-      end = firstSelectedIndex
-    }
-
     for (let i = start; i <= end; i++) {
-      selectedJobSets.set(this.state.jobSets[i].jobSetId, this.state.jobSets[i])
+      const jobSet = this.state.jobSets[i]
+      selectItem(jobSet.jobSetId, jobSet, selectedJobSets, selected)
     }
 
     const cancellableJobSets = JobSetsContainer.getCancellableSelectedJobSets(selectedJobSets)
     this.setState({
       ...this.state,
       selectedJobSets: selectedJobSets,
+      lastSelectedIndex: index,
       cancelJobSetsDialogContext: {
         ...this.state.cancelJobSetsDialogContext,
         jobSetsToCancel: cancellableJobSets,
@@ -188,6 +174,7 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
     this.setState({
       ...this.state,
       selectedJobSets: new Map<string, JobSet>(),
+      lastSelectedIndex: 0,
       cancelJobSetsDialogContext: {
         ...this.state.cancelJobSetsDialogContext,
         jobSetsToCancel: [],
