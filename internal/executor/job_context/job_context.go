@@ -112,13 +112,21 @@ func (c *ClusterJobContext) registerRunning(jobs []*RunningJob) {
 	c.activeJobIdsMutex.Lock()
 	defer c.activeJobIdsMutex.Unlock()
 
+	runningJobIds := map[string]bool{}
 	for _, job := range jobs {
+		runningJobIds[job.JobId] = true
 		_, exists := c.activeJobs[job.JobId]
 		if !exists {
 			c.activeJobs[job.JobId] = jobRecord{
 				jobId:             job.JobId,
 				markedForDeletion: false,
 			}
+		}
+	}
+
+	for jobId := range c.activeJobs {
+		if !runningJobIds[jobId] {
+			delete(c.activeJobs, jobId)
 		}
 	}
 }
