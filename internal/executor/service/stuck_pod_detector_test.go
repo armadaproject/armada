@@ -17,6 +17,8 @@ import (
 	"github.com/G-Research/armada/internal/executor/context"
 	"github.com/G-Research/armada/internal/executor/domain"
 	"github.com/G-Research/armada/internal/executor/job_context"
+
+	reporter_fake "github.com/G-Research/armada/internal/executor/reporter/fake"
 	"github.com/G-Research/armada/pkg/api"
 )
 
@@ -60,12 +62,12 @@ func TestStuckPodDetector_DeletesPodAndReportsDoneIfStuckAndUnretryable(t *testi
 
 	mockLeaseService.assertReportDoneCalledOnceWith(t, []string{unretryableStuckPod.Labels[domain.JobId]})
 
-	_, ok := eventsReporter.receivedEvents[0].(*api.JobUnableToScheduleEvent)
+	_, ok := eventsReporter.ReceivedEvents[0].(*api.JobUnableToScheduleEvent)
 	assert.True(t, ok)
 
 	stuckPodDetector.HandleStuckPods()
 
-	failedEvent, ok := eventsReporter.receivedEvents[1].(*api.JobFailedEvent)
+	failedEvent, ok := eventsReporter.ReceivedEvents[1].(*api.JobFailedEvent)
 	assert.True(t, ok)
 	assert.Contains(t, failedEvent.Reason, "unrecoverable problem")
 }
@@ -87,7 +89,7 @@ func TestStuckPodDetector_DeletesPodAndReportsFailedIfStuckTerminating(t *testin
 
 	stuckPodDetector.HandleStuckPods()
 
-	failedEvent, ok := eventsReporter.receivedEvents[0].(*api.JobFailedEvent)
+	failedEvent, ok := eventsReporter.ReceivedEvents[0].(*api.JobFailedEvent)
 	assert.True(t, ok)
 	assert.Contains(t, failedEvent.Reason, "terminating")
 }
@@ -200,11 +202,11 @@ func addPod(t *testing.T, fakeClusterContext context.ClusterContext, runningPod 
 	}
 }
 
-func makeStuckPodDetectorWithTestDoubles() (context.ClusterContext, *mockLeaseService, *FakeEventReporter, *StuckPodDetector) {
+func makeStuckPodDetectorWithTestDoubles() (context.ClusterContext, *mockLeaseService, *reporter_fake.FakeEventReporter, *StuckPodDetector) {
 	fakeClusterContext := newSyncFakeClusterContext()
 	jobContext := job_context.NewClusterJobContext(fakeClusterContext)
 	mockLeaseService := NewMockLeaseService()
-	eventReporter := &FakeEventReporter{nil}
+	eventReporter := &reporter_fake.FakeEventReporter{nil}
 
 	stuckPodDetector := NewPodProgressMonitorService(
 		fakeClusterContext,

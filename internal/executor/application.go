@@ -18,6 +18,7 @@ import (
 	"github.com/G-Research/armada/internal/executor/metrics/pod_metrics"
 	"github.com/G-Research/armada/internal/executor/reporter"
 	"github.com/G-Research/armada/internal/executor/service"
+	"github.com/G-Research/armada/internal/executor/utilisation"
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/client"
 )
@@ -72,10 +73,10 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 		config.Kubernetes.FailedPodExpiry,
 		config.Kubernetes.MinimumJobSize)
 
-	queueUtilisationService := service.NewMetricsServerQueueUtilisationService(
+	queueUtilisationService := utilisation.NewMetricsServerQueueUtilisationService(
 		clusterContext)
 
-	clusterUtilisationService := service.NewClusterUtilisationService(
+	clusterUtilisationService := utilisation.NewClusterUtilisationService(
 		clusterContext,
 		queueUtilisationService,
 		usageClient,
@@ -110,7 +111,7 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 		taskManager.Register(queueUtilisationService.RefreshUtilisationData, config.Task.QueueUsageDataRefreshInterval, "pod_usage_data_refresh")
 
 		if config.Task.UtilisationEventReportingInterval > 0 {
-			podUtilisationReporter := service.NewUtilisationEventReporter(
+			podUtilisationReporter := utilisation.NewUtilisationEventReporter(
 				clusterContext,
 				queueUtilisationService,
 				eventReporter,

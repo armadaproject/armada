@@ -16,6 +16,7 @@ import (
 	"github.com/G-Research/armada/internal/executor/domain"
 	"github.com/G-Research/armada/internal/executor/reporter"
 	"github.com/G-Research/armada/internal/executor/util"
+	"github.com/G-Research/armada/internal/executor/utilisation"
 	"github.com/G-Research/armada/pkg/api"
 )
 
@@ -24,7 +25,7 @@ const admissionWebhookValidationFailureMessage string = "admission webhook"
 type ClusterAllocationService struct {
 	leaseService       LeaseService
 	eventReporter      reporter.EventReporter
-	utilisationService UtilisationService
+	utilisationService utilisation.UtilisationService
 	clusterContext     context.ClusterContext
 	podDefaults        *configuration.PodDefaults
 }
@@ -33,7 +34,7 @@ func NewClusterAllocationService(
 	clusterContext context.ClusterContext,
 	eventReporter reporter.EventReporter,
 	leaseService LeaseService,
-	utilisationService UtilisationService,
+	utilisationService utilisation.UtilisationService,
 	podDefaults *configuration.PodDefaults) *ClusterAllocationService {
 
 	return &ClusterAllocationService{
@@ -58,7 +59,7 @@ func (allocationService *ClusterAllocationService) AllocateSpareClusterCapacity(
 		return
 	}
 	leasedJobs = util.FilterPods(leasedJobs, shouldBeRenewed)
-	newJobs, err := allocationService.leaseService.RequestJobLeases(capacityReport.AvailableCapacity, capacityReport.Nodes, getAllocationByQueue(leasedJobs))
+	newJobs, err := allocationService.leaseService.RequestJobLeases(capacityReport.AvailableCapacity, capacityReport.Nodes, utilisation.GetAllocationByQueue(leasedJobs))
 
 	cpu := (*capacityReport.AvailableCapacity)["cpu"]
 	memory := (*capacityReport.AvailableCapacity)["memory"]
