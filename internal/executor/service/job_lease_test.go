@@ -15,6 +15,7 @@ import (
 	"github.com/G-Research/armada/internal/executor/configuration"
 	context2 "github.com/G-Research/armada/internal/executor/fake/context"
 	"github.com/G-Research/armada/internal/executor/job_context"
+	reporter_fake "github.com/G-Research/armada/internal/executor/reporter/fake"
 	"github.com/G-Research/armada/pkg/api"
 )
 
@@ -91,7 +92,7 @@ func makePodWithCurrentStateReported(state v1.PodPhase, reportedDone bool) *v1.P
 func createLeaseService(minimumPodAge, failedPodExpiry time.Duration) *JobLeaseService {
 	fakeClusterContext := context2.NewFakeClusterContext(configuration.ApplicationConfiguration{ClusterId: "test", Pool: "pool"}, nil)
 	jobContext := job_context.NewClusterJobContext(fakeClusterContext)
-	return NewJobLeaseService(fakeClusterContext, jobContext, &FakeEventReporter{}, &queueClientMock{}, minimumPodAge, failedPodExpiry, common.ComputeResources{})
+	return NewJobLeaseService(fakeClusterContext, jobContext, &reporter_fake.FakeEventReporter{}, &queueClientMock{}, minimumPodAge, failedPodExpiry, common.ComputeResources{})
 }
 
 type queueClientMock struct {

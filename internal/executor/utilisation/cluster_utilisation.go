@@ -1,4 +1,4 @@
-package service
+package utilisation
 
 import (
 	"fmt"
@@ -279,7 +279,7 @@ func (clusterUtilisationService *ClusterUtilisationService) getAllRunningManaged
 }
 
 func (clusterUtilisationService *ClusterUtilisationService) createReportsOfQueueUsages(pods []*v1.Pod) []*api.QueueReport {
-	allocationByQueue := getAllocationByQueue(pods)
+	allocationByQueue := GetAllocationByQueue(pods)
 	usageByQueue := clusterUtilisationService.getUsageByQueue(pods)
 
 	queueReports := make([]*api.QueueReport, 0, len(allocationByQueue))
@@ -335,7 +335,7 @@ func (clusterUtilisationService *ClusterUtilisationService) filterTrackedLabels(
 	return result
 }
 
-func getAllocationByQueue(pods []*v1.Pod) map[string]common.ComputeResources {
+func GetAllocationByQueue(pods []*v1.Pod) map[string]common.ComputeResources {
 	utilisationByQueue := make(map[string]common.ComputeResources)
 
 	for _, pod := range pods {
