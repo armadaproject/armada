@@ -28,7 +28,7 @@ type LeaseService interface {
 }
 
 type JobLeaseService struct {
-	clusterContext  context2.ClusterContext
+	clusterIdentity context2.ClusterIdentity
 	jobContext      job_context.JobContext
 	eventReporter   reporter.EventReporter
 	queueClient     api.AggregatedQueueClient
@@ -38,7 +38,7 @@ type JobLeaseService struct {
 }
 
 func NewJobLeaseService(
-	clusterContext context2.ClusterContext,
+	clusterIdentity context2.ClusterIdentity,
 	jobContext job_context.JobContext,
 	eventReporter reporter.EventReporter,
 	queueClient api.AggregatedQueueClient,
@@ -47,7 +47,7 @@ func NewJobLeaseService(
 	minimumJobSize common.ComputeResources) *JobLeaseService {
 
 	return &JobLeaseService{
-		clusterContext:  clusterContext,
+		clusterIdentity: clusterIdentity,
 		jobContext:      jobContext,
 		eventReporter:   eventReporter,
 		queueClient:     queueClient,
@@ -66,14 +66,14 @@ func (jobLeaseService *JobLeaseService) RequestJobLeases(availableResource *comm
 		leasedQueueReports = append(leasedQueueReports, leasedQueueReport)
 	}
 	clusterLeasedReport := api.ClusterLeasedReport{
-		ClusterId:  jobLeaseService.clusterContext.GetClusterId(),
+		ClusterId:  jobLeaseService.clusterIdentity.GetClusterId(),
 		ReportTime: time.Now(),
 		Queues:     leasedQueueReports,
 	}
 
 	leaseRequest := api.LeaseRequest{
-		ClusterId:           jobLeaseService.clusterContext.GetClusterId(),
-		Pool:                jobLeaseService.clusterContext.GetClusterPool(),
+		ClusterId:           jobLeaseService.clusterIdentity.GetClusterId(),
+		Pool:                jobLeaseService.clusterIdentity.GetClusterPool(),
 		Resources:           *availableResource,
 		ClusterLeasedReport: clusterLeasedReport,
 		Nodes:               nodes,
@@ -95,9 +95,7 @@ func (jobLeaseService *JobLeaseService) ReturnLease(pod *v1.Pod) error {
 	ctx, cancel := common.ContextWithDefaultTimeout()
 	defer cancel()
 	log.Infof("Returning lease for job %s", jobId)
-	_, err := jobLeaseService.queueClient.ReturnLease(ctx, &api.ReturnLeaseRequest{ClusterId: jobLeaseService.clusterContext.GetClusterId(), JobId: jobId})
-
-	jobLeaseService.jobContext.RegisterDoneJobs([]string{jobId})
+	_, err := jobLeaseService.queueClient.ReturnLease(ctx, &api.ReturnLeaseRequest{ClusterId: jobLeaseService.clusterIdentity.GetClusterId(), JobId: jobId})
 
 	return err
 }
@@ -125,8 +123,8 @@ func (jobLeaseService *JobLeaseService) ManageJobLeases() {
 		}
 	}
 
-	podsToCleanup := util.FilterPods(extractPods(jobs), jobLeaseService.canBeRemoved)
-	jobLeaseService.clusterContext.DeletePods(podsToCleanup)
+	jobsToCleanup := filterRunningJobs(jobs, jobLeaseService.canBeRemoved)
+	jobLeaseService.jobContext.DeleteJobs(jobsToCleanup)
 }
 
 func (jobLeaseService *JobLeaseService) reportDoneAndMarkReported(jobs []*job_context.RunningJob) error {
@@ -135,7 +133,7 @@ func (jobLeaseService *JobLeaseService) reportDoneAndMarkReported(jobs []*job_co
 	}
 	err := jobLeaseService.ReportDone(extractJobIds(jobs))
 	if err == nil {
-		jobLeaseService.markAsDone(extractPods(jobs))
+		jobLeaseService.markAsDone(jobs)
 	}
 	return err
 }
@@ -148,8 +146,6 @@ func (jobLeaseService *JobLeaseService) ReportDone(jobIds []string) error {
 	defer cancel()
 	log.Infof("Reporting done for jobs %s", strings.Join(jobIds, ","))
 	_, err := jobLeaseService.queueClient.ReportDone(ctx, &api.IdList{Ids: jobIds})
-
-	jobLeaseService.jobContext.RegisterDoneJobs(jobIds)
 
 	return err
 }
@@ -181,7 +177,7 @@ func (jobLeaseService *JobLeaseService) renewJobLeases(jobs []*job_context.Runni
 	defer cancel()
 	renewedJobIds, err := jobLeaseService.queueClient.RenewLease(ctx,
 		&api.RenewLeaseRequest{
-			ClusterId: jobLeaseService.clusterContext.GetClusterId(),
+			ClusterId: jobLeaseService.clusterIdentity.GetClusterId(),
 			Ids:       jobIds})
 	if err != nil {
 		log.Errorf("Failed to renew lease for jobs because %s", err)
@@ -189,32 +185,25 @@ func (jobLeaseService *JobLeaseService) renewJobLeases(jobs []*job_context.Runni
 	}
 
 	failedIds := commonUtil.SubtractStringList(jobIds, renewedJobIds.Ids)
-	failedPods := filterPodsByJobId(extractPods(jobs), failedIds)
-
-	jobLeaseService.jobContext.RegisterActiveJobs(renewedJobIds.Ids)
-	jobLeaseService.jobContext.RegisterDoneJobs(failedIds)
+	failedJobs := filterRunningJobsByIds(jobs, failedIds)
 
 	if len(failedIds) > 0 {
 		log.Warnf("Server has prevented renewing of job lease for jobs %s", strings.Join(failedIds, ","))
-		jobLeaseService.reportTerminated(failedPods)
-		jobLeaseService.clusterContext.DeletePods(failedPods)
+		jobLeaseService.reportTerminated(extractPods(failedJobs))
+		jobLeaseService.jobContext.DeleteJobs(failedJobs)
 	}
 }
 
-func (jobLeaseService *JobLeaseService) markAsDone(pods []*v1.Pod) {
-	for _, pod := range pods {
-		err := jobLeaseService.clusterContext.AddAnnotation(pod, map[string]string{
-			jobDoneAnnotation: time.Now().String(),
-		})
-		if err != nil {
-			log.Warnf("Failed to annotate pod as done: %v", err)
-		}
-	}
+func (jobLeaseService *JobLeaseService) markAsDone(jobs []*job_context.RunningJob) {
+	err := jobLeaseService.jobContext.AddAnnotation(jobs, map[string]string{
+		jobDoneAnnotation: time.Now().String(),
+	})
+	log.Warnf("Failed to annotate jobs as done: %v", err)
 }
 
 func (jobLeaseService *JobLeaseService) reportTerminated(pods []*v1.Pod) {
 	for _, pod := range pods {
-		event := reporter.CreateJobTerminatedEvent(pod, "Pod terminated because lease could not be renewed.", jobLeaseService.clusterContext.GetClusterId())
+		event := reporter.CreateJobTerminatedEvent(pod, "Pod terminated because lease could not be renewed.", jobLeaseService.clusterIdentity.GetClusterId())
 		jobLeaseService.eventReporter.QueueEvent(event, func(err error) {
 			if err != nil {
 				log.Errorf("Failed to report terminated pod %s: %s", pod.Name, err)
@@ -245,7 +234,16 @@ func shouldBeReportedDone(job *job_context.RunningJob) bool {
 	return false
 }
 
-func (jobLeaseService *JobLeaseService) canBeRemoved(pod *v1.Pod) bool {
+func (jobLeaseService *JobLeaseService) canBeRemoved(job *job_context.RunningJob) bool {
+	for _, pod := range job.Pods {
+		if !jobLeaseService.canPodBeRemoved(pod) {
+			return false
+		}
+	}
+	return true
+}
+
+func (jobLeaseService *JobLeaseService) canPodBeRemoved(pod *v1.Pod) bool {
 	if !util.IsInTerminalState(pod) ||
 		!isReportedDone(pod) ||
 		!reporter.HasCurrentStateBeenReported(pod) {
@@ -271,17 +269,6 @@ func isReportedDone(pod *v1.Pod) bool {
 	return exists
 }
 
-func filterPodsByJobId(pods []*v1.Pod, ids []string) []*v1.Pod {
-	reportedIdSet := commonUtil.StringListToSet(ids)
-	filteredPods := make([]*v1.Pod, 0)
-	for _, pod := range pods {
-		if reportedIdSet[util.ExtractJobId(pod)] {
-			filteredPods = append(filteredPods, pod)
-		}
-	}
-	return filteredPods
-}
-
 func chunkJobs(jobs []*job_context.RunningJob, size int) [][]*job_context.RunningJob {
 	chunks := [][]*job_context.RunningJob{}
 	for start := 0; start < len(jobs); start += size {
@@ -302,4 +289,9 @@ func filterRunningJobs(jobs []*job_context.RunningJob, filter func(*job_context.
 		}
 	}
 	return result
+}
+
+func filterRunningJobsByIds(jobs []*job_context.RunningJob, ids []string) []*job_context.RunningJob {
+	idSet := commonUtil.StringListToSet(ids)
+	return filterRunningJobs(jobs, func(j *job_context.RunningJob) bool { return idSet[j.JobId] })
 }

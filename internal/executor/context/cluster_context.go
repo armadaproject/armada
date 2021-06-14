@@ -26,9 +26,15 @@ import (
 
 const podByUIDIndex = "podUID"
 
-type ClusterContext interface {
-	AddPodEventHandler(handler cache.ResourceEventHandlerFuncs)
+type ClusterIdentity interface {
+	GetClusterId() string
+	GetClusterPool() string
+}
 
+type ClusterContext interface {
+	ClusterIdentity
+
+	AddPodEventHandler(handler cache.ResourceEventHandlerFuncs)
 	GetBatchPods() ([]*v1.Pod, error)
 	GetAllPods() ([]*v1.Pod, error)
 	GetActiveBatchPods() ([]*v1.Pod, error)
@@ -39,12 +45,10 @@ type ClusterContext interface {
 
 	SubmitPod(pod *v1.Pod, owner string, ownerGroups []string) (*v1.Pod, error)
 	SubmitService(service *v1.Service) (*v1.Service, error)
-	AddAnnotation(pod *v1.Pod, annotations map[string]string) error
 	DeletePods(pods []*v1.Pod)
 	DeleteService(service *v1.Service) error
 
-	GetClusterId() string
-	GetClusterPool() string
+	AddAnnotation(pod *v1.Pod, annotations map[string]string) error
 
 	Stop()
 }
