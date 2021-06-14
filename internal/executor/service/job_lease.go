@@ -198,7 +198,9 @@ func (jobLeaseService *JobLeaseService) markAsDone(jobs []*job_context.RunningJo
 	err := jobLeaseService.jobContext.AddAnnotation(jobs, map[string]string{
 		jobDoneAnnotation: time.Now().String(),
 	})
-	log.Warnf("Failed to annotate jobs as done: %v", err)
+	if err != nil {
+		log.Warnf("Failed to annotate jobs as done: %v", err)
+	}
 }
 
 func (jobLeaseService *JobLeaseService) reportTerminated(pods []*v1.Pod) {
