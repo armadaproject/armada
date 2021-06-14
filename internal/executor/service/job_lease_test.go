@@ -32,7 +32,7 @@ func TestCanBeRemovedConditions(t *testing.T) {
 	}
 
 	for pod, expected := range pods {
-		result := s.canBeRemoved(pod)
+		result := s.canBeRemoved(&job_context.RunningJob{JobId: "", Pods: []*v1.Pod{pod}})
 		assert.Equal(t, expected, result)
 	}
 }
@@ -52,7 +52,7 @@ func TestCanBeRemovedMinumumPodTime(t *testing.T) {
 	}
 
 	for pod, expected := range pods {
-		result := s.canBeRemoved(pod)
+		result := s.canBeRemoved(&job_context.RunningJob{JobId: "", Pods: []*v1.Pod{pod}})
 		assert.Equal(t, expected, result)
 	}
 }
