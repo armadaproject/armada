@@ -9,14 +9,14 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/G-Research/armada/internal/executor/context"
-	"github.com/G-Research/armada/internal/executor/job_context"
+	"github.com/G-Research/armada/internal/executor/job"
 	"github.com/G-Research/armada/internal/executor/reporter"
 	"github.com/G-Research/armada/internal/executor/util"
 )
 
 type StuckPodDetector struct {
 	clusterContext  context.ClusterContext
-	jobContext      job_context.JobContext
+	jobContext      job.JobContext
 	eventReporter   reporter.EventReporter
 	stuckJobCache   map[string]*stuckJobRecord
 	jobLeaseService LeaseService
@@ -24,7 +24,7 @@ type StuckPodDetector struct {
 }
 
 type stuckJobRecord struct {
-	job       *job_context.RunningJob
+	job       *job.RunningJob
 	pod       *v1.Pod
 	message   string
 	retryable bool
@@ -32,7 +32,7 @@ type stuckJobRecord struct {
 
 func NewPodProgressMonitorService(
 	clusterContext context.ClusterContext,
-	jobContext job_context.JobContext,
+	jobContext job.JobContext,
 	eventReporter reporter.EventReporter,
 	jobLeaseService LeaseService,
 	stuckPodExpiry time.Duration) *StuckPodDetector {
@@ -159,7 +159,7 @@ func (d *StuckPodDetector) HandleStuckPods() {
 	d.processStuckPodCache(allRunningJobs)
 }
 
-func (d *StuckPodDetector) processStuckPodCache(existingJobs []*job_context.RunningJob) {
+func (d *StuckPodDetector) processStuckPodCache(existingJobs []*job.RunningJob) {
 	jobIdSet := map[string]bool{}
 	for _, job := range existingJobs {
 		jobIdSet[job.JobId] = true
@@ -188,8 +188,8 @@ func (d *StuckPodDetector) processStuckPodCache(existingJobs []*job_context.Runn
 }
 
 func (d *StuckPodDetector) markStuckPodsForDeletion(records []*stuckJobRecord) {
-	remainingRetryableJobs := make([]*job_context.RunningJob, 0, 10)
-	remainingNonRetryableJobs := make([]*job_context.RunningJob, 0, 10)
+	remainingRetryableJobs := make([]*job.RunningJob, 0, 10)
+	remainingNonRetryableJobs := make([]*job.RunningJob, 0, 10)
 	remainingNonRetryableJobIds := make([]string, 0, 10)
 
 	for _, record := range records {

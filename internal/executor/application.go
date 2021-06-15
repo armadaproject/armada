@@ -13,7 +13,7 @@ import (
 	"github.com/G-Research/armada/internal/executor/cluster"
 	"github.com/G-Research/armada/internal/executor/configuration"
 	"github.com/G-Research/armada/internal/executor/context"
-	"github.com/G-Research/armada/internal/executor/job_context"
+	"github.com/G-Research/armada/internal/executor/job"
 	"github.com/G-Research/armada/internal/executor/metrics"
 	"github.com/G-Research/armada/internal/executor/metrics/pod_metrics"
 	"github.com/G-Research/armada/internal/executor/reporter"
@@ -62,7 +62,8 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 		clusterContext,
 		eventClient)
 
-	jobContext := job_context.NewClusterJobContext(clusterContext)
+	jobContext := job.NewClusterJobContext(clusterContext)
+	submitter := job.NewSubmitter(clusterContext, config.Kubernetes.PodDefaults)
 
 	jobLeaseService := service.NewJobLeaseService(
 		clusterContext,
@@ -95,9 +96,9 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 		eventReporter,
 		jobLeaseService,
 		clusterUtilisationService,
-		config.Kubernetes.PodDefaults)
+		submitter)
 
-	service.RunIngressCleanup(clusterContext)
+	job.RunIngressCleanup(clusterContext)
 
 	pod_metrics.ExposeClusterContextMetrics(clusterContext, clusterUtilisationService, queueUtilisationService)
 

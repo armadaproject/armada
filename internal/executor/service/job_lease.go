@@ -12,7 +12,7 @@ import (
 	"github.com/G-Research/armada/internal/common"
 	commonUtil "github.com/G-Research/armada/internal/common/util"
 	context2 "github.com/G-Research/armada/internal/executor/context"
-	"github.com/G-Research/armada/internal/executor/job_context"
+	"github.com/G-Research/armada/internal/executor/job"
 	"github.com/G-Research/armada/internal/executor/reporter"
 	"github.com/G-Research/armada/internal/executor/util"
 	"github.com/G-Research/armada/pkg/api"
@@ -29,7 +29,7 @@ type LeaseService interface {
 
 type JobLeaseService struct {
 	clusterIdentity context2.ClusterIdentity
-	jobContext      job_context.JobContext
+	jobContext      job.JobContext
 	eventReporter   reporter.EventReporter
 	queueClient     api.AggregatedQueueClient
 	minimumPodAge   time.Duration
@@ -39,7 +39,7 @@ type JobLeaseService struct {
 
 func NewJobLeaseService(
 	clusterIdentity context2.ClusterIdentity,
-	jobContext job_context.JobContext,
+	jobContext job.JobContext,
 	eventReporter reporter.EventReporter,
 	queueClient api.AggregatedQueueClient,
 	minimumPodAge time.Duration,
@@ -127,7 +127,7 @@ func (jobLeaseService *JobLeaseService) ManageJobLeases() {
 	jobLeaseService.jobContext.DeleteJobs(jobsToCleanup)
 }
 
-func (jobLeaseService *JobLeaseService) reportDoneAndMarkReported(jobs []*job_context.RunningJob) error {
+func (jobLeaseService *JobLeaseService) reportDoneAndMarkReported(jobs []*job.RunningJob) error {
 	if len(jobs) <= 0 {
 		return nil
 	}
@@ -150,7 +150,7 @@ func (jobLeaseService *JobLeaseService) ReportDone(jobIds []string) error {
 	return err
 }
 
-func extractJobIds(jobs []*job_context.RunningJob) []string {
+func extractJobIds(jobs []*job.RunningJob) []string {
 	ids := []string{}
 	for _, job := range jobs {
 		ids = append(ids, job.JobId)
@@ -158,7 +158,7 @@ func extractJobIds(jobs []*job_context.RunningJob) []string {
 	return ids
 }
 
-func extractPods(jobs []*job_context.RunningJob) []*v1.Pod {
+func extractPods(jobs []*job.RunningJob) []*v1.Pod {
 	pods := []*v1.Pod{}
 	for _, job := range jobs {
 		pods = append(pods, job.Pods...)
@@ -166,7 +166,7 @@ func extractPods(jobs []*job_context.RunningJob) []*v1.Pod {
 	return pods
 }
 
-func (jobLeaseService *JobLeaseService) renewJobLeases(jobs []*job_context.RunningJob) {
+func (jobLeaseService *JobLeaseService) renewJobLeases(jobs []*job.RunningJob) {
 	if len(jobs) <= 0 {
 		return
 	}
@@ -194,7 +194,7 @@ func (jobLeaseService *JobLeaseService) renewJobLeases(jobs []*job_context.Runni
 	}
 }
 
-func (jobLeaseService *JobLeaseService) markAsDone(jobs []*job_context.RunningJob) {
+func (jobLeaseService *JobLeaseService) markAsDone(jobs []*job.RunningJob) {
 	err := jobLeaseService.jobContext.AddAnnotation(jobs, map[string]string{
 		jobDoneAnnotation: time.Now().String(),
 	})
@@ -218,7 +218,7 @@ func shouldBeRenewed(pod *v1.Pod) bool {
 	return !isReportedDone(pod)
 }
 
-func jobShouldBeRenewed(job *job_context.RunningJob) bool {
+func jobShouldBeRenewed(job *job.RunningJob) bool {
 	for _, pod := range job.Pods {
 		if !isReportedDone(pod) {
 			return true
@@ -227,7 +227,7 @@ func jobShouldBeRenewed(job *job_context.RunningJob) bool {
 	return false
 }
 
-func shouldBeReportedDone(job *job_context.RunningJob) bool {
+func shouldBeReportedDone(job *job.RunningJob) bool {
 	for _, pod := range job.Pods {
 		if util.IsInTerminalState(pod) && !isReportedDone(pod) {
 			return true
@@ -236,7 +236,7 @@ func shouldBeReportedDone(job *job_context.RunningJob) bool {
 	return false
 }
 
-func (jobLeaseService *JobLeaseService) canBeRemoved(job *job_context.RunningJob) bool {
+func (jobLeaseService *JobLeaseService) canBeRemoved(job *job.RunningJob) bool {
 	for _, pod := range job.Pods {
 		if !jobLeaseService.canPodBeRemoved(pod) {
 			return false
@@ -271,8 +271,8 @@ func isReportedDone(pod *v1.Pod) bool {
 	return exists
 }
 
-func chunkJobs(jobs []*job_context.RunningJob, size int) [][]*job_context.RunningJob {
-	chunks := [][]*job_context.RunningJob{}
+func chunkJobs(jobs []*job.RunningJob, size int) [][]*job.RunningJob {
+	chunks := [][]*job.RunningJob{}
 	for start := 0; start < len(jobs); start += size {
 		end := start + size
 		if end > len(jobs) {
@@ -283,8 +283,8 @@ func chunkJobs(jobs []*job_context.RunningJob, size int) [][]*job_context.Runnin
 	return chunks
 }
 
-func filterRunningJobs(jobs []*job_context.RunningJob, filter func(*job_context.RunningJob) bool) []*job_context.RunningJob {
-	result := make([]*job_context.RunningJob, 0)
+func filterRunningJobs(jobs []*job.RunningJob, filter func(*job.RunningJob) bool) []*job.RunningJob {
+	result := make([]*job.RunningJob, 0)
 	for _, job := range jobs {
 		if filter(job) {
 			result = append(result, job)
@@ -293,7 +293,7 @@ func filterRunningJobs(jobs []*job_context.RunningJob, filter func(*job_context.
 	return result
 }
 
-func filterRunningJobsByIds(jobs []*job_context.RunningJob, ids []string) []*job_context.RunningJob {
+func filterRunningJobsByIds(jobs []*job.RunningJob, ids []string) []*job.RunningJob {
 	idSet := commonUtil.StringListToSet(ids)
-	return filterRunningJobs(jobs, func(j *job_context.RunningJob) bool { return idSet[j.JobId] })
+	return filterRunningJobs(jobs, func(j *job.RunningJob) bool { return idSet[j.JobId] })
 }

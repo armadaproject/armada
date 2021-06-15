@@ -16,7 +16,7 @@ import (
 	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/executor/context"
 	"github.com/G-Research/armada/internal/executor/domain"
-	"github.com/G-Research/armada/internal/executor/job_context"
+	"github.com/G-Research/armada/internal/executor/job"
 
 	reporter_fake "github.com/G-Research/armada/internal/executor/reporter/fake"
 	"github.com/G-Research/armada/pkg/api"
@@ -204,7 +204,7 @@ func addPod(t *testing.T, fakeClusterContext context.ClusterContext, runningPod 
 
 func makeStuckPodDetectorWithTestDoubles() (context.ClusterContext, *mockLeaseService, *reporter_fake.FakeEventReporter, *StuckPodDetector) {
 	fakeClusterContext := newSyncFakeClusterContext()
-	jobContext := job_context.NewClusterJobContext(fakeClusterContext)
+	jobContext := job.NewClusterJobContext(fakeClusterContext)
 	mockLeaseService := NewMockLeaseService()
 	eventReporter := &reporter_fake.FakeEventReporter{nil}
 
