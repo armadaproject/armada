@@ -26,7 +26,7 @@ func TestStuckPodDetector_DoesNothingIfNoPodsAreFound(t *testing.T) {
 	_, mockLeaseService, _, jobContext, stuckPodDetector := makeStuckPodDetectorWithTestDoubles()
 
 	jobs, _ := jobContext.GetJobs()
-	stuckPodDetector.HandleStuckPods(jobs)
+	stuckPodDetector.HandlePodIssues(jobs)
 
 	assert.Zero(t, mockLeaseService.ReturnLeaseCalls)
 
@@ -41,7 +41,7 @@ func TestStuckPodDetector_DoesNothingIfNoStuckPodsAreFound(t *testing.T) {
 	addPod(t, fakeClusterContext, runningPod)
 
 	jobs, _ := jobContext.GetJobs()
-	stuckPodDetector.HandleStuckPods(jobs)
+	stuckPodDetector.HandlePodIssues(jobs)
 
 	assert.Zero(t, mockLeaseService.ReturnLeaseCalls)
 
@@ -56,7 +56,7 @@ func TestStuckPodDetector_DeletesPodAndReportsDoneIfStuckAndUnretryable(t *testi
 	addPod(t, fakeClusterContext, unretryableStuckPod)
 
 	jobs, _ := jobContext.GetJobs()
-	stuckPodDetector.HandleStuckPods(jobs)
+	stuckPodDetector.HandlePodIssues(jobs)
 
 	remainingActivePods := getActivePods(t, fakeClusterContext)
 	assert.Equal(t, []*v1.Pod{}, remainingActivePods)
@@ -69,7 +69,7 @@ func TestStuckPodDetector_DeletesPodAndReportsDoneIfStuckAndUnretryable(t *testi
 	assert.True(t, ok)
 
 	jobs, _ = jobContext.GetJobs()
-	stuckPodDetector.HandleStuckPods(jobs)
+	stuckPodDetector.HandlePodIssues(jobs)
 
 	failedEvent, ok := eventsReporter.ReceivedEvents[1].(*api.JobFailedEvent)
 	assert.True(t, ok)
@@ -84,7 +84,7 @@ func TestStuckPodDetector_DeletesPodAndReportsFailedIfStuckTerminating(t *testin
 	addPod(t, fakeClusterContext, terminatingPod)
 
 	jobs, _ := jobContext.GetJobs()
-	stuckPodDetector.HandleStuckPods(jobs)
+	stuckPodDetector.HandlePodIssues(jobs)
 
 	remainingActivePods := getActivePods(t, fakeClusterContext)
 	assert.Equal(t, []*v1.Pod{}, remainingActivePods)
@@ -93,7 +93,7 @@ func TestStuckPodDetector_DeletesPodAndReportsFailedIfStuckTerminating(t *testin
 	mockLeaseService.AssertReportDoneCalledOnceWith(t, []string{terminatingPod.Labels[domain.JobId]})
 
 	jobs, _ = jobContext.GetJobs()
-	stuckPodDetector.HandleStuckPods(jobs)
+	stuckPodDetector.HandlePodIssues(jobs)
 
 	failedEvent, ok := eventsReporter.ReceivedEvents[0].(*api.JobFailedEvent)
 	assert.True(t, ok)
@@ -108,7 +108,7 @@ func TestStuckPodDetector_ReturnsLeaseAndDeletesRetryableStuckPod(t *testing.T) 
 	addPod(t, fakeClusterContext, retryableStuckPod)
 
 	jobs, _ := jobContext.GetJobs()
-	stuckPodDetector.HandleStuckPods(jobs)
+	stuckPodDetector.HandlePodIssues(jobs)
 
 	// Not done as can be retried
 	assert.Equal(t, 1, mockLeaseService.ReportDoneCalls)
@@ -122,7 +122,7 @@ func TestStuckPodDetector_ReturnsLeaseAndDeletesRetryableStuckPod(t *testing.T) 
 	assert.Equal(t, []*v1.Pod{}, remainingActivePods)
 
 	jobs, _ = jobContext.GetJobs()
-	stuckPodDetector.HandleStuckPods(jobs)
+	stuckPodDetector.HandlePodIssues(jobs)
 
 	// Not done as can be retried
 	assert.Equal(t, 2, mockLeaseService.ReportDoneCalls)

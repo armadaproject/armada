@@ -71,7 +71,7 @@ func (m *JobManager) ManageJobLeases() {
 	jobsToCleanup := filterRunningJobs(jobs, m.canBeRemoved)
 	m.jobContext.DeleteJobs(jobsToCleanup)
 
-	m.stuckPodDetector.HandleStuckPods(jobs)
+	m.stuckPodDetector.HandlePodIssues(jobs)
 }
 
 func (m *JobManager) reportDoneAndMarkReported(jobs []*job.RunningJob) error {
