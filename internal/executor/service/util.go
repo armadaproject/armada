@@ -37,7 +37,7 @@ func shouldBeRenewed(pod *v1.Pod) bool {
 
 func jobShouldBeRenewed(job *job.RunningJob) bool {
 	for _, pod := range job.Pods {
-		if !isReportedDone(pod) {
+		if shouldBeRenewed(pod) {
 			return true
 		}
 	}
