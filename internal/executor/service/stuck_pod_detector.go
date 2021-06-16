@@ -119,12 +119,7 @@ func (d *StuckPodDetector) onStuckPodDeleted(record *stuckJobRecord) (resolved b
 	return true
 }
 
-func (d *StuckPodDetector) HandleStuckPods() {
-	allRunningJobs, err := d.jobContext.GetRunningJobs()
-	if err != nil {
-		log.Errorf("Failed to load all pods for stuck pod handling %s ", err)
-		return
-	}
+func (d *StuckPodDetector) HandleStuckPods(allRunningJobs []*job.RunningJob) {
 
 	for _, job := range allRunningJobs {
 		_, exists := d.stuckJobCache[job.JobId]

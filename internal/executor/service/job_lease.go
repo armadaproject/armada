@@ -13,7 +13,6 @@ import (
 	commonUtil "github.com/G-Research/armada/internal/common/util"
 	context2 "github.com/G-Research/armada/internal/executor/context"
 	"github.com/G-Research/armada/internal/executor/job"
-	"github.com/G-Research/armada/internal/executor/reporter"
 	"github.com/G-Research/armada/internal/executor/util"
 	"github.com/G-Research/armada/pkg/api"
 )
@@ -24,36 +23,26 @@ const jobDoneAnnotation = "reported_done"
 type LeaseService interface {
 	ReturnLease(pod *v1.Pod) error
 	RequestJobLeases(availableResource *common.ComputeResources, nodes []api.NodeInfo, leasedResourceByQueue map[string]common.ComputeResources) ([]*api.Job, error)
+	RenewJobLeases(jobs []*job.RunningJob) ([]*job.RunningJob, error)
 	ReportDone(jobIds []string) error
 }
 
 type JobLeaseService struct {
 	clusterIdentity context2.ClusterIdentity
-	jobContext      job.JobContext
-	eventReporter   reporter.EventReporter
 	queueClient     api.AggregatedQueueClient
-	minimumPodAge   time.Duration
-	failedPodExpiry time.Duration
 	minimumJobSize  common.ComputeResources
 }
 
 func NewJobLeaseService(
 	clusterIdentity context2.ClusterIdentity,
-	jobContext job.JobContext,
-	eventReporter reporter.EventReporter,
 	queueClient api.AggregatedQueueClient,
-	minimumPodAge time.Duration,
-	failedPodExpiry time.Duration,
 	minimumJobSize common.ComputeResources) *JobLeaseService {
 
 	return &JobLeaseService{
 		clusterIdentity: clusterIdentity,
-		jobContext:      jobContext,
-		eventReporter:   eventReporter,
 		queueClient:     queueClient,
-		minimumPodAge:   minimumPodAge,
-		failedPodExpiry: failedPodExpiry,
-		minimumJobSize:  minimumJobSize}
+		minimumJobSize:  minimumJobSize,
+	}
 }
 
 func (jobLeaseService *JobLeaseService) RequestJobLeases(availableResource *common.ComputeResources, nodes []api.NodeInfo, leasedResourceByQueue map[string]common.ComputeResources) ([]*api.Job, error) {
@@ -100,44 +89,6 @@ func (jobLeaseService *JobLeaseService) ReturnLease(pod *v1.Pod) error {
 	return err
 }
 
-func (jobLeaseService *JobLeaseService) ManageJobLeases() {
-	jobs, err := jobLeaseService.jobContext.GetRunningJobs()
-	if err != nil {
-		log.Errorf("Failed to manage job leases due to %s", err)
-		return
-	}
-
-	jobsToRenew := filterRunningJobs(jobs, jobShouldBeRenewed)
-	chunkedJobs := chunkJobs(jobsToRenew, maxPodRequestSize)
-	for _, chunk := range chunkedJobs {
-		jobLeaseService.renewJobLeases(chunk)
-	}
-
-	jobsForReporting := filterRunningJobs(jobs, shouldBeReportedDone)
-	chunkedJobsToReportDone := chunkJobs(jobsForReporting, maxPodRequestSize)
-	for _, chunk := range chunkedJobsToReportDone {
-		err = jobLeaseService.reportDoneAndMarkReported(chunk)
-		if err != nil {
-			log.Errorf("Failed reporting jobs as done because %s", err)
-			return
-		}
-	}
-
-	jobsToCleanup := filterRunningJobs(jobs, jobLeaseService.canBeRemoved)
-	jobLeaseService.jobContext.DeleteJobs(jobsToCleanup)
-}
-
-func (jobLeaseService *JobLeaseService) reportDoneAndMarkReported(jobs []*job.RunningJob) error {
-	if len(jobs) <= 0 {
-		return nil
-	}
-	err := jobLeaseService.ReportDone(extractJobIds(jobs))
-	if err == nil {
-		jobLeaseService.markAsDone(jobs)
-	}
-	return err
-}
-
 func (jobLeaseService *JobLeaseService) ReportDone(jobIds []string) error {
 	if len(jobIds) <= 0 {
 		return nil
@@ -150,25 +101,9 @@ func (jobLeaseService *JobLeaseService) ReportDone(jobIds []string) error {
 	return err
 }
 
-func extractJobIds(jobs []*job.RunningJob) []string {
-	ids := []string{}
-	for _, job := range jobs {
-		ids = append(ids, job.JobId)
-	}
-	return ids
-}
-
-func extractPods(jobs []*job.RunningJob) []*v1.Pod {
-	pods := []*v1.Pod{}
-	for _, job := range jobs {
-		pods = append(pods, job.Pods...)
-	}
-	return pods
-}
-
-func (jobLeaseService *JobLeaseService) renewJobLeases(jobs []*job.RunningJob) {
+func (jobLeaseService *JobLeaseService) RenewJobLeases(jobs []*job.RunningJob) ([]*job.RunningJob, error) {
 	if len(jobs) <= 0 {
-		return
+		return []*job.RunningJob{}, nil
 	}
 	jobIds := extractJobIds(jobs)
 	log.Infof("Renewing lease for %s", strings.Join(jobIds, ","))
@@ -181,7 +116,7 @@ func (jobLeaseService *JobLeaseService) renewJobLeases(jobs []*job.RunningJob) {
 			Ids:       jobIds})
 	if err != nil {
 		log.Errorf("Failed to renew lease for jobs because %s", err)
-		return
+		return nil, err
 	}
 
 	failedIds := commonUtil.SubtractStringList(jobIds, renewedJobIds.Ids)
@@ -189,111 +124,7 @@ func (jobLeaseService *JobLeaseService) renewJobLeases(jobs []*job.RunningJob) {
 
 	if len(failedIds) > 0 {
 		log.Warnf("Server has prevented renewing of job lease for jobs %s", strings.Join(failedIds, ","))
-		jobLeaseService.reportTerminated(extractPods(failedJobs))
-		jobLeaseService.jobContext.DeleteJobs(failedJobs)
-	}
-}
-
-func (jobLeaseService *JobLeaseService) markAsDone(jobs []*job.RunningJob) {
-	err := jobLeaseService.jobContext.AddAnnotation(jobs, map[string]string{
-		jobDoneAnnotation: time.Now().String(),
-	})
-	if err != nil {
-		log.Warnf("Failed to annotate jobs as done: %v", err)
-	}
-}
-
-func (jobLeaseService *JobLeaseService) reportTerminated(pods []*v1.Pod) {
-	for _, pod := range pods {
-		event := reporter.CreateJobTerminatedEvent(pod, "Pod terminated because lease could not be renewed.", jobLeaseService.clusterIdentity.GetClusterId())
-		jobLeaseService.eventReporter.QueueEvent(event, func(err error) {
-			if err != nil {
-				log.Errorf("Failed to report terminated pod %s: %s", pod.Name, err)
-			}
-		})
-	}
-}
-
-func shouldBeRenewed(pod *v1.Pod) bool {
-	return !isReportedDone(pod)
-}
-
-func jobShouldBeRenewed(job *job.RunningJob) bool {
-	for _, pod := range job.Pods {
-		if !isReportedDone(pod) {
-			return true
-		}
-	}
-	return false
-}
-
-func shouldBeReportedDone(job *job.RunningJob) bool {
-	for _, pod := range job.Pods {
-		if util.IsInTerminalState(pod) && !isReportedDone(pod) {
-			return true
-		}
-	}
-	return false
-}
-
-func (jobLeaseService *JobLeaseService) canBeRemoved(job *job.RunningJob) bool {
-	for _, pod := range job.Pods {
-		if !jobLeaseService.canPodBeRemoved(pod) {
-			return false
-		}
-	}
-	return true
-}
-
-func (jobLeaseService *JobLeaseService) canPodBeRemoved(pod *v1.Pod) bool {
-	if !util.IsInTerminalState(pod) ||
-		!isReportedDone(pod) ||
-		!reporter.HasCurrentStateBeenReported(pod) {
-		return false
 	}
 
-	lastContainerStart := util.FindLastContainerStartTime(pod)
-	if lastContainerStart.Add(jobLeaseService.minimumPodAge).After(time.Now()) {
-		return false
-	}
-
-	if pod.Status.Phase == v1.PodFailed {
-		lastChange, err := util.LastStatusChange(pod)
-		if err == nil && lastChange.Add(jobLeaseService.failedPodExpiry).After(time.Now()) {
-			return false
-		}
-	}
-	return true
-}
-
-func isReportedDone(pod *v1.Pod) bool {
-	_, exists := pod.Annotations[jobDoneAnnotation]
-	return exists
-}
-
-func chunkJobs(jobs []*job.RunningJob, size int) [][]*job.RunningJob {
-	chunks := [][]*job.RunningJob{}
-	for start := 0; start < len(jobs); start += size {
-		end := start + size
-		if end > len(jobs) {
-			end = len(jobs)
-		}
-		chunks = append(chunks, jobs[start:end])
-	}
-	return chunks
-}
-
-func filterRunningJobs(jobs []*job.RunningJob, filter func(*job.RunningJob) bool) []*job.RunningJob {
-	result := make([]*job.RunningJob, 0)
-	for _, job := range jobs {
-		if filter(job) {
-			result = append(result, job)
-		}
-	}
-	return result
-}
-
-func filterRunningJobsByIds(jobs []*job.RunningJob, ids []string) []*job.RunningJob {
-	idSet := commonUtil.StringListToSet(ids)
-	return filterRunningJobs(jobs, func(j *job.RunningJob) bool { return idSet[j.JobId] })
+	return failedJobs, nil
 }
