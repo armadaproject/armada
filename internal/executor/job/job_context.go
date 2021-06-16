@@ -49,7 +49,6 @@ type JobContext interface {
 	ResolveIssues(job *RunningJob)
 	DeleteJobs(jobs []*RunningJob)
 	AddAnnotation(jobs []*RunningJob, annotations map[string]string) error
-	IsActiveJob(id string) bool
 }
 
 type ClusterJobContext struct {
@@ -158,14 +157,6 @@ func (c *ClusterJobContext) registerIssue(job *RunningJob, issue *PodIssue) {
 	}
 }
 
-func (c *ClusterJobContext) IsActiveJob(id string) bool {
-	c.activeJobIdsMutex.Lock()
-	defer c.activeJobIdsMutex.Unlock()
-
-	record, exists := c.activeJobs[id]
-	return exists && !record.markedForDeletion
-}
-
 func (c *ClusterJobContext) addIssues(jobs []*RunningJob) []*RunningJob {
 
 	c.activeJobIdsMutex.Lock()
@@ -246,7 +237,7 @@ func (c *ClusterJobContext) detectStuckPods(runningJob *RunningJob) {
 
 func (c *ClusterJobContext) handleDeletedPod(pod *v1.Pod) {
 	jobId := util.ExtractJobId(pod)
-	if jobId != "" && c.IsActiveJob(jobId) {
+	if jobId != "" {
 		record, exists := c.activeJobs[jobId]
 		active := exists && !record.markedForDeletion
 		if active {
