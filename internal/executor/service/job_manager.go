@@ -41,7 +41,7 @@ func NewJobManager(
 }
 
 func (m *JobManager) ManageJobLeases() {
-	jobs, err := m.jobContext.GetRunningJobs()
+	jobs, err := m.jobContext.GetJobs()
 
 	if err != nil {
 		log.Errorf("Failed to manage job leases due to %s", err)
@@ -71,7 +71,7 @@ func (m *JobManager) ManageJobLeases() {
 	jobsToCleanup := filterRunningJobs(jobs, m.canBeRemoved)
 	m.jobContext.DeleteJobs(jobsToCleanup)
 
-	m.stuckPodDetector.HandleStuckPods(jobsToRenew)
+	m.stuckPodDetector.HandleStuckPods(jobs)
 }
 
 func (m *JobManager) reportDoneAndMarkReported(jobs []*job.RunningJob) error {

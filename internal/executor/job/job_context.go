@@ -12,15 +12,26 @@ import (
 type RunningJob struct {
 	JobId string
 	Pods  []*v1.Pod
+	Issue *PodIssue
+}
+
+type PodIssue struct {
+	OriginatingPod *v1.Pod
+	Pods           []*v1.Pod
+	Message        string
+	Retryable      bool
 }
 
 type jobRecord struct {
 	jobId             string
+	issue             *PodIssue
 	markedForDeletion bool
 }
 
 type JobContext interface {
-	GetRunningJobs() ([]*RunningJob, error)
+	GetJobs() ([]*RunningJob, error)
+	RegisterIssue(job *RunningJob, issue *PodIssue)
+	ResolveIssue(job *RunningJob)
 	DeleteJobs(jobs []*RunningJob)
 	AddAnnotation(jobs []*RunningJob, annotations map[string]string) error
 	IsActiveJob(id string) bool
@@ -29,28 +40,50 @@ type JobContext interface {
 type ClusterJobContext struct {
 	clusterContext context.ClusterContext
 
-	activeJobs        map[string]jobRecord
+	activeJobs        map[string]*jobRecord
 	activeJobIdsMutex sync.Mutex
 }
 
 func NewClusterJobContext(clusterContext context.ClusterContext) *ClusterJobContext {
 	jobContext := &ClusterJobContext{
 		clusterContext:    clusterContext,
-		activeJobs:        map[string]jobRecord{},
+		activeJobs:        map[string]*jobRecord{},
 		activeJobIdsMutex: sync.Mutex{},
 	}
 	return jobContext
 }
 
-func (c *ClusterJobContext) GetRunningJobs() ([]*RunningJob, error) {
+func (c *ClusterJobContext) GetJobs() ([]*RunningJob, error) {
 	pods, err := c.clusterContext.GetActiveBatchPods()
 	if err != nil {
 		return nil, err
 	}
-	runningJobs := groupRunningJobs(pods)
-	c.registerRunning(runningJobs)
 
-	return runningJobs, nil
+	runningJobs := groupRunningJobs(pods)
+	return c.addIssues(runningJobs), nil
+}
+
+func (c *ClusterJobContext) RegisterIssue(job *RunningJob, issue *PodIssue) {
+	c.activeJobIdsMutex.Lock()
+	defer c.activeJobIdsMutex.Unlock()
+
+	job.Issue = issue
+
+	record, exists := c.activeJobs[job.JobId]
+	if exists {
+		record.issue = issue
+	}
+	// TODO what if the job is not registered
+}
+
+func (c *ClusterJobContext) ResolveIssue(job *RunningJob) {
+	c.activeJobIdsMutex.Lock()
+	defer c.activeJobIdsMutex.Unlock()
+
+	record, exists := c.activeJobs[job.JobId]
+	if exists {
+		record.issue = nil
+	}
 }
 
 func (c *ClusterJobContext) DeleteJobs(jobs []*RunningJob) {
@@ -60,7 +93,7 @@ func (c *ClusterJobContext) DeleteJobs(jobs []*RunningJob) {
 	for _, job := range jobs {
 		record, exists := c.activeJobs[job.JobId]
 		if !exists {
-			c.activeJobs[job.JobId] = jobRecord{
+			c.activeJobs[job.JobId] = &jobRecord{
 				jobId:             job.JobId,
 				markedForDeletion: true,
 			}
@@ -107,26 +140,38 @@ func (c *ClusterJobContext) IsActiveJob(id string) bool {
 	return exists && !record.markedForDeletion
 }
 
-func (c *ClusterJobContext) registerRunning(jobs []*RunningJob) {
+func (c *ClusterJobContext) addIssues(jobs []*RunningJob) []*RunningJob {
 
 	c.activeJobIdsMutex.Lock()
 	defer c.activeJobIdsMutex.Unlock()
 
-	runningJobIds := map[string]bool{}
+	runningJobIds := map[string]*RunningJob{}
 	for _, job := range jobs {
-		runningJobIds[job.JobId] = true
+		runningJobIds[job.JobId] = job
 		_, exists := c.activeJobs[job.JobId]
 		if !exists {
-			c.activeJobs[job.JobId] = jobRecord{
+			c.activeJobs[job.JobId] = &jobRecord{
 				jobId:             job.JobId,
 				markedForDeletion: false,
 			}
 		}
 	}
 
-	for jobId := range c.activeJobs {
-		if !runningJobIds[jobId] {
-			delete(c.activeJobs, jobId)
+	for jobId, record := range c.activeJobs {
+		runningJob, isRunning := runningJobIds[jobId]
+		if isRunning {
+			runningJob.Issue = record.issue
+		} else {
+			if record.issue != nil {
+				jobs = append(jobs, &RunningJob{
+					JobId: jobId,
+					Pods:  nil,
+					Issue: record.issue,
+				})
+			} else {
+				delete(c.activeJobs, jobId)
+			}
 		}
 	}
+	return jobs
 }
