@@ -153,8 +153,9 @@ func (c *ClusterJobContext) registerIssue(job *RunningJob, issue *PodIssue) {
 	record, exists := c.activeJobs[job.JobId]
 	if exists {
 		record.issue = issue
+	} else {
+		log.Errorf("Resolving issue without existing record (jobId: %s)", job.JobId)
 	}
-	// TODO what if the job is not registered
 }
 
 func (c *ClusterJobContext) IsActiveJob(id string) bool {
