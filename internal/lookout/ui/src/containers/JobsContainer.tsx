@@ -14,7 +14,7 @@ type JobsContainerProps = {
   jobService: JobService
 } & RouteComponentProps
 
-export type CancelJobsRequestStatus = "Loading" | "Idle"
+export type RequestStatus = "Loading" | "Idle"
 
 interface JobsContainerState {
   jobs: Job[]

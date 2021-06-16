@@ -78,3 +78,24 @@ export function secondsToDurationString(totalSeconds: number): string {
 
   return segments.join(" ")
 }
+
+export function setStateAsync<T>(component: React.Component<any, T>, state: T): Promise<void> {
+  return new Promise((resolve) => {
+    component.setState(state, resolve)
+  })
+}
+
+export function updateInterval(
+  interval: NodeJS.Timeout | undefined,
+  isEnabled: boolean,
+  ms: number,
+  callback: () => void,
+): NodeJS.Timeout | undefined {
+  let updatedInterval = undefined
+  if (isEnabled && !interval) {
+    updatedInterval = setInterval(callback, ms)
+  } else if (!isEnabled && interval) {
+    clearInterval(interval)
+  }
+  return updatedInterval
+}
