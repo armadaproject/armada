@@ -218,6 +218,7 @@ func makeStuckPodDetectorWithTestDoubles() (context.ClusterContext, *fake.MockLe
 
 	stuckPodDetector := NewPodProgressMonitorService(
 		fakeClusterContext,
+		jobContext,
 		eventReporter,
 		mockLeaseService,
 		time.Second)

@@ -85,7 +85,7 @@ func createManager(minimumPodAge, failedPodExpiry time.Duration) *JobManager {
 	jobContext := job.NewClusterJobContext(fakeClusterContext)
 
 	jobLeaseService := fake.NewMockLeaseService()
-	stuckPodDetector := NewPodProgressMonitorService(fakeClusterContext, fakeEventReporter, jobLeaseService, time.Second)
+	stuckPodDetector := NewPodProgressMonitorService(fakeClusterContext, jobContext, fakeEventReporter, jobLeaseService, time.Second)
 
 	return NewJobManager(
 		fakeClusterContext,
