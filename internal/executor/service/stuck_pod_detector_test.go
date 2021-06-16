@@ -12,60 +12,64 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 
-	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/executor/context"
 	"github.com/G-Research/armada/internal/executor/domain"
-	"github.com/G-Research/armada/internal/executor/job_context"
+	"github.com/G-Research/armada/internal/executor/job"
+	"github.com/G-Research/armada/internal/executor/service/fake"
 
 	reporter_fake "github.com/G-Research/armada/internal/executor/reporter/fake"
 	"github.com/G-Research/armada/pkg/api"
 )
 
 func TestStuckPodDetector_DoesNothingIfNoPodsAreFound(t *testing.T) {
-	_, mockLeaseService, _, stuckPodDetector := makeStuckPodDetectorWithTestDoubles()
+	_, mockLeaseService, _, jobContext, stuckPodDetector := makeStuckPodDetectorWithTestDoubles()
 
-	stuckPodDetector.HandleStuckPods()
+	jobs, _ := jobContext.GetRunningJobs()
+	stuckPodDetector.HandleStuckPods(jobs)
 
-	assert.Zero(t, mockLeaseService.returnLeaseCalls)
+	assert.Zero(t, mockLeaseService.ReturnLeaseCalls)
 
-	mockLeaseService.assertReportDoneCalledOnceWith(t, []string{})
+	mockLeaseService.AssertReportDoneCalledOnceWith(t, []string{})
 }
 
 func TestStuckPodDetector_DoesNothingIfNoStuckPodsAreFound(t *testing.T) {
 	runningPod := makeRunningPod()
 
-	fakeClusterContext, mockLeaseService, _, stuckPodDetector := makeStuckPodDetectorWithTestDoubles()
+	fakeClusterContext, mockLeaseService, _, jobContext, stuckPodDetector := makeStuckPodDetectorWithTestDoubles()
 
 	addPod(t, fakeClusterContext, runningPod)
 
-	stuckPodDetector.HandleStuckPods()
+	jobs, _ := jobContext.GetRunningJobs()
+	stuckPodDetector.HandleStuckPods(jobs)
 
-	assert.Zero(t, mockLeaseService.returnLeaseCalls)
+	assert.Zero(t, mockLeaseService.ReturnLeaseCalls)
 
-	mockLeaseService.assertReportDoneCalledOnceWith(t, []string{})
+	mockLeaseService.AssertReportDoneCalledOnceWith(t, []string{})
 }
 
 func TestStuckPodDetector_DeletesPodAndReportsDoneIfStuckAndUnretryable(t *testing.T) {
 	unretryableStuckPod := makeUnretryableStuckPod()
 
-	fakeClusterContext, mockLeaseService, eventsReporter, stuckPodDetector := makeStuckPodDetectorWithTestDoubles()
+	fakeClusterContext, mockLeaseService, eventsReporter, jobContext, stuckPodDetector := makeStuckPodDetectorWithTestDoubles()
 
 	addPod(t, fakeClusterContext, unretryableStuckPod)
 
-	stuckPodDetector.HandleStuckPods()
+	jobs, _ := jobContext.GetRunningJobs()
+	stuckPodDetector.HandleStuckPods(jobs)
 
 	remainingActivePods := getActivePods(t, fakeClusterContext)
 	assert.Equal(t, []*v1.Pod{}, remainingActivePods)
 
-	assert.Zero(t, mockLeaseService.returnLeaseCalls)
+	assert.Zero(t, mockLeaseService.ReturnLeaseCalls)
 
-	mockLeaseService.assertReportDoneCalledOnceWith(t, []string{unretryableStuckPod.Labels[domain.JobId]})
+	mockLeaseService.AssertReportDoneCalledOnceWith(t, []string{unretryableStuckPod.Labels[domain.JobId]})
 
 	_, ok := eventsReporter.ReceivedEvents[0].(*api.JobUnableToScheduleEvent)
 	assert.True(t, ok)
 
-	stuckPodDetector.HandleStuckPods()
+	jobs, _ = jobContext.GetRunningJobs()
+	stuckPodDetector.HandleStuckPods(jobs)
 
 	failedEvent, ok := eventsReporter.ReceivedEvents[1].(*api.JobFailedEvent)
 	assert.True(t, ok)
@@ -75,19 +79,21 @@ func TestStuckPodDetector_DeletesPodAndReportsDoneIfStuckAndUnretryable(t *testi
 func TestStuckPodDetector_DeletesPodAndReportsFailedIfStuckTerminating(t *testing.T) {
 	terminatingPod := makeTerminatingPod()
 
-	fakeClusterContext, mockLeaseService, eventsReporter, stuckPodDetector := makeStuckPodDetectorWithTestDoubles()
+	fakeClusterContext, mockLeaseService, eventsReporter, jobContext, stuckPodDetector := makeStuckPodDetectorWithTestDoubles()
 
 	addPod(t, fakeClusterContext, terminatingPod)
 
-	stuckPodDetector.HandleStuckPods()
+	jobs, _ := jobContext.GetRunningJobs()
+	stuckPodDetector.HandleStuckPods(jobs)
 
 	remainingActivePods := getActivePods(t, fakeClusterContext)
 	assert.Equal(t, []*v1.Pod{}, remainingActivePods)
 
-	assert.Zero(t, mockLeaseService.returnLeaseCalls)
-	mockLeaseService.assertReportDoneCalledOnceWith(t, []string{terminatingPod.Labels[domain.JobId]})
+	assert.Zero(t, mockLeaseService.ReturnLeaseCalls)
+	mockLeaseService.AssertReportDoneCalledOnceWith(t, []string{terminatingPod.Labels[domain.JobId]})
 
-	stuckPodDetector.HandleStuckPods()
+	jobs, _ = jobContext.GetRunningJobs()
+	stuckPodDetector.HandleStuckPods(jobs)
 
 	failedEvent, ok := eventsReporter.ReceivedEvents[0].(*api.JobFailedEvent)
 	assert.True(t, ok)
@@ -97,32 +103,34 @@ func TestStuckPodDetector_DeletesPodAndReportsFailedIfStuckTerminating(t *testin
 func TestStuckPodDetector_ReturnsLeaseAndDeletesRetryableStuckPod(t *testing.T) {
 	retryableStuckPod := makeRetryableStuckPod()
 
-	fakeClusterContext, mockLeaseService, _, stuckPodDetector := makeStuckPodDetectorWithTestDoubles()
+	fakeClusterContext, mockLeaseService, _, jobContext, stuckPodDetector := makeStuckPodDetectorWithTestDoubles()
 
 	addPod(t, fakeClusterContext, retryableStuckPod)
 
-	stuckPodDetector.HandleStuckPods()
+	jobs, _ := jobContext.GetRunningJobs()
+	stuckPodDetector.HandleStuckPods(jobs)
 
 	// Not done as can be retried
-	assert.Equal(t, 1, mockLeaseService.reportDoneCalls)
-	assert.Equal(t, []string{}, mockLeaseService.reportDoneArg)
+	assert.Equal(t, 1, mockLeaseService.ReportDoneCalls)
+	assert.Equal(t, []string{}, mockLeaseService.ReportDoneArg)
 
 	// Not returning lease yet
-	assert.Equal(t, 0, mockLeaseService.returnLeaseCalls)
+	assert.Equal(t, 0, mockLeaseService.ReturnLeaseCalls)
 
 	// Still deletes pod
 	remainingActivePods := getActivePods(t, fakeClusterContext)
 	assert.Equal(t, []*v1.Pod{}, remainingActivePods)
 
-	stuckPodDetector.HandleStuckPods()
+	jobs, _ = jobContext.GetRunningJobs()
+	stuckPodDetector.HandleStuckPods(jobs)
 
 	// Not done as can be retried
-	assert.Equal(t, 2, mockLeaseService.reportDoneCalls)
-	assert.Equal(t, []string{}, mockLeaseService.reportDoneArg)
+	assert.Equal(t, 2, mockLeaseService.ReportDoneCalls)
+	assert.Equal(t, []string{}, mockLeaseService.ReportDoneArg)
 
 	// Return lease for retry
-	assert.Equal(t, 1, mockLeaseService.returnLeaseCalls)
-	assert.Equal(t, retryableStuckPod, mockLeaseService.returnLeaseArg)
+	assert.Equal(t, 1, mockLeaseService.ReturnLeaseCalls)
+	assert.Equal(t, retryableStuckPod, mockLeaseService.ReturnLeaseArg)
 }
 
 func getActivePods(t *testing.T, clusterContext context.ClusterContext) []*v1.Pod {
@@ -202,10 +210,10 @@ func addPod(t *testing.T, fakeClusterContext context.ClusterContext, runningPod 
 	}
 }
 
-func makeStuckPodDetectorWithTestDoubles() (context.ClusterContext, *mockLeaseService, *reporter_fake.FakeEventReporter, *StuckPodDetector) {
+func makeStuckPodDetectorWithTestDoubles() (context.ClusterContext, *fake.MockLeaseService, *reporter_fake.FakeEventReporter, job.JobContext, *StuckPodDetector) {
 	fakeClusterContext := newSyncFakeClusterContext()
-	jobContext := job_context.NewClusterJobContext(fakeClusterContext)
-	mockLeaseService := NewMockLeaseService()
+	jobContext := job.NewClusterJobContext(fakeClusterContext)
+	mockLeaseService := fake.NewMockLeaseService()
 	eventReporter := &reporter_fake.FakeEventReporter{nil}
 
 	stuckPodDetector := NewPodProgressMonitorService(
@@ -215,42 +223,7 @@ func makeStuckPodDetectorWithTestDoubles() (context.ClusterContext, *mockLeaseSe
 		mockLeaseService,
 		time.Second)
 
-	return fakeClusterContext, mockLeaseService, eventReporter, stuckPodDetector
-}
-
-type mockLeaseService struct {
-	returnLeaseCalls      int
-	requestJobLeasesCalls int
-	reportDoneCalls       int
-
-	returnLeaseArg *v1.Pod
-	reportDoneArg  []string
-}
-
-func NewMockLeaseService() *mockLeaseService {
-	return &mockLeaseService{0, 0, 0, nil, nil}
-}
-
-func (ls *mockLeaseService) ReturnLease(pod *v1.Pod) error {
-	ls.returnLeaseArg = pod
-	ls.returnLeaseCalls++
-	return nil
-}
-
-func (ls *mockLeaseService) RequestJobLeases(availableResource *common.ComputeResources, nodes []api.NodeInfo, leasedResourceByQueue map[string]common.ComputeResources) ([]*api.Job, error) {
-	ls.requestJobLeasesCalls++
-	return make([]*api.Job, 0), nil
-}
-
-func (ls *mockLeaseService) ReportDone(jobIds []string) error {
-	ls.reportDoneArg = jobIds
-	ls.reportDoneCalls++
-	return nil
-}
-
-func (ls *mockLeaseService) assertReportDoneCalledOnceWith(t *testing.T, expected []string) {
-	assert.Equal(t, 1, ls.reportDoneCalls)
-	assert.Equal(t, expected, ls.reportDoneArg)
+	return fakeClusterContext, mockLeaseService, eventReporter, jobContext, stuckPodDetector
 }
 
 type syncFakeClusterContext struct {

@@ -1,26 +1,22 @@
 package service
 
 import (
-	"context"
 	"testing"
 	"time"
 
-	"github.com/gogo/protobuf/types"
 	"github.com/stretchr/testify/assert"
-	"google.golang.org/grpc"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/internal/executor/configuration"
 	context2 "github.com/G-Research/armada/internal/executor/fake/context"
-	"github.com/G-Research/armada/internal/executor/job_context"
+	"github.com/G-Research/armada/internal/executor/job"
 	reporter_fake "github.com/G-Research/armada/internal/executor/reporter/fake"
-	"github.com/G-Research/armada/pkg/api"
+	"github.com/G-Research/armada/internal/executor/service/fake"
 )
 
 func TestCanBeRemovedConditions(t *testing.T) {
-	s := createLeaseService(time.Second, time.Second)
+	s := createManager(time.Second, time.Second)
 	pods := map[*v1.Pod]bool{
 		// should not be cleaned yet
 		makePodWithCurrentStateReported(v1.PodRunning, false):   false,
@@ -33,13 +29,13 @@ func TestCanBeRemovedConditions(t *testing.T) {
 	}
 
 	for pod, expected := range pods {
-		result := s.canBeRemoved(&job_context.RunningJob{JobId: "", Pods: []*v1.Pod{pod}})
+		result := s.canBeRemoved(&job.RunningJob{JobId: "", Pods: []*v1.Pod{pod}})
 		assert.Equal(t, expected, result)
 	}
 }
 
 func TestCanBeRemovedMinumumPodTime(t *testing.T) {
-	s := createLeaseService(5*time.Minute, 10*time.Minute)
+	s := createManager(5*time.Minute, 10*time.Minute)
 	now := time.Now()
 	pods := map[*v1.Pod]bool{
 		// should not be cleaned yet
@@ -53,15 +49,9 @@ func TestCanBeRemovedMinumumPodTime(t *testing.T) {
 	}
 
 	for pod, expected := range pods {
-		result := s.canBeRemoved(&job_context.RunningJob{JobId: "", Pods: []*v1.Pod{pod}})
+		result := s.canBeRemoved(&job.RunningJob{JobId: "", Pods: []*v1.Pod{pod}})
 		assert.Equal(t, expected, result)
 	}
-}
-
-func TestChunkPods(t *testing.T) {
-	j := &job_context.RunningJob{}
-	chunks := chunkJobs([]*job_context.RunningJob{j, j, j}, 2)
-	assert.Equal(t, [][]*job_context.RunningJob{{j, j}, {j}}, chunks)
 }
 
 func makeFinishedPodWithTimestamp(state v1.PodPhase, timestamp time.Time) *v1.Pod {
@@ -89,27 +79,20 @@ func makePodWithCurrentStateReported(state v1.PodPhase, reportedDone bool) *v1.P
 	return &pod
 }
 
-func createLeaseService(minimumPodAge, failedPodExpiry time.Duration) *JobLeaseService {
+func createManager(minimumPodAge, failedPodExpiry time.Duration) *JobManager {
 	fakeClusterContext := context2.NewFakeClusterContext(configuration.ApplicationConfiguration{ClusterId: "test", Pool: "pool"}, nil)
-	jobContext := job_context.NewClusterJobContext(fakeClusterContext)
-	return NewJobLeaseService(fakeClusterContext, jobContext, &reporter_fake.FakeEventReporter{}, &queueClientMock{}, minimumPodAge, failedPodExpiry, common.ComputeResources{})
-}
+	fakeEventReporter := &reporter_fake.FakeEventReporter{}
+	jobContext := job.NewClusterJobContext(fakeClusterContext)
 
-type queueClientMock struct {
-}
+	jobLeaseService := fake.NewMockLeaseService()
+	stuckPodDetector := NewPodProgressMonitorService(fakeClusterContext, jobContext, fakeEventReporter, jobLeaseService, time.Second)
 
-func (queueClientMock) LeaseJobs(ctx context.Context, in *api.LeaseRequest, opts ...grpc.CallOption) (*api.JobLease, error) {
-	return &api.JobLease{}, nil
-}
-
-func (queueClientMock) RenewLease(ctx context.Context, in *api.RenewLeaseRequest, opts ...grpc.CallOption) (*api.IdList, error) {
-	return &api.IdList{}, nil
-}
-
-func (queueClientMock) ReturnLease(ctx context.Context, in *api.ReturnLeaseRequest, opts ...grpc.CallOption) (*types.Empty, error) {
-	return &types.Empty{}, nil
-}
-
-func (queueClientMock) ReportDone(ctx context.Context, in *api.IdList, opts ...grpc.CallOption) (*api.IdList, error) {
-	return &api.IdList{}, nil
+	return NewJobManager(
+		fakeClusterContext,
+		jobContext,
+		fakeEventReporter,
+		stuckPodDetector,
+		jobLeaseService,
+		minimumPodAge,
+		failedPodExpiry)
 }
