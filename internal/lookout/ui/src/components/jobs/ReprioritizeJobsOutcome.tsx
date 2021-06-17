@@ -21,12 +21,11 @@ const useStyles = makeStyles((theme: Theme) =>
   createStyles({
     paper: {
       backgroundColor: theme.palette.background.paper,
-      boxShadow: theme.shadows[5],
-      padding: theme.spacing(2, 4, 3),
+      padding: theme.spacing(1, 4, 3),
       outline: "none",
       borderRadius: "0.66em",
-      maxHeight: "80%",
-      maxWidth: "75%",
+      maxHeight: "100%",
+      maxWidth: "100%",
       display: "flex",
       flexDirection: "column",
       overflow: "hidden",
@@ -69,9 +68,6 @@ const ReprioritizeJobsOutcome = React.forwardRef((props: ReprioritizeJobsOutcome
 
   return (
     <div ref={ref} className={classes.paper}>
-      <h2 id="reprioritize-jobs-modal-title" className="reprioritize-jobs-modal-title">
-        Reprioritize jobs
-      </h2>
       {props.reprioritizeJobsResult.reprioritizedJobs.length > 0 && (
         <Fragment>
           <p id="reprioritize-jobs-modal-description" className="reprioritize-jobs-modal-description">

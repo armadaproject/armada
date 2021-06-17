@@ -7,10 +7,10 @@ import { v4 as uuidv4 } from "uuid"
 import JobDetailsModal, { JobDetailsModalContext, toggleExpanded } from "../components/job-details/JobDetailsModal"
 import CancelJobsModal, { CancelJobsModalContext, CancelJobsModalState } from "../components/jobs/CancelJobsModal"
 import Jobs from "../components/jobs/Jobs"
-import ReprioritizeJobsModal, {
+import ReprioritizeJobsDialog, {
   ReprioritizeJobsModalContext,
   ReprioritizeJobsModalState,
-} from "../components/jobs/ReprioritizeJobsModal"
+} from "../components/jobs/ReprioritizeJobsDialog"
 import JobService, { GetJobsRequest, JOB_STATES_FOR_DISPLAY, Job } from "../services/JobService"
 import { debounced, selectItem } from "../utils"
 
@@ -755,7 +755,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
           onCancelJobs={this.cancelJobs}
           onClose={() => this.setCancelJobsModalState("None")}
         />
-        <ReprioritizeJobsModal
+        <ReprioritizeJobsDialog
           modalState={this.state.reprioritizeJobsModalContext.modalState}
           jobsToReprioritize={this.state.reprioritizeJobsModalContext.jobsToReprioritize}
           reprioritizeJobsResult={this.state.reprioritizeJobsModalContext.reprioritizeJobsResult}

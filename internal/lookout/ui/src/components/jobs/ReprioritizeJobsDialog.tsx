@@ -1,7 +1,6 @@
 import React from "react"
 
-import { Backdrop, Fade, createStyles, Modal } from "@material-ui/core"
-import { makeStyles } from "@material-ui/core/styles"
+import { Dialog, DialogTitle, DialogContent } from "@material-ui/core"
 
 import { ReprioritizeJobsRequestStatus } from "../../containers/JobsContainer"
 import { ReprioritizeJobsResult, Job } from "../../services/JobService"
@@ -25,18 +24,7 @@ interface ReprioritizeJobsDialogProps extends ReprioritizeJobsModalContext {
   onClose: () => void
 }
 
-const useStyles = makeStyles(() =>
-  createStyles({
-    modal: {
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-    },
-  }),
-)
-
-export default function ReprioritizeJobsModal(props: ReprioritizeJobsDialogProps) {
-  const classes = useStyles()
+export default function ReprioritizeJobsDialog(props: ReprioritizeJobsDialogProps) {
   const isOpen = props.modalState === "ReprioritizeJobs" || props.modalState === "ReprioritizeJobsResult"
   const isLoading = props.reprioritizeJobsRequestStatus === "Loading"
 
@@ -64,21 +52,15 @@ export default function ReprioritizeJobsModal(props: ReprioritizeJobsDialogProps
   }
 
   return (
-    <Modal
-      aria-labelledby="reprioritize-jobs-modal-title"
-      aria-describedby="reprioritize-jobs-modal-description"
+    <Dialog
       open={isOpen}
-      className={classes.modal}
-      closeAfterTransition
-      BackdropComponent={Backdrop}
-      BackdropProps={{
-        timeout: 500,
-      }}
+      aria-labelledby="reprioritize-jobs-dialog-title"
+      aria-describedby="reprioritize-jobs-dialog-description"
       onClose={props.onClose}
+      maxWidth={"md"}
     >
-      <>
-        <Fade in={isOpen}>{content}</Fade>
-      </>
-    </Modal>
+      <DialogTitle id="reprioritize-jobs-dialog-title">Reprioritize Jobs</DialogTitle>
+      <DialogContent>{content}</DialogContent>
+    </Dialog>
   )
 }
