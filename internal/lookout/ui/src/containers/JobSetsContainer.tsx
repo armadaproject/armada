@@ -10,7 +10,7 @@ import CancelJobSetsDialog, {
 } from "../components/job-sets/CancelJobSetsDialog"
 import JobSets from "../components/job-sets/JobSets"
 import JobService, { JobSet } from "../services/JobService"
-import { debounced } from "../utils"
+import { debounced, selectItem } from "../utils"
 
 type JobSetsContainerProps = {
   jobService: JobService
@@ -26,6 +26,7 @@ export type CancelJobSetsRequestStatus = "Loading" | "Idle"
 type JobSetsContainerState = {
   jobSets: JobSet[]
   selectedJobSets: Map<string, JobSet>
+  lastSelectedIndex: number
   cancelJobSetsDialogContext: CancelJobSetsDialogContext
 } & JobSetsContainerParams
 
@@ -72,6 +73,7 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
       jobSets: [],
       currentView: "job-counts",
       selectedJobSets: new Map<string, JobSet>(),
+      lastSelectedIndex: 0,
       cancelJobSetsDialogContext: {
         dialogState: "None",
         queue: "",
@@ -86,6 +88,8 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
     this.refresh = this.refresh.bind(this)
     this.navigateToJobSetForState = this.navigateToJobSetForState.bind(this)
     this.selectJobSet = this.selectJobSet.bind(this)
+    this.shiftSelectJobSet = this.shiftSelectJobSet.bind(this)
+    this.deselectAll = this.deselectAll.bind(this)
     this.setCancelJobSetsDialogState = this.setCancelJobSetsDialogState.bind(this)
     this.cancelJobs = this.cancelJobs.bind(this)
 
@@ -120,23 +124,60 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
     await this.loadJobSets()
   }
 
-  selectJobSet(jobSet: JobSet, selected: boolean) {
+  selectJobSet(index: number, selected: boolean) {
+    if (index < 0 || index >= this.state.jobSets.length) {
+      return
+    }
+    const jobSet = this.state.jobSets[index]
+
     const selectedJobSets = new Map<string, JobSet>(this.state.selectedJobSets)
-    if (selected) {
-      selectedJobSets.set(jobSet.jobSetId, jobSet)
-    } else {
-      if (selectedJobSets.has(jobSet.jobSetId)) {
-        selectedJobSets.delete(jobSet.jobSetId)
-      }
+    selectItem(jobSet.jobSetId, jobSet, selectedJobSets, selected)
+
+    const cancellableJobSets = JobSetsContainer.getCancellableSelectedJobSets(selectedJobSets)
+    this.setState({
+      ...this.state,
+      selectedJobSets: selectedJobSets,
+      lastSelectedIndex: index,
+      cancelJobSetsDialogContext: {
+        ...this.state.cancelJobSetsDialogContext,
+        jobSetsToCancel: cancellableJobSets,
+      },
+    })
+  }
+
+  shiftSelectJobSet(index: number, selected: boolean) {
+    if (index >= this.state.jobSets.length || index < 0) {
+      return
+    }
+
+    const [start, end] = [this.state.lastSelectedIndex, index].sort()
+
+    const selectedJobSets = new Map<string, JobSet>(this.state.selectedJobSets)
+    for (let i = start; i <= end; i++) {
+      const jobSet = this.state.jobSets[i]
+      selectItem(jobSet.jobSetId, jobSet, selectedJobSets, selected)
     }
 
     const cancellableJobSets = JobSetsContainer.getCancellableSelectedJobSets(selectedJobSets)
     this.setState({
       ...this.state,
       selectedJobSets: selectedJobSets,
+      lastSelectedIndex: index,
       cancelJobSetsDialogContext: {
         ...this.state.cancelJobSetsDialogContext,
         jobSetsToCancel: cancellableJobSets,
+      },
+    })
+  }
+
+  deselectAll() {
+    this.setState({
+      ...this.state,
+      selectedJobSets: new Map<string, JobSet>(),
+      lastSelectedIndex: 0,
+      cancelJobSetsDialogContext: {
+        ...this.state.cancelJobSetsDialogContext,
+        jobSetsToCancel: [],
       },
     })
   }
@@ -255,6 +296,8 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
           onRefresh={this.refresh}
           onJobSetClick={this.navigateToJobSetForState}
           onSelectJobSet={this.selectJobSet}
+          onShiftSelectJobSet={this.shiftSelectJobSet}
+          onDeselectAllClick={this.deselectAll}
           onCancelJobSetsClick={() => this.setCancelJobSetsDialogState("CancelJobSets")}
         />
       </Fragment>
