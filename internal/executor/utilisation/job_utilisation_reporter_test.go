@@ -1,4 +1,4 @@
-package service
+package utilisation
 
 import (
 	"testing"
@@ -13,6 +13,7 @@ import (
 	"github.com/G-Research/armada/internal/executor/configuration"
 	"github.com/G-Research/armada/internal/executor/domain"
 	fakeContext "github.com/G-Research/armada/internal/executor/fake/context"
+	reporter_fake "github.com/G-Research/armada/internal/executor/reporter/fake"
 	"github.com/G-Research/armada/pkg/api"
 )
 
@@ -24,7 +25,7 @@ var testPodResources = common.ComputeResources{
 func TestUtilisationEventReporter_ReportUtilisationEvents(t *testing.T) {
 	reportingPeriod := 100 * time.Millisecond
 	clusterContext := fakeContext.NewFakeClusterContext(configuration.ApplicationConfiguration{ClusterId: "test", Pool: "pool"}, nil)
-	fakeEventReporter := &FakeEventReporter{}
+	fakeEventReporter := &reporter_fake.FakeEventReporter{}
 	reporter := NewUtilisationEventReporter(clusterContext, &fakePodUtilisation{}, fakeEventReporter, reportingPeriod)
 
 	podResources := map[v1.ResourceName]resource.Quantity{
@@ -52,14 +53,14 @@ func TestUtilisationEventReporter_ReportUtilisationEvents(t *testing.T) {
 		reporter.ReportUtilisationEvents()
 		time.Sleep(time.Millisecond)
 
-		if len(fakeEventReporter.receivedEvents) >= 2 || time.Now().After(deadline) {
+		if len(fakeEventReporter.ReceivedEvents) >= 2 || time.Now().After(deadline) {
 			break
 		}
 	}
 
-	assert.True(t, len(fakeEventReporter.receivedEvents) >= 2)
-	event1 := fakeEventReporter.receivedEvents[0].(*api.JobUtilisationEvent)
-	event2 := fakeEventReporter.receivedEvents[1].(*api.JobUtilisationEvent)
+	assert.True(t, len(fakeEventReporter.ReceivedEvents) >= 2)
+	event1 := fakeEventReporter.ReceivedEvents[0].(*api.JobUtilisationEvent)
+	event2 := fakeEventReporter.ReceivedEvents[1].(*api.JobUtilisationEvent)
 
 	assert.Equal(t, testPodResources, common.ComputeResources(event1.MaxResourcesForPeriod))
 
@@ -73,18 +74,4 @@ type fakePodUtilisation struct{}
 
 func (f *fakePodUtilisation) GetPodUtilisation(pod *v1.Pod) common.ComputeResources {
 	return testPodResources
-}
-
-type FakeEventReporter struct {
-	receivedEvents []api.Event
-}
-
-func (f *FakeEventReporter) Report(event api.Event) error {
-	f.receivedEvents = append(f.receivedEvents, event)
-	return nil
-}
-
-func (f *FakeEventReporter) QueueEvent(event api.Event, callback func(error)) {
-	e := f.Report(event)
-	callback(e)
 }
