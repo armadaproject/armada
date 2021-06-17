@@ -23,9 +23,9 @@ const (
 )
 
 type RunningJob struct {
-	JobId string
-	Pods  []*v1.Pod
-	Issue *PodIssue
+	JobId      string
+	ActivePods []*v1.Pod
+	Issue      *PodIssue
 }
 
 type PodIssue struct {
@@ -41,12 +41,11 @@ type jobRecord struct {
 	jobId             string
 	issue             *PodIssue
 	markedForDeletion bool
-	externallyDeleted bool
 }
 
 type JobContext interface {
 	GetJobs() ([]*RunningJob, error)
-	ResolveIssues(job *RunningJob)
+	MarkIssuesResolved(job *RunningJob)
 	DeleteJobs(jobs []*RunningJob)
 	AddAnnotation(jobs []*RunningJob, annotations map[string]string) error
 }
@@ -90,7 +89,7 @@ func (c *ClusterJobContext) GetJobs() ([]*RunningJob, error) {
 	return c.addIssues(runningJobs), nil
 }
 
-func (c *ClusterJobContext) ResolveIssues(job *RunningJob) {
+func (c *ClusterJobContext) MarkIssuesResolved(job *RunningJob) {
 	c.activeJobIdsMutex.Lock()
 	defer c.activeJobIdsMutex.Unlock()
 
@@ -114,13 +113,13 @@ func (c *ClusterJobContext) DeleteJobs(jobs []*RunningJob) {
 		} else {
 			record.markedForDeletion = true
 		}
-		c.clusterContext.DeletePods(job.Pods)
+		c.clusterContext.DeletePods(job.ActivePods)
 	}
 }
 
 func (c *ClusterJobContext) AddAnnotation(jobs []*RunningJob, annotations map[string]string) error {
 	for _, job := range jobs {
-		for _, pod := range job.Pods {
+		for _, pod := range job.ActivePods {
 			err := c.clusterContext.AddAnnotation(pod, annotations)
 			if err != nil {
 				return err
@@ -139,8 +138,8 @@ func groupRunningJobs(pods []*v1.Pod) []*RunningJob {
 	result := []*RunningJob{}
 	for jobId, pods := range podsByJobId {
 		result = append(result, &RunningJob{
-			JobId: jobId,
-			Pods:  pods,
+			JobId:      jobId,
+			ActivePods: pods,
 		})
 	}
 	return result
@@ -186,9 +185,9 @@ func (c *ClusterJobContext) addIssues(jobs []*RunningJob) []*RunningJob {
 		} else {
 			if record.issue != nil {
 				jobs = append(jobs, &RunningJob{
-					JobId: jobId,
-					Pods:  nil,
-					Issue: record.issue,
+					JobId:      jobId,
+					ActivePods: nil,
+					Issue:      record.issue,
 				})
 			} else {
 				delete(c.activeJobs, jobId)
@@ -199,16 +198,17 @@ func (c *ClusterJobContext) addIssues(jobs []*RunningJob) []*RunningJob {
 }
 
 func (c *ClusterJobContext) detectStuckPods(runningJob *RunningJob) {
-	for _, pod := range runningJob.Pods {
+	for _, pod := range runningJob.ActivePods {
 		if pod.DeletionTimestamp != nil && pod.DeletionTimestamp.Add(c.stuckPodExpiry).Before(time.Now()) {
 			// pod is stuck in terminating phase, this sometimes happen on node failure
 			// its safer to produce failed event than retrying as the job might have run already
 			c.registerIssue(runningJob, &PodIssue{
 				OriginatingPod: pod.DeepCopy(),
-				Pods:           runningJob.Pods,
+				Pods:           runningJob.ActivePods,
 				Message:        "pod stuck in terminating phase, this might be due to platform problems",
 				Retryable:      false,
 				Type:           StuckTerminating})
+			break
 
 		} else if (pod.Status.Phase == v1.PodUnknown || pod.Status.Phase == v1.PodPending) &&
 			reporter.HasPodBeenInStateForLongerThanGivenDuration(pod, c.stuckPodExpiry) {
@@ -226,11 +226,12 @@ func (c *ClusterJobContext) detectStuckPods(runningJob *RunningJob) {
 			}
 			c.registerIssue(runningJob, &PodIssue{
 				OriginatingPod: pod.DeepCopy(),
-				Pods:           runningJob.Pods,
+				Pods:           runningJob.ActivePods,
 				Message:        message,
 				Retryable:      retryable,
 				Type:           UnableToSchedule,
 			})
+			break
 		}
 	}
 }

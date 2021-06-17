@@ -36,7 +36,7 @@ func shouldBeRenewed(pod *v1.Pod) bool {
 }
 
 func jobShouldBeRenewed(job *job.RunningJob) bool {
-	for _, pod := range job.Pods {
+	for _, pod := range job.ActivePods {
 		if shouldBeRenewed(pod) {
 			return true
 		}
@@ -45,7 +45,7 @@ func jobShouldBeRenewed(job *job.RunningJob) bool {
 }
 
 func shouldBeReportedDone(job *job.RunningJob) bool {
-	for _, pod := range job.Pods {
+	for _, pod := range job.ActivePods {
 		if util.IsInTerminalState(pod) && !isReportedDone(pod) {
 			return true
 		}
@@ -61,7 +61,7 @@ func isReportedDone(pod *v1.Pod) bool {
 func extractPods(jobs []*job.RunningJob) []*v1.Pod {
 	pods := []*v1.Pod{}
 	for _, job := range jobs {
-		pods = append(pods, job.Pods...)
+		pods = append(pods, job.ActivePods...)
 	}
 	return pods
 }
