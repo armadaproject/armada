@@ -1,6 +1,6 @@
-import { CancelJobSetsResult, DurationStats, JobSet, QueueInfo } from "./JobService"
+import { CancelJobSetsResult, DurationStats, Job, JobSet, QueueInfo } from "./JobService"
 
-function generateSameCharId(length: number): string {
+function generateId(length: number): string {
   const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
   const charactersLength = characters.length
   const arr = new Array(length)
@@ -28,12 +28,33 @@ function makeDurationStats(): DurationStats {
   }
 }
 
+export function makeTestJobs(queue: string, start: number, stop: number): Job[] {
+  const jobs: Job[] = []
+
+  for (let i = start; i < stop; i++) {
+    jobs.push({
+      annotations: {},
+      jobId: `${i}`,
+      jobSet: generateId(10),
+      jobState: "Queued",
+      jobYaml: "",
+      owner: generateId(5),
+      priority: 1,
+      queue: queue,
+      runs: [],
+      submissionTime: "some time",
+    })
+  }
+
+  return jobs
+}
+
 export function makeTestJobSets(nJobSets: number, jobSetLength: number): JobSet[] {
   const jobSets: JobSet[] = []
 
   for (let i = 0; i < nJobSets; i++) {
     jobSets.push({
-      jobSetId: generateSameCharId(jobSetLength),
+      jobSetId: generateId(jobSetLength),
       queue: "test",
       jobsQueued: randInt(1, 50),
       jobsPending: randInt(1, 50),
@@ -58,7 +79,7 @@ export function makeTestOverview(nQueues: number, queueLength: number): QueueInf
       jobsRunning: 0,
       longestRunningDuration: "",
       oldestQueuedDuration: "",
-      queue: generateSameCharId(queueLength),
+      queue: generateId(queueLength),
     })
   }
 
@@ -73,7 +94,7 @@ export function makeTestCancelJobSetsResults(nJobSets: number, jobSetLength: num
 
   for (let i = 0; i < nJobSets; i++) {
     results.cancelledJobSets.push({
-      jobSetId: generateSameCharId(jobSetLength),
+      jobSetId: generateId(jobSetLength),
       queue: "test",
       jobsQueued: randInt(1, 50),
       jobsPending: randInt(1, 50),
@@ -85,7 +106,7 @@ export function makeTestCancelJobSetsResults(nJobSets: number, jobSetLength: num
     })
     results.failedJobSetCancellations.push({
       jobSet: {
-        jobSetId: generateSameCharId(jobSetLength),
+        jobSetId: generateId(jobSetLength),
         queue: "test",
         jobsQueued: randInt(1, 50),
         jobsPending: randInt(1, 50),

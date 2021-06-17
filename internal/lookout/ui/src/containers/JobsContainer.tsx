@@ -23,6 +23,7 @@ interface JobsContainerState {
   lastSelectedIndex: number
   defaultColumns: ColumnSpec<string | boolean | string[]>[]
   annotationColumns: ColumnSpec<string>[]
+  scrollHeight: number
   cancelJobsModalContext: CancelJobsModalContext
   jobDetailsModalContext: JobDetailsModalContext
 }
@@ -134,6 +135,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
       canLoadMore: true,
       selectedJobs: new Map<string, Job>(),
       lastSelectedIndex: 0,
+      scrollHeight: 100000,
       defaultColumns: [
         {
           id: "queue",
@@ -211,6 +213,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     this.deselectAll = this.deselectAll.bind(this)
     this.setCancelJobsModalState = this.setCancelJobsModalState.bind(this)
     this.cancelJobs = this.cancelJobs.bind(this)
+    this.scroll = this.scroll.bind(this)
 
     this.openJobDetailsModal = this.openJobDetailsModal.bind(this)
     this.toggleExpanded = this.toggleExpanded.bind(this)
@@ -502,6 +505,13 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     })
   }
 
+  scroll(scrollHeight: number) {
+    this.setState({
+      ...this.state,
+      scrollHeight: scrollHeight,
+    })
+  }
+
   private async loadJobInfosForRange(start: number, stop: number) {
     let allJobInfos = this.state.jobs
     let canLoadMore = true
@@ -644,6 +654,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
           defaultColumns={this.state.defaultColumns}
           annotationColumns={this.state.annotationColumns}
           selectedJobs={this.state.selectedJobs}
+          scrollHeight={this.state.scrollHeight}
           cancelJobsButtonIsEnabled={this.selectedJobsAreCancellable()}
           fetchJobs={this.serveJobs}
           isLoaded={this.jobIsLoaded}
@@ -659,6 +670,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
           onCancelJobsClick={() => this.setCancelJobsModalState("CancelJobs")}
           onJobIdClick={this.openJobDetailsModal}
           resetRefresh={this.resetRefresh}
+          onScroll={this.scroll}
         />
       </Fragment>
     )

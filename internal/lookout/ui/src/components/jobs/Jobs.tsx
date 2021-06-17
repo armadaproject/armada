@@ -1,6 +1,6 @@
 import React from "react"
 
-import { AutoSizer, InfiniteLoader, Table } from "react-virtualized"
+import { AutoSizer, InfiniteLoader, ScrollEventData, ScrollParams, Table } from "react-virtualized"
 
 import { ColumnSpec } from "../../containers/JobsContainer"
 import { Job } from "../../services/JobService"
@@ -18,6 +18,7 @@ type JobsProps = {
   defaultColumns: ColumnSpec<string | boolean | string[]>[]
   annotationColumns: ColumnSpec<string>[]
   selectedJobs: Map<string, Job>
+  scrollHeight: number
   cancelJobsButtonIsEnabled: boolean
   fetchJobs: (start: number, stop: number) => Promise<Job[]>
   isLoaded: (index: number) => boolean
@@ -33,6 +34,7 @@ type JobsProps = {
   onCancelJobsClick: () => void
   onJobIdClick: (jobIndex: number) => void
   resetRefresh: () => void
+  onScroll: (scrollHeight: number) => void
 }
 
 export default class Jobs extends React.Component<JobsProps, Record<string, never>> {
@@ -94,6 +96,7 @@ export default class Jobs extends React.Component<JobsProps, Record<string, neve
               return this.props.isLoaded(index)
             }}
             loadMoreRows={({ startIndex, stopIndex }) => {
+              console.log(startIndex, stopIndex)
               return this.props.fetchJobs(startIndex, stopIndex + 1) // stopIndex is inclusive
             }}
             rowCount={rowCount}
@@ -112,6 +115,11 @@ export default class Jobs extends React.Component<JobsProps, Record<string, neve
                       rowCount={rowCount}
                       rowHeight={40}
                       rowGetter={this.rowGetter}
+                      scrollTop={this.props.scrollHeight}
+                      onScroll={(params: ScrollParams | ScrollEventData) => {
+                        console.log(params)
+                        this.props.onScroll(params.scrollTop)
+                      }}
                       rowRenderer={(tableRowProps) => {
                         if (tableRowProps.rowData.jobId === "Loading") {
                           return <LoadingRow {...tableRowProps} />
