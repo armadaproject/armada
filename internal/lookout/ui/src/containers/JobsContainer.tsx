@@ -12,7 +12,7 @@ import ReprioritizeJobsModal, {
   ReprioritizeJobsModalState,
 } from "../components/jobs/ReprioritizeJobsModal"
 import JobService, { GetJobsRequest, JOB_STATES_FOR_DISPLAY, Job } from "../services/JobService"
-import { debounced } from "../utils"
+import { debounced, selectItem } from "../utils"
 
 type JobsContainerProps = {
   jobService: JobService
@@ -25,12 +25,12 @@ interface JobsContainerState {
   jobs: Job[]
   canLoadMore: boolean
   selectedJobs: Map<string, Job>
+  lastSelectedIndex: number
   defaultColumns: ColumnSpec<string | boolean | string[]>[]
   annotationColumns: ColumnSpec<string>[]
   cancelJobsModalContext: CancelJobsModalContext
   reprioritizeJobsModalContext: ReprioritizeJobsModalContext
   jobDetailsModalContext: JobDetailsModalContext
-  forceRefresh: boolean
 }
 
 const newPriorityRegex = new RegExp("^([0-9]+)$")
@@ -142,6 +142,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
       jobs: [],
       canLoadMore: true,
       selectedJobs: new Map<string, Job>(),
+      lastSelectedIndex: 0,
       defaultColumns: [
         {
           id: "queue",
@@ -212,7 +213,6 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
         job: undefined,
         expandedItems: new Set(),
       },
-      forceRefresh: false,
     }
 
     this.serveJobs = this.serveJobs.bind(this)
@@ -224,6 +224,8 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     this.resetRefresh = this.resetRefresh.bind(this)
 
     this.selectJob = this.selectJob.bind(this)
+    this.shiftSelectJob = this.shiftSelectJob.bind(this)
+    this.deselectAll = this.deselectAll.bind(this)
     this.setCancelJobsModalState = this.setCancelJobsModalState.bind(this)
     this.cancelJobs = this.cancelJobs.bind(this)
 
@@ -348,25 +350,24 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
   resetRefresh() {
     this.setState({
       ...this.state,
-      forceRefresh: false,
     })
   }
 
-  selectJob(job: Job, selected: boolean) {
-    const jobId = job.jobId
-    const selectedJobs = new Map<string, Job>(this.state.selectedJobs)
-    if (selected) {
-      selectedJobs.set(jobId, job)
-    } else {
-      if (selectedJobs.has(jobId)) {
-        selectedJobs.delete(jobId)
-      }
+  selectJob(index: number, selected: boolean) {
+    if (index < 0 || index >= this.state.jobs.length) {
+      return
     }
+    const job = this.state.jobs[index]
+
+    const selectedJobs = new Map<string, Job>(this.state.selectedJobs)
+    selectItem(job.jobId, job, selectedJobs, selected)
+
     const cancellableJobs = this.getCancellableSelectedJobs(selectedJobs)
     const reprioritizeableJobs = this.getReprioritizeableSelectedJobs(selectedJobs)
     this.setState({
       ...this.state,
       selectedJobs: selectedJobs,
+      lastSelectedIndex: index,
       cancelJobsModalContext: {
         ...this.state.cancelJobsModalContext,
         jobsToCancel: cancellableJobs,
@@ -375,7 +376,48 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
         ...this.state.reprioritizeJobsModalContext,
         jobsToReprioritize: reprioritizeableJobs,
       },
-      forceRefresh: true,
+    })
+  }
+
+  shiftSelectJob(index: number, selected: boolean) {
+    if (index >= this.state.jobs.length || index < 0) {
+      return
+    }
+
+    const [start, end] = [this.state.lastSelectedIndex, index].sort()
+
+    const selectedJobs = new Map<string, Job>(this.state.selectedJobs)
+    for (let i = start; i <= end; i++) {
+      const job = this.state.jobs[i]
+      selectItem(job.jobId, job, selectedJobs, selected)
+    }
+
+    const cancellableJobs = this.getCancellableSelectedJobs(selectedJobs)
+    const reprioritizeableJobs = this.getReprioritizeableSelectedJobs(selectedJobs)
+    this.setState({
+      ...this.state,
+      selectedJobs: selectedJobs,
+      lastSelectedIndex: index,
+      cancelJobsModalContext: {
+        ...this.state.cancelJobsModalContext,
+        jobsToCancel: cancellableJobs,
+      },
+      reprioritizeJobsModalContext: {
+        ...this.state.reprioritizeJobsModalContext,
+        jobsToReprioritize: reprioritizeableJobs,
+      },
+    })
+  }
+
+  deselectAll() {
+    this.setState({
+      ...this.state,
+      selectedJobs: new Map<string, Job>(),
+      lastSelectedIndex: 0,
+      cancelJobsModalContext: {
+        ...this.state.cancelJobsModalContext,
+        jobsToCancel: [],
+      },
     })
   }
 
@@ -664,7 +706,6 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
       jobs: [],
       canLoadMore: true,
       selectedJobs: new Map<string, Job>(),
-      forceRefresh: true,
     })
     this.setUrlParams()
   }
@@ -739,7 +780,6 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
           defaultColumns={this.state.defaultColumns}
           annotationColumns={this.state.annotationColumns}
           selectedJobs={this.state.selectedJobs}
-          forceRefresh={this.state.forceRefresh}
           cancelJobsButtonIsEnabled={this.selectedJobsAreCancellable()}
           reprioritizeButtonIsEnabled={this.selectedJobsAreReprioritizeable()}
           fetchJobs={this.serveJobs}
@@ -751,6 +791,8 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
           onChangeAnnotationColumnKey={this.changeAnnotationColumnKey}
           onRefresh={this.refresh}
           onSelectJob={this.selectJob}
+          onShiftSelect={this.shiftSelectJob}
+          onDeselectAllClick={this.deselectAll}
           onCancelJobsClick={() => this.setCancelJobsModalState("CancelJobs")}
           onReprioritizeJobsClick={() => this.setReprioritizeJobsModalState("ReprioritizeJobs")}
           onJobIdClick={this.openJobDetailsModal}

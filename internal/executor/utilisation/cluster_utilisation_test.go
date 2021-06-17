@@ -1,4 +1,4 @@
-package service
+package utilisation
 
 import (
 	"testing"
@@ -190,7 +190,7 @@ func TestGetUsageByQueue_HasAnEntryPerQueue(t *testing.T) {
 
 	pods := []*v1.Pod{&queue1Pod1, &queue1Pod2, &queue2Pod1}
 
-	result := getAllocationByQueue(pods)
+	result := GetAllocationByQueue(pods)
 	assert.Equal(t, len(result), 2)
 	assert.True(t, hasKey(result, "queue1"))
 	assert.True(t, hasKey(result, "queue2"))
@@ -201,7 +201,7 @@ func TestGetUsageByQueue_SkipsPodsWithoutQueue(t *testing.T) {
 	pod := makePodWithResource("", podResource)
 	pod.Labels = make(map[string]string)
 
-	result := getAllocationByQueue([]*v1.Pod{&pod})
+	result := GetAllocationByQueue([]*v1.Pod{&pod})
 	assert.NotNil(t, result)
 	assert.Equal(t, len(result), 0)
 }
@@ -216,14 +216,14 @@ func TestGetUsageByQueue_AggregatesPodResourcesInAQueue(t *testing.T) {
 	expectedResource := makeResourceList(4, 100)
 	expectedResult := map[string]common.ComputeResources{"queue1": common.FromResourceList(expectedResource)}
 
-	result := getAllocationByQueue(pods)
+	result := GetAllocationByQueue(pods)
 	assert.Equal(t, result, expectedResult)
 }
 
 func TestGetUsageByQueue_HandlesEmptyList(t *testing.T) {
 	var pods []*v1.Pod
 
-	result := getAllocationByQueue(pods)
+	result := GetAllocationByQueue(pods)
 
 	assert.NotNil(t, result)
 	assert.Equal(t, len(result), 0)

@@ -12,7 +12,7 @@ import (
 	"github.com/G-Research/armada/internal/executor/context"
 	"github.com/G-Research/armada/internal/executor/domain"
 	"github.com/G-Research/armada/internal/executor/metrics"
-	"github.com/G-Research/armada/internal/executor/service"
+	"github.com/G-Research/armada/internal/executor/utilisation"
 )
 
 const (
@@ -60,14 +60,14 @@ var nodeTotalResourceDesc = prometheus.NewDesc(
 
 type ClusterContextMetrics struct {
 	context                 context.ClusterContext
-	utilisationService      service.UtilisationService
-	queueUtilisationService service.PodUtilisationService
+	utilisationService      utilisation.UtilisationService
+	queueUtilisationService utilisation.PodUtilisationService
 
 	knownQueues   map[string]bool
 	podCountTotal *prometheus.CounterVec
 }
 
-func ExposeClusterContextMetrics(context context.ClusterContext, utilisationService service.UtilisationService, queueUtilisationService service.PodUtilisationService) *ClusterContextMetrics {
+func ExposeClusterContextMetrics(context context.ClusterContext, utilisationService utilisation.UtilisationService, queueUtilisationService utilisation.PodUtilisationService) *ClusterContextMetrics {
 	m := &ClusterContextMetrics{
 		context:                 context,
 		utilisationService:      utilisationService,
