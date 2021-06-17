@@ -1,56 +1,107 @@
 package job
 
 import (
+	"fmt"
 	"sync"
+	"time"
 
+	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/tools/cache"
 
 	"github.com/G-Research/armada/internal/executor/context"
+	"github.com/G-Research/armada/internal/executor/reporter"
 	"github.com/G-Research/armada/internal/executor/util"
 )
 
+type IssueType int
+
+const (
+	UnableToSchedule  IssueType = iota
+	StuckTerminating  IssueType = iota
+	ExternallyDeleted IssueType = iota
+)
+
 type RunningJob struct {
-	JobId string
-	Pods  []*v1.Pod
+	JobId      string
+	ActivePods []*v1.Pod
+	Issue      *PodIssue
+}
+
+type PodIssue struct {
+	OriginatingPod *v1.Pod
+	Pods           []*v1.Pod
+	Message        string
+	Retryable      bool
+	Reported       bool
+	Type           IssueType
 }
 
 type jobRecord struct {
 	jobId             string
+	issue             *PodIssue
 	markedForDeletion bool
 }
 
 type JobContext interface {
-	GetRunningJobs() ([]*RunningJob, error)
+	GetJobs() ([]*RunningJob, error)
+	MarkIssueReported(issue *PodIssue)
+	MarkIssuesResolved(job *RunningJob)
 	DeleteJobs(jobs []*RunningJob)
 	AddAnnotation(jobs []*RunningJob, annotations map[string]string) error
-	IsActiveJob(id string) bool
 }
 
 type ClusterJobContext struct {
 	clusterContext context.ClusterContext
+	stuckPodExpiry time.Duration
 
-	activeJobs        map[string]jobRecord
+	activeJobs        map[string]*jobRecord
 	activeJobIdsMutex sync.Mutex
 }
 
 func NewClusterJobContext(clusterContext context.ClusterContext) *ClusterJobContext {
 	jobContext := &ClusterJobContext{
 		clusterContext:    clusterContext,
-		activeJobs:        map[string]jobRecord{},
+		activeJobs:        map[string]*jobRecord{},
 		activeJobIdsMutex: sync.Mutex{},
 	}
+
+	clusterContext.AddPodEventHandler(cache.ResourceEventHandlerFuncs{
+		DeleteFunc: func(obj interface{}) {
+			pod, ok := obj.(*v1.Pod)
+			if !ok {
+				log.Errorf("Failed to process pod event due to it being an unexpected type. Failed to process %+v", obj)
+				return
+			}
+			jobContext.handleDeletedPod(pod)
+		},
+	})
+
 	return jobContext
 }
 
-func (c *ClusterJobContext) GetRunningJobs() ([]*RunningJob, error) {
+func (c *ClusterJobContext) GetJobs() ([]*RunningJob, error) {
 	pods, err := c.clusterContext.GetActiveBatchPods()
 	if err != nil {
 		return nil, err
 	}
-	runningJobs := groupRunningJobs(pods)
-	c.registerRunning(runningJobs)
 
-	return runningJobs, nil
+	runningJobs := groupRunningJobs(pods)
+	return c.addIssues(runningJobs), nil
+}
+
+func (c *ClusterJobContext) MarkIssuesResolved(job *RunningJob) {
+	c.activeJobIdsMutex.Lock()
+	defer c.activeJobIdsMutex.Unlock()
+
+	record, exists := c.activeJobs[job.JobId]
+	if exists {
+		record.issue = nil
+	}
+}
+
+func (c *ClusterJobContext) MarkIssueReported(issue *PodIssue) {
+	issue.Reported = true
 }
 
 func (c *ClusterJobContext) DeleteJobs(jobs []*RunningJob) {
@@ -60,20 +111,20 @@ func (c *ClusterJobContext) DeleteJobs(jobs []*RunningJob) {
 	for _, job := range jobs {
 		record, exists := c.activeJobs[job.JobId]
 		if !exists {
-			c.activeJobs[job.JobId] = jobRecord{
+			c.activeJobs[job.JobId] = &jobRecord{
 				jobId:             job.JobId,
 				markedForDeletion: true,
 			}
 		} else {
 			record.markedForDeletion = true
 		}
-		c.clusterContext.DeletePods(job.Pods)
+		c.clusterContext.DeletePods(job.ActivePods)
 	}
 }
 
 func (c *ClusterJobContext) AddAnnotation(jobs []*RunningJob, annotations map[string]string) error {
 	for _, job := range jobs {
-		for _, pod := range job.Pods {
+		for _, pod := range job.ActivePods {
 			err := c.clusterContext.AddAnnotation(pod, annotations)
 			if err != nil {
 				return err
@@ -92,41 +143,118 @@ func groupRunningJobs(pods []*v1.Pod) []*RunningJob {
 	result := []*RunningJob{}
 	for jobId, pods := range podsByJobId {
 		result = append(result, &RunningJob{
-			JobId: jobId,
-			Pods:  pods,
+			JobId:      jobId,
+			ActivePods: pods,
 		})
 	}
 	return result
 }
 
-func (c *ClusterJobContext) IsActiveJob(id string) bool {
-	c.activeJobIdsMutex.Lock()
-	defer c.activeJobIdsMutex.Unlock()
+func (c *ClusterJobContext) registerIssue(job *RunningJob, issue *PodIssue) {
+	job.Issue = issue
 
-	record, exists := c.activeJobs[id]
-	return exists && !record.markedForDeletion
+	record, exists := c.activeJobs[job.JobId]
+	if exists {
+		record.issue = issue
+	} else {
+		log.Errorf("Resolving issue without existing record (jobId: %s)", job.JobId)
+	}
 }
 
-func (c *ClusterJobContext) registerRunning(jobs []*RunningJob) {
+func (c *ClusterJobContext) addIssues(jobs []*RunningJob) []*RunningJob {
 
 	c.activeJobIdsMutex.Lock()
 	defer c.activeJobIdsMutex.Unlock()
 
-	runningJobIds := map[string]bool{}
+	// register new jobs
+	runningJobIds := map[string]*RunningJob{}
 	for _, job := range jobs {
-		runningJobIds[job.JobId] = true
-		_, exists := c.activeJobs[job.JobId]
+		runningJobIds[job.JobId] = job
+		record, exists := c.activeJobs[job.JobId]
 		if !exists {
-			c.activeJobs[job.JobId] = jobRecord{
+			record = &jobRecord{
 				jobId:             job.JobId,
 				markedForDeletion: false,
 			}
+			c.activeJobs[job.JobId] = record
+		}
+		if record.issue == nil {
+			c.detectStuckPods(job)
 		}
 	}
 
-	for jobId := range c.activeJobs {
-		if !runningJobIds[jobId] {
-			delete(c.activeJobs, jobId)
+	for jobId, record := range c.activeJobs {
+		runningJob, isRunning := runningJobIds[jobId]
+		if isRunning {
+			runningJob.Issue = record.issue
+		} else {
+			if record.issue != nil {
+				jobs = append(jobs, &RunningJob{
+					JobId:      jobId,
+					ActivePods: nil,
+					Issue:      record.issue,
+				})
+			} else {
+				delete(c.activeJobs, jobId)
+			}
+		}
+	}
+	return jobs
+}
+
+func (c *ClusterJobContext) detectStuckPods(runningJob *RunningJob) {
+	for _, pod := range runningJob.ActivePods {
+		if pod.DeletionTimestamp != nil && pod.DeletionTimestamp.Add(c.stuckPodExpiry).Before(time.Now()) {
+			// pod is stuck in terminating phase, this sometimes happen on node failure
+			// its safer to produce failed event than retrying as the job might have run already
+			c.registerIssue(runningJob, &PodIssue{
+				OriginatingPod: pod.DeepCopy(),
+				Pods:           runningJob.ActivePods,
+				Message:        "pod stuck in terminating phase, this might be due to platform problems",
+				Retryable:      false,
+				Type:           StuckTerminating})
+			break
+
+		} else if (pod.Status.Phase == v1.PodUnknown || pod.Status.Phase == v1.PodPending) &&
+			reporter.HasPodBeenInStateForLongerThanGivenDuration(pod, c.stuckPodExpiry) {
+
+			podEvents, err := c.clusterContext.GetPodEvents(pod)
+			if err != nil {
+				log.Errorf("Unable to get pod events: %v", err)
+			}
+
+			retryable, message := util.DiagnoseStuckPod(pod, podEvents)
+			if retryable {
+				message = fmt.Sprintf("Unable to schedule pod, Armada will return lease and retry.\n%s", message)
+			} else {
+				message = fmt.Sprintf("Unable to schedule pod with unrecoverable problem, Armada will not retry.\n%s", message)
+			}
+			c.registerIssue(runningJob, &PodIssue{
+				OriginatingPod: pod.DeepCopy(),
+				Pods:           runningJob.ActivePods,
+				Message:        message,
+				Retryable:      retryable,
+				Type:           UnableToSchedule,
+			})
+			break
+		}
+	}
+}
+
+func (c *ClusterJobContext) handleDeletedPod(pod *v1.Pod) {
+	jobId := util.ExtractJobId(pod)
+	if jobId != "" {
+		record, exists := c.activeJobs[jobId]
+		active := exists && !record.markedForDeletion
+		if active {
+			record.issue = &PodIssue{
+				OriginatingPod: pod,
+				Pods:           []*v1.Pod{pod},
+				Message:        "Pod of the active job was deleted.",
+				Retryable:      false,
+				Reported:       false,
+				Type:           ExternallyDeleted,
+			}
 		}
 	}
 }

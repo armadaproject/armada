@@ -1,7 +1,6 @@
 package service
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -9,8 +8,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/tools/cache"
-	"k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 
 	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/executor/context"
@@ -22,41 +19,38 @@ import (
 	"github.com/G-Research/armada/pkg/api"
 )
 
-func TestStuckPodDetector_DoesNothingIfNoPodsAreFound(t *testing.T) {
-	_, mockLeaseService, _, jobContext, stuckPodDetector := makeStuckPodDetectorWithTestDoubles()
+func TestJobManager_DoesNothingIfNoPodsAreFound(t *testing.T) {
+	_, mockLeaseService, _, jobManager := makejobManagerWithTestDoubles()
 
-	jobs, _ := jobContext.GetRunningJobs()
-	stuckPodDetector.HandleStuckPods(jobs)
+	jobManager.ManageJobLeases()
 
 	assert.Zero(t, mockLeaseService.ReturnLeaseCalls)
 
 	mockLeaseService.AssertReportDoneCalledOnceWith(t, []string{})
 }
 
-func TestStuckPodDetector_DoesNothingIfNoStuckPodsAreFound(t *testing.T) {
+func TestJobManager_DoesNothingIfNoStuckPodsAreFound(t *testing.T) {
 	runningPod := makeRunningPod()
 
-	fakeClusterContext, mockLeaseService, _, jobContext, stuckPodDetector := makeStuckPodDetectorWithTestDoubles()
+	fakeClusterContext, mockLeaseService, _, jobManager := makejobManagerWithTestDoubles()
 
 	addPod(t, fakeClusterContext, runningPod)
 
-	jobs, _ := jobContext.GetRunningJobs()
-	stuckPodDetector.HandleStuckPods(jobs)
+	jobManager.ManageJobLeases()
 
 	assert.Zero(t, mockLeaseService.ReturnLeaseCalls)
 
 	mockLeaseService.AssertReportDoneCalledOnceWith(t, []string{})
 }
 
-func TestStuckPodDetector_DeletesPodAndReportsDoneIfStuckAndUnretryable(t *testing.T) {
+func TestJobManager_DeletesPodAndReportsDoneIfStuckAndUnretryable(t *testing.T) {
 	unretryableStuckPod := makeUnretryableStuckPod()
 
-	fakeClusterContext, mockLeaseService, eventsReporter, jobContext, stuckPodDetector := makeStuckPodDetectorWithTestDoubles()
+	fakeClusterContext, mockLeaseService, eventsReporter, jobManager := makejobManagerWithTestDoubles()
 
 	addPod(t, fakeClusterContext, unretryableStuckPod)
 
-	jobs, _ := jobContext.GetRunningJobs()
-	stuckPodDetector.HandleStuckPods(jobs)
+	jobManager.ManageJobLeases()
 
 	remainingActivePods := getActivePods(t, fakeClusterContext)
 	assert.Equal(t, []*v1.Pod{}, remainingActivePods)
@@ -68,23 +62,21 @@ func TestStuckPodDetector_DeletesPodAndReportsDoneIfStuckAndUnretryable(t *testi
 	_, ok := eventsReporter.ReceivedEvents[0].(*api.JobUnableToScheduleEvent)
 	assert.True(t, ok)
 
-	jobs, _ = jobContext.GetRunningJobs()
-	stuckPodDetector.HandleStuckPods(jobs)
+	jobManager.ManageJobLeases()
 
 	failedEvent, ok := eventsReporter.ReceivedEvents[1].(*api.JobFailedEvent)
 	assert.True(t, ok)
 	assert.Contains(t, failedEvent.Reason, "unrecoverable problem")
 }
 
-func TestStuckPodDetector_DeletesPodAndReportsFailedIfStuckTerminating(t *testing.T) {
+func TestJobManager_DeletesPodAndReportsFailedIfStuckTerminating(t *testing.T) {
 	terminatingPod := makeTerminatingPod()
 
-	fakeClusterContext, mockLeaseService, eventsReporter, jobContext, stuckPodDetector := makeStuckPodDetectorWithTestDoubles()
+	fakeClusterContext, mockLeaseService, eventsReporter, jobManager := makejobManagerWithTestDoubles()
 
 	addPod(t, fakeClusterContext, terminatingPod)
 
-	jobs, _ := jobContext.GetRunningJobs()
-	stuckPodDetector.HandleStuckPods(jobs)
+	jobManager.ManageJobLeases()
 
 	remainingActivePods := getActivePods(t, fakeClusterContext)
 	assert.Equal(t, []*v1.Pod{}, remainingActivePods)
@@ -92,23 +84,21 @@ func TestStuckPodDetector_DeletesPodAndReportsFailedIfStuckTerminating(t *testin
 	assert.Zero(t, mockLeaseService.ReturnLeaseCalls)
 	mockLeaseService.AssertReportDoneCalledOnceWith(t, []string{terminatingPod.Labels[domain.JobId]})
 
-	jobs, _ = jobContext.GetRunningJobs()
-	stuckPodDetector.HandleStuckPods(jobs)
+	jobManager.ManageJobLeases()
 
 	failedEvent, ok := eventsReporter.ReceivedEvents[0].(*api.JobFailedEvent)
 	assert.True(t, ok)
 	assert.Contains(t, failedEvent.Reason, "terminating")
 }
 
-func TestStuckPodDetector_ReturnsLeaseAndDeletesRetryableStuckPod(t *testing.T) {
+func TestJobManager_ReturnsLeaseAndDeletesRetryableStuckPod(t *testing.T) {
 	retryableStuckPod := makeRetryableStuckPod()
 
-	fakeClusterContext, mockLeaseService, _, jobContext, stuckPodDetector := makeStuckPodDetectorWithTestDoubles()
+	fakeClusterContext, mockLeaseService, _, jobManager := makejobManagerWithTestDoubles()
 
 	addPod(t, fakeClusterContext, retryableStuckPod)
 
-	jobs, _ := jobContext.GetRunningJobs()
-	stuckPodDetector.HandleStuckPods(jobs)
+	jobManager.ManageJobLeases()
 
 	// Not done as can be retried
 	assert.Equal(t, 1, mockLeaseService.ReportDoneCalls)
@@ -121,8 +111,7 @@ func TestStuckPodDetector_ReturnsLeaseAndDeletesRetryableStuckPod(t *testing.T) 
 	remainingActivePods := getActivePods(t, fakeClusterContext)
 	assert.Equal(t, []*v1.Pod{}, remainingActivePods)
 
-	jobs, _ = jobContext.GetRunningJobs()
-	stuckPodDetector.HandleStuckPods(jobs)
+	jobManager.ManageJobLeases()
 
 	// Not done as can be retried
 	assert.Equal(t, 2, mockLeaseService.ReportDoneCalls)
@@ -210,94 +199,19 @@ func addPod(t *testing.T, fakeClusterContext context.ClusterContext, runningPod 
 	}
 }
 
-func makeStuckPodDetectorWithTestDoubles() (context.ClusterContext, *fake.MockLeaseService, *reporter_fake.FakeEventReporter, job.JobContext, *StuckPodDetector) {
-	fakeClusterContext := newSyncFakeClusterContext()
-	jobContext := job.NewClusterJobContext(fakeClusterContext)
+func makejobManagerWithTestDoubles() (context.ClusterContext, *fake.MockLeaseService, *reporter_fake.FakeEventReporter, *JobManager) {
+	fakeClusterContext := fake.NewSyncFakeClusterContext()
 	mockLeaseService := fake.NewMockLeaseService()
-	eventReporter := &reporter_fake.FakeEventReporter{nil}
+	eventReporter := reporter_fake.NewFakeEventReporter()
+	jobContext := job.NewClusterJobContext(fakeClusterContext)
 
-	stuckPodDetector := NewPodProgressMonitorService(
+	jobManager := NewJobManager(
 		fakeClusterContext,
 		jobContext,
 		eventReporter,
 		mockLeaseService,
+		time.Second,
 		time.Second)
 
-	return fakeClusterContext, mockLeaseService, eventReporter, jobContext, stuckPodDetector
-}
-
-type syncFakeClusterContext struct {
-	pods map[string]*v1.Pod
-}
-
-func newSyncFakeClusterContext() *syncFakeClusterContext {
-	c := &syncFakeClusterContext{pods: map[string]*v1.Pod{}}
-	return c
-}
-
-func (*syncFakeClusterContext) Stop() {}
-
-func (c *syncFakeClusterContext) AddPodEventHandler(handler cache.ResourceEventHandlerFuncs) {}
-
-func (c *syncFakeClusterContext) GetBatchPods() ([]*v1.Pod, error) {
-	pods := make([]*v1.Pod, 0, len(c.pods))
-	for _, p := range c.pods {
-		pods = append(pods, p.DeepCopy())
-	}
-	return pods, nil
-}
-
-func (c *syncFakeClusterContext) GetAllPods() ([]*v1.Pod, error) {
-	return c.GetBatchPods()
-}
-
-func (c *syncFakeClusterContext) GetActiveBatchPods() ([]*v1.Pod, error) {
-	return c.GetBatchPods()
-}
-
-func (c *syncFakeClusterContext) GetNodes() ([]*v1.Node, error) {
-	return make([]*v1.Node, 0), nil
-}
-
-func (c *syncFakeClusterContext) GetPodEvents(pod *v1.Pod) ([]*v1.Event, error) {
-	return []*v1.Event{}, nil
-}
-
-func (c *syncFakeClusterContext) SubmitService(service *v1.Service) (*v1.Service, error) {
-	return nil, fmt.Errorf("Services not implemented in syncFakeClusterContext")
-}
-
-func (c *syncFakeClusterContext) GetService(name string, namespace string) (*v1.Service, error) {
-	return nil, fmt.Errorf("Services not implemented in syncFakeClusterContext")
-}
-
-func (c *syncFakeClusterContext) DeleteService(service *v1.Service) error {
-	return fmt.Errorf("Services not implemented in syncFakeClusterContext")
-}
-
-func (c *syncFakeClusterContext) SubmitPod(pod *v1.Pod, owner string, ownerGroups []string) (*v1.Pod, error) {
-	c.pods[pod.Labels[domain.JobId]] = pod
-	return pod, nil
-}
-
-func (c *syncFakeClusterContext) AddAnnotation(pod *v1.Pod, annotations map[string]string) error {
-	return nil
-}
-
-func (c *syncFakeClusterContext) DeletePods(pods []*v1.Pod) {
-	for _, p := range pods {
-		delete(c.pods, p.Labels[domain.JobId])
-	}
-}
-
-func (c *syncFakeClusterContext) GetClusterId() string {
-	return "cluster-id-1"
-}
-
-func (c *syncFakeClusterContext) GetClusterPool() string {
-	return "pool"
-}
-
-func (c *syncFakeClusterContext) GetNodeStatsSummary(node *v1.Node) (*v1alpha1.Summary, error) {
-	return &v1alpha1.Summary{}, nil
+	return fakeClusterContext, mockLeaseService, eventReporter, jobManager
 }

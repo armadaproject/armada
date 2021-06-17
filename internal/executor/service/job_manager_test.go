@@ -29,7 +29,7 @@ func TestCanBeRemovedConditions(t *testing.T) {
 	}
 
 	for pod, expected := range pods {
-		result := s.canBeRemoved(&job.RunningJob{JobId: "", Pods: []*v1.Pod{pod}})
+		result := s.canBeRemoved(&job.RunningJob{JobId: "", ActivePods: []*v1.Pod{pod}})
 		assert.Equal(t, expected, result)
 	}
 }
@@ -49,7 +49,7 @@ func TestCanBeRemovedMinumumPodTime(t *testing.T) {
 	}
 
 	for pod, expected := range pods {
-		result := s.canBeRemoved(&job.RunningJob{JobId: "", Pods: []*v1.Pod{pod}})
+		result := s.canBeRemoved(&job.RunningJob{JobId: "", ActivePods: []*v1.Pod{pod}})
 		assert.Equal(t, expected, result)
 	}
 }
@@ -85,13 +85,11 @@ func createManager(minimumPodAge, failedPodExpiry time.Duration) *JobManager {
 	jobContext := job.NewClusterJobContext(fakeClusterContext)
 
 	jobLeaseService := fake.NewMockLeaseService()
-	stuckPodDetector := NewPodProgressMonitorService(fakeClusterContext, jobContext, fakeEventReporter, jobLeaseService, time.Second)
 
 	return NewJobManager(
 		fakeClusterContext,
 		jobContext,
 		fakeEventReporter,
-		stuckPodDetector,
 		jobLeaseService,
 		minimumPodAge,
 		failedPodExpiry)
