@@ -110,7 +110,7 @@ export type ReprioritizeJobsResult = {
   failedJobReprioritizations: FailedJobReprioritizations[]
 }
 
-export type ReprioritizeJobSetResult = {
+export type ReprioritizeJobSetsResult = {
   reprioritizedJobSets: JobSet[]
   failedJobSetReprioritizations: {
     jobSet: JobSet
@@ -257,16 +257,24 @@ export default class JobService {
         },
       })
 
-      for (const job of jobs) {
-        if (apiResult.reprioritizationResults?.hasOwnProperty(job.jobId)) {
-          const error = apiResult.reprioritizationResults[job.jobId]
-          if (error === "") {
-            result.reprioritizedJobs.push(job)
+      if (apiResult == null || apiResult.reprioritizationResults == null) {
+        const errorMessage = "No reprioritizationResults found in response body"
+        console.error(errorMessage)
+        for (const job of jobs) {
+          result.failedJobReprioritizations.push({ job: job, error: errorMessage })
+        }
+      } else {
+        for (const job of jobs) {
+          if (apiResult.reprioritizationResults?.hasOwnProperty(job.jobId)) {
+            const error = apiResult.reprioritizationResults[job.jobId]
+            if (error === "") {
+              result.reprioritizedJobs.push(job)
+            } else {
+              result.failedJobReprioritizations.push({ job: job, error: error })
+            }
           } else {
-            result.failedJobReprioritizations.push({ job: job, error: error })
+            result.reprioritizedJobs.push(job)
           }
-        } else {
-          result.reprioritizedJobs.push(job)
         }
       }
     } catch (e) {
@@ -280,8 +288,8 @@ export default class JobService {
     return result
   }
 
-  async reprioritizeJobSets(queue: string, jobSets: JobSet[], newPriority: number): Promise<ReprioritizeJobSetResult> {
-    const result: ReprioritizeJobSetResult = { reprioritizedJobSets: [], failedJobSetReprioritizations: [] }
+  async reprioritizeJobSets(queue: string, jobSets: JobSet[], newPriority: number): Promise<ReprioritizeJobSetsResult> {
+    const result: ReprioritizeJobSetsResult = { reprioritizedJobSets: [], failedJobSetReprioritizations: [] }
 
     for (const jobSet of jobSets) {
       try {
@@ -292,11 +300,17 @@ export default class JobService {
             newPriority: newPriority,
           },
         })
+        if (apiResult == null || apiResult.reprioritizationResults == null) {
+          const errorMessage = "No reprioritizationResults found in response body"
+          console.error(errorMessage)
+          result.failedJobSetReprioritizations.push({ jobSet: jobSet, error: "No reprioritizationResults found in response body" })
+          continue
+        }
+
         let errorCount = 0
         let successCount = 0
         let error = ""
-        for (const key in apiResult.reprioritizationResults) {
-          const e = apiResult.reprioritizationResults[key]
+        for (const [key, e] of Object.entries(apiResult.reprioritizationResults)) {
           if (e !== "") {
             errorCount++
             error = e

@@ -297,15 +297,14 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
     }
   }
 
-  handlePriorityChange(e: any) {
-    const i = e.target.value
-    const valid = newPriorityRegex.test(i) && i.length > 0
+  handlePriorityChange(newValue: string) {
+    const valid = newPriorityRegex.test(newValue) && newValue.length > 0
     this.setState({
       ...this.state,
       reprioritizeJobSetsDialogContext: {
         ...this.state.reprioritizeJobSetsDialogContext,
         isValid: valid,
-        newPriority: Number(i),
+        newPriority: Number(newValue),
       },
     })
   }

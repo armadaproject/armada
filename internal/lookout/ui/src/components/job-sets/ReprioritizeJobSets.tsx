@@ -13,7 +13,7 @@ type ReprioritizeJobSetsProps = {
   isLoading: boolean
   isValid: boolean
   onReprioritizeJobsSets: () => void
-  onPriorityChange: (e: any) => void
+  onPriorityChange: (e: string) => void
 }
 
 export default function ReprioritizeJobSets(props: ReprioritizeJobSetsProps) {
@@ -35,7 +35,7 @@ export default function ReprioritizeJobSets(props: ReprioritizeJobSetsProps) {
           type={"text"}
           error={!props.isValid}
           helperText={!props.isValid ? "Value must be a number >= 0" : " "}
-          onChange={props.onPriorityChange}
+          onChange={(event) => props.onPriorityChange(event.target.value)}
         />
         <LoadingButton
           content={"Reprioritize Job Sets"}

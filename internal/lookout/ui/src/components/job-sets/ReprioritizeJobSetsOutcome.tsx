@@ -13,13 +13,13 @@ import {
   TableRow,
 } from "@material-ui/core"
 
-import { ReprioritizeJobSetResult } from "../../services/JobService"
+import { ReprioritizeJobSetsResult } from "../../services/JobService"
 import LoadingButton from "../jobs/LoadingButton"
 
 import "./JobSetActions.css"
 
 type ReprioritizeJobSetsOutcomeProps = {
-  reprioritizeJobSetResult: ReprioritizeJobSetResult
+  reprioritizeJobSetResult: ReprioritizeJobSetsResult
   isLoading: boolean
   newPriority: number
   onReprioritizeJobSets: () => void

@@ -20,7 +20,6 @@ type JobsProps = {
   selectedJobs: Map<string, Job>
   cancelJobsButtonIsEnabled: boolean
   reprioritizeButtonIsEnabled: boolean
-  forceRefresh: boolean
   fetchJobs: (start: number, stop: number) => Promise<Job[]>
   isLoaded: (index: number) => boolean
   onChangeColumnValue: (columnId: string, newValue: string | boolean | string[]) => void

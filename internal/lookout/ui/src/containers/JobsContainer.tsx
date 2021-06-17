@@ -60,7 +60,7 @@ const QUERY_STRING_OPTIONS: ParseOptions | StringifyOptions = {
 const LOCAL_STORAGE_KEY = "armada_lookout_annotation_columns"
 const BATCH_SIZE = 100
 const CANCELLABLE_JOB_STATES = ["Queued", "Pending", "Running"]
-const REPRIORITIZEABLE_JOB_STATES = ["Queued"]
+const REPRIORITIZEABLE_JOB_STATES = ["Queued", "Pending", "Running"]
 
 export function makeQueryString(columns: ColumnSpec<string | boolean | string[]>[]): string {
   const columnMap = new Map<string, ColumnSpec<string | boolean | string[]>>()
@@ -604,15 +604,14 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     })
   }
 
-  handlePriorityChange(e: any) {
-    const i = e.target.value
-    const valid = newPriorityRegex.test(i) && i.length > 0
+  handlePriorityChange(newValue: string) {
+    const valid = newPriorityRegex.test(newValue) && newValue.length > 0
     this.setState({
       ...this.state,
       reprioritizeJobsModalContext: {
         ...this.state.reprioritizeJobsModalContext,
         isValid: valid,
-        newPriority: Number(i),
+        newPriority: Number(newValue),
       },
     })
   }

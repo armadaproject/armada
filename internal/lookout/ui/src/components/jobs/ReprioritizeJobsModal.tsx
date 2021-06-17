@@ -21,7 +21,7 @@ export interface ReprioritizeJobsModalContext {
 
 interface ReprioritizeJobsDialogProps extends ReprioritizeJobsModalContext {
   onReprioritizeJobs: () => void
-  onPriorityChange: (e: any) => void
+  onPriorityChange: (e: string) => void
   onClose: () => void
 }
 

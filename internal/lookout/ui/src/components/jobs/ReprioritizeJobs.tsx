@@ -48,7 +48,7 @@ type ReprioritizeJobsProps = {
   isLoading: boolean
   isValid: boolean
   onReprioritizeJobs: () => void
-  onPriorityChange: (e: any) => void
+  onPriorityChange: (e: string) => void
 }
 
 const ReprioritizeJobs = React.forwardRef((props: ReprioritizeJobsProps, ref: Ref<any>) => {
@@ -93,7 +93,7 @@ const ReprioritizeJobs = React.forwardRef((props: ReprioritizeJobsProps, ref: Re
         type={"text"}
         error={!props.isValid}
         helperText={!props.isValid ? "Value must be a number >= 0" : " "}
-        onChange={props.onPriorityChange}
+        onChange={(event) => props.onPriorityChange(event.target.value)}
       />
       <div className={classes.button}>
         <LoadingButton
