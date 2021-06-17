@@ -21,7 +21,7 @@ export default function CancelJobSets(props: CancelJobSetsProps) {
       <List component={Paper} className="job-sets-action-table-container">
         {props.jobSets.map((jobSet) => (
           <ListItem key={jobSet.jobSetId}>
-            <ListItemText className="cancel-job-sets-wrap">{jobSet.jobSetId}</ListItemText>
+            <ListItemText className="job-sets-action-wrap">{jobSet.jobSetId}</ListItemText>
           </ListItem>
         ))}
       </List>
