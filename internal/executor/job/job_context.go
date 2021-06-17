@@ -45,6 +45,7 @@ type jobRecord struct {
 
 type JobContext interface {
 	GetJobs() ([]*RunningJob, error)
+	MarkIssueReported(issue *PodIssue)
 	MarkIssuesResolved(job *RunningJob)
 	DeleteJobs(jobs []*RunningJob)
 	AddAnnotation(jobs []*RunningJob, annotations map[string]string) error
@@ -97,6 +98,10 @@ func (c *ClusterJobContext) MarkIssuesResolved(job *RunningJob) {
 	if exists {
 		record.issue = nil
 	}
+}
+
+func (c *ClusterJobContext) MarkIssueReported(issue *PodIssue) {
+	issue.Reported = true
 }
 
 func (c *ClusterJobContext) DeleteJobs(jobs []*RunningJob) {

@@ -168,11 +168,11 @@ func (m *JobManager) reportStuckPods(runningJob *job.RunningJob) {
 		if err != nil {
 			log.Errorf("Failure to report stuck pod event %+v because %s", event, err)
 		} else {
-			runningJob.Issue.Reported = true
+			m.jobContext.MarkIssueReported(runningJob.Issue)
 		}
 
 	} else {
-		runningJob.Issue.Reported = true
+		m.jobContext.MarkIssueReported(runningJob.Issue)
 	}
 }
 
