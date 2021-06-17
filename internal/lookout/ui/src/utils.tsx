@@ -99,3 +99,11 @@ export function updateInterval(
   }
   return updatedInterval
 }
+
+export function selectItem<V>(key: string, item: V, selectedMap: Map<string, V>, isSelected: boolean) {
+  if (isSelected) {
+    selectedMap.set(key, item)
+  } else if (selectedMap.has(key)) {
+    selectedMap.delete(key)
+  }
+}

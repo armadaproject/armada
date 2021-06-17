@@ -13,11 +13,12 @@ import (
 	"github.com/G-Research/armada/internal/executor/cluster"
 	"github.com/G-Research/armada/internal/executor/configuration"
 	"github.com/G-Research/armada/internal/executor/context"
-	"github.com/G-Research/armada/internal/executor/job_context"
+	"github.com/G-Research/armada/internal/executor/job"
 	"github.com/G-Research/armada/internal/executor/metrics"
 	"github.com/G-Research/armada/internal/executor/metrics/pod_metrics"
 	"github.com/G-Research/armada/internal/executor/reporter"
 	"github.com/G-Research/armada/internal/executor/service"
+	"github.com/G-Research/armada/internal/executor/utilisation"
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/client"
 )
@@ -61,21 +62,17 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 		clusterContext,
 		eventClient)
 
-	jobContext := job_context.NewClusterJobContext(clusterContext)
-
 	jobLeaseService := service.NewJobLeaseService(
 		clusterContext,
-		jobContext,
-		eventReporter,
 		queueClient,
-		config.Kubernetes.MinimumPodAge,
-		config.Kubernetes.FailedPodExpiry,
 		config.Kubernetes.MinimumJobSize)
 
-	queueUtilisationService := service.NewMetricsServerQueueUtilisationService(
-		clusterContext)
+	jobContext := job.NewClusterJobContext(clusterContext)
+	submitter := job.NewSubmitter(clusterContext, config.Kubernetes.PodDefaults)
 
-	clusterUtilisationService := service.NewClusterUtilisationService(
+	queueUtilisationService := utilisation.NewMetricsServerQueueUtilisationService(
+		clusterContext)
+	clusterUtilisationService := utilisation.NewClusterUtilisationService(
 		clusterContext,
 		queueUtilisationService,
 		usageClient,
@@ -94,23 +91,31 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 		eventReporter,
 		jobLeaseService,
 		clusterUtilisationService,
-		config.Kubernetes.PodDefaults)
+		submitter)
 
-	service.RunIngressCleanup(clusterContext)
+	jobManager := service.NewJobManager(
+		clusterContext,
+		jobContext,
+		eventReporter,
+		stuckPodDetector,
+		jobLeaseService,
+		config.Kubernetes.MinimumPodAge,
+		config.Kubernetes.FailedPodExpiry)
+
+	job.RunIngressCleanup(clusterContext)
 
 	pod_metrics.ExposeClusterContextMetrics(clusterContext, clusterUtilisationService, queueUtilisationService)
 
 	taskManager.Register(clusterUtilisationService.ReportClusterUtilisation, config.Task.UtilisationReportingInterval, "utilisation_reporting")
-	taskManager.Register(clusterAllocationService.AllocateSpareClusterCapacity, config.Task.AllocateSpareClusterCapacityInterval, "job_lease_request")
-	taskManager.Register(jobLeaseService.ManageJobLeases, config.Task.JobLeaseRenewalInterval, "job_lease_renewal")
 	taskManager.Register(eventReporter.ReportMissingJobEvents, config.Task.MissingJobEventReconciliationInterval, "event_reconciliation")
-	taskManager.Register(stuckPodDetector.HandleStuckPods, config.Task.StuckPodScanInterval, "stuck_pod")
+	taskManager.Register(clusterAllocationService.AllocateSpareClusterCapacity, config.Task.AllocateSpareClusterCapacityInterval, "job_lease_request")
+	taskManager.Register(jobManager.ManageJobLeases, config.Task.JobLeaseRenewalInterval, "job_management")
 
 	if config.Metric.ExposeQueueUsageMetrics {
 		taskManager.Register(queueUtilisationService.RefreshUtilisationData, config.Task.QueueUsageDataRefreshInterval, "pod_usage_data_refresh")
 
 		if config.Task.UtilisationEventReportingInterval > 0 {
-			podUtilisationReporter := service.NewUtilisationEventReporter(
+			podUtilisationReporter := utilisation.NewUtilisationEventReporter(
 				clusterContext,
 				queueUtilisationService,
 				eventReporter,
