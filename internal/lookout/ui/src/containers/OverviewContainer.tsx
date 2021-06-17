@@ -23,10 +23,6 @@ interface OverviewContainerState {
 
 const INTERVAL = 15000
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
-
 class OverviewContainer extends React.Component<OverviewContainerProps, OverviewContainerState> {
   interval: NodeJS.Timeout | undefined
 
@@ -72,7 +68,6 @@ class OverviewContainer extends React.Component<OverviewContainerProps, Overview
       ...this.state,
       overviewRequestStatus: "Loading",
     })
-    await sleep(500)
     const queueInfos = await this.props.jobService.getOverview()
     this.setState({
       queueInfos: queueInfos,

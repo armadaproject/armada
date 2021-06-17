@@ -10,7 +10,8 @@ import CancelJobSetsDialog, {
 } from "../components/job-sets/CancelJobSetsDialog"
 import JobSets from "../components/job-sets/JobSets"
 import JobService, { JobSet } from "../services/JobService"
-import { debounced } from "../utils"
+import { debounced, setStateAsync, updateInterval } from "../utils"
+import { RequestStatus } from "./JobsContainer"
 
 type JobSetsContainerProps = {
   jobService: JobService
@@ -26,6 +27,8 @@ export type CancelJobSetsRequestStatus = "Loading" | "Idle"
 type JobSetsContainerState = {
   jobSets: JobSet[]
   selectedJobSets: Map<string, JobSet>
+  getJobSetsRequestStatus: RequestStatus
+  autoRefresh: boolean
   cancelJobSetsDialogContext: CancelJobSetsDialogContext
 } & JobSetsContainerParams
 
@@ -35,6 +38,8 @@ type JobSetsQueryParams = {
   queue?: string
   view?: string
 }
+
+const INTERVAL = 15000
 
 export function isJobSetsView(val: string): val is JobSetsView {
   return ["job-counts", "runtime", "queued-time"].includes(val)
@@ -64,6 +69,8 @@ function getParamsFromQueryString(query: string): JobSetsContainerParams {
 }
 
 class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsContainerState> {
+  interval: NodeJS.Timeout | undefined
+
   constructor(props: JobSetsContainerProps) {
     super(props)
 
@@ -72,6 +79,8 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
       jobSets: [],
       currentView: "job-counts",
       selectedJobSets: new Map<string, JobSet>(),
+      getJobSetsRequestStatus: "Idle",
+      autoRefresh: true,
       cancelJobSetsDialogContext: {
         dialogState: "None",
         queue: "",
@@ -90,6 +99,8 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
     this.cancelJobs = this.cancelJobs.bind(this)
 
     this.fetchJobSets = debounced(this.fetchJobSets.bind(this), 100)
+    this.loadJobSets = this.loadJobSets.bind(this)
+    this.toggleAutoRefresh = this.toggleAutoRefresh.bind(this)
   }
 
   async componentDidMount() {
@@ -100,6 +111,14 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
     })
 
     await this.loadJobSets()
+
+    this.interval = updateInterval(this.interval, this.state.autoRefresh, INTERVAL, this.loadJobSets)
+  }
+
+  componentWillUnmount() {
+    if (this.interval) {
+      clearInterval(this.interval)
+    }
   }
 
   async setQueue(queue: string) {
@@ -207,12 +226,24 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
     })
   }
 
-  private async loadJobSets() {
-    const jobSets = await this.props.jobService.getJobSets(this.state.queue)
+  toggleAutoRefresh(autoRefresh: boolean) {
     this.setState({
       ...this.state,
-      selectedJobSets: new Map<string, JobSet>(),
+      autoRefresh: autoRefresh,
+    })
+    this.interval = updateInterval(this.interval, autoRefresh, INTERVAL, this.loadJobSets)
+  }
+
+  private async loadJobSets() {
+    await setStateAsync(this, {
+      ...this.state,
+      getJobSetsRequestStatus: "Loading",
+    })
+    const jobSets = await this.fetchJobSets(this.state.queue)
+    this.setState({
+      ...this.state,
       jobSets: jobSets,
+      getJobSetsRequestStatus: "Idle",
     })
   }
 
@@ -250,12 +281,15 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
           view={this.state.currentView}
           jobSets={this.state.jobSets}
           selectedJobSets={this.state.selectedJobSets}
+          getJobSetsRequestStatus={this.state.getJobSetsRequestStatus}
+          autoRefresh={this.state.autoRefresh}
           onQueueChange={this.setQueue}
           onViewChange={this.setView}
           onRefresh={this.refresh}
           onJobSetClick={this.navigateToJobSetForState}
           onSelectJobSet={this.selectJobSet}
           onCancelJobSetsClick={() => this.setCancelJobSetsDialogState("CancelJobSets")}
+          onToggleAutoRefresh={this.toggleAutoRefresh}
         />
       </Fragment>
     )

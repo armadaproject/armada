@@ -10,6 +10,7 @@ import {
   LookoutRunInfo,
 } from "../openapi/lookout"
 import { reverseMap, secondsToDurationString } from "../utils"
+import { makeTestJobSets, makeTestOverview } from "./testData"
 
 type DurationFromApi = {
   seconds?: number
@@ -129,6 +130,10 @@ export default class JobService {
   }
 
   async getOverview(): Promise<QueueInfo[]> {
+    if (JOB_STATES_FOR_DISPLAY) {
+      return Promise.resolve(makeTestOverview(100, 100))
+    }
+
     const queueInfosFromApi = await this.lookoutApi.overview()
     if (!queueInfosFromApi.queues) {
       return []
@@ -138,6 +143,9 @@ export default class JobService {
   }
 
   async getJobSets(queue: string): Promise<JobSet[]> {
+    if (queue === "test") {
+      return Promise.resolve(makeTestJobSets(100, 100))
+    }
     const jobSetsFromApi = await this.lookoutApi.getJobSets({
       body: {
         queue: queue,
