@@ -153,6 +153,7 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
     selectItem(jobSet.jobSetId, jobSet, selectedJobSets, selected)
 
     const cancellableJobSets = JobSetsContainer.getCancellableSelectedJobSets(selectedJobSets)
+    const reprioritizeableJobSets = JobSetsContainer.getReprioritizeableJobSets(selectedJobSets)
     this.setState({
       ...this.state,
       selectedJobSets: selectedJobSets,
@@ -160,6 +161,10 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
       cancelJobSetsDialogContext: {
         ...this.state.cancelJobSetsDialogContext,
         jobSetsToCancel: cancellableJobSets,
+      },
+      reprioritizeJobSetsDialogContext: {
+        ...this.state.reprioritizeJobSetsDialogContext,
+        jobSetsToReprioritize: reprioritizeableJobSets,
       },
     })
   }

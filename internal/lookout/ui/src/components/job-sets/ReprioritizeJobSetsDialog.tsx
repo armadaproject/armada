@@ -56,12 +56,12 @@ export default function ReprioritizeJobSetsDialog(props: ReprioritizeJobSetsProp
   return (
     <Dialog
       open={isOpen}
-      aria-labelledby="cancel-job-sets-modal-title"
-      aria-describedby="cancel-job-sets-modal-description"
+      aria-labelledby="reprioritize-job-sets-dialog-title"
+      aria-describedby="reprioritize-job-sets-dialog-description"
       onClose={props.onClose}
       maxWidth={"md"}
     >
-      <DialogTitle id="cancel-job-sets-dialog-title">Reprioritize Job Sets</DialogTitle>
+      <DialogTitle id="-reprioritize-job-sets-dialog-title">Reprioritize Job Sets</DialogTitle>
       <DialogContent>{content}</DialogContent>
     </Dialog>
   )
