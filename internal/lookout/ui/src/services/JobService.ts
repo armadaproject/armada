@@ -303,14 +303,17 @@ export default class JobService {
         if (apiResult == null || apiResult.reprioritizationResults == null) {
           const errorMessage = "No reprioritizationResults found in response body"
           console.error(errorMessage)
-          result.failedJobSetReprioritizations.push({ jobSet: jobSet, error: "No reprioritizationResults found in response body" })
+          result.failedJobSetReprioritizations.push({
+            jobSet: jobSet,
+            error: "No reprioritizationResults found in response body",
+          })
           continue
         }
 
         let errorCount = 0
         let successCount = 0
         let error = ""
-        for (const [key, e] of Object.entries(apiResult.reprioritizationResults)) {
+        for (const e of Object.values(apiResult.reprioritizationResults)) {
           if (e !== "") {
             errorCount++
             error = e

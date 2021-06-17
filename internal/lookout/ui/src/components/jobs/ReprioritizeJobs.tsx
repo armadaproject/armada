@@ -34,6 +34,11 @@ const useStyles = makeStyles((theme: Theme) =>
       overflow: "auto",
       margin: theme.spacing(0, 0, 1),
     },
+    input: {
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+    },
     button: {
       display: "flex",
       alignItems: "center",
@@ -86,15 +91,17 @@ const ReprioritizeJobs = React.forwardRef((props: ReprioritizeJobsProps, ref: Re
           </TableBody>
         </Table>
       </TableContainer>
-      <TextField
-        autoFocus={true}
-        placeholder={"New priority"}
-        margin={"normal"}
-        type={"text"}
-        error={!props.isValid}
-        helperText={!props.isValid ? "Value must be a number >= 0" : " "}
-        onChange={(event) => props.onPriorityChange(event.target.value)}
-      />
+      <div className={classes.input}>
+        <TextField
+          autoFocus={true}
+          placeholder={"New priority"}
+          margin={"normal"}
+          type={"text"}
+          error={!props.isValid}
+          helperText={!props.isValid ? "Value must be a number >= 0" : " "}
+          onChange={(event) => props.onPriorityChange(event.target.value)}
+        />
+      </div>
       <div className={classes.button}>
         <LoadingButton
           content={"Reprioritize Jobs"}
