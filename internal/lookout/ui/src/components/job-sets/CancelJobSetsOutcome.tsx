@@ -29,10 +29,10 @@ export default function CancelJobSetsOutcome(props: CancelJobSetsOutcomeProps) {
     <div className="job-sets-action-container">
       {props.cancelJobSetsResult.cancelledJobSets.length > 0 && (
         <Fragment>
-          <p className="cancel-job-sets-text">The following Job Sets were cancelled successfully:</p>
-          <List component={Paper} className="cancel-job-sets-table-container cancel-job-sets-success">
+          <p className=".job-sets-action-text">The following Job Sets were cancelled successfully:</p>
+          <List component={Paper} className="job-sets-action-table-container job-sets-action-success">
             {props.cancelJobSetsResult.cancelledJobSets.map((jobSet) => (
-              <ListItem key={jobSet.jobSetId} className="cancel-job-sets-wrap">
+              <ListItem key={jobSet.jobSetId} className="job-sets-action-wrap">
                 <ListItemText>{jobSet.jobSetId}</ListItemText>
               </ListItem>
             ))}
@@ -41,22 +41,22 @@ export default function CancelJobSetsOutcome(props: CancelJobSetsOutcomeProps) {
       )}
       {props.cancelJobSetsResult.failedJobSetCancellations.length > 0 && (
         <Fragment>
-          <p className="cancel-job-sets-text">Some Job Sets failed to cancel:</p>
-          <TableContainer component={Paper} className="cancel-job-sets-table-container">
-            <Table stickyHeader className="cancel-job-sets-table">
+          <p className="job-sets-action-text">Some Job Sets failed to cancel:</p>
+          <TableContainer component={Paper} className="job-sets-action-table-container">
+            <Table stickyHeader className="job-sets-action-table">
               <TableHead>
                 <TableRow>
-                  <TableCell className="cancel-job-sets-id cancel-job-sets-failure-header">Job Set</TableCell>
-                  <TableCell className="cancel-job-sets-error cancel-job-sets-failure-header">Error</TableCell>
+                  <TableCell className="job-sets-action-id job-sets-action-failure-header">Job Set</TableCell>
+                  <TableCell className="job-sets-action-error job-sets-action-failure-header">Error</TableCell>
                 </TableRow>
               </TableHead>
-              <TableBody className="cancel-job-sets-failure">
+              <TableBody className="job-sets-action-failure">
                 {props.cancelJobSetsResult.failedJobSetCancellations.map((failedCancellation) => (
                   <TableRow key={failedCancellation.jobSet.jobSetId}>
-                    <TableCell className="cancel-job-sets-id cancel-job-sets-wrap">
+                    <TableCell className="job-sets-action-id job-sets-action-wrap">
                       {failedCancellation.jobSet.jobSetId}
                     </TableCell>
-                    <TableCell className="cancel-job-sets-error cancel-job-sets-wrap">
+                    <TableCell className="job-sets-action-error job-sets-action-wrap">
                       {failedCancellation.error}
                     </TableCell>
                   </TableRow>

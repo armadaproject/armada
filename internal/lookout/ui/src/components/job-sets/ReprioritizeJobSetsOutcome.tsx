@@ -30,10 +30,10 @@ export default function ReprioritizeJobSetsOutcome(props: ReprioritizeJobSetsOut
     <div className="job-sets-action-container">
       {props.reprioritizeJobSetResult.reprioritizedJobSets.length > 0 && (
         <Fragment>
-          <p className="cancel-job-sets-text">The following Job Sets were reprioritized successfully:</p>
-          <List component={Paper} className="cancel-job-sets-table-container cancel-job-sets-success">
+          <p className="job-sets-action-text">The following Job Sets were reprioritized successfully:</p>
+          <List component={Paper} className="job-sets-action-table-container job-sets-action-success">
             {props.reprioritizeJobSetResult.reprioritizedJobSets.map((jobSet) => (
-              <ListItem key={jobSet.jobSetId} className="cancel-job-sets-wrap">
+              <ListItem key={jobSet.jobSetId} className="job-sets-action-wrap">
                 <ListItemText>{jobSet.jobSetId}</ListItemText>
               </ListItem>
             ))}
@@ -42,22 +42,22 @@ export default function ReprioritizeJobSetsOutcome(props: ReprioritizeJobSetsOut
       )}
       {props.reprioritizeJobSetResult.failedJobSetReprioritizations.length > 0 && (
         <Fragment>
-          <p className="cancel-job-sets-text">The following Job Sets failed to reprioritize:</p>
-          <TableContainer component={Paper} className="cancel-job-sets-table-container">
-            <Table stickyHeader className="cancel-job-sets-table">
+          <p className="job-sets-action-text">The following Job Sets failed to reprioritize:</p>
+          <TableContainer component={Paper} className="job-sets-action-table-container">
+            <Table stickyHeader className="job-sets-action-table">
               <TableHead>
                 <TableRow>
-                  <TableCell className="cancel-job-sets-id cancel-job-sets-failure-header">Job Set</TableCell>
-                  <TableCell className="cancel-job-sets-error cancel-job-sets-failure-header">Error</TableCell>
+                  <TableCell className="job-sets-action-id job-sets-action-failure-header">Job Set</TableCell>
+                  <TableCell className="job-sets-action-error job-sets-action-failure-header">Error</TableCell>
                 </TableRow>
               </TableHead>
-              <TableBody className="cancel-job-sets-failure">
+              <TableBody className="job-sets-action-failure">
                 {props.reprioritizeJobSetResult.failedJobSetReprioritizations.map((failedReprioritization) => (
                   <TableRow key={failedReprioritization.jobSet.jobSetId}>
-                    <TableCell className="cancel-job-sets-id cancel-job-sets-wrap">
+                    <TableCell className="job-sets-action-id job-sets-action-wrap">
                       {failedReprioritization.jobSet.jobSetId}
                     </TableCell>
-                    <TableCell className="cancel-job-sets-error cancel-job-sets-wrap">
+                    <TableCell className="job-sets-action-error job-sets-action-wrap">
                       {failedReprioritization.error}
                     </TableCell>
                   </TableRow>
