@@ -208,6 +208,10 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
         ...this.state.cancelJobSetsDialogContext,
         jobSetsToCancel: [],
       },
+      reprioritizeJobSetsDialogContext: {
+        ...this.state.reprioritizeJobSetsDialogContext,
+        jobSetsToReprioritize: [],
+      },
     })
   }
 

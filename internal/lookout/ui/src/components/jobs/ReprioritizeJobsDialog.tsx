@@ -7,10 +7,10 @@ import { ReprioritizeJobsResult, Job } from "../../services/JobService"
 import ReprioritizeJobs from "./ReprioritizeJobs"
 import ReprioritizeJobsOutcome from "./ReprioritizeJobsOutcome"
 
-export type ReprioritizeJobsModalState = "ReprioritizeJobs" | "ReprioritizeJobsResult" | "None"
+export type ReprioritizeJobsDialogState = "ReprioritizeJobs" | "ReprioritizeJobsResult" | "None"
 
-export interface ReprioritizeJobsModalContext {
-  modalState: ReprioritizeJobsModalState
+export interface ReprioritizeJobsDialogContext {
+  modalState: ReprioritizeJobsDialogState
   newPriority: number
   isValid: boolean
   jobsToReprioritize: Job[]
@@ -18,7 +18,7 @@ export interface ReprioritizeJobsModalContext {
   reprioritizeJobsRequestStatus: ReprioritizeJobsRequestStatus
 }
 
-interface ReprioritizeJobsDialogProps extends ReprioritizeJobsModalContext {
+interface ReprioritizeJobsDialogProps extends ReprioritizeJobsDialogContext {
   onReprioritizeJobs: () => void
   onPriorityChange: (e: string) => void
   onClose: () => void
