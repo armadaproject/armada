@@ -34,7 +34,11 @@
 }
 
 .job-sets-header .job-sets-actions .cancel-button {
-    margin-right: 4em;
+    margin-right: 3em;
+}
+
+.job-sets-header .job-sets-actions .reprioritize-button {
+    margin-right: 3em;
 }
 
 .job-sets-field {

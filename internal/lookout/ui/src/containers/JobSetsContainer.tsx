@@ -9,6 +9,10 @@ import CancelJobSetsDialog, {
   CancelJobSetsDialogState,
 } from "../components/job-sets/CancelJobSetsDialog"
 import JobSets from "../components/job-sets/JobSets"
+import ReprioritizeJobSetsDialog, {
+  ReprioritizeJobSetsDialogContext,
+  ReprioritizeJobSetsDialogState,
+} from "../components/job-sets/ReprioritizeJobSetsDialog"
 import JobService, { JobSet } from "../services/JobService"
 import { debounced, selectItem } from "../utils"
 
@@ -22,12 +26,16 @@ type JobSetsContainerParams = {
 }
 
 export type CancelJobSetsRequestStatus = "Loading" | "Idle"
+export type ReprioritizeJobSetsRequestStatus = "Loading" | "Idle"
+
+const newPriorityRegex = new RegExp("^([0-9]+)$")
 
 type JobSetsContainerState = {
   jobSets: JobSet[]
   selectedJobSets: Map<string, JobSet>
   lastSelectedIndex: number
   cancelJobSetsDialogContext: CancelJobSetsDialogContext
+  reprioritizeJobSetsDialogContext: ReprioritizeJobSetsDialogContext
 } & JobSetsContainerParams
 
 export type JobSetsView = "job-counts" | "runtime" | "queued-time"
@@ -81,6 +89,15 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
         cancelJobSetsResult: { cancelledJobSets: [], failedJobSetCancellations: [] },
         cancelJobSetsRequestStatus: "Idle",
       },
+      reprioritizeJobSetsDialogContext: {
+        dialogState: "None",
+        queue: "",
+        isValid: false,
+        newPriority: 0,
+        jobSetsToReprioritize: [],
+        reprioritizeJobSetsResult: { reprioritizedJobSets: [], failedJobSetReprioritizations: [] },
+        reproiritizeJobSetsRequestStatus: "Idle",
+      },
     }
 
     this.setQueue = this.setQueue.bind(this)
@@ -92,6 +109,8 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
     this.deselectAll = this.deselectAll.bind(this)
     this.setCancelJobSetsDialogState = this.setCancelJobSetsDialogState.bind(this)
     this.cancelJobs = this.cancelJobs.bind(this)
+    this.reprioritizeJobSets = this.reprioritizeJobSets.bind(this)
+    this.handlePriorityChange = this.handlePriorityChange.bind(this)
 
     this.fetchJobSets = debounced(this.fetchJobSets.bind(this), 100)
   }
@@ -134,6 +153,7 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
     selectItem(jobSet.jobSetId, jobSet, selectedJobSets, selected)
 
     const cancellableJobSets = JobSetsContainer.getCancellableSelectedJobSets(selectedJobSets)
+    const reprioritizeableJobSets = JobSetsContainer.getReprioritizeableJobSets(selectedJobSets)
     this.setState({
       ...this.state,
       selectedJobSets: selectedJobSets,
@@ -141,6 +161,10 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
       cancelJobSetsDialogContext: {
         ...this.state.cancelJobSetsDialogContext,
         jobSetsToCancel: cancellableJobSets,
+      },
+      reprioritizeJobSetsDialogContext: {
+        ...this.state.reprioritizeJobSetsDialogContext,
+        jobSetsToReprioritize: reprioritizeableJobSets,
       },
     })
   }
@@ -159,6 +183,7 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
     }
 
     const cancellableJobSets = JobSetsContainer.getCancellableSelectedJobSets(selectedJobSets)
+    const reprioritizeableJobSets = JobSetsContainer.getReprioritizeableJobSets(selectedJobSets)
     this.setState({
       ...this.state,
       selectedJobSets: selectedJobSets,
@@ -166,6 +191,10 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
       cancelJobSetsDialogContext: {
         ...this.state.cancelJobSetsDialogContext,
         jobSetsToCancel: cancellableJobSets,
+      },
+      reprioritizeJobSetsDialogContext: {
+        ...this.state.reprioritizeJobSetsDialogContext,
+        jobSetsToReprioritize: reprioritizeableJobSets,
       },
     })
   }
@@ -179,6 +208,10 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
         ...this.state.cancelJobSetsDialogContext,
         jobSetsToCancel: [],
       },
+      reprioritizeJobSetsDialogContext: {
+        ...this.state.reprioritizeJobSetsDialogContext,
+        jobSetsToReprioritize: [],
+      },
     })
   }
 
@@ -187,6 +220,16 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
       ...this.state,
       cancelJobSetsDialogContext: {
         ...this.state.cancelJobSetsDialogContext,
+        dialogState: dialogState,
+      },
+    })
+  }
+
+  setReprioritizeJobSetsDialogState(dialogState: ReprioritizeJobSetsDialogState) {
+    this.setState({
+      ...this.state,
+      reprioritizeJobSetsDialogContext: {
+        ...this.state.reprioritizeJobSetsDialogContext,
         dialogState: dialogState,
       },
     })
@@ -221,10 +264,58 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
       },
     })
 
-    if (cancelJobSetsResult.cancelledJobSets.length > 0) {
-      // Some succeed
+    if (cancelJobSetsResult.failedJobSetCancellations.length === 0) {
+      // All succeeded
       await this.loadJobSets()
     }
+  }
+
+  async reprioritizeJobSets() {
+    if (this.state.reprioritizeJobSetsDialogContext.reproiritizeJobSetsRequestStatus === "Loading") {
+      return
+    }
+
+    this.setState({
+      ...this.state,
+      reprioritizeJobSetsDialogContext: {
+        ...this.state.reprioritizeJobSetsDialogContext,
+        reproiritizeJobSetsRequestStatus: "Loading",
+      },
+    })
+
+    const reprioritizeJobSetsResult = await this.props.jobService.reprioritizeJobSets(
+      this.state.queue,
+      this.state.reprioritizeJobSetsDialogContext.jobSetsToReprioritize,
+      this.state.reprioritizeJobSetsDialogContext.newPriority,
+    )
+
+    this.setState({
+      ...this.state,
+      reprioritizeJobSetsDialogContext: {
+        ...this.state.reprioritizeJobSetsDialogContext,
+        jobSetsToReprioritize: reprioritizeJobSetsResult.failedJobSetReprioritizations.map((failed) => failed.jobSet),
+        reprioritizeJobSetsResult: reprioritizeJobSetsResult,
+        dialogState: "ReprioritizeJobSetsResult",
+        reproiritizeJobSetsRequestStatus: "Idle",
+      },
+    })
+
+    if (reprioritizeJobSetsResult.failedJobSetReprioritizations.length === 0) {
+      // All succeeded
+      await this.loadJobSets()
+    }
+  }
+
+  handlePriorityChange(newValue: string) {
+    const valid = newPriorityRegex.test(newValue) && newValue.length > 0
+    this.setState({
+      ...this.state,
+      reprioritizeJobSetsDialogContext: {
+        ...this.state.reprioritizeJobSetsDialogContext,
+        isValid: valid,
+        newPriority: Number(newValue),
+      },
+    })
   }
 
   setView(view: JobSetsView) {
@@ -254,6 +345,14 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
       ...this.state,
       selectedJobSets: new Map<string, JobSet>(),
       jobSets: jobSets,
+      cancelJobSetsDialogContext: {
+        ...this.state.cancelJobSetsDialogContext,
+        jobSetsToCancel: [],
+      },
+      reprioritizeJobSetsDialogContext: {
+        ...this.state.reprioritizeJobSetsDialogContext,
+        jobSetsToReprioritize: [],
+      },
     })
   }
 
@@ -271,6 +370,10 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
     )
   }
 
+  private static getReprioritizeableJobSets(selectedJobSets: Map<string, JobSet>): JobSet[] {
+    return Array.from(selectedJobSets.values()).filter((jobSet) => jobSet.jobsQueued > 0)
+  }
+
   render() {
     return (
       <Fragment>
@@ -283,9 +386,27 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
           onCancelJobSets={this.cancelJobs}
           onClose={() => this.setCancelJobSetsDialogState("None")}
         />
+        <ReprioritizeJobSetsDialog
+          dialogState={this.state.reprioritizeJobSetsDialogContext.dialogState}
+          queue={this.state.queue}
+          isValid={this.state.reprioritizeJobSetsDialogContext.isValid}
+          newPriority={this.state.reprioritizeJobSetsDialogContext.newPriority}
+          jobSetsToReprioritize={this.state.reprioritizeJobSetsDialogContext.jobSetsToReprioritize}
+          reprioritizeJobSetsResult={this.state.reprioritizeJobSetsDialogContext.reprioritizeJobSetsResult}
+          reproiritizeJobSetsRequestStatus={
+            this.state.reprioritizeJobSetsDialogContext.reproiritizeJobSetsRequestStatus
+          }
+          onReprioritizeJobSets={this.reprioritizeJobSets}
+          onPriorityChange={this.handlePriorityChange}
+          onClose={() => this.setReprioritizeJobSetsDialogState("None")}
+        />
         <JobSets
           canCancel={
             this.state.currentView === "job-counts" && this.state.cancelJobSetsDialogContext.jobSetsToCancel.length > 0
+          }
+          canReprioritize={
+            this.state.currentView === "job-counts" &&
+            this.state.reprioritizeJobSetsDialogContext.jobSetsToReprioritize.length > 0
           }
           queue={this.state.queue}
           view={this.state.currentView}
@@ -299,6 +420,7 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
           onShiftSelectJobSet={this.shiftSelectJobSet}
           onDeselectAllClick={this.deselectAll}
           onCancelJobSetsClick={() => this.setCancelJobSetsDialogState("CancelJobSets")}
+          onReprioritizeJobSetsClick={() => this.setReprioritizeJobSetsDialogState("ReprioritizeJobSets")}
         />
       </Fragment>
     )
