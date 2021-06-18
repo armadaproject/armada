@@ -54,8 +54,8 @@ message NodeType {
     map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> allocatable_resources = 3 [(gogoproto.nullable) = false];
 }
 
- // Used to store last info in Redis
- message ClusterSchedulingInfoReport {
+// Used to store last info in Redis
+message ClusterSchedulingInfoReport {
     string cluster_id = 1;
     string pool = 7;
     google.protobuf.Timestamp report_time = 2 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
