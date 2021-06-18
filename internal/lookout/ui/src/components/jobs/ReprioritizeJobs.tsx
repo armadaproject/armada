@@ -1,4 +1,4 @@
-import React, { Ref } from "react"
+import React from "react"
 
 import {
   Paper,
@@ -55,11 +55,11 @@ type ReprioritizeJobsProps = {
   onPriorityChange: (e: string) => void
 }
 
-const ReprioritizeJobs = React.forwardRef((props: ReprioritizeJobsProps, ref: Ref<any>) => {
+export default function ReprioritizeJobs(props: ReprioritizeJobsProps) {
   const classes = useStyles()
 
   return (
-    <div ref={ref} className={classes.paper}>
+    <div className={classes.paper}>
       <p id="reprioritize-jobs-modal-description" className="reprioritize-jobs-modal-description">
         The following jobs will be reprioritized:
       </p>
@@ -108,6 +108,4 @@ const ReprioritizeJobs = React.forwardRef((props: ReprioritizeJobsProps, ref: Re
       </div>
     </div>
   )
-})
-
-export default ReprioritizeJobs
+}

@@ -1,4 +1,4 @@
-import React, { Fragment, Ref } from "react"
+import React, { Fragment } from "react"
 
 import {
   Paper,
@@ -63,11 +63,11 @@ type ReprioritizeJobsOutcomeProps = {
   onReprioritizeJobs: () => void
 }
 
-const ReprioritizeJobsOutcome = React.forwardRef((props: ReprioritizeJobsOutcomeProps, ref: Ref<any>) => {
+export default function (props: ReprioritizeJobsOutcomeProps) {
   const classes = useStyles()
 
   return (
-    <div ref={ref} className={classes.paper}>
+    <div className={classes.paper}>
       {props.reprioritizeJobsResult.reprioritizedJobs.length > 0 && (
         <Fragment>
           <p id="reprioritize-jobs-modal-description" className="reprioritize-jobs-modal-description">
@@ -135,6 +135,4 @@ const ReprioritizeJobsOutcome = React.forwardRef((props: ReprioritizeJobsOutcome
       )}
     </div>
   )
-})
-
-export default ReprioritizeJobsOutcome
+}
