@@ -34,7 +34,6 @@ type TaskConfiguration struct {
 	MissingJobEventReconciliationInterval time.Duration
 	JobLeaseRenewalInterval               time.Duration
 	AllocateSpareClusterCapacityInterval  time.Duration
-	StuckPodScanInterval                  time.Duration
 	PodDeletionInterval                   time.Duration
 	QueueUsageDataRefreshInterval         time.Duration
 	UtilisationEventProcessingInterval    time.Duration
