@@ -33,6 +33,10 @@
   margin-right: 1em;
 }
 
+.job-table-header .right .reprioritize-jobs {
+  margin-right: 4em;
+}
+
 .job-table-header .right .cancel-jobs {
   margin-right: 4em;
 }

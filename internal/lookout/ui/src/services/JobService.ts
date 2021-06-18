@@ -105,6 +105,24 @@ export type FailedJobCancellation = {
   error: string
 }
 
+export type ReprioritizeJobsResult = {
+  reprioritizedJobs: Job[]
+  failedJobReprioritizations: FailedJobReprioritizations[]
+}
+
+export type ReprioritizeJobSetsResult = {
+  reprioritizedJobSets: JobSet[]
+  failedJobSetReprioritizations: {
+    jobSet: JobSet
+    error: string
+  }[]
+}
+
+export type FailedJobReprioritizations = {
+  job: Job
+  error: string
+}
+
 const JOB_STATE_MAP = new Map<string, string>()
 JOB_STATE_MAP.set("QUEUED", "Queued")
 JOB_STATE_MAP.set("PENDING", "Pending")
@@ -220,6 +238,99 @@ export default class JobService {
         console.error(e)
         const text = await getErrorMessage(e)
         result.failedJobSetCancellations.push({ jobSet: jobSet, error: text })
+      }
+    }
+    return result
+  }
+
+  async reprioritizeJobs(jobs: Job[], newPriority: number): Promise<ReprioritizeJobsResult> {
+    const result: ReprioritizeJobsResult = { reprioritizedJobs: [], failedJobReprioritizations: [] }
+    const jobIds: string[] = []
+    for (const job of jobs) {
+      jobIds.push(job.jobId)
+    }
+    try {
+      const apiResult = await this.submitApi.reprioritizeJobs({
+        body: {
+          jobIds: jobIds,
+          newPriority: newPriority,
+        },
+      })
+
+      if (apiResult == null || apiResult.reprioritizationResults == null) {
+        const errorMessage = "No reprioritizationResults found in response body"
+        console.error(errorMessage)
+        for (const job of jobs) {
+          result.failedJobReprioritizations.push({ job: job, error: errorMessage })
+        }
+      } else {
+        for (const job of jobs) {
+          if (apiResult.reprioritizationResults?.hasOwnProperty(job.jobId)) {
+            const error = apiResult.reprioritizationResults[job.jobId]
+            if (error === "") {
+              result.reprioritizedJobs.push(job)
+            } else {
+              result.failedJobReprioritizations.push({ job: job, error: error })
+            }
+          } else {
+            result.reprioritizedJobs.push(job)
+          }
+        }
+      }
+    } catch (e) {
+      console.error(e)
+
+      const errorMessage = await getErrorMessage(e)
+      for (const job of jobs) {
+        result.failedJobReprioritizations.push({ job: job, error: errorMessage })
+      }
+    }
+    return result
+  }
+
+  async reprioritizeJobSets(queue: string, jobSets: JobSet[], newPriority: number): Promise<ReprioritizeJobSetsResult> {
+    const result: ReprioritizeJobSetsResult = { reprioritizedJobSets: [], failedJobSetReprioritizations: [] }
+
+    for (const jobSet of jobSets) {
+      try {
+        const apiResult = await this.submitApi.reprioritizeJobs({
+          body: {
+            queue: queue,
+            jobSetId: jobSet.jobSetId,
+            newPriority: newPriority,
+          },
+        })
+        if (apiResult == null || apiResult.reprioritizationResults == null) {
+          const errorMessage = "No reprioritizationResults found in response body"
+          console.error(errorMessage)
+          result.failedJobSetReprioritizations.push({
+            jobSet: jobSet,
+            error: "No reprioritizationResults found in response body",
+          })
+          continue
+        }
+
+        let errorCount = 0
+        let successCount = 0
+        let error = ""
+        for (const e of Object.values(apiResult.reprioritizationResults)) {
+          if (e !== "") {
+            errorCount++
+            error = e
+          } else {
+            successCount++
+          }
+        }
+        if (errorCount === 0) {
+          result.reprioritizedJobSets.push(jobSet)
+        } else {
+          const message: string = "Reprioritised: " + successCount + " Failed: " + errorCount + " Reason: " + error
+          result.failedJobSetReprioritizations.push({ jobSet: jobSet, error: message })
+        }
+      } catch (e) {
+        console.error(e)
+        const text = await getErrorMessage(e)
+        result.failedJobSetReprioritizations.push({ jobSet: jobSet, error: text })
       }
     }
     return result

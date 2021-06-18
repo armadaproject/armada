@@ -13,25 +13,26 @@ import {
   TableRow,
 } from "@material-ui/core"
 
-import { CancelJobSetsResult } from "../../services/JobService"
+import { ReprioritizeJobSetsResult } from "../../services/JobService"
 import LoadingButton from "../jobs/LoadingButton"
 
 import "./JobSetActions.css"
 
-type CancelJobSetsOutcomeProps = {
-  cancelJobSetsResult: CancelJobSetsResult
+type ReprioritizeJobSetsOutcomeProps = {
+  reprioritizeJobSetResult: ReprioritizeJobSetsResult
   isLoading: boolean
-  onCancelJobs: () => void
+  newPriority: number
+  onReprioritizeJobSets: () => void
 }
 
-export default function CancelJobSetsOutcome(props: CancelJobSetsOutcomeProps) {
+export default function ReprioritizeJobSetsOutcome(props: ReprioritizeJobSetsOutcomeProps) {
   return (
     <div className="job-sets-action-container">
-      {props.cancelJobSetsResult.cancelledJobSets.length > 0 && (
+      {props.reprioritizeJobSetResult.reprioritizedJobSets.length > 0 && (
         <Fragment>
-          <p className=".job-sets-action-text">The following Job Sets were cancelled successfully:</p>
+          <p className="job-sets-action-text">The following Job Sets were reprioritized successfully:</p>
           <List component={Paper} className="job-sets-action-table-container job-sets-action-success">
-            {props.cancelJobSetsResult.cancelledJobSets.map((jobSet) => (
+            {props.reprioritizeJobSetResult.reprioritizedJobSets.map((jobSet) => (
               <ListItem key={jobSet.jobSetId} className="job-sets-action-wrap">
                 <ListItemText>{jobSet.jobSetId}</ListItemText>
               </ListItem>
@@ -39,9 +40,9 @@ export default function CancelJobSetsOutcome(props: CancelJobSetsOutcomeProps) {
           </List>
         </Fragment>
       )}
-      {props.cancelJobSetsResult.failedJobSetCancellations.length > 0 && (
+      {props.reprioritizeJobSetResult.failedJobSetReprioritizations.length > 0 && (
         <Fragment>
-          <p className="job-sets-action-text">Some Job Sets failed to cancel:</p>
+          <p className="job-sets-action-text">The following Job Sets failed to reprioritize:</p>
           <TableContainer component={Paper} className="job-sets-action-table-container">
             <Table stickyHeader className="job-sets-action-table">
               <TableHead>
@@ -51,13 +52,13 @@ export default function CancelJobSetsOutcome(props: CancelJobSetsOutcomeProps) {
                 </TableRow>
               </TableHead>
               <TableBody className="job-sets-action-failure">
-                {props.cancelJobSetsResult.failedJobSetCancellations.map((failedCancellation) => (
-                  <TableRow key={failedCancellation.jobSet.jobSetId}>
+                {props.reprioritizeJobSetResult.failedJobSetReprioritizations.map((failedReprioritization) => (
+                  <TableRow key={failedReprioritization.jobSet.jobSetId}>
                     <TableCell className="job-sets-action-id job-sets-action-wrap">
-                      {failedCancellation.jobSet.jobSetId}
+                      {failedReprioritization.jobSet.jobSetId}
                     </TableCell>
                     <TableCell className="job-sets-action-error job-sets-action-wrap">
-                      {failedCancellation.error}
+                      {failedReprioritization.error}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -65,7 +66,11 @@ export default function CancelJobSetsOutcome(props: CancelJobSetsOutcomeProps) {
             </Table>
           </TableContainer>
           <div>
-            <LoadingButton content={"Retry"} isLoading={props.isLoading} onClick={props.onCancelJobs} />
+            <LoadingButton
+              content={"Retry - New priority " + props.newPriority}
+              isLoading={props.isLoading}
+              onClick={props.onReprioritizeJobSets}
+            />
           </div>
         </Fragment>
       )}
