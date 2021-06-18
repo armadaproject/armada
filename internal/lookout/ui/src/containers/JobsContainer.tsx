@@ -384,7 +384,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
       return
     }
 
-    const [start, end] = [this.state.lastSelectedIndex, index].sort()
+    const [start, end] = [this.state.lastSelectedIndex, index].sort((a, b) => a - b)
 
     const selectedJobs = new Map<string, Job>(this.state.selectedJobs)
     for (let i = start; i <= end; i++) {

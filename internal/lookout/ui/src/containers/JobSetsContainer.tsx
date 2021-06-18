@@ -174,7 +174,7 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
       return
     }
 
-    const [start, end] = [this.state.lastSelectedIndex, index].sort()
+    const [start, end] = [this.state.lastSelectedIndex, index].sort((a, b) => a - b)
 
     const selectedJobSets = new Map<string, JobSet>(this.state.selectedJobSets)
     for (let i = start; i <= end; i++) {
