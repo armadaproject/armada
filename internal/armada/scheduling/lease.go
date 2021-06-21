@@ -44,6 +44,7 @@ func LeaseJobs(ctx context.Context,
 	jobQueue JobQueue,
 	onJobLease func([]*api.Job),
 	nodeResources []*nodeTypeAllocation,
+	dormantNodeResources []*nodeTypeAllocation,
 	activeClusterReports map[string]*api.ClusterUsageReport,
 	request *api.LeaseRequest,
 	activeClusterLeaseJobReports map[string]*api.ClusterLeasedReport,
@@ -57,10 +58,15 @@ func LeaseJobs(ctx context.Context,
 		totalCapacity.Add(clusterReport.ClusterAvailableCapacity)
 	}
 
+	totalCapacityFloat := totalCapacity.AsFloat()
+	for _, dormantNode := range dormantNodeResources {
+		totalCapacityFloat.Add(dormantNode.availableResources)
+	}
+
 	resourceAllocatedByQueue := CombineLeasedReportResourceByQueue(activeClusterLeaseJobReports)
-	maxResourceToSchedulePerQueue := totalCapacity.MulByResource(config.MaximalResourceFractionToSchedulePerQueue)
-	maxResourcePerQueue := totalCapacity.MulByResource(config.MaximalResourceFractionPerQueue)
-	queueSchedulingInfo := calculateQueueSchedulingLimits(activeQueues, maxResourceToSchedulePerQueue, maxResourcePerQueue, totalCapacity, resourceAllocatedByQueue)
+	maxResourceToSchedulePerQueue := totalCapacityFloat.MulByResource(config.MaximalResourceFractionToSchedulePerQueue)
+	maxResourcePerQueue := totalCapacityFloat.MulByResource(config.MaximalResourceFractionPerQueue)
+	queueSchedulingInfo := calculateQueueSchedulingLimits(activeQueues, maxResourceToSchedulePerQueue, maxResourcePerQueue, totalCapacityFloat, resourceAllocatedByQueue)
 
 	if ok {
 		capacity := common.ComputeResources(currentClusterReport.ClusterCapacity)
@@ -84,7 +90,7 @@ func LeaseJobs(ctx context.Context,
 		resourceScarcity:    scarcity,
 		queueSchedulingInfo: activeQueueSchedulingInfo,
 		priorities:          activeQueuePriority,
-		nodeResources:       nodeResources,
+		nodeResources:       append(nodeResources, dormantNodeResources...),
 		minimumJobSize:      request.MinimumJobSize,
 
 		queueCache: map[string][]*api.Job{},
@@ -99,7 +105,7 @@ func calculateQueueSchedulingLimits(
 	activeQueues []*api.Queue,
 	schedulingLimitPerQueue common.ComputeResourcesFloat,
 	resourceLimitPerQueue common.ComputeResourcesFloat,
-	totalCapacity *common.ComputeResources,
+	totalCapacity common.ComputeResourcesFloat,
 	currentQueueResourceAllocation map[string]common.ComputeResources) map[*api.Queue]*QueueSchedulingInfo {
 	schedulingInfo := make(map[*api.Queue]*QueueSchedulingInfo, len(activeQueues))
 	for _, queue := range activeQueues {

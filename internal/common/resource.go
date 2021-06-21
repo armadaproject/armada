@@ -222,6 +222,18 @@ func (a ComputeResourcesFloat) Max(b ComputeResourcesFloat) {
 	}
 }
 
+func (a ComputeResourcesFloat) MulByResource(factors map[string]float64) ComputeResourcesFloat {
+	targetComputeResource := make(ComputeResourcesFloat)
+	for key, value := range a {
+		factor, exists := factors[key]
+		if !exists {
+			factor = 1
+		}
+		targetComputeResource[key] = value * factor
+	}
+	return targetComputeResource
+}
+
 func (a ComputeResourcesFloat) DeepCopy() ComputeResourcesFloat {
 	targetComputeResource := make(ComputeResourcesFloat)
 	for key, value := range a {

@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/G-Research/armada/internal/common"
@@ -188,8 +189,48 @@ func AggregateNodeTypeAllocations(nodes []api.NodeInfo) []*nodeTypeAllocation {
 	return result
 }
 
-func CalculateDormantResources([]*nodeTypeAllocation, []api.AutoscalingPool) []*nodeTypeAllocation {
+func CalculateDormantResources(existingNodes []*nodeTypeAllocation, autoscalingPools []api.AutoscalingPool) []*nodeTypeAllocation {
+	if len(autoscalingPools) == 0 {
+		return []*nodeTypeAllocation{}
+	}
 
+	poolNodeTypesIndex := map[string]*nodeTypeAllocation{}
+	poolNodeTypes := []*nodeTypeAllocation{}
+
+	for _, pool := range autoscalingPools {
+		nodeSize := common.ComputeResources(pool.NodeType.AllocatableResources)
+		desc := createNodeDescription(&api.NodeInfo{
+			Taints:               pool.NodeType.Taints,
+			Labels:               pool.NodeType.Labels,
+			AllocatableResources: nodeSize,
+		})
+
+		n := &nodeTypeAllocation{
+			taints:             pool.NodeType.Taints,
+			labels:             pool.NodeType.Labels,
+			nodeSize:           nodeSize,
+			availableResources: nodeSize.Mul(float64(pool.MaxNodeCount)),
+		}
+		poolNodeTypes = append(poolNodeTypes, n)
+		poolNodeTypesIndex[desc] = n
+	}
+
+	for _, existing := range existingNodes {
+		desc := createNodeDescription(&api.NodeInfo{
+			Taints:               existing.taints,
+			Labels:               existing.labels,
+			AllocatableResources: existing.nodeSize,
+		})
+		pool, ok := poolNodeTypesIndex[desc]
+		if !ok {
+			// TODO find closest node
+			log.Errorf("Node %s does not belong to any node type.", desc)
+		} else {
+			// TODO figure existing node size correctly
+			pool.availableResources.Sub(existing.nodeSize.AsFloat())
+		}
+	}
+	return poolNodeTypes
 }
 
 func createNodeDescription(n *api.NodeInfo) string {
