@@ -17,9 +17,11 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/G-Research/armada/internal/armada/authorization/permissions"
 	"github.com/G-Research/armada/internal/armada/configuration"
+	"github.com/G-Research/armada/internal/armada/permissions"
 	"github.com/G-Research/armada/internal/common"
+	authConfiguration "github.com/G-Research/armada/internal/common/auth/configuration"
+	"github.com/G-Research/armada/internal/common/auth/permission"
 	"github.com/G-Research/armada/pkg/api"
 )
 
@@ -170,20 +172,22 @@ func withRunningServer(action func(client api.SubmitClient, leaseClient api.Aggr
 	port, _ := strconv.Atoi(parts[len(parts)-1])
 
 	shutdown, _ := Serve(&configuration.ArmadaConfig{
-		AnonymousAuth: true,
-		GrpcPort:      uint16(port),
+		Auth: authConfiguration.AuthConfig{
+			AnonymousAuth: true,
+			PermissionGroupMapping: map[permission.Permission][]string{
+				permissions.ExecuteJobs:    {"everyone"},
+				permissions.SubmitJobs:     {"everyone"},
+				permissions.SubmitAnyJobs:  {"everyone"},
+				permissions.CreateQueue:    {"everyone"},
+				permissions.CancelJobs:     {"everyone"},
+				permissions.CancelAnyJobs:  {"everyone"},
+				permissions.WatchAllEvents: {"everyone"},
+			},
+		},
+		GrpcPort: uint16(port),
 		Redis: redis.UniversalOptions{
 			Addrs: []string{minidb.Addr()},
 			DB:    0,
-		},
-		PermissionGroupMapping: map[permissions.Permission][]string{
-			permissions.ExecuteJobs:    {"everyone"},
-			permissions.SubmitJobs:     {"everyone"},
-			permissions.SubmitAnyJobs:  {"everyone"},
-			permissions.CreateQueue:    {"everyone"},
-			permissions.CancelJobs:     {"everyone"},
-			permissions.CancelAnyJobs:  {"everyone"},
-			permissions.WatchAllEvents: {"everyone"},
 		},
 		Scheduling: configuration.SchedulingConfig{
 			QueueLeaseBatchSize: 100,

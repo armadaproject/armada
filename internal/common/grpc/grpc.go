@@ -16,7 +16,7 @@ import (
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/status"
 
-	"github.com/G-Research/armada/internal/armada/authorization"
+	"github.com/G-Research/armada/internal/common/auth/authorization"
 )
 
 func CreateGrpcServer(authServices []authorization.AuthService) *grpc.Server {
