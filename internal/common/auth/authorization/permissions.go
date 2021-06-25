@@ -3,7 +3,7 @@ package authorization
 import (
 	"context"
 
-	"github.com/G-Research/armada/internal/armada/authorization/permissions"
+	"github.com/G-Research/armada/internal/common/auth/permission"
 )
 
 type Owned interface {
@@ -12,20 +12,20 @@ type Owned interface {
 }
 
 type PermissionChecker interface {
-	UserHasPermission(ctx context.Context, perm permissions.Permission) bool
+	UserHasPermission(ctx context.Context, perm permission.Permission) bool
 	UserOwns(ctx context.Context, obj Owned) (owned bool, ownershipGroups []string)
 }
 
 type PrincipalPermissionChecker struct {
-	permissionGroupMap map[permissions.Permission][]string
-	permissionScopeMap map[permissions.Permission][]string
-	permissionClaimMap map[permissions.Permission][]string
+	permissionGroupMap map[permission.Permission][]string
+	permissionScopeMap map[permission.Permission][]string
+	permissionClaimMap map[permission.Permission][]string
 }
 
 func NewPrincipalPermissionChecker(
-	permissionGroupMap map[permissions.Permission][]string,
-	permissionScopeMap map[permissions.Permission][]string,
-	permissionClaimMap map[permissions.Permission][]string) *PrincipalPermissionChecker {
+	permissionGroupMap map[permission.Permission][]string,
+	permissionScopeMap map[permission.Permission][]string,
+	permissionClaimMap map[permission.Permission][]string) *PrincipalPermissionChecker {
 
 	return &PrincipalPermissionChecker{
 		permissionGroupMap: permissionGroupMap,
@@ -33,7 +33,7 @@ func NewPrincipalPermissionChecker(
 		permissionClaimMap: permissionClaimMap}
 }
 
-func (checker *PrincipalPermissionChecker) UserHasPermission(ctx context.Context, perm permissions.Permission) bool {
+func (checker *PrincipalPermissionChecker) UserHasPermission(ctx context.Context, perm permission.Permission) bool {
 	principal := GetPrincipal(ctx)
 	return hasPermission(perm, checker.permissionScopeMap, func(scope string) bool { return principal.HasScope(scope) }) ||
 		hasPermission(perm, checker.permissionGroupMap, func(group string) bool { return principal.IsInGroup(group) }) ||
@@ -59,7 +59,7 @@ func (checker *PrincipalPermissionChecker) UserOwns(ctx context.Context, obj Own
 	return len(ownershipGoups) > 0, ownershipGoups
 }
 
-func hasPermission(perm permissions.Permission, permMap map[permissions.Permission][]string, assert func(string) bool) bool {
+func hasPermission(perm permission.Permission, permMap map[permission.Permission][]string, assert func(string) bool) bool {
 	allowedValues, ok := permMap[perm]
 	if !ok {
 		return false

@@ -18,8 +18,8 @@ import (
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 
-	"github.com/G-Research/armada/internal/armada/authorization/groups"
-	"github.com/G-Research/armada/internal/armada/configuration"
+	"github.com/G-Research/armada/internal/common/auth/authorization/groups"
+	"github.com/G-Research/armada/internal/common/auth/configuration"
 )
 
 // Partly reimplementing github.com/jcmturner/gokrb5/v8/spnego/http.go for GRPC
