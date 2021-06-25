@@ -10,11 +10,11 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/G-Research/armada/internal/armada/authorization/permissions"
-	"github.com/G-Research/armada/internal/armada/configuration"
+	"github.com/G-Research/armada/internal/common/auth/configuration"
+	"github.com/G-Research/armada/internal/common/auth/permission"
 )
 
-type PermissionClaimQueries map[permissions.Permission]string
+type PermissionClaimQueries map[permission.Permission]string
 
 type OpenIdAuthService struct {
 	verifier    *oidc.IDTokenVerifier
