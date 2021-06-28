@@ -203,7 +203,7 @@ func makejobManagerWithTestDoubles() (context.ClusterContext, *fake.MockLeaseSer
 	fakeClusterContext := fake.NewSyncFakeClusterContext()
 	mockLeaseService := fake.NewMockLeaseService()
 	eventReporter := reporter_fake.NewFakeEventReporter()
-	jobContext := job.NewClusterJobContext(fakeClusterContext, time.Minute * 3)
+	jobContext := job.NewClusterJobContext(fakeClusterContext, time.Minute*3)
 
 	jobManager := NewJobManager(
 		fakeClusterContext,
