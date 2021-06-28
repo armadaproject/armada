@@ -59,9 +59,10 @@ type ClusterJobContext struct {
 	activeJobIdsMutex sync.Mutex
 }
 
-func NewClusterJobContext(clusterContext context.ClusterContext) *ClusterJobContext {
+func NewClusterJobContext(clusterContext context.ClusterContext, stuckPodExpiry time.Duration) *ClusterJobContext {
 	jobContext := &ClusterJobContext{
 		clusterContext:    clusterContext,
+		stuckPodExpiry:    stuckPodExpiry,
 		activeJobs:        map[string]*jobRecord{},
 		activeJobIdsMutex: sync.Mutex{},
 	}
