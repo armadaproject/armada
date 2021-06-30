@@ -232,14 +232,11 @@ func (c *ClusterJobContext) detectStuckPods(runningJob *RunningJob) {
 			}
 
 			stuckPodStatus, message := util.DiagnoseStuckPod(pod, podEvents)
-			retryable := true
-			if stuckPodStatus == util.Unrecoverable {
-				retryable = false
-			} else if !reporter.HasPodBeenInStateForLongerThanGivenDuration(pod, c.stuckPodExpiry) {
+			retryable := stuckPodStatus == util.Healthy
+
+			if stuckPodStatus != util.Unrecoverable && !reporter.HasPodBeenInStateForLongerThanGivenDuration(pod, c.stuckPodExpiry) {
 				// Possibly stuck, but don't do anything until expiry is up
 				continue
-			} else {
-				retryable = stuckPodStatus == util.Healthy
 			}
 
 			message = createStuckPodMessage(retryable, message)
