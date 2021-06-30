@@ -1,0 +1,7 @@
+.job-logs .MuiFormControl-root {
+  margin: 0 1em 0 0;
+}
+
+.job-logs .MuiFormControl-root .no-label {
+  margin-top: 1em;
+}

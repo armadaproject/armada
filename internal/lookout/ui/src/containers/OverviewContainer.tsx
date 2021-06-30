@@ -5,9 +5,11 @@ import { RouteComponentProps, withRouter } from "react-router-dom"
 import Overview from "../components/Overview"
 import JobDetailsModal, { JobDetailsModalContext, toggleExpanded } from "../components/job-details/JobDetailsModal"
 import JobService, { Job, QueueInfo } from "../services/JobService"
+import LogService from "../services/LogService"
 
 type OverviewContainerProps = {
   jobService: JobService
+  logService: LogService
 } & RouteComponentProps
 
 interface OverviewContainerState {
@@ -26,6 +28,7 @@ class OverviewContainer extends React.Component<OverviewContainerProps, Overview
       queueMenuAnchor: null,
       modalContext: {
         open: false,
+        selectTab: "detail",
         expandedItems: new Set(),
       },
     }
@@ -93,6 +96,7 @@ class OverviewContainer extends React.Component<OverviewContainerProps, Overview
         ...this.state,
         modalContext: {
           open: true,
+          selectTab: "detail",
           job: job,
           expandedItems: new Set(),
         },
@@ -126,11 +130,10 @@ class OverviewContainer extends React.Component<OverviewContainerProps, Overview
     return (
       <Fragment>
         <JobDetailsModal
+          logService={this.props.logService}
           onToggleExpanded={this.toggleExpanded}
           onClose={this.closeModal}
-          open={this.state.modalContext.open}
-          job={this.state.modalContext.job}
-          expandedItems={this.state.modalContext.expandedItems}
+          {...this.state.modalContext}
         />
         <Overview
           queueInfos={this.state.queueInfos}

@@ -8,6 +8,7 @@ import {
   LookoutJobSetInfo,
   LookoutQueueInfo,
   LookoutRunInfo,
+  ApiJob,
 } from "../openapi/lookout"
 import { reverseMap, secondsToDurationString } from "../utils"
 
@@ -73,6 +74,7 @@ export type Job = {
   runs: Run[]
   jobYaml: string
   annotations: { [key: string]: string }
+  namespace: string
 }
 
 export type Run = {
@@ -85,6 +87,7 @@ export type Run = {
   podStartTime?: string
   finishTime?: string
   podNumber: number
+  containers: string[]
 }
 
 export type CancelJobsResult = {
@@ -376,9 +379,11 @@ export default class JobService {
     const submissionTime = dateToString(jobInfo.job?.created ?? new Date())
     const cancelledTime = jobInfo.cancelled ? dateToString(jobInfo.cancelled) : undefined
     const jobState = JOB_STATE_MAP.get(jobInfo.jobState ?? "") ?? "Unknown"
-    const runs = getRuns(jobInfo)
-    const jobYaml = jobInfo.jobJson ? jobJsonToYaml(jobInfo.jobJson) : ""
+    const jobFromJson = jobInfo.jobJson ? (JSON.parse(jobInfo.jobJson) as ApiJob) : undefined
+    const jobYaml = jobInfo.jobJson ? jobJsonToYaml(jobFromJson) : ""
+    const runs = getRuns(jobInfo, jobFromJson)
     const annotations = jobInfo.job?.annotations ? this.getAnnotations(jobInfo.job?.annotations) : {}
+    const namespace = jobInfo.job?.namespace ?? ""
 
     return {
       jobId: jobId,
@@ -392,6 +397,7 @@ export default class JobService {
       runs: runs,
       jobYaml: jobYaml,
       annotations: annotations,
+      namespace: namespace,
     }
   }
 
@@ -476,13 +482,13 @@ function dateToString(date: Date): string {
   })
 }
 
-function getRuns(jobInfo: LookoutJobInfo): Run[] {
+function getRuns(jobInfo: LookoutJobInfo, jobFromJson: ApiJob | undefined): Run[] {
   if (!jobInfo.runs || jobInfo.runs.length === 0) {
     return []
   }
 
   sortRuns(jobInfo.runs)
-  return jobInfo.runs.map(runInfoToViewModel)
+  return jobInfo.runs.map((r) => runInfoToViewModel(r, jobFromJson))
 }
 
 function sortRuns(runs: LookoutRunInfo[]) {
@@ -501,7 +507,10 @@ function getLatestTimeForRun(run: LookoutRunInfo) {
   )
 }
 
-function runInfoToViewModel(run: LookoutRunInfo): Run {
+function runInfoToViewModel(run: LookoutRunInfo, job: ApiJob | undefined): Run {
+  const podSpecs = job?.podSpecs ?? []
+  const containers = podSpecs.length > 0 ? podSpecs[run.podNumber ?? 0].containers ?? [] : []
+  const containerNames = containers.length > 0 ? containers.map((c) => c.name ?? "") : [""]
   return {
     k8sId: run.k8sId ?? "Unknown Kubernetes id",
     cluster: run.cluster ?? "Unknown cluster",
@@ -512,11 +521,12 @@ function runInfoToViewModel(run: LookoutRunInfo): Run {
     podStartTime: run.started ? dateToString(run.started) : undefined,
     finishTime: run.finished ? dateToString(run.finished) : undefined,
     podNumber: run.podNumber ?? 0,
+    containers: containerNames,
   }
 }
 
-function jobJsonToYaml(jobJson: string): string {
-  return yaml.dump(JSON.parse(jobJson))
+function jobJsonToYaml(jobJson: ApiJob | undefined): string {
+  return jobJson ? yaml.dump(jobJson) : ""
 }
 
 function getJobStateForApi(displayedJobState: string): string {
