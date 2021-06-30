@@ -1,0 +1,9 @@
+grpcPort: 50052
+httpPort: 8082
+metricsPort: 9002
+corsAllowedOrigins: ["http://localhost:3000", "http://localhost:8089"]
+auth:
+  basicAuth:
+    enableAuthentication: false
+  anonymousAuth: true
+impersonateUsers: false
