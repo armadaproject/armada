@@ -43,11 +43,13 @@ func (b BinocularsServer) Logs(ctx context.Context, request *binoculars.LogReque
 		GetLogs(common.PodNamePrefix+request.JobId+"-"+strconv.Itoa(int(request.PodNumber)), request.LogOptions)
 
 	result := req.Do(ctx)
-
 	if result.Error() != nil {
 		return nil, result.Error()
 	}
 	data, err := result.Raw()
+	if err != nil {
+		return nil, err
+	}
 
 	return &binoculars.LogResponse{
 		Log: string(data),
