@@ -14,6 +14,8 @@ import (
 	"github.com/G-Research/armada/internal/executor/util"
 )
 
+const defaultTimeBeforeCheckingPendingPodHealth = time.Second * 90
+
 type IssueType int
 
 const (
@@ -204,6 +206,11 @@ func (c *ClusterJobContext) addIssues(jobs []*RunningJob) []*RunningJob {
 }
 
 func (c *ClusterJobContext) detectStuckPods(runningJob *RunningJob) {
+	gracePeriodBeforeHealthCheck := defaultTimeBeforeCheckingPendingPodHealth
+	if gracePeriodBeforeHealthCheck > c.stuckPodExpiry {
+		gracePeriodBeforeHealthCheck = c.stuckPodExpiry
+	}
+
 	for _, pod := range runningJob.ActivePods {
 		if pod.DeletionTimestamp != nil && pod.DeletionTimestamp.Add(c.stuckPodExpiry).Before(time.Now()) {
 			// pod is stuck in terminating phase, this sometimes happen on node failure
@@ -217,19 +224,25 @@ func (c *ClusterJobContext) detectStuckPods(runningJob *RunningJob) {
 			break
 
 		} else if (pod.Status.Phase == v1.PodUnknown || pod.Status.Phase == v1.PodPending) &&
-			reporter.HasPodBeenInStateForLongerThanGivenDuration(pod, c.stuckPodExpiry) {
+			reporter.HasPodBeenInStateForLongerThanGivenDuration(pod, gracePeriodBeforeHealthCheck) {
 
 			podEvents, err := c.clusterContext.GetPodEvents(pod)
 			if err != nil {
 				log.Errorf("Unable to get pod events: %v", err)
 			}
 
-			retryable, message := util.DiagnoseStuckPod(pod, podEvents)
-			if retryable {
-				message = fmt.Sprintf("Unable to schedule pod, Armada will return lease and retry.\n%s", message)
+			stuckPodStatus, message := util.DiagnoseStuckPod(pod, podEvents)
+			retryable := true
+			if stuckPodStatus == util.Unrecoverable {
+				retryable = false
+			} else if !reporter.HasPodBeenInStateForLongerThanGivenDuration(pod, c.stuckPodExpiry) {
+				// Possibly stuck, but don't do anything until expiry is up
+				continue
 			} else {
-				message = fmt.Sprintf("Unable to schedule pod with unrecoverable problem, Armada will not retry.\n%s", message)
+				retryable = stuckPodStatus == util.Healthy
 			}
+
+			message = createStuckPodMessage(retryable, message)
 			c.registerIssue(runningJob, &PodIssue{
 				OriginatingPod: pod.DeepCopy(),
 				Pods:           runningJob.ActivePods,
@@ -240,6 +253,13 @@ func (c *ClusterJobContext) detectStuckPods(runningJob *RunningJob) {
 			break
 		}
 	}
+}
+
+func createStuckPodMessage(retryable bool, originalMessage string) string {
+	if retryable {
+		return fmt.Sprintf("Unable to schedule pod, Armada will return lease and retry.\n%s", originalMessage)
+	}
+	return fmt.Sprintf("Unable to schedule pod with unrecoverable problem, Armada will not retry.\n%s", originalMessage)
 }
 
 func (c *ClusterJobContext) handleDeletedPod(pod *v1.Pod) {

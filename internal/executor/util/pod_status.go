@@ -17,6 +17,13 @@ var expectedWarningsEventReasons = util.StringListToSet([]string{
 var imagePullBackOffStatesSet = util.StringListToSet([]string{"ImagePullBackOff", "ErrImagePull"})
 var invalidImageNameStatesSet = util.StringListToSet([]string{"InvalidImageName"})
 
+const failedMountReason = "FailedMount"
+const failedFlexVolumeMountPrefix = "MountVolume.SetUp failed for volume"
+
+const failedPullPrefix = "Failed to pull image"
+const failedPullAndUnpack = "desc = failed to pull and unpack image"
+const failedPullErrorResponse = "code = Unknown desc = Error response from daemon"
+
 const oomKilledReason = "OOMKilled"
 const evictedReason = "Evicted"
 const deadlineExceeded = "DeadlineExceeded"
@@ -126,39 +133,104 @@ func isOom(containerStatus v1.ContainerStatus) bool {
 	return containerStatus.State.Terminated != nil && containerStatus.State.Terminated.Reason == oomKilledReason
 }
 
-func DiagnoseStuckPod(pod *v1.Pod, podEvents []*v1.Event) (retryable bool, message string) {
+type PodStartupStatus int
+
+const (
+	Healthy PodStartupStatus = iota
+	Unstable
+	Unrecoverable
+)
+
+func DiagnoseStuckPod(pod *v1.Pod, podEvents []*v1.Event) (status PodStartupStatus, message string) {
+	podStuckReason := ExtractPodStuckReason(pod)
+
+	if hasUnrecoverableContainerState(pod) {
+		return Unrecoverable, podStuckReason
+	}
+
+	if unrecoverable, event := hasUnrecoverableEvent(podEvents); unrecoverable {
+		return Unrecoverable, fmt.Sprintf("%s\n%s", podStuckReason, event.Message)
+	}
+
+	unexpectedWarningMessages := getUnexpectedWarningMessages(podEvents)
+	if len(unexpectedWarningMessages) > 0 {
+		eventMessage := "Warning Events:\n" + strings.Join(unexpectedWarningMessages, "\n")
+		return Unstable, fmt.Sprintf("%s\n%s", podStuckReason, eventMessage)
+	}
+
+	if hasUnstableContainerStates(pod) {
+		return Unstable, podStuckReason
+	}
+	return Healthy, podStuckReason
+}
+
+func hasUnrecoverableContainerState(pod *v1.Pod) bool {
+	for _, containerStatus := range GetPodContainerStatuses(pod) {
+		if containerStatus.State.Waiting != nil {
+			waitingReason := containerStatus.State.Waiting.Reason
+			if invalidImageNameStatesSet[waitingReason] {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func hasUnrecoverableEvent(podEvents []*v1.Event) (bool, *v1.Event) {
+	if isUnpullable, event := hasUnpullableImageEvent(podEvents); isUnpullable {
+		return true, event
+	}
+
+	if isMountFailure, event := hasFailedMountEvent(podEvents); isMountFailure {
+		return true, event
+	}
+	return false, nil
+}
+
+func hasUnstableContainerStates(pod *v1.Pod) bool {
+	for _, containerStatus := range GetPodContainerStatuses(pod) {
+		if containerStatus.State.Waiting != nil {
+			waitingReason := containerStatus.State.Waiting.Reason
+			if imagePullBackOffStatesSet[waitingReason] {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func hasUnpullableImageEvent(podEvents []*v1.Event) (bool, *v1.Event) {
+	for _, event := range podEvents {
+		if event.Type == v1.EventTypeWarning && strings.HasPrefix(event.Message, failedPullPrefix) {
+			// Failed to pull image "alpine:latst": rpc error: code = NotFound desc = failed to pull and unpack image "docker.io/library/alpine:latst": failed to resolve reference "docker.io/library/alpine:latst": docker.io/library/alpine:latst: not found
+			// Failed to pull image "docker.artifactory.something.net/alpine:latest": rpc error: code = Unknown desc = failed to pull and unpack image "docker.artifactory.something.net/alpine:latest": failed to resolve reference "docker.artifactory.something.net/alpine:latest": failed to do request: Head https://docker.artifactory.something.net/v2/alpine/manifests/latest: dial tcp 52.128.23.153:443: connect: connection refused
+			if strings.Contains(event.Message, failedPullAndUnpack) {
+				return true, event
+			}
+			// Failed to pull image <image>: rpc error: code = Unknown desc = Error response from daemon: manifest for <image> not found: manifest unknown: The named manifest is not known to the registry.
+			if strings.Contains(event.Message, failedPullErrorResponse) {
+				return true, event
+			}
+		}
+	}
+	return false, nil
+}
+
+func hasFailedMountEvent(podEvents []*v1.Event) (bool, *v1.Event) {
+	for _, event := range podEvents {
+		if event.Type == v1.EventTypeWarning && event.Reason == failedMountReason && strings.HasPrefix(event.Message, failedFlexVolumeMountPrefix) {
+			return true, event
+		}
+	}
+	return false, nil
+}
+
+func getUnexpectedWarningMessages(podEvents []*v1.Event) []string {
 	messages := []string{}
 	for _, event := range podEvents {
 		if event.Type == v1.EventTypeWarning && !expectedWarningsEventReasons[event.Reason] {
 			messages = append(messages, fmt.Sprintf("%v: %v", event.Reason, event.Message))
 		}
 	}
-
-	podStuckReason := ExtractPodStuckReason(pod)
-
-	if len(messages) > 0 {
-		eventMessage := "Warning Events:\n" + strings.Join(messages, "\n")
-		return false, fmt.Sprintf("%s\n%s", podStuckReason, eventMessage)
-	}
-
-	return ContainersAreRetryable(pod), podStuckReason
-}
-
-func ContainersAreRetryable(pod *v1.Pod) bool {
-	containerStatuses := pod.Status.ContainerStatuses
-	containerStatuses = append(containerStatuses, pod.Status.InitContainerStatuses...)
-
-	for _, containerStatus := range containerStatuses {
-		if containerStatus.State.Waiting != nil {
-			waitingReason := containerStatus.State.Waiting.Reason
-			if imagePullBackOffStatesSet[waitingReason] {
-				return false
-			}
-			if invalidImageNameStatesSet[waitingReason] {
-				return false
-			}
-		}
-	}
-
-	return true
+	return messages
 }
