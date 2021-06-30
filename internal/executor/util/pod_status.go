@@ -202,12 +202,9 @@ func hasUnstableContainerStates(pod *v1.Pod) bool {
 func hasUnpullableImageEvent(podEvents []*v1.Event) (bool, *v1.Event) {
 	for _, event := range podEvents {
 		if event.Type == v1.EventTypeWarning && strings.HasPrefix(event.Message, failedPullPrefix) {
-			// Failed to pull image "alpine:latst": rpc error: code = NotFound desc = failed to pull and unpack image "docker.io/library/alpine:latst": failed to resolve reference "docker.io/library/alpine:latst": docker.io/library/alpine:latst: not found
-			// Failed to pull image "docker.artifactory.something.net/alpine:latest": rpc error: code = Unknown desc = failed to pull and unpack image "docker.artifactory.something.net/alpine:latest": failed to resolve reference "docker.artifactory.something.net/alpine:latest": failed to do request: Head https://docker.artifactory.something.net/v2/alpine/manifests/latest: dial tcp 52.128.23.153:443: connect: connection refused
 			if strings.Contains(event.Message, failedPullAndUnpack) {
 				return true, event
 			}
-			// Failed to pull image <image>: rpc error: code = Unknown desc = Error response from daemon: manifest for <image> not found: manifest unknown: The named manifest is not known to the registry.
 			if strings.Contains(event.Message, failedPullErrorResponse) {
 				return true, event
 			}
