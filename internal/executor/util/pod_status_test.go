@@ -24,18 +24,18 @@ func init() {
 	deadlineExceededPod = createDeadlineExceededPod()
 }
 
-func TestContainersAreRetryable_ReturnTrue_WhenNoContainerInImagePullBackoff(t *testing.T) {
+func TestHasUnstableContainerStates_ReturnFalse_WhenNoIssues(t *testing.T) {
 	runningContainer := v1.ContainerState{
 		Running: &v1.ContainerStateRunning{},
 	}
 
 	pod := makePodWithContainerStatuses([]v1.ContainerState{runningContainer}, []v1.ContainerState{})
-	result := ContainersAreRetryable(pod)
+	result := hasUnstableContainerStates(pod)
 
-	assert.True(t, result)
+	assert.False(t, result)
 }
 
-func TestContainersAreRetryable_ReturnFalse_WhenContainerInImagePullBackoff(t *testing.T) {
+func TestHasUnstableContainerStates_ReturnTrue_WhenContainerInImagePullBackoff(t *testing.T) {
 	imagePullBackoffState := v1.ContainerState{
 		Waiting: &v1.ContainerStateWaiting{
 			Reason: "ImagePullBackOff",
@@ -43,12 +43,12 @@ func TestContainersAreRetryable_ReturnFalse_WhenContainerInImagePullBackoff(t *t
 	}
 
 	pod := makePodWithContainerStatuses([]v1.ContainerState{imagePullBackoffState}, []v1.ContainerState{})
-	result := ContainersAreRetryable(pod)
+	result := hasUnstableContainerStates(pod)
 
-	assert.False(t, result)
+	assert.True(t, result)
 }
 
-func TestContainersAreRetryable_ReturnFalse_WhenContainerInErrImagePull(t *testing.T) {
+func TestHasUnstableContainerStates_ReturnTrue_WhenContainerInErrImagePull(t *testing.T) {
 	imagePullBackoffState := v1.ContainerState{
 		Waiting: &v1.ContainerStateWaiting{
 			Reason: "ErrImagePull",
@@ -56,12 +56,12 @@ func TestContainersAreRetryable_ReturnFalse_WhenContainerInErrImagePull(t *testi
 	}
 
 	pod := makePodWithContainerStatuses([]v1.ContainerState{imagePullBackoffState}, []v1.ContainerState{})
-	result := ContainersAreRetryable(pod)
+	result := hasUnstableContainerStates(pod)
 
-	assert.False(t, result)
+	assert.True(t, result)
 }
 
-func TestContainersAreRetryable_ReturnFalse_WhenInitContainerInImagePullBackoff(t *testing.T) {
+func TestContainersAreRetryable_ReturnTrue_WhenInitContainerInImagePullBackoff(t *testing.T) {
 	imagePullBackoffState := v1.ContainerState{
 		Waiting: &v1.ContainerStateWaiting{
 			Reason: "ImagePullBackOff",
@@ -69,37 +69,71 @@ func TestContainersAreRetryable_ReturnFalse_WhenInitContainerInImagePullBackoff(
 	}
 
 	pod := makePodWithContainerStatuses([]v1.ContainerState{}, []v1.ContainerState{imagePullBackoffState})
-	result := ContainersAreRetryable(pod)
+	result := hasUnstableContainerStates(pod)
 
-	assert.False(t, result)
+	assert.True(t, result)
 }
 
-func TestDiagnoseStuckPod_ShouldRetryWithNoProblems(t *testing.T) {
+func TestDiagnoseStuckPod_ShouldReturnHealthy_WhenNoProblems(t *testing.T) {
 	waitingContainer := v1.ContainerState{Waiting: &v1.ContainerStateWaiting{}}
 	pod := makePodWithContainerStatuses([]v1.ContainerState{waitingContainer}, []v1.ContainerState{})
 	events := []*v1.Event{}
 
-	retryable, _ := DiagnoseStuckPod(pod, events)
-	assert.True(t, retryable)
+	startupState, _ := DiagnoseStuckPod(pod, events)
+	assert.Equal(t, startupState, Healthy)
 }
 
-func TestDiagnoseStuckPod_ShouldReportUnexpectedWarnings(t *testing.T) {
-	waitingContainer := v1.ContainerState{Waiting: &v1.ContainerStateWaiting{}}
-	pod := makePodWithContainerStatuses([]v1.ContainerState{waitingContainer}, []v1.ContainerState{})
-	events := []*v1.Event{&v1.Event{Reason: "PodExploded", Type: v1.EventTypeWarning, Message: "Boom"}}
-
-	retryable, message := DiagnoseStuckPod(pod, events)
-	assert.False(t, retryable)
-	assert.Contains(t, message, "Boom")
-}
-
-func TestDiagnoseStuckPod_ShouldIgnoreSchedulingFailures(t *testing.T) {
+func TestDiagnoseStuckPod_ShouldReportHealthy_WhenSchedulingFailures(t *testing.T) {
 	waitingContainer := v1.ContainerState{Waiting: &v1.ContainerStateWaiting{}}
 	pod := makePodWithContainerStatuses([]v1.ContainerState{waitingContainer}, []v1.ContainerState{})
 	events := []*v1.Event{&v1.Event{Reason: "FailedScheduling", Type: v1.EventTypeWarning}}
 
-	retryable, _ := DiagnoseStuckPod(pod, events)
-	assert.True(t, retryable)
+	startupState, _ := DiagnoseStuckPod(pod, events)
+	assert.Equal(t, startupState, Healthy)
+}
+
+func TestDiagnoseStuckPod_ShouldReportUnstable_WhenUnexpectedWarnings(t *testing.T) {
+	waitingContainer := v1.ContainerState{Waiting: &v1.ContainerStateWaiting{}}
+	pod := makePodWithContainerStatuses([]v1.ContainerState{waitingContainer}, []v1.ContainerState{})
+	events := []*v1.Event{&v1.Event{Reason: "PodExploded", Type: v1.EventTypeWarning, Message: "Boom"}}
+
+	startupState, message := DiagnoseStuckPod(pod, events)
+	assert.Equal(t, startupState, Unstable)
+	assert.Contains(t, message, "Boom")
+}
+
+func TestDiagnoseStuckPod_ShouldReportUnrecoverable_WhenInvalidImageName(t *testing.T) {
+	waitingContainer := v1.ContainerState{Waiting: &v1.ContainerStateWaiting{Reason: "InvalidImageName"}}
+	pod := makePodWithContainerStatuses([]v1.ContainerState{waitingContainer}, []v1.ContainerState{})
+
+	startupState, _ := DiagnoseStuckPod(pod, []*v1.Event{})
+	assert.Equal(t, startupState, Unrecoverable)
+}
+
+func TestDiagnoseStuckPod_ShouldReportUnrecoverable_WhenImageUnpullable(t *testing.T) {
+	waitingContainer := v1.ContainerState{Waiting: &v1.ContainerStateWaiting{}}
+	pod := makePodWithContainerStatuses([]v1.ContainerState{waitingContainer}, []v1.ContainerState{})
+	notFound := []*v1.Event{{Type: v1.EventTypeWarning, Message: "Failed to pull image \"alpine:latst\": rpc error: code = NotFound desc = failed to pull and unpack image \"docker.io/library/alpine:latst\": failed to resolve reference \"docker.io/library/alpine:latst\": docker.io/library/alpine:latst: not found"}}
+	notFoundConnectionRefused := []*v1.Event{{Type: v1.EventTypeWarning, Message: "Failed to pull image \"docker.artifactory.something.net/alpine:latest\": rpc error: code = Unknown desc = failed to pull and unpack image \"docker.artifactory.something.net/alpine:latest\": failed to resolve reference \"docker.artifactory.something.net/alpine:latest\": failed to do request: Head https://docker.artifactory.something.net/v2/alpine/manifests/latest: dial tcp 52.128.23.153:443: connect: connection refused"}}
+	daemonError := []*v1.Event{{Type: v1.EventTypeWarning, Message: "Failed to pull image <image>: rpc error: code = Unknown desc = Error response from daemon: manifest for <image> not found: manifest unknown: The named manifest is not known to the registry."}}
+
+	startupState, _ := DiagnoseStuckPod(pod, notFound)
+	assert.Equal(t, startupState, Unrecoverable)
+
+	startupState, _ = DiagnoseStuckPod(pod, notFoundConnectionRefused)
+	assert.Equal(t, startupState, Unrecoverable)
+
+	startupState, _ = DiagnoseStuckPod(pod, daemonError)
+	assert.Equal(t, startupState, Unrecoverable)
+}
+
+func TestDiagnoseStuckPod_ShouldReportUnrecoverable_WhenInvalidMount(t *testing.T) {
+	waitingContainer := v1.ContainerState{Waiting: &v1.ContainerStateWaiting{}}
+	pod := makePodWithContainerStatuses([]v1.ContainerState{waitingContainer}, []v1.ContainerState{})
+	events := []*v1.Event{&v1.Event{Reason: "FailedMount", Type: v1.EventTypeWarning, Message: "MountVolume.SetUp failed for volume /some/volume because reason"}}
+
+	startupState, _ := DiagnoseStuckPod(pod, events)
+	assert.Equal(t, startupState, Unrecoverable)
 }
 
 func makePodWithContainerStatuses(containerStates []v1.ContainerState, initContainerStates []v1.ContainerState) *v1.Pod {
