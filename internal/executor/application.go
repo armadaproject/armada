@@ -67,7 +67,7 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 		queueClient,
 		config.Kubernetes.MinimumJobSize)
 
-	jobContext := job.NewClusterJobContext(clusterContext)
+	jobContext := job.NewClusterJobContext(clusterContext, config.Kubernetes.StuckPodExpiry)
 	submitter := job.NewSubmitter(clusterContext, config.Kubernetes.PodDefaults)
 
 	queueUtilisationService := utilisation.NewMetricsServerQueueUtilisationService(
