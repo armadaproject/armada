@@ -10,7 +10,7 @@ import {
   LookoutRunInfo,
   ApiJob,
 } from "../openapi/lookout"
-import { reverseMap, secondsToDurationString } from "../utils"
+import { reverseMap, secondsToDurationString, getErrorMessage } from "../utils"
 
 type DurationFromApi = {
   seconds?: number
@@ -535,10 +535,4 @@ function getJobStateForApi(displayedJobState: string): string {
     throw new Error(`Unrecognized job state: "${displayedJobState}"`)
   }
   return jobState
-}
-
-async function getErrorMessage(error: any): Promise<string> {
-  const json = await error.json()
-  const errorMessage = json.message
-  return errorMessage ?? "Unknown error"
 }

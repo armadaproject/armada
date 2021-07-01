@@ -28,7 +28,6 @@ class OverviewContainer extends React.Component<OverviewContainerProps, Overview
       queueMenuAnchor: null,
       modalContext: {
         open: false,
-        selectTab: "detail",
         expandedItems: new Set(),
       },
     }
@@ -96,7 +95,6 @@ class OverviewContainer extends React.Component<OverviewContainerProps, Overview
         ...this.state,
         modalContext: {
           open: true,
-          selectTab: "detail",
           job: job,
           expandedItems: new Set(),
         },

@@ -212,7 +212,6 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
       },
       jobDetailsModalContext: {
         open: false,
-        selectTab: "detail",
         job: undefined,
         expandedItems: new Set(),
       },
@@ -575,7 +574,6 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
       ...this.state,
       jobDetailsModalContext: {
         open: true,
-        selectTab: "detail",
         job: job,
         expandedItems: new Set(),
       },

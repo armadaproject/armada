@@ -10,7 +10,6 @@ import "./JobDetailsModal.css"
 
 export interface JobDetailsModalContext {
   open: boolean
-  selectTab: "detail" | "logs"
   job?: Job
   expandedItems: Set<string>
 }
@@ -32,12 +31,12 @@ export function toggleExpanded(item: string, isExpanded: boolean, expandedItems:
 }
 
 export default function JobDetailsModal(props: JobDetailsModalProps) {
-  const [tab, changeTab] = useState<"detail" | "logs">(props.selectTab)
+  const [tab, changeTab] = useState<"detail" | "logs">("detail")
 
   // reset tab on job change
   useEffect(() => {
-    changeTab(props.selectTab)
-  }, [props.job, props.selectTab])
+    changeTab("detail")
+  }, [props.job])
 
   return (
     <Dialog

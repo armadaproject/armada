@@ -85,3 +85,15 @@ export function selectItem<V>(key: string, item: V, selectedMap: Map<string, V>,
     selectedMap.delete(key)
   }
 }
+
+export async function getErrorMessage(error: any): Promise<string> {
+  let basicMessage = (error?.status ?? "") + " " + (error?.statusText ?? "")
+  basicMessage = basicMessage != " " ? basicMessage : "Unknown error"
+  try {
+    const json = await error.json()
+    const errorMessage = json.message
+    return errorMessage ?? basicMessage
+  } catch {
+    return basicMessage
+  }
+}
