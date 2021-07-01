@@ -193,3 +193,9 @@ func maxTime(a, b time.Time) time.Time {
 	}
 	return b
 }
+
+func GetPodContainerStatuses(pod *v1.Pod) []v1.ContainerStatus {
+	containerStatuses := pod.Status.ContainerStatuses
+	containerStatuses = append(containerStatuses, pod.Status.InitContainerStatuses...)
+	return containerStatuses
+}
