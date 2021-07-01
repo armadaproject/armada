@@ -16,11 +16,12 @@ type ArmadaConfig struct {
 	HttpPort           uint16
 	MetricsPort        uint16
 	CorsAllowedOrigins []string
-	PriorityHalfTime   time.Duration
-	Redis              redis.UniversalOptions
-	EventsKafka        KafkaConfig
-	EventsNats         NatsConfig
-	EventsRedis        redis.UniversalOptions
+
+	PriorityHalfTime time.Duration
+	Redis            redis.UniversalOptions
+	EventsKafka      KafkaConfig
+	EventsNats       NatsConfig
+	EventsRedis      redis.UniversalOptions
 
 	Scheduling      SchedulingConfig
 	QueueManagement QueueManagementConfig

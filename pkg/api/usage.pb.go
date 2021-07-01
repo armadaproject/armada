@@ -843,7 +843,7 @@ func (m *QueueReport) Unmarshal(dAtA []byte) error {
 					if err != nil {
 						return err
 					}
-					if skippy < 0 {
+					if (skippy < 0) || (iNdEx+skippy) < 0 {
 						return ErrInvalidLengthUsage
 					}
 					if (iNdEx + skippy) > postIndex {
@@ -972,7 +972,7 @@ func (m *QueueReport) Unmarshal(dAtA []byte) error {
 					if err != nil {
 						return err
 					}
-					if skippy < 0 {
+					if (skippy < 0) || (iNdEx+skippy) < 0 {
 						return ErrInvalidLengthUsage
 					}
 					if (iNdEx + skippy) > postIndex {
@@ -989,10 +989,7 @@ func (m *QueueReport) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthUsage
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthUsage
 			}
 			if (iNdEx + skippy) > l {
@@ -1253,7 +1250,7 @@ func (m *ClusterUsageReport) Unmarshal(dAtA []byte) error {
 					if err != nil {
 						return err
 					}
-					if skippy < 0 {
+					if (skippy < 0) || (iNdEx+skippy) < 0 {
 						return ErrInvalidLengthUsage
 					}
 					if (iNdEx + skippy) > postIndex {
@@ -1382,7 +1379,7 @@ func (m *ClusterUsageReport) Unmarshal(dAtA []byte) error {
 					if err != nil {
 						return err
 					}
-					if skippy < 0 {
+					if (skippy < 0) || (iNdEx+skippy) < 0 {
 						return ErrInvalidLengthUsage
 					}
 					if (iNdEx + skippy) > postIndex {
@@ -1431,10 +1428,7 @@ func (m *ClusterUsageReport) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthUsage
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthUsage
 			}
 			if (iNdEx + skippy) > l {

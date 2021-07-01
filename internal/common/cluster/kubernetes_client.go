@@ -5,8 +5,6 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
-
-	"github.com/G-Research/armada/internal/executor/configuration"
 )
 
 type KubernetesClientProvider interface {
@@ -21,7 +19,7 @@ type ConfigKubernetesClientProvider struct {
 	client           kubernetes.Interface
 }
 
-func NewKubernetesClientProvider(kubernetesConfig *configuration.KubernetesConfiguration) (*ConfigKubernetesClientProvider, error) {
+func NewKubernetesClientProvider(impersonateUsers bool) (*ConfigKubernetesClientProvider, error) {
 	config, err := loadConfig()
 	if err != nil {
 		return nil, err
@@ -37,7 +35,7 @@ func NewKubernetesClientProvider(kubernetesConfig *configuration.KubernetesConfi
 
 	return &ConfigKubernetesClientProvider{
 			restConfig:       config,
-			impersonateUsers: kubernetesConfig.ImpersonateUsers,
+			impersonateUsers: impersonateUsers,
 			client:           client},
 		nil
 }

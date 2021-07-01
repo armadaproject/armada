@@ -1,7 +1,10 @@
 package grpc
 
 import (
+	"fmt"
+	"net"
 	"runtime/debug"
+	"sync"
 	"time"
 
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
@@ -50,6 +53,24 @@ func CreateGrpcServer(authServices []authorization.AuthService) *grpc.Server {
 		}),
 		grpc.StreamInterceptor(grpc_middleware.ChainStreamServer(streamInterceptors...)),
 		grpc.UnaryInterceptor(grpc_middleware.ChainUnaryServer(unaryInterceptors...)))
+}
+
+func Listen(port uint16, grpcServer *grpc.Server, wg *sync.WaitGroup) {
+	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
+	if err != nil {
+		log.Fatalf("failed to listen: %v", err)
+	}
+
+	go func() {
+		defer log.Println("Stopping server.")
+
+		log.Printf("Grpc listening on %d", port)
+		if err := grpcServer.Serve(lis); err != nil {
+			log.Fatalf("failed to serve: %v", err)
+		}
+
+		wg.Done()
+	}()
 }
 
 func panicRecoveryHandler(p interface{}) (err error) {

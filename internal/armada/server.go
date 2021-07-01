@@ -1,8 +1,6 @@
 package armada
 
 import (
-	"fmt"
-	"net"
 	"strings"
 	"sync"
 	"time"
@@ -119,11 +117,6 @@ func Serve(config *configuration.ArmadaConfig) (func(), *sync.WaitGroup) {
 
 	taskManager.Register(leaseManager.ExpireLeases, config.Scheduling.Lease.ExpiryLoopInterval, "lease_expiry")
 
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", config.GrpcPort))
-	if err != nil {
-		log.Fatalf("failed to listen: %v", err)
-	}
-
 	metrics.ExposeDataMetrics(queueRepository, jobRepository, usageRepository, schedulingInfoRepository, queueCache)
 
 	api.RegisterSubmitServer(grpcServer, submitServer)
@@ -133,16 +126,7 @@ func Serve(config *configuration.ArmadaConfig) (func(), *sync.WaitGroup) {
 
 	grpc_prometheus.Register(grpcServer)
 
-	go func() {
-		defer log.Println("Stopping server.")
-
-		log.Printf("Grpc listening on %d", config.GrpcPort)
-		if err := grpcServer.Serve(lis); err != nil {
-			log.Fatalf("failed to serve: %v", err)
-		}
-
-		wg.Done()
-	}()
+	grpcCommon.Listen(config.GrpcPort, grpcServer, wg)
 
 	return func() {
 		stopSubscription()

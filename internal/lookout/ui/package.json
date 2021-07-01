@@ -6,13 +6,14 @@
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
-    "openapi": "docker run --rm -u $(id -u ${USER}):$(id -g ${USER}) -v \"${PWD}/../../../:/project\" openapitools/openapi-generator-cli bash -c \"/usr/local/bin/docker-entrypoint.sh generate -i /project/pkg/api/lookout/api.swagger.json -g typescript-fetch -o /project/internal/lookout/ui/src/openapi/lookout && /usr/local/bin/docker-entrypoint.sh generate -i /project/pkg/api/api.swagger.json -g typescript-fetch -o /project/internal/lookout/ui/src/openapi/armada\"",
+    "openapi": "docker run --rm -u $(id -u ${USER}):$(id -g ${USER}) -v \"${PWD}/../../../:/project\" openapitools/openapi-generator-cli /project/internal/lookout/ui/openapi.sh",
     "lint": "eslint ./src/**/*.{js,ts,tsx}",
     "fmt": "eslint ./src/**/*.{js,ts,tsx} --fix"
   },
   "dependencies": {
-    "@material-ui/core": "^4.11.0",
+    "@material-ui/core": "^4.11.4",
     "@material-ui/icons": "^4.9.1",
+    "@material-ui/lab": "^4.0.0-alpha.58",
     "@testing-library/jest-dom": "^5.11.5",
     "@testing-library/react": "^11.1.1",
     "@testing-library/user-event": "^12.2.0",
