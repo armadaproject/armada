@@ -12,10 +12,12 @@ import ReprioritizeJobsDialog, {
   ReprioritizeJobsDialogState,
 } from "../components/jobs/ReprioritizeJobsDialog"
 import JobService, { GetJobsRequest, JOB_STATES_FOR_DISPLAY, Job } from "../services/JobService"
+import LogService from "../services/LogService"
 import { debounced, selectItem } from "../utils"
 
 type JobsContainerProps = {
   jobService: JobService
+  logService: LogService
 } & RouteComponentProps
 
 export type CancelJobsRequestStatus = "Loading" | "Idle"
@@ -771,9 +773,8 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
           onClose={() => this.setReprioritizeJobsDialogState("None")}
         />
         <JobDetailsModal
-          open={this.state.jobDetailsModalContext.open}
-          job={this.state.jobDetailsModalContext.job}
-          expandedItems={this.state.jobDetailsModalContext.expandedItems}
+          {...this.state.jobDetailsModalContext}
+          logService={this.props.logService}
           onToggleExpanded={this.toggleExpanded}
           onClose={this.closeJobDetailsModal}
         />

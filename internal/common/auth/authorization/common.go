@@ -24,6 +24,7 @@ var anonymousPrincipal = NewStaticPrincipal("anonymous", []string{})
 
 type Principal interface {
 	GetName() string
+	GetGroupNames() []string
 	IsInGroup(group string) bool
 	HasScope(scope string) bool
 	HasClaim(claim string) bool
@@ -68,6 +69,14 @@ func (p *StaticPrincipal) HasClaim(claim string) bool {
 
 func (p *StaticPrincipal) GetName() string {
 	return p.name
+}
+
+func (p *StaticPrincipal) GetGroupNames() []string {
+	names := []string{}
+	for g := range p.groups {
+		names = append(names, g)
+	}
+	return names
 }
 
 func GetPrincipal(ctx context.Context) Principal {

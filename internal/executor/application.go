@@ -9,8 +9,8 @@ import (
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 
+	"github.com/G-Research/armada/internal/common/cluster"
 	"github.com/G-Research/armada/internal/common/task"
-	"github.com/G-Research/armada/internal/executor/cluster"
 	"github.com/G-Research/armada/internal/executor/configuration"
 	"github.com/G-Research/armada/internal/executor/context"
 	"github.com/G-Research/armada/internal/executor/job"
@@ -25,7 +25,7 @@ import (
 
 func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGroup) {
 
-	kubernetesClientProvider, err := cluster.NewKubernetesClientProvider(&config.Kubernetes)
+	kubernetesClientProvider, err := cluster.NewKubernetesClientProvider(config.Kubernetes.ImpersonateUsers)
 
 	if err != nil {
 		log.Errorf("Failed to connect to kubernetes because %s", err)
