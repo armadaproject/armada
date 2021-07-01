@@ -2,6 +2,7 @@ package util
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	v1 "k8s.io/api/core/v1"
@@ -23,6 +24,11 @@ const failedFlexVolumeMountPrefix = "MountVolume.SetUp failed for volume"
 const failedPullPrefix = "Failed to pull image"
 const failedPullAndUnpack = "desc = failed to pull and unpack image"
 const failedPullErrorResponse = "code = Unknown desc = Error response from daemon"
+
+const pullImageReason = "Pulling"
+const pullImageMessagePrefix = "Pulling image"
+const pullImageBackoffReason = "BackOff"
+const pullImageBackoffMessagePrefix = "Back-off pulling image"
 
 const oomKilledReason = "OOMKilled"
 const evictedReason = "Evicted"
@@ -148,7 +154,7 @@ func DiagnoseStuckPod(pod *v1.Pod, podEvents []*v1.Event) (status PodStartupStat
 		return Unrecoverable, podStuckReason
 	}
 
-	if unrecoverable, event := hasUnrecoverableEvent(podEvents); unrecoverable {
+	if unrecoverable, event := hasUnrecoverableEvent(pod, podEvents); unrecoverable {
 		return Unrecoverable, fmt.Sprintf("%s\n%s", podStuckReason, event.Message)
 	}
 
@@ -176,8 +182,8 @@ func hasUnrecoverableContainerState(pod *v1.Pod) bool {
 	return false
 }
 
-func hasUnrecoverableEvent(podEvents []*v1.Event) (bool, *v1.Event) {
-	if isUnpullable, event := hasUnpullableImageEvent(podEvents); isUnpullable {
+func hasUnrecoverableEvent(pod *v1.Pod, podEvents []*v1.Event) (bool, *v1.Event) {
+	if isUnpullable, event := hasUnpullableImage(pod, podEvents); isUnpullable {
 		return true, event
 	}
 
@@ -199,9 +205,27 @@ func hasUnstableContainerStates(pod *v1.Pod) bool {
 	return false
 }
 
-func hasUnpullableImageEvent(podEvents []*v1.Event) (bool, *v1.Event) {
+func hasUnpullableImage(pod *v1.Pod, podEvents []*v1.Event) (bool, *v1.Event) {
+	for _, container := range GetPodContainerStatuses(pod) {
+		if container.State.Waiting == nil {
+			//Skip non-pending containers
+			continue
+		}
+		if unpullable, event := isUnpullable(container.Image, podEvents); unpullable {
+			return true, event
+		}
+
+	}
+	return false, nil
+}
+
+func isUnpullable(image string, podEvents []*v1.Event) (bool, *v1.Event) {
+	//Try to avoid marking an image unpullable if somehow the image has started pulling again
+	if isCurrentlyPulling(image, podEvents) {
+		return false, nil
+	}
 	for _, event := range podEvents {
-		if event.Type == v1.EventTypeWarning && strings.HasPrefix(event.Message, failedPullPrefix) {
+		if event.Type == v1.EventTypeWarning && strings.HasPrefix(event.Message, failedPullPrefix) && strings.Contains(event.Message, image) {
 			if strings.Contains(event.Message, failedPullAndUnpack) {
 				return true, event
 			}
@@ -211,6 +235,41 @@ func hasUnpullableImageEvent(podEvents []*v1.Event) (bool, *v1.Event) {
 		}
 	}
 	return false, nil
+}
+
+func isCurrentlyPulling(image string, podEvents []*v1.Event) bool {
+	eventsForImage := []*v1.Event{}
+	for _, event := range podEvents {
+		if strings.Contains(event.Message, image) {
+			eventsForImage = append(eventsForImage, event.DeepCopy())
+		}
+	}
+	sort.Slice(podEvents, func(i, j int) bool {
+		firstEventTime := podEvents[i].LastTimestamp.Time
+		secondEventTime := podEvents[j].LastTimestamp.Time
+		return firstEventTime.Before(secondEventTime)
+	})
+	indexOfPullingEvent := indexOfPullingEvent(eventsForImage)
+	indexOfPullBackoffEvent := indexOfPullBackoffEvent(eventsForImage)
+	return indexOfPullingEvent > 0 && indexOfPullingEvent > indexOfPullBackoffEvent
+}
+
+func indexOfPullingEvent(podEvents []*v1.Event) int {
+	for i, event := range podEvents {
+		if event.Reason == pullImageReason && strings.HasPrefix(event.Message, pullImageBackoffMessagePrefix) {
+			return i
+		}
+	}
+	return -1
+}
+
+func indexOfPullBackoffEvent(podEvents []*v1.Event) int {
+	for i, event := range podEvents {
+		if event.Type == v1.EventTypeNormal && event.Reason == pullImageBackoffReason && strings.HasPrefix(event.Message, pullImageBackoffMessagePrefix) {
+			return i
+		}
+	}
+	return -1
 }
 
 func hasFailedMountEvent(podEvents []*v1.Event) (bool, *v1.Event) {
