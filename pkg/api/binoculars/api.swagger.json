@@ -11,7 +11,7 @@
     "version": "version not set"
   },
   "paths": {
-    "/api/v1/binoculars/log": {
+    "/v1/binoculars/log": {
       "post": {
         "tags": [
           "Binoculars"
