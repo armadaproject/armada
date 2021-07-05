@@ -43,6 +43,8 @@ func main() {
 		eventsPost.Responses.StatusCodeResponses[200].Schema.Type = []string{"file"}
 	}
 
+	removeUnusedDefinitions(resultSpec)
+
 	result, err := json.MarshalIndent(resultSpec, "", "  ")
 	if err != nil {
 		panic(err)
@@ -100,6 +102,30 @@ func renameDefinition(definitions spec.Definitions, from, to string) {
 			if additionalProperties == fromRef {
 				def.AdditionalProperties.Schema.Ref.Ref = jsonreference.MustCreateRef(toRef)
 			}
+		}
+	}
+}
+
+const definitionRefPrefix = "#/definitions/"
+
+func removeUnusedDefinitions(s *spec.Swagger) {
+	allDefs := s.Definitions
+	s.Definitions = spec.Definitions{}
+	foundNew := true
+	for foundNew {
+		refs := analysis.New(s).AllReferences()
+		foundNew = false
+		for _, r := range refs {
+			if strings.HasPrefix(r, definitionRefPrefix) {
+				defKey := r[len(definitionRefPrefix):]
+				_, exists := s.Definitions[defKey]
+				if !exists {
+					foundNew = true
+					s.Definitions[defKey] = allDefs[defKey]
+				}
+
+			}
+
 		}
 	}
 }

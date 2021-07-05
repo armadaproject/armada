@@ -1,8 +1,6 @@
 package lookout
 
 import (
-	"fmt"
-	"net"
 	"strings"
 	"sync"
 
@@ -68,21 +66,7 @@ func StartUp(config configuration.LookoutConfiguration) (func(), *sync.WaitGroup
 
 	grpc_prometheus.Register(grpcServer)
 
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", config.GrpcPort))
-	if err != nil {
-		log.Fatalf("failed to listen: %v", err)
-	}
-
-	go func() {
-		defer log.Println("Stopping server.")
-
-		log.Printf("Grpc listening on %d", config.GrpcPort)
-		if err := grpcServer.Serve(lis); err != nil {
-			log.Fatalf("failed to serve: %v", err)
-		}
-
-		wg.Done()
-	}()
+	grpc.Listen(config.GrpcPort, grpcServer, wg)
 
 	stop := func() {
 		err := conn.Close()

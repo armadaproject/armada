@@ -17,6 +17,9 @@ build-fakeexecutor:
 build-armadactl:
 	$(gobuild) -o ./bin/armadactl cmd/armadactl/main.go
 
+build-binoculars:
+	$(gobuild) -o ./bin/binoculars cmd/binoculars/main.go
+
 build-armadactl-multiplatform:
 	go run github.com/mitchellh/gox -output="./bin/{{.OS}}-{{.Arch}}/armadactl" -arch="amd64" -os="windows linux darwin" ./cmd/armadactl/
 
@@ -33,7 +36,7 @@ build-armadactl-release: build-armadactl-multiplatform
 build-load-tester:
 	$(gobuild) -o ./bin/armada-load-tester cmd/armada-load-tester/main.go
 
-build: build-server build-executor build-fakeexecutor build-armadactl build-load-tester
+build: build-server build-executor build-fakeexecutor build-armadactl build-load-tester build-binoculars
 
 build-docker-server:
 	$(gobuildlinux) -o ./bin/linux/server cmd/armada/main.go
@@ -60,7 +63,11 @@ build-docker-lookout:
 	$(gobuildlinux) -o ./bin/linux/lookout cmd/lookout/main.go
 	docker build $(dockerFlags) -t armada-lookout -f ./build/lookout/Dockerfile .
 
-build-docker: build-docker-server build-docker-executor build-docker-armadactl build-docker-armada-load-tester build-docker-fakeexecutor build-docker-lookout
+build-docker-binoculars:
+	$(gobuildlinux) -o ./bin/linux/binoculars cmd/binoculars/main.go
+	docker build $(dockerFlags) -t armada-binoculars -f ./build/binoculars/Dockerfile .
+
+build-docker: build-docker-server build-docker-executor build-docker-armadactl build-docker-armada-load-tester build-docker-fakeexecutor build-docker-lookout build-docker-binoculars
 
 build-ci: gobuild=$(gobuildlinux)
 build-ci: build-docker build-armadactl build-load-tester
