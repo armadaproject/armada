@@ -7,6 +7,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
+	v1beta1 "k8s.io/api/extensions/v1beta1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -204,6 +205,51 @@ func createService(job *api.Job, pod *v1.Pod) *v1.Service {
 	}
 	return service
 }
+
+func createIngress(job *api.Job, pod *v1.Pod) *v1beta1.Ingress {
+	ownerReference := metav1.OwnerReference{
+		APIVersion: "v1",
+		Kind:       "Pod",
+		Name:       pod.Name,
+		UID:        pod.UID,
+	}
+
+	labels := mergeMaps(job.Labels, map[string]string{
+		domain.JobId:     pod.Labels[domain.JobId],
+		domain.Queue:     pod.Labels[domain.Queue],
+		domain.PodNumber: pod.Labels[domain.PodNumber],
+	})
+	annotation := mergeMaps(job.Annotations, map[string]string{
+		domain.JobSetId: job.JobSetId,
+		domain.Owner:    job.Owner,
+	})
+
+	ingressSpec := v1beta1.IngressSpec{}
+
+	ingress := &v1beta1.Ingress{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            pod.Name,
+			Labels:          labels,
+			Annotations:     annotation,
+			Namespace:       job.Namespace,
+			OwnerReferences: []metav1.OwnerReference{ownerReference},
+		},
+		Spec: ingressSpec,
+	}
+	return ingress
+}
+
+/*
+	serviceSpec := v1.ServiceSpec{
+		Type: v1.ServiceTypeNodePort,
+		Selector: map[string]string{
+			domain.JobId:     pod.Labels[domain.JobId],
+			domain.Queue:     pod.Labels[domain.Queue],
+			domain.PodNumber: pod.Labels[domain.PodNumber],
+		},
+		Ports: servicePorts,
+	}
+*/
 
 func createPod(job *api.Job, defaults *configuration.PodDefaults, i int) *v1.Pod {
 

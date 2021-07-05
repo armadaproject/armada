@@ -388,7 +388,8 @@
       "type": "string",
       "default": "NodePort",
       "enum": [
-        "NodePort"
+        "NodePort",
+        "Ingress"
       ]
     },
     "apiJob": {
