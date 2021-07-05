@@ -22,7 +22,7 @@ func SwaggerJsonTemplate() string {
 		"    \"version\": \"version not set\"\n" +
 		"  },\n" +
 		"  \"paths\": {\n" +
-		"    \"/api/v1/binoculars/log\": {\n" +
+		"    \"/v1/binoculars/log\": {\n" +
 		"      \"post\": {\n" +
 		"        \"tags\": [\n" +
 		"          \"Binoculars\"\n" +

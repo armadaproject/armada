@@ -161,7 +161,7 @@ func RegisterBinocularsHandlerClient(ctx context.Context, mux *runtime.ServeMux,
 }
 
 var (
-	pattern_Binoculars_Logs_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"api", "v1", "binoculars", "log"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_Binoculars_Logs_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "binoculars", "log"}, "", runtime.AssumeColonVerbOpt(true)))
 )
 
 var (

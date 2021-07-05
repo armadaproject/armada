@@ -22,7 +22,7 @@ message LogResponse {
 service Binoculars {
     rpc Logs(LogRequest) returns (LogResponse) {
         option (google.api.http) = {
-            post: "/api/v1/binoculars/log"
+            post: "/v1/binoculars/log"
             body: "*"
         };
     }
