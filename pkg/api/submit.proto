@@ -26,8 +26,8 @@ message JobSubmitRequestItem {
 message IngressConfig {
     IngressType type = 1;
     repeated uint32 ports = 2;
-    map<string, string> labels = 4;
-    map<string, string> annotations = 5;
+    map<string, string> labels = 3;
+    map<string, string> annotations = 4;
 }
 
 enum IngressType {

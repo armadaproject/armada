@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	v1 "k8s.io/api/core/v1"
+	networking "k8s.io/api/networking/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 
@@ -51,12 +52,24 @@ func (c *SyncFakeClusterContext) SubmitService(service *v1.Service) (*v1.Service
 	return nil, fmt.Errorf("Services not implemented in SyncFakeClusterContext")
 }
 
-func (c *SyncFakeClusterContext) GetService(name string, namespace string) (*v1.Service, error) {
+func (c *SyncFakeClusterContext) GetServices(pod *v1.Pod) ([]*v1.Service, error) {
 	return nil, fmt.Errorf("Services not implemented in SyncFakeClusterContext")
 }
 
 func (c *SyncFakeClusterContext) DeleteService(service *v1.Service) error {
 	return fmt.Errorf("Services not implemented in SyncFakeClusterContext")
+}
+
+func (c *SyncFakeClusterContext) SubmitIngress(ingress *networking.Ingress) (*networking.Ingress, error) {
+	return nil, fmt.Errorf("Ingresses not implemented in SyncFakeClusterContext")
+}
+
+func (c *SyncFakeClusterContext) GetIngresses(pod *v1.Pod) ([]*networking.Ingress, error) {
+	return nil, fmt.Errorf("Ingresses not implemented in SyncFakeClusterContext")
+}
+
+func (c *SyncFakeClusterContext) DeleteIngress(ingress *networking.Ingress) error {
+	return fmt.Errorf("Ingresses not implemented in SyncFakeClusterContext")
 }
 
 func (c *SyncFakeClusterContext) SubmitPod(pod *v1.Pod, owner string, ownerGroups []string) (*v1.Pod, error) {

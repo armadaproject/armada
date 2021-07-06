@@ -114,7 +114,7 @@ func (eventReporter *JobEventReporter) reportCurrentStatus(pod *v1.Pod) {
 	})
 
 	if pod.Status.Phase == v1.PodRunning && requiresIngressToBeReported(pod) {
-		eventReporter.reportIngressInfoEvent(pod)
+		eventReporter.attemptToReportIngressInfoEvent(pod)
 	}
 }
 
@@ -237,22 +237,33 @@ func (eventReporter *JobEventReporter) ReportMissingJobEvents() {
 
 	for _, pod := range podWithIngressNotReported {
 		if !eventReporter.hasPendingEvents(pod) {
-			eventReporter.reportIngressInfoEvent(pod)
+			eventReporter.attemptToReportIngressInfoEvent(pod)
 		}
 	}
 }
 
-func (eventReporter *JobEventReporter) reportIngressInfoEvent(pod *v1.Pod) {
-	associatedService, err := eventReporter.clusterContext.GetService(pod.Name, pod.Namespace)
+func (eventReporter *JobEventReporter) attemptToReportIngressInfoEvent(pod *v1.Pod) {
+	expectedNumberOfServices := util.GetExpectedNumberOfAssociatedServices(pod)
+	expectedNumberOfIngresses := util.GetExpectedNumberOfAssociatedIngresses(pod)
+	associatedServices, err := eventReporter.clusterContext.GetServices(pod)
 	if err != nil {
 		log.Errorf("Failed to report event JobIngressInfoEvent for pod %s because %s", pod.Name, err)
 		return
 	}
-	if associatedService == nil {
+	associatedIngresses, err := eventReporter.clusterContext.GetIngresses(pod)
+	if err != nil {
+		log.Errorf("Failed to report event JobIngressInfoEvent for pod %s because %s", pod.Name, err)
+		return
+	}
+	if len(associatedServices) != expectedNumberOfServices || len(associatedIngresses) != expectedNumberOfIngresses {
+		log.Warnf("Not reporting JobIngressInfoEvent for pod %s because not all expected associated services "+
+			"(current %d, expected %d) or ingresses (current %d, expected %d) exist yet",
+			pod.Name, len(associatedServices), expectedNumberOfServices, len(associatedIngresses), expectedNumberOfIngresses)
+		// Don't report ingress info until all expected ingresses exist
 		return
 	}
 
-	ingressInfoEvent, err := CreateJobIngressInfoEvent(pod, eventReporter.clusterContext.GetClusterId(), associatedService)
+	ingressInfoEvent, err := CreateJobIngressInfoEvent(pod, eventReporter.clusterContext.GetClusterId(), associatedServices, associatedIngresses)
 	if err != nil {
 		log.Errorf("Failed to report event JobIngressInfoEvent for pod %s because %s", pod.Name, err)
 		return

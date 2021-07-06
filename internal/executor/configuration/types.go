@@ -14,6 +14,13 @@ type ApplicationConfiguration struct {
 
 type PodDefaults struct {
 	SchedulerName string
+	Ingress       IngressConfiguration
+}
+
+type IngressConfiguration struct {
+	HostnameSuffix string
+	Labels         map[string]string
+	Annotations    map[string]string
 }
 
 type KubernetesConfiguration struct {

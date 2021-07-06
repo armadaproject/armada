@@ -10,6 +10,7 @@ import (
 	"github.com/G-Research/armada/internal/executor/domain"
 	"github.com/G-Research/armada/internal/executor/util"
 	"github.com/G-Research/armada/pkg/api"
+	networking "k8s.io/api/networking/v1"
 
 	v1 "k8s.io/api/core/v1"
 )
@@ -105,17 +106,32 @@ func CreateJobLeaseReturnedEvent(pod *v1.Pod, reason string, clusterId string) a
 	}
 }
 
-func CreateJobIngressInfoEvent(pod *v1.Pod, clusterId string, associatedService *v1.Service) (api.Event, error) {
+func CreateJobIngressInfoEvent(pod *v1.Pod, clusterId string, associatedServices []*v1.Service, associatedIngresses []*networking.Ingress) (api.Event, error) {
 	if pod.Spec.NodeName == "" || pod.Status.HostIP == "" {
 		return nil, fmt.Errorf("unable to create JobIngressInfoEvent for pod %s (%s), as pod is not allocated to a node", pod.Name, pod.Namespace)
 	}
-	if associatedService == nil {
+	if associatedServices == nil || associatedIngresses == nil {
+		return nil, fmt.Errorf("unable to create JobIngressInfoEvent for pod %s (%s), associated ingresses may not be nil", pod.Name, pod.Namespace)
+	}
+	if len(associatedServices) == 0 && len(associatedIngresses) == 0 {
 		return nil, fmt.Errorf("unable to create JobIngressInfoEvent for pod %s (%s), as no associated ingress provided", pod.Name, pod.Namespace)
 	}
 	containerPortMapping := map[int32]string{}
-	for _, servicePort := range associatedService.Spec.Ports {
-		externalAddress := fmt.Sprintf("%s:%d", pod.Status.HostIP, servicePort.NodePort)
-		containerPortMapping[servicePort.Port] = externalAddress
+	for _, service := range associatedServices {
+		if service.Spec.Type != v1.ServiceTypeNodePort {
+			continue
+		}
+		for _, servicePort := range service.Spec.Ports {
+			externalAddress := fmt.Sprintf("%s:%d", pod.Status.HostIP, servicePort.NodePort)
+			containerPortMapping[servicePort.Port] = externalAddress
+		}
+	}
+
+	for _, ingress := range associatedIngresses {
+		for _, rule := range ingress.Spec.Rules {
+			portNumber := rule.HTTP.Paths[0].Backend.Service.Port.Number
+			containerPortMapping[portNumber] = rule.Host
+		}
 	}
 
 	return &api.JobIngressInfoEvent{

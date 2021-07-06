@@ -113,6 +113,18 @@ func SwaggerJsonTemplate() string {
 		"    \"apiIngressConfig\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
+		"        \"annotations\": {\n" +
+		"          \"type\": \"object\",\n" +
+		"          \"additionalProperties\": {\n" +
+		"            \"type\": \"string\"\n" +
+		"          }\n" +
+		"        },\n" +
+		"        \"labels\": {\n" +
+		"          \"type\": \"object\",\n" +
+		"          \"additionalProperties\": {\n" +
+		"            \"type\": \"string\"\n" +
+		"          }\n" +
+		"        },\n" +
 		"        \"ports\": {\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
@@ -129,7 +141,8 @@ func SwaggerJsonTemplate() string {
 		"      \"type\": \"string\",\n" +
 		"      \"default\": \"NodePort\",\n" +
 		"      \"enum\": [\n" +
-		"        \"NodePort\"\n" +
+		"        \"NodePort\",\n" +
+		"        \"Ingress\"\n" +
 		"      ]\n" +
 		"    },\n" +
 		"    \"apiJob\": {\n" +

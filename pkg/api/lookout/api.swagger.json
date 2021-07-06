@@ -102,6 +102,18 @@
     "apiIngressConfig": {
       "type": "object",
       "properties": {
+        "annotations": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "labels": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
         "ports": {
           "type": "array",
           "items": {
