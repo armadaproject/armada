@@ -125,7 +125,7 @@ func TestKubernetesClusterContext_GetServices(t *testing.T) {
 
 	pod := createBatchPod()
 	service := createService()
-	service.ObjectMeta.Labels = mergeMaps(service.ObjectMeta.Labels, pod.ObjectMeta.Labels)
+	service.ObjectMeta.Labels = util2.MergeMaps(service.ObjectMeta.Labels, pod.ObjectMeta.Labels)
 
 	_, err := clusterContext.SubmitService(service)
 	assert.NoError(t, err)
@@ -145,7 +145,7 @@ func TestKubernetesClusterContext_GetServices_MissingPodLabels(t *testing.T) {
 
 	pod := createBatchPod()
 	service := createService()
-	service.ObjectMeta.Labels = mergeMaps(service.ObjectMeta.Labels, pod.ObjectMeta.Labels)
+	service.ObjectMeta.Labels = util2.MergeMaps(service.ObjectMeta.Labels, pod.ObjectMeta.Labels)
 	delete(pod.ObjectMeta.Labels, domain.PodNumber)
 
 	_, err := clusterContext.SubmitService(service)
@@ -217,7 +217,7 @@ func TestKubernetesClusterContext_GetIngresses(t *testing.T) {
 
 	pod := createBatchPod()
 	ingress := createIngress()
-	ingress.ObjectMeta.Labels = mergeMaps(ingress.ObjectMeta.Labels, pod.ObjectMeta.Labels)
+	ingress.ObjectMeta.Labels = util2.MergeMaps(ingress.ObjectMeta.Labels, pod.ObjectMeta.Labels)
 
 	_, err := clusterContext.SubmitIngress(ingress)
 	assert.NoError(t, err)
@@ -237,7 +237,7 @@ func TestKubernetesClusterContext_GetIngresses_MissingPodLabels(t *testing.T) {
 
 	pod := createBatchPod()
 	ingress := createIngress()
-	ingress.ObjectMeta.Labels = mergeMaps(ingress.ObjectMeta.Labels, pod.ObjectMeta.Labels)
+	ingress.ObjectMeta.Labels = util2.MergeMaps(ingress.ObjectMeta.Labels, pod.ObjectMeta.Labels)
 	delete(pod.ObjectMeta.Labels, domain.PodNumber)
 
 	_, err := clusterContext.SubmitIngress(ingress)
@@ -674,15 +674,4 @@ func (p *FakeClientProvider) Client() kubernetes.Interface {
 
 func (p *FakeClientProvider) ClientConfig() *rest.Config {
 	return nil
-}
-
-func mergeMaps(a map[string]string, b map[string]string) map[string]string {
-	result := make(map[string]string)
-	for k, v := range a {
-		result[k] = v
-	}
-	for k, v := range b {
-		result[k] = v
-	}
-	return result
 }

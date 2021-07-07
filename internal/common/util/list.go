@@ -27,3 +27,11 @@ func ContainsString(list []string, val string) bool {
 	}
 	return false
 }
+
+func DeepCopyListUint32(list []uint32) []uint32 {
+	result := make([]uint32, 0, len(list))
+	for _, v := range list {
+		result = append(result, v)
+	}
+	return result
+}
