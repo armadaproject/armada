@@ -4,16 +4,18 @@ import (
 	"fmt"
 	"strings"
 
+	log "github.com/sirupsen/logrus"
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/executor/configuration"
 	"github.com/G-Research/armada/internal/executor/context"
 	"github.com/G-Research/armada/internal/executor/domain"
 	"github.com/G-Research/armada/internal/executor/reporter"
+	util2 "github.com/G-Research/armada/internal/executor/util"
 	"github.com/G-Research/armada/pkg/api"
-	log "github.com/sirupsen/logrus"
-	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 const admissionWebhookValidationFailureMessage string = "admission webhook"
@@ -78,10 +80,10 @@ func (allocationService *SubmitService) SubmitJobs(jobsToSubmit []*api.Job) []*F
 }
 
 func (allocationService *SubmitService) submitPod(job *api.Job, i int) (*v1.Pod, error) {
-	pod := CreatePod(job, allocationService.podDefaults, i)
+	pod := util2.CreatePod(job, allocationService.podDefaults, i)
 
 	if exposesPorts(job, &pod.Spec) {
-		services, ingresses := GenerateIngresses(job, pod, allocationService.podDefaults.Ingress)
+		services, ingresses := util2.GenerateIngresses(job, pod, allocationService.podDefaults.Ingress)
 		pod.Annotations = util.MergeMaps(pod.Annotations, map[string]string{
 			domain.HasIngress:               "true",
 			domain.AssociatedServicesCount:  fmt.Sprintf("%d", len(services)),
@@ -92,14 +94,14 @@ func (allocationService *SubmitService) submitPod(job *api.Job, i int) (*v1.Pod,
 			return pod, err
 		}
 		for _, service := range services {
-			service.ObjectMeta.OwnerReferences = []metav1.OwnerReference{CreateOwnerReference(submittedPod)}
+			service.ObjectMeta.OwnerReferences = []metav1.OwnerReference{util2.CreateOwnerReference(submittedPod)}
 			_, err = allocationService.clusterContext.SubmitService(service)
 			if err != nil {
 				return pod, err
 			}
 		}
 		for _, ingress := range ingresses {
-			ingress.ObjectMeta.OwnerReferences = []metav1.OwnerReference{CreateOwnerReference(submittedPod)}
+			ingress.ObjectMeta.OwnerReferences = []metav1.OwnerReference{util2.CreateOwnerReference(submittedPod)}
 			_, err = allocationService.clusterContext.SubmitIngress(ingress)
 			if err != nil {
 				return pod, err
@@ -113,7 +115,7 @@ func (allocationService *SubmitService) submitPod(job *api.Job, i int) (*v1.Pod,
 }
 
 func exposesPorts(job *api.Job, podSpec *v1.PodSpec) bool {
-	return len(GetServicePorts(job.Ingress, podSpec)) > 0
+	return len(util2.GetServicePorts(job.Ingress, podSpec)) > 0
 }
 
 func isNotRecoverable(status metav1.Status) bool {

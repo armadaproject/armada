@@ -1,11 +1,12 @@
-package job
+package util
 
 import (
 	"testing"
 
-	"github.com/G-Research/armada/pkg/api"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
+
+	"github.com/G-Research/armada/pkg/api"
 )
 
 func TestDeepCopy(t *testing.T) {

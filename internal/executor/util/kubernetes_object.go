@@ -1,19 +1,20 @@
-package job
+package util
 
 import (
 	"fmt"
 	"strconv"
 	"strings"
 
+	v1 "k8s.io/api/core/v1"
+	networking "k8s.io/api/networking/v1beta1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
+
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/executor/configuration"
 	"github.com/G-Research/armada/internal/executor/domain"
 	"github.com/G-Research/armada/pkg/api"
-	v1 "k8s.io/api/core/v1"
-	networking "k8s.io/api/networking/v1beta1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
 func CreateService(job *api.Job, pod *v1.Pod, ports []v1.ServicePort, ingressType api.IngressType) *v1.Service {
