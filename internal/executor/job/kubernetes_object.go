@@ -59,7 +59,7 @@ func CreateIngress(name string, job *api.Job, pod *v1.Pod, service *v1.Service, 
 	})
 	annotations := util.MergeMaps(job.Annotations, executorIngressConfig.Annotations)
 	annotations = util.MergeMaps(annotations, jobConfig.Annotations)
-	annotations = util.MergeMaps(job.Annotations, map[string]string{
+	annotations = util.MergeMaps(annotations, map[string]string{
 		domain.JobSetId: job.JobSetId,
 		domain.Owner:    job.Owner,
 	})
