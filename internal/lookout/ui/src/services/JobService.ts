@@ -383,7 +383,7 @@ export default class JobService {
     const jobYaml = jobInfo.jobJson ? jobJsonToYaml(jobFromJson) : ""
     const runs = getRuns(jobInfo, jobFromJson)
     const annotations = jobInfo.job?.annotations ? this.getAnnotations(jobInfo.job?.annotations) : {}
-    const namespace = jobInfo.job?.namespace ?? ""
+    const namespace = jobFromJson?.namespace ?? ""
 
     return {
       jobId: jobId,
