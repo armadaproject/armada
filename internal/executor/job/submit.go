@@ -13,9 +13,10 @@ import (
 	"github.com/G-Research/armada/pkg/api"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
-	networking "k8s.io/api/networking/v1"
+	networking "k8s.io/api/networking/v1beta1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
 const admissionWebhookValidationFailureMessage string = "admission webhook"
@@ -85,8 +86,10 @@ func (allocationService *SubmitService) submitPod(job *api.Job, i int) (*v1.Pod,
 	if exposesPorts(job, &pod.Spec) {
 		groupedIngressConfigs := groupIngressConfig(job.Ingress)
 		count := 0
-		for _, configs := range groupedIngressConfigs {
-			count += len(configs)
+		for ingressType, configs := range groupedIngressConfigs {
+			if ingressType == api.IngressType_Ingress {
+				count += len(configs)
+			}
 		}
 		pod.Annotations = mergeMaps(pod.Annotations, map[string]string{
 			domain.HasIngress:               "true",
@@ -97,19 +100,23 @@ func (allocationService *SubmitService) submitPod(job *api.Job, i int) (*v1.Pod,
 		if err != nil {
 			return pod, err
 		}
-		for ingressType, configs := range groupIngressConfig(job.Ingress) {
+		for ingressType, configs := range groupedIngressConfigs {
 			if len(getServicePorts(configs, &pod.Spec)) > 0 {
 				service := createService(job, submittedPod, getServicePorts(configs, &pod.Spec), ingressType)
 				_, err = allocationService.clusterContext.SubmitService(service)
+				if err != nil {
+					return pod, err
+				}
 				if ingressType == api.IngressType_Ingress {
-					for _, config := range configs {
+					for index, config := range configs {
 						if len(getServicePorts([]*api.IngressConfig{config}, &pod.Spec)) <= 0 {
 							continue
 						}
-						_, err = allocationService.clusterContext.SubmitService(service)
-						if err == nil {
-							ingress := createIngress(job, submittedPod, service, allocationService.podDefaults.Ingress, config)
-							_, err = allocationService.clusterContext.SubmitIngress(ingress)
+						ingressName := fmt.Sprintf("%s-%s-%d", pod.Name, strings.ToLower(ingressType.String()), index)
+						ingress := createIngress(ingressName, job, submittedPod, service, allocationService.podDefaults.Ingress, config)
+						_, err = allocationService.clusterContext.SubmitIngress(ingress)
+						if err != nil {
+							return pod, err
 						}
 					}
 				}
@@ -143,7 +150,7 @@ func groupIngressConfig(configs []*api.IngressConfig) map[api.IngressType][]*api
 				}
 			}
 			if !matchFound {
-				existingConfigsOfType = append(existingConfigsOfType, deepcopy(config))
+				result[config.Type] = append(existingConfigsOfType, deepcopy(config))
 			}
 		}
 	}
@@ -165,7 +172,7 @@ func isMetadataEqual(a *api.IngressConfig, b *api.IngressConfig) bool {
 
 func isStringMapEqual(a map[string]string, b map[string]string) bool {
 	if a == nil || b == nil {
-		return false
+		return a == nil && b == nil
 	}
 
 	if len(a) != len(b) {
@@ -265,7 +272,7 @@ func createService(job *api.Job, pod *v1.Pod, ports []v1.ServicePort, ingressTyp
 	})
 	service := &v1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:            fmt.Sprintf("%s-%s", pod.Name, ingressType.String()),
+			Name:            fmt.Sprintf("%s-%s", pod.Name, strings.ToLower(ingressType.String())),
 			Labels:          labels,
 			Annotations:     annotation,
 			Namespace:       job.Namespace,
@@ -276,7 +283,7 @@ func createService(job *api.Job, pod *v1.Pod, ports []v1.ServicePort, ingressTyp
 	return service
 }
 
-func createIngress(job *api.Job, pod *v1.Pod, service *v1.Service, executorIngressConfig configuration.IngressConfiguration, jobConfig *api.IngressConfig) *networking.Ingress {
+func createIngress(name string, job *api.Job, pod *v1.Pod, service *v1.Service, executorIngressConfig *configuration.IngressConfiguration, jobConfig *api.IngressConfig) *networking.Ingress {
 	ownerReference := metav1.OwnerReference{
 		APIVersion: "v1",
 		Kind:       "Pod",
@@ -300,6 +307,9 @@ func createIngress(job *api.Job, pod *v1.Pod, service *v1.Service, executorIngre
 
 	rules := make([]networking.IngressRule, 0, len(service.Spec.Ports))
 	for _, servicePort := range service.Spec.Ports {
+		if !contains(jobConfig, uint32(servicePort.Port)) {
+			continue
+		}
 		path := networking.IngressRule{
 			Host: fmt.Sprintf("%s.%s.%s.%s", servicePort.Name, pod.Name, pod.Namespace, executorIngressConfig.HostnameSuffix),
 			IngressRuleValue: networking.IngressRuleValue{
@@ -308,12 +318,8 @@ func createIngress(job *api.Job, pod *v1.Pod, service *v1.Service, executorIngre
 						{
 							Path: "/",
 							Backend: networking.IngressBackend{
-								Service: &networking.IngressServiceBackend{
-									Name: service.Name,
-									Port: networking.ServiceBackendPort{
-										Number: servicePort.Port,
-									},
-								},
+								ServiceName: service.Name,
+								ServicePort: intstr.IntOrString{IntVal: servicePort.Port},
 							},
 						},
 					},
@@ -325,7 +331,7 @@ func createIngress(job *api.Job, pod *v1.Pod, service *v1.Service, executorIngre
 
 	ingress := &networking.Ingress{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:            pod.Name,
+			Name:            name,
 			Labels:          labels,
 			Annotations:     annotation,
 			Namespace:       job.Namespace,

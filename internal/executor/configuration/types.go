@@ -14,7 +14,7 @@ type ApplicationConfiguration struct {
 
 type PodDefaults struct {
 	SchedulerName string
-	Ingress       IngressConfiguration
+	Ingress       *IngressConfiguration
 }
 
 type IngressConfiguration struct {

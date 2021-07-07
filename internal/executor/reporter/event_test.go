@@ -5,6 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
+	networking "k8s.io/api/networking/v1beta1"
 
 	"github.com/G-Research/armada/pkg/api"
 )
@@ -91,6 +92,7 @@ func TestCreateJobIngressInfoEvent(t *testing.T) {
 	}
 	service := &v1.Service{
 		Spec: v1.ServiceSpec{
+			Type: v1.ServiceTypeNodePort,
 			Ports: []v1.ServicePort{
 				{
 					Port:     8080,
@@ -100,7 +102,7 @@ func TestCreateJobIngressInfoEvent(t *testing.T) {
 		},
 	}
 
-	event, err := CreateJobIngressInfoEvent(pod, "cluster1", service)
+	event, err := CreateJobIngressInfoEvent(pod, "cluster1", []*v1.Service{service}, []*networking.Ingress{})
 	assert.NoError(t, err)
 
 	ingressEvent, ok := event.(*api.JobIngressInfoEvent)
@@ -117,7 +119,7 @@ func TestCreateJobIngressInfoEvent_PodNotAllocatedToNode(t *testing.T) {
 			NodeName: "somenode",
 		},
 	}
-	event, err := CreateJobIngressInfoEvent(noHostIpPod, "cluster1", service)
+	event, err := CreateJobIngressInfoEvent(noHostIpPod, "cluster1", []*v1.Service{service}, []*networking.Ingress{})
 	assert.Error(t, err)
 	assert.Nil(t, event)
 
@@ -126,7 +128,7 @@ func TestCreateJobIngressInfoEvent_PodNotAllocatedToNode(t *testing.T) {
 			HostIP: "192.0.0.1",
 		},
 	}
-	event, err = CreateJobIngressInfoEvent(noNodeNamePod, "cluster1", service)
+	event, err = CreateJobIngressInfoEvent(noNodeNamePod, "cluster1", []*v1.Service{service}, []*networking.Ingress{})
 	assert.Error(t, err)
 	assert.Nil(t, event)
 }
@@ -140,7 +142,7 @@ func TestCreateJobIngressInfoEvent_NilService(t *testing.T) {
 			HostIP: "192.0.0.1",
 		},
 	}
-	event, err := CreateJobIngressInfoEvent(pod, "cluster1", nil)
+	event, err := CreateJobIngressInfoEvent(pod, "cluster1", nil, nil)
 	assert.Error(t, err)
 	assert.Nil(t, event)
 }

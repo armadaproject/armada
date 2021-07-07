@@ -8,7 +8,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
-	networking "k8s.io/api/networking/v1"
+	networking "k8s.io/api/networking/v1beta1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -16,7 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/informers"
 	informer "k8s.io/client-go/informers/core/v1"
-	network_informer "k8s.io/client-go/informers/networking/v1"
+	network_informer "k8s.io/client-go/informers/networking/v1beta1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/kubelet/pkg/apis/stats/v1alpha1"
@@ -101,7 +101,7 @@ func NewClusterContext(
 		nodeInformer:             factory.Core().V1().Nodes(),
 		eventInformer:            factory.Core().V1().Events(),
 		serviceInformer:          factory.Core().V1().Services(),
-		ingressInformer:          factory.Networking().V1().Ingresses(),
+		ingressInformer:          factory.Networking().V1beta1().Ingresses(),
 		kubernetesClient:         kubernetesClient,
 		kubernetesClientProvider: kubernetesClientProvider,
 	}
@@ -239,7 +239,7 @@ func (c *KubernetesClusterContext) SubmitService(service *v1.Service) (*v1.Servi
 }
 
 func (c *KubernetesClusterContext) SubmitIngress(ingress *networking.Ingress) (*networking.Ingress, error) {
-	return c.kubernetesClient.NetworkingV1().Ingresses(ingress.Namespace).Create(ctx.Background(), ingress, metav1.CreateOptions{})
+	return c.kubernetesClient.NetworkingV1beta1().Ingresses(ingress.Namespace).Create(ctx.Background(), ingress, metav1.CreateOptions{})
 }
 
 func (c *KubernetesClusterContext) AddAnnotation(pod *v1.Pod, annotations map[string]string) error {
@@ -307,11 +307,14 @@ func (c *KubernetesClusterContext) GetServices(pod *v1.Pod) ([]*v1.Service, erro
 	if err != nil {
 		return []*v1.Service{}, err
 	}
-	service, err := c.serviceInformer.Lister().List(*podAssociationSelector)
+	services, err := c.serviceInformer.Lister().List(*podAssociationSelector)
 	if err != nil && errors.IsNotFound(err) {
 		return []*v1.Service{}, nil
 	}
-	return service, err
+	if err == nil && services == nil {
+		services = []*v1.Service{}
+	}
+	return services, err
 }
 
 func (c *KubernetesClusterContext) GetIngresses(pod *v1.Pod) ([]*networking.Ingress, error) {
@@ -322,6 +325,9 @@ func (c *KubernetesClusterContext) GetIngresses(pod *v1.Pod) ([]*networking.Ingr
 	ingresses, err := c.ingressInformer.Lister().List(*podAssociationSelector)
 	if err != nil && errors.IsNotFound(err) {
 		return []*networking.Ingress{}, nil
+	}
+	if err == nil && ingresses == nil {
+		ingresses = []*networking.Ingress{}
 	}
 	return ingresses, err
 }
