@@ -6,13 +6,13 @@ import (
 	"strconv"
 	"time"
 
+	v1 "k8s.io/api/core/v1"
+	networking "k8s.io/api/networking/v1beta1"
+
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/internal/executor/domain"
 	"github.com/G-Research/armada/internal/executor/util"
 	"github.com/G-Research/armada/pkg/api"
-	networking "k8s.io/api/networking/v1beta1"
-
-	v1 "k8s.io/api/core/v1"
 )
 
 func CreateEventForCurrentState(pod *v1.Pod, clusterId string) (api.Event, error) {
