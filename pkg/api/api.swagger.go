@@ -389,12 +389,6 @@ func SwaggerJsonTemplate() string {
 		"            \"type\": \"string\"\n" +
 		"          }\n" +
 		"        },\n" +
-		"        \"labels\": {\n" +
-		"          \"type\": \"object\",\n" +
-		"          \"additionalProperties\": {\n" +
-		"            \"type\": \"string\"\n" +
-		"          }\n" +
-		"        },\n" +
 		"        \"ports\": {\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +

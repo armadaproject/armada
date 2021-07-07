@@ -92,7 +92,7 @@ func (allocationService *SubmitService) submitPod(job *api.Job, i int) (*v1.Pod,
 				count += len(configs)
 			}
 		}
-		pod.Annotations = mergeMaps(pod.Annotations, map[string]string{
+		pod.Annotations = MergeMaps(pod.Annotations, map[string]string{
 			domain.HasIngress:               "true",
 			domain.AssociatedIngressesCount: fmt.Sprintf("%d", count),
 			domain.AssociatedServicesCount:  fmt.Sprintf("%d", len(groupedIngressConfigs)),
@@ -145,7 +145,7 @@ func groupIngressConfig(configs []*api.IngressConfig) map[api.IngressType][]*api
 		} else {
 			matchFound := false
 			for _, existingConfig := range existingConfigsOfType {
-				if isMetadataEqual(config, existingConfig) {
+				if isStringMapEqual(config.Annotations, existingConfig.Annotations) {
 					existingConfig.Ports = append(existingConfig.Ports, config.Ports...)
 					matchFound = true
 				}
@@ -161,14 +161,13 @@ func groupIngressConfig(configs []*api.IngressConfig) map[api.IngressType][]*api
 func deepcopy(config *api.IngressConfig) *api.IngressConfig {
 	return &api.IngressConfig{
 		Type:        config.GetType(),
-		Ports:       config.GetPorts(),
-		Labels:      config.GetLabels(),
-		Annotations: config.GetAnnotations(),
+		Ports:       config.Ports,
+		Annotations: config.Annotations,
 	}
 }
 
 func isMetadataEqual(a *api.IngressConfig, b *api.IngressConfig) bool {
-	return isStringMapEqual(a.Annotations, b.Annotations) && isStringMapEqual(a.Labels, b.Labels)
+	return isStringMapEqual(a.Annotations, b.Annotations)
 }
 
 func isStringMapEqual(a map[string]string, b map[string]string) bool {
@@ -262,12 +261,12 @@ func createService(job *api.Job, pod *v1.Pod, ports []v1.ServicePort, ingressTyp
 		},
 		Ports: ports,
 	}
-	labels := mergeMaps(job.Labels, map[string]string{
+	labels := MergeMaps(job.Labels, map[string]string{
 		domain.JobId:     pod.Labels[domain.JobId],
 		domain.Queue:     pod.Labels[domain.Queue],
 		domain.PodNumber: pod.Labels[domain.PodNumber],
 	})
-	annotation := mergeMaps(job.Annotations, map[string]string{
+	annotation := MergeMaps(job.Annotations, map[string]string{
 		domain.JobSetId: job.JobSetId,
 		domain.Owner:    job.Owner,
 	})
@@ -292,19 +291,17 @@ func createIngress(name string, job *api.Job, pod *v1.Pod, service *v1.Service, 
 		UID:        pod.UID,
 	}
 
-	labels := mergeMaps(job.Labels, map[string]string{
+	labels := MergeMaps(job.Labels, map[string]string{
 		domain.JobId:     pod.Labels[domain.JobId],
 		domain.Queue:     pod.Labels[domain.Queue],
 		domain.PodNumber: pod.Labels[domain.PodNumber],
 	})
-	labels = mergeMaps(labels, executorIngressConfig.Labels)
-	labels = mergeMaps(labels, jobConfig.Labels)
-	annotation := mergeMaps(job.Annotations, map[string]string{
+	annotation := MergeMaps(job.Annotations, map[string]string{
 		domain.JobSetId: job.JobSetId,
 		domain.Owner:    job.Owner,
 	})
-	annotation = mergeMaps(annotation, executorIngressConfig.Annotations)
-	annotation = mergeMaps(annotation, jobConfig.Annotations)
+	annotation = MergeMaps(annotation, executorIngressConfig.Annotations)
+	annotation = MergeMaps(annotation, jobConfig.Annotations)
 
 	rules := make([]networking.IngressRule, 0, len(service.Spec.Ports))
 	for _, servicePort := range service.Spec.Ports {
@@ -351,13 +348,13 @@ func createPod(job *api.Job, defaults *configuration.PodDefaults, i int) *v1.Pod
 	podSpec := allPodSpecs[i]
 	applyDefaults(podSpec, defaults)
 
-	labels := mergeMaps(job.Labels, map[string]string{
+	labels := MergeMaps(job.Labels, map[string]string{
 		domain.JobId:     job.Id,
 		domain.Queue:     job.Queue,
 		domain.PodNumber: strconv.Itoa(i),
 		domain.PodCount:  strconv.Itoa(len(allPodSpecs)),
 	})
-	annotation := mergeMaps(job.Annotations, map[string]string{
+	annotation := MergeMaps(job.Annotations, map[string]string{
 		domain.JobSetId: job.JobSetId,
 		domain.Owner:    job.Owner,
 	})
@@ -390,7 +387,7 @@ func setRestartPolicyNever(podSpec *v1.PodSpec) {
 	podSpec.RestartPolicy = v1.RestartPolicyNever
 }
 
-func mergeMaps(a map[string]string, b map[string]string) map[string]string {
+func MergeMaps(a map[string]string, b map[string]string) map[string]string {
 	result := make(map[string]string)
 	for k, v := range a {
 		result[k] = v

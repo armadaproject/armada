@@ -333,15 +333,21 @@ func (c *KubernetesClusterContext) GetIngresses(pod *v1.Pod) ([]*networking.Ingr
 }
 
 func createPodAssociationSelector(pod *v1.Pod) (*labels.Selector, error) {
-	jobIdMatchesSelector, err := labels.NewRequirement(domain.JobId, selection.Equals, []string{util.ExtractJobId(pod)})
+	jobId, jobIdPresent := pod.Labels[domain.JobId]
+	queue, queuePresent := pod.Labels[domain.Queue]
+	podNumber, podNumberPresent := pod.Labels[domain.PodNumber]
+	if !jobIdPresent || !queuePresent || !podNumberPresent {
+		return nil, fmt.Errorf("Cannot create pod association selector as pod %s (%s) is missing Armada identifier labels", pod.Name, pod.Namespace)
+	}
+	jobIdMatchesSelector, err := labels.NewRequirement(domain.JobId, selection.Equals, []string{jobId})
 	if err != nil {
 		return nil, err
 	}
-	queueMatchesSelector, err := labels.NewRequirement(domain.Queue, selection.Equals, []string{util.ExtractQueue(pod)})
+	queueMatchesSelector, err := labels.NewRequirement(domain.Queue, selection.Equals, []string{queue})
 	if err != nil {
 		return nil, err
 	}
-	podNumberMatchesSelector, err := labels.NewRequirement(domain.PodNumber, selection.Equals, []string{fmt.Sprintf("%d", util.ExtractPodNumber(pod))})
+	podNumberMatchesSelector, err := labels.NewRequirement(domain.PodNumber, selection.Equals, []string{podNumber})
 	if err != nil {
 		return nil, err
 	}

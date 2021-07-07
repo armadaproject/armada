@@ -9,6 +9,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
+	networking "k8s.io/api/networking/v1beta1"
 	errors2 "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -119,31 +120,144 @@ func TestKubernetesClusterContext_DeleteService_NonExistent(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-//func TestKubernetesClusterContext_GetService(t *testing.T) {
-//	clusterContext, client := setupTest()
-//
-//	service := createService()
-//
-//	_, err := clusterContext.SubmitService(service)
-//	assert.NoError(t, err)
-//	waitForServiceContextSync(t, clusterContext, service)
-//	client.Fake.ClearActions()
-//
-//	result, err := clusterContext.GetServices(service.Name, service.Namespace)
-//	assert.NoError(t, err)
-//
-//	assert.NotNil(t, result)
-//	assert.Equal(t, service.Name, result.Name)
-//}
-//
-//func TestKubernetesClusterContext_GetService_NonExistent(t *testing.T) {
-//	clusterContext, _ := setupTest()
-//	service := createService()
-//
-//	result, err := clusterContext.GetService(service.Name, service.Namespace)
-//	assert.NoError(t, err)
-//	assert.Nil(t, result)
-//}
+func TestKubernetesClusterContext_GetServices(t *testing.T) {
+	clusterContext, client := setupTest()
+
+	pod := createBatchPod()
+	service := createService()
+	service.ObjectMeta.Labels = mergeMaps(service.ObjectMeta.Labels, pod.ObjectMeta.Labels)
+
+	_, err := clusterContext.SubmitService(service)
+	assert.NoError(t, err)
+	waitForServiceContextSync(t, clusterContext, service)
+	client.Fake.ClearActions()
+
+	result, err := clusterContext.GetServices(pod)
+	assert.NoError(t, err)
+
+	assert.NotNil(t, result)
+	assert.Equal(t, len(result), 1)
+	assert.Equal(t, service.Name, result[0].Name)
+}
+
+func TestKubernetesClusterContext_GetServices_MissingPodLabels(t *testing.T) {
+	clusterContext, client := setupTest()
+
+	pod := createBatchPod()
+	service := createService()
+	service.ObjectMeta.Labels = mergeMaps(service.ObjectMeta.Labels, pod.ObjectMeta.Labels)
+	delete(pod.ObjectMeta.Labels, domain.PodNumber)
+
+	_, err := clusterContext.SubmitService(service)
+	assert.NoError(t, err)
+	waitForServiceContextSync(t, clusterContext, service)
+	client.Fake.ClearActions()
+
+	result, err := clusterContext.GetServices(pod)
+	assert.Error(t, err)
+	assert.Equal(t, len(result), 0)
+}
+
+func TestKubernetesClusterContext_GetServices_NonExistent(t *testing.T) {
+	clusterContext, _ := setupTest()
+	pod := createBatchPod()
+
+	result, err := clusterContext.GetServices(pod)
+	assert.NoError(t, err)
+	assert.Equal(t, len(result), 0)
+}
+
+func TestKubernetesClusterContext_SubmitIngress(t *testing.T) {
+	clusterContext, client := setupTest()
+
+	ingress := createIngress()
+	client.Fake.ClearActions()
+
+	_, err := clusterContext.SubmitIngress(ingress)
+	assert.Nil(t, err)
+
+	assert.Equal(t, len(client.Fake.Actions()), 1)
+	assert.True(t, client.Fake.Actions()[0].Matches("create", "ingresses"))
+
+	createAction, ok := client.Fake.Actions()[0].(clientTesting.CreateAction)
+	assert.True(t, ok)
+	assert.Equal(t, createAction.GetObject(), ingress)
+}
+
+func TestKubernetesClusterContext_DeleteIngress(t *testing.T) {
+	clusterContext, client := setupTest()
+
+	ingress := createIngress()
+
+	_, err := clusterContext.SubmitIngress(ingress)
+	assert.NoError(t, err)
+	client.Fake.ClearActions()
+
+	err = clusterContext.DeleteIngress(ingress)
+	assert.NoError(t, err)
+
+	assert.Equal(t, len(client.Fake.Actions()), 1)
+	assert.True(t, client.Fake.Actions()[0].Matches("delete", "ingresses"))
+
+	deleteAction, ok := client.Fake.Actions()[0].(clientTesting.DeleteAction)
+	assert.True(t, ok)
+	assert.Equal(t, deleteAction.GetName(), ingress.Name)
+}
+
+func TestKubernetesClusterContext_DeleteIngress_NonExistent(t *testing.T) {
+	clusterContext, _ := setupTest()
+	ingress := createIngress()
+
+	err := clusterContext.DeleteIngress(ingress)
+	assert.NoError(t, err)
+}
+
+func TestKubernetesClusterContext_GetIngresses(t *testing.T) {
+	clusterContext, client := setupTest()
+
+	pod := createBatchPod()
+	ingress := createIngress()
+	ingress.ObjectMeta.Labels = mergeMaps(ingress.ObjectMeta.Labels, pod.ObjectMeta.Labels)
+
+	_, err := clusterContext.SubmitIngress(ingress)
+	assert.NoError(t, err)
+	waitForIngressContextSync(t, clusterContext, ingress)
+	client.Fake.ClearActions()
+
+	result, err := clusterContext.GetIngresses(pod)
+	assert.NoError(t, err)
+
+	assert.NotNil(t, result)
+	assert.Equal(t, len(result), 1)
+	assert.Equal(t, ingress.Name, result[0].Name)
+}
+
+func TestKubernetesClusterContext_GetIngresses_MissingPodLabels(t *testing.T) {
+	clusterContext, client := setupTest()
+
+	pod := createBatchPod()
+	ingress := createIngress()
+	ingress.ObjectMeta.Labels = mergeMaps(ingress.ObjectMeta.Labels, pod.ObjectMeta.Labels)
+	delete(pod.ObjectMeta.Labels, domain.PodNumber)
+
+	_, err := clusterContext.SubmitIngress(ingress)
+	assert.NoError(t, err)
+	waitForIngressContextSync(t, clusterContext, ingress)
+	client.Fake.ClearActions()
+
+	result, err := clusterContext.GetIngresses(pod)
+	assert.Error(t, err)
+	assert.Equal(t, len(result), 0)
+}
+
+func TestKubernetesClusterContext_GetIngresses_NonExistent(t *testing.T) {
+	clusterContext, _ := setupTest()
+	pod := createBatchPod()
+
+	result, err := clusterContext.GetIngresses(pod)
+	assert.NoError(t, err)
+	assert.Equal(t, len(result), 0)
+}
 
 func TestKubernetesClusterContext_ProcessPodsToDelete_CallDeleteOnClient_WhenPodsMarkedForDeletion(t *testing.T) {
 	clusterContext, client := setupTest()
@@ -472,6 +586,24 @@ func waitForServiceContextSync(t *testing.T, context *KubernetesClusterContext, 
 	}
 }
 
+func waitForIngressContextSync(t *testing.T, context *KubernetesClusterContext, createdIngress *networking.Ingress) {
+	synced := waitForCondition(func() bool {
+		existingIngresses, err := context.ingressInformer.Lister().List(labels.Everything())
+		assert.Nil(t, err)
+
+		for _, ingress := range existingIngresses {
+			if ingress.Name == createdIngress.Name {
+				return true
+			}
+		}
+		return false
+	})
+	if !synced {
+		t.Error("Timed out waiting for context sync. Submitted ingress was never synced to context.")
+		t.Fail()
+	}
+}
+
 func waitForCondition(conditionCheck func() bool) bool {
 	conditionMet := false
 	for i := 0; i < 20; i++ {
@@ -493,7 +625,9 @@ func createSubmittedBatchPod(t *testing.T, context *KubernetesClusterContext) *v
 func createBatchPod() *v1.Pod {
 	pod := createPod()
 	pod.ObjectMeta.Labels = map[string]string{
-		domain.JobId: "jobid" + util2.NewULID(),
+		domain.JobId:     "jobid" + util2.NewULID(),
+		domain.Queue:     "test",
+		domain.PodNumber: "0",
 	}
 	return pod
 }
@@ -516,6 +650,15 @@ func createService() *v1.Service {
 	}
 }
 
+func createIngress() *networking.Ingress {
+	return &networking.Ingress{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      util2.NewULID(),
+			Namespace: "default",
+		},
+	}
+}
+
 type FakeClientProvider struct {
 	FakeClient *fake.Clientset
 	users      []string
@@ -531,4 +674,15 @@ func (p *FakeClientProvider) Client() kubernetes.Interface {
 
 func (p *FakeClientProvider) ClientConfig() *rest.Config {
 	return nil
+}
+
+func mergeMaps(a map[string]string, b map[string]string) map[string]string {
+	result := make(map[string]string)
+	for k, v := range a {
+		result[k] = v
+	}
+	for k, v := range b {
+		result[k] = v
+	}
+	return result
 }

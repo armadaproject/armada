@@ -19,7 +19,6 @@ type PodDefaults struct {
 
 type IngressConfiguration struct {
 	HostnameSuffix string
-	Labels         map[string]string
 	Annotations    map[string]string
 }
 
