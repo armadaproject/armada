@@ -331,7 +331,7 @@ func (server *SubmitServer) checkQueuePermission(
 			}
 			return nil, []string{}
 		} else {
-			return status.Errorf(codes.NotFound, "Could not load queue: %s", e.Error()), []string{}
+			return status.Errorf(codes.NotFound, "Could not load queue %q: %s", queueName, e.Error()), []string{}
 		}
 	}
 	permissionToCheck := basicPermission
