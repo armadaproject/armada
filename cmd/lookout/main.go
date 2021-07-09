@@ -24,7 +24,7 @@ const CustomConfigLocation string = "config"
 const MigrateDatabase string = "migrateDatabase"
 
 func init() {
-	pflag.String(CustomConfigLocation, "", "Fully qualified path to application configuration file")
+	pflag.StringSlice(CustomConfigLocation, []string{}, "Fully qualified path to application configuration file (for multiple config files repeat this arg or separate paths with commas)")
 	pflag.Bool(MigrateDatabase, false, "Migrate database instead of running server")
 	pflag.Parse()
 }
@@ -34,8 +34,8 @@ func main() {
 	common.BindCommandlineArguments()
 
 	var config configuration.LookoutConfiguration
-	userSpecifiedConfig := viper.GetString(CustomConfigLocation)
-	common.LoadConfig(&config, "./config/lookout", userSpecifiedConfig)
+	userSpecifiedConfigs := viper.GetStringSlice(CustomConfigLocation)
+	common.LoadConfig(&config, "./config/lookout", userSpecifiedConfigs)
 
 	if viper.GetBool(MigrateDatabase) {
 		db, err := postgres.Open(config.Postgres)
