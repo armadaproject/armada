@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"errors"
+
 	"github.com/go-redis/redis"
 	"github.com/gogo/protobuf/proto"
 
@@ -8,6 +10,8 @@ import (
 )
 
 const queueHashKey = "Queue"
+
+var ErrQueueNotFound = errors.New("Queue does not exist")
 
 type QueueRepository interface {
 	GetAllQueues() ([]*api.Queue, error)
@@ -44,7 +48,9 @@ func (r *RedisQueueRepository) GetAllQueues() ([]*api.Queue, error) {
 
 func (r *RedisQueueRepository) GetQueue(name string) (*api.Queue, error) {
 	result, err := r.db.HGet(queueHashKey, name).Result()
-	if err != nil {
+	if err == redis.Nil {
+		return nil, ErrQueueNotFound
+	} else if err != nil {
 		return nil, err
 	}
 	queue := &api.Queue{}

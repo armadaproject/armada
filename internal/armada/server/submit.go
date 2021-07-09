@@ -316,7 +316,7 @@ func (server *SubmitServer) checkQueuePermission(
 	allQueuesPermission permission.Permission) (e error, ownershipGroups []string) {
 
 	queue, e := server.queueRepository.GetQueue(queueName)
-	if e != nil {
+	if e == repository.ErrQueueNotFound {
 		if attemptToCreate &&
 			server.queueManagementConfig.AutoCreateQueues &&
 			server.permissions.UserHasPermission(ctx, permissions.SubmitAnyJobs) {
@@ -331,9 +331,12 @@ func (server *SubmitServer) checkQueuePermission(
 			}
 			return nil, []string{}
 		} else {
-			return status.Errorf(codes.NotFound, "Could not load queue: %s", e.Error()), []string{}
+			return status.Errorf(codes.NotFound, "Queue %q not found", queueName), []string{}
 		}
+	} else if e != nil {
+		return status.Errorf(codes.Unavailable, "Could not load queue %q: %s", queueName, e.Error()), []string{}
 	}
+
 	permissionToCheck := basicPermission
 	owned, groups := server.permissions.UserOwns(ctx, queue)
 	if !owned {
