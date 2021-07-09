@@ -24,7 +24,7 @@ const CustomConfigLocation string = "config"
 const MigrateDatabase string = "migrateDatabase"
 
 func init() {
-	pflag.StringSlice(CustomConfigLocation, []string{}, "Fully qualified path to application configuration file (can be specified multiple times)")
+	pflag.StringSlice(CustomConfigLocation, []string{}, "Fully qualified path to application configuration file (for multiple config files repeat this arg or separate paths with commas)")
 	pflag.Bool(MigrateDatabase, false, "Migrate database instead of running server")
 	pflag.Parse()
 }
