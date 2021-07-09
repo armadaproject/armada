@@ -25,10 +25,20 @@ applicationConfig:
     clusterID: nats
     subject: ArmadaTest
     queueGroup: ArmadaEventRedisProcessor
-
-basicAuth:
-  users:
-    "user1": "password1"
+  basicAuth:
+    users:
+      "user1": "password1"
+  permissionGroupMapping:
+    submit_jobs: ["everyone"]
+    submit_any_jobs: ["everyone"]
+    create_queue: ["everyone"]
+    delete_queue: ["everyone"]
+    cancel_jobs: ["everyone"]
+    cancel_any_jobs: ["everyone"]
+    reprioritize_jobs: ["everyone"]
+    reprioritize_any_jobs: ["everyone"]
+    watch_all_events: ["everyone"]
+    execute_jobs: ["everyone"]
 
 prometheus:
   enabled: true
