@@ -123,6 +123,6 @@ export function makeTestCancelJobSetsResults(nJobSets: number, jobSetLength: num
   return results
 }
 
-function sleep(ms: number): Promise<void> {
+export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }

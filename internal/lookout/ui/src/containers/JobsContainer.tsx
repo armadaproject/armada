@@ -8,7 +8,7 @@ import JobDetailsModal, { JobDetailsModalContext, toggleExpanded } from "../comp
 import CancelJobsModal, { CancelJobsModalContext, CancelJobsModalState } from "../components/jobs/CancelJobsModal"
 import Jobs from "../components/jobs/Jobs"
 import JobService, { GetJobsRequest, JOB_STATES_FOR_DISPLAY, Job } from "../services/JobService"
-import { debounced, selectItem } from "../utils"
+import { debounced, selectItem, updateInterval } from "../utils"
 
 type JobsContainerProps = {
   jobService: JobService
@@ -21,9 +21,9 @@ interface JobsContainerState {
   canLoadMore: boolean
   selectedJobs: Map<string, Job>
   lastSelectedIndex: number
+  autoRefresh: boolean
   defaultColumns: ColumnSpec<string | boolean | string[]>[]
   annotationColumns: ColumnSpec<string>[]
-  scrollHeight: number
   cancelJobsModalContext: CancelJobsModalContext
   jobDetailsModalContext: JobDetailsModalContext
 }
@@ -53,6 +53,7 @@ const QUERY_STRING_OPTIONS: ParseOptions | StringifyOptions = {
 const LOCAL_STORAGE_KEY = "armada_lookout_annotation_columns"
 const BATCH_SIZE = 100
 const CANCELLABLE_JOB_STATES = ["Queued", "Pending", "Running"]
+const AUTO_REFRESH_INTERVAL_MS = 30000
 
 export function makeQueryString(columns: ColumnSpec<string | boolean | string[]>[]): string {
   const columnMap = new Map<string, ColumnSpec<string | boolean | string[]>>()
@@ -128,6 +129,8 @@ function parseJobStates(jobStates: string[] | string): string[] {
 }
 
 class JobsContainer extends React.Component<JobsContainerProps, JobsContainerState> {
+  interval: NodeJS.Timeout | undefined
+
   constructor(props: JobsContainerProps) {
     super(props)
     this.state = {
@@ -135,7 +138,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
       canLoadMore: true,
       selectedJobs: new Map<string, Job>(),
       lastSelectedIndex: 0,
-      scrollHeight: 100000,
+      autoRefresh: true,
       defaultColumns: [
         {
           id: "queue",
@@ -206,14 +209,13 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     this.changeColumnFilter = this.changeColumnFilter.bind(this)
     this.disableColumn = this.disableColumn.bind(this)
     this.refresh = this.refresh.bind(this)
-    this.resetRefresh = this.resetRefresh.bind(this)
+    this.toggleAutoRefresh = this.toggleAutoRefresh.bind(this)
 
     this.selectJob = this.selectJob.bind(this)
     this.shiftSelectJob = this.shiftSelectJob.bind(this)
     this.deselectAll = this.deselectAll.bind(this)
     this.setCancelJobsModalState = this.setCancelJobsModalState.bind(this)
     this.cancelJobs = this.cancelJobs.bind(this)
-    this.scroll = this.scroll.bind(this)
 
     this.openJobDetailsModal = this.openJobDetailsModal.bind(this)
     this.toggleExpanded = this.toggleExpanded.bind(this)
@@ -238,6 +240,14 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
       ...this.state,
       annotationColumns: annotationColumns ?? [],
     })
+
+    this.interval = updateInterval(this.interval, this.state.autoRefresh, AUTO_REFRESH_INTERVAL_MS, this.refresh)
+  }
+
+  componentWillUnmount() {
+    if (this.interval) {
+      clearInterval(this.interval)
+    }
   }
 
   async serveJobs(start: number, stop: number): Promise<Job[]> {
@@ -327,12 +337,6 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
 
   refresh() {
     this.setFilters(this.state)
-  }
-
-  resetRefresh() {
-    this.setState({
-      ...this.state,
-    })
   }
 
   selectJob(index: number, selected: boolean) {
@@ -505,11 +509,12 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     })
   }
 
-  scroll(scrollHeight: number) {
+  toggleAutoRefresh(autoRefresh: boolean) {
     this.setState({
       ...this.state,
-      scrollHeight: scrollHeight,
+      autoRefresh: autoRefresh,
     })
+    this.interval = updateInterval(this.interval, autoRefresh, AUTO_REFRESH_INTERVAL_MS, this.refresh)
   }
 
   private async loadJobInfosForRange(start: number, stop: number) {
@@ -654,7 +659,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
           defaultColumns={this.state.defaultColumns}
           annotationColumns={this.state.annotationColumns}
           selectedJobs={this.state.selectedJobs}
-          scrollHeight={this.state.scrollHeight}
+          autoRefresh={this.state.autoRefresh}
           cancelJobsButtonIsEnabled={this.selectedJobsAreCancellable()}
           fetchJobs={this.serveJobs}
           isLoaded={this.jobIsLoaded}
@@ -669,8 +674,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
           onDeselectAllClick={this.deselectAll}
           onCancelJobsClick={() => this.setCancelJobsModalState("CancelJobs")}
           onJobIdClick={this.openJobDetailsModal}
-          resetRefresh={this.resetRefresh}
-          onScroll={this.scroll}
+          onAutoRefreshChange={this.toggleAutoRefresh}
         />
       </Fragment>
     )

@@ -5,6 +5,7 @@ import CancelIcon from "@material-ui/icons/Cancel"
 import RefreshIcon from "@material-ui/icons/Refresh"
 
 import { ColumnSpec } from "../../containers/JobsContainer"
+import AutoRefreshToggle from "../AutoRefreshToggle"
 import ColumnSelect from "./ColumnSelect"
 
 import "./JobTableHeader.css"
@@ -13,7 +14,9 @@ type JobTableHeaderProps = {
   defaultColumns: ColumnSpec<string | boolean | string[]>[]
   annotationColumns: ColumnSpec<string>[]
   canCancel: boolean
+  autoRefresh: boolean
   onRefresh: () => void
+  onAutoRefreshChange: (autoRefresh: boolean) => void
   onCancelJobsClick: () => void
   onDisableColumn: (id: string, isDisabled: boolean) => void
   onDeleteColumn: (columnId: string) => void
@@ -50,6 +53,9 @@ export default function JobTableHeader(props: JobTableHeaderProps) {
           >
             Cancel
           </Button>
+        </div>
+        <div className="auto-refresh">
+          <AutoRefreshToggle autoRefresh={props.autoRefresh} onAutoRefreshChange={props.onAutoRefreshChange} />
         </div>
         <div className="refresh">
           <IconButton onClick={props.onRefresh} color="primary">

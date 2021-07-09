@@ -1,6 +1,6 @@
 import React from "react"
 
-import { AutoSizer, InfiniteLoader, ScrollEventData, ScrollParams, Table } from "react-virtualized"
+import { AutoSizer, InfiniteLoader, Table } from "react-virtualized"
 
 import { ColumnSpec } from "../../containers/JobsContainer"
 import { Job } from "../../services/JobService"
@@ -18,7 +18,7 @@ type JobsProps = {
   defaultColumns: ColumnSpec<string | boolean | string[]>[]
   annotationColumns: ColumnSpec<string>[]
   selectedJobs: Map<string, Job>
-  scrollHeight: number
+  autoRefresh: boolean
   cancelJobsButtonIsEnabled: boolean
   fetchJobs: (start: number, stop: number) => Promise<Job[]>
   isLoaded: (index: number) => boolean
@@ -33,8 +33,7 @@ type JobsProps = {
   onDeselectAllClick: () => void
   onCancelJobsClick: () => void
   onJobIdClick: (jobIndex: number) => void
-  resetRefresh: () => void
-  onScroll: (scrollHeight: number) => void
+  onAutoRefreshChange: (autoRefresh: boolean) => void
 }
 
 export default class Jobs extends React.Component<JobsProps, Record<string, never>> {
@@ -80,6 +79,7 @@ export default class Jobs extends React.Component<JobsProps, Record<string, neve
           <JobTableHeader
             defaultColumns={this.props.defaultColumns}
             annotationColumns={this.props.annotationColumns}
+            autoRefresh={this.props.autoRefresh}
             canCancel={this.props.cancelJobsButtonIsEnabled}
             onRefresh={this.props.onRefresh}
             onCancelJobsClick={this.props.onCancelJobsClick}
@@ -87,6 +87,7 @@ export default class Jobs extends React.Component<JobsProps, Record<string, neve
             onDeleteColumn={this.props.onDeleteColumn}
             onAddColumn={this.props.onAddColumn}
             onChangeAnnotationColumnKey={this.props.onChangeAnnotationColumnKey}
+            onAutoRefreshChange={this.props.onAutoRefreshChange}
           />
         </div>
         <div className="job-table">
@@ -115,11 +116,6 @@ export default class Jobs extends React.Component<JobsProps, Record<string, neve
                       rowCount={rowCount}
                       rowHeight={40}
                       rowGetter={this.rowGetter}
-                      scrollTop={this.props.scrollHeight}
-                      onScroll={(params: ScrollParams | ScrollEventData) => {
-                        console.log(params)
-                        this.props.onScroll(params.scrollTop)
-                      }}
                       rowRenderer={(tableRowProps) => {
                         if (tableRowProps.rowData.jobId === "Loading") {
                           return <LoadingRow {...tableRowProps} />
