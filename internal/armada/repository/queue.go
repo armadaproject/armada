@@ -11,7 +11,7 @@ import (
 
 const queueHashKey = "Queue"
 
-var QueueNotFound = errors.New("Queue does not exist")
+var ErrQueueNotFound = errors.New("Queue does not exist")
 
 type QueueRepository interface {
 	GetAllQueues() ([]*api.Queue, error)
@@ -49,7 +49,7 @@ func (r *RedisQueueRepository) GetAllQueues() ([]*api.Queue, error) {
 func (r *RedisQueueRepository) GetQueue(name string) (*api.Queue, error) {
 	result, err := r.db.HGet(queueHashKey, name).Result()
 	if err == redis.Nil {
-		return nil, QueueNotFound
+		return nil, ErrQueueNotFound
 	} else if err != nil {
 		return nil, err
 	}

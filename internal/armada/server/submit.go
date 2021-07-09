@@ -316,7 +316,7 @@ func (server *SubmitServer) checkQueuePermission(
 	allQueuesPermission permission.Permission) (e error, ownershipGroups []string) {
 
 	queue, e := server.queueRepository.GetQueue(queueName)
-	if e == repository.QueueNotFound {
+	if e == repository.ErrQueueNotFound {
 		if attemptToCreate &&
 			server.queueManagementConfig.AutoCreateQueues &&
 			server.permissions.UserHasPermission(ctx, permissions.SubmitAnyJobs) {
