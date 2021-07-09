@@ -21,6 +21,8 @@ import (
 	"github.com/G-Research/armada/internal/common/logging"
 )
 
+const baseConfigFileName = "config"
+
 func BindCommandlineArguments() {
 	err := viper.BindPFlags(pflag.CommandLine)
 	if err != nil {
@@ -29,24 +31,25 @@ func BindCommandlineArguments() {
 	}
 }
 
-func LoadConfig(config interface{}, defaultPath string, overrideConfig string) *viper.Viper {
+func LoadConfig(config interface{}, defaultPath string, overrideConfigs []string) *viper.Viper {
 	v := viper.NewWithOptions(viper.KeyDelimiter("::"))
 
-	v.SetConfigName("config")
+	v.SetConfigName(baseConfigFileName)
 	v.AddConfigPath(defaultPath)
 	if err := v.ReadInConfig(); err != nil {
-		log.Error(err)
+		log.Errorf("Error reading base config path=%s name=%s: %v", defaultPath, baseConfigFileName, err)
 		os.Exit(-1)
 	}
+	log.Infof("Read base config from %s", v.ConfigFileUsed())
 
-	if overrideConfig != "" {
+	for _, overrideConfig := range overrideConfigs {
 		v.SetConfigFile(overrideConfig)
-
 		err := v.MergeInConfig()
 		if err != nil {
-			log.Error(err)
+			log.Errorf("Error reading config from %s: %v", overrideConfig, err)
 			os.Exit(-1)
 		}
+		log.Infof("Read config from %s", v.ConfigFileUsed())
 	}
 
 	v.SetEnvKeyReplacer(strings.NewReplacer("::", "_"))
