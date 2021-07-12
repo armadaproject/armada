@@ -76,7 +76,7 @@ This is recommended when working on features that are purely Armada specific or 
 
 2. Start server in one terminal
     ```bash
-    go run ./cmd/armada/main.go
+    go run ./cmd/armada/main.go --config ./e2e/setup/insecure-armada-auth-config.yaml
     ```
 3. Start executor for demo-a in a new terminal
     ```bash
@@ -98,7 +98,7 @@ docker run  -p 4223:4223 -p 8223:8223 nats-streaming -p 4223 -m 8223
 
 For armada configuration check end to end test setup:
 ```bash
-go run ./cmd/armada/main.go --config /e2e/setup/nats/armada-config.yaml
+go run ./cmd/armada/main.go --config ./e2e/setup/insecure-armada-auth-config.yaml --config ./e2e/setup/nats/armada-config.yaml
 ```
 
 ##### Lookout - Armada UI
