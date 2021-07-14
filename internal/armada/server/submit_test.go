@@ -11,6 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/G-Research/armada/internal/armada/repository"
@@ -18,6 +20,70 @@ import (
 	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/pkg/api"
 )
+
+func TestSubmitServer_CreateQueue_WithDefaultSettings_CanBeReadBack(t *testing.T) {
+	withSubmitServer(func(s *SubmitServer, events repository.EventRepository) {
+		const queueName = "myQueue"
+		const priority = 1.0
+
+		_, err := s.CreateQueue(context.Background(), &api.Queue{Name: queueName, PriorityFactor: priority})
+		assert.Empty(t, err)
+
+		receivedQueue, err := s.GetQueue(context.Background(), &api.QueueGetRequest{Name: queueName})
+		assert.Empty(t, err)
+		assert.Equal(t, queueName, receivedQueue.Name)
+		assert.Equal(t, priority, receivedQueue.PriorityFactor)
+		assert.Equal(t, 1, len(receivedQueue.UserOwners))
+		assert.Equal(t, "anonymous", receivedQueue.UserOwners[0])
+		assert.Nil(t, receivedQueue.GroupOwners)
+		assert.Nil(t, receivedQueue.ResourceLimits)
+	})
+}
+
+func TestSubmitServer_CreateQueue_WithCustomSettings_CanBeReadBack(t *testing.T) {
+	withSubmitServer(func(s *SubmitServer, events repository.EventRepository) {
+		const queueName = "myQueue"
+		const priority = 1.1
+		userOwners := []string{"user-a","user-b"}
+		groupOwners := []string{"group-a","group-b"}
+		resourceLimits := map[string]float64{"user-a":1.2, "user-b": 1.3}
+
+		_, err := s.CreateQueue(context.Background(), &api.Queue{Name: queueName, PriorityFactor: priority, UserOwners: userOwners, GroupOwners: groupOwners, ResourceLimits: resourceLimits})
+		assert.Empty(t, err)
+
+		receivedQueue, err := s.GetQueue(context.Background(), &api.QueueGetRequest{Name: queueName})
+		assert.Empty(t, err)
+		assert.Equal(t, queueName, receivedQueue.Name)
+		assert.Equal(t, priority, receivedQueue.PriorityFactor)
+		assert.Equal(t, userOwners, receivedQueue.UserOwners)
+		assert.Equal(t, groupOwners, receivedQueue.GroupOwners)
+		assert.Equal(t, resourceLimits, receivedQueue.ResourceLimits)
+	})
+}
+
+func TestSubmitServer_CreateQueue_WhenQueueAlreadyExists_QueueIsNotChanged_AndReturnsAlreadyExists(t *testing.T) {
+	withSubmitServer(func(s *SubmitServer, events repository.EventRepository) {
+		const queueName = "myQueue"
+		const priority = 1.1
+		userOwners := []string{"user-a","user-b"}
+		groupOwners := []string{"group-a","group-b"}
+		resourceLimits := map[string]float64{"user-a":1.2, "user-b": 1.3}
+
+		_, err := s.CreateQueue(context.Background(), &api.Queue{Name: queueName, PriorityFactor: priority, UserOwners: userOwners, GroupOwners: groupOwners, ResourceLimits: resourceLimits})
+		assert.Empty(t, err)
+
+		_, err = s.CreateQueue(context.Background(), &api.Queue{Name: queueName, PriorityFactor: 2, UserOwners: []string{"user-c"}, GroupOwners: []string{"group-c"}, ResourceLimits: map[string]float64{"user-c":1.2}})
+		assert.Equal(t, codes.AlreadyExists, status.Code(err))
+
+		receivedQueue, err := s.GetQueue(context.Background(), &api.QueueGetRequest{Name: queueName})
+		assert.Empty(t, err)
+		assert.Equal(t, queueName, receivedQueue.Name)
+		assert.Equal(t, priority, receivedQueue.PriorityFactor)
+		assert.Equal(t, userOwners, receivedQueue.UserOwners)
+		assert.Equal(t, groupOwners, receivedQueue.GroupOwners)
+		assert.Equal(t, resourceLimits, receivedQueue.ResourceLimits)
+	})
+}
 
 func TestSubmitServer_SubmitJob(t *testing.T) {
 	withSubmitServer(func(s *SubmitServer, events repository.EventRepository) {

@@ -58,6 +58,17 @@ func (server *SubmitServer) GetQueueInfo(ctx context.Context, req *api.QueueInfo
 	}, nil
 }
 
+func (server *SubmitServer) GetQueue(ctx context.Context, req *api.QueueGetRequest) (*api.Queue, error) {
+	queue, e := server.queueRepository.GetQueue(req.Name)
+	if e == repository.ErrQueueNotFound {
+		return nil, status.Errorf(codes.NotFound, "Queue %q not found", req.Name)
+
+	} else if e != nil {
+		return nil, status.Errorf(codes.Unavailable, "Could not load queue %q: %s", req.Name, e.Error())
+	}
+	return queue, nil
+}
+
 func (server *SubmitServer) CreateQueue(ctx context.Context, queue *api.Queue) (*types.Empty, error) {
 	if e := checkPermission(server.permissions, ctx, permissions.CreateQueue); e != nil {
 		return nil, e
@@ -73,10 +84,16 @@ func (server *SubmitServer) CreateQueue(ctx context.Context, queue *api.Queue) (
 	}
 
 	e := server.queueRepository.CreateQueue(queue)
-	if e != nil {
-		return nil, status.Errorf(codes.Aborted, e.Error())
+	if e == repository.ErrQueueAlreadyExists {
+		return nil, status.Errorf(codes.AlreadyExists, "Queue %q already exists", queue.Name)
+	} else if e != nil {
+		return nil, status.Errorf(codes.Unavailable, e.Error())
 	}
 	return &types.Empty{}, nil
+}
+
+func (server *SubmitServer) UpdateQueue(context.Context, *api.Queue) (*types.Empty, error) {
+	return nil, nil
 }
 
 func (server *SubmitServer) DeleteQueue(ctx context.Context, request *api.QueueDeleteRequest) (*types.Empty, error) {

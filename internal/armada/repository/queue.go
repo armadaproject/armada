@@ -12,6 +12,7 @@ import (
 const queueHashKey = "Queue"
 
 var ErrQueueNotFound = errors.New("Queue does not exist")
+var ErrQueueAlreadyExists = errors.New("Queue already exists")
 
 type QueueRepository interface {
 	GetAllQueues() ([]*api.Queue, error)
@@ -62,12 +63,21 @@ func (r *RedisQueueRepository) GetQueue(name string) (*api.Queue, error) {
 }
 
 func (r *RedisQueueRepository) CreateQueue(queue *api.Queue) error {
-	data, e := proto.Marshal(queue)
-	if e != nil {
-		return e
+	data, err := proto.Marshal(queue)
+	if err != nil {
+		return err
 	}
-	result := r.db.HSet(queueHashKey, queue.Name, data)
-	return result.Err()
+
+	result, err := r.db.HSetNX(queueHashKey, queue.Name, data).Result()
+	if err != nil {
+		return err
+	}
+
+	if !result {
+		return ErrQueueAlreadyExists
+	}
+
+	return nil
 }
 
 func (r *RedisQueueRepository) DeleteQueue(name string) error {
