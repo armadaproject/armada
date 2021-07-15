@@ -23,7 +23,6 @@ namespace GResearch.Armada.Client
         Task<object> UpdateQueueAsync(string name, ApiQueue body);
         Task<object> DeleteQueueAsync(string name);
         Task<ApiQueue> GetQueueAsync(string name);
-        Task<ApiQueueInfo> GetQueueInfoAsync(string name);
         Task<IEnumerable<StreamResponse<ApiEventStreamMessage>>> GetJobEventsStream(string queue, string jobSetId, string fromMessage = null, bool watch = false);
         Task WatchEvents(
             string queue,
