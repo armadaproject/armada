@@ -69,8 +69,6 @@ func (server *SubmitServer) GetQueue(ctx context.Context, req *api.QueueGetReque
 	return queue, nil
 }
 
-
-
 func (server *SubmitServer) CreateQueue(ctx context.Context, queue *api.Queue) (*types.Empty, error) {
 	if e := checkPermission(server.permissions, ctx, permissions.CreateQueue); e != nil {
 		return nil, e
@@ -389,4 +387,3 @@ func validateQueue(queue *api.Queue) error {
 	}
 	return nil
 }
-

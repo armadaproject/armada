@@ -103,4 +103,3 @@ func (r *RedisQueueRepository) DeleteQueue(name string) error {
 	result := r.db.HDel(queueHashKey, name)
 	return result.Err()
 }
-
