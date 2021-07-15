@@ -19,7 +19,11 @@ namespace GResearch.Armada.Client
     {
         Task<ApiCancellationResult> CancelJobsAsync(ApiJobCancelRequest body);
         Task<ApiJobSubmitResponse> SubmitJobsAsync(ApiJobSubmitRequest body);
-        Task<object> CreateQueueAsync(string name, ApiQueue body);
+        Task<object> CreateQueueAsync(ApiQueue body);
+        Task<object> UpdateQueueAsync(string name, ApiQueue body);
+        Task<object> DeleteQueueAsync(string name);
+        Task<ApiQueue> GetQueueAsync(string name);
+        Task<ApiQueueInfo> GetQueueInfoAsync(string name);
         Task<IEnumerable<StreamResponse<ApiEventStreamMessage>>> GetJobEventsStream(string queue, string jobSetId, string fromMessage = null, bool watch = false);
         Task WatchEvents(
             string queue,
@@ -174,3 +178,4 @@ namespace GResearch.Armada.Client
         }
     }
 }
+
