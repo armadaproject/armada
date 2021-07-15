@@ -277,6 +277,10 @@ func (repo *fakeQueueRepository) CreateQueue(queue *api.Queue) error {
 	return nil
 }
 
+func (repo *fakeQueueRepository) UpdateQueue(queue *api.Queue) error {
+	return nil
+}
+
 func (repo *fakeQueueRepository) DeleteQueue(name string) error {
 	return nil
 }

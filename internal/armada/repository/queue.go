@@ -18,6 +18,7 @@ type QueueRepository interface {
 	GetAllQueues() ([]*api.Queue, error)
 	GetQueue(name string) (*api.Queue, error)
 	CreateQueue(queue *api.Queue) error
+	UpdateQueue(queue *api.Queue) error
 	DeleteQueue(name string) error
 }
 
@@ -80,7 +81,26 @@ func (r *RedisQueueRepository) CreateQueue(queue *api.Queue) error {
 	return nil
 }
 
+func (r *RedisQueueRepository) UpdateQueue(queue *api.Queue) error {
+	existsResult, err := r.db.HExists(queueHashKey, queue.Name).Result()
+
+	if err != nil {
+		return err
+	} else if !existsResult {
+		return ErrQueueNotFound
+	}
+
+	data, err := proto.Marshal(queue)
+	if err != nil {
+		return err
+	}
+
+	result := r.db.HSet(queueHashKey, queue.Name, data)
+	return result.Err()
+}
+
 func (r *RedisQueueRepository) DeleteQueue(name string) error {
 	result := r.db.HDel(queueHashKey, name)
 	return result.Err()
 }
+

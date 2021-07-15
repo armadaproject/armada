@@ -27,61 +27,141 @@ func TestSubmitServer_CreateQueue_WithDefaultSettings_CanBeReadBack(t *testing.T
 		const priority = 1.0
 
 		_, err := s.CreateQueue(context.Background(), &api.Queue{Name: queueName, PriorityFactor: priority})
-		assert.Empty(t, err)
+		assert.NoError(t, err)
 
 		receivedQueue, err := s.GetQueue(context.Background(), &api.QueueGetRequest{Name: queueName})
-		assert.Empty(t, err)
-		assert.Equal(t, queueName, receivedQueue.Name)
-		assert.Equal(t, priority, receivedQueue.PriorityFactor)
-		assert.Equal(t, 1, len(receivedQueue.UserOwners))
-		assert.Equal(t, "anonymous", receivedQueue.UserOwners[0])
-		assert.Nil(t, receivedQueue.GroupOwners)
-		assert.Nil(t, receivedQueue.ResourceLimits)
+		assert.NoError(t, err)
+		assert.Equal(t, &api.Queue{Name: queueName, PriorityFactor: priority, UserOwners: []string{"anonymous"}, GroupOwners: nil, ResourceLimits:  nil}, receivedQueue)
 	})
 }
 
 func TestSubmitServer_CreateQueue_WithCustomSettings_CanBeReadBack(t *testing.T) {
 	withSubmitServer(func(s *SubmitServer, events repository.EventRepository) {
 		const queueName = "myQueue"
-		const priority = 1.1
-		userOwners := []string{"user-a","user-b"}
-		groupOwners := []string{"group-a","group-b"}
-		resourceLimits := map[string]float64{"user-a":1.2, "user-b": 1.3}
+		originalQueue := &api.Queue{Name: queueName, PriorityFactor: 1.1, UserOwners: []string{"user-a","user-b"}, GroupOwners: []string{"group-a","group-b"}, ResourceLimits:  map[string]float64{"user-a":1.2, "user-b": 1.3}}
 
-		_, err := s.CreateQueue(context.Background(), &api.Queue{Name: queueName, PriorityFactor: priority, UserOwners: userOwners, GroupOwners: groupOwners, ResourceLimits: resourceLimits})
-		assert.Empty(t, err)
+		_, err := s.CreateQueue(context.Background(), originalQueue)
+		assert.NoError(t, err)
 
-		receivedQueue, err := s.GetQueue(context.Background(), &api.QueueGetRequest{Name: queueName})
-		assert.Empty(t, err)
-		assert.Equal(t, queueName, receivedQueue.Name)
-		assert.Equal(t, priority, receivedQueue.PriorityFactor)
-		assert.Equal(t, userOwners, receivedQueue.UserOwners)
-		assert.Equal(t, groupOwners, receivedQueue.GroupOwners)
-		assert.Equal(t, resourceLimits, receivedQueue.ResourceLimits)
+		roundTrippedQueue, err := s.GetQueue(context.Background(), &api.QueueGetRequest{Name: queueName})
+		assert.NoError(t, err)
+		assert.Equal(t, originalQueue, roundTrippedQueue)
 	})
 }
 
 func TestSubmitServer_CreateQueue_WhenQueueAlreadyExists_QueueIsNotChanged_AndReturnsAlreadyExists(t *testing.T) {
 	withSubmitServer(func(s *SubmitServer, events repository.EventRepository) {
 		const queueName = "myQueue"
-		const priority = 1.1
-		userOwners := []string{"user-a","user-b"}
-		groupOwners := []string{"group-a","group-b"}
-		resourceLimits := map[string]float64{"user-a":1.2, "user-b": 1.3}
+		originalQueue := &api.Queue{Name: queueName, PriorityFactor: 1.1, UserOwners: []string{"user-a","user-b"}, GroupOwners: []string{"group-a","group-b"}, ResourceLimits:  map[string]float64{"user-a":1.2, "user-b": 1.3}}
 
-		_, err := s.CreateQueue(context.Background(), &api.Queue{Name: queueName, PriorityFactor: priority, UserOwners: userOwners, GroupOwners: groupOwners, ResourceLimits: resourceLimits})
-		assert.Empty(t, err)
+		_, err := s.CreateQueue(context.Background(), originalQueue)
+		assert.NoError(t, err)
 
-		_, err = s.CreateQueue(context.Background(), &api.Queue{Name: queueName, PriorityFactor: 2, UserOwners: []string{"user-c"}, GroupOwners: []string{"group-c"}, ResourceLimits: map[string]float64{"user-c":1.2}})
+		_, err = s.CreateQueue(context.Background(), &api.Queue{Name: queueName, PriorityFactor: 2, UserOwners: []string{"user-c"}, GroupOwners: []string{"group-c"}, ResourceLimits: map[string]float64{"user-c":1.4}})
 		assert.Equal(t, codes.AlreadyExists, status.Code(err))
 
+		roundTrippedQueue, err := s.GetQueue(context.Background(), &api.QueueGetRequest{Name: queueName})
+		assert.NoError(t, err)
+		assert.Equal(t, originalQueue, roundTrippedQueue)
+	})
+}
+
+func TestSubmitServer_UpdateQueue_WhenQueueDoesNotExist_DoesNotCreateQueue_AndReturnsNotFound(t *testing.T) {
+	withSubmitServer(func(s *SubmitServer, events repository.EventRepository) {
+		const queueName = "non_existent_queue"
+
+		_, err := s.UpdateQueue(context.Background(), &api.Queue{Name: queueName, PriorityFactor: 1})
+		assert.Equal(t, codes.NotFound, status.Code(err))
+
+		_, err = s.GetQueue(context.Background(), &api.QueueGetRequest{Name: queueName})
+		assert.Equal(t, codes.NotFound, status.Code(err))
+	})
+}
+
+func TestSubmitServer_UpdateQueue_WhenQueueExists_ReplacesQueue(t *testing.T) {
+	withSubmitServer(func(s *SubmitServer, events repository.EventRepository) {
+		const queueName = "myQueue"
+
+		originalQueue := &api.Queue{Name: queueName, PriorityFactor: 1.1, UserOwners: []string{"user-a","user-b"}, GroupOwners: []string{"group-a","group-b"}, ResourceLimits:  map[string]float64{"user-a":1.2, "user-b": 1.3}}
+		_, err := s.CreateQueue(context.Background(), originalQueue)
+		assert.NoError(t, err)
+
+		updatedQueue := &api.Queue{Name: queueName, PriorityFactor: 2.2, UserOwners: []string{"user-a","user-c"}, GroupOwners: []string{"group-c","group-b"}, ResourceLimits:  map[string]float64{"user-a":1.3, "user-c": 1.3}}
+		_, err = s.UpdateQueue(context.Background(), updatedQueue)
+		assert.NoError(t, err)
+
 		receivedQueue, err := s.GetQueue(context.Background(), &api.QueueGetRequest{Name: queueName})
-		assert.Empty(t, err)
-		assert.Equal(t, queueName, receivedQueue.Name)
-		assert.Equal(t, priority, receivedQueue.PriorityFactor)
-		assert.Equal(t, userOwners, receivedQueue.UserOwners)
-		assert.Equal(t, groupOwners, receivedQueue.GroupOwners)
-		assert.Equal(t, resourceLimits, receivedQueue.ResourceLimits)
+		assert.NoError(t, err)
+		assert.Equal(t, updatedQueue, receivedQueue)
+	})
+}
+
+func TestSubmitServer_CreateQueue_WhenPermissionsCheckFails_QueueIsNotCreated_AndReturnsPermissionDenied(t *testing.T) {
+	withSubmitServer(func(s *SubmitServer, events repository.EventRepository) {
+		const queueName = "myQueue"
+
+		s.permissions = &FakeDenyAllPermissionChecker{}
+
+		_, err := s.CreateQueue(context.Background(), &api.Queue{Name: queueName, PriorityFactor: 1})
+		assert.Equal(t, codes.PermissionDenied, status.Code(err))
+
+		_, err = s.GetQueue(context.Background(), &api.QueueGetRequest{Name: queueName})
+		assert.Equal(t, codes.NotFound, status.Code(err))
+	})
+}
+
+func TestSubmitServer_UpdateQueue_WhenPermissionsCheckFails_QueueIsNotUpdated_AndReturnsPermissionDenied(t *testing.T) {
+	withSubmitServer(func(s *SubmitServer, events repository.EventRepository) {
+		const queueName = "myQueue"
+		originalQueue := &api.Queue{Name: queueName, PriorityFactor: 1}
+
+		_, err := s.CreateQueue(context.Background(), originalQueue)
+		assert.NoError(t, err)
+
+		s.permissions = &FakeDenyAllPermissionChecker{}
+
+		_, err = s.UpdateQueue(context.Background(), &api.Queue{Name: queueName, PriorityFactor: originalQueue.PriorityFactor + 100})
+		assert.Equal(t, codes.PermissionDenied, status.Code(err))
+
+		receivedQueue, err := s.GetQueue(context.Background(), &api.QueueGetRequest{Name: queueName})
+		assert.NoError(t, err)
+		assert.Equal(t, originalQueue, receivedQueue)
+	})
+}
+
+func TestSubmitServer_DeleteQueue_WhenPermissionsCheckFails_QueueIsNotDelete_AndReturnsPermissionDenied(t *testing.T) {
+	withSubmitServer(func(s *SubmitServer, events repository.EventRepository) {
+		const queueName = "myQueue"
+		originalQueue := &api.Queue{Name: queueName, PriorityFactor: 1}
+
+		_, err := s.CreateQueue(context.Background(), originalQueue)
+		assert.NoError(t, err)
+
+		s.permissions = &FakeDenyAllPermissionChecker{}
+
+		_, err = s.DeleteQueue(context.Background(), &api.QueueDeleteRequest{Name: queueName})
+		assert.Equal(t, codes.PermissionDenied, status.Code(err))
+
+		receivedQueue, err := s.GetQueue(context.Background(), &api.QueueGetRequest{Name: queueName})
+		assert.NoError(t, err)
+		assert.Equal(t, originalQueue, receivedQueue)
+	})
+}
+
+func TestSubmitServer_GetQueueInfo_WhenPermissionsCheckFails_ReturnsPermissionDenied(t *testing.T) {
+	withSubmitServer(func(s *SubmitServer, events repository.EventRepository) {
+		const queueName = "myQueue"
+		originalQueue := &api.Queue{Name: queueName, PriorityFactor: 1}
+
+		_, err := s.CreateQueue(context.Background(), originalQueue)
+		assert.NoError(t, err)
+
+		s.permissions = &FakeDenyAllPermissionChecker{}
+
+		receivedQueueInfo, err := s.GetQueueInfo(context.Background(), &api.QueueInfoRequest{Name: queueName})
+		assert.Equal(t, codes.PermissionDenied, status.Code(err))
+		assert.Empty(t, receivedQueueInfo)
+
 	})
 }
 

@@ -16,3 +16,13 @@ func (c FakePermissionChecker) UserOwns(ctx context.Context, obj authorization.O
 func (FakePermissionChecker) UserHasPermission(ctx context.Context, perm permission.Permission) bool {
 	return true
 }
+
+type FakeDenyAllPermissionChecker struct{}
+
+func (c FakeDenyAllPermissionChecker) UserOwns(ctx context.Context, obj authorization.Owned) (owned bool, ownershipGroups []string) {
+	return false, []string{}
+}
+
+func (FakeDenyAllPermissionChecker) UserHasPermission(ctx context.Context, perm permission.Permission) bool {
+	return false
+}
