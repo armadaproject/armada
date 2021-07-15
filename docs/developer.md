@@ -54,7 +54,7 @@ This is recommended when working on features that are purely Armada specific or 
 
 4. Start server in one terminal
     ```bash
-    go run ./cmd/armada/main.go
+    go run ./cmd/armada/main.go --config ./e2e/setup/insecure-armada-auth-config.yaml
     ```
 5. Start executor for demo-a in a new terminal
     ```bash

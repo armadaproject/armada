@@ -6,6 +6,8 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/client"
@@ -36,7 +38,7 @@ Job priority is evaluated inside queue, queue has its own priority.`,
 
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		queue := args[0]
+		queueName := args[0]
 		priority, _ := cmd.Flags().GetFloat64("priorityFactor")
 		owners, _ := cmd.Flags().GetStringSlice("owners")
 		groups, _ := cmd.Flags().GetStringSlice("groupOwners")
@@ -50,17 +52,27 @@ Job priority is evaluated inside queue, queue has its own priority.`,
 
 		client.WithConnection(apiConnectionDetails, func(conn *grpc.ClientConn) {
 			submissionClient := api.NewSubmitClient(conn)
-			e := client.CreateQueue(submissionClient, &api.Queue{
-				Name:           queue,
+
+			queue := &api.Queue{
+				Name:           queueName,
 				PriorityFactor: priority,
 				UserOwners:     owners,
 				GroupOwners:    groups,
-				ResourceLimits: resourceLimitsFloat})
+				ResourceLimits: resourceLimitsFloat}
 
-			if e != nil {
-				exitWithError(e)
+			err = client.CreateQueue(submissionClient, queue)
+
+			// Tempoary workaround to keep old "upsert" behavior
+			// Long term plan is to add new "create queue", "replace queue" and "edit queue" commands, then deprecate "create-queue"
+			if status.Code(err) == codes.AlreadyExists {
+				log.Infof("Queue already exists, so OVERWRITING ALL SETTINGS of existing queue %s.", queue.Name)
+				err = client.UpdateQueue(submissionClient, queue)
 			}
-			log.Infof("Queue %s created.", queue)
+
+			if err != nil {
+				exitWithError(err)
+			}
+			log.Infof("Queue %s created/updated.", queue.Name)
 		})
 	},
 }
