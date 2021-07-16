@@ -3417,7 +3417,7 @@ func (m *Job) Unmarshal(dAtA []byte) error {
 					if err != nil {
 						return err
 					}
-					if skippy < 0 {
+					if (skippy < 0) || (iNdEx+skippy) < 0 {
 						return ErrInvalidLengthQueue
 					}
 					if (iNdEx + skippy) > postIndex {
@@ -3544,7 +3544,7 @@ func (m *Job) Unmarshal(dAtA []byte) error {
 					if err != nil {
 						return err
 					}
-					if skippy < 0 {
+					if (skippy < 0) || (iNdEx+skippy) < 0 {
 						return ErrInvalidLengthQueue
 					}
 					if (iNdEx + skippy) > postIndex {
@@ -3671,7 +3671,7 @@ func (m *Job) Unmarshal(dAtA []byte) error {
 					if err != nil {
 						return err
 					}
-					if skippy < 0 {
+					if (skippy < 0) || (iNdEx+skippy) < 0 {
 						return ErrInvalidLengthQueue
 					}
 					if (iNdEx + skippy) > postIndex {
@@ -3820,10 +3820,7 @@ func (m *Job) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthQueue
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthQueue
 			}
 			if (iNdEx + skippy) > l {
@@ -4017,7 +4014,7 @@ func (m *LeaseRequest) Unmarshal(dAtA []byte) error {
 					if err != nil {
 						return err
 					}
-					if skippy < 0 {
+					if (skippy < 0) || (iNdEx+skippy) < 0 {
 						return ErrInvalidLengthQueue
 					}
 					if (iNdEx + skippy) > postIndex {
@@ -4179,7 +4176,7 @@ func (m *LeaseRequest) Unmarshal(dAtA []byte) error {
 					if err != nil {
 						return err
 					}
-					if skippy < 0 {
+					if (skippy < 0) || (iNdEx+skippy) < 0 {
 						return ErrInvalidLengthQueue
 					}
 					if (iNdEx + skippy) > postIndex {
@@ -4296,10 +4293,7 @@ func (m *LeaseRequest) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthQueue
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthQueue
 			}
 			if (iNdEx + skippy) > l {
@@ -4525,7 +4519,7 @@ func (m *NodeInfo) Unmarshal(dAtA []byte) error {
 					if err != nil {
 						return err
 					}
-					if skippy < 0 {
+					if (skippy < 0) || (iNdEx+skippy) < 0 {
 						return ErrInvalidLengthQueue
 					}
 					if (iNdEx + skippy) > postIndex {
@@ -4654,7 +4648,7 @@ func (m *NodeInfo) Unmarshal(dAtA []byte) error {
 					if err != nil {
 						return err
 					}
-					if skippy < 0 {
+					if (skippy < 0) || (iNdEx+skippy) < 0 {
 						return ErrInvalidLengthQueue
 					}
 					if (iNdEx + skippy) > postIndex {
@@ -4783,7 +4777,7 @@ func (m *NodeInfo) Unmarshal(dAtA []byte) error {
 					if err != nil {
 						return err
 					}
-					if skippy < 0 {
+					if (skippy < 0) || (iNdEx+skippy) < 0 {
 						return ErrInvalidLengthQueue
 					}
 					if (iNdEx + skippy) > postIndex {
@@ -4800,10 +4794,7 @@ func (m *NodeInfo) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthQueue
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthQueue
 			}
 			if (iNdEx + skippy) > l {
@@ -4997,7 +4988,7 @@ func (m *NodeType) Unmarshal(dAtA []byte) error {
 					if err != nil {
 						return err
 					}
-					if skippy < 0 {
+					if (skippy < 0) || (iNdEx+skippy) < 0 {
 						return ErrInvalidLengthQueue
 					}
 					if (iNdEx + skippy) > postIndex {
@@ -5126,7 +5117,7 @@ func (m *NodeType) Unmarshal(dAtA []byte) error {
 					if err != nil {
 						return err
 					}
-					if skippy < 0 {
+					if (skippy < 0) || (iNdEx+skippy) < 0 {
 						return ErrInvalidLengthQueue
 					}
 					if (iNdEx + skippy) > postIndex {
@@ -5143,10 +5134,7 @@ func (m *NodeType) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthQueue
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthQueue
 			}
 			if (iNdEx + skippy) > l {
@@ -5407,7 +5395,7 @@ func (m *ClusterSchedulingInfoReport) Unmarshal(dAtA []byte) error {
 					if err != nil {
 						return err
 					}
-					if skippy < 0 {
+					if (skippy < 0) || (iNdEx+skippy) < 0 {
 						return ErrInvalidLengthQueue
 					}
 					if (iNdEx + skippy) > postIndex {
@@ -5598,10 +5586,7 @@ func (m *AutoscalingPool) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthQueue
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthQueue
 			}
 			if (iNdEx + skippy) > l {
@@ -5795,7 +5780,7 @@ func (m *QueueLeasedReport) Unmarshal(dAtA []byte) error {
 					if err != nil {
 						return err
 					}
-					if skippy < 0 {
+					if (skippy < 0) || (iNdEx+skippy) < 0 {
 						return ErrInvalidLengthQueue
 					}
 					if (iNdEx + skippy) > postIndex {
@@ -5812,10 +5797,7 @@ func (m *QueueLeasedReport) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthQueue
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthQueue
 			}
 			if (iNdEx + skippy) > l {
@@ -5964,10 +5946,7 @@ func (m *ClusterLeasedReport) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthQueue
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthQueue
 			}
 			if (iNdEx + skippy) > l {
@@ -6129,7 +6108,7 @@ func (m *ComputeResource) Unmarshal(dAtA []byte) error {
 					if err != nil {
 						return err
 					}
-					if skippy < 0 {
+					if (skippy < 0) || (iNdEx+skippy) < 0 {
 						return ErrInvalidLengthQueue
 					}
 					if (iNdEx + skippy) > postIndex {
@@ -6146,10 +6125,7 @@ func (m *ComputeResource) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthQueue
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthQueue
 			}
 			if (iNdEx + skippy) > l {
@@ -6309,7 +6285,7 @@ func (m *NodeLabeling) Unmarshal(dAtA []byte) error {
 					if err != nil {
 						return err
 					}
-					if skippy < 0 {
+					if (skippy < 0) || (iNdEx+skippy) < 0 {
 						return ErrInvalidLengthQueue
 					}
 					if (iNdEx + skippy) > postIndex {
@@ -6326,10 +6302,7 @@ func (m *NodeLabeling) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthQueue
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthQueue
 			}
 			if (iNdEx + skippy) > l {
@@ -6413,10 +6386,7 @@ func (m *JobLease) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthQueue
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthQueue
 			}
 			if (iNdEx + skippy) > l {
@@ -6498,10 +6468,7 @@ func (m *IdList) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthQueue
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthQueue
 			}
 			if (iNdEx + skippy) > l {
@@ -6615,10 +6582,7 @@ func (m *RenewLeaseRequest) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthQueue
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthQueue
 			}
 			if (iNdEx + skippy) > l {
@@ -6732,10 +6696,7 @@ func (m *ReturnLeaseRequest) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthQueue
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthQueue
 			}
 			if (iNdEx + skippy) > l {

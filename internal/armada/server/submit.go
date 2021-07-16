@@ -9,11 +9,12 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/G-Research/armada/internal/armada/authorization"
-	"github.com/G-Research/armada/internal/armada/authorization/permissions"
 	"github.com/G-Research/armada/internal/armada/configuration"
+	"github.com/G-Research/armada/internal/armada/permissions"
 	"github.com/G-Research/armada/internal/armada/repository"
 	"github.com/G-Research/armada/internal/armada/scheduling"
+	"github.com/G-Research/armada/internal/common/auth/authorization"
+	"github.com/G-Research/armada/internal/common/auth/permission"
 	"github.com/G-Research/armada/pkg/api"
 )
 
@@ -311,8 +312,8 @@ func (server *SubmitServer) checkQueuePermission(
 	ctx context.Context,
 	queueName string,
 	attemptToCreate bool,
-	basicPermission permissions.Permission,
-	allQueuesPermission permissions.Permission) (e error, ownershipGroups []string) {
+	basicPermission permission.Permission,
+	allQueuesPermission permission.Permission) (e error, ownershipGroups []string) {
 
 	queue, e := server.queueRepository.GetQueue(queueName)
 	if e != nil {

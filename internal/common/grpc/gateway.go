@@ -12,8 +12,8 @@ import (
 	"github.com/jcmturner/gokrb5/v8/spnego"
 	"google.golang.org/grpc"
 
-	protoutil "github.com/G-Research/armada/internal/armada/protoutils"
 	"github.com/G-Research/armada/internal/common"
+	protoutil "github.com/G-Research/armada/internal/common/grpc/protoutils"
 	"github.com/G-Research/armada/internal/common/util"
 )
 

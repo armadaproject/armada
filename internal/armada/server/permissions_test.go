@@ -3,8 +3,8 @@ package server
 import (
 	"context"
 
-	"github.com/G-Research/armada/internal/armada/authorization"
-	"github.com/G-Research/armada/internal/armada/authorization/permissions"
+	"github.com/G-Research/armada/internal/common/auth/authorization"
+	"github.com/G-Research/armada/internal/common/auth/permission"
 )
 
 type FakePermissionChecker struct{}
@@ -13,6 +13,6 @@ func (c FakePermissionChecker) UserOwns(ctx context.Context, obj authorization.O
 	return true, []string{}
 }
 
-func (FakePermissionChecker) UserHasPermission(ctx context.Context, perm permissions.Permission) bool {
+func (FakePermissionChecker) UserHasPermission(ctx context.Context, perm permission.Permission) bool {
 	return true
 }

@@ -22,6 +22,7 @@ const useStyles = makeStyles((theme: Theme) =>
 type LoadingButtonProps = {
   content: string
   isLoading: boolean
+  isDisabled?: boolean
   onClick: () => void
 }
 
@@ -30,7 +31,7 @@ export default function LoadingButton(props: LoadingButtonProps) {
 
   return (
     <div className={classes.loadingWrapper}>
-      <Button color="secondary" onClick={props.onClick} disabled={props.isLoading}>
+      <Button color="secondary" onClick={props.onClick} disabled={props.isLoading || props.isDisabled}>
         {props.content}
       </Button>
       {props.isLoading && <CircularProgress size={24} className={classes.loading} />}

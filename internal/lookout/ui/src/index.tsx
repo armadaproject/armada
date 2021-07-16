@@ -7,6 +7,7 @@ import { SubmitApi, Configuration as SubmitConfiguration } from "./openapi/armad
 import { LookoutApi, Configuration as LookoutConfiguration } from "./openapi/lookout"
 import reportWebVitals from "./reportWebVitals"
 import JobService from "./services/JobService"
+import LogService from "./services/LogService"
 import { getUIConfig } from "./utils"
 
 import "react-virtualized/styles.css"
@@ -25,7 +26,9 @@ import "./index.css"
     uiConfig.userAnnotationPrefix,
   )
 
-  ReactDOM.render(<App jobService={jobService} />, document.getElementById("root"))
+  const logService = new LogService({ credentials: "include" }, uiConfig.binocularsBaseUrlPattern)
+
+  ReactDOM.render(<App jobService={jobService} logService={logService} />, document.getElementById("root"))
 
   reportWebVitals()
 })()

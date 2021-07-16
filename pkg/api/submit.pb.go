@@ -2726,7 +2726,7 @@ func (m *JobSubmitRequestItem) Unmarshal(dAtA []byte) error {
 					if err != nil {
 						return err
 					}
-					if skippy < 0 {
+					if (skippy < 0) || (iNdEx+skippy) < 0 {
 						return ErrInvalidLengthSubmit
 					}
 					if (iNdEx + skippy) > postIndex {
@@ -2853,7 +2853,7 @@ func (m *JobSubmitRequestItem) Unmarshal(dAtA []byte) error {
 					if err != nil {
 						return err
 					}
-					if skippy < 0 {
+					if (skippy < 0) || (iNdEx+skippy) < 0 {
 						return ErrInvalidLengthSubmit
 					}
 					if (iNdEx + skippy) > postIndex {
@@ -2980,7 +2980,7 @@ func (m *JobSubmitRequestItem) Unmarshal(dAtA []byte) error {
 					if err != nil {
 						return err
 					}
-					if skippy < 0 {
+					if (skippy < 0) || (iNdEx+skippy) < 0 {
 						return ErrInvalidLengthSubmit
 					}
 					if (iNdEx + skippy) > postIndex {
@@ -3097,10 +3097,7 @@ func (m *JobSubmitRequestItem) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthSubmit
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthSubmit
 			}
 			if (iNdEx + skippy) > l {
@@ -3245,10 +3242,7 @@ func (m *IngressConfig) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthSubmit
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthSubmit
 			}
 			if (iNdEx + skippy) > l {
@@ -3396,10 +3390,7 @@ func (m *JobSubmitRequest) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthSubmit
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthSubmit
 			}
 			if (iNdEx + skippy) > l {
@@ -3545,10 +3536,7 @@ func (m *JobCancelRequest) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthSubmit
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthSubmit
 			}
 			if (iNdEx + skippy) > l {
@@ -3705,10 +3693,7 @@ func (m *JobReprioritizeRequest) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthSubmit
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthSubmit
 			}
 			if (iNdEx + skippy) > l {
@@ -3868,7 +3853,7 @@ func (m *JobReprioritizeResponse) Unmarshal(dAtA []byte) error {
 					if err != nil {
 						return err
 					}
-					if skippy < 0 {
+					if (skippy < 0) || (iNdEx+skippy) < 0 {
 						return ErrInvalidLengthSubmit
 					}
 					if (iNdEx + skippy) > postIndex {
@@ -3885,10 +3870,7 @@ func (m *JobReprioritizeResponse) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthSubmit
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthSubmit
 			}
 			if (iNdEx + skippy) > l {
@@ -4002,10 +3984,7 @@ func (m *JobSubmitResponseItem) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthSubmit
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthSubmit
 			}
 			if (iNdEx + skippy) > l {
@@ -4089,10 +4068,7 @@ func (m *JobSubmitResponse) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthSubmit
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthSubmit
 			}
 			if (iNdEx + skippy) > l {
@@ -4338,7 +4314,7 @@ func (m *Queue) Unmarshal(dAtA []byte) error {
 					if err != nil {
 						return err
 					}
-					if skippy < 0 {
+					if (skippy < 0) || (iNdEx+skippy) < 0 {
 						return ErrInvalidLengthSubmit
 					}
 					if (iNdEx + skippy) > postIndex {
@@ -4355,10 +4331,7 @@ func (m *Queue) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthSubmit
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthSubmit
 			}
 			if (iNdEx + skippy) > l {
@@ -4440,10 +4413,7 @@ func (m *CancellationResult) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthSubmit
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthSubmit
 			}
 			if (iNdEx + skippy) > l {
@@ -4525,10 +4495,7 @@ func (m *QueueInfoRequest) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthSubmit
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthSubmit
 			}
 			if (iNdEx + skippy) > l {
@@ -4610,10 +4577,7 @@ func (m *QueueDeleteRequest) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthSubmit
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthSubmit
 			}
 			if (iNdEx + skippy) > l {
@@ -4729,10 +4693,7 @@ func (m *QueueInfo) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthSubmit
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthSubmit
 			}
 			if (iNdEx + skippy) > l {
@@ -4852,10 +4813,7 @@ func (m *JobSetInfo) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthSubmit
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthSubmit
 			}
 			if (iNdEx + skippy) > l {
