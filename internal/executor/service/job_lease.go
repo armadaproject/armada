@@ -22,7 +22,7 @@ const jobDoneAnnotation = "reported_done"
 
 type LeaseService interface {
 	ReturnLease(pod *v1.Pod) error
-	RequestJobLeases(availableResource *common.ComputeResources, nodes []api.NodeInfo, autoscalingPools []api.AutoscalingPool, leasedResourceByQueue map[string]common.ComputeResources) ([]*api.Job, error)
+	RequestJobLeases(availableResource common.ComputeResources, nodes []api.NodeInfo, autoscalingPools []api.AutoscalingPool, leasedResourceByQueue map[string]common.ComputeResources) ([]*api.Job, error)
 	RenewJobLeases(jobs []*job.RunningJob) ([]*job.RunningJob, error)
 	ReportDone(jobIds []string) error
 }

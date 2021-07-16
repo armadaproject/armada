@@ -77,7 +77,8 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 		queueUtilisationService,
 		usageClient,
 		config.Kubernetes.TrackedNodeLabels,
-		config.Kubernetes.ToleratedTaints)
+		config.Kubernetes.ToleratedTaints,
+		config.Kubernetes.AutoscalingPools)
 
 	clusterAllocationService := service.NewClusterAllocationService(
 		clusterContext,

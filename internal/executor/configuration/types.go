@@ -25,7 +25,7 @@ type KubernetesConfiguration struct {
 	FailedPodExpiry   time.Duration
 	StuckPodExpiry    time.Duration
 	MinimumJobSize    common.ComputeResources
-	AutoscalingPools  []AutoScalingPool
+	AutoscalingPools  []api.AutoscalingPool
 	PodDefaults       *PodDefaults
 }
 
@@ -52,9 +52,4 @@ type ExecutorConfiguration struct {
 
 	Kubernetes KubernetesConfiguration
 	Task       TaskConfiguration
-}
-
-type AutoScalingPool struct {
-	NodeType     api.NodeType
-	MaximumCount int
 }

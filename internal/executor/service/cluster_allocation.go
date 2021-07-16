@@ -52,7 +52,7 @@ func (allocationService *ClusterAllocationService) AllocateSpareClusterCapacity(
 	}
 	leasedJobs = util.FilterPods(leasedJobs, shouldBeRenewed)
 
-	newJobs, err := allocationService.leaseService.RequestJobLeases(capacityReport.AvailableCapacity, capacityReport.Nodes, capacityReport.DormantCapacity, capacityReport.DormantNodeTypes, utilisation.GetAllocationByQueue(leasedJobs))
+	newJobs, err := allocationService.leaseService.RequestJobLeases(capacityReport.AvailableCapacity, capacityReport.Nodes, capacityReport.AutoscalingPools, utilisation.GetAllocationByQueue(leasedJobs))
 
 	cpu := capacityReport.AvailableCapacity["cpu"]
 	memory := capacityReport.AvailableCapacity["memory"]
