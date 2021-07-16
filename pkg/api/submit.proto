@@ -84,6 +84,11 @@ message CancellationResult {
 }
 
 //swagger:model
+message QueueGetRequest {
+    string name = 1;
+}
+
+//swagger:model
 message QueueInfoRequest {
     string name = 1;
 }
@@ -126,6 +131,12 @@ service Submit {
     }
     rpc CreateQueue (Queue) returns (google.protobuf.Empty) {
         option (google.api.http) = {
+            post: "/v1/queue"
+            body: "*"
+        };
+    }
+    rpc UpdateQueue (Queue) returns (google.protobuf.Empty) {
+        option (google.api.http) = {
             put: "/v1/queue/{name}"
             body: "*"
         };
@@ -135,9 +146,14 @@ service Submit {
             delete: "/v1/queue/{name}"
         };
     }
-    rpc GetQueueInfo (QueueInfoRequest) returns (QueueInfo) {
+    rpc GetQueue (QueueGetRequest) returns (Queue) {
         option (google.api.http) = {
             get: "/v1/queue/{name}"
+        };
+    }
+    rpc GetQueueInfo (QueueInfoRequest) returns (QueueInfo) {
+        option (google.api.http) = {
+            get: "/v1/queue/{name}/info"
         };
     }
 }
