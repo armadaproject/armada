@@ -8,6 +8,8 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/pkg/api"
@@ -128,11 +130,14 @@ func (apiLoadTester ArmadaLoadTester) runSubmission(ctx context.Context, submiss
 		client := api.NewSubmitClient(connection)
 
 		e := CreateQueue(client, &api.Queue{Name: queue, PriorityFactor: priorityFactor})
-		if e != nil {
+		if status.Code(e) == codes.AlreadyExists {
+			log.Infof("Queue %s already exists so no need to create it.\n", queue)
+		} else if e != nil {
 			log.Errorf("ERROR: Failed to create queue: %s because: %s\n", queue, e)
 			return
+		} else {
+			log.Infof("Queue %s created.\n", queue)
 		}
-		log.Infof("Queue %s created.\n", queue)
 
 		for len(jobs) > 0 {
 			select {

@@ -42,8 +42,8 @@ This is recommended when working on features that are purely Armada specific or 
     As this step is using Docker, it will require root to run
     
     ```bash
-    kind create cluster --name demoA --config ./example/kind-config.yaml
-    kind create cluster --name demoB --config ./example/kind-config.yaml 
+    kind create cluster --name demo-a --config ./example/kind-config.yaml
+    kind create cluster --name demo-b --config ./example/kind-config.yaml
     ```
 3. Start Redis
     ```bash
@@ -54,15 +54,15 @@ This is recommended when working on features that are purely Armada specific or 
 
 4. Start server in one terminal
     ```bash
-    go run ./cmd/armada/main.go
+    go run ./cmd/armada/main.go --config ./e2e/setup/insecure-armada-auth-config.yaml
     ```
-5. Start executor for demoA in a new terminal
+5. Start executor for demo-a in a new terminal
     ```bash
-    KUBECONFIG=$(kind get kubeconfig-path --name="demoA") ARMADA_APPLICATION_CLUSTERID=demoA ARMADA_METRIC_PORT=9001 go run ./cmd/executor/main.go
+    KUBECONFIG=$(kind get kubeconfig-path --name="demo-a") ARMADA_APPLICATION_CLUSTERID=demo-a ARMADA_METRIC_PORT=9001 go run ./cmd/executor/main.go
     ```
-6. Start executor for demoB in a new terminal
+6. Start executor for demo-b in a new terminal
     ```bash
-    KUBECONFIG=$(kind get kubeconfig-path --name="demoB") ARMADA_APPLICATION_CLUSTERID=demoB ARMADA_METRIC_PORT=9002 go run ./cmd/executor/main.go
+    KUBECONFIG=$(kind get kubeconfig-path --name="demo-b") ARMADA_APPLICATION_CLUSTERID=demo-b ARMADA_METRIC_PORT=9002 go run ./cmd/executor/main.go
     ```
 
 #### Setup Fake-executor development
@@ -76,15 +76,15 @@ This is recommended when working on features that are purely Armada specific or 
 
 2. Start server in one terminal
     ```bash
-    go run ./cmd/armada/main.go
+    go run ./cmd/armada/main.go --config ./e2e/setup/insecure-armada-auth-config.yaml
     ```
-3. Start executor for demoA in a new terminal
+3. Start executor for demo-a in a new terminal
     ```bash
-    ARMADA_APPLICATION_CLUSTERID=demoA ARMADA_METRIC_PORT=9001 go run ./cmd/fakeexecutor/main.go
+    ARMADA_APPLICATION_CLUSTERID=demo-a ARMADA_METRIC_PORT=9001 go run ./cmd/fakeexecutor/main.go
     ```
-4. Start executor for demoB in a new terminal
+4. Start executor for demo-b in a new terminal
     ```bash
-    ARMADA_APPLICATION_CLUSTERID=demoB ARMADA_METRIC_PORT=9002 go run ./cmd/fakeexecutor/main.go
+    ARMADA_APPLICATION_CLUSTERID=demo-b ARMADA_METRIC_PORT=9002 go run ./cmd/fakeexecutor/main.go
     ```
 
 #### Optional components
@@ -98,7 +98,7 @@ docker run  -p 4223:4223 -p 8223:8223 nats-streaming -p 4223 -m 8223
 
 For armada configuration check end to end test setup:
 ```bash
-go run ./cmd/armada/main.go --config /e2e/setup/nats/armada-config.yaml
+go run ./cmd/armada/main.go --config ./e2e/setup/insecure-armada-auth-config.yaml --config ./e2e/setup/nats/armada-config.yaml
 ```
 
 ##### Lookout - Armada UI

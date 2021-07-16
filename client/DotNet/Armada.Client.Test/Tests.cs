@@ -24,7 +24,7 @@ namespace GResearch.Armada.Client.Test
             var jobSet = $"set-{Guid.NewGuid()}";
 
             // produce some events
-            await client.CreateQueueAsync(queue, new ApiQueue {PriorityFactor = 200});
+            await client.CreateQueueAsync(new ApiQueue {Name = queue, PriorityFactor = 200});
             var request = CreateJobRequest(jobSet);
             var response = await client.SubmitJobsAsync(request);
             var cancelResponse =
@@ -47,7 +47,7 @@ namespace GResearch.Armada.Client.Test
             var jobSet = $"set-{Guid.NewGuid()}";
 
             IArmadaClient client = new ArmadaClient("http://localhost:8080", new HttpClient());
-            await client.CreateQueueAsync(queue, new ApiQueue {PriorityFactor = 200});
+            await client.CreateQueueAsync(new ApiQueue {Name = queue, PriorityFactor = 200});
 
             var request = CreateJobRequest(jobSet);
 

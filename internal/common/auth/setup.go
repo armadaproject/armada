@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"errors"
 
 	"github.com/G-Research/armada/internal/common/auth/authorization"
 	"github.com/G-Research/armada/internal/common/auth/authorization/groups"
@@ -41,5 +42,10 @@ func ConfigureAuth(config configuration.AuthConfig) []authorization.AuthService 
 		}
 		authServices = append(authServices, kerberosAuthService)
 	}
+
+	if len(authServices) == 0 {
+		panic(errors.New("At least one auth method must be specified in config"))
+	}
+
 	return authServices
 }

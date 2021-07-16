@@ -58,6 +58,17 @@ func (server *SubmitServer) GetQueueInfo(ctx context.Context, req *api.QueueInfo
 	}, nil
 }
 
+func (server *SubmitServer) GetQueue(ctx context.Context, req *api.QueueGetRequest) (*api.Queue, error) {
+	queue, e := server.queueRepository.GetQueue(req.Name)
+	if e == repository.ErrQueueNotFound {
+		return nil, status.Errorf(codes.NotFound, "Queue %q not found", req.Name)
+
+	} else if e != nil {
+		return nil, status.Errorf(codes.Unavailable, "Could not load queue %q: %s", req.Name, e.Error())
+	}
+	return queue, nil
+}
+
 func (server *SubmitServer) CreateQueue(ctx context.Context, queue *api.Queue) (*types.Empty, error) {
 	if e := checkPermission(server.permissions, ctx, permissions.CreateQueue); e != nil {
 		return nil, e
@@ -68,13 +79,35 @@ func (server *SubmitServer) CreateQueue(ctx context.Context, queue *api.Queue) (
 		queue.UserOwners = []string{principal.GetName()}
 	}
 
-	if queue.PriorityFactor < 1.0 {
-		return nil, status.Errorf(codes.InvalidArgument, "Minimum queue priority factor is 1.")
+	e := validateQueue(queue)
+	if e != nil {
+		return nil, e
 	}
 
-	e := server.queueRepository.CreateQueue(queue)
+	e = server.queueRepository.CreateQueue(queue)
+	if e == repository.ErrQueueAlreadyExists {
+		return nil, status.Errorf(codes.AlreadyExists, "Queue %q already exists", queue.Name)
+	} else if e != nil {
+		return nil, status.Errorf(codes.Unavailable, e.Error())
+	}
+	return &types.Empty{}, nil
+}
+
+func (server *SubmitServer) UpdateQueue(ctx context.Context, queue *api.Queue) (*types.Empty, error) {
+	if e := checkPermission(server.permissions, ctx, permissions.CreateQueue); e != nil {
+		return nil, e
+	}
+
+	e := validateQueue(queue)
 	if e != nil {
-		return nil, status.Errorf(codes.Aborted, e.Error())
+		return nil, e
+	}
+
+	e = server.queueRepository.UpdateQueue(queue)
+	if e == repository.ErrQueueNotFound {
+		return nil, status.Errorf(codes.NotFound, "Queue %q not found", queue.Name)
+	} else if e != nil {
+		return nil, status.Errorf(codes.Unavailable, e.Error())
 	}
 	return &types.Empty{}, nil
 }
@@ -316,7 +349,7 @@ func (server *SubmitServer) checkQueuePermission(
 	allQueuesPermission permission.Permission) (e error, ownershipGroups []string) {
 
 	queue, e := server.queueRepository.GetQueue(queueName)
-	if e != nil {
+	if e == repository.ErrQueueNotFound {
 		if attemptToCreate &&
 			server.queueManagementConfig.AutoCreateQueues &&
 			server.permissions.UserHasPermission(ctx, permissions.SubmitAnyJobs) {
@@ -331,9 +364,12 @@ func (server *SubmitServer) checkQueuePermission(
 			}
 			return nil, []string{}
 		} else {
-			return status.Errorf(codes.NotFound, "Could not load queue: %s", e.Error()), []string{}
+			return status.Errorf(codes.NotFound, "Queue %q not found", queueName), []string{}
 		}
+	} else if e != nil {
+		return status.Errorf(codes.Unavailable, "Could not load queue %q: %s", queueName, e.Error()), []string{}
 	}
+
 	permissionToCheck := basicPermission
 	owned, groups := server.permissions.UserOwns(ctx, queue)
 	if !owned {
@@ -343,4 +379,11 @@ func (server *SubmitServer) checkQueuePermission(
 		return e, []string{}
 	}
 	return nil, groups
+}
+
+func validateQueue(queue *api.Queue) error {
+	if queue.PriorityFactor < 1.0 {
+		return status.Errorf(codes.InvalidArgument, "Minimum queue priority factor is 1.")
+	}
+	return nil
 }
