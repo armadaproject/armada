@@ -158,7 +158,7 @@ func Test_calculateQueueSchedulingLimits(t *testing.T) {
 	activeQueues := []*api.Queue{queue1}
 	schedulingLimitPerQueue := common.ComputeResourcesFloat{"cpu": 300.0}
 	resourceLimitPerQueue := common.ComputeResourcesFloat{"cpu": 400.0}
-	totalCapacity := &common.ComputeResources{"cpu": resource.MustParse("1000")}
+	totalCapacity := common.ComputeResourcesFloat{"cpu": 1000}
 	currentQueueResourceAllocation := map[string]common.ComputeResources{queue1.Name: {"cpu": resource.MustParse("250")}}
 
 	result := calculateQueueSchedulingLimits(activeQueues, schedulingLimitPerQueue, resourceLimitPerQueue, totalCapacity, currentQueueResourceAllocation)
@@ -172,7 +172,7 @@ func Test_calculateQueueSchedulingLimits_WithSmallSchedulingLimitPerQueue(t *tes
 	activeQueues := []*api.Queue{queue1}
 	schedulingLimitPerQueue := common.ComputeResourcesFloat{"cpu": 100.0}
 	resourceLimitPerQueue := common.ComputeResourcesFloat{"cpu": 400.0}
-	totalCapacity := &common.ComputeResources{"cpu": resource.MustParse("1000")}
+	totalCapacity := common.ComputeResourcesFloat{"cpu": 1000}
 	currentQueueResourceAllocation := map[string]common.ComputeResources{queue1.Name: {"cpu": resource.MustParse("250")}}
 
 	result := calculateQueueSchedulingLimits(activeQueues, schedulingLimitPerQueue, resourceLimitPerQueue, totalCapacity, currentQueueResourceAllocation)
@@ -186,7 +186,7 @@ func Test_calculateQueueSchedulingLimits_WithCustomQueueLimitsLessThanGlobal(t *
 	activeQueues := []*api.Queue{queue1}
 	schedulingLimitPerQueue := common.ComputeResourcesFloat{"cpu": 300.0}
 	resourceLimitPerQueue := common.ComputeResourcesFloat{"cpu": 400.0}
-	totalCapacity := &common.ComputeResources{"cpu": resource.MustParse("1000")}
+	totalCapacity := common.ComputeResourcesFloat{"cpu": 1000}
 	currentQueueResourceAllocation := map[string]common.ComputeResources{queue1.Name: {"cpu": resource.MustParse("250")}}
 
 	result := calculateQueueSchedulingLimits(activeQueues, schedulingLimitPerQueue, resourceLimitPerQueue, totalCapacity, currentQueueResourceAllocation)
@@ -200,7 +200,7 @@ func Test_calculateQueueSchedulingLimits_WithCustomQueueLimitsGreaterThanGlobal(
 	activeQueues := []*api.Queue{queue1}
 	schedulingLimitPerQueue := common.ComputeResourcesFloat{"cpu": 300.0}
 	resourceLimitPerQueue := common.ComputeResourcesFloat{"cpu": 400.0}
-	totalCapacity := &common.ComputeResources{"cpu": resource.MustParse("1000")}
+	totalCapacity := common.ComputeResourcesFloat{"cpu": 1000}
 	currentQueueResourceAllocation := map[string]common.ComputeResources{queue1.Name: {"cpu": resource.MustParse("250")}}
 
 	result := calculateQueueSchedulingLimits(activeQueues, schedulingLimitPerQueue, resourceLimitPerQueue, totalCapacity, currentQueueResourceAllocation)

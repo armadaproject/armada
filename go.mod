@@ -59,6 +59,7 @@ require (
 	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d
 	google.golang.org/genproto v0.0.0-20201110150050-8816d57aaa9a
 	google.golang.org/grpc v1.32.0
+	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/ini.v1 v1.54.0 // indirect
 	gopkg.in/square/go-jose.v2 v2.4.1 // indirect
 	k8s.io/api v0.20.5

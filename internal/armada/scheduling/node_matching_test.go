@@ -135,6 +135,13 @@ func Test_tolerates(t *testing.T) {
 	assert.True(t, tolerates(podSpec, taints))
 }
 
+func Test_roundString(t *testing.T) {
+	assert.Equal(t, "100e-2", roundQuantityString(resource.MustParse("1"), 3))
+	assert.Equal(t, "100e-5", roundQuantityString(resource.MustParse("1m"), 3))
+	assert.Equal(t, "137e9", roundQuantityString(resource.MustParse("128Gi"), 3))
+	assert.Equal(t, "128e6", roundQuantityString(resource.MustParse("128M"), 3))
+}
+
 func makeResourceList(cores int64, gigabytesRam int64) common.ComputeResources {
 	cpuResource := resource.NewQuantity(cores, resource.DecimalSI)
 	memoryResource := resource.NewQuantity(gigabytesRam*1024*1024*1024, resource.DecimalSI)

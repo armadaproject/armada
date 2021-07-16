@@ -1,12 +1,14 @@
 package scheduling
 
 import (
+	"fmt"
 	"sort"
 	"strings"
 	"time"
 
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/pkg/api"
@@ -78,11 +80,12 @@ func matchAnyNodeTypeAllocation(job *api.Job,
 	nodeAllocations []*nodeTypeAllocation,
 	alreadyConsumed nodeTypeUsedResources) (nodeTypeUsedResources, bool) {
 
+	jobAge := time.Now().Sub(job.Created)
 	newlyConsumed := nodeTypeUsedResources{}
 
 	for _, podSpec := range job.GetAllPodSpecs() {
 
-		nodeType, ok := matchAnyNodeTypePodAllocation(podSpec, nodeAllocations, alreadyConsumed, newlyConsumed)
+		nodeType, ok := matchAnyNodeTypePodAllocation(podSpec, jobAge, nodeAllocations, alreadyConsumed, newlyConsumed)
 
 		if !ok {
 			return nodeTypeUsedResources{}, false
@@ -94,11 +97,7 @@ func matchAnyNodeTypeAllocation(job *api.Job,
 	return newlyConsumed, true
 }
 
-func matchAnyNodeTypePodAllocation(
-	podSpec *v1.PodSpec,
-	nodeAllocations []*nodeTypeAllocation,
-	alreadyConsumed nodeTypeUsedResources,
-	newlyConsumed nodeTypeUsedResources) (*nodeTypeAllocation, bool) {
+func matchAnyNodeTypePodAllocation(podSpec *v1.PodSpec, jobAge time.Duration, nodeAllocations []*nodeTypeAllocation, alreadyConsumed nodeTypeUsedResources, newlyConsumed nodeTypeUsedResources) (*nodeTypeAllocation, bool) {
 	resourceRequest := common.TotalPodResourceRequest(podSpec).AsFloat()
 
 	for _, node := range nodeAllocations {
@@ -107,7 +106,7 @@ func matchAnyNodeTypePodAllocation(
 		available.Sub(newlyConsumed[node])
 		available.LimitWith(node.nodeSize.AsFloat())
 
-		if fits(resourceRequest, available) && matchNodeSelector(podSpec, node.labels) && tolerates(podSpec, node.taints) {
+		if jobAge > node.schedulingDelay && fits(resourceRequest, available) && matchNodeSelector(podSpec, node.labels) && tolerates(podSpec, node.taints) {
 			return node, true
 		}
 	}
@@ -168,10 +167,12 @@ func AggregateNodeTypeAllocations(nodes []api.NodeInfo) []*nodeTypeAllocation {
 				labels:             n.Labels,
 				nodeSize:           n.AllocatableResources,
 				availableResources: nodeAvailableResources,
+				nodeCount:          1,
 			}
 			nodeTypesIndex[description] = typeDescription
 		} else {
 			typeDescription.availableResources.Add(nodeAvailableResources)
+			typeDescription.nodeCount += 1
 		}
 	}
 
@@ -189,7 +190,7 @@ func AggregateNodeTypeAllocations(nodes []api.NodeInfo) []*nodeTypeAllocation {
 	return result
 }
 
-func CalculateDormantResources(existingNodes []*nodeTypeAllocation, autoscalingPools []api.AutoscalingPool) []*nodeTypeAllocation {
+func CalculateDormantResources(existingNodes []*nodeTypeAllocation, autoscalingPools []api.AutoscalingPool, schedulingDelay time.Duration) []*nodeTypeAllocation {
 	if len(autoscalingPools) == 0 {
 		return []*nodeTypeAllocation{}
 	}
@@ -210,6 +211,7 @@ func CalculateDormantResources(existingNodes []*nodeTypeAllocation, autoscalingP
 			labels:             pool.NodeType.Labels,
 			nodeSize:           nodeSize,
 			availableResources: nodeSize.Mul(float64(pool.MaxNodeCount)),
+			schedulingDelay:    schedulingDelay,
 		}
 		poolNodeTypes = append(poolNodeTypes, n)
 		poolNodeTypesIndex[desc] = n
@@ -223,11 +225,10 @@ func CalculateDormantResources(existingNodes []*nodeTypeAllocation, autoscalingP
 		})
 		pool, ok := poolNodeTypesIndex[desc]
 		if !ok {
-			// TODO find closest node
+			// TODO: can we improvise and find closest node here?
 			log.Errorf("Node %s does not belong to any node type.", desc)
 		} else {
-			// TODO figure existing node size correctly
-			pool.availableResources.Sub(existing.nodeSize.AsFloat())
+			pool.availableResources.Sub(existing.nodeSize.AsFloat().Mul(float64(existing.nodeCount)))
 		}
 	}
 	return poolNodeTypes
@@ -244,8 +245,24 @@ func createNodeDescription(n *api.NodeInfo) string {
 		}
 	}
 	for k, v := range n.AllocatableResources {
-		data = append(data, "t"+k+"="+v.String())
+		data = append(data, "t"+k+"="+roundQuantityString(v, 3))
 	}
 	sort.Strings(data)
 	return strings.Join(data, "|")
+}
+
+// Produce canonical string representation of rounded quantity,
+// for example: 123456 => 123e3, 0.01 => 100e-4, 128Gi => 137e9
+func roundQuantityString(v resource.Quantity, precision int) string {
+	d := v.AsDec()
+	scale := int(d.Scale())
+	value := d.UnscaledBig().String()
+
+	scale -= len(value) - precision
+	if len(value) > precision {
+		value = value[0:precision]
+	} else {
+		value = value + strings.Repeat("0", precision-len(value))
+	}
+	return fmt.Sprintf("%se%d", value, -scale)
 }

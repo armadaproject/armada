@@ -81,7 +81,7 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 
 	nodeResources := scheduling.AggregateNodeTypeAllocations(request.Nodes)
 	// TODO: only include dormant resources when queues are large enough
-	dormantNodeResources := scheduling.CalculateDormantResources(nodeResources, request.AutoscalingPools)
+	dormantNodeResources := scheduling.CalculateDormantResources(nodeResources, request.AutoscalingPools, q.schedulingConfig.AutoscalingNodePlacementDelay)
 
 	clusterSchedulingInfo := scheduling.CreateClusterSchedulingInfoReport(request, nodeResources, request.AutoscalingPools)
 	e = q.schedulingInfoRepository.UpdateClusterSchedulingInfo(clusterSchedulingInfo)

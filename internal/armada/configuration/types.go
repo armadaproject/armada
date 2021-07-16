@@ -41,6 +41,7 @@ type SchedulingConfig struct {
 	MaxRetries                                uint // Maximum number of retries before a Job is failed
 	ResourceScarcity                          map[string]float64
 	PoolResourceScarcity                      map[string]map[string]float64
+	AutoscalingNodePlacementDelay             time.Duration // How long the job needs to be in the queue, before it is considered for placement in dormant resources
 }
 
 type EventRetentionPolicy struct {

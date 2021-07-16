@@ -1,6 +1,8 @@
 package scheduling
 
 import (
+	"time"
+
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/G-Research/armada/internal/common"
@@ -11,6 +13,8 @@ type nodeTypeAllocation struct {
 	labels             map[string]string
 	nodeSize           common.ComputeResources
 	availableResources common.ComputeResourcesFloat
+	nodeCount          int
+	schedulingDelay    time.Duration
 }
 
 type nodeTypeUsedResources map[*nodeTypeAllocation]common.ComputeResourcesFloat

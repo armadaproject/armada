@@ -90,7 +90,7 @@ func LeaseJobs(ctx context.Context,
 		resourceScarcity:    scarcity,
 		queueSchedulingInfo: activeQueueSchedulingInfo,
 		priorities:          activeQueuePriority,
-		nodeResources:       append(nodeResources, dormantNodeResources...),
+		nodeResources:       append(nodeResources, dormantNodeResources...), // dormant resources are considered last
 		minimumJobSize:      request.MinimumJobSize,
 
 		queueCache: map[string][]*api.Job{},
