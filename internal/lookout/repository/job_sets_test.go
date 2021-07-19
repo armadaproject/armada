@@ -35,11 +35,13 @@ func TestGetJobSetInfos_GetsJobSetWithNoFinishedJobs(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
 
-		NewJobSimulator(t, jobStore).
-			CreateJobWithJobSet(queue, "job-set")
+		recentTime := someTime.Add(3 * time.Hour)
 
 		NewJobSimulator(t, jobStore).
-			CreateJobWithJobSet(queue, "job-set").
+			CreateJobWithOpts(queue, util.NewULID(), "job-set", "user", someTime, map[string]string{})
+
+		NewJobSimulator(t, jobStore).
+			CreateJobWithOpts(queue, util.NewULID(), "job-set", "user", recentTime, map[string]string{}).
 			Pending(cluster, k8sId1)
 
 		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
@@ -54,6 +56,7 @@ func TestGetJobSetInfos_GetsJobSetWithNoFinishedJobs(t *testing.T) {
 			JobsRunning:   0,
 			JobsSucceeded: 0,
 			JobsFailed:    0,
+			Submitted:     &recentTime,
 		}, jobSetInfos[0])
 	})
 }
@@ -62,13 +65,15 @@ func TestGetJobSetInfos_GetsJobSetWithOnlyFinishedJobs(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
 
+		recentTime := someTime.Add(3 * time.Hour)
+
 		NewJobSimulator(t, jobStore).
-			CreateJobWithJobSet(queue, "job-set").
+			CreateJobWithOpts(queue, util.NewULID(), "job-set", "user", someTime, map[string]string{}).
 			Running(cluster, k8sId1, node).
 			Succeeded(cluster, k8sId1, node)
 
 		NewJobSimulator(t, jobStore).
-			CreateJobWithJobSet(queue, "job-set").
+			CreateJobWithOpts(queue, util.NewULID(), "job-set", "user", recentTime, map[string]string{}).
 			Pending(cluster, k8sId2).
 			Failed(cluster, k8sId2, node, "some error")
 
@@ -84,6 +89,7 @@ func TestGetJobSetInfos_GetsJobSetWithOnlyFinishedJobs(t *testing.T) {
 			JobsRunning:   0,
 			JobsSucceeded: 1,
 			JobsFailed:    1,
+			Submitted:     &recentTime,
 		}, jobSetInfos[0])
 	})
 }
@@ -94,34 +100,34 @@ func TestGetJobSetInfos_JobSetsCounts(t *testing.T) {
 		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
 
 		NewJobSimulator(t, jobStore).
-			CreateJobWithJobSet(queue, "job-set-1").
+			CreateJobWithOpts(queue, util.NewULID(), "job-set-1", "user", someTime, map[string]string{}).
 			Pending(cluster, "a1").
 			UnableToSchedule(cluster, "a1", node).
 			Pending(cluster, "a2")
 
 		NewJobSimulator(t, jobStore).
-			CreateJobWithJobSet(queue, "job-set-1").
+			CreateJobWithOpts(queue, util.NewULID(), "job-set-1", "user", someTime, map[string]string{}).
 			Pending(cluster, "b1").
 			Running(cluster, "b2", node)
 
 		NewJobSimulator(t, jobStore).
-			CreateJobWithJobSet(queue, "job-set-1")
+			CreateJobWithOpts(queue, util.NewULID(), "job-set-1", "user", someTime, map[string]string{})
 
 		NewJobSimulator(t, jobStore).
-			CreateJobWithJobSet(queue, "job-set-1").
+			CreateJobWithOpts(queue, util.NewULID(), "job-set-1", "user", someTime, map[string]string{}).
 			Pending(cluster, "c1").
 			UnableToSchedule(cluster, "c1", node).
 			Running(cluster, "c2", node).
 			Succeeded(cluster, "c2", node)
 
 		NewJobSimulator(t, jobStore).
-			CreateJobWithJobSet(queue, "job-set-1").
+			CreateJobWithOpts(queue, util.NewULID(), "job-set-1", "user", someTime, map[string]string{}).
 			Pending(cluster, "d1").
 			Running(cluster, "d2", node).
 			Failed(cluster, "d2", node, "something bad")
 
 		NewJobSimulator(t, jobStore).
-			CreateJobWithJobSet(queue, "job-set-1").
+			CreateJobWithOpts(queue, util.NewULID(), "job-set-1", "user", someTime, map[string]string{}).
 			Pending(cluster, "e1").
 			Running(cluster, "e2", node).
 			Cancelled()
@@ -137,6 +143,7 @@ func TestGetJobSetInfos_JobSetsCounts(t *testing.T) {
 			JobsRunning:   1,
 			JobsSucceeded: 1,
 			JobsFailed:    1,
+			Submitted:     &someTime,
 		}, jobSetInfos[0])
 	})
 }
@@ -148,32 +155,32 @@ func TestGetJobSetInfos_MultipleJobSetsCounts(t *testing.T) {
 
 		// Job set 1
 		NewJobSimulator(t, jobStore).
-			CreateJobWithJobSet(queue, "job-set-1")
+			CreateJobWithOpts(queue, util.NewULID(), "job-set-1", "user", someTime, map[string]string{})
 
 		NewJobSimulator(t, jobStore).
-			CreateJobWithJobSet(queue, "job-set-1")
+			CreateJobWithOpts(queue, util.NewULID(), "job-set-1", "user", someTime, map[string]string{})
 
 		NewJobSimulator(t, jobStore).
-			CreateJobWithJobSet(queue, "job-set-1").
+			CreateJobWithOpts(queue, util.NewULID(), "job-set-1", "user", someTime, map[string]string{}).
 			Pending(cluster, "a1").
 			UnableToSchedule(cluster, "a1", node).
 			Pending(cluster, "a2")
 
 		NewJobSimulator(t, jobStore).
-			CreateJobWithJobSet(queue, "job-set-1").
+			CreateJobWithOpts(queue, util.NewULID(), "job-set-1", "user", someTime, map[string]string{}).
 			Pending(cluster, "b1").
 			UnableToSchedule(cluster, "b1", node).
 			Running(cluster, "b2", node)
 
 		NewJobSimulator(t, jobStore).
-			CreateJobWithJobSet(queue, "job-set-1").
+			CreateJobWithOpts(queue, util.NewULID(), "job-set-1", "user", someTime, map[string]string{}).
 			Pending(cluster, "c1").
 			UnableToSchedule(cluster, "c1", node).
 			Running(cluster, "c2", node).
 			Succeeded(cluster, "c2", node)
 
 		NewJobSimulator(t, jobStore).
-			CreateJobWithJobSet(queue, "job-set-1").
+			CreateJobWithOpts(queue, util.NewULID(), "job-set-1", "user", someTime, map[string]string{}).
 			Pending(cluster, "d1").
 			UnableToSchedule(cluster, "d1", node).
 			Running(cluster, "d2", node).
@@ -181,21 +188,21 @@ func TestGetJobSetInfos_MultipleJobSetsCounts(t *testing.T) {
 
 		// Job set 2
 		NewJobSimulator(t, jobStore).
-			CreateJobWithJobSet(queue, "job-set-2")
+			CreateJobWithOpts(queue, util.NewULID(), "job-set-2", "user", someTime, map[string]string{})
 
 		NewJobSimulator(t, jobStore).
-			CreateJobWithJobSet(queue, "job-set-2").
+			CreateJobWithOpts(queue, util.NewULID(), "job-set-2", "user", someTime, map[string]string{}).
 			Pending(cluster, "e1")
 
 		NewJobSimulator(t, jobStore).
-			CreateJobWithJobSet(queue, "job-set-2").
+			CreateJobWithOpts(queue, util.NewULID(), "job-set-2", "user", someTime, map[string]string{}).
 			Pending(cluster, "f1").
 			UnableToSchedule(cluster, "f1", node).
 			Running(cluster, "f2", node).
 			Succeeded(cluster, "f2", node)
 
 		NewJobSimulator(t, jobStore).
-			CreateJobWithJobSet(queue, "job-set-2").
+			CreateJobWithOpts(queue, util.NewULID(), "job-set-2", "user", someTime, map[string]string{}).
 			Pending(cluster, "h1").
 			UnableToSchedule(cluster, "h1", node).
 			Running(cluster, "h2", node).
@@ -213,6 +220,7 @@ func TestGetJobSetInfos_MultipleJobSetsCounts(t *testing.T) {
 			JobsRunning:   1,
 			JobsSucceeded: 1,
 			JobsFailed:    1,
+			Submitted:     &someTime,
 		}, jobSetInfos[0])
 
 		assertJobSetInfosAreEqual(t, &lookout.JobSetInfo{
@@ -223,6 +231,7 @@ func TestGetJobSetInfos_MultipleJobSetsCounts(t *testing.T) {
 			JobsRunning:   0,
 			JobsSucceeded: 1,
 			JobsFailed:    1,
+			Submitted:     &someTime,
 		}, jobSetInfos[1])
 	})
 }
@@ -399,6 +408,123 @@ func TestGetJobSetInfos_GetQueuedStats(t *testing.T) {
 	})
 }
 
+func TestGetJobSetInfos_GetOnlyActiveJobSets(t *testing.T) {
+	withDatabase(t, func(db *goqu.Database) {
+		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
+		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
+
+		NewJobSimulator(t, jobStore).
+			CreateJobWithJobSet(queue, "job-set-1")
+
+		NewJobSimulator(t, jobStore).
+			CreateJobWithJobSet(queue, "job-set-2").
+			Pending(cluster, k8sId2)
+
+		NewJobSimulator(t, jobStore).
+			CreateJobWithJobSet(queue, "job-set-3").
+			Running(cluster, k8sId2, node)
+
+		NewJobSimulator(t, jobStore).
+			CreateJobWithJobSet(queue, "job-set-4").
+			Cancelled()
+
+		NewJobSimulator(t, jobStore).
+			CreateJobWithJobSet(queue, "job-set-5").
+			UnableToSchedule(cluster, k8sId1, node).
+			Pending(cluster, k8sId2).
+			Running(cluster, k8sId2, node).
+			Succeeded(cluster, k8sId2, node)
+
+		NewJobSimulator(t, jobStore).
+			CreateJobWithJobSet(queue, "job-set-6").
+			UnableToSchedule(cluster, k8sId1, node).
+			Pending(cluster, k8sId2).
+			Running(cluster, k8sId2, node).
+			Failed(cluster, k8sId2, node, "some error")
+
+		jobSets, err := jobRepo.GetJobSetInfos(ctx, &lookout.GetJobSetsRequest{
+			Queue: queue,
+			ActiveOnly: true,
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, 3, len(jobSets))
+
+		assert.Equal(t, "job-set-1", jobSets[0].JobSet)
+		assert.Equal(t, "job-set-2", jobSets[1].JobSet)
+		assert.Equal(t, "job-set-3", jobSets[2].JobSet)
+	})
+}
+
+func TestGetJobSetInfos_GetNewestFirst(t *testing.T) {
+	withDatabase(t, func(db *goqu.Database) {
+		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
+		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
+
+		NewJobSimulator(t, jobStore).
+			CreateJobWithOpts(queue, util.NewULID(), "job-set-1", "user", someTime, nil)
+
+		NewJobSimulator(t, jobStore).
+			CreateJobWithOpts(queue, util.NewULID(), "job-set-2", "user", someTime.Add(1*time.Hour), nil)
+
+		NewJobSimulator(t, jobStore).
+			CreateJobWithOpts(queue, util.NewULID(), "job-set-3", "user", someTime.Add(2*time.Hour), nil)
+
+		NewJobSimulator(t, jobStore).
+			CreateJobWithOpts(queue, util.NewULID(), "job-set-4", "user", someTime.Add(3*time.Hour), nil)
+
+		NewJobSimulator(t, jobStore).
+			CreateJobWithOpts(queue, util.NewULID(), "job-set-5", "user", someTime.Add(4*time.Hour), nil)
+
+		jobSets, err := jobRepo.GetJobSetInfos(ctx, &lookout.GetJobSetsRequest{
+			Queue: queue,
+			NewestFirst: true,
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, 5, len(jobSets))
+
+		assert.Equal(t, "job-set-5", jobSets[0].JobSet)
+		assert.Equal(t, "job-set-4", jobSets[1].JobSet)
+		assert.Equal(t, "job-set-3", jobSets[2].JobSet)
+		assert.Equal(t, "job-set-2", jobSets[3].JobSet)
+		assert.Equal(t, "job-set-1", jobSets[4].JobSet)
+	})
+}
+
+func TestGetJobSetInfos_GetOldestFirst(t *testing.T) {
+	withDatabase(t, func(db *goqu.Database) {
+		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
+		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
+
+		NewJobSimulator(t, jobStore).
+			CreateJobWithOpts(queue, util.NewULID(), "job-set-1", "user", someTime, nil)
+
+		NewJobSimulator(t, jobStore).
+			CreateJobWithOpts(queue, util.NewULID(), "job-set-2", "user", someTime.Add(1*time.Hour), nil)
+
+		NewJobSimulator(t, jobStore).
+			CreateJobWithOpts(queue, util.NewULID(), "job-set-3", "user", someTime.Add(2*time.Hour), nil)
+
+		NewJobSimulator(t, jobStore).
+			CreateJobWithOpts(queue, util.NewULID(), "job-set-4", "user", someTime.Add(3*time.Hour), nil)
+
+		NewJobSimulator(t, jobStore).
+			CreateJobWithOpts(queue, util.NewULID(), "job-set-5", "user", someTime.Add(4*time.Hour), nil)
+
+		jobSets, err := jobRepo.GetJobSetInfos(ctx, &lookout.GetJobSetsRequest{
+			Queue: queue,
+			NewestFirst: false,
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, 5, len(jobSets))
+
+		assert.Equal(t, "job-set-1", jobSets[0].JobSet)
+		assert.Equal(t, "job-set-2", jobSets[1].JobSet)
+		assert.Equal(t, "job-set-3", jobSets[2].JobSet)
+		assert.Equal(t, "job-set-4", jobSets[3].JobSet)
+		assert.Equal(t, "job-set-5", jobSets[4].JobSet)
+	})
+}
+
 func assertDurationStatsAreEqual(t *testing.T, expected *lookout.DurationStats, actual *lookout.DurationStats) {
 	t.Helper()
 	AssertProtoDurationsApproxEqual(t, expected.Longest, actual.Longest)
@@ -418,4 +544,5 @@ func assertJobSetInfosAreEqual(t *testing.T, expected *lookout.JobSetInfo, actua
 	assert.Equal(t, expected.JobsRunning, actual.JobsRunning)
 	assert.Equal(t, expected.JobsSucceeded, actual.JobsSucceeded)
 	assert.Equal(t, expected.JobsFailed, actual.JobsFailed)
+	AssertTimesApproxEqual(t, expected.Submitted, actual.Submitted)
 }

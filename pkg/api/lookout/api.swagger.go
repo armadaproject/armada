@@ -252,6 +252,12 @@ func SwaggerJsonTemplate() string {
 		"    \"lookoutGetJobSetsRequest\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
+		"        \"activeOnly\": {\n" +
+		"          \"type\": \"boolean\"\n" +
+		"        },\n" +
+		"        \"newestFirst\": {\n" +
+		"          \"type\": \"boolean\"\n" +
+		"        },\n" +
 		"        \"queue\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        }\n" +
@@ -380,6 +386,10 @@ func SwaggerJsonTemplate() string {
 		"        },\n" +
 		"        \"runningStats\": {\n" +
 		"          \"$ref\": \"#/definitions/lookoutDurationStats\"\n" +
+		"        },\n" +
+		"        \"submitted\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"format\": \"date-time\"\n" +
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
