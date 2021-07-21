@@ -83,7 +83,7 @@ func (allocationService *SubmitService) submitPod(job *api.Job, i int) (*v1.Pod,
 	pod := createPod(job, allocationService.podDefaults, i)
 
 	if exposesPorts(job, &pod.Spec) {
-		pod.Annotations = mergeMaps(pod.Annotations, map[string]string{
+		pod.Annotations = MergeMaps(pod.Annotations, map[string]string{
 			domain.HasIngress: "true",
 		})
 		submittedPod, err := allocationService.clusterContext.SubmitPod(pod, job.Owner, job.QueueOwnershipUserGroups)
@@ -183,12 +183,12 @@ func createService(job *api.Job, pod *v1.Pod) *v1.Service {
 		},
 		Ports: servicePorts,
 	}
-	labels := mergeMaps(job.Labels, map[string]string{
+	labels := MergeMaps(job.Labels, map[string]string{
 		domain.JobId:     pod.Labels[domain.JobId],
 		domain.Queue:     pod.Labels[domain.Queue],
 		domain.PodNumber: pod.Labels[domain.PodNumber],
 	})
-	annotation := mergeMaps(job.Annotations, map[string]string{
+	annotation := MergeMaps(job.Annotations, map[string]string{
 		domain.JobSetId: job.JobSetId,
 		domain.Owner:    job.Owner,
 	})
@@ -211,13 +211,13 @@ func createPod(job *api.Job, defaults *configuration.PodDefaults, i int) *v1.Pod
 	podSpec := allPodSpecs[i]
 	applyDefaults(podSpec, defaults)
 
-	labels := mergeMaps(job.Labels, map[string]string{
+	labels := MergeMaps(job.Labels, map[string]string{
 		domain.JobId:     job.Id,
 		domain.Queue:     job.Queue,
 		domain.PodNumber: strconv.Itoa(i),
 		domain.PodCount:  strconv.Itoa(len(allPodSpecs)),
 	})
-	annotation := mergeMaps(job.Annotations, map[string]string{
+	annotation := MergeMaps(job.Annotations, map[string]string{
 		domain.JobSetId: job.JobSetId,
 		domain.Owner:    job.Owner,
 	})
@@ -250,7 +250,7 @@ func setRestartPolicyNever(podSpec *v1.PodSpec) {
 	podSpec.RestartPolicy = v1.RestartPolicyNever
 }
 
-func mergeMaps(a map[string]string, b map[string]string) map[string]string {
+func MergeMaps(a map[string]string, b map[string]string) map[string]string {
 	result := make(map[string]string)
 	for k, v := range a {
 		result[k] = v

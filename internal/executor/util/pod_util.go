@@ -199,3 +199,8 @@ func GetPodContainerStatuses(pod *v1.Pod) []v1.ContainerStatus {
 	containerStatuses = append(containerStatuses, pod.Status.InitContainerStatuses...)
 	return containerStatuses
 }
+
+func IsMarkedForDeletion(pod *v1.Pod) bool {
+	_, exists := pod.Annotations[domain.MarkedForDeletion]
+	return exists
+}
