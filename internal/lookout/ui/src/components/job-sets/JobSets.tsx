@@ -12,6 +12,7 @@ import {
   TextField,
   FormControlLabel,
   Checkbox,
+  Tooltip,
 } from "@material-ui/core"
 import CancelIcon from "@material-ui/icons/Cancel"
 import LowPriority from "@material-ui/icons/LowPriority"
@@ -153,19 +154,21 @@ export default function JobSets(props: JobSetsProps) {
             </FormControl>
           </div>
           <div className="job-sets-field">
-            <FormControlLabel
-              control={
-                <Checkbox
-                  color="primary"
-                  checked={props.activeOnly}
-                  onChange={(event) => {
-                    props.onActiveOnlyChange(event.target.checked)
-                  }}
-                />
-              }
-              label="Active only"
-              labelPlacement="end"
-            />
+            <Tooltip title="Only display Queued, Pending or Running">
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    color="primary"
+                    checked={props.activeOnly}
+                    onChange={(event) => {
+                      props.onActiveOnlyChange(event.target.checked)
+                    }}
+                  />
+                }
+                label="Active only"
+                labelPlacement="end"
+              />
+            </Tooltip>
           </div>
         </div>
         <div className="job-sets-actions">
