@@ -9,5 +9,6 @@ const (
 	Owner             = "armada_owner"
 	HasIngress        = "has_ingress"
 	IngressReported   = "ingress_reported"
-	MarkedForDeletion = "deletion"
+	MarkedForDeletion = "deletion_requested"
+	JobDoneAnnotation = "reported_done"
 )

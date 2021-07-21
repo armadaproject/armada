@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/G-Research/armada/internal/executor/domain"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -73,7 +74,7 @@ func makePodWithCurrentStateReported(state v1.PodPhase, reportedDone bool) *v1.P
 	}
 
 	if reportedDone {
-		pod.Annotations[jobDoneAnnotation] = time.Now().String()
+		pod.Annotations[domain.JobDoneAnnotation] = time.Now().String()
 	}
 
 	return &pod

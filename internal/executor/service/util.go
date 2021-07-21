@@ -1,7 +1,6 @@
 package service
 
 import (
-	"github.com/G-Research/armada/internal/executor/reporter"
 	v1 "k8s.io/api/core/v1"
 
 	commonUtil "github.com/G-Research/armada/internal/common/util"
@@ -33,7 +32,7 @@ func filterRunningJobsByIds(jobs []*job.RunningJob, ids []string) []*job.Running
 }
 
 func shouldBeRenewed(pod *v1.Pod) bool {
-	return !isReportedDone(pod)
+	return !util.IsReportedDone(pod)
 }
 
 func jobShouldBeRenewed(job *job.RunningJob) bool {
@@ -47,16 +46,11 @@ func jobShouldBeRenewed(job *job.RunningJob) bool {
 
 func shouldBeReportedDone(job *job.RunningJob) bool {
 	for _, pod := range job.ActivePods {
-		if util.IsInTerminalState(pod) && !isReportedDone(pod) {
+		if util.IsInTerminalState(pod) && !util.IsReportedDone(pod) {
 			return true
 		}
 	}
 	return false
-}
-
-func isReportedDone(pod *v1.Pod) bool {
-	_, exists := pod.Annotations[jobDoneAnnotation]
-	return exists
 }
 
 func extractPods(jobs []*job.RunningJob) []*v1.Pod {
@@ -77,13 +71,4 @@ func chunkJobs(jobs []*job.RunningJob, size int) [][]*job.RunningJob {
 		chunks = append(chunks, jobs[start:end])
 	}
 	return chunks
-}
-
-func IsPodFinishedAndReported(pod *v1.Pod) bool {
-	if !util.IsInTerminalState(pod) ||
-		!isReportedDone(pod) ||
-		!reporter.HasCurrentStateBeenReported(pod) {
-		return false
-	}
-	return true
 }

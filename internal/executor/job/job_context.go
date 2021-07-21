@@ -5,7 +5,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/G-Research/armada/internal/executor/service"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/cache"
@@ -253,7 +252,7 @@ func (c *ClusterJobContext) handleDeletedPod(pod *v1.Pod) {
 	jobId := util.ExtractJobId(pod)
 	if jobId != "" {
 		record, exists := c.activeJobs[jobId]
-		active := exists && !util.IsMarkedForDeletion(pod) && !service.IsPodFinishedAndReported(pod)
+		active := exists && !util.IsMarkedForDeletion(pod) && !util.IsPodFinishedAndReported(pod)
 		if active {
 			record.issue = &PodIssue{
 				OriginatingPod: pod,

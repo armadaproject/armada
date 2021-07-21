@@ -19,9 +19,9 @@ import (
 	"k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 
 	"github.com/G-Research/armada/internal/common/cluster"
+	util2 "github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/executor/configuration"
 	"github.com/G-Research/armada/internal/executor/domain"
-	"github.com/G-Research/armada/internal/executor/job"
 	"github.com/G-Research/armada/internal/executor/util"
 )
 
@@ -282,6 +282,7 @@ func (c *KubernetesClusterContext) ProcessPodsToDelete() {
 			}
 		}
 
+		fmt.Printf("err %s", err)
 		if err == nil {
 			err = c.kubernetesClient.CoreV1().Pods(podToDelete.Namespace).Delete(ctx.Background(), podToDelete.Name, deleteOptions)
 		}
@@ -301,7 +302,7 @@ func (c *KubernetesClusterContext) markForDeletion(pod *v1.Pod) (*v1.Pod, error)
 	annotations[annotationName] = time.Now().String()
 
 	err := c.AddAnnotation(pod, annotations)
-	pod.Annotations = job.MergeMaps(pod.Annotations, annotations)
+	pod.Annotations = util2.MergeMaps(pod.Annotations, annotations)
 	return pod, err
 }
 

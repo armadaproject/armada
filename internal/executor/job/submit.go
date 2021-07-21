@@ -11,6 +11,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/G-Research/armada/internal/common"
+	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/executor/configuration"
 	"github.com/G-Research/armada/internal/executor/context"
 	"github.com/G-Research/armada/internal/executor/domain"
@@ -83,7 +84,7 @@ func (allocationService *SubmitService) submitPod(job *api.Job, i int) (*v1.Pod,
 	pod := createPod(job, allocationService.podDefaults, i)
 
 	if exposesPorts(job, &pod.Spec) {
-		pod.Annotations = MergeMaps(pod.Annotations, map[string]string{
+		pod.Annotations = util.MergeMaps(pod.Annotations, map[string]string{
 			domain.HasIngress: "true",
 		})
 		submittedPod, err := allocationService.clusterContext.SubmitPod(pod, job.Owner, job.QueueOwnershipUserGroups)
@@ -183,12 +184,12 @@ func createService(job *api.Job, pod *v1.Pod) *v1.Service {
 		},
 		Ports: servicePorts,
 	}
-	labels := MergeMaps(job.Labels, map[string]string{
+	labels := util.MergeMaps(job.Labels, map[string]string{
 		domain.JobId:     pod.Labels[domain.JobId],
 		domain.Queue:     pod.Labels[domain.Queue],
 		domain.PodNumber: pod.Labels[domain.PodNumber],
 	})
-	annotation := MergeMaps(job.Annotations, map[string]string{
+	annotation := util.MergeMaps(job.Annotations, map[string]string{
 		domain.JobSetId: job.JobSetId,
 		domain.Owner:    job.Owner,
 	})
@@ -211,13 +212,13 @@ func createPod(job *api.Job, defaults *configuration.PodDefaults, i int) *v1.Pod
 	podSpec := allPodSpecs[i]
 	applyDefaults(podSpec, defaults)
 
-	labels := MergeMaps(job.Labels, map[string]string{
+	labels := util.MergeMaps(job.Labels, map[string]string{
 		domain.JobId:     job.Id,
 		domain.Queue:     job.Queue,
 		domain.PodNumber: strconv.Itoa(i),
 		domain.PodCount:  strconv.Itoa(len(allPodSpecs)),
 	})
-	annotation := MergeMaps(job.Annotations, map[string]string{
+	annotation := util.MergeMaps(job.Annotations, map[string]string{
 		domain.JobSetId: job.JobSetId,
 		domain.Owner:    job.Owner,
 	})
@@ -248,15 +249,4 @@ func applyDefaults(spec *v1.PodSpec, defaults *configuration.PodDefaults) {
 
 func setRestartPolicyNever(podSpec *v1.PodSpec) {
 	podSpec.RestartPolicy = v1.RestartPolicyNever
-}
-
-func MergeMaps(a map[string]string, b map[string]string) map[string]string {
-	result := make(map[string]string)
-	for k, v := range a {
-		result[k] = v
-	}
-	for k, v := range b {
-		result[k] = v
-	}
-	return result
 }

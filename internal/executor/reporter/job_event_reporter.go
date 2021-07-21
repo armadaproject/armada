@@ -291,17 +291,11 @@ func (eventReporter *JobEventReporter) hasPendingEvents(pod *v1.Pod) bool {
 func filterPodsWithCurrentStateNotReported(pods []*v1.Pod) []*v1.Pod {
 	podsWithMissingEvent := make([]*v1.Pod, 0)
 	for _, pod := range pods {
-		if !HasCurrentStateBeenReported(pod) && HasPodBeenInStateForLongerThanGivenDuration(pod, 30*time.Second) {
+		if !util.HasCurrentStateBeenReported(pod) && HasPodBeenInStateForLongerThanGivenDuration(pod, 30*time.Second) {
 			podsWithMissingEvent = append(podsWithMissingEvent, pod)
 		}
 	}
 	return podsWithMissingEvent
-}
-
-func HasCurrentStateBeenReported(pod *v1.Pod) bool {
-	podPhase := pod.Status.Phase
-	_, annotationPresent := pod.Annotations[string(podPhase)]
-	return annotationPresent
 }
 
 func HasPodBeenInStateForLongerThanGivenDuration(pod *v1.Pod, duration time.Duration) bool {
