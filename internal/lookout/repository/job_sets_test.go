@@ -443,7 +443,7 @@ func TestGetJobSetInfos_GetOnlyActiveJobSets(t *testing.T) {
 			Failed(cluster, k8sId2, node, "some error")
 
 		jobSets, err := jobRepo.GetJobSetInfos(ctx, &lookout.GetJobSetsRequest{
-			Queue: queue,
+			Queue:      queue,
 			ActiveOnly: true,
 		})
 		assert.NoError(t, err)
@@ -476,7 +476,7 @@ func TestGetJobSetInfos_GetNewestFirst(t *testing.T) {
 			CreateJobWithOpts(queue, util.NewULID(), "job-set-5", "user", someTime.Add(4*time.Hour), nil)
 
 		jobSets, err := jobRepo.GetJobSetInfos(ctx, &lookout.GetJobSetsRequest{
-			Queue: queue,
+			Queue:       queue,
 			NewestFirst: true,
 		})
 		assert.NoError(t, err)
@@ -511,7 +511,7 @@ func TestGetJobSetInfos_GetOldestFirst(t *testing.T) {
 			CreateJobWithOpts(queue, util.NewULID(), "job-set-5", "user", someTime.Add(4*time.Hour), nil)
 
 		jobSets, err := jobRepo.GetJobSetInfos(ctx, &lookout.GetJobSetsRequest{
-			Queue: queue,
+			Queue:       queue,
 			NewestFirst: false,
 		})
 		assert.NoError(t, err)
