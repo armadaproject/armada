@@ -4,12 +4,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/G-Research/armada/internal/executor/domain"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/G-Research/armada/internal/executor/configuration"
+	"github.com/G-Research/armada/internal/executor/domain"
 	context2 "github.com/G-Research/armada/internal/executor/fake/context"
 	"github.com/G-Research/armada/internal/executor/job"
 	reporter_fake "github.com/G-Research/armada/internal/executor/reporter/fake"
