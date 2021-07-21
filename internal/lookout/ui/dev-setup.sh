@@ -8,6 +8,6 @@ docker run -d --name=postgres -p 5432:5432 -e POSTGRES_PASSWORD=psw postgres
 
 go run ./cmd/lookout/main.go --migrateDatabase
 
-# go run ./cmd/armada/main.go --config ./e2e/setup/nats/armada-config.yaml
-# go run ./cmd/lookout/main.go
-# ARMADA_APPLICATION_CLUSTERID=demo-a ARMADA_METRIC_PORT=9001 go run ./cmd/executor/main.go
+echo 'go run ./cmd/armada/main.go --config ./e2e/setup/insecure-armada-auth-config.yaml --config ./e2e/setup/nats/armada-config.yaml'
+echo 'go run ./cmd/lookout/main.go'
+echo 'ARMADA_APPLICATION_CLUSTERID=demo-a ARMADA_METRIC_PORT=9001 go run ./cmd/executor/main.go'

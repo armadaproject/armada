@@ -70,37 +70,38 @@ export default function JobSetTable(props: JobSetTableProps) {
         }}
       >
         <Column dataKey="jobSetId" width={0.25 * props.width} label="Job Set" />
+        <Column dataKey="latestSubmissionTime" width={0.25 * props.width} label="Submission Time" />
         <Column
           dataKey="jobsQueued"
-          width={0.15 * props.width}
+          width={0.1 * props.width}
           label="Queued"
           className="job-set-table-number-cell"
           cellRenderer={(cellProps) => cellRendererForState(cellProps, props.onJobSetClick, "Queued")}
         />
         <Column
           dataKey="jobsPending"
-          width={0.15 * props.width}
+          width={0.1 * props.width}
           label="Pending"
           className="job-set-table-number-cell"
           cellRenderer={(cellProps) => cellRendererForState(cellProps, props.onJobSetClick, "Pending")}
         />
         <Column
           dataKey="jobsRunning"
-          width={0.15 * props.width}
+          width={0.1 * props.width}
           label="Running"
           className="job-set-table-number-cell"
           cellRenderer={(cellProps) => cellRendererForState(cellProps, props.onJobSetClick, "Running")}
         />
         <Column
           dataKey="jobsSucceeded"
-          width={0.15 * props.width}
+          width={0.1 * props.width}
           label="Succeeded"
           className="job-set-table-number-cell"
           cellRenderer={(cellProps) => cellRendererForState(cellProps, props.onJobSetClick, "Succeeded")}
         />
         <Column
           dataKey="jobsFailed"
-          width={0.15 * props.width}
+          width={0.1 * props.width}
           label="Failed"
           className="job-set-table-number-cell"
           cellRenderer={(cellProps) => cellRendererForState(cellProps, props.onJobSetClick, "Failed")}
