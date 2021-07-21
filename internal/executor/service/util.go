@@ -1,6 +1,7 @@
 package service
 
 import (
+	"github.com/G-Research/armada/internal/executor/reporter"
 	v1 "k8s.io/api/core/v1"
 
 	commonUtil "github.com/G-Research/armada/internal/common/util"
@@ -76,4 +77,13 @@ func chunkJobs(jobs []*job.RunningJob, size int) [][]*job.RunningJob {
 		chunks = append(chunks, jobs[start:end])
 	}
 	return chunks
+}
+
+func IsPodFinishedAndReported(pod *v1.Pod) bool {
+	if !util.IsInTerminalState(pod) ||
+		!isReportedDone(pod) ||
+		!reporter.HasCurrentStateBeenReported(pod) {
+		return false
+	}
+	return true
 }

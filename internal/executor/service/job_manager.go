@@ -113,9 +113,7 @@ func (m *JobManager) canBeRemoved(job *job.RunningJob) bool {
 }
 
 func (m *JobManager) canPodBeRemoved(pod *v1.Pod) bool {
-	if !util.IsInTerminalState(pod) ||
-		!isReportedDone(pod) ||
-		!reporter.HasCurrentStateBeenReported(pod) {
+	if !IsPodFinishedAndReported(pod) {
 		return false
 	}
 
