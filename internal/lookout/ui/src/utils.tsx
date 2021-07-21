@@ -1,6 +1,7 @@
 interface UIConfig {
   armadaApiBaseUrl: string
   userAnnotationPrefix: string
+  binocularsBaseUrlPattern: string
 }
 
 export interface Padding {
@@ -11,25 +12,23 @@ export interface Padding {
 }
 
 export async function getUIConfig(): Promise<UIConfig> {
-  const config = {
-    armadaApiBaseUrl: "",
-    userAnnotationPrefix: "",
-  }
-
   try {
     const response = await fetch("/config")
     const json = await response.json()
-    if (json.ArmadaApiBaseUrl) {
-      config.armadaApiBaseUrl = json.ArmadaApiBaseUrl
-    }
-    if (json.UserAnnotationPrefix) {
-      config.userAnnotationPrefix = json.UserAnnotationPrefix
+    return {
+      armadaApiBaseUrl: json.ArmadaApiBaseUrl ?? "",
+      userAnnotationPrefix: json.UserAnnotationPrefix ?? "",
+      binocularsBaseUrlPattern: json.BinocularsBaseUrlPattern ?? "",
     }
   } catch (e) {
     console.error(e)
   }
 
-  return config
+  return {
+    armadaApiBaseUrl: "",
+    userAnnotationPrefix: "",
+    binocularsBaseUrlPattern: "",
+  }
 }
 
 export function reverseMap<K, V>(map: Map<K, V>): Map<V, K> {
@@ -105,5 +104,17 @@ export function selectItem<V>(key: string, item: V, selectedMap: Map<string, V>,
     selectedMap.set(key, item)
   } else if (selectedMap.has(key)) {
     selectedMap.delete(key)
+  }
+}
+
+export async function getErrorMessage(error: any): Promise<string> {
+  let basicMessage = (error?.status ?? "") + " " + (error?.statusText ?? "")
+  basicMessage = basicMessage != " " ? basicMessage : "Unknown error"
+  try {
+    const json = await error.json()
+    const errorMessage = json.message
+    return errorMessage ?? basicMessage
+  } catch {
+    return basicMessage
   }
 }

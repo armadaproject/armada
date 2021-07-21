@@ -12,6 +12,7 @@ import {
   TextField,
 } from "@material-ui/core"
 import CancelIcon from "@material-ui/icons/Cancel"
+import LowPriority from "@material-ui/icons/LowPriority"
 import RefreshIcon from "@material-ui/icons/Refresh"
 import { AutoSizer } from "react-virtualized"
 
@@ -33,6 +34,7 @@ interface JobSetsProps {
   canCancel: boolean
   getJobSetsRequestStatus: RequestStatus
   autoRefresh: boolean
+  canReprioritize: boolean
   onQueueChange: (queue: string) => void
   onViewChange: (view: JobSetsView) => void
   onRefresh: () => void
@@ -42,6 +44,7 @@ interface JobSetsProps {
   onDeselectAllClick: () => void
   onCancelJobSetsClick: () => void
   onToggleAutoRefresh: (autoRefresh: boolean) => void
+  onReprioritizeJobSetsClick: () => void
 }
 
 const menuProps: Partial<MenuProps> = {
@@ -136,6 +139,17 @@ export default function JobSets(props: JobSetsProps) {
         </div>
         {props.getJobSetsRequestStatus === "Loading" ? <Loading /> : <div />}
         <div className="job-sets-actions">
+          <div className="reprioritize-button">
+            <Button
+              disabled={!props.canReprioritize}
+              variant="contained"
+              color="primary"
+              startIcon={<LowPriority />}
+              onClick={props.onReprioritizeJobSetsClick}
+            >
+              Reprioritize
+            </Button>
+          </div>
           <div className="cancel-button">
             <Button
               disabled={!props.canCancel}

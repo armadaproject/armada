@@ -175,7 +175,7 @@ func createJobRequest(namespace string) *api.JobSubmitRequest {
 	cpu, _ := resource.ParseQuantity("80m")
 	memory, _ := resource.ParseQuantity("50Mi")
 	return &api.JobSubmitRequest{
-		Queue:    "test",
+		Queue:    "test" + util.NewULID(),
 		JobSetId: util.NewULID(),
 		JobRequestItems: []*api.JobSubmitRequestItem{
 			{

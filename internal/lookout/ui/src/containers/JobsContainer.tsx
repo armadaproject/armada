@@ -7,11 +7,17 @@ import { v4 as uuidv4 } from "uuid"
 import JobDetailsModal, { JobDetailsModalContext, toggleExpanded } from "../components/job-details/JobDetailsModal"
 import CancelJobsModal, { CancelJobsModalContext, CancelJobsModalState } from "../components/jobs/CancelJobsModal"
 import Jobs from "../components/jobs/Jobs"
+import ReprioritizeJobsDialog, {
+  ReprioritizeJobsDialogContext,
+  ReprioritizeJobsDialogState,
+} from "../components/jobs/ReprioritizeJobsDialog"
 import JobService, { GetJobsRequest, JOB_STATES_FOR_DISPLAY, Job } from "../services/JobService"
+import LogService from "../services/LogService"
 import { debounced, selectItem, updateInterval } from "../utils"
 
 type JobsContainerProps = {
   jobService: JobService
+  logService: LogService
 } & RouteComponentProps
 
 export type RequestStatus = "Loading" | "Idle"
@@ -25,8 +31,11 @@ interface JobsContainerState {
   defaultColumns: ColumnSpec<string | boolean | string[]>[]
   annotationColumns: ColumnSpec<string>[]
   cancelJobsModalContext: CancelJobsModalContext
+  reprioritizeJobsDialogContext: ReprioritizeJobsDialogContext
   jobDetailsModalContext: JobDetailsModalContext
 }
+
+const newPriorityRegex = new RegExp("^([0-9]+)$")
 
 export type ColumnSpec<T> = {
   id: string
@@ -54,6 +63,7 @@ const LOCAL_STORAGE_KEY = "armada_lookout_annotation_columns"
 const BATCH_SIZE = 100
 const CANCELLABLE_JOB_STATES = ["Queued", "Pending", "Running"]
 const AUTO_REFRESH_INTERVAL_MS = 30000
+const REPRIORITIZEABLE_JOB_STATES = ["Queued", "Pending", "Running"]
 
 export function makeQueryString(columns: ColumnSpec<string | boolean | string[]>[]): string {
   const columnMap = new Map<string, ColumnSpec<string | boolean | string[]>>()
@@ -196,6 +206,14 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
         cancelJobsResult: { cancelledJobs: [], failedJobCancellations: [] },
         cancelJobsRequestStatus: "Idle",
       },
+      reprioritizeJobsDialogContext: {
+        modalState: "None",
+        jobsToReprioritize: [],
+        newPriority: 0,
+        isValid: false,
+        reprioritizeJobsResult: { reprioritizedJobs: [], failedJobReprioritizations: [] },
+        reprioritizeJobsRequestStatus: "Idle",
+      },
       jobDetailsModalContext: {
         open: false,
         job: undefined,
@@ -217,6 +235,9 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     this.setCancelJobsModalState = this.setCancelJobsModalState.bind(this)
     this.cancelJobs = this.cancelJobs.bind(this)
 
+    this.setReprioritizeJobsDialogState = this.setReprioritizeJobsDialogState.bind(this)
+    this.reprioritizeJobs = this.reprioritizeJobs.bind(this)
+
     this.openJobDetailsModal = this.openJobDetailsModal.bind(this)
     this.toggleExpanded = this.toggleExpanded.bind(this)
     this.closeJobDetailsModal = this.closeJobDetailsModal.bind(this)
@@ -226,6 +247,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     this.changeAnnotationColumnKey = this.changeAnnotationColumnKey.bind(this)
 
     this.fetchNextJobInfos = debounced(this.fetchNextJobInfos.bind(this), 100)
+    this.handlePriorityChange = this.handlePriorityChange.bind(this)
   }
 
   componentDidMount() {
@@ -349,6 +371,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     selectItem(job.jobId, job, selectedJobs, selected)
 
     const cancellableJobs = this.getCancellableSelectedJobs(selectedJobs)
+    const reprioritizeableJobs = this.getReprioritizeableSelectedJobs(selectedJobs)
     this.setState({
       ...this.state,
       selectedJobs: selectedJobs,
@@ -356,6 +379,10 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
       cancelJobsModalContext: {
         ...this.state.cancelJobsModalContext,
         jobsToCancel: cancellableJobs,
+      },
+      reprioritizeJobsDialogContext: {
+        ...this.state.reprioritizeJobsDialogContext,
+        jobsToReprioritize: reprioritizeableJobs,
       },
     })
   }
@@ -365,7 +392,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
       return
     }
 
-    const [start, end] = [this.state.lastSelectedIndex, index].sort()
+    const [start, end] = [this.state.lastSelectedIndex, index].sort((a, b) => a - b)
 
     const selectedJobs = new Map<string, Job>(this.state.selectedJobs)
     for (let i = start; i <= end; i++) {
@@ -374,6 +401,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     }
 
     const cancellableJobs = this.getCancellableSelectedJobs(selectedJobs)
+    const reprioritizeableJobs = this.getReprioritizeableSelectedJobs(selectedJobs)
     this.setState({
       ...this.state,
       selectedJobs: selectedJobs,
@@ -381,6 +409,10 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
       cancelJobsModalContext: {
         ...this.state.cancelJobsModalContext,
         jobsToCancel: cancellableJobs,
+      },
+      reprioritizeJobsDialogContext: {
+        ...this.state.reprioritizeJobsDialogContext,
+        jobsToReprioritize: reprioritizeableJobs,
       },
     })
   }
@@ -393,6 +425,20 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
       cancelJobsModalContext: {
         ...this.state.cancelJobsModalContext,
         jobsToCancel: [],
+      },
+      reprioritizeJobsDialogContext: {
+        ...this.state.reprioritizeJobsDialogContext,
+        jobsToReprioritize: [],
+      },
+    })
+  }
+
+  setReprioritizeJobsDialogState(modalState: ReprioritizeJobsDialogState) {
+    this.setState({
+      ...this.state,
+      reprioritizeJobsDialogContext: {
+        ...this.state.reprioritizeJobsDialogContext,
+        modalState: modalState,
       },
     })
   }
@@ -463,6 +509,67 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     }
   }
 
+  async reprioritizeJobs() {
+    if (this.state.reprioritizeJobsDialogContext.reprioritizeJobsRequestStatus === "Loading") {
+      return
+    }
+
+    this.setState({
+      ...this.state,
+      reprioritizeJobsDialogContext: {
+        ...this.state.reprioritizeJobsDialogContext,
+        reprioritizeJobsRequestStatus: "Loading",
+      },
+    })
+    const reprioritizeJobsResult = await this.props.jobService.reprioritizeJobs(
+      this.state.reprioritizeJobsDialogContext.jobsToReprioritize,
+      this.state.reprioritizeJobsDialogContext.newPriority,
+    )
+    if (reprioritizeJobsResult.failedJobReprioritizations.length === 0) {
+      // Succeeded
+      this.setState({
+        ...this.state,
+        jobs: [],
+        canLoadMore: true,
+        selectedJobs: new Map<string, Job>(),
+        reprioritizeJobsDialogContext: {
+          jobsToReprioritize: [],
+          isValid: false,
+          newPriority: 0,
+          reprioritizeJobsResult: reprioritizeJobsResult,
+          modalState: "ReprioritizeJobsResult",
+          reprioritizeJobsRequestStatus: "Idle",
+        },
+      })
+    } else if (reprioritizeJobsResult.reprioritizedJobs.length === 0) {
+      // Failure
+      this.setState({
+        ...this.state,
+        reprioritizeJobsDialogContext: {
+          ...this.state.reprioritizeJobsDialogContext,
+          reprioritizeJobsResult: reprioritizeJobsResult,
+          modalState: "ReprioritizeJobsResult",
+          reprioritizeJobsRequestStatus: "Idle",
+        },
+      })
+    } else {
+      // Some succeeded, some failed
+      this.setState({
+        ...this.state,
+        jobs: [],
+        canLoadMore: true,
+        selectedJobs: new Map<string, Job>(),
+        reprioritizeJobsDialogContext: {
+          ...this.state.reprioritizeJobsDialogContext,
+          jobsToReprioritize: reprioritizeJobsResult.failedJobReprioritizations.map((failed) => failed.job),
+          reprioritizeJobsResult: reprioritizeJobsResult,
+          modalState: "ReprioritizeJobsResult",
+          reprioritizeJobsRequestStatus: "Idle",
+        },
+      })
+    }
+  }
+
   openJobDetailsModal(jobIndex: number) {
     if (jobIndex < 0 || jobIndex >= this.state.jobs.length) {
       return
@@ -515,6 +622,18 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
       autoRefresh: autoRefresh,
     })
     this.interval = updateInterval(this.interval, autoRefresh, AUTO_REFRESH_INTERVAL_MS, this.refresh)
+  }
+
+  handlePriorityChange(newValue: string) {
+    const valid = newPriorityRegex.test(newValue) && newValue.length > 0
+    this.setState({
+      ...this.state,
+      reprioritizeJobsDialogContext: {
+        ...this.state.reprioritizeJobsDialogContext,
+        isValid: valid,
+        newPriority: Number(newValue),
+      },
+    })
   }
 
   private async loadJobInfosForRange(start: number, stop: number) {
@@ -635,6 +754,16 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     return Array.from(selectedJobs.values()).filter((job) => CANCELLABLE_JOB_STATES.includes(job.jobState))
   }
 
+  private selectedJobsAreReprioritizeable(): boolean {
+    return Array.from(this.state.selectedJobs.values())
+      .map((job) => job.jobState)
+      .some((jobState) => REPRIORITIZEABLE_JOB_STATES.includes(jobState))
+  }
+
+  private getReprioritizeableSelectedJobs(selectedJobs: Map<string, Job>): Job[] {
+    return Array.from(selectedJobs.values()).filter((job) => REPRIORITIZEABLE_JOB_STATES.includes(job.jobState))
+  }
+
   render() {
     return (
       <Fragment>
@@ -646,10 +775,20 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
           onCancelJobs={this.cancelJobs}
           onClose={() => this.setCancelJobsModalState("None")}
         />
+        <ReprioritizeJobsDialog
+          modalState={this.state.reprioritizeJobsDialogContext.modalState}
+          jobsToReprioritize={this.state.reprioritizeJobsDialogContext.jobsToReprioritize}
+          reprioritizeJobsResult={this.state.reprioritizeJobsDialogContext.reprioritizeJobsResult}
+          reprioritizeJobsRequestStatus={this.state.reprioritizeJobsDialogContext.reprioritizeJobsRequestStatus}
+          isValid={this.state.reprioritizeJobsDialogContext.isValid}
+          newPriority={this.state.reprioritizeJobsDialogContext.newPriority}
+          onReprioritizeJobs={this.reprioritizeJobs}
+          onPriorityChange={this.handlePriorityChange}
+          onClose={() => this.setReprioritizeJobsDialogState("None")}
+        />
         <JobDetailsModal
-          open={this.state.jobDetailsModalContext.open}
-          job={this.state.jobDetailsModalContext.job}
-          expandedItems={this.state.jobDetailsModalContext.expandedItems}
+          {...this.state.jobDetailsModalContext}
+          logService={this.props.logService}
           onToggleExpanded={this.toggleExpanded}
           onClose={this.closeJobDetailsModal}
         />
@@ -661,6 +800,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
           selectedJobs={this.state.selectedJobs}
           autoRefresh={this.state.autoRefresh}
           cancelJobsButtonIsEnabled={this.selectedJobsAreCancellable()}
+          reprioritizeButtonIsEnabled={this.selectedJobsAreReprioritizeable()}
           fetchJobs={this.serveJobs}
           isLoaded={this.jobIsLoaded}
           onChangeColumnValue={this.changeColumnFilter}
@@ -673,6 +813,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
           onShiftSelect={this.shiftSelectJob}
           onDeselectAllClick={this.deselectAll}
           onCancelJobsClick={() => this.setCancelJobsModalState("CancelJobs")}
+          onReprioritizeJobsClick={() => this.setReprioritizeJobsDialogState("ReprioritizeJobs")}
           onJobIdClick={this.openJobDetailsModal}
           onAutoRefreshChange={this.toggleAutoRefresh}
         />

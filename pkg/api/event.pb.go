@@ -6380,10 +6380,7 @@ func (m *JobSubmittedEvent) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthEvent
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthEvent
 			}
 			if (iNdEx + skippy) > l {
@@ -6562,10 +6559,7 @@ func (m *JobQueuedEvent) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthEvent
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthEvent
 			}
 			if (iNdEx + skippy) > l {
@@ -6776,10 +6770,7 @@ func (m *JobDuplicateFoundEvent) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthEvent
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthEvent
 			}
 			if (iNdEx + skippy) > l {
@@ -6990,10 +6981,7 @@ func (m *JobLeasedEvent) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthEvent
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthEvent
 			}
 			if (iNdEx + skippy) > l {
@@ -7236,10 +7224,7 @@ func (m *JobLeaseReturnedEvent) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthEvent
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthEvent
 			}
 			if (iNdEx + skippy) > l {
@@ -7418,10 +7403,7 @@ func (m *JobLeaseExpiredEvent) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthEvent
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthEvent
 			}
 			if (iNdEx + skippy) > l {
@@ -7747,10 +7729,7 @@ func (m *JobPendingEvent) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthEvent
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthEvent
 			}
 			if (iNdEx + skippy) > l {
@@ -8108,10 +8087,7 @@ func (m *JobRunningEvent) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthEvent
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthEvent
 			}
 			if (iNdEx + skippy) > l {
@@ -8501,7 +8477,7 @@ func (m *JobIngressInfoEvent) Unmarshal(dAtA []byte) error {
 					if err != nil {
 						return err
 					}
-					if skippy < 0 {
+					if (skippy < 0) || (iNdEx+skippy) < 0 {
 						return ErrInvalidLengthEvent
 					}
 					if (iNdEx + skippy) > postIndex {
@@ -8582,10 +8558,7 @@ func (m *JobIngressInfoEvent) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthEvent
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthEvent
 			}
 			if (iNdEx + skippy) > l {
@@ -8975,10 +8948,7 @@ func (m *JobUnableToScheduleEvent) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthEvent
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthEvent
 			}
 			if (iNdEx + skippy) > l {
@@ -9317,7 +9287,7 @@ func (m *JobFailedEvent) Unmarshal(dAtA []byte) error {
 					if err != nil {
 						return err
 					}
-					if skippy < 0 {
+					if (skippy < 0) || (iNdEx+skippy) < 0 {
 						return ErrInvalidLengthEvent
 					}
 					if (iNdEx + skippy) > postIndex {
@@ -9534,10 +9504,7 @@ func (m *JobFailedEvent) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthEvent
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthEvent
 			}
 			if (iNdEx + skippy) > l {
@@ -9895,10 +9862,7 @@ func (m *JobSucceededEvent) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthEvent
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthEvent
 			}
 			if (iNdEx + skippy) > l {
@@ -10253,7 +10217,7 @@ func (m *JobUtilisationEvent) Unmarshal(dAtA []byte) error {
 					if err != nil {
 						return err
 					}
-					if skippy < 0 {
+					if (skippy < 0) || (iNdEx+skippy) < 0 {
 						return ErrInvalidLengthEvent
 					}
 					if (iNdEx + skippy) > postIndex {
@@ -10385,10 +10349,7 @@ func (m *JobUtilisationEvent) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthEvent
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthEvent
 			}
 			if (iNdEx + skippy) > l {
@@ -10578,10 +10539,7 @@ func (m *JobReprioritizingEvent) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthEvent
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthEvent
 			}
 			if (iNdEx + skippy) > l {
@@ -10771,10 +10729,7 @@ func (m *JobReprioritizedEvent) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthEvent
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthEvent
 			}
 			if (iNdEx + skippy) > l {
@@ -10953,10 +10908,7 @@ func (m *JobCancellingEvent) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthEvent
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthEvent
 			}
 			if (iNdEx + skippy) > l {
@@ -11135,10 +11087,7 @@ func (m *JobCancelledEvent) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthEvent
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthEvent
 			}
 			if (iNdEx + skippy) > l {
@@ -11496,10 +11445,7 @@ func (m *JobTerminatedEvent) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthEvent
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthEvent
 			}
 			if (iNdEx + skippy) > l {
@@ -12179,10 +12125,7 @@ func (m *EventMessage) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthEvent
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthEvent
 			}
 			if (iNdEx + skippy) > l {
@@ -12366,10 +12309,7 @@ func (m *ContainerStatus) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthEvent
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthEvent
 			}
 			if (iNdEx + skippy) > l {
@@ -12453,10 +12393,7 @@ func (m *EventList) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthEvent
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthEvent
 			}
 			if (iNdEx + skippy) > l {
@@ -12574,10 +12511,7 @@ func (m *EventStreamMessage) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthEvent
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthEvent
 			}
 			if (iNdEx + skippy) > l {
@@ -12743,10 +12677,7 @@ func (m *JobSetRequest) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthEvent
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthEvent
 			}
 			if (iNdEx + skippy) > l {

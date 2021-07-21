@@ -8,6 +8,7 @@ import JobSetsContainer from "./containers/JobSetsContainer"
 import JobsContainer from "./containers/JobsContainer"
 import OverviewContainer from "./containers/OverviewContainer"
 import JobService from "./services/JobService"
+import LogService from "./services/LogService"
 
 import "./App.css"
 
@@ -35,7 +36,7 @@ const theme = createMuiTheme({
   },
 })
 
-export function App(services: { jobService: JobService }) {
+export function App(services: { jobService: JobService; logService: LogService }) {
   return (
     <ThemeProvider theme={theme}>
       <Router>
@@ -44,13 +45,13 @@ export function App(services: { jobService: JobService }) {
           <div className="app-content">
             <Switch>
               <Route exact path="/">
-                <OverviewContainer jobService={services.jobService} />
+                <OverviewContainer {...services} />
               </Route>
               <Route exact path="/job-sets">
-                <JobSetsContainer jobService={services.jobService} />
+                <JobSetsContainer {...services} />
               </Route>
               <Route exact path="/jobs">
-                <JobsContainer jobService={services.jobService} />
+                <JobsContainer {...services} />
               </Route>
             </Switch>
           </div>

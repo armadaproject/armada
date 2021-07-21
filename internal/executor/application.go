@@ -9,8 +9,8 @@ import (
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 
+	"github.com/G-Research/armada/internal/common/cluster"
 	"github.com/G-Research/armada/internal/common/task"
-	"github.com/G-Research/armada/internal/executor/cluster"
 	"github.com/G-Research/armada/internal/executor/configuration"
 	"github.com/G-Research/armada/internal/executor/context"
 	"github.com/G-Research/armada/internal/executor/job"
@@ -25,7 +25,7 @@ import (
 
 func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGroup) {
 
-	kubernetesClientProvider, err := cluster.NewKubernetesClientProvider(&config.Kubernetes)
+	kubernetesClientProvider, err := cluster.NewKubernetesClientProvider(config.Kubernetes.ImpersonateUsers)
 
 	if err != nil {
 		log.Errorf("Failed to connect to kubernetes because %s", err)
@@ -67,7 +67,7 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 		queueClient,
 		config.Kubernetes.MinimumJobSize)
 
-	jobContext := job.NewClusterJobContext(clusterContext)
+	jobContext := job.NewClusterJobContext(clusterContext, config.Kubernetes.StuckPodExpiry)
 	submitter := job.NewSubmitter(clusterContext, config.Kubernetes.PodDefaults)
 
 	queueUtilisationService := utilisation.NewMetricsServerQueueUtilisationService(
@@ -78,13 +78,6 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 		usageClient,
 		config.Kubernetes.TrackedNodeLabels,
 		config.Kubernetes.ToleratedTaints)
-
-	stuckPodDetector := service.NewPodProgressMonitorService(
-		clusterContext,
-		jobContext,
-		eventReporter,
-		jobLeaseService,
-		config.Kubernetes.StuckPodExpiry)
 
 	clusterAllocationService := service.NewClusterAllocationService(
 		clusterContext,
@@ -97,7 +90,6 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 		clusterContext,
 		jobContext,
 		eventReporter,
-		stuckPodDetector,
 		jobLeaseService,
 		config.Kubernetes.MinimumPodAge,
 		config.Kubernetes.FailedPodExpiry)

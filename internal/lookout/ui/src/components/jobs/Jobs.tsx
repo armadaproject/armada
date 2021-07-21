@@ -20,6 +20,7 @@ type JobsProps = {
   selectedJobs: Map<string, Job>
   autoRefresh: boolean
   cancelJobsButtonIsEnabled: boolean
+  reprioritizeButtonIsEnabled: boolean
   fetchJobs: (start: number, stop: number) => Promise<Job[]>
   isLoaded: (index: number) => boolean
   onChangeColumnValue: (columnId: string, newValue: string | boolean | string[]) => void
@@ -32,6 +33,7 @@ type JobsProps = {
   onShiftSelect: (index: number, selected: boolean) => void
   onDeselectAllClick: () => void
   onCancelJobsClick: () => void
+  onReprioritizeJobsClick: () => void
   onJobIdClick: (jobIndex: number) => void
   onAutoRefreshChange: (autoRefresh: boolean) => void
 }
@@ -61,6 +63,7 @@ export default class Jobs extends React.Component<JobsProps, Record<string, neve
         runs: [],
         jobYaml: "",
         annotations: {},
+        namespace: "",
       }
     }
   }
@@ -81,8 +84,10 @@ export default class Jobs extends React.Component<JobsProps, Record<string, neve
             annotationColumns={this.props.annotationColumns}
             autoRefresh={this.props.autoRefresh}
             canCancel={this.props.cancelJobsButtonIsEnabled}
+            canReprioritize={this.props.reprioritizeButtonIsEnabled}
             onRefresh={this.props.onRefresh}
             onCancelJobsClick={this.props.onCancelJobsClick}
+            onReprioritizeJobsClick={this.props.onReprioritizeJobsClick}
             onDisableColumn={this.props.onDisableColumn}
             onDeleteColumn={this.props.onDeleteColumn}
             onAddColumn={this.props.onAddColumn}

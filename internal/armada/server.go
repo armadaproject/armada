@@ -1,9 +1,6 @@
 package armada
 
 import (
-	"context"
-	"fmt"
-	"net"
 	"strings"
 	"sync"
 	"time"
@@ -12,16 +9,15 @@ import (
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/segmentio/kafka-go"
 	log "github.com/sirupsen/logrus"
-	"google.golang.org/grpc"
 
-	"github.com/G-Research/armada/internal/armada/authorization"
-	"github.com/G-Research/armada/internal/armada/authorization/groups"
 	"github.com/G-Research/armada/internal/armada/cache"
 	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/G-Research/armada/internal/armada/metrics"
 	"github.com/G-Research/armada/internal/armada/repository"
 	"github.com/G-Research/armada/internal/armada/scheduling"
 	"github.com/G-Research/armada/internal/armada/server"
+	"github.com/G-Research/armada/internal/common/auth"
+	"github.com/G-Research/armada/internal/common/auth/authorization"
 	grpcCommon "github.com/G-Research/armada/internal/common/grpc"
 	stan_util "github.com/G-Research/armada/internal/common/stan-util"
 	"github.com/G-Research/armada/internal/common/task"
@@ -32,7 +28,8 @@ import (
 func Serve(config *configuration.ArmadaConfig) (func(), *sync.WaitGroup) {
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
-	grpcServer := createServer(config)
+
+	grpcServer := grpcCommon.CreateGrpcServer(auth.ConfigureAuth(config.Auth))
 
 	taskManager := task.NewBackgroundTaskManager(metrics.MetricPrefix)
 
@@ -110,7 +107,7 @@ func Serve(config *configuration.ArmadaConfig) (func(), *sync.WaitGroup) {
 		eventStore = redisEventRepository
 	}
 
-	permissions := authorization.NewPrincipalPermissionChecker(config.PermissionGroupMapping, config.PermissionScopeMapping, config.PermissionClaimMapping)
+	permissions := authorization.NewPrincipalPermissionChecker(config.Auth.PermissionGroupMapping, config.Auth.PermissionScopeMapping, config.Auth.PermissionClaimMapping)
 
 	submitServer := server.NewSubmitServer(permissions, jobRepository, queueRepository, eventStore, schedulingInfoRepository, &config.QueueManagement)
 	usageServer := server.NewUsageServer(permissions, config.PriorityHalfTime, &config.Scheduling, usageRepository, queueRepository)
@@ -119,11 +116,6 @@ func Serve(config *configuration.ArmadaConfig) (func(), *sync.WaitGroup) {
 	leaseManager := scheduling.NewLeaseManager(jobRepository, queueRepository, eventStore, config.Scheduling.Lease.ExpireAfter)
 
 	taskManager.Register(leaseManager.ExpireLeases, config.Scheduling.Lease.ExpiryLoopInterval, "lease_expiry")
-
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", config.GrpcPort))
-	if err != nil {
-		log.Fatalf("failed to listen: %v", err)
-	}
 
 	metrics.ExposeDataMetrics(queueRepository, jobRepository, usageRepository, schedulingInfoRepository, queueCache)
 
@@ -134,16 +126,7 @@ func Serve(config *configuration.ArmadaConfig) (func(), *sync.WaitGroup) {
 
 	grpc_prometheus.Register(grpcServer)
 
-	go func() {
-		defer log.Println("Stopping server.")
-
-		log.Printf("Grpc listening on %d", config.GrpcPort)
-		if err := grpcServer.Serve(lis); err != nil {
-			log.Fatalf("failed to serve: %v", err)
-		}
-
-		wg.Done()
-	}()
+	grpcCommon.Listen(config.GrpcPort, grpcServer, wg)
 
 	return func() {
 		stopSubscription()
@@ -154,42 +137,4 @@ func Serve(config *configuration.ArmadaConfig) (func(), *sync.WaitGroup) {
 
 func createRedisClient(config *redis.UniversalOptions) redis.UniversalClient {
 	return redis.NewUniversalClient(config)
-}
-
-func createServer(config *configuration.ArmadaConfig) *grpc.Server {
-
-	authServices := []authorization.AuthService{}
-
-	if len(config.BasicAuth.Users) > 0 {
-		authServices = append(authServices,
-			authorization.NewBasicAuthService(config.BasicAuth.Users))
-	}
-
-	if config.OpenIdAuth.ProviderUrl != "" {
-		openIdAuthService, err := authorization.NewOpenIdAuthServiceForProvider(context.Background(), &config.OpenIdAuth)
-		if err != nil {
-			panic(err)
-		}
-		authServices = append(authServices, openIdAuthService)
-	}
-
-	if config.AnonymousAuth {
-		authServices = append(authServices, &authorization.AnonymousAuthService{})
-	}
-
-	// Kerberos should be the last service as it is adding WWW-Authenticate header for unauthenticated response
-	if config.Kerberos.KeytabLocation != "" {
-		var groupLookup groups.GroupLookup
-		if config.Kerberos.LDAP.Username != "" {
-			groupLookup = groups.NewLDAPGroupLookup(config.Kerberos.LDAP)
-		}
-
-		kerberosAuthService, err := authorization.NewKerberosAuthService(&config.Kerberos, groupLookup)
-		if err != nil {
-			panic(err)
-		}
-		authServices = append(authServices, kerberosAuthService)
-	}
-
-	return grpcCommon.CreateGrpcServer(authServices)
 }

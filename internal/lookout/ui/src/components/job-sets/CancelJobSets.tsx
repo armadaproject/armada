@@ -5,7 +5,7 @@ import { List, ListItem, ListItemText, Paper } from "@material-ui/core"
 import { JobSet } from "../../services/JobService"
 import LoadingButton from "../jobs/LoadingButton"
 
-import "./CancelJobSets.css"
+import "./JobSetActions.css"
 
 type CancelJobSetsProps = {
   queue: string
@@ -16,12 +16,12 @@ type CancelJobSetsProps = {
 
 export default function CancelJobSets(props: CancelJobSetsProps) {
   return (
-    <div className="cancel-job-sets-container">
-      <p className="cancel-job-sets-text">The following Job Sets in queue {props.queue} will be cancelled:</p>
-      <List component={Paper} className="cancel-job-sets-table-container">
+    <div className="job-sets-action-container">
+      <p className="job-sets-action-text">The following Job Sets in queue {props.queue} will be cancelled:</p>
+      <List component={Paper} className="job-sets-action-table-container">
         {props.jobSets.map((jobSet) => (
           <ListItem key={jobSet.jobSetId}>
-            <ListItemText className="cancel-job-sets-wrap">{jobSet.jobSetId}</ListItemText>
+            <ListItemText className="job-sets-action-wrap">{jobSet.jobSetId}</ListItemText>
           </ListItem>
         ))}
       </List>

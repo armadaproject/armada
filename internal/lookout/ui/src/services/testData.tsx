@@ -43,6 +43,7 @@ export function makeTestJobs(queue: string, start: number, stop: number): Job[] 
       queue: queue,
       runs: [],
       submissionTime: "some time",
+      namespace: "namespace",
     })
   }
 

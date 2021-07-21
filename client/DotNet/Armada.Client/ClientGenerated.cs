@@ -326,15 +326,82 @@ namespace GResearch.Armada.Client
     
         /// <returns>A successful response.</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public System.Threading.Tasks.Task<ApiQueueInfo> GetQueueInfoAsync(string name)
+        public System.Threading.Tasks.Task<object> CreateQueueAsync(ApiQueue body)
         {
-            return GetQueueInfoAsync(name, System.Threading.CancellationToken.None);
+            return CreateQueueAsync(body, System.Threading.CancellationToken.None);
         }
     
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <returns>A successful response.</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public async System.Threading.Tasks.Task<ApiQueueInfo> GetQueueInfoAsync(string name, System.Threading.CancellationToken cancellationToken)
+        public async System.Threading.Tasks.Task<object> CreateQueueAsync(ApiQueue body, System.Threading.CancellationToken cancellationToken)
+        {
+            var urlBuilder_ = new System.Text.StringBuilder();
+            urlBuilder_.Append(BaseUrl != null ? BaseUrl.TrimEnd('/') : "").Append("/v1/queue");
+    
+            var client_ = _httpClient;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    var content_ = new System.Net.Http.StringContent(Newtonsoft.Json.JsonConvert.SerializeObject(body, _settings.Value));
+                    content_.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
+                    request_.Content = content_;
+                    request_.Method = new System.Net.Http.HttpMethod("POST");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
+    
+                    PrepareRequest(client_, request_, urlBuilder_);
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+                    PrepareRequest(client_, request_, url_);
+    
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    try
+                    {
+                        var headers_ = System.Linq.Enumerable.ToDictionary(response_.Headers, h_ => h_.Key, h_ => h_.Value);
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+    
+                        ProcessResponse(client_, response_);
+    
+                        var status_ = ((int)response_.StatusCode).ToString();
+                        if (status_ == "200") 
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<object>(response_, headers_).ConfigureAwait(false);
+                            return objectResponse_.Object;
+                        }
+                        else
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<RuntimeError>(response_, headers_).ConfigureAwait(false);
+                            throw new ApiException<RuntimeError>("An unexpected error response.", (int)response_.StatusCode, objectResponse_.Text, headers_, objectResponse_.Object, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (response_ != null)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+            }
+        }
+    
+        /// <returns>A successful response.</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public System.Threading.Tasks.Task<ApiQueue> GetQueueAsync(string name)
+        {
+            return GetQueueAsync(name, System.Threading.CancellationToken.None);
+        }
+    
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>A successful response.</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public async System.Threading.Tasks.Task<ApiQueue> GetQueueAsync(string name, System.Threading.CancellationToken cancellationToken)
         {
             if (name == null)
                 throw new System.ArgumentNullException("name");
@@ -371,7 +438,7 @@ namespace GResearch.Armada.Client
                         var status_ = ((int)response_.StatusCode).ToString();
                         if (status_ == "200") 
                         {
-                            var objectResponse_ = await ReadObjectResponseAsync<ApiQueueInfo>(response_, headers_).ConfigureAwait(false);
+                            var objectResponse_ = await ReadObjectResponseAsync<ApiQueue>(response_, headers_).ConfigureAwait(false);
                             return objectResponse_.Object;
                         }
                         else
@@ -394,15 +461,15 @@ namespace GResearch.Armada.Client
     
         /// <returns>A successful response.</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public System.Threading.Tasks.Task<object> CreateQueueAsync(string name, ApiQueue body)
+        public System.Threading.Tasks.Task<object> UpdateQueueAsync(string name, ApiQueue body)
         {
-            return CreateQueueAsync(name, body, System.Threading.CancellationToken.None);
+            return UpdateQueueAsync(name, body, System.Threading.CancellationToken.None);
         }
     
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <returns>A successful response.</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public async System.Threading.Tasks.Task<object> CreateQueueAsync(string name, ApiQueue body, System.Threading.CancellationToken cancellationToken)
+        public async System.Threading.Tasks.Task<object> UpdateQueueAsync(string name, ApiQueue body, System.Threading.CancellationToken cancellationToken)
         {
             if (name == null)
                 throw new System.ArgumentNullException("name");
@@ -511,6 +578,74 @@ namespace GResearch.Armada.Client
                         if (status_ == "200") 
                         {
                             var objectResponse_ = await ReadObjectResponseAsync<object>(response_, headers_).ConfigureAwait(false);
+                            return objectResponse_.Object;
+                        }
+                        else
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<RuntimeError>(response_, headers_).ConfigureAwait(false);
+                            throw new ApiException<RuntimeError>("An unexpected error response.", (int)response_.StatusCode, objectResponse_.Text, headers_, objectResponse_.Object, null);
+                        }
+                    }
+                    finally
+                    {
+                        if (response_ != null)
+                            response_.Dispose();
+                    }
+                }
+            }
+            finally
+            {
+            }
+        }
+    
+        /// <returns>A successful response.</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public System.Threading.Tasks.Task<ApiQueueInfo> GetQueueInfoAsync(string name)
+        {
+            return GetQueueInfoAsync(name, System.Threading.CancellationToken.None);
+        }
+    
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>A successful response.</returns>
+        /// <exception cref="ApiException">A server side error occurred.</exception>
+        public async System.Threading.Tasks.Task<ApiQueueInfo> GetQueueInfoAsync(string name, System.Threading.CancellationToken cancellationToken)
+        {
+            if (name == null)
+                throw new System.ArgumentNullException("name");
+    
+            var urlBuilder_ = new System.Text.StringBuilder();
+            urlBuilder_.Append(BaseUrl != null ? BaseUrl.TrimEnd('/') : "").Append("/v1/queue/{name}/info");
+            urlBuilder_.Replace("{name}", System.Uri.EscapeDataString(ConvertToString(name, System.Globalization.CultureInfo.InvariantCulture)));
+    
+            var client_ = _httpClient;
+            try
+            {
+                using (var request_ = new System.Net.Http.HttpRequestMessage())
+                {
+                    request_.Method = new System.Net.Http.HttpMethod("GET");
+                    request_.Headers.Accept.Add(System.Net.Http.Headers.MediaTypeWithQualityHeaderValue.Parse("application/json"));
+    
+                    PrepareRequest(client_, request_, urlBuilder_);
+                    var url_ = urlBuilder_.ToString();
+                    request_.RequestUri = new System.Uri(url_, System.UriKind.RelativeOrAbsolute);
+                    PrepareRequest(client_, request_, url_);
+    
+                    var response_ = await client_.SendAsync(request_, System.Net.Http.HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    try
+                    {
+                        var headers_ = System.Linq.Enumerable.ToDictionary(response_.Headers, h_ => h_.Key, h_ => h_.Value);
+                        if (response_.Content != null && response_.Content.Headers != null)
+                        {
+                            foreach (var item_ in response_.Content.Headers)
+                                headers_[item_.Key] = item_.Value;
+                        }
+    
+                        ProcessResponse(client_, response_);
+    
+                        var status_ = ((int)response_.StatusCode).ToString();
+                        if (status_ == "200") 
+                        {
+                            var objectResponse_ = await ReadObjectResponseAsync<ApiQueueInfo>(response_, headers_).ConfigureAwait(false);
                             return objectResponse_.Object;
                         }
                         else
@@ -2412,154 +2547,6 @@ namespace GResearch.Armada.Client
     
     }
     
-    /// <summary>EphemeralContainerCommon is a copy of all fields in Container to be inlined in
-    /// EphemeralContainer. This separate type allows easy conversion from EphemeralContainer
-    /// to Container and allows separate documentation for the fields of EphemeralContainer.
-    /// When a new field is added to Container it must be added here as well.</summary>
-    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
-    public partial class V1EphemeralContainerCommon 
-    {
-        /// <summary>Arguments to the entrypoint.
-        /// The docker image's CMD is used if this is not provided.
-        /// Variable references $(VAR_NAME) are expanded using the container's environment. If a variable
-        /// cannot be resolved, the reference in the input string will be unchanged. The $(VAR_NAME) syntax
-        /// can be escaped with a double $$, ie: $$(VAR_NAME). Escaped references will never be expanded,
-        /// regardless of whether the variable exists or not.
-        /// Cannot be updated.
-        /// More info: https://kubernetes.io/docs/tasks/inject-data-application/define-command-argument-container/#running-a-command-in-a-shell
-        /// +optional</summary>
-        [Newtonsoft.Json.JsonProperty("args", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.Collections.Generic.ICollection<string> Args { get; set; }
-    
-        /// <summary>Entrypoint array. Not executed within a shell.
-        /// The docker image's ENTRYPOINT is used if this is not provided.
-        /// Variable references $(VAR_NAME) are expanded using the container's environment. If a variable
-        /// cannot be resolved, the reference in the input string will be unchanged. The $(VAR_NAME) syntax
-        /// can be escaped with a double $$, ie: $$(VAR_NAME). Escaped references will never be expanded,
-        /// regardless of whether the variable exists or not.
-        /// Cannot be updated.
-        /// More info: https://kubernetes.io/docs/tasks/inject-data-application/define-command-argument-container/#running-a-command-in-a-shell
-        /// +optional</summary>
-        [Newtonsoft.Json.JsonProperty("command", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.Collections.Generic.ICollection<string> Command { get; set; }
-    
-        /// <summary>List of environment variables to set in the container.
-        /// Cannot be updated.
-        /// +optional
-        /// +patchMergeKey=name
-        /// +patchStrategy=merge</summary>
-        [Newtonsoft.Json.JsonProperty("env", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.Collections.Generic.ICollection<V1EnvVar> Env { get; set; }
-    
-        /// <summary>List of sources to populate environment variables in the container.
-        /// The keys defined within a source must be a C_IDENTIFIER. All invalid keys
-        /// will be reported as an event when the container is starting. When a key exists in multiple
-        /// sources, the value associated with the last source will take precedence.
-        /// Values defined by an Env with a duplicate key will take precedence.
-        /// Cannot be updated.
-        /// +optional</summary>
-        [Newtonsoft.Json.JsonProperty("envFrom", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.Collections.Generic.ICollection<V1EnvFromSource> EnvFrom { get; set; }
-    
-        /// <summary>Docker image name.
-        /// More info: https://kubernetes.io/docs/concepts/containers/images</summary>
-        [Newtonsoft.Json.JsonProperty("image", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string Image { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("imagePullPolicy", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string ImagePullPolicy { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("lifecycle", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1Lifecycle Lifecycle { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("livenessProbe", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1Probe LivenessProbe { get; set; }
-    
-        /// <summary>Name of the ephemeral container specified as a DNS_LABEL.
-        /// This name must be unique among all containers, init containers and ephemeral containers.</summary>
-        [Newtonsoft.Json.JsonProperty("name", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string Name { get; set; }
-    
-        /// <summary>Ports are not allowed for ephemeral containers.</summary>
-        [Newtonsoft.Json.JsonProperty("ports", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.Collections.Generic.ICollection<V1ContainerPort> Ports { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("readinessProbe", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1Probe ReadinessProbe { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("resources", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1ResourceRequirements Resources { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("securityContext", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1SecurityContext SecurityContext { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("startupProbe", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1Probe StartupProbe { get; set; }
-    
-        /// <summary>Whether this container should allocate a buffer for stdin in the container runtime. If this
-        /// is not set, reads from stdin in the container will always result in EOF.
-        /// Default is false.
-        /// +optional</summary>
-        [Newtonsoft.Json.JsonProperty("stdin", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public bool? Stdin { get; set; }
-    
-        /// <summary>Whether the container runtime should close the stdin channel after it has been opened by
-        /// a single attach. When stdin is true the stdin stream will remain open across multiple attach
-        /// sessions. If stdinOnce is set to true, stdin is opened on container start, is empty until the
-        /// first client attaches to stdin, and then remains open and accepts data until the client disconnects,
-        /// at which time stdin is closed and remains closed until the container is restarted. If this
-        /// flag is false, a container processes that reads from stdin will never receive an EOF.
-        /// Default is false
-        /// +optional</summary>
-        [Newtonsoft.Json.JsonProperty("stdinOnce", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public bool? StdinOnce { get; set; }
-    
-        /// <summary>Optional: Path at which the file to which the container's termination message
-        /// will be written is mounted into the container's filesystem.
-        /// Message written is intended to be brief final status, such as an assertion failure message.
-        /// Will be truncated by the node if greater than 4096 bytes. The total message length across
-        /// all containers will be limited to 12kb.
-        /// Defaults to /dev/termination-log.
-        /// Cannot be updated.
-        /// +optional</summary>
-        [Newtonsoft.Json.JsonProperty("terminationMessagePath", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string TerminationMessagePath { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("terminationMessagePolicy", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string TerminationMessagePolicy { get; set; }
-    
-        /// <summary>Whether this container should allocate a TTY for itself, also requires 'stdin' to be true.
-        /// Default is false.
-        /// +optional</summary>
-        [Newtonsoft.Json.JsonProperty("tty", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public bool? Tty { get; set; }
-    
-        /// <summary>volumeDevices is the list of block devices to be used by the container.
-        /// +patchMergeKey=devicePath
-        /// +patchStrategy=merge
-        /// +optional</summary>
-        [Newtonsoft.Json.JsonProperty("volumeDevices", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.Collections.Generic.ICollection<V1VolumeDevice> VolumeDevices { get; set; }
-    
-        /// <summary>Pod volumes to mount into the container's filesystem.
-        /// Cannot be updated.
-        /// +optional
-        /// +patchMergeKey=mountPath
-        /// +patchStrategy=merge</summary>
-        [Newtonsoft.Json.JsonProperty("volumeMounts", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.Collections.Generic.ICollection<V1VolumeMount> VolumeMounts { get; set; }
-    
-        /// <summary>Container's working directory.
-        /// If not specified, the container runtime's default will be used, which
-        /// might be configured in the container image.
-        /// Cannot be updated.
-        /// +optional</summary>
-        [Newtonsoft.Json.JsonProperty("workingDir", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string WorkingDir { get; set; }
-    
-    
-    }
-    
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1EphemeralVolumeSource 
     {
@@ -3197,166 +3184,6 @@ namespace GResearch.Armada.Client
         /// <summary>Path of the field to select in the specified API version.</summary>
         [Newtonsoft.Json.JsonProperty("fieldPath", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string FieldPath { get; set; }
-    
-    
-    }
-    
-    /// <summary>ObjectMeta is metadata that all persisted resources must have, which includes all objects
-    /// users must create.</summary>
-    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
-    public partial class V1ObjectMeta 
-    {
-        /// <summary>Annotations is an unstructured key value map stored with a resource that may be
-        /// set by external tools to store and retrieve arbitrary metadata. They are not
-        /// queryable and should be preserved when modifying objects.
-        /// More info: http://kubernetes.io/docs/user-guide/annotations
-        /// +optional</summary>
-        [Newtonsoft.Json.JsonProperty("annotations", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.Collections.Generic.IDictionary<string, string> Annotations { get; set; }
-    
-        /// <summary>The name of the cluster which the object belongs to.
-        /// This is used to distinguish resources with same name and namespace in different clusters.
-        /// This field is not set anywhere right now and apiserver is going to ignore it if set in create or update request.
-        /// +optional</summary>
-        [Newtonsoft.Json.JsonProperty("clusterName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string ClusterName { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("creationTimestamp", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.DateTimeOffset? CreationTimestamp { get; set; }
-    
-        /// <summary>Number of seconds allowed for this object to gracefully terminate before
-        /// it will be removed from the system. Only set when deletionTimestamp is also set.
-        /// May only be shortened.
-        /// Read-only.
-        /// +optional</summary>
-        [Newtonsoft.Json.JsonProperty("deletionGracePeriodSeconds", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public long? DeletionGracePeriodSeconds { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("deletionTimestamp", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.DateTimeOffset? DeletionTimestamp { get; set; }
-    
-        /// <summary>Must be empty before the object is deleted from the registry. Each entry
-        /// is an identifier for the responsible component that will remove the entry
-        /// from the list. If the deletionTimestamp of the object is non-nil, entries
-        /// in this list can only be removed.
-        /// Finalizers may be processed and removed in any order.  Order is NOT enforced
-        /// because it introduces significant risk of stuck finalizers.
-        /// finalizers is a shared field, any actor with permission can reorder it.
-        /// If the finalizer list is processed in order, then this can lead to a situation
-        /// in which the component responsible for the first finalizer in the list is
-        /// waiting for a signal (field value, external system, or other) produced by a
-        /// component responsible for a finalizer later in the list, resulting in a deadlock.
-        /// Without enforced ordering finalizers are free to order amongst themselves and
-        /// are not vulnerable to ordering changes in the list.
-        /// +optional
-        /// +patchStrategy=merge</summary>
-        [Newtonsoft.Json.JsonProperty("finalizers", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.Collections.Generic.ICollection<string> Finalizers { get; set; }
-    
-        /// <summary>GenerateName is an optional prefix, used by the server, to generate a unique
-        /// name ONLY IF the Name field has not been provided.
-        /// If this field is used, the name returned to the client will be different
-        /// than the name passed. This value will also be combined with a unique suffix.
-        /// The provided value has the same validation rules as the Name field,
-        /// and may be truncated by the length of the suffix required to make the value
-        /// unique on the server.
-        /// 
-        /// If this field is specified and the generated name exists, the server will
-        /// NOT return a 409 - instead, it will either return 201 Created or 500 with Reason
-        /// ServerTimeout indicating a unique name could not be found in the time allotted, and the client
-        /// should retry (optionally after the time indicated in the Retry-After header).
-        /// 
-        /// Applied only if Name is not specified.
-        /// More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#idempotency
-        /// +optional</summary>
-        [Newtonsoft.Json.JsonProperty("generateName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string GenerateName { get; set; }
-    
-        /// <summary>A sequence number representing a specific generation of the desired state.
-        /// Populated by the system. Read-only.
-        /// +optional</summary>
-        [Newtonsoft.Json.JsonProperty("generation", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public long? Generation { get; set; }
-    
-        /// <summary>Map of string keys and values that can be used to organize and categorize
-        /// (scope and select) objects. May match selectors of replication controllers
-        /// and services.
-        /// More info: http://kubernetes.io/docs/user-guide/labels
-        /// +optional</summary>
-        [Newtonsoft.Json.JsonProperty("labels", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.Collections.Generic.IDictionary<string, string> Labels { get; set; }
-    
-        /// <summary>ManagedFields maps workflow-id and version to the set of fields
-        /// that are managed by that workflow. This is mostly for internal
-        /// housekeeping, and users typically shouldn't need to set or
-        /// understand this field. A workflow can be the user's name, a
-        /// controller's name, or the name of a specific apply path like
-        /// "ci-cd". The set of fields is always in the version that the
-        /// workflow used when modifying the object.
-        /// 
-        /// +optional</summary>
-        [Newtonsoft.Json.JsonProperty("managedFields", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.Collections.Generic.ICollection<V1ManagedFieldsEntry> ManagedFields { get; set; }
-    
-        /// <summary>Name must be unique within a namespace. Is required when creating resources, although
-        /// some resources may allow a client to request the generation of an appropriate name
-        /// automatically. Name is primarily intended for creation idempotence and configuration
-        /// definition.
-        /// Cannot be updated.
-        /// More info: http://kubernetes.io/docs/user-guide/identifiers#names
-        /// +optional</summary>
-        [Newtonsoft.Json.JsonProperty("name", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string Name { get; set; }
-    
-        /// <summary>Namespace defines the space within which each name must be unique. An empty namespace is
-        /// equivalent to the "default" namespace, but "default" is the canonical representation.
-        /// Not all objects are required to be scoped to a namespace - the value of this field for
-        /// those objects will be empty.
-        /// 
-        /// Must be a DNS_LABEL.
-        /// Cannot be updated.
-        /// More info: http://kubernetes.io/docs/user-guide/namespaces
-        /// +optional</summary>
-        [Newtonsoft.Json.JsonProperty("namespace", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string Namespace { get; set; }
-    
-        /// <summary>List of objects depended by this object. If ALL objects in the list have
-        /// been deleted, this object will be garbage collected. If this object is managed by a controller,
-        /// then an entry in this list will point to this controller, with the controller field set to true.
-        /// There cannot be more than one managing controller.
-        /// +optional
-        /// +patchMergeKey=uid
-        /// +patchStrategy=merge</summary>
-        [Newtonsoft.Json.JsonProperty("ownerReferences", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.Collections.Generic.ICollection<V1OwnerReference> OwnerReferences { get; set; }
-    
-        /// <summary>An opaque value that represents the internal version of this object that can
-        /// be used by clients to determine when objects have changed. May be used for optimistic
-        /// concurrency, change detection, and the watch operation on a resource or set of resources.
-        /// Clients must treat these values as opaque and passed unmodified back to the server.
-        /// They may only be valid for a particular resource or set of resources.
-        /// 
-        /// Populated by the system.
-        /// Read-only.
-        /// Value must be treated as opaque by clients and .
-        /// More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#concurrency-control-and-consistency
-        /// +optional</summary>
-        [Newtonsoft.Json.JsonProperty("resourceVersion", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string ResourceVersion { get; set; }
-    
-        /// <summary>SelfLink is a URL representing this object.
-        /// Populated by the system.
-        /// Read-only.
-        /// 
-        /// DEPRECATED
-        /// Kubernetes will stop propagating this field in 1.20 release and the field is planned
-        /// to be removed in 1.21 release.
-        /// +optional</summary>
-        [Newtonsoft.Json.JsonProperty("selfLink", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string SelfLink { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("uid", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public string Uid { get; set; }
     
     
     }
@@ -5014,100 +4841,6 @@ namespace GResearch.Armada.Client
     
         [Newtonsoft.Json.JsonProperty("serviceAccountToken", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public V1ServiceAccountTokenProjection ServiceAccountToken { get; set; }
-    
-    
-    }
-    
-    /// <summary>Only one of its members may be specified.</summary>
-    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
-    public partial class V1VolumeSource 
-    {
-        [Newtonsoft.Json.JsonProperty("awsElasticBlockStore", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1AWSElasticBlockStoreVolumeSource AwsElasticBlockStore { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("azureDisk", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1AzureDiskVolumeSource AzureDisk { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("azureFile", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1AzureFileVolumeSource AzureFile { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("cephfs", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1CephFSVolumeSource Cephfs { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("cinder", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1CinderVolumeSource Cinder { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("configMap", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1ConfigMapVolumeSource ConfigMap { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("csi", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1CSIVolumeSource Csi { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("downwardAPI", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1DownwardAPIVolumeSource DownwardAPI { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("emptyDir", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1EmptyDirVolumeSource EmptyDir { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("ephemeral", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1EphemeralVolumeSource Ephemeral { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("fc", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1FCVolumeSource Fc { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("flexVolume", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1FlexVolumeSource FlexVolume { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("flocker", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1FlockerVolumeSource Flocker { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("gcePersistentDisk", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1GCEPersistentDiskVolumeSource GcePersistentDisk { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("gitRepo", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1GitRepoVolumeSource GitRepo { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("glusterfs", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1GlusterfsVolumeSource Glusterfs { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("hostPath", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1HostPathVolumeSource HostPath { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("iscsi", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1ISCSIVolumeSource Iscsi { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("nfs", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1NFSVolumeSource Nfs { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("persistentVolumeClaim", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1PersistentVolumeClaimVolumeSource PersistentVolumeClaim { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("photonPersistentDisk", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1PhotonPersistentDiskVolumeSource PhotonPersistentDisk { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("portworxVolume", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1PortworxVolumeSource PortworxVolume { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("projected", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1ProjectedVolumeSource Projected { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("quobyte", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1QuobyteVolumeSource Quobyte { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("rbd", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1RBDVolumeSource Rbd { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("scaleIO", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1ScaleIOVolumeSource ScaleIO { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("secret", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1SecretVolumeSource Secret { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("storageos", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1StorageOSVolumeSource Storageos { get; set; }
-    
-        [Newtonsoft.Json.JsonProperty("vsphereVolume", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public V1VsphereVirtualDiskVolumeSource VsphereVolume { get; set; }
     
     
     }

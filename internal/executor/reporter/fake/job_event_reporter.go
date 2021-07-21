@@ -6,6 +6,10 @@ type FakeEventReporter struct {
 	ReceivedEvents []api.Event
 }
 
+func NewFakeEventReporter() *FakeEventReporter {
+	return &FakeEventReporter{}
+}
+
 func (f *FakeEventReporter) Report(event api.Event) error {
 	f.ReceivedEvents = append(f.ReceivedEvents, event)
 	return nil
