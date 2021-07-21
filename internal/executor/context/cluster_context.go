@@ -282,7 +282,6 @@ func (c *KubernetesClusterContext) ProcessPodsToDelete() {
 			}
 		}
 
-		fmt.Printf("err %s", err)
 		if err == nil {
 			err = c.kubernetesClient.CoreV1().Pods(podToDelete.Namespace).Delete(ctx.Background(), podToDelete.Name, deleteOptions)
 		}
