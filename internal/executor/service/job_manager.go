@@ -8,6 +8,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 
 	context2 "github.com/G-Research/armada/internal/executor/context"
+	"github.com/G-Research/armada/internal/executor/domain"
 	"github.com/G-Research/armada/internal/executor/job"
 	"github.com/G-Research/armada/internal/executor/reporter"
 	"github.com/G-Research/armada/internal/executor/util"
@@ -85,7 +86,7 @@ func (m *JobManager) reportDoneAndMarkReported(jobs []*job.RunningJob) error {
 
 func (m *JobManager) markAsDone(jobs []*job.RunningJob) {
 	err := m.jobContext.AddAnnotation(jobs, map[string]string{
-		jobDoneAnnotation: time.Now().String(),
+		domain.JobDoneAnnotation: time.Now().String(),
 	})
 	if err != nil {
 		log.Warnf("Failed to annotate jobs as done: %v", err)
@@ -113,9 +114,7 @@ func (m *JobManager) canBeRemoved(job *job.RunningJob) bool {
 }
 
 func (m *JobManager) canPodBeRemoved(pod *v1.Pod) bool {
-	if !util.IsInTerminalState(pod) ||
-		!isReportedDone(pod) ||
-		!reporter.HasCurrentStateBeenReported(pod) {
+	if !util.IsPodFinishedAndReported(pod) {
 		return false
 	}
 

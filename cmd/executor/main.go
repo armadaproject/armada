@@ -18,7 +18,7 @@ import (
 const CustomConfigLocation string = "config"
 
 func init() {
-	pflag.String(CustomConfigLocation, "", "Fully qualified path to application configuration file")
+	pflag.StringSlice(CustomConfigLocation, []string{}, "Fully qualified path to application configuration file (for multiple config files repeat this arg or separate paths with commas)")
 	pflag.Parse()
 }
 
@@ -27,8 +27,8 @@ func main() {
 	common.BindCommandlineArguments()
 
 	var config configuration.ExecutorConfiguration
-	userSpecifiedConfig := viper.GetString(CustomConfigLocation)
-	common.LoadConfig(&config, "./config/executor", userSpecifiedConfig)
+	userSpecifiedConfigs := viper.GetStringSlice(CustomConfigLocation)
+	common.LoadConfig(&config, "./config/executor", userSpecifiedConfigs)
 
 	shutdownChannel := make(chan os.Signal, 1)
 	signal.Notify(shutdownChannel, syscall.SIGINT, syscall.SIGTERM)

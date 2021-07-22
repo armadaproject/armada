@@ -11,4 +11,6 @@ const (
 	AssociatedIngressesCount = "associated_ingresses_count"
 	AssociatedServicesCount  = "associated_services_count"
 	IngressReported          = "ingress_reported"
+	MarkedForDeletion        = "deletion_requested"
+	JobDoneAnnotation        = "reported_done"
 )

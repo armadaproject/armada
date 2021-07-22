@@ -230,3 +230,28 @@ func GetPodContainerStatuses(pod *v1.Pod) []v1.ContainerStatus {
 	containerStatuses = append(containerStatuses, pod.Status.InitContainerStatuses...)
 	return containerStatuses
 }
+
+func IsMarkedForDeletion(pod *v1.Pod) bool {
+	_, exists := pod.Annotations[domain.MarkedForDeletion]
+	return exists
+}
+
+func IsReportedDone(pod *v1.Pod) bool {
+	_, exists := pod.Annotations[domain.JobDoneAnnotation]
+	return exists
+}
+
+func IsPodFinishedAndReported(pod *v1.Pod) bool {
+	if !IsInTerminalState(pod) ||
+		!IsReportedDone(pod) ||
+		!HasCurrentStateBeenReported(pod) {
+		return false
+	}
+	return true
+}
+
+func HasCurrentStateBeenReported(pod *v1.Pod) bool {
+	podPhase := pod.Status.Phase
+	_, annotationPresent := pod.Annotations[string(podPhase)]
+	return annotationPresent
+}

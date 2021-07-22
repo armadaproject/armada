@@ -163,12 +163,42 @@
         }
       }
     },
+    "/v1/queue": {
+      "post": {
+        "tags": [
+          "Submit"
+        ],
+        "operationId": "CreateQueue",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiQueue"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {}
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        }
+      }
+    },
     "/v1/queue/{name}": {
       "get": {
         "tags": [
           "Submit"
         ],
-        "operationId": "GetQueueInfo",
+        "operationId": "GetQueue",
         "parameters": [
           {
             "type": "string",
@@ -181,7 +211,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/apiQueueInfo"
+              "$ref": "#/definitions/apiQueue"
             }
           },
           "default": {
@@ -196,7 +226,7 @@
         "tags": [
           "Submit"
         ],
-        "operationId": "CreateQueue",
+        "operationId": "UpdateQueue",
         "parameters": [
           {
             "type": "string",
@@ -243,6 +273,36 @@
           "200": {
             "description": "A successful response.",
             "schema": {}
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        }
+      }
+    },
+    "/v1/queue/{name}/info": {
+      "get": {
+        "tags": [
+          "Submit"
+        ],
+        "operationId": "GetQueueInfo",
+        "parameters": [
+          {
+            "type": "string",
+            "name": "name",
+            "in": "path",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiQueueInfo"
+            }
           },
           "default": {
             "description": "An unexpected error response.",

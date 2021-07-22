@@ -174,12 +174,42 @@ func SwaggerJsonTemplate() string {
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
+		"    \"/v1/queue\": {\n" +
+		"      \"post\": {\n" +
+		"        \"tags\": [\n" +
+		"          \"Submit\"\n" +
+		"        ],\n" +
+		"        \"operationId\": \"CreateQueue\",\n" +
+		"        \"parameters\": [\n" +
+		"          {\n" +
+		"            \"name\": \"body\",\n" +
+		"            \"in\": \"body\",\n" +
+		"            \"required\": true,\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/apiQueue\"\n" +
+		"            }\n" +
+		"          }\n" +
+		"        ],\n" +
+		"        \"responses\": {\n" +
+		"          \"200\": {\n" +
+		"            \"description\": \"A successful response.\",\n" +
+		"            \"schema\": {}\n" +
+		"          },\n" +
+		"          \"default\": {\n" +
+		"            \"description\": \"An unexpected error response.\",\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/runtimeError\"\n" +
+		"            }\n" +
+		"          }\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
 		"    \"/v1/queue/{name}\": {\n" +
 		"      \"get\": {\n" +
 		"        \"tags\": [\n" +
 		"          \"Submit\"\n" +
 		"        ],\n" +
-		"        \"operationId\": \"GetQueueInfo\",\n" +
+		"        \"operationId\": \"GetQueue\",\n" +
 		"        \"parameters\": [\n" +
 		"          {\n" +
 		"            \"type\": \"string\",\n" +
@@ -192,7 +222,7 @@ func SwaggerJsonTemplate() string {
 		"          \"200\": {\n" +
 		"            \"description\": \"A successful response.\",\n" +
 		"            \"schema\": {\n" +
-		"              \"$ref\": \"#/definitions/apiQueueInfo\"\n" +
+		"              \"$ref\": \"#/definitions/apiQueue\"\n" +
 		"            }\n" +
 		"          },\n" +
 		"          \"default\": {\n" +
@@ -207,7 +237,7 @@ func SwaggerJsonTemplate() string {
 		"        \"tags\": [\n" +
 		"          \"Submit\"\n" +
 		"        ],\n" +
-		"        \"operationId\": \"CreateQueue\",\n" +
+		"        \"operationId\": \"UpdateQueue\",\n" +
 		"        \"parameters\": [\n" +
 		"          {\n" +
 		"            \"type\": \"string\",\n" +
@@ -254,6 +284,36 @@ func SwaggerJsonTemplate() string {
 		"          \"200\": {\n" +
 		"            \"description\": \"A successful response.\",\n" +
 		"            \"schema\": {}\n" +
+		"          },\n" +
+		"          \"default\": {\n" +
+		"            \"description\": \"An unexpected error response.\",\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/runtimeError\"\n" +
+		"            }\n" +
+		"          }\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"/v1/queue/{name}/info\": {\n" +
+		"      \"get\": {\n" +
+		"        \"tags\": [\n" +
+		"          \"Submit\"\n" +
+		"        ],\n" +
+		"        \"operationId\": \"GetQueueInfo\",\n" +
+		"        \"parameters\": [\n" +
+		"          {\n" +
+		"            \"type\": \"string\",\n" +
+		"            \"name\": \"name\",\n" +
+		"            \"in\": \"path\",\n" +
+		"            \"required\": true\n" +
+		"          }\n" +
+		"        ],\n" +
+		"        \"responses\": {\n" +
+		"          \"200\": {\n" +
+		"            \"description\": \"A successful response.\",\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/apiQueueInfo\"\n" +
+		"            }\n" +
 		"          },\n" +
 		"          \"default\": {\n" +
 		"            \"description\": \"An unexpected error response.\",\n" +

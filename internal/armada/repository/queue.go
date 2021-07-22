@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"errors"
+
 	"github.com/go-redis/redis"
 	"github.com/gogo/protobuf/proto"
 
@@ -9,10 +11,14 @@ import (
 
 const queueHashKey = "Queue"
 
+var ErrQueueNotFound = errors.New("Queue does not exist")
+var ErrQueueAlreadyExists = errors.New("Queue already exists")
+
 type QueueRepository interface {
 	GetAllQueues() ([]*api.Queue, error)
 	GetQueue(name string) (*api.Queue, error)
 	CreateQueue(queue *api.Queue) error
+	UpdateQueue(queue *api.Queue) error
 	DeleteQueue(name string) error
 }
 
@@ -44,7 +50,9 @@ func (r *RedisQueueRepository) GetAllQueues() ([]*api.Queue, error) {
 
 func (r *RedisQueueRepository) GetQueue(name string) (*api.Queue, error) {
 	result, err := r.db.HGet(queueHashKey, name).Result()
-	if err != nil {
+	if err == redis.Nil {
+		return nil, ErrQueueNotFound
+	} else if err != nil {
 		return nil, err
 	}
 	queue := &api.Queue{}
@@ -56,10 +64,37 @@ func (r *RedisQueueRepository) GetQueue(name string) (*api.Queue, error) {
 }
 
 func (r *RedisQueueRepository) CreateQueue(queue *api.Queue) error {
-	data, e := proto.Marshal(queue)
-	if e != nil {
-		return e
+	data, err := proto.Marshal(queue)
+	if err != nil {
+		return err
 	}
+
+	result, err := r.db.HSetNX(queueHashKey, queue.Name, data).Result()
+	if err != nil {
+		return err
+	}
+
+	if !result {
+		return ErrQueueAlreadyExists
+	}
+
+	return nil
+}
+
+func (r *RedisQueueRepository) UpdateQueue(queue *api.Queue) error {
+	existsResult, err := r.db.HExists(queueHashKey, queue.Name).Result()
+
+	if err != nil {
+		return err
+	} else if !existsResult {
+		return ErrQueueNotFound
+	}
+
+	data, err := proto.Marshal(queue)
+	if err != nil {
+		return err
+	}
+
 	result := r.db.HSet(queueHashKey, queue.Name, data)
 	return result.Err()
 }

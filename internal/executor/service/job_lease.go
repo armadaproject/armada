@@ -18,7 +18,6 @@ import (
 )
 
 const maxPodRequestSize = 10000
-const jobDoneAnnotation = "reported_done"
 
 type LeaseService interface {
 	ReturnLease(pod *v1.Pod) error

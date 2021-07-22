@@ -101,7 +101,7 @@ tests-e2e: e2e-start-cluster build-docker
 	docker run -d --name redis -p=6379:6379 redis
 	docker run -d --name server --network=host -p=50051:50051 \
 		-v $(shell pwd)/e2e:/e2e \
-		armada ./server --config /e2e/setup/nats/armada-config.yaml
+		armada ./server --config /e2e/setup/insecure-armada-auth-config.yaml --config /e2e/setup/nats/armada-config.yaml
 	docker run -d --name executor --network=host -v $(shell pwd)/.kube/config:/kube/config \
 		-e KUBECONFIG=/kube/config \
 		-e ARMADA_KUBERNETES_IMPERSONATEUSERS=true \
