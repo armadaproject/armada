@@ -40,9 +40,8 @@ type PodIssue struct {
 }
 
 type jobRecord struct {
-	jobId             string
-	issue             *PodIssue
-	markedForDeletion bool
+	jobId string
+	issue *PodIssue
 }
 
 type JobContext interface {
@@ -112,15 +111,6 @@ func (c *ClusterJobContext) DeleteJobs(jobs []*RunningJob) {
 	defer c.activeJobIdsMutex.Unlock()
 
 	for _, job := range jobs {
-		record, exists := c.activeJobs[job.JobId]
-		if !exists {
-			c.activeJobs[job.JobId] = &jobRecord{
-				jobId:             job.JobId,
-				markedForDeletion: true,
-			}
-		} else {
-			record.markedForDeletion = true
-		}
 		c.clusterContext.DeletePods(job.ActivePods)
 	}
 }
@@ -176,8 +166,7 @@ func (c *ClusterJobContext) addIssues(jobs []*RunningJob) []*RunningJob {
 		record, exists := c.activeJobs[job.JobId]
 		if !exists {
 			record = &jobRecord{
-				jobId:             job.JobId,
-				markedForDeletion: false,
+				jobId: job.JobId,
 			}
 			c.activeJobs[job.JobId] = record
 		}
@@ -263,7 +252,7 @@ func (c *ClusterJobContext) handleDeletedPod(pod *v1.Pod) {
 	jobId := util.ExtractJobId(pod)
 	if jobId != "" {
 		record, exists := c.activeJobs[jobId]
-		active := exists && !record.markedForDeletion
+		active := exists && !util.IsMarkedForDeletion(pod) && !util.IsPodFinishedAndReported(pod)
 		if active {
 			record.issue = &PodIssue{
 				OriginatingPod: pod,

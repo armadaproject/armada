@@ -19,6 +19,7 @@ import (
 	"k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 
 	"github.com/G-Research/armada/internal/common/cluster"
+	util2 "github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/executor/configuration"
 	"github.com/G-Research/armada/internal/executor/domain"
 	"github.com/G-Research/armada/internal/executor/util"
@@ -269,8 +270,22 @@ func (c *KubernetesClusterContext) ProcessPodsToDelete() {
 		if podToDelete == nil {
 			continue
 		}
-		err := c.kubernetesClient.CoreV1().Pods(podToDelete.Namespace).Delete(ctx.Background(), podToDelete.Name, deleteOptions)
 		podId := util.ExtractPodKey(podToDelete)
+
+		var err error
+		if !util.IsMarkedForDeletion(podToDelete) {
+			updatedPod, annotationErr := c.markForDeletion(podToDelete)
+			err = annotationErr
+			if annotationErr == nil {
+				podToDelete = updatedPod
+				c.podsToDelete.Update(podId, podToDelete)
+			}
+		}
+
+		if err == nil {
+			err = c.kubernetesClient.CoreV1().Pods(podToDelete.Namespace).Delete(ctx.Background(), podToDelete.Name, deleteOptions)
+		}
+
 		if err == nil || errors.IsNotFound(err) {
 			c.podsToDelete.Update(podId, nil)
 		} else {
@@ -278,6 +293,16 @@ func (c *KubernetesClusterContext) ProcessPodsToDelete() {
 			c.podsToDelete.Delete(podId)
 		}
 	}
+}
+
+func (c *KubernetesClusterContext) markForDeletion(pod *v1.Pod) (*v1.Pod, error) {
+	annotations := make(map[string]string)
+	annotationName := domain.MarkedForDeletion
+	annotations[annotationName] = time.Now().String()
+
+	err := c.AddAnnotation(pod, annotations)
+	pod.Annotations = util2.MergeMaps(pod.Annotations, annotations)
+	return pod, err
 }
 
 func (c *KubernetesClusterContext) GetService(name string, namespace string) (*v1.Service, error) {
