@@ -12,6 +12,7 @@ import (
 
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/internal/common/grpc"
+	"github.com/G-Research/armada/internal/common/health"
 	"github.com/G-Research/armada/internal/common/serve"
 	"github.com/G-Research/armada/internal/lookout"
 	"github.com/G-Research/armada/internal/lookout/configuration"
@@ -56,8 +57,14 @@ func main() {
 	shutdownMetricServer := common.ServeMetrics(config.MetricsPort)
 	defer shutdownMetricServer()
 
-	mux, shutdownGateway := grpc.CreateGatewayHandler(
+	mux := http.NewServeMux()
+
+	startupComplete := health.NewStartupCompleteChecker()
+	health.SetupHttpMux(mux, startupComplete)
+
+	shutdownGateway := grpc.CreateGatewayHandler(
 		config.GrpcPort,
+		mux,
 		"/api/",
 		[]string{},
 		lookoutApi.SwaggerJsonTemplate(),
@@ -80,6 +87,9 @@ func main() {
 		shutdownGateway()
 		shutdownServer()
 	}()
+
+	startupComplete.MarkComplete()
+
 	wg.Wait()
 }
 
