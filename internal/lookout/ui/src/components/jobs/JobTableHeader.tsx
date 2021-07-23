@@ -1,10 +1,10 @@
 import React from "react"
 
-import { Button, IconButton } from "@material-ui/core"
+import { Button } from "@material-ui/core"
 import CancelIcon from "@material-ui/icons/Cancel"
 import LowPriority from "@material-ui/icons/LowPriority"
-import RefreshIcon from "@material-ui/icons/Refresh"
 
+import RefreshButton from "../../RefreshButton"
 import { ColumnSpec } from "../../containers/JobsContainer"
 import AutoRefreshToggle from "../AutoRefreshToggle"
 import ColumnSelect from "./ColumnSelect"
@@ -17,6 +17,7 @@ type JobTableHeaderProps = {
   canCancel: boolean
   autoRefresh: boolean
   canReprioritize: boolean
+  isLoading: boolean
   onRefresh: () => void
   onAutoRefreshChange: (autoRefresh: boolean) => void
   onCancelJobsClick: () => void
@@ -72,9 +73,7 @@ export default function JobTableHeader(props: JobTableHeaderProps) {
           <AutoRefreshToggle autoRefresh={props.autoRefresh} onAutoRefreshChange={props.onAutoRefreshChange} />
         </div>
         <div className="refresh">
-          <IconButton onClick={props.onRefresh} color="primary">
-            <RefreshIcon />
-          </IconButton>
+          <RefreshButton isLoading={props.isLoading} onClick={props.onRefresh} />
         </div>
       </div>
     </div>

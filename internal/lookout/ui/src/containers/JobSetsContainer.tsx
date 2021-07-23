@@ -13,7 +13,9 @@ import ReprioritizeJobSetsDialog, {
   ReprioritizeJobSetsDialogContext,
   ReprioritizeJobSetsDialogState,
 } from "../components/job-sets/ReprioritizeJobSetsDialog"
+import IntervalService from "../services/IntervalService"
 import JobService, { JobSet } from "../services/JobService"
+import { sleep } from "../services/testData"
 import { debounced, setStateAsync, updateInterval, selectItem } from "../utils"
 import { RequestStatus } from "./JobsContainer"
 
@@ -45,7 +47,7 @@ type JobSetsQueryParams = {
   view?: string
 }
 
-const INTERVAL = 15000
+const AUTO_REFRESH_INTERVAL_MS = 15000
 
 export function isJobSetsView(val: string): val is JobSetsView {
   return ["job-counts", "runtime", "queued-time"].includes(val)
@@ -75,10 +77,12 @@ function getParamsFromQueryString(query: string): JobSetsContainerParams {
 }
 
 class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsContainerState> {
-  interval: NodeJS.Timeout | undefined
+  autoRefreshService: IntervalService
 
   constructor(props: JobSetsContainerProps) {
     super(props)
+
+    this.autoRefreshService = new IntervalService(AUTO_REFRESH_INTERVAL_MS)
 
     this.state = {
       queue: "",
@@ -108,7 +112,6 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
 
     this.setQueue = this.setQueue.bind(this)
     this.setView = this.setView.bind(this)
-    this.refresh = this.refresh.bind(this)
     this.navigateToJobSetForState = this.navigateToJobSetForState.bind(this)
     this.selectJobSet = this.selectJobSet.bind(this)
     this.shiftSelectJobSet = this.shiftSelectJobSet.bind(this)
@@ -132,13 +135,12 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
 
     await this.loadJobSets()
 
-    this.interval = updateInterval(this.interval, this.state.autoRefresh, INTERVAL, this.loadJobSets)
+    this.autoRefreshService.registerCallback(this.loadJobSets)
+    this.autoRefreshService.start()
   }
 
   componentWillUnmount() {
-    if (this.interval) {
-      clearInterval(this.interval)
-    }
+    this.autoRefreshService.stop()
   }
 
   async setQueue(queue: string) {
@@ -152,10 +154,6 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
     })
 
     // Performed separately because debounced
-    await this.loadJobSets()
-  }
-
-  async refresh() {
     await this.loadJobSets()
   }
 
@@ -360,7 +358,12 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
       ...this.state,
       autoRefresh: autoRefresh,
     })
-    this.interval = updateInterval(this.interval, autoRefresh, INTERVAL, this.loadJobSets)
+
+    if (autoRefresh) {
+      this.autoRefreshService.start()
+    } else {
+      this.autoRefreshService.stop()
+    }
   }
 
   private async loadJobSets() {
@@ -444,7 +447,7 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
           autoRefresh={this.state.autoRefresh}
           onQueueChange={this.setQueue}
           onViewChange={this.setView}
-          onRefresh={this.refresh}
+          onRefresh={this.loadJobSets}
           onJobSetClick={this.navigateToJobSetForState}
           onSelectJobSet={this.selectJobSet}
           onShiftSelectJobSet={this.shiftSelectJobSet}

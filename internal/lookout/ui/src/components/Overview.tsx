@@ -14,13 +14,12 @@ import {
   TableRow,
 } from "@material-ui/core"
 import MoreVert from "@material-ui/icons/MoreVert"
-import RefreshIcon from "@material-ui/icons/Refresh"
 import { AutoSizer } from "react-virtualized"
 
+import RefreshButton from "../RefreshButton"
 import { RequestStatus } from "../containers/JobsContainer"
 import { QueueInfo } from "../services/JobService"
 import AutoRefreshToggle from "./AutoRefreshToggle"
-import Loading from "./Loading"
 
 import "./Overview.css"
 
@@ -43,15 +42,12 @@ export default function Overview(props: OverviewProps) {
     <Container className="overview">
       <div className="overview-header">
         <h2 className="title">Overview</h2>
-        {props.overviewRequestStatus === "Loading" ? <Loading /> : <div />}
         <div className="right">
           <div className="auto-refresh">
             <AutoRefreshToggle autoRefresh={props.autoRefresh} onAutoRefreshChange={props.onToggleAutoRefresh} />
           </div>
           <div className="refresh-button">
-            <IconButton title={"Refresh"} onClick={props.onRefresh} color={"primary"}>
-              <RefreshIcon />
-            </IconButton>
+            <RefreshButton isLoading={props.overviewRequestStatus === "Loading"} onClick={props.onRefresh} />
           </div>
         </div>
       </div>

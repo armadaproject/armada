@@ -6,6 +6,7 @@ import Overview from "../components/Overview"
 import JobDetailsModal, { JobDetailsModalContext, toggleExpanded } from "../components/job-details/JobDetailsModal"
 import JobService, { Job, QueueInfo } from "../services/JobService"
 import LogService from "../services/LogService"
+import { sleep } from "../services/testData"
 import { setStateAsync, updateInterval } from "../utils"
 import { RequestStatus } from "./JobsContainer"
 
@@ -42,7 +43,7 @@ class OverviewContainer extends React.Component<OverviewContainerProps, Overview
       },
     }
 
-    this.fetchQueueInfos = this.fetchQueueInfos.bind(this)
+    this.fetchOverview = this.fetchOverview.bind(this)
     this.setOpenQueueMenu = this.setOpenQueueMenu.bind(this)
     this.navigateToJobSets = this.navigateToJobSets.bind(this)
     this.navigateToJobs = this.navigateToJobs.bind(this)
@@ -54,9 +55,9 @@ class OverviewContainer extends React.Component<OverviewContainerProps, Overview
   }
 
   async componentDidMount() {
-    await this.fetchQueueInfos()
+    await this.fetchOverview()
 
-    this.interval = updateInterval(this.interval, this.state.autoRefresh, INTERVAL, this.fetchQueueInfos)
+    this.interval = updateInterval(this.interval, this.state.autoRefresh, INTERVAL, this.fetchOverview)
   }
 
   componentWillUnmount() {
@@ -65,11 +66,12 @@ class OverviewContainer extends React.Component<OverviewContainerProps, Overview
     }
   }
 
-  async fetchQueueInfos() {
+  async fetchOverview() {
     await setStateAsync(this, {
       ...this.state,
       overviewRequestStatus: "Loading",
     })
+    await sleep(2000)
     const queueInfos = await this.props.jobService.getOverview()
     this.setState({
       queueInfos: queueInfos,
@@ -153,7 +155,7 @@ class OverviewContainer extends React.Component<OverviewContainerProps, Overview
       ...this.state,
       autoRefresh: autoRefresh,
     })
-    this.interval = updateInterval(this.interval, autoRefresh, INTERVAL, this.fetchQueueInfos)
+    this.interval = updateInterval(this.interval, autoRefresh, INTERVAL, this.fetchOverview)
   }
 
   render() {
@@ -171,7 +173,7 @@ class OverviewContainer extends React.Component<OverviewContainerProps, Overview
           queueMenuAnchor={this.state.queueMenuAnchor}
           overviewRequestStatus={this.state.overviewRequestStatus}
           autoRefresh={this.state.autoRefresh}
-          onRefresh={this.fetchQueueInfos}
+          onRefresh={this.fetchOverview}
           onJobClick={this.openModalForJob}
           onSetQueueMenu={this.setOpenQueueMenu}
           onQueueMenuJobSetsClick={this.navigateToJobSets}

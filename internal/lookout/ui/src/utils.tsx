@@ -118,3 +118,16 @@ export async function getErrorMessage(error: any): Promise<string> {
     return basicMessage
   }
 }
+
+export function updateArray<T>(array: T[], newValues: T[], start: number) {
+  for (let i = 0; i < newValues.length; i++) {
+    const arrayIndex = start + i
+    if (arrayIndex < array.length) {
+      array[arrayIndex] = newValues[i]
+    } else if (arrayIndex >= array.length) {
+      array.push(newValues[i])
+    } else {
+      throw new Error("Index is bad!")
+    }
+  }
+}

@@ -55,9 +55,6 @@
 
 .job-sets-header .refresh-button {
     margin-right: 1em;
-    display: flex;
-    justify-content: center;
-    align-items: center;
 }
 
 .job-sets-content {

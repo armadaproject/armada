@@ -2,6 +2,7 @@ import React from "react"
 
 import {
   Button,
+  CircularProgress,
   Container,
   FormControl,
   IconButton,
@@ -16,6 +17,7 @@ import LowPriority from "@material-ui/icons/LowPriority"
 import RefreshIcon from "@material-ui/icons/Refresh"
 import { AutoSizer } from "react-virtualized"
 
+import RefreshButton from "../../RefreshButton"
 import { JobSetsView, isJobSetsView } from "../../containers/JobSetsContainer"
 import { RequestStatus } from "../../containers/JobsContainer"
 import { DurationStats, JobSet } from "../../services/JobService"
@@ -137,7 +139,6 @@ export default function JobSets(props: JobSetsProps) {
             </FormControl>
           </div>
         </div>
-        {props.getJobSetsRequestStatus === "Loading" ? <Loading /> : <div />}
         <div className="job-sets-actions">
           <div className="reprioritize-button">
             <Button
@@ -165,9 +166,7 @@ export default function JobSets(props: JobSetsProps) {
             <AutoRefreshToggle autoRefresh={props.autoRefresh} onAutoRefreshChange={props.onToggleAutoRefresh} />
           </div>
           <div className="refresh-button">
-            <IconButton title={"Refresh"} onClick={props.onRefresh} color={"primary"}>
-              <RefreshIcon />
-            </IconButton>
+            <RefreshButton isLoading={props.getJobSetsRequestStatus === "Loading"} onClick={props.onRefresh} />
           </div>
         </div>
       </div>

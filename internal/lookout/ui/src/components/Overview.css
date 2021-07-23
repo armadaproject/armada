@@ -24,6 +24,7 @@
   flex: 0 0 auto;
   display: flex;
   flex-direction: row;
+  align-items: center;
 }
 
 .overview-header .right .auto-refresh {
@@ -35,9 +36,6 @@
 
 .overview-header .right .refresh-button {
   margin-right: 1em;
-  display: flex;
-  justify-content: center;
-  align-items: center;
 }
 
 .details-button-cell {
