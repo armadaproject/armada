@@ -32,7 +32,7 @@ func filterRunningJobsByIds(jobs []*job.RunningJob, ids []string) []*job.Running
 }
 
 func shouldBeRenewed(pod *v1.Pod) bool {
-	return !isReportedDone(pod)
+	return !util.IsReportedDone(pod)
 }
 
 func jobShouldBeRenewed(job *job.RunningJob) bool {
@@ -46,16 +46,11 @@ func jobShouldBeRenewed(job *job.RunningJob) bool {
 
 func shouldBeReportedDone(job *job.RunningJob) bool {
 	for _, pod := range job.ActivePods {
-		if util.IsInTerminalState(pod) && !isReportedDone(pod) {
+		if util.IsInTerminalState(pod) && !util.IsReportedDone(pod) {
 			return true
 		}
 	}
 	return false
-}
-
-func isReportedDone(pod *v1.Pod) bool {
-	_, exists := pod.Annotations[jobDoneAnnotation]
-	return exists
 }
 
 func extractPods(jobs []*job.RunningJob) []*v1.Pod {

@@ -102,6 +102,12 @@
     "apiIngressConfig": {
       "type": "object",
       "properties": {
+        "annotations": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
         "ports": {
           "type": "array",
           "items": {
@@ -118,7 +124,8 @@
       "type": "string",
       "default": "NodePort",
       "enum": [
-        "NodePort"
+        "NodePort",
+        "Ingress"
       ]
     },
     "apiJob": {

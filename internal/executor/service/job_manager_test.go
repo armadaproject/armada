@@ -9,6 +9,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/G-Research/armada/internal/executor/configuration"
+	"github.com/G-Research/armada/internal/executor/domain"
 	context2 "github.com/G-Research/armada/internal/executor/fake/context"
 	"github.com/G-Research/armada/internal/executor/job"
 	reporter_fake "github.com/G-Research/armada/internal/executor/reporter/fake"
@@ -73,7 +74,7 @@ func makePodWithCurrentStateReported(state v1.PodPhase, reportedDone bool) *v1.P
 	}
 
 	if reportedDone {
-		pod.Annotations[jobDoneAnnotation] = time.Now().String()
+		pod.Annotations[domain.JobDoneAnnotation] = time.Now().String()
 	}
 
 	return &pod

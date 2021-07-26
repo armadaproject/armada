@@ -53,44 +53,6 @@ func TestHasPodBeenInStateForLongerThanGivenDuration_ReturnsFalse_WhenNoPodState
 	assert.False(t, result)
 }
 
-func TestHasCurrentStateBeenReported_TrueWhenAnnotationExistsForCurrentPhase(t *testing.T) {
-	podPhase := v1.PodRunning
-	pod := v1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Annotations: map[string]string{string(podPhase): time.Now().String()},
-		},
-		Status: v1.PodStatus{
-			Phase: podPhase,
-		},
-	}
-	result := HasCurrentStateBeenReported(&pod)
-	assert.True(t, result)
-}
-
-func TestHasCurrentStateBeenReported_FalseWhenNoAnnotationExistsForCurrentPhase(t *testing.T) {
-	pod := v1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			//Annotation for different phase
-			Annotations: map[string]string{string(v1.PodPending): time.Now().String()},
-		},
-		Status: v1.PodStatus{
-			Phase: v1.PodRunning,
-		},
-	}
-	result := HasCurrentStateBeenReported(&pod)
-	assert.False(t, result)
-}
-
-func TestHasCurrentStateBeenReported_FalseWhenNoAnnotationsExist(t *testing.T) {
-	pod := v1.Pod{
-		Status: v1.PodStatus{
-			Phase: v1.PodRunning,
-		},
-	}
-	result := HasCurrentStateBeenReported(&pod)
-	assert.False(t, result)
-}
-
 func TestRequiresIngressToBeReported_FalseWhenIngressHasBeenReported(t *testing.T) {
 	pod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
