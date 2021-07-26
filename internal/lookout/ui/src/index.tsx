@@ -26,7 +26,11 @@ import "./index.css"
     uiConfig.userAnnotationPrefix,
   )
 
-  const logService = new LogService({ credentials: "include" }, uiConfig.binocularsBaseUrlPattern)
+  const logService = new LogService(
+    { credentials: "include" },
+    uiConfig.binocularsBaseUrlPattern,
+    uiConfig.binocularsEnabled,
+  )
 
   ReactDOM.render(<App jobService={jobService} logService={logService} />, document.getElementById("root"))
 

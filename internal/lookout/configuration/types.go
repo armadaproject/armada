@@ -12,6 +12,7 @@ type NatsConfig struct {
 type LookoutUIConfig struct {
 	ArmadaApiBaseUrl         string
 	UserAnnotationPrefix     string
+	BinocularsEnabled        bool
 	BinocularsBaseUrlPattern string
 }
 
