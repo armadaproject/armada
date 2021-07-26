@@ -36,6 +36,7 @@ export type JobSet = {
   jobsRunning: number
   jobsSucceeded: number
   jobsFailed: number
+  latestSubmissionTime: string
 
   runningStats?: DurationStats
   queuedStats?: DurationStats
@@ -60,6 +61,12 @@ export interface GetJobsRequest {
   jobId: string
   owner: string
   annotations: { [key: string]: string }
+}
+
+export interface GetJobSetsRequest {
+  queue: string
+  newestFirst: boolean
+  activeOnly: boolean
 }
 
 export type Job = {
@@ -158,10 +165,12 @@ export default class JobService {
     return queueInfosFromApi.queues.map((queueInfo) => this.queueInfoToViewModel(queueInfo))
   }
 
-  async getJobSets(queue: string): Promise<JobSet[]> {
+  async getJobSets(getJobSetsRequest: GetJobSetsRequest): Promise<JobSet[]> {
     const jobSetsFromApi = await this.lookoutApi.getJobSets({
       body: {
-        queue: queue,
+        queue: getJobSetsRequest.queue,
+        newestFirst: getJobSetsRequest.newestFirst,
+        activeOnly: getJobSetsRequest.activeOnly,
       },
     })
     if (!jobSetsFromApi.jobSetInfos) {
@@ -425,6 +434,7 @@ function jobSetToViewModel(jobSet: LookoutJobSetInfo): JobSet {
     jobsRunning: jobSet.jobsRunning ?? 0,
     jobsSucceeded: jobSet.jobsSucceeded ?? 0,
     jobsFailed: jobSet.jobsFailed ?? 0,
+    latestSubmissionTime: dateToString(jobSet.submitted ?? new Date()),
     runningStats: durationStatsToViewModel(jobSet.runningStats),
     queuedStats: durationStatsToViewModel(jobSet.queuedStats),
   }

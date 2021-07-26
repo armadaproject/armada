@@ -24,6 +24,8 @@
     display: flex;
     flex-direction: row;
     align-items: center;
+    margin-left: 1em;
+    margin-right: 1em;
 }
 
 .job-sets-header .job-sets-actions {
@@ -42,9 +44,10 @@
 }
 
 .job-sets-field {
-    min-width: 8em;
-    margin-right: 1em;
-    margin-left: 1em;
+    min-width: 7em;
+    max-width: 11em;
+    margin-right: 0.5em;
+    margin-left: 0.5em;
 }
 
 .job-sets-header .refresh-button {
