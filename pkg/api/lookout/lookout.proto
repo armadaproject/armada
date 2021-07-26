@@ -64,6 +64,8 @@ message JobSetInfo {
 
     DurationStats runningStats = 8;
     DurationStats queuedStats = 9;
+
+    google.protobuf.Timestamp submitted = 10 [(gogoproto.stdtime) = true, (gogoproto.nullable) = true];
 }
 
 message DurationStats {
@@ -77,6 +79,8 @@ message DurationStats {
 
 message GetJobSetsRequest {
     string queue = 1;
+    bool newest_first = 2;
+    bool active_only = 3;
 }
 
 message GetJobSetsResponse {

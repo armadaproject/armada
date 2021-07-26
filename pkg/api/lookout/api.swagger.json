@@ -248,6 +248,12 @@
     "lookoutGetJobSetsRequest": {
       "type": "object",
       "properties": {
+        "activeOnly": {
+          "type": "boolean"
+        },
+        "newestFirst": {
+          "type": "boolean"
+        },
         "queue": {
           "type": "string"
         }
@@ -376,6 +382,10 @@
         },
         "runningStats": {
           "$ref": "#/definitions/lookoutDurationStats"
+        },
+        "submitted": {
+          "type": "string",
+          "format": "date-time"
         }
       }
     },

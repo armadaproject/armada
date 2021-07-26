@@ -3,10 +3,10 @@ package repository
 import (
 	"context"
 	"database/sql"
-	"sort"
 	"time"
 
 	"github.com/doug-martin/goqu/v9"
+	"github.com/doug-martin/goqu/v9/exp"
 	"github.com/gogo/protobuf/types"
 	"github.com/lib/pq"
 
@@ -20,6 +20,7 @@ type jobSetCountsRow struct {
 	Running   sql.NullInt64 `db:"running"`
 	Succeeded sql.NullInt64 `db:"succeeded"`
 	Failed    sql.NullInt64 `db:"failed"`
+	Submitted pq.NullTime   `db:"submitted"`
 
 	RunningStatsMin     pq.NullTime `db:"running_min"`
 	RunningStatsMax     pq.NullTime `db:"running_max"`
@@ -59,23 +60,35 @@ func (r *SQLJobRepository) queryJobSetInfos(ctx context.Context, opts *lookout.G
 
 func (r *SQLJobRepository) createJobSetsDataset(opts *lookout.GetJobSetsRequest) *goqu.SelectDataset {
 	countsDs := r.goquDb.
-		From(jobTable).
+		From(r.goquDb.
+			From(jobTable).
+			Select(
+				job_jobset,
+				goqu.L("COUNT(*) FILTER (WHERE job.state = 1)").As("queued"),
+				goqu.L("COUNT(*) FILTER (WHERE job.state = 2)").As("pending"),
+				goqu.L("COUNT(*) FILTER (WHERE job.state = 3)").As("running"),
+				goqu.L("COUNT(*) FILTER (WHERE job.state = 4)").As("succeeded"),
+				goqu.L("COUNT(*) FILTER (WHERE job.state = 5)").As("failed"),
+				goqu.MAX(job_submitted).As("submitted")).
+			Where(goqu.And(
+				job_queue.Eq(opts.Queue),
+				job_state.In(
+					JobStateToIntMap[JobQueued],
+					JobStateToIntMap[JobPending],
+					JobStateToIntMap[JobRunning],
+					JobStateToIntMap[JobSucceeded],
+					JobStateToIntMap[JobFailed]))).
+			GroupBy(job_jobset).
+			As("counts")).
 		Select(
-			job_jobset,
-			goqu.L("COUNT(*) FILTER (WHERE job.state = 1)").As("queued"),
-			goqu.L("COUNT(*) FILTER (WHERE job.state = 2)").As("pending"),
-			goqu.L("COUNT(*) FILTER (WHERE job.state = 3)").As("running"),
-			goqu.L("COUNT(*) FILTER (WHERE job.state = 4)").As("succeeded"),
-			goqu.L("COUNT(*) FILTER (WHERE job.state = 5)").As("failed")).
-		Where(goqu.And(
-			job_queue.Eq(opts.Queue),
-			job_state.In(
-				JobStateToIntMap[JobQueued],
-				JobStateToIntMap[JobPending],
-				JobStateToIntMap[JobRunning],
-				JobStateToIntMap[JobSucceeded],
-				JobStateToIntMap[JobFailed]))).
-		GroupBy(job_jobset).
+			goqu.I("counts.jobset").As("jobset"),
+			goqu.I("counts.queued"),
+			goqu.I("counts.pending"),
+			goqu.I("counts.running"),
+			goqu.I("counts.succeeded"),
+			goqu.I("counts.failed"),
+			goqu.I("counts.submitted")).
+		Where(activeOnlyFilter(opts.ActiveOnly)).
 		As("counts")
 
 	runningStatsDs := r.goquDb.
@@ -124,6 +137,7 @@ func (r *SQLJobRepository) createJobSetsDataset(opts *lookout.GetJobSetsRequest)
 			goqu.I("counts.running"),
 			goqu.I("counts.succeeded"),
 			goqu.I("counts.failed"),
+			goqu.I("counts.submitted").As("submitted"),
 			goqu.I("running_stats.min").As("running_min"),
 			goqu.I("running_stats.max").As("running_max"),
 			goqu.I("running_stats.average").As("running_average"),
@@ -135,17 +149,36 @@ func (r *SQLJobRepository) createJobSetsDataset(opts *lookout.GetJobSetsRequest)
 			goqu.I("queued_stats.average").As("queued_average"),
 			goqu.I("queued_stats.median").As("queued_median"),
 			goqu.I("queued_stats.q1").As("queued_q1"),
-			goqu.I("queued_stats.q3").As("queued_q3"))
+			goqu.I("queued_stats.q3").As("queued_q3")).
+		Order(createJobSetOrdering(opts.NewestFirst))
 
 	return ds
 }
 
+func activeOnlyFilter(onlyActive bool) goqu.Expression {
+	if !onlyActive {
+		return goqu.Ex{}
+	}
+
+	return goqu.Or(
+		goqu.I("queued").Gt(0),
+		goqu.I("pending").Gt(0),
+		goqu.I("running").Gt(0))
+}
+
+func createJobSetOrdering(newestFirst bool) exp.OrderedExpression {
+	if newestFirst {
+		return goqu.I("submitted").Desc()
+	}
+	return goqu.I("submitted").Asc()
+}
+
 func (r *SQLJobRepository) rowsToJobSets(rows []*jobSetCountsRow, queue string) []*lookout.JobSetInfo {
-	jobSetInfoMap := make(map[string]*lookout.JobSetInfo)
+	jobSetInfos := make([]*lookout.JobSetInfo, len(rows), len(rows))
 	currentTime := r.clock.Now()
 
-	for _, row := range rows {
-		jobSetInfoMap[row.JobSet] = &lookout.JobSetInfo{
+	for i, row := range rows {
+		jobSetInfos[i] = &lookout.JobSetInfo{
 			Queue:         queue,
 			JobSet:        row.JobSet,
 			JobsQueued:    uint32(ParseNullInt(row.Queued)),
@@ -153,10 +186,11 @@ func (r *SQLJobRepository) rowsToJobSets(rows []*jobSetCountsRow, queue string) 
 			JobsRunning:   uint32(ParseNullInt(row.Running)),
 			JobsSucceeded: uint32(ParseNullInt(row.Succeeded)),
 			JobsFailed:    uint32(ParseNullInt(row.Failed)),
+			Submitted:     ParseNullTime(row.Submitted),
 		}
 
 		if row.RunningStatsMax.Valid {
-			jobSetInfoMap[row.JobSet].RunningStats = &lookout.DurationStats{
+			jobSetInfos[i].RunningStats = &lookout.DurationStats{
 				Shortest: getProtoDuration(currentTime, row.RunningStatsMax),
 				Longest:  getProtoDuration(currentTime, row.RunningStatsMin),
 				Average:  getProtoDuration(currentTime, row.RunningStatsAverage),
@@ -168,7 +202,7 @@ func (r *SQLJobRepository) rowsToJobSets(rows []*jobSetCountsRow, queue string) 
 		}
 
 		if row.QueuedStatsMax.Valid {
-			jobSetInfoMap[row.JobSet].QueuedStats = &lookout.DurationStats{
+			jobSetInfos[i].QueuedStats = &lookout.DurationStats{
 				Shortest: getProtoDuration(currentTime, row.QueuedStatsMax),
 				Longest:  getProtoDuration(currentTime, row.QueuedStatsMin),
 				Average:  getProtoDuration(currentTime, row.QueuedStatsAverage),
@@ -179,7 +213,7 @@ func (r *SQLJobRepository) rowsToJobSets(rows []*jobSetCountsRow, queue string) 
 		}
 	}
 
-	return getSortedJobSets(jobSetInfoMap)
+	return jobSetInfos
 }
 
 func getProtoDuration(currentTime time.Time, maybeTime pq.NullTime) *types.Duration {
@@ -188,18 +222,4 @@ func getProtoDuration(currentTime time.Time, maybeTime pq.NullTime) *types.Durat
 		duration = types.DurationProto(currentTime.Sub(maybeTime.Time))
 	}
 	return duration
-}
-
-func getSortedJobSets(resultMap map[string]*lookout.JobSetInfo) []*lookout.JobSetInfo {
-	var jobSets []string
-	for jobSet := range resultMap {
-		jobSets = append(jobSets, jobSet)
-	}
-	sort.Strings(jobSets)
-
-	var result []*lookout.JobSetInfo
-	for _, jobSet := range jobSets {
-		result = append(result, resultMap[jobSet])
-	}
-	return result
 }
