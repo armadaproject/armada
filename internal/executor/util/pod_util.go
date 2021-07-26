@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"time"
 
+	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
@@ -23,6 +24,32 @@ func init() {
 func HasIngress(pod *v1.Pod) bool {
 	value, exists := pod.Annotations[domain.HasIngress]
 	return exists && value == "true"
+}
+
+func GetExpectedNumberOfAssociatedServices(pod *v1.Pod) int {
+	value, exists := pod.Annotations[domain.AssociatedServicesCount]
+	if !exists {
+		return 0
+	}
+	numberOfAssociatedServices, err := strconv.Atoi(value)
+	if err != nil {
+		log.Warnf("Failed to extract the expected number of associated services because %s", err)
+		return 0
+	}
+	return numberOfAssociatedServices
+}
+
+func GetExpectedNumberOfAssociatedIngresses(pod *v1.Pod) int {
+	value, exists := pod.Annotations[domain.AssociatedIngressesCount]
+	if !exists {
+		return 0
+	}
+	numberOfAssociatedIngresses, err := strconv.Atoi(value)
+	if err != nil {
+		log.Warnf("Failed to extract the expected number of associated ingresses because %s", err)
+		return 0
+	}
+	return numberOfAssociatedIngresses
 }
 
 func IsInTerminalState(pod *v1.Pod) bool {
@@ -76,6 +103,10 @@ func ExtractJobIds(pods []*v1.Pod) []string {
 
 func ExtractJobId(pod *v1.Pod) string {
 	return pod.Labels[domain.JobId]
+}
+
+func ExtractQueue(pod *v1.Pod) string {
+	return pod.Labels[domain.Queue]
 }
 
 func ExtractPodNumber(pod *v1.Pod) int {
@@ -198,4 +229,29 @@ func GetPodContainerStatuses(pod *v1.Pod) []v1.ContainerStatus {
 	containerStatuses := pod.Status.ContainerStatuses
 	containerStatuses = append(containerStatuses, pod.Status.InitContainerStatuses...)
 	return containerStatuses
+}
+
+func IsMarkedForDeletion(pod *v1.Pod) bool {
+	_, exists := pod.Annotations[domain.MarkedForDeletion]
+	return exists
+}
+
+func IsReportedDone(pod *v1.Pod) bool {
+	_, exists := pod.Annotations[domain.JobDoneAnnotation]
+	return exists
+}
+
+func IsPodFinishedAndReported(pod *v1.Pod) bool {
+	if !IsInTerminalState(pod) ||
+		!IsReportedDone(pod) ||
+		!HasCurrentStateBeenReported(pod) {
+		return false
+	}
+	return true
+}
+
+func HasCurrentStateBeenReported(pod *v1.Pod) bool {
+	podPhase := pod.Status.Phase
+	_, annotationPresent := pod.Annotations[string(podPhase)]
+	return annotationPresent
 }

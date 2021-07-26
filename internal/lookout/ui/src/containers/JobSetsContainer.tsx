@@ -14,7 +14,7 @@ import ReprioritizeJobSetsDialog, {
   ReprioritizeJobSetsDialogState,
 } from "../components/job-sets/ReprioritizeJobSetsDialog"
 import IntervalService from "../services/IntervalService"
-import JobService, { JobSet } from "../services/JobService"
+import JobService, { GetJobSetsRequest, JobSet } from "../services/JobService"
 import { debounced, setStateAsync, selectItem } from "../utils"
 import { RequestStatus } from "./JobsContainer"
 
@@ -35,6 +35,8 @@ type JobSetsContainerState = {
   getJobSetsRequestStatus: RequestStatus
   autoRefresh: boolean
   lastSelectedIndex: number
+  newestFirst: boolean
+  activeOnly: boolean
   cancelJobSetsDialogContext: CancelJobSetsDialogContext
   reprioritizeJobSetsDialogContext: ReprioritizeJobSetsDialogContext
 } & JobSetsContainerParams
@@ -107,10 +109,14 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
         reprioritizeJobSetsResult: { reprioritizedJobSets: [], failedJobSetReprioritizations: [] },
         reproiritizeJobSetsRequestStatus: "Idle",
       },
+      newestFirst: true,
+      activeOnly: false,
     }
 
     this.setQueue = this.setQueue.bind(this)
     this.setView = this.setView.bind(this)
+    this.orderChange = this.orderChange.bind(this)
+    this.activeOnlyChange = this.activeOnlyChange.bind(this)
     this.navigateToJobSetForState = this.navigateToJobSetForState.bind(this)
     this.selectJobSet = this.selectJobSet.bind(this)
     this.shiftSelectJobSet = this.shiftSelectJobSet.bind(this)
@@ -153,6 +159,24 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
     })
 
     // Performed separately because debounced
+    await this.loadJobSets()
+  }
+
+  async orderChange(newestFirst: boolean) {
+    await this.setStateAsync({
+      ...this.state,
+      newestFirst: newestFirst,
+    })
+
+    await this.loadJobSets()
+  }
+
+  async activeOnlyChange(activeOnly: boolean) {
+    await this.setStateAsync({
+      ...this.state,
+      activeOnly: activeOnly,
+    })
+
     await this.loadJobSets()
   }
 
@@ -370,7 +394,11 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
       ...this.state,
       getJobSetsRequestStatus: "Loading",
     })
-    const jobSets = await this.fetchJobSets(this.state.queue)
+    const jobSets = await this.fetchJobSets({
+      queue: this.state.queue,
+      newestFirst: this.state.newestFirst,
+      activeOnly: this.state.activeOnly,
+    })
     this.setState({
       ...this.state,
       jobSets: jobSets,
@@ -386,8 +414,8 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
     })
   }
 
-  private fetchJobSets(queue: string): Promise<JobSet[]> {
-    return this.props.jobService.getJobSets(queue)
+  private fetchJobSets(getJobSetsRequest: GetJobSetsRequest): Promise<JobSet[]> {
+    return this.props.jobService.getJobSets(getJobSetsRequest)
   }
 
   private setStateAsync(state: JobSetsContainerState): Promise<void> {
@@ -444,8 +472,12 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
           selectedJobSets={this.state.selectedJobSets}
           getJobSetsRequestStatus={this.state.getJobSetsRequestStatus}
           autoRefresh={this.state.autoRefresh}
+          newestFirst={this.state.newestFirst}
+          activeOnly={this.state.activeOnly}
           onQueueChange={this.setQueue}
           onViewChange={this.setView}
+          onOrderChange={this.orderChange}
+          onActiveOnlyChange={this.activeOnlyChange}
           onRefresh={this.loadJobSets}
           onJobSetClick={this.navigateToJobSetForState}
           onSelectJobSet={this.selectJobSet}

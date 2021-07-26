@@ -1,6 +1,18 @@
 import React from "react"
 
-import { Button, Container, FormControl, InputLabel, MenuItem, MenuProps, Select, TextField } from "@material-ui/core"
+import {
+  Button,
+  Container,
+  FormControl,
+  InputLabel,
+  MenuItem,
+  MenuProps,
+  Select,
+  TextField,
+  FormControlLabel,
+  Checkbox,
+  Tooltip,
+} from "@material-ui/core"
 import CancelIcon from "@material-ui/icons/Cancel"
 import LowPriority from "@material-ui/icons/LowPriority"
 import { AutoSizer } from "react-virtualized"
@@ -24,6 +36,8 @@ interface JobSetsProps {
   getJobSetsRequestStatus: RequestStatus
   autoRefresh: boolean
   canReprioritize: boolean
+  newestFirst: boolean
+  activeOnly: boolean
   onQueueChange: (queue: string) => void
   onViewChange: (view: JobSetsView) => void
   onRefresh: () => void
@@ -34,6 +48,8 @@ interface JobSetsProps {
   onCancelJobSetsClick: () => void
   onToggleAutoRefresh: (autoRefresh: boolean) => void
   onReprioritizeJobSetsClick: () => void
+  onOrderChange: (newestFirst: boolean) => void
+  onActiveOnlyChange: (activeOnly: boolean) => void
 }
 
 const menuProps: Partial<MenuProps> = {
@@ -108,7 +124,7 @@ export default function JobSets(props: JobSetsProps) {
           </div>
           <div className="job-sets-field">
             <FormControl className="job-sets-field">
-              <InputLabel htmlFor="view-select">View</InputLabel>
+              <InputLabel>View</InputLabel>
               <Select
                 value={props.view}
                 onChange={(event) => {
@@ -124,6 +140,39 @@ export default function JobSets(props: JobSetsProps) {
                 <MenuItem value={"queued-time"}>Queued time</MenuItem>
               </Select>
             </FormControl>
+          </div>
+          <div className="job-sets-field">
+            <FormControl className="job-sets-field">
+              <InputLabel>Order</InputLabel>
+              <Select
+                value={props.newestFirst ? "newest" : "oldest"}
+                onChange={(event) => {
+                  const value = event.target.value
+                  props.onOrderChange(value === "newest")
+                }}
+                MenuProps={menuProps}
+              >
+                <MenuItem value={"newest"}>Newest first</MenuItem>
+                <MenuItem value={"oldest"}>Oldest first</MenuItem>
+              </Select>
+            </FormControl>
+          </div>
+          <div className="job-sets-field">
+            <Tooltip title="Only display Queued, Pending or Running">
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    color="primary"
+                    checked={props.activeOnly}
+                    onChange={(event) => {
+                      props.onActiveOnlyChange(event.target.checked)
+                    }}
+                  />
+                }
+                label="Active only"
+                labelPlacement="end"
+              />
+            </Tooltip>
           </div>
         </div>
         <div className="job-sets-actions">

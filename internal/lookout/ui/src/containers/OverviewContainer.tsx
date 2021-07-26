@@ -74,7 +74,6 @@ class OverviewContainer extends React.Component<OverviewContainerProps, Overview
       ...this.state,
       overviewRequestStatus: "Loading",
     })
-    await sleep(2000)
     const queueInfos = await this.props.jobService.getOverview()
     this.setState({
       queueInfos: queueInfos,

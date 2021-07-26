@@ -102,6 +102,12 @@
     "apiIngressConfig": {
       "type": "object",
       "properties": {
+        "annotations": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
         "ports": {
           "type": "array",
           "items": {
@@ -118,7 +124,8 @@
       "type": "string",
       "default": "NodePort",
       "enum": [
-        "NodePort"
+        "NodePort",
+        "Ingress"
       ]
     },
     "apiJob": {
@@ -241,6 +248,12 @@
     "lookoutGetJobSetsRequest": {
       "type": "object",
       "properties": {
+        "activeOnly": {
+          "type": "boolean"
+        },
+        "newestFirst": {
+          "type": "boolean"
+        },
         "queue": {
           "type": "string"
         }
@@ -369,6 +382,10 @@
         },
         "runningStats": {
           "$ref": "#/definitions/lookoutDurationStats"
+        },
+        "submitted": {
+          "type": "string",
+          "format": "date-time"
         }
       }
     },

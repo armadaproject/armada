@@ -30,6 +30,17 @@ rules:
   - delete
   - deletecollection
 - apiGroups:
+  - "networking.k8s.io"
+  resources:
+  - ingresses
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - delete
+  - deletecollection
+- apiGroups:
   - ""
   resources:
   - events

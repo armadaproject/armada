@@ -37,6 +37,7 @@ export type JobSet = {
   jobsRunning: number
   jobsSucceeded: number
   jobsFailed: number
+  latestSubmissionTime: string
 
   runningStats?: DurationStats
   queuedStats?: DurationStats
@@ -61,6 +62,12 @@ export interface GetJobsRequest {
   jobId: string
   owner: string
   annotations: { [key: string]: string }
+}
+
+export interface GetJobSetsRequest {
+  queue: string
+  newestFirst: boolean
+  activeOnly: boolean
 }
 
 export type Job = {
@@ -152,6 +159,7 @@ export default class JobService {
 
   async getOverview(): Promise<QueueInfo[]> {
     if (JOB_STATES_FOR_DISPLAY) {
+      await sleep(2000)
       return Promise.resolve(makeTestOverview(100, 100))
     }
 
@@ -163,13 +171,16 @@ export default class JobService {
     return queueInfosFromApi.queues.map((queueInfo) => this.queueInfoToViewModel(queueInfo))
   }
 
-  async getJobSets(queue: string): Promise<JobSet[]> {
-    if (queue === "test") {
+  async getJobSets(getJobSetsRequest: GetJobSetsRequest): Promise<JobSet[]> {
+    if (getJobSetsRequest.queue === "test") {
+      await sleep(2000)
       return Promise.resolve(makeTestJobSets(100, 100))
     }
     const jobSetsFromApi = await this.lookoutApi.getJobSets({
       body: {
-        queue: queue,
+        queue: getJobSetsRequest.queue,
+        newestFirst: getJobSetsRequest.newestFirst,
+        activeOnly: getJobSetsRequest.activeOnly,
       },
     })
     if (!jobSetsFromApi.jobSetInfos) {
@@ -181,7 +192,7 @@ export default class JobService {
 
   async getJobs(getJobsRequest: GetJobsRequest): Promise<Job[]> {
     if (getJobsRequest.queue === "test") {
-      await sleep(500)
+      await sleep(1000)
       return Promise.resolve(makeTestJobs("test", getJobsRequest.skip, getJobsRequest.take + getJobsRequest.skip))
     }
     const jobStatesForApi = getJobsRequest.jobStates.map(getJobStateForApi)
@@ -437,6 +448,7 @@ function jobSetToViewModel(jobSet: LookoutJobSetInfo): JobSet {
     jobsRunning: jobSet.jobsRunning ?? 0,
     jobsSucceeded: jobSet.jobsSucceeded ?? 0,
     jobsFailed: jobSet.jobsFailed ?? 0,
+    latestSubmissionTime: dateToString(jobSet.submitted ?? new Date()),
     runningStats: durationStatsToViewModel(jobSet.runningStats),
     queuedStats: durationStatsToViewModel(jobSet.queuedStats),
   }

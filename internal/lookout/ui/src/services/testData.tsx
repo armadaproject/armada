@@ -64,6 +64,7 @@ export function makeTestJobSets(nJobSets: number, jobSetLength: number): JobSet[
       jobsFailed: randInt(1, 50),
       runningStats: makeDurationStats(),
       queuedStats: makeDurationStats(),
+      latestSubmissionTime: "some time",
     })
   }
 
@@ -104,6 +105,7 @@ export function makeTestCancelJobSetsResults(nJobSets: number, jobSetLength: num
       jobsFailed: randInt(1, 50),
       runningStats: makeDurationStats(),
       queuedStats: makeDurationStats(),
+      latestSubmissionTime: "some time",
     })
     results.failedJobSetCancellations.push({
       jobSet: {
@@ -116,6 +118,7 @@ export function makeTestCancelJobSetsResults(nJobSets: number, jobSetLength: num
         jobsFailed: randInt(1, 50),
         runningStats: makeDurationStats(),
         queuedStats: makeDurationStats(),
+        latestSubmissionTime: "some time",
       },
       error: "Some bad error happened ..........................................................................",
     })

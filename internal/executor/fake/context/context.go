@@ -12,6 +12,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
+	networking "k8s.io/api/networking/v1beta1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -160,12 +161,24 @@ func (c *FakeClusterContext) SubmitService(service *v1.Service) (*v1.Service, er
 	return nil, fmt.Errorf("Services not implemented in FakeClusterContext")
 }
 
-func (c *FakeClusterContext) GetService(name string, namespace string) (*v1.Service, error) {
+func (c *FakeClusterContext) GetServices(pod *v1.Pod) ([]*v1.Service, error) {
 	return nil, fmt.Errorf("Services not implemented in FakeClusterContext")
 }
 
 func (c *FakeClusterContext) DeleteService(service *v1.Service) error {
 	return fmt.Errorf("Services not implemented in FakeClusterContext")
+}
+
+func (c *FakeClusterContext) SubmitIngress(ingress *networking.Ingress) (*networking.Ingress, error) {
+	return nil, fmt.Errorf("Ingresses not implemented in FakeClusterContext")
+}
+
+func (c *FakeClusterContext) GetIngresses(pod *v1.Pod) ([]*networking.Ingress, error) {
+	return nil, fmt.Errorf("Ingresses not implemented in FakeClusterContext")
+}
+
+func (c *FakeClusterContext) DeleteIngress(ingress *networking.Ingress) error {
+	return fmt.Errorf("Ingresses not implemented in FakeClusterContext")
 }
 
 func (c *FakeClusterContext) updateStatus(saved *v1.Pod, phase v1.PodPhase, state v1.ContainerState) (*v1.Pod, *v1.Pod) {
