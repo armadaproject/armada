@@ -26,10 +26,12 @@ message JobSubmitRequestItem {
 message IngressConfig {
     IngressType type = 1;
     repeated uint32 ports = 2;
+    map<string, string> annotations = 3;
 }
 
 enum IngressType {
     NodePort = 0;
+    Ingress = 1;
 }
 
 // swagger:model

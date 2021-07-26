@@ -5,6 +5,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
+	networking "k8s.io/api/networking/v1beta1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 
 	"github.com/G-Research/armada/pkg/api"
 )
@@ -80,27 +82,31 @@ func TestCreateEventForCurrentState_ShouldError_WhenPodPhaseUnknown(t *testing.T
 func TestCreateJobIngressInfoEvent(t *testing.T) {
 	expectedIngressMapping := map[int32]string{
 		8080: "192.0.0.1:32001",
+		9005: "pod.namespace.svc",
 	}
-	pod := &v1.Pod{
-		Spec: v1.PodSpec{
-			NodeName: "somenode",
-		},
-		Status: v1.PodStatus{
-			HostIP: "192.0.0.1",
-		},
-	}
-	service := &v1.Service{
-		Spec: v1.ServiceSpec{
-			Ports: []v1.ServicePort{
-				{
-					Port:     8080,
-					NodePort: 32001,
-				},
-			},
-		},
-	}
+	pod := createNodeAllocatedPod()
+	service := createService(v1.ServiceTypeNodePort, 8080, 32001)
+	ingress := createIngress("pod.namespace.svc", int32(9005))
 
-	event, err := CreateJobIngressInfoEvent(pod, "cluster1", service)
+	event, err := CreateJobIngressInfoEvent(pod, "cluster1", []*v1.Service{service}, []*networking.Ingress{ingress})
+	assert.NoError(t, err)
+
+	ingressEvent, ok := event.(*api.JobIngressInfoEvent)
+	assert.True(t, ok)
+
+	assert.Equal(t, expectedIngressMapping, ingressEvent.IngressAddresses)
+}
+
+func TestCreateJobIngressInfoEvent_OnlyIncludesNodePortServices(t *testing.T) {
+	expectedIngressMapping := map[int32]string{
+		8080: "192.0.0.1:32001",
+	}
+	pod := createNodeAllocatedPod()
+
+	nodePortService := createService(v1.ServiceTypeNodePort, 8080, 32001)
+	clusterIpService := createService(v1.ServiceTypeClusterIP, 8081, 0)
+
+	event, err := CreateJobIngressInfoEvent(pod, "cluster1", []*v1.Service{nodePortService, clusterIpService}, []*networking.Ingress{})
 	assert.NoError(t, err)
 
 	ingressEvent, ok := event.(*api.JobIngressInfoEvent)
@@ -117,7 +123,7 @@ func TestCreateJobIngressInfoEvent_PodNotAllocatedToNode(t *testing.T) {
 			NodeName: "somenode",
 		},
 	}
-	event, err := CreateJobIngressInfoEvent(noHostIpPod, "cluster1", service)
+	event, err := CreateJobIngressInfoEvent(noHostIpPod, "cluster1", []*v1.Service{service}, []*networking.Ingress{})
 	assert.Error(t, err)
 	assert.Nil(t, event)
 
@@ -126,13 +132,33 @@ func TestCreateJobIngressInfoEvent_PodNotAllocatedToNode(t *testing.T) {
 			HostIP: "192.0.0.1",
 		},
 	}
-	event, err = CreateJobIngressInfoEvent(noNodeNamePod, "cluster1", service)
+	event, err = CreateJobIngressInfoEvent(noNodeNamePod, "cluster1", []*v1.Service{service}, []*networking.Ingress{})
 	assert.Error(t, err)
 	assert.Nil(t, event)
 }
 
-func TestCreateJobIngressInfoEvent_NilService(t *testing.T) {
-	pod := &v1.Pod{
+func TestCreateJobIngressInfoEvent_NilIngresses(t *testing.T) {
+	pod := createNodeAllocatedPod()
+	event, err := CreateJobIngressInfoEvent(pod, "cluster1", []*v1.Service{}, nil)
+	assert.Error(t, err)
+	assert.Nil(t, event)
+	event, err = CreateJobIngressInfoEvent(pod, "cluster1", nil, []*networking.Ingress{})
+	assert.Error(t, err)
+	assert.Nil(t, event)
+	event, err = CreateJobIngressInfoEvent(pod, "cluster1", nil, nil)
+	assert.Error(t, err)
+	assert.Nil(t, event)
+}
+
+func TestCreateJobIngressInfoEvent_EmptyIngresses(t *testing.T) {
+	pod := createNodeAllocatedPod()
+	event, err := CreateJobIngressInfoEvent(pod, "cluster1", []*v1.Service{}, []*networking.Ingress{})
+	assert.Error(t, err)
+	assert.Nil(t, event)
+}
+
+func createNodeAllocatedPod() *v1.Pod {
+	return &v1.Pod{
 		Spec: v1.PodSpec{
 			NodeName: "somenode",
 		},
@@ -140,7 +166,42 @@ func TestCreateJobIngressInfoEvent_NilService(t *testing.T) {
 			HostIP: "192.0.0.1",
 		},
 	}
-	event, err := CreateJobIngressInfoEvent(pod, "cluster1", nil)
-	assert.Error(t, err)
-	assert.Nil(t, event)
+}
+
+func createIngress(hostname string, port int32) *networking.Ingress {
+	return &networking.Ingress{
+		Spec: networking.IngressSpec{
+			Rules: []networking.IngressRule{
+				{
+					Host: hostname,
+					IngressRuleValue: networking.IngressRuleValue{
+						HTTP: &networking.HTTPIngressRuleValue{
+							Paths: []networking.HTTPIngressPath{
+								{
+									Path: "/",
+									Backend: networking.IngressBackend{
+										ServicePort: intstr.IntOrString{IntVal: port},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func createService(serviceType v1.ServiceType, port int32, nodePort int32) *v1.Service {
+	return &v1.Service{
+		Spec: v1.ServiceSpec{
+			Type: serviceType,
+			Ports: []v1.ServicePort{
+				{
+					Port:     port,
+					NodePort: nodePort,
+				},
+			},
+		},
+	}
 }
