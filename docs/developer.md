@@ -106,8 +106,7 @@ Lookout requires Armada to be configured with NATS Streaming.
 To run Lookout, firstly build frontend:
 ```bash
 cd ./internal/lookout/ui
-npm run 
-npm install 
+npm install
 npm run openapi
 npm run build
 ```
@@ -123,9 +122,22 @@ Then run go application:
 ```bash
 go run ./cmd/lookout/main.go 
 ```
-For ui development you can also use webpack server which proxies to go api.
+For UI development you can also use the React development server.
+Note that the Lookout API will still have to be running for this to work.
 ```bash
 npm run start
+```
+
+Optionally, you can get a `kind` cluster and redis, NATS streaming and PostgreSQL containers up by running
+```bash
+./internal/lookout/ui/dev-setup.sh
+```
+you will still have to spin up `armada`, `armada-lookout`, and `armada-executor`.
+The script will print out which commands you can run to spin these up.
+
+When you're done, you can run
+```bash
+./internal/lookout/ui/dev-teardown.sh
 ```
 
 #### Testing your setup
