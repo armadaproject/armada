@@ -4,10 +4,11 @@ import { RouteComponentProps, withRouter } from "react-router-dom"
 
 import Overview from "../components/Overview"
 import JobDetailsModal, { JobDetailsModalContext, toggleExpanded } from "../components/job-details/JobDetailsModal"
+import IntervalService from "../services/IntervalService"
 import JobService, { Job, QueueInfo } from "../services/JobService"
 import LogService from "../services/LogService"
 import { sleep } from "../services/testData"
-import { setStateAsync, updateInterval } from "../utils"
+import { setStateAsync } from "../utils"
 import { RequestStatus } from "./JobsContainer"
 
 type OverviewContainerProps = {
@@ -24,13 +25,16 @@ interface OverviewContainerState {
   modalContext: JobDetailsModalContext
 }
 
-const INTERVAL = 15000
+const AUTO_REFRESH_INTERVAL_MS = 15000
 
 class OverviewContainer extends React.Component<OverviewContainerProps, OverviewContainerState> {
-  interval: NodeJS.Timeout | undefined
+  autoRefreshService: IntervalService
 
   constructor(props: OverviewContainerProps) {
     super(props)
+
+    this.autoRefreshService = new IntervalService(AUTO_REFRESH_INTERVAL_MS)
+
     this.state = {
       queueInfos: [],
       openQueueMenu: "",
@@ -57,13 +61,12 @@ class OverviewContainer extends React.Component<OverviewContainerProps, Overview
   async componentDidMount() {
     await this.fetchOverview()
 
-    this.interval = updateInterval(this.interval, this.state.autoRefresh, INTERVAL, this.fetchOverview)
+    this.autoRefreshService.registerCallback(this.fetchOverview)
+    this.autoRefreshService.start()
   }
 
   componentWillUnmount() {
-    if (this.interval) {
-      clearInterval(this.interval)
-    }
+    this.autoRefreshService.stop()
   }
 
   async fetchOverview() {
@@ -155,7 +158,12 @@ class OverviewContainer extends React.Component<OverviewContainerProps, Overview
       ...this.state,
       autoRefresh: autoRefresh,
     })
-    this.interval = updateInterval(this.interval, autoRefresh, INTERVAL, this.fetchOverview)
+
+    if (autoRefresh) {
+      this.autoRefreshService.start()
+    } else {
+      this.autoRefreshService.stop()
+    }
   }
 
   render() {

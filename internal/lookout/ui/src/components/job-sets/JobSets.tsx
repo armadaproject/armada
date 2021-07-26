@@ -1,20 +1,8 @@
 import React from "react"
 
-import {
-  Button,
-  CircularProgress,
-  Container,
-  FormControl,
-  IconButton,
-  InputLabel,
-  MenuItem,
-  MenuProps,
-  Select,
-  TextField,
-} from "@material-ui/core"
+import { Button, Container, FormControl, InputLabel, MenuItem, MenuProps, Select, TextField } from "@material-ui/core"
 import CancelIcon from "@material-ui/icons/Cancel"
 import LowPriority from "@material-ui/icons/LowPriority"
-import RefreshIcon from "@material-ui/icons/Refresh"
 import { AutoSizer } from "react-virtualized"
 
 import RefreshButton from "../../RefreshButton"
@@ -22,7 +10,6 @@ import { JobSetsView, isJobSetsView } from "../../containers/JobSetsContainer"
 import { RequestStatus } from "../../containers/JobsContainer"
 import { DurationStats, JobSet } from "../../services/JobService"
 import AutoRefreshToggle from "../AutoRefreshToggle"
-import Loading from "../Loading"
 import DurationPlotsTable from "./DurationPlotsTable"
 import JobSetTable from "./JobSetTable"
 

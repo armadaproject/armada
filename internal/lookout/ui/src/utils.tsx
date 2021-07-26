@@ -84,21 +84,6 @@ export function setStateAsync<T>(component: React.Component<any, T>, state: T): 
   })
 }
 
-export function updateInterval(
-  interval: NodeJS.Timeout | undefined,
-  isEnabled: boolean,
-  ms: number,
-  callback: () => void,
-): NodeJS.Timeout | undefined {
-  let updatedInterval = undefined
-  if (isEnabled && !interval) {
-    updatedInterval = setInterval(callback, ms)
-  } else if (!isEnabled && interval) {
-    clearInterval(interval)
-  }
-  return updatedInterval
-}
-
 export function selectItem<V>(key: string, item: V, selectedMap: Map<string, V>, isSelected: boolean) {
   if (isSelected) {
     selectedMap.set(key, item)

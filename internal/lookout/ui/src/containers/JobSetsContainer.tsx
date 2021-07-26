@@ -15,8 +15,7 @@ import ReprioritizeJobSetsDialog, {
 } from "../components/job-sets/ReprioritizeJobSetsDialog"
 import IntervalService from "../services/IntervalService"
 import JobService, { JobSet } from "../services/JobService"
-import { sleep } from "../services/testData"
-import { debounced, setStateAsync, updateInterval, selectItem } from "../utils"
+import { debounced, setStateAsync, selectItem } from "../utils"
 import { RequestStatus } from "./JobsContainer"
 
 type JobSetsContainerProps = {

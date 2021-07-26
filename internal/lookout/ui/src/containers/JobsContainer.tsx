@@ -15,7 +15,7 @@ import IntervalService from "../services/IntervalService"
 import JobService, { GetJobsRequest, Job, JOB_STATES_FOR_DISPLAY } from "../services/JobService"
 import JobTableService from "../services/JobTableService"
 import LogService from "../services/LogService"
-import { selectItem, updateInterval } from "../utils"
+import { selectItem } from "../utils"
 
 type JobsContainerProps = {
   jobService: JobService
