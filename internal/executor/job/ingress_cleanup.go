@@ -46,17 +46,29 @@ func RunIngressCleanup(clusterContext clusterContext.ClusterContext) *IngressCle
 
 func (i *IngressCleanupService) removeAnyAssociatedIngress(pod *v1.Pod) {
 	log.Infof("Removing any ingresses associated with pod %s (%s)", pod.Name, pod.Namespace)
-	service, err := i.clusterContext.GetService(pod.Name, pod.Namespace)
+	services, err := i.clusterContext.GetServices(pod)
 	if err != nil {
-		log.Errorf("Failed to get associated ingress for pod %s (%s) because %s", pod.Name, pod.Namespace, err)
-		return
+		log.Errorf("Failed to get associated services for pod %s (%s) because %s", pod.Name, pod.Namespace, err)
+	} else {
+		for _, service := range services {
+			err = i.clusterContext.DeleteService(service)
+			if err != nil {
+				log.Errorf("Failed to remove associated ingress for pod %s (%s) because %s", pod.Namespace, pod.Namespace, err)
+				continue
+			}
+		}
 	}
-	if service == nil {
-		return
-	}
-	err = i.clusterContext.DeleteService(service)
+
+	ingresses, err := i.clusterContext.GetIngresses(pod)
 	if err != nil {
-		log.Errorf("Failed to remove associated ingress for pod %s (%s) because %s", pod.Namespace, pod.Namespace, err)
-		return
+		log.Errorf("Failed to get associated ingresses for pod %s (%s) because %s", pod.Name, pod.Namespace, err)
+	} else {
+		for _, ingress := range ingresses {
+			err = i.clusterContext.DeleteIngress(ingress)
+			if err != nil {
+				log.Errorf("Failed to remove associated ingress for pod %s (%s) because %s", pod.Namespace, pod.Namespace, err)
+				continue
+			}
+		}
 	}
 }

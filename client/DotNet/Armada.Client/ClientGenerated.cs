@@ -882,6 +882,9 @@ namespace GResearch.Armada.Client
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class ApiIngressConfig 
     {
+        [Newtonsoft.Json.JsonProperty("annotations", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.IDictionary<string, string> Annotations { get; set; }
+    
         [Newtonsoft.Json.JsonProperty("ports", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.ICollection<long> Ports { get; set; }
     
@@ -897,6 +900,9 @@ namespace GResearch.Armada.Client
     {
         [System.Runtime.Serialization.EnumMember(Value = @"NodePort")]
         NodePort = 0,
+    
+        [System.Runtime.Serialization.EnumMember(Value = @"Ingress")]
+        Ingress = 1,
     
     }
     
