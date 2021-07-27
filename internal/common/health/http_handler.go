@@ -6,17 +6,17 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-type HealthCheckHttpHandler struct {
+type CheckHttpHandler struct {
 	checker Checker
 }
 
-func NewHealthCheckHttpHandler(checker Checker) *HealthCheckHttpHandler {
-	return &HealthCheckHttpHandler{
+func NewCheckHttpHandler(checker Checker) *CheckHttpHandler {
+	return &CheckHttpHandler{
 		checker: checker,
 	}
 }
 
-func (h *HealthCheckHttpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *CheckHttpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	err := h.checker.Check()
 	if err == nil {
 		log.Info("Health check passed")

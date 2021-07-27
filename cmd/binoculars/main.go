@@ -44,9 +44,9 @@ func main() {
 	shutdownMetricServer := common.ServeMetrics(config.MetricsPort)
 	defer shutdownMetricServer()
 
-	startupComplete := health.NewStartupCompleteChecker()
-
 	mux := http.NewServeMux()
+
+	startupComplete := health.NewStartupCompleteChecker()
 	health.SetupHttpMux(mux, startupComplete)
 
 	shutdownGateway := serveHttp(

@@ -5,6 +5,6 @@ import (
 )
 
 func SetupHttpMux(mux *http.ServeMux, checker Checker) {
-	handler := NewHealthCheckHttpHandler(checker)
+	handler := NewCheckHttpHandler(checker)
 	mux.Handle("/health", handler)
 }

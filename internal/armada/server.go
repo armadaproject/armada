@@ -19,13 +19,14 @@ import (
 	"github.com/G-Research/armada/internal/common/auth"
 	"github.com/G-Research/armada/internal/common/auth/authorization"
 	grpcCommon "github.com/G-Research/armada/internal/common/grpc"
+	"github.com/G-Research/armada/internal/common/health"
 	stan_util "github.com/G-Research/armada/internal/common/stan-util"
 	"github.com/G-Research/armada/internal/common/task"
 	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/pkg/api"
 )
 
-func Serve(config *configuration.ArmadaConfig) (func(), *sync.WaitGroup) {
+func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker) (func(), *sync.WaitGroup) {
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
 
@@ -40,6 +41,7 @@ func Serve(config *configuration.ArmadaConfig) (func(), *sync.WaitGroup) {
 	usageRepository := repository.NewRedisUsageRepository(db)
 	queueRepository := repository.NewRedisQueueRepository(db)
 	schedulingInfoRepository := repository.NewRedisSchedulingInfoRepository(db)
+	healthChecks.Add(repository.NewRedisHealth(db))
 
 	queueCache := cache.NewQueueCache(queueRepository, jobRepository, schedulingInfoRepository)
 	taskManager.Register(queueCache.Refresh, config.Metrics.RefreshInterval, "refresh_queue_cache")
@@ -102,6 +104,8 @@ func Serve(config *configuration.ArmadaConfig) (func(), *sync.WaitGroup) {
 				log.Errorf("failed to close nats connection: %v", err)
 			}
 		}
+
+		healthChecks.Add(conn)
 
 	} else {
 		eventStore = redisEventRepository
