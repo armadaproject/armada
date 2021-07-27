@@ -280,9 +280,6 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
   }
 
   async serveJobs(start: number, stop: number): Promise<Job[]> {
-    console.log(
-      `Serving jobs from ${start} to ${stop}, status: ${this.state.getJobsRequestStatus}, queue: ${this.state.defaultColumns[0].filter}`,
-    )
     if (this.state.getJobsRequestStatus === "Loading") {
       return Promise.resolve([])
     }

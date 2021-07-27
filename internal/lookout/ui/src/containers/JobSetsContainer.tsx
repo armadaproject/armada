@@ -414,7 +414,6 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
   }
 
   private fetchJobSets(getJobSetsRequest: GetJobSetsRequest): Promise<JobSet[]> {
-    console.log(`actually called with ${getJobSetsRequest.queue}`)
     return this.props.jobService.getJobSets(getJobSetsRequest)
   }
 
