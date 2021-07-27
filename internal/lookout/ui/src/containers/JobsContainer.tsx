@@ -151,7 +151,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     this.autoRefreshService = new IntervalService(AUTO_REFRESH_INTERVAL_MS)
 
     this.state = {
-      jobs: this.jobTableService.getJobs(),
+      jobs: [],
       getJobsRequestStatus: "Idle",
       selectedJobs: new Map<string, Job>(),
       lastSelectedIndex: 0,
@@ -267,6 +267,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     updateColumnsFromQueryString(this.props.location.search, this.state.defaultColumns)
     this.setState({
       ...this.state,
+      jobs: this.jobTableService.getJobs(), // Can start loading
       annotationColumns: annotationColumns ?? [],
     })
 
@@ -286,6 +287,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
 
     await this.setStateAsync({
       ...this.state,
+      jobs: this.jobTableService.getJobs(),
       getJobsRequestStatus: "Loading",
     })
 
