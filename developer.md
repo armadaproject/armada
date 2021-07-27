@@ -93,7 +93,7 @@ This is recommended when working on features that are purely Armada specific or 
 Armada can be set up to use NATS Streaming as message queue for events.
 To run NATS Streaming for development you can use docker:
 ```bash
-docker run  -p 4223:4223 -p 8223:8223 nats-streaming -p 4223 -m 8223
+docker run -d -p 4223:4223 -p 8223:8223 nats-streaming -p 4223 -m 8223
 ```
 
 For armada configuration check end to end test setup:
@@ -112,7 +112,7 @@ npm run build
 ```
 Start a Postgres database:
 ```bash
-docker run -p 5432:5432 -e POSTGRES_PASSWORD=psw postgres
+docker run -d -p 5432:5432 -e POSTGRES_PASSWORD=psw postgres
 ```
 Migrate database:
 ```bash
