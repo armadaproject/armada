@@ -69,7 +69,7 @@ spec:
           livenessProbe:
             httpGet:
               path: /health
-              port: web
+              port: rest
             initialDelaySeconds: 10
             timeoutSeconds: 10
       affinity:
