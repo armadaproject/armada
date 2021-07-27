@@ -59,8 +59,9 @@ func main() {
 
 	mux := http.NewServeMux()
 
-	startupComplete := health.NewStartupCompleteChecker()
-	health.SetupHttpMux(mux, startupComplete)
+	startupCompleteCheck := health.NewStartupCompleteChecker()
+	healthChecks := health.NewMultiChecker(startupCompleteCheck)
+	health.SetupHttpMux(mux, healthChecks)
 
 	shutdownGateway := grpc.CreateGatewayHandler(
 		config.GrpcPort,
@@ -80,7 +81,7 @@ func main() {
 
 	shutdownServer := common.ServeHttp(config.HttpPort, mux)
 
-	shutdown, wg := lookout.StartUp(config)
+	shutdown, wg := lookout.StartUp(config, healthChecks)
 	go func() {
 		<-shutdownChannel
 		shutdown()
@@ -88,7 +89,7 @@ func main() {
 		shutdownServer()
 	}()
 
-	startupComplete.MarkComplete()
+	startupCompleteCheck.MarkComplete()
 
 	wg.Wait()
 }

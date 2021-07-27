@@ -46,8 +46,9 @@ func main() {
 
 	mux := http.NewServeMux()
 
-	startupComplete := health.NewStartupCompleteChecker()
-	health.SetupHttpMux(mux, startupComplete)
+	startupCompleteCheck := health.NewStartupCompleteChecker()
+	healthChecks := health.NewMultiChecker(startupCompleteCheck)
+	health.SetupHttpMux(mux, healthChecks)
 
 	shutdownGateway := serveHttp(
 		mux,
@@ -60,13 +61,13 @@ func main() {
 	)
 	defer shutdownGateway()
 
-	shutdown, wg := armada.Serve(&config)
+	shutdown, wg := armada.Serve(&config, healthChecks)
 	go func() {
 		<-stopSignal
 		shutdown()
 	}()
 
-	startupComplete.MarkComplete()
+	startupCompleteCheck.MarkComplete()
 	wg.Wait()
 }
 

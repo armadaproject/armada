@@ -1,6 +1,7 @@
 package stan_util
 
 import (
+	"errors"
 	"sync"
 	"time"
 
@@ -71,6 +72,24 @@ func (c *DurableConnection) Close() error {
 	err := c.currentConn.Close()
 	c.nc.Close()
 	return err
+}
+
+func (c *DurableConnection) Check() error {
+	currentConn := c.currentConn
+	if currentConn == nil {
+		return errors.New("No NATS connection")
+	}
+
+	natsConn := currentConn.NatsConn()
+	if natsConn == nil {
+		return errors.New("No NATS connection")
+	}
+
+	if !natsConn.IsConnected() {
+		return errors.New("Not connected to NATS")
+	}
+
+	return nil
 }
 
 func (c *DurableConnection) onConnectionLost(_ stan.Conn, e error) {
