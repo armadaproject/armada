@@ -66,6 +66,12 @@ spec:
               port: rest
             initialDelaySeconds: 5
             timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: web
+            initialDelaySeconds: 10
+            timeoutSeconds: 10
       affinity:
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
