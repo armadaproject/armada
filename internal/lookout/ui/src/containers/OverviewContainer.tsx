@@ -7,13 +7,13 @@ import JobDetailsModal, { JobDetailsModalContext, toggleExpanded } from "../comp
 import IntervalService from "../services/IntervalService"
 import JobService, { Job, QueueInfo } from "../services/JobService"
 import LogService from "../services/LogService"
-import { sleep } from "../services/testData"
 import { setStateAsync } from "../utils"
 import { RequestStatus } from "./JobsContainer"
 
 type OverviewContainerProps = {
   jobService: JobService
   logService: LogService
+  overviewAutoRefreshMs: number
 } & RouteComponentProps
 
 interface OverviewContainerState {
@@ -25,15 +25,13 @@ interface OverviewContainerState {
   modalContext: JobDetailsModalContext
 }
 
-const AUTO_REFRESH_INTERVAL_MS = 15000
-
 class OverviewContainer extends React.Component<OverviewContainerProps, OverviewContainerState> {
   autoRefreshService: IntervalService
 
   constructor(props: OverviewContainerProps) {
     super(props)
 
-    this.autoRefreshService = new IntervalService(AUTO_REFRESH_INTERVAL_MS)
+    this.autoRefreshService = new IntervalService(props.overviewAutoRefreshMs)
 
     this.state = {
       queueInfos: [],

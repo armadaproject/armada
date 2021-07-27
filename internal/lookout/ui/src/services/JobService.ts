@@ -11,7 +11,6 @@ import {
   ApiJob,
 } from "../openapi/lookout"
 import { reverseMap, secondsToDurationString, getErrorMessage } from "../utils"
-import { makeTestJobs, makeTestJobSets, makeTestOverview, sleep } from "./testData"
 
 type DurationFromApi = {
   seconds?: number
@@ -158,11 +157,6 @@ export default class JobService {
   }
 
   async getOverview(): Promise<QueueInfo[]> {
-    if (JOB_STATES_FOR_DISPLAY) {
-      await sleep(2000)
-      return Promise.resolve(makeTestOverview(100, 100))
-    }
-
     const queueInfosFromApi = await this.lookoutApi.overview()
     if (!queueInfosFromApi.queues) {
       return []
@@ -172,10 +166,6 @@ export default class JobService {
   }
 
   async getJobSets(getJobSetsRequest: GetJobSetsRequest): Promise<JobSet[]> {
-    if (getJobSetsRequest.queue === "test") {
-      await sleep(2000)
-      return Promise.resolve(makeTestJobSets(100, 100))
-    }
     const jobSetsFromApi = await this.lookoutApi.getJobSets({
       body: {
         queue: getJobSetsRequest.queue,
@@ -191,10 +181,6 @@ export default class JobService {
   }
 
   async getJobs(getJobsRequest: GetJobsRequest): Promise<Job[]> {
-    if (getJobsRequest.queue === "test") {
-      await sleep(1000)
-      return Promise.resolve(makeTestJobs("test", getJobsRequest.skip, getJobsRequest.take + getJobsRequest.skip))
-    }
     const jobStatesForApi = getJobsRequest.jobStates.map(getJobStateForApi)
     const jobSetsForApi = getJobsRequest.jobSets.map(escapeBackslashes)
     try {

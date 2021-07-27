@@ -20,6 +20,7 @@ import { selectItem } from "../utils"
 type JobsContainerProps = {
   jobService: JobService
   logService: LogService
+  jobsAutoRefreshMs: number
 } & RouteComponentProps
 
 export type RequestStatus = "Loading" | "Idle"
@@ -64,7 +65,6 @@ const QUERY_STRING_OPTIONS: ParseOptions | StringifyOptions = {
 const LOCAL_STORAGE_KEY = "armada_lookout_annotation_columns"
 const BATCH_SIZE = 100
 const CANCELLABLE_JOB_STATES = ["Queued", "Pending", "Running"]
-const AUTO_REFRESH_INTERVAL_MS = 30000
 const REPRIORITIZEABLE_JOB_STATES = ["Queued", "Pending", "Running"]
 
 export function makeQueryString(columns: ColumnSpec<string | boolean | string[]>[]): string {
@@ -148,7 +148,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     super(props)
 
     this.jobTableService = new JobTableService(this.props.jobService, BATCH_SIZE)
-    this.autoRefreshService = new IntervalService(AUTO_REFRESH_INTERVAL_MS)
+    this.autoRefreshService = new IntervalService(props.jobsAutoRefreshMs)
 
     this.state = {
       jobs: [],
@@ -280,7 +280,9 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
   }
 
   async serveJobs(start: number, stop: number): Promise<Job[]> {
-    console.log(`Serving jobs from ${start} to ${stop}, status: ${this.state.getJobsRequestStatus}`)
+    console.log(
+      `Serving jobs from ${start} to ${stop}, status: ${this.state.getJobsRequestStatus}, queue: ${this.state.defaultColumns[0].filter}`,
+    )
     if (this.state.getJobsRequestStatus === "Loading") {
       return Promise.resolve([])
     }

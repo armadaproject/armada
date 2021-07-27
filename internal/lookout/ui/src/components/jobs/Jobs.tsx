@@ -103,9 +103,11 @@ export default class Jobs extends React.Component<JobsProps, Record<string, neve
             isRowLoaded={({ index }) => {
               return this.props.isLoaded(index)
             }}
-            loadMoreRows={({ startIndex, stopIndex }) => {
+            loadMoreRows={async ({ startIndex, stopIndex }) => {
               console.log(`loadMoreRows called ${startIndex} ${stopIndex}`)
-              return this.props.fetchJobs(startIndex, stopIndex + 1) // stopIndex is inclusive
+              await this.props.fetchJobs(startIndex, stopIndex + 1) // stopIndex is inclusive
+              console.log(`loadMoreRows end`)
+              this.resetCache()
             }}
             rowCount={rowCount}
           >

@@ -54,7 +54,7 @@ export default class JobTableService {
   }
 
   async loadJobs(request: GetJobsRequest, start: number, stop: number) {
-    console.log(`Actually loading more jobs ${start} ${stop}`)
+    console.log(`Actually loading more jobs ${start} ${stop}, queue ${request.queue}`)
     const startBatch = Math.floor(start / this.batchSize)
     const endBatch = Math.floor(stop / this.batchSize)
     const startBatchIndex = startBatch * this.batchSize

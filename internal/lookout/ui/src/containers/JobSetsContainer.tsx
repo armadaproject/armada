@@ -15,11 +15,12 @@ import ReprioritizeJobSetsDialog, {
 } from "../components/job-sets/ReprioritizeJobSetsDialog"
 import IntervalService from "../services/IntervalService"
 import JobService, { GetJobSetsRequest, JobSet } from "../services/JobService"
-import { debounced, setStateAsync, selectItem } from "../utils"
+import { setStateAsync, selectItem, debounced } from "../utils"
 import { RequestStatus } from "./JobsContainer"
 
 type JobSetsContainerProps = {
   jobService: JobService
+  jobSetsAutoRefreshMs: number
 } & RouteComponentProps
 
 type JobSetsContainerParams = {
@@ -47,8 +48,6 @@ type JobSetsQueryParams = {
   queue?: string
   view?: string
 }
-
-const AUTO_REFRESH_INTERVAL_MS = 15000
 
 export function isJobSetsView(val: string): val is JobSetsView {
   return ["job-counts", "runtime", "queued-time"].includes(val)
@@ -83,7 +82,7 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
   constructor(props: JobSetsContainerProps) {
     super(props)
 
-    this.autoRefreshService = new IntervalService(AUTO_REFRESH_INTERVAL_MS)
+    this.autoRefreshService = new IntervalService(props.jobSetsAutoRefreshMs)
 
     this.state = {
       queue: "",
@@ -415,6 +414,7 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
   }
 
   private fetchJobSets(getJobSetsRequest: GetJobSetsRequest): Promise<JobSet[]> {
+    console.log(`actually called with ${getJobSetsRequest.queue}`)
     return this.props.jobService.getJobSets(getJobSetsRequest)
   }
 

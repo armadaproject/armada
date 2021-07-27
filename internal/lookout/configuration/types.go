@@ -14,6 +14,10 @@ type LookoutUIConfig struct {
 	UserAnnotationPrefix     string
 	BinocularsEnabled        bool
 	BinocularsBaseUrlPattern string
+
+	OverviewAutoRefreshMs int
+	JobSetsAutoRefreshMs  int
+	JobsAutoRefreshMs     int
 }
 
 type PostgresConfig struct {
