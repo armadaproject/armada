@@ -53,7 +53,9 @@ export default function JobDetailsModal(props: JobDetailsModalProps) {
         }}
       >
         <Tab label="Job details" value="detail" />
-        {props.job?.runs && props.job?.runs.length > 0 && <Tab label="Logs" value="logs" />}
+        {props.logService.isEnabled && props.job?.runs && props.job?.runs.length > 0 && (
+          <Tab label="Logs" value="logs" />
+        )}
       </Tabs>
       <div className="dialog-body">
         {tab == "detail" && props.job && (

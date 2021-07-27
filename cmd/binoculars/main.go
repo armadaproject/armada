@@ -1,18 +1,23 @@
 package main
 
 import (
+	"context"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 
+	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
+	"google.golang.org/grpc"
 
 	"github.com/G-Research/armada/internal/binoculars"
 	"github.com/G-Research/armada/internal/binoculars/configuration"
 	"github.com/G-Research/armada/internal/common"
-	"github.com/G-Research/armada/internal/common/grpc"
+	gateway "github.com/G-Research/armada/internal/common/grpc"
+	"github.com/G-Research/armada/internal/common/health"
 	api "github.com/G-Research/armada/pkg/api/binoculars"
 )
 
@@ -39,7 +44,13 @@ func main() {
 	shutdownMetricServer := common.ServeMetrics(config.MetricsPort)
 	defer shutdownMetricServer()
 
-	shutdownGateway := grpc.ServeGateway(
+	startupComplete := health.NewStartupCompleteChecker()
+
+	mux := http.NewServeMux()
+	health.SetupHttpMux(mux, startupComplete)
+
+	shutdownGateway := serveHttp(
+		mux,
 		config.HttpPort,
 		config.GrpcPort,
 		config.CorsAllowedOrigins,
@@ -53,5 +64,23 @@ func main() {
 		<-stopSignal
 		shutdown()
 	}()
+	startupComplete.MarkComplete()
 	wg.Wait()
+}
+
+func serveHttp(
+	mux *http.ServeMux,
+	port uint16,
+	grpcPort uint16,
+	corsAllowedOrigins []string,
+	spec string,
+	handlers ...func(ctx context.Context, mux *runtime.ServeMux, conn *grpc.ClientConn) error) (shutdown func()) {
+
+	shutdownGateway := gateway.CreateGatewayHandler(grpcPort, mux, "/", corsAllowedOrigins, spec, handlers...)
+	cancel := common.ServeHttp(port, mux)
+
+	return func() {
+		shutdownGateway()
+		cancel()
+	}
 }

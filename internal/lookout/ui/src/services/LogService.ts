@@ -1,4 +1,4 @@
-import { BinocularsApi, ConfigurationParameters, Configuration } from "../openapi/binoculars"
+import { BinocularsApi, Configuration, ConfigurationParameters } from "../openapi/binoculars"
 
 export interface LogLine {
   text: string
@@ -8,10 +8,12 @@ export interface LogLine {
 export default class LogService {
   config: ConfigurationParameters
   baseUrlPattern: string
+  isEnabled: boolean
 
-  constructor(config: ConfigurationParameters, baseUrlPattern: string) {
+  constructor(config: ConfigurationParameters, baseUrlPattern: string, isEnabled: boolean) {
     this.config = config
     this.baseUrlPattern = baseUrlPattern
+    this.isEnabled = isEnabled
   }
 
   async getPodLogs(
@@ -48,14 +50,13 @@ export default class LogService {
       // discart last partial line
       lines.pop()
     }
-    const parsedLines = lines.map((l) => {
+    return lines.map((l) => {
       const divider = l.indexOf(" ")
       return {
         time: l.substr(0, divider),
         text: l.substr(divider + 1),
       }
     })
-    return parsedLines
   }
 
   private getBinoculars(clusterId: string) {

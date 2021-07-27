@@ -12,40 +12,21 @@ import (
 	"github.com/jcmturner/gokrb5/v8/spnego"
 	"google.golang.org/grpc"
 
-	"github.com/G-Research/armada/internal/common"
 	protoutil "github.com/G-Research/armada/internal/common/grpc/protoutils"
 	"github.com/G-Research/armada/internal/common/util"
 )
 
-func ServeGateway(
-	port uint16,
+func CreateGatewayHandler(
 	grpcPort uint16,
+	mux *http.ServeMux,
+	apiBasePath string,
 	corsAllowedOrigins []string,
 	spec string,
 	handlers ...func(ctx context.Context, mux *runtime.ServeMux, conn *grpc.ClientConn) error) (shutdown func()) {
 
-	mux, shutdownGateway := CreateGatewayHandler(grpcPort, "/", corsAllowedOrigins, spec, handlers...)
-	cancel := common.ServeHttp(port, mux)
-
-	return func() {
-		shutdownGateway()
-		cancel()
-	}
-}
-
-func CreateGatewayHandler(
-	grpcPort uint16,
-	apiBasePath string,
-	corsAllowedOrigins []string,
-	spec string,
-	handlers ...func(ctx context.Context, mux *runtime.ServeMux, conn *grpc.ClientConn) error) (handler *http.ServeMux, shutdown func()) {
-
 	connectionCtx, cancelConnectionCtx := context.WithCancel(context.Background())
 
 	grpcAddress := fmt.Sprintf(":%d", grpcPort)
-
-	mux := http.NewServeMux()
-	mux.HandleFunc("/health", health)
 
 	m := new(protoutil.JSONMarshaller)
 	gw := runtime.NewServeMux(
@@ -72,7 +53,7 @@ func CreateGatewayHandler(
 	mux.Handle(apiBasePath, allowCORS(gw, corsAllowedOrigins))
 	mux.Handle(path.Join(apiBasePath, "swagger.json"), middleware.Spec(apiBasePath, []byte(spec), nil))
 
-	return mux, func() {
+	return func() {
 		cancelConnectionCtx()
 		conn.Close()
 	}
@@ -97,8 +78,4 @@ func preflightHandler(w http.ResponseWriter) {
 	w.Header().Set("Access-Control-Allow-Headers", strings.Join(headers, ","))
 	methods := []string{"GET", "HEAD", "POST", "PUT", "DELETE"}
 	w.Header().Set("Access-Control-Allow-Methods", strings.Join(methods, ","))
-}
-
-func health(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusNoContent)
 }

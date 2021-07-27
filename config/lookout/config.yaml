@@ -5,6 +5,7 @@ metricsPort: 9009
 uiConfig:
   armadaApiBaseUrl: "http://localhost:8080"
   userAnnotationPrefix: "armadaproject.io/"
+  binocularsEnabled: true
   binocularsBaseUrlPattern: "http://localhost:8082" # {CLUSTER_ID} gets replaced by appropriate cluster id
 
 postgres:
