@@ -1,6 +1,7 @@
 interface UIConfig {
   armadaApiBaseUrl: string
   userAnnotationPrefix: string
+  binocularsEnabled: boolean
   binocularsBaseUrlPattern: string
 }
 
@@ -18,6 +19,7 @@ export async function getUIConfig(): Promise<UIConfig> {
     return {
       armadaApiBaseUrl: json.ArmadaApiBaseUrl ?? "",
       userAnnotationPrefix: json.UserAnnotationPrefix ?? "",
+      binocularsEnabled: json.BinocularsEnabled ?? true,
       binocularsBaseUrlPattern: json.BinocularsBaseUrlPattern ?? "",
     }
   } catch (e) {
@@ -27,6 +29,7 @@ export async function getUIConfig(): Promise<UIConfig> {
   return {
     armadaApiBaseUrl: "",
     userAnnotationPrefix: "",
+    binocularsEnabled: true,
     binocularsBaseUrlPattern: "",
   }
 }
