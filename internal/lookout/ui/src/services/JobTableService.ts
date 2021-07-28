@@ -24,10 +24,6 @@ function createLoadingJob(): JobMetadata {
   }
 }
 
-function jobIsLoaded(job: JobMetadata): boolean {
-  return job.loadState === "Loaded"
-}
-
 function convertToLoaded(jobs: Job[]): JobMetadata[] {
   return jobs.map((job) => ({
     ...job,
@@ -84,7 +80,7 @@ export default class JobTableService {
   }
 
   jobIsLoaded(index: number): boolean {
-    return index >= 0 && index < this.jobs.length && jobIsLoaded(this.jobs[index])
+    return index >= 0 && index < this.jobs.length && this.jobs[index].loadState === "Loaded"
   }
 
   refresh() {
