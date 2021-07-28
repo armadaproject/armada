@@ -182,6 +182,13 @@ jobs:
     working_directory: ~/go/src/github.com/G-Research/armada
     steps:
       - checkout
+
+      - run:
+          name: Cleanup docker
+          command: |
+            docker stop $(docker ps -aq) || exit 0
+            docker rm $(docker ps -aq) || exit 0
+
       - run: e2e/setup/setup_environment.sh
       - run:
           name: Start cluster for e2e tests
