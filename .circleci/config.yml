@@ -186,8 +186,8 @@ jobs:
       - run:
           name: Cleanup docker
           command: |
-            docker stop $(docker ps -aq) || exit 0
-            docker rm $(docker ps -aq) || exit 0
+            docker stop $(docker ps -aq) || true
+            docker rm $(docker ps -aq) || true
 
       - run: e2e/setup/setup_environment.sh
       - run:
