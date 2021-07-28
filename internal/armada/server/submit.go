@@ -238,8 +238,9 @@ func (server *SubmitServer) cancelJobs(ctx context.Context, queue string, jobs [
 	if e, _ := server.checkQueuePermission(ctx, queue, false, permissions.CancelJobs, permissions.CancelAnyJobs); e != nil {
 		return nil, e
 	}
+	principal := authorization.GetPrincipal(ctx)
 
-	e := reportJobsCancelling(server.eventStore, jobs)
+	e := reportJobsCancelling(server.eventStore, principal, jobs)
 	if e != nil {
 		return nil, status.Errorf(codes.Unknown, e.Error())
 	}
@@ -256,7 +257,7 @@ func (server *SubmitServer) cancelJobs(ctx context.Context, queue string, jobs [
 		}
 	}
 
-	e = reportJobsCancelled(server.eventStore, cancelled)
+	e = reportJobsCancelled(server.eventStore, principal, cancelled)
 	if e != nil {
 		return nil, status.Errorf(codes.Unknown, e.Error())
 	}
@@ -290,7 +291,7 @@ func (server *SubmitServer) ReprioritizeJobs(ctx context.Context, request *api.J
 		return nil, err
 	}
 
-	results, err := server.reprioritizeJobs(err, jobs, request)
+	results, err := server.reprioritizeJobs(authorization.GetPrincipal(ctx), jobs, request)
 	if err != nil {
 		return nil, err
 	}
@@ -298,8 +299,8 @@ func (server *SubmitServer) ReprioritizeJobs(ctx context.Context, request *api.J
 	return &api.JobReprioritizeResponse{ReprioritizationResults: results}, nil
 }
 
-func (server *SubmitServer) reprioritizeJobs(err error, jobs []*api.Job, request *api.JobReprioritizeRequest) (map[string]string, error) {
-	err = reportJobsReprioritizing(server.eventStore, jobs, request.NewPriority)
+func (server *SubmitServer) reprioritizeJobs(principal authorization.Principal, jobs []*api.Job, request *api.JobReprioritizeRequest) (map[string]string, error) {
+	err := reportJobsReprioritizing(server.eventStore, principal, jobs, request.NewPriority)
 	if err != nil {
 		return nil, err
 	}
@@ -321,7 +322,7 @@ func (server *SubmitServer) reprioritizeJobs(err error, jobs []*api.Job, request
 		}
 	}
 
-	err = reportJobsReprioritized(server.eventStore, reprioritizedJobs, request.NewPriority)
+	err = reportJobsReprioritized(server.eventStore, principal, reprioritizedJobs, request.NewPriority)
 	if err != nil {
 		return nil, err
 	}
