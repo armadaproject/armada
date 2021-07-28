@@ -52,9 +52,9 @@ export default class JobTableService {
   async loadJobs(request: GetJobsRequest, start: number, stop: number) {
     const startBatch = Math.floor(start / this.batchSize)
     const endBatch = Math.floor(stop / this.batchSize)
-    const startBatchIndex = startBatch * this.batchSize
-    const endBatchIndex = endBatch * this.batchSize + this.batchSize
-    this.markJobsAsLoaded(startBatchIndex, endBatchIndex)
+    const loadStartIndex = startBatch * this.batchSize
+    const loadEndIndex = endBatch * this.batchSize + this.batchSize
+    this.markJobsAsLoaded(loadStartIndex, loadEndIndex)
 
     const newJobsLoaded: JobMetadata[] = []
     let canLoadMore = true
@@ -69,9 +69,9 @@ export default class JobTableService {
       }
     }
 
-    updateArray(this.jobs, newJobsLoaded, startBatchIndex)
+    updateArray(this.jobs, newJobsLoaded, loadStartIndex)
 
-    this.largestLoadedIndex = Math.max(this.largestLoadedIndex, startBatchIndex + newJobsLoaded.length)
+    this.largestLoadedIndex = Math.max(this.largestLoadedIndex, loadStartIndex + newJobsLoaded.length)
     this.jobs = this.jobs.slice(0, this.largestLoadedIndex)
 
     if (canLoadMore) {
