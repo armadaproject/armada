@@ -8,6 +8,8 @@ interface UIConfig {
   jobsAutoRefreshMs: number
 }
 
+export type RequestStatus = "Loading" | "Idle"
+
 export interface Padding {
   top: number
   bottom: number

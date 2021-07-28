@@ -2,8 +2,8 @@ import React from "react"
 
 import { Dialog, DialogContent, DialogTitle } from "@material-ui/core"
 
-import { RequestStatus } from "../../containers/JobsContainer"
 import { CancelJobSetsResult, JobSet } from "../../services/JobService"
+import { RequestStatus } from "../../utils"
 import CancelJobSets from "./CancelJobSets"
 import CancelJobSetsOutcome from "./CancelJobSetsOutcome"
 

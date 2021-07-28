@@ -7,8 +7,7 @@ import JobDetailsModal, { JobDetailsModalContext, toggleExpanded } from "../comp
 import IntervalService from "../services/IntervalService"
 import JobService, { Job, QueueInfo } from "../services/JobService"
 import LogService from "../services/LogService"
-import { setStateAsync } from "../utils"
-import { RequestStatus } from "./JobsContainer"
+import { RequestStatus, setStateAsync } from "../utils"
 
 type OverviewContainerProps = {
   jobService: JobService

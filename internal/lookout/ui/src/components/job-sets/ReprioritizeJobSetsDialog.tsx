@@ -2,8 +2,8 @@ import React from "react"
 
 import { Dialog, DialogContent, DialogTitle } from "@material-ui/core"
 
-import { RequestStatus } from "../../containers/JobsContainer"
 import { JobSet, ReprioritizeJobSetsResult } from "../../services/JobService"
+import { RequestStatus } from "../../utils"
 import ReprioritizeJobSets from "./ReprioritizeJobSets"
 import ReprioritizeJobSetsOutcome from "./ReprioritizeJobSetsOutcome"
 

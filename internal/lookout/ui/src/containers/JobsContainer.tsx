@@ -15,15 +15,13 @@ import IntervalService from "../services/IntervalService"
 import JobService, { GetJobsRequest, Job, JOB_STATES_FOR_DISPLAY } from "../services/JobService"
 import JobTableService from "../services/JobTableService"
 import LogService from "../services/LogService"
-import { selectItem } from "../utils"
+import { RequestStatus, selectItem } from "../utils"
 
 type JobsContainerProps = {
   jobService: JobService
   logService: LogService
   jobsAutoRefreshMs: number
 } & RouteComponentProps
-
-export type RequestStatus = "Loading" | "Idle"
 
 type JobsContainerState = {
   jobs: Job[]
@@ -286,7 +284,6 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
 
     await this.setStateAsync({
       ...this.state,
-      jobs: this.jobTableService.getJobs(),
       getJobsRequestStatus: "Loading",
     })
 

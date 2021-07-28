@@ -17,11 +17,11 @@ import MoreVert from "@material-ui/icons/MoreVert"
 import { AutoSizer } from "react-virtualized"
 
 import RefreshButton from "../RefreshButton"
-import { RequestStatus } from "../containers/JobsContainer"
 import { QueueInfo } from "../services/JobService"
 import AutoRefreshToggle from "./AutoRefreshToggle"
 
 import "./Overview.css"
+import { RequestStatus } from "../utils"
 
 type OverviewProps = {
   queueInfos: QueueInfo[]

@@ -2,8 +2,9 @@ import React from "react"
 
 import { AutoSizer, InfiniteLoader, Table } from "react-virtualized"
 
-import { ColumnSpec, RequestStatus } from "../../containers/JobsContainer"
+import { ColumnSpec } from "../../containers/JobsContainer"
 import { Job } from "../../services/JobService"
+import { RequestStatus } from "../../utils"
 import CheckboxHeaderRow from "../CheckboxHeaderRow"
 import CheckboxRow from "../CheckboxRow"
 import JobTableHeader from "./JobTableHeader"
