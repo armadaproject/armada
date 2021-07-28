@@ -18,10 +18,10 @@ import { AutoSizer } from "react-virtualized"
 
 import RefreshButton from "../RefreshButton"
 import { QueueInfo } from "../services/JobService"
+import { RequestStatus } from "../utils"
 import AutoRefreshToggle from "./AutoRefreshToggle"
 
 import "./Overview.css"
-import { RequestStatus } from "../utils"
 
 type OverviewProps = {
   queueInfos: QueueInfo[]
