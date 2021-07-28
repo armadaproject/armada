@@ -22,6 +22,7 @@ import (
 	"github.com/G-Research/armada/internal/common"
 	authConfiguration "github.com/G-Research/armada/internal/common/auth/configuration"
 	"github.com/G-Research/armada/internal/common/auth/permission"
+	"github.com/G-Research/armada/internal/common/health"
 	"github.com/G-Research/armada/pkg/api"
 )
 
@@ -200,7 +201,8 @@ func withRunningServer(action func(client api.SubmitClient, leaseClient api.Aggr
 			AutoCreateQueues:      true,
 			DefaultPriorityFactor: 1000,
 		},
-	})
+	},
+		health.NewMultiChecker())
 	defer shutdown()
 
 	conn, err := grpc.Dial(freeAddress, grpc.WithInsecure(), grpc.WithDefaultCallOptions(grpc.WaitForReady(true)))

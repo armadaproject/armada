@@ -11,6 +11,7 @@ import (
 
 	"github.com/G-Research/armada/internal/common/auth/authorization"
 	"github.com/G-Research/armada/internal/common/grpc"
+	"github.com/G-Research/armada/internal/common/health"
 	stanUtil "github.com/G-Research/armada/internal/common/stan-util"
 	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/lookout/configuration"
@@ -28,7 +29,7 @@ func (l LogRusLogger) Printf(format string, v ...interface{}) {
 	log.Debugf(format, v...)
 }
 
-func StartUp(config configuration.LookoutConfiguration) (func(), *sync.WaitGroup) {
+func StartUp(config configuration.LookoutConfiguration, healthChecks *health.MultiChecker) (func(), *sync.WaitGroup) {
 
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
@@ -46,11 +47,15 @@ func StartUp(config configuration.LookoutConfiguration) (func(), *sync.WaitGroup
 	jobStore := repository.NewSQLJobStore(goquDb, config.UIConfig.UserAnnotationPrefix)
 	jobRepository := repository.NewSQLJobRepository(goquDb, &repository.DefaultClock{})
 
+	healthChecks.Add(repository.NewSqlHealth(db))
+
 	conn, err := stanUtil.DurableConnect(
 		config.Nats.ClusterID,
 		"armada-server-"+util.NewULID(),
 		strings.Join(config.Nats.Servers, ","),
 	)
+
+	healthChecks.Add(conn)
 
 	if err != nil {
 		panic(err)
