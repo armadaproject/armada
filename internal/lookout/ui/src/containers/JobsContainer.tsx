@@ -15,7 +15,7 @@ import IntervalService from "../services/IntervalService"
 import JobService, { GetJobsRequest, Job, JOB_STATES_FOR_DISPLAY } from "../services/JobService"
 import JobTableService from "../services/JobTableService"
 import LogService from "../services/LogService"
-import { RequestStatus, selectItem } from "../utils"
+import { RequestStatus, selectItem, setStateAsync } from "../utils"
 
 type JobsContainerProps = {
   jobService: JobService
@@ -282,7 +282,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
       return Promise.resolve([])
     }
 
-    await this.setStateAsync({
+    await setStateAsync(this, {
       ...this.state,
       getJobsRequestStatus: "Loading",
     })
@@ -298,7 +298,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     if (shouldLoad) {
       const request = this.createGetJobsRequest()
       await this.jobTableService.loadJobs(request, start, stop)
-      await this.setStateAsync({
+      await setStateAsync(this, {
         ...this.state,
         jobs: this.jobTableService.getJobs(),
         getJobsRequestStatus: "Idle",
@@ -726,10 +726,6 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
       jobs: this.jobTableService.getJobs(),
     })
     this.setUrlParams()
-  }
-
-  private setStateAsync(state: JobsContainerState): Promise<void> {
-    return new Promise((resolve) => this.setState(state, resolve))
   }
 
   private setUrlParams() {
