@@ -240,7 +240,7 @@ func (server *SubmitServer) cancelJobs(ctx context.Context, queue string, jobs [
 	}
 	principal := authorization.GetPrincipal(ctx)
 
-	e := reportJobsCancelling(server.eventStore, principal, jobs)
+	e := reportJobsCancelling(server.eventStore, principal.GetName(), jobs)
 	if e != nil {
 		return nil, status.Errorf(codes.Unknown, e.Error())
 	}
@@ -257,7 +257,7 @@ func (server *SubmitServer) cancelJobs(ctx context.Context, queue string, jobs [
 		}
 	}
 
-	e = reportJobsCancelled(server.eventStore, principal, cancelled)
+	e = reportJobsCancelled(server.eventStore, principal.GetName(), cancelled)
 	if e != nil {
 		return nil, status.Errorf(codes.Unknown, e.Error())
 	}
@@ -300,7 +300,7 @@ func (server *SubmitServer) ReprioritizeJobs(ctx context.Context, request *api.J
 }
 
 func (server *SubmitServer) reprioritizeJobs(principal authorization.Principal, jobs []*api.Job, request *api.JobReprioritizeRequest) (map[string]string, error) {
-	err := reportJobsReprioritizing(server.eventStore, principal, jobs, request.NewPriority)
+	err := reportJobsReprioritizing(server.eventStore, principal.GetName(), jobs, request.NewPriority)
 	if err != nil {
 		return nil, err
 	}
@@ -322,7 +322,7 @@ func (server *SubmitServer) reprioritizeJobs(principal authorization.Principal, 
 		}
 	}
 
-	err = reportJobsReprioritized(server.eventStore, principal, reprioritizedJobs, request.NewPriority)
+	err = reportJobsReprioritized(server.eventStore, principal.GetName(), reprioritizedJobs, request.NewPriority)
 	if err != nil {
 		return nil, err
 	}

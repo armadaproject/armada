@@ -6,7 +6,6 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/G-Research/armada/internal/armada/repository"
-	"github.com/G-Research/armada/internal/common/auth/authorization"
 	"github.com/G-Research/armada/pkg/api"
 )
 
@@ -93,7 +92,7 @@ func reportJobsLeased(repository repository.EventStore, jobs []*api.Job, cluster
 	}
 }
 
-func reportJobsCancelling(repository repository.EventStore, principal authorization.Principal, jobs []*api.Job) error {
+func reportJobsCancelling(repository repository.EventStore, requestorName string, jobs []*api.Job) error {
 	events := []*api.EventMessage{}
 	now := time.Now()
 	for _, job := range jobs {
@@ -102,7 +101,7 @@ func reportJobsCancelling(repository repository.EventStore, principal authorizat
 			Queue:     job.Queue,
 			JobSetId:  job.JobSetId,
 			Created:   now,
-			Requestor: principal.GetName(),
+			Requestor: requestorName,
 		})
 		if e != nil {
 			return e
@@ -113,7 +112,7 @@ func reportJobsCancelling(repository repository.EventStore, principal authorizat
 	return e
 }
 
-func reportJobsReprioritizing(repository repository.EventStore, principal authorization.Principal, jobs []*api.Job, newPriority float64) error {
+func reportJobsReprioritizing(repository repository.EventStore, requestorName string, jobs []*api.Job, newPriority float64) error {
 	events := []*api.EventMessage{}
 	now := time.Now()
 	for _, job := range jobs {
@@ -123,7 +122,7 @@ func reportJobsReprioritizing(repository repository.EventStore, principal author
 			JobSetId:    job.JobSetId,
 			Created:     now,
 			NewPriority: newPriority,
-			Requestor:   principal.GetName(),
+			Requestor:   requestorName,
 		})
 		if e != nil {
 			return e
@@ -134,7 +133,7 @@ func reportJobsReprioritizing(repository repository.EventStore, principal author
 	return e
 }
 
-func reportJobsReprioritized(repository repository.EventStore, principal authorization.Principal, jobs []*api.Job, newPriority float64) error {
+func reportJobsReprioritized(repository repository.EventStore, requestorName string, jobs []*api.Job, newPriority float64) error {
 	events := []*api.EventMessage{}
 	now := time.Now()
 	for _, job := range jobs {
@@ -144,7 +143,7 @@ func reportJobsReprioritized(repository repository.EventStore, principal authori
 			JobSetId:    job.JobSetId,
 			Created:     now,
 			NewPriority: newPriority,
-			Requestor:   principal.GetName(),
+			Requestor:   requestorName,
 		})
 		if e != nil {
 			return e
@@ -155,7 +154,7 @@ func reportJobsReprioritized(repository repository.EventStore, principal authori
 	return e
 }
 
-func reportJobsCancelled(repository repository.EventStore, principal authorization.Principal, jobs []*api.Job) error {
+func reportJobsCancelled(repository repository.EventStore, requestorName string, jobs []*api.Job) error {
 	events := []*api.EventMessage{}
 	now := time.Now()
 	for _, job := range jobs {
@@ -164,7 +163,7 @@ func reportJobsCancelled(repository repository.EventStore, principal authorizati
 			Queue:     job.Queue,
 			JobSetId:  job.JobSetId,
 			Created:   now,
-			Requestor: principal.GetName(),
+			Requestor: requestorName,
 		})
 		if e != nil {
 			return e
