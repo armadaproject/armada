@@ -15,6 +15,7 @@ import IntervalService from "../services/IntervalService"
 import JobService, { GetJobsRequest, Job, JOB_STATES_FOR_DISPLAY } from "../services/JobService"
 import JobTableService from "../services/JobTableService"
 import LogService from "../services/LogService"
+import TimerService from "../services/TimerService"
 import { RequestStatus, selectItem, setStateAsync } from "../utils"
 
 type JobsContainerProps = {
@@ -141,12 +142,14 @@ function parseJobStates(jobStates: string[] | string): string[] {
 class JobsContainer extends React.Component<JobsContainerProps, JobsContainerState> {
   jobTableService: JobTableService
   autoRefreshService: IntervalService
+  resetCacheService: TimerService
 
   constructor(props: JobsContainerProps) {
     super(props)
 
     this.jobTableService = new JobTableService(this.props.jobService, BATCH_SIZE)
     this.autoRefreshService = new IntervalService(props.jobsAutoRefreshMs)
+    this.resetCacheService = new TimerService(100)
 
     this.state = {
       jobs: [],
@@ -253,6 +256,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     this.changeAnnotationColumnKey = this.changeAnnotationColumnKey.bind(this)
 
     this.handlePriorityChange = this.handlePriorityChange.bind(this)
+    this.registerResetCache = this.registerResetCache.bind(this)
   }
 
   componentDidMount() {
@@ -274,6 +278,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
   }
 
   componentWillUnmount() {
+    this.resetCacheService.stop()
     this.autoRefreshService.stop()
   }
 
@@ -669,6 +674,10 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     })
   }
 
+  registerResetCache(resetCache: () => void) {
+    this.resetCacheService.registerCallback(resetCache)
+  }
+
   private createGetJobsRequest(): GetJobsRequest {
     const request: GetJobsRequest = {
       queue: "",
@@ -719,12 +728,13 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     return request
   }
 
-  private setFilters(updatedState: JobsContainerState) {
+  private async setFilters(updatedState: JobsContainerState) {
     this.jobTableService.refresh()
-    this.setState({
+    await setStateAsync(this, {
       ...updatedState,
       jobs: this.jobTableService.getJobs(),
     })
+    this.resetCacheService.start()
     this.setUrlParams()
   }
 
@@ -812,6 +822,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
           onJobIdClick={this.openJobDetailsModal}
           onAutoRefreshChange={this.toggleAutoRefresh}
           onInteract={this.resetAutoRefresh}
+          onRegisterResetCache={this.registerResetCache}
         />
       </Fragment>
     )
