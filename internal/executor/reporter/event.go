@@ -9,7 +9,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	networking "k8s.io/api/networking/v1beta1"
 
-	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/internal/executor/domain"
 	"github.com/G-Research/armada/internal/executor/util"
 	"github.com/G-Research/armada/pkg/api"
@@ -173,19 +172,20 @@ func CreateJobFailedEvent(pod *v1.Pod, reason string, cause api.Cause, container
 	}
 }
 
-func CreateJobUtilisationEvent(pod *v1.Pod, maxResources common.ComputeResources, clusterId string) api.Event {
+func CreateJobUtilisationEvent(pod *v1.Pod, utilisationData *domain.UtilisationData, clusterId string) api.Event {
 	return &api.JobUtilisationEvent{
-		JobId:                 pod.Labels[domain.JobId],
-		JobSetId:              pod.Annotations[domain.JobSetId],
-		Queue:                 pod.Labels[domain.Queue],
-		Created:               time.Now(),
-		ClusterId:             clusterId,
-		MaxResourcesForPeriod: maxResources,
-		KubernetesId:          string(pod.ObjectMeta.UID),
-		PodNumber:             getPodNumber(pod),
-		PodName:               pod.Name,
-		PodNamespace:          pod.Namespace,
-		NodeName:              pod.Spec.NodeName,
+		JobId:                       pod.Labels[domain.JobId],
+		JobSetId:                    pod.Annotations[domain.JobSetId],
+		Queue:                       pod.Labels[domain.Queue],
+		Created:                     time.Now(),
+		ClusterId:                   clusterId,
+		MaxResourcesForPeriod:       utilisationData.CurrentUsage,
+		LifetimeCumulativeResources: utilisationData.CumulativeUsage,
+		KubernetesId:                string(pod.ObjectMeta.UID),
+		PodNumber:                   getPodNumber(pod),
+		PodName:                     pod.Name,
+		PodNamespace:                pod.Namespace,
+		NodeName:                    pod.Spec.NodeName,
 	}
 }
 

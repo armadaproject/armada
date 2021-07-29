@@ -16,50 +16,40 @@ import (
 )
 
 type PodUtilisationService interface {
-	GetPodUtilisation(pod *v1.Pod) common.ComputeResources
+	GetPodUtilisation(pod *v1.Pod) *domain.UtilisationData
 }
 
 type MetricsServerPodUtilisationService struct {
 	clusterContext     context.ClusterContext
-	podUtilisationData map[string]common.ComputeResources
+	podUtilisationData map[string]*domain.UtilisationData
 	dataAccessMutex    sync.Mutex
 }
 
 func NewMetricsServerQueueUtilisationService(clusterContext context.ClusterContext) *MetricsServerPodUtilisationService {
 	return &MetricsServerPodUtilisationService{
 		clusterContext:     clusterContext,
-		podUtilisationData: map[string]common.ComputeResources{},
+		podUtilisationData: map[string]*domain.UtilisationData{},
 		dataAccessMutex:    sync.Mutex{},
 	}
 }
 
-type UsageMetric struct {
-	ResourceUsed common.ComputeResources
-}
-
-func (u *UsageMetric) DeepCopy() *UsageMetric {
-	return &UsageMetric{
-		ResourceUsed: u.ResourceUsed.DeepCopy(),
-	}
-}
-
-func (q *MetricsServerPodUtilisationService) GetPodUtilisation(pod *v1.Pod) common.ComputeResources {
+func (q *MetricsServerPodUtilisationService) GetPodUtilisation(pod *v1.Pod) *domain.UtilisationData {
 	if pod.Status.Phase == v1.PodSucceeded || pod.Status.Phase == v1.PodFailed {
-		return common.ComputeResources{}
+		return domain.EmptyUtilisationData()
 	}
 	q.dataAccessMutex.Lock()
 	defer q.dataAccessMutex.Unlock()
 	utilisation, present := q.podUtilisationData[pod.Name]
 	if !present {
-		return common.ComputeResources{}
+		return domain.EmptyUtilisationData()
 	}
 	return utilisation.DeepCopy()
 }
 
-func (q *MetricsServerPodUtilisationService) updatePodUtilisation(name string, resources common.ComputeResources) {
+func (q *MetricsServerPodUtilisationService) updatePodUtilisation(name string, utilisationData *domain.UtilisationData) {
 	q.dataAccessMutex.Lock()
 	defer q.dataAccessMutex.Unlock()
-	q.podUtilisationData[name] = resources
+	q.podUtilisationData[name] = utilisationData
 }
 
 func (q *MetricsServerPodUtilisationService) removeFinishedPods(podNames map[string]bool) {
@@ -116,17 +106,18 @@ func (q *MetricsServerPodUtilisationService) RefreshUtilisationData() {
 }
 
 func (q *MetricsServerPodUtilisationService) updatePodStats(podStats *v1alpha1.PodStats) {
-
-	resources := common.ComputeResources{}
+	currentUsage := common.ComputeResources{}
+	cumulativeUsage := common.ComputeResources{}
 
 	if podStats.CPU != nil && podStats.CPU.UsageNanoCores != nil {
-		resources["cpu"] = *resource.NewScaledQuantity(int64(*podStats.CPU.UsageNanoCores), -9)
+		currentUsage["cpu"] = *resource.NewScaledQuantity(int64(*podStats.CPU.UsageNanoCores), -9)
+		cumulativeUsage["cpu"] = *resource.NewScaledQuantity(int64(*podStats.CPU.UsageCoreNanoSeconds), -9)
 	}
 	if podStats.Memory != nil && podStats.Memory.WorkingSetBytes != nil {
-		resources["memory"] = *resource.NewQuantity(int64(*podStats.Memory.WorkingSetBytes), resource.BinarySI)
+		currentUsage["memory"] = *resource.NewQuantity(int64(*podStats.Memory.WorkingSetBytes), resource.BinarySI)
 	}
 	if podStats.EphemeralStorage != nil && podStats.EphemeralStorage.UsedBytes != nil {
-		resources["ephemeral-storage"] = *resource.NewQuantity(int64(*podStats.EphemeralStorage.UsedBytes), resource.BinarySI)
+		currentUsage["ephemeral-storage"] = *resource.NewQuantity(int64(*podStats.EphemeralStorage.UsedBytes), resource.BinarySI)
 	}
 
 	var (
@@ -146,9 +137,13 @@ func (q *MetricsServerPodUtilisationService) updatePodStats(podStats *v1alpha1.P
 	}
 
 	if accelerator {
-		resources[domain.AcceleratorDutyCycle] = *resource.NewScaledQuantity(acceleratorDutyCycles, -2)
-		resources[domain.AcceleratorMemory] = *resource.NewScaledQuantity(acceleratorUsedMemory, -2)
+		currentUsage[domain.AcceleratorDutyCycle] = *resource.NewScaledQuantity(acceleratorDutyCycles, -2)
+		currentUsage[domain.AcceleratorMemory] = *resource.NewScaledQuantity(acceleratorUsedMemory, -2)
 	}
 
-	q.updatePodUtilisation(podStats.PodRef.Name, resources)
+	utilisationData := &domain.UtilisationData{
+		CurrentUsage:    currentUsage,
+		CumulativeUsage: cumulativeUsage,
+	}
+	q.updatePodUtilisation(podStats.PodRef.Name, utilisationData)
 }

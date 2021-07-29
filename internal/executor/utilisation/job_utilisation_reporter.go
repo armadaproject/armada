@@ -4,11 +4,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/G-Research/armada/internal/executor/domain"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/G-Research/armada/internal/common"
 	clusterContext "github.com/G-Research/armada/internal/executor/context"
 	"github.com/G-Research/armada/internal/executor/reporter"
 	"github.com/G-Research/armada/internal/executor/util"
@@ -28,7 +28,7 @@ type UtilisationEventReporter struct {
 type podUtilisationInfo struct {
 	lastReported   time.Time
 	pod            *v1.Pod
-	utilisationMax common.ComputeResources
+	utilisationMax *domain.UtilisationData
 }
 
 func NewUtilisationEventReporter(
@@ -87,7 +87,7 @@ func (r *UtilisationEventReporter) ReportUtilisationEvents() {
 		if info.lastReported.Before(reportingTime) {
 			r.reportUsage(info)
 			info.lastReported = now
-			info.utilisationMax = common.ComputeResources{}
+			info.utilisationMax = domain.EmptyUtilisationData()
 		}
 	}
 }
