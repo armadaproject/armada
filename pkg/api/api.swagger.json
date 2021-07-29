@@ -558,6 +558,9 @@
         },
         "queue": {
           "type": "string"
+        },
+        "requestor": {
+          "type": "string"
         }
       }
     },
@@ -575,6 +578,9 @@
           "type": "string"
         },
         "queue": {
+          "type": "string"
+        },
+        "requestor": {
           "type": "string"
         }
       }
@@ -867,6 +873,9 @@
         },
         "queue": {
           "type": "string"
+        },
+        "requestor": {
+          "type": "string"
         }
       }
     },
@@ -888,6 +897,9 @@
           "format": "double"
         },
         "queue": {
+          "type": "string"
+        },
+        "requestor": {
           "type": "string"
         }
       }
