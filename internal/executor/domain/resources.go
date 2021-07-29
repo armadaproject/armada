@@ -17,16 +17,9 @@ func EmptyUtilisationData() *UtilisationData {
 	}
 }
 
-func (a *UtilisationData) Max(b *UtilisationData) *UtilisationData {
-	maxCurrentUsage := a.CurrentUsage
-	maxCurrentUsage.Max(a.CurrentUsage)
-	maxCumulativeUsage := a.CumulativeUsage
-	maxCumulativeUsage.Max(b.CumulativeUsage)
-
-	return &UtilisationData{
-		CurrentUsage:    maxCurrentUsage,
-		CumulativeUsage: maxCumulativeUsage,
-	}
+func (a *UtilisationData) Max(b *UtilisationData) {
+	a.CurrentUsage.Max(b.CurrentUsage)
+	a.CumulativeUsage.Max(b.CumulativeUsage)
 }
 
 func (u *UtilisationData) DeepCopy() *UtilisationData {
