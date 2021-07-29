@@ -32,7 +32,16 @@ import "./index.css"
     uiConfig.binocularsEnabled,
   )
 
-  ReactDOM.render(<App jobService={jobService} logService={logService} />, document.getElementById("root"))
+  ReactDOM.render(
+    <App
+      jobService={jobService}
+      logService={logService}
+      overviewAutoRefreshMs={uiConfig.overviewAutoRefreshMs}
+      jobSetsAutoRefreshMs={uiConfig.jobSetsAutoRefreshMs}
+      jobsAutoRefreshMs={uiConfig.jobsAutoRefreshMs}
+    />,
+    document.getElementById("root"),
+  )
 
   reportWebVitals()
 })()

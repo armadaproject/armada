@@ -4,7 +4,6 @@ import {
   Button,
   Container,
   FormControl,
-  IconButton,
   InputLabel,
   MenuItem,
   MenuProps,
@@ -16,11 +15,13 @@ import {
 } from "@material-ui/core"
 import CancelIcon from "@material-ui/icons/Cancel"
 import LowPriority from "@material-ui/icons/LowPriority"
-import RefreshIcon from "@material-ui/icons/Refresh"
 import { AutoSizer } from "react-virtualized"
 
+import RefreshButton from "../../RefreshButton"
 import { JobSetsView, isJobSetsView } from "../../containers/JobSetsContainer"
 import { DurationStats, JobSet } from "../../services/JobService"
+import { RequestStatus } from "../../utils"
+import AutoRefreshToggle from "../AutoRefreshToggle"
 import DurationPlotsTable from "./DurationPlotsTable"
 import JobSetTable from "./JobSetTable"
 
@@ -32,6 +33,8 @@ interface JobSetsProps {
   jobSets: JobSet[]
   selectedJobSets: Map<string, JobSet>
   canCancel: boolean
+  getJobSetsRequestStatus: RequestStatus
+  autoRefresh: boolean
   canReprioritize: boolean
   newestFirst: boolean
   activeOnly: boolean
@@ -43,6 +46,7 @@ interface JobSetsProps {
   onShiftSelectJobSet: (index: number, selected: boolean) => void
   onDeselectAllClick: () => void
   onCancelJobSetsClick: () => void
+  onToggleAutoRefresh: (autoRefresh: boolean) => void
   onReprioritizeJobSetsClick: () => void
   onOrderChange: (newestFirst: boolean) => void
   onActiveOnlyChange: (activeOnly: boolean) => void
@@ -105,8 +109,8 @@ export default function JobSets(props: JobSetsProps) {
   return (
     <Container className="job-sets">
       <div className="job-sets-header">
-        <h2 className="title">Job Sets</h2>
         <div className="job-sets-params">
+          <h2 className="title">Job Sets</h2>
           <div className="job-sets-field">
             <TextField
               className="job-sets-field"
@@ -194,10 +198,11 @@ export default function JobSets(props: JobSetsProps) {
               Cancel
             </Button>
           </div>
+          <div className="auto-refresh">
+            <AutoRefreshToggle autoRefresh={props.autoRefresh} onAutoRefreshChange={props.onToggleAutoRefresh} />
+          </div>
           <div className="refresh-button">
-            <IconButton title={"Refresh"} onClick={props.onRefresh} color={"primary"}>
-              <RefreshIcon />
-            </IconButton>
+            <RefreshButton isLoading={props.getJobSetsRequestStatus === "Loading"} onClick={props.onRefresh} />
           </div>
         </div>
       </div>

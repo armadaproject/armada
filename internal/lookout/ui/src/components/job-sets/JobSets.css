@@ -18,9 +18,11 @@
 
 .job-sets-header .title {
     margin-left: 16px;
+    margin-right: 1em;
 }
 
 .job-sets-header .job-sets-params {
+    flex: 0 0 auto;
     display: flex;
     flex-direction: row;
     align-items: center;
@@ -29,10 +31,15 @@
 }
 
 .job-sets-header .job-sets-actions {
+    flex: 0 0 auto;
     display: flex;
     flex-direction: row;
     justify-content: space-between;
     align-items: center;
+}
+
+.job-sets-header .job-sets-actions .auto-refresh {
+    margin-right: 1em;
 }
 
 .job-sets-header .job-sets-actions .cancel-button {
@@ -52,9 +59,6 @@
 
 .job-sets-header .refresh-button {
     margin-right: 1em;
-    display: flex;
-    justify-content: center;
-    align-items: center;
 }
 
 .job-sets-content {

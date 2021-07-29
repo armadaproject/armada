@@ -14,22 +14,27 @@ import {
   TableRow,
 } from "@material-ui/core"
 import MoreVert from "@material-ui/icons/MoreVert"
-import RefreshIcon from "@material-ui/icons/Refresh"
 import { AutoSizer } from "react-virtualized"
 
+import RefreshButton from "../RefreshButton"
 import { QueueInfo } from "../services/JobService"
+import { RequestStatus } from "../utils"
+import AutoRefreshToggle from "./AutoRefreshToggle"
 
 import "./Overview.css"
 
-interface OverviewProps {
+type OverviewProps = {
   queueInfos: QueueInfo[]
   openQueueMenu: string
   queueMenuAnchor: HTMLElement | null
+  overviewRequestStatus: RequestStatus
+  autoRefresh: boolean
   onRefresh: () => void
   onJobClick: (jobId: string, queue: string) => void
   onSetQueueMenu: (queue: string, anchor: HTMLElement | null) => void
   onQueueMenuJobSetsClick: (queue: string) => void
   onQueueMenuJobsClick: (queue: string) => void
+  onToggleAutoRefresh: (autoRefresh: boolean) => void
 }
 
 export default function Overview(props: OverviewProps) {
@@ -37,10 +42,13 @@ export default function Overview(props: OverviewProps) {
     <Container className="overview">
       <div className="overview-header">
         <h2 className="title">Overview</h2>
-        <div className="refresh-button">
-          <IconButton title={"Refresh"} onClick={props.onRefresh} color={"primary"}>
-            <RefreshIcon />
-          </IconButton>
+        <div className="right">
+          <div className="auto-refresh">
+            <AutoRefreshToggle autoRefresh={props.autoRefresh} onAutoRefreshChange={props.onToggleAutoRefresh} />
+          </div>
+          <div className="refresh-button">
+            <RefreshButton isLoading={props.overviewRequestStatus === "Loading"} onClick={props.onRefresh} />
+          </div>
         </div>
       </div>
       <div className="overview-table">

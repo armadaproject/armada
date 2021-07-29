@@ -3,7 +3,12 @@ interface UIConfig {
   userAnnotationPrefix: string
   binocularsEnabled: boolean
   binocularsBaseUrlPattern: string
+  overviewAutoRefreshMs: number
+  jobSetsAutoRefreshMs: number
+  jobsAutoRefreshMs: number
 }
+
+export type RequestStatus = "Loading" | "Idle"
 
 export interface Padding {
   top: number
@@ -13,25 +18,31 @@ export interface Padding {
 }
 
 export async function getUIConfig(): Promise<UIConfig> {
-  try {
-    const response = await fetch("/config")
-    const json = await response.json()
-    return {
-      armadaApiBaseUrl: json.ArmadaApiBaseUrl ?? "",
-      userAnnotationPrefix: json.UserAnnotationPrefix ?? "",
-      binocularsEnabled: json.BinocularsEnabled ?? true,
-      binocularsBaseUrlPattern: json.BinocularsBaseUrlPattern ?? "",
-    }
-  } catch (e) {
-    console.error(e)
-  }
-
-  return {
+  const config = {
     armadaApiBaseUrl: "",
     userAnnotationPrefix: "",
     binocularsEnabled: true,
     binocularsBaseUrlPattern: "",
+    overviewAutoRefreshMs: 15000,
+    jobSetsAutoRefreshMs: 15000,
+    jobsAutoRefreshMs: 30000,
   }
+
+  try {
+    const response = await fetch("/config")
+    const json = await response.json()
+    if (json.ArmadaApiBaseUrl) config.armadaApiBaseUrl = json.ArmadaApiBaseUrl
+    if (json.UserAnnotationPrefix) config.userAnnotationPrefix = json.UserAnnotationPrefix
+    if (json.BinocularsEnabled) config.binocularsEnabled = json.BinocularsEnabled
+    if (json.BinocularsBaseUrlPattern) config.binocularsBaseUrlPattern = json.BinocularsBaseUrlPattern
+    if (json.OverviewAutoRefreshMs) config.overviewAutoRefreshMs = json.OverviewAutoRefreshMs
+    if (json.JobSetsAutoRefreshMs) config.jobSetsAutoRefreshMs = json.JobSetsAutoRefreshMs
+    if (json.JobsAutoRefreshMs) config.jobsAutoRefreshMs = json.JobsAutoRefreshMs
+  } catch (e) {
+    console.error(e)
+  }
+
+  return config
 }
 
 export function reverseMap<K, V>(map: Map<K, V>): Map<V, K> {
@@ -81,6 +92,12 @@ export function secondsToDurationString(totalSeconds: number): string {
   return segments.join(" ")
 }
 
+export function setStateAsync<T>(component: React.Component<any, T>, state: T): Promise<void> {
+  return new Promise((resolve) => {
+    component.setState(state, resolve)
+  })
+}
+
 export function selectItem<V>(key: string, item: V, selectedMap: Map<string, V>, isSelected: boolean) {
   if (isSelected) {
     selectedMap.set(key, item)
@@ -98,5 +115,18 @@ export async function getErrorMessage(error: any): Promise<string> {
     return errorMessage ?? basicMessage
   } catch {
     return basicMessage
+  }
+}
+
+export function updateArray<T>(array: T[], newValues: T[], start: number) {
+  for (let i = 0; i < newValues.length; i++) {
+    const arrayIndex = start + i
+    if (arrayIndex < array.length) {
+      array[arrayIndex] = newValues[i]
+    } else if (arrayIndex >= array.length) {
+      array.push(newValues[i])
+    } else {
+      throw new Error("Index is bad!")
+    }
   }
 }
