@@ -174,18 +174,18 @@ func CreateJobFailedEvent(pod *v1.Pod, reason string, cause api.Cause, container
 
 func CreateJobUtilisationEvent(pod *v1.Pod, utilisationData *domain.UtilisationData, clusterId string) api.Event {
 	return &api.JobUtilisationEvent{
-		JobId:                       pod.Labels[domain.JobId],
-		JobSetId:                    pod.Annotations[domain.JobSetId],
-		Queue:                       pod.Labels[domain.Queue],
-		Created:                     time.Now(),
-		ClusterId:                   clusterId,
-		MaxResourcesForPeriod:       utilisationData.CurrentUsage,
-		LifetimeCumulativeResources: utilisationData.CumulativeUsage,
-		KubernetesId:                string(pod.ObjectMeta.UID),
-		PodNumber:                   getPodNumber(pod),
-		PodName:                     pod.Name,
-		PodNamespace:                pod.Namespace,
-		NodeName:                    pod.Spec.NodeName,
+		JobId:                 pod.Labels[domain.JobId],
+		JobSetId:              pod.Annotations[domain.JobSetId],
+		Queue:                 pod.Labels[domain.Queue],
+		Created:               time.Now(),
+		ClusterId:             clusterId,
+		MaxResourcesForPeriod: utilisationData.CurrentUsage,
+		TotalCumulativeUsage:  utilisationData.CumulativeUsage,
+		KubernetesId:          string(pod.ObjectMeta.UID),
+		PodNumber:             getPodNumber(pod),
+		PodName:               pod.Name,
+		PodNamespace:          pod.Namespace,
+		NodeName:              pod.Spec.NodeName,
 	}
 }
 

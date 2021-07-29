@@ -1213,13 +1213,13 @@ func SwaggerJsonTemplate() string {
 		"    \"apiJobUtilisationEvent\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
-		"        \"LifetimeCumulativeResources\": {\n" +
+		"        \"MaxResourcesForPeriod\": {\n" +
 		"          \"type\": \"object\",\n" +
 		"          \"additionalProperties\": {\n" +
 		"            \"$ref\": \"#/definitions/resourceQuantity\"\n" +
 		"          }\n" +
 		"        },\n" +
-		"        \"MaxResourcesForPeriod\": {\n" +
+		"        \"TotalCumulativeUsage\": {\n" +
 		"          \"type\": \"object\",\n" +
 		"          \"additionalProperties\": {\n" +
 		"            \"$ref\": \"#/definitions/resourceQuantity\"\n" +

@@ -1202,13 +1202,13 @@
     "apiJobUtilisationEvent": {
       "type": "object",
       "properties": {
-        "LifetimeCumulativeResources": {
+        "MaxResourcesForPeriod": {
           "type": "object",
           "additionalProperties": {
             "$ref": "#/definitions/resourceQuantity"
           }
         },
-        "MaxResourcesForPeriod": {
+        "TotalCumulativeUsage": {
           "type": "object",
           "additionalProperties": {
             "$ref": "#/definitions/resourceQuantity"
