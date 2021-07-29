@@ -162,6 +162,7 @@ message JobReprioritizingEvent {
     string queue = 3;
     google.protobuf.Timestamp created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
     double new_priority = 5;
+    string requestor = 6;
 }
 
 message JobReprioritizedEvent {
@@ -170,6 +171,7 @@ message JobReprioritizedEvent {
     string queue = 3;
     google.protobuf.Timestamp created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
     double new_priority = 5;
+    string requestor = 6;
 }
 
 message JobCancellingEvent {
@@ -177,6 +179,7 @@ message JobCancellingEvent {
     string job_set_id = 2;
     string queue = 3;
     google.protobuf.Timestamp created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+    string requestor = 5;
 }
 
 message JobCancelledEvent {
@@ -184,6 +187,7 @@ message JobCancelledEvent {
     string job_set_id = 2;
     string queue = 3;
     google.protobuf.Timestamp created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+    string requestor = 5;
 }
 
 message JobTerminatedEvent {
