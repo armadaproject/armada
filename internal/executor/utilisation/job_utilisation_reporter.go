@@ -4,12 +4,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/G-Research/armada/internal/executor/domain"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/cache"
 
 	clusterContext "github.com/G-Research/armada/internal/executor/context"
+	"github.com/G-Research/armada/internal/executor/domain"
 	"github.com/G-Research/armada/internal/executor/reporter"
 	"github.com/G-Research/armada/internal/executor/util"
 	"github.com/G-Research/armada/pkg/api"
