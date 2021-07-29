@@ -38,6 +38,7 @@ type JobsProps = {
   onJobIdClick: (jobIndex: number) => void
   onAutoRefreshChange: (autoRefresh: boolean) => void
   onInteract: () => void
+  onRegisterResetCache: (resetCache: () => void) => void
 }
 
 export default class Jobs extends React.Component<JobsProps, Record<string, never>> {
@@ -70,13 +71,15 @@ export default class Jobs extends React.Component<JobsProps, Record<string, neve
     }
   }
 
+  componentDidMount() {
+    this.props.onRegisterResetCache(this.resetCache)
+  }
+
   resetCache() {
     this.infiniteLoader.current?.resetLoadMoreRowsCache(true)
   }
 
   render() {
-    this.resetCache()
-
     const rowCount = this.props.jobs.length
     return (
       <div className="jobs">
