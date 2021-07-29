@@ -11,28 +11,29 @@ import ReprioritizeJobsDialog, {
   ReprioritizeJobsDialogContext,
   ReprioritizeJobsDialogState,
 } from "../components/jobs/ReprioritizeJobsDialog"
-import JobService, { GetJobsRequest, JOB_STATES_FOR_DISPLAY, Job } from "../services/JobService"
+import IntervalService from "../services/IntervalService"
+import JobService, { GetJobsRequest, Job, JOB_STATES_FOR_DISPLAY } from "../services/JobService"
+import JobTableService from "../services/JobTableService"
 import LogService from "../services/LogService"
-import { debounced, selectItem } from "../utils"
+import { RequestStatus, selectItem, setStateAsync } from "../utils"
 
 type JobsContainerProps = {
   jobService: JobService
   logService: LogService
+  jobsAutoRefreshMs: number
 } & RouteComponentProps
 
-export type CancelJobsRequestStatus = "Loading" | "Idle"
-export type ReprioritizeJobsRequestStatus = "Loading" | "Idle"
-
-interface JobsContainerState {
+type JobsContainerState = {
   jobs: Job[]
-  canLoadMore: boolean
   selectedJobs: Map<string, Job>
   lastSelectedIndex: number
+  autoRefresh: boolean
   defaultColumns: ColumnSpec<string | boolean | string[]>[]
   annotationColumns: ColumnSpec<string>[]
   cancelJobsModalContext: CancelJobsModalContext
   reprioritizeJobsDialogContext: ReprioritizeJobsDialogContext
   jobDetailsModalContext: JobDetailsModalContext
+  getJobsRequestStatus: RequestStatus
 }
 
 const newPriorityRegex = new RegExp("^([0-9]+)$")
@@ -138,13 +139,21 @@ function parseJobStates(jobStates: string[] | string): string[] {
 }
 
 class JobsContainer extends React.Component<JobsContainerProps, JobsContainerState> {
+  jobTableService: JobTableService
+  autoRefreshService: IntervalService
+
   constructor(props: JobsContainerProps) {
     super(props)
+
+    this.jobTableService = new JobTableService(this.props.jobService, BATCH_SIZE)
+    this.autoRefreshService = new IntervalService(props.jobsAutoRefreshMs)
+
     this.state = {
       jobs: [],
-      canLoadMore: true,
+      getJobsRequestStatus: "Idle",
       selectedJobs: new Map<string, Job>(),
       lastSelectedIndex: 0,
+      autoRefresh: true,
       defaultColumns: [
         {
           id: "queue",
@@ -223,7 +232,8 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     this.changeColumnFilter = this.changeColumnFilter.bind(this)
     this.disableColumn = this.disableColumn.bind(this)
     this.refresh = this.refresh.bind(this)
-    this.resetRefresh = this.resetRefresh.bind(this)
+    this.toggleAutoRefresh = this.toggleAutoRefresh.bind(this)
+    this.resetAutoRefresh = this.resetAutoRefresh.bind(this)
 
     this.selectJob = this.selectJob.bind(this)
     this.shiftSelectJob = this.shiftSelectJob.bind(this)
@@ -242,7 +252,6 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     this.deleteAnnotationColumn = this.deleteAnnotationColumn.bind(this)
     this.changeAnnotationColumnKey = this.changeAnnotationColumnKey.bind(this)
 
-    this.fetchNextJobInfos = debounced(this.fetchNextJobInfos.bind(this), 100)
     this.handlePriorityChange = this.handlePriorityChange.bind(this)
   }
 
@@ -256,19 +265,51 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     updateColumnsFromQueryString(this.props.location.search, this.state.defaultColumns)
     this.setState({
       ...this.state,
+      jobs: this.jobTableService.getJobs(), // Can start loading
       annotationColumns: annotationColumns ?? [],
     })
+
+    this.autoRefreshService.registerCallback(this.refresh)
+    this.autoRefreshService.start()
+  }
+
+  componentWillUnmount() {
+    this.autoRefreshService.stop()
   }
 
   async serveJobs(start: number, stop: number): Promise<Job[]> {
-    if (start >= this.state.jobs.length || stop >= this.state.jobs.length) {
-      await this.loadJobInfosForRange(start, stop)
+    if (this.state.getJobsRequestStatus === "Loading") {
+      return Promise.resolve([])
     }
+
+    await setStateAsync(this, {
+      ...this.state,
+      getJobsRequestStatus: "Loading",
+    })
+
+    let shouldLoad = false
+    for (let i = start; i <= stop; i++) {
+      if (!this.jobTableService.jobIsLoaded(i)) {
+        shouldLoad = true
+        break
+      }
+    }
+
+    if (shouldLoad) {
+      const request = this.createGetJobsRequest()
+      await this.jobTableService.loadJobs(request, start, stop)
+      await setStateAsync(this, {
+        ...this.state,
+        jobs: this.jobTableService.getJobs(),
+        getJobsRequestStatus: "Idle",
+      })
+    }
+
     return Promise.resolve(this.state.jobs.slice(start, stop))
   }
 
   jobIsLoaded(index: number) {
-    return !!this.state.jobs[index]
+    return this.state.getJobsRequestStatus === "Loading" || this.jobTableService.jobIsLoaded(index)
   }
 
   changeColumnFilter(columnId: string, newValue: string | boolean | string[]) {
@@ -349,10 +390,8 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     this.setFilters(this.state)
   }
 
-  resetRefresh() {
-    this.setState({
-      ...this.state,
-    })
+  resetAutoRefresh() {
+    this.autoRefreshService.start()
   }
 
   selectJob(index: number, selected: boolean) {
@@ -465,7 +504,6 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
       this.setState({
         ...this.state,
         jobs: [],
-        canLoadMore: true,
         selectedJobs: new Map<string, Job>(),
         cancelJobsModalContext: {
           jobsToCancel: [],
@@ -490,7 +528,6 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
       this.setState({
         ...this.state,
         jobs: [],
-        canLoadMore: true,
         selectedJobs: new Map<string, Job>(),
         cancelJobsModalContext: {
           ...this.state.cancelJobsModalContext,
@@ -524,7 +561,6 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
       this.setState({
         ...this.state,
         jobs: [],
-        canLoadMore: true,
         selectedJobs: new Map<string, Job>(),
         reprioritizeJobsDialogContext: {
           jobsToReprioritize: [],
@@ -551,7 +587,6 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
       this.setState({
         ...this.state,
         jobs: [],
-        canLoadMore: true,
         selectedJobs: new Map<string, Job>(),
         reprioritizeJobsDialogContext: {
           ...this.state.reprioritizeJobsDialogContext,
@@ -610,6 +645,18 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     })
   }
 
+  toggleAutoRefresh(autoRefresh: boolean) {
+    this.setState({
+      ...this.state,
+      autoRefresh: autoRefresh,
+    })
+    if (autoRefresh) {
+      this.autoRefreshService.start()
+    } else {
+      this.autoRefreshService.stop()
+    }
+  }
+
   handlePriorityChange(newValue: string) {
     const valid = newPriorityRegex.test(newValue) && newValue.length > 0
     this.setState({
@@ -622,29 +669,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     })
   }
 
-  private async loadJobInfosForRange(start: number, stop: number) {
-    let allJobInfos = this.state.jobs
-    let canLoadMore = true
-
-    while (start >= allJobInfos.length || stop >= allJobInfos.length) {
-      const request = this.getJobsRequest(allJobInfos.length)
-      const [newJobInfos, canLoadNext] = await this.fetchNextJobInfos(request)
-      allJobInfos = allJobInfos.concat(newJobInfos)
-      canLoadMore = canLoadNext
-
-      if (!canLoadNext) {
-        break
-      }
-    }
-
-    await this.setStateAsync({
-      ...this.state,
-      jobs: allJobInfos,
-      canLoadMore: canLoadMore,
-    })
-  }
-
-  private getJobsRequest(startIndex: number): GetJobsRequest {
+  private createGetJobsRequest(): GetJobsRequest {
     const request: GetJobsRequest = {
       queue: "",
       jobId: "",
@@ -653,7 +678,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
       newestFirst: true,
       jobStates: [],
       take: BATCH_SIZE,
-      skip: startIndex,
+      skip: 0,
       annotations: {},
     }
 
@@ -694,29 +719,13 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     return request
   }
 
-  private async fetchNextJobInfos(getJobsRequest: GetJobsRequest): Promise<[Job[], boolean]> {
-    const newJobInfos = await this.props.jobService.getJobs(getJobsRequest)
-
-    let canLoadMore = true
-    if (newJobInfos.length < BATCH_SIZE) {
-      canLoadMore = false
-    }
-
-    return [newJobInfos, canLoadMore]
-  }
-
   private setFilters(updatedState: JobsContainerState) {
+    this.jobTableService.refresh()
     this.setState({
       ...updatedState,
-      jobs: [],
-      canLoadMore: true,
-      selectedJobs: new Map<string, Job>(),
+      jobs: this.jobTableService.getJobs(),
     })
     this.setUrlParams()
-  }
-
-  private setStateAsync(state: JobsContainerState): Promise<void> {
-    return new Promise((resolve) => this.setState(state, resolve))
   }
 
   private setUrlParams() {
@@ -780,10 +789,11 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
         />
         <Jobs
           jobs={this.state.jobs}
-          canLoadMore={this.state.canLoadMore}
           defaultColumns={this.state.defaultColumns}
           annotationColumns={this.state.annotationColumns}
           selectedJobs={this.state.selectedJobs}
+          autoRefresh={this.state.autoRefresh}
+          getJobsRequestStatus={this.state.getJobsRequestStatus}
           cancelJobsButtonIsEnabled={this.selectedJobsAreCancellable()}
           reprioritizeButtonIsEnabled={this.selectedJobsAreReprioritizeable()}
           fetchJobs={this.serveJobs}
@@ -800,7 +810,8 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
           onCancelJobsClick={() => this.setCancelJobsModalState("CancelJobs")}
           onReprioritizeJobsClick={() => this.setReprioritizeJobsDialogState("ReprioritizeJobs")}
           onJobIdClick={this.openJobDetailsModal}
-          resetRefresh={this.resetRefresh}
+          onAutoRefreshChange={this.toggleAutoRefresh}
+          onInteract={this.resetAutoRefresh}
         />
       </Fragment>
     )

@@ -7,6 +7,9 @@ uiConfig:
   userAnnotationPrefix: "armadaproject.io/"
   binocularsEnabled: true
   binocularsBaseUrlPattern: "http://localhost:8082" # {CLUSTER_ID} gets replaced by appropriate cluster id
+  overviewAutoRefreshMs: 15000
+  jobSetsAutoRefreshMs: 15000
+  jobsAutoRefreshMs: 30000
 
 postgres:
   maxOpenConns: 100

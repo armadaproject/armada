@@ -4,6 +4,7 @@ import { AutoSizer, InfiniteLoader, Table } from "react-virtualized"
 
 import { ColumnSpec } from "../../containers/JobsContainer"
 import { Job } from "../../services/JobService"
+import { RequestStatus } from "../../utils"
 import CheckboxHeaderRow from "../CheckboxHeaderRow"
 import CheckboxRow from "../CheckboxRow"
 import JobTableHeader from "./JobTableHeader"
@@ -14,12 +15,13 @@ import "./Jobs.css"
 
 type JobsProps = {
   jobs: Job[]
-  canLoadMore: boolean
   defaultColumns: ColumnSpec<string | boolean | string[]>[]
   annotationColumns: ColumnSpec<string>[]
   selectedJobs: Map<string, Job>
+  autoRefresh: boolean
   cancelJobsButtonIsEnabled: boolean
   reprioritizeButtonIsEnabled: boolean
+  getJobsRequestStatus: RequestStatus
   fetchJobs: (start: number, stop: number) => Promise<Job[]>
   isLoaded: (index: number) => boolean
   onChangeColumnValue: (columnId: string, newValue: string | boolean | string[]) => void
@@ -34,7 +36,8 @@ type JobsProps = {
   onCancelJobsClick: () => void
   onReprioritizeJobsClick: () => void
   onJobIdClick: (jobIndex: number) => void
-  resetRefresh: () => void
+  onAutoRefreshChange: (autoRefresh: boolean) => void
+  onInteract: () => void
 }
 
 export default class Jobs extends React.Component<JobsProps, Record<string, never>> {
@@ -74,15 +77,17 @@ export default class Jobs extends React.Component<JobsProps, Record<string, neve
   render() {
     this.resetCache()
 
-    const rowCount = this.props.canLoadMore ? this.props.jobs.length + 1 : this.props.jobs.length
+    const rowCount = this.props.jobs.length
     return (
       <div className="jobs">
         <div className="job-table-header-container">
           <JobTableHeader
             defaultColumns={this.props.defaultColumns}
             annotationColumns={this.props.annotationColumns}
+            autoRefresh={this.props.autoRefresh}
             canCancel={this.props.cancelJobsButtonIsEnabled}
             canReprioritize={this.props.reprioritizeButtonIsEnabled}
+            isLoading={this.props.getJobsRequestStatus === "Loading"}
             onRefresh={this.props.onRefresh}
             onCancelJobsClick={this.props.onCancelJobsClick}
             onReprioritizeJobsClick={this.props.onReprioritizeJobsClick}
@@ -90,6 +95,7 @@ export default class Jobs extends React.Component<JobsProps, Record<string, neve
             onDeleteColumn={this.props.onDeleteColumn}
             onAddColumn={this.props.onAddColumn}
             onChangeAnnotationColumnKey={this.props.onChangeAnnotationColumnKey}
+            onAutoRefreshChange={this.props.onAutoRefreshChange}
           />
         </div>
         <div className="job-table">
@@ -98,8 +104,8 @@ export default class Jobs extends React.Component<JobsProps, Record<string, neve
             isRowLoaded={({ index }) => {
               return this.props.isLoaded(index)
             }}
-            loadMoreRows={({ startIndex, stopIndex }) => {
-              return this.props.fetchJobs(startIndex, stopIndex + 1) // stopIndex is inclusive
+            loadMoreRows={async ({ startIndex, stopIndex }) => {
+              await this.props.fetchJobs(startIndex, stopIndex + 1) // stopIndex is inclusive
             }}
             rowCount={rowCount}
           >
@@ -129,8 +135,14 @@ export default class Jobs extends React.Component<JobsProps, Record<string, neve
                         return (
                           <CheckboxRow
                             isChecked={selected}
-                            onChangeChecked={(selected) => this.props.onSelectJob(tableRowProps.index, selected)}
-                            onChangeCheckedShift={(selected) => this.props.onShiftSelect(tableRowProps.index, selected)}
+                            onChangeChecked={(selected) => {
+                              this.props.onInteract()
+                              this.props.onSelectJob(tableRowProps.index, selected)
+                            }}
+                            onChangeCheckedShift={(selected) => {
+                              this.props.onInteract()
+                              this.props.onShiftSelect(tableRowProps.index, selected)
+                            }}
                             tableKey={tableRowProps.key}
                             {...tableRowProps}
                           />
@@ -148,6 +160,7 @@ export default class Jobs extends React.Component<JobsProps, Record<string, neve
                       headerHeight={60}
                       height={height - 1}
                       width={width}
+                      onScroll={this.props.onInteract}
                     >
                       {enabledColumns.map((col) =>
                         columnWrapper(
