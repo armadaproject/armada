@@ -1239,6 +1239,12 @@
         },
         "queue": {
           "type": "string"
+        },
+        "totalCumulativeUsage": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/resourceQuantity"
+          }
         }
       }
     },
