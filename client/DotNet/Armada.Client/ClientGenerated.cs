@@ -1588,9 +1588,6 @@ namespace GResearch.Armada.Client
         [Newtonsoft.Json.JsonProperty("MaxResourcesForPeriod", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.IDictionary<string, string> MaxResourcesForPeriod { get; set; }
     
-        [Newtonsoft.Json.JsonProperty("TotalCumulativeUsage", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.Collections.Generic.IDictionary<string, string> TotalCumulativeUsage { get; set; }
-    
         [Newtonsoft.Json.JsonProperty("clusterId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string ClusterId { get; set; }
     
@@ -1620,6 +1617,9 @@ namespace GResearch.Armada.Client
     
         [Newtonsoft.Json.JsonProperty("queue", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Queue { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("totalCumulativeUsage", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.IDictionary<string, string> TotalCumulativeUsage { get; set; }
     
     
     }

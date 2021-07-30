@@ -154,7 +154,7 @@ message JobUtilisationEvent {
     int32 pod_number = 9;
     string pod_name = 10;
     string pod_namespace = 11;
-    map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> TotalCumulativeUsage = 12 [(gogoproto.nullable) = false];
+    map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> total_cumulative_usage = 12 [(gogoproto.nullable) = false];
 }
 
 message JobReprioritizingEvent {

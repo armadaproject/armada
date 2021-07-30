@@ -1208,12 +1208,6 @@
             "$ref": "#/definitions/resourceQuantity"
           }
         },
-        "TotalCumulativeUsage": {
-          "type": "object",
-          "additionalProperties": {
-            "$ref": "#/definitions/resourceQuantity"
-          }
-        },
         "clusterId": {
           "type": "string"
         },
@@ -1245,6 +1239,12 @@
         },
         "queue": {
           "type": "string"
+        },
+        "totalCumulativeUsage": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/resourceQuantity"
+          }
         }
       }
     },
