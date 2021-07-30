@@ -111,6 +111,8 @@ func (q *MetricsServerPodUtilisationService) updatePodStats(podStats *v1alpha1.P
 
 	if podStats.CPU != nil && podStats.CPU.UsageNanoCores != nil {
 		currentUsage["cpu"] = *resource.NewScaledQuantity(int64(*podStats.CPU.UsageNanoCores), -9)
+	}
+	if podStats.CPU != nil && podStats.CPU.UsageCoreNanoSeconds != nil {
 		cumulativeUsage["cpu"] = *resource.NewScaledQuantity(int64(*podStats.CPU.UsageCoreNanoSeconds), -9)
 	}
 	if podStats.Memory != nil && podStats.Memory.WorkingSetBytes != nil {
