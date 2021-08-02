@@ -12,6 +12,14 @@ import LogService from "./services/LogService"
 
 import "./App.css"
 
+type AppProps = {
+  jobService: JobService
+  logService: LogService
+  overviewAutoRefreshMs: number
+  jobSetsAutoRefreshMs: number
+  jobsAutoRefreshMs: number
+}
+
 const theme = createMuiTheme({
   palette: {
     primary: {
@@ -36,7 +44,7 @@ const theme = createMuiTheme({
   },
 })
 
-export function App(services: { jobService: JobService; logService: LogService }) {
+export function App(props: AppProps) {
   return (
     <ThemeProvider theme={theme}>
       <Router>
@@ -45,13 +53,13 @@ export function App(services: { jobService: JobService; logService: LogService }
           <div className="app-content">
             <Switch>
               <Route exact path="/">
-                <OverviewContainer {...services} />
+                <OverviewContainer {...props} />
               </Route>
               <Route exact path="/job-sets">
-                <JobSetsContainer {...services} />
+                <JobSetsContainer {...props} />
               </Route>
               <Route exact path="/jobs">
-                <JobsContainer {...services} />
+                <JobsContainer {...props} />
               </Route>
             </Switch>
           </div>

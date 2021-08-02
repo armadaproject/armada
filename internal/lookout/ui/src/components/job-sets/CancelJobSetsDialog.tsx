@@ -2,8 +2,8 @@ import React from "react"
 
 import { Dialog, DialogContent, DialogTitle } from "@material-ui/core"
 
-import { CancelJobSetsRequestStatus } from "../../containers/JobSetsContainer"
 import { CancelJobSetsResult, JobSet } from "../../services/JobService"
+import { RequestStatus } from "../../utils"
 import CancelJobSets from "./CancelJobSets"
 import CancelJobSetsOutcome from "./CancelJobSetsOutcome"
 
@@ -14,7 +14,7 @@ export interface CancelJobSetsDialogContext {
   queue: string
   jobSetsToCancel: JobSet[]
   cancelJobSetsResult: CancelJobSetsResult
-  cancelJobSetsRequestStatus: CancelJobSetsRequestStatus
+  cancelJobSetsRequestStatus: RequestStatus
 }
 
 interface CancelJobSetsProps extends CancelJobSetsDialogContext {
