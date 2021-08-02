@@ -315,9 +315,9 @@ func (clusterUtilisationService *ClusterUtilisationService) getUsageByQueue(pods
 		podUsage := clusterUtilisationService.queueUtilisationService.GetPodUtilisation(pod)
 
 		if _, ok := utilisationByQueue[queue]; ok {
-			utilisationByQueue[queue].Add(podUsage)
+			utilisationByQueue[queue].Add(podUsage.CurrentUsage)
 		} else {
-			utilisationByQueue[queue] = podUsage
+			utilisationByQueue[queue] = podUsage.CurrentUsage
 		}
 	}
 

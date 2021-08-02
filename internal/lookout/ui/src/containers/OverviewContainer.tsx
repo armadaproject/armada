@@ -4,38 +4,51 @@ import { RouteComponentProps, withRouter } from "react-router-dom"
 
 import Overview from "../components/Overview"
 import JobDetailsModal, { JobDetailsModalContext, toggleExpanded } from "../components/job-details/JobDetailsModal"
+import IntervalService from "../services/IntervalService"
 import JobService, { Job, QueueInfo } from "../services/JobService"
 import LogService from "../services/LogService"
+import { RequestStatus, setStateAsync } from "../utils"
 
 type OverviewContainerProps = {
   jobService: JobService
   logService: LogService
+  overviewAutoRefreshMs: number
 } & RouteComponentProps
 
 interface OverviewContainerState {
   queueInfos: QueueInfo[]
   openQueueMenu: string
   queueMenuAnchor: HTMLElement | null
+  overviewRequestStatus: RequestStatus
+  autoRefresh: boolean
   modalContext: JobDetailsModalContext
 }
 
 class OverviewContainer extends React.Component<OverviewContainerProps, OverviewContainerState> {
+  autoRefreshService: IntervalService
+
   constructor(props: OverviewContainerProps) {
     super(props)
+
+    this.autoRefreshService = new IntervalService(props.overviewAutoRefreshMs)
+
     this.state = {
       queueInfos: [],
       openQueueMenu: "",
       queueMenuAnchor: null,
+      overviewRequestStatus: "Idle",
+      autoRefresh: true,
       modalContext: {
         open: false,
         expandedItems: new Set(),
       },
     }
 
-    this.fetchQueueInfos = this.fetchQueueInfos.bind(this)
+    this.fetchOverview = this.fetchOverview.bind(this)
     this.setOpenQueueMenu = this.setOpenQueueMenu.bind(this)
     this.navigateToJobSets = this.navigateToJobSets.bind(this)
     this.navigateToJobs = this.navigateToJobs.bind(this)
+    this.toggleAutoRefresh = this.toggleAutoRefresh.bind(this)
 
     this.openModalForJob = this.openModalForJob.bind(this)
     this.toggleExpanded = this.toggleExpanded.bind(this)
@@ -43,13 +56,25 @@ class OverviewContainer extends React.Component<OverviewContainerProps, Overview
   }
 
   async componentDidMount() {
-    await this.fetchQueueInfos()
+    await this.fetchOverview()
+
+    this.autoRefreshService.registerCallback(this.fetchOverview)
+    this.autoRefreshService.start()
   }
 
-  async fetchQueueInfos() {
+  componentWillUnmount() {
+    this.autoRefreshService.stop()
+  }
+
+  async fetchOverview() {
+    await setStateAsync(this, {
+      ...this.state,
+      overviewRequestStatus: "Loading",
+    })
     const queueInfos = await this.props.jobService.getOverview()
     this.setState({
       queueInfos: queueInfos,
+      overviewRequestStatus: "Idle",
     })
   }
 
@@ -124,6 +149,19 @@ class OverviewContainer extends React.Component<OverviewContainerProps, Overview
     })
   }
 
+  toggleAutoRefresh(autoRefresh: boolean) {
+    this.setState({
+      ...this.state,
+      autoRefresh: autoRefresh,
+    })
+
+    if (autoRefresh) {
+      this.autoRefreshService.start()
+    } else {
+      this.autoRefreshService.stop()
+    }
+  }
+
   render() {
     return (
       <Fragment>
@@ -137,11 +175,14 @@ class OverviewContainer extends React.Component<OverviewContainerProps, Overview
           queueInfos={this.state.queueInfos}
           openQueueMenu={this.state.openQueueMenu}
           queueMenuAnchor={this.state.queueMenuAnchor}
-          onRefresh={this.fetchQueueInfos}
+          overviewRequestStatus={this.state.overviewRequestStatus}
+          autoRefresh={this.state.autoRefresh}
+          onRefresh={this.fetchOverview}
           onJobClick={this.openModalForJob}
           onSetQueueMenu={this.setOpenQueueMenu}
           onQueueMenuJobSetsClick={this.navigateToJobSets}
           onQueueMenuJobsClick={this.navigateToJobs}
+          onToggleAutoRefresh={this.toggleAutoRefresh}
         />
       </Fragment>
     )

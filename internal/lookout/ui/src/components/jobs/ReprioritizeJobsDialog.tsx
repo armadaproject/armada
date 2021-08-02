@@ -2,8 +2,8 @@ import React from "react"
 
 import { Dialog, DialogTitle, DialogContent } from "@material-ui/core"
 
-import { ReprioritizeJobsRequestStatus } from "../../containers/JobsContainer"
 import { ReprioritizeJobsResult, Job } from "../../services/JobService"
+import { RequestStatus } from "../../utils"
 import ReprioritizeJobs from "./ReprioritizeJobs"
 import ReprioritizeJobsOutcome from "./ReprioritizeJobsOutcome"
 
@@ -15,7 +15,7 @@ export interface ReprioritizeJobsDialogContext {
   isValid: boolean
   jobsToReprioritize: Job[]
   reprioritizeJobsResult: ReprioritizeJobsResult
-  reprioritizeJobsRequestStatus: ReprioritizeJobsRequestStatus
+  reprioritizeJobsRequestStatus: RequestStatus
 }
 
 interface ReprioritizeJobsDialogProps extends ReprioritizeJobsDialogContext {

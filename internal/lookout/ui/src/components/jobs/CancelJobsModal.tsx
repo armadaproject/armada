@@ -3,8 +3,8 @@ import React from "react"
 import { Backdrop, Fade, Modal, createStyles } from "@material-ui/core"
 import { makeStyles } from "@material-ui/core/styles"
 
-import { CancelJobsRequestStatus } from "../../containers/JobsContainer"
 import { CancelJobsResult, Job } from "../../services/JobService"
+import { RequestStatus } from "../../utils"
 import CancelJobs from "./CancelJobs"
 import CancelJobsOutcome from "./CancelJobsOutcome"
 
@@ -14,7 +14,7 @@ export interface CancelJobsModalContext {
   modalState: CancelJobsModalState
   jobsToCancel: Job[]
   cancelJobsResult: CancelJobsResult
-  cancelJobsRequestStatus: CancelJobsRequestStatus
+  cancelJobsRequestStatus: RequestStatus
 }
 
 interface CancelJobsDialogProps extends CancelJobsModalContext {
