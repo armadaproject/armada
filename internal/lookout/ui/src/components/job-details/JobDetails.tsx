@@ -69,10 +69,10 @@ export default function JobDetails(props: DetailsProps) {
             )}
             {lastRun && <RunDetailsRows run={lastRun} />}
             {props.job.annotations &&
-              Object.keys(props.job.annotations).map((e) => (
-                <TableRow key={e}>
-                  <TableCell className="field-label">{e}</TableCell>
-                  <TableCell className="field-value">{props.job.annotations[e]}</TableCell>
+              Object.keys(props.job.annotations).map((annotationName) => (
+                <TableRow key={annotationName}>
+                  <TableCell className="field-label">{annotationName}</TableCell>
+                  <TableCell className="field-value">{props.job.annotations[annotationName]}</TableCell>
                 </TableRow>
               ))}
           </TableBody>
