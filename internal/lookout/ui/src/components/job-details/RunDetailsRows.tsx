@@ -1,7 +1,5 @@
 import React, { Fragment } from "react"
 
-import { TableCell, TableRow } from "@material-ui/core"
-
 import { Run } from "../../services/JobService"
 import "./Details.css"
 import { MakeJobDetailsRow, MakeJobDetailsRowDetailed } from "./JobDetailsUtils"
