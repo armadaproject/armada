@@ -1,6 +1,7 @@
 import React from "react"
 
-import { TableCell, TableRow } from "@material-ui/core"
+import { Button, TableCell, TableRow } from "@material-ui/core"
+import FileCopyOutlined from "@material-ui/icons/FileCopyOutlined"
 
 export function MakeJobDetailsRow(name: string, value: string) {
   return MakeJobDetailSpecifyKey(name, name, value)
@@ -15,13 +16,13 @@ export function MakeJobDetailsRowDetailed(key: string, name: string, value: stri
     <TableRow key={key}>
       <TableCell className="field-label">{name}</TableCell>
       <TableCell className={valueClass}>{value}</TableCell>
-      <TableCell
-        className="copy"
-        onClick={() => {
-          navigator.clipboard.writeText(value)
-        }}
-      >
-        Copy
+      <TableCell className="copy">
+        <Button
+          onClick={() => {
+            navigator.clipboard.writeText(value)
+          }}
+          startIcon={<FileCopyOutlined />}
+        />
       </TableCell>
     </TableRow>
   )
