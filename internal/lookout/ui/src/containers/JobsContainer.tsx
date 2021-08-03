@@ -159,6 +159,14 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
       autoRefresh: true,
       defaultColumns: [
         {
+          id: "jobState",
+          name: "State",
+          accessor: "jobState",
+          isDisabled: false,
+          filter: [],
+          defaultFilter: [],
+        },
+        {
           id: "queue",
           name: "Queue",
           accessor: "queue",
@@ -197,14 +205,6 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
           isDisabled: false,
           filter: true,
           defaultFilter: true,
-        },
-        {
-          id: "jobState",
-          name: "State",
-          accessor: "jobState",
-          isDisabled: false,
-          filter: [],
-          defaultFilter: [],
         },
       ],
       annotationColumns: [],

@@ -1,6 +1,6 @@
 import React from "react"
 
-import { Column } from "react-virtualized"
+import { Column, TableCellProps } from "react-virtualized"
 
 import { ColumnSpec } from "../../containers/JobsContainer"
 import { Job } from "../../services/JobService"
@@ -42,8 +42,10 @@ export default function columnWrapper(
         <Column
           key={key}
           dataKey={columnSpec.accessor}
-          width={width}
+          width={100}
           label={columnSpec.name}
+          cellRenderer={(cellProps) => cellRendererForState(cellProps, cellProps.cellData)}
+          style={{ height: "100%" }}
           headerRenderer={(headerProps) => (
             <JobStatesHeaderCell
               jobStates={columnSpec.filter as string[]}
@@ -124,4 +126,41 @@ export default function columnWrapper(
   }
 
   return column
+}
+
+function cellRendererForState(cellProps: TableCellProps, state: string) {
+  return (
+    <div
+      style={{
+        backgroundColor: colorForState(state),
+        display: "flex",
+        flex: 1,
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        height: "100%",
+      }}
+    >
+      {state}
+    </div>
+  )
+}
+
+function colorForState(state: string): string {
+  switch (state) {
+    case "Queued":
+      return "gold"
+    case "Pending":
+      return "goldenrod"
+    case "Running":
+      return "green"
+    case "Succeeded":
+      return "white"
+    case "Failed":
+      return "red"
+    case "Cancelled":
+      return "lightgray"
+    default:
+      return "purple"
+  }
 }
