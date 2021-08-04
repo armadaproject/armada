@@ -1,5 +1,6 @@
 import React from "react"
 
+import { grey, green, orange, purple, red, yellow } from "@material-ui/core/colors"
 import { Column, TableCellProps } from "react-virtualized"
 
 import { ColumnSpec } from "../../containers/JobsContainer"
@@ -149,18 +150,18 @@ function cellRendererForState(cellProps: TableCellProps, state: string) {
 function colorForState(state: string): string {
   switch (state) {
     case "Queued":
-      return "gold"
+      return yellow["A100"]
     case "Pending":
-      return "goldenrod"
+      return orange["A100"]
     case "Running":
-      return "green"
+      return green["A100"]
     case "Succeeded":
       return "white"
     case "Failed":
-      return "red"
+      return red["A100"]
     case "Cancelled":
-      return "lightgray"
+      return grey[300]
     default:
-      return "purple"
+      return purple["A100"]
   }
 }
