@@ -33,11 +33,12 @@ export async function getUIConfig(): Promise<UIConfig> {
     const json = await response.json()
     if (json.ArmadaApiBaseUrl) config.armadaApiBaseUrl = json.ArmadaApiBaseUrl
     if (json.UserAnnotationPrefix) config.userAnnotationPrefix = json.UserAnnotationPrefix
-    if (json.BinocularsEnabled) config.binocularsEnabled = json.BinocularsEnabled
+    if (json.BinocularsEnabled != null) config.binocularsEnabled = json.BinocularsEnabled
     if (json.BinocularsBaseUrlPattern) config.binocularsBaseUrlPattern = json.BinocularsBaseUrlPattern
     if (json.OverviewAutoRefreshMs) config.overviewAutoRefreshMs = json.OverviewAutoRefreshMs
     if (json.JobSetsAutoRefreshMs) config.jobSetsAutoRefreshMs = json.JobSetsAutoRefreshMs
     if (json.JobsAutoRefreshMs) config.jobsAutoRefreshMs = json.JobsAutoRefreshMs
+
   } catch (e) {
     console.error(e)
   }
