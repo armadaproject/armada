@@ -6,12 +6,12 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/G-Research/armada/internal/common/util"
 	log "github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/G-Research/armada/internal/common"
+	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/pkg/api"
 )
 

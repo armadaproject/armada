@@ -4,9 +4,10 @@ import (
 	"sort"
 	"strings"
 
+	v1 "k8s.io/api/core/v1"
+
 	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/pkg/api"
-	v1 "k8s.io/api/core/v1"
 )
 
 type NodeGroupInfoService interface {
