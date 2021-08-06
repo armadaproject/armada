@@ -148,7 +148,7 @@ func SumRemainingResource(schedulingInfo map[*api.Queue]*QueueSchedulingInfo) co
 }
 
 func ResourceScarcityFromReports(reports map[string]*api.ClusterUsageReport) map[string]float64 {
-	availableResources := sumReportResources(reports)
+	availableResources := util.SumReportClusterCapacity(reports)
 	return calculateResourceScarcity(availableResources.AsFloat())
 }
 
@@ -172,19 +172,19 @@ func calculateResourceScarcity(res common.ComputeResourcesFloat) map[string]floa
 }
 
 func usageFromQueueReports(resourceScarcity map[string]float64, queues []*api.QueueReport) map[string]float64 {
+	resourceUsageByQueue := map[string]common.ComputeResources{}
+	for _, queueReport := range queues {
+		if _, present := resourceUsageByQueue[queueReport.Name]; !present {
+			resourceUsageByQueue[queueReport.Name] = common.ComputeResources{}
+		}
+		resourceUsageByQueue[queueReport.Name].Add(queueReport.Resources)
+	}
+
 	usages := map[string]float64{}
-	for _, queue := range queues {
-		usages[queue.Name] = ResourcesAsUsage(resourceScarcity, queue.Resources)
+	for queueName, resourceRequest := range resourceUsageByQueue {
+		usages[queueName] = ResourcesAsUsage(resourceScarcity, resourceRequest)
 	}
 	return usages
-}
-
-func sumReportResources(reports map[string]*api.ClusterUsageReport) common.ComputeResources {
-	result := common.ComputeResources{}
-	for _, report := range reports {
-		result.Add(report.ClusterCapacity)
-	}
-	return result
 }
 
 func CombineLeasedReportResourceByQueue(reports map[string]*api.ClusterLeasedReport) map[string]common.ComputeResources {

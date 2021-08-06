@@ -20,42 +20,43 @@ const (
 	queueLabel        = "queue"
 	phaseLabel        = "phase"
 	resourceTypeLabel = "resourceType"
+	nodeTypeLabel     = "nodeType"
 )
 
 var podCountDesc = prometheus.NewDesc(
 	metrics.ArmadaExecutorMetricsPrefix+"job_pod",
 	"Pods in different phases by queue",
-	[]string{queueLabel, phaseLabel}, nil,
+	[]string{queueLabel, phaseLabel, nodeTypeLabel}, nil,
 )
 
 var podResourceRequestDesc = prometheus.NewDesc(
 	metrics.ArmadaExecutorMetricsPrefix+"job_pod_resource_request",
 	"Pod resource requests in different phases by queue",
-	[]string{queueLabel, phaseLabel, resourceTypeLabel}, nil,
+	[]string{queueLabel, phaseLabel, resourceTypeLabel, nodeTypeLabel}, nil,
 )
 
 var podResourceUsageDesc = prometheus.NewDesc(
 	metrics.ArmadaExecutorMetricsPrefix+"job_pod_resource_usage",
 	"Pod resource usage in different phases by queue",
-	[]string{queueLabel, phaseLabel, resourceTypeLabel}, nil,
+	[]string{queueLabel, phaseLabel, resourceTypeLabel, nodeTypeLabel}, nil,
 )
 
 var nodeCountDesc = prometheus.NewDesc(
 	metrics.ArmadaExecutorMetricsPrefix+"available_node_count",
 	"Number of nodes available for Armada jobs",
-	nil, nil,
+	[]string{nodeTypeLabel}, nil,
 )
 
 var nodeAvailableResourceDesc = prometheus.NewDesc(
 	metrics.ArmadaExecutorMetricsPrefix+"available_node_resource_allocatable",
 	"Resource allocatable on nodes available for Armada jobs",
-	[]string{resourceTypeLabel}, nil,
+	[]string{resourceTypeLabel, nodeTypeLabel}, nil,
 )
 
 var nodeTotalResourceDesc = prometheus.NewDesc(
 	metrics.ArmadaExecutorMetricsPrefix+"available_node_resource_total",
 	"Total resource on nodes available for Armada jobs",
-	[]string{resourceTypeLabel}, nil,
+	[]string{resourceTypeLabel, nodeTypeLabel}, nil,
 )
 
 type ClusterContextMetrics struct {
@@ -78,7 +79,7 @@ func ExposeClusterContextMetrics(context context.ClusterContext, utilisationServ
 				Name: metrics.ArmadaExecutorMetricsPrefix + "job_pod_total",
 				Help: "Counter for pods in different phases by queue",
 			},
-			[]string{queueLabel, phaseLabel}),
+			[]string{queueLabel, phaseLabel, nodeTypeLabel}),
 	}
 
 	context.AddPodEventHandler(cache.ResourceEventHandlerFuncs{
@@ -140,7 +141,7 @@ func (m *ClusterContextMetrics) Collect(metrics chan<- prometheus.Metric) {
 		return
 	}
 
-	allocatableNodeResource, err := m.utilisationService.GetTotalAllocatableClusterCapacity()
+	allocatableNodeResource, err := m.utilisationService.GetAllocatableClusterResource()
 	if err != nil {
 		log.Errorf("Failed to get required information to calculate node metrics because %s", err)
 		recordInvalidMetrics(metrics, e)

@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"time"
 
+	"github.com/G-Research/armada/internal/common/util"
 	log "github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/api/resource"
 
@@ -55,7 +56,7 @@ func LeaseJobs(ctx context.Context,
 
 	totalCapacity := &common.ComputeResources{}
 	for _, clusterReport := range activeClusterReports {
-		totalCapacity.Add(clusterReport.ClusterAvailableCapacity)
+		totalCapacity.Add(util.GetClusterAvailableCapacity(clusterReport))
 	}
 
 	resourceAllocatedByQueue := CombineLeasedReportResourceByQueue(activeClusterLeaseJobReports)
@@ -64,7 +65,7 @@ func LeaseJobs(ctx context.Context,
 	queueSchedulingInfo := calculateQueueSchedulingLimits(activeQueues, maxResourceToSchedulePerQueue, maxResourcePerQueue, totalCapacity, resourceAllocatedByQueue)
 
 	if ok {
-		capacity := common.ComputeResources(currentClusterReport.ClusterCapacity)
+		capacity := util.GetClusterCapacity(currentClusterReport)
 		resourcesToSchedule = resourcesToSchedule.LimitWith(capacity.MulByResource(config.MaximalClusterFractionToSchedule))
 	}
 

@@ -21,6 +21,7 @@ import (
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
+	v1 "k8s.io/api/core/v1"
 	resource "k8s.io/apimachinery/pkg/api/resource"
 )
 
@@ -99,9 +100,10 @@ type ClusterUsageReport struct {
 	ClusterId                string                       `protobuf:"bytes,1,opt,name=cluster_id,json=clusterId,proto3" json:"clusterId,omitempty"`
 	Pool                     string                       `protobuf:"bytes,6,opt,name=pool,proto3" json:"pool,omitempty"`
 	ReportTime               time.Time                    `protobuf:"bytes,2,opt,name=report_time,json=reportTime,proto3,stdtime" json:"report_time"`
-	Queues                   []*QueueReport               `protobuf:"bytes,3,rep,name=queues,proto3" json:"queues,omitempty"`
-	ClusterCapacity          map[string]resource.Quantity `protobuf:"bytes,4,rep,name=cluster_capacity,json=clusterCapacity,proto3" json:"clusterCapacity,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
-	ClusterAvailableCapacity map[string]resource.Quantity `protobuf:"bytes,5,rep,name=cluster_available_capacity,json=clusterAvailableCapacity,proto3" json:"clusterAvailableCapacity,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	Queues                   []*QueueReport               `protobuf:"bytes,3,rep,name=queues,proto3" json:"queues,omitempty"`                                                                                                                              // Deprecated: Do not use.
+	ClusterCapacity          map[string]resource.Quantity `protobuf:"bytes,4,rep,name=cluster_capacity,json=clusterCapacity,proto3" json:"clusterCapacity,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`                             // Deprecated: Do not use.
+	ClusterAvailableCapacity map[string]resource.Quantity `protobuf:"bytes,5,rep,name=cluster_available_capacity,json=clusterAvailableCapacity,proto3" json:"clusterAvailableCapacity,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"` // Deprecated: Do not use.
+	NodeTypeUsageReports     []NodeTypeUsageReport        `protobuf:"bytes,7,rep,name=node_type_usage_reports,json=nodeTypeUsageReports,proto3" json:"node_type_usage_reports"`
 }
 
 func (m *ClusterUsageReport) Reset()      { *m = ClusterUsageReport{} }
@@ -157,6 +159,7 @@ func (m *ClusterUsageReport) GetReportTime() time.Time {
 	return time.Time{}
 }
 
+// Deprecated: Do not use.
 func (m *ClusterUsageReport) GetQueues() []*QueueReport {
 	if m != nil {
 		return m.Queues
@@ -164,6 +167,7 @@ func (m *ClusterUsageReport) GetQueues() []*QueueReport {
 	return nil
 }
 
+// Deprecated: Do not use.
 func (m *ClusterUsageReport) GetClusterCapacity() map[string]resource.Quantity {
 	if m != nil {
 		return m.ClusterCapacity
@@ -171,9 +175,135 @@ func (m *ClusterUsageReport) GetClusterCapacity() map[string]resource.Quantity {
 	return nil
 }
 
+// Deprecated: Do not use.
 func (m *ClusterUsageReport) GetClusterAvailableCapacity() map[string]resource.Quantity {
 	if m != nil {
 		return m.ClusterAvailableCapacity
+	}
+	return nil
+}
+
+func (m *ClusterUsageReport) GetNodeTypeUsageReports() []NodeTypeUsageReport {
+	if m != nil {
+		return m.NodeTypeUsageReports
+	}
+	return nil
+}
+
+type NodeTypeIdentifier struct {
+	Id     string     `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Taints []v1.Taint `protobuf:"bytes,2,rep,name=taints,proto3" json:"taints"`
+}
+
+func (m *NodeTypeIdentifier) Reset()      { *m = NodeTypeIdentifier{} }
+func (*NodeTypeIdentifier) ProtoMessage() {}
+func (*NodeTypeIdentifier) Descriptor() ([]byte, []int) {
+	return fileDescriptor_5643ccb387d55d48, []int{2}
+}
+func (m *NodeTypeIdentifier) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *NodeTypeIdentifier) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_NodeTypeIdentifier.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *NodeTypeIdentifier) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_NodeTypeIdentifier.Merge(m, src)
+}
+func (m *NodeTypeIdentifier) XXX_Size() int {
+	return m.Size()
+}
+func (m *NodeTypeIdentifier) XXX_DiscardUnknown() {
+	xxx_messageInfo_NodeTypeIdentifier.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_NodeTypeIdentifier proto.InternalMessageInfo
+
+func (m *NodeTypeIdentifier) GetId() string {
+	if m != nil {
+		return m.Id
+	}
+	return ""
+}
+
+func (m *NodeTypeIdentifier) GetTaints() []v1.Taint {
+	if m != nil {
+		return m.Taints
+	}
+	return nil
+}
+
+type NodeTypeUsageReport struct {
+	NodeType          *NodeTypeIdentifier          `protobuf:"bytes,1,opt,name=node_type,json=nodeType,proto3" json:"nodeType,omitempty"`
+	Capacity          map[string]resource.Quantity `protobuf:"bytes,2,rep,name=capacity,proto3" json:"capacity" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	AvailableCapacity map[string]resource.Quantity `protobuf:"bytes,3,rep,name=available_capacity,json=availableCapacity,proto3" json:"availableCapacity,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	Queues            []*QueueReport               `protobuf:"bytes,4,rep,name=queues,proto3" json:"queues,omitempty"`
+}
+
+func (m *NodeTypeUsageReport) Reset()      { *m = NodeTypeUsageReport{} }
+func (*NodeTypeUsageReport) ProtoMessage() {}
+func (*NodeTypeUsageReport) Descriptor() ([]byte, []int) {
+	return fileDescriptor_5643ccb387d55d48, []int{3}
+}
+func (m *NodeTypeUsageReport) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *NodeTypeUsageReport) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_NodeTypeUsageReport.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *NodeTypeUsageReport) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_NodeTypeUsageReport.Merge(m, src)
+}
+func (m *NodeTypeUsageReport) XXX_Size() int {
+	return m.Size()
+}
+func (m *NodeTypeUsageReport) XXX_DiscardUnknown() {
+	xxx_messageInfo_NodeTypeUsageReport.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_NodeTypeUsageReport proto.InternalMessageInfo
+
+func (m *NodeTypeUsageReport) GetNodeType() *NodeTypeIdentifier {
+	if m != nil {
+		return m.NodeType
+	}
+	return nil
+}
+
+func (m *NodeTypeUsageReport) GetCapacity() map[string]resource.Quantity {
+	if m != nil {
+		return m.Capacity
+	}
+	return nil
+}
+
+func (m *NodeTypeUsageReport) GetAvailableCapacity() map[string]resource.Quantity {
+	if m != nil {
+		return m.AvailableCapacity
+	}
+	return nil
+}
+
+func (m *NodeTypeUsageReport) GetQueues() []*QueueReport {
+	if m != nil {
+		return m.Queues
 	}
 	return nil
 }
@@ -185,47 +315,63 @@ func init() {
 	proto.RegisterType((*ClusterUsageReport)(nil), "api.ClusterUsageReport")
 	proto.RegisterMapType((map[string]resource.Quantity)(nil), "api.ClusterUsageReport.ClusterAvailableCapacityEntry")
 	proto.RegisterMapType((map[string]resource.Quantity)(nil), "api.ClusterUsageReport.ClusterCapacityEntry")
+	proto.RegisterType((*NodeTypeIdentifier)(nil), "api.NodeTypeIdentifier")
+	proto.RegisterType((*NodeTypeUsageReport)(nil), "api.NodeTypeUsageReport")
+	proto.RegisterMapType((map[string]resource.Quantity)(nil), "api.NodeTypeUsageReport.AvailableCapacityEntry")
+	proto.RegisterMapType((map[string]resource.Quantity)(nil), "api.NodeTypeUsageReport.CapacityEntry")
 }
 
 func init() { proto.RegisterFile("pkg/api/usage.proto", fileDescriptor_5643ccb387d55d48) }
 
 var fileDescriptor_5643ccb387d55d48 = []byte{
-	// 554 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xb4, 0x54, 0xcd, 0x6e, 0xd3, 0x4c,
-	0x14, 0x8d, 0x9b, 0x1f, 0x7d, 0xb9, 0xd1, 0x57, 0xa2, 0x01, 0x81, 0x65, 0x54, 0x27, 0x2a, 0x9b,
-	0x2c, 0x60, 0x2c, 0x05, 0x90, 0x2a, 0x16, 0x48, 0x24, 0x44, 0x88, 0x1d, 0xb5, 0xe8, 0x12, 0x45,
-	0x13, 0x67, 0x70, 0x47, 0xb1, 0x33, 0xc3, 0x78, 0x5c, 0xc9, 0x62, 0x83, 0xc4, 0x0b, 0x74, 0xc9,
-	0x23, 0x75, 0xd9, 0x65, 0x57, 0xfc, 0x24, 0x2f, 0x82, 0x66, 0x6c, 0x93, 0xb4, 0x69, 0x60, 0x95,
-	0xdd, 0xdc, 0x9f, 0x73, 0xcf, 0xf5, 0x3d, 0x47, 0x86, 0xbb, 0x62, 0x16, 0x7a, 0x44, 0x30, 0x2f,
-	0x4d, 0x48, 0x48, 0xb1, 0x90, 0x5c, 0x71, 0x54, 0x25, 0x82, 0x39, 0x9d, 0x90, 0xf3, 0x30, 0xa2,
-	0x9e, 0x49, 0x4d, 0xd2, 0x8f, 0x9e, 0x62, 0x31, 0x4d, 0x14, 0x89, 0x45, 0xde, 0xe5, 0x3c, 0xbc,
-	0xd9, 0x40, 0x63, 0xa1, 0xb2, 0xa2, 0xf8, 0x6c, 0x76, 0x94, 0x60, 0xc6, 0xf5, 0xe8, 0x98, 0x04,
-	0xa7, 0x6c, 0x4e, 0x65, 0xe6, 0x95, 0x5c, 0x92, 0x26, 0x3c, 0x95, 0x01, 0xf5, 0x42, 0x3a, 0xa7,
-	0x92, 0x28, 0x3a, 0x2d, 0x50, 0x4f, 0x42, 0xa6, 0x4e, 0xd3, 0x09, 0x0e, 0x78, 0xec, 0x85, 0x3c,
-	0xe4, 0xab, 0xd9, 0x3a, 0x32, 0x81, 0x79, 0xe5, 0xed, 0x87, 0xdf, 0xaa, 0xd0, 0x3a, 0x4e, 0x69,
-	0x4a, 0x7d, 0x2a, 0xb8, 0x54, 0x08, 0x41, 0x6d, 0x4e, 0x62, 0x6a, 0x5b, 0x5d, 0xab, 0xd7, 0xf4,
-	0xcd, 0x1b, 0x0d, 0xa1, 0x59, 0xd2, 0x25, 0xf6, 0x5e, 0xb7, 0xda, 0x6b, 0xf5, 0x3b, 0x98, 0x08,
-	0x86, 0xd7, 0x80, 0xd8, 0x2f, 0x3b, 0x46, 0x73, 0x25, 0xb3, 0x41, 0xed, 0xe2, 0x7b, 0xa7, 0xe2,
-	0xaf, 0x70, 0xe8, 0x1d, 0xec, 0xff, 0x09, 0xc6, 0x69, 0x42, 0xa7, 0x76, 0xd5, 0x4c, 0x7a, 0xb4,
-	0x7d, 0xd2, 0x49, 0x42, 0xa7, 0xeb, 0xd3, 0xfe, 0x97, 0xeb, 0x15, 0x27, 0x82, 0xfd, 0xeb, 0xa4,
-	0xa8, 0x0d, 0xd5, 0x19, 0xcd, 0x8a, 0xdd, 0xf5, 0x13, 0xbd, 0x86, 0xfa, 0x19, 0x89, 0x52, 0x6a,
-	0xef, 0x75, 0xad, 0x5e, 0xab, 0x8f, 0x71, 0x7e, 0x53, 0xbc, 0x7e, 0x53, 0x2c, 0x66, 0xa1, 0x59,
-	0xa2, 0x1c, 0x8f, 0x8f, 0x53, 0x32, 0x57, 0x4c, 0x65, 0x7e, 0x0e, 0x7e, 0xb1, 0x77, 0x64, 0x39,
-	0x02, 0xd0, 0xe6, 0x62, 0xbb, 0x64, 0x3c, 0xfc, 0x5a, 0x07, 0x34, 0x8c, 0xd2, 0x44, 0x51, 0x79,
-	0xa2, 0x9d, 0x55, 0x28, 0x74, 0x00, 0x10, 0xe4, 0xd9, 0x31, 0x9b, 0x16, 0xcc, 0xcd, 0x22, 0xf3,
-	0x76, 0xaa, 0x05, 0x14, 0x9c, 0x47, 0x76, 0x23, 0x17, 0x50, 0xbf, 0xd1, 0x08, 0x5a, 0xd2, 0x80,
-	0xc7, 0xda, 0x80, 0xc5, 0x66, 0x0e, 0xce, 0xcd, 0x87, 0x4b, 0x83, 0xe0, 0xf7, 0xa5, 0x3b, 0x07,
-	0xff, 0xe9, 0x7b, 0x9f, 0xff, 0xe8, 0x58, 0x3e, 0xe4, 0x40, 0x5d, 0x42, 0x3d, 0x68, 0x7c, 0xd2,
-	0x3a, 0x25, 0x85, 0x74, 0xed, 0x9b, 0xd2, 0xf9, 0x45, 0x1d, 0x7d, 0x80, 0x76, 0xb9, 0x63, 0x40,
-	0x04, 0x09, 0x98, 0xca, 0xec, 0x9a, 0xc1, 0x3c, 0x36, 0x98, 0xcd, 0xcf, 0x2a, 0x53, 0xc3, 0xa2,
-	0x7d, 0x5d, 0xf7, 0x3b, 0xc1, 0xf5, 0x1a, 0xca, 0xc0, 0x29, 0xc7, 0x93, 0x33, 0xc2, 0x22, 0x32,
-	0x89, 0xe8, 0x8a, 0xa8, 0x6e, 0x88, 0x9e, 0xff, 0x83, 0xe8, 0x55, 0x09, 0xbc, 0x8d, 0xd1, 0x0e,
-	0xb6, 0x34, 0x39, 0x12, 0xee, 0xdd, 0xb6, 0xe9, 0x4e, 0xad, 0xf7, 0x19, 0x0e, 0xfe, 0xba, 0xf4,
-	0x2e, 0xc9, 0xfb, 0x6f, 0xa0, 0x6e, 0xae, 0x87, 0x5e, 0x42, 0x2b, 0xbf, 0x60, 0x1e, 0x3e, 0xd8,
-	0x72, 0x5f, 0xe7, 0xfe, 0x86, 0xaf, 0x46, 0xfa, 0xa7, 0x36, 0xe8, 0x5e, 0xfd, 0x72, 0x2b, 0x5f,
-	0x16, 0xae, 0x75, 0xb1, 0x70, 0xad, 0xcb, 0x85, 0x6b, 0xfd, 0x5c, 0xb8, 0xd6, 0xf9, 0xd2, 0xad,
-	0x5c, 0x2e, 0xdd, 0xca, 0xd5, 0xd2, 0xad, 0x4c, 0x1a, 0x06, 0xf1, 0xf4, 0x77, 0x00, 0x00, 0x00,
-	0xff, 0xff, 0x72, 0xe2, 0xef, 0x6a, 0x51, 0x05, 0x00, 0x00,
+	// 743 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xbc, 0x55, 0x4b, 0x4f, 0xdb, 0x4a,
+	0x14, 0x8e, 0xf3, 0xba, 0xe4, 0x44, 0x70, 0xb9, 0x03, 0x02, 0x5f, 0x5f, 0xe1, 0x44, 0xb9, 0x52,
+	0x95, 0x05, 0x1d, 0x8b, 0x94, 0xaa, 0xa8, 0x8b, 0x4a, 0x0d, 0x45, 0x2d, 0x9b, 0xaa, 0x58, 0xb0,
+	0xac, 0xa2, 0x89, 0x3d, 0x18, 0x2b, 0x89, 0xc7, 0xb5, 0xc7, 0x91, 0x2c, 0x36, 0x5d, 0x76, 0xc9,
+	0xb2, 0x3f, 0x89, 0x25, 0x4b, 0x56, 0x7d, 0x84, 0x3f, 0x52, 0x79, 0xc6, 0xce, 0x83, 0x24, 0xed,
+	0x0a, 0x76, 0xf3, 0x38, 0xdf, 0xf9, 0x8e, 0xcf, 0xf7, 0xcd, 0x31, 0x6c, 0xf8, 0x3d, 0xc7, 0x20,
+	0xbe, 0x6b, 0x44, 0x21, 0x71, 0x28, 0xf6, 0x03, 0xc6, 0x19, 0x2a, 0x10, 0xdf, 0xd5, 0x6a, 0x0e,
+	0x63, 0x4e, 0x9f, 0x1a, 0xe2, 0xa8, 0x1b, 0x9d, 0x1b, 0xdc, 0x1d, 0xd0, 0x90, 0x93, 0x81, 0x2f,
+	0xa3, 0xb4, 0xff, 0xee, 0x07, 0xd0, 0x81, 0xcf, 0xe3, 0xf4, 0xb2, 0xd1, 0x3b, 0x08, 0xb1, 0xcb,
+	0x44, 0x6a, 0x8b, 0x05, 0xd4, 0x18, 0xee, 0x19, 0x0e, 0xf5, 0x68, 0x40, 0x38, 0xb5, 0xd3, 0x98,
+	0xfd, 0x49, 0xcc, 0x80, 0x58, 0x17, 0xae, 0x47, 0x83, 0xd8, 0xc8, 0xea, 0x09, 0x68, 0xc8, 0xa2,
+	0xc0, 0xa2, 0x73, 0xa8, 0xa7, 0x8e, 0xcb, 0x2f, 0xa2, 0x2e, 0xb6, 0xd8, 0xc0, 0x70, 0x98, 0xc3,
+	0x26, 0xfc, 0xc9, 0x4e, 0x6c, 0xc4, 0x4a, 0x86, 0x37, 0xbe, 0x16, 0xa0, 0x7a, 0x12, 0xd1, 0x88,
+	0x9a, 0xd4, 0x67, 0x01, 0x47, 0x08, 0x8a, 0x1e, 0x19, 0x50, 0x55, 0xa9, 0x2b, 0xcd, 0x8a, 0x29,
+	0xd6, 0xe8, 0x10, 0x2a, 0x19, 0x5d, 0xa8, 0xe6, 0xeb, 0x85, 0x66, 0xb5, 0x55, 0xc3, 0xc4, 0x77,
+	0xf1, 0x14, 0x10, 0x9b, 0x59, 0xc4, 0x91, 0xc7, 0x83, 0xb8, 0x5d, 0xbc, 0xfe, 0x56, 0xcb, 0x99,
+	0x13, 0x1c, 0xfa, 0x00, 0x6b, 0xe3, 0x4d, 0x27, 0x0a, 0xa9, 0xad, 0x16, 0x44, 0xa6, 0xff, 0x97,
+	0x67, 0x3a, 0x0b, 0xa9, 0x3d, 0x9d, 0x6d, 0x35, 0x98, 0xbe, 0xd1, 0xfa, 0xb0, 0x36, 0x4b, 0x8a,
+	0xd6, 0xa1, 0xd0, 0xa3, 0x71, 0x5a, 0x7b, 0xb2, 0x44, 0x6f, 0xa0, 0x34, 0x24, 0xfd, 0x88, 0xaa,
+	0xf9, 0xba, 0xd2, 0xac, 0xb6, 0x30, 0x96, 0x3d, 0xc5, 0xd3, 0x3d, 0xc5, 0x7e, 0xcf, 0x11, 0x45,
+	0x64, 0xe9, 0xf1, 0x49, 0x44, 0x3c, 0xee, 0xf2, 0xd8, 0x94, 0xe0, 0x97, 0xf9, 0x03, 0x45, 0xf3,
+	0x01, 0xcd, 0x17, 0xf6, 0x90, 0x8c, 0x8d, 0x51, 0x09, 0xd0, 0x61, 0x3f, 0x0a, 0x39, 0x0d, 0xce,
+	0x12, 0xf7, 0xa5, 0x0a, 0xed, 0x00, 0x58, 0xf2, 0xb4, 0xe3, 0xda, 0x29, 0x73, 0x25, 0x3d, 0x39,
+	0xb6, 0x13, 0x01, 0x7d, 0xc6, 0xfa, 0x6a, 0x59, 0x0a, 0x98, 0xac, 0xd1, 0x11, 0x54, 0x03, 0x01,
+	0xee, 0x24, 0x26, 0x4d, 0x2b, 0xd3, 0xb0, 0x34, 0x28, 0xce, 0x0c, 0x82, 0x4f, 0x33, 0x07, 0xb7,
+	0x57, 0x92, 0x7e, 0x5f, 0x7d, 0xaf, 0x29, 0x26, 0x48, 0x60, 0x72, 0x85, 0x76, 0xa1, 0xfc, 0x29,
+	0xd1, 0x29, 0x4c, 0xa5, 0x5b, 0xbf, 0x2f, 0x5d, 0x3b, 0xaf, 0x2a, 0x66, 0x1a, 0x83, 0x3a, 0xb0,
+	0x9e, 0xd5, 0x69, 0x11, 0x9f, 0x58, 0x2e, 0x8f, 0xd5, 0xa2, 0xc0, 0xed, 0x0a, 0xdc, 0xfc, 0xa7,
+	0x65, 0x47, 0x87, 0x69, 0xb8, 0xd4, 0xbe, 0x9c, 0xd4, 0xa2, 0x2a, 0xe6, 0xdf, 0xd6, 0xec, 0x2d,
+	0xba, 0x04, 0x2d, 0x23, 0x20, 0x43, 0xe2, 0xf6, 0x49, 0xb7, 0x4f, 0x27, 0x54, 0x25, 0x41, 0xf5,
+	0xfc, 0x0f, 0x54, 0xaf, 0x33, 0xe0, 0x62, 0x4e, 0xd5, 0x5a, 0x12, 0x86, 0xce, 0x60, 0xdb, 0x63,
+	0x36, 0xed, 0xf0, 0xd8, 0xa7, 0x1d, 0x31, 0x1c, 0x3a, 0xb2, 0x53, 0xa1, 0xfa, 0x97, 0x60, 0x56,
+	0x05, 0xf3, 0x7b, 0x66, 0xd3, 0xd3, 0xd8, 0xa7, 0x53, 0xd4, 0xa9, 0x99, 0x37, 0xbd, 0xf9, 0xab,
+	0x50, 0x0b, 0x60, 0x73, 0x51, 0x13, 0x1e, 0xd4, 0xd9, 0x97, 0xb0, 0xf3, 0xdb, 0x6e, 0x3c, 0xa8,
+	0xc9, 0x3f, 0x02, 0xca, 0x7a, 0x74, 0x6c, 0x53, 0x8f, 0xbb, 0xe7, 0x2e, 0x0d, 0xd0, 0x1a, 0xe4,
+	0xc7, 0xde, 0xce, 0xbb, 0x36, 0x7a, 0x01, 0x65, 0x4e, 0x5c, 0x8f, 0x67, 0xe3, 0xe7, 0xdf, 0x29,
+	0x42, 0x9c, 0xcc, 0x4f, 0x3c, 0xdc, 0xc3, 0xa7, 0x49, 0x44, 0xda, 0xdd, 0x34, 0xbc, 0xf1, 0xa5,
+	0x08, 0x1b, 0x0b, 0x34, 0x40, 0xfb, 0x50, 0x19, 0xcb, 0x27, 0x78, 0xaa, 0xad, 0xed, 0x19, 0xc1,
+	0x26, 0xc5, 0x98, 0x2b, 0x99, 0x52, 0xe8, 0x1d, 0xac, 0x8c, 0xfd, 0x25, 0x0b, 0x79, 0xb2, 0x4c,
+	0x65, 0x3c, 0x6b, 0x28, 0x59, 0xd5, 0x18, 0x8d, 0x6c, 0x40, 0x0b, 0x3c, 0x2b, 0x9f, 0x95, 0xb1,
+	0x34, 0xe7, 0x12, 0xb7, 0xca, 0xe4, 0xff, 0x90, 0x39, 0x93, 0x36, 0xc7, 0x0f, 0xb6, 0xb8, 0xf8,
+	0xc1, 0x66, 0x8f, 0x55, 0xeb, 0xc1, 0xea, 0xe3, 0x19, 0x8e, 0xc3, 0xd6, 0xe3, 0x3b, 0xad, 0xf5,
+	0x16, 0x4a, 0xa2, 0x97, 0xe8, 0x15, 0x54, 0xe5, 0xd7, 0xcb, 0xed, 0xf6, 0x92, 0x11, 0xa1, 0x6d,
+	0xcd, 0x0d, 0xc8, 0xa3, 0xe4, 0x0f, 0xde, 0xae, 0xdf, 0xfe, 0xd4, 0x73, 0x9f, 0x47, 0xba, 0x72,
+	0x3d, 0xd2, 0x95, 0x9b, 0x91, 0xae, 0xfc, 0x18, 0xe9, 0xca, 0xd5, 0x9d, 0x9e, 0xbb, 0xb9, 0xd3,
+	0x73, 0xb7, 0x77, 0x7a, 0xae, 0x5b, 0x16, 0x88, 0x67, 0xbf, 0x02, 0x00, 0x00, 0xff, 0xff, 0xcf,
+	0x9f, 0x56, 0x6e, 0x3e, 0x08, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -406,6 +552,20 @@ func (m *ClusterUsageReport) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	_ = i
 	var l int
 	_ = l
+	if len(m.NodeTypeUsageReports) > 0 {
+		for iNdEx := len(m.NodeTypeUsageReports) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.NodeTypeUsageReports[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintUsage(dAtA, i, uint64(size))
+			}
+			i--
+			dAtA[i] = 0x3a
+		}
+	}
 	if len(m.Pool) > 0 {
 		i -= len(m.Pool)
 		copy(dAtA[i:], m.Pool)
@@ -487,6 +647,147 @@ func (m *ClusterUsageReport) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i -= len(m.ClusterId)
 		copy(dAtA[i:], m.ClusterId)
 		i = encodeVarintUsage(dAtA, i, uint64(len(m.ClusterId)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *NodeTypeIdentifier) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *NodeTypeIdentifier) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *NodeTypeIdentifier) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if len(m.Taints) > 0 {
+		for iNdEx := len(m.Taints) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.Taints[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintUsage(dAtA, i, uint64(size))
+			}
+			i--
+			dAtA[i] = 0x12
+		}
+	}
+	if len(m.Id) > 0 {
+		i -= len(m.Id)
+		copy(dAtA[i:], m.Id)
+		i = encodeVarintUsage(dAtA, i, uint64(len(m.Id)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *NodeTypeUsageReport) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *NodeTypeUsageReport) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *NodeTypeUsageReport) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if len(m.Queues) > 0 {
+		for iNdEx := len(m.Queues) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.Queues[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintUsage(dAtA, i, uint64(size))
+			}
+			i--
+			dAtA[i] = 0x22
+		}
+	}
+	if len(m.AvailableCapacity) > 0 {
+		for k := range m.AvailableCapacity {
+			v := m.AvailableCapacity[k]
+			baseI := i
+			{
+				size, err := (&v).MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintUsage(dAtA, i, uint64(size))
+			}
+			i--
+			dAtA[i] = 0x12
+			i -= len(k)
+			copy(dAtA[i:], k)
+			i = encodeVarintUsage(dAtA, i, uint64(len(k)))
+			i--
+			dAtA[i] = 0xa
+			i = encodeVarintUsage(dAtA, i, uint64(baseI-i))
+			i--
+			dAtA[i] = 0x1a
+		}
+	}
+	if len(m.Capacity) > 0 {
+		for k := range m.Capacity {
+			v := m.Capacity[k]
+			baseI := i
+			{
+				size, err := (&v).MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintUsage(dAtA, i, uint64(size))
+			}
+			i--
+			dAtA[i] = 0x12
+			i -= len(k)
+			copy(dAtA[i:], k)
+			i = encodeVarintUsage(dAtA, i, uint64(len(k)))
+			i--
+			dAtA[i] = 0xa
+			i = encodeVarintUsage(dAtA, i, uint64(baseI-i))
+			i--
+			dAtA[i] = 0x12
+		}
+	}
+	if m.NodeType != nil {
+		{
+			size, err := m.NodeType.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintUsage(dAtA, i, uint64(size))
+		}
 		i--
 		dAtA[i] = 0xa
 	}
@@ -575,6 +876,68 @@ func (m *ClusterUsageReport) Size() (n int) {
 	if l > 0 {
 		n += 1 + l + sovUsage(uint64(l))
 	}
+	if len(m.NodeTypeUsageReports) > 0 {
+		for _, e := range m.NodeTypeUsageReports {
+			l = e.Size()
+			n += 1 + l + sovUsage(uint64(l))
+		}
+	}
+	return n
+}
+
+func (m *NodeTypeIdentifier) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.Id)
+	if l > 0 {
+		n += 1 + l + sovUsage(uint64(l))
+	}
+	if len(m.Taints) > 0 {
+		for _, e := range m.Taints {
+			l = e.Size()
+			n += 1 + l + sovUsage(uint64(l))
+		}
+	}
+	return n
+}
+
+func (m *NodeTypeUsageReport) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.NodeType != nil {
+		l = m.NodeType.Size()
+		n += 1 + l + sovUsage(uint64(l))
+	}
+	if len(m.Capacity) > 0 {
+		for k, v := range m.Capacity {
+			_ = k
+			_ = v
+			l = v.Size()
+			mapEntrySize := 1 + len(k) + sovUsage(uint64(len(k))) + 1 + l + sovUsage(uint64(l))
+			n += mapEntrySize + 1 + sovUsage(uint64(mapEntrySize))
+		}
+	}
+	if len(m.AvailableCapacity) > 0 {
+		for k, v := range m.AvailableCapacity {
+			_ = k
+			_ = v
+			l = v.Size()
+			mapEntrySize := 1 + len(k) + sovUsage(uint64(len(k))) + 1 + l + sovUsage(uint64(l))
+			n += mapEntrySize + 1 + sovUsage(uint64(mapEntrySize))
+		}
+	}
+	if len(m.Queues) > 0 {
+		for _, e := range m.Queues {
+			l = e.Size()
+			n += 1 + l + sovUsage(uint64(l))
+		}
+	}
 	return n
 }
 
@@ -625,6 +988,11 @@ func (this *ClusterUsageReport) String() string {
 		repeatedStringForQueues += strings.Replace(f.String(), "QueueReport", "QueueReport", 1) + ","
 	}
 	repeatedStringForQueues += "}"
+	repeatedStringForNodeTypeUsageReports := "[]NodeTypeUsageReport{"
+	for _, f := range this.NodeTypeUsageReports {
+		repeatedStringForNodeTypeUsageReports += strings.Replace(strings.Replace(f.String(), "NodeTypeUsageReport", "NodeTypeUsageReport", 1), `&`, ``, 1) + ","
+	}
+	repeatedStringForNodeTypeUsageReports += "}"
 	keysForClusterCapacity := make([]string, 0, len(this.ClusterCapacity))
 	for k, _ := range this.ClusterCapacity {
 		keysForClusterCapacity = append(keysForClusterCapacity, k)
@@ -652,6 +1020,61 @@ func (this *ClusterUsageReport) String() string {
 		`ClusterCapacity:` + mapStringForClusterCapacity + `,`,
 		`ClusterAvailableCapacity:` + mapStringForClusterAvailableCapacity + `,`,
 		`Pool:` + fmt.Sprintf("%v", this.Pool) + `,`,
+		`NodeTypeUsageReports:` + repeatedStringForNodeTypeUsageReports + `,`,
+		`}`,
+	}, "")
+	return s
+}
+func (this *NodeTypeIdentifier) String() string {
+	if this == nil {
+		return "nil"
+	}
+	repeatedStringForTaints := "[]Taint{"
+	for _, f := range this.Taints {
+		repeatedStringForTaints += fmt.Sprintf("%v", f) + ","
+	}
+	repeatedStringForTaints += "}"
+	s := strings.Join([]string{`&NodeTypeIdentifier{`,
+		`Id:` + fmt.Sprintf("%v", this.Id) + `,`,
+		`Taints:` + repeatedStringForTaints + `,`,
+		`}`,
+	}, "")
+	return s
+}
+func (this *NodeTypeUsageReport) String() string {
+	if this == nil {
+		return "nil"
+	}
+	repeatedStringForQueues := "[]*QueueReport{"
+	for _, f := range this.Queues {
+		repeatedStringForQueues += strings.Replace(f.String(), "QueueReport", "QueueReport", 1) + ","
+	}
+	repeatedStringForQueues += "}"
+	keysForCapacity := make([]string, 0, len(this.Capacity))
+	for k, _ := range this.Capacity {
+		keysForCapacity = append(keysForCapacity, k)
+	}
+	github_com_gogo_protobuf_sortkeys.Strings(keysForCapacity)
+	mapStringForCapacity := "map[string]resource.Quantity{"
+	for _, k := range keysForCapacity {
+		mapStringForCapacity += fmt.Sprintf("%v: %v,", k, this.Capacity[k])
+	}
+	mapStringForCapacity += "}"
+	keysForAvailableCapacity := make([]string, 0, len(this.AvailableCapacity))
+	for k, _ := range this.AvailableCapacity {
+		keysForAvailableCapacity = append(keysForAvailableCapacity, k)
+	}
+	github_com_gogo_protobuf_sortkeys.Strings(keysForAvailableCapacity)
+	mapStringForAvailableCapacity := "map[string]resource.Quantity{"
+	for _, k := range keysForAvailableCapacity {
+		mapStringForAvailableCapacity += fmt.Sprintf("%v: %v,", k, this.AvailableCapacity[k])
+	}
+	mapStringForAvailableCapacity += "}"
+	s := strings.Join([]string{`&NodeTypeUsageReport{`,
+		`NodeType:` + strings.Replace(this.NodeType.String(), "NodeTypeIdentifier", "NodeTypeIdentifier", 1) + `,`,
+		`Capacity:` + mapStringForCapacity + `,`,
+		`AvailableCapacity:` + mapStringForAvailableCapacity + `,`,
+		`Queues:` + repeatedStringForQueues + `,`,
 		`}`,
 	}, "")
 	return s
@@ -1421,6 +1844,534 @@ func (m *ClusterUsageReport) Unmarshal(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			m.Pool = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 7:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field NodeTypeUsageReports", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowUsage
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthUsage
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthUsage
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.NodeTypeUsageReports = append(m.NodeTypeUsageReports, NodeTypeUsageReport{})
+			if err := m.NodeTypeUsageReports[len(m.NodeTypeUsageReports)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipUsage(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthUsage
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *NodeTypeIdentifier) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowUsage
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: NodeTypeIdentifier: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: NodeTypeIdentifier: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Id", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowUsage
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthUsage
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthUsage
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Id = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Taints", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowUsage
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthUsage
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthUsage
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Taints = append(m.Taints, v1.Taint{})
+			if err := m.Taints[len(m.Taints)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipUsage(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthUsage
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *NodeTypeUsageReport) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowUsage
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: NodeTypeUsageReport: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: NodeTypeUsageReport: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field NodeType", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowUsage
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthUsage
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthUsage
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.NodeType == nil {
+				m.NodeType = &NodeTypeIdentifier{}
+			}
+			if err := m.NodeType.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Capacity", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowUsage
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthUsage
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthUsage
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Capacity == nil {
+				m.Capacity = make(map[string]resource.Quantity)
+			}
+			var mapkey string
+			mapvalue := &resource.Quantity{}
+			for iNdEx < postIndex {
+				entryPreIndex := iNdEx
+				var wire uint64
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return ErrIntOverflowUsage
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					wire |= uint64(b&0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				fieldNum := int32(wire >> 3)
+				if fieldNum == 1 {
+					var stringLenmapkey uint64
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return ErrIntOverflowUsage
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						stringLenmapkey |= uint64(b&0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					intStringLenmapkey := int(stringLenmapkey)
+					if intStringLenmapkey < 0 {
+						return ErrInvalidLengthUsage
+					}
+					postStringIndexmapkey := iNdEx + intStringLenmapkey
+					if postStringIndexmapkey < 0 {
+						return ErrInvalidLengthUsage
+					}
+					if postStringIndexmapkey > l {
+						return io.ErrUnexpectedEOF
+					}
+					mapkey = string(dAtA[iNdEx:postStringIndexmapkey])
+					iNdEx = postStringIndexmapkey
+				} else if fieldNum == 2 {
+					var mapmsglen int
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return ErrIntOverflowUsage
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						mapmsglen |= int(b&0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					if mapmsglen < 0 {
+						return ErrInvalidLengthUsage
+					}
+					postmsgIndex := iNdEx + mapmsglen
+					if postmsgIndex < 0 {
+						return ErrInvalidLengthUsage
+					}
+					if postmsgIndex > l {
+						return io.ErrUnexpectedEOF
+					}
+					mapvalue = &resource.Quantity{}
+					if err := mapvalue.Unmarshal(dAtA[iNdEx:postmsgIndex]); err != nil {
+						return err
+					}
+					iNdEx = postmsgIndex
+				} else {
+					iNdEx = entryPreIndex
+					skippy, err := skipUsage(dAtA[iNdEx:])
+					if err != nil {
+						return err
+					}
+					if (skippy < 0) || (iNdEx+skippy) < 0 {
+						return ErrInvalidLengthUsage
+					}
+					if (iNdEx + skippy) > postIndex {
+						return io.ErrUnexpectedEOF
+					}
+					iNdEx += skippy
+				}
+			}
+			m.Capacity[mapkey] = *mapvalue
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field AvailableCapacity", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowUsage
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthUsage
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthUsage
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.AvailableCapacity == nil {
+				m.AvailableCapacity = make(map[string]resource.Quantity)
+			}
+			var mapkey string
+			mapvalue := &resource.Quantity{}
+			for iNdEx < postIndex {
+				entryPreIndex := iNdEx
+				var wire uint64
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return ErrIntOverflowUsage
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					wire |= uint64(b&0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				fieldNum := int32(wire >> 3)
+				if fieldNum == 1 {
+					var stringLenmapkey uint64
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return ErrIntOverflowUsage
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						stringLenmapkey |= uint64(b&0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					intStringLenmapkey := int(stringLenmapkey)
+					if intStringLenmapkey < 0 {
+						return ErrInvalidLengthUsage
+					}
+					postStringIndexmapkey := iNdEx + intStringLenmapkey
+					if postStringIndexmapkey < 0 {
+						return ErrInvalidLengthUsage
+					}
+					if postStringIndexmapkey > l {
+						return io.ErrUnexpectedEOF
+					}
+					mapkey = string(dAtA[iNdEx:postStringIndexmapkey])
+					iNdEx = postStringIndexmapkey
+				} else if fieldNum == 2 {
+					var mapmsglen int
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return ErrIntOverflowUsage
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						mapmsglen |= int(b&0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					if mapmsglen < 0 {
+						return ErrInvalidLengthUsage
+					}
+					postmsgIndex := iNdEx + mapmsglen
+					if postmsgIndex < 0 {
+						return ErrInvalidLengthUsage
+					}
+					if postmsgIndex > l {
+						return io.ErrUnexpectedEOF
+					}
+					mapvalue = &resource.Quantity{}
+					if err := mapvalue.Unmarshal(dAtA[iNdEx:postmsgIndex]); err != nil {
+						return err
+					}
+					iNdEx = postmsgIndex
+				} else {
+					iNdEx = entryPreIndex
+					skippy, err := skipUsage(dAtA[iNdEx:])
+					if err != nil {
+						return err
+					}
+					if (skippy < 0) || (iNdEx+skippy) < 0 {
+						return ErrInvalidLengthUsage
+					}
+					if (iNdEx + skippy) > postIndex {
+						return io.ErrUnexpectedEOF
+					}
+					iNdEx += skippy
+				}
+			}
+			m.AvailableCapacity[mapkey] = *mapvalue
+			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Queues", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowUsage
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthUsage
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthUsage
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Queues = append(m.Queues, &QueueReport{})
+			if err := m.Queues[len(m.Queues)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
