@@ -173,9 +173,9 @@ func (m *ClusterContextMetrics) Collect(metrics chan<- prometheus.Metric) {
 		}
 		nodeType := getNodeTypePodIsRunningOn(pod, nodeNameToNodeTypeMap)
 
-		queueMetric, ok := podMetrics[queue]
+		_, ok := podMetrics[queue]
 		if !ok {
-			queueMetric = map[string]map[string]*podMetric{
+			queueMetric := map[string]map[string]*podMetric{
 				nodeType: createPodPhaseMetric(),
 			}
 			podMetrics[queue] = queueMetric
