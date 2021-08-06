@@ -17,7 +17,7 @@ import (
 
 var testAppConfig = configuration.ApplicationConfiguration{ClusterId: "test", Pool: "pool"}
 
-func TestFilterAvailableProcessingNodes_ShouldReturnAvailableProcessingNodes(t *testing.T) {
+func TestFilterAvailableProcessingNodes(t *testing.T) {
 	context := fakeContext.NewFakeClusterContext(testAppConfig, nil)
 	service := NewClusterUtilisationService(context, nil, nil, nil, nil)
 
@@ -28,13 +28,11 @@ func TestFilterAvailableProcessingNodes_ShouldReturnAvailableProcessingNodes(t *
 		},
 	}
 
-	nodes := []*v1.Node{&node}
-	result := service.filterAvailableProcessingNodes(nodes)
-
-	assert.Equal(t, len(result), 1)
+	result := service.isAvailableProcessingNode(&node)
+	assert.True(t, result, 1)
 }
 
-func TestFilterAvailableProcessingNodes_ShouldFilterUnschedulableNodes(t *testing.T) {
+func TestIsAvailableProcessingNode_IsFalse_UnschedulableNode(t *testing.T) {
 	context := fakeContext.NewFakeClusterContext(testAppConfig, nil)
 	service := NewClusterUtilisationService(context, nil, nil, nil, nil)
 
@@ -45,13 +43,11 @@ func TestFilterAvailableProcessingNodes_ShouldFilterUnschedulableNodes(t *testin
 		},
 	}
 
-	nodes := []*v1.Node{&node}
-	result := service.filterAvailableProcessingNodes(nodes)
-
-	assert.Equal(t, len(result), 0)
+	result := service.isAvailableProcessingNode(&node)
+	assert.False(t, result)
 }
 
-func TestFilterAvailableProcessingNodes_ShouldFilterNodesWithNoScheduleTaint(t *testing.T) {
+func TestFilterAvailableProcessingNodes_IsFailse_NodeWithNoScheduleTaint(t *testing.T) {
 	context := fakeContext.NewFakeClusterContext(testAppConfig, nil)
 	service := NewClusterUtilisationService(context, nil, nil, nil, nil)
 
@@ -65,10 +61,8 @@ func TestFilterAvailableProcessingNodes_ShouldFilterNodesWithNoScheduleTaint(t *
 		},
 	}
 
-	nodes := []*v1.Node{&node}
-	result := service.filterAvailableProcessingNodes(nodes)
-
-	assert.Equal(t, len(result), 0)
+	result := service.isAvailableProcessingNode(&node)
+	assert.False(t, result)
 }
 
 func TestGetAllPodsUsingResourceOnProcessingNodes_ShouldExcludePodsNotOnGivenNodes(t *testing.T) {

@@ -9,7 +9,6 @@ import (
 	"github.com/G-Research/armada/internal/armada/repository"
 	"github.com/G-Research/armada/internal/armada/scheduling"
 	"github.com/G-Research/armada/internal/common"
-	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/pkg/api"
 )
 
@@ -360,7 +359,7 @@ func (c *QueueInfoCollector) recordQueueUsageMetrics(metrics chan<- prometheus.M
 						report.Pool,
 						queueReport.Name,
 						resourceType,
-						util.DefaultNodeTypeId)
+						report.Pool)
 				}
 				for resourceType, value := range queueReport.ResourcesUsed {
 					metrics <- prometheus.MustNewConstMetric(
@@ -371,7 +370,7 @@ func (c *QueueInfoCollector) recordQueueUsageMetrics(metrics chan<- prometheus.M
 						report.Pool,
 						queueReport.Name,
 						resourceType,
-						util.DefaultNodeTypeId)
+						report.Pool)
 				}
 			}
 		}
@@ -412,7 +411,7 @@ func (c *QueueInfoCollector) recordClusterCapacityMetrics(metrics chan<- prometh
 					cluster,
 					report.Pool,
 					resourceType,
-					util.DefaultNodeTypeId)
+					report.Pool)
 			}
 
 			for resourceType, value := range report.ClusterAvailableCapacity {
@@ -423,7 +422,7 @@ func (c *QueueInfoCollector) recordClusterCapacityMetrics(metrics chan<- prometh
 					cluster,
 					report.Pool,
 					resourceType,
-					util.DefaultNodeTypeId)
+					report.Pool)
 			}
 		}
 	}

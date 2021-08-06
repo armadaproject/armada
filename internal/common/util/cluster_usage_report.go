@@ -5,8 +5,6 @@ import (
 	"github.com/G-Research/armada/pkg/api"
 )
 
-const DefaultNodeTypeId = "default"
-
 func GetClusterCapacity(report *api.ClusterUsageReport) common.ComputeResources {
 	result := common.ComputeResources{}
 	if len(report.NodeTypeUsageReports) > 0 {

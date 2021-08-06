@@ -73,7 +73,7 @@ func (clusterUtilisationService *ClusterUtilisationService) ReportClusterUtilisa
 	for _, nodeGroup := range nodeGroups {
 		totalNodeResource := common.CalculateTotalResource(nodeGroup.nodes)
 		allocatableNodeResource := allocatableResourceByNodeType[nodeGroup.nodeType.Id]
-		managedPodsOnNodes := getPodsOnNodes(allActiveManagedPods, nodeGroup.nodes)
+		managedPodsOnNodes := GetPodsOnNodes(allActiveManagedPods, nodeGroup.nodes)
 		queueReports := clusterUtilisationService.createReportsOfQueueUsages(managedPodsOnNodes)
 
 		nodeGroupReports = append(nodeGroupReports, api.NodeTypeUsageReport{
@@ -127,10 +127,14 @@ func (clusterUtilisationService *ClusterUtilisationService) groupNodesByType(nod
 }
 
 func (clusterUtilisationService *ClusterUtilisationService) getType(node *v1.Node) *api.NodeTypeIdentifier {
+	groupId := clusterUtilisationService.clusterContext.GetClusterPool()
 	relevantTaints := clusterUtilisationService.filterToleratedTaints(node.Spec.Taints)
+	if len(relevantTaints) > 0 {
+		groupId = nodeGroupId(relevantTaints)
+	}
 
 	return &api.NodeTypeIdentifier{
-		Id:     nodeGroupId(relevantTaints),
+		Id:     groupId,
 		Taints: relevantTaints,
 	}
 }
@@ -141,9 +145,6 @@ func nodeGroupId(taints []v1.Taint) string {
 		idStrings = append(idStrings, taint.Key)
 	}
 	sort.Strings(idStrings)
-	if len(idStrings) == 0 {
-		return util.DefaultNodeTypeId
-	}
 	return strings.Join(idStrings, ",")
 }
 
@@ -182,7 +183,7 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAvailableClusterC
 		nodes = append(nodes, api.NodeInfo{
 			Name:                 n.Name,
 			Labels:               clusterUtilisationService.filterTrackedLabels(n.Labels),
-			Taints:               clusterUtilisationService.filterToleratedTaints(n.Spec.Taints),
+			Taints:               n.Spec.Taints,
 			AllocatableResources: allocatable,
 			AvailableResources:   available,
 		})
@@ -240,7 +241,7 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAllocatableResour
 	result := map[string]common.ComputeResources{}
 
 	for _, nodeGroup := range nodeGroups {
-		activeUnmanagedPodsOnNodes := getPodsOnNodes(activeUnmanagedPods, nodeGroup.nodes)
+		activeUnmanagedPodsOnNodes := GetPodsOnNodes(activeUnmanagedPods, nodeGroup.nodes)
 		unmanagedPodResource := common.CalculateTotalResourceRequest(activeUnmanagedPodsOnNodes)
 		totalNodeGroupResource := common.CalculateTotalResource(nodeGroup.nodes)
 		allocatableNodeGroupResource := totalNodeGroupResource.DeepCopy()
@@ -257,7 +258,7 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAllAvailableProce
 		return []*v1.Node{}, err
 	}
 
-	return clusterUtilisationService.filterAvailableProcessingNodes(allNodes), nil
+	return FilterNodes(allNodes, clusterUtilisationService.isAvailableProcessingNode), nil
 }
 
 func (clusterUtilisationService *ClusterUtilisationService) reportUsage(clusterUsage *api.ClusterUsageReport) error {
@@ -266,18 +267,6 @@ func (clusterUtilisationService *ClusterUtilisationService) reportUsage(clusterU
 	_, err := clusterUtilisationService.usageClient.ReportUsage(ctx, clusterUsage)
 
 	return err
-}
-
-func (clusterUtilisationService *ClusterUtilisationService) filterAvailableProcessingNodes(nodes []*v1.Node) []*v1.Node {
-	processingNodes := make([]*v1.Node, 0, len(nodes))
-
-	for _, node := range nodes {
-		if clusterUtilisationService.isAvailableProcessingNode(node) {
-			processingNodes = append(processingNodes, node)
-		}
-	}
-
-	return processingNodes
 }
 
 func (clusterUtilisationService *ClusterUtilisationService) isAvailableProcessingNode(node *v1.Node) bool {
@@ -312,23 +301,6 @@ func getAllPodsRequiringResourceOnProcessingNodes(allPods []*v1.Pod, processingN
 	}
 
 	return podsUsingResourceOnProcessingNodes
-}
-
-func getPodsOnNodes(pods []*v1.Pod, nodes []*v1.Node) []*v1.Pod {
-	nodeSet := make(map[string]*v1.Node)
-	for _, node := range nodes {
-		nodeSet[node.Name] = node
-	}
-
-	podsOnNodes := []*v1.Pod{}
-
-	for _, pod := range pods {
-		if _, presentOnProcessingNode := nodeSet[pod.Spec.NodeName]; presentOnProcessingNode {
-			podsOnNodes = append(podsOnNodes, pod)
-		}
-	}
-
-	return podsOnNodes
 }
 
 func (clusterUtilisationService *ClusterUtilisationService) getAllRunningManagedPods() ([]*v1.Pod, error) {
