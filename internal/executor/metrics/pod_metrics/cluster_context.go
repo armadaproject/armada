@@ -1,9 +1,9 @@
 package pod_metrics
 
 import (
-	"github.com/google/martian/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/client-go/tools/cache"
@@ -12,6 +12,7 @@ import (
 	"github.com/G-Research/armada/internal/executor/context"
 	"github.com/G-Research/armada/internal/executor/domain"
 	"github.com/G-Research/armada/internal/executor/metrics"
+	"github.com/G-Research/armada/internal/executor/node"
 	"github.com/G-Research/armada/internal/executor/utilisation"
 )
 
@@ -22,6 +23,9 @@ const (
 	resourceTypeLabel = "resourceType"
 	nodeTypeLabel     = "nodeType"
 )
+
+const UnassignedNodeType = "unassigned"
+const UnknownNodeType = "unknown"
 
 var podCountDesc = prometheus.NewDesc(
 	metrics.ArmadaExecutorMetricsPrefix+"job_pod",
@@ -63,23 +67,28 @@ type ClusterContextMetrics struct {
 	context                 context.ClusterContext
 	utilisationService      utilisation.UtilisationService
 	queueUtilisationService utilisation.PodUtilisationService
-
-	knownQueues   map[string]bool
-	podCountTotal *prometheus.CounterVec
+	nodeInfoService         node.NodeGroupInfoService
+	knownQueues             map[string]map[string]bool
+	podCountTotal           *prometheus.CounterVec
 }
 
-func ExposeClusterContextMetrics(context context.ClusterContext, utilisationService utilisation.UtilisationService, queueUtilisationService utilisation.PodUtilisationService) *ClusterContextMetrics {
+func ExposeClusterContextMetrics(
+	context context.ClusterContext,
+	utilisationService utilisation.UtilisationService,
+	queueUtilisationService utilisation.PodUtilisationService,
+	nodeInfoService node.NodeGroupInfoService) *ClusterContextMetrics {
 	m := &ClusterContextMetrics{
 		context:                 context,
 		utilisationService:      utilisationService,
 		queueUtilisationService: queueUtilisationService,
-		knownQueues:             map[string]bool{},
+		nodeInfoService:         nodeInfoService,
+		knownQueues:             map[string]map[string]bool{},
 		podCountTotal: promauto.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: metrics.ArmadaExecutorMetricsPrefix + "job_pod_total",
 				Help: "Counter for pods in different phases by queue",
 			},
-			[]string{queueLabel, phaseLabel, nodeTypeLabel}),
+			[]string{queueLabel, phaseLabel}),
 	}
 
 	context.AddPodEventHandler(cache.ResourceEventHandlerFuncs{
@@ -134,21 +143,23 @@ func (m *ClusterContextMetrics) Collect(metrics chan<- prometheus.Metric) {
 		return
 	}
 
-	allAvailableProcessingNodes, err := m.utilisationService.GetAllAvailableProcessingNodes()
+	nodes, err := m.context.GetNodes()
 	if err != nil {
 		log.Errorf("Failed to get required information to calculate node metrics because %s", err)
 		recordInvalidMetrics(metrics, e)
 		return
 	}
 
-	allocatableNodeResource, err := m.utilisationService.GetAllocatableClusterResource()
+	nodeGroupAllocationInfos, err := m.utilisationService.GetAllNodeGroupAllocationInfo()
 	if err != nil {
 		log.Errorf("Failed to get required information to calculate node metrics because %s", err)
 		recordInvalidMetrics(metrics, e)
 		return
 	}
 
-	podMetrics := map[string]map[string]*podMetric{}
+	nodeNameToNodeTypeMap := m.createNodeTypeLookup(nodes)
+
+	podMetrics := map[string]map[string]map[string]*podMetric{}
 
 	for _, pod := range pods {
 		queue, present := pod.Labels[domain.Queue]
@@ -160,56 +171,107 @@ func (m *ClusterContextMetrics) Collect(metrics chan<- prometheus.Metric) {
 		if phase == "" {
 			phase = leasedPhase
 		}
+		nodeType := getNodeTypePodIsRunningOn(pod, nodeNameToNodeTypeMap)
 
 		queueMetric, ok := podMetrics[queue]
 		if !ok {
-			queueMetric = createPodPhaseMetric()
+			queueMetric = map[string]map[string]*podMetric{
+				nodeType: createPodPhaseMetric(),
+			}
 			podMetrics[queue] = queueMetric
+		}
+		nodeTypeMetric, ok := podMetrics[queue][nodeType]
+		if !ok {
+			nodeTypeMetric = createPodPhaseMetric()
+			podMetrics[queue][nodeType] = nodeTypeMetric
 		}
 
 		request := common.TotalPodResourceRequest(&pod.Spec)
 		usage := m.queueUtilisationService.GetPodUtilisation(pod)
 
-		queueMetric[phase].count++
-		queueMetric[phase].resourceRequest.Add(request)
-		queueMetric[phase].resourceUsage.Add(usage.CurrentUsage)
+		nodeTypeMetric[phase].count++
+		nodeTypeMetric[phase].resourceRequest.Add(request)
+		nodeTypeMetric[phase].resourceUsage.Add(usage.CurrentUsage)
+	}
+	m.setEmptyMetrics(podMetrics)
+
+	for queue, nodeTypeMetrics := range podMetrics {
+		for nodeType, phaseMetrics := range nodeTypeMetrics {
+			m.setKnownQueue(queue, nodeType)
+
+			for phase, phaseMetric := range phaseMetrics {
+				for resourceType, request := range phaseMetric.resourceRequest {
+					metrics <- prometheus.MustNewConstMetric(podResourceRequestDesc, prometheus.GaugeValue,
+						common.QuantityAsFloat64(request), queue, phase, resourceType, nodeType)
+				}
+				for resourceType, usage := range phaseMetric.resourceUsage {
+					metrics <- prometheus.MustNewConstMetric(podResourceUsageDesc, prometheus.GaugeValue,
+						common.QuantityAsFloat64(usage), queue, phase, resourceType, nodeType)
+				}
+				metrics <- prometheus.MustNewConstMetric(podCountDesc, prometheus.GaugeValue, phaseMetric.count, queue, phase, nodeType)
+			}
+		}
 	}
 
+	for _, nodeGroup := range nodeGroupAllocationInfos {
+		metrics <- prometheus.MustNewConstMetric(nodeCountDesc, prometheus.GaugeValue, float64(len(nodeGroup.Nodes)), nodeGroup.NodeType.Id)
+		for resourceType, allocatable := range nodeGroup.NodeGroupAllocatableCapacity {
+			metrics <- prometheus.MustNewConstMetric(nodeAvailableResourceDesc, prometheus.GaugeValue, common.QuantityAsFloat64(allocatable), resourceType, nodeGroup.NodeType.Id)
+		}
+
+		for resourceType, total := range nodeGroup.NodeGroupCapacity {
+			metrics <- prometheus.MustNewConstMetric(nodeTotalResourceDesc, prometheus.GaugeValue, common.QuantityAsFloat64(total), resourceType, nodeGroup.NodeType.Id)
+		}
+	}
+}
+
+func (m *ClusterContextMetrics) setKnownQueue(queue string, nodeType string) {
+	_, exists := m.knownQueues[queue]
+	if !exists {
+		m.knownQueues = map[string]map[string]bool{
+			queue: {},
+		}
+	}
+	m.knownQueues[queue][nodeType] = true
+}
+
+func (m *ClusterContextMetrics) setEmptyMetrics(podMetrics map[string]map[string]map[string]*podMetric) {
 	// reset metric for queues without pods
-	for q, _ := range m.knownQueues {
-		_, exists := podMetrics[q]
+	for queue, nodeTypes := range m.knownQueues {
+		_, exists := podMetrics[queue]
 		if !exists {
-			podMetrics[q] = createPodPhaseMetric()
+			podMetrics[queue] = map[string]map[string]*podMetric{}
+			for nodeType := range nodeTypes {
+				podMetrics[queue][nodeType] = createPodPhaseMetric()
+			}
+		} else {
+			for nodeType := range nodeTypes {
+				_, exists := podMetrics[queue][nodeType]
+				if !exists {
+					podMetrics[queue][nodeType] = createPodPhaseMetric()
+				}
+			}
 		}
 	}
+}
 
-	for queue, queueMetric := range podMetrics {
-		m.knownQueues[queue] = true
-
-		for phase, phaseMetric := range queueMetric {
-			for resourceType, request := range phaseMetric.resourceRequest {
-				metrics <- prometheus.MustNewConstMetric(podResourceRequestDesc, prometheus.GaugeValue,
-					common.QuantityAsFloat64(request), queue, phase, resourceType)
-			}
-			for resourceType, usage := range phaseMetric.resourceUsage {
-				metrics <- prometheus.MustNewConstMetric(podResourceUsageDesc, prometheus.GaugeValue,
-					common.QuantityAsFloat64(usage), queue, phase, resourceType)
-			}
-			metrics <- prometheus.MustNewConstMetric(podCountDesc, prometheus.GaugeValue, phaseMetric.count, queue, phase)
-		}
+func (m *ClusterContextMetrics) createNodeTypeLookup(nodes []*v1.Node) map[string]string {
+	result := map[string]string{}
+	for _, n := range nodes {
+		result[n.Name] = m.nodeInfoService.GetType(n).Id
 	}
+	return result
+}
 
-	availableNodeResource := *allocatableNodeResource
-	totalNodeResource := common.CalculateTotalResource(allAvailableProcessingNodes)
-
-	metrics <- prometheus.MustNewConstMetric(nodeCountDesc, prometheus.GaugeValue, float64(len(allAvailableProcessingNodes)))
-	for resourceType, allocatable := range availableNodeResource {
-		metrics <- prometheus.MustNewConstMetric(nodeAvailableResourceDesc, prometheus.GaugeValue, common.QuantityAsFloat64(allocatable), resourceType)
+func getNodeTypePodIsRunningOn(pod *v1.Pod, nodeNameToNodeTypeMap map[string]string) string {
+	if pod.Spec.NodeName == "" {
+		return UnassignedNodeType
 	}
-
-	for resourceType, total := range totalNodeResource {
-		metrics <- prometheus.MustNewConstMetric(nodeTotalResourceDesc, prometheus.GaugeValue, common.QuantityAsFloat64(total), resourceType)
+	if nodeGroup, present := nodeNameToNodeTypeMap[pod.Spec.NodeName]; present {
+		return nodeGroup
 	}
+	log.Warnf("Could not find node for pod (%s) node (%s)", pod.Name, pod.Spec.NodeName)
+	return UnknownNodeType
 }
 
 func createPodPhaseMetric() map[string]*podMetric {

@@ -186,14 +186,14 @@ var queueUsedDesc = prometheus.NewDesc(
 var clusterCapacityDesc = prometheus.NewDesc(
 	MetricPrefix+"cluster_capacity",
 	"Cluster capacity",
-	[]string{"cluster", "pool", "resourceType"},
+	[]string{"cluster", "pool", "resourceType", "nodeType"},
 	nil,
 )
 
 var clusterAvailableCapacity = prometheus.NewDesc(
 	MetricPrefix+"cluster_available_capacity",
 	"Cluster capacity available for Armada jobs",
-	[]string{"cluster", "pool", "resourceType"},
+	[]string{"cluster", "pool", "resourceType", "nodeType"},
 	nil,
 )
 

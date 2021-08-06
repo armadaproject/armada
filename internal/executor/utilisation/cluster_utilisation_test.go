@@ -19,7 +19,7 @@ var testAppConfig = configuration.ApplicationConfiguration{ClusterId: "test", Po
 
 func TestFilterAvailableProcessingNodes(t *testing.T) {
 	context := fakeContext.NewFakeClusterContext(testAppConfig, nil)
-	service := NewClusterUtilisationService(context, nil, nil, nil, nil)
+	service := NewClusterUtilisationService(context, nil, nil, nil, nil, nil)
 
 	node := v1.Node{
 		Spec: v1.NodeSpec{
@@ -34,7 +34,7 @@ func TestFilterAvailableProcessingNodes(t *testing.T) {
 
 func TestIsAvailableProcessingNode_IsFalse_UnschedulableNode(t *testing.T) {
 	context := fakeContext.NewFakeClusterContext(testAppConfig, nil)
-	service := NewClusterUtilisationService(context, nil, nil, nil, nil)
+	service := NewClusterUtilisationService(context, nil, nil, nil, nil, nil)
 
 	node := v1.Node{
 		Spec: v1.NodeSpec{
@@ -49,7 +49,7 @@ func TestIsAvailableProcessingNode_IsFalse_UnschedulableNode(t *testing.T) {
 
 func TestFilterAvailableProcessingNodes_IsFailse_NodeWithNoScheduleTaint(t *testing.T) {
 	context := fakeContext.NewFakeClusterContext(testAppConfig, nil)
-	service := NewClusterUtilisationService(context, nil, nil, nil, nil)
+	service := NewClusterUtilisationService(context, nil, nil, nil, nil, nil)
 
 	taint := v1.Taint{
 		Effect: v1.TaintEffectNoSchedule,

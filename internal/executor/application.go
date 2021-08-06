@@ -16,6 +16,7 @@ import (
 	"github.com/G-Research/armada/internal/executor/job"
 	"github.com/G-Research/armada/internal/executor/metrics"
 	"github.com/G-Research/armada/internal/executor/metrics/pod_metrics"
+	"github.com/G-Research/armada/internal/executor/node"
 	"github.com/G-Research/armada/internal/executor/reporter"
 	"github.com/G-Research/armada/internal/executor/service"
 	"github.com/G-Research/armada/internal/executor/utilisation"
@@ -72,9 +73,11 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 
 	queueUtilisationService := utilisation.NewMetricsServerQueueUtilisationService(
 		clusterContext)
+	nodeInfoService := node.NewClusterUtilisationService(clusterContext.GetClusterPool(), config.Kubernetes.ToleratedTaints)
 	clusterUtilisationService := utilisation.NewClusterUtilisationService(
 		clusterContext,
 		queueUtilisationService,
+		nodeInfoService,
 		usageClient,
 		config.Kubernetes.TrackedNodeLabels,
 		config.Kubernetes.ToleratedTaints)
@@ -96,7 +99,7 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 
 	job.RunIngressCleanup(clusterContext)
 
-	pod_metrics.ExposeClusterContextMetrics(clusterContext, clusterUtilisationService, queueUtilisationService)
+	pod_metrics.ExposeClusterContextMetrics(clusterContext, clusterUtilisationService, queueUtilisationService, nodeInfoService)
 
 	taskManager.Register(clusterUtilisationService.ReportClusterUtilisation, config.Task.UtilisationReportingInterval, "utilisation_reporting")
 	taskManager.Register(eventReporter.ReportMissingJobEvents, config.Task.MissingJobEventReconciliationInterval, "event_reconciliation")
