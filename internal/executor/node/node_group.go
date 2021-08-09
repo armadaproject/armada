@@ -20,7 +20,7 @@ type KubernetesNodeInfoService struct {
 	toleratedTaints map[string]bool
 }
 
-func NewClusterUtilisationService(clusterPool string, toleratedTaints []string) *KubernetesNodeInfoService {
+func NewKubernetesNodeInfoService(clusterPool string, toleratedTaints []string) *KubernetesNodeInfoService {
 	return &KubernetesNodeInfoService{
 		clusterPool:     clusterPool,
 		toleratedTaints: util.StringListToSet(toleratedTaints),

@@ -30,18 +30,3 @@ func FilterNodes(nodes []*v1.Node, filter func(node *v1.Node) bool) []*v1.Node {
 
 	return processingNodes
 }
-
-func IsAvailableProcessingNode(node *v1.Node, toleratedTaints map[string]bool) bool {
-	if node.Spec.Unschedulable {
-		return false
-	}
-
-	for _, taint := range node.Spec.Taints {
-		if taint.Effect == v1.TaintEffectNoSchedule &&
-			!toleratedTaints[taint.Key] {
-			return false
-		}
-	}
-
-	return true
-}

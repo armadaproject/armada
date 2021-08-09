@@ -213,6 +213,45 @@ func TestFilterPodsWithPhase_ShouldReturnEmptyIfNoPodWithPhaseExists(t *testing.
 	assert.Equal(t, len(result), 0)
 }
 
+func TestFilterPods(t *testing.T) {
+	pod1 := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "pod1",
+		},
+	}
+	pod2 := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "pod2",
+		},
+	}
+
+	result := FilterPods([]*v1.Pod{pod1, pod2}, func(pod *v1.Pod) bool {
+		return pod.Name == "pod1"
+	})
+
+	assert.Equal(t, len(result), 1)
+	assert.Equal(t, result[0], pod1)
+}
+
+func TestFilterPods_WhenNoPodsMatchFilter(t *testing.T) {
+	pod1 := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "pod1",
+		},
+	}
+	pod2 := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "pod2",
+		},
+	}
+
+	result := FilterPods([]*v1.Pod{pod1, pod2}, func(pod *v1.Pod) bool {
+		return pod.Name == "pod3"
+	})
+
+	assert.Equal(t, len(result), 0)
+}
+
 func TestExtractJobIds(t *testing.T) {
 	jobIds := []string{"1", "2", "3", "4"}
 	pods := makePodsWithJobIds(jobIds)

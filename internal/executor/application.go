@@ -73,7 +73,7 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 
 	queueUtilisationService := utilisation.NewMetricsServerQueueUtilisationService(
 		clusterContext)
-	nodeInfoService := node.NewClusterUtilisationService(clusterContext.GetClusterPool(), config.Kubernetes.ToleratedTaints)
+	nodeInfoService := node.NewKubernetesNodeInfoService(clusterContext.GetClusterPool(), config.Kubernetes.ToleratedTaints)
 	clusterUtilisationService := utilisation.NewClusterUtilisationService(
 		clusterContext,
 		queueUtilisationService,
