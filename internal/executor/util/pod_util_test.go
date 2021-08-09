@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/G-Research/armada/internal/common/util"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -540,4 +541,76 @@ func TestHasCurrentStateBeenReported_FalseWhenNoAnnotationsExist(t *testing.T) {
 	}
 	result := HasCurrentStateBeenReported(&pod)
 	assert.False(t, result)
+}
+
+func TestRemoveDuplicates(t *testing.T) {
+	pod1 := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "pod1"},
+	}
+	duplicatePod1 := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "pod1"},
+	}
+	result := RemoveDuplicates([]*v1.Pod{pod1, duplicatePod1})
+
+	assert.Equal(t, len(result), 1)
+	podNameMap := util.StringListToSet(ExtractNames(result))
+	assert.True(t, podNameMap[pod1.Name])
+}
+
+func TestRemoveDuplicates_HandlesEmpty(t *testing.T) {
+	result := RemoveDuplicates([]*v1.Pod{})
+	assert.Equal(t, len(result), 0)
+}
+
+func TestRemoveDuplicates_HandlesAllUnique(t *testing.T) {
+	pod1 := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "pod1"},
+	}
+	pod2 := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "pod2"},
+	}
+	result := RemoveDuplicates([]*v1.Pod{pod1, pod2})
+
+	assert.Equal(t, len(result), 2)
+	podNameMap := util.StringListToSet(ExtractNames(result))
+	assert.True(t, podNameMap[pod1.Name])
+	assert.True(t, podNameMap[pod2.Name])
+}
+
+func TestCountPodsByPhase(t *testing.T) {
+	pod1 := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "pod1"},
+		Status:     v1.PodStatus{Phase: v1.PodPending},
+	}
+	pod2 := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "pod2"},
+		Status:     v1.PodStatus{Phase: v1.PodRunning},
+	}
+	pod3 := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "pod3"},
+		Status:     v1.PodStatus{Phase: v1.PodRunning},
+	}
+	result := CountPodsByPhase([]*v1.Pod{pod1, pod2, pod3})
+	assert.Equal(t, len(result), 2)
+	assert.Equal(t, result[string(v1.PodPending)], uint32(1))
+	assert.Equal(t, result[string(v1.PodPending)], uint32(1))
+}
+
+func TestCountPodsByPhase_RemovesDuplicatePods(t *testing.T) {
+	pod1 := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "pod1"},
+		Status:     v1.PodStatus{Phase: v1.PodRunning},
+	}
+	duplicatePod1 := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "pod1"},
+		Status:     v1.PodStatus{Phase: v1.PodRunning},
+	}
+	result := CountPodsByPhase([]*v1.Pod{pod1, duplicatePod1})
+	assert.Equal(t, len(result), 1)
+	assert.Equal(t, result[string(v1.PodRunning)], uint32(1))
+}
+
+func TestCountPodsByPhase_HandlesEmpty(t *testing.T) {
+	result := CountPodsByPhase([]*v1.Pod{})
+	assert.Equal(t, result, map[string]uint32{})
 }

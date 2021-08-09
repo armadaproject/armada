@@ -183,6 +183,13 @@ var queueUsedDesc = prometheus.NewDesc(
 	nil,
 )
 
+var queueLeasedPodCountDesc = prometheus.NewDesc(
+	MetricPrefix+"queue_leased_pod_count",
+	"Number of leased pods",
+	[]string{"cluster", "pool", "queueName", "phase", "nodeType"},
+	nil,
+)
+
 var clusterCapacityDesc = prometheus.NewDesc(
 	MetricPrefix+"cluster_capacity",
 	"Cluster capacity",
@@ -344,6 +351,17 @@ func (c *QueueInfoCollector) recordQueueUsageMetrics(metrics chan<- prometheus.M
 							report.Pool,
 							queueReport.Name,
 							resourceType,
+							nodeTypeUsage.NodeType.Id)
+					}
+					for phase, count := range queueReport.CountOfPodsByPhase {
+						metrics <- prometheus.MustNewConstMetric(
+							queueLeasedPodCountDesc,
+							prometheus.GaugeValue,
+							float64(count),
+							cluster,
+							report.Pool,
+							queueReport.Name,
+							phase,
 							nodeTypeUsage.NodeType.Id)
 					}
 				}

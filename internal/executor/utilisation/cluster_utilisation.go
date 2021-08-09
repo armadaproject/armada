@@ -57,7 +57,7 @@ type NodeGroupAllocationInfo struct {
 }
 
 func (clusterUtilisationService *ClusterUtilisationService) ReportClusterUtilisation() {
-	allActiveManagedPods, err := clusterUtilisationService.getAllRunningManagedPods()
+	allBatchPods, err := clusterUtilisationService.clusterContext.GetActiveBatchPods()
 	if err != nil {
 		log.Errorf("Failed to get required information to report cluster usage because %s", err)
 		return
@@ -71,7 +71,7 @@ func (clusterUtilisationService *ClusterUtilisationService) ReportClusterUtilisa
 
 	nodeGroupReports := make([]api.NodeTypeUsageReport, 0, len(nodeGroupInfos))
 	for _, nodeGroup := range nodeGroupInfos {
-		managedPodsOnNodes := GetPodsOnNodes(allActiveManagedPods, nodeGroup.Nodes)
+		managedPodsOnNodes := GetPodsOnNodes(allBatchPods, nodeGroup.Nodes)
 		queueReports := clusterUtilisationService.createReportsOfQueueUsages(managedPodsOnNodes)
 
 		nodeGroupReports = append(nodeGroupReports, api.NodeTypeUsageReport{
@@ -269,18 +269,11 @@ func getAllPodsRequiringResourceOnProcessingNodes(allPods []*v1.Pod, processingN
 	return podsUsingResourceOnProcessingNodes
 }
 
-func (clusterUtilisationService *ClusterUtilisationService) getAllRunningManagedPods() ([]*v1.Pod, error) {
-	allActiveManagedPods, err := clusterUtilisationService.clusterContext.GetActiveBatchPods()
-	if err != nil {
-		return []*v1.Pod{}, err
-	}
-	allActiveManagedPods = FilterPodsWithPhase(allActiveManagedPods, v1.PodRunning)
-	return allActiveManagedPods, nil
-}
-
 func (clusterUtilisationService *ClusterUtilisationService) createReportsOfQueueUsages(pods []*v1.Pod) []*api.QueueReport {
-	allocationByQueue := GetAllocationByQueue(pods)
-	usageByQueue := clusterUtilisationService.getUsageByQueue(pods)
+	runningPods := FilterPodsWithPhase(pods, v1.PodRunning)
+
+	allocationByQueue := GetAllocationByQueue(runningPods)
+	usageByQueue := clusterUtilisationService.getUsageByQueue(runningPods)
 
 	queueReports := make([]*api.QueueReport, 0, len(allocationByQueue))
 
@@ -292,10 +285,17 @@ func (clusterUtilisationService *ClusterUtilisationService) createReportsOfQueue
 		} else {
 			resourceUsed = queueUtilisation
 		}
+		podsInQueue := FilterPods(pods, func(pod *v1.Pod) bool {
+			queue, present := pod.Labels[domain.Queue]
+			return present && queueName == queue
+		})
+		phaseSummary := CountPodsByPhase(podsInQueue)
+
 		queueReport := api.QueueReport{
-			Name:          queueName,
-			Resources:     queueUsage,
-			ResourcesUsed: resourceUsed,
+			Name:               queueName,
+			Resources:          queueUsage,
+			ResourcesUsed:      resourceUsed,
+			CountOfPodsByPhase: phaseSummary,
 		}
 		queueReports = append(queueReports, &queueReport)
 	}

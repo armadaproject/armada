@@ -255,3 +255,33 @@ func HasCurrentStateBeenReported(pod *v1.Pod) bool {
 	_, annotationPresent := pod.Annotations[string(podPhase)]
 	return annotationPresent
 }
+
+func CountPodsByPhase(pods []*v1.Pod) map[string]uint32 {
+	pods = RemoveDuplicates(pods)
+	result := map[string]uint32{}
+
+	for _, pod := range pods {
+		phase := string(pod.Status.Phase)
+		if _, present := result[phase]; !present {
+			result[phase] = 0
+		}
+		result[phase]++
+	}
+
+	return result
+}
+
+func RemoveDuplicates(pods []*v1.Pod) []*v1.Pod {
+	podsSet := map[string]*v1.Pod{}
+	for _, pod := range pods {
+		if _, present := podsSet[pod.Name]; !present {
+			podsSet[pod.Name] = pod
+		}
+	}
+
+	result := make([]*v1.Pod, 0, len(podsSet))
+	for _, pod := range podsSet {
+		result = append(result, pod)
+	}
+	return result
+}

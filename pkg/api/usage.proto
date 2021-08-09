@@ -15,6 +15,7 @@ message QueueReport {
     string name = 1;
     map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> resources = 2 [(gogoproto.nullable) = false];
     map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> resources_used = 3 [(gogoproto.nullable) = false];
+    map<string, uint32> count_of_pods_by_phase = 4;
 }
 
 message ClusterUsageReport {
