@@ -47,6 +47,45 @@ jobs:
           token: ${{ secrets.RELEASE_TOKEN }}
           tag: ${{ github.event.release.tag_name }} 
 
+      - name: Push Release Image #TODO
+        run: |
+          if [ -z "${dockerUsername}" ]
+            then
+              echo "Do not push image inside fork."
+              exit 0
+          fi
+
+          TAG=${GITHUB_SHA}
+          RELEASE_TAG=${GITHUB_REF##*/}
+
+          echo ${dockerToken} | docker login -u ${dockerUsername} --password-stdin
+
+          docker pull ljubon/armada-server-dev:${TAG}
+          docker tag ljubon/armada-server-dev:${TAG} ljubon/armada-server:${RELEASE_TAG}
+          docker push ljubon/armada-server:${RELEASE_TAG}
+
+          docker pull ljubon/armada-executor-dev:${TAG}
+          docker tag ljubon/armada-executor-dev:${TAG} ljubon/armada-executor:${RELEASE_TAG}
+          docker push ljubon/armada-executor:${RELEASE_TAG}
+
+          docker pull ljubon/armada-armadactl-dev:${TAG}
+          docker tag ljubon/armada-armadactl-dev:${TAG} ljubon/armada-armadactl:${RELEASE_TAG}
+          docker push ljubon/armada-armadactl:${RELEASE_TAG}
+
+          docker pull ljubon/armada-lookout-dev:${TAG}
+          docker tag ljubon/armada-lookout-dev:${TAG} ljubon/armada-lookout:${RELEASE_TAG}
+          docker push ljubon/armada-lookout:${RELEASE_TAG}
+
+          docker pull ljubon/armada-binoculars-dev:${TAG}
+          docker tag ljubon/armada-binoculars-dev:${TAG} ljubon/armada-binoculars:${RELEASE_TAG}
+          docker push ljubon/armada-binoculars:${RELEASE_TAG}
+
+          rm -v /home/runner/.docker/config.json
+        working-directory: ${{ env.GOPATH }}/src/github.com/G-Research/armada
+        env: #TODO change DOCKERTOKEN and DOCKERUSERNAME
+          dockerToken: ${{ secrets.DOCKERTOKEN }}
+          dockerUsername: ${{ secrets.DOCKERUSERNAME }}
+
       - name: Update release summmary
         run: |
           ./scripts/add-checksum-summary.sh ${{ secrets.GITHUB_TOKEN }} ${GITHUB_REF##*/}
