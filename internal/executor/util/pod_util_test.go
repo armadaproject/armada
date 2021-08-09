@@ -4,11 +4,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/G-Research/armada/internal/common/util"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/executor/domain"
 )
 
