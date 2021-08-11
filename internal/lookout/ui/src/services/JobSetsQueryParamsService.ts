@@ -28,7 +28,7 @@ function makeQueryString(state: JobSetsContainerState): string {
   return queryString.stringify(queryObject)
 }
 
-export default class JobSetsQueryStringService {
+export default class JobSetsQueryParamsService {
   routeComponentProps: RouteComponentProps
 
   constructor(routeComponentProps: RouteComponentProps) {

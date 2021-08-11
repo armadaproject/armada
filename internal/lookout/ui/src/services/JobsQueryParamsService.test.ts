@@ -1,4 +1,4 @@
-import { makeQueryString, updateColumnsFromQueryString } from "./JobsQueryStringService"
+import { makeQueryString, updateColumnsFromQueryString } from "./JobsQueryParamsService"
 
 function assertStringHasQueryParams(expected: string[], actual: string) {
   const actualQueryParams = actual.split("&")

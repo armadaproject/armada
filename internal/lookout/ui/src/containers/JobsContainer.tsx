@@ -14,7 +14,7 @@ import IntervalService from "../services/IntervalService"
 import JobService, { GetJobsRequest, Job } from "../services/JobService"
 import JobTableService from "../services/JobTableService"
 import JobsLocalStorageService from "../services/JobsLocalStorageService"
-import JobsQueryStringService from "../services/JobsQueryStringService"
+import JobsQueryParamsService from "../services/JobsQueryParamsService"
 import LogService from "../services/LogService"
 import TimerService from "../services/TimerService"
 import { RequestStatus, selectItem, setStateAsync } from "../utils"
@@ -57,7 +57,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
   autoRefreshService: IntervalService
   resetCacheService: TimerService
   localStorageService: JobsLocalStorageService
-  queryStringService: JobsQueryStringService
+  queryParamsService: JobsQueryParamsService
 
   constructor(props: JobsContainerProps) {
     super(props)
@@ -66,7 +66,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     this.autoRefreshService = new IntervalService(props.jobsAutoRefreshMs)
     this.resetCacheService = new TimerService(100)
     this.localStorageService = new JobsLocalStorageService()
-    this.queryStringService = new JobsQueryStringService(this.props)
+    this.queryParamsService = new JobsQueryParamsService(this.props)
 
     this.state = {
       jobs: [],
@@ -182,10 +182,10 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     const newState = { ...this.state }
 
     this.localStorageService.updateState(newState)
-    this.queryStringService.updateState(newState)
+    this.queryParamsService.updateState(newState)
 
     this.localStorageService.saveState(newState)
-    this.queryStringService.saveState(newState)
+    this.queryParamsService.saveState(newState)
 
     await setStateAsync(this, {
       ...newState,
@@ -676,7 +676,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
 
   private async setFilters(updatedState: JobsContainerState) {
     this.localStorageService.saveState(updatedState)
-    this.queryStringService.saveState(updatedState)
+    this.queryParamsService.saveState(updatedState)
     this.jobTableService.refresh()
     await setStateAsync(this, {
       ...updatedState,

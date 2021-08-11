@@ -14,7 +14,7 @@ import ReprioritizeJobSetsDialog, {
 import IntervalService from "../services/IntervalService"
 import JobService, { GetJobSetsRequest, JobSet } from "../services/JobService"
 import JobSetsLocalStorageService from "../services/JobSetsLocalStorageService"
-import JobSetsQueryStringService from "../services/JobSetsQueryStringService"
+import JobSetsQueryParamsService from "../services/JobSetsQueryParamsService"
 import { debounced, RequestStatus, selectItem, setStateAsync } from "../utils"
 
 type JobSetsContainerProps = {
@@ -50,14 +50,14 @@ export function isJobSetsView(val: string): val is JobSetsView {
 class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsContainerState> {
   autoRefreshService: IntervalService
   localStorageService: JobSetsLocalStorageService
-  queryStringService: JobSetsQueryStringService
+  queryParamsService: JobSetsQueryParamsService
 
   constructor(props: JobSetsContainerProps) {
     super(props)
 
     this.autoRefreshService = new IntervalService(props.jobSetsAutoRefreshMs)
     this.localStorageService = new JobSetsLocalStorageService()
-    this.queryStringService = new JobSetsQueryStringService(this.props)
+    this.queryParamsService = new JobSetsQueryParamsService(this.props)
 
     this.state = {
       queue: "",
@@ -109,10 +109,10 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
     const newState = { ...this.state }
 
     this.localStorageService.updateState(newState)
-    this.queryStringService.updateState(newState)
+    this.queryParamsService.updateState(newState)
 
     this.localStorageService.saveState(newState)
-    this.queryStringService.saveState(newState)
+    this.queryParamsService.saveState(newState)
 
     await setStateAsync(this, {
       ...newState,
@@ -364,7 +364,7 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
 
   private async updateState(updatedState: JobSetsContainerState) {
     this.localStorageService.saveState(updatedState)
-    this.queryStringService.saveState(updatedState)
+    this.queryParamsService.saveState(updatedState)
     await setStateAsync(this, updatedState)
   }
 

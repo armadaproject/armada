@@ -94,7 +94,7 @@ function parseJobStates(jobStates: string[] | string): string[] {
   return jobStates.filter((jobState) => JOB_STATES_FOR_DISPLAY.includes(jobState))
 }
 
-export default class JobsQueryStringService {
+export default class JobsQueryParamsService {
   routeComponentProps: RouteComponentProps
 
   constructor(routeComponentProps: RouteComponentProps) {
