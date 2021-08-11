@@ -56,10 +56,6 @@ export function makeQueryString(columns: ColumnSpec<string | boolean | string[]>
 
 export function updateColumnsFromQueryString(query: string, columns: ColumnSpec<string | boolean | string[]>[]) {
   const params = queryString.parse(query, QUERY_STRING_OPTIONS) as JobsQueryParams
-  updateColumnsFromParams(columns, params)
-}
-
-function updateColumnsFromParams(columns: ColumnSpec<string | boolean | string[]>[], params: JobsQueryParams) {
   for (const col of columns) {
     if (col.id === "queue" && params.queue) {
       col.filter = params.queue
@@ -109,7 +105,6 @@ export default class JobsQueryParamsService {
   }
 
   updateState(state: JobsContainerState) {
-    const params = queryString.parse(this.routeComponentProps.location.search, QUERY_STRING_OPTIONS) as JobsQueryParams
-    updateColumnsFromParams(state.defaultColumns, params)
+    updateColumnsFromQueryString(this.routeComponentProps.location.search, state.defaultColumns)
   }
 }
