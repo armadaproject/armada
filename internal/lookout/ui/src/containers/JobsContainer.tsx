@@ -39,6 +39,8 @@ type JobsContainerState = {
 
 const newPriorityRegex = new RegExp("^([0-9]+)$")
 
+export type Width = number | "Fill"
+
 export type ColumnSpec<T> = {
   id: string
   name: string
@@ -46,6 +48,7 @@ export type ColumnSpec<T> = {
   isDisabled: boolean
   filter: T
   defaultFilter: T
+  width: Width
 }
 
 type JobFiltersQueryParams = {
@@ -165,6 +168,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
           isDisabled: false,
           filter: [],
           defaultFilter: [],
+          width: 125,
         },
         {
           id: "queue",
@@ -173,6 +177,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
           isDisabled: false,
           filter: "",
           defaultFilter: "",
+          width: "Fill",
         },
         {
           id: "jobId",
@@ -181,6 +186,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
           isDisabled: false,
           filter: "",
           defaultFilter: "",
+          width: "Fill",
         },
         {
           id: "owner",
@@ -189,6 +195,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
           isDisabled: false,
           filter: "",
           defaultFilter: "",
+          width: "Fill",
         },
         {
           id: "jobSet",
@@ -197,6 +204,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
           isDisabled: false,
           filter: "",
           defaultFilter: "",
+          width: "Fill",
         },
         {
           id: "submissionTime",
@@ -205,6 +213,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
           isDisabled: false,
           filter: true,
           defaultFilter: true,
+          width: "Fill",
         },
       ],
       annotationColumns: [],
@@ -354,13 +363,14 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
   }
 
   addAnnotationColumn() {
-    const newCol = {
+    const newCol: ColumnSpec<string> = {
       id: uuidv4(),
       name: "",
       accessor: "",
       isDisabled: false,
       filter: "",
       defaultFilter: "",
+      width: "Fill",
     }
     this.state.annotationColumns.push(newCol)
     this.setFilters(this.state)

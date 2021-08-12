@@ -4,7 +4,7 @@ import { Accordion, AccordionDetails, AccordionSummary, Table, TableBody, TableC
 import { ExpandMore } from "@material-ui/icons"
 
 import { Job } from "../../services/JobService"
-import { MakeJobDetailsRow, MakeJobDetailSpecifyKey } from "./JobDetailsUtils"
+import DetailRow from "./DetailRow"
 import { PreviousRuns } from "./PreviousRuns"
 import { RunDetailsRows } from "./RunDetailsRows"
 
@@ -25,23 +25,19 @@ export default function JobDetails(props: DetailsProps) {
       <TableContainer>
         <Table className="details-table-container">
           <TableBody>
-            {MakeJobDetailsRow("Id", props.job.jobId)}
-            {MakeJobDetailsRow("Queue", props.job.queue)}
-            {MakeJobDetailsRow("Owner", props.job.owner)}
-            {MakeJobDetailsRow("Job set", props.job.jobSet)}
-            {MakeJobDetailsRow("Job state", props.job.jobState)}
-            {MakeJobDetailsRow("Priority", props.job.priority?.toString())}
-            {MakeJobDetailsRow("Submitted", props.job.submissionTime?.toString())}
-            {props.job.cancelledTime && MakeJobDetailsRow("Cancelled", props.job.cancelledTime.toString())}
+            <DetailRow name="Id" value={props.job.jobId} />
+            <DetailRow name="Queue" value={props.job.queue} />
+            <DetailRow name="Owner" value={props.job.owner} />
+            <DetailRow name="Job set" value={props.job.jobSet} />
+            <DetailRow name="Job state" value={props.job.jobState} />
+            <DetailRow name="Priority" value={props.job.priority.toString()} />
+            <DetailRow name="Submitted" value={props.job.submissionTime} />
+            {props.job.cancelledTime && <DetailRow name="Cancelled" value={props.job.cancelledTime} />}
             {lastRun && <RunDetailsRows run={lastRun} />}
             {props.job.annotations &&
-              Object.keys(props.job.annotations).map((annotationName) =>
-                MakeJobDetailSpecifyKey(
-                  "__annotation_" + annotationName,
-                  annotationName,
-                  props.job.annotations[annotationName],
-                ),
-              )}
+              Object.entries(props.job.annotations).map(([name, value]) => (
+                <DetailRow key={"annotation-" + name} name={name} value={value} />
+              ))}
           </TableBody>
         </Table>
       </TableContainer>

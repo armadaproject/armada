@@ -45,10 +45,9 @@
 }
 
 .copy {
+    padding-top: 4px !important;
+    padding-bottom: 4px !important;
     width: 10% !important;
-    cursor: pointer;
-    text-decoration: underline;
-    white-space: normal;
 }
 
 .error-message {

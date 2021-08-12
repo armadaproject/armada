@@ -11,6 +11,7 @@ import {
   ApiJob,
 } from "../openapi/lookout"
 import { reverseMap, secondsToDurationString, getErrorMessage } from "../utils"
+import { makeTestJobs } from "./testData"
 
 type DurationFromApi = {
   seconds?: number
@@ -181,6 +182,9 @@ export default class JobService {
   }
 
   async getJobs(getJobsRequest: GetJobsRequest): Promise<Job[]> {
+    if (getJobsRequest.queue === "test") {
+      return Promise.resolve(makeTestJobs("test", 0, 100))
+    }
     const jobStatesForApi = getJobsRequest.jobStates.map(getJobStateForApi)
     const jobSetsForApi = getJobsRequest.jobSets.map(escapeBackslashes)
     try {
