@@ -11,6 +11,7 @@ import (
 
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/internal/executor/configuration"
+	"github.com/G-Research/armada/internal/executor/context"
 	"github.com/G-Research/armada/internal/executor/domain"
 	fakeContext "github.com/G-Research/armada/internal/executor/fake/context"
 	reporter_fake "github.com/G-Research/armada/internal/executor/reporter/fake"
@@ -31,27 +32,10 @@ func TestUtilisationEventReporter_ReportUtilisationEvents(t *testing.T) {
 	reportingPeriod := 100 * time.Millisecond
 	clusterContext := fakeContext.NewFakeClusterContext(configuration.ApplicationConfiguration{ClusterId: "test", Pool: "pool"}, nil)
 	fakeEventReporter := &reporter_fake.FakeEventReporter{}
-	reporter := NewUtilisationEventReporter(clusterContext, &fakePodUtilisation{}, fakeEventReporter, reportingPeriod)
+	fakeUtilisationService := &fakePodUtilisationService{data: &testPodResources}
 
-	podResources := map[v1.ResourceName]resource.Quantity{
-		"cpu":    resource.MustParse("1"),
-		"memory": resource.MustParse("640Ki"),
-	}
-
-	clusterContext.SubmitPod(&v1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "test-pod",
-			Labels: map[string]string{
-				domain.JobId: "test-job",
-			},
-		},
-		Spec: v1.PodSpec{Containers: []v1.Container{
-			{
-				Resources: v1.ResourceRequirements{
-					podResources, podResources,
-				},
-			},
-		}}}, "owner", nil)
+	reporter := NewUtilisationEventReporter(clusterContext, fakeUtilisationService, fakeEventReporter, reportingPeriod)
+	submitPod(clusterContext)
 
 	deadline := time.Now().Add(time.Second)
 	for {
@@ -76,8 +60,63 @@ func TestUtilisationEventReporter_ReportUtilisationEvents(t *testing.T) {
 	assert.Equal(t, period/accuracy, reportingPeriod/accuracy)
 }
 
-type fakePodUtilisation struct{}
+func TestUtilisationEventReporter_ReportUtilisationEvents_WhenNoUtilisationData(t *testing.T) {
+	reportingPeriod := 100 * time.Millisecond
+	clusterContext := fakeContext.NewFakeClusterContext(configuration.ApplicationConfiguration{ClusterId: "test", Pool: "pool"}, nil)
+	fakeEventReporter := &reporter_fake.FakeEventReporter{}
+	fakeUtilisationService := &fakePodUtilisationService{data: domain.EmptyUtilisationData()}
 
-func (f *fakePodUtilisation) GetPodUtilisation(pod *v1.Pod) *domain.UtilisationData {
-	return testPodResources.DeepCopy()
+	reporter := NewUtilisationEventReporter(clusterContext, fakeUtilisationService, fakeEventReporter, reportingPeriod)
+	submitPod(clusterContext)
+
+	deadline := time.Now().Add(time.Millisecond * 500)
+	count := 0
+	for {
+		reporter.ReportUtilisationEvents()
+		count++
+		time.Sleep(time.Millisecond)
+		if time.Now().After(deadline) {
+			break
+		}
+	}
+
+	assert.True(t, len(fakeEventReporter.ReceivedEvents) == 0)
+	assert.True(t, count > 0)
+}
+
+func submitPod(clusterContext context.ClusterContext) *v1.Pod {
+	podResources := map[v1.ResourceName]resource.Quantity{
+		"cpu":    resource.MustParse("1"),
+		"memory": resource.MustParse("640Ki"),
+	}
+
+	pod := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-pod",
+			Labels: map[string]string{
+				domain.JobId: "test-job",
+			},
+		},
+		Spec: v1.PodSpec{Containers: []v1.Container{
+			{
+				Resources: v1.ResourceRequirements{
+					podResources, podResources,
+				},
+			},
+		}}}
+
+	clusterContext.SubmitPod(pod, "owner", nil)
+	return pod
+}
+
+type fakePodUtilisationService struct {
+	data *domain.UtilisationData
+}
+
+func (f *fakePodUtilisationService) GetPodUtilisation(pod *v1.Pod) *domain.UtilisationData {
+	return f.data.DeepCopy()
+}
+
+func (f *fakePodUtilisationService) SetPodUtilisation(data *domain.UtilisationData) {
+	f.data = data
 }
