@@ -6,9 +6,9 @@ import { Column, TableCellProps } from "react-virtualized"
 import { ColumnSpec } from "../../containers/JobsContainer"
 import { Job } from "../../services/JobService"
 import LinkCell from "../LinkCell"
+import SortableHeaderCell from "../SortableHeaderCell"
 import JobStatesHeaderCell from "./JobStatesHeaderCell"
 import SearchHeaderCell from "./SearchHeaderCell"
-import SubmissionTimeHeaderCell from "./SubmissionTimeHeaderCell"
 
 export default function columnWrapper(
   key: string,
@@ -28,8 +28,10 @@ export default function columnWrapper(
           width={width}
           label={columnSpec.name}
           headerRenderer={(headerProps) => (
-            <SubmissionTimeHeaderCell
-              newestFirst={columnSpec.filter as boolean}
+            <SortableHeaderCell
+              name="Submission Time"
+              descending={columnSpec.filter as boolean}
+              className="job-submission-time-header-cell"
               onOrderChange={onChange}
               {...headerProps}
             />

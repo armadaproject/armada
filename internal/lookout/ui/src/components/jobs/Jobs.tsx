@@ -39,6 +39,7 @@ type JobsProps = {
   onAutoRefreshChange: (autoRefresh: boolean) => void
   onInteract: () => void
   onRegisterResetCache: (resetCache: () => void) => void
+  onClear: () => void
 }
 
 export default class Jobs extends React.Component<JobsProps, Record<string, never>> {
@@ -99,6 +100,7 @@ export default class Jobs extends React.Component<JobsProps, Record<string, neve
             onAddColumn={this.props.onAddColumn}
             onChangeAnnotationColumnKey={this.props.onChangeAnnotationColumnKey}
             onAutoRefreshChange={this.props.onAutoRefreshChange}
+            onClear={this.props.onClear}
           />
         </div>
         <div className="job-table">
