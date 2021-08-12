@@ -41,3 +41,21 @@ func TestUtilisationData_Max_WithEmpty(t *testing.T) {
 	assert.Equal(t, data.CurrentUsage, max.CurrentUsage)
 	assert.Equal(t, data.CumulativeUsage, max.CumulativeUsage)
 }
+
+func TestUtilisationData_IsEmpty(t *testing.T) {
+	data := EmptyUtilisationData()
+	assert.True(t, data.IsEmpty())
+
+	cumulativeUsageNotEmpty := EmptyUtilisationData()
+	cumulativeUsageNotEmpty.CumulativeUsage = common.ComputeResources{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1")}
+	assert.False(t, cumulativeUsageNotEmpty.IsEmpty())
+
+	currentUsageNotEmpty := EmptyUtilisationData()
+	currentUsageNotEmpty.CurrentUsage = common.ComputeResources{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1")}
+	assert.False(t, currentUsageNotEmpty.IsEmpty())
+
+	allNotEmpty := EmptyUtilisationData()
+	allNotEmpty.CumulativeUsage = common.ComputeResources{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1")}
+	allNotEmpty.CurrentUsage = common.ComputeResources{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1")}
+	assert.False(t, allNotEmpty.IsEmpty())
+}
