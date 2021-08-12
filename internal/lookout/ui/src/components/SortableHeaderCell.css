@@ -1,4 +1,4 @@
-.submission-time-header-cell {
+.sortable-header-cell {
     width: 100%;
     padding: 0 1em 0 0;
     display: flex;
@@ -7,8 +7,4 @@
     align-items: center;
     cursor: pointer;
     text-transform: none;
-}
-
-.submission-time-header-cell-label {
-    font-weight: normal !important;
 }

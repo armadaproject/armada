@@ -6,3 +6,8 @@
     text-align: right;
     padding-right: 1em;
 }
+
+.job-set-submission-time-header-cell {
+    font-weight: 700;
+    text-transform: uppercase;
+}
