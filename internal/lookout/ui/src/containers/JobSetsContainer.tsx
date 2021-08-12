@@ -1,5 +1,3 @@
-import * as queryString from "querystring"
-
 import React, { Fragment } from "react"
 
 import { RouteComponentProps, withRouter } from "react-router-dom"
@@ -15,7 +13,9 @@ import ReprioritizeJobSetsDialog, {
 } from "../components/job-sets/ReprioritizeJobSetsDialog"
 import IntervalService from "../services/IntervalService"
 import JobService, { GetJobSetsRequest, JobSet } from "../services/JobService"
-import { setStateAsync, selectItem, debounced, RequestStatus } from "../utils"
+import JobSetsLocalStorageService from "../services/JobSetsLocalStorageService"
+import JobSetsQueryParamsService from "../services/JobSetsQueryParamsService"
+import { debounced, RequestStatus, selectItem, setStateAsync } from "../utils"
 
 type JobSetsContainerProps = {
   jobService: JobService
@@ -29,7 +29,7 @@ type JobSetsContainerParams = {
 
 const newPriorityRegex = new RegExp("^([0-9]+)$")
 
-type JobSetsContainerState = {
+export type JobSetsContainerState = {
   jobSets: JobSet[]
   selectedJobSets: Map<string, JobSet>
   getJobSetsRequestStatus: RequestStatus
@@ -43,45 +43,21 @@ type JobSetsContainerState = {
 
 export type JobSetsView = "job-counts" | "runtime" | "queued-time"
 
-type JobSetsQueryParams = {
-  queue?: string
-  view?: string
-}
-
 export function isJobSetsView(val: string): val is JobSetsView {
   return ["job-counts", "runtime", "queued-time"].includes(val)
 }
 
-function makeQueryString(queue: string, view: JobSetsView): string {
-  const queryObject: JobSetsQueryParams = {}
-
-  if (queue) {
-    queryObject.queue = queue
-  }
-  queryObject.view = view
-
-  return queryString.stringify(queryObject)
-}
-
-function getParamsFromQueryString(query: string): JobSetsContainerParams {
-  if (query[0] === "?") {
-    query = query.slice(1)
-  }
-  const params = queryString.parse(query) as JobSetsQueryParams
-
-  return {
-    queue: params.queue ?? "",
-    currentView: params.view && isJobSetsView(params.view) ? params.view : "job-counts",
-  }
-}
-
 class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsContainerState> {
   autoRefreshService: IntervalService
+  localStorageService: JobSetsLocalStorageService
+  queryParamsService: JobSetsQueryParamsService
 
   constructor(props: JobSetsContainerProps) {
     super(props)
 
     this.autoRefreshService = new IntervalService(props.jobSetsAutoRefreshMs)
+    this.localStorageService = new JobSetsLocalStorageService()
+    this.queryParamsService = new JobSetsQueryParamsService(this.props)
 
     this.state = {
       queue: "",
@@ -130,16 +106,22 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
   }
 
   async componentDidMount() {
-    const params = getParamsFromQueryString(this.props.location.search)
-    await this.setStateAsync({
-      ...this.state,
-      ...params,
+    const newState = { ...this.state }
+
+    this.localStorageService.updateState(newState)
+    this.queryParamsService.updateState(newState)
+
+    this.localStorageService.saveState(newState)
+    this.queryParamsService.saveState(newState)
+
+    await setStateAsync(this, {
+      ...newState,
     })
 
     await this.loadJobSets()
 
     this.autoRefreshService.registerCallback(this.loadJobSets)
-    this.autoRefreshService.start()
+    this.tryStartAutoRefreshService()
   }
 
   componentWillUnmount() {
@@ -147,11 +129,7 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
   }
 
   async setQueue(queue: string) {
-    this.props.history.push({
-      ...this.props.location,
-      search: makeQueryString(queue, this.state.currentView),
-    })
-    await this.setStateAsync({
+    await this.updateState({
       ...this.state,
       queue: queue,
     })
@@ -161,16 +139,15 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
   }
 
   async orderChange(newestFirst: boolean) {
-    await this.setStateAsync({
+    await this.updateState({
       ...this.state,
       newestFirst: newestFirst,
     })
-
     await this.loadJobSets()
   }
 
   async activeOnlyChange(activeOnly: boolean) {
-    await this.setStateAsync({
+    await this.updateState({
       ...this.state,
       activeOnly: activeOnly,
     })
@@ -275,7 +252,7 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
       return
     }
 
-    this.setState({
+    await setStateAsync(this, {
       ...this.state,
       cancelJobSetsDialogContext: {
         ...this.state.cancelJobSetsDialogContext,
@@ -288,7 +265,7 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
       this.state.cancelJobSetsDialogContext.jobSetsToCancel,
     )
 
-    this.setState({
+    await setStateAsync(this, {
       ...this.state,
       cancelJobSetsDialogContext: {
         ...this.state.cancelJobSetsDialogContext,
@@ -310,7 +287,7 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
       return
     }
 
-    this.setState({
+    await setStateAsync(this, {
       ...this.state,
       reprioritizeJobSetsDialogContext: {
         ...this.state.reprioritizeJobSetsDialogContext,
@@ -324,7 +301,7 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
       this.state.reprioritizeJobSetsDialogContext.newPriority,
     )
 
-    this.setState({
+    await setStateAsync(this, {
       ...this.state,
       reprioritizeJobSetsDialogContext: {
         ...this.state.reprioritizeJobSetsDialogContext,
@@ -354,12 +331,7 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
   }
 
   setView(view: JobSetsView) {
-    this.props.history.push({
-      ...this.props.location,
-      search: makeQueryString(this.state.queue, view),
-    })
-
-    this.setState({
+    this.updateState({
       ...this.state,
       currentView: view,
       selectedJobSets: new Map<string, JobSet>(),
@@ -374,17 +346,26 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
     })
   }
 
-  toggleAutoRefresh(autoRefresh: boolean) {
-    this.setState({
+  async toggleAutoRefresh(autoRefresh: boolean) {
+    await this.updateState({
       ...this.state,
       autoRefresh: autoRefresh,
     })
+    this.tryStartAutoRefreshService()
+  }
 
-    if (autoRefresh) {
+  tryStartAutoRefreshService() {
+    if (this.state.autoRefresh) {
       this.autoRefreshService.start()
     } else {
       this.autoRefreshService.stop()
     }
+  }
+
+  private async updateState(updatedState: JobSetsContainerState) {
+    this.localStorageService.saveState(updatedState)
+    this.queryParamsService.saveState(updatedState)
+    await setStateAsync(this, updatedState)
   }
 
   private async loadJobSets() {
@@ -414,10 +395,6 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
 
   private fetchJobSets(getJobSetsRequest: GetJobSetsRequest): Promise<JobSet[]> {
     return this.props.jobService.getJobSets(getJobSetsRequest)
-  }
-
-  private setStateAsync(state: JobSetsContainerState): Promise<void> {
-    return new Promise((resolve) => this.setState(state, resolve))
   }
 
   private static getCancellableSelectedJobSets(selectedJobSets: Map<string, JobSet>): JobSet[] {
