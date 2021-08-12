@@ -26,6 +26,7 @@ type JobTableHeaderProps = {
   onDeleteColumn: (columnId: string) => void
   onAddColumn: () => void
   onChangeAnnotationColumnKey: (columnId: string, newKey: string) => void
+  onClear: () => void
 }
 
 export default function JobTableHeader(props: JobTableHeaderProps) {
@@ -67,6 +68,11 @@ export default function JobTableHeader(props: JobTableHeaderProps) {
             onClick={props.onCancelJobsClick}
           >
             Cancel
+          </Button>
+        </div>
+        <div className="clear">
+          <Button onClick={props.onClear} color="secondary">
+            Clear Search
           </Button>
         </div>
         <div className="auto-refresh">

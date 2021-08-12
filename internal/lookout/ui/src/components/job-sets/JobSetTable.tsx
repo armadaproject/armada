@@ -7,6 +7,7 @@ import { JobSet } from "../../services/JobService"
 import CheckboxHeaderRow from "../CheckboxHeaderRow"
 import CheckboxRow from "../CheckboxRow"
 import LinkCell from "../LinkCell"
+import SortableHeaderCell from "../SortableHeaderCell"
 
 import "./JobSetTable.css"
 
@@ -15,10 +16,12 @@ interface JobSetTableProps {
   width: number
   jobSets: JobSet[]
   selectedJobSets: Map<string, JobSet>
+  newestFirst: boolean
   onJobSetClick: (jobSet: string, state: string) => void
   onSelectJobSet: (index: number, selected: boolean) => void
   onShiftSelectJobSet: (index: number, selected: boolean) => void
   onDeselectAllClick: () => void
+  onOrderChange: (newestFirst: boolean) => void
 }
 
 function cellRendererForState(
@@ -70,7 +73,20 @@ export default function JobSetTable(props: JobSetTableProps) {
         }}
       >
         <Column dataKey="jobSetId" width={0.25 * props.width} label="Job Set" />
-        <Column dataKey="latestSubmissionTime" width={0.25 * props.width} label="Submission Time" />
+        <Column
+          dataKey="latestSubmissionTime"
+          width={0.25 * props.width}
+          label="Submission Time"
+          headerRenderer={(cellProps) => (
+            <SortableHeaderCell
+              name="Submission Time"
+              descending={props.newestFirst}
+              className="job-set-submission-time-header-cell"
+              onOrderChange={props.onOrderChange}
+              {...cellProps}
+            />
+          )}
+        />
         <Column
           dataKey="jobsQueued"
           width={0.1 * props.width}
