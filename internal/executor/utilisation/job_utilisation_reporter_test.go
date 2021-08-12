@@ -116,7 +116,3 @@ type fakePodUtilisationService struct {
 func (f *fakePodUtilisationService) GetPodUtilisation(pod *v1.Pod) *domain.UtilisationData {
 	return f.data.DeepCopy()
 }
-
-func (f *fakePodUtilisationService) SetPodUtilisation(data *domain.UtilisationData) {
-	f.data = data
-}
