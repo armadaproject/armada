@@ -10,6 +10,7 @@ env:
   GO111MODULE: "on"
   GOPATH: "/home/runner/work/armada/armada/go"
   GOCACHE: "/home/runner/.cache/go-build"
+  KUBECONFIG: "/home/runner/work/armada/armada/go/src/github.com/G-Research/armada/e2e/setup/config"
 
 on: 
   push:
@@ -100,7 +101,6 @@ jobs:
           cat go.sum
         working-directory: ${{ env.GOPATH }}/src/github.com/G-Research/armada
 
-
   build:
     name: Build
     needs: [test] 
@@ -118,14 +118,17 @@ jobs:
         with:
           path: ${{ env.GOPATH }}/src/github.com/G-Research/armada
 
-      - name: Start cluster for e2e tests
-        run: |
-          ./e2e/setup/setup_cluster_ci.sh
-        working-directory: ${{ env.GOPATH }}/src/github.com/G-Research/armada
+      # - name: Setup tmate session
+      #   if: always()
+      #   uses: mxschmitt/action-tmate@v3
 
       - name: Build & Run e2e tests
-        run: | 
-          make build-ci tests-e2e 
+        run: make tests-e2e
+        working-directory: ${{ env.GOPATH }}/src/github.com/G-Research/armada
+
+      - name: Delete cluster
+        if: always()
+        run: make e2e-delete-cluster
         working-directory: ${{ env.GOPATH }}/src/github.com/G-Research/armada
 
       - name: Check go.sum

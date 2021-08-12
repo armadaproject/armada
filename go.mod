@@ -34,11 +34,10 @@ require (
 	github.com/kr/text v0.2.0 // indirect
 	github.com/lib/pq v1.10.2
 	github.com/mitchellh/go-homedir v1.1.0
-	github.com/mitchellh/mapstructure v1.1.2
-	github.com/nats-io/nats-server/v2 v2.1.6 // indirect
-	github.com/nats-io/nats-streaming-server v0.17.0 // indirect
-	github.com/nats-io/nats.go v1.9.2
-	github.com/nats-io/stan.go v0.6.0
+	github.com/mitchellh/mapstructure v1.4.1
+	github.com/nats-io/nats-streaming-server v0.22.1 // indirect
+	github.com/nats-io/nats.go v1.11.1-0.20210623165838-4b75fc59ae30
+	github.com/nats-io/stan.go v0.10.0
 	github.com/oklog/ulid v1.3.1
 	github.com/pquerna/cachecontrol v0.0.0-20180517163645-1555304b9b35 // indirect
 	github.com/prometheus/client_golang v1.7.1
