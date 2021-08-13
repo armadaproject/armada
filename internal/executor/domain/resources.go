@@ -28,3 +28,7 @@ func (u *UtilisationData) DeepCopy() *UtilisationData {
 		CumulativeUsage: u.CumulativeUsage.DeepCopy(),
 	}
 }
+
+func (u *UtilisationData) IsEmpty() bool {
+	return len(u.CumulativeUsage) == 0 && len(u.CurrentUsage) == 0
+}
