@@ -120,9 +120,11 @@ jobs:
       - run:
           name: Ineffassign
           command: |
-            go version
-            go install github.com/gordonklaus/ineffassign@69aca2aeecd051d7e83c6faa573137f9a7ae126a
-            ineffassign ./...
+            curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b /home/circleci/bin v1.41.1
+            exit $(golangci-lint run -v --timeout 300s)
+#            go version
+#            go install github.com/gordonklaus/ineffassign@69aca2aeecd051d7e83c6faa573137f9a7ae126a
+#            ineffassign ./...
 
       - run:
           name: GoImports
