@@ -1,0 +1,8 @@
+linters-settings:
+  goimports:
+    local-prefixes: github.com/G-Research/armada
+linters:
+  disable-all: true
+  enable:
+    - goimports
+    - ineffassign

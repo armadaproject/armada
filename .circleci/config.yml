@@ -118,31 +118,17 @@ jobs:
     steps:
       - checkout
       - run:
-          name: ineffassign
+          name: Go format checks
           command: |
-            cd /tmp
-            go get -u github.com/gordonklaus/ineffassign
-            cd ~/go/src/github.com/G-Research/armada
-            ineffassign ./...
+            curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.41.1
+            exit $(golangci-lint run -v)
 
       - run:
-          name: Check TypeScript formatting
+          name: Check git
           command: |
-            cd ./internal/lookout/ui && npm install && npm run fmt || exit 1
-            exit $(git status -s -uno | wc -l)
-
-      - run:
-          name: Check generated files
-          command: |
-            make proto
             git status -s -uno
             git --no-pager diff
             exit $(git status -s -uno | wc -l)
-
-      - run:
-          name: Check Go formatting
-          command: |
-            exit $(go run golang.org/x/tools/cmd/goimports -l -local "github.com/G-Research/armada" . | wc -l)
 
   test:
     machine:
