@@ -41,6 +41,14 @@ jobs:
         uses: actions/checkout@v2
         with:
           path: ${{ env.GOPATH }}/src/github.com/G-Research/armada
+
+      - name: Run ineffassign
+        run: |
+          cd /tmp
+          go get -u github.com/gordonklaus/ineffassign
+          cd ${{ env.GOPATH }}/src/github.com/G-Research/armada
+          ineffassign ./...
+        working-directory: ${{ env.GOPATH }}/src/github.com/G-Research/armada
           
       - name: Check TypeScript formatting
         run: |
@@ -49,11 +57,6 @@ jobs:
         working-directory: ${{ env.GOPATH }}/src/github.com/G-Research/armada/internal/lookout/ui
 
       - name: Check Go formatting
-        run: |
-          go install golang.org/x/tools/cmd/goimports@v0.1.1
-          if [ $(goimports -l -local "github.com/G-Research/armada" | wc -l) -eq 0 ]; then exit 0; else exit 1; fi
-
-      - name: Check formatting
         run: |
           go install golang.org/x/tools/cmd/goimports@v0.1.1
           if [ $(goimports -l -local "github.com/G-Research/armada" | wc -l) -eq 0 ]; then exit 0; else exit 1; fi
@@ -170,7 +173,6 @@ jobs:
             then
               TAG=branch-$(echo -n ${BRANCH} | sed 's|/|-|g')-${GITHUB_SHA}
           fi
-
 
           echo ${dockerToken} | docker login -u ${dockerUsername} --password-stdin
 

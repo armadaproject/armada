@@ -86,11 +86,6 @@ jobs:
           dockerToken: ${{ secrets.DOCKERTOKEN }}
           dockerUsername: ${{ secrets.DOCKERUSERNAME }}
 
-      - name: Update release summmary
-        run: |
-          ./scripts/add-checksum-summary.sh ${{ secrets.GITHUB_TOKEN }} ${GITHUB_REF##*/}
-        working-directory: ${{ env.GOPATH }}/src/github.com/G-Research/armada
-
   release-dotnet-client:
     name: Release DotNet client
     runs-on: ubuntu-20.04
