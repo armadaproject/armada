@@ -85,9 +85,11 @@ func (r *UtilisationEventReporter) ReportUtilisationEvents() {
 		currentUtilisation := r.podUtilisation.GetPodUtilisation(info.pod)
 		info.utilisationMax.Max(currentUtilisation)
 		if info.lastReported.Before(reportingTime) {
-			r.reportUsage(info)
-			info.lastReported = now
-			info.utilisationMax = domain.EmptyUtilisationData()
+			reported := r.reportUsage(info)
+			if reported {
+				info.lastReported = now
+				info.utilisationMax = domain.EmptyUtilisationData()
+			}
 		}
 	}
 }
@@ -128,9 +130,13 @@ func (r *UtilisationEventReporter) deletePod(pod *v1.Pod) {
 	delete(r.podInfo, pod.Name)
 }
 
-func (r *UtilisationEventReporter) reportUsage(info *podUtilisationInfo) {
+func (r *UtilisationEventReporter) reportUsage(info *podUtilisationInfo) bool {
+	if info.utilisationMax.IsEmpty() {
+		return false
+	}
 	event := reporter.CreateJobUtilisationEvent(info.pod, info.utilisationMax, r.clusterContext.GetClusterId())
 	r.queueEventWithRetry(event, 3)
+	return true
 }
 
 func (r *UtilisationEventReporter) queueEventWithRetry(event api.Event, retry int) {
