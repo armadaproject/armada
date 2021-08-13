@@ -171,7 +171,7 @@ func (m *ClusterContextMetrics) Collect(metrics chan<- prometheus.Metric) {
 
 		queueMetric[phase].count++
 		queueMetric[phase].resourceRequest.Add(request)
-		queueMetric[phase].resourceUsage.Add(usage)
+		queueMetric[phase].resourceUsage.Add(usage.CurrentUsage)
 	}
 
 	// reset metric for queues without pods

@@ -1,4 +1,4 @@
-import React from "react"
+import React, { useState } from "react"
 
 import { Checkbox } from "@material-ui/core"
 import { TableRowProps } from "react-virtualized"
@@ -15,11 +15,17 @@ type CheckboxRowProps = {
 const EVEN_ROW_COLOR = "#ffffff"
 const ODD_ROW_COLOR = "#f5f5f5"
 const SELECTED_ROW_COLOR = "#b2ebf2"
+const HOVERED_ROW_COLOR = "#e0e0e0"
 
 export default function CheckboxRow(props: CheckboxRowProps) {
+  const [isHovered, setHovered] = useState(false)
+
   let color = EVEN_ROW_COLOR
   if (props.index % 2 != 0) {
     color = ODD_ROW_COLOR
+  }
+  if (isHovered) {
+    color = HOVERED_ROW_COLOR
   }
   if (props.isChecked) {
     color = SELECTED_ROW_COLOR
@@ -32,6 +38,8 @@ export default function CheckboxRow(props: CheckboxRowProps) {
         ...props.style,
         background: color,
       }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
     >
       <div className="select-box">
         <Checkbox

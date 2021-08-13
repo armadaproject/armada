@@ -7,6 +7,7 @@ import JobDetailsModal, { JobDetailsModalContext, toggleExpanded } from "../comp
 import IntervalService from "../services/IntervalService"
 import JobService, { Job, QueueInfo } from "../services/JobService"
 import LogService from "../services/LogService"
+import OverviewLocalStorageService from "../services/OverviewLocalStorageService"
 import { RequestStatus, setStateAsync } from "../utils"
 
 type OverviewContainerProps = {
@@ -15,7 +16,7 @@ type OverviewContainerProps = {
   overviewAutoRefreshMs: number
 } & RouteComponentProps
 
-interface OverviewContainerState {
+export type OverviewContainerState = {
   queueInfos: QueueInfo[]
   openQueueMenu: string
   queueMenuAnchor: HTMLElement | null
@@ -26,11 +27,13 @@ interface OverviewContainerState {
 
 class OverviewContainer extends React.Component<OverviewContainerProps, OverviewContainerState> {
   autoRefreshService: IntervalService
+  localStorageService: OverviewLocalStorageService
 
   constructor(props: OverviewContainerProps) {
     super(props)
 
     this.autoRefreshService = new IntervalService(props.overviewAutoRefreshMs)
+    this.localStorageService = new OverviewLocalStorageService()
 
     this.state = {
       queueInfos: [],
@@ -56,10 +59,14 @@ class OverviewContainer extends React.Component<OverviewContainerProps, Overview
   }
 
   async componentDidMount() {
+    const newState = { ...this.state }
+    this.localStorageService.updateState(newState)
+    await setStateAsync(this, newState)
+
     await this.fetchOverview()
 
     this.autoRefreshService.registerCallback(this.fetchOverview)
-    this.autoRefreshService.start()
+    this.tryStartAutoRefreshService()
   }
 
   componentWillUnmount() {
@@ -149,13 +156,18 @@ class OverviewContainer extends React.Component<OverviewContainerProps, Overview
     })
   }
 
-  toggleAutoRefresh(autoRefresh: boolean) {
-    this.setState({
+  async toggleAutoRefresh(autoRefresh: boolean) {
+    const newState = {
       ...this.state,
       autoRefresh: autoRefresh,
-    })
+    }
+    this.localStorageService.saveState(newState)
+    await setStateAsync(this, newState)
+    this.tryStartAutoRefreshService()
+  }
 
-    if (autoRefresh) {
+  tryStartAutoRefreshService() {
+    if (this.state.autoRefresh) {
       this.autoRefreshService.start()
     } else {
       this.autoRefreshService.stop()

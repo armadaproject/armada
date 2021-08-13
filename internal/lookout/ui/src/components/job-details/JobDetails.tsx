@@ -1,18 +1,10 @@
 import React from "react"
 
-import {
-  Accordion,
-  AccordionDetails,
-  AccordionSummary,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableRow,
-} from "@material-ui/core"
+import { Accordion, AccordionDetails, AccordionSummary, Table, TableBody, TableContainer } from "@material-ui/core"
 import { ExpandMore } from "@material-ui/icons"
 
 import { Job } from "../../services/JobService"
+import { MakeJobDetailsRow, MakeJobDetailSpecifyKey } from "./JobDetailsUtils"
 import { PreviousRuns } from "./PreviousRuns"
 import { RunDetailsRows } from "./RunDetailsRows"
 
@@ -33,41 +25,23 @@ export default function JobDetails(props: DetailsProps) {
       <TableContainer>
         <Table className="details-table-container">
           <TableBody>
-            <TableRow>
-              <TableCell className="field-label">Id</TableCell>
-              <TableCell className="field-value">{props.job.jobId}</TableCell>
-            </TableRow>
-            <TableRow>
-              <TableCell className="field-label">Queue</TableCell>
-              <TableCell className="field-value">{props.job.queue}</TableCell>
-            </TableRow>
-            <TableRow>
-              <TableCell className="field-label">Owner</TableCell>
-              <TableCell className="field-value">{props.job.owner}</TableCell>
-            </TableRow>
-            <TableRow>
-              <TableCell className="field-label">Job set</TableCell>
-              <TableCell className="field-value">{props.job.jobSet}</TableCell>
-            </TableRow>
-            <TableRow>
-              <TableCell className="field-label">Job state</TableCell>
-              <TableCell className="field-value">{props.job.jobState}</TableCell>
-            </TableRow>
-            <TableRow>
-              <TableCell className="field-label">Priority</TableCell>
-              <TableCell className="field-value">{props.job.priority}</TableCell>
-            </TableRow>
-            <TableRow>
-              <TableCell className="field-label">Submitted</TableCell>
-              <TableCell className="field-value">{props.job.submissionTime}</TableCell>
-            </TableRow>
-            {props.job.cancelledTime && (
-              <TableRow>
-                <TableCell className="field-label">Cancelled</TableCell>
-                <TableCell className="field-value">{props.job.cancelledTime}</TableCell>
-              </TableRow>
-            )}
+            {MakeJobDetailsRow("Id", props.job.jobId)}
+            {MakeJobDetailsRow("Queue", props.job.queue)}
+            {MakeJobDetailsRow("Owner", props.job.owner)}
+            {MakeJobDetailsRow("Job set", props.job.jobSet)}
+            {MakeJobDetailsRow("Job state", props.job.jobState)}
+            {MakeJobDetailsRow("Priority", props.job.priority?.toString())}
+            {MakeJobDetailsRow("Submitted", props.job.submissionTime?.toString())}
+            {props.job.cancelledTime && MakeJobDetailsRow("Cancelled", props.job.cancelledTime.toString())}
             {lastRun && <RunDetailsRows run={lastRun} />}
+            {props.job.annotations &&
+              Object.keys(props.job.annotations).map((annotationName) =>
+                MakeJobDetailSpecifyKey(
+                  "__annotation_" + annotationName,
+                  annotationName,
+                  props.job.annotations[annotationName],
+                ),
+              )}
           </TableBody>
         </Table>
       </TableContainer>

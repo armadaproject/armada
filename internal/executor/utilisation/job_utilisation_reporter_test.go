@@ -17,9 +17,14 @@ import (
 	"github.com/G-Research/armada/pkg/api"
 )
 
-var testPodResources = common.ComputeResources{
-	"cpu":    resource.MustParse("1"),
-	"memory": resource.MustParse("640Ki"),
+var testPodResources = domain.UtilisationData{
+	CurrentUsage: common.ComputeResources{
+		"cpu":    resource.MustParse("1"),
+		"memory": resource.MustParse("640Ki"),
+	},
+	CumulativeUsage: common.ComputeResources{
+		"cpu": resource.MustParse("10"),
+	},
 }
 
 func TestUtilisationEventReporter_ReportUtilisationEvents(t *testing.T) {
@@ -62,7 +67,8 @@ func TestUtilisationEventReporter_ReportUtilisationEvents(t *testing.T) {
 	event1 := fakeEventReporter.ReceivedEvents[0].(*api.JobUtilisationEvent)
 	event2 := fakeEventReporter.ReceivedEvents[1].(*api.JobUtilisationEvent)
 
-	assert.Equal(t, testPodResources, common.ComputeResources(event1.MaxResourcesForPeriod))
+	assert.Equal(t, testPodResources.CurrentUsage, common.ComputeResources(event1.MaxResourcesForPeriod))
+	assert.Equal(t, testPodResources.CumulativeUsage, common.ComputeResources(event1.TotalCumulativeUsage))
 
 	period := event2.Created.Sub(event1.Created)
 
@@ -72,6 +78,6 @@ func TestUtilisationEventReporter_ReportUtilisationEvents(t *testing.T) {
 
 type fakePodUtilisation struct{}
 
-func (f *fakePodUtilisation) GetPodUtilisation(pod *v1.Pod) common.ComputeResources {
-	return testPodResources
+func (f *fakePodUtilisation) GetPodUtilisation(pod *v1.Pod) *domain.UtilisationData {
+	return testPodResources.DeepCopy()
 }
