@@ -71,10 +71,12 @@ export default function JobSets(props: JobSetsProps) {
       width={width}
       jobSets={props.jobSets}
       selectedJobSets={props.selectedJobSets}
+      newestFirst={props.newestFirst}
       onJobSetClick={props.onJobSetClick}
       onSelectJobSet={props.onSelectJobSet}
       onShiftSelectJobSet={props.onShiftSelectJobSet}
       onDeselectAllClick={props.onDeselectAllClick}
+      onOrderChange={props.onOrderChange}
     />
   )
   if (props.view === "queued-time") {
@@ -138,22 +140,6 @@ export default function JobSets(props: JobSetsProps) {
                 <MenuItem value={"job-counts"}>Job counts</MenuItem>
                 <MenuItem value={"runtime"}>Runtime</MenuItem>
                 <MenuItem value={"queued-time"}>Queued time</MenuItem>
-              </Select>
-            </FormControl>
-          </div>
-          <div className="job-sets-field">
-            <FormControl className="job-sets-field">
-              <InputLabel>Order</InputLabel>
-              <Select
-                value={props.newestFirst ? "newest" : "oldest"}
-                onChange={(event) => {
-                  const value = event.target.value
-                  props.onOrderChange(value === "newest")
-                }}
-                MenuProps={menuProps}
-              >
-                <MenuItem value={"newest"}>Newest first</MenuItem>
-                <MenuItem value={"oldest"}>Oldest first</MenuItem>
               </Select>
             </FormControl>
           </div>

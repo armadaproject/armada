@@ -29,6 +29,10 @@
   margin-left: 1em;
 }
 
+.job-table-header .right .clear {
+  margin-right: 1em;
+}
+
 .job-table-header .right .auto-refresh {
   margin-right: 1em;
 }
