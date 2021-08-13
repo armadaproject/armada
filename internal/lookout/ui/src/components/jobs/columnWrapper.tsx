@@ -1,13 +1,14 @@
 import React from "react"
 
+import { grey, green, orange, purple, red, yellow } from "@material-ui/core/colors"
 import { Column, TableCellProps } from "react-virtualized"
 
 import { ColumnSpec } from "../../containers/JobsContainer"
 import { Job } from "../../services/JobService"
 import LinkCell from "../LinkCell"
+import SortableHeaderCell from "../SortableHeaderCell"
 import JobStatesHeaderCell from "./JobStatesHeaderCell"
 import SearchHeaderCell from "./SearchHeaderCell"
-import SubmissionTimeHeaderCell from "./SubmissionTimeHeaderCell"
 
 export default function columnWrapper(
   key: string,
@@ -27,8 +28,10 @@ export default function columnWrapper(
           width={width}
           label={columnSpec.name}
           headerRenderer={(headerProps) => (
-            <SubmissionTimeHeaderCell
-              newestFirst={columnSpec.filter as boolean}
+            <SortableHeaderCell
+              name="Submission Time"
+              descending={columnSpec.filter as boolean}
+              className="job-submission-time-header-cell"
               onOrderChange={onChange}
               {...headerProps}
             />
@@ -149,18 +152,18 @@ function cellRendererForState(cellProps: TableCellProps, state: string) {
 function colorForState(state: string): string {
   switch (state) {
     case "Queued":
-      return "gold"
+      return yellow["A100"]
     case "Pending":
-      return "goldenrod"
+      return orange["A100"]
     case "Running":
-      return "green"
+      return green["A100"]
     case "Succeeded":
       return "white"
     case "Failed":
-      return "red"
+      return red["A100"]
     case "Cancelled":
-      return "lightgray"
+      return grey[300]
     default:
-      return "purple"
+      return purple["A100"]
   }
 }
