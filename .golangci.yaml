@@ -6,3 +6,11 @@ linters:
   enable:
     - goimports
     - ineffassign
+    - staticcheck
+    - structcheck
+    - stylecheck
+    - typecheck
+    - unconvert
+    - unparam
+    - unused
+    - varcheck
