@@ -120,6 +120,7 @@ jobs:
       - run:
           name: Ineffassign
           command: |
+            go version
             go install github.com/gordonklaus/ineffassign@69aca2aeecd051d7e83c6faa573137f9a7ae126a
             ineffassign ./...
 
