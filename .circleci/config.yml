@@ -132,17 +132,17 @@ jobs:
             exit $(git status -s -uno | wc -l)
 
       - run:
-          name: Check Go formatting
-          command: |
-            exit $(go run golang.org/x/tools/cmd/goimports -l -local "github.com/G-Research/armada" . | wc -l)
-
-      - run:
           name: Check generated files
           command: |
             make proto
             git status -s -uno
             git --no-pager diff
             exit $(git status -s -uno | wc -l)
+
+      - run:
+          name: Check Go formatting
+          command: |
+            exit $(go run golang.org/x/tools/cmd/goimports -l -local "github.com/G-Research/armada" . | wc -l)
 
   test:
     machine:
