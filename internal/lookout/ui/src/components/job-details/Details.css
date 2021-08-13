@@ -39,9 +39,16 @@
 }
 
 .field-value {
-    width: 70% !important;
+    width: 60% !important;
     white-space: normal;
     word-wrap: break-word;
+}
+
+.copy {
+    width: 10% !important;
+    cursor: pointer;
+    text-decoration: underline;
+    white-space: normal;
 }
 
 .error-message {

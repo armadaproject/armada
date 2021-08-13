@@ -92,15 +92,16 @@ func reportJobsLeased(repository repository.EventStore, jobs []*api.Job, cluster
 	}
 }
 
-func reportJobsCancelling(repository repository.EventStore, jobs []*api.Job) error {
+func reportJobsCancelling(repository repository.EventStore, requestorName string, jobs []*api.Job) error {
 	events := []*api.EventMessage{}
 	now := time.Now()
 	for _, job := range jobs {
 		event, e := api.Wrap(&api.JobCancellingEvent{
-			JobId:    job.Id,
-			Queue:    job.Queue,
-			JobSetId: job.JobSetId,
-			Created:  now,
+			JobId:     job.Id,
+			Queue:     job.Queue,
+			JobSetId:  job.JobSetId,
+			Created:   now,
+			Requestor: requestorName,
 		})
 		if e != nil {
 			return e
@@ -111,7 +112,7 @@ func reportJobsCancelling(repository repository.EventStore, jobs []*api.Job) err
 	return e
 }
 
-func reportJobsReprioritizing(repository repository.EventStore, jobs []*api.Job, newPriority float64) error {
+func reportJobsReprioritizing(repository repository.EventStore, requestorName string, jobs []*api.Job, newPriority float64) error {
 	events := []*api.EventMessage{}
 	now := time.Now()
 	for _, job := range jobs {
@@ -121,6 +122,7 @@ func reportJobsReprioritizing(repository repository.EventStore, jobs []*api.Job,
 			JobSetId:    job.JobSetId,
 			Created:     now,
 			NewPriority: newPriority,
+			Requestor:   requestorName,
 		})
 		if e != nil {
 			return e
@@ -131,7 +133,7 @@ func reportJobsReprioritizing(repository repository.EventStore, jobs []*api.Job,
 	return e
 }
 
-func reportJobsReprioritized(repository repository.EventStore, jobs []*api.Job, newPriority float64) error {
+func reportJobsReprioritized(repository repository.EventStore, requestorName string, jobs []*api.Job, newPriority float64) error {
 	events := []*api.EventMessage{}
 	now := time.Now()
 	for _, job := range jobs {
@@ -141,6 +143,7 @@ func reportJobsReprioritized(repository repository.EventStore, jobs []*api.Job, 
 			JobSetId:    job.JobSetId,
 			Created:     now,
 			NewPriority: newPriority,
+			Requestor:   requestorName,
 		})
 		if e != nil {
 			return e
@@ -151,15 +154,16 @@ func reportJobsReprioritized(repository repository.EventStore, jobs []*api.Job, 
 	return e
 }
 
-func reportJobsCancelled(repository repository.EventStore, jobs []*api.Job) error {
+func reportJobsCancelled(repository repository.EventStore, requestorName string, jobs []*api.Job) error {
 	events := []*api.EventMessage{}
 	now := time.Now()
 	for _, job := range jobs {
 		event, e := api.Wrap(&api.JobCancelledEvent{
-			JobId:    job.Id,
-			Queue:    job.Queue,
-			JobSetId: job.JobSetId,
-			Created:  now,
+			JobId:     job.Id,
+			Queue:     job.Queue,
+			JobSetId:  job.JobSetId,
+			Created:   now,
+			Requestor: requestorName,
 		})
 		if e != nil {
 			return e
