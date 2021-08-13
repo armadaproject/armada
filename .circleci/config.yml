@@ -118,6 +118,11 @@ jobs:
     steps:
       - checkout
       - run:
+          name: GoImports
+          command: |
+            go install golang.org/x/tools/cmd/goimports@v0.1.1
+            exit $(goimports -l -local "github.com/G-Research/armada" | wc -l)
+      - run:
           name: Ineffassign
           command: |
             curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b /home/circleci/bin v1.41.1
@@ -126,11 +131,7 @@ jobs:
 #            go install github.com/gordonklaus/ineffassign@69aca2aeecd051d7e83c6faa573137f9a7ae126a
 #            ineffassign ./...
 
-      - run:
-          name: GoImports
-          command: |
-            go install golang.org/x/tools/cmd/goimports@v0.1.1
-            exit $(goimports -l -local "github.com/G-Research/armada" | wc -l)
+
 
       - run:
           name: Check git
