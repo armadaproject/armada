@@ -109,7 +109,7 @@ jobs:
   code_style:
     machine:
       docker_layer_caching: false
-      image: ubuntu-2004:202101-01
+      image: ubuntu-2004:202107-02
     environment:
       GO111MODULE: "on"
       GOPATH: "/home/circleci/go"
@@ -117,6 +117,12 @@ jobs:
     working_directory: ~/go/src/github.com/G-Research/armada
     steps:
       - checkout
+      - run:
+          name: Check Go formatting
+          command: |
+            go install golang.org/x/tools/cmd/goimports@v0.1.1
+            exit $(goimports -l -local "github.com/G-Research/armada" | wc -l)
+
       - run:
           name: ineffassign
           command: |
@@ -138,11 +144,6 @@ jobs:
             git status -s -uno
             git --no-pager diff
             exit $(git status -s -uno | wc -l)
-
-      - run:
-          name: Check Go formatting
-          command: |
-            exit $(go run golang.org/x/tools/cmd/goimports -l -local "github.com/G-Research/armada" . | wc -l)
 
   test:
     machine:
