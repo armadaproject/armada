@@ -15,6 +15,7 @@ describe("makeQueryString", () => {
         isDisabled: false,
         filter: "test",
         defaultFilter: "",
+        width: 1,
       },
     ]
     const queryString = makeQueryString(columns)
@@ -30,6 +31,7 @@ describe("makeQueryString", () => {
         isDisabled: false,
         filter: "test-job-set",
         defaultFilter: "",
+        width: 1,
       },
     ]
     const queryString = makeQueryString(columns)
@@ -45,6 +47,7 @@ describe("makeQueryString", () => {
         isDisabled: false,
         filter: ["Queued"],
         defaultFilter: [],
+        width: 1,
       },
     ]
     const queryString = makeQueryString(columns)
@@ -60,6 +63,7 @@ describe("makeQueryString", () => {
         isDisabled: false,
         filter: ["Queued", "Running", "Cancelled"],
         defaultFilter: [],
+        width: 1,
       },
     ]
     const queryString = makeQueryString(columns)
@@ -75,6 +79,7 @@ describe("makeQueryString", () => {
         isDisabled: false,
         filter: true,
         defaultFilter: true,
+        width: 1,
       },
     ]
     const queryString = makeQueryString(columns)
@@ -90,6 +95,7 @@ describe("makeQueryString", () => {
         isDisabled: false,
         filter: "other-test",
         defaultFilter: "",
+        width: 1,
       },
       {
         id: "jobSet",
@@ -98,6 +104,7 @@ describe("makeQueryString", () => {
         isDisabled: false,
         filter: "other-job-set",
         defaultFilter: "",
+        width: 1,
       },
       {
         id: "jobState",
@@ -106,6 +113,7 @@ describe("makeQueryString", () => {
         isDisabled: false,
         filter: ["Pending", "Succeeded", "Failed"],
         defaultFilter: [],
+        width: 1,
       },
       {
         id: "submissionTime",
@@ -114,6 +122,7 @@ describe("makeQueryString", () => {
         isDisabled: false,
         filter: true,
         defaultFilter: true,
+        width: 1,
       },
     ]
     const queryString = makeQueryString(columns)
@@ -135,6 +144,7 @@ describe("updateColumnsFromQueryString", () => {
         isDisabled: false,
         filter: "",
         defaultFilter: "",
+        width: 1,
       },
     ]
     updateColumnsFromQueryString(query, columns)
@@ -151,6 +161,7 @@ describe("updateColumnsFromQueryString", () => {
         isDisabled: false,
         filter: "",
         defaultFilter: "",
+        width: 1,
       },
     ]
     updateColumnsFromQueryString(query, columns)
@@ -167,6 +178,7 @@ describe("updateColumnsFromQueryString", () => {
         isDisabled: false,
         filter: [],
         defaultFilter: [],
+        width: 1,
       },
     ]
     updateColumnsFromQueryString(query, columns)
@@ -183,6 +195,7 @@ describe("updateColumnsFromQueryString", () => {
         isDisabled: false,
         filter: [],
         defaultFilter: [],
+        width: 1,
       },
     ]
     updateColumnsFromQueryString(query, columns)
@@ -202,6 +215,7 @@ describe("updateColumnsFromQueryString", () => {
         isDisabled: false,
         filter: true,
         defaultFilter: true,
+        width: 1,
       },
     ]
     updateColumnsFromQueryString(query as string, columns)
@@ -218,6 +232,7 @@ describe("updateColumnsFromQueryString", () => {
         isDisabled: false,
         filter: "",
         defaultFilter: "",
+        width: 1,
       },
       {
         id: "jobSet",
@@ -226,6 +241,7 @@ describe("updateColumnsFromQueryString", () => {
         isDisabled: false,
         filter: "",
         defaultFilter: "",
+        width: 1,
       },
       {
         id: "jobState",
@@ -234,6 +250,7 @@ describe("updateColumnsFromQueryString", () => {
         isDisabled: false,
         filter: [],
         defaultFilter: [],
+        width: 1,
       },
       {
         id: "submissionTime",
@@ -242,6 +259,7 @@ describe("updateColumnsFromQueryString", () => {
         isDisabled: false,
         filter: true,
         defaultFilter: true,
+        width: 1,
       },
     ]
     updateColumnsFromQueryString(query, columns)
@@ -264,6 +282,7 @@ describe("updateColumnsFromQueryString", () => {
         isDisabled: false,
         filter: [],
         defaultFilter: [],
+        width: 1,
       },
     ]
     updateColumnsFromQueryString(query as string, columns)

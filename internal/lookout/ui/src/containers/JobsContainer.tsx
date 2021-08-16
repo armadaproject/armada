@@ -105,7 +105,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
           isDisabled: false,
           filter: [],
           defaultFilter: [],
-          width: 0.7,
+          width: 0.5,
         },
         {
           id: "queue",
