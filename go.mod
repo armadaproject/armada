@@ -12,12 +12,11 @@ require (
 	github.com/go-ldap/ldap/v3 v3.3.0
 	github.com/go-openapi/analysis v0.19.10
 	github.com/go-openapi/errors v0.19.4 // indirect
-	github.com/go-openapi/jsonreference v0.19.3
+	github.com/go-openapi/jsonreference v0.19.5
 	github.com/go-openapi/loads v0.19.5
 	github.com/go-openapi/runtime v0.19.12
-	github.com/go-openapi/spec v0.19.7
+	github.com/go-openapi/spec v0.20.3
 	github.com/go-openapi/strfmt v0.19.5 // indirect
-	github.com/go-openapi/swag v0.19.8 // indirect
 	github.com/go-openapi/validate v0.19.7 // indirect
 	github.com/go-redis/redis v6.15.9+incompatible
 	github.com/gogo/protobuf v1.3.2
@@ -31,7 +30,6 @@ require (
 	github.com/imdario/mergo v0.3.7 // indirect
 	github.com/instrumenta/kubeval v0.0.0-20190918223246-8d013ec9fc56
 	github.com/jcmturner/gokrb5/v8 v8.4.2-0.20201112171129-78f56934d598
-	github.com/kr/text v0.2.0 // indirect
 	github.com/lib/pq v1.10.2
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/mitchellh/mapstructure v1.4.1
@@ -43,8 +41,8 @@ require (
 	github.com/prometheus/client_golang v1.7.1
 	github.com/rakyll/statik v0.1.7
 	github.com/segmentio/kafka-go v0.3.5
-	github.com/sirupsen/logrus v1.6.0
-	github.com/spf13/cobra v0.0.5
+	github.com/sirupsen/logrus v1.8.1
+	github.com/spf13/cobra v0.0.7
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.8.1
 	github.com/stretchr/testify v1.7.0
@@ -53,7 +51,7 @@ require (
 	go.mongodb.org/mongo-driver v1.3.1 // indirect
 	golang.org/x/oauth2 v0.0.0-20210402161424-2e8d93401602
 	google.golang.org/genproto v0.0.0-20210602131652-f16073e35f0c
-	google.golang.org/grpc v1.38.0
+	google.golang.org/grpc v1.40.0
 	gopkg.in/square/go-jose.v2 v2.4.1 // indirect
 	k8s.io/api v0.20.5
 	k8s.io/apimachinery v0.20.5

@@ -151,7 +151,7 @@ var jobRunDurationDesc = prometheus.NewDesc(
 var queueAllocatedDesc = prometheus.NewDesc(
 	MetricPrefix+"queue_resource_allocated",
 	"Resource allocated to running jobs of a queue",
-	[]string{"cluster", "pool", "queueName", "resourceType"},
+	[]string{"cluster", "pool", "queueName", "resourceType", "nodeType"},
 	nil,
 )
 
@@ -179,21 +179,28 @@ var medianQueueAllocatedDesc = prometheus.NewDesc(
 var queueUsedDesc = prometheus.NewDesc(
 	MetricPrefix+"queue_resource_used",
 	"Resource actually being used by running jobs of a queue",
-	[]string{"cluster", "pool", "queueName", "resourceType"},
+	[]string{"cluster", "pool", "queueName", "resourceType", "nodeType"},
+	nil,
+)
+
+var queueLeasedPodCountDesc = prometheus.NewDesc(
+	MetricPrefix+"queue_leased_pod_count",
+	"Number of leased pods",
+	[]string{"cluster", "pool", "queueName", "phase", "nodeType"},
 	nil,
 )
 
 var clusterCapacityDesc = prometheus.NewDesc(
 	MetricPrefix+"cluster_capacity",
 	"Cluster capacity",
-	[]string{"cluster", "pool", "resourceType"},
+	[]string{"cluster", "pool", "resourceType", "nodeType"},
 	nil,
 )
 
 var clusterAvailableCapacity = prometheus.NewDesc(
 	MetricPrefix+"cluster_available_capacity",
 	"Cluster capacity available for Armada jobs",
-	[]string{"cluster", "pool", "resourceType"},
+	[]string{"cluster", "pool", "resourceType", "nodeType"},
 	nil,
 )
 
@@ -315,47 +322,126 @@ func (c *QueueInfoCollector) Collect(metrics chan<- prometheus.Metric) {
 		}
 	}
 
-	for cluster, report := range activeClusterReports {
-		for _, queueReport := range report.Queues {
-			for resourceType, value := range queueReport.Resources {
-				metrics <- prometheus.MustNewConstMetric(
-					queueAllocatedDesc,
-					prometheus.GaugeValue,
-					common.QuantityAsFloat64(value),
-					cluster,
-					report.Pool,
-					queueReport.Name,
-					resourceType)
-			}
-			for resourceType, value := range queueReport.ResourcesUsed {
-				metrics <- prometheus.MustNewConstMetric(
-					queueUsedDesc,
-					prometheus.GaugeValue,
-					common.QuantityAsFloat64(value),
-					cluster,
-					report.Pool,
-					queueReport.Name,
-					resourceType)
-			}
-		}
-		for resourceType, value := range report.ClusterCapacity {
-			metrics <- prometheus.MustNewConstMetric(
-				clusterCapacityDesc,
-				prometheus.GaugeValue,
-				common.QuantityAsFloat64(value),
-				cluster,
-				report.Pool,
-				resourceType)
-		}
+	c.recordQueueUsageMetrics(metrics, activeClusterReports)
+	c.recordClusterCapacityMetrics(metrics, activeClusterReports)
+}
 
-		for resourceType, value := range report.ClusterAvailableCapacity {
-			metrics <- prometheus.MustNewConstMetric(
-				clusterAvailableCapacity,
-				prometheus.GaugeValue,
-				common.QuantityAsFloat64(value),
-				cluster,
-				report.Pool,
-				resourceType)
+func (c *QueueInfoCollector) recordQueueUsageMetrics(metrics chan<- prometheus.Metric, activeClusterUsageReports map[string]*api.ClusterUsageReport) {
+	for cluster, report := range activeClusterUsageReports {
+		if len(report.NodeTypeUsageReports) > 0 {
+			for _, nodeTypeUsage := range report.NodeTypeUsageReports {
+				for _, queueReport := range nodeTypeUsage.Queues {
+					for resourceType, value := range queueReport.Resources {
+						metrics <- prometheus.MustNewConstMetric(
+							queueAllocatedDesc,
+							prometheus.GaugeValue,
+							common.QuantityAsFloat64(value),
+							cluster,
+							report.Pool,
+							queueReport.Name,
+							resourceType,
+							nodeTypeUsage.NodeType.Id)
+					}
+					for resourceType, value := range queueReport.ResourcesUsed {
+						metrics <- prometheus.MustNewConstMetric(
+							queueUsedDesc,
+							prometheus.GaugeValue,
+							common.QuantityAsFloat64(value),
+							cluster,
+							report.Pool,
+							queueReport.Name,
+							resourceType,
+							nodeTypeUsage.NodeType.Id)
+					}
+					for phase, count := range queueReport.CountOfPodsByPhase {
+						metrics <- prometheus.MustNewConstMetric(
+							queueLeasedPodCountDesc,
+							prometheus.GaugeValue,
+							float64(count),
+							cluster,
+							report.Pool,
+							queueReport.Name,
+							phase,
+							nodeTypeUsage.NodeType.Id)
+					}
+				}
+			}
+		} else if len(report.Queues) > 0 {
+			for _, queueReport := range report.Queues {
+				for resourceType, value := range queueReport.Resources {
+					metrics <- prometheus.MustNewConstMetric(
+						queueAllocatedDesc,
+						prometheus.GaugeValue,
+						common.QuantityAsFloat64(value),
+						cluster,
+						report.Pool,
+						queueReport.Name,
+						resourceType,
+						report.Pool)
+				}
+				for resourceType, value := range queueReport.ResourcesUsed {
+					metrics <- prometheus.MustNewConstMetric(
+						queueUsedDesc,
+						prometheus.GaugeValue,
+						common.QuantityAsFloat64(value),
+						cluster,
+						report.Pool,
+						queueReport.Name,
+						resourceType,
+						report.Pool)
+				}
+			}
+		}
+	}
+}
+
+func (c *QueueInfoCollector) recordClusterCapacityMetrics(metrics chan<- prometheus.Metric, activeClusterUsageReports map[string]*api.ClusterUsageReport) {
+	for cluster, report := range activeClusterUsageReports {
+		if len(report.NodeTypeUsageReports) > 0 {
+			for _, nodeTypeUsage := range report.NodeTypeUsageReports {
+				for resourceType, value := range nodeTypeUsage.Capacity {
+					metrics <- prometheus.MustNewConstMetric(
+						clusterCapacityDesc,
+						prometheus.GaugeValue,
+						common.QuantityAsFloat64(value),
+						cluster,
+						report.Pool,
+						resourceType,
+						nodeTypeUsage.NodeType.Id)
+				}
+				for resourceType, value := range nodeTypeUsage.AvailableCapacity {
+					metrics <- prometheus.MustNewConstMetric(
+						clusterAvailableCapacity,
+						prometheus.GaugeValue,
+						common.QuantityAsFloat64(value),
+						cluster,
+						report.Pool,
+						resourceType,
+						nodeTypeUsage.NodeType.Id)
+				}
+			}
+		} else {
+			for resourceType, value := range report.ClusterCapacity {
+				metrics <- prometheus.MustNewConstMetric(
+					clusterCapacityDesc,
+					prometheus.GaugeValue,
+					common.QuantityAsFloat64(value),
+					cluster,
+					report.Pool,
+					resourceType,
+					report.Pool)
+			}
+
+			for resourceType, value := range report.ClusterAvailableCapacity {
+				metrics <- prometheus.MustNewConstMetric(
+					clusterAvailableCapacity,
+					prometheus.GaugeValue,
+					common.QuantityAsFloat64(value),
+					cluster,
+					report.Pool,
+					resourceType,
+					report.Pool)
+			}
 		}
 	}
 }

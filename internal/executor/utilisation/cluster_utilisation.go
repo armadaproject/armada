@@ -11,19 +11,21 @@ import (
 	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/executor/context"
 	"github.com/G-Research/armada/internal/executor/domain"
+	"github.com/G-Research/armada/internal/executor/node"
 	. "github.com/G-Research/armada/internal/executor/util"
 	"github.com/G-Research/armada/pkg/api"
 )
 
 type UtilisationService interface {
 	GetAvailableClusterCapacity() (*ClusterAvailableCapacityReport, error)
-	GetTotalAllocatableClusterCapacity() (*common.ComputeResources, error)
+	GetAllNodeGroupAllocationInfo() ([]*NodeGroupAllocationInfo, error)
 	GetAllAvailableProcessingNodes() ([]*v1.Node, error)
 }
 
 type ClusterUtilisationService struct {
 	clusterContext          context.ClusterContext
 	queueUtilisationService PodUtilisationService
+	nodeInfoService         node.NodeGroupInfoService
 	usageClient             api.UsageClient
 	trackedNodeLabels       []string
 	toleratedTaints         map[string]bool
@@ -32,6 +34,7 @@ type ClusterUtilisationService struct {
 func NewClusterUtilisationService(
 	clusterContext context.ClusterContext,
 	queueUtilisationService PodUtilisationService,
+	nodeInfoService node.NodeGroupInfoService,
 	usageClient api.UsageClient,
 	trackedNodeLabels []string,
 	toleratedTaints []string) *ClusterUtilisationService {
@@ -39,42 +42,51 @@ func NewClusterUtilisationService(
 	return &ClusterUtilisationService{
 		clusterContext:          clusterContext,
 		queueUtilisationService: queueUtilisationService,
+		nodeInfoService:         nodeInfoService,
 		usageClient:             usageClient,
 		trackedNodeLabels:       trackedNodeLabels,
 		toleratedTaints:         util.StringListToSet(toleratedTaints),
 	}
 }
 
+type NodeGroupAllocationInfo struct {
+	NodeType                     *api.NodeTypeIdentifier
+	Nodes                        []*v1.Node
+	NodeGroupCapacity            common.ComputeResources
+	NodeGroupAllocatableCapacity common.ComputeResources
+}
+
 func (clusterUtilisationService *ClusterUtilisationService) ReportClusterUtilisation() {
-	allAvailableProcessingNodes, err := clusterUtilisationService.GetAllAvailableProcessingNodes()
+	allBatchPods, err := clusterUtilisationService.clusterContext.GetActiveBatchPods()
 	if err != nil {
 		log.Errorf("Failed to get required information to report cluster usage because %s", err)
 		return
 	}
 
-	totalNodeResource := common.CalculateTotalResource(allAvailableProcessingNodes)
-
-	allActiveManagedPods, err := clusterUtilisationService.getAllRunningManagedPods()
+	nodeGroupInfos, err := clusterUtilisationService.GetAllNodeGroupAllocationInfo()
 	if err != nil {
 		log.Errorf("Failed to get required information to report cluster usage because %s", err)
 		return
 	}
 
-	allocatableClusterCapacity, err := clusterUtilisationService.GetTotalAllocatableClusterCapacity()
-	if err != nil {
-		log.Errorf("Failed to get required information to report cluster usage because %s", err)
-		return
-	}
+	nodeGroupReports := make([]api.NodeTypeUsageReport, 0, len(nodeGroupInfos))
+	for _, nodeGroup := range nodeGroupInfos {
+		managedPodsOnNodes := GetPodsOnNodes(allBatchPods, nodeGroup.Nodes)
+		queueReports := clusterUtilisationService.createReportsOfQueueUsages(managedPodsOnNodes)
 
-	queueReports := clusterUtilisationService.createReportsOfQueueUsages(allActiveManagedPods)
+		nodeGroupReports = append(nodeGroupReports, api.NodeTypeUsageReport{
+			NodeType:          nodeGroup.NodeType,
+			Capacity:          nodeGroup.NodeGroupCapacity,
+			AvailableCapacity: nodeGroup.NodeGroupAllocatableCapacity,
+			Queues:            queueReports,
+		})
+	}
 
 	clusterUsage := api.ClusterUsageReport{
-		ClusterId:                clusterUtilisationService.clusterContext.GetClusterId(),
-		Pool:                     clusterUtilisationService.clusterContext.GetClusterPool(),
-		ReportTime:               time.Now(),
-		Queues:                   queueReports,
-		ClusterCapacity:          totalNodeResource,
-		ClusterAvailableCapacity: *allocatableClusterCapacity,
+		ClusterId:            clusterUtilisationService.clusterContext.GetClusterId(),
+		Pool:                 clusterUtilisationService.clusterContext.GetClusterPool(),
+		ReportTime:           time.Now(),
+		NodeTypeUsageReports: nodeGroupReports,
 	}
 
 	err = clusterUtilisationService.reportUsage(&clusterUsage)
@@ -147,43 +159,63 @@ func getAllocatedResourceByNodeName(pods []*v1.Pod) map[string]common.ComputeRes
 	return allocations
 }
 
-func (clusterUtilisationService *ClusterUtilisationService) GetTotalAllocatableClusterCapacity() (*common.ComputeResources, error) {
+func (clusterUtilisationService *ClusterUtilisationService) GetAllNodeGroupAllocationInfo() ([]*NodeGroupAllocationInfo, error) {
 	allAvailableProcessingNodes, err := clusterUtilisationService.GetAllAvailableProcessingNodes()
 	if err != nil {
-		return new(common.ComputeResources), fmt.Errorf("Failed getting total allocatable cluster capacity due to: %s", err)
+		return []*NodeGroupAllocationInfo{}, err
+	}
+
+	allocatableResourceByNodeType, err := clusterUtilisationService.getAllocatableResourceByNodeType()
+	if err != nil {
+		return []*NodeGroupAllocationInfo{}, err
+	}
+
+	nodeGroups := clusterUtilisationService.nodeInfoService.GroupNodesByType(allAvailableProcessingNodes)
+	result := make([]*NodeGroupAllocationInfo, 0, len(nodeGroups))
+
+	for _, nodeGroup := range nodeGroups {
+		totalNodeResource := common.CalculateTotalResource(nodeGroup.Nodes)
+		allocatableNodeResource := allocatableResourceByNodeType[nodeGroup.NodeType.Id]
+
+		result = append(result, &NodeGroupAllocationInfo{
+			NodeType:                     nodeGroup.NodeType,
+			Nodes:                        nodeGroup.Nodes,
+			NodeGroupCapacity:            totalNodeResource,
+			NodeGroupAllocatableCapacity: allocatableNodeResource,
+		})
+	}
+
+	return result, nil
+}
+
+func (clusterUtilisationService *ClusterUtilisationService) getAllocatableResourceByNodeType() (map[string]common.ComputeResources, error) {
+	allAvailableProcessingNodes, err := clusterUtilisationService.GetAllAvailableProcessingNodes()
+	if err != nil {
+		return map[string]common.ComputeResources{}, fmt.Errorf("Failed getting total allocatable cluster capacity due to: %s", err)
 	}
 
 	allPods, err := clusterUtilisationService.clusterContext.GetAllPods()
 	if err != nil {
-		return new(common.ComputeResources), fmt.Errorf("Failed getting total allocatable cluster capacity due to: %s", err)
+		return map[string]common.ComputeResources{}, fmt.Errorf("Failed getting total allocatable cluster capacity due to: %s", err)
 	}
-
-	totalNodeResource := common.CalculateTotalResource(allAvailableProcessingNodes)
-	resourceOfUnmanagedPodsOnProcessingNodes := getResourceRequiredByUnmanagedPodsOnNodes(allPods, allAvailableProcessingNodes)
-	allocatableClusterCapacity := totalNodeResource.DeepCopy()
-	allocatableClusterCapacity.Sub(resourceOfUnmanagedPodsOnProcessingNodes)
-
-	return &allocatableClusterCapacity, nil
-}
-
-func getResourceRequiredByUnmanagedPodsOnNodes(allPods []*v1.Pod, nodes []*v1.Node) common.ComputeResources {
-	unmanagedPodsOnNodes := getUnmanagedPodsByNode(allPods, nodes)
-
-	totalResource := common.ComputeResources{}
-
-	for _, pods := range unmanagedPodsOnNodes {
-		totalResource.Add(common.CalculateTotalResourceRequest(pods))
-	}
-	return totalResource
-}
-
-func getUnmanagedPodsByNode(allPods []*v1.Pod, nodes []*v1.Node) map[*v1.Node][]*v1.Pod {
 	unmanagedPods := FilterPods(allPods, func(pod *v1.Pod) bool {
 		return !IsManagedPod(pod)
 	})
 	activeUnmanagedPods := FilterPodsWithPhase(unmanagedPods, v1.PodRunning)
 
-	return getPodsByNode(activeUnmanagedPods, nodes)
+	nodeGroups := clusterUtilisationService.nodeInfoService.GroupNodesByType(allAvailableProcessingNodes)
+	result := map[string]common.ComputeResources{}
+
+	for _, nodeGroup := range nodeGroups {
+		activeUnmanagedPodsOnNodes := GetPodsOnNodes(activeUnmanagedPods, nodeGroup.Nodes)
+		unmanagedPodResource := common.CalculateTotalResourceRequest(activeUnmanagedPodsOnNodes)
+		totalNodeGroupResource := common.CalculateTotalResource(nodeGroup.Nodes)
+		allocatableNodeGroupResource := totalNodeGroupResource.DeepCopy()
+		allocatableNodeGroupResource.Sub(unmanagedPodResource)
+		result[nodeGroup.NodeType.Id] = allocatableNodeGroupResource
+	}
+
+	return result, nil
 }
 
 func (clusterUtilisationService *ClusterUtilisationService) GetAllAvailableProcessingNodes() ([]*v1.Node, error) {
@@ -192,7 +224,7 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAllAvailableProce
 		return []*v1.Node{}, err
 	}
 
-	return clusterUtilisationService.filterAvailableProcessingNodes(allNodes), nil
+	return FilterNodes(allNodes, clusterUtilisationService.isAvailableProcessingNode), nil
 }
 
 func (clusterUtilisationService *ClusterUtilisationService) reportUsage(clusterUsage *api.ClusterUsageReport) error {
@@ -201,18 +233,6 @@ func (clusterUtilisationService *ClusterUtilisationService) reportUsage(clusterU
 	_, err := clusterUtilisationService.usageClient.ReportUsage(ctx, clusterUsage)
 
 	return err
-}
-
-func (clusterUtilisationService *ClusterUtilisationService) filterAvailableProcessingNodes(nodes []*v1.Node) []*v1.Node {
-	processingNodes := make([]*v1.Node, 0, len(nodes))
-
-	for _, node := range nodes {
-		if clusterUtilisationService.isAvailableProcessingNode(node) {
-			processingNodes = append(processingNodes, node)
-		}
-	}
-
-	return processingNodes
 }
 
 func (clusterUtilisationService *ClusterUtilisationService) isAvailableProcessingNode(node *v1.Node) bool {
@@ -234,8 +254,8 @@ func getAllPodsRequiringResourceOnProcessingNodes(allPods []*v1.Pod, processingN
 	podsUsingResourceOnProcessingNodes := make([]*v1.Pod, 0, len(allPods))
 
 	nodeMap := make(map[string]*v1.Node)
-	for _, node := range processingNodes {
-		nodeMap[node.Name] = node
+	for _, processingNode := range processingNodes {
+		nodeMap[processingNode.Name] = processingNode
 	}
 
 	for _, pod := range allPods {
@@ -249,38 +269,11 @@ func getAllPodsRequiringResourceOnProcessingNodes(allPods []*v1.Pod, processingN
 	return podsUsingResourceOnProcessingNodes
 }
 
-func getPodsByNode(pods []*v1.Pod, nodes []*v1.Node) map[*v1.Node][]*v1.Pod {
-	nodeSet := make(map[string]*v1.Node)
-	for _, node := range nodes {
-		nodeSet[node.Name] = node
-	}
-
-	podsOnNodes := make(map[*v1.Node][]*v1.Pod, len(nodes))
-	for _, node := range nodes {
-		podsOnNodes[node] = make([]*v1.Pod, 0, 10)
-	}
-
-	for _, pod := range pods {
-		if node, presentOnProcessingNode := nodeSet[pod.Spec.NodeName]; presentOnProcessingNode {
-			podsOnNodes[node] = append(podsOnNodes[node], pod)
-		}
-	}
-
-	return podsOnNodes
-}
-
-func (clusterUtilisationService *ClusterUtilisationService) getAllRunningManagedPods() ([]*v1.Pod, error) {
-	allActiveManagedPods, err := clusterUtilisationService.clusterContext.GetActiveBatchPods()
-	if err != nil {
-		return []*v1.Pod{}, err
-	}
-	allActiveManagedPods = FilterPodsWithPhase(allActiveManagedPods, v1.PodRunning)
-	return allActiveManagedPods, nil
-}
-
 func (clusterUtilisationService *ClusterUtilisationService) createReportsOfQueueUsages(pods []*v1.Pod) []*api.QueueReport {
-	allocationByQueue := GetAllocationByQueue(pods)
-	usageByQueue := clusterUtilisationService.getUsageByQueue(pods)
+	runningPods := FilterPodsWithPhase(pods, v1.PodRunning)
+
+	allocationByQueue := GetAllocationByQueue(runningPods)
+	usageByQueue := clusterUtilisationService.getUsageByQueue(runningPods)
 
 	queueReports := make([]*api.QueueReport, 0, len(allocationByQueue))
 
@@ -292,10 +285,17 @@ func (clusterUtilisationService *ClusterUtilisationService) createReportsOfQueue
 		} else {
 			resourceUsed = queueUtilisation
 		}
+		podsInQueue := FilterPods(pods, func(pod *v1.Pod) bool {
+			queue, present := pod.Labels[domain.Queue]
+			return present && queueName == queue
+		})
+		phaseSummary := CountPodsByPhase(podsInQueue)
+
 		queueReport := api.QueueReport{
-			Name:          queueName,
-			Resources:     queueUsage,
-			ResourcesUsed: resourceUsed,
+			Name:               queueName,
+			Resources:          queueUsage,
+			ResourcesUsed:      resourceUsed,
+			CountOfPodsByPhase: phaseSummary,
 		}
 		queueReports = append(queueReports, &queueReport)
 	}
