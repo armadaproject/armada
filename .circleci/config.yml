@@ -132,6 +132,7 @@ jobs:
             cd ./internal/lookout/ui
             npm ci
             npm run fmt
+            git status -s -uno
             exit $(git status -s -uno | wc -l)
 
       - run:
@@ -140,6 +141,7 @@ jobs:
             make proto
             git status -s -uno
             git --no-pager diff
+            git status -s -uno
             exit $(git status -s -uno | wc -l)
 
       - run:
