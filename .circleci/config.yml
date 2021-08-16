@@ -121,7 +121,9 @@ jobs:
           name: Check TypeScript formatting
           command: |
             npm version
-            cd ./internal/lookout/ui && npm install && npm run fmt
+            cd ./internal/lookout/ui
+            npm install
+            npm run fmt
             exit $(git status -s -uno | wc -l)
             
       - run:
