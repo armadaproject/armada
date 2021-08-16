@@ -12,12 +12,11 @@ require (
 	github.com/go-ldap/ldap/v3 v3.3.0
 	github.com/go-openapi/analysis v0.19.10
 	github.com/go-openapi/errors v0.19.4 // indirect
-	github.com/go-openapi/jsonreference v0.19.3
+	github.com/go-openapi/jsonreference v0.19.5
 	github.com/go-openapi/loads v0.19.5
 	github.com/go-openapi/runtime v0.19.12
-	github.com/go-openapi/spec v0.19.7
+	github.com/go-openapi/spec v0.20.3
 	github.com/go-openapi/strfmt v0.19.5 // indirect
-	github.com/go-openapi/swag v0.19.8 // indirect
 	github.com/go-openapi/validate v0.19.7 // indirect
 	github.com/go-redis/redis v6.15.9+incompatible
 	github.com/gogo/protobuf v1.3.2
@@ -31,7 +30,6 @@ require (
 	github.com/imdario/mergo v0.3.7 // indirect
 	github.com/instrumenta/kubeval v0.0.0-20190918223246-8d013ec9fc56
 	github.com/jcmturner/gokrb5/v8 v8.4.2-0.20201112171129-78f56934d598
-	github.com/kr/text v0.2.0 // indirect
 	github.com/lib/pq v1.10.2
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/mitchellh/mapstructure v1.4.1
