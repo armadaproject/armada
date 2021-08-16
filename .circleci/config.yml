@@ -152,7 +152,7 @@ jobs:
   test:
     machine:
       docker_layer_caching: false
-      image: ubuntu-2004:202101-01
+      image: ubuntu-2004:202104-01
     environment:
       GO111MODULE: "on"
       GOPATH: "/home/circleci/go"
@@ -179,7 +179,7 @@ jobs:
   build:
     machine:
       docker_layer_caching: false
-      image: ubuntu-2004:202101-01
+      image: ubuntu-2004:202104-01
     environment:
       GO111MODULE: "on"
       GOPATH: "/home/circleci/go"
