@@ -118,6 +118,13 @@ jobs:
     steps:
       - checkout
       - run:
+          name: Check TypeScript formatting
+          command: |
+            npm version
+            cd ./internal/lookout/ui && npm install && npm run fmt || exit 1
+            exit $(git status -s -uno | wc -l)
+            
+      - run:
           name: Check Go formatting
           command: |
             go install golang.org/x/tools/cmd/goimports@v0.1.1
@@ -130,12 +137,6 @@ jobs:
             go get -u github.com/gordonklaus/ineffassign
             cd ~/go/src/github.com/G-Research/armada
             ineffassign ./...
-
-      - run:
-          name: Check TypeScript formatting
-          command: |
-            cd ./internal/lookout/ui && npm install && npm run fmt || exit 1
-            exit $(git status -s -uno | wc -l)
 
       - run:
           name: Check generated files
