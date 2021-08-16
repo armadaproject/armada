@@ -59,7 +59,7 @@ build-docker-fakeexecutor:
 	docker build $(dockerFlags) -t armada-fakeexecutor -f ./build/fakeexecutor/Dockerfile .
 
 build-docker-lookout:
-	(cd ./internal/lookout/ui/ && npm install && npm run openapi && npm run build)
+	(cd ./internal/lookout/ui/ && npm ci && npm run openapi && npm run build)
 	$(gobuildlinux) -o ./bin/linux/lookout cmd/lookout/main.go
 	docker build $(dockerFlags) -t armada-lookout -f ./build/lookout/Dockerfile .
 
