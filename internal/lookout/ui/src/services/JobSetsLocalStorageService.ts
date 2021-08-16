@@ -34,7 +34,6 @@ function convertToLocalStorageState(loadedData: Record<string, unknown>): JobSet
     state.activeOnly = loadedData.activeOnly
   }
 
-  console.log(state)
   return state
 }
 
