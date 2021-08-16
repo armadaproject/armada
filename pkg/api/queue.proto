@@ -62,7 +62,6 @@ message ClusterSchedulingInfoReport {
     map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> minimum_job_size = 6 [(gogoproto.nullable) = false];
 }
 
-
 message QueueLeasedReport {
     string name = 1;
     map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> resources_leased = 2 [(gogoproto.nullable) = false];

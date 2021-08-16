@@ -39,7 +39,7 @@ func CalculatePriorityUpdate(resourceScarcity map[string]float64, previousReport
 	if previousReport != nil {
 		timeChange = report.ReportTime.Sub(previousReport.ReportTime)
 	}
-	usage := usageFromQueueReports(resourceScarcity, report.Queues)
+	usage := usageFromQueueReports(resourceScarcity, util.GetQueueReports(report))
 	newPriority := calculatePriorityUpdate(usage, previousPriority, timeChange, halfTime)
 	return newPriority
 }
@@ -75,7 +75,7 @@ func aggregatePriority(clusterPriorities map[string]map[string]float64) map[stri
 func aggregateQueueUsage(reports map[string]*api.ClusterUsageReport) map[string]common.ComputeResources {
 	result := map[string]common.ComputeResources{}
 	for _, report := range reports {
-		for _, queueReport := range report.Queues {
+		for _, queueReport := range util.GetQueueReports(report) {
 			current, ok := result[queueReport.Name]
 			if !ok {
 				result[queueReport.Name] = common.ComputeResources(queueReport.Resources).DeepCopy()
