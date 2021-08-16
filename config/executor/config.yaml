@@ -1,5 +1,6 @@
 application:
   clusterId : "Cluster1"
+  pool: "default"
 task:
   utilisationReportingInterval: 1s
   missingJobEventReconciliationInterval: 15s
