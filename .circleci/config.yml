@@ -119,22 +119,20 @@ jobs:
       - checkout
 
       - run:
-          name: Check TypeScript formatting
-          command: |
-            cd ./internal/lookout/ui
-            npm ci
-            npm run fmt
-            echo $?
-            echo $(git status -s -uno)
-            exit $(git status -s -uno | wc -l)
-
-      - run:
           name: ineffassign
           command: |
             cd /tmp
             go get -u github.com/gordonklaus/ineffassign
             cd ~/go/src/github.com/G-Research/armada
             ineffassign ./...
+
+      - run:
+          name: Check TypeScript formatting
+          command: |
+            cd ./internal/lookout/ui
+            npm ci
+            npm run fmt
+            exit $(git status -s -uno | wc -l)
 
       - run:
           name: Check generated files
