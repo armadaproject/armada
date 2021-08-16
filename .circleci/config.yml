@@ -124,6 +124,7 @@ jobs:
             cd ./internal/lookout/ui
             npm install
             npm run fmt
+            git status
 
       - run:
           name: ineffassign
