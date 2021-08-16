@@ -134,7 +134,7 @@ jobs:
             npm install
             npm run fmt
             echo $?
-            echo $(git status -s -uno | wc -l)
+            echo $(git status -s -uno)
             exit $(git status -s -uno | wc -l)
 
       - run:
