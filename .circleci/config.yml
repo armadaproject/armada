@@ -119,19 +119,10 @@ jobs:
       - checkout
 
       - run:
-          name: Test eslint
-          command: |
-            cd ./internal/lookout/ui
-            npm install
-            npm run fmt
-            echo $?
-            git status
-
-      - run:
           name: Check TypeScript formatting
           command: |
             cd ./internal/lookout/ui
-            npm install
+            npm ci
             npm run fmt
             echo $?
             echo $(git status -s -uno)
