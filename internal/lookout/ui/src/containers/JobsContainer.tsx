@@ -38,8 +38,6 @@ export type JobsContainerState = {
   getJobsRequestStatus: RequestStatus
 }
 
-export type Width = number | "Fill"
-
 export type ColumnSpec<T> = {
   id: string
   name: string
@@ -47,7 +45,29 @@ export type ColumnSpec<T> = {
   isDisabled: boolean
   filter: T
   defaultFilter: T
-  width: Width
+  width: number // Relative weight of column w.r.t. other columns, default is 1
+}
+
+export function isColumnSpec<T>(obj: any): obj is ColumnSpec<T> {
+  if (obj == undefined || typeof obj != "object") {
+    return false
+  }
+
+  const columnSpec = obj as Record<string, unknown>
+  return (
+    columnSpec.id != undefined &&
+    typeof columnSpec.id == "string" &&
+    columnSpec.name != undefined &&
+    typeof columnSpec.name == "string" &&
+    columnSpec.accessor != undefined &&
+    typeof columnSpec.accessor == "string" &&
+    columnSpec.isDisabled != undefined &&
+    typeof columnSpec.isDisabled == "boolean" &&
+    columnSpec.filter != undefined &&
+    columnSpec.defaultFilter != undefined &&
+    columnSpec.width != undefined &&
+    typeof columnSpec.width == "number"
+  )
 }
 
 const newPriorityRegex = new RegExp("^([0-9]+)$")
@@ -85,7 +105,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
           isDisabled: false,
           filter: [],
           defaultFilter: [],
-          width: 125,
+          width: 0.7,
         },
         {
           id: "queue",
@@ -94,7 +114,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
           isDisabled: false,
           filter: "",
           defaultFilter: "",
-          width: "Fill",
+          width: 1,
         },
         {
           id: "jobId",
@@ -103,7 +123,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
           isDisabled: false,
           filter: "",
           defaultFilter: "",
-          width: "Fill",
+          width: 1,
         },
         {
           id: "owner",
@@ -112,7 +132,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
           isDisabled: false,
           filter: "",
           defaultFilter: "",
-          width: "Fill",
+          width: 1,
         },
         {
           id: "jobSet",
@@ -121,7 +141,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
           isDisabled: false,
           filter: "",
           defaultFilter: "",
-          width: "Fill",
+          width: 1,
         },
         {
           id: "submissionTime",
@@ -130,7 +150,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
           isDisabled: false,
           filter: true,
           defaultFilter: true,
-          width: "Fill",
+          width: 1,
         },
       ],
       annotationColumns: [],
@@ -292,7 +312,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
       isDisabled: false,
       filter: "",
       defaultFilter: "",
-      width: "Fill",
+      width: 1,
     }
     newState.annotationColumns.push(newCol)
     this.setFilters(newState)

@@ -7,9 +7,9 @@ import { Job } from "../../services/JobService"
 import { RequestStatus } from "../../utils"
 import CheckboxHeaderRow from "../CheckboxHeaderRow"
 import CheckboxRow from "../CheckboxRow"
+import createJobTableColumns from "./JobTableColumns"
 import JobTableHeader from "./JobTableHeader"
 import LoadingRow from "./LoadingRow"
-import columnWrapper from "./columnWrapper"
 
 import "./Jobs.css"
 
@@ -167,17 +167,12 @@ export default class Jobs extends React.Component<JobsProps, Record<string, neve
                       width={width}
                       onScroll={this.props.onInteract}
                     >
-                      {enabledColumns.map((col) =>
-                        columnWrapper(
-                          col.id,
-                          col,
-                          width / enabledColumns.length,
-                          (newValue: string | boolean | string[]) => {
-                            this.props.onChangeColumnValue(col.id, newValue)
-                          },
-                          this.props.onJobIdClick,
-                        ),
-                      )}
+                      {createJobTableColumns({
+                        columns: enabledColumns,
+                        totalWidth: width,
+                        onChangeColumnValue: this.props.onChangeColumnValue,
+                        onJobIdClick: this.props.onJobIdClick,
+                      })}
                     </Table>
                   )
                 }}

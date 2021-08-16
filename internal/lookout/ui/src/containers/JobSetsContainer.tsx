@@ -109,7 +109,9 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
     const newState = { ...this.state }
 
     this.localStorageService.updateState(newState)
+    console.log(newState)
     this.queryParamsService.updateState(newState)
+    console.log(newState)
 
     this.localStorageService.saveState(newState)
     this.queryParamsService.saveState(newState)

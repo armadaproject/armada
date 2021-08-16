@@ -12,6 +12,8 @@ type CheckboxRowProps = {
   tableKey: string
 } & TableRowProps
 
+export const CHECKBOX_WIDTH = 70
+
 const EVEN_ROW_COLOR = "#ffffff"
 const ODD_ROW_COLOR = "#f5f5f5"
 const SELECTED_ROW_COLOR = "#b2ebf2"
@@ -41,7 +43,12 @@ export default function CheckboxRow(props: CheckboxRowProps) {
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      <div className="select-box">
+      <div
+        className="select-box"
+        style={{
+          width: CHECKBOX_WIDTH,
+        }}
+      >
         <Checkbox
           color={"secondary"}
           checked={props.isChecked}

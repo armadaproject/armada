@@ -1,10 +1,11 @@
 .select-box {
-    margin-left: 1em;
-    margin-right: 1em;
-    width: 4em;
+    padding-left: 1em;
+    padding-right: 1em;
     display: flex;
     justify-content: center;
     align-items: center;
+    flex-grow: 0;
+    flex-shrink: 0;
 }
 
 .row {
