@@ -133,6 +133,7 @@ jobs:
             go get -u github.com/gordonklaus/ineffassign
             cd ~/go/src/github.com/G-Research/armada
             ineffassign ./...
+            git status
 
       - run:
           name: Check TypeScript formatting
