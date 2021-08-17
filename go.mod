@@ -12,7 +12,7 @@ require (
 	github.com/go-ldap/ldap/v3 v3.4.1
 	github.com/go-openapi/analysis v0.19.10
 	github.com/go-openapi/errors v0.19.4 // indirect
-	github.com/go-openapi/jsonreference v0.19.5
+	github.com/go-openapi/jsonreference v0.19.6
 	github.com/go-openapi/loads v0.19.5
 	github.com/go-openapi/runtime v0.19.12
 	github.com/go-openapi/spec v0.20.3
