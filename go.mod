@@ -22,7 +22,6 @@ require (
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/protobuf v1.5.2
 	github.com/gomodule/redigo v2.0.0+incompatible // indirect
-	github.com/google/martian v2.1.0+incompatible
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0
@@ -54,7 +53,7 @@ require (
 	google.golang.org/grpc v1.40.0
 	gopkg.in/square/go-jose.v2 v2.4.1 // indirect
 	k8s.io/api v0.20.5
-	k8s.io/apimachinery v0.20.5
+	k8s.io/apimachinery v0.22.0
 	k8s.io/client-go v0.20.5
 	k8s.io/component-base v0.20.5
 	k8s.io/kubelet v0.20.5
