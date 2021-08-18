@@ -90,24 +90,26 @@ jobs:
     name: Publish Armada charts
     runs-on: ubuntu-20.04
     steps:
-      - name: Set .ssh directory and GIT_SSH_COMMAND
-        run: |
-          export SSH_CONFIG_DIR="/home/runner/.ssh"
-          export GIT_SSH_COMMAND="ssh -o UserKnownHostsFile=$SSH_CONFIG_DIR/known_hosts"
-          
-          mkdir -p $SSH_CONFIG_DIR
-          echo 'github.com ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAq2A7hRGmdnm9tUDbO9IDSwBK6TbQa+PXYPCPy6rbTrTtw7PHkccKrpp0yVhp5HdEIcKr6pLlVDBfOLX9QUsyCOV0wzfjIJNlGEYsdlLJizHhbn2mUjvSAHQqZETYP81eFzLQNnPHt4EVVUh7VfDESU84KezmD5QlWpXLmvU31/yMf+Se8xhHTvKSCZIFImWwoG6mbUoWf9nzpIoaSjB+weqqUUmpaaasXVal72J+UX2B+2RPW3RcT0eOzQgqlJL3RKrTJvdsjE3JEAvGq3lGHSZXy28G3skua2SmVi/w4yCE6gbODqnTWlg7+wC604ydGXA8VJiS5ap43JXiUFFAaQ==' >> $SSH_CONFIG_DIR/known_hosts
+      - name: Checkout Armada
+        uses: actions/checkout@v2
+        with:
+          path: ${{ env.GOPATH }}/src/github.com/G-Research/armada
 
+      - name: Clone chart repo, update version and image tag to match current $RELEASE_TAG
+        run: |
+          mkdir -p ${{ env.GOPATH }}/src/github.com/G-Research/charts
+          mkdir -p $HOME/.ssh && echo "dummy" > $HOME/.ssh/known_hosts
+          
+          echo "github.com ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAq2A7hRGmdnm9tUDbO9IDSwBK6TbQa+PXYPCPy6rbTrTtw7PHkccKrpp0yVhp5HdEIcKr6pLlVDBfOLX9QUsyCOV0wzfjIJNlGEYsdlLJizHhbn2mUjvSAHQqZETYP81eFzLQNnPHt4EVVUh7VfDESU84KezmD5QlWpXLmvU31/yMf+Se8xhHTvKSCZIFImWwoG6mbUoWf9nzpIoaSjB+weqqUUmpaaasXVal72J+UX2B+2RPW3RcT0eOzQgqlJL3RKrTJvdsjE3JEAvGq3lGHSZXy28G3skua2SmVi/w4yCE6gbODqnTWlg7+wC604ydGXA8VJiS5ap43JXiUFFAaQ==" > $HOME/.ssh/known_hosts
           eval "$(ssh-agent -s)"
           echo -e "${{ secrets.ARMADA_CHART_UPDATE_KEY }}" | ssh-add - > /dev/null
-          git clone -q git@github.com:G-Research/charts.git
-        working-directory: ${{ env.GOPATH }}/src/github.com/G-Research/charts
+          git clone -q git@github.com:G-Research/charts.git charts/
+          cd charts/
+          git remote -v
 
-      - name: Update version, appVersion and image tag to match current $RELEASE_TAG
-        run: |
           RELEASE_TAG=${GITHUB_REF##*/}
           echo release version is $RELEASE_TAG
-          find . \( -name "Chart.yaml" -o -name "values.yaml" \) -exec sed -i s/LATEST/$RELEASE_TAG/ {} +
+          find ../armada \( -name "Chart.yaml" -o -name "values.yaml" \) -exec sed -i s/LATEST/$RELEASE_TAG/ {} +
 
           helm package ../armada/deployment/armada/ -d armada/
           helm package ../armada/deployment/executor -d armada/
@@ -116,14 +118,14 @@ jobs:
           helm package ../armada/deployment/lookout-migration/ -d armada/
           helm package ../armada/deployment/binoculars/ -d armada/
           helm repo index .
-        working-directory: ${{ env.GOPATH }}/src/github.com/G-Research/charts
+        working-directory: ${{ env.GOPATH }}/src/github.com/G-Research
 
       - name: Commit and push updated charts
         run: |
           RELEASE_TAG=${GITHUB_REF##*/}
           cd charts
           git checkout -b github-armada_$RELEASE_TAG
-          git add ./armada
+          git add ./armada index.yaml
           git -c user.name='GR OSS' -c user.email=github@gr-oss.io commit -qam "Pushing new helm charts at version $RELEASE_TAG"
           eval "$(ssh-agent -s)"
           echo -e "${{ secrets.ARMADA_CHART_UPDATE_KEY }}" | ssh-add - > /dev/null
