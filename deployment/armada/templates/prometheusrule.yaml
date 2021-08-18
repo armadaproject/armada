@@ -34,7 +34,7 @@ spec:
           expr: avg(armada_queue_resource_allocated) by (pool, cluster, queueName, resourceType, nodeType)
 
         - record: armada:queue:resource:used
-          expr: avg(armada_queue_resource_used) by (pool, cluster, queueName, resourceType, nodeType))
+          expr: avg(armada_queue_resource_used) by (pool, cluster, queueName, resourceType, nodeType)
 
         - record: armada:grpc:server:histogram95
           expr: histogram_quantile(0.95, sum(rate(grpc_server_handling_seconds_bucket{grpc_type!="server_stream"}[2m])) by (grpc_method,grpc_service, le))
