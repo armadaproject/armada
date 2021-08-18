@@ -10,14 +10,11 @@ require (
 	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f
 	github.com/doug-martin/goqu/v9 v9.10.0
 	github.com/go-ldap/ldap/v3 v3.4.1
-	github.com/go-openapi/analysis v0.19.10
-	github.com/go-openapi/errors v0.19.4 // indirect
+	github.com/go-openapi/analysis v0.19.16
 	github.com/go-openapi/jsonreference v0.19.6
-	github.com/go-openapi/loads v0.19.5
-	github.com/go-openapi/runtime v0.19.12
+	github.com/go-openapi/loads v0.20.2
+	github.com/go-openapi/runtime v0.19.24
 	github.com/go-openapi/spec v0.20.3
-	github.com/go-openapi/strfmt v0.19.5 // indirect
-	github.com/go-openapi/validate v0.19.7 // indirect
 	github.com/go-redis/redis v6.15.9+incompatible
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/protobuf v1.5.2
@@ -47,7 +44,6 @@ require (
 	github.com/stretchr/testify v1.7.0
 	github.com/weaveworks/promrus v1.2.0
 	github.com/yuin/gopher-lua v0.0.0-20190514113301-1cd887cd7036 // indirect
-	go.mongodb.org/mongo-driver v1.3.1 // indirect
 	golang.org/x/oauth2 v0.0.0-20210402161424-2e8d93401602
 	google.golang.org/genproto v0.0.0-20210602131652-f16073e35f0c
 	google.golang.org/grpc v1.40.0
