@@ -38,7 +38,7 @@ require (
 	github.com/rakyll/statik v0.1.7
 	github.com/segmentio/kafka-go v0.3.5
 	github.com/sirupsen/logrus v1.8.1
-	github.com/spf13/cobra v0.0.7
+	github.com/spf13/cobra v1.1.3
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.8.1
 	github.com/stretchr/testify v1.7.0
@@ -48,9 +48,9 @@ require (
 	google.golang.org/genproto v0.0.0-20210602131652-f16073e35f0c
 	google.golang.org/grpc v1.40.0
 	gopkg.in/square/go-jose.v2 v2.4.1 // indirect
-	k8s.io/api v0.20.5
-	k8s.io/apimachinery v0.20.5
-	k8s.io/client-go v0.20.5
-	k8s.io/component-base v0.20.5
+	k8s.io/api v0.22.0
+	k8s.io/apimachinery v0.22.0
+	k8s.io/client-go v0.22.0
+	k8s.io/component-base v0.22.0
 	k8s.io/kubelet v0.20.5
 )
