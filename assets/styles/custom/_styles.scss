@@ -47,17 +47,17 @@
     font-size: 44px !important;
 }
 
-.btn-gitter {
-    background-color: unset !important;
-    background: linear-gradient(#FB0766, #C50948);
-    padding: 1.29rem !important;
+.btn-discussions {
+    background: linear-gradient(-180deg, rgb(52, 183, 89) 0px, rgb(46, 164, 79) 100%);
+    width: 43.2667px !important;
+    height: 43.2667px !important;
+    box-shadow: 0 4px 6px rgba(50,50,93,0.11),0 1px 3px rgba(0,0,0,0.08);
+    font-size: 24px !important;
 }
 
-.btn-gitter i {
+.fa-discussions:before {
+    content: "\f113" !important;
     color: #fff !important;
-    top: -12px !important;
-    left: -9px !important;
-    font-size: 24px !important;
 }
 
 /* IMAGES */
