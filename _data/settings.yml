@@ -57,12 +57,13 @@ contact_settings:
 
 social_settings:
   facebook_url: ''
+  discussions_url: 'https://github.com/G-Research/armada/discussions'
   twitter_url: 'https://twitter.com/GRESEARCHjobs'
   instagram_url: ''
   youtube_url: ''
   vimeo_url: ''
   pinterest_url: ''
-  gitter_url: 'https://gitter.im/ArmadaProject/community'
+  gitter_url: ''
   dribbble_url: ''
   behance_url: ''
   github_url: 'https://github.com/G-Research/armada'
