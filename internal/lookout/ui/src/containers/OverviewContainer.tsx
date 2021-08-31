@@ -61,6 +61,7 @@ class OverviewContainer extends React.Component<OverviewContainerProps, Overview
   async componentDidMount() {
     const newState = { ...this.state }
     this.localStorageService.updateState(newState)
+    this.localStorageService.saveState(newState)
     await setStateAsync(this, newState)
 
     await this.fetchOverview()

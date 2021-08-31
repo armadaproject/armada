@@ -4,11 +4,11 @@ import { TableCellProps } from "react-virtualized"
 
 import "./LinkCell.css"
 
-type JobIdCellProps = {
+type LinkCellProps = {
   onClick: () => void
 } & TableCellProps
 
-export default function LinkCell(props: JobIdCellProps) {
+export default function LinkCell(props: LinkCellProps) {
   return (
     <div className="link" onClick={props.onClick}>
       {props.cellData}

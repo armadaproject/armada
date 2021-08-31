@@ -29,3 +29,8 @@
 .ReactVirtualized__Grid {
   outline: none;
 }
+
+.ReactVirtualized__Table__headerColumn, .ReactVirtualized__Table__rowColumn {
+  margin-right: 0 !important;
+  padding-right: 10px !important;
+}

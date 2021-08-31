@@ -1,9 +1,20 @@
 import { OverviewContainerState } from "../containers/OverviewContainer"
+import { tryParseJson } from "../utils"
 
 const LOCAL_STORAGE_KEY = "armada_lookout_overview_user_settings"
 
 export type OverviewLocalStorageState = {
   autoRefresh?: boolean
+}
+
+function convertToLocalStorageState(loadedData: Record<string, unknown>): OverviewLocalStorageState {
+  const state: OverviewLocalStorageState = {}
+
+  if (loadedData.autoRefresh != undefined && typeof loadedData.autoRefresh == "boolean") {
+    state.autoRefresh = loadedData.autoRefresh
+  }
+
+  return state
 }
 
 export default class OverviewLocalStorageService {
@@ -20,7 +31,12 @@ export default class OverviewLocalStorageService {
       return
     }
 
-    const loadedState = JSON.parse(stateJson) as OverviewLocalStorageState
+    const loadedData = tryParseJson(stateJson)
+    if (loadedData == undefined) {
+      return
+    }
+
+    const loadedState = convertToLocalStorageState(loadedData)
     if (loadedState.autoRefresh != undefined) state.autoRefresh = loadedState.autoRefresh
   }
 }
