@@ -36,7 +36,7 @@ require (
 	github.com/pquerna/cachecontrol v0.0.0-20180517163645-1555304b9b35 // indirect
 	github.com/prometheus/client_golang v1.11.0
 	github.com/rakyll/statik v0.1.7
-	github.com/segmentio/kafka-go v0.3.5
+	github.com/segmentio/kafka-go v0.4.18
 	github.com/sirupsen/logrus v1.8.1
 	github.com/spf13/cobra v0.0.7
 	github.com/spf13/pflag v1.0.5
