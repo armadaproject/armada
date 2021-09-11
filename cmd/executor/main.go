@@ -6,6 +6,7 @@ import (
 	"syscall"
 
 	"github.com/prometheus/client_golang/prometheus"
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 
@@ -29,6 +30,11 @@ func main() {
 	var config configuration.ExecutorConfiguration
 	userSpecifiedConfigs := viper.GetStringSlice(CustomConfigLocation)
 	common.LoadConfig(&config, "./config/executor", userSpecifiedConfigs)
+	err := configuration.ValidateExecutorConfiguration(config)
+	if err != nil {
+		log.Errorf("Invalid config found: %s", err)
+		os.Exit(-1)
+	}
 
 	shutdownChannel := make(chan os.Signal, 1)
 	signal.Notify(shutdownChannel, syscall.SIGINT, syscall.SIGTERM)
