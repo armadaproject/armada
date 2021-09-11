@@ -29,6 +29,7 @@ type ClusterUtilisationService struct {
 	usageClient             api.UsageClient
 	trackedNodeLabels       []string
 	toleratedTaints         map[string]bool
+	ignoredTaints           map[string]bool
 }
 
 func NewClusterUtilisationService(
@@ -37,6 +38,7 @@ func NewClusterUtilisationService(
 	nodeInfoService node.NodeGroupInfoService,
 	usageClient api.UsageClient,
 	trackedNodeLabels []string,
+	ignoredTaints []string,
 	toleratedTaints []string) *ClusterUtilisationService {
 
 	return &ClusterUtilisationService{
@@ -45,6 +47,7 @@ func NewClusterUtilisationService(
 		nodeInfoService:         nodeInfoService,
 		usageClient:             usageClient,
 		trackedNodeLabels:       trackedNodeLabels,
+		ignoredTaints:           util.StringListToSet(ignoredTaints),
 		toleratedTaints:         util.StringListToSet(toleratedTaints),
 	}
 }
@@ -132,7 +135,7 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAvailableClusterC
 		nodes = append(nodes, api.NodeInfo{
 			Name:                 n.Name,
 			Labels:               clusterUtilisationService.filterTrackedLabels(n.Labels),
-			Taints:               n.Spec.Taints,
+			Taints:               clusterUtilisationService.filterNodeTaints(n.Spec.Taints),
 			AllocatableResources: allocatable,
 			AvailableResources:   available,
 		})
@@ -242,7 +245,8 @@ func (clusterUtilisationService *ClusterUtilisationService) isAvailableProcessin
 
 	for _, taint := range node.Spec.Taints {
 		if taint.Effect == v1.TaintEffectNoSchedule &&
-			!clusterUtilisationService.toleratedTaints[taint.Key] {
+			!clusterUtilisationService.toleratedTaints[taint.Key] &&
+			!clusterUtilisationService.ignoredTaints[taint.Key] {
 			return false
 		}
 	}
@@ -330,6 +334,16 @@ func (clusterUtilisationService *ClusterUtilisationService) filterTrackedLabels(
 		v, ok := labels[k]
 		if ok {
 			result[k] = v
+		}
+	}
+	return result
+}
+
+func (clusterUtilisationService *ClusterUtilisationService) filterNodeTaints(taints []v1.Taint) []v1.Taint {
+	result := []v1.Taint{}
+	for _, taint := range taints {
+		if !clusterUtilisationService.ignoredTaints[taint.Key] {
+			result = append(result, taint)
 		}
 	}
 	return result

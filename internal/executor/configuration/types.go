@@ -26,6 +26,7 @@ type KubernetesConfiguration struct {
 	ImpersonateUsers  bool
 	TrackedNodeLabels []string
 	ToleratedTaints   []string
+	IgnoredTaints     []string
 	MinimumPodAge     time.Duration
 	FailedPodExpiry   time.Duration
 	StuckPodExpiry    time.Duration

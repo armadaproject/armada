@@ -19,7 +19,7 @@ var testAppConfig = configuration.ApplicationConfiguration{ClusterId: "test", Po
 
 func TestFilterAvailableProcessingNodes(t *testing.T) {
 	context := fakeContext.NewFakeClusterContext(testAppConfig, nil)
-	service := NewClusterUtilisationService(context, nil, nil, nil, nil, nil)
+	service := NewClusterUtilisationService(context, nil, nil, nil, nil, nil, nil)
 
 	node := v1.Node{
 		Spec: v1.NodeSpec{
@@ -34,7 +34,7 @@ func TestFilterAvailableProcessingNodes(t *testing.T) {
 
 func TestIsAvailableProcessingNode_IsFalse_UnschedulableNode(t *testing.T) {
 	context := fakeContext.NewFakeClusterContext(testAppConfig, nil)
-	service := NewClusterUtilisationService(context, nil, nil, nil, nil, nil)
+	service := NewClusterUtilisationService(context, nil, nil, nil, nil, nil, nil)
 
 	node := v1.Node{
 		Spec: v1.NodeSpec{
@@ -47,11 +47,12 @@ func TestIsAvailableProcessingNode_IsFalse_UnschedulableNode(t *testing.T) {
 	assert.False(t, result)
 }
 
-func TestFilterAvailableProcessingNodes_IsFailse_NodeWithNoScheduleTaint(t *testing.T) {
+func TestFilterAvailableProcessingNodes_IsFalse_NodeWithNoScheduleTaint(t *testing.T) {
 	context := fakeContext.NewFakeClusterContext(testAppConfig, nil)
-	service := NewClusterUtilisationService(context, nil, nil, nil, nil, nil)
+	service := NewClusterUtilisationService(context, nil, nil, nil, nil, nil, nil)
 
 	taint := v1.Taint{
+		Key:    "taint",
 		Effect: v1.TaintEffectNoSchedule,
 	}
 	node := v1.Node{
@@ -63,6 +64,69 @@ func TestFilterAvailableProcessingNodes_IsFailse_NodeWithNoScheduleTaint(t *test
 
 	result := service.isAvailableProcessingNode(&node)
 	assert.False(t, result)
+}
+
+func TestFilterAvailableProcessingNodes_IsTrue_NodeWithToleratedTaint(t *testing.T) {
+	context := fakeContext.NewFakeClusterContext(testAppConfig, nil)
+	service := NewClusterUtilisationService(context, nil, nil, nil, nil, nil, []string{"taint"})
+
+	taint := v1.Taint{
+		Key:    "taint",
+		Effect: v1.TaintEffectNoSchedule,
+	}
+	node := v1.Node{
+		Spec: v1.NodeSpec{
+			Unschedulable: false,
+			Taints:        []v1.Taint{taint},
+		},
+	}
+
+	result := service.isAvailableProcessingNode(&node)
+	assert.True(t, result)
+}
+
+func TestFilterAvailableProcessingNodes_IsTrue_NodeWithIgnoredTaint(t *testing.T) {
+	context := fakeContext.NewFakeClusterContext(testAppConfig, nil)
+	service := NewClusterUtilisationService(context, nil, nil, nil, nil, []string{"taint"}, nil)
+
+	taint := v1.Taint{
+		Key:    "taint",
+		Effect: v1.TaintEffectNoSchedule,
+	}
+	node := v1.Node{
+		Spec: v1.NodeSpec{
+			Unschedulable: false,
+			Taints:        []v1.Taint{taint},
+		},
+	}
+
+	result := service.isAvailableProcessingNode(&node)
+	assert.True(t, result)
+}
+
+func TestFilterNodeTaints(t *testing.T) {
+	context := fakeContext.NewFakeClusterContext(testAppConfig, nil)
+	service := NewClusterUtilisationService(context, nil, nil, nil, nil, []string{"ignored"}, nil)
+
+	taint := v1.Taint{
+		Key:    "normal",
+		Effect: v1.TaintEffectNoSchedule,
+	}
+	result := service.filterNodeTaints([]v1.Taint{taint})
+	assert.Equal(t, len(result), 1)
+	assert.Equal(t, result[0], taint)
+}
+
+func TestFilterNodeTaints_RemovesIgnoredTaints(t *testing.T) {
+	context := fakeContext.NewFakeClusterContext(testAppConfig, nil)
+	service := NewClusterUtilisationService(context, nil, nil, nil, nil, []string{"ignored"}, nil)
+
+	taint := v1.Taint{
+		Key:    "ignored",
+		Effect: v1.TaintEffectNoSchedule,
+	}
+	result := service.filterNodeTaints([]v1.Taint{taint})
+	assert.Equal(t, len(result), 0)
 }
 
 func TestGetAllPodsUsingResourceOnProcessingNodes_ShouldExcludePodsNotOnGivenNodes(t *testing.T) {

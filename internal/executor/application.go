@@ -80,6 +80,7 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 		nodeInfoService,
 		usageClient,
 		config.Kubernetes.TrackedNodeLabels,
+		config.Kubernetes.IgnoredTaints,
 		config.Kubernetes.ToleratedTaints)
 
 	clusterAllocationService := service.NewClusterAllocationService(
