@@ -104,7 +104,7 @@ func TestFilterAvailableProcessingNodes_IsTrue_NodeWithIgnoredTaint(t *testing.T
 	assert.True(t, result)
 }
 
-func TestFilterNodeTaints(t *testing.T) {
+func TestFilterIgnoredNodeTaints(t *testing.T) {
 	context := fakeContext.NewFakeClusterContext(testAppConfig, nil)
 	service := NewClusterUtilisationService(context, nil, nil, nil, nil, []string{"ignored"}, nil)
 
@@ -112,12 +112,12 @@ func TestFilterNodeTaints(t *testing.T) {
 		Key:    "normal",
 		Effect: v1.TaintEffectNoSchedule,
 	}
-	result := service.filterNodeTaints([]v1.Taint{taint})
+	result := service.filterIgnoredTaints([]v1.Taint{taint})
 	assert.Equal(t, len(result), 1)
 	assert.Equal(t, result[0], taint)
 }
 
-func TestFilterNodeTaints_RemovesIgnoredTaints(t *testing.T) {
+func TestFilterIgnoredNodeTaints_RemovesIgnoredTaints(t *testing.T) {
 	context := fakeContext.NewFakeClusterContext(testAppConfig, nil)
 	service := NewClusterUtilisationService(context, nil, nil, nil, nil, []string{"ignored"}, nil)
 
@@ -125,7 +125,7 @@ func TestFilterNodeTaints_RemovesIgnoredTaints(t *testing.T) {
 		Key:    "ignored",
 		Effect: v1.TaintEffectNoSchedule,
 	}
-	result := service.filterNodeTaints([]v1.Taint{taint})
+	result := service.filterIgnoredTaints([]v1.Taint{taint})
 	assert.Equal(t, len(result), 0)
 }
 

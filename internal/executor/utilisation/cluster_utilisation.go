@@ -135,7 +135,7 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAvailableClusterC
 		nodes = append(nodes, api.NodeInfo{
 			Name:                 n.Name,
 			Labels:               clusterUtilisationService.filterTrackedLabels(n.Labels),
-			Taints:               clusterUtilisationService.filterNodeTaints(n.Spec.Taints),
+			Taints:               n.Spec.Taints,
 			AllocatableResources: allocatable,
 			AvailableResources:   available,
 		})
@@ -227,7 +227,14 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAllAvailableProce
 		return []*v1.Node{}, err
 	}
 
-	return FilterNodes(allNodes, clusterUtilisationService.isAvailableProcessingNode), nil
+	allNodesWithIgnoredTaintsRemoved := make([]*v1.Node, 0, len(allNodes))
+	for _, n := range allNodes {
+		nodeWithIgnoredTaintsRemoved := n.DeepCopy()
+		nodeWithIgnoredTaintsRemoved.Spec.Taints = clusterUtilisationService.filterIgnoredTaints(nodeWithIgnoredTaintsRemoved.Spec.Taints)
+		allNodesWithIgnoredTaintsRemoved = append(allNodesWithIgnoredTaintsRemoved, nodeWithIgnoredTaintsRemoved)
+	}
+
+	return FilterNodes(allNodesWithIgnoredTaintsRemoved, clusterUtilisationService.isAvailableProcessingNode), nil
 }
 
 func (clusterUtilisationService *ClusterUtilisationService) reportUsage(clusterUsage *api.ClusterUsageReport) error {
@@ -339,7 +346,7 @@ func (clusterUtilisationService *ClusterUtilisationService) filterTrackedLabels(
 	return result
 }
 
-func (clusterUtilisationService *ClusterUtilisationService) filterNodeTaints(taints []v1.Taint) []v1.Taint {
+func (clusterUtilisationService *ClusterUtilisationService) filterIgnoredTaints(taints []v1.Taint) []v1.Taint {
 	result := []v1.Taint{}
 	for _, taint := range taints {
 		if !clusterUtilisationService.ignoredTaints[taint.Key] {
