@@ -377,13 +377,13 @@ func TestGetQueueActiveJobSets(t *testing.T) {
 	})
 }
 
-func TestCreateJob_ApplyDefaultLimitss(t *testing.T) {
-	defaults := common.ComputeResources{
+func TestCreateJob_ApplyDefaultLimits(t *testing.T) {
+	defaultLimits := common.ComputeResources{
 		"cpu":               resource.MustParse("1"),
 		"memory":            resource.MustParse("512Mi"),
 		"ephemeral-storage": resource.MustParse("4Gi")}
 
-	withRepositoryUsingJobDefaults(defaults, func(r *RedisJobRepository) {
+	withRepositoryUsingJobDefaults(defaultLimits, []v1.Toleration{}, func(r *RedisJobRepository) {
 		testCases := map[*v1.ResourceList]v1.ResourceList{
 			nil: {
 				"cpu":               resource.MustParse("1"),
@@ -413,10 +413,45 @@ func TestCreateJob_ApplyDefaultLimitss(t *testing.T) {
 				resources.Requests = *requirements
 				resources.Limits = *requirements
 			}
-			job := addTestJobWithRequirements(t, r, "test", "", 1, resources)
+			job := addTestJobWithRequirements(t, r, "test", resources)
 			assert.Equal(t, expected, job.PodSpec.Containers[0].Resources.Limits)
 			assert.Equal(t, expected, job.PodSpec.Containers[0].Resources.Requests)
 		}
+	})
+}
+
+func TestCreateJob_ApplyDefaultTolerations(t *testing.T) {
+	defaultToleration := v1.Toleration{
+		Key:      "default",
+		Operator: v1.TolerationOpEqual,
+		Value:    "true",
+		Effect:   v1.TaintEffectNoSchedule,
+	}
+
+	alternateToleration := v1.Toleration{
+		Key:      "alternate",
+		Operator: v1.TolerationOpEqual,
+		Value:    "true",
+		Effect:   v1.TaintEffectNoSchedule,
+	}
+
+	withRepositoryUsingJobDefaults(nil, []v1.Toleration{defaultToleration}, func(r *RedisJobRepository) {
+		job := addTestJobWithTolerations(t, r, "test", []v1.Toleration{})
+		assert.Equal(t, []v1.Toleration{defaultToleration}, job.PodSpec.Tolerations)
+
+		job = addTestJobWithTolerations(t, r, "test", []v1.Toleration{defaultToleration})
+		assert.Equal(t, []v1.Toleration{defaultToleration}, job.PodSpec.Tolerations)
+
+		job = addTestJobWithTolerations(t, r, "test", []v1.Toleration{alternateToleration})
+		assert.Equal(t, []v1.Toleration{alternateToleration, defaultToleration}, job.PodSpec.Tolerations)
+	})
+
+	withRepositoryUsingJobDefaults(nil, []v1.Toleration{}, func(r *RedisJobRepository) {
+		job := addTestJobWithTolerations(t, r, "test", []v1.Toleration{})
+		assert.Equal(t, []v1.Toleration{}, job.PodSpec.Tolerations)
+
+		job = addTestJobWithTolerations(t, r, "test", []v1.Toleration{alternateToleration})
+		assert.Equal(t, []v1.Toleration{alternateToleration}, job.PodSpec.Tolerations)
 	})
 }
 
@@ -525,23 +560,27 @@ func addTestJobWithClientId(t *testing.T, r *RedisJobRepository, queue string, c
 	cpu := resource.MustParse("1")
 	memory := resource.MustParse("512Mi")
 
-	return addTestJobWithRequirements(t, r, queue, clientId, 1, v1.ResourceRequirements{
+	return addTestJobInner(t, r, queue, clientId, 1, v1.ResourceRequirements{
 		Limits:   v1.ResourceList{"cpu": cpu, "memory": memory},
 		Requests: v1.ResourceList{"cpu": cpu, "memory": memory},
-	})
+	}, []v1.Toleration{})
 }
 
-func addTestJobWithPriority(t *testing.T, r *RedisJobRepository, queue string, priority float64) *api.Job {
+func addTestJobWithTolerations(t *testing.T, r *RedisJobRepository, queue string, tolerations []v1.Toleration) *api.Job {
 	cpu := resource.MustParse("1")
 	memory := resource.MustParse("512Mi")
 
-	return addTestJobWithRequirements(t, r, queue, "", priority, v1.ResourceRequirements{
+	return addTestJobInner(t, r, queue, "", 1, v1.ResourceRequirements{
 		Limits:   v1.ResourceList{"cpu": cpu, "memory": memory},
 		Requests: v1.ResourceList{"cpu": cpu, "memory": memory},
-	})
+	}, tolerations)
 }
 
-func addTestJobWithRequirements(t *testing.T, r *RedisJobRepository, queue string, clientId string, priority float64, requirements v1.ResourceRequirements) *api.Job {
+func addTestJobWithRequirements(t *testing.T, r *RedisJobRepository, queue string, requirements v1.ResourceRequirements) *api.Job {
+	return addTestJobInner(t, r, queue, "", 1, requirements, []v1.Toleration{})
+}
+
+func addTestJobInner(t *testing.T, r *RedisJobRepository, queue string, clientId string, priority float64, requirements v1.ResourceRequirements, tolerations []v1.Toleration) *api.Job {
 
 	jobs, e := r.CreateJobs(&api.JobSubmitRequest{
 		Queue:    queue,
@@ -556,6 +595,7 @@ func addTestJobWithRequirements(t *testing.T, r *RedisJobRepository, queue strin
 							Resources: requirements,
 						},
 					},
+					Tolerations: tolerations,
 				},
 			},
 		},
@@ -572,16 +612,16 @@ func addTestJobWithRequirements(t *testing.T, r *RedisJobRepository, queue strin
 }
 
 func withRepository(action func(r *RedisJobRepository)) {
-	withRepositoryUsingJobDefaults(nil, action)
+	withRepositoryUsingJobDefaults(nil, []v1.Toleration{}, action)
 }
 
-func withRepositoryUsingJobDefaults(jobDefaultLimit common.ComputeResources, action func(r *RedisJobRepository)) {
+func withRepositoryUsingJobDefaults(jobDefaultLimit common.ComputeResources, jobDefaultTolerations []v1.Toleration, action func(r *RedisJobRepository)) {
 	client := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 10})
 	defer client.FlushDB()
 	defer client.Close()
 
 	client.FlushDB()
 
-	repo := NewRedisJobRepository(client, jobDefaultLimit)
+	repo := NewRedisJobRepository(client, jobDefaultLimit, jobDefaultTolerations)
 	action(repo)
 }
