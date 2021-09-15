@@ -898,53 +898,6 @@ func TestGetJobs_FilterByJobId(t *testing.T) {
 	})
 }
 
-func TestGetJobs_FilterByJobIdStartsWith(t *testing.T) {
-	withDatabase(t, func(db *goqu.Database) {
-		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
-		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
-
-		NewJobSimulator(t, jobStore).
-			CreateJob(queue)
-
-		NewJobSimulator(t, jobStore).
-			CreateJob(queue).
-			Pending(cluster, k8sId1)
-
-		first := NewJobSimulator(t, jobStore).
-			CreateJobWithId(queue, "other-id-a").
-			Pending(cluster, k8sId2).
-			UnableToSchedule(cluster, k8sId2, node).
-			Pending(cluster, k8sId3).
-			Running(cluster, k8sId3, node)
-
-		second := NewJobSimulator(t, jobStore).
-			CreateJobWithId(queue, "other-id-b")
-
-		NewJobSimulator(t, jobStore).
-			CreateJob(queue).
-			Pending(cluster, k8sId4).
-			Running(cluster, k8sId4, node).
-			Succeeded(cluster, k8sId4, node)
-
-		NewJobSimulator(t, jobStore).
-			CreateJob(queue).
-			Failed(cluster, k8sId5, node, "Something bad")
-
-		NewJobSimulator(t, jobStore).
-			CreateJob(queue).
-			Cancelled()
-
-		jobInfos, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
-			JobId: "other-id",
-			Take:  10,
-		})
-		assert.NoError(t, err)
-		assert.Equal(t, 2, len(jobInfos))
-		AssertJobsAreEquivalent(t, first.job, jobInfos[0].Job)
-		AssertJobsAreEquivalent(t, second.job, jobInfos[1].Job)
-	})
-}
-
 func TestGetJobs_FilterByJobIdWithWrongQueue(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
