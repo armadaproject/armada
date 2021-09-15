@@ -187,6 +187,6 @@ func withRepository(action func(r *repository.RedisJobRepository)) {
 	defer db.Close()
 
 	redisClient := redis.NewClient(&redis.Options{Addr: db.Addr()})
-	repo := repository.NewRedisJobRepository(redisClient, nil)
+	repo := repository.NewRedisJobRepository(redisClient, nil, nil)
 	action(repo)
 }
