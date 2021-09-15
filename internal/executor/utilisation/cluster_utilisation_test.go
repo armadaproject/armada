@@ -85,25 +85,6 @@ func TestFilterAvailableProcessingNodes_IsTrue_NodeWithToleratedTaint(t *testing
 	assert.True(t, result)
 }
 
-func TestFilterAvailableProcessingNodes_IsTrue_NodeWithIgnoredTaint(t *testing.T) {
-	context := fakeContext.NewFakeClusterContext(testAppConfig, nil)
-	service := NewClusterUtilisationService(context, nil, nil, nil, nil, []string{"taint"}, nil)
-
-	taint := v1.Taint{
-		Key:    "taint",
-		Effect: v1.TaintEffectNoSchedule,
-	}
-	node := v1.Node{
-		Spec: v1.NodeSpec{
-			Unschedulable: false,
-			Taints:        []v1.Taint{taint},
-		},
-	}
-
-	result := service.isAvailableProcessingNode(&node)
-	assert.True(t, result)
-}
-
 func TestFilterIgnoredNodeTaints(t *testing.T) {
 	context := fakeContext.NewFakeClusterContext(testAppConfig, nil)
 	service := NewClusterUtilisationService(context, nil, nil, nil, nil, []string{"ignored"}, nil)

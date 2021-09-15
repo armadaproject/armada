@@ -252,8 +252,7 @@ func (clusterUtilisationService *ClusterUtilisationService) isAvailableProcessin
 
 	for _, taint := range node.Spec.Taints {
 		if taint.Effect == v1.TaintEffectNoSchedule &&
-			!clusterUtilisationService.toleratedTaints[taint.Key] &&
-			!clusterUtilisationService.ignoredTaints[taint.Key] {
+			!clusterUtilisationService.toleratedTaints[taint.Key] {
 			return false
 		}
 	}
