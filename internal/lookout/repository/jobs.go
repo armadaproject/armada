@@ -106,7 +106,7 @@ func (r *SQLJobRepository) createWhereFilters(opts *lookout.GetJobsRequest) []go
 	}
 
 	if opts.JobId != "" {
-		filters = append(filters, StartsWith(job_jobId, opts.JobId))
+		filters = append(filters, job_jobId.Eq(opts.JobId))
 	}
 
 	if opts.Owner != "" {
