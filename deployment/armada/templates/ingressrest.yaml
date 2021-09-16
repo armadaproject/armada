@@ -1,7 +1,7 @@
 apiVersion: extensions/v1beta1
 kind: Ingress
 metadata:
-  name: {{ include "armada.name" . }}-rest
+  name: {{ .Values.ingress.nameOverride | default (include "armada.name" .) }}-rest
   namespace: {{ .Release.Namespace }}
   annotations:
     kubernetes.io/ingress.class: {{ required "A value is required for .Values.ingressClass" .Values.ingressClass }}
