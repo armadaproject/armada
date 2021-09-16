@@ -2,6 +2,7 @@ package utilisation
 
 import (
 	"sync"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
@@ -15,25 +16,29 @@ import (
 	"github.com/G-Research/armada/internal/executor/util"
 )
 
+const inactivePodGracePeriod = 3 * time.Minute
+
 type PodUtilisationService interface {
 	GetPodUtilisation(pod *v1.Pod) *domain.UtilisationData
 }
 
-type MetricsServerPodUtilisationService struct {
-	clusterContext     context.ClusterContext
-	podUtilisationData map[string]*domain.UtilisationData
-	dataAccessMutex    sync.Mutex
+type KubeletPodUtilisationService struct {
+	clusterContext            context.ClusterContext
+	clusterUtilisationService ClusterUtilisationService
+	podUtilisationData        map[string]*domain.UtilisationData
+	dataAccessMutex           sync.Mutex
 }
 
-func NewMetricsServerQueueUtilisationService(clusterContext context.ClusterContext) *MetricsServerPodUtilisationService {
-	return &MetricsServerPodUtilisationService{
-		clusterContext:     clusterContext,
-		podUtilisationData: map[string]*domain.UtilisationData{},
-		dataAccessMutex:    sync.Mutex{},
+func NewMetricsServerQueueUtilisationService(clusterContext context.ClusterContext, clusterUtilisationService ClusterUtilisationService) *KubeletPodUtilisationService {
+	return &KubeletPodUtilisationService{
+		clusterContext:            clusterContext,
+		clusterUtilisationService: clusterUtilisationService,
+		podUtilisationData:        map[string]*domain.UtilisationData{},
+		dataAccessMutex:           sync.Mutex{},
 	}
 }
 
-func (q *MetricsServerPodUtilisationService) GetPodUtilisation(pod *v1.Pod) *domain.UtilisationData {
+func (q *KubeletPodUtilisationService) GetPodUtilisation(pod *v1.Pod) *domain.UtilisationData {
 	if pod.Status.Phase == v1.PodSucceeded || pod.Status.Phase == v1.PodFailed {
 		return domain.EmptyUtilisationData()
 	}
@@ -46,13 +51,13 @@ func (q *MetricsServerPodUtilisationService) GetPodUtilisation(pod *v1.Pod) *dom
 	return utilisation.DeepCopy()
 }
 
-func (q *MetricsServerPodUtilisationService) updatePodUtilisation(name string, utilisationData *domain.UtilisationData) {
+func (q *KubeletPodUtilisationService) updatePodUtilisation(name string, utilisationData *domain.UtilisationData) {
 	q.dataAccessMutex.Lock()
 	defer q.dataAccessMutex.Unlock()
 	q.podUtilisationData[name] = utilisationData
 }
 
-func (q *MetricsServerPodUtilisationService) removeFinishedPods(podNames map[string]bool) {
+func (q *KubeletPodUtilisationService) removeFinishedPods(podNames map[string]bool) {
 	q.dataAccessMutex.Lock()
 	defer q.dataAccessMutex.Unlock()
 	for name := range q.podUtilisationData {
@@ -62,16 +67,30 @@ func (q *MetricsServerPodUtilisationService) removeFinishedPods(podNames map[str
 	}
 }
 
-func (q *MetricsServerPodUtilisationService) RefreshUtilisationData() {
-	nodes, err := q.clusterContext.GetNodes()
-	if err != nil {
-		log.Errorf("Failed to retrieve nodes from context: %s", err)
-	}
-
+func (q *KubeletPodUtilisationService) RefreshUtilisationData() {
 	pods, err := q.clusterContext.GetActiveBatchPods()
 	if err != nil {
 		log.Errorf("Failed to retrieve pods from context: %s", err)
+		return
 	}
+
+	allNodes, err := q.clusterContext.GetNodes()
+	if err != nil {
+		log.Errorf("Failed to retrieve nodes from context: %s", err)
+		return
+	}
+
+	processingNodes, err := q.clusterUtilisationService.GetAllAvailableProcessingNodes()
+	if err != nil {
+		log.Errorf("Failed to retrieve processing nodes: %s", err)
+		return
+	}
+	nonProcessingNodes := util.RemoveNodesFromList(allNodes, processingNodes)
+
+	// Only process nodes jobs can run on + nodes jobs are actively running on (to catch Running jobs on cordoned nodes)
+	nodes := q.getNodesHostingActiveManagedPods(pods, nonProcessingNodes)
+	nodes = util.MergeNodeList(nodes, processingNodes)
+
 	podNames := commonUtil.StringListToSet(util.ExtractNames(pods))
 
 	summaries := make(chan *v1alpha1.Summary, len(nodes))
@@ -105,7 +124,39 @@ func (q *MetricsServerPodUtilisationService) RefreshUtilisationData() {
 	q.removeFinishedPods(podNames)
 }
 
-func (q *MetricsServerPodUtilisationService) updatePodStats(podStats *v1alpha1.PodStats) {
+/*
+ We define an active pod as:
+ - Any pod that is not Failed/Succeeded and doesn't have a deletion timestamp within the last inactivePodGracePeriod
+   - This rules out pods that get stuck in terminating for greater than inactivePodGracePeriod
+ - Any pod that is Failed/Succeeded within the last inactivePodGracePeriod
+   - The kubelet stops reporting metrics for completed pods, just having a grace period to try catch any last metrics
+*/
+func (q *KubeletPodUtilisationService) getNodesHostingActiveManagedPods(managedPods []*v1.Pod, nodes []*v1.Node) []*v1.Node {
+	nodesWithActiveManagedPods := []*v1.Node{}
+	for _, node := range nodes {
+		podsOnNode := util.GetPodsOnNodes(managedPods, []*v1.Node{node})
+
+		hasActivePod := false
+		for _, pod := range podsOnNode {
+			//All non completed pods that
+			if !util.IsInTerminalState(pod) && (pod.DeletionTimestamp == nil || pod.DeletionTimestamp.Add(inactivePodGracePeriod).After(time.Now())) {
+				hasActivePod = true
+				break
+			}
+			if util.IsInTerminalState(pod) && pod.DeletionTimestamp.Add(inactivePodGracePeriod).After(time.Now()) {
+				hasActivePod = true
+				break
+			}
+		}
+
+		if hasActivePod {
+			nodesWithActiveManagedPods = append(nodesWithActiveManagedPods, node)
+		}
+	}
+	return nodesWithActiveManagedPods
+}
+
+func (q *KubeletPodUtilisationService) updatePodStats(podStats *v1alpha1.PodStats) {
 	currentUsage := common.ComputeResources{}
 	cumulativeUsage := common.ComputeResources{}
 
