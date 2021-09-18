@@ -56,15 +56,19 @@ type JobRepository interface {
 }
 
 type RedisJobRepository struct {
-	db               redis.UniversalClient
-	defaultJobLimits common.ComputeResources
+	db                    redis.UniversalClient
+	defaultJobLimits      common.ComputeResources
+	defaultJobTolerations []v1.Toleration
 }
 
-func NewRedisJobRepository(db redis.UniversalClient, defaultJobLimits common.ComputeResources) *RedisJobRepository {
+func NewRedisJobRepository(db redis.UniversalClient, defaultJobLimits common.ComputeResources, defaultJobTolerations []v1.Toleration) *RedisJobRepository {
 	if defaultJobLimits == nil {
 		defaultJobLimits = common.ComputeResources{}
 	}
-	return &RedisJobRepository{db: db, defaultJobLimits: defaultJobLimits}
+	if defaultJobTolerations == nil {
+		defaultJobTolerations = []v1.Toleration{}
+	}
+	return &RedisJobRepository{db: db, defaultJobLimits: defaultJobLimits, defaultJobTolerations: defaultJobTolerations}
 }
 
 func (repo *RedisJobRepository) CreateJobs(request *api.JobSubmitRequest, owner string, ownershipGroups []string) ([]*api.Job, error) {
@@ -857,6 +861,20 @@ func (repo *RedisJobRepository) applyDefaults(spec *v1.PodSpec) {
 				}
 			}
 		}
+		tolerationsToAdd := []v1.Toleration{}
+		for _, defaultToleration := range repo.defaultJobTolerations {
+			exists := false
+			for _, existingToleration := range spec.Tolerations {
+				if defaultToleration.MatchToleration(&existingToleration) {
+					exists = true
+					break
+				}
+			}
+			if !exists {
+				tolerationsToAdd = append(tolerationsToAdd, defaultToleration)
+			}
+		}
+		spec.Tolerations = append(spec.Tolerations, tolerationsToAdd...)
 	}
 }
 

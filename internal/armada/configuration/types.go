@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/go-redis/redis"
+	v1 "k8s.io/api/core/v1"
 
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/internal/common/auth/configuration"
@@ -38,6 +39,7 @@ type SchedulingConfig struct {
 	MaximalResourceFractionPerQueue           map[string]float64
 	Lease                                     LeaseSettings
 	DefaultJobLimits                          common.ComputeResources
+	DefaultJobTolerations                     []v1.Toleration
 	MaxRetries                                uint // Maximum number of retries before a Job is failed
 	ResourceScarcity                          map[string]float64
 	PoolResourceScarcity                      map[string]map[string]float64
