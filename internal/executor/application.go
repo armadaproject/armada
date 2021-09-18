@@ -71,16 +71,15 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 	jobContext := job.NewClusterJobContext(clusterContext, config.Kubernetes.StuckPodExpiry)
 	submitter := job.NewSubmitter(clusterContext, config.Kubernetes.PodDefaults)
 
+	nodeInfoService := node.NewKubernetesNodeInfoService(clusterContext, config.Kubernetes.ToleratedTaints)
 	queueUtilisationService := utilisation.NewMetricsServerQueueUtilisationService(
-		clusterContext)
-	nodeInfoService := node.NewKubernetesNodeInfoService(clusterContext.GetClusterPool(), config.Kubernetes.ToleratedTaints)
+		clusterContext, nodeInfoService)
 	clusterUtilisationService := utilisation.NewClusterUtilisationService(
 		clusterContext,
 		queueUtilisationService,
 		nodeInfoService,
 		usageClient,
-		config.Kubernetes.TrackedNodeLabels,
-		config.Kubernetes.ToleratedTaints)
+		config.Kubernetes.TrackedNodeLabels)
 
 	clusterAllocationService := service.NewClusterAllocationService(
 		clusterContext,

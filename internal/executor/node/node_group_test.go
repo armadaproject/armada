@@ -3,11 +3,12 @@ package node
 import (
 	"testing"
 
-	"github.com/G-Research/armada/internal/executor/configuration"
-	fakeContext "github.com/G-Research/armada/internal/executor/fake/context"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/G-Research/armada/internal/executor/configuration"
+	fakeContext "github.com/G-Research/armada/internal/executor/fake/context"
 )
 
 var testAppConfig = configuration.ApplicationConfiguration{ClusterId: "test", Pool: "pool"}
