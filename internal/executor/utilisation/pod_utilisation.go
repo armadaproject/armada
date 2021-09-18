@@ -4,7 +4,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/G-Research/armada/internal/executor/node"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -14,6 +13,7 @@ import (
 	commonUtil "github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/executor/context"
 	"github.com/G-Research/armada/internal/executor/domain"
+	"github.com/G-Research/armada/internal/executor/node"
 	"github.com/G-Research/armada/internal/executor/util"
 )
 
