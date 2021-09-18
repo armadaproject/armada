@@ -3,57 +3,66 @@ package node
 import (
 	"testing"
 
+	"github.com/G-Research/armada/internal/executor/configuration"
+	fakeContext "github.com/G-Research/armada/internal/executor/fake/context"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+var testAppConfig = configuration.ApplicationConfiguration{ClusterId: "test", Pool: "pool"}
+
 func TestGetType_WhenNodeHasNoTaint(t *testing.T) {
-	nodeGroupService := NewKubernetesNodeInfoService("cpu", []string{"tolerated1", "tolerated2"})
+	context := fakeContext.NewFakeClusterContext(testAppConfig, nil)
+	nodeInfoService := NewKubernetesNodeInfoService(context, []string{"tolerated1", "tolerated2"})
 	node := createNodeWithTaints("node1")
 
-	result := nodeGroupService.GetType(node)
-	assert.Equal(t, result.Id, nodeGroupService.clusterPool)
+	result := nodeInfoService.GetType(node)
+	assert.Equal(t, result.Id, context.GetClusterPool())
 	assert.Equal(t, len(result.Taints), 0)
 }
 
 func TestGetType_WhenNodeHasUntoleratedTaint(t *testing.T) {
-	nodeGroupService := NewKubernetesNodeInfoService("cpu", []string{"tolerated1", "tolerated2"})
+	context := fakeContext.NewFakeClusterContext(testAppConfig, nil)
+	nodeInfoService := NewKubernetesNodeInfoService(context, []string{"tolerated1", "tolerated2"})
 	node := createNodeWithTaints("node1", "untolerated")
 
-	result := nodeGroupService.GetType(node)
-	assert.Equal(t, result.Id, nodeGroupService.clusterPool)
+	result := nodeInfoService.GetType(node)
+	assert.Equal(t, result.Id, context.GetClusterPool())
 	assert.Equal(t, len(result.Taints), 0)
 }
 
 func TestGetType_WhenNodeHasToleratedTaint(t *testing.T) {
-	nodeGroupService := NewKubernetesNodeInfoService("cpu", []string{"tolerated1", "tolerated2"})
+	context := fakeContext.NewFakeClusterContext(testAppConfig, nil)
+	nodeInfoService := NewKubernetesNodeInfoService(context, []string{"tolerated1", "tolerated2"})
 
 	node := createNodeWithTaints("node1", "tolerated1")
-	result := nodeGroupService.GetType(node)
+	result := nodeInfoService.GetType(node)
 	assert.Equal(t, result.Id, "tolerated1")
 	assert.Equal(t, len(result.Taints), 1)
 	assert.Equal(t, result.Taints, node.Spec.Taints)
 
 	node = createNodeWithTaints("node1", "tolerated1", "tolerated2")
-	result = nodeGroupService.GetType(node)
+	result = nodeInfoService.GetType(node)
 	assert.Equal(t, result.Id, "tolerated1,tolerated2")
 	assert.Equal(t, len(result.Taints), 2)
 	assert.Equal(t, result.Taints, node.Spec.Taints)
 }
 
 func TestGetType_WhenSomeNodeTaintsTolerated(t *testing.T) {
-	nodeGroupService := NewKubernetesNodeInfoService("cpu", []string{"tolerated1", "tolerated2"})
+	context := fakeContext.NewFakeClusterContext(testAppConfig, nil)
+	nodeInfoService := NewKubernetesNodeInfoService(context, []string{"tolerated1", "tolerated2"})
 
 	node := createNodeWithTaints("node1", "tolerated1", "untolerated")
-	result := nodeGroupService.GetType(node)
+	result := nodeInfoService.GetType(node)
 	assert.Equal(t, result.Id, "tolerated1")
 	assert.Equal(t, len(result.Taints), 1)
 	assert.Equal(t, result.Taints[0], node.Spec.Taints[0])
 }
 
 func TestGroupNodesByType(t *testing.T) {
-	nodeGroupService := NewKubernetesNodeInfoService("cpu", []string{"tolerated1", "tolerated2"})
+	context := fakeContext.NewFakeClusterContext(testAppConfig, nil)
+	nodeInfoService := NewKubernetesNodeInfoService(context, []string{"tolerated1", "tolerated2"})
 
 	node1 := createNodeWithTaints("node1")
 	node2 := createNodeWithTaints("node2", "untolerated")
@@ -61,13 +70,13 @@ func TestGroupNodesByType(t *testing.T) {
 	node4 := createNodeWithTaints("node4", "tolerated1", "untolerated")
 	node5 := createNodeWithTaints("node5", "tolerated1", "tolerated2")
 
-	groupedNodes := nodeGroupService.GroupNodesByType([]*v1.Node{node1, node2, node3, node4, node5})
+	groupedNodes := nodeInfoService.GroupNodesByType([]*v1.Node{node1, node2, node3, node4, node5})
 	assert.Equal(t, len(groupedNodes), 3)
 
 	expected := map[string][]*v1.Node{
-		nodeGroupService.clusterPool: {node1, node2},
-		"tolerated1":                 {node3, node4},
-		"tolerated1,tolerated2":      {node5},
+		context.GetClusterPool(): {node1, node2},
+		"tolerated1":             {node3, node4},
+		"tolerated1,tolerated2":  {node5},
 	}
 
 	for _, nodeGroup := range groupedNodes {
@@ -75,6 +84,74 @@ func TestGroupNodesByType(t *testing.T) {
 		assert.True(t, present)
 		assert.Equal(t, expectedGroup, nodeGroup.Nodes)
 	}
+}
+
+func TestFilterAvailableProcessingNodes(t *testing.T) {
+	context := fakeContext.NewFakeClusterContext(testAppConfig, nil)
+	nodeInfoService := NewKubernetesNodeInfoService(context, []string{})
+
+	node := v1.Node{
+		Spec: v1.NodeSpec{
+			Unschedulable: false,
+			Taints:        nil,
+		},
+	}
+
+	result := nodeInfoService.isAvailableProcessingNode(&node)
+	assert.True(t, result, 1)
+}
+
+func TestIsAvailableProcessingNode_IsFalse_UnschedulableNode(t *testing.T) {
+	context := fakeContext.NewFakeClusterContext(testAppConfig, nil)
+	nodeInfoService := NewKubernetesNodeInfoService(context, []string{})
+
+	node := v1.Node{
+		Spec: v1.NodeSpec{
+			Unschedulable: true,
+			Taints:        nil,
+		},
+	}
+
+	result := nodeInfoService.isAvailableProcessingNode(&node)
+	assert.False(t, result)
+}
+
+func TestFilterAvailableProcessingNodes_IsFalse_NodeWithNoScheduleTaint(t *testing.T) {
+	context := fakeContext.NewFakeClusterContext(testAppConfig, nil)
+	nodeInfoService := NewKubernetesNodeInfoService(context, []string{})
+
+	taint := v1.Taint{
+		Key:    "taint",
+		Effect: v1.TaintEffectNoSchedule,
+	}
+	node := v1.Node{
+		Spec: v1.NodeSpec{
+			Unschedulable: false,
+			Taints:        []v1.Taint{taint},
+		},
+	}
+
+	result := nodeInfoService.isAvailableProcessingNode(&node)
+	assert.False(t, result)
+}
+
+func TestFilterAvailableProcessingNodes_IsTrue_NodeWithToleratedTaint(t *testing.T) {
+	context := fakeContext.NewFakeClusterContext(testAppConfig, nil)
+	nodeInfoService := NewKubernetesNodeInfoService(context, []string{"taint"})
+
+	taint := v1.Taint{
+		Key:    "taint",
+		Effect: v1.TaintEffectNoSchedule,
+	}
+	node := v1.Node{
+		Spec: v1.NodeSpec{
+			Unschedulable: false,
+			Taints:        []v1.Taint{taint},
+		},
+	}
+
+	result := nodeInfoService.isAvailableProcessingNode(&node)
+	assert.True(t, result)
 }
 
 func createNodeWithTaints(nodeName string, taintNames ...string) *v1.Node {

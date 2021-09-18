@@ -232,7 +232,7 @@ func (eventReporter *JobEventReporter) ReportMissingJobEvents() {
 	podWithIngressNotReported := util.FilterPods(allBatchPods, func(pod *v1.Pod) bool {
 		return pod.Status.Phase == v1.PodRunning &&
 			requiresIngressToBeReported(pod) &&
-			HasPodBeenInStateForLongerThanGivenDuration(pod, 15*time.Second)
+			util.HasPodBeenInStateForLongerThanGivenDuration(pod, 15*time.Second)
 	})
 
 	for _, pod := range podWithIngressNotReported {
@@ -302,20 +302,9 @@ func (eventReporter *JobEventReporter) hasPendingEvents(pod *v1.Pod) bool {
 func filterPodsWithCurrentStateNotReported(pods []*v1.Pod) []*v1.Pod {
 	podsWithMissingEvent := make([]*v1.Pod, 0)
 	for _, pod := range pods {
-		if !util.HasCurrentStateBeenReported(pod) && HasPodBeenInStateForLongerThanGivenDuration(pod, 30*time.Second) {
+		if !util.HasCurrentStateBeenReported(pod) && util.HasPodBeenInStateForLongerThanGivenDuration(pod, 30*time.Second) {
 			podsWithMissingEvent = append(podsWithMissingEvent, pod)
 		}
 	}
 	return podsWithMissingEvent
-}
-
-func HasPodBeenInStateForLongerThanGivenDuration(pod *v1.Pod, duration time.Duration) bool {
-	deadline := time.Now().Add(-duration)
-	lastStatusChange, err := util.LastStatusChange(pod)
-
-	if err != nil {
-		log.Errorf("Problem with pod %v: %v", pod.Name, err)
-		return false
-	}
-	return lastStatusChange.Before(deadline)
 }

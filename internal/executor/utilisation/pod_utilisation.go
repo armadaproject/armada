@@ -4,6 +4,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/G-Research/armada/internal/executor/node"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -23,18 +24,18 @@ type PodUtilisationService interface {
 }
 
 type KubeletPodUtilisationService struct {
-	clusterContext            context.ClusterContext
-	clusterUtilisationService ClusterUtilisationService
-	podUtilisationData        map[string]*domain.UtilisationData
-	dataAccessMutex           sync.Mutex
+	clusterContext     context.ClusterContext
+	nodeInfoService    node.NodeInfoService
+	podUtilisationData map[string]*domain.UtilisationData
+	dataAccessMutex    sync.Mutex
 }
 
-func NewMetricsServerQueueUtilisationService(clusterContext context.ClusterContext, clusterUtilisationService ClusterUtilisationService) *KubeletPodUtilisationService {
+func NewMetricsServerQueueUtilisationService(clusterContext context.ClusterContext, nodeInfoService node.NodeInfoService) *KubeletPodUtilisationService {
 	return &KubeletPodUtilisationService{
-		clusterContext:            clusterContext,
-		clusterUtilisationService: clusterUtilisationService,
-		podUtilisationData:        map[string]*domain.UtilisationData{},
-		dataAccessMutex:           sync.Mutex{},
+		clusterContext:     clusterContext,
+		nodeInfoService:    nodeInfoService,
+		podUtilisationData: map[string]*domain.UtilisationData{},
+		dataAccessMutex:    sync.Mutex{},
 	}
 }
 
@@ -80,7 +81,7 @@ func (q *KubeletPodUtilisationService) RefreshUtilisationData() {
 		return
 	}
 
-	processingNodes, err := q.clusterUtilisationService.GetAllAvailableProcessingNodes()
+	processingNodes, err := q.nodeInfoService.GetAllAvailableProcessingNodes()
 	if err != nil {
 		log.Errorf("Failed to retrieve processing nodes: %s", err)
 		return
@@ -88,7 +89,7 @@ func (q *KubeletPodUtilisationService) RefreshUtilisationData() {
 	nonProcessingNodes := util.RemoveNodesFromList(allNodes, processingNodes)
 
 	// Only process nodes jobs can run on + nodes jobs are actively running on (to catch Running jobs on cordoned nodes)
-	nodes := q.getNodesHostingActiveManagedPods(pods, nonProcessingNodes)
+	nodes := getNodesHostingActiveManagedPods(pods, nonProcessingNodes)
 	nodes = util.MergeNodeList(nodes, processingNodes)
 
 	podNames := commonUtil.StringListToSet(util.ExtractNames(pods))
@@ -131,26 +132,29 @@ func (q *KubeletPodUtilisationService) RefreshUtilisationData() {
  - Any pod that is Failed/Succeeded within the last inactivePodGracePeriod
    - The kubelet stops reporting metrics for completed pods, just having a grace period to try catch any last metrics
 */
-func (q *KubeletPodUtilisationService) getNodesHostingActiveManagedPods(managedPods []*v1.Pod, nodes []*v1.Node) []*v1.Node {
+func getNodesHostingActiveManagedPods(pods []*v1.Pod, nodes []*v1.Node) []*v1.Node {
+	managedPods := util.FilterPods(pods, util.IsManagedPod)
 	nodesWithActiveManagedPods := []*v1.Node{}
-	for _, node := range nodes {
-		podsOnNode := util.GetPodsOnNodes(managedPods, []*v1.Node{node})
+	for _, n := range nodes {
+		podsOnNode := util.GetPodsOnNodes(managedPods, []*v1.Node{n})
 
 		hasActivePod := false
 		for _, pod := range podsOnNode {
-			//All non completed pods that
+			//Active pods not stuck terminating
 			if !util.IsInTerminalState(pod) && (pod.DeletionTimestamp == nil || pod.DeletionTimestamp.Add(inactivePodGracePeriod).After(time.Now())) {
 				hasActivePod = true
 				break
 			}
-			if util.IsInTerminalState(pod) && pod.DeletionTimestamp.Add(inactivePodGracePeriod).After(time.Now()) {
+			//Recent completed pods
+			lastStatusChange, err := util.LastStatusChange(pod)
+			if util.IsInTerminalState(pod) && err == nil && lastStatusChange.Add(inactivePodGracePeriod).After(time.Now()) {
 				hasActivePod = true
 				break
 			}
 		}
 
 		if hasActivePod {
-			nodesWithActiveManagedPods = append(nodesWithActiveManagedPods, node)
+			nodesWithActiveManagedPods = append(nodesWithActiveManagedPods, n)
 		}
 	}
 	return nodesWithActiveManagedPods

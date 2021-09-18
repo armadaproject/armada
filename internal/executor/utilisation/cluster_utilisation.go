@@ -8,7 +8,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/G-Research/armada/internal/common"
-	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/executor/context"
 	"github.com/G-Research/armada/internal/executor/domain"
 	"github.com/G-Research/armada/internal/executor/node"
@@ -19,25 +18,22 @@ import (
 type UtilisationService interface {
 	GetAvailableClusterCapacity() (*ClusterAvailableCapacityReport, error)
 	GetAllNodeGroupAllocationInfo() ([]*NodeGroupAllocationInfo, error)
-	GetAllAvailableProcessingNodes() ([]*v1.Node, error)
 }
 
 type ClusterUtilisationService struct {
 	clusterContext          context.ClusterContext
 	queueUtilisationService PodUtilisationService
-	nodeInfoService         node.NodeGroupInfoService
+	nodeInfoService         node.NodeInfoService
 	usageClient             api.UsageClient
 	trackedNodeLabels       []string
-	toleratedTaints         map[string]bool
 }
 
 func NewClusterUtilisationService(
 	clusterContext context.ClusterContext,
 	queueUtilisationService PodUtilisationService,
-	nodeInfoService node.NodeGroupInfoService,
+	nodeInfoService node.NodeInfoService,
 	usageClient api.UsageClient,
-	trackedNodeLabels []string,
-	toleratedTaints []string) *ClusterUtilisationService {
+	trackedNodeLabels []string) *ClusterUtilisationService {
 
 	return &ClusterUtilisationService{
 		clusterContext:          clusterContext,
@@ -45,7 +41,6 @@ func NewClusterUtilisationService(
 		nodeInfoService:         nodeInfoService,
 		usageClient:             usageClient,
 		trackedNodeLabels:       trackedNodeLabels,
-		toleratedTaints:         util.StringListToSet(toleratedTaints),
 	}
 }
 
@@ -103,7 +98,7 @@ type ClusterAvailableCapacityReport struct {
 }
 
 func (clusterUtilisationService *ClusterUtilisationService) GetAvailableClusterCapacity() (*ClusterAvailableCapacityReport, error) {
-	processingNodes, err := clusterUtilisationService.GetAllAvailableProcessingNodes()
+	processingNodes, err := clusterUtilisationService.nodeInfoService.GetAllAvailableProcessingNodes()
 	if err != nil {
 		return nil, fmt.Errorf("Failed getting available cluster capacity due to: %s", err)
 	}
@@ -160,7 +155,7 @@ func getAllocatedResourceByNodeName(pods []*v1.Pod) map[string]common.ComputeRes
 }
 
 func (clusterUtilisationService *ClusterUtilisationService) GetAllNodeGroupAllocationInfo() ([]*NodeGroupAllocationInfo, error) {
-	allAvailableProcessingNodes, err := clusterUtilisationService.GetAllAvailableProcessingNodes()
+	allAvailableProcessingNodes, err := clusterUtilisationService.nodeInfoService.GetAllAvailableProcessingNodes()
 	if err != nil {
 		return []*NodeGroupAllocationInfo{}, err
 	}
@@ -189,7 +184,7 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAllNodeGroupAlloc
 }
 
 func (clusterUtilisationService *ClusterUtilisationService) getAllocatableResourceByNodeType() (map[string]common.ComputeResources, error) {
-	allAvailableProcessingNodes, err := clusterUtilisationService.GetAllAvailableProcessingNodes()
+	allAvailableProcessingNodes, err := clusterUtilisationService.nodeInfoService.GetAllAvailableProcessingNodes()
 	if err != nil {
 		return map[string]common.ComputeResources{}, fmt.Errorf("Failed getting total allocatable cluster capacity due to: %s", err)
 	}
@@ -218,36 +213,12 @@ func (clusterUtilisationService *ClusterUtilisationService) getAllocatableResour
 	return result, nil
 }
 
-func (clusterUtilisationService *ClusterUtilisationService) GetAllAvailableProcessingNodes() ([]*v1.Node, error) {
-	allNodes, err := clusterUtilisationService.clusterContext.GetNodes()
-	if err != nil {
-		return []*v1.Node{}, err
-	}
-
-	return FilterNodes(allNodes, clusterUtilisationService.isAvailableProcessingNode), nil
-}
-
 func (clusterUtilisationService *ClusterUtilisationService) reportUsage(clusterUsage *api.ClusterUsageReport) error {
 	ctx, cancel := common.ContextWithDefaultTimeout()
 	defer cancel()
 	_, err := clusterUtilisationService.usageClient.ReportUsage(ctx, clusterUsage)
 
 	return err
-}
-
-func (clusterUtilisationService *ClusterUtilisationService) isAvailableProcessingNode(node *v1.Node) bool {
-	if node.Spec.Unschedulable {
-		return false
-	}
-
-	for _, taint := range node.Spec.Taints {
-		if taint.Effect == v1.TaintEffectNoSchedule &&
-			!clusterUtilisationService.toleratedTaints[taint.Key] {
-			return false
-		}
-	}
-
-	return true
 }
 
 func getAllPodsRequiringResourceOnProcessingNodes(allPods []*v1.Pod, processingNodes []*v1.Node) []*v1.Pod {

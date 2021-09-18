@@ -112,3 +112,67 @@ func TestGetPodsOnNodes_Empty(t *testing.T) {
 	result = GetPodsOnNodes([]*v1.Pod{}, []*v1.Node{})
 	assert.Equal(t, len(result), 0)
 }
+
+func TestExtractNodeNames(t *testing.T) {
+	node1 := &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node1"}}
+	node2 := &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node2"}}
+
+	result := ExtractNodeNames([]*v1.Node{})
+	assert.Equal(t, []string{}, result)
+
+	result = ExtractNodeNames([]*v1.Node{node1, node2})
+	assert.Equal(t, []string{node1.Name, node2.Name}, result)
+
+	//Returns duplicates
+	result = ExtractNodeNames([]*v1.Node{node1, node1})
+	assert.Equal(t, []string{node1.Name, node1.Name}, result)
+}
+
+func TestMergeNodeList(t *testing.T) {
+	node1 := &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node1"}}
+	node2 := &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node2"}}
+
+	result := MergeNodeList([]*v1.Node{node1}, []*v1.Node{node2})
+	assert.Equal(t, []*v1.Node{node1, node2}, result)
+}
+
+func TestMergeNodeList_DoesNotAddDuplicateNodes(t *testing.T) {
+	node1 := &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node1"}}
+
+	result := MergeNodeList([]*v1.Node{node1}, []*v1.Node{node1})
+	assert.Equal(t, []*v1.Node{node1}, result)
+}
+
+func TestMergeNodeList_HandlesEmptyLists(t *testing.T) {
+	node1 := &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node1"}}
+
+	result := MergeNodeList([]*v1.Node{}, []*v1.Node{})
+	assert.Equal(t, []*v1.Node{}, result)
+
+	result = MergeNodeList([]*v1.Node{}, []*v1.Node{node1})
+	assert.Equal(t, []*v1.Node{node1}, result)
+
+	result = MergeNodeList([]*v1.Node{node1}, []*v1.Node{})
+	assert.Equal(t, []*v1.Node{node1}, result)
+}
+
+func TestRemoveNodesFromList(t *testing.T) {
+	node1 := &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node1"}}
+	node2 := &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node2"}}
+
+	result := RemoveNodesFromList([]*v1.Node{node1, node2}, []*v1.Node{node2})
+	assert.Equal(t, []*v1.Node{node1}, result)
+}
+
+func TestRemoveNodesFromList_HandlesEmptyLists(t *testing.T) {
+	node1 := &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node1"}}
+
+	result := RemoveNodesFromList([]*v1.Node{}, []*v1.Node{})
+	assert.Equal(t, []*v1.Node{}, result)
+
+	result = RemoveNodesFromList([]*v1.Node{}, []*v1.Node{node1})
+	assert.Equal(t, []*v1.Node{}, result)
+
+	result = RemoveNodesFromList([]*v1.Node{node1}, []*v1.Node{})
+	assert.Equal(t, []*v1.Node{node1}, result)
+}

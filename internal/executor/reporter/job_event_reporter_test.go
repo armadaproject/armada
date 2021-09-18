@@ -11,48 +11,6 @@ import (
 	"github.com/G-Research/armada/internal/executor/domain"
 )
 
-func TestHasPodBeenInStateForLongerThanGivenDuration_ReturnsTrue(t *testing.T) {
-	now := time.Now()
-	sixSecondsAgo := now.Add(-6 * time.Second)
-
-	pod := v1.Pod{
-		Status: v1.PodStatus{
-			Conditions: []v1.PodCondition{{LastTransitionTime: metav1.NewTime(sixSecondsAgo)}},
-		},
-	}
-
-	result := HasPodBeenInStateForLongerThanGivenDuration(&pod, 5*time.Second)
-
-	assert.True(t, result)
-}
-
-func TestHasPodBeenInStateForLongerThanGivenDuration_ReturnsFalse(t *testing.T) {
-	now := time.Now()
-	threeSecondsAgo := now.Add(-3 * time.Second)
-
-	pod := v1.Pod{
-		Status: v1.PodStatus{
-			Conditions: []v1.PodCondition{{LastTransitionTime: metav1.NewTime(threeSecondsAgo)}},
-		},
-	}
-
-	result := HasPodBeenInStateForLongerThanGivenDuration(&pod, 5*time.Second)
-
-	assert.False(t, result)
-}
-
-func TestHasPodBeenInStateForLongerThanGivenDuration_ReturnsFalse_WhenNoPodStateChangesCanBeFound(t *testing.T) {
-	pod := v1.Pod{
-		Status: v1.PodStatus{
-			Conditions: []v1.PodCondition{},
-		},
-	}
-
-	result := HasPodBeenInStateForLongerThanGivenDuration(&pod, 5*time.Second)
-
-	assert.False(t, result)
-}
-
 func TestRequiresIngressToBeReported_FalseWhenIngressHasBeenReported(t *testing.T) {
 	pod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
