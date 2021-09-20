@@ -28,7 +28,6 @@ require (
 	github.com/jcmturner/gokrb5/v8 v8.4.2-0.20201112171129-78f56934d598
 	github.com/lib/pq v1.10.2
 	github.com/mitchellh/go-homedir v1.1.0
-	github.com/mitchellh/gox v1.0.1 // indirect
 	github.com/mitchellh/mapstructure v1.4.1
 	github.com/nats-io/nats-streaming-server v0.22.1 // indirect
 	github.com/nats-io/nats.go v1.11.1-0.20210623165838-4b75fc59ae30
@@ -50,7 +49,7 @@ require (
 	google.golang.org/grpc v1.40.0
 	gopkg.in/square/go-jose.v2 v2.4.1 // indirect
 	k8s.io/api v0.20.5
-	k8s.io/apimachinery v0.20.5
+	k8s.io/apimachinery v0.22.2
 	k8s.io/client-go v0.20.5
 	k8s.io/component-base v0.20.5
 	k8s.io/kubelet v0.20.5
