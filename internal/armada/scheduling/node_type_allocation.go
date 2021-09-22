@@ -1,15 +1,12 @@
 package scheduling
 
 import (
-	v1 "k8s.io/api/core/v1"
-
 	"github.com/G-Research/armada/internal/common"
+	"github.com/G-Research/armada/pkg/api"
 )
 
 type nodeTypeAllocation struct {
-	taints             []v1.Taint
-	labels             map[string]string
-	nodeSize           common.ComputeResources
+	nodeType           api.NodeType
 	availableResources common.ComputeResourcesFloat
 }
 

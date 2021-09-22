@@ -6,6 +6,7 @@ import (
 	"time"
 
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/pkg/api"
@@ -24,11 +25,7 @@ func CreateClusterSchedulingInfoReport(leaseRequest *api.LeaseRequest, nodeAlloc
 func extractNodeTypes(allocations []*nodeTypeAllocation) []*api.NodeType {
 	result := []*api.NodeType{}
 	for _, n := range allocations {
-		result = append(result, &api.NodeType{
-			Taints:               n.taints,
-			Labels:               n.labels,
-			AllocatableResources: n.nodeSize,
-		})
+		result = append(result, &n.nodeType)
 	}
 	return result
 }
@@ -63,9 +60,9 @@ func isLargeEnough(job *api.Job, minimumJobSize common.ComputeResources) bool {
 
 func matchAnyNodeType(podSpec *v1.PodSpec, nodeTypes []*api.NodeType) bool {
 	for _, nodeType := range nodeTypes {
-		resourceRequest := common.TotalPodResourceRequest(podSpec).AsFloat()
 		nodeResources := common.ComputeResources(nodeType.AllocatableResources).AsFloat()
-		if fits(resourceRequest, nodeResources) && matchNodeSelector(podSpec, nodeType.Labels) && tolerates(podSpec, nodeType.Taints) {
+
+		if matches(podSpec, nodeType, nodeResources) {
 			return true
 		}
 	}
@@ -97,19 +94,23 @@ func matchAnyNodeTypePodAllocation(
 	nodeAllocations []*nodeTypeAllocation,
 	alreadyConsumed nodeTypeUsedResources,
 	newlyConsumed nodeTypeUsedResources) (*nodeTypeAllocation, bool) {
-	resourceRequest := common.TotalPodResourceRequest(podSpec).AsFloat()
 
 	for _, node := range nodeAllocations {
 		available := node.availableResources.DeepCopy()
 		available.Sub(alreadyConsumed[node])
 		available.Sub(newlyConsumed[node])
-		available.LimitWith(node.nodeSize.AsFloat())
+		available.LimitWith(common.ComputeResources(node.nodeType.AllocatableResources).AsFloat())
 
-		if fits(resourceRequest, available) && matchNodeSelector(podSpec, node.labels) && tolerates(podSpec, node.taints) {
+		if matches(podSpec, &node.nodeType, available) {
 			return node, true
 		}
 	}
 	return nil, false
+}
+
+func matches(podSpec *v1.PodSpec, nodeType *api.NodeType, availableResources common.ComputeResourcesFloat) bool {
+	resourceRequest := common.TotalPodResourceRequest(podSpec).AsFloat()
+	return fits(resourceRequest, availableResources) && matchNodeSelector(podSpec, nodeType.Labels) && tolerates(podSpec, nodeType.Taints)
 }
 
 func fits(resourceRequest, availableResources common.ComputeResourcesFloat) bool {
@@ -162,9 +163,11 @@ func AggregateNodeTypeAllocations(nodes []api.NodeInfo) []*nodeTypeAllocation {
 
 		if !exists {
 			typeDescription = &nodeTypeAllocation{
-				taints:             n.Taints,
-				labels:             n.Labels,
-				nodeSize:           n.AllocatableResources,
+				nodeType: api.NodeType{
+					Taints:               n.Taints,
+					Labels:               n.Labels,
+					AllocatableResources: n.AllocatableResources,
+				},
 				availableResources: nodeAvailableResources,
 			}
 			nodeTypesIndex[description] = typeDescription
@@ -180,11 +183,15 @@ func AggregateNodeTypeAllocations(nodes []api.NodeInfo) []*nodeTypeAllocation {
 
 	sort.Slice(result, func(i, j int) bool {
 		// assign more tainted nodes first, then smaller nodes first
-		return len(result[i].taints) > len(result[j].taints) ||
-			len(result[i].taints) == len(result[j].taints) && result[j].nodeSize.Dominates(result[i].nodeSize)
+		return len(result[i].nodeType.Taints) > len(result[j].nodeType.Taints) ||
+			len(result[i].nodeType.Taints) == len(result[j].nodeType.Taints) && dominates(result[j].nodeType.AllocatableResources, result[i].nodeType.AllocatableResources)
 	})
 
 	return result
+}
+
+func dominates(a map[string]resource.Quantity, b map[string]resource.Quantity) bool {
+	return (common.ComputeResources(a)).Dominates(common.ComputeResources(b))
 }
 
 func createNodeDescription(n *api.NodeInfo) string {
