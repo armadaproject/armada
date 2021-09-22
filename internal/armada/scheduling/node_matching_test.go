@@ -140,19 +140,14 @@ func Test_matchNodeSelector(t *testing.T) {
 	assert.True(t, matchNodeSelector(&v1.PodSpec{NodeSelector: map[string]string{"A": "test", "B": "test"}}, labels))
 }
 
-func Test_tolerates(t *testing.T) {
-	taints := []v1.Taint{
-		{
-			Key:    "A",
-			Value:  "test",
-			Effect: v1.TaintEffectNoSchedule,
-		},
-		{
-			Key:    "B",
-			Value:  "test",
-			Effect: v1.TaintEffectPreferNoSchedule,
-		},
-	}
+func Test_tolerates_WhenTaintHasNoToleration_ReturnsFalse(t *testing.T) {
+	taints := makeTaints()
+	podSpec := &v1.PodSpec{}
+	assert.False(t, tolerates(podSpec, taints))
+}
+
+func Test_tolerates_WhenTaintHasAnEqualsToleration_ReturnsTrue(t *testing.T) {
+	taints := makeTaints()
 
 	podSpec := &v1.PodSpec{
 		Tolerations: []v1.Toleration{
@@ -164,8 +159,54 @@ func Test_tolerates(t *testing.T) {
 			},
 		}}
 
-	assert.False(t, tolerates(&v1.PodSpec{}, taints))
 	assert.True(t, tolerates(podSpec, taints))
+}
+
+func Test_tolerates_WhenTaintHasAnExistsToleration_ReturnsTrue(t *testing.T) {
+	taints := makeTaints()
+
+	podSpec := &v1.PodSpec{
+		Tolerations: []v1.Toleration{
+			{
+				Key:      "A",
+				Operator: v1.TolerationOpExists,
+				Effect:   v1.TaintEffectNoSchedule,
+			},
+		},
+	}
+
+	assert.True(t, tolerates(podSpec, taints))
+}
+
+func Test_tolerates_WhenTaintHasAToleration_ButEffectDiffers_ReturnsFalse(t *testing.T) {
+	taints := makeTaints()
+
+	podSpec := &v1.PodSpec{
+		Tolerations: []v1.Toleration{
+			{
+				Key:      "A",
+				Operator: v1.TolerationOpExists,
+				Effect:   v1.TaintEffectNoExecute,
+			},
+		},
+	}
+
+	assert.False(t, tolerates(podSpec, taints))
+}
+
+func makeTaints() []v1.Taint {
+	return []v1.Taint{
+		{
+			Key:    "A",
+			Value:  "test",
+			Effect: v1.TaintEffectNoSchedule,
+		},
+		{
+			Key:    "B",
+			Value:  "test",
+			Effect: v1.TaintEffectPreferNoSchedule,
+		},
+	}
 }
 
 func Test_matchAnyNodeTypePodAllocation_WhenFindsMatch_ReturnsMatch(t *testing.T) {
