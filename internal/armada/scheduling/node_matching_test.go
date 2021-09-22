@@ -87,6 +87,45 @@ func Test_AggregateNodeTypesAllocations(t *testing.T) {
 		},
 	}, aggregated)
 }
+func Test_AggregateNodeTypesAllocations_WithTaints(t *testing.T) {
+
+	nodes := []api.NodeInfo{
+		{
+			Name:                 "n1",
+			AllocatableResources: common.ComputeResources{"cpu": resource.MustParse("1"), "memory": resource.MustParse("3Gi")},
+			AvailableResources:   common.ComputeResources{"cpu": resource.MustParse("2"), "memory": resource.MustParse("1Gi")},
+			Taints:               []v1.Taint{{Key: "one", Value: "1", Effect: "NoSchedule"}},
+		},
+		{
+			Name:                 "n2",
+			AllocatableResources: common.ComputeResources{"cpu": resource.MustParse("1"), "memory": resource.MustParse("3Gi")},
+			AvailableResources:   common.ComputeResources{"cpu": resource.MustParse("2"), "memory": resource.MustParse("3Gi")},
+			Taints:               []v1.Taint{{Key: "one", Value: "1", Effect: "NoSchedule"}},
+		},
+		{
+			Name:                 "n3-special",
+			AllocatableResources: common.ComputeResources{"cpu": resource.MustParse("5"), "memory": resource.MustParse("5Gi")},
+			AvailableResources:   common.ComputeResources{"cpu": resource.MustParse("6"), "memory": resource.MustParse("6Gi")},
+			Taints:               []v1.Taint{{Key: "one", Value: "1", Effect: "NoSchedule"}, {Key: "two", Value: "2", Effect: "NoSchedule"}},
+		},
+	}
+
+	aggregated := AggregateNodeTypeAllocations(nodes)
+	assert.Equal(t, []*nodeTypeAllocation{
+		{
+			taints:             []v1.Taint{{Key: "one", Value: "1", Effect: "NoSchedule"}, {Key: "two", Value: "2", Effect: "NoSchedule"}},
+			labels:             nil,
+			nodeSize:           common.ComputeResources{"cpu": resource.MustParse("5"), "memory": resource.MustParse("5Gi")},
+			availableResources: common.ComputeResourcesFloat{"cpu": 6, "memory": 6 * 1024 * 1024 * 1024},
+		},
+		{
+			taints:             []v1.Taint{{Key: "one", Value: "1", Effect: "NoSchedule"}},
+			labels:             nil,
+			nodeSize:           common.ComputeResources{"cpu": resource.MustParse("1"), "memory": resource.MustParse("3Gi")},
+			availableResources: common.ComputeResourcesFloat{"cpu": 4, "memory": 4 * 1024 * 1024 * 1024},
+		},
+	}, aggregated)
+}
 
 func Test_fits(t *testing.T) {
 	available := makeResourceList(1, 10).AsFloat()
