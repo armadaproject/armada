@@ -60,9 +60,10 @@ func isLargeEnough(job *api.Job, minimumJobSize common.ComputeResources) bool {
 
 func matchAnyNodeType(podSpec *v1.PodSpec, nodeTypes []*api.NodeType) bool {
 	for _, nodeType := range nodeTypes {
+		resourceRequest := common.TotalPodResourceRequest(podSpec).AsFloat()
 		nodeResources := common.ComputeResources(nodeType.AllocatableResources).AsFloat()
 
-		if matches(podSpec, nodeType, nodeResources) {
+		if matches(podSpec, resourceRequest, nodeType, nodeResources) {
 			return true
 		}
 	}
@@ -94,6 +95,7 @@ func matchAnyNodeTypePodAllocation(
 	nodeAllocations []*nodeTypeAllocation,
 	alreadyConsumed nodeTypeUsedResources,
 	newlyConsumed nodeTypeUsedResources) (*nodeTypeAllocation, bool) {
+	resourceRequest := common.TotalPodResourceRequest(podSpec).AsFloat()
 
 	for _, node := range nodeAllocations {
 		available := node.availableResources.DeepCopy()
@@ -101,16 +103,15 @@ func matchAnyNodeTypePodAllocation(
 		available.Sub(newlyConsumed[node])
 		available.LimitWith(common.ComputeResources(node.nodeType.AllocatableResources).AsFloat())
 
-		if matches(podSpec, &node.nodeType, available) {
+		if matches(podSpec, resourceRequest, &node.nodeType, available) {
 			return node, true
 		}
 	}
 	return nil, false
 }
 
-func matches(podSpec *v1.PodSpec, nodeType *api.NodeType, availableResources common.ComputeResourcesFloat) bool {
-	resourceRequest := common.TotalPodResourceRequest(podSpec).AsFloat()
-	return fits(resourceRequest, availableResources) && matchNodeSelector(podSpec, nodeType.Labels) && tolerates(podSpec, nodeType.Taints)
+func matches(podSpec *v1.PodSpec, totalPodResourceRequest common.ComputeResourcesFloat, nodeType *api.NodeType, availableResources common.ComputeResourcesFloat) bool {
+	return fits(totalPodResourceRequest, availableResources) && matchNodeSelector(podSpec, nodeType.Labels) && tolerates(podSpec, nodeType.Taints)
 }
 
 func fits(resourceRequest, availableResources common.ComputeResourcesFloat) bool {
