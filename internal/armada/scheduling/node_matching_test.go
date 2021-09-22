@@ -74,15 +74,19 @@ func Test_AggregateNodeTypesAllocations(t *testing.T) {
 	aggregated := AggregateNodeTypeAllocations(nodes)
 	assert.Equal(t, []*nodeTypeAllocation{
 		{
-			taints:             nil,
-			labels:             nil,
-			nodeSize:           common.ComputeResources{"cpu": resource.MustParse("1"), "memory": resource.MustParse("3Gi")},
+			nodeType: api.NodeType{
+				Taints:               nil,
+				Labels:               nil,
+				AllocatableResources: common.ComputeResources{"cpu": resource.MustParse("1"), "memory": resource.MustParse("3Gi")},
+			},
 			availableResources: common.ComputeResourcesFloat{"cpu": 4, "memory": 4 * 1024 * 1024 * 1024},
 		},
 		{
-			taints:             nil,
-			labels:             nil,
-			nodeSize:           common.ComputeResources{"cpu": resource.MustParse("5"), "memory": resource.MustParse("5Gi")},
+			nodeType: api.NodeType{
+				Taints:               nil,
+				Labels:               nil,
+				AllocatableResources: common.ComputeResources{"cpu": resource.MustParse("5"), "memory": resource.MustParse("5Gi")},
+			},
 			availableResources: common.ComputeResourcesFloat{"cpu": 6, "memory": 6 * 1024 * 1024 * 1024},
 		},
 	}, aggregated)
@@ -107,15 +111,19 @@ func Test_AggregateNodeTypesAllocations_NodesWithMoreTaintsGoFirst(t *testing.T)
 	aggregated := AggregateNodeTypeAllocations(nodes)
 	assert.Equal(t, []*nodeTypeAllocation{
 		{
-			taints:             []v1.Taint{{Key: "one", Value: "1", Effect: "NoSchedule"}, {Key: "two", Value: "2", Effect: "NoSchedule"}},
-			labels:             nil,
-			nodeSize:           common.ComputeResources{"cpu": resource.MustParse("5"), "memory": resource.MustParse("5Gi")},
+			nodeType: api.NodeType{
+				Taints:               []v1.Taint{{Key: "one", Value: "1", Effect: "NoSchedule"}, {Key: "two", Value: "2", Effect: "NoSchedule"}},
+				Labels:               nil,
+				AllocatableResources: common.ComputeResources{"cpu": resource.MustParse("5"), "memory": resource.MustParse("5Gi")},
+			},
 			availableResources: common.ComputeResourcesFloat{"cpu": 6, "memory": 6 * 1024 * 1024 * 1024},
 		},
 		{
-			taints:             []v1.Taint{{Key: "one", Value: "1", Effect: "NoSchedule"}},
-			labels:             nil,
-			nodeSize:           common.ComputeResources{"cpu": resource.MustParse("1"), "memory": resource.MustParse("3Gi")},
+			nodeType: api.NodeType{
+				Taints:               []v1.Taint{{Key: "one", Value: "1", Effect: "NoSchedule"}},
+				Labels:               nil,
+				AllocatableResources: common.ComputeResources{"cpu": resource.MustParse("1"), "memory": resource.MustParse("3Gi")},
+			},
 			availableResources: common.ComputeResourcesFloat{"cpu": 2, "memory": 1 * 1024 * 1024 * 1024},
 		},
 	}, aggregated)
@@ -204,8 +212,8 @@ func Test_matchAnyNodeTypePodAllocation_WhenNodeSelectorRulesOutFirstNode_Return
 	podSpec := &v1.PodSpec{NodeSelector: map[string]string{"a": "b"}}
 
 	nodeAllocations := []*nodeTypeAllocation{defaultNodeTypeAllocation(), defaultNodeTypeAllocation()}
-	nodeAllocations[0].labels = map[string]string{"a": "does-not-match"}
-	nodeAllocations[1].labels = map[string]string{"a": "b"}
+	nodeAllocations[0].nodeType.Labels = map[string]string{"a": "does-not-match"}
+	nodeAllocations[1].nodeType.Labels = map[string]string{"a": "b"}
 
 	alreadyConsumed := nodeTypeUsedResources{nodeAllocations[0]: common.ComputeResourcesFloat{}}
 	newlyConsumed := nodeTypeUsedResources{nodeAllocations[0]: common.ComputeResourcesFloat{}}
@@ -219,7 +227,7 @@ func Test_matchAnyNodeTypePodAllocation_WhenTaintRulesOutAllNodes_ReturnsFalse(t
 	podSpec := &v1.PodSpec{}
 
 	nodeAllocations := defaultNodeTypeAllocations()
-	nodeAllocations[0].taints = []v1.Taint{{Key: "a", Value: "b", Effect: v1.TaintEffectNoSchedule}}
+	nodeAllocations[0].nodeType.Taints = []v1.Taint{{Key: "a", Value: "b", Effect: v1.TaintEffectNoSchedule}}
 
 	alreadyConsumed := nodeTypeUsedResources{nodeAllocations[0]: common.ComputeResourcesFloat{}}
 	newlyConsumed := nodeTypeUsedResources{nodeAllocations[0]: common.ComputeResourcesFloat{}}
@@ -232,8 +240,8 @@ func Test_matchAnyNodeTypePodAllocation_WhenTaintRulesOutFirstNode_ReturnsSecond
 	podSpec := &v1.PodSpec{Tolerations: []v1.Toleration{{Key: "a", Value: "b", Effect: v1.TaintEffectNoSchedule}}}
 
 	nodeAllocations := []*nodeTypeAllocation{defaultNodeTypeAllocation(), defaultNodeTypeAllocation()}
-	nodeAllocations[0].taints = []v1.Taint{{Key: "c", Value: "does-not-match", Effect: v1.TaintEffectNoSchedule}}
-	nodeAllocations[1].taints = []v1.Taint{{Key: "a", Value: "b", Effect: v1.TaintEffectNoSchedule}}
+	nodeAllocations[0].nodeType.Taints = []v1.Taint{{Key: "c", Value: "does-not-match", Effect: v1.TaintEffectNoSchedule}}
+	nodeAllocations[1].nodeType.Taints = []v1.Taint{{Key: "a", Value: "b", Effect: v1.TaintEffectNoSchedule}}
 
 	alreadyConsumed := nodeTypeUsedResources{nodeAllocations[0]: common.ComputeResourcesFloat{}}
 	newlyConsumed := nodeTypeUsedResources{nodeAllocations[0]: common.ComputeResourcesFloat{}}
@@ -259,9 +267,11 @@ func defaultNodeTypeAllocations() []*nodeTypeAllocation {
 
 func defaultNodeTypeAllocation() *nodeTypeAllocation {
 	return &nodeTypeAllocation{
-		taints:             nil,
-		labels:             nil,
-		nodeSize:           common.ComputeResources{"cpu": resource.MustParse("8"), "memory": resource.MustParse("8Gi")},
+		nodeType: api.NodeType{
+			Taints:               nil,
+			Labels:               nil,
+			AllocatableResources: common.ComputeResources{"cpu": resource.MustParse("8"), "memory": resource.MustParse("8Gi")},
+		},
 		availableResources: common.ComputeResourcesFloat{"cpu": 7, "memory": 7 * 1024 * 1024 * 1024},
 	}
 }
