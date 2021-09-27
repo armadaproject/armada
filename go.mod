@@ -49,9 +49,10 @@ require (
 	google.golang.org/genproto v0.0.0-20210602131652-f16073e35f0c
 	google.golang.org/grpc v1.40.0
 	gopkg.in/square/go-jose.v2 v2.4.1 // indirect
-	k8s.io/api v0.20.5
-	k8s.io/apimachinery v0.20.5
-	k8s.io/client-go v0.20.5
+	k8s.io/api v0.22.2
+	k8s.io/apimachinery v0.22.2
+	k8s.io/client-go v0.22.2
 	k8s.io/component-base v0.20.5
+	k8s.io/component-helpers v0.22.2
 	k8s.io/kubelet v0.20.5
 )

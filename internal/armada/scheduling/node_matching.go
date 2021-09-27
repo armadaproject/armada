@@ -7,6 +7,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/component-helpers/scheduling/corev1/nodeaffinity"
 
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/pkg/api"
@@ -111,7 +112,7 @@ func matchAnyNodeTypePodAllocation(
 }
 
 func matches(podSpec *v1.PodSpec, totalPodResourceRequest common.ComputeResourcesFloat, nodeType *api.NodeType, availableResources common.ComputeResourcesFloat) bool {
-	return fits(totalPodResourceRequest, availableResources) && matchNodeSelector(podSpec, nodeType.Labels) && tolerates(podSpec, nodeType.Taints)
+	return fits(totalPodResourceRequest, availableResources) && matchNodeSelector(podSpec, nodeType.Labels) && tolerates(podSpec, nodeType.Taints) && matchesRequiredNodeAffinity(podSpec, nodeType)
 }
 
 func fits(resourceRequest, availableResources common.ComputeResourcesFloat) bool {
@@ -151,6 +152,35 @@ func tolerationsTolerateTaint(tolerations []v1.Toleration, taint *v1.Taint) bool
 		}
 	}
 	return false
+}
+
+func matchesRequiredNodeAffinity(podSpec *v1.PodSpec, nodeType *api.NodeType) bool {
+	affinity := podSpec.Affinity
+	if affinity == nil {
+		return true
+	}
+
+	nodeAffinity := affinity.NodeAffinity
+	if nodeAffinity == nil {
+		return true
+	}
+
+	requiredNodeAffinity := nodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution
+	if requiredNodeAffinity == nil {
+		return true
+	}
+
+	node := &v1.Node{}
+	node.Labels = nodeType.Labels
+
+	nodeSelector := nodeaffinity.NewLazyErrorNodeSelector(requiredNodeAffinity)
+
+	match, err := nodeSelector.Match(node)
+	if err != nil {
+		return false
+	}
+
+	return match
 }
 
 func AggregateNodeTypeAllocations(nodes []api.NodeInfo) []*nodeTypeAllocation {
