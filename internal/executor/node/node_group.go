@@ -7,22 +7,25 @@ import (
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/G-Research/armada/internal/common/util"
+	"github.com/G-Research/armada/internal/executor/context"
+	util2 "github.com/G-Research/armada/internal/executor/util"
 	"github.com/G-Research/armada/pkg/api"
 )
 
-type NodeGroupInfoService interface {
+type NodeInfoService interface {
+	GetAllAvailableProcessingNodes() ([]*v1.Node, error)
 	GroupNodesByType(nodes []*v1.Node) []*NodeGroup
 	GetType(node *v1.Node) *api.NodeTypeIdentifier
 }
 
 type KubernetesNodeInfoService struct {
-	clusterPool     string
+	clusterContext  context.ClusterContext
 	toleratedTaints map[string]bool
 }
 
-func NewKubernetesNodeInfoService(clusterPool string, toleratedTaints []string) *KubernetesNodeInfoService {
+func NewKubernetesNodeInfoService(clusterContext context.ClusterContext, toleratedTaints []string) *KubernetesNodeInfoService {
 	return &KubernetesNodeInfoService{
-		clusterPool:     clusterPool,
+		clusterContext:  clusterContext,
 		toleratedTaints: util.StringListToSet(toleratedTaints),
 	}
 }
@@ -55,7 +58,7 @@ func (kubernetesNodeInfoService *KubernetesNodeInfoService) GroupNodesByType(nod
 }
 
 func (kubernetesNodeInfoService *KubernetesNodeInfoService) GetType(node *v1.Node) *api.NodeTypeIdentifier {
-	groupId := kubernetesNodeInfoService.clusterPool
+	groupId := kubernetesNodeInfoService.clusterContext.GetClusterPool()
 	relevantTaints := kubernetesNodeInfoService.filterToleratedTaints(node.Spec.Taints)
 	if len(relevantTaints) > 0 {
 		groupId = nodeGroupId(relevantTaints)
@@ -86,4 +89,28 @@ func nodeGroupId(taints []v1.Taint) string {
 	}
 	sort.Strings(idStrings)
 	return strings.Join(idStrings, ",")
+}
+
+func (kubernetesNodeInfoService *KubernetesNodeInfoService) GetAllAvailableProcessingNodes() ([]*v1.Node, error) {
+	allNodes, err := kubernetesNodeInfoService.clusterContext.GetNodes()
+	if err != nil {
+		return []*v1.Node{}, err
+	}
+
+	return util2.FilterNodes(allNodes, kubernetesNodeInfoService.isAvailableProcessingNode), nil
+}
+
+func (kubernetesNodeInfoService *KubernetesNodeInfoService) isAvailableProcessingNode(node *v1.Node) bool {
+	if node.Spec.Unschedulable {
+		return false
+	}
+
+	for _, taint := range node.Spec.Taints {
+		if taint.Effect == v1.TaintEffectNoSchedule &&
+			!kubernetesNodeInfoService.toleratedTaints[taint.Key] {
+			return false
+		}
+	}
+
+	return true
 }

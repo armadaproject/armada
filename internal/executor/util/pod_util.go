@@ -218,6 +218,17 @@ func FindLastContainerStartTime(pod *v1.Pod) time.Time {
 	return startTime
 }
 
+func HasPodBeenInStateForLongerThanGivenDuration(pod *v1.Pod, duration time.Duration) bool {
+	deadline := time.Now().Add(-duration)
+	lastStatusChange, err := LastStatusChange(pod)
+
+	if err != nil {
+		log.Errorf("Problem determining last state change for pod %v: %v", pod.Name, err)
+		return false
+	}
+	return lastStatusChange.Before(deadline)
+}
+
 func maxTime(a, b time.Time) time.Time {
 	if a.After(b) {
 		return a

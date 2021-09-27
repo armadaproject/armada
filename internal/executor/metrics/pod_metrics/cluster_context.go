@@ -67,7 +67,7 @@ type ClusterContextMetrics struct {
 	context                 context.ClusterContext
 	utilisationService      utilisation.UtilisationService
 	queueUtilisationService utilisation.PodUtilisationService
-	nodeInfoService         node.NodeGroupInfoService
+	nodeInfoService         node.NodeInfoService
 	knownQueues             map[string]map[string]bool
 	podCountTotal           *prometheus.CounterVec
 }
@@ -76,7 +76,7 @@ func ExposeClusterContextMetrics(
 	context context.ClusterContext,
 	utilisationService utilisation.UtilisationService,
 	queueUtilisationService utilisation.PodUtilisationService,
-	nodeInfoService node.NodeGroupInfoService) *ClusterContextMetrics {
+	nodeInfoService node.NodeInfoService) *ClusterContextMetrics {
 	m := &ClusterContextMetrics{
 		context:                 context,
 		utilisationService:      utilisationService,

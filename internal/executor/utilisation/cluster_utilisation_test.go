@@ -10,60 +10,8 @@ import (
 
 	"github.com/G-Research/armada/internal/common"
 	util2 "github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/internal/executor/configuration"
 	"github.com/G-Research/armada/internal/executor/domain"
-	fakeContext "github.com/G-Research/armada/internal/executor/fake/context"
 )
-
-var testAppConfig = configuration.ApplicationConfiguration{ClusterId: "test", Pool: "pool"}
-
-func TestFilterAvailableProcessingNodes(t *testing.T) {
-	context := fakeContext.NewFakeClusterContext(testAppConfig, nil)
-	service := NewClusterUtilisationService(context, nil, nil, nil, nil, nil)
-
-	node := v1.Node{
-		Spec: v1.NodeSpec{
-			Unschedulable: false,
-			Taints:        nil,
-		},
-	}
-
-	result := service.isAvailableProcessingNode(&node)
-	assert.True(t, result, 1)
-}
-
-func TestIsAvailableProcessingNode_IsFalse_UnschedulableNode(t *testing.T) {
-	context := fakeContext.NewFakeClusterContext(testAppConfig, nil)
-	service := NewClusterUtilisationService(context, nil, nil, nil, nil, nil)
-
-	node := v1.Node{
-		Spec: v1.NodeSpec{
-			Unschedulable: true,
-			Taints:        nil,
-		},
-	}
-
-	result := service.isAvailableProcessingNode(&node)
-	assert.False(t, result)
-}
-
-func TestFilterAvailableProcessingNodes_IsFailse_NodeWithNoScheduleTaint(t *testing.T) {
-	context := fakeContext.NewFakeClusterContext(testAppConfig, nil)
-	service := NewClusterUtilisationService(context, nil, nil, nil, nil, nil)
-
-	taint := v1.Taint{
-		Effect: v1.TaintEffectNoSchedule,
-	}
-	node := v1.Node{
-		Spec: v1.NodeSpec{
-			Unschedulable: false,
-			Taints:        []v1.Taint{taint},
-		},
-	}
-
-	result := service.isAvailableProcessingNode(&node)
-	assert.False(t, result)
-}
 
 func TestGetAllPodsUsingResourceOnProcessingNodes_ShouldExcludePodsNotOnGivenNodes(t *testing.T) {
 	presentNodeName := "Node1"

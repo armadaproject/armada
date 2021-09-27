@@ -10,7 +10,6 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/G-Research/armada/internal/executor/context"
-	"github.com/G-Research/armada/internal/executor/reporter"
 	"github.com/G-Research/armada/internal/executor/util"
 )
 
@@ -213,7 +212,7 @@ func (c *ClusterJobContext) detectStuckPods(runningJob *RunningJob) {
 			break
 
 		} else if (pod.Status.Phase == v1.PodUnknown || pod.Status.Phase == v1.PodPending) &&
-			reporter.HasPodBeenInStateForLongerThanGivenDuration(pod, gracePeriodBeforeHealthCheck) {
+			util.HasPodBeenInStateForLongerThanGivenDuration(pod, gracePeriodBeforeHealthCheck) {
 
 			podEvents, err := c.clusterContext.GetPodEvents(pod)
 			if err != nil {
@@ -223,7 +222,7 @@ func (c *ClusterJobContext) detectStuckPods(runningJob *RunningJob) {
 			stuckPodStatus, message := util.DiagnoseStuckPod(pod, podEvents)
 			retryable := stuckPodStatus == util.Healthy
 
-			if stuckPodStatus != util.Unrecoverable && !reporter.HasPodBeenInStateForLongerThanGivenDuration(pod, c.stuckPodExpiry) {
+			if stuckPodStatus != util.Unrecoverable && !util.HasPodBeenInStateForLongerThanGivenDuration(pod, c.stuckPodExpiry) {
 				// Possibly stuck, but don't do anything until expiry is up
 				continue
 			}
