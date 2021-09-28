@@ -7,7 +7,6 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
-	"k8s.io/component-helpers/scheduling/corev1/nodeaffinity"
 
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/pkg/api"
@@ -60,11 +59,13 @@ func isLargeEnough(job *api.Job, minimumJobSize common.ComputeResources) bool {
 }
 
 func matchAnyNodeType(podSpec *v1.PodSpec, nodeTypes []*api.NodeType) bool {
+
+	podMatchingContext := NewPodMatchingContext(podSpec)
+
 	for _, nodeType := range nodeTypes {
-		resourceRequest := common.TotalPodResourceRequest(podSpec).AsFloat()
 		nodeResources := common.ComputeResources(nodeType.AllocatableResources).AsFloat()
 
-		if matches(podSpec, resourceRequest, nodeType, nodeResources) {
+		if podMatchingContext.Matches(nodeType, nodeResources) {
 			return true
 		}
 	}
@@ -96,7 +97,8 @@ func matchAnyNodeTypePodAllocation(
 	nodeAllocations []*nodeTypeAllocation,
 	alreadyConsumed nodeTypeUsedResources,
 	newlyConsumed nodeTypeUsedResources) (*nodeTypeAllocation, bool) {
-	resourceRequest := common.TotalPodResourceRequest(podSpec).AsFloat()
+
+	podMatchingContext := NewPodMatchingContext(podSpec)
 
 	for _, node := range nodeAllocations {
 		available := node.availableResources.DeepCopy()
@@ -104,83 +106,11 @@ func matchAnyNodeTypePodAllocation(
 		available.Sub(newlyConsumed[node])
 		available.LimitWith(common.ComputeResources(node.nodeType.AllocatableResources).AsFloat())
 
-		if matches(podSpec, resourceRequest, &node.nodeType, available) {
+		if podMatchingContext.Matches(&node.nodeType, available) {
 			return node, true
 		}
 	}
 	return nil, false
-}
-
-func matches(podSpec *v1.PodSpec, totalPodResourceRequest common.ComputeResourcesFloat, nodeType *api.NodeType, availableResources common.ComputeResourcesFloat) bool {
-	return fits(totalPodResourceRequest, availableResources) && matchNodeSelector(podSpec, nodeType.Labels) && tolerates(podSpec, nodeType.Taints) && matchesRequiredNodeAffinity(podSpec, nodeType)
-}
-
-func fits(resourceRequest, availableResources common.ComputeResourcesFloat) bool {
-	r := availableResources.DeepCopy()
-	r.Sub(resourceRequest)
-	return r.IsValid()
-}
-
-func matchNodeSelector(podSpec *v1.PodSpec, labels map[string]string) bool {
-	for k, v := range podSpec.NodeSelector {
-		if labels == nil || labels[k] != v {
-			return false
-		}
-	}
-	return true
-}
-
-func tolerates(podSpec *v1.PodSpec, taints []v1.Taint) bool {
-	for _, taint := range taints {
-		// check only hard constraints
-		if taint.Effect == v1.TaintEffectPreferNoSchedule {
-			continue
-		}
-
-		if !tolerationsTolerateTaint(podSpec.Tolerations, &taint) {
-			return false
-		}
-	}
-	return true
-}
-
-// https://github.com/kubernetes/kubernetes/blob/master/pkg/apis/core/v1/helper/helpers.go#L427
-func tolerationsTolerateTaint(tolerations []v1.Toleration, taint *v1.Taint) bool {
-	for i := range tolerations {
-		if tolerations[i].ToleratesTaint(taint) {
-			return true
-		}
-	}
-	return false
-}
-
-func matchesRequiredNodeAffinity(podSpec *v1.PodSpec, nodeType *api.NodeType) bool {
-	affinity := podSpec.Affinity
-	if affinity == nil {
-		return true
-	}
-
-	nodeAffinity := affinity.NodeAffinity
-	if nodeAffinity == nil {
-		return true
-	}
-
-	requiredNodeAffinity := nodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution
-	if requiredNodeAffinity == nil {
-		return true
-	}
-
-	node := &v1.Node{}
-	node.Labels = nodeType.Labels
-
-	nodeSelector := nodeaffinity.NewLazyErrorNodeSelector(requiredNodeAffinity)
-
-	match, err := nodeSelector.Match(node)
-	if err != nil {
-		return false
-	}
-
-	return match
 }
 
 func AggregateNodeTypeAllocations(nodes []api.NodeInfo) []*nodeTypeAllocation {
