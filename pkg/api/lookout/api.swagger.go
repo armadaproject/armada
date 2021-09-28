@@ -781,6 +781,7 @@ func SwaggerJsonTemplate() string {
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
 		"    \"v1ConfigMapKeySelector\": {\n" +
+		"      \"description\": \"+structType=atomic\",\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"title\": \"Selects a key from a ConfigMap.\",\n" +
 		"      \"properties\": {\n" +
@@ -865,7 +866,7 @@ func SwaggerJsonTemplate() string {
 		"      \"title\": \"A single application container that you want to run within a pod.\",\n" +
 		"      \"properties\": {\n" +
 		"        \"args\": {\n" +
-		"          \"description\": \"Arguments to the entrypoint.\\nThe docker image's CMD is used if this is not provided.\\nVariable references $(VAR_NAME) are expanded using the container's environment. If a variable\\ncannot be resolved, the reference in the input string will be unchanged. The $(VAR_NAME) syntax\\ncan be escaped with a double $$, ie: $$(VAR_NAME). Escaped references will never be expanded,\\nregardless of whether the variable exists or not.\\nCannot be updated.\\nMore info: https://kubernetes.io/docs/tasks/inject-data-application/define-command-argument-container/#running-a-command-in-a-shell\\n+optional\",\n" +
+		"          \"description\": \"Arguments to the entrypoint.\\nThe docker image's CMD is used if this is not provided.\\nVariable references $(VAR_NAME) are expanded using the container's environment. If a variable\\ncannot be resolved, the reference in the input string will be unchanged. Double $$ are reduced\\nto a single $, which allows for escaping the $(VAR_NAME) syntax: i.e. \\\"$$(VAR_NAME)\\\" will\\nproduce the string literal \\\"$(VAR_NAME)\\\". Escaped references will never be expanded, regardless\\nof whether the variable exists or not. Cannot be updated.\\nMore info: https://kubernetes.io/docs/tasks/inject-data-application/define-command-argument-container/#running-a-command-in-a-shell\\n+optional\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"type\": \"string\"\n" +
@@ -873,7 +874,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"Args\"\n" +
 		"        },\n" +
 		"        \"command\": {\n" +
-		"          \"description\": \"Entrypoint array. Not executed within a shell.\\nThe docker image's ENTRYPOINT is used if this is not provided.\\nVariable references $(VAR_NAME) are expanded using the container's environment. If a variable\\ncannot be resolved, the reference in the input string will be unchanged. The $(VAR_NAME) syntax\\ncan be escaped with a double $$, ie: $$(VAR_NAME). Escaped references will never be expanded,\\nregardless of whether the variable exists or not.\\nCannot be updated.\\nMore info: https://kubernetes.io/docs/tasks/inject-data-application/define-command-argument-container/#running-a-command-in-a-shell\\n+optional\",\n" +
+		"          \"description\": \"Entrypoint array. Not executed within a shell.\\nThe docker image's ENTRYPOINT is used if this is not provided.\\nVariable references $(VAR_NAME) are expanded using the container's environment. If a variable\\ncannot be resolved, the reference in the input string will be unchanged. Double $$ are reduced\\nto a single $, which allows for escaping the $(VAR_NAME) syntax: i.e. \\\"$$(VAR_NAME)\\\" will\\nproduce the string literal \\\"$(VAR_NAME)\\\". Escaped references will never be expanded, regardless\\nof whether the variable exists or not. Cannot be updated.\\nMore info: https://kubernetes.io/docs/tasks/inject-data-application/define-command-argument-container/#running-a-command-in-a-shell\\n+optional\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"type\": \"string\"\n" +
@@ -1123,7 +1124,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"Name\"\n" +
 		"        },\n" +
 		"        \"value\": {\n" +
-		"          \"description\": \"Variable references $(VAR_NAME) are expanded\\nusing the previous defined environment variables in the container and\\nany service environment variables. If a variable cannot be resolved,\\nthe reference in the input string will be unchanged. The $(VAR_NAME)\\nsyntax can be escaped with a double $$, ie: $$(VAR_NAME). Escaped\\nreferences will never be expanded, regardless of whether the variable\\nexists or not.\\nDefaults to \\\"\\\".\\n+optional\",\n" +
+		"          \"description\": \"Variable references $(VAR_NAME) are expanded\\nusing the previously defined environment variables in the container and\\nany service environment variables. If a variable cannot be resolved,\\nthe reference in the input string will be unchanged. Double $$ are reduced\\nto a single $, which allows for escaping the $(VAR_NAME) syntax: i.e.\\n\\\"$$(VAR_NAME)\\\" will produce the string literal \\\"$(VAR_NAME)\\\".\\nEscaped references will never be expanded, regardless of whether the variable\\nexists or not.\\nDefaults to \\\"\\\".\\n+optional\",\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"x-go-name\": \"Value\"\n" +
 		"        },\n" +
@@ -1157,7 +1158,7 @@ func SwaggerJsonTemplate() string {
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
 		"        \"args\": {\n" +
-		"          \"description\": \"Arguments to the entrypoint.\\nThe docker image's CMD is used if this is not provided.\\nVariable references $(VAR_NAME) are expanded using the container's environment. If a variable\\ncannot be resolved, the reference in the input string will be unchanged. The $(VAR_NAME) syntax\\ncan be escaped with a double $$, ie: $$(VAR_NAME). Escaped references will never be expanded,\\nregardless of whether the variable exists or not.\\nCannot be updated.\\nMore info: https://kubernetes.io/docs/tasks/inject-data-application/define-command-argument-container/#running-a-command-in-a-shell\\n+optional\",\n" +
+		"          \"description\": \"Arguments to the entrypoint.\\nThe docker image's CMD is used if this is not provided.\\nVariable references $(VAR_NAME) are expanded using the container's environment. If a variable\\ncannot be resolved, the reference in the input string will be unchanged. Double $$ are reduced\\nto a single $, which allows for escaping the $(VAR_NAME) syntax: i.e. \\\"$$(VAR_NAME)\\\" will\\nproduce the string literal \\\"$(VAR_NAME)\\\". Escaped references will never be expanded, regardless\\nof whether the variable exists or not. Cannot be updated.\\nMore info: https://kubernetes.io/docs/tasks/inject-data-application/define-command-argument-container/#running-a-command-in-a-shell\\n+optional\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"type\": \"string\"\n" +
@@ -1165,7 +1166,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"Args\"\n" +
 		"        },\n" +
 		"        \"command\": {\n" +
-		"          \"description\": \"Entrypoint array. Not executed within a shell.\\nThe docker image's ENTRYPOINT is used if this is not provided.\\nVariable references $(VAR_NAME) are expanded using the container's environment. If a variable\\ncannot be resolved, the reference in the input string will be unchanged. The $(VAR_NAME) syntax\\ncan be escaped with a double $$, ie: $$(VAR_NAME). Escaped references will never be expanded,\\nregardless of whether the variable exists or not.\\nCannot be updated.\\nMore info: https://kubernetes.io/docs/tasks/inject-data-application/define-command-argument-container/#running-a-command-in-a-shell\\n+optional\",\n" +
+		"          \"description\": \"Entrypoint array. Not executed within a shell.\\nThe docker image's ENTRYPOINT is used if this is not provided.\\nVariable references $(VAR_NAME) are expanded using the container's environment. If a variable\\ncannot be resolved, the reference in the input string will be unchanged. Double $$ are reduced\\nto a single $, which allows for escaping the $(VAR_NAME) syntax: i.e. \\\"$$(VAR_NAME)\\\" will\\nproduce the string literal \\\"$(VAR_NAME)\\\". Escaped references will never be expanded, regardless\\nof whether the variable exists or not. Cannot be updated.\\nMore info: https://kubernetes.io/docs/tasks/inject-data-application/define-command-argument-container/#running-a-command-in-a-shell\\n+optional\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"type\": \"string\"\n" +
@@ -1283,11 +1284,6 @@ func SwaggerJsonTemplate() string {
 		"      \"type\": \"object\",\n" +
 		"      \"title\": \"Represents an ephemeral volume that is handled by a normal storage driver.\",\n" +
 		"      \"properties\": {\n" +
-		"        \"readOnly\": {\n" +
-		"          \"description\": \"Specifies a read-only configuration for the volume.\\nDefaults to false (read/write).\\n+optional\",\n" +
-		"          \"type\": \"boolean\",\n" +
-		"          \"x-go-name\": \"ReadOnly\"\n" +
-		"        },\n" +
 		"        \"volumeClaimTemplate\": {\n" +
 		"          \"$ref\": \"#/definitions/v1PersistentVolumeClaimTemplate\"\n" +
 		"        }\n" +
@@ -1738,7 +1734,7 @@ func SwaggerJsonTemplate() string {
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
 		"    \"v1LocalObjectReference\": {\n" +
-		"      \"description\": \"LocalObjectReference contains enough information to let you locate the\\nreferenced object inside the same namespace.\",\n" +
+		"      \"description\": \"LocalObjectReference contains enough information to let you locate the\\nreferenced object inside the same namespace.\\n+structType=atomic\",\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
 		"        \"name\": {\n" +
@@ -1773,6 +1769,11 @@ func SwaggerJsonTemplate() string {
 		"        },\n" +
 		"        \"operation\": {\n" +
 		"          \"$ref\": \"#/definitions/v1ManagedFieldsOperationType\"\n" +
+		"        },\n" +
+		"        \"subresource\": {\n" +
+		"          \"description\": \"Subresource is the name of the subresource used to update that object, or\\nempty string if the object was updated through the main resource. The\\nvalue of this field is used to distinguish between managers, even if they\\nshare the same name. For example, a status update will be distinct from a\\nregular update using the same manager name.\\nNote that the APIVersion field is not related to the Subresource field and\\nit always corresponds to the version of the main resource.\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"Subresource\"\n" +
 		"        },\n" +
 		"        \"time\": {\n" +
 		"          \"$ref\": \"#/definitions/v1Time\"\n" +
@@ -1832,7 +1833,7 @@ func SwaggerJsonTemplate() string {
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
 		"    \"v1NodeSelector\": {\n" +
-		"      \"description\": \"A node selector represents the union of the results of one or more label queries\\nover a set of nodes; that is, it represents the OR of the selectors represented\\nby the node selector terms.\",\n" +
+		"      \"description\": \"A node selector represents the union of the results of one or more label queries\\nover a set of nodes; that is, it represents the OR of the selectors represented\\nby the node selector terms.\\n+structType=atomic\",\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
 		"        \"nodeSelectorTerms\": {\n" +
@@ -1875,7 +1876,7 @@ func SwaggerJsonTemplate() string {
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
 		"    \"v1NodeSelectorTerm\": {\n" +
-		"      \"description\": \"A null or empty node selector term matches no objects. The requirements of\\nthem are ANDed.\\nThe TopologySelectorTerm type implements a subset of the NodeSelectorTerm.\",\n" +
+		"      \"description\": \"A null or empty node selector term matches no objects. The requirements of\\nthem are ANDed.\\nThe TopologySelectorTerm type implements a subset of the NodeSelectorTerm.\\n+structType=atomic\",\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
 		"        \"matchExpressions\": {\n" +
@@ -1898,6 +1899,7 @@ func SwaggerJsonTemplate() string {
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
 		"    \"v1ObjectFieldSelector\": {\n" +
+		"      \"description\": \"+structType=atomic\",\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"title\": \"ObjectFieldSelector selects an APIVersioned field of an object.\",\n" +
 		"      \"properties\": {\n" +
@@ -1915,7 +1917,7 @@ func SwaggerJsonTemplate() string {
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
 		"    \"v1OwnerReference\": {\n" +
-		"      \"description\": \"OwnerReference contains enough information to let you identify an owning\\nobject. An owning object must be in the same namespace as the dependent, or\\nbe cluster-scoped, so there is no namespace field.\",\n" +
+		"      \"description\": \"OwnerReference contains enough information to let you identify an owning\\nobject. An owning object must be in the same namespace as the dependent, or\\nbe cluster-scoped, so there is no namespace field.\\n+structType=atomic\",\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
 		"        \"apiVersion\": {\n" +
@@ -1966,6 +1968,9 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"AccessModes\"\n" +
 		"        },\n" +
 		"        \"dataSource\": {\n" +
+		"          \"$ref\": \"#/definitions/v1TypedLocalObjectReference\"\n" +
+		"        },\n" +
+		"        \"dataSourceRef\": {\n" +
 		"          \"$ref\": \"#/definitions/v1TypedLocalObjectReference\"\n" +
 		"        },\n" +
 		"        \"resources\": {\n" +
@@ -2161,8 +2166,11 @@ func SwaggerJsonTemplate() string {
 		"        \"labelSelector\": {\n" +
 		"          \"$ref\": \"#/definitions/v1LabelSelector\"\n" +
 		"        },\n" +
+		"        \"namespaceSelector\": {\n" +
+		"          \"$ref\": \"#/definitions/v1LabelSelector\"\n" +
+		"        },\n" +
 		"        \"namespaces\": {\n" +
-		"          \"description\": \"namespaces specifies which namespaces the labelSelector applies to (matches against);\\nnull or empty list means \\\"this pod's namespace\\\"\\n+optional\",\n" +
+		"          \"description\": \"namespaces specifies a static list of namespace names that the term applies to.\\nThe term is applied to the union of the namespaces listed in this field\\nand the ones selected by namespaceSelector.\\nnull or empty namespaces list and null namespaceSelector means \\\"this pod's namespace\\\"\\n+optional\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"type\": \"string\"\n" +
@@ -2423,7 +2431,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"NodeName\"\n" +
 		"        },\n" +
 		"        \"nodeSelector\": {\n" +
-		"          \"description\": \"NodeSelector is a selector which must be true for the pod to fit on a node.\\nSelector which must match a node's labels for the pod to be scheduled on that node.\\nMore info: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/\\n+optional\",\n" +
+		"          \"description\": \"NodeSelector is a selector which must be true for the pod to fit on a node.\\nSelector which must match a node's labels for the pod to be scheduled on that node.\\nMore info: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/\\n+optional\\n+mapType=atomic\",\n" +
 		"          \"type\": \"object\",\n" +
 		"          \"additionalProperties\": {\n" +
 		"            \"type\": \"string\"\n" +
@@ -2448,7 +2456,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"PriorityClassName\"\n" +
 		"        },\n" +
 		"        \"readinessGates\": {\n" +
-		"          \"description\": \"If specified, all readiness gates will be evaluated for pod readiness.\\nA pod is ready when all its containers are ready AND\\nall conditions specified in the readiness gates have status equal to \\\"True\\\"\\nMore info: https://git.k8s.io/enhancements/keps/sig-network/0007-pod-ready%2B%2B.md\\n+optional\",\n" +
+		"          \"description\": \"If specified, all readiness gates will be evaluated for pod readiness.\\nA pod is ready when all its containers are ready AND\\nall conditions specified in the readiness gates have status equal to \\\"True\\\"\\nMore info: https://git.k8s.io/enhancements/keps/sig-network/580-pod-readiness-gates\\n+optional\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1PodReadinessGate\"\n" +
@@ -2459,7 +2467,7 @@ func SwaggerJsonTemplate() string {
 		"          \"$ref\": \"#/definitions/v1RestartPolicy\"\n" +
 		"        },\n" +
 		"        \"runtimeClassName\": {\n" +
-		"          \"description\": \"RuntimeClassName refers to a RuntimeClass object in the node.k8s.io group, which should be used\\nto run this pod.  If no RuntimeClass resource matches the named class, the pod will not be run.\\nIf unset or empty, the \\\"legacy\\\" RuntimeClass will be used, which is an implicit class with an\\nempty definition that uses the default runtime handler.\\nMore info: https://git.k8s.io/enhancements/keps/sig-node/runtime-class.md\\nThis is a beta feature as of Kubernetes v1.14.\\n+optional\",\n" +
+		"          \"description\": \"RuntimeClassName refers to a RuntimeClass object in the node.k8s.io group, which should be used\\nto run this pod.  If no RuntimeClass resource matches the named class, the pod will not be run.\\nIf unset or empty, the \\\"legacy\\\" RuntimeClass will be used, which is an implicit class with an\\nempty definition that uses the default runtime handler.\\nMore info: https://git.k8s.io/enhancements/keps/sig-node/585-runtime-class\\nThis is a beta feature as of Kubernetes v1.14.\\n+optional\",\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"x-go-name\": \"RuntimeClassName\"\n" +
 		"        },\n" +
@@ -2497,7 +2505,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"Subdomain\"\n" +
 		"        },\n" +
 		"        \"terminationGracePeriodSeconds\": {\n" +
-		"          \"description\": \"Optional duration in seconds the pod needs to terminate gracefully. May be decreased in delete request.\\nValue must be non-negative integer. The value zero indicates delete immediately.\\nIf this value is nil, the default grace period will be used instead.\\nThe grace period is the duration in seconds after the processes running in the pod are sent\\na termination signal and the time when the processes are forcibly halted with a kill signal.\\nSet this value longer than the expected cleanup time for your process.\\nDefaults to 30 seconds.\\n+optional\",\n" +
+		"          \"description\": \"Optional duration in seconds the pod needs to terminate gracefully. May be decreased in delete request.\\nValue must be non-negative integer. The value zero indicates stop immediately via\\nthe kill signal (no opportunity to shut down).\\nIf this value is nil, the default grace period will be used instead.\\nThe grace period is the duration in seconds after the processes running in the pod are sent\\na termination signal and the time when the processes are forcibly halted with a kill signal.\\nSet this value longer than the expected cleanup time for your process.\\nDefaults to 30 seconds.\\n+optional\",\n" +
 		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int64\",\n" +
 		"          \"x-go-name\": \"TerminationGracePeriodSeconds\"\n" +
@@ -2608,6 +2616,12 @@ func SwaggerJsonTemplate() string {
 		"        },\n" +
 		"        \"tcpSocket\": {\n" +
 		"          \"$ref\": \"#/definitions/v1TCPSocketAction\"\n" +
+		"        },\n" +
+		"        \"terminationGracePeriodSeconds\": {\n" +
+		"          \"description\": \"Optional duration in seconds the pod needs to terminate gracefully upon probe failure.\\nThe grace period is the duration in seconds after the processes running in the pod are sent\\na termination signal and the time when the processes are forcibly halted with a kill signal.\\nSet this value longer than the expected cleanup time for your process.\\nIf this value is nil, the pod's terminationGracePeriodSeconds will be used. Otherwise, this\\nvalue overrides the value provided by the pod spec.\\nValue must be non-negative integer. The value zero indicates stop immediately via\\nthe kill signal (no opportunity to shut down).\\nThis is a beta field and requires enabling ProbeTerminationGracePeriod feature gate.\\nMinimum value is 1. spec.terminationGracePeriodSeconds is used if unset.\\n+optional\",\n" +
+		"          \"type\": \"integer\",\n" +
+		"          \"format\": \"int64\",\n" +
+		"          \"x-go-name\": \"TerminationGracePeriodSeconds\"\n" +
 		"        },\n" +
 		"        \"timeoutSeconds\": {\n" +
 		"          \"description\": \"Number of seconds after which the probe times out.\\nDefaults to 1 second. Minimum value is 1.\\nMore info: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle#container-probes\\n+optional\",\n" +
@@ -2741,7 +2755,7 @@ func SwaggerJsonTemplate() string {
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
 		"    \"v1ResourceFieldSelector\": {\n" +
-		"      \"description\": \"ResourceFieldSelector represents container resources (cpu, memory) and their output format\",\n" +
+		"      \"description\": \"ResourceFieldSelector represents container resources (cpu, memory) and their output format\\n+structType=atomic\",\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
 		"        \"containerName\": {\n" +
@@ -2909,6 +2923,7 @@ func SwaggerJsonTemplate() string {
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
 		"    \"v1SecretKeySelector\": {\n" +
+		"      \"description\": \"+structType=atomic\",\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"title\": \"SecretKeySelector selects a key of a Secret.\",\n" +
 		"      \"properties\": {\n" +
@@ -3208,7 +3223,7 @@ func SwaggerJsonTemplate() string {
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
 		"    \"v1TypedLocalObjectReference\": {\n" +
-		"      \"description\": \"TypedLocalObjectReference contains enough information to let you locate the\\ntyped referenced object inside the same namespace.\",\n" +
+		"      \"description\": \"TypedLocalObjectReference contains enough information to let you locate the\\ntyped referenced object inside the same namespace.\\n+structType=atomic\",\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
 		"        \"apiGroup\": {\n" +
@@ -3464,6 +3479,11 @@ func SwaggerJsonTemplate() string {
 		"          \"description\": \"GMSACredentialSpecName is the name of the GMSA credential spec to use.\\n+optional\",\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"x-go-name\": \"GMSACredentialSpecName\"\n" +
+		"        },\n" +
+		"        \"hostProcess\": {\n" +
+		"          \"description\": \"HostProcess determines if a container should be run as a 'Host Process' container.\\nThis field is alpha-level and will only be honored by components that enable the\\nWindowsHostProcessContainers feature flag. Setting this field without the feature\\nflag will result in errors when validating the Pod. All of a Pod's containers must\\nhave the same effective HostProcess value (it is not allowed to have a mix of HostProcess\\ncontainers and non-HostProcess containers).  In addition, if HostProcess is true\\nthen HostNetwork must also be set to true.\\n+optional\",\n" +
+		"          \"type\": \"boolean\",\n" +
+		"          \"x-go-name\": \"HostProcess\"\n" +
 		"        },\n" +
 		"        \"runAsUserName\": {\n" +
 		"          \"description\": \"The UserName in Windows to run the entrypoint of the container process.\\nDefaults to the user specified in image metadata if unspecified.\\nMay also be set in PodSecurityContext. If set in both SecurityContext and\\nPodSecurityContext, the value specified in SecurityContext takes precedence.\\n+optional\",\n" +
