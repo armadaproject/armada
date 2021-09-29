@@ -77,3 +77,99 @@ func Test_ValidatePodSpec_checkForPortConfiguration(t *testing.T) {
 	assert.Error(t, ValidatePodSpec(portsUniqueToContainer))
 	assert.Error(t, ValidatePodSpec(portExposeOverMultipleContainers))
 }
+
+func Test_ValidatePodSpec_WhenPreferredAffinitySet_Fails(t *testing.T) {
+	preference := v1.NodeSelectorTerm{
+		MatchExpressions: []v1.NodeSelectorRequirement{
+			{
+				Key:      "a",
+				Values:   []string{"b"},
+				Operator: v1.NodeSelectorOpIn,
+			},
+		},
+	}
+
+	terms := []v1.PreferredSchedulingTerm{
+		{
+			Weight:     5,
+			Preference: preference,
+		},
+	}
+	podSpec := minimalValidPodSpec()
+	podSpec.Affinity = &v1.Affinity{
+		NodeAffinity: &v1.NodeAffinity{
+			PreferredDuringSchedulingIgnoredDuringExecution: terms,
+		},
+	}
+
+	assert.Error(t, ValidatePodSpec(podSpec))
+}
+
+func Test_ValidatePodSpec_WhenValidRequiredAffinitySet_Succeeds(t *testing.T) {
+
+	nodeSelector := &v1.NodeSelector{
+		NodeSelectorTerms: []v1.NodeSelectorTerm{
+			{
+				MatchExpressions: []v1.NodeSelectorRequirement{
+					{
+						Key:      "a",
+						Values:   []string{"b"},
+						Operator: v1.NodeSelectorOpIn,
+					},
+				},
+			},
+		},
+	}
+
+	podSpec := minimalValidPodSpec()
+	podSpec.Affinity = &v1.Affinity{
+		NodeAffinity: &v1.NodeAffinity{
+			RequiredDuringSchedulingIgnoredDuringExecution: nodeSelector,
+		},
+	}
+
+	assert.Nil(t, ValidatePodSpec(podSpec))
+}
+
+func Test_ValidatePodSpec_WhenInValidRequiredAffinitySet_Fails(t *testing.T) {
+
+	inValidNodeSelector := &v1.NodeSelector{
+		NodeSelectorTerms: []v1.NodeSelectorTerm{
+			{
+				MatchExpressions: []v1.NodeSelectorRequirement{
+					{
+						Key:      "a",
+						Values:   []string{"b"},
+						Operator: "wrong",
+					},
+				},
+			},
+		},
+	}
+
+	podSpec := minimalValidPodSpec()
+	podSpec.Affinity = &v1.Affinity{
+		NodeAffinity: &v1.NodeAffinity{
+			RequiredDuringSchedulingIgnoredDuringExecution: inValidNodeSelector,
+		},
+	}
+
+	assert.Error(t, ValidatePodSpec(podSpec))
+}
+
+func minimalValidPodSpec() *v1.PodSpec {
+	res := v1.ResourceList{
+		"cpu":    resource.MustParse("1"),
+		"memory": resource.MustParse("1Gi"),
+	}
+	return &v1.PodSpec{
+		Containers: []v1.Container{
+			{
+				Resources: v1.ResourceRequirements{
+					Requests: res,
+					Limits:   res,
+				},
+			},
+		},
+	}
+}

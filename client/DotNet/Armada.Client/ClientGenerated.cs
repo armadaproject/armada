@@ -1975,6 +1975,7 @@ namespace GResearch.Armada.Client
     
     }
     
+    /// <summary>+structType=atomic</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1ConfigMapKeySelector 
     {
@@ -2081,10 +2082,10 @@ namespace GResearch.Armada.Client
         /// <summary>Arguments to the entrypoint.
         /// The docker image's CMD is used if this is not provided.
         /// Variable references $(VAR_NAME) are expanded using the container's environment. If a variable
-        /// cannot be resolved, the reference in the input string will be unchanged. The $(VAR_NAME) syntax
-        /// can be escaped with a double $$, ie: $$(VAR_NAME). Escaped references will never be expanded,
-        /// regardless of whether the variable exists or not.
-        /// Cannot be updated.
+        /// cannot be resolved, the reference in the input string will be unchanged. Double $$ are reduced
+        /// to a single $, which allows for escaping the $(VAR_NAME) syntax: i.e. "$$(VAR_NAME)" will
+        /// produce the string literal "$(VAR_NAME)". Escaped references will never be expanded, regardless
+        /// of whether the variable exists or not. Cannot be updated.
         /// More info: https://kubernetes.io/docs/tasks/inject-data-application/define-command-argument-container/#running-a-command-in-a-shell
         /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("args", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
@@ -2093,10 +2094,10 @@ namespace GResearch.Armada.Client
         /// <summary>Entrypoint array. Not executed within a shell.
         /// The docker image's ENTRYPOINT is used if this is not provided.
         /// Variable references $(VAR_NAME) are expanded using the container's environment. If a variable
-        /// cannot be resolved, the reference in the input string will be unchanged. The $(VAR_NAME) syntax
-        /// can be escaped with a double $$, ie: $$(VAR_NAME). Escaped references will never be expanded,
-        /// regardless of whether the variable exists or not.
-        /// Cannot be updated.
+        /// cannot be resolved, the reference in the input string will be unchanged. Double $$ are reduced
+        /// to a single $, which allows for escaping the $(VAR_NAME) syntax: i.e. "$$(VAR_NAME)" will
+        /// produce the string literal "$(VAR_NAME)". Escaped references will never be expanded, regardless
+        /// of whether the variable exists or not. Cannot be updated.
         /// More info: https://kubernetes.io/docs/tasks/inject-data-application/define-command-argument-container/#running-a-command-in-a-shell
         /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("command", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
@@ -2372,11 +2373,12 @@ namespace GResearch.Armada.Client
         public string Name { get; set; }
     
         /// <summary>Variable references $(VAR_NAME) are expanded
-        /// using the previous defined environment variables in the container and
+        /// using the previously defined environment variables in the container and
         /// any service environment variables. If a variable cannot be resolved,
-        /// the reference in the input string will be unchanged. The $(VAR_NAME)
-        /// syntax can be escaped with a double $$, ie: $$(VAR_NAME). Escaped
-        /// references will never be expanded, regardless of whether the variable
+        /// the reference in the input string will be unchanged. Double $$ are reduced
+        /// to a single $, which allows for escaping the $(VAR_NAME) syntax: i.e.
+        /// "$$(VAR_NAME)" will produce the string literal "$(VAR_NAME)".
+        /// Escaped references will never be expanded, regardless of whether the variable
         /// exists or not.
         /// Defaults to "".
         /// +optional</summary>
@@ -2422,10 +2424,10 @@ namespace GResearch.Armada.Client
         /// <summary>Arguments to the entrypoint.
         /// The docker image's CMD is used if this is not provided.
         /// Variable references $(VAR_NAME) are expanded using the container's environment. If a variable
-        /// cannot be resolved, the reference in the input string will be unchanged. The $(VAR_NAME) syntax
-        /// can be escaped with a double $$, ie: $$(VAR_NAME). Escaped references will never be expanded,
-        /// regardless of whether the variable exists or not.
-        /// Cannot be updated.
+        /// cannot be resolved, the reference in the input string will be unchanged. Double $$ are reduced
+        /// to a single $, which allows for escaping the $(VAR_NAME) syntax: i.e. "$$(VAR_NAME)" will
+        /// produce the string literal "$(VAR_NAME)". Escaped references will never be expanded, regardless
+        /// of whether the variable exists or not. Cannot be updated.
         /// More info: https://kubernetes.io/docs/tasks/inject-data-application/define-command-argument-container/#running-a-command-in-a-shell
         /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("args", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
@@ -2434,10 +2436,10 @@ namespace GResearch.Armada.Client
         /// <summary>Entrypoint array. Not executed within a shell.
         /// The docker image's ENTRYPOINT is used if this is not provided.
         /// Variable references $(VAR_NAME) are expanded using the container's environment. If a variable
-        /// cannot be resolved, the reference in the input string will be unchanged. The $(VAR_NAME) syntax
-        /// can be escaped with a double $$, ie: $$(VAR_NAME). Escaped references will never be expanded,
-        /// regardless of whether the variable exists or not.
-        /// Cannot be updated.
+        /// cannot be resolved, the reference in the input string will be unchanged. Double $$ are reduced
+        /// to a single $, which allows for escaping the $(VAR_NAME) syntax: i.e. "$$(VAR_NAME)" will
+        /// produce the string literal "$(VAR_NAME)". Escaped references will never be expanded, regardless
+        /// of whether the variable exists or not. Cannot be updated.
         /// More info: https://kubernetes.io/docs/tasks/inject-data-application/define-command-argument-container/#running-a-command-in-a-shell
         /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("command", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
@@ -2571,12 +2573,6 @@ namespace GResearch.Armada.Client
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1EphemeralVolumeSource 
     {
-        /// <summary>Specifies a read-only configuration for the volume.
-        /// Defaults to false (read/write).
-        /// +optional</summary>
-        [Newtonsoft.Json.JsonProperty("readOnly", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public bool? ReadOnly { get; set; }
-    
         [Newtonsoft.Json.JsonProperty("volumeClaimTemplate", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public V1PersistentVolumeClaimTemplate VolumeClaimTemplate { get; set; }
     
@@ -3044,7 +3040,8 @@ namespace GResearch.Armada.Client
     }
     
     /// <summary>LocalObjectReference contains enough information to let you locate the
-    /// referenced object inside the same namespace.</summary>
+    /// referenced object inside the same namespace.
+    /// +structType=atomic</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1LocalObjectReference 
     {
@@ -3084,6 +3081,16 @@ namespace GResearch.Armada.Client
     
         [Newtonsoft.Json.JsonProperty("operation", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Operation { get; set; }
+    
+        /// <summary>Subresource is the name of the subresource used to update that object, or
+        /// empty string if the object was updated through the main resource. The
+        /// value of this field is used to distinguish between managers, even if they
+        /// share the same name. For example, a status update will be distinct from a
+        /// regular update using the same manager name.
+        /// Note that the APIVersion field is not related to the Subresource field and
+        /// it always corresponds to the version of the main resource.</summary>
+        [Newtonsoft.Json.JsonProperty("subresource", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Subresource { get; set; }
     
         [Newtonsoft.Json.JsonProperty("time", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.DateTimeOffset? Time { get; set; }
@@ -3140,7 +3147,8 @@ namespace GResearch.Armada.Client
     
     /// <summary>A node selector represents the union of the results of one or more label queries
     /// over a set of nodes; that is, it represents the OR of the selectors represented
-    /// by the node selector terms.</summary>
+    /// by the node selector terms.
+    /// +structType=atomic</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1NodeSelector 
     {
@@ -3177,7 +3185,8 @@ namespace GResearch.Armada.Client
     
     /// <summary>A null or empty node selector term matches no objects. The requirements of
     /// them are ANDed.
-    /// The TopologySelectorTerm type implements a subset of the NodeSelectorTerm.</summary>
+    /// The TopologySelectorTerm type implements a subset of the NodeSelectorTerm.
+    /// +structType=atomic</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1NodeSelectorTerm 
     {
@@ -3194,6 +3203,7 @@ namespace GResearch.Armada.Client
     
     }
     
+    /// <summary>+structType=atomic</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1ObjectFieldSelector 
     {
@@ -3211,7 +3221,8 @@ namespace GResearch.Armada.Client
     
     /// <summary>OwnerReference contains enough information to let you identify an owning
     /// object. An owning object must be in the same namespace as the dependent, or
-    /// be cluster-scoped, so there is no namespace field.</summary>
+    /// be cluster-scoped, so there is no namespace field.
+    /// +structType=atomic</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1OwnerReference 
     {
@@ -3263,6 +3274,9 @@ namespace GResearch.Armada.Client
     
         [Newtonsoft.Json.JsonProperty("dataSource", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public V1TypedLocalObjectReference DataSource { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("dataSourceRef", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1TypedLocalObjectReference DataSourceRef { get; set; }
     
         [Newtonsoft.Json.JsonProperty("resources", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public V1ResourceRequirements Resources { get; set; }
@@ -3528,8 +3542,13 @@ namespace GResearch.Armada.Client
         [Newtonsoft.Json.JsonProperty("labelSelector", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public V1LabelSelector LabelSelector { get; set; }
     
-        /// <summary>namespaces specifies which namespaces the labelSelector applies to (matches against);
-        /// null or empty list means "this pod's namespace"
+        [Newtonsoft.Json.JsonProperty("namespaceSelector", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public V1LabelSelector NamespaceSelector { get; set; }
+    
+        /// <summary>namespaces specifies a static list of namespace names that the term applies to.
+        /// The term is applied to the union of the namespaces listed in this field
+        /// and the ones selected by namespaceSelector.
+        /// null or empty namespaces list and null namespaceSelector means "this pod's namespace"
         /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("namespaces", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.ICollection<string> Namespaces { get; set; }
@@ -3828,7 +3847,8 @@ namespace GResearch.Armada.Client
         /// <summary>NodeSelector is a selector which must be true for the pod to fit on a node.
         /// Selector which must match a node's labels for the pod to be scheduled on that node.
         /// More info: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/
-        /// +optional</summary>
+        /// +optional
+        /// +mapType=atomic</summary>
         [Newtonsoft.Json.JsonProperty("nodeSelector", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.IDictionary<string, string> NodeSelector { get; set; }
     
@@ -3860,7 +3880,7 @@ namespace GResearch.Armada.Client
         /// <summary>If specified, all readiness gates will be evaluated for pod readiness.
         /// A pod is ready when all its containers are ready AND
         /// all conditions specified in the readiness gates have status equal to "True"
-        /// More info: https://git.k8s.io/enhancements/keps/sig-network/0007-pod-ready%2B%2B.md
+        /// More info: https://git.k8s.io/enhancements/keps/sig-network/580-pod-readiness-gates
         /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("readinessGates", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.ICollection<V1PodReadinessGate> ReadinessGates { get; set; }
@@ -3872,7 +3892,7 @@ namespace GResearch.Armada.Client
         /// to run this pod.  If no RuntimeClass resource matches the named class, the pod will not be run.
         /// If unset or empty, the "legacy" RuntimeClass will be used, which is an implicit class with an
         /// empty definition that uses the default runtime handler.
-        /// More info: https://git.k8s.io/enhancements/keps/sig-node/runtime-class.md
+        /// More info: https://git.k8s.io/enhancements/keps/sig-node/585-runtime-class
         /// This is a beta feature as of Kubernetes v1.14.
         /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("runtimeClassName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
@@ -3926,7 +3946,8 @@ namespace GResearch.Armada.Client
         public string Subdomain { get; set; }
     
         /// <summary>Optional duration in seconds the pod needs to terminate gracefully. May be decreased in delete request.
-        /// Value must be non-negative integer. The value zero indicates delete immediately.
+        /// Value must be non-negative integer. The value zero indicates stop immediately via
+        /// the kill signal (no opportunity to shut down).
         /// If this value is nil, the default grace period will be used instead.
         /// The grace period is the duration in seconds after the processes running in the pod are sent
         /// a termination signal and the time when the processes are forcibly halted with a kill signal.
@@ -4038,6 +4059,20 @@ namespace GResearch.Armada.Client
     
         [Newtonsoft.Json.JsonProperty("tcpSocket", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public V1TCPSocketAction TcpSocket { get; set; }
+    
+        /// <summary>Optional duration in seconds the pod needs to terminate gracefully upon probe failure.
+        /// The grace period is the duration in seconds after the processes running in the pod are sent
+        /// a termination signal and the time when the processes are forcibly halted with a kill signal.
+        /// Set this value longer than the expected cleanup time for your process.
+        /// If this value is nil, the pod's terminationGracePeriodSeconds will be used. Otherwise, this
+        /// value overrides the value provided by the pod spec.
+        /// Value must be non-negative integer. The value zero indicates stop immediately via
+        /// the kill signal (no opportunity to shut down).
+        /// This is a beta field and requires enabling ProbeTerminationGracePeriod feature gate.
+        /// Minimum value is 1. spec.terminationGracePeriodSeconds is used if unset.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("terminationGracePeriodSeconds", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public long? TerminationGracePeriodSeconds { get; set; }
     
         /// <summary>Number of seconds after which the probe times out.
         /// Defaults to 1 second. Minimum value is 1.
@@ -4169,7 +4204,8 @@ namespace GResearch.Armada.Client
     
     }
     
-    /// <summary>ResourceFieldSelector represents container resources (cpu, memory) and their output format</summary>
+    /// <summary>ResourceFieldSelector represents container resources (cpu, memory) and their output format
+    /// +structType=atomic</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1ResourceFieldSelector 
     {
@@ -4330,6 +4366,7 @@ namespace GResearch.Armada.Client
     
     }
     
+    /// <summary>+structType=atomic</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1SecretKeySelector 
     {
@@ -4674,7 +4711,8 @@ namespace GResearch.Armada.Client
     }
     
     /// <summary>TypedLocalObjectReference contains enough information to let you locate the
-    /// typed referenced object inside the same namespace.</summary>
+    /// typed referenced object inside the same namespace.
+    /// +structType=atomic</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class V1TypedLocalObjectReference 
     {
@@ -4922,6 +4960,17 @@ namespace GResearch.Armada.Client
         /// +optional</summary>
         [Newtonsoft.Json.JsonProperty("gmsaCredentialSpecName", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string GmsaCredentialSpecName { get; set; }
+    
+        /// <summary>HostProcess determines if a container should be run as a 'Host Process' container.
+        /// This field is alpha-level and will only be honored by components that enable the
+        /// WindowsHostProcessContainers feature flag. Setting this field without the feature
+        /// flag will result in errors when validating the Pod. All of a Pod's containers must
+        /// have the same effective HostProcess value (it is not allowed to have a mix of HostProcess
+        /// containers and non-HostProcess containers).  In addition, if HostProcess is true
+        /// then HostNetwork must also be set to true.
+        /// +optional</summary>
+        [Newtonsoft.Json.JsonProperty("hostProcess", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public bool? HostProcess { get; set; }
     
         /// <summary>The UserName in Windows to run the entrypoint of the container process.
         /// Defaults to the user specified in image metadata if unspecified.

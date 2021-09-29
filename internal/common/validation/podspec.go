@@ -1,9 +1,11 @@
 package validation
 
 import (
+	"errors"
 	"fmt"
 
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/component-helpers/scheduling/corev1/nodeaffinity"
 )
 
 func ValidatePodSpec(spec *v1.PodSpec) error {
@@ -12,15 +14,20 @@ func ValidatePodSpec(spec *v1.PodSpec) error {
 	}
 
 	if len(spec.Containers) == 0 {
-		return fmt.Errorf("pod spec have no containers")
+		return fmt.Errorf("pod spec has no containers")
+	}
+
+	err := validateAffinity(spec.Affinity)
+	if err != nil {
+		return err
 	}
 
 	for _, container := range spec.Containers {
 		if len(container.Resources.Limits) == 0 {
-			return fmt.Errorf("container %v have no resource limits specified", container.Name)
+			return fmt.Errorf("container %v has no resource limits specified", container.Name)
 		}
 		if len(container.Resources.Requests) == 0 {
-			return fmt.Errorf("container %v have no resource requests specified", container.Name)
+			return fmt.Errorf("container %v has no resource requests specified", container.Name)
 		}
 
 		if !resourceListEquals(container.Resources.Requests, container.Resources.Limits) {
@@ -28,6 +35,43 @@ func ValidatePodSpec(spec *v1.PodSpec) error {
 		}
 	}
 	return validatePorts(spec)
+}
+
+func validateAffinity(affinity *v1.Affinity) error {
+	if affinity == nil {
+		return nil
+	}
+
+	nodeAffinity := affinity.NodeAffinity
+	if nodeAffinity == nil {
+		return nil
+	}
+
+	err := validatePreferredNodeAffinityNotPresent(nodeAffinity.PreferredDuringSchedulingIgnoredDuringExecution)
+	if err != nil {
+		return err
+	}
+
+	return validateRequiredNodeAffinity(nodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution)
+}
+
+func validatePreferredNodeAffinityNotPresent(preferred []v1.PreferredSchedulingTerm) error {
+	if preferred != nil && len(preferred) > 0 {
+		return errors.New("PreferredDuringSchedulingIgnoredDuringExecution node affinity is not supported by Armada")
+	}
+	return nil
+}
+
+func validateRequiredNodeAffinity(required *v1.NodeSelector) error {
+	if required == nil {
+		return nil
+	}
+
+	_, err := nodeaffinity.NewNodeSelector(required)
+	if err != nil {
+		return fmt.Errorf("invalid RequiredDuringSchedulingIgnoredDuringExecution node affinity: %v", err)
+	}
+	return nil
 }
 
 func resourceListEquals(a v1.ResourceList, b v1.ResourceList) bool {
