@@ -305,7 +305,15 @@ func (server *SubmitServer) reprioritizeJobs(principal authorization.Principal, 
 		return nil, err
 	}
 
-	results, err := server.jobRepository.UpdatePriority(jobs, request.NewPriority)
+	jobIds := []string{}
+	for _, job := range jobs {
+		jobIds = append(jobIds, job.Id)
+	}
+
+	results, err := server.jobRepository.UpdateJobs(jobIds, func(job *api.Job) {
+		job.Priority = request.NewPriority
+	})
+
 	if err != nil {
 		return nil, err
 	}

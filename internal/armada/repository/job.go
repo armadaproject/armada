@@ -48,7 +48,7 @@ type JobRepository interface {
 	GetActiveJobIds(queue string, jobSetId string) ([]string, error)
 	GetLeasedJobIds(queue string) ([]string, error)
 	UpdateStartTime(jobId string, clusterId string, startTime time.Time) error
-	UpdatePriority(jobs []*api.Job, newPriority float64) (map[string]string, error)
+	UpdateJobs(ids []string, mutator func(*api.Job)) (map[string]string, error)
 	GetJobRunInfos(jobIds []string) (map[string]*RunInfo, error)
 	GetQueueActiveJobSets(queue string) ([]*api.JobSetInfo, error)
 	AddRetryAttempt(jobId string) error
@@ -540,51 +540,110 @@ end
 return redis.call('HSET', startTimeKey, clusterId, startTime)
 `)
 
-// Updates priority if job exists, does not error if job doesn't exist
-func (repo *RedisJobRepository) UpdatePriority(jobs []*api.Job, newPriority float64) (map[string]string, error) {
-	jobDatas := make([][]byte, len(jobs))
-	for i, job := range jobs {
-		job.Priority = newPriority
-		jobData, err := proto.Marshal(job)
-		jobDatas[i] = jobData
-		if err != nil {
-			return nil, err
+func (repo *RedisJobRepository) UpdateJobs(ids []string, mutator func(*api.Job)) (map[string]string, error) {
+	return repo.updateJobs(ids, mutator, 250, 3, 100*time.Millisecond)
+}
+
+func (repo *RedisJobRepository) updateJobs(ids []string, mutator func(*api.Job), batchSize int, retries int, retryDelay time.Duration) (map[string]string, error) {
+	batchedIds := util.Batch(ids, batchSize)
+	result := map[string]string{}
+
+	for _, batch := range batchedIds {
+		batchResult, err := repo.updateJobBatchsWithRetry(batch, mutator, retries, retryDelay)
+		if err == nil {
+			result = util.MergeMaps(result, batchResult)
+		} else {
+			for _, id := range batch {
+				result[id] = err.Error()
+			}
 		}
 	}
+	return result, nil
+}
 
-	commands := make([]*redis.Cmd, len(jobs))
-	pipe := repo.db.Pipeline()
-	updatePriorityScript.Load(pipe)
-
-	for i, job := range jobs {
-		commands[i] = updatePriority(pipe, job, newPriority, &jobDatas[i])
+func (repo *RedisJobRepository) updateJobBatchsWithRetry(ids []string, mutator func(*api.Job), retries int, retryDelay time.Duration) (map[string]string, error) {
+	for retry := 0; ; retry++ {
+		result, err := repo.updateJobBatch(ids, mutator)
+		if err != redis.TxFailedErr {
+			return result, err
+		}
+		log.Warnf("UpdateJobs: Redis Transaction failed (id of first job in batch: %s)", ids[0])
+		if retry >= retries {
+			log.Warnf("UpdateJobs: Redis Transaction failed after retrying, giving up (id of first job in batch: %s)", ids[0])
+			return nil, redis.TxFailedErr
+		}
+		time.Sleep(retryDelay)
 	}
-	_, err := pipe.Exec()
-	if err != nil {
-		return nil, err
+}
+
+func (repo *RedisJobRepository) updateJobBatch(ids []string, mutator func(*api.Job)) (map[string]string, error) {
+
+	var keysToWatch []string
+	for _, id := range ids {
+		keysToWatch = append(keysToWatch, jobObjectPrefix+id)
 	}
 
 	result := make(map[string]string)
-	for i, cmd := range commands {
-		err := cmd.Err()
-		var errorString string
+	err := repo.db.Watch(func(tx *redis.Tx) error {
+
+		// There is currently no clean way to implement the WATCH/GET/MULTI/SET/EXEC pattern with go-redis
+		// because Watch() calls both WATCH and MULTI together.
+		// To work round this, GetExistingJobsByIds is delberately using a separate Redis connection, not tx.Pipeline().
+		jobs, err := repo.GetExistingJobsByIds(ids)
 		if err != nil {
-			errorString = err.Error()
+			return err
 		}
-		result[jobs[i].Id] = errorString
+
+		jobDatas := make([][]byte, len(jobs))
+		for i, job := range jobs {
+			mutator(job)
+			jobData, err := proto.Marshal(job)
+			if err != nil {
+				return err
+			}
+			jobDatas[i] = jobData
+
+		}
+
+		commands := make([]*redis.Cmd, len(jobs))
+		pipe := tx.Pipeline()
+		updateJobAndPriorityScript.Load(pipe)
+
+		for i, job := range jobs {
+			commands[i] = updateJobAndPriority(pipe, job, job.Priority, &jobDatas[i])
+		}
+		_, err = pipe.Exec()
+		if err != nil {
+			return err
+		}
+
+		for i, cmd := range commands {
+			err := cmd.Err()
+			var errorString string
+			if err != nil {
+				errorString = err.Error()
+			}
+			result[jobs[i].Id] = errorString
+		}
+
+		return nil
+	}, keysToWatch...)
+
+	if err != nil {
+		return nil, err
 	}
 
 	return result, nil
 }
 
-func updatePriority(db redis.Cmdable, job *api.Job, newPriority float64, jobData *[]byte) *redis.Cmd {
-	return updatePriorityScript.Run(db,
+func updateJobAndPriority(db redis.Cmdable, job *api.Job, newPriority float64, jobData *[]byte) *redis.Cmd {
+	return updateJobAndPriorityScript.Run(db,
 		[]string{jobQueuePrefix + job.Queue, jobObjectPrefix + job.Id},
 		job.Id, newPriority, *jobData)
 }
 
-// If the job key has a defined TTL, it implies that the job has finished and updating priority is irrelevant
-var updatePriorityScript = redis.NewScript(`
+// If the job key has a defined TTL, it implies that the job has finished and updating is irrelevant
+var updateJobAndPriorityScript = redis.NewScript(`
 local queue = KEYS[1]
 local job = KEYS[2]
 
