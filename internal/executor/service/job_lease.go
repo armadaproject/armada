@@ -155,5 +155,10 @@ func (jobLeaseService *JobLeaseService) getAvoidNodeLabels(pod *v1.Pod) (map[str
 		return nil, fmt.Errorf("Could not get node %s from Kubernetes api: %v", nodeName, err)
 	}
 
-	return commonUtil.FilterKeys(node.Labels, jobLeaseService.avoidNodeLabelsOnRetry), nil
+	labels := node.Labels
+	if labels == nil {
+		return map[string]string{}, nil
+	}
+
+	return commonUtil.FilterKeys(labels, jobLeaseService.avoidNodeLabelsOnRetry), nil
 }
