@@ -131,9 +131,9 @@ func Test_ValidatePodSpec_WhenValidRequiredAffinitySet_Succeeds(t *testing.T) {
 	assert.Nil(t, ValidatePodSpec(podSpec))
 }
 
-func Test_ValidatePodSpec_WhenInValidRequiredAffinitySet_Fails(t *testing.T) {
+func Test_ValidatePodSpec_WhenInvalidRequiredAffinitySet_Fails(t *testing.T) {
 
-	inValidNodeSelector := &v1.NodeSelector{
+	invalidNodeSelector := &v1.NodeSelector{
 		NodeSelectorTerms: []v1.NodeSelectorTerm{
 			{
 				MatchExpressions: []v1.NodeSelectorRequirement{
@@ -150,7 +150,7 @@ func Test_ValidatePodSpec_WhenInValidRequiredAffinitySet_Fails(t *testing.T) {
 	podSpec := minimalValidPodSpec()
 	podSpec.Affinity = &v1.Affinity{
 		NodeAffinity: &v1.NodeAffinity{
-			RequiredDuringSchedulingIgnoredDuringExecution: inValidNodeSelector,
+			RequiredDuringSchedulingIgnoredDuringExecution: invalidNodeSelector,
 		},
 	}
 

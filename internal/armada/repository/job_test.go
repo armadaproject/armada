@@ -543,6 +543,127 @@ func TestIterateQueueJobs(t *testing.T) {
 	})
 }
 
+func TestUpdateJobs_SingleJobThatExists_ChangesJob(t *testing.T) {
+	withRepository(func(r *RedisJobRepository) {
+		job1 := addTestJobWithClientId(t, r, "queue1", "my-job-1")
+
+		newSchedName := "custom"
+
+		result, err := r.UpdateJobs([]string{job1.Id}, func(job *api.Job) {
+			job.PodSpec.SchedulerName = newSchedName
+		})
+		assert.Nil(t, err)
+		assert.Equal(t, map[string]string{job1.Id: ""}, result)
+
+		reloadedJobs, err := r.GetExistingJobsByIds([]string{job1.Id})
+		assert.Nil(t, err)
+		assert.Equal(t, 1, len(reloadedJobs))
+		assert.Equal(t, newSchedName, reloadedJobs[0].PodSpec.SchedulerName)
+	})
+}
+
+func TestUpdateJobs_WhenTransactionAlwaysFails_ReturnsError_JobNotChanged(t *testing.T) {
+	withRepository(func(r *RedisJobRepository) {
+		job1 := addTestJobWithClientId(t, r, "queue1", "my-job-1")
+
+		newSchedName := "custom"
+
+		result, err := r.UpdateJobs([]string{job1.Id}, func(job *api.Job) {
+			_, err := r.UpdateJobs([]string{job1.Id}, func(job *api.Job) {}) // 2nd update in middle of transaction
+			assert.Nil(t, err)
+			job.PodSpec.SchedulerName = newSchedName
+		})
+		assert.Nil(t, err)
+		assert.Equal(t, map[string]string{job1.Id: "redis: transaction failed"}, result)
+
+		reloadedJobs, err := r.GetExistingJobsByIds([]string{job1.Id})
+		assert.Nil(t, err)
+		assert.Equal(t, 1, len(reloadedJobs))
+		assert.Equal(t, "", reloadedJobs[0].PodSpec.SchedulerName)
+	})
+}
+
+func TestUpdateJobs_WhenTransactionFailsOnce_Retries_JobChanged(t *testing.T) {
+	withRepository(func(r *RedisJobRepository) {
+		job1 := addTestJobWithClientId(t, r, "queue1", "my-job-1")
+
+		newSchedName := "custom"
+
+		first := true
+		result, err := r.updateJobs([]string{job1.Id}, func(job *api.Job) {
+			if first {
+				_, err := r.UpdateJobs([]string{job1.Id}, func(job *api.Job) {}) // 2nd update in middle of transaction
+				assert.Nil(t, err)
+				first = false
+			}
+			job.PodSpec.SchedulerName = newSchedName
+		}, 100, 3, time.Microsecond)
+		assert.Nil(t, err)
+		assert.Equal(t, map[string]string{job1.Id: ""}, result)
+
+		reloadedJobs, err := r.GetExistingJobsByIds([]string{job1.Id})
+		assert.Nil(t, err)
+		assert.Equal(t, 1, len(reloadedJobs))
+		assert.Equal(t, newSchedName, reloadedJobs[0].PodSpec.SchedulerName)
+	})
+}
+
+func TestUpdateJobs_WhenTransactionAlwaysFailsForOneBatch_ReturnsErrorForThatBatch_OtherChangesWork(t *testing.T) {
+	withRepository(func(r *RedisJobRepository) {
+		job1 := addTestJobWithClientId(t, r, "queue1", "my-job-1")
+		job2 := addTestJobWithClientId(t, r, "queue2", "my-job-1")
+		job3 := addTestJobWithClientId(t, r, "queue3", "my-job-1")
+
+		newSchedName := "custom"
+
+		result, err := r.updateJobs([]string{job1.Id, job2.Id, job3.Id}, func(job *api.Job) {
+			if job.Id == job2.Id {
+				_, err := r.UpdateJobs([]string{job.Id}, func(job *api.Job) {}) // 2nd update in middle of transaction for job2
+				assert.Nil(t, err)
+			}
+
+			job.PodSpec.SchedulerName = newSchedName
+		}, 1, 3, time.Microsecond)
+		assert.Nil(t, err)
+		assert.Equal(t, map[string]string{job1.Id: "", job2.Id: "redis: transaction failed", job3.Id: ""}, result)
+
+		reloadedJobs, err := r.GetExistingJobsByIds([]string{job1.Id, job2.Id, job3.Id})
+		assert.Nil(t, err)
+		assert.Equal(t, 3, len(reloadedJobs))
+		assert.Equal(t, newSchedName, reloadedJobs[0].PodSpec.SchedulerName)
+		assert.Equal(t, "", reloadedJobs[1].PodSpec.SchedulerName)
+		assert.Equal(t, newSchedName, reloadedJobs[2].PodSpec.SchedulerName)
+	})
+}
+
+func TestUpdateJobs_WhenOneOfThreeJobsIsMissing_SkipsMissingJob_OtherChangesSucceed_SameBatch(t *testing.T) {
+	whenOneOfThreeJobsIsMissing_SkipsMissingJob_OtherChangesSucceed(t, 10)
+}
+func TestUpdateJobs_WhenOneOfThreeJobsIsMissing_SkipsMissingJob_OtherChangesSucceed_DifferentBatch(t *testing.T) {
+	whenOneOfThreeJobsIsMissing_SkipsMissingJob_OtherChangesSucceed(t, 1)
+}
+
+func whenOneOfThreeJobsIsMissing_SkipsMissingJob_OtherChangesSucceed(t *testing.T, batchSize int) {
+	withRepository(func(r *RedisJobRepository) {
+		job1 := addTestJobWithClientId(t, r, "queue1", "my-job-1")
+		job3 := addTestJobWithClientId(t, r, "queue3", "my-job-1")
+
+		newSchedName := "custom"
+
+		result, err := r.updateJobs([]string{job1.Id, "wrong", job3.Id}, func(job *api.Job) {
+			job.PodSpec.SchedulerName = newSchedName
+		}, batchSize, 3, time.Microsecond)
+		assert.Nil(t, err)
+		assert.Equal(t, map[string]string{job1.Id: "", job3.Id: ""}, result)
+
+		reloadedJobs, err := r.GetExistingJobsByIds([]string{job1.Id, job3.Id})
+		assert.Nil(t, err)
+		assert.Equal(t, 2, len(reloadedJobs))
+		assert.Equal(t, newSchedName, reloadedJobs[0].PodSpec.SchedulerName)
+		assert.Equal(t, newSchedName, reloadedJobs[1].PodSpec.SchedulerName)
+	})
+}
+
 func addLeasedJob(t *testing.T, r *RedisJobRepository, queue string, cluster string) *api.Job {
 	job := addTestJob(t, r, queue)
 	leased, e := r.TryLeaseJobs(cluster, queue, []*api.Job{job})
