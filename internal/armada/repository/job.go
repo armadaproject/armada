@@ -549,7 +549,7 @@ func (repo *RedisJobRepository) updateJobs(ids []string, mutator func(*api.Job),
 	result := map[string]string{}
 
 	for _, batch := range batchedIds {
-		batchResult, err := repo.updateJobBatchsWithRetry(batch, mutator, retries, retryDelay)
+		batchResult, err := repo.updateJobBatchWithRetry(batch, mutator, retries, retryDelay)
 		if err == nil {
 			result = util.MergeMaps(result, batchResult)
 		} else {
@@ -561,7 +561,7 @@ func (repo *RedisJobRepository) updateJobs(ids []string, mutator func(*api.Job),
 	return result, nil
 }
 
-func (repo *RedisJobRepository) updateJobBatchsWithRetry(ids []string, mutator func(*api.Job), retries int, retryDelay time.Duration) (map[string]string, error) {
+func (repo *RedisJobRepository) updateJobBatchWithRetry(ids []string, mutator func(*api.Job), retries int, retryDelay time.Duration) (map[string]string, error) {
 	for retry := 0; ; retry++ {
 		result, err := repo.updateJobBatch(ids, mutator)
 		if err != redis.TxFailedErr {
