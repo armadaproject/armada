@@ -3,6 +3,7 @@ package repository
 import (
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-redis/redis"
@@ -567,9 +568,10 @@ func (repo *RedisJobRepository) updateJobBatchWithRetry(ids []string, mutator fu
 		if err != redis.TxFailedErr {
 			return result, err
 		}
-		log.Warnf("UpdateJobs: Redis Transaction failed (id of first job in batch: %s)", ids[0])
+		log.Warnf("UpdateJobs: Redis Transaction failed (job ids %s)", strings.Join(ids, ", "))
+
 		if retry >= retries {
-			log.Warnf("UpdateJobs: Redis Transaction failed after retrying, giving up (id of first job in batch: %s)", ids[0])
+			log.Warnf("UpdateJobs: Redis Transaction failed after retrying, giving up (job ids %s)", strings.Join(ids, ", "))
 			return nil, redis.TxFailedErr
 		}
 		time.Sleep(retryDelay)

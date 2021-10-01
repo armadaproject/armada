@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -27,20 +29,23 @@ type LeaseService interface {
 }
 
 type JobLeaseService struct {
-	clusterIdentity context2.ClusterIdentity
-	queueClient     api.AggregatedQueueClient
-	minimumJobSize  common.ComputeResources
+	clusterContext         context2.ClusterContext
+	queueClient            api.AggregatedQueueClient
+	minimumJobSize         common.ComputeResources
+	avoidNodeLabelsOnRetry []string
 }
 
 func NewJobLeaseService(
-	clusterIdentity context2.ClusterIdentity,
+	clusterContext context2.ClusterContext,
 	queueClient api.AggregatedQueueClient,
-	minimumJobSize common.ComputeResources) *JobLeaseService {
+	minimumJobSize common.ComputeResources,
+	avoidNodeLabelsOnRetry []string) *JobLeaseService {
 
 	return &JobLeaseService{
-		clusterIdentity: clusterIdentity,
-		queueClient:     queueClient,
-		minimumJobSize:  minimumJobSize,
+		clusterContext:         clusterContext,
+		queueClient:            queueClient,
+		minimumJobSize:         minimumJobSize,
+		avoidNodeLabelsOnRetry: avoidNodeLabelsOnRetry,
 	}
 }
 
@@ -54,14 +59,14 @@ func (jobLeaseService *JobLeaseService) RequestJobLeases(availableResource *comm
 		leasedQueueReports = append(leasedQueueReports, leasedQueueReport)
 	}
 	clusterLeasedReport := api.ClusterLeasedReport{
-		ClusterId:  jobLeaseService.clusterIdentity.GetClusterId(),
+		ClusterId:  jobLeaseService.clusterContext.GetClusterId(),
 		ReportTime: time.Now(),
 		Queues:     leasedQueueReports,
 	}
 
 	leaseRequest := api.LeaseRequest{
-		ClusterId:           jobLeaseService.clusterIdentity.GetClusterId(),
-		Pool:                jobLeaseService.clusterIdentity.GetClusterPool(),
+		ClusterId:           jobLeaseService.clusterContext.GetClusterId(),
+		Pool:                jobLeaseService.clusterContext.GetClusterPool(),
 		Resources:           *availableResource,
 		ClusterLeasedReport: clusterLeasedReport,
 		Nodes:               nodes,
@@ -82,9 +87,15 @@ func (jobLeaseService *JobLeaseService) ReturnLease(pod *v1.Pod) error {
 	jobId := util.ExtractJobId(pod)
 	ctx, cancel := common.ContextWithDefaultTimeout()
 	defer cancel()
-	log.Infof("Returning lease for job %s", jobId)
-	_, err := jobLeaseService.queueClient.ReturnLease(ctx, &api.ReturnLeaseRequest{ClusterId: jobLeaseService.clusterIdentity.GetClusterId(), JobId: jobId})
 
+	avoidNodeLabels, err := jobLeaseService.getAvoidNodeLabels(pod)
+	if err != nil {
+		log.Warnf("Failed to get node labels to avoid on rerun for pod %s: %v", pod.Name, err)
+		avoidNodeLabels = map[string]string{}
+	}
+
+	log.Infof("Returning lease for job %s (will try to avoid these node labels next time: %v)", jobId, avoidNodeLabels)
+	_, err = jobLeaseService.queueClient.ReturnLease(ctx, &api.ReturnLeaseRequest{ClusterId: jobLeaseService.clusterContext.GetClusterId(), JobId: jobId, AvoidNodeLabels: avoidNodeLabels})
 	return err
 }
 
@@ -111,7 +122,7 @@ func (jobLeaseService *JobLeaseService) RenewJobLeases(jobs []*job.RunningJob) (
 	defer cancel()
 	renewedJobIds, err := jobLeaseService.queueClient.RenewLease(ctx,
 		&api.RenewLeaseRequest{
-			ClusterId: jobLeaseService.clusterIdentity.GetClusterId(),
+			ClusterId: jobLeaseService.clusterContext.GetClusterId(),
 			Ids:       jobIds})
 	if err != nil {
 		log.Errorf("Failed to renew lease for jobs because %s", err)
@@ -126,4 +137,23 @@ func (jobLeaseService *JobLeaseService) RenewJobLeases(jobs []*job.RunningJob) (
 	}
 
 	return failedJobs, nil
+}
+
+func (jobLeaseService *JobLeaseService) getAvoidNodeLabels(pod *v1.Pod) (map[string]string, error) {
+
+	if len(jobLeaseService.avoidNodeLabelsOnRetry) == 0 {
+		return map[string]string{}, nil
+	}
+
+	nodeName := pod.Spec.NodeName
+	if nodeName == "" {
+		return nil, errors.New("Empty node name in pod")
+	}
+
+	node, err := jobLeaseService.clusterContext.GetNode(nodeName)
+	if err != nil {
+		return nil, fmt.Errorf("Could not get node %s from Kubernetes api: %v", nodeName, err)
+	}
+
+	return commonUtil.FilterKeys(node.Labels, jobLeaseService.avoidNodeLabelsOnRetry), nil
 }
