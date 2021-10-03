@@ -20,7 +20,6 @@ type ArmadaConfig struct {
 
 	PriorityHalfTime time.Duration
 	Redis            redis.UniversalOptions
-	EventsKafka      KafkaConfig
 	EventsNats       NatsConfig
 	EventsRedis      redis.UniversalOptions
 
@@ -53,13 +52,6 @@ type EventRetentionPolicy struct {
 type LeaseSettings struct {
 	ExpireAfter        time.Duration
 	ExpiryLoopInterval time.Duration
-}
-
-type KafkaConfig struct {
-	Brokers                  []string
-	Topic                    string
-	ConsumerGroupID          string
-	JobStatusConsumerGroupID string
 }
 
 type NatsConfig struct {
