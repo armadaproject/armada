@@ -43,6 +43,7 @@ type ClusterContext interface {
 	GetAllPods() ([]*v1.Pod, error)
 	GetActiveBatchPods() ([]*v1.Pod, error)
 	GetNodes() ([]*v1.Node, error)
+	GetNode(nodeName string) (*v1.Node, error)
 	GetNodeStatsSummary(*v1.Node) (*v1alpha1.Summary, error)
 	GetPodEvents(pod *v1.Pod) ([]*v1.Event, error)
 	GetServices(pod *v1.Pod) ([]*v1.Service, error)
@@ -193,6 +194,10 @@ func (c *KubernetesClusterContext) GetPodEvents(pod *v1.Pod) ([]*v1.Event, error
 
 func (c *KubernetesClusterContext) GetNodes() ([]*v1.Node, error) {
 	return c.nodeInformer.Lister().List(labels.Everything())
+}
+
+func (c *KubernetesClusterContext) GetNode(nodeName string) (*v1.Node, error) {
+	return c.nodeInformer.Lister().Get(nodeName)
 }
 
 func (c *KubernetesClusterContext) GetNodeStatsSummary(node *v1.Node) (*v1alpha1.Summary, error) {

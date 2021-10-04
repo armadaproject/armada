@@ -23,14 +23,15 @@ type IngressConfiguration struct {
 }
 
 type KubernetesConfiguration struct {
-	ImpersonateUsers  bool
-	TrackedNodeLabels []string
-	ToleratedTaints   []string
-	MinimumPodAge     time.Duration
-	FailedPodExpiry   time.Duration
-	StuckPodExpiry    time.Duration
-	MinimumJobSize    common.ComputeResources
-	PodDefaults       *PodDefaults
+	ImpersonateUsers       bool
+	TrackedNodeLabels      []string
+	AvoidNodeLabelsOnRetry []string
+	ToleratedTaints        []string
+	MinimumPodAge          time.Duration
+	FailedPodExpiry        time.Duration
+	StuckPodExpiry         time.Duration
+	MinimumJobSize         common.ComputeResources
+	PodDefaults            *PodDefaults
 }
 
 type TaskConfiguration struct {

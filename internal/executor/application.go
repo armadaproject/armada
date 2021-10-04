@@ -1,7 +1,9 @@
 package executor
 
 import (
+	"fmt"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -11,6 +13,7 @@ import (
 
 	"github.com/G-Research/armada/internal/common/cluster"
 	"github.com/G-Research/armada/internal/common/task"
+	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/executor/configuration"
 	"github.com/G-Research/armada/internal/executor/context"
 	"github.com/G-Research/armada/internal/executor/job"
@@ -25,6 +28,12 @@ import (
 )
 
 func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGroup) {
+
+	err := validateConfig(config)
+	if err != nil {
+		log.Errorf("Invalid config: %s", err)
+		os.Exit(-1)
+	}
 
 	kubernetesClientProvider, err := cluster.NewKubernetesClientProvider(config.Kubernetes.ImpersonateUsers)
 
@@ -66,7 +75,9 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 	jobLeaseService := service.NewJobLeaseService(
 		clusterContext,
 		queueClient,
-		config.Kubernetes.MinimumJobSize)
+		config.Kubernetes.MinimumJobSize,
+		config.Kubernetes.AvoidNodeLabelsOnRetry,
+	)
 
 	jobContext := job.NewClusterJobContext(clusterContext, config.Kubernetes.StuckPodExpiry)
 	submitter := job.NewSubmitter(clusterContext, config.Kubernetes.PodDefaults)
@@ -134,4 +145,12 @@ func createConnectionToApi(config configuration.ExecutorConfiguration) (*grpc.Cl
 	return client.CreateApiConnection(&config.ApiConnection,
 		grpc.WithChainUnaryInterceptor(grpc_prometheus.UnaryClientInterceptor),
 		grpc.WithChainStreamInterceptor(grpc_prometheus.StreamClientInterceptor))
+}
+
+func validateConfig(config configuration.ExecutorConfiguration) error {
+	missing := util.SubtractStringList(config.Kubernetes.AvoidNodeLabelsOnRetry, config.Kubernetes.TrackedNodeLabels)
+	if len(missing) > 0 {
+		return fmt.Errorf("These labels were in avoidNodeLabelsOnRetry but not trackedNodeLabels: %s", strings.Join(missing, ", "))
+	}
+	return nil
 }
