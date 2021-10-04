@@ -98,6 +98,10 @@ func (c *FakeClusterContext) GetNodes() ([]*v1.Node, error) {
 	return c.nodes, nil
 }
 
+func (c *FakeClusterContext) GetNode(nodeName string) (*v1.Node, error) {
+	return c.nodes[0], nil
+}
+
 func (c *FakeClusterContext) GetPodEvents(pod *v1.Pod) ([]*v1.Event, error) {
 	return []*v1.Event{}, nil
 }

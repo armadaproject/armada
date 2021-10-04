@@ -82,3 +82,19 @@ func TestEqual_Nil(t *testing.T) {
 	assert.False(t, Equal(nil, map1))
 	assert.True(t, Equal(nil, nil))
 }
+
+func Test_FilterKeys(t *testing.T) {
+	assert.Equal(t, map[string]string{}, FilterKeys(map[string]string{}, []string{}))
+	assert.Equal(t, map[string]string{}, FilterKeys(map[string]string{"a": "b"}, []string{}))
+	assert.Equal(t, map[string]string{"a": "b"}, FilterKeys(map[string]string{"a": "b"}, []string{"a"}))
+	assert.Equal(t, map[string]string{"a": "b"}, FilterKeys(map[string]string{"a": "b"}, []string{"a", "another"}))
+	assert.Equal(t, map[string]string{"a": "b"}, FilterKeys(map[string]string{"a": "b", "c": "d"}, []string{"a", "another"}))
+	assert.Equal(t, map[string]string{"a": "b", "c": "d"}, FilterKeys(map[string]string{"a": "b", "c": "d"}, []string{"a", "c", "another"}))
+	assert.Equal(t, map[string]string{"a": "b"}, FilterKeys(map[string]string{"a": "b"}, []string{"a", "another", "a"}))
+}
+
+func Test_FilterKeys_Nil(t *testing.T) {
+	assert.Nil(t, FilterKeys(nil, nil))
+	assert.Nil(t, FilterKeys(nil, []string{}))
+	assert.Equal(t, map[string]string{}, FilterKeys(map[string]string{"a": "b"}, nil))
+}
