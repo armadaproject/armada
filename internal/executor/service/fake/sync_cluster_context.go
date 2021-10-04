@@ -1,6 +1,7 @@
 package fake
 
 import (
+	"errors"
 	"fmt"
 
 	v1 "k8s.io/api/core/v1"
@@ -42,6 +43,10 @@ func (c *SyncFakeClusterContext) GetActiveBatchPods() ([]*v1.Pod, error) {
 
 func (c *SyncFakeClusterContext) GetNodes() ([]*v1.Node, error) {
 	return make([]*v1.Node, 0), nil
+}
+
+func (c *SyncFakeClusterContext) GetNode(nodeName string) (*v1.Node, error) {
+	return nil, errors.New("GetNode Not implemented")
 }
 
 func (c *SyncFakeClusterContext) GetPodEvents(pod *v1.Pod) ([]*v1.Event, error) {

@@ -39,3 +39,18 @@ func Equal(a map[string]string, b map[string]string) bool {
 	}
 	return true
 }
+
+func FilterKeys(a map[string]string, keys []string) map[string]string {
+	if a == nil {
+		return nil
+	}
+
+	result := make(map[string]string)
+	for _, key := range keys {
+		if val, exists := a[key]; exists {
+			result[key] = val
+		}
+	}
+
+	return result
+}

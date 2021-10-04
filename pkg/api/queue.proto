@@ -97,6 +97,7 @@ message RenewLeaseRequest {
 message ReturnLeaseRequest {
     string cluster_id = 1;
     string job_id = 2;
+    map<string,string> avoid_node_labels = 3;
 }
 
 service AggregatedQueue {

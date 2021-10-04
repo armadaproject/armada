@@ -88,13 +88,11 @@ e2e-start-cluster:
 	./e2e/setup/setup_cluster_ci.sh
 	./e2e/setup/setup_kube_config_ci.sh
 	KUBECONFIG=.kube/config kubectl apply -f ./e2e/setup/namespace-with-anonymous-user.yaml
-	#docker-compose -f ./e2e/setup/kafka/docker-compose.yaml up -d
 	docker run -d --name nats -p 4223:4223 -p 8223:8223 nats-streaming -p 4223 -m 8223
 
 e2e-stop-cluster:
 	docker stop kube nats
 	docker rm kube nats
-	#docker-compose -f ./e2e/setup/kafka/docker-compose.yaml down
 
 .ONESHELL:
 tests-e2e: e2e-start-cluster build-docker
