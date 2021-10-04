@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -90,7 +89,7 @@ func (jobLeaseService *JobLeaseService) ReturnLease(pod *v1.Pod) error {
 
 	avoidNodeLabels, err := getAvoidNodeLabels(pod, jobLeaseService.avoidNodeLabelsOnRetry, jobLeaseService.clusterContext)
 	if err != nil {
-		log.Warnf("Failed to get node labels to avoid on rerun for pod %s: %v", pod.Name, err)
+		log.Warnf("Failed to get node labels to avoid on rerun for pod %s in namespace %s: %v", pod.Name, pod.Namespace, err)
 		avoidNodeLabels = map[string]string{}
 	}
 
@@ -146,7 +145,8 @@ func getAvoidNodeLabels(pod *v1.Pod, avoidNodeLabelsOnRetry []string, clusterCon
 
 	nodeName := pod.Spec.NodeName
 	if nodeName == "" {
-		return nil, errors.New("Empty node name in pod")
+		log.Infof("Pod %s in namespace %s doesn't have nodeName set, so returning empty avoid_node_labels", pod.Name, pod.Namespace)
+		return map[string]string{}, nil
 	}
 
 	node, err := clusterContext.GetNode(nodeName)

@@ -29,7 +29,7 @@ func TestJobLease_GetAvoidNodeLabels_EverythingSetUpCorrectly_ReturnsLabels(t *t
 
 }
 
-func TestJobLease_GetAvoidNodeLabels_NodeNameNotSet_ReturnsError(t *testing.T) {
+func TestJobLease_GetAvoidNodeLabels_NodeNameNotSet_ReturnsEmptyMap(t *testing.T) {
 
 	avoidNodeLabels := []string{"a"}
 
@@ -43,9 +43,8 @@ func TestJobLease_GetAvoidNodeLabels_NodeNameNotSet_ReturnsError(t *testing.T) {
 
 	labels, err := getAvoidNodeLabels(pod, avoidNodeLabels, fakeCc)
 
-	assert.NotNil(t, err)
-	assert.Nil(t, labels)
-
+	assert.Equal(t, map[string]string{}, labels)
+	assert.Nil(t, err)
 }
 
 func TestJobLease_GetAvoidNodeLabels_NoMatchingLabels_ReturnsError(t *testing.T) {
