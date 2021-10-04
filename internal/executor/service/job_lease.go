@@ -88,7 +88,7 @@ func (jobLeaseService *JobLeaseService) ReturnLease(pod *v1.Pod) error {
 	ctx, cancel := common.ContextWithDefaultTimeout()
 	defer cancel()
 
-	avoidNodeLabels, err := jobLeaseService.getAvoidNodeLabels(pod)
+	avoidNodeLabels, err := getAvoidNodeLabels(pod, jobLeaseService.avoidNodeLabelsOnRetry, jobLeaseService.clusterContext)
 	if err != nil {
 		log.Warnf("Failed to get node labels to avoid on rerun for pod %s: %v", pod.Name, err)
 		avoidNodeLabels = map[string]string{}
@@ -139,9 +139,8 @@ func (jobLeaseService *JobLeaseService) RenewJobLeases(jobs []*job.RunningJob) (
 	return failedJobs, nil
 }
 
-func (jobLeaseService *JobLeaseService) getAvoidNodeLabels(pod *v1.Pod) (map[string]string, error) {
-
-	if len(jobLeaseService.avoidNodeLabelsOnRetry) == 0 {
+func getAvoidNodeLabels(pod *v1.Pod, avoidNodeLabelsOnRetry []string, clusterContext context2.ClusterContext) (map[string]string, error) {
+	if len(avoidNodeLabelsOnRetry) == 0 {
 		return map[string]string{}, nil
 	}
 
@@ -150,15 +149,14 @@ func (jobLeaseService *JobLeaseService) getAvoidNodeLabels(pod *v1.Pod) (map[str
 		return nil, errors.New("Empty node name in pod")
 	}
 
-	node, err := jobLeaseService.clusterContext.GetNode(nodeName)
+	node, err := clusterContext.GetNode(nodeName)
 	if err != nil {
 		return nil, fmt.Errorf("Could not get node %s from Kubernetes api: %v", nodeName, err)
 	}
 
-	labels := node.Labels
-	if labels == nil {
-		return map[string]string{}, nil
+	result := commonUtil.FilterKeys(node.Labels, avoidNodeLabelsOnRetry)
+	if len(result) == 0 {
+		return nil, fmt.Errorf("None of the labels specified in avoidNodeLabelsOnRetry (%s) were found on node %s", strings.Join(avoidNodeLabelsOnRetry, ", "), nodeName)
 	}
-
-	return commonUtil.FilterKeys(labels, jobLeaseService.avoidNodeLabelsOnRetry), nil
+	return result, nil
 }
