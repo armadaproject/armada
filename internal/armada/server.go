@@ -7,7 +7,6 @@ import (
 
 	"github.com/go-redis/redis"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
-	"github.com/segmentio/kafka-go"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/G-Research/armada/internal/armada/cache"
@@ -51,38 +50,7 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 
 	// TODO: move this to task manager
 	stopSubscription := func() {}
-	if len(config.EventsKafka.Brokers) > 0 {
-		log.Infof("Using Kafka for events (%+v)", config.EventsKafka)
-		writer := kafka.NewWriter(kafka.WriterConfig{
-			Brokers: config.EventsKafka.Brokers,
-			Topic:   config.EventsKafka.Topic,
-		})
-		reader := kafka.NewReader(kafka.ReaderConfig{
-			Brokers:  config.EventsKafka.Brokers,
-			GroupID:  config.EventsKafka.ConsumerGroupID,
-			Topic:    config.EventsKafka.Topic,
-			MaxWait:  500 * time.Millisecond,
-			MinBytes: 0,    // 10KB
-			MaxBytes: 10e6, // 10MB
-		})
-		jobStatusReader := kafka.NewReader(kafka.ReaderConfig{
-			Brokers:  config.EventsKafka.Brokers,
-			GroupID:  config.EventsKafka.JobStatusConsumerGroupID,
-			Topic:    config.EventsKafka.Topic,
-			MaxWait:  500 * time.Millisecond,
-			MinBytes: 0,    // 10KB
-			MaxBytes: 10e6, // 10MB
-		})
-
-		eventStore = repository.NewKafkaEventStore(writer)
-		eventProcessor := repository.NewKafkaEventRedisProcessor(reader, redisEventRepository)
-		jobStatusEventProcessor := repository.NewKafkaJobStatusProcessor(jobStatusReader, jobRepository)
-
-		//TODO: Remove this metric, and add one to track event delay
-		taskManager.Register(eventProcessor.ProcessEvents, 100*time.Millisecond, "kafka_redis_processor")
-		taskManager.Register(jobStatusEventProcessor.ProcessEvents, 100*time.Millisecond, "kafka_job_status_processor")
-
-	} else if len(config.EventsNats.Servers) > 0 {
+	if len(config.EventsNats.Servers) > 0 {
 
 		conn, err := stan_util.DurableConnect(
 			config.EventsNats.ClusterID,
