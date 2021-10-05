@@ -52,5 +52,5 @@ require (
 	k8s.io/client-go v0.22.2
 	k8s.io/component-base v0.22.2
 	k8s.io/component-helpers v0.22.2
-	k8s.io/kubelet v0.20.5
+	k8s.io/kubelet v0.22.2
 )
