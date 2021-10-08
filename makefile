@@ -71,7 +71,7 @@ build-docker-binoculars:
 build-docker: build-docker-server build-docker-executor build-docker-armadactl build-docker-armada-load-tester build-docker-fakeexecutor build-docker-lookout build-docker-binoculars
 
 build-ci: gobuild=$(gobuildlinux)
-build-ci: build-docker build-armadactl-multiplatform build-load-tester
+build-ci: build-docker build-armadactl build-armadactl-multiplatform build-load-tester
 
 .ONESHELL:
 tests:
