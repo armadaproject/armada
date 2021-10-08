@@ -211,7 +211,7 @@ jobs:
             - "/home/circleci/go/cache"
 
       - store_artifacts:
-          path: bin/armadactl
+          path: bin/linux-amd64/armadactl
           destination: armadactl
 
       - run:
