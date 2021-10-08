@@ -22,7 +22,7 @@ build-binoculars:
 
 build-armadactl-multiplatform:
 	go install github.com/mitchellh/gox@v1.0.1
-	${GOPATH}/bin/gox -output="./bin/{{.OS}}-{{.Arch}}/armadactl" -arch="amd64" -os="windows linux darwin" ./cmd/armadactl/
+	gox -output="./bin/{{.OS}}-{{.Arch}}/armadactl" -arch="amd64" -os="windows linux darwin" ./cmd/armadactl/
 
 ifndef RELEASE_VERSION
 override RELEASE_VERSION = UNKNOWN_VERSION
