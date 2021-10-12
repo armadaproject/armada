@@ -162,6 +162,14 @@ func (q *AggregatedQueueServer) ReturnLease(ctx context.Context, request *api.Re
 		return &types.Empty{}, nil
 	}
 
+	if request.AvoidNodeLabels != nil && len(request.AvoidNodeLabels.Entries) > 0 {
+		q.jobRepository.UpdateJobs([]string{request.JobId}, func(job *api.Job) {
+			AddAvoidNodeAffinity(job, request.AvoidNodeLabels, func(jobs []*api.Job) error {
+				return validateJobsCanBeScheduled(jobs, q.schedulingInfoRepository)
+			})
+		})
+	}
+
 	_, err = q.jobRepository.ReturnLease(request.ClusterId, request.JobId)
 	if err != nil {
 		return nil, err
