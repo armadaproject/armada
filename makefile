@@ -21,7 +21,8 @@ build-binoculars:
 	$(gobuild) -o ./bin/binoculars cmd/binoculars/main.go
 
 build-armadactl-multiplatform:
-	go run github.com/mitchellh/gox -output="./bin/{{.OS}}-{{.Arch}}/armadactl" -arch="amd64" -os="windows linux darwin" ./cmd/armadactl/
+	go install github.com/mitchellh/gox@v1.0.1
+	gox -output="./bin/{{.OS}}-{{.Arch}}/armadactl" -arch="amd64" -os="windows linux darwin" ./cmd/armadactl/
 
 ifndef RELEASE_VERSION
 override RELEASE_VERSION = UNKNOWN_VERSION
@@ -70,7 +71,7 @@ build-docker-binoculars:
 build-docker: build-docker-server build-docker-executor build-docker-armadactl build-docker-armada-load-tester build-docker-fakeexecutor build-docker-lookout build-docker-binoculars
 
 build-ci: gobuild=$(gobuildlinux)
-build-ci: build-docker build-armadactl build-load-tester
+build-ci: build-docker build-armadactl build-armadactl-multiplatform build-load-tester
 
 .ONESHELL:
 tests:
@@ -88,13 +89,11 @@ e2e-start-cluster:
 	./e2e/setup/setup_cluster_ci.sh
 	./e2e/setup/setup_kube_config_ci.sh
 	KUBECONFIG=.kube/config kubectl apply -f ./e2e/setup/namespace-with-anonymous-user.yaml
-	#docker-compose -f ./e2e/setup/kafka/docker-compose.yaml up -d
 	docker run -d --name nats -p 4223:4223 -p 8223:8223 nats-streaming -p 4223 -m 8223
 
 e2e-stop-cluster:
 	docker stop kube nats
 	docker rm kube nats
-	#docker-compose -f ./e2e/setup/kafka/docker-compose.yaml down
 
 .ONESHELL:
 tests-e2e: e2e-start-cluster build-docker

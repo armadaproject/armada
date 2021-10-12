@@ -1,6 +1,0 @@
-corsAllowedOrigins: ["http://localhost:3000"]
-eventsKafka:
-  brokers:
-    - "localhost:9092"
-  topic: "ArmadaTest"
-  consumerGroupID: "ArmadaEventRedisProcessor"
