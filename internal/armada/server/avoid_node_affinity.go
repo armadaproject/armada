@@ -9,11 +9,11 @@ import (
 	"github.com/G-Research/armada/pkg/api"
 )
 
-func AddAvoidNodeAffinity(job *api.Job, avoidNodeLabels *api.OrderedMap, validateJobsCanBeScheduled func(jobs []*api.Job) error) {
+func addAvoidNodeAffinity(job *api.Job, avoidNodeLabels *api.OrderedMap, validateJobsCanBeScheduled func(jobs []*api.Job) error) {
 
 	for _, label := range avoidNodeLabels.Entries {
 
-		candidateNewJob := addAvoidNodeAffinity(job, label.Key, label.Value)
+		candidateNewJob := addAvoidNodeAffinityInner(job, label.Key, label.Value)
 
 		err := validateJobsCanBeScheduled([]*api.Job{candidateNewJob})
 		if err != nil {
@@ -26,7 +26,7 @@ func AddAvoidNodeAffinity(job *api.Job, avoidNodeLabels *api.OrderedMap, validat
 	}
 }
 
-func addAvoidNodeAffinity(job *api.Job, labelName string, labelValue string) *api.Job {
+func addAvoidNodeAffinityInner(job *api.Job, labelName string, labelValue string) *api.Job {
 	var result = proto.Clone(job).(*api.Job)
 
 	addAvoidNodeAffinityToPod(result.PodSpec, labelName, labelValue)

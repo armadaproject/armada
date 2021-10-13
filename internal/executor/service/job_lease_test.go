@@ -68,9 +68,9 @@ func TestJobLease_GetAvoidNodeLabels_NoMatchingLabels_ReturnsError(t *testing.T)
 }
 
 func makeOrderedMap(labels ...label) *api.OrderedMap {
-	entries := []*api.OrderedMapEntry{}
+	entries := []*api.KeyvaluePair{}
 	for _, kv := range labels {
-		entries = append(entries, &api.OrderedMapEntry{Key: kv.name, Value: kv.val})
+		entries = append(entries, &api.KeyvaluePair{Key: kv.name, Value: kv.val})
 	}
 	return &api.OrderedMap{Entries: entries}
 }

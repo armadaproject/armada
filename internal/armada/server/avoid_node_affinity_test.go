@@ -9,11 +9,11 @@ import (
 	v1 "k8s.io/api/core/v1"
 )
 
-func Test_AddAvoidNodeAffinity_WhenCanBeScheduled_AddsAffinities(t *testing.T) {
-	labels := []*api.OrderedMapEntry{{Key: "name1", Value: "val1"}, {Key: "name2", Value: "val2"}}
+func Test_addAvoidNodeAffinity_WhenCanBeScheduled_AddsAffinities(t *testing.T) {
+	labels := []*api.KeyvaluePair{{Key: "name1", Value: "val1"}, {Key: "name2", Value: "val2"}}
 
 	job := basicJob()
-	AddAvoidNodeAffinity(job, &api.OrderedMap{Entries: labels}, func(jobs []*api.Job) error { return nil })
+	addAvoidNodeAffinity(job, &api.OrderedMap{Entries: labels}, func(jobs []*api.Job) error { return nil })
 
 	expectedJob := basicJob()
 	expectedJob.PodSpec.Affinity = vanillaAvoidLabelAffinites(labels)
@@ -22,11 +22,11 @@ func Test_AddAvoidNodeAffinity_WhenCanBeScheduled_AddsAffinities(t *testing.T) {
 	assert.Equal(t, expectedJob, job)
 }
 
-func Test_AddAvoidNodeAffinity_WhenCannotBeScheduled_DoesNotAddAffinities(t *testing.T) {
-	labels := []*api.OrderedMapEntry{{Key: "name1", Value: "val1"}, {Key: "name2", Value: "val2"}}
+func Test_addAvoidNodeAffinity_WhenCannotBeScheduled_DoesNotAddAffinities(t *testing.T) {
+	labels := []*api.KeyvaluePair{{Key: "name1", Value: "val1"}, {Key: "name2", Value: "val2"}}
 
 	job := basicJob()
-	AddAvoidNodeAffinity(job, &api.OrderedMap{Entries: labels}, func(jobs []*api.Job) error { return errors.New("Can't schedule") })
+	addAvoidNodeAffinity(job, &api.OrderedMap{Entries: labels}, func(jobs []*api.Job) error { return errors.New("Can't schedule") })
 
 	expectedJob := basicJob()
 
@@ -71,7 +71,7 @@ func Test_addAvoidNodeAffinityToPod_WhenDifferentLabelAlreadyThere_IncludesBothL
 	addAvoidNodeAffinityToPod(pod, "aa", "bb")
 
 	expectedPod := basicPod()
-	expectedPod.Affinity = vanillaAvoidLabelAffinites([]*api.OrderedMapEntry{{Key: "a", Value: "b"}, {Key: "aa", Value: "bb"}})
+	expectedPod.Affinity = vanillaAvoidLabelAffinites([]*api.KeyvaluePair{{Key: "a", Value: "b"}, {Key: "aa", Value: "bb"}})
 
 	assert.Equal(t, expectedPod, pod)
 }
@@ -132,10 +132,10 @@ func basicJob() *api.Job {
 }
 
 func vanillaAvoidLabelAffinity(key string, val string) *v1.Affinity {
-	return vanillaAvoidLabelAffinites([]*api.OrderedMapEntry{{Key: key, Value: val}})
+	return vanillaAvoidLabelAffinites([]*api.KeyvaluePair{{Key: key, Value: val}})
 }
 
-func vanillaAvoidLabelAffinites(labels []*api.OrderedMapEntry) *v1.Affinity {
+func vanillaAvoidLabelAffinites(labels []*api.KeyvaluePair) *v1.Affinity {
 	mexprs := []v1.NodeSelectorRequirement{}
 
 	for _, kv := range labels {

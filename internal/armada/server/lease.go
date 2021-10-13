@@ -164,7 +164,7 @@ func (q *AggregatedQueueServer) ReturnLease(ctx context.Context, request *api.Re
 
 	if request.AvoidNodeLabels != nil && len(request.AvoidNodeLabels.Entries) > 0 {
 		q.jobRepository.UpdateJobs([]string{request.JobId}, func(job *api.Job) {
-			AddAvoidNodeAffinity(job, request.AvoidNodeLabels, func(jobs []*api.Job) error {
+			addAvoidNodeAffinity(job, request.AvoidNodeLabels, func(jobs []*api.Job) error {
 				return validateJobsCanBeScheduled(jobs, q.schedulingInfoRepository)
 			})
 		})
