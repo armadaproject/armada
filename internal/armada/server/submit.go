@@ -144,7 +144,12 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 		return nil, status.Errorf(codes.InvalidArgument, e.Error())
 	}
 
-	e = validateJobsCanBeScheduled(jobs, server.schedulingInfoRepository)
+	allClusterSchedulingInfo, e := server.schedulingInfoRepository.GetClusterSchedulingInfo()
+	if e != nil {
+		return nil, e
+	}
+
+	e = validateJobsCanBeScheduled(jobs, allClusterSchedulingInfo)
 	if e != nil {
 		return nil, status.Errorf(codes.InvalidArgument, e.Error())
 	}
