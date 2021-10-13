@@ -158,7 +158,7 @@ func getAvoidNodeLabels(pod *v1.Pod, avoidNodeLabelsOnRetry []string, clusterCon
 	for _, label := range avoidNodeLabelsOnRetry {
 		val, exists := node.Labels[label]
 		if exists {
-			result.Entries = append(result.Entries, &api.KeyvaluePair{Key: label, Value: val})
+			result.Entries = append(result.Entries, &api.KeyValuePair{Key: label, Value: val})
 		}
 	}
 
@@ -169,5 +169,5 @@ func getAvoidNodeLabels(pod *v1.Pod, avoidNodeLabelsOnRetry []string, clusterCon
 }
 
 func emptyOrderedMap() *api.OrderedMap {
-	return &api.OrderedMap{Entries: []*api.KeyvaluePair{}}
+	return &api.OrderedMap{Entries: []*api.KeyValuePair{}}
 }

@@ -10,7 +10,7 @@ import (
 )
 
 func Test_addAvoidNodeAffinity_WhenCanBeScheduled_AddsAffinities(t *testing.T) {
-	labels := []*api.KeyvaluePair{{Key: "name1", Value: "val1"}, {Key: "name2", Value: "val2"}}
+	labels := []*api.KeyValuePair{{Key: "name1", Value: "val1"}, {Key: "name2", Value: "val2"}}
 
 	job := basicJob()
 	addAvoidNodeAffinity(job, &api.OrderedMap{Entries: labels}, func(jobs []*api.Job) error { return nil })
@@ -23,7 +23,7 @@ func Test_addAvoidNodeAffinity_WhenCanBeScheduled_AddsAffinities(t *testing.T) {
 }
 
 func Test_addAvoidNodeAffinity_WhenCannotBeScheduled_DoesNotAddAffinities(t *testing.T) {
-	labels := []*api.KeyvaluePair{{Key: "name1", Value: "val1"}, {Key: "name2", Value: "val2"}}
+	labels := []*api.KeyValuePair{{Key: "name1", Value: "val1"}, {Key: "name2", Value: "val2"}}
 
 	job := basicJob()
 	addAvoidNodeAffinity(job, &api.OrderedMap{Entries: labels}, func(jobs []*api.Job) error { return errors.New("Can't schedule") })
@@ -71,7 +71,7 @@ func Test_addAvoidNodeAffinityToPod_WhenDifferentLabelAlreadyThere_IncludesBothL
 	addAvoidNodeAffinityToPod(pod, "aa", "bb")
 
 	expectedPod := basicPod()
-	expectedPod.Affinity = vanillaAvoidLabelAffinites([]*api.KeyvaluePair{{Key: "a", Value: "b"}, {Key: "aa", Value: "bb"}})
+	expectedPod.Affinity = vanillaAvoidLabelAffinites([]*api.KeyValuePair{{Key: "a", Value: "b"}, {Key: "aa", Value: "bb"}})
 
 	assert.Equal(t, expectedPod, pod)
 }
@@ -132,10 +132,10 @@ func basicJob() *api.Job {
 }
 
 func vanillaAvoidLabelAffinity(key string, val string) *v1.Affinity {
-	return vanillaAvoidLabelAffinites([]*api.KeyvaluePair{{Key: key, Value: val}})
+	return vanillaAvoidLabelAffinites([]*api.KeyValuePair{{Key: key, Value: val}})
 }
 
-func vanillaAvoidLabelAffinites(labels []*api.KeyvaluePair) *v1.Affinity {
+func vanillaAvoidLabelAffinites(labels []*api.KeyValuePair) *v1.Affinity {
 	mexprs := []v1.NodeSelectorRequirement{}
 
 	for _, kv := range labels {
