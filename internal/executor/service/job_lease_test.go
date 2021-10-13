@@ -67,12 +67,12 @@ func TestJobLease_GetAvoidNodeLabels_NoMatchingLabels_ReturnsError(t *testing.T)
 
 }
 
-func makeOrderedMap(labels ...label) *api.OrderedMap {
-	entries := []*api.KeyValuePair{}
+func makeOrderedMap(labels ...label) *api.OrderedStringMap {
+	entries := []*api.StringKeyValuePair{}
 	for _, kv := range labels {
-		entries = append(entries, &api.KeyValuePair{Key: kv.name, Value: kv.val})
+		entries = append(entries, &api.StringKeyValuePair{Key: kv.name, Value: kv.val})
 	}
-	return &api.OrderedMap{Entries: entries}
+	return &api.OrderedStringMap{Entries: entries}
 }
 
 type label struct {

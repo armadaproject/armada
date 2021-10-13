@@ -9,7 +9,7 @@ import (
 	"github.com/G-Research/armada/pkg/api"
 )
 
-func addAvoidNodeAffinity(job *api.Job, avoidNodeLabels *api.OrderedMap, validateJobsCanBeScheduled func(jobs []*api.Job) error) {
+func addAvoidNodeAffinity(job *api.Job, avoidNodeLabels *api.OrderedStringMap, validateJobsCanBeScheduled func(jobs []*api.Job) error) {
 
 	for _, label := range avoidNodeLabels.Entries {
 
@@ -38,11 +38,11 @@ func addAvoidNodeAffinityInner(job *api.Job, labelName string, labelValue string
 }
 
 func addAvoidNodeAffinityToPod(pod *v1.PodSpec, labelName string, labelValue string) {
-	ensurePodHasNodeSelectorTerm(pod)
+	ensurePodHasNodeSelectorTerms(pod)
 	addAvoidNodeAffinityToNodeSelectorTerms(pod.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms, labelName, labelValue)
 }
 
-func ensurePodHasNodeSelectorTerm(pod *v1.PodSpec) {
+func ensurePodHasNodeSelectorTerms(pod *v1.PodSpec) {
 	if pod.Affinity == nil {
 		pod.Affinity = &v1.Affinity{}
 	}

@@ -90,7 +90,7 @@ func (jobLeaseService *JobLeaseService) ReturnLease(pod *v1.Pod) error {
 	avoidNodeLabels, err := getAvoidNodeLabels(pod, jobLeaseService.avoidNodeLabelsOnRetry, jobLeaseService.clusterContext)
 	if err != nil {
 		log.Warnf("Failed to get node labels to avoid on rerun for pod %s in namespace %s: %v", pod.Name, pod.Namespace, err)
-		avoidNodeLabels = emptyOrderedMap()
+		avoidNodeLabels = emptyOrderedStringMap()
 	}
 
 	log.Infof("Returning lease for job %s (will try to avoid these node labels next time: %v)", jobId, avoidNodeLabels)
@@ -138,15 +138,15 @@ func (jobLeaseService *JobLeaseService) RenewJobLeases(jobs []*job.RunningJob) (
 	return failedJobs, nil
 }
 
-func getAvoidNodeLabels(pod *v1.Pod, avoidNodeLabelsOnRetry []string, clusterContext context2.ClusterContext) (*api.OrderedMap, error) {
+func getAvoidNodeLabels(pod *v1.Pod, avoidNodeLabelsOnRetry []string, clusterContext context2.ClusterContext) (*api.OrderedStringMap, error) {
 	if len(avoidNodeLabelsOnRetry) == 0 {
-		return emptyOrderedMap(), nil
+		return emptyOrderedStringMap(), nil
 	}
 
 	nodeName := pod.Spec.NodeName
 	if nodeName == "" {
 		log.Infof("Pod %s in namespace %s doesn't have nodeName set, so returning empty avoid_node_labels", pod.Name, pod.Namespace)
-		return emptyOrderedMap(), nil
+		return emptyOrderedStringMap(), nil
 	}
 
 	node, err := clusterContext.GetNode(nodeName)
@@ -154,11 +154,11 @@ func getAvoidNodeLabels(pod *v1.Pod, avoidNodeLabelsOnRetry []string, clusterCon
 		return nil, fmt.Errorf("Could not get node %s from Kubernetes api: %v", nodeName, err)
 	}
 
-	result := api.OrderedMap{}
+	result := api.OrderedStringMap{}
 	for _, label := range avoidNodeLabelsOnRetry {
 		val, exists := node.Labels[label]
 		if exists {
-			result.Entries = append(result.Entries, &api.KeyValuePair{Key: label, Value: val})
+			result.Entries = append(result.Entries, &api.StringKeyValuePair{Key: label, Value: val})
 		}
 	}
 
@@ -168,6 +168,6 @@ func getAvoidNodeLabels(pod *v1.Pod, avoidNodeLabelsOnRetry []string, clusterCon
 	return &result, nil
 }
 
-func emptyOrderedMap() *api.OrderedMap {
-	return &api.OrderedMap{Entries: []*api.KeyValuePair{}}
+func emptyOrderedStringMap() *api.OrderedStringMap {
+	return &api.OrderedStringMap{Entries: []*api.StringKeyValuePair{}}
 }
