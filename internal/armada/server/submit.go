@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/gogo/protobuf/types"
 	log "github.com/sirupsen/logrus"
@@ -12,7 +11,6 @@ import (
 	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/G-Research/armada/internal/armada/permissions"
 	"github.com/G-Research/armada/internal/armada/repository"
-	"github.com/G-Research/armada/internal/armada/scheduling"
 	"github.com/G-Research/armada/internal/common/auth/authorization"
 	"github.com/G-Research/armada/internal/common/auth/permission"
 	"github.com/G-Research/armada/pkg/api"
@@ -146,7 +144,12 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 		return nil, status.Errorf(codes.InvalidArgument, e.Error())
 	}
 
-	e = server.validateJobsCanBeScheduled(jobs)
+	allClusterSchedulingInfo, e := server.schedulingInfoRepository.GetClusterSchedulingInfo()
+	if e != nil {
+		return nil, e
+	}
+
+	e = validateJobsCanBeScheduled(jobs, allClusterSchedulingInfo)
 	if e != nil {
 		return nil, status.Errorf(codes.InvalidArgument, e.Error())
 	}
@@ -193,22 +196,6 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 		return result, status.Errorf(codes.Internal, e.Error())
 	}
 	return result, nil
-}
-
-func (server *SubmitServer) validateJobsCanBeScheduled(jobs []*api.Job) error {
-	allClusterSchedulingInfo, e := server.schedulingInfoRepository.GetClusterSchedulingInfo()
-	if e != nil {
-		return e
-	}
-
-	activeClusterSchedulingInfo := scheduling.FilterActiveClusterSchedulingInfoReports(allClusterSchedulingInfo)
-	for i, job := range jobs {
-		if !scheduling.MatchSchedulingRequirementsOnAnyCluster(job, activeClusterSchedulingInfo) {
-			return fmt.Errorf("job with index %d is not schedulable on any cluster", i)
-		}
-	}
-
-	return nil
 }
 
 func (server *SubmitServer) CancelJobs(ctx context.Context, request *api.JobCancelRequest) (*api.CancellationResult, error) {
