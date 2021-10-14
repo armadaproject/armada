@@ -26,6 +26,7 @@ type JobRecorder interface {
 	RecordJobDuplicate(event *api.JobDuplicateFoundEvent) error
 	RecordJobTerminated(event *api.JobTerminatedEvent) error
 	RecordJobReprioritized(event *api.JobReprioritizedEvent) error
+	RecordJobUpdated(event *api.JobUpdatedEvent) error
 }
 
 type SQLJobStore struct {
@@ -97,7 +98,7 @@ type jobJsonRow struct {
 }
 
 func (r *SQLJobStore) RecordJobReprioritized(event *api.JobReprioritizedEvent) error {
-	updatedJobJson, err := r.getUpdatedJobJson(event)
+	updatedJobJson, err := r.getReprioritizedJobJson(event)
 	if err != nil {
 		return err
 	}
@@ -119,6 +120,35 @@ func (r *SQLJobStore) RecordJobReprioritized(event *api.JobReprioritizedEvent) e
 
 	_, err = ds.Prepared(true).Executor().Exec()
 	return err
+}
+
+func (r *SQLJobStore) RecordJobUpdated(event *api.JobUpdatedEvent) error {
+	updatedJobJson, err := r.getUpdatedJobJson(event)
+	if err != nil {
+		return err
+	}
+
+	ds := r.db.Update(jobTable).
+		Set(goqu.Record{
+			"priority": event.Job.Priority,
+			"job":      updatedJobJson,
+		}).Where(job_jobId.Eq(event.JobId))
+
+	res, err := ds.Prepared(true).Executor().Exec()
+	if err != nil {
+		return err
+	}
+
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rows != 1 {
+		return fmt.Errorf("Expected to update 1 row but updated %d", rows)
+	}
+
+	return nil
 }
 
 func (r *SQLJobStore) RecordJobDuplicate(event *api.JobDuplicateFoundEvent) error {
@@ -320,7 +350,7 @@ func (r *SQLJobStore) RecordJobTerminated(event *api.JobTerminatedEvent) error {
 	return err
 }
 
-func (r *SQLJobStore) getUpdatedJobJson(event *api.JobReprioritizedEvent) (sql.NullString, error) {
+func (r *SQLJobStore) getReprioritizedJobJson(event *api.JobReprioritizedEvent) (sql.NullString, error) {
 	selectDs := r.db.From(jobTable).
 		Select(job_job).
 		Where(job_jobId.Eq(event.JobId))
@@ -344,6 +374,14 @@ func (r *SQLJobStore) getUpdatedJobJson(event *api.JobReprioritizedEvent) (sql.N
 
 	jobFromJson.Priority = event.NewPriority
 	updatedJobJson, err := json.Marshal(jobFromJson)
+	if err != nil {
+		return sql.NullString{}, nil
+	}
+	return NewNullString(string(updatedJobJson)), nil
+}
+
+func (r *SQLJobStore) getUpdatedJobJson(event *api.JobUpdatedEvent) (sql.NullString, error) {
+	updatedJobJson, err := json.Marshal(event.Job)
 	if err != nil {
 		return sql.NullString{}, nil
 	}

@@ -32,6 +32,12 @@ const queueResourcesBatchSize = 20000
 
 const JobNotFound = "no job found with provided Id"
 
+type UpdateJobResult struct {
+	JobId string
+	Job   *api.Job
+	Error error
+}
+
 type JobRepository interface {
 	PeekQueue(queue string, limit int64) ([]*api.Job, error)
 	TryLeaseJobs(clusterId string, queue string, jobs []*api.Job) ([]*api.Job, error)
@@ -49,7 +55,7 @@ type JobRepository interface {
 	GetActiveJobIds(queue string, jobSetId string) ([]string, error)
 	GetLeasedJobIds(queue string) ([]string, error)
 	UpdateStartTime(jobId string, clusterId string, startTime time.Time) error
-	UpdateJobs(ids []string, mutator func(*api.Job)) (map[string]string, error)
+	UpdateJobs(ids []string, mutator func(*api.Job)) []UpdateJobResult
 	GetJobRunInfos(jobIds []string) (map[string]*RunInfo, error)
 	GetQueueActiveJobSets(queue string) ([]*api.JobSetInfo, error)
 	AddRetryAttempt(jobId string) error
@@ -541,28 +547,30 @@ end
 return redis.call('HSET', startTimeKey, clusterId, startTime)
 `)
 
-func (repo *RedisJobRepository) UpdateJobs(ids []string, mutator func(*api.Job)) (map[string]string, error) {
+func (repo *RedisJobRepository) UpdateJobs(ids []string, mutator func(*api.Job)) []UpdateJobResult {
 	return repo.updateJobs(ids, mutator, 250, 3, 100*time.Millisecond)
 }
 
-func (repo *RedisJobRepository) updateJobs(ids []string, mutator func(*api.Job), batchSize int, retries int, retryDelay time.Duration) (map[string]string, error) {
+func (repo *RedisJobRepository) updateJobs(ids []string, mutator func(*api.Job), batchSize int, retries int, retryDelay time.Duration) []UpdateJobResult {
 	batchedIds := util.Batch(ids, batchSize)
-	result := map[string]string{}
+	result := []UpdateJobResult{}
 
 	for _, batch := range batchedIds {
 		batchResult, err := repo.updateJobBatchWithRetry(batch, mutator, retries, retryDelay)
 		if err == nil {
-			result = util.MergeMaps(result, batchResult)
+			for _, jobResult := range batchResult {
+				result = append(result, jobResult)
+			}
 		} else {
 			for _, id := range batch {
-				result[id] = err.Error()
+				result = append(result, UpdateJobResult{JobId: id, Job: nil, Error: err})
 			}
 		}
 	}
-	return result, nil
+	return result
 }
 
-func (repo *RedisJobRepository) updateJobBatchWithRetry(ids []string, mutator func(*api.Job), retries int, retryDelay time.Duration) (map[string]string, error) {
+func (repo *RedisJobRepository) updateJobBatchWithRetry(ids []string, mutator func(*api.Job), retries int, retryDelay time.Duration) ([]UpdateJobResult, error) {
 	for retry := 0; ; retry++ {
 		result, err := repo.updateJobBatch(ids, mutator)
 		if err != redis.TxFailedErr {
@@ -578,14 +586,14 @@ func (repo *RedisJobRepository) updateJobBatchWithRetry(ids []string, mutator fu
 	}
 }
 
-func (repo *RedisJobRepository) updateJobBatch(ids []string, mutator func(*api.Job)) (map[string]string, error) {
+func (repo *RedisJobRepository) updateJobBatch(ids []string, mutator func(*api.Job)) ([]UpdateJobResult, error) {
 
 	var keysToWatch []string
 	for _, id := range ids {
 		keysToWatch = append(keysToWatch, jobObjectPrefix+id)
 	}
 
-	result := make(map[string]string)
+	result := []UpdateJobResult{}
 	err := repo.db.Watch(func(tx *redis.Tx) error {
 
 		// There is currently no clean way to implement the WATCH/GET/MULTI/SET/EXEC pattern with go-redis
@@ -621,11 +629,12 @@ func (repo *RedisJobRepository) updateJobBatch(ids []string, mutator func(*api.J
 
 		for i, cmd := range commands {
 			err := cmd.Err()
-			var errorString string
 			if err != nil {
-				errorString = err.Error()
+				log.Warnf("UpdateJobs: Failed to update job %s: %v", jobs[i].Id, err)
+				result = append(result, UpdateJobResult{JobId: jobs[i].Id, Job: nil, Error: err})
+			} else {
+				result = append(result, UpdateJobResult{JobId: jobs[i].Id, Job: jobs[i], Error: nil})
 			}
-			result[jobs[i].Id] = errorString
 		}
 
 		return nil

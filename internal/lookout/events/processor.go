@@ -92,6 +92,11 @@ func (p *EventProcessor) processEvent(event api.Event) error {
 	case *api.JobReprioritizedEvent:
 		return p.recorder.RecordJobReprioritized(typed)
 
+	case *api.JobUpdatedEvent:
+		log.Errorf("processEvent: event=%v typed-%v\n", event, typed)
+
+		return p.recorder.RecordJobUpdated(typed)
+
 	case *api.JobCancellingEvent: // noop
 	case *api.JobCancelledEvent:
 		// job marked for cancellation

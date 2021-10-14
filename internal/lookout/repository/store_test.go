@@ -3,6 +3,7 @@ package repository
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -743,6 +744,8 @@ func Test_JobReprioritizedEvent(t *testing.T) {
 			})
 			assert.NoError(t, err)
 
+			assert.Equal(t, float64(123), getPriority(t, db, jobId))
+
 			assert.Equal(t, float64(123), selectDouble(t, db,
 				"SELECT priority FROM job"))
 
@@ -776,12 +779,121 @@ func Test_JobReprioritizedEvent(t *testing.T) {
 			})
 			assert.NoError(t, err)
 
+			assert.Equal(t, float64(256), getPriority(t, db, jobId))
+
 			assert.Equal(t, float64(256), selectDouble(t, db,
 				"SELECT priority FROM job"))
 			assert.False(t, selectNullString(t, db,
 				"SELECT job FROM job").Valid)
 		})
 	})
+}
+
+func Test_JobUpdatedEvent(t *testing.T) {
+	t.Run("job exists", func(t *testing.T) {
+
+		newPriority := 123.0
+		newAnnotations := map[string]string{"a": "b"}
+
+		withDatabase(t, func(db *goqu.Database) {
+			jobStore := NewSQLJobStore(db, userAnnotationPrefix)
+			jobId := util.NewULID()
+			otherJobId := util.NewULID()
+
+			err := jobStore.RecordJob(&api.Job{
+				Id:      jobId,
+				Queue:   "queue",
+				Created: someTime,
+			})
+			assert.NoError(t, err)
+
+			err = jobStore.RecordJob(&api.Job{
+				Id:      otherJobId,
+				Queue:   "queue",
+				Created: someTime,
+			})
+			assert.NoError(t, err)
+
+			err = jobStore.RecordJobUpdated(&api.JobUpdatedEvent{
+				JobId:    jobId,
+				JobSetId: "job-set",
+				Queue:    "queue",
+				Created:  someTime,
+				Job: api.Job{
+					Id:          jobId,
+					Queue:       "queue",
+					Created:     someTime,
+					Annotations: newAnnotations,
+					Priority:    newPriority,
+				},
+			})
+			assert.NoError(t, err)
+
+			assert.Equal(t, newPriority, getPriority(t, db, jobId))
+			assert.Equal(t, 0.0, getPriority(t, db, otherJobId))
+
+			job := getJob(t, db, jobId)
+			assert.Equal(t, newPriority, job.Priority)
+			assert.Equal(t, newAnnotations, job.Annotations)
+
+			otherJob := getJob(t, db, otherJobId)
+			assert.Equal(t, 0.0, otherJob.Priority)
+			assert.Nil(t, otherJob.Annotations)
+		})
+	})
+
+	t.Run("job not found", func(t *testing.T) {
+		newPriority := 123.0
+		newAnnotations := map[string]string{"a": "b"}
+
+		withDatabase(t, func(db *goqu.Database) {
+			jobStore := NewSQLJobStore(db, userAnnotationPrefix)
+			jobId := "wrong"
+			otherJobId := util.NewULID()
+
+			err := jobStore.RecordJob(&api.Job{
+				Id:      otherJobId,
+				Queue:   "queue",
+				Created: someTime,
+			})
+			assert.NoError(t, err)
+
+			err = jobStore.RecordJobUpdated(&api.JobUpdatedEvent{
+				JobId:    jobId,
+				JobSetId: "job-set",
+				Queue:    "queue",
+				Created:  someTime,
+				Job: api.Job{
+					Id:          jobId,
+					Queue:       "queue",
+					Created:     someTime,
+					Annotations: newAnnotations,
+					Priority:    newPriority,
+				},
+			})
+			assert.Error(t, err)
+
+			assert.Equal(t, 0, selectInt(t, db, fmt.Sprintf("SELECT COUNT(1) FROM job WHERE job_id = '%s'", jobId)))
+
+			assert.Equal(t, 0.0, getPriority(t, db, otherJobId))
+
+			otherJob := getJob(t, db, otherJobId)
+			assert.Equal(t, 0.0, otherJob.Priority)
+			assert.Nil(t, otherJob.Annotations)
+		})
+	})
+}
+
+func getPriority(t *testing.T, db *goqu.Database, jobId string) float64 {
+	return selectDouble(t, db, fmt.Sprintf("SELECT priority FROM job WHERE job_id = '%s'", jobId))
+}
+
+func getJob(t *testing.T, db *goqu.Database, jobId string) *api.Job {
+	var job api.Job
+	jobJson := ParseNullString(selectNullString(t, db, fmt.Sprintf("SELECT job FROM job WHERE job_id = '%s'", jobId)))
+	err := json.Unmarshal([]byte(jobJson), &job)
+	assert.Nil(t, err)
+	return &job
 }
 
 func selectInt(t *testing.T, db *goqu.Database, query string) int {

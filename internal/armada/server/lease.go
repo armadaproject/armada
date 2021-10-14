@@ -2,9 +2,11 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/gogo/protobuf/types"
+	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -163,16 +165,10 @@ func (q *AggregatedQueueServer) ReturnLease(ctx context.Context, request *api.Re
 	}
 
 	if request.AvoidNodeLabels != nil && len(request.AvoidNodeLabels.Entries) > 0 {
-		allClusterSchedulingInfo, e := q.schedulingInfoRepository.GetClusterSchedulingInfo()
-		if e != nil {
-			return nil, e
+		err = q.addAvoidNodeAffinity(request.JobId, request.AvoidNodeLabels, authorization.GetPrincipal(ctx).GetName())
+		if err != nil {
+			log.Warnf("Failed to set avoid node affinity for job %s: %v", request.JobId, err)
 		}
-
-		q.jobRepository.UpdateJobs([]string{request.JobId}, func(job *api.Job) {
-			addAvoidNodeAffinity(job, request.AvoidNodeLabels, func(jobs []*api.Job) error {
-				return validateJobsCanBeScheduled(jobs, allClusterSchedulingInfo)
-			})
-		})
 	}
 
 	_, err = q.jobRepository.ReturnLease(request.ClusterId, request.JobId)
@@ -186,6 +182,31 @@ func (q *AggregatedQueueServer) ReturnLease(ctx context.Context, request *api.Re
 	}
 
 	return &types.Empty{}, nil
+}
+
+func (q *AggregatedQueueServer) addAvoidNodeAffinity(jobId string, labels *api.OrderedStringMap, principalName string) error {
+	allClusterSchedulingInfo, e := q.schedulingInfoRepository.GetClusterSchedulingInfo()
+	if e != nil {
+		return e
+	}
+
+	res := q.jobRepository.UpdateJobs([]string{jobId}, func(job *api.Job) {
+		changed := addAvoidNodeAffinity(job, labels, func(jobs []*api.Job) error {
+			return validateJobsCanBeScheduled(jobs, allClusterSchedulingInfo)
+		})
+		if changed {
+			err := reportJobsUpdated(q.eventStore, principalName, []*api.Job{job})
+			if err != nil {
+				log.Warnf("Failed to report job updated event for job %s: %v", job.Id, err)
+			}
+		}
+	})
+
+	if len(res) < 1 {
+		return errors.New("Job not found")
+	}
+
+	return res[0].Error
 }
 
 func (q *AggregatedQueueServer) ReportDone(ctx context.Context, idList *api.IdList) (*api.IdList, error) {
