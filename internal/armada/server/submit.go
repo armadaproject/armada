@@ -300,12 +300,11 @@ func (server *SubmitServer) ReprioritizeJobs(ctx context.Context, request *api.J
 func (server *SubmitServer) reprioritizeJobs(jobIds []string, newPriority float64, principalName string) (map[string]string, error) {
 	updateJobResults := server.jobRepository.UpdateJobs(jobIds, func(job *api.Job) {
 		job.Priority = newPriority
+		err := server.reportReprioritizedJobEvents(job, newPriority, principalName)
+		if err != nil {
+			log.Warnf("Failed to report events for reprioritize of job %s: %v", job.Id, err)
+		}
 	})
-
-	err := server.reportReprioritizedJobsEvents(updateJobResults, newPriority, principalName)
-	if err != nil {
-		return nil, err
-	}
 
 	results := map[string]string{}
 	for _, r := range updateJobResults {
@@ -318,15 +317,8 @@ func (server *SubmitServer) reprioritizeJobs(jobIds []string, newPriority float6
 	return results, nil
 }
 
-func (server *SubmitServer) reportReprioritizedJobsEvents(updateJobResults []repository.UpdateJobResult, newPriority float64, principalName string) error {
-	reprioritizedJobs := []*api.Job{}
-	for _, r := range updateJobResults {
-		if r.Error != nil {
-			log.Errorf("Failed to change priority for job %s: %v", r.JobId, r.Error)
-			continue
-		}
-		reprioritizedJobs = append(reprioritizedJobs, r.Job)
-	}
+func (server *SubmitServer) reportReprioritizedJobEvents(job *api.Job, newPriority float64, principalName string) error {
+	reprioritizedJobs := []*api.Job{job}
 
 	err := reportJobsUpdated(server.eventStore, principalName, reprioritizedJobs)
 	if err != nil {
