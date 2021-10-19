@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"strings"
 
 	"github.com/gogo/protobuf/types"
 	log "github.com/sirupsen/logrus"
@@ -298,11 +299,13 @@ func (server *SubmitServer) ReprioritizeJobs(ctx context.Context, request *api.J
 }
 
 func (server *SubmitServer) reprioritizeJobs(jobIds []string, newPriority float64, principalName string) (map[string]string, error) {
-	updateJobResults := server.jobRepository.UpdateJobs(jobIds, func(job *api.Job) {
-		job.Priority = newPriority
-		err := server.reportReprioritizedJobEvents(job, newPriority, principalName)
+	updateJobResults := server.jobRepository.UpdateJobs(jobIds, func(jobs []*api.Job) {
+		for _, job := range jobs {
+			job.Priority = newPriority
+		}
+		err := server.reportReprioritizedJobEvents(jobs, newPriority, principalName)
 		if err != nil {
-			log.Warnf("Failed to report events for reprioritize of job %s: %v", job.Id, err)
+			log.Warnf("Failed to report events for reprioritize of jobs %s: %v", strings.Join(jobIds, ", "), err)
 		}
 	})
 
@@ -317,8 +320,7 @@ func (server *SubmitServer) reprioritizeJobs(jobIds []string, newPriority float6
 	return results, nil
 }
 
-func (server *SubmitServer) reportReprioritizedJobEvents(job *api.Job, newPriority float64, principalName string) error {
-	reprioritizedJobs := []*api.Job{job}
+func (server *SubmitServer) reportReprioritizedJobEvents(reprioritizedJobs []*api.Job, newPriority float64, principalName string) error {
 
 	err := reportJobsUpdated(server.eventStore, principalName, reprioritizedJobs)
 	if err != nil {

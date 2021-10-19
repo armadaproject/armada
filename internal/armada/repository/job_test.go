@@ -549,8 +549,9 @@ func TestUpdateJobs_SingleJobThatExists_ChangesJob(t *testing.T) {
 
 		newSchedName := "custom"
 
-		results := r.UpdateJobs([]string{job1.Id}, func(job *api.Job) {
-			job.PodSpec.SchedulerName = newSchedName
+		results := r.UpdateJobs([]string{job1.Id}, func(jobs []*api.Job) {
+			assert.Equal(t, 1, len(jobs))
+			jobs[0].PodSpec.SchedulerName = newSchedName
 		})
 
 		assert.Equal(t, 1, len(results))
@@ -571,12 +572,13 @@ func TestUpdateJobs_WhenTransactionAlwaysFails_ReturnsError_JobNotChanged(t *tes
 
 		newSchedName := "custom"
 
-		results := r.UpdateJobs([]string{job1.Id}, func(job *api.Job) {
-			results2 := r.UpdateJobs([]string{job1.Id}, func(job *api.Job) {}) // 2nd update in middle of transaction
+		results := r.UpdateJobs([]string{job1.Id}, func(jobs []*api.Job) {
+			results2 := r.UpdateJobs([]string{job1.Id}, func(jobs []*api.Job) {}) // 2nd update in middle of transaction
 			assert.Equal(t, 1, len(results2))
 			assert.Nil(t, results2[0].Error)
 
-			job.PodSpec.SchedulerName = newSchedName
+			assert.Equal(t, 1, len(jobs))
+			jobs[0].PodSpec.SchedulerName = newSchedName
 		})
 
 		assert.Equal(t, 1, len(results))
@@ -598,14 +600,15 @@ func TestUpdateJobs_WhenTransactionFailsOnce_Retries_JobChanged(t *testing.T) {
 		newSchedName := "custom"
 
 		first := true
-		results := r.updateJobs([]string{job1.Id}, func(job *api.Job) {
+		results := r.updateJobs([]string{job1.Id}, func(jobs []*api.Job) {
 			if first {
-				results2 := r.UpdateJobs([]string{job1.Id}, func(job *api.Job) {}) // 2nd update in middle of transaction
+				results2 := r.UpdateJobs([]string{job1.Id}, func(jobs []*api.Job) {}) // 2nd update in middle of transaction
 				assert.Equal(t, 1, len(results2))
 				assert.Nil(t, results2[0].Error)
 				first = false
 			}
-			job.PodSpec.SchedulerName = newSchedName
+			assert.Equal(t, 1, len(jobs))
+			jobs[0].PodSpec.SchedulerName = newSchedName
 		}, 100, 3, time.Microsecond)
 
 		assert.Equal(t, 1, len(results))
@@ -628,9 +631,11 @@ func TestUpdateJobs_WhenTransactionAlwaysFailsForOneBatch_ReturnsErrorForThatBat
 
 		newSchedName := "custom"
 
-		results := r.updateJobs([]string{job1.Id, job2.Id, job3.Id}, func(job *api.Job) {
+		results := r.updateJobs([]string{job1.Id, job2.Id, job3.Id}, func(jobs []*api.Job) {
+			assert.Equal(t, 1, len(jobs))
+			job := jobs[0]
 			if job.Id == job2.Id {
-				results2 := r.UpdateJobs([]string{job2.Id}, func(job *api.Job) {}) // 2nd update in middle of transaction
+				results2 := r.UpdateJobs([]string{job2.Id}, func(jobs []*api.Job) {}) // 2nd update in middle of transaction
 				assert.Equal(t, 1, len(results2))
 				assert.Nil(t, results2[0].Error)
 			}
@@ -677,8 +682,10 @@ func whenOneOfThreeJobsIsMissing_SkipsMissingJob_OtherChangesSucceed(t *testing.
 
 		newSchedName := "custom"
 
-		results := r.updateJobs([]string{job1.Id, "wrong", job3.Id}, func(job *api.Job) {
-			job.PodSpec.SchedulerName = newSchedName
+		results := r.updateJobs([]string{job1.Id, "wrong", job3.Id}, func(jobs []*api.Job) {
+			for _, job := range jobs {
+				job.PodSpec.SchedulerName = newSchedName
+			}
 		}, batchSize, 3, time.Microsecond)
 
 		assert.Equal(t, 2, len(results))
