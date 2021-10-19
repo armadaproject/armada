@@ -172,7 +172,7 @@ func Test_RecordAnnotations(t *testing.T) {
 				Id:      util.NewULID(),
 				Queue:   queue,
 				Created: someTime,
-			})
+			}, someTime)
 			assert.NoError(t, err)
 			assert.Equal(t, 0, selectInt(t, db,
 				"SELECT COUNT(*) FROM user_annotation_lookup"))
@@ -193,7 +193,7 @@ func Test_RecordAnnotations(t *testing.T) {
 					"prefix/third": "other",
 					"prefix/":      "nothing",
 				},
-			})
+			}, someTime.Add(time.Minute))
 			assert.NoError(t, err)
 			assert.Equal(t, 2, selectInt(t, db,
 				"SELECT COUNT(*) FROM user_annotation_lookup"))
@@ -256,7 +256,7 @@ func Test_Queued(t *testing.T) {
 				Id:      util.NewULID(),
 				Queue:   queue,
 				Created: someTime,
-			})
+			}, someTime)
 			assert.NoError(t, err)
 
 			assert.Equal(t, JobStateToIntMap[JobQueued], selectInt(t, db,
@@ -281,7 +281,7 @@ func Test_Queued(t *testing.T) {
 				Id:      jobId,
 				Queue:   "queue",
 				Created: someTime,
-			})
+			}, someTime)
 			assert.NoError(t, err)
 
 			assert.Equal(t, JobStateToIntMap[JobPending], selectInt(t, db,
@@ -646,7 +646,7 @@ func Test_Duplicate(t *testing.T) {
 			Id:      jobId,
 			Queue:   "queue",
 			Created: someTime,
-		})
+		}, someTime)
 		assert.NoError(t, err)
 
 		err = jobStore.RecordJobDuplicate(&api.JobDuplicateFoundEvent{
@@ -679,7 +679,7 @@ func Test_DuplicateOutOfOrder(t *testing.T) {
 			Id:      jobId,
 			Queue:   "queue",
 			Created: someTime,
-		})
+		}, someTime)
 		assert.NoError(t, err)
 
 		assert.Equal(t, JobStateToIntMap[JobDuplicate], selectInt(t, db,
@@ -732,7 +732,7 @@ func Test_JobReprioritizedEvent(t *testing.T) {
 				Id:      jobId,
 				Queue:   "queue",
 				Created: someTime,
-			})
+			}, someTime)
 			assert.NoError(t, err)
 
 			err = jobStore.RecordJobReprioritized(&api.JobReprioritizedEvent{
@@ -793,7 +793,9 @@ func Test_JobUpdatedEvent(t *testing.T) {
 	t.Run("job exists", func(t *testing.T) {
 
 		newPriority := 123.0
-		newAnnotations := map[string]string{"a": "b"}
+
+		oldAnnotations := map[string]string{userAnnotationPrefix + "a": "b", userAnnotationPrefix + "1": "2"}
+		newAnnotations := map[string]string{userAnnotationPrefix + "c": "d", userAnnotationPrefix + "1": "3"}
 
 		withDatabase(t, func(db *goqu.Database) {
 			jobStore := NewSQLJobStore(db, userAnnotationPrefix)
@@ -801,32 +803,31 @@ func Test_JobUpdatedEvent(t *testing.T) {
 			otherJobId := util.NewULID()
 
 			err := jobStore.RecordJob(&api.Job{
-				Id:      jobId,
-				Queue:   "queue",
-				Created: someTime,
-			})
+				Id:          jobId,
+				Queue:       "queue",
+				Created:     someTime,
+				Annotations: oldAnnotations,
+			},
+				someTime)
 			assert.NoError(t, err)
 
 			err = jobStore.RecordJob(&api.Job{
 				Id:      otherJobId,
 				Queue:   "queue",
 				Created: someTime,
-			})
+			},
+				someTime.Add(time.Minute))
 			assert.NoError(t, err)
 
-			err = jobStore.RecordJobUpdated(&api.JobUpdatedEvent{
-				JobId:    jobId,
-				JobSetId: "job-set",
-				Queue:    "queue",
-				Created:  someTime,
-				Job: api.Job{
+			err = jobStore.RecordJob(
+				&api.Job{
 					Id:          jobId,
 					Queue:       "queue",
 					Created:     someTime,
 					Annotations: newAnnotations,
 					Priority:    newPriority,
 				},
-			})
+				someTime.Add(time.Minute))
 			assert.NoError(t, err)
 
 			assert.Equal(t, newPriority, getPriority(t, db, jobId))
@@ -836,52 +837,67 @@ func Test_JobUpdatedEvent(t *testing.T) {
 			assert.Equal(t, newPriority, job.Priority)
 			assert.Equal(t, newAnnotations, job.Annotations)
 
+			assert.False(t, hasUserAnnotation(t, db, jobId, "a", "b"))
+			assert.True(t, hasUserAnnotation(t, db, jobId, "c", "d"))
+			assert.False(t, hasUserAnnotation(t, db, jobId, "1", "2"))
+			assert.True(t, hasUserAnnotation(t, db, jobId, "1", "3"))
+
 			otherJob := getJob(t, db, otherJobId)
 			assert.Equal(t, 0.0, otherJob.Priority)
 			assert.Nil(t, otherJob.Annotations)
 		})
 	})
 
-	t.Run("job not found", func(t *testing.T) {
-		newPriority := 123.0
-		newAnnotations := map[string]string{"a": "b"}
+	t.Run("existing job has later timestamp than event", func(t *testing.T) {
+
+		oldPriority := 123.0
+		oldAnnotations := map[string]string{userAnnotationPrefix + "a": "b", userAnnotationPrefix + "1": "2"}
+
+		newPriority := 456.0
+		newAnnotations := map[string]string{userAnnotationPrefix + "c": "d", userAnnotationPrefix + "1": "3"}
 
 		withDatabase(t, func(db *goqu.Database) {
 			jobStore := NewSQLJobStore(db, userAnnotationPrefix)
-			jobId := "wrong"
-			otherJobId := util.NewULID()
+			jobId := util.NewULID()
 
-			err := jobStore.RecordJob(&api.Job{
-				Id:      otherJobId,
-				Queue:   "queue",
-				Created: someTime,
-			})
-			assert.NoError(t, err)
+			err := jobStore.RecordJob(
+				&api.Job{
+					Id:          jobId,
+					Queue:       "queue",
+					Created:     someTime,
+					Annotations: oldAnnotations,
+					Priority:    oldPriority,
+				},
+				someTime)
+			assert.Nil(t, err)
 
-			err = jobStore.RecordJobUpdated(&api.JobUpdatedEvent{
-				JobId:    jobId,
-				JobSetId: "job-set",
-				Queue:    "queue",
-				Created:  someTime,
-				Job: api.Job{
+			err = jobStore.RecordJob(
+				&api.Job{
 					Id:          jobId,
 					Queue:       "queue",
 					Created:     someTime,
 					Annotations: newAnnotations,
 					Priority:    newPriority,
 				},
-			})
-			assert.Error(t, err)
+				someTime.Add(-time.Minute))
+			assert.Nil(t, err)
 
-			assert.Equal(t, 0, selectInt(t, db, fmt.Sprintf("SELECT COUNT(1) FROM job WHERE job_id = '%s'", jobId)))
+			reloadedJob := getJob(t, db, jobId)
+			assert.Equal(t, oldPriority, reloadedJob.Priority)
+			assert.Equal(t, oldAnnotations, reloadedJob.Annotations)
 
-			assert.Equal(t, 0.0, getPriority(t, db, otherJobId))
+			assert.Equal(t, oldPriority, getPriority(t, db, jobId))
 
-			otherJob := getJob(t, db, otherJobId)
-			assert.Equal(t, 0.0, otherJob.Priority)
-			assert.Nil(t, otherJob.Annotations)
+			assert.True(t, hasUserAnnotation(t, db, jobId, "a", "b"))
+			assert.False(t, hasUserAnnotation(t, db, jobId, "c", "d"))
+			assert.True(t, hasUserAnnotation(t, db, jobId, "1", "2"))
+			assert.False(t, hasUserAnnotation(t, db, jobId, "1", "3"))
 		})
 	})
+}
+
+func hasUserAnnotation(t *testing.T, db *goqu.Database, jobId string, key string, val string) bool {
+	return selectInt(t, db, fmt.Sprintf("SELECT COUNT(1) FROM user_annotation_lookup WHERE job_id = '%s' AND key='%s' AND value='%s'", jobId, key, val)) > 0
 }
 
 func getPriority(t *testing.T, db *goqu.Database, jobId string) float64 {

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/doug-martin/goqu/v9"
 	"github.com/doug-martin/goqu/v9/exp"
@@ -15,7 +16,7 @@ import (
 )
 
 type JobRecorder interface {
-	RecordJob(job *api.Job) error
+	RecordJob(job *api.Job, timestamp time.Time) error
 	MarkCancelled(*api.JobCancelledEvent) error
 
 	RecordJobPending(event *api.JobPendingEvent) error
@@ -26,7 +27,6 @@ type JobRecorder interface {
 	RecordJobDuplicate(event *api.JobDuplicateFoundEvent) error
 	RecordJobTerminated(event *api.JobTerminatedEvent) error
 	RecordJobReprioritized(event *api.JobReprioritizedEvent) error
-	RecordJobUpdated(event *api.JobUpdatedEvent) error
 }
 
 type SQLJobStore struct {
@@ -38,7 +38,7 @@ func NewSQLJobStore(db *goqu.Database, annotationPrefix string) *SQLJobStore {
 	return &SQLJobStore{db: db, userAnnotationPrefix: annotationPrefix}
 }
 
-func (r *SQLJobStore) RecordJob(job *api.Job) error {
+func (r *SQLJobStore) RecordJob(job *api.Job, timestamp time.Time) error {
 	jobJson, err := json.Marshal(job)
 	if err != nil {
 		return err
@@ -47,27 +47,39 @@ func (r *SQLJobStore) RecordJob(job *api.Job) error {
 	ds := r.db.Insert(jobTable).
 		With("run_states", r.getRunStateCounts(job.Id)).
 		Rows(goqu.Record{
-			"job_id":    job.Id,
-			"queue":     job.Queue,
-			"owner":     job.Owner,
-			"jobset":    job.JobSetId,
-			"priority":  job.Priority,
-			"submitted": ToUTC(job.Created),
-			"job":       jobJson,
-			"state":     JobStateToIntMap[JobQueued],
+			"job_id":      job.Id,
+			"queue":       job.Queue,
+			"owner":       job.Owner,
+			"jobset":      job.JobSetId,
+			"priority":    job.Priority,
+			"submitted":   ToUTC(job.Created),
+			"job":         jobJson,
+			"state":       JobStateToIntMap[JobQueued],
+			"job_updated": timestamp,
 		}).
 		OnConflict(goqu.DoUpdate("job_id", goqu.Record{
-			"queue":     job.Queue,
-			"owner":     job.Owner,
-			"jobset":    job.JobSetId,
-			"priority":  job.Priority,
-			"submitted": ToUTC(job.Created),
-			"job":       jobJson,
-			"state":     r.determineJobState(),
-		}))
+			"queue":       job.Queue,
+			"owner":       job.Owner,
+			"jobset":      job.JobSetId,
+			"priority":    job.Priority,
+			"submitted":   ToUTC(job.Created),
+			"job":         jobJson,
+			"state":       r.determineJobState(),
+			"job_updated": timestamp,
+		}).Where(job_jobUpdated.Lt(timestamp)))
 
-	if _, err = ds.Prepared(true).Executor().Exec(); err != nil {
+	res, err := ds.Prepared(true).Executor().Exec()
+	if err != nil {
 		return err
+	}
+
+	rowsChanged, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rowsChanged == 0 {
+		return nil
 	}
 
 	return r.upsertUserAnnotations(job.Id, job.Annotations)
@@ -120,35 +132,6 @@ func (r *SQLJobStore) RecordJobReprioritized(event *api.JobReprioritizedEvent) e
 
 	_, err = ds.Prepared(true).Executor().Exec()
 	return err
-}
-
-func (r *SQLJobStore) RecordJobUpdated(event *api.JobUpdatedEvent) error {
-	updatedJobJson, err := r.getUpdatedJobJson(event)
-	if err != nil {
-		return err
-	}
-
-	ds := r.db.Update(jobTable).
-		Set(goqu.Record{
-			"priority": event.Job.Priority,
-			"job":      updatedJobJson,
-		}).Where(job_jobId.Eq(event.JobId))
-
-	res, err := ds.Prepared(true).Executor().Exec()
-	if err != nil {
-		return err
-	}
-
-	rows, err := res.RowsAffected()
-	if err != nil {
-		return err
-	}
-
-	if rows != 1 {
-		return fmt.Errorf("Expected to update 1 row but updated %d", rows)
-	}
-
-	return nil
 }
 
 func (r *SQLJobStore) RecordJobDuplicate(event *api.JobDuplicateFoundEvent) error {
@@ -408,10 +391,12 @@ func (r *SQLJobStore) upsertContainers(k8sId string, exitCodes map[string]int32)
 }
 
 func (r *SQLJobStore) upsertUserAnnotations(jobId string, annotations map[string]string) error {
+	trimmedKeys := []string{}
 	var annotationRecords []goqu.Record
 	for key, value := range annotations {
 		if strings.HasPrefix(key, r.userAnnotationPrefix) && len(key) > len(r.userAnnotationPrefix) {
 			trimmedKey := key[len(r.userAnnotationPrefix):]
+			trimmedKeys = append(trimmedKeys, trimmedKey)
 			annotationRecords = append(annotationRecords, goqu.Record{
 				"job_id": jobId,
 				"key":    trimmedKey,
@@ -420,6 +405,15 @@ func (r *SQLJobStore) upsertUserAnnotations(jobId string, annotations map[string
 		}
 	}
 
+	deleteWhereClause := []exp.Expression{annotation_jobId.Eq(jobId)}
+	if len(trimmedKeys) > 0 {
+		deleteWhereClause = append(deleteWhereClause, annotation_key.NotIn(trimmedKeys))
+	}
+
+	_, err := r.db.Delete(userAnnotationLookupTable).Where(deleteWhereClause...).Prepared(true).Executor().Exec()
+	if err != nil {
+		return err
+	}
 	return upsert(r.db, userAnnotationLookupTable, []string{"job_id", "key"}, annotationRecords)
 }
 
