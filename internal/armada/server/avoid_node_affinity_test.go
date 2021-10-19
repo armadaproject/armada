@@ -13,31 +13,33 @@ func Test_addAvoidNodeAffinity_WhenCanBeScheduled_AddsAffinities(t *testing.T) {
 	labels := []*api.StringKeyValuePair{{Key: "name1", Value: "val1"}, {Key: "name2", Value: "val2"}}
 
 	job := basicJob()
-	addAvoidNodeAffinity(job, &api.OrderedStringMap{Entries: labels}, func(jobs []*api.Job) error { return nil })
+	changed := addAvoidNodeAffinity(job, &api.OrderedStringMap{Entries: labels}, func(jobs []*api.Job) error { return nil })
 
 	expectedJob := basicJob()
 	expectedJob.PodSpec.Affinity = vanillaAvoidLabelAffinites(labels)
 	expectedJob.PodSpecs[0].Affinity = vanillaAvoidLabelAffinites(labels)
 
 	assert.Equal(t, expectedJob, job)
+	assert.True(t, changed)
 }
 
 func Test_addAvoidNodeAffinity_WhenCannotBeScheduled_DoesNotAddAffinities(t *testing.T) {
 	labels := []*api.StringKeyValuePair{{Key: "name1", Value: "val1"}, {Key: "name2", Value: "val2"}}
 
 	job := basicJob()
-	addAvoidNodeAffinity(job, &api.OrderedStringMap{Entries: labels}, func(jobs []*api.Job) error { return errors.New("Can't schedule") })
+	changed := addAvoidNodeAffinity(job, &api.OrderedStringMap{Entries: labels}, func(jobs []*api.Job) error { return errors.New("Can't schedule") })
 
 	expectedJob := basicJob()
 
 	assert.Equal(t, expectedJob, job)
+	assert.False(t, changed)
 }
 
 func Test_addAvoidNodeAffinity_WhenFirstAffinityCannotBeScheduled_ButSecondCan_AddsOnlySecond(t *testing.T) {
 	labels := []*api.StringKeyValuePair{{Key: "name1", Value: "val1"}, {Key: "name2", Value: "val2"}}
 
 	job := basicJob()
-	addAvoidNodeAffinity(job, &api.OrderedStringMap{Entries: labels}, func(jobs []*api.Job) error {
+	changed := addAvoidNodeAffinity(job, &api.OrderedStringMap{Entries: labels}, func(jobs []*api.Job) error {
 		if jobs[0].PodSpecs[0].Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms[0].MatchExpressions[0].Key == "name1" {
 			return errors.New("Can't schedule")
 		} else {
@@ -51,6 +53,7 @@ func Test_addAvoidNodeAffinity_WhenFirstAffinityCannotBeScheduled_ButSecondCan_A
 	expectedJob.PodSpecs[0].Affinity = expectedAffinity
 
 	assert.Equal(t, expectedJob, job)
+	assert.True(t, changed)
 }
 
 func Test_addAvoidNodeAffinityToPod_WhenNoExistingAffinity_AddsCorrectly(t *testing.T) {

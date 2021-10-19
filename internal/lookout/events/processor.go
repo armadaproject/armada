@@ -61,7 +61,7 @@ func (p *EventProcessor) handleMessage(msg *stan.Msg) {
 func (p *EventProcessor) processEvent(event api.Event) error {
 	switch typed := event.(type) {
 	case *api.JobSubmittedEvent:
-		return p.recorder.RecordJob(&typed.Job)
+		return p.recorder.RecordJob(&typed.Job, typed.Created)
 
 	case *api.JobQueuedEvent:
 		// this event just attest saving job to redis
@@ -91,6 +91,9 @@ func (p *EventProcessor) processEvent(event api.Event) error {
 
 	case *api.JobReprioritizedEvent:
 		return p.recorder.RecordJobReprioritized(typed)
+
+	case *api.JobUpdatedEvent:
+		return p.recorder.RecordJob(&typed.Job, typed.Created)
 
 	case *api.JobCancellingEvent: // noop
 	case *api.JobCancelledEvent:
