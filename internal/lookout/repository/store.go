@@ -45,6 +45,10 @@ func (r *SQLJobStore) RecordJob(job *api.Job, timestamp time.Time) error {
 	}
 
 	tx, err := r.db.Begin()
+	if err != nil {
+		return err
+	}
+
 	return tx.Wrap(func() error {
 
 		ds := r.db.Insert(jobTable).
