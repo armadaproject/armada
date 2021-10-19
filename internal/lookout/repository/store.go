@@ -44,45 +44,49 @@ func (r *SQLJobStore) RecordJob(job *api.Job, timestamp time.Time) error {
 		return err
 	}
 
-	ds := r.db.Insert(jobTable).
-		With("run_states", r.getRunStateCounts(job.Id)).
-		Rows(goqu.Record{
-			"job_id":      job.Id,
-			"queue":       job.Queue,
-			"owner":       job.Owner,
-			"jobset":      job.JobSetId,
-			"priority":    job.Priority,
-			"submitted":   ToUTC(job.Created),
-			"job":         jobJson,
-			"state":       JobStateToIntMap[JobQueued],
-			"job_updated": timestamp,
-		}).
-		OnConflict(goqu.DoUpdate("job_id", goqu.Record{
-			"queue":       job.Queue,
-			"owner":       job.Owner,
-			"jobset":      job.JobSetId,
-			"priority":    job.Priority,
-			"submitted":   ToUTC(job.Created),
-			"job":         jobJson,
-			"state":       r.determineJobState(),
-			"job_updated": timestamp,
-		}).Where(job_jobUpdated.Lt(timestamp)))
+	tx, err := r.db.Begin()
+	return tx.Wrap(func() error {
 
-	res, err := ds.Prepared(true).Executor().Exec()
-	if err != nil {
-		return err
-	}
+		ds := r.db.Insert(jobTable).
+			With("run_states", r.getRunStateCounts(job.Id)).
+			Rows(goqu.Record{
+				"job_id":      job.Id,
+				"queue":       job.Queue,
+				"owner":       job.Owner,
+				"jobset":      job.JobSetId,
+				"priority":    job.Priority,
+				"submitted":   ToUTC(job.Created),
+				"job":         jobJson,
+				"state":       JobStateToIntMap[JobQueued],
+				"job_updated": timestamp,
+			}).
+			OnConflict(goqu.DoUpdate("job_id", goqu.Record{
+				"queue":       job.Queue,
+				"owner":       job.Owner,
+				"jobset":      job.JobSetId,
+				"priority":    job.Priority,
+				"submitted":   ToUTC(job.Created),
+				"job":         jobJson,
+				"state":       r.determineJobState(),
+				"job_updated": timestamp,
+			}).Where(job_jobUpdated.Lt(timestamp)))
 
-	rowsChanged, err := res.RowsAffected()
-	if err != nil {
-		return err
-	}
+		res, err := ds.Prepared(true).Executor().Exec()
+		if err != nil {
+			return err
+		}
 
-	if rowsChanged == 0 {
-		return nil
-	}
+		rowsChanged, err := res.RowsAffected()
+		if err != nil {
+			return err
+		}
 
-	return r.upsertUserAnnotations(job.Id, job.Annotations)
+		if rowsChanged == 0 {
+			return nil
+		}
+
+		return r.upsertUserAnnotations(job.Id, job.Annotations)
+	})
 }
 
 func (r *SQLJobStore) MarkCancelled(event *api.JobCancelledEvent) error {
