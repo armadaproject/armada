@@ -190,15 +190,20 @@ func (q *AggregatedQueueServer) addAvoidNodeAffinity(jobId string, labels *api.O
 		return e
 	}
 
-	res := q.jobRepository.UpdateJobs([]string{jobId}, func(job *api.Job) {
-		changed := addAvoidNodeAffinity(job, labels, func(jobs []*api.Job) error {
-			return validateJobsCanBeScheduled(jobs, allClusterSchedulingInfo)
+	res := q.jobRepository.UpdateJobs([]string{jobId}, func(jobs []*api.Job) {
+		if len(jobs) < 1 {
+			log.Warnf("addAvoidNodeAffinity: Job %s not found", jobId)
+			return
+		}
+
+		changed := addAvoidNodeAffinity(jobs[0], labels, func(jobsToValidate []*api.Job) error {
+			return validateJobsCanBeScheduled(jobsToValidate, allClusterSchedulingInfo)
 		})
 
 		if changed {
-			err := reportJobsUpdated(q.eventStore, principalName, []*api.Job{job})
+			err := reportJobsUpdated(q.eventStore, principalName, jobs)
 			if err != nil {
-				log.Warnf("Failed to report job updated event for job %s: %v", job.Id, err)
+				log.Warnf("addAvoidNodeAffinity: Failed to report job updated event for job %s: %v", jobId, err)
 			}
 		}
 	})

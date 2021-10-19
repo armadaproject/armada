@@ -55,7 +55,7 @@ type JobRepository interface {
 	GetActiveJobIds(queue string, jobSetId string) ([]string, error)
 	GetLeasedJobIds(queue string) ([]string, error)
 	UpdateStartTime(jobId string, clusterId string, startTime time.Time) error
-	UpdateJobs(ids []string, mutator func(*api.Job)) []UpdateJobResult
+	UpdateJobs(ids []string, mutator func([]*api.Job)) []UpdateJobResult
 	GetJobRunInfos(jobIds []string) (map[string]*RunInfo, error)
 	GetQueueActiveJobSets(queue string) ([]*api.JobSetInfo, error)
 	AddRetryAttempt(jobId string) error
@@ -547,11 +547,11 @@ end
 return redis.call('HSET', startTimeKey, clusterId, startTime)
 `)
 
-func (repo *RedisJobRepository) UpdateJobs(ids []string, mutator func(*api.Job)) []UpdateJobResult {
+func (repo *RedisJobRepository) UpdateJobs(ids []string, mutator func([]*api.Job)) []UpdateJobResult {
 	return repo.updateJobs(ids, mutator, 250, 3, 100*time.Millisecond)
 }
 
-func (repo *RedisJobRepository) updateJobs(ids []string, mutator func(*api.Job), batchSize int, retries int, retryDelay time.Duration) []UpdateJobResult {
+func (repo *RedisJobRepository) updateJobs(ids []string, mutator func([]*api.Job), batchSize int, retries int, retryDelay time.Duration) []UpdateJobResult {
 	batchedIds := util.Batch(ids, batchSize)
 	result := []UpdateJobResult{}
 
@@ -570,7 +570,7 @@ func (repo *RedisJobRepository) updateJobs(ids []string, mutator func(*api.Job),
 	return result
 }
 
-func (repo *RedisJobRepository) updateJobBatchWithRetry(ids []string, mutator func(*api.Job), retries int, retryDelay time.Duration) ([]UpdateJobResult, error) {
+func (repo *RedisJobRepository) updateJobBatchWithRetry(ids []string, mutator func([]*api.Job), retries int, retryDelay time.Duration) ([]UpdateJobResult, error) {
 	for retry := 0; ; retry++ {
 		result, err := repo.updateJobBatch(ids, mutator)
 		if err != redis.TxFailedErr {
@@ -586,7 +586,7 @@ func (repo *RedisJobRepository) updateJobBatchWithRetry(ids []string, mutator fu
 	}
 }
 
-func (repo *RedisJobRepository) updateJobBatch(ids []string, mutator func(*api.Job)) ([]UpdateJobResult, error) {
+func (repo *RedisJobRepository) updateJobBatch(ids []string, mutator func([]*api.Job)) ([]UpdateJobResult, error) {
 
 	var keysToWatch []string
 	for _, id := range ids {
@@ -604,15 +604,15 @@ func (repo *RedisJobRepository) updateJobBatch(ids []string, mutator func(*api.J
 			return err
 		}
 
+		mutator(jobs)
+
 		jobDatas := make([][]byte, len(jobs))
 		for i, job := range jobs {
-			mutator(job)
 			jobData, err := proto.Marshal(job)
 			if err != nil {
 				return err
 			}
 			jobDatas[i] = jobData
-
 		}
 
 		commands := make([]*redis.Cmd, len(jobs))

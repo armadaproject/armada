@@ -255,7 +255,7 @@ func (repo *mockJobRepository) UpdateStartTime(jobId string, clusterId string, s
 	return nil
 }
 
-func (repo *mockJobRepository) UpdateJobs(ids []string, mutator func(*api.Job)) []repository.UpdateJobResult {
+func (repo *mockJobRepository) UpdateJobs(ids []string, mutator func([]*api.Job)) []repository.UpdateJobResult {
 	return []repository.UpdateJobResult{}
 }
 
