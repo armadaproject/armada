@@ -50,9 +50,8 @@ func (r *SQLJobStore) RecordJob(job *api.Job, timestamp time.Time) error {
 	}
 
 	return tx.Wrap(func() error {
-
-		ds := r.db.Insert(jobTable).
-			With("run_states", r.getRunStateCounts(job.Id)).
+		ds := tx.Insert(jobTable).
+			With("run_states", getRunStateCounts(tx, job.Id)).
 			Rows(goqu.Record{
 				"job_id":      job.Id,
 				"queue":       job.Queue,
@@ -71,7 +70,7 @@ func (r *SQLJobStore) RecordJob(job *api.Job, timestamp time.Time) error {
 				"priority":    job.Priority,
 				"submitted":   ToUTC(job.Created),
 				"job":         jobJson,
-				"state":       r.determineJobState(),
+				"state":       determineJobState(tx),
 				"job_updated": timestamp,
 			}).Where(job_jobUpdated.Lt(timestamp)))
 
@@ -89,7 +88,7 @@ func (r *SQLJobStore) RecordJob(job *api.Job, timestamp time.Time) error {
 			return nil
 		}
 
-		return r.upsertUserAnnotations(job.Id, job.Annotations)
+		return upsertUserAnnotations(tx, r.userAnnotationPrefix, job.Id, job.Annotations)
 	})
 }
 
@@ -143,51 +142,66 @@ func (r *SQLJobStore) RecordJobReprioritized(event *api.JobReprioritizedEvent) e
 }
 
 func (r *SQLJobStore) RecordJobDuplicate(event *api.JobDuplicateFoundEvent) error {
-	ds := r.db.Insert(jobTable).
-		With("run_states", r.getRunStateCounts(event.GetJobId())).
-		Rows(goqu.Record{
-			"job_id":    event.JobId,
-			"queue":     event.Queue,
-			"jobset":    event.JobSetId,
-			"duplicate": true,
-			"state":     JobStateToIntMap[JobDuplicate],
-		}).
-		OnConflict(goqu.DoUpdate("job_id", goqu.Record{
-			"state":     JobStateToIntMap[JobDuplicate],
-			"duplicate": true,
-		}))
-
-	_, err := ds.Prepared(true).Executor().Exec()
-	return err
-}
-
-func (r *SQLJobStore) RecordJobPending(event *api.JobPendingEvent) error {
-	if err := r.upsertJobRun(goqu.Record{
-		"run_id":     event.GetKubernetesId(),
-		"job_id":     event.GetJobId(),
-		"cluster":    event.GetClusterId(),
-		"pod_number": event.GetPodNumber(),
-		"created":    ToUTC(event.GetCreated()),
-	}); err != nil {
+	tx, err := r.db.Begin()
+	if err != nil {
 		return err
 	}
 
-	jobDs := r.db.Insert(jobTable).
-		With("run_states", r.getRunStateCounts(event.GetJobId())).
-		Rows(goqu.Record{
-			"job_id": event.JobId,
-			"queue":  event.Queue,
-			"jobset": event.JobSetId,
-			"state":  JobStateToIntMap[JobPending],
-		}).
-		OnConflict(goqu.DoUpdate("job_id", goqu.Record{
-			"queue":  event.Queue,
-			"jobset": event.JobSetId,
-			"state":  r.determineJobState(),
-		}))
+	return tx.Wrap(func() error {
+		ds := tx.Insert(jobTable).
+			With("run_states", getRunStateCounts(tx, event.GetJobId())).
+			Rows(goqu.Record{
+				"job_id":    event.JobId,
+				"queue":     event.Queue,
+				"jobset":    event.JobSetId,
+				"duplicate": true,
+				"state":     JobStateToIntMap[JobDuplicate],
+			}).
+			OnConflict(goqu.DoUpdate("job_id", goqu.Record{
+				"state":     JobStateToIntMap[JobDuplicate],
+				"duplicate": true,
+			}))
 
-	_, err := jobDs.Prepared(true).Executor().Exec()
-	return err
+		_, err := ds.Prepared(true).Executor().Exec()
+		return err
+	})
+}
+
+func (r *SQLJobStore) RecordJobPending(event *api.JobPendingEvent) error {
+
+	tx, err := r.db.Begin()
+	if err != nil {
+		return err
+	}
+
+	return tx.Wrap(func() error {
+		if err := upsertJobRun(tx, goqu.Record{
+			"run_id":     event.GetKubernetesId(),
+			"job_id":     event.GetJobId(),
+			"cluster":    event.GetClusterId(),
+			"pod_number": event.GetPodNumber(),
+			"created":    ToUTC(event.GetCreated()),
+		}); err != nil {
+			return err
+		}
+
+		jobDs := tx.Insert(jobTable).
+			With("run_states", getRunStateCounts(tx, event.GetJobId())).
+			Rows(goqu.Record{
+				"job_id": event.JobId,
+				"queue":  event.Queue,
+				"jobset": event.JobSetId,
+				"state":  JobStateToIntMap[JobPending],
+			}).
+			OnConflict(goqu.DoUpdate("job_id", goqu.Record{
+				"queue":  event.Queue,
+				"jobset": event.JobSetId,
+				"state":  determineJobState(tx),
+			}))
+
+		_, err := jobDs.Prepared(true).Executor().Exec()
+		return err
+	})
 }
 
 func (r *SQLJobStore) RecordJobRunning(event *api.JobRunningEvent) error {
@@ -201,24 +215,32 @@ func (r *SQLJobStore) RecordJobRunning(event *api.JobRunningEvent) error {
 	if event.GetNodeName() != "" {
 		jobRunRecord["node"] = event.GetNodeName()
 	}
-	if err := r.upsertJobRun(jobRunRecord); err != nil {
+
+	tx, err := r.db.Begin()
+	if err != nil {
 		return err
 	}
 
-	jobDs := r.db.Insert(jobTable).
-		With("run_states", r.getRunStateCounts(event.GetJobId())).
-		Rows(goqu.Record{
-			"job_id": event.JobId,
-			"queue":  event.Queue,
-			"jobset": event.JobSetId,
-			"state":  JobStateToIntMap[JobRunning],
-		}).
-		OnConflict(goqu.DoUpdate("job_id", goqu.Record{
-			"state": r.determineJobState(),
-		}))
+	return tx.Wrap(func() error {
+		if err := upsertJobRun(tx, jobRunRecord); err != nil {
+			return err
+		}
 
-	_, err := jobDs.Prepared(true).Executor().Exec()
-	return err
+		jobDs := tx.Insert(jobTable).
+			With("run_states", getRunStateCounts(tx, event.GetJobId())).
+			Rows(goqu.Record{
+				"job_id": event.JobId,
+				"queue":  event.Queue,
+				"jobset": event.JobSetId,
+				"state":  JobStateToIntMap[JobRunning],
+			}).
+			OnConflict(goqu.DoUpdate("job_id", goqu.Record{
+				"state": determineJobState(tx),
+			}))
+
+		_, err := jobDs.Prepared(true).Executor().Exec()
+		return err
+	})
 }
 
 func (r *SQLJobStore) RecordJobSucceeded(event *api.JobSucceededEvent) error {
@@ -233,24 +255,33 @@ func (r *SQLJobStore) RecordJobSucceeded(event *api.JobSucceededEvent) error {
 	if event.GetNodeName() != "" {
 		jobRunRecord["node"] = event.GetNodeName()
 	}
-	if err := r.upsertJobRun(jobRunRecord); err != nil {
+
+	tx, err := r.db.Begin()
+	if err != nil {
 		return err
 	}
 
-	ds := r.db.Insert(jobTable).
-		With("run_states", r.getRunStateCounts(event.GetJobId())).
-		Rows(goqu.Record{
-			"job_id": event.JobId,
-			"queue":  event.Queue,
-			"jobset": event.JobSetId,
-			"state":  JobStateToIntMap[JobSucceeded],
-		}).
-		OnConflict(goqu.DoUpdate("job_id", goqu.Record{
-			"state": r.determineJobState(),
-		}))
+	return tx.Wrap(func() error {
 
-	_, err := ds.Prepared(true).Executor().Exec()
-	return err
+		if err := upsertJobRun(tx, jobRunRecord); err != nil {
+			return err
+		}
+
+		ds := tx.Insert(jobTable).
+			With("run_states", getRunStateCounts(tx, event.GetJobId())).
+			Rows(goqu.Record{
+				"job_id": event.JobId,
+				"queue":  event.Queue,
+				"jobset": event.JobSetId,
+				"state":  JobStateToIntMap[JobSucceeded],
+			}).
+			OnConflict(goqu.DoUpdate("job_id", goqu.Record{
+				"state": determineJobState(tx),
+			}))
+
+		_, err := ds.Prepared(true).Executor().Exec()
+		return err
+	})
 }
 
 func (r *SQLJobStore) RecordJobFailed(event *api.JobFailedEvent) error {
@@ -272,30 +303,39 @@ func (r *SQLJobStore) RecordJobFailed(event *api.JobFailedEvent) error {
 	if event.GetNodeName() != "" {
 		jobRunRecord["node"] = event.GetNodeName()
 	}
-	if err := r.upsertJobRun(jobRunRecord); err != nil {
+
+	tx, err := r.db.Begin()
+	if err != nil {
 		return err
 	}
 
-	jobDs := r.db.Insert(jobTable).
-		With("run_states", r.getRunStateCounts(event.GetJobId())).
-		Rows(goqu.Record{
-			"job_id": event.JobId,
-			"queue":  event.Queue,
-			"jobset": event.JobSetId,
-			"state":  JobStateToIntMap[JobFailed],
-		}).
-		OnConflict(goqu.DoUpdate("job_id", goqu.Record{
-			"state": r.determineJobState(),
-		}))
+	return tx.Wrap(func() error {
+		if err := upsertJobRun(tx, jobRunRecord); err != nil {
+			return err
+		}
 
-	if _, err := jobDs.Prepared(true).Executor().Exec(); err != nil {
-		return err
-	}
+		jobDs := tx.Insert(jobTable).
+			With("run_states", getRunStateCounts(tx, event.GetJobId())).
+			Rows(goqu.Record{
+				"job_id": event.JobId,
+				"queue":  event.Queue,
+				"jobset": event.JobSetId,
+				"state":  JobStateToIntMap[JobFailed],
+			}).
+			OnConflict(goqu.DoUpdate("job_id", goqu.Record{
+				"state": determineJobState(tx),
+			}))
 
-	return r.upsertContainers(k8sId, event.ExitCodes)
+		if _, err := jobDs.Prepared(true).Executor().Exec(); err != nil {
+			return err
+		}
+
+		return upsertContainers(tx, k8sId, event.ExitCodes)
+	})
 }
 
 func (r *SQLJobStore) RecordJobUnableToSchedule(event *api.JobUnableToScheduleEvent) error {
+
 	jobRunRecord := goqu.Record{
 		"run_id":             event.GetKubernetesId(),
 		"job_id":             event.GetJobId(),
@@ -307,7 +347,15 @@ func (r *SQLJobStore) RecordJobUnableToSchedule(event *api.JobUnableToScheduleEv
 	if event.GetNodeName() != "" {
 		jobRunRecord["node"] = event.GetNodeName()
 	}
-	return r.upsertJobRun(jobRunRecord)
+
+	tx, err := r.db.Begin()
+	if err != nil {
+		return err
+	}
+
+	return tx.Wrap(func() error {
+		return upsertJobRun(tx, jobRunRecord)
+	})
 }
 
 func (r *SQLJobStore) RecordJobTerminated(event *api.JobTerminatedEvent) error {
@@ -321,24 +369,32 @@ func (r *SQLJobStore) RecordJobTerminated(event *api.JobTerminatedEvent) error {
 		"error":      event.Reason,
 	}
 
-	if err := r.upsertJobRun(jobRunRecord); err != nil {
+	tx, err := r.db.Begin()
+	if err != nil {
 		return err
 	}
 
-	jobDs := r.db.Insert(jobTable).
-		With("run_states", r.getRunStateCounts(event.GetJobId())).
-		Rows(goqu.Record{
-			"job_id": event.JobId,
-			"queue":  event.Queue,
-			"jobset": event.JobSetId,
-			"state":  JobStateToIntMap[JobFailed],
-		}).
-		OnConflict(goqu.DoUpdate("job_id", goqu.Record{
-			"state": r.determineJobState(),
-		}))
+	return tx.Wrap(func() error {
 
-	_, err := jobDs.Prepared(true).Executor().Exec()
-	return err
+		if err := upsertJobRun(tx, jobRunRecord); err != nil {
+			return err
+		}
+
+		jobDs := tx.Insert(jobTable).
+			With("run_states", getRunStateCounts(tx, event.GetJobId())).
+			Rows(goqu.Record{
+				"job_id": event.JobId,
+				"queue":  event.Queue,
+				"jobset": event.JobSetId,
+				"state":  JobStateToIntMap[JobFailed],
+			}).
+			OnConflict(goqu.DoUpdate("job_id", goqu.Record{
+				"state": determineJobState(tx),
+			}))
+
+		_, err := jobDs.Prepared(true).Executor().Exec()
+		return err
+	})
 }
 
 func (r *SQLJobStore) getReprioritizedJobJson(event *api.JobReprioritizedEvent) (sql.NullString, error) {
@@ -379,11 +435,11 @@ func (r *SQLJobStore) getUpdatedJobJson(event *api.JobUpdatedEvent) (sql.NullStr
 	return NewNullString(string(updatedJobJson)), nil
 }
 
-func (r *SQLJobStore) upsertJobRun(record goqu.Record) error {
-	return upsert(r.db, jobRunTable, []string{"run_id"}, []goqu.Record{record})
+func upsertJobRun(tx *goqu.TxDatabase, record goqu.Record) error {
+	return upsert(tx, jobRunTable, []string{"run_id"}, []goqu.Record{record})
 }
 
-func (r *SQLJobStore) upsertContainers(k8sId string, exitCodes map[string]int32) error {
+func upsertContainers(tx *goqu.TxDatabase, k8sId string, exitCodes map[string]int32) error {
 	containerRecords := make([]goqu.Record, len(exitCodes))
 	i := 0
 	for name, code := range exitCodes {
@@ -395,15 +451,15 @@ func (r *SQLJobStore) upsertContainers(k8sId string, exitCodes map[string]int32)
 		i++
 	}
 
-	return upsert(r.db, jobRunContainerTable, []string{"run_id", "container_name"}, containerRecords)
+	return upsert(tx, jobRunContainerTable, []string{"run_id", "container_name"}, containerRecords)
 }
 
-func (r *SQLJobStore) upsertUserAnnotations(jobId string, annotations map[string]string) error {
+func upsertUserAnnotations(tx *goqu.TxDatabase, userAnnotationPrefix string, jobId string, annotations map[string]string) error {
 	trimmedKeys := []string{}
 	var annotationRecords []goqu.Record
 	for key, value := range annotations {
-		if strings.HasPrefix(key, r.userAnnotationPrefix) && len(key) > len(r.userAnnotationPrefix) {
-			trimmedKey := key[len(r.userAnnotationPrefix):]
+		if strings.HasPrefix(key, userAnnotationPrefix) && len(key) > len(userAnnotationPrefix) {
+			trimmedKey := key[len(userAnnotationPrefix):]
 			trimmedKeys = append(trimmedKeys, trimmedKey)
 			annotationRecords = append(annotationRecords, goqu.Record{
 				"job_id": jobId,
@@ -418,30 +474,30 @@ func (r *SQLJobStore) upsertUserAnnotations(jobId string, annotations map[string
 		deleteWhereClause = append(deleteWhereClause, annotation_key.NotIn(trimmedKeys))
 	}
 
-	_, err := r.db.Delete(userAnnotationLookupTable).Where(deleteWhereClause...).Prepared(true).Executor().Exec()
+	_, err := tx.Delete(userAnnotationLookupTable).Where(deleteWhereClause...).Prepared(true).Executor().Exec()
 	if err != nil {
 		return err
 	}
-	return upsert(r.db, userAnnotationLookupTable, []string{"job_id", "key"}, annotationRecords)
+	return upsert(tx, userAnnotationLookupTable, []string{"job_id", "key"}, annotationRecords)
 }
 
-func (r *SQLJobStore) determineJobState() exp.CaseExpression {
+func determineJobState(tx *goqu.TxDatabase) exp.CaseExpression {
 	return goqu.Case().
 		When(job_duplicate.Eq(true), stateAsLiteral(JobDuplicate)).
 		When(job_state.Eq(stateAsLiteral(JobCancelled)), stateAsLiteral(JobCancelled)).
-		When(r.db.Select(goqu.I("run_states.failed").Gt(0)).
+		When(tx.Select(goqu.I("run_states.failed").Gt(0)).
 			From("run_states"), stateAsLiteral(JobFailed)).
-		When(r.db.Select(goqu.I("run_states.pending").Gt(0)).
+		When(tx.Select(goqu.I("run_states.pending").Gt(0)).
 			From("run_states"), stateAsLiteral(JobPending)).
-		When(r.db.Select(goqu.I("run_states.running").Gt(0)).
+		When(tx.Select(goqu.I("run_states.running").Gt(0)).
 			From("run_states"), stateAsLiteral(JobRunning)).
-		When(r.db.Select(goqu.I("run_states.succeeded").Eq(goqu.I("run_states.total"))).
+		When(tx.Select(goqu.I("run_states.succeeded").Eq(goqu.I("run_states.total"))).
 			From("run_states"), stateAsLiteral(JobSucceeded)).
 		Else(stateAsLiteral(JobQueued))
 }
 
-func (r *SQLJobStore) getRunStateCounts(jobId string) *goqu.SelectDataset {
-	ds := r.db.Select(
+func getRunStateCounts(tx *goqu.TxDatabase, jobId string) *goqu.SelectDataset {
+	ds := tx.Select(
 		goqu.COUNT("*").As("total"),
 		goqu.L("COUNT(*) FILTER (WHERE run_state = 1)").As("queued"),
 		goqu.L("COUNT(*) FILTER (WHERE run_state = 2)").As("pending"),
@@ -450,7 +506,7 @@ func (r *SQLJobStore) getRunStateCounts(jobId string) *goqu.SelectDataset {
 		goqu.L("COUNT(*) FILTER (WHERE run_state = 5)").As("failed")).
 		From(
 			// State based on latest run for each pod
-			r.db.Select(
+			tx.Select(
 				goqu.Case().
 					When(goqu.And(
 						jobRun_finished.IsNotNull(),
