@@ -55,6 +55,19 @@ func Test_getAction_WhenTwoEvents_AndTwoChecks_MostDrasticActionWins(t *testing.
 	assert.NotEmpty(t, message)
 }
 
+func Test_getAction_WhenOneEvent_NegativeRegex_Works(t *testing.T) {
+	ec, err := newEventChecks([]config.EventCheck{{Action: config.ActionRetry, Regexp: "nodes are available", Type: "Warning", Inverse: true}})
+	assert.Nil(t, err)
+
+	action, message := ec.getAction("my-pod", []*v1.Event{{Message: "0/3 nodes are available: 1 node(s) had taint {node-role.kubernetes.io/master: }, that the pod didn't tolerate, 2 Insufficient cpu.", Type: "Warning"}})
+	assert.Equal(t, ActionWait, action)
+	assert.Empty(t, message)
+
+	action, message = ec.getAction("my-pod", []*v1.Event{{Message: "Some other error message", Type: "Warning"}})
+	assert.Equal(t, ActionRetry, action)
+	assert.NotEmpty(t, message)
+}
+
 func Test_newEventChecks_InvalidRegexp_ReturnsError(t *testing.T) {
 	ec, err := newEventChecks([]config.EventCheck{{Action: config.ActionFail, Regexp: "[", Type: config.EventTypeNormal}})
 	assert.Nil(t, ec)

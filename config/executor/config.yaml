@@ -32,6 +32,10 @@ kubernetes:
     - regexp: "Failed to pull image.*code = Unknown desc = Error response from daemon"
       type: Warning
       action: Fail
+    - regexp: "nodes are available"  # match all except the FailedScheduling message e.g. "0/3 nodes are available:
+      inverse: true
+      type: Warning
+      action: Retry
     containerStatuses:
     - state: Waiting
       reasonRegexp: "InvalidImageName"
@@ -47,5 +51,5 @@ kubernetes:
       action: Retry
     - state: Waiting
       reasonRegexp: ".*"
-      timeout: 2m
+      timeout: 5m
       action: Retry

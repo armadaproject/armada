@@ -17,6 +17,7 @@ type eventChecker interface {
 
 type eventCheck struct {
 	regexp    *regexp.Regexp
+	inverse   bool
 	action    Action
 	eventType config.EventType
 }
@@ -42,9 +43,9 @@ func newEventChecks(configs []config.EventCheck) (*eventChecks, error) {
 			return nil, fmt.Errorf("Invalid event type: \"%s\"", config.Type)
 		}
 
-		check := eventCheck{regexp: re, action: action, eventType: config.Type}
+		check := eventCheck{regexp: re, inverse: config.Inverse, action: action, eventType: config.Type}
 		eventChecks.checks = append(eventChecks.checks, check)
-		log.Infof("   Created event check %s \"%s\" %s", check.eventType, check.regexp.String(), check.action)
+		log.Infof("   Created event check %s %s\"%s\" %s", check.eventType, inverseString(check.inverse), check.regexp.String(), check.action)
 	}
 	return eventChecks, nil
 }
@@ -54,8 +55,8 @@ func (ec *eventChecks) getAction(podName string, podEvents []*v1.Event) (Action,
 	resultMessages := []string{}
 	for _, check := range ec.checks {
 		for _, event := range podEvents {
-			if event.Type == string(check.eventType) && check.regexp.MatchString(event.Message) {
-				log.Warnf("Pod %s needs action %s %s because event \"%s\" matches regexp \"%v\"", podName, check.action, check.action, event.Message, check.regexp)
+			if event.Type == string(check.eventType) && (check.inverse != check.regexp.MatchString(event.Message)) {
+				log.Warnf("Pod %s needs action %s %s because event \"%s\" matches regexp %s\"%v\"", podName, check.action, check.action, event.Message, inverseString(check.inverse), check.regexp)
 				resultAction = maxAction(resultAction, check.action)
 				resultMessages = append(resultMessages, event.Message)
 			}
@@ -63,4 +64,12 @@ func (ec *eventChecks) getAction(podName string, podEvents []*v1.Event) (Action,
 	}
 
 	return resultAction, strings.Join(resultMessages, "\n")
+}
+
+func inverseString(inverse bool) string {
+	if inverse {
+		return "NOT "
+	} else {
+		return ""
+	}
 }

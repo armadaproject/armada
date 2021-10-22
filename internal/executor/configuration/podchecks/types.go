@@ -32,9 +32,10 @@ type Checks struct {
 }
 
 type EventCheck struct {
-	Regexp string
-	Action Action
-	Type   EventType
+	Regexp  string
+	Inverse bool
+	Action  Action
+	Type    EventType
 }
 
 type ContainerStatusCheck struct {
