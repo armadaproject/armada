@@ -80,6 +80,10 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 		config.Kubernetes.AvoidNodeLabelsOnRetry,
 	)
 
+	if config.Kubernetes.PendingPodChecks == nil {
+		log.Error("Config error: Missing pending pod checks")
+		os.Exit(-1)
+	}
 	pendingPodChecker, err := podchecks.NewPodChecks(*config.Kubernetes.PendingPodChecks)
 	if err != nil {
 		log.Errorf("Config error in pending pod checks: %s", err)

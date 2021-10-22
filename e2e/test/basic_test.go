@@ -135,6 +135,8 @@ func submitJobsAndWatch(t *testing.T, submitClient api.SubmitClient, eventsClien
 			return true
 		}
 
+		fmt.Printf("Got event %v\n", e)
+
 		return false
 	})
 	assert.False(t, hasTimedOut(timeout), "Test timed out waiting for expected events")

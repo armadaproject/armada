@@ -45,6 +45,6 @@ func (pc *PodChecks) GetAction(pod *v1.Pod, podEvents []*v1.Event, timeInState t
 
 	resultAction := maxAction(eventAction, containerStateAction)
 	resultMessage := strings.Join(messages, "\n")
-	log.Infof("GetAction for %s returned %s %s\n", pod.Name, resultAction, resultMessage)
+	log.Infof("Pod checks for pod %s returned %s %s\n", pod.Name, resultAction, resultMessage)
 	return resultAction, resultMessage
 }
