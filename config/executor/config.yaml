@@ -19,7 +19,33 @@ kubernetes:
   impersonateUsers: false
   minimumPodAge: 3m
   failedPodExpiry: 10m
-  stuckPodExpiry: 3m
+  gracePeriodBeforePodHealthCheck: 10s
+  stuckTerminatingPodExpiry: 1m
   podDefaults:
     ingress:
       hostnameSuffix: "svc"
+  pendingPodChecks:
+    events:
+    - regexp: "Failed to pull image.*desc = failed to pull and unpack image"
+      type: Warning
+      action: Fail
+    - regexp: "Failed to pull image.*code = Unknown desc = Error response from daemon"
+      type: Warning
+      action: Fail
+    containerStatuses:
+    - state: Waiting
+      reasonRegexp: "InvalidImageName"
+      timeout: 1s
+      action: Fail
+    - state: Waiting
+      reasonRegexp: "ImagePullBackOff"
+      timeout: 30m
+      action: Retry
+    - state: Waiting
+      reasonRegexp: "ErrImagePull"
+      timeout: 30m
+      action: Retry
+    - state: Waiting
+      reasonRegexp: ".*"
+      timeout: 2m
+      action: Retry

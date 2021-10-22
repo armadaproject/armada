@@ -3,6 +3,7 @@ package podchecks
 import (
 	"fmt"
 	"regexp"
+	"strings"
 	"time"
 
 	config "github.com/G-Research/armada/internal/executor/configuration/podchecks"
@@ -12,6 +13,10 @@ import (
 	v1 "k8s.io/api/core/v1"
 )
 
+type containerStateChecker interface {
+	getAction(pod *v1.Pod, timeInState time.Duration) (Action, string)
+}
+
 type containerStateChecks struct {
 	checks []containerStatusCheck
 }
@@ -20,31 +25,63 @@ type containerStatusCheck struct {
 	state        config.ContainerState
 	reasonRegexp *regexp.Regexp
 	timeout      time.Duration
-	action       config.Action
+	action       Action
 }
 
 func newContainerStateChecks(configs []config.ContainerStatusCheck) (*containerStateChecks, error) {
 	containerStateChecks := &containerStateChecks{}
-	for _, config := range configs {
-		re, err := regexp.Compile(config.ReasonRegexp)
+	for _, cfg := range configs {
+
+		re, err := regexp.Compile(cfg.ReasonRegexp)
 		if err != nil {
-			return nil, fmt.Errorf("Cannot parse regexp \"%s\": %v", config.ReasonRegexp, err)
+			return nil, fmt.Errorf("Cannot parse regexp \"%s\": %+v", cfg.ReasonRegexp, err)
 		}
-		containerStateChecks.checks = append(containerStateChecks.checks, containerStatusCheck{reasonRegexp: re, action: config.Action, timeout: config.Timeout, state: config.State})
+
+		action, err := mapAction(cfg.Action)
+		if err != nil {
+			return nil, err
+		}
+
+		if cfg.State != config.ContainerStateWaiting {
+			return nil, fmt.Errorf("Invalid container state: \"%s\"", cfg.State)
+		}
+
+		check := containerStatusCheck{reasonRegexp: re, action: action, timeout: cfg.Timeout, state: cfg.State}
+		containerStateChecks.checks = append(containerStateChecks.checks, check)
+		log.Infof("   Created container state check %s \"%s\" %s %s", check.state, check.reasonRegexp, check.timeout, check.action)
 	}
 	return containerStateChecks, nil
 }
 
 func (csc *containerStateChecks) getAction(pod *v1.Pod, timeInState time.Duration) (Action, string) {
+	resultAction := ActionWait
+	resultMessages := []string{}
+
+	for _, containerStatus := range util.GetPodContainerStatuses(pod) {
+		action, message := csc.getContainerAction(pod, &containerStatus, timeInState)
+
+		resultAction = maxAction(resultAction, action)
+		resultMessages = append(resultMessages, message)
+
+	}
+	return resultAction, strings.Join(resultMessages, "\n")
+}
+
+func (csc *containerStateChecks) getContainerAction(pod *v1.Pod, containerStatus *v1.ContainerStatus, timeInState time.Duration) (Action, string) {
 	for _, check := range csc.checks {
-		for _, containerStatus := range util.GetPodContainerStatuses(pod) {
-			if containerStatus.State.Waiting != nil {
-				reason := containerStatus.State.Waiting.Reason
-				message := containerStatus.State.Waiting.Message
-				state := config.ContainerStateWaiting
-				if check.reasonRegexp.MatchString(reason) && state == check.state && timeInState >= check.timeout {
-					log.Warnf("Returning action %s for pod %s in namespace %s because container %s has been in state %s with reason %s (%s) for more than %v", check.action, pod.Name, pod.Namespace, containerStatus.Name, state, reason, message, check.timeout)
-					return mapAction(check.action), fmt.Sprintf("Container %s has been in state %s for reason %s (%s) for more than timeout %v", containerStatus.Name, state, reason, message, check.timeout)
+		// For now we only support checks on containers in the Waiting state
+		if containerStatus.State.Waiting != nil {
+			reason := containerStatus.State.Waiting.Reason
+			message := containerStatus.State.Waiting.Message
+			state := config.ContainerStateWaiting
+
+			if check.reasonRegexp.MatchString(reason) && state == check.state {
+				if timeInState >= check.timeout {
+					log.Warnf("Container %s in Pod %s in namespace %s has been in state %s with reason %s (%s) for more than %v (matched regexp was %s), required action is %s",
+						containerStatus.Name, pod.Name, pod.Namespace, state, reason, message, check.timeout, check.reasonRegexp, check.action)
+					return check.action, fmt.Sprintf("Container %s has been in state %s for reason %s (%s) for more than timeout %v", containerStatus.Name, state, reason, message, check.timeout)
+				} else {
+					return ActionWait, ""
 				}
 			}
 		}

@@ -20,6 +20,7 @@ import (
 	"github.com/G-Research/armada/internal/executor/metrics"
 	"github.com/G-Research/armada/internal/executor/metrics/pod_metrics"
 	"github.com/G-Research/armada/internal/executor/node"
+	"github.com/G-Research/armada/internal/executor/podchecks"
 	"github.com/G-Research/armada/internal/executor/reporter"
 	"github.com/G-Research/armada/internal/executor/service"
 	"github.com/G-Research/armada/internal/executor/utilisation"
@@ -79,7 +80,13 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 		config.Kubernetes.AvoidNodeLabelsOnRetry,
 	)
 
-	jobContext := job.NewClusterJobContext(clusterContext, config.Kubernetes.StuckPodExpiry)
+	pendingPodChecker, err := podchecks.NewPodChecks(*config.Kubernetes.PendingPodChecks)
+	if err != nil {
+		log.Errorf("Config error in pending pod checks: %s", err)
+		os.Exit(-1)
+	}
+
+	jobContext := job.NewClusterJobContext(clusterContext, pendingPodChecker, config.Kubernetes.GracePeriodBeforePodHealthCheck, config.Kubernetes.StuckTerminatingPodExpiry)
 	submitter := job.NewSubmitter(clusterContext, config.Kubernetes.PodDefaults)
 
 	nodeInfoService := node.NewKubernetesNodeInfoService(clusterContext, config.Kubernetes.ToleratedTaints)

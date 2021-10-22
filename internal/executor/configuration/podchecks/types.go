@@ -2,6 +2,8 @@ package podchecks
 
 import (
 	"time"
+
+	v1 "k8s.io/api/core/v1"
 )
 
 type Action string
@@ -17,6 +19,13 @@ const (
 	ContainerStateWaiting ContainerState = "Waiting"
 )
 
+type EventType string
+
+const (
+	EventTypeWarning EventType = EventType(v1.EventTypeWarning)
+	EventTypeNormal  EventType = EventType(v1.EventTypeNormal)
+)
+
 type Checks struct {
 	Events            []EventCheck
 	ContainerStatuses []ContainerStatusCheck
@@ -25,6 +34,7 @@ type Checks struct {
 type EventCheck struct {
 	Regexp string
 	Action Action
+	Type   EventType
 }
 
 type ContainerStatusCheck struct {
