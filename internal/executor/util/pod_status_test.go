@@ -127,15 +127,6 @@ func TestDiagnoseStuckPod_ShouldReportUnrecoverable_WhenImageUnpullable(t *testi
 	assert.Equal(t, startupState, Unrecoverable)
 }
 
-func TestDiagnoseStuckPod_ShouldReportUnrecoverable_WhenInvalidMount(t *testing.T) {
-	waitingContainer := v1.ContainerState{Waiting: &v1.ContainerStateWaiting{}}
-	pod := makePodWithContainerStatuses([]v1.ContainerState{waitingContainer}, []v1.ContainerState{})
-	events := []*v1.Event{&v1.Event{Reason: "FailedMount", Type: v1.EventTypeWarning, Message: "MountVolume.SetUp failed for volume /some/volume because reason"}}
-
-	startupState, _ := DiagnoseStuckPod(pod, events)
-	assert.Equal(t, startupState, Unrecoverable)
-}
-
 func makePodWithContainerStatuses(containerStates []v1.ContainerState, initContainerStates []v1.ContainerState) *v1.Pod {
 	containers := make([]v1.ContainerStatus, len(containerStates))
 	for i, state := range containerStates {

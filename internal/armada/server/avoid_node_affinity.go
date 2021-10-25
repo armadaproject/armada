@@ -9,8 +9,9 @@ import (
 	"github.com/G-Research/armada/pkg/api"
 )
 
-func addAvoidNodeAffinity(job *api.Job, avoidNodeLabels *api.OrderedStringMap, validateJobsCanBeScheduled func(jobs []*api.Job) error) {
+func addAvoidNodeAffinity(job *api.Job, avoidNodeLabels *api.OrderedStringMap, validateJobsCanBeScheduled func(jobs []*api.Job) error) bool {
 
+	changed := false
 	for _, label := range avoidNodeLabels.Entries {
 
 		candidateNewJob := addAvoidNodeAffinityInner(job, label.Key, label.Value)
@@ -23,7 +24,9 @@ func addAvoidNodeAffinity(job *api.Job, avoidNodeLabels *api.OrderedStringMap, v
 
 		log.Infof("Adding avoid node affinity for label %s=%s for job %s", label.Key, label.Value, job.Id)
 		*job = *candidateNewJob
+		changed = true
 	}
+	return changed
 }
 
 func addAvoidNodeAffinityInner(job *api.Job, labelName string, labelValue string) *api.Job {

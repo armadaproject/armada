@@ -17,9 +17,6 @@ var expectedWarningsEventReasons = util.StringListToSet([]string{
 var imagePullBackOffStatesSet = util.StringListToSet([]string{"ImagePullBackOff", "ErrImagePull"})
 var invalidImageNameStatesSet = util.StringListToSet([]string{"InvalidImageName"})
 
-const failedMountReason = "FailedMount"
-const failedFlexVolumeMountPrefix = "MountVolume.SetUp failed for volume"
-
 const failedPullPrefix = "Failed to pull image"
 const failedPullAndUnpack = "desc = failed to pull and unpack image"
 const failedPullErrorResponse = "code = Unknown desc = Error response from daemon"
@@ -181,9 +178,6 @@ func hasUnrecoverableEvent(podEvents []*v1.Event) (bool, *v1.Event) {
 		return true, event
 	}
 
-	if isMountFailure, event := hasFailedMountEvent(podEvents); isMountFailure {
-		return true, event
-	}
 	return false, nil
 }
 
@@ -208,15 +202,6 @@ func hasUnpullableImageEvent(podEvents []*v1.Event) (bool, *v1.Event) {
 			if strings.Contains(event.Message, failedPullErrorResponse) {
 				return true, event
 			}
-		}
-	}
-	return false, nil
-}
-
-func hasFailedMountEvent(podEvents []*v1.Event) (bool, *v1.Event) {
-	for _, event := range podEvents {
-		if event.Type == v1.EventTypeWarning && event.Reason == failedMountReason && strings.HasPrefix(event.Message, failedFlexVolumeMountPrefix) {
-			return true, event
 		}
 	}
 	return false, nil

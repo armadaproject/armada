@@ -44,16 +44,17 @@ var (
 	userAnnotationLookupTable = goqu.T("user_annotation_lookup")
 
 	// Columns: job table
-	job_jobId     = goqu.I("job.job_id")
-	job_queue     = goqu.I("job.queue")
-	job_owner     = goqu.I("job.owner")
-	job_jobset    = goqu.I("job.jobset")
-	job_priority  = goqu.I("job.priority")
-	job_submitted = goqu.I("job.submitted")
-	job_cancelled = goqu.I("job.cancelled")
-	job_job       = goqu.I("job.job")
-	job_state     = goqu.I("job.state")
-	job_duplicate = goqu.I("job.duplicate")
+	job_jobId      = goqu.I("job.job_id")
+	job_queue      = goqu.I("job.queue")
+	job_owner      = goqu.I("job.owner")
+	job_jobset     = goqu.I("job.jobset")
+	job_priority   = goqu.I("job.priority")
+	job_submitted  = goqu.I("job.submitted")
+	job_cancelled  = goqu.I("job.cancelled")
+	job_job        = goqu.I("job.job")
+	job_state      = goqu.I("job.state")
+	job_duplicate  = goqu.I("job.duplicate")
+	job_jobUpdated = goqu.I("job.job_updated")
 
 	// Columns: job_run table
 	jobRun_runId     = goqu.I("job_run.run_id")

@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"strings"
 
 	"github.com/gogo/protobuf/types"
 	log "github.com/sirupsen/logrus"
@@ -278,16 +279,9 @@ func (server *SubmitServer) ReprioritizeJobs(ctx context.Context, request *api.J
 		return nil, err
 	}
 
-	results, err := server.reprioritizeJobs(authorization.GetPrincipal(ctx), jobs, request)
-	if err != nil {
-		return nil, err
-	}
+	principalName := authorization.GetPrincipal(ctx).GetName()
 
-	return &api.JobReprioritizeResponse{ReprioritizationResults: results}, nil
-}
-
-func (server *SubmitServer) reprioritizeJobs(principal authorization.Principal, jobs []*api.Job, request *api.JobReprioritizeRequest) (map[string]string, error) {
-	err := reportJobsReprioritizing(server.eventStore, principal.GetName(), jobs, request.NewPriority)
+	err = reportJobsReprioritizing(server.eventStore, principalName, jobs, request.NewPriority)
 	if err != nil {
 		return nil, err
 	}
@@ -296,32 +290,49 @@ func (server *SubmitServer) reprioritizeJobs(principal authorization.Principal, 
 	for _, job := range jobs {
 		jobIds = append(jobIds, job.Id)
 	}
+	results, err := server.reprioritizeJobs(jobIds, request.NewPriority, principalName)
+	if err != nil {
+		return nil, err
+	}
 
-	results, err := server.jobRepository.UpdateJobs(jobIds, func(job *api.Job) {
-		job.Priority = request.NewPriority
+	return &api.JobReprioritizeResponse{ReprioritizationResults: results}, nil
+}
+
+func (server *SubmitServer) reprioritizeJobs(jobIds []string, newPriority float64, principalName string) (map[string]string, error) {
+	updateJobResults := server.jobRepository.UpdateJobs(jobIds, func(jobs []*api.Job) {
+		for _, job := range jobs {
+			job.Priority = newPriority
+		}
+		err := server.reportReprioritizedJobEvents(jobs, newPriority, principalName)
+		if err != nil {
+			log.Warnf("Failed to report events for reprioritize of jobs %s: %v", strings.Join(jobIds, ", "), err)
+		}
 	})
 
-	if err != nil {
-		return nil, err
-	}
-
-	jobMap := make(map[string]*api.Job)
-	for _, job := range jobs {
-		jobMap[job.Id] = job
-	}
-
-	var reprioritizedJobs []*api.Job
-	for jobId, errorString := range results {
-		if errorString == "" {
-			reprioritizedJobs = append(reprioritizedJobs, jobMap[jobId])
+	results := map[string]string{}
+	for _, r := range updateJobResults {
+		if r.Error == nil {
+			results[r.JobId] = ""
+		} else {
+			results[r.JobId] = r.Error.Error()
 		}
 	}
-
-	err = reportJobsReprioritized(server.eventStore, principal.GetName(), reprioritizedJobs, request.NewPriority)
-	if err != nil {
-		return nil, err
-	}
 	return results, nil
+}
+
+func (server *SubmitServer) reportReprioritizedJobEvents(reprioritizedJobs []*api.Job, newPriority float64, principalName string) error {
+
+	err := reportJobsUpdated(server.eventStore, principalName, reprioritizedJobs)
+	if err != nil {
+		return err
+	}
+
+	err = reportJobsReprioritized(server.eventStore, principalName, reprioritizedJobs, newPriority)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (server *SubmitServer) checkReprioritizePerms(ctx context.Context, jobs []*api.Job) error {
