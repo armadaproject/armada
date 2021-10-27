@@ -12,6 +12,7 @@ import (
 	"github.com/G-Research/armada/internal/executor/domain"
 	context2 "github.com/G-Research/armada/internal/executor/fake/context"
 	"github.com/G-Research/armada/internal/executor/job"
+	"github.com/G-Research/armada/internal/executor/podchecks"
 	reporter_fake "github.com/G-Research/armada/internal/executor/reporter/fake"
 	"github.com/G-Research/armada/internal/executor/service/fake"
 )
@@ -83,7 +84,7 @@ func makePodWithCurrentStateReported(state v1.PodPhase, reportedDone bool) *v1.P
 func createManager(minimumPodAge, failedPodExpiry time.Duration) *JobManager {
 	fakeClusterContext := context2.NewFakeClusterContext(configuration.ApplicationConfiguration{ClusterId: "test", Pool: "pool"}, nil)
 	fakeEventReporter := &reporter_fake.FakeEventReporter{}
-	jobContext := job.NewClusterJobContext(fakeClusterContext, time.Minute*3)
+	jobContext := job.NewClusterJobContext(fakeClusterContext, &mockPodChecks{}, time.Minute, time.Minute*3)
 
 	jobLeaseService := fake.NewMockLeaseService()
 
@@ -94,4 +95,11 @@ func createManager(minimumPodAge, failedPodExpiry time.Duration) *JobManager {
 		jobLeaseService,
 		minimumPodAge,
 		failedPodExpiry)
+}
+
+type mockPodChecks struct {
+}
+
+func (pc *mockPodChecks) GetAction(pod *v1.Pod, podEvents []*v1.Event, timeInState time.Duration) (podchecks.Action, string) {
+	return podchecks.ActionWait, ""
 }

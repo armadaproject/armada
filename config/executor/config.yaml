@@ -32,7 +32,7 @@ kubernetes:
     - regexp: "Failed to pull image.*code = Unknown desc = Error response from daemon"
       type: Warning
       action: Fail
-    - regexp: "nodes are available"  # match all except the FailedScheduling message e.g. "0/3 nodes are available:
+    - regexp: "nodes are available"  # match all except the FailedScheduling message "0/3 nodes are available:"
       inverse: true
       type: Warning
       action: Retry

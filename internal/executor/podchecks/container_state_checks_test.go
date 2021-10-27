@@ -105,6 +105,26 @@ func Test_getAction_WhenOneFailedContainer_FirstMatchingCheckIsNotTimedOut_ButLa
 	assert.Empty(t, message)
 }
 
+func Test_getAction_Inverse_Works(t *testing.T) {
+
+	csc, err := newContainerStateChecks([]config.ContainerStatusCheck{
+		{Action: config.ActionFail, State: config.ContainerStateWaiting, Timeout: time.Minute, ReasonRegexp: "ImagePullBackOff", Inverse: true},
+	})
+	assert.Nil(t, err)
+
+	pod := basicPod()
+	pod.Status.ContainerStatuses[0].State.Waiting = &v1.ContainerStateWaiting{Reason: "ImagePullBackOff", Message: "Backing off"}
+	action, message := csc.getAction(pod, time.Minute*5)
+	assert.Equal(t, ActionWait.String(), action.String())
+	assert.Empty(t, message)
+
+	pod = basicPod()
+	pod.Status.ContainerStatuses[0].State.Waiting = &v1.ContainerStateWaiting{Reason: "Some other reason", Message: "Backing off"}
+	action, message = csc.getAction(pod, time.Minute*5)
+	assert.Equal(t, ActionFail.String(), action.String())
+	assert.NotEmpty(t, message)
+}
+
 func Test_newContainerStateChecks_InvalidRegexp_ReturnsError(t *testing.T) {
 	csc, err := newContainerStateChecks([]config.ContainerStatusCheck{{Action: config.ActionFail, State: config.ContainerStateWaiting, Timeout: time.Minute, ReasonRegexp: "["}})
 	assert.Nil(t, csc)

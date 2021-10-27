@@ -1,6 +1,7 @@
 package service
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -10,9 +11,11 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/G-Research/armada/internal/common/util"
+	podchecksConfig "github.com/G-Research/armada/internal/executor/configuration/podchecks"
 	"github.com/G-Research/armada/internal/executor/context"
 	"github.com/G-Research/armada/internal/executor/domain"
 	"github.com/G-Research/armada/internal/executor/job"
+	"github.com/G-Research/armada/internal/executor/podchecks"
 	"github.com/G-Research/armada/internal/executor/service/fake"
 
 	reporter_fake "github.com/G-Research/armada/internal/executor/reporter/fake"
@@ -150,7 +153,7 @@ func makeUnretryableStuckPod() *v1.Pod {
 				State: v1.ContainerState{
 					Waiting: &v1.ContainerStateWaiting{
 						Reason:  "ImagePullBackOff",
-						Message: "Some message",
+						Message: "Image pull has failed",
 					},
 				},
 			},
@@ -166,7 +169,7 @@ func makeRetryableStuckPod() *v1.Pod {
 				State: v1.ContainerState{
 					Waiting: &v1.ContainerStateWaiting{
 						Reason:  "Some reason",
-						Message: "Some message",
+						Message: "Some other message",
 					},
 				},
 			},
@@ -203,7 +206,7 @@ func makejobManagerWithTestDoubles() (context.ClusterContext, *fake.MockLeaseSer
 	fakeClusterContext := fake.NewSyncFakeClusterContext()
 	mockLeaseService := fake.NewMockLeaseService()
 	eventReporter := reporter_fake.NewFakeEventReporter()
-	jobContext := job.NewClusterJobContext(fakeClusterContext, time.Minute*3)
+	jobContext := job.NewClusterJobContext(fakeClusterContext, makePodChecker(), time.Second*1, time.Minute*3)
 
 	jobManager := NewJobManager(
 		fakeClusterContext,
@@ -214,4 +217,23 @@ func makejobManagerWithTestDoubles() (context.ClusterContext, *fake.MockLeaseSer
 		time.Second)
 
 	return fakeClusterContext, mockLeaseService, eventReporter, jobManager
+}
+
+func makePodChecker() podchecks.PodChecker {
+	var cfg podchecksConfig.Checks
+	cfg.Events = []podchecksConfig.EventCheck{
+		{Regexp: "Image pull has failed", Type: "Warning", Action: podchecksConfig.ActionFail},
+		{Regexp: "Some other message", Type: "Warning", Action: podchecksConfig.ActionRetry},
+	}
+	cfg.ContainerStatuses = []podchecksConfig.ContainerStatusCheck{
+		{State: podchecksConfig.ContainerStateWaiting, ReasonRegexp: "ImagePullBackOff", Timeout: time.Nanosecond, Action: podchecksConfig.ActionFail},
+		{State: podchecksConfig.ContainerStateWaiting, ReasonRegexp: "Some reason", Timeout: time.Nanosecond, Action: podchecksConfig.ActionRetry},
+	}
+
+	checker, err := podchecks.NewPodChecks(cfg)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to make pod checker: %v", err))
+	}
+
+	return checker
 }

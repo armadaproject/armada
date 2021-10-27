@@ -54,13 +54,13 @@ type ClusterJobContext struct {
 	clusterContext               context.ClusterContext
 	gracePeriodBeforeHealthCheck time.Duration
 	stuckTerminatingPodExpiry    time.Duration
-	pendingPodChecker            *podchecks.PodChecks
+	pendingPodChecker            podchecks.PodChecker
 
 	activeJobs        map[string]*jobRecord
 	activeJobIdsMutex sync.Mutex
 }
 
-func NewClusterJobContext(clusterContext context.ClusterContext, pendingPodChecker *podchecks.PodChecks, gracePeriodBeforeHealthCheck time.Duration, stuckTerminatingPodExpiry time.Duration) *ClusterJobContext {
+func NewClusterJobContext(clusterContext context.ClusterContext, pendingPodChecker podchecks.PodChecker, gracePeriodBeforeHealthCheck time.Duration, stuckTerminatingPodExpiry time.Duration) *ClusterJobContext {
 	jobContext := &ClusterJobContext{
 		clusterContext:               clusterContext,
 		gracePeriodBeforeHealthCheck: gracePeriodBeforeHealthCheck,

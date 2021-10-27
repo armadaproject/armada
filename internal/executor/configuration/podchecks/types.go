@@ -41,6 +41,7 @@ type EventCheck struct {
 type ContainerStatusCheck struct {
 	State        ContainerState
 	ReasonRegexp string
+	Inverse      bool
 	Timeout      time.Duration
 	Action       Action
 }

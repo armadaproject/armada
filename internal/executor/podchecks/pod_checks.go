@@ -10,6 +10,10 @@ import (
 	config "github.com/G-Research/armada/internal/executor/configuration/podchecks"
 )
 
+type PodChecker interface {
+	GetAction(pod *v1.Pod, podEvents []*v1.Event, timeInState time.Duration) (Action, string)
+}
+
 type PodChecks struct {
 	eventChecks          eventChecker
 	containerStateChecks containerStateChecker

@@ -24,6 +24,7 @@ type containerStateChecks struct {
 type containerStatusCheck struct {
 	state        config.ContainerState
 	reasonRegexp *regexp.Regexp
+	inverse      bool
 	timeout      time.Duration
 	action       Action
 }
@@ -46,7 +47,7 @@ func newContainerStateChecks(configs []config.ContainerStatusCheck) (*containerS
 			return nil, fmt.Errorf("Invalid container state: \"%s\"", cfg.State)
 		}
 
-		check := containerStatusCheck{reasonRegexp: re, action: action, timeout: cfg.Timeout, state: cfg.State}
+		check := containerStatusCheck{reasonRegexp: re, inverse: cfg.Inverse, action: action, timeout: cfg.Timeout, state: cfg.State}
 		containerStateChecks.checks = append(containerStateChecks.checks, check)
 		log.Infof("   Created container state check %s \"%s\" %s %s", check.state, check.reasonRegexp, check.timeout, check.action)
 	}
@@ -75,7 +76,7 @@ func (csc *containerStateChecks) getContainerAction(pod *v1.Pod, containerStatus
 			message := containerStatus.State.Waiting.Message
 			state := config.ContainerStateWaiting
 
-			if check.reasonRegexp.MatchString(reason) && state == check.state {
+			if check.inverse != check.reasonRegexp.MatchString(reason) && state == check.state {
 				if timeInState >= check.timeout {
 					log.Warnf("Container %s in Pod %s in namespace %s has been in state %s with reason %s (%s) for more than %v (matched regexp was %s), required action is %s",
 						containerStatus.Name, pod.Name, pod.Namespace, state, reason, message, check.timeout, check.reasonRegexp, check.action)
