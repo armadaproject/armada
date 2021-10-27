@@ -32,16 +32,16 @@ func TestCanSubmitJob_ReceivingAllExpectedEvents(t *testing.T) {
 		jobRequest := createJobRequest("personal-anonymous")
 		createQueue(submitClient, jobRequest, t)
 
-		receivedEvents := submitJobsAndWatch(t, submitClient, eventsClient, jobRequest)
+		statusEvents, _ := submitJobsAndWatch(t, submitClient, eventsClient, jobRequest)
 
-		assert.True(t, receivedEvents[domain.Queued])
-		assert.True(t, receivedEvents[domain.Leased])
-		assert.True(t, receivedEvents[domain.Running])
-		assert.True(t, receivedEvents[domain.Succeeded])
+		assert.True(t, statusEvents[domain.Queued])
+		assert.True(t, statusEvents[domain.Leased])
+		assert.True(t, statusEvents[domain.Running])
+		assert.True(t, statusEvents[domain.Succeeded])
 	})
 }
 
-func TestCanSubmitJob_IncorrectJobMountFails(t *testing.T) {
+func TestCanSubmitJob_IncorrectImage_FailsWithoutRetry(t *testing.T) {
 	skipIfIntegrationEnvNotPresent(t)
 
 	client.WithConnection(connectionDetails(), func(connection *grpc.ClientConn) {
@@ -50,16 +50,22 @@ func TestCanSubmitJob_IncorrectJobMountFails(t *testing.T) {
 
 		jobRequest := createJobRequest("personal-anonymous")
 		pod := jobRequest.JobRequestItems[0].PodSpec
-		pod.Containers[0].VolumeMounts = []v1.VolumeMount{{Name: "config", MountPath: "/test"}}
-		pod.Volumes = []v1.Volume{{
-			Name: "config",
-			VolumeSource: v1.VolumeSource{
-				ConfigMap: &v1.ConfigMapVolumeSource{LocalObjectReference: v1.LocalObjectReference{Name: "missing"}}}}}
+		pod.Containers[0].Image = "wrong"
 
 		createQueue(submitClient, jobRequest, t)
 
-		receivedEvents := submitJobsAndWatch(t, submitClient, eventsClient, jobRequest)
-		assert.True(t, receivedEvents[domain.Failed])
+		statusEvents, allEvents := submitJobsAndWatch(t, submitClient, eventsClient, jobRequest)
+
+		numLeasedEvents := 0
+		for _, e := range allEvents {
+			_, isLeasedEvent := e.(*api.JobLeasedEvent)
+			if isLeasedEvent {
+				numLeasedEvents++
+			}
+		}
+
+		assert.True(t, statusEvents[domain.Failed])
+		assert.Equal(t, 1, numLeasedEvents)
 	})
 }
 
@@ -110,8 +116,8 @@ func TestCanSubmitJob_KubernetesNamespacePermissionsAreRespected(t *testing.T) {
 		jobRequest := createJobRequest("default")
 		createQueue(submitClient, jobRequest, t)
 
-		receivedEvents := submitJobsAndWatch(t, submitClient, eventsClient, jobRequest)
-		assert.True(t, receivedEvents[domain.Failed], "Anonymous user should not have access to default namespace.")
+		statusEvents, _ := submitJobsAndWatch(t, submitClient, eventsClient, jobRequest)
+		assert.True(t, statusEvents[domain.Failed], "Anonymous user should not have access to default namespace.")
 	})
 }
 
@@ -122,14 +128,16 @@ func connectionDetails() *client.ApiConnectionDetails {
 	return connectionDetails
 }
 
-func submitJobsAndWatch(t *testing.T, submitClient api.SubmitClient, eventsClient api.EventClient, jobRequest *api.JobSubmitRequest) map[domain.JobStatus]bool {
+func submitJobsAndWatch(t *testing.T, submitClient api.SubmitClient, eventsClient api.EventClient, jobRequest *api.JobSubmitRequest) (map[domain.JobStatus]bool, []api.Event) {
 	_, err := client.SubmitJobs(submitClient, jobRequest)
 	assert.NoError(t, err)
-	receivedEvents := make(map[domain.JobStatus]bool)
+	statusEvents := make(map[domain.JobStatus]bool)
 	timeout, _ := context.WithTimeout(context.Background(), 60*time.Second)
+	allEvents := []api.Event{}
 	client.WatchJobSet(eventsClient, jobRequest.Queue, jobRequest.JobSetId, true, timeout, func(state *domain.WatchContext, e api.Event) bool {
+		allEvents = append(allEvents, e)
 		currentStatus := state.GetJobInfo(e.GetJobId()).Status
-		receivedEvents[currentStatus] = true
+		statusEvents[currentStatus] = true
 
 		if currentStatus == domain.Succeeded || currentStatus == domain.Failed || currentStatus == domain.Cancelled {
 			return true
@@ -140,7 +148,7 @@ func submitJobsAndWatch(t *testing.T, submitClient api.SubmitClient, eventsClien
 		return false
 	})
 	assert.False(t, hasTimedOut(timeout), "Test timed out waiting for expected events")
-	return receivedEvents
+	return statusEvents, allEvents
 }
 
 func createQueue(submitClient api.SubmitClient, jobRequest *api.JobSubmitRequest, t *testing.T) {
