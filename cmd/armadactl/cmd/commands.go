@@ -55,12 +55,12 @@ func Update() *cobra.Command {
 
 func Info() *cobra.Command {
 	command := cobra.Command{
-		Use:   "info",
+		Use:   "describe",
 		Short: "Retrieve information about armada resource. Supported: queue",
 	}
 
 	command.AddCommand(
-		queue.Info(),
+		queue.Describe(),
 	)
 
 	return &command

@@ -12,7 +12,7 @@ import (
 	"github.com/G-Research/armada/pkg/client"
 )
 
-func Info() *cobra.Command {
+func Describe() *cobra.Command {
 	command := &cobra.Command{
 		Use:   "queue",
 		Short: "Prints out queue info.",
