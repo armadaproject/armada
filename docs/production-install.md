@@ -199,7 +199,7 @@ jobs:
 Use the `armadactl` command line utility to submit jobs to the Armada server
 ```bash
 # create a queue:
-armadactl create-queue test --priorityFactor 1
+armadactl create queue test --priorityFactor 1
 
 # submit jobs in yaml file:
 armadactl submit ./example/jobs.yaml
