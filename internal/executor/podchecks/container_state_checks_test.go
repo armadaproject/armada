@@ -22,7 +22,7 @@ func Test_getAction_WhenNoContainers_AndNoChecks_ReturnsWait(t *testing.T) {
 	assert.Empty(t, message)
 }
 
-func Test_getAction_WhenOneFailedContainer_AndOneMatchingFailCheck_ReturnsFail(t *testing.T) {
+func Test_getAction_WhenOneFailedContainer_WithMatchingFailCheck_ReturnsFail(t *testing.T) {
 	csc, err := newContainerStateChecks([]config.ContainerStatusCheck{{Action: config.ActionFail, State: config.ContainerStateWaiting, Timeout: time.Minute, ReasonRegexp: "InvalidImageName"}})
 	assert.Nil(t, err)
 
