@@ -141,7 +141,7 @@ func (js *JobSimulator) CreateJobWithOpts(
 		PodSpec:     &v1.PodSpec{},
 		Created:     time,
 	}
-	assert.NoError(js.t, js.jobStore.RecordJob(js.job))
+	assert.NoError(js.t, js.jobStore.RecordJob(js.job, time))
 	return js
 }
 

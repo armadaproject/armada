@@ -204,6 +204,15 @@ message JobTerminatedEvent {
     string reason = 8;
 }
 
+message JobUpdatedEvent {
+    string job_id = 1;
+    string job_set_id = 2;
+    string queue = 3;
+    google.protobuf.Timestamp created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+    string requestor = 5;
+    Job job = 6 [(gogoproto.nullable) = false];
+}
+
 message EventMessage {
     oneof events {
         JobSubmittedEvent submitted = 1;
@@ -224,6 +233,7 @@ message EventMessage {
         JobUtilisationEvent utilisation = 15;
         JobIngressInfoEvent ingress_info = 17;
         JobReprioritizingEvent reprioritizing = 18;
+        JobUpdatedEvent updated = 19;
     }
 }
 

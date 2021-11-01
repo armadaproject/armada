@@ -412,6 +412,9 @@
         "unableToSchedule": {
           "$ref": "#/definitions/apiJobUnableToScheduleEvent"
         },
+        "updated": {
+          "$ref": "#/definitions/apiJobUpdatedEvent"
+        },
         "utilisation": {
           "$ref": "#/definitions/apiJobUtilisationEvent"
         }
@@ -1195,6 +1198,30 @@
           "type": "string"
         },
         "reason": {
+          "type": "string"
+        }
+      }
+    },
+    "apiJobUpdatedEvent": {
+      "type": "object",
+      "properties": {
+        "created": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "job": {
+          "$ref": "#/definitions/apiJob"
+        },
+        "jobId": {
+          "type": "string"
+        },
+        "jobSetId": {
+          "type": "string"
+        },
+        "queue": {
+          "type": "string"
+        },
+        "requestor": {
           "type": "string"
         }
       }

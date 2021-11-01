@@ -2,9 +2,11 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/gogo/protobuf/types"
+	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -162,6 +164,13 @@ func (q *AggregatedQueueServer) ReturnLease(ctx context.Context, request *api.Re
 		return &types.Empty{}, nil
 	}
 
+	if request.AvoidNodeLabels != nil && len(request.AvoidNodeLabels.Entries) > 0 {
+		err = q.addAvoidNodeAffinity(request.JobId, request.AvoidNodeLabels, authorization.GetPrincipal(ctx).GetName())
+		if err != nil {
+			log.Warnf("Failed to set avoid node affinity for job %s: %v", request.JobId, err)
+		}
+	}
+
 	_, err = q.jobRepository.ReturnLease(request.ClusterId, request.JobId)
 	if err != nil {
 		return nil, err
@@ -173,6 +182,37 @@ func (q *AggregatedQueueServer) ReturnLease(ctx context.Context, request *api.Re
 	}
 
 	return &types.Empty{}, nil
+}
+
+func (q *AggregatedQueueServer) addAvoidNodeAffinity(jobId string, labels *api.OrderedStringMap, principalName string) error {
+	allClusterSchedulingInfo, e := q.schedulingInfoRepository.GetClusterSchedulingInfo()
+	if e != nil {
+		return e
+	}
+
+	res := q.jobRepository.UpdateJobs([]string{jobId}, func(jobs []*api.Job) {
+		if len(jobs) < 1 {
+			log.Warnf("addAvoidNodeAffinity: Job %s not found", jobId)
+			return
+		}
+
+		changed := addAvoidNodeAffinity(jobs[0], labels, func(jobsToValidate []*api.Job) error {
+			return validateJobsCanBeScheduled(jobsToValidate, allClusterSchedulingInfo)
+		})
+
+		if changed {
+			err := reportJobsUpdated(q.eventStore, principalName, jobs)
+			if err != nil {
+				log.Warnf("addAvoidNodeAffinity: Failed to report job updated event for job %s: %v", jobId, err)
+			}
+		}
+	})
+
+	if len(res) < 1 {
+		return errors.New("Job not found")
+	}
+
+	return res[0].Error
 }
 
 func (q *AggregatedQueueServer) ReportDone(ctx context.Context, idList *api.IdList) (*api.IdList, error) {
