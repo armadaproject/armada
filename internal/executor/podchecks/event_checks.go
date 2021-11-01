@@ -67,7 +67,7 @@ func (ec *eventChecks) getEventAction(podName string, podEvent *v1.Event, timeIn
 	for _, check := range ec.checks {
 		if podEvent.Type == string(check.eventType) && (check.inverse != check.regexp.MatchString(podEvent.Message)) {
 			if timeInState > check.gracePeriod {
-				log.Warnf("Pod %s needs action %s %s because event \"%s\" matches regexp %s\"%v\"", podName, check.action, check.action, podEvent.Message, inverseString(check.inverse), check.regexp)
+				log.Warnf("Pod %s needs action %s because event \"%s\" matches regexp %s\"%v\"", podName, check.action, podEvent.Message, inverseString(check.inverse), check.regexp)
 				return check.action, podEvent.Message
 			} else {
 				return ActionWait, ""
