@@ -32,16 +32,17 @@ type Checks struct {
 }
 
 type EventCheck struct {
-	Regexp  string
-	Inverse bool
-	Action  Action
-	Type    EventType
+	Regexp      string
+	Inverse     bool
+	Type        EventType
+	GracePeriod time.Duration
+	Action      Action
 }
 
 type ContainerStatusCheck struct {
 	State        ContainerState
 	ReasonRegexp string
 	Inverse      bool
-	Timeout      time.Duration
+	GracePeriod  time.Duration
 	Action       Action
 }

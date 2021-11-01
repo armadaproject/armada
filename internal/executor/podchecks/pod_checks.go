@@ -37,7 +37,7 @@ func NewPodChecks(cfg config.Checks) (*PodChecks, error) {
 func (pc *PodChecks) GetAction(pod *v1.Pod, podEvents []*v1.Event, timeInState time.Duration) (Action, string) {
 
 	messages := []string{}
-	eventAction, message := pc.eventChecks.getAction(pod.Name, podEvents)
+	eventAction, message := pc.eventChecks.getAction(pod.Name, podEvents, timeInState)
 	if eventAction != ActionWait {
 		messages = append(messages, message)
 	}

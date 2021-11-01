@@ -206,7 +206,7 @@ func makejobManagerWithTestDoubles() (context.ClusterContext, *fake.MockLeaseSer
 	fakeClusterContext := fake.NewSyncFakeClusterContext()
 	mockLeaseService := fake.NewMockLeaseService()
 	eventReporter := reporter_fake.NewFakeEventReporter()
-	jobContext := job.NewClusterJobContext(fakeClusterContext, makePodChecker(), time.Second*1, time.Minute*3)
+	jobContext := job.NewClusterJobContext(fakeClusterContext, makePodChecker(), time.Minute*3)
 
 	jobManager := NewJobManager(
 		fakeClusterContext,
@@ -222,12 +222,12 @@ func makejobManagerWithTestDoubles() (context.ClusterContext, *fake.MockLeaseSer
 func makePodChecker() podchecks.PodChecker {
 	var cfg podchecksConfig.Checks
 	cfg.Events = []podchecksConfig.EventCheck{
-		{Regexp: "Image pull has failed", Type: "Warning", Action: podchecksConfig.ActionFail},
-		{Regexp: "Some other message", Type: "Warning", Action: podchecksConfig.ActionRetry},
+		{Regexp: "Image pull has failed", Type: "Warning", GracePeriod: time.Nanosecond, Action: podchecksConfig.ActionFail},
+		{Regexp: "Some other message", Type: "Warning", GracePeriod: time.Nanosecond, Action: podchecksConfig.ActionRetry},
 	}
 	cfg.ContainerStatuses = []podchecksConfig.ContainerStatusCheck{
-		{State: podchecksConfig.ContainerStateWaiting, ReasonRegexp: "ImagePullBackOff", Timeout: time.Nanosecond, Action: podchecksConfig.ActionFail},
-		{State: podchecksConfig.ContainerStateWaiting, ReasonRegexp: "Some reason", Timeout: time.Nanosecond, Action: podchecksConfig.ActionRetry},
+		{State: podchecksConfig.ContainerStateWaiting, ReasonRegexp: "ImagePullBackOff", GracePeriod: time.Nanosecond, Action: podchecksConfig.ActionFail},
+		{State: podchecksConfig.ContainerStateWaiting, ReasonRegexp: "Some reason", GracePeriod: time.Nanosecond, Action: podchecksConfig.ActionRetry},
 	}
 
 	checker, err := podchecks.NewPodChecks(cfg)

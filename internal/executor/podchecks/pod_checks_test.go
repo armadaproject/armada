@@ -66,7 +66,7 @@ type mockContainerStateChecks struct {
 	message string
 }
 
-func (ec *mockEventChecks) getAction(podName string, podEvents []*v1.Event) (Action, string) {
+func (ec *mockEventChecks) getAction(podName string, podEvents []*v1.Event, timeInState time.Duration) (Action, string) {
 	return ec.result, ec.message
 }
 

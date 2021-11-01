@@ -51,23 +51,21 @@ type JobContext interface {
 }
 
 type ClusterJobContext struct {
-	clusterContext               context.ClusterContext
-	gracePeriodBeforeHealthCheck time.Duration
-	stuckTerminatingPodExpiry    time.Duration
-	pendingPodChecker            podchecks.PodChecker
+	clusterContext            context.ClusterContext
+	stuckTerminatingPodExpiry time.Duration
+	pendingPodChecker         podchecks.PodChecker
 
 	activeJobs        map[string]*jobRecord
 	activeJobIdsMutex sync.Mutex
 }
 
-func NewClusterJobContext(clusterContext context.ClusterContext, pendingPodChecker podchecks.PodChecker, gracePeriodBeforeHealthCheck time.Duration, stuckTerminatingPodExpiry time.Duration) *ClusterJobContext {
+func NewClusterJobContext(clusterContext context.ClusterContext, pendingPodChecker podchecks.PodChecker, stuckTerminatingPodExpiry time.Duration) *ClusterJobContext {
 	jobContext := &ClusterJobContext{
-		clusterContext:               clusterContext,
-		gracePeriodBeforeHealthCheck: gracePeriodBeforeHealthCheck,
-		stuckTerminatingPodExpiry:    stuckTerminatingPodExpiry,
-		pendingPodChecker:            pendingPodChecker,
-		activeJobs:                   map[string]*jobRecord{},
-		activeJobIdsMutex:            sync.Mutex{},
+		clusterContext:            clusterContext,
+		stuckTerminatingPodExpiry: stuckTerminatingPodExpiry,
+		pendingPodChecker:         pendingPodChecker,
+		activeJobs:                map[string]*jobRecord{},
+		activeJobIdsMutex:         sync.Mutex{},
 	}
 
 	clusterContext.AddPodEventHandler(cache.ResourceEventHandlerFuncs{
@@ -210,8 +208,7 @@ func (c *ClusterJobContext) detectStuckPods(runningJob *RunningJob) {
 				Type:           StuckTerminating})
 			break
 
-		} else if (pod.Status.Phase == v1.PodUnknown || pod.Status.Phase == v1.PodPending) &&
-			util.HasPodBeenInStateForLongerThanGivenDuration(pod, c.gracePeriodBeforeHealthCheck) {
+		} else if pod.Status.Phase == v1.PodUnknown || pod.Status.Phase == v1.PodPending {
 
 			podEvents, err := c.clusterContext.GetPodEvents(pod)
 			if err != nil {

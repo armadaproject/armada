@@ -90,7 +90,7 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 		os.Exit(-1)
 	}
 
-	jobContext := job.NewClusterJobContext(clusterContext, pendingPodChecker, config.Kubernetes.GracePeriodBeforePodHealthCheck, config.Kubernetes.StuckTerminatingPodExpiry)
+	jobContext := job.NewClusterJobContext(clusterContext, pendingPodChecker, config.Kubernetes.StuckTerminatingPodExpiry)
 	submitter := job.NewSubmitter(clusterContext, config.Kubernetes.PodDefaults)
 
 	nodeInfoService := node.NewKubernetesNodeInfoService(clusterContext, config.Kubernetes.ToleratedTaints)

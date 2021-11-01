@@ -19,37 +19,39 @@ kubernetes:
   impersonateUsers: false
   minimumPodAge: 3m
   failedPodExpiry: 10m
-  gracePeriodBeforePodHealthCheck: 90s
   stuckTerminatingPodExpiry: 1m
   podDefaults:
     ingress:
       hostnameSuffix: "svc"
   pendingPodChecks:
     events:
-    - regexp: "Failed to pull image.*desc = failed to pull and unpack image"
+    - regexp: "Failed to pull image.*desc = failed to pull and unpack image"            # Suggests genuine problem with image name, no point in waiting around too long.
       type: Warning
+      gracePeriod: 90s
       action: Fail
-    - regexp: "Failed to pull image.*code = Unknown desc = Error response from daemon"
+    - regexp: "Failed to pull image.*code = Unknown desc = Error response from daemon"  # Seen when image doesn't exist, no point in waiting around too long.
       type: Warning
+      gracePeriod: 90s
       action: Fail
-    - regexp: "nodes are available"  # match all except the FailedScheduling message "0/3 nodes are available:"
+    - regexp: "nodes are available"  # Catch-all, matches all except the FailedScheduling message "0/3 nodes are available:", this can happen in normal operation.
       inverse: true
       type: Warning
+      gracePeriod: 5m
       action: Retry
     containerStatuses:
     - state: Waiting
-      reasonRegexp: "InvalidImageName"
-      timeout: 1s
+      reasonRegexp: "InvalidImageName"  # If image name format is invalid (for example starts https://), fail immediately.
+      gracePeriod: 0s
       action: Fail
     - state: Waiting
-      reasonRegexp: "ImagePullBackOff"
-      timeout: 30m
+      reasonRegexp: "ImagePullBackOff"  # Can stay in this state a while for large images and overloaded registries, hence long timeout.
+      gracePeriod: 15m
       action: Retry
     - state: Waiting
-      reasonRegexp: "ErrImagePull"
-      timeout: 30m
+      reasonRegexp: "ErrImagePull"      # Can stay in this state a while for large images and overloaded registries, hence long timeout.
+      gracePeriod: 15m
       action: Retry
-    - state: Waiting
+    - state: Waiting                    # Default timeout for statuses not matched above.
       reasonRegexp: ".*"
-      timeout: 5m
+      gracePeriod: 5m
       action: Retry

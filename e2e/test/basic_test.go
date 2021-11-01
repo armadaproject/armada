@@ -50,7 +50,7 @@ func TestCanSubmitJob_IncorrectImage_FailsWithoutRetry(t *testing.T) {
 
 		jobRequest := createJobRequest("personal-anonymous")
 		pod := jobRequest.JobRequestItems[0].PodSpec
-		pod.Containers[0].Image = "wrong"
+		pod.Containers[0].Image = "https://wrongimagename.com" // Image names should be not a url. This will fail immediately with container state InvalidImageName.
 
 		createQueue(submitClient, jobRequest, t)
 
@@ -139,11 +139,11 @@ func submitJobsAndWatch(t *testing.T, submitClient api.SubmitClient, eventsClien
 		currentStatus := state.GetJobInfo(e.GetJobId()).Status
 		statusEvents[currentStatus] = true
 
+		fmt.Printf("Got event %v\n", e)
+
 		if currentStatus == domain.Succeeded || currentStatus == domain.Failed || currentStatus == domain.Cancelled {
 			return true
 		}
-
-		fmt.Printf("Got event %v\n", e)
 
 		return false
 	})

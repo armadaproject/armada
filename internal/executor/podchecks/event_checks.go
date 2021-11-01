@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
@@ -12,14 +13,15 @@ import (
 )
 
 type eventChecker interface {
-	getAction(podName string, podEvents []*v1.Event) (Action, string)
+	getAction(podName string, podEvents []*v1.Event, timeInState time.Duration) (Action, string)
 }
 
 type eventCheck struct {
-	regexp    *regexp.Regexp
-	inverse   bool
-	action    Action
-	eventType config.EventType
+	regexp      *regexp.Regexp
+	inverse     bool
+	eventType   config.EventType
+	gracePeriod time.Duration
+	action      Action
 }
 
 type eventChecks struct {
@@ -43,33 +45,34 @@ func newEventChecks(configs []config.EventCheck) (*eventChecks, error) {
 			return nil, fmt.Errorf("Invalid event type: \"%s\"", config.Type)
 		}
 
-		check := eventCheck{regexp: re, inverse: config.Inverse, action: action, eventType: config.Type}
+		check := eventCheck{regexp: re, inverse: config.Inverse, eventType: config.Type, gracePeriod: config.GracePeriod, action: action}
 		eventChecks.checks = append(eventChecks.checks, check)
-		log.Infof("   Created event check %s %s\"%s\" %s", check.eventType, inverseString(check.inverse), check.regexp.String(), check.action)
+		log.Infof("   Created event check %s %s\"%s\" %s %s", check.eventType, inverseString(check.inverse), check.regexp.String(), check.gracePeriod, check.action)
 	}
 	return eventChecks, nil
 }
 
-func (ec *eventChecks) getAction(podName string, podEvents []*v1.Event) (Action, string) {
+func (ec *eventChecks) getAction(podName string, podEvents []*v1.Event, timeInState time.Duration) (Action, string) {
 	resultAction := ActionWait
 	resultMessages := []string{}
-	for _, check := range ec.checks {
-		for _, event := range podEvents {
-			if event.Type == string(check.eventType) && (check.inverse != check.regexp.MatchString(event.Message)) {
-				log.Warnf("Pod %s needs action %s %s because event \"%s\" matches regexp %s\"%v\"", podName, check.action, check.action, event.Message, inverseString(check.inverse), check.regexp)
-				resultAction = maxAction(resultAction, check.action)
-				resultMessages = append(resultMessages, event.Message)
-			}
-		}
+	for _, event := range podEvents {
+		action, message := ec.getEventAction(podName, event, timeInState)
+		resultAction = maxAction(resultAction, action)
+		resultMessages = append(resultMessages, message)
 	}
-
 	return resultAction, strings.Join(resultMessages, "\n")
 }
 
-func inverseString(inverse bool) string {
-	if inverse {
-		return "NOT "
-	} else {
-		return ""
+func (ec *eventChecks) getEventAction(podName string, podEvent *v1.Event, timeInState time.Duration) (Action, string) {
+	for _, check := range ec.checks {
+		if podEvent.Type == string(check.eventType) && (check.inverse != check.regexp.MatchString(podEvent.Message)) {
+			if timeInState > check.gracePeriod {
+				log.Warnf("Pod %s needs action %s %s because event \"%s\" matches regexp %s\"%v\"", podName, check.action, check.action, podEvent.Message, inverseString(check.inverse), check.regexp)
+				return check.action, podEvent.Message
+			} else {
+				return ActionWait, ""
+			}
+		}
 	}
+	return ActionWait, ""
 }
