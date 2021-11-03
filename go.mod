@@ -12,9 +12,9 @@ require (
 	github.com/go-ldap/ldap/v3 v3.4.1
 	github.com/go-openapi/analysis v0.20.1
 	github.com/go-openapi/jsonreference v0.19.6
-	github.com/go-openapi/loads v0.20.2
-	github.com/go-openapi/runtime v0.19.30
-	github.com/go-openapi/spec v0.20.3
+	github.com/go-openapi/loads v0.21.0
+	github.com/go-openapi/runtime v0.21.0
+	github.com/go-openapi/spec v0.20.4
 	github.com/go-redis/redis v6.15.9+incompatible
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/protobuf v1.5.2
