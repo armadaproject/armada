@@ -23,10 +23,12 @@ type ArmadaConfig struct {
 	EventsNats       NatsConfig
 	EventsRedis      redis.UniversalOptions
 
-	Scheduling      SchedulingConfig
-	QueueManagement QueueManagementConfig
-	EventRetention  EventRetentionPolicy
-	Metrics         MetricsConfig
+	Scheduling        SchedulingConfig
+	QueueManagement   QueueManagementConfig
+	DatabaseRetention DatabaseRetentionPolicy
+	EventRetention    EventRetentionPolicy
+
+	Metrics MetricsConfig
 }
 
 type SchedulingConfig struct {
@@ -42,6 +44,10 @@ type SchedulingConfig struct {
 	MaxRetries                                uint // Maximum number of retries before a Job is failed
 	ResourceScarcity                          map[string]float64
 	PoolResourceScarcity                      map[string]map[string]float64
+}
+
+type DatabaseRetentionPolicy struct {
+	JobRetentionDuration time.Duration
 }
 
 type EventRetentionPolicy struct {

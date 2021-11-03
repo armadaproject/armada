@@ -35,8 +35,8 @@ var createQueueCmd = &cobra.Command{
 	Short: "Create new queue",
 	Long: `Every job submitted to armada needs to be associated with queue. 
 Job priority is evaluated inside queue, queue has its own priority.`,
-
-	Args: cobra.ExactArgs(1),
+	Deprecated: `Use: "create queue"`,
+	Args:       cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		queueName := args[0]
 		priority, _ := cmd.Flags().GetFloat64("priorityFactor")
