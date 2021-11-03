@@ -139,6 +139,7 @@ func TestGetJobs_GetMultipleRunJob(t *testing.T) {
 
 		pendingTime1 := someTime.Add(time.Second)
 		unableToScheduleTime := someTime.Add(2 * time.Second)
+		unableToScheduleReason := "unable to schedule reason"
 		pendingTime2 := someTime.Add(3 * time.Second)
 		runningTime := someTime.Add(4 * time.Second)
 		succeededTime := someTime.Add(5 * time.Second)
@@ -146,7 +147,7 @@ func TestGetJobs_GetMultipleRunJob(t *testing.T) {
 		retried := NewJobSimulator(t, jobStore).
 			CreateJobAtTime(queue, someTime).
 			PendingAtTime(cluster, k8sId1, pendingTime1).
-			UnableToScheduleAtTime(cluster, k8sId1, node, unableToScheduleTime).
+			UnableToScheduleAtTime(cluster, k8sId1, node, unableToScheduleTime, unableToScheduleReason).
 			PendingAtTime(cluster, k8sId2, pendingTime2).
 			RunningAtTime(cluster, k8sId2, node, runningTime).
 			SucceededAtTime(cluster, k8sId2, node, succeededTime)
@@ -168,6 +169,7 @@ func TestGetJobs_GetMultipleRunJob(t *testing.T) {
 			Succeeded: false,
 			Created:   &pendingTime1,
 			Finished:  &unableToScheduleTime,
+			Error:     unableToScheduleReason,
 		}, jobInfo.Runs[0])
 		AssertRunInfosEquivalent(t, &lookout.RunInfo{
 			K8SId:     k8sId2,
