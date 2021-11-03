@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/alicebob/miniredis"
 	"github.com/go-redis/redis"
 	"github.com/stretchr/testify/assert"
@@ -187,6 +188,6 @@ func withRepository(action func(r *repository.RedisJobRepository)) {
 	defer db.Close()
 
 	redisClient := redis.NewClient(&redis.Options{Addr: db.Addr()})
-	repo := repository.NewRedisJobRepository(redisClient, nil, nil)
+	repo := repository.NewRedisJobRepository(redisClient, nil, nil, configuration.DatabaseRetentionPolicy{JobRetentionDuration: time.Hour})
 	action(repo)
 }

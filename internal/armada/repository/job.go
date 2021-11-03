@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/go-redis/redis"
 	"github.com/gogo/protobuf/proto"
 	log "github.com/sirupsen/logrus"
@@ -66,16 +67,22 @@ type RedisJobRepository struct {
 	db                    redis.UniversalClient
 	defaultJobLimits      common.ComputeResources
 	defaultJobTolerations []v1.Toleration
+	retentionPolicy       configuration.DatabaseRetentionPolicy
 }
 
-func NewRedisJobRepository(db redis.UniversalClient, defaultJobLimits common.ComputeResources, defaultJobTolerations []v1.Toleration) *RedisJobRepository {
+func NewRedisJobRepository(
+	db redis.UniversalClient,
+	defaultJobLimits common.ComputeResources,
+	defaultJobTolerations []v1.Toleration,
+	retentionPolicy configuration.DatabaseRetentionPolicy) *RedisJobRepository {
+
 	if defaultJobLimits == nil {
 		defaultJobLimits = common.ComputeResources{}
 	}
 	if defaultJobTolerations == nil {
 		defaultJobTolerations = []v1.Toleration{}
 	}
-	return &RedisJobRepository{db: db, defaultJobLimits: defaultJobLimits, defaultJobTolerations: defaultJobTolerations}
+	return &RedisJobRepository{db: db, defaultJobLimits: defaultJobLimits, defaultJobTolerations: defaultJobTolerations, retentionPolicy: retentionPolicy}
 }
 
 func (repo *RedisJobRepository) CreateJobs(request *api.JobSubmitRequest, owner string, ownershipGroups []string) ([]*api.Job, error) {
@@ -245,7 +252,7 @@ func (repo *RedisJobRepository) DeleteJobs(jobs []*api.Job) map[*api.Job]error {
 		deletionResult.deleteJobRetriesResult = pipe.Del(jobRetriesPrefix + job.Id)
 
 		if !deletionResult.expiryAlreadySet {
-			deletionResult.setJobExpiryResult = pipe.Expire(jobObjectPrefix+job.Id, time.Hour*24*7)
+			deletionResult.setJobExpiryResult = pipe.Expire(jobObjectPrefix+job.Id, repo.retentionPolicy.JobRetentionDuration)
 		}
 		deletionResults = append(deletionResults, deletionResult)
 	}
