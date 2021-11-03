@@ -423,6 +423,9 @@ func SwaggerJsonTemplate() string {
 		"        \"unableToSchedule\": {\n" +
 		"          \"$ref\": \"#/definitions/apiJobUnableToScheduleEvent\"\n" +
 		"        },\n" +
+		"        \"updated\": {\n" +
+		"          \"$ref\": \"#/definitions/apiJobUpdatedEvent\"\n" +
+		"        },\n" +
 		"        \"utilisation\": {\n" +
 		"          \"$ref\": \"#/definitions/apiJobUtilisationEvent\"\n" +
 		"        }\n" +
@@ -1206,6 +1209,30 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"reason\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"apiJobUpdatedEvent\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"created\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"format\": \"date-time\"\n" +
+		"        },\n" +
+		"        \"job\": {\n" +
+		"          \"$ref\": \"#/definitions/apiJob\"\n" +
+		"        },\n" +
+		"        \"jobId\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"jobSetId\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"queue\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"requestor\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        }\n" +
 		"      }\n" +

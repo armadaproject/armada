@@ -38,7 +38,7 @@ namespace GResearch.Armada.Client
         public IEvent Event => Cancelled ?? Submitted ?? Queued ?? DuplicateFound ?? Leased ?? LeaseReturned ??
                                LeaseExpired ?? Pending ?? Running ?? UnableToSchedule ??
                                Failed ?? Succeeded ?? Reprioritized ?? Cancelling ?? Cancelled ?? Terminated ?? 
-                               Utilisation as IEvent;
+                               Utilisation ?? IngressInfo ?? Reprioritizing ?? Updated as IEvent;
     }
 
     public partial class ApiJobSubmittedEvent : IEvent {}
@@ -57,6 +57,9 @@ namespace GResearch.Armada.Client
     public partial class ApiJobCancelledEvent  : IEvent {}
     public partial class ApiJobTerminatedEvent : IEvent {}
     public partial class ApiJobUtilisationEvent : IEvent {}
+    public partial class ApiJobIngressInfoEvent : IEvent {}
+    public partial class ApiJobReprioritizingEvent : IEvent {}
+    public partial class ApiJobUpdatedEvent : IEvent {}
 
     public partial class ApiJobSubmitRequestItem
     {

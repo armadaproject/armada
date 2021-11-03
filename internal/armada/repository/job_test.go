@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/go-redis/redis"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
@@ -182,6 +183,53 @@ func TestDeleteQueuedJob(t *testing.T) {
 		err, deletionOccurred := result[job]
 		assert.Nil(t, err)
 		assert.True(t, deletionOccurred)
+	})
+}
+
+func TestDeleteJobShouldSetJobObjectToExpire(t *testing.T) {
+	withRepository(func(r *RedisJobRepository) {
+		job := addLeasedJob(t, r, "queue1", "cluster1")
+		expiryStatuses := r.getExpiryStatus([]*api.Job{job})
+
+		assert.False(t, expiryStatuses[job])
+
+		result := r.DeleteJobs([]*api.Job{job})
+		err, deletionOccurred := result[job]
+		assert.Nil(t, err)
+		assert.True(t, deletionOccurred)
+
+		expiryStatuses = r.getExpiryStatus([]*api.Job{job})
+		assert.True(t, expiryStatuses[job])
+	})
+}
+
+func TestDeleteJob_JobObjectShouldBeRemovedAfterRetentionPeriod(t *testing.T) {
+	withRepositoryUsingJobDefaults(nil, []v1.Toleration{}, configuration.DatabaseRetentionPolicy{JobRetentionDuration: time.Hour}, func(r *RedisJobRepository) {
+		job := addLeasedJob(t, r, "queue1", "cluster1")
+
+		result := r.DeleteJobs([]*api.Job{job})
+		err, deletionOccurred := result[job]
+		assert.Nil(t, err)
+		assert.True(t, deletionOccurred)
+
+		existingJobs, err := r.GetExistingJobsByIds([]string{job.Id})
+		assert.Nil(t, err)
+		assert.True(t, len(existingJobs) == 1)
+	})
+
+	withRepositoryUsingJobDefaults(nil, []v1.Toleration{}, configuration.DatabaseRetentionPolicy{JobRetentionDuration: time.Millisecond}, func(r *RedisJobRepository) {
+		job := addLeasedJob(t, r, "queue1", "cluster1")
+
+		result := r.DeleteJobs([]*api.Job{job})
+		err, deletionOccurred := result[job]
+		assert.Nil(t, err)
+		assert.True(t, deletionOccurred)
+
+		time.Sleep(time.Millisecond * 300)
+
+		existingJobs, err := r.GetExistingJobsByIds([]string{job.Id})
+		assert.Nil(t, err)
+		assert.True(t, len(existingJobs) == 0)
 	})
 }
 
@@ -383,7 +431,7 @@ func TestCreateJob_ApplyDefaultLimits(t *testing.T) {
 		"memory":            resource.MustParse("512Mi"),
 		"ephemeral-storage": resource.MustParse("4Gi")}
 
-	withRepositoryUsingJobDefaults(defaultLimits, []v1.Toleration{}, func(r *RedisJobRepository) {
+	withRepositoryUsingJobDefaults(defaultLimits, []v1.Toleration{}, configuration.DatabaseRetentionPolicy{JobRetentionDuration: time.Hour}, func(r *RedisJobRepository) {
 		testCases := map[*v1.ResourceList]v1.ResourceList{
 			nil: {
 				"cpu":               resource.MustParse("1"),
@@ -435,7 +483,7 @@ func TestCreateJob_ApplyDefaultTolerations(t *testing.T) {
 		Effect:   v1.TaintEffectNoSchedule,
 	}
 
-	withRepositoryUsingJobDefaults(nil, []v1.Toleration{defaultToleration}, func(r *RedisJobRepository) {
+	withRepositoryUsingJobDefaults(nil, []v1.Toleration{defaultToleration}, configuration.DatabaseRetentionPolicy{JobRetentionDuration: time.Hour}, func(r *RedisJobRepository) {
 		job := addTestJobWithTolerations(t, r, "test", []v1.Toleration{})
 		assert.Equal(t, []v1.Toleration{defaultToleration}, job.PodSpec.Tolerations)
 
@@ -446,7 +494,7 @@ func TestCreateJob_ApplyDefaultTolerations(t *testing.T) {
 		assert.Equal(t, []v1.Toleration{alternateToleration, defaultToleration}, job.PodSpec.Tolerations)
 	})
 
-	withRepositoryUsingJobDefaults(nil, []v1.Toleration{}, func(r *RedisJobRepository) {
+	withRepositoryUsingJobDefaults(nil, []v1.Toleration{}, configuration.DatabaseRetentionPolicy{JobRetentionDuration: time.Hour}, func(r *RedisJobRepository) {
 		job := addTestJobWithTolerations(t, r, "test", []v1.Toleration{})
 		assert.Equal(t, []v1.Toleration{}, job.PodSpec.Tolerations)
 
@@ -549,16 +597,20 @@ func TestUpdateJobs_SingleJobThatExists_ChangesJob(t *testing.T) {
 
 		newSchedName := "custom"
 
-		result, err := r.UpdateJobs([]string{job1.Id}, func(job *api.Job) {
-			job.PodSpec.SchedulerName = newSchedName
+		results := r.UpdateJobs([]string{job1.Id}, func(jobs []*api.Job) {
+			assert.Equal(t, 1, len(jobs))
+			jobs[0].PodSpec.SchedulerName = newSchedName
 		})
-		assert.Nil(t, err)
-		assert.Equal(t, map[string]string{job1.Id: ""}, result)
+
+		assert.Equal(t, 1, len(results))
+		assert.Nil(t, results[0].Error)
+		assert.Equal(t, job1.Id, results[0].JobId)
 
 		reloadedJobs, err := r.GetExistingJobsByIds([]string{job1.Id})
 		assert.Nil(t, err)
 		assert.Equal(t, 1, len(reloadedJobs))
 		assert.Equal(t, newSchedName, reloadedJobs[0].PodSpec.SchedulerName)
+		assert.Equal(t, results[0].Job, reloadedJobs[0])
 	})
 }
 
@@ -568,13 +620,19 @@ func TestUpdateJobs_WhenTransactionAlwaysFails_ReturnsError_JobNotChanged(t *tes
 
 		newSchedName := "custom"
 
-		result, err := r.UpdateJobs([]string{job1.Id}, func(job *api.Job) {
-			_, err := r.UpdateJobs([]string{job1.Id}, func(job *api.Job) {}) // 2nd update in middle of transaction
-			assert.Nil(t, err)
-			job.PodSpec.SchedulerName = newSchedName
+		results := r.UpdateJobs([]string{job1.Id}, func(jobs []*api.Job) {
+			results2 := r.UpdateJobs([]string{job1.Id}, func(jobs []*api.Job) {}) // 2nd update in middle of transaction
+			assert.Equal(t, 1, len(results2))
+			assert.Nil(t, results2[0].Error)
+
+			assert.Equal(t, 1, len(jobs))
+			jobs[0].PodSpec.SchedulerName = newSchedName
 		})
-		assert.Nil(t, err)
-		assert.Equal(t, map[string]string{job1.Id: "redis: transaction failed"}, result)
+
+		assert.Equal(t, 1, len(results))
+		assert.Equal(t, job1.Id, results[0].JobId)
+		assert.Nil(t, results[0].Job)
+		assert.Equal(t, redis.TxFailedErr, results[0].Error)
 
 		reloadedJobs, err := r.GetExistingJobsByIds([]string{job1.Id})
 		assert.Nil(t, err)
@@ -590,21 +648,26 @@ func TestUpdateJobs_WhenTransactionFailsOnce_Retries_JobChanged(t *testing.T) {
 		newSchedName := "custom"
 
 		first := true
-		result, err := r.updateJobs([]string{job1.Id}, func(job *api.Job) {
+		results := r.updateJobs([]string{job1.Id}, func(jobs []*api.Job) {
 			if first {
-				_, err := r.UpdateJobs([]string{job1.Id}, func(job *api.Job) {}) // 2nd update in middle of transaction
-				assert.Nil(t, err)
+				results2 := r.UpdateJobs([]string{job1.Id}, func(jobs []*api.Job) {}) // 2nd update in middle of transaction
+				assert.Equal(t, 1, len(results2))
+				assert.Nil(t, results2[0].Error)
 				first = false
 			}
-			job.PodSpec.SchedulerName = newSchedName
+			assert.Equal(t, 1, len(jobs))
+			jobs[0].PodSpec.SchedulerName = newSchedName
 		}, 100, 3, time.Microsecond)
-		assert.Nil(t, err)
-		assert.Equal(t, map[string]string{job1.Id: ""}, result)
+
+		assert.Equal(t, 1, len(results))
+		assert.Nil(t, results[0].Error)
+		assert.Equal(t, job1.Id, results[0].JobId)
 
 		reloadedJobs, err := r.GetExistingJobsByIds([]string{job1.Id})
 		assert.Nil(t, err)
 		assert.Equal(t, 1, len(reloadedJobs))
 		assert.Equal(t, newSchedName, reloadedJobs[0].PodSpec.SchedulerName)
+		assert.Equal(t, results[0].Job, reloadedJobs[0])
 	})
 }
 
@@ -616,16 +679,33 @@ func TestUpdateJobs_WhenTransactionAlwaysFailsForOneBatch_ReturnsErrorForThatBat
 
 		newSchedName := "custom"
 
-		result, err := r.updateJobs([]string{job1.Id, job2.Id, job3.Id}, func(job *api.Job) {
+		results := r.updateJobs([]string{job1.Id, job2.Id, job3.Id}, func(jobs []*api.Job) {
+			assert.Equal(t, 1, len(jobs))
+			job := jobs[0]
 			if job.Id == job2.Id {
-				_, err := r.UpdateJobs([]string{job.Id}, func(job *api.Job) {}) // 2nd update in middle of transaction for job2
-				assert.Nil(t, err)
+				results2 := r.UpdateJobs([]string{job2.Id}, func(jobs []*api.Job) {}) // 2nd update in middle of transaction
+				assert.Equal(t, 1, len(results2))
+				assert.Nil(t, results2[0].Error)
 			}
-
 			job.PodSpec.SchedulerName = newSchedName
 		}, 1, 3, time.Microsecond)
-		assert.Nil(t, err)
-		assert.Equal(t, map[string]string{job1.Id: "", job2.Id: "redis: transaction failed", job3.Id: ""}, result)
+
+		assert.Equal(t, 3, len(results))
+
+		assert.Equal(t, job1.Id, results[0].JobId)
+		assert.Equal(t, job2.Id, results[1].JobId)
+		assert.Equal(t, job3.Id, results[2].JobId)
+
+		assert.Equal(t, job1.Id, results[0].Job.Id)
+		assert.Nil(t, results[1].Job)
+		assert.Equal(t, job3.Id, results[2].Job.Id)
+
+		assert.Equal(t, newSchedName, results[0].Job.PodSpec.SchedulerName)
+		assert.Equal(t, newSchedName, results[2].Job.PodSpec.SchedulerName)
+
+		assert.Nil(t, results[0].Error)
+		assert.Equal(t, redis.TxFailedErr, results[1].Error)
+		assert.Nil(t, results[2].Error)
 
 		reloadedJobs, err := r.GetExistingJobsByIds([]string{job1.Id, job2.Id, job3.Id})
 		assert.Nil(t, err)
@@ -650,11 +730,24 @@ func whenOneOfThreeJobsIsMissing_SkipsMissingJob_OtherChangesSucceed(t *testing.
 
 		newSchedName := "custom"
 
-		result, err := r.updateJobs([]string{job1.Id, "wrong", job3.Id}, func(job *api.Job) {
-			job.PodSpec.SchedulerName = newSchedName
+		results := r.updateJobs([]string{job1.Id, "wrong", job3.Id}, func(jobs []*api.Job) {
+			for _, job := range jobs {
+				job.PodSpec.SchedulerName = newSchedName
+			}
 		}, batchSize, 3, time.Microsecond)
-		assert.Nil(t, err)
-		assert.Equal(t, map[string]string{job1.Id: "", job3.Id: ""}, result)
+
+		assert.Equal(t, 2, len(results))
+		assert.Equal(t, job1.Id, results[0].JobId)
+		assert.Equal(t, job3.Id, results[1].JobId)
+
+		assert.Equal(t, job1.Id, results[0].Job.Id)
+		assert.Equal(t, job3.Id, results[1].Job.Id)
+
+		assert.Equal(t, newSchedName, results[0].Job.PodSpec.SchedulerName)
+		assert.Equal(t, newSchedName, results[1].Job.PodSpec.SchedulerName)
+
+		assert.Nil(t, results[0].Error)
+		assert.Nil(t, results[1].Error)
 
 		reloadedJobs, err := r.GetExistingJobsByIds([]string{job1.Id, job3.Id})
 		assert.Nil(t, err)
@@ -733,16 +826,18 @@ func addTestJobInner(t *testing.T, r *RedisJobRepository, queue string, clientId
 }
 
 func withRepository(action func(r *RedisJobRepository)) {
-	withRepositoryUsingJobDefaults(nil, []v1.Toleration{}, action)
+	withRepositoryUsingJobDefaults(nil, []v1.Toleration{}, configuration.DatabaseRetentionPolicy{JobRetentionDuration: time.Hour}, action)
 }
 
-func withRepositoryUsingJobDefaults(jobDefaultLimit common.ComputeResources, jobDefaultTolerations []v1.Toleration, action func(r *RedisJobRepository)) {
+func withRepositoryUsingJobDefaults(
+	jobDefaultLimit common.ComputeResources, jobDefaultTolerations []v1.Toleration,
+	retention configuration.DatabaseRetentionPolicy, action func(r *RedisJobRepository)) {
 	client := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 10})
 	defer client.FlushDB()
 	defer client.Close()
 
 	client.FlushDB()
 
-	repo := NewRedisJobRepository(client, jobDefaultLimit, jobDefaultTolerations)
+	repo := NewRedisJobRepository(client, jobDefaultLimit, jobDefaultTolerations, retention)
 	action(repo)
 }
