@@ -300,6 +300,9 @@ func TestSubmitServer_ReprioritizeJobs(t *testing.T) {
 
 	t.Run("one job", func(t *testing.T) {
 		withSubmitServerAndRepos(func(s *SubmitServer, jobRepo repository.JobRepository, events repository.EventRepository) {
+
+			newPriority := 123.0
+
 			jobSetId := util.NewULID()
 			jobRequest := createJobRequest(jobSetId, 1)
 
@@ -309,7 +312,7 @@ func TestSubmitServer_ReprioritizeJobs(t *testing.T) {
 
 			reprioritizeResponse, err := s.ReprioritizeJobs(context.Background(), &api.JobReprioritizeRequest{
 				JobIds:      []string{jobId},
-				NewPriority: 123,
+				NewPriority: newPriority,
 			})
 			assert.NoError(t, err)
 			assert.Equal(t, 1, len(reprioritizeResponse.ReprioritizationResults))
@@ -320,16 +323,20 @@ func TestSubmitServer_ReprioritizeJobs(t *testing.T) {
 			jobs, err := jobRepo.PeekQueue("test", 100)
 			assert.NoError(t, err)
 			assert.Equal(t, jobId, jobs[0].Id)
-			assert.Equal(t, float64(123), jobs[0].Priority)
+			assert.Equal(t, newPriority, jobs[0].Priority)
 
 			messages, err := readJobEvents(events, jobSetId)
 			assert.NoError(t, err)
-			assert.Equal(t, 4, len(messages))
+			assert.Equal(t, 5, len(messages))
 
 			assert.NotNil(t, messages[0].Message.GetSubmitted())
 			assert.NotNil(t, messages[1].Message.GetQueued())
 			assert.NotNil(t, messages[2].Message.GetReprioritizing())
-			assert.NotNil(t, messages[3].Message.GetReprioritized())
+			assert.NotNil(t, messages[3].Message.GetUpdated())
+			assert.NotNil(t, messages[4].Message.GetReprioritized())
+
+			assert.Equal(t, newPriority, messages[3].Message.GetUpdated().Job.Priority)
+			assert.Equal(t, newPriority, messages[4].Message.GetReprioritized().NewPriority)
 		})
 	})
 
@@ -360,7 +367,7 @@ func TestSubmitServer_ReprioritizeJobs(t *testing.T) {
 
 			messages, err := readJobEvents(events, jobSetId)
 			assert.NoError(t, err)
-			assert.Equal(t, 4*3, len(messages))
+			assert.Equal(t, 5*3, len(messages))
 		})
 	})
 
@@ -395,12 +402,13 @@ func TestSubmitServer_ReprioritizeJobs(t *testing.T) {
 
 			messages, err := readJobEvents(events, jobSetId)
 			assert.NoError(t, err)
-			assert.Equal(t, 4, len(messages))
+			assert.Equal(t, 5, len(messages))
 
 			assert.NotNil(t, messages[0].Message.GetSubmitted())
 			assert.NotNil(t, messages[1].Message.GetQueued())
 			assert.NotNil(t, messages[2].Message.GetReprioritizing())
-			assert.NotNil(t, messages[3].Message.GetReprioritized())
+			assert.NotNil(t, messages[3].Message.GetUpdated())
+			assert.NotNil(t, messages[4].Message.GetReprioritized())
 		})
 	})
 
@@ -432,7 +440,7 @@ func TestSubmitServer_ReprioritizeJobs(t *testing.T) {
 
 			messages, err := readJobEvents(events, jobSetId)
 			assert.NoError(t, err)
-			assert.Equal(t, 4*3, len(messages))
+			assert.Equal(t, 5*3, len(messages))
 		})
 	})
 
@@ -540,7 +548,7 @@ func withSubmitServerAndRepos(action func(s *SubmitServer, jobRepo repository.Jo
 	// using real redis instance as miniredis does not support streams
 	client := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 10})
 
-	jobRepo := repository.NewRedisJobRepository(client, nil, nil)
+	jobRepo := repository.NewRedisJobRepository(client, nil, nil, configuration.DatabaseRetentionPolicy{JobRetentionDuration: time.Hour})
 	queueRepo := repository.NewRedisQueueRepository(client)
 	eventRepo := repository.NewRedisEventRepository(client, configuration.EventRetentionPolicy{ExpiryEnabled: false})
 	schedulingInfoRepository := repository.NewRedisSchedulingInfoRepository(client)

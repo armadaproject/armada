@@ -7,6 +7,7 @@ import (
 
 	"github.com/G-Research/armada/internal/executor/configuration"
 	fakeContext "github.com/G-Research/armada/internal/executor/fake/context"
+	"github.com/G-Research/armada/pkg/api"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -24,7 +25,7 @@ func TestJobLease_GetAvoidNodeLabels_EverythingSetUpCorrectly_ReturnsLabels(t *t
 
 	labels, err := getAvoidNodeLabels(pod, avoidNodeLabels, fakeCc)
 
-	assert.Equal(t, map[string]string{"a": "aa", "c": "cc"}, labels)
+	assert.Equal(t, makeOrderedMap(label{name: "a", val: "aa"}, label{name: "c", val: "cc"}), labels)
 	assert.Nil(t, err)
 
 }
@@ -43,7 +44,7 @@ func TestJobLease_GetAvoidNodeLabels_NodeNameNotSet_ReturnsEmptyMap(t *testing.T
 
 	labels, err := getAvoidNodeLabels(pod, avoidNodeLabels, fakeCc)
 
-	assert.Equal(t, map[string]string{}, labels)
+	assert.Equal(t, makeOrderedMap(), labels)
 	assert.Nil(t, err)
 }
 
@@ -64,4 +65,17 @@ func TestJobLease_GetAvoidNodeLabels_NoMatchingLabels_ReturnsError(t *testing.T)
 	assert.NotNil(t, err)
 	assert.Nil(t, labels)
 
+}
+
+func makeOrderedMap(labels ...label) *api.OrderedStringMap {
+	entries := []*api.StringKeyValuePair{}
+	for _, kv := range labels {
+		entries = append(entries, &api.StringKeyValuePair{Key: kv.name, Value: kv.val})
+	}
+	return &api.OrderedStringMap{Entries: entries}
+}
+
+type label struct {
+	name string
+	val  string
 }

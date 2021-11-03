@@ -25,7 +25,7 @@ func ToUTC(t time.Time) time.Time {
 	return t.In(location)
 }
 
-func upsert(db *goqu.Database, table interface{}, keys []string, records []goqu.Record) error {
+func upsert(db *goqu.TxDatabase, table interface{}, keys []string, records []goqu.Record) error {
 	if len(records) == 0 {
 		return nil
 	}

@@ -141,7 +141,7 @@ func (js *JobSimulator) CreateJobWithOpts(
 		PodSpec:     &v1.PodSpec{},
 		Created:     time,
 	}
-	assert.NoError(js.t, js.jobStore.RecordJob(js.job))
+	assert.NoError(js.t, js.jobStore.RecordJob(js.job, time))
 	return js
 }
 
@@ -234,17 +234,17 @@ func (js *JobSimulator) CancelledAtTime(time time.Time) *JobSimulator {
 }
 
 func (js *JobSimulator) UnableToSchedule(cluster string, k8sId string, node string) *JobSimulator {
-	return js.UnableToScheduleAtTime(cluster, k8sId, node, time.Now())
+	return js.UnableToScheduleAtTime(cluster, k8sId, node, time.Now(), "unable to schedule reason")
 }
 
-func (js *JobSimulator) UnableToScheduleAtTime(cluster string, k8sId string, node string, time time.Time) *JobSimulator {
+func (js *JobSimulator) UnableToScheduleAtTime(cluster string, k8sId string, node string, time time.Time, reason string) *JobSimulator {
 	unableToScheduleEvent := &api.JobUnableToScheduleEvent{
 		JobId:        js.job.Id,
 		JobSetId:     js.job.JobSetId,
 		Queue:        js.job.Queue,
 		Created:      time,
 		ClusterId:    cluster,
-		Reason:       "unable to schedule reason",
+		Reason:       reason,
 		KubernetesId: k8sId,
 		NodeName:     node,
 	}
