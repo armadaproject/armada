@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/go-redis/redis"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
@@ -182,6 +183,53 @@ func TestDeleteQueuedJob(t *testing.T) {
 		err, deletionOccurred := result[job]
 		assert.Nil(t, err)
 		assert.True(t, deletionOccurred)
+	})
+}
+
+func TestDeleteJobShouldSetJobObjectToExpire(t *testing.T) {
+	withRepository(func(r *RedisJobRepository) {
+		job := addLeasedJob(t, r, "queue1", "cluster1")
+		expiryStatuses := r.getExpiryStatus([]*api.Job{job})
+
+		assert.False(t, expiryStatuses[job])
+
+		result := r.DeleteJobs([]*api.Job{job})
+		err, deletionOccurred := result[job]
+		assert.Nil(t, err)
+		assert.True(t, deletionOccurred)
+
+		expiryStatuses = r.getExpiryStatus([]*api.Job{job})
+		assert.True(t, expiryStatuses[job])
+	})
+}
+
+func TestDeleteJob_JobObjectShouldBeRemovedAfterRetentionPeriod(t *testing.T) {
+	withRepositoryUsingJobDefaults(nil, []v1.Toleration{}, configuration.DatabaseRetentionPolicy{JobRetentionDuration: time.Hour}, func(r *RedisJobRepository) {
+		job := addLeasedJob(t, r, "queue1", "cluster1")
+
+		result := r.DeleteJobs([]*api.Job{job})
+		err, deletionOccurred := result[job]
+		assert.Nil(t, err)
+		assert.True(t, deletionOccurred)
+
+		existingJobs, err := r.GetExistingJobsByIds([]string{job.Id})
+		assert.Nil(t, err)
+		assert.True(t, len(existingJobs) == 1)
+	})
+
+	withRepositoryUsingJobDefaults(nil, []v1.Toleration{}, configuration.DatabaseRetentionPolicy{JobRetentionDuration: time.Millisecond}, func(r *RedisJobRepository) {
+		job := addLeasedJob(t, r, "queue1", "cluster1")
+
+		result := r.DeleteJobs([]*api.Job{job})
+		err, deletionOccurred := result[job]
+		assert.Nil(t, err)
+		assert.True(t, deletionOccurred)
+
+		time.Sleep(time.Millisecond * 300)
+
+		existingJobs, err := r.GetExistingJobsByIds([]string{job.Id})
+		assert.Nil(t, err)
+		assert.True(t, len(existingJobs) == 0)
 	})
 }
 
@@ -383,7 +431,7 @@ func TestCreateJob_ApplyDefaultLimits(t *testing.T) {
 		"memory":            resource.MustParse("512Mi"),
 		"ephemeral-storage": resource.MustParse("4Gi")}
 
-	withRepositoryUsingJobDefaults(defaultLimits, []v1.Toleration{}, func(r *RedisJobRepository) {
+	withRepositoryUsingJobDefaults(defaultLimits, []v1.Toleration{}, configuration.DatabaseRetentionPolicy{JobRetentionDuration: time.Hour}, func(r *RedisJobRepository) {
 		testCases := map[*v1.ResourceList]v1.ResourceList{
 			nil: {
 				"cpu":               resource.MustParse("1"),
@@ -435,7 +483,7 @@ func TestCreateJob_ApplyDefaultTolerations(t *testing.T) {
 		Effect:   v1.TaintEffectNoSchedule,
 	}
 
-	withRepositoryUsingJobDefaults(nil, []v1.Toleration{defaultToleration}, func(r *RedisJobRepository) {
+	withRepositoryUsingJobDefaults(nil, []v1.Toleration{defaultToleration}, configuration.DatabaseRetentionPolicy{JobRetentionDuration: time.Hour}, func(r *RedisJobRepository) {
 		job := addTestJobWithTolerations(t, r, "test", []v1.Toleration{})
 		assert.Equal(t, []v1.Toleration{defaultToleration}, job.PodSpec.Tolerations)
 
@@ -446,7 +494,7 @@ func TestCreateJob_ApplyDefaultTolerations(t *testing.T) {
 		assert.Equal(t, []v1.Toleration{alternateToleration, defaultToleration}, job.PodSpec.Tolerations)
 	})
 
-	withRepositoryUsingJobDefaults(nil, []v1.Toleration{}, func(r *RedisJobRepository) {
+	withRepositoryUsingJobDefaults(nil, []v1.Toleration{}, configuration.DatabaseRetentionPolicy{JobRetentionDuration: time.Hour}, func(r *RedisJobRepository) {
 		job := addTestJobWithTolerations(t, r, "test", []v1.Toleration{})
 		assert.Equal(t, []v1.Toleration{}, job.PodSpec.Tolerations)
 
@@ -778,16 +826,18 @@ func addTestJobInner(t *testing.T, r *RedisJobRepository, queue string, clientId
 }
 
 func withRepository(action func(r *RedisJobRepository)) {
-	withRepositoryUsingJobDefaults(nil, []v1.Toleration{}, action)
+	withRepositoryUsingJobDefaults(nil, []v1.Toleration{}, configuration.DatabaseRetentionPolicy{JobRetentionDuration: time.Hour}, action)
 }
 
-func withRepositoryUsingJobDefaults(jobDefaultLimit common.ComputeResources, jobDefaultTolerations []v1.Toleration, action func(r *RedisJobRepository)) {
+func withRepositoryUsingJobDefaults(
+	jobDefaultLimit common.ComputeResources, jobDefaultTolerations []v1.Toleration,
+	retention configuration.DatabaseRetentionPolicy, action func(r *RedisJobRepository)) {
 	client := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 10})
 	defer client.FlushDB()
 	defer client.Close()
 
 	client.FlushDB()
 
-	repo := NewRedisJobRepository(client, jobDefaultLimit, jobDefaultTolerations)
+	repo := NewRedisJobRepository(client, jobDefaultLimit, jobDefaultTolerations, retention)
 	action(repo)
 }

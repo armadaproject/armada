@@ -298,7 +298,7 @@ func (r *SQLJobStore) RecordJobFailed(event *api.JobFailedEvent) error {
 		"pod_number": event.GetPodNumber(),
 		"finished":   ToUTC(event.GetCreated()),
 		"succeeded":  false,
-		"error":      fmt.Sprintf("%.2048s", event.GetReason()),
+		"error":      truncateError(event.GetReason()),
 	}
 	if event.GetNodeName() != "" {
 		jobRunRecord["node"] = event.GetNodeName()
@@ -343,6 +343,7 @@ func (r *SQLJobStore) RecordJobUnableToSchedule(event *api.JobUnableToScheduleEv
 		"pod_number":         event.GetPodNumber(),
 		"finished":           ToUTC(event.GetCreated()),
 		"unable_to_schedule": true,
+		"error":              truncateError(event.GetReason()),
 	}
 	if event.GetNodeName() != "" {
 		jobRunRecord["node"] = event.GetNodeName()
@@ -366,7 +367,7 @@ func (r *SQLJobStore) RecordJobTerminated(event *api.JobTerminatedEvent) error {
 		"pod_number": event.GetPodNumber(),
 		"finished":   ToUTC(event.GetCreated()),
 		"succeeded":  false,
-		"error":      event.Reason,
+		"error":      truncateError(event.GetReason()),
 	}
 
 	tx, err := r.db.Begin()
@@ -530,4 +531,8 @@ func getRunStateCounts(tx *goqu.TxDatabase, jobId string) *goqu.SelectDataset {
 // Avoid interpolating states
 func stateAsLiteral(state JobState) exp.LiteralExpression {
 	return goqu.L(fmt.Sprintf("%d", JobStateToIntMap[state]))
+}
+
+func truncateError(err string) string {
+	return fmt.Sprintf("%.2048s", err)
 }
