@@ -10,7 +10,7 @@ require (
 	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f
 	github.com/doug-martin/goqu/v9 v9.16.0
 	github.com/go-ldap/ldap/v3 v3.4.1
-	github.com/go-openapi/analysis v0.20.1
+	github.com/go-openapi/analysis v0.21.1
 	github.com/go-openapi/jsonreference v0.19.6
 	github.com/go-openapi/loads v0.21.0
 	github.com/go-openapi/runtime v0.21.0
@@ -50,7 +50,7 @@ require (
 	k8s.io/api v0.22.3
 	k8s.io/apimachinery v0.22.3
 	k8s.io/client-go v0.22.3
-	k8s.io/component-base v0.22.2
+	k8s.io/component-base v0.22.3
 	k8s.io/component-helpers v0.22.2
-	k8s.io/kubelet v0.20.5
+	k8s.io/kubelet v0.22.3
 )
