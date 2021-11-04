@@ -7,12 +7,6 @@ import (
 	context "context"
 	encoding_binary "encoding/binary"
 	fmt "fmt"
-	io "io"
-	math "math"
-	math_bits "math/bits"
-	reflect "reflect"
-	strings "strings"
-
 	_ "github.com/gogo/protobuf/gogoproto"
 	proto "github.com/gogo/protobuf/proto"
 	github_com_gogo_protobuf_sortkeys "github.com/gogo/protobuf/sortkeys"
@@ -21,7 +15,12 @@ import (
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
+	io "io"
 	v1 "k8s.io/api/core/v1"
+	math "math"
+	math_bits "math/bits"
+	reflect "reflect"
+	strings "strings"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -67,7 +66,7 @@ type JobSubmitRequestItem struct {
 	Labels             map[string]string `protobuf:"bytes,4,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 	Annotations        map[string]string `protobuf:"bytes,5,rep,name=annotations,proto3" json:"annotations,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 	RequiredNodeLabels map[string]string `protobuf:"bytes,6,rep,name=required_node_labels,json=requiredNodeLabels,proto3" json:"requiredNodeLabels,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"` // Deprecated: Do not use.
-	PodSpec            *v1.PodSpec       `protobuf:"bytes,2,opt,name=pod_spec,json=podSpec,proto3" json:"podSpec,omitempty"`                                                                                                                           // Deprecated: Do not use.
+	PodSpec            *v1.PodSpec       `protobuf:"bytes,2,opt,name=pod_spec,json=podSpec,proto3" json:"podSpec,omitempty"`                                                                                                                            // Deprecated: Do not use.
 	PodSpecs           []*v1.PodSpec     `protobuf:"bytes,7,rep,name=pod_specs,json=podSpecs,proto3" json:"podSpecs,omitempty"`
 	Ingress            []*IngressConfig  `protobuf:"bytes,9,rep,name=ingress,proto3" json:"ingress,omitempty"`
 }
