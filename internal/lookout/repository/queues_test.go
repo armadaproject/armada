@@ -228,25 +228,25 @@ func TestGetQueueInfos_IncludeLongestRunningJob(t *testing.T) {
 		NewJobSimulator(t, jobStore).
 			CreateJobAtTime(queue, someTime.Add(10*time.Second)).
 			PendingAtTime(cluster, "a1", someTime.Add(11*time.Second)).
-			UnableToScheduleAtTime(cluster, "a1", node, someTime.Add(12*time.Second)).
+			UnableToScheduleAtTime(cluster, "a1", node, someTime.Add(12*time.Second), "error").
 			RunningAtTime(cluster, "a2", node, someTime.Add(13*time.Second))
 
 		NewJobSimulator(t, jobStore).
 			CreateJobAtTime(queue, someTime.Add(5*time.Second)).
 			PendingAtTime(cluster, "b1", someTime.Add(6*time.Second)).
-			UnableToScheduleAtTime(cluster, "b1", node, someTime.Add(7*time.Second)).
+			UnableToScheduleAtTime(cluster, "b1", node, someTime.Add(7*time.Second), "error").
 			RunningAtTime(cluster, "b2", node, someTime.Add(8*time.Second))
 
 		longestRunning := NewJobSimulator(t, jobStore).
 			CreateJobAtTime(queue, someTime.Add(time.Second)).
 			PendingAtTime(cluster, "d1", pendingTime).
-			UnableToScheduleAtTime(cluster, "d1", node, unableToScheduleTime).
+			UnableToScheduleAtTime(cluster, "d1", node, unableToScheduleTime, "error").
 			RunningAtTime(cluster, "d2", node, runningTime)
 
 		NewJobSimulator(t, jobStore).
 			CreateJobAtTime(queue, someTime).
 			RunningAtTime(cluster, "e1", node, someTime.Add(time.Second)).
-			UnableToScheduleAtTime(cluster, "e1", node, someTime.Add(2*time.Second)).
+			UnableToScheduleAtTime(cluster, "e1", node, someTime.Add(2*time.Second), "error").
 			SucceededAtTime(cluster, "e2", node, someTime.Add(3*time.Second))
 
 		NewJobSimulator(t, jobStore).
@@ -314,19 +314,19 @@ func TestGetQueueInfos_MultipleQueues(t *testing.T) {
 		NewJobSimulator(t, jobStore).
 			CreateJobAtTime(queue, someTime.Add(5*time.Second)).
 			PendingAtTime(cluster, "b1", someTime.Add(6*time.Second)).
-			UnableToScheduleAtTime(cluster, "b1", node, someTime.Add(7*time.Second)).
+			UnableToScheduleAtTime(cluster, "b1", node, someTime.Add(7*time.Second), "error").
 			RunningAtTime(cluster, "b2", node, someTime.Add(8*time.Second))
 
 		longestRunning1 := NewJobSimulator(t, jobStore).
 			CreateJobAtTime(queue, someTime).
 			PendingAtTime(cluster, "c1", queue1PendingTime).
-			UnableToScheduleAtTime(cluster, "c1", node, queue1UnableToScheduleTime).
+			UnableToScheduleAtTime(cluster, "c1", node, queue1UnableToScheduleTime, "error").
 			RunningAtTime(cluster, "c2", node, queue1RunningTime)
 
 		NewJobSimulator(t, jobStore).
 			CreateJobAtTime(queue, someTime).
 			PendingAtTime(cluster, "d1", someTime.Add(time.Second)).
-			UnableToScheduleAtTime(cluster, "d1", node, someTime.Add(2*time.Second)).
+			UnableToScheduleAtTime(cluster, "d1", node, someTime.Add(2*time.Second), "error").
 			RunningAtTime(cluster, "d2", node, someTime.Add(3*time.Second)).
 			SucceededAtTime(cluster, "d2", node, someTime.Add(4*time.Second))
 
@@ -356,7 +356,7 @@ func TestGetQueueInfos_MultipleQueues(t *testing.T) {
 		NewJobSimulator(t, jobStore).
 			CreateJobAtTime(queue2, someTime.Add(time.Second)).
 			PendingAtTime(cluster, "h1", someTime.Add(2*time.Second)).
-			UnableToScheduleAtTime(cluster, "h1", node, someTime.Add(3*time.Second)).
+			UnableToScheduleAtTime(cluster, "h1", node, someTime.Add(3*time.Second), "error").
 			RunningAtTime(cluster, "h2", node, someTime.Add(4*time.Second))
 
 		queueInfos, err := jobRepo.GetQueueInfos(ctx)

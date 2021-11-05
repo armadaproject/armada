@@ -548,7 +548,7 @@ func withSubmitServerAndRepos(action func(s *SubmitServer, jobRepo repository.Jo
 	// using real redis instance as miniredis does not support streams
 	client := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 10})
 
-	jobRepo := repository.NewRedisJobRepository(client, nil, nil)
+	jobRepo := repository.NewRedisJobRepository(client, nil, nil, configuration.DatabaseRetentionPolicy{JobRetentionDuration: time.Hour})
 	queueRepo := repository.NewRedisQueueRepository(client)
 	eventRepo := repository.NewRedisEventRepository(client, configuration.EventRetentionPolicy{ExpiryEnabled: false})
 	schedulingInfoRepository := repository.NewRedisSchedulingInfoRepository(client)

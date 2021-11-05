@@ -133,33 +133,10 @@ func isOom(containerStatus v1.ContainerStatus) bool {
 type PodStartupStatus int
 
 const (
-	Healthy PodStartupStatus = iota
-	Unstable
+	WorthWaitingAndRetrying PodStartupStatus = iota
+	WorthWaiting
 	Unrecoverable
 )
-
-func DiagnoseStuckPod(pod *v1.Pod, podEvents []*v1.Event) (status PodStartupStatus, message string) {
-	podStuckReason := ExtractPodStuckReason(pod)
-
-	if hasUnrecoverableContainerState(pod) {
-		return Unrecoverable, podStuckReason
-	}
-
-	if unrecoverable, event := hasUnrecoverableEvent(podEvents); unrecoverable {
-		return Unrecoverable, fmt.Sprintf("%s\n%s", podStuckReason, event.Message)
-	}
-
-	unexpectedWarningMessages := getUnexpectedWarningMessages(podEvents)
-	if len(unexpectedWarningMessages) > 0 {
-		eventMessage := "Warning Events:\n" + strings.Join(unexpectedWarningMessages, "\n")
-		return Unstable, fmt.Sprintf("%s\n%s", podStuckReason, eventMessage)
-	}
-
-	if hasUnstableContainerStates(pod) {
-		return Unstable, podStuckReason
-	}
-	return Healthy, podStuckReason
-}
 
 func hasUnrecoverableContainerState(pod *v1.Pod) bool {
 	for _, containerStatus := range GetPodContainerStatuses(pod) {

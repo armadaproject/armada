@@ -36,7 +36,7 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 	db := createRedisClient(&config.Redis)
 	eventsDb := createRedisClient(&config.EventsRedis)
 
-	jobRepository := repository.NewRedisJobRepository(db, config.Scheduling.DefaultJobLimits, config.Scheduling.DefaultJobTolerations)
+	jobRepository := repository.NewRedisJobRepository(db, config.Scheduling.DefaultJobLimits, config.Scheduling.DefaultJobTolerations, config.DatabaseRetention)
 	usageRepository := repository.NewRedisUsageRepository(db)
 	queueRepository := repository.NewRedisQueueRepository(db)
 	schedulingInfoRepository := repository.NewRedisSchedulingInfoRepository(db)
