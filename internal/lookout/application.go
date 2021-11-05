@@ -1,7 +1,7 @@
 package lookout
 
 import (
-	"strings"
+	"github.com/G-Research/armada/internal/common/eventstream"
 	"sync"
 
 	"github.com/doug-martin/goqu/v9"
@@ -12,7 +12,6 @@ import (
 	"github.com/G-Research/armada/internal/common/auth/authorization"
 	"github.com/G-Research/armada/internal/common/grpc"
 	"github.com/G-Research/armada/internal/common/health"
-	stanUtil "github.com/G-Research/armada/internal/common/stan-util"
 	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/lookout/configuration"
 	"github.com/G-Research/armada/internal/lookout/events"
@@ -49,18 +48,21 @@ func StartUp(config configuration.LookoutConfiguration, healthChecks *health.Mul
 
 	healthChecks.Add(repository.NewSqlHealth(db))
 
-	conn, err := stanUtil.DurableConnect(
+	stanClient, err := eventstream.NewStanClientConnection(
 		config.Nats.ClusterID,
 		"armada-server-"+util.NewULID(),
-		strings.Join(config.Nats.Servers, ","),
-	)
+		config.Nats.Servers)
+	stream := eventstream.NewStanEventStream(
+		config.Nats.Subject,
+		config.Nats.QueueGroup,
+		stanClient)
 
-	healthChecks.Add(conn)
+	healthChecks.Add(stanClient)
 
 	if err != nil {
 		panic(err)
 	}
-	eventProcessor := events.NewEventProcessor(conn, jobStore, config.Nats.Subject, config.Nats.QueueGroup)
+	eventProcessor := events.NewEventProcessor(stream, jobStore)
 	eventProcessor.Start()
 
 	dbMetricsProvider := metrics.NewLookoutSqlDbMetricsProvider(db, config.Postgres)
@@ -74,7 +76,7 @@ func StartUp(config configuration.LookoutConfiguration, healthChecks *health.Mul
 	grpc.Listen(config.GrpcPort, grpcServer, wg)
 
 	stop := func() {
-		err := conn.Close()
+		err := stream.Close()
 		if err != nil {
 			log.Errorf("failed to close nats connection: %v", err)
 		}

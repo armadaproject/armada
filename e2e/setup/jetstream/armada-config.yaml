@@ -1,0 +1,10 @@
+corsAllowedOrigins: ["http://localhost:3000", "http://localhost:8089"]
+eventsJetstream:
+  servers:
+    - "nats://localhost:4222"
+  streamName: "events-test"
+  subject: "EVENTS"
+  queue: "ArmadaEventRedisProcessor"
+  replicas: 1
+  maxAgeDays: 365
+  connTimeout: 10s

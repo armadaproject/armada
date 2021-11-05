@@ -1,7 +1,6 @@
 package armada
 
 import (
-	"strings"
 	"sync"
 	"time"
 
@@ -17,9 +16,9 @@ import (
 	"github.com/G-Research/armada/internal/armada/server"
 	"github.com/G-Research/armada/internal/common/auth"
 	"github.com/G-Research/armada/internal/common/auth/authorization"
+	"github.com/G-Research/armada/internal/common/eventstream"
 	grpcCommon "github.com/G-Research/armada/internal/common/grpc"
 	"github.com/G-Research/armada/internal/common/health"
-	stan_util "github.com/G-Research/armada/internal/common/stan-util"
 	"github.com/G-Research/armada/internal/common/task"
 	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/pkg/api"
@@ -51,30 +50,32 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 	// TODO: move this to task manager
 	stopSubscription := func() {}
 	if len(config.EventsNats.Servers) > 0 {
-
-		conn, err := stan_util.DurableConnect(
+		stanClient, err := eventstream.NewStanClientConnection(
 			config.EventsNats.ClusterID,
 			"armada-server-"+util.NewULID(),
-			strings.Join(config.EventsNats.Servers, ","),
-		)
+			config.EventsNats.Servers)
+
+		stream := eventstream.NewStanEventStream(
+			config.EventsNats.Subject,
+			config.EventsNats.QueueGroup,
+			stanClient)
 		if err != nil {
 			panic(err)
 		}
-		eventStore = repository.NewNatsEventStore(conn, config.EventsNats.Subject)
-		eventProcessor := repository.NewNatsEventRedisProcessor(conn, redisEventRepository, config.EventsNats.Subject, config.EventsNats.QueueGroup)
+		eventStore = repository.NewEventStore(stream)
+		eventProcessor := repository.NewEventRedisProcessor(stream, redisEventRepository)
 		eventProcessor.Start()
-		jobStatusProcessor := repository.NewNatsEventJobStatusProcessor(conn, jobRepository, config.EventsNats.Subject, config.EventsNats.JobStatusGroup)
+		jobStatusProcessor := repository.NewEventJobStatusProcessor(stream, jobRepository)
 		jobStatusProcessor.Start()
 
 		stopSubscription = func() {
-			err := conn.Close()
+			err := stream.Close()
 			if err != nil {
 				log.Errorf("failed to close nats connection: %v", err)
 			}
 		}
 
-		healthChecks.Add(conn)
-
+		healthChecks.Add(stanClient)
 	} else {
 		eventStore = redisEventRepository
 	}

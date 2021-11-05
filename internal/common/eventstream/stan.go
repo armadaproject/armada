@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/gogo/protobuf/proto"
-	stanPb "github.com/nats-io/stan.go/pb"
+	"strings"
 	"sync"
 	"time"
 
@@ -15,18 +15,21 @@ import (
 )
 
 type StanEventStream struct {
-	subject    string
-	queue      string
-	stanClient StanClient
+	subject             string
+	queue               string
+	stanClient          StanClient
+	timeout             time.Duration
+	subscriptionOptions []stan.SubscriptionOption
 }
 
-func NewStanEventStream(subject, queue string, stanClient StanClient) *StanEventStream {
+func NewStanEventStream(subject, queue string, stanClient StanClient, subscriptionOptions ...stan.SubscriptionOption) *StanEventStream {
 	// as underlying NATS connection reconnects automatically, there is no need to renew it
 	// keeping one NATS connection around will make message ack work better during STAN connection lost event
 	return &StanEventStream{
-		subject:    subject,
-		queue:      queue,
-		stanClient: stanClient,
+		subject:             subject,
+		queue:               queue,
+		stanClient:          stanClient,
+		subscriptionOptions: subscriptionOptions,
 	}
 }
 
@@ -107,6 +110,7 @@ func getErrorChanTimeout(channel chan error, timeout time.Duration) (error, erro
 }
 
 func (stream *StanEventStream) Subscribe(callback func(event *api.EventMessage) error) error {
+	opts := append(stream.subscriptionOptions, stan.DurableName(stream.queue))
 	return stream.stanClient.QueueSubscribe(
 		stream.subject,
 		stream.queue,
@@ -125,10 +129,7 @@ func (stream *StanEventStream) Subscribe(callback func(event *api.EventMessage) 
 				log.Errorf("stan error when acknowledging message: %v", err)
 			}
 		},
-		stan.SetManualAckMode(),
-		stan.StartAt(stanPb.StartPosition_LastReceived),
-		stan.DeliverAllAvailable(),
-		stan.DurableName(stream.queue))
+		opts...)
 }
 
 func (stream *StanEventStream) Close() error {
@@ -155,11 +156,12 @@ type StanClientConnection struct {
 }
 
 func NewStanClientConnection(
-	stanClusterID, clientID, urls string,
+	stanClusterID, clientID string, servers []string,
 	options ...stan.Option) (*StanClientConnection, error) {
 	// as underlying NATS connection reconnects automatically, there is no need to renew it
 	// keeping one NATS connection around will make message ack work better during STAN connection lost event
-	nc, err := nats.Connect(urls,
+	nc, err := nats.Connect(
+		strings.Join(servers, ","),
 		nats.Name(clientID),
 		nats.MaxReconnects(-1),
 		nats.ReconnectBufSize(-1))
@@ -210,16 +212,16 @@ func (c *StanClientConnection) Close() error {
 func (c *StanClientConnection) Check() error {
 	currentConn := c.currentConn
 	if currentConn == nil {
-		return errors.New("No NATS connection")
+		return errors.New("no NATS connection")
 	}
 
 	natsConn := currentConn.NatsConn()
 	if natsConn == nil {
-		return errors.New("No NATS connection")
+		return errors.New("no NATS connection")
 	}
 
 	if !natsConn.IsConnected() {
-		return errors.New("Not connected to NATS")
+		return errors.New("not connected to NATS")
 	}
 
 	return nil

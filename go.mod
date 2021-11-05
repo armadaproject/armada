@@ -30,6 +30,7 @@ require (
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/mitchellh/mapstructure v1.4.1
 	github.com/nats-io/jsm.go v0.0.26
+	github.com/nats-io/nats-server/v2 v2.4.1-0.20210907200628-874c79fe411f
 	github.com/nats-io/nats-streaming-server v0.22.1
 	github.com/nats-io/nats.go v1.12.0
 	github.com/nats-io/stan.go v0.10.0

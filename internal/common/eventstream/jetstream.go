@@ -1,7 +1,12 @@
 package eventstream
 
 import (
+	"errors"
 	"fmt"
+	"strings"
+	"time"
+
+	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/gogo/protobuf/proto"
 	"github.com/nats-io/jsm.go"
@@ -9,7 +14,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-type JetstreamEventClient struct {
+type JetstreamEventStream struct {
 	subject      string
 	queue        string
 	consumerOpts []jsm.ConsumerOption
@@ -19,17 +24,30 @@ type JetstreamEventClient struct {
 	consumer     *jsm.Consumer
 }
 
-func NewJetstreamClient(
-	subject string,
-	queue string,
-	conn *nats.Conn,
-	manager *jsm.Manager,
-	stream *jsm.Stream,
-	consumerOpts []jsm.ConsumerOption) (*JetstreamEventClient, error) {
-	return &JetstreamEventClient{
-		subject: 	  subject,
-		queue:        queue,
-		conn:         conn,
+func NewJetstreamEventStream(
+	opts *configuration.JetstreamConfig,
+	consumerOpts ...jsm.ConsumerOption) (*JetstreamEventStream, error) {
+	natsConn, err := nats.Connect(strings.Join(opts.Servers, ","))
+	if err != nil {
+		return nil, err
+	}
+	manager, err := jsm.New(natsConn, jsm.WithTimeout(opts.ConnTimeout))
+	if err != nil {
+		return nil, err
+	}
+	stream, err := manager.LoadOrNewStream(
+		opts.StreamName,
+		jsm.Subjects(opts.Subject),
+		jsm.MaxAge(time.Duration(opts.MaxAgeDays)*24*time.Hour),
+		jsm.Replicas(opts.Replicas))
+	if err != nil {
+		return nil, err
+	}
+
+	return &JetstreamEventStream{
+		subject:      opts.Subject,
+		queue:        opts.Queue,
+		conn:         natsConn,
 		manager:      manager,
 		stream:       stream,
 		consumerOpts: consumerOpts,
@@ -37,29 +55,30 @@ func NewJetstreamClient(
 	}, nil
 }
 
-func (c *JetstreamEventClient) Publish(events []*api.EventMessage) []error {
-	var errors []error
+func (c *JetstreamEventStream) Publish(events []*api.EventMessage) []error {
+	var errs []error
 	for _, event := range events {
 		data, err := proto.Marshal(event)
 		if err != nil {
-			errors = append(errors, fmt.Errorf("error while marshalling event: %v", err))
+			errs = append(errs, fmt.Errorf("error while marshalling event: %v", err))
 		}
 		err = c.conn.Publish(c.subject, data)
 		if err != nil {
-			errors = append(errors, fmt.Errorf("error when publishing to subject %q: %v", c.subject, err))
+			errs = append(errs, fmt.Errorf("error when publishing to subject %q: %v", c.subject, err))
 		}
 	}
-	return errors
+	return errs
 }
 
-func (c *JetstreamEventClient) Subscribe(callback func(event *api.EventMessage) error) error {
+func (c *JetstreamEventStream) Subscribe(callback func(event *api.EventMessage) error) error {
 	if c.consumer == nil {
 		inbox := nats.NewInbox()
 
-		opts := make([]jsm.ConsumerOption, len(c.consumerOpts))
-		copy(opts, c.consumerOpts)
-		opts = append(opts, jsm.DeliverySubject(inbox))
-		opts = append(opts, jsm.DeliverGroup(c.queue))
+		opts := append(
+			c.consumerOpts,
+			jsm.FilterStreamBySubject(c.subject),
+			jsm.DeliverySubject(inbox),
+			jsm.DeliverGroup(c.queue))
 
 		consumer, err := c.manager.NewConsumer(c.stream.Name(), opts...)
 		if err != nil {
@@ -90,9 +109,16 @@ func (c *JetstreamEventClient) Subscribe(callback func(event *api.EventMessage) 
 	return nil
 }
 
-func (c *JetstreamEventClient) Close() error {
+func (c *JetstreamEventStream) Close() error {
 	if c.conn != nil {
 		c.conn.Close()
+	}
+	return nil
+}
+
+func (c *JetstreamEventStream) Check() error {
+	if !c.conn.IsConnected() {
+		return errors.New("not connected to NATS")
 	}
 	return nil
 }

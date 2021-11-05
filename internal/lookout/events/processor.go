@@ -1,61 +1,40 @@
 package events
 
 import (
-	"github.com/gogo/protobuf/proto"
-	"github.com/nats-io/stan.go"
-	stanPb "github.com/nats-io/stan.go/pb"
-	log "github.com/sirupsen/logrus"
+	"fmt"
 
-	stanUtil "github.com/G-Research/armada/internal/common/stan-util"
+	"github.com/G-Research/armada/internal/common/eventstream"
 	"github.com/G-Research/armada/internal/lookout/repository"
 	"github.com/G-Research/armada/pkg/api"
 )
 
 type EventProcessor struct {
-	connection *stanUtil.DurableConnection
-	subject    string
-	group      string
-	recorder   repository.JobRecorder
+	stream   eventstream.EventStream
+	recorder repository.JobRecorder
 }
 
-func NewEventProcessor(connection *stanUtil.DurableConnection, repository repository.JobRecorder, subject string, group string) *EventProcessor {
-	return &EventProcessor{connection: connection, recorder: repository, subject: subject, group: group}
+func NewEventProcessor(stream eventstream.EventStream, repository repository.JobRecorder) *EventProcessor {
+	return &EventProcessor{stream: stream, recorder: repository}
 }
 
 func (p *EventProcessor) Start() {
-	err := p.connection.QueueSubscribe(p.subject, p.group,
-		p.handleMessage,
-		stan.SetManualAckMode(),
-		stan.StartAt(stanPb.StartPosition_LastReceived),
-		stan.DurableName(p.group))
-
+	err := p.stream.Subscribe(p.handleMessage)
 	if err != nil {
 		panic(err)
 	}
 }
 
-func (p *EventProcessor) handleMessage(msg *stan.Msg) {
+func (p *EventProcessor) handleMessage(eventMessage *api.EventMessage) error {
 	// TODO: batching???
-	eventMessage := &api.EventMessage{}
-	err := proto.Unmarshal(msg.Data, eventMessage)
+	event, err := api.UnwrapEvent(eventMessage)
 	if err != nil {
-		log.Errorf("Error while unmarshaling nats message: %v", err)
-	} else {
-		event, err := api.UnwrapEvent(eventMessage)
-		if err != nil {
-			log.Errorf("Error while unwrapping event message: %v", err)
-			return
-		}
-		err = p.processEvent(event)
-		if err != nil {
-			log.Errorf("Error while reporting event from nats: %v (event: %v)", err, eventMessage)
-			return
-		}
+		return fmt.Errorf("error while unwrapping event message: %v", err)
 	}
-	err = msg.Ack()
+	err = p.processEvent(event)
 	if err != nil {
-		log.Errorf("Error while ack nats message: %v", err)
+		return fmt.Errorf("Error while reporting event from nats: %v (event: %v)", err, eventMessage)
 	}
+	return nil
 }
 
 func (p *EventProcessor) processEvent(event api.Event) error {

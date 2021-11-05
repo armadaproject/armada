@@ -21,6 +21,7 @@ type ArmadaConfig struct {
 	PriorityHalfTime time.Duration
 	Redis            redis.UniversalOptions
 	EventsNats       NatsConfig
+	EventsJetstream  JetstreamConfig
 	EventsRedis      redis.UniversalOptions
 
 	Scheduling      SchedulingConfig
@@ -60,6 +61,17 @@ type NatsConfig struct {
 	Subject        string
 	QueueGroup     string
 	JobStatusGroup string
+	Timeout        time.Duration // Timeout for receiving a reply back from the stan server for PublishAsync
+}
+
+type JetstreamConfig struct {
+	Servers     []string
+	StreamName  string
+	Replicas    int
+	Subject     string
+	Queue       string
+	MaxAgeDays  int
+	ConnTimeout time.Duration
 }
 
 type QueueManagementConfig struct {

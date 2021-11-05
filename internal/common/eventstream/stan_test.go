@@ -3,13 +3,15 @@ package eventstream
 import (
 	"errors"
 	"fmt"
-	"github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/pkg/api"
+	"sync"
+	"testing"
+
 	"github.com/nats-io/nats-streaming-server/server"
 	"github.com/nats-io/stan.go"
 	"github.com/stretchr/testify/assert"
-	"sync"
-	"testing"
+
+	"github.com/G-Research/armada/internal/common/util"
+	"github.com/G-Research/armada/pkg/api"
 )
 
 type MockStanClient struct {
@@ -121,7 +123,7 @@ func TestPublishWithAckTimeout(t *testing.T) {
 	assert.Len(t, errs, 2) // One timeout for stan, one for the callback
 }
 
-func TestStanFlow(t *testing.T) {
+func TestStanEvents(t *testing.T) {
 	port := 8765
 
 	sOpts := server.GetDefaultOptions()
@@ -135,13 +137,16 @@ func TestStanFlow(t *testing.T) {
 	stanClient, err := NewStanClientConnection(
 		"test-cluster",
 		"test-client",
-		fmt.Sprintf("nats://127.0.0.1:%d", port),
+		[]string{fmt.Sprintf("nats://127.0.0.1:%d", port)},
 	)
 	assert.NoError(t, err)
 	stream := NewStanEventStream(
 		"test-cluster",
 		"test-client",
 		stanClient,
+		stan.SetManualAckMode(),
+		stan.StartWithLastReceived(),
+		stan.DeliverAllAvailable(),
 	)
 
 	nEvents := 1000
