@@ -35,9 +35,9 @@ export default class LogService {
         sinceTime: sinceTime,
         logOptions: {
           container: container,
-          tailLines: tailLines,
+          tailLines: tailLines?.toString(),
           timestamps: true,
-          limitBytes: maxSize,
+          limitBytes: maxSize.toString(),
         },
       },
     })
