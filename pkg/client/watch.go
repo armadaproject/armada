@@ -127,7 +127,7 @@ func WatchJobEvents(ctx context.Context, client api.EventClient, queue, jobSetId
 					log.Error(e)
 				}
 				if status.Code() == codes.NotFound {
-					log.Error(e)
+					log.Errorf("Job set: %s in queue: %s not found.", jobSetId, queue)
 					return state
 				}
 				time.Sleep(5 * time.Second)
