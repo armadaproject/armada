@@ -46,6 +46,7 @@ func (watcher EventWatcher) MustExist(readEvents readEvents) EventWatcher {
 // and sends events one at the time over the stream.
 func NewEventWatcher(read readEvents, send sendEvent) EventWatcher {
 	return func(ctx context.Context, request *api.WatchRequest) error {
+		fromId := request.FromId
 		for {
 			select {
 			case <-ctx.Done():
@@ -53,7 +54,7 @@ func NewEventWatcher(read readEvents, send sendEvent) EventWatcher {
 			default:
 			}
 
-			events, err := read(request.Queue, request.JobSetId, request.FromId, 500, 5*time.Second)
+			events, err := read(request.Queue, request.JobSetId, fromId, 500, 5*time.Second)
 			if err != nil {
 				return fmt.Errorf("failed to read event from repository. %s", err)
 			}
@@ -62,6 +63,7 @@ func NewEventWatcher(read readEvents, send sendEvent) EventWatcher {
 				if err := send(event); err != nil {
 					return fmt.Errorf("failed to send event over the stream. %s", err)
 				}
+				fromId = event.Id
 			}
 		}
 	}
