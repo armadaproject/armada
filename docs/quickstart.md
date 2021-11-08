@@ -203,8 +203,8 @@ Simply download the latest release for your platform and unzip or untar.
 Create queues, submit some jobs and monitor progress:
 
 ```bash
-./armadactl create queue queue-a --priorityFactor 1
-./armadactl create queue queue-b --priorityFactor 2
+./armadactl create queue --queueName queue-a --priorityFactor 1
+./armadactl create queue --queueName queue-b --priorityFactor 2
 ./armadactl submit ./docs/quickstart/job-queue-a.yaml
 ./armadactl submit ./docs/quickstart/job-queue-b.yaml
 ```

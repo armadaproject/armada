@@ -150,7 +150,7 @@ It will prevent a user submitting lots of long running jobs in a quiet period an
 The limit will restrict them to a given percentage of all available resource over all clusters.
 
 Using armadactl it'll look like:
-`armadactl create queue test --resourceLimits cpu=0.3,memory=0.2`
+`armadactl create queue --queueName test --resourceLimits cpu=0.3,memory=0.2`
 
 Which means the queue at maximum can only ever be using 30% of the total cpu and 20% of the memory available over all clusters.
 
