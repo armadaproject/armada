@@ -35,12 +35,9 @@ This is recommended when working on features that are purely Armada specific or 
 
 1. Get kind (Installation help [here](https://kind.sigs.k8s.io/docs/user/quick-start/))
     ```bash
-    GO111MODULE="on" go get sigs.k8s.io/kind@v0.5.1
+    GO111MODULE="on" go get sigs.k8s.io/kind@v0.11.1
     ``` 
-2. Create kind clusters (you can create any number of clusters)
-
-    As this step is using Docker, it will require root to run
-    
+2. Create kind clusters (you can create any number of clusters) 
     ```bash
     kind create cluster --name demo-a --config ./example/kind-config.yaml
     kind create cluster --name demo-b --config ./example/kind-config.yaml
@@ -58,11 +55,11 @@ This is recommended when working on features that are purely Armada specific or 
     ```
 5. Start executor for demo-a in a new terminal
     ```bash
-    KUBECONFIG=$(kind get kubeconfig-path --name="demo-a") ARMADA_APPLICATION_CLUSTERID=demo-a ARMADA_METRIC_PORT=9001 go run ./cmd/executor/main.go
+    ARMADA_APPLICATION_CLUSTERID=kind-demo-a ARMADA_METRIC_PORT=9001 go run ./cmd/executor/main.go
     ```
 6. Start executor for demo-b in a new terminal
     ```bash
-    KUBECONFIG=$(kind get kubeconfig-path --name="demo-b") ARMADA_APPLICATION_CLUSTERID=demo-b ARMADA_METRIC_PORT=9002 go run ./cmd/executor/main.go
+    ARMADA_APPLICATION_CLUSTERID=kind-demo-b ARMADA_METRIC_PORT=9002 go run ./cmd/executor/main.go
     ```
 
 #### Setup Fake-executor development
@@ -144,7 +141,7 @@ When you're done, you can run
 
 1. Create queue & Submit job
 ```bash
-go run ./cmd/armadactl/main.go create queue test --priorityFactor 1
+go run ./cmd/armadactl/main.go create queue --queueName test --priorityFactor 1
 go run ./cmd/armadactl/main.go submit ./example/jobs.yaml
 go run ./cmd/armadactl/main.go watch test job-set-1
 ```
