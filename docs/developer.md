@@ -6,7 +6,7 @@ There are many ways you can setup you local environment, this is just a basic qu
 
 ### Pre-requisites
 To follow this section it is assumed you have:
-* Golang >= 1.12 installed [https://golang.org/doc/install](https://golang.org/doc/install)
+* Golang >= 1.16 installed [https://golang.org/doc/install](https://golang.org/doc/install)
 * `kubectl` installed [https://kubernetes.io/docs/tasks/tools/install-kubectl/](https://kubernetes.io/docs/tasks/tools/install-kubectl/)
 * Docker installed, configured for the current user
 * This repository cloned. The guide will assume you are in the root directory of this repository
