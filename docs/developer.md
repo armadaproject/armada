@@ -141,7 +141,7 @@ When you're done, you can run
 
 1. Create queue & Submit job
 ```bash
-go run ./cmd/armadactl/main.go create queue test --priorityFactor 1
+go run ./cmd/armadactl/main.go create queue --queueName test --priorityFactor 1
 go run ./cmd/armadactl/main.go submit ./example/jobs.yaml
 go run ./cmd/armadactl/main.go watch test job-set-1
 ```
