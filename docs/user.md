@@ -1,6 +1,6 @@
 # User guide
 
-Armada is a cluster manager, and is responsible for scheduling and running user jobs (e.g., a batch compute job for training a machine learning model) over one or more Kubernetes clusters. This document is meant to be an overview of Armada for new users. A basic understanding of Docker and Kubernetes is required; see, e.g., the following links:
+Armada is a cluster manager responsible for scheduling and running user jobs (e.g., a batch compute job for training a machine learning model) over one or more Kubernetes clusters. This document is meant to be an overview of Armada for new users. A basic understanding of Docker and Kubernetes is required; see, e.g., the following links:
 
 - [Docker overiew](https://docs.docker.com/get-started/overview/)
 - [Kubernetes overview](https://kubernetes.io/docs/concepts/overview/)
