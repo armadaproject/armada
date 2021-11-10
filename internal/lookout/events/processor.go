@@ -83,6 +83,14 @@ func (p *EventProcessor) processEvent(event api.Event) error {
 
 	case *api.JobLeasedEvent:
 	case *api.JobLeaseReturnedEvent:
+		return p.recorder.RecordJobUnableToSchedule(&api.JobUnableToScheduleEvent{
+			JobId:     typed.JobId,
+			JobSetId:  typed.JobSetId,
+			Queue:     typed.Queue,
+			Created:   typed.Created,
+			ClusterId: typed.ClusterId,
+			Reason:    typed.Reason,
+		})
 	case *api.JobLeaseExpiredEvent:
 		// TODO record leasing as messages?
 
