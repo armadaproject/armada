@@ -3,6 +3,8 @@ package queue
 import (
 	"fmt"
 	"strconv"
+
+	"github.com/spf13/cobra"
 )
 
 type FlagGetStringToString func(string) (map[string]string, error)
@@ -23,4 +25,15 @@ func (f FlagGetStringToString) ToFloat64(flagName string) (map[string]float64, e
 	}
 
 	return result, nil
+}
+
+func validateQueueName(cmd *cobra.Command, args []string) error {
+	switch n := len(args); {
+	case n == 0:
+		return fmt.Errorf("must provide <queue_name>")
+	case n != 1:
+		return fmt.Errorf("accepts only one argument for <queue_name>")
+	default:
+		return nil
+	}
 }
