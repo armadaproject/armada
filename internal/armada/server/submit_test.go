@@ -689,7 +689,7 @@ func withSubmitServerAndRepos(action func(s *SubmitServer, jobRepo repository.Jo
 			Effect:   v1.TaintEffectNoSchedule,
 		},
 	}
-	server := NewSubmitServer(&FakePermissionChecker{}, jobRepo, queueRepo, eventRepo, schedulingInfoRepository, &configuration.QueueManagementConfig{DefaultPriorityFactor: 1}, defaultResources, defaultTolerations)
+	server := NewSubmitServer(&FakePermissionChecker{}, jobRepo, queueRepo, eventRepo, schedulingInfoRepository, &configuration.QueueManagementConfig{DefaultPriorityFactor: 1}, &configuration.SchedulingConfig{DefaultJobTolerations: defaultTolerations, DefaultJobLimits: defaultResources})
 
 	err := queueRepo.CreateQueue(&api.Queue{Name: "test"})
 	if err != nil {
