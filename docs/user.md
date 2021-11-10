@@ -1,13 +1,13 @@
 # User guide
 
-Armada is a Kubernetes native scheduler responsible for scheduling and running user jobs (e.g., a batch compute job for training a machine learning model) over one or more Kubernetes clusters. This document is meant to be an overview of Armada for new users. A basic understanding of Docker and Kubernetes is required; see, e.g., the following links:
+Armada is a system for scheduling and running user jobs (e.g., a batch compute job for training a machine learning model) over one or more Kubernetes clusters. In particular, Armada stores jobs submitted to it in queues and decides in what order, and on which cluster, jobs should run. Armada jobs are represented by Kubernetes pod specifications (podspecs) and Armada handles creating, running, and removing containers as necessary for each job. This document is meant to be an overview of Armada for new users. A basic understanding of Docker and Kubernetes is required; see, e.g., the following links:
 
 - [Docker overiew](https://docs.docker.com/get-started/overview/)
 - [Kubernetes overview](https://kubernetes.io/docs/concepts/overview/)
 
 The Armada workflow is:
 
-1. Create a job specification, which is a Kubernetes pod specification (podspec) with a few additional metadata fields specific to Armada.
+1. Create a job specification, which is a Kubernetes podspec with a few additional metadata fields specific to Armada.
 2. Submit the job specification to one of Armada's job queues.
 
 The remainder of this document is divided into two sections, corresponding to the main abstractions that make up an Armada cluster:
