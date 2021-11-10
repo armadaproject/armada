@@ -7,7 +7,6 @@ import (
 )
 
 func ValidateJobSubmitRequestItem(request *api.JobSubmitRequestItem) error {
-	request.PodSpec.Size()
 	return validateIngressConfigs(request)
 }
 
