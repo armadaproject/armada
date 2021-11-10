@@ -742,6 +742,13 @@
         "jobSetId": {
           "type": "string"
         },
+        "kubernetesId": {
+          "type": "string"
+        },
+        "podNumber": {
+          "type": "integer",
+          "format": "int32"
+        },
         "queue": {
           "type": "string"
         },
