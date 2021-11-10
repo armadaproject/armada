@@ -6,7 +6,7 @@ There are many ways you can setup you local environment, this is just a basic qu
 
 ### Pre-requisites
 To follow this section it is assumed you have:
-* Golang >= 1.12 installed [https://golang.org/doc/install](https://golang.org/doc/install)
+* Golang >= 1.16 installed [https://golang.org/doc/install](https://golang.org/doc/install)
 * `kubectl` installed [https://kubernetes.io/docs/tasks/tools/install-kubectl/](https://kubernetes.io/docs/tasks/tools/install-kubectl/)
 * Docker installed, configured for the current user
 * This repository cloned. The guide will assume you are in the root directory of this repository
@@ -35,11 +35,11 @@ This is recommended when working on features that are purely Armada specific or 
 
 1. Get kind (Installation help [here](https://kind.sigs.k8s.io/docs/user/quick-start/))
     ```bash
-    GO111MODULE="on" go get sigs.k8s.io/kind@v0.5.1
+    GO111MODULE="on" go get sigs.k8s.io/kind@v0.11.1
     ``` 
 2. Create kind clusters (you can create any number of clusters)
 
-    As this step is using Docker, it will require root to run
+    As this step is using Docker, it may require root to run
     
     ```bash
     kind create cluster --name demo-a --config ./example/kind-config.yaml
@@ -58,11 +58,11 @@ This is recommended when working on features that are purely Armada specific or 
     ```
 5. Start executor for demo-a in a new terminal
     ```bash
-    KUBECONFIG=$(kind get kubeconfig-path --name="demo-a") ARMADA_APPLICATION_CLUSTERID=demo-a ARMADA_METRIC_PORT=9001 go run ./cmd/executor/main.go
+    ARMADA_APPLICATION_CLUSTERID=kind-demo-a ARMADA_METRIC_PORT=9001 go run ./cmd/executor/main.go
     ```
 6. Start executor for demo-b in a new terminal
     ```bash
-    KUBECONFIG=$(kind get kubeconfig-path --name="demo-b") ARMADA_APPLICATION_CLUSTERID=demo-b ARMADA_METRIC_PORT=9002 go run ./cmd/executor/main.go
+    ARMADA_APPLICATION_CLUSTERID=kind-demo-b ARMADA_METRIC_PORT=9002 go run ./cmd/executor/main.go
     ```
 
 #### Setup Fake-executor development
