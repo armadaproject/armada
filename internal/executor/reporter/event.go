@@ -96,12 +96,14 @@ func CreateJobUnableToScheduleEvent(pod *v1.Pod, reason string, clusterId string
 
 func CreateJobLeaseReturnedEvent(pod *v1.Pod, reason string, clusterId string) api.Event {
 	return &api.JobLeaseReturnedEvent{
-		JobId:     pod.Labels[domain.JobId],
-		JobSetId:  pod.Annotations[domain.JobSetId],
-		Queue:     pod.Labels[domain.Queue],
-		Created:   time.Now(),
-		ClusterId: clusterId,
-		Reason:    reason,
+		JobId:        pod.Labels[domain.JobId],
+		JobSetId:     pod.Annotations[domain.JobSetId],
+		Queue:        pod.Labels[domain.Queue],
+		Created:      time.Now(),
+		ClusterId:    clusterId,
+		Reason:       reason,
+		KubernetesId: string(pod.ObjectMeta.UID),
+		PodNumber:    getPodNumber(pod),
 	}
 }
 
