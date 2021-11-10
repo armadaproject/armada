@@ -335,6 +335,9 @@ func (r *SQLJobStore) RecordJobFailed(event *api.JobFailedEvent) error {
 }
 
 func (r *SQLJobStore) RecordJobUnableToSchedule(event *api.JobUnableToScheduleEvent) error {
+	if event.GetKubernetesId() == "" {
+		event.KubernetesId = util.NewULID() + "-nopod"
+	}
 
 	jobRunRecord := goqu.Record{
 		"run_id":             event.GetKubernetesId(),
