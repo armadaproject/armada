@@ -35,7 +35,7 @@ This is recommended when working on features that are purely Armada specific or 
 
 1. Get kind (Installation help [here](https://kind.sigs.k8s.io/docs/user/quick-start/))
     ```bash
-    GO111MODULE="on" go get sigs.k8s.io/kind@v0.11.1
+    go get sigs.k8s.io/kind@v0.11.1
     ``` 
 2. Create kind clusters (you can create any number of clusters)
 
