@@ -37,7 +37,10 @@ This is recommended when working on features that are purely Armada specific or 
     ```bash
     GO111MODULE="on" go get sigs.k8s.io/kind@v0.11.1
     ``` 
-2. Create kind clusters (you can create any number of clusters) 
+2. Create kind clusters (you can create any number of clusters)
+
+    As this step is using Docker, it may require root to run
+    
     ```bash
     kind create cluster --name demo-a --config ./example/kind-config.yaml
     kind create cluster --name demo-b --config ./example/kind-config.yaml
@@ -141,7 +144,7 @@ When you're done, you can run
 
 1. Create queue & Submit job
 ```bash
-go run ./cmd/armadactl/main.go create queue --queueName test --priorityFactor 1
+go run ./cmd/armadactl/main.go create queue test --priorityFactor 1
 go run ./cmd/armadactl/main.go submit ./example/jobs.yaml
 go run ./cmd/armadactl/main.go watch test job-set-1
 ```
