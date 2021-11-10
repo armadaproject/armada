@@ -10,16 +10,13 @@ import (
 
 func Create() *cobra.Command {
 	command := &cobra.Command{
-		Use:   "queue",
+		Use:   "queue <queue_name>",
 		Short: "Create new queue",
 		Long: "Every job submitted to armada needs to be associated with queue." +
 			"\nJob priority is evaluated inside queue, queue has its own priority.",
 		SilenceUsage: true,
+		Args:         validateQueueName,
 	}
-
-	command.Flags().SortFlags = false
-	command.Flags().StringP("queueName", "n", "", "Queue name")
-	command.MarkFlagRequired("queueName")
 
 	command.Flags().Float64("priorityFactor", 1, "Set queue priority factor - lower number makes queue more important, must be > 0.")
 	command.Flags().StringSlice("owners", []string{}, "Comma separated list of queue owners, defaults to current user.")
@@ -29,10 +26,7 @@ func Create() *cobra.Command {
 	)
 
 	command.RunE = func(cmd *cobra.Command, args []string) error {
-		queueName, err := cmd.Flags().GetString("queueName")
-		if err != nil {
-			return fmt.Errorf("failed to retrieve name value: %s", err)
-		}
+		queueName := args[0]
 
 		priority, err := cmd.Flags().GetFloat64("priorityFactor")
 		if err != nil {

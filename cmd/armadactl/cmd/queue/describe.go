@@ -14,20 +14,14 @@ import (
 
 func Describe() *cobra.Command {
 	command := &cobra.Command{
-		Use:   "queue",
+		Use:   "queue <queue_name>",
 		Short: "Prints out queue info.",
 		Long:  "Prints out queue info including all jobs sets where jobs are running or queued.",
+		Args:  validateQueueName,
 	}
 
-	command.Flags().SortFlags = false
-	command.Flags().StringP("queueName", "n", "", "Queue name")
-	command.MarkFlagRequired("queueName")
-
 	command.RunE = func(cmd *cobra.Command, args []string) error {
-		queueName, err := cmd.Flags().GetString("queueName")
-		if err != nil {
-			return fmt.Errorf("failed to retrieve name value: %s", err)
-		}
+		queueName := args[0]
 
 		apiConnectionDetails := client.ExtractCommandlineArmadaApiConnectionDetails()
 		conn, err := client.CreateApiConnection(apiConnectionDetails)
