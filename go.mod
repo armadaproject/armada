@@ -8,7 +8,7 @@ require (
 	github.com/alicebob/miniredis v2.5.0+incompatible
 	github.com/coreos/go-oidc v2.2.1+incompatible
 	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f
-	github.com/doug-martin/goqu/v9 v9.16.0
+	github.com/doug-martin/goqu/v9 v9.18.0
 	github.com/go-ldap/ldap/v3 v3.4.1
 	github.com/go-openapi/analysis v0.21.1
 	github.com/go-openapi/jsonreference v0.19.6
