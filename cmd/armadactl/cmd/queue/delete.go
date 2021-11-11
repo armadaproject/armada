@@ -10,7 +10,7 @@ import (
 
 func Delete() *cobra.Command {
 	command := &cobra.Command{
-		Use:          "queue <queue_name>",
+		Use:          "queue <queueName>",
 		Short:        "Delete existing queue",
 		Long:         "Deletes queue if it exists, the queue needs to be empty at the time of deletion.",
 		SilenceUsage: true,
