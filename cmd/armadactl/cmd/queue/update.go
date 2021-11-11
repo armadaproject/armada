@@ -10,14 +10,11 @@ import (
 
 func Update() *cobra.Command {
 	command := &cobra.Command{
-		Use:   "queue",
+		Use:   "queue <queue_name>",
 		Short: "Update existing queue",
 		Long:  "Update settings of existing queue",
+		Args:  validateQueueName,
 	}
-
-	command.Flags().SortFlags = false
-	command.Flags().StringP("queueName", "n", "", "Queue name")
-	command.MarkFlagRequired("queueName")
 
 	command.Flags().Float64("priorityFactor", 1, "Set queue priority factor - lower number makes queue more important, must be > 0.")
 	command.Flags().StringSlice("owners", []string{}, "Comma separated list of queue owners, defaults to current user.")
@@ -27,10 +24,7 @@ func Update() *cobra.Command {
 	)
 
 	command.RunE = func(cmd *cobra.Command, args []string) error {
-		queueName, err := cmd.Flags().GetString("queueName")
-		if err != nil {
-			return fmt.Errorf("failed to retrieve name value: %s", err)
-		}
+		queueName := args[0]
 
 		priority, err := cmd.Flags().GetFloat64("priorityFactor")
 		if err != nil {
