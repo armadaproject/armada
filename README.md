@@ -3,37 +3,34 @@
 [![CircleCI](https://circleci.com/gh/helm/helm.svg?style=shield)](https://circleci.com/gh/G-Research/armada)
 [![Go Report Card](https://goreportcard.com/badge/github.com/G-Research/armada)](https://goreportcard.com/report/github.com/G-Research/armada)
 
+Armada is a system for scheduling and running batch jobs (e.g., a compute job for training a machine learning model) over Kubernetes clusters. Armada is designed for high availability and to handle scheduling hundreds of jobs per second over thousands of nodes.
 
-Armada is an application to achieve high throughput of run-to-completion jobs on multiple Kubernetes clusters.
+To achieve this, Armada, unlike previous Kubernetes batch schedulers (e.g., [kube-batch](https://github.com/kubernetes-sigs/kube-batch)), can schedule jobs over multiple Kubernetes clusters simultaneously and hence scale beyond the limitations of a single Kubernetes cluster (which we find to be about 1000 nodes). In addition, Kubernetes clusters can be connected and disconnected from Armada on the fly without disruption. Jobs are submitted to job queues, of which there may be many (for example, each user could have a separate queue), and Armada divides compute resources fairly between queues.
 
-It stores queues for users/projects with pod specifications and creates these pods once there is available resource in one of the connected Kubernetes clusters.
+Armada is loosely based on the [HTCondor](https://research.cs.wisc.edu/htcondor/) batch scheduler and can be used as a replacement of HTCondor, provided all nodes are enrolled in Kubernetes clusters.
 
+**Armada is not**
+
+- A service scheduler (i.e., Armada jobs should have a finite lifetime)
+- Designed for low-latency scheduling (expect on the order of 10 seconds from job submission)
+- Designed to schedule jobs over underlying systems other than Kubernetes clusters
 
 ## Documentation
-- [Quickstart](./docs/quickstart.md)
-- [User Guide](./docs/user.md)
-- [Installation in Production](./docs/production-install.md)
-- [Design Documentation](./docs/design.md)
-- [Development Guide](./docs/developer.md)
+
+For an overview of the architecture and design of Armada, and instructions for submitting jobs, see:
+
+- [System overview](./docs/design.md)
+- [User guide](./user.md)
+
+For instructions of how to setup and develop Armada, see:
+- [Development quickstart](./docs/quickstart.md)
+- [Development guide](./docs/developer.md)
+- [Installation in production](./docs/production-install.md)
+
+For API reference, see:
 - [Api Documentation](./docs/api.md)
 
-## Key features
-- Armada maintains fair resource share over time (inspired by HTCondor priority)
-- It can handle large amounts of queued jobs (million+)
-- It allows adding and removing clusters from the system without disruption
-- By utilizing multiple Kubernetes clusters the system can scale beyond the limits of a single Kubernetes cluster
+We expect readers of the documentation to have a basic understanding of Docker and Kubernetes; see, e.g., the following links:
 
-![How Armada works](./docs/batch-api.svg)
-
-## Key concepts
-
-**Queue:** Represents a user or project, used to maintain fair share over time, with a priority factor
-
-**Job:** Unit of work to be run (described as a Kubernetes PodSpec)
-
-**Job Set:** Group of related jobs. The API allows observing progress of a job set together
-
-
-## Try it out locally
-
-Follow the [Quickstart](./docs/quickstart.md) guide to get Armada up and running locally.
+- [Docker overiew](https://docs.docker.com/get-started/overview/)
+- [Kubernetes overview](https://kubernetes.io/docs/concepts/overview/)
