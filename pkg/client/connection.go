@@ -1,6 +1,7 @@
 package client
 
 import (
+	"github.com/G-Research/armada/pkg/client/auth/exec"
 	"strings"
 	"time"
 
@@ -22,6 +23,7 @@ type ApiConnectionDetails struct {
 	OpenIdClientCredentialsAuth oidc.ClientCredentialsDetails
 	KerberosAuth                kerberos.ClientConfig
 	ForceNoTls                  bool
+	ExecCmd                     exec.CommandDetails
 }
 
 func CreateApiConnection(config *ApiConnectionDetails, additionalDialOptions ...grpc.DialOption) (*grpc.ClientConn, error) {
@@ -70,6 +72,8 @@ func perRpcCredentials(config *ApiConnectionDetails) (credentials.PerRPCCredenti
 
 	} else if config.KerberosAuth.Enabled {
 		return kerberos.NewSPNEGOCredentials(config.ArmadaUrl, config.KerberosAuth)
+	} else if config.ExecCmd.Cmd != "" {
+		return exec.NewAuthenticator(config.ExecCmd.Cmd, config.ExecCmd.Args, config.ExecCmd.Env, config.ExecCmd.Interactive), nil
 	}
 	return nil, nil
 }
