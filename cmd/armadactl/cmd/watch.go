@@ -24,7 +24,7 @@ func init() {
 
 // watchCmd represents the watch command
 var watchCmd = &cobra.Command{
-	Use:   "watch queue jobSet",
+	Use:   "watch <queue> <jobSet>",
 	Short: "Watch job events in job set.",
 	Long:  `This command will list all job set events and `,
 	Args:  cobra.ExactArgs(2),
