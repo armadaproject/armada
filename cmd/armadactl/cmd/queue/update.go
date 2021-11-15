@@ -10,7 +10,7 @@ import (
 
 func Update() *cobra.Command {
 	command := &cobra.Command{
-		Use:   "queue <queue_name>",
+		Use:   "queue <queueName>",
 		Short: "Update existing queue",
 		Long:  "Update settings of existing queue",
 		Args:  validateQueueName,

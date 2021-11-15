@@ -10,7 +10,7 @@ import (
 
 func Create() *cobra.Command {
 	command := &cobra.Command{
-		Use:   "queue <queue_name>",
+		Use:   "queue <queueName>",
 		Short: "Create new queue",
 		Long: "Every job submitted to armada needs to be associated with queue." +
 			"\nJob priority is evaluated inside queue, queue has its own priority.",
