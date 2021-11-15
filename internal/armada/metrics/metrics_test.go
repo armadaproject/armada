@@ -1,6 +1,7 @@
 package metrics
 
 import (
+	"github.com/G-Research/armada/internal/common/util"
 	"testing"
 	"time"
 
@@ -153,24 +154,24 @@ func addTestJob(t *testing.T, r *repository.RedisJobRepository, queue string) *a
 
 func addTestJobWithRequirements(t *testing.T, r *repository.RedisJobRepository, queue string, clientId string, requirements v1.ResourceRequirements) *api.Job {
 
-	jobs, e := r.CreateJobs(&api.JobSubmitRequest{
-		Queue:    queue,
-		JobSetId: "set1",
-		JobRequestItems: []*api.JobSubmitRequestItem{
-			{
-				Priority: 1,
-				ClientId: clientId,
-				PodSpec: &v1.PodSpec{
-					Containers: []v1.Container{
-						{
-							Resources: requirements,
-						},
+	jobs := []*api.Job{
+		{
+			Id:       util.NewULID(),
+			ClientId: clientId,
+			Queue:    queue,
+			JobSetId: "set1",
+			PodSpec: &v1.PodSpec{
+				Containers: []v1.Container{
+					{
+						Resources: requirements,
 					},
 				},
 			},
+			Created:                  time.Now(),
+			Owner:                    "user",
+			QueueOwnershipUserGroups: []string{},
 		},
-	}, "user", []string{})
-	assert.NoError(t, e)
+	}
 
 	results, e := r.AddJobs(jobs)
 	assert.Nil(t, e)
@@ -188,6 +189,6 @@ func withRepository(action func(r *repository.RedisJobRepository)) {
 	defer db.Close()
 
 	redisClient := redis.NewClient(&redis.Options{Addr: db.Addr()})
-	repo := repository.NewRedisJobRepository(redisClient, nil, nil, configuration.DatabaseRetentionPolicy{JobRetentionDuration: time.Hour})
+	repo := repository.NewRedisJobRepository(redisClient, configuration.DatabaseRetentionPolicy{JobRetentionDuration: time.Hour})
 	action(repo)
 }
