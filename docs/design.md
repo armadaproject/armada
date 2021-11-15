@@ -9,7 +9,7 @@ If you just want to learn how to submit jobs to Armada, see:
 ## Architecture
 
 Armada consists of two main components:
-- The Armada server, which is responsible for accepting jobs from users and deciding in what order, and on which Kubernetes cluster, jobs should run. Users submit jobs to the Armada server through the `armadactl` command-line utility or via a REST API. 
+- The Armada server, which is responsible for accepting jobs from users and deciding in what order, and on which Kubernetes cluster, jobs should run. Users submit jobs to the Armada server through the `armadactl` command-line utility or via a gRPC or REST API. 
 - The Armada executor, of which there is one instance running in each Kubernetes cluster that Armada is connected to. Each Armada executor instance regularly notifies the server of how much spare capacity it has available and requests jobs to run. Users of Armada never interact with the executor directly.
 
 All state relating to the Armada server is stored in [Redis](https://redis.io/), which may use replication combined with failover for redundancy. Hence, the Armada server is itself stateless and is easily replicated by running multiple independent instances. Both the server and the executors are intended to be run in Kubernetes pods. We show a diagram of the architecture below.
@@ -27,7 +27,7 @@ A job is the most basic unit of work in Armada, and is represented by a Kubernet
 The Armada workflow is:
 
 1. Create a job specification, which is a Kubernetes podspec with a few additional metadata fields.
-2. Submit the job specification to one of Armada's job queues using the `armadactl` CLI utility or through the Armada REST API.
+2. Submit the job specification to one of Armada's job queues using the `armadactl` CLI utility or through the Armada gRPC or REST API.
 
 For example, a job that sleeps for 60 seconds could be represented by the following yaml file.
 
@@ -95,7 +95,7 @@ podSpecs:
 
 All pods part of the same job will be run simultaneously and within a single Kubernetes cluster. If any of the pods that make up the job fails to start within a certain timeout (specified by the `stuckPodExpiry` parameter), the entire job is cancelled and all pods belonging to it removed. Armada may attempt to re-schedule jobs experiencing transient issues. Events relating to a multi-node job contain a `podNumber` identifier, corresponding to the index of pod in the `podSpecs` list that the event refers to.
 
-Jobs are submitted using either the `armadactl` command-line utility, with `armadactl submit <jobspec.yaml>`, or using the REST API.
+Jobs are submitted using either the `armadactl` command-line utility, with `armadactl submit <jobspec.yaml>`, or using the gRPC or REST API.
 
 ### Job options
 
