@@ -168,6 +168,23 @@ openIdConnect:
   scopes: []
 ```
 
+To Invoke an external program to generate an access token, config file should be as follows:
+```yaml
+armadaUrl: "server.component.url.com:443"
+execAuth:
+  # Command to run.  Needs to be on the path and should write only a token to stdout. Required.
+  cmd: some-command
+  # Environment variables to set when executing the command. Optional.
+  args:
+    - "arg1"
+  # Arguments to pass when executing the command. Optional.
+  env:
+    - name: "FOO"
+      value: "bar"
+  # Whether the command requires user input. Optional   
+  interactive: true
+```
+
 For Kerberos authentication, config file should contain this:
 ```
 KerberosAuth:

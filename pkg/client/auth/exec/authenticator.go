@@ -12,6 +12,7 @@ import (
 	"sync"
 )
 
+// Authenticator wraps an external command + environment that can be used to generate an access token.
 type Authenticator struct {
 
 	// Set by the config
@@ -25,7 +26,7 @@ type Authenticator struct {
 	interactive bool
 	environ     func() []string
 
-	// Mutex  guards calling the plugin. Since the plugin could be
+	// Mutex  guards calling the cmd. Since the cmd could be
 	// interactive we want to make sure it's only called once.
 	mu sync.Mutex
 }
@@ -54,7 +55,7 @@ func (a *Authenticator) getCreds() (string, error) {
 	return a.getCredsLocked()
 }
 
-// refreshCredsLocked executes the plugin and reads the credentials from
+// getCredsLocked executes the plugin and reads the credentials from
 // stdout. It must be called while holding the Authenticator's mutex.
 func (a *Authenticator) getCredsLocked() (string, error) {
 	env := append(a.environ(), a.Env...)
