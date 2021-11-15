@@ -47,7 +47,7 @@ In the above yaml snippet, `podSpec` is a Kubernetes podspec, which consists of 
 
 Resource requests and limits must be equal. Armada does not yet support limit > request.
 
-Now, the job can be submitted to Armada using the `armadactl` command-line utility. In particular, run
+Now, the job can be submitted to Armada using the `armadactl` command-line utility (or alternatively via Armada's gRPC or REST API). In particular, run
 
 `armadactl submit <jobspec.yaml>`,
 
