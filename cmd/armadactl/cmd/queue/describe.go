@@ -14,7 +14,7 @@ import (
 
 func Describe() *cobra.Command {
 	command := &cobra.Command{
-		Use:   "queue <queue_name>",
+		Use:   "queue <queueName>",
 		Short: "Prints out queue info.",
 		Long:  "Prints out queue info including all jobs sets where jobs are running or queued.",
 		Args:  validateQueueName,
