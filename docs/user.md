@@ -5,7 +5,7 @@ This document is meant to be a guide for new users of how to create and submit J
 - [Docker overiew](https://docs.docker.com/get-started/overview/)
 - [Kubernetes overview](https://kubernetes.io/docs/concepts/overview/)
 
-The guide is deliberately short. For more information, see:
+For more information about the design of Armada (e.g., how jobs are prioritised), see:
 
 - [System overview](./design.md)
 
@@ -51,4 +51,90 @@ Now, the job can be submitted to Armada using the `armadactl` command-line utili
 
 `armadactl submit <jobspec.yaml>`,
 
-where `<jobspec.yaml>` is the path of the file containing the jobspec. Armada automatically handles creating and running the necessary containers. For more examples, including of how to submit jobs spanning multiple nodes, see the [system overview](./design.md).
+where `<jobspec.yaml>` is the path of the file containing the jobspec. Armada automatically handles creating and running the necessary containers.
+
+## Multi-node jobs
+
+All containers part of the same podspec will be run on the same node (a physical or virtual machine), i.e., the amount of CPU and memory the above job could consume is limited by what the nodes that make up the clusters are equipped with. To overcome this limitation, jobs need to specify several podspecs, each of which may be scheduled on different nodes within a Kubernetes cluster. For example:
+
+```yaml
+queue: test
+priority: 0
+jobSetId: multi-node-set1
+podSpecs:
+  - terminationGracePeriodSeconds: 0
+    restartPolicy: Never
+    containers:
+      - name: sleep
+        imagePullPolicy: IfNotPresent
+        image: busybox:latest
+        args:
+          - sleep
+          - 60s
+        resources:
+          limits:
+            memory: 64Mi
+            cpu: 150m
+          requests:
+            memory: 64Mi
+            cpu: 150m 
+  - terminationGracePeriodSeconds: 0
+    restartPolicy: Never
+    containers:
+      ... 
+```
+
+All pods part of the same job will be run simultaneously and within a single Kubernetes cluster. If any of the pods that make up the job fails to start within a certain timeout (specified by the `stuckPodExpiry` parameter), the entire job is cancelled and all pods belonging to it removed. Armada may attempt to re-schedule jobs experiencing transient issues. Events relating to a multi-node job contain a `podNumber` identifier, corresponding to the index of pod in the `podSpecs` list that the event refers to.
+
+Jobs are submitted using either the `armadactl` command-line utility, with `armadactl submit <jobspec.yaml>`, or using the gRPC or REST API.
+
+## Job options
+
+Here, we give a complete example of an Armada jobspec with all available parameters.
+
+```yaml
+queue: example                            # 1.
+jobSetId: test                            # 2.
+jobs:
+  - priority: 1000                        # 3.
+    namespace: example                    # 4.
+    clientId: 12345                       # 5.
+    labels:                               # 6.
+      example-label: "value"
+    annotations:                          # 7.
+      example-annotation: "value"
+    ingress:                              # 8.
+      - type: NodePort
+        ports:
+          - 5050
+    podSpecs:                             # 9.
+      - containers:
+        name: app
+        imagePullPolicy: IfNotPresent
+        image: vad1mo/hello-world-rest:latest
+        securityContext:
+          runAsUser: 1000
+        resources:
+          limits:
+            memory: 1Gi
+            cpu: 1
+          requests:
+            memory: 1Gi
+            cpu: 1
+        ports:
+          - containerPort: 5050
+            protocol: TCP
+            name: http
+```
+
+Using this format, it is possible to submit a job set composed of several jobs. The meaning of each field is:
+
+1. The queue this job will be submitted to.
+2. Name of the job set this job belongs to.
+3. Relative priority of the job.
+4. The namespace that the pods part of this job will be created in (the `default` namespace if not specified).
+5. An optional ID that can be set to ensure that jobs are not duplicated, e.g., in case of certain network failures. Armada automatically discards any jobs submitted with a `clientId` equal to that of an existing job.
+6. List of labels that are added to all pods created as part of this job..
+7. List annotations that are added to all pods created as part of this job.
+8. List of ports that are exposed with the specified ingress type. The ingress only exposes ports for pods that also expose the corresponding port via the `containerPort` setting.
+9. List of podspecs that make up the job; see the [Kubernetes documentation](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.19/) for an overview of the available parameters.
