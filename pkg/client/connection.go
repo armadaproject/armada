@@ -23,7 +23,7 @@ type ApiConnectionDetails struct {
 	OpenIdClientCredentialsAuth oidc.ClientCredentialsDetails
 	KerberosAuth                kerberos.ClientConfig
 	ForceNoTls                  bool
-	ExecCmd                     exec.CommandDetails
+	ExecAuth                    exec.CommandDetails
 }
 
 func CreateApiConnection(config *ApiConnectionDetails, additionalDialOptions ...grpc.DialOption) (*grpc.ClientConn, error) {
@@ -72,8 +72,8 @@ func perRpcCredentials(config *ApiConnectionDetails) (credentials.PerRPCCredenti
 
 	} else if config.KerberosAuth.Enabled {
 		return kerberos.NewSPNEGOCredentials(config.ArmadaUrl, config.KerberosAuth)
-	} else if config.ExecCmd.Cmd != "" {
-		return exec.NewAuthenticator(config.ExecCmd.Cmd, config.ExecCmd.Args, config.ExecCmd.Env, config.ExecCmd.Interactive), nil
+	} else if config.ExecAuth.Cmd != "" {
+		return exec.NewAuthenticator(config.ExecAuth), nil
 	}
 	return nil, nil
 }

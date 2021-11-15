@@ -30,16 +30,22 @@ type Authenticator struct {
 	mu sync.Mutex
 }
 
-func NewAuthenticator(cmd string, args []string, env []string, interactive bool) grpc_credentials.PerRPCCredentials {
-	return Authenticator{
-		Cmd:         cmd,
-		Args:        args,
-		Env:         env,
+func NewAuthenticator(config CommandDetails) grpc_credentials.PerRPCCredentials {
+
+	a := &Authenticator{
+		Cmd:         config.Cmd,
+		Args:        config.Args,
 		stdin:       os.Stdin,
 		stderr:      os.Stderr,
-		interactive: interactive,
+		interactive: config.Interactive,
 		environ:     os.Environ,
 	}
+
+	for _, env := range config.Env {
+		a.Env = append(a.Env, env.Name+"="+env.Value)
+	}
+
+	return a
 }
 
 func (a *Authenticator) getCreds() (string, error) {
@@ -70,7 +76,7 @@ func (a *Authenticator) getCredsLocked() (string, error) {
 	tok := strings.TrimSpace(string(stdout.Bytes()))
 
 	if tok == "" {
-		return "", fmt.Errorf("command didn't return a tocken")
+		return "", fmt.Errorf("command didn't return a token")
 	}
 
 	return tok, nil

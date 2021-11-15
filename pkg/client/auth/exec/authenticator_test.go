@@ -1,64 +1,87 @@
 package exec
 
-import "testing"
+import (
+	"runtime"
+	"testing"
+)
 import "github.com/stretchr/testify/assert"
+
+func testScript() string {
+	if runtime.GOOS == "windows" {
+		return "./testdata/test-exec.bat"
+	} else {
+		return "./testdata/test-exec.sh"
+	}
+}
 
 func TestAuthenticatorHappyPath(t *testing.T) {
 
-	a := Authenticator{
-		cmd:         "./testdata/test-exec.sh",
-		env:         []string{"EXEC_TEST_OUTPUT=aToken", "EXEC_TEST_EXIT_CODE=0"},
-		interactive: false,
-		environ:     func() []string { return nil },
+	cd := CommandDetails{
+		Cmd: testScript(),
+		Env: []EnvVar{
+			{Name: "EXEC_TEST_OUTPUT", Value: "aToken"},
+			{Name: "EXEC_TEST_EXIT_CODE", Value: "0"},
+		},
+		Interactive: false,
 	}
+	a := NewAuthenticator(cd)
 
-	tok, err := a.GetCreds()
+	md, err := a.GetRequestMetadata(nil, "")
 
 	assert.Empty(t, err)
-	assert.Equal(t, "aToken", tok)
+	assert.Equal(t, map[string]string{"authorization": "Bearer aToken"}, md)
 }
 
 func TestAuthenticatorCmdFails(t *testing.T) {
 
-	a := Authenticator{
-		cmd:         "./testdata/test-exec.sh",
-		env:         []string{"EXEC_TEST_OUTPUT=aToken", "EXEC_TEST_EXIT_CODE=1"},
-		interactive: false,
-		environ:     func() []string { return nil },
+	cd := CommandDetails{
+		Cmd: testScript(),
+		Env: []EnvVar{
+			{Name: "EXEC_TEST_OUTPUT", Value: "aToken"},
+			{Name: "EXEC_TEST_EXIT_CODE", Value: "1"},
+		},
+		Interactive: false,
 	}
+	a := NewAuthenticator(cd)
 
-	tok, err := a.GetCreds()
+	md, err := a.GetRequestMetadata(nil, "")
 
 	assert.NotEmpty(t, err)
-	assert.Empty(t, tok)
+	assert.Empty(t, md)
 }
 
 func TestAuthenticatorMissingCmd(t *testing.T) {
 
-	a := Authenticator{
-		cmd:         "no_a_valid_command.sh",
-		env:         []string{"EXEC_TEST_OUTPUT=aToken", "EXEC_TEST_EXIT_CODE=0"},
-		interactive: false,
-		environ:     func() []string { return nil },
+	cd := CommandDetails{
+		Cmd: "not_a_valid_command.sh",
+		Env: []EnvVar{
+			{Name: "EXEC_TEST_OUTPUT", Value: "aToken"},
+			{Name: "EXEC_TEST_EXIT_CODE", Value: "0"},
+		},
+		Interactive: false,
 	}
+	a := NewAuthenticator(cd)
 
-	tok, err := a.GetCreds()
+	md, err := a.GetRequestMetadata(nil, "")
 
 	assert.NotEmpty(t, err)
-	assert.Empty(t, tok)
+	assert.Empty(t, md)
 }
 
 func TestAuthenticatorNoToken(t *testing.T) {
 
-	a := Authenticator{
-		cmd:         "./testdata/test-exec.sh",
-		env:         []string{"EXEC_TEST_OUTPUT=", "EXEC_TEST_EXIT_CODE=0"},
-		interactive: false,
-		environ:     func() []string { return nil },
+	cd := CommandDetails{
+		Cmd: testScript(),
+		Env: []EnvVar{
+			{Name: "EXEC_TEST_OUTPUT", Value: ""},
+			{Name: "EXEC_TEST_EXIT_CODE", Value: "0"},
+		},
+		Interactive: false,
 	}
+	a := NewAuthenticator(cd)
 
-	tok, err := a.GetCreds()
+	md, err := a.GetRequestMetadata(nil, "")
 
 	assert.NotEmpty(t, err)
-	assert.Empty(t, tok)
+	assert.Empty(t, md)
 }
