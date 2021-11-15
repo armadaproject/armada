@@ -20,7 +20,7 @@ Armada is loosely based on the [HTCondor](https://research.cs.wisc.edu/htcondor/
 For an overview of the architecture and design of Armada, and instructions for submitting jobs, see:
 
 - [System overview](./docs/design.md)
-- [User guide](./user.md)
+- [User guide](./docs/user.md)
 
 For instructions of how to setup and develop Armada, see:
 - [Quickstart](./docs/quickstart.md)
