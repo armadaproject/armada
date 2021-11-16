@@ -3,6 +3,9 @@ package server
 import (
 	"context"
 	"fmt"
+	"strings"
+	"time"
+
 	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/common/validation"
 	"github.com/gogo/protobuf/types"
@@ -11,8 +14,6 @@ import (
 	"google.golang.org/grpc/status"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
-	"strings"
-	"time"
 
 	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/G-Research/armada/internal/armada/permissions"
