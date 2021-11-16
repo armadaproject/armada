@@ -177,6 +177,134 @@ func TestSubmitServer_SubmitJob(t *testing.T) {
 	})
 }
 
+func TestSubmitServer_SubmitJob_ApplyDefaults(t *testing.T) {
+
+	withSubmitServer(func(s *SubmitServer, events repository.EventRepository) {
+		jobSetId := util.NewULID()
+		jobRequest := &api.JobSubmitRequest{
+			JobSetId: jobSetId,
+			Queue:    "test",
+			JobRequestItems: []*api.JobSubmitRequestItem{
+				{
+					ClientId: util.NewULID(),
+					PodSpecs: []*v1.PodSpec{{
+						Containers: []v1.Container{
+							{
+								Name:  fmt.Sprintf("Container 1"),
+								Image: "index.docker.io/library/ubuntu:latest",
+								Args:  []string{"sleep", "10s"},
+							},
+						},
+					}},
+					Priority: 0,
+				},
+			},
+		}
+		response, err := s.SubmitJobs(context.Background(), jobRequest)
+		assert.Empty(t, err)
+
+		retrievedJob, _ := s.jobRepository.GetExistingJobsByIds([]string{response.JobResponseItems[0].JobId})
+
+		expectedResources := v1.ResourceList{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")}
+		expectedTolerations := []v1.Toleration{
+			{
+				Key:      "default",
+				Operator: v1.TolerationOpEqual,
+				Value:    "true",
+				Effect:   v1.TaintEffectNoSchedule,
+			},
+		}
+
+		assert.Equal(t, expectedResources, retrievedJob[0].PodSpecs[0].Containers[0].Resources.Requests)
+		assert.Equal(t, expectedResources, retrievedJob[0].PodSpecs[0].Containers[0].Resources.Limits)
+		assert.Equal(t, expectedTolerations, retrievedJob[0].PodSpecs[0].Tolerations)
+	})
+}
+
+func TestSubmitServer_SubmitJob_RejectEmptyPodSpec(t *testing.T) {
+	withSubmitServer(func(s *SubmitServer, events repository.EventRepository) {
+		jobSetId := util.NewULID()
+		jobRequest := &api.JobSubmitRequest{
+			JobSetId: jobSetId,
+			Queue:    "test",
+			JobRequestItems: []*api.JobSubmitRequestItem{
+				{
+					ClientId: util.NewULID(),
+					Priority: 0,
+				},
+			},
+		}
+		_, err := s.SubmitJobs(context.Background(), jobRequest)
+		assert.NotEmpty(t, err)
+	})
+}
+
+func TestSubmitServer_SubmitJob_RejectTolerationsNotEqual(t *testing.T) {
+	withSubmitServer(func(s *SubmitServer, events repository.EventRepository) {
+		jobSetId := util.NewULID()
+		jobRequest := &api.JobSubmitRequest{
+			JobSetId: jobSetId,
+			Queue:    "test",
+			JobRequestItems: []*api.JobSubmitRequestItem{
+				{
+					ClientId: util.NewULID(),
+					PodSpecs: []*v1.PodSpec{{
+						Containers: []v1.Container{
+							{
+								Name:  fmt.Sprintf("Container 1"),
+								Image: "index.docker.io/library/ubuntu:latest",
+								Args:  []string{"sleep", "10s"},
+								Resources: v1.ResourceRequirements{
+									Requests: v1.ResourceList{
+										"memory": resource.MustParse("1Gi"),
+										"cpu":    resource.MustParse("1"),
+									},
+									Limits: v1.ResourceList{
+										"memory": resource.MustParse("1Gi"),
+										"cpu":    resource.MustParse("2"),
+									},
+								},
+							},
+						},
+					}},
+					Priority: 0,
+				},
+			},
+		}
+		_, err := s.SubmitJobs(context.Background(), jobRequest)
+		assert.NotEmpty(t, err)
+	})
+}
+
+func TestSubmitServer_SubmitJob_RejectPodSpecAndPodSpecs(t *testing.T) {
+	podSpec := v1.PodSpec{
+		Containers: []v1.Container{
+			{
+				Name:  fmt.Sprintf("Container 1"),
+				Image: "index.docker.io/library/ubuntu:latest",
+				Args:  []string{"sleep", "10s"},
+			},
+		},
+	}
+	withSubmitServer(func(s *SubmitServer, events repository.EventRepository) {
+		jobSetId := util.NewULID()
+		jobRequest := &api.JobSubmitRequest{
+			JobSetId: jobSetId,
+			Queue:    "test",
+			JobRequestItems: []*api.JobSubmitRequestItem{
+				{
+					ClientId: util.NewULID(),
+					PodSpec:  &podSpec,
+					PodSpecs: []*v1.PodSpec{&podSpec},
+					Priority: 0,
+				},
+			},
+		}
+		_, err := s.SubmitJobs(context.Background(), jobRequest)
+		assert.NotEmpty(t, err)
+	})
+}
+
 func TestSubmitServer_SubmitJob_WhenPodCannotBeScheduled(t *testing.T) {
 	withSubmitServer(func(s *SubmitServer, events repository.EventRepository) {
 		jobSetId := util.NewULID()
@@ -548,11 +676,20 @@ func withSubmitServerAndRepos(action func(s *SubmitServer, jobRepo repository.Jo
 	// using real redis instance as miniredis does not support streams
 	client := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 10})
 
-	jobRepo := repository.NewRedisJobRepository(client, nil, nil)
+	jobRepo := repository.NewRedisJobRepository(client, configuration.DatabaseRetentionPolicy{JobRetentionDuration: time.Hour})
 	queueRepo := repository.NewRedisQueueRepository(client)
 	eventRepo := repository.NewRedisEventRepository(client, configuration.EventRetentionPolicy{ExpiryEnabled: false})
 	schedulingInfoRepository := repository.NewRedisSchedulingInfoRepository(client)
-	server := NewSubmitServer(&FakePermissionChecker{}, jobRepo, queueRepo, eventRepo, schedulingInfoRepository, &configuration.QueueManagementConfig{DefaultPriorityFactor: 1})
+	defaultResources := common.ComputeResources{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")}
+	defaultTolerations := []v1.Toleration{
+		{
+			Key:      "default",
+			Operator: v1.TolerationOpEqual,
+			Value:    "true",
+			Effect:   v1.TaintEffectNoSchedule,
+		},
+	}
+	server := NewSubmitServer(&FakePermissionChecker{}, jobRepo, queueRepo, eventRepo, schedulingInfoRepository, &configuration.QueueManagementConfig{DefaultPriorityFactor: 1}, defaultResources, defaultTolerations)
 
 	err := queueRepo.CreateQueue(&api.Queue{Name: "test"})
 	if err != nil {

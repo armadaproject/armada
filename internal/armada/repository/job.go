@@ -9,12 +9,9 @@ import (
 	"github.com/go-redis/redis"
 	"github.com/gogo/protobuf/proto"
 	log "github.com/sirupsen/logrus"
-	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/G-Research/armada/internal/common"
+	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/internal/common/validation"
 	"github.com/G-Research/armada/pkg/api"
 )
 
@@ -41,7 +38,6 @@ type UpdateJobResult struct {
 type JobRepository interface {
 	PeekQueue(queue string, limit int64) ([]*api.Job, error)
 	TryLeaseJobs(clusterId string, queue string, jobs []*api.Job) ([]*api.Job, error)
-	CreateJobs(request *api.JobSubmitRequest, owner string, ownershipGroups []string) ([]*api.Job, error)
 	AddJobs(job []*api.Job) ([]*SubmitJobResult, error)
 	GetExistingJobsByIds(ids []string) ([]*api.Job, error)
 	FilterActiveQueues(queues []*api.Queue) ([]*api.Queue, error)
@@ -63,92 +59,14 @@ type JobRepository interface {
 }
 
 type RedisJobRepository struct {
-	db                    redis.UniversalClient
-	defaultJobLimits      common.ComputeResources
-	defaultJobTolerations []v1.Toleration
+	db              redis.UniversalClient
+	retentionPolicy configuration.DatabaseRetentionPolicy
 }
 
-func NewRedisJobRepository(db redis.UniversalClient, defaultJobLimits common.ComputeResources, defaultJobTolerations []v1.Toleration) *RedisJobRepository {
-	if defaultJobLimits == nil {
-		defaultJobLimits = common.ComputeResources{}
-	}
-	if defaultJobTolerations == nil {
-		defaultJobTolerations = []v1.Toleration{}
-	}
-	return &RedisJobRepository{db: db, defaultJobLimits: defaultJobLimits, defaultJobTolerations: defaultJobTolerations}
-}
-
-func (repo *RedisJobRepository) CreateJobs(request *api.JobSubmitRequest, owner string, ownershipGroups []string) ([]*api.Job, error) {
-	jobs := make([]*api.Job, 0, len(request.JobRequestItems))
-
-	if request.JobSetId == "" {
-		return nil, fmt.Errorf("job set is not specified")
-	}
-
-	if request.Queue == "" {
-		return nil, fmt.Errorf("queue is not specified")
-	}
-
-	for i, item := range request.JobRequestItems {
-		if item.PodSpec != nil && len(item.PodSpecs) > 0 {
-			return nil, fmt.Errorf("job with index %v has both pod spec and pod spec list specified", i)
-		}
-
-		if len(item.GetAllPodSpecs()) == 0 {
-			return nil, fmt.Errorf("job with index %v has no pod spec", i)
-		}
-
-		e := validation.ValidateJobSubmitRequestItem(item)
-		if e != nil {
-			return nil, fmt.Errorf("job with index %v: %v", i, e)
-		}
-
-		namespace := item.Namespace
-		if namespace == "" {
-			namespace = "default"
-		}
-
-		for j, podSpec := range item.GetAllPodSpecs() {
-			repo.applyDefaults(podSpec)
-			e := validation.ValidatePodSpec(podSpec)
-			if e != nil {
-				return nil, fmt.Errorf("error validating pod spec of job with index %v, pod: %v: %v", i, j, e)
-			}
-
-			// TODO: remove, RequiredNodeLabels is deprecated and will be removed in future versions
-			for k, v := range item.RequiredNodeLabels {
-				if podSpec.NodeSelector == nil {
-					podSpec.NodeSelector = map[string]string{}
-				}
-				podSpec.NodeSelector[k] = v
-			}
-		}
-
-		j := &api.Job{
-			Id:       util.NewULID(),
-			ClientId: item.ClientId,
-			Queue:    request.Queue,
-			JobSetId: request.JobSetId,
-
-			Namespace:   namespace,
-			Labels:      item.Labels,
-			Annotations: item.Annotations,
-
-			RequiredNodeLabels: item.RequiredNodeLabels,
-			Ingress:            item.Ingress,
-
-			Priority: item.Priority,
-
-			PodSpec:                  item.PodSpec,
-			PodSpecs:                 item.PodSpecs,
-			Created:                  time.Now(),
-			Owner:                    owner,
-			QueueOwnershipUserGroups: ownershipGroups,
-		}
-		jobs = append(jobs, j)
-	}
-
-	return jobs, nil
+func NewRedisJobRepository(
+	db redis.UniversalClient,
+	retentionPolicy configuration.DatabaseRetentionPolicy) *RedisJobRepository {
+	return &RedisJobRepository{db: db, retentionPolicy: retentionPolicy}
 }
 
 type SubmitJobResult struct {
@@ -245,7 +163,7 @@ func (repo *RedisJobRepository) DeleteJobs(jobs []*api.Job) map[*api.Job]error {
 		deletionResult.deleteJobRetriesResult = pipe.Del(jobRetriesPrefix + job.Id)
 
 		if !deletionResult.expiryAlreadySet {
-			deletionResult.setJobExpiryResult = pipe.Expire(jobObjectPrefix+job.Id, time.Hour*24*7)
+			deletionResult.setJobExpiryResult = pipe.Expire(jobObjectPrefix+job.Id, repo.retentionPolicy.JobRetentionDuration)
 		}
 		deletionResults = append(deletionResults, deletionResult)
 	}
@@ -910,42 +828,6 @@ func (repo *RedisJobRepository) leaseJobs(clusterId string, jobs []*api.Job) ([]
 		}
 	}
 	return leasedJobs, nil
-}
-
-func (repo *RedisJobRepository) applyDefaults(spec *v1.PodSpec) {
-	if spec != nil {
-		for i := range spec.Containers {
-			c := &spec.Containers[i]
-			if c.Resources.Limits == nil {
-				c.Resources.Limits = map[v1.ResourceName]resource.Quantity{}
-			}
-			if c.Resources.Requests == nil {
-				c.Resources.Requests = map[v1.ResourceName]resource.Quantity{}
-			}
-			for k, v := range repo.defaultJobLimits {
-				_, limitExists := c.Resources.Limits[v1.ResourceName(k)]
-				_, requestExists := c.Resources.Limits[v1.ResourceName(k)]
-				if !limitExists && !requestExists {
-					c.Resources.Requests[v1.ResourceName(k)] = v
-					c.Resources.Limits[v1.ResourceName(k)] = v
-				}
-			}
-		}
-		tolerationsToAdd := []v1.Toleration{}
-		for _, defaultToleration := range repo.defaultJobTolerations {
-			exists := false
-			for _, existingToleration := range spec.Tolerations {
-				if defaultToleration.MatchToleration(&existingToleration) {
-					exists = true
-					break
-				}
-			}
-			if !exists {
-				tolerationsToAdd = append(tolerationsToAdd, defaultToleration)
-			}
-		}
-		spec.Tolerations = append(spec.Tolerations, tolerationsToAdd...)
-	}
 }
 
 func addJob(db redis.Cmdable, job *api.Job, jobData *[]byte) *redis.Cmd {

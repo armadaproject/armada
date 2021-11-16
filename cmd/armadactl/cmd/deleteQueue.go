@@ -14,11 +14,11 @@ func init() {
 }
 
 var deleteQueueCmd = &cobra.Command{
-	Use:   "delete-queue name",
-	Short: "Delete existing queue",
-	Long:  `This commands removes queue if it exists, the queue needs to be empty at the time of deletion.`,
-
-	Args: cobra.ExactArgs(1),
+	Use:        "delete-queue <name>",
+	Short:      "Delete existing queue",
+	Long:       `This commands removes queue if it exists, the queue needs to be empty at the time of deletion.`,
+	Deprecated: `Use: "delete queue"`,
+	Args:       cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		queue := args[0]
 

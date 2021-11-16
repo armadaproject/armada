@@ -3,12 +3,12 @@ package service
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/G-Research/armada/internal/executor/configuration"
 	fakeContext "github.com/G-Research/armada/internal/executor/fake/context"
 	"github.com/G-Research/armada/pkg/api"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestJobLease_GetAvoidNodeLabels_EverythingSetUpCorrectly_ReturnsLabels(t *testing.T) {

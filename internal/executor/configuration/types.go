@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/G-Research/armada/internal/common"
+	"github.com/G-Research/armada/internal/executor/configuration/podchecks"
 	"github.com/G-Research/armada/pkg/client"
 )
 
@@ -23,15 +24,16 @@ type IngressConfiguration struct {
 }
 
 type KubernetesConfiguration struct {
-	ImpersonateUsers       bool
-	TrackedNodeLabels      []string
-	AvoidNodeLabelsOnRetry []string
-	ToleratedTaints        []string
-	MinimumPodAge          time.Duration
-	FailedPodExpiry        time.Duration
-	StuckPodExpiry         time.Duration
-	MinimumJobSize         common.ComputeResources
-	PodDefaults            *PodDefaults
+	ImpersonateUsers          bool
+	TrackedNodeLabels         []string
+	AvoidNodeLabelsOnRetry    []string
+	ToleratedTaints           []string
+	MinimumPodAge             time.Duration
+	StuckTerminatingPodExpiry time.Duration
+	FailedPodExpiry           time.Duration
+	MinimumJobSize            common.ComputeResources
+	PodDefaults               *PodDefaults
+	PendingPodChecks          *podchecks.Checks
 }
 
 type TaskConfiguration struct {

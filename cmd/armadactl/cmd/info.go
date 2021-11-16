@@ -18,11 +18,11 @@ func init() {
 }
 
 var infoCmd = &cobra.Command{
-	Use:   "info queue",
-	Short: "Prints out queue info including all jobs sets where jobs are running or queued.",
-	Long:  `Prints out queue info including all jobs sets where jobs are running or queued.`,
-
-	Args: cobra.ExactArgs(1),
+	Use:        "info <queue>",
+	Short:      "Prints out queue info including all jobs sets where jobs are running or queued.",
+	Long:       `Prints out queue info including all jobs sets where jobs are running or queued.`,
+	Deprecated: `Use: "describe queue"`,
+	Args:       cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		queue := args[0]
 

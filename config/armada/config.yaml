@@ -35,6 +35,8 @@ eventsNats:
   queueGroup: "ArmadaEventRedisProcessor"
   jobStatusGroup: "ArmadaEventJobStatusProcessor"
   timeout: 10s
+databaseRetention:
+  jobRetentionDuration: 168h # Specified as a Go duration
 eventRetention:
   expiryEnabled: true
   retentionDuration: 336h # Specified as a Go duration

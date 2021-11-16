@@ -3,8 +3,9 @@ package executor
 import (
 	"testing"
 
-	"github.com/G-Research/armada/internal/executor/configuration"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/G-Research/armada/internal/executor/configuration"
 )
 
 func Test_ValidateConfig_When_AvoidNodeLabelsOnRetry_MissingFrom_TrackedNodeLabels_Fails(t *testing.T) {
