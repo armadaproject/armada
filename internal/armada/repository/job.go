@@ -6,12 +6,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/G-Research/armada/internal/armada/configuration"
-	"github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/pkg/api"
 	"github.com/go-redis/redis"
 	"github.com/gogo/protobuf/proto"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/G-Research/armada/internal/armada/configuration"
+	"github.com/G-Research/armada/internal/common/util"
+	"github.com/G-Research/armada/pkg/api"
 )
 
 const jobObjectPrefix = "Job:"             // {jobId}            - job protobuf object
