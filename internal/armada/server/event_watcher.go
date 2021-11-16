@@ -7,6 +7,7 @@ import (
 
 	"github.com/G-Research/armada/internal/common/auth/permission"
 	"github.com/G-Research/armada/pkg/api"
+
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
