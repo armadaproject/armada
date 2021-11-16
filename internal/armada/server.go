@@ -1,6 +1,7 @@
 package armada
 
 import (
+	"github.com/nats-io/jsm.go"
 	"sync"
 	"time"
 
@@ -46,36 +47,51 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 
 	redisEventRepository := repository.NewRedisEventRepository(eventsDb, config.EventRetention)
 	var eventStore repository.EventStore
+	var eventStream eventstream.EventStream
 
-	// TODO: move this to task manager
-	stopSubscription := func() {}
 	if len(config.EventsNats.Servers) > 0 {
 		stanClient, err := eventstream.NewStanClientConnection(
 			config.EventsNats.ClusterID,
 			"armada-server-"+util.NewULID(),
 			config.EventsNats.Servers)
-
-		stream := eventstream.NewStanEventStream(
-			config.EventsNats.Subject,
-			config.EventsNats.QueueGroup,
-			stanClient)
 		if err != nil {
 			panic(err)
 		}
-		eventStore = repository.NewEventStore(stream)
-		eventProcessor := repository.NewEventRedisProcessor(stream, redisEventRepository)
+
+		eventStream = eventstream.NewStanEventStream(
+			config.EventsNats.Subject,
+			config.EventsNats.QueueGroup,
+			stanClient)
+
+		healthChecks.Add(stanClient)
+	} else if len(config.EventsJetstream.Servers) > 0 {
+		stream, err := eventstream.NewJetstreamEventStream(
+			&config.EventsJetstream,
+			jsm.SamplePercent(100),
+			jsm.StartWithLastReceived())
+		if err != nil {
+			panic(err)
+		}
+		eventStream = stream
+
+		healthChecks.Add(stream)
+	}
+
+	// TODO: move this to task manager
+	stopSubscription := func() {}
+	if eventStream != nil {
+		eventStore = repository.NewEventStore(eventStream)
+		eventProcessor := repository.NewEventRedisProcessor(eventStream, redisEventRepository)
 		eventProcessor.Start()
-		jobStatusProcessor := repository.NewEventJobStatusProcessor(stream, jobRepository)
+		jobStatusProcessor := repository.NewEventJobStatusProcessor(eventStream, jobRepository)
 		jobStatusProcessor.Start()
 
 		stopSubscription = func() {
-			err := stream.Close()
+			err := eventStream.Close()
 			if err != nil {
-				log.Errorf("failed to close nats connection: %v", err)
+				log.Errorf("failed to close stream connection: %v", err)
 			}
 		}
-
-		healthChecks.Add(stanClient)
 	} else {
 		eventStore = redisEventRepository
 	}
