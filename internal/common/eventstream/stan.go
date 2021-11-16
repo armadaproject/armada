@@ -134,7 +134,7 @@ func (stream *StanEventStream) Subscribe(callback func(event *api.EventMessage) 
 }
 
 func (stream *StanEventStream) Close() error {
-	return stream.Close()
+	return stream.stanClient.Close()
 }
 
 type StanClient interface {
