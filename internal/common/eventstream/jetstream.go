@@ -6,12 +6,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/G-Research/armada/internal/armada/configuration"
-	"github.com/G-Research/armada/pkg/api"
 	"github.com/gogo/protobuf/proto"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/nats.go"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/G-Research/armada/internal/armada/configuration"
+	"github.com/G-Research/armada/pkg/api"
 )
 
 type JetstreamEventStream struct {

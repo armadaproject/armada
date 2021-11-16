@@ -1,12 +1,12 @@
 package armada
 
 import (
-	"github.com/nats-io/jsm.go"
 	"sync"
 	"time"
 
 	"github.com/go-redis/redis"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
+	"github.com/nats-io/jsm.go"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/G-Research/armada/internal/armada/cache"

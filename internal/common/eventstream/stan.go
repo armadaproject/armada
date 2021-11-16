@@ -3,15 +3,16 @@ package eventstream
 import (
 	"errors"
 	"fmt"
-	"github.com/G-Research/armada/pkg/api"
-	"github.com/gogo/protobuf/proto"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/stan.go"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/G-Research/armada/pkg/api"
 )
 
 type StanEventStream struct {

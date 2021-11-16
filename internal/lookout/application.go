@@ -1,16 +1,16 @@
 package lookout
 
 import (
-	"github.com/G-Research/armada/internal/common/eventstream"
-	"github.com/nats-io/jsm.go"
 	"sync"
 
 	"github.com/doug-martin/goqu/v9"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	_ "github.com/lib/pq"
+	"github.com/nats-io/jsm.go"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/G-Research/armada/internal/common/auth/authorization"
+	"github.com/G-Research/armada/internal/common/eventstream"
 	"github.com/G-Research/armada/internal/common/grpc"
 	"github.com/G-Research/armada/internal/common/health"
 	"github.com/G-Research/armada/internal/common/util"

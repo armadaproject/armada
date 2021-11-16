@@ -2,15 +2,16 @@ package eventstream
 
 import (
 	"fmt"
-	"github.com/G-Research/armada/internal/armada/configuration"
-	"github.com/nats-io/jsm.go"
-	"github.com/nats-io/nats-server/v2/test"
-	"github.com/nats-io/nats-streaming-server/server"
-	"github.com/stretchr/testify/assert"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/nats-io/jsm.go"
+	"github.com/nats-io/nats-server/v2/test"
+	"github.com/nats-io/nats-streaming-server/server"
+	"github.com/stretchr/testify/assert"
+
+	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/pkg/api"
 )
@@ -25,13 +26,13 @@ func TestJetstreamEvents(t *testing.T) {
 	defer natsServer.Shutdown()
 
 	jetstreamOpts := &configuration.JetstreamConfig{
-		Servers:    []string{fmt.Sprintf("nats://127.0.0.1:%d", port)},
-		StreamName: "EVENTS",
-		Replicas:   1,
-		Subject:    "EVENTS",
-		Queue:      "test-queue",
-		MaxAgeDays: 1,
-		ConnTimeout: 10*time.Second,
+		Servers:     []string{fmt.Sprintf("nats://127.0.0.1:%d", port)},
+		StreamName:  "EVENTS",
+		Replicas:    1,
+		Subject:     "EVENTS",
+		Queue:       "test-queue",
+		MaxAgeDays:  1,
+		ConnTimeout: 10 * time.Second,
 	}
 	eventStream, err := NewJetstreamEventStream(
 		jetstreamOpts,
