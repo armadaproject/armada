@@ -1,9 +1,9 @@
 package repository
 
 import (
-	"github.com/G-Research/armada/internal/common/eventstream"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/G-Research/armada/internal/common/eventstream"
 	"github.com/G-Research/armada/pkg/api"
 )
 
