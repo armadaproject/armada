@@ -20,7 +20,7 @@ func init() {
 
 // analyzeCmd represents the analyze command
 var analyzeCmd = &cobra.Command{
-	Use:   "analyze queue jobSet",
+	Use:   "analyze <queue> <jobSet>",
 	Short: "Analyze job events in job set.",
 	Long:  ``,
 	Args:  cobra.ExactArgs(2),

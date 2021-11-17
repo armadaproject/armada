@@ -3,14 +3,15 @@ package queue
 import (
 	"fmt"
 
+	"github.com/spf13/cobra"
+
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/client"
-	"github.com/spf13/cobra"
 )
 
 func Delete() *cobra.Command {
 	command := &cobra.Command{
-		Use:          "queue <queue_name>",
+		Use:          "queue <queueName>",
 		Short:        "Delete existing queue",
 		Long:         "Deletes queue if it exists, the queue needs to be empty at the time of deletion.",
 		SilenceUsage: true,

@@ -3,14 +3,15 @@ package queue
 import (
 	"fmt"
 
+	"github.com/spf13/cobra"
+
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/client"
-	"github.com/spf13/cobra"
 )
 
 func Update() *cobra.Command {
 	command := &cobra.Command{
-		Use:   "queue <queue_name>",
+		Use:   "queue <queueName>",
 		Short: "Update existing queue",
 		Long:  "Update settings of existing queue",
 		Args:  validateQueueName,

@@ -2,18 +2,25 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"strings"
+	"time"
 
 	"github.com/gogo/protobuf/types"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/G-Research/armada/internal/armada/permissions"
 	"github.com/G-Research/armada/internal/armada/repository"
+	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/internal/common/auth/authorization"
 	"github.com/G-Research/armada/internal/common/auth/permission"
+	"github.com/G-Research/armada/internal/common/util"
+	"github.com/G-Research/armada/internal/common/validation"
 	"github.com/G-Research/armada/pkg/api"
 )
 
@@ -24,6 +31,8 @@ type SubmitServer struct {
 	eventStore               repository.EventStore
 	schedulingInfoRepository repository.SchedulingInfoRepository
 	queueManagementConfig    *configuration.QueueManagementConfig
+	defaultJobLimits         common.ComputeResources
+	defaultJobTolerations    []v1.Toleration
 }
 
 func NewSubmitServer(
@@ -32,7 +41,9 @@ func NewSubmitServer(
 	queueRepository repository.QueueRepository,
 	eventStore repository.EventStore,
 	schedulingInfoRepository repository.SchedulingInfoRepository,
-	queueManagementConfig *configuration.QueueManagementConfig) *SubmitServer {
+	queueManagementConfig *configuration.QueueManagementConfig,
+	defaultJobLimits common.ComputeResources,
+	defaultJobTolerations []v1.Toleration) *SubmitServer {
 
 	return &SubmitServer{
 		permissions:              permissions,
@@ -40,7 +51,9 @@ func NewSubmitServer(
 		queueRepository:          queueRepository,
 		eventStore:               eventStore,
 		schedulingInfoRepository: schedulingInfoRepository,
-		queueManagementConfig:    queueManagementConfig}
+		queueManagementConfig:    queueManagementConfig,
+		defaultJobLimits:         defaultJobLimits,
+		defaultJobTolerations:    defaultJobTolerations}
 }
 
 func (server *SubmitServer) GetQueueInfo(ctx context.Context, req *api.QueueInfoRequest) (*api.QueueInfo, error) {
@@ -140,7 +153,7 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 
 	principal := authorization.GetPrincipal(ctx)
 
-	jobs, e := server.jobRepository.CreateJobs(req, principal.GetName(), ownershipGroups)
+	jobs, e := server.createJobs(req, principal.GetName(), ownershipGroups)
 	if e != nil {
 		return nil, status.Errorf(codes.InvalidArgument, e.Error())
 	}
@@ -340,7 +353,7 @@ func (server *SubmitServer) checkReprioritizePerms(ctx context.Context, jobs []*
 	for _, job := range jobs {
 		queues[job.Queue] = true
 	}
-	for queue, _ := range queues {
+	for queue := range queues {
 		if e, _ := server.checkQueuePermission(ctx, queue, false, permissions.ReprioritizeJobs, permissions.ReprioritizeAnyJobs); e != nil {
 			return e
 		}
@@ -386,6 +399,116 @@ func (server *SubmitServer) checkQueuePermission(
 		return e, []string{}
 	}
 	return nil, groups
+}
+
+func (server *SubmitServer) createJobs(request *api.JobSubmitRequest, owner string, ownershipGroups []string) ([]*api.Job, error) {
+	jobs := make([]*api.Job, 0, len(request.JobRequestItems))
+
+	if request.JobSetId == "" {
+		return nil, fmt.Errorf("job set is not specified")
+	}
+
+	if request.Queue == "" {
+		return nil, fmt.Errorf("queue is not specified")
+	}
+
+	for i, item := range request.JobRequestItems {
+
+		if item.PodSpec != nil && len(item.PodSpecs) > 0 {
+			return nil, fmt.Errorf("job with index %v has both pod spec and pod spec list specified", i)
+		}
+
+		if len(item.GetAllPodSpecs()) == 0 {
+			return nil, fmt.Errorf("job with index %v has no pod spec", i)
+		}
+
+		e := validation.ValidateJobSubmitRequestItem(item)
+		if e != nil {
+			return nil, fmt.Errorf("job with index %v: %v", i, e)
+		}
+
+		namespace := item.Namespace
+		if namespace == "" {
+			namespace = "default"
+		}
+
+		for j, podSpec := range item.GetAllPodSpecs() {
+			server.applyDefaultsToPodSpec(podSpec)
+			e := validation.ValidatePodSpec(podSpec)
+			if e != nil {
+				return nil, fmt.Errorf("error validating pod spec of job with index %v, pod: %v: %v", i, j, e)
+			}
+
+			// TODO: remove, RequiredNodeLabels is deprecated and will be removed in future versions
+			for k, v := range item.RequiredNodeLabels {
+				if podSpec.NodeSelector == nil {
+					podSpec.NodeSelector = map[string]string{}
+				}
+				podSpec.NodeSelector[k] = v
+			}
+		}
+
+		j := &api.Job{
+			Id:       util.NewULID(),
+			ClientId: item.ClientId,
+			Queue:    request.Queue,
+			JobSetId: request.JobSetId,
+
+			Namespace:   namespace,
+			Labels:      item.Labels,
+			Annotations: item.Annotations,
+
+			RequiredNodeLabels: item.RequiredNodeLabels,
+			Ingress:            item.Ingress,
+
+			Priority: item.Priority,
+
+			PodSpec:                  item.PodSpec,
+			PodSpecs:                 item.PodSpecs,
+			Created:                  time.Now(),
+			Owner:                    owner,
+			QueueOwnershipUserGroups: ownershipGroups,
+		}
+		jobs = append(jobs, j)
+	}
+
+	return jobs, nil
+}
+
+func (server *SubmitServer) applyDefaultsToPodSpec(spec *v1.PodSpec) {
+	if spec != nil {
+		for i := range spec.Containers {
+			c := &spec.Containers[i]
+			if c.Resources.Limits == nil {
+				c.Resources.Limits = map[v1.ResourceName]resource.Quantity{}
+			}
+			if c.Resources.Requests == nil {
+				c.Resources.Requests = map[v1.ResourceName]resource.Quantity{}
+			}
+			for k, v := range server.defaultJobLimits {
+				_, limitExists := c.Resources.Limits[v1.ResourceName(k)]
+				_, requestExists := c.Resources.Limits[v1.ResourceName(k)]
+				if !limitExists && !requestExists {
+					c.Resources.Requests[v1.ResourceName(k)] = v
+					c.Resources.Limits[v1.ResourceName(k)] = v
+				}
+			}
+		}
+		tolerationsToAdd := []v1.Toleration{}
+		for _, defaultToleration := range server.defaultJobTolerations {
+			exists := false
+			for _, existingToleration := range spec.Tolerations {
+				if defaultToleration.MatchToleration(&existingToleration) {
+					exists = true
+					break
+				}
+			}
+			if !exists {
+				tolerationsToAdd = append(tolerationsToAdd, defaultToleration)
+			}
+		}
+		spec.Tolerations = append(spec.Tolerations, tolerationsToAdd...)
+	}
 }
 
 func validateQueue(queue *api.Queue) error {
