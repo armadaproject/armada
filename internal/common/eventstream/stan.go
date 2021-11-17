@@ -17,18 +17,15 @@ import (
 
 type StanEventStream struct {
 	subject             string
-	queue               string
 	stanClient          StanClient
-	timeout             time.Duration
 	subscriptionOptions []stan.SubscriptionOption
 }
 
-func NewStanEventStream(subject, queue string, stanClient StanClient, subscriptionOptions ...stan.SubscriptionOption) *StanEventStream {
+func NewStanEventStream(subject string, stanClient StanClient, subscriptionOptions ...stan.SubscriptionOption) *StanEventStream {
 	// as underlying NATS connection reconnects automatically, there is no need to renew it
 	// keeping one NATS connection around will make message ack work better during STAN connection lost event
 	return &StanEventStream{
 		subject:             subject,
-		queue:               queue,
 		stanClient:          stanClient,
 		subscriptionOptions: subscriptionOptions,
 	}
@@ -110,11 +107,11 @@ func getErrorChanTimeout(channel chan error, timeout time.Duration) (error, erro
 	}
 }
 
-func (stream *StanEventStream) Subscribe(callback func(event *api.EventMessage) error) error {
-	opts := append(stream.subscriptionOptions, stan.DurableName(stream.queue))
+func (stream *StanEventStream) Subscribe(queue string, callback func(event *api.EventMessage) error) error {
+	opts := append(stream.subscriptionOptions, stan.DurableName(queue))
 	return stream.stanClient.QueueSubscribe(
 		stream.subject,
-		stream.queue,
+		queue,
 		func(msg *stan.Msg) {
 			event := &api.EventMessage{}
 			err := proto.Unmarshal(msg.Data, event)

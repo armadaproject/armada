@@ -3,12 +3,11 @@ package lookout
 import (
 	"sync"
 
-	"github.com/nats-io/stan.go"
-
 	"github.com/doug-martin/goqu/v9"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	_ "github.com/lib/pq"
 	"github.com/nats-io/jsm.go"
+	"github.com/nats-io/stan.go"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/G-Research/armada/internal/common/auth/authorization"
@@ -53,23 +52,7 @@ func StartUp(config configuration.LookoutConfiguration, healthChecks *health.Mul
 
 	var eventStream eventstream.EventStream
 
-	if len(config.Nats.Servers) > 0 {
-		stanClient, err := eventstream.NewStanClientConnection(
-			config.Nats.ClusterID,
-			"armada-server-"+util.NewULID(),
-			config.Nats.Servers)
-		if err != nil {
-			panic(err)
-		}
-		eventStream = eventstream.NewStanEventStream(
-			config.Nats.Subject,
-			config.Nats.QueueGroup,
-			stanClient,
-			stan.SetManualAckMode(),
-			stan.StartWithLastReceived())
-
-		healthChecks.Add(stanClient)
-	} else {
+	if len(config.Jetstream.Servers) > 0 {
 		stream, err := eventstream.NewJetstreamEventStream(
 			&config.Jetstream,
 			jsm.SamplePercent(100),
@@ -80,9 +63,24 @@ func StartUp(config configuration.LookoutConfiguration, healthChecks *health.Mul
 		eventStream = stream
 
 		healthChecks.Add(stream)
+	} else {
+		stanClient, err := eventstream.NewStanClientConnection(
+			config.Nats.ClusterID,
+			"armada-server-"+util.NewULID(),
+			config.Nats.Servers)
+		if err != nil {
+			panic(err)
+		}
+		eventStream = eventstream.NewStanEventStream(
+			config.Nats.Subject,
+			stanClient,
+			stan.SetManualAckMode(),
+			stan.StartWithLastReceived())
+
+		healthChecks.Add(stanClient)
 	}
 
-	eventProcessor := events.NewEventProcessor(eventStream, jobStore)
+	eventProcessor := events.NewEventProcessor(config.EventQueue, eventStream, jobStore)
 	eventProcessor.Start()
 
 	dbMetricsProvider := metrics.NewLookoutSqlDbMetricsProvider(db, config.Postgres)

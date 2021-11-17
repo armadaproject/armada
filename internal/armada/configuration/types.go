@@ -18,11 +18,13 @@ type ArmadaConfig struct {
 	MetricsPort        uint16
 	CorsAllowedOrigins []string
 
-	PriorityHalfTime time.Duration
-	Redis            redis.UniversalOptions
-	EventsNats       NatsConfig
-	EventsJetstream  JetstreamConfig
-	EventsRedis      redis.UniversalOptions
+	PriorityHalfTime    time.Duration
+	Redis               redis.UniversalOptions
+	EventStoreQueue     string
+	EventJobStatusQueue string
+	EventsNats          NatsConfig
+	EventsJetstream     JetstreamConfig
+	EventsRedis         redis.UniversalOptions
 
 	Scheduling        SchedulingConfig
 	QueueManagement   QueueManagementConfig
@@ -62,12 +64,10 @@ type LeaseSettings struct {
 }
 
 type NatsConfig struct {
-	Servers        []string
-	ClusterID      string
-	Subject        string
-	QueueGroup     string
-	JobStatusGroup string
-	Timeout        time.Duration // Timeout for receiving a reply back from the stan server for PublishAsync
+	Servers   []string
+	ClusterID string
+	Subject   string
+	Timeout   time.Duration // Timeout for receiving a reply back from the stan server for PublishAsync
 }
 
 type JetstreamConfig struct {
@@ -75,7 +75,6 @@ type JetstreamConfig struct {
 	StreamName  string
 	Replicas    int
 	Subject     string
-	Queue       string
 	MaxAgeDays  int
 	ConnTimeout time.Duration
 	InMemory    bool // Whether stream should be stored in memory (as opposed to on disk)

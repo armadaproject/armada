@@ -9,15 +9,16 @@ import (
 
 type NatsEventJobStatusProcessor struct {
 	stream        eventstream.EventStream
+	queue         string
 	jobRepository JobRepository
 }
 
-func NewEventJobStatusProcessor(stream eventstream.EventStream, jobRepository JobRepository) *NatsEventJobStatusProcessor {
-	return &NatsEventJobStatusProcessor{stream: stream, jobRepository: jobRepository}
+func NewEventJobStatusProcessor(stream eventstream.EventStream, queue string, jobRepository JobRepository) *NatsEventJobStatusProcessor {
+	return &NatsEventJobStatusProcessor{stream: stream, queue: queue, jobRepository: jobRepository}
 }
 
 func (p *NatsEventJobStatusProcessor) Start() {
-	err := p.stream.Subscribe(p.handleMessage)
+	err := p.stream.Subscribe(p.queue, p.handleMessage)
 
 	if err != nil {
 		panic(err)

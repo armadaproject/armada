@@ -31,9 +31,9 @@ scheduling:
   maxRetries: 5
 queueManagement:
   defaultPriorityFactor: 1000
+eventStoreQueue: "ArmadaEventRedisProcessor"
+eventJobStatusQueue: "ArmadaEventJobStatusProcessor"
 eventsNats:
-  queueGroup: "ArmadaEventRedisProcessor"
-  jobStatusGroup: "ArmadaEventJobStatusProcessor"
   timeout: 10s
 databaseRetention:
   jobRetentionDuration: 168h # Specified as a Go duration

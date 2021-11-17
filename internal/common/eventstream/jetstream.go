@@ -16,13 +16,12 @@ import (
 )
 
 type JetstreamEventStream struct {
-	subject      string
-	queue        string
-	consumerOpts []jsm.ConsumerOption
-	conn         *nats.Conn
-	manager      *jsm.Manager
-	stream       *jsm.Stream
-	consumer     *jsm.Consumer
+	subject       string
+	consumerOpts  []jsm.ConsumerOption
+	conn          *nats.Conn
+	manager       *jsm.Manager
+	stream        *jsm.Stream
+	consumers     []*jsm.Consumer
 }
 
 func NewJetstreamEventStream(
@@ -56,12 +55,11 @@ func NewJetstreamEventStream(
 
 	return &JetstreamEventStream{
 		subject:      opts.Subject,
-		queue:        opts.Queue,
 		conn:         natsConn,
 		manager:      manager,
 		stream:       stream,
 		consumerOpts: consumerOpts,
-		consumer:     nil,
+		consumers:    []*jsm.Consumer{},
 	}, nil
 }
 
@@ -80,24 +78,22 @@ func (c *JetstreamEventStream) Publish(events []*api.EventMessage) []error {
 	return errs
 }
 
-func (c *JetstreamEventStream) Subscribe(callback func(event *api.EventMessage) error) error {
-	if c.consumer == nil {
-		inbox := nats.NewInbox()
+func (c *JetstreamEventStream) Subscribe(queue string, callback func(event *api.EventMessage) error) error {
+	inbox := nats.NewInbox()
 
-		opts := append(
-			c.consumerOpts,
-			jsm.FilterStreamBySubject(c.subject),
-			jsm.DeliverySubject(inbox),
-			jsm.DeliverGroup(c.queue))
+	opts := append(
+		c.consumerOpts,
+		jsm.FilterStreamBySubject(c.subject),
+		jsm.DeliverySubject(inbox),
+		jsm.DeliverGroup(queue))
 
-		consumer, err := c.manager.NewConsumer(c.stream.Name(), opts...)
-		if err != nil {
-			return fmt.Errorf("error when creating consumer for subject %q: %v", c.subject, err)
-		}
-		c.consumer = consumer
+	consumer, err := c.manager.NewConsumer(c.stream.Name(), opts...)
+	if err != nil {
+		return fmt.Errorf("error when creating consumer for subject %q: %v", c.subject, err)
 	}
+	c.consumers = append(c.consumers, consumer)
 
-	_, err := c.conn.QueueSubscribe(c.consumer.DeliverySubject(), c.queue, func(msg *nats.Msg) {
+	_, err = c.conn.QueueSubscribe(consumer.DeliverySubject(), queue, func(msg *nats.Msg) {
 		event := &api.EventMessage{}
 		err := proto.Unmarshal(msg.Data, event)
 		if err != nil {
@@ -120,6 +116,12 @@ func (c *JetstreamEventStream) Subscribe(callback func(event *api.EventMessage) 
 }
 
 func (c *JetstreamEventStream) Close() error {
+	for _, consumer := range c.consumers {
+		err := consumer.Delete()
+		if err != nil {
+			return err
+		}
+	}
 	if c.conn != nil {
 		c.conn.Close()
 	}

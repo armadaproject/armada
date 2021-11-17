@@ -4,11 +4,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/nats-io/stan.go"
-
 	"github.com/go-redis/redis"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/nats-io/jsm.go"
+	"github.com/nats-io/stan.go"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/G-Research/armada/internal/armada/cache"
@@ -62,7 +61,6 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 
 		eventStream = eventstream.NewStanEventStream(
 			config.EventsNats.Subject,
-			config.EventsNats.QueueGroup,
 			stanClient,
 			stan.SetManualAckMode(),
 			stan.StartWithLastReceived())
@@ -85,9 +83,9 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 	stopSubscription := func() {}
 	if eventStream != nil {
 		eventStore = repository.NewEventStore(eventStream)
-		eventProcessor := repository.NewEventRedisProcessor(eventStream, redisEventRepository)
+		eventProcessor := repository.NewEventRedisProcessor(eventStream, config.EventStoreQueue, redisEventRepository)
 		eventProcessor.Start()
-		jobStatusProcessor := repository.NewEventJobStatusProcessor(eventStream, jobRepository)
+		jobStatusProcessor := repository.NewEventJobStatusProcessor(eventStream, config.EventJobStatusQueue, jobRepository)
 		jobStatusProcessor.Start()
 
 		stopSubscription = func() {

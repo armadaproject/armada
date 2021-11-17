@@ -9,16 +9,17 @@ import (
 )
 
 type EventProcessor struct {
+	queue    string
 	stream   eventstream.EventStream
 	recorder repository.JobRecorder
 }
 
-func NewEventProcessor(stream eventstream.EventStream, repository repository.JobRecorder) *EventProcessor {
-	return &EventProcessor{stream: stream, recorder: repository}
+func NewEventProcessor(queue string, stream eventstream.EventStream, repository repository.JobRecorder) *EventProcessor {
+	return &EventProcessor{queue: queue, stream: stream, recorder: repository}
 }
 
 func (p *EventProcessor) Start() {
-	err := p.stream.Subscribe(p.handleMessage)
+	err := p.stream.Subscribe(p.queue, p.handleMessage)
 	if err != nil {
 		panic(err)
 	}

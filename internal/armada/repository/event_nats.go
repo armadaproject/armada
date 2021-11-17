@@ -30,15 +30,16 @@ func (n *StreamEventStore) ReportEvents(messages []*api.EventMessage) error {
 
 type RedisEventProcessor struct {
 	stream     eventstream.EventStream
+	queue      string
 	repository EventStore
 }
 
-func NewEventRedisProcessor(stream eventstream.EventStream, repository EventStore) *RedisEventProcessor {
-	return &RedisEventProcessor{stream: stream, repository: repository}
+func NewEventRedisProcessor(stream eventstream.EventStream, queue string, repository EventStore) *RedisEventProcessor {
+	return &RedisEventProcessor{stream: stream, queue: queue, repository: repository}
 }
 
 func (p *RedisEventProcessor) Start() {
-	err := p.stream.Subscribe(p.handleMessage)
+	err := p.stream.Subscribe(p.queue, p.handleMessage)
 
 	if err != nil {
 		panic(err)
