@@ -3,8 +3,9 @@ package exec
 import (
 	"runtime"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
-import "github.com/stretchr/testify/assert"
 
 func testScript() string {
 	if runtime.GOOS == "windows" {
