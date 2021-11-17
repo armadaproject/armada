@@ -1,9 +1,10 @@
 package armada
 
 import (
-	"github.com/nats-io/stan.go"
 	"sync"
 	"time"
+
+	"github.com/nats-io/stan.go"
 
 	"github.com/go-redis/redis"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"

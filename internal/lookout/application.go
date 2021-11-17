@@ -1,8 +1,9 @@
 package lookout
 
 import (
-	"github.com/nats-io/stan.go"
 	"sync"
+
+	"github.com/nats-io/stan.go"
 
 	"github.com/doug-martin/goqu/v9"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"

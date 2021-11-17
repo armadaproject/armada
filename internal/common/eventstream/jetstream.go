@@ -39,9 +39,8 @@ func NewJetstreamEventStream(
 
 	streamOptions := []jsm.StreamOption{
 		jsm.Subjects(opts.Subject),
-		jsm.MaxAge(time.Duration(opts.MaxAgeDays)*24*time.Hour),
+		jsm.MaxAge(time.Duration(opts.MaxAgeDays) * 24 * time.Hour),
 		jsm.Replicas(opts.Replicas),
-
 	}
 	if opts.InMemory {
 		streamOptions = append(streamOptions, jsm.MemoryStorage())
