@@ -4,6 +4,7 @@ kind create cluster --name demo-a --config ./internal/lookout/ui/kind-config.yam
 
 docker run -d --name redis -p 6379:6379 redis
 docker run -d --name nats -p 4223:4223 -p 8223:8223 nats-streaming -p 4223 -m 8223
+docker run -d --name jetstream -p 4222:4222 -p 8222:8222 jetstream
 docker run -d --name postgres -p 5432:5432 -e POSTGRES_PASSWORD=psw postgres
 
 go run ./cmd/lookout/main.go --migrateDatabase

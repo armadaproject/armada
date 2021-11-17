@@ -78,6 +78,7 @@ type JetstreamConfig struct {
 	Queue       string
 	MaxAgeDays  int
 	ConnTimeout time.Duration
+	InMemory    bool // Whether stream should be stored in memory (as opposed to on disk)
 }
 
 type QueueManagementConfig struct {

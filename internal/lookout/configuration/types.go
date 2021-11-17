@@ -38,7 +38,7 @@ type LookoutConfiguration struct {
 
 	UIConfig LookoutUIConfig
 
-	Nats            NatsConfig
-	JetstreamConfig configuration.JetstreamConfig
-	Postgres        PostgresConfig
+	Nats      NatsConfig
+	Jetstream configuration.JetstreamConfig
+	Postgres  PostgresConfig
 }

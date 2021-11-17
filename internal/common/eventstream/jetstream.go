@@ -36,11 +36,21 @@ func NewJetstreamEventStream(
 	if err != nil {
 		return nil, err
 	}
-	stream, err := manager.LoadOrNewStream(
-		opts.StreamName,
+
+	streamOptions := []jsm.StreamOption{
 		jsm.Subjects(opts.Subject),
 		jsm.MaxAge(time.Duration(opts.MaxAgeDays)*24*time.Hour),
-		jsm.Replicas(opts.Replicas))
+		jsm.Replicas(opts.Replicas),
+
+	}
+	if opts.InMemory {
+		streamOptions = append(streamOptions, jsm.MemoryStorage())
+	} else {
+		streamOptions = append(streamOptions, jsm.FileStorage())
+	}
+	stream, err := manager.LoadOrNewStream(
+		opts.StreamName,
+		streamOptions...)
 	if err != nil {
 		return nil, err
 	}

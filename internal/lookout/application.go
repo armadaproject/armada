@@ -1,6 +1,7 @@
 package lookout
 
 import (
+	"github.com/nats-io/stan.go"
 	"sync"
 
 	"github.com/doug-martin/goqu/v9"
@@ -62,12 +63,14 @@ func StartUp(config configuration.LookoutConfiguration, healthChecks *health.Mul
 		eventStream = eventstream.NewStanEventStream(
 			config.Nats.Subject,
 			config.Nats.QueueGroup,
-			stanClient)
+			stanClient,
+			stan.SetManualAckMode(),
+			stan.StartWithLastReceived())
 
 		healthChecks.Add(stanClient)
 	} else {
 		stream, err := eventstream.NewJetstreamEventStream(
-			&config.JetstreamConfig,
+			&config.Jetstream,
 			jsm.SamplePercent(100),
 			jsm.StartWithLastReceived())
 		if err != nil {

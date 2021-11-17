@@ -1,6 +1,7 @@
 package armada
 
 import (
+	"github.com/nats-io/stan.go"
 	"sync"
 	"time"
 
@@ -61,7 +62,9 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 		eventStream = eventstream.NewStanEventStream(
 			config.EventsNats.Subject,
 			config.EventsNats.QueueGroup,
-			stanClient)
+			stanClient,
+			stan.SetManualAckMode(),
+			stan.StartWithLastReceived())
 
 		healthChecks.Add(stanClient)
 	} else if len(config.EventsJetstream.Servers) > 0 {
