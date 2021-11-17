@@ -44,6 +44,7 @@ type SchedulingConfig struct {
 	MaxRetries                                uint // Maximum number of retries before a Job is failed
 	ResourceScarcity                          map[string]float64
 	PoolResourceScarcity                      map[string]map[string]float64
+	MaxPodSpecSizeBytes                       uint
 }
 
 type DatabaseRetentionPolicy struct {

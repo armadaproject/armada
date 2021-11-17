@@ -196,6 +196,7 @@ func withRunningServer(action func(client api.SubmitClient, leaseClient api.Aggr
 				ExpireAfter:        time.Minute * 15,
 				ExpiryLoopInterval: time.Second * 5,
 			},
+			MaxPodSpecSizeBytes: 65535,
 		},
 		QueueManagement: configuration.QueueManagementConfig{
 			AutoCreateQueues:      true,

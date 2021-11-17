@@ -680,16 +680,25 @@ func withSubmitServerAndRepos(action func(s *SubmitServer, jobRepo repository.Jo
 	queueRepo := repository.NewRedisQueueRepository(client)
 	eventRepo := repository.NewRedisEventRepository(client, configuration.EventRetentionPolicy{ExpiryEnabled: false})
 	schedulingInfoRepository := repository.NewRedisSchedulingInfoRepository(client)
-	defaultResources := common.ComputeResources{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")}
-	defaultTolerations := []v1.Toleration{
-		{
-			Key:      "default",
-			Operator: v1.TolerationOpEqual,
-			Value:    "true",
-			Effect:   v1.TaintEffectNoSchedule,
+
+	queueConfig := configuration.QueueManagementConfig{DefaultPriorityFactor: 1}
+	schedulingConfig := configuration.SchedulingConfig{
+		DefaultJobTolerations: []v1.Toleration{
+			{
+				Key:      "default",
+				Operator: v1.TolerationOpEqual,
+				Value:    "true",
+				Effect:   v1.TaintEffectNoSchedule,
+			},
 		},
+		DefaultJobLimits: common.ComputeResources{
+			"cpu":    resource.MustParse("1"),
+			"memory": resource.MustParse("1Gi"),
+		},
+		MaxPodSpecSizeBytes: 65535,
 	}
-	server := NewSubmitServer(&FakePermissionChecker{}, jobRepo, queueRepo, eventRepo, schedulingInfoRepository, &configuration.QueueManagementConfig{DefaultPriorityFactor: 1}, defaultResources, defaultTolerations)
+
+	server := NewSubmitServer(&FakePermissionChecker{}, jobRepo, queueRepo, eventRepo, schedulingInfoRepository, &queueConfig, &schedulingConfig)
 
 	err := queueRepo.CreateQueue(&api.Queue{Name: "test"})
 	if err != nil {
