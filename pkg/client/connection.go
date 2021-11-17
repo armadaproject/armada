@@ -1,9 +1,10 @@
 package client
 
 import (
-	"github.com/G-Research/armada/pkg/client/auth/exec"
 	"strings"
 	"time"
+
+	"github.com/G-Research/armada/pkg/client/auth/exec"
 
 	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/retry"
 	"google.golang.org/grpc"
