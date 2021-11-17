@@ -4,12 +4,13 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	grpc_credentials "google.golang.org/grpc/credentials"
 	"io"
 	"os"
 	"os/exec"
 	"strings"
 	"sync"
+
+	grpc_credentials "google.golang.org/grpc/credentials"
 )
 
 // Authenticator wraps an external command + environment that can be used to generate an access token.
