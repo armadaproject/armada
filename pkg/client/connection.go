@@ -4,11 +4,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/G-Research/armada/internal/common"
+
 	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/retry"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
-	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/pkg/client/auth/kerberos"
 	"github.com/G-Research/armada/pkg/client/auth/oidc"
 )
