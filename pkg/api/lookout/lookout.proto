@@ -26,14 +26,13 @@ message JobInfo {
 }
 
 message JobInfoTest {
-    api.Job job = 1;
-    repeated RunInfo runs = 2;
-    google.protobuf.Timestamp cancelled = 3 [(gogoproto.stdtime) = true, (gogoproto.nullable) = true];
-    string job_state = 4;
-    string job_json = 5;
-    k8s.io.api.core.v1.PodSpec pod_spec = 6;
-    string job_set_id = 7;
-    string namespace = 8;
+    string id = 1;
+    string owner = 2;
+    google.protobuf.Timestamp created = 3 [(gogoproto.stdtime) = true, (gogoproto.nullable) = true];
+    string queue = 4;
+    k8s.io.api.core.v1.PodSpec pod_spec = 5;
+    string job_set_id = 6;
+    string namespace = 7;
 }
 
 message RunInfo {
