@@ -92,3 +92,11 @@ func (s *EventServer) GetJobSetEvents(request *api.JobSetRequest, stream api.Eve
 		}
 	}
 }
+
+func (s *EventServer) Watch(req *api.WatchRequest, stream api.Event_WatchServer) error {
+	watch := NewEventWatcher(s.eventRepository.ReadEvents, stream.Send).
+		MustExist(s.eventRepository.ReadEvents).
+		Authorize(s.permissions.UserHasPermission, permissions.WatchAllEvents)
+
+	return watch(stream.Context(), req)
+}
