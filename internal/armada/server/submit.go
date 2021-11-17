@@ -6,8 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/internal/common/validation"
 	"github.com/gogo/protobuf/types"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
@@ -20,6 +18,8 @@ import (
 	"github.com/G-Research/armada/internal/armada/repository"
 	"github.com/G-Research/armada/internal/common/auth/authorization"
 	"github.com/G-Research/armada/internal/common/auth/permission"
+	"github.com/G-Research/armada/internal/common/util"
+	"github.com/G-Research/armada/internal/common/validation"
 	"github.com/G-Research/armada/pkg/api"
 )
 
