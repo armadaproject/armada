@@ -33,7 +33,6 @@ func BindCommandlineArguments() {
 
 func LoadConfig(config interface{}, defaultPath string, overrideConfigs []string) *viper.Viper {
 	v := viper.NewWithOptions(viper.KeyDelimiter("::"))
-
 	v.SetConfigName(baseConfigFileName)
 	v.AddConfigPath(defaultPath)
 	if err := v.ReadInConfig(); err != nil {

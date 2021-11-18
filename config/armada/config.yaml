@@ -29,6 +29,7 @@ scheduling:
     expireAfter: 15m
     expiryLoopInterval: 5s
   maxRetries: 5
+  maxPodSpecSizeBytes: 65535
 queueManagement:
   defaultPriorityFactor: 1000
 eventStoreQueue: "ArmadaEventRedisProcessor"

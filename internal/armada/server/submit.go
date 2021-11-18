@@ -16,7 +16,6 @@ import (
 	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/G-Research/armada/internal/armada/permissions"
 	"github.com/G-Research/armada/internal/armada/repository"
-	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/internal/common/auth/authorization"
 	"github.com/G-Research/armada/internal/common/auth/permission"
 	"github.com/G-Research/armada/internal/common/util"
@@ -31,8 +30,7 @@ type SubmitServer struct {
 	eventStore               repository.EventStore
 	schedulingInfoRepository repository.SchedulingInfoRepository
 	queueManagementConfig    *configuration.QueueManagementConfig
-	defaultJobLimits         common.ComputeResources
-	defaultJobTolerations    []v1.Toleration
+	schedulingConfig         *configuration.SchedulingConfig
 }
 
 func NewSubmitServer(
@@ -42,8 +40,8 @@ func NewSubmitServer(
 	eventStore repository.EventStore,
 	schedulingInfoRepository repository.SchedulingInfoRepository,
 	queueManagementConfig *configuration.QueueManagementConfig,
-	defaultJobLimits common.ComputeResources,
-	defaultJobTolerations []v1.Toleration) *SubmitServer {
+	schedulingConfig *configuration.SchedulingConfig,
+) *SubmitServer {
 
 	return &SubmitServer{
 		permissions:              permissions,
@@ -52,8 +50,7 @@ func NewSubmitServer(
 		eventStore:               eventStore,
 		schedulingInfoRepository: schedulingInfoRepository,
 		queueManagementConfig:    queueManagementConfig,
-		defaultJobLimits:         defaultJobLimits,
-		defaultJobTolerations:    defaultJobTolerations}
+		schedulingConfig:         schedulingConfig}
 }
 
 func (server *SubmitServer) GetQueueInfo(ctx context.Context, req *api.QueueInfoRequest) (*api.QueueInfo, error) {
@@ -434,7 +431,7 @@ func (server *SubmitServer) createJobs(request *api.JobSubmitRequest, owner stri
 
 		for j, podSpec := range item.GetAllPodSpecs() {
 			server.applyDefaultsToPodSpec(podSpec)
-			e := validation.ValidatePodSpec(podSpec)
+			e := validation.ValidatePodSpec(podSpec, server.schedulingConfig.MaxPodSpecSizeBytes)
 			if e != nil {
 				return nil, fmt.Errorf("error validating pod spec of job with index %v, pod: %v: %v", i, j, e)
 			}
@@ -485,7 +482,7 @@ func (server *SubmitServer) applyDefaultsToPodSpec(spec *v1.PodSpec) {
 			if c.Resources.Requests == nil {
 				c.Resources.Requests = map[v1.ResourceName]resource.Quantity{}
 			}
-			for k, v := range server.defaultJobLimits {
+			for k, v := range server.schedulingConfig.DefaultJobLimits {
 				_, limitExists := c.Resources.Limits[v1.ResourceName(k)]
 				_, requestExists := c.Resources.Limits[v1.ResourceName(k)]
 				if !limitExists && !requestExists {
@@ -495,7 +492,7 @@ func (server *SubmitServer) applyDefaultsToPodSpec(spec *v1.PodSpec) {
 			}
 		}
 		tolerationsToAdd := []v1.Toleration{}
-		for _, defaultToleration := range server.defaultJobTolerations {
+		for _, defaultToleration := range server.schedulingConfig.DefaultJobTolerations {
 			exists := false
 			for _, existingToleration := range spec.Tolerations {
 				if defaultToleration.MatchToleration(&existingToleration) {
