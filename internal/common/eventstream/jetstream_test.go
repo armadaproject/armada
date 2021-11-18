@@ -30,7 +30,6 @@ func TestJetstreamEvents(t *testing.T) {
 		StreamName:  "EVENTS",
 		Replicas:    1,
 		Subject:     "EVENTS",
-		Queue:       "test-queue",
 		MaxAgeDays:  1,
 		ConnTimeout: 10 * time.Second,
 		InMemory:    true,
@@ -62,7 +61,7 @@ func TestJetstreamEvents(t *testing.T) {
 	wg := &sync.WaitGroup{}
 	wg.Add(1000)
 
-	err = eventStream.Subscribe(func(event *api.EventMessage) error {
+	err = eventStream.Subscribe("test-queue", func(event *api.EventMessage) error {
 		wg.Done()
 		return nil
 	})

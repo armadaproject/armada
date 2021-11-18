@@ -41,7 +41,7 @@ func (c *MockStanClient) Close() error {
 
 func TestPublishWithNoError(t *testing.T) {
 	stanClient := &MockStanClient{behavior: "success"}
-	stream := NewStanEventStream("EVENTS", "test-queue", stanClient)
+	stream := NewStanEventStream("EVENTS", stanClient)
 
 	nBatches := 1000
 	eventsPerBatch := 1000
@@ -70,7 +70,7 @@ func TestPublishWithNoError(t *testing.T) {
 
 func TestPublishWithErrors(t *testing.T) {
 	stanClient := &MockStanClient{behavior: "fail"}
-	stream := NewStanEventStream("EVENTS", "test-queue", stanClient)
+	stream := NewStanEventStream("EVENTS", stanClient)
 
 	nBatches := 1000
 	eventsPerBatch := 1000
@@ -99,7 +99,7 @@ func TestPublishWithErrors(t *testing.T) {
 
 func TestPublishWithAckTimeout(t *testing.T) {
 	stanClient := &MockStanClient{behavior: "callback_timeout"}
-	stream := NewStanEventStream("EVENTS", "test-queue", stanClient)
+	stream := NewStanEventStream("EVENTS", stanClient)
 
 	nEvents := 1000
 
@@ -142,7 +142,6 @@ func TestStanEvents(t *testing.T) {
 	assert.NoError(t, err)
 	stream := NewStanEventStream(
 		"test-cluster",
-		"test-client",
 		stanClient,
 		stan.SetManualAckMode(),
 		stan.StartWithLastReceived(),
@@ -170,7 +169,7 @@ func TestStanEvents(t *testing.T) {
 	wg := &sync.WaitGroup{}
 	wg.Add(nEvents)
 
-	err = stream.Subscribe(func(event *api.EventMessage) error {
+	err = stream.Subscribe("test-queue", func(event *api.EventMessage) error {
 		wg.Done()
 		return nil
 	})
