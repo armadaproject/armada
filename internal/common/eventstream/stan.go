@@ -46,12 +46,12 @@ func (stream *StanEventStream) Publish(events []*api.EventMessage) []error {
 			errs = append(errs, fmt.Errorf("error while marshaling event: %v", err))
 		}
 		_, err = stream.stanClient.PublishAsync(stream.subject, messageData, func(subj string, err error) {
-			var errWrapped error
 			if err != nil {
-				errWrapped = fmt.Errorf("error while publishing event to queue: %v", err)
+				errorChan <- fmt.Errorf("error while publishing event to queue: %v", err)
+			} else {
+				errorChan <- nil
 			}
 			wg.Done()
-			errorChan <- errWrapped
 		})
 		if err != nil {
 			log.Errorf("error while sending event to queue: %v", err)
