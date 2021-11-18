@@ -31,7 +31,7 @@ func init() {
 
 // createQueueCmd represents the createQueue command
 var createQueueCmd = &cobra.Command{
-	Use:   "create-queue name",
+	Use:   "create-queue <name>",
 	Short: "Create new queue",
 	Long: `Every job submitted to armada needs to be associated with queue. 
 Job priority is evaluated inside queue, queue has its own priority.`,

@@ -3,28 +3,23 @@ package queue
 import (
 	"fmt"
 
+	"github.com/spf13/cobra"
+
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/client"
-	"github.com/spf13/cobra"
 )
 
 func Delete() *cobra.Command {
 	command := &cobra.Command{
-		Use:          "queue",
+		Use:          "queue <queueName>",
 		Short:        "Delete existing queue",
 		Long:         "Deletes queue if it exists, the queue needs to be empty at the time of deletion.",
 		SilenceUsage: true,
+		Args:         validateQueueName,
 	}
 
-	command.Flags().SortFlags = false
-	command.Flags().StringP("queueName", "n", "", "[required] Queue's name that will be deleted")
-	command.MarkFlagRequired("queueName")
-
 	command.RunE = func(cmd *cobra.Command, args []string) error {
-		queueName, err := cmd.Flags().GetString("queueName")
-		if err != nil {
-			return fmt.Errorf("failed to retrieve name value: %s", err)
-		}
+		queueName := args[0]
 
 		apiConnectionDetails := client.ExtractCommandlineArmadaApiConnectionDetails()
 

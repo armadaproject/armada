@@ -1,8 +1,9 @@
 package cmd
 
 import (
-	"github.com/G-Research/armada/cmd/armadactl/cmd/queue"
 	"github.com/spf13/cobra"
+
+	"github.com/G-Research/armada/cmd/armadactl/cmd/queue"
 )
 
 func init() {

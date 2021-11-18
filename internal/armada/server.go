@@ -36,7 +36,7 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 	db := createRedisClient(&config.Redis)
 	eventsDb := createRedisClient(&config.EventsRedis)
 
-	jobRepository := repository.NewRedisJobRepository(db, config.Scheduling.DefaultJobLimits, config.Scheduling.DefaultJobTolerations, config.DatabaseRetention)
+	jobRepository := repository.NewRedisJobRepository(db, config.DatabaseRetention)
 	usageRepository := repository.NewRedisUsageRepository(db)
 	queueRepository := repository.NewRedisQueueRepository(db)
 	schedulingInfoRepository := repository.NewRedisSchedulingInfoRepository(db)
@@ -81,7 +81,7 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 
 	permissions := authorization.NewPrincipalPermissionChecker(config.Auth.PermissionGroupMapping, config.Auth.PermissionScopeMapping, config.Auth.PermissionClaimMapping)
 
-	submitServer := server.NewSubmitServer(permissions, jobRepository, queueRepository, eventStore, schedulingInfoRepository, &config.QueueManagement)
+	submitServer := server.NewSubmitServer(permissions, jobRepository, queueRepository, eventStore, schedulingInfoRepository, &config.QueueManagement, &config.Scheduling)
 	usageServer := server.NewUsageServer(permissions, config.PriorityHalfTime, &config.Scheduling, usageRepository, queueRepository)
 	aggregatedQueueServer := server.NewAggregatedQueueServer(permissions, config.Scheduling, jobRepository, queueCache, queueRepository, usageRepository, eventStore, schedulingInfoRepository)
 	eventServer := server.NewEventServer(permissions, redisEventRepository, eventStore)

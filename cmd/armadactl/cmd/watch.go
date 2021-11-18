@@ -24,7 +24,7 @@ func init() {
 
 // watchCmd represents the watch command
 var watchCmd = &cobra.Command{
-	Use:   "watch queue jobSet",
+	Use:   "watch <queue> <jobSet>",
 	Short: "Watch job events in job set.",
 	Long:  `This command will list all job set events and `,
 	Args:  cobra.ExactArgs(2),
@@ -41,7 +41,7 @@ var watchCmd = &cobra.Command{
 
 		client.WithConnection(apiConnectionDetails, func(conn *grpc.ClientConn) {
 			eventsClient := api.NewEventClient(conn)
-			client.WatchJobSet(eventsClient, queue, jobSetId, true, context.Background(), func(state *domain.WatchContext, e api.Event) bool {
+			client.WatchJobEvents(context.Background(), eventsClient, queue, jobSetId, func(state *domain.WatchContext, e api.Event) bool {
 				if raw {
 					data, err := json.Marshal(e)
 					if err != nil {

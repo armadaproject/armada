@@ -8,9 +8,13 @@ import (
 	"k8s.io/component-helpers/scheduling/corev1/nodeaffinity"
 )
 
-func ValidatePodSpec(spec *v1.PodSpec) error {
+func ValidatePodSpec(spec *v1.PodSpec, maxAllowedSize uint) error {
 	if spec == nil {
 		return fmt.Errorf("empty pod spec")
+	}
+
+	if uint(spec.Size()) > maxAllowedSize {
+		return fmt.Errorf("pod spec has a size of %v bytes which is greater than the maximum allowed size of %v", spec.Size(), maxAllowedSize)
 	}
 
 	if len(spec.Containers) == 0 {
