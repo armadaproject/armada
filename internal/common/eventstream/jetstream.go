@@ -16,12 +16,12 @@ import (
 )
 
 type JetstreamEventStream struct {
-	subject       string
-	consumerOpts  []jsm.ConsumerOption
-	conn          *nats.Conn
-	manager       *jsm.Manager
-	stream        *jsm.Stream
-	consumers     []*jsm.Consumer
+	subject      string
+	consumerOpts []jsm.ConsumerOption
+	conn         *nats.Conn
+	manager      *jsm.Manager
+	stream       *jsm.Stream
+	consumers    []*jsm.Consumer
 }
 
 func NewJetstreamEventStream(
