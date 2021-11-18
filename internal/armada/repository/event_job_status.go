@@ -7,17 +7,17 @@ import (
 	"github.com/G-Research/armada/pkg/api"
 )
 
-type NatsEventJobStatusProcessor struct {
+type EventJobStatusProcessor struct {
 	stream        eventstream.EventStream
 	queue         string
 	jobRepository JobRepository
 }
 
-func NewEventJobStatusProcessor(stream eventstream.EventStream, queue string, jobRepository JobRepository) *NatsEventJobStatusProcessor {
-	return &NatsEventJobStatusProcessor{stream: stream, queue: queue, jobRepository: jobRepository}
+func NewEventJobStatusProcessor(stream eventstream.EventStream, queue string, jobRepository JobRepository) *EventJobStatusProcessor {
+	return &EventJobStatusProcessor{stream: stream, queue: queue, jobRepository: jobRepository}
 }
 
-func (p *NatsEventJobStatusProcessor) Start() {
+func (p *EventJobStatusProcessor) Start() {
 	err := p.stream.Subscribe(p.queue, p.handleMessage)
 
 	if err != nil {
@@ -25,7 +25,7 @@ func (p *NatsEventJobStatusProcessor) Start() {
 	}
 }
 
-func (p *NatsEventJobStatusProcessor) handleMessage(eventMessage *api.EventMessage) error {
+func (p *EventJobStatusProcessor) handleMessage(eventMessage *api.EventMessage) error {
 	// TODO: batching???
 	event, err := api.UnwrapEvent(eventMessage)
 	if err != nil {
