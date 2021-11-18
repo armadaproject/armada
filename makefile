@@ -1,3 +1,40 @@
+# Determine which platform we're on based on the kernel name
+platform := $(shell uname -s || echo unknown)
+
+# Check that all necessary executables are present
+# Using 'where' on Windows and 'which' on Unix-like systems, respectively
+# We do not check for 'date', since it's a cmdlet on Windows, which do not show up with where
+# (:= assignment is necessary to force immediate evaluation of expression)
+EXECUTABLES = go git docker
+ifeq ($(platform),windows32)
+	K := $(foreach exec,$(EXECUTABLES),$(if $(shell where $(exec)),some string,$(error "No $(exec) in PATH")))
+else
+	K := $(foreach exec,$(EXECUTABLES),$(if $(shell which $(exec)),some string,$(error "No $(exec) in PATH")))
+endif
+
+# Get the current date and time (to insert into go build)
+# On Windows, we need to use the powershell date command (alias of Get-Date) to get the full date-time string
+ifeq ($(platform),unknown)
+	date := $(unknown)
+else ifeq ($(platform),windows32)
+	date := $(shell powershell -c date || unknown)
+else
+	date := $(shell date || unknown)
+endif
+BUILD_TIME = $(strip $(date)) # Strip leading/trailing whitespace (added by powershell)
+
+# Get go version
+# (using subst to change, e.g., 'go version go1.17.2 windows/amd64' to 'go1.17.2 windows/amd64')
+GO_VERSION = $(strip $(subst go version,,$(shell go version)))
+
+# Get most recent git commit (to insert into go build)
+GIT_COMMIT := $(shell git rev-list --abbrev-commit -1 HEAD)
+
+# The RELEASE_VERSION environment variable is set by circleci (to sert into go build and output filenames)
+ifndef RELEASE_VERSION
+override RELEASE_VERSION = UNKNOWN_VERSION
+endif
+
 # use bash for running:
 export SHELL:=/bin/bash
 export SHELLOPTS:=$(if $(SHELLOPTS),$(SHELLOPTS):)pipefail:errexit
@@ -14,8 +51,14 @@ build-executor:
 build-fakeexecutor:
 	$(gobuild) -o ./bin/executor cmd/fakeexecutor/main.go
 
+ARMADACTL_BUILD_PACKAGE := github.com/G-Research/armada/cmd/armadactl/build
 build-armadactl:
-	$(gobuild) -o ./bin/armadactl cmd/armadactl/main.go
+	$(gobuild) -ldflags=" \
+		-X '$(ARMADACTL_BUILD_PACKAGE).BuildTime=$(BUILD_TIME)' \
+		-X '$(ARMADACTL_BUILD_PACKAGE).ReleaseVersion=$(RELEASE_VERSION)' \
+		-X '$(ARMADACTL_BUILD_PACKAGE).GitCommit=$(GIT_COMMIT)' \
+		-X '$(ARMADACTL_BUILD_PACKAGE).GoVersion=$(GO_VERSION)'" \
+		-o ./bin/armadactl cmd/armadactl/main.go
 
 build-binoculars:
 	$(gobuild) -o ./bin/binoculars cmd/binoculars/main.go
@@ -23,10 +66,6 @@ build-binoculars:
 build-armadactl-multiplatform:
 	go install github.com/mitchellh/gox@v1.0.1
 	gox -output="./bin/{{.OS}}-{{.Arch}}/armadactl" -arch="amd64" -os="windows linux darwin" ./cmd/armadactl/
-
-ifndef RELEASE_VERSION
-override RELEASE_VERSION = UNKNOWN_VERSION
-endif
 
 build-armadactl-release: build-armadactl-multiplatform
 	mkdir ./dist || true
