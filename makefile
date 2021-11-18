@@ -30,7 +30,7 @@ GO_VERSION = $(strip $(subst go version,,$(shell go version)))
 # Get most recent git commit (to insert into go build)
 GIT_COMMIT := $(shell git rev-list --abbrev-commit -1 HEAD)
 
-# The RELEASE_VERSION environment variable is set by circleci (to sert into go build and output filenames)
+# The RELEASE_VERSION environment variable is set by circleci (to insert into go build and output filenames)
 ifndef RELEASE_VERSION
 override RELEASE_VERSION = UNKNOWN_VERSION
 endif
