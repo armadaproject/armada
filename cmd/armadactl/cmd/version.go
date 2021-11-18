@@ -5,8 +5,9 @@ import (
 	"os"
 	"text/tabwriter"
 
-	"github.com/G-Research/armada/cmd/armadactl/build"
 	"github.com/spf13/cobra"
+
+	"github.com/G-Research/armada/cmd/armadactl/build"
 )
 
 func init() {
