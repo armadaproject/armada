@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
@@ -22,6 +23,8 @@ type JetstreamEventStream struct {
 	manager      *jsm.Manager
 	stream       *jsm.Stream
 	consumers    []*jsm.Consumer
+
+	mutex sync.RWMutex
 }
 
 func NewJetstreamEventStream(
@@ -64,6 +67,9 @@ func NewJetstreamEventStream(
 }
 
 func (c *JetstreamEventStream) Publish(events []*api.EventMessage) []error {
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+
 	var errs []error
 	for _, event := range events {
 		data, err := proto.Marshal(event)
@@ -79,6 +85,9 @@ func (c *JetstreamEventStream) Publish(events []*api.EventMessage) []error {
 }
 
 func (c *JetstreamEventStream) Subscribe(queue string, callback func(event *api.EventMessage) error) error {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
 	inbox := nats.NewInbox()
 
 	opts := append(
@@ -116,6 +125,9 @@ func (c *JetstreamEventStream) Subscribe(queue string, callback func(event *api.
 }
 
 func (c *JetstreamEventStream) Close() error {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
 	for _, consumer := range c.consumers {
 		err := consumer.Delete()
 		if err != nil {
