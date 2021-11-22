@@ -6,6 +6,9 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
+
+	"github.com/G-Research/armada/internal/lookout/repository"
 
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
@@ -23,6 +26,7 @@ import (
 
 const CustomConfigLocation string = "config"
 const MigrateDatabase string = "migrateDatabase"
+const pruneDatabase = "pruneDatabase"
 
 func init() {
 	pflag.StringSlice(CustomConfigLocation, []string{}, "Fully qualified path to application configuration file (for multiple config files repeat this arg or separate paths with commas)")
@@ -45,6 +49,19 @@ func main() {
 		}
 
 		err = schema.UpdateDatabase(db)
+		if err != nil {
+			panic(err)
+		}
+		os.Exit(0)
+	}
+
+	if viper.GetBool(pruneDatabase) {
+		db, err := postgres.Open(config.Postgres)
+		if err != nil {
+			panic(err)
+		}
+		cutoff := time.Now().AddDate(0, 0, -config.Prune.DaysToKeep)
+		err = repository.DeleteOldJobs(db, config.Prune.BatchSize, cutoff)
 		if err != nil {
 			panic(err)
 		}

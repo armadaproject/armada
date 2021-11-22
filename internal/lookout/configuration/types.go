@@ -27,6 +27,11 @@ type PostgresConfig struct {
 	Connection      map[string]string
 }
 
+type PruneConfig struct {
+	DaysToKeep int
+	BatchSize  int
+}
+
 type LookoutConfiguration struct {
 	HttpPort    uint16
 	GrpcPort    uint16
@@ -36,4 +41,5 @@ type LookoutConfiguration struct {
 
 	Nats     NatsConfig
 	Postgres PostgresConfig
+	Prune    PruneConfig
 }

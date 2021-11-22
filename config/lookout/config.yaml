@@ -29,3 +29,7 @@ nats:
   ClusterID: "test-cluster"
   Subject: "ArmadaTest"
   QueueGroup: "ArmadaLookoutEventProcessor"
+
+prune:
+  daysToKeep: 42
+  batchSize: 1000
