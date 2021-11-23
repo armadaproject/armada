@@ -1,20 +1,59 @@
 package repository
 
 import (
-	log "github.com/sirupsen/logrus"
-
 	"github.com/G-Research/armada/internal/common/eventstream"
 	"github.com/G-Research/armada/pkg/api"
+	log "github.com/sirupsen/logrus"
 )
 
 type EventJobStatusProcessor struct {
-	stream        eventstream.EventStream
 	queue         string
 	jobRepository JobRepository
+	stream        eventstream.EventStream
+	batcher       eventstream.EventBatcher
 }
 
-func NewEventJobStatusProcessor(stream eventstream.EventStream, queue string, jobRepository JobRepository) *EventJobStatusProcessor {
-	return &EventJobStatusProcessor{stream: stream, queue: queue, jobRepository: jobRepository}
+func NewEventJobStatusProcessor(
+	queue string,
+	jobRepository JobRepository,
+	stream eventstream.EventStream,
+	batcher eventstream.EventBatcher,
+) *EventJobStatusProcessor {
+	batcher.Register(func(events []*api.EventMessage) error {
+		var jobStartInfos []*JobStartInfo
+		for _, eventMessage := range events {
+			event, err := api.UnwrapEvent(eventMessage)
+			if err != nil {
+				log.Errorf("error while unwrapping event message: %v", err)
+				return err
+			}
+			switch event := event.(type) {
+			case *api.JobRunningEvent:
+				jobStartInfos = append(jobStartInfos, &JobStartInfo{
+					jobId:     event.GetJobId(),
+					clusterId: event.ClusterId,
+					startTime: event.Created,
+				})
+			}
+		}
+
+		jobErrors, err := jobRepository.UpdateStartTime(jobStartInfos)
+		if err != nil {
+			log.Errorf("error when updating start times for jobs: %v", err)
+			return err
+		}
+		for _, err := range jobErrors {
+			if err != nil {
+				log.Errorf("error when updating start time for single job: %v", err)
+			}
+		}
+		return nil
+	})
+	return &EventJobStatusProcessor{
+		queue:   queue,
+		stream:  stream,
+		batcher: batcher,
+	}
 }
 
 func (p *EventJobStatusProcessor) Start() {
@@ -26,7 +65,6 @@ func (p *EventJobStatusProcessor) Start() {
 }
 
 func (p *EventJobStatusProcessor) handleMessage(eventMessage *api.EventMessage) error {
-	// TODO: batching???
 	event, err := api.UnwrapEvent(eventMessage)
 	if err != nil {
 		log.Errorf("error while unwrapping eventmessage: %v", err)
@@ -35,12 +73,13 @@ func (p *EventJobStatusProcessor) handleMessage(eventMessage *api.EventMessage) 
 
 	switch event := event.(type) {
 	case *api.JobRunningEvent:
-		err = p.jobRepository.UpdateStartTime(event.JobId, event.ClusterId, event.Created)
+		eventMessage, err := api.Wrap(event)
 		if err != nil {
-			log.Errorf("error while updating job start time: %v", err)
-			if err.Error() != JobNotFound {
-				return err
-			}
+			log.Errorf("error when wrapping job running event: %v", err)
+		}
+		err = p.batcher.Report(eventMessage)
+		if err != nil {
+			log.Errorf("error when reporting job status event to batcher: %v", err)
 		}
 	}
 

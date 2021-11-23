@@ -300,7 +300,7 @@ func TestUpdateStartTime(t *testing.T) {
 		leasedJob := addLeasedJob(t, r, "queue1", "cluster1")
 
 		startTime := time.Now()
-		jobErrors, err := r.UpdateStartTimeMultiple([]*JobStartInfo{{
+		jobErrors, err := r.UpdateStartTime([]*JobStartInfo{{
 			jobId:     leasedJob.Id,
 			clusterId: "cluster1",
 			startTime: startTime,
@@ -316,7 +316,7 @@ func TestUpdateStartTime_UsesEarlierTime(t *testing.T) {
 		startTime := time.Now()
 		startTimePlusOneHour := time.Now().Add(4 * time.Hour)
 
-		jobErrors, err := r.UpdateStartTimeMultiple([]*JobStartInfo{
+		jobErrors, err := r.UpdateStartTime([]*JobStartInfo{
 			{
 				jobId:     leasedJob.Id,
 				clusterId: "cluster1",
@@ -341,7 +341,7 @@ func TestUpdateStartTime_UsesEarlierTime(t *testing.T) {
 func TestUpdateStartTime_NonExistentJob(t *testing.T) {
 	withRepository(func(r *RedisJobRepository) {
 		startTime := time.Now()
-		jobErrors, err := r.UpdateStartTimeMultiple([]*JobStartInfo{{
+		jobErrors, err := r.UpdateStartTime([]*JobStartInfo{{
 			jobId: "NonExistent",
 			clusterId: "cluster1",
 			startTime: startTime,
@@ -363,7 +363,7 @@ func TestSaveAndRetrieveStartTime_HandlesDifferentTimeZones(t *testing.T) {
 		leasedJob := addLeasedJob(t, r, "queue1", "cluster1")
 
 		startTime := now.In(loc)
-		jobErrors, err := r.UpdateStartTimeMultiple([]*JobStartInfo{{
+		jobErrors, err := r.UpdateStartTime([]*JobStartInfo{{
 			jobId:     leasedJob.Id,
 			clusterId: "cluster1",
 			startTime: startTime,
@@ -385,7 +385,7 @@ func TestGetJobRunInfos(t *testing.T) {
 		leasedJob2 := addLeasedJob(t, r, "queue1", "cluster2")
 
 		startTime := time.Now()
-		jobErrors, err := r.UpdateStartTimeMultiple([]*JobStartInfo{{
+		jobErrors, err := r.UpdateStartTime([]*JobStartInfo{{
 			jobId:     leasedJob1.Id,
 			clusterId: "cluster1",
 			startTime: startTime,
@@ -406,13 +406,13 @@ func TestGetJobRunInfos_HandlesJobWithoutClusterAssociation(t *testing.T) {
 		leasedJob1 := addLeasedJob(t, r, "queue1", "cluster1")
 
 		startTime := time.Now()
-		jobErrors, err := r.UpdateStartTimeMultiple([]*JobStartInfo{{
+		jobErrors, err := r.UpdateStartTime([]*JobStartInfo{{
 			jobId:     job1.Id,
 			clusterId: "cluster1",
 			startTime: startTime,
 		}})
 		assertUpdateStartTimeNoErrors(t, jobErrors, err)
-		jobErrors, err = r.UpdateStartTimeMultiple([]*JobStartInfo{{
+		jobErrors, err = r.UpdateStartTime([]*JobStartInfo{{
 			jobId:     leasedJob1.Id,
 			clusterId: "cluster1",
 			startTime: startTime,
@@ -432,14 +432,14 @@ func TestGetJobRunInfos_ReturnStartTimeForCurrentAssociatedCluster(t *testing.T)
 
 		startTime := time.Now()
 		plusOneHour := startTime.Add(time.Hour)
-		jobErrors, err := r.UpdateStartTimeMultiple([]*JobStartInfo{{
+		jobErrors, err := r.UpdateStartTime([]*JobStartInfo{{
 			jobId:     leasedJob1.Id,
 			clusterId: "cluster2",
 			startTime: startTime,
 		}})
 		assertUpdateStartTimeNoErrors(t, jobErrors, err)
 
-		jobErrors, err = r.UpdateStartTimeMultiple([]*JobStartInfo{{
+		jobErrors, err = r.UpdateStartTime([]*JobStartInfo{{
 			jobId:     leasedJob1.Id,
 			clusterId: "cluster1",
 			startTime: plusOneHour,

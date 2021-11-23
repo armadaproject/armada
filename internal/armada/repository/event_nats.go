@@ -41,12 +41,11 @@ func NewEventRedisProcessor(
 	batcher eventstream.EventBatcher,
 ) *RedisEventProcessor {
 	batcher.Register(repository.ReportEvents)
-	processor := &RedisEventProcessor{
-		queue:      queue,
-		stream:     stream,
-		batcher:    batcher,
+	return &RedisEventProcessor{
+		queue:   queue,
+		stream:  stream,
+		batcher: batcher,
 	}
-	return processor
 }
 
 func (p *RedisEventProcessor) Start() {

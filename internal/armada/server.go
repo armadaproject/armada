@@ -89,7 +89,9 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 		eventProcessor := repository.NewEventRedisProcessor(config.EventStoreQueue, redisEventRepository, eventStream, eventRepoBatcher)
 		eventProcessor.Start()
 
-		jobStatusProcessor := repository.NewEventJobStatusProcessor(eventStream, config.EventJobStatusQueue, jobRepository)
+		jobStatusBatchTimer := eventstream.NewCustomTimer(10*time.Second)
+		jobStatusBatcher := eventstream.NewTimedEventBatcher(100, jobStatusBatchTimer)
+		jobStatusProcessor := repository.NewEventJobStatusProcessor(config.EventJobStatusQueue, jobRepository, eventStream, jobStatusBatcher)
 		jobStatusProcessor.Start()
 
 		teardown = func() {
@@ -97,6 +99,11 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 			err := eventRepoBatcher.Flush()
 			if err != nil {
 				log.Errorf("failed to flush event processor buffer for redis")
+			}
+			jobStatusBatcher.Stop()
+			err = jobStatusBatcher.Flush()
+			if err != nil {
+				log.Errorf("failed to flush job status batcher processor")
 			}
 			err = eventStream.Close()
 			if err != nil {

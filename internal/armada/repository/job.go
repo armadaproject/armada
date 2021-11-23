@@ -50,7 +50,7 @@ type JobRepository interface {
 	DeleteJobs(jobs []*api.Job) map[*api.Job]error
 	GetActiveJobIds(queue string, jobSetId string) ([]string, error)
 	GetLeasedJobIds(queue string) ([]string, error)
-	UpdateStartTime(jobId string, clusterId string, startTime time.Time) error
+	UpdateStartTime(jobStartInfos []*JobStartInfo) ([]error, error)
 	UpdateJobs(ids []string, mutator func([]*api.Job)) []UpdateJobResult
 	GetJobRunInfos(jobIds []string) (map[string]*RunInfo, error)
 	GetQueueActiveJobSets(queue string) ([]*api.JobSetInfo, error)
@@ -433,7 +433,7 @@ type JobStartInfo struct {
 	startTime time.Time
 }
 
-func (repo *RedisJobRepository) UpdateStartTimeMultiple(jobStartInfos []*JobStartInfo) ([]error, error) {
+func (repo *RedisJobRepository) UpdateStartTime(jobStartInfos []*JobStartInfo) ([]error, error) {
 	jobErrors := make([]error, len(jobStartInfos), len(jobStartInfos))
 
 	commands := make([]*redis.Cmd, len(jobStartInfos), len(jobStartInfos))

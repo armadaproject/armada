@@ -27,6 +27,8 @@ type ApiConnectionDetails struct {
 	ExecAuth                    exec.CommandDetails
 }
 
+type ConnectionDetails func() *ApiConnectionDetails
+
 func CreateApiConnection(config *ApiConnectionDetails, additionalDialOptions ...grpc.DialOption) (*grpc.ClientConn, error) {
 
 	retryOpts := []grpc_retry.CallOption{
