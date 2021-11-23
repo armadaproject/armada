@@ -46,7 +46,7 @@ func TestDelete(t *testing.T) {
 
 			return true
 		},
-		"sucess": func(queueName string) bool {
+		"success": func(queueName string) bool {
 			deleteQueue := func(name string) error {
 				if queueName != name {
 					return fmt.Errorf("invalid queueName")
