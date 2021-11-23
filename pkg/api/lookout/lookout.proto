@@ -8,7 +8,6 @@ import "google/protobuf/empty.proto";
 import "google/api/annotations.proto";
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 import "pkg/api/queue.proto";
-import "k8s.io/api/core/v1/generated.proto";
 
 option (gogoproto.goproto_stringer_all) = false;
 option (gogoproto.stringer_all) = true;
@@ -23,16 +22,6 @@ message JobInfo {
     google.protobuf.Timestamp cancelled = 3 [(gogoproto.stdtime) = true, (gogoproto.nullable) = true];
     string job_state = 4;
     string job_json = 5;
-}
-
-message JobInfoTest {
-    string id = 1;
-    string owner = 2;
-    google.protobuf.Timestamp created = 3 [(gogoproto.stdtime) = true, (gogoproto.nullable) = true];
-    string queue = 4;
-    k8s.io.api.core.v1.PodSpec pod_spec = 5;
-    string job_set_id = 6;
-    string namespace = 7;
 }
 
 message RunInfo {
