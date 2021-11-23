@@ -4,9 +4,10 @@ import (
 	"database/sql"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/lookout/repository/schema"
-	"github.com/stretchr/testify/assert"
 )
 
 func WithDatabase(t *testing.T, action func(db *sql.DB)) {
