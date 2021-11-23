@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
@@ -61,8 +62,15 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
+		if config.PrunerConfig.DaysToKeep <= 0 {
+			panic(fmt.Errorf("invalid PrunerConfig.DaysToKeep [%v]: must be greater than 0", config.PrunerConfig.DaysToKeep))
+		}
 		cutoff := time.Now().AddDate(0, 0, -config.PrunerConfig.DaysToKeep)
-		err = repository.DeleteOldJobs(db, config.PrunerConfig.BatchSize, cutoff)
+		batchSize := config.PrunerConfig.BatchSize
+		if batchSize <= 0 {
+			panic(fmt.Errorf("invalid PrunerConfig.BatchSize [%v]: must be greater than 0", batchSize))
+		}
+		err = repository.DeleteOldJobs(db, batchSize, cutoff)
 		if err != nil {
 			panic(err)
 		}

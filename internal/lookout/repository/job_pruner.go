@@ -13,10 +13,6 @@ const postgresFormat = "2006-01-02 15:04:05.000000"
 
 func DeleteOldJobs(db *sql.DB, batchSizeLimit int, cutoff time.Time) error {
 
-	if batchSizeLimit <= 0 {
-		return fmt.Errorf("invalid batchSizeLimit [%v]: must be greater than 0", batchSizeLimit)
-	}
-
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
 
