@@ -26,11 +26,12 @@ import (
 
 const CustomConfigLocation string = "config"
 const MigrateDatabase string = "migrateDatabase"
-const pruneDatabase = "pruneDatabase"
+const PruneDatabase = "pruneDatabase"
 
 func init() {
 	pflag.StringSlice(CustomConfigLocation, []string{}, "Fully qualified path to application configuration file (for multiple config files repeat this arg or separate paths with commas)")
 	pflag.Bool(MigrateDatabase, false, "Migrate database instead of running server")
+	pflag.Bool(PruneDatabase, false, "Removes old jobs from the database instead of running server")
 	pflag.Parse()
 }
 
@@ -55,7 +56,7 @@ func main() {
 		os.Exit(0)
 	}
 
-	if viper.GetBool(pruneDatabase) {
+	if viper.GetBool(PruneDatabase) {
 		db, err := postgres.Open(config.Postgres)
 		if err != nil {
 			panic(err)
