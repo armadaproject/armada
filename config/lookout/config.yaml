@@ -30,6 +30,6 @@ nats:
   ClusterID: "test-cluster"
   Subject: "ArmadaTest"
 
-prune:
+prunerConfig:
   daysToKeep: 42
   batchSize: 1000
