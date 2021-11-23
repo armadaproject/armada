@@ -27,7 +27,7 @@ type PostgresConfig struct {
 	Connection      map[string]string
 }
 
-type PruneConfig struct {
+type PrunerConfig struct {
 	DaysToKeep int
 	BatchSize  int
 }
@@ -39,7 +39,7 @@ type LookoutConfiguration struct {
 
 	UIConfig LookoutUIConfig
 
-	Nats     NatsConfig
-	Postgres PostgresConfig
-	Prune    PruneConfig
+	Nats         NatsConfig
+	Postgres     PostgresConfig
+	PrunerConfig PrunerConfig
 }

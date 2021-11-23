@@ -60,8 +60,8 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-		cutoff := time.Now().AddDate(0, 0, -config.Prune.DaysToKeep)
-		err = repository.DeleteOldJobs(db, config.Prune.BatchSize, cutoff)
+		cutoff := time.Now().AddDate(0, 0, -config.PrunerConfig.DaysToKeep)
+		err = repository.DeleteOldJobs(db, config.PrunerConfig.BatchSize, cutoff)
 		if err != nil {
 			panic(err)
 		}

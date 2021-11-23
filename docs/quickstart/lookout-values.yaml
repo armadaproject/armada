@@ -2,6 +2,7 @@ ingressClass: nginx
 clusterIssuer: dummy-value
 hostnames:
   - test
+dbPruneSchedule: '"@hourly"'
 
 prometheus:
   enabled: true
@@ -25,3 +26,8 @@ applicationConfig:
       dbname: postgres
   uiConfig:
     armadaApiBaseUrl: "http://armada.default.svc.cluster.local:8080"
+  prunerConfig:
+    daysToKeep: 42
+    batchSize: 1000
+
+
