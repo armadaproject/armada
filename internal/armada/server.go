@@ -1,12 +1,13 @@
 package armada
 
 import (
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/go-redis/redis"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
+	"github.com/nats-io/jsm.go"
+	"github.com/nats-io/stan.go"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/G-Research/armada/internal/armada/cache"
@@ -17,9 +18,9 @@ import (
 	"github.com/G-Research/armada/internal/armada/server"
 	"github.com/G-Research/armada/internal/common/auth"
 	"github.com/G-Research/armada/internal/common/auth/authorization"
+	"github.com/G-Research/armada/internal/common/eventstream"
 	grpcCommon "github.com/G-Research/armada/internal/common/grpc"
 	"github.com/G-Research/armada/internal/common/health"
-	stan_util "github.com/G-Research/armada/internal/common/stan-util"
 	"github.com/G-Research/armada/internal/common/task"
 	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/pkg/api"
@@ -47,34 +48,52 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 
 	redisEventRepository := repository.NewRedisEventRepository(eventsDb, config.EventRetention)
 	var eventStore repository.EventStore
+	var eventStream eventstream.EventStream
 
-	// TODO: move this to task manager
-	stopSubscription := func() {}
 	if len(config.EventsNats.Servers) > 0 {
-
-		conn, err := stan_util.DurableConnect(
+		stanClient, err := eventstream.NewStanClientConnection(
 			config.EventsNats.ClusterID,
 			"armada-server-"+util.NewULID(),
-			strings.Join(config.EventsNats.Servers, ","),
-		)
+			config.EventsNats.Servers)
 		if err != nil {
 			panic(err)
 		}
-		eventStore = repository.NewNatsEventStore(conn, config.EventsNats.Subject)
-		eventProcessor := repository.NewNatsEventRedisProcessor(conn, redisEventRepository, config.EventsNats.Subject, config.EventsNats.QueueGroup)
+
+		eventStream = eventstream.NewStanEventStream(
+			config.EventsNats.Subject,
+			stanClient,
+			stan.SetManualAckMode(),
+			stan.StartWithLastReceived())
+
+		healthChecks.Add(stanClient)
+	} else if len(config.EventsJetstream.Servers) > 0 {
+		stream, err := eventstream.NewJetstreamEventStream(
+			&config.EventsJetstream,
+			jsm.SamplePercent(100),
+			jsm.StartWithLastReceived())
+		if err != nil {
+			panic(err)
+		}
+		eventStream = stream
+
+		healthChecks.Add(stream)
+	}
+
+	// TODO: move this to task manager
+	stopSubscription := func() {}
+	if eventStream != nil {
+		eventStore = repository.NewEventStore(eventStream)
+		eventProcessor := repository.NewEventRedisProcessor(eventStream, config.EventStoreQueue, redisEventRepository)
 		eventProcessor.Start()
-		jobStatusProcessor := repository.NewNatsEventJobStatusProcessor(conn, jobRepository, config.EventsNats.Subject, config.EventsNats.JobStatusGroup)
+		jobStatusProcessor := repository.NewEventJobStatusProcessor(eventStream, config.EventJobStatusQueue, jobRepository)
 		jobStatusProcessor.Start()
 
 		stopSubscription = func() {
-			err := conn.Close()
+			err := eventStream.Close()
 			if err != nil {
-				log.Errorf("failed to close nats connection: %v", err)
+				log.Errorf("failed to close stream connection: %v", err)
 			}
 		}
-
-		healthChecks.Add(conn)
-
 	} else {
 		eventStore = redisEventRepository
 	}
