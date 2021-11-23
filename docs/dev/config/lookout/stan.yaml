@@ -1,0 +1,6 @@
+nats:
+  Servers:
+    - "nats://localhost:4223"
+  ClusterID: "test-cluster"
+  Subject: "ArmadaTest"
+  QueueGroup: "ArmadaLookoutEventProcessor"

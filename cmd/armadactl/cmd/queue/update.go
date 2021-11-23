@@ -6,10 +6,10 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/G-Research/armada/pkg/api"
-	"github.com/G-Research/armada/pkg/client"
+	"github.com/G-Research/armada/pkg/client/queue"
 )
 
-func Update() *cobra.Command {
+func Update(updateQueue queue.UpdateAPI) *cobra.Command {
 	command := &cobra.Command{
 		Use:   "queue <queueName>",
 		Short: "Update existing queue",
@@ -47,16 +47,7 @@ func Update() *cobra.Command {
 			return fmt.Errorf("failed to retrieve resourceLimits value: %s", err)
 		}
 
-		apiConnectionDetails := client.ExtractCommandlineArmadaApiConnectionDetails()
-		conn, err := client.CreateApiConnection(apiConnectionDetails)
-		if err != nil {
-			return fmt.Errorf("failed to connect to api because %s", err)
-		}
-		defer conn.Close()
-
-		submissionClient := api.NewSubmitClient(conn)
-
-		queue := &api.Queue{
+		queue := api.Queue{
 			Name:           queueName,
 			PriorityFactor: priority,
 			UserOwners:     owners,
@@ -64,7 +55,7 @@ func Update() *cobra.Command {
 			ResourceLimits: resourceLimits,
 		}
 
-		if err = client.UpdateQueue(submissionClient, queue); err != nil {
+		if err = updateQueue(queue); err != nil {
 			return fmt.Errorf("failed to update queue with name %s. %s", queueName, err)
 		}
 

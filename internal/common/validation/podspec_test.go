@@ -9,11 +9,11 @@ import (
 )
 
 func Test_ValidatePodSpec_checkForMissingValues(t *testing.T) {
-	assert.Error(t, ValidatePodSpec(nil))
-	assert.Error(t, ValidatePodSpec(&v1.PodSpec{}))
+	assert.Error(t, ValidatePodSpec(nil, 65535))
+	assert.Error(t, ValidatePodSpec(&v1.PodSpec{}, 65535))
 	assert.Error(t, ValidatePodSpec(&v1.PodSpec{
 		Containers: []v1.Container{{}},
-	}))
+	}, 65535))
 }
 
 func Test_ValidatePodSpec_checkForResources(t *testing.T) {
@@ -32,7 +32,7 @@ func Test_ValidatePodSpec_checkForResources(t *testing.T) {
 				Requests: resources2,
 			},
 		}},
-	}))
+	}, 65535))
 
 	assert.NoError(t, ValidatePodSpec(&v1.PodSpec{
 		Containers: []v1.Container{{
@@ -41,7 +41,7 @@ func Test_ValidatePodSpec_checkForResources(t *testing.T) {
 				Requests: resources1,
 			},
 		}},
-	}))
+	}, 65535))
 }
 
 func Test_ValidatePodSpec_checkForPortConfiguration(t *testing.T) {
@@ -74,8 +74,8 @@ func Test_ValidatePodSpec_checkForPortConfiguration(t *testing.T) {
 			},
 		},
 	}
-	assert.Error(t, ValidatePodSpec(portsUniqueToContainer))
-	assert.Error(t, ValidatePodSpec(portExposeOverMultipleContainers))
+	assert.Error(t, ValidatePodSpec(portsUniqueToContainer, 65535))
+	assert.Error(t, ValidatePodSpec(portExposeOverMultipleContainers, 65535))
 }
 
 func Test_ValidatePodSpec_WhenPreferredAffinitySet_Fails(t *testing.T) {
@@ -102,7 +102,7 @@ func Test_ValidatePodSpec_WhenPreferredAffinitySet_Fails(t *testing.T) {
 		},
 	}
 
-	assert.Error(t, ValidatePodSpec(podSpec))
+	assert.Error(t, ValidatePodSpec(podSpec, 65535))
 }
 
 func Test_ValidatePodSpec_WhenValidRequiredAffinitySet_Succeeds(t *testing.T) {
@@ -128,7 +128,7 @@ func Test_ValidatePodSpec_WhenValidRequiredAffinitySet_Succeeds(t *testing.T) {
 		},
 	}
 
-	assert.Nil(t, ValidatePodSpec(podSpec))
+	assert.Nil(t, ValidatePodSpec(podSpec, 65535))
 }
 
 func Test_ValidatePodSpec_WhenInvalidRequiredAffinitySet_Fails(t *testing.T) {
@@ -154,7 +154,14 @@ func Test_ValidatePodSpec_WhenInvalidRequiredAffinitySet_Fails(t *testing.T) {
 		},
 	}
 
-	assert.Error(t, ValidatePodSpec(podSpec))
+	assert.Error(t, ValidatePodSpec(podSpec, 65535))
+}
+
+func Test_ValidatePodSpec_WhenExceedsMaxSize_Fails(t *testing.T) {
+	spec := minimalValidPodSpec()
+	specSize := uint(spec.Size())
+	assert.NoError(t, ValidatePodSpec(spec, specSize))
+	assert.Error(t, ValidatePodSpec(spec, specSize-1))
 }
 
 func minimalValidPodSpec() *v1.PodSpec {

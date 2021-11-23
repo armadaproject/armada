@@ -23,12 +23,12 @@ postgres:
     dbname: postgres
     sslmode: disable
 
+eventQueue: "ArmadaLookoutEventProcessor"
 nats:
   Servers:
     - "nats://localhost:4223"
   ClusterID: "test-cluster"
   Subject: "ArmadaTest"
-  QueueGroup: "ArmadaLookoutEventProcessor"
 
 prune:
   daysToKeep: 42

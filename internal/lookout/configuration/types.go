@@ -1,12 +1,15 @@
 package configuration
 
-import "time"
+import (
+	"time"
+
+	"github.com/G-Research/armada/internal/armada/configuration"
+)
 
 type NatsConfig struct {
-	Servers    []string
-	ClusterID  string
-	Subject    string
-	QueueGroup string
+	Servers   []string
+	ClusterID string
+	Subject   string
 }
 
 type LookoutUIConfig struct {
@@ -39,7 +42,9 @@ type LookoutConfiguration struct {
 
 	UIConfig LookoutUIConfig
 
+	EventQueue   string
 	Nats         NatsConfig
+	Jetstream    configuration.JetstreamConfig
 	Postgres     PostgresConfig
 	PrunerConfig PrunerConfig
 }

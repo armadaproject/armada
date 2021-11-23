@@ -4,64 +4,67 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/G-Research/armada/cmd/armadactl/cmd/queue"
+
+	"github.com/G-Research/armada/pkg/client"
+	cq "github.com/G-Research/armada/pkg/client/queue"
 )
 
 func init() {
 	rootCmd.AddCommand(
-		Create(),
-		Delete(),
-		Update(),
-		Info(),
+		Create(client.ExtractCommandlineArmadaApiConnectionDetails),
+		Delete(client.ExtractCommandlineArmadaApiConnectionDetails),
+		Update(client.ExtractCommandlineArmadaApiConnectionDetails),
+		Info(client.ExtractCommandlineArmadaApiConnectionDetails),
 	)
 }
 
-func Create() *cobra.Command {
+func Create(connectionDetails client.ConnectionDetails) *cobra.Command {
 	command := cobra.Command{
 		Use:   "create",
 		Short: "Create Armada resource. Supported: queue",
 	}
 
 	command.AddCommand(
-		queue.Create(),
+		queue.Create(cq.Create(connectionDetails)),
 	)
 
 	return &command
 }
 
-func Delete() *cobra.Command {
+func Delete(connectionDetails client.ConnectionDetails) *cobra.Command {
 	command := cobra.Command{
 		Use:   "delete",
 		Short: "Delete Armada resource. Supported: queue",
 	}
 
 	command.AddCommand(
-		queue.Delete(),
+		queue.Delete(cq.Delete(connectionDetails)),
 	)
 
 	return &command
 }
 
-func Update() *cobra.Command {
+func Update(connectionDetails client.ConnectionDetails) *cobra.Command {
 	command := cobra.Command{
 		Use:   "update",
 		Short: "Update Armada resource. Supported: queue",
 	}
 
 	command.AddCommand(
-		queue.Update(),
+		queue.Update(cq.Update(connectionDetails)),
 	)
 
 	return &command
 }
 
-func Info() *cobra.Command {
+func Info(connectionDetails client.ConnectionDetails) *cobra.Command {
 	command := cobra.Command{
 		Use:   "describe",
 		Short: "Retrieve information about armada resource. Supported: queue",
 	}
 
 	command.AddCommand(
-		queue.Describe(),
+		queue.Describe(cq.GetInfo(connectionDetails)),
 	)
 
 	return &command

@@ -1,100 +1,57 @@
 package repository
 
 import (
-	"github.com/gogo/protobuf/proto"
-	stan "github.com/nats-io/stan.go"
-	stanPb "github.com/nats-io/stan.go/pb"
+	"fmt"
+
 	log "github.com/sirupsen/logrus"
 
-	stanUtil "github.com/G-Research/armada/internal/common/stan-util"
+	"github.com/G-Research/armada/internal/common/eventstream"
 	"github.com/G-Research/armada/pkg/api"
 )
 
-type NatsEventStore struct {
-	connection *stanUtil.DurableConnection
-	subject    string
+type StreamEventStore struct {
+	stream eventstream.EventStream
 }
 
-func NewNatsEventStore(connection *stanUtil.DurableConnection, subject string) *NatsEventStore {
-	return &NatsEventStore{connection: connection, subject: subject}
+func NewEventStore(stream eventstream.EventStream) *StreamEventStore {
+	return &StreamEventStore{stream: stream}
 }
 
-func (n *NatsEventStore) ReportEvents(messages []*api.EventMessage) error {
+func (n *StreamEventStore) ReportEvents(messages []*api.EventMessage) error {
 	if len(messages) == 0 {
 		return nil
 	}
-	errors := make(chan error, len(messages))
-	for _, m := range messages {
-		messageData, e := proto.Marshal(m)
-		if e != nil {
-			log.Errorf("Error while marshaling event: %v", e)
-			return e
-		}
-		_, e = n.connection.PublishAsync(n.subject, messageData, func(subj string, err error) {
-			if err != nil {
-				log.Errorf("Error while publishing event to queue: %v", err)
-			}
-			errors <- err
-		})
-		if e != nil {
-			log.Errorf("Error while sending event to queue: %v", e)
-			return e
-		}
-	}
-
-	waiting := len(messages)
-	var lastError error
-	select {
-	case e := <-errors:
-		waiting--
-		if e != nil {
-			lastError = e
-		}
-		if waiting == 0 {
-			return lastError
-		}
+	errs := n.stream.Publish(messages)
+	if len(errs) > 0 {
+		return fmt.Errorf("errors when publishing events: %v", errs)
 	}
 	return nil
 }
 
-type NatsEventRedisProcessor struct {
-	connection *stanUtil.DurableConnection
+type RedisEventProcessor struct {
+	stream     eventstream.EventStream
+	queue      string
 	repository EventStore
-	subject    string
-	group      string
 }
 
-func NewNatsEventRedisProcessor(connection *stanUtil.DurableConnection, repository EventStore, subject string, group string) *NatsEventRedisProcessor {
-	return &NatsEventRedisProcessor{connection: connection, repository: repository, subject: subject, group: group}
+func NewEventRedisProcessor(stream eventstream.EventStream, queue string, repository EventStore) *RedisEventProcessor {
+	return &RedisEventProcessor{stream: stream, queue: queue, repository: repository}
 }
 
-func (p *NatsEventRedisProcessor) Start() {
-	err := p.connection.QueueSubscribe(p.subject, p.group,
-		p.handleMessage,
-		stan.SetManualAckMode(),
-		stan.StartAt(stanPb.StartPosition_LastReceived),
-		stan.DurableName(p.group))
+func (p *RedisEventProcessor) Start() {
+	err := p.stream.Subscribe(p.queue, p.handleMessage)
 
 	if err != nil {
 		panic(err)
 	}
 }
 
-func (p *NatsEventRedisProcessor) handleMessage(msg *stan.Msg) {
+func (p *RedisEventProcessor) handleMessage(eventMessage *api.EventMessage) error {
 	// TODO: batching???
-	eventMessage := &api.EventMessage{}
-	err := proto.Unmarshal(msg.Data, eventMessage)
+	err := p.repository.ReportEvents([]*api.EventMessage{eventMessage})
 	if err != nil {
-		log.Errorf("Error while unmarshaling nats message: %v", err)
-	} else {
-		err := p.repository.ReportEvents([]*api.EventMessage{eventMessage})
-		if err != nil {
-			log.Errorf("Error while reporting event from nats: %v", err)
-			return
-		}
+		log.Errorf("error while reporting event in redis: %v", err)
+		return err
 	}
-	err = msg.Ack()
-	if err != nil {
-		log.Errorf("Error while ack nats message: %v", err)
-	}
+	return nil
 }

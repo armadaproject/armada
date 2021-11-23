@@ -29,11 +29,13 @@ scheduling:
     expireAfter: 15m
     expiryLoopInterval: 5s
   maxRetries: 5
+  maxPodSpecSizeBytes: 65535
 queueManagement:
   defaultPriorityFactor: 1000
+eventStoreQueue: "ArmadaEventRedisProcessor"
+eventJobStatusQueue: "ArmadaEventJobStatusProcessor"
 eventsNats:
-  queueGroup: "ArmadaEventRedisProcessor"
-  jobStatusGroup: "ArmadaEventJobStatusProcessor"
+  timeout: 10s
 databaseRetention:
   jobRetentionDuration: 168h # Specified as a Go duration
 eventRetention:
