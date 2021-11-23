@@ -48,7 +48,7 @@ func TestDescribe(t *testing.T) {
 
 			return true
 		},
-		"sucess": func(queueName string, jobSetInfos []api.JobSetInfo) bool {
+		"success": func(queueName string, jobSetInfos []api.JobSetInfo) bool {
 			describeQueue := func(name string) (*api.QueueInfo, error) {
 				if queueName != name {
 					return nil, fmt.Errorf("invalid queueName")
