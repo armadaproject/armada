@@ -1,18 +1,19 @@
 package lookout
 
 import (
-	"strings"
 	"sync"
 
 	"github.com/doug-martin/goqu/v9"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	_ "github.com/lib/pq"
+	"github.com/nats-io/jsm.go"
+	"github.com/nats-io/stan.go"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/G-Research/armada/internal/common/auth/authorization"
+	"github.com/G-Research/armada/internal/common/eventstream"
 	"github.com/G-Research/armada/internal/common/grpc"
 	"github.com/G-Research/armada/internal/common/health"
-	stanUtil "github.com/G-Research/armada/internal/common/stan-util"
 	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/lookout/configuration"
 	"github.com/G-Research/armada/internal/lookout/events"
@@ -49,18 +50,37 @@ func StartUp(config configuration.LookoutConfiguration, healthChecks *health.Mul
 
 	healthChecks.Add(repository.NewSqlHealth(db))
 
-	conn, err := stanUtil.DurableConnect(
-		config.Nats.ClusterID,
-		"armada-server-"+util.NewULID(),
-		strings.Join(config.Nats.Servers, ","),
-	)
+	var eventStream eventstream.EventStream
 
-	healthChecks.Add(conn)
+	if len(config.Jetstream.Servers) > 0 {
+		stream, err := eventstream.NewJetstreamEventStream(
+			&config.Jetstream,
+			jsm.SamplePercent(100),
+			jsm.StartWithLastReceived())
+		if err != nil {
+			panic(err)
+		}
+		eventStream = stream
 
-	if err != nil {
-		panic(err)
+		healthChecks.Add(stream)
+	} else {
+		stanClient, err := eventstream.NewStanClientConnection(
+			config.Nats.ClusterID,
+			"armada-server-"+util.NewULID(),
+			config.Nats.Servers)
+		if err != nil {
+			panic(err)
+		}
+		eventStream = eventstream.NewStanEventStream(
+			config.Nats.Subject,
+			stanClient,
+			stan.SetManualAckMode(),
+			stan.StartWithLastReceived())
+
+		healthChecks.Add(stanClient)
 	}
-	eventProcessor := events.NewEventProcessor(conn, jobStore, config.Nats.Subject, config.Nats.QueueGroup)
+
+	eventProcessor := events.NewEventProcessor(config.EventQueue, eventStream, jobStore)
 	eventProcessor.Start()
 
 	dbMetricsProvider := metrics.NewLookoutSqlDbMetricsProvider(db, config.Postgres)
@@ -74,7 +94,7 @@ func StartUp(config configuration.LookoutConfiguration, healthChecks *health.Mul
 	grpc.Listen(config.GrpcPort, grpcServer, wg)
 
 	stop := func() {
-		err := conn.Close()
+		err := eventStream.Close()
 		if err != nil {
 			log.Errorf("failed to close nats connection: %v", err)
 		}
