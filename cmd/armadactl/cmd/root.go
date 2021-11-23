@@ -17,9 +17,9 @@ func init() {
 
 var rootCmd = &cobra.Command{
 	Use:   "armadactl",
-	Short: "Command line utility to manage armada",
+	Short: "armadactl controls the Armada batch job queueing system.",
 	Long: `
-Command line utility to manage armada
+armadactl controls the Armada batch job queueing system.
 
 Persistent config can be saved in a config file so it doesn't have to be specified every command.
 
