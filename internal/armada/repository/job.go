@@ -427,34 +427,70 @@ func (repo *RedisJobRepository) getAssociatedCluster(jobIds []string) (map[strin
 	return associatedCluster, nil
 }
 
-func (repo *RedisJobRepository) UpdateStartTime(jobId string, clusterId string, startTime time.Time) error {
-	// This is a bit naive, we set the start time to be associated with the job id + cluster id provided
-	// We only save the earliest start time for each job id + cluster id combination
-	// We have to save against cluster id to handle when a lease expires and a job starts on another cluster
-	// However this is not full proof and in very rare situations a job could start twice on the same cluster and this value will be wrong
-	// TODO When we have a proper concept of lease, associate start time with that specific lease (ideally earliest value for that lease)
-
-	jobs, e := repo.GetExistingJobsByIds([]string{jobId})
-	if e != nil {
-		return e
-	}
-
-	if len(jobs) <= 0 {
-		return fmt.Errorf(JobNotFound)
-	}
-
-	output := updateStartTimeScript.Run(repo.db, []string{jobStartTimePrefix + jobId, jobClusterMapKey}, clusterId, startTime.UnixNano())
-
-	return output.Err()
+type JobStartInfo struct {
+	jobId     string
+	clusterId string
+	startTime time.Time
 }
+
+func (repo *RedisJobRepository) UpdateStartTimeMultiple(jobStartInfos []*JobStartInfo) ([]error, error) {
+	jobErrors := make([]error, len(jobStartInfos), len(jobStartInfos))
+
+	commands := make([]*redis.Cmd, len(jobStartInfos), len(jobStartInfos))
+	pipe := repo.db.TxPipeline()
+	updateStartTimeScript.Load(pipe)
+
+	for i, jobStartInfo := range jobStartInfos {
+		commands[i] = updateStartTimeScript.Run(
+			pipe,
+			[]string{
+				jobStartTimePrefix + jobStartInfo.jobId,
+				jobClusterMapKey,
+				jobObjectPrefix + jobStartInfo.jobId,
+			},
+			jobStartInfo.clusterId,
+			jobStartInfo.startTime.UTC().UnixNano())
+	}
+
+	_, err := pipe.Exec()
+	if err != nil {
+		return nil, fmt.Errorf("update start time multiple: %v", err)
+	}
+
+	for i, cmd := range commands {
+		err := cmd.Err()
+		if err != nil {
+			jobErrors[i] = fmt.Errorf("update start time multiple: %v", err)
+		} else {
+			jobErrors[i] = nil
+		}
+		ret, err := cmd.Int()
+		if err != nil {
+			jobErrors[i] = fmt.Errorf("error parsing result from redis: %v", err)
+		}
+		if ret == updateStartTimeJobNotFound {
+			jobErrors[i] = fmt.Errorf(JobNotFound)
+		}
+	}
+
+	return jobErrors, nil
+}
+
+const updateStartTimeJobNotFound = -3
 
 var updateStartTimeScript = redis.NewScript(`
 local startTimeKey = KEYS[1]
 local clusterAssociation = KEYS[2]
+local job = KEYS[3]
 
 local clusterId = ARGV[1]
 local startTime = ARGV[2]
 local startTimeNumber = tonumber(ARGV[2])
+
+local exists = redis.call('GET', job)
+if not exists then
+	return -3
+end
 
 local currentStartTime = tonumber(redis.call('HGET', startTimeKey, clusterId))
 

@@ -80,16 +80,25 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 	}
 
 	// TODO: move this to task manager
-	stopSubscription := func() {}
+	teardown := func() {}
 	if eventStream != nil {
 		eventStore = repository.NewEventStore(eventStream)
-		eventProcessor := repository.NewEventRedisProcessor(eventStream, config.EventStoreQueue, redisEventRepository)
+
+		eventRepoBatchTimer := eventstream.NewCustomTimer(10*time.Second)
+		eventRepoBatcher := eventstream.NewTimedEventBatcher(100, eventRepoBatchTimer)
+		eventProcessor := repository.NewEventRedisProcessor(config.EventStoreQueue, redisEventRepository, eventStream, eventRepoBatcher)
 		eventProcessor.Start()
+
 		jobStatusProcessor := repository.NewEventJobStatusProcessor(eventStream, config.EventJobStatusQueue, jobRepository)
 		jobStatusProcessor.Start()
 
-		stopSubscription = func() {
-			err := eventStream.Close()
+		teardown = func() {
+			eventRepoBatcher.Stop()
+			err := eventRepoBatcher.Flush()
+			if err != nil {
+				log.Errorf("failed to flush event processor buffer for redis")
+			}
+			err = eventStream.Close()
 			if err != nil {
 				log.Errorf("failed to close stream connection: %v", err)
 			}
@@ -120,7 +129,7 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 	grpcCommon.Listen(config.GrpcPort, grpcServer, wg)
 
 	return func() {
-		stopSubscription()
+		teardown()
 		taskManager.StopAll(time.Second * 2)
 		grpcServer.GracefulStop()
 	}, wg

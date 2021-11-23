@@ -1,9 +1,10 @@
 package eventstream
 
 import (
-	log "github.com/sirupsen/logrus"
 	"sync"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/G-Research/armada/pkg/api"
 )
@@ -17,74 +18,83 @@ type EventBatcher interface {
 	Stop()
 }
 
-type TimeoutEventBatcher struct {
+type TimedEventBatcher struct {
 	batchSize int
-	timeout   time.Duration
 
 	batch    []*api.EventMessage
 	callback eventBatchCallback
 
 	stopChan  chan interface{}
 	flushChan chan interface{}
+	doneChan  chan interface{}
 
 	mutex sync.Mutex
 	timer Timer
 }
 
-func NewTimeoutEventBatcher(batchSize int, timer Timer) *TimeoutEventBatcher {
-	b := &TimeoutEventBatcher{
+func NewTimedEventBatcher(batchSize int, timer Timer) *TimedEventBatcher {
+	b := &TimedEventBatcher{
 		batchSize: batchSize,
 		timer:     timer,
 		batch:     []*api.EventMessage{},
-		stopChan:  make(chan interface{}),
-		flushChan: make(chan interface{}),
+		stopChan:  make(chan interface{}), // Not buffered, should block if stop signal is sent
+		flushChan: make(chan interface{}, 100),
+		doneChan:  make(chan interface{}), // Should only signal once
 	}
 	go b.start()
 	return b
 }
 
-func (b *TimeoutEventBatcher) Register(callback eventBatchCallback) {
+func (b *TimedEventBatcher) Register(callback eventBatchCallback) {
 	b.callback = callback
 }
 
-func (b *TimeoutEventBatcher) Report(event *api.EventMessage) error {
-	b.mutex.Lock()
-	defer b.mutex.Unlock()
-
-	b.batch = append(b.batch, event)
-	if len(b.batch) >= b.batchSize {
-		b.timer.Stop()
-		return b.flushUnlocked()
-	} else {
-		b.startTimer()
+func (b *TimedEventBatcher) Report(event *api.EventMessage) error {
+	didFlush, err := b.addAndTryFlush(event)
+	if err != nil {
+		return err
 	}
 
+	if !didFlush {
+		b.startTimer()
+	}
 	return nil
 }
 
-func (b *TimeoutEventBatcher) Flush() error {
+func (b *TimedEventBatcher) Flush() error {
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
 
 	return b.flushUnlocked()
 }
 
-func (b *TimeoutEventBatcher) Stop() {
+func (b *TimedEventBatcher) Stop() {
+	b.stopChan <- "stop"
+	<-b.doneChan
+}
+
+// Returns whether batch was flushed and any errors
+func (b *TimedEventBatcher) addAndTryFlush(event *api.EventMessage) (bool, error) {
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
 
-	b.timer.Stop()
-	b.stopChan <- "stop"
+	b.batch = append(b.batch, event)
+
+	shouldFlush := len(b.batch) >= b.batchSize
+	var err error
+	if shouldFlush {
+		err = b.flushUnlocked()
+	}
+	return shouldFlush, err
 }
 
-func (b *TimeoutEventBatcher) flushUnlocked() error {
+func (b *TimedEventBatcher) flushUnlocked() error {
 	err := b.callback(b.batch)
 	b.batch = []*api.EventMessage{}
-
 	return err
 }
 
-func (b *TimeoutEventBatcher) startTimer() {
+func (b *TimedEventBatcher) startTimer() {
 	b.timer.Start()
 
 	go func() {
@@ -93,7 +103,8 @@ func (b *TimeoutEventBatcher) startTimer() {
 	}()
 }
 
-func (b *TimeoutEventBatcher) start() {
+func (b *TimedEventBatcher) start() {
+	loop:
 	for {
 		select {
 		case <-b.flushChan:
@@ -102,12 +113,11 @@ func (b *TimeoutEventBatcher) start() {
 				log.Errorf("error on flush event buffer after timer: %v", err)
 			}
 		case <-b.stopChan:
-			if b.timer != nil {
-				b.timer.Stop()
-			}
-			return
+			b.timer.Stop()
+			break loop
 		}
 	}
+	b.doneChan <- "done"
 }
 
 type Timer interface {
@@ -119,18 +129,22 @@ type Timer interface {
 type CustomTimer struct {
 	timeout time.Duration
 
-	c chan interface{}
+	c     chan interface{}
 	timer *time.Timer
+	mutex sync.RWMutex
 }
 
 func NewCustomTimer(timeout time.Duration) *CustomTimer {
 	return &CustomTimer{
 		timeout: timeout,
-		c:       make(chan interface{}),
+		c:       make(chan interface{}, 100),
 	}
 }
 
 func (t *CustomTimer) Start() {
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
+
 	if t.timer != nil {
 		if !t.timer.Stop() {
 			<-t.timer.C
@@ -147,11 +161,17 @@ func (t *CustomTimer) Start() {
 }
 
 func (t *CustomTimer) Stop() {
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
+
 	if !t.timer.Stop() {
 		<-t.timer.C
 	}
 }
 
 func (t *CustomTimer) Channel() chan interface{} {
+	t.mutex.RLock()
+	defer t.mutex.RUnlock()
+
 	return t.c
 }
