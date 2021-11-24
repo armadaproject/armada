@@ -9,7 +9,6 @@ import (
 
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
-	grpc_logrus "github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus"
 	grpc_recovery "github.com/grpc-ecosystem/go-grpc-middleware/recovery"
 	grpc_ctxtags "github.com/grpc-ecosystem/go-grpc-middleware/tags"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
@@ -26,14 +25,11 @@ func CreateGrpcServer(authServices []authorization.AuthService) *grpc.Server {
 	unaryInterceptors := []grpc.UnaryServerInterceptor{}
 	streamInterceptors := []grpc.StreamServerInterceptor{}
 
-	messageDefault := log.NewEntry(log.StandardLogger())
 	tagsExtractor := grpc_ctxtags.WithFieldExtractor(grpc_ctxtags.CodeGenRequestFieldExtractor)
 	unaryInterceptors = append(unaryInterceptors,
-		grpc_ctxtags.UnaryServerInterceptor(tagsExtractor),
-		grpc_logrus.UnaryServerInterceptor(messageDefault))
+		grpc_ctxtags.UnaryServerInterceptor(tagsExtractor))
 	streamInterceptors = append(streamInterceptors,
-		grpc_ctxtags.StreamServerInterceptor(tagsExtractor),
-		grpc_logrus.StreamServerInterceptor(messageDefault))
+		grpc_ctxtags.StreamServerInterceptor(tagsExtractor))
 
 	authFunction := authorization.CreateMiddlewareAuthFunction(authServices)
 	unaryInterceptors = append(unaryInterceptors, grpc_auth.UnaryServerInterceptor(authFunction))

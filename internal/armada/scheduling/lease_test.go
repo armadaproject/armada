@@ -90,7 +90,7 @@ func Test_distributeRemainder_highPriorityUserDoesNotBlockOthers(t *testing.T) {
 		queueCache:          map[string][]*api.Job{},
 	}
 
-	jobs, e := c.distributeRemainder(1000)
+	jobs, e := c.distributeRemainder(NewSchedulingLimit(1000, 1024*1024*8, 1024*50))
 	assert.Nil(t, e)
 	assert.Equal(t, 5, len(jobs))
 }
@@ -148,7 +148,7 @@ func Test_distributeRemainder_DoesNotExceedSchedulingLimits(t *testing.T) {
 		queueCache:          map[string][]*api.Job{},
 	}
 
-	jobs, e := c.distributeRemainder(1000)
+	jobs, e := c.distributeRemainder(NewSchedulingLimit(1000, 1024*1024*8, 1024*50))
 	assert.Nil(t, e)
 	assert.Equal(t, 2, len(jobs))
 }

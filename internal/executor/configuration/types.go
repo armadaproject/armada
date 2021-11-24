@@ -52,10 +52,15 @@ type MetricConfiguration struct {
 	ExposeQueueUsageMetrics bool
 }
 
+type ClientConfiguration struct {
+	MaxMessageSizeBytes int
+}
+
 type ExecutorConfiguration struct {
 	Metric        MetricConfiguration
 	Application   ApplicationConfiguration
 	ApiConnection client.ApiConnectionDetails
+	Client        ClientConfiguration
 
 	Kubernetes KubernetesConfiguration
 	Task       TaskConfiguration

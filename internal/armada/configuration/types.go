@@ -38,6 +38,8 @@ type SchedulingConfig struct {
 	UseProbabilisticSchedulingForAllResources bool
 	QueueLeaseBatchSize                       uint
 	MinimumResourceToSchedule                 common.ComputeResourcesFloat
+	MaximumJobsToSchedule                     int
+	MaximumLeasePayloadSizeBytes              int
 	MaximalClusterFractionToSchedule          map[string]float64
 	MaximalResourceFractionToSchedulePerQueue map[string]float64
 	MaximalResourceFractionPerQueue           map[string]float64

@@ -191,7 +191,9 @@ func withRunningServer(action func(client api.SubmitClient, leaseClient api.Aggr
 			DB:    0,
 		},
 		Scheduling: configuration.SchedulingConfig{
-			QueueLeaseBatchSize: 100,
+			QueueLeaseBatchSize:          100,
+			MaximumJobsToSchedule:        1000,
+			MaximumLeasePayloadSizeBytes: 1024 * 1024 * 8,
 			Lease: configuration.LeaseSettings{
 				ExpireAfter:        time.Minute * 15,
 				ExpiryLoopInterval: time.Second * 5,

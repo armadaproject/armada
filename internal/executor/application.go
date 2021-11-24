@@ -153,7 +153,8 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 }
 
 func createConnectionToApi(config configuration.ExecutorConfiguration) (*grpc.ClientConn, error) {
-	return client.CreateApiConnection(&config.ApiConnection,
+	return client.CreateApiConnectionWithCallOptions(&config.ApiConnection,
+		[]grpc.CallOption{grpc.MaxCallRecvMsgSize(config.Client.MaxMessageSizeBytes)},
 		grpc.WithChainUnaryInterceptor(grpc_prometheus.UnaryClientInterceptor),
 		grpc.WithChainStreamInterceptor(grpc_prometheus.StreamClientInterceptor))
 }

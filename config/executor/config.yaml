@@ -12,6 +12,8 @@ task:
   utilisationEventReportingInterval: 5m
 apiConnection:
   armadaUrl : "localhost:50051"
+client:
+  maxMessageSizeBytes: 8388608 # 1024 * 1024 * 8
 metric:
   port: 9001
   exposeQueueUsageMetrics: false
