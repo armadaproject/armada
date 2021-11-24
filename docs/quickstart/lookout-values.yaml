@@ -2,6 +2,8 @@ ingressClass: nginx
 clusterIssuer: dummy-value
 hostnames:
   - test
+
+dbPruningEnabled: true
 dbPruneSchedule: '"@hourly"'
 
 prometheus:

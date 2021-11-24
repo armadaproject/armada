@@ -1,3 +1,4 @@
+{{ if .Values.dbPruningEnabled}}
 apiVersion: batch/v1beta1
 kind: CronJob
 metadata:
@@ -50,3 +51,4 @@ spec:
             {{- if .Values.additionalVolumes }}
             {{- toYaml .Values.additionalVolumes | nindent 12 }}
             {{- end }}
+{{- end }}
