@@ -2,10 +2,14 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
+
+	"github.com/G-Research/armada/internal/lookout/repository"
 
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
@@ -23,10 +27,12 @@ import (
 
 const CustomConfigLocation string = "config"
 const MigrateDatabase string = "migrateDatabase"
+const PruneDatabase = "pruneDatabase"
 
 func init() {
 	pflag.StringSlice(CustomConfigLocation, []string{}, "Fully qualified path to application configuration file (for multiple config files repeat this arg or separate paths with commas)")
 	pflag.Bool(MigrateDatabase, false, "Migrate database instead of running server")
+	pflag.Bool(PruneDatabase, false, "Removes old jobs from the database instead of running server")
 	pflag.Parse()
 }
 
@@ -45,6 +51,26 @@ func main() {
 		}
 
 		err = schema.UpdateDatabase(db)
+		if err != nil {
+			panic(err)
+		}
+		os.Exit(0)
+	}
+
+	if viper.GetBool(PruneDatabase) {
+		db, err := postgres.Open(config.Postgres)
+		if err != nil {
+			panic(err)
+		}
+		if config.PrunerConfig.DaysToKeep <= 0 {
+			panic(fmt.Errorf("invalid PrunerConfig.DaysToKeep [%v]: must be greater than 0", config.PrunerConfig.DaysToKeep))
+		}
+		cutoff := time.Now().AddDate(0, 0, -config.PrunerConfig.DaysToKeep)
+		batchSize := config.PrunerConfig.BatchSize
+		if batchSize <= 0 {
+			panic(fmt.Errorf("invalid PrunerConfig.BatchSize [%v]: must be greater than 0", batchSize))
+		}
+		err = repository.DeleteOldJobs(db, batchSize, cutoff)
 		if err != nil {
 			panic(err)
 		}
