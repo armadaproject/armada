@@ -90,7 +90,7 @@ func withPopulatedDatabase(t *testing.T, action func(db *sql.DB)) {
 			container := "container"
 
 			_, err := db.Exec(
-				"INSERT INTO job (job_id, queue, jobset, job_updated) VALUES ($1, $2, $3, $4)",
+				"INSERT INTO job (job_id, queue, jobset, submitted) VALUES ($1, $2, $3, $4)",
 				jobId, jobSetId, queue, updateTime)
 			assert.NoError(t, err)
 

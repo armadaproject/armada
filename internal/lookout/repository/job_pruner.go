@@ -11,6 +11,16 @@ import (
 
 const postgresFormat = "2006-01-02 15:04:05.000000"
 
+// DeleteOldJobs deletes jobs from the database that were submitted before cutoff.
+// The jobs are deleted in batches with the maximum number of jobs being deleted in
+// each batch being given by batchSizeLimit. The tables from which the jobs wil be deleted are:
+// * user_annotation_lookup
+// * job_run_container
+// * job_run
+// * job
+// This function returns nil if the operation succeeded and an error otherwise. Note that
+// For performance reasons we don't use a transaction here and so an error may indicate that
+// Some jobs were deleted.
 func DeleteOldJobs(db *sql.DB, batchSizeLimit int, cutoff time.Time) error {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
@@ -19,7 +29,7 @@ func DeleteOldJobs(db *sql.DB, batchSizeLimit int, cutoff time.Time) error {
 	// This would be much better done as a proper statement with parameters, but postgres doesn't support
 	// parameters if there are multiple statements.
 	queryText := fmt.Sprintf(`
-				CREATE TEMP TABLE rows_to_delete AS (SELECT job_id FROM job WHERE job_updated < '%v');
+				CREATE TEMP TABLE rows_to_delete AS (SELECT job_id FROM job WHERE submitted < '%v');
 				CREATE TEMP TABLE batch (job_id varchar(32));
 				
 				DO
