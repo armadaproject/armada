@@ -69,6 +69,6 @@ func (a *App) UpdateQueue(name string, priorityFactor float64, owners []string, 
 		return fmt.Errorf("error updating queue %s: %s", name, err)
 	}
 
-	fmt.Fprint(a.Out, "Updated queue %s\n", name)
+	fmt.Fprintf(a.Out, "Updated queue %s\n", name)
 	return nil
 }
