@@ -30,6 +30,11 @@ type PostgresConfig struct {
 	Connection      map[string]string
 }
 
+type PrunerConfig struct {
+	DaysToKeep int
+	BatchSize  int
+}
+
 type LookoutConfiguration struct {
 	HttpPort    uint16
 	GrpcPort    uint16
@@ -37,8 +42,9 @@ type LookoutConfiguration struct {
 
 	UIConfig LookoutUIConfig
 
-	EventQueue string
-	Nats       NatsConfig
-	Jetstream  configuration.JetstreamConfig
-	Postgres   PostgresConfig
+	EventQueue   string
+	Nats         NatsConfig
+	Jetstream    configuration.JetstreamConfig
+	Postgres     PostgresConfig
+	PrunerConfig PrunerConfig
 }
