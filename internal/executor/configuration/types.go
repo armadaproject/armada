@@ -9,8 +9,9 @@ import (
 )
 
 type ApplicationConfiguration struct {
-	ClusterId string
-	Pool      string
+	ClusterId             string
+	Pool                  string
+	SubmissionThreadCount int
 }
 
 type PodDefaults struct {
