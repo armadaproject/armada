@@ -54,7 +54,7 @@ type FailedSubmissionDetails struct {
 func (allocationService *SubmitService) SubmitJobs(jobsToSubmit []*api.Job) []*FailedSubmissionDetails {
 	wg := &sync.WaitGroup{}
 	submitJobsChannel := make(chan *api.Job)
-	failedJobsChannel := make(chan *FailedSubmissionDetails)
+	failedJobsChannel := make(chan *FailedSubmissionDetails, len(jobsToSubmit))
 
 	for i := 0; i < allocationService.submissionThreadCount; i++ {
 		wg.Add(1)
