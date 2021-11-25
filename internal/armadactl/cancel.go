@@ -13,7 +13,7 @@ import (
 
 // Cancel cancels a job.
 // TODO this method does too much; there should be separate methods to cancel individual jobs and all jobs in a job set
-func (a *App) Cancel(queue string, jobSetId string, jobId string) (err error) {
+func (a *App) Cancel(queue string, jobSetId string, jobId string) (outerErr error) {
 	apiConnectionDetails := a.Params.ApiConnectionDetails
 
 	client.WithConnection(apiConnectionDetails, func(conn *grpc.ClientConn) {
@@ -28,6 +28,7 @@ func (a *App) Cancel(queue string, jobSetId string, jobId string) (err error) {
 		})
 
 		if err != nil {
+			outerErr = fmt.Errorf("[armadactl.Cencel] error cancelling job: %s", err)
 			return
 		}
 		fmt.Fprintf(a.Out, "Requested cancellation for jobs %s\n", strings.Join(result.CancelledIds, ", "))

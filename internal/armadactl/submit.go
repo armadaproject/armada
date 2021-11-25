@@ -14,7 +14,7 @@ import (
 
 // Submit a job, represented by a file, to the Armada server.
 // If dry-run is true, the job file is validated but not submitted.
-func (a *App) Submit(path string, dryRun bool) (err error) {
+func (a *App) Submit(path string, dryRun bool) (outerErr error) {
 
 	ok, err := validation.ValidateSubmitFile(path)
 	if !ok {
@@ -38,9 +38,9 @@ func (a *App) Submit(path string, dryRun bool) (err error) {
 	client.WithConnection(a.Params.ApiConnectionDetails, func(conn *grpc.ClientConn) {
 		submissionClient := api.NewSubmitClient(conn)
 		for _, request := range requests {
-			response, e := client.SubmitJobs(submissionClient, request)
-			if e != nil {
-				err = fmt.Errorf("[armadactl.Submit] error submitting job with request %#v: %s", request, err)
+			response, err := client.SubmitJobs(submissionClient, request)
+			if err != nil {
+				outerErr = fmt.Errorf("[armadactl.Submit] error submitting job with request %#v: %s", request, err)
 				return
 			}
 

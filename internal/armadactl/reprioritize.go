@@ -12,7 +12,7 @@ import (
 
 // Reprioritize sets the priority of the job identified by (jobId, queueName, jobSet) to priorityFactor
 // TODO We should have separate methods to operate on individual jobs and job sets
-func (a *App) Reprioritize(jobId string, queueName string, jobSet string, priorityFactor float64) (err error) {
+func (a *App) Reprioritize(jobId string, queueName string, jobSet string, priorityFactor float64) (outerErr error) {
 	client.WithConnection(a.Params.ApiConnectionDetails, func(conn *grpc.ClientConn) {
 		client := api.NewSubmitClient(conn)
 
@@ -32,13 +32,13 @@ func (a *App) Reprioritize(jobId string, queueName string, jobSet string, priori
 		}
 		result, err := client.ReprioritizeJobs(ctx, &req)
 		if err != nil {
-			err = fmt.Errorf("[armadactl.Reprioritize] error submitting reprioritizing request %#v: %s", req, err)
+			outerErr = fmt.Errorf("[armadactl.Reprioritize] error submitting reprioritizing request %#v: %s", req, err)
 			return
 		}
 
 		err = a.writeResults(result.ReprioritizationResults)
 		if err != nil {
-			err = fmt.Errorf("[armadactl.Reprioritize] error writing reprioritizing results for request %#v: %s", req, err)
+			outerErr = fmt.Errorf("[armadactl.Reprioritize] error writing reprioritizing results for request %#v: %s", req, err)
 			return
 		}
 	})
