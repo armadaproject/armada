@@ -77,6 +77,7 @@ func (b *TimedEventBatcher) Flush() error {
 func (b *TimedEventBatcher) Stop() {
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
+
 	err := WaitOrTimeout(func() { b.t.Stop() }, 10*time.Second)
 	if err != nil {
 		log.Errorf("error when trying to stop batcher: %v", err)
