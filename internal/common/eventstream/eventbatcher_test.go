@@ -1,7 +1,6 @@
 package eventstream
 
 import (
-	"fmt"
 	"math"
 	"sync"
 	"testing"
@@ -115,7 +114,6 @@ func TestBatchIsCalledAfterTimeout(t *testing.T) {
 		err := eventBatcher.Report(makeEvent())
 		assert.NoError(t, err)
 	}
-	fmt.Println("Finished reporting")
 
 	assert.Len(t, cbWrapper.allInvocations(), 0)
 

@@ -1,7 +1,6 @@
 package repository
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/go-redis/redis"
@@ -37,7 +36,6 @@ func (repo *RedisEventRepository) ReportEvent(message *api.EventMessage) error {
 }
 
 func (repo *RedisEventRepository) ReportEvents(messages []*api.EventMessage) error {
-	fmt.Println("Reporting events", len(messages))
 	if len(messages) == 0 {
 		return nil
 	}
