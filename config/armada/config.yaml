@@ -31,7 +31,7 @@ scheduling:
   maxRetries: 5
   maxPodSpecSizeBytes: 65535
 queueManagement:
-  defaultPriorityFactor: 100
+  defaultPriorityFactor: 1000
 events:
   storeQueue: "ArmadaEventRedisProcessor"
   jobStatusQueue: "ArmadaEventJobStatusProcessor"
