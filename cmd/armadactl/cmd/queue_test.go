@@ -18,9 +18,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/spf13/cobra"
+
 	"github.com/G-Research/armada/internal/armadactl"
 	"github.com/G-Research/armada/pkg/api"
-	"github.com/spf13/cobra"
 )
 
 // Used for in-line initialization of pointers to floats

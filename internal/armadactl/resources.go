@@ -4,9 +4,10 @@ import (
 	"context"
 	"fmt"
 
+	"google.golang.org/grpc"
+
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/client"
-	"google.golang.org/grpc"
 )
 
 // Resources prints the resources used by the jobs in job set with ID jobSetId in the given queue.

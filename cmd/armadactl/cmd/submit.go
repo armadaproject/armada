@@ -3,8 +3,9 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/G-Research/armada/internal/armadactl"
 	"github.com/spf13/cobra"
+
+	"github.com/G-Research/armada/internal/armadactl"
 )
 
 func init() {
