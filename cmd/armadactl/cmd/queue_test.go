@@ -46,10 +46,10 @@ func TestCreate(t *testing.T) {
 		err            error // expected error, or nil if no error is expected
 	}{
 		"default flags":         {nil, nil, nil, nil, nil, nil},
-		"valid priority":        {[]flag{flag{"priorityFactor", "0.1"}}, makeFloat64Pointer(0.1), nil, nil, nil, nil},
-		"valid owners":          {[]flag{flag{"owners", "user1,user2"}}, nil, []string{"user1", "user2"}, nil, nil, nil},
-		"valid group owners":    {[]flag{flag{"groupOwners", "group1,group2"}}, nil, nil, []string{"group1", "group2"}, nil, nil},
-		"valid resource limits": {[]flag{flag{"resourceLimits", "cpu=0.3,memory=0.2"}}, nil, nil, nil, map[string]float64{"cpu": 0.3, "memory": 0.2}, nil},
+		"valid priority":        {[]flag{{"priorityFactor", "0.1"}}, makeFloat64Pointer(0.1), nil, nil, nil, nil},
+		"valid owners":          {[]flag{{"owners", "user1,user2"}}, nil, []string{"user1", "user2"}, nil, nil, nil},
+		"valid group owners":    {[]flag{{"groupOwners", "group1,group2"}}, nil, nil, []string{"group1", "group2"}, nil, nil},
+		"valid resource limits": {[]flag{{"resourceLimits", "cpu=0.3,memory=0.2"}}, nil, nil, nil, map[string]float64{"cpu": 0.3, "memory": 0.2}, nil},
 		// "invalid priority":        {[]flag{flag{"priorityFactor", "not_a_float"}}, makeFloat64Pointer(0.1), nil, nil, nil, nil},
 		// "invalid owners":          {[]flag{flag{"owners", "not an array"}}, nil, []string{"user1", "user2"}, nil, nil, nil},
 		// "invalid group owners":    {[]flag{flag{"groupOwners", "not an array"}}, nil, nil, []string{"group1", "group2"}, nil, nil},
@@ -172,10 +172,10 @@ func TestUpdate(t *testing.T) {
 		err            error // expected error, or nil if no error is expected
 	}{
 		"default flags":         {nil, nil, nil, nil, nil, nil},
-		"valid priority":        {[]flag{flag{"priorityFactor", "0.1"}}, makeFloat64Pointer(0.1), nil, nil, nil, nil},
-		"valid owners":          {[]flag{flag{"owners", "user1,user2"}}, nil, []string{"user1", "user2"}, nil, nil, nil},
-		"valid group owners":    {[]flag{flag{"groupOwners", "group1,group2"}}, nil, nil, []string{"group1", "group2"}, nil, nil},
-		"valid resource limits": {[]flag{flag{"resourceLimits", "cpu=0.3,memory=0.2"}}, nil, nil, nil, map[string]float64{"cpu": 0.3, "memory": 0.2}, nil},
+		"valid priority":        {[]flag{{"priorityFactor", "0.1"}}, makeFloat64Pointer(0.1), nil, nil, nil, nil},
+		"valid owners":          {[]flag{{"owners", "user1,user2"}}, nil, []string{"user1", "user2"}, nil, nil, nil},
+		"valid group owners":    {[]flag{{"groupOwners", "group1,group2"}}, nil, nil, []string{"group1", "group2"}, nil, nil},
+		"valid resource limits": {[]flag{{"resourceLimits", "cpu=0.3,memory=0.2"}}, nil, nil, nil, map[string]float64{"cpu": 0.3, "memory": 0.2}, nil},
 		// "invalid priority":        {[]flag{flag{"priorityFactor", "not_a_float"}}, makeFloat64Pointer(0.1), nil, nil, nil, nil},
 		// "invalid owners":          {[]flag{flag{"owners", "not an array"}}, nil, []string{"user1", "user2"}, nil, nil, nil},
 		// "invalid group owners":    {[]flag{flag{"groupOwners", "not an array"}}, nil, nil, []string{"group1", "group2"}, nil, nil},
