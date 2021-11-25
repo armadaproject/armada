@@ -234,7 +234,7 @@ func TestDeleteJob_JobObjectShouldBeRemovedAfterRetentionPeriod(t *testing.T) {
 
 func TestDeleteWithSomeMissingJobs(t *testing.T) {
 	withRepository(func(r *RedisJobRepository) {
-		missingJob := &api.Job{Id: "JobId"}
+		missingJob := &api.Job{Id: "jobId"}
 		runningJob := addLeasedJob(t, r, "queue1", "cluster1")
 		result := r.DeleteJobs([]*api.Job{missingJob, runningJob})
 
