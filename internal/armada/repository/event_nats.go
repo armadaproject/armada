@@ -29,9 +29,9 @@ func (n *StreamEventStore) ReportEvents(messages []*api.EventMessage) error {
 }
 
 type RedisEventProcessor struct {
-	queue      string
-	stream     eventstream.EventStream
-	batcher    eventstream.EventBatcher
+	queue   string
+	stream  eventstream.EventStream
+	batcher eventstream.EventBatcher
 }
 
 func NewEventRedisProcessor(

@@ -1,9 +1,10 @@
 package repository
 
 import (
+	log "github.com/sirupsen/logrus"
+
 	"github.com/G-Research/armada/internal/common/eventstream"
 	"github.com/G-Research/armada/pkg/api"
-	log "github.com/sirupsen/logrus"
 )
 
 type EventJobStatusProcessor struct {
