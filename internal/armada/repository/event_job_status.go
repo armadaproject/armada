@@ -30,9 +30,9 @@ func NewEventJobStatusProcessor(
 			switch event := event.(type) {
 			case *api.JobRunningEvent:
 				jobStartInfos = append(jobStartInfos, &JobStartInfo{
-					jobId:     event.GetJobId(),
-					clusterId: event.ClusterId,
-					startTime: event.Created,
+					JobId:     event.GetJobId(),
+					ClusterId: event.ClusterId,
+					StartTime: event.Created,
 				})
 			}
 		}

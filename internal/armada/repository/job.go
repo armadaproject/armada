@@ -428,9 +428,9 @@ func (repo *RedisJobRepository) getAssociatedCluster(jobIds []string) (map[strin
 }
 
 type JobStartInfo struct {
-	jobId     string
-	clusterId string
-	startTime time.Time
+	JobId     string
+	ClusterId string
+	StartTime time.Time
 }
 
 func (repo *RedisJobRepository) UpdateStartTime(jobStartInfos []*JobStartInfo) ([]error, error) {
@@ -444,12 +444,12 @@ func (repo *RedisJobRepository) UpdateStartTime(jobStartInfos []*JobStartInfo) (
 		commands[i] = updateStartTimeScript.Run(
 			pipe,
 			[]string{
-				jobStartTimePrefix + jobStartInfo.jobId,
+				jobStartTimePrefix + jobStartInfo.JobId,
 				jobClusterMapKey,
-				jobObjectPrefix + jobStartInfo.jobId,
+				jobObjectPrefix + jobStartInfo.JobId,
 			},
-			jobStartInfo.clusterId,
-			jobStartInfo.startTime.UTC().UnixNano())
+			jobStartInfo.ClusterId,
+			jobStartInfo.StartTime.UTC().UnixNano())
 	}
 
 	_, err := pipe.Exec()

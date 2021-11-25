@@ -84,14 +84,12 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 	if eventStream != nil {
 		eventStore = repository.NewEventStore(eventStream)
 
-		eventRepoBatchTimer := eventstream.NewCustomTimer(10*time.Second)
-		eventRepoBatcher := eventstream.NewTimedEventBatcher(100, eventRepoBatchTimer)
-		eventProcessor := repository.NewEventRedisProcessor(config.EventStoreQueue, redisEventRepository, eventStream, eventRepoBatcher)
+		eventRepoBatcher := eventstream.NewTimedEventBatcher(config.Events.ProcessorBatchSize, config.Events.ProcessorTimeout)
+		eventProcessor := repository.NewEventRedisProcessor(config.Events.StoreQueue, redisEventRepository, eventStream, eventRepoBatcher)
 		eventProcessor.Start()
 
-		jobStatusBatchTimer := eventstream.NewCustomTimer(10*time.Second)
-		jobStatusBatcher := eventstream.NewTimedEventBatcher(100, jobStatusBatchTimer)
-		jobStatusProcessor := repository.NewEventJobStatusProcessor(config.EventJobStatusQueue, jobRepository, eventStream, jobStatusBatcher)
+		jobStatusBatcher := eventstream.NewTimedEventBatcher(config.Events.ProcessorBatchSize, config.Events.ProcessorTimeout)
+		jobStatusProcessor := repository.NewEventJobStatusProcessor(config.Events.JobStatusQueue, jobRepository, eventStream, jobStatusBatcher)
 		jobStatusProcessor.Start()
 
 		teardown = func() {
