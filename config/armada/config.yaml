@@ -36,7 +36,8 @@ events:
   storeQueue: "ArmadaEventRedisProcessor"
   jobStatusQueue: "ArmadaEventJobStatusProcessor"
   processorBatchSize: 100
-  processorTimeout: 1s
+  processorMaxTimeBetweenBatches: 1s
+  processorTimeout: 10s
 eventsNats:
   timeout: 10s
 databaseRetention:

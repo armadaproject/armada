@@ -68,8 +68,8 @@ type EventsConfig struct {
 	JobStatusQueue string //
 
 	ProcessorBatchSize             int
-	ProcessorTimeout               time.Duration
 	ProcessorMaxTimeBetweenBatches time.Duration
+	ProcessorTimeout               time.Duration
 }
 
 type NatsConfig struct {
