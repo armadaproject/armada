@@ -93,9 +93,9 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 		jobStatusProcessor.Start()
 
 		teardown = func() {
-			err := eventStream.Close()
+			err := eventStream.Unsubscribe()
 			if err != nil {
-				log.Errorf("failed to close stream connection: %v", err)
+				log.Errorf("failed to unsubscribe from event stream: %v", err)
 			}
 			err = eventRepoBatcher.Stop()
 			if err != nil {
@@ -104,6 +104,10 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 			err = jobStatusBatcher.Stop()
 			if err != nil {
 				log.Errorf("failed to flush job status batcher processor")
+			}
+			err = eventStream.Close()
+			if err != nil {
+				log.Errorf("failed to close event stream connection")
 			}
 		}
 	} else {

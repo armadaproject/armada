@@ -83,7 +83,7 @@ func (p *EventJobStatusProcessor) handleBatch(batch []*eventstream.Message) erro
 			log.Errorf("error when updating start time for single job: %v", err)
 		} else {
 			if jobErr := batch[i].Ack(); jobErr != nil {
-				log.Errorf("error when acknowledging message")
+				log.Errorf("error when acknowledging message: %v", jobErr)
 			}
 		}
 	}
