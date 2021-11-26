@@ -1,3 +1,4 @@
+corsAllowedOrigins: ["http://localhost:3000", "http://localhost:8089"]
 auth:
   basicAuth:
     enableAuthentication: false

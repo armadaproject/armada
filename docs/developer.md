@@ -128,17 +128,24 @@ Note that the Lookout API will still have to be running for this to work.
 npm run start
 ```
 
-Optionally, you can get a `kind` cluster and redis, NATS streaming and PostgreSQL containers up by running
+#### Quick dev setup
+
+Optionally, you can get a `kind` cluster and redis, NATS and PostgreSQL containers up by running
 ```bash
-./internal/lookout/ui/dev-setup.sh
+./docs/dev/setup.sh
 ```
-you will still have to spin up `armada`, `armada-lookout`, and `armada-executor`.
-The script will print out which commands you can run to spin these up.
+The script will print out commands to execute each of the three Armada components, `armada`, `armada-lookout`, and `armada-executor`.
+
+If you want to run Armada components using NATS Jetstream (as opposed to NATS streaming), you can run and copy the commands from the following command:
+```bash
+./docs/dev/setup.sh jetstream
+```
 
 When you're done, you can run
 ```bash
-./internal/lookout/ui/dev-teardown.sh
+./docs/dev/teardown.sh
 ```
+to tear down your development environment.
 
 #### Testing your setup
 

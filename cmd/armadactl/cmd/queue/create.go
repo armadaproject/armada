@@ -6,10 +6,10 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/G-Research/armada/pkg/api"
-	"github.com/G-Research/armada/pkg/client"
+	"github.com/G-Research/armada/pkg/client/queue"
 )
 
-func Create() *cobra.Command {
+func Create(createQueue queue.CreateAPI) *cobra.Command {
 	command := &cobra.Command{
 		Use:   "queue <queueName>",
 		Short: "Create new queue",
@@ -49,16 +49,7 @@ func Create() *cobra.Command {
 			return fmt.Errorf("failed to retrieve resourceLimits value: %s", err)
 		}
 
-		apiConnectionDetails := client.ExtractCommandlineArmadaApiConnectionDetails()
-		conn, err := client.CreateApiConnection(apiConnectionDetails)
-		if err != nil {
-			return fmt.Errorf("failed to connect to api because %s", err)
-		}
-		defer conn.Close()
-
-		submissionClient := api.NewSubmitClient(conn)
-
-		queue := &api.Queue{
+		queue := api.Queue{
 			Name:           queueName,
 			PriorityFactor: priority,
 			UserOwners:     owners,
@@ -66,8 +57,8 @@ func Create() *cobra.Command {
 			ResourceLimits: resourceLimits,
 		}
 
-		if err = client.CreateQueue(submissionClient, queue); err != nil {
-			return fmt.Errorf("failed to create queue with name %s. %s", queueName, err)
+		if err = createQueue(queue); err != nil {
+			return fmt.Errorf("failed to create queue with name: %s. %s", queue.Name, err)
 		}
 
 		cmd.Printf("Queue %s created", queue.Name)

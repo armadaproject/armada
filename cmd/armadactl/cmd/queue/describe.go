@@ -1,18 +1,15 @@
 package queue
 
 import (
-	"context"
 	"fmt"
 	"sort"
-	"time"
 
 	"github.com/spf13/cobra"
 
-	"github.com/G-Research/armada/pkg/api"
-	"github.com/G-Research/armada/pkg/client"
+	"github.com/G-Research/armada/pkg/client/queue"
 )
 
-func Describe() *cobra.Command {
+func Describe(getQueueInfo queue.GetInfoAPI) *cobra.Command {
 	command := &cobra.Command{
 		Use:   "queue <queueName>",
 		Short: "Prints out queue info.",
@@ -23,20 +20,10 @@ func Describe() *cobra.Command {
 	command.RunE = func(cmd *cobra.Command, args []string) error {
 		queueName := args[0]
 
-		apiConnectionDetails := client.ExtractCommandlineArmadaApiConnectionDetails()
-		conn, err := client.CreateApiConnection(apiConnectionDetails)
+		cmd.Printf("Queue %s:", queueName)
+		queueInfo, err := getQueueInfo(queueName)
 		if err != nil {
-			return fmt.Errorf("failed to connect to api because %s", err)
-		}
-		defer conn.Close()
-
-		apiClient := api.NewSubmitClient(conn)
-		ctx, cancel := context.WithTimeout(cmd.Context(), 30*time.Second)
-		defer cancel()
-
-		queueInfo, e := apiClient.GetQueueInfo(ctx, &api.QueueInfoRequest{Name: queueName})
-		if e != nil {
-			return fmt.Errorf("failed to retrieve queue info: %s", err)
+			return fmt.Errorf("failed to describe queue: %s. %s", queueName, err)
 		}
 
 		jobSets := queueInfo.ActiveJobSets
@@ -44,7 +31,6 @@ func Describe() *cobra.Command {
 			return jobSets[i].Name < jobSets[j].Name
 		})
 
-		cmd.Printf("Queue %s:", queueInfo.Name)
 		if len(jobSets) == 0 {
 			cmd.Printf("No job queued or running.")
 			return nil
