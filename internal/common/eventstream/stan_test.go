@@ -35,6 +35,10 @@ func (c *MockStanClient) QueueSubscribe(subject, queue string, cb stan.MsgHandle
 	return nil
 }
 
+func (c *MockStanClient) UnsubscribeAll() error {
+	return nil
+}
+
 func (c *MockStanClient) Close() error {
 	return nil
 }
@@ -169,7 +173,9 @@ func TestStanEvents(t *testing.T) {
 	wg := &sync.WaitGroup{}
 	wg.Add(nEvents)
 
-	err = stream.Subscribe("test-queue", func(event *api.EventMessage) error {
+	err = stream.Subscribe("test-queue", func(msg *Message) error {
+		err := msg.Ack()
+		assert.NoError(t, err)
 		wg.Done()
 		return nil
 	})

@@ -107,7 +107,7 @@ func getErrorChanTimeout(channel chan error, timeout time.Duration) (error, erro
 	}
 }
 
-func (stream *StanEventStream) Subscribe(queue string, callback func(event *api.EventMessage) error) error {
+func (stream *StanEventStream) Subscribe(queue string, callback func(event *Message) error) error {
 	opts := append(stream.subscriptionOptions, stan.DurableName(queue))
 	return stream.stanClient.QueueSubscribe(
 		stream.subject,
@@ -118,16 +118,26 @@ func (stream *StanEventStream) Subscribe(queue string, callback func(event *api.
 			if err != nil {
 				log.Errorf("failed to unmarsal event: %v", err)
 			}
-			err = callback(event)
+
+			ackFn := func() error {
+				return msg.Ack()
+			}
+			err = callback(&Message{
+				EventMessage: event,
+				Ack:          ackFn,
+			})
 			if err != nil {
 				log.Errorf("stan queue subscribe callback error: %v", err)
 			}
-			err = msg.Ack()
 			if err != nil {
 				log.Errorf("stan error when acknowledging message: %v", err)
 			}
 		},
 		opts...)
+}
+
+func (stream *StanEventStream) Unsubscribe() error {
+	return stream.stanClient.UnsubscribeAll()
 }
 
 func (stream *StanEventStream) Close() error {
@@ -137,6 +147,7 @@ func (stream *StanEventStream) Close() error {
 type StanClient interface {
 	PublishAsync(subject string, data []byte, ah stan.AckHandler) (string, error)
 	QueueSubscribe(subject, queue string, cb stan.MsgHandler, opts ...stan.SubscriptionOption) error
+	UnsubscribeAll() error
 	Close() error
 }
 
@@ -147,7 +158,8 @@ type StanClientConnection struct {
 	clientID      string
 	stanClusterID string
 
-	subscriptions []func(conn stan.Conn) error
+	createSubscriptionFns []func(conn stan.Conn) (stan.Subscription, error)
+	subscriptions         []stan.Subscription
 
 	currentConn stan.Conn
 	nc          *nats.Conn
@@ -189,13 +201,29 @@ func (c *StanClientConnection) QueueSubscribe(subject, qgroup string, cb stan.Ms
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
-	s := func(conn stan.Conn) error {
-		_, err := conn.QueueSubscribe(subject, qgroup, cb, opts...)
-		return err
+	s := func(conn stan.Conn) (stan.Subscription, error) {
+		subscription, err := conn.QueueSubscribe(subject, qgroup, cb, opts...)
+		return subscription, err
 	}
-	c.subscriptions = append(c.subscriptions, s)
+	c.createSubscriptionFns = append(c.createSubscriptionFns, s)
+	subscription, err := s(c.currentConn)
+	c.subscriptions = append(c.subscriptions, subscription)
+	return err
+}
 
-	return s(c.currentConn)
+func (c *StanClientConnection) UnsubscribeAll() error {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
+	var outerErr error
+	for _, subscription := range c.subscriptions {
+		err := subscription.Unsubscribe()
+		if err != nil {
+			log.Error(err)
+			outerErr = fmt.Errorf("some subscriptions failed to unsubscribe")
+		}
+	}
+	return outerErr
 }
 
 func (c *StanClientConnection) Close() error {
@@ -241,6 +269,14 @@ func (c *StanClientConnection) reconnect() error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
+	// close any previous subscription
+	for _, subscription := range c.subscriptions {
+		err := subscription.Unsubscribe()
+		if err != nil {
+			log.Error(err)
+		}
+	}
+
 	// close any previous connection, just in case it was still open
 	if c.currentConn != nil {
 		c.closeConnection()
@@ -255,14 +291,16 @@ func (c *StanClientConnection) reconnect() error {
 	}
 
 	// resubscribe
-	for _, s := range c.subscriptions {
-		err := s(c.currentConn)
+	c.subscriptions = []stan.Subscription{}
+	for _, s := range c.createSubscriptionFns {
+		subscription, err := s(c.currentConn)
 		if err != nil {
 			// on any subscription error consider connection unsuccessful
 			log.Errorf("Error while resubscribing to STAN: %v", err)
 			c.closeConnection()
 			return err
 		}
+		c.subscriptions = append(c.subscriptions, subscription)
 	}
 
 	return nil

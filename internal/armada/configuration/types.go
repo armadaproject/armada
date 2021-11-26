@@ -67,8 +67,9 @@ type EventsConfig struct {
 	StoreQueue     string // Queue group processor responsible for
 	JobStatusQueue string //
 
-	ProcessorBatchSize int
-	ProcessorTimeout   time.Duration
+	ProcessorBatchSize             int
+	ProcessorTimeout               time.Duration
+	ProcessorMaxTimeBetweenBatches time.Duration
 }
 
 type NatsConfig struct {

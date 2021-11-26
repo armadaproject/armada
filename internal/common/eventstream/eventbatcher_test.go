@@ -12,7 +12,7 @@ import (
 )
 
 type callbackWrapper struct {
-	invocations [][]*api.EventMessage
+	invocations [][]*Message
 
 	t                *testing.T
 	completedChannel chan interface{}
@@ -21,14 +21,14 @@ type callbackWrapper struct {
 
 func NewCallbackWrapper(t *testing.T, maxCalls int) *callbackWrapper {
 	cbWrapper := &callbackWrapper{
-		invocations:      make([][]*api.EventMessage, 0),
+		invocations:      make([][]*Message, 0),
 		t:                t,
 		completedChannel: make(chan interface{}, maxCalls),
 	}
 	return cbWrapper
 }
 
-func (cb *callbackWrapper) callback(events []*api.EventMessage) error {
+func (cb *callbackWrapper) callback(events []*Message) error {
 	cb.mutex.Lock()
 	defer cb.mutex.Unlock()
 
@@ -54,7 +54,7 @@ func (cb *callbackWrapper) waitForCalls(n int) error {
 	return nil
 }
 
-func (cb *callbackWrapper) firstInvocation() []*api.EventMessage {
+func (cb *callbackWrapper) firstInvocation() []*Message {
 	cb.t.Helper()
 	cb.mutex.Lock()
 	defer cb.mutex.Unlock()
@@ -67,7 +67,7 @@ func (cb *callbackWrapper) firstInvocation() []*api.EventMessage {
 	return cb.invocations[0]
 }
 
-func (cb *callbackWrapper) lastInvocation() []*api.EventMessage {
+func (cb *callbackWrapper) lastInvocation() []*Message {
 	cb.t.Helper()
 	cb.mutex.Lock()
 	defer cb.mutex.Unlock()
@@ -80,7 +80,7 @@ func (cb *callbackWrapper) lastInvocation() []*api.EventMessage {
 	return cb.invocations[len(cb.invocations)-1]
 }
 
-func (cb *callbackWrapper) allInvocations() [][]*api.EventMessage {
+func (cb *callbackWrapper) allInvocations() [][]*Message {
 	cb.mutex.Lock()
 	defer cb.mutex.Unlock()
 
@@ -90,11 +90,12 @@ func (cb *callbackWrapper) allInvocations() [][]*api.EventMessage {
 func TestBatchIsCalledOnce(t *testing.T) {
 	cbWrapper := NewCallbackWrapper(t, 1000)
 
-	eventBatcher := NewTimedEventBatcher(100, 1*time.Second)
+	eventBatcher := NewTimedEventBatcher(100, 1*time.Second, 10*time.Second)
 	eventBatcher.Register(cbWrapper.callback)
+	defer stop(t, eventBatcher)
 
 	for i := 0; i < 100; i++ {
-		err := eventBatcher.Report(makeEvent())
+		err := eventBatcher.Report(makeMessage())
 		assert.NoError(t, err)
 	}
 
@@ -107,38 +108,18 @@ func TestBatchIsCalledOnce(t *testing.T) {
 func TestBatchIsCalledAfterTimeout(t *testing.T) {
 	cbWrapper := NewCallbackWrapper(t, 1000)
 
-	eventBatcher := NewTimedEventBatcher(100, 1*time.Second)
+	eventBatcher := NewTimedEventBatcher(100, 1*time.Second, 10*time.Second)
 	eventBatcher.Register(cbWrapper.callback)
+	defer stop(t, eventBatcher)
 
 	for i := 0; i < 53; i++ {
-		err := eventBatcher.Report(makeEvent())
+		err := eventBatcher.Report(makeMessage())
 		assert.NoError(t, err)
 	}
 
 	assert.Len(t, cbWrapper.allInvocations(), 0)
 
 	err := cbWrapper.waitForCalls(1)
-	assert.NoError(t, err)
-	assert.Len(t, cbWrapper.allInvocations(), 1)
-	assert.Len(t, cbWrapper.firstInvocation(), 53)
-}
-
-func TestFlushBatch(t *testing.T) {
-	cbWrapper := NewCallbackWrapper(t, 1000)
-
-	eventBatcher := NewTimedEventBatcher(100, 1*time.Second)
-	eventBatcher.Register(cbWrapper.callback)
-
-	for i := 0; i < 53; i++ {
-		err := eventBatcher.Report(makeEvent())
-		assert.NoError(t, err)
-	}
-
-	assert.Len(t, cbWrapper.allInvocations(), 0)
-	err := eventBatcher.Flush()
-	assert.NoError(t, err)
-
-	err = cbWrapper.waitForCalls(1)
 	assert.NoError(t, err)
 	assert.Len(t, cbWrapper.allInvocations(), 1)
 	assert.Len(t, cbWrapper.firstInvocation(), 53)
@@ -151,8 +132,9 @@ func TestMultipleGoroutines(t *testing.T) {
 	nGoroutines := 4
 	nEventsPerGoroutine := 999
 
-	eventBatcher := NewTimedEventBatcher(batchSize, 1*time.Second)
+	eventBatcher := NewTimedEventBatcher(batchSize, 1*time.Second, 10*time.Second)
 	eventBatcher.Register(cbWrapper.callback)
+	defer stop(t, eventBatcher)
 
 	var wg sync.WaitGroup
 	wg.Add(nGoroutines)
@@ -160,13 +142,16 @@ func TestMultipleGoroutines(t *testing.T) {
 	for i := 0; i < nGoroutines; i++ {
 		go func() {
 			for j := 0; j < nEventsPerGoroutine; j++ {
-				err := eventBatcher.Report(makeEvent())
+				err := eventBatcher.Report(makeMessage())
 				if err != nil {
 					panic(err)
 				}
 			}
+			wg.Done()
 		}()
 	}
+
+	wg.Wait()
 
 	cbCalls := int(math.Ceil(float64(nGoroutines*nEventsPerGoroutine) / float64(batchSize)))
 	err := cbWrapper.waitForCalls(cbCalls)
@@ -180,6 +165,17 @@ func TestMultipleGoroutines(t *testing.T) {
 	assert.Len(t, cbWrapper.lastInvocation(), (nEventsPerGoroutine*nGoroutines)%batchSize)
 }
 
-func makeEvent() *api.EventMessage {
-	return &api.EventMessage{Events: nil}
+func makeMessage() *Message {
+	return &Message{
+		EventMessage: &api.EventMessage{Events: nil},
+		Ack: func() error {
+			return nil
+		},
+	}
+}
+
+func stop(t *testing.T, eventBatcher EventBatcher) {
+	t.Helper()
+	err := eventBatcher.Stop()
+	assert.NoError(t, err)
 }

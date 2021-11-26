@@ -2,85 +2,106 @@ package eventstream
 
 import (
 	"errors"
-	"sync"
+	"fmt"
 	"time"
 
 	log "github.com/sirupsen/logrus"
-
-	"github.com/G-Research/armada/pkg/api"
 )
 
-type eventBatchCallback func(events []*api.EventMessage) error
+type eventBatchCallback func(events []*Message) error
 
 type EventBatcher interface {
 	Register(callback eventBatchCallback)
-	Report(event *api.EventMessage) error
-	Flush() error
-	Stop()
+	Report(event *Message) error
+	Stop() error
 }
 
 type TimedEventBatcher struct {
-	batchSize int
-	timeout   time.Duration
+	batchSize             int
+	maxTimeBetweenBatches time.Duration // max time allowed between contiguous callback calls
+	timeout               time.Duration // max time to wait for operations that might timeout
 
-	batch    []*api.EventMessage
+	eventCh chan *Message
+	stopCh  chan interface{}
+	doneCh  chan interface{}
+
 	callback eventBatchCallback
 
-	mutex sync.Mutex
-	t     *time.Timer
+	timer *time.Timer
 }
 
-func NewTimedEventBatcher(batchSize int, timeout time.Duration) *TimedEventBatcher {
+func NewTimedEventBatcher(batchSize int, maxTimeBetweenBatches time.Duration, timeout time.Duration) *TimedEventBatcher {
 	b := &TimedEventBatcher{
-		batchSize: batchSize,
-		timeout:   timeout,
-		batch:     []*api.EventMessage{},
+		batchSize:             batchSize,
+		maxTimeBetweenBatches: maxTimeBetweenBatches,
+		timeout:               timeout,
+
+		eventCh: make(chan *Message, batchSize),
+		stopCh:  make(chan interface{}),
+		doneCh:  make(chan interface{}),
 	}
 	return b
 }
 
+// Process is started when the callback is registered
 func (b *TimedEventBatcher) Register(callback eventBatchCallback) {
 	b.callback = callback
+	go b.start()
 }
 
-func (b *TimedEventBatcher) Report(event *api.EventMessage) error {
-	b.mutex.Lock()
-	defer b.mutex.Unlock()
-
-	b.batch = append(b.batch, event)
-	if len(b.batch) >= b.batchSize {
-		err := b.flushUnlocked()
-		if err != nil {
-			return err
-		}
-	} else {
-		if b.t != nil {
-			b.t.Stop()
-		}
-		b.t = time.AfterFunc(1*time.Second, func() {
-			err := b.Flush()
-			if err != nil {
-				log.Errorf("error on flush event buffer after timer: %v", err)
-			}
-		})
+func (b *TimedEventBatcher) Report(event *Message) error {
+	reportFn := func() {
+		b.eventCh <- event
+	}
+	err := WaitOrTimeout(reportFn, b.timeout)
+	if err != nil {
+		return fmt.Errorf("error when trying to report event in batcher: %v", err)
 	}
 	return nil
 }
 
-func (b *TimedEventBatcher) Flush() error {
-	b.mutex.Lock()
-	defer b.mutex.Unlock()
-
-	return b.flushUnlocked()
+func (b *TimedEventBatcher) Stop() error {
+	stopFn := func() {
+		b.stopCh <- "stop"
+		<-b.doneCh
+	}
+	err := WaitOrTimeout(stopFn, b.timeout)
+	if err != nil {
+		return fmt.Errorf("error when trying to stop batcher: %v", err)
+	}
+	return nil
 }
 
-func (b *TimedEventBatcher) Stop() {
-	b.mutex.Lock()
-	defer b.mutex.Unlock()
+func (b *TimedEventBatcher) start() {
 
-	err := WaitOrTimeout(func() { b.t.Stop() }, 10*time.Second)
+	for {
+		timer := time.NewTimer(b.maxTimeBetweenBatches)
+		var batch []*Message
+	batchLoop:
+		for i := 0; i < b.batchSize; i++ {
+			select {
+			case event := <-b.eventCh:
+				batch = append(batch, event)
+			case <-timer.C:
+				break batchLoop
+			case <-b.stopCh:
+				b.flush(batch)
+				b.doneCh <- "done"
+				return
+			}
+		}
+		b.flush(batch)
+	}
+}
+
+func (b *TimedEventBatcher) flush(events []*Message) {
+	if len(events) == 0 {
+		return
+	}
+
+	err := b.callback(events)
 	if err != nil {
-		log.Errorf("error when trying to stop batcher: %v", err)
+		log.Errorf("error when processing callback")
 	}
 }
 
@@ -97,25 +118,4 @@ func WaitOrTimeout(fn func(), timeout time.Duration) error {
 	case <-time.After(timeout):
 		return errors.New("timeout when calling fn")
 	}
-}
-
-// Returns whether batch was flushed and any errors
-func (b *TimedEventBatcher) addAndTryFlush(event *api.EventMessage) (bool, error) {
-	b.mutex.Lock()
-	defer b.mutex.Unlock()
-
-	b.batch = append(b.batch, event)
-
-	shouldFlush := len(b.batch) >= b.batchSize
-	var err error
-	if shouldFlush {
-		err = b.flushUnlocked()
-	}
-	return shouldFlush, err
-}
-
-func (b *TimedEventBatcher) flushUnlocked() error {
-	err := b.callback(b.batch)
-	b.batch = []*api.EventMessage{}
-	return err
 }

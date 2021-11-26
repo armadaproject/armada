@@ -17,12 +17,13 @@ import (
 )
 
 type JetstreamEventStream struct {
-	subject      string
-	consumerOpts []jsm.ConsumerOption
-	conn         *nats.Conn
-	manager      *jsm.Manager
-	stream       *jsm.Stream
-	consumers    []*jsm.Consumer
+	subject       string
+	consumerOpts  []jsm.ConsumerOption
+	conn          *nats.Conn
+	manager       *jsm.Manager
+	stream        *jsm.Stream
+	consumers     []*jsm.Consumer
+	subscriptions []*nats.Subscription
 
 	mutex sync.RWMutex
 }
@@ -57,12 +58,13 @@ func NewJetstreamEventStream(
 	}
 
 	return &JetstreamEventStream{
-		subject:      opts.Subject,
-		conn:         natsConn,
-		manager:      manager,
-		stream:       stream,
-		consumerOpts: consumerOpts,
-		consumers:    []*jsm.Consumer{},
+		subject:       opts.Subject,
+		conn:          natsConn,
+		manager:       manager,
+		stream:        stream,
+		consumerOpts:  consumerOpts,
+		consumers:     []*jsm.Consumer{},
+		subscriptions: []*nats.Subscription{},
 	}, nil
 }
 
@@ -84,7 +86,7 @@ func (c *JetstreamEventStream) Publish(events []*api.EventMessage) []error {
 	return errs
 }
 
-func (c *JetstreamEventStream) Subscribe(queue string, callback func(event *api.EventMessage) error) error {
+func (c *JetstreamEventStream) Subscribe(queue string, callback func(event *Message) error) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
@@ -102,38 +104,54 @@ func (c *JetstreamEventStream) Subscribe(queue string, callback func(event *api.
 	}
 	c.consumers = append(c.consumers, consumer)
 
-	_, err = c.conn.QueueSubscribe(consumer.DeliverySubject(), queue, func(msg *nats.Msg) {
+	subscription, err := c.conn.QueueSubscribe(consumer.DeliverySubject(), queue, func(msg *nats.Msg) {
 		event := &api.EventMessage{}
 		err := proto.Unmarshal(msg.Data, event)
 		if err != nil {
 			log.Errorf("failed to unmarsal event: %v", err)
 		}
-		err = callback(event)
+
+		ackFn := func() error {
+			return msg.Ack()
+		}
+		err = callback(&Message{
+			EventMessage: event,
+			Ack:          ackFn,
+		})
 		if err != nil {
 			log.Errorf("queue subscribe callback error: %v", err)
 		}
-		err = msg.Ack()
 		if err != nil {
 			log.Errorf("error when acknowledging message: %v", err)
 		}
 	})
+	c.subscriptions = append(c.subscriptions, subscription)
+
 	if err != nil {
 		return fmt.Errorf("error when trying to queue subscribe: %v", err)
 	}
-
 	return nil
+}
+
+func (c *JetstreamEventStream) Unsubscribe() error {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
+	var outerErr error
+	for _, subscription := range c.subscriptions {
+		err := subscription.Drain()
+		if err != nil {
+			log.Error(err)
+			outerErr = fmt.Errorf("some subscriptions failed to unsubscribe")
+		}
+	}
+	return outerErr
 }
 
 func (c *JetstreamEventStream) Close() error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
-	for _, consumer := range c.consumers {
-		err := consumer.Delete()
-		if err != nil {
-			return err
-		}
-	}
 	if c.conn != nil {
 		c.conn.Close()
 	}
