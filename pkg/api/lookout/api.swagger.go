@@ -126,6 +126,9 @@ func SwaggerJsonTemplate() string {
 		"            \"format\": \"int64\"\n" +
 		"          }\n" +
 		"        },\n" +
+		"        \"tlsEnabled\": {\n" +
+		"          \"type\": \"boolean\"\n" +
+		"        },\n" +
 		"        \"type\": {\n" +
 		"          \"$ref\": \"#/definitions/apiIngressType\"\n" +
 		"        }\n" +

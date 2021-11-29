@@ -65,13 +65,25 @@ func CreateIngress(name string, job *api.Job, pod *v1.Pod, service *v1.Service, 
 		domain.Owner:    job.Owner,
 	})
 
+	if jobConfig.TlsEnabled {
+		annotations = until.MergeMaps(annotations, map[string]string{
+			"cert-manager.io/cluster-issuer": "k8s-cluster-issuer",
+			"certmanager.k8s.io/cluster-issuer": "k8s-cluster-issuer"
+		})
+	}
+
 	rules := make([]networking.IngressRule, 0, len(service.Spec.Ports))
+	tls_hosts := make([]networking.IngressRule, 0, len(service.Spec.Ports))
+
 	for _, servicePort := range service.Spec.Ports {
 		if !contains(jobConfig, uint32(servicePort.Port)) {
 			continue
 		}
+		host := fmt.Sprintf("%s.%s.%s.%s", servicePort.Name, pod.Name, pod.Namespace, executorIngressConfig.HostnameSuffix)
+		tls_hosts = append(tls_hosts, host)
+
 		path := networking.IngressRule{
-			Host: fmt.Sprintf("%s.%s.%s.%s", servicePort.Name, pod.Name, pod.Namespace, executorIngressConfig.HostnameSuffix),
+			Host: host,
 			IngressRuleValue: networking.IngressRuleValue{
 				HTTP: &networking.HTTPIngressRuleValue{
 					Paths: []networking.HTTPIngressPath{
@@ -88,6 +100,15 @@ func CreateIngress(name string, job *api.Job, pod *v1.Pod, service *v1.Service, 
 		}
 		rules = append(rules, path)
 	}
+	
+	tls := make([]networking.IngressTLS, 0, 1)
+
+	if jobConfig.TlsEnabled {
+		var tls[1]networking.IngressTLS{
+			Hosts: tls_hosts,
+			SecretName: fmt.Sprintf("%s-tls-certificate", name),
+		}
+	}
 
 	ingress := &networking.Ingress{
 		ObjectMeta: metav1.ObjectMeta{
@@ -98,6 +119,7 @@ func CreateIngress(name string, job *api.Job, pod *v1.Pod, service *v1.Service, 
 		},
 		Spec: networking.IngressSpec{
 			Rules: rules,
+			TLS: tls,
 		},
 	}
 	return ingress

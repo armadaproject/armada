@@ -115,6 +115,9 @@
             "format": "int64"
           }
         },
+        "tlsEnabled": {
+          "type": "boolean"
+        },
         "type": {
           "$ref": "#/definitions/apiIngressType"
         }
