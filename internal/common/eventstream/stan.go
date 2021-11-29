@@ -153,7 +153,7 @@ type StanClientConnection struct {
 	clientID      string
 	stanClusterID string
 
-	subscriptions []func(conn stan.Conn) (stan.Subscription, error)
+	subscriptions []func(conn stan.Conn) error
 
 	currentConn stan.Conn
 	nc          *nats.Conn
@@ -195,12 +195,12 @@ func (c *StanClientConnection) QueueSubscribe(subject, qgroup string, cb stan.Ms
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
-	s := func(conn stan.Conn) (stan.Subscription, error) {
-		subscription, err := conn.QueueSubscribe(subject, qgroup, cb, opts...)
-		return subscription, err
+	s := func(conn stan.Conn) error {
+		_, err := conn.QueueSubscribe(subject, qgroup, cb, opts...)
+		return err
 	}
 	c.subscriptions = append(c.subscriptions, s)
-	_, err := s(c.currentConn)
+	err := s(c.currentConn)
 	return err
 }
 
@@ -262,7 +262,7 @@ func (c *StanClientConnection) reconnect() error {
 
 	// resubscribe
 	for _, s := range c.subscriptions {
-		_, err := s(c.currentConn)
+		err := s(c.currentConn)
 		if err != nil {
 			// on any subscription error consider connection unsuccessful
 			log.Errorf("Error while resubscribing to STAN: %v", err)

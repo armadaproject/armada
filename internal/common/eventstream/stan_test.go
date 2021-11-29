@@ -35,10 +35,6 @@ func (c *MockStanClient) QueueSubscribe(subject, queue string, cb stan.MsgHandle
 	return nil
 }
 
-func (c *MockStanClient) UnsubscribeAll() error {
-	return nil
-}
-
 func (c *MockStanClient) Close() error {
 	return nil
 }
