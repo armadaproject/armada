@@ -31,8 +31,6 @@ type TimedEventBatcher struct {
 	doneCh  chan interface{}
 
 	callback eventBatchCallback
-
-	timer *time.Timer
 }
 
 func NewTimedEventBatcher(batchSize int, maxTimeBetweenBatches time.Duration, timeout time.Duration) *TimedEventBatcher {
