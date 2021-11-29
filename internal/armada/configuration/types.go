@@ -64,12 +64,12 @@ type LeaseSettings struct {
 }
 
 type EventsConfig struct {
-	StoreQueue     string // Queue group processor responsible for
-	JobStatusQueue string //
+	StoreQueue     string // Queue group for event storage processors
+	JobStatusQueue string // Queue group for running job status processor
 
-	ProcessorBatchSize             int
-	ProcessorMaxTimeBetweenBatches time.Duration
-	ProcessorTimeout               time.Duration
+	ProcessorBatchSize             int // Maximum event batch size
+	ProcessorMaxTimeBetweenBatches time.Duration // Maximum time between batches
+	ProcessorTimeout               time.Duration // Maximum timeout for batching operations before erroring out
 }
 
 type NatsConfig struct {
