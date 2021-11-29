@@ -44,7 +44,7 @@ func (cb *callbackWrapper) callback(events []*Message) error {
 
 func (cb *callbackWrapper) waitForCalls(n int) error {
 	for i := 0; i < n; i++ {
-		err := WaitOrTimeout(func() {
+		err := waitOrTimeout(func() {
 			<-cb.completedChannel
 		}, 10*time.Second)
 		if err != nil {

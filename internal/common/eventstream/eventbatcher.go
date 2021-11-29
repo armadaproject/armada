@@ -59,7 +59,7 @@ func (b *TimedEventBatcher) Report(event *Message) error {
 	reportFn := func() {
 		b.eventCh <- event
 	}
-	err := WaitOrTimeout(reportFn, b.timeout)
+	err := waitOrTimeout(reportFn, b.timeout)
 	if err != nil {
 		return fmt.Errorf("error when trying to report event in batcher: %v", err)
 	}
@@ -71,7 +71,7 @@ func (b *TimedEventBatcher) Stop() error {
 		b.stopCh <- "stop"
 		<-b.doneCh
 	}
-	err := WaitOrTimeout(stopFn, b.timeout)
+	err := waitOrTimeout(stopFn, b.timeout)
 	if err != nil {
 		return fmt.Errorf("error when trying to stop batcher: %v", err)
 	}
@@ -110,7 +110,7 @@ func (b *TimedEventBatcher) flush(events []*Message) {
 	}
 }
 
-func WaitOrTimeout(fn func(), timeout time.Duration) error {
+func waitOrTimeout(fn func(), timeout time.Duration) error {
 	c := make(chan interface{})
 	go func() {
 		defer close(c)
