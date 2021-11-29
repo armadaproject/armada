@@ -47,6 +47,7 @@ func groupIngressConfig(configs []*api.IngressConfig) map[api.IngressType][]*api
 			continue
 		}
 
+		// TODO: make this pass correct tls_enabled
 		existingConfigsOfType := result[config.Type]
 		if config.Type == api.IngressType_NodePort {
 			existingConfigsOfType[0].Ports = append(existingConfigsOfType[0].Ports, config.Ports...)
@@ -71,6 +72,7 @@ func deepCopy(config *api.IngressConfig) *api.IngressConfig {
 		Type:        config.GetType(),
 		Ports:       util.DeepCopyListUint32(config.Ports),
 		Annotations: util.DeepCopy(config.Annotations),
+		TlsEnabled:  config.TlsEnabled,
 	}
 }
 
