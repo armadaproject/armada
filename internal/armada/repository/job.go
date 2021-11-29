@@ -478,7 +478,7 @@ func (repo *RedisJobRepository) UpdateStartTime(jobStartInfos []*JobStartInfo) (
 
 const updateStartTimeJobNotFound = -3
 
-var updateStartTimeScript = redis.NewScript(`
+var updateStartTimeScript = redis.NewScript(fmt.Sprintf(`
 local startTimeKey = KEYS[1]
 local clusterAssociation = KEYS[2]
 local job = KEYS[3]
@@ -489,7 +489,7 @@ local startTimeNumber = tonumber(ARGV[2])
 
 local exists = redis.call('GET', job)
 if not exists then
-	return -3
+	return %d
 end
 
 local currentStartTime = tonumber(redis.call('HGET', startTimeKey, clusterId))
@@ -499,7 +499,7 @@ if currentStartTime ~= nil and currentStartTime < startTimeNumber then
 end
 
 return redis.call('HSET', startTimeKey, clusterId, startTime)
-`)
+`, updateStartTimeJobNotFound))
 
 func (repo *RedisJobRepository) UpdateJobs(ids []string, mutator func([]*api.Job)) []UpdateJobResult {
 	return repo.updateJobs(ids, mutator, 250, 3, 100*time.Millisecond)
