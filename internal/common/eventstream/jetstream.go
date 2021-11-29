@@ -17,12 +17,12 @@ import (
 )
 
 type JetstreamEventStream struct {
-	subject       string
-	consumerOpts  []jsm.ConsumerOption
-	conn          *nats.Conn
-	manager       *jsm.Manager
-	stream        *jsm.Stream
-	consumers     []*jsm.Consumer
+	subject      string
+	consumerOpts []jsm.ConsumerOption
+	conn         *nats.Conn
+	manager      *jsm.Manager
+	stream       *jsm.Stream
+	consumers    []*jsm.Consumer
 
 	mutex sync.RWMutex
 }
@@ -57,12 +57,12 @@ func NewJetstreamEventStream(
 	}
 
 	return &JetstreamEventStream{
-		subject:       opts.Subject,
-		conn:          natsConn,
-		manager:       manager,
-		stream:        stream,
-		consumerOpts:  consumerOpts,
-		consumers:     []*jsm.Consumer{},
+		subject:      opts.Subject,
+		conn:         natsConn,
+		manager:      manager,
+		stream:       stream,
+		consumerOpts: consumerOpts,
+		consumers:    []*jsm.Consumer{},
 	}, nil
 }
 
