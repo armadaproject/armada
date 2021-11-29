@@ -21,9 +21,10 @@ func NewEventJobStatusProcessor(
 	batcher eventstream.EventBatcher,
 ) *EventJobStatusProcessor {
 	processor := &EventJobStatusProcessor{
-		queue:   queue,
-		stream:  stream,
-		batcher: batcher,
+		queue:         queue,
+		jobRepository: jobRepository,
+		stream:        stream,
+		batcher:       batcher,
 	}
 	processor.batcher.Register(processor.handleBatch)
 	return processor
@@ -76,6 +77,10 @@ func (p *EventJobStatusProcessor) handleBatch(batch []*eventstream.Message) erro
 	jobErrors, err := p.jobRepository.UpdateStartTime(jobStartInfos)
 	if err != nil {
 		log.Errorf("error when updating start times for jobs: %v", err)
+		return err
+	}
+	if len(jobErrors) < len(batch) {
+		log.Errorf("error when updating start times for jobs: smaller number of job errors returned")
 		return err
 	}
 	for i, err := range jobErrors {

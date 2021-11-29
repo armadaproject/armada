@@ -139,7 +139,7 @@ func (c *JetstreamEventStream) Unsubscribe() error {
 
 	var outerErr error
 	for _, subscription := range c.subscriptions {
-		err := subscription.Drain()
+		err := subscription.Unsubscribe()
 		if err != nil {
 			log.Error(err)
 			outerErr = fmt.Errorf("some subscriptions failed to unsubscribe")

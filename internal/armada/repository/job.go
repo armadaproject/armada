@@ -437,7 +437,7 @@ func (repo *RedisJobRepository) UpdateStartTime(jobStartInfos []*JobStartInfo) (
 	jobErrors := make([]error, len(jobStartInfos), len(jobStartInfos))
 
 	commands := make([]*redis.Cmd, len(jobStartInfos), len(jobStartInfos))
-	pipe := repo.db.TxPipeline()
+	pipe := repo.db.Pipeline()
 	updateStartTimeScript.Load(pipe)
 
 	for i, jobStartInfo := range jobStartInfos {

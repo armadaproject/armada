@@ -10,6 +10,11 @@ import (
 
 type eventBatchCallback func(events []*Message) error
 
+var defaultCallback = func(events []*Message) error {
+	log.Warnf("eventbatcher: default event batch callback used")
+	return nil
+}
+
 type EventBatcher interface {
 	Register(callback eventBatchCallback)
 	Report(event *Message) error
@@ -36,9 +41,10 @@ func NewTimedEventBatcher(batchSize int, maxTimeBetweenBatches time.Duration, ti
 		maxTimeBetweenBatches: maxTimeBetweenBatches,
 		timeout:               timeout,
 
-		eventCh: make(chan *Message, batchSize),
-		stopCh:  make(chan interface{}),
-		doneCh:  make(chan interface{}),
+		callback: defaultCallback,
+		eventCh:  make(chan *Message, batchSize),
+		stopCh:   make(chan interface{}),
+		doneCh:   make(chan interface{}),
 	}
 	return b
 }
@@ -73,7 +79,6 @@ func (b *TimedEventBatcher) Stop() error {
 }
 
 func (b *TimedEventBatcher) start() {
-
 	for {
 		timer := time.NewTimer(b.maxTimeBetweenBatches)
 		var batch []*Message
