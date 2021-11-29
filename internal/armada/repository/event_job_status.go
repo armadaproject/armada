@@ -79,8 +79,8 @@ func (p *EventJobStatusProcessor) handleBatch(batch []*eventstream.Message) erro
 		log.Errorf("error when updating start times for jobs: %v", err)
 		return err
 	}
-	if len(jobErrors) < len(batch) {
-		log.Errorf("error when updating start times for jobs: smaller number of job errors returned")
+	if len(jobErrors) != len(batch) {
+		log.Errorf("error when updating start times for jobs: different number of job errors returned")
 		return err
 	}
 	for i, err := range jobErrors {
