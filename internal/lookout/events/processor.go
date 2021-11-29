@@ -37,7 +37,7 @@ func (p *EventProcessor) handleMessage(eventMessage *eventstream.Message) error 
 	}
 	err = eventMessage.Ack()
 	if err != nil {
-		return fmt.Errorf("error while attempting to acknowledge event")
+		return fmt.Errorf("error while attempting to acknowledge event: %v", err)
 	}
 	return nil
 }
