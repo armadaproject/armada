@@ -12,6 +12,5 @@ type Message struct {
 type EventStream interface {
 	Publish(events []*api.EventMessage) []error
 	Subscribe(queue string, callback func(event *Message) error) error
-	Unsubscribe() error
 	Close() error
 }

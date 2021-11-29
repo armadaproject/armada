@@ -101,10 +101,6 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 			if err != nil {
 				log.Errorf("failed to flush job status batcher processor")
 			}
-			err = eventStream.Unsubscribe()
-			if err != nil {
-				log.Errorf("failed to unsubscribe from event stream: %v", err)
-			}
 			err = eventStream.Close()
 			if err != nil {
 				log.Errorf("failed to close event stream connection: %v", err)
