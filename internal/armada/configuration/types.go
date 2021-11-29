@@ -69,7 +69,7 @@ type EventsConfig struct {
 
 	ProcessorBatchSize             int // Maximum event batch size
 	ProcessorMaxTimeBetweenBatches time.Duration // Maximum time between batches
-	ProcessorTimeout               time.Duration // Maximum timeout for batching operations before erroring out
+	ProcessorTimeout               time.Duration // Timeout for batching operations before erroring out
 }
 
 type NatsConfig struct {
