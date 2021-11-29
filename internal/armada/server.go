@@ -107,7 +107,7 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 			}
 			err = eventStream.Close()
 			if err != nil {
-				log.Errorf("failed to close event stream connection")
+				log.Errorf("failed to close event stream connection: %v", err)
 			}
 		}
 	} else {
