@@ -104,7 +104,7 @@ func (b *TimedEventBatcher) flush(events []*Message) {
 
 	err := b.callback(events)
 	if err != nil {
-		log.Errorf("error when processing callback")
+		log.Errorf("error when flushing events: callback failed: %v", err)
 	}
 }
 
