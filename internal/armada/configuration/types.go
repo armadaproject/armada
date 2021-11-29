@@ -67,7 +67,7 @@ type EventsConfig struct {
 	StoreQueue     string // Queue group for event storage processors
 	JobStatusQueue string // Queue group for running job status processor
 
-	ProcessorBatchSize             int // Maximum event batch size
+	ProcessorBatchSize             int           // Maximum event batch size
 	ProcessorMaxTimeBetweenBatches time.Duration // Maximum time between batches
 	ProcessorTimeout               time.Duration // Timeout for reporting event or stopping batcher before erroring out
 }
