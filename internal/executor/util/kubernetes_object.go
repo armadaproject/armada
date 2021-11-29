@@ -65,13 +65,6 @@ func CreateIngress(name string, job *api.Job, pod *v1.Pod, service *v1.Service, 
 		domain.Owner:    job.Owner,
 	})
 
-	if jobConfig.TlsEnabled {
-		annotations = util.MergeMaps(annotations, map[string]string{
-			"cert-manager.io/cluster-issuer": "k8s-cluster-issuer",
-			"certmanager.k8s.io/cluster-issuer": "k8s-cluster-issuer",
-		})
-	}
-
 	rules := make([]networking.IngressRule, 0, len(service.Spec.Ports))
 	tls_hosts := make([]string, 0, len(service.Spec.Ports))
 
