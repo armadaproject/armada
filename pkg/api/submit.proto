@@ -28,6 +28,7 @@ message IngressConfig {
     repeated uint32 ports = 2;
     map<string, string> annotations = 3;
     bool tls_enabled = 4;
+    string cert_name = 5;
 }
 
 enum IngressType {

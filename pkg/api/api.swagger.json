@@ -441,6 +441,9 @@
             "type": "string"
           }
         },
+        "certName": {
+          "type": "string"
+        },
         "ports": {
           "type": "array",
           "items": {

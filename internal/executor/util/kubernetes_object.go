@@ -97,9 +97,14 @@ func CreateIngress(name string, job *api.Job, pod *v1.Pod, service *v1.Service, 
 	tls := make([]networking.IngressTLS, 0, 1)
 
 	if jobConfig.TlsEnabled {
+		cert_name := jobConfig.CertName
+		if cert_name == "" {
+			cert_name = fmt.Sprintf("%s-tls-certificate", name)	
+		}
+
 		tls = append(tls, networking.IngressTLS{
 			Hosts: tls_hosts,
-			SecretName: fmt.Sprintf("%s-tls-certificate", name),
+			SecretName: cert_name,
 		})
 	}
 
