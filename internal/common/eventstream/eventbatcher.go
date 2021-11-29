@@ -40,7 +40,7 @@ func NewTimedEventBatcher(batchSize int, maxTimeBetweenBatches time.Duration, ti
 		timeout:               timeout,
 
 		callback: defaultCallback,
-		eventCh:  make(chan *Message, batchSize),
+		eventCh:  make(chan *Message, 10*batchSize),
 		stopCh:   make(chan interface{}),
 		doneCh:   make(chan interface{}),
 	}
