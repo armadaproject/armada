@@ -200,6 +200,7 @@ func (c *StanClientConnection) QueueSubscribe(subject, qgroup string, cb stan.Ms
 		return err
 	}
 	c.subscriptions = append(c.subscriptions, s)
+
 	return s(c.currentConn)
 }
 
