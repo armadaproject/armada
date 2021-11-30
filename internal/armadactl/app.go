@@ -10,6 +10,8 @@ TODO there should be a type that uniquely represents a job, instead of having to
 
 TODO there should be a dry-run flag in Params that is respected by all commands
 
+TODO add methods for querying more detailed info about queues and jobs (current priority and so on)
+
 */
 package armadactl
 
