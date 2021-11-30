@@ -460,7 +460,7 @@ func (repo *RedisJobRepository) UpdateStartTime(jobStartInfos []*JobStartInfo) (
 	for i, cmd := range commands {
 		err := cmd.Err()
 		if err != nil {
-			jobErrors[i] = fmt.Errorf("update start time multiple: %v", err)
+			jobErrors[i] = fmt.Errorf("error updating job start time in redis: %v", err)
 		} else {
 			jobErrors[i] = nil
 		}
