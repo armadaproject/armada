@@ -117,7 +117,7 @@ func CreateIngress(name string, job *api.Job, pod *v1.Pod, service *v1.Service, 
 		},
 		Spec: networking.IngressSpec{
 			Rules: rules,
-			TLS: tls,
+			TLS:   tls,
 		},
 	}
 	return ingress
