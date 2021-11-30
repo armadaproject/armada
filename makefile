@@ -114,18 +114,16 @@ build-ci: build-docker build-armadactl build-armadactl-multiplatform build-load-
 
 .ONESHELL:
 tests:
-	go test -v ./internal/armadactl
-
-# docker run -d --name=test-redis -p=6379:6379 redis
-# docker run -d --name=postgres -p 5432:5432 -e POSTGRES_PASSWORD=psw postgres
-# function tearDown {
-# 	docker stop test-redis postgres
-# 	docker rm test-redis postgres
-# }
-# trap tearDown EXIT
-# go test -v ./internal/...
-# go test -v ./pkg/...
-# go test -v ./cmd/...
+	docker run -d --name=test-redis -p=6379:6379 redis
+	docker run -d --name=postgres -p 5432:5432 -e POSTGRES_PASSWORD=psw postgres
+	function tearDown {
+		docker stop test-redis postgres
+		docker rm test-redis postgres
+	}
+	trap tearDown EXIT
+	go test -v ./internal/...
+	go test -v ./pkg/...
+	go test -v ./cmd/...
 
 e2e-start-cluster:
 	./e2e/setup/setup_cluster_ci.sh
