@@ -275,7 +275,7 @@ func spinUpArmadaCluster() (func(), error) {
 		return nil, fmt.Errorf("[spinUpArmadaCluster] error creating test network: %s", err)
 	}
 
-	// define the cleanup function here so it can be called to clean up dockers in the case of partial success
+	// define the cleanup function here so it can be called to clean up containers in the case of partial success
 	var redisCleanup, postgresCleanup, jetstreamCleanup, executorCleanup, armadaServerCleanup func()
 	cleanup := func() {
 		if armadaServerCleanup != nil {
