@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -211,23 +212,34 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 
 func (server *SubmitServer) CancelJobs(ctx context.Context, request *api.JobCancelRequest) (*api.CancellationResult, error) {
 	if request.JobId != "" {
-		jobs, e := server.jobRepository.GetExistingJobsByIds([]string{request.JobId})
-		if e != nil {
-			return nil, status.Errorf(codes.Internal, e.Error())
+		jobs, err := server.jobRepository.GetExistingJobsByIds([]string{request.JobId})
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, err.Error())
 		}
 		return server.cancelJobs(ctx, jobs[0].Queue, jobs)
 	}
 
 	if request.JobSetId != "" && request.Queue != "" {
-		ids, e := server.jobRepository.GetActiveJobIds(request.Queue, request.JobSetId)
-		if e != nil {
-			return nil, status.Errorf(codes.Aborted, e.Error())
+		ids, err := server.jobRepository.GetActiveJobIds(request.Queue, request.JobSetId)
+		if err != nil {
+			return nil, status.Errorf(codes.Aborted, err.Error())
 		}
-		jobs, e := server.jobRepository.GetExistingJobsByIds(ids)
-		if e != nil {
-			return nil, status.Errorf(codes.Internal, e.Error())
+
+		batchSize := 100
+		batches := batchIds(ids, batchSize)
+		cancelledIds := []string{}
+		for _, batch := range batches {
+			jobs, err := server.jobRepository.GetExistingJobsByIds(batch)
+			if err != nil {
+				return nil, status.Errorf(codes.Internal, err.Error())
+			}
+			result, err := server.cancelJobs(ctx, request.Queue, jobs)
+			if err != nil {
+				return nil, status.Errorf(codes.Internal, err.Error())
+			}
+			cancelledIds = append(cancelledIds, result.CancelledIds...)
 		}
-		return server.cancelJobs(ctx, request.Queue, jobs)
+		return &api.CancellationResult{CancelledIds: cancelledIds}, nil
 	}
 	return nil, status.Errorf(codes.InvalidArgument, "Specify job id or queue with job set id")
 }
@@ -513,4 +525,24 @@ func validateQueue(queue *api.Queue) error {
 		return status.Errorf(codes.InvalidArgument, "Minimum queue priority factor is 1.")
 	}
 	return nil
+}
+
+func batchIds(ids []string, batchSize int) [][]string {
+	total := len(ids)
+	batches := [][]string{}
+
+	n := int(math.Floor(float64(total) / float64(batchSize)))
+	lastBatchSize := total % batchSize
+
+	for i := 0; i < n; i++ {
+		s := ids[i*batchSize:(i+1)*batchSize]
+		batches = append(batches, s)
+	}
+
+	if lastBatchSize != 0 {
+		s := ids[n*batchSize:n*batchSize+lastBatchSize]
+		batches = append(batches, s)
+	}
+
+	return batches
 }
