@@ -18,7 +18,7 @@ func (a *App) Submit(path string, dryRun bool) (outerErr error) {
 
 	ok, err := validation.ValidateSubmitFile(path)
 	if !ok {
-		fmt.Fprintf(a.Out, "Invalid jobfile: %s", err)
+		fmt.Fprintf(a.Out, "Invalid jobfile: %s/n", err)
 		return nil
 	}
 
@@ -46,9 +46,9 @@ func (a *App) Submit(path string, dryRun bool) (outerErr error) {
 
 			for _, jobResponseItem := range response.JobResponseItems {
 				if jobResponseItem.Error != "" {
-					fmt.Fprintf(a.Out, "error submitting job: %s\n", jobResponseItem.Error)
+					fmt.Fprintf(a.Out, "Error submitting job: %s\n", jobResponseItem.Error)
 				} else {
-					fmt.Fprintf(a.Out, "Submitted job with ID %s to job set with ID %s", jobResponseItem.JobId, request.JobSetId)
+					fmt.Fprintf(a.Out, "Submitted job with ID %s to job set with ID %s\n", jobResponseItem.JobId, request.JobSetId)
 				}
 			}
 
