@@ -192,16 +192,15 @@ func TestJob(t *testing.T) {
 	groups := []string{"gbar", "gbaz"}
 	resourceLimits := map[string]float64{"cpu": 0.2, "exoticResource": 0.9}
 
-	// job parameters
-	path, err := filepath.Abs(filepath.Join("./", "app_test_job.yaml"))
-	if err != nil {
-		t.Fatalf("error creating path to test job: %s", err)
-	}
-	// dryRun := false
-	fmt.Println("jobfile:", path)
+	// // job parameters
+	// path, err := filepath.Abs(filepath.Join("./", "app_test_job.yaml"))
+	// if err != nil {
+	// 	t.Fatalf("error creating path to test job: %s", err)
+	// }
+	// // dryRun := false
 
 	// create a queue to use for the tests
-	err = app.CreateQueue(name, priorityFactor, owners, groups, resourceLimits)
+	err := app.CreateQueue(name, priorityFactor, owners, groups, resourceLimits)
 	if err != nil {
 		t.Fatalf("error creating test queue: %s", err)
 	}
