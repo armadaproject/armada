@@ -353,6 +353,27 @@ func TestUpdateStartTime_NonExistentJob(t *testing.T) {
 	})
 }
 
+func TestUpdateStartTime_FinishedJob(t *testing.T) {
+	withRepository(func(r *RedisJobRepository) {
+		startTime := time.Now()
+		leasedJob := addLeasedJob(t, r, "queue1", "cluster1")
+		errs := r.DeleteJobs([]*api.Job{leasedJob})
+		for _, err := range errs {
+			assert.NoError(t, err)
+		}
+
+		jobErrors, err := r.UpdateStartTime([]*JobStartInfo{{
+			JobId:     leasedJob.Id,
+			ClusterId: "cluster1",
+			StartTime: startTime,
+		}})
+		assert.NoError(t, err)
+		assert.Len(t, jobErrors, 1)
+		assert.Error(t, jobErrors[0])
+		assert.Equal(t, JobNotFound, jobErrors[0].Error())
+	})
+}
+
 // Saving/reading the start time shouldn't adjust the actual time it happened
 // i.e If the start time happened "now" but in a different time zone, the difference between the start time and now should be ~0 seconds
 func TestSaveAndRetrieveStartTime_HandlesDifferentTimeZones(t *testing.T) {

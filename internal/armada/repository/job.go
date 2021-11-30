@@ -487,8 +487,9 @@ local clusterId = ARGV[1]
 local startTime = ARGV[2]
 local startTimeNumber = tonumber(ARGV[2])
 
-local exists = redis.call('EXISTS', job)
-if exists == 0 then
+local ttl = redis.call('TTL', job)
+local existsAndNotExpired = ttl == -1
+if not existsAndNotExpired then
 	return %d
 end
 

@@ -134,6 +134,12 @@ func (c *JetstreamEventStream) Close() error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
+	for _, consumer := range c.consumers {
+		err := consumer.Delete()
+		if err != nil {
+			return err
+		}
+	}
 	if c.conn != nil {
 		c.conn.Close()
 	}
