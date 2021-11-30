@@ -93,7 +93,7 @@ func CreateIngress(name string, job *api.Job, pod *v1.Pod, service *v1.Service, 
 		}
 		rules = append(rules, path)
 	}
-	
+
 	tls := make([]networking.IngressTLS, 0, 1)
 
 	if jobConfig.TlsEnabled {
