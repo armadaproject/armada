@@ -34,7 +34,7 @@ func (a *App) DeleteQueue(name string) error {
 
 // DescribeQueue calls app.QueueAPI.Describe with the provided parameters.
 func (a *App) DescribeQueue(name string) error {
-	fmt.Fprintf(a.Out, "Queue: %s", name)
+	fmt.Fprintf(a.Out, "Queue: %s\n", name)
 	queueInfo, err := a.Params.QueueAPI.GetInfo(name)
 	if err != nil {
 		return fmt.Errorf("[armadactl.DescribeQueue] error describing queue %s: %s", name, err)
