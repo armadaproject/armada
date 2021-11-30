@@ -46,7 +46,7 @@ func TestVersion(t *testing.T) {
 	}
 	app.Params.QueueAPI = &QueueAPI{}
 	app.Params.ApiConnectionDetails = &client.ApiConnectionDetails{
-		ArmadaUrl: "localhost:50051",
+		ArmadaUrl: "localhost:50052",
 	}
 
 	err := app.Version()
@@ -71,7 +71,7 @@ func TestQueue(t *testing.T) {
 	}
 	app.Params.QueueAPI = &QueueAPI{}
 	app.Params.ApiConnectionDetails = &client.ApiConnectionDetails{
-		ArmadaUrl: "localhost:50051",
+		ArmadaUrl: "localhost:50052",
 	}
 
 	// Setup the armadactl to use pkg/client as its backend for queue-related commands
@@ -173,7 +173,7 @@ func TestJob(t *testing.T) {
 	}
 	app.Params.QueueAPI = &QueueAPI{}
 	app.Params.ApiConnectionDetails = &client.ApiConnectionDetails{
-		ArmadaUrl: "localhost:50051",
+		ArmadaUrl: "localhost:50052",
 	}
 
 	// Setup the armadactl to use pkg/client as its backend for queue-related commands
@@ -332,7 +332,7 @@ func spinUpArmadaCluster() (func(), error) {
 	// wait for the Armada server to come up
 	// pool.MaxWait = 5 * time.Minute // max time until pool.Retry returns an error
 	if err = pool.Retry(func() error {
-		_, err := http.Get("http://localhost:8080/health") // Armada server HTTP REST API endpoint; should return code 204
+		_, err := http.Get("http://localhost:8081/health") // Armada server HTTP REST API endpoint; should return code 204
 		if err != nil {
 			return fmt.Errorf("[spinUpArmadaCluster] error waiting for Armada server to start: %s", err)
 		}
@@ -345,7 +345,7 @@ func spinUpArmadaCluster() (func(), error) {
 	// wait for the Armada executor to come up
 	// pool.MaxWait = 5 * time.Minute // max time until pool.Retry returns an error
 	if err = pool.Retry(func() error {
-		_, err := http.Get("http://localhost:9001/") // Should return 404 once the executor is up
+		_, err := http.Get("http://localhost:9003/") // Should return 404 once the executor is up
 		if err != nil {
 			return fmt.Errorf("[spinUpArmadaCluster] error waiting for Armada executor to start: %s", err)
 		}
@@ -361,12 +361,11 @@ func spinUpArmadaCluster() (func(), error) {
 // spinUpRedis runs redis in a container with hard-coded values and returns a cleanup function handle
 func spinUpRedis(pool *dockertest.Pool, network *docker.Network) (func(), error) {
 	opts := &dockertest.RunOptions{
-		Repository:   "redis",
-		Tag:          "6.2",
-		Name:         "armada-test-redis",
-		Hostname:     "redis",
-		NetworkID:    network.ID,
-		PortBindings: map[docker.Port][]docker.PortBinding{"6379/tcp": []docker.PortBinding{{HostPort: "6379"}}},
+		Repository: "redis",
+		Tag:        "6.2",
+		Name:       "armada-test-redis",
+		Hostname:   "redis",
+		NetworkID:  network.ID,
 	}
 	cleanup, err := spinUpService(opts, pool, network)
 	if err != nil {
@@ -378,13 +377,12 @@ func spinUpRedis(pool *dockertest.Pool, network *docker.Network) (func(), error)
 // spinUpPostgres runs postgres in a container with hard-coded values and returns a cleanup function handle
 func spinUpPostgres(pool *dockertest.Pool, network *docker.Network) (func(), error) {
 	opts := &dockertest.RunOptions{
-		Repository:   "postgres",
-		Tag:          "10",
-		Name:         "armada-test-postgres",
-		Hostname:     "postgres",
-		NetworkID:    network.ID,
-		PortBindings: map[docker.Port][]docker.PortBinding{"5432/tcp": []docker.PortBinding{{HostPort: "5432"}}},
-		Env:          []string{"POSTGRES_PASSWORD=psw postgres"},
+		Repository: "postgres",
+		Tag:        "10",
+		Name:       "armada-test-postgres",
+		Hostname:   "postgres",
+		NetworkID:  network.ID,
+		Env:        []string{"POSTGRES_PASSWORD=psw postgres"},
 	}
 	cleanup, err := spinUpService(opts, pool, network)
 	if err != nil {
@@ -406,12 +404,7 @@ func spinUpJetstream(pool *dockertest.Pool, network *docker.Network) (func(), er
 		Hostname:   "nats",
 		NetworkID:  network.ID,
 		Mounts:     []string{jetstreamConfigDir + ":/app"},
-		PortBindings: map[docker.Port][]docker.PortBinding{
-			"4222/tcp": []docker.PortBinding{{HostPort: "4222"}},
-			"6222/tcp": []docker.PortBinding{{HostPort: "6222"}},
-			"8222/tcp": []docker.PortBinding{{HostPort: "8222"}},
-		},
-		Cmd: []string{"-c", "/app/jetstream.conf"},
+		Cmd:        []string{"-c", "/app/jetstream.conf"},
 	}
 	cleanup, err := spinUpService(opts, pool, network)
 	if err != nil {
@@ -443,9 +436,9 @@ func spinUpArmadaServer(pool *dockertest.Pool, network *docker.Network) (func(),
 		Mounts:       []string{rootDir + ":/app"},                   // mount the compiled binary into the container
 		ExposedPorts: []string{"50051/tcp", "8080/tcp", "9000/tcp"}, // need both ExposedPorts and PortBindings
 		PortBindings: map[docker.Port][]docker.PortBinding{
-			"50051/tcp": []docker.PortBinding{{HostPort: "50051"}}, // gRPC
-			"8080/tcp":  []docker.PortBinding{{HostPort: "8080"}},  // HTTP
-			"9000/tcp":  []docker.PortBinding{{HostPort: "9000"}},  // metrics
+			"50051/tcp": []docker.PortBinding{{HostPort: "50052"}}, // gRPC
+			"8080/tcp":  []docker.PortBinding{{HostPort: "8081"}},  // HTTP
+			"9000/tcp":  []docker.PortBinding{{HostPort: "9002"}},  // metrics
 		},
 		WorkingDir: "/app",
 		Entrypoint: []string{"./.test/server"},
@@ -486,7 +479,7 @@ func spinUpFakeExecutor(pool *dockertest.Pool, network *docker.Network) (func(),
 		Mounts:       []string{rootDir + ":/app"}, // mount the compiled binary into the container
 		ExposedPorts: []string{"9001/tcp"},        // need both ExposedPorts and PortBindings
 		PortBindings: map[docker.Port][]docker.PortBinding{
-			"9001/tcp": []docker.PortBinding{{HostPort: "9001"}}, // metrics
+			"9001/tcp": []docker.PortBinding{{HostPort: "9003"}}, // metrics
 		},
 		WorkingDir: "/app",
 		Entrypoint: []string{"./.test/fakeexecutor"},
