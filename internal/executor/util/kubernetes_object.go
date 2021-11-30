@@ -103,7 +103,7 @@ func CreateIngress(name string, job *api.Job, pod *v1.Pod, service *v1.Service, 
 		}
 
 		tls = append(tls, networking.IngressTLS{
-			Hosts:     	tlsHosts,
+			Hosts:      tlsHosts,
 			SecretName: certName,
 		})
 	}
