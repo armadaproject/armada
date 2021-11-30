@@ -73,7 +73,7 @@ func deepCopy(config *api.IngressConfig) *api.IngressConfig {
 		Ports:       util.DeepCopyListUint32(config.Ports),
 		Annotations: util.DeepCopy(config.Annotations),
 		TlsEnabled:  config.TlsEnabled,
-		CertName: 	 config.CertName,
+		CertName:    config.CertName,
 	}
 }
 
