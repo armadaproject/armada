@@ -1,0 +1,21 @@
+queue: test
+jobSetId: set1
+jobs:
+  - priority: 1
+    podSpecs:
+      - terminationGracePeriodSeconds: 0
+        restartPolicy: Never
+        containers:
+          - name: sleep
+            imagePullPolicy: IfNotPresent
+            image: busybox:latest
+            args:
+              - sleep
+              - 60s
+            resources:
+              limits:
+                memory: 64Mi
+                cpu: 150m
+              requests:
+                memory: 64Mi
+                cpu: 150m
