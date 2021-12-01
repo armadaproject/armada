@@ -241,6 +241,55 @@ func TestJob(t *testing.T) {
 		}
 	})
 
+	t.Run("analyze", func(t *testing.T) {
+		err := app.Analyze(name, "set1") // set1 is hard-coded in the jobfile
+		if err != nil {
+			t.Fatalf("expected no error, but got %s", err)
+		}
+
+		out := buf.String()
+		buf.Reset()
+		for _, s := range []string{fmt.Sprintf("Querying queue %s for job set set1", name), "api.JobSubmittedEvent", "api.JobQueuedEvent"} {
+			if !strings.Contains(out, s) {
+				t.Fatalf("expected output to contain '%s', but got '%s'", s, out)
+			}
+		}
+	})
+
+	t.Run("reprioritize", func(t *testing.T) {
+		err := app.Reprioritize("", name, "set1", 0)
+		if err != nil {
+			t.Fatalf("expected no error, but got %s", err)
+		}
+
+		out := buf.String()
+		buf.Reset()
+		for _, s := range []string{"Reprioritized jobs with ID:\n"} {
+			if !strings.Contains(out, s) {
+				t.Fatalf("expected output to contain '%s', but got '%s'", s, out)
+			}
+		}
+	})
+
+	// TODO watch runs forever, making it impossible to test
+	// t.Run("watch", func(t *testing.T) {
+	// 	raw := false
+	// 	exit_on_inactive := true
+	// 	err := app.Watch(name, "set1", raw, exit_on_inactive)
+	// 	if err != nil {
+	// 		t.Fatalf("expected no error, but got %s", err)
+	// 	}
+
+	// 	out := buf.String()
+	// 	buf.Reset()
+	// 	fmt.Println("watch out:", out)
+	// 	for _, s := range []string{"Reprioritized jobs with ID:\n"} {
+	// 		if !strings.Contains(out, s) {
+	// 			t.Fatalf("expected output to contain '%s', but got '%s'", s, out)
+	// 		}
+	// 	}
+	// })
+
 	t.Run("cancel", func(t *testing.T) {
 		err := app.Cancel(name, "set1", "")
 		if err != nil {
