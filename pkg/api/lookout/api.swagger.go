@@ -119,12 +119,18 @@ func SwaggerJsonTemplate() string {
 		"            \"type\": \"string\"\n" +
 		"          }\n" +
 		"        },\n" +
+		"        \"certName\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
 		"        \"ports\": {\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"type\": \"integer\",\n" +
 		"            \"format\": \"int64\"\n" +
 		"          }\n" +
+		"        },\n" +
+		"        \"tlsEnabled\": {\n" +
+		"          \"type\": \"boolean\"\n" +
 		"        },\n" +
 		"        \"type\": {\n" +
 		"          \"$ref\": \"#/definitions/apiIngressType\"\n" +
