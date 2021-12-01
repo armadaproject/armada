@@ -3,6 +3,8 @@ package util
 import (
 	"testing"
 
+	"k8s.io/apimachinery/pkg/util/intstr"
+
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/internal/executor/configuration"
 	"github.com/G-Research/armada/internal/executor/domain"
@@ -10,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
+	networking "k8s.io/api/networking/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -131,4 +134,112 @@ func makePodSpec() *v1.PodSpec {
 	}
 
 	return &spec
+}
+
+func makeTestJob() *api.Job {
+	return &api.Job{
+		Id:       "Id",
+		JobSetId: "JobSetId",
+		Queue:    "QueueTest",
+		Owner:    "UserTest",
+		PodSpecs: []*v1.PodSpec{makePodSpec()},
+	}
+}
+
+func makeTestService() *v1.Service {
+	return &v1.Service{
+		ObjectMeta: metav1.ObjectMeta{Name: "testService"},
+		Spec: v1.ServiceSpec{
+			Ports: []v1.ServicePort{
+				{
+					Name: "testPort",
+					Port: 8080,
+				},
+			},
+		},
+	}
+}
+
+func TestCreateIngress_Basic(t *testing.T) {
+	// Boilerplate, should be the same in TlsEnabled
+	job := makeTestJob()
+	service := makeTestService()
+	pod := &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "testPod", Namespace: "testNamespace"}}
+	ingressConfig := &configuration.IngressConfiguration{HostnameSuffix: "testSuffix"}
+
+	// TLS disabled jobconfig
+	jobConfig := &api.IngressConfig{
+		Ports: []uint32{8080},
+	}
+
+	result := CreateIngress("testIngress", job, pod, service, ingressConfig, jobConfig)
+
+	expectedIngressSpec := networking.IngressSpec{
+		TLS: []networking.IngressTLS{},
+		Rules: []networking.IngressRule{
+			{
+				Host: "testPort.testPod.testNamespace.testSuffix",
+				IngressRuleValue: networking.IngressRuleValue{
+					HTTP: &networking.HTTPIngressRuleValue{
+						Paths: []networking.HTTPIngressPath{
+							{
+								Path: "/",
+								Backend: networking.IngressBackend{
+									ServiceName: "testService",
+									ServicePort: intstr.IntOrString{IntVal: 8080},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	assert.Equal(t, result.Spec, expectedIngressSpec)
+}
+
+func TestCreateIngress_TLS(t *testing.T) {
+	// Boilerplate, should be the same in TlsEnabled
+	job := makeTestJob()
+	service := makeTestService()
+	pod := &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "testPod", Namespace: "testNamespace"}}
+	ingressConfig := &configuration.IngressConfiguration{HostnameSuffix: "testSuffix"}
+
+	// TLS disabled jobconfig
+	jobConfig := &api.IngressConfig{
+		TlsEnabled: true,
+		Ports:      []uint32{8080},
+	}
+
+	result := CreateIngress("testIngress", job, pod, service, ingressConfig, jobConfig)
+
+	expectedIngressSpec := networking.IngressSpec{
+		TLS: []networking.IngressTLS{
+			{
+				Hosts:      []string{"testPort.testPod.testNamespace.testSuffix"},
+				SecretName: "testIngress-tls-certificate",
+			},
+		},
+		Rules: []networking.IngressRule{
+			{
+				Host: "testPort.testPod.testNamespace.testSuffix",
+				IngressRuleValue: networking.IngressRuleValue{
+					HTTP: &networking.HTTPIngressRuleValue{
+						Paths: []networking.HTTPIngressPath{
+							{
+								Path: "/",
+								Backend: networking.IngressBackend{
+									ServiceName: "testService",
+									ServicePort: intstr.IntOrString{IntVal: 8080},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	assert.Equal(t, result.Spec, expectedIngressSpec)
 }
