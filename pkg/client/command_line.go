@@ -65,6 +65,9 @@ func LoadCommandlineArgsFromConfigFile(cfgFile string) error {
 	return nil
 }
 
+// ExtractCommandlineArmadaApiConnectionDetails extracts Armada server connection details from the
+// config loaded into viper. Hence, this function must be called after loading config into viper,
+// e.g., by calling LoadCommandlineArgsFromConfigFile.
 func ExtractCommandlineArmadaApiConnectionDetails() *ApiConnectionDetails {
 	apiConnectionDetails := &ApiConnectionDetails{}
 	viper.Unmarshal(apiConnectionDetails)
