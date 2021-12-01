@@ -14,7 +14,7 @@ import (
 )
 
 func (a *App) Analyze(queue string, jobSetId string) error {
-	fmt.Fprintf(a.Out, "querying queue %s for job set %s\n", queue, jobSetId)
+	fmt.Fprintf(a.Out, "Querying queue %s for job set %s\n", queue, jobSetId)
 	client.WithConnection(a.Params.ApiConnectionDetails, func(conn *grpc.ClientConn) {
 		eventsClient := api.NewEventClient(conn)
 
@@ -28,7 +28,7 @@ func (a *App) Analyze(queue string, jobSetId string) error {
 		})
 
 		if jobState == nil {
-			fmt.Fprintf(a.Out, "found no events associated with job set %s in queue %s/n", queue, jobSetId)
+			fmt.Fprintf(a.Out, "Found no events associated with job set %s in queue %s/n", jobSetId, queue)
 			return
 		}
 
@@ -40,7 +40,7 @@ func (a *App) Analyze(queue string, jobSetId string) error {
 				for _, e := range jobEvents {
 					data, err := json.Marshal(e)
 					if err != nil {
-						fmt.Fprintf(a.Out, "error marshalling JSON: %s\n", err)
+						fmt.Fprintf(a.Out, "Error marshalling JSON: %s\n", err)
 					} else {
 						fmt.Fprintf(a.Out, "%s %s\n", reflect.TypeOf(*e), string(data))
 					}
