@@ -531,22 +531,3 @@ func compile(outputPath string, sourcePath string) error {
 
 	return nil
 }
-
-// copyFile copies a file with path src to a file at path dst.
-func copyFile(dst string, src string) error {
-	srcFile, err := os.Open(src)
-	if err != nil {
-		return fmt.Errorf("[copyFile] error opening %s: %s", src, err)
-	}
-	defer srcFile.Close()
-	dstFile, err := os.Create(dst)
-	if err != nil {
-		return fmt.Errorf("[copyFile] error opening %s: %s", dst, err)
-	}
-	defer dstFile.Close()
-	_, err = dstFile.ReadFrom(srcFile)
-	if err != nil {
-		return fmt.Errorf("[copyFile] error copying %s to %s: %s", src, dst, err)
-	}
-	return nil
-}
