@@ -217,7 +217,10 @@ func TestCreateIngress_TLS(t *testing.T) {
 	expectedIngressSpec := networking.IngressSpec{
 		TLS: []networking.IngressTLS{
 			{
-				Hosts:      []string{"testPort.testPod.testNamespace.testSuffix"},
+				Hosts:      []string{
+					"testIngress.svc",
+					"testPort.testPod.testNamespace.testSuffix",
+				},
 				SecretName: "testIngress-tls-certificate",
 			},
 		},
