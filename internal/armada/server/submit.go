@@ -220,15 +220,18 @@ func (server *SubmitServer) CancelJobs(ctx context.Context, request *api.JobCanc
 	}
 
 	if request.JobSetId != "" && request.Queue != "" {
+		fmt.Println("GETTING JOB IDS")
 		ids, err := server.jobRepository.GetActiveJobIds(request.Queue, request.JobSetId)
 		if err != nil {
 			return nil, status.Errorf(codes.Aborted, err.Error())
 		}
+		fmt.Println("GOT JOB IDS", len(ids))
 
 		batchSize := 100
 		batches := batchIds(ids, batchSize)
 		cancelledIds := []string{}
 		for _, batch := range batches {
+			fmt.Println("BATCH")
 			jobs, err := server.jobRepository.GetExistingJobsByIds(batch)
 			if err != nil {
 				return nil, status.Errorf(codes.Internal, err.Error())
@@ -238,7 +241,9 @@ func (server *SubmitServer) CancelJobs(ctx context.Context, request *api.JobCanc
 				return nil, status.Errorf(codes.Internal, err.Error())
 			}
 			cancelledIds = append(cancelledIds, result.CancelledIds...)
+			fmt.Println("BATCH DONE")
 		}
+		fmt.Println("FINISHED")
 		return &api.CancellationResult{CancelledIds: cancelledIds}, nil
 	}
 	return nil, status.Errorf(codes.InvalidArgument, "Specify job id or queue with job set id")
