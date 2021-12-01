@@ -15,11 +15,11 @@ func Batch(elements []string, batchSize int) [][]string {
 	batches := make([][]string, totalBatches, totalBatches)
 
 	for i := 0; i < n; i++ {
-		batches[i] = elements[i*batchSize:(i+1)*batchSize]
+		batches[i] = elements[i*batchSize : (i+1)*batchSize]
 	}
 
 	if lastBatchSize != 0 {
-		batches[n] = elements[n*batchSize:n*batchSize+lastBatchSize]
+		batches[n] = elements[n*batchSize : n*batchSize+lastBatchSize]
 	}
 
 	return batches
