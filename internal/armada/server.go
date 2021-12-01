@@ -100,7 +100,15 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 
 	permissions := authorization.NewPrincipalPermissionChecker(config.Auth.PermissionGroupMapping, config.Auth.PermissionScopeMapping, config.Auth.PermissionClaimMapping)
 
-	submitServer := server.NewSubmitServer(permissions, jobRepository, queueRepository, eventStore, schedulingInfoRepository, &config.QueueManagement, &config.Scheduling)
+	submitServer := server.NewSubmitServer(
+		permissions,
+		jobRepository,
+		queueRepository,
+		eventStore,
+		schedulingInfoRepository,
+		getCancelJobsBatchSize(config),
+		&config.QueueManagement,
+		&config.Scheduling)
 	usageServer := server.NewUsageServer(permissions, config.PriorityHalfTime, &config.Scheduling, usageRepository, queueRepository)
 	aggregatedQueueServer := server.NewAggregatedQueueServer(permissions, config.Scheduling, jobRepository, queueCache, queueRepository, usageRepository, eventStore, schedulingInfoRepository)
 	eventServer := server.NewEventServer(permissions, redisEventRepository, eventStore)
@@ -128,4 +136,11 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 
 func createRedisClient(config *redis.UniversalOptions) redis.UniversalClient {
 	return redis.NewUniversalClient(config)
+}
+
+func getCancelJobsBatchSize(config *configuration.ArmadaConfig) int {
+	if config.CancelJobsBatchSize > 0 {
+		return config.CancelJobsBatchSize
+	}
+	return 200
 }

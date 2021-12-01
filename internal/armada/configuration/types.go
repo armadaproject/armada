@@ -19,6 +19,7 @@ type ArmadaConfig struct {
 	CorsAllowedOrigins []string
 
 	PriorityHalfTime    time.Duration
+	CancelJobsBatchSize int
 	Redis               redis.UniversalOptions
 	EventStoreQueue     string
 	EventJobStatusQueue string

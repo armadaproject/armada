@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	"fmt"
-	"math"
 	"strings"
 	"time"
 
@@ -30,6 +29,7 @@ type SubmitServer struct {
 	queueRepository          repository.QueueRepository
 	eventStore               repository.EventStore
 	schedulingInfoRepository repository.SchedulingInfoRepository
+	cancelJobsBatchSize      int
 	queueManagementConfig    *configuration.QueueManagementConfig
 	schedulingConfig         *configuration.SchedulingConfig
 }
@@ -40,6 +40,7 @@ func NewSubmitServer(
 	queueRepository repository.QueueRepository,
 	eventStore repository.EventStore,
 	schedulingInfoRepository repository.SchedulingInfoRepository,
+	cancelJobsBatchSize int,
 	queueManagementConfig *configuration.QueueManagementConfig,
 	schedulingConfig *configuration.SchedulingConfig,
 ) *SubmitServer {
@@ -50,6 +51,7 @@ func NewSubmitServer(
 		queueRepository:          queueRepository,
 		eventStore:               eventStore,
 		schedulingInfoRepository: schedulingInfoRepository,
+		cancelJobsBatchSize:      cancelJobsBatchSize,
 		queueManagementConfig:    queueManagementConfig,
 		schedulingConfig:         schedulingConfig}
 }
@@ -220,18 +222,14 @@ func (server *SubmitServer) CancelJobs(ctx context.Context, request *api.JobCanc
 	}
 
 	if request.JobSetId != "" && request.Queue != "" {
-		fmt.Println("GETTING JOB IDS")
 		ids, err := server.jobRepository.GetActiveJobIds(request.Queue, request.JobSetId)
 		if err != nil {
 			return nil, status.Errorf(codes.Aborted, err.Error())
 		}
-		fmt.Println("GOT JOB IDS", len(ids))
 
-		batchSize := 100
-		batches := batchIds(ids, batchSize)
+		batches := util.Batch(ids, server.cancelJobsBatchSize)
 		cancelledIds := []string{}
 		for _, batch := range batches {
-			fmt.Println("BATCH")
 			jobs, err := server.jobRepository.GetExistingJobsByIds(batch)
 			if err != nil {
 				return nil, status.Errorf(codes.Internal, err.Error())
@@ -241,9 +239,7 @@ func (server *SubmitServer) CancelJobs(ctx context.Context, request *api.JobCanc
 				return nil, status.Errorf(codes.Internal, err.Error())
 			}
 			cancelledIds = append(cancelledIds, result.CancelledIds...)
-			fmt.Println("BATCH DONE")
 		}
-		fmt.Println("FINISHED")
 		return &api.CancellationResult{CancelledIds: cancelledIds}, nil
 	}
 	return nil, status.Errorf(codes.InvalidArgument, "Specify job id or queue with job set id")
@@ -530,24 +526,4 @@ func validateQueue(queue *api.Queue) error {
 		return status.Errorf(codes.InvalidArgument, "Minimum queue priority factor is 1.")
 	}
 	return nil
-}
-
-func batchIds(ids []string, batchSize int) [][]string {
-	total := len(ids)
-	batches := [][]string{}
-
-	n := int(math.Floor(float64(total) / float64(batchSize)))
-	lastBatchSize := total % batchSize
-
-	for i := 0; i < n; i++ {
-		s := ids[i*batchSize:(i+1)*batchSize]
-		batches = append(batches, s)
-	}
-
-	if lastBatchSize != 0 {
-		s := ids[n*batchSize:n*batchSize+lastBatchSize]
-		batches = append(batches, s)
-	}
-
-	return batches
 }
