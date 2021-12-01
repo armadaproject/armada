@@ -61,7 +61,9 @@ func TestJetstreamEvents(t *testing.T) {
 	wg := &sync.WaitGroup{}
 	wg.Add(1000)
 
-	err = eventStream.Subscribe("test-queue", func(event *api.EventMessage) error {
+	err = eventStream.Subscribe("test-queue", func(msg *Message) error {
+		err := msg.Ack()
+		assert.NoError(t, err)
 		wg.Done()
 		return nil
 	})

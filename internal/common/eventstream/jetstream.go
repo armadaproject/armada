@@ -84,7 +84,7 @@ func (c *JetstreamEventStream) Publish(events []*api.EventMessage) []error {
 	return errs
 }
 
-func (c *JetstreamEventStream) Subscribe(queue string, callback func(event *api.EventMessage) error) error {
+func (c *JetstreamEventStream) Subscribe(queue string, callback func(event *Message) error) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
@@ -108,19 +108,25 @@ func (c *JetstreamEventStream) Subscribe(queue string, callback func(event *api.
 		if err != nil {
 			log.Errorf("failed to unmarsal event: %v", err)
 		}
-		err = callback(event)
+
+		ackFn := func() error {
+			return msg.Ack()
+		}
+		err = callback(&Message{
+			EventMessage: event,
+			Ack:          ackFn,
+		})
 		if err != nil {
 			log.Errorf("queue subscribe callback error: %v", err)
 		}
-		err = msg.Ack()
 		if err != nil {
 			log.Errorf("error when acknowledging message: %v", err)
 		}
 	})
+
 	if err != nil {
 		return fmt.Errorf("error when trying to queue subscribe: %v", err)
 	}
-
 	return nil
 }
 

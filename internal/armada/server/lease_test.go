@@ -251,8 +251,8 @@ func (repo *mockJobRepository) GetLeasedJobIds(queue string) ([]string, error) {
 	return []string{}, nil
 }
 
-func (repo *mockJobRepository) UpdateStartTime(jobId string, clusterId string, startTime time.Time) error {
-	return nil
+func (repo *mockJobRepository) UpdateStartTime(jobStartInfos []*repository.JobStartInfo) ([]error, error) {
+	return nil, nil
 }
 
 func (repo *mockJobRepository) UpdateJobs(ids []string, mutator func([]*api.Job)) []repository.UpdateJobResult {
