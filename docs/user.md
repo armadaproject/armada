@@ -16,7 +16,7 @@ The Armada workflow is:
 
 To create a job that sleeps for 60 seconds, start by creating a yaml file with the following contents:
 
-```yaml        
+```yaml
 queue: test
 jobSetId: set1
 jobs:
