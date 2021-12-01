@@ -18,25 +18,26 @@ To create a job that sleeps for 60 seconds, start by creating a yaml file with t
 
 ```yaml
 queue: test
-priority: 0
 jobSetId: set1
-podSpec:
-  terminationGracePeriodSeconds: 0
-  restartPolicy: Never
-  containers:
-    - name: sleep
-      imagePullPolicy: IfNotPresent
-      image: busybox:latest
-      args:
-        - sleep
-        - 60s
-      resources:
-        limits:
-          memory: 64Mi
-          cpu: 150m
-        requests:
-          memory: 64Mi
-          cpu: 150m
+jobs:
+  - priority: 0
+    podSpecs:
+      - terminationGracePeriodSeconds: 0
+        restartPolicy: Never
+        containers:
+          - name: sleep
+            imagePullPolicy: IfNotPresent
+            image: busybox:latest
+            args:
+              - sleep
+              - 60s
+            resources:
+              limits:
+                memory: 64Mi
+                cpu: 150m
+              requests:
+                memory: 64Mi
+                cpu: 150m
 ```
 
 In the above yaml snippet, `podSpec` is a Kubernetes podspec, which consists of one or more containers that contain the user code to be run. In addition, the job specification (jobspec) contains metadata fields specific to Armada:
@@ -59,29 +60,30 @@ All containers part of the same podspec will be run on the same node (a physical
 
 ```yaml
 queue: test
-priority: 0
-jobSetId: multi-node-set1
-podSpecs:
-  - terminationGracePeriodSeconds: 0
-    restartPolicy: Never
-    containers:
-      - name: sleep
-        imagePullPolicy: IfNotPresent
-        image: busybox:latest
-        args:
-          - sleep
-          - 60s
-        resources:
-          limits:
-            memory: 64Mi
-            cpu: 150m
-          requests:
-            memory: 64Mi
-            cpu: 150m 
-  - terminationGracePeriodSeconds: 0
-    restartPolicy: Never
-    containers:
-      ... 
+jobSetId: set1
+jobs:
+  - priority: 0
+    podSpecs:
+      - terminationGracePeriodSeconds: 0
+        restartPolicy: Never
+        containers:
+          - name: sleep
+            imagePullPolicy: IfNotPresent
+            image: busybox:latest
+            args:
+              - sleep
+              - 60s
+            resources:
+              limits:
+                memory: 64Mi
+                cpu: 150m
+              requests:
+                memory: 64Mi
+                cpu: 150m
+      - terminationGracePeriodSeconds: 0
+        restartPolicy: Never
+        containers:
+          ...
 ```
 
 All pods part of the same job will be run simultaneously and within a single Kubernetes cluster. If any of the pods that make up the job fails to start within a certain timeout (specified by the `stuckPodExpiry` parameter), the entire job is cancelled and all pods belonging to it removed. Armada may attempt to re-schedule jobs experiencing transient issues. Events relating to a multi-node job contain a `podNumber` identifier, corresponding to the index of pod in the `podSpecs` list that the event refers to.
