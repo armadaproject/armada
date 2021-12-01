@@ -66,12 +66,17 @@ func CreateIngress(name string, job *api.Job, pod *v1.Pod, service *v1.Service, 
 	})
 
 	rules := make([]networking.IngressRule, 0, len(service.Spec.Ports))
+	tlsHosts := make([]string, 0, len(service.Spec.Ports))
+
 	for _, servicePort := range service.Spec.Ports {
 		if !contains(jobConfig, uint32(servicePort.Port)) {
 			continue
 		}
+		host := fmt.Sprintf("%s.%s.%s.%s", servicePort.Name, pod.Name, pod.Namespace, executorIngressConfig.HostnameSuffix)
+		tlsHosts = append(tlsHosts, host)
+
 		path := networking.IngressRule{
-			Host: fmt.Sprintf("%s.%s.%s.%s", servicePort.Name, pod.Name, pod.Namespace, executorIngressConfig.HostnameSuffix),
+			Host: host,
 			IngressRuleValue: networking.IngressRuleValue{
 				HTTP: &networking.HTTPIngressRuleValue{
 					Paths: []networking.HTTPIngressPath{
@@ -89,6 +94,20 @@ func CreateIngress(name string, job *api.Job, pod *v1.Pod, service *v1.Service, 
 		rules = append(rules, path)
 	}
 
+	tls := make([]networking.IngressTLS, 0, 1)
+
+	if jobConfig.TlsEnabled {
+		certName := jobConfig.CertName
+		if certName == "" {
+			certName = fmt.Sprintf("%s-tls-certificate", name)
+		}
+
+		tls = append(tls, networking.IngressTLS{
+			Hosts:      tlsHosts,
+			SecretName: certName,
+		})
+	}
+
 	ingress := &networking.Ingress{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        name,
@@ -98,6 +117,7 @@ func CreateIngress(name string, job *api.Job, pod *v1.Pod, service *v1.Service, 
 		},
 		Spec: networking.IngressSpec{
 			Rules: rules,
+			TLS:   tls,
 		},
 	}
 	return ingress
