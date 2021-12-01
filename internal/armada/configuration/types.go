@@ -18,13 +18,12 @@ type ArmadaConfig struct {
 	MetricsPort        uint16
 	CorsAllowedOrigins []string
 
-	PriorityHalfTime    time.Duration
-	Redis               redis.UniversalOptions
-	EventStoreQueue     string
-	EventJobStatusQueue string
-	EventsNats          NatsConfig
-	EventsJetstream     JetstreamConfig
-	EventsRedis         redis.UniversalOptions
+	PriorityHalfTime time.Duration
+	Redis            redis.UniversalOptions
+	Events           EventsConfig
+	EventsNats       NatsConfig
+	EventsJetstream  JetstreamConfig
+	EventsRedis      redis.UniversalOptions
 
 	Scheduling        SchedulingConfig
 	QueueManagement   QueueManagementConfig
@@ -62,6 +61,15 @@ type EventRetentionPolicy struct {
 type LeaseSettings struct {
 	ExpireAfter        time.Duration
 	ExpiryLoopInterval time.Duration
+}
+
+type EventsConfig struct {
+	StoreQueue     string // Queue group for event storage processors
+	JobStatusQueue string // Queue group for running job status processor
+
+	ProcessorBatchSize             int           // Maximum event batch size
+	ProcessorMaxTimeBetweenBatches time.Duration // Maximum time between batches
+	ProcessorTimeout               time.Duration // Timeout for reporting event or stopping batcher before erroring out
 }
 
 type NatsConfig struct {
