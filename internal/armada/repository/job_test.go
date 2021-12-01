@@ -300,8 +300,12 @@ func TestUpdateStartTime(t *testing.T) {
 		leasedJob := addLeasedJob(t, r, "queue1", "cluster1")
 
 		startTime := time.Now()
-		err := r.UpdateStartTime(leasedJob.Id, "cluster1", startTime)
-		assert.Nil(t, err)
+		jobErrors, err := r.UpdateStartTime([]*JobStartInfo{{
+			JobId:     leasedJob.Id,
+			ClusterId: "cluster1",
+			StartTime: startTime,
+		}})
+		AssertUpdateStartTimeNoErrors(t, jobErrors, err)
 	})
 }
 
@@ -310,26 +314,63 @@ func TestUpdateStartTime_UsesEarlierTime(t *testing.T) {
 		leasedJob := addLeasedJob(t, r, "queue1", "cluster1")
 
 		startTime := time.Now()
-		startTimePlusOneHour := time.Now().Add(time.Hour)
-		err := r.UpdateStartTime(leasedJob.Id, "cluster1", startTime)
-		assert.Nil(t, err)
-		err = r.UpdateStartTime(leasedJob.Id, "cluster1", startTimePlusOneHour)
-		assert.Nil(t, err)
+		startTimePlusOneHour := time.Now().Add(4 * time.Hour)
+
+		jobErrors, err := r.UpdateStartTime([]*JobStartInfo{
+			{
+				JobId:     leasedJob.Id,
+				ClusterId: "cluster1",
+				StartTime: startTime,
+			},
+			{
+				JobId:     leasedJob.Id,
+				ClusterId: "cluster1",
+				StartTime: startTimePlusOneHour,
+			},
+		})
+		AssertUpdateStartTimeNoErrors(t, jobErrors, err)
 
 		runInfos, err := r.GetJobRunInfos([]string{leasedJob.Id})
 		assert.Nil(t, err)
 		assert.Equal(t, 1, len(runInfos))
-		assert.Equal(t, runInfos[leasedJob.Id].StartTime.UTC(), startTime.UTC())
-		assert.NotEqual(t, runInfos[leasedJob.Id].StartTime.UTC(), startTimePlusOneHour.UTC())
+		assert.Equal(t, startTime.UTC(), runInfos[leasedJob.Id].StartTime.UTC())
+		assert.NotEqual(t, startTimePlusOneHour.UTC(), runInfos[leasedJob.Id].StartTime.UTC())
 	})
 }
 
 func TestUpdateStartTime_NonExistentJob(t *testing.T) {
 	withRepository(func(r *RedisJobRepository) {
 		startTime := time.Now()
-		err := r.UpdateStartTime("NonExistent", "cluster1", startTime)
-		assert.NotNil(t, err)
-		assert.Equal(t, err.Error(), JobNotFound)
+		jobErrors, err := r.UpdateStartTime([]*JobStartInfo{{
+			JobId:     "NonExistent",
+			ClusterId: "cluster1",
+			StartTime: startTime,
+		}})
+		assert.NoError(t, err)
+		assert.Len(t, jobErrors, 1)
+		assert.Error(t, jobErrors[0])
+		assert.Equal(t, JobNotFound, jobErrors[0].Error())
+	})
+}
+
+func TestUpdateStartTime_FinishedJob(t *testing.T) {
+	withRepository(func(r *RedisJobRepository) {
+		startTime := time.Now()
+		leasedJob := addLeasedJob(t, r, "queue1", "cluster1")
+		errs := r.DeleteJobs([]*api.Job{leasedJob})
+		for _, err := range errs {
+			assert.NoError(t, err)
+		}
+
+		jobErrors, err := r.UpdateStartTime([]*JobStartInfo{{
+			JobId:     leasedJob.Id,
+			ClusterId: "cluster1",
+			StartTime: startTime,
+		}})
+		assert.NoError(t, err)
+		assert.Len(t, jobErrors, 1)
+		assert.Error(t, jobErrors[0])
+		assert.Equal(t, JobNotFound, jobErrors[0].Error())
 	})
 }
 
@@ -338,19 +379,23 @@ func TestUpdateStartTime_NonExistentJob(t *testing.T) {
 func TestSaveAndRetrieveStartTime_HandlesDifferentTimeZones(t *testing.T) {
 	withRepository(func(r *RedisJobRepository) {
 		loc, err := time.LoadLocation("Asia/Shanghai")
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		now := time.Now().UTC()
 		leasedJob := addLeasedJob(t, r, "queue1", "cluster1")
 
 		startTime := now.In(loc)
-		err = r.UpdateStartTime(leasedJob.Id, "cluster1", startTime)
-		assert.Nil(t, err)
+		jobErrors, err := r.UpdateStartTime([]*JobStartInfo{{
+			JobId:     leasedJob.Id,
+			ClusterId: "cluster1",
+			StartTime: startTime,
+		}})
+		AssertUpdateStartTimeNoErrors(t, jobErrors, err)
 
 		runInfos, err := r.GetJobRunInfos([]string{leasedJob.Id})
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		diff := runInfos[leasedJob.Id].StartTime.Sub(now).Seconds()
 		diff = math.Abs(diff)
-		assert.Equal(t, 1, len(runInfos))
+		assert.Len(t, runInfos, 1)
 		assert.True(t, diff < float64(1))
 	})
 }
@@ -361,14 +406,18 @@ func TestGetJobRunInfos(t *testing.T) {
 		leasedJob2 := addLeasedJob(t, r, "queue1", "cluster2")
 
 		startTime := time.Now()
-		err := r.UpdateStartTime(leasedJob1.Id, "cluster1", startTime)
-		assert.Nil(t, err)
+		jobErrors, err := r.UpdateStartTime([]*JobStartInfo{{
+			JobId:     leasedJob1.Id,
+			ClusterId: "cluster1",
+			StartTime: startTime,
+		}})
+		AssertUpdateStartTimeNoErrors(t, jobErrors, err)
 
 		runInfos, err := r.GetJobRunInfos([]string{leasedJob1.Id, leasedJob2.Id})
-		assert.Nil(t, err)
-		assert.Equal(t, 1, len(runInfos))
-		assert.Equal(t, runInfos[leasedJob1.Id].StartTime.UTC(), startTime.UTC())
-		assert.Equal(t, runInfos[leasedJob1.Id].CurrentClusterId, "cluster1")
+		assert.NoError(t, err)
+		assert.Len(t, runInfos, 1)
+		assert.Equal(t, startTime.UTC(), runInfos[leasedJob1.Id].StartTime.UTC())
+		assert.Equal(t, "cluster1", runInfos[leasedJob1.Id].CurrentClusterId)
 	})
 }
 
@@ -378,15 +427,23 @@ func TestGetJobRunInfos_HandlesJobWithoutClusterAssociation(t *testing.T) {
 		leasedJob1 := addLeasedJob(t, r, "queue1", "cluster1")
 
 		startTime := time.Now()
-		err := r.UpdateStartTime(job1.Id, "cluster1", startTime)
-		assert.Nil(t, err)
-		err = r.UpdateStartTime(leasedJob1.Id, "cluster1", startTime)
-		assert.Nil(t, err)
+		jobErrors, err := r.UpdateStartTime([]*JobStartInfo{{
+			JobId:     job1.Id,
+			ClusterId: "cluster1",
+			StartTime: startTime,
+		}})
+		AssertUpdateStartTimeNoErrors(t, jobErrors, err)
+		jobErrors, err = r.UpdateStartTime([]*JobStartInfo{{
+			JobId:     leasedJob1.Id,
+			ClusterId: "cluster1",
+			StartTime: startTime,
+		}})
+		AssertUpdateStartTimeNoErrors(t, jobErrors, err)
 
 		runInfos, err := r.GetJobRunInfos([]string{job1.Id, leasedJob1.Id})
 		assert.Nil(t, err)
 		assert.Equal(t, 1, len(runInfos))
-		assert.Equal(t, runInfos[leasedJob1.Id].StartTime.UTC(), startTime.UTC())
+		assert.Equal(t, startTime.UTC(), runInfos[leasedJob1.Id].StartTime.UTC())
 	})
 }
 
@@ -396,15 +453,24 @@ func TestGetJobRunInfos_ReturnStartTimeForCurrentAssociatedCluster(t *testing.T)
 
 		startTime := time.Now()
 		plusOneHour := startTime.Add(time.Hour)
-		err := r.UpdateStartTime(leasedJob1.Id, "cluster2", startTime)
-		assert.Nil(t, err)
-		err = r.UpdateStartTime(leasedJob1.Id, "cluster1", plusOneHour)
-		assert.Nil(t, err)
+		jobErrors, err := r.UpdateStartTime([]*JobStartInfo{{
+			JobId:     leasedJob1.Id,
+			ClusterId: "cluster2",
+			StartTime: startTime,
+		}})
+		AssertUpdateStartTimeNoErrors(t, jobErrors, err)
+
+		jobErrors, err = r.UpdateStartTime([]*JobStartInfo{{
+			JobId:     leasedJob1.Id,
+			ClusterId: "cluster1",
+			StartTime: plusOneHour,
+		}})
+		AssertUpdateStartTimeNoErrors(t, jobErrors, err)
 
 		runInfos, err := r.GetJobRunInfos([]string{leasedJob1.Id})
-		assert.Nil(t, err)
-		assert.Equal(t, 1, len(runInfos))
-		assert.Equal(t, runInfos[leasedJob1.Id].StartTime.UTC(), plusOneHour.UTC())
+		assert.NoError(t, err)
+		assert.Len(t, runInfos, 1)
+		assert.Equal(t, plusOneHour.UTC(), runInfos[leasedJob1.Id].StartTime.UTC())
 	})
 }
 
@@ -761,4 +827,12 @@ func withRepositoryUsingJobDefaults(
 
 	repo := NewRedisJobRepository(client, retention)
 	action(repo)
+}
+
+func AssertUpdateStartTimeNoErrors(t *testing.T, jobErrors []error, err error) {
+	t.Helper()
+	assert.NoError(t, err)
+	for _, err := range jobErrors {
+		assert.NoError(t, err)
+	}
 }
