@@ -2,6 +2,7 @@ package armadactl
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"fmt"
 	"log"
@@ -12,10 +13,15 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ory/dockertest/v3"
 	"github.com/ory/dockertest/v3/docker"
+	"google.golang.org/grpc"
+	"k8s.io/apimachinery/pkg/api/resource"
 
+	"github.com/G-Research/armada/internal/common"
+	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/client"
 	cq "github.com/G-Research/armada/pkg/client/queue"
 )
@@ -192,53 +198,48 @@ func TestJob(t *testing.T) {
 	groups := []string{"gbar", "gbaz"}
 	resourceLimits := map[string]float64{"cpu": 0.2, "exoticResource": 0.9}
 
-	// // job parameters
-	// path, err := filepath.Abs(filepath.Join("./", "app_test_job.yaml"))
-	// if err != nil {
-	// 	t.Fatalf("error creating path to test job: %s", err)
-	// }
-	// // dryRun := false
+	// job parameters
+	path, err := filepath.Abs(filepath.Join("./", "app_test_job.yaml"))
+	if err != nil {
+		t.Fatalf("error creating path to test job: %s", err)
+	}
 
 	// create a queue to use for the tests
-	err := app.CreateQueue(name, priorityFactor, owners, groups, resourceLimits)
+	err = app.CreateQueue(name, priorityFactor, owners, groups, resourceLimits)
 	if err != nil {
 		t.Fatalf("error creating test queue: %s", err)
 	}
 	buf.Reset()
 
-	// TODO there are TSL-related problems with running the fakeexecutor in a container,
-	// and without an executor it's not possible to submit jobs
+	t.Run("submit", func(t *testing.T) {
+		err := app.Submit(path, false)
+		if err != nil {
+			t.Fatalf("expected no error, but got %s", err)
+		}
 
-	// t.Run("submit", func(t *testing.T) {
-	// 	err := app.Submit(path, false)
-	// 	if err != nil {
-	// 		t.Fatalf("expected no error, but got %s", err)
-	// 	}
+		out := buf.String()
+		buf.Reset()
+		for _, s := range []string{"Submitted job with ID", "to job set with ID set1\n"} {
+			if !strings.Contains(out, s) {
+				t.Fatalf("expected output to contain '%s', but got '%s'", s, out)
+			}
+		}
+	})
 
-	// 	out := buf.String()
-	// 	fmt.Println("submit out:", out)
-	// 	buf.Reset()
-	// 	for _, s := range []string{"Submitted job with ID", "to job set with ID set1\n"} {
-	// 		if !strings.Contains(out, s) {
-	// 			t.Fatalf("expected output to contain '%s', but got '%s'", s, out)
-	// 		}
-	// 	}
-	// })
+	t.Run("resources", func(t *testing.T) {
+		err := app.Resources(name, "set1")
+		if err != nil {
+			t.Fatalf("expected no error, but got %s", err)
+		}
 
-	// t.Run("resources", func(t *testing.T) {
-	// 	err := app.Resources(name, "set1")
-	// 	if err != nil {
-	// 		t.Fatalf("expected no error, but got %s", err)
-	// 	}
-
-	// 	out := buf.String()
-	// 	buf.Reset()
-	// 	for _, s := range []string{"Job ID:", "maximum used resources: 0\n"} {
-	// 		if !strings.Contains(out, s) {
-	// 			t.Fatalf("expected output to contain '%s', but got '%s'", s, out)
-	// 		}
-	// 	}
-	// })
+		out := buf.String()
+		buf.Reset()
+		for _, s := range []string{"Job ID:", "maximum used resources:", "\n"} {
+			if !strings.Contains(out, s) {
+				t.Fatalf("expected output to contain '%s', but got '%s'", s, out)
+			}
+		}
+	})
 
 	t.Run("cancel", func(t *testing.T) {
 		err := app.Cancel(name, "set1", "")
@@ -275,13 +276,10 @@ func spinUpArmadaCluster() (func(), error) {
 	}
 
 	// define the cleanup function here so it can be called to clean up containers in the case of partial success
-	var redisCleanup, postgresCleanup, jetstreamCleanup, executorCleanup, armadaServerCleanup func()
+	var redisCleanup, postgresCleanup, jetstreamCleanup, armadaServerCleanup func()
 	cleanup := func() {
 		if armadaServerCleanup != nil {
 			armadaServerCleanup()
-		}
-		if executorCleanup != nil {
-			executorCleanup()
 		}
 		if jetstreamCleanup != nil {
 			jetstreamCleanup()
@@ -322,12 +320,6 @@ func spinUpArmadaCluster() (func(), error) {
 		return nil, fmt.Errorf("[spinUpArmadaCluster] error starting Armada server: %s", err)
 	}
 
-	executorCleanup, err = spinUpFakeExecutor(pool, network)
-	if err != nil {
-		cleanup()
-		return nil, fmt.Errorf("[spinUpArmadaCluster] error starting fake executor: %s", err)
-	}
-
 	// wait for the Armada server to come up
 	// pool.MaxWait = 5 * time.Minute // max time until pool.Retry returns an error
 	if err = pool.Retry(func() error {
@@ -341,20 +333,52 @@ func spinUpArmadaCluster() (func(), error) {
 		return nil, err
 	}
 
-	// wait for the Armada executor to come up
-	// pool.MaxWait = 5 * time.Minute // max time until pool.Retry returns an error
-	if err = pool.Retry(func() error {
-		_, err := http.Get("http://localhost:9003/") // Should return 404 once the executor is up
-		if err != nil {
-			return fmt.Errorf("[spinUpArmadaCluster] error waiting for Armada executor to start: %s", err)
-		}
-		return nil
-	}); err != nil {
-		cleanup()
-		return nil, err
-	}
+	// make API calls to the server necessary for it to accept jobs
+	setupServer()
 
 	return cleanup, nil
+}
+
+// setupServer makes API calls to the server to tell it there are resources available
+func setupServer() error {
+
+	conn, err := grpc.Dial("localhost:50052", grpc.WithInsecure(), grpc.WithDefaultCallOptions(grpc.WaitForReady(true)))
+	if err != nil {
+		return fmt.Errorf("[setupServer] error making gRPC call to server: %s", err)
+	}
+	defer conn.Close()
+
+	ctx := context.Background()
+	usageReport := &api.ClusterUsageReport{
+		ClusterId:                "test-cluster",
+		ReportTime:               time.Now(),
+		Queues:                   []*api.QueueReport{},
+		ClusterCapacity:          map[string]resource.Quantity{"cpu": resource.MustParse("100"), "memory": resource.MustParse("100Gi")},
+		ClusterAvailableCapacity: map[string]resource.Quantity{"cpu": resource.MustParse("100"), "memory": resource.MustParse("100Gi")},
+	}
+	usageClient := api.NewUsageClient(conn)
+	_, err = usageClient.ReportUsage(ctx, usageReport)
+	if err != nil {
+		return fmt.Errorf("[setupServer] error reporting usage to server: %s", err)
+	}
+
+	// make initial lease request to populate cluster node info
+	leaseClient := api.NewAggregatedQueueClient(conn)
+	_, err = leaseJobs(leaseClient, ctx)
+	if err != nil {
+		return fmt.Errorf("[setupServer] error making lease request: %s", err)
+	}
+
+	return nil
+}
+
+func leaseJobs(leaseClient api.AggregatedQueueClient, ctx context.Context) (*api.JobLease, error) {
+	nodeResources := common.ComputeResources{"cpu": resource.MustParse("5"), "memory": resource.MustParse("5Gi")}
+	return leaseClient.LeaseJobs(ctx, &api.LeaseRequest{
+		ClusterId: "test-cluster",
+		Resources: nodeResources,
+		Nodes:     []api.NodeInfo{{Name: "testNode", AllocatableResources: nodeResources, AvailableResources: nodeResources}},
+	})
 }
 
 // spinUpRedis runs redis in a container with hard-coded values and returns a cleanup function handle
@@ -432,7 +456,7 @@ func spinUpArmadaServer(pool *dockertest.Pool, network *docker.Network) (func(),
 		Name:         "armada-test-server",
 		Hostname:     "armada",
 		NetworkID:    network.ID,
-		Mounts:       []string{rootDir + ":/app"},                   // mount the compiled binary into the container
+		Mounts:       []string{rootDir + ":/app"},                   // mount the project root directory into the container
 		ExposedPorts: []string{"50051/tcp", "8080/tcp", "9000/tcp"}, // need both ExposedPorts and PortBindings
 		PortBindings: map[docker.Port][]docker.PortBinding{
 			"50051/tcp": []docker.PortBinding{{HostPort: "50052"}}, // gRPC
@@ -451,45 +475,6 @@ func spinUpArmadaServer(pool *dockertest.Pool, network *docker.Network) (func(),
 	cleanup, err := spinUpService(opts, pool, network)
 	if err != nil {
 		return nil, fmt.Errorf("[spinUpArmadaServer] error starting Armada server: %s", err)
-	}
-	return cleanup, nil
-}
-
-func spinUpFakeExecutor(pool *dockertest.Pool, network *docker.Network) (func(), error) {
-
-	// compile the fake executor on the host and mount the resulting binary into the container
-	// compiling on the host is much faster than in a container since deps. are cached between runs
-	rootDir, err := filepath.Abs("../../")
-	if err != nil {
-		return nil, fmt.Errorf("[spinUpFakeExecutor] error creating path to root directory: %s", err)
-	}
-	err = compile(filepath.Join(rootDir, "/.test/", "fakeexecutor"), filepath.Join(rootDir, "/cmd/", "/fakeexecutor/", "main.go"))
-	if err != nil {
-		return nil, fmt.Errorf("[spinUpFakeExecutor] error compiling fake executor: %s", err)
-	}
-
-	// container opts.
-	opts := &dockertest.RunOptions{
-		Repository:   "golang",
-		Tag:          "1.17.3",
-		Name:         "armada-test-executor",
-		Hostname:     "executor",
-		NetworkID:    network.ID,
-		Mounts:       []string{rootDir + ":/app"}, // mount the compiled binary into the container
-		ExposedPorts: []string{"9001/tcp"},        // need both ExposedPorts and PortBindings
-		PortBindings: map[docker.Port][]docker.PortBinding{
-			"9001/tcp": []docker.PortBinding{{HostPort: "9003"}}, // metrics
-		},
-		WorkingDir: "/app",
-		Entrypoint: []string{"./.test/fakeexecutor"},
-		Cmd: []string{
-			"--config", "./internal/armadactl/app_test_executor_config.yaml",
-		},
-	}
-
-	cleanup, err := spinUpService(opts, pool, network)
-	if err != nil {
-		return nil, fmt.Errorf("[spinUpFakeExecutor] error starting fake executor: %s", err)
 	}
 	return cleanup, nil
 }

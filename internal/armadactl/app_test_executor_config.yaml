@@ -1,5 +1,0 @@
-apiConnection:
-  armadaUrl : "armada:50051"
-metric:
-  port: 9001
-  exposeQueueUsageMetrics: true  
