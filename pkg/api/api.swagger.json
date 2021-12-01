@@ -441,12 +441,18 @@
             "type": "string"
           }
         },
+        "certName": {
+          "type": "string"
+        },
         "ports": {
           "type": "array",
           "items": {
             "type": "integer",
             "format": "int64"
           }
+        },
+        "tlsEnabled": {
+          "type": "boolean"
         },
         "type": {
           "$ref": "#/definitions/apiIngressType"
