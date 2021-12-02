@@ -14,6 +14,10 @@ spec:
         {{- include "lookout.labels.all" . | nindent 8 }}
     spec:
       template:
+        metadata:
+          name: lookout-db-pruner
+          labels:
+            {{- include "lookout.labels.all" . | nindent 12 }}
         spec:
           restartPolicy: Never
           serviceAccountName: {{ .Values.customServiceAccount | default (include "lookout.name" .) }}
