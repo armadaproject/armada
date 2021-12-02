@@ -20,6 +20,7 @@ type PodDefaults struct {
 
 type IngressConfiguration struct {
 	HostnameSuffix string
+	CertDomain     string
 	Annotations    map[string]string
 }
 

@@ -51,10 +51,10 @@ require (
 	google.golang.org/grpc v1.42.0
 	gopkg.in/square/go-jose.v2 v2.4.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
-	k8s.io/api v0.22.3
-	k8s.io/apimachinery v0.22.3
-	k8s.io/client-go v0.22.3
-	k8s.io/component-base v0.22.3
-	k8s.io/component-helpers v0.22.3
-	k8s.io/kubelet v0.22.3
+	k8s.io/api v0.22.4
+	k8s.io/apimachinery v0.22.4
+	k8s.io/client-go v0.22.4
+	k8s.io/component-base v0.22.4
+	k8s.io/component-helpers v0.22.4
+	k8s.io/kubelet v0.22.4
 )
