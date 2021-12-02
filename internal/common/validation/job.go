@@ -4,6 +4,8 @@ import (
 	"fmt"
 
 	"github.com/G-Research/armada/pkg/api"
+
+	v1 "k8s.io/api/core/v1"
 )
 
 type JobSubmitRequestItemFn func(item *api.JobSubmitRequestItem) error
@@ -28,6 +30,17 @@ func JobSubmitRequestItem(maxPodSize uint) JobSubmitRequestItemFn {
 	}
 }
 
+type updateDefault func(*v1.PodSpec)
+
+func (validate JobSubmitRequestItemFn) ApplyDefaultPodSpec(update updateDefault) JobSubmitRequestItemFn {
+	return func(item *api.JobSubmitRequestItem) error {
+		for _, podSpec := range item.GetAllPodSpecs() {
+			update(podSpec)
+		}
+		return validate(item)
+	}
+}
+
 func ValidateJobSubmitRequestItem(request *api.JobSubmitRequestItem) error {
 	return validateIngressConfigs(request)
 }
@@ -37,7 +50,7 @@ func validateIngressConfigs(item *api.JobSubmitRequestItem) error {
 
 	for index, portConfig := range item.Ingress {
 		if len(portConfig.Ports) == 0 {
-			return fmt.Errorf("ingress contains zero ports. Each ingress should have at least one port.")
+			return fmt.Errorf("ingress contains zero ports. Each ingress should have at least one port")
 		}
 
 		for _, port := range portConfig.Ports {

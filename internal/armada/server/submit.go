@@ -104,17 +104,18 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 					),
 				server.permissions.UserOwns,
 			),
-			api.JobsFromSubmitRequest(server.applyDefaultsToPodSpec, util.NewULID, time.Now),
+			api.JobsFromSubmitRequest(util.NewULID, time.Now),
 		).Validate(
 			server.schedulingInfoRepository.GetClusterSchedulingInfo,
 			validateJobsCanBeScheduled,
 		),
 		repository.AddJobs(server.jobRepository.AddJobs).
-			ReportDuplicate(server.eventStore.ReportEvents).
 			ReportSubmitted(server.eventStore.ReportEvents).
+			ReportDuplicate(server.eventStore.ReportEvents).
 			ReportQueued(server.eventStore.ReportEvents),
 	).Validate(
-		validation.JobSubmitRequestItem(server.schedulingConfig.MaxPodSpecSizeBytes),
+		validation.JobSubmitRequestItem(server.schedulingConfig.MaxPodSpecSizeBytes).
+			ApplyDefaultPodSpec(server.applyDefaultsToPodSpec),
 	).Authorize(
 		server.authorizeOwnership,
 		server.permissions.UserHasPermission,
