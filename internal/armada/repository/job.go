@@ -38,7 +38,7 @@ type UpdateJobResult struct {
 type JobRepository interface {
 	PeekQueue(queue string, limit int64) ([]*api.Job, error)
 	TryLeaseJobs(clusterId string, queue string, jobs []*api.Job) ([]*api.Job, error)
-	AddJobs(job []*api.Job) ([]*SubmitJobResult, error)
+	AddJobs(job []*api.Job) (SubmitJobResults, error)
 	GetExistingJobsByIds(ids []string) ([]*api.Job, error)
 	FilterActiveQueues(queues []*api.Queue) ([]*api.Queue, error)
 	GetQueueSizes(queues []*api.Queue) (sizes []int64, e error)
@@ -76,7 +76,19 @@ type SubmitJobResult struct {
 	Error             error
 }
 
-func (repo *RedisJobRepository) AddJobs(jobs []*api.Job) ([]*SubmitJobResult, error) {
+type SubmitJobResults []*SubmitJobResult
+
+func (results SubmitJobResults) Filter(predicate func(result *SubmitJobResult) bool) SubmitJobResults {
+	filtered := make(SubmitJobResults, 0, len(results))
+	for _, result := range results {
+		if predicate(result) {
+			filtered = append(filtered, result)
+		}
+	}
+	return filtered
+}
+
+func (repo *RedisJobRepository) AddJobs(jobs []*api.Job) (SubmitJobResults, error) {
 	pipe := repo.db.Pipeline()
 
 	addJobScript.Load(pipe)
@@ -954,3 +966,103 @@ if currentClusterId == clusterId then
 end
 return 0
 `)
+
+type reportEvents func([]*api.EventMessage) error
+type AddJobs func([]*api.Job) (SubmitJobResults, error)
+
+func (add AddJobs) ReportQueued(report reportEvents) AddJobs {
+	return func(jobs []*api.Job) (SubmitJobResults, error) {
+		result, err := add(jobs)
+		if err != nil {
+			return nil, err
+		}
+
+		filter := func(result *SubmitJobResult) bool {
+			return result.Error != nil && !result.DuplicateDetected
+		}
+
+		now := time.Now()
+		events := make([]*api.EventMessage, 0, len(jobs))
+		for _, result := range result.Filter(filter) {
+			events = append(events, &api.EventMessage{
+				Events: &api.EventMessage_Queued{
+					Queued: &api.JobQueuedEvent{
+						JobId:    result.SubmittedJob.Id,
+						Queue:    result.SubmittedJob.Queue,
+						JobSetId: result.SubmittedJob.JobSetId,
+						Created:  now,
+					},
+				},
+			})
+		}
+
+		if err := report(events); err != nil {
+			return nil, fmt.Errorf("failed to report queued jobs")
+		}
+
+		return result, nil
+	}
+}
+
+func (add AddJobs) ReportDuplicate(report reportEvents) AddJobs {
+	return func(jobs []*api.Job) (SubmitJobResults, error) {
+		result, err := add(jobs)
+		if err != nil {
+			return nil, err
+		}
+
+		filter := func(result *SubmitJobResult) bool {
+			return result.Error != nil && result.DuplicateDetected
+		}
+		now := time.Now()
+		events := make([]*api.EventMessage, 0, len(jobs))
+		for _, result := range result.Filter(filter) {
+			events = append(events, &api.EventMessage{
+				Events: &api.EventMessage_DuplicateFound{
+					DuplicateFound: &api.JobDuplicateFoundEvent{
+						JobId:    result.SubmittedJob.Id,
+						Queue:    result.SubmittedJob.Queue,
+						JobSetId: result.SubmittedJob.JobSetId,
+						Created:  now,
+					},
+				},
+			})
+		}
+
+		if err := report(events); err != nil {
+			return nil, fmt.Errorf("failed to report duplicate jobs")
+		}
+
+		return result, nil
+	}
+}
+
+func (add AddJobs) ReportSubmitted(report reportEvents) AddJobs {
+	return func(jobs []*api.Job) (SubmitJobResults, error) {
+		result, err := add(jobs)
+		if err != nil {
+			return nil, err
+		}
+
+		now := time.Now()
+		events := make([]*api.EventMessage, 0, len(jobs))
+		for _, result := range result {
+			events = append(events, &api.EventMessage{
+				Events: &api.EventMessage_Submitted{
+					Submitted: &api.JobSubmittedEvent{
+						JobId:    result.SubmittedJob.Id,
+						Queue:    result.SubmittedJob.Queue,
+						JobSetId: result.SubmittedJob.JobSetId,
+						Created:  now,
+					},
+				},
+			})
+		}
+
+		if err := report(events); err != nil {
+			return nil, fmt.Errorf("failed to report queued jobs")
+		}
+
+		return result, nil
+	}
+}

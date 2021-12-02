@@ -6,6 +6,28 @@ import (
 	"github.com/G-Research/armada/pkg/api"
 )
 
+type JobSubmitRequestItemFn func(item *api.JobSubmitRequestItem) error
+
+func JobSubmitRequestItem(maxPodSize uint) JobSubmitRequestItemFn {
+	return func(item *api.JobSubmitRequestItem) error {
+		if item.PodSpec != nil && len(item.PodSpecs) > 0 {
+			return fmt.Errorf("has both pod spec and pod spec list specified")
+		}
+
+		if len(item.GetAllPodSpecs()) == 0 {
+			return fmt.Errorf("has no pod spec")
+		}
+
+		for j, podSpec := range item.GetAllPodSpecs() {
+			if err := ValidatePodSpec(podSpec, maxPodSize); err != nil {
+				return fmt.Errorf("pod spec with index: %v: %v, %s", j, podSpec, err)
+			}
+		}
+
+		return validateIngressConfigs(item)
+	}
+}
+
 func ValidateJobSubmitRequestItem(request *api.JobSubmitRequestItem) error {
 	return validateIngressConfigs(request)
 }
