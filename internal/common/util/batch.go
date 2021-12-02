@@ -5,21 +5,21 @@ import "math"
 func Batch(elements []string, batchSize int) [][]string {
 	total := len(elements)
 
-	n := int(math.Floor(float64(total) / float64(batchSize)))
+	totalFullBatches := int(math.Floor(float64(total) / float64(batchSize)))
 	lastBatchSize := total % batchSize
-	totalBatches := n
+	totalBatches := totalFullBatches
 	if lastBatchSize != 0 {
 		totalBatches++
 	}
 
 	batches := make([][]string, totalBatches, totalBatches)
 
-	for i := 0; i < n; i++ {
+	for i := 0; i < totalFullBatches; i++ {
 		batches[i] = elements[i*batchSize : (i+1)*batchSize]
 	}
 
 	if lastBatchSize != 0 {
-		batches[n] = elements[n*batchSize : n*batchSize+lastBatchSize]
+		batches[totalFullBatches] = elements[totalFullBatches*batchSize : totalFullBatches*batchSize+lastBatchSize]
 	}
 
 	return batches

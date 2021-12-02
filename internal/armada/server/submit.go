@@ -182,13 +182,19 @@ func (server *SubmitServer) CancelJobs(ctx context.Context, request *api.JobCanc
 		for _, batch := range batches {
 			jobs, err := server.jobRepository.GetExistingJobsByIds(batch)
 			if err != nil {
-				return nil, status.Errorf(codes.Internal, err.Error())
+				return &api.CancellationResult{CancelledIds: cancelledIds}, status.Errorf(codes.Internal, err.Error())
 			}
 			result, err := server.cancelJobs(ctx, request.Queue, jobs)
 			if err != nil {
-				return nil, status.Errorf(codes.Internal, err.Error())
+				return &api.CancellationResult{CancelledIds: cancelledIds}, status.Errorf(codes.Internal, err.Error())
 			}
 			cancelledIds = append(cancelledIds, result.CancelledIds...)
+
+			if util.CloseToDeadline(ctx) {
+				return &api.CancellationResult{CancelledIds: cancelledIds}, status.Errorf(
+					codes.DeadlineExceeded,
+					"not all jobs were cancelled: took too long")
+			}
 		}
 		return &api.CancellationResult{CancelledIds: cancelledIds}, nil
 	}

@@ -1,6 +1,7 @@
 package armada
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -29,6 +30,11 @@ import (
 func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker) (func(), *sync.WaitGroup) {
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
+
+	err := validateArmadaConfig(config)
+	if err != nil {
+		panic(fmt.Errorf("configuration validation error: %v", err))
+	}
 
 	grpcServer := grpcCommon.CreateGrpcServer(auth.ConfigureAuth(config.Auth))
 
@@ -106,7 +112,7 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 		queueRepository,
 		eventStore,
 		schedulingInfoRepository,
-		getCancelJobsBatchSize(config),
+		config.CancelJobsBatchSize,
 		&config.QueueManagement,
 		&config.Scheduling)
 	usageServer := server.NewUsageServer(permissions, config.PriorityHalfTime, &config.Scheduling, usageRepository, queueRepository)
@@ -138,9 +144,9 @@ func createRedisClient(config *redis.UniversalOptions) redis.UniversalClient {
 	return redis.NewUniversalClient(config)
 }
 
-func getCancelJobsBatchSize(config *configuration.ArmadaConfig) int {
-	if config.CancelJobsBatchSize > 0 {
-		return config.CancelJobsBatchSize
+func validateArmadaConfig(config *configuration.ArmadaConfig) error {
+	if config.CancelJobsBatchSize <= 0 {
+		return fmt.Errorf("cancel jobs batch should be greater than 0: is %d", config.CancelJobsBatchSize)
 	}
-	return 200
+	return nil
 }
