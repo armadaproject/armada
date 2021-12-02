@@ -107,7 +107,7 @@ func getErrorChanTimeout(channel chan error, timeout time.Duration) (error, erro
 	}
 }
 
-func (stream *StanEventStream) Subscribe(queue string, callback func(event *api.EventMessage) error) error {
+func (stream *StanEventStream) Subscribe(queue string, callback func(event *Message) error) error {
 	opts := append(stream.subscriptionOptions, stan.DurableName(queue))
 	return stream.stanClient.QueueSubscribe(
 		stream.subject,
@@ -118,11 +118,17 @@ func (stream *StanEventStream) Subscribe(queue string, callback func(event *api.
 			if err != nil {
 				log.Errorf("failed to unmarsal event: %v", err)
 			}
-			err = callback(event)
+
+			ackFn := func() error {
+				return msg.Ack()
+			}
+			err = callback(&Message{
+				EventMessage: event,
+				Ack:          ackFn,
+			})
 			if err != nil {
 				log.Errorf("stan queue subscribe callback error: %v", err)
 			}
-			err = msg.Ack()
 			if err != nil {
 				log.Errorf("stan error when acknowledging message: %v", err)
 			}

@@ -33,25 +33,26 @@ For example, a job that sleeps for 60 seconds could be represented by the follow
 
 ```yaml
 queue: test
-priority: 0
 jobSetId: set1
-podSpec:
-  terminationGracePeriodSeconds: 0
-  restartPolicy: Never
-  containers:
-    - name: sleep
-      imagePullPolicy: IfNotPresent
-      image: busybox:latest
-      args:
-        - sleep
-        - 60s
-      resources:
-        limits:
-          memory: 64Mi
-          cpu: 150m
-        requests:
-          memory: 64Mi
-          cpu: 150m
+jobs:
+  - priority: 0
+    podSpecs:
+      - terminationGracePeriodSeconds: 0
+        restartPolicy: Never
+        containers:
+          - name: sleep
+            imagePullPolicy: IfNotPresent
+            image: busybox:latest
+            args:
+              - sleep
+              - 60s
+            resources:
+              limits:
+                memory: 64Mi
+                cpu: 150m
+              requests:
+                memory: 64Mi
+                cpu: 150m
 ```
 
 In the above yaml snippet, `podSpec` is a Kubernetes podspec, which consists of one or more containers that contain the user code to be run. In addition, the job specification (jobspec) contains metadata fields specific to Armada:
