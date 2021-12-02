@@ -165,7 +165,10 @@ func TestCreateIngress_Basic(t *testing.T) {
 	job := makeTestJob()
 	service := makeTestService()
 	pod := &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "testPod", Namespace: "testNamespace"}}
-	ingressConfig := &configuration.IngressConfiguration{HostnameSuffix: "testSuffix"}
+	ingressConfig := &configuration.IngressConfiguration{
+		HostnameSuffix: "testSuffix",
+		CertDomain:     "svc",
+	}
 
 	// TLS disabled jobconfig
 	jobConfig := &api.IngressConfig{
@@ -200,13 +203,16 @@ func TestCreateIngress_Basic(t *testing.T) {
 }
 
 func TestCreateIngress_TLS(t *testing.T) {
-	// Boilerplate, should be the same in TlsEnabled
+	// Boilerplate setup
 	job := makeTestJob()
 	service := makeTestService()
 	pod := &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "testPod", Namespace: "testNamespace"}}
-	ingressConfig := &configuration.IngressConfiguration{HostnameSuffix: "testSuffix"}
+	ingressConfig := &configuration.IngressConfiguration{
+		HostnameSuffix: "testSuffix",
+		CertDomain:     "svc",
+	}
 
-	// TLS disabled jobconfig
+	// TLS enabled in this test 
 	jobConfig := &api.IngressConfig{
 		TlsEnabled: true,
 		Ports:      []uint32{8080},
