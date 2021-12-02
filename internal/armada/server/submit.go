@@ -182,11 +182,15 @@ func (server *SubmitServer) CancelJobs(ctx context.Context, request *api.JobCanc
 		for _, batch := range batches {
 			jobs, err := server.jobRepository.GetExistingJobsByIds(batch)
 			if err != nil {
-				return &api.CancellationResult{CancelledIds: cancelledIds}, status.Errorf(codes.Internal, err.Error())
+				return &api.CancellationResult{CancelledIds: cancelledIds}, status.Errorf(
+					codes.Internal,
+					"failed to find some jobs: %v", err)
 			}
 			result, err := server.cancelJobs(ctx, request.Queue, jobs)
 			if err != nil {
-				return &api.CancellationResult{CancelledIds: cancelledIds}, status.Errorf(codes.Internal, err.Error())
+				return &api.CancellationResult{CancelledIds: cancelledIds}, status.Errorf(
+					codes.Internal,
+					"failed to cancel some jobs: %v", err)
 			}
 			cancelledIds = append(cancelledIds, result.CancelledIds...)
 
