@@ -29,13 +29,26 @@ func (n *StreamEventStore) ReportEvents(messages []*api.EventMessage) error {
 }
 
 type RedisEventProcessor struct {
-	stream     eventstream.EventStream
 	queue      string
 	repository EventStore
+	stream     eventstream.EventStream
+	batcher    eventstream.EventBatcher
 }
 
-func NewEventRedisProcessor(stream eventstream.EventStream, queue string, repository EventStore) *RedisEventProcessor {
-	return &RedisEventProcessor{stream: stream, queue: queue, repository: repository}
+func NewEventRedisProcessor(
+	queue string,
+	repository EventStore,
+	stream eventstream.EventStream,
+	batcher eventstream.EventBatcher,
+) *RedisEventProcessor {
+	processor := &RedisEventProcessor{
+		queue:      queue,
+		repository: repository,
+		stream:     stream,
+		batcher:    batcher,
+	}
+	processor.batcher.Register(processor.handleBatch)
+	return processor
 }
 
 func (p *RedisEventProcessor) Start() {
@@ -46,12 +59,31 @@ func (p *RedisEventProcessor) Start() {
 	}
 }
 
-func (p *RedisEventProcessor) handleMessage(eventMessage *api.EventMessage) error {
-	// TODO: batching???
-	err := p.repository.ReportEvents([]*api.EventMessage{eventMessage})
+func (p *RedisEventProcessor) handleMessage(message *eventstream.Message) error {
+	err := p.batcher.Report(message)
 	if err != nil {
 		log.Errorf("error while reporting event in redis: %v", err)
 		return err
+	}
+	return nil
+}
+
+func (p *RedisEventProcessor) handleBatch(batch []*eventstream.Message) error {
+	events := make([]*api.EventMessage, len(batch), len(batch))
+	for i, msg := range batch {
+		events[i] = msg.EventMessage
+	}
+
+	err := p.repository.ReportEvents(events)
+	if err != nil {
+		return fmt.Errorf("error while reporting events to event store for %d events: %v", len(events), err)
+	}
+
+	for _, msg := range batch {
+		err = msg.Ack()
+		if err != nil {
+			log.Errorf("error while acknowledging event: %v", err)
+		}
 	}
 	return nil
 }
