@@ -103,3 +103,27 @@ func (r *RedisQueueRepository) DeleteQueue(name string) error {
 	result := r.db.HDel(queueHashKey, name)
 	return result.Err()
 }
+
+type GetQueueFn func(string) (*api.Queue, error)
+type CreateQueueFn func(*api.Queue) error
+
+func (get GetQueueFn) Autocreate(autocreate bool, priorityFactor float64, create CreateQueueFn) GetQueueFn {
+	return func(queueName string) (*api.Queue, error) {
+		queue, err := get(queueName)
+		switch {
+		case !autocreate, err == nil, err != ErrQueueNotFound:
+			return queue, err
+		default:
+			queue = &api.Queue{
+				Name:           queueName,
+				PriorityFactor: priorityFactor,
+			}
+
+			if err := create(queue); err != nil {
+				return nil, err
+			}
+
+			return queue, nil
+		}
+	}
+}

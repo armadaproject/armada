@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"time"
 
@@ -93,70 +92,36 @@ func (server *SubmitServer) DeleteQueue(ctx context.Context, req *api.QueueDelet
 }
 
 func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRequest) (*api.JobSubmitResponse, error) {
-	e, ownershipGroups := server.checkQueuePermission(ctx, req.Queue, true, permissions.SubmitJobs, permissions.SubmitAnyJobs)
-	if e != nil {
-		return nil, e
-	}
+	handler := handlers.SubmitJobs(
+		NewJobs(
+			authorization.GetPrincipal(ctx).GetName(),
+			GetQueueOwnership(
+				repository.GetQueueFn(server.queueRepository.GetQueue).
+					Autocreate(
+						server.queueManagementConfig.AutoCreateQueues,
+						server.queueManagementConfig.DefaultPriorityFactor,
+						server.queueRepository.CreateQueue,
+					),
+				server.permissions.UserOwns,
+			),
+			api.JobsFromSubmitRequest(server.applyDefaultsToPodSpec, util.NewULID, time.Now),
+		).Validate(
+			server.schedulingInfoRepository.GetClusterSchedulingInfo,
+			validateJobsCanBeScheduled,
+		),
+		repository.AddJobs(server.jobRepository.AddJobs).
+			ReportDuplicate(server.eventStore.ReportEvents).
+			ReportSubmitted(server.eventStore.ReportEvents).
+			ReportQueued(server.eventStore.ReportEvents),
+	).Validate(
+		validation.JobSubmitRequestItem(server.schedulingConfig.MaxPodSpecSizeBytes),
+	).Authorize(
+		server.authorizeOwnership,
+		server.permissions.UserHasPermission,
+		server.queueManagementConfig.AutoCreateQueues,
+	)
 
-	principal := authorization.GetPrincipal(ctx)
-
-	jobs, e := server.createJobs(req, principal.GetName(), ownershipGroups)
-	if e != nil {
-		return nil, status.Errorf(codes.InvalidArgument, e.Error())
-	}
-
-	allClusterSchedulingInfo, e := server.schedulingInfoRepository.GetClusterSchedulingInfo()
-	if e != nil {
-		return nil, e
-	}
-
-	e = validateJobsCanBeScheduled(jobs, allClusterSchedulingInfo)
-	if e != nil {
-		return nil, status.Errorf(codes.InvalidArgument, e.Error())
-	}
-
-	e = reportSubmitted(server.eventStore, jobs)
-	if e != nil {
-		return nil, status.Errorf(codes.Aborted, e.Error())
-	}
-
-	submissionResults, e := server.jobRepository.AddJobs(jobs)
-	if e != nil {
-		return nil, status.Errorf(codes.Aborted, e.Error())
-	}
-
-	result := &api.JobSubmitResponse{
-		JobResponseItems: make([]*api.JobSubmitResponseItem, 0, len(submissionResults)),
-	}
-
-	createdJobs := []*api.Job{}
-	doubleSubmits := []*repository.SubmitJobResult{}
-	for i, submissionResult := range submissionResults {
-		jobResponse := &api.JobSubmitResponseItem{JobId: submissionResult.JobId}
-		if submissionResult.Error != nil {
-			jobResponse.Error = submissionResult.Error.Error()
-		}
-		result.JobResponseItems = append(result.JobResponseItems, jobResponse)
-
-		if submissionResult.Error == nil {
-			if submissionResult.DuplicateDetected {
-				doubleSubmits = append(doubleSubmits, submissionResult)
-			} else {
-				createdJobs = append(createdJobs, jobs[i])
-			}
-		}
-	}
-
-	e = reportDuplicateDetected(server.eventStore, doubleSubmits)
-	if e != nil {
-		return result, status.Errorf(codes.Internal, e.Error())
-	}
-
-	e = reportQueued(server.eventStore, createdJobs)
-	if e != nil {
-		return result, status.Errorf(codes.Internal, e.Error())
-	}
-	return result, nil
+	return handler(ctx, req)
 }
 
 func (server *SubmitServer) CancelJobs(ctx context.Context, request *api.JobCancelRequest) (*api.CancellationResult, error) {
@@ -308,6 +273,17 @@ func (server *SubmitServer) checkReprioritizePerms(ctx context.Context, jobs []*
 	return nil
 }
 
+func (server *SubmitServer) authorizeOwnership(ctx context.Context, queueName string) (bool, error) {
+	queue, err := server.queueRepository.GetQueue(queueName)
+	if err != nil {
+		return false, err
+	}
+
+	owns, _ := server.permissions.UserOwns(ctx, queue)
+
+	return owns, nil
+}
+
 func (server *SubmitServer) checkQueuePermission(
 	ctx context.Context,
 	queueName string,
@@ -348,80 +324,6 @@ func (server *SubmitServer) checkQueuePermission(
 	return nil, groups
 }
 
-func (server *SubmitServer) createJobs(request *api.JobSubmitRequest, owner string, ownershipGroups []string) ([]*api.Job, error) {
-	jobs := make([]*api.Job, 0, len(request.JobRequestItems))
-
-	if request.JobSetId == "" {
-		return nil, fmt.Errorf("job set is not specified")
-	}
-
-	if request.Queue == "" {
-		return nil, fmt.Errorf("queue is not specified")
-	}
-
-	for i, item := range request.JobRequestItems {
-
-		if item.PodSpec != nil && len(item.PodSpecs) > 0 {
-			return nil, fmt.Errorf("job with index %v has both pod spec and pod spec list specified", i)
-		}
-
-		if len(item.GetAllPodSpecs()) == 0 {
-			return nil, fmt.Errorf("job with index %v has no pod spec", i)
-		}
-
-		e := validation.ValidateJobSubmitRequestItem(item)
-		if e != nil {
-			return nil, fmt.Errorf("job with index %v: %v", i, e)
-		}
-
-		namespace := item.Namespace
-		if namespace == "" {
-			namespace = "default"
-		}
-
-		for j, podSpec := range item.GetAllPodSpecs() {
-			server.applyDefaultsToPodSpec(podSpec)
-			e := validation.ValidatePodSpec(podSpec, server.schedulingConfig.MaxPodSpecSizeBytes)
-			if e != nil {
-				return nil, fmt.Errorf("error validating pod spec of job with index %v, pod: %v: %v", i, j, e)
-			}
-
-			// TODO: remove, RequiredNodeLabels is deprecated and will be removed in future versions
-			for k, v := range item.RequiredNodeLabels {
-				if podSpec.NodeSelector == nil {
-					podSpec.NodeSelector = map[string]string{}
-				}
-				podSpec.NodeSelector[k] = v
-			}
-		}
-
-		j := &api.Job{
-			Id:       util.NewULID(),
-			ClientId: item.ClientId,
-			Queue:    request.Queue,
-			JobSetId: request.JobSetId,
-
-			Namespace:   namespace,
-			Labels:      item.Labels,
-			Annotations: item.Annotations,
-
-			RequiredNodeLabels: item.RequiredNodeLabels,
-			Ingress:            item.Ingress,
-
-			Priority: item.Priority,
-
-			PodSpec:                  item.PodSpec,
-			PodSpecs:                 item.PodSpecs,
-			Created:                  time.Now(),
-			Owner:                    owner,
-			QueueOwnershipUserGroups: ownershipGroups,
-		}
-		jobs = append(jobs, j)
-	}
-
-	return jobs, nil
-}
-
 func (server *SubmitServer) applyDefaultsToPodSpec(spec *v1.PodSpec) {
 	if spec != nil {
 		for i := range spec.Containers {
@@ -456,11 +358,4 @@ func (server *SubmitServer) applyDefaultsToPodSpec(spec *v1.PodSpec) {
 		}
 		spec.Tolerations = append(spec.Tolerations, tolerationsToAdd...)
 	}
-}
-
-func validateQueue(queue *api.Queue) error {
-	if queue.PriorityFactor < 1.0 {
-		return status.Errorf(codes.InvalidArgument, "Minimum queue priority factor is 1.")
-	}
-	return nil
 }

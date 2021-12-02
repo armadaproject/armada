@@ -159,7 +159,7 @@ func (repo *mockJobRepository) CreateJobs(request *api.JobSubmitRequest, owner s
 	return []*api.Job{}, nil
 }
 
-func (repo *mockJobRepository) AddJobs(job []*api.Job) ([]*repository.SubmitJobResult, error) {
+func (repo *mockJobRepository) AddJobs(job []*api.Job) (repository.SubmitJobResults, error) {
 	for _, j := range job {
 		repo.jobs[j.Id] = j
 	}
