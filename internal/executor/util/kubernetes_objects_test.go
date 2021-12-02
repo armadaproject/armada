@@ -212,7 +212,7 @@ func TestCreateIngress_TLS(t *testing.T) {
 		CertDomain:     "svc",
 	}
 
-	// TLS enabled in this test 
+	// TLS enabled in this test
 	jobConfig := &api.IngressConfig{
 		TlsEnabled: true,
 		Ports:      []uint32{8080},
