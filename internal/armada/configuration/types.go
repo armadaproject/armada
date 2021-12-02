@@ -21,8 +21,7 @@ type ArmadaConfig struct {
 	PriorityHalfTime    time.Duration
 	CancelJobsBatchSize int
 	Redis               redis.UniversalOptions
-	EventStoreQueue     string
-	EventJobStatusQueue string
+	Events              EventsConfig
 	EventsNats          NatsConfig
 	EventsJetstream     JetstreamConfig
 	EventsRedis         redis.UniversalOptions
@@ -63,6 +62,15 @@ type EventRetentionPolicy struct {
 type LeaseSettings struct {
 	ExpireAfter        time.Duration
 	ExpiryLoopInterval time.Duration
+}
+
+type EventsConfig struct {
+	StoreQueue     string // Queue group for event storage processors
+	JobStatusQueue string // Queue group for running job status processor
+
+	ProcessorBatchSize             int           // Maximum event batch size
+	ProcessorMaxTimeBetweenBatches time.Duration // Maximum time between batches
+	ProcessorTimeout               time.Duration // Timeout for reporting event or stopping batcher before erroring out
 }
 
 type NatsConfig struct {
