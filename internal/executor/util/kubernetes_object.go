@@ -69,7 +69,11 @@ func CreateIngress(name string, job *api.Job, pod *v1.Pod, service *v1.Service, 
 	tlsHosts := make([]string, 0, len(service.Spec.Ports)+1)
 
 	// First host used for certificate signing, needs to be less than 64 chars long
-	firstHost := fmt.Sprintf("%s.svc", name)
+	domain := executorIngressConfig.CertDomain
+	if domain == "" {
+		domain = "svc"
+	}
+	firstHost := fmt.Sprintf("%s.%s", name, domain)
 	tlsHosts = append(tlsHosts, firstHost)
 
 	// Rest of the hosts are generated off port information
