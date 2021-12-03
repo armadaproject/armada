@@ -51,7 +51,7 @@ build-executor:
 build-fakeexecutor:
 	$(gobuild) -o ./bin/executor cmd/fakeexecutor/main.go
 
-ARMADACTL_BUILD_PACKAGE := github.com/G-Research/armada/cmd/armadactl/build
+ARMADACTL_BUILD_PACKAGE := github.com/G-Research/armada/internal/armadactl/build
 define ARMADACTL_LDFLAGS
 -X '$(ARMADACTL_BUILD_PACKAGE).BuildTime=$(BUILD_TIME)' \
 -X '$(ARMADACTL_BUILD_PACKAGE).ReleaseVersion=$(RELEASE_VERSION)' \

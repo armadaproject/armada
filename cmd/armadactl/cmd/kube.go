@@ -1,72 +1,66 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
-	"strings"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
-	"google.golang.org/grpc"
 
-	"github.com/G-Research/armada/pkg/api"
-	"github.com/G-Research/armada/pkg/client"
+	"github.com/G-Research/armada/internal/armadactl"
 )
 
 func init() {
-	rootCmd.AddCommand(kubeCmd)
-
-	kubeCmd.Flags().String(
-		"jobId", "", "job to cancel")
-	kubeCmd.MarkFlagRequired("jobId")
-	kubeCmd.Flags().String(
-		"queue", "", "queue of the job")
-	kubeCmd.MarkFlagRequired("queue")
-	kubeCmd.Flags().String(
-		"jobSet", "", "jobSet of the job")
-	kubeCmd.MarkFlagRequired("jobSet")
-	kubeCmd.Flags().Int(
-		"podNumber", 0, "[optional] for jobs with multiple pods, index of the pod")
-	kubeCmd.FParseErrWhitelist.UnknownFlags = true
+	rootCmd.AddCommand(kubeCmd())
 }
 
-var kubeCmd = &cobra.Command{
-	Use:   "kube",
-	Short: "output kubectl command to access pod information",
-	Long: `This command can be used to query kubernetes pods for a particular job.
-Example:
-	armadactl kube logs --queue my-queue --jobSet my-set --jobId 123456
-	
+func kubeCmd() *cobra.Command {
+	a := armadactl.New()
+	cmd := &cobra.Command{
+		Use:   "kube",
+		Short: "output kubectl command to access pod information",
+		Long:  "This command can be used to query kubernetes pods for a particular job.",
+		Example: `armadactl kube logs --queue my-queue --jobSet my-set --jobId 123456
+		
 In bash, you can execute it directly like this:
-	$(armadactl kube logs --queue my-queue --jobSet my-set --jobId 123456) --tail=20
-`,
-	Run: func(cmd *cobra.Command, args []string) {
-		apiConnectionDetails := client.ExtractCommandlineArmadaApiConnectionDetails()
+	$(armadactl kube logs --queue my-queue --jobSet my-set --jobId 123456) --tail=20`,
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			return initParams(cmd, a.Params)
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
 
-		jobId, _ := cmd.Flags().GetString("jobId")
-		queue, _ := cmd.Flags().GetString("queue")
-		jobSetId, _ := cmd.Flags().GetString("jobSet")
-		podNumber, _ := cmd.Flags().GetInt("podNumber")
-
-		verb := strings.Join(args, " ")
-
-		client.WithConnection(apiConnectionDetails, func(conn *grpc.ClientConn) {
-
-			eventsClient := api.NewEventClient(conn)
-			state := client.GetJobSetState(eventsClient, queue, jobSetId, context.Background())
-			jobInfo := state.GetJobInfo(jobId)
-
-			if jobInfo == nil {
-				log.Fatalf("Could not found job %s.", jobId)
+			jobId, err := cmd.Flags().GetString("jobId")
+			if err != nil {
+				return fmt.Errorf("error reading jobId: %s", err)
 			}
 
-			if jobInfo.ClusterId == "" {
-				log.Fatalf("The job have no cluster allocated.")
+			queueName, err := cmd.Flags().GetString("queue")
+			if err != nil {
+				return fmt.Errorf("error reading queueName: %s", err)
 			}
 
-			cmd := client.GetKubectlCommand(jobInfo.ClusterId, jobInfo.Job.Namespace, jobId, podNumber, verb)
+			jobSetId, err := cmd.Flags().GetString("jobSet")
+			if err != nil {
+				return fmt.Errorf("error reading jobSet: %s", err)
+			}
 
-			fmt.Println(cmd)
-		})
-	},
+			podNumber, err := cmd.Flags().GetInt("podNumber")
+			if err != nil {
+				return fmt.Errorf("error reading podNumber: %s", err)
+			}
+
+			return a.Kube(jobId, queueName, jobSetId, podNumber, args)
+		},
+	}
+	cmd.Flags().String(
+		"jobId", "", "job to cancel")
+	cmd.MarkFlagRequired("jobId")
+	cmd.Flags().String(
+		"queue", "", "queue of the job")
+	cmd.MarkFlagRequired("queue")
+	cmd.Flags().String(
+		"jobSet", "", "jobSet of the job")
+	cmd.MarkFlagRequired("jobSet")
+	cmd.Flags().Int(
+		"podNumber", 0, "[optional] for jobs with multiple pods, index of the pod")
+	cmd.FParseErrWhitelist.UnknownFlags = true
+	return cmd
 }
