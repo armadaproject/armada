@@ -277,23 +277,24 @@ jobs:
 		}
 	}
 
-	// the server may wait for some time before publishing events,
-	// and we can't run subsequent tests until the events have been published
-	time.Sleep(10 * time.Second)
-
 	// analyze
 	err = retry.Do(
 		func() error {
 			err = app.Analyze(name, "set1")
 			if err != nil {
-				return fmt.Errorf("expected no error, but got %s", err)
+				t.Fatalf("expected no error, but got %s", err)
 			}
 
 			out = buf.String()
 			buf.Reset()
+
+			if strings.Contains(out, "Found no events associated") {
+				return fmt.Errorf("error calling analyze; got response %s", out)
+			}
+
 			for _, s := range []string{fmt.Sprintf("Querying queue %s for job set set1", name), "api.JobSubmittedEvent", "api.JobQueuedEvent"} {
 				if !strings.Contains(out, s) {
-					return fmt.Errorf("expected output to contain '%s', but got '%s'", s, out)
+					t.Fatalf("expected output to contain '%s', but got '%s'", s, out)
 				}
 			}
 
