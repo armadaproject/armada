@@ -17,7 +17,7 @@ func watchCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "watch <queue> <jobSet>",
 		Short: "Watch job events in job set.",
-		Long:  `This command will list all job set events and `,
+		Long:  "Listens for and prints events associated with a particular queue and jobset.",
 		Args:  cobra.ExactArgs(2),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			return initParams(cmd, a.Params)
