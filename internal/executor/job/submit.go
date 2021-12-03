@@ -3,6 +3,7 @@ package job
 import (
 	"fmt"
 	"strings"
+	"sync"
 
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
@@ -25,18 +26,22 @@ type Submitter interface {
 }
 
 type SubmitService struct {
-	eventReporter  reporter.EventReporter
-	clusterContext context.ClusterContext
-	podDefaults    *configuration.PodDefaults
+	eventReporter         reporter.EventReporter
+	clusterContext        context.ClusterContext
+	podDefaults           *configuration.PodDefaults
+	submissionThreadCount int
 }
 
 func NewSubmitter(
 	clusterContext context.ClusterContext,
-	podDefaults *configuration.PodDefaults) *SubmitService {
+	podDefaults *configuration.PodDefaults,
+	submissionThreadCount int) *SubmitService {
 
 	return &SubmitService{
-		clusterContext: clusterContext,
-		podDefaults:    podDefaults}
+		clusterContext:        clusterContext,
+		podDefaults:           podDefaults,
+		submissionThreadCount: submissionThreadCount,
+	}
 }
 
 type FailedSubmissionDetails struct {
@@ -47,10 +52,37 @@ type FailedSubmissionDetails struct {
 }
 
 func (allocationService *SubmitService) SubmitJobs(jobsToSubmit []*api.Job) []*FailedSubmissionDetails {
-	toBeFailedJobs := make([]*FailedSubmissionDetails, 0, 10)
+	wg := &sync.WaitGroup{}
+	submitJobsChannel := make(chan *api.Job)
+	failedJobsChannel := make(chan *FailedSubmissionDetails, len(jobsToSubmit))
+
+	for i := 0; i < allocationService.submissionThreadCount; i++ {
+		wg.Add(1)
+		go allocationService.submitWorker(wg, submitJobsChannel, failedJobsChannel)
+	}
+
 	for _, job := range jobsToSubmit {
+		submitJobsChannel <- job
+	}
+
+	close(submitJobsChannel)
+	wg.Wait()
+	close(failedJobsChannel)
+
+	toBeFailedJobs := make([]*FailedSubmissionDetails, 0, len(failedJobsChannel))
+	for failedJob := range failedJobsChannel {
+		toBeFailedJobs = append(toBeFailedJobs, failedJob)
+	}
+
+	return toBeFailedJobs
+}
+
+func (allocationService *SubmitService) submitWorker(wg *sync.WaitGroup, jobsToSubmitChannel chan *api.Job, failedJobsChannel chan *FailedSubmissionDetails) {
+	defer wg.Done()
+
+	for job := range jobsToSubmitChannel {
 		jobPods := []*v1.Pod{}
-		for i, _ := range job.GetAllPodSpecs() {
+		for i := range job.GetAllPodSpecs() {
 			pod, err := allocationService.submitPod(job, i)
 			jobPods = append(jobPods, pod)
 
@@ -67,7 +99,7 @@ func (allocationService *SubmitService) SubmitJobs(jobsToSubmit []*api.Job) []*F
 					Recoverable: recoverable,
 				}
 
-				toBeFailedJobs = append(toBeFailedJobs, errDetails)
+				failedJobsChannel <- errDetails
 
 				// remove just created pods
 				allocationService.clusterContext.DeletePods(jobPods)
@@ -75,8 +107,6 @@ func (allocationService *SubmitService) SubmitJobs(jobsToSubmit []*api.Job) []*F
 			}
 		}
 	}
-
-	return toBeFailedJobs
 }
 
 func (allocationService *SubmitService) submitPod(job *api.Job, i int) (*v1.Pod, error) {

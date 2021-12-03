@@ -1,6 +1,7 @@
 application:
   clusterId : "Cluster1"
   pool: "default"
+  submitThreadCount: 1
   updateThreadCount: 10
   deleteThreadCount: 2
 task:

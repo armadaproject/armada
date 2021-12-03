@@ -11,6 +11,7 @@ import (
 type ApplicationConfiguration struct {
 	ClusterId         string
 	Pool              string
+	SubmitThreadCount int
 	UpdateThreadCount int
 	DeleteThreadCount int
 }
