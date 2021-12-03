@@ -92,35 +92,35 @@ func (server *SubmitServer) DeleteQueue(ctx context.Context, req *api.QueueDelet
 }
 
 func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRequest) (*api.JobSubmitResponse, error) {
-	handler := handlers.SubmitJobs(
-		NewJobs(
-			authorization.GetPrincipal(ctx).GetName(),
-			GetQueueOwnership(
-				repository.GetQueueFn(server.queueRepository.GetQueue).
-					Autocreate(
-						server.queueManagementConfig.AutoCreateQueues,
-						server.queueManagementConfig.DefaultPriorityFactor,
-						server.queueRepository.CreateQueue,
-					),
-				server.permissions.UserOwns,
-			),
-			api.JobsFromSubmitRequest(util.NewULID, time.Now),
-		).Validate(
-			server.schedulingInfoRepository.GetClusterSchedulingInfo,
-			validateJobsCanBeScheduled,
+	getQueueOwnership := GetQueueOwnership(
+		GetQueueFn(server.queueRepository.GetQueue).Autocreate(
+			server.queueManagementConfig.AutoCreateQueues,
+			server.queueManagementConfig.DefaultPriorityFactor,
+			server.queueRepository.CreateQueue,
 		),
-		repository.AddJobs(server.jobRepository.AddJobs).
-			ReportSubmitted(server.eventStore.ReportEvents).
-			ReportDuplicate(server.eventStore.ReportEvents).
-			ReportQueued(server.eventStore.ReportEvents),
-	).Validate(
-		validation.JobSubmitRequestItem(server.schedulingConfig.MaxPodSpecSizeBytes).
-			ApplyDefaultPodSpec(server.applyDefaultsToPodSpec),
-	).Authorize(
-		server.authorizeOwnership,
-		server.permissions.UserHasPermission,
-		server.queueManagementConfig.AutoCreateQueues,
+		server.permissions.UserOwns,
 	)
+
+	newJobs := NewJobs(
+		authorization.GetPrincipal(ctx).GetName(),
+		getQueueOwnership,
+		api.JobsFromSubmitRequest(util.NewULID, time.Now),
+	).Validate(
+		server.schedulingInfoRepository.GetClusterSchedulingInfo,
+		validateJobsCanBeScheduled,
+	)
+
+	addJobs := addJobsFn(server.jobRepository.AddJobs).
+		ReportSubmitted(server.eventStore.ReportEvents).
+		ReportDuplicate(server.eventStore.ReportEvents).
+		ReportQueued(server.eventStore.ReportEvents)
+
+	validateRequestItem := validation.JobSubmitRequestItem(server.schedulingConfig.MaxPodSpecSizeBytes).
+		ApplyDefaultPodSpec(server.applyDefaultsToPodSpec)
+
+	handler := handlers.SubmitJobs(newJobs, addJobs).
+		Validate(validateRequestItem).
+		Authorize(server.authorizeOwnership, server.permissions.UserHasPermission, server.queueManagementConfig.AutoCreateQueues)
 
 	return handler(ctx, req)
 }

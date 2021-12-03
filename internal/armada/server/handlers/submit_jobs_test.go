@@ -217,7 +217,7 @@ func TestSubmitJobsAuthorize(t *testing.T) {
 
 			return true
 		},
-		"permissionDenied": func(request api.JobSubmitRequest, sumbitJob bool) bool {
+		"permissionDenied": func(request api.JobSubmitRequest, submitJob bool) bool {
 			handler := submitJobs(func(c context.Context, jsr *api.JobSubmitRequest) (*api.JobSubmitResponse, error) {
 				return nil, nil
 			}).Authorize(
@@ -225,7 +225,7 @@ func TestSubmitJobsAuthorize(t *testing.T) {
 					return false, nil
 				},
 				func(c context.Context, p permission.Permission) bool {
-					return (p == permissions.SubmitJobs) && sumbitJob
+					return (p == permissions.SubmitJobs) && submitJob
 				},
 				false,
 			)

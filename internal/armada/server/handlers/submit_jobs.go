@@ -12,8 +12,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-type authorizeOwnership func(ctx context.Context, queueName string) (bool, error)
-type newJobs func(context.Context, *api.JobSubmitRequest) ([]*api.Job, error)
+type queueOwnedBy func(ctx context.Context, queueName string) (bool, error)
 
 type submitJobs func(context.Context, *api.JobSubmitRequest) (*api.JobSubmitResponse, error)
 
@@ -36,9 +35,10 @@ func (submit submitJobs) Validate(validateItem validation.JobSubmitRequestItemFn
 	}
 }
 
-func (submit submitJobs) Authorize(authorizeOwnership authorizeOwnership, authorize authorize, autocreate bool) submitJobs {
+func (submit submitJobs) Authorize(ownedBy queueOwnedBy, authorize authorize, autocreate bool) submitJobs {
 	return func(ctx context.Context, request *api.JobSubmitRequest) (*api.JobSubmitResponse, error) {
-		switch owned, err := authorizeOwnership(ctx, request.Queue); {
+		owned, err := ownedBy(ctx, request.Queue)
+		switch {
 		case authorize(ctx, permissions.SubmitAnyJobs):
 			if err == repository.ErrQueueNotFound && !autocreate {
 				return nil, status.Errorf(codes.NotFound, "queue doesn't exist")
@@ -65,7 +65,7 @@ func (submit submitJobs) Authorize(authorizeOwnership authorizeOwnership, author
 
 }
 
-func SubmitJobs(newJobs func(context.Context, *api.JobSubmitRequest) ([]*api.Job, error), addJobs repository.AddJobs) submitJobs {
+func SubmitJobs(newJobs func(context.Context, *api.JobSubmitRequest) ([]*api.Job, error), addJobs func([]*api.Job) (repository.SubmitJobResults, error)) submitJobs {
 	return func(ctx context.Context, request *api.JobSubmitRequest) (*api.JobSubmitResponse, error) {
 		jobs, err := newJobs(ctx, request)
 		if err == repository.ErrQueueNotFound {

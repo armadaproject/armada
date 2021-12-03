@@ -3,9 +3,9 @@ package server
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/G-Research/armada/internal/armada/repository"
-	"github.com/G-Research/armada/internal/common/auth/authorization"
 	"github.com/G-Research/armada/pkg/api"
 )
 
@@ -45,17 +45,104 @@ func NewJobs(owner string, getQueueOwnership GetQueueOwnershipFn, fromRequest ap
 	}
 }
 
-type GetQueueOwnershipFn func(context.Context, string) ([]string, error)
+type reportEvents func([]*api.EventMessage) error
+type addJobsFn func([]*api.Job) (repository.SubmitJobResults, error)
 
-func GetQueueOwnership(getQueue repository.GetQueueFn, getOwnership func(context.Context, authorization.Owned) (bool, []string)) GetQueueOwnershipFn {
-	return func(ctx context.Context, queueName string) ([]string, error) {
-		queue, err := getQueue(queueName)
+func (add addJobsFn) ReportQueued(report reportEvents) addJobsFn {
+	return func(jobs []*api.Job) (repository.SubmitJobResults, error) {
+		results, err := add(jobs)
 		if err != nil {
 			return nil, err
 		}
 
-		_, groups := getOwnership(ctx, queue)
+		filter := func(result *repository.SubmitJobResult) bool {
+			return result.Error == nil && !result.DuplicateDetected
+		}
 
-		return groups, nil
+		now := time.Now()
+		events := make([]*api.EventMessage, 0, len(jobs))
+		for _, result := range results.Filter(filter) {
+			events = append(events, &api.EventMessage{
+				Events: &api.EventMessage_Queued{
+					Queued: &api.JobQueuedEvent{
+						JobId:    result.JobId,
+						Queue:    result.SubmittedJob.Queue,
+						JobSetId: result.SubmittedJob.JobSetId,
+						Created:  now,
+					},
+				},
+			})
+		}
+
+		if err := report(events); err != nil {
+			return nil, fmt.Errorf("failed to report queued jobs")
+		}
+
+		return results, nil
+	}
+}
+
+func (add addJobsFn) ReportDuplicate(report reportEvents) addJobsFn {
+	return func(jobs []*api.Job) (repository.SubmitJobResults, error) {
+		results, err := add(jobs)
+		if err != nil {
+			return nil, err
+		}
+
+		filter := func(result *repository.SubmitJobResult) bool {
+			return result.Error == nil && result.DuplicateDetected
+		}
+		now := time.Now()
+		events := make([]*api.EventMessage, 0, len(jobs))
+		for _, result := range results.Filter(filter) {
+			events = append(events, &api.EventMessage{
+				Events: &api.EventMessage_DuplicateFound{
+					DuplicateFound: &api.JobDuplicateFoundEvent{
+						JobId:         result.JobId,
+						Queue:         result.SubmittedJob.Queue,
+						JobSetId:      result.SubmittedJob.JobSetId,
+						Created:       now,
+						OriginalJobId: result.JobId,
+					},
+				},
+			})
+		}
+
+		if err := report(events); err != nil {
+			return nil, fmt.Errorf("failed to report duplicate jobs")
+		}
+
+		return results, nil
+	}
+}
+
+func (add addJobsFn) ReportSubmitted(report reportEvents) addJobsFn {
+	return func(jobs []*api.Job) (repository.SubmitJobResults, error) {
+		results, err := add(jobs)
+		if err != nil {
+			return nil, err
+		}
+
+		now := time.Now()
+		events := make([]*api.EventMessage, 0, len(jobs))
+		for _, result := range results {
+			events = append(events, &api.EventMessage{
+				Events: &api.EventMessage_Submitted{
+					Submitted: &api.JobSubmittedEvent{
+						JobId:    result.JobId,
+						Queue:    result.SubmittedJob.Queue,
+						JobSetId: result.SubmittedJob.JobSetId,
+						Created:  now,
+						Job:      *result.SubmittedJob,
+					},
+				},
+			})
+		}
+
+		if err := report(events); err != nil {
+			return nil, fmt.Errorf("failed to report queued jobs")
+		}
+
+		return results, nil
 	}
 }
