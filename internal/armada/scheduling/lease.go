@@ -4,7 +4,6 @@ import (
 	"context"
 	"math"
 	"math/rand"
-	"time"
 
 	log "github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -167,7 +166,7 @@ func (c *leaseContext) assignJobs(limit int) ([]*api.Job, error) {
 		c.queueSchedulingInfo[queue].UpdateLimits(scheduled)
 		jobs = append(jobs, leased...)
 
-		if c.closeToDeadline() {
+		if util.CloseToDeadline(c.ctx) {
 			break
 		}
 	}
@@ -221,7 +220,7 @@ func (c *leaseContext) distributeRemainder(limit int) ([]*api.Job, error) {
 		}
 
 		limit -= len(leased)
-		if limit <= 0 || c.closeToDeadline() {
+		if limit <= 0 || util.CloseToDeadline(c.ctx) {
 			break
 		}
 	}
@@ -285,7 +284,7 @@ func (c *leaseContext) leaseJobs(queue *api.Queue, slice common.ComputeResources
 		if len(candidates) < int(c.schedulingConfig.QueueLeaseBatchSize) {
 			break
 		}
-		if c.closeToDeadline() {
+		if util.CloseToDeadline(c.ctx) {
 			break
 		}
 	}
@@ -316,11 +315,6 @@ func removeJobs(jobs []*api.Job, jobsToRemove []*api.Job) []*api.Job {
 		}
 	}
 	return result
-}
-
-func (c *leaseContext) closeToDeadline() bool {
-	d, exists := c.ctx.Deadline()
-	return exists && d.Before(time.Now().Add(time.Second))
 }
 
 func pickQueueRandomly(shares map[*api.Queue]float64) *api.Queue {
