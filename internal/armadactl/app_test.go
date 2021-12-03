@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/ory/dockertest/v3"
 	"github.com/ory/dockertest/v3/docker"
 	"google.golang.org/grpc"
@@ -93,71 +94,72 @@ func TestQueue(t *testing.T) {
 	app.Params.QueueAPI.Update = cq.Update(f)
 
 	// queue parameters
-	name := "foo"
 	priorityFactor := 1.337
 	owners := []string{"ubar", "ubaz"}
 	groups := []string{"gbar", "gbaz"}
 	resourceLimits := map[string]float64{"cpu": 0.2, "exoticResource": 0.9}
 
-	t.Run("create", func(t *testing.T) {
-		err := app.CreateQueue(name, priorityFactor, owners, groups, resourceLimits)
-		if err != nil {
-			t.Fatalf("expected no error, but got %s", err)
-		}
+	// random queue name
+	name, err := uuidString()
+	if err != nil {
+		t.Fatalf("error creating UUID: string %s", err)
+	}
 
-		out := buf.String()
-		buf.Reset()
-		for _, s := range []string{fmt.Sprintf("Created queue %s\n", name)} {
-			if !strings.Contains(out, s) {
-				t.Fatalf("expected output to contain '%s', but got '%s'", s, out)
-			}
-		}
-	})
+	// create queue
+	err = app.CreateQueue(name, priorityFactor, owners, groups, resourceLimits)
+	if err != nil {
+		t.Fatalf("expected no error, but got %s", err)
+	}
 
-	t.Run("describe", func(t *testing.T) {
-		err := app.DescribeQueue(name)
-		if err != nil {
-			t.Fatalf("expected no error, but got %s", err)
+	out := buf.String()
+	buf.Reset()
+	for _, s := range []string{fmt.Sprintf("Created queue %s\n", name)} {
+		if !strings.Contains(out, s) {
+			t.Fatalf("expected output to contain '%s', but got '%s'", s, out)
 		}
+	}
 
-		out := buf.String()
-		buf.Reset()
-		for _, s := range []string{fmt.Sprintf("Queue: %s\n", name), "No queued or running jobs\n"} {
-			if !strings.Contains(out, s) {
-				t.Fatalf("expected output to contain '%s', but got '%s'", s, out)
-			}
-		}
-	})
+	// describe
+	err = app.DescribeQueue(name)
+	if err != nil {
+		t.Fatalf("expected no error, but got %s", err)
+	}
 
-	t.Run("change", func(t *testing.T) {
-		err := app.UpdateQueue(name, priorityFactor, owners, groups, resourceLimits)
-		if err != nil {
-			t.Fatalf("expected no error, but got %s", err)
+	out = buf.String()
+	buf.Reset()
+	for _, s := range []string{fmt.Sprintf("Queue: %s\n", name), "No queued or running jobs\n"} {
+		if !strings.Contains(out, s) {
+			t.Fatalf("expected output to contain '%s', but got '%s'", s, out)
 		}
+	}
 
-		out := buf.String()
-		buf.Reset()
-		for _, s := range []string{fmt.Sprintf("Updated queue %s\n", name)} {
-			if !strings.Contains(out, s) {
-				t.Fatalf("expected output to contain '%s', but got '%s'", s, out)
-			}
-		}
-	})
+	// update
+	err = app.UpdateQueue(name, priorityFactor, owners, groups, resourceLimits)
+	if err != nil {
+		t.Fatalf("expected no error, but got %s", err)
+	}
 
-	t.Run("delete", func(t *testing.T) {
-		err := app.DeleteQueue(name)
-		if err != nil {
-			t.Fatalf("expected no error, but got %s", err)
+	out = buf.String()
+	buf.Reset()
+	for _, s := range []string{fmt.Sprintf("Updated queue %s\n", name)} {
+		if !strings.Contains(out, s) {
+			t.Fatalf("expected output to contain '%s', but got '%s'", s, out)
 		}
+	}
 
-		out := buf.String()
-		buf.Reset()
-		for _, s := range []string{"Deleted", name, "\n"} {
-			if !strings.Contains(out, s) {
-				t.Fatalf("expected output to contain '%s', but got '%s'", s, out)
-			}
+	// delete
+	err = app.DeleteQueue(name)
+	if err != nil {
+		t.Fatalf("expected no error, but got %s", err)
+	}
+
+	out = buf.String()
+	buf.Reset()
+	for _, s := range []string{"Deleted", name, "\n"} {
+		if !strings.Contains(out, s) {
+			t.Fatalf("expected output to contain '%s', but got '%s'", s, out)
 		}
-	})
+	}
 
 	// TODO armadactl returns empty output for non-existing queues
 	// // request details about the queue
@@ -195,17 +197,63 @@ func TestJob(t *testing.T) {
 	app.Params.QueueAPI.Update = cq.Update(f)
 
 	// queue parameters
-	name := "test"
 	priorityFactor := 1.337
 	owners := []string{"ubar", "ubaz"}
 	groups := []string{"gbar", "gbaz"}
 	resourceLimits := map[string]float64{"cpu": 0.2, "exoticResource": 0.9}
 
-	// job parameters
-	path, err := filepath.Abs(filepath.Join("./", "app_test_job.yaml"))
+	// random queue name
+	name, err := uuidString()
 	if err != nil {
-		t.Fatalf("error creating path to test job: %s", err)
+		t.Fatalf("error creating UUID: string %s", err)
 	}
+
+	// job parameters
+	jobData := []byte(fmt.Sprintf(`
+queue: %s
+jobSetId: set1
+jobs:
+  - priority: 0
+    podSpecs:
+      - terminationGracePeriodSeconds: 0
+        restartPolicy: Never
+        containers:
+          - name: ls
+            imagePullPolicy: IfNotPresent
+            image: busybox:latest
+            command:
+              - sh
+              - -c
+            args:
+              - ls
+            resources:
+              limits:
+                memory: 1Mi
+                cpu: 1
+              requests:
+                memory: 1Mi
+                cpu: 1`, name))
+	jobDir := t.TempDir()
+	jobFile, err := os.CreateTemp(jobDir, "test")
+	if err != nil {
+		t.Fatalf("error creating jobfile: %s", err)
+	}
+	jobPath := jobFile.Name()
+	// defer func() {
+	// 	if err := os.Remove(jobPath); err != nil {
+	// 		log.Printf("[TestJob] error deleting temp. jobfile: %s", err)
+	// 	}
+	// }()
+	jobFile.Write(jobData)
+	jobFile.Sync()
+	if err = jobFile.Close(); err != nil {
+		t.Fatalf("error closing temp. jobfile: %s", err)
+	}
+
+	// path, err := filepath.Abs(jobPath)
+	// if err != nil {
+	// 	t.Fatalf("error creating path to test job: %s", err)
+	// }
 
 	// create a queue to use for the tests
 	err = app.CreateQueue(name, priorityFactor, owners, groups, resourceLimits)
@@ -214,80 +262,88 @@ func TestJob(t *testing.T) {
 	}
 	buf.Reset()
 
-	t.Run("submit", func(t *testing.T) {
-		err := app.Submit(path, false)
-		if err != nil {
-			t.Fatalf("expected no error, but got %s", err)
-		}
+	// submit
+	err = app.Submit(jobPath, false)
+	if err != nil {
+		t.Fatalf("expected no error, but got %s", err)
+	}
 
-		out := buf.String()
-		buf.Reset()
-		for _, s := range []string{"Submitted job with ID", "to job set with ID set1\n"} {
-			if !strings.Contains(out, s) {
-				t.Fatalf("expected output to contain '%s', but got '%s'", s, out)
-			}
+	out := buf.String()
+	buf.Reset()
+	for _, s := range []string{"Submitted job with ID", "to job set with ID set1\n"} {
+		if !strings.Contains(out, s) {
+			t.Fatalf("expected output to contain '%s', but got '%s'", s, out)
 		}
-	})
+	}
 
-	t.Run("resources", func(t *testing.T) {
-		err := app.Resources(name, "set1")
-		if err != nil {
-			t.Fatalf("expected no error, but got %s", err)
-		}
+	// the server may wait for some time before publishing events,
+	// and we can't run subsequent tests until the events have been published
+	time.Sleep(10 * time.Second)
 
-		out := buf.String()
-		buf.Reset()
-		for _, s := range []string{"Job ID:", "maximum used resources:", "\n"} {
-			if !strings.Contains(out, s) {
-				t.Fatalf("expected output to contain '%s', but got '%s'", s, out)
-			}
-		}
-	})
+	// analyze
+	err = app.Analyze(name, "set1")
+	if err != nil {
+		t.Fatalf("expected no error, but got %s", err)
+	}
 
-	t.Run("analyze", func(t *testing.T) {
-		err := app.Analyze(name, "set1") // set1 is hard-coded in the jobfile
-		if err != nil {
-			t.Fatalf("expected no error, but got %s", err)
+	out = buf.String()
+	buf.Reset()
+	for _, s := range []string{fmt.Sprintf("Querying queue %s for job set set1", name), "api.JobSubmittedEvent", "api.JobQueuedEvent"} {
+		if !strings.Contains(out, s) {
+			t.Fatalf("expected output to contain '%s', but got '%s'", s, out)
 		}
+	}
 
-		out := buf.String()
-		buf.Reset()
-		for _, s := range []string{fmt.Sprintf("Querying queue %s for job set set1", name), "api.JobSubmittedEvent", "api.JobQueuedEvent"} {
-			if !strings.Contains(out, s) {
-				t.Fatalf("expected output to contain '%s', but got '%s'", s, out)
-			}
-		}
-	})
+	// resources
+	err = app.Resources(name, "set1")
+	if err != nil {
+		t.Fatalf("expected no error, but got %s", err)
+	}
 
-	t.Run("reprioritize", func(t *testing.T) {
-		err := app.Reprioritize("", name, "set1", 0)
-		if err != nil {
-			t.Fatalf("expected no error, but got %s", err)
+	out = buf.String()
+	buf.Reset()
+	for _, s := range []string{"Job ID:", "maximum used resources:", "\n"} {
+		if !strings.Contains(out, s) {
+			t.Fatalf("expected output to contain '%s', but got '%s'", s, out)
 		}
+	}
 
-		out := buf.String()
-		buf.Reset()
-		for _, s := range []string{"Reprioritized jobs with ID:\n"} {
-			if !strings.Contains(out, s) {
-				t.Fatalf("expected output to contain '%s', but got '%s'", s, out)
-			}
-		}
-	})
+	// reprioritize
+	err = app.Reprioritize("", name, "set1", 0)
+	if err != nil {
+		t.Fatalf("expected no error, but got %s", err)
+	}
 
-	t.Run("cancel", func(t *testing.T) {
-		err := app.Cancel(name, "set1", "")
-		if err != nil {
-			t.Fatalf("expected no error, but got %s", err)
+	out = buf.String()
+	buf.Reset()
+	for _, s := range []string{"Reprioritized jobs with ID:\n"} {
+		if !strings.Contains(out, s) {
+			t.Fatalf("expected output to contain '%s', but got '%s'", s, out)
 		}
+	}
 
-		out := buf.String()
-		buf.Reset()
-		for _, s := range []string{"Requested cancellation for jobs", "\n"} {
-			if !strings.Contains(out, s) {
-				t.Fatalf("expected output to contain '%s', but got '%s'", s, out)
-			}
+	// cancel
+	err = app.Cancel(name, "set1", "")
+	if err != nil {
+		t.Fatalf("expected no error, but got %s", err)
+	}
+
+	out = buf.String()
+	buf.Reset()
+	for _, s := range []string{"Requested cancellation for jobs", "\n"} {
+		if !strings.Contains(out, s) {
+			t.Fatalf("expected output to contain '%s', but got '%s'", s, out)
 		}
-	})
+	}
+}
+
+// uuidString returns a randomly generated UUID as a string.
+func uuidString() (string, error) {
+	uuid, err := uuid.NewUUID()
+	if err != nil {
+		return "", fmt.Errorf("[uuidString] error creating UUID: %s", err)
+	}
+	return uuid.String(), nil
 }
 
 // withArmadaCluster spins up an Armada cluster, calls action, and cleans everything up.
