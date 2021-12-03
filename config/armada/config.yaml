@@ -26,6 +26,7 @@ scheduling:
   maximalClusterFractionToSchedule:
     memory: 0.25
     cpu: 0.25
+  maximumJobsToSchedule: 5000
   lease:
     expireAfter: 15m
     expiryLoopInterval: 5s
