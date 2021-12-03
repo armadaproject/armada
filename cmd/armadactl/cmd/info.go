@@ -17,6 +17,7 @@ func init() {
 	rootCmd.AddCommand(infoCmd)
 }
 
+// TODO remove; has been replaced by "info queue"
 var infoCmd = &cobra.Command{
 	Use:        "info <queue>",
 	Short:      "Prints out queue info including all jobs sets where jobs are running or queued.",

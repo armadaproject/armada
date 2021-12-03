@@ -13,6 +13,7 @@ func init() {
 	rootCmd.AddCommand(deleteQueueCmd)
 }
 
+// TODO remove; has been replaced by "delete queue"
 var deleteQueueCmd = &cobra.Command{
 	Use:        "delete-queue <name>",
 	Short:      "Delete existing queue",
