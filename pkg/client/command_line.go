@@ -15,7 +15,7 @@ func AddArmadaApiConnectionCommandlineArgs(rootCmd *cobra.Command) {
 	viper.BindPFlag("armadaUrl", rootCmd.PersistentFlags().Lookup("armadaUrl"))
 }
 
-// LoadCommandlineArgsFromConfigFile load config from at exePath/armadactl-defaults.yaml, where
+// LoadCommandlineArgsFromConfigFile load config from exePath/armadactl-defaults.yaml, where
 // exePath is the path to the armadactl executable, the provided cfgFile, or, if it cfgFile="",
 // $HOME/.armadactl
 func LoadCommandlineArgsFromConfigFile(cfgFile string) error {
