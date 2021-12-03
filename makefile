@@ -52,26 +52,27 @@ build-fakeexecutor:
 	$(gobuild) -o ./bin/executor cmd/fakeexecutor/main.go
 
 ARMADACTL_BUILD_PACKAGE := github.com/G-Research/armada/internal/armadactl/build
+define ARMADACTL_LDFLAGS
+-X '$(ARMADACTL_BUILD_PACKAGE).BuildTime=$(BUILD_TIME)' \
+-X '$(ARMADACTL_BUILD_PACKAGE).ReleaseVersion=$(RELEASE_VERSION)' \
+-X '$(ARMADACTL_BUILD_PACKAGE).GitCommit=$(GIT_COMMIT)' \
+-X '$(ARMADACTL_BUILD_PACKAGE).GoVersion=$(GO_VERSION)'
+endef
 build-armadactl:
-	$(gobuild) -ldflags=" \
-		-X '$(ARMADACTL_BUILD_PACKAGE).BuildTime=$(BUILD_TIME)' \
-		-X '$(ARMADACTL_BUILD_PACKAGE).ReleaseVersion=$(RELEASE_VERSION)' \
-		-X '$(ARMADACTL_BUILD_PACKAGE).GitCommit=$(GIT_COMMIT)' \
-		-X '$(ARMADACTL_BUILD_PACKAGE).GoVersion=$(GO_VERSION)'" \
-		-o ./bin/armadactl cmd/armadactl/main.go
-
-build-binoculars:
-	$(gobuild) -o ./bin/binoculars cmd/binoculars/main.go
+	$(gobuild) -ldflags="$(ARMADACTL_LDFLAGS)" -o ./bin/armadactl cmd/armadactl/main.go
 
 build-armadactl-multiplatform:
 	go install github.com/mitchellh/gox@v1.0.1
-	gox -output="./bin/{{.OS}}-{{.Arch}}/armadactl" -arch="amd64" -os="windows linux darwin" ./cmd/armadactl/
+	gox -ldflags="$(ARMADACTL_LDFLAGS)" -output="./bin/{{.OS}}-{{.Arch}}/armadactl" -arch="amd64" -os="windows linux darwin" ./cmd/armadactl/
 
 build-armadactl-release: build-armadactl-multiplatform
 	mkdir ./dist || true
 	tar -czvf ./dist/armadactl-$(RELEASE_VERSION)-linux-amd64.tar.gz -C ./bin/linux-amd64/ armadactl
 	tar -czvf ./dist/armadactl-$(RELEASE_VERSION)-darwin-amd64.tar.gz -C ./bin/darwin-amd64/ armadactl
 	zip -j ./dist/armadactl-$(RELEASE_VERSION)-windows-amd64.zip ./bin/windows-amd64/armadactl.exe
+
+build-binoculars:
+	$(gobuild) -o ./bin/binoculars cmd/binoculars/main.go	
 
 build-load-tester:
 	$(gobuild) -o ./bin/armada-load-tester cmd/armada-load-tester/main.go
