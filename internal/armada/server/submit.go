@@ -30,6 +30,7 @@ type SubmitServer struct {
 	queueRepository          repository.QueueRepository
 	eventStore               repository.EventStore
 	schedulingInfoRepository repository.SchedulingInfoRepository
+	cancelJobsBatchSize      int
 	queueManagementConfig    *configuration.QueueManagementConfig
 	schedulingConfig         *configuration.SchedulingConfig
 }
@@ -40,6 +41,7 @@ func NewSubmitServer(
 	queueRepository repository.QueueRepository,
 	eventStore repository.EventStore,
 	schedulingInfoRepository repository.SchedulingInfoRepository,
+	cancelJobsBatchSize int,
 	queueManagementConfig *configuration.QueueManagementConfig,
 	schedulingConfig *configuration.SchedulingConfig,
 ) *SubmitServer {
@@ -50,6 +52,7 @@ func NewSubmitServer(
 		queueRepository:          queueRepository,
 		eventStore:               eventStore,
 		schedulingInfoRepository: schedulingInfoRepository,
+		cancelJobsBatchSize:      cancelJobsBatchSize,
 		queueManagementConfig:    queueManagementConfig,
 		schedulingConfig:         schedulingConfig}
 }
@@ -161,23 +164,43 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 
 func (server *SubmitServer) CancelJobs(ctx context.Context, request *api.JobCancelRequest) (*api.CancellationResult, error) {
 	if request.JobId != "" {
-		jobs, e := server.jobRepository.GetExistingJobsByIds([]string{request.JobId})
-		if e != nil {
-			return nil, status.Errorf(codes.Internal, e.Error())
+		jobs, err := server.jobRepository.GetExistingJobsByIds([]string{request.JobId})
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, err.Error())
 		}
 		return server.cancelJobs(ctx, jobs[0].Queue, jobs)
 	}
 
 	if request.JobSetId != "" && request.Queue != "" {
-		ids, e := server.jobRepository.GetActiveJobIds(request.Queue, request.JobSetId)
-		if e != nil {
-			return nil, status.Errorf(codes.Aborted, e.Error())
+		ids, err := server.jobRepository.GetActiveJobIds(request.Queue, request.JobSetId)
+		if err != nil {
+			return nil, status.Errorf(codes.Aborted, err.Error())
 		}
-		jobs, e := server.jobRepository.GetExistingJobsByIds(ids)
-		if e != nil {
-			return nil, status.Errorf(codes.Internal, e.Error())
+
+		batches := util.Batch(ids, server.cancelJobsBatchSize)
+		cancelledIds := []string{}
+		for _, batch := range batches {
+			jobs, err := server.jobRepository.GetExistingJobsByIds(batch)
+			if err != nil {
+				return &api.CancellationResult{CancelledIds: cancelledIds}, status.Errorf(
+					codes.Internal,
+					"failed to find some jobs: %v", err)
+			}
+			result, err := server.cancelJobs(ctx, request.Queue, jobs)
+			if err != nil {
+				return &api.CancellationResult{CancelledIds: cancelledIds}, status.Errorf(
+					codes.Internal,
+					"failed to cancel some jobs: %v", err)
+			}
+			cancelledIds = append(cancelledIds, result.CancelledIds...)
+
+			if util.CloseToDeadline(ctx) {
+				return &api.CancellationResult{CancelledIds: cancelledIds}, status.Errorf(
+					codes.DeadlineExceeded,
+					"not all jobs were cancelled: took too long")
+			}
 		}
-		return server.cancelJobs(ctx, request.Queue, jobs)
+		return &api.CancellationResult{CancelledIds: cancelledIds}, nil
 	}
 	return nil, status.Errorf(codes.InvalidArgument, "Specify job id or queue with job set id")
 }

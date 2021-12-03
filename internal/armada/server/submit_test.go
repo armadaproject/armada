@@ -698,7 +698,15 @@ func withSubmitServerAndRepos(action func(s *SubmitServer, jobRepo repository.Jo
 		MaxPodSpecSizeBytes: 65535,
 	}
 
-	server := NewSubmitServer(&FakePermissionChecker{}, jobRepo, queueRepo, eventRepo, schedulingInfoRepository, &queueConfig, &schedulingConfig)
+	server := NewSubmitServer(
+		&FakePermissionChecker{},
+		jobRepo,
+		queueRepo,
+		eventRepo,
+		schedulingInfoRepository,
+		200,
+		&queueConfig,
+		&schedulingConfig)
 
 	err := queueRepo.CreateQueue(&api.Queue{Name: "test"})
 	if err != nil {
