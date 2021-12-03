@@ -4,6 +4,7 @@ httpPort: 8080
 metricsPort: 9000
 corsAllowedOrigins: []
 priorityHalfTime: 20m
+cancelJobsBatchSize: 200
 redis:
   addrs:
     - "localhost:6379"
@@ -34,8 +35,12 @@ scheduling:
   maxPodSpecSizeBytes: 65535
 queueManagement:
   defaultPriorityFactor: 1000
-eventStoreQueue: "ArmadaEventRedisProcessor"
-eventJobStatusQueue: "ArmadaEventJobStatusProcessor"
+events:
+  storeQueue: "ArmadaEventRedisProcessor"
+  jobStatusQueue: "ArmadaEventJobStatusProcessor"
+  processorBatchSize: 100
+  processorMaxTimeBetweenBatches: 1s
+  processorTimeout: 10s
 eventsNats:
   timeout: 10s
 databaseRetention:

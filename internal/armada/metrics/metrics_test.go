@@ -137,8 +137,14 @@ func addRunningJob(t *testing.T, r *repository.RedisJobRepository, queue string,
 	assert.NoError(t, e)
 	assert.Equal(t, 1, len(leased))
 	assert.Equal(t, job.Id, leased[0].Id)
-	e = r.UpdateStartTime(job.Id, cluster, startTime)
+	jobErrors, e := r.UpdateStartTime([]*repository.JobStartInfo{{
+		JobId:     job.Id,
+		ClusterId: cluster,
+		StartTime: startTime,
+	}})
 	assert.NoError(t, e)
+	assert.Len(t, jobErrors, 1)
+	assert.NoError(t, jobErrors[0])
 	return job
 }
 

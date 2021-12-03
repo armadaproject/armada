@@ -1,6 +1,7 @@
 application:
   clusterId : "Cluster1"
   pool: "default"
+  submitThreadCount: 1
 task:
   utilisationReportingInterval: 1s
   missingJobEventReconciliationInterval: 15s
@@ -25,6 +26,7 @@ kubernetes:
   podDefaults:
     ingress:
       hostnameSuffix: "svc"
+      certDomain: "svc"
   pendingPodChecks:
     events:
     - regexp: "Failed to pull image.*desc = failed to pull and unpack image"            # Suggests genuine problem with image name, no point in waiting around too long.

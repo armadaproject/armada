@@ -190,6 +190,7 @@ func withRunningServer(action func(client api.SubmitClient, leaseClient api.Aggr
 			Addrs: []string{minidb.Addr()},
 			DB:    0,
 		},
+		CancelJobsBatchSize: 200,
 		Scheduling: configuration.SchedulingConfig{
 			QueueLeaseBatchSize:          100,
 			MaximumJobsToSchedule:        1000,
