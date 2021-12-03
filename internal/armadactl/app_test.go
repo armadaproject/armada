@@ -35,12 +35,15 @@ func TestMain(m *testing.M) {
 }
 
 func runTests(m *testing.M) (int, error) {
-	cleanup, err := spinUpArmadaCluster()
+	code := 0
+	err := withArmadaCluster(func() error {
+		code = m.Run()
+		return nil
+	})
 	if err != nil {
 		return -1, fmt.Errorf("[runTests] error spinning up Armada cluster: %s", err)
 	}
-	defer cleanup()
-	return m.Run(), nil
+	return code, nil
 }
 
 func TestVersion(t *testing.T) {
@@ -287,86 +290,70 @@ func TestJob(t *testing.T) {
 	})
 }
 
-// spinUpArmadaCluster spins up a containerized Armada cluster returns a cleanup function handle
-func spinUpArmadaCluster() (func(), error) {
+// withArmadaCluster spins up an Armada cluster, calls action, and cleans everything up.
+func withArmadaCluster(action func() error) error {
 
 	// defaults to tcp/http on windows and socket on linux/osx when called with ""
 	pool, err := dockertest.NewPool("")
 	if err != nil {
-		return nil, fmt.Errorf("[spinUpArmadaCluster] error connecting to docker: %s", err)
+		return fmt.Errorf("[withArmadaCluster] error connecting to docker: %s", err)
 	}
 	if err = pool.Client.Ping(); err != nil {
-		return nil, fmt.Errorf("[spinUpArmadaCluster] could not connect to docker: %s", err)
+		return fmt.Errorf("[withArmadaCluster] could not connect to docker: %s", err)
 	}
 
 	// create a new network for the cluster
 	network, err := pool.Client.CreateNetwork(docker.CreateNetworkOptions{Name: "armada-test-network"})
 	if err != nil {
-		return nil, fmt.Errorf("[spinUpArmadaCluster] error creating test network: %s", err)
+		return fmt.Errorf("[withArmadaCluster] error creating test network: %s", err)
 	}
-
-	// define the cleanup function here so it can be called to clean up containers in the case of partial success
-	var redisCleanup, postgresCleanup, jetstreamCleanup, armadaServerCleanup func()
-	cleanup := func() {
-		if armadaServerCleanup != nil {
-			armadaServerCleanup()
-		}
-		if jetstreamCleanup != nil {
-			jetstreamCleanup()
-		}
-		if postgresCleanup != nil {
-			postgresCleanup()
-		}
-		if redisCleanup != nil {
-			redisCleanup()
-		}
+	defer func() {
 		if err = pool.Client.RemoveNetwork(network.ID); err != nil {
-			log.Printf("[spinUpArmadaCluster] error removing network %s: %s", network.Name, err)
+			log.Printf("[withArmadaCluster] error removing network %s: %s", network.Name, err)
 		}
-	}
+	}()
 
 	// start all required services
-	redisCleanup, err = spinUpRedis(pool, network)
+	redisCleanup, err := spinUpRedis(pool, network)
 	if err != nil {
-		cleanup()
-		return nil, fmt.Errorf("[spinUpArmadaCluster] error starting redis: %s", err)
+		return fmt.Errorf("[withArmadaCluster] error starting redis: %s", err)
 	}
+	defer redisCleanup()
 
-	postgresCleanup, err = spinUpPostgres(pool, network)
+	postgresCleanup, err := spinUpPostgres(pool, network)
 	if err != nil {
-		cleanup()
-		return nil, fmt.Errorf("[spinUpArmadaCluster] error starting postgres: %s", err)
+		return fmt.Errorf("[withArmadaCluster] error starting postgres: %s", err)
 	}
+	defer postgresCleanup()
 
-	jetstreamCleanup, err = spinUpJetstream(pool, network)
+	jetstreamCleanup, err := spinUpJetstream(pool, network)
 	if err != nil {
-		cleanup()
-		return nil, fmt.Errorf("[spinUpArmadaCluster] error starting jetstream: %s", err)
+		return fmt.Errorf("[withArmadaCluster] error starting jetstream: %s", err)
 	}
+	defer jetstreamCleanup()
 
-	armadaServerCleanup, err = spinUpArmadaServer(pool, network)
+	armadaServerCleanup, err := spinUpArmadaServer(pool, network)
 	if err != nil {
-		cleanup()
-		return nil, fmt.Errorf("[spinUpArmadaCluster] error starting Armada server: %s", err)
+		return fmt.Errorf("[withArmadaCluster] error starting Armada server: %s", err)
 	}
+	defer armadaServerCleanup()
 
 	// wait for the Armada server to come up
-	// pool.MaxWait = 5 * time.Minute // max time until pool.Retry returns an error
+	pool.MaxWait = 2 * time.Minute // max time until pool.Retry returns an error
 	if err = pool.Retry(func() error {
 		_, err := http.Get("http://localhost:8081/health") // Armada server HTTP REST API endpoint; should return code 204
 		if err != nil {
-			return fmt.Errorf("[spinUpArmadaCluster] error waiting for Armada server to start: %s", err)
+			return fmt.Errorf("[withArmadaCluster] error waiting for Armada server to start: %s", err)
 		}
 		return nil
 	}); err != nil {
-		cleanup()
-		return nil, err
+		return err
 	}
 
 	// make API calls to the server necessary for it to accept jobs
 	setupServer()
 
-	return cleanup, nil
+	return action()
 }
 
 // setupServer makes API calls to the server to tell it there are resources available
