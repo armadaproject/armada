@@ -40,7 +40,7 @@ require (
 	github.com/nats-io/stan.go v0.10.2
 	github.com/oklog/ulid v1.3.1
 	github.com/opencontainers/image-spec v1.0.2 // indirect
-	github.com/ory/dockertest/v3 v3.8.0 // indirect
+	github.com/ory/dockertest/v3 v3.8.0
 	github.com/pquerna/cachecontrol v0.0.0-20180517163645-1555304b9b35 // indirect
 	github.com/prometheus/client_golang v1.11.0
 	github.com/rakyll/statik v0.1.7
