@@ -1,6 +1,7 @@
 package armada
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -29,6 +30,11 @@ import (
 func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker) (func(), *sync.WaitGroup) {
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
+
+	err := validateArmadaConfig(config)
+	if err != nil {
+		panic(fmt.Errorf("configuration validation error: %v", err))
+	}
 
 	grpcServer := grpcCommon.CreateGrpcServer(auth.ConfigureAuth(config.Auth))
 
@@ -112,7 +118,15 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 
 	permissions := authorization.NewPrincipalPermissionChecker(config.Auth.PermissionGroupMapping, config.Auth.PermissionScopeMapping, config.Auth.PermissionClaimMapping)
 
-	submitServer := server.NewSubmitServer(permissions, jobRepository, queueRepository, eventStore, schedulingInfoRepository, &config.QueueManagement, &config.Scheduling)
+	submitServer := server.NewSubmitServer(
+		permissions,
+		jobRepository,
+		queueRepository,
+		eventStore,
+		schedulingInfoRepository,
+		config.CancelJobsBatchSize,
+		&config.QueueManagement,
+		&config.Scheduling)
 	usageServer := server.NewUsageServer(permissions, config.PriorityHalfTime, &config.Scheduling, usageRepository, queueRepository)
 	aggregatedQueueServer := server.NewAggregatedQueueServer(permissions, config.Scheduling, jobRepository, queueCache, queueRepository, usageRepository, eventStore, schedulingInfoRepository)
 	eventServer := server.NewEventServer(permissions, redisEventRepository, eventStore)
@@ -140,4 +154,11 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 
 func createRedisClient(config *redis.UniversalOptions) redis.UniversalClient {
 	return redis.NewUniversalClient(config)
+}
+
+func validateArmadaConfig(config *configuration.ArmadaConfig) error {
+	if config.CancelJobsBatchSize <= 0 {
+		return fmt.Errorf("cancel jobs batch should be greater than 0: is %d", config.CancelJobsBatchSize)
+	}
+	return nil
 }
