@@ -91,7 +91,7 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 	}
 
 	jobContext := job.NewClusterJobContext(clusterContext, pendingPodChecker, config.Kubernetes.StuckTerminatingPodExpiry)
-	submitter := job.NewSubmitter(clusterContext, config.Kubernetes.PodDefaults, config.Application.SubmissionThreadCount)
+	submitter := job.NewSubmitter(clusterContext, config.Kubernetes.PodDefaults, config.Application.SubmitThreadCount)
 
 	nodeInfoService := node.NewKubernetesNodeInfoService(clusterContext, config.Kubernetes.ToleratedTaints)
 	queueUtilisationService := utilisation.NewMetricsServerQueueUtilisationService(
@@ -163,8 +163,8 @@ func validateConfig(config configuration.ExecutorConfiguration) error {
 	if len(missing) > 0 {
 		return fmt.Errorf("These labels were in avoidNodeLabelsOnRetry but not trackedNodeLabels: %s", strings.Join(missing, ", "))
 	}
-	if config.Application.SubmissionThreadCount <= 0 {
-		return fmt.Errorf("Submission thread count was %d, must be greater or equal to 1", config.Application.SubmissionThreadCount)
+	if config.Application.SubmitThreadCount <= 0 {
+		return fmt.Errorf("Submission thread count was %d, must be greater or equal to 1", config.Application.SubmitThreadCount)
 	}
 	return nil
 }
