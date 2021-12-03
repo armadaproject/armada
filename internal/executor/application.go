@@ -54,10 +54,10 @@ func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGrou
 	taskManager := task.NewBackgroundTaskManager(metrics.ArmadaExecutorMetricsPrefix)
 	taskManager.Register(clusterContext.ProcessPodsToDelete, config.Task.PodDeletionInterval, "pod_deletion")
 
-	return StartUpWithContext(config, clusterContext, kubernetesClientProvider, taskManager, wg)
+	return StartUpWithContext(config, clusterContext, taskManager, wg)
 }
 
-func StartUpWithContext(config configuration.ExecutorConfiguration, clusterContext context.ClusterContext, kubernetesClientProvider cluster.KubernetesClientProvider, taskManager *task.BackgroundTaskManager, wg *sync.WaitGroup) (func(), *sync.WaitGroup) {
+func StartUpWithContext(config configuration.ExecutorConfiguration, clusterContext context.ClusterContext, taskManager *task.BackgroundTaskManager, wg *sync.WaitGroup) (func(), *sync.WaitGroup) {
 
 	conn, err := createConnectionToApi(config)
 	if err != nil {
@@ -90,7 +90,11 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 		os.Exit(-1)
 	}
 
-	jobContext := job.NewClusterJobContext(clusterContext, pendingPodChecker, config.Kubernetes.StuckTerminatingPodExpiry)
+	jobContext := job.NewClusterJobContext(
+		clusterContext,
+		pendingPodChecker,
+		config.Kubernetes.StuckTerminatingPodExpiry,
+		config.Application.UpdateThreadCount)
 	submitter := job.NewSubmitter(clusterContext, config.Kubernetes.PodDefaults)
 
 	nodeInfoService := node.NewKubernetesNodeInfoService(clusterContext, config.Kubernetes.ToleratedTaints)

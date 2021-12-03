@@ -85,12 +85,9 @@ func (m *JobManager) reportDoneAndMarkReported(jobs []*job.RunningJob) error {
 }
 
 func (m *JobManager) markAsDone(jobs []*job.RunningJob) {
-	err := m.jobContext.AddAnnotation(jobs, map[string]string{
+	m.jobContext.AddAnnotation(jobs, map[string]string{
 		domain.JobDoneAnnotation: time.Now().String(),
 	})
-	if err != nil {
-		log.Warnf("Failed to annotate jobs as done: %v", err)
-	}
 }
 
 func (m *JobManager) reportTerminated(pods []*v1.Pod) {

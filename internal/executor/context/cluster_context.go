@@ -64,6 +64,7 @@ type ClusterContext interface {
 type KubernetesClusterContext struct {
 	clusterId                string
 	pool                     string
+	deleteThreadCount        int
 	submittedPods            util.PodCache
 	podsToDelete             util.PodCache
 	podInformer              informer.PodInformer
@@ -96,6 +97,7 @@ func NewClusterContext(
 	context := &KubernetesClusterContext{
 		clusterId:                configuration.ClusterId,
 		pool:                     configuration.Pool,
+		deleteThreadCount:        configuration.DeleteThreadCount,
 		submittedPods:            util.NewTimeExpiringPodCache(time.Minute, time.Second, "submitted_job"),
 		podsToDelete:             util.NewTimeExpiringPodCache(minTimeBetweenRepeatDeletionCalls, time.Second, "deleted_job"),
 		stopper:                  make(chan struct{}),
@@ -293,9 +295,9 @@ func (c *KubernetesClusterContext) ProcessPodsToDelete() {
 	pods := c.podsToDelete.GetAll()
 
 	deleteOptions := createDeleteOptions()
-	for _, podToDelete := range pods {
+	util.ProcessPodsWithThreadPool(pods, c.deleteThreadCount, func(podToDelete *v1.Pod) {
 		if podToDelete == nil {
-			continue
+			return
 		}
 		podId := util.ExtractPodKey(podToDelete)
 
@@ -319,7 +321,7 @@ func (c *KubernetesClusterContext) ProcessPodsToDelete() {
 			log.Errorf("Failed to delete pod %s/%s because %s", podToDelete.Namespace, podToDelete.Name, err)
 			c.podsToDelete.Delete(podId)
 		}
-	}
+	})
 }
 
 func (c *KubernetesClusterContext) markForDeletion(pod *v1.Pod) (*v1.Pod, error) {
