@@ -194,7 +194,7 @@ func (server *SubmitServer) CancelJobs(ctx context.Context, request *api.JobCanc
 			}
 			cancelledIds = append(cancelledIds, result.CancelledIds...)
 
-			if util.CloseToDeadline(ctx) {
+			if util.CloseToDeadline(ctx, time.Second*1) {
 				return &api.CancellationResult{CancelledIds: cancelledIds}, status.Errorf(
 					codes.DeadlineExceeded,
 					"not all jobs were cancelled: took too long")
