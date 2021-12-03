@@ -10,6 +10,10 @@ import (
 	yaml "gopkg.in/yaml.v2"
 )
 
+// list of config files loaded into viper
+// is appended to manually from within LoadCommandlineArgsFromConfigFile
+var mergedConfigFiles []string
+
 func AddArmadaApiConnectionCommandlineArgs(rootCmd *cobra.Command) {
 	rootCmd.PersistentFlags().String("armadaUrl", "localhost:50051", "specify armada server url")
 	viper.BindPFlag("armadaUrl", rootCmd.PersistentFlags().Lookup("armadaUrl"))
@@ -37,6 +41,8 @@ func LoadCommandlineArgsFromConfigFile(cfgFile string) error {
 		} else {
 			return fmt.Errorf("[LoadCommandlineArgsFromConfigFile] error reading config file %s: %s", viper.ConfigFileUsed(), err)
 		}
+	} else {
+		mergedConfigFiles = append(mergedConfigFiles, viper.ConfigFileUsed())
 	}
 
 	// if no cfgFile is provided, use $HOME/.armadactl
@@ -62,6 +68,8 @@ func LoadCommandlineArgsFromConfigFile(cfgFile string) error {
 		} else {
 			return fmt.Errorf("[LoadCommandlineArgsFromConfigFile] error reading config file %s: %s", viper.ConfigFileUsed(), err)
 		}
+	} else {
+		mergedConfigFiles = append(mergedConfigFiles, viper.ConfigFileUsed())
 	}
 
 	return nil
