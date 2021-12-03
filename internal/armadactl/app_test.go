@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/avast/retry-go"
 	"github.com/google/uuid"
 	"github.com/ory/dockertest/v3"
 	"github.com/ory/dockertest/v3/docker"
@@ -281,20 +282,31 @@ jobs:
 	time.Sleep(10 * time.Second)
 
 	// analyze
-	err = app.Analyze(name, "set1")
-	if err != nil {
-		t.Fatalf("expected no error, but got %s", err)
-	}
+	err = retry.Do(
+		func() error {
+			err = app.Analyze(name, "set1")
+			if err != nil {
+				return fmt.Errorf("expected no error, but got %s", err)
+			}
 
-	out = buf.String()
-	buf.Reset()
-	for _, s := range []string{fmt.Sprintf("Querying queue %s for job set set1", name), "api.JobSubmittedEvent", "api.JobQueuedEvent"} {
-		if !strings.Contains(out, s) {
-			t.Fatalf("expected output to contain '%s', but got '%s'", s, out)
-		}
+			out = buf.String()
+			buf.Reset()
+			for _, s := range []string{fmt.Sprintf("Querying queue %s for job set set1", name), "api.JobSubmittedEvent", "api.JobQueuedEvent"} {
+				if !strings.Contains(out, s) {
+					return fmt.Errorf("expected output to contain '%s', but got '%s'", s, out)
+				}
+			}
+
+			return nil
+		},
+		retry.Attempts(100), // default retry delay is 100ms and it may take 10 seconds for the server to committ a job
+	)
+	if err != nil {
+		t.Fatalf("error on calling Analyze: %s", err)
 	}
 
 	// resources
+	// no need for retry since we can be sure the job has been committed to the db at this point
 	err = app.Resources(name, "set1")
 	if err != nil {
 		t.Fatalf("expected no error, but got %s", err)
