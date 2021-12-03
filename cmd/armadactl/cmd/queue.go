@@ -10,11 +10,11 @@ import (
 )
 
 func queueCreateCmd() *cobra.Command {
-	return queueCreateCmdA(armadactl.New())
+	return queueCreateCmdWithApp(armadactl.New())
 }
 
 // Takes a caller-supplied app struct; useful for testing.
-func queueCreateCmdA(a *armadactl.App) *cobra.Command {
+func queueCreateCmdWithApp(a *armadactl.App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "queue <queueName>",
 		Short: "Create new queue",
@@ -64,11 +64,11 @@ Job priority is evaluated inside queue, queue has its own priority.`,
 }
 
 func queueDeleteCmd() *cobra.Command {
-	return queueDeleteCmdA(armadactl.New())
+	return queueDeleteCmdWithApp(armadactl.New())
 }
 
 // Takes a caller-supplied app struct; useful for testing.
-func queueDeleteCmdA(a *armadactl.App) *cobra.Command {
+func queueDeleteCmdWithApp(a *armadactl.App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:          "queue <queueName>",
 		Short:        "Delete existing queue",
@@ -87,11 +87,11 @@ func queueDeleteCmdA(a *armadactl.App) *cobra.Command {
 }
 
 func queueDescribeCmd() *cobra.Command {
-	return queueDescribeCmdA(armadactl.New())
+	return queueDescribeCmdWithApp(armadactl.New())
 }
 
 // Takes a caller-supplied app struct; useful for testing.
-func queueDescribeCmdA(a *armadactl.App) *cobra.Command {
+func queueDescribeCmdWithApp(a *armadactl.App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "queue <queueName>",
 		Short: "Prints out queue info.",
@@ -109,11 +109,11 @@ func queueDescribeCmdA(a *armadactl.App) *cobra.Command {
 }
 
 func queueUpdateCmd() *cobra.Command {
-	return queueUpdateCmdA(armadactl.New())
+	return queueUpdateCmdWithApp(armadactl.New())
 }
 
 // Takes a caller-supplied app struct; useful for testing.
-func queueUpdateCmdA(a *armadactl.App) *cobra.Command {
+func queueUpdateCmdWithApp(a *armadactl.App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "queue <queueName>",
 		Short: "Update an existing queue",

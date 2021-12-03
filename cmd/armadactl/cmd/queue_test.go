@@ -58,7 +58,7 @@ func TestCreate(t *testing.T) {
 			// Create app object, cobra command, and hijack the app setup process to insert a
 			// function that does validation
 			a := armadactl.New()
-			cmd := queueCreateCmdA(a)
+			cmd := queueCreateCmdWithApp(a)
 			cmd.PreRunE = func(cmd *cobra.Command, args []string) error {
 				a.Params.QueueAPI.Create = func(queue api.Queue) error {
 					a.Out = io.Discard
@@ -105,7 +105,7 @@ func TestDelete(t *testing.T) {
 	// Create app object, cobra command, and hijack the app setup process to insert a
 	// function that does validation
 	a := armadactl.New()
-	cmd := queueDeleteCmdA(a)
+	cmd := queueDeleteCmdWithApp(a)
 	cmd.PreRunE = func(cmd *cobra.Command, args []string) error {
 		a.Params.QueueAPI.Delete = func(name string) error {
 			a.Out = io.Discard
@@ -133,7 +133,7 @@ func TestDescribe(t *testing.T) {
 	// Create app object, cobra command, and hijack the app setup process to insert a
 	// function that does validation
 	a := armadactl.New()
-	cmd := queueDescribeCmdA(a)
+	cmd := queueDescribeCmdWithApp(a)
 	cmd.PreRunE = func(cmd *cobra.Command, args []string) error {
 		a.Params.QueueAPI.GetInfo = func(name string) (*api.QueueInfo, error) {
 			a.Out = io.Discard
@@ -184,7 +184,7 @@ func TestUpdate(t *testing.T) {
 			// Create app object, cobra command, and hijack the app setup process to insert a
 			// function that does validation
 			a := armadactl.New()
-			cmd := queueUpdateCmdA(a)
+			cmd := queueUpdateCmdWithApp(a)
 			cmd.PreRunE = func(cmd *cobra.Command, args []string) error {
 				a.Params.QueueAPI.Update = func(queue api.Queue) error {
 					a.Out = io.Discard
