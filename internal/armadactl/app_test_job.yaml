@@ -9,6 +9,11 @@ jobs:
           - name: ls
             imagePullPolicy: IfNotPresent
             image: busybox:latest
+            command:
+              - sh
+              - -c
+            args:
+              - ls
             resources:
               limits:
                 memory: 1Mi
