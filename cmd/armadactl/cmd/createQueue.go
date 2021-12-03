@@ -30,6 +30,7 @@ func init() {
 }
 
 // createQueueCmd represents the createQueue command
+// TODO remove this since it has been replaced by "create queue"
 var createQueueCmd = &cobra.Command{
 	Use:   "create-queue <name>",
 	Short: "Create new queue",

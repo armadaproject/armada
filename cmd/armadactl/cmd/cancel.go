@@ -1,53 +1,34 @@
 package cmd
 
 import (
-	"strings"
-
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
-	"google.golang.org/grpc"
 
-	"github.com/G-Research/armada/internal/common"
-	"github.com/G-Research/armada/pkg/api"
-	"github.com/G-Research/armada/pkg/client"
+	"github.com/G-Research/armada/internal/armadactl"
 )
 
 func init() {
-	rootCmd.AddCommand(cancelCmd)
-	cancelCmd.Flags().String(
-		"jobId", "", "job to cancel")
-	cancelCmd.Flags().String(
-		"queue", "", "queue to cancel jobs from (requires job set to be specified)")
-	cancelCmd.Flags().String(
-		"jobSet", "", "jobSet to cancel (requires queue to be specified)")
+	rootCmd.AddCommand(cancelCmd())
 }
 
-var cancelCmd = &cobra.Command{
-	Use:   "cancel",
-	Short: "Cancels jobs in armada",
-	Long:  `Cancels jobs either by jobId or by combination of queue & job set.`,
-	Args:  cobra.ExactArgs(0),
-	Run: func(cmd *cobra.Command, args []string) {
-		apiConnectionDetails := client.ExtractCommandlineArmadaApiConnectionDetails()
-
-		client.WithConnection(apiConnectionDetails, func(conn *grpc.ClientConn) {
-			client := api.NewSubmitClient(conn)
-
+func cancelCmd() *cobra.Command {
+	a := armadactl.New()
+	cmd := &cobra.Command{
+		Use:   "cancel",
+		Short: "Cancels jobs in armada.",
+		Long:  `Cancels jobs either by jobId or by combination of queue & job set.`,
+		Args:  cobra.ExactArgs(0),
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			return initParams(cmd, a.Params)
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
 			jobId, _ := cmd.Flags().GetString("jobId")
 			queue, _ := cmd.Flags().GetString("queue")
-			jobSet, _ := cmd.Flags().GetString("jobSet")
-
-			ctx, cancel := common.ContextWithDefaultTimeout()
-			defer cancel()
-			result, e := client.CancelJobs(ctx, &api.JobCancelRequest{
-				JobId:    jobId,
-				JobSetId: jobSet,
-				Queue:    queue,
-			})
-			if e != nil {
-				exitWithError(e)
-			}
-			log.Infof("Cancellation request submitted for jobs: %s", strings.Join(result.CancelledIds, ", "))
-		})
-	},
+			jobSetId, _ := cmd.Flags().GetString("jobSet")
+			return a.Cancel(queue, jobSetId, jobId)
+		},
+	}
+	cmd.Flags().String("jobId", "", "job to cancel")
+	cmd.Flags().String("queue", "", "queue to cancel jobs from (requires job set to be specified)")
+	cmd.Flags().String("jobSet", "", "jobSet to cancel (requires queue to be specified)")
+	return cmd
 }
