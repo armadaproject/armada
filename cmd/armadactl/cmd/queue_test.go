@@ -36,7 +36,7 @@ type flag struct {
 
 func TestCreate(t *testing.T) {
 
-	// TODO tests for invalid input are commented out pending investigation of how Cobra parses input
+	// TODO there are no tests for invalid input because cobra silently discards those inputs without raising errors
 	tests := map[string]struct {
 		Flags          []flag
 		PriorityFactor *float64
@@ -50,10 +50,6 @@ func TestCreate(t *testing.T) {
 		"valid owners":          {[]flag{{"owners", "user1,user2"}}, nil, []string{"user1", "user2"}, nil, nil, nil},
 		"valid group owners":    {[]flag{{"groupOwners", "group1,group2"}}, nil, nil, []string{"group1", "group2"}, nil, nil},
 		"valid resource limits": {[]flag{{"resourceLimits", "cpu=0.3,memory=0.2"}}, nil, nil, nil, map[string]float64{"cpu": 0.3, "memory": 0.2}, nil},
-		// "invalid priority":        {[]flag{flag{"priorityFactor", "not_a_float"}}, makeFloat64Pointer(0.1), nil, nil, nil, nil},
-		// "invalid owners":          {[]flag{flag{"owners", "not an array"}}, nil, []string{"user1", "user2"}, nil, nil, nil},
-		// "invalid group owners":    {[]flag{flag{"groupOwners", "not an array"}}, nil, nil, []string{"group1", "group2"}, nil, nil},
-		// "invalid resource limits": {[]flag{flag{"resourceLimits", "not_a_map"}}, nil, nil, nil, map[string]float64{"cpu": 0.3, "memory": 0.2}, nil},
 	}
 
 	for name, test := range tests {
