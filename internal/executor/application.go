@@ -168,7 +168,13 @@ func validateConfig(config configuration.ExecutorConfiguration) error {
 		return fmt.Errorf("These labels were in avoidNodeLabelsOnRetry but not trackedNodeLabels: %s", strings.Join(missing, ", "))
 	}
 	if config.Application.SubmitThreadCount <= 0 {
-		return fmt.Errorf("Submission thread count was %d, must be greater or equal to 1", config.Application.SubmitThreadCount)
+		return fmt.Errorf("SubmitThreadCount was %d, must be greater or equal to 1", config.Application.SubmitThreadCount)
+	}
+	if config.Application.UpdateThreadCount <= 0 {
+		return fmt.Errorf("UpdateThreadCount was %d, must be greater or equal to 1", config.Application.UpdateThreadCount)
+	}
+	if config.Application.DeleteThreadCount <= 0 {
+		return fmt.Errorf("DeleteThreadCount was %d, must be greater or equal to 1", config.Application.DeleteThreadCount)
 	}
 	return nil
 }
