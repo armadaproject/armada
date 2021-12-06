@@ -2,7 +2,6 @@ package repository
 
 import (
 	"fmt"
-
 	log "github.com/sirupsen/logrus"
 
 	"github.com/G-Research/armada/internal/common/eventstream"
