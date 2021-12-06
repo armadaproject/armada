@@ -45,7 +45,7 @@ Job priority is evaluated inside queue, queue has its own priority.`,
 				return fmt.Errorf("error reading groupOwners: %s", err)
 			}
 
-			resourceLimits, err := FlagGetStringToString(cmd.Flags().GetStringToString).ToFloat64("resourceLimits")
+			resourceLimits, err := flagGetStringToString(cmd.Flags().GetStringToString).toFloat64("resourceLimits")
 			if err != nil {
 				return fmt.Errorf("error reading resourceLimits: %s", err)
 			}
@@ -138,7 +138,7 @@ func queueUpdateCmdWithApp(a *armadactl.App) *cobra.Command {
 				return fmt.Errorf("error reading groupOwners: %s", err)
 			}
 
-			resourceLimits, err := FlagGetStringToString(cmd.Flags().GetStringToString).ToFloat64("resourceLimits")
+			resourceLimits, err := flagGetStringToString(cmd.Flags().GetStringToString).toFloat64("resourceLimits")
 			if err != nil {
 				return fmt.Errorf("error reading resourceLimits: %s", err)
 			}
@@ -156,11 +156,9 @@ func queueUpdateCmdWithApp(a *armadactl.App) *cobra.Command {
 	return cmd
 }
 
-// TODO: shouldn't be exported
-type FlagGetStringToString func(string) (map[string]string, error)
+type flagGetStringToString func(string) (map[string]string, error)
 
-// TODO: shouldn't be exported
-func (f FlagGetStringToString) ToFloat64(flagName string) (map[string]float64, error) {
+func (f flagGetStringToString) toFloat64(flagName string) (map[string]float64, error) {
 	limits, err := f(flagName)
 	if err != nil {
 		return nil, err
