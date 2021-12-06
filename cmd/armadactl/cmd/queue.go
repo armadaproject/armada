@@ -21,7 +21,7 @@ func queueCreateCmdWithApp(a *armadactl.App) *cobra.Command {
 		Long: `Every job submitted to armada needs to be associated with queue.
 
 Job priority is evaluated inside queue, queue has its own priority.`,
-		Args: validateQueueName,
+		Args: cobra.ExactArgs(1),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			return initParams(cmd, a.Params)
 		},
@@ -72,7 +72,7 @@ func queueDeleteCmdWithApp(a *armadactl.App) *cobra.Command {
 		Use:   "queue <queueName>",
 		Short: "Delete existing queue",
 		Long:  "Deletes queue if it exists, the queue needs to be empty at the time of deletion.",
-		Args:  validateQueueName,
+		Args:  cobra.ExactArgs(1),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			return initParams(cmd, a.Params)
 		},
@@ -94,7 +94,7 @@ func queueDescribeCmdWithApp(a *armadactl.App) *cobra.Command {
 		Use:   "queue <queueName>",
 		Short: "Prints out queue info.",
 		Long:  "Prints out queue info including all jobs sets where jobs are running or queued.",
-		Args:  validateQueueName,
+		Args:  cobra.ExactArgs(1),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			return initParams(cmd, a.Params)
 		},
@@ -116,7 +116,7 @@ func queueUpdateCmdWithApp(a *armadactl.App) *cobra.Command {
 		Use:   "queue <queueName>",
 		Short: "Update an existing queue",
 		Long:  "Update settings of an existing queue",
-		Args:  validateQueueName,
+		Args:  cobra.ExactArgs(1),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			return initParams(cmd, a.Params)
 		},
@@ -176,16 +176,4 @@ func (f FlagGetStringToString) ToFloat64(flagName string) (map[string]float64, e
 	}
 
 	return result, nil
-}
-
-// TODO: arguably doesn't need to be a separate method; just use Cobra.ExactArgs
-func validateQueueName(cmd *cobra.Command, args []string) error {
-	switch n := len(args); {
-	case n == 0:
-		return fmt.Errorf("must provide <queue_name>")
-	case n != 1:
-		return fmt.Errorf("accepts only one argument for <queue_name>")
-	default:
-		return nil
-	}
 }
