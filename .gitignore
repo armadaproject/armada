@@ -1,6 +1,7 @@
 .vscode
 .idea
 .kube
+.test
 
 # Binaries for programs and plugins
 *.exe
