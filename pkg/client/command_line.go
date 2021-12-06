@@ -14,9 +14,18 @@ import (
 // is appended to manually from within LoadCommandlineArgsFromConfigFile
 var mergedConfigFiles []string
 
+// path to config file, as given by viper flags
+var cfgFile string
+
+// AddArmadaApiConnectionCommandlineArgs adds command-line flags to a cobra command.
+// Arguments given via these flags are later used by LoadCommandlineArgsFromConfigFile.
+// Hence, apps that use the client package to load config should call this function as part of
+// their initialization.
 func AddArmadaApiConnectionCommandlineArgs(rootCmd *cobra.Command) {
 	rootCmd.PersistentFlags().String("armadaUrl", "localhost:50051", "specify armada server url")
 	viper.BindPFlag("armadaUrl", rootCmd.PersistentFlags().Lookup("armadaUrl"))
+
+	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.armadactl.yaml)")
 }
 
 // LoadCommandlineArgsFromConfigFile loads armadactl config
