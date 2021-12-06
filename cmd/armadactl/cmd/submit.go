@@ -38,6 +38,6 @@ jobs:
 			return a.Submit(path, dryRun)
 		},
 	}
-	cmd.Flags().Bool("dry-run", false, "Performs basic validation on the submitted file. Does no actual submission of jobs to the server.")
+
 	return cmd
 }

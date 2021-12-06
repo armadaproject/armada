@@ -25,6 +25,7 @@ password: password123
 The location of this file can be passed in using --config argument or picked from $HOME/.armadactl.yaml.`}
 
 	client.AddArmadaApiConnectionCommandlineArgs(cmd)
+	cmd.PersistentFlags().Bool("dry-run", false, "Validate input and exit without connecting to the server.")
 
 	cmd.AddCommand(
 		analyzeCmd(),
