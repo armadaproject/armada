@@ -17,6 +17,11 @@ func (a *App) Cancel(queue string, jobSetId string, jobId string) (outerErr erro
 	apiConnectionDetails := a.Params.ApiConnectionDetails
 
 	fmt.Fprintf(a.Out, "Requesting cancellation of jobs matching queue: %s, job set: %s, and job ID: %s\n", queue, jobSetId, jobId)
+
+	if a.Params.DryRun {
+		return
+	}
+
 	client.WithConnection(apiConnectionDetails, func(conn *grpc.ClientConn) {
 		client := api.NewSubmitClient(conn)
 		ctx, cancel := common.ContextWithDefaultTimeout()
