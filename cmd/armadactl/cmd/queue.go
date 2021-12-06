@@ -21,8 +21,7 @@ func queueCreateCmdWithApp(a *armadactl.App) *cobra.Command {
 		Long: `Every job submitted to armada needs to be associated with queue.
 
 Job priority is evaluated inside queue, queue has its own priority.`,
-		SilenceUsage: true,
-		Args:         validateQueueName,
+		Args: validateQueueName,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			return initParams(cmd, a.Params)
 		},
@@ -70,11 +69,10 @@ func queueDeleteCmd() *cobra.Command {
 // Takes a caller-supplied app struct; useful for testing.
 func queueDeleteCmdWithApp(a *armadactl.App) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:          "queue <queueName>",
-		Short:        "Delete existing queue",
-		Long:         "Deletes queue if it exists, the queue needs to be empty at the time of deletion.",
-		SilenceUsage: true,
-		Args:         validateQueueName,
+		Use:   "queue <queueName>",
+		Short: "Delete existing queue",
+		Long:  "Deletes queue if it exists, the queue needs to be empty at the time of deletion.",
+		Args:  validateQueueName,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			return initParams(cmd, a.Params)
 		},
