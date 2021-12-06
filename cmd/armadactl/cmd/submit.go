@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"fmt"
-
 	"github.com/spf13/cobra"
 
 	"github.com/G-Research/armada/internal/armadactl"
@@ -28,14 +26,8 @@ jobs:
 			return initParams(cmd, a.Params)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			dryRun, err := cmd.Flags().GetBool("dry-run")
-			if err != nil {
-				return fmt.Errorf("error reading flag dry-run: %s", err)
-			}
-
 			path := args[0]
-
-			return a.Submit(path, dryRun)
+			return a.Submit(path)
 		},
 	}
 

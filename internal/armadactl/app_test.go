@@ -264,7 +264,7 @@ jobs:
 	buf.Reset()
 
 	// submit
-	err = app.Submit(jobPath, false)
+	err = app.Submit(jobPath)
 	if err != nil {
 		t.Fatalf("expected no error, but got %s", err)
 	}
