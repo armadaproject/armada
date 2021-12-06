@@ -16,8 +16,10 @@ func (a *App) CreateQueue(name string, priorityFactor float64, owners []string, 
 		GroupOwners:    groups,
 		ResourceLimits: resourceLimits,
 	}
-	if err := a.Params.QueueAPI.Create(queue); err != nil {
-		return fmt.Errorf("[armadactl.CreateQueue] error creating queue %s: %s", name, err)
+	if !a.Params.DryRun {
+		if err := a.Params.QueueAPI.Create(queue); err != nil {
+			return fmt.Errorf("[armadactl.CreateQueue] error creating queue %s: %s", name, err)
+		}
 	}
 	fmt.Fprintf(a.Out, "Created queue %s\n", name)
 	return nil
@@ -25,8 +27,10 @@ func (a *App) CreateQueue(name string, priorityFactor float64, owners []string, 
 
 // DeleteQueue calls app.QueueAPI.Delete with the provided parameters.
 func (a *App) DeleteQueue(name string) error {
-	if err := a.Params.QueueAPI.Delete(name); err != nil {
-		return fmt.Errorf("[armadactl.DeleteQueue] error deleting queue %s: %s", name, err)
+	if !a.Params.DryRun {
+		if err := a.Params.QueueAPI.Delete(name); err != nil {
+			return fmt.Errorf("[armadactl.DeleteQueue] error deleting queue %s: %s", name, err)
+		}
 	}
 	fmt.Fprintf(a.Out, "Deleted queue %s (or it did not exist)\n", name)
 	return nil
@@ -65,8 +69,10 @@ func (a *App) UpdateQueue(name string, priorityFactor float64, owners []string, 
 		GroupOwners:    groups,
 		ResourceLimits: resourceLimits,
 	}
-	if err := a.Params.QueueAPI.Update(queue); err != nil {
-		return fmt.Errorf("error updating queue %s: %s", name, err)
+	if !a.Params.DryRun {
+		if err := a.Params.QueueAPI.Update(queue); err != nil {
+			return fmt.Errorf("error updating queue %s: %s", name, err)
+		}
 	}
 
 	fmt.Fprintf(a.Out, "Updated queue %s\n", name)
