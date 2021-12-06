@@ -22,7 +22,8 @@ require (
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/protobuf v1.5.2
 	github.com/gomodule/redigo v2.0.0+incompatible // indirect
-	github.com/google/uuid v1.1.2
+	github.com/google/go-cmp v0.5.6 // indirect
+	github.com/google/uuid v1.1.2 // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0
@@ -31,7 +32,7 @@ require (
 	github.com/jcmturner/gokrb5/v8 v8.4.2-0.20201112171129-78f56934d598
 	github.com/lib/pq v1.10.4
 	github.com/mitchellh/go-homedir v1.1.0
-	github.com/mitchellh/mapstructure v1.4.3
+	github.com/mitchellh/mapstructure v1.4.2
 	github.com/nats-io/jsm.go v0.0.26
 	github.com/nats-io/nats-server/v2 v2.4.1-0.20210907200628-874c79fe411f
 	github.com/nats-io/nats-streaming-server v0.22.1
@@ -56,6 +57,7 @@ require (
 	google.golang.org/genproto v0.0.0-20210828152312-66f60bf46e71
 	google.golang.org/grpc v1.42.0
 	gopkg.in/square/go-jose.v2 v2.4.1 // indirect
+	gopkg.in/yaml.v2 v2.4.0
 	k8s.io/api v0.22.4
 	k8s.io/apimachinery v0.22.4
 	k8s.io/client-go v0.22.4
