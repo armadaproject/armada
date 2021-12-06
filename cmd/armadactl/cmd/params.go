@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"fmt"
+
 	"github.com/spf13/cobra"
 
 	"github.com/G-Research/armada/internal/armadactl"
@@ -14,6 +16,12 @@ func initParams(cmd *cobra.Command, params *armadactl.Params) error {
 	// Stuff above this is from the example
 	client.LoadCommandlineArgs()
 	params.ApiConnectionDetails = client.ExtractCommandlineArmadaApiConnectionDetails()
+
+	dryRun, err := cmd.Flags().GetBool("dry-run")
+	if err != nil {
+		return fmt.Errorf("[initParams] failed to get flag --dry-run")
+	}
+	params.DryRun = dryRun
 
 	// Setup the armadactl to use pkg/client as its backend for queue-related commands
 	params.QueueAPI.Create = cq.Create(client.ExtractCommandlineArmadaApiConnectionDetails)
