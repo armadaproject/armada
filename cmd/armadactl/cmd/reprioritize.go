@@ -9,10 +9,6 @@ import (
 	"github.com/G-Research/armada/internal/armadactl"
 )
 
-func init() {
-	rootCmd.AddCommand(reprioritizeCmd())
-}
-
 func reprioritizeCmd() *cobra.Command {
 	a := armadactl.New()
 	cmd := &cobra.Command{

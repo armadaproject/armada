@@ -12,7 +12,7 @@ import (
 func initParams(cmd *cobra.Command, params *armadactl.Params) error {
 
 	// Stuff above this is from the example
-	// client.LoadCommandlineArgsFromConfigFile(cfgFile) // TODO: should be commented in once we have removed initConfig in root.go
+	client.LoadCommandlineArgs()
 	params.ApiConnectionDetails = client.ExtractCommandlineArmadaApiConnectionDetails()
 
 	// Setup the armadactl to use pkg/client as its backend for queue-related commands

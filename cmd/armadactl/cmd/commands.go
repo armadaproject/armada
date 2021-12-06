@@ -4,15 +4,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func init() {
-	rootCmd.AddCommand(
-		createCmd(),
-		deleteCmd(),
-		updateCmd(),
-		describeCmd(),
-	)
-}
-
 func createCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "create",
