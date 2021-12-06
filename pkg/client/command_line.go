@@ -36,9 +36,11 @@ func LoadCommandlineArgsFromConfigFile(cfgFile string) error {
 	configPath := filepath.Join(exeDir, "/armadactl-defaults.yaml")
 	viper.SetConfigFile(configPath)
 	if err := viper.ReadInConfig(); err != nil {
-		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
+		switch err.(type) {
+		case viper.ConfigFileNotFoundError:
+		case *os.PathError:
 			// Config file not found; ignore
-		} else {
+		default:
 			return fmt.Errorf("[LoadCommandlineArgsFromConfigFile] error reading config file %s: %s", viper.ConfigFileUsed(), err)
 		}
 	} else {
@@ -62,10 +64,12 @@ func LoadCommandlineArgsFromConfigFile(cfgFile string) error {
 
 	// merge in new config with those loaded from armadactl-defaults.yaml
 	// (note the call to viper.MergeInConfig instead of viper.ReadInConfig)
-	if err := viper.MergeInConfig(); err != nil {
-		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
+	if err := viper.ReadInConfig(); err != nil {
+		switch err.(type) {
+		case viper.ConfigFileNotFoundError:
+		case *os.PathError:
 			// Config file not found; ignore
-		} else {
+		default:
 			return fmt.Errorf("[LoadCommandlineArgsFromConfigFile] error reading config file %s: %s", viper.ConfigFileUsed(), err)
 		}
 	} else {
