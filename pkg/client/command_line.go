@@ -8,6 +8,8 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	yaml "gopkg.in/yaml.v2"
+
+	"github.com/G-Research/armada/internal/fileutils"
 )
 
 // list of config files loaded into viper
@@ -66,6 +68,13 @@ func LoadCommandlineArgsFromConfigFile(cfgFile string) error {
 
 	// if no cfgFile is provided, use $HOME/.armadactl
 	if len(cfgFile) > 0 {
+		exists, err := fileutils.IsFile(cfgFile)
+		if err != nil {
+			return fmt.Errorf("[LoadCommandlineArgsFromConfigFile] error checking if %s exists: %s", cfgFile, err)
+		}
+		if !exists {
+			return fmt.Errorf("[LoadCommandlineArgsFromConfigFile] could not find config file %s", cfgFile)
+		}
 		viper.SetConfigFile(cfgFile)
 	} else {
 		homeDir, err := os.UserHomeDir()
