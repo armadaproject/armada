@@ -30,11 +30,6 @@ func (a *App) Reprioritize(jobId string, queueName string, jobSet string, priori
 			Queue:       queueName,
 			NewPriority: priorityFactor,
 		}
-
-		if a.Params.DryRun {
-			return
-		}
-
 		result, err := client.ReprioritizeJobs(ctx, &req)
 		if err != nil {
 			outerErr = fmt.Errorf("[armadactl.Reprioritize] error submitting reprioritizing request %#v: %s", req, err)
