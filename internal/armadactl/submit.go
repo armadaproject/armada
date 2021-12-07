@@ -14,7 +14,7 @@ import (
 
 // Submit a job, represented by a file, to the Armada server.
 // If dry-run is true, the job file is validated but not submitted.
-func (a *App) Submit(path string) (outerErr error) {
+func (a *App) Submit(path string, dryRun bool) (outerErr error) {
 
 	ok, err := validation.ValidateSubmitFile(path)
 	if !ok {
@@ -29,7 +29,8 @@ func (a *App) Submit(path string) (outerErr error) {
 		return fmt.Errorf("[armadactl.Submit] error parsing job file: %s", err)
 	}
 
-	if a.Params.DryRun {
+	// TODO Should be a global flag stored in a.Params
+	if dryRun {
 		return
 	}
 
