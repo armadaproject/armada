@@ -211,7 +211,30 @@ func reportTerminated(repository repository.EventStore, clusterId string, job *a
 }
 
 func reportFailed(repository repository.EventStore, clusterId string, reason string, job *api.Job) error {
-	event, e := api.Wrap(&api.JobFailedEvent{
+	event, e := api.Wrap(createFailedEvent(job, clusterId, reason, time.Now()))
+	if e != nil {
+		return e
+	}
+	e = repository.ReportEvents([]*api.EventMessage{event})
+	return e
+}
+
+func reportFailedMultiple(repository repository.EventStore, clusterId string, reason string, jobs []*api.Job) error {
+	events := []*api.EventMessage{}
+	now := time.Now()
+	for _, job := range jobs {
+		event, e := api.Wrap(createFailedEvent(job, clusterId, reason, now))
+		if e != nil {
+			return e
+		}
+		events = append(events, event)
+	}
+	e := repository.ReportEvents(events)
+	return e
+}
+
+func createFailedEvent(job *api.Job, clusterId string, reason string, created time.Time) *api.JobFailedEvent {
+	return &api.JobFailedEvent{
 		JobId:        job.Id,
 		JobSetId:     job.JobSetId,
 		Queue:        job.Queue,
@@ -221,10 +244,5 @@ func reportFailed(repository repository.EventStore, clusterId string, reason str
 		ExitCodes:    make(map[string]int32),
 		KubernetesId: "",
 		NodeName:     "",
-	})
-	if e != nil {
-		return e
 	}
-	e = repository.ReportEvents([]*api.EventMessage{event})
-	return e
 }
