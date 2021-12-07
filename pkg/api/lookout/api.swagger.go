@@ -142,7 +142,8 @@ func SwaggerJsonTemplate() string {
 		"      \"default\": \"NodePort\",\n" +
 		"      \"enum\": [\n" +
 		"        \"NodePort\",\n" +
-		"        \"Ingress\"\n" +
+		"        \"Ingress\",\n" +
+		"        \"Headless\"\n" +
 		"      ]\n" +
 		"    },\n" +
 		"    \"apiJob\": {\n" +

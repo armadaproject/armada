@@ -913,6 +913,9 @@ namespace GResearch.Armada.Client
         [System.Runtime.Serialization.EnumMember(Value = @"Ingress")]
         Ingress = 1,
     
+        [System.Runtime.Serialization.EnumMember(Value = @"Headless")]
+        Headless = 2,
+    
     }
     
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]

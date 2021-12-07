@@ -22,6 +22,12 @@ func CreateService(job *api.Job, pod *v1.Pod, ports []v1.ServicePort, ingressTyp
 	if ingressType == api.IngressType_NodePort {
 		serviceType = v1.ServiceTypeNodePort
 	}
+
+	clusterIP := ""
+
+	if ingressType == api.IngressType_Headless {
+		clusterIP = "None"
+	}
 	serviceSpec := v1.ServiceSpec{
 		Type: serviceType,
 		Selector: map[string]string{
@@ -30,6 +36,7 @@ func CreateService(job *api.Job, pod *v1.Pod, ports []v1.ServicePort, ingressTyp
 			domain.PodNumber: pod.Labels[domain.PodNumber],
 		},
 		Ports: ports,
+		ClusterIP: clusterIP,
 	}
 	labels := util.MergeMaps(job.Labels, map[string]string{
 		domain.JobId:     pod.Labels[domain.JobId],

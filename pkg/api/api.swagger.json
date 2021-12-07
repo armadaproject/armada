@@ -464,7 +464,8 @@
       "default": "NodePort",
       "enum": [
         "NodePort",
-        "Ingress"
+        "Ingress",
+        "Headless"
       ]
     },
     "apiJob": {
