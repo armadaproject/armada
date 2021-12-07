@@ -40,7 +40,6 @@ type App struct {
 type Params struct {
 	ApiConnectionDetails *client.ApiConnectionDetails
 	QueueAPI             *QueueAPI
-	DryRun               bool
 }
 
 // QueueAPI struct holds pointers to functions that are called by armadactl.
