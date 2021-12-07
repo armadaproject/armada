@@ -8,15 +8,34 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	yaml "gopkg.in/yaml.v2"
+
+	"github.com/G-Research/armada/internal/fileutils"
 )
 
 // list of config files loaded into viper
 // is appended to manually from within LoadCommandlineArgsFromConfigFile
 var mergedConfigFiles []string
 
+// path to config file, as given by viper flags
+var cfgFile string
+
+// AddArmadaApiConnectionCommandlineArgs adds command-line flags to a cobra command.
+// Arguments given via these flags are later used by LoadCommandlineArgsFromConfigFile.
+// Hence, apps that use the client package to load config should call this function as part of
+// their initialization.
 func AddArmadaApiConnectionCommandlineArgs(rootCmd *cobra.Command) {
 	rootCmd.PersistentFlags().String("armadaUrl", "localhost:50051", "specify armada server url")
 	viper.BindPFlag("armadaUrl", rootCmd.PersistentFlags().Lookup("armadaUrl"))
+
+	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.armadactl.yaml)")
+}
+
+// LoadCommandlineArgsFromConfigFile loads armadactl config
+// armadactl-defaults.yaml - From exePath, where exePath is the path to the armadactl executable
+// armada config file - From cfgFile, set by the --config CLI flag, or defaulting to $HOME/.armadactl if not set
+// These configs are then merged
+func LoadCommandlineArgs() error {
+	return LoadCommandlineArgsFromConfigFile(cfgFile)
 }
 
 // LoadCommandlineArgsFromConfigFile loads armadactl config
@@ -49,6 +68,13 @@ func LoadCommandlineArgsFromConfigFile(cfgFile string) error {
 
 	// if no cfgFile is provided, use $HOME/.armadactl
 	if len(cfgFile) > 0 {
+		exists, err := fileutils.IsFile(cfgFile)
+		if err != nil {
+			return fmt.Errorf("[LoadCommandlineArgsFromConfigFile] error checking if %s exists: %s", cfgFile, err)
+		}
+		if !exists {
+			return fmt.Errorf("[LoadCommandlineArgsFromConfigFile] could not find config file %s", cfgFile)
+		}
 		viper.SetConfigFile(cfgFile)
 	} else {
 		homeDir, err := os.UserHomeDir()
