@@ -153,7 +153,8 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 		if submissionResult.Error != nil {
 			jobResponse.Error = submissionResult.Error.Error()
 			failedJobs = append(failedJobs, jobs[i])
-			jobErrs = append(jobErrs, submissionResult.Error.Error())
+			jobErrs = append(jobErrs,
+				fmt.Sprintf("Failed to save job in Armada: %s", submissionResult.Error.Error()))
 		} else if submissionResult.DuplicateDetected {
 			doubleSubmits = append(doubleSubmits, submissionResult)
 		} else {
