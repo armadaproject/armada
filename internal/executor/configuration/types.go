@@ -9,11 +9,11 @@ import (
 )
 
 type ApplicationConfiguration struct {
-	ClusterId         string
-	Pool              string
-	SubmitThreadCount int
-	UpdateThreadCount int
-	DeleteThreadCount int
+	ClusterId              string
+	Pool                   string
+	SubmitConcurrencyLimit int
+	UpdateConcurrencyLimit int
+	DeleteConcurrencyLimit int
 }
 
 type PodDefaults struct {

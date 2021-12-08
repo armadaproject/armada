@@ -1,9 +1,9 @@
 application:
   clusterId : "Cluster1"
   pool: "default"
-  submitThreadCount: 1
-  updateThreadCount: 10
-  deleteThreadCount: 2
+  submitConcurrencyLimit: 2
+  updateConcurrencyLimit: 5
+  deleteConcurrencyLimit: 2
 task:
   utilisationReportingInterval: 1s
   missingJobEventReconciliationInterval: 15s

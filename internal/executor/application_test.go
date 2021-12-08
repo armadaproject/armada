@@ -35,51 +35,51 @@ func Test_ValidateConfig_When_TrackedNodeLabels_MissingFrom_AvoidNodeLabelsOnRet
 func Test_ValidateConfig_When_SubmitThreadCount(t *testing.T) {
 	config := createBasicValidExecutorConfiguration()
 
-	config.Application.SubmitThreadCount = 1
+	config.Application.SubmitConcurrencyLimit = 1
 	assert.NoError(t, validateConfig(config))
-	config.Application.SubmitThreadCount = 5
+	config.Application.SubmitConcurrencyLimit = 5
 	assert.NoError(t, validateConfig(config))
 
-	config.Application.SubmitThreadCount = 0
+	config.Application.SubmitConcurrencyLimit = 0
 	assert.Error(t, validateConfig(config))
-	config.Application.SubmitThreadCount = -5
+	config.Application.SubmitConcurrencyLimit = -5
 	assert.Error(t, validateConfig(config))
 }
 
 func Test_ValidateConfig_When_UpdateThreadCount(t *testing.T) {
 	config := createBasicValidExecutorConfiguration()
 
-	config.Application.UpdateThreadCount = 1
+	config.Application.UpdateConcurrencyLimit = 1
 	assert.NoError(t, validateConfig(config))
-	config.Application.UpdateThreadCount = 5
+	config.Application.UpdateConcurrencyLimit = 5
 	assert.NoError(t, validateConfig(config))
 
-	config.Application.UpdateThreadCount = 0
+	config.Application.UpdateConcurrencyLimit = 0
 	assert.Error(t, validateConfig(config))
-	config.Application.UpdateThreadCount = -5
+	config.Application.UpdateConcurrencyLimit = -5
 	assert.Error(t, validateConfig(config))
 }
 
 func Test_ValidateConfig_When_DeleteThreadCount_LessThanOrEqualToZero(t *testing.T) {
 	config := createBasicValidExecutorConfiguration()
 
-	config.Application.DeleteThreadCount = 1
+	config.Application.DeleteConcurrencyLimit = 1
 	assert.NoError(t, validateConfig(config))
-	config.Application.DeleteThreadCount = 5
+	config.Application.DeleteConcurrencyLimit = 5
 	assert.NoError(t, validateConfig(config))
 
-	config.Application.DeleteThreadCount = 0
+	config.Application.DeleteConcurrencyLimit = 0
 	assert.Error(t, validateConfig(config))
-	config.Application.DeleteThreadCount = -5
+	config.Application.DeleteConcurrencyLimit = -5
 	assert.Error(t, validateConfig(config))
 }
 
 func createBasicValidExecutorConfiguration() configuration.ExecutorConfiguration {
 	return configuration.ExecutorConfiguration{
 		Application: configuration.ApplicationConfiguration{
-			SubmitThreadCount: 1,
-			UpdateThreadCount: 1,
-			DeleteThreadCount: 1,
+			SubmitConcurrencyLimit: 1,
+			UpdateConcurrencyLimit: 1,
+			DeleteConcurrencyLimit: 1,
 		},
 	}
 }

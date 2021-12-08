@@ -94,8 +94,8 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 		clusterContext,
 		pendingPodChecker,
 		config.Kubernetes.StuckTerminatingPodExpiry,
-		config.Application.UpdateThreadCount)
-	submitter := job.NewSubmitter(clusterContext, config.Kubernetes.PodDefaults, config.Application.SubmitThreadCount)
+		config.Application.UpdateConcurrencyLimit)
+	submitter := job.NewSubmitter(clusterContext, config.Kubernetes.PodDefaults, config.Application.SubmitConcurrencyLimit)
 
 	nodeInfoService := node.NewKubernetesNodeInfoService(clusterContext, config.Kubernetes.ToleratedTaints)
 	queueUtilisationService := utilisation.NewMetricsServerQueueUtilisationService(
@@ -167,14 +167,14 @@ func validateConfig(config configuration.ExecutorConfiguration) error {
 	if len(missing) > 0 {
 		return fmt.Errorf("These labels were in avoidNodeLabelsOnRetry but not trackedNodeLabels: %s", strings.Join(missing, ", "))
 	}
-	if config.Application.SubmitThreadCount <= 0 {
-		return fmt.Errorf("SubmitThreadCount was %d, must be greater or equal to 1", config.Application.SubmitThreadCount)
+	if config.Application.SubmitConcurrencyLimit <= 0 {
+		return fmt.Errorf("SubmitConcurrencyLimit was %d, must be greater or equal to 1", config.Application.SubmitConcurrencyLimit)
 	}
-	if config.Application.UpdateThreadCount <= 0 {
-		return fmt.Errorf("UpdateThreadCount was %d, must be greater or equal to 1", config.Application.UpdateThreadCount)
+	if config.Application.UpdateConcurrencyLimit <= 0 {
+		return fmt.Errorf("UpdateConcurrencyLimit was %d, must be greater or equal to 1", config.Application.UpdateConcurrencyLimit)
 	}
-	if config.Application.DeleteThreadCount <= 0 {
-		return fmt.Errorf("DeleteThreadCount was %d, must be greater or equal to 1", config.Application.DeleteThreadCount)
+	if config.Application.DeleteConcurrencyLimit <= 0 {
+		return fmt.Errorf("DeleteConcurrencyLimit was %d, must be greater or equal to 1", config.Application.DeleteConcurrencyLimit)
 	}
 	return nil
 }

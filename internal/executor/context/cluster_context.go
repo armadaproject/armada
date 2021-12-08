@@ -97,7 +97,7 @@ func NewClusterContext(
 	context := &KubernetesClusterContext{
 		clusterId:                configuration.ClusterId,
 		pool:                     configuration.Pool,
-		deleteThreadCount:        configuration.DeleteThreadCount,
+		deleteThreadCount:        configuration.DeleteConcurrencyLimit,
 		submittedPods:            util.NewTimeExpiringPodCache(time.Minute, time.Second, "submitted_job"),
 		podsToDelete:             util.NewTimeExpiringPodCache(minTimeBetweenRepeatDeletionCalls, time.Second, "deleted_job"),
 		stopper:                  make(chan struct{}),
