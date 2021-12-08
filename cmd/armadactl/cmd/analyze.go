@@ -6,10 +6,6 @@ import (
 	"github.com/G-Research/armada/internal/armadactl"
 )
 
-func init() {
-	rootCmd.AddCommand(analyzeCmd())
-}
-
 func analyzeCmd() *cobra.Command {
 	a := armadactl.New()
 	cmd := &cobra.Command{

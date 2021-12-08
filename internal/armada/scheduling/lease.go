@@ -15,6 +15,7 @@ import (
 	"github.com/G-Research/armada/pkg/api"
 )
 
+
 const maxJobsPerLease = 10000
 const leaseDeadlineTolerance = time.Second * 3
 
@@ -95,7 +96,7 @@ func LeaseJobs(ctx context.Context,
 		onJobsLeased: onJobLease,
 	}
 
-	return lc.scheduleJobs(maxJobsPerLease)
+	return lc.scheduleJobs(config.MaximumJobsToSchedule)
 }
 
 func calculateQueueSchedulingLimits(

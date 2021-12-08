@@ -8,10 +8,6 @@ import (
 	"github.com/G-Research/armada/internal/armadactl"
 )
 
-func init() {
-	rootCmd.AddCommand(submitCmd())
-}
-
 func submitCmd() *cobra.Command {
 	a := armadactl.New()
 	cmd := &cobra.Command{

@@ -11,7 +11,8 @@ import (
 	"github.com/G-Research/armada/pkg/client"
 )
 
-// Kube calls kubectl with the verb strings.Join(args, " ") for the pod identified by (jobId, queueName, jobSetId)
+// Kube prints kubectl commands for querying the pods associated with a particular job identified by
+// the given jobId, queueName, jobSetId, and podNumber.
 func (a *App) Kube(jobId string, queueName string, jobSetId string, podNumber int, args []string) error {
 	verb := strings.Join(args, " ")
 	client.WithConnection(a.Params.ApiConnectionDetails, func(conn *grpc.ClientConn) {

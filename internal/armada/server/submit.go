@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -105,6 +106,8 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 
 	jobs, e := server.createJobs(req, principal.GetName(), ownershipGroups)
 	if e != nil {
+		reqJson, _ := json.Marshal(req)
+		log.Errorf("Error submitting job %s for user %s: %v", reqJson, principal.GetName(), e)
 		return nil, status.Errorf(codes.InvalidArgument, e.Error())
 	}
 
@@ -115,6 +118,8 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 
 	e = validateJobsCanBeScheduled(jobs, allClusterSchedulingInfo)
 	if e != nil {
+		reqJson, _ := json.Marshal(req)
+		log.Errorf("Error submitting job %s for user %s: %v", reqJson, principal.GetName(), e)
 		return nil, status.Errorf(codes.InvalidArgument, e.Error())
 	}
 

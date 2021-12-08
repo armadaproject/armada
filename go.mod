@@ -3,16 +3,13 @@ module github.com/G-Research/armada
 go 1.16
 
 require (
-	github.com/Microsoft/go-winio v0.5.1 // indirect
 	github.com/alexbrainman/sspi v0.0.0-20180613141037-e580b900e9f5
 	github.com/alicebob/gopher-json v0.0.0-20180125190556-5a6b3ba71ee6 // indirect
 	github.com/alicebob/miniredis v2.5.0+incompatible
-	github.com/avast/retry-go v3.0.0+incompatible // indirect
-	github.com/cenkalti/backoff/v4 v4.1.2 // indirect
+	github.com/avast/retry-go v3.0.0+incompatible
 	github.com/containerd/continuity v0.2.1 // indirect
 	github.com/coreos/go-oidc v2.2.1+incompatible
 	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f
-	github.com/docker/cli v20.10.11+incompatible // indirect
 	github.com/docker/docker v20.10.11+incompatible // indirect
 	github.com/doug-martin/goqu/v9 v9.18.0
 	github.com/go-ldap/ldap/v3 v3.4.1
@@ -25,6 +22,7 @@ require (
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/protobuf v1.5.2
 	github.com/gomodule/redigo v2.0.0+incompatible // indirect
+	github.com/google/go-cmp v0.5.6 // indirect
 	github.com/google/uuid v1.1.2 // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
@@ -34,15 +32,14 @@ require (
 	github.com/jcmturner/gokrb5/v8 v8.4.2-0.20201112171129-78f56934d598
 	github.com/lib/pq v1.10.4
 	github.com/mitchellh/go-homedir v1.1.0
-	github.com/mitchellh/mapstructure v1.4.3
+	github.com/mitchellh/mapstructure v1.4.2
 	github.com/nats-io/jsm.go v0.0.26
 	github.com/nats-io/nats-server/v2 v2.4.1-0.20210907200628-874c79fe411f
 	github.com/nats-io/nats-streaming-server v0.22.1
 	github.com/nats-io/nats.go v1.13.0
 	github.com/nats-io/stan.go v0.10.2
 	github.com/oklog/ulid v1.3.1
-	github.com/opencontainers/image-spec v1.0.2 // indirect
-	github.com/ory/dockertest/v3 v3.8.0
+	github.com/ory/dockertest/v3 v3.8.1
 	github.com/pquerna/cachecontrol v0.0.0-20180517163645-1555304b9b35 // indirect
 	github.com/prometheus/client_golang v1.11.0
 	github.com/rakyll/statik v0.1.7

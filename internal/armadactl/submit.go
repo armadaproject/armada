@@ -29,7 +29,6 @@ func (a *App) Submit(path string, dryRun bool) (outerErr error) {
 		return fmt.Errorf("[armadactl.Submit] error parsing job file: %s", err)
 	}
 
-	// TODO Should be a global flag stored in a.Params
 	if dryRun {
 		return
 	}
