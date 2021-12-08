@@ -244,7 +244,7 @@ func (q *AggregatedQueueServer) reportFailure(jobId string, clusterId string, re
 	}
 
 	failureReason := reason
-	err = reportFailed(q.eventStore, clusterId, failureReason, job)
+	err = reportFailed(q.eventStore, clusterId, failureReason, []*api.Job{job})
 	if err != nil {
 		return err
 	}
