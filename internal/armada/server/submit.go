@@ -131,7 +131,7 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 	submissionResults, e := server.jobRepository.AddJobs(jobs)
 	if e != nil {
 		reason := fmt.Sprintf("Failed to save job in Armada: %v", e)
-		reportErr := reportFailed(server.eventStore, "", util.Multiply(reason, len(jobs)), jobs)
+		reportErr := reportFailed(server.eventStore, "", util.MultiplyString(reason, len(jobs)), jobs)
 		if reportErr != nil {
 			return nil, status.Errorf(codes.Internal, "error when reporting failure event: %v", reportErr)
 		}
