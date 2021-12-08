@@ -22,6 +22,7 @@ import (
 	"github.com/G-Research/armada/internal/common/auth/authorization"
 )
 
+// CreateGrpcServer creates a gRPC server with Armada services registered.
 func CreateGrpcServer(authServices []authorization.AuthService) *grpc.Server {
 	unaryInterceptors := []grpc.UnaryServerInterceptor{}
 	streamInterceptors := []grpc.StreamServerInterceptor{}
@@ -57,7 +58,7 @@ func CreateGrpcServer(authServices []authorization.AuthService) *grpc.Server {
 
 func Listen(port uint16, grpcServer *grpc.Server, wg *sync.WaitGroup) {
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
-	if err != nil {
+	if err != nil { // TODO Don't call fatal, return an error.
 		log.Fatalf("failed to listen: %v", err)
 	}
 

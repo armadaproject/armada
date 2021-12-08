@@ -28,9 +28,16 @@ import (
 )
 
 func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker) (func(), *sync.WaitGroup) {
+
+	// TODO Using an error group would be better.
+	// Since we want to shut down everything in a controlled manner in case of an irrecoverable error.
+	// Doesn't look like wg.Done() is called anywhere in this method.
+	// Either it's not called (we could be exiting using panic/os.Exit),
+	// or it's called in a sub-call.
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
 
+	// TODO Return an error, don't panic.
 	err := validateArmadaConfig(config)
 	if err != nil {
 		panic(fmt.Errorf("configuration validation error: %v", err))
@@ -40,6 +47,7 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 
 	taskManager := task.NewBackgroundTaskManager(metrics.MetricPrefix)
 
+	// TODO Redis setup code. Move into a separate function.
 	db := createRedisClient(&config.Redis)
 	eventsDb := createRedisClient(&config.EventsRedis)
 
@@ -56,6 +64,9 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 	var eventStore repository.EventStore
 	var eventStream eventstream.EventStream
 
+	// TODO It looks like multiple backends can be provided.
+	// We should ensure that only 1 system is provided.
+	// TODO Return an error, don't panic.
 	if len(config.EventsNats.Servers) > 0 {
 		stanClient, err := eventstream.NewStanClientConnection(
 			config.EventsNats.ClusterID,
@@ -86,7 +97,7 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 	}
 
 	// TODO: move this to task manager
-	teardown := func() {}
+	eventstreamTeardown := func() {}
 	if eventStream != nil {
 		eventStore = repository.NewEventStore(eventStream)
 
@@ -98,7 +109,9 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 		jobStatusProcessor := repository.NewEventJobStatusProcessor(config.Events.JobStatusQueue, jobRepository, eventStream, jobStatusBatcher)
 		jobStatusProcessor.Start()
 
-		teardown = func() {
+		// TODO Teardown functions should return an error that can be logged/whatever by the caller.
+		// Not use log internally.
+		eventstreamTeardown = func() {
 			err := eventRepoBatcher.Stop()
 			if err != nil {
 				log.Errorf("failed to flush event processor buffer for redis")
@@ -116,7 +129,10 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 		eventStore = redisEventRepository
 	}
 
-	permissions := authorization.NewPrincipalPermissionChecker(config.Auth.PermissionGroupMapping, config.Auth.PermissionScopeMapping, config.Auth.PermissionClaimMapping)
+	permissions := authorization.NewPrincipalPermissionChecker(
+		config.Auth.PermissionGroupMapping,
+		config.Auth.PermissionScopeMapping,
+		config.Auth.PermissionClaimMapping)
 
 	submitServer := server.NewSubmitServer(
 		permissions,
@@ -143,19 +159,24 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 
 	grpc_prometheus.Register(grpcServer)
 
+	// TODO grpcCommon.Listen is supposed to call wg.Done() internally.
+	// Except, that it calls log.Fatalf first, so wg.Done() is never called.
+	// There's no clean way for grpcCommon.Listen to return an error.
 	grpcCommon.Listen(config.GrpcPort, grpcServer, wg)
 
-	return func() {
-		teardown()
+	teardown := func() {
+		eventstreamTeardown()
 		taskManager.StopAll(time.Second * 2)
 		grpcServer.GracefulStop()
-	}, wg
+	}
+	return teardown, wg
 }
 
 func createRedisClient(config *redis.UniversalOptions) redis.UniversalClient {
 	return redis.NewUniversalClient(config)
 }
 
+// TODO Is this all validation that needs to be done?
 func validateArmadaConfig(config *configuration.ArmadaConfig) error {
 	if config.CancelJobsBatchSize <= 0 {
 		return fmt.Errorf("cancel jobs batch should be greater than 0: is %d", config.CancelJobsBatchSize)
