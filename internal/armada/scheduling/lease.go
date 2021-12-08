@@ -15,8 +15,6 @@ import (
 	"github.com/G-Research/armada/pkg/api"
 )
 
-
-const maxJobsPerLease = 10000
 const leaseDeadlineTolerance = time.Second * 3
 
 type JobQueue interface {
