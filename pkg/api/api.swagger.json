@@ -451,6 +451,12 @@
             "format": "int64"
           }
         },
+        "selector": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
         "tlsEnabled": {
           "type": "boolean"
         },

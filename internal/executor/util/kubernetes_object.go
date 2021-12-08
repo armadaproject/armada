@@ -17,7 +17,7 @@ import (
 	"github.com/G-Research/armada/pkg/api"
 )
 
-func CreateService(job *api.Job, pod *v1.Pod, ports []v1.ServicePort, ingressType api.IngressType) *v1.Service {
+func CreateService(job *api.Job, pod *v1.Pod, ports []v1.ServicePort, selector map[string]string, ingressType api.IngressType) *v1.Service {
 	serviceType := v1.ServiceTypeClusterIP
 	if ingressType == api.IngressType_NodePort {
 		serviceType = v1.ServiceTypeNodePort
@@ -28,13 +28,17 @@ func CreateService(job *api.Job, pod *v1.Pod, ports []v1.ServicePort, ingressTyp
 	if ingressType == api.IngressType_Headless {
 		clusterIP = "None"
 	}
-	serviceSpec := v1.ServiceSpec{
-		Type: serviceType,
-		Selector: map[string]string{
+
+	if len(selector) == 0 {
+		selector = map[string]string{
 			domain.JobId:     pod.Labels[domain.JobId],
 			domain.Queue:     pod.Labels[domain.Queue],
 			domain.PodNumber: pod.Labels[domain.PodNumber],
-		},
+		}
+	} 
+	serviceSpec := v1.ServiceSpec{
+		Type: serviceType,
+		Selector: selector,
 		Ports: ports,
 		ClusterIP: clusterIP,
 	}
