@@ -41,6 +41,7 @@ type SchedulingConfig struct {
 	MaximalClusterFractionToSchedule          map[string]float64
 	MaximalResourceFractionToSchedulePerQueue map[string]float64
 	MaximalResourceFractionPerQueue           map[string]float64
+	MaximumJobsToSchedule                     int
 	Lease                                     LeaseSettings
 	DefaultJobLimits                          common.ComputeResources
 	DefaultJobTolerations                     []v1.Toleration
