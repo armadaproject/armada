@@ -90,11 +90,11 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 	if eventStream != nil {
 		eventStore = repository.NewEventStore(eventStream)
 
-		eventRepoBatcher := eventstream.NewTimedEventBatcher(config.Events.ProcessorBatchSize, config.Events.ProcessorTimeout, config.Events.ProcessorMaxTimeBetweenBatches)
+		eventRepoBatcher := eventstream.NewTimedEventBatcher(config.Events.ProcessorBatchSize, config.Events.ProcessorMaxTimeBetweenBatches, config.Events.ProcessorTimeout)
 		eventProcessor := repository.NewEventRedisProcessor(config.Events.StoreQueue, redisEventRepository, eventStream, eventRepoBatcher)
 		eventProcessor.Start()
 
-		jobStatusBatcher := eventstream.NewTimedEventBatcher(config.Events.ProcessorBatchSize, config.Events.ProcessorTimeout, config.Events.ProcessorMaxTimeBetweenBatches)
+		jobStatusBatcher := eventstream.NewTimedEventBatcher(config.Events.ProcessorBatchSize, config.Events.ProcessorMaxTimeBetweenBatches, config.Events.ProcessorTimeout)
 		jobStatusProcessor := repository.NewEventJobStatusProcessor(config.Events.JobStatusQueue, jobRepository, eventStream, jobStatusBatcher)
 		jobStatusProcessor.Start()
 
@@ -159,6 +159,9 @@ func createRedisClient(config *redis.UniversalOptions) redis.UniversalClient {
 func validateArmadaConfig(config *configuration.ArmadaConfig) error {
 	if config.CancelJobsBatchSize <= 0 {
 		return fmt.Errorf("cancel jobs batch should be greater than 0: is %d", config.CancelJobsBatchSize)
+	}
+	if config.Scheduling.MaximumJobsToSchedule <= 0 {
+		return fmt.Errorf("MaximumJobsToSchedule should be greater than 0: is %d", config.Scheduling.MaximumJobsToSchedule)
 	}
 	return nil
 }

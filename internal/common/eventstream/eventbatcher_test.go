@@ -2,12 +2,14 @@ package eventstream
 
 import (
 	"math"
+	"math/rand"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/pkg/api"
 )
 
@@ -165,9 +167,61 @@ func TestMultipleGoroutines(t *testing.T) {
 	assert.Len(t, cbWrapper.lastInvocation(), (nEventsPerGoroutine*nGoroutines)%batchSize)
 }
 
+func TestBatchIsCalledWithinTimeout(t *testing.T) {
+	timeBetweenBatches := 300 * time.Millisecond
+	maxSubmitDelayMs := 4000
+	nEvents := 100
+
+	wgBatch := &sync.WaitGroup{}
+	wgBatch.Add(nEvents)
+
+	batchCallback := func(messages []*Message) error {
+		now := time.Now()
+		for _, msg := range messages {
+			event, err := api.UnwrapEvent(msg.EventMessage)
+			assert.NoError(t, err)
+
+			elapsed := event.GetCreated().Sub(now)
+			assert.LessOrEqual(t, elapsed, timeBetweenBatches+100*time.Millisecond) // Allow 100ms
+		}
+		wgBatch.Add(-len(messages)) // Done() is Add(-1)
+		return nil
+	}
+
+	eventBatcher := NewTimedEventBatcher(1000, timeBetweenBatches, 10*time.Second)
+	eventBatcher.Register(batchCallback)
+	defer stop(t, eventBatcher)
+
+	wgSingle := &sync.WaitGroup{}
+	wgSingle.Add(nEvents)
+
+	for i := 0; i < nEvents; i++ {
+		go func() {
+			ms := rand.Intn(maxSubmitDelayMs)
+			time.Sleep(time.Duration(ms) * time.Millisecond)
+			err := eventBatcher.Report(makeMessage())
+			assert.NoError(t, err)
+			wgSingle.Done()
+		}()
+	}
+
+	err := waitOrTimeout(wgSingle.Wait, 10*time.Second)
+	assert.NoError(t, err)
+
+	err = waitOrTimeout(wgBatch.Wait, 10*time.Second)
+	assert.NoError(t, err)
+}
+
 func makeMessage() *Message {
 	return &Message{
-		EventMessage: &api.EventMessage{Events: nil},
+		EventMessage: &api.EventMessage{
+			Events: &api.EventMessage_Queued{
+				Queued: &api.JobQueuedEvent{
+					JobId:   util.NewULID(),
+					Created: time.Now(),
+				},
+			},
+		},
 		Ack: func() error {
 			return nil
 		},

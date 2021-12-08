@@ -14,8 +14,6 @@ import (
 	"github.com/G-Research/armada/pkg/api"
 )
 
-const maxJobsPerLease = 10000
-
 type JobQueue interface {
 	PeekClusterQueue(clusterId, queue string, limit int64) ([]*api.Job, error)
 	TryLeaseJobs(clusterId string, queue string, jobs []*api.Job) ([]*api.Job, error)
@@ -93,7 +91,7 @@ func LeaseJobs(ctx context.Context,
 		onJobsLeased: onJobLease,
 	}
 
-	return lc.scheduleJobs(maxJobsPerLease)
+	return lc.scheduleJobs(config.MaximumJobsToSchedule)
 }
 
 func calculateQueueSchedulingLimits(

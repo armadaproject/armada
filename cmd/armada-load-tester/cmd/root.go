@@ -45,5 +45,8 @@ func Execute() {
 var cfgFile string
 
 func initConfig() {
-	client.LoadCommandlineArgsFromConfigFile(cfgFile)
+	if err := client.LoadCommandlineArgsFromConfigFile(cfgFile); err != nil {
+		log.Error(err)
+		os.Exit(1)
+	}
 }
