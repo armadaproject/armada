@@ -1,0 +1,9 @@
+redis:
+  addrs:
+    - "redis:6379"
+eventsRedis:
+  addrs:
+    - "redis:6379"
+eventsJetstream:
+  servers:
+    - "nats://nats:4222"
