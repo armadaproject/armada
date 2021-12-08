@@ -190,7 +190,6 @@ func TestGroupIngressConfig_IngressTypeNodePort_AlwaysGrouped(t *testing.T) {
 			{
 				Type:        api.IngressType_NodePort,
 				Ports:       []uint32{1, 2, 3},
-				Annotations: map[string]string{},
 			},
 		},
 	}
@@ -218,7 +217,6 @@ func TestGroupIngressConfig_IngressType_NoAnnotations(t *testing.T) {
 			{
 				Type:        api.IngressType_Ingress,
 				Ports:       []uint32{1, 2, 3},
-				Annotations: map[string]string{},
 			},
 		},
 	}
@@ -322,7 +320,6 @@ func TestGroupIngressConfig_MixedIngressType(t *testing.T) {
 			{
 				Type:        api.IngressType_NodePort,
 				Ports:       []uint32{4, 5},
-				Annotations: map[string]string{},
 			},
 		},
 	}
