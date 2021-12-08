@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-func CloseToDeadline(ctx context.Context) bool {
+func CloseToDeadline(ctx context.Context, tolerance time.Duration) bool {
 	deadline, exists := ctx.Deadline()
-	return exists && deadline.Before(time.Now().Add(time.Second))
+	return exists && deadline.Before(time.Now().Add(tolerance))
 }

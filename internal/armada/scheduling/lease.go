@@ -4,6 +4,7 @@ import (
 	"context"
 	"math"
 	"math/rand"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -13,6 +14,8 @@ import (
 	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/pkg/api"
 )
+
+const leaseDeadlineTolerance = time.Second * 3
 
 type JobQueue interface {
 	PeekClusterQueue(clusterId, queue string, limit int64) ([]*api.Job, error)
@@ -164,7 +167,7 @@ func (c *leaseContext) assignJobs(limit int) ([]*api.Job, error) {
 		c.queueSchedulingInfo[queue].UpdateLimits(scheduled)
 		jobs = append(jobs, leased...)
 
-		if util.CloseToDeadline(c.ctx) {
+		if util.CloseToDeadline(c.ctx, leaseDeadlineTolerance) {
 			break
 		}
 	}
@@ -218,7 +221,7 @@ func (c *leaseContext) distributeRemainder(limit int) ([]*api.Job, error) {
 		}
 
 		limit -= len(leased)
-		if limit <= 0 || util.CloseToDeadline(c.ctx) {
+		if limit <= 0 || util.CloseToDeadline(c.ctx, leaseDeadlineTolerance) {
 			break
 		}
 	}
@@ -282,7 +285,7 @@ func (c *leaseContext) leaseJobs(queue *api.Queue, slice common.ComputeResources
 		if len(candidates) < int(c.schedulingConfig.QueueLeaseBatchSize) {
 			break
 		}
-		if util.CloseToDeadline(c.ctx) {
+		if util.CloseToDeadline(c.ctx, leaseDeadlineTolerance) {
 			break
 		}
 	}

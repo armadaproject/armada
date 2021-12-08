@@ -30,13 +30,22 @@ type ApiConnectionDetails struct {
 type ConnectionDetails func() *ApiConnectionDetails
 
 func CreateApiConnection(config *ApiConnectionDetails, additionalDialOptions ...grpc.DialOption) (*grpc.ClientConn, error) {
+	return CreateApiConnectionWithCallOptions(config, []grpc.CallOption{}, additionalDialOptions...)
+}
+
+func CreateApiConnectionWithCallOptions(
+	config *ApiConnectionDetails,
+	additionalDefaultCallOptions []grpc.CallOption,
+	additionalDialOptions ...grpc.DialOption) (*grpc.ClientConn, error) {
 
 	retryOpts := []grpc_retry.CallOption{
 		grpc_retry.WithBackoff(grpc_retry.BackoffExponential(1 * time.Second)),
 		grpc_retry.WithMax(3),
 	}
 
-	defaultCallOptions := grpc.WithDefaultCallOptions(grpc.WaitForReady(true))
+	callOptions := append(additionalDefaultCallOptions, grpc.WaitForReady(true))
+
+	defaultCallOptions := grpc.WithDefaultCallOptions(callOptions...)
 	unuaryInterceptors := grpc.WithChainUnaryInterceptor(grpc_retry.UnaryClientInterceptor(retryOpts...))
 	streamInterceptors := grpc.WithChainStreamInterceptor(grpc_retry.StreamClientInterceptor(retryOpts...))
 

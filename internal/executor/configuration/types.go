@@ -25,6 +25,10 @@ type IngressConfiguration struct {
 	Annotations    map[string]string
 }
 
+type ClientConfiguration struct {
+	MaxMessageSizeBytes int
+}
+
 type KubernetesConfiguration struct {
 	ImpersonateUsers          bool
 	TrackedNodeLabels         []string
@@ -58,6 +62,7 @@ type ExecutorConfiguration struct {
 	Metric        MetricConfiguration
 	Application   ApplicationConfiguration
 	ApiConnection client.ApiConnectionDetails
+	Client        ClientConfiguration
 
 	Kubernetes KubernetesConfiguration
 	Task       TaskConfiguration
