@@ -18,14 +18,14 @@ func GenerateIngresses(job *api.Job, pod *v1.Pod, ingressConfig *configuration.I
 
 	groupedIngressConfigs := groupIngressConfig(job.Ingress)
 	for ingressType, configs := range groupedIngressConfigs {
-		if len(GetServicePorts(configs, &pod.Spec)) > 0 {			
+		if len(GetServicePorts(configs, &pod.Spec)) > 0 {
 			/* Sidestep grouping for headless services
 			/* We need one service per config rather than per type */
 			if ingressType == api.IngressType_Headless {
 				for _, config := range configs {
 					service := CreateService(
 						job,
-						pod, 
+						pod,
 						GetServicePorts([]*api.IngressConfig{config}, &pod.Spec),
 						config.Selector,
 						ingressType,
@@ -89,7 +89,7 @@ func deepCopy(config *api.IngressConfig) *api.IngressConfig {
 		Annotations: util.DeepCopy(config.Annotations),
 		TlsEnabled:  config.TlsEnabled,
 		CertName:    config.CertName,
-		Selector:	 util.DeepCopy(config.Selector),
+		Selector:    util.DeepCopy(config.Selector),
 	}
 }
 

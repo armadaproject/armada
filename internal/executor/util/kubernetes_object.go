@@ -35,11 +35,11 @@ func CreateService(job *api.Job, pod *v1.Pod, ports []v1.ServicePort, selector m
 			domain.Queue:     pod.Labels[domain.Queue],
 			domain.PodNumber: pod.Labels[domain.PodNumber],
 		}
-	} 
+	}
 	serviceSpec := v1.ServiceSpec{
-		Type: serviceType,
-		Selector: selector,
-		Ports: ports,
+		Type:      serviceType,
+		Selector:  selector,
+		Ports:     ports,
 		ClusterIP: clusterIP,
 	}
 	labels := util.MergeMaps(job.Labels, map[string]string{
