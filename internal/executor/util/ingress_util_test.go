@@ -349,7 +349,7 @@ func TestGroupIngressConfig_IngressType_Headless(t *testing.T) {
 	expected := map[api.IngressType][]*api.IngressConfig{
 		api.IngressType_Headless: {
 			{
-				Type: api.IngressType_Headless,
+				Type:  api.IngressType_Headless,
 				Ports: []uint32{1},
 				Selector: map[string]string{
 					"test": "label",
@@ -358,7 +358,7 @@ func TestGroupIngressConfig_IngressType_Headless(t *testing.T) {
 		},
 	}
 	input := &api.IngressConfig{
-		Type: api.IngressType_Headless,
+		Type:  api.IngressType_Headless,
 		Ports: []uint32{1},
 		Selector: map[string]string{
 			"test": "label",
