@@ -35,3 +35,11 @@ func DeepCopyListUint32(list []uint32) []uint32 {
 	}
 	return result
 }
+
+func Multiply(val string, n int) []string {
+	result := make([]string, n, n)
+	for i := 0; i < n; i++ {
+		result[i] = val
+	}
+	return result
+}

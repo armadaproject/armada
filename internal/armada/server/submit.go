@@ -131,7 +131,7 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 	submissionResults, e := server.jobRepository.AddJobs(jobs)
 	if e != nil {
 		reason := fmt.Sprintf("Failed to save job in Armada: %v", e)
-		reportErr := reportFailed(server.eventStore, "", reason, jobs)
+		reportErr := reportFailed(server.eventStore, "", util.Multiply(reason, len(jobs)), jobs)
 		if reportErr != nil {
 			return nil, status.Errorf(codes.Internal, "error when reporting failure event: %v", reportErr)
 		}
@@ -142,33 +142,50 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 		JobResponseItems: make([]*api.JobSubmitResponseItem, 0, len(submissionResults)),
 	}
 
-	createdJobs := []*api.Job{}
-	doubleSubmits := []*repository.SubmitJobResult{}
+	var createdJobs []*api.Job
+	var failedJobs []*api.Job
+	var jobErrs []string
+	var doubleSubmits []*repository.SubmitJobResult
+
 	for i, submissionResult := range submissionResults {
 		jobResponse := &api.JobSubmitResponseItem{JobId: submissionResult.JobId}
+
 		if submissionResult.Error != nil {
 			jobResponse.Error = submissionResult.Error.Error()
+			failedJobs = append(failedJobs, jobs[i])
+			jobErrs = append(jobErrs, submissionResult.Error.Error())
+		} else if submissionResult.DuplicateDetected {
+			doubleSubmits = append(doubleSubmits, submissionResult)
+		} else {
+			createdJobs = append(createdJobs, jobs[i])
 		}
-		result.JobResponseItems = append(result.JobResponseItems, jobResponse)
 
-		if submissionResult.Error == nil {
-			if submissionResult.DuplicateDetected {
-				doubleSubmits = append(doubleSubmits, submissionResult)
-			} else {
-				createdJobs = append(createdJobs, jobs[i])
-			}
-		}
+		result.JobResponseItems = append(result.JobResponseItems, jobResponse)
+	}
+
+	e = reportFailed(server.eventStore, "", jobErrs, failedJobs)
+	if e != nil {
+		return result, status.Errorf(
+			codes.Internal, fmt.Sprintf("Failed to report failed events for jobs: %v", e))
 	}
 
 	e = reportDuplicateDetected(server.eventStore, doubleSubmits)
 	if e != nil {
-		return result, status.Errorf(codes.Internal, e.Error())
+		return result, status.Errorf(
+			codes.Internal, fmt.Sprintf("Failed to report job duplicate submission events for jobs: %v", e))
 	}
 
 	e = reportQueued(server.eventStore, createdJobs)
 	if e != nil {
-		return result, status.Errorf(codes.Internal, e.Error())
+		return result, status.Errorf(
+			codes.Internal, fmt.Sprintf("Failed to report queued events for jobs: %v", e))
 	}
+
+	if len(failedJobs) > 0 {
+		return result, status.Errorf(
+			codes.Unavailable, fmt.Sprintf("Some jobs failed to be submitted"))
+	}
+
 	return result, nil
 }
 

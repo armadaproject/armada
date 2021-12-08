@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -210,17 +211,22 @@ func reportTerminated(repository repository.EventStore, clusterId string, job *a
 	return e
 }
 
-func reportFailed(repository repository.EventStore, clusterId string, reason string, jobs []*api.Job) error {
+func reportFailed(repository repository.EventStore, clusterId string, reasons []string, jobs []*api.Job) error {
+	if len(reasons) != len(jobs) {
+		return fmt.Errorf(
+			"incorrect number of reasons supplied: %d reasons supplied for %d jobs", len(reasons), len(jobs))
+	}
+
 	events := []*api.EventMessage{}
 	now := time.Now()
-	for _, job := range jobs {
+	for i, job := range jobs {
 		event, e := api.Wrap(&api.JobFailedEvent{
 			JobId:        job.Id,
 			JobSetId:     job.JobSetId,
 			Queue:        job.Queue,
 			Created:      now,
 			ClusterId:    clusterId,
-			Reason:       reason,
+			Reason:       reasons[i],
 			ExitCodes:    make(map[string]int32),
 			KubernetesId: "",
 			NodeName:     "",
