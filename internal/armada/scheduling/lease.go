@@ -160,7 +160,7 @@ func (c *leaseContext) assignJobs(limit LeasePayloadLimit) ([]*api.Job, error) {
 		// TODO: partition limit by priority instead
 		partitionLimit := NewLeasePayloadLimit(
 			limit.remainingJobCount/len(c.queueSchedulingInfo),
-			limit.remainingPayloadSizeLimitBytes/limit.remainingJobCount/len(c.queueSchedulingInfo),
+			limit.remainingPayloadSizeLimitBytes/len(c.queueSchedulingInfo),
 			limit.minRemainingPayloadSizeBytes)
 		leased, remainder, e := c.leaseJobs(queue, info.adjustedShare, partitionLimit)
 		if e != nil {
