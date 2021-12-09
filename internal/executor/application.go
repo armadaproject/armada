@@ -54,10 +54,10 @@ func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGrou
 	taskManager := task.NewBackgroundTaskManager(metrics.ArmadaExecutorMetricsPrefix)
 	taskManager.Register(clusterContext.ProcessPodsToDelete, config.Task.PodDeletionInterval, "pod_deletion")
 
-	return StartUpWithContext(config, clusterContext, kubernetesClientProvider, taskManager, wg)
+	return StartUpWithContext(config, clusterContext, taskManager, wg)
 }
 
-func StartUpWithContext(config configuration.ExecutorConfiguration, clusterContext context.ClusterContext, kubernetesClientProvider cluster.KubernetesClientProvider, taskManager *task.BackgroundTaskManager, wg *sync.WaitGroup) (func(), *sync.WaitGroup) {
+func StartUpWithContext(config configuration.ExecutorConfiguration, clusterContext context.ClusterContext, taskManager *task.BackgroundTaskManager, wg *sync.WaitGroup) (func(), *sync.WaitGroup) {
 
 	conn, err := createConnectionToApi(config)
 	if err != nil {
@@ -90,8 +90,12 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 		os.Exit(-1)
 	}
 
-	jobContext := job.NewClusterJobContext(clusterContext, pendingPodChecker, config.Kubernetes.StuckTerminatingPodExpiry)
-	submitter := job.NewSubmitter(clusterContext, config.Kubernetes.PodDefaults, config.Application.SubmitThreadCount)
+	jobContext := job.NewClusterJobContext(
+		clusterContext,
+		pendingPodChecker,
+		config.Kubernetes.StuckTerminatingPodExpiry,
+		config.Application.UpdateConcurrencyLimit)
+	submitter := job.NewSubmitter(clusterContext, config.Kubernetes.PodDefaults, config.Application.SubmitConcurrencyLimit)
 
 	nodeInfoService := node.NewKubernetesNodeInfoService(clusterContext, config.Kubernetes.ToleratedTaints)
 	queueUtilisationService := utilisation.NewMetricsServerQueueUtilisationService(
@@ -164,8 +168,14 @@ func validateConfig(config configuration.ExecutorConfiguration) error {
 	if len(missing) > 0 {
 		return fmt.Errorf("These labels were in avoidNodeLabelsOnRetry but not trackedNodeLabels: %s", strings.Join(missing, ", "))
 	}
-	if config.Application.SubmitThreadCount <= 0 {
-		return fmt.Errorf("Submission thread count was %d, must be greater or equal to 1", config.Application.SubmitThreadCount)
+	if config.Application.SubmitConcurrencyLimit <= 0 {
+		return fmt.Errorf("SubmitConcurrencyLimit was %d, must be greater or equal to 1", config.Application.SubmitConcurrencyLimit)
+	}
+	if config.Application.UpdateConcurrencyLimit <= 0 {
+		return fmt.Errorf("UpdateConcurrencyLimit was %d, must be greater or equal to 1", config.Application.UpdateConcurrencyLimit)
+	}
+	if config.Application.DeleteConcurrencyLimit <= 0 {
+		return fmt.Errorf("DeleteConcurrencyLimit was %d, must be greater or equal to 1", config.Application.DeleteConcurrencyLimit)
 	}
 	return nil
 }
