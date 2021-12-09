@@ -361,3 +361,59 @@ func TestGroupIngressConfig_IngressType_Headless(t *testing.T) {
 	groupedConfig := groupIngressConfig([]*api.IngressConfig{input})
 	assert.Equal(t, groupedConfig, expected)
 }
+
+func TestGatherIngressConfigs(t *testing.T) {
+	inputConfigs := []*api.IngressConfig{
+		{
+			Type: api.IngressType_Ingress,
+			Ports: []uint32{1},
+		},
+		{
+			Type: api.IngressType_Ingress,
+			Ports: []uint32{2},
+		},
+		{
+			Type: api.IngressType_Headless,
+			Ports: []uint32{1},
+		},
+		{
+			Type: api.IngressType_NodePort,
+			Ports: []uint32{1},
+		},
+		{
+			Type: api.IngressType_Headless,
+			Ports: []uint32{2},
+		},
+	}
+
+	expected := map[api.IngressType][]*api.IngressConfig{
+		api.IngressType_Ingress: {
+			{
+				Type: api.IngressType_Ingress,
+				Ports: []uint32{1},
+			},
+			{
+				Type: api.IngressType_Ingress,
+				Ports: []uint32{2},
+			},
+		},
+		api.IngressType_NodePort: {
+			{
+				Type: api.IngressType_NodePort,
+				Ports: []uint32{1},
+			},
+		},
+		api.IngressType_Headless: {
+			{
+				Type: api.IngressType_Headless,
+				Ports: []uint32{1},
+			},
+			{
+				Type: api.IngressType_Headless,
+				Ports: []uint32{2},
+			},
+		},
+	}
+
+	assert.Equal(t, gatherIngressConfig(inputConfigs), expected)
+}

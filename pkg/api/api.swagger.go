@@ -1066,6 +1066,12 @@ func SwaggerJsonTemplate() string {
 		"          \"additionalProperties\": {\n" +
 		"            \"type\": \"string\"\n" +
 		"          }\n" +
+		"        },\n" +
+		"        \"services\": {\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/apiServiceConfig\"\n" +
+		"          }\n" +
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
@@ -1344,6 +1350,21 @@ func SwaggerJsonTemplate() string {
 		"        },\n" +
 		"        \"name\": {\n" +
 		"          \"type\": \"string\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"apiServiceConfig\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"ports\": {\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"type\": \"integer\",\n" +
+		"            \"format\": \"int64\"\n" +
+		"          }\n" +
+		"        },\n" +
+		"        \"type\": {\n" +
+		"          \"$ref\": \"#/definitions/apiIngressType\"\n" +
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
