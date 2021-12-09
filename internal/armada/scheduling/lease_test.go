@@ -90,7 +90,7 @@ func Test_distributeRemainder_highPriorityUserDoesNotBlockOthers(t *testing.T) {
 		queueCache:          map[string][]*api.Job{},
 	}
 
-	jobs, e := c.distributeRemainder(1000)
+	jobs, e := c.distributeRemainder(NewLeasePayloadLimit(1000, 1024*1024*8, 1024*50))
 	assert.Nil(t, e)
 	assert.Equal(t, 5, len(jobs))
 }
@@ -148,9 +148,103 @@ func Test_distributeRemainder_DoesNotExceedSchedulingLimits(t *testing.T) {
 		queueCache:          map[string][]*api.Job{},
 	}
 
-	jobs, e := c.distributeRemainder(1000)
+	jobs, e := c.distributeRemainder(NewLeasePayloadLimit(1000, 1024*1024*8, 1024*50))
 	assert.Nil(t, e)
 	assert.Equal(t, 2, len(jobs))
+}
+
+func Test_leaseJobs_DoesNotExceededLeasePayloadCountLimit(t *testing.T) {
+	queue1 := &api.Queue{Name: "queue1", PriorityFactor: 1}
+	requestSize := common.ComputeResources{"cpu": resource.MustParse("10"), "memory": resource.MustParse("1Gi")}
+
+	queuedJobs := []*api.Job{
+		{PodSpec: classicPodSpec},
+		{PodSpec: classicPodSpec},
+		{PodSpec: classicPodSpec},
+		{PodSpec: classicPodSpec},
+		{PodSpec: classicPodSpec}}
+
+	repository := &fakeJobQueue{
+		jobsByQueue: map[string][]*api.Job{
+			"queue1": queuedJobs,
+		},
+	}
+
+	// the leasing logic stops scheduling 3s before the deadline
+	ctx, _ := context.WithDeadline(context.Background(), time.Now().Add(4*time.Second))
+
+	nodeResources := common.ComputeResources{"cpu": resource.MustParse("100"), "memory": resource.MustParse("100Gi")}
+	nodes := []api.NodeInfo{{Name: "testNode", AllocatableResources: nodeResources, AvailableResources: nodeResources}}
+
+	c := leaseContext{
+		ctx: ctx,
+		schedulingConfig: &configuration.SchedulingConfig{
+			QueueLeaseBatchSize: 10,
+		},
+		onJobsLeased: func(a []*api.Job) {},
+
+		nodeResources: AggregateNodeTypeAllocations(nodes),
+
+		queue:      repository,
+		queueCache: map[string][]*api.Job{},
+	}
+
+	jobs, remaining, err := c.leaseJobs(queue1, requestSize.AsFloat(), NewLeasePayloadLimit(1, 1024*1024*8, 1024*50))
+
+	expectedRemaining := requestSize
+	expectedRemaining.Sub(common.TotalPodResourceRequest(classicPodSpec))
+
+	assert.NoError(t, err)
+	assert.Equal(t, len(jobs), 1)
+	assert.Equal(t, remaining, expectedRemaining.AsFloat())
+}
+
+func Test_leaseJobs_DoesNotExceededLeasePayloadSizeLimit(t *testing.T) {
+	queue1 := &api.Queue{Name: "queue1", PriorityFactor: 1}
+	requestSize := common.ComputeResources{"cpu": resource.MustParse("10"), "memory": resource.MustParse("1Gi")}
+
+	queuedJobs := []*api.Job{
+		{PodSpec: classicPodSpec},
+		{PodSpec: classicPodSpec},
+		{PodSpec: classicPodSpec},
+		{PodSpec: classicPodSpec},
+		{PodSpec: classicPodSpec}}
+
+	repository := &fakeJobQueue{
+		jobsByQueue: map[string][]*api.Job{
+			"queue1": queuedJobs,
+		},
+	}
+
+	// the leasing logic stops scheduling 3s before the deadline
+	ctx, _ := context.WithDeadline(context.Background(), time.Now().Add(4*time.Second))
+
+	nodeResources := common.ComputeResources{"cpu": resource.MustParse("100"), "memory": resource.MustParse("100Gi")}
+	nodes := []api.NodeInfo{{Name: "testNode", AllocatableResources: nodeResources, AvailableResources: nodeResources}}
+
+	c := leaseContext{
+		ctx: ctx,
+		schedulingConfig: &configuration.SchedulingConfig{
+			QueueLeaseBatchSize: 10,
+		},
+		onJobsLeased: func(a []*api.Job) {},
+
+		nodeResources: AggregateNodeTypeAllocations(nodes),
+
+		queue:      repository,
+		queueCache: map[string][]*api.Job{},
+	}
+
+	jobSizeBytes := queuedJobs[0].Size()
+	jobs, remaining, err := c.leaseJobs(queue1, requestSize.AsFloat(), NewLeasePayloadLimit(10, jobSizeBytes*2, jobSizeBytes))
+
+	expectedRemaining := requestSize
+	expectedRemaining.Sub(common.TotalPodResourceRequest(classicPodSpec))
+	expectedRemaining.Sub(common.TotalPodResourceRequest(classicPodSpec))
+
+	assert.NoError(t, err)
+	assert.Equal(t, len(jobs), 2)
+	assert.Equal(t, remaining, expectedRemaining.AsFloat())
 }
 
 func Test_calculateQueueSchedulingLimits(t *testing.T) {
