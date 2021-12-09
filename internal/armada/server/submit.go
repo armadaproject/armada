@@ -130,8 +130,8 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 
 	submissionResults, e := server.jobRepository.AddJobs(jobs)
 	if e != nil {
-		reason := fmt.Sprintf("Failed to save job in Armada: %v", e)
-		reportErr := reportFailed(server.eventStore, "", util.MultiplyString(reason, len(jobs)), jobs)
+		jobFailures := createJobFailuresWithReason(jobs, fmt.Sprintf("Failed to save job in Armada: %v", e))
+		reportErr := reportFailed(server.eventStore, "", jobFailures)
 		if reportErr != nil {
 			return nil, status.Errorf(codes.Internal, "error when reporting failure event: %v", reportErr)
 		}
@@ -143,8 +143,7 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 	}
 
 	var createdJobs []*api.Job
-	var failedJobs []*api.Job
-	var jobErrs []string
+	var jobFailures []*jobFailure
 	var doubleSubmits []*repository.SubmitJobResult
 
 	for i, submissionResult := range submissionResults {
@@ -152,9 +151,10 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 
 		if submissionResult.Error != nil {
 			jobResponse.Error = submissionResult.Error.Error()
-			failedJobs = append(failedJobs, jobs[i])
-			jobErrs = append(jobErrs,
-				fmt.Sprintf("Failed to save job in Armada: %s", submissionResult.Error.Error()))
+			jobFailures = append(jobFailures, &jobFailure{
+				job:    jobs[i],
+				reason: fmt.Sprintf("Failed to save job in Armada: %s", submissionResult.Error.Error()),
+			})
 		} else if submissionResult.DuplicateDetected {
 			doubleSubmits = append(doubleSubmits, submissionResult)
 		} else {
@@ -164,7 +164,7 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 		result.JobResponseItems = append(result.JobResponseItems, jobResponse)
 	}
 
-	e = reportFailed(server.eventStore, "", jobErrs, failedJobs)
+	e = reportFailed(server.eventStore, "", jobFailures)
 	if e != nil {
 		return result, status.Errorf(
 			codes.Internal, fmt.Sprintf("Failed to report failed events for jobs: %v", e))
@@ -182,7 +182,7 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 			codes.Internal, fmt.Sprintf("Failed to report queued events for jobs: %v", e))
 	}
 
-	if len(failedJobs) > 0 {
+	if len(jobFailures) > 0 {
 		return result, status.Errorf(
 			codes.Unavailable, fmt.Sprintf("Some jobs failed to be submitted"))
 	}
@@ -514,4 +514,15 @@ func validateQueue(queue *api.Queue) error {
 		return status.Errorf(codes.InvalidArgument, "Minimum queue priority factor is 1.")
 	}
 	return nil
+}
+
+func createJobFailuresWithReason(jobs []*api.Job, reason string) []*jobFailure {
+	jobFailures := make([]*jobFailure, len(jobs), len(jobs))
+	for i, job := range jobs {
+		jobFailures[i] = &jobFailure{
+			job:    job,
+			reason: reason,
+		}
+	}
+	return jobFailures
 }
