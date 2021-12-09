@@ -69,8 +69,8 @@ func Test_distributeRemainder_highPriorityUserDoesNotBlockOthers(t *testing.T) {
 		},
 	}
 
-	// the leasing logic stops scheduling 1s before the deadline
-	ctx, _ := context.WithDeadline(context.Background(), time.Now().Add(2*time.Second))
+	// the leasing logic stops scheduling 3s before the deadline
+	ctx, _ := context.WithDeadline(context.Background(), time.Now().Add(4*time.Second))
 
 	nodeResources := common.ComputeResources{"cpu": resource.MustParse("100"), "memory": resource.MustParse("100Gi")}
 	nodes := []api.NodeInfo{{Name: "testNode", AllocatableResources: nodeResources, AvailableResources: nodeResources}}
@@ -125,8 +125,8 @@ func Test_distributeRemainder_DoesNotExceedSchedulingLimits(t *testing.T) {
 		},
 	}
 
-	// the leasing logic stops scheduling 1s before the deadline
-	ctx, _ := context.WithDeadline(context.Background(), time.Now().Add(2*time.Second))
+	// the leasing logic stops scheduling 3s before the deadline
+	ctx, _ := context.WithDeadline(context.Background(), time.Now().Add(4*time.Second))
 
 	nodeResources := common.ComputeResources{"cpu": resource.MustParse("100"), "memory": resource.MustParse("100Gi")}
 	nodes := []api.NodeInfo{{Name: "testNode", AllocatableResources: nodeResources, AvailableResources: nodeResources}}
