@@ -161,7 +161,7 @@ func (c *leaseContext) assignJobs(limit LeasePayloadLimit) ([]*api.Job, error) {
 		partitionLimit := NewLeasePayloadLimit(
 			limit.remainingJobCount/len(c.queueSchedulingInfo),
 			limit.remainingPayloadSizeLimitBytes/len(c.queueSchedulingInfo),
-			limit.minRemainingPayloadSizeBytes)
+			limit.maximumJobSizeBytes)
 		leased, remainder, e := c.leaseJobs(queue, info.adjustedShare, partitionLimit)
 		if e != nil {
 			log.Error(e)
@@ -202,7 +202,7 @@ func (c *leaseContext) distributeRemainder(limit LeasePayloadLimit) ([]*api.Job,
 
 		amountToSchedule := remainder.DeepCopy()
 		amountToSchedule = amountToSchedule.LimitWith(c.queueSchedulingInfo[queue].remainingSchedulingLimit)
-		leaseLimit := NewLeasePayloadLimit(1, limit.remainingPayloadSizeLimitBytes, limit.minRemainingPayloadSizeBytes)
+		leaseLimit := NewLeasePayloadLimit(1, limit.remainingPayloadSizeLimitBytes, limit.maximumJobSizeBytes)
 		leased, remaining, e := c.leaseJobs(queue, amountToSchedule, leaseLimit)
 		if e != nil {
 			log.Error(e)
@@ -254,7 +254,7 @@ func (c *leaseContext) leaseJobs(queue *api.Queue, slice common.ComputeResources
 		}
 
 		candidates := make([]*api.Job, 0)
-		candidatesLimit := NewLeasePayloadLimit(limit.remainingJobCount, limit.remainingPayloadSizeLimitBytes, limit.minRemainingPayloadSizeBytes)
+		candidatesLimit := NewLeasePayloadLimit(limit.remainingJobCount, limit.remainingPayloadSizeLimitBytes, limit.maximumJobSizeBytes)
 		candidateNodes := map[*api.Job]nodeTypeUsedResources{}
 		consumedNodeResources := nodeTypeUsedResources{}
 

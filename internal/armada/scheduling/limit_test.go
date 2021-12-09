@@ -34,7 +34,7 @@ func TestAtLimit_WhenJobCountLimitExceeded(t *testing.T) {
 }
 
 func TestAtLimit_WhenJobSizeLimitExceeded(t *testing.T) {
-	// At limit when remainingPayloadSizeLimitBytes <= minRemainingPayloadSizeBytes
+	// At limit when remainingPayloadSizeLimitBytes <= maximumJobSizeBytes
 	limit := NewLeasePayloadLimit(1, 10, 10)
 	assert.True(t, limit.AtLimit())
 	limit = NewLeasePayloadLimit(-1, -1, 10)
