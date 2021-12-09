@@ -236,7 +236,7 @@ func Test_leaseJobs_DoesNotExceededLeasePayloadSizeLimit(t *testing.T) {
 	}
 
 	jobSizeBytes := queuedJobs[0].Size()
-	jobs, remaining, err := c.leaseJobs(queue1, requestSize.AsFloat(), NewLeasePayloadLimit(10, jobSizeBytes*2, jobSizeBytes))
+	jobs, remaining, err := c.leaseJobs(queue1, requestSize.AsFloat(), NewLeasePayloadLimit(10, jobSizeBytes*2+1, jobSizeBytes))
 
 	expectedRemaining := requestSize
 	expectedRemaining.Sub(common.TotalPodResourceRequest(classicPodSpec))
