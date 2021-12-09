@@ -129,12 +129,6 @@ func SwaggerJsonTemplate() string {
 		"            \"format\": \"int64\"\n" +
 		"          }\n" +
 		"        },\n" +
-		"        \"selector\": {\n" +
-		"          \"type\": \"object\",\n" +
-		"          \"additionalProperties\": {\n" +
-		"            \"type\": \"string\"\n" +
-		"          }\n" +
-		"        },\n" +
 		"        \"tlsEnabled\": {\n" +
 		"          \"type\": \"boolean\"\n" +
 		"        },\n" +

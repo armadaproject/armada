@@ -351,18 +351,12 @@ func TestGroupIngressConfig_IngressType_Headless(t *testing.T) {
 			{
 				Type:  api.IngressType_Headless,
 				Ports: []uint32{1},
-				Selector: map[string]string{
-					"test": "label",
-				},
 			},
 		},
 	}
 	input := &api.IngressConfig{
 		Type:  api.IngressType_Headless,
 		Ports: []uint32{1},
-		Selector: map[string]string{
-			"test": "label",
-		},
 	}
 	groupedConfig := groupIngressConfig([]*api.IngressConfig{input})
 	assert.Equal(t, groupedConfig, expected)

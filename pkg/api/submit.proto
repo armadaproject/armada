@@ -27,7 +27,6 @@ message IngressConfig {
     IngressType type = 1;
     repeated uint32 ports = 2;
     map<string, string> annotations = 3;
-    map<string, string> selector = 6;
     bool tls_enabled = 4;
     string cert_name = 5;
 }

@@ -27,7 +27,6 @@ func GenerateIngresses(job *api.Job, pod *v1.Pod, ingressConfig *configuration.I
 						job,
 						pod,
 						GetServicePorts([]*api.IngressConfig{config}, &pod.Spec),
-						config.Selector,
 						ingressType,
 					)
 					services = append(services, service)
@@ -35,7 +34,7 @@ func GenerateIngresses(job *api.Job, pod *v1.Pod, ingressConfig *configuration.I
 				continue
 			}
 
-			service := CreateService(job, pod, GetServicePorts(configs, &pod.Spec), map[string]string{}, ingressType)
+			service := CreateService(job, pod, GetServicePorts(configs, &pod.Spec), ingressType)
 			services = append(services, service)
 
 			if ingressType == api.IngressType_Ingress {
@@ -89,7 +88,6 @@ func deepCopy(config *api.IngressConfig) *api.IngressConfig {
 		Annotations: util.DeepCopy(config.Annotations),
 		TlsEnabled:  config.TlsEnabled,
 		CertName:    config.CertName,
-		Selector:    util.DeepCopy(config.Selector),
 	}
 }
 

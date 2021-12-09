@@ -271,9 +271,8 @@ func TestCreateService_Ingress(t *testing.T) {
 			Port: 123,
 		},
 	}
-	selector := map[string]string{}
 	ingressType := api.IngressType_Ingress
-	createdService := CreateService(job, pod, ports, selector, ingressType)
+	createdService := CreateService(job, pod, ports, ingressType)
 
 	expected := &v1.Service{
 		ObjectMeta: metav1.ObjectMeta{
@@ -324,9 +323,8 @@ func TestCreateService_NodePort(t *testing.T) {
 			NodePort: 456,
 		},
 	}
-	selector := map[string]string{}
 	ingressType := api.IngressType_NodePort
-	createdService := CreateService(job, pod, ports, selector, ingressType)
+	createdService := CreateService(job, pod, ports, ingressType)
 
 	expected := &v1.Service{
 		ObjectMeta: metav1.ObjectMeta{
@@ -377,9 +375,8 @@ func TestCreateService_Headless(t *testing.T) {
 			Port: 123,
 		},
 	}
-	selector := map[string]string{}
 	ingressType := api.IngressType_Headless
-	createdService := CreateService(job, pod, ports, selector, ingressType)
+	createdService := CreateService(job, pod, ports, ingressType)
 
 	expected := &v1.Service{
 		ObjectMeta: metav1.ObjectMeta{
@@ -404,59 +401,6 @@ func TestCreateService_Headless(t *testing.T) {
 				"armada_job_id":     "test_id",
 				"armada_pod_number": "0",
 				"armada_queue_id":   "test_queue_id",
-			},
-			Type:      "ClusterIP",
-			ClusterIP: "None",
-		},
-	}
-	assert.Equal(t, createdService, expected)
-}
-
-func TestCreateService_Headless_WithSelection(t *testing.T) {
-	job := makeTestJob()
-	pod := &v1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "testPod",
-			Namespace: "testNamespace",
-			Labels: map[string]string{
-				"armada_job_id":     "test_id",
-				"armada_pod_number": "0",
-				"armada_queue_id":   "test_queue_id",
-			},
-		},
-	}
-	ports := []v1.ServicePort{
-		{
-			Port: 123,
-		},
-	}
-	selector := map[string]string{
-		"example": "label",
-	}
-	ingressType := api.IngressType_Headless
-	createdService := CreateService(job, pod, ports, selector, ingressType)
-
-	expected := &v1.Service{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "testPod-headless",
-			Labels: map[string]string{
-				"armada_job_id":     "test_id",
-				"armada_pod_number": "0",
-				"armada_queue_id":   "test_queue_id",
-			},
-			Annotations: map[string]string{
-				"armada_jobset_id": "JobSetId",
-				"armada_owner":     "UserTest",
-			},
-		},
-		Spec: v1.ServiceSpec{
-			Ports: []v1.ServicePort{
-				{
-					Port: 123,
-				},
-			},
-			Selector: map[string]string{
-				"example": "label",
 			},
 			Type:      "ClusterIP",
 			ClusterIP: "None",
