@@ -165,26 +165,13 @@ func getNodeSelectorFromKey(key string) (map[string]string, error) {
 }
 
 // TODO We could do some custom encoding of these object to make them more compact
+// TODO Should this be the whole affinity object?
 func getAffinityKey(spec *v1.PodSpec) string {
 	if spec.Affinity == nil || spec.Affinity.NodeAffinity == nil {
 		return noValueString
 	}
 
-	//var b bytes.Buffer
-	//return proto.MarshalTextString(spec.Affinity.NodeAffinity)
 	b, _ := proto.Marshal(spec.Affinity.NodeAffinity)
-
-	//var b bytes.Buffer
-	//e := msgpack.NewEncoder(&b)
-	//e.SetOmitEmpty(true)
-	//e.SetSortMapKeys(true)
-	//_  = e.Encode(spec.Affinity.NodeAffinity)
-	//if err != nil {
-	//	panic(err)
-	//}
-	//b, _ := json.Marshal(spec.Affinity.NodeAffinity)
-	//output := string(b)
-	//output = strings.ReplaceAll(output, "\"", "!")
 	return string(b)
 }
 
@@ -195,10 +182,7 @@ func getAffinityFromKey(key string) (*v1.NodeAffinity, error) {
 
 	var nodeAffinity v1.NodeAffinity
 	keyBytes := []byte(key)
-	//err := msgpack.Unmarshal(keyBytes, &nodeAffinity)
-	//key = strings.ReplaceAll(key, "!", "\"")
 	err := proto.Unmarshal(keyBytes, &nodeAffinity)
-	//err := json.Unmarshal(keyBytes, &nodeAffinity)
 	if err != nil {
 		return nil, fmt.Errorf("unable to unmarshal node affinity %s because %s", key, err)
 	}
@@ -207,7 +191,22 @@ func getAffinityFromKey(key string) (*v1.NodeAffinity, error) {
 
 func GenerateJobRequirementsFromKey(key string) (*api.Job, error) {
 	job := &api.Job{}
-	specKeys := strings.Split(key, keySeparator)
+	sections := strings.Split(key, prioritySeparator)
+
+	strconv.FormatFloat(job.Priority, 'f', -1, 64)
+	if len(sections) != 2 {
+		return nil, fmt.Errorf("Expected sections not found. Key should be formatted as <priority>%s<podSpecKeys>, instead found %s", prioritySeparator, key)
+	}
+
+	priorityString := sections[0]
+	priority, err := strconv.ParseFloat(priorityString, 64)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to extract priority from key. It should be a decimal instead found %s", priorityString)
+	}
+	job.Priority = priority
+
+	podSpeckeys := sections[1]
+	specKeys := strings.Split(podSpeckeys, keySeparator)
 	for _, specKey := range specKeys {
 		spec, count, err := generatePodSpecFromKey(specKey)
 		if err != nil {

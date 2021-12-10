@@ -59,38 +59,40 @@ func TestGetResourceRequestKey(t *testing.T) {
 }
 
 func TestGenerateJobRequirementsFromKey(t *testing.T) {
-	resourceRequirement := createResourceRequirements(v1.ResourceList{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1000000000"), "nvidia.com/gpu": resource.MustParse("1")})
+	resourceRequirement := createResourceRequirements(v1.ResourceList{"cpu": resource.MustParse("1"), "memory": resource.MustParse("751619276800"), "nvidia.com/gpu": resource.MustParse("1")})
 	expected := &api.Job{
 		Priority: 50,
-		PodSpec: &v1.PodSpec{
-			Containers: []v1.Container{
-				{
-					Resources: resourceRequirement,
+		PodSpecs: []*v1.PodSpec{
+			{
+				Containers: []v1.Container{
+					{
+						Resources: resourceRequirement,
+					},
 				},
-			},
-			NodeSelector: map[string]string{
-				"armada/important": "true",
-			},
-			Tolerations: []v1.Toleration{
-				{
-					Key:      "armada/important",
-					Value:    "true",
-					Operator: v1.TolerationOpEqual,
-					Effect:   v1.TaintEffectNoSchedule,
+				NodeSelector: map[string]string{
+					"armada/important": "true",
 				},
-			},
-			Affinity: &v1.Affinity{
-				NodeAffinity: &v1.NodeAffinity{
-					RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
-						NodeSelectorTerms: []v1.NodeSelectorTerm{
-							{
-								MatchExpressions: []v1.NodeSelectorRequirement{
-									{
-										Key:      "NodeName",
-										Operator: v1.NodeSelectorOpExists,
-										Values: []string{
-											"val1",
-											"val2",
+				Tolerations: []v1.Toleration{
+					{
+						Key:      "armada/important",
+						Value:    "true",
+						Operator: v1.TolerationOpEqual,
+						Effect:   v1.TaintEffectNoSchedule,
+					},
+				},
+				Affinity: &v1.Affinity{
+					NodeAffinity: &v1.NodeAffinity{
+						RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
+							NodeSelectorTerms: []v1.NodeSelectorTerm{
+								{
+									MatchExpressions: []v1.NodeSelectorRequirement{
+										{
+											Key:      "NodeName",
+											Operator: v1.NodeSelectorOpExists,
+											Values: []string{
+												"val1",
+												"val2",
+											},
 										},
 									},
 								},
@@ -214,7 +216,7 @@ func TestGetTolerationsKey(t *testing.T) {
 	assert.Equal(t, "armada/special+true++", result)
 
 	result = getTolerationsKey([]v1.Toleration{})
-	assert.Equal(t, "NIL", result)
+	assert.Equal(t, noValueString, result)
 }
 
 func TestGetTolerationsFromKey(t *testing.T) {
@@ -248,7 +250,7 @@ func TestGetTolerationsFromKey(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, result, wildcardToleration)
 
-	result, err = getTolerationsFromKey("NIL")
+	result, err = getTolerationsFromKey(noValueString)
 	assert.NoError(t, err)
 	assert.Equal(t, []v1.Toleration{}, result)
 
@@ -269,7 +271,7 @@ func TestGetNodeSelectorKey(t *testing.T) {
 
 	spec = &v1.PodSpec{}
 	result = getNodeSelectorKey(spec)
-	assert.Equal(t, result, "NIL")
+	assert.Equal(t, result, noValueString)
 }
 
 func TestGetNodeSelectorFromKey(t *testing.T) {
@@ -282,7 +284,7 @@ func TestGetNodeSelectorFromKey(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, result, expected)
 
-	result, err = getNodeSelectorFromKey("NIL")
+	result, err = getNodeSelectorFromKey(noValueString)
 	assert.NoError(t, err)
 	assert.Equal(t, result, map[string]string{})
 
@@ -291,11 +293,64 @@ func TestGetNodeSelectorFromKey(t *testing.T) {
 }
 
 func TestGetNodeAffinityKey(t *testing.T) {
+	spec := &v1.PodSpec{}
+	result := getAffinityKey(spec)
+	assert.Equal(t, result, noValueString)
 
+	spec.Affinity = &v1.Affinity{
+		NodeAffinity: &v1.NodeAffinity{
+			RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
+				NodeSelectorTerms: []v1.NodeSelectorTerm{
+					{
+						MatchExpressions: []v1.NodeSelectorRequirement{
+							{
+								Key:      "NodeName",
+								Operator: v1.NodeSelectorOpExists,
+								Values: []string{
+									"val1",
+									"val2",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	result = getAffinityKey(spec)
+	assert.Equal(t, result, "\n\"\n \n\u001E\n\bNodeName\u0012\u0006Exists\u001A\u0004val1\u001A\u0004val2")
 }
 
 func TestGetNodeAffinityFromKey(t *testing.T) {
+	result, err := getAffinityFromKey(noValueString)
+	assert.NoError(t, err)
+	assert.Nil(t, result)
 
+	expected := &v1.NodeAffinity{
+		RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
+			NodeSelectorTerms: []v1.NodeSelectorTerm{
+				{
+					MatchExpressions: []v1.NodeSelectorRequirement{
+						{
+							Key:      "NodeName",
+							Operator: v1.NodeSelectorOpExists,
+							Values: []string{
+								"val1",
+								"val2",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	result, err = getAffinityFromKey("\n\"\n \n\u001E\n\bNodeName\u0012\u0006Exists\u001A\u0004val1\u001A\u0004val2")
+	assert.NoError(t, err)
+	assert.Equal(t, expected, result)
+
+	result, err = getAffinityFromKey("UNKNOWN_FORMAT")
+	assert.Error(t, err)
 }
 
 func createResourceRequirements(resource v1.ResourceList) v1.ResourceRequirements {

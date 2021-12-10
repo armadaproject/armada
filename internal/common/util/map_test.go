@@ -1,6 +1,7 @@
 package util
 
 import (
+	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -97,4 +98,13 @@ func Test_FilterKeys_Nil(t *testing.T) {
 	assert.Nil(t, FilterKeys(nil, nil))
 	assert.Nil(t, FilterKeys(nil, []string{}))
 	assert.Equal(t, map[string]string{}, FilterKeys(map[string]string{"a": "b"}, nil))
+}
+
+func Test_GetKeys(t *testing.T) {
+	assert.Equal(t, []string{}, GetKeys(nil))
+
+	expected := []string{"a", "b"}
+	result := GetKeys(map[string]string{"a": "value1", "b": "value2"})
+	sort.Strings(result)
+	assert.Equal(t, expected, result)
 }

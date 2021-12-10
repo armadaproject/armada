@@ -54,3 +54,11 @@ func FilterKeys(a map[string]string, keys []string) map[string]string {
 
 	return result
 }
+
+func GetKeys(a map[string]string) []string {
+	result := make([]string, 0, len(a))
+	for key := range a {
+		result = append(result, key)
+	}
+	return result
+}
