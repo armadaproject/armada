@@ -16,9 +16,9 @@ func GenerateIngresses(job *api.Job, pod *v1.Pod, ingressConfig *configuration.I
 	services := []*v1.Service{}
 	ingresses := []*networking.Ingress{}
 
-	ingressToGen = combineIngressService(job.Ingress, job.Services)
+	ingressToGen := CombineIngressService(job.Ingress, job.Services)
 
-	groupedIngressConfigs := groupIngressConfig(job.Ingress)
+	groupedIngressConfigs := groupIngressConfig(ingressToGen)
 	for ingressType, configs := range groupedIngressConfigs {
 		if len(GetServicePorts(configs, &pod.Spec)) > 0 {
 			service := CreateService(job, pod, GetServicePorts(configs, &pod.Spec), ingressType)
@@ -40,19 +40,19 @@ func GenerateIngresses(job *api.Job, pod *v1.Pod, ingressConfig *configuration.I
 	return services, ingresses
 }
 
-func combineIngressService(ingresses []*api.IngressConfig, services []*api.ServiceConfig) []*api.IngressConfig {
-	for _, ing := ingresses {
+func CombineIngressService(ingresses []*api.IngressConfig, services []*api.ServiceConfig) []*api.IngressConfig {
+	for _, ing := range ingresses {
 		ing.Type = api.IngressType_Ingress
 	}
 
-	result = ingresses
+	result := ingresses
 
 	for _, svc := range services {
 		result = append(
 			result,
 			&api.IngressConfig{
-				Type: svc.GetType(),
-				Ports: util.DeepCopyListUint32(config.Ports),
+				Type:  svc.GetType(),
+				Ports: util.DeepCopyListUint32(svc.Ports),
 			},
 		)
 	}
@@ -61,30 +61,12 @@ func combineIngressService(ingresses []*api.IngressConfig, services []*api.Servi
 }
 
 func groupIngressConfig(configs []*api.IngressConfig) map[api.IngressType][]*api.IngressConfig {
-	result := make(map[api.IngressType][]*api.IngressConfig, 10)
+	result := gatherIngressConfig(configs)
 
-	for _, config := range configs {
-		if _, present := result[config.Type]; !present {
-			result[config.Type] = []*api.IngressConfig{deepCopy(config)}
-			continue
-		}
-
-		existingConfigsOfType := result[config.Type]
-		if config.Type == api.IngressType_NodePort {
-			existingConfigsOfType[0].Ports = append(existingConfigsOfType[0].Ports, config.Ports...)
-		} else {
-			matchFound := false
-			for _, existingConfig := range existingConfigsOfType {
-				if util.Equal(config.Annotations, existingConfig.Annotations) {
-					existingConfig.Ports = append(existingConfig.Ports, config.Ports...)
-					matchFound = true
-				}
-			}
-			if !matchFound {
-				result[config.Type] = append(existingConfigsOfType, deepCopy(config))
-			}
-		}
+	for ingressType, grp := range result {
+		result[ingressType] = mergeOnAnnotations(grp)
 	}
+
 	return result
 }
 
@@ -98,16 +80,12 @@ func gatherIngressConfig(configs []*api.IngressConfig) map[api.IngressType][]*ap
 	return result
 }
 
-func mergeOnAnnotations(configs []*api.IngressConfig) []*api.IngressConfig{
+func mergeOnAnnotations(configs []*api.IngressConfig) []*api.IngressConfig {
 	result := make([]*api.IngressConfig, 0, len(configs))
-	
-	for _, config := range configs {
-		if _, present := result[config.Type]; !present {
-			result = []*api.IngressConfig{deepCopy(config)}
-			continue
-		}
 
+	for _, config := range configs {
 		matchFound := false
+
 		for _, existingConfig := range result {
 			if util.Equal(config.Annotations, existingConfig.Annotations) {
 				existingConfig.Ports = append(existingConfig.Ports, config.Ports...)
@@ -115,10 +93,11 @@ func mergeOnAnnotations(configs []*api.IngressConfig) []*api.IngressConfig{
 			}
 		}
 		if !matchFound {
-			result = append(existingConfigsOfType, deepCopy(config))
+			result = append(result, deepCopy(config))
 		}
 	}
-	
+
+	return result
 }
 
 func deepCopy(config *api.IngressConfig) *api.IngressConfig {

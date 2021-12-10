@@ -204,10 +204,7 @@ func TestGroupIngressConfig_IngressTypeNodePort_AlwaysGrouped(t *testing.T) {
 	groupedConfig := groupIngressConfig([]*api.IngressConfig{input1, input2})
 	assert.Equal(t, groupedConfig, expected)
 
-	input2.Annotations = map[string]string{
-		"test": "value",
-	}
-	//Always grouped, regardless of annotations
+	// Non ingress type will never have annotations anymore
 	assert.Equal(t, groupIngressConfig([]*api.IngressConfig{input1, input2}), expected)
 }
 

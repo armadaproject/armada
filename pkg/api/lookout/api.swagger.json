@@ -202,6 +202,27 @@
           "additionalProperties": {
             "type": "string"
           }
+        },
+        "services": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiServiceConfig"
+          }
+        }
+      }
+    },
+    "apiServiceConfig": {
+      "type": "object",
+      "properties": {
+        "ports": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "type": {
+          "$ref": "#/definitions/apiIngressType"
         }
       }
     },

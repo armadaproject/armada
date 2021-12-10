@@ -535,6 +535,12 @@
           "additionalProperties": {
             "type": "string"
           }
+        },
+        "services": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiServiceConfig"
+          }
         }
       }
     },

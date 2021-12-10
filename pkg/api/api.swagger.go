@@ -546,6 +546,12 @@ func SwaggerJsonTemplate() string {
 		"          \"additionalProperties\": {\n" +
 		"            \"type\": \"string\"\n" +
 		"          }\n" +
+		"        },\n" +
+		"        \"services\": {\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/apiServiceConfig\"\n" +
+		"          }\n" +
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +

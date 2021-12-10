@@ -966,6 +966,9 @@ namespace GResearch.Armada.Client
         [Newtonsoft.Json.JsonProperty("requiredNodeLabels", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.IDictionary<string, string> RequiredNodeLabels { get; set; }
     
+        [Newtonsoft.Json.JsonProperty("services", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<ApiServiceConfig> Services { get; set; }
+    
     
     }
     
