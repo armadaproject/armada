@@ -185,5 +185,8 @@ func validateArmadaConfig(config *configuration.ArmadaConfig) error {
 	if config.CancelJobsBatchSize <= 0 {
 		return fmt.Errorf("cancel jobs batch should be greater than 0: is %d", config.CancelJobsBatchSize)
 	}
+	if config.Scheduling.MaximumJobsToSchedule <= 0 {
+		return fmt.Errorf("MaximumJobsToSchedule should be greater than 0: is %d", config.Scheduling.MaximumJobsToSchedule)
+	}
 	return nil
 }

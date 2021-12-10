@@ -47,23 +47,29 @@ type JobContext interface {
 	MarkIssueReported(issue *PodIssue)
 	MarkIssuesResolved(job *RunningJob)
 	DeleteJobs(jobs []*RunningJob)
-	AddAnnotation(jobs []*RunningJob, annotations map[string]string) error
+	AddAnnotation(jobs []*RunningJob, annotations map[string]string)
 }
 
 type ClusterJobContext struct {
 	clusterContext            context.ClusterContext
 	stuckTerminatingPodExpiry time.Duration
 	pendingPodChecker         podchecks.PodChecker
+	updateThreadCount         int
 
 	activeJobs        map[string]*jobRecord
 	activeJobIdsMutex sync.Mutex
 }
 
-func NewClusterJobContext(clusterContext context.ClusterContext, pendingPodChecker podchecks.PodChecker, stuckTerminatingPodExpiry time.Duration) *ClusterJobContext {
+func NewClusterJobContext(
+	clusterContext context.ClusterContext,
+	pendingPodChecker podchecks.PodChecker,
+	stuckTerminatingPodExpiry time.Duration,
+	updateThreadCount int) *ClusterJobContext {
 	jobContext := &ClusterJobContext{
 		clusterContext:            clusterContext,
 		stuckTerminatingPodExpiry: stuckTerminatingPodExpiry,
 		pendingPodChecker:         pendingPodChecker,
+		updateThreadCount:         updateThreadCount,
 		activeJobs:                map[string]*jobRecord{},
 		activeJobIdsMutex:         sync.Mutex{},
 	}
@@ -115,16 +121,22 @@ func (c *ClusterJobContext) DeleteJobs(jobs []*RunningJob) {
 	}
 }
 
-func (c *ClusterJobContext) AddAnnotation(jobs []*RunningJob, annotations map[string]string) error {
+func (c *ClusterJobContext) AddAnnotation(jobs []*RunningJob, annotations map[string]string) {
+	podsToAnnotate := []*v1.Pod{}
 	for _, job := range jobs {
 		for _, pod := range job.ActivePods {
-			err := c.clusterContext.AddAnnotation(pod, annotations)
-			if err != nil {
-				return err
-			}
+			podsToAnnotate = append(podsToAnnotate, pod)
 		}
 	}
-	return nil
+
+	util.ProcessPodsWithThreadPool(podsToAnnotate, c.updateThreadCount,
+		func(pod *v1.Pod) {
+			err := c.clusterContext.AddAnnotation(pod, annotations)
+			if err != nil {
+				log.Warnf("Failed to annotate pod %s (%s) as done: %v", pod.Name, pod.Namespace, err)
+			}
+		},
+	)
 }
 
 func groupRunningJobs(pods []*v1.Pod) []*RunningJob {
