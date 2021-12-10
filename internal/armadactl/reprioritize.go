@@ -75,7 +75,6 @@ func (a *App) writeResults(results map[string]string) error {
 		}
 	}
 
-	// TODO Should we really return an error here? Since we notify the user of errors on a per-job basis.
 	if len(erroredIds) > 0 {
 		return fmt.Errorf("[armadactl.writeResults] error reprioritizing some jobs")
 	}
