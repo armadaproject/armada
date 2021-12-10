@@ -39,7 +39,7 @@ func GetRequirementKey(job *api.Job) string {
 		requestKeyValues = append(requestKeyValues, fmt.Sprintf("%s%s%s", key, sectionSeparator, strconv.Itoa(value)))
 	}
 	sort.Strings(requestKeyValues)
-	// Add quotes and escaping if required
+	// TODO Add quotes and escaping if required - for redis compatibility
 	return strconv.FormatFloat(job.Priority, 'f', -1, 64) + prioritySeparator + strings.Join(requestKeyValues, keySeparator)
 }
 
