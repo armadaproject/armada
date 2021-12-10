@@ -2,48 +2,17 @@ package util
 
 import (
 	"fmt"
-	"strings"
-
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/pkg/api"
 )
 
-var expectedWarningsEventReasons = util.StringListToSet([]string{
-	// As Armada sometimes over subscribe cluster it is expected that some pods fails to schedule
-	"FailedScheduling",
-})
 var imagePullBackOffStatesSet = util.StringListToSet([]string{"ImagePullBackOff", "ErrImagePull"})
-var invalidImageNameStatesSet = util.StringListToSet([]string{"InvalidImageName"})
-
-const failedPullPrefix = "Failed to pull image"
-const failedPullAndUnpack = "desc = failed to pull and unpack image"
-const failedPullErrorResponse = "code = Unknown desc = Error response from daemon"
 
 const oomKilledReason = "OOMKilled"
 const evictedReason = "Evicted"
 const deadlineExceeded = "DeadlineExceeded"
-
-func ExtractPodStuckReason(pod *v1.Pod) string {
-	containerStatuses := pod.Status.ContainerStatuses
-	containerStatuses = append(containerStatuses, pod.Status.InitContainerStatuses...)
-
-	stuckMessage := ""
-
-	for _, containerStatus := range containerStatuses {
-		if !containerStatus.Ready && containerStatus.State.Waiting != nil {
-			waitingState := containerStatus.State.Waiting
-			stuckMessage += fmt.Sprintf("Container %s failed to start because %s: %s\n", containerStatus.Name, waitingState.Reason, waitingState.Message)
-		}
-	}
-
-	if stuckMessage == "" && pod.Status.NominatedNodeName == "" {
-		stuckMessage += "Pod became stuck due to insufficient space on any node to schedule the pod.\n"
-	}
-
-	return stuckMessage
-}
 
 func ExtractPodFailedReason(pod *v1.Pod) string {
 	if pod.Status.Message != "" {
@@ -132,32 +101,6 @@ func isOom(containerStatus v1.ContainerStatus) bool {
 
 type PodStartupStatus int
 
-const (
-	WorthWaitingAndRetrying PodStartupStatus = iota
-	WorthWaiting
-	Unrecoverable
-)
-
-func hasUnrecoverableContainerState(pod *v1.Pod) bool {
-	for _, containerStatus := range GetPodContainerStatuses(pod) {
-		if containerStatus.State.Waiting != nil {
-			waitingReason := containerStatus.State.Waiting.Reason
-			if invalidImageNameStatesSet[waitingReason] {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func hasUnrecoverableEvent(podEvents []*v1.Event) (bool, *v1.Event) {
-	if isUnpullable, event := hasUnpullableImageEvent(podEvents); isUnpullable {
-		return true, event
-	}
-
-	return false, nil
-}
-
 func hasUnstableContainerStates(pod *v1.Pod) bool {
 	for _, containerStatus := range GetPodContainerStatuses(pod) {
 		if containerStatus.State.Waiting != nil {
@@ -168,28 +111,4 @@ func hasUnstableContainerStates(pod *v1.Pod) bool {
 		}
 	}
 	return false
-}
-
-func hasUnpullableImageEvent(podEvents []*v1.Event) (bool, *v1.Event) {
-	for _, event := range podEvents {
-		if event.Type == v1.EventTypeWarning && strings.HasPrefix(event.Message, failedPullPrefix) {
-			if strings.Contains(event.Message, failedPullAndUnpack) {
-				return true, event
-			}
-			if strings.Contains(event.Message, failedPullErrorResponse) {
-				return true, event
-			}
-		}
-	}
-	return false, nil
-}
-
-func getUnexpectedWarningMessages(podEvents []*v1.Event) []string {
-	messages := []string{}
-	for _, event := range podEvents {
-		if event.Type == v1.EventTypeWarning && !expectedWarningsEventReasons[event.Reason] {
-			messages = append(messages, fmt.Sprintf("%v: %v", event.Reason, event.Message))
-		}
-	}
-	return messages
 }

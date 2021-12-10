@@ -545,9 +545,9 @@ func spinUpArmadaServer(pool *dockertest.Pool, network *docker.Network) (func(),
 		Mounts:       []string{rootDir + ":/app"},                   // mount the project root directory into the container
 		ExposedPorts: []string{"50051/tcp", "8080/tcp", "9000/tcp"}, // need both ExposedPorts and PortBindings
 		PortBindings: map[docker.Port][]docker.PortBinding{
-			"50051/tcp": []docker.PortBinding{{HostPort: "50052"}}, // gRPC
-			"8080/tcp":  []docker.PortBinding{{HostPort: "8081"}},  // HTTP
-			"9000/tcp":  []docker.PortBinding{{HostPort: "9002"}},  // metrics
+			"50051/tcp": {{HostPort: "50052"}}, // gRPC
+			"8080/tcp":  {{HostPort: "8081"}},  // HTTP
+			"9000/tcp":  {{HostPort: "9002"}},  // metrics
 		},
 		WorkingDir: "/app",
 		Entrypoint: []string{"./.test/server"},

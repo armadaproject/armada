@@ -69,7 +69,7 @@ func ensurePodHasNodeSelectorTerms(pod *v1.PodSpec) {
 func addAvoidNodeAffinityToNodeSelectorTerms(terms []v1.NodeSelectorTerm, labelName string, labelValue string) {
 	// The node NotIn needs to be added to all NodeSelectorTerms, because if any single NodeSelectorTerm matches
 	// the pod is considered to match.
-	for i, _ := range terms {
+	for i := range terms {
 		addAvoidNodeAffinityToNodeSelectorTerm(&terms[i], labelName, labelValue)
 	}
 }

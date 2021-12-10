@@ -22,8 +22,7 @@ const (
 type EventType string
 
 const (
-	EventTypeWarning EventType = EventType(v1.EventTypeWarning)
-	EventTypeNormal  EventType = EventType(v1.EventTypeNormal)
+	EventTypeNormal = EventType(v1.EventTypeNormal)
 )
 
 type Checks struct {

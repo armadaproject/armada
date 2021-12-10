@@ -72,7 +72,7 @@ func (repo *RedisEventRepository) ReportEvents(messages []*api.EventMessage) err
 	}
 
 	if repo.eventRetention.ExpiryEnabled {
-		for key, _ := range uniqueJobSets {
+		for key := range uniqueJobSets {
 			pipe.Expire(key, repo.eventRetention.RetentionDuration)
 		}
 	}
