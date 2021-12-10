@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"sync"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -295,4 +296,29 @@ func RemoveDuplicates(pods []*v1.Pod) []*v1.Pod {
 		result = append(result, pod)
 	}
 	return result
+}
+
+func ProcessPodsWithThreadPool(pods []*v1.Pod, maxThreadCount int, processPod func(*v1.Pod)) {
+	wg := &sync.WaitGroup{}
+	processChannel := make(chan *v1.Pod)
+
+	for i := 0; i < util.Min(len(pods), maxThreadCount); i++ {
+		wg.Add(1)
+		go threadPoolWorker(wg, processChannel, processPod)
+	}
+
+	for _, pod := range pods {
+		processChannel <- pod
+	}
+
+	close(processChannel)
+	wg.Wait()
+}
+
+func threadPoolWorker(wg *sync.WaitGroup, podsToProcess chan *v1.Pod, processPod func(*v1.Pod)) {
+	defer wg.Done()
+
+	for pod := range podsToProcess {
+		processPod(pod)
+	}
 }
