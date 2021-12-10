@@ -15,7 +15,7 @@ const queueHashKey = "Queue"
 // type ErrQueueNotFound struct {
 // 	queueName string
 // }
-// func (err *ErrQueueNotFound) String() {
+// func (err *ErrQueueNotFound) Error() {
 // 	return fmt.Sprintf("Queue %s does not exist", err.queueName)
 // }
 // In doing so, if we wrap errors as they travel up the call stack
