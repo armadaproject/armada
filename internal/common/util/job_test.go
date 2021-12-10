@@ -255,7 +255,7 @@ func TestGetTolerationsFromKey(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, []v1.Toleration{}, result)
 
-	result, err = getTolerationsFromKey("INVALID_KEY")
+	_, err = getTolerationsFromKey("INVALID_KEY")
 	assert.Error(t, err)
 }
 
@@ -289,7 +289,7 @@ func TestGetNodeSelectorFromKey(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, result, map[string]string{})
 
-	result, err = getNodeSelectorFromKey("UNKNOWN_FORMAT")
+	_, err = getNodeSelectorFromKey("UNKNOWN_FORMAT")
 	assert.Error(t, err)
 }
 
@@ -352,7 +352,7 @@ func TestGetAffinityFromKey(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, expected, result)
 
-	result, err = getAffinityFromKey("UNKNOWN_FORMAT")
+	_, err = getAffinityFromKey("UNKNOWN_FORMAT")
 	assert.Error(t, err)
 }
 
