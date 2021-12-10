@@ -43,7 +43,11 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 		panic(fmt.Errorf("configuration validation error: %v", err))
 	}
 
-	grpcServer := grpcCommon.CreateGrpcServer(auth.ConfigureAuth(config.Auth))
+	// We support multiple simultaneous authentication services (e.g., username/password  OpenId).
+	// For each gRPC request, we try them all until one succeeds, at which point the process is
+	// short-circuited.
+	authServices := auth.ConfigureAuth(config.Auth)
+	grpcServer := grpcCommon.CreateGrpcServer(authServices)
 
 	taskManager := task.NewBackgroundTaskManager(metrics.MetricPrefix)
 
