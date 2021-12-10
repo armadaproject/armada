@@ -362,23 +362,23 @@ func TestGroupIngressConfig_IngressType_Headless(t *testing.T) {
 func TestGatherIngressConfigs(t *testing.T) {
 	inputConfigs := []*api.IngressConfig{
 		{
-			Type: api.IngressType_Ingress,
+			Type:  api.IngressType_Ingress,
 			Ports: []uint32{1},
 		},
 		{
-			Type: api.IngressType_Ingress,
+			Type:  api.IngressType_Ingress,
 			Ports: []uint32{2},
 		},
 		{
-			Type: api.IngressType_Headless,
+			Type:  api.IngressType_Headless,
 			Ports: []uint32{1},
 		},
 		{
-			Type: api.IngressType_NodePort,
+			Type:  api.IngressType_NodePort,
 			Ports: []uint32{1},
 		},
 		{
-			Type: api.IngressType_Headless,
+			Type:  api.IngressType_Headless,
 			Ports: []uint32{2},
 		},
 	}
@@ -386,31 +386,75 @@ func TestGatherIngressConfigs(t *testing.T) {
 	expected := map[api.IngressType][]*api.IngressConfig{
 		api.IngressType_Ingress: {
 			{
-				Type: api.IngressType_Ingress,
+				Type:  api.IngressType_Ingress,
 				Ports: []uint32{1},
 			},
 			{
-				Type: api.IngressType_Ingress,
+				Type:  api.IngressType_Ingress,
 				Ports: []uint32{2},
 			},
 		},
 		api.IngressType_NodePort: {
 			{
-				Type: api.IngressType_NodePort,
+				Type:  api.IngressType_NodePort,
 				Ports: []uint32{1},
 			},
 		},
 		api.IngressType_Headless: {
 			{
-				Type: api.IngressType_Headless,
+				Type:  api.IngressType_Headless,
 				Ports: []uint32{1},
 			},
 			{
-				Type: api.IngressType_Headless,
+				Type:  api.IngressType_Headless,
 				Ports: []uint32{2},
 			},
 		},
 	}
 
 	assert.Equal(t, gatherIngressConfig(inputConfigs), expected)
+}
+
+func TestCombineIngressService(t *testing.T) {
+	ingress := []*api.IngressConfig{
+		{
+			Ports: []uint32{1, 2, 3},
+			Annotations: map[string]string{
+				"Hello": "World",
+			},
+			TlsEnabled: true,
+		},
+	}
+
+	services := []*api.ServiceConfig{
+		{
+			Type:  api.IngressType_Headless,
+			Ports: []uint32{4},
+		},
+		{
+			Type:  api.IngressType_NodePort,
+			Ports: []uint32{5},
+		},
+	}
+
+	expected := []*api.IngressConfig{
+		{
+			Type:  api.IngressType_Ingress,
+			Ports: []uint32{1, 2, 3},
+			Annotations: map[string]string{
+				"Hello": "World",
+			},
+			TlsEnabled: true,
+		},
+		{
+			Type:  api.IngressType_Headless,
+			Ports: []uint32{4},
+		},
+		{
+			Type:  api.IngressType_NodePort,
+			Ports: []uint32{5},
+		},
+	}
+
+	assert.Equal(t, expected, CombineIngressService(ingress, services))
 }
