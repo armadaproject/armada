@@ -435,7 +435,7 @@ func (server *SubmitServer) createJobs(request *api.JobSubmitRequest, owner stri
 
 			RequiredNodeLabels: item.RequiredNodeLabels,
 			Ingress:            item.Ingress,
-			Services: 			item.Services,
+			Services:           item.Services,
 
 			Priority: item.Priority,
 
