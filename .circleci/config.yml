@@ -122,6 +122,11 @@ jobs:
           name: Check Go formatting
           command: |
             go install golang.org/x/tools/cmd/goimports@v0.1.1
+            if [ $? -ne 0 ]
+            then
+              echo "goimports installation failed" >&2
+              exit 1
+            fi
             goimports -d -local "github.com/G-Research/armada" .
             exit $(goimports -l -local "github.com/G-Research/armada" . | wc -l)
 
