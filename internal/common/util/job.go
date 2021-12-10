@@ -165,28 +165,27 @@ func getNodeSelectorFromKey(key string) (map[string]string, error) {
 }
 
 // TODO We could do some custom encoding of these object to make them more compact
-// TODO Should this be the whole affinity object?
 func getAffinityKey(spec *v1.PodSpec) string {
-	if spec.Affinity == nil || spec.Affinity.NodeAffinity == nil {
+	if spec.Affinity == nil {
 		return noValueString
 	}
 
-	b, _ := proto.Marshal(spec.Affinity.NodeAffinity)
+	b, _ := proto.Marshal(spec.Affinity)
 	return string(b)
 }
 
-func getAffinityFromKey(key string) (*v1.NodeAffinity, error) {
+func getAffinityFromKey(key string) (*v1.Affinity, error) {
 	if key == noValueString {
 		return nil, nil
 	}
 
-	var nodeAffinity v1.NodeAffinity
+	var affinity v1.Affinity
 	keyBytes := []byte(key)
-	err := proto.Unmarshal(keyBytes, &nodeAffinity)
+	err := proto.Unmarshal(keyBytes, &affinity)
 	if err != nil {
 		return nil, fmt.Errorf("unable to unmarshal node affinity %s because %s", key, err)
 	}
-	return &nodeAffinity, err
+	return &affinity, err
 }
 
 func GenerateJobRequirementsFromKey(key string) (*api.Job, error) {
@@ -253,14 +252,11 @@ func generatePodSpecFromKey(key string) (*v1.PodSpec, int, error) {
 	spec.Tolerations = tolerations
 
 	affinityKey := sections[3]
-	nodeAffinity, err := getAffinityFromKey(affinityKey)
+	affinity, err := getAffinityFromKey(affinityKey)
 	if err != nil {
 		return nil, 0, err
 	}
-	if nodeAffinity != nil {
-		affinity := &v1.Affinity{
-			NodeAffinity: nodeAffinity,
-		}
+	if affinity != nil {
 		spec.Affinity = affinity
 	}
 

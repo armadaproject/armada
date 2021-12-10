@@ -55,7 +55,7 @@ func TestGetResourceRequestKey(t *testing.T) {
 
 	result := GetRequirementKey(&job)
 
-	assert.Equal(t, result, "50++cpu=1--memory=751619276800--nvidia.com/gpu=1||armada/important=true||armada/important+true+NoSchedule+Equal||\n\"\n \n\u001E\n\bNodeName\u0012\u0006Exists\u001A\u0004val1\u001A\u0004val2||1")
+	assert.Equal(t, result, "50++cpu=1--memory=751619276800--nvidia.com/gpu=1||armada/important=true||armada/important+true+NoSchedule+Equal||\n$\n\"\n \n\x1e\n\bNodeName\x12\x06Exists\x1a\x04val1\x1a\x04val2||1")
 }
 
 func TestGenerateJobRequirementsFromKey(t *testing.T) {
@@ -104,7 +104,7 @@ func TestGenerateJobRequirementsFromKey(t *testing.T) {
 		},
 	}
 
-	result, err := GenerateJobRequirementsFromKey("50++cpu=1--memory=751619276800--nvidia.com/gpu=1||armada/important=true||armada/important+true+NoSchedule+Equal||\n\"\n \n\u001E\n\bNodeName\u0012\u0006Exists\u001A\u0004val1\u001A\u0004val2||1")
+	result, err := GenerateJobRequirementsFromKey("50++cpu=1--memory=751619276800--nvidia.com/gpu=1||armada/important=true||armada/important+true+NoSchedule+Equal||\n$\n\"\n \n\x1e\n\bNodeName\x12\x06Exists\x1a\x04val1\x1a\x04val2||1")
 	assert.NoError(t, err)
 	assert.Equal(t, result, expected)
 }
@@ -292,7 +292,7 @@ func TestGetNodeSelectorFromKey(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestGetNodeAffinityKey(t *testing.T) {
+func TestGetAffinityKey(t *testing.T) {
 	spec := &v1.PodSpec{}
 	result := getAffinityKey(spec)
 	assert.Equal(t, result, noValueString)
@@ -319,25 +319,27 @@ func TestGetNodeAffinityKey(t *testing.T) {
 	}
 
 	result = getAffinityKey(spec)
-	assert.Equal(t, result, "\n\"\n \n\u001E\n\bNodeName\u0012\u0006Exists\u001A\u0004val1\u001A\u0004val2")
+	assert.Equal(t, result, "\n$\n\"\n \n\x1e\n\bNodeName\x12\x06Exists\x1a\x04val1\x1a\x04val2")
 }
 
-func TestGetNodeAffinityFromKey(t *testing.T) {
+func TestGetAffinityFromKey(t *testing.T) {
 	result, err := getAffinityFromKey(noValueString)
 	assert.NoError(t, err)
 	assert.Nil(t, result)
 
-	expected := &v1.NodeAffinity{
-		RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
-			NodeSelectorTerms: []v1.NodeSelectorTerm{
-				{
-					MatchExpressions: []v1.NodeSelectorRequirement{
-						{
-							Key:      "NodeName",
-							Operator: v1.NodeSelectorOpExists,
-							Values: []string{
-								"val1",
-								"val2",
+	expected := &v1.Affinity{
+		NodeAffinity: &v1.NodeAffinity{
+			RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
+				NodeSelectorTerms: []v1.NodeSelectorTerm{
+					{
+						MatchExpressions: []v1.NodeSelectorRequirement{
+							{
+								Key:      "NodeName",
+								Operator: v1.NodeSelectorOpExists,
+								Values: []string{
+									"val1",
+									"val2",
+								},
 							},
 						},
 					},
@@ -345,7 +347,7 @@ func TestGetNodeAffinityFromKey(t *testing.T) {
 			},
 		},
 	}
-	result, err = getAffinityFromKey("\n\"\n \n\u001E\n\bNodeName\u0012\u0006Exists\u001A\u0004val1\u001A\u0004val2")
+	result, err = getAffinityFromKey("\n$\n\"\n \n\x1e\n\bNodeName\x12\x06Exists\x1a\x04val1\x1a\x04val2")
 	assert.NoError(t, err)
 	assert.Equal(t, expected, result)
 
