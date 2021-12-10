@@ -15,7 +15,7 @@ import (
 	"github.com/G-Research/armada/pkg/api"
 )
 
-const maxJobsPerLease = 10000
+const leaseDeadlineTolerance = time.Second * 3
 
 type JobQueue interface {
 	PeekClusterQueue(clusterId, queue string, limit int64) ([]*api.Job, error)
@@ -94,7 +94,7 @@ func LeaseJobs(ctx context.Context,
 		onJobsLeased: onJobLease,
 	}
 
-	return lc.scheduleJobs(maxJobsPerLease)
+	return lc.scheduleJobs(config.MaximumJobsToSchedule)
 }
 
 func calculateQueueSchedulingLimits(
@@ -167,7 +167,7 @@ func (c *leaseContext) assignJobs(limit int) ([]*api.Job, error) {
 		c.queueSchedulingInfo[queue].UpdateLimits(scheduled)
 		jobs = append(jobs, leased...)
 
-		if c.closeToDeadline() {
+		if util.CloseToDeadline(c.ctx, leaseDeadlineTolerance) {
 			break
 		}
 	}
@@ -221,7 +221,7 @@ func (c *leaseContext) distributeRemainder(limit int) ([]*api.Job, error) {
 		}
 
 		limit -= len(leased)
-		if limit <= 0 || c.closeToDeadline() {
+		if limit <= 0 || util.CloseToDeadline(c.ctx, leaseDeadlineTolerance) {
 			break
 		}
 	}
@@ -285,7 +285,7 @@ func (c *leaseContext) leaseJobs(queue *api.Queue, slice common.ComputeResources
 		if len(candidates) < int(c.schedulingConfig.QueueLeaseBatchSize) {
 			break
 		}
-		if c.closeToDeadline() {
+		if util.CloseToDeadline(c.ctx, leaseDeadlineTolerance) {
 			break
 		}
 	}
@@ -316,11 +316,6 @@ func removeJobs(jobs []*api.Job, jobsToRemove []*api.Job) []*api.Job {
 		}
 	}
 	return result
-}
-
-func (c *leaseContext) closeToDeadline() bool {
-	d, exists := c.ctx.Deadline()
-	return exists && d.Before(time.Now().Add(time.Second))
 }
 
 func pickQueueRandomly(shares map[*api.Queue]float64) *api.Queue {

@@ -25,15 +25,19 @@ func (p *EventProcessor) Start() {
 	}
 }
 
-func (p *EventProcessor) handleMessage(eventMessage *api.EventMessage) error {
+func (p *EventProcessor) handleMessage(eventMessage *eventstream.Message) error {
 	// TODO: batching???
-	event, err := api.UnwrapEvent(eventMessage)
+	event, err := api.UnwrapEvent(eventMessage.EventMessage)
 	if err != nil {
 		return fmt.Errorf("error while unwrapping event message: %v", err)
 	}
 	err = p.processEvent(event)
 	if err != nil {
 		return fmt.Errorf("Error while reporting event from nats: %v (event: %v)", err, eventMessage)
+	}
+	err = eventMessage.Ack()
+	if err != nil {
+		return fmt.Errorf("error while attempting to acknowledge event: %v", err)
 	}
 	return nil
 }

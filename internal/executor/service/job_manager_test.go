@@ -84,7 +84,7 @@ func makePodWithCurrentStateReported(state v1.PodPhase, reportedDone bool) *v1.P
 func createManager(minimumPodAge, failedPodExpiry time.Duration) *JobManager {
 	fakeClusterContext := context2.NewFakeClusterContext(configuration.ApplicationConfiguration{ClusterId: "test", Pool: "pool"}, nil)
 	fakeEventReporter := &reporter_fake.FakeEventReporter{}
-	jobContext := job.NewClusterJobContext(fakeClusterContext, &mockPodChecks{}, time.Minute*3)
+	jobContext := job.NewClusterJobContext(fakeClusterContext, &mockPodChecks{}, time.Minute*3, 1)
 
 	jobLeaseService := fake.NewMockLeaseService()
 

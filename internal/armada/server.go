@@ -1,6 +1,7 @@
 package armada
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -29,6 +30,11 @@ import (
 func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker) (func(), *sync.WaitGroup) {
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
+
+	err := validateArmadaConfig(config)
+	if err != nil {
+		panic(fmt.Errorf("configuration validation error: %v", err))
+	}
 
 	grpcServer := grpcCommon.CreateGrpcServer(auth.ConfigureAuth(config.Auth))
 
@@ -80,18 +86,30 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 	}
 
 	// TODO: move this to task manager
-	stopSubscription := func() {}
+	teardown := func() {}
 	if eventStream != nil {
 		eventStore = repository.NewEventStore(eventStream)
-		eventProcessor := repository.NewEventRedisProcessor(eventStream, config.EventStoreQueue, redisEventRepository)
+
+		eventRepoBatcher := eventstream.NewTimedEventBatcher(config.Events.ProcessorBatchSize, config.Events.ProcessorMaxTimeBetweenBatches, config.Events.ProcessorTimeout)
+		eventProcessor := repository.NewEventRedisProcessor(config.Events.StoreQueue, redisEventRepository, eventStream, eventRepoBatcher)
 		eventProcessor.Start()
-		jobStatusProcessor := repository.NewEventJobStatusProcessor(eventStream, config.EventJobStatusQueue, jobRepository)
+
+		jobStatusBatcher := eventstream.NewTimedEventBatcher(config.Events.ProcessorBatchSize, config.Events.ProcessorMaxTimeBetweenBatches, config.Events.ProcessorTimeout)
+		jobStatusProcessor := repository.NewEventJobStatusProcessor(config.Events.JobStatusQueue, jobRepository, eventStream, jobStatusBatcher)
 		jobStatusProcessor.Start()
 
-		stopSubscription = func() {
-			err := eventStream.Close()
+		teardown = func() {
+			err := eventRepoBatcher.Stop()
 			if err != nil {
-				log.Errorf("failed to close stream connection: %v", err)
+				log.Errorf("failed to flush event processor buffer for redis")
+			}
+			err = jobStatusBatcher.Stop()
+			if err != nil {
+				log.Errorf("failed to flush job status batcher processor")
+			}
+			err = eventStream.Close()
+			if err != nil {
+				log.Errorf("failed to close event stream connection: %v", err)
 			}
 		}
 	} else {
@@ -100,7 +118,15 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 
 	permissions := authorization.NewPrincipalPermissionChecker(config.Auth.PermissionGroupMapping, config.Auth.PermissionScopeMapping, config.Auth.PermissionClaimMapping)
 
-	submitServer := server.NewSubmitServer(permissions, jobRepository, queueRepository, eventStore, schedulingInfoRepository, &config.QueueManagement, &config.Scheduling)
+	submitServer := server.NewSubmitServer(
+		permissions,
+		jobRepository,
+		queueRepository,
+		eventStore,
+		schedulingInfoRepository,
+		config.CancelJobsBatchSize,
+		&config.QueueManagement,
+		&config.Scheduling)
 	usageServer := server.NewUsageServer(permissions, config.PriorityHalfTime, &config.Scheduling, usageRepository, queueRepository)
 	aggregatedQueueServer := server.NewAggregatedQueueServer(permissions, config.Scheduling, jobRepository, queueCache, queueRepository, usageRepository, eventStore, schedulingInfoRepository)
 	eventServer := server.NewEventServer(permissions, redisEventRepository, eventStore)
@@ -120,7 +146,7 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 	grpcCommon.Listen(config.GrpcPort, grpcServer, wg)
 
 	return func() {
-		stopSubscription()
+		teardown()
 		taskManager.StopAll(time.Second * 2)
 		grpcServer.GracefulStop()
 	}, wg
@@ -128,4 +154,14 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 
 func createRedisClient(config *redis.UniversalOptions) redis.UniversalClient {
 	return redis.NewUniversalClient(config)
+}
+
+func validateArmadaConfig(config *configuration.ArmadaConfig) error {
+	if config.CancelJobsBatchSize <= 0 {
+		return fmt.Errorf("cancel jobs batch should be greater than 0: is %d", config.CancelJobsBatchSize)
+	}
+	if config.Scheduling.MaximumJobsToSchedule <= 0 {
+		return fmt.Errorf("MaximumJobsToSchedule should be greater than 0: is %d", config.Scheduling.MaximumJobsToSchedule)
+	}
+	return nil
 }

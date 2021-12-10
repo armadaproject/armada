@@ -10,6 +10,7 @@ echo "Using $stream_backend"
 kind create cluster --name demo-a --config ./docs/dev/kind.yaml
 
 docker-compose -f ./docs/dev/docker-compose.yaml up -d
+sleep 1s
 
 go run ./cmd/lookout/main.go --migrateDatabase
 

@@ -1,11 +1,15 @@
 package main
 
 import (
+	"log"
+
 	"github.com/G-Research/armada/cmd/armadactl/cmd"
-	"github.com/G-Research/armada/internal/common"
 )
 
+// Config is handled by cmd/params.go
 func main() {
-	common.ConfigureCommandLineLogging()
-	cmd.Execute()
+	root := cmd.RootCmd()
+	if err := root.Execute(); err != nil {
+		log.Fatal(err)
+	}
 }

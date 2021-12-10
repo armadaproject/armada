@@ -1,18 +1,26 @@
 package util
 
-func Batch(elements []string, batchSize int) [][]string {
-	var batch []string
-	batchIdx := 0
-	result := [][]string{}
-	for i, e := range elements {
-		if batch == nil || batchIdx >= len(batch) {
-			batch = make([]string, Min(batchSize, len(elements)-i))
-			result = append(result, batch)
-			batchIdx = 0
-		}
+import "math"
 
-		batch[batchIdx] = e
-		batchIdx++
+func Batch(elements []string, batchSize int) [][]string {
+	total := len(elements)
+
+	totalFullBatches := int(math.Floor(float64(total) / float64(batchSize)))
+	lastBatchSize := total % batchSize
+	totalBatches := totalFullBatches
+	if lastBatchSize != 0 {
+		totalBatches++
 	}
-	return result
+
+	batches := make([][]string, totalBatches, totalBatches)
+
+	for i := 0; i < totalFullBatches; i++ {
+		batches[i] = elements[i*batchSize : (i+1)*batchSize]
+	}
+
+	if lastBatchSize != 0 {
+		batches[totalFullBatches] = elements[totalFullBatches*batchSize : totalFullBatches*batchSize+lastBatchSize]
+	}
+
+	return batches
 }

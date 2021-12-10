@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -16,6 +17,7 @@ import (
 	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/G-Research/armada/internal/armada/permissions"
 	"github.com/G-Research/armada/internal/armada/repository"
+	"github.com/G-Research/armada/internal/armada/server/handlers"
 	"github.com/G-Research/armada/internal/common/auth/authorization"
 	"github.com/G-Research/armada/internal/common/auth/permission"
 	"github.com/G-Research/armada/internal/common/util"
@@ -29,6 +31,7 @@ type SubmitServer struct {
 	queueRepository          repository.QueueRepository
 	eventStore               repository.EventStore
 	schedulingInfoRepository repository.SchedulingInfoRepository
+	cancelJobsBatchSize      int
 	queueManagementConfig    *configuration.QueueManagementConfig
 	schedulingConfig         *configuration.SchedulingConfig
 }
@@ -39,6 +42,7 @@ func NewSubmitServer(
 	queueRepository repository.QueueRepository,
 	eventStore repository.EventStore,
 	schedulingInfoRepository repository.SchedulingInfoRepository,
+	cancelJobsBatchSize int,
 	queueManagementConfig *configuration.QueueManagementConfig,
 	schedulingConfig *configuration.SchedulingConfig,
 ) *SubmitServer {
@@ -49,97 +53,47 @@ func NewSubmitServer(
 		queueRepository:          queueRepository,
 		eventStore:               eventStore,
 		schedulingInfoRepository: schedulingInfoRepository,
+		cancelJobsBatchSize:      cancelJobsBatchSize,
 		queueManagementConfig:    queueManagementConfig,
 		schedulingConfig:         schedulingConfig}
 }
 
 func (server *SubmitServer) GetQueueInfo(ctx context.Context, req *api.QueueInfoRequest) (*api.QueueInfo, error) {
-	if e := checkPermission(server.permissions, ctx, permissions.WatchAllEvents); e != nil {
-		return nil, e
-	}
-	jobSets, e := server.jobRepository.GetQueueActiveJobSets(req.Name)
-	if e != nil {
-		return nil, e
-	}
-	return &api.QueueInfo{
-		Name:          req.Name,
-		ActiveJobSets: jobSets,
-	}, nil
+	handler := handlers.GetQueueInfo(server.jobRepository.GetQueueActiveJobSets).
+		Authorize(server.permissions.UserHasPermission, permissions.WatchAllEvents)
+
+	return handler(ctx, req)
 }
 
 func (server *SubmitServer) GetQueue(ctx context.Context, req *api.QueueGetRequest) (*api.Queue, error) {
-	queue, e := server.queueRepository.GetQueue(req.Name)
-	if e == repository.ErrQueueNotFound {
-		return nil, status.Errorf(codes.NotFound, "Queue %q not found", req.Name)
+	handler := handlers.GetQueue(server.queueRepository.GetQueue)
 
-	} else if e != nil {
-		return nil, status.Errorf(codes.Unavailable, "Could not load queue %q: %s", req.Name, e.Error())
-	}
-	return queue, nil
+	return handler(ctx, req)
 }
 
-func (server *SubmitServer) CreateQueue(ctx context.Context, queue *api.Queue) (*types.Empty, error) {
-	if e := checkPermission(server.permissions, ctx, permissions.CreateQueue); e != nil {
-		return nil, e
-	}
+func (server *SubmitServer) CreateQueue(ctx context.Context, req *api.Queue) (*types.Empty, error) {
+	handler := handlers.CreateQueue(server.queueRepository.CreateQueue).
+		Ownership(authorization.GetPrincipal(ctx).GetName()).
+		Validate().
+		Authorize(server.permissions.UserHasPermission, permissions.CreateQueue)
 
-	if len(queue.UserOwners) == 0 {
-		principal := authorization.GetPrincipal(ctx)
-		queue.UserOwners = []string{principal.GetName()}
-	}
-
-	e := validateQueue(queue)
-	if e != nil {
-		return nil, e
-	}
-
-	e = server.queueRepository.CreateQueue(queue)
-	if e == repository.ErrQueueAlreadyExists {
-		return nil, status.Errorf(codes.AlreadyExists, "Queue %q already exists", queue.Name)
-	} else if e != nil {
-		return nil, status.Errorf(codes.Unavailable, e.Error())
-	}
-	return &types.Empty{}, nil
+	return handler(ctx, req)
 }
 
-func (server *SubmitServer) UpdateQueue(ctx context.Context, queue *api.Queue) (*types.Empty, error) {
-	if e := checkPermission(server.permissions, ctx, permissions.CreateQueue); e != nil {
-		return nil, e
-	}
+func (server *SubmitServer) UpdateQueue(ctx context.Context, req *api.Queue) (*types.Empty, error) {
+	handler := handlers.UpdateQueue(server.queueRepository.UpdateQueue).
+		Validate().
+		Authorize(server.permissions.UserHasPermission, permissions.CreateQueue)
 
-	e := validateQueue(queue)
-	if e != nil {
-		return nil, e
-	}
-
-	e = server.queueRepository.UpdateQueue(queue)
-	if e == repository.ErrQueueNotFound {
-		return nil, status.Errorf(codes.NotFound, "Queue %q not found", queue.Name)
-	} else if e != nil {
-		return nil, status.Errorf(codes.Unavailable, e.Error())
-	}
-	return &types.Empty{}, nil
+	return handler(ctx, req)
 }
 
-func (server *SubmitServer) DeleteQueue(ctx context.Context, request *api.QueueDeleteRequest) (*types.Empty, error) {
-	if e := checkPermission(server.permissions, ctx, permissions.DeleteQueue); e != nil {
-		return nil, e
-	}
+func (server *SubmitServer) DeleteQueue(ctx context.Context, req *api.QueueDeleteRequest) (*types.Empty, error) {
+	handler := handlers.DeleteQueue(server.queueRepository.DeleteQueue).
+		CheckIfEmpty(server.jobRepository.GetQueueActiveJobSets).
+		Authorize(server.permissions.UserHasPermission, permissions.DeleteQueue)
 
-	active, e := server.jobRepository.GetQueueActiveJobSets(request.Name)
-	if e != nil {
-		return nil, status.Errorf(codes.InvalidArgument, e.Error())
-	}
-	if len(active) > 0 {
-		return nil, status.Errorf(codes.FailedPrecondition, "Queue is not empty.")
-	}
-
-	e = server.queueRepository.DeleteQueue(request.Name)
-	if e != nil {
-		return nil, status.Errorf(codes.InvalidArgument, e.Error())
-	}
-
-	return &types.Empty{}, nil
+	return handler(ctx, req)
 }
 
 func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRequest) (*api.JobSubmitResponse, error) {
@@ -152,6 +106,8 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 
 	jobs, e := server.createJobs(req, principal.GetName(), ownershipGroups)
 	if e != nil {
+		reqJson, _ := json.Marshal(req)
+		log.Errorf("Error submitting job %s for user %s: %v", reqJson, principal.GetName(), e)
 		return nil, status.Errorf(codes.InvalidArgument, e.Error())
 	}
 
@@ -162,6 +118,8 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 
 	e = validateJobsCanBeScheduled(jobs, allClusterSchedulingInfo)
 	if e != nil {
+		reqJson, _ := json.Marshal(req)
+		log.Errorf("Error submitting job %s for user %s: %v", reqJson, principal.GetName(), e)
 		return nil, status.Errorf(codes.InvalidArgument, e.Error())
 	}
 
@@ -211,23 +169,43 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 
 func (server *SubmitServer) CancelJobs(ctx context.Context, request *api.JobCancelRequest) (*api.CancellationResult, error) {
 	if request.JobId != "" {
-		jobs, e := server.jobRepository.GetExistingJobsByIds([]string{request.JobId})
-		if e != nil {
-			return nil, status.Errorf(codes.Internal, e.Error())
+		jobs, err := server.jobRepository.GetExistingJobsByIds([]string{request.JobId})
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, err.Error())
 		}
 		return server.cancelJobs(ctx, jobs[0].Queue, jobs)
 	}
 
 	if request.JobSetId != "" && request.Queue != "" {
-		ids, e := server.jobRepository.GetActiveJobIds(request.Queue, request.JobSetId)
-		if e != nil {
-			return nil, status.Errorf(codes.Aborted, e.Error())
+		ids, err := server.jobRepository.GetActiveJobIds(request.Queue, request.JobSetId)
+		if err != nil {
+			return nil, status.Errorf(codes.Aborted, err.Error())
 		}
-		jobs, e := server.jobRepository.GetExistingJobsByIds(ids)
-		if e != nil {
-			return nil, status.Errorf(codes.Internal, e.Error())
+
+		batches := util.Batch(ids, server.cancelJobsBatchSize)
+		cancelledIds := []string{}
+		for _, batch := range batches {
+			jobs, err := server.jobRepository.GetExistingJobsByIds(batch)
+			if err != nil {
+				return &api.CancellationResult{CancelledIds: cancelledIds}, status.Errorf(
+					codes.Internal,
+					"failed to find some jobs: %v", err)
+			}
+			result, err := server.cancelJobs(ctx, request.Queue, jobs)
+			if err != nil {
+				return &api.CancellationResult{CancelledIds: cancelledIds}, status.Errorf(
+					codes.Internal,
+					"failed to cancel some jobs: %v", err)
+			}
+			cancelledIds = append(cancelledIds, result.CancelledIds...)
+
+			if util.CloseToDeadline(ctx, time.Second*1) {
+				return &api.CancellationResult{CancelledIds: cancelledIds}, status.Errorf(
+					codes.DeadlineExceeded,
+					"not all jobs were cancelled: took too long")
+			}
 		}
-		return server.cancelJobs(ctx, request.Queue, jobs)
+		return &api.CancellationResult{CancelledIds: cancelledIds}, nil
 	}
 	return nil, status.Errorf(codes.InvalidArgument, "Specify job id or queue with job set id")
 }
