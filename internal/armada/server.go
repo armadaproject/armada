@@ -31,9 +31,6 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 
 	// TODO Using an error group would be better.
 	// Since we want to shut down everything in a controlled manner in case of an irrecoverable error.
-	// Doesn't look like wg.Done() is called anywhere in this method.
-	// Either it's not called (we could be exiting using panic/os.Exit),
-	// or it's called in a sub-call.
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
 
@@ -49,6 +46,7 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 	authServices := auth.ConfigureAuth(config.Auth)
 	grpcServer := grpcCommon.CreateGrpcServer(authServices)
 
+	// Allows for registering functions to be run periodically in the background
 	taskManager := task.NewBackgroundTaskManager(metrics.MetricPrefix)
 
 	// TODO Redis setup code. Move into a separate function.
@@ -184,9 +182,6 @@ func createRedisClient(config *redis.UniversalOptions) redis.UniversalClient {
 func validateArmadaConfig(config *configuration.ArmadaConfig) error {
 	if config.CancelJobsBatchSize <= 0 {
 		return fmt.Errorf("cancel jobs batch should be greater than 0: is %d", config.CancelJobsBatchSize)
-	}
-	if config.Scheduling.MaximumJobsToSchedule <= 0 {
-		return fmt.Errorf("MaximumJobsToSchedule should be greater than 0: is %d", config.Scheduling.MaximumJobsToSchedule)
 	}
 	return nil
 }
