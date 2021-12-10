@@ -8,6 +8,9 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
+// task represents a function to be called periodically.
+// Task runtimes are recorded in Prometheus.
+// The Prometehus log name for each task is prepended with metricName.
 type task struct {
 	function    func()
 	interval    time.Duration
@@ -15,13 +18,17 @@ type task struct {
 	stopChannel chan bool
 }
 
-// BackgroundTaskManager is not threadsafe, it should only be accessed from a single thread.
+// BackgroundTaskManager is used for registering tasks (functions) to be run periodically.
+// Prometehus log names for each task are prepended with metricsPrefix.
+// BackgroundTaskManager is not threadsafe; it should only be accessed from a single thread.
 type BackgroundTaskManager struct {
 	tasks         []*task
 	metricsPrefix string
 	wg            *sync.WaitGroup
 }
 
+// NewBackgroundTaskManager returns a new BackgroundTaskManager with no registered tasks.
+// Call Register to add and start tasks.
 func NewBackgroundTaskManager(metricsPrefix string) *BackgroundTaskManager {
 	return &BackgroundTaskManager{
 		tasks:         []*task{},
@@ -30,9 +37,12 @@ func NewBackgroundTaskManager(metricsPrefix string) *BackgroundTaskManager {
 	}
 }
 
-func (m *BackgroundTaskManager) Register(backgroundTask func(), interval time.Duration, metricName string) {
+// Register the function f to be run periodically.
+// Interval is the time between function returns and the next time it is called,
+// i.e., the time between calls to function is interval + the runtime of the function.
+func (m *BackgroundTaskManager) Register(function func(), interval time.Duration, metricName string) {
 	task := &task{
-		function:    backgroundTask,
+		function:    function,
 		interval:    interval,
 		metricName:  metricName,
 		stopChannel: make(chan bool),
@@ -41,6 +51,9 @@ func (m *BackgroundTaskManager) Register(backgroundTask func(), interval time.Du
 	m.tasks = append(m.tasks, task)
 }
 
+// StopAll stops all tasks. Returns after all currently running tasks have finished or timeout has
+// elapsed, whichever occurs first. Returns true if there are tasks still running when this
+// function returns and false otherwise.
 func (m *BackgroundTaskManager) StopAll(timeout time.Duration) bool {
 	m.stopTasks()
 	return m.waitForShutdownCompletion(timeout)
