@@ -16,6 +16,8 @@ import (
 	"github.com/G-Research/armada/internal/common/util"
 )
 
+// CreateGatewayHandler configures the gRPC API gateway
+// by registering relevant handlers with the given mux.
 func CreateGatewayHandler(
 	grpcPort uint16,
 	mux *http.ServeMux,
@@ -43,6 +45,7 @@ func CreateGatewayHandler(
 		panic(err)
 	}
 
+	// TODO this should return an error instead of calling panic
 	for _, handler := range handlers {
 		err = handler(connectionCtx, gw, conn)
 		if err != nil {
