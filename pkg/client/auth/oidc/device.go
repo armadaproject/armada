@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"html"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -146,13 +145,8 @@ func makeErrorForHTTPResponse(resp *http.Response) error {
 	if err != nil {
 		return err
 	}
-	safeURL := strings.Replace(resp.Request.URL.String(), "\n", "", -1)
+	url := resp.Request.URL.String()
+	safeURL := strings.Replace(url, "\n", "", -1)
 	safeURL = strings.Replace(safeURL, "\r", "", -1)
 	return fmt.Errorf("%s %s returned HTTP %s; \n\n %#q", resp.Request.Method, safeURL, resp.Status, bodyBytes)
-}
-
-func safeString(str string) string {
-	noCR := strings.Replace(str, "\r", "", -1)
-	noNL := strings.Replace(noCR, "\n", "", -1)
-	return html.EscapeString(noNL)
 }
