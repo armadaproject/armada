@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"errors"
 	"math"
 	"testing"
 	"time"
@@ -110,7 +111,10 @@ func TestDeletingExpiredJobShouldDeleteJobFromQueue(t *testing.T) {
 		_, e := r.ExpireLeases("queue1", deadline)
 		assert.Nil(t, e)
 
-		deletionResult := r.DeleteJobs([]*api.Job{job})
+		deletionResult, err := r.DeleteJobs([]*api.Job{job})
+		if err != nil {
+			t.Fatalf("deleting jobs failed with error %s", err)
+		}
 
 		err, deleted := deletionResult[job]
 
@@ -167,7 +171,10 @@ func TestDeleteRunningJob(t *testing.T) {
 	withRepository(func(r *RedisJobRepository) {
 		job := addLeasedJob(t, r, "queue1", "cluster1")
 
-		result := r.DeleteJobs([]*api.Job{job})
+		result, err := r.DeleteJobs([]*api.Job{job})
+		if err != nil {
+			t.Fatalf("deleting jobs failed with error %s", err)
+		}
 		err, deletionOccurred := result[job]
 		assert.Nil(t, err)
 		assert.True(t, deletionOccurred)
@@ -178,7 +185,10 @@ func TestDeleteQueuedJob(t *testing.T) {
 	withRepository(func(r *RedisJobRepository) {
 		job := addTestJob(t, r, "queue1")
 
-		result := r.DeleteJobs([]*api.Job{job})
+		result, err := r.DeleteJobs([]*api.Job{job})
+		if err != nil {
+			t.Fatalf("deleting jobs failed with error %s", err)
+		}
 		err, deletionOccurred := result[job]
 		assert.Nil(t, err)
 		assert.True(t, deletionOccurred)
@@ -188,16 +198,25 @@ func TestDeleteQueuedJob(t *testing.T) {
 func TestDeleteJobShouldSetJobObjectToExpire(t *testing.T) {
 	withRepository(func(r *RedisJobRepository) {
 		job := addLeasedJob(t, r, "queue1", "cluster1")
-		expiryStatuses := r.getExpiryStatus([]*api.Job{job})
+		expiryStatuses, err := r.getExpiryStatus([]*api.Job{job})
+		if err != nil {
+			t.Fatalf("getting expiry status failed with error %s", err)
+		}
 
 		assert.False(t, expiryStatuses[job])
 
-		result := r.DeleteJobs([]*api.Job{job})
+		result, err := r.DeleteJobs([]*api.Job{job})
+		if err != nil {
+			t.Fatalf("deleting jobs failed with error %s", err)
+		}
 		err, deletionOccurred := result[job]
 		assert.Nil(t, err)
 		assert.True(t, deletionOccurred)
 
-		expiryStatuses = r.getExpiryStatus([]*api.Job{job})
+		expiryStatuses, err = r.getExpiryStatus([]*api.Job{job})
+		if err != nil {
+			t.Fatalf("getting expiry status failed with error %s", err)
+		}
 		assert.True(t, expiryStatuses[job])
 	})
 }
@@ -206,7 +225,10 @@ func TestDeleteJob_JobObjectShouldBeRemovedAfterRetentionPeriod(t *testing.T) {
 	withRepositoryUsingJobDefaults(configuration.DatabaseRetentionPolicy{JobRetentionDuration: time.Hour}, func(r *RedisJobRepository) {
 		job := addLeasedJob(t, r, "queue1", "cluster1")
 
-		result := r.DeleteJobs([]*api.Job{job})
+		result, err := r.DeleteJobs([]*api.Job{job})
+		if err != nil {
+			t.Fatalf("deleting jobs failed with error %s", err)
+		}
 		err, deletionOccurred := result[job]
 		assert.Nil(t, err)
 		assert.True(t, deletionOccurred)
@@ -219,7 +241,10 @@ func TestDeleteJob_JobObjectShouldBeRemovedAfterRetentionPeriod(t *testing.T) {
 	withRepositoryUsingJobDefaults(configuration.DatabaseRetentionPolicy{JobRetentionDuration: time.Millisecond}, func(r *RedisJobRepository) {
 		job := addLeasedJob(t, r, "queue1", "cluster1")
 
-		result := r.DeleteJobs([]*api.Job{job})
+		result, err := r.DeleteJobs([]*api.Job{job})
+		if err != nil {
+			t.Fatalf("deleting jobs failed with error %s", err)
+		}
 		err, deletionOccurred := result[job]
 		assert.Nil(t, err)
 		assert.True(t, deletionOccurred)
@@ -236,7 +261,10 @@ func TestDeleteWithSomeMissingJobs(t *testing.T) {
 	withRepository(func(r *RedisJobRepository) {
 		missingJob := &api.Job{Id: "jobId"}
 		runningJob := addLeasedJob(t, r, "queue1", "cluster1")
-		result := r.DeleteJobs([]*api.Job{missingJob, runningJob})
+		result, err := r.DeleteJobs([]*api.Job{missingJob, runningJob})
+		if err != nil {
+			t.Fatalf("deleting jobs failed with error %s", err)
+		}
 
 		err, deletionOccurred := result[missingJob]
 		assert.Nil(t, err)
@@ -253,7 +281,10 @@ func TestReturnLeaseForDeletedJobShouldKeepJobDeleted(t *testing.T) {
 
 		job := addLeasedJob(t, r, "cancel-test-queue", "cluster")
 
-		result := r.DeleteJobs([]*api.Job{job})
+		result, err := r.DeleteJobs([]*api.Job{job})
+		if err != nil {
+			t.Fatalf("deleting jobs failed with error %s", err)
+		}
 		assert.Nil(t, result[job])
 
 		returned, err := r.ReturnLease("cluster", job.Id)
@@ -349,7 +380,8 @@ func TestUpdateStartTime_NonExistentJob(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Len(t, jobErrors, 1)
 		assert.Error(t, jobErrors[0])
-		assert.Equal(t, JobNotFound, jobErrors[0].Error())
+		var e *ErrJobNotFound
+		assert.True(t, errors.As(jobErrors[0], &e))
 	})
 }
 
@@ -357,7 +389,10 @@ func TestUpdateStartTime_FinishedJob(t *testing.T) {
 	withRepository(func(r *RedisJobRepository) {
 		startTime := time.Now()
 		leasedJob := addLeasedJob(t, r, "queue1", "cluster1")
-		errs := r.DeleteJobs([]*api.Job{leasedJob})
+		errs, err := r.DeleteJobs([]*api.Job{leasedJob})
+		if err != nil {
+			t.Fatalf("deleting jobs failed with error %s", err)
+		}
 		for _, err := range errs {
 			assert.NoError(t, err)
 		}
@@ -370,7 +405,8 @@ func TestUpdateStartTime_FinishedJob(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Len(t, jobErrors, 1)
 		assert.Error(t, jobErrors[0])
-		assert.Equal(t, JobNotFound, jobErrors[0].Error())
+		var e *ErrJobNotFound
+		assert.True(t, errors.As(jobErrors[0], &e))
 	})
 }
 
