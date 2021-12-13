@@ -171,7 +171,7 @@ func TestCreateIngress_Basic(t *testing.T) {
 	}
 
 	// TLS disabled jobconfig
-	jobConfig := &api.IngressConfig{
+	jobConfig := &ServiceConfig{
 		Ports: []uint32{8080},
 	}
 
@@ -213,7 +213,7 @@ func TestCreateIngress_TLS(t *testing.T) {
 	}
 
 	// TLS enabled in this test
-	jobConfig := &api.IngressConfig{
+	jobConfig := &ServiceConfig{
 		TlsEnabled: true,
 		Ports:      []uint32{8080},
 	}
@@ -271,7 +271,7 @@ func TestCreateService_Ingress(t *testing.T) {
 			Port: 123,
 		},
 	}
-	ingressType := api.IngressType_Ingress
+	ingressType := Ingress
 	createdService := CreateService(job, pod, ports, ingressType)
 
 	expected := &v1.Service{
@@ -323,7 +323,7 @@ func TestCreateService_NodePort(t *testing.T) {
 			NodePort: 456,
 		},
 	}
-	ingressType := api.IngressType_NodePort
+	ingressType := NodePort
 	createdService := CreateService(job, pod, ports, ingressType)
 
 	expected := &v1.Service{
@@ -375,7 +375,7 @@ func TestCreateService_Headless(t *testing.T) {
 			Port: 123,
 		},
 	}
-	ingressType := api.IngressType_Headless
+	ingressType := Headless
 	createdService := CreateService(job, pod, ports, ingressType)
 
 	expected := &v1.Service{

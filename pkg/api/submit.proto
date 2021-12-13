@@ -33,14 +33,21 @@ message IngressConfig {
 }
 
 message ServiceConfig {
-    IngressType type = 1;
+    ServiceType type = 1;
     repeated uint32 ports = 2;
 }
 
+// Ingress type is being kept here to maintain backwards compatibility for a while.
+// NodePort_Internal and Headless_Internal are used in the exector service generation loop.
 enum IngressType {
-    NodePort = 0;
+    NodePort_Internal = 0;
     Ingress = 1;
-    Headless = 2;
+    Headless_Internal = 2;
+}
+
+enum ServiceType {
+    NodePort = 0;
+    Headless = 1;
 }
 
 // swagger:model

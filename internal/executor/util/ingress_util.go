@@ -19,17 +19,17 @@ func GenerateIngresses(job *api.Job, pod *v1.Pod, ingressConfig *configuration.I
 	ingressToGen := CombineIngressService(job.Ingress, job.Services)
 
 	groupedIngressConfigs := groupIngressConfig(ingressToGen)
-	for ingressType, configs := range groupedIngressConfigs {
+	for svcType, configs := range groupedIngressConfigs {
 		if len(GetServicePorts(configs, &pod.Spec)) > 0 {
-			service := CreateService(job, pod, GetServicePorts(configs, &pod.Spec), ingressType)
+			service := CreateService(job, pod, GetServicePorts(configs, &pod.Spec), svcType)
 			services = append(services, service)
 
-			if ingressType == api.IngressType_Ingress {
+			if svcType == Ingress {
 				for index, config := range configs {
-					if len(GetServicePorts([]*api.IngressConfig{config}, &pod.Spec)) <= 0 {
+					if len(GetServicePorts([]*ServiceConfig{config}, &pod.Spec)) <= 0 {
 						continue
 					}
-					ingressName := fmt.Sprintf("%s-%s-%d", pod.Name, strings.ToLower(ingressType.String()), index)
+					ingressName := fmt.Sprintf("%s-%s-%d", pod.Name, strings.ToLower(svcType.String()), index)
 					ingress := CreateIngress(ingressName, job, pod, service, ingressConfig, config)
 					ingresses = append(ingresses, ingress)
 				}
@@ -40,27 +40,7 @@ func GenerateIngresses(job *api.Job, pod *v1.Pod, ingressConfig *configuration.I
 	return services, ingresses
 }
 
-func CombineIngressService(ingresses []*api.IngressConfig, services []*api.ServiceConfig) []*api.IngressConfig {
-	for _, ing := range ingresses {
-		ing.Type = api.IngressType_Ingress
-	}
-
-	result := ingresses
-
-	for _, svc := range services {
-		result = append(
-			result,
-			&api.IngressConfig{
-				Type:  svc.GetType(),
-				Ports: util.DeepCopyListUint32(svc.Ports),
-			},
-		)
-	}
-
-	return result
-}
-
-func groupIngressConfig(configs []*api.IngressConfig) map[api.IngressType][]*api.IngressConfig {
+func groupIngressConfig(configs []*ServiceConfig) map[ServiceType][]*ServiceConfig {
 	result := gatherIngressConfig(configs)
 
 	for ingressType, grp := range result {
@@ -70,8 +50,8 @@ func groupIngressConfig(configs []*api.IngressConfig) map[api.IngressType][]*api
 	return result
 }
 
-func gatherIngressConfig(configs []*api.IngressConfig) map[api.IngressType][]*api.IngressConfig {
-	result := make(map[api.IngressType][]*api.IngressConfig, 10)
+func gatherIngressConfig(configs []*ServiceConfig) map[ServiceType][]*ServiceConfig {
+	result := make(map[ServiceType][]*ServiceConfig, 10)
 
 	for _, config := range configs {
 		result[config.Type] = append(result[config.Type], deepCopy(config))
@@ -80,8 +60,8 @@ func gatherIngressConfig(configs []*api.IngressConfig) map[api.IngressType][]*ap
 	return result
 }
 
-func mergeOnAnnotations(configs []*api.IngressConfig) []*api.IngressConfig {
-	result := make([]*api.IngressConfig, 0, len(configs))
+func mergeOnAnnotations(configs []*ServiceConfig) []*ServiceConfig {
+	result := make([]*ServiceConfig, 0, len(configs))
 
 	for _, config := range configs {
 		matchFound := false
@@ -100,9 +80,9 @@ func mergeOnAnnotations(configs []*api.IngressConfig) []*api.IngressConfig {
 	return result
 }
 
-func deepCopy(config *api.IngressConfig) *api.IngressConfig {
-	return &api.IngressConfig{
-		Type:        config.GetType(),
+func deepCopy(config *ServiceConfig) *ServiceConfig {
+	return &ServiceConfig{
+		Type:        config.Type,
 		Ports:       util.DeepCopyListUint32(config.Ports),
 		Annotations: util.DeepCopy(config.Annotations),
 		TlsEnabled:  config.TlsEnabled,
@@ -110,18 +90,18 @@ func deepCopy(config *api.IngressConfig) *api.IngressConfig {
 	}
 }
 
-func GetServicePorts(ingressConfigs []*api.IngressConfig, podSpec *v1.PodSpec) []v1.ServicePort {
+func GetServicePorts(svcConfigs []*ServiceConfig, podSpec *v1.PodSpec) []v1.ServicePort {
 	var servicePorts []v1.ServicePort
 
 	for _, container := range podSpec.Containers {
 		ports := container.Ports
-		for _, ingressConfig := range ingressConfigs {
+		for _, svcConfig := range svcConfigs {
 			for _, port := range ports {
 				//Don't expose host via service, this will already be handled by kubernetes
 				if port.HostPort > 0 {
 					continue
 				}
-				if contains(ingressConfig, uint32(port.ContainerPort)) {
+				if contains(svcConfig, uint32(port.ContainerPort)) {
 					servicePort := v1.ServicePort{
 						Name:     fmt.Sprintf("%s-%d", container.Name, port.ContainerPort),
 						Port:     port.ContainerPort,
@@ -136,7 +116,7 @@ func GetServicePorts(ingressConfigs []*api.IngressConfig, podSpec *v1.PodSpec) [
 	return servicePorts
 }
 
-func contains(portConfig *api.IngressConfig, port uint32) bool {
+func contains(portConfig *ServiceConfig, port uint32) bool {
 	for _, p := range portConfig.Ports {
 		if p == port {
 			return true

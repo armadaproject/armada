@@ -904,17 +904,19 @@ namespace GResearch.Armada.Client
     
     }
     
+    /// <summary>Ingress type is being kept here to maintain backwards compatibility for a while.
+    /// NodePort_Internal and Headless_Internal are used in the exector service generation loop.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public enum ApiIngressType
     {
-        [System.Runtime.Serialization.EnumMember(Value = @"NodePort")]
-        NodePort = 0,
+        [System.Runtime.Serialization.EnumMember(Value = @"NodePort_Internal")]
+        NodePort_Internal = 0,
     
         [System.Runtime.Serialization.EnumMember(Value = @"Ingress")]
         Ingress = 1,
     
-        [System.Runtime.Serialization.EnumMember(Value = @"Headless")]
-        Headless = 2,
+        [System.Runtime.Serialization.EnumMember(Value = @"Headless_Internal")]
+        Headless_Internal = 2,
     
     }
     
@@ -1713,8 +1715,19 @@ namespace GResearch.Armada.Client
     
         [Newtonsoft.Json.JsonProperty("type", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         [Newtonsoft.Json.JsonConverter(typeof(Newtonsoft.Json.Converters.StringEnumConverter))]
-        public ApiIngressType? Type { get; set; }
+        public ApiServiceType? Type { get; set; }
     
+    
+    }
+    
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
+    public enum ApiServiceType
+    {
+        [System.Runtime.Serialization.EnumMember(Value = @"NodePort")]
+        NodePort = 0,
+    
+        [System.Runtime.Serialization.EnumMember(Value = @"Headless")]
+        Headless = 1,
     
     }
     

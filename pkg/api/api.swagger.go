@@ -471,12 +471,13 @@ func SwaggerJsonTemplate() string {
 		"      }\n" +
 		"    },\n" +
 		"    \"apiIngressType\": {\n" +
+		"      \"description\": \"Ingress type is being kept here to maintain backwards compatibility for a while.\\nNodePort_Internal and Headless_Internal are used in the exector service generation loop.\",\n" +
 		"      \"type\": \"string\",\n" +
-		"      \"default\": \"NodePort\",\n" +
+		"      \"default\": \"NodePort_Internal\",\n" +
 		"      \"enum\": [\n" +
-		"        \"NodePort\",\n" +
+		"        \"NodePort_Internal\",\n" +
 		"        \"Ingress\",\n" +
-		"        \"Headless\"\n" +
+		"        \"Headless_Internal\"\n" +
 		"      ]\n" +
 		"    },\n" +
 		"    \"apiJob\": {\n" +
@@ -1370,9 +1371,17 @@ func SwaggerJsonTemplate() string {
 		"          }\n" +
 		"        },\n" +
 		"        \"type\": {\n" +
-		"          \"$ref\": \"#/definitions/apiIngressType\"\n" +
+		"          \"$ref\": \"#/definitions/apiServiceType\"\n" +
 		"        }\n" +
 		"      }\n" +
+		"    },\n" +
+		"    \"apiServiceType\": {\n" +
+		"      \"type\": \"string\",\n" +
+		"      \"default\": \"NodePort\",\n" +
+		"      \"enum\": [\n" +
+		"        \"NodePort\",\n" +
+		"        \"Headless\"\n" +
+		"      ]\n" +
 		"    },\n" +
 		"    \"intstrIntOrString\": {\n" +
 		"      \"description\": \"+protobuf=true\\n+protobuf.options.(gogoproto.goproto_stringer)=false\\n+k8s:openapi-gen=true\",\n" +
