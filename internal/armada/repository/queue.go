@@ -46,7 +46,7 @@ func NewRedisQueueRepository(db redis.UniversalClient) *RedisQueueRepository {
 func (r *RedisQueueRepository) GetAllQueues() ([]*api.Queue, error) {
 	result, err := r.db.HGetAll(queueHashKey).Result()
 	if err != nil {
-		return nil, fmt.Errorf("[RedisQueueRepository.GetAllQueues] database error: %s", err)
+		return nil, fmt.Errorf("[RedisQueueRepository.GetAllQueues] error reading from database: %s", err)
 	}
 
 	queues := make([]*api.Queue, 0)
@@ -66,7 +66,7 @@ func (r *RedisQueueRepository) GetQueue(name string) (*api.Queue, error) {
 	if err == redis.Nil {
 		return nil, &ErrQueueNotFound{QueueName: name}
 	} else if err != nil {
-		return nil, fmt.Errorf("[RedisQueueRepository.GetQueue] database error: %s", err)
+		return nil, fmt.Errorf("[RedisQueueRepository.GetQueue] error reading from database: %s", err)
 	}
 
 	queue := &api.Queue{}
@@ -87,7 +87,7 @@ func (r *RedisQueueRepository) CreateQueue(queue *api.Queue) error {
 	// If the key exists, this is a no-op, and result is false.
 	result, err := r.db.HSetNX(queueHashKey, queue.Name, data).Result()
 	if err != nil {
-		return fmt.Errorf("[RedisQueueRepository.CreateQueue] database error: %s", err)
+		return fmt.Errorf("[RedisQueueRepository.CreateQueue] error writing to database: %s", err)
 	}
 	if !result {
 		return &ErrQueueAlreadyExists{QueueName: queue.Name}
