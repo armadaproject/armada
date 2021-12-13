@@ -16,7 +16,7 @@ type ErrQueueNotFound struct {
 }
 
 func (err *ErrQueueNotFound) Error() string {
-	return fmt.Sprintf("queue %s does not exist", err.QueueName)
+	return fmt.Sprintf("could not find queue %q", err.QueueName)
 }
 
 type ErrQueueAlreadyExists struct {
