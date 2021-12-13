@@ -145,5 +145,5 @@ func makeErrorForHTTPResponse(resp *http.Response) error {
 	if err != nil {
 		return err
 	}
-	return fmt.Errorf("%s %s returned HTTP %s; \n\n %#q", resp.Request.Method, resp.Request.URL, resp.Status, bodyBytes)
+	return fmt.Errorf("%s %q returned HTTP %s; \n\n %#q", resp.Request.Method, resp.Request.URL, resp.Status, bodyBytes)
 }
