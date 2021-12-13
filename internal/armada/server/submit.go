@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -359,6 +360,9 @@ func (server *SubmitServer) checkReprioritizePerms(ctx context.Context, jobs []*
 	return nil
 }
 
+// TODO In general, we should not check for permissions before an operation.
+// Instead, we should return a detailed "permission denied error" from which the user can determine
+// what went wrong.
 func (server *SubmitServer) checkQueuePermission(
 	ctx context.Context,
 	queueName string,
@@ -367,7 +371,8 @@ func (server *SubmitServer) checkQueuePermission(
 	allQueuesPermission permission.Permission) (e error, ownershipGroups []string) {
 
 	queue, e := server.queueRepository.GetQueue(queueName)
-	if e == repository.ErrQueueNotFound {
+	var err *repository.ErrQueueNotFound
+	if errors.As(e, &err) {
 		if attemptToCreate &&
 			server.queueManagementConfig.AutoCreateQueues &&
 			server.permissions.UserHasPermission(ctx, permissions.SubmitAnyJobs) {

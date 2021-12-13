@@ -36,7 +36,7 @@ func TestGetQueue(t *testing.T) {
 		},
 		"notFound": func(request api.QueueGetRequest) bool {
 			handler := GetQueue(func(string) (*api.Queue, error) {
-				return nil, repository.ErrQueueNotFound
+				return nil, &repository.ErrQueueNotFound{queueName: "foo"}
 			})
 
 			_, err := handler(context.Background(), &request)

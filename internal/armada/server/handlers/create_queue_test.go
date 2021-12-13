@@ -39,7 +39,7 @@ func TestCreateQueue(t *testing.T) {
 		},
 		"alreadyExists": func(request api.Queue) bool {
 			createQueue := func(*api.Queue) error {
-				return repository.ErrQueueAlreadyExists
+				return &repository.ErrQueueAlreadyExists{queueName: "foo"}
 			}
 
 			handler := CreateQueue(createQueue)

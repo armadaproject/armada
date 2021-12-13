@@ -35,7 +35,7 @@ func TestUpdateQueue(t *testing.T) {
 		},
 		"alreadyExists": func(request api.Queue) bool {
 			handler := UpdateQueue(func(*api.Queue) error {
-				return repository.ErrQueueNotFound
+				return &repository.ErrQueueNotFound{queueName: "foo"}
 			})
 
 			_, err := handler(context.Background(), &request)
