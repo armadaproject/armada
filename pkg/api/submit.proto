@@ -38,11 +38,8 @@ message ServiceConfig {
 }
 
 // Ingress type is being kept here to maintain backwards compatibility for a while.
-// NodePort_Internal and Headless_Internal are used in the exector service generation loop.
 enum IngressType {
-    NodePort_Internal = 0;
-    Ingress = 1;
-    Headless_Internal = 2;
+    Ingress = 0;
 }
 
 enum ServiceType {

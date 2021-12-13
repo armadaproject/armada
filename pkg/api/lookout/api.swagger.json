@@ -127,13 +127,11 @@
       }
     },
     "apiIngressType": {
-      "description": "Ingress type is being kept here to maintain backwards compatibility for a while.\nNodePort_Internal and Headless_Internal are used in the exector service generation loop.",
+      "description": "Ingress type is being kept here to maintain backwards compatibility for a while.",
       "type": "string",
-      "default": "NodePort_Internal",
+      "default": "Ingress",
       "enum": [
-        "NodePort_Internal",
-        "Ingress",
-        "Headless_Internal"
+        "Ingress"
       ]
     },
     "apiJob": {

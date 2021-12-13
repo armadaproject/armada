@@ -138,13 +138,11 @@ func SwaggerJsonTemplate() string {
 		"      }\n" +
 		"    },\n" +
 		"    \"apiIngressType\": {\n" +
-		"      \"description\": \"Ingress type is being kept here to maintain backwards compatibility for a while.\\nNodePort_Internal and Headless_Internal are used in the exector service generation loop.\",\n" +
+		"      \"description\": \"Ingress type is being kept here to maintain backwards compatibility for a while.\",\n" +
 		"      \"type\": \"string\",\n" +
-		"      \"default\": \"NodePort_Internal\",\n" +
+		"      \"default\": \"Ingress\",\n" +
 		"      \"enum\": [\n" +
-		"        \"NodePort_Internal\",\n" +
-		"        \"Ingress\",\n" +
-		"        \"Headless_Internal\"\n" +
+		"        \"Ingress\"\n" +
 		"      ]\n" +
 		"    },\n" +
 		"    \"apiJob\": {\n" +

@@ -904,19 +904,12 @@ namespace GResearch.Armada.Client
     
     }
     
-    /// <summary>Ingress type is being kept here to maintain backwards compatibility for a while.
-    /// NodePort_Internal and Headless_Internal are used in the exector service generation loop.</summary>
+    /// <summary>Ingress type is being kept here to maintain backwards compatibility for a while.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public enum ApiIngressType
     {
-        [System.Runtime.Serialization.EnumMember(Value = @"NodePort_Internal")]
-        NodePort_Internal = 0,
-    
         [System.Runtime.Serialization.EnumMember(Value = @"Ingress")]
-        Ingress = 1,
-    
-        [System.Runtime.Serialization.EnumMember(Value = @"Headless_Internal")]
-        Headless_Internal = 2,
+        Ingress = 0,
     
     }
     
