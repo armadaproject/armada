@@ -94,11 +94,6 @@ func (r *RedisUsageRepository) GetClusterPriorities(clusterIds []string) (map[st
 	pipe := r.db.Pipeline()
 	cmds := make(map[string]*redis.StringStringMapCmd)
 	for _, id := range clusterIds {
-		// TODO Is this correct? The redis.Pipeline type is embedding a statefulCmdable.
-		// I suspect that the HGetAll is dispatched to the statefulCmdable and executed immediately,
-		// i.e., no pipelining takes place here.
-		// To pipeline operations, they should be queued with pipe.Do or pipe.Process.
-		// As a result, we've silently been discarding errors here.
 		cmds[id] = pipe.HGetAll(clusterPrioritiesPrefix + id)
 		err := cmds[id].Err()
 		if err != nil {
@@ -108,7 +103,7 @@ func (r *RedisUsageRepository) GetClusterPriorities(clusterIds []string) (map[st
 
 	// For the default pipeline executor, only the first error is returned,
 	// i.e., commands executed after the erroring command may have also returned an error.
-	_, err := pipe.Exec() // TODO This is a no-op; see comment above.
+	_, err := pipe.Exec()
 	if err != nil {
 		return nil, fmt.Errorf("[RedisUsageRepository.GetClusterPriorities] error performing pipelined read from database: %s", err)
 	}
@@ -131,10 +126,8 @@ func (r *RedisUsageRepository) UpdateCluster(report *api.ClusterUsageReport, pri
 		return fmt.Errorf("[RedisUsageRepository.UpdateCluster] error marshalling report: %s", err)
 	}
 
-	// TODO Same comment as for GetClusterPriorities.
 	pipe := r.db.TxPipeline()
 	pipe.HSet(clusterReportKey, report.ClusterId, data)
-
 	if len(priorities) > 0 {
 		untyped := make(map[string]interface{})
 		for k, v := range priorities {
