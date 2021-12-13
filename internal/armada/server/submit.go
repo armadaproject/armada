@@ -245,7 +245,10 @@ func (server *SubmitServer) cancelJobs(ctx context.Context, queue string, jobs [
 		return nil, status.Errorf(codes.Unknown, e.Error())
 	}
 
-	deletionResult := server.jobRepository.DeleteJobs(jobs)
+	deletionResult, err := server.jobRepository.DeleteJobs(jobs)
+	if err != nil {
+		return nil, status.Errorf(codes.Unknown, e.Error())
+	}
 	cancelled := []*api.Job{}
 	cancelledIds := []string{}
 	for job, err := range deletionResult {
@@ -311,7 +314,7 @@ func (server *SubmitServer) ReprioritizeJobs(ctx context.Context, request *api.J
 }
 
 func (server *SubmitServer) reprioritizeJobs(jobIds []string, newPriority float64, principalName string) (map[string]string, error) {
-	updateJobResults := server.jobRepository.UpdateJobs(jobIds, func(jobs []*api.Job) {
+	updateJobResults, err := server.jobRepository.UpdateJobs(jobIds, func(jobs []*api.Job) {
 		for _, job := range jobs {
 			job.Priority = newPriority
 		}
@@ -320,6 +323,9 @@ func (server *SubmitServer) reprioritizeJobs(jobIds []string, newPriority float6
 			log.Warnf("Failed to report events for reprioritize of jobs %s: %v", strings.Join(jobIds, ", "), err)
 		}
 	})
+	if err != nil {
+		return nil, fmt.Errorf("[SubmitServer.reprioritizeJobs] error updating jobs: %s", err)
+	}
 
 	results := map[string]string{}
 	for _, r := range updateJobResults {

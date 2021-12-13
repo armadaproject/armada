@@ -55,11 +55,11 @@ type JobRepository interface {
 	RenewLease(clusterId string, jobIds []string) (renewed []string, e error)
 	ExpireLeases(queue string, deadline time.Time) (expired []*api.Job, e error)
 	ReturnLease(clusterId string, jobId string) (returnedJob *api.Job, err error)
-	DeleteJobs(jobs []*api.Job) map[*api.Job]error
+	DeleteJobs(jobs []*api.Job) (map[*api.Job]error, error)
 	GetActiveJobIds(queue string, jobSetId string) ([]string, error)
 	GetLeasedJobIds(queue string) ([]string, error)
 	UpdateStartTime(jobStartInfos []*JobStartInfo) ([]error, error)
-	UpdateJobs(ids []string, mutator func([]*api.Job)) []UpdateJobResult
+	UpdateJobs(ids []string, mutator func([]*api.Job)) ([]UpdateJobResult, error)
 	GetJobRunInfos(jobIds []string) (map[string]*RunInfo, error)
 	GetQueueActiveJobSets(queue string) ([]*api.JobSetInfo, error)
 	AddRetryAttempt(jobId string) error
@@ -572,8 +572,8 @@ return redis.call('HSET', startTimeKey, clusterId, startTime)
 
 // TODO Questions regarding the below code:
 // TODO Redis supports setting a retry parameter. Why do we re-implement that functionality?
-func (repo *RedisJobRepository) UpdateJobs(ids []string, mutator func([]*api.Job)) []UpdateJobResult {
-	return repo.updateJobs(ids, mutator, 250, 3, 100*time.Millisecond)
+func (repo *RedisJobRepository) UpdateJobs(ids []string, mutator func([]*api.Job)) ([]UpdateJobResult, error) {
+	return repo.updateJobs(ids, mutator, 250, 3, 100*time.Millisecond), nil
 }
 
 func (repo *RedisJobRepository) updateJobs(ids []string, mutator func([]*api.Job), batchSize int, retries int, retryDelay time.Duration) []UpdateJobResult {

@@ -620,10 +620,13 @@ func TestUpdateJobs_SingleJobThatExists_ChangesJob(t *testing.T) {
 
 		newSchedName := "custom"
 
-		results := r.UpdateJobs([]string{job1.Id}, func(jobs []*api.Job) {
+		results, err := r.UpdateJobs([]string{job1.Id}, func(jobs []*api.Job) {
 			assert.Equal(t, 1, len(jobs))
 			jobs[0].PodSpec.SchedulerName = newSchedName
 		})
+		if err != nil {
+			t.Fatalf("expected no error but got: %s", err)
+		}
 
 		assert.Equal(t, 1, len(results))
 		assert.Nil(t, results[0].Error)
@@ -643,14 +646,20 @@ func TestUpdateJobs_WhenTransactionAlwaysFails_ReturnsError_JobNotChanged(t *tes
 
 		newSchedName := "custom"
 
-		results := r.UpdateJobs([]string{job1.Id}, func(jobs []*api.Job) {
-			results2 := r.UpdateJobs([]string{job1.Id}, func(jobs []*api.Job) {}) // 2nd update in middle of transaction
+		results, err := r.UpdateJobs([]string{job1.Id}, func(jobs []*api.Job) {
+			results2, err := r.UpdateJobs([]string{job1.Id}, func(jobs []*api.Job) {}) // 2nd update in middle of transaction
+			if err != nil {
+				t.Fatalf("expected no error but got: %s", err)
+			}
 			assert.Equal(t, 1, len(results2))
 			assert.Nil(t, results2[0].Error)
 
 			assert.Equal(t, 1, len(jobs))
 			jobs[0].PodSpec.SchedulerName = newSchedName
 		})
+		if err != nil {
+			t.Fatalf("expected no error but got: %s", err)
+		}
 
 		assert.Equal(t, 1, len(results))
 		assert.Equal(t, job1.Id, results[0].JobId)
@@ -673,7 +682,10 @@ func TestUpdateJobs_WhenTransactionFailsOnce_Retries_JobChanged(t *testing.T) {
 		first := true
 		results := r.updateJobs([]string{job1.Id}, func(jobs []*api.Job) {
 			if first {
-				results2 := r.UpdateJobs([]string{job1.Id}, func(jobs []*api.Job) {}) // 2nd update in middle of transaction
+				results2, err := r.UpdateJobs([]string{job1.Id}, func(jobs []*api.Job) {}) // 2nd update in middle of transaction
+				if err != nil {
+					t.Fatalf("expected no error but got: %s", err)
+				}
 				assert.Equal(t, 1, len(results2))
 				assert.Nil(t, results2[0].Error)
 				first = false
@@ -706,7 +718,10 @@ func TestUpdateJobs_WhenTransactionAlwaysFailsForOneBatch_ReturnsErrorForThatBat
 			assert.Equal(t, 1, len(jobs))
 			job := jobs[0]
 			if job.Id == job2.Id {
-				results2 := r.UpdateJobs([]string{job2.Id}, func(jobs []*api.Job) {}) // 2nd update in middle of transaction
+				results2, err := r.UpdateJobs([]string{job2.Id}, func(jobs []*api.Job) {}) // 2nd update in middle of transaction
+				if err != nil {
+					t.Fatalf("expected no error but got: %s", err)
+				}
 				assert.Equal(t, 1, len(results2))
 				assert.Nil(t, results2[0].Error)
 			}

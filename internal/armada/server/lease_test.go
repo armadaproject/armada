@@ -199,7 +199,7 @@ func (repo *mockJobRepository) ReturnLease(clusterId string, jobId string) (retu
 	return nil, nil
 }
 
-func (repo *mockJobRepository) DeleteJobs(jobs []*api.Job) map[*api.Job]error {
+func (repo *mockJobRepository) DeleteJobs(jobs []*api.Job) (map[*api.Job]error, error) {
 	repo.deleteJobsCalls++
 	repo.deleteJobsArg = jobs
 
@@ -207,7 +207,7 @@ func (repo *mockJobRepository) DeleteJobs(jobs []*api.Job) map[*api.Job]error {
 		delete(repo.jobs, job.Id)
 	}
 
-	return map[*api.Job]error{}
+	return map[*api.Job]error{}, nil
 }
 
 func (repo *mockJobRepository) GetActiveJobIds(queue string, jobSetId string) ([]string, error) {
@@ -255,8 +255,8 @@ func (repo *mockJobRepository) UpdateStartTime(jobStartInfos []*repository.JobSt
 	return nil, nil
 }
 
-func (repo *mockJobRepository) UpdateJobs(ids []string, mutator func([]*api.Job)) []repository.UpdateJobResult {
-	return []repository.UpdateJobResult{}
+func (repo *mockJobRepository) UpdateJobs(ids []string, mutator func([]*api.Job)) ([]repository.UpdateJobResult, error) {
+	return []repository.UpdateJobResult{}, nil
 }
 
 func (repo *mockJobRepository) GetJobRunInfos(jobIds []string) (map[string]*repository.RunInfo, error) {

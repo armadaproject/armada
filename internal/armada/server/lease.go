@@ -190,7 +190,7 @@ func (q *AggregatedQueueServer) addAvoidNodeAffinity(jobId string, labels *api.O
 		return e
 	}
 
-	res := q.jobRepository.UpdateJobs([]string{jobId}, func(jobs []*api.Job) {
+	res, err := q.jobRepository.UpdateJobs([]string{jobId}, func(jobs []*api.Job) {
 		if len(jobs) < 1 {
 			log.Warnf("addAvoidNodeAffinity: Job %s not found", jobId)
 			return
@@ -207,6 +207,9 @@ func (q *AggregatedQueueServer) addAvoidNodeAffinity(jobId string, labels *api.O
 			}
 		}
 	})
+	if err != nil {
+		return fmt.Errorf("[AggregatedQueueServer.addAvoidNodeAffinity] error updating job with ID %s: %s", jobId, err)
+	}
 
 	if len(res) < 1 {
 		return errors.New("Job not found")
@@ -223,7 +226,10 @@ func (q *AggregatedQueueServer) ReportDone(ctx context.Context, idList *api.IdLi
 	if e != nil {
 		return nil, status.Errorf(codes.Internal, e.Error())
 	}
-	deletionResult := q.jobRepository.DeleteJobs(jobs)
+	deletionResult, err := q.jobRepository.DeleteJobs(jobs)
+	if err != nil {
+		return nil, fmt.Errorf("[AggregatedQueueServer.ReportDone] error deleting jobs: %s", err)
+	}
 
 	cleanedIds := make([]string, 0, len(deletionResult))
 	var returnedError error = nil
