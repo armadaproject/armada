@@ -5,6 +5,10 @@ import (
 	"strings"
 )
 
+// MultiChecker combines multiple Checker instances.
+// Calls to MultiChecker.Check() calls Check() on each constituent checker
+// and returns a new error created by joining any errors returned from those calls,
+// or nil if no errors are found.
 type MultiChecker struct {
 	checkers []Checker
 }

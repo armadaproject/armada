@@ -31,6 +31,7 @@ func BindCommandlineArguments() {
 	}
 }
 
+// TODO Move code relating to config out of common into a new package internal/serverconfig
 func LoadConfig(config interface{}, defaultPath string, overrideConfigs []string) *viper.Viper {
 	v := viper.NewWithOptions(viper.KeyDelimiter("::"))
 	v.SetConfigName(baseConfigFileName)
@@ -88,6 +89,7 @@ func quantityDecodeHook(
 	return resource.ParseQuantity(fmt.Sprintf("%v", data))
 }
 
+// TODO Move logging-related code out of common into a new package internal/logging
 func ConfigureCommandLineLogging() {
 	commandLineFormatter := new(logging.CommandLineFormatter)
 	log.SetFormatter(commandLineFormatter)
@@ -124,6 +126,7 @@ func ServeMetricsFor(port uint16, gatherer prometheus.Gatherer) (shutdown func()
 	return ServeHttp(port, mux)
 }
 
+// ServeHttp starts a HTTP server listening on the given port.
 func ServeHttp(port uint16, mux http.Handler) (shutdown func()) {
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", port),
@@ -132,9 +135,11 @@ func ServeHttp(port uint16, mux http.Handler) (shutdown func()) {
 	go func() {
 		log.Printf("Starting http server listening on %d", port)
 		if err := srv.ListenAndServe(); err != http.ErrServerClosed {
-			panic(err)
+			panic(err) // TODO Don't panic, return an error
 		}
 	}()
+	// TODO There's no need for this function to panic, since the main goroutine will exit.
+	// Instead, just log an error.
 	return func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()

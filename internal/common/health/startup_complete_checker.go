@@ -2,6 +2,8 @@ package health
 
 import "errors"
 
+// TODO Is the point of this system to make sure we can collect metrics (prometheus?)
+// before the server has started?
 type StartupCompleteChecker struct {
 	complete bool
 }
