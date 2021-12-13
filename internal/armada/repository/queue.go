@@ -12,19 +12,19 @@ import (
 const queueHashKey = "Queue"
 
 type ErrQueueNotFound struct {
-	queueName string
+	QueueName string
 }
 
 func (err *ErrQueueNotFound) Error() string {
-	return fmt.Sprintf("queue %s does not exist", err.queueName)
+	return fmt.Sprintf("queue %s does not exist", err.QueueName)
 }
 
 type ErrQueueAlreadyExists struct {
-	queueName string
+	QueueName string
 }
 
 func (err *ErrQueueAlreadyExists) Error() string {
-	return fmt.Sprintf("queue %s already exists", err.queueName)
+	return fmt.Sprintf("queue %s already exists", err.QueueName)
 }
 
 type QueueRepository interface {
@@ -64,7 +64,7 @@ func (r *RedisQueueRepository) GetAllQueues() ([]*api.Queue, error) {
 func (r *RedisQueueRepository) GetQueue(name string) (*api.Queue, error) {
 	result, err := r.db.HGet(queueHashKey, name).Result()
 	if err == redis.Nil {
-		return nil, &ErrQueueNotFound{queueName: name}
+		return nil, &ErrQueueNotFound{QueueName: name}
 	} else if err != nil {
 		return nil, fmt.Errorf("[RedisQueueRepository.GetQueue] database error: %s", err)
 	}
@@ -90,7 +90,7 @@ func (r *RedisQueueRepository) CreateQueue(queue *api.Queue) error {
 		return fmt.Errorf("[RedisQueueRepository.CreateQueue] database error: %s", err)
 	}
 	if !result {
-		return &ErrQueueAlreadyExists{queueName: queue.Name}
+		return &ErrQueueAlreadyExists{QueueName: queue.Name}
 	}
 
 	return nil
@@ -104,7 +104,7 @@ func (r *RedisQueueRepository) UpdateQueue(queue *api.Queue) error {
 	if err != nil {
 		return fmt.Errorf("[RedisQueueRepository.UpdateQueue] error reading from database: %s", err)
 	} else if !existsResult {
-		return &ErrQueueNotFound{queueName: queue.Name}
+		return &ErrQueueNotFound{QueueName: queue.Name}
 	}
 
 	data, err := proto.Marshal(queue)
