@@ -146,7 +146,8 @@ func makeErrorForHTTPResponse(resp *http.Response) error {
 	if err != nil {
 		return err
 	}
-	safeURL := safeString(resp.Request.URL.String())
+	safeURL := strings.Replace(resp.Request.URL.String(), "\n", "", -1)
+	safeURL = strings.Replace(safeURL, "\r", "", -1)
 	return fmt.Errorf("%s %s returned HTTP %s; \n\n %#q", resp.Request.Method, safeURL, resp.Status, bodyBytes)
 }
 
