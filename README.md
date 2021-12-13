@@ -3,6 +3,8 @@
 [![CircleCI](https://circleci.com/gh/helm/helm.svg?style=shield)](https://circleci.com/gh/G-Research/armada)
 [![Go Report Card](https://goreportcard.com/badge/github.com/G-Research/armada)](https://goreportcard.com/report/github.com/G-Research/armada)
 
+RUN TESTS
+
 Armada is a system for scheduling and running batch jobs (e.g., a compute job for training a machine learning model) over Kubernetes clusters. Armada is designed for high availability and to handle scheduling hundreds of jobs per second (with potentially millions of jobs queued) over thousands of nodes.
 
 To achieve this, Armada, unlike previous Kubernetes batch schedulers (e.g., [kube-batch](https://github.com/kubernetes-sigs/kube-batch)), can schedule jobs over multiple Kubernetes clusters simultaneously and hence scale beyond the limitations of a single Kubernetes cluster (which we find to be about 1000 nodes). In addition, Kubernetes clusters can be connected and disconnected from Armada on the fly without disruption. Jobs are submitted to job queues, of which there may be many (for example, each user could have a separate queue), and Armada divides compute resources fairly between queues.
