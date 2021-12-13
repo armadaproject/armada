@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"fmt"
 	"strconv"
 
 	"github.com/go-redis/redis"
@@ -39,15 +40,15 @@ func NewRedisUsageRepository(db redis.UniversalClient) *RedisUsageRepository {
 func (r *RedisUsageRepository) GetClusterUsageReports() (map[string]*api.ClusterUsageReport, error) {
 	result, err := r.db.HGetAll(clusterReportKey).Result()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("[RedisUsageRepository.GetClusterUsageReports] error reading from database: %s", err)
 	}
 	reports := make(map[string]*api.ClusterUsageReport)
 
 	for k, v := range result {
 		report := &api.ClusterUsageReport{}
-		e := proto.Unmarshal([]byte(v), report)
-		if e != nil {
-			return nil, e
+		err = proto.Unmarshal([]byte(v), report)
+		if err != nil {
+			return nil, fmt.Errorf("[RedisUsageRepository.GetClusterUsageReports] error unmarshalling: %s", err)
 		}
 		reports[k] = report
 	}
@@ -57,15 +58,15 @@ func (r *RedisUsageRepository) GetClusterUsageReports() (map[string]*api.Cluster
 func (r *RedisUsageRepository) GetClusterLeasedReports() (map[string]*api.ClusterLeasedReport, error) {
 	result, err := r.db.HGetAll(clusterLeasedReportKey).Result()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("[RedisUsageRepository.GetClusterLeasedReports] error reading from database: %s", err)
 	}
 	reports := make(map[string]*api.ClusterLeasedReport)
 
 	for k, v := range result {
 		report := &api.ClusterLeasedReport{}
-		e := proto.Unmarshal([]byte(v), report)
-		if e != nil {
-			return nil, e
+		err = proto.Unmarshal([]byte(v), report)
+		if err != nil {
+			return nil, fmt.Errorf("[RedisUsageRepository.GetClusterLeasedReports] error unmarshalling: %s", err)
 		}
 		reports[k] = report
 	}
@@ -75,41 +76,63 @@ func (r *RedisUsageRepository) GetClusterLeasedReports() (map[string]*api.Cluste
 func (r *RedisUsageRepository) GetClusterPriority(clusterId string) (map[string]float64, error) {
 	result, err := r.db.HGetAll(clusterPrioritiesPrefix + clusterId).Result()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("[RedisUsageRepository.GetClusterPriority] error reading from database: %s", err)
 	}
-	return toFloat64Map(result)
+
+	rv, err := toFloat64Map(result)
+	if err != nil {
+		return nil, fmt.Errorf("[RedisUsageRepository.GetClusterPriority] error converting to Float64: %s", err)
+	}
+
+	return rv, nil
 }
 
+// GetClusterPriorities returns a map from clusterId to clusterPriority.
+// This method makes a single aggregated call to the database, making this method more efficient
+// than calling GetClusterPriority repeatredly.
 func (r *RedisUsageRepository) GetClusterPriorities(clusterIds []string) (map[string]map[string]float64, error) {
 	pipe := r.db.Pipeline()
 	cmds := make(map[string]*redis.StringStringMapCmd)
 	for _, id := range clusterIds {
+		// TODO Is this correct? The redis.Pipeline type is embedding a statefulCmdable.
+		// I suspect that the HGetAll is dispatched to the statefulCmdable and executed immediately,
+		// i.e., no pipelining takes place here.
+		// To pipeline operations, they should be queued with pipe.Do or pipe.Process.
+		// As a result, we've silently been discarding errors here.
 		cmds[id] = pipe.HGetAll(clusterPrioritiesPrefix + id)
+		err := cmds[id].Err()
+		if err != nil {
+			return nil, fmt.Errorf("[RedisUsageRepository.GetClusterPriorities] error reading from database: %s", err)
+		}
 	}
-	_, e := pipe.Exec()
-	if e != nil {
-		return nil, e
+
+	// For the default pipeline executor, only the first error is returned,
+	// i.e., commands executed after the erroring command may have also returned an error.
+	_, err := pipe.Exec() // TODO This is a no-op; see comment above.
+	if err != nil {
+		return nil, fmt.Errorf("[RedisUsageRepository.GetClusterPriorities] error performing pipelined read from database: %s", err)
 	}
 
 	clusterPriorities := make(map[string]map[string]float64)
 	for id, cmd := range cmds {
-		priorities, e := toFloat64Map(cmd.Val())
-		if e != nil {
-			return nil, e
+		priorities, err := toFloat64Map(cmd.Val())
+		if err != nil {
+			return nil, fmt.Errorf("[RedisUsageRepository.GetClusterPriorities] error converting to Float64: %s", err)
 		}
 		clusterPriorities[id] = priorities
 	}
+
 	return clusterPriorities, nil
 }
 
 func (r *RedisUsageRepository) UpdateCluster(report *api.ClusterUsageReport, priorities map[string]float64) error {
-
-	pipe := r.db.TxPipeline()
-
-	data, e := proto.Marshal(report)
-	if e != nil {
-		return e
+	data, err := proto.Marshal(report)
+	if err != nil {
+		return fmt.Errorf("[RedisUsageRepository.UpdateCluster] error marshalling report: %s", err)
 	}
+
+	// TODO Same comment as for GetClusterPriorities.
+	pipe := r.db.TxPipeline()
 	pipe.HSet(clusterReportKey, report.ClusterId, data)
 
 	if len(priorities) > 0 {
@@ -120,25 +143,34 @@ func (r *RedisUsageRepository) UpdateCluster(report *api.ClusterUsageReport, pri
 		pipe.HMSet(clusterPrioritiesPrefix+report.ClusterId, untyped)
 	}
 
-	_, err := pipe.Exec()
-	return err
+	_, err = pipe.Exec()
+	if err != nil {
+		return fmt.Errorf("[RedisUsageRepository.UpdateCluster] error performing pipelined writes to database: %s", err)
+	}
+
+	return nil
 }
 
 func (r *RedisUsageRepository) UpdateClusterLeased(report *api.ClusterLeasedReport) error {
-	data, e := proto.Marshal(report)
-	if e != nil {
-		return e
+	data, err := proto.Marshal(report)
+	if err != nil {
+		return fmt.Errorf("[RedisUsageRepository.UpdateClusterLeased] error marshalling report: %s", err)
 	}
-	_, e = r.db.HSet(clusterLeasedReportKey, report.ClusterId, data).Result()
-	return e
+
+	_, err = r.db.HSet(clusterLeasedReportKey, report.ClusterId, data).Result()
+	if err != nil {
+		return fmt.Errorf("[RedisUsageRepository.UpdateClusterLeased] error writing to database: %s", err)
+	}
+
+	return err
 }
 
 func toFloat64Map(result map[string]string) (map[string]float64, error) {
 	reports := make(map[string]float64)
 	for k, v := range result {
-		priority, e := strconv.ParseFloat(v, 64)
-		if e != nil {
-			return nil, e
+		priority, err := strconv.ParseFloat(v, 64)
+		if err != nil {
+			return nil, fmt.Errorf("[toFloat64Map] error converting %q to Float64: %s", v, err)
 		}
 		reports[k] = priority
 	}
