@@ -148,9 +148,3 @@ func makeErrorForHTTPResponse(resp *http.Response) error {
 	}
 	return fmt.Errorf("%s %s returned HTTP %s; \n\n %#q", resp.Request.Method, html.EscapeString(resp.Request.URL.String()), resp.Status, bodyBytes)
 }
-
-func safeString(str string) string {
-	noReturns := strings.Replace(str, "\r", "", -1)
-	noLines := strings.Replace(noReturns, "\n", "", -1)
-	return url.QueryEscape(noLines)
-}
