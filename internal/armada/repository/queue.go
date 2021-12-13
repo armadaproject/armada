@@ -11,6 +11,20 @@ import (
 
 const queueHashKey = "Queue"
 
+// TODO These errors should be of a specific error type, e.g.:
+// type ErrQueueNotFound struct {
+// 	queueName string
+// }
+// func (err *ErrQueueNotFound) Error() {
+// 	return fmt.Sprintf("Queue %s does not exist", err.queueName)
+// }
+// In doing so, if we wrap errors as they travel up the call stack
+// (using fmt.Errorf with the %w verb, i.e., fmt.Errorf("err %w", err))
+// and easily detect at the gRPC handler what the underlying issue is.
+// We need this since we need to create errors in the gRPC handler with the correct gRPC error code.
+// For more on error wrapping, see:
+// https://go.dev/blog/go1.13-errors
+
 var ErrQueueNotFound = errors.New("Queue does not exist")
 var ErrQueueAlreadyExists = errors.New("Queue already exists")
 
@@ -55,6 +69,7 @@ func (r *RedisQueueRepository) GetQueue(name string) (*api.Queue, error) {
 	} else if err != nil {
 		return nil, err
 	}
+
 	queue := &api.Queue{}
 	e := proto.Unmarshal([]byte(result), queue)
 	if e != nil {
