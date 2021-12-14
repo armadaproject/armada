@@ -570,7 +570,6 @@ end
 return redis.call('HSET', startTimeKey, clusterId, startTime)
 `, updateStartTimeJobNotFound))
 
-// TODO Questions regarding the below code:
 // TODO Redis supports setting a retry parameter. Why do we re-implement that functionality?
 func (repo *RedisJobRepository) UpdateJobs(ids []string, mutator func([]*api.Job)) ([]UpdateJobResult, error) {
 	return repo.updateJobs(ids, mutator, 250, 3, 100*time.Millisecond), nil
