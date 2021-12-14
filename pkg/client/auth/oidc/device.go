@@ -11,9 +11,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/G-Research/armada/internal/common/logging"
 	openId "github.com/coreos/go-oidc"
 	"golang.org/x/oauth2"
+
+	"github.com/G-Research/armada/internal/common/logging"
 )
 
 type DeviceDetails struct {
