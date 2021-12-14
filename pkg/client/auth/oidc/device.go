@@ -13,6 +13,8 @@ import (
 
 	openId "github.com/coreos/go-oidc"
 	"golang.org/x/oauth2"
+
+	"github.com/G-Research/armada/internal/common/logging"
 )
 
 type DeviceDetails struct {
@@ -145,5 +147,6 @@ func makeErrorForHTTPResponse(resp *http.Response) error {
 	if err != nil {
 		return err
 	}
-	return fmt.Errorf("%s %s returned HTTP %s; \n\n %#q", resp.Request.Method, resp.Request.URL, resp.Status, bodyBytes)
+	safeURL := logging.SanitizeUserInput(resp.Request.URL.String())
+	return fmt.Errorf("%s %s returned HTTP %s; \n\n %#q", resp.Request.Method, safeURL, resp.Status, bodyBytes)
 }
