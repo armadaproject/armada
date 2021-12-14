@@ -171,7 +171,7 @@ func TestCreateIngress_Basic(t *testing.T) {
 	}
 
 	// TLS disabled jobconfig
-	jobConfig := &ServiceConfig{
+	jobConfig := &IngressServiceConfig{
 		Ports: []uint32{8080},
 	}
 
@@ -213,7 +213,7 @@ func TestCreateIngress_TLS(t *testing.T) {
 	}
 
 	// TLS enabled in this test
-	jobConfig := &ServiceConfig{
+	jobConfig := &IngressServiceConfig{
 		TlsEnabled: true,
 		Ports:      []uint32{8080},
 	}

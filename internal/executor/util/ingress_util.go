@@ -26,7 +26,7 @@ func GenerateIngresses(job *api.Job, pod *v1.Pod, ingressConfig *configuration.I
 
 			if svcType == Ingress {
 				for index, config := range configs {
-					if len(GetServicePorts([]*ServiceConfig{config}, &pod.Spec)) <= 0 {
+					if len(GetServicePorts([]*IngressServiceConfig{config}, &pod.Spec)) <= 0 {
 						continue
 					}
 					ingressName := fmt.Sprintf("%s-%s-%d", pod.Name, strings.ToLower(svcType.String()), index)
@@ -40,7 +40,7 @@ func GenerateIngresses(job *api.Job, pod *v1.Pod, ingressConfig *configuration.I
 	return services, ingresses
 }
 
-func groupIngressConfig(configs []*ServiceConfig) map[ServiceType][]*ServiceConfig {
+func groupIngressConfig(configs []*IngressServiceConfig) map[IngressServiceType][]*IngressServiceConfig {
 	result := gatherIngressConfig(configs)
 
 	for ingressType, grp := range result {
@@ -50,8 +50,8 @@ func groupIngressConfig(configs []*ServiceConfig) map[ServiceType][]*ServiceConf
 	return result
 }
 
-func gatherIngressConfig(configs []*ServiceConfig) map[ServiceType][]*ServiceConfig {
-	result := make(map[ServiceType][]*ServiceConfig, 10)
+func gatherIngressConfig(configs []*IngressServiceConfig) map[IngressServiceType][]*IngressServiceConfig {
+	result := make(map[IngressServiceType][]*IngressServiceConfig, 10)
 
 	for _, config := range configs {
 		result[config.Type] = append(result[config.Type], deepCopy(config))
@@ -60,8 +60,8 @@ func gatherIngressConfig(configs []*ServiceConfig) map[ServiceType][]*ServiceCon
 	return result
 }
 
-func mergeOnAnnotations(configs []*ServiceConfig) []*ServiceConfig {
-	result := make([]*ServiceConfig, 0, len(configs))
+func mergeOnAnnotations(configs []*IngressServiceConfig) []*IngressServiceConfig {
+	result := make([]*IngressServiceConfig, 0, len(configs))
 
 	for _, config := range configs {
 		matchFound := false
@@ -80,8 +80,8 @@ func mergeOnAnnotations(configs []*ServiceConfig) []*ServiceConfig {
 	return result
 }
 
-func deepCopy(config *ServiceConfig) *ServiceConfig {
-	return &ServiceConfig{
+func deepCopy(config *IngressServiceConfig) *IngressServiceConfig {
+	return &IngressServiceConfig{
 		Type:        config.Type,
 		Ports:       util.DeepCopyListUint32(config.Ports),
 		Annotations: util.DeepCopy(config.Annotations),
@@ -90,7 +90,7 @@ func deepCopy(config *ServiceConfig) *ServiceConfig {
 	}
 }
 
-func GetServicePorts(svcConfigs []*ServiceConfig, podSpec *v1.PodSpec) []v1.ServicePort {
+func GetServicePorts(svcConfigs []*IngressServiceConfig, podSpec *v1.PodSpec) []v1.ServicePort {
 	var servicePorts []v1.ServicePort
 
 	for _, container := range podSpec.Containers {
@@ -116,7 +116,7 @@ func GetServicePorts(svcConfigs []*ServiceConfig, podSpec *v1.PodSpec) []v1.Serv
 	return servicePorts
 }
 
-func contains(portConfig *ServiceConfig, port uint32) bool {
+func contains(portConfig *IngressServiceConfig, port uint32) bool {
 	for _, p := range portConfig.Ports {
 		if p == port {
 			return true

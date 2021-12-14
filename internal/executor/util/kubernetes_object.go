@@ -17,15 +17,15 @@ import (
 	"github.com/G-Research/armada/pkg/api"
 )
 
-func CreateService(job *api.Job, pod *v1.Pod, ports []v1.ServicePort, svcType ServiceType) *v1.Service {
+func CreateService(job *api.Job, pod *v1.Pod, ports []v1.ServicePort, ingSvcType IngressServiceType) *v1.Service {
 	serviceType := v1.ServiceTypeClusterIP
-	if svcType == NodePort {
+	if ingSvcType == NodePort {
 		serviceType = v1.ServiceTypeNodePort
 	}
 
 	clusterIP := ""
 
-	if svcType == Headless {
+	if ingSvcType == Headless {
 		clusterIP = "None"
 	}
 
@@ -50,7 +50,7 @@ func CreateService(job *api.Job, pod *v1.Pod, ports []v1.ServicePort, svcType Se
 	})
 	service := &v1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        fmt.Sprintf("%s-%s", pod.Name, strings.ToLower(svcType.String())),
+			Name:        fmt.Sprintf("%s-%s", pod.Name, strings.ToLower(ingSvcType.String())),
 			Labels:      labels,
 			Annotations: annotation,
 			Namespace:   job.Namespace,
@@ -60,7 +60,8 @@ func CreateService(job *api.Job, pod *v1.Pod, ports []v1.ServicePort, svcType Se
 	return service
 }
 
-func CreateIngress(name string, job *api.Job, pod *v1.Pod, service *v1.Service, executorIngressConfig *configuration.IngressConfiguration, jobConfig *ServiceConfig) *networking.Ingress {
+func CreateIngress(name string, job *api.Job, pod *v1.Pod, service *v1.Service,
+	executorIngressConfig *configuration.IngressConfiguration, jobConfig *IngressServiceConfig) *networking.Ingress {
 	labels := util.MergeMaps(job.Labels, map[string]string{
 		domain.JobId:     pod.Labels[domain.JobId],
 		domain.Queue:     pod.Labels[domain.Queue],
