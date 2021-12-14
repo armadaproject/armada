@@ -20,6 +20,10 @@ func MergeMaps(a map[string]string, b map[string]string) map[string]string {
 }
 
 func DeepCopy(a map[string]string) map[string]string {
+	if a == nil {
+		return nil
+	}
+
 	result := make(map[string]string)
 	for k, v := range a {
 		result[k] = v
