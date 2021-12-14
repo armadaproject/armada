@@ -767,20 +767,6 @@ func addTestJobWithClientId(t *testing.T, r *RedisJobRepository, queue string, c
 	}, []v1.Toleration{})
 }
 
-func addTestJobWithTolerations(t *testing.T, r *RedisJobRepository, queue string, tolerations []v1.Toleration) *api.Job {
-	cpu := resource.MustParse("1")
-	memory := resource.MustParse("512Mi")
-
-	return addTestJobInner(t, r, queue, "", 1, v1.ResourceRequirements{
-		Limits:   v1.ResourceList{"cpu": cpu, "memory": memory},
-		Requests: v1.ResourceList{"cpu": cpu, "memory": memory},
-	}, tolerations)
-}
-
-func addTestJobWithRequirements(t *testing.T, r *RedisJobRepository, queue string, requirements v1.ResourceRequirements) *api.Job {
-	return addTestJobInner(t, r, queue, "", 1, requirements, []v1.Toleration{})
-}
-
 func addTestJobInner(t *testing.T, r *RedisJobRepository, queue string, clientId string, priority float64, requirements v1.ResourceRequirements, tolerations []v1.Toleration) *api.Job {
 
 	jobs := make([]*api.Job, 0, 1)

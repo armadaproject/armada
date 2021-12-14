@@ -195,21 +195,6 @@ func reportJobsCancelled(repository repository.EventStore, requestorName string,
 	return e
 }
 
-func reportTerminated(repository repository.EventStore, clusterId string, job *api.Job) error {
-	event, e := api.Wrap(&api.JobTerminatedEvent{
-		JobId:     job.Id,
-		Queue:     job.Queue,
-		JobSetId:  job.JobSetId,
-		Created:   time.Now(),
-		ClusterId: clusterId,
-	})
-	if e != nil {
-		return e
-	}
-	e = repository.ReportEvents([]*api.EventMessage{event})
-	return e
-}
-
 type jobFailure struct {
 	job    *api.Job
 	reason string

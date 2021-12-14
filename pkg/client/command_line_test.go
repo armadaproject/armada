@@ -72,15 +72,15 @@ contexts:
 				ApiVersion:     "1",
 				CurrentContext: "context1",
 				Clusters: map[string]*clusterConfig{
-					"cluster1": &clusterConfig{Server: "127.0.0.1:50051"},
-					"cluster2": &clusterConfig{Server: "armada:50051"},
+					"cluster1": {Server: "127.0.0.1:50051"},
+					"cluster2": {Server: "armada:50051"},
 				},
 				Users: map[string]*userConfig{
-					"user1": &userConfig{Username: "Bob", Password: "123456"},
-					"user2": &userConfig{Username: "DuplicateAlice", Password: "i<3armada"},
+					"user1": {Username: "Bob", Password: "123456"},
+					"user2": {Username: "DuplicateAlice", Password: "i<3armada"},
 				},
 				Contexts: map[string]*contextConfig{
-					"context1": &contextConfig{Cluster: "cluster1", User: "user2"},
+					"context1": {Cluster: "cluster1", User: "user2"},
 				},
 			},
 		},
