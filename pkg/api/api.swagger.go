@@ -471,10 +471,10 @@ func SwaggerJsonTemplate() string {
 		"      }\n" +
 		"    },\n" +
 		"    \"apiIngressType\": {\n" +
+		"      \"description\": \"Ingress type is being kept here to maintain backwards compatibility for a while.\",\n" +
 		"      \"type\": \"string\",\n" +
-		"      \"default\": \"NodePort\",\n" +
+		"      \"default\": \"Ingress\",\n" +
 		"      \"enum\": [\n" +
-		"        \"NodePort\",\n" +
 		"        \"Ingress\"\n" +
 		"      ]\n" +
 		"    },\n" +
@@ -544,6 +544,12 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"object\",\n" +
 		"          \"additionalProperties\": {\n" +
 		"            \"type\": \"string\"\n" +
+		"          }\n" +
+		"        },\n" +
+		"        \"services\": {\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/apiServiceConfig\"\n" +
 		"          }\n" +
 		"        }\n" +
 		"      }\n" +
@@ -1065,6 +1071,12 @@ func SwaggerJsonTemplate() string {
 		"          \"additionalProperties\": {\n" +
 		"            \"type\": \"string\"\n" +
 		"          }\n" +
+		"        },\n" +
+		"        \"services\": {\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/apiServiceConfig\"\n" +
+		"          }\n" +
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
@@ -1345,6 +1357,29 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"string\"\n" +
 		"        }\n" +
 		"      }\n" +
+		"    },\n" +
+		"    \"apiServiceConfig\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"ports\": {\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"type\": \"integer\",\n" +
+		"            \"format\": \"int64\"\n" +
+		"          }\n" +
+		"        },\n" +
+		"        \"type\": {\n" +
+		"          \"$ref\": \"#/definitions/apiServiceType\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"apiServiceType\": {\n" +
+		"      \"type\": \"string\",\n" +
+		"      \"default\": \"NodePort\",\n" +
+		"      \"enum\": [\n" +
+		"        \"NodePort\",\n" +
+		"        \"Headless\"\n" +
+		"      ]\n" +
 		"    },\n" +
 		"    \"intstrIntOrString\": {\n" +
 		"      \"description\": \"+protobuf=true\\n+protobuf.options.(gogoproto.goproto_stringer)=false\\n+k8s:openapi-gen=true\",\n" +

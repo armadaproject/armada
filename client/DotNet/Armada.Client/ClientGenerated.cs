@@ -904,14 +904,12 @@ namespace GResearch.Armada.Client
     
     }
     
+    /// <summary>Ingress type is being kept here to maintain backwards compatibility for a while.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public enum ApiIngressType
     {
-        [System.Runtime.Serialization.EnumMember(Value = @"NodePort")]
-        NodePort = 0,
-    
         [System.Runtime.Serialization.EnumMember(Value = @"Ingress")]
-        Ingress = 1,
+        Ingress = 0,
     
     }
     
@@ -962,6 +960,9 @@ namespace GResearch.Armada.Client
     
         [Newtonsoft.Json.JsonProperty("requiredNodeLabels", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.IDictionary<string, string> RequiredNodeLabels { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("services", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<ApiServiceConfig> Services { get; set; }
     
     
     }
@@ -1441,6 +1442,9 @@ namespace GResearch.Armada.Client
         [Newtonsoft.Json.JsonProperty("requiredNodeLabels", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.IDictionary<string, string> RequiredNodeLabels { get; set; }
     
+        [Newtonsoft.Json.JsonProperty("services", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<ApiServiceConfig> Services { get; set; }
+    
     
     }
     
@@ -1693,6 +1697,30 @@ namespace GResearch.Armada.Client
         [Newtonsoft.Json.JsonProperty("name", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Name { get; set; }
     
+    
+    }
+    
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
+    public partial class ApiServiceConfig 
+    {
+        [Newtonsoft.Json.JsonProperty("ports", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.Collections.Generic.ICollection<long> Ports { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("type", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        [Newtonsoft.Json.JsonConverter(typeof(Newtonsoft.Json.Converters.StringEnumConverter))]
+        public ApiServiceType? Type { get; set; }
+    
+    
+    }
+    
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
+    public enum ApiServiceType
+    {
+        [System.Runtime.Serialization.EnumMember(Value = @"NodePort")]
+        NodePort = 0,
+    
+        [System.Runtime.Serialization.EnumMember(Value = @"Headless")]
+        Headless = 1,
     
     }
     

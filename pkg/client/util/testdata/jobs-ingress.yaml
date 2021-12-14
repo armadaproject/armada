@@ -2,7 +2,7 @@ queue: test
 jobSetId: job-set-1
 jobs:
   - priority: 0
-    ingress:
+    services:
       - type: NodePort
         ports:
           - 80

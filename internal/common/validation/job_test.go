@@ -12,7 +12,7 @@ func Test_ValidateJobSubmitRequestItem(t *testing.T) {
 	validIngressConfig := &api.JobSubmitRequestItem{
 		Ingress: []*api.IngressConfig{
 			{
-				Type: api.IngressType_NodePort,
+				Type: api.IngressType_Ingress,
 				Ports: []uint32{
 					5,
 				},
@@ -26,7 +26,7 @@ func Test_ValidateJobSubmitRequestItem_WithPortRepeatedInSingleConfig(t *testing
 	validIngressConfig := &api.JobSubmitRequestItem{
 		Ingress: []*api.IngressConfig{
 			{
-				Type: api.IngressType_NodePort,
+				Type: api.IngressType_Ingress,
 				Ports: []uint32{
 					5,
 					5,
@@ -41,13 +41,13 @@ func Test_ValidateJobSubmitRequestItem_WithPortRepeatedInSeperateConfig(t *testi
 	validIngressConfig := &api.JobSubmitRequestItem{
 		Ingress: []*api.IngressConfig{
 			{
-				Type: api.IngressType_NodePort,
+				Type: api.IngressType_Ingress,
 				Ports: []uint32{
 					5,
 				},
 			},
 			{
-				Type: api.IngressType_NodePort,
+				Type: api.IngressType_Ingress,
 				Ports: []uint32{
 					5,
 				},
