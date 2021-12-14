@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/G-Research/armada/internal/common/logging"
 	openId "github.com/coreos/go-oidc"
 	"golang.org/x/oauth2"
 )
@@ -145,8 +146,6 @@ func makeErrorForHTTPResponse(resp *http.Response) error {
 	if err != nil {
 		return err
 	}
-	url := resp.Request.URL.String()
-	safeURL := strings.Replace(url, "\n", "", -1)
-	safeURL = strings.Replace(safeURL, "\r", "", -1)
+	safeURL := logging.SanitizeUserInput(resp.Request.URL.String())
 	return fmt.Errorf("%s %s returned HTTP %s; \n\n %#q", resp.Request.Method, safeURL, resp.Status, bodyBytes)
 }
