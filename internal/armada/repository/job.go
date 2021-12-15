@@ -791,27 +791,41 @@ func (repo *RedisJobRepository) GetActiveJobIds(queue string, jobSetId string) (
 	return activeSetIds, nil
 }
 
+// GetQueueActiveJobSets returns a list of length equal to the number of unique job sets
+// in the given queue, where each element contains the number of queued and leased jobs
+// that are part of that job set.
 func (repo *RedisJobRepository) GetQueueActiveJobSets(queue string) ([]*api.JobSetInfo, error) {
 
 	tx := repo.db.TxPipeline()
 	queuedIdsCommand := tx.ZRange(jobQueuePrefix+queue, 0, -1)
 	leasedIdsCommand := tx.ZRange(jobLeasedPrefix+queue, 0, -1)
-	_, _ = tx.Exec()
 
-	queuedIds, e := queuedIdsCommand.Result()
-	if e != nil {
-		return nil, e
+	// If there's an error internal to Exec, an error is returned
+	// If any of the commands submitted to exec errors, the first error is returned
+	_, execErr := tx.Exec()
+	queuedIds, err := queuedIdsCommand.Result()
+	if err != nil {
+		return nil, fmt.Errorf("[RedisJobRepository.GetQueueActiveJobSets] error getting queued job IDs: %s", err)
 	}
-	leasedIds, e := leasedIdsCommand.Result()
-	if e != nil {
-		return nil, e
+	leasedIds, err := leasedIdsCommand.Result()
+	if err != nil {
+		return nil, fmt.Errorf("[RedisJobRepository.GetQueueActiveJobSets] error getting leased job IDs: %s", err)
 	}
 
+	// Since we already checked the individual commands, this should only return errors internal to Exec
+	// (unless the underlying Redis implementation has been changed)
+	err = execErr
+	if err != nil {
+		return nil, fmt.Errorf("[RedisJobRepository.GetQueueActiveJobSets] error executing pipelined commands: %s", err)
+	}
+
+	// Maps job set IDs to objects containing the number of queued and leased jobs for each job set
 	jobSets := map[string]*api.JobSetInfo{}
 
-	leasedJobs, e := repo.GetExistingJobsByIds(leasedIds)
-	if e != nil {
-		return nil, e
+	// Count number of leased jobs
+	leasedJobs, err := repo.GetExistingJobsByIds(leasedIds)
+	if err != nil {
+		return nil, fmt.Errorf("[RedisJobRepository.GetQueueActiveJobSets] error getting info for leased jobs: %w", err)
 	}
 	for _, job := range leasedJobs {
 		info, ok := jobSets[job.JobSetId]
@@ -822,9 +836,10 @@ func (repo *RedisJobRepository) GetQueueActiveJobSets(queue string) ([]*api.JobS
 		info.LeasedJobs++
 	}
 
-	queuedJobs, e := repo.GetExistingJobsByIds(queuedIds)
-	if e != nil {
-		return nil, e
+	// Count number of queued jobs
+	queuedJobs, err := repo.GetExistingJobsByIds(queuedIds)
+	if err != nil {
+		return nil, fmt.Errorf("[RedisJobRepository.GetQueueActiveJobSets] error getting info for queued jobs: %w", err)
 	}
 	for _, job := range queuedJobs {
 		info, ok := jobSets[job.JobSetId]
@@ -835,10 +850,12 @@ func (repo *RedisJobRepository) GetQueueActiveJobSets(queue string) ([]*api.JobS
 		info.QueuedJobs++
 	}
 
+	// Flatten the map
 	result := []*api.JobSetInfo{}
 	for _, i := range jobSets {
 		result = append(result, i)
 	}
+
 	return result, nil
 }
 
