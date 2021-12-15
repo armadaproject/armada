@@ -10,8 +10,8 @@ import (
 )
 
 func TestDeepCopy(t *testing.T) {
-	input := &api.IngressConfig{
-		Type:  api.IngressType_NodePort,
+	input := &IngressServiceConfig{
+		Type:  NodePort,
 		Ports: []uint32{1, 2, 3},
 		Annotations: map[string]string{
 			"a": "value",
@@ -30,7 +30,7 @@ func TestDeepCopy(t *testing.T) {
 }
 
 func TestGetServicePorts(t *testing.T) {
-	config := &api.IngressConfig{
+	config := &IngressServiceConfig{
 		Ports: []uint32{1, 2, 3},
 	}
 	podSpec := &v1.PodSpec{
@@ -63,11 +63,11 @@ func TestGetServicePorts(t *testing.T) {
 		},
 	}
 
-	assert.Equal(t, GetServicePorts([]*api.IngressConfig{config}, podSpec), expected)
+	assert.Equal(t, GetServicePorts([]*IngressServiceConfig{config}, podSpec), expected)
 }
 
 func TestGetServicePorts_MultipleContainer(t *testing.T) {
-	config := &api.IngressConfig{
+	config := &IngressServiceConfig{
 		Ports: []uint32{1, 2, 3},
 	}
 	podSpec := &v1.PodSpec{
@@ -105,17 +105,17 @@ func TestGetServicePorts_MultipleContainer(t *testing.T) {
 		},
 	}
 
-	assert.Equal(t, GetServicePorts([]*api.IngressConfig{config}, podSpec), expected)
+	assert.Equal(t, GetServicePorts([]*IngressServiceConfig{config}, podSpec), expected)
 }
 
 func TestGetServicePorts_MultipleIngressConfigs(t *testing.T) {
-	config1 := &api.IngressConfig{
+	config1 := &IngressServiceConfig{
 		Ports: []uint32{1},
 	}
-	config2 := &api.IngressConfig{
+	config2 := &IngressServiceConfig{
 		Ports: []uint32{2},
 	}
-	config3 := &api.IngressConfig{
+	config3 := &IngressServiceConfig{
 		Ports: []uint32{3},
 	}
 	podSpec := &v1.PodSpec{
@@ -147,12 +147,12 @@ func TestGetServicePorts_MultipleIngressConfigs(t *testing.T) {
 			Port:     2,
 		},
 	}
-	servicePorts := GetServicePorts([]*api.IngressConfig{config1, config2, config3}, podSpec)
+	servicePorts := GetServicePorts([]*IngressServiceConfig{config1, config2, config3}, podSpec)
 	assert.Equal(t, servicePorts, expected)
 }
 
 func TestGetServicePorts_HostPortSkipped(t *testing.T) {
-	config := &api.IngressConfig{
+	config := &IngressServiceConfig{
 		Ports: []uint32{1, 2, 3},
 	}
 	podSpec := &v1.PodSpec{
@@ -181,64 +181,59 @@ func TestGetServicePorts_HostPortSkipped(t *testing.T) {
 		},
 	}
 
-	assert.Equal(t, GetServicePorts([]*api.IngressConfig{config}, podSpec), expected)
+	assert.Equal(t, GetServicePorts([]*IngressServiceConfig{config}, podSpec), expected)
 }
 
 func TestGroupIngressConfig_IngressTypeNodePort_AlwaysGrouped(t *testing.T) {
-	expected := map[api.IngressType][]*api.IngressConfig{
-		api.IngressType_NodePort: {
+	expected := map[IngressServiceType][]*IngressServiceConfig{
+		NodePort: {
 			{
-				Type:        api.IngressType_NodePort,
-				Ports:       []uint32{1, 2, 3},
-				Annotations: map[string]string{},
+				Type:  NodePort,
+				Ports: []uint32{1, 2, 3},
 			},
 		},
 	}
-	input1 := &api.IngressConfig{
-		Type:  api.IngressType_NodePort,
+	input1 := &IngressServiceConfig{
+		Type:  NodePort,
 		Ports: []uint32{1, 2},
 	}
-	input2 := &api.IngressConfig{
-		Type:  api.IngressType_NodePort,
+	input2 := &IngressServiceConfig{
+		Type:  NodePort,
 		Ports: []uint32{3},
 	}
-	groupedConfig := groupIngressConfig([]*api.IngressConfig{input1, input2})
+	groupedConfig := groupIngressConfig([]*IngressServiceConfig{input1, input2})
 	assert.Equal(t, groupedConfig, expected)
 
-	input2.Annotations = map[string]string{
-		"test": "value",
-	}
-	//Always grouped, regardless of annotations
-	assert.Equal(t, groupIngressConfig([]*api.IngressConfig{input1, input2}), expected)
+	// Non ingress type will never have annotations anymore
+	assert.Equal(t, groupIngressConfig([]*IngressServiceConfig{input1, input2}), expected)
 }
 
 func TestGroupIngressConfig_IngressType_NoAnnotations(t *testing.T) {
-	expected := map[api.IngressType][]*api.IngressConfig{
-		api.IngressType_Ingress: {
+	expected := map[IngressServiceType][]*IngressServiceConfig{
+		Ingress: {
 			{
-				Type:        api.IngressType_Ingress,
-				Ports:       []uint32{1, 2, 3},
-				Annotations: map[string]string{},
+				Type:  Ingress,
+				Ports: []uint32{1, 2, 3},
 			},
 		},
 	}
-	input1 := &api.IngressConfig{
-		Type:  api.IngressType_Ingress,
+	input1 := &IngressServiceConfig{
+		Type:  Ingress,
 		Ports: []uint32{1, 2},
 	}
-	input2 := &api.IngressConfig{
-		Type:  api.IngressType_Ingress,
+	input2 := &IngressServiceConfig{
+		Type:  Ingress,
 		Ports: []uint32{3},
 	}
-	groupedConfig := groupIngressConfig([]*api.IngressConfig{input1, input2})
+	groupedConfig := groupIngressConfig([]*IngressServiceConfig{input1, input2})
 	assert.Equal(t, groupedConfig, expected)
 }
 
 func TestGroupIngressConfig_IngressType_SameAnnotations(t *testing.T) {
-	expected := map[api.IngressType][]*api.IngressConfig{
-		api.IngressType_Ingress: {
+	expected := map[IngressServiceType][]*IngressServiceConfig{
+		Ingress: {
 			{
-				Type:  api.IngressType_Ingress,
+				Type:  Ingress,
 				Ports: []uint32{1, 2, 3},
 				Annotations: map[string]string{
 					"test": "value",
@@ -246,35 +241,35 @@ func TestGroupIngressConfig_IngressType_SameAnnotations(t *testing.T) {
 			},
 		},
 	}
-	input1 := &api.IngressConfig{
-		Type:  api.IngressType_Ingress,
+	input1 := &IngressServiceConfig{
+		Type:  Ingress,
 		Ports: []uint32{1, 2},
 		Annotations: map[string]string{
 			"test": "value",
 		},
 	}
-	input2 := &api.IngressConfig{
-		Type:  api.IngressType_Ingress,
+	input2 := &IngressServiceConfig{
+		Type:  Ingress,
 		Ports: []uint32{3},
 		Annotations: map[string]string{
 			"test": "value",
 		},
 	}
-	assert.Equal(t, groupIngressConfig([]*api.IngressConfig{input1, input2}), expected)
+	assert.Equal(t, groupIngressConfig([]*IngressServiceConfig{input1, input2}), expected)
 }
 
 func TestGroupIngressConfig_IngressType_DifferentAnnotations(t *testing.T) {
-	expected := map[api.IngressType][]*api.IngressConfig{
-		api.IngressType_Ingress: {
+	expected := map[IngressServiceType][]*IngressServiceConfig{
+		Ingress: {
 			{
-				Type:  api.IngressType_Ingress,
+				Type:  Ingress,
 				Ports: []uint32{1, 2},
 				Annotations: map[string]string{
 					"test": "value",
 				},
 			},
 			{
-				Type:  api.IngressType_Ingress,
+				Type:  Ingress,
 				Ports: []uint32{3},
 				Annotations: map[string]string{
 					"test": "value2",
@@ -282,68 +277,184 @@ func TestGroupIngressConfig_IngressType_DifferentAnnotations(t *testing.T) {
 			},
 		},
 	}
-	input1 := &api.IngressConfig{
-		Type:  api.IngressType_Ingress,
+	input1 := &IngressServiceConfig{
+		Type:  Ingress,
 		Ports: []uint32{1, 2},
 		Annotations: map[string]string{
 			"test": "value",
 		},
 	}
-	input2 := &api.IngressConfig{
-		Type:  api.IngressType_Ingress,
+	input2 := &IngressServiceConfig{
+		Type:  Ingress,
 		Ports: []uint32{3},
 		Annotations: map[string]string{
 			"test": "value2",
 		},
 	}
-	groupedConfig := groupIngressConfig([]*api.IngressConfig{input1, input2})
+	groupedConfig := groupIngressConfig([]*IngressServiceConfig{input1, input2})
 	assert.Equal(t, groupedConfig, expected)
 }
 
 func TestGroupIngressConfig_MixedIngressType(t *testing.T) {
-	expected := map[api.IngressType][]*api.IngressConfig{
-		api.IngressType_Ingress: {
+	expected := map[IngressServiceType][]*IngressServiceConfig{
+		Ingress: {
 			{
-				Type:  api.IngressType_Ingress,
+				Type:  Ingress,
 				Ports: []uint32{1, 2},
 				Annotations: map[string]string{
 					"test": "value",
 				},
 			},
 			{
-				Type:  api.IngressType_Ingress,
+				Type:  Ingress,
 				Ports: []uint32{3},
 				Annotations: map[string]string{
 					"test": "value2",
 				},
 			},
 		},
-		api.IngressType_NodePort: {
+		NodePort: {
 			{
-				Type:        api.IngressType_NodePort,
-				Ports:       []uint32{4, 5},
-				Annotations: map[string]string{},
+				Type:  NodePort,
+				Ports: []uint32{4, 5},
 			},
 		},
 	}
-	input1 := &api.IngressConfig{
-		Type:  api.IngressType_Ingress,
+	input1 := &IngressServiceConfig{
+		Type:  Ingress,
 		Ports: []uint32{1, 2},
 		Annotations: map[string]string{
 			"test": "value",
 		},
 	}
-	input2 := &api.IngressConfig{
-		Type:  api.IngressType_Ingress,
+	input2 := &IngressServiceConfig{
+		Type:  Ingress,
 		Ports: []uint32{3},
 		Annotations: map[string]string{
 			"test": "value2",
 		},
 	}
-	input3 := &api.IngressConfig{
-		Type:  api.IngressType_NodePort,
+	input3 := &IngressServiceConfig{
+		Type:  NodePort,
 		Ports: []uint32{4, 5},
 	}
-	groupedConfig := groupIngressConfig([]*api.IngressConfig{input1, input2, input3})
+	groupedConfig := groupIngressConfig([]*IngressServiceConfig{input1, input2, input3})
 	assert.Equal(t, groupedConfig, expected)
+}
+
+func TestGroupIngressConfig_IngressType_Headless(t *testing.T) {
+	expected := map[IngressServiceType][]*IngressServiceConfig{
+		Headless: {
+			{
+				Type:  Headless,
+				Ports: []uint32{1},
+			},
+		},
+	}
+	input := &IngressServiceConfig{
+		Type:  Headless,
+		Ports: []uint32{1},
+	}
+	groupedConfig := groupIngressConfig([]*IngressServiceConfig{input})
+	assert.Equal(t, groupedConfig, expected)
+}
+
+func TestGatherIngressConfigs(t *testing.T) {
+	inputConfigs := []*IngressServiceConfig{
+		{
+			Type:  Ingress,
+			Ports: []uint32{1},
+		},
+		{
+			Type:  Ingress,
+			Ports: []uint32{2},
+		},
+		{
+			Type:  Headless,
+			Ports: []uint32{1},
+		},
+		{
+			Type:  NodePort,
+			Ports: []uint32{1},
+		},
+		{
+			Type:  Headless,
+			Ports: []uint32{2},
+		},
+	}
+
+	expected := map[IngressServiceType][]*IngressServiceConfig{
+		Ingress: {
+			{
+				Type:  Ingress,
+				Ports: []uint32{1},
+			},
+			{
+				Type:  Ingress,
+				Ports: []uint32{2},
+			},
+		},
+		NodePort: {
+			{
+				Type:  NodePort,
+				Ports: []uint32{1},
+			},
+		},
+		Headless: {
+			{
+				Type:  Headless,
+				Ports: []uint32{1},
+			},
+			{
+				Type:  Headless,
+				Ports: []uint32{2},
+			},
+		},
+	}
+
+	assert.Equal(t, gatherIngressConfig(inputConfigs), expected)
+}
+
+func TestCombineIngressService(t *testing.T) {
+	ingress := []*api.IngressConfig{
+		{
+			Ports: []uint32{1, 2, 3},
+			Annotations: map[string]string{
+				"Hello": "World",
+			},
+			TlsEnabled: true,
+		},
+	}
+
+	services := []*api.ServiceConfig{
+		{
+			Type:  api.ServiceType_Headless,
+			Ports: []uint32{4},
+		},
+		{
+			Type:  api.ServiceType_NodePort,
+			Ports: []uint32{5},
+		},
+	}
+
+	expected := []*IngressServiceConfig{
+		{
+			Type:  Ingress,
+			Ports: []uint32{1, 2, 3},
+			Annotations: map[string]string{
+				"Hello": "World",
+			},
+			TlsEnabled: true,
+		},
+		{
+			Type:  Headless,
+			Ports: []uint32{4},
+		},
+		{
+			Type:  NodePort,
+			Ports: []uint32{5},
+		},
+	}
+
+	assert.Equal(t, expected, CombineIngressService(ingress, services))
 }

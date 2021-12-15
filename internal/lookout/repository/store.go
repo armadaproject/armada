@@ -112,10 +112,6 @@ func (r *SQLJobStore) MarkCancelled(event *api.JobCancelledEvent) error {
 	return err
 }
 
-type jobJsonRow struct {
-	JobJson sql.NullString `db:"job"`
-}
-
 func (r *SQLJobStore) RecordJobReprioritized(event *api.JobReprioritizedEvent) error {
 	updatedJobJson, err := r.getReprioritizedJobJson(event)
 	if err != nil {

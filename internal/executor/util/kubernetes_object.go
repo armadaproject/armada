@@ -17,11 +17,18 @@ import (
 	"github.com/G-Research/armada/pkg/api"
 )
 
-func CreateService(job *api.Job, pod *v1.Pod, ports []v1.ServicePort, ingressType api.IngressType) *v1.Service {
+func CreateService(job *api.Job, pod *v1.Pod, ports []v1.ServicePort, ingSvcType IngressServiceType) *v1.Service {
 	serviceType := v1.ServiceTypeClusterIP
-	if ingressType == api.IngressType_NodePort {
+	if ingSvcType == NodePort {
 		serviceType = v1.ServiceTypeNodePort
 	}
+
+	clusterIP := ""
+
+	if ingSvcType == Headless {
+		clusterIP = "None"
+	}
+
 	serviceSpec := v1.ServiceSpec{
 		Type: serviceType,
 		Selector: map[string]string{
@@ -29,7 +36,8 @@ func CreateService(job *api.Job, pod *v1.Pod, ports []v1.ServicePort, ingressTyp
 			domain.Queue:     pod.Labels[domain.Queue],
 			domain.PodNumber: pod.Labels[domain.PodNumber],
 		},
-		Ports: ports,
+		Ports:     ports,
+		ClusterIP: clusterIP,
 	}
 	labels := util.MergeMaps(job.Labels, map[string]string{
 		domain.JobId:     pod.Labels[domain.JobId],
@@ -42,7 +50,7 @@ func CreateService(job *api.Job, pod *v1.Pod, ports []v1.ServicePort, ingressTyp
 	})
 	service := &v1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        fmt.Sprintf("%s-%s", pod.Name, strings.ToLower(ingressType.String())),
+			Name:        fmt.Sprintf("%s-%s", pod.Name, strings.ToLower(ingSvcType.String())),
 			Labels:      labels,
 			Annotations: annotation,
 			Namespace:   job.Namespace,
@@ -52,7 +60,8 @@ func CreateService(job *api.Job, pod *v1.Pod, ports []v1.ServicePort, ingressTyp
 	return service
 }
 
-func CreateIngress(name string, job *api.Job, pod *v1.Pod, service *v1.Service, executorIngressConfig *configuration.IngressConfiguration, jobConfig *api.IngressConfig) *networking.Ingress {
+func CreateIngress(name string, job *api.Job, pod *v1.Pod, service *v1.Service,
+	executorIngressConfig *configuration.IngressConfiguration, jobConfig *IngressServiceConfig) *networking.Ingress {
 	labels := util.MergeMaps(job.Labels, map[string]string{
 		domain.JobId:     pod.Labels[domain.JobId],
 		domain.Queue:     pod.Labels[domain.Queue],

@@ -7,7 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	yaml "gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v2"
 
 	"github.com/G-Research/armada/internal/fileutils"
 )
@@ -112,16 +112,6 @@ func ExtractCommandlineArmadaApiConnectionDetails() *ApiConnectionDetails {
 	apiConnectionDetails := &ApiConnectionDetails{}
 	viper.Unmarshal(apiConnectionDetails)
 	return apiConnectionDetails
-}
-
-// ConfigYamlString returns a string representation of the merged configuration stored in viper.
-func ConfigYamlString() (string, error) {
-	c := viper.AllSettings()
-	bs, err := yaml.Marshal(c)
-	if err != nil {
-		return "", fmt.Errorf("[ConfigYamlString] unable to marshal config to yaml: %s", err)
-	}
-	return string(bs), nil
 }
 
 type armadaClientConfig struct {
