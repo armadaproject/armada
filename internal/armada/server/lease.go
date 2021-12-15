@@ -52,8 +52,8 @@ func NewAggregatedQueueServer(
 }
 
 func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.LeaseRequest) (*api.JobLease, error) {
-	if e := checkPermission(q.permissions, ctx, permissions.ExecuteJobs); e != nil {
-		return nil, e
+	if err := checkPermission(q.permissions, ctx, permissions.ExecuteJobs); err != nil {
+		return nil, status.Errorf(codes.PermissionDenied, "[LeaseJobs] error: %s", err)
 	}
 
 	var res common.ComputeResources = request.Resources
@@ -130,16 +130,16 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 }
 
 func (q *AggregatedQueueServer) RenewLease(ctx context.Context, request *api.RenewLeaseRequest) (*api.IdList, error) {
-	if e := checkPermission(q.permissions, ctx, permissions.ExecuteJobs); e != nil {
-		return nil, e
+	if err := checkPermission(q.permissions, ctx, permissions.ExecuteJobs); err != nil {
+		return nil, status.Errorf(codes.PermissionDenied, "[RenewLease] error: %s", err)
 	}
 	renewed, e := q.jobRepository.RenewLease(request.ClusterId, request.Ids)
 	return &api.IdList{renewed}, e
 }
 
 func (q *AggregatedQueueServer) ReturnLease(ctx context.Context, request *api.ReturnLeaseRequest) (*types.Empty, error) {
-	if e := checkPermission(q.permissions, ctx, permissions.ExecuteJobs); e != nil {
-		return nil, e
+	if err := checkPermission(q.permissions, ctx, permissions.ExecuteJobs); err != nil {
+		return nil, status.Errorf(codes.PermissionDenied, "[ReturnLease] error: %s", err)
 	}
 
 	// Check how many times the same job has been retried already
@@ -219,8 +219,8 @@ func (q *AggregatedQueueServer) addAvoidNodeAffinity(jobId string, labels *api.O
 }
 
 func (q *AggregatedQueueServer) ReportDone(ctx context.Context, idList *api.IdList) (*api.IdList, error) {
-	if e := checkPermission(q.permissions, ctx, permissions.ExecuteJobs); e != nil {
-		return nil, e
+	if err := checkPermission(q.permissions, ctx, permissions.ExecuteJobs); err != nil {
+		return nil, status.Errorf(codes.PermissionDenied, "[ReportDone] error: %s", err)
 	}
 	jobs, e := q.jobRepository.GetExistingJobsByIds(idList.Ids)
 	if e != nil {

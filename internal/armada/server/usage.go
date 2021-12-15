@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/types"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/G-Research/armada/internal/armada/permissions"
@@ -38,8 +40,8 @@ func NewUsageServer(
 }
 
 func (s *UsageServer) ReportUsage(ctx context.Context, report *api.ClusterUsageReport) (*types.Empty, error) {
-	if e := checkPermission(s.permissions, ctx, permissions.ExecuteJobs); e != nil {
-		return nil, e
+	if err := checkPermission(s.permissions, ctx, permissions.ExecuteJobs); err != nil {
+		return nil, status.Errorf(codes.PermissionDenied, "[ReportUsage] error: %s", err)
 	}
 
 	queues, err := s.queueRepository.GetAllQueues()

@@ -8,6 +8,8 @@ import (
 	"github.com/G-Research/armada/internal/armada/repository"
 	"github.com/G-Research/armada/internal/common/auth/authorization"
 	"github.com/G-Research/armada/pkg/api"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/gogo/protobuf/types"
 )
@@ -30,22 +32,22 @@ func NewEventServer(
 }
 
 func (s *EventServer) Report(ctx context.Context, message *api.EventMessage) (*types.Empty, error) {
-	if e := checkPermission(s.permissions, ctx, permissions.ExecuteJobs); e != nil {
-		return nil, e
+	if err := checkPermission(s.permissions, ctx, permissions.ExecuteJobs); err != nil {
+		return nil, status.Errorf(codes.PermissionDenied, "[Report] error: %s", err)
 	}
 	return &types.Empty{}, s.eventStore.ReportEvents([]*api.EventMessage{message})
 }
 
 func (s *EventServer) ReportMultiple(ctx context.Context, message *api.EventList) (*types.Empty, error) {
-	if e := checkPermission(s.permissions, ctx, permissions.ExecuteJobs); e != nil {
-		return nil, e
+	if err := checkPermission(s.permissions, ctx, permissions.ExecuteJobs); err != nil {
+		return nil, status.Errorf(codes.PermissionDenied, "[ReportMultiple] error: %s", err)
 	}
 	return &types.Empty{}, s.eventStore.ReportEvents(message.Events)
 }
 
 func (s *EventServer) GetJobSetEvents(request *api.JobSetRequest, stream api.Event_GetJobSetEventsServer) error {
-	if e := checkPermission(s.permissions, stream.Context(), permissions.WatchAllEvents); e != nil {
-		return e
+	if err := checkPermission(s.permissions, stream.Context(), permissions.WatchAllEvents); err != nil {
+		return status.Errorf(codes.PermissionDenied, "[GetJobSetEvents] error: %s", err)
 	}
 
 	fromId := request.FromMessageId

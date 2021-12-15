@@ -2,22 +2,33 @@ package server
 
 import (
 	"context"
-
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
+	"fmt"
 
 	"github.com/G-Research/armada/internal/common/auth/authorization"
 	"github.com/G-Research/armada/internal/common/auth/permission"
 )
 
-// Called by the Armada server to check permissions for gRPC calls.
-//
-// TODO We don't need this function.
+// ErrNoPermission represents an error that occurs when a client tries to perform some action
+// through the gRPC API for which it does not have permissions. The error contains the name
+// of the client and the requested permission.
+type ErrNoPermission struct {
+	UserName   string
+	Permission permission.Permission
+}
+
+func (err *ErrNoPermission) Error() string {
+	return fmt.Sprintf("user %q lacks permission %q", err.UserName, err.Permission)
+}
+
+// checkPermission is a helper function called by the gRPC handlers to check if a client has the
+// permissions required to perform some action. The error returned is of type ErrNoPermission.
+// After recovering the error (using errors.As), the caller can obtain the name of the user and the
+// requested permission programatically via this error type.
 func checkPermission(p authorization.PermissionChecker, ctx context.Context, permission permission.Permission) error {
 	if !p.UserHasPermission(ctx, permission) {
 		principal := authorization.GetPrincipal(ctx)
 		name := principal.GetName()
-		return status.Errorf(codes.PermissionDenied, "User %q does not have permission %q", name, permission)
+		return &ErrNoPermission{UserName: name, Permission: permission}
 	}
 	return nil
 }

@@ -404,8 +404,8 @@ func (server *SubmitServer) checkQueuePermission(
 	if !owned {
 		permissionToCheck = allQueuesPermission
 	}
-	if e := checkPermission(server.permissions, ctx, permissionToCheck); e != nil {
-		return e, []string{}
+	if err := checkPermission(server.permissions, ctx, permissionToCheck); err != nil {
+		return status.Errorf(codes.PermissionDenied, "error: %s", err), []string{}
 	}
 	return nil, groups
 }
