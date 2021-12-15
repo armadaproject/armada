@@ -127,10 +127,10 @@
       }
     },
     "apiIngressType": {
+      "description": "Ingress type is being kept here to maintain backwards compatibility for a while.",
       "type": "string",
-      "default": "NodePort",
+      "default": "Ingress",
       "enum": [
-        "NodePort",
         "Ingress"
       ]
     },
@@ -201,8 +201,37 @@
           "additionalProperties": {
             "type": "string"
           }
+        },
+        "services": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiServiceConfig"
+          }
         }
       }
+    },
+    "apiServiceConfig": {
+      "type": "object",
+      "properties": {
+        "ports": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "type": {
+          "$ref": "#/definitions/apiServiceType"
+        }
+      }
+    },
+    "apiServiceType": {
+      "type": "string",
+      "default": "NodePort",
+      "enum": [
+        "NodePort",
+        "Headless"
+      ]
     },
     "intstrIntOrString": {
       "description": "+protobuf=true\n+protobuf.options.(gogoproto.goproto_stringer)=false\n+k8s:openapi-gen=true",

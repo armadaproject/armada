@@ -458,6 +458,7 @@ func (server *SubmitServer) createJobs(request *api.JobSubmitRequest, owner stri
 
 			RequiredNodeLabels: item.RequiredNodeLabels,
 			Ingress:            item.Ingress,
+			Services:           item.Services,
 
 			Priority: item.Priority,
 
@@ -507,13 +508,6 @@ func (server *SubmitServer) applyDefaultsToPodSpec(spec *v1.PodSpec) {
 		}
 		spec.Tolerations = append(spec.Tolerations, tolerationsToAdd...)
 	}
-}
-
-func validateQueue(queue *api.Queue) error {
-	if queue.PriorityFactor < 1.0 {
-		return status.Errorf(codes.InvalidArgument, "Minimum queue priority factor is 1.")
-	}
-	return nil
 }
 
 func createJobFailuresWithReason(jobs []*api.Job, reason string) []*jobFailure {

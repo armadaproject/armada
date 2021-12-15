@@ -145,7 +145,11 @@ func (allocationService *SubmitService) submitPod(job *api.Job, i int) (*v1.Pod,
 }
 
 func exposesPorts(job *api.Job, podSpec *v1.PodSpec) bool {
-	return len(util2.GetServicePorts(job.Ingress, podSpec)) > 0
+	// This is to workaround needing to get serviceports for service configs
+	// while maintaining immutability of the configs as they're passed around.
+	servicesIngressConfig := util2.CombineIngressService(job.Ingress, job.Services)
+
+	return len(util2.GetServicePorts(servicesIngressConfig, podSpec)) > 0
 }
 
 func isNotRecoverable(status metav1.Status) bool {
