@@ -61,47 +61,47 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 		return &api.JobLease{}, nil
 	}
 
-	queues, e := q.queueRepository.GetAllQueues()
-	if e != nil {
-		return nil, e
+	queues, err := q.queueRepository.GetAllQueues()
+	if err != nil {
+		return nil, status.Errorf(codes.Unavailable, "[LeaseJobs] error getting queues: %s", err)
 	}
 
-	activeQueues, e := q.jobRepository.FilterActiveQueues(queues)
-	if e != nil {
-		return nil, e
+	activeQueues, err := q.jobRepository.FilterActiveQueues(queues)
+	if err != nil {
+		return nil, status.Errorf(codes.Unavailable, "[LeaseJobs] error filtering active queues: %s", err)
 	}
 
-	usageReports, e := q.usageRepository.GetClusterUsageReports()
-	if e != nil {
-		return nil, e
+	usageReports, err := q.usageRepository.GetClusterUsageReports()
+	if err != nil {
+		return nil, status.Errorf(codes.Unavailable, "[LeaseJobs] error getting cluster usage: %s", err)
 	}
 
-	e = q.usageRepository.UpdateClusterLeased(&request.ClusterLeasedReport)
-	if e != nil {
-		return nil, e
+	err = q.usageRepository.UpdateClusterLeased(&request.ClusterLeasedReport)
+	if err != nil {
+		return nil, status.Errorf(codes.Unavailable, "[LeaseJobs] error updating cluster lease report: %s", err)
 	}
 
 	nodeResources := scheduling.AggregateNodeTypeAllocations(request.Nodes)
 	clusterSchedulingInfo := scheduling.CreateClusterSchedulingInfoReport(request, nodeResources)
-	e = q.schedulingInfoRepository.UpdateClusterSchedulingInfo(clusterSchedulingInfo)
-	if e != nil {
-		return nil, e
+	err = q.schedulingInfoRepository.UpdateClusterSchedulingInfo(clusterSchedulingInfo)
+	if err != nil {
+		return nil, status.Errorf(codes.Unavailable, "[LeaseJobs] error updating cluster scheduling info: %s", err)
 	}
 
 	activeClusterReports := scheduling.FilterActiveClusters(usageReports)
 	activePoolClusterReports := scheduling.FilterPoolClusters(request.Pool, activeClusterReports)
 	activePoolCLusterIds := scheduling.GetClusterReportIds(activePoolClusterReports)
-	clusterPriorities, e := q.usageRepository.GetClusterPriorities(activePoolCLusterIds)
-	if e != nil {
-		return nil, e
+	clusterPriorities, err := q.usageRepository.GetClusterPriorities(activePoolCLusterIds)
+	if err != nil {
+		return nil, status.Errorf(codes.Unavailable, "[LeaseJobs] error getting cluster priorities: %s", err)
 	}
 
 	clusterLeasedJobReports, e := q.usageRepository.GetClusterLeasedReports()
-	if e != nil {
-		return nil, e
+	if err != nil {
+		return nil, status.Errorf(codes.Unavailable, "[LeaseJobs] error getting cluster lease reports: %s", err)
 	}
 	poolLeasedJobReports := scheduling.FilterClusterLeasedReports(activePoolCLusterIds, clusterLeasedJobReports)
-	jobs, e := scheduling.LeaseJobs(
+	jobs, err := scheduling.LeaseJobs(
 		ctx,
 		&q.schedulingConfig,
 		q.jobQueue,
@@ -112,9 +112,8 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 		poolLeasedJobReports,
 		clusterPriorities,
 		activeQueues)
-
-	if e != nil {
-		return nil, e
+	if err != nil {
+		return nil, status.Errorf(codes.Unavailable, "[LeaseJobs] error leasing jobs: %s", err)
 	}
 
 	clusterLeasedReport := scheduling.CreateClusterLeasedReport(request.ClusterLeasedReport.ClusterId, &request.ClusterLeasedReport, jobs)
