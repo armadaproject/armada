@@ -969,9 +969,9 @@ func (repo *RedisJobRepository) leaseJobs(clusterId string, jobs []*api.Job) ([]
 	now := time.Now()
 	pipe := repo.db.Pipeline()
 
-	// Calling run on a script should automatically loads the script into server-side cache.
-	// However, calling script.Run() without first calling script.Load() results in a NOSCRIPT error.
-	// This is likely due to a bug in go-redis.
+	// Calling run on a script should automatically load the script into server-side cache.
+	// However, calling script.Run() without first calling script.Load() results in a NOSCRIPT error,
+	// perhaps due to a bug in go-redis.
 	leaseJobScript.Load(pipe)
 
 	cmds := make(map[string]*redis.Cmd)
