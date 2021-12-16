@@ -125,6 +125,13 @@ func (server *SubmitServer) UpdateQueue(ctx context.Context, queue *api.Queue) (
 	return &types.Empty{}, nil
 }
 
+func validateQueue(queue *api.Queue) error {
+	if queue.PriorityFactor < 1.0 {
+		return status.Errorf(codes.InvalidArgument, "Minimum queue priority factor is 1.")
+	}
+	return nil
+}
+
 func (server *SubmitServer) DeleteQueue(ctx context.Context, request *api.QueueDeleteRequest) (*types.Empty, error) {
 	if e := checkPermission(server.permissions, ctx, permissions.DeleteQueue); e != nil {
 		return nil, e
