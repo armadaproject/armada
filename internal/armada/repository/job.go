@@ -87,6 +87,7 @@ type SubmitJobResult struct {
 
 func (repo *RedisJobRepository) AddJobs(jobs []*api.Job) ([]*SubmitJobResult, error) {
 	pipe := repo.db.Pipeline()
+	addJobScript.Load(pipe)
 
 	saveResults := make([]*redis.Cmd, 0, len(jobs))
 	for _, job := range jobs {
@@ -498,6 +499,8 @@ func (repo *RedisJobRepository) UpdateStartTime(jobStartInfos []*JobStartInfo) (
 	commands := make([]*redis.Cmd, len(jobStartInfos), len(jobStartInfos))
 
 	pipe := repo.db.Pipeline()
+	updateStartTimeScript.Load(pipe)
+
 	for i, jobStartInfo := range jobStartInfos {
 		commands[i] = updateStartTimeScript.Run(
 			pipe,
@@ -652,6 +655,7 @@ func (repo *RedisJobRepository) updateJobBatchWithRetry(ids []string, mutator fu
 		// written out results back to Redis.
 		commands := make([]*redis.Cmd, len(jobs))
 		pipe := tx.TxPipeline()
+		updateJobAndPriorityScript.Load(pipe)
 		for i, job := range jobs {
 			newPriority := job.Priority
 			jobData := &jobDatas[i]
@@ -914,6 +918,7 @@ func (repo *RedisJobRepository) ExpireLeases(queue string, deadline time.Time) (
 	cmds := make(map[*api.Job]*redis.Cmd)
 
 	pipe := repo.db.Pipeline()
+	expireScript.Load(pipe)
 	for _, job := range expiringJobs {
 		cmds[job] = expire(pipe, job.Queue, job.Id, job.Priority, deadline)
 	}
@@ -963,6 +968,11 @@ func (repo *RedisJobRepository) leaseJobs(clusterId string, jobs []*api.Job) ([]
 
 	now := time.Now()
 	pipe := repo.db.Pipeline()
+
+	// TODO: We can remove all of the script.Load calls
+	// Since calling run on a script automatically loads the script into server-side cache
+	leaseJobScript.Load(pipe)
+
 	cmds := make(map[string]*redis.Cmd)
 	for _, job := range jobs {
 		cmds[job.Id] = leaseJob(pipe, job.Queue, clusterId, job.Id, now)
