@@ -13,4 +13,3 @@ auth:
     reprioritize_any_jobs: ["everyone"]
     watch_all_events: ["everyone"]
     execute_jobs: ["everyone"]
-

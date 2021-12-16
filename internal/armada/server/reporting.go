@@ -195,36 +195,31 @@ func reportJobsCancelled(repository repository.EventStore, requestorName string,
 	return e
 }
 
-func reportTerminated(repository repository.EventStore, clusterId string, job *api.Job) error {
-	event, e := api.Wrap(&api.JobTerminatedEvent{
-		JobId:     job.Id,
-		Queue:     job.Queue,
-		JobSetId:  job.JobSetId,
-		Created:   time.Now(),
-		ClusterId: clusterId,
-	})
-	if e != nil {
-		return e
-	}
-	e = repository.ReportEvents([]*api.EventMessage{event})
-	return e
+type jobFailure struct {
+	job    *api.Job
+	reason string
 }
 
-func reportFailed(repository repository.EventStore, clusterId string, reason string, job *api.Job) error {
-	event, e := api.Wrap(&api.JobFailedEvent{
-		JobId:        job.Id,
-		JobSetId:     job.JobSetId,
-		Queue:        job.Queue,
-		Created:      time.Now(),
-		ClusterId:    clusterId,
-		Reason:       reason,
-		ExitCodes:    make(map[string]int32),
-		KubernetesId: "",
-		NodeName:     "",
-	})
-	if e != nil {
-		return e
+func reportFailed(repository repository.EventStore, clusterId string, jobFailures []*jobFailure) error {
+	events := []*api.EventMessage{}
+	now := time.Now()
+	for _, jobFailure := range jobFailures {
+		event, e := api.Wrap(&api.JobFailedEvent{
+			JobId:        jobFailure.job.Id,
+			JobSetId:     jobFailure.job.JobSetId,
+			Queue:        jobFailure.job.Queue,
+			Created:      now,
+			ClusterId:    clusterId,
+			Reason:       jobFailure.reason,
+			ExitCodes:    make(map[string]int32),
+			KubernetesId: "",
+			NodeName:     "",
+		})
+		if e != nil {
+			return e
+		}
+		events = append(events, event)
 	}
-	e = repository.ReportEvents([]*api.EventMessage{event})
+	e := repository.ReportEvents(events)
 	return e
 }

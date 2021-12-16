@@ -4,6 +4,7 @@ httpPort: 8080
 metricsPort: 9000
 corsAllowedOrigins: []
 priorityHalfTime: 20m
+cancelJobsBatchSize: 200
 redis:
   addrs:
     - "localhost:6379"
@@ -19,21 +20,31 @@ eventsRedis:
 scheduling:
   useProbabilisticSchedulingForAllResources: true
   queueLeaseBatchSize: 200
+  maximumLeasePayloadSizeBytes: 7340032 # 1024 * 1024 * 7
   minimumResourceToSchedule:
     memory: 100000000 # 100Mb
     cpu: 0.25
   maximalClusterFractionToSchedule:
     memory: 0.25
     cpu: 0.25
+  maximumJobsToSchedule: 5000
   lease:
     expireAfter: 15m
     expiryLoopInterval: 5s
   maxRetries: 5
+  maxPodSpecSizeBytes: 65535
 queueManagement:
   defaultPriorityFactor: 1000
+events:
+  storeQueue: "ArmadaEventRedisProcessor"
+  jobStatusQueue: "ArmadaEventJobStatusProcessor"
+  processorBatchSize: 100
+  processorMaxTimeBetweenBatches: 1s
+  processorTimeout: 10s
 eventsNats:
-  queueGroup: "ArmadaEventRedisProcessor"
-  jobStatusGroup: "ArmadaEventJobStatusProcessor"
+  timeout: 10s
+databaseRetention:
+  jobRetentionDuration: 168h # Specified as a Go duration
 eventRetention:
   expiryEnabled: true
   retentionDuration: 336h # Specified as a Go duration

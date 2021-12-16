@@ -1,6 +1,9 @@
 application:
   clusterId : "Cluster1"
   pool: "default"
+  submitConcurrencyLimit: 2
+  updateConcurrencyLimit: 10
+  deleteConcurrencyLimit: 2
 task:
   utilisationReportingInterval: 1s
   missingJobEventReconciliationInterval: 15s
@@ -12,6 +15,8 @@ task:
   utilisationEventReportingInterval: 5m
 apiConnection:
   armadaUrl : "localhost:50051"
+client:
+  maxMessageSizeBytes: 8388608 # 1024 * 1024 * 8
 metric:
   port: 9001
   exposeQueueUsageMetrics: false
@@ -23,6 +28,7 @@ kubernetes:
   podDefaults:
     ingress:
       hostnameSuffix: "svc"
+      certDomain: "svc"
   pendingPodChecks:
     events:
     - regexp: "Failed to pull image.*desc = failed to pull and unpack image"            # Suggests genuine problem with image name, no point in waiting around too long.

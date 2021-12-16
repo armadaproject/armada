@@ -441,6 +441,9 @@
             "type": "string"
           }
         },
+        "certName": {
+          "type": "string"
+        },
         "ports": {
           "type": "array",
           "items": {
@@ -448,16 +451,19 @@
             "format": "int64"
           }
         },
+        "tlsEnabled": {
+          "type": "boolean"
+        },
         "type": {
           "$ref": "#/definitions/apiIngressType"
         }
       }
     },
     "apiIngressType": {
+      "description": "Ingress type is being kept here to maintain backwards compatibility for a while.",
       "type": "string",
-      "default": "NodePort",
+      "default": "Ingress",
       "enum": [
-        "NodePort",
         "Ingress"
       ]
     },
@@ -527,6 +533,12 @@
           "type": "object",
           "additionalProperties": {
             "type": "string"
+          }
+        },
+        "services": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiServiceConfig"
           }
         }
       }
@@ -741,6 +753,13 @@
         },
         "jobSetId": {
           "type": "string"
+        },
+        "kubernetesId": {
+          "type": "string"
+        },
+        "podNumber": {
+          "type": "integer",
+          "format": "int32"
         },
         "queue": {
           "type": "string"
@@ -1041,6 +1060,12 @@
           "additionalProperties": {
             "type": "string"
           }
+        },
+        "services": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiServiceConfig"
+          }
         }
       }
     },
@@ -1321,6 +1346,29 @@
           "type": "string"
         }
       }
+    },
+    "apiServiceConfig": {
+      "type": "object",
+      "properties": {
+        "ports": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "type": {
+          "$ref": "#/definitions/apiServiceType"
+        }
+      }
+    },
+    "apiServiceType": {
+      "type": "string",
+      "default": "NodePort",
+      "enum": [
+        "NodePort",
+        "Headless"
+      ]
     },
     "intstrIntOrString": {
       "description": "+protobuf=true\n+protobuf.options.(gogoproto.goproto_stringer)=false\n+k8s:openapi-gen=true",

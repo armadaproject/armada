@@ -5,9 +5,6 @@ import (
 	"encoding/base64"
 )
 
-const UsernameField string = "username"
-const PasswordField string = "password"
-
 type LoginCredentials struct {
 	Username string
 	Password string

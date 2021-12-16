@@ -1,67 +1,41 @@
 package cmd
 
 import (
-	"github.com/G-Research/armada/cmd/armadactl/cmd/queue"
 	"github.com/spf13/cobra"
 )
 
-func init() {
-	rootCmd.AddCommand(
-		Create(),
-		Delete(),
-		Update(),
-		Info(),
-	)
-}
-
-func Create() *cobra.Command {
-	command := cobra.Command{
+func createCmd() *cobra.Command {
+	cmd := &cobra.Command{
 		Use:   "create",
 		Short: "Create Armada resource. Supported: queue",
 	}
-
-	command.AddCommand(
-		queue.Create(),
-	)
-
-	return &command
+	cmd.AddCommand(queueCreateCmd())
+	return cmd
 }
 
-func Delete() *cobra.Command {
-	command := cobra.Command{
+func deleteCmd() *cobra.Command {
+	cmd := &cobra.Command{
 		Use:   "delete",
 		Short: "Delete Armada resource. Supported: queue",
 	}
-
-	command.AddCommand(
-		queue.Delete(),
-	)
-
-	return &command
+	cmd.AddCommand(queueDeleteCmd())
+	return cmd
 }
 
-func Update() *cobra.Command {
-	command := cobra.Command{
+func updateCmd() *cobra.Command {
+	cmd := &cobra.Command{
 		Use:   "update",
 		Short: "Update Armada resource. Supported: queue",
 	}
-
-	command.AddCommand(
-		queue.Update(),
-	)
-
-	return &command
+	cmd.AddCommand(queueUpdateCmd())
+	return cmd
 }
 
-func Info() *cobra.Command {
-	command := cobra.Command{
+func describeCmd() *cobra.Command {
+	cmd := &cobra.Command{
 		Use:   "describe",
 		Short: "Retrieve information about armada resource. Supported: queue",
 	}
-
-	command.AddCommand(
-		queue.Describe(),
-	)
-
-	return &command
+	cmd.AddCommand(queueDescribeCmd())
+	return cmd
 }

@@ -22,6 +22,7 @@ const EveryoneGroup = "everyone"
 
 var anonymousPrincipal = NewStaticPrincipal("anonymous", []string{})
 
+// Principal represents an entity that can be authenticated (e.g., a user).
 type Principal interface {
 	GetName() string
 	GetGroupNames() []string
@@ -95,6 +96,17 @@ type AuthService interface {
 	Authenticate(ctx context.Context) (Principal, error)
 }
 
+// CreateMiddlewareAuthFunction returns an authentication function that combines the given
+// authentication services. That function returns success if any service successfully
+// authenticates the user, and an error if all services fail to authenticate.
+// The services in authServices are tried one at a time in sequence.
+// Successful authentication short-circuits the process.
+//
+// If authentication succeeds, the username returned by the authentication service is added to the
+// request context for logging purposes.
+//
+// TODO Is this function correct? If an authentication service fails we may still wish to try the
+// remaining ones instead of returning immediately, which is what we do now.
 func CreateMiddlewareAuthFunction(authServices []AuthService) grpc_auth.AuthFunc {
 	return func(ctx context.Context) (context.Context, error) {
 		for _, service := range authServices {

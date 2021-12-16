@@ -1,61 +1,45 @@
 package events
 
 import (
-	"github.com/gogo/protobuf/proto"
-	"github.com/nats-io/stan.go"
-	stanPb "github.com/nats-io/stan.go/pb"
-	log "github.com/sirupsen/logrus"
+	"fmt"
 
-	stanUtil "github.com/G-Research/armada/internal/common/stan-util"
+	"github.com/G-Research/armada/internal/common/eventstream"
 	"github.com/G-Research/armada/internal/lookout/repository"
 	"github.com/G-Research/armada/pkg/api"
 )
 
 type EventProcessor struct {
-	connection *stanUtil.DurableConnection
-	subject    string
-	group      string
-	recorder   repository.JobRecorder
+	queue    string
+	stream   eventstream.EventStream
+	recorder repository.JobRecorder
 }
 
-func NewEventProcessor(connection *stanUtil.DurableConnection, repository repository.JobRecorder, subject string, group string) *EventProcessor {
-	return &EventProcessor{connection: connection, recorder: repository, subject: subject, group: group}
+func NewEventProcessor(queue string, stream eventstream.EventStream, repository repository.JobRecorder) *EventProcessor {
+	return &EventProcessor{queue: queue, stream: stream, recorder: repository}
 }
 
 func (p *EventProcessor) Start() {
-	err := p.connection.QueueSubscribe(p.subject, p.group,
-		p.handleMessage,
-		stan.SetManualAckMode(),
-		stan.StartAt(stanPb.StartPosition_LastReceived),
-		stan.DurableName(p.group))
-
+	err := p.stream.Subscribe(p.queue, p.handleMessage)
 	if err != nil {
 		panic(err)
 	}
 }
 
-func (p *EventProcessor) handleMessage(msg *stan.Msg) {
+func (p *EventProcessor) handleMessage(eventMessage *eventstream.Message) error {
 	// TODO: batching???
-	eventMessage := &api.EventMessage{}
-	err := proto.Unmarshal(msg.Data, eventMessage)
+	event, err := api.UnwrapEvent(eventMessage.EventMessage)
 	if err != nil {
-		log.Errorf("Error while unmarshaling nats message: %v", err)
-	} else {
-		event, err := api.UnwrapEvent(eventMessage)
-		if err != nil {
-			log.Errorf("Error while unwrapping event message: %v", err)
-			return
-		}
-		err = p.processEvent(event)
-		if err != nil {
-			log.Errorf("Error while reporting event from nats: %v (event: %v)", err, eventMessage)
-			return
-		}
+		return fmt.Errorf("error while unwrapping event message: %v", err)
 	}
-	err = msg.Ack()
+	err = p.processEvent(event)
 	if err != nil {
-		log.Errorf("Error while ack nats message: %v", err)
+		return fmt.Errorf("Error while reporting event from nats: %v (event: %v)", err, eventMessage)
 	}
+	err = eventMessage.Ack()
+	if err != nil {
+		return fmt.Errorf("error while attempting to acknowledge event: %v", err)
+	}
+	return nil
 }
 
 func (p *EventProcessor) processEvent(event api.Event) error {
@@ -83,6 +67,14 @@ func (p *EventProcessor) processEvent(event api.Event) error {
 
 	case *api.JobLeasedEvent:
 	case *api.JobLeaseReturnedEvent:
+		return p.recorder.RecordJobUnableToSchedule(&api.JobUnableToScheduleEvent{
+			JobId:     typed.JobId,
+			JobSetId:  typed.JobSetId,
+			Queue:     typed.Queue,
+			Created:   typed.Created,
+			ClusterId: typed.ClusterId,
+			Reason:    typed.Reason,
+		})
 	case *api.JobLeaseExpiredEvent:
 		// TODO record leasing as messages?
 

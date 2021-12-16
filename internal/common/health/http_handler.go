@@ -6,6 +6,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// TODO Doesn't need to exist. Just give a Checker directly.
 type CheckHttpHandler struct {
 	checker Checker
 }
@@ -16,6 +17,9 @@ func NewCheckHttpHandler(checker Checker) *CheckHttpHandler {
 	}
 }
 
+// TODO Is this really the way to do it? We could give a handler that is an anonymous function
+// handle that encloses the relevant variables.
+// In doing so, we don't need CheckHttpHandler, NewCheckHttpHandler.
 func (h *CheckHttpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	err := h.checker.Check()
 	if err == nil {

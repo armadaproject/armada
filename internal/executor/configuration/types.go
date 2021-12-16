@@ -9,8 +9,11 @@ import (
 )
 
 type ApplicationConfiguration struct {
-	ClusterId string
-	Pool      string
+	ClusterId              string
+	Pool                   string
+	SubmitConcurrencyLimit int
+	UpdateConcurrencyLimit int
+	DeleteConcurrencyLimit int
 }
 
 type PodDefaults struct {
@@ -20,7 +23,12 @@ type PodDefaults struct {
 
 type IngressConfiguration struct {
 	HostnameSuffix string
+	CertDomain     string
 	Annotations    map[string]string
+}
+
+type ClientConfiguration struct {
+	MaxMessageSizeBytes int
 }
 
 type KubernetesConfiguration struct {
@@ -56,6 +64,7 @@ type ExecutorConfiguration struct {
 	Metric        MetricConfiguration
 	Application   ApplicationConfiguration
 	ApiConnection client.ApiConnectionDetails
+	Client        ClientConfiguration
 
 	Kubernetes KubernetesConfiguration
 	Task       TaskConfiguration

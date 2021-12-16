@@ -656,3 +656,28 @@ func TestHasPodBeenInStateForLongerThanGivenDuration_ReturnsFalse_WhenNoPodState
 
 	assert.False(t, result)
 }
+
+func TestProcessPodsWithThreadPool(t *testing.T) {
+	pod1 := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "pod1"},
+	}
+	pod2 := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "pod2"},
+	}
+	pod3 := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "pod3"},
+	}
+	result := map[string]bool{
+		pod1.Name: false,
+		pod2.Name: false,
+		pod3.Name: false,
+	}
+
+	ProcessPodsWithThreadPool([]*v1.Pod{pod1, pod2, pod3}, 3, func(pod *v1.Pod) {
+		result[pod.Name] = true
+	})
+
+	assert.True(t, result[pod1.Name])
+	assert.True(t, result[pod2.Name])
+	assert.True(t, result[pod3.Name])
+}

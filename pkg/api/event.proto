@@ -50,6 +50,8 @@ message JobLeaseReturnedEvent {
     google.protobuf.Timestamp created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
     string cluster_id = 5;
     string reason = 6;
+    string kubernetes_id = 7;
+    int32  pod_number = 8;
 }
 
 message JobLeaseExpiredEvent {
@@ -270,6 +272,12 @@ message JobSetRequest {
     string queue = 4;
 }
 
+message WatchRequest {
+    string queue = 1;
+    string job_set_id = 2;
+    string from_id = 3;
+}
+
 service Event {
     rpc ReportMultiple (EventList) returns (google.protobuf.Empty);
     rpc Report (EventMessage) returns (google.protobuf.Empty);
@@ -279,4 +287,5 @@ service Event {
             body: "*"
         };
     }
+    rpc Watch (WatchRequest) returns (stream EventStreamMessage);
 }

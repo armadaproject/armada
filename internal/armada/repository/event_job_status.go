@@ -1,67 +1,96 @@
 package repository
 
 import (
-	"github.com/gogo/protobuf/proto"
-	"github.com/nats-io/stan.go"
-	stanPb "github.com/nats-io/stan.go/pb"
 	log "github.com/sirupsen/logrus"
 
-	stanUtil "github.com/G-Research/armada/internal/common/stan-util"
+	"github.com/G-Research/armada/internal/common/eventstream"
 	"github.com/G-Research/armada/pkg/api"
 )
 
-type NatsEventJobStatusProcessor struct {
-	connection    *stanUtil.DurableConnection
+type EventJobStatusProcessor struct {
+	queue         string
 	jobRepository JobRepository
-	subject       string
-	group         string
+	stream        eventstream.EventStream
+	batcher       eventstream.EventBatcher
 }
 
-func NewNatsEventJobStatusProcessor(connection *stanUtil.DurableConnection, jobRepository JobRepository, subject string, group string) *NatsEventJobStatusProcessor {
-	return &NatsEventJobStatusProcessor{connection: connection, jobRepository: jobRepository, subject: subject, group: group}
+func NewEventJobStatusProcessor(
+	queue string,
+	jobRepository JobRepository,
+	stream eventstream.EventStream,
+	batcher eventstream.EventBatcher,
+) *EventJobStatusProcessor {
+	processor := &EventJobStatusProcessor{
+		queue:         queue,
+		jobRepository: jobRepository,
+		stream:        stream,
+		batcher:       batcher,
+	}
+	processor.batcher.Register(processor.handleBatch)
+	return processor
 }
 
-func (p *NatsEventJobStatusProcessor) Start() {
-	err := p.connection.QueueSubscribe(p.subject, p.group,
-		p.handleMessage,
-		stan.SetManualAckMode(),
-		stan.StartAt(stanPb.StartPosition_LastReceived),
-		stan.DurableName(p.group))
+func (p *EventJobStatusProcessor) Start() {
+	err := p.stream.Subscribe(p.queue, p.handleMessage)
 
 	if err != nil {
 		panic(err)
 	}
 }
 
-func (p *NatsEventJobStatusProcessor) handleMessage(msg *stan.Msg) {
-	// TODO: batching???
-	event, err := unmarshal(msg)
-
+func (p *EventJobStatusProcessor) handleMessage(message *eventstream.Message) error {
+	event, err := api.UnwrapEvent(message.EventMessage)
 	if err != nil {
-		log.Errorf("Error while unmarshalling nats message: %v", err)
-	} else {
+		log.Errorf("error while unwrapping eventmessage: %v", err)
+		return err
+	}
+
+	switch event.(type) {
+	case *api.JobRunningEvent:
+		err = p.batcher.Report(message)
+		if err != nil {
+			log.Errorf("error when reporting job status event to batcher: %v", err)
+		}
+	}
+
+	return nil
+}
+
+func (p *EventJobStatusProcessor) handleBatch(batch []*eventstream.Message) error {
+	var jobStartInfos []*JobStartInfo
+	for _, msg := range batch {
+		event, err := api.UnwrapEvent(msg.EventMessage)
+		if err != nil {
+			log.Errorf("error while unwrapping event message: %v", err)
+			return err
+		}
 		switch event := event.(type) {
 		case *api.JobRunningEvent:
-			err = p.jobRepository.UpdateStartTime(event.JobId, event.ClusterId, event.Created)
-			if err != nil {
-				log.Errorf("Error while updating job start time: %v", err)
-				if err.Error() != JobNotFound {
-					return
-				}
+			jobStartInfos = append(jobStartInfos, &JobStartInfo{
+				JobId:     event.GetJobId(),
+				ClusterId: event.ClusterId,
+				StartTime: event.Created,
+			})
+		}
+	}
+
+	jobErrors, err := p.jobRepository.UpdateStartTime(jobStartInfos)
+	if err != nil {
+		log.Errorf("error when updating start times for jobs: %v", err)
+		return err
+	}
+	if len(jobErrors) != len(batch) {
+		log.Errorf("error when updating start times for jobs: different number of job errors returned")
+		return err
+	}
+	for i, err := range jobErrors {
+		if err != nil {
+			log.Errorf("error when updating start time for single job: %v", err)
+		} else {
+			if jobErr := batch[i].Ack(); jobErr != nil {
+				log.Errorf("error when acknowledging message: %v", jobErr)
 			}
 		}
 	}
-	err = msg.Ack()
-	if err != nil {
-		log.Errorf("Error while ack nats message: %v", err)
-	}
-}
-
-func unmarshal(msg *stan.Msg) (api.Event, error) {
-	eventMessage := &api.EventMessage{}
-	err := proto.Unmarshal(msg.Data, eventMessage)
-	if err != nil {
-		return nil, err
-	}
-	return api.UnwrapEvent(eventMessage)
+	return nil
 }

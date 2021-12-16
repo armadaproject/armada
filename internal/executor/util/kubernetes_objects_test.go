@@ -3,6 +3,8 @@ package util
 import (
 	"testing"
 
+	"k8s.io/apimachinery/pkg/util/intstr"
+
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/internal/executor/configuration"
 	"github.com/G-Research/armada/internal/executor/domain"
@@ -10,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
+	networking "k8s.io/api/networking/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -131,4 +134,277 @@ func makePodSpec() *v1.PodSpec {
 	}
 
 	return &spec
+}
+
+func makeTestJob() *api.Job {
+	return &api.Job{
+		Id:       "Id",
+		JobSetId: "JobSetId",
+		Queue:    "QueueTest",
+		Owner:    "UserTest",
+		PodSpecs: []*v1.PodSpec{makePodSpec()},
+	}
+}
+
+func makeTestService() *v1.Service {
+	return &v1.Service{
+		ObjectMeta: metav1.ObjectMeta{Name: "testService"},
+		Spec: v1.ServiceSpec{
+			Ports: []v1.ServicePort{
+				{
+					Name: "testPort",
+					Port: 8080,
+				},
+			},
+		},
+	}
+}
+
+func TestCreateIngress_Basic(t *testing.T) {
+	// Boilerplate, should be the same in TlsEnabled
+	job := makeTestJob()
+	service := makeTestService()
+	pod := &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "testPod", Namespace: "testNamespace"}}
+	ingressConfig := &configuration.IngressConfiguration{
+		HostnameSuffix: "testSuffix",
+		CertDomain:     "svc",
+	}
+
+	// TLS disabled jobconfig
+	jobConfig := &IngressServiceConfig{
+		Ports: []uint32{8080},
+	}
+
+	result := CreateIngress("testIngress", job, pod, service, ingressConfig, jobConfig)
+
+	expectedIngressSpec := networking.IngressSpec{
+		TLS: []networking.IngressTLS{},
+		Rules: []networking.IngressRule{
+			{
+				Host: "testPort.testPod.testNamespace.testSuffix",
+				IngressRuleValue: networking.IngressRuleValue{
+					HTTP: &networking.HTTPIngressRuleValue{
+						Paths: []networking.HTTPIngressPath{
+							{
+								Path: "/",
+								Backend: networking.IngressBackend{
+									ServiceName: "testService",
+									ServicePort: intstr.IntOrString{IntVal: 8080},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	assert.Equal(t, result.Spec, expectedIngressSpec)
+}
+
+func TestCreateIngress_TLS(t *testing.T) {
+	// Boilerplate setup
+	job := makeTestJob()
+	service := makeTestService()
+	pod := &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "testPod", Namespace: "testNamespace"}}
+	ingressConfig := &configuration.IngressConfiguration{
+		HostnameSuffix: "testSuffix",
+		CertDomain:     "svc",
+	}
+
+	// TLS enabled in this test
+	jobConfig := &IngressServiceConfig{
+		TlsEnabled: true,
+		Ports:      []uint32{8080},
+	}
+
+	result := CreateIngress("testIngress", job, pod, service, ingressConfig, jobConfig)
+
+	expectedIngressSpec := networking.IngressSpec{
+		TLS: []networking.IngressTLS{
+			{
+				Hosts: []string{
+					"testIngress.svc",
+					"testPort.testPod.testNamespace.testSuffix",
+				},
+				SecretName: "testIngress-tls-certificate",
+			},
+		},
+		Rules: []networking.IngressRule{
+			{
+				Host: "testPort.testPod.testNamespace.testSuffix",
+				IngressRuleValue: networking.IngressRuleValue{
+					HTTP: &networking.HTTPIngressRuleValue{
+						Paths: []networking.HTTPIngressPath{
+							{
+								Path: "/",
+								Backend: networking.IngressBackend{
+									ServiceName: "testService",
+									ServicePort: intstr.IntOrString{IntVal: 8080},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	assert.Equal(t, result.Spec, expectedIngressSpec)
+}
+
+func TestCreateService_Ingress(t *testing.T) {
+	job := makeTestJob()
+	pod := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "testPod",
+			Namespace: "testNamespace",
+			Labels: map[string]string{
+				"armada_job_id":     "test_id",
+				"armada_pod_number": "0",
+				"armada_queue_id":   "test_queue_id",
+			},
+		},
+	}
+	ports := []v1.ServicePort{
+		{
+			Port: 123,
+		},
+	}
+	ingressType := Ingress
+	createdService := CreateService(job, pod, ports, ingressType)
+
+	expected := &v1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "testPod-ingress",
+			Labels: map[string]string{
+				"armada_job_id":     "test_id",
+				"armada_pod_number": "0",
+				"armada_queue_id":   "test_queue_id",
+			},
+			Annotations: map[string]string{
+				"armada_jobset_id": "JobSetId",
+				"armada_owner":     "UserTest",
+			},
+		},
+		Spec: v1.ServiceSpec{
+			Ports: []v1.ServicePort{
+				{
+					Port: 123,
+				},
+			},
+			Selector: map[string]string{
+				"armada_job_id":     "test_id",
+				"armada_pod_number": "0",
+				"armada_queue_id":   "test_queue_id",
+			},
+			Type: "ClusterIP",
+		},
+	}
+	assert.Equal(t, createdService, expected)
+}
+
+func TestCreateService_NodePort(t *testing.T) {
+	job := makeTestJob()
+	pod := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "testPod",
+			Namespace: "testNamespace",
+			Labels: map[string]string{
+				"armada_job_id":     "test_id",
+				"armada_pod_number": "0",
+				"armada_queue_id":   "test_queue_id",
+			},
+		},
+	}
+	ports := []v1.ServicePort{
+		{
+			Port:     123,
+			NodePort: 456,
+		},
+	}
+	ingressType := NodePort
+	createdService := CreateService(job, pod, ports, ingressType)
+
+	expected := &v1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "testPod-nodeport",
+			Labels: map[string]string{
+				"armada_job_id":     "test_id",
+				"armada_pod_number": "0",
+				"armada_queue_id":   "test_queue_id",
+			},
+			Annotations: map[string]string{
+				"armada_jobset_id": "JobSetId",
+				"armada_owner":     "UserTest",
+			},
+		},
+		Spec: v1.ServiceSpec{
+			Ports: []v1.ServicePort{
+				{
+					Port:     123,
+					NodePort: 456,
+				},
+			},
+			Selector: map[string]string{
+				"armada_job_id":     "test_id",
+				"armada_pod_number": "0",
+				"armada_queue_id":   "test_queue_id",
+			},
+			Type: "NodePort",
+		},
+	}
+	assert.Equal(t, createdService, expected)
+}
+
+func TestCreateService_Headless(t *testing.T) {
+	job := makeTestJob()
+	pod := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "testPod",
+			Namespace: "testNamespace",
+			Labels: map[string]string{
+				"armada_job_id":     "test_id",
+				"armada_pod_number": "0",
+				"armada_queue_id":   "test_queue_id",
+			},
+		},
+	}
+	ports := []v1.ServicePort{
+		{
+			Port: 123,
+		},
+	}
+	ingressType := Headless
+	createdService := CreateService(job, pod, ports, ingressType)
+
+	expected := &v1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "testPod-headless",
+			Labels: map[string]string{
+				"armada_job_id":     "test_id",
+				"armada_pod_number": "0",
+				"armada_queue_id":   "test_queue_id",
+			},
+			Annotations: map[string]string{
+				"armada_jobset_id": "JobSetId",
+				"armada_owner":     "UserTest",
+			},
+		},
+		Spec: v1.ServiceSpec{
+			Ports: []v1.ServicePort{
+				{
+					Port: 123,
+				},
+			},
+			Selector: map[string]string{
+				"armada_job_id":     "test_id",
+				"armada_pod_number": "0",
+				"armada_queue_id":   "test_queue_id",
+			},
+			Type:      "ClusterIP",
+			ClusterIP: "None",
+		},
+	}
+	assert.Equal(t, createdService, expected)
 }

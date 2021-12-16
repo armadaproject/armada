@@ -9,12 +9,9 @@ import (
 	"github.com/go-redis/redis"
 	"github.com/gogo/protobuf/proto"
 	log "github.com/sirupsen/logrus"
-	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/G-Research/armada/internal/common"
+	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/internal/common/validation"
 	"github.com/G-Research/armada/pkg/api"
 )
 
@@ -41,7 +38,6 @@ type UpdateJobResult struct {
 type JobRepository interface {
 	PeekQueue(queue string, limit int64) ([]*api.Job, error)
 	TryLeaseJobs(clusterId string, queue string, jobs []*api.Job) ([]*api.Job, error)
-	CreateJobs(request *api.JobSubmitRequest, owner string, ownershipGroups []string) ([]*api.Job, error)
 	AddJobs(job []*api.Job) ([]*SubmitJobResult, error)
 	GetExistingJobsByIds(ids []string) ([]*api.Job, error)
 	FilterActiveQueues(queues []*api.Queue) ([]*api.Queue, error)
@@ -54,7 +50,7 @@ type JobRepository interface {
 	DeleteJobs(jobs []*api.Job) map[*api.Job]error
 	GetActiveJobIds(queue string, jobSetId string) ([]string, error)
 	GetLeasedJobIds(queue string) ([]string, error)
-	UpdateStartTime(jobId string, clusterId string, startTime time.Time) error
+	UpdateStartTime(jobStartInfos []*JobStartInfo) ([]error, error)
 	UpdateJobs(ids []string, mutator func([]*api.Job)) []UpdateJobResult
 	GetJobRunInfos(jobIds []string) (map[string]*RunInfo, error)
 	GetQueueActiveJobSets(queue string) ([]*api.JobSetInfo, error)
@@ -63,92 +59,14 @@ type JobRepository interface {
 }
 
 type RedisJobRepository struct {
-	db                    redis.UniversalClient
-	defaultJobLimits      common.ComputeResources
-	defaultJobTolerations []v1.Toleration
+	db              redis.UniversalClient
+	retentionPolicy configuration.DatabaseRetentionPolicy
 }
 
-func NewRedisJobRepository(db redis.UniversalClient, defaultJobLimits common.ComputeResources, defaultJobTolerations []v1.Toleration) *RedisJobRepository {
-	if defaultJobLimits == nil {
-		defaultJobLimits = common.ComputeResources{}
-	}
-	if defaultJobTolerations == nil {
-		defaultJobTolerations = []v1.Toleration{}
-	}
-	return &RedisJobRepository{db: db, defaultJobLimits: defaultJobLimits, defaultJobTolerations: defaultJobTolerations}
-}
-
-func (repo *RedisJobRepository) CreateJobs(request *api.JobSubmitRequest, owner string, ownershipGroups []string) ([]*api.Job, error) {
-	jobs := make([]*api.Job, 0, len(request.JobRequestItems))
-
-	if request.JobSetId == "" {
-		return nil, fmt.Errorf("job set is not specified")
-	}
-
-	if request.Queue == "" {
-		return nil, fmt.Errorf("queue is not specified")
-	}
-
-	for i, item := range request.JobRequestItems {
-		if item.PodSpec != nil && len(item.PodSpecs) > 0 {
-			return nil, fmt.Errorf("job with index %v has both pod spec and pod spec list specified", i)
-		}
-
-		if len(item.GetAllPodSpecs()) == 0 {
-			return nil, fmt.Errorf("job with index %v has no pod spec", i)
-		}
-
-		e := validation.ValidateJobSubmitRequestItem(item)
-		if e != nil {
-			return nil, fmt.Errorf("job with index %v: %v", i, e)
-		}
-
-		namespace := item.Namespace
-		if namespace == "" {
-			namespace = "default"
-		}
-
-		for j, podSpec := range item.GetAllPodSpecs() {
-			repo.applyDefaults(podSpec)
-			e := validation.ValidatePodSpec(podSpec)
-			if e != nil {
-				return nil, fmt.Errorf("error validating pod spec of job with index %v, pod: %v: %v", i, j, e)
-			}
-
-			// TODO: remove, RequiredNodeLabels is deprecated and will be removed in future versions
-			for k, v := range item.RequiredNodeLabels {
-				if podSpec.NodeSelector == nil {
-					podSpec.NodeSelector = map[string]string{}
-				}
-				podSpec.NodeSelector[k] = v
-			}
-		}
-
-		j := &api.Job{
-			Id:       util.NewULID(),
-			ClientId: item.ClientId,
-			Queue:    request.Queue,
-			JobSetId: request.JobSetId,
-
-			Namespace:   namespace,
-			Labels:      item.Labels,
-			Annotations: item.Annotations,
-
-			RequiredNodeLabels: item.RequiredNodeLabels,
-			Ingress:            item.Ingress,
-
-			Priority: item.Priority,
-
-			PodSpec:                  item.PodSpec,
-			PodSpecs:                 item.PodSpecs,
-			Created:                  time.Now(),
-			Owner:                    owner,
-			QueueOwnershipUserGroups: ownershipGroups,
-		}
-		jobs = append(jobs, j)
-	}
-
-	return jobs, nil
+func NewRedisJobRepository(
+	db redis.UniversalClient,
+	retentionPolicy configuration.DatabaseRetentionPolicy) *RedisJobRepository {
+	return &RedisJobRepository{db: db, retentionPolicy: retentionPolicy}
 }
 
 type SubmitJobResult struct {
@@ -245,7 +163,7 @@ func (repo *RedisJobRepository) DeleteJobs(jobs []*api.Job) map[*api.Job]error {
 		deletionResult.deleteJobRetriesResult = pipe.Del(jobRetriesPrefix + job.Id)
 
 		if !deletionResult.expiryAlreadySet {
-			deletionResult.setJobExpiryResult = pipe.Expire(jobObjectPrefix+job.Id, time.Hour*24*7)
+			deletionResult.setJobExpiryResult = pipe.Expire(jobObjectPrefix+job.Id, repo.retentionPolicy.JobRetentionDuration)
 		}
 		deletionResults = append(deletionResults, deletionResult)
 	}
@@ -509,34 +427,71 @@ func (repo *RedisJobRepository) getAssociatedCluster(jobIds []string) (map[strin
 	return associatedCluster, nil
 }
 
-func (repo *RedisJobRepository) UpdateStartTime(jobId string, clusterId string, startTime time.Time) error {
-	// This is a bit naive, we set the start time to be associated with the job id + cluster id provided
-	// We only save the earliest start time for each job id + cluster id combination
-	// We have to save against cluster id to handle when a lease expires and a job starts on another cluster
-	// However this is not full proof and in very rare situations a job could start twice on the same cluster and this value will be wrong
-	// TODO When we have a proper concept of lease, associate start time with that specific lease (ideally earliest value for that lease)
-
-	jobs, e := repo.GetExistingJobsByIds([]string{jobId})
-	if e != nil {
-		return e
-	}
-
-	if len(jobs) <= 0 {
-		return fmt.Errorf(JobNotFound)
-	}
-
-	output := updateStartTimeScript.Run(repo.db, []string{jobStartTimePrefix + jobId, jobClusterMapKey}, clusterId, startTime.UnixNano())
-
-	return output.Err()
+type JobStartInfo struct {
+	JobId     string
+	ClusterId string
+	StartTime time.Time
 }
 
-var updateStartTimeScript = redis.NewScript(`
+func (repo *RedisJobRepository) UpdateStartTime(jobStartInfos []*JobStartInfo) ([]error, error) {
+	jobErrors := make([]error, len(jobStartInfos), len(jobStartInfos))
+
+	commands := make([]*redis.Cmd, len(jobStartInfos), len(jobStartInfos))
+	pipe := repo.db.Pipeline()
+	updateStartTimeScript.Load(pipe)
+
+	for i, jobStartInfo := range jobStartInfos {
+		commands[i] = updateStartTimeScript.Run(
+			pipe,
+			[]string{
+				jobStartTimePrefix + jobStartInfo.JobId,
+				jobClusterMapKey,
+				jobObjectPrefix + jobStartInfo.JobId,
+			},
+			jobStartInfo.ClusterId,
+			jobStartInfo.StartTime.UTC().UnixNano())
+	}
+
+	_, err := pipe.Exec()
+	if err != nil {
+		return nil, fmt.Errorf("update start time multiple: %v", err)
+	}
+
+	for i, cmd := range commands {
+		err := cmd.Err()
+		if err != nil {
+			jobErrors[i] = fmt.Errorf("error updating job start time in redis: %v", err)
+		} else {
+			jobErrors[i] = nil
+		}
+		ret, err := cmd.Int()
+		if err != nil {
+			jobErrors[i] = fmt.Errorf("error parsing result from redis: %v", err)
+		}
+		if ret == updateStartTimeJobNotFound {
+			jobErrors[i] = fmt.Errorf(JobNotFound)
+		}
+	}
+
+	return jobErrors, nil
+}
+
+const updateStartTimeJobNotFound = -3
+
+var updateStartTimeScript = redis.NewScript(fmt.Sprintf(`
 local startTimeKey = KEYS[1]
 local clusterAssociation = KEYS[2]
+local job = KEYS[3]
 
 local clusterId = ARGV[1]
 local startTime = ARGV[2]
 local startTimeNumber = tonumber(ARGV[2])
+
+local ttl = redis.call('TTL', job)
+local existsAndNotExpired = ttl == -1
+if not existsAndNotExpired then
+	return %d
+end
 
 local currentStartTime = tonumber(redis.call('HGET', startTimeKey, clusterId))
 
@@ -545,7 +500,7 @@ if currentStartTime ~= nil and currentStartTime < startTimeNumber then
 end
 
 return redis.call('HSET', startTimeKey, clusterId, startTime)
-`)
+`, updateStartTimeJobNotFound))
 
 func (repo *RedisJobRepository) UpdateJobs(ids []string, mutator func([]*api.Job)) []UpdateJobResult {
 	return repo.updateJobs(ids, mutator, 250, 3, 100*time.Millisecond)
@@ -910,42 +865,6 @@ func (repo *RedisJobRepository) leaseJobs(clusterId string, jobs []*api.Job) ([]
 		}
 	}
 	return leasedJobs, nil
-}
-
-func (repo *RedisJobRepository) applyDefaults(spec *v1.PodSpec) {
-	if spec != nil {
-		for i := range spec.Containers {
-			c := &spec.Containers[i]
-			if c.Resources.Limits == nil {
-				c.Resources.Limits = map[v1.ResourceName]resource.Quantity{}
-			}
-			if c.Resources.Requests == nil {
-				c.Resources.Requests = map[v1.ResourceName]resource.Quantity{}
-			}
-			for k, v := range repo.defaultJobLimits {
-				_, limitExists := c.Resources.Limits[v1.ResourceName(k)]
-				_, requestExists := c.Resources.Limits[v1.ResourceName(k)]
-				if !limitExists && !requestExists {
-					c.Resources.Requests[v1.ResourceName(k)] = v
-					c.Resources.Limits[v1.ResourceName(k)] = v
-				}
-			}
-		}
-		tolerationsToAdd := []v1.Toleration{}
-		for _, defaultToleration := range repo.defaultJobTolerations {
-			exists := false
-			for _, existingToleration := range spec.Tolerations {
-				if defaultToleration.MatchToleration(&existingToleration) {
-					exists = true
-					break
-				}
-			}
-			if !exists {
-				tolerationsToAdd = append(tolerationsToAdd, defaultToleration)
-			}
-		}
-		spec.Tolerations = append(spec.Tolerations, tolerationsToAdd...)
-	}
 }
 
 func addJob(db redis.Cmdable, job *api.Job, jobData *[]byte) *redis.Cmd {
