@@ -431,6 +431,9 @@ func (server *SubmitServer) createJobs(request *api.JobSubmitRequest, owner stri
 		}
 
 		for j, podSpec := range item.GetAllPodSpecs() {
+			if podSpec != nil {
+				fillContainerRequestsAndLimits(podSpec.Containers)
+			}
 			server.applyDefaultsToPodSpec(podSpec)
 			e := validation.ValidatePodSpec(podSpec, server.schedulingConfig.MaxPodSpecSizeBytes)
 			if e != nil {
@@ -507,6 +510,34 @@ func (server *SubmitServer) applyDefaultsToPodSpec(spec *v1.PodSpec) {
 			}
 		}
 		spec.Tolerations = append(spec.Tolerations, tolerationsToAdd...)
+	}
+}
+
+// fillContainerRequestAndLimits updates resource's requests/limits of container to match the value of
+// limits/requests if the resource doesn't have requests/limits setup. If a Container specifies its own
+// memory limit, but does not specify a memory request, assign a memory request that matches the limit.
+// Similarly, if a Container specifies its own CPU limit, but does not specify a CPU request, automatically
+// assigns a CPU request that matches the limit.
+func fillContainerRequestsAndLimits(containers []v1.Container) {
+	for index := range containers {
+		if containers[index].Resources.Limits == nil {
+			containers[index].Resources.Limits = v1.ResourceList{}
+		}
+		if containers[index].Resources.Requests == nil {
+			containers[index].Resources.Requests = v1.ResourceList{}
+		}
+
+		for resourceName, quantity := range containers[index].Resources.Limits {
+			if _, ok := containers[index].Resources.Requests[resourceName]; !ok {
+				containers[index].Resources.Requests[resourceName] = quantity
+			}
+		}
+
+		for resourceName, quantity := range containers[index].Resources.Requests {
+			if _, ok := containers[index].Resources.Limits[resourceName]; !ok {
+				containers[index].Resources.Limits[resourceName] = quantity
+			}
+		}
 	}
 }
 
