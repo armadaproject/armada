@@ -46,6 +46,7 @@ func (s *EventServer) ReportMultiple(ctx context.Context, message *api.EventList
 	return &types.Empty{}, s.eventStore.ReportEvents(message.Events)
 }
 
+// GetJobSetEvents streams back all events associated with a particular job set.
 func (s *EventServer) GetJobSetEvents(request *api.JobSetRequest, stream api.Event_GetJobSetEventsServer) error {
 	if err := checkPermission(s.permissions, stream.Context(), permissions.WatchAllEvents); err != nil {
 		return status.Errorf(codes.PermissionDenied, "[GetJobSetEvents] error: %s", err)
