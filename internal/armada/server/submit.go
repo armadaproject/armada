@@ -92,12 +92,11 @@ func (server *SubmitServer) CreateQueue(ctx context.Context, queue *api.Queue) (
 		queue.UserOwners = []string{principal.GetName()}
 	}
 
-	e := validateQueue(queue)
-	if e != nil {
-		return nil, e
+	if err := validateQueue(queue); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "[UpdateQueue] error: %s", err)
 	}
 
-	e = server.queueRepository.CreateQueue(queue)
+	e := server.queueRepository.CreateQueue(queue)
 	if e == repository.ErrQueueAlreadyExists {
 		return nil, status.Errorf(codes.AlreadyExists, "Queue %q already exists", queue.Name)
 	} else if e != nil {
@@ -111,12 +110,11 @@ func (server *SubmitServer) UpdateQueue(ctx context.Context, queue *api.Queue) (
 		return nil, e
 	}
 
-	e := validateQueue(queue)
-	if e != nil {
-		return nil, e
+	if err := validateQueue(queue); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "[UpdateQueue] error: %s", err)
 	}
 
-	e = server.queueRepository.UpdateQueue(queue)
+	e := server.queueRepository.UpdateQueue(queue)
 	if e == repository.ErrQueueNotFound {
 		return nil, status.Errorf(codes.NotFound, "Queue %q not found", queue.Name)
 	} else if e != nil {
@@ -127,7 +125,7 @@ func (server *SubmitServer) UpdateQueue(ctx context.Context, queue *api.Queue) (
 
 func validateQueue(queue *api.Queue) error {
 	if queue.PriorityFactor < 1.0 {
-		return status.Errorf(codes.InvalidArgument, "Minimum queue priority factor is 1.")
+		return fmt.Errorf("queue priority must be greater than or equal to 1, but is %f", queue.PriorityFactor)
 	}
 	return nil
 }
