@@ -144,6 +144,7 @@ func (r *RedisUsageRepository) UpdateCluster(report *api.ClusterUsageReport, pri
 	return nil
 }
 
+// UpdateClusterLeased updates the count of resources leased to a particular cluster.
 func (r *RedisUsageRepository) UpdateClusterLeased(report *api.ClusterLeasedReport) error {
 	data, err := proto.Marshal(report)
 	if err != nil {
