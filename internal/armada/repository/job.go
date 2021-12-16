@@ -701,7 +701,7 @@ func (repo *RedisJobRepository) updateJobBatchWithRetry(ids []string, mutator fu
 
 			// TODO Do we need a delay here? If we do, we should use delay of random length,
 			// since, with a fixed delay, if multiple threads are calling this function
-			// concurrently, it's likely those functions will cause contention at each retry.
+			// concurrently, those functions could contend at each retry.
 			time.Sleep(retryDelay)
 			continue
 		}
