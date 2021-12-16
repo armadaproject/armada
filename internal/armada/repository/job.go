@@ -451,7 +451,11 @@ func (repo *RedisJobRepository) IterateQueueJobs(queueName string, action func(*
 }
 
 func (repo *RedisJobRepository) GetLeasedJobIds(queue string) ([]string, error) {
-	return repo.db.ZRange(jobLeasedPrefix+queue, 0, -1).Result()
+	val, err := repo.db.ZRange(jobLeasedPrefix+queue, 0, -1).Result()
+	if err != nil {
+		return nil, fmt.Errorf("[RedisJobRepository.GetLeasedJobIds] error reading from database: %s", err)
+	}
+	return val, nil
 }
 
 func (repo *RedisJobRepository) getAssociatedCluster(jobIds []string) (map[string]string, error) {
@@ -610,53 +614,79 @@ func (repo *RedisJobRepository) updateJobBatchWithRetry(ids []string, mutator fu
 	}
 }
 
+// updateJobBatch reads jobs from Redis, applies mutator separately for each job, and writes the
+// updated jobs back to Redis. This process is performed in an optimistic lock, such that the
+// updated jobs are written back to Redis only if none of the jobs were changed in Redis between
+// being read and written back.
+//
+// For this reason, mutator may not read from any additional keys in Redis, since thosse keys
+// would not be covered by the optimistic lock.
 func (repo *RedisJobRepository) updateJobBatch(ids []string, mutator func([]*api.Job)) ([]UpdateJobResult, error) {
 
+	// Redis supports transactions via optimistic locking using the WATCH/READ/SET pattern
+	// First, we mark all keys that the operation depends on
+	// Hence, keysToWatch must contain all keys read from inside txf (see below)
 	var keysToWatch []string
 	for _, id := range ids {
 		keysToWatch = append(keysToWatch, jobObjectPrefix+id)
 	}
 
+	// Transactional function
 	result := []UpdateJobResult{}
-	err := repo.db.Watch(func(tx *redis.Tx) error {
+	txf := func(tx *redis.Tx) error {
 
-		// There is currently no clean way to implement the WATCH/GET/MULTI/SET/EXEC pattern with go-redis
-		// because Watch() calls both WATCH and MULTI together.
-		// To work round this, GetExistingJobsByIds is delberately using a separate Redis connection, not tx.Pipeline().
-		//
-		// TODO Let's double-check if the above comment is true.
+		// Read all data the operation depends on
+		// All keys read by GetExistingJobsByIds must be added to keysToWatch
 		jobs, err := repo.GetExistingJobsByIds(ids)
 		if err != nil {
-			return err
+			return fmt.Errorf("[RedisJobRepository.updateJobBatch] error reading jobs: %w", err)
 		}
 
+		// Operation to run (locally in optimistic lock)
 		mutator(jobs)
 
+		// Marshal the resulting jobs in preparation for writing back to Redis
 		jobDatas := make([][]byte, len(jobs))
 		for i, job := range jobs {
 			jobData, err := proto.Marshal(job)
 			if err != nil {
-				return err
+				return fmt.Errorf("[RedisJobRepository.updateJobBatch] error marshalling job: %s", err)
 			}
 			jobDatas[i] = jobData
 		}
 
+		// Write to Redis
+		// The watched keys are unwatched upon calling exec.
+		// For this reason, we must use a TxPipe, which guarantees that the operations added
+		// to the pipe are performed in sequence without being interleaved with other concurrent
+		// operations. If we use a regular pipe, there is a race condition, where another client
+		// mutates a value this function depends on after we have unwatched it, but before we have
+		// written out results back to Redis.
 		commands := make([]*redis.Cmd, len(jobs))
-		pipe := tx.Pipeline()
+		pipe := tx.TxPipeline()
 		updateJobAndPriorityScript.Load(pipe)
-
 		for i, job := range jobs {
-			commands[i] = updateJobAndPriority(pipe, job, job.Priority, &jobDatas[i])
+			newPriority := job.Priority
+			jobData := &jobDatas[i]
+			commands[i] = updateJobAndPriorityScript.Run(
+				pipe,
+				[]string{jobQueuePrefix + job.Queue, jobObjectPrefix + job.Id},
+				job.Id, newPriority, *jobData,
+			)
 		}
+
+		// TODO We append to results even if an error occurs. However, we only return results if
+		// exec doesn't return an error. Because exec returns error in the commands it executes,
+		// this means that we results isn't returned if any single command errors.
 		_, err = pipe.Exec()
 		if err != nil {
-			return err
+			return fmt.Errorf("[RedisJobRepository.updateJobBatch] error executing pipelined commands: %s", err)
 		}
 
 		for i, cmd := range commands {
 			err := cmd.Err()
 			if err != nil {
-				log.Warnf("UpdateJobs: Failed to update job %s: %v", jobs[i].Id, err)
+				log.Warnf("[RedisJobRepository.updateJobBatch]: error updating job %s: %s", jobs[i].Id, err)
 				result = append(result, UpdateJobResult{JobId: jobs[i].Id, Job: nil, Error: err})
 			} else {
 				result = append(result, UpdateJobResult{JobId: jobs[i].Id, Job: jobs[i], Error: nil})
@@ -664,8 +694,10 @@ func (repo *RedisJobRepository) updateJobBatch(ids []string, mutator func([]*api
 		}
 
 		return nil
-	}, keysToWatch...)
+	}
 
+	// Run txf under optimistic lock on keys in keysToWatch
+	err := repo.db.Watch(txf, keysToWatch...)
 	if err != nil {
 		return nil, err
 	}
@@ -673,6 +705,8 @@ func (repo *RedisJobRepository) updateJobBatch(ids []string, mutator func([]*api
 	return result, nil
 }
 
+// TODO This function depends on the script being loaded, which we don't check.
+// Since this function is only called in 1 place, let's just delete it.
 func updateJobAndPriority(db redis.Cmdable, job *api.Job, newPriority float64, jobData *[]byte) *redis.Cmd {
 	return updateJobAndPriorityScript.Run(db,
 		[]string{jobQueuePrefix + job.Queue, jobObjectPrefix + job.Id},
@@ -910,14 +944,13 @@ func (repo *RedisJobRepository) GetNumberOfRetryAttempts(jobId string) (int, err
 	retriesStr, err := repo.db.Get(jobRetriesPrefix + jobId).Result()
 	if err == redis.Nil {
 		return 0, nil
-	}
-	if err != nil {
-		return 0, err
+	} else if err != nil {
+		return 0, fmt.Errorf("[RedisJobRepository.GetNumberOfRetryAttempts] error reading from database: %s", err)
 	}
 
 	retries, err := strconv.Atoi(retriesStr)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("[RedisJobRepository.GetNumberOfRetryAttempts] error converting string to int: %s", err)
 	}
 
 	return retries, nil
