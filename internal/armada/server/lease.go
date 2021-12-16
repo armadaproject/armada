@@ -96,7 +96,7 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 		return nil, status.Errorf(codes.Unavailable, "[LeaseJobs] error getting cluster priorities: %s", err)
 	}
 
-	clusterLeasedJobReports, e := q.usageRepository.GetClusterLeasedReports()
+	clusterLeasedJobReports, err := q.usageRepository.GetClusterLeasedReports()
 	if err != nil {
 		return nil, status.Errorf(codes.Unavailable, "[LeaseJobs] error getting cluster lease reports: %s", err)
 	}
@@ -117,15 +117,15 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 	}
 
 	clusterLeasedReport := scheduling.CreateClusterLeasedReport(request.ClusterLeasedReport.ClusterId, &request.ClusterLeasedReport, jobs)
-	e = q.usageRepository.UpdateClusterLeased(clusterLeasedReport)
-	if e != nil {
-		return nil, e
+	err = q.usageRepository.UpdateClusterLeased(clusterLeasedReport)
+	if err != nil {
+		return nil, status.Errorf(codes.Unavailable, "[LeaseJobs] error creating lease report: %s", err)
 	}
 
-	jobLease := api.JobLease{
+	jobLease := &api.JobLease{
 		Job: jobs,
 	}
-	return &jobLease, nil
+	return jobLease, nil
 }
 
 func (q *AggregatedQueueServer) RenewLease(ctx context.Context, request *api.RenewLeaseRequest) (*api.IdList, error) {
