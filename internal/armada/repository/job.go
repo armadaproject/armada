@@ -598,20 +598,9 @@ func (repo *RedisJobRepository) updateJobs(ids []string, mutator func([]*api.Job
 	return result
 }
 
-func (repo *RedisJobRepository) updateJobBatchWithRetry(ids []string, mutator func([]*api.Job), retries int, retryDelay time.Duration) ([]UpdateJobResult, error) {
-	for retry := 0; ; retry++ {
-		result, err := repo.updateJobBatch(ids, mutator)
-		if err != redis.TxFailedErr {
-			return result, err
-		}
-		log.Warnf("UpdateJobs: Redis Transaction failed (job ids %s)", strings.Join(ids, ", "))
-
-		if retry >= retries {
-			log.Warnf("UpdateJobs: Redis Transaction failed after retrying, giving up (job ids %s)", strings.Join(ids, ", "))
-			return nil, redis.TxFailedErr
-		}
-		time.Sleep(retryDelay)
-	}
+// updateJobBatch calls updateJobBatchWithRetry with the number of retries set to 1.
+func (repo *RedisJobRepository) updateJobBatch(ids []string, mutator func([]*api.Job)) ([]UpdateJobResult, error) {
+	return repo.updateJobBatchWithRetry(ids, mutator, 1, time.Millisecond)
 }
 
 // updateJobBatch reads jobs from Redis, applies mutator separately for each job, and writes the
@@ -621,7 +610,9 @@ func (repo *RedisJobRepository) updateJobBatchWithRetry(ids []string, mutator fu
 //
 // For this reason, mutator may not read from any additional keys in Redis, since thosse keys
 // would not be covered by the optimistic lock.
-func (repo *RedisJobRepository) updateJobBatch(ids []string, mutator func([]*api.Job)) ([]UpdateJobResult, error) {
+//
+// This process is attempted up to maxRetries times and each attempt is separated by retryDelay.
+func (repo *RedisJobRepository) updateJobBatchWithRetry(ids []string, mutator func([]*api.Job), maxRetries int, retryDelay time.Duration) ([]UpdateJobResult, error) {
 
 	// Redis supports transactions via optimistic locking using the WATCH/READ/SET pattern
 	// First, we mark all keys that the operation depends on
@@ -679,7 +670,9 @@ func (repo *RedisJobRepository) updateJobBatch(ids []string, mutator func([]*api
 		// exec doesn't return an error. Because exec returns error in the commands it executes,
 		// this means that we results isn't returned if any single command errors.
 		_, err = pipe.Exec()
-		if err != nil {
+		if err == redis.TxFailedErr { // Indicates we lost the optimistic lock
+			return err
+		} else if err != nil {
 			return fmt.Errorf("[RedisJobRepository.updateJobBatch] error executing pipelined commands: %s", err)
 		}
 
@@ -697,12 +690,29 @@ func (repo *RedisJobRepository) updateJobBatch(ids []string, mutator func([]*api
 	}
 
 	// Run txf under optimistic lock on keys in keysToWatch
-	err := repo.db.Watch(txf, keysToWatch...)
-	if err != nil {
-		return nil, err
+	for retries := 0; retries < maxRetries; retries++ {
+		err := repo.db.Watch(txf, keysToWatch...)
+		if err == nil {
+			// Success.
+			return result, nil
+		}
+		if err == redis.TxFailedErr {
+			// Optimistic lock lost. Retry.
+
+			// TODO Do we need a delay here? If we do, we should use delay of random length,
+			// since, with a fixed delay, if multiple threads are calling this function
+			// concurrently, it's likely those functions will cause contention at each retry.
+			time.Sleep(retryDelay)
+			continue
+		}
+		// Return any other error.
+		return nil, fmt.Errorf("[RedisJobRepository.updateJobBatchWithRetry] error updating jobs: %w", err)
 	}
 
-	return result, nil
+	// TODO I think we should return a more informative error message instead of logging a warning
+	// and returning a Redis error. I leave it for now since tests depend on getting a redis.TxFailedErr
+	log.Warnf("[RedisJobRepository.updateJobBatchWithRetry]: Redis Transaction failed after retrying, giving up (job ids %s)", strings.Join(ids, ", "))
+	return nil, redis.TxFailedErr
 }
 
 // If the job key has a defined TTL, it implies that the job has finished and updating is irrelevant
@@ -736,12 +746,8 @@ type RunInfo struct {
 	CurrentClusterId string
 }
 
-/*
- Returns the run info of each job id for the cluster they are currently associated with (leased by)
- Jobs with no value will be omitted from the results, which happens in the following cases:
- - The job is not associated with a cluster
- - The job has does not have a start time for the cluster it is associated with
-*/
+// GetJobRunInfos returns run info for the cluster that each of the provided jobs is leased to.
+// Jobs not leased to any cluster or that does not have a start time are omitted.
 func (repo *RedisJobRepository) GetJobRunInfos(jobIds []string) (map[string]*RunInfo, error) {
 	runInfos := make(map[string]*RunInfo, len(jobIds))
 
