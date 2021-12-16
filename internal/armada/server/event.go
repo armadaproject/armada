@@ -58,9 +58,9 @@ func (s *EventServer) GetJobSetEvents(request *api.JobSetRequest, stream api.Eve
 	if request.Watch {
 		timeout = 5 * time.Second
 	} else {
-		lastId, e := s.eventRepository.GetLastMessageId(request.Queue, request.Id)
-		if e != nil {
-			return e
+		lastId, err := s.eventRepository.GetLastMessageId(request.Queue, request.Id)
+		if err != nil {
+			return status.Errorf(codes.Unavailable, "[GetJobSetEvents] error getting ID of last message: %s", err)
 		}
 		stopAfter = lastId
 	}
@@ -72,10 +72,9 @@ func (s *EventServer) GetJobSetEvents(request *api.JobSetRequest, stream api.Eve
 		default:
 		}
 
-		messages, e := s.eventRepository.ReadEvents(request.Queue, request.Id, fromId, 500, timeout)
-
-		if e != nil {
-			return e
+		messages, err := s.eventRepository.ReadEvents(request.Queue, request.Id, fromId, 500, timeout)
+		if err != nil {
+			return status.Errorf(codes.Unavailable, "[GetJobSetEvents] error reading events: %s", err)
 		}
 
 		stop := len(messages) == 0
@@ -84,9 +83,9 @@ func (s *EventServer) GetJobSetEvents(request *api.JobSetRequest, stream api.Eve
 			if fromId == stopAfter {
 				stop = true
 			}
-			e = stream.Send(msg)
-			if e != nil {
-				return e
+			err = stream.Send(msg)
+			if err != nil {
+				return status.Errorf(codes.Unavailable, "[GetJobSetEvents] error sending event: %s", err)
 			}
 		}
 
