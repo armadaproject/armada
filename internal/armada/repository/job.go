@@ -705,14 +705,6 @@ func (repo *RedisJobRepository) updateJobBatch(ids []string, mutator func([]*api
 	return result, nil
 }
 
-// TODO This function depends on the script being loaded, which we don't check.
-// Since this function is only called in 1 place, let's just delete it.
-func updateJobAndPriority(db redis.Cmdable, job *api.Job, newPriority float64, jobData *[]byte) *redis.Cmd {
-	return updateJobAndPriorityScript.Run(db,
-		[]string{jobQueuePrefix + job.Queue, jobObjectPrefix + job.Id},
-		job.Id, newPriority, *jobData)
-}
-
 // If the job key has a defined TTL, it implies that the job has finished and updating is irrelevant
 var updateJobAndPriorityScript = redis.NewScript(`
 local queue = KEYS[1]
