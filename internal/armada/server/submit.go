@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -71,19 +72,23 @@ func (server *SubmitServer) GetQueueInfo(ctx context.Context, req *api.QueueInfo
 }
 
 func (server *SubmitServer) GetQueue(ctx context.Context, req *api.QueueGetRequest) (*api.Queue, error) {
-	queue, e := server.queueRepository.GetQueue(req.Name)
-	if e == repository.ErrQueueNotFound {
-		return nil, status.Errorf(codes.NotFound, "Queue %q not found", req.Name)
-
-	} else if e != nil {
-		return nil, status.Errorf(codes.Unavailable, "Could not load queue %q: %s", req.Name, e.Error())
+	queue, err := server.queueRepository.GetQueue(req.Name)
+	var e *repository.ErrQueueNotFound
+	if errors.As(err, &e) {
+		return nil, status.Errorf(codes.NotFound, "[GetQueue] error: %s", err)
+	} else if err != nil {
+		return nil, status.Errorf(codes.Unavailable, "[GetQueue] error getting queue %q: %s", req.Name, err)
 	}
 	return queue, nil
 }
 
 func (server *SubmitServer) CreateQueue(ctx context.Context, queue *api.Queue) (*types.Empty, error) {
-	if e := checkPermission(server.permissions, ctx, permissions.CreateQueue); e != nil {
-		return nil, e
+	err := checkPermission(server.permissions, ctx, permissions.CreateQueue)
+	var ep *ErrNoPermission
+	if errors.As(err, &ep) {
+		return nil, status.Errorf(codes.PermissionDenied, "[CreateQueue] error creating queue %s: %s", queue.Name, ep)
+	} else if err != nil {
+		return nil, status.Errorf(codes.Unavailable, "[CreateQueue] error checking permissions: %s", err)
 	}
 
 	if len(queue.UserOwners) == 0 {
@@ -92,39 +97,47 @@ func (server *SubmitServer) CreateQueue(ctx context.Context, queue *api.Queue) (
 	}
 
 	if err := validateQueue(queue); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "[UpdateQueue] error: %s", err)
+		return nil, status.Errorf(codes.InvalidArgument, "[CreateQueue] error validating queue: %s", err)
 	}
 
-	e := server.queueRepository.CreateQueue(queue)
-	if e == repository.ErrQueueAlreadyExists {
-		return nil, status.Errorf(codes.AlreadyExists, "Queue %q already exists", queue.Name)
-	} else if e != nil {
-		return nil, status.Errorf(codes.Unavailable, e.Error())
+	err = server.queueRepository.CreateQueue(queue)
+	var eq *repository.ErrQueueAlreadyExists
+	if errors.As(err, &eq) {
+		return nil, status.Errorf(codes.AlreadyExists, "[CreateQueue] error creating queue: %s", err)
+	} else if err != nil {
+		return nil, status.Errorf(codes.Unavailable, "[CreateQueue] error creating queue: %s", err)
 	}
+
 	return &types.Empty{}, nil
 }
 
 func (server *SubmitServer) UpdateQueue(ctx context.Context, queue *api.Queue) (*types.Empty, error) {
-	if e := checkPermission(server.permissions, ctx, permissions.CreateQueue); e != nil {
-		return nil, e
+	err := checkPermission(server.permissions, ctx, permissions.CreateQueue)
+	var ep *ErrNoPermission
+	if errors.As(err, &ep) {
+		return nil, status.Errorf(codes.PermissionDenied, "[UpdateQueue] error updating queue %s: %s", queue.Name, ep)
+	} else if err != nil {
+		return nil, status.Errorf(codes.Unavailable, "[UpdateQueue] error checking permissions: %s", err)
 	}
 
 	if err := validateQueue(queue); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "[UpdateQueue] error: %s", err)
 	}
 
-	e := server.queueRepository.UpdateQueue(queue)
-	if e == repository.ErrQueueNotFound {
-		return nil, status.Errorf(codes.NotFound, "Queue %q not found", queue.Name)
-	} else if e != nil {
-		return nil, status.Errorf(codes.Unavailable, e.Error())
+	err = server.queueRepository.UpdateQueue(queue)
+	var e *repository.ErrQueueNotFound
+	if errors.As(err, &e) {
+		return nil, status.Errorf(codes.NotFound, "[UpdateQueue] error: %s", err)
+	} else if err != nil {
+		return nil, status.Errorf(codes.Unavailable, "[UpdateQueue] error getting queue %q: %s", queue.Name, err)
 	}
+
 	return &types.Empty{}, nil
 }
 
 func validateQueue(queue *api.Queue) error {
 	if queue.PriorityFactor < 1.0 {
-		return fmt.Errorf("queue priority must be greater than or equal to 1, but is %f", queue.PriorityFactor)
+		return fmt.Errorf("[validateQueue] queue priority must be greater than or equal to 1, but is %f", queue.PriorityFactor)
 	}
 	return nil
 }
@@ -151,9 +164,12 @@ func (server *SubmitServer) DeleteQueue(ctx context.Context, request *api.QueueD
 }
 
 func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRequest) (*api.JobSubmitResponse, error) {
-	ownershipGroups, e := server.checkQueuePermission(ctx, req.Queue, true, permissions.SubmitJobs, permissions.SubmitAnyJobs)
-	if e != nil {
-		return nil, e
+	ownershipGroups, err := server.checkQueuePermission(ctx, req.Queue, true, permissions.SubmitJobs, permissions.SubmitAnyJobs)
+	var e *ErrNoPermission
+	if errors.As(err, &e) {
+		return nil, status.Errorf(codes.PermissionDenied, "error submitting job: %s", e)
+	} else if err != nil {
+		return nil, status.Errorf(codes.Unavailable, "error checking permissions: %s", err)
 	}
 
 	principal := authorization.GetPrincipal(ctx)
