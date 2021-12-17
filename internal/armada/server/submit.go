@@ -508,38 +508,42 @@ func (server *SubmitServer) createJobs(request *api.JobSubmitRequest, owner stri
 }
 
 func (server *SubmitServer) applyDefaultsToPodSpec(spec *v1.PodSpec) {
-	if spec != nil {
-		for i := range spec.Containers {
-			c := &spec.Containers[i]
-			if c.Resources.Limits == nil {
-				c.Resources.Limits = map[v1.ResourceName]resource.Quantity{}
-			}
-			if c.Resources.Requests == nil {
-				c.Resources.Requests = map[v1.ResourceName]resource.Quantity{}
-			}
-			for k, v := range server.schedulingConfig.DefaultJobLimits {
-				_, limitExists := c.Resources.Limits[v1.ResourceName(k)]
-				_, requestExists := c.Resources.Limits[v1.ResourceName(k)]
-				if !limitExists && !requestExists {
-					c.Resources.Requests[v1.ResourceName(k)] = v
-					c.Resources.Limits[v1.ResourceName(k)] = v
-				}
+	if spec == nil {
+		return
+	}
+
+	// Add default resource requests and limits if missing
+	for i := range spec.Containers {
+		c := &spec.Containers[i]
+		if c.Resources.Limits == nil {
+			c.Resources.Limits = map[v1.ResourceName]resource.Quantity{}
+		}
+		if c.Resources.Requests == nil {
+			c.Resources.Requests = map[v1.ResourceName]resource.Quantity{}
+		}
+		for res, val := range server.schedulingConfig.DefaultJobLimits {
+			_, hasLimit := c.Resources.Limits[v1.ResourceName(res)]
+			_, hasRequest := c.Resources.Limits[v1.ResourceName(res)]
+
+			// TODO Should we check and apply these separately?
+			if !hasLimit && !hasRequest {
+				c.Resources.Requests[v1.ResourceName(res)] = val
+				c.Resources.Limits[v1.ResourceName(res)] = val
 			}
 		}
-		tolerationsToAdd := []v1.Toleration{}
-		for _, defaultToleration := range server.schedulingConfig.DefaultJobTolerations {
-			exists := false
-			for _, existingToleration := range spec.Tolerations {
-				if defaultToleration.MatchToleration(&existingToleration) {
-					exists = true
-					break
-				}
-			}
-			if !exists {
-				tolerationsToAdd = append(tolerationsToAdd, defaultToleration)
-			}
+	}
+
+	// Each pod must have some default tolerations
+	// Here, we add any that are missing
+	podTolerations := make(map[string]v1.Toleration)
+	for _, podToleration := range spec.Tolerations {
+		podTolerations[podToleration.Key] = podToleration
+	}
+	for _, defaultToleration := range server.schedulingConfig.DefaultJobTolerations {
+		podToleration, ok := podTolerations[defaultToleration.Key]
+		if !ok || !defaultToleration.MatchToleration(&podToleration) {
+			spec.Tolerations = append(spec.Tolerations, defaultToleration)
 		}
-		spec.Tolerations = append(spec.Tolerations, tolerationsToAdd...)
 	}
 }
 
