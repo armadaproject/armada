@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -143,21 +142,25 @@ func validateQueue(queue *api.Queue) error {
 }
 
 func (server *SubmitServer) DeleteQueue(ctx context.Context, request *api.QueueDeleteRequest) (*types.Empty, error) {
-	if e := checkPermission(server.permissions, ctx, permissions.DeleteQueue); e != nil {
-		return nil, e
+	err := checkPermission(server.permissions, ctx, permissions.DeleteQueue)
+	var ep *ErrNoPermission
+	if errors.As(err, &ep) {
+		return nil, status.Errorf(codes.PermissionDenied, "[DeleteQueue] error deleting queue %s: %s", request.Name, ep)
+	} else if err != nil {
+		return nil, status.Errorf(codes.Unavailable, "[DeleteQueue] error checking permissions: %s", err)
 	}
 
-	active, e := server.jobRepository.GetQueueActiveJobSets(request.Name)
-	if e != nil {
-		return nil, status.Errorf(codes.InvalidArgument, e.Error())
+	active, err := server.jobRepository.GetQueueActiveJobSets(request.Name)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "[DeleteQueue] error getting active job sets for queue %s: %s", request.Name, err)
 	}
 	if len(active) > 0 {
-		return nil, status.Errorf(codes.FailedPrecondition, "Queue is not empty.")
+		return nil, status.Errorf(codes.FailedPrecondition, "[DeleteQueue] error deleting queue %s: queue is not empty", request.Name)
 	}
 
-	e = server.queueRepository.DeleteQueue(request.Name)
-	if e != nil {
-		return nil, status.Errorf(codes.InvalidArgument, e.Error())
+	err = server.queueRepository.DeleteQueue(request.Name)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "[DeleteQueue] error deleting queue %s: %s", request.Name, err)
 	}
 
 	return &types.Empty{}, nil
@@ -167,45 +170,43 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 	ownershipGroups, err := server.checkQueuePermission(ctx, req.Queue, true, permissions.SubmitJobs, permissions.SubmitAnyJobs)
 	var e *ErrNoPermission
 	if errors.As(err, &e) {
-		return nil, status.Errorf(codes.PermissionDenied, "error submitting job: %s", e)
+		return nil, status.Errorf(codes.PermissionDenied, "[SubmitJobs] error submitting jobs: %s", err)
 	} else if err != nil {
-		return nil, status.Errorf(codes.Unavailable, "error checking permissions: %s", err)
+		return nil, status.Errorf(codes.Unavailable, "[SubmitJobs] error checking permissions: %s", err)
 	}
 
 	principal := authorization.GetPrincipal(ctx)
 
-	jobs, e := server.createJobs(req, principal.GetName(), ownershipGroups)
-	if e != nil {
-		reqJson, _ := json.Marshal(req)
-		log.Errorf("Error submitting job %s for user %s: %v", reqJson, principal.GetName(), e)
-		return nil, status.Errorf(codes.InvalidArgument, e.Error())
+	jobs, err := server.createJobs(req, principal.GetName(), ownershipGroups)
+	if err != nil {
+		// TODO Should we log the JSON? We need to be careful about handling parsing errors.
+		return nil, status.Errorf(codes.InvalidArgument, "[SubmitJobs] error creating jobs for user %s: %s", principal.GetName(), err)
 	}
 
-	allClusterSchedulingInfo, e := server.schedulingInfoRepository.GetClusterSchedulingInfo()
-	if e != nil {
-		return nil, e
+	allClusterSchedulingInfo, err := server.schedulingInfoRepository.GetClusterSchedulingInfo()
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "[SubmitJobs] error getting scheduling info: %s", err)
 	}
 
-	e = validateJobsCanBeScheduled(jobs, allClusterSchedulingInfo)
-	if e != nil {
-		reqJson, _ := json.Marshal(req)
-		log.Errorf("Error submitting job %s for user %s: %v", reqJson, principal.GetName(), e)
-		return nil, status.Errorf(codes.InvalidArgument, e.Error())
+	err = validateJobsCanBeScheduled(jobs, allClusterSchedulingInfo)
+	if err != nil {
+		// TODO Should we log the JSON? We need to be careful about handling parsing errors.
+		return nil, status.Errorf(codes.InvalidArgument, "[SubmitJobs] error submitting jobs for user %s: %s", principal.GetName(), err)
 	}
 
-	e = reportSubmitted(server.eventStore, jobs)
-	if e != nil {
-		return nil, status.Errorf(codes.Aborted, e.Error())
+	err = reportSubmitted(server.eventStore, jobs)
+	if err != nil {
+		return nil, status.Errorf(codes.Aborted, "[SubmitJobs] error getting submitted report: %s", err)
 	}
 
-	submissionResults, e := server.jobRepository.AddJobs(jobs)
-	if e != nil {
+	submissionResults, err := server.jobRepository.AddJobs(jobs)
+	if err != nil {
 		jobFailures := createJobFailuresWithReason(jobs, fmt.Sprintf("Failed to save job in Armada: %v", e))
 		reportErr := reportFailed(server.eventStore, "", jobFailures)
 		if reportErr != nil {
-			return nil, status.Errorf(codes.Internal, "error when reporting failure event: %v", reportErr)
+			return nil, status.Errorf(codes.Internal, "[SubmitJobs] error reporting failure event: %v", reportErr)
 		}
-		return nil, status.Errorf(codes.Aborted, e.Error())
+		return nil, status.Errorf(codes.Aborted, "[SubmitJobs] error saving jobs in Armada: %s", err)
 	}
 
 	result := &api.JobSubmitResponse{
@@ -234,22 +235,22 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 		result.JobResponseItems = append(result.JobResponseItems, jobResponse)
 	}
 
-	e = reportFailed(server.eventStore, "", jobFailures)
-	if e != nil {
+	err = reportFailed(server.eventStore, "", jobFailures)
+	if err != nil {
 		return result, status.Errorf(
-			codes.Internal, fmt.Sprintf("Failed to report failed events for jobs: %v", e))
+			codes.Internal, fmt.Sprintf("Failed to report failed events for jobs: %v", err))
 	}
 
-	e = reportDuplicateDetected(server.eventStore, doubleSubmits)
-	if e != nil {
+	err = reportDuplicateDetected(server.eventStore, doubleSubmits)
+	if err != nil {
 		return result, status.Errorf(
-			codes.Internal, fmt.Sprintf("Failed to report job duplicate submission events for jobs: %v", e))
+			codes.Internal, fmt.Sprintf("Failed to report job duplicate submission events for jobs: %v", err))
 	}
 
-	e = reportQueued(server.eventStore, createdJobs)
-	if e != nil {
+	err = reportQueued(server.eventStore, createdJobs)
+	if err != nil {
 		return result, status.Errorf(
-			codes.Internal, fmt.Sprintf("Failed to report queued events for jobs: %v", e))
+			codes.Internal, fmt.Sprintf("Failed to report queued events for jobs: %v", err))
 	}
 
 	if len(jobFailures) > 0 {
