@@ -4,11 +4,15 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/G-Research/armada/internal/armada/configuration"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/component-helpers/scheduling/corev1/nodeaffinity"
 )
 
-func ValidatePodSpec(spec *v1.PodSpec, maxAllowedSize uint, minJobResources v1.ResourceList) error {
+func ValidatePodSpec(spec *v1.PodSpec, schedulingSpec *configuration.SchedulingConfig) error {
+	maxAllowedSize := schedulingSpec.MaxPodSpecSizeBytes
+	minJobResources := schedulingSpec.MinJobResources
+
 	if spec == nil {
 		return fmt.Errorf("empty pod spec")
 	}
