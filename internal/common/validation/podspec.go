@@ -4,9 +4,10 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/G-Research/armada/internal/armada/configuration"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/component-helpers/scheduling/corev1/nodeaffinity"
+
+	"github.com/G-Research/armada/internal/armada/configuration"
 )
 
 func ValidatePodSpec(spec *v1.PodSpec, schedulingSpec *configuration.SchedulingConfig) error {

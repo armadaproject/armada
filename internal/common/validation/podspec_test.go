@@ -3,10 +3,11 @@ package validation
 import (
 	"testing"
 
-	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+
+	"github.com/G-Research/armada/internal/armada/configuration"
 )
 
 func Test_ValidatePodSpec_checkForMissingValues(t *testing.T) {
