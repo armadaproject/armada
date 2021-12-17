@@ -98,7 +98,7 @@ func (server *SubmitServer) DeleteQueue(ctx context.Context, req *api.QueueDelet
 }
 
 func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRequest) (*api.JobSubmitResponse, error) {
-	e, ownershipGroups := server.checkQueuePermission(ctx, req.Queue, true, permissions.SubmitJobs, permissions.SubmitAnyJobs)
+	ownershipGroups, e := server.checkQueuePermission(ctx, req.Queue, true, permissions.SubmitJobs, permissions.SubmitAnyJobs)
 	if e != nil {
 		return nil, e
 	}
@@ -235,8 +235,8 @@ func (server *SubmitServer) CancelJobs(ctx context.Context, request *api.JobCanc
 }
 
 func (server *SubmitServer) cancelJobs(ctx context.Context, queue string, jobs []*api.Job) (*api.CancellationResult, error) {
-	if e, _ := server.checkQueuePermission(ctx, queue, false, permissions.CancelJobs, permissions.CancelAnyJobs); e != nil {
-		return nil, e
+	if _, err := server.checkQueuePermission(ctx, queue, false, permissions.CancelJobs, permissions.CancelAnyJobs); err != nil {
+		return nil, err
 	}
 	principal := authorization.GetPrincipal(ctx)
 
@@ -359,8 +359,8 @@ func (server *SubmitServer) checkReprioritizePerms(ctx context.Context, jobs []*
 		queues[job.Queue] = true
 	}
 	for queue := range queues {
-		if e, _ := server.checkQueuePermission(ctx, queue, false, permissions.ReprioritizeJobs, permissions.ReprioritizeAnyJobs); e != nil {
-			return e
+		if _, err := server.checkQueuePermission(ctx, queue, false, permissions.ReprioritizeJobs, permissions.ReprioritizeAnyJobs); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -377,7 +377,7 @@ func (server *SubmitServer) checkQueuePermission(
 	queueName string,
 	attemptToCreate bool,
 	basicPermission permission.Permission,
-	allQueuesPermission permission.Permission) (error, []string) {
+	allQueuesPermission permission.Permission) ([]string, error) {
 
 	// Load the queue into memory to check if the user is the owner of the queue
 	queue, err := server.queueRepository.GetQueue(queueName)
@@ -393,7 +393,7 @@ func (server *SubmitServer) checkQueuePermission(
 		// TODO Is this correct? Shouldn't the relevant permission be permissions.CreateQueue?
 		err = checkPermission(server.permissions, ctx, permissions.SubmitAnyJobs)
 		if err != nil {
-			return fmt.Errorf("[checkQueuePermission] error: %w", err), nil
+			return nil, fmt.Errorf("[checkQueuePermission] error: %w", err)
 		}
 
 		queue = &api.Queue{
@@ -402,14 +402,14 @@ func (server *SubmitServer) checkQueuePermission(
 		}
 		err = server.queueRepository.CreateQueue(queue)
 		if err != nil {
-			return fmt.Errorf("[checkQueuePermission] error creating queue: %w", err), nil
+			return nil, fmt.Errorf("[checkQueuePermission] error creating queue: %w", err)
 		}
 
 		// nil indicates that the user has sufficient permissions
 		// The newly created group has no ownership groups
-		return nil, []string{}
+		return []string{}, nil
 	} else if err != nil {
-		return fmt.Errorf("[checkQueuePermission] error getting queue %s: %w", queueName, err), nil
+		return nil, fmt.Errorf("[checkQueuePermission] error getting queue %s: %w", queueName, err)
 	}
 
 	// The user must either own the queue or have permission to access all queues
@@ -424,9 +424,9 @@ func (server *SubmitServer) checkQueuePermission(
 		permissionToCheck = allQueuesPermission
 	}
 	if err := checkPermission(server.permissions, ctx, permissionToCheck); err != nil {
-		return fmt.Errorf("[checkQueuePermission] permission error for queue %s: %w", queueName, err), nil
+		return nil, fmt.Errorf("[checkQueuePermission] permission error for queue %s: %w", queueName, err)
 	}
-	return nil, groups
+	return groups, nil
 }
 
 // createJobs returns a list of objects representing the jobs in a JobSubmitRequest.
