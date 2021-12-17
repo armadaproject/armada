@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/G-Research/armada/internal/armada/permissions"
 	"github.com/G-Research/armada/internal/armada/repository"
@@ -14,43 +15,26 @@ import (
 
 // ErrNoPermission represents an error that occurs when a client tries to perform some action
 // through the gRPC API for which it does not have permissions.
+// Produces error messages of the form
+// "Tom" does not own the queue and have SubmitJobs permissions, "Tom" does not have SubmitAnyJobs permissions
 //
-// TODO Remove ErrNoPermissions in favour of this one.
-type ErrNoPermissions struct {
-	// What the user was trying to do (e.g., "submit jobs")
-	AttemptedAction string
-	// The resource involved (e.g., "queue foo")
-	Resource string
-	// Name associated with the principal that attempted the action
-	UserName string
-	// Optional additional message (e.g., "user must either own the queue or have SubmitAnyJobs permissions")
-	Message string
-}
-
-func (err *ErrNoPermissions) Error() string {
-	if err.Message == "" {
-		return fmt.Sprintf("user %q does not have permission to %s for %q", err.UserName, err.AttemptedAction, err.Resource)
-	} else {
-		return fmt.Sprintf("user %q does not have permission to %s for %q; %s", err.UserName, err.AttemptedAction, err.Resource)
-	}
-}
-
-// Actions for ErrNoPermission
-const (
-	ActionSubmitJob = "submit jobs"
-	ActionCancelJob = "cancel jobs"
-)
-
-// ErrNoPermission represents an error that occurs when a client tries to perform some action
-// through the gRPC API for which it does not have permissions. The error contains the name
-// of the client and the requested permission.
+// The caller of a function that may produce this error should capture is using errors.As and prepend
+// whatever action the principal was attempting.
 type ErrNoPermission struct {
-	UserName   string
-	Permission permission.Permission
+	// Principal that attempted the action
+	Principal authorization.Principal
+	// Reasons that the principal was not allowed to perform the action
+	// For example ["does not own the queue and have SubmitJobs permissions", "does not have SubmitAnyJobs permissions"]
+	Reasons []string
 }
 
 func (err *ErrNoPermission) Error() string {
-	return fmt.Sprintf("user %q lacks permission %q", err.UserName, err.Permission)
+	principalName := err.Principal.GetName()
+	reasons := make([]string, len(err.Reasons), len(err.Reasons))
+	for i, reason := range err.Reasons {
+		reasons[i] = fmt.Sprintf("%q %s", principalName, reason)
+	}
+	return strings.Join(reasons, ",")
 }
 
 func (server *SubmitServer) checkReprioritizePerms(ctx context.Context, jobs []*api.Job) error {
@@ -121,7 +105,14 @@ func (server *SubmitServer) checkQueuePermission(
 		permissionToCheck = allQueuesPermission
 	}
 	if err := checkPermission(server.permissions, ctx, permissionToCheck); err != nil {
-		return nil, fmt.Errorf("[checkQueuePermission] permission error for queue %s: %w", queueName, err)
+		err = &ErrNoPermission{
+			Principal: authorization.GetPrincipal(ctx),
+			Reasons: []string{
+				fmt.Sprintf("does not own the queue and have %s permissions", basicPermission),
+				fmt.Sprintf("does not have %s permissions", allQueuesPermission),
+			},
+		}
+		return nil, err
 	}
 	return groups, nil
 }
@@ -132,9 +123,12 @@ func (server *SubmitServer) checkQueuePermission(
 // requested permission programatically via this error type.
 func checkPermission(p authorization.PermissionChecker, ctx context.Context, permission permission.Permission) error {
 	if !p.UserHasPermission(ctx, permission) {
-		principal := authorization.GetPrincipal(ctx)
-		name := principal.GetName()
-		return &ErrNoPermission{UserName: name, Permission: permission}
+		return &ErrNoPermission{
+			Principal: authorization.GetPrincipal(ctx),
+			Reasons: []string{
+				fmt.Sprintf("does not have permission %s", permission),
+			},
+		}
 	}
 	return nil
 }
