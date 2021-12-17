@@ -1,7 +1,5 @@
 package server
 
-// TODO This file should be called "authentication.go"
-
 import (
 	"context"
 	"fmt"
