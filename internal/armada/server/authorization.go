@@ -13,6 +13,35 @@ import (
 )
 
 // ErrNoPermission represents an error that occurs when a client tries to perform some action
+// through the gRPC API for which it does not have permissions.
+//
+// TODO Remove ErrNoPermissions in favour of this one.
+type ErrNoPermissions struct {
+	// What the user was trying to do (e.g., "submit jobs")
+	AttemptedAction string
+	// The resource involved (e.g., "queue foo")
+	Resource string
+	// Name associated with the principal that attempted the action
+	UserName string
+	// Optional additional message (e.g., "user must either own the queue or have SubmitAnyJobs permissions")
+	Message string
+}
+
+func (err *ErrNoPermissions) Error() string {
+	if err.Message == "" {
+		return fmt.Sprintf("user %q does not have permission to %s for %q", err.UserName, err.AttemptedAction, err.Resource)
+	} else {
+		return fmt.Sprintf("user %q does not have permission to %s for %q; %s", err.UserName, err.AttemptedAction, err.Resource)
+	}
+}
+
+// Actions for ErrNoPermission
+const (
+	ActionSubmitJob = "submit jobs"
+	ActionCancelJob = "cancel jobs"
+)
+
+// ErrNoPermission represents an error that occurs when a client tries to perform some action
 // through the gRPC API for which it does not have permissions. The error contains the name
 // of the client and the requested permission.
 type ErrNoPermission struct {
@@ -40,9 +69,6 @@ func (server *SubmitServer) checkReprioritizePerms(ctx context.Context, jobs []*
 // checkQueuePermission checks if the principal embedded in the context has permission
 // to perform actions on the given queue. If the principal has sufficient permissions,
 // nil is returned. Otherwise an error is returned.
-//
-// TODO We should change the order of the return values.
-// The convention is for the error to be the last of the return values.
 func (server *SubmitServer) checkQueuePermission(
 	ctx context.Context,
 	queueName string,
