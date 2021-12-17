@@ -432,7 +432,7 @@ func (server *SubmitServer) createJobs(request *api.JobSubmitRequest, owner stri
 
 		for j, podSpec := range item.GetAllPodSpecs() {
 			server.applyDefaultsToPodSpec(podSpec)
-			e := validation.ValidatePodSpec(podSpec, server.schedulingConfig.MaxPodSpecSizeBytes)
+			e := validation.ValidatePodSpec(podSpec, server.schedulingConfig.MaxPodSpecSizeBytes, server.schedulingConfig.MinJobResources)
 			if e != nil {
 				return nil, fmt.Errorf("error validating pod spec of job with index %v, pod: %v: %v", i, j, e)
 			}

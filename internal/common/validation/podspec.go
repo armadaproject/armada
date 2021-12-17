@@ -5,10 +5,11 @@ import (
 	"fmt"
 
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/component-helpers/scheduling/corev1/nodeaffinity"
 )
 
-func ValidatePodSpec(spec *v1.PodSpec, maxAllowedSize uint) error {
+func ValidatePodSpec(spec *v1.PodSpec, maxAllowedSize uint, minJobResources map[string]*resource.Quantity) error {
 	if spec == nil {
 		return fmt.Errorf("empty pod spec")
 	}
@@ -34,11 +35,26 @@ func ValidatePodSpec(spec *v1.PodSpec, maxAllowedSize uint) error {
 			return fmt.Errorf("container %v has no resource requests specified", container.Name)
 		}
 
+		limits := limitMap(container.Resources.Limits)
+		for rc, _ := range minJobResources {
+			if limits[rc].Value() < minJobResources[rc].Value() {
+				return fmt.Errorf("resource %s in container %v allocated below server minimum (%s)", rc, container.Name, minJobResources[rc])
+			}
+		}
+
 		if !resourceListEquals(container.Resources.Requests, container.Resources.Limits) {
 			return fmt.Errorf("container %v does not have resource request and limit equal (this is currently not supported)", container.Name)
 		}
 	}
 	return validatePorts(spec)
+}
+
+func limitMap(limObject v1.ResourceList) map[string]*resource.Quantity {
+	return map[string]*resource.Quantity{
+		"memory":            limObject.Memory(),
+		"storage":           limObject.Storage(),
+		"ephemeral-storage": limObject.StorageEphemeral(),
+	}
 }
 
 func validateAffinity(affinity *v1.Affinity) error {

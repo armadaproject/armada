@@ -33,6 +33,9 @@ scheduling:
     expiryLoopInterval: 5s
   maxRetries: 5
   maxPodSpecSizeBytes: 65535
+  minJobResources:
+    memory: 100Mi
+    ephemeral-storage: 100Mi # How do I validate you?
 queueManagement:
   defaultPriorityFactor: 1000
 events:
