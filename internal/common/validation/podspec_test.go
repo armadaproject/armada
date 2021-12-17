@@ -9,11 +9,13 @@ import (
 )
 
 func Test_ValidatePodSpec_checkForMissingValues(t *testing.T) {
-	assert.Error(t, ValidatePodSpec(nil, 65535))
-	assert.Error(t, ValidatePodSpec(&v1.PodSpec{}, 65535))
+	minResources := v1.ResourceList{}
+
+	assert.Error(t, ValidatePodSpec(nil, 65535, minResources))
+	assert.Error(t, ValidatePodSpec(&v1.PodSpec{}, 65535, minResources))
 	assert.Error(t, ValidatePodSpec(&v1.PodSpec{
 		Containers: []v1.Container{{}},
-	}, 65535))
+	}, 65535, minResources))
 }
 
 func Test_ValidatePodSpec_checkForResources(t *testing.T) {
@@ -25,6 +27,8 @@ func Test_ValidatePodSpec_checkForResources(t *testing.T) {
 	resources1 := v1.ResourceList{"cpu": cpu, "memory": memory}
 	resources2 := v1.ResourceList{"cpu": cpu2, "memory": memory}
 
+	minResources := v1.ResourceList{}
+
 	assert.Error(t, ValidatePodSpec(&v1.PodSpec{
 		Containers: []v1.Container{{
 			Resources: v1.ResourceRequirements{
@@ -32,7 +36,7 @@ func Test_ValidatePodSpec_checkForResources(t *testing.T) {
 				Requests: resources2,
 			},
 		}},
-	}, 65535))
+	}, 65535, minResources))
 
 	assert.NoError(t, ValidatePodSpec(&v1.PodSpec{
 		Containers: []v1.Container{{
@@ -41,10 +45,11 @@ func Test_ValidatePodSpec_checkForResources(t *testing.T) {
 				Requests: resources1,
 			},
 		}},
-	}, 65535))
+	}, 65535, minResources))
 }
 
 func Test_ValidatePodSpec_checkForPortConfiguration(t *testing.T) {
+	minResources := v1.ResourceList{}
 	portsUniqueToContainer := &v1.PodSpec{
 		Containers: []v1.Container{
 			{
@@ -74,11 +79,12 @@ func Test_ValidatePodSpec_checkForPortConfiguration(t *testing.T) {
 			},
 		},
 	}
-	assert.Error(t, ValidatePodSpec(portsUniqueToContainer, 65535))
-	assert.Error(t, ValidatePodSpec(portExposeOverMultipleContainers, 65535))
+	assert.Error(t, ValidatePodSpec(portsUniqueToContainer, 65535, minResources))
+	assert.Error(t, ValidatePodSpec(portExposeOverMultipleContainers, 65535, minResources))
 }
 
 func Test_ValidatePodSpec_WhenPreferredAffinitySet_Fails(t *testing.T) {
+	minResources := v1.ResourceList{}
 	preference := v1.NodeSelectorTerm{
 		MatchExpressions: []v1.NodeSelectorRequirement{
 			{
@@ -102,11 +108,12 @@ func Test_ValidatePodSpec_WhenPreferredAffinitySet_Fails(t *testing.T) {
 		},
 	}
 
-	assert.Error(t, ValidatePodSpec(podSpec, 65535))
+	assert.Error(t, ValidatePodSpec(podSpec, 65535, minResources))
 }
 
 func Test_ValidatePodSpec_WhenValidRequiredAffinitySet_Succeeds(t *testing.T) {
 
+	minResources := v1.ResourceList{}
 	nodeSelector := &v1.NodeSelector{
 		NodeSelectorTerms: []v1.NodeSelectorTerm{
 			{
@@ -128,11 +135,12 @@ func Test_ValidatePodSpec_WhenValidRequiredAffinitySet_Succeeds(t *testing.T) {
 		},
 	}
 
-	assert.Nil(t, ValidatePodSpec(podSpec, 65535))
+	assert.Nil(t, ValidatePodSpec(podSpec, 65535, minResources))
 }
 
 func Test_ValidatePodSpec_WhenInvalidRequiredAffinitySet_Fails(t *testing.T) {
 
+	minResources := v1.ResourceList{}
 	invalidNodeSelector := &v1.NodeSelector{
 		NodeSelectorTerms: []v1.NodeSelectorTerm{
 			{
@@ -154,14 +162,46 @@ func Test_ValidatePodSpec_WhenInvalidRequiredAffinitySet_Fails(t *testing.T) {
 		},
 	}
 
-	assert.Error(t, ValidatePodSpec(podSpec, 65535))
+	assert.Error(t, ValidatePodSpec(podSpec, 65535, minResources))
 }
 
 func Test_ValidatePodSpec_WhenExceedsMaxSize_Fails(t *testing.T) {
+	minResources := v1.ResourceList{}
 	spec := minimalValidPodSpec()
 	specSize := uint(spec.Size())
-	assert.NoError(t, ValidatePodSpec(spec, specSize))
-	assert.Error(t, ValidatePodSpec(spec, specSize-1))
+	assert.NoError(t, ValidatePodSpec(spec, specSize, minResources))
+	assert.Error(t, ValidatePodSpec(spec, specSize-1, minResources))
+}
+
+func Test_ValidatePodSpec_WhenResourcesAboveMinimum_Succeedes(t *testing.T) {
+	minResources := v1.ResourceList{
+		"memory": resource.MustParse("100Mi"),
+	}
+	spec := minimalValidPodSpec()
+
+	assert.NoError(t, ValidatePodSpec(spec, uint(spec.Size()), minResources))
+}
+
+func Test_ValidatePodSpec_WhenResourcesBelowMinimum_Fails(t *testing.T) {
+	minResources := v1.ResourceList{
+		"memory": resource.MustParse("100Mi"),
+	}
+	res := v1.ResourceList{
+		"cpu":    resource.MustParse("1"),
+		"memory": resource.MustParse("1"),
+	}
+	spec := &v1.PodSpec{
+		Containers: []v1.Container{
+			{
+				Resources: v1.ResourceRequirements{
+					Requests: res,
+					Limits:   res,
+				},
+			},
+		},
+	}
+
+	assert.Error(t, ValidatePodSpec(spec, uint(spec.Size()), minResources))
 }
 
 func minimalValidPodSpec() *v1.PodSpec {

@@ -5,11 +5,10 @@ import (
 	"fmt"
 
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/component-helpers/scheduling/corev1/nodeaffinity"
 )
 
-func ValidatePodSpec(spec *v1.PodSpec, maxAllowedSize uint, minJobResources map[string]*resource.Quantity) error {
+func ValidatePodSpec(spec *v1.PodSpec, maxAllowedSize uint, minJobResources v1.ResourceList) error {
 	if spec == nil {
 		return fmt.Errorf("empty pod spec")
 	}
@@ -34,14 +33,14 @@ func ValidatePodSpec(spec *v1.PodSpec, maxAllowedSize uint, minJobResources map[
 		if len(container.Resources.Requests) == 0 {
 			return fmt.Errorf("container %v has no resource requests specified", container.Name)
 		}
-
-		limits := limitMap(container.Resources.Limits)
-		for rc, _ := range minJobResources {
-			if limits[rc].Value() < minJobResources[rc].Value() {
-				return fmt.Errorf("resource %s in container %v allocated below server minimum (%s)", rc, container.Name, minJobResources[rc])
-			}
+		err = validateContainerResource(container.Resources.Limits, minJobResources, container.Name, "limit")
+		if err != nil {
+			return err
 		}
-
+		err = validateContainerResource(container.Resources.Requests, minJobResources, container.Name, "request")
+		if err != nil {
+			return err
+		}
 		if !resourceListEquals(container.Resources.Requests, container.Resources.Limits) {
 			return fmt.Errorf("container %v does not have resource request and limit equal (this is currently not supported)", container.Name)
 		}
@@ -49,12 +48,19 @@ func ValidatePodSpec(spec *v1.PodSpec, maxAllowedSize uint, minJobResources map[
 	return validatePorts(spec)
 }
 
-func limitMap(limObject v1.ResourceList) map[string]*resource.Quantity {
-	return map[string]*resource.Quantity{
-		"memory":            limObject.Memory(),
-		"storage":           limObject.Storage(),
-		"ephemeral-storage": limObject.StorageEphemeral(),
+func validateContainerResource(
+	resourceSpec v1.ResourceList,
+	minJobResources v1.ResourceList,
+	container_name string,
+	requestOrLimit string,
+) error {
+	for rc, containerRsc := range resourceSpec {
+		serverRsc, nonEmpty := minJobResources[rc]
+		if nonEmpty && containerRsc.Value() < serverRsc.Value() {
+			return fmt.Errorf("%s %s (%s) on container %v below server minimum (%s)", requestOrLimit, rc, &containerRsc, container_name, &serverRsc)
+		}
 	}
+	return nil
 }
 
 func validateAffinity(affinity *v1.Affinity) error {

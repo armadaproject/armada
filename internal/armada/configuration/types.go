@@ -5,7 +5,6 @@ import (
 
 	"github.com/go-redis/redis"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/internal/common/auth/configuration"
@@ -51,7 +50,7 @@ type SchedulingConfig struct {
 	ResourceScarcity                          map[string]float64
 	PoolResourceScarcity                      map[string]map[string]float64
 	MaxPodSpecSizeBytes                       uint
-	MinJobResources                           map[string]*resource.Quantity
+	MinJobResources                           v1.ResourceList
 }
 
 type DatabaseRetentionPolicy struct {
