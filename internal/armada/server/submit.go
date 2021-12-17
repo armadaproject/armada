@@ -366,74 +366,96 @@ func (server *SubmitServer) checkReprioritizePerms(ctx context.Context, jobs []*
 	return nil
 }
 
-// TODO In general, we should not check for permissions before an operation.
-// Instead, we should return a detailed "permission denied error" from which the user can determine
-// what went wrong.
+// checkQueuePermission checks if the principal embedded in the context has permission
+// to perform actions on the given queue. If the principal has sufficient permissions,
+// nil is returned. Otherwise an error is returned.
+//
+// TODO We should change the order of the return values.
+// The convention is for the error to be the last of the return values.
 func (server *SubmitServer) checkQueuePermission(
 	ctx context.Context,
 	queueName string,
 	attemptToCreate bool,
 	basicPermission permission.Permission,
-	allQueuesPermission permission.Permission) (e error, ownershipGroups []string) {
+	allQueuesPermission permission.Permission) (error, []string) {
 
-	queue, e := server.queueRepository.GetQueue(queueName)
-	var err *repository.ErrQueueNotFound
-	if errors.As(e, &err) {
-		if attemptToCreate &&
-			server.queueManagementConfig.AutoCreateQueues &&
-			server.permissions.UserHasPermission(ctx, permissions.SubmitAnyJobs) {
+	// Load the queue into memory to check if the user is the owner of the queue
+	queue, err := server.queueRepository.GetQueue(queueName)
+	var e *repository.ErrQueueNotFound
 
-			queue = &api.Queue{
-				Name:           queueName,
-				PriorityFactor: server.queueManagementConfig.DefaultPriorityFactor,
-			}
-			e := server.queueRepository.CreateQueue(queue)
-			if e != nil {
-				return status.Errorf(codes.Aborted, e.Error()), []string{}
-			}
-			return nil, []string{}
-		} else {
-			return status.Errorf(codes.NotFound, "Queue %q not found", queueName), []string{}
+	// TODO Checking permissions shouldn't have side side effects.
+	// Hence, this function shouldn't automatically create queues.
+	// Further, we should consider removing the AutoCreateQueues option entirely.
+	// Since it leads to surprising behavior (e.g., creating a queue if the name is misspelled).
+	// Creating queues should always be an explicit decision.
+	// The less surprising behavior is to return ErrQueueNotFound (perhaps wrapped).
+	if errors.As(err, &e) && attemptToCreate && server.queueManagementConfig.AutoCreateQueues {
+		// TODO Is this correct? Shouldn't the relevant permission be permissions.CreateQueue?
+		err = checkPermission(server.permissions, ctx, permissions.SubmitAnyJobs)
+		if err != nil {
+			return fmt.Errorf("[checkQueuePermission] error: %w", err), nil
 		}
-	} else if e != nil {
-		return status.Errorf(codes.Unavailable, "Could not load queue %q: %s", queueName, e.Error()), []string{}
+
+		queue = &api.Queue{
+			Name:           queueName,
+			PriorityFactor: server.queueManagementConfig.DefaultPriorityFactor,
+		}
+		err = server.queueRepository.CreateQueue(queue)
+		if err != nil {
+			return fmt.Errorf("[checkQueuePermission] error creating queue: %w", err), nil
+		}
+
+		// nil indicates that the user has sufficient permissions
+		// The newly created group has no ownership groups
+		return nil, []string{}
+	} else if err != nil {
+		return fmt.Errorf("[checkQueuePermission] error getting queue %s: %w", queueName, err), nil
 	}
 
+	// The user must either own the queue or have permission to access all queues
+	//
+	// TODO We should have a more specific permission denied error that includes
+	// the resource involved (e.g., that it's a queue and the name of the queue),
+	// the action attempted (e.g., submitting a job), the the principal (user) name,
+	// and the permission required for the action.
 	permissionToCheck := basicPermission
 	owned, groups := server.permissions.UserOwns(ctx, queue)
 	if !owned {
 		permissionToCheck = allQueuesPermission
 	}
 	if err := checkPermission(server.permissions, ctx, permissionToCheck); err != nil {
-		return status.Errorf(codes.PermissionDenied, "error: %s", err), []string{}
+		return fmt.Errorf("[checkQueuePermission] permission error for queue %s: %w", queueName, err), nil
 	}
 	return nil, groups
 }
 
+// createJobs returns a list of objects representing the jobs in a JobSubmitRequest.
+// This function validates the jobs in the request and the pod specs. in each job.
+// If any job or pod in invalid, an error is returned.
 func (server *SubmitServer) createJobs(request *api.JobSubmitRequest, owner string, ownershipGroups []string) ([]*api.Job, error) {
 	jobs := make([]*api.Job, 0, len(request.JobRequestItems))
 
 	if request.JobSetId == "" {
-		return nil, fmt.Errorf("job set is not specified")
+		return nil, fmt.Errorf("[createJobs] job set not specified")
 	}
 
 	if request.Queue == "" {
-		return nil, fmt.Errorf("queue is not specified")
+		return nil, fmt.Errorf("[createJobs] queue not specified")
 	}
 
 	for i, item := range request.JobRequestItems {
 
 		if item.PodSpec != nil && len(item.PodSpecs) > 0 {
-			return nil, fmt.Errorf("job with index %v has both pod spec and pod spec list specified", i)
+			return nil, fmt.Errorf("[createJobs] jobs must specify either a pod spec. or pod spec. list, but the %d-th job of job set %s specifies both", i, request.JobSetId)
 		}
 
-		if len(item.GetAllPodSpecs()) == 0 {
-			return nil, fmt.Errorf("job with index %v has no pod spec", i)
+		podSpecs := item.GetAllPodSpecs()
+		if len(podSpecs) == 0 {
+			return nil, fmt.Errorf("[createJobs] jobs must contain one or more pod specs., but none were found for the %d-th job of job set %s ", i, request.JobSetId)
 		}
 
-		e := validation.ValidateJobSubmitRequestItem(item)
-		if e != nil {
-			return nil, fmt.Errorf("job with index %v: %v", i, e)
+		if err := validation.ValidateJobSubmitRequestItem(item); err != nil {
+			return nil, fmt.Errorf("[createJobs] error validating the %d-th job of job set %s: %w", i, request.JobSetId, err)
 		}
 
 		namespace := item.Namespace
@@ -441,11 +463,11 @@ func (server *SubmitServer) createJobs(request *api.JobSubmitRequest, owner stri
 			namespace = "default"
 		}
 
-		for j, podSpec := range item.GetAllPodSpecs() {
+		for j, podSpec := range podSpecs {
 			server.applyDefaultsToPodSpec(podSpec)
-			e := validation.ValidatePodSpec(podSpec, server.schedulingConfig.MaxPodSpecSizeBytes)
-			if e != nil {
-				return nil, fmt.Errorf("error validating pod spec of job with index %v, pod: %v: %v", i, j, e)
+			err := validation.ValidatePodSpec(podSpec, server.schedulingConfig.MaxPodSpecSizeBytes)
+			if err != nil {
+				return nil, fmt.Errorf("[createJobs] error validating the %d-th pod pf the %d-th job of job set %s: %w", j, i, request.JobSetId, err)
 			}
 
 			// TODO: remove, RequiredNodeLabels is deprecated and will be removed in future versions
