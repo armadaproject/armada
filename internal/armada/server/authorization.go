@@ -108,7 +108,7 @@ func (server *SubmitServer) checkQueuePermission(
 		err = &ErrNoPermission{
 			Principal: authorization.GetPrincipal(ctx),
 			Reasons: []string{
-				fmt.Sprintf("does not own the queue and have %s permissions", basicPermission),
+				fmt.Sprintf("does not own queue %q and have %s permissions for it", queueName, basicPermission),
 				fmt.Sprintf("does not have %s permissions", allQueuesPermission),
 			},
 		}
