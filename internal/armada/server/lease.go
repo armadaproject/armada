@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/gogo/protobuf/types"
@@ -184,14 +183,14 @@ func (q *AggregatedQueueServer) ReturnLease(ctx context.Context, request *api.Re
 }
 
 func (q *AggregatedQueueServer) addAvoidNodeAffinity(jobId string, labels *api.OrderedStringMap, principalName string) error {
-	allClusterSchedulingInfo, e := q.schedulingInfoRepository.GetClusterSchedulingInfo()
-	if e != nil {
-		return e
+	allClusterSchedulingInfo, err := q.schedulingInfoRepository.GetClusterSchedulingInfo()
+	if err != nil {
+		return fmt.Errorf("[AggregatedQueueServer.addAvoidNodeAffinity] error getting scheduling information: %w", err)
 	}
 
 	res, err := q.jobRepository.UpdateJobs([]string{jobId}, func(jobs []*api.Job) {
 		if len(jobs) < 1 {
-			log.Warnf("addAvoidNodeAffinity: Job %s not found", jobId)
+			log.Warnf("[AggregatedQueueServer.addAvoidNodeAffinity] job %s not found", jobId)
 			return
 		}
 
@@ -202,7 +201,7 @@ func (q *AggregatedQueueServer) addAvoidNodeAffinity(jobId string, labels *api.O
 		if changed {
 			err := reportJobsUpdated(q.eventStore, principalName, jobs)
 			if err != nil {
-				log.Warnf("addAvoidNodeAffinity: Failed to report job updated event for job %s: %v", jobId, err)
+				log.Warnf("[AggregatedQueueServer.addAvoidNodeAffinity] error reporting job updated event for job %s: %s", jobId, err)
 			}
 		}
 	})
@@ -211,7 +210,8 @@ func (q *AggregatedQueueServer) addAvoidNodeAffinity(jobId string, labels *api.O
 	}
 
 	if len(res) < 1 {
-		return errors.New("Job not found")
+		errJobNotFound := &repository.ErrJobNotFound{JobId: jobId}
+		return fmt.Errorf("[AggregatedQueueServer.addAvoidNodeAffinity] error: %w", errJobNotFound)
 	}
 
 	return res[0].Error
