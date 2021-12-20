@@ -278,7 +278,7 @@ func (server *SubmitServer) CancelJobs(ctx context.Context, request *api.JobCanc
 	} else if request.JobSetId != "" && request.Queue != "" {
 		return server.cancelJobsByQueueAndSet(ctx, request.Queue, request.JobSetId)
 	}
-	return nil, status.Errorf(codes.InvalidArgument, "Specify either job ID or both queue name and job set ID")
+	return nil, status.Errorf(codes.InvalidArgument, "[CancelJobs] specify either job ID or both queue name and job set ID")
 }
 
 // cancels a job with a given ID
