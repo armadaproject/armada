@@ -44,10 +44,19 @@ type UpdateJobResult struct {
 	Error error
 }
 
+// JobResult is used by GetJobsByIds to bundle a job with any error that occurred
+// when getting the job.
+type JobResult struct {
+	JobId string
+	Job   *api.Job
+	Error error
+}
+
 type JobRepository interface {
 	PeekQueue(queue string, limit int64) ([]*api.Job, error)
 	TryLeaseJobs(clusterId string, queue string, jobs []*api.Job) ([]*api.Job, error)
 	AddJobs(job []*api.Job) ([]*SubmitJobResult, error)
+	GetJobsByIds(ids []string) ([]*JobResult, error)
 	GetExistingJobsByIds(ids []string) ([]*api.Job, error)
 	FilterActiveQueues(queues []*api.Queue) ([]*api.Queue, error)
 	GetQueueSizes(queues []*api.Queue) (sizes []int64, e error)
@@ -341,22 +350,14 @@ func (repo *RedisJobRepository) GetExistingJobsByIds(ids []string) ([]*api.Job, 
 	jobs := make([]*api.Job, 0, len(jobResults))
 	for _, result := range jobResults {
 		var e *ErrJobNotFound
-		if errors.As(result.Err, &e) {
+		if errors.As(result.Error, &e) {
 			continue
-		} else if result.Err != nil {
+		} else if result.Error != nil {
 			return nil, fmt.Errorf("[RedisJobRepository.GetExistingJobsByIds] error getting job with ID %s from database: %s", result.JobId, err)
 		}
 		jobs = append(jobs, result.Job)
 	}
 	return jobs, nil
-}
-
-// JobResult is used by GetJobsByIds to bundle a job with any error that occurred
-// when getting the job.
-type JobResult struct {
-	JobId string
-	Job   *api.Job
-	Err   error
 }
 
 // GetJobsByIds attempts to get all requested jobs from the database.
@@ -380,10 +381,10 @@ func (repo *RedisJobRepository) GetJobsByIds(ids []string) ([]*JobResult, error)
 
 		_, err := cmd.Result()
 		if err == redis.Nil {
-			result.Err = &ErrJobNotFound{JobId: ids[index]}
+			result.Error = &ErrJobNotFound{JobId: ids[index]}
 			continue
 		} else if err != nil {
-			result.Err = err
+			result.Error = err
 			continue
 		}
 
