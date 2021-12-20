@@ -734,7 +734,7 @@ func TestSubmitServer_CreateJobs_WithJobIdReplacement(t *testing.T) {
 		return timeNow
 	}
 
-	NewULID = func() string {
+	newULID = func() string {
 		return "test-ulid"
 	}
 
@@ -826,15 +826,14 @@ func TestSubmitServer_CreateJobs_WithJobIdReplacement(t *testing.T) {
 			},
 		},
 	}
-	owner := "test"
 	ownershipGroups := make([]string, 0)
 	withSubmitServer(func(s *SubmitServer, events repository.EventRepository) {
-		output, err := s.createJobs(request, owner, ownershipGroups)
-		fmt.Println(err)
+		output, err := s.createJobs(request, "test", ownershipGroups)
+		assert.NoError(t, err)
 		assert.Equal(t, expected, output)
 	})
 
 	// Replace mocked functions
-	NewULID = util.NewULID
+	newULID = util.NewULID
 	now = time.Now
 }

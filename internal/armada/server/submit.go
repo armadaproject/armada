@@ -455,7 +455,7 @@ func (server *SubmitServer) checkQueuePermission(
 }
 
 // brought outside for mocking.
-var NewULID = util.NewULID
+var newULID = util.NewULID
 var now = time.Now
 
 func (server *SubmitServer) createJobs(request *api.JobSubmitRequest, owner string, ownershipGroups []string) ([]*api.Job, error) {
@@ -505,7 +505,7 @@ func (server *SubmitServer) createJobs(request *api.JobSubmitRequest, owner stri
 			}
 		}
 
-		jobId := NewULID()
+		jobId := newULID()
 		j := &api.Job{
 			Id:       jobId,
 			ClientId: item.ClientId,
@@ -535,10 +535,10 @@ func (server *SubmitServer) createJobs(request *api.JobSubmitRequest, owner stri
 }
 
 func enrichText(text map[string]string, jobId string) map[string]string {
-	returnText := util.DeepCopy(text)
+	returnText := make(map[string]string, len(text))
 
-	for key, value := range returnText {
-		returnText[key] = strings.Replace(value, "{JobId}", jobId, -1)
+	for key, value := range text {
+		returnText[key] = strings.ReplaceAll(value, "{JobId}", jobId)
 	}
 
 	return returnText
