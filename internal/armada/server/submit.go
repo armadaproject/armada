@@ -434,7 +434,7 @@ func (server *SubmitServer) reprioritizeJobs(jobIds []string, newPriority float6
 		}
 	})
 	if err != nil {
-		return nil, fmt.Errorf("[SubmitServer.reprioritizeJobs] error updating jobs: %s", err)
+		return nil, fmt.Errorf("[reprioritizeJobs] error updating jobs: %s", err)
 	}
 
 	results := map[string]string{}
