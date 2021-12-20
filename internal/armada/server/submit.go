@@ -301,8 +301,6 @@ func (server *SubmitServer) cancelJobsById(ctx context.Context, jobId string) (*
 }
 
 // cancels all jobs part of a particular job set and queue
-//
-// TODO Should we cancel as many jobs as we can instead of returning on error?
 func (server *SubmitServer) cancelJobsByQueueAndSet(ctx context.Context, queue string, jobSetId string) (*api.CancellationResult, error) {
 	ids, err := server.jobRepository.GetActiveJobIds(queue, jobSetId)
 	if err != nil {
@@ -316,9 +314,8 @@ func (server *SubmitServer) cancelJobsByQueueAndSet(ctx context.Context, queue s
 	for _, batch := range batches {
 		jobs, err := server.jobRepository.GetExistingJobsByIds(batch)
 		if err != nil {
-			// TODO Let's have a ErrJobNotFound we can check for here and return the NotFound error code
 			result := &api.CancellationResult{CancelledIds: cancelledIds}
-			return result, status.Errorf(codes.Internal, "[cancelJobsBySetAndQueue] could not find some jobs: %s", err)
+			return result, status.Errorf(codes.Internal, "[cancelJobsBySetAndQueue] error getting jobs: %s", err)
 		}
 
 		result, err := server.cancelJobs(ctx, queue, jobs)
