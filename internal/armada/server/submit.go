@@ -378,37 +378,41 @@ func (server *SubmitServer) cancelJobs(ctx context.Context, queue string, jobs [
 	return &api.CancellationResult{CancelledIds: cancelledIds}, nil
 }
 
-// Returns mapping from job id to error (if present), for all existing jobs
+// ReprioritizeJobs updates the priority of one of more jobs.
+// Returns a map from job ID to any error (or nil if the call succeeded).
 func (server *SubmitServer) ReprioritizeJobs(ctx context.Context, request *api.JobReprioritizeRequest) (*api.JobReprioritizeResponse, error) {
 	var jobs []*api.Job
 	if len(request.JobIds) > 0 {
 		existingJobs, err := server.jobRepository.GetExistingJobsByIds(request.JobIds)
 		if err != nil {
-			return nil, err
+			return nil, status.Errorf(codes.Unavailable, "[ReprioritizeJobs] error getting jobs by ID: %s", err)
 		}
 		jobs = existingJobs
 	} else if request.Queue != "" && request.JobSetId != "" {
-		ids, e := server.jobRepository.GetActiveJobIds(request.Queue, request.JobSetId)
-		if e != nil {
-			return nil, status.Errorf(codes.Aborted, e.Error())
+		ids, err := server.jobRepository.GetActiveJobIds(request.Queue, request.JobSetId)
+		if err != nil {
+			return nil, status.Errorf(codes.Unavailable, "[ReprioritizeJobs] error getting job IDs for queue %s and job set %s: %s", request.Queue, request.JobSetId, err)
 		}
-		existingJobs, e := server.jobRepository.GetExistingJobsByIds(ids)
-		if e != nil {
-			return nil, status.Errorf(codes.Internal, e.Error())
+
+		existingJobs, err := server.jobRepository.GetExistingJobsByIds(ids)
+		if err != nil {
+			return nil, status.Errorf(codes.Unavailable, "[ReprioritizeJobs] error getting jobs for queue %s and job set %s: %s", request.Queue, request.JobSetId, err)
 		}
 		jobs = existingJobs
 	}
 
 	err := server.checkReprioritizePerms(ctx, jobs)
-	if err != nil {
-		return nil, err
+	var e *ErrNoPermission
+	if errors.As(err, &e) {
+		return nil, status.Errorf(codes.PermissionDenied, "[ReprioritizeJobs] error: %s", e)
+	} else if err != nil {
+		return nil, status.Errorf(codes.Unavailable, "[ReprioritizeJobs] error checking permissions: %s", err)
 	}
 
 	principalName := authorization.GetPrincipal(ctx).GetName()
-
 	err = reportJobsReprioritizing(server.eventStore, principalName, jobs, request.NewPriority)
 	if err != nil {
-		return nil, err
+		return nil, status.Errorf(codes.Unavailable, "[ReprioritizeJobs] error reporting job re-prioritization: %s", err)
 	}
 
 	jobIds := []string{}
@@ -417,7 +421,7 @@ func (server *SubmitServer) ReprioritizeJobs(ctx context.Context, request *api.J
 	}
 	results, err := server.reprioritizeJobs(jobIds, request.NewPriority, principalName)
 	if err != nil {
-		return nil, err
+		return nil, status.Errorf(codes.Unavailable, "[ReprioritizeJobs] error re-prioritizing jobs: %s", err)
 	}
 
 	return &api.JobReprioritizeResponse{ReprioritizationResults: results}, nil
