@@ -428,6 +428,12 @@ func (server *SubmitServer) ReprioritizeJobs(ctx context.Context, request *api.J
 }
 
 func (server *SubmitServer) reprioritizeJobs(jobIds []string, newPriority float64, principalName string) (map[string]string, error) {
+
+	// TODO There's a bug here.
+	// The function passed to UpdateJobs is called under an optimistic lock.
+	// If the jobs to be updated are mutated by another thread concurrently,
+	// the changes are not written to Redis. However, this function has side effects
+	// (creating reprioritized events) that would not be rolled back.
 	updateJobResults, err := server.jobRepository.UpdateJobs(jobIds, func(jobs []*api.Job) {
 		for _, job := range jobs {
 			job.Priority = newPriority
