@@ -6,14 +6,21 @@ import (
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+
+	"github.com/G-Research/armada/internal/armada/configuration"
 )
 
 func Test_ValidatePodSpec_checkForMissingValues(t *testing.T) {
-	assert.Error(t, ValidatePodSpec(nil, 65535))
-	assert.Error(t, ValidatePodSpec(&v1.PodSpec{}, 65535))
+	schedulingConfig := &configuration.SchedulingConfig{
+		MinJobResources:     v1.ResourceList{},
+		MaxPodSpecSizeBytes: 65535,
+	}
+
+	assert.Error(t, ValidatePodSpec(nil, schedulingConfig))
+	assert.Error(t, ValidatePodSpec(&v1.PodSpec{}, schedulingConfig))
 	assert.Error(t, ValidatePodSpec(&v1.PodSpec{
 		Containers: []v1.Container{{}},
-	}, 65535))
+	}, schedulingConfig))
 }
 
 func Test_ValidatePodSpec_checkForResources(t *testing.T) {
@@ -25,6 +32,11 @@ func Test_ValidatePodSpec_checkForResources(t *testing.T) {
 	resources1 := v1.ResourceList{"cpu": cpu, "memory": memory}
 	resources2 := v1.ResourceList{"cpu": cpu2, "memory": memory}
 
+	schedulingConfig := &configuration.SchedulingConfig{
+		MinJobResources:     v1.ResourceList{},
+		MaxPodSpecSizeBytes: 65535,
+	}
+
 	assert.Error(t, ValidatePodSpec(&v1.PodSpec{
 		Containers: []v1.Container{{
 			Resources: v1.ResourceRequirements{
@@ -32,7 +44,7 @@ func Test_ValidatePodSpec_checkForResources(t *testing.T) {
 				Requests: resources2,
 			},
 		}},
-	}, 65535))
+	}, schedulingConfig))
 
 	assert.NoError(t, ValidatePodSpec(&v1.PodSpec{
 		Containers: []v1.Container{{
@@ -41,10 +53,15 @@ func Test_ValidatePodSpec_checkForResources(t *testing.T) {
 				Requests: resources1,
 			},
 		}},
-	}, 65535))
+	}, schedulingConfig))
 }
 
 func Test_ValidatePodSpec_checkForPortConfiguration(t *testing.T) {
+	schedulingConfig := &configuration.SchedulingConfig{
+		MinJobResources:     v1.ResourceList{},
+		MaxPodSpecSizeBytes: 65535,
+	}
+
 	portsUniqueToContainer := &v1.PodSpec{
 		Containers: []v1.Container{
 			{
@@ -74,11 +91,15 @@ func Test_ValidatePodSpec_checkForPortConfiguration(t *testing.T) {
 			},
 		},
 	}
-	assert.Error(t, ValidatePodSpec(portsUniqueToContainer, 65535))
-	assert.Error(t, ValidatePodSpec(portExposeOverMultipleContainers, 65535))
+	assert.Error(t, ValidatePodSpec(portsUniqueToContainer, schedulingConfig))
+	assert.Error(t, ValidatePodSpec(portExposeOverMultipleContainers, schedulingConfig))
 }
 
 func Test_ValidatePodSpec_WhenPreferredAffinitySet_Fails(t *testing.T) {
+	schedulingConfig := &configuration.SchedulingConfig{
+		MinJobResources:     v1.ResourceList{},
+		MaxPodSpecSizeBytes: 65535,
+	}
 	preference := v1.NodeSelectorTerm{
 		MatchExpressions: []v1.NodeSelectorRequirement{
 			{
@@ -102,10 +123,14 @@ func Test_ValidatePodSpec_WhenPreferredAffinitySet_Fails(t *testing.T) {
 		},
 	}
 
-	assert.Error(t, ValidatePodSpec(podSpec, 65535))
+	assert.Error(t, ValidatePodSpec(podSpec, schedulingConfig))
 }
 
 func Test_ValidatePodSpec_WhenValidRequiredAffinitySet_Succeeds(t *testing.T) {
+	schedulingConfig := &configuration.SchedulingConfig{
+		MinJobResources:     v1.ResourceList{},
+		MaxPodSpecSizeBytes: 65535,
+	}
 
 	nodeSelector := &v1.NodeSelector{
 		NodeSelectorTerms: []v1.NodeSelectorTerm{
@@ -128,10 +153,14 @@ func Test_ValidatePodSpec_WhenValidRequiredAffinitySet_Succeeds(t *testing.T) {
 		},
 	}
 
-	assert.Nil(t, ValidatePodSpec(podSpec, 65535))
+	assert.Nil(t, ValidatePodSpec(podSpec, schedulingConfig))
 }
 
 func Test_ValidatePodSpec_WhenInvalidRequiredAffinitySet_Fails(t *testing.T) {
+	schedulingConfig := &configuration.SchedulingConfig{
+		MinJobResources:     v1.ResourceList{},
+		MaxPodSpecSizeBytes: 65535,
+	}
 
 	invalidNodeSelector := &v1.NodeSelector{
 		NodeSelectorTerms: []v1.NodeSelectorTerm{
@@ -154,14 +183,60 @@ func Test_ValidatePodSpec_WhenInvalidRequiredAffinitySet_Fails(t *testing.T) {
 		},
 	}
 
-	assert.Error(t, ValidatePodSpec(podSpec, 65535))
+	assert.Error(t, ValidatePodSpec(podSpec, schedulingConfig))
 }
 
 func Test_ValidatePodSpec_WhenExceedsMaxSize_Fails(t *testing.T) {
 	spec := minimalValidPodSpec()
 	specSize := uint(spec.Size())
-	assert.NoError(t, ValidatePodSpec(spec, specSize))
-	assert.Error(t, ValidatePodSpec(spec, specSize-1))
+
+	schedulingConfig := &configuration.SchedulingConfig{
+		MinJobResources:     v1.ResourceList{},
+		MaxPodSpecSizeBytes: specSize,
+	}
+	assert.NoError(t, ValidatePodSpec(spec, schedulingConfig))
+
+	schedulingConfig.MaxPodSpecSizeBytes -= 1
+	assert.Error(t, ValidatePodSpec(spec, schedulingConfig))
+}
+
+func Test_ValidatePodSpec_WhenResourcesAboveMinimum_Succeedes(t *testing.T) {
+	spec := minimalValidPodSpec()
+
+	schedulingConfig := &configuration.SchedulingConfig{
+		MaxPodSpecSizeBytes: uint(spec.Size()),
+		MinJobResources: v1.ResourceList{
+			"memory": resource.MustParse("100Mi"),
+		},
+	}
+
+	assert.NoError(t, ValidatePodSpec(spec, schedulingConfig))
+}
+
+func Test_ValidatePodSpec_WhenResourcesBelowMinimum_Fails(t *testing.T) {
+	res := v1.ResourceList{
+		"cpu":    resource.MustParse("1"),
+		"memory": resource.MustParse("1"),
+	}
+	spec := &v1.PodSpec{
+		Containers: []v1.Container{
+			{
+				Resources: v1.ResourceRequirements{
+					Requests: res,
+					Limits:   res,
+				},
+			},
+		},
+	}
+
+	schedulingConfig := &configuration.SchedulingConfig{
+		MaxPodSpecSizeBytes: uint(spec.Size()),
+		MinJobResources: v1.ResourceList{
+			"memory": resource.MustParse("100Mi"),
+		},
+	}
+
+	assert.Error(t, ValidatePodSpec(spec, schedulingConfig))
 }
 
 func minimalValidPodSpec() *v1.PodSpec {

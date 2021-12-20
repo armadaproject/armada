@@ -17,7 +17,6 @@ import (
 	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/G-Research/armada/internal/armada/permissions"
 	"github.com/G-Research/armada/internal/armada/repository"
-	"github.com/G-Research/armada/internal/armada/server/handlers"
 	"github.com/G-Research/armada/internal/common/auth/authorization"
 	"github.com/G-Research/armada/internal/common/auth/permission"
 	"github.com/G-Research/armada/internal/common/util"
@@ -59,41 +58,97 @@ func NewSubmitServer(
 }
 
 func (server *SubmitServer) GetQueueInfo(ctx context.Context, req *api.QueueInfoRequest) (*api.QueueInfo, error) {
-	handler := handlers.GetQueueInfo(server.jobRepository.GetQueueActiveJobSets).
-		Authorize(server.permissions.UserHasPermission, permissions.WatchAllEvents)
-
-	return handler(ctx, req)
+	if e := checkPermission(server.permissions, ctx, permissions.WatchAllEvents); e != nil {
+		return nil, e
+	}
+	jobSets, e := server.jobRepository.GetQueueActiveJobSets(req.Name)
+	if e != nil {
+		return nil, e
+	}
+	return &api.QueueInfo{
+		Name:          req.Name,
+		ActiveJobSets: jobSets,
+	}, nil
 }
 
 func (server *SubmitServer) GetQueue(ctx context.Context, req *api.QueueGetRequest) (*api.Queue, error) {
-	handler := handlers.GetQueue(server.queueRepository.GetQueue)
+	queue, e := server.queueRepository.GetQueue(req.Name)
+	if e == repository.ErrQueueNotFound {
+		return nil, status.Errorf(codes.NotFound, "Queue %q not found", req.Name)
 
-	return handler(ctx, req)
+	} else if e != nil {
+		return nil, status.Errorf(codes.Unavailable, "Could not load queue %q: %s", req.Name, e.Error())
+	}
+	return queue, nil
 }
 
-func (server *SubmitServer) CreateQueue(ctx context.Context, req *api.Queue) (*types.Empty, error) {
-	handler := handlers.CreateQueue(server.queueRepository.CreateQueue).
-		Ownership(authorization.GetPrincipal(ctx).GetName()).
-		Validate().
-		Authorize(server.permissions.UserHasPermission, permissions.CreateQueue)
+func (server *SubmitServer) CreateQueue(ctx context.Context, queue *api.Queue) (*types.Empty, error) {
+	if e := checkPermission(server.permissions, ctx, permissions.CreateQueue); e != nil {
+		return nil, e
+	}
 
-	return handler(ctx, req)
+	if len(queue.UserOwners) == 0 {
+		principal := authorization.GetPrincipal(ctx)
+		queue.UserOwners = []string{principal.GetName()}
+	}
+
+	if err := validateQueue(queue); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "[UpdateQueue] error: %s", err)
+	}
+
+	e := server.queueRepository.CreateQueue(queue)
+	if e == repository.ErrQueueAlreadyExists {
+		return nil, status.Errorf(codes.AlreadyExists, "Queue %q already exists", queue.Name)
+	} else if e != nil {
+		return nil, status.Errorf(codes.Unavailable, e.Error())
+	}
+	return &types.Empty{}, nil
 }
 
-func (server *SubmitServer) UpdateQueue(ctx context.Context, req *api.Queue) (*types.Empty, error) {
-	handler := handlers.UpdateQueue(server.queueRepository.UpdateQueue).
-		Validate().
-		Authorize(server.permissions.UserHasPermission, permissions.CreateQueue)
+func (server *SubmitServer) UpdateQueue(ctx context.Context, queue *api.Queue) (*types.Empty, error) {
+	if e := checkPermission(server.permissions, ctx, permissions.CreateQueue); e != nil {
+		return nil, e
+	}
 
-	return handler(ctx, req)
+	if err := validateQueue(queue); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "[UpdateQueue] error: %s", err)
+	}
+
+	e := server.queueRepository.UpdateQueue(queue)
+	if e == repository.ErrQueueNotFound {
+		return nil, status.Errorf(codes.NotFound, "Queue %q not found", queue.Name)
+	} else if e != nil {
+		return nil, status.Errorf(codes.Unavailable, e.Error())
+	}
+	return &types.Empty{}, nil
 }
 
-func (server *SubmitServer) DeleteQueue(ctx context.Context, req *api.QueueDeleteRequest) (*types.Empty, error) {
-	handler := handlers.DeleteQueue(server.queueRepository.DeleteQueue).
-		CheckIfEmpty(server.jobRepository.GetQueueActiveJobSets).
-		Authorize(server.permissions.UserHasPermission, permissions.DeleteQueue)
+func validateQueue(queue *api.Queue) error {
+	if queue.PriorityFactor < 1.0 {
+		return fmt.Errorf("queue priority must be greater than or equal to 1, but is %f", queue.PriorityFactor)
+	}
+	return nil
+}
 
-	return handler(ctx, req)
+func (server *SubmitServer) DeleteQueue(ctx context.Context, request *api.QueueDeleteRequest) (*types.Empty, error) {
+	if e := checkPermission(server.permissions, ctx, permissions.DeleteQueue); e != nil {
+		return nil, e
+	}
+
+	active, e := server.jobRepository.GetQueueActiveJobSets(request.Name)
+	if e != nil {
+		return nil, status.Errorf(codes.InvalidArgument, e.Error())
+	}
+	if len(active) > 0 {
+		return nil, status.Errorf(codes.FailedPrecondition, "Queue is not empty.")
+	}
+
+	e = server.queueRepository.DeleteQueue(request.Name)
+	if e != nil {
+		return nil, status.Errorf(codes.InvalidArgument, e.Error())
+	}
+
+	return &types.Empty{}, nil
 }
 
 func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRequest) (*api.JobSubmitResponse, error) {
@@ -435,7 +490,7 @@ func (server *SubmitServer) createJobs(request *api.JobSubmitRequest, owner stri
 				fillContainerRequestsAndLimits(podSpec.Containers)
 			}
 			server.applyDefaultsToPodSpec(podSpec)
-			e := validation.ValidatePodSpec(podSpec, server.schedulingConfig.MaxPodSpecSizeBytes)
+			e := validation.ValidatePodSpec(podSpec, server.schedulingConfig)
 			if e != nil {
 				return nil, fmt.Errorf("error validating pod spec of job with index %v, pod: %v: %v", i, j, e)
 			}
