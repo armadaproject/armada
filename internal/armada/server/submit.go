@@ -57,17 +57,24 @@ func NewSubmitServer(
 }
 
 func (server *SubmitServer) GetQueueInfo(ctx context.Context, req *api.QueueInfoRequest) (*api.QueueInfo, error) {
-	if e := checkPermission(server.permissions, ctx, permissions.WatchAllEvents); e != nil {
-		return nil, e
+	err := checkPermission(server.permissions, ctx, permissions.WatchAllEvents)
+	var e *ErrNoPermission
+	if errors.As(err, &e) {
+		return nil, status.Errorf(codes.PermissionDenied, "[GetQueueInfo] error for queue %s: %s", req.Name, e)
+	} else if err != nil {
+		return nil, status.Errorf(codes.Unavailable, "[GetQueueInfo] error checking permissions: %s", err)
 	}
-	jobSets, e := server.jobRepository.GetQueueActiveJobSets(req.Name)
-	if e != nil {
-		return nil, e
+
+	jobSets, err := server.jobRepository.GetQueueActiveJobSets(req.Name)
+	if err != nil {
+		return nil, status.Errorf(codes.Unavailable, "[GetQueueInfo] error getting job sets for queue %s: %s", req.Name, err)
 	}
-	return &api.QueueInfo{
+
+	result := &api.QueueInfo{
 		Name:          req.Name,
 		ActiveJobSets: jobSets,
-	}, nil
+	}
+	return result, nil
 }
 
 func (server *SubmitServer) GetQueue(ctx context.Context, req *api.QueueGetRequest) (*api.Queue, error) {
