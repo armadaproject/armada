@@ -506,6 +506,8 @@ func (server *SubmitServer) createJobs(request *api.JobSubmitRequest, owner stri
 		}
 
 		jobId := newULID()
+		enrichText(item.Labels, jobId)
+		enrichText(item.Annotations, jobId)
 		j := &api.Job{
 			Id:       jobId,
 			ClientId: item.ClientId,
@@ -513,8 +515,8 @@ func (server *SubmitServer) createJobs(request *api.JobSubmitRequest, owner stri
 			JobSetId: request.JobSetId,
 
 			Namespace:   namespace,
-			Labels:      enrichText(item.Labels, jobId),
-			Annotations: enrichText(item.Annotations, jobId),
+			Labels:      item.Labels,
+			Annotations: item.Annotations,
 
 			RequiredNodeLabels: item.RequiredNodeLabels,
 			Ingress:            item.Ingress,
@@ -534,14 +536,10 @@ func (server *SubmitServer) createJobs(request *api.JobSubmitRequest, owner stri
 	return jobs, nil
 }
 
-func enrichText(text map[string]string, jobId string) map[string]string {
-	returnText := make(map[string]string, len(text))
-
-	for key, value := range text {
-		returnText[key] = strings.ReplaceAll(value, "{JobId}", jobId)
+func enrichText(labels map[string]string, jobId string) {
+	for key, value := range labels {
+		labels[key] = strings.ReplaceAll(value, "{JobId}", jobId)
 	}
-
-	return returnText
 }
 
 func (server *SubmitServer) applyDefaultsToPodSpec(spec *v1.PodSpec) {
