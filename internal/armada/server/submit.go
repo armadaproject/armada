@@ -454,6 +454,9 @@ func (server *SubmitServer) checkQueuePermission(
 	return nil, groups
 }
 
+// brought outside for mocking.
+var NewULID = util.NewULID
+
 func (server *SubmitServer) createJobs(request *api.JobSubmitRequest, owner string, ownershipGroups []string) ([]*api.Job, error) {
 	jobs := make([]*api.Job, 0, len(request.JobRequestItems))
 
@@ -501,15 +504,16 @@ func (server *SubmitServer) createJobs(request *api.JobSubmitRequest, owner stri
 			}
 		}
 
+		jobId := NewULID()
 		j := &api.Job{
-			Id:       util.NewULID(),
+			Id:       jobId,
 			ClientId: item.ClientId,
 			Queue:    request.Queue,
 			JobSetId: request.JobSetId,
 
 			Namespace:   namespace,
-			Labels:      item.Labels,
-			Annotations: item.Annotations,
+			Labels:      enrichText(item.Labels, jobId),
+			Annotations: enrichText(item.Annotations, jobId),
 
 			RequiredNodeLabels: item.RequiredNodeLabels,
 			Ingress:            item.Ingress,
@@ -527,6 +531,16 @@ func (server *SubmitServer) createJobs(request *api.JobSubmitRequest, owner stri
 	}
 
 	return jobs, nil
+}
+
+func enrichText(text map[string]string, jobId string) map[string]string {
+	returnText := util.DeepCopy(text)
+
+	for key, value := range returnText {
+		returnText[key] = strings.Replace(value, "{JobId}", jobId, -1)
+	}
+
+	return returnText
 }
 
 func (server *SubmitServer) applyDefaultsToPodSpec(spec *v1.PodSpec) {

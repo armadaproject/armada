@@ -727,3 +727,60 @@ func withSubmitServerAndRepos(action func(s *SubmitServer, jobRepo repository.Jo
 	action(server, jobRepo, eventRepo)
 	_, _ = client.FlushDB().Result()
 }
+
+func TestSubmitServer_CreateJobs_WithJobIdReplacement(t *testing.T) {
+	oriULID := util.NewULID
+	NewULID = func() string {
+		return "test-ulid"
+	}
+
+	expected := &api.Job{
+		Id:       jobId,
+		ClientId: item.ClientId,
+		Queue:    request.Queue,
+		JobSetId: request.JobSetId,
+
+		Namespace:   namespace,
+		Labels:      enrichText(item.Labels, jobId),
+		Annotations: enrichText(item.Annotations, jobId),
+
+		RequiredNodeLabels: item.RequiredNodeLabels,
+		Ingress:            item.Ingress,
+		Services:           item.Services,
+
+		Priority: item.Priority,
+
+		PodSpec:                  item.PodSpec,
+		PodSpecs:                 item.PodSpecs,
+		Created:                  time.Now(),
+		Owner:                    owner,
+		QueueOwnershipUserGroups: ownershipGroups,
+	}
+
+	request := *&api.JobSubmitRequest{
+		Queue:    "test",
+		JobSetId: "test-jobsetid",
+		JobRequestItems: []*api.JobSubmitRequestItem{
+			{
+				Priority:  1,
+				Namespace: "test",
+				ClientId:  "0",
+				Labels: map[string]string{
+					"a.label": "job-id-is-{JobId}",
+				},
+				Annotations: map[string]string{
+					"a.nnotation": "job-id-is-{JobId}",
+				},
+				PodSpecs: []*v1.PodSpec{},
+			},
+		},
+	}
+	owner := "test"
+	ownershipGroups
+	withSubmitServer(func(s *SubmitServer, events repository.EventRepository) {
+
+		output := s.createJobs(request, owner, ownershipGroups)
+	})
+
+	NewULID = oriULID
+}
