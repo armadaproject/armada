@@ -186,7 +186,6 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 	principal := authorization.GetPrincipal(ctx)
 	jobs, err := server.createJobs(req, principal.GetName(), ownershipGroups)
 	if err != nil {
-		// TODO Should we log the JSON? We need to be careful about handling parsing errors.
 		return nil, status.Errorf(codes.InvalidArgument, "[SubmitJobs] error creating jobs for user %s: %s", principal.GetName(), err)
 	}
 
@@ -199,7 +198,6 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 
 	err = validateJobsCanBeScheduled(jobs, allClusterSchedulingInfo)
 	if err != nil {
-		// TODO Should we log the JSON? We need to be careful about handling parsing errors.
 		return nil, status.Errorf(codes.InvalidArgument, "[SubmitJobs] error submitting jobs for user %s: %s", principal.GetName(), err)
 	}
 
