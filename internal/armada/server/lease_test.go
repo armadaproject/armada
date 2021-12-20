@@ -176,6 +176,16 @@ func (repo *mockJobRepository) GetExistingJobsByIds(ids []string) ([]*api.Job, e
 	return jobs, nil
 }
 
+func (repo *mockJobRepository) GetJobsByIds(ids []string) ([]*repository.JobResult, error) {
+	jobResults := make([]*repository.JobResult, 0)
+	for _, id := range ids {
+		if job, ok := repo.jobs[id]; ok {
+			jobResults = append(jobResults, &repository.JobResult{JobId: job.Id, Job: job})
+		}
+	}
+	return jobResults, nil
+}
+
 func (repo *mockJobRepository) FilterActiveQueues(queues []*api.Queue) ([]*api.Queue, error) {
 	return []*api.Queue{}, nil
 }
