@@ -729,35 +729,67 @@ func withSubmitServerAndRepos(action func(s *SubmitServer, jobRepo repository.Jo
 }
 
 func TestSubmitServer_CreateJobs_WithJobIdReplacement(t *testing.T) {
-	oriULID := util.NewULID
+	timeNow := time.Now()
+	now = func() time.Time {
+		return timeNow
+	}
+
 	NewULID = func() string {
 		return "test-ulid"
 	}
 
-	expected := &api.Job{
-		Id:       jobId,
-		ClientId: item.ClientId,
-		Queue:    request.Queue,
-		JobSetId: request.JobSetId,
+	expected := []*api.Job{
+		{
+			Id:       "test-ulid",
+			ClientId: "0",
+			Queue:    "test",
+			JobSetId: "test-jobsetid",
 
-		Namespace:   namespace,
-		Labels:      enrichText(item.Labels, jobId),
-		Annotations: enrichText(item.Annotations, jobId),
+			Namespace: "test",
+			Labels: map[string]string{
+				"a.label": "job-id-is-test-ulid",
+			},
+			Annotations: map[string]string{
+				"a.nnotation": "job-id-is-test-ulid",
+			},
 
-		RequiredNodeLabels: item.RequiredNodeLabels,
-		Ingress:            item.Ingress,
-		Services:           item.Services,
+			Priority: 1,
 
-		Priority: item.Priority,
-
-		PodSpec:                  item.PodSpec,
-		PodSpecs:                 item.PodSpecs,
-		Created:                  time.Now(),
-		Owner:                    owner,
-		QueueOwnershipUserGroups: ownershipGroups,
+			Created: now(),
+			PodSpecs: []*v1.PodSpec{
+				{
+					Containers: []v1.Container{
+						{
+							Name:  "app",
+							Image: "test:latest",
+							Resources: v1.ResourceRequirements{
+								Limits: v1.ResourceList{
+									"cpu":    resource.MustParse("1"),
+									"memory": resource.MustParse("100Mi"),
+								},
+								Requests: v1.ResourceList{
+									"cpu":    resource.MustParse("1"),
+									"memory": resource.MustParse("100Mi"),
+								},
+							},
+						},
+					},
+					Tolerations: []v1.Toleration{
+						{
+							Key:      "default",
+							Operator: "Equal",
+							Value:    "true",
+							Effect:   "NoSchedule",
+						},
+					},
+				},
+			},
+			Owner:                    "test",
+			QueueOwnershipUserGroups: []string{},
+		},
 	}
 
-	request := *&api.JobSubmitRequest{
+	request := &api.JobSubmitRequest{
 		Queue:    "test",
 		JobSetId: "test-jobsetid",
 		JobRequestItems: []*api.JobSubmitRequestItem{
@@ -771,16 +803,38 @@ func TestSubmitServer_CreateJobs_WithJobIdReplacement(t *testing.T) {
 				Annotations: map[string]string{
 					"a.nnotation": "job-id-is-{JobId}",
 				},
-				PodSpecs: []*v1.PodSpec{},
+				PodSpecs: []*v1.PodSpec{
+					{
+						Containers: []v1.Container{
+							{
+								Name:  "app",
+								Image: "test:latest",
+								Resources: v1.ResourceRequirements{
+									Limits: v1.ResourceList{
+										"cpu":    resource.MustParse("1"),
+										"memory": resource.MustParse("100Mi"),
+									},
+									Requests: v1.ResourceList{
+										"cpu":    resource.MustParse("1"),
+										"memory": resource.MustParse("100Mi"),
+									},
+								},
+							},
+						},
+					},
+				},
 			},
 		},
 	}
 	owner := "test"
-	ownershipGroups
+	ownershipGroups := make([]string, 0)
 	withSubmitServer(func(s *SubmitServer, events repository.EventRepository) {
-
-		output := s.createJobs(request, owner, ownershipGroups)
+		output, err := s.createJobs(request, owner, ownershipGroups)
+		fmt.Println(err)
+		assert.Equal(t, expected, output)
 	})
 
-	NewULID = oriULID
+	// Replace mocked functions
+	NewULID = util.NewULID
+	now = time.Now
 }
