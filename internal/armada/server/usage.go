@@ -46,17 +46,17 @@ func (s *UsageServer) ReportUsage(ctx context.Context, report *api.ClusterUsageR
 
 	queues, err := s.queueRepository.GetAllQueues()
 	if err != nil {
-		return nil, err
+		return nil, status.Errorf(codes.Unavailable, "[ReportUsage] error getting queues: %s", err)
 	}
 
 	reports, err := s.usageRepository.GetClusterUsageReports()
 	if err != nil {
-		return nil, err
+		return nil, status.Errorf(codes.Unavailable, "[ReportUsage] error getting cluster usage reports: %s", err)
 	}
 
 	previousPriority, err := s.usageRepository.GetClusterPriority(report.ClusterId)
 	if err != nil {
-		return nil, err
+		return nil, status.Errorf(codes.Unavailable, "[ReportUsage] error getting cluster priority: %s", err)
 	}
 
 	previousReport := reports[report.ClusterId]
@@ -73,7 +73,7 @@ func (s *UsageServer) ReportUsage(ctx context.Context, report *api.ClusterUsageR
 
 	err = s.usageRepository.UpdateCluster(report, filteredPriority)
 	if err != nil {
-		return nil, err
+		return nil, status.Errorf(codes.Unavailable, "[ReportUsage] error updating cluster: %s", err)
 	}
 	return &types.Empty{}, nil
 }
