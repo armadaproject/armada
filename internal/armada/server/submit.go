@@ -449,15 +449,14 @@ func (server *SubmitServer) reprioritizeJobs(jobIds []string, newPriority float6
 }
 
 func (server *SubmitServer) reportReprioritizedJobEvents(reprioritizedJobs []*api.Job, newPriority float64, principalName string) error {
-
 	err := reportJobsUpdated(server.eventStore, principalName, reprioritizedJobs)
 	if err != nil {
-		return err
+		return fmt.Errorf("[reportReprioritizedJobEvents] error reporting jobs updated: %w", err)
 	}
 
 	err = reportJobsReprioritized(server.eventStore, principalName, reprioritizedJobs, newPriority)
 	if err != nil {
-		return err
+		return fmt.Errorf("[reportReprioritizedJobEvents] error reporting jobs reprioritized: %w", err)
 	}
 
 	return nil
