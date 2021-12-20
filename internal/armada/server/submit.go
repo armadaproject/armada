@@ -175,14 +175,16 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 		return nil, status.Errorf(codes.Unavailable, "[SubmitJobs] error checking permissions: %s", err)
 	}
 
+	// Creates objects representing the jobs without scheduling them to run
 	principal := authorization.GetPrincipal(ctx)
-
 	jobs, err := server.createJobs(req, principal.GetName(), ownershipGroups)
 	if err != nil {
 		// TODO Should we log the JSON? We need to be careful about handling parsing errors.
 		return nil, status.Errorf(codes.InvalidArgument, "[SubmitJobs] error creating jobs for user %s: %s", principal.GetName(), err)
 	}
 
+	// Check if the job would fit on any executor,
+	// to avoid having users wait for a job that may never be scheduled
 	allClusterSchedulingInfo, err := server.schedulingInfoRepository.GetClusterSchedulingInfo()
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "[SubmitJobs] error getting scheduling info: %s", err)
@@ -194,14 +196,16 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 		return nil, status.Errorf(codes.InvalidArgument, "[SubmitJobs] error submitting jobs for user %s: %s", principal.GetName(), err)
 	}
 
+	// Create events marking the jobs as submitted
 	err = reportSubmitted(server.eventStore, jobs)
 	if err != nil {
 		return nil, status.Errorf(codes.Aborted, "[SubmitJobs] error getting submitted report: %s", err)
 	}
 
+	// Submit the jobs by writing them to the database
 	submissionResults, err := server.jobRepository.AddJobs(jobs)
 	if err != nil {
-		jobFailures := createJobFailuresWithReason(jobs, fmt.Sprintf("Failed to save job in Armada: %v", e))
+		jobFailures := createJobFailuresWithReason(jobs, fmt.Sprintf("Failed to save job in Armada: %s", e))
 		reportErr := reportFailed(server.eventStore, "", jobFailures)
 		if reportErr != nil {
 			return nil, status.Errorf(codes.Internal, "[SubmitJobs] error reporting failure event: %v", reportErr)
@@ -209,6 +213,7 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 		return nil, status.Errorf(codes.Aborted, "[SubmitJobs] error saving jobs in Armada: %s", err)
 	}
 
+	// Create the response to send to the client
 	result := &api.JobSubmitResponse{
 		JobResponseItems: make([]*api.JobSubmitResponseItem, 0, len(submissionResults)),
 	}
@@ -237,105 +242,133 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 
 	err = reportFailed(server.eventStore, "", jobFailures)
 	if err != nil {
-		return result, status.Errorf(
-			codes.Internal, fmt.Sprintf("Failed to report failed events for jobs: %v", err))
+		return result, status.Errorf(codes.Internal, fmt.Sprintf("[SubmitJobs] error reporting failed jobs: %s", err))
 	}
 
 	err = reportDuplicateDetected(server.eventStore, doubleSubmits)
 	if err != nil {
-		return result, status.Errorf(
-			codes.Internal, fmt.Sprintf("Failed to report job duplicate submission events for jobs: %v", err))
+		return result, status.Errorf(codes.Internal, fmt.Sprintf("[SubmitJobs] error reporting duplicate jobs: %s", err))
 	}
 
 	err = reportQueued(server.eventStore, createdJobs)
 	if err != nil {
-		return result, status.Errorf(
-			codes.Internal, fmt.Sprintf("Failed to report queued events for jobs: %v", err))
+		return result, status.Errorf(codes.Internal, fmt.Sprintf("[SubmitJobs] error reporting queued jobs: %s", err))
 	}
 
 	if len(jobFailures) > 0 {
-		return result, status.Errorf(
-			codes.Unavailable, fmt.Sprintf("Some jobs failed to be submitted"))
+		return result, status.Errorf(codes.Internal, fmt.Sprintf("[SubmitJobs] error submitting some or all jobs: %s", err))
 	}
 
 	return result, nil
 }
 
+// CancelJobs cancels jobs identified by the request.
+// If the request contains a job ID, only the job with that ID is cancelled.
+// If the request contains a queue name and a job set ID, all jobs matching those are cancelled.
 func (server *SubmitServer) CancelJobs(ctx context.Context, request *api.JobCancelRequest) (*api.CancellationResult, error) {
 	if request.JobId != "" {
-		jobs, err := server.jobRepository.GetExistingJobsByIds([]string{request.JobId})
-		if err != nil {
-			return nil, status.Errorf(codes.Internal, err.Error())
-		}
-		return server.cancelJobs(ctx, jobs[0].Queue, jobs)
+		return server.cancelJobsById(ctx, request.JobId)
+	} else if request.JobSetId != "" && request.Queue != "" {
+		return server.cancelJobsByQueueAndSet(ctx, request.Queue, request.JobSetId)
+	}
+	return nil, status.Errorf(codes.InvalidArgument, "Specify either job ID or both queue name and job set ID")
+}
+
+// cancels a job with a given ID
+func (server *SubmitServer) cancelJobsById(ctx context.Context, jobId string) (*api.CancellationResult, error) {
+	jobs, err := server.jobRepository.GetExistingJobsByIds([]string{jobId})
+	if err != nil {
+		return nil, status.Errorf(codes.Unavailable, "[cancelJobsById] error getting job with ID %s: %s", jobId, err)
+	}
+	if len(jobs) != 1 {
+		return nil, status.Errorf(codes.Internal, "[cancelJobsById] error getting job with ID %s: expected exactly one result, but got %v", jobId, jobs)
 	}
 
-	if request.JobSetId != "" && request.Queue != "" {
-		ids, err := server.jobRepository.GetActiveJobIds(request.Queue, request.JobSetId)
-		if err != nil {
-			return nil, status.Errorf(codes.Aborted, err.Error())
-		}
-
-		batches := util.Batch(ids, server.cancelJobsBatchSize)
-		cancelledIds := []string{}
-		for _, batch := range batches {
-			jobs, err := server.jobRepository.GetExistingJobsByIds(batch)
-			if err != nil {
-				return &api.CancellationResult{CancelledIds: cancelledIds}, status.Errorf(
-					codes.Internal,
-					"failed to find some jobs: %v", err)
-			}
-			result, err := server.cancelJobs(ctx, request.Queue, jobs)
-			if err != nil {
-				return &api.CancellationResult{CancelledIds: cancelledIds}, status.Errorf(
-					codes.Internal,
-					"failed to cancel some jobs: %v", err)
-			}
-			cancelledIds = append(cancelledIds, result.CancelledIds...)
-
-			if util.CloseToDeadline(ctx, time.Second*1) {
-				return &api.CancellationResult{CancelledIds: cancelledIds}, status.Errorf(
-					codes.DeadlineExceeded,
-					"not all jobs were cancelled: took too long")
-			}
-		}
-		return &api.CancellationResult{CancelledIds: cancelledIds}, nil
+	result, err := server.cancelJobs(ctx, jobs[0].Queue, jobs)
+	var e *ErrNoPermission
+	if errors.As(err, &e) {
+		return nil, status.Errorf(codes.PermissionDenied, "[cancelJobsById] error canceling job with ID %s: %s", jobId, e)
+	} else if err != nil {
+		return nil, status.Errorf(codes.Unavailable, "[cancelJobsById] error checking permissions: %s", err)
 	}
-	return nil, status.Errorf(codes.InvalidArgument, "Specify job id or queue with job set id")
+
+	return result, nil
+}
+
+// cancels all jobs part of a particular job set and queue
+//
+// TODO Should we cancel as many jobs as we can instead of returning on error?
+func (server *SubmitServer) cancelJobsByQueueAndSet(ctx context.Context, queue string, jobSetId string) (*api.CancellationResult, error) {
+	ids, err := server.jobRepository.GetActiveJobIds(queue, jobSetId)
+	if err != nil {
+		return nil, status.Errorf(codes.Unavailable, "[cancelJobsBySetAndQueue] error getting job IDs: %s", err)
+	}
+
+	// Split IDs into batches and process one batch at a time
+	// To reduce the number of jobs stored in memory
+	batches := util.Batch(ids, server.cancelJobsBatchSize)
+	cancelledIds := []string{}
+	for _, batch := range batches {
+		jobs, err := server.jobRepository.GetExistingJobsByIds(batch)
+		if err != nil {
+			// TODO Let's have a ErrJobNotFound we can check for here and return the NotFound error code
+			result := &api.CancellationResult{CancelledIds: cancelledIds}
+			return result, status.Errorf(codes.Internal, "[cancelJobsBySetAndQueue] could not find some jobs: %s", err)
+		}
+
+		result, err := server.cancelJobs(ctx, queue, jobs)
+		var e *ErrNoPermission
+		if errors.As(err, &e) {
+			return nil, status.Errorf(codes.PermissionDenied, "[cancelJobsBySetAndQueue] error canceling jobs: %s", e)
+		} else if err != nil {
+			result := &api.CancellationResult{CancelledIds: cancelledIds}
+			return result, status.Errorf(codes.Unavailable, "[cancelJobsBySetAndQueue] error checking permissions: %s", err)
+		}
+		cancelledIds = append(cancelledIds, result.CancelledIds...)
+
+		// TODO I think the right way to do this is to include a timeout with the call to Redis
+		// Then, we can check for a deadline exceeded error here
+		if util.CloseToDeadline(ctx, time.Second*1) {
+			result := &api.CancellationResult{CancelledIds: cancelledIds}
+			return result, status.Errorf(codes.DeadlineExceeded, "[cancelJobsBySetAndQueue] deadline exceeded")
+		}
+	}
+
+	return &api.CancellationResult{CancelledIds: cancelledIds}, nil
 }
 
 func (server *SubmitServer) cancelJobs(ctx context.Context, queue string, jobs []*api.Job) (*api.CancellationResult, error) {
 	if _, err := server.checkQueuePermission(ctx, queue, false, permissions.CancelJobs, permissions.CancelAnyJobs); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("[cancelJobs] error checking permissions: %w", err)
 	}
 	principal := authorization.GetPrincipal(ctx)
 
-	e := reportJobsCancelling(server.eventStore, principal.GetName(), jobs)
-	if e != nil {
-		return nil, status.Errorf(codes.Unknown, e.Error())
+	err := reportJobsCancelling(server.eventStore, principal.GetName(), jobs)
+	if err != nil {
+		return nil, fmt.Errorf("[cancelJobs] error reporting jobs marked as cancelled: %w", err)
 	}
 
 	deletionResult, err := server.jobRepository.DeleteJobs(jobs)
 	if err != nil {
-		return nil, status.Errorf(codes.Unknown, e.Error())
+		return nil, fmt.Errorf("[cancelJobs] error deleting jobs: %w", err)
 	}
 	cancelled := []*api.Job{}
 	cancelledIds := []string{}
 	for job, err := range deletionResult {
 		if err != nil {
-			log.Errorf("Error when cancelling job id %s: %s", job.Id, err.Error())
+			log.Errorf("[cancelJobs] error cancelling job with ID %s: %s", job.Id, err)
 		} else {
 			cancelled = append(cancelled, job)
 			cancelledIds = append(cancelledIds, job.Id)
 		}
 	}
 
-	e = reportJobsCancelled(server.eventStore, principal.GetName(), cancelled)
-	if e != nil {
-		return nil, status.Errorf(codes.Unknown, e.Error())
+	err = reportJobsCancelled(server.eventStore, principal.GetName(), cancelled)
+	if err != nil {
+		return nil, fmt.Errorf("[cancelJobs] error reporting job cancellation: %w", err)
 	}
 
-	return &api.CancellationResult{cancelledIds}, nil
+	return &api.CancellationResult{CancelledIds: cancelledIds}, nil
 }
 
 // Returns mapping from job id to error (if present), for all existing jobs
