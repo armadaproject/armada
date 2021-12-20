@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -77,7 +78,8 @@ func NewRedisJobRepository(
 	return &RedisJobRepository{db: db, retentionPolicy: retentionPolicy}
 }
 
-// TODO These should be error of different types instead.
+// TODO DuplicateDetected should be remove in favor of setting the error to
+// indicate the job already exists (e.g., by creating ErrJobExists).
 type SubmitJobResult struct {
 	JobId             string
 	SubmittedJob      *api.Job
@@ -140,9 +142,9 @@ func (repo *RedisJobRepository) ReturnLease(clusterId string, jobId string) (ret
 	}
 	if len(jobs) == 0 {
 		return nil, &ErrJobNotFound{JobId: jobId, ClusterId: clusterId}
+	} else if len(jobs) != 1 {
+		return nil, fmt.Errorf("[RedisJobRepository.ReturnLease] expected to get exactly 1 job, but got %d jobs", len(jobs))
 	}
-
-	// TODO This is suspicious. Do we expect to find multiple jobs for some (jobId, clusterId)?
 	job := jobs[0]
 
 	returned, err := returnLease(repo.db, clusterId, job.Queue, job.Id, job.Priority).Int()
@@ -155,7 +157,6 @@ func (repo *RedisJobRepository) ReturnLease(clusterId string, jobId string) (ret
 	return nil, nil
 }
 
-// TODO Should this be a set of custom error types?
 type deleteJobRedisResponse struct {
 	job                            *api.Job
 	expiryAlreadySet               bool
@@ -331,11 +332,36 @@ func (repo *RedisJobRepository) TryLeaseJobs(clusterId string, queue string, job
 
 // GetExistingJobsByIds queries Redis for job details. Missing jobs are omitted, i.e.,
 // the returned list may be shorter than the provided list of IDs.
-//
-// TODO This function returns a list of jobs that may be shorter than the list of IDs
-// (missing jobs are omitted). It may be better to return a list of length equal to that
-// of the list of IDs and let entries for missing jobs be nil.
 func (repo *RedisJobRepository) GetExistingJobsByIds(ids []string) ([]*api.Job, error) {
+	jobResults, err := repo.GetJobsByIds(ids)
+	if err != nil {
+		return nil, fmt.Errorf("[GetExistingJobsByIds] error getting jobs: %w", err)
+	}
+
+	jobs := make([]*api.Job, 0, len(jobResults))
+	for _, result := range jobResults {
+		var e *ErrJobNotFound
+		if errors.As(result.Err, &e) {
+			continue
+		} else if result.Err != nil {
+			return nil, fmt.Errorf("[RedisJobRepository.GetExistingJobsByIds] error getting job with ID %s from database: %s", result.JobId, err)
+		}
+		jobs = append(jobs, result.Job)
+	}
+	return jobs, nil
+}
+
+// JobResult is used by GetJobsByIds to bundle a job with any error that occurred
+// when getting the job.
+type JobResult struct {
+	JobId string
+	Job   *api.Job
+	Err   error
+}
+
+// GetJobsByIds attempts to get all requested jobs from the database.
+// Any error in getting a job is set to the Err field of the corresponding JobResult.
+func (repo *RedisJobRepository) GetJobsByIds(ids []string) ([]*JobResult, error) {
 	pipe := repo.db.Pipeline()
 	var cmds []*redis.StringCmd
 	for _, id := range ids {
@@ -344,41 +370,44 @@ func (repo *RedisJobRepository) GetExistingJobsByIds(ids []string) ([]*api.Job, 
 
 	_, err := pipe.Exec()
 	if err != nil && err != redis.Nil {
-		return nil, fmt.Errorf("[RedisJobRepository.GetExistingJobsByIds] error executing pipelined commands: %s", err)
+		return nil, fmt.Errorf("[RedisJobRepository.GetJobsByIds] error executing pipelined commands: %s", err)
 	}
 
-	var jobs []*api.Job
+	var results []*JobResult
 	for index, cmd := range cmds {
+		result := &JobResult{JobId: ids[index]}
+		results = append(results, result)
+
 		_, err := cmd.Result()
 		if err == redis.Nil {
-			// TODO Return a vector of errors and let the caller decide if it's a problem that a job is missing.
-			log.Warnf("No job found with with job id %s", ids[index])
+			result.Err = &ErrJobNotFound{JobId: ids[index]}
 			continue
-		}
-		if err != nil {
-			return nil, fmt.Errorf("[RedisJobRepository.GetExistingJobsByIds] error getting job with ID %s from database: %s", ids[index], err)
+		} else if err != nil {
+			result.Err = err
+			continue
 		}
 
 		d, _ := cmd.Bytes() // we already checked the error above
-		job := &api.Job{}
-		err = proto.Unmarshal(d, job)
+		result.Job = &api.Job{}
+		err = proto.Unmarshal(d, result.Job)
 		if err != nil {
 			return nil, fmt.Errorf("[RedisJobRepository.GetExistingJobsByIds] error unmarshalling job with ID %s: %s", ids[index], err)
 		}
 
-		for _, podSpec := range job.GetAllPodSpecs() {
+		// TODO This shouldn't be here. We write these when creating the job,
+		// and the getter shouldn't mutate the object read from the database.
+		for _, podSpec := range result.Job.GetAllPodSpecs() {
 			// TODO: remove, RequiredNodeLabels is deprecated and will be removed in future versions
-			for k, v := range job.RequiredNodeLabels {
+			for k, v := range result.Job.RequiredNodeLabels {
 				if podSpec.NodeSelector == nil {
 					podSpec.NodeSelector = map[string]string{}
 				}
 				podSpec.NodeSelector[k] = v
 			}
 		}
-		jobs = append(jobs, job)
 	}
 
-	return jobs, nil
+	return results, nil
 }
 
 func (repo *RedisJobRepository) FilterActiveQueues(queues []*api.Queue) ([]*api.Queue, error) {
@@ -469,14 +498,13 @@ func (repo *RedisJobRepository) getAssociatedCluster(jobIds []string) (map[strin
 
 	_, err := pipe.Exec()
 	if err != nil && err != redis.Nil {
-		// TODO Why are we returning an empty map here (and also below)?
-		return associatedCluster, fmt.Errorf("[RedisJobRepository.getAssociatedCluster] error executing pipelined commands: %s", err)
+		return nil, fmt.Errorf("[RedisJobRepository.getAssociatedCluster] error executing pipelined commands: %s", err)
 	}
 
 	for jobId, cmd := range cmds {
 		clusterId, err := cmd.Result()
 		if err != nil && err != redis.Nil {
-			return map[string]string{}, fmt.Errorf("[RedisJobRepository.getAssociatedCluster] error getting cluster associated with job with ID %s: %s", jobId, err)
+			return nil, fmt.Errorf("[RedisJobRepository.getAssociatedCluster] error getting cluster associated with job with ID %s: %s", jobId, err)
 		}
 		if clusterId != "" {
 			associatedCluster[jobId] = cmd.Val()
