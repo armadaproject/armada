@@ -19,6 +19,6 @@ func (r *RedisHealth) Check() error {
 	if err == nil {
 		return nil
 	} else {
-		return fmt.Errorf("Redis health check failed: %v", err)
+		return fmt.Errorf("[RedisHealth.Check] error: %s", err)
 	}
 }
