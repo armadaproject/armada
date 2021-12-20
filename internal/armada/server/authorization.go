@@ -37,16 +37,40 @@ func (err *ErrNoPermission) Error() string {
 	return strings.Join(reasons, ",")
 }
 
+// checkReprioritizePerms checks if the principal embedded in the context has permission
+// to reprioritize all of the given jobs. This may require permissions for several queues.
+// If the principal has sufficient permissions, nil is returned. Otherwise an error is returned.
 func (server *SubmitServer) checkReprioritizePerms(ctx context.Context, jobs []*api.Job) error {
+
+	// Set of queues that has at least 1 of the given jobs
 	queues := make(map[string]bool)
 	for _, job := range jobs {
 		queues[job.Queue] = true
 	}
+
+	// Check permissions for all queues
+	// Record the names of queues for which the principal lacks permissions
+	var reasons []string
 	for queue := range queues {
-		if _, err := server.checkQueuePermission(ctx, queue, false, permissions.ReprioritizeJobs, permissions.ReprioritizeAnyJobs); err != nil {
-			return err
+		_, err := server.checkQueuePermission(ctx, queue, false, permissions.ReprioritizeJobs, permissions.ReprioritizeAnyJobs)
+		var e *ErrNoPermission
+		if errors.As(err, &e) {
+			reasons = append(reasons, fmt.Sprintf("does not own queue %q and have %s permissions for it", queue, permissions.ReprioritizeJobs))
+		} else if err != nil {
+			return fmt.Errorf("[checkReprioritizePerms] error checking permissions: %w", err)
 		}
 	}
+
+	// If there is a queue for which the principal lacks permissions,
+	// return an error containing the names of those queues
+	if len(reasons) != 0 {
+		reasons = append(reasons, fmt.Sprintf("does not have %s permissions", permissions.ReprioritizeAnyJobs))
+		return &ErrNoPermission{
+			Principal: authorization.GetPrincipal(ctx),
+			Reasons:   reasons,
+		}
+	}
+
 	return nil
 }
 
