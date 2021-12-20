@@ -96,9 +96,9 @@ func (r *RedisQueueRepository) CreateQueue(queue *api.Queue) error {
 	return nil
 }
 
-// TODO If the queue to be updated is deleted between this method checking if the qeueue exists and
+// TODO If the queue to be updated is deleted between this method checking if the queue exists and
 // making the update, the deleted queue is re-added to Redis. There's no "update if exists"
-// operation in Redis, so we need to do this with a script.
+// operation in Redis, so we need to do this with a script or transaction.
 func (r *RedisQueueRepository) UpdateQueue(queue *api.Queue) error {
 	existsResult, err := r.db.HExists(queueHashKey, queue.Name).Result()
 	if err != nil {
