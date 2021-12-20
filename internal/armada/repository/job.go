@@ -637,7 +637,9 @@ func (repo *RedisJobRepository) updateJobBatch(ids []string, mutator func([]*api
 // updated jobs are written back to Redis only if none of the jobs were changed in Redis between
 // being read and written back.
 //
-// For this reason, mutator may not read from any additional keys in Redis, since thosse keys
+// Any jobs that can't be found are ignored.
+//
+// For this reason, mutator may not read from any additional keys in Redis, since those keys
 // would not be covered by the optimistic lock.
 //
 // This process is attempted up to maxRetries times and each attempt is separated by retryDelay.
