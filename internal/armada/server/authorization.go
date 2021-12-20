@@ -34,7 +34,7 @@ func (err *ErrNoPermission) Error() string {
 	for i, reason := range err.Reasons {
 		reasons[i] = fmt.Sprintf("%q %s", principalName, reason)
 	}
-	return strings.Join(reasons, ",")
+	return strings.Join(reasons, ", ")
 }
 
 // checkReprioritizePerms checks if the principal embedded in the context has permission
