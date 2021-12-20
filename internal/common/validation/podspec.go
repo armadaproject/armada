@@ -6,9 +6,14 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/component-helpers/scheduling/corev1/nodeaffinity"
+
+	"github.com/G-Research/armada/internal/armada/configuration"
 )
 
-func ValidatePodSpec(spec *v1.PodSpec, maxAllowedSize uint) error {
+func ValidatePodSpec(spec *v1.PodSpec, schedulingSpec *configuration.SchedulingConfig) error {
+	maxAllowedSize := schedulingSpec.MaxPodSpecSizeBytes
+	minJobResources := schedulingSpec.MinJobResources
+
 	if spec == nil {
 		return fmt.Errorf("empty pod spec")
 	}
@@ -33,12 +38,34 @@ func ValidatePodSpec(spec *v1.PodSpec, maxAllowedSize uint) error {
 		if len(container.Resources.Requests) == 0 {
 			return fmt.Errorf("container %v has no resource requests specified", container.Name)
 		}
-
+		err = validateContainerResource(container.Resources.Limits, minJobResources, container.Name, "limit")
+		if err != nil {
+			return err
+		}
+		err = validateContainerResource(container.Resources.Requests, minJobResources, container.Name, "request")
+		if err != nil {
+			return err
+		}
 		if !resourceListEquals(container.Resources.Requests, container.Resources.Limits) {
 			return fmt.Errorf("container %v does not have resource request and limit equal (this is currently not supported)", container.Name)
 		}
 	}
 	return validatePorts(spec)
+}
+
+func validateContainerResource(
+	resourceSpec v1.ResourceList,
+	minJobResources v1.ResourceList,
+	container_name string,
+	requestOrLimit string,
+) error {
+	for rc, containerRsc := range resourceSpec {
+		serverRsc, nonEmpty := minJobResources[rc]
+		if nonEmpty && containerRsc.Value() < serverRsc.Value() {
+			return fmt.Errorf("[validateContainerResource] container %q %s %s (%s) below server minimum (%s)", container_name, rc, requestOrLimit, &containerRsc, &serverRsc)
+		}
+	}
+	return nil
 }
 
 func validateAffinity(affinity *v1.Affinity) error {

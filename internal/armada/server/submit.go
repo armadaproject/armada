@@ -503,7 +503,7 @@ func (server *SubmitServer) createJobs(request *api.JobSubmitRequest, owner stri
 
 		for j, podSpec := range podSpecs {
 			server.applyDefaultsToPodSpec(podSpec)
-			err := validation.ValidatePodSpec(podSpec, server.schedulingConfig.MaxPodSpecSizeBytes)
+			err := validation.ValidatePodSpec(podSpec, server.schedulingConfig)
 			if err != nil {
 				return nil, fmt.Errorf("[createJobs] error validating the %d-th pod pf the %d-th job of job set %s: %w", j, i, request.JobSetId, err)
 			}
