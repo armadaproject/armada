@@ -33,6 +33,8 @@ scheduling:
     expiryLoopInterval: 5s
   maxRetries: 5
   maxPodSpecSizeBytes: 65535
+  minJobResources:
+    memory: 1Mi
 queueManagement:
   defaultPriorityFactor: 1000
 events:
