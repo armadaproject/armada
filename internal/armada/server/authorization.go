@@ -118,11 +118,6 @@ func (server *SubmitServer) checkQueuePermission(
 	}
 
 	// The user must either own the queue or have permission to access all queues
-	//
-	// TODO We should have a more specific permission denied error that includes
-	// the resource involved (e.g., that it's a queue and the name of the queue),
-	// the action attempted (e.g., submitting a job), the the principal (user) name,
-	// and the permission required for the action.
 	permissionToCheck := basicPermission
 	owned, groups := server.permissions.UserOwns(ctx, queue)
 	if !owned {
