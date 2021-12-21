@@ -539,7 +539,9 @@ func (server *SubmitServer) createJobsObjects(request *api.JobSubmitRequest, own
 
 func enrichText(labels map[string]string, jobId string) {
 	for key, value := range labels {
-		labels[key] = strings.ReplaceAll(value, "{JobId}", jobId)
+		value := strings.ReplaceAll(value, "{{JobId}}", ` \z`) // \z cannot be entered manually, hence it's use
+		value = strings.ReplaceAll(value, "{JobId}", jobId)
+		labels[key] = strings.ReplaceAll(value, ` \z`, "JobId")
 	}
 }
 
