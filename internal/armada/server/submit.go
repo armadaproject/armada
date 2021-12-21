@@ -454,11 +454,12 @@ func (server *SubmitServer) checkQueuePermission(
 	return nil, groups
 }
 
-// brought outside for mocking.
-var newULID = util.NewULID
-var now = time.Now
-
 func (server *SubmitServer) createJobs(request *api.JobSubmitRequest, owner string, ownershipGroups []string) ([]*api.Job, error) {
+	return server.createJobsObjects(request, owner, ownershipGroups, time.Now, util.NewULID)
+}
+
+func (server *SubmitServer) createJobsObjects(request *api.JobSubmitRequest, owner string, ownershipGroups []string,
+	getTime func() time.Time, getUlid func() string) ([]*api.Job, error) {
 	jobs := make([]*api.Job, 0, len(request.JobRequestItems))
 
 	if request.JobSetId == "" {
@@ -505,7 +506,7 @@ func (server *SubmitServer) createJobs(request *api.JobSubmitRequest, owner stri
 			}
 		}
 
-		jobId := newULID()
+		jobId := getUlid()
 		enrichText(item.Labels, jobId)
 		enrichText(item.Annotations, jobId)
 		j := &api.Job{
@@ -526,7 +527,7 @@ func (server *SubmitServer) createJobs(request *api.JobSubmitRequest, owner stri
 
 			PodSpec:                  item.PodSpec,
 			PodSpecs:                 item.PodSpecs,
-			Created:                  now(), // Replaced with now for mocking unit test
+			Created:                  getTime(), // Replaced with now for mocking unit test
 			Owner:                    owner,
 			QueueOwnershipUserGroups: ownershipGroups,
 		}

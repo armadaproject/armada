@@ -730,11 +730,10 @@ func withSubmitServerAndRepos(action func(s *SubmitServer, jobRepo repository.Jo
 
 func TestSubmitServer_CreateJobs_WithJobIdReplacement(t *testing.T) {
 	timeNow := time.Now()
-	now = func() time.Time {
+	mockNow := func() time.Time {
 		return timeNow
 	}
-
-	newULID = func() string {
+	mockNewULID := func() string {
 		return "test-ulid"
 	}
 
@@ -755,7 +754,7 @@ func TestSubmitServer_CreateJobs_WithJobIdReplacement(t *testing.T) {
 
 			Priority: 1,
 
-			Created: now(),
+			Created: mockNow(),
 			PodSpecs: []*v1.PodSpec{
 				{
 					Containers: []v1.Container{
@@ -828,12 +827,8 @@ func TestSubmitServer_CreateJobs_WithJobIdReplacement(t *testing.T) {
 	}
 	ownershipGroups := make([]string, 0)
 	withSubmitServer(func(s *SubmitServer, events repository.EventRepository) {
-		output, err := s.createJobs(request, "test", ownershipGroups)
+		output, err := s.createJobsObjects(request, "test", ownershipGroups, mockNow, mockNewULID)
 		assert.NoError(t, err)
 		assert.Equal(t, expected, output)
 	})
-
-	// Replace mocked functions
-	newULID = util.NewULID
-	now = time.Now
 }
