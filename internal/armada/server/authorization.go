@@ -39,7 +39,7 @@ func (err *ErrNoPermission) Error() string {
 
 // checkReprioritizePerms checks if the principal embedded in the context has permission
 // to reprioritize all of the given jobs. This may require permissions for several queues.
-// If the principal has sufficient permissions, nil is returned. Otherwise an error is returned.
+// If the principal has insufficient permissions, an error of type ErrNoPermission is returned.
 func (server *SubmitServer) checkReprioritizePerms(ctx context.Context, jobs []*api.Job) error {
 
 	// Set of queues that has at least 1 of the given jobs
