@@ -4,22 +4,42 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/G-Research/armada/pkg/api"
+	"github.com/G-Research/armada/pkg/client"
+	"github.com/G-Research/armada/pkg/client/queue"
+	"github.com/G-Research/armada/pkg/client/util"
 )
 
 // CreateQueue calls app.QueueAPI.Create with the provided parameters.
-func (a *App) CreateQueue(name string, priorityFactor float64, owners []string, groups []string, resourceLimits map[string]float64) error {
-	queue := api.Queue{
-		Name:           name,
-		PriorityFactor: priorityFactor,
-		UserOwners:     owners,
-		GroupOwners:    groups,
-		ResourceLimits: resourceLimits,
-	}
+func (a *App) CreateQueue(queue queue.Queue) error {
 	if err := a.Params.QueueAPI.Create(queue); err != nil {
-		return fmt.Errorf("[armadactl.CreateQueue] error creating queue %s: %s", name, err)
+		return fmt.Errorf("[armadactl.CreateQueue] error creating queue %s: %s", queue.Name, err)
 	}
-	fmt.Fprintf(a.Out, "Created queue %s\n", name)
+	fmt.Fprintf(a.Out, "Created queue %s\n", queue.Name)
+	return nil
+}
+
+func (a *App) CreateResource(fileName string, dryRun bool) error {
+	var resource client.Resource
+	if err := util.BindJsonOrYaml(fileName, &resource); err != nil {
+		return fmt.Errorf("file %s error :%s", fileName, err)
+	}
+	if resource.Version != client.APIVersionV1 {
+		return fmt.Errorf("file %s error: invalid resource field 'apiVersion': %s", fileName, resource.Version)
+	}
+
+	switch resource.Kind {
+	case client.ResourceKindQueue:
+		queue := queue.Queue{}
+		if err := util.BindJsonOrYaml(fileName, &queue); err != nil {
+			return fmt.Errorf("file %s error: %s", fileName, err)
+		}
+		if !dryRun {
+			return a.Params.QueueAPI.Create(queue)
+		}
+	default:
+		return fmt.Errorf("invalid resource kind: %s", resource.Kind)
+	}
+
 	return nil
 }
 
@@ -57,18 +77,11 @@ func (a *App) DescribeQueue(name string) error {
 }
 
 // UpdateQueue calls app.QueueAPI.Update with the provided parameters.
-func (a *App) UpdateQueue(name string, priorityFactor float64, owners []string, groups []string, resourceLimits map[string]float64) error {
-	queue := api.Queue{
-		Name:           name,
-		PriorityFactor: priorityFactor,
-		UserOwners:     owners,
-		GroupOwners:    groups,
-		ResourceLimits: resourceLimits,
-	}
+func (a *App) UpdateQueue(queue queue.Queue) error {
 	if err := a.Params.QueueAPI.Update(queue); err != nil {
-		return fmt.Errorf("error updating queue %s: %s", name, err)
+		return fmt.Errorf("error updating queue %s: %s", queue.Name, err)
 	}
 
-	fmt.Fprintf(a.Out, "Updated queue %s\n", name)
+	fmt.Fprintf(a.Out, "Updated queue %s\n", queue.Name)
 	return nil
 }

@@ -86,11 +86,22 @@ message JobSubmitResponse {
 
 // swagger:model
 message Queue {
+    message Permissions {
+        message Subject {
+            string kind = 1;
+            string name = 2;
+        }
+
+        repeated Subject subjects = 1;
+        repeated string verbs = 2;
+    }
+
     string name = 1;
     double priority_factor = 2;
     repeated string user_owners = 3;
     repeated string group_owners = 4;
     map<string, double> resource_limits = 5;
+    repeated Permissions permissions = 6;
 }
 
 // swagger:model

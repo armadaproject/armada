@@ -3,6 +3,7 @@ package cmd
 import (
 	"github.com/spf13/cobra"
 
+	"github.com/G-Research/armada/internal/armadactl"
 	"github.com/G-Research/armada/pkg/client"
 )
 
@@ -29,7 +30,7 @@ The location of this file can be passed in using --config argument or picked fro
 	cmd.AddCommand(
 		analyzeCmd(),
 		cancelCmd(),
-		createCmd(),
+		createCmd(armadactl.New()),
 		deleteCmd(),
 		updateCmd(),
 		describeCmd(),

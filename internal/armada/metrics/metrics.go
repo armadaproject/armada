@@ -232,7 +232,7 @@ func (c *QueueInfoCollector) Collect(metrics chan<- prometheus.Metric) {
 		return
 	}
 
-	queueSizes, e := c.jobRepository.GetQueueSizes(queues)
+	queueSizes, e := c.jobRepository.GetQueueSizes(queues.ToAPI())
 	if e != nil {
 		log.Errorf("Error while getting queue size metrics %s", e)
 		recordInvalidMetrics(metrics, e)
@@ -254,7 +254,7 @@ func (c *QueueInfoCollector) Collect(metrics chan<- prometheus.Metric) {
 	}
 
 	activeClusterInfo := scheduling.FilterActiveClusterSchedulingInfoReports(clusterSchedulingInfo)
-	runDurationsByPool, runResourceByPool := c.calculateRunningJobStats(queues, activeClusterInfo)
+	runDurationsByPool, runResourceByPool := c.calculateRunningJobStats(queues.ToAPI(), activeClusterInfo)
 
 	activeClusterReports := scheduling.FilterActiveClusters(usageReports)
 	clusterPriorities, e := c.usageRepository.GetClusterPriorities(scheduling.GetClusterReportIds(activeClusterReports))
@@ -270,7 +270,7 @@ func (c *QueueInfoCollector) Collect(metrics chan<- prometheus.Metric) {
 		for cluster := range poolReports {
 			poolPriorities[cluster] = clusterPriorities[cluster]
 		}
-		queuePriority := scheduling.CalculateQueuesPriorityInfo(poolPriorities, poolReports, queues)
+		queuePriority := scheduling.CalculateQueuesPriorityInfo(poolPriorities, poolReports, queues.ToAPI())
 		for queue, priority := range queuePriority {
 			metrics <- prometheus.MustNewConstMetric(queuePriorityDesc, prometheus.GaugeValue, priority.Priority, pool, queue.Name)
 		}

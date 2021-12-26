@@ -326,6 +326,34 @@ func SwaggerJsonTemplate() string {
 		"    }\n" +
 		"  },\n" +
 		"  \"definitions\": {\n" +
+		"    \"PermissionsSubject\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"kind\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"name\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"QueuePermissions\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"subjects\": {\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/PermissionsSubject\"\n" +
+		"          }\n" +
+		"        },\n" +
+		"        \"verbs\": {\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"type\": \"string\"\n" +
+		"          }\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
 		"    \"apiCancellationResult\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"title\": \"swagger:model\",\n" +
@@ -1323,6 +1351,12 @@ func SwaggerJsonTemplate() string {
 		"        },\n" +
 		"        \"name\": {\n" +
 		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"permissions\": {\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/QueuePermissions\"\n" +
+		"          }\n" +
 		"        },\n" +
 		"        \"priorityFactor\": {\n" +
 		"          \"type\": \"number\",\n" +

@@ -12,6 +12,7 @@ import (
 	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/G-Research/armada/internal/armada/repository"
 	"github.com/G-Research/armada/pkg/api"
+	"github.com/G-Research/armada/pkg/client/queue"
 )
 
 func TestAggregatedQueueServer_ReturnLeaseCallsRepositoryMethod(t *testing.T) {
@@ -265,19 +266,19 @@ func (repo *mockJobRepository) GetJobRunInfos(jobIds []string) (map[string]*repo
 
 type fakeQueueRepository struct{}
 
-func (repo *fakeQueueRepository) GetAllQueues() ([]*api.Queue, error) {
-	return []*api.Queue{}, nil
+func (repo *fakeQueueRepository) GetAllQueues() (queue.Queues, error) {
+	return queue.Queues{}, nil
 }
 
-func (repo *fakeQueueRepository) GetQueue(name string) (*api.Queue, error) {
-	return &api.Queue{}, nil
+func (repo *fakeQueueRepository) GetQueue(name string) (queue.Queue, error) {
+	return queue.Queue{}, nil
 }
 
-func (repo *fakeQueueRepository) CreateQueue(queue *api.Queue) error {
+func (repo *fakeQueueRepository) CreateQueue(queue queue.Queue) error {
 	return nil
 }
 
-func (repo *fakeQueueRepository) UpdateQueue(queue *api.Queue) error {
+func (repo *fakeQueueRepository) UpdateQueue(queue queue.Queue) error {
 	return nil
 }
 

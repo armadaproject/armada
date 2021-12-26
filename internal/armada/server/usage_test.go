@@ -14,6 +14,7 @@ import (
 	"github.com/G-Research/armada/internal/armada/repository"
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/pkg/api"
+	"github.com/G-Research/armada/pkg/client/queue"
 )
 
 func TestUsageServer_ReportUsage(t *testing.T) {
@@ -22,7 +23,7 @@ func TestUsageServer_ReportUsage(t *testing.T) {
 		cpu, _ := resource.ParseQuantity("10")
 		memory, _ := resource.ParseQuantity("360Gi")
 
-		err := s.queueRepository.CreateQueue(&api.Queue{Name: "q1", PriorityFactor: 1})
+		err := s.queueRepository.CreateQueue(queue.Queue{Name: "q1", PriorityFactor: 1})
 		assert.Nil(t, err)
 
 		_, err = s.ReportUsage(context.Background(), oneQueueReport(now, cpu, memory))
@@ -47,7 +48,7 @@ func TestUsageServer_ReportUsageWithDefinedScarcity(t *testing.T) {
 		cpu, _ := resource.ParseQuantity("10")
 		memory, _ := resource.ParseQuantity("360Gi")
 
-		err := s.queueRepository.CreateQueue(&api.Queue{Name: "q1", PriorityFactor: 1})
+		err := s.queueRepository.CreateQueue(queue.Queue{Name: "q1", PriorityFactor: 1})
 		assert.Nil(t, err)
 
 		_, err = s.ReportUsage(context.Background(), oneQueueReport(now, cpu, memory))

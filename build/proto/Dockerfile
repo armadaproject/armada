@@ -7,7 +7,7 @@ ARG GO_SWAGGER_VERSION=0.23.0
 ARG TEMPLIFY_VERSION=0.0.0-20190823200653-c12e62ca00c1
 ARG GOIMPORTS_VERSION=0.0.0-20200529172331-a64b76657301
 
-FROM golang:${GOLANG_VERSION}-buster as builder
+FROM --platform=linux/amd64 golang:${GOLANG_VERSION}-buster as builder
 
 RUN apt-get update && \
     apt-get install unzip
@@ -46,7 +46,7 @@ ARG GOIMPORTS_VERSION
 RUN GO111MODULE=on go get golang.org/x/tools/cmd/goimports@v${GOIMPORTS_VERSION}
 
 ARG GOLANG_VERSION
-FROM golang:${GOLANG_VERSION}-buster
+FROM --platform=linux/amd64 golang:${GOLANG_VERSION}-buster
 COPY --from=builder /usr/local/bin /usr/local/bin
 COPY --from=builder /go/bin /usr/local/bin
 COPY --from=builder /proto /proto

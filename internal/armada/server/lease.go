@@ -66,7 +66,7 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 		return nil, e
 	}
 
-	activeQueues, e := q.jobRepository.FilterActiveQueues(queues)
+	activeQueues, e := q.jobRepository.FilterActiveQueues(queues.ToAPI())
 	if e != nil {
 		return nil, e
 	}

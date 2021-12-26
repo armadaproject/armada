@@ -315,6 +315,34 @@
     }
   },
   "definitions": {
+    "PermissionsSubject": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      }
+    },
+    "QueuePermissions": {
+      "type": "object",
+      "properties": {
+        "subjects": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/PermissionsSubject"
+          }
+        },
+        "verbs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
     "apiCancellationResult": {
       "type": "object",
       "title": "swagger:model",
@@ -1312,6 +1340,12 @@
         },
         "name": {
           "type": "string"
+        },
+        "permissions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/QueuePermissions"
+          }
         },
         "priorityFactor": {
           "type": "number",

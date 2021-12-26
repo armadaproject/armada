@@ -16,7 +16,7 @@ func TestPriorityService_GetQueuePriorities(t *testing.T) {
 	q2 := &api.Queue{Name: "queue2", PriorityFactor: 1}
 	q3 := &api.Queue{Name: "queue3", PriorityFactor: 1}
 	q4 := &api.Queue{Name: "queue4", PriorityFactor: 1}
-	q5 := &api.Queue{Name: "queue5", PriorityFactor: 0.5}
+	q5 := &api.Queue{Name: "queue5", PriorityFactor: 1.5}
 
 	cpu := resource.MustParse("1Mi")
 	queue1usage := &api.QueueReport{

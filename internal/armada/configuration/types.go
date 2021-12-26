@@ -8,6 +8,7 @@ import (
 
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/internal/common/auth/configuration"
+	"github.com/G-Research/armada/pkg/client/queue"
 )
 
 type ArmadaConfig struct {
@@ -94,7 +95,7 @@ type JetstreamConfig struct {
 
 type QueueManagementConfig struct {
 	AutoCreateQueues      bool
-	DefaultPriorityFactor float64
+	DefaultPriorityFactor queue.PriorityFactor
 }
 
 type MetricsConfig struct {

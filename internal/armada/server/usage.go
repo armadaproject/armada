@@ -67,7 +67,7 @@ func (s *UsageServer) ReportUsage(ctx context.Context, report *api.ClusterUsageR
 		resourceScarcity = scheduling.ResourceScarcityFromReports(activePoolClusterReports)
 	}
 	newPriority := scheduling.CalculatePriorityUpdate(resourceScarcity, previousReport, report, previousPriority, s.priorityHalfTime)
-	filteredPriority := filterPriority(queues, newPriority)
+	filteredPriority := filterPriority(queues.ToAPI(), newPriority)
 
 	err = s.usageRepository.UpdateCluster(report, filteredPriority)
 	if err != nil {

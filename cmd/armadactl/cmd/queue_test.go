@@ -22,6 +22,7 @@ import (
 
 	"github.com/G-Research/armada/internal/armadactl"
 	"github.com/G-Research/armada/pkg/api"
+	"github.com/G-Research/armada/pkg/client/queue"
 )
 
 // Used for in-line initialization of pointers to floats
@@ -46,7 +47,7 @@ func TestCreate(t *testing.T) {
 		err            error // expected error, or nil if no error is expected
 	}{
 		"default flags":         {nil, nil, nil, nil, nil, nil},
-		"valid priority":        {[]flag{{"priorityFactor", "0.1"}}, makeFloat64Pointer(0.1), nil, nil, nil, nil},
+		"valid priority":        {[]flag{{"priorityFactor", "1.0"}}, makeFloat64Pointer(1.0), nil, nil, nil, nil},
 		"valid owners":          {[]flag{{"owners", "user1,user2"}}, nil, []string{"user1", "user2"}, nil, nil, nil},
 		"valid group owners":    {[]flag{{"groupOwners", "group1,group2"}}, nil, nil, []string{"group1", "group2"}, nil, nil},
 		"valid resource limits": {[]flag{{"resourceLimits", "cpu=0.3,memory=0.2"}}, nil, nil, nil, map[string]float64{"cpu": 0.3, "memory": 0.2}, nil},
@@ -60,24 +61,32 @@ func TestCreate(t *testing.T) {
 			a := armadactl.New()
 			cmd := queueCreateCmdWithApp(a)
 			cmd.PreRunE = func(cmd *cobra.Command, args []string) error {
-				a.Params.QueueAPI.Create = func(queue api.Queue) error {
+				a.Params.QueueAPI.Create = func(q queue.Queue) error {
 					a.Out = io.Discard
+					permissions := []queue.Permissions{
+						{
+							Subjects: queue.NewPermissionSubjectsFromOwners(test.Owners, test.GroupOwners),
+							Verbs:    queue.AllPermissionVerbs(),
+						},
+					}
 
 					// Check that the arguments passed into the API are equal to those provided via CLI flags
-					if queue.Name != "arbitrary" {
-						t.Fatalf("expected Name to be 'arbitrary', but got %s", queue.Name)
+					if q.Name != "arbitrary" {
+						t.Fatalf("expected Name to be 'arbitrary', but got %s", q.Name)
 					}
-					if test.PriorityFactor != nil && queue.PriorityFactor != *test.PriorityFactor {
-						t.Fatalf("expected PriorityFactor to be %v, but got %v", *test.PriorityFactor, queue.PriorityFactor)
+					if test.PriorityFactor != nil && float64(q.PriorityFactor) != *test.PriorityFactor {
+						t.Fatalf("expected PriorityFactor to be %v, but got %v", *test.PriorityFactor, q.PriorityFactor)
 					}
-					if test.Owners != nil && !reflect.DeepEqual(queue.UserOwners, test.Owners) {
-						t.Fatalf("expected UserOwners to be %#v, but got %#v", test.Owners, queue.UserOwners)
+					if test.Owners != nil && !reflect.DeepEqual(q.Permissions, permissions) {
+						t.Fatalf("expected Permissions to be %#v, but got %#v", permissions, q.Permissions)
 					}
-					if test.GroupOwners != nil && !reflect.DeepEqual(queue.GroupOwners, test.GroupOwners) {
-						t.Fatalf("expected GroupOwners to be %#v, but got %#v", test.GroupOwners, queue.GroupOwners)
-					}
-					if test.ResourceLimits != nil && !reflect.DeepEqual(queue.ResourceLimits, test.ResourceLimits) {
-						t.Fatalf("expected ResourceLimits to be %#v, but got %#v", test.ResourceLimits, queue.ResourceLimits)
+
+					if test.ResourceLimits != nil {
+						for resourceName, resourceLimit := range q.ResourceLimits {
+							if test.ResourceLimits[string(resourceName)] != float64(resourceLimit) {
+								t.Fatalf("invalid resource limit: [%s]%f expected: [%s]%f", resourceName, test.ResourceLimits[string(resourceName)], resourceName, resourceLimit)
+							}
+						}
 					}
 					return nil
 				}
@@ -168,7 +177,7 @@ func TestUpdate(t *testing.T) {
 		err            error // expected error, or nil if no error is expected
 	}{
 		"default flags":         {nil, nil, nil, nil, nil, nil},
-		"valid priority":        {[]flag{{"priorityFactor", "0.1"}}, makeFloat64Pointer(0.1), nil, nil, nil, nil},
+		"valid priority":        {[]flag{{"priorityFactor", "1.0"}}, makeFloat64Pointer(1.0), nil, nil, nil, nil},
 		"valid owners":          {[]flag{{"owners", "user1,user2"}}, nil, []string{"user1", "user2"}, nil, nil, nil},
 		"valid group owners":    {[]flag{{"groupOwners", "group1,group2"}}, nil, nil, []string{"group1", "group2"}, nil, nil},
 		"valid resource limits": {[]flag{{"resourceLimits", "cpu=0.3,memory=0.2"}}, nil, nil, nil, map[string]float64{"cpu": 0.3, "memory": 0.2}, nil},
@@ -182,24 +191,31 @@ func TestUpdate(t *testing.T) {
 			a := armadactl.New()
 			cmd := queueUpdateCmdWithApp(a)
 			cmd.PreRunE = func(cmd *cobra.Command, args []string) error {
-				a.Params.QueueAPI.Update = func(queue api.Queue) error {
-					a.Out = io.Discard
+				a.Params.QueueAPI.Update = func(q queue.Queue) error {
+					permissions := []queue.Permissions{
+						{
+							Subjects: queue.NewPermissionSubjectsFromOwners(test.Owners, test.GroupOwners),
+							Verbs:    queue.AllPermissionVerbs(),
+						},
+					}
 
 					// Check that the arguments passed into the API are equal to those provided via CLI flags
-					if queue.Name != "arbitrary" {
-						t.Fatalf("expected Name to be 'arbitrary', but got %s", queue.Name)
+					if q.Name != "arbitrary" {
+						t.Fatalf("expected Name to be 'arbitrary', but got %s", q.Name)
 					}
-					if test.PriorityFactor != nil && queue.PriorityFactor != *test.PriorityFactor {
-						t.Fatalf("expected PriorityFactor to be %v, but got %v", *test.PriorityFactor, queue.PriorityFactor)
+					if test.PriorityFactor != nil && float64(q.PriorityFactor) != *test.PriorityFactor {
+						t.Fatalf("expected PriorityFactor to be %v, but got %v", *test.PriorityFactor, q.PriorityFactor)
 					}
-					if test.Owners != nil && !reflect.DeepEqual(queue.UserOwners, test.Owners) {
-						t.Fatalf("expected UserOwners to be %#v, but got %#v", test.Owners, queue.UserOwners)
+					if test.Owners != nil && !reflect.DeepEqual(q.Permissions, permissions) {
+						t.Fatalf("expected Permissions to be %#v, but got %#v", permissions, q.Permissions)
 					}
-					if test.GroupOwners != nil && !reflect.DeepEqual(queue.GroupOwners, test.GroupOwners) {
-						t.Fatalf("expected GroupOwners to be %#v, but got %#v", test.GroupOwners, queue.GroupOwners)
-					}
-					if test.ResourceLimits != nil && !reflect.DeepEqual(queue.ResourceLimits, test.ResourceLimits) {
-						t.Fatalf("expected ResourceLimits to be %#v, but got %#v", test.ResourceLimits, queue.ResourceLimits)
+
+					if test.ResourceLimits != nil {
+						for resourceName, resourceLimit := range q.ResourceLimits {
+							if test.ResourceLimits[string(resourceName)] != float64(resourceLimit) {
+								t.Fatalf("invalid resource limit: [%s]%f expected: [%s]%f", resourceName, test.ResourceLimits[string(resourceName)], resourceName, resourceLimit)
+							}
+						}
 					}
 					return nil
 				}

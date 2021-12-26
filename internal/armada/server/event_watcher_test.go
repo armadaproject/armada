@@ -8,8 +8,11 @@ import (
 	"testing/quick"
 	"time"
 
+	"github.com/G-Research/armada/internal/armada/repository"
+	"github.com/G-Research/armada/internal/common/auth/authorization"
 	"github.com/G-Research/armada/internal/common/auth/permission"
 	"github.com/G-Research/armada/pkg/api"
+	"github.com/G-Research/armada/pkg/client/queue"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -81,15 +84,27 @@ func TestEventWatcher(t *testing.T) {
 }
 func TestEventWatcherAuthorize(t *testing.T) {
 	properties := map[string]interface{}{
-		"Autorhized": func(inputRequest api.WatchRequest, inputPermission permission.Permission) bool {
+		"Authorized": func(inputRequest api.WatchRequest, inputPermission, inputQueue queue.Queue) bool {
 			ctx := context.Background()
 
-			authorize := func(ctx context.Context, permission permission.Permission) bool {
-				if permission != inputPermission {
-					t.Errorf("Invalid permision, expected: %s", permission)
-					return false
+			getQueue := func(queueName string) (queue.Queue, error) {
+				if queueName != inputRequest.Queue {
+					return queue.Queue{}, fmt.Errorf("Invalid queue name, expected: %s", queueName)
 				}
-				return true
+				return inputQueue, nil
+			}
+
+			hasPermissions := func(_ authorization.Principal, q queue.Queue, verb queue.PermissionVerb) bool {
+				switch {
+				case !reflect.DeepEqual(q, inputQueue):
+					t.Errorf("invalid queue")
+					return false
+				case verb != queue.PermissionVerbWatch:
+					t.Errorf("invalid verb")
+					return false
+				default:
+					return true
+				}
 			}
 
 			watcher := EventWatcher(func(ctx context.Context, request *api.WatchRequest) error {
@@ -97,7 +112,7 @@ func TestEventWatcherAuthorize(t *testing.T) {
 					t.Errorf("Invalid request")
 				}
 				return nil
-			}).Authorize(authorize, inputPermission)
+			}).Authorize(getQueue, hasPermissions)
 
 			if err := watcher(ctx, &inputRequest); err != nil {
 				t.Errorf("Request should be authorized")
@@ -106,15 +121,18 @@ func TestEventWatcherAuthorize(t *testing.T) {
 
 			return true
 		},
-		"Unauthorized": func(inputRequest api.WatchRequest, inputPermission permission.Permission) bool {
+		"Unauthorized": func(inputRequest api.WatchRequest, inputPermission permission.Permission, q queue.Queue) bool {
 			ctx := context.Background()
-			authorize := func(ctx context.Context, permission permission.Permission) bool {
+			getQueue := func(queueName string) (queue.Queue, error) {
+				return q, nil
+			}
+			hasPermissions := func(_ authorization.Principal, q queue.Queue, verb queue.PermissionVerb) bool {
 				return false
 			}
 
 			watcher := EventWatcher(func(ctx context.Context, request *api.WatchRequest) error {
 				return nil
-			}).Authorize(authorize, inputPermission)
+			}).Authorize(getQueue, hasPermissions)
 
 			err := watcher(ctx, &inputRequest)
 			if err == nil {
@@ -124,6 +142,32 @@ func TestEventWatcherAuthorize(t *testing.T) {
 
 			if status, _ := status.FromError(err); status.Code() != codes.PermissionDenied {
 				t.Errorf("Invalid status code. Expected: %s", codes.PermissionDenied.String())
+				return false
+			}
+
+			return true
+		},
+		"NotFound": func(inputRequest api.WatchRequest) bool {
+			ctx := context.Background()
+			getQueue := func(queueName string) (queue.Queue, error) {
+				return queue.Queue{}, repository.ErrQueueNotFound
+			}
+			hasPermissions := func(_ authorization.Principal, q queue.Queue, verb queue.PermissionVerb) bool {
+				return true
+			}
+
+			watcher := EventWatcher(func(ctx context.Context, request *api.WatchRequest) error {
+				return nil
+			}).Authorize(getQueue, hasPermissions)
+
+			err := watcher(ctx, &inputRequest)
+			if err == nil {
+				t.Errorf("Request should fail")
+				return false
+			}
+
+			if status, _ := status.FromError(err); status.Code() != codes.NotFound {
+				t.Errorf("Invalid status code. Expected: %s", codes.NotFound.String())
 				return false
 			}
 
