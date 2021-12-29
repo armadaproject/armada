@@ -11,6 +11,7 @@ import (
 	"github.com/G-Research/armada/internal/executor/context"
 	"github.com/G-Research/armada/internal/executor/domain"
 	"github.com/G-Research/armada/internal/executor/node"
+	"github.com/G-Research/armada/internal/executor/util"
 	. "github.com/G-Research/armada/internal/executor/util"
 	"github.com/G-Research/armada/pkg/api"
 )
@@ -75,7 +76,7 @@ func (clusterUtilisationService *ClusterUtilisationService) ReportClusterUtilisa
 			Capacity:          nodeGroup.NodeGroupCapacity,
 			AvailableCapacity: nodeGroup.NodeGroupAllocatableCapacity,
 			Queues:            queueReports,
-			//CordonedUsage: ,// TODO: get cordoned usage
+			CordonedUsage:     nodeGroup.NodeGroupCordonedCapacity,
 		})
 	}
 
@@ -156,6 +157,10 @@ func getAllocatedResourceByNodeName(pods []*v1.Pod) map[string]common.ComputeRes
 	return allocations
 }
 
+// GetAllNodeGroupAllocationInfo returns allocation information for all nodes on the cluster.
+// NodeGroupCapacity is the total capacity of a nodegroup (including cordoned nodes)
+// NodeGroupAllocatableCapacity is the capacity available to armada on schedulable nodes
+// NodeGroupCordonedCapacity is the resource in use by armada on unschedulable nodes
 func (clusterUtilisationService *ClusterUtilisationService) GetAllNodeGroupAllocationInfo() ([]*NodeGroupAllocationInfo, error) {
 	allAvailableProcessingNodes, err := clusterUtilisationService.nodeInfoService.GetAllProcessingNodes()
 	if err != nil {
@@ -167,6 +172,13 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAllNodeGroupAlloc
 		return []*NodeGroupAllocationInfo{}, err
 	}
 
+	batchPods, err := clusterUtilisationService.clusterContext.GetBatchPods()
+	if err != nil {
+		// Failing this step will just mean cordoned utilisation won't be accounted for
+		// This isn't a critical failure so we log and continue
+		log.Errorf("Error fetching batch pods to calculate cordond node utilisation: %v", err)
+	}
+
 	nodeGroups := clusterUtilisationService.nodeInfoService.GroupNodesByType(allAvailableProcessingNodes)
 	result := make([]*NodeGroupAllocationInfo, 0, len(nodeGroups))
 
@@ -174,16 +186,46 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAllNodeGroupAlloc
 		totalNodeResource := common.CalculateTotalResource(nodeGroup.Nodes)
 		allocatableNodeResource := allocatableResourceByNodeType[nodeGroup.NodeType.Id]
 
+		cordonedNodeResource := clusterUtilisationService.getCordonedResource(nodeGroup.Nodes, batchPods)
+
 		result = append(result, &NodeGroupAllocationInfo{
 			NodeType:                     nodeGroup.NodeType,
 			Nodes:                        nodeGroup.Nodes,
 			NodeGroupCapacity:            totalNodeResource,
 			NodeGroupAllocatableCapacity: allocatableNodeResource,
-			// NodeGroupCordonedCapacity: ,
+			NodeGroupCordonedCapacity:    cordonedNodeResource,
 		})
 	}
 
 	return result, nil
+}
+
+// getCordonedResource takes a list of nodes and a list of pods and returns the resources allocated
+// to pods running on cordoned nodes. We need this information in calculating queue fair shares when
+// significant resource is running on cordoned nodes.
+func (clusterUtilisationService *ClusterUtilisationService) getCordonedResource(nodes []*v1.Node, pods []*v1.Pod) common.ComputeResources {
+	cordonedNodes := util.FilterNodes(nodes, func(node *v1.Node) bool { return node.Spec.Unschedulable })
+	podsOnNodes := GetPodsOnNodes(pods, cordonedNodes)
+	usage := common.ComputeResources{}
+	for _, pod := range podsOnNodes {
+		for _, container := range pod.Spec.Containers {
+			containerResource := castAsComputeResources(container.Resources.Limits) // Not 100% on whether this should be Requests or Limits
+			usage.Add(containerResource)
+		}
+	}
+	fmt.Printf("%v\n", usage)
+	return usage
+}
+
+// castAsComputeResources casts a ResourceList type as common.ComputeResources.
+// Both are aliases for map[string]resource.Quantity.
+// This feels dirty, there must be a way to directly cast them (remove this line or replace this function)
+func castAsComputeResources(resourceList v1.ResourceList) common.ComputeResources {
+	result := common.ComputeResources{}
+	for resource, value := range resourceList {
+		result[string(resource)] = value
+	}
+	return result
 }
 
 func (clusterUtilisationService *ClusterUtilisationService) getAllocatableResourceByNodeType() (map[string]common.ComputeResources, error) {
