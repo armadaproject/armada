@@ -49,6 +49,7 @@ type NodeGroupAllocationInfo struct {
 	Nodes                        []*v1.Node
 	NodeGroupCapacity            common.ComputeResources
 	NodeGroupAllocatableCapacity common.ComputeResources
+	NodeGroupCordonedCapacity    common.ComputeResources
 }
 
 func (clusterUtilisationService *ClusterUtilisationService) ReportClusterUtilisation() {
@@ -74,6 +75,7 @@ func (clusterUtilisationService *ClusterUtilisationService) ReportClusterUtilisa
 			Capacity:          nodeGroup.NodeGroupCapacity,
 			AvailableCapacity: nodeGroup.NodeGroupAllocatableCapacity,
 			Queues:            queueReports,
+			//CordonedUsage: ,// TODO: get cordoned usage
 		})
 	}
 
@@ -155,12 +157,12 @@ func getAllocatedResourceByNodeName(pods []*v1.Pod) map[string]common.ComputeRes
 }
 
 func (clusterUtilisationService *ClusterUtilisationService) GetAllNodeGroupAllocationInfo() ([]*NodeGroupAllocationInfo, error) {
-	allAvailableProcessingNodes, err := clusterUtilisationService.nodeInfoService.GetAllAvailableProcessingNodes()
+	allAvailableProcessingNodes, err := clusterUtilisationService.nodeInfoService.GetAllProcessingNodes()
 	if err != nil {
 		return []*NodeGroupAllocationInfo{}, err
 	}
 
-	allocatableResourceByNodeType, err := clusterUtilisationService.getAllocatableResourceByNodeType()
+	allocatableResourceByNodeType, err := clusterUtilisationService.getAllocatableResourceByNodeType() // Don't touch me
 	if err != nil {
 		return []*NodeGroupAllocationInfo{}, err
 	}
@@ -177,6 +179,7 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAllNodeGroupAlloc
 			Nodes:                        nodeGroup.Nodes,
 			NodeGroupCapacity:            totalNodeResource,
 			NodeGroupAllocatableCapacity: allocatableNodeResource,
+			// NodeGroupCordonedCapacity: ,
 		})
 	}
 

@@ -10,6 +10,7 @@ func GetClusterCapacity(report *api.ClusterUsageReport) common.ComputeResources 
 	if len(report.NodeTypeUsageReports) > 0 {
 		for _, nodeTypeReport := range report.NodeTypeUsageReports {
 			result.Add(nodeTypeReport.Capacity)
+			// Add capacity of cordoned nodes to nodeTypeReport.Capacity, so downstream
 		}
 	} else {
 		result = report.ClusterCapacity
@@ -22,6 +23,7 @@ func GetClusterAvailableCapacity(report *api.ClusterUsageReport) common.ComputeR
 	if len(report.NodeTypeUsageReports) > 0 {
 		for _, nodeTypeReport := range report.NodeTypeUsageReports {
 			result.Add(nodeTypeReport.AvailableCapacity)
+			result.Add(nodeTypeReport.CordonedUsage)
 		}
 	} else {
 		result = report.ClusterAvailableCapacity

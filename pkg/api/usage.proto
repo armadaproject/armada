@@ -38,6 +38,7 @@ message NodeTypeUsageReport {
     map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> capacity = 2 [(gogoproto.nullable) = false];
     map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> available_capacity = 3 [(gogoproto.nullable) = false];
     repeated QueueReport queues = 4;
+    map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> cordoned_usage = 5 [(gogoproto.nullable) = false];
 }
 
 service Usage {
