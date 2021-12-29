@@ -167,7 +167,7 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAllNodeGroupAlloc
 		return []*NodeGroupAllocationInfo{}, err
 	}
 
-	allocatableResourceByNodeType, err := clusterUtilisationService.getAllocatableResourceByNodeType() // Don't touch me
+	allocatableResourceByNodeType, err := clusterUtilisationService.getAllocatableResourceByNodeType()
 	if err != nil {
 		return []*NodeGroupAllocationInfo{}, err
 	}
@@ -185,7 +185,6 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAllNodeGroupAlloc
 	for _, nodeGroup := range nodeGroups {
 		totalNodeResource := common.CalculateTotalResource(nodeGroup.Nodes)
 		allocatableNodeResource := allocatableResourceByNodeType[nodeGroup.NodeType.Id]
-
 		cordonedNodeResource := clusterUtilisationService.getCordonedResource(nodeGroup.Nodes, batchPods)
 
 		result = append(result, &NodeGroupAllocationInfo{
@@ -228,6 +227,8 @@ func castAsComputeResources(resourceList v1.ResourceList) common.ComputeResource
 	return result
 }
 
+// getAllocatableResourceByNodeType returns all allocatable resource currently available on schedulable nodes.
+// Resource locked away on cordoned nodes is dealt with in getCordonedResource.
 func (clusterUtilisationService *ClusterUtilisationService) getAllocatableResourceByNodeType() (map[string]common.ComputeResources, error) {
 	allAvailableProcessingNodes, err := clusterUtilisationService.nodeInfoService.GetAllAvailableProcessingNodes()
 	if err != nil {
