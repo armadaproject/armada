@@ -1,9 +1,5 @@
 name: CI
 
-defaults:
-  run:
-    shell: bash
-
 env:
   GO111MODULE: "on"
   GOPATH: "/home/runner/work/armada/armada/go"
@@ -48,7 +44,6 @@ jobs:
 
       - name: Run ineffassign
         run: |
-          cd /tmp
           go get -u github.com/gordonklaus/ineffassign
           cd ${{ env.GOPATH }}/src/github.com/G-Research/armada
           ineffassign ./...
