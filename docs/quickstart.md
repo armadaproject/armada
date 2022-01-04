@@ -207,7 +207,7 @@ Create queues, submit some jobs and monitor progress:
 ./armadactl create queue queue-a --priorityFactor 1
 ./armadactl create queue queue-b --priorityFactor 2
 ```
-Creating queues this way will give user owners and group owners following permissions by default:
+For queues created in this way, user and group owners of the queue have permissions to:
  - submit jobs
  - cancel jobs
  - reprioritize jobs
