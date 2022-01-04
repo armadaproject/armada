@@ -23,7 +23,7 @@ func createCmd(a *armadactl.App) *cobra.Command {
 	}
 	cmd.Flags().StringP("file", "f", "", "specify file for resource creation.")
 	cmd.MarkFlagRequired("file")
-	cmd.Flags().Bool("dry-run", false, "Performs file validation. Does no actual creates the resource.")
+	cmd.Flags().Bool("dry-run", false, "Validate the input file and exit without making any changes.")
 	return cmd
 }
 
