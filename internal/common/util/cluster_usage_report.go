@@ -5,7 +5,7 @@ import (
 	"github.com/G-Research/armada/pkg/api"
 )
 
-// GetClusterCapaicty returns the total capacity on all nodes on a cluster,
+// GetClusterCapacity returns the total capacity on all nodes on a cluster,
 // even if they are unschedulable.
 func GetClusterCapacity(report *api.ClusterUsageReport) common.ComputeResources {
 	result := common.ComputeResources{}

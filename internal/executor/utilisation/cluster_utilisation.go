@@ -177,6 +177,7 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAllNodeGroupAlloc
 		// Failing this step will just mean cordoned utilisation won't be accounted for
 		// This isn't a critical failure so we log and continue
 		log.Errorf("Error fetching batch pods to calculate cordond node utilisation: %v", err)
+		batchPods = []*v1.Pod{}
 	}
 
 	nodeGroups := clusterUtilisationService.nodeInfoService.GroupNodesByType(allAvailableProcessingNodes)
@@ -212,7 +213,6 @@ func (clusterUtilisationService *ClusterUtilisationService) getCordonedResource(
 			usage.Add(containerResource)
 		}
 	}
-	fmt.Printf("%v\n", usage)
 	return usage
 }
 
