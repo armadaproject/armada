@@ -162,7 +162,7 @@ func getAllocatedResourceByNodeName(pods []*v1.Pod) map[string]common.ComputeRes
 // NodeGroupAllocatableCapacity is the capacity available to armada on schedulable nodes
 // NodeGroupCordonedCapacity is the resource in use by armada on unschedulable nodes
 func (clusterUtilisationService *ClusterUtilisationService) GetAllNodeGroupAllocationInfo() ([]*NodeGroupAllocationInfo, error) {
-	allAvailableProcessingNodes, err := clusterUtilisationService.nodeInfoService.GetAllProcessingNodes()
+	allAvailableProcessingNodes, err := clusterUtilisationService.nodeInfoService.GetAllNodes()
 	if err != nil {
 		return []*NodeGroupAllocationInfo{}, err
 	}
@@ -174,10 +174,7 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAllNodeGroupAlloc
 
 	batchPods, err := clusterUtilisationService.clusterContext.GetBatchPods()
 	if err != nil {
-		// Failing this step will just mean cordoned utilisation won't be accounted for
-		// This isn't a critical failure so we log and continue
-		log.Errorf("Error fetching batch pods to calculate cordond node utilisation: %v", err)
-		batchPods = []*v1.Pod{}
+		return []*NodeGroupAllocationInfo{}, err
 	}
 
 	nodeGroups := clusterUtilisationService.nodeInfoService.GroupNodesByType(allAvailableProcessingNodes)

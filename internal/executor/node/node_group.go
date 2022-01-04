@@ -14,7 +14,7 @@ import (
 
 type NodeInfoService interface {
 	GetAllAvailableProcessingNodes() ([]*v1.Node, error)
-	GetAllProcessingNodes() ([]*v1.Node, error)
+	GetAllNodes() ([]*v1.Node, error)
 	GroupNodesByType(nodes []*v1.Node) []*NodeGroup
 	GetType(node *v1.Node) *api.NodeTypeIdentifier
 }
@@ -101,7 +101,7 @@ func (kubernetesNodeInfoService *KubernetesNodeInfoService) GetAllAvailableProce
 	return util2.FilterNodes(allNodes, kubernetesNodeInfoService.isAvailableProcessingNode), nil
 }
 
-func (kubernetesNodeInfoService *KubernetesNodeInfoService) GetAllProcessingNodes() ([]*v1.Node, error) {
+func (kubernetesNodeInfoService *KubernetesNodeInfoService) GetAllNodes() ([]*v1.Node, error) {
 	return kubernetesNodeInfoService.clusterContext.GetNodes()
 }
 
