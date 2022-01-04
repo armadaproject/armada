@@ -208,23 +208,12 @@ func (clusterUtilisationService *ClusterUtilisationService) getCordonedResource(
 	usage := common.ComputeResources{}
 	for _, pod := range podsOnNodes {
 		for _, container := range pod.Spec.Containers {
-			containerResource := castAsComputeResources(container.Resources.Limits) // Not 100% on whether this should be Requests or Limits
+			containerResource := common.FromResourceList(container.Resources.Limits) // Not 100% on whether this should be Requests or Limits
 			usage.Add(containerResource)
 		}
 	}
 	fmt.Printf("%v\n", usage)
 	return usage
-}
-
-// castAsComputeResources casts a ResourceList type as common.ComputeResources.
-// Both are aliases for map[string]resource.Quantity.
-// This feels dirty, there must be a way to directly cast them (remove this line or replace this function)
-func castAsComputeResources(resourceList v1.ResourceList) common.ComputeResources {
-	result := common.ComputeResources{}
-	for resource, value := range resourceList {
-		result[string(resource)] = value
-	}
-	return result
 }
 
 // getAllocatableResourceByNodeType returns all allocatable resource currently available on schedulable nodes.
