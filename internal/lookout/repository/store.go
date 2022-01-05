@@ -491,8 +491,9 @@ func determineJobState(tx *goqu.TxDatabase) exp.CaseExpression {
 			From("run_states"), stateAsLiteral(JobPending)).
 		When(tx.Select(goqu.I("run_states.running").Gt(0)).
 			From("run_states"), stateAsLiteral(JobRunning)).
-		When(tx.Select(goqu.I("run_states.succeeded").Eq(goqu.I("run_states.total"))).
-			From("run_states"), stateAsLiteral(JobSucceeded)).
+		When(goqu.And(
+			tx.Select(goqu.I("run_states.total").Gt(0)).From("run_states"),
+			tx.Select(goqu.I("run_states.succeeded").Eq(goqu.I("run_states.total"))).From("run_states")), stateAsLiteral(JobSucceeded)).
 		Else(stateAsLiteral(JobQueued))
 }
 
