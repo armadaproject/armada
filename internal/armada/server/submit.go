@@ -471,6 +471,11 @@ func (server *SubmitServer) reportReprioritizedJobEvents(reprioritizedJobs []*ap
 // This function validates the jobs in the request and the pod specs. in each job.
 // If any job or pod in invalid, an error is returned.
 func (server *SubmitServer) createJobs(request *api.JobSubmitRequest, owner string, ownershipGroups []string) ([]*api.Job, error) {
+	return server.createJobsObjects(request, owner, ownershipGroups, time.Now, util.NewULID)
+}
+
+func (server *SubmitServer) createJobsObjects(request *api.JobSubmitRequest, owner string, ownershipGroups []string,
+	getTime func() time.Time, getUlid func() string) ([]*api.Job, error) {
 	jobs := make([]*api.Job, 0, len(request.JobRequestItems))
 
 	if request.JobSetId == "" {
@@ -520,8 +525,11 @@ func (server *SubmitServer) createJobs(request *api.JobSubmitRequest, owner stri
 			}
 		}
 
+		jobId := getUlid()
+		enrichText(item.Labels, jobId)
+		enrichText(item.Annotations, jobId)
 		j := &api.Job{
-			Id:       util.NewULID(),
+			Id:       jobId,
 			ClientId: item.ClientId,
 			Queue:    request.Queue,
 			JobSetId: request.JobSetId,
@@ -538,7 +546,7 @@ func (server *SubmitServer) createJobs(request *api.JobSubmitRequest, owner stri
 
 			PodSpec:                  item.PodSpec,
 			PodSpecs:                 item.PodSpecs,
-			Created:                  time.Now(),
+			Created:                  getTime(), // Replaced with now for mocking unit test
 			Owner:                    owner,
 			QueueOwnershipUserGroups: ownershipGroups,
 		}
@@ -546,6 +554,14 @@ func (server *SubmitServer) createJobs(request *api.JobSubmitRequest, owner stri
 	}
 
 	return jobs, nil
+}
+
+func enrichText(labels map[string]string, jobId string) {
+	for key, value := range labels {
+		value := strings.ReplaceAll(value, "{{JobId}}", ` \z`) // \z cannot be entered manually, hence its use
+		value = strings.ReplaceAll(value, "{JobId}", jobId)
+		labels[key] = strings.ReplaceAll(value, ` \z`, "JobId")
+	}
 }
 
 func (server *SubmitServer) applyDefaultsToPodSpec(spec *v1.PodSpec) {
