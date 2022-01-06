@@ -329,7 +329,7 @@ func (repo *RedisJobRepository) TryLeaseJobs(clusterId string, queue string, job
 
 	leasedIds, err := repo.leaseJobs(clusterId, jobs)
 	if err != nil {
-		return nil, fmt.Errorf("[RedisJobRepository.TryLeaseJobs] error leasing jobs to cluster with ID %q: %s", clusterId, queue)
+		return nil, fmt.Errorf("[RedisJobRepository.TryLeaseJobs] error leasing jobs to cluster with Id %q: %s", clusterId, queue)
 	}
 
 	leasedJobs := make([]*api.Job, 0)
