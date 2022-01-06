@@ -11,7 +11,7 @@ func validateJobsCanBeScheduled(jobs []*api.Job, allClusterSchedulingInfo map[st
 	activeClusterSchedulingInfo := scheduling.FilterActiveClusterSchedulingInfoReports(allClusterSchedulingInfo)
 	for i, job := range jobs {
 		if !scheduling.MatchSchedulingRequirementsOnAnyCluster(job, activeClusterSchedulingInfo) {
-			return fmt.Errorf("[validateJobsCanBeScheduled] the %d-th job (job ID %s) can't be scheduled on any cluster", i, job.Id)
+			return fmt.Errorf("[validateJobsCanBeScheduled] job %d out of %d with Id %s can't be scheduled on any cluster", i, len(jobs), job.Id)
 		}
 	}
 
