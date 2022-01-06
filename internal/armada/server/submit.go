@@ -489,12 +489,12 @@ func (server *SubmitServer) createJobsObjects(request *api.JobSubmitRequest, own
 	for i, item := range request.JobRequestItems {
 
 		if item.PodSpec != nil && len(item.PodSpecs) > 0 {
-			return nil, fmt.Errorf("[createJobs] jobs must specify either a pod spec. or pod spec. list, but the %d-th job of job set %s specifies both", i, request.JobSetId)
+			return nil, fmt.Errorf("[createJobs] job %d in job set %s contains both podSpec and podSpecs, but may only contain either", i, request.JobSetId)
 		}
 
 		podSpecs := item.GetAllPodSpecs()
 		if len(podSpecs) == 0 {
-			return nil, fmt.Errorf("[createJobs] jobs must contain one or more pod specs., but none were found for the %d-th job of job set %s ", i, request.JobSetId)
+			return nil, fmt.Errorf("[createJobs] job %d in job set %s contains no podSpec or podSpecs", i, request.JobSetId)
 		}
 
 		if err := validation.ValidateJobSubmitRequestItem(item); err != nil {
