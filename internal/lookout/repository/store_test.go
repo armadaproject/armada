@@ -833,6 +833,8 @@ func Test_JobUpdatedEvent(t *testing.T) {
 
 			assert.Equal(t, newPriority, getPriority(t, db, jobId))
 			assert.Equal(t, 0.0, getPriority(t, db, otherJobId))
+			assert.Equal(t, JobStateToIntMap[JobQueued], selectInt(t, db,
+				fmt.Sprintf("SELECT state FROM job WHERE job_id = '%s'", jobId)))
 
 			job := getJob(t, db, jobId)
 			assert.Equal(t, newPriority, job.Priority)

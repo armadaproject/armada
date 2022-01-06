@@ -3,8 +3,10 @@ package server
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"sort"
 	"testing"
+	"testing/quick"
 	"time"
 
 	"github.com/go-redis/redis"
@@ -612,6 +614,49 @@ func TestSubmitServer_ReprioritizeJobs(t *testing.T) {
 			assert.Equal(t, float64(1000), jobs[2].Priority)
 		})
 	})
+}
+
+func TestFillContainerRequestAndLimits(t *testing.T) {
+	testCases := map[string]interface{}{
+		"limitsNotSet": func(containers []v1.Container) bool {
+			for index := range containers {
+				containers[index].Resources.Limits = nil
+			}
+			fillContainerRequestsAndLimits(containers)
+
+			for _, container := range containers {
+				resources := container.Resources
+				if !reflect.DeepEqual(resources.Requests, resources.Limits) {
+					return false
+				}
+			}
+
+			return true
+		},
+		"requestsNotSet": func(containers []v1.Container) bool {
+			for index := range containers {
+				containers[index].Resources.Requests = nil
+			}
+			fillContainerRequestsAndLimits(containers)
+
+			for _, container := range containers {
+				resources := container.Resources
+				if !reflect.DeepEqual(resources.Requests, resources.Limits) {
+					return false
+				}
+			}
+
+			return true
+		},
+	}
+
+	for name, testCase := range testCases {
+		t.Run(name, func(subT *testing.T) {
+			if err := quick.Check(testCase, nil); err != nil {
+				subT.Fatal(err)
+			}
+		})
+	}
 }
 
 func readJobEvents(events repository.EventRepository, jobSetId string) ([]*api.EventStreamMessage, error) {
