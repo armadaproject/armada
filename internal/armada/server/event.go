@@ -4,6 +4,9 @@ import (
 	"context"
 	"time"
 
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
 	"github.com/G-Research/armada/internal/armada/permissions"
 	"github.com/G-Research/armada/internal/armada/repository"
 	"github.com/G-Research/armada/internal/common/auth/authorization"
@@ -30,22 +33,23 @@ func NewEventServer(
 }
 
 func (s *EventServer) Report(ctx context.Context, message *api.EventMessage) (*types.Empty, error) {
-	if e := checkPermission(s.permissions, ctx, permissions.ExecuteJobs); e != nil {
-		return nil, e
+	if err := checkPermission(s.permissions, ctx, permissions.ExecuteJobs); err != nil {
+		return nil, status.Errorf(codes.PermissionDenied, "[Report] error: %s", err)
 	}
 	return &types.Empty{}, s.eventStore.ReportEvents([]*api.EventMessage{message})
 }
 
 func (s *EventServer) ReportMultiple(ctx context.Context, message *api.EventList) (*types.Empty, error) {
-	if e := checkPermission(s.permissions, ctx, permissions.ExecuteJobs); e != nil {
-		return nil, e
+	if err := checkPermission(s.permissions, ctx, permissions.ExecuteJobs); err != nil {
+		return nil, status.Errorf(codes.PermissionDenied, "[ReportMultiple] error: %s", err)
 	}
 	return &types.Empty{}, s.eventStore.ReportEvents(message.Events)
 }
 
+// GetJobSetEvents streams back all events associated with a particular job set.
 func (s *EventServer) GetJobSetEvents(request *api.JobSetRequest, stream api.Event_GetJobSetEventsServer) error {
-	if e := checkPermission(s.permissions, stream.Context(), permissions.WatchAllEvents); e != nil {
-		return e
+	if err := checkPermission(s.permissions, stream.Context(), permissions.WatchAllEvents); err != nil {
+		return status.Errorf(codes.PermissionDenied, "[GetJobSetEvents] error: %s", err)
 	}
 
 	fromId := request.FromMessageId
@@ -55,9 +59,9 @@ func (s *EventServer) GetJobSetEvents(request *api.JobSetRequest, stream api.Eve
 	if request.Watch {
 		timeout = 5 * time.Second
 	} else {
-		lastId, e := s.eventRepository.GetLastMessageId(request.Queue, request.Id)
-		if e != nil {
-			return e
+		lastId, err := s.eventRepository.GetLastMessageId(request.Queue, request.Id)
+		if err != nil {
+			return status.Errorf(codes.Unavailable, "[GetJobSetEvents] error getting ID of last message: %s", err)
 		}
 		stopAfter = lastId
 	}
@@ -69,10 +73,9 @@ func (s *EventServer) GetJobSetEvents(request *api.JobSetRequest, stream api.Eve
 		default:
 		}
 
-		messages, e := s.eventRepository.ReadEvents(request.Queue, request.Id, fromId, 500, timeout)
-
-		if e != nil {
-			return e
+		messages, err := s.eventRepository.ReadEvents(request.Queue, request.Id, fromId, 500, timeout)
+		if err != nil {
+			return status.Errorf(codes.Unavailable, "[GetJobSetEvents] error reading events: %s", err)
 		}
 
 		stop := len(messages) == 0
@@ -81,9 +84,9 @@ func (s *EventServer) GetJobSetEvents(request *api.JobSetRequest, stream api.Eve
 			if fromId == stopAfter {
 				stop = true
 			}
-			e = stream.Send(msg)
-			if e != nil {
-				return e
+			err = stream.Send(msg)
+			if err != nil {
+				return status.Errorf(codes.Unavailable, "[GetJobSetEvents] error sending event: %s", err)
 			}
 		}
 

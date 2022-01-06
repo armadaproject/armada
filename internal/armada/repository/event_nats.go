@@ -23,7 +23,7 @@ func (n *StreamEventStore) ReportEvents(messages []*api.EventMessage) error {
 	}
 	errs := n.stream.Publish(messages)
 	if len(errs) > 0 {
-		return fmt.Errorf("errors when publishing events: %v", errs)
+		return fmt.Errorf("[ReportEvents] error publishing events: %v", errs)
 	}
 	return nil
 }
@@ -62,7 +62,8 @@ func (p *RedisEventProcessor) Start() {
 func (p *RedisEventProcessor) handleMessage(message *eventstream.Message) error {
 	err := p.batcher.Report(message)
 	if err != nil {
-		log.Errorf("error while reporting event in redis: %v", err)
+		err = fmt.Errorf("[handleMessage] error reporting event: %w", err)
+		log.Error(err)
 		return err
 	}
 	return nil
@@ -76,13 +77,14 @@ func (p *RedisEventProcessor) handleBatch(batch []*eventstream.Message) error {
 
 	err := p.repository.ReportEvents(events)
 	if err != nil {
-		return fmt.Errorf("error while reporting events to event store for %d events: %v", len(events), err)
+		return fmt.Errorf("[handleBatch] error reporting %d events: %w", len(events), err)
 	}
 
 	for _, msg := range batch {
 		err = msg.Ack()
 		if err != nil {
-			log.Errorf("error while acknowledging event: %v", err)
+			err = fmt.Errorf("[handleBatch] error acknowledging event: %s", err)
+			log.Error(err)
 		}
 	}
 	return nil

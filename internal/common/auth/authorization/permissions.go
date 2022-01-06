@@ -33,6 +33,9 @@ func NewPrincipalPermissionChecker(
 		permissionClaimMap: permissionClaimMap}
 }
 
+// UserHasPermission returns true if the principal contained in the context has the given permission,
+// which is determined by checking if any of the groups, scopes, or claims associated with the principal
+// has that permission.
 func (checker *PrincipalPermissionChecker) UserHasPermission(ctx context.Context, perm permission.Permission) bool {
 	principal := GetPrincipal(ctx)
 	return hasPermission(perm, checker.permissionScopeMap, func(scope string) bool { return principal.HasScope(scope) }) ||
@@ -40,6 +43,13 @@ func (checker *PrincipalPermissionChecker) UserHasPermission(ctx context.Context
 		hasPermission(perm, checker.permissionClaimMap, func(claim string) bool { return principal.HasClaim(claim) })
 }
 
+// UserOwns check if obj is owned by the principal contained in the context,
+// or by a group of which the principal is a member.
+// If obj is owned by a group of which the principal is a member,
+// this method also returns the list of groups that own the object and that the principal is a member of.
+// If obj is owned by the principal in the context, no groups are returned.
+//
+// TODO Should we always return the groups (even if the principal owns obj directly)?
 func (checker *PrincipalPermissionChecker) UserOwns(ctx context.Context, obj Owned) (owned bool, ownershipGoups []string) {
 	principal := GetPrincipal(ctx)
 	currentUserName := principal.GetName()

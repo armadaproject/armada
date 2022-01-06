@@ -16,13 +16,18 @@ var (
 	invalidCredentials = status.Errorf(codes.Unauthenticated, "invalid username/password")
 )
 
+// Name of the key used to store principals in contexts.
 const principalKey = "principal"
 
+// All users are implicitly part of this group.
 const EveryoneGroup = "everyone"
 
+// Default principal used if no principal can be found in a context.
 var anonymousPrincipal = NewStaticPrincipal("anonymous", []string{})
 
 // Principal represents an entity that can be authenticated (e.g., a user).
+// Each principal has a name associated with it and may be part of one or more groups.
+// Scopes and claims are as defined in OpenId.
 type Principal interface {
 	GetName() string
 	GetGroupNames() []string
@@ -31,6 +36,8 @@ type Principal interface {
 	HasClaim(claim string) bool
 }
 
+// Default implementation of the Principal interface.
+// Here, static refers to the fact that the principal doesn't change once it has been created.
 type StaticPrincipal struct {
 	name   string
 	groups map[string]bool
@@ -80,6 +87,9 @@ func (p *StaticPrincipal) GetGroupNames() []string {
 	return names
 }
 
+// GetPrincipal returns the principal (e.g., a user) contained in a context.
+// The principal is assumed to be stored as a ctx.Value.
+// If no principal can be found, a principal representing an anonymous (unauthenticated) user is returned.
 func GetPrincipal(ctx context.Context) Principal {
 	p, ok := ctx.Value(principalKey).(Principal)
 	if !ok {
@@ -88,10 +98,14 @@ func GetPrincipal(ctx context.Context) Principal {
 	return p
 }
 
+// WithPrincipal returns a new context containing a principal that is a child to the given context.
 func WithPrincipal(ctx context.Context, principal Principal) context.Context {
 	return context.WithValue(ctx, principalKey, principal)
 }
 
+// AuthService represents a method of authentication for the gRPC API.
+// Each implementation represents a particular method, e.g., username/password or OpenID.
+// The gRPC server may be started with multiple AuthService to give several options for authentication.
 type AuthService interface {
 	Authenticate(ctx context.Context) (Principal, error)
 }

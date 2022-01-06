@@ -4,6 +4,9 @@ import (
 	"github.com/G-Research/armada/internal/common/auth/permission"
 )
 
+// Each principal (e.g., a user) has permissions associated with it.
+// These are the possible permissions.
+// For each gRPC call, the call handler first checks if the user has permissions for that call.
 const (
 	SubmitJobs          permission.Permission = "submit_jobs"
 	SubmitAnyJobs                             = "submit_any_jobs"

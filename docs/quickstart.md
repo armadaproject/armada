@@ -7,7 +7,7 @@ The purpose of this guide is to install a minimal local Armada deployment for te
 - Git
 - Docker
 - Helm v3.5+
-- Kind v0.10.0+
+- Kind v0.11.1+
 - Kubectl
 
 ### OS specifics
