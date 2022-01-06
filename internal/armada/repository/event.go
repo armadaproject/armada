@@ -107,7 +107,7 @@ func (repo *RedisEventRepository) ReadEvents(queue, jobSetId string, lastId stri
 		msg := &api.EventMessage{}
 		bytes := []byte(data.(string))
 		err = proto.Unmarshal(bytes, msg)
-		if err != nil { // TODO Should we log an error and keep going instead?
+		if err != nil {
 			return nil, fmt.Errorf("[RedisEventRepository.ReadEvents] error unmarshalling: %s", err)
 		}
 		messages = append(messages, &api.EventStreamMessage{Id: m.ID, Message: msg})
