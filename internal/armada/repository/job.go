@@ -1036,7 +1036,8 @@ func addJob(db redis.Cmdable, job *api.Job, jobData *[]byte) *redis.Cmd {
 		job.Id, job.Priority, *jobData, job.ClientId)
 }
 
-// TODO This script will create the queue it it doesn't already exist.
+// This script will create the queue if it doesn't already exist.
+// To avoid creating queues implicitly, code executing this script must ensure that the queue already exists.
 var addJobScript = redis.NewScript(`
 local queueKey = KEYS[1]
 local jobKey = KEYS[2]
