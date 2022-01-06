@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -25,11 +26,27 @@ const jobRetriesPrefix = "Job:Retries:"    // {jobId}            - number of ret
 const jobClientIdPrefix = "job:ClientId:"  // {queue}:{clientId} - corresponding jobId
 const keySeparator = ":"
 
+// Number of jobs queried from Redis at a time in IterateQueueJobs.
 const queueResourcesBatchSize = 20000
 
-const JobNotFound = "no job found with provided Id"
+type ErrJobNotFound struct {
+	JobId     string
+	ClusterId string
+}
+
+func (err *ErrJobNotFound) Error() string {
+	return fmt.Sprintf("could not find job with ID %q assigned to cluster %q", err.JobId, err.ClusterId)
+}
 
 type UpdateJobResult struct {
+	JobId string
+	Job   *api.Job
+	Error error
+}
+
+// JobResult is used by GetJobsByIds to bundle a job with any error that occurred
+// when getting the job.
+type JobResult struct {
 	JobId string
 	Job   *api.Job
 	Error error
@@ -39,6 +56,7 @@ type JobRepository interface {
 	PeekQueue(queue string, limit int64) ([]*api.Job, error)
 	TryLeaseJobs(clusterId string, queue string, jobs []*api.Job) ([]*api.Job, error)
 	AddJobs(job []*api.Job) ([]*SubmitJobResult, error)
+	GetJobsByIds(ids []string) ([]*JobResult, error)
 	GetExistingJobsByIds(ids []string) ([]*api.Job, error)
 	FilterActiveQueues(queues []*api.Queue) ([]*api.Queue, error)
 	GetQueueSizes(queues []*api.Queue) (sizes []int64, e error)
@@ -47,11 +65,11 @@ type JobRepository interface {
 	RenewLease(clusterId string, jobIds []string) (renewed []string, e error)
 	ExpireLeases(queue string, deadline time.Time) (expired []*api.Job, e error)
 	ReturnLease(clusterId string, jobId string) (returnedJob *api.Job, err error)
-	DeleteJobs(jobs []*api.Job) map[*api.Job]error
+	DeleteJobs(jobs []*api.Job) (map[*api.Job]error, error)
 	GetActiveJobIds(queue string, jobSetId string) ([]string, error)
 	GetLeasedJobIds(queue string) ([]string, error)
 	UpdateStartTime(jobStartInfos []*JobStartInfo) ([]error, error)
-	UpdateJobs(ids []string, mutator func([]*api.Job)) []UpdateJobResult
+	UpdateJobs(ids []string, mutator func([]*api.Job)) ([]UpdateJobResult, error)
 	GetJobRunInfos(jobIds []string) (map[string]*RunInfo, error)
 	GetQueueActiveJobSets(queue string) ([]*api.JobSetInfo, error)
 	AddRetryAttempt(jobId string) error
@@ -69,6 +87,8 @@ func NewRedisJobRepository(
 	return &RedisJobRepository{db: db, retentionPolicy: retentionPolicy}
 }
 
+// TODO DuplicateDetected should be remove in favor of setting the error to
+// indicate the job already exists (e.g., by creating ErrJobExists).
 type SubmitJobResult struct {
 	JobId             string
 	SubmittedJob      *api.Job
@@ -78,22 +98,23 @@ type SubmitJobResult struct {
 
 func (repo *RedisJobRepository) AddJobs(jobs []*api.Job) ([]*SubmitJobResult, error) {
 	pipe := repo.db.Pipeline()
-
 	addJobScript.Load(pipe)
 
 	saveResults := make([]*redis.Cmd, 0, len(jobs))
-
 	for _, job := range jobs {
-		jobData, e := proto.Marshal(job)
-		if e != nil {
-			return nil, e
+		jobData, err := proto.Marshal(job)
+		if err != nil {
+			return nil, fmt.Errorf("[RedisJobRepository.AddJobs] error marshalling job: %s", err)
 		}
 
 		result := addJob(pipe, job, &jobData)
 		saveResults = append(saveResults, result)
 	}
 
-	_, _ = pipe.Exec() // ignoring error here as it will be part of individual commands
+	_, err := pipe.Exec()
+	if err != nil {
+		return nil, fmt.Errorf("[RedisJobRepository.AddJobs] error executing pipelined commands: %s", err)
+	}
 
 	result := make([]*SubmitJobResult, 0, len(jobs))
 	for i, saveResult := range saveResults {
@@ -110,26 +131,34 @@ func (repo *RedisJobRepository) AddJobs(jobs []*api.Job) ([]*SubmitJobResult, er
 }
 
 func (repo *RedisJobRepository) RenewLease(clusterId string, jobIds []string) (renewedJobIds []string, e error) {
-	jobs, e := repo.GetExistingJobsByIds(jobIds)
-	if e != nil {
-		return nil, e
+	jobs, err := repo.GetExistingJobsByIds(jobIds)
+	if err != nil {
+		return nil, fmt.Errorf("[RedisJobRepository.RenewLease] error getting jobs: %s", err)
 	}
-	return repo.leaseJobs(clusterId, jobs)
+
+	leasedJobs, err := repo.leaseJobs(clusterId, jobs)
+	if err != nil {
+		return nil, fmt.Errorf("[RedisJobRepository.RenewLease] error leasing jobs: %s", err)
+	}
+
+	return leasedJobs, nil
 }
 
 func (repo *RedisJobRepository) ReturnLease(clusterId string, jobId string) (returnedJob *api.Job, err error) {
-	jobs, e := repo.GetExistingJobsByIds([]string{jobId})
-	if e != nil {
-		return nil, e
+	jobs, err := repo.GetExistingJobsByIds([]string{jobId})
+	if err != nil {
+		return nil, fmt.Errorf("[RedisJobRepository.ReturnLease] error getting jobs: %s", err)
 	}
 	if len(jobs) == 0 {
-		return nil, fmt.Errorf("Job not found %s", jobId)
+		return nil, &ErrJobNotFound{JobId: jobId, ClusterId: clusterId}
+	} else if len(jobs) != 1 {
+		return nil, fmt.Errorf("[RedisJobRepository.ReturnLease] expected to get exactly 1 job, but got %d jobs", len(jobs))
 	}
 	job := jobs[0]
 
-	returned, e := returnLease(repo.db, clusterId, job.Queue, job.Id, job.Priority).Int()
-	if e != nil {
-		return nil, e
+	returned, err := returnLease(repo.db, clusterId, job.Queue, job.Id, job.Priority).Int()
+	if err != nil {
+		return nil, fmt.Errorf("[RedisJobRepository.ReturnLease] error returning lease for job ID %s and cluster ID %s: %s", job.Id, clusterId, err)
 	}
 	if returned > 0 {
 		return job, nil
@@ -149,11 +178,15 @@ type deleteJobRedisResponse struct {
 	deleteJobRetriesResult         *redis.IntCmd
 }
 
-func (repo *RedisJobRepository) DeleteJobs(jobs []*api.Job) map[*api.Job]error {
-	expiryStatus := repo.getExpiryStatus(jobs)
-	pipe := repo.db.Pipeline()
+func (repo *RedisJobRepository) DeleteJobs(jobs []*api.Job) (map[*api.Job]error, error) {
+	expiryStatus, err := repo.getExpiryStatus(jobs)
+	if err != nil {
+		return nil, fmt.Errorf("[RedisJobRepository.DeleteJobs] error getting expiry status: %s", err)
+	}
+	pipe := repo.db.TxPipeline()
 	deletionResults := make([]*deleteJobRedisResponse, 0, len(jobs))
 	for _, job := range jobs {
+		// This is safe because attempting to delete non-existing keys results in a no-op
 		deletionResult := &deleteJobRedisResponse{job: job, expiryAlreadySet: expiryStatus[job]}
 		deletionResult.removeFromQueueResult = pipe.ZRem(jobQueuePrefix+job.Queue, job.Id)
 		deletionResult.removeFromLeasedResult = pipe.ZRem(jobLeasedPrefix+job.Queue, job.Id)
@@ -167,7 +200,11 @@ func (repo *RedisJobRepository) DeleteJobs(jobs []*api.Job) map[*api.Job]error {
 		}
 		deletionResults = append(deletionResults, deletionResult)
 	}
-	_, _ = pipe.Exec() // ignoring error here as it will be part of individual commands
+
+	_, err = pipe.Exec()
+	if err != nil {
+		return nil, fmt.Errorf("[RedisJobRepository.DeleteJobs] error executing pipelined commands: %s", err)
+	}
 
 	cancelledJobs := map[*api.Job]error{}
 	for _, deletionResult := range deletionResults {
@@ -182,18 +219,22 @@ func (repo *RedisJobRepository) DeleteJobs(jobs []*api.Job) map[*api.Job]error {
 		}
 	}
 
-	return cancelledJobs
+	return cancelledJobs, nil
 }
 
 // Returns details on if the expiry for each job is already set or not
-func (repo *RedisJobRepository) getExpiryStatus(jobs []*api.Job) map[*api.Job]bool {
+func (repo *RedisJobRepository) getExpiryStatus(jobs []*api.Job) (map[*api.Job]bool, error) {
 	pipe := repo.db.Pipeline()
-
 	var cmds []*redis.DurationCmd
 	for _, job := range jobs {
-		cmds = append(cmds, pipe.TTL(jobObjectPrefix+job.Id))
+		cmd := pipe.TTL(jobObjectPrefix + job.Id)
+		cmds = append(cmds, cmd)
 	}
-	_, _ = pipe.Exec() // ignoring error here as it will be part of individual commands
+
+	_, err := pipe.Exec()
+	if err != nil {
+		return nil, fmt.Errorf("[RedisJobRepository.getExpiryStatus] error executing pipelined commands: %s", err)
+	}
 
 	expiryStatus := make(map[*api.Job]bool, len(jobs))
 	for index, response := range cmds {
@@ -206,7 +247,7 @@ func (repo *RedisJobRepository) getExpiryStatus(jobs []*api.Job) map[*api.Job]bo
 		}
 	}
 
-	return expiryStatus
+	return expiryStatus, nil
 }
 
 func processDeletionResponse(deletionResponse *deleteJobRedisResponse) (int64, error) {
@@ -262,24 +303,33 @@ func processDeletionResponse(deletionResponse *deleteJobRedisResponse) (int64, e
 	return totalUpdates, errorMessage
 }
 
+// PeekQueue returns the highest-priority jobs in the given queue.
+// At most limits jobs are returned.
 func (repo *RedisJobRepository) PeekQueue(queue string, limit int64) ([]*api.Job, error) {
-	ids, e := repo.db.ZRange(jobQueuePrefix+queue, 0, limit-1).Result()
-	if e != nil {
-		return nil, e
+	ids, err := repo.db.ZRange(jobQueuePrefix+queue, 0, limit-1).Result()
+	if err != nil {
+		return nil, fmt.Errorf("[RedisJobRepository.PeekQueue] error reading from database: %s", err)
 	}
-	return repo.GetExistingJobsByIds(ids)
+
+	jobs, err := repo.GetExistingJobsByIds(ids)
+	if err != nil {
+		return nil, fmt.Errorf("[RedisJobRepository.PeekQueue] error getting job details: %s", err)
+	}
+
+	return jobs, nil
 }
 
-// returns list of jobs which are successfully leased
+// TryLeaseJobs attempts to assign jobs to a given cluster and returns a list composed of the jobs
+// that were successfully leased.
 func (repo *RedisJobRepository) TryLeaseJobs(clusterId string, queue string, jobs []*api.Job) ([]*api.Job, error) {
 	jobById := map[string]*api.Job{}
 	for _, job := range jobs {
 		jobById[job.Id] = job
 	}
 
-	leasedIds, e := repo.leaseJobs(clusterId, jobs)
-	if e != nil {
-		return nil, e
+	leasedIds, err := repo.leaseJobs(clusterId, jobs)
+	if err != nil {
+		return nil, fmt.Errorf("[RedisJobRepository.TryLeaseJobs] error leasing jobs to cluster with Id %q: %s", clusterId, queue)
 	}
 
 	leasedJobs := make([]*api.Job, 0)
@@ -289,47 +339,76 @@ func (repo *RedisJobRepository) TryLeaseJobs(clusterId string, queue string, job
 	return leasedJobs, nil
 }
 
-// Returns existing jobs by Id
-// If an Id is supplied that no longer exists, that job will simply be omitted from the result.
-// No error will be thrown for missing jobs
+// GetExistingJobsByIds queries Redis for job details. Missing jobs are omitted, i.e.,
+// the returned list may be shorter than the provided list of IDs.
 func (repo *RedisJobRepository) GetExistingJobsByIds(ids []string) ([]*api.Job, error) {
+	jobResults, err := repo.GetJobsByIds(ids)
+	if err != nil {
+		return nil, fmt.Errorf("[GetExistingJobsByIds] error getting jobs: %w", err)
+	}
+
+	jobs := make([]*api.Job, 0, len(jobResults))
+	for _, result := range jobResults {
+		var e *ErrJobNotFound
+		if errors.As(result.Error, &e) {
+			continue
+		} else if result.Error != nil {
+			return nil, fmt.Errorf("[RedisJobRepository.GetExistingJobsByIds] error getting job with ID %s from database: %s", result.JobId, err)
+		}
+		jobs = append(jobs, result.Job)
+	}
+	return jobs, nil
+}
+
+// GetJobsByIds attempts to get all requested jobs from the database.
+// Any error in getting a job is set to the Err field of the corresponding JobResult.
+func (repo *RedisJobRepository) GetJobsByIds(ids []string) ([]*JobResult, error) {
 	pipe := repo.db.Pipeline()
 	var cmds []*redis.StringCmd
 	for _, id := range ids {
 		cmds = append(cmds, pipe.Get(jobObjectPrefix+id))
 	}
-	_, _ = pipe.Exec() // ignoring error here as it will be part of individual commands
 
-	var jobs []*api.Job
+	_, err := pipe.Exec()
+	if err != nil && err != redis.Nil {
+		return nil, fmt.Errorf("[RedisJobRepository.GetJobsByIds] error executing pipelined commands: %s", err)
+	}
+
+	var results []*JobResult
 	for index, cmd := range cmds {
-		_, e := cmd.Result()
-		if e != nil {
-			if e == redis.Nil {
-				log.Warnf("No job found with with job id %s", ids[index])
-				continue
-			} else {
-				return nil, e
-			}
-		}
-		d, _ := cmd.Bytes()
-		job := &api.Job{}
-		e = proto.Unmarshal(d, job)
-		if e != nil {
-			return nil, e
+		result := &JobResult{JobId: ids[index]}
+		results = append(results, result)
+
+		_, err := cmd.Result()
+		if err == redis.Nil {
+			result.Error = &ErrJobNotFound{JobId: ids[index]}
+			continue
+		} else if err != nil {
+			result.Error = err
+			continue
 		}
 
-		for _, podSpec := range job.GetAllPodSpecs() {
+		d, _ := cmd.Bytes() // we already checked the error above
+		result.Job = &api.Job{}
+		err = proto.Unmarshal(d, result.Job)
+		if err != nil {
+			return nil, fmt.Errorf("[RedisJobRepository.GetExistingJobsByIds] error unmarshalling job with ID %s: %s", ids[index], err)
+		}
+
+		// TODO This shouldn't be here. We write these when creating the job,
+		// and the getter shouldn't mutate the object read from the database.
+		for _, podSpec := range result.Job.GetAllPodSpecs() {
 			// TODO: remove, RequiredNodeLabels is deprecated and will be removed in future versions
-			for k, v := range job.RequiredNodeLabels {
+			for k, v := range result.Job.RequiredNodeLabels {
 				if podSpec.NodeSelector == nil {
 					podSpec.NodeSelector = map[string]string{}
 				}
 				podSpec.NodeSelector[k] = v
 			}
 		}
-		jobs = append(jobs, job)
 	}
-	return jobs, nil
+
+	return results, nil
 }
 
 func (repo *RedisJobRepository) FilterActiveQueues(queues []*api.Queue) ([]*api.Queue, error) {
@@ -339,9 +418,9 @@ func (repo *RedisJobRepository) FilterActiveQueues(queues []*api.Queue) ([]*api.
 		// empty (even sorted) sets gets deleted by redis automatically
 		cmds[queue] = pipe.Exists(jobQueuePrefix + queue.Name)
 	}
-	_, e := pipe.Exec()
-	if e != nil {
-		return nil, e
+	_, err := pipe.Exec()
+	if err != nil {
+		return nil, fmt.Errorf("[RedisJobRepository.FilterActiveQueuesFilterActiveQueues] error executing pipelined commands: %s", err)
 	}
 
 	var active []*api.Queue
@@ -350,6 +429,7 @@ func (repo *RedisJobRepository) FilterActiveQueues(queues []*api.Queue) ([]*api.
 			active = append(active, queue)
 		}
 	}
+
 	return active, nil
 }
 
@@ -359,9 +439,9 @@ func (repo *RedisJobRepository) GetQueueSizes(queues []*api.Queue) (sizes []int6
 	for _, queue := range queues {
 		cmds = append(cmds, pipe.ZCount(jobQueuePrefix+queue.Name, "-Inf", "+Inf"))
 	}
-	_, e := pipe.Exec()
-	if e != nil {
-		return nil, e
+	_, err = pipe.Exec()
+	if err != nil {
+		return nil, fmt.Errorf("[RedisJobRepository.GetQueueSizes] error executing pipelined commands: %s", err)
 	}
 
 	sizes = []int64{}
@@ -371,32 +451,41 @@ func (repo *RedisJobRepository) GetQueueSizes(queues []*api.Queue) (sizes []int6
 	return sizes, nil
 }
 
+// IterateQueueJobs calls action for each job in queue with name queueName.
+//
+// TODO action should return an error, which could be propagated back to the caller of this method.
 func (repo *RedisJobRepository) IterateQueueJobs(queueName string, action func(*api.Job)) error {
-	queuedIds, e := repo.GetQueueJobIds(queueName)
-	if e != nil {
-		return e
+	queuedIds, err := repo.GetQueueJobIds(queueName)
+	if err != nil {
+		return fmt.Errorf("[RedisJobRepository.IterateQueueJobs] error getting job IDs: %s", err)
 	}
+
 	for len(queuedIds) > 0 {
 		take := queueResourcesBatchSize
 		if len(queuedIds) < queueResourcesBatchSize {
 			take = len(queuedIds)
 		}
-		queuedJobs, e := repo.GetExistingJobsByIds(queuedIds[0:take])
-		queuedIds = queuedIds[take:]
 
-		if e != nil {
-			return e
+		queuedJobs, err := repo.GetExistingJobsByIds(queuedIds[0:take])
+		queuedIds = queuedIds[take:]
+		if err != nil {
+			return fmt.Errorf("[RedisJobRepository.IterateQueueJobs] error getting jobs: %s", err)
 		}
+
 		for _, job := range queuedJobs {
 			action(job)
 		}
-
 	}
+
 	return nil
 }
 
 func (repo *RedisJobRepository) GetLeasedJobIds(queue string) ([]string, error) {
-	return repo.db.ZRange(jobLeasedPrefix+queue, 0, -1).Result()
+	val, err := repo.db.ZRange(jobLeasedPrefix+queue, 0, -1).Result()
+	if err != nil {
+		return nil, fmt.Errorf("[RedisJobRepository.GetLeasedJobIds] error reading from database: %s", err)
+	}
+	return val, nil
 }
 
 func (repo *RedisJobRepository) getAssociatedCluster(jobIds []string) (map[string]string, error) {
@@ -408,17 +497,16 @@ func (repo *RedisJobRepository) getAssociatedCluster(jobIds []string) (map[strin
 		cmds[jobId] = pipe.HGet(jobClusterMapKey, jobId)
 	}
 
-	_, e := pipe.Exec()
-	if e != nil && e != redis.Nil {
-		return associatedCluster, e
+	_, err := pipe.Exec()
+	if err != nil && err != redis.Nil {
+		return nil, fmt.Errorf("[RedisJobRepository.getAssociatedCluster] error executing pipelined commands: %s", err)
 	}
 
 	for jobId, cmd := range cmds {
-		err := cmd.Err()
+		clusterId, err := cmd.Result()
 		if err != nil && err != redis.Nil {
-			return map[string]string{}, err
+			return nil, fmt.Errorf("[RedisJobRepository.getAssociatedCluster] error getting cluster associated with job with ID %s: %s", jobId, err)
 		}
-		clusterId := cmd.Val()
 		if clusterId != "" {
 			associatedCluster[jobId] = cmd.Val()
 		}
@@ -428,15 +516,17 @@ func (repo *RedisJobRepository) getAssociatedCluster(jobIds []string) (map[strin
 }
 
 type JobStartInfo struct {
-	JobId     string
+	// Unique ID assigned to each job.
+	JobId string
+	// Name of the cluster (as specified in the executor config) the job is assigned to.
 	ClusterId string
 	StartTime time.Time
 }
 
 func (repo *RedisJobRepository) UpdateStartTime(jobStartInfos []*JobStartInfo) ([]error, error) {
 	jobErrors := make([]error, len(jobStartInfos), len(jobStartInfos))
-
 	commands := make([]*redis.Cmd, len(jobStartInfos), len(jobStartInfos))
+
 	pipe := repo.db.Pipeline()
 	updateStartTimeScript.Load(pipe)
 
@@ -449,27 +539,38 @@ func (repo *RedisJobRepository) UpdateStartTime(jobStartInfos []*JobStartInfo) (
 				jobObjectPrefix + jobStartInfo.JobId,
 			},
 			jobStartInfo.ClusterId,
-			jobStartInfo.StartTime.UTC().UnixNano())
+			jobStartInfo.StartTime.UTC().UnixNano(),
+		)
 	}
 
+	// TODO If a command queued to a pipeline errors, pipe.Exec() returns the error returned by the
+	// first command to return an error. Hence, if we're pipelining commands, jobErrors will either
+	// be nil or contain only nil (in the case of no errors).
 	_, err := pipe.Exec()
 	if err != nil {
-		return nil, fmt.Errorf("update start time multiple: %v", err)
+		return nil, fmt.Errorf("[RedisJobRepository.UpdateStartTime] error running pipelined operations: %s", err)
 	}
 
-	for i, cmd := range commands {
-		err := cmd.Err()
-		if err != nil {
-			jobErrors[i] = fmt.Errorf("error updating job start time in redis: %v", err)
-		} else {
-			jobErrors[i] = nil
+	for i, command := range commands {
+		// For each job, store errors resulting from attempting to run the script.
+		// Note that the script may have be started successfully (i.e., the err here is nil),
+		// but the script may have returned a non-zero exit code, indicating something went
+		// wrong inside the script.
+		if err := command.Err(); err != nil {
+			jobErrors[i] = fmt.Errorf("[RedisJobRepository.UpdateStartTime] error updating start time for job with ID %s: %s", jobStartInfos[i].JobId, err)
 		}
-		ret, err := cmd.Int()
-		if err != nil {
-			jobErrors[i] = fmt.Errorf("error parsing result from redis: %v", err)
+
+		// Check the return code of the script
+		// The error returned by cmd.Int() is equal to the above err if running the script failed.
+		// If the script ran, but produced an exit code that could not be parsed as an integer,
+		// the err returned by cmd.Int() is non-nil.
+		code, err := command.Int()
+		if err != nil && err != jobErrors[i] {
+			return nil, fmt.Errorf("[RedisJobRepository.UpdateStartTime] error parsing script exit code: %s", err)
 		}
-		if ret == updateStartTimeJobNotFound {
-			jobErrors[i] = fmt.Errorf(JobNotFound)
+		if err == nil && code == updateStartTimeJobNotFound {
+			jobStartInfo := jobStartInfos[i]
+			jobErrors[i] = &ErrJobNotFound{JobId: jobStartInfo.JobId, ClusterId: jobStartInfo.ClusterId}
 		}
 	}
 
@@ -502,8 +603,9 @@ end
 return redis.call('HSET', startTimeKey, clusterId, startTime)
 `, updateStartTimeJobNotFound))
 
-func (repo *RedisJobRepository) UpdateJobs(ids []string, mutator func([]*api.Job)) []UpdateJobResult {
-	return repo.updateJobs(ids, mutator, 250, 3, 100*time.Millisecond)
+// TODO Redis supports setting a retry parameter. Why do we re-implement that functionality?
+func (repo *RedisJobRepository) UpdateJobs(ids []string, mutator func([]*api.Job)) ([]UpdateJobResult, error) {
+	return repo.updateJobs(ids, mutator, 250, 3, 100*time.Millisecond), nil
 }
 
 func (repo *RedisJobRepository) updateJobs(ids []string, mutator func([]*api.Job), batchSize int, retries int, retryDelay time.Duration) []UpdateJobResult {
@@ -525,67 +627,90 @@ func (repo *RedisJobRepository) updateJobs(ids []string, mutator func([]*api.Job
 	return result
 }
 
-func (repo *RedisJobRepository) updateJobBatchWithRetry(ids []string, mutator func([]*api.Job), retries int, retryDelay time.Duration) ([]UpdateJobResult, error) {
-	for retry := 0; ; retry++ {
-		result, err := repo.updateJobBatch(ids, mutator)
-		if err != redis.TxFailedErr {
-			return result, err
-		}
-		log.Warnf("UpdateJobs: Redis Transaction failed (job ids %s)", strings.Join(ids, ", "))
-
-		if retry >= retries {
-			log.Warnf("UpdateJobs: Redis Transaction failed after retrying, giving up (job ids %s)", strings.Join(ids, ", "))
-			return nil, redis.TxFailedErr
-		}
-		time.Sleep(retryDelay)
-	}
+// updateJobBatch calls updateJobBatchWithRetry with the number of retries set to 1.
+func (repo *RedisJobRepository) updateJobBatch(ids []string, mutator func([]*api.Job)) ([]UpdateJobResult, error) {
+	return repo.updateJobBatchWithRetry(ids, mutator, 1, time.Millisecond)
 }
 
-func (repo *RedisJobRepository) updateJobBatch(ids []string, mutator func([]*api.Job)) ([]UpdateJobResult, error) {
+// updateJobBatch reads jobs from Redis, applies mutator separately for each job, and writes the
+// updated jobs back to Redis. This process is performed in an optimistic lock, such that the
+// updated jobs are written back to Redis only if none of the jobs were changed in Redis between
+// being read and written back.
+//
+// Any jobs that can't be found are ignored.
+//
+// For this reason, mutator may not read from any additional keys in Redis, since those keys
+// would not be covered by the optimistic lock.
+//
+// This process is attempted up to maxRetries times and each attempt is separated by retryDelay.
+func (repo *RedisJobRepository) updateJobBatchWithRetry(ids []string, mutator func([]*api.Job), maxRetries int, retryDelay time.Duration) ([]UpdateJobResult, error) {
 
+	// Redis supports transactions via optimistic locking using the WATCH/READ/SET pattern
+	// First, we mark all keys that the operation depends on
+	// Hence, keysToWatch must contain all keys read from inside txf (see below)
 	var keysToWatch []string
 	for _, id := range ids {
 		keysToWatch = append(keysToWatch, jobObjectPrefix+id)
 	}
 
+	// Transactional function
 	result := []UpdateJobResult{}
-	err := repo.db.Watch(func(tx *redis.Tx) error {
+	txf := func(tx *redis.Tx) error {
 
-		// There is currently no clean way to implement the WATCH/GET/MULTI/SET/EXEC pattern with go-redis
-		// because Watch() calls both WATCH and MULTI together.
-		// To work round this, GetExistingJobsByIds is delberately using a separate Redis connection, not tx.Pipeline().
+		// Read all data the operation depends on
+		// All keys read by GetExistingJobsByIds must be added to keysToWatch
 		jobs, err := repo.GetExistingJobsByIds(ids)
 		if err != nil {
-			return err
+			return fmt.Errorf("[RedisJobRepository.updateJobBatch] error reading jobs: %w", err)
 		}
 
+		// Operation to run (locally in optimistic lock)
 		mutator(jobs)
 
+		// Marshal the resulting jobs in preparation for writing back to Redis
 		jobDatas := make([][]byte, len(jobs))
 		for i, job := range jobs {
 			jobData, err := proto.Marshal(job)
 			if err != nil {
-				return err
+				return fmt.Errorf("[RedisJobRepository.updateJobBatch] error marshalling job: %s", err)
 			}
 			jobDatas[i] = jobData
 		}
 
+		// Write to Redis
+		// The watched keys are unwatched upon calling exec.
+		// For this reason, we must use a TxPipe, which guarantees that the operations added
+		// to the pipe are performed in sequence without being interleaved with other concurrent
+		// operations. If we use a regular pipe, there is a race condition, where another client
+		// mutates a value this function depends on after we have unwatched it, but before we have
+		// written out results back to Redis.
 		commands := make([]*redis.Cmd, len(jobs))
-		pipe := tx.Pipeline()
+		pipe := tx.TxPipeline()
 		updateJobAndPriorityScript.Load(pipe)
-
 		for i, job := range jobs {
-			commands[i] = updateJobAndPriority(pipe, job, job.Priority, &jobDatas[i])
+			newPriority := job.Priority
+			jobData := &jobDatas[i]
+			commands[i] = updateJobAndPriorityScript.Run(
+				pipe,
+				[]string{jobQueuePrefix + job.Queue, jobObjectPrefix + job.Id},
+				job.Id, newPriority, *jobData,
+			)
 		}
+
+		// TODO We append to results even if an error occurs. However, we only return results if
+		// exec doesn't return an error. Because exec returns error in the commands it executes,
+		// this means that we results isn't returned if any single command errors.
 		_, err = pipe.Exec()
-		if err != nil {
+		if err == redis.TxFailedErr { // Indicates we lost the optimistic lock
 			return err
+		} else if err != nil {
+			return fmt.Errorf("[RedisJobRepository.updateJobBatch] error executing pipelined commands: %s", err)
 		}
 
 		for i, cmd := range commands {
 			err := cmd.Err()
 			if err != nil {
-				log.Warnf("UpdateJobs: Failed to update job %s: %v", jobs[i].Id, err)
+				log.Warnf("[RedisJobRepository.updateJobBatch]: error updating job %s: %s", jobs[i].Id, err)
 				result = append(result, UpdateJobResult{JobId: jobs[i].Id, Job: nil, Error: err})
 			} else {
 				result = append(result, UpdateJobResult{JobId: jobs[i].Id, Job: jobs[i], Error: nil})
@@ -593,19 +718,32 @@ func (repo *RedisJobRepository) updateJobBatch(ids []string, mutator func([]*api
 		}
 
 		return nil
-	}, keysToWatch...)
-
-	if err != nil {
-		return nil, err
 	}
 
-	return result, nil
-}
+	// Run txf under optimistic lock on keys in keysToWatch
+	for retries := 0; retries < maxRetries; retries++ {
+		err := repo.db.Watch(txf, keysToWatch...)
+		if err == nil {
+			// Success.
+			return result, nil
+		}
+		if err == redis.TxFailedErr {
+			// Optimistic lock lost. Retry.
 
-func updateJobAndPriority(db redis.Cmdable, job *api.Job, newPriority float64, jobData *[]byte) *redis.Cmd {
-	return updateJobAndPriorityScript.Run(db,
-		[]string{jobQueuePrefix + job.Queue, jobObjectPrefix + job.Id},
-		job.Id, newPriority, *jobData)
+			// TODO Do we need a delay here? If we do, we should use delay of random length,
+			// since, with a fixed delay, if multiple threads are calling this function
+			// concurrently, those functions could contend at each retry.
+			time.Sleep(retryDelay)
+			continue
+		}
+		// Return any other error.
+		return nil, fmt.Errorf("[RedisJobRepository.updateJobBatchWithRetry] error updating jobs: %w", err)
+	}
+
+	// TODO I think we should return a more informative error message instead of logging a warning
+	// and returning a Redis error. I leave it for now since tests depend on getting a redis.TxFailedErr
+	log.Warnf("[RedisJobRepository.updateJobBatchWithRetry]: Redis Transaction failed after retrying, giving up (job ids %s)", strings.Join(ids, ", "))
+	return nil, redis.TxFailedErr
 }
 
 // If the job key has a defined TTL, it implies that the job has finished and updating is irrelevant
@@ -639,12 +777,8 @@ type RunInfo struct {
 	CurrentClusterId string
 }
 
-/*
- Returns the run info of each job id for the cluster they are currently associated with (leased by)
- Jobs with no value will be omitted from the results, which happens in the following cases:
- - The job is not associated with a cluster
- - The job has does not have a start time for the cluster it is associated with
-*/
+// GetJobRunInfos returns run info for the cluster that each of the provided jobs is leased to.
+// Jobs not leased to any cluster or that does not have a start time are omitted.
 func (repo *RedisJobRepository) GetJobRunInfos(jobIds []string) (map[string]*RunInfo, error) {
 	runInfos := make(map[string]*RunInfo, len(jobIds))
 
@@ -662,9 +796,9 @@ func (repo *RedisJobRepository) GetJobRunInfos(jobIds []string) (map[string]*Run
 		}
 	}
 
-	_, e := pipe.Exec()
-	if e != nil && e != redis.Nil {
-		return runInfos, e
+	_, err = pipe.Exec()
+	if err != nil && err != redis.Nil {
+		return runInfos, fmt.Errorf("[RedisJobRepository.GetJobRunInfos] error executing pipelined commands: %s", err)
 	}
 
 	for jobId, cmd := range cmds {
@@ -685,8 +819,11 @@ func (repo *RedisJobRepository) GetJobRunInfos(jobIds []string) (map[string]*Run
 }
 
 func (repo *RedisJobRepository) GetQueueJobIds(queueName string) ([]string, error) {
-	queuedIds, e := repo.db.ZRange(jobQueuePrefix+queueName, 0, -1).Result()
-	return queuedIds, e
+	queuedIds, err := repo.db.ZRange(jobQueuePrefix+queueName, 0, -1).Result()
+	if err != nil {
+		return nil, fmt.Errorf("[RedisJobRepository.GetQueueJobIds] error reading from database: %s", err)
+	}
+	return queuedIds, nil
 }
 
 func (repo *RedisJobRepository) GetActiveJobIds(queue string, jobSetId string) ([]string, error) {
@@ -695,19 +832,22 @@ func (repo *RedisJobRepository) GetActiveJobIds(queue string, jobSetId string) (
 	queuedIdsCommand := tx.ZRange(jobQueuePrefix+queue, 0, -1)
 	leasedIdsCommand := tx.ZRange(jobLeasedPrefix+queue, 0, -1)
 	jobSetIdsCommand := tx.SMembers(jobSetPrefix + jobSetId)
-	_, _ = tx.Exec()
-
-	queuedIds, e := queuedIdsCommand.Result()
-	if e != nil {
-		return nil, e
+	_, execErr := tx.Exec()
+	queuedIds, err := queuedIdsCommand.Result()
+	if err != nil {
+		return nil, fmt.Errorf("[RedisJobRepository.GetActiveJobIds] error reading IDs for queued jobs: %s", err)
 	}
-	leasedIds, e := leasedIdsCommand.Result()
-	if e != nil {
-		return nil, e
+	leasedIds, err := leasedIdsCommand.Result()
+	if err != nil {
+		return nil, fmt.Errorf("[RedisJobRepository.GetActiveJobIds] error reading IDs for leased jobs: %s", err)
 	}
-	jobSetIds, e := jobSetIdsCommand.Result()
-	if e != nil {
-		return nil, e
+	jobSetIds, err := jobSetIdsCommand.Result()
+	if err != nil {
+		return nil, fmt.Errorf("[RedisJobRepository.GetActiveJobIds] error reading job set IDs: %s", err)
+	}
+	err = execErr
+	if err != nil {
+		return nil, fmt.Errorf("[RedisJobRepository.GetActiveJobIds] error executing pipelined commands: %s", err)
 	}
 
 	activeIds := util.StringListToSet(append(queuedIds, leasedIds...))
@@ -720,27 +860,41 @@ func (repo *RedisJobRepository) GetActiveJobIds(queue string, jobSetId string) (
 	return activeSetIds, nil
 }
 
+// GetQueueActiveJobSets returns a list of length equal to the number of unique job sets
+// in the given queue, where each element contains the number of queued and leased jobs
+// that are part of that job set.
 func (repo *RedisJobRepository) GetQueueActiveJobSets(queue string) ([]*api.JobSetInfo, error) {
 
 	tx := repo.db.TxPipeline()
 	queuedIdsCommand := tx.ZRange(jobQueuePrefix+queue, 0, -1)
 	leasedIdsCommand := tx.ZRange(jobLeasedPrefix+queue, 0, -1)
-	_, _ = tx.Exec()
 
-	queuedIds, e := queuedIdsCommand.Result()
-	if e != nil {
-		return nil, e
+	// If there's an error internal to Exec, an error is returned
+	// If any of the commands submitted to exec errors, the first error is returned
+	_, execErr := tx.Exec()
+	queuedIds, err := queuedIdsCommand.Result()
+	if err != nil {
+		return nil, fmt.Errorf("[RedisJobRepository.GetQueueActiveJobSets] error getting queued job IDs: %s", err)
 	}
-	leasedIds, e := leasedIdsCommand.Result()
-	if e != nil {
-		return nil, e
+	leasedIds, err := leasedIdsCommand.Result()
+	if err != nil {
+		return nil, fmt.Errorf("[RedisJobRepository.GetQueueActiveJobSets] error getting leased job IDs: %s", err)
 	}
 
+	// Since we already checked the individual commands, this should only return errors internal to Exec
+	// (unless the underlying Redis implementation has been changed)
+	err = execErr
+	if err != nil {
+		return nil, fmt.Errorf("[RedisJobRepository.GetQueueActiveJobSets] error executing pipelined commands: %s", err)
+	}
+
+	// Maps job set IDs to objects containing the number of queued and leased jobs for each job set
 	jobSets := map[string]*api.JobSetInfo{}
 
-	leasedJobs, e := repo.GetExistingJobsByIds(leasedIds)
-	if e != nil {
-		return nil, e
+	// Count number of leased jobs
+	leasedJobs, err := repo.GetExistingJobsByIds(leasedIds)
+	if err != nil {
+		return nil, fmt.Errorf("[RedisJobRepository.GetQueueActiveJobSets] error getting info for leased jobs: %w", err)
 	}
 	for _, job := range leasedJobs {
 		info, ok := jobSets[job.JobSetId]
@@ -751,9 +905,10 @@ func (repo *RedisJobRepository) GetQueueActiveJobSets(queue string) ([]*api.JobS
 		info.LeasedJobs++
 	}
 
-	queuedJobs, e := repo.GetExistingJobsByIds(queuedIds)
-	if e != nil {
-		return nil, e
+	// Count number of queued jobs
+	queuedJobs, err := repo.GetExistingJobsByIds(queuedIds)
+	if err != nil {
+		return nil, fmt.Errorf("[RedisJobRepository.GetQueueActiveJobSets] error getting info for queued jobs: %w", err)
 	}
 	for _, job := range queuedJobs {
 		info, ok := jobSets[job.JobSetId]
@@ -764,10 +919,12 @@ func (repo *RedisJobRepository) GetQueueActiveJobSets(queue string) ([]*api.JobS
 		info.QueuedJobs++
 	}
 
+	// Flatten the map
 	result := []*api.JobSetInfo{}
 	for _, i := range jobSets {
 		result = append(result, i)
 	}
+
 	return result, nil
 }
 
@@ -775,13 +932,13 @@ func (repo *RedisJobRepository) ExpireLeases(queue string, deadline time.Time) (
 	maxScore := strconv.FormatInt(deadline.UnixNano(), 10)
 
 	// TODO: expire just limited number here ???
-	ids, e := repo.db.ZRangeByScore(jobLeasedPrefix+queue, redis.ZRangeBy{Max: maxScore, Min: "-Inf"}).Result()
-	if e != nil {
-		return nil, e
+	ids, err := repo.db.ZRangeByScore(jobLeasedPrefix+queue, redis.ZRangeBy{Max: maxScore, Min: "-Inf"}).Result()
+	if err != nil {
+		return nil, fmt.Errorf("[RedisJobRepository.ExpireLeases] error getting leased jobs: %s", err)
 	}
-	expiringJobs, e := repo.GetExistingJobsByIds(ids)
-	if e != nil {
-		return nil, e
+	expiringJobs, err := repo.GetExistingJobsByIds(ids)
+	if err != nil {
+		return nil, fmt.Errorf("[RedisJobRepository.ExpireLeases] error getting job info: %w", err)
 	}
 
 	expired := make([]*api.Job, 0)
@@ -796,16 +953,17 @@ func (repo *RedisJobRepository) ExpireLeases(queue string, deadline time.Time) (
 	for _, job := range expiringJobs {
 		cmds[job] = expire(pipe, job.Queue, job.Id, job.Priority, deadline)
 	}
-	_, e = pipe.Exec()
-
-	if e != nil {
-		return nil, e
+	_, err = pipe.Exec()
+	if err != nil {
+		return nil, fmt.Errorf("[RedisJobRepository.ExpireLeases] error executing pipelined commands: %s", err)
 	}
 
 	for job, cmd := range cmds {
-		value, e := cmd.Int()
-		if e != nil {
-			log.Error(e)
+		value, err := cmd.Int()
+		if err != nil {
+			// This happens if the job is missing or if the return code can't be parsed to an int
+			err = fmt.Errorf("[RedisJobRepository.ExpireLeases] error getting script return code: %s", err)
+			log.Error(err)
 		} else if value > 0 {
 			expired = append(expired, job)
 		}
@@ -815,21 +973,23 @@ func (repo *RedisJobRepository) ExpireLeases(queue string, deadline time.Time) (
 
 func (repo *RedisJobRepository) AddRetryAttempt(jobId string) error {
 	_, err := repo.db.Incr(jobRetriesPrefix + jobId).Result()
-	return err
+	if err != nil {
+		return fmt.Errorf("[RedisJobRepository.AddRetryAttempt] error updating database: %s", err)
+	}
+	return nil
 }
 
 func (repo *RedisJobRepository) GetNumberOfRetryAttempts(jobId string) (int, error) {
 	retriesStr, err := repo.db.Get(jobRetriesPrefix + jobId).Result()
 	if err == redis.Nil {
 		return 0, nil
-	}
-	if err != nil {
-		return 0, err
+	} else if err != nil {
+		return 0, fmt.Errorf("[RedisJobRepository.GetNumberOfRetryAttempts] error reading from database: %s", err)
 	}
 
 	retries, err := strconv.Atoi(retriesStr)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("[RedisJobRepository.GetNumberOfRetryAttempts] error converting string to int: %s", err)
 	}
 
 	return retries, nil
@@ -840,22 +1000,25 @@ func (repo *RedisJobRepository) leaseJobs(clusterId string, jobs []*api.Job) ([]
 	now := time.Now()
 	pipe := repo.db.Pipeline()
 
+	// Calling run on a script should automatically load the script into server-side cache.
+	// However, calling script.Run() without first calling script.Load() results in a NOSCRIPT error,
+	// perhaps due to a bug in go-redis.
 	leaseJobScript.Load(pipe)
 
 	cmds := make(map[string]*redis.Cmd)
 	for _, job := range jobs {
 		cmds[job.Id] = leaseJob(pipe, job.Queue, clusterId, job.Id, now)
 	}
-	_, e := pipe.Exec()
-	if e != nil {
-		return nil, e
+	_, err := pipe.Exec()
+	if err != nil {
+		return nil, fmt.Errorf("[RedisJobRepository.leaseJobs] error executing pipelined commands: %s", err)
 	}
 
 	leasedJobs := make([]string, 0)
 	for jobId, cmd := range cmds {
-		value, e := cmd.Int()
-		if e != nil {
-			log.Error(e)
+		value, err := cmd.Int()
+		if err != nil {
+			log.Error(err)
 		} else if value == alreadyAllocatedByDifferentCluster {
 			log.WithField("jobId", jobId).Info("Job Already allocated to different cluster")
 		} else if value == jobCancelled {
@@ -873,6 +1036,8 @@ func addJob(db redis.Cmdable, job *api.Job, jobData *[]byte) *redis.Cmd {
 		job.Id, job.Priority, *jobData, job.ClientId)
 }
 
+// This script will create the queue if it doesn't already exist.
+// To avoid creating queues implicitly, code executing this script must ensure that the queue already exists.
 var addJobScript = redis.NewScript(`
 local queueKey = KEYS[1]
 local jobKey = KEYS[2]
