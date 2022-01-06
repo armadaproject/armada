@@ -131,8 +131,7 @@ func calculateQueueSchedulingLimits(
 	return schedulingInfo
 }
 
-// TODO Do we need to log error messages here?
-// Errors will be logged with more information at the gRPC handler.
+// TODO Remove logging code here. Instead, log at the gRPC handlers/interceptors with more info.
 func (c *leaseContext) scheduleJobs(limit LeasePayloadLimit) ([]*api.Job, error) {
 	jobs := []*api.Job{}
 
