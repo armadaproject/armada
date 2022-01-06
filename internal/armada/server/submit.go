@@ -471,6 +471,11 @@ func (server *SubmitServer) reportReprioritizedJobEvents(reprioritizedJobs []*ap
 // This function validates the jobs in the request and the pod specs. in each job.
 // If any job or pod in invalid, an error is returned.
 func (server *SubmitServer) createJobs(request *api.JobSubmitRequest, owner string, ownershipGroups []string) ([]*api.Job, error) {
+	return server.createJobsObjects(request, owner, ownershipGroups, time.Now, util.NewULID)
+}
+
+func (server *SubmitServer) createJobsObjects(request *api.JobSubmitRequest, owner string, ownershipGroups []string,
+	getTime func() time.Time, getUlid func() string) ([]*api.Job, error) {
 	jobs := make([]*api.Job, 0, len(request.JobRequestItems))
 
 	if request.JobSetId == "" {
@@ -501,7 +506,10 @@ func (server *SubmitServer) createJobs(request *api.JobSubmitRequest, owner stri
 			namespace = "default"
 		}
 
-		for j, podSpec := range podSpecs {
+		for j, podSpec := range item.GetAllPodSpecs() {
+			if podSpec != nil {
+				fillContainerRequestsAndLimits(podSpec.Containers)
+			}
 			server.applyDefaultsToPodSpec(podSpec)
 			err := validation.ValidatePodSpec(podSpec, server.schedulingConfig)
 			if err != nil {
@@ -517,8 +525,11 @@ func (server *SubmitServer) createJobs(request *api.JobSubmitRequest, owner stri
 			}
 		}
 
+		jobId := getUlid()
+		enrichText(item.Labels, jobId)
+		enrichText(item.Annotations, jobId)
 		j := &api.Job{
-			Id:       util.NewULID(),
+			Id:       jobId,
 			ClientId: item.ClientId,
 			Queue:    request.Queue,
 			JobSetId: request.JobSetId,
@@ -535,7 +546,7 @@ func (server *SubmitServer) createJobs(request *api.JobSubmitRequest, owner stri
 
 			PodSpec:                  item.PodSpec,
 			PodSpecs:                 item.PodSpecs,
-			Created:                  time.Now(),
+			Created:                  getTime(), // Replaced with now for mocking unit test
 			Owner:                    owner,
 			QueueOwnershipUserGroups: ownershipGroups,
 		}
@@ -543,6 +554,14 @@ func (server *SubmitServer) createJobs(request *api.JobSubmitRequest, owner stri
 	}
 
 	return jobs, nil
+}
+
+func enrichText(labels map[string]string, jobId string) {
+	for key, value := range labels {
+		value := strings.ReplaceAll(value, "{{JobId}}", ` \z`) // \z cannot be entered manually, hence its use
+		value = strings.ReplaceAll(value, "{JobId}", jobId)
+		labels[key] = strings.ReplaceAll(value, ` \z`, "JobId")
+	}
 }
 
 func (server *SubmitServer) applyDefaultsToPodSpec(spec *v1.PodSpec) {
@@ -581,6 +600,34 @@ func (server *SubmitServer) applyDefaultsToPodSpec(spec *v1.PodSpec) {
 		podToleration, ok := podTolerations[defaultToleration.Key]
 		if !ok || !defaultToleration.MatchToleration(&podToleration) {
 			spec.Tolerations = append(spec.Tolerations, defaultToleration)
+		}
+	}
+}
+
+// fillContainerRequestAndLimits updates resource's requests/limits of container to match the value of
+// limits/requests if the resource doesn't have requests/limits setup. If a Container specifies its own
+// memory limit, but does not specify a memory request, assign a memory request that matches the limit.
+// Similarly, if a Container specifies its own CPU limit, but does not specify a CPU request, automatically
+// assigns a CPU request that matches the limit.
+func fillContainerRequestsAndLimits(containers []v1.Container) {
+	for index := range containers {
+		if containers[index].Resources.Limits == nil {
+			containers[index].Resources.Limits = v1.ResourceList{}
+		}
+		if containers[index].Resources.Requests == nil {
+			containers[index].Resources.Requests = v1.ResourceList{}
+		}
+
+		for resourceName, quantity := range containers[index].Resources.Limits {
+			if _, ok := containers[index].Resources.Requests[resourceName]; !ok {
+				containers[index].Resources.Requests[resourceName] = quantity
+			}
+		}
+
+		for resourceName, quantity := range containers[index].Resources.Requests {
+			if _, ok := containers[index].Resources.Limits[resourceName]; !ok {
+				containers[index].Resources.Limits[resourceName] = quantity
+			}
 		}
 	}
 }

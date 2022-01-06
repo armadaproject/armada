@@ -3,8 +3,10 @@ package server
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"sort"
 	"testing"
+	"testing/quick"
 	"time"
 
 	"github.com/go-redis/redis"
@@ -614,6 +616,49 @@ func TestSubmitServer_ReprioritizeJobs(t *testing.T) {
 	})
 }
 
+func TestFillContainerRequestAndLimits(t *testing.T) {
+	testCases := map[string]interface{}{
+		"limitsNotSet": func(containers []v1.Container) bool {
+			for index := range containers {
+				containers[index].Resources.Limits = nil
+			}
+			fillContainerRequestsAndLimits(containers)
+
+			for _, container := range containers {
+				resources := container.Resources
+				if !reflect.DeepEqual(resources.Requests, resources.Limits) {
+					return false
+				}
+			}
+
+			return true
+		},
+		"requestsNotSet": func(containers []v1.Container) bool {
+			for index := range containers {
+				containers[index].Resources.Requests = nil
+			}
+			fillContainerRequestsAndLimits(containers)
+
+			for _, container := range containers {
+				resources := container.Resources
+				if !reflect.DeepEqual(resources.Requests, resources.Limits) {
+					return false
+				}
+			}
+
+			return true
+		},
+	}
+
+	for name, testCase := range testCases {
+		t.Run(name, func(subT *testing.T) {
+			if err := quick.Check(testCase, nil); err != nil {
+				subT.Fatal(err)
+			}
+		})
+	}
+}
+
 func readJobEvents(events repository.EventRepository, jobSetId string) ([]*api.EventStreamMessage, error) {
 	messages, err := events.ReadEvents("test", jobSetId, "", 100, 5*time.Second)
 	if err != nil {
@@ -726,4 +771,109 @@ func withSubmitServerAndRepos(action func(s *SubmitServer, jobRepo repository.Jo
 
 	action(server, jobRepo, eventRepo)
 	_, _ = client.FlushDB().Result()
+}
+
+func TestSubmitServer_CreateJobs_WithJobIdReplacement(t *testing.T) {
+	timeNow := time.Now()
+	mockNow := func() time.Time {
+		return timeNow
+	}
+	mockNewULID := func() string {
+		return "test-ulid"
+	}
+
+	expected := []*api.Job{
+		{
+			Id:       "test-ulid",
+			ClientId: "0",
+			Queue:    "test",
+			JobSetId: "test-jobsetid",
+
+			Namespace: "test",
+			Labels: map[string]string{
+				"a.label": "job-id-is-test-ulid",
+			},
+			Annotations: map[string]string{
+				"a.nnotation": "job-id-is-test-ulid",
+			},
+
+			Priority: 1,
+
+			Created: mockNow(),
+			PodSpecs: []*v1.PodSpec{
+				{
+					Containers: []v1.Container{
+						{
+							Name:  "app",
+							Image: "test:latest",
+							Resources: v1.ResourceRequirements{
+								Limits: v1.ResourceList{
+									"cpu":    resource.MustParse("1"),
+									"memory": resource.MustParse("100Mi"),
+								},
+								Requests: v1.ResourceList{
+									"cpu":    resource.MustParse("1"),
+									"memory": resource.MustParse("100Mi"),
+								},
+							},
+						},
+					},
+					Tolerations: []v1.Toleration{
+						{
+							Key:      "default",
+							Operator: "Equal",
+							Value:    "true",
+							Effect:   "NoSchedule",
+						},
+					},
+				},
+			},
+			Owner:                    "test",
+			QueueOwnershipUserGroups: []string{},
+		},
+	}
+
+	request := &api.JobSubmitRequest{
+		Queue:    "test",
+		JobSetId: "test-jobsetid",
+		JobRequestItems: []*api.JobSubmitRequestItem{
+			{
+				Priority:  1,
+				Namespace: "test",
+				ClientId:  "0",
+				Labels: map[string]string{
+					"a.label": "job-id-is-{JobId}",
+				},
+				Annotations: map[string]string{
+					"a.nnotation": "job-id-is-{JobId}",
+				},
+				PodSpecs: []*v1.PodSpec{
+					{
+						Containers: []v1.Container{
+							{
+								Name:  "app",
+								Image: "test:latest",
+								Resources: v1.ResourceRequirements{
+									Limits: v1.ResourceList{
+										"cpu":    resource.MustParse("1"),
+										"memory": resource.MustParse("100Mi"),
+									},
+									Requests: v1.ResourceList{
+										"cpu":    resource.MustParse("1"),
+										"memory": resource.MustParse("100Mi"),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	ownershipGroups := make([]string, 0)
+	withSubmitServer(func(s *SubmitServer, events repository.EventRepository) {
+		output, err := s.createJobsObjects(request, "test", ownershipGroups, mockNow, mockNewULID)
+		assert.NoError(t, err)
+		assert.Equal(t, expected, output)
+	})
 }
