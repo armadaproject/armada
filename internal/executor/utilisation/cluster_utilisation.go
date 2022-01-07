@@ -11,6 +11,7 @@ import (
 	"github.com/G-Research/armada/internal/executor/context"
 	"github.com/G-Research/armada/internal/executor/domain"
 	"github.com/G-Research/armada/internal/executor/node"
+	"github.com/G-Research/armada/internal/executor/util"
 	. "github.com/G-Research/armada/internal/executor/util"
 	"github.com/G-Research/armada/pkg/api"
 )
@@ -49,6 +50,7 @@ type NodeGroupAllocationInfo struct {
 	Nodes                        []*v1.Node
 	NodeGroupCapacity            common.ComputeResources
 	NodeGroupAllocatableCapacity common.ComputeResources
+	NodeGroupCordonedCapacity    common.ComputeResources
 }
 
 func (clusterUtilisationService *ClusterUtilisationService) ReportClusterUtilisation() {
@@ -74,6 +76,7 @@ func (clusterUtilisationService *ClusterUtilisationService) ReportClusterUtilisa
 			Capacity:          nodeGroup.NodeGroupCapacity,
 			AvailableCapacity: nodeGroup.NodeGroupAllocatableCapacity,
 			Queues:            queueReports,
+			CordonedUsage:     nodeGroup.NodeGroupCordonedCapacity,
 		})
 	}
 
@@ -154,13 +157,22 @@ func getAllocatedResourceByNodeName(pods []*v1.Pod) map[string]common.ComputeRes
 	return allocations
 }
 
+// GetAllNodeGroupAllocationInfo returns allocation information for all nodes on the cluster.
+// NodeGroupCapacity is the total capacity of a nodegroup (including cordoned nodes)
+// NodeGroupAllocatableCapacity is the capacity available to armada on schedulable nodes
+// NodeGroupCordonedCapacity is the resource in use by armada on unschedulable nodes
 func (clusterUtilisationService *ClusterUtilisationService) GetAllNodeGroupAllocationInfo() ([]*NodeGroupAllocationInfo, error) {
-	allAvailableProcessingNodes, err := clusterUtilisationService.nodeInfoService.GetAllAvailableProcessingNodes()
+	allAvailableProcessingNodes, err := clusterUtilisationService.nodeInfoService.GetAllNodes()
 	if err != nil {
 		return []*NodeGroupAllocationInfo{}, err
 	}
 
 	allocatableResourceByNodeType, err := clusterUtilisationService.getAllocatableResourceByNodeType()
+	if err != nil {
+		return []*NodeGroupAllocationInfo{}, err
+	}
+
+	batchPods, err := clusterUtilisationService.clusterContext.GetBatchPods()
 	if err != nil {
 		return []*NodeGroupAllocationInfo{}, err
 	}
@@ -171,18 +183,38 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAllNodeGroupAlloc
 	for _, nodeGroup := range nodeGroups {
 		totalNodeResource := common.CalculateTotalResource(nodeGroup.Nodes)
 		allocatableNodeResource := allocatableResourceByNodeType[nodeGroup.NodeType.Id]
+		cordonedNodeResource := getCordonedResource(nodeGroup.Nodes, batchPods)
 
 		result = append(result, &NodeGroupAllocationInfo{
 			NodeType:                     nodeGroup.NodeType,
 			Nodes:                        nodeGroup.Nodes,
 			NodeGroupCapacity:            totalNodeResource,
 			NodeGroupAllocatableCapacity: allocatableNodeResource,
+			NodeGroupCordonedCapacity:    cordonedNodeResource,
 		})
 	}
 
 	return result, nil
 }
 
+// getCordonedResource takes a list of nodes and a list of pods and returns the resources allocated
+// to pods running on cordoned nodes. We need this information in calculating queue fair shares when
+// significant resource is running on cordoned nodes.
+func getCordonedResource(nodes []*v1.Node, pods []*v1.Pod) common.ComputeResources {
+	cordonedNodes := util.FilterNodes(nodes, func(node *v1.Node) bool { return node.Spec.Unschedulable })
+	podsOnNodes := GetPodsOnNodes(pods, cordonedNodes)
+	usage := common.ComputeResources{}
+	for _, pod := range podsOnNodes {
+		for _, container := range pod.Spec.Containers {
+			containerResource := common.FromResourceList(container.Resources.Limits) // Not 100% on whether this should be Requests or Limits
+			usage.Add(containerResource)
+		}
+	}
+	return usage
+}
+
+// getAllocatableResourceByNodeType returns all allocatable resource currently available on schedulable nodes.
+// Resource locked away on cordoned nodes is dealt with in getCordonedResource.
 func (clusterUtilisationService *ClusterUtilisationService) getAllocatableResourceByNodeType() (map[string]common.ComputeResources, error) {
 	allAvailableProcessingNodes, err := clusterUtilisationService.nodeInfoService.GetAllAvailableProcessingNodes()
 	if err != nil {
