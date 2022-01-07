@@ -4,10 +4,11 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/G-Research/armada/internal/common/requestid"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
+
+	"github.com/G-Research/armada/internal/common/requestid"
 )
 
 // UnaryServerInterceptor returns an interceptor that adds the request id as a

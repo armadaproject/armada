@@ -4,13 +4,14 @@ import (
 	"context"
 	"testing"
 
-	"github.com/G-Research/armada/internal/common/requestid"
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/renstrom/shortuuid"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
+
+	"github.com/G-Research/armada/internal/common/requestid"
 )
 
 func TestUnaryServerInterceptor(t *testing.T) {
