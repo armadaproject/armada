@@ -2,6 +2,7 @@ package scheduling
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"math/rand"
 	"time"
@@ -95,7 +96,13 @@ func LeaseJobs(ctx context.Context,
 	}
 
 	schedulingLimit := NewLeasePayloadLimit(config.MaximumJobsToSchedule, config.MaximumLeasePayloadSizeBytes, int(config.MaxPodSpecSizeBytes))
-	return lc.scheduleJobs(schedulingLimit)
+
+	jobs, err := lc.scheduleJobs(schedulingLimit)
+	if err != nil {
+		return nil, fmt.Errorf("[LeaseJobs] error scheduling jobs: %s", err)
+	}
+
+	return jobs, nil
 }
 
 func calculateQueueSchedulingLimits(
@@ -124,23 +131,26 @@ func calculateQueueSchedulingLimits(
 	return schedulingInfo
 }
 
+// TODO Remove logging code here. Instead, log at the gRPC handlers/interceptors with more info.
 func (c *leaseContext) scheduleJobs(limit LeasePayloadLimit) ([]*api.Job, error) {
 	jobs := []*api.Job{}
 
 	if !c.schedulingConfig.UseProbabilisticSchedulingForAllResources {
-		assignedJobs, e := c.assignJobs(limit)
-		if e != nil {
-			log.Errorf("Error when leasing jobs for cluster %s: %s", c.clusterId, e)
-			return nil, e
+		assignedJobs, err := c.assignJobs(limit)
+		if err != nil {
+			err = fmt.Errorf("[leaseContext.scheduleJobs] error leasing jobs to cluster %s: %s", c.clusterId, err)
+			log.Error(err)
+			return nil, err
 		}
 		jobs = assignedJobs
 		limit.RemoveFromRemainingLimit(jobs...)
 	}
 
-	additionalJobs, e := c.distributeRemainder(limit)
-	if e != nil {
-		log.Errorf("Error when leasing jobs for cluster %s: %s", c.clusterId, e)
-		return nil, e
+	additionalJobs, err := c.distributeRemainder(limit)
+	if err != nil {
+		err = fmt.Errorf("[leaseContext.scheduleJobs] error leasing additional jobs to cluster %s: %s", c.clusterId, err)
+		log.Error(err)
+		return nil, err
 	}
 	jobs = append(jobs, additionalJobs...)
 

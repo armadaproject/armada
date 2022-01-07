@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/go-redis/redis"
@@ -87,19 +88,17 @@ func (repo *RedisEventRepository) ReadEvents(queue, jobSetId string, lastId stri
 		lastId = "0"
 	}
 
-	cmd, e := repo.db.XRead(&redis.XReadArgs{
+	cmd, err := repo.db.XRead(&redis.XReadArgs{
 		Streams: []string{getJobSetEventsKey(queue, jobSetId), lastId},
 		Count:   limit,
 		Block:   block,
 	}).Result()
 
 	// redis signals empty list by Nil
-	if e == redis.Nil {
+	if err == redis.Nil {
 		return make([]*api.EventStreamMessage, 0), nil
-	}
-
-	if e != nil {
-		return nil, e
+	} else if err != nil {
+		return nil, fmt.Errorf("[RedisEventRepository.ReadEvents] error reading from database: %s", err)
 	}
 
 	messages := make([]*api.EventStreamMessage, 0)
@@ -107,9 +106,9 @@ func (repo *RedisEventRepository) ReadEvents(queue, jobSetId string, lastId stri
 		data := m.Values[dataKey]
 		msg := &api.EventMessage{}
 		bytes := []byte(data.(string))
-		e = proto.Unmarshal(bytes, msg)
-		if e != nil {
-			return nil, e
+		err = proto.Unmarshal(bytes, msg)
+		if err != nil {
+			return nil, fmt.Errorf("[RedisEventRepository.ReadEvents] error unmarshalling: %s", err)
 		}
 		messages = append(messages, &api.EventStreamMessage{Id: m.ID, Message: msg})
 	}
@@ -119,7 +118,7 @@ func (repo *RedisEventRepository) ReadEvents(queue, jobSetId string, lastId stri
 func (repo *RedisEventRepository) GetLastMessageId(queue, jobSetId string) (string, error) {
 	msg, err := repo.db.XRevRangeN(getJobSetEventsKey(queue, jobSetId), "+", "-", 1).Result()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("[RedisEventRepository.GetLastMessageId] error reading from database: %s", err)
 	}
 	if len(msg) > 0 {
 		return msg[0].ID, nil

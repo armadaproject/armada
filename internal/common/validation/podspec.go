@@ -56,13 +56,13 @@ func ValidatePodSpec(spec *v1.PodSpec, schedulingSpec *configuration.SchedulingC
 func validateContainerResource(
 	resourceSpec v1.ResourceList,
 	minJobResources v1.ResourceList,
-	container_name string,
-	requestOrLimit string,
+	containerName string,
+	requestType string,
 ) error {
 	for rc, containerRsc := range resourceSpec {
 		serverRsc, nonEmpty := minJobResources[rc]
 		if nonEmpty && containerRsc.Value() < serverRsc.Value() {
-			return fmt.Errorf("[validateContainerResource] container %q %s %s (%s) below server minimum (%s)", container_name, rc, requestOrLimit, &containerRsc, &serverRsc)
+			return fmt.Errorf("[validateContainerResource] container %q %s %s (%s) below server minimum (%s)", containerName, rc, requestType, &containerRsc, &serverRsc)
 		}
 	}
 	return nil

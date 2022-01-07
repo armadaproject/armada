@@ -772,3 +772,108 @@ func withSubmitServerAndRepos(action func(s *SubmitServer, jobRepo repository.Jo
 	action(server, jobRepo, eventRepo)
 	_, _ = client.FlushDB().Result()
 }
+
+func TestSubmitServer_CreateJobs_WithJobIdReplacement(t *testing.T) {
+	timeNow := time.Now()
+	mockNow := func() time.Time {
+		return timeNow
+	}
+	mockNewULID := func() string {
+		return "test-ulid"
+	}
+
+	expected := []*api.Job{
+		{
+			Id:       "test-ulid",
+			ClientId: "0",
+			Queue:    "test",
+			JobSetId: "test-jobsetid",
+
+			Namespace: "test",
+			Labels: map[string]string{
+				"a.label": "job-id-is-test-ulid",
+			},
+			Annotations: map[string]string{
+				"a.nnotation": "job-id-is-test-ulid",
+			},
+
+			Priority: 1,
+
+			Created: mockNow(),
+			PodSpecs: []*v1.PodSpec{
+				{
+					Containers: []v1.Container{
+						{
+							Name:  "app",
+							Image: "test:latest",
+							Resources: v1.ResourceRequirements{
+								Limits: v1.ResourceList{
+									"cpu":    resource.MustParse("1"),
+									"memory": resource.MustParse("100Mi"),
+								},
+								Requests: v1.ResourceList{
+									"cpu":    resource.MustParse("1"),
+									"memory": resource.MustParse("100Mi"),
+								},
+							},
+						},
+					},
+					Tolerations: []v1.Toleration{
+						{
+							Key:      "default",
+							Operator: "Equal",
+							Value:    "true",
+							Effect:   "NoSchedule",
+						},
+					},
+				},
+			},
+			Owner:                    "test",
+			QueueOwnershipUserGroups: []string{},
+		},
+	}
+
+	request := &api.JobSubmitRequest{
+		Queue:    "test",
+		JobSetId: "test-jobsetid",
+		JobRequestItems: []*api.JobSubmitRequestItem{
+			{
+				Priority:  1,
+				Namespace: "test",
+				ClientId:  "0",
+				Labels: map[string]string{
+					"a.label": "job-id-is-{JobId}",
+				},
+				Annotations: map[string]string{
+					"a.nnotation": "job-id-is-{JobId}",
+				},
+				PodSpecs: []*v1.PodSpec{
+					{
+						Containers: []v1.Container{
+							{
+								Name:  "app",
+								Image: "test:latest",
+								Resources: v1.ResourceRequirements{
+									Limits: v1.ResourceList{
+										"cpu":    resource.MustParse("1"),
+										"memory": resource.MustParse("100Mi"),
+									},
+									Requests: v1.ResourceList{
+										"cpu":    resource.MustParse("1"),
+										"memory": resource.MustParse("100Mi"),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	ownershipGroups := make([]string, 0)
+	withSubmitServer(func(s *SubmitServer, events repository.EventRepository) {
+		output, err := s.createJobsObjects(request, "test", ownershipGroups, mockNow, mockNewULID)
+		assert.NoError(t, err)
+		assert.Equal(t, expected, output)
+	})
+}

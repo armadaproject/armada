@@ -12,6 +12,8 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// TODO This file uses the functional approach to writing handlers.
+// For consistency, we should change it to use the same style as the others.
 type readEvents func(queue, jobSetId string, lastId string, limit int64, block time.Duration) ([]*api.EventStreamMessage, error)
 type authorize func(context.Context, permission.Permission) bool
 type sendEvent func(*api.EventStreamMessage) error

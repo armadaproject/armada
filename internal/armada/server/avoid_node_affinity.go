@@ -18,7 +18,7 @@ func addAvoidNodeAffinity(job *api.Job, avoidNodeLabels *api.OrderedStringMap, v
 
 		err := validateJobsCanBeScheduled([]*api.Job{candidateNewJob})
 		if err != nil {
-			log.Warnf("Not adding avoid node affinity for label %s=%s for job %s because doing so would mean the job would not match any nodes due to error: %v", label.Key, label.Value, job.Id, err)
+			log.Warnf("Not adding avoid node affinity for label %s=%s for job %s because doing so would mean the job would not match any nodes due to error: %s", label.Key, label.Value, job.Id, err)
 			continue
 		}
 
