@@ -183,7 +183,7 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAllNodeGroupAlloc
 	for _, nodeGroup := range nodeGroups {
 		totalNodeResource := common.CalculateTotalResource(nodeGroup.Nodes)
 		allocatableNodeResource := allocatableResourceByNodeType[nodeGroup.NodeType.Id]
-		cordonedNodeResource := clusterUtilisationService.getCordonedResource(nodeGroup.Nodes, batchPods)
+		cordonedNodeResource := getCordonedResource(nodeGroup.Nodes, batchPods)
 
 		result = append(result, &NodeGroupAllocationInfo{
 			NodeType:                     nodeGroup.NodeType,
@@ -200,7 +200,7 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAllNodeGroupAlloc
 // getCordonedResource takes a list of nodes and a list of pods and returns the resources allocated
 // to pods running on cordoned nodes. We need this information in calculating queue fair shares when
 // significant resource is running on cordoned nodes.
-func (clusterUtilisationService *ClusterUtilisationService) getCordonedResource(nodes []*v1.Node, pods []*v1.Pod) common.ComputeResources {
+func getCordonedResource(nodes []*v1.Node, pods []*v1.Pod) common.ComputeResources {
 	cordonedNodes := util.FilterNodes(nodes, func(node *v1.Node) bool { return node.Spec.Unschedulable })
 	podsOnNodes := GetPodsOnNodes(pods, cordonedNodes)
 	usage := common.ComputeResources{}
