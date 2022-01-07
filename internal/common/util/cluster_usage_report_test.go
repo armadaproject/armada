@@ -42,6 +42,37 @@ func TestGetClusterCapacity(t *testing.T) {
 	assert.True(t, result.Equal(expected))
 }
 
+func TestGetClusterCapacity_WhenNodesCordoned(t *testing.T) {
+	runningJob := common.ComputeResources{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")}
+	totalCap := common.ComputeResources{"cpu": resource.MustParse("10"), "memory": resource.MustParse("10Gi")}
+	nodeReport := createNodeInfoUsageReport("test", common.ComputeResources{}, totalCap)
+	nodeReport.CordonedUsage = runningJob.DeepCopy()
+
+	report := api.ClusterUsageReport{
+		NodeTypeUsageReports: []api.NodeTypeUsageReport{nodeReport},
+	}
+
+	assert.Equal(t, runningJob, GetClusterAvailableCapacity(&report))
+}
+
+func TestGetClusterCapacity_WhenNodesMixed(t *testing.T) {
+	runningJob := common.ComputeResources{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")}
+	totalCap := common.ComputeResources{"cpu": resource.MustParse("20"), "memory": resource.MustParse("20Gi")}
+	uncordoned := common.ComputeResources{"cpu": resource.MustParse("10"), "memory": resource.MustParse("10Gi")}
+	nodeReport := createNodeInfoUsageReport("test", uncordoned, totalCap)
+	nodeReport.CordonedUsage = runningJob.DeepCopy()
+
+	report := api.ClusterUsageReport{
+		NodeTypeUsageReports: []api.NodeTypeUsageReport{nodeReport},
+	}
+
+	expected := common.ComputeResources{}
+	expected.Add(runningJob)
+	expected.Add(uncordoned)
+
+	assert.Equal(t, expected, GetClusterAvailableCapacity(&report))
+}
+
 func TestGetClusterCapacity_WhenUsingDeprecatedFields(t *testing.T) {
 	capacity := common.ComputeResources{"cpu": resource.MustParse("2"), "memory": resource.MustParse("2Gi")}
 	clusterReport := &api.ClusterUsageReport{
