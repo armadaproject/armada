@@ -100,7 +100,8 @@ func submitPod(clusterContext context.ClusterContext) *v1.Pod {
 		Spec: v1.PodSpec{Containers: []v1.Container{
 			{
 				Resources: v1.ResourceRequirements{
-					podResources, podResources,
+					Limits:   podResources,
+					Requests: podResources,
 				},
 			},
 		}}}
