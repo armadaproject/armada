@@ -27,6 +27,7 @@ func TestCodeFromError(t *testing.T) {
 		"pkg.Error => ErrNotFound":        {errors.WithMessage(&ErrNotFound{}, "foo"), codes.NotFound},
 		"pkg.Error => ErrInvalidArgument": {errors.WithMessage(&ErrInvalidArgument{}, "foo"), codes.InvalidArgument},
 		"pkg.Error":                       {errors.New("foo"), codes.Unknown},
+		"nil":                             {nil, codes.OK},
 	}
 
 	for name, tc := range tests {
