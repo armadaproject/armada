@@ -84,6 +84,7 @@ func (err *ErrInvalidArgument) Error() string {
 func CodeFromError(err error) codes.Code {
 
 	// Check if the error is a gRPC status and, if so, return the embedded code.
+	// If the error is nil, this returns an OK status code.
 	if s, ok := status.FromError(err); ok {
 		return s.Code()
 	}
