@@ -5,13 +5,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/G-Research/armada/internal/common/requestid"
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+
+	"github.com/G-Research/armada/internal/common/requestid"
 )
 
 func TestCodeFromError(t *testing.T) {

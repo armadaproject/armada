@@ -11,11 +11,12 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/G-Research/armada/internal/common/requestid"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	"github.com/G-Research/armada/internal/common/requestid"
 )
 
 // ErrAlreadyExists is a generic error to be returned whenever some resource already exists.
