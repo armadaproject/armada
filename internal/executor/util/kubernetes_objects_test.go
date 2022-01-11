@@ -299,6 +299,7 @@ func TestCreateService_Ingress(t *testing.T) {
 				"armada_queue_id":   "test_queue_id",
 			},
 			Type: "ClusterIP",
+			ClusterIP: "None",
 		},
 	}
 	assert.Equal(t, createdService, expected)
