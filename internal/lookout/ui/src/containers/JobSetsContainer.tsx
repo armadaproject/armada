@@ -68,14 +68,14 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
       autoRefresh: true,
       lastSelectedIndex: 0,
       cancelJobSetsDialogContext: {
-        dialogState: "None",
+        dialogState: "Closed",
         queue: "",
         jobSetsToCancel: [],
         cancelJobSetsResult: { cancelledJobSets: [], failedJobSetCancellations: [] },
         cancelJobSetsRequestStatus: "Idle",
       },
       reprioritizeJobSetsDialogContext: {
-        dialogState: "None",
+        dialogState: "Closed",
         queue: "",
         isValid: false,
         newPriority: 0,
@@ -417,7 +417,7 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
           cancelJobSetsResult={this.state.cancelJobSetsDialogContext.cancelJobSetsResult}
           cancelJobSetsRequestStatus={this.state.cancelJobSetsDialogContext.cancelJobSetsRequestStatus}
           onCancelJobSets={this.cancelJobs}
-          onClose={() => this.setCancelJobSetsDialogState("None")}
+          onClose={() => this.setCancelJobSetsDialogState("Closed")}
         />
         <ReprioritizeJobSetsDialog
           dialogState={this.state.reprioritizeJobSetsDialogContext.dialogState}
@@ -431,7 +431,7 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
           }
           onReprioritizeJobSets={this.reprioritizeJobSets}
           onPriorityChange={this.handlePriorityChange}
-          onClose={() => this.setReprioritizeJobSetsDialogState("None")}
+          onClose={() => this.setReprioritizeJobSetsDialogState("Closed")}
         />
         <JobSets
           canCancel={

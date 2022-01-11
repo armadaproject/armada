@@ -14,18 +14,12 @@ import {
 } from "@material-ui/core"
 import { makeStyles } from "@material-ui/core/styles"
 
-import { ReprioritizeJobsResult } from "../../services/JobService"
-import LoadingButton from "./LoadingButton"
+import { CancelJobsResult } from "../../../services/JobService"
+import LoadingButton from "../LoadingButton"
 
 const useStyles = makeStyles((theme: Theme) =>
   createStyles({
     paper: {
-      backgroundColor: theme.palette.background.paper,
-      padding: theme.spacing(1, 4, 3),
-      outline: "none",
-      borderRadius: "0.66em",
-      maxHeight: "100%",
-      maxWidth: "100%",
       display: "flex",
       flexDirection: "column",
       overflow: "hidden",
@@ -56,22 +50,21 @@ const useStyles = makeStyles((theme: Theme) =>
   }),
 )
 
-type ReprioritizeJobsOutcomeProps = {
-  reprioritizeJobsResult: ReprioritizeJobsResult
-  newPriority: number
+type CancelJobsOutcomeProps = {
+  cancelJobsResult: CancelJobsResult
   isLoading: boolean
-  onReprioritizeJobs: () => void
+  onCancelJobs: () => void
 }
 
-export default function (props: ReprioritizeJobsOutcomeProps) {
+export default function CancelJobsOutcome(props: CancelJobsOutcomeProps) {
   const classes = useStyles()
 
   return (
     <div className={classes.paper}>
-      {props.reprioritizeJobsResult.reprioritizedJobs.length > 0 && (
+      {props.cancelJobsResult.cancelledJobs.length > 0 && (
         <Fragment>
-          <p id="reprioritize-jobs-modal-description" className="reprioritize-jobs-modal-description">
-            The following jobs were reprioritized successfully:
+          <p id="cancel-jobs-modal-description" className="cancel-jobs-modal-description">
+            The following jobs were cancelled successfully:
           </p>
           <TableContainer component={Paper} className={classes.container}>
             <Table stickyHeader>
@@ -83,7 +76,7 @@ export default function (props: ReprioritizeJobsOutcomeProps) {
                 </TableRow>
               </TableHead>
               <TableBody className={classes.success}>
-                {props.reprioritizeJobsResult.reprioritizedJobs.map((job) => (
+                {props.cancelJobsResult.cancelledJobs.map((job) => (
                   <TableRow key={job.jobId}>
                     <TableCell>{job.jobId}</TableCell>
                     <TableCell>{job.jobSet}</TableCell>
@@ -95,10 +88,10 @@ export default function (props: ReprioritizeJobsOutcomeProps) {
           </TableContainer>
         </Fragment>
       )}
-      {props.reprioritizeJobsResult.failedJobReprioritizations.length > 0 && (
+      {props.cancelJobsResult.failedJobCancellations.length > 0 && (
         <Fragment>
-          <p id="reprioritize-jobs-modal-description" className="reprioritize-jobs-modal-description">
-            Failed to reprioritize the following jobs:
+          <p id="cancel-jobs-modal-description" className="cancel-jobs-modal-description">
+            The following jobs failed to cancel:
           </p>
           <TableContainer component={Paper} className={classes.container}>
             <Table stickyHeader>
@@ -106,17 +99,17 @@ export default function (props: ReprioritizeJobsOutcomeProps) {
                 <TableRow>
                   <TableCell className={classes.failureHeader}>Id</TableCell>
                   <TableCell className={classes.failureHeader}>Job Set</TableCell>
-                  <TableCell className={classes.failureHeader}>Current Priority</TableCell>
+                  <TableCell className={classes.failureHeader}>State</TableCell>
                   <TableCell className={classes.failureHeader}>Submission Time</TableCell>
                   <TableCell className={classes.failureHeader}>Error</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody className={classes.failure}>
-                {props.reprioritizeJobsResult.failedJobReprioritizations.map((failed) => (
+                {props.cancelJobsResult.failedJobCancellations.map((failed) => (
                   <TableRow key={failed.job.jobId}>
                     <TableCell>{failed.job.jobId}</TableCell>
                     <TableCell>{failed.job.jobSet}</TableCell>
-                    <TableCell>{failed.job.priority}</TableCell>
+                    <TableCell>{failed.job.jobState}</TableCell>
                     <TableCell>{failed.job.submissionTime}</TableCell>
                     <TableCell>{failed.error}</TableCell>
                   </TableRow>
@@ -125,11 +118,7 @@ export default function (props: ReprioritizeJobsOutcomeProps) {
             </Table>
           </TableContainer>
           <div className={classes.button}>
-            <LoadingButton
-              content={"Retry - New priority " + props.newPriority}
-              isLoading={props.isLoading}
-              onClick={props.onReprioritizeJobs}
-            />
+            <LoadingButton content={"Retry"} isLoading={props.isLoading} onClick={props.onCancelJobs} />
           </div>
         </Fragment>
       )}

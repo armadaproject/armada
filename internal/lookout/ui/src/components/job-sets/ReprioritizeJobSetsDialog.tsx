@@ -7,7 +7,7 @@ import { RequestStatus } from "../../utils"
 import ReprioritizeJobSets from "./ReprioritizeJobSets"
 import ReprioritizeJobSetsOutcome from "./ReprioritizeJobSetsOutcome"
 
-export type ReprioritizeJobSetsDialogState = "ReprioritizeJobSets" | "ReprioritizeJobSetsResult" | "None"
+export type ReprioritizeJobSetsDialogState = "ReprioritizeJobSets" | "ReprioritizeJobSetsResult" | "Closed"
 
 export interface ReprioritizeJobSetsDialogContext {
   dialogState: ReprioritizeJobSetsDialogState

@@ -1,4 +1,4 @@
-import React, { Ref } from "react"
+import React from "react"
 
 import {
   Paper,
@@ -13,19 +13,12 @@ import {
 } from "@material-ui/core"
 import { makeStyles } from "@material-ui/core/styles"
 
-import { Job } from "../../services/JobService"
-import LoadingButton from "./LoadingButton"
+import { Job } from "../../../services/JobService"
+import LoadingButton from "../LoadingButton"
 
 const useStyles = makeStyles((theme: Theme) =>
   createStyles({
     paper: {
-      backgroundColor: theme.palette.background.paper,
-      boxShadow: theme.shadows[5],
-      padding: theme.spacing(2, 4, 3),
-      outline: "none",
-      borderRadius: "0.66em",
-      maxHeight: "80%",
-      maxWidth: "75%",
       display: "flex",
       flexDirection: "column",
     },
@@ -48,14 +41,11 @@ type CancelJobsProps = {
   onCancelJobs: () => void
 }
 
-const CancelJobs = React.forwardRef((props: CancelJobsProps, ref: Ref<any>) => {
+export default function CancelJobs(props: CancelJobsProps) {
   const classes = useStyles()
 
   return (
-    <div ref={ref} className={classes.paper}>
-      <h2 id="cancel-jobs-modal-title" className="cancel-jobs-modal-title">
-        Cancel jobs
-      </h2>
+    <div className={classes.paper}>
       <p id="cancel-jobs-modal-description" className="cancel-jobs-modal-description">
         The following jobs will be cancelled:
       </p>
@@ -73,7 +63,7 @@ const CancelJobs = React.forwardRef((props: CancelJobsProps, ref: Ref<any>) => {
             {props.jobsToCancel.map((job) => (
               <TableRow key={job.jobId}>
                 <TableCell>{job.jobId}</TableCell>
-                <TableCell>{job.jobSet}</TableCell>
+                <TableCell>{job.jobSet}cancel-jobs</TableCell>
                 <TableCell>{job.jobState}</TableCell>
                 <TableCell>{job.submissionTime}</TableCell>
               </TableRow>
@@ -86,6 +76,4 @@ const CancelJobs = React.forwardRef((props: CancelJobsProps, ref: Ref<any>) => {
       </div>
     </div>
   )
-})
-
-export default CancelJobs
+}

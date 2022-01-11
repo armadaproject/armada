@@ -14,18 +14,12 @@ import {
 } from "@material-ui/core"
 import { makeStyles } from "@material-ui/core/styles"
 
-import { Job } from "../../services/JobService"
-import LoadingButton from "./LoadingButton"
+import { Job } from "../../../services/JobService"
+import LoadingButton from "../LoadingButton"
 
 const useStyles = makeStyles((theme: Theme) =>
   createStyles({
     paper: {
-      backgroundColor: theme.palette.background.paper,
-      padding: theme.spacing(2, 4, 3),
-      outline: "none",
-      borderRadius: "0.66em",
-      maxHeight: "100%",
-      maxWidth: "100%",
       display: "flex",
       flexDirection: "column",
     },
@@ -50,6 +44,7 @@ const useStyles = makeStyles((theme: Theme) =>
 type ReprioritizeJobsProps = {
   jobsToReprioritize: Job[]
   isLoading: boolean
+  newPriority: string
   isValid: boolean
   onReprioritizeJobs: () => void
   onPriorityChange: (e: string) => void
@@ -89,6 +84,7 @@ export default function ReprioritizeJobs(props: ReprioritizeJobsProps) {
       </TableContainer>
       <div className={classes.input}>
         <TextField
+          value={props.newPriority}
           autoFocus={true}
           placeholder={"New priority"}
           margin={"normal"}

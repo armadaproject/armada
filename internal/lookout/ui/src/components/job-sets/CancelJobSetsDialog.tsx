@@ -7,7 +7,7 @@ import { RequestStatus } from "../../utils"
 import CancelJobSets from "./CancelJobSets"
 import CancelJobSetsOutcome from "./CancelJobSetsOutcome"
 
-export type CancelJobSetsDialogState = "CancelJobSets" | "CancelJobSetsResult" | "None"
+export type CancelJobSetsDialogState = "CancelJobSets" | "CancelJobSetsResult" | "Closed"
 
 export interface CancelJobSetsDialogContext {
   dialogState: CancelJobSetsDialogState
