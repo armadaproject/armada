@@ -24,8 +24,7 @@ func CreateService(job *api.Job, pod *v1.Pod, ports []v1.ServicePort, ingSvcType
 	}
 
 	clusterIP := ""
-
-	if ingSvcType == Headless {
+	if ingSvcType == Headless || ingSvcType == Ingress {
 		clusterIP = "None"
 	}
 
