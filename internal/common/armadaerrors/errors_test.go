@@ -2,16 +2,15 @@ package armadaerrors
 
 import (
 	"context"
-	"strings"
 	"testing"
 
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	"github.com/pkg/errors"
+	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
-	"gotest.tools/v3/assert"
 
 	"github.com/G-Research/armada/internal/common/requestid"
 )
@@ -54,13 +53,13 @@ func TestUnaryServerInterceptor(t *testing.T) {
 	// nils should be passed through as-is
 	handlerErr = nil
 	_, err := f(ctx, nil, nil, handler)
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 
 	// gRPC-style errors should be passed through as-is
 	handlerErr = status.Error(codes.Aborted, "foo")
 	_, err = f(ctx, nil, nil, handler)
 	st, ok := status.FromError(err)
-	assert.Assert(t, ok)
+	assert.True(t, ok)
 	assert.Equal(t, codes.Aborted, st.Code(), "expected %v, but got %v", codes.Aborted, st.Code())
 
 	// a chain of errors should result in the message of the cause error being returned
@@ -68,18 +67,18 @@ func TestUnaryServerInterceptor(t *testing.T) {
 	handlerErr = errors.WithMessage(innerErr, "foo")
 	_, err = f(ctx, nil, nil, handler)
 	st, ok = status.FromError(err)
-	assert.Assert(t, ok)
+	assert.True(t, ok)
 	assert.Equal(t, codes.AlreadyExists, st.Code(), "expected %v, but got %v", codes.AlreadyExists, st.Code())
 	assert.Equal(t, st.Message(), innerErr.Error(), "expected %q, but got %q", st.Message(), innerErr.Error())
 
 	// if the context contains a request id, it should be included in the error message
 	id := "123"
 	ctx, ok = requestid.AddToIncomingContext(ctx, id)
-	assert.Assert(t, ok)
+	assert.True(t, ok)
 	_, err = f(ctx, nil, nil, handler)
 	st, ok = status.FromError(err)
-	assert.Assert(t, ok)
-	assert.Assert(t, strings.Contains(st.Message(), id), "expected error message to contain %q, but got %q", id, st.Message())
+	assert.True(t, ok)
+	assert.Contains(t, st.Message(), id)
 }
 
 func TestStreamServerInterceptor(t *testing.T) {
@@ -96,13 +95,13 @@ func TestStreamServerInterceptor(t *testing.T) {
 	// nils should be passed through as-is
 	handlerErr = nil
 	err := f(nil, stream, nil, handler)
-	assert.NilError(t, err)
+	assert.NoError(t, err)
 
 	// gRPC-style errors should be passed through as-is
 	handlerErr = status.Error(codes.Aborted, "foo")
 	err = f(nil, stream, nil, handler)
 	st, ok := status.FromError(err)
-	assert.Assert(t, ok)
+	assert.True(t, ok)
 	assert.Equal(t, codes.Aborted, st.Code(), "expected %v, but got %v", codes.Aborted, st.Code())
 
 	// a chain of errors should result in the message of the cause error being returned
@@ -110,17 +109,17 @@ func TestStreamServerInterceptor(t *testing.T) {
 	handlerErr = errors.WithMessage(innerErr, "foo")
 	err = f(nil, stream, nil, handler)
 	st, ok = status.FromError(err)
-	assert.Assert(t, ok)
+	assert.True(t, ok)
 	assert.Equal(t, codes.AlreadyExists, st.Code(), "expected %v, but got %v", codes.AlreadyExists, st.Code())
 	assert.Equal(t, innerErr.Error(), st.Message(), "expected %v, but got %v", innerErr.Error(), st.Message())
 
 	// if the context contains a request id, it should be included in the error message
 	id := "123"
 	ctx, ok = requestid.AddToIncomingContext(ctx, id)
-	assert.Assert(t, ok)
+	assert.True(t, ok)
 	stream.WrappedContext = ctx
 	err = f(nil, stream, nil, handler)
 	st, ok = status.FromError(err)
-	assert.Assert(t, ok)
-	assert.Assert(t, strings.Contains(st.Message(), id), "expected error message to contain %q, but got %q", id, st.Message())
+	assert.True(t, ok)
+	assert.Contains(t, st.Message(), id)
 }
