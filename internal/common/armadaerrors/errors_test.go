@@ -43,7 +43,6 @@ func TestCodeFromError(t *testing.T) {
 func TestUnaryServerInterceptor(t *testing.T) {
 	ctx := context.Background()
 	ctx = metadata.NewIncomingContext(ctx, metadata.New(map[string]string{}))
-	// ctx = requestid.AddToIncomingContext(ctx, "123")
 	var handlerErr error
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return nil, handlerErr
