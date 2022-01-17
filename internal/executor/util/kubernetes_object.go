@@ -65,8 +65,14 @@ func CreateService(
 	return service
 }
 
-func CreateIngress(name string, job *api.Job, pod *v1.Pod, service *v1.Service,
-	executorIngressConfig *configuration.IngressConfiguration, jobConfig *IngressServiceConfig) *networking.Ingress {
+func CreateIngress(
+	name string,
+	job *api.Job,
+	pod *v1.Pod,
+	service *v1.Service,
+	executorIngressConfig *configuration.IngressConfiguration,
+	jobConfig *IngressServiceConfig,
+) *networking.Ingress {
 	labels := util.MergeMaps(job.Labels, map[string]string{
 		domain.JobId:     pod.Labels[domain.JobId],
 		domain.Queue:     pod.Labels[domain.Queue],
@@ -80,11 +86,7 @@ func CreateIngress(name string, job *api.Job, pod *v1.Pod, service *v1.Service,
 	})
 
 	rules := make([]networking.IngressRule, 0, len(service.Spec.Ports))
-	tlsHosts := make([]string, 0, len(service.Spec.Ports)+1)
-
-	// First host used for certificate signing, needs to be less than 64 chars long
-	firstHost := fmt.Sprintf("%s.%s", name, executorIngressConfig.CertDomain)
-	tlsHosts = append(tlsHosts, firstHost)
+	tlsHosts := make([]string, 0, len(service.Spec.Ports))
 
 	// Rest of the hosts are generated off port information
 	for _, servicePort := range service.Spec.Ports {
@@ -118,7 +120,7 @@ func CreateIngress(name string, job *api.Job, pod *v1.Pod, service *v1.Service,
 	if jobConfig.TlsEnabled {
 		certName := jobConfig.CertName
 		if certName == "" {
-			certName = fmt.Sprintf("%s-tls-certificate", name)
+			certName = fmt.Sprintf("%s-%s", job.Namespace, executorIngressConfig.CertNameSuffix)
 		}
 
 		tls = append(tls, networking.IngressTLS{
