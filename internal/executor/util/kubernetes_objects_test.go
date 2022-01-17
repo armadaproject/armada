@@ -253,7 +253,7 @@ func TestCreateIngress_TLS(t *testing.T) {
 	assert.Equal(t, result.Spec, expectedIngressSpec)
 }
 
-func TestCreateService_Ingress(t *testing.T) {
+func TestCreateService_Ingress_Headless(t *testing.T) {
 	job := makeTestJob()
 	pod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -272,7 +272,7 @@ func TestCreateService_Ingress(t *testing.T) {
 		},
 	}
 	ingressType := Ingress
-	createdService := CreateService(job, pod, ports, ingressType)
+	createdService := CreateService(job, pod, ports, ingressType, false)
 
 	expected := &v1.Service{
 		ObjectMeta: metav1.ObjectMeta{
@@ -305,6 +305,57 @@ func TestCreateService_Ingress(t *testing.T) {
 	assert.Equal(t, createdService, expected)
 }
 
+func TestCreateService_Ingress_ClusterIP(t *testing.T) {
+	job := makeTestJob()
+	pod := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "testPod",
+			Namespace: "testNamespace",
+			Labels: map[string]string{
+				"armada_job_id":     "test_id",
+				"armada_pod_number": "0",
+				"armada_queue_id":   "test_queue_id",
+			},
+		},
+	}
+	ports := []v1.ServicePort{
+		{
+			Port: 123,
+		},
+	}
+	ingressType := Ingress
+	createdService := CreateService(job, pod, ports, ingressType, true)
+
+	expected := &v1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "testPod-ingress",
+			Labels: map[string]string{
+				"armada_job_id":     "test_id",
+				"armada_pod_number": "0",
+				"armada_queue_id":   "test_queue_id",
+			},
+			Annotations: map[string]string{
+				"armada_jobset_id": "JobSetId",
+				"armada_owner":     "UserTest",
+			},
+		},
+		Spec: v1.ServiceSpec{
+			Ports: []v1.ServicePort{
+				{
+					Port: 123,
+				},
+			},
+			Selector: map[string]string{
+				"armada_job_id":     "test_id",
+				"armada_pod_number": "0",
+				"armada_queue_id":   "test_queue_id",
+			},
+			Type: "ClusterIP",
+		},
+	}
+	assert.Equal(t, createdService, expected)
+}
+
 func TestCreateService_NodePort(t *testing.T) {
 	job := makeTestJob()
 	pod := &v1.Pod{
@@ -325,7 +376,7 @@ func TestCreateService_NodePort(t *testing.T) {
 		},
 	}
 	ingressType := NodePort
-	createdService := CreateService(job, pod, ports, ingressType)
+	createdService := CreateService(job, pod, ports, ingressType, true)
 
 	expected := &v1.Service{
 		ObjectMeta: metav1.ObjectMeta{
@@ -377,7 +428,7 @@ func TestCreateService_Headless(t *testing.T) {
 		},
 	}
 	ingressType := Headless
-	createdService := CreateService(job, pod, ports, ingressType)
+	createdService := CreateService(job, pod, ports, ingressType, false)
 
 	expected := &v1.Service{
 		ObjectMeta: metav1.ObjectMeta{
