@@ -422,7 +422,8 @@ func TestCombineIngressService(t *testing.T) {
 			Annotations: map[string]string{
 				"Hello": "World",
 			},
-			TlsEnabled: true,
+			TlsEnabled:   true,
+			UseClusterIP: false,
 		},
 	}
 
@@ -444,15 +445,18 @@ func TestCombineIngressService(t *testing.T) {
 			Annotations: map[string]string{
 				"Hello": "World",
 			},
-			TlsEnabled: true,
+			TlsEnabled:   true,
+			UseClusterIp: false,
 		},
 		{
-			Type:  Headless,
-			Ports: []uint32{4},
+			Type:         Headless,
+			Ports:        []uint32{4},
+			UseClusterIp: false,
 		},
 		{
-			Type:  NodePort,
-			Ports: []uint32{5},
+			Type:         NodePort,
+			Ports:        []uint32{5},
+			UseClusterIp: true,
 		},
 	}
 

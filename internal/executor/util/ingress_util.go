@@ -21,7 +21,7 @@ func GenerateIngresses(job *api.Job, pod *v1.Pod, ingressConfig *configuration.I
 	groupedIngressConfigs := groupIngressConfig(ingressToGen)
 	for svcType, configs := range groupedIngressConfigs {
 		if len(GetServicePorts(configs, &pod.Spec)) > 0 {
-			service := CreateService(job, pod, GetServicePorts(configs, &pod.Spec), svcType)
+			service := CreateService(job, pod, GetServicePorts(configs, &pod.Spec), svcType, useClusterIP(configs))
 			services = append(services, service)
 
 			if svcType == Ingress {
@@ -50,6 +50,7 @@ func groupIngressConfig(configs []*IngressServiceConfig) map[IngressServiceType]
 	return result
 }
 
+// gatherIngressConfig takes a list of ingress configs and groups them by IngressServiceType
 func gatherIngressConfig(configs []*IngressServiceConfig) map[IngressServiceType][]*IngressServiceConfig {
 	result := make(map[IngressServiceType][]*IngressServiceConfig, 10)
 
@@ -78,16 +79,6 @@ func mergeOnAnnotations(configs []*IngressServiceConfig) []*IngressServiceConfig
 	}
 
 	return result
-}
-
-func deepCopy(config *IngressServiceConfig) *IngressServiceConfig {
-	return &IngressServiceConfig{
-		Type:        config.Type,
-		Ports:       util.DeepCopyListUint32(config.Ports),
-		Annotations: util.DeepCopy(config.Annotations),
-		TlsEnabled:  config.TlsEnabled,
-		CertName:    config.CertName,
-	}
 }
 
 func GetServicePorts(svcConfigs []*IngressServiceConfig, podSpec *v1.PodSpec) []v1.ServicePort {

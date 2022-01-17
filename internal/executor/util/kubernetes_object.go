@@ -17,14 +17,20 @@ import (
 	"github.com/G-Research/armada/pkg/api"
 )
 
-func CreateService(job *api.Job, pod *v1.Pod, ports []v1.ServicePort, ingSvcType IngressServiceType) *v1.Service {
+func CreateService(
+	job *api.Job,
+	pod *v1.Pod,
+	ports []v1.ServicePort,
+	ingSvcType IngressServiceType,
+	useClusterIP bool,
+) *v1.Service {
 	serviceType := v1.ServiceTypeClusterIP
 	if ingSvcType == NodePort {
 		serviceType = v1.ServiceTypeNodePort
 	}
 
 	clusterIP := ""
-	if ingSvcType == Headless || ingSvcType == Ingress {
+	if !useClusterIP {
 		clusterIP = "None"
 	}
 
