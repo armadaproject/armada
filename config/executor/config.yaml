@@ -28,6 +28,7 @@ kubernetes:
   podDefaults:
     ingress:
       hostnameSuffix: "svc"
+      certNameSuffix: "ingress-tls-certificate"
       certDomain: "svc"
   pendingPodChecks:
     events:
