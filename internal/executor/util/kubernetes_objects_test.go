@@ -168,7 +168,6 @@ func TestCreateIngress_Basic(t *testing.T) {
 	pod := &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "testPod", Namespace: "testNamespace"}}
 	ingressConfig := &configuration.IngressConfiguration{
 		HostnameSuffix: "testSuffix",
-		CertDomain:     "svc",
 	}
 
 	// TLS disabled jobconfig
@@ -211,7 +210,6 @@ func TestCreateIngress_TLS(t *testing.T) {
 	ingressConfig := &configuration.IngressConfiguration{
 		HostnameSuffix: "testSuffix",
 		CertNameSuffix: "ingress-tls-certificate",
-		CertDomain:     "svc",
 	}
 
 	// TLS enabled in this test

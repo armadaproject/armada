@@ -29,7 +29,6 @@ kubernetes:
     ingress:
       hostnameSuffix: "svc"
       certNameSuffix: "ingress-tls-certificate"
-      certDomain: "svc"
   pendingPodChecks:
     events:
     - regexp: "Failed to pull image.*desc = failed to pull and unpack image"            # Suggests genuine problem with image name, no point in waiting around too long.
