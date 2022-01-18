@@ -1,39 +1,14 @@
 import React from "react"
 
-import {
-  Paper,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Theme,
-  createStyles,
-} from "@material-ui/core"
-import { makeStyles } from "@material-ui/core/styles"
+import { Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow } from "@material-ui/core"
 
 import { Job } from "../../../services/JobService"
 import LoadingButton from "../LoadingButton"
 
-const useStyles = makeStyles((theme: Theme) =>
-  createStyles({
-    paper: {
-      display: "flex",
-      flexDirection: "column",
-    },
-    container: {
-      overflow: "auto",
-      margin: theme.spacing(0, 0, 1),
-    },
-    button: {
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      marginTop: "1em",
-    },
-  }),
-)
+import "./CancelJobs.css"
+import "../../Dialog.css"
+import "../../Table.css"
+import "../../Text.css"
 
 type CancelJobsProps = {
   jobsToCancel: Job[]
@@ -42,26 +17,24 @@ type CancelJobsProps = {
 }
 
 export default function CancelJobs(props: CancelJobsProps) {
-  const classes = useStyles()
-
   return (
-    <div className={classes.paper}>
-      <p id="cancel-jobs-modal-description" className="cancel-jobs-modal-description">
+    <div className="lookout-dialog-container">
+      <p id="cancel-jobs-description" className="lookout-dialog-fixed">
         The following jobs will be cancelled:
       </p>
-      <TableContainer component={Paper} className={classes.container}>
-        <Table stickyHeader>
+      <TableContainer component={Paper} className="lookout-table-container lookout-dialog-varying">
+        <Table stickyHeader className="lookout-table">
           <TableHead>
             <TableRow>
-              <TableCell>Id</TableCell>
-              <TableCell>Job Set</TableCell>
-              <TableCell>State</TableCell>
-              <TableCell>Submission Time</TableCell>
+              <TableCell className="cancel-jobs-job-id-cell">Id</TableCell>
+              <TableCell className="cancel-jobs-job-set-cell">Job Set</TableCell>
+              <TableCell className="cancel-jobs-state-cell">State</TableCell>
+              <TableCell className="cancel-jobs-time-cell">Submission Time</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {props.jobsToCancel.map((job) => (
-              <TableRow key={job.jobId}>
+              <TableRow key={job.jobId} className="lookout-word-wrapped">
                 <TableCell>{job.jobId}</TableCell>
                 <TableCell>{job.jobSet}cancel-jobs</TableCell>
                 <TableCell>{job.jobState}</TableCell>
@@ -71,7 +44,7 @@ export default function CancelJobs(props: CancelJobsProps) {
           </TableBody>
         </Table>
       </TableContainer>
-      <div className={classes.button}>
+      <div className="lookout-dialog-fixed lookout-dialog-centered">
         <LoadingButton content={"Cancel Jobs"} isLoading={props.isLoading} onClick={props.onCancelJobs} />
       </div>
     </div>

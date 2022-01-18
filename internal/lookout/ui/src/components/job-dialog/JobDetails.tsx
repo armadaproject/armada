@@ -1,4 +1,4 @@
-import React from "react"
+import React, { useEffect, useState } from "react"
 
 import { Accordion, AccordionDetails, AccordionSummary, Table, TableBody, TableContainer } from "@material-ui/core"
 import { ExpandMore } from "@material-ui/icons"
@@ -10,13 +10,40 @@ import { RunDetailsRows } from "./RunDetailsRows"
 
 import "./Details.css"
 
-interface DetailsProps {
+type ToggleFn = (item: string, isExpanded: boolean) => void
+type DetailsProps = {
   job: Job
-  expandedItems: Set<string>
-  onToggleExpand: (k8sId: string, isExpanded: boolean) => void
+}
+
+export function useExpanded(): [Set<string>, ToggleFn, () => void] {
+  const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set())
+
+  function toggle(item: string, isExpanded: boolean) {
+    const newExpanded = new Set<string>(expandedItems)
+    if (isExpanded) {
+      newExpanded.add(item)
+    } else {
+      newExpanded.delete(item)
+    }
+    setExpandedItems(newExpanded)
+  }
+
+  function clear() {
+    setExpandedItems(new Set<string>())
+  }
+
+  return [expandedItems, toggle, clear]
 }
 
 export default function JobDetails(props: DetailsProps) {
+  const [expandedItems, toggleExpanded, clearExpanded] = useExpanded()
+
+  useEffect(() => {
+    return () => {
+      clearExpanded()
+    }
+  }, [props.job])
+
   const lastRun = props.job.runs.length > 0 ? props.job.runs[props.job.runs.length - 1] : null
   const initRuns = props.job.runs.length > 1 ? props.job.runs.slice(0, -1).reverse() : null
 
@@ -41,9 +68,7 @@ export default function JobDetails(props: DetailsProps) {
           </TableBody>
         </Table>
       </TableContainer>
-      {initRuns && (
-        <PreviousRuns runs={initRuns} expandedItems={props.expandedItems} onToggleExpand={props.onToggleExpand} />
-      )}
+      {initRuns && <PreviousRuns runs={initRuns} expandedItems={expandedItems} onToggleExpand={toggleExpanded} />}
       {props.job.jobYaml && (
         <div className="details-yaml-container">
           <Accordion>

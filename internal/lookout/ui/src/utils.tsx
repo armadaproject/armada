@@ -139,3 +139,9 @@ export function tryParseJson(json: string): Record<string, unknown> | undefined 
     return undefined
   }
 }
+
+const priorityRegex = new RegExp("^([0-9]+)$")
+
+export function priorityIsValid(priority: string): boolean {
+  return priorityRegex.test(priority) && priority.length > 0
+}

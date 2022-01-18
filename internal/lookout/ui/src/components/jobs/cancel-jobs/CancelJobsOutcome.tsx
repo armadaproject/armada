@@ -1,83 +1,39 @@
 import React, { Fragment } from "react"
 
-import {
-  Paper,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Theme,
-  colors,
-  createStyles,
-} from "@material-ui/core"
-import { makeStyles } from "@material-ui/core/styles"
+import { Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow } from "@material-ui/core"
 
-import { CancelJobsResult } from "../../../services/JobService"
+import { CancelJobsResponse } from "../../../services/JobService"
 import LoadingButton from "../LoadingButton"
 
-const useStyles = makeStyles((theme: Theme) =>
-  createStyles({
-    paper: {
-      display: "flex",
-      flexDirection: "column",
-      overflow: "hidden",
-    },
-    container: {
-      minHeight: "6em",
-      overflow: "auto",
-      margin: theme.spacing(0, 0, 1),
-    },
-    successHeader: {
-      backgroundColor: colors.green[100],
-    },
-    success: {
-      backgroundColor: colors.green[50],
-    },
-    failureHeader: {
-      backgroundColor: colors.red[100],
-    },
-    failure: {
-      backgroundColor: colors.red[50],
-    },
-    button: {
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      marginTop: "1em",
-    },
-  }),
-)
+import "./CancelJobsOutcome.css"
+import "../../Dialog.css"
+import "../../Table.css"
+import "../../Text.css"
 
 type CancelJobsOutcomeProps = {
-  cancelJobsResult: CancelJobsResult
+  cancelJobsResult: CancelJobsResponse
   isLoading: boolean
   onCancelJobs: () => void
 }
 
 export default function CancelJobsOutcome(props: CancelJobsOutcomeProps) {
-  const classes = useStyles()
-
   return (
-    <div className={classes.paper}>
+    <div className="lookout-dialog-container">
       {props.cancelJobsResult.cancelledJobs.length > 0 && (
         <Fragment>
-          <p id="cancel-jobs-modal-description" className="cancel-jobs-modal-description">
-            The following jobs were cancelled successfully:
-          </p>
-          <TableContainer component={Paper} className={classes.container}>
-            <Table stickyHeader>
+          <p className="lookout-dialog-fixed">The following jobs were cancelled successfully:</p>
+          <TableContainer component={Paper} className="lookout-table-container lookout-dialog-varying">
+            <Table stickyHeader className="lookout-table">
               <TableHead>
                 <TableRow>
-                  <TableCell className={classes.successHeader}>Id</TableCell>
-                  <TableCell className={classes.successHeader}>Job Set</TableCell>
-                  <TableCell className={classes.successHeader}>Submission Time</TableCell>
+                  <TableCell className="success-header cancel-jobs-success-job-id-cell">Id</TableCell>
+                  <TableCell className="success-header cancel-jobs-success-job-set-cell">Job Set</TableCell>
+                  <TableCell className="success-header cancel-jobs-success-time-cell">Submission Time</TableCell>
                 </TableRow>
               </TableHead>
-              <TableBody className={classes.success}>
+              <TableBody className="success">
                 {props.cancelJobsResult.cancelledJobs.map((job) => (
-                  <TableRow key={job.jobId}>
+                  <TableRow key={job.jobId} className="lookout-word-wrapped">
                     <TableCell>{job.jobId}</TableCell>
                     <TableCell>{job.jobSet}</TableCell>
                     <TableCell>{job.submissionTime}</TableCell>
@@ -90,23 +46,21 @@ export default function CancelJobsOutcome(props: CancelJobsOutcomeProps) {
       )}
       {props.cancelJobsResult.failedJobCancellations.length > 0 && (
         <Fragment>
-          <p id="cancel-jobs-modal-description" className="cancel-jobs-modal-description">
-            The following jobs failed to cancel:
-          </p>
-          <TableContainer component={Paper} className={classes.container}>
-            <Table stickyHeader>
-              <TableHead className={classes.failureHeader}>
+          <p className="lookout-dialog-fixed">The following jobs failed to cancel:</p>
+          <TableContainer component={Paper} className="lookout-table-container lookout-dialog-varying">
+            <Table stickyHeader className="lookout-table">
+              <TableHead>
                 <TableRow>
-                  <TableCell className={classes.failureHeader}>Id</TableCell>
-                  <TableCell className={classes.failureHeader}>Job Set</TableCell>
-                  <TableCell className={classes.failureHeader}>State</TableCell>
-                  <TableCell className={classes.failureHeader}>Submission Time</TableCell>
-                  <TableCell className={classes.failureHeader}>Error</TableCell>
+                  <TableCell className="failure-header cancel-jobs-cell-failure-job-id">Id</TableCell>
+                  <TableCell className="failure-header cancel-jobs-cell-failure-job-set">Job Set</TableCell>
+                  <TableCell className="failure-header cancel-jobs-cell-failure-state">State</TableCell>
+                  <TableCell className="failure-header cancel-jobs-cell-failure-time">Submission Time</TableCell>
+                  <TableCell className="failure-header cancel-jobs-cell-failure-error">Error</TableCell>
                 </TableRow>
               </TableHead>
-              <TableBody className={classes.failure}>
+              <TableBody className="failure">
                 {props.cancelJobsResult.failedJobCancellations.map((failed) => (
-                  <TableRow key={failed.job.jobId}>
+                  <TableRow key={failed.job.jobId} className="lookout-word-wrapped">
                     <TableCell>{failed.job.jobId}</TableCell>
                     <TableCell>{failed.job.jobSet}</TableCell>
                     <TableCell>{failed.job.jobState}</TableCell>
@@ -117,7 +71,7 @@ export default function CancelJobsOutcome(props: CancelJobsOutcomeProps) {
               </TableBody>
             </Table>
           </TableContainer>
-          <div className={classes.button}>
+          <div className="lookout-dialog-fixed lookout-dialog-centered">
             <LoadingButton content={"Retry"} isLoading={props.isLoading} onClick={props.onCancelJobs} />
           </div>
         </Fragment>

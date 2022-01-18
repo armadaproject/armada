@@ -1,60 +1,14 @@
 import React, { Fragment } from "react"
 
-import {
-  Paper,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Theme,
-  colors,
-  createStyles,
-} from "@material-ui/core"
-import { makeStyles } from "@material-ui/core/styles"
+import { Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow } from "@material-ui/core"
 
 import { ReprioritizeJobsResult } from "../../../services/JobService"
 import LoadingButton from "../LoadingButton"
 
-const useStyles = makeStyles((theme: Theme) =>
-  createStyles({
-    paper: {
-      backgroundColor: theme.palette.background.paper,
-      padding: theme.spacing(1, 4, 3),
-      outline: "none",
-      borderRadius: "0.66em",
-      maxHeight: "100%",
-      maxWidth: "100%",
-      display: "flex",
-      flexDirection: "column",
-      overflow: "hidden",
-    },
-    container: {
-      minHeight: "6em",
-      overflow: "auto",
-      margin: theme.spacing(0, 0, 1),
-    },
-    successHeader: {
-      backgroundColor: colors.green[100],
-    },
-    success: {
-      backgroundColor: colors.green[50],
-    },
-    failureHeader: {
-      backgroundColor: colors.red[100],
-    },
-    failure: {
-      backgroundColor: colors.red[50],
-    },
-    button: {
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      marginTop: "1em",
-    },
-  }),
-)
+import "./ReprioritizeJobsOutcome.css"
+import "../../Dialog.css"
+import "../../Table.css"
+import "../../Text.css"
 
 type ReprioritizeJobsOutcomeProps = {
   reprioritizeJobsResult: ReprioritizeJobsResult
@@ -64,27 +18,23 @@ type ReprioritizeJobsOutcomeProps = {
 }
 
 export default function (props: ReprioritizeJobsOutcomeProps) {
-  const classes = useStyles()
-
   return (
-    <div className={classes.paper}>
+    <div className="lookout-dialog-container">
       {props.reprioritizeJobsResult.reprioritizedJobs.length > 0 && (
         <Fragment>
-          <p id="reprioritize-jobs-modal-description" className="reprioritize-jobs-modal-description">
-            The following jobs were reprioritized successfully:
-          </p>
-          <TableContainer component={Paper} className={classes.container}>
-            <Table stickyHeader>
+          <p className="lookout-dialog-fixed">The following jobs were reprioritized successfully:</p>
+          <TableContainer component={Paper} className="lookout-table-container lookout-dialog-varying">
+            <Table stickyHeader className="lookout-table">
               <TableHead>
                 <TableRow>
-                  <TableCell className={classes.successHeader}>Id</TableCell>
-                  <TableCell className={classes.successHeader}>Job Set</TableCell>
-                  <TableCell className={classes.successHeader}>Submission Time</TableCell>
+                  <TableCell className="success-header reprioritize-jobs-cell-success-job-id">Id</TableCell>
+                  <TableCell className="success-header reprioritize-jobs-cell-success-job-set">Job Set</TableCell>
+                  <TableCell className="success-header reprioritize-jobs-cell-success-time">Submission Time</TableCell>
                 </TableRow>
               </TableHead>
-              <TableBody className={classes.success}>
+              <TableBody className="success">
                 {props.reprioritizeJobsResult.reprioritizedJobs.map((job) => (
-                  <TableRow key={job.jobId}>
+                  <TableRow key={job.jobId} className="lookout-word-wrapped">
                     <TableCell>{job.jobId}</TableCell>
                     <TableCell>{job.jobSet}</TableCell>
                     <TableCell>{job.submissionTime}</TableCell>
@@ -97,23 +47,25 @@ export default function (props: ReprioritizeJobsOutcomeProps) {
       )}
       {props.reprioritizeJobsResult.failedJobReprioritizations.length > 0 && (
         <Fragment>
-          <p id="reprioritize-jobs-modal-description" className="reprioritize-jobs-modal-description">
+          <p id="reprioritize-jobs-modal-description" className="lookout-dialog-fixed">
             Failed to reprioritize the following jobs:
           </p>
-          <TableContainer component={Paper} className={classes.container}>
-            <Table stickyHeader>
-              <TableHead className={classes.failureHeader}>
+          <TableContainer component={Paper} className="lookout-dialog-varying">
+            <Table stickyHeader className="lookout-table">
+              <TableHead>
                 <TableRow>
-                  <TableCell className={classes.failureHeader}>Id</TableCell>
-                  <TableCell className={classes.failureHeader}>Job Set</TableCell>
-                  <TableCell className={classes.failureHeader}>Current Priority</TableCell>
-                  <TableCell className={classes.failureHeader}>Submission Time</TableCell>
-                  <TableCell className={classes.failureHeader}>Error</TableCell>
+                  <TableCell className="failure-header reprioritize-jobs-cell-failure-job-id">Id</TableCell>
+                  <TableCell className="failure-header reprioritize-jobs-cell-failure-job-set">Job Set</TableCell>
+                  <TableCell className="failure-header reprioritize-jobs-cell-failure-priority">
+                    Current Priority
+                  </TableCell>
+                  <TableCell className="failure-header reprioritize-jobs-cell-failure-time">Submission Time</TableCell>
+                  <TableCell className="failure-header reprioritize-jobs-cell-failure-error">Error</TableCell>
                 </TableRow>
               </TableHead>
-              <TableBody className={classes.failure}>
+              <TableBody className="failure">
                 {props.reprioritizeJobsResult.failedJobReprioritizations.map((failed) => (
-                  <TableRow key={failed.job.jobId}>
+                  <TableRow key={failed.job.jobId} className="lookout-word-wrapped">
                     <TableCell>{failed.job.jobId}</TableCell>
                     <TableCell>{failed.job.jobSet}</TableCell>
                     <TableCell>{failed.job.priority}</TableCell>
@@ -124,7 +76,7 @@ export default function (props: ReprioritizeJobsOutcomeProps) {
               </TableBody>
             </Table>
           </TableContainer>
-          <div className={classes.button}>
+          <div className="lookout-dialog-centered lookout-dialog-fixed">
             <LoadingButton
               content={`Retry - New priority: ${props.newPriority}`}
               isLoading={props.isLoading}

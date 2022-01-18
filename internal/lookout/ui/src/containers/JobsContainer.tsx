@@ -3,12 +3,7 @@ import React, { Fragment } from "react"
 import { RouteComponentProps, withRouter } from "react-router-dom"
 import { v4 as uuidv4 } from "uuid"
 
-import JobDetailsModal, { JobDetailsModalContext, toggleExpanded } from "../components/job-details/JobDetailsModal"
 import Jobs from "../components/jobs/Jobs"
-import CancelJobsDialog, { CancelJobsStatus } from "../components/jobs/cancel-jobs/CancelJobsDialog"
-import ReprioritizeJobsDialog, {
-  ReprioritizeJobsStatus,
-} from "../components/jobs/reprioritize-jobs/ReprioritizeJobsDialog"
 import IntervalService from "../services/IntervalService"
 import JobService, { GetJobsRequest, Job } from "../services/JobService"
 import JobTableService from "../services/JobTableService"
@@ -17,6 +12,9 @@ import JobsQueryParamsService from "../services/JobsQueryParamsService"
 import LogService from "../services/LogService"
 import TimerService from "../services/TimerService"
 import { RequestStatus, selectItem, setStateAsync } from "../utils"
+import CancelJobsDialog, { CancelJobsStatus } from "./CancelJobsDialog"
+import JobDialog from "./JobDialog"
+import ReprioritizeJobsDialog, { ReprioritizeJobsStatus } from "./ReprioritizeJobsDialog"
 
 type JobsContainerProps = {
   jobService: JobService
@@ -33,7 +31,8 @@ export type JobsContainerState = {
   annotationColumns: ColumnSpec<string>[]
   cancelJobsIsOpen: boolean
   reprioritizeJobsIsOpen: boolean
-  jobDetailsModalContext: JobDetailsModalContext
+  jobDialogIsOpen: boolean
+  clickedJob?: Job
   getJobsRequestStatus: RequestStatus
 }
 
@@ -154,11 +153,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
       annotationColumns: [],
       cancelJobsIsOpen: false,
       reprioritizeJobsIsOpen: false,
-      jobDetailsModalContext: {
-        open: false,
-        job: undefined,
-        expandedItems: new Set(),
-      },
+      jobDialogIsOpen: false,
     }
 
     this.serveJobs = this.serveJobs.bind(this)
@@ -174,15 +169,14 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     this.shiftSelectJob = this.shiftSelectJob.bind(this)
     this.deselectAll = this.deselectAll.bind(this)
 
+    this.openJobDetails = this.openJobDetails.bind(this)
+    this.jobClicked = this.jobClicked.bind(this)
+
     this.openCancelJobs = this.openCancelJobs.bind(this)
     this.cancelJobsResultReceived = this.cancelJobsResultReceived.bind(this)
 
     this.openReprioritizeJobs = this.openReprioritizeJobs.bind(this)
     this.reprioritizeJobsResultReceived = this.reprioritizeJobsResultReceived.bind(this)
-
-    this.openJobDetailsModal = this.openJobDetailsModal.bind(this)
-    this.toggleExpanded = this.toggleExpanded.bind(this)
-    this.closeJobDetailsModal = this.closeJobDetailsModal.bind(this)
 
     this.addAnnotationColumn = this.addAnnotationColumn.bind(this)
     this.deleteAnnotationColumn = this.deleteAnnotationColumn.bind(this)
@@ -409,6 +403,31 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     })
   }
 
+  openJobDetails(isOpen: boolean) {
+    this.setState({
+      ...this.state,
+      jobDialogIsOpen: isOpen,
+    })
+  }
+
+  getJobByIndex(jobIndex: number): Job | null {
+    if (jobIndex < 0 || jobIndex >= this.state.jobs.length) {
+      return null
+    }
+    return this.state.jobs[jobIndex]
+  }
+
+  jobClicked(jobIndex: number) {
+    const job = this.getJobByIndex(jobIndex)
+    if (job) {
+      this.setState({
+        ...this.state,
+        clickedJob: job,
+        jobDialogIsOpen: true,
+      })
+    }
+  }
+
   openCancelJobs(isOpen: boolean) {
     this.setState({
       ...this.state,
@@ -424,55 +443,21 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
   }
 
   async cancelJobsResultReceived(cancelJobsResult: CancelJobsStatus) {
-    if (cancelJobsResult === "Success" || cancelJobsResult === "Partial success") {
+    if (cancelJobsResult === "Success") {
       this.deselectAll()
+      this.refresh()
+    } else if (cancelJobsResult === "Partial success") {
       this.refresh()
     }
   }
 
   async reprioritizeJobsResultReceived(reprioritizeJobsResult: ReprioritizeJobsStatus) {
-    if (reprioritizeJobsResult === "Success" || reprioritizeJobsResult === "Partial success") {
+    if (reprioritizeJobsResult === "Success") {
       this.deselectAll()
       this.refresh()
+    } else if (reprioritizeJobsResult === "Partial success") {
+      this.refresh()
     }
-  }
-
-  openJobDetailsModal(jobIndex: number) {
-    if (jobIndex < 0 || jobIndex >= this.state.jobs.length) {
-      return
-    }
-
-    const job = this.state.jobs[jobIndex]
-    this.setState({
-      ...this.state,
-      jobDetailsModalContext: {
-        open: true,
-        job: job,
-        expandedItems: new Set(),
-      },
-    })
-  }
-
-  // Toggle expanded items in scheduling history in Job detail modal
-  toggleExpanded(item: string, isExpanded: boolean) {
-    const newExpanded = toggleExpanded(item, isExpanded, this.state.jobDetailsModalContext.expandedItems)
-    this.setState({
-      ...this.state,
-      jobDetailsModalContext: {
-        ...this.state.jobDetailsModalContext,
-        expandedItems: newExpanded,
-      },
-    })
-  }
-
-  closeJobDetailsModal() {
-    this.setState({
-      ...this.state,
-      jobDetailsModalContext: {
-        ...this.state.jobDetailsModalContext,
-        open: false,
-      },
-    })
   }
 
   async toggleAutoRefresh(autoRefresh: boolean) {
@@ -574,7 +559,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
       <Fragment>
         <CancelJobsDialog
           isOpen={this.state.cancelJobsIsOpen}
-          selectedJobs={Array.from(this.state.selectedJobs.values())}
+          selectedJobs={selectedJobs}
           jobService={this.props.jobService}
           onResult={this.cancelJobsResultReceived}
           onClose={() => this.openCancelJobs(false)}
@@ -586,11 +571,11 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
           onResult={this.reprioritizeJobsResultReceived}
           onClose={() => this.openReprioritizeJobs(false)}
         />
-        <JobDetailsModal
-          {...this.state.jobDetailsModalContext}
+        <JobDialog
+          isOpen={this.state.jobDialogIsOpen}
+          job={this.state.clickedJob}
           logService={this.props.logService}
-          onToggleExpanded={this.toggleExpanded}
-          onClose={this.closeJobDetailsModal}
+          onClose={() => this.openJobDetails(false)}
         />
         <Jobs
           jobs={this.state.jobs}
@@ -614,7 +599,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
           onDeselectAllClick={this.deselectAll}
           onCancelJobsClick={() => this.openCancelJobs(true)}
           onReprioritizeJobsClick={() => this.openReprioritizeJobs(true)}
-          onJobIdClick={this.openJobDetailsModal}
+          onJobIdClick={this.jobClicked}
           onAutoRefreshChange={this.toggleAutoRefresh}
           onInteract={this.resetAutoRefresh}
           onRegisterResetCache={this.registerResetCache}

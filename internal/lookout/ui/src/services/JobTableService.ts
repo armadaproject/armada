@@ -21,6 +21,7 @@ function createLoadingJob(): JobMetadata {
     annotations: {},
     namespace: "",
     loadState: "Loading",
+    containers: new Map<number, string[]>(),
   }
 }
 

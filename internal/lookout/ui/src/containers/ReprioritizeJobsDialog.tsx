@@ -2,11 +2,13 @@ import React, { useState } from "react"
 
 import { Dialog, DialogContent, DialogTitle } from "@material-ui/core"
 
-import { REPRIORITIZEABLE_JOB_STATES } from "../../../containers/JobsContainer"
-import JobService, { Job, ReprioritizeJobsResult } from "../../../services/JobService"
-import { RequestStatus } from "../../../utils"
-import ReprioritizeJobs from "./ReprioritizeJobs"
-import ReprioritizeJobsOutcome from "./ReprioritizeJobsOutcome"
+import ReprioritizeJobs from "../components/jobs/reprioritize-jobs/ReprioritizeJobs"
+import ReprioritizeJobsOutcome from "../components/jobs/reprioritize-jobs/ReprioritizeJobsOutcome"
+import JobService, { Job, ReprioritizeJobsResult } from "../services/JobService"
+import { priorityIsValid, RequestStatus } from "../utils"
+import { REPRIORITIZEABLE_JOB_STATES } from "./JobsContainer"
+
+import "../components/Dialog.css"
 
 export type ReprioritizeJobsDialogState = "ReprioritizeJobs" | "ReprioritizeJobsResult"
 export type ReprioritizeJobsStatus = "Success" | "Failure" | "Partial success"
@@ -15,14 +17,8 @@ type ReprioritizeJobsProps = {
   isOpen: boolean
   selectedJobs: Job[]
   jobService: JobService
-  onResult(result: ReprioritizeJobsStatus): void
-  onClose(): void
-}
-
-const newPriorityRegex = new RegExp("^([0-9]+)$")
-
-function priorityIsValid(priority: string): boolean {
-  return newPriorityRegex.test(priority) && priority.length > 0
+  onResult: (result: ReprioritizeJobsStatus) => void
+  onClose: () => void
 }
 
 export default function ReprioritizeJobsDialog(props: ReprioritizeJobsProps) {
@@ -57,40 +53,13 @@ export default function ReprioritizeJobsDialog(props: ReprioritizeJobsProps) {
   }
 
   function close() {
+    props.onClose()
+    setPriority("")
     setState("ReprioritizeJobs")
     setResult({
       reprioritizedJobs: [],
       failedJobReprioritizations: [],
     })
-    props.onClose()
-  }
-
-  let content: JSX.Element
-  switch (state) {
-    case "ReprioritizeJobs":
-      content = (
-        <ReprioritizeJobs
-          jobsToReprioritize={jobsToReprioritize}
-          isLoading={requestStatus == "Loading"}
-          newPriority={priority}
-          isValid={priorityIsValid(priority)}
-          onReprioritizeJobs={reprioritizeJobs}
-          onPriorityChange={setPriority}
-        />
-      )
-      break
-    case "ReprioritizeJobsResult":
-      content = (
-        <ReprioritizeJobsOutcome
-          reprioritizeJobsResult={result}
-          isLoading={requestStatus == "Loading"}
-          newPriority={priority}
-          onReprioritizeJobs={reprioritizeJobs}
-        />
-      )
-      break
-    default:
-      content = <div />
   }
 
   return (
@@ -102,7 +71,26 @@ export default function ReprioritizeJobsDialog(props: ReprioritizeJobsProps) {
       maxWidth={"md"}
     >
       <DialogTitle id="reprioritize-jobs-dialog-title">Reprioritize Jobs</DialogTitle>
-      <DialogContent>{content}</DialogContent>
+      <DialogContent className="lookout-dialog">
+        {state === "ReprioritizeJobs" && (
+          <ReprioritizeJobs
+            jobsToReprioritize={jobsToReprioritize}
+            isLoading={requestStatus === "Loading"}
+            newPriority={priority}
+            isValid={priorityIsValid(priority)}
+            onReprioritizeJobs={reprioritizeJobs}
+            onPriorityChange={setPriority}
+          />
+        )}
+        {state === "ReprioritizeJobsResult" && (
+          <ReprioritizeJobsOutcome
+            reprioritizeJobsResult={result}
+            isLoading={requestStatus === "Loading"}
+            newPriority={priority}
+            onReprioritizeJobs={reprioritizeJobs}
+          />
+        )}
+      </DialogContent>
     </Dialog>
   )
 }

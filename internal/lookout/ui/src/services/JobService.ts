@@ -9,8 +9,17 @@ import {
   LookoutQueueInfo,
   LookoutRunInfo,
   ApiJob,
+  V1PodSpec,
 } from "../openapi/lookout"
 import { reverseMap, secondsToDurationString, getErrorMessage } from "../utils"
+import {
+  makeTestCancelJobSetsResults,
+  makeTestCancelJobsResults,
+  makeTestJobs,
+  makeTestJobSets,
+  makeTestReprioritizeJobSetsResults,
+  makeTestReprioritizeJobsResults,
+} from "./testData"
 
 type DurationFromApi = {
   seconds?: number
@@ -82,6 +91,7 @@ export type Job = {
   jobYaml: string
   annotations: { [key: string]: string }
   namespace: string
+  containers: Map<number, string[]> // Map from pod number to containers in that pod
 }
 
 export type Run = {
@@ -94,15 +104,14 @@ export type Run = {
   podStartTime?: string
   finishTime?: string
   podNumber: number
-  containers: string[]
 }
 
-export type CancelJobsResult = {
+export type CancelJobsResponse = {
   cancelledJobs: Job[]
   failedJobCancellations: FailedJobCancellation[]
 }
 
-export type CancelJobSetsResult = {
+export type CancelJobSetsResponse = {
   cancelledJobSets: JobSet[]
   failedJobSetCancellations: {
     jobSet: JobSet
@@ -145,6 +154,8 @@ const INVERSE_JOB_STATE_MAP = reverseMap(JOB_STATE_MAP)
 
 export const JOB_STATES_FOR_DISPLAY = ["Queued", "Pending", "Running", "Succeeded", "Failed", "Cancelled"]
 
+export const UNKNOWN_CONTAINER = "Unknown Container"
+
 export default class JobService {
   lookoutApi: LookoutApi
   submitApi: SubmitApi
@@ -166,6 +177,9 @@ export default class JobService {
   }
 
   async getJobSets(getJobSetsRequest: GetJobSetsRequest): Promise<JobSet[]> {
+    if (getJobSetsRequest.queue === "test") {
+      return makeTestJobSets(100, 100)
+    }
     const jobSetsFromApi = await this.lookoutApi.getJobSets({
       body: {
         queue: getJobSetsRequest.queue,
@@ -181,6 +195,9 @@ export default class JobService {
   }
 
   async getJobs(getJobsRequest: GetJobsRequest): Promise<Job[]> {
+    if (getJobsRequest.queue === "test-1") {
+      return makeTestJobs("test-1", getJobsRequest.skip, getJobsRequest.skip + getJobsRequest.take)
+    }
     const jobStatesForApi = getJobsRequest.jobStates.map(getJobStateForApi)
     const jobSetsForApi = getJobsRequest.jobSets.map(escapeBackslashes)
     try {
@@ -206,8 +223,11 @@ export default class JobService {
     return []
   }
 
-  async cancelJobs(jobs: Job[]): Promise<CancelJobsResult> {
-    const result: CancelJobsResult = { cancelledJobs: [], failedJobCancellations: [] }
+  async cancelJobs(jobs: Job[]): Promise<CancelJobsResponse> {
+    if (jobs.length > 0 && jobs[0].queue === "test") {
+      return makeTestCancelJobsResults(30)
+    }
+    const result: CancelJobsResponse = { cancelledJobs: [], failedJobCancellations: [] }
     for (const job of jobs) {
       try {
         const apiResult = await this.submitApi.cancelJobs({
@@ -230,8 +250,11 @@ export default class JobService {
     return result
   }
 
-  async cancelJobSets(queue: string, jobSets: JobSet[]): Promise<CancelJobSetsResult> {
-    const result: CancelJobSetsResult = { cancelledJobSets: [], failedJobSetCancellations: [] }
+  async cancelJobSets(queue: string, jobSets: JobSet[]): Promise<CancelJobSetsResponse> {
+    if (queue === "test") {
+      return makeTestCancelJobSetsResults(100, 100)
+    }
+    const result: CancelJobSetsResponse = { cancelledJobSets: [], failedJobSetCancellations: [] }
     for (const jobSet of jobSets) {
       try {
         const apiResult = await this.submitApi.cancelJobs({
@@ -256,6 +279,10 @@ export default class JobService {
   }
 
   async reprioritizeJobs(jobs: Job[], newPriority: number): Promise<ReprioritizeJobsResult> {
+    if (jobs.length > 0 && jobs[0].queue === "test") {
+      return makeTestReprioritizeJobsResults(30)
+    }
+
     const result: ReprioritizeJobsResult = { reprioritizedJobs: [], failedJobReprioritizations: [] }
     const jobIds: string[] = []
     for (const job of jobs) {
@@ -301,6 +328,9 @@ export default class JobService {
   }
 
   async reprioritizeJobSets(queue: string, jobSets: JobSet[], newPriority: number): Promise<ReprioritizeJobSetsResult> {
+    if (queue === "test") {
+      return makeTestReprioritizeJobSetsResults(100, 100)
+    }
     const result: ReprioritizeJobSetsResult = { reprioritizedJobSets: [], failedJobSetReprioritizations: [] }
 
     for (const jobSet of jobSets) {
@@ -349,6 +379,7 @@ export default class JobService {
   }
 
   private queueInfoToViewModel(queueInfo: LookoutQueueInfo): QueueInfo {
+    console.log(queueInfo)
     let oldestQueuedJob: Job | undefined
     let oldestQueuedDuration = "-"
     if (queueInfo.oldestQueuedJob) {
@@ -390,9 +421,10 @@ export default class JobService {
     const jobState = JOB_STATE_MAP.get(jobInfo.jobState ?? "") ?? "Unknown"
     const jobFromJson = jobInfo.jobJson ? (JSON.parse(jobInfo.jobJson) as ApiJob) : undefined
     const jobYaml = jobInfo.jobJson ? jobJsonToYaml(jobFromJson) : ""
-    const runs = getRuns(jobInfo, jobFromJson)
+    const runs = getRuns(jobInfo)
     const annotations = jobInfo.job?.annotations ? this.getAnnotations(jobInfo.job?.annotations) : {}
     const namespace = jobFromJson?.namespace ?? ""
+    const containers = getContainers(jobFromJson)
 
     return {
       jobId: jobId,
@@ -407,6 +439,7 @@ export default class JobService {
       jobYaml: jobYaml,
       annotations: annotations,
       namespace: namespace,
+      containers: containers,
     }
   }
 
@@ -492,13 +525,37 @@ function dateToString(date: Date): string {
   })
 }
 
-function getRuns(jobInfo: LookoutJobInfo, jobFromJson: ApiJob | undefined): Run[] {
+function getContainers(apiJob: ApiJob | undefined): Map<number, string[]> {
+  const podSpecs = apiJob?.podSpecs || []
+  if (podSpecs.length === 0 && apiJob?.podSpec) {
+    podSpecs.push(apiJob?.podSpec)
+  }
+  if (podSpecs.length === 0) {
+    return new Map<number, string[]>()
+  }
+  return getContainersFromPodSpecs(podSpecs)
+}
+
+function getContainersFromPodSpecs(podSpecs: V1PodSpec[]): Map<number, string[]> {
+  const containers = new Map<number, string[]>()
+  for (let i = 0; i < podSpecs.length; i++) {
+    const podContainers = podSpecs[i].containers ?? []
+    const podContainerNames = podContainers.map((container) => container.name ?? UNKNOWN_CONTAINER)
+    if (podContainerNames.length === 0) {
+      podContainerNames.push(UNKNOWN_CONTAINER)
+    }
+    containers.set(i, podContainerNames)
+  }
+  return containers
+}
+
+function getRuns(jobInfo: LookoutJobInfo): Run[] {
   if (!jobInfo.runs || jobInfo.runs.length === 0) {
     return []
   }
 
   sortRuns(jobInfo.runs)
-  return jobInfo.runs.map((r) => runInfoToViewModel(r, jobFromJson))
+  return jobInfo.runs.map((r) => runInfoToViewModel(r))
 }
 
 function sortRuns(runs: LookoutRunInfo[]) {
@@ -517,10 +574,7 @@ function getLatestTimeForRun(run: LookoutRunInfo) {
   )
 }
 
-function runInfoToViewModel(run: LookoutRunInfo, job: ApiJob | undefined): Run {
-  const podSpecs = job?.podSpecs ?? []
-  const containers = podSpecs.length > 0 ? podSpecs[run.podNumber ?? 0].containers ?? [] : []
-  const containerNames = containers.length > 0 ? containers.map((c) => c.name ?? "") : [""]
+function runInfoToViewModel(run: LookoutRunInfo): Run {
   return {
     k8sId: run.k8sId ?? "Unknown Kubernetes id",
     cluster: run.cluster ?? "Unknown cluster",
@@ -531,7 +585,6 @@ function runInfoToViewModel(run: LookoutRunInfo, job: ApiJob | undefined): Run {
     podStartTime: run.started ? dateToString(run.started) : undefined,
     finishTime: run.finished ? dateToString(run.finished) : undefined,
     podNumber: run.podNumber ?? 0,
-    containers: containerNames,
   }
 }
 

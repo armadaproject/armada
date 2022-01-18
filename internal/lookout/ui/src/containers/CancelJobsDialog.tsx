@@ -2,11 +2,13 @@ import React, { useState } from "react"
 
 import { Dialog, DialogContent, DialogTitle } from "@material-ui/core"
 
-import { CANCELLABLE_JOB_STATES } from "../../../containers/JobsContainer"
-import JobService, { CancelJobsResult, Job } from "../../../services/JobService"
-import { RequestStatus } from "../../../utils"
-import CancelJobs from "./CancelJobs"
-import CancelJobsOutcome from "./CancelJobsOutcome"
+import CancelJobs from "../components/jobs/cancel-jobs/CancelJobs"
+import CancelJobsOutcome from "../components/jobs/cancel-jobs/CancelJobsOutcome"
+import JobService, { CancelJobsResponse, Job } from "../services/JobService"
+import { RequestStatus } from "../utils"
+import { CANCELLABLE_JOB_STATES } from "./JobsContainer"
+
+import "../components/Dialog.css"
 
 export type CancelJobsDialogState = "CancelJobs" | "CancelJobsResult"
 export type CancelJobsStatus = "Success" | "Failure" | "Partial success"
@@ -15,13 +17,13 @@ type CancelJobsProps = {
   isOpen: boolean
   selectedJobs: Job[]
   jobService: JobService
-  onResult(result: CancelJobsStatus): void
-  onClose(): void
+  onResult: (result: CancelJobsStatus) => void
+  onClose: () => void
 }
 
 export default function CancelJobsDialog(props: CancelJobsProps) {
   const [state, setState] = useState<CancelJobsDialogState>("CancelJobs")
-  const [result, setResult] = useState<CancelJobsResult>({
+  const [result, setResult] = useState<CancelJobsResponse>({
     cancelledJobs: [],
     failedJobCancellations: [],
   })
@@ -30,7 +32,7 @@ export default function CancelJobsDialog(props: CancelJobsProps) {
   const jobsToCancel = props.selectedJobs.filter((job) => CANCELLABLE_JOB_STATES.includes(job.jobState))
 
   async function cancelJobs() {
-    if (requestStatus == "Loading") {
+    if (requestStatus === "Loading") {
       return
     }
 
@@ -50,28 +52,12 @@ export default function CancelJobsDialog(props: CancelJobsProps) {
   }
 
   function close() {
+    props.onClose()
     setState("CancelJobs")
     setResult({
       cancelledJobs: [],
       failedJobCancellations: [],
     })
-    props.onClose()
-  }
-
-  let content: JSX.Element
-  switch (state) {
-    case "CancelJobs":
-      content = (
-        <CancelJobs jobsToCancel={jobsToCancel} isLoading={requestStatus == "Loading"} onCancelJobs={cancelJobs} />
-      )
-      break
-    case "CancelJobsResult":
-      content = (
-        <CancelJobsOutcome cancelJobsResult={result} isLoading={requestStatus == "Loading"} onCancelJobs={cancelJobs} />
-      )
-      break
-    default:
-      content = <div />
   }
 
   return (
@@ -83,7 +69,18 @@ export default function CancelJobsDialog(props: CancelJobsProps) {
       maxWidth={"md"}
     >
       <DialogTitle id="cancel-jobs-dialog-title">Cancel Jobs</DialogTitle>
-      <DialogContent>{content}</DialogContent>
+      <DialogContent className="lookout-dialog">
+        {state === "CancelJobs" && (
+          <CancelJobs jobsToCancel={jobsToCancel} isLoading={requestStatus == "Loading"} onCancelJobs={cancelJobs} />
+        )}
+        {state === "CancelJobsResult" && (
+          <CancelJobsOutcome
+            cancelJobsResult={result}
+            isLoading={requestStatus == "Loading"}
+            onCancelJobs={cancelJobs}
+          />
+        )}
+      </DialogContent>
     </Dialog>
   )
 }
