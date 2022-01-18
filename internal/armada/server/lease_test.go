@@ -266,8 +266,8 @@ func (repo *mockJobRepository) GetJobRunInfos(jobIds []string) (map[string]*repo
 
 type fakeQueueRepository struct{}
 
-func (repo *fakeQueueRepository) GetAllQueues() (queue.Queues, error) {
-	return queue.Queues{}, nil
+func (repo *fakeQueueRepository) GetAllQueues() ([]queue.Queue, error) {
+	return []queue.Queue{}, nil
 }
 
 func (repo *fakeQueueRepository) GetQueue(name string) (queue.Queue, error) {

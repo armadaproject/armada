@@ -90,9 +90,7 @@ func (q Queue) HasPermission(inputSubject PermissionSubject, inputVerb Permissio
 	return false
 }
 
-type Queues []Queue
-
-func (queues Queues) ToAPI() []*api.Queue {
+func QueuesToAPI(queues []Queue) []*api.Queue {
 	result := make([]*api.Queue, len(queues))
 
 	for index, queue := range queues {
@@ -101,3 +99,15 @@ func (queues Queues) ToAPI() []*api.Queue {
 
 	return result
 }
+
+// type Queues []Queue
+
+// func (queues Queues) ToAPI() []*api.Queue {
+// 	result := make([]*api.Queue, len(queues))
+
+// 	for index, queue := range queues {
+// 		result[index] = queue.ToAPI()
+// 	}
+
+// 	return result
+// }

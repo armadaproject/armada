@@ -30,7 +30,7 @@ var ErrQueueNotFound = errors.New("Queue does not exist")
 var ErrQueueAlreadyExists = errors.New("Queue already exists")
 
 type QueueRepository interface {
-	GetAllQueues() (queue.Queues, error)
+	GetAllQueues() ([]queue.Queue, error)
 	GetQueue(name string) (queue.Queue, error)
 	CreateQueue(queue.Queue) error
 	UpdateQueue(queue.Queue) error
@@ -45,7 +45,7 @@ func NewRedisQueueRepository(db redis.UniversalClient) *RedisQueueRepository {
 	return &RedisQueueRepository{db: db}
 }
 
-func (r *RedisQueueRepository) GetAllQueues() (queue.Queues, error) {
+func (r *RedisQueueRepository) GetAllQueues() ([]queue.Queue, error) {
 	result, err := r.db.HGetAll(queueHashKey).Result()
 	if err != nil {
 		return nil, err

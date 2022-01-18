@@ -10,6 +10,7 @@ import (
 	"github.com/G-Research/armada/internal/armada/scheduling"
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/pkg/api"
+	"github.com/G-Research/armada/pkg/client/queue"
 )
 
 const MetricPrefix = "armada_"
@@ -232,7 +233,7 @@ func (c *QueueInfoCollector) Collect(metrics chan<- prometheus.Metric) {
 		return
 	}
 
-	queueSizes, e := c.jobRepository.GetQueueSizes(queues.ToAPI())
+	queueSizes, e := c.jobRepository.GetQueueSizes(queue.QueuesToAPI(queues))
 	if e != nil {
 		log.Errorf("Error while getting queue size metrics %s", e)
 		recordInvalidMetrics(metrics, e)
@@ -254,7 +255,7 @@ func (c *QueueInfoCollector) Collect(metrics chan<- prometheus.Metric) {
 	}
 
 	activeClusterInfo := scheduling.FilterActiveClusterSchedulingInfoReports(clusterSchedulingInfo)
-	runDurationsByPool, runResourceByPool := c.calculateRunningJobStats(queues.ToAPI(), activeClusterInfo)
+	runDurationsByPool, runResourceByPool := c.calculateRunningJobStats(queue.QueuesToAPI(queues), activeClusterInfo)
 
 	activeClusterReports := scheduling.FilterActiveClusters(usageReports)
 	clusterPriorities, e := c.usageRepository.GetClusterPriorities(scheduling.GetClusterReportIds(activeClusterReports))
@@ -270,7 +271,7 @@ func (c *QueueInfoCollector) Collect(metrics chan<- prometheus.Metric) {
 		for cluster := range poolReports {
 			poolPriorities[cluster] = clusterPriorities[cluster]
 		}
-		queuePriority := scheduling.CalculateQueuesPriorityInfo(poolPriorities, poolReports, queues.ToAPI())
+		queuePriority := scheduling.CalculateQueuesPriorityInfo(poolPriorities, poolReports, queue.QueuesToAPI(queues))
 		for queue, priority := range queuePriority {
 			metrics <- prometheus.MustNewConstMetric(queuePriorityDesc, prometheus.GaugeValue, priority.Priority, pool, queue.Name)
 		}
