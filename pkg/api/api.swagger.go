@@ -467,6 +467,9 @@ func SwaggerJsonTemplate() string {
 		"        },\n" +
 		"        \"type\": {\n" +
 		"          \"$ref\": \"#/definitions/apiIngressType\"\n" +
+		"        },\n" +
+		"        \"useClusterIP\": {\n" +
+		"          \"type\": \"boolean\"\n" +
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +

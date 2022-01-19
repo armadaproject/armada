@@ -138,11 +138,12 @@ func makePodSpec() *v1.PodSpec {
 
 func makeTestJob() *api.Job {
 	return &api.Job{
-		Id:       "Id",
-		JobSetId: "JobSetId",
-		Queue:    "QueueTest",
-		Owner:    "UserTest",
-		PodSpecs: []*v1.PodSpec{makePodSpec()},
+		Id:        "Id",
+		JobSetId:  "JobSetId",
+		Queue:     "QueueTest",
+		Owner:     "UserTest",
+		Namespace: "testNamespace",
+		PodSpecs:  []*v1.PodSpec{makePodSpec()},
 	}
 }
 
@@ -167,7 +168,6 @@ func TestCreateIngress_Basic(t *testing.T) {
 	pod := &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "testPod", Namespace: "testNamespace"}}
 	ingressConfig := &configuration.IngressConfiguration{
 		HostnameSuffix: "testSuffix",
-		CertDomain:     "svc",
 	}
 
 	// TLS disabled jobconfig
@@ -209,7 +209,7 @@ func TestCreateIngress_TLS(t *testing.T) {
 	pod := &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "testPod", Namespace: "testNamespace"}}
 	ingressConfig := &configuration.IngressConfiguration{
 		HostnameSuffix: "testSuffix",
-		CertDomain:     "svc",
+		CertNameSuffix: "ingress-tls-certificate",
 	}
 
 	// TLS enabled in this test
@@ -224,10 +224,9 @@ func TestCreateIngress_TLS(t *testing.T) {
 		TLS: []networking.IngressTLS{
 			{
 				Hosts: []string{
-					"testIngress.svc",
 					"testPort.testPod.testNamespace.testSuffix",
 				},
-				SecretName: "testIngress-tls-certificate",
+				SecretName: "testNamespace-ingress-tls-certificate",
 			},
 		},
 		Rules: []networking.IngressRule{
@@ -253,7 +252,7 @@ func TestCreateIngress_TLS(t *testing.T) {
 	assert.Equal(t, result.Spec, expectedIngressSpec)
 }
 
-func TestCreateService_Ingress(t *testing.T) {
+func TestCreateService_Ingress_Headless(t *testing.T) {
 	job := makeTestJob()
 	pod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -272,11 +271,12 @@ func TestCreateService_Ingress(t *testing.T) {
 		},
 	}
 	ingressType := Ingress
-	createdService := CreateService(job, pod, ports, ingressType)
+	createdService := CreateService(job, pod, ports, ingressType, false)
 
 	expected := &v1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "testPod-ingress",
+			Name:      "testPod-ingress",
+			Namespace: "testNamespace",
 			Labels: map[string]string{
 				"armada_job_id":     "test_id",
 				"armada_pod_number": "0",
@@ -305,6 +305,58 @@ func TestCreateService_Ingress(t *testing.T) {
 	assert.Equal(t, createdService, expected)
 }
 
+func TestCreateService_Ingress_ClusterIP(t *testing.T) {
+	job := makeTestJob()
+	pod := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "testPod",
+			Namespace: "testNamespace",
+			Labels: map[string]string{
+				"armada_job_id":     "test_id",
+				"armada_pod_number": "0",
+				"armada_queue_id":   "test_queue_id",
+			},
+		},
+	}
+	ports := []v1.ServicePort{
+		{
+			Port: 123,
+		},
+	}
+	ingressType := Ingress
+	createdService := CreateService(job, pod, ports, ingressType, true)
+
+	expected := &v1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "testPod-ingress",
+			Namespace: "testNamespace",
+			Labels: map[string]string{
+				"armada_job_id":     "test_id",
+				"armada_pod_number": "0",
+				"armada_queue_id":   "test_queue_id",
+			},
+			Annotations: map[string]string{
+				"armada_jobset_id": "JobSetId",
+				"armada_owner":     "UserTest",
+			},
+		},
+		Spec: v1.ServiceSpec{
+			Ports: []v1.ServicePort{
+				{
+					Port: 123,
+				},
+			},
+			Selector: map[string]string{
+				"armada_job_id":     "test_id",
+				"armada_pod_number": "0",
+				"armada_queue_id":   "test_queue_id",
+			},
+			Type: "ClusterIP",
+		},
+	}
+	assert.Equal(t, createdService, expected)
+}
+
 func TestCreateService_NodePort(t *testing.T) {
 	job := makeTestJob()
 	pod := &v1.Pod{
@@ -325,11 +377,12 @@ func TestCreateService_NodePort(t *testing.T) {
 		},
 	}
 	ingressType := NodePort
-	createdService := CreateService(job, pod, ports, ingressType)
+	createdService := CreateService(job, pod, ports, ingressType, true)
 
 	expected := &v1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "testPod-nodeport",
+			Name:      "testPod-nodeport",
+			Namespace: "testNamespace",
 			Labels: map[string]string{
 				"armada_job_id":     "test_id",
 				"armada_pod_number": "0",
@@ -377,11 +430,12 @@ func TestCreateService_Headless(t *testing.T) {
 		},
 	}
 	ingressType := Headless
-	createdService := CreateService(job, pod, ports, ingressType)
+	createdService := CreateService(job, pod, ports, ingressType, false)
 
 	expected := &v1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "testPod-headless",
+			Name:      "testPod-headless",
+			Namespace: "testNamespace",
 			Labels: map[string]string{
 				"armada_job_id":     "test_id",
 				"armada_pod_number": "0",
