@@ -194,9 +194,9 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
   handleApiResult(result: ApiResult) {
     if (result === "Success") {
       this.deselectAll()
-      this.loadJobSets()
+      return this.loadJobSets()
     } else if (result === "Partial success") {
-      this.loadJobSets()
+      return this.loadJobSets()
     }
   }
 

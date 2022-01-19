@@ -22,20 +22,16 @@ const LOGGABLE_JOB_STATES = ["Running", "Succeeded", "Failed", "Cancelled"]
 export default function JobDialog(props: JobDetailsModalProps) {
   const [tab, changeTab] = useState<JobDialogTab>("Details")
 
-  function close() {
-    props.onClose()
-    changeTab("Details")
-  }
-
   const showLogs = props.logService.isEnabled && props.job && LOGGABLE_JOB_STATES.includes(props.job?.jobState)
 
   return (
     <Dialog
       open={props.isOpen}
       aria-labelledby="job-details-dialog-title"
-      onClose={close}
+      onClose={props.onClose}
       fullWidth={true}
       maxWidth={"md"}
+      onExited={() => changeTab("Details")}
     >
       <Tabs
         value={tab}

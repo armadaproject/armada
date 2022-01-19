@@ -51,8 +51,7 @@ export default function ReprioritizeJobsDialog(props: ReprioritizeJobsProps) {
     }
   }
 
-  function close() {
-    props.onClose()
+  function cleanup() {
     setPriority("")
     setState("ReprioritizeJobs")
     setResponse({
@@ -66,7 +65,8 @@ export default function ReprioritizeJobsDialog(props: ReprioritizeJobsProps) {
       open={props.isOpen}
       aria-labelledby="reprioritize-jobs-modal-title"
       aria-describedby="reprioritize-jobs-modal-description"
-      onClose={close}
+      onClose={props.onClose}
+      onExited={cleanup}
       maxWidth={"md"}
     >
       <DialogTitle id="reprioritize-jobs-dialog-title">Reprioritize Jobs</DialogTitle>

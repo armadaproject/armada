@@ -50,8 +50,7 @@ export default function CancelJobsDialog(props: CancelJobsProps) {
     }
   }
 
-  function close() {
-    props.onClose()
+  function cleanup() {
     setState("CancelJobs")
     setResponse({
       cancelledJobs: [],
@@ -64,7 +63,8 @@ export default function CancelJobsDialog(props: CancelJobsProps) {
       open={props.isOpen}
       aria-labelledby="cancel-jobs-modal-title"
       aria-describedby="cancel-jobs-modal-description"
-      onClose={close}
+      onClose={props.onClose}
+      onExited={cleanup}
       maxWidth={"md"}
     >
       <DialogTitle id="cancel-jobs-dialog-title">Cancel Jobs</DialogTitle>

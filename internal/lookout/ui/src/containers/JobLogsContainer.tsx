@@ -55,6 +55,10 @@ export default function JobLogsContainer(props: JobLogsContainerProps) {
   }
 
   async function loadMore() {
+    if (log.length === 0) {
+      return firstLoad()
+    }
+
     const lastLine = log[log.length - 1]
     const newLogData = await loadData(lastLine.time)
     // skip overlapping line

@@ -108,7 +108,10 @@ export type Run = {
 
 export type CancelJobsResponse = {
   cancelledJobs: Job[]
-  failedJobCancellations: FailedJobCancellation[]
+  failedJobCancellations: {
+    job: Job
+    error: string
+  }[]
 }
 
 export type CancelJobSetsResponse = {
@@ -119,14 +122,12 @@ export type CancelJobSetsResponse = {
   }[]
 }
 
-export type FailedJobCancellation = {
-  job: Job
-  error: string
-}
-
 export type ReprioritizeJobsResponse = {
   reprioritizedJobs: Job[]
-  failedJobReprioritizations: FailedJobReprioritizations[]
+  failedJobReprioritizations: {
+    job: Job
+    error: string
+  }[]
 }
 
 export type ReprioritizeJobSetsResponse = {
@@ -135,11 +136,6 @@ export type ReprioritizeJobSetsResponse = {
     jobSet: JobSet
     error: string
   }[]
-}
-
-export type FailedJobReprioritizations = {
-  job: Job
-  error: string
 }
 
 const JOB_STATE_MAP = new Map<string, string>()
