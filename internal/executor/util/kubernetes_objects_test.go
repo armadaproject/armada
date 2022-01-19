@@ -181,7 +181,7 @@ func TestCreateIngress_Basic(t *testing.T) {
 		TLS: []networking.IngressTLS{},
 		Rules: []networking.IngressRule{
 			{
-				Host: "testPort.testPod.testNamespace.testSuffix",
+				Host: "testPort-testPod.testNamespace.testSuffix",
 				IngressRuleValue: networking.IngressRuleValue{
 					HTTP: &networking.HTTPIngressRuleValue{
 						Paths: []networking.HTTPIngressPath{
@@ -224,14 +224,14 @@ func TestCreateIngress_TLS(t *testing.T) {
 		TLS: []networking.IngressTLS{
 			{
 				Hosts: []string{
-					"testPort.testPod.testNamespace.testSuffix",
+					"testPort-testPod.testNamespace.testSuffix",
 				},
 				SecretName: "testNamespace-ingress-tls-certificate",
 			},
 		},
 		Rules: []networking.IngressRule{
 			{
-				Host: "testPort.testPod.testNamespace.testSuffix",
+				Host: "testPort-testPod.testNamespace.testSuffix",
 				IngressRuleValue: networking.IngressRuleValue{
 					HTTP: &networking.HTTPIngressRuleValue{
 						Paths: []networking.HTTPIngressPath{
