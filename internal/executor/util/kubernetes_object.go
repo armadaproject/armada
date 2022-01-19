@@ -93,7 +93,7 @@ func CreateIngress(
 		if !contains(jobConfig, uint32(servicePort.Port)) {
 			continue
 		}
-		host := fmt.Sprintf("%s.%s.%s.%s", servicePort.Name, pod.Name, pod.Namespace, executorIngressConfig.HostnameSuffix)
+		host := fmt.Sprintf("%s-%s.%s.%s", servicePort.Name, pod.Name, pod.Namespace, executorIngressConfig.HostnameSuffix)
 		tlsHosts = append(tlsHosts, host)
 
 		path := networking.IngressRule{
