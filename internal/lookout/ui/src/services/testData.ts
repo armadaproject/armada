@@ -5,8 +5,8 @@ import {
   Job,
   JobSet,
   QueueInfo,
-  ReprioritizeJobSetsResult,
-  ReprioritizeJobsResult,
+  ReprioritizeJobSetsResponse,
+  ReprioritizeJobsResponse,
 } from "./JobService"
 
 function generateId(length: number): string {
@@ -192,8 +192,8 @@ export function makeTestCancelJobsResults(nJobs: number): CancelJobsResponse {
   return results
 }
 
-export function makeTestReprioritizeJobsResults(nJobs: number): ReprioritizeJobsResult {
-  const results: ReprioritizeJobsResult = {
+export function makeTestReprioritizeJobsResults(nJobs: number): ReprioritizeJobsResponse {
+  const results: ReprioritizeJobsResponse = {
     reprioritizedJobs: [],
     failedJobReprioritizations: [],
   }
@@ -209,8 +209,11 @@ export function makeTestReprioritizeJobsResults(nJobs: number): ReprioritizeJobs
   return results
 }
 
-export function makeTestReprioritizeJobSetsResults(nJobSets: number, jobSetLength: number): ReprioritizeJobSetsResult {
-  const results: ReprioritizeJobSetsResult = {
+export function makeTestReprioritizeJobSetsResults(
+  nJobSets: number,
+  jobSetLength: number,
+): ReprioritizeJobSetsResponse {
+  const results: ReprioritizeJobSetsResponse = {
     reprioritizedJobSets: [],
     failedJobSetReprioritizations: [],
   }

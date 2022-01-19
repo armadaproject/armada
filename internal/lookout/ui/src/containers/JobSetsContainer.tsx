@@ -7,8 +7,8 @@ import IntervalService from "../services/IntervalService"
 import JobService, { GetJobSetsRequest, JobSet } from "../services/JobService"
 import JobSetsLocalStorageService from "../services/JobSetsLocalStorageService"
 import JobSetsQueryParamsService from "../services/JobSetsQueryParamsService"
-import { debounced, RequestStatus, selectItem, setStateAsync } from "../utils"
-import CancelJobSetsDialog, { CancelJobSetsStatus, getCancellableJobSets } from "./CancelJobSetsDialog"
+import { ApiResult, debounced, RequestStatus, selectItem, setStateAsync } from "../utils"
+import CancelJobSetsDialog, { getCancellableJobSets } from "./CancelJobSetsDialog"
 import ReprioritizeJobSetsDialog, { getReprioritizeableJobSets } from "./ReprioritizeJobSetsDialog"
 
 type JobSetsContainerProps = {
@@ -75,10 +75,8 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
     this.deselectAll = this.deselectAll.bind(this)
 
     this.openCancelJobSets = this.openCancelJobSets.bind(this)
-    this.cancelJobSetsResultReceived = this.cancelJobSetsResultReceived.bind(this)
-
     this.openReprioritizeJobSets = this.openReprioritizeJobSets.bind(this)
-    this.reprioritizeJobSetsResultReceived = this.reprioritizeJobSetsResultReceived.bind(this)
+    this.handleApiResult = this.handleApiResult.bind(this)
 
     this.fetchJobSets = debounced(this.fetchJobSets.bind(this), 100)
     this.loadJobSets = this.loadJobSets.bind(this)
@@ -186,15 +184,6 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
     })
   }
 
-  cancelJobSetsResultReceived(result: CancelJobSetsStatus) {
-    if (result === "Success") {
-      this.deselectAll()
-      this.loadJobSets()
-    } else if (result === "Partial success") {
-      this.loadJobSets()
-    }
-  }
-
   openReprioritizeJobSets(isOpen: boolean) {
     this.setState({
       ...this.state,
@@ -202,7 +191,7 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
     })
   }
 
-  reprioritizeJobSetsResultReceived(result: CancelJobSetsStatus) {
+  handleApiResult(result: ApiResult) {
     if (result === "Success") {
       this.deselectAll()
       this.loadJobSets()
@@ -279,7 +268,7 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
           queue={this.state.queue}
           selectedJobSets={selectedJobSets}
           jobService={this.props.jobService}
-          onResult={this.cancelJobSetsResultReceived}
+          onResult={this.handleApiResult}
           onClose={() => this.openCancelJobSets(false)}
         />
         <ReprioritizeJobSetsDialog
@@ -287,7 +276,7 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
           queue={this.state.queue}
           selectedJobSets={selectedJobSets}
           jobService={this.props.jobService}
-          onResult={this.reprioritizeJobSetsResultReceived}
+          onResult={this.handleApiResult}
           onClose={() => this.openReprioritizeJobSets(false)}
         />
         <JobSets

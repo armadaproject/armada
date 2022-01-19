@@ -11,10 +11,10 @@ import JobsLocalStorageService from "../services/JobsLocalStorageService"
 import JobsQueryParamsService from "../services/JobsQueryParamsService"
 import LogService from "../services/LogService"
 import TimerService from "../services/TimerService"
-import { RequestStatus, selectItem, setStateAsync } from "../utils"
-import CancelJobsDialog, { CancelJobsStatus } from "./CancelJobsDialog"
+import { ApiResult, RequestStatus, selectItem, setStateAsync } from "../utils"
+import CancelJobsDialog from "./CancelJobsDialog"
 import JobDialog from "./JobDialog"
-import ReprioritizeJobsDialog, { ReprioritizeJobsStatus } from "./ReprioritizeJobsDialog"
+import ReprioritizeJobsDialog from "./ReprioritizeJobsDialog"
 
 type JobsContainerProps = {
   jobService: JobService
@@ -173,10 +173,8 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     this.jobClicked = this.jobClicked.bind(this)
 
     this.openCancelJobs = this.openCancelJobs.bind(this)
-    this.cancelJobsResultReceived = this.cancelJobsResultReceived.bind(this)
-
     this.openReprioritizeJobs = this.openReprioritizeJobs.bind(this)
-    this.reprioritizeJobsResultReceived = this.reprioritizeJobsResultReceived.bind(this)
+    this.handleApiResult = this.handleApiResult.bind(this)
 
     this.addAnnotationColumn = this.addAnnotationColumn.bind(this)
     this.deleteAnnotationColumn = this.deleteAnnotationColumn.bind(this)
@@ -442,20 +440,11 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     })
   }
 
-  async cancelJobsResultReceived(cancelJobsResult: CancelJobsStatus) {
-    if (cancelJobsResult === "Success") {
+  async handleApiResult(result: ApiResult) {
+    if (result === "Success") {
       this.deselectAll()
       this.refresh()
-    } else if (cancelJobsResult === "Partial success") {
-      this.refresh()
-    }
-  }
-
-  async reprioritizeJobsResultReceived(reprioritizeJobsResult: ReprioritizeJobsStatus) {
-    if (reprioritizeJobsResult === "Success") {
-      this.deselectAll()
-      this.refresh()
-    } else if (reprioritizeJobsResult === "Partial success") {
+    } else if (result === "Partial success") {
       this.refresh()
     }
   }
@@ -561,14 +550,14 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
           isOpen={this.state.cancelJobsIsOpen}
           selectedJobs={selectedJobs}
           jobService={this.props.jobService}
-          onResult={this.cancelJobsResultReceived}
+          onResult={this.handleApiResult}
           onClose={() => this.openCancelJobs(false)}
         />
         <ReprioritizeJobsDialog
           isOpen={this.state.reprioritizeJobsIsOpen}
           selectedJobs={selectedJobs}
           jobService={this.props.jobService}
-          onResult={this.reprioritizeJobsResultReceived}
+          onResult={this.handleApiResult}
           onClose={() => this.openReprioritizeJobs(false)}
         />
         <JobDialog

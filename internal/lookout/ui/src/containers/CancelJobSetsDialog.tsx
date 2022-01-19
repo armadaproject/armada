@@ -5,17 +5,16 @@ import { Dialog, DialogContent, DialogTitle } from "@material-ui/core"
 import CancelJobSets from "../components/job-sets/cancel-job-sets/CancelJobSets"
 import CancelJobSetsOutcome from "../components/job-sets/cancel-job-sets/CancelJobSetsOutcome"
 import JobService, { CancelJobSetsResponse, JobSet } from "../services/JobService"
-import { RequestStatus } from "../utils"
+import { ApiResult, RequestStatus } from "../utils"
 
 export type CancelJobSetsDialogState = "CancelJobSets" | "CancelJobSetsResult"
-export type CancelJobSetsStatus = "Success" | "Failure" | "Partial success"
 
 type CancelJobSetsDialogProps = {
   isOpen: boolean
   queue: string
   selectedJobSets: JobSet[]
   jobService: JobService
-  onResult: (result: CancelJobSetsStatus) => void
+  onResult: (result: ApiResult) => void
   onClose: () => void
 }
 
@@ -25,7 +24,7 @@ export function getCancellableJobSets(jobSets: JobSet[]): JobSet[] {
 
 export default function CancelJobSetsDialog(props: CancelJobSetsDialogProps) {
   const [state, setState] = useState<CancelJobSetsDialogState>("CancelJobSets")
-  const [result, setResult] = useState<CancelJobSetsResponse>({
+  const [response, setResponse] = useState<CancelJobSetsResponse>({
     cancelledJobSets: [],
     failedJobSetCancellations: [],
   })
@@ -39,14 +38,14 @@ export default function CancelJobSetsDialog(props: CancelJobSetsDialogProps) {
     }
 
     setRequestStatus("Loading")
-    const cancelJobSetsResult = await props.jobService.cancelJobSets(props.queue, jobSetsToCancel)
+    const cancelJobSetsResponse = await props.jobService.cancelJobSets(props.queue, jobSetsToCancel)
     setRequestStatus("Idle")
 
-    setResult(cancelJobSetsResult)
+    setResponse(cancelJobSetsResponse)
     setState("CancelJobSetsResult")
-    if (cancelJobSetsResult.failedJobSetCancellations.length === 0) {
+    if (cancelJobSetsResponse.failedJobSetCancellations.length === 0) {
       props.onResult("Success")
-    } else if (cancelJobSetsResult.cancelledJobSets.length === 0) {
+    } else if (cancelJobSetsResponse.cancelledJobSets.length === 0) {
       props.onResult("Failure")
     } else {
       props.onResult("Partial success")
@@ -56,7 +55,7 @@ export default function CancelJobSetsDialog(props: CancelJobSetsDialogProps) {
   function close() {
     props.onClose()
     setState("CancelJobSets")
-    setResult({
+    setResponse({
       cancelledJobSets: [],
       failedJobSetCancellations: [],
     })
@@ -82,7 +81,7 @@ export default function CancelJobSetsDialog(props: CancelJobSetsDialogProps) {
         )}
         {state === "CancelJobSetsResult" && (
           <CancelJobSetsOutcome
-            cancelJobSetsResult={result}
+            cancelJobSetsResponse={response}
             isLoading={requestStatus === "Loading"}
             onCancelJobs={cancelJobSets}
           />

@@ -1,8 +1,8 @@
-import React, { Fragment } from "react"
+import React from "react"
 
 import { Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow } from "@material-ui/core"
 
-import { ReprioritizeJobsResult } from "../../../services/JobService"
+import { ReprioritizeJobsResponse } from "../../../services/JobService"
 import LoadingButton from "../LoadingButton"
 
 import "./ReprioritizeJobsOutcome.css"
@@ -11,7 +11,7 @@ import "../../Table.css"
 import "../../Text.css"
 
 type ReprioritizeJobsOutcomeProps = {
-  reprioritizeJobsResult: ReprioritizeJobsResult
+  reprioritizeJobsResponse: ReprioritizeJobsResponse
   newPriority: string
   isLoading: boolean
   onReprioritizeJobs: () => void
@@ -20,8 +20,8 @@ type ReprioritizeJobsOutcomeProps = {
 export default function (props: ReprioritizeJobsOutcomeProps) {
   return (
     <div className="lookout-dialog-container">
-      {props.reprioritizeJobsResult.reprioritizedJobs.length > 0 && (
-        <Fragment>
+      {props.reprioritizeJobsResponse.reprioritizedJobs.length > 0 && (
+        <>
           <p className="lookout-dialog-fixed">The following jobs were reprioritized successfully:</p>
           <TableContainer component={Paper} className="lookout-table-container lookout-dialog-varying">
             <Table stickyHeader className="lookout-table">
@@ -33,7 +33,7 @@ export default function (props: ReprioritizeJobsOutcomeProps) {
                 </TableRow>
               </TableHead>
               <TableBody className="success">
-                {props.reprioritizeJobsResult.reprioritizedJobs.map((job) => (
+                {props.reprioritizeJobsResponse.reprioritizedJobs.map((job) => (
                   <TableRow key={job.jobId} className="lookout-word-wrapped">
                     <TableCell>{job.jobId}</TableCell>
                     <TableCell>{job.jobSet}</TableCell>
@@ -43,10 +43,10 @@ export default function (props: ReprioritizeJobsOutcomeProps) {
               </TableBody>
             </Table>
           </TableContainer>
-        </Fragment>
+        </>
       )}
-      {props.reprioritizeJobsResult.failedJobReprioritizations.length > 0 && (
-        <Fragment>
+      {props.reprioritizeJobsResponse.failedJobReprioritizations.length > 0 && (
+        <>
           <p id="reprioritize-jobs-modal-description" className="lookout-dialog-fixed">
             Failed to reprioritize the following jobs:
           </p>
@@ -64,7 +64,7 @@ export default function (props: ReprioritizeJobsOutcomeProps) {
                 </TableRow>
               </TableHead>
               <TableBody className="failure">
-                {props.reprioritizeJobsResult.failedJobReprioritizations.map((failed) => (
+                {props.reprioritizeJobsResponse.failedJobReprioritizations.map((failed) => (
                   <TableRow key={failed.job.jobId} className="lookout-word-wrapped">
                     <TableCell>{failed.job.jobId}</TableCell>
                     <TableCell>{failed.job.jobSet}</TableCell>
@@ -83,7 +83,7 @@ export default function (props: ReprioritizeJobsOutcomeProps) {
               onClick={props.onReprioritizeJobs}
             />
           </div>
-        </Fragment>
+        </>
       )}
     </div>
   )

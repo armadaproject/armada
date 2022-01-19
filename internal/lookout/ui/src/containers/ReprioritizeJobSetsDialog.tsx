@@ -4,9 +4,8 @@ import { Dialog, DialogContent, DialogTitle } from "@material-ui/core"
 
 import ReprioritizeJobSets from "../components/job-sets/reprioritize-job-sets/ReprioritizeJobSets"
 import ReprioritizeJobSetsOutcome from "../components/job-sets/reprioritize-job-sets/ReprioritizeJobSetsOutcome"
-import JobService, { JobSet, ReprioritizeJobSetsResult } from "../services/JobService"
-import { priorityIsValid, RequestStatus } from "../utils"
-import { CancelJobSetsStatus } from "./CancelJobSetsDialog"
+import JobService, { JobSet, ReprioritizeJobSetsResponse } from "../services/JobService"
+import { ApiResult, priorityIsValid, RequestStatus } from "../utils"
 
 import "../components/Dialog.css"
 
@@ -17,7 +16,7 @@ type ReprioritizeJobSetsDialogProps = {
   queue: string
   selectedJobSets: JobSet[]
   jobService: JobService
-  onResult: (result: CancelJobSetsStatus) => void
+  onResult: (result: ApiResult) => void
   onClose: () => void
 }
 
@@ -27,7 +26,7 @@ export function getReprioritizeableJobSets(jobSets: JobSet[]): JobSet[] {
 
 export default function ReprioritizeJobSetsDialog(props: ReprioritizeJobSetsDialogProps) {
   const [state, setState] = useState<ReprioritizeJobSetsDialogState>("ReprioritizeJobSets")
-  const [result, setResult] = useState<ReprioritizeJobSetsResult>({
+  const [response, setResponse] = useState<ReprioritizeJobSetsResponse>({
     reprioritizedJobSets: [],
     failedJobSetReprioritizations: [],
   })
@@ -42,18 +41,18 @@ export default function ReprioritizeJobSetsDialog(props: ReprioritizeJobSetsDial
     }
 
     setRequestStatus("Loading")
-    const reprioritizeJobsResult = await props.jobService.reprioritizeJobSets(
+    const reprioritizeJobSetsResponse = await props.jobService.reprioritizeJobSets(
       props.queue,
       jobSetsToReprioritize,
       Number(priority),
     )
     setRequestStatus("Idle")
 
-    setResult(reprioritizeJobsResult)
+    setResponse(reprioritizeJobSetsResponse)
     setState("ReprioritizeJobSetsResult")
-    if (reprioritizeJobsResult.failedJobSetReprioritizations.length === 0) {
+    if (reprioritizeJobSetsResponse.failedJobSetReprioritizations.length === 0) {
       props.onResult("Success")
-    } else if (reprioritizeJobsResult.reprioritizedJobSets.length === 0) {
+    } else if (reprioritizeJobSetsResponse.reprioritizedJobSets.length === 0) {
       props.onResult("Failure")
     } else {
       props.onResult("Partial success")
@@ -64,7 +63,7 @@ export default function ReprioritizeJobSetsDialog(props: ReprioritizeJobSetsDial
     props.onClose()
     setPriority("")
     setState("ReprioritizeJobSets")
-    setResult({
+    setResponse({
       reprioritizedJobSets: [],
       failedJobSetReprioritizations: [],
     })
@@ -92,7 +91,7 @@ export default function ReprioritizeJobSetsDialog(props: ReprioritizeJobSetsDial
         )}
         {state === "ReprioritizeJobSetsResult" && (
           <ReprioritizeJobSetsOutcome
-            reprioritizeJobSetResult={result}
+            reprioritizeJobSetResponse={response}
             isLoading={requestStatus === "Loading"}
             newPriority={priority}
             onReprioritizeJobSets={reprioritizeJobSets}

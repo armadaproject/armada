@@ -13,7 +13,7 @@ import {
   TableRow,
 } from "@material-ui/core"
 
-import { ReprioritizeJobSetsResult } from "../../../services/JobService"
+import { ReprioritizeJobSetsResponse } from "../../../services/JobService"
 import LoadingButton from "../../jobs/LoadingButton"
 
 import "./ReprioritizeJobSets.css"
@@ -22,7 +22,7 @@ import "../../Table.css"
 import "../../Text.css"
 
 type ReprioritizeJobSetsOutcomeProps = {
-  reprioritizeJobSetResult: ReprioritizeJobSetsResult
+  reprioritizeJobSetResponse: ReprioritizeJobSetsResponse
   isLoading: boolean
   newPriority: string
   onReprioritizeJobSets: () => void
@@ -31,11 +31,11 @@ type ReprioritizeJobSetsOutcomeProps = {
 export default function ReprioritizeJobSetsOutcome(props: ReprioritizeJobSetsOutcomeProps) {
   return (
     <div className="lookout-dialog-container">
-      {props.reprioritizeJobSetResult.reprioritizedJobSets.length > 0 && (
+      {props.reprioritizeJobSetResponse.reprioritizedJobSets.length > 0 && (
         <>
           <p className="lookout-dialog-fixed">The following Job Sets were reprioritized successfully:</p>
           <List component={Paper} className="lookout-dialog-varying success">
-            {props.reprioritizeJobSetResult.reprioritizedJobSets.map((jobSet) => (
+            {props.reprioritizeJobSetResponse.reprioritizedJobSets.map((jobSet) => (
               <ListItem key={jobSet.jobSetId} className="lookout-word-wrapped">
                 <ListItemText>{jobSet.jobSetId}</ListItemText>
               </ListItem>
@@ -43,7 +43,7 @@ export default function ReprioritizeJobSetsOutcome(props: ReprioritizeJobSetsOut
           </List>
         </>
       )}
-      {props.reprioritizeJobSetResult.failedJobSetReprioritizations.length > 0 && (
+      {props.reprioritizeJobSetResponse.failedJobSetReprioritizations.length > 0 && (
         <>
           <p className="lookout-dialog-fixed">The following Job Sets failed to reprioritize:</p>
           <TableContainer component={Paper} className="lookout-dialog-varying lookout-table-container">
@@ -55,7 +55,7 @@ export default function ReprioritizeJobSetsOutcome(props: ReprioritizeJobSetsOut
                 </TableRow>
               </TableHead>
               <TableBody className="failure">
-                {props.reprioritizeJobSetResult.failedJobSetReprioritizations.map((failedReprioritization) => (
+                {props.reprioritizeJobSetResponse.failedJobSetReprioritizations.map((failedReprioritization) => (
                   <TableRow key={failedReprioritization.jobSet.jobSetId}>
                     <TableCell className="job-sets-action-id lookout-word-wrapped">
                       {failedReprioritization.jobSet.jobSetId}

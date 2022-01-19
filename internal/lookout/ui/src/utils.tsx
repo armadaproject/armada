@@ -10,6 +10,8 @@ interface UIConfig {
 
 export type RequestStatus = "Loading" | "Idle"
 
+export type ApiResult = "Success" | "Failure" | "Partial success"
+
 export interface Padding {
   top: number
   bottom: number

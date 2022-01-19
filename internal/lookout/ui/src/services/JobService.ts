@@ -124,12 +124,12 @@ export type FailedJobCancellation = {
   error: string
 }
 
-export type ReprioritizeJobsResult = {
+export type ReprioritizeJobsResponse = {
   reprioritizedJobs: Job[]
   failedJobReprioritizations: FailedJobReprioritizations[]
 }
 
-export type ReprioritizeJobSetsResult = {
+export type ReprioritizeJobSetsResponse = {
   reprioritizedJobSets: JobSet[]
   failedJobSetReprioritizations: {
     jobSet: JobSet
@@ -227,92 +227,96 @@ export default class JobService {
     if (jobs.length > 0 && jobs[0].queue === "test") {
       return makeTestCancelJobsResults(30)
     }
-    const result: CancelJobsResponse = { cancelledJobs: [], failedJobCancellations: [] }
+    const response: CancelJobsResponse = { cancelledJobs: [], failedJobCancellations: [] }
     for (const job of jobs) {
       try {
-        const apiResult = await this.submitApi.cancelJobs({
+        const apiResponse = await this.submitApi.cancelJobs({
           body: {
             jobId: job.jobId,
           },
         })
 
-        if (!apiResult.cancelledIds || apiResult.cancelledIds.length !== 1 || apiResult.cancelledIds[0] !== job.jobId) {
-          result.failedJobCancellations.push({ job: job, error: "No job was cancelled" })
+        if (
+          !apiResponse.cancelledIds ||
+          apiResponse.cancelledIds.length !== 1 ||
+          apiResponse.cancelledIds[0] !== job.jobId
+        ) {
+          response.failedJobCancellations.push({ job: job, error: "No job was cancelled" })
         } else {
-          result.cancelledJobs.push(job)
+          response.cancelledJobs.push(job)
         }
       } catch (e) {
         console.error(e)
         const text = await getErrorMessage(e)
-        result.failedJobCancellations.push({ job: job, error: text })
+        response.failedJobCancellations.push({ job: job, error: text })
       }
     }
-    return result
+    return response
   }
 
   async cancelJobSets(queue: string, jobSets: JobSet[]): Promise<CancelJobSetsResponse> {
     if (queue === "test") {
       return makeTestCancelJobSetsResults(100, 100)
     }
-    const result: CancelJobSetsResponse = { cancelledJobSets: [], failedJobSetCancellations: [] }
+    const response: CancelJobSetsResponse = { cancelledJobSets: [], failedJobSetCancellations: [] }
     for (const jobSet of jobSets) {
       try {
-        const apiResult = await this.submitApi.cancelJobs({
+        const apiResponse = await this.submitApi.cancelJobs({
           body: {
             queue: queue,
             jobSetId: jobSet.jobSetId,
           },
         })
 
-        if (apiResult.cancelledIds?.length) {
-          result.cancelledJobSets.push(jobSet)
+        if (apiResponse.cancelledIds?.length) {
+          response.cancelledJobSets.push(jobSet)
         } else {
-          result.failedJobSetCancellations.push({ jobSet: jobSet, error: "No job was cancelled" })
+          response.failedJobSetCancellations.push({ jobSet: jobSet, error: "No job was cancelled" })
         }
       } catch (e) {
         console.error(e)
         const text = await getErrorMessage(e)
-        result.failedJobSetCancellations.push({ jobSet: jobSet, error: text })
+        response.failedJobSetCancellations.push({ jobSet: jobSet, error: text })
       }
     }
-    return result
+    return response
   }
 
-  async reprioritizeJobs(jobs: Job[], newPriority: number): Promise<ReprioritizeJobsResult> {
+  async reprioritizeJobs(jobs: Job[], newPriority: number): Promise<ReprioritizeJobsResponse> {
     if (jobs.length > 0 && jobs[0].queue === "test") {
       return makeTestReprioritizeJobsResults(30)
     }
 
-    const result: ReprioritizeJobsResult = { reprioritizedJobs: [], failedJobReprioritizations: [] }
+    const response: ReprioritizeJobsResponse = { reprioritizedJobs: [], failedJobReprioritizations: [] }
     const jobIds: string[] = []
     for (const job of jobs) {
       jobIds.push(job.jobId)
     }
     try {
-      const apiResult = await this.submitApi.reprioritizeJobs({
+      const apiResponse = await this.submitApi.reprioritizeJobs({
         body: {
           jobIds: jobIds,
           newPriority: newPriority,
         },
       })
 
-      if (apiResult == null || apiResult.reprioritizationResults == null) {
-        const errorMessage = "No reprioritizationResults found in response body"
+      if (apiResponse == null || apiResponse.reprioritizationResults == null) {
+        const errorMessage = "No reprioritization results found in response body"
         console.error(errorMessage)
         for (const job of jobs) {
-          result.failedJobReprioritizations.push({ job: job, error: errorMessage })
+          response.failedJobReprioritizations.push({ job: job, error: errorMessage })
         }
       } else {
         for (const job of jobs) {
-          if (apiResult.reprioritizationResults?.hasOwnProperty(job.jobId)) {
-            const error = apiResult.reprioritizationResults[job.jobId]
+          if (apiResponse.reprioritizationResults?.hasOwnProperty(job.jobId)) {
+            const error = apiResponse.reprioritizationResults[job.jobId]
             if (error === "") {
-              result.reprioritizedJobs.push(job)
+              response.reprioritizedJobs.push(job)
             } else {
-              result.failedJobReprioritizations.push({ job: job, error: error })
+              response.failedJobReprioritizations.push({ job: job, error: error })
             }
           } else {
-            result.reprioritizedJobs.push(job)
+            response.reprioritizedJobs.push(job)
           }
         }
       }
@@ -321,31 +325,35 @@ export default class JobService {
 
       const errorMessage = await getErrorMessage(e)
       for (const job of jobs) {
-        result.failedJobReprioritizations.push({ job: job, error: errorMessage })
+        response.failedJobReprioritizations.push({ job: job, error: errorMessage })
       }
     }
-    return result
+    return response
   }
 
-  async reprioritizeJobSets(queue: string, jobSets: JobSet[], newPriority: number): Promise<ReprioritizeJobSetsResult> {
+  async reprioritizeJobSets(
+    queue: string,
+    jobSets: JobSet[],
+    newPriority: number,
+  ): Promise<ReprioritizeJobSetsResponse> {
     if (queue === "test") {
       return makeTestReprioritizeJobSetsResults(100, 100)
     }
-    const result: ReprioritizeJobSetsResult = { reprioritizedJobSets: [], failedJobSetReprioritizations: [] }
+    const response: ReprioritizeJobSetsResponse = { reprioritizedJobSets: [], failedJobSetReprioritizations: [] }
 
     for (const jobSet of jobSets) {
       try {
-        const apiResult = await this.submitApi.reprioritizeJobs({
+        const apiResponse = await this.submitApi.reprioritizeJobs({
           body: {
             queue: queue,
             jobSetId: jobSet.jobSetId,
             newPriority: newPriority,
           },
         })
-        if (apiResult == null || apiResult.reprioritizationResults == null) {
+        if (apiResponse == null || apiResponse.reprioritizationResults == null) {
           const errorMessage = "No reprioritizationResults found in response body"
           console.error(errorMessage)
-          result.failedJobSetReprioritizations.push({
+          response.failedJobSetReprioritizations.push({
             jobSet: jobSet,
             error: "No reprioritizationResults found in response body",
           })
@@ -355,7 +363,7 @@ export default class JobService {
         let errorCount = 0
         let successCount = 0
         let error = ""
-        for (const e of Object.values(apiResult.reprioritizationResults)) {
+        for (const e of Object.values(apiResponse.reprioritizationResults)) {
           if (e !== "") {
             errorCount++
             error = e
@@ -364,18 +372,18 @@ export default class JobService {
           }
         }
         if (errorCount === 0) {
-          result.reprioritizedJobSets.push(jobSet)
+          response.reprioritizedJobSets.push(jobSet)
         } else {
-          const message: string = "Reprioritised: " + successCount + " Failed: " + errorCount + " Reason: " + error
-          result.failedJobSetReprioritizations.push({ jobSet: jobSet, error: message })
+          const message = `Reprioritized: ${successCount}  Failed: ${errorCount}  Reason: ${error}`
+          response.failedJobSetReprioritizations.push({ jobSet: jobSet, error: message })
         }
       } catch (e) {
         console.error(e)
         const text = await getErrorMessage(e)
-        result.failedJobSetReprioritizations.push({ jobSet: jobSet, error: text })
+        response.failedJobSetReprioritizations.push({ jobSet: jobSet, error: text })
       }
     }
-    return result
+    return response
   }
 
   private queueInfoToViewModel(queueInfo: LookoutQueueInfo): QueueInfo {

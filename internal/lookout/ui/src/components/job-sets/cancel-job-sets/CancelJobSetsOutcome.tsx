@@ -22,7 +22,7 @@ import "../../Table.css"
 import "../../Text.css"
 
 type CancelJobSetsOutcomeProps = {
-  cancelJobSetsResult: CancelJobSetsResponse
+  cancelJobSetsResponse: CancelJobSetsResponse
   isLoading: boolean
   onCancelJobs: () => void
 }
@@ -30,11 +30,11 @@ type CancelJobSetsOutcomeProps = {
 export default function CancelJobSetsOutcome(props: CancelJobSetsOutcomeProps) {
   return (
     <div className="lookout-dialog-container">
-      {props.cancelJobSetsResult.cancelledJobSets.length > 0 && (
+      {props.cancelJobSetsResponse.cancelledJobSets.length > 0 && (
         <>
           <p className="lookout-dialog-fixed">The following Job Sets were cancelled successfully:</p>
           <List component={Paper} className="lookout-dialog-varying cancel-job-sets success">
-            {props.cancelJobSetsResult.cancelledJobSets.map((jobSet) => (
+            {props.cancelJobSetsResponse.cancelledJobSets.map((jobSet) => (
               <ListItem key={jobSet.jobSetId} className="lookout-word-wrapped">
                 <ListItemText>{jobSet.jobSetId}</ListItemText>
               </ListItem>
@@ -42,7 +42,7 @@ export default function CancelJobSetsOutcome(props: CancelJobSetsOutcomeProps) {
           </List>
         </>
       )}
-      {props.cancelJobSetsResult.failedJobSetCancellations.length > 0 && (
+      {props.cancelJobSetsResponse.failedJobSetCancellations.length > 0 && (
         <Fragment>
           <p className="lookout-dialog-fixed">Some Job Sets failed to cancel:</p>
           <TableContainer component={Paper} className="lookout-dialog-varying lookout-table-container">
@@ -54,7 +54,7 @@ export default function CancelJobSetsOutcome(props: CancelJobSetsOutcomeProps) {
                 </TableRow>
               </TableHead>
               <TableBody className="failure">
-                {props.cancelJobSetsResult.failedJobSetCancellations.map((failedCancellation) => (
+                {props.cancelJobSetsResponse.failedJobSetCancellations.map((failedCancellation) => (
                   <TableRow key={failedCancellation.jobSet.jobSetId}>
                     <TableCell className="lookout-word-wrapped">{failedCancellation.jobSet.jobSetId}</TableCell>
                     <TableCell className="lookout-word-wrapped">{failedCancellation.error}</TableCell>

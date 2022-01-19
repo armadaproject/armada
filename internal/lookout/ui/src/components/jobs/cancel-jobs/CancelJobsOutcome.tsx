@@ -11,7 +11,7 @@ import "../../Table.css"
 import "../../Text.css"
 
 type CancelJobsOutcomeProps = {
-  cancelJobsResult: CancelJobsResponse
+  cancelJobsResponse: CancelJobsResponse
   isLoading: boolean
   onCancelJobs: () => void
 }
@@ -19,7 +19,7 @@ type CancelJobsOutcomeProps = {
 export default function CancelJobsOutcome(props: CancelJobsOutcomeProps) {
   return (
     <div className="lookout-dialog-container">
-      {props.cancelJobsResult.cancelledJobs.length > 0 && (
+      {props.cancelJobsResponse.cancelledJobs.length > 0 && (
         <Fragment>
           <p className="lookout-dialog-fixed">The following jobs were cancelled successfully:</p>
           <TableContainer component={Paper} className="lookout-table-container lookout-dialog-varying">
@@ -32,7 +32,7 @@ export default function CancelJobsOutcome(props: CancelJobsOutcomeProps) {
                 </TableRow>
               </TableHead>
               <TableBody className="success">
-                {props.cancelJobsResult.cancelledJobs.map((job) => (
+                {props.cancelJobsResponse.cancelledJobs.map((job) => (
                   <TableRow key={job.jobId} className="lookout-word-wrapped">
                     <TableCell>{job.jobId}</TableCell>
                     <TableCell>{job.jobSet}</TableCell>
@@ -44,7 +44,7 @@ export default function CancelJobsOutcome(props: CancelJobsOutcomeProps) {
           </TableContainer>
         </Fragment>
       )}
-      {props.cancelJobsResult.failedJobCancellations.length > 0 && (
+      {props.cancelJobsResponse.failedJobCancellations.length > 0 && (
         <Fragment>
           <p className="lookout-dialog-fixed">The following jobs failed to cancel:</p>
           <TableContainer component={Paper} className="lookout-table-container lookout-dialog-varying">
@@ -59,7 +59,7 @@ export default function CancelJobsOutcome(props: CancelJobsOutcomeProps) {
                 </TableRow>
               </TableHead>
               <TableBody className="failure">
-                {props.cancelJobsResult.failedJobCancellations.map((failed) => (
+                {props.cancelJobsResponse.failedJobCancellations.map((failed) => (
                   <TableRow key={failed.job.jobId} className="lookout-word-wrapped">
                     <TableCell>{failed.job.jobId}</TableCell>
                     <TableCell>{failed.job.jobSet}</TableCell>
