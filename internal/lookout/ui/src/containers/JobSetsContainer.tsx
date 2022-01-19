@@ -1,4 +1,4 @@
-import React, { Fragment } from "react"
+import React from "react"
 
 import { RouteComponentProps, withRouter } from "react-router-dom"
 
@@ -262,7 +262,7 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
   render() {
     const selectedJobSets = Array.from(this.state.selectedJobSets.values())
     return (
-      <Fragment>
+      <>
         <CancelJobSetsDialog
           isOpen={this.state.cancelJobSetsIsOpen}
           queue={this.state.queue}
@@ -305,7 +305,7 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
           onToggleAutoRefresh={this.toggleAutoRefresh}
           onReprioritizeJobSetsClick={() => this.openReprioritizeJobSets(true)}
         />
-      </Fragment>
+      </>
     )
   }
 }

@@ -1,4 +1,4 @@
-import React, { Fragment } from "react"
+import React from "react"
 
 import { RouteComponentProps, withRouter } from "react-router-dom"
 import { v4 as uuidv4 } from "uuid"
@@ -545,7 +545,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
   render() {
     const selectedJobs = Array.from(this.state.selectedJobs.values())
     return (
-      <Fragment>
+      <>
         <CancelJobsDialog
           isOpen={this.state.cancelJobsIsOpen}
           selectedJobs={selectedJobs}
@@ -594,7 +594,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
           onRegisterResetCache={this.registerResetCache}
           onClear={this.clearFilters}
         />
-      </Fragment>
+      </>
     )
   }
 }

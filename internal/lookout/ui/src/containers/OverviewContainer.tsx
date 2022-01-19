@@ -1,4 +1,4 @@
-import React, { Fragment } from "react"
+import React from "react"
 
 import { RouteComponentProps, withRouter } from "react-router-dom"
 
@@ -156,7 +156,7 @@ class OverviewContainer extends React.Component<OverviewContainerProps, Overview
 
   render() {
     return (
-      <Fragment>
+      <>
         <JobDialog
           isOpen={this.state.jobDetailsIsOpen}
           job={this.state.clickedJob}
@@ -176,7 +176,7 @@ class OverviewContainer extends React.Component<OverviewContainerProps, Overview
           onQueueMenuJobsClick={this.navigateToJobs}
           onToggleAutoRefresh={this.toggleAutoRefresh}
         />
-      </Fragment>
+      </>
     )
   }
 }
