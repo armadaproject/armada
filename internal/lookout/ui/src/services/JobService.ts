@@ -12,14 +12,6 @@ import {
   V1PodSpec,
 } from "../openapi/lookout"
 import { reverseMap, secondsToDurationString, getErrorMessage } from "../utils"
-import {
-  makeTestCancelJobSetsResults,
-  makeTestCancelJobsResults,
-  makeTestJobs,
-  makeTestJobSets,
-  makeTestReprioritizeJobSetsResults,
-  makeTestReprioritizeJobsResults,
-} from "./testData"
 
 type DurationFromApi = {
   seconds?: number
@@ -173,9 +165,6 @@ export default class JobService {
   }
 
   async getJobSets(getJobSetsRequest: GetJobSetsRequest): Promise<JobSet[]> {
-    if (getJobSetsRequest.queue === "test") {
-      return makeTestJobSets(100, 100)
-    }
     const jobSetsFromApi = await this.lookoutApi.getJobSets({
       body: {
         queue: getJobSetsRequest.queue,
@@ -191,9 +180,6 @@ export default class JobService {
   }
 
   async getJobs(getJobsRequest: GetJobsRequest): Promise<Job[]> {
-    if (getJobsRequest.queue === "test-1") {
-      return makeTestJobs("test-1", getJobsRequest.skip, getJobsRequest.skip + getJobsRequest.take)
-    }
     const jobStatesForApi = getJobsRequest.jobStates.map(getJobStateForApi)
     const jobSetsForApi = getJobsRequest.jobSets.map(escapeBackslashes)
     try {
@@ -220,9 +206,6 @@ export default class JobService {
   }
 
   async cancelJobs(jobs: Job[]): Promise<CancelJobsResponse> {
-    if (jobs.length > 0 && jobs[0].queue === "test") {
-      return makeTestCancelJobsResults(30)
-    }
     const response: CancelJobsResponse = { cancelledJobs: [], failedJobCancellations: [] }
     for (const job of jobs) {
       try {
@@ -251,9 +234,6 @@ export default class JobService {
   }
 
   async cancelJobSets(queue: string, jobSets: JobSet[]): Promise<CancelJobSetsResponse> {
-    if (queue === "test") {
-      return makeTestCancelJobSetsResults(100, 100)
-    }
     const response: CancelJobSetsResponse = { cancelledJobSets: [], failedJobSetCancellations: [] }
     for (const jobSet of jobSets) {
       try {
@@ -279,10 +259,6 @@ export default class JobService {
   }
 
   async reprioritizeJobs(jobs: Job[], newPriority: number): Promise<ReprioritizeJobsResponse> {
-    if (jobs.length > 0 && jobs[0].queue === "test") {
-      return makeTestReprioritizeJobsResults(30)
-    }
-
     const response: ReprioritizeJobsResponse = { reprioritizedJobs: [], failedJobReprioritizations: [] }
     const jobIds: string[] = []
     for (const job of jobs) {
@@ -332,9 +308,6 @@ export default class JobService {
     jobSets: JobSet[],
     newPriority: number,
   ): Promise<ReprioritizeJobSetsResponse> {
-    if (queue === "test") {
-      return makeTestReprioritizeJobSetsResults(100, 100)
-    }
     const response: ReprioritizeJobSetsResponse = { reprioritizedJobSets: [], failedJobSetReprioritizations: [] }
 
     for (const jobSet of jobSets) {
