@@ -45,7 +45,7 @@ func (kind *ResourceKind) UnmarshalJSON(data []byte) error {
 type APIVersion string
 
 const (
-	APIVersionV1 APIVersion = "armadaproject.io/v1"
+	APIVersionV1 APIVersion = "armadaproject.io/v1beta1"
 )
 
 func NewAPIVersion(in string) (APIVersion, error) {
