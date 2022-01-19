@@ -1,4 +1,4 @@
-import React, { Fragment } from "react"
+import React from "react"
 
 import { Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow } from "@material-ui/core"
 
@@ -20,7 +20,7 @@ export default function CancelJobsOutcome(props: CancelJobsOutcomeProps) {
   return (
     <div className="lookout-dialog-container">
       {props.cancelJobsResponse.cancelledJobs.length > 0 && (
-        <Fragment>
+        <>
           <p className="lookout-dialog-fixed">The following jobs were cancelled successfully:</p>
           <TableContainer component={Paper} className="lookout-table-container lookout-dialog-varying">
             <Table stickyHeader className="lookout-table">
@@ -42,10 +42,10 @@ export default function CancelJobsOutcome(props: CancelJobsOutcomeProps) {
               </TableBody>
             </Table>
           </TableContainer>
-        </Fragment>
+        </>
       )}
       {props.cancelJobsResponse.failedJobCancellations.length > 0 && (
-        <Fragment>
+        <>
           <p className="lookout-dialog-fixed">The following jobs failed to cancel:</p>
           <TableContainer component={Paper} className="lookout-table-container lookout-dialog-varying">
             <Table stickyHeader className="lookout-table">
@@ -74,7 +74,7 @@ export default function CancelJobsOutcome(props: CancelJobsOutcomeProps) {
           <div className="lookout-dialog-fixed lookout-dialog-centered">
             <LoadingButton content={"Retry"} isLoading={props.isLoading} onClick={props.onCancelJobs} />
           </div>
-        </Fragment>
+        </>
       )}
     </div>
   )

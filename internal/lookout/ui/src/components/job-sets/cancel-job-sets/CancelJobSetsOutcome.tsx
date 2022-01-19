@@ -1,4 +1,4 @@
-import React, { Fragment } from "react"
+import React from "react"
 
 import {
   List,
@@ -43,7 +43,7 @@ export default function CancelJobSetsOutcome(props: CancelJobSetsOutcomeProps) {
         </>
       )}
       {props.cancelJobSetsResponse.failedJobSetCancellations.length > 0 && (
-        <Fragment>
+        <>
           <p className="lookout-dialog-fixed">Some Job Sets failed to cancel:</p>
           <TableContainer component={Paper} className="lookout-dialog-varying lookout-table-container">
             <Table stickyHeader className="lookout-table">
@@ -66,7 +66,7 @@ export default function CancelJobSetsOutcome(props: CancelJobSetsOutcomeProps) {
           <div className="lookout-dialog-centered lookout-dialog-fixed">
             <LoadingButton content={"Retry"} isLoading={props.isLoading} onClick={props.onCancelJobs} />
           </div>
-        </Fragment>
+        </>
       )}
     </div>
   )
