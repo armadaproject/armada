@@ -123,6 +123,9 @@
         },
         "type": {
           "$ref": "#/definitions/apiIngressType"
+        },
+        "useClusterIP": {
+          "type": "boolean"
         }
       }
     },

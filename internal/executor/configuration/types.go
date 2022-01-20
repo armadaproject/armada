@@ -23,7 +23,7 @@ type PodDefaults struct {
 
 type IngressConfiguration struct {
 	HostnameSuffix string
-	CertDomain     string
+	CertNameSuffix string
 	Annotations    map[string]string
 }
 

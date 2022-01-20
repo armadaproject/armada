@@ -30,6 +30,7 @@ message IngressConfig {
     map<string, string> annotations = 3;
     bool tls_enabled = 4;
     string cert_name = 5;
+    bool use_clusterIP = 6;
 }
 
 message ServiceConfig {
