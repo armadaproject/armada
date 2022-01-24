@@ -98,7 +98,7 @@ func TestQueue(t *testing.T) {
 	priorityFactor := 1.337
 	owners := []string{"ubar", "ubaz"}
 	groups := []string{"gbar", "gbaz"}
-	resourceLimits := map[string]float64{"cpu": 0.2, "exoticResource": 0.9}
+	resourceLimits := map[string]float64{"cpu": 0.2, "memory": 0.9}
 
 	// random queue name
 	name, err := uuidString()
@@ -106,8 +106,20 @@ func TestQueue(t *testing.T) {
 		t.Fatalf("error creating UUID: string %s", err)
 	}
 
+	queue, err := cq.NewQueue(&api.Queue{
+		Name:           name,
+		PriorityFactor: priorityFactor,
+		UserOwners:     owners,
+		GroupOwners:    groups,
+		ResourceLimits: resourceLimits,
+	})
+
+	if err != nil {
+		t.Fatalf("failed to instantiate queue: %s", err)
+	}
+
 	// create queue
-	err = app.CreateQueue(name, priorityFactor, owners, groups, resourceLimits)
+	err = app.CreateQueue(queue)
 	if err != nil {
 		t.Fatalf("expected no error, but got %s", err)
 	}
@@ -135,7 +147,7 @@ func TestQueue(t *testing.T) {
 	}
 
 	// update
-	err = app.UpdateQueue(name, priorityFactor, owners, groups, resourceLimits)
+	err = app.UpdateQueue(queue)
 	if err != nil {
 		t.Fatalf("expected no error, but got %s", err)
 	}
@@ -201,7 +213,7 @@ func TestJob(t *testing.T) {
 	priorityFactor := 1.337
 	owners := []string{"ubar", "ubaz"}
 	groups := []string{"gbar", "gbaz"}
-	resourceLimits := map[string]float64{"cpu": 0.2, "exoticResource": 0.9}
+	resourceLimits := map[string]float64{"cpu": 0.2, "memory": 0.9}
 
 	// random queue name
 	name, err := uuidString()
@@ -256,8 +268,20 @@ jobs:
 	// 	t.Fatalf("error creating path to test job: %s", err)
 	// }
 
+	queue, err := cq.NewQueue(&api.Queue{
+		Name:           name,
+		PriorityFactor: priorityFactor,
+		ResourceLimits: resourceLimits,
+		UserOwners:     owners,
+		GroupOwners:    groups,
+	})
+
+	if err != nil {
+		t.Fatalf("failed to instantiate queue: %s", err)
+	}
+
 	// create a queue to use for the tests
-	err = app.CreateQueue(name, priorityFactor, owners, groups, resourceLimits)
+	err = app.CreateQueue(queue)
 	if err != nil {
 		t.Fatalf("error creating test queue: %s", err)
 	}

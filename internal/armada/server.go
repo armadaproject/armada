@@ -147,7 +147,7 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 		&config.Scheduling)
 	usageServer := server.NewUsageServer(permissions, config.PriorityHalfTime, &config.Scheduling, usageRepository, queueRepository)
 	aggregatedQueueServer := server.NewAggregatedQueueServer(permissions, config.Scheduling, jobRepository, queueCache, queueRepository, usageRepository, eventStore, schedulingInfoRepository)
-	eventServer := server.NewEventServer(permissions, redisEventRepository, eventStore)
+	eventServer := server.NewEventServer(permissions, redisEventRepository, eventStore, queueRepository)
 	leaseManager := scheduling.NewLeaseManager(jobRepository, queueRepository, eventStore, config.Scheduling.Lease.ExpireAfter)
 
 	taskManager.Register(leaseManager.ExpireLeases, config.Scheduling.Lease.ExpiryLoopInterval, "lease_expiry")

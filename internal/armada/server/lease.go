@@ -16,6 +16,7 @@ import (
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/internal/common/auth/authorization"
 	"github.com/G-Research/armada/pkg/api"
+	"github.com/G-Research/armada/pkg/client/queue"
 )
 
 type AggregatedQueueServer struct {
@@ -65,8 +66,8 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 		return nil, status.Errorf(codes.Unavailable, "[LeaseJobs] error getting queues: %s", err)
 	}
 
-	activeQueues, err := q.jobRepository.FilterActiveQueues(queues)
-	if err != nil {
+	activeQueues, e := q.jobRepository.FilterActiveQueues(queue.QueuesToAPI(queues))
+	if e != nil {
 		return nil, status.Errorf(codes.Unavailable, "[LeaseJobs] error filtering active queues: %s", err)
 	}
 

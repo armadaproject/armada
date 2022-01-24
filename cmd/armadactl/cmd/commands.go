@@ -1,14 +1,28 @@
 package cmd
 
 import (
+	"github.com/G-Research/armada/internal/armadactl"
+
 	"github.com/spf13/cobra"
 )
 
-func createCmd() *cobra.Command {
+func createCmd(a *armadactl.App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "create",
 		Short: "Create Armada resource. Supported: queue",
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			return initParams(cmd, a.Params)
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			filePath, _ := cmd.Flags().GetString("file")
+			dryRun, _ := cmd.Flags().GetBool("dry-run")
+
+			return a.CreateResource(filePath, dryRun)
+		},
 	}
+	cmd.Flags().StringP("file", "f", "", "specify file for resource creation.")
+	cmd.MarkFlagRequired("file")
+	cmd.Flags().Bool("dry-run", false, "Validate the input file and exit without making any changes.")
 	cmd.AddCommand(queueCreateCmd())
 	return cmd
 }

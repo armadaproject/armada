@@ -2,11 +2,14 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
-	"github.com/G-Research/armada/internal/common/auth/permission"
+	"github.com/G-Research/armada/internal/armada/repository"
+	"github.com/G-Research/armada/internal/common/auth/authorization"
 	"github.com/G-Research/armada/pkg/api"
+	"github.com/G-Research/armada/pkg/client/queue"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -15,16 +18,27 @@ import (
 // TODO This file uses the functional approach to writing handlers.
 // For consistency, we should change it to use the same style as the others.
 type readEvents func(queue, jobSetId string, lastId string, limit int64, block time.Duration) ([]*api.EventStreamMessage, error)
-type authorize func(context.Context, permission.Permission) bool
+type hasPermissions func(authorization.Principal, queue.Queue, queue.PermissionVerb) bool
+type getQueue func(queueName string) (queue.Queue, error)
 type sendEvent func(*api.EventStreamMessage) error
 
 type EventWatcher func(context.Context, *api.WatchRequest) error
 
 // Authorize validates if the user has
-func (watcher EventWatcher) Authorize(authorize authorize, perm permission.Permission) EventWatcher {
+func (watcher EventWatcher) Authorize(getQueue getQueue, hasPermissions hasPermissions) EventWatcher {
 	return func(ctx context.Context, request *api.WatchRequest) error {
-		if !authorize(ctx, perm) {
-			return status.Errorf(codes.PermissionDenied, "User has no permission: %s", perm)
+		principal := authorization.GetPrincipal(ctx)
+		q, err := getQueue(request.Queue)
+		var expected *repository.ErrQueueNotFound
+		if errors.As(err, &expected) {
+			return status.Errorf(codes.NotFound, "Queue %s does not exist", request.Queue)
+		}
+		if err != nil {
+			return err
+		}
+
+		if !hasPermissions(principal, q, queue.PermissionVerbWatch) {
+			return status.Errorf(codes.PermissionDenied, "User %s has no queue permission: %s", principal.GetName(), queue.PermissionVerbWatch)
 		}
 		return watcher(ctx, request)
 	}

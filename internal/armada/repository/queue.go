@@ -7,6 +7,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 
 	"github.com/G-Research/armada/pkg/api"
+	"github.com/G-Research/armada/pkg/client/queue"
 )
 
 const queueHashKey = "Queue"
@@ -28,10 +29,10 @@ func (err *ErrQueueAlreadyExists) Error() string {
 }
 
 type QueueRepository interface {
-	GetAllQueues() ([]*api.Queue, error)
-	GetQueue(name string) (*api.Queue, error)
-	CreateQueue(queue *api.Queue) error
-	UpdateQueue(queue *api.Queue) error
+	GetAllQueues() ([]queue.Queue, error)
+	GetQueue(name string) (queue.Queue, error)
+	CreateQueue(queue.Queue) error
+	UpdateQueue(queue.Queue) error
 	DeleteQueue(name string) error
 }
 
@@ -43,42 +44,48 @@ func NewRedisQueueRepository(db redis.UniversalClient) *RedisQueueRepository {
 	return &RedisQueueRepository{db: db}
 }
 
-func (r *RedisQueueRepository) GetAllQueues() ([]*api.Queue, error) {
+func (r *RedisQueueRepository) GetAllQueues() ([]queue.Queue, error) {
 	result, err := r.db.HGetAll(queueHashKey).Result()
 	if err != nil {
 		return nil, fmt.Errorf("[RedisQueueRepository.GetAllQueues] error reading from database: %s", err)
 	}
 
-	queues := make([]*api.Queue, 0)
+	queues := make([]queue.Queue, 0)
 	for _, v := range result {
-		queue := &api.Queue{}
-		err = proto.Unmarshal([]byte(v), queue)
-		if err != nil {
+		apiQueue := &api.Queue{}
+		e := proto.Unmarshal([]byte(v), apiQueue)
+		if e != nil {
 			return nil, fmt.Errorf("[RedisQueueRepository.GetAllQueues] error unmarshalling queue: %s", err)
 		}
+		queue, err := queue.NewQueue(apiQueue)
+		if err != nil {
+			return nil, err
+		}
+
 		queues = append(queues, queue)
 	}
 	return queues, nil
 }
 
-func (r *RedisQueueRepository) GetQueue(name string) (*api.Queue, error) {
+func (r *RedisQueueRepository) GetQueue(name string) (queue.Queue, error) {
 	result, err := r.db.HGet(queueHashKey, name).Result()
 	if err == redis.Nil {
-		return nil, &ErrQueueNotFound{QueueName: name}
+		return queue.Queue{}, &ErrQueueNotFound{QueueName: name}
 	} else if err != nil {
-		return nil, fmt.Errorf("[RedisQueueRepository.GetQueue] error reading from database: %s", err)
+		return queue.Queue{}, fmt.Errorf("[RedisQueueRepository.GetQueue] error reading from database: %s", err)
 	}
 
-	queue := &api.Queue{}
-	err = proto.Unmarshal([]byte(result), queue)
-	if err != nil {
-		return nil, fmt.Errorf("[RedisQueueRepository.GetQueue] error unmarshalling queue: %s", err)
+	apiQueue := &api.Queue{}
+	e := proto.Unmarshal([]byte(result), apiQueue)
+	if e != nil {
+		return queue.Queue{}, fmt.Errorf("[RedisQueueRepository.GetQueue] error unmarshalling queue: %s", err)
 	}
-	return queue, nil
+
+	return queue.NewQueue(apiQueue)
 }
 
-func (r *RedisQueueRepository) CreateQueue(queue *api.Queue) error {
-	data, err := proto.Marshal(queue)
+func (r *RedisQueueRepository) CreateQueue(queue queue.Queue) error {
+	data, err := proto.Marshal(queue.ToAPI())
 	if err != nil {
 		return fmt.Errorf("[RedisQueueRepository.CreateQueue] error marshalling queue: %s", err)
 	}
@@ -99,7 +106,7 @@ func (r *RedisQueueRepository) CreateQueue(queue *api.Queue) error {
 // TODO If the queue to be updated is deleted between this method checking if the queue exists and
 // making the update, the deleted queue is re-added to Redis. There's no "update if exists"
 // operation in Redis, so we need to do this with a script or transaction.
-func (r *RedisQueueRepository) UpdateQueue(queue *api.Queue) error {
+func (r *RedisQueueRepository) UpdateQueue(queue queue.Queue) error {
 	existsResult, err := r.db.HExists(queueHashKey, queue.Name).Result()
 	if err != nil {
 		return fmt.Errorf("[RedisQueueRepository.UpdateQueue] error reading from database: %s", err)
@@ -107,7 +114,7 @@ func (r *RedisQueueRepository) UpdateQueue(queue *api.Queue) error {
 		return &ErrQueueNotFound{QueueName: queue.Name}
 	}
 
-	data, err := proto.Marshal(queue)
+	data, err := proto.Marshal(queue.ToAPI())
 	if err != nil {
 		return fmt.Errorf("[RedisQueueRepository.UpdateQueue] error marshalling queue: %s", err)
 	}
