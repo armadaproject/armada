@@ -21,7 +21,7 @@ func (a *App) CreateQueue(queue queue.Queue) error {
 func (a *App) CreateResource(fileName string, dryRun bool) error {
 	var resource client.Resource
 	if err := util.BindJsonOrYaml(fileName, &resource); err != nil {
-		return fmt.Errorf("file %s error :%s", fileName, err)
+		return fmt.Errorf("file %s error: %s", fileName, err)
 	}
 	if resource.Version != client.APIVersionV1 {
 		return fmt.Errorf("file %s error: invalid resource field 'apiVersion': %s", fileName, resource.Version)
