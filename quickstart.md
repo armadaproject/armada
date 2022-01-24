@@ -202,9 +202,26 @@ Simply download the latest release for your platform and unzip or untar.
 ## Usage
 Create queues, submit some jobs and monitor progress:
 
+### Queue creation
 ```bash
 ./armadactl create queue queue-a --priorityFactor 1
 ./armadactl create queue queue-b --priorityFactor 2
+```
+For queues created in this way, user and group owners of the queue have permissions to:
+ - submit jobs
+ - cancel jobs
+ - reprioritize jobs
+ - watch queue
+
+For more control, queues can be created via `armadactl create`, which allows for setting specific permission; see the following example.
+
+```bash
+./armadactl create -f ./docs/quickstarts/queue-a.yaml
+./armadactl create -f ./docs/quickstarts/queue-b.yaml
+```
+
+### Job submition
+```
 ./armadactl submit ./docs/quickstart/job-queue-a.yaml
 ./armadactl submit ./docs/quickstart/job-queue-b.yaml
 ```
