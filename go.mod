@@ -31,12 +31,11 @@ require (
 	github.com/instrumenta/kubeval v0.0.0-20190918223246-8d013ec9fc56
 	github.com/jcmturner/gokrb5/v8 v8.4.2-0.20201112171129-78f56934d598
 	github.com/lib/pq v1.10.4
-	github.com/mitchellh/go-homedir v1.1.0
 	github.com/mitchellh/mapstructure v1.4.2
-	github.com/nats-io/jsm.go v0.0.26
-	github.com/nats-io/nats-server/v2 v2.4.1-0.20210907200628-874c79fe411f
+	github.com/nats-io/jsm.go v0.0.27
+	github.com/nats-io/nats-server/v2 v2.6.6-0.20211122213926-f094918f35b8
 	github.com/nats-io/nats-streaming-server v0.22.1
-	github.com/nats-io/nats.go v1.13.0
+	github.com/nats-io/nats.go v1.13.1-0.20211122170419-d7c1d78a50fc
 	github.com/nats-io/stan.go v0.10.2
 	github.com/oklog/ulid v1.3.1
 	github.com/ory/dockertest/v3 v3.8.1
