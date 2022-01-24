@@ -1,0 +1,25 @@
+apiVersion: armadaproject.io/v1beta1
+kind: Queue
+name: queue-b
+permissions:
+- subjects: 
+  - name: group1
+    kind: Group
+  - name: user1
+    kind: User
+  verbs:
+  - submit
+  - cancel
+  - reprioritize
+  - watch
+- subjects: 
+  - name: group2
+    kind: Group
+  verbs:
+  - cancel
+  - reprioritize
+  - watch
+priorityFactor: 1.0
+resourceLimits:
+  cpu: 0.2
+  memory: 0.1
