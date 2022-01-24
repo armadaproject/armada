@@ -925,6 +925,9 @@ namespace GResearch.Armada.Client
         [Newtonsoft.Json.JsonConverter(typeof(Newtonsoft.Json.Converters.StringEnumConverter))]
         public ApiIngressType? Type { get; set; }
     
+        [Newtonsoft.Json.JsonProperty("useClusterIP", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public bool? UseClusterIP { get; set; }
+    
     
     }
     

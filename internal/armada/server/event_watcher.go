@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -14,6 +15,8 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// TODO This file uses the functional approach to writing handlers.
+// For consistency, we should change it to use the same style as the others.
 type readEvents func(queue, jobSetId string, lastId string, limit int64, block time.Duration) ([]*api.EventStreamMessage, error)
 type hasPermissions func(authorization.Principal, queue.Queue, queue.PermissionVerb) bool
 type getQueue func(queueName string) (queue.Queue, error)
@@ -26,7 +29,8 @@ func (watcher EventWatcher) Authorize(getQueue getQueue, hasPermissions hasPermi
 	return func(ctx context.Context, request *api.WatchRequest) error {
 		principal := authorization.GetPrincipal(ctx)
 		q, err := getQueue(request.Queue)
-		if err == repository.ErrQueueNotFound {
+		var expected *repository.ErrQueueNotFound
+		if errors.As(err, &expected) {
 			return status.Errorf(codes.NotFound, "Queue %s does not exist", request.Queue)
 		}
 		if err != nil {

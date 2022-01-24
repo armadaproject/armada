@@ -223,3 +223,59 @@ func makePodWithResource(queue string, resource v1.ResourceList) v1.Pod {
 	}
 	return pod
 }
+
+func TestGetCordonedResource(t *testing.T) {
+	nodes := []*v1.Node{
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "node1",
+			},
+			Spec: v1.NodeSpec{
+				Unschedulable: true,
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "node2",
+			},
+			Spec: v1.NodeSpec{
+				Unschedulable: false,
+			},
+		},
+	}
+	pod1 := createTestPod("node1", "1", "10Gi")
+	pod2 := createTestPod("node1", "2", "2Gi")
+	pod3 := createTestPod("node2", "1", "10Gi")
+	pods := []*v1.Pod{pod1, pod2, pod3}
+
+	resources := getCordonedResource(nodes, pods)
+
+	expected := common.ComputeResources{
+		"cpu":    resource.MustParse("3"),
+		"memory": resource.MustParse("12Gi"),
+	}
+
+	assert.True(t, expected.Equal(resources))
+}
+
+func createTestPod(nodeName string, cpu string, memory string) *v1.Pod {
+	return &v1.Pod{
+		Spec: v1.PodSpec{
+			NodeName: nodeName,
+			Containers: []v1.Container{
+				{
+					Resources: v1.ResourceRequirements{
+						Requests: v1.ResourceList{
+							"cpu":    resource.MustParse(cpu),
+							"memory": resource.MustParse(memory),
+						},
+						Limits: v1.ResourceList{
+							"cpu":    resource.MustParse(cpu),
+							"memory": resource.MustParse(memory),
+						},
+					},
+				},
+			},
+		},
+	}
+}

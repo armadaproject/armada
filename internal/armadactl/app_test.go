@@ -241,10 +241,10 @@ jobs:
               - ls
             resources:
               limits:
-                memory: 1Mi
+                memory: 100Mi
                 cpu: 1
               requests:
-                memory: 1Mi
+                memory: 100Mi
                 cpu: 1`, name))
 	jobDir := t.TempDir()
 	jobFile, err := os.CreateTemp(jobDir, "test")

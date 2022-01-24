@@ -150,7 +150,7 @@ func TestEventWatcherAuthorize(t *testing.T) {
 		"NotFound": func(inputRequest api.WatchRequest) bool {
 			ctx := context.Background()
 			getQueue := func(queueName string) (queue.Queue, error) {
-				return queue.Queue{}, repository.ErrQueueNotFound
+				return queue.Queue{}, &repository.ErrQueueNotFound{QueueName: inputRequest.Queue}
 			}
 			hasPermissions := func(_ authorization.Principal, q queue.Queue, verb queue.PermissionVerb) bool {
 				return true

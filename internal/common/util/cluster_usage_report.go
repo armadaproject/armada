@@ -5,6 +5,8 @@ import (
 	"github.com/G-Research/armada/pkg/api"
 )
 
+// GetClusterCapacity returns the total capacity on all nodes on a cluster,
+// even if they are unschedulable.
 func GetClusterCapacity(report *api.ClusterUsageReport) common.ComputeResources {
 	result := common.ComputeResources{}
 	if len(report.NodeTypeUsageReports) > 0 {
@@ -17,11 +19,15 @@ func GetClusterCapacity(report *api.ClusterUsageReport) common.ComputeResources 
 	return result
 }
 
+// GetClusterAvailableCapacity returns the total resource to be shared amongst queues.
+// This is the total capacity avaliable to armada on schedulable nodes + the capacity currently
+// in use on unschedulable nodes.
 func GetClusterAvailableCapacity(report *api.ClusterUsageReport) common.ComputeResources {
 	result := common.ComputeResources{}
 	if len(report.NodeTypeUsageReports) > 0 {
 		for _, nodeTypeReport := range report.NodeTypeUsageReports {
 			result.Add(nodeTypeReport.AvailableCapacity)
+			result.Add(nodeTypeReport.CordonedUsage)
 		}
 	} else {
 		result = report.ClusterAvailableCapacity

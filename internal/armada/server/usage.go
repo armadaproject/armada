@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/types"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/G-Research/armada/internal/armada/permissions"
@@ -39,23 +41,23 @@ func NewUsageServer(
 }
 
 func (s *UsageServer) ReportUsage(ctx context.Context, report *api.ClusterUsageReport) (*types.Empty, error) {
-	if e := checkPermission(s.permissions, ctx, permissions.ExecuteJobs); e != nil {
-		return nil, e
+	if err := checkPermission(s.permissions, ctx, permissions.ExecuteJobs); err != nil {
+		return nil, status.Errorf(codes.PermissionDenied, "[ReportUsage] error: %s", err)
 	}
 
 	queues, err := s.queueRepository.GetAllQueues()
 	if err != nil {
-		return nil, err
+		return nil, status.Errorf(codes.Unavailable, "[ReportUsage] error getting queues: %s", err)
 	}
 
 	reports, err := s.usageRepository.GetClusterUsageReports()
 	if err != nil {
-		return nil, err
+		return nil, status.Errorf(codes.Unavailable, "[ReportUsage] error getting cluster usage reports: %s", err)
 	}
 
 	previousPriority, err := s.usageRepository.GetClusterPriority(report.ClusterId)
 	if err != nil {
-		return nil, err
+		return nil, status.Errorf(codes.Unavailable, "[ReportUsage] error getting cluster priority: %s", err)
 	}
 
 	previousReport := reports[report.ClusterId]
@@ -72,7 +74,7 @@ func (s *UsageServer) ReportUsage(ctx context.Context, report *api.ClusterUsageR
 
 	err = s.usageRepository.UpdateCluster(report, filteredPriority)
 	if err != nil {
-		return nil, err
+		return nil, status.Errorf(codes.Unavailable, "[ReportUsage] error updating cluster: %s", err)
 	}
 	return &types.Empty{}, nil
 }

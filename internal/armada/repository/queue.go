@@ -1,7 +1,7 @@
 package repository
 
 import (
-	"errors"
+	"fmt"
 
 	"github.com/go-redis/redis"
 	"github.com/gogo/protobuf/proto"
@@ -12,22 +12,21 @@ import (
 
 const queueHashKey = "Queue"
 
-// TODO These errors should be of a specific error type, e.g.:
-// type ErrQueueNotFound struct {
-// 	queueName string
-// }
-// func (err *ErrQueueNotFound) Error() {
-// 	return fmt.Sprintf("Queue %s does not exist", err.queueName)
-// }
-// In doing so, if we wrap errors as they travel up the call stack
-// (using fmt.Errorf with the %w verb, i.e., fmt.Errorf("err %w", err))
-// and easily detect at the gRPC handler what the underlying issue is.
-// We need this since we need to create errors in the gRPC handler with the correct gRPC error code.
-// For more on error wrapping, see:
-// https://go.dev/blog/go1.13-errors
+type ErrQueueNotFound struct {
+	QueueName string
+}
 
-var ErrQueueNotFound = errors.New("Queue does not exist")
-var ErrQueueAlreadyExists = errors.New("Queue already exists")
+func (err *ErrQueueNotFound) Error() string {
+	return fmt.Sprintf("could not find queue %q", err.QueueName)
+}
+
+type ErrQueueAlreadyExists struct {
+	QueueName string
+}
+
+func (err *ErrQueueAlreadyExists) Error() string {
+	return fmt.Sprintf("queue %s already exists", err.QueueName)
+}
 
 type QueueRepository interface {
 	GetAllQueues() ([]queue.Queue, error)
@@ -48,7 +47,7 @@ func NewRedisQueueRepository(db redis.UniversalClient) *RedisQueueRepository {
 func (r *RedisQueueRepository) GetAllQueues() ([]queue.Queue, error) {
 	result, err := r.db.HGetAll(queueHashKey).Result()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("[RedisQueueRepository.GetAllQueues] error reading from database: %s", err)
 	}
 
 	queues := make([]queue.Queue, 0)
@@ -56,7 +55,7 @@ func (r *RedisQueueRepository) GetAllQueues() ([]queue.Queue, error) {
 		apiQueue := &api.Queue{}
 		e := proto.Unmarshal([]byte(v), apiQueue)
 		if e != nil {
-			return nil, e
+			return nil, fmt.Errorf("[RedisQueueRepository.GetAllQueues] error unmarshalling queue: %s", err)
 		}
 		queue, err := queue.NewQueue(apiQueue)
 		if err != nil {
@@ -71,15 +70,15 @@ func (r *RedisQueueRepository) GetAllQueues() ([]queue.Queue, error) {
 func (r *RedisQueueRepository) GetQueue(name string) (queue.Queue, error) {
 	result, err := r.db.HGet(queueHashKey, name).Result()
 	if err == redis.Nil {
-		return queue.Queue{}, ErrQueueNotFound
+		return queue.Queue{}, &ErrQueueNotFound{QueueName: name}
 	} else if err != nil {
-		return queue.Queue{}, err
+		return queue.Queue{}, fmt.Errorf("[RedisQueueRepository.GetQueue] error reading from database: %s", err)
 	}
 
 	apiQueue := &api.Queue{}
 	e := proto.Unmarshal([]byte(result), apiQueue)
 	if e != nil {
-		return queue.Queue{}, e
+		return queue.Queue{}, fmt.Errorf("[RedisQueueRepository.GetQueue] error unmarshalling queue: %s", err)
 	}
 
 	return queue.NewQueue(apiQueue)
@@ -88,40 +87,50 @@ func (r *RedisQueueRepository) GetQueue(name string) (queue.Queue, error) {
 func (r *RedisQueueRepository) CreateQueue(queue queue.Queue) error {
 	data, err := proto.Marshal(queue.ToAPI())
 	if err != nil {
-		return err
+		return fmt.Errorf("[RedisQueueRepository.CreateQueue] error marshalling queue: %s", err)
 	}
 
+	// HSetNX sets a key-value pair if the key doesn't already exist.
+	// If the key exists, this is a no-op, and result is false.
 	result, err := r.db.HSetNX(queueHashKey, queue.Name, data).Result()
 	if err != nil {
-		return err
+		return fmt.Errorf("[RedisQueueRepository.CreateQueue] error writing to database: %s", err)
 	}
-
 	if !result {
-		return ErrQueueAlreadyExists
+		return &ErrQueueAlreadyExists{QueueName: queue.Name}
 	}
 
 	return nil
 }
 
+// TODO If the queue to be updated is deleted between this method checking if the queue exists and
+// making the update, the deleted queue is re-added to Redis. There's no "update if exists"
+// operation in Redis, so we need to do this with a script or transaction.
 func (r *RedisQueueRepository) UpdateQueue(queue queue.Queue) error {
 	existsResult, err := r.db.HExists(queueHashKey, queue.Name).Result()
-
 	if err != nil {
-		return err
+		return fmt.Errorf("[RedisQueueRepository.UpdateQueue] error reading from database: %s", err)
 	} else if !existsResult {
-		return ErrQueueNotFound
+		return &ErrQueueNotFound{QueueName: queue.Name}
 	}
 
 	data, err := proto.Marshal(queue.ToAPI())
 	if err != nil {
-		return err
+		return fmt.Errorf("[RedisQueueRepository.UpdateQueue] error marshalling queue: %s", err)
 	}
 
 	result := r.db.HSet(queueHashKey, queue.Name, data)
-	return result.Err()
+	if err := result.Err(); err != nil {
+		return fmt.Errorf("[RedisQueueRepository.UpdateQueue] error writing to database: %s", err)
+	}
+
+	return nil
 }
 
 func (r *RedisQueueRepository) DeleteQueue(name string) error {
 	result := r.db.HDel(queueHashKey, name)
-	return result.Err()
+	if err := result.Err(); err != nil {
+		return fmt.Errorf("[RedisQueueRepository.DeleteQueue] error deleting queue: %s", err)
+	}
+	return nil
 }

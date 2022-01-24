@@ -1,4 +1,4 @@
-apiVersion: armadaproject.io/v1
+apiVersion: armadaproject.io/v1beta1
 kind: Queue
 name: queue-a
 permissions:

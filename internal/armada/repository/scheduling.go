@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"fmt"
+
 	"github.com/go-redis/redis"
 	"github.com/gogo/protobuf/proto"
 
@@ -25,15 +27,15 @@ func NewRedisSchedulingInfoRepository(db redis.UniversalClient) *RedisScheduling
 func (r *RedisSchedulingInfoRepository) GetClusterSchedulingInfo() (map[string]*api.ClusterSchedulingInfoReport, error) {
 	result, err := r.db.HGetAll(clusterSchedulingInfoReportKey).Result()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("[RedisSchedulingInfoRepository.GetClusterSchedulingInfo] error reading from database: %s", err)
 	}
-	reports := make(map[string]*api.ClusterSchedulingInfoReport)
 
+	reports := make(map[string]*api.ClusterSchedulingInfoReport)
 	for k, v := range result {
 		report := &api.ClusterSchedulingInfoReport{}
-		e := proto.Unmarshal([]byte(v), report)
-		if e != nil {
-			return nil, e
+		err = proto.Unmarshal([]byte(v), report)
+		if err != nil {
+			return nil, fmt.Errorf("[RedisSchedulingInfoRepository.GetClusterSchedulingInfo] error unmarshalling: %s", err)
 		}
 		reports[k] = report
 	}
@@ -41,10 +43,15 @@ func (r *RedisSchedulingInfoRepository) GetClusterSchedulingInfo() (map[string]*
 }
 
 func (r *RedisSchedulingInfoRepository) UpdateClusterSchedulingInfo(report *api.ClusterSchedulingInfoReport) error {
-	data, e := proto.Marshal(report)
-	if e != nil {
-		return e
+	data, err := proto.Marshal(report)
+	if err != nil {
+		return fmt.Errorf("[RedisSchedulingInfoRepository.UpdateClusterSchedulingInfo] error marshalling: %s", err)
 	}
-	_, e = r.db.HSet(clusterSchedulingInfoReportKey, report.ClusterId, data).Result()
-	return e
+
+	_, err = r.db.HSet(clusterSchedulingInfoReportKey, report.ClusterId, data).Result()
+	if err != nil {
+		return fmt.Errorf("[RedisSchedulingInfoRepository.UpdateClusterSchedulingInfo] error writing to database: %s", err)
+	}
+
+	return nil
 }

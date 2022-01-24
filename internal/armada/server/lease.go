@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/gogo/protobuf/types"
@@ -53,8 +52,8 @@ func NewAggregatedQueueServer(
 }
 
 func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.LeaseRequest) (*api.JobLease, error) {
-	if e := checkPermission(q.permissions, ctx, permissions.ExecuteJobs); e != nil {
-		return nil, e
+	if err := checkPermission(q.permissions, ctx, permissions.ExecuteJobs); err != nil {
+		return nil, status.Errorf(codes.PermissionDenied, "[LeaseJobs] error: %s", err)
 	}
 
 	var res common.ComputeResources = request.Resources
@@ -62,47 +61,47 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 		return &api.JobLease{}, nil
 	}
 
-	queues, e := q.queueRepository.GetAllQueues()
-	if e != nil {
-		return nil, e
+	queues, err := q.queueRepository.GetAllQueues()
+	if err != nil {
+		return nil, status.Errorf(codes.Unavailable, "[LeaseJobs] error getting queues: %s", err)
 	}
 
 	activeQueues, e := q.jobRepository.FilterActiveQueues(queue.QueuesToAPI(queues))
 	if e != nil {
-		return nil, e
+		return nil, status.Errorf(codes.Unavailable, "[LeaseJobs] error filtering active queues: %s", err)
 	}
 
-	usageReports, e := q.usageRepository.GetClusterUsageReports()
-	if e != nil {
-		return nil, e
+	usageReports, err := q.usageRepository.GetClusterUsageReports()
+	if err != nil {
+		return nil, status.Errorf(codes.Unavailable, "[LeaseJobs] error getting cluster usage: %s", err)
 	}
 
-	e = q.usageRepository.UpdateClusterLeased(&request.ClusterLeasedReport)
-	if e != nil {
-		return nil, e
+	err = q.usageRepository.UpdateClusterLeased(&request.ClusterLeasedReport)
+	if err != nil {
+		return nil, status.Errorf(codes.Unavailable, "[LeaseJobs] error updating cluster lease report: %s", err)
 	}
 
 	nodeResources := scheduling.AggregateNodeTypeAllocations(request.Nodes)
 	clusterSchedulingInfo := scheduling.CreateClusterSchedulingInfoReport(request, nodeResources)
-	e = q.schedulingInfoRepository.UpdateClusterSchedulingInfo(clusterSchedulingInfo)
-	if e != nil {
-		return nil, e
+	err = q.schedulingInfoRepository.UpdateClusterSchedulingInfo(clusterSchedulingInfo)
+	if err != nil {
+		return nil, status.Errorf(codes.Unavailable, "[LeaseJobs] error updating cluster scheduling info: %s", err)
 	}
 
 	activeClusterReports := scheduling.FilterActiveClusters(usageReports)
 	activePoolClusterReports := scheduling.FilterPoolClusters(request.Pool, activeClusterReports)
 	activePoolCLusterIds := scheduling.GetClusterReportIds(activePoolClusterReports)
-	clusterPriorities, e := q.usageRepository.GetClusterPriorities(activePoolCLusterIds)
-	if e != nil {
-		return nil, e
+	clusterPriorities, err := q.usageRepository.GetClusterPriorities(activePoolCLusterIds)
+	if err != nil {
+		return nil, status.Errorf(codes.Unavailable, "[LeaseJobs] error getting cluster priorities: %s", err)
 	}
 
-	clusterLeasedJobReports, e := q.usageRepository.GetClusterLeasedReports()
-	if e != nil {
-		return nil, e
+	clusterLeasedJobReports, err := q.usageRepository.GetClusterLeasedReports()
+	if err != nil {
+		return nil, status.Errorf(codes.Unavailable, "[LeaseJobs] error getting cluster lease reports: %s", err)
 	}
 	poolLeasedJobReports := scheduling.FilterClusterLeasedReports(activePoolCLusterIds, clusterLeasedJobReports)
-	jobs, e := scheduling.LeaseJobs(
+	jobs, err := scheduling.LeaseJobs(
 		ctx,
 		&q.schedulingConfig,
 		q.jobQueue,
@@ -113,34 +112,33 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 		poolLeasedJobReports,
 		clusterPriorities,
 		activeQueues)
-
-	if e != nil {
-		return nil, e
+	if err != nil {
+		return nil, status.Errorf(codes.Unavailable, "[LeaseJobs] error leasing jobs: %s", err)
 	}
 
 	clusterLeasedReport := scheduling.CreateClusterLeasedReport(request.ClusterLeasedReport.ClusterId, &request.ClusterLeasedReport, jobs)
-	e = q.usageRepository.UpdateClusterLeased(clusterLeasedReport)
-	if e != nil {
-		return nil, e
+	err = q.usageRepository.UpdateClusterLeased(clusterLeasedReport)
+	if err != nil {
+		return nil, status.Errorf(codes.Unavailable, "[LeaseJobs] error creating lease report: %s", err)
 	}
 
-	jobLease := api.JobLease{
+	jobLease := &api.JobLease{
 		Job: jobs,
 	}
-	return &jobLease, nil
+	return jobLease, nil
 }
 
 func (q *AggregatedQueueServer) RenewLease(ctx context.Context, request *api.RenewLeaseRequest) (*api.IdList, error) {
-	if e := checkPermission(q.permissions, ctx, permissions.ExecuteJobs); e != nil {
-		return nil, e
+	if err := checkPermission(q.permissions, ctx, permissions.ExecuteJobs); err != nil {
+		return nil, status.Errorf(codes.PermissionDenied, "[RenewLease] error: %s", err)
 	}
 	renewed, e := q.jobRepository.RenewLease(request.ClusterId, request.Ids)
 	return &api.IdList{renewed}, e
 }
 
 func (q *AggregatedQueueServer) ReturnLease(ctx context.Context, request *api.ReturnLeaseRequest) (*types.Empty, error) {
-	if e := checkPermission(q.permissions, ctx, permissions.ExecuteJobs); e != nil {
-		return nil, e
+	if err := checkPermission(q.permissions, ctx, permissions.ExecuteJobs); err != nil {
+		return nil, status.Errorf(codes.PermissionDenied, "[ReturnLease] error: %s", err)
 	}
 
 	// Check how many times the same job has been retried already
@@ -186,14 +184,14 @@ func (q *AggregatedQueueServer) ReturnLease(ctx context.Context, request *api.Re
 }
 
 func (q *AggregatedQueueServer) addAvoidNodeAffinity(jobId string, labels *api.OrderedStringMap, principalName string) error {
-	allClusterSchedulingInfo, e := q.schedulingInfoRepository.GetClusterSchedulingInfo()
-	if e != nil {
-		return e
+	allClusterSchedulingInfo, err := q.schedulingInfoRepository.GetClusterSchedulingInfo()
+	if err != nil {
+		return fmt.Errorf("[AggregatedQueueServer.addAvoidNodeAffinity] error getting scheduling information: %w", err)
 	}
 
-	res := q.jobRepository.UpdateJobs([]string{jobId}, func(jobs []*api.Job) {
+	res, err := q.jobRepository.UpdateJobs([]string{jobId}, func(jobs []*api.Job) {
 		if len(jobs) < 1 {
-			log.Warnf("addAvoidNodeAffinity: Job %s not found", jobId)
+			log.Warnf("[AggregatedQueueServer.addAvoidNodeAffinity] job %s not found", jobId)
 			return
 		}
 
@@ -204,27 +202,34 @@ func (q *AggregatedQueueServer) addAvoidNodeAffinity(jobId string, labels *api.O
 		if changed {
 			err := reportJobsUpdated(q.eventStore, principalName, jobs)
 			if err != nil {
-				log.Warnf("addAvoidNodeAffinity: Failed to report job updated event for job %s: %v", jobId, err)
+				log.Warnf("[AggregatedQueueServer.addAvoidNodeAffinity] error reporting job updated event for job %s: %s", jobId, err)
 			}
 		}
 	})
+	if err != nil {
+		return fmt.Errorf("[AggregatedQueueServer.addAvoidNodeAffinity] error updating job with ID %s: %s", jobId, err)
+	}
 
 	if len(res) < 1 {
-		return errors.New("Job not found")
+		errJobNotFound := &repository.ErrJobNotFound{JobId: jobId}
+		return fmt.Errorf("[AggregatedQueueServer.addAvoidNodeAffinity] error: %w", errJobNotFound)
 	}
 
 	return res[0].Error
 }
 
 func (q *AggregatedQueueServer) ReportDone(ctx context.Context, idList *api.IdList) (*api.IdList, error) {
-	if e := checkPermission(q.permissions, ctx, permissions.ExecuteJobs); e != nil {
-		return nil, e
+	if err := checkPermission(q.permissions, ctx, permissions.ExecuteJobs); err != nil {
+		return nil, status.Errorf(codes.PermissionDenied, "[ReportDone] error: %s", err)
 	}
 	jobs, e := q.jobRepository.GetExistingJobsByIds(idList.Ids)
 	if e != nil {
 		return nil, status.Errorf(codes.Internal, e.Error())
 	}
-	deletionResult := q.jobRepository.DeleteJobs(jobs)
+	deletionResult, err := q.jobRepository.DeleteJobs(jobs)
+	if err != nil {
+		return nil, fmt.Errorf("[AggregatedQueueServer.ReportDone] error deleting jobs: %s", err)
+	}
 
 	cleanedIds := make([]string, 0, len(deletionResult))
 	var returnedError error = nil

@@ -51,6 +51,7 @@ type SchedulingConfig struct {
 	ResourceScarcity                          map[string]float64
 	PoolResourceScarcity                      map[string]map[string]float64
 	MaxPodSpecSizeBytes                       uint
+	MinJobResources                           v1.ResourceList
 }
 
 type DatabaseRetentionPolicy struct {
