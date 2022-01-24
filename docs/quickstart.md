@@ -213,7 +213,7 @@ For queues created in this way, user and group owners of the queue have permissi
  - reprioritize jobs
  - watch queue
 
-For tighter permission conrtol, queue can be created using `create` command and specifying queue configuration file:
+For more control, queues can be created via `armadactl create`, which allows for setting specific permission; see the following example.
 
 ```bash
 ./armadactl create -f ./docs/quickstarts/queue-a.yaml
