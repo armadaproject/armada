@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v2"
+	"k8s.io/client-go/util/homedir"
 
 	"github.com/G-Research/armada/internal/fileutils"
 )
@@ -77,9 +78,9 @@ func LoadCommandlineArgsFromConfigFile(cfgFile string) error {
 		}
 		viper.SetConfigFile(cfgFile)
 	} else {
-		homeDir, err := os.UserHomeDir()
-		if err != nil {
-			return fmt.Errorf("[LoadCommandlineArgsFromConfigFile] error getting user home directory: %s", err)
+		homeDir := homedir.HomeDir()
+		if homeDir == "" {
+			return fmt.Errorf("[LoadCommandlineArgsFromConfigFile] unable to determine home directory")
 		}
 		viper.AddConfigPath(homeDir)
 		viper.SetConfigName(".armadactl")
