@@ -9,6 +9,10 @@ func (x *IngressType) UnmarshalJSON(data []byte) error {
 	var s int32
 	e := json.Unmarshal(data, &s)
 	if e == nil {
+		_, present := IngressType_name[s]
+		if !present {
+			return fmt.Errorf("no IngressType of type %d", s)
+		}
 		*x = IngressType(s)
 		return nil
 	}
@@ -29,6 +33,10 @@ func (x *ServiceType) UnmarshalJSON(data []byte) error {
 	var s int32
 	e := json.Unmarshal(data, &s)
 	if e == nil {
+		_, present := ServiceType_name[s]
+		if !present {
+			return fmt.Errorf("no ServiceType of type %d", s)
+		}
 		*x = ServiceType(s)
 		return nil
 	}
