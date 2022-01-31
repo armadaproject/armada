@@ -7,6 +7,8 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/G-Research/armada/internal/armadactl"
+	"github.com/G-Research/armada/pkg/api"
+	"github.com/G-Research/armada/pkg/client/queue"
 )
 
 func queueCreateCmd() *cobra.Command {
@@ -50,7 +52,19 @@ Job priority is evaluated inside queue, queue has its own priority.`,
 				return fmt.Errorf("error reading resourceLimits: %s", err)
 			}
 
-			return a.CreateQueue(name, priorityFactor, owners, groups, resourceLimits)
+			queue, err := queue.NewQueue(&api.Queue{
+				Name:           name,
+				PriorityFactor: priorityFactor,
+				UserOwners:     owners,
+				GroupOwners:    groups,
+				ResourceLimits: resourceLimits,
+			})
+
+			if err != nil {
+				return fmt.Errorf("invalid queue data: %s", err)
+			}
+
+			return a.CreateQueue(queue)
 		},
 	}
 	cmd.Flags().Float64("priorityFactor", 1, "Set queue priority factor - lower number makes queue more important, must be > 0.")
@@ -143,7 +157,19 @@ func queueUpdateCmdWithApp(a *armadactl.App) *cobra.Command {
 				return fmt.Errorf("error reading resourceLimits: %s", err)
 			}
 
-			return a.UpdateQueue(name, priorityFactor, owners, groups, resourceLimits)
+			queue, err := queue.NewQueue(&api.Queue{
+				Name:           name,
+				PriorityFactor: priorityFactor,
+				UserOwners:     owners,
+				GroupOwners:    groups,
+				ResourceLimits: resourceLimits,
+			})
+
+			if err != nil {
+				return fmt.Errorf("invalid queue data: %s", err)
+			}
+
+			return a.UpdateQueue(queue)
 		},
 	}
 	// TODO this will overwrite existing values with default values if not all flags are provided

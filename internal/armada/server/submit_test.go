@@ -21,6 +21,7 @@ import (
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/pkg/api"
+	"github.com/G-Research/armada/pkg/client/queue"
 )
 
 func TestSubmitServer_CreateQueue_WithDefaultSettings_CanBeReadBack(t *testing.T) {
@@ -33,38 +34,61 @@ func TestSubmitServer_CreateQueue_WithDefaultSettings_CanBeReadBack(t *testing.T
 
 		receivedQueue, err := s.GetQueue(context.Background(), &api.QueueGetRequest{Name: queueName})
 		assert.NoError(t, err)
-		assert.Equal(t, &api.Queue{Name: queueName, PriorityFactor: priority, UserOwners: []string{"anonymous"}, GroupOwners: nil, ResourceLimits: nil}, receivedQueue)
+
+		defaultQueue := &api.Queue{Name: queueName, PriorityFactor: priority, UserOwners: []string{"anonymous"}, GroupOwners: nil, ResourceLimits: nil}
+
+		q1, err := queue.NewQueue(receivedQueue)
+		assert.NoError(t, err)
+
+		q2, err := queue.NewQueue(defaultQueue)
+		assert.NoError(t, err)
+
+		assert.Equal(t, q1, q2)
 	})
 }
 
 func TestSubmitServer_CreateQueue_WithCustomSettings_CanBeReadBack(t *testing.T) {
 	withSubmitServer(func(s *SubmitServer, events repository.EventRepository) {
 		const queueName = "myQueue"
-		originalQueue := &api.Queue{Name: queueName, PriorityFactor: 1.1, UserOwners: []string{"user-a", "user-b"}, GroupOwners: []string{"group-a", "group-b"}, ResourceLimits: map[string]float64{"user-a": 1.2, "user-b": 1.3}}
+		originalQueue := &api.Queue{Name: queueName, PriorityFactor: 1.1, UserOwners: []string{"user-a", "user-b"}, GroupOwners: []string{"group-a", "group-b"}, ResourceLimits: map[string]float64{"memory": 0.2, "cpu": 0.3}}
 
 		_, err := s.CreateQueue(context.Background(), originalQueue)
 		assert.NoError(t, err)
 
 		roundTrippedQueue, err := s.GetQueue(context.Background(), &api.QueueGetRequest{Name: queueName})
 		assert.NoError(t, err)
-		assert.Equal(t, originalQueue, roundTrippedQueue)
+
+		q1, err := queue.NewQueue(originalQueue)
+		assert.NoError(t, err)
+
+		q2, err := queue.NewQueue(roundTrippedQueue)
+		assert.NoError(t, err)
+
+		assert.Equal(t, q1, q2)
 	})
 }
 
 func TestSubmitServer_CreateQueue_WhenQueueAlreadyExists_QueueIsNotChanged_AndReturnsAlreadyExists(t *testing.T) {
 	withSubmitServer(func(s *SubmitServer, events repository.EventRepository) {
 		const queueName = "myQueue"
-		originalQueue := &api.Queue{Name: queueName, PriorityFactor: 1.1, UserOwners: []string{"user-a", "user-b"}, GroupOwners: []string{"group-a", "group-b"}, ResourceLimits: map[string]float64{"user-a": 1.2, "user-b": 1.3}}
+		originalQueue := &api.Queue{Name: queueName, PriorityFactor: 1.1, UserOwners: []string{"user-a", "user-b"}, GroupOwners: []string{"group-a", "group-b"}, ResourceLimits: map[string]float64{"cpu": 0.2, "memory": 0.3}}
 
 		_, err := s.CreateQueue(context.Background(), originalQueue)
 		assert.NoError(t, err)
 
-		_, err = s.CreateQueue(context.Background(), &api.Queue{Name: queueName, PriorityFactor: 2, UserOwners: []string{"user-c"}, GroupOwners: []string{"group-c"}, ResourceLimits: map[string]float64{"user-c": 1.4}})
+		_, err = s.CreateQueue(context.Background(), &api.Queue{Name: queueName, PriorityFactor: 2, UserOwners: []string{"user-c"}, GroupOwners: []string{"group-c"}, ResourceLimits: map[string]float64{"cpu": 0.4}})
 		assert.Equal(t, codes.AlreadyExists, status.Code(err))
 
 		roundTrippedQueue, err := s.GetQueue(context.Background(), &api.QueueGetRequest{Name: queueName})
 		assert.NoError(t, err)
-		assert.Equal(t, originalQueue, roundTrippedQueue)
+
+		q1, err := queue.NewQueue(originalQueue)
+		assert.NoError(t, err)
+
+		q2, err := queue.NewQueue(roundTrippedQueue)
+		assert.NoError(t, err)
+
+		assert.Equal(t, q1, q2)
 	})
 }
 
@@ -84,17 +108,24 @@ func TestSubmitServer_UpdateQueue_WhenQueueExists_ReplacesQueue(t *testing.T) {
 	withSubmitServer(func(s *SubmitServer, events repository.EventRepository) {
 		const queueName = "myQueue"
 
-		originalQueue := &api.Queue{Name: queueName, PriorityFactor: 1.1, UserOwners: []string{"user-a", "user-b"}, GroupOwners: []string{"group-a", "group-b"}, ResourceLimits: map[string]float64{"user-a": 1.2, "user-b": 1.3}}
+		originalQueue := &api.Queue{Name: queueName, PriorityFactor: 1.1, UserOwners: []string{"user-a", "user-b"}, GroupOwners: []string{"group-a", "group-b"}, ResourceLimits: map[string]float64{"cpu": 0.2, "memory": 0.3}}
 		_, err := s.CreateQueue(context.Background(), originalQueue)
 		assert.NoError(t, err)
 
-		updatedQueue := &api.Queue{Name: queueName, PriorityFactor: 2.2, UserOwners: []string{"user-a", "user-c"}, GroupOwners: []string{"group-c", "group-b"}, ResourceLimits: map[string]float64{"user-a": 1.3, "user-c": 1.3}}
+		updatedQueue := &api.Queue{Name: queueName, PriorityFactor: 2.2, UserOwners: []string{"user-a", "user-c"}, GroupOwners: []string{"group-c", "group-b"}, ResourceLimits: map[string]float64{"cpu": 0.3, "memory": 0.3}}
 		_, err = s.UpdateQueue(context.Background(), updatedQueue)
 		assert.NoError(t, err)
 
 		receivedQueue, err := s.GetQueue(context.Background(), &api.QueueGetRequest{Name: queueName})
 		assert.NoError(t, err)
-		assert.Equal(t, updatedQueue, receivedQueue)
+
+		q1, err := queue.NewQueue(updatedQueue)
+		assert.NoError(t, err)
+
+		q2, err := queue.NewQueue(receivedQueue)
+		assert.NoError(t, err)
+
+		assert.Equal(t, q1, q2)
 	})
 }
 
@@ -127,7 +158,14 @@ func TestSubmitServer_UpdateQueue_WhenPermissionsCheckFails_QueueIsNotUpdated_An
 
 		receivedQueue, err := s.GetQueue(context.Background(), &api.QueueGetRequest{Name: queueName})
 		assert.NoError(t, err)
-		assert.Equal(t, originalQueue, receivedQueue)
+
+		q1, err := queue.NewQueue(originalQueue)
+		assert.NoError(t, err)
+
+		q2, err := queue.NewQueue(receivedQueue)
+		assert.NoError(t, err)
+
+		assert.Equal(t, q1, q2)
 	})
 }
 
@@ -146,24 +184,13 @@ func TestSubmitServer_DeleteQueue_WhenPermissionsCheckFails_QueueIsNotDelete_And
 
 		receivedQueue, err := s.GetQueue(context.Background(), &api.QueueGetRequest{Name: queueName})
 		assert.NoError(t, err)
-		assert.Equal(t, originalQueue, receivedQueue)
-	})
-}
 
-func TestSubmitServer_GetQueueInfo_WhenPermissionsCheckFails_ReturnsPermissionDenied(t *testing.T) {
-	withSubmitServer(func(s *SubmitServer, events repository.EventRepository) {
-		const queueName = "myQueue"
-		originalQueue := &api.Queue{Name: queueName, PriorityFactor: 1}
-
-		_, err := s.CreateQueue(context.Background(), originalQueue)
+		q1, err := queue.NewQueue(originalQueue)
+		assert.NoError(t, err)
+		q2, err := queue.NewQueue(receivedQueue)
 		assert.NoError(t, err)
 
-		s.permissions = &FakeDenyAllPermissionChecker{}
-
-		receivedQueueInfo, err := s.GetQueueInfo(context.Background(), &api.QueueInfoRequest{Name: queueName})
-		assert.Equal(t, codes.PermissionDenied, status.Code(err))
-		assert.Empty(t, receivedQueueInfo)
-
+		assert.Equal(t, q1, q2)
 	})
 }
 
@@ -753,7 +780,7 @@ func withSubmitServerAndRepos(action func(s *SubmitServer, jobRepo repository.Jo
 		&queueConfig,
 		&schedulingConfig)
 
-	err := queueRepo.CreateQueue(&api.Queue{Name: "test"})
+	err := queueRepo.CreateQueue(queue.Queue{Name: "test", PriorityFactor: queue.PriorityFactor(1.0)})
 	if err != nil {
 		panic(err)
 	}

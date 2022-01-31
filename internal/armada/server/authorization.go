@@ -10,7 +10,7 @@ import (
 	"github.com/G-Research/armada/internal/armada/repository"
 	"github.com/G-Research/armada/internal/common/auth/authorization"
 	"github.com/G-Research/armada/internal/common/auth/permission"
-	"github.com/G-Research/armada/pkg/api"
+	"github.com/G-Research/armada/pkg/client/queue"
 )
 
 // ErrNoPermission represents an error that occurs when a client tries to perform some action
@@ -37,43 +37,6 @@ func (err *ErrNoPermission) Error() string {
 	return strings.Join(reasons, ", ")
 }
 
-// checkReprioritizePerms checks if the principal embedded in the context has permission
-// to reprioritize all of the given jobs. This may require permissions for several queues.
-// If the principal has insufficient permissions, an error of type ErrNoPermission is returned.
-func (server *SubmitServer) checkReprioritizePerms(ctx context.Context, jobs []*api.Job) error {
-
-	// Set of queues that has at least 1 of the given jobs
-	queues := make(map[string]bool)
-	for _, job := range jobs {
-		queues[job.Queue] = true
-	}
-
-	// Check permissions for all queues
-	// Record the names of queues for which the principal lacks permissions
-	var reasons []string
-	for queue := range queues {
-		_, err := server.checkQueuePermission(ctx, queue, false, permissions.ReprioritizeJobs, permissions.ReprioritizeAnyJobs)
-		var e *ErrNoPermission
-		if errors.As(err, &e) {
-			reasons = append(reasons, fmt.Sprintf("does not own queue %q and have %s permissions for it", queue, permissions.ReprioritizeJobs))
-		} else if err != nil {
-			return fmt.Errorf("[checkReprioritizePerms] error checking permissions: %w", err)
-		}
-	}
-
-	// If there is a queue for which the principal lacks permissions,
-	// return an error containing the names of those queues
-	if len(reasons) != 0 {
-		reasons = append(reasons, fmt.Sprintf("does not have %s permissions", permissions.ReprioritizeAnyJobs))
-		return &ErrNoPermission{
-			Principal: authorization.GetPrincipal(ctx),
-			Reasons:   reasons,
-		}
-	}
-
-	return nil
-}
-
 // checkQueuePermission checks if the principal embedded in the context has permission
 // to perform actions on the given queue. If the principal has sufficient permissions,
 // nil is returned. Otherwise an error is returned.
@@ -84,8 +47,8 @@ func (server *SubmitServer) checkQueuePermission(
 	basicPermission permission.Permission,
 	allQueuesPermission permission.Permission) ([]string, error) {
 
-	// Load the queue into memory to check if the user is the owner of the queue
-	queue, err := server.queueRepository.GetQueue(queueName)
+	// Load the q into memory to check if the user is the owner of the q
+	q, err := server.queueRepository.GetQueue(queueName)
 	var e *repository.ErrQueueNotFound
 
 	// TODO Checking permissions shouldn't have side side effects.
@@ -101,11 +64,11 @@ func (server *SubmitServer) checkQueuePermission(
 			return nil, fmt.Errorf("[checkQueuePermission] error: %w", err)
 		}
 
-		queue = &api.Queue{
+		q = queue.Queue{
 			Name:           queueName,
 			PriorityFactor: server.queueManagementConfig.DefaultPriorityFactor,
 		}
-		err = server.queueRepository.CreateQueue(queue)
+		err = server.queueRepository.CreateQueue(q)
 		if err != nil {
 			return nil, fmt.Errorf("[checkQueuePermission] error creating queue: %w", err)
 		}
@@ -119,7 +82,7 @@ func (server *SubmitServer) checkQueuePermission(
 
 	// The user must either own the queue or have permission to access all queues
 	permissionToCheck := basicPermission
-	owned, groups := server.permissions.UserOwns(ctx, queue)
+	owned, groups := server.permissions.UserOwns(ctx, q.ToAPI())
 	if !owned {
 		permissionToCheck = allQueuesPermission
 	}

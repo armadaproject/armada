@@ -18,18 +18,22 @@ import (
 type EventServer struct {
 	permissions     authorization.PermissionChecker
 	eventRepository repository.EventRepository
+	queueRepository repository.QueueRepository
 	eventStore      repository.EventStore
 }
 
 func NewEventServer(
 	permissions authorization.PermissionChecker,
 	eventRepository repository.EventRepository,
-	eventStore repository.EventStore) *EventServer {
+	eventStore repository.EventStore,
+	queueRepository repository.QueueRepository) *EventServer {
 
 	return &EventServer{
 		permissions:     permissions,
 		eventRepository: eventRepository,
-		eventStore:      eventStore}
+		eventStore:      eventStore,
+		queueRepository: queueRepository,
+	}
 }
 
 func (s *EventServer) Report(ctx context.Context, message *api.EventMessage) (*types.Empty, error) {
@@ -99,7 +103,7 @@ func (s *EventServer) GetJobSetEvents(request *api.JobSetRequest, stream api.Eve
 func (s *EventServer) Watch(req *api.WatchRequest, stream api.Event_WatchServer) error {
 	watch := NewEventWatcher(s.eventRepository.ReadEvents, stream.Send).
 		MustExist(s.eventRepository.ReadEvents).
-		Authorize(s.permissions.UserHasPermission, permissions.WatchAllEvents)
+		Authorize(s.queueRepository.GetQueue, principalHasQueuePermissions)
 
 	return watch(stream.Context(), req)
 }

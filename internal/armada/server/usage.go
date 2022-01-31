@@ -14,6 +14,7 @@ import (
 	"github.com/G-Research/armada/internal/armada/scheduling"
 	"github.com/G-Research/armada/internal/common/auth/authorization"
 	"github.com/G-Research/armada/pkg/api"
+	"github.com/G-Research/armada/pkg/client/queue"
 )
 
 type UsageServer struct {
@@ -69,7 +70,7 @@ func (s *UsageServer) ReportUsage(ctx context.Context, report *api.ClusterUsageR
 		resourceScarcity = scheduling.ResourceScarcityFromReports(activePoolClusterReports)
 	}
 	newPriority := scheduling.CalculatePriorityUpdate(resourceScarcity, previousReport, report, previousPriority, s.priorityHalfTime)
-	filteredPriority := filterPriority(queues, newPriority)
+	filteredPriority := filterPriority(queue.QueuesToAPI(queues), newPriority)
 
 	err = s.usageRepository.UpdateCluster(report, filteredPriority)
 	if err != nil {
