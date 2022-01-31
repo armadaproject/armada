@@ -79,7 +79,7 @@ func LoadCommandlineArgsFromConfigFile(cfgFile string) error {
 		viper.SetConfigFile(cfgFile)
 	} else {
 		homeDir, err := homedir.Dir()
-		if homeDir == "" {
+		if err != nil {
 			return fmt.Errorf("[LoadCommandlineArgsFromConfigFile] error getting home directory: %s", err)
 		}
 		viper.AddConfigPath(homeDir)
