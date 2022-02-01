@@ -4,12 +4,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-redis/redis"
+	"github.com/stretchr/testify/assert"
+
 	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/G-Research/armada/internal/common/eventstream"
 	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/pkg/api"
-	"github.com/go-redis/redis"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestHandleMessage_JobRunningEvent(t *testing.T) {
