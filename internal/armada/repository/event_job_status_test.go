@@ -1,14 +1,12 @@
 package repository
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
-	"github.com/alicebob/miniredis"
-	"github.com/go-redis/redis"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/G-Research/armada/internal/common/eventstream"
 	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/pkg/api"
@@ -51,7 +49,7 @@ func TestHandleMessage_NonJobRunningEvent(t *testing.T) {
 }
 
 func TestHandleBatch_NonJobRunningEvent(t *testing.T) {
-	withEventStatusProcess(false, func(processor *EventJobStatusProcessor) {
+	withEventStatusProcess(newMockJobRepository(), func(processor *EventJobStatusProcessor) {
 		acked := false
 		leasedEventMessage := createJobLeasedEventStreamMessage(
 			func() error {
@@ -66,11 +64,11 @@ func TestHandleBatch_NonJobRunningEvent(t *testing.T) {
 }
 
 func TestHandleBatch_OnJobRunningEvent_UpdatesJobStartTime(t *testing.T) {
-	withEventStatusProcess(false, func(processor *EventJobStatusProcessor) {
-		job := createLeasedJob(t, processor.jobRepository, "clusterId")
+	jobRepo := newMockJobRepository()
+	withEventStatusProcess(jobRepo, func(processor *EventJobStatusProcessor) {
 		acked := false
 		runningEventMessage := createJobRunningEventStreamMessage(
-			job.Id, job.Queue, job.JobSetId, "clusterId",
+			"jobId", "queue", "jobSetId", "clusterId",
 			func() error {
 				acked = true
 				return nil
@@ -80,15 +78,34 @@ func TestHandleBatch_OnJobRunningEvent_UpdatesJobStartTime(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, acked)
 
-		jobRunInfos, err := processor.jobRepository.GetJobRunInfos([]string{job.Id})
-		assert.NoError(t, err)
-		assert.Len(t, jobRunInfos, 1)
-		assert.Equal(t, runningEventMessage.EventMessage.GetRunning().Created.UTC(), jobRunInfos[job.Id].StartTime.UTC())
+		jobRunInfo, exists := jobRepo.jobStartTimeInfos["jobId"]
+		assert.True(t, exists)
+		assert.Equal(t, runningEventMessage.EventMessage.GetRunning().Created.UTC(), jobRunInfo.StartTime.UTC())
 	})
 }
 
 func TestHandleBatch_OnJobRunningEvent_NonExistentJob(t *testing.T) {
-	withEventStatusProcess(false, func(processor *EventJobStatusProcessor) {
+	jobRepo := newMockJobRepository()
+	jobRepo.updateJobStartTimeError = &ErrJobNotFound{JobId: "jobId", ClusterId: "clusterId"}
+	withEventStatusProcess(jobRepo, func(processor *EventJobStatusProcessor) {
+		acked := false
+		runningEventMessage := createJobRunningEventStreamMessage(
+			"jobId", "queue", "jobset", "clusterId",
+			func() error {
+				acked = true
+				return nil
+			})
+
+		err := processor.handleBatch([]*eventstream.Message{runningEventMessage})
+		assert.NoError(t, err)
+		assert.True(t, acked)
+	})
+}
+
+func TestHandleBatch_OnJobRunningEvent_JobError(t *testing.T) {
+	jobRepo := newMockJobRepository()
+	jobRepo.updateJobStartTimeError = fmt.Errorf("Job update error")
+	withEventStatusProcess(jobRepo, func(processor *EventJobStatusProcessor) {
 		acked := false
 		runningEventMessage := createJobRunningEventStreamMessage(
 			util.NewULID(), "queue", "jobset", "clusterId",
@@ -99,12 +116,14 @@ func TestHandleBatch_OnJobRunningEvent_NonExistentJob(t *testing.T) {
 
 		err := processor.handleBatch([]*eventstream.Message{runningEventMessage})
 		assert.NoError(t, err)
-		assert.True(t, acked)
+		assert.False(t, acked)
 	})
 }
 
-func TestHandleBatch_OnJobRunningEvent_RedisDown(t *testing.T) {
-	withEventStatusProcess(true, func(processor *EventJobStatusProcessor) {
+func TestHandleBatch_OnJobRunningEvent_RedisError(t *testing.T) {
+	jobRepo := newMockJobRepository()
+	jobRepo.redisError = fmt.Errorf("Redis error")
+	withEventStatusProcess(jobRepo, func(processor *EventJobStatusProcessor) {
 		acked := false
 		runningEventMessage := createJobRunningEventStreamMessage(
 			util.NewULID(), "queue", "jobset", "clusterId",
@@ -117,31 +136,6 @@ func TestHandleBatch_OnJobRunningEvent_RedisDown(t *testing.T) {
 		assert.Error(t, err)
 		assert.False(t, acked)
 	})
-}
-
-func createLeasedJob(t *testing.T, jobRepository JobRepository, cluster string) *api.Job {
-	jobs := make([]*api.Job, 0, 1)
-	j := &api.Job{
-		Id:                       util.NewULID(),
-		Queue:                    "queue",
-		JobSetId:                 "jobSetId",
-		Priority:                 1,
-		Created:                  time.Now(),
-		Owner:                    "user",
-		QueueOwnershipUserGroups: []string{},
-	}
-	jobs = append(jobs, j)
-
-	results, e := jobRepository.AddJobs(jobs)
-	assert.NoError(t, e)
-	assert.NoError(t, results[0].Error)
-	job := results[0].SubmittedJob
-
-	leased, err := jobRepository.TryLeaseJobs(cluster, job.Queue, []*api.Job{job})
-	assert.NoError(t, err)
-	assert.Equal(t, job, leased[0])
-
-	return job
 }
 
 func createJobLeasedEventStreamMessage(ackFunction eventstream.AckFn) *eventstream.Message {
@@ -179,22 +173,7 @@ func createJobRunningEventStreamMessage(jobId string, queue string, jobSetId str
 	}
 }
 
-func withEventStatusProcess(redisDown bool, action func(processor *EventJobStatusProcessor)) {
-	minidb, err := miniredis.Run()
-	if err != nil {
-		panic(err)
-	}
-	defer minidb.Close()
-
-	redisClient := redis.NewClient(&redis.Options{Addr: minidb.Addr()})
-	if redisDown {
-		err := redisClient.Close()
-		if err != nil {
-			panic(err)
-		}
-	}
-
-	jobRepository := NewRedisJobRepository(redisClient, configuration.DatabaseRetentionPolicy{JobRetentionDuration: time.Hour})
+func withEventStatusProcess(jobRepository JobRepository, action func(processor *EventJobStatusProcessor)) {
 	processor := NewEventJobStatusProcessor("test", jobRepository, &eventstream.JetstreamEventStream{}, &eventstream.TimedEventBatcher{})
 	action(processor)
 }
@@ -213,4 +192,117 @@ func (b *mockEventBatcher) Report(event *eventstream.Message) error {
 
 func (b *mockEventBatcher) Stop() error {
 	return nil
+}
+
+type mockJobRepository struct {
+	jobStartTimeInfos       map[string]*JobStartInfo
+	updateJobStartTimeError error
+	redisError              error
+}
+
+func newMockJobRepository() *mockJobRepository {
+	return &mockJobRepository{
+		jobStartTimeInfos: make(map[string]*JobStartInfo),
+	}
+}
+
+func (repo *mockJobRepository) GetQueueJobIds(queueName string) ([]string, error) {
+	return []string{}, nil
+}
+
+func (repo *mockJobRepository) CreateJobs(request *api.JobSubmitRequest, owner string, ownershipGroups []string) ([]*api.Job, error) {
+	return []*api.Job{}, nil
+}
+
+func (repo *mockJobRepository) AddJobs(job []*api.Job) ([]*SubmitJobResult, error) {
+	return []*SubmitJobResult{}, nil
+}
+
+func (repo *mockJobRepository) GetExistingJobsByIds(ids []string) ([]*api.Job, error) {
+	return []*api.Job{}, nil
+}
+
+func (repo *mockJobRepository) GetJobsByIds(ids []string) ([]*JobResult, error) {
+	return []*JobResult{}, nil
+}
+
+func (repo *mockJobRepository) FilterActiveQueues(queues []*api.Queue) ([]*api.Queue, error) {
+	return []*api.Queue{}, nil
+}
+
+func (repo *mockJobRepository) GetQueueSizes(queues []*api.Queue) (sizes []int64, e error) {
+	return []int64{}, nil
+}
+
+func (repo *mockJobRepository) RenewLease(clusterId string, jobIds []string) (renewed []string, e error) {
+	return []string{}, nil
+}
+
+func (repo *mockJobRepository) ExpireLeases(queue string, deadline time.Time) (expired []*api.Job, e error) {
+	return []*api.Job{}, nil
+}
+
+func (repo *mockJobRepository) ReturnLease(clusterId string, jobId string) (returnedJob *api.Job, err error) {
+	return nil, nil
+}
+
+func (repo *mockJobRepository) DeleteJobs(jobs []*api.Job) (map[*api.Job]error, error) {
+	return map[*api.Job]error{}, nil
+}
+
+func (repo *mockJobRepository) GetActiveJobIds(queue string, jobSetId string) ([]string, error) {
+	return []string{}, nil
+}
+
+func (repo *mockJobRepository) GetQueueActiveJobSets(queue string) ([]*api.JobSetInfo, error) {
+	return []*api.JobSetInfo{}, nil
+}
+
+func (repo *mockJobRepository) AddRetryAttempt(jobId string) error {
+	return nil
+}
+
+func (repo *mockJobRepository) GetNumberOfRetryAttempts(jobId string) (int, error) {
+	return 0, nil
+}
+
+func (repo *mockJobRepository) PeekQueue(queue string, limit int64) ([]*api.Job, error) {
+	return []*api.Job{}, nil
+}
+
+func (repo *mockJobRepository) TryLeaseJobs(clusterId string, queue string, jobs []*api.Job) ([]*api.Job, error) {
+	return []*api.Job{}, nil
+}
+
+func (repo *mockJobRepository) IterateQueueJobs(queueName string, action func(*api.Job)) error {
+	return nil
+}
+
+func (repo *mockJobRepository) GetLeasedJobIds(queue string) ([]string, error) {
+	return []string{}, nil
+}
+
+func (repo *mockJobRepository) UpdateStartTime(jobStartInfos []*JobStartInfo) ([]error, error) {
+	if repo.redisError != nil {
+		return nil, repo.redisError
+	}
+	if repo.updateJobStartTimeError != nil {
+		errors := make([]error, 0, len(jobStartInfos))
+		errors = append(errors, repo.updateJobStartTimeError)
+		return errors, nil
+	}
+	errors := make([]error, 0, len(jobStartInfos))
+	for _, startInfo := range jobStartInfos {
+		repo.jobStartTimeInfos[startInfo.JobId] = startInfo
+		errors = append(errors, nil)
+	}
+	return errors, nil
+}
+
+func (repo *mockJobRepository) UpdateJobs(ids []string, mutator func([]*api.Job)) ([]UpdateJobResult, error) {
+	return []UpdateJobResult{}, nil
+}
+
+func (repo *mockJobRepository) GetJobRunInfos(jobIds []string) (map[string]*RunInfo, error) {
+	return map[string]*RunInfo{}, nil
 }
