@@ -119,6 +119,31 @@ func TestHandleBatch_OnJobRunningEvent_RedisDown(t *testing.T) {
 	})
 }
 
+func createLeasedJob(t *testing.T, jobRepository JobRepository, cluster string) *api.Job {
+	jobs := make([]*api.Job, 0, 1)
+	j := &api.Job{
+		Id:                       util.NewULID(),
+		Queue:                    "queue",
+		JobSetId:                 "jobSetId",
+		Priority:                 1,
+		Created:                  time.Now(),
+		Owner:                    "user",
+		QueueOwnershipUserGroups: []string{},
+	}
+	jobs = append(jobs, j)
+
+	results, e := jobRepository.AddJobs(jobs)
+	assert.NoError(t, e)
+	assert.NoError(t, results[0].Error)
+	job := results[0].SubmittedJob
+
+	leased, err := jobRepository.TryLeaseJobs(cluster, job.Queue, []*api.Job{job})
+	assert.NoError(t, err)
+	assert.Equal(t, job, leased[0])
+
+	return job
+}
+
 func createJobLeasedEventStreamMessage(ackFunction eventstream.AckFn) *eventstream.Message {
 	eventMessage := &api.EventMessage{
 		Events: &api.EventMessage_Leased{
@@ -154,45 +179,22 @@ func createJobRunningEventStreamMessage(jobId string, queue string, jobSetId str
 	}
 }
 
-func createLeasedJob(t *testing.T, jobRepository JobRepository, cluster string) *api.Job {
-	jobs := make([]*api.Job, 0, 1)
-	j := &api.Job{
-		Id:                       util.NewULID(),
-		Queue:                    "queue",
-		JobSetId:                 "jobSetId",
-		Priority:                 1,
-		Created:                  time.Now(),
-		Owner:                    "user",
-		QueueOwnershipUserGroups: []string{},
-	}
-	jobs = append(jobs, j)
-
-	results, e := jobRepository.AddJobs(jobs)
-	assert.NoError(t, e)
-	assert.NoError(t, results[0].Error)
-	job := results[0].SubmittedJob
-
-	leased, err := jobRepository.TryLeaseJobs(cluster, job.Queue, []*api.Job{job})
-	assert.NoError(t, err)
-	assert.Equal(t, job, leased[0])
-
-	return job
-}
-
 func withEventStatusProcess(redisDown bool, action func(processor *EventJobStatusProcessor)) {
 	minidb, err := miniredis.Run()
 	if err != nil {
 		panic(err)
 	}
+	defer minidb.Close()
 
-	client := redis.NewClient(&redis.Options{Addr: minidb.Addr(), DB: 0})
-	jobRepository := NewRedisJobRepository(client, configuration.DatabaseRetentionPolicy{JobRetentionDuration: time.Hour})
-	if !redisDown {
-		defer minidb.Close()
-	} else {
-		minidb.Close()
+	redisClient := redis.NewClient(&redis.Options{Addr: minidb.Addr()})
+	if redisDown {
+		err := redisClient.Close()
+		if err != nil {
+			panic(err)
+		}
 	}
 
+	jobRepository := NewRedisJobRepository(redisClient, configuration.DatabaseRetentionPolicy{JobRetentionDuration: time.Hour})
 	processor := NewEventJobStatusProcessor("test", jobRepository, &eventstream.JetstreamEventStream{}, &eventstream.TimedEventBatcher{})
 	action(processor)
 }
