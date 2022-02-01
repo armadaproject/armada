@@ -1,10 +1,11 @@
-package repository
+package processor
 
 import (
 	"fmt"
 
 	log "github.com/sirupsen/logrus"
 
+	"github.com/G-Research/armada/internal/armada/repository"
 	"github.com/G-Research/armada/internal/common/eventstream"
 	"github.com/G-Research/armada/pkg/api"
 )
@@ -30,14 +31,14 @@ func (n *StreamEventStore) ReportEvents(messages []*api.EventMessage) error {
 
 type RedisEventProcessor struct {
 	queue      string
-	repository EventStore
+	repository repository.EventStore
 	stream     eventstream.EventStream
 	batcher    eventstream.EventBatcher
 }
 
 func NewEventRedisProcessor(
 	queue string,
-	repository EventStore,
+	repository repository.EventStore,
 	stream eventstream.EventStream,
 	batcher eventstream.EventBatcher,
 ) *RedisEventProcessor {

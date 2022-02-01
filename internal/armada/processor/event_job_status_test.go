@@ -1,4 +1,4 @@
-package repository
+package processor
 
 import (
 	"fmt"
@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/G-Research/armada/internal/armada/repository"
 	"github.com/G-Research/armada/internal/common/eventstream"
 	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/pkg/api"
@@ -22,7 +23,7 @@ func TestHandleMessage_JobRunningEvent(t *testing.T) {
 		})
 
 	mockBatcher := &mockEventBatcher{}
-	processor := NewEventJobStatusProcessor("test", &RedisJobRepository{}, &eventstream.JetstreamEventStream{}, mockBatcher)
+	processor := NewEventJobStatusProcessor("test", &repository.RedisJobRepository{}, &eventstream.JetstreamEventStream{}, mockBatcher)
 	err := processor.handleMessage(runningEventMessage)
 
 	assert.NoError(t, err)
@@ -40,7 +41,7 @@ func TestHandleMessage_NonJobRunningEvent(t *testing.T) {
 		})
 
 	mockBatcher := &mockEventBatcher{}
-	processor := NewEventJobStatusProcessor("test", &RedisJobRepository{}, &eventstream.JetstreamEventStream{}, mockBatcher)
+	processor := NewEventJobStatusProcessor("test", &repository.RedisJobRepository{}, &eventstream.JetstreamEventStream{}, mockBatcher)
 	err := processor.handleMessage(leasedEventMessage)
 
 	assert.NoError(t, err)
@@ -86,7 +87,7 @@ func TestHandleBatch_OnJobRunningEvent_UpdatesJobStartTime(t *testing.T) {
 
 func TestHandleBatch_OnJobRunningEvent_NonExistentJob(t *testing.T) {
 	jobRepo := newMockJobRepository()
-	jobRepo.updateJobStartTimeError = &ErrJobNotFound{JobId: "jobId", ClusterId: "clusterId"}
+	jobRepo.updateJobStartTimeError = &repository.ErrJobNotFound{JobId: "jobId", ClusterId: "clusterId"}
 	withEventStatusProcess(jobRepo, func(processor *EventJobStatusProcessor) {
 		acked := false
 		runningEventMessage := createJobRunningEventStreamMessage(
@@ -173,7 +174,7 @@ func createJobRunningEventStreamMessage(jobId string, queue string, jobSetId str
 	}
 }
 
-func withEventStatusProcess(jobRepository JobRepository, action func(processor *EventJobStatusProcessor)) {
+func withEventStatusProcess(jobRepository repository.JobRepository, action func(processor *EventJobStatusProcessor)) {
 	processor := NewEventJobStatusProcessor("test", jobRepository, &eventstream.JetstreamEventStream{}, &eventstream.TimedEventBatcher{})
 	action(processor)
 }
@@ -195,14 +196,14 @@ func (b *mockEventBatcher) Stop() error {
 }
 
 type mockJobRepository struct {
-	jobStartTimeInfos       map[string]*JobStartInfo
+	jobStartTimeInfos       map[string]*repository.JobStartInfo
 	updateJobStartTimeError error
 	redisError              error
 }
 
 func newMockJobRepository() *mockJobRepository {
 	return &mockJobRepository{
-		jobStartTimeInfos: make(map[string]*JobStartInfo),
+		jobStartTimeInfos: make(map[string]*repository.JobStartInfo),
 	}
 }
 
@@ -214,16 +215,16 @@ func (repo *mockJobRepository) CreateJobs(request *api.JobSubmitRequest, owner s
 	return []*api.Job{}, nil
 }
 
-func (repo *mockJobRepository) AddJobs(job []*api.Job) ([]*SubmitJobResult, error) {
-	return []*SubmitJobResult{}, nil
+func (repo *mockJobRepository) AddJobs(job []*api.Job) ([]*repository.SubmitJobResult, error) {
+	return []*repository.SubmitJobResult{}, nil
 }
 
 func (repo *mockJobRepository) GetExistingJobsByIds(ids []string) ([]*api.Job, error) {
 	return []*api.Job{}, nil
 }
 
-func (repo *mockJobRepository) GetJobsByIds(ids []string) ([]*JobResult, error) {
-	return []*JobResult{}, nil
+func (repo *mockJobRepository) GetJobsByIds(ids []string) ([]*repository.JobResult, error) {
+	return []*repository.JobResult{}, nil
 }
 
 func (repo *mockJobRepository) FilterActiveQueues(queues []*api.Queue) ([]*api.Queue, error) {
@@ -282,7 +283,7 @@ func (repo *mockJobRepository) GetLeasedJobIds(queue string) ([]string, error) {
 	return []string{}, nil
 }
 
-func (repo *mockJobRepository) UpdateStartTime(jobStartInfos []*JobStartInfo) ([]error, error) {
+func (repo *mockJobRepository) UpdateStartTime(jobStartInfos []*repository.JobStartInfo) ([]error, error) {
 	if repo.redisError != nil {
 		return nil, repo.redisError
 	}
@@ -299,10 +300,10 @@ func (repo *mockJobRepository) UpdateStartTime(jobStartInfos []*JobStartInfo) ([
 	return errors, nil
 }
 
-func (repo *mockJobRepository) UpdateJobs(ids []string, mutator func([]*api.Job)) ([]UpdateJobResult, error) {
-	return []UpdateJobResult{}, nil
+func (repo *mockJobRepository) UpdateJobs(ids []string, mutator func([]*api.Job)) ([]repository.UpdateJobResult, error) {
+	return []repository.UpdateJobResult{}, nil
 }
 
-func (repo *mockJobRepository) GetJobRunInfos(jobIds []string) (map[string]*RunInfo, error) {
-	return map[string]*RunInfo{}, nil
+func (repo *mockJobRepository) GetJobRunInfos(jobIds []string) (map[string]*repository.RunInfo, error) {
+	return map[string]*repository.RunInfo{}, nil
 }
