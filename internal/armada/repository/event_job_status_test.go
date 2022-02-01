@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alicebob/miniredis"
 	"github.com/go-redis/redis"
 	"github.com/stretchr/testify/assert"
 
@@ -121,9 +122,9 @@ func TestHandleBatch_OnJobRunningEvent_NonExistentJob(t *testing.T) {
 func createLeasedJob(t *testing.T, jobRepository JobRepository, cluster string) *api.Job {
 	jobs := make([]*api.Job, 0, 1)
 	j := &api.Job{
-		Id:                       util.NewULID() + "test",
-		Queue:                    "queueasdfadsf",
-		JobSetId:                 "jobSetIdasdfadsf",
+		Id:                       util.NewULID(),
+		Queue:                    "queue",
+		JobSetId:                 "jobSetId",
 		Priority:                 1,
 		Created:                  time.Now(),
 		Owner:                    "user",
@@ -179,13 +180,15 @@ func createJobRunningEventStreamMessage(jobId string, queue string, jobSetId str
 }
 
 func withEventStatusProcess(redisDown bool, action func(processor *EventJobStatusProcessor)) {
-	client := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 10})
-	defer client.FlushDB()
-	defer client.Close()
+	minidb, err := miniredis.Run()
+	if err != nil {
+		panic(err)
+	}
+	defer minidb.Close()
 
-	client.FlushDB()
+	redisClient := redis.NewClient(&redis.Options{Addr: minidb.Addr()})
 
-	jobRepository := NewRedisJobRepository(client, configuration.DatabaseRetentionPolicy{JobRetentionDuration: time.Hour})
+	jobRepository := NewRedisJobRepository(redisClient, configuration.DatabaseRetentionPolicy{JobRetentionDuration: time.Hour})
 	processor := NewEventJobStatusProcessor("test", jobRepository, &eventstream.JetstreamEventStream{}, &eventstream.TimedEventBatcher{})
 	action(processor)
 }
