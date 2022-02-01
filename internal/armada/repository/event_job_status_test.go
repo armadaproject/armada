@@ -79,8 +79,10 @@ func TestHandleBatch_OnJobRunningEvent_UpdatesJobStartTime(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, acked)
 
-		_, _ = processor.jobRepository.GetJobRunInfos([]string{job.Id})
-
+		jobRunInfos, err := processor.jobRepository.GetJobRunInfos([]string{job.Id})
+		assert.NoError(t, err)
+		assert.Len(t, jobRunInfos, 1)
+		assert.Equal(t, runningEventMessage.EventMessage.GetRunning().Created.UTC(), jobRunInfos[job.Id].StartTime.UTC())
 	})
 }
 
@@ -119,9 +121,9 @@ func TestHandleBatch_OnJobRunningEvent_NonExistentJob(t *testing.T) {
 func createLeasedJob(t *testing.T, jobRepository JobRepository, cluster string) *api.Job {
 	jobs := make([]*api.Job, 0, 1)
 	j := &api.Job{
-		Id:                       util.NewULID(),
-		Queue:                    "queue",
-		JobSetId:                 "jobSetId",
+		Id:                       util.NewULID() + "test",
+		Queue:                    "queueasdfadsf",
+		JobSetId:                 "jobSetIdasdfadsf",
 		Priority:                 1,
 		Created:                  time.Now(),
 		Owner:                    "user",
@@ -133,6 +135,10 @@ func createLeasedJob(t *testing.T, jobRepository JobRepository, cluster string) 
 	assert.NoError(t, e)
 	assert.NoError(t, results[0].Error)
 	job := results[0].SubmittedJob
+
+	leased, err := jobRepository.TryLeaseJobs(cluster, job.Queue, []*api.Job{job})
+	assert.NoError(t, err)
+	assert.Equal(t, job, leased[0])
 
 	return job
 }
