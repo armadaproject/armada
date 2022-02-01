@@ -5,6 +5,7 @@ package kerberos
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/user"
@@ -76,7 +77,7 @@ func (s *spnegoCredentials) GetRequestMetadata(ctx context.Context, uri ...strin
 	spnegoClient := spnego.SPNEGOClient(s.kerberosClient, s.spn)
 	err = spnegoClient.AcquireCred()
 	if err != nil {
-		return nil, fmt.Errorf("could not acquire client credential: %v", err)
+		return nil, fmt.Errorf("could not acquire client credential: %v. This is often resolved by performing a kinit and trying again.", err)
 	}
 	st, err := spnegoClient.InitSecContext()
 	if err != nil {
@@ -102,7 +103,12 @@ func (s *spnegoCredentials) renewClient() error {
 
 		credentialsCache, err := credentials.LoadCCache(s.credentialsCachePath)
 		if err != nil {
-			return err
+			if errors.Is(err, os.ErrNotExist) {
+				return fmt.Errorf("unable to find your kerberos credential cache at %s, this is often resolved by performing a kinit and trying again.",
+					s.credentialsCachePath)
+			}
+			return fmt.Errorf("failed to load your kerberos cred cache from %s: %s",
+				s.credentialsCachePath, err)
 		}
 		kerberosClient, err := client.NewFromCCache(credentialsCache, s.krb5Config, client.DisablePAFXFAST(true))
 		if err != nil {
