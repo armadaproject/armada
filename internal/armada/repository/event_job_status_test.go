@@ -185,6 +185,7 @@ func withEventStatusProcess(redisDown bool, action func(processor *EventJobStatu
 		defer client.FlushDB()
 		defer client.Close()
 	} else {
+		client.FlushDB()
 		client.Close()
 	}
 
