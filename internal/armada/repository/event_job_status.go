@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"errors"
+
 	log "github.com/sirupsen/logrus"
 
 	"github.com/G-Research/armada/internal/common/eventstream"
@@ -51,6 +53,11 @@ func (p *EventJobStatusProcessor) handleMessage(message *eventstream.Message) er
 		if err != nil {
 			log.Errorf("error when reporting job status event to batcher: %v", err)
 		}
+	default:
+		err := message.Ack()
+		if err != nil {
+			log.Errorf("error when acknowledging message: %v", err)
+		}
 	}
 
 	return nil
@@ -58,6 +65,7 @@ func (p *EventJobStatusProcessor) handleMessage(message *eventstream.Message) er
 
 func (p *EventJobStatusProcessor) handleBatch(batch []*eventstream.Message) error {
 	var jobStartInfos []*JobStartInfo
+	var runningEventMessages []*eventstream.Message
 	for _, msg := range batch {
 		event, err := api.UnwrapEvent(msg.EventMessage)
 		if err != nil {
@@ -71,6 +79,12 @@ func (p *EventJobStatusProcessor) handleBatch(batch []*eventstream.Message) erro
 				ClusterId: event.ClusterId,
 				StartTime: event.Created,
 			})
+			runningEventMessages = append(runningEventMessages, msg)
+		default:
+			err := msg.Ack()
+			if err != nil {
+				log.Errorf("error when acknowledging message: %v", err)
+			}
 		}
 	}
 
@@ -79,15 +93,17 @@ func (p *EventJobStatusProcessor) handleBatch(batch []*eventstream.Message) erro
 		log.Errorf("error when updating start times for jobs: %v", err)
 		return err
 	}
-	if len(jobErrors) != len(batch) {
+	if len(jobErrors) != len(jobStartInfos) {
 		log.Errorf("error when updating start times for jobs: different number of job errors returned")
 		return err
 	}
+	var jobNotFoundError *ErrJobNotFound
 	for i, err := range jobErrors {
-		if err != nil {
+		// Ack JobNotFound, as we don't need to record start time for jobs that no longer exist
+		if err != nil && !errors.As(err, &jobNotFoundError) {
 			log.Errorf("error when updating start time for single job: %v", err)
 		} else {
-			if jobErr := batch[i].Ack(); jobErr != nil {
+			if jobErr := runningEventMessages[i].Ack(); jobErr != nil {
 				log.Errorf("error when acknowledging message: %v", jobErr)
 			}
 		}
