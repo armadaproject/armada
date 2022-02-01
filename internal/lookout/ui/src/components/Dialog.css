@@ -26,3 +26,7 @@
   align-items: center;
   justify-content: center;
 }
+
+.MuiDialog-scrollPaper {
+    align-items: baseline !important;
+}

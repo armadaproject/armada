@@ -26,10 +26,10 @@ export default function CancelJobs(props: CancelJobsProps) {
         <Table stickyHeader className="lookout-table">
           <TableHead>
             <TableRow>
-              <TableCell className="cancel-jobs-job-id-cell">Id</TableCell>
-              <TableCell className="cancel-jobs-job-set-cell">Job Set</TableCell>
-              <TableCell className="cancel-jobs-state-cell">State</TableCell>
-              <TableCell className="cancel-jobs-time-cell">Submission Time</TableCell>
+              <TableCell className="cancel-jobs-cell-job-id">Id</TableCell>
+              <TableCell className="cancel-jobs-cell-job-set">Job Set</TableCell>
+              <TableCell className="cancel-jobs-cell-state">State</TableCell>
+              <TableCell className="cancel-jobs-cell-time">Submission Time</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>

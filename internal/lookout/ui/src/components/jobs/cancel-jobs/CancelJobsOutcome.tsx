@@ -26,9 +26,9 @@ export default function CancelJobsOutcome(props: CancelJobsOutcomeProps) {
             <Table stickyHeader className="lookout-table">
               <TableHead>
                 <TableRow>
-                  <TableCell className="success-header cancel-jobs-success-job-id-cell">Id</TableCell>
-                  <TableCell className="success-header cancel-jobs-success-job-set-cell">Job Set</TableCell>
-                  <TableCell className="success-header cancel-jobs-success-time-cell">Submission Time</TableCell>
+                  <TableCell className="success-header cancel-jobs-cell-success-job-id">Id</TableCell>
+                  <TableCell className="success-header cancel-jobs-cell-success-job-set">Job Set</TableCell>
+                  <TableCell className="success-header cancel-jobs-cell-success-time">Submission Time</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody className="success">

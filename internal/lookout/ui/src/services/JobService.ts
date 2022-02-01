@@ -9,6 +9,7 @@ import {
   LookoutQueueInfo,
   LookoutRunInfo,
   ApiJob,
+  V1Container,
   V1PodSpec,
 } from "../openapi/lookout"
 import { reverseMap, secondsToDurationString, getErrorMessage } from "../utils"
@@ -516,14 +517,23 @@ function getContainers(apiJob: ApiJob | undefined): Map<number, string[]> {
 function getContainersFromPodSpecs(podSpecs: V1PodSpec[]): Map<number, string[]> {
   const containers = new Map<number, string[]>()
   for (let i = 0; i < podSpecs.length; i++) {
-    const podContainers = podSpecs[i].containers ?? []
-    const podContainerNames = podContainers.map((container) => container.name ?? UNKNOWN_CONTAINER)
+    const podContainerNames: string[] = []
+
+    const initContainers = getContainerNames(podSpecs[i].initContainers)
+    const podContainers = getContainerNames(podSpecs[i].containers)
+    podContainerNames.push(...initContainers, ...podContainers)
+
     if (podContainerNames.length === 0) {
       podContainerNames.push(UNKNOWN_CONTAINER)
     }
+
     containers.set(i, podContainerNames)
   }
   return containers
+}
+
+function getContainerNames(containers: V1Container[] | undefined): string[] {
+  return (containers ?? []).map((container) => container.name ?? UNKNOWN_CONTAINER)
 }
 
 function getRuns(jobInfo: LookoutJobInfo): Run[] {
