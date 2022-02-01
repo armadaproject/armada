@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alicebob/miniredis"
 	"github.com/go-redis/redis"
 	"github.com/stretchr/testify/assert"
 
@@ -179,14 +180,17 @@ func createLeasedJob(t *testing.T, jobRepository JobRepository, cluster string) 
 }
 
 func withEventStatusProcess(redisDown bool, action func(processor *EventJobStatusProcessor)) {
-	client := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 10})
+	minidb, err := miniredis.Run()
+	if err != nil {
+		panic(err)
+	}
+
+	client := redis.NewClient(&redis.Options{Addr: minidb.Addr(), DB: 0})
 	jobRepository := NewRedisJobRepository(client, configuration.DatabaseRetentionPolicy{JobRetentionDuration: time.Hour})
 	if !redisDown {
-		defer client.FlushDB()
-		defer client.Close()
+		defer minidb.Close()
 	} else {
-		client.FlushDB()
-		client.Close()
+		minidb.Close()
 	}
 
 	processor := NewEventJobStatusProcessor("test", jobRepository, &eventstream.JetstreamEventStream{}, &eventstream.TimedEventBatcher{})
