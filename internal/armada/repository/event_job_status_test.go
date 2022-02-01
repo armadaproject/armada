@@ -64,27 +64,27 @@ func TestHandleBatch_NonJobRunningEvent(t *testing.T) {
 	})
 }
 
-//func TestHandleBatch_OnJobRunningEvent_UpdatesJobStartTime(t *testing.T) {
-//	withEventStatusProcess(false, func(processor *EventJobStatusProcessor) {
-//		job := createLeasedJob(t, processor.jobRepository, "clusterId")
-//		acked := false
-//		runningEventMessage := createJobRunningEventStreamMessage(
-//			job.Id, job.Queue, job.JobSetId, "clusterId",
-//			func() error {
-//				acked = true
-//				return nil
-//			})
-//
-//		err := processor.handleBatch([]*eventstream.Message{runningEventMessage})
-//		assert.NoError(t, err)
-//		assert.True(t, acked)
-//
-//		jobRunInfos, err := processor.jobRepository.GetJobRunInfos([]string{job.Id})
-//		assert.NoError(t, err)
-//		assert.Len(t, jobRunInfos, 1)
-//		assert.Equal(t, runningEventMessage.EventMessage.GetRunning().Created.UTC(), jobRunInfos[job.Id].StartTime.UTC())
-//	})
-//}
+func TestHandleBatch_OnJobRunningEvent_UpdatesJobStartTime(t *testing.T) {
+	withEventStatusProcess(false, func(processor *EventJobStatusProcessor) {
+		job := createLeasedJob(t, processor.jobRepository, "clusterId")
+		acked := false
+		runningEventMessage := createJobRunningEventStreamMessage(
+			job.Id, job.Queue, job.JobSetId, "clusterId",
+			func() error {
+				acked = true
+				return nil
+			})
+
+		err := processor.handleBatch([]*eventstream.Message{runningEventMessage})
+		assert.NoError(t, err)
+		assert.True(t, acked)
+
+		jobRunInfos, err := processor.jobRepository.GetJobRunInfos([]string{job.Id})
+		assert.NoError(t, err)
+		assert.Len(t, jobRunInfos, 1)
+		assert.Equal(t, runningEventMessage.EventMessage.GetRunning().Created.UTC(), jobRunInfos[job.Id].StartTime.UTC())
+	})
+}
 
 func TestHandleBatch_OnJobRunningEvent_NonExistentJob(t *testing.T) {
 	withEventStatusProcess(false, func(processor *EventJobStatusProcessor) {
@@ -102,20 +102,45 @@ func TestHandleBatch_OnJobRunningEvent_NonExistentJob(t *testing.T) {
 	})
 }
 
-func TestHandleBatch_OnJobRunningEvent_RedisDown(t *testing.T) {
-	withEventStatusProcess(true, func(processor *EventJobStatusProcessor) {
-		acked := false
-		runningEventMessage := createJobRunningEventStreamMessage(
-			util.NewULID(), "queue", "jobset", "clusterId",
-			func() error {
-				acked = true
-				return nil
-			})
+//func TestHandleBatch_OnJobRunningEvent_RedisDown(t *testing.T) {
+//	withEventStatusProcess(true, func(processor *EventJobStatusProcessor) {
+//		acked := false
+//		runningEventMessage := createJobRunningEventStreamMessage(
+//			util.NewULID(), "queue", "jobset", "clusterId",
+//			func() error {
+//				acked = true
+//				return nil
+//			})
+//
+//		err := processor.handleBatch([]*eventstream.Message{runningEventMessage})
+//		assert.Error(t, err)
+//		assert.False(t, acked)
+//	})
+//}
 
-		err := processor.handleBatch([]*eventstream.Message{runningEventMessage})
-		assert.Error(t, err)
-		assert.False(t, acked)
-	})
+func createLeasedJob(t *testing.T, jobRepository JobRepository, cluster string) *api.Job {
+	jobs := make([]*api.Job, 0, 1)
+	j := &api.Job{
+		Id:                       util.NewULID(),
+		Queue:                    "queue",
+		JobSetId:                 "jobSetId",
+		Priority:                 1,
+		Created:                  time.Now(),
+		Owner:                    "user",
+		QueueOwnershipUserGroups: []string{},
+	}
+	jobs = append(jobs, j)
+
+	results, e := jobRepository.AddJobs(jobs)
+	assert.NoError(t, e)
+	assert.NoError(t, results[0].Error)
+	job := results[0].SubmittedJob
+
+	leased, err := jobRepository.TryLeaseJobs(cluster, job.Queue, []*api.Job{job})
+	assert.NoError(t, err)
+	assert.Equal(t, job, leased[0])
+
+	return job
 }
 
 func createJobLeasedEventStreamMessage(ackFunction eventstream.AckFn) *eventstream.Message {
@@ -154,17 +179,13 @@ func createJobRunningEventStreamMessage(jobId string, queue string, jobSetId str
 }
 
 func withEventStatusProcess(redisDown bool, action func(processor *EventJobStatusProcessor)) {
-	client := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 5})
-	jobRepository := NewRedisJobRepository(client, configuration.DatabaseRetentionPolicy{JobRetentionDuration: time.Hour})
-	if !redisDown {
-		defer client.FlushDB()
-		defer client.Close()
-		client.FlushDB()
-	} else {
-		client.FlushDB()
-		client.Close()
-	}
+	client := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 10})
+	defer client.FlushDB()
+	defer client.Close()
 
+	client.FlushDB()
+
+	jobRepository := NewRedisJobRepository(client, configuration.DatabaseRetentionPolicy{JobRetentionDuration: time.Hour})
 	processor := NewEventJobStatusProcessor("test", jobRepository, &eventstream.JetstreamEventStream{}, &eventstream.TimedEventBatcher{})
 	action(processor)
 }
