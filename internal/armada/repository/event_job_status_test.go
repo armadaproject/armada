@@ -103,21 +103,21 @@ func TestHandleBatch_OnJobRunningEvent_NonExistentJob(t *testing.T) {
 	})
 }
 
-//func TestHandleBatch_OnJobRunningEvent_RedisDown(t *testing.T) {
-//	withEventStatusProcess(true, func(processor *EventJobStatusProcessor) {
-//		acked := false
-//		runningEventMessage := createJobRunningEventStreamMessage(
-//			util.NewULID(), "queue", "jobset", "clusterId",
-//			func() error {
-//				acked = true
-//				return nil
-//			})
-//
-//		err := processor.handleBatch([]*eventstream.Message{runningEventMessage})
-//		assert.Error(t, err)
-//		assert.False(t, acked)
-//	})
-//}
+func TestHandleBatch_OnJobRunningEvent_RedisDown(t *testing.T) {
+	withEventStatusProcess(true, func(processor *EventJobStatusProcessor) {
+		acked := false
+		runningEventMessage := createJobRunningEventStreamMessage(
+			util.NewULID(), "queue", "jobset", "clusterId",
+			func() error {
+				acked = true
+				return nil
+			})
+
+		err := processor.handleBatch([]*eventstream.Message{runningEventMessage})
+		assert.Error(t, err)
+		assert.False(t, acked)
+	})
+}
 
 func createLeasedJob(t *testing.T, jobRepository JobRepository, cluster string) *api.Job {
 	jobs := make([]*api.Job, 0, 1)
@@ -187,6 +187,12 @@ func withEventStatusProcess(redisDown bool, action func(processor *EventJobStatu
 	defer minidb.Close()
 
 	redisClient := redis.NewClient(&redis.Options{Addr: minidb.Addr()})
+	if redisDown {
+		err := redisClient.Close()
+		if err != nil {
+			panic(err)
+		}
+	}
 
 	jobRepository := NewRedisJobRepository(redisClient, configuration.DatabaseRetentionPolicy{JobRetentionDuration: time.Hour})
 	processor := NewEventJobStatusProcessor("test", jobRepository, &eventstream.JetstreamEventStream{}, &eventstream.TimedEventBatcher{})
