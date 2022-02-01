@@ -1,24 +1,25 @@
-package repository
+package processor
 
 import (
 	"errors"
 
 	log "github.com/sirupsen/logrus"
 
+	"github.com/G-Research/armada/internal/armada/repository"
 	"github.com/G-Research/armada/internal/common/eventstream"
 	"github.com/G-Research/armada/pkg/api"
 )
 
 type EventJobStatusProcessor struct {
 	queue         string
-	jobRepository JobRepository
+	jobRepository repository.JobRepository
 	stream        eventstream.EventStream
 	batcher       eventstream.EventBatcher
 }
 
 func NewEventJobStatusProcessor(
 	queue string,
-	jobRepository JobRepository,
+	jobRepository repository.JobRepository,
 	stream eventstream.EventStream,
 	batcher eventstream.EventBatcher,
 ) *EventJobStatusProcessor {
@@ -64,7 +65,7 @@ func (p *EventJobStatusProcessor) handleMessage(message *eventstream.Message) er
 }
 
 func (p *EventJobStatusProcessor) handleBatch(batch []*eventstream.Message) error {
-	var jobStartInfos []*JobStartInfo
+	var jobStartInfos []*repository.JobStartInfo
 	var runningEventMessages []*eventstream.Message
 	for _, msg := range batch {
 		event, err := api.UnwrapEvent(msg.EventMessage)
@@ -74,7 +75,7 @@ func (p *EventJobStatusProcessor) handleBatch(batch []*eventstream.Message) erro
 		}
 		switch event := event.(type) {
 		case *api.JobRunningEvent:
-			jobStartInfos = append(jobStartInfos, &JobStartInfo{
+			jobStartInfos = append(jobStartInfos, &repository.JobStartInfo{
 				JobId:     event.GetJobId(),
 				ClusterId: event.ClusterId,
 				StartTime: event.Created,
@@ -97,7 +98,7 @@ func (p *EventJobStatusProcessor) handleBatch(batch []*eventstream.Message) erro
 		log.Errorf("error when updating start times for jobs: different number of job errors returned")
 		return err
 	}
-	var jobNotFoundError *ErrJobNotFound
+	var jobNotFoundError *repository.ErrJobNotFound
 	for i, err := range jobErrors {
 		// Ack JobNotFound, as we don't need to record start time for jobs that no longer exist
 		if err != nil && !errors.As(err, &jobNotFoundError) {
