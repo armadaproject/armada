@@ -8,7 +8,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-type eventBatchCallback func(events []*Message) error
+type EventBatchCallback func(events []*Message) error
 
 var defaultCallback = func(events []*Message) error {
 	log.Warnf("eventbatcher: default event batch callback used")
@@ -16,7 +16,7 @@ var defaultCallback = func(events []*Message) error {
 }
 
 type EventBatcher interface {
-	Register(callback eventBatchCallback)
+	Register(callback EventBatchCallback)
 	Report(event *Message) error
 	Stop() error
 }
@@ -30,7 +30,7 @@ type TimedEventBatcher struct {
 	stopCh  chan interface{}
 	doneCh  chan interface{}
 
-	callback eventBatchCallback
+	callback EventBatchCallback
 }
 
 func NewTimedEventBatcher(batchSize int, maxTimeBetweenBatches time.Duration, timeout time.Duration) *TimedEventBatcher {
@@ -48,7 +48,7 @@ func NewTimedEventBatcher(batchSize int, maxTimeBetweenBatches time.Duration, ti
 }
 
 // Process is started when the callback is registered
-func (b *TimedEventBatcher) Register(callback eventBatchCallback) {
+func (b *TimedEventBatcher) Register(callback EventBatchCallback) {
 	b.callback = callback
 	go b.start()
 }
