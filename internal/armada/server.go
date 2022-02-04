@@ -14,6 +14,7 @@ import (
 	"github.com/G-Research/armada/internal/armada/cache"
 	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/G-Research/armada/internal/armada/metrics"
+	"github.com/G-Research/armada/internal/armada/processor"
 	"github.com/G-Research/armada/internal/armada/repository"
 	"github.com/G-Research/armada/internal/armada/scheduling"
 	"github.com/G-Research/armada/internal/armada/server"
@@ -101,14 +102,14 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 	// TODO: move this to task manager
 	eventstreamTeardown := func() {}
 	if eventStream != nil {
-		eventStore = repository.NewEventStore(eventStream)
+		eventStore = processor.NewEventStore(eventStream)
 
 		eventRepoBatcher := eventstream.NewTimedEventBatcher(config.Events.ProcessorBatchSize, config.Events.ProcessorMaxTimeBetweenBatches, config.Events.ProcessorTimeout)
-		eventProcessor := repository.NewEventRedisProcessor(config.Events.StoreQueue, redisEventRepository, eventStream, eventRepoBatcher)
+		eventProcessor := processor.NewEventRedisProcessor(config.Events.StoreQueue, redisEventRepository, eventStream, eventRepoBatcher)
 		eventProcessor.Start()
 
 		jobStatusBatcher := eventstream.NewTimedEventBatcher(config.Events.ProcessorBatchSize, config.Events.ProcessorMaxTimeBetweenBatches, config.Events.ProcessorTimeout)
-		jobStatusProcessor := repository.NewEventJobStatusProcessor(config.Events.JobStatusQueue, jobRepository, eventStream, jobStatusBatcher)
+		jobStatusProcessor := processor.NewEventJobStatusProcessor(config.Events.JobStatusQueue, jobRepository, eventStream, jobStatusBatcher)
 		jobStatusProcessor.Start()
 
 		// TODO Teardown functions should return an error that can be logged/whatever by the caller.
