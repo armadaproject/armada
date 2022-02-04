@@ -1,14 +1,14 @@
-import React, { Fragment } from "react"
+import React from "react"
 
 import { RouteComponentProps, withRouter } from "react-router-dom"
 
 import Overview from "../components/Overview"
-import JobDetailsModal, { JobDetailsModalContext, toggleExpanded } from "../components/job-details/JobDetailsModal"
 import IntervalService from "../services/IntervalService"
 import JobService, { Job, QueueInfo } from "../services/JobService"
 import LogService from "../services/LogService"
 import OverviewLocalStorageService from "../services/OverviewLocalStorageService"
 import { RequestStatus, setStateAsync } from "../utils"
+import JobDialog from "./JobDialog"
 
 type OverviewContainerProps = {
   jobService: JobService
@@ -22,7 +22,8 @@ export type OverviewContainerState = {
   queueMenuAnchor: HTMLElement | null
   overviewRequestStatus: RequestStatus
   autoRefresh: boolean
-  modalContext: JobDetailsModalContext
+  jobDetailsIsOpen: boolean
+  clickedJob?: Job
 }
 
 class OverviewContainer extends React.Component<OverviewContainerProps, OverviewContainerState> {
@@ -41,10 +42,7 @@ class OverviewContainer extends React.Component<OverviewContainerProps, Overview
       queueMenuAnchor: null,
       overviewRequestStatus: "Idle",
       autoRefresh: true,
-      modalContext: {
-        open: false,
-        expandedItems: new Set(),
-      },
+      jobDetailsIsOpen: false,
     }
 
     this.fetchOverview = this.fetchOverview.bind(this)
@@ -54,7 +52,6 @@ class OverviewContainer extends React.Component<OverviewContainerProps, Overview
     this.toggleAutoRefresh = this.toggleAutoRefresh.bind(this)
 
     this.openModalForJob = this.openModalForJob.bind(this)
-    this.toggleExpanded = this.toggleExpanded.bind(this)
     this.closeModal = this.closeModal.bind(this)
   }
 
@@ -126,34 +123,16 @@ class OverviewContainer extends React.Component<OverviewContainerProps, Overview
     if (job) {
       this.setState({
         ...this.state,
-        modalContext: {
-          open: true,
-          job: job,
-          expandedItems: new Set(),
-        },
+        jobDetailsIsOpen: true,
+        clickedJob: job,
       })
     }
-  }
-
-  // Toggle expanded items in scheduling history in Job detail modal
-  toggleExpanded(item: string, isExpanded: boolean) {
-    const newExpanded = toggleExpanded(item, isExpanded, this.state.modalContext.expandedItems)
-    this.setState({
-      ...this.state,
-      modalContext: {
-        ...this.state.modalContext,
-        expandedItems: newExpanded,
-      },
-    })
   }
 
   closeModal() {
     this.setState({
       ...this.state,
-      modalContext: {
-        ...this.state.modalContext,
-        open: false,
-      },
+      jobDetailsIsOpen: false,
     })
   }
 
@@ -177,12 +156,12 @@ class OverviewContainer extends React.Component<OverviewContainerProps, Overview
 
   render() {
     return (
-      <Fragment>
-        <JobDetailsModal
+      <>
+        <JobDialog
+          isOpen={this.state.jobDetailsIsOpen}
+          job={this.state.clickedJob}
           logService={this.props.logService}
-          onToggleExpanded={this.toggleExpanded}
           onClose={this.closeModal}
-          {...this.state.modalContext}
         />
         <Overview
           queueInfos={this.state.queueInfos}
@@ -197,7 +176,7 @@ class OverviewContainer extends React.Component<OverviewContainerProps, Overview
           onQueueMenuJobsClick={this.navigateToJobs}
           onToggleAutoRefresh={this.toggleAutoRefresh}
         />
-      </Fragment>
+      </>
     )
   }
 }

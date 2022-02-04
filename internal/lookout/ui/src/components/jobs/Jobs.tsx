@@ -68,6 +68,7 @@ export default class Jobs extends React.Component<JobsProps, Record<string, neve
         jobYaml: "",
         annotations: {},
         namespace: "",
+        containers: new Map<number, string[]>(),
       }
     }
   }

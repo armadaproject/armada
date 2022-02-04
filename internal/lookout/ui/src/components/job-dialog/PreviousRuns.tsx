@@ -16,7 +16,7 @@ interface SchedulingHistoryProps {
 
 export function PreviousRuns(props: SchedulingHistoryProps) {
   return (
-    <Fragment>
+    <>
       <h3 className="previous-runs-title">Previous runs</h3>
       <div className="previous-runs">
         <List component={Paper}>
@@ -52,6 +52,6 @@ export function PreviousRuns(props: SchedulingHistoryProps) {
             ))}
         </List>
       </div>
-    </Fragment>
+    </>
   )
 }

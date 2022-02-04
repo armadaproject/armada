@@ -1,4 +1,4 @@
-import React, { Fragment } from "react"
+import React from "react"
 
 import { Run } from "../../services/JobService"
 import DetailRow from "./DetailRow"
@@ -11,7 +11,7 @@ interface RunDetailsRowsProps {
 
 export function RunDetailsRows(props: RunDetailsRowsProps) {
   return (
-    <Fragment>
+    <>
       <DetailRow name="Cluster" value={props.run.cluster} />
       <DetailRow name="Pod number" value={props.run.podNumber.toString()} />
       <DetailRow name="Kubernetes Id" value={props.run.k8sId} />
@@ -20,6 +20,6 @@ export function RunDetailsRows(props: RunDetailsRowsProps) {
       {props.run.podStartTime && <DetailRow name="Job started" value={props.run.podStartTime} />}
       {props.run.finishTime && <DetailRow name="Finished" value={props.run.finishTime} />}
       {props.run.error && <DetailRow name="Error" value={props.run.error} className="error-message" />}
-    </Fragment>
+    </>
   )
 }

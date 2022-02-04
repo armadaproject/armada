@@ -10,6 +10,8 @@ interface UIConfig {
 
 export type RequestStatus = "Loading" | "Idle"
 
+export type ApiResult = "Success" | "Failure" | "Partial success"
+
 export interface Padding {
   top: number
   bottom: number
@@ -138,4 +140,10 @@ export function tryParseJson(json: string): Record<string, unknown> | undefined 
     console.error(e.message)
     return undefined
   }
+}
+
+const priorityRegex = new RegExp("^([0-9]+)$")
+
+export function priorityIsValid(priority: string): boolean {
+  return priorityRegex.test(priority) && priority.length > 0
 }
