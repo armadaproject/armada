@@ -21,11 +21,11 @@ Ensure the current user has permission to run the `docker` command without `sudo
 You can install the pre-requisites with [Homebrew](https://brew.sh):
 
 ```bash
-brew cask install docker
+brew install --cask docker
 brew install helm kind kubernetes-cli
+open /Applications/Docker.app
 ```
-
-Ensure at least 5GB of RAM are allocated to the Docker VM (see Preferences -> Resources -> Advanced).
+The Docker GUI will open, you will be prompted for login credentials. Ensure at least 5GB of RAM are allocated to the Docker VM (see `Preferences -> Resources -> Advanced` in the docker menu you should now have in the menu bar).
 
 #### Windows
 
