@@ -2,6 +2,7 @@ package logs
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -86,9 +87,12 @@ func ConvertLogs(rawLog []byte) []*binoculars.LogLine {
 
 	var logLines []*binoculars.LogLine
 	for i := 0; i < len(lines); i++ {
-		if lines[i] != "" {
-			logLines = append(logLines, splitLine(lines[i]))
+		logLine, err := splitLine(lines[i])
+		if err != nil {
+			log.Errorf("error when converting log line: %v", err)
+			continue
 		}
+		logLines = append(logLines, logLine)
 	}
 
 	return logLines
@@ -104,11 +108,11 @@ func truncateLog(lines []string, total int) []string {
 	return lines[:lastExclIndex]
 }
 
-func splitLine(rawLine string) *binoculars.LogLine {
+func splitLine(rawLine string) (*binoculars.LogLine, error) {
 	spaceIdx := strings.Index(rawLine, " ")
 
 	if spaceIdx == -1 {
-		return &binoculars.LogLine{Timestamp: "", Line: rawLine}
+		return nil, fmt.Errorf("badly formatted log line: %q", rawLine)
 	}
 
 	timestamp := rawLine[:spaceIdx]
@@ -116,8 +120,8 @@ func splitLine(rawLine string) *binoculars.LogLine {
 
 	_, err := time.Parse(time.RFC3339Nano, timestamp)
 	if err != nil {
-		return &binoculars.LogLine{Timestamp: "", Line: rawLine}
+		return nil, fmt.Errorf("failed parse timestamp in log line: %q: %v", rawLine, err)
 	}
 
-	return &binoculars.LogLine{Timestamp: timestamp, Line: line}
+	return &binoculars.LogLine{Timestamp: timestamp, Line: line}, nil
 }
