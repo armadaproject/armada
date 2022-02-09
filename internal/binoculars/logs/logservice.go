@@ -75,10 +75,19 @@ func (l *KubernetesLogService) GetLogs(ctx context.Context, params *LogParams) (
 		return nil, err
 	}
 
-	return ConvertLogs(rawLog), nil
+	logLines, errs := ConvertLogs(rawLog)
+	for _, err := range errs {
+		log.Errorf(
+			"failed to parse log line for namespace: %q, pod: %q: %v",
+			params.Namespace,
+			params.PodName,
+			err)
+	}
+
+	return logLines, nil
 }
 
-func ConvertLogs(rawLog []byte) []*binoculars.LogLine {
+func ConvertLogs(rawLog []byte) ([]*binoculars.LogLine, []error) {
 	lines := strings.Split(string(rawLog), "\n")
 	// If log is larger than MAX_PAYLOAD_SIZE, discard last lines until it is smaller or equal to MAX_PAYLOAD_SIZE
 	if len(rawLog) > MaxLogBytes {
@@ -86,16 +95,22 @@ func ConvertLogs(rawLog []byte) []*binoculars.LogLine {
 	}
 
 	var logLines []*binoculars.LogLine
+	var errs []error
 	for i := 0; i < len(lines); i++ {
+		line := lines[i]
+		if line == "" { // Can happen if we have a trailing newline
+			continue
+		}
+
 		logLine, err := splitLine(lines[i])
 		if err != nil {
-			log.Errorf("error when converting log line: %v", err)
+			errs = append(errs, err)
 			continue
 		}
 		logLines = append(logLines, logLine)
 	}
 
-	return logLines
+	return logLines, errs
 }
 
 func truncateLog(lines []string, total int) []string {
