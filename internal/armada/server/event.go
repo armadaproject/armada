@@ -2,6 +2,8 @@ package server
 
 import (
 	"context"
+	"errors"
+	"github.com/G-Research/armada/pkg/client/queue"
 	"time"
 
 	"google.golang.org/grpc/codes"
@@ -52,8 +54,28 @@ func (s *EventServer) ReportMultiple(ctx context.Context, message *api.EventList
 
 // GetJobSetEvents streams back all events associated with a particular job set.
 func (s *EventServer) GetJobSetEvents(request *api.JobSetRequest, stream api.Event_GetJobSetEventsServer) error {
-	if err := checkPermission(s.permissions, stream.Context(), permissions.WatchAllEvents); err != nil {
-		return status.Errorf(codes.PermissionDenied, "[GetJobSetEvents] error: %s", err)
+	q, err := s.queueRepository.GetQueue(request.Queue)
+	var expected *repository.ErrQueueNotFound
+	if errors.Is(err, expected) {
+		return status.Errorf(codes.NotFound, "[GetJobSetEvents] Queue %s does not exist", request.Queue)
+	} else if err != nil {
+		return err
+	}
+
+	err = checkPermission(s.permissions, stream.Context(), permissions.WatchAllEvents)
+	var globalPermErr *ErrNoPermission
+	if errors.As(err, &globalPermErr) {
+		err = checkQueuePermission(s.permissions, stream.Context(), q, queue.PermissionVerbWatch)
+		var queuePermErr *ErrNoPermission
+		if errors.As(err, &queuePermErr) {
+			return status.Errorf(codes.PermissionDenied,
+				"[GetJobSetEvents] error getting events for queue: %s, job set: %s: %s",
+				request.Queue, request.Id, MergePermissionErrors(globalPermErr, queuePermErr))
+		} else if err != nil {
+			return status.Errorf(codes.Unavailable, "[GetJobSetEvents] error checking permissions: %s", err)
+		}
+	} else if err != nil {
+		return status.Errorf(codes.Unavailable, "[GetJobSetEvents] error checking permissions: %s", err)
 	}
 
 	fromId := request.FromMessageId

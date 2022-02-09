@@ -68,11 +68,19 @@ func (server *SubmitServer) GetQueueInfo(ctx context.Context, req *api.QueueInfo
 		return nil, err
 	}
 
-	principal := authorization.GetPrincipal(ctx)
-
-	fmt.Println(q)
-	if !principalHasQueuePermissions(principal, q, queue.PermissionVerbWatch) {
-		return nil, status.Errorf(codes.PermissionDenied, "[GetQueueInfo] User %s not allowed to perform queue action: %s", principal.GetName(), queue.PermissionVerbWatch)
+	err = checkPermission(server.permissions, ctx, permissions.WatchAllEvents)
+	var globalPermErr *ErrNoPermission
+	if errors.As(err, &globalPermErr) {
+		err = checkQueuePermission(server.permissions, ctx, q, queue.PermissionVerbWatch)
+		var queuePermErr *ErrNoPermission
+		if errors.As(err, &queuePermErr) {
+			return nil, status.Errorf(codes.PermissionDenied,
+				"[GetQueueInfo] error getting info for queue %s: %s", req.Name, MergePermissionErrors(globalPermErr, queuePermErr))
+		} else if err != nil {
+			return nil, status.Errorf(codes.Unavailable, "[GetQueueInfo] error checking permissions: %s", err)
+		}
+	} else if err != nil {
+		return nil, status.Errorf(codes.Unavailable, "[GetQueueInfo] error checking permissions: %s", err)
 	}
 
 	jobSets, e := server.jobRepository.GetQueueActiveJobSets(req.Name)
@@ -183,6 +191,21 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 	q, err := server.getQueueOrCreate(ctx, req.Queue)
 	if err != nil {
 		return nil, err
+	}
+
+	err = checkPermission(server.permissions, ctx, permissions.SubmitAnyJobs)
+	var globalPermErr *ErrNoPermission
+	if errors.As(err, &globalPermErr) {
+		err = checkQueuePermission(server.permissions, ctx, q, queue.PermissionVerbSubmit)
+		var queuePermErr *ErrNoPermission
+		if errors.As(err, &queuePermErr) {
+			return nil, status.Errorf(codes.PermissionDenied,
+				"[SubmitJobs] error submitting job in queue %s: %s", req.Queue, MergePermissionErrors(globalPermErr, queuePermErr))
+		} else if err != nil {
+			return nil, status.Errorf(codes.Unavailable, "[SubmitJobs] error checking permissions: %s", err)
+		}
+	} else if err != nil {
+		return nil, status.Errorf(codes.Unavailable, "[SubmitJobs] error checking permissions: %s", err)
 	}
 
 	if !server.permissions.UserHasPermission(ctx, permissions.SubmitAnyJobs) {
@@ -403,6 +426,43 @@ func (server *SubmitServer) cancelJobs(ctx context.Context, queueName string, jo
 	return &api.CancellationResult{CancelledIds: cancelledIds}, nil
 }
 
+func (server *SubmitServer) checkCancelPerms(ctx context.Context, jobs []*api.Job) error {
+	queueNames := make(map[string]struct{})
+	for _, job := range jobs {
+		queueNames[job.Queue] = struct{}{}
+	}
+	for queueName := range queueNames {
+		principal := authorization.GetPrincipal(ctx)
+
+		q, err := server.queueRepository.GetQueue(queueName)
+		if err != nil {
+			return err
+		}
+
+		err = checkPermission(server.permissions, ctx, permissions.CancelAnyJobs)
+		var globalPermErr *ErrNoPermission
+		if errors.As(err, &globalPermErr) {
+			err = checkQueuePermission(server.permissions, ctx, q, queue.PermissionVerbCancel)
+			var queuePermErr *ErrNoPermission
+			if errors.As(err, &queuePermErr) {
+				return status.Errorf(codes.PermissionDenied,
+					"[CancelJobs] error cancelling job in queue %s: %s", queueName, MergePermissionErrors(globalPermErr, queuePermErr))
+			} else if err != nil {
+				return status.Errorf(codes.Unavailable, "[CancelJobs] error checking permissions: %s", err)
+			}
+		} else if err != nil {
+			return status.Errorf(codes.Unavailable, "[CancelJobs] error checking permissions: %s", err)
+		}
+
+		if !server.permissions.UserHasPermission(ctx, permissions.CancelAnyJobs) {
+			if !principalHasQueuePermissions(principal, q, queue.PermissionVerbCancel) {
+				return status.Errorf(codes.PermissionDenied, err.Error())
+			}
+		}
+	}
+	return nil
+}
+
 // ReprioritizeJobs updates the priority of one of more jobs.
 // Returns a map from job ID to any error (or nil if the call succeeded).
 func (server *SubmitServer) ReprioritizeJobs(ctx context.Context, request *api.JobReprioritizeRequest) (*api.JobReprioritizeResponse, error) {
@@ -508,6 +568,21 @@ func (server *SubmitServer) checkReprioritizePerms(ctx context.Context, jobs []*
 		q, err := server.queueRepository.GetQueue(queueName)
 		if err != nil {
 			return err
+		}
+
+		err = checkPermission(server.permissions, ctx, permissions.CancelAnyJobs)
+		var globalPermErr *ErrNoPermission
+		if errors.As(err, &globalPermErr) {
+			err = checkQueuePermission(server.permissions, ctx, q, queue.PermissionVerbReprioritize)
+			var queuePermErr *ErrNoPermission
+			if errors.As(err, &queuePermErr) {
+				return status.Errorf(codes.PermissionDenied,
+					"[ReprioritizeJobs] error reprioritizing job in queue %s: %s", queueName, MergePermissionErrors(globalPermErr, queuePermErr))
+			} else if err != nil {
+				return status.Errorf(codes.Unavailable, "[ReprioritizeJobs] error checking permissions: %s", err)
+			}
+		} else if err != nil {
+			return status.Errorf(codes.Unavailable, "[ReprioritizeJobs] error checking permissions: %s", err)
 		}
 
 		if !server.permissions.UserHasPermission(ctx, permissions.CancelAnyJobs) {
