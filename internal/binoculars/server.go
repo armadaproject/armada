@@ -8,6 +8,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/G-Research/armada/internal/binoculars/configuration"
+	"github.com/G-Research/armada/internal/binoculars/logs"
 	"github.com/G-Research/armada/internal/binoculars/server"
 	"github.com/G-Research/armada/internal/common/auth"
 	"github.com/G-Research/armada/internal/common/cluster"
@@ -28,7 +29,8 @@ func StartUp(config *configuration.BinocularsConfig) (func(), *sync.WaitGroup) {
 
 	grpcServer := grpcCommon.CreateGrpcServer(auth.ConfigureAuth(config.Auth))
 
-	binocularsServer := server.NewBinocularsServer(kubernetesClientProvider)
+	logService := logs.NewKubernetesLogService(kubernetesClientProvider)
+	binocularsServer := server.NewBinocularsServer(logService)
 	binoculars.RegisterBinocularsServer(grpcServer, binocularsServer)
 	grpc_prometheus.Register(grpcServer)
 
