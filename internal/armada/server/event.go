@@ -3,9 +3,9 @@ package server
 import (
 	"context"
 	"errors"
-	"github.com/G-Research/armada/pkg/client/queue"
 	"time"
 
+	"github.com/gogo/protobuf/types"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -13,8 +13,7 @@ import (
 	"github.com/G-Research/armada/internal/armada/repository"
 	"github.com/G-Research/armada/internal/common/auth/authorization"
 	"github.com/G-Research/armada/pkg/api"
-
-	"github.com/gogo/protobuf/types"
+	"github.com/G-Research/armada/pkg/client/queue"
 )
 
 type EventServer struct {
