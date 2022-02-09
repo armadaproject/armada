@@ -95,11 +95,13 @@ func ConvertLogs(rawLog []byte) []*binoculars.LogLine {
 }
 
 func truncateLog(lines []string, total int) []string {
+	lastExclIndex := len(lines)
 	for total > MaxLogBytes {
-		total -= len(lines[len(lines)-1]) + 1 // For the extra newline
-		lines = lines[:len(lines)-1]
+		lastLine := lines[lastExclIndex-1]
+		total -= len(lastLine) + 1 // newline removed with strings.Split
+		lastExclIndex--
 	}
-	return lines
+	return lines[:lastExclIndex]
 }
 
 func splitLine(rawLine string) *binoculars.LogLine {
