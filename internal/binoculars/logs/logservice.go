@@ -110,7 +110,6 @@ func truncateLog(lines []string, total int) []string {
 
 func splitLine(rawLine string) (*binoculars.LogLine, error) {
 	spaceIdx := strings.Index(rawLine, " ")
-
 	if spaceIdx == -1 {
 		return nil, fmt.Errorf("badly formatted log line: %q", rawLine)
 	}
