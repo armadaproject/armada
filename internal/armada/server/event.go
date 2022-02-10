@@ -61,20 +61,9 @@ func (s *EventServer) GetJobSetEvents(request *api.JobSetRequest, stream api.Eve
 		return err
 	}
 
-	err = checkPermission(s.permissions, stream.Context(), permissions.WatchAllEvents)
-	var globalPermErr *ErrNoPermission
-	if errors.As(err, &globalPermErr) {
-		err = checkQueuePermission(s.permissions, stream.Context(), q, permissions.WatchEvents, queue.PermissionVerbWatch)
-		var queuePermErr *ErrNoPermission
-		if errors.As(err, &queuePermErr) {
-			return status.Errorf(codes.PermissionDenied,
-				"[GetJobSetEvents] error getting events for queue: %s, job set: %s: %s",
-				request.Queue, request.Id, MergePermissionErrors(globalPermErr, queuePermErr))
-		} else if err != nil {
-			return status.Errorf(codes.Unavailable, "[GetJobSetEvents] error checking permissions: %s", err)
-		}
-	} else if err != nil {
-		return status.Errorf(codes.Unavailable, "[GetJobSetEvents] error checking permissions: %s", err)
+	err = validateUserHasWatchPermissions(stream.Context(), s.permissions, q, request.Id)
+	if err != nil {
+		return status.Errorf(codes.PermissionDenied, "[GetJobSetEvents] %s", err)
 	}
 
 	fromId := request.FromMessageId
@@ -122,15 +111,27 @@ func (s *EventServer) GetJobSetEvents(request *api.JobSetRequest, stream api.Eve
 }
 
 func (s *EventServer) Watch(req *api.WatchRequest, stream api.Event_WatchServer) error {
-	hasGlobalPermission := true
-	err := checkPermission(s.permissions, stream.Context(), permissions.WatchAllEvents)
-	if err != nil {
-		hasGlobalPermission = false
-	}
-
 	watch := NewEventWatcher(s.eventRepository.ReadEvents, stream.Send).
 		MustExist(s.eventRepository.ReadEvents).
-		Authorize(s.queueRepository.GetQueue, hasGlobalPermission, principalHasQueuePermissions)
+		Authorize(s.queueRepository.GetQueue, validateUserHasWatchPermissions, s.permissions)
 
 	return watch(stream.Context(), req)
+}
+
+func validateUserHasWatchPermissions(ctx context.Context, permsChecker authorization.PermissionChecker, q queue.Queue, jobSetId string) error {
+	err := checkPermission(permsChecker, ctx, permissions.WatchAllEvents)
+	var globalPermErr *ErrNoPermission
+	if errors.As(err, &globalPermErr) {
+		err = checkQueuePermission(permsChecker, ctx, q, permissions.WatchEvents, queue.PermissionVerbWatch)
+		var queuePermErr *ErrNoPermission
+		if errors.As(err, &queuePermErr) {
+			return status.Errorf(codes.PermissionDenied, "error getting events for queue: %s, job set: %s: %s",
+				q.Name, jobSetId, MergePermissionErrors(globalPermErr, queuePermErr))
+		} else if err != nil {
+			return status.Errorf(codes.Unavailable, "error checking permissions: %s", err)
+		}
+	} else if err != nil {
+		return status.Errorf(codes.Unavailable, "error checking permissions: %s", err)
+	}
+	return nil
 }

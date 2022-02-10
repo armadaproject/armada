@@ -564,32 +564,6 @@ func (server *SubmitServer) checkReprioritizePerms(ctx context.Context, jobs []*
 	return nil
 }
 
-func principalHasQueuePermissions(principal authorization.Principal, q queue.Queue, hasGlobalPermission bool, verb queue.PermissionVerb) bool {
-	if hasGlobalPermission {
-		return true
-	}
-
-	subjects := queue.PermissionSubjects{}
-	for _, group := range principal.GetGroupNames() {
-		subjects = append(subjects, queue.PermissionSubject{
-			Name: group,
-			Kind: queue.PermissionSubjectKindGroup,
-		})
-	}
-	subjects = append(subjects, queue.PermissionSubject{
-		Name: principal.GetName(),
-		Kind: queue.PermissionSubjectKindUser,
-	})
-
-	for _, subject := range subjects {
-		if q.HasPermission(subject, verb) {
-			return true
-		}
-	}
-
-	return false
-}
-
 func (server *SubmitServer) getQueueOrCreate(ctx context.Context, queueName string) (queue.Queue, error) {
 	q, e := server.queueRepository.GetQueue(queueName)
 	if e == nil {
