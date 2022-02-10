@@ -1110,6 +1110,7 @@ func TestSubmitServer_CancelJobs_Permissions(t *testing.T) {
 		withSubmitServer(func(s *SubmitServer, events repository.EventRepository) {
 			s.permissions = authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms)
 			err := s.queueRepository.CreateQueue(q)
+			assert.NoError(t, err)
 			_, err = s.jobRepository.AddJobs([]*api.Job{job})
 			assert.NoError(t, err)
 
@@ -1221,6 +1222,7 @@ func TestSubmitServer_ReprioritizeJobs_Permissions(t *testing.T) {
 		withSubmitServer(func(s *SubmitServer, events repository.EventRepository) {
 			s.permissions = authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms)
 			err := s.queueRepository.CreateQueue(q)
+			assert.NoError(t, err)
 			_, err = s.jobRepository.AddJobs([]*api.Job{job})
 			assert.NoError(t, err)
 
