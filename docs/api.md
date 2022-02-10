@@ -75,6 +75,7 @@ Below is the list of global Armada permissions (defined [here](../internal/armad
 * `cancel_any_jobs`
 * `reprioritize_jobs`
 * `reprioritize_any_jobs`
+* `watch_events`
 * `watch_all_events`
 
 In addition, the following queue-specific permission verbs control what actions can be taken per individual queues (defined [here](../pkg/client/queue/permission_verb.go)):
@@ -84,15 +85,16 @@ In addition, the following queue-specific permission verbs control what actions 
 * `watch`
 
 The table below shows which permissions are required for a user to access each API endpoint (either directly or via a group).
+Note queue-specific permission require a user to be bound to a global permission as well (shown as tuples in the table below).
 
-| Endpoint           | Global Permissions | Queue Permissions |
-|--------------------|--------------------|-------------------|
-| `SubmitJobs`       | `submit_any_jobs`  | `submit`          |
-| `CancelJobs`       | `cancel_any_jobs`  | `cancel`          |
-| `ReprioritizeJobs` | `cancel_any_jobs`  | `reprioritize`    |
-| `CreateQueue`      | `create_queue`     |                   |
-| `UpdateQueue`      | `create_queue`     |                   |
-| `DeleteQueue`      | `delete_queue`     |                   |
-| `GetQueue`         |                    |                   |
-| `GetQueueInfo`     | `watch_all_events` | `watch`           |
-| `GetJobSetEvents`  | `watch_all_events` | `watch`           |
+| Endpoint           | Global Permissions      | Queue Permissions                     |
+|--------------------|-------------------------|---------------------------------------|
+| `SubmitJobs`       | `submit_any_jobs`       | (`submit_jobs`, `submit`)             |
+| `CancelJobs`       | `cancel_any_jobs`       | (`cancel_jobs`, `cancel`)             |
+| `ReprioritizeJobs` | `reprioritize_any_jobs` | (`reprioritize_jobs`, `reprioritize`) |
+| `CreateQueue`      | `create_queue`          |                                       |
+| `UpdateQueue`      | `create_queue`          |                                       |
+| `DeleteQueue`      | `delete_queue`          |                                       |
+| `GetQueue`         |                         |                                       |
+| `GetQueueInfo`     | `watch_all_events`      | (`watch_events`, `watch`)             |
+| `GetJobSetEvents`  | `watch_all_events`      | (`watch_events`, `watch`)             |

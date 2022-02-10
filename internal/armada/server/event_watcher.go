@@ -18,14 +18,14 @@ import (
 // TODO This file uses the functional approach to writing handlers.
 // For consistency, we should change it to use the same style as the others.
 type readEvents func(queue, jobSetId string, lastId string, limit int64, block time.Duration) ([]*api.EventStreamMessage, error)
-type hasPermissions func(authorization.Principal, queue.Queue, queue.PermissionVerb) bool
+type hasPermissions func(authorization.Principal, queue.Queue, bool, queue.PermissionVerb) bool
 type getQueue func(queueName string) (queue.Queue, error)
 type sendEvent func(*api.EventStreamMessage) error
 
 type EventWatcher func(context.Context, *api.WatchRequest) error
 
 // Authorize validates if the user has
-func (watcher EventWatcher) Authorize(getQueue getQueue, hasPermissions hasPermissions) EventWatcher {
+func (watcher EventWatcher) Authorize(getQueue getQueue, hasGlobalPermission bool, hasPermissions hasPermissions) EventWatcher {
 	return func(ctx context.Context, request *api.WatchRequest) error {
 		principal := authorization.GetPrincipal(ctx)
 		q, err := getQueue(request.Queue)
@@ -37,7 +37,7 @@ func (watcher EventWatcher) Authorize(getQueue getQueue, hasPermissions hasPermi
 			return err
 		}
 
-		if !hasPermissions(principal, q, queue.PermissionVerbWatch) {
+		if !hasPermissions(principal, q, hasGlobalPermission, queue.PermissionVerbWatch) {
 			return status.Errorf(codes.PermissionDenied, "User %s has no queue permission: %s", principal.GetName(), queue.PermissionVerbWatch)
 		}
 		return watcher(ctx, request)

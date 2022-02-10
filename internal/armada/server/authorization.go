@@ -72,7 +72,17 @@ func checkPermission(p authorization.PermissionChecker, ctx context.Context, per
 	return nil
 }
 
-func checkQueuePermission(p authorization.PermissionChecker, ctx context.Context, q queue.Queue, verb queue.PermissionVerb) error {
+func checkQueuePermission(
+	p authorization.PermissionChecker,
+	ctx context.Context,
+	q queue.Queue,
+	globalPermission permission.Permission,
+	verb queue.PermissionVerb) error {
+	err := checkPermission(p, ctx, globalPermission)
+	if err != nil {
+		return err
+	}
+
 	// User must either own the queue or have the permission for the specific verb
 	owned, _ := p.UserOwns(ctx, q.ToAPI())
 	if owned {

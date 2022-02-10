@@ -64,7 +64,7 @@ func (s *EventServer) GetJobSetEvents(request *api.JobSetRequest, stream api.Eve
 	err = checkPermission(s.permissions, stream.Context(), permissions.WatchAllEvents)
 	var globalPermErr *ErrNoPermission
 	if errors.As(err, &globalPermErr) {
-		err = checkQueuePermission(s.permissions, stream.Context(), q, queue.PermissionVerbWatch)
+		err = checkQueuePermission(s.permissions, stream.Context(), q, permissions.WatchEvents, queue.PermissionVerbWatch)
 		var queuePermErr *ErrNoPermission
 		if errors.As(err, &queuePermErr) {
 			return status.Errorf(codes.PermissionDenied,
@@ -122,9 +122,15 @@ func (s *EventServer) GetJobSetEvents(request *api.JobSetRequest, stream api.Eve
 }
 
 func (s *EventServer) Watch(req *api.WatchRequest, stream api.Event_WatchServer) error {
+	hasGlobalPermission := true
+	err := checkPermission(s.permissions, stream.Context(), permissions.WatchAllEvents)
+	if err != nil {
+		hasGlobalPermission = false
+	}
+
 	watch := NewEventWatcher(s.eventRepository.ReadEvents, stream.Send).
 		MustExist(s.eventRepository.ReadEvents).
-		Authorize(s.queueRepository.GetQueue, principalHasQueuePermissions)
+		Authorize(s.queueRepository.GetQueue, hasGlobalPermission, principalHasQueuePermissions)
 
 	return watch(stream.Context(), req)
 }

@@ -94,7 +94,7 @@ func TestEventWatcherAuthorize(t *testing.T) {
 				return inputQueue, nil
 			}
 
-			hasPermissions := func(_ authorization.Principal, q queue.Queue, verb queue.PermissionVerb) bool {
+			hasPermissions := func(_ authorization.Principal, q queue.Queue, g bool, verb queue.PermissionVerb) bool {
 				switch {
 				case !reflect.DeepEqual(q, inputQueue):
 					t.Errorf("invalid queue")
@@ -112,7 +112,7 @@ func TestEventWatcherAuthorize(t *testing.T) {
 					t.Errorf("Invalid request")
 				}
 				return nil
-			}).Authorize(getQueue, hasPermissions)
+			}).Authorize(getQueue, true, hasPermissions)
 
 			if err := watcher(ctx, &inputRequest); err != nil {
 				t.Errorf("Request should be authorized")
@@ -126,13 +126,13 @@ func TestEventWatcherAuthorize(t *testing.T) {
 			getQueue := func(queueName string) (queue.Queue, error) {
 				return q, nil
 			}
-			hasPermissions := func(_ authorization.Principal, q queue.Queue, verb queue.PermissionVerb) bool {
+			hasPermissions := func(_ authorization.Principal, q queue.Queue, g bool, verb queue.PermissionVerb) bool {
 				return false
 			}
 
 			watcher := EventWatcher(func(ctx context.Context, request *api.WatchRequest) error {
 				return nil
-			}).Authorize(getQueue, hasPermissions)
+			}).Authorize(getQueue, false, hasPermissions)
 
 			err := watcher(ctx, &inputRequest)
 			if err == nil {
@@ -152,13 +152,13 @@ func TestEventWatcherAuthorize(t *testing.T) {
 			getQueue := func(queueName string) (queue.Queue, error) {
 				return queue.Queue{}, &repository.ErrQueueNotFound{QueueName: inputRequest.Queue}
 			}
-			hasPermissions := func(_ authorization.Principal, q queue.Queue, verb queue.PermissionVerb) bool {
+			hasPermissions := func(_ authorization.Principal, q queue.Queue, g bool, verb queue.PermissionVerb) bool {
 				return true
 			}
 
 			watcher := EventWatcher(func(ctx context.Context, request *api.WatchRequest) error {
 				return nil
-			}).Authorize(getQueue, hasPermissions)
+			}).Authorize(getQueue, true, hasPermissions)
 
 			err := watcher(ctx, &inputRequest)
 			if err == nil {
