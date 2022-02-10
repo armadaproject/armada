@@ -2,8 +2,10 @@ package server
 
 import (
 	"context"
+	"errors"
 	"time"
 
+	"github.com/gogo/protobuf/types"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -11,8 +13,7 @@ import (
 	"github.com/G-Research/armada/internal/armada/repository"
 	"github.com/G-Research/armada/internal/common/auth/authorization"
 	"github.com/G-Research/armada/pkg/api"
-
-	"github.com/gogo/protobuf/types"
+	"github.com/G-Research/armada/pkg/client/queue"
 )
 
 type EventServer struct {
@@ -52,8 +53,17 @@ func (s *EventServer) ReportMultiple(ctx context.Context, message *api.EventList
 
 // GetJobSetEvents streams back all events associated with a particular job set.
 func (s *EventServer) GetJobSetEvents(request *api.JobSetRequest, stream api.Event_GetJobSetEventsServer) error {
-	if err := checkPermission(s.permissions, stream.Context(), permissions.WatchAllEvents); err != nil {
-		return status.Errorf(codes.PermissionDenied, "[GetJobSetEvents] error: %s", err)
+	q, err := s.queueRepository.GetQueue(request.Queue)
+	var expected *repository.ErrQueueNotFound
+	if errors.Is(err, expected) {
+		return status.Errorf(codes.NotFound, "[GetJobSetEvents] Queue %s does not exist", request.Queue)
+	} else if err != nil {
+		return err
+	}
+
+	err = validateUserHasWatchPermissions(stream.Context(), s.permissions, q, request.Id)
+	if err != nil {
+		return status.Errorf(codes.PermissionDenied, "[GetJobSetEvents] %s", err)
 	}
 
 	fromId := request.FromMessageId
@@ -103,7 +113,25 @@ func (s *EventServer) GetJobSetEvents(request *api.JobSetRequest, stream api.Eve
 func (s *EventServer) Watch(req *api.WatchRequest, stream api.Event_WatchServer) error {
 	watch := NewEventWatcher(s.eventRepository.ReadEvents, stream.Send).
 		MustExist(s.eventRepository.ReadEvents).
-		Authorize(s.queueRepository.GetQueue, principalHasQueuePermissions)
+		Authorize(s.queueRepository.GetQueue, validateUserHasWatchPermissions, s.permissions)
 
 	return watch(stream.Context(), req)
+}
+
+func validateUserHasWatchPermissions(ctx context.Context, permsChecker authorization.PermissionChecker, q queue.Queue, jobSetId string) error {
+	err := checkPermission(permsChecker, ctx, permissions.WatchAllEvents)
+	var globalPermErr *ErrNoPermission
+	if errors.As(err, &globalPermErr) {
+		err = checkQueuePermission(permsChecker, ctx, q, permissions.WatchEvents, queue.PermissionVerbWatch)
+		var queuePermErr *ErrNoPermission
+		if errors.As(err, &queuePermErr) {
+			return status.Errorf(codes.PermissionDenied, "error getting events for queue: %s, job set: %s: %s",
+				q.Name, jobSetId, MergePermissionErrors(globalPermErr, queuePermErr))
+		} else if err != nil {
+			return status.Errorf(codes.Unavailable, "error checking permissions: %s", err)
+		}
+	} else if err != nil {
+		return status.Errorf(codes.Unavailable, "error checking permissions: %s", err)
+	}
+	return nil
 }

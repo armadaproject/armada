@@ -12,5 +12,6 @@ auth:
     cancel_any_jobs: ["everyone"]
     reprioritize_jobs: ["everyone"]
     reprioritize_any_jobs: ["everyone"]
+    watch_events: ["everyone"]
     watch_all_events: ["everyone"]
     execute_jobs: ["everyone"]

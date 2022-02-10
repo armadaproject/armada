@@ -94,16 +94,12 @@ func TestEventWatcherAuthorize(t *testing.T) {
 				return inputQueue, nil
 			}
 
-			hasPermissions := func(_ authorization.Principal, q queue.Queue, verb queue.PermissionVerb) bool {
+			hasPermissions := func(_ context.Context, _ authorization.PermissionChecker, q queue.Queue, _ string) error {
 				switch {
 				case !reflect.DeepEqual(q, inputQueue):
-					t.Errorf("invalid queue")
-					return false
-				case verb != queue.PermissionVerbWatch:
-					t.Errorf("invalid verb")
-					return false
+					return fmt.Errorf("invalid queue")
 				default:
-					return true
+					return nil
 				}
 			}
 
@@ -112,7 +108,7 @@ func TestEventWatcherAuthorize(t *testing.T) {
 					t.Errorf("Invalid request")
 				}
 				return nil
-			}).Authorize(getQueue, hasPermissions)
+			}).Authorize(getQueue, hasPermissions, nil)
 
 			if err := watcher(ctx, &inputRequest); err != nil {
 				t.Errorf("Request should be authorized")
@@ -126,13 +122,13 @@ func TestEventWatcherAuthorize(t *testing.T) {
 			getQueue := func(queueName string) (queue.Queue, error) {
 				return q, nil
 			}
-			hasPermissions := func(_ authorization.Principal, q queue.Queue, verb queue.PermissionVerb) bool {
-				return false
+			hasPermissions := func(_ context.Context, _ authorization.PermissionChecker, q queue.Queue, _ string) error {
+				return fmt.Errorf("no perms")
 			}
 
 			watcher := EventWatcher(func(ctx context.Context, request *api.WatchRequest) error {
 				return nil
-			}).Authorize(getQueue, hasPermissions)
+			}).Authorize(getQueue, hasPermissions, nil)
 
 			err := watcher(ctx, &inputRequest)
 			if err == nil {
@@ -152,13 +148,13 @@ func TestEventWatcherAuthorize(t *testing.T) {
 			getQueue := func(queueName string) (queue.Queue, error) {
 				return queue.Queue{}, &repository.ErrQueueNotFound{QueueName: inputRequest.Queue}
 			}
-			hasPermissions := func(_ authorization.Principal, q queue.Queue, verb queue.PermissionVerb) bool {
-				return true
+			hasPermissions := func(_ context.Context, _ authorization.PermissionChecker, q queue.Queue, _ string) error {
+				return nil
 			}
 
 			watcher := EventWatcher(func(ctx context.Context, request *api.WatchRequest) error {
 				return nil
-			}).Authorize(getQueue, hasPermissions)
+			}).Authorize(getQueue, hasPermissions, nil)
 
 			err := watcher(ctx, &inputRequest)
 			if err == nil {
