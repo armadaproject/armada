@@ -256,7 +256,7 @@ func makeJobFromRow(row *JobRow) (*api.Job, error) {
 	jobJson := ParseNullString(row.JobJson)
 	err := json.Unmarshal([]byte(jobJson), &jobFromJson)
 	if err != nil {
-		return nil, fmt.Errorf("error while parsing job json: %v", err)
+		return nil, fmt.Errorf("error while parsing job %s json: %v", ParseNullString(row.JobId), err)
 	}
 
 	return &api.Job{
