@@ -41,7 +41,15 @@ func WatchJobSetWithJobIdsFilter(client api.EventClient, queue, jobSetId string,
 		default:
 		}
 
-		clientStream, e := client.GetJobSetEvents(context, &api.JobSetRequest{Queue: queue, Id: jobSetId, FromMessageId: lastMessageId, Watch: waitForNew})
+		clientStream, e := client.GetJobSetEvents(context,
+			&api.JobSetRequest{
+				Queue:          queue,
+				Id:             jobSetId,
+				FromMessageId:  lastMessageId,
+				Watch:          waitForNew,
+				ErrorIfMissing: true,
+			},
+		)
 
 		if e != nil {
 			log.Error(e)
@@ -53,6 +61,16 @@ func WatchJobSetWithJobIdsFilter(client api.EventClient, queue, jobSetId string,
 
 			msg, e := clientStream.Recv()
 			if e != nil {
+				if err, ok := status.FromError(e); ok {
+					switch err.Code() {
+					case codes.NotFound:
+						log.Error(err.Message())
+						return state
+					case codes.Unauthenticated:
+						log.Error(err.Message())
+						return state
+					}
+				}
 				if e == io.EOF {
 					return state
 				}
@@ -93,61 +111,4 @@ func isTransportClosingError(e error) bool {
 		}
 	}
 	return false
-}
-
-func WatchJobEvents(ctx context.Context, client api.EventClient, queue, jobSetId string, onUpdate func(*domain.WatchContext, api.Event) bool) *domain.WatchContext {
-	state := domain.NewWatchContext()
-
-	lastMessageId := ""
-
-	for {
-		select {
-		case <-ctx.Done():
-			return state
-		default:
-		}
-
-		clientStream, e := client.Watch(ctx, &api.WatchRequest{Queue: queue, JobSetId: jobSetId, FromId: lastMessageId})
-
-		if e != nil {
-			log.Error(e)
-			time.Sleep(5 * time.Second)
-			continue
-		}
-
-		for {
-
-			msg, e := clientStream.Recv()
-			if e == io.EOF {
-				return state
-			}
-			if e != nil {
-				status, _ := status.FromError(e)
-				if status.Code() == codes.Unavailable {
-					log.Error(e)
-				}
-				if status.Code() == codes.NotFound {
-					log.Errorf("Job set: %s in queue: %s not found.", jobSetId, queue)
-					return state
-				}
-				time.Sleep(5 * time.Second)
-				break
-			}
-			lastMessageId = msg.Id
-
-			event, e := api.UnwrapEvent(msg.Message)
-			if e != nil {
-				// This can mean that the event type reported from server is unknown to the client
-				log.Error(e)
-				continue
-			}
-
-			state.ProcessEvent(event)
-
-			shouldExit := onUpdate(state, event)
-			if shouldExit {
-				return state
-			}
-		}
-	}
 }

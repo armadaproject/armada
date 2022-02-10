@@ -1409,6 +1409,9 @@ namespace GResearch.Armada.Client
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class ApiJobSetRequest 
     {
+        [Newtonsoft.Json.JsonProperty("errorIfMissing", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public bool? ErrorIfMissing { get; set; }
+    
         [Newtonsoft.Json.JsonProperty("fromMessageId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string FromMessageId { get; set; }
     
