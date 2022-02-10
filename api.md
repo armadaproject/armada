@@ -7,23 +7,25 @@ The API is defined in `/pkg/api` folder with `*.proto` files as source for all g
 
 Folder `/pkg/api` also contains generated clients and together with helper methods from `/pkg/client` provides a convenient way to call Armada API from go code. See armadactl code for [examples](../cmd/armadactl/cmd/submit.go).
 
-### Public API
-
 Following subset of API defined in `/pkg/api` is intended for public use.
 
-#### api.Submit ([definition](../pkg/api/submit.proto))
+### api.Submit ([definition](../pkg/api/submit.proto))
  
 __/api.Submit/SubmitJobs__ - submitting jobs to be run
 
 __/api.Submit/CancelJobs__ - cancel jobs
 
-__/api.Submit/CreateQueue__ - create or update existing queue
+__/api.Submit/CreateQueue__ - create a new queue
+
+__/api.Submit/UpdateQueue__ - update an existing queue
 
 __/api.Submit/DeleteQueue__ - remove queue
 
-__/api.Submit/GetQueueInfo__ - get information about active queue jobs
+__/api.Submit/GetQueue__ - get information about queue (name, permissions)
 
-#### api.Event  ([definition](../pkg/api/submit.proto))
+__/api.Submit/GetQueueInfo__ - get information about queued (active jobs, including those currently running)
+
+### api.Event  ([definition](../pkg/api/submit.proto))
 
 __/api.Event/GetJobSetEvents__ - read events of jobs running under particular JobSet
 
@@ -57,3 +59,42 @@ For basic authentication API accepts standard authorization header or metadata i
 
 ### Kerberos
 For Kerberos authentication API accepts the same authorization metadata for gRPC as standard Kerberos http SPNEGO authorization headers, the API responds with `WWW-Authenticate` header or metadata.
+
+
+## Permissions
+
+Armada will determine which actions you are able to perform based on your user's permissions.
+These are defined as global or on a per queue basis.
+
+Below is the list of global Armada permissions (defined [here](../internal/armada/permissions/permissions.go)):
+* `submit_jobs`
+* `submit_any_jobs`
+* `create_queue`
+* `delete_queue`
+* `cancel_jobs`
+* `cancel_any_jobs`
+* `reprioritize_jobs`
+* `reprioritize_any_jobs`
+* `watch_events`
+* `watch_all_events`
+
+In addition, the following queue-specific permission verbs control what actions can be taken per individual queues (defined [here](../pkg/client/queue/permission_verb.go)):
+* `submit`
+* `cancel`
+* `reprioritize`
+* `watch`
+
+The table below shows which permissions are required for a user to access each API endpoint (either directly or via a group).
+Note queue-specific permission require a user to be bound to a global permission as well (shown as tuples in the table below).
+
+| Endpoint           | Global Permissions      | Queue Permissions                     |
+|--------------------|-------------------------|---------------------------------------|
+| `SubmitJobs`       | `submit_any_jobs`       | (`submit_jobs`, `submit`)             |
+| `CancelJobs`       | `cancel_any_jobs`       | (`cancel_jobs`, `cancel`)             |
+| `ReprioritizeJobs` | `reprioritize_any_jobs` | (`reprioritize_jobs`, `reprioritize`) |
+| `CreateQueue`      | `create_queue`          |                                       |
+| `UpdateQueue`      | `create_queue`          |                                       |
+| `DeleteQueue`      | `delete_queue`          |                                       |
+| `GetQueue`         |                         |                                       |
+| `GetQueueInfo`     | `watch_all_events`      | (`watch_events`, `watch`)             |
+| `GetJobSetEvents`  | `watch_all_events`      | (`watch_events`, `watch`)             |
