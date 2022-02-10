@@ -14,20 +14,20 @@ import (
 	"github.com/G-Research/armada/pkg/client/domain"
 )
 
-func GetJobSetState(client api.EventClient, queue, jobSetId string, context context.Context) *domain.WatchContext {
+func GetJobSetState(client api.EventClient, queue, jobSetId string, context context.Context, errorOnNotExists bool) *domain.WatchContext {
 	latestState := domain.NewWatchContext()
-	WatchJobSet(client, queue, jobSetId, false, context, func(state *domain.WatchContext, _ api.Event) bool {
+	WatchJobSet(client, queue, jobSetId, false, errorOnNotExists, context, func(state *domain.WatchContext, _ api.Event) bool {
 		latestState = state
 		return false
 	})
 	return latestState
 }
 
-func WatchJobSet(client api.EventClient, queue, jobSetId string, waitForNew bool, context context.Context, onUpdate func(*domain.WatchContext, api.Event) bool) *domain.WatchContext {
-	return WatchJobSetWithJobIdsFilter(client, queue, jobSetId, waitForNew, []string{}, context, onUpdate)
+func WatchJobSet(client api.EventClient, queue, jobSetId string, waitForNew bool, errorOnNotExists bool, context context.Context, onUpdate func(*domain.WatchContext, api.Event) bool) *domain.WatchContext {
+	return WatchJobSetWithJobIdsFilter(client, queue, jobSetId, waitForNew, errorOnNotExists, []string{}, context, onUpdate)
 }
 
-func WatchJobSetWithJobIdsFilter(client api.EventClient, queue, jobSetId string, waitForNew bool, jobIds []string, context context.Context, onUpdate func(*domain.WatchContext, api.Event) bool) *domain.WatchContext {
+func WatchJobSetWithJobIdsFilter(client api.EventClient, queue, jobSetId string, waitForNew bool, errorOnNotExists bool, jobIds []string, context context.Context, onUpdate func(*domain.WatchContext, api.Event) bool) *domain.WatchContext {
 	state := domain.NewWatchContext()
 
 	jobIdsSet := util.StringListToSet(jobIds)
@@ -47,7 +47,7 @@ func WatchJobSetWithJobIdsFilter(client api.EventClient, queue, jobSetId string,
 				Id:             jobSetId,
 				FromMessageId:  lastMessageId,
 				Watch:          waitForNew,
-				ErrorIfMissing: true,
+				ErrorIfMissing: errorOnNotExists,
 			},
 		)
 
