@@ -16,7 +16,13 @@ message LogRequest {
 
 // swagger:model
 message LogResponse {
-    string log = 1;
+    repeated LogLine log = 1;
+}
+
+// swagger:model
+message LogLine {
+    string timestamp = 1;
+    string line = 2;
 }
 
 service Binoculars {

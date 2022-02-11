@@ -134,7 +134,7 @@ func submitJobsAndWatch(t *testing.T, submitClient api.SubmitClient, eventsClien
 	statusEvents := make(map[domain.JobStatus]bool)
 	timeout, _ := context.WithTimeout(context.Background(), 60*time.Second)
 	allEvents := []api.Event{}
-	client.WatchJobSet(eventsClient, jobRequest.Queue, jobRequest.JobSetId, true, timeout, func(state *domain.WatchContext, e api.Event) bool {
+	client.WatchJobSet(eventsClient, jobRequest.Queue, jobRequest.JobSetId, true, false, timeout, func(state *domain.WatchContext, e api.Event) bool {
 		allEvents = append(allEvents, e)
 		currentStatus := state.GetJobInfo(e.GetJobId()).Status
 		statusEvents[currentStatus] = true
