@@ -225,7 +225,7 @@ func (apiLoadTester ArmadaLoadTester) monitorJobsUntilCompletion(ctx context.Con
 	WithConnection(apiLoadTester.apiConnectionDetails, func(connection *grpc.ClientConn) {
 		eventsClient := api.NewEventClient(connection)
 
-		WatchJobSet(eventsClient, queue, jobSetId, true, ctx, func(state *domain.WatchContext, e api.Event) bool {
+		WatchJobSet(eventsClient, queue, jobSetId, true, false, ctx, func(state *domain.WatchContext, e api.Event) bool {
 			eventChannel <- e
 
 			if submittedIds == nil {

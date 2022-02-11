@@ -17,7 +17,7 @@ func (a *App) Kube(jobId string, queueName string, jobSetId string, podNumber in
 	verb := strings.Join(args, " ")
 	client.WithConnection(a.Params.ApiConnectionDetails, func(conn *grpc.ClientConn) {
 		eventsClient := api.NewEventClient(conn)
-		state := client.GetJobSetState(eventsClient, queueName, jobSetId, context.Background())
+		state := client.GetJobSetState(eventsClient, queueName, jobSetId, context.Background(), true)
 		jobInfo := state.GetJobInfo(jobId)
 
 		if jobInfo == nil {

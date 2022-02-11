@@ -61,6 +61,100 @@ func TestEventServer_GetJobSetEvents_EmptyStreamShouldNotFail(t *testing.T) {
 	})
 }
 
+func TestEventServer_GetJobSetEvents_QueueDoNotExist(t *testing.T) {
+	withEventServer(t, configuration.EventRetentionPolicy{ExpiryEnabled: false}, func(s *EventServer) {
+		stream := &eventStreamMock{}
+
+		err := s.GetJobSetEvents(&api.JobSetRequest{
+			Id:             "job-set-1",
+			Watch:          false,
+			Queue:          "non-existant-queue",
+			ErrorIfMissing: false,
+		}, stream)
+		e, ok := status.FromError(err)
+		assert.True(t, ok)
+		assert.Equal(t, codes.NotFound, e.Code())
+	})
+}
+
+func TestEventServer_GetJobSetEvents_ErrorIfMissing(t *testing.T) {
+	q := queue.Queue{
+		Name:           "test-queue",
+		PriorityFactor: 1,
+	}
+
+	t.Run("job set non existent ErrorIfMissing true", func(t *testing.T) {
+		withEventServer(t, configuration.EventRetentionPolicy{ExpiryEnabled: false}, func(s *EventServer) {
+			err := s.queueRepository.CreateQueue(q)
+			assert.NoError(t, err)
+			stream := &eventStreamMock{}
+
+			err = s.GetJobSetEvents(&api.JobSetRequest{
+				Id:             "job-set-1",
+				Watch:          false,
+				Queue:          "test-queue",
+				ErrorIfMissing: true,
+			}, stream)
+			e, ok := status.FromError(err)
+			assert.True(t, ok)
+			assert.Equal(t, codes.NotFound, e.Code())
+		})
+	})
+
+	t.Run("job set non existent ErrorIfMissing false", func(t *testing.T) {
+		withEventServer(t, configuration.EventRetentionPolicy{ExpiryEnabled: false}, func(s *EventServer) {
+			err := s.queueRepository.CreateQueue(q)
+			assert.NoError(t, err)
+			stream := &eventStreamMock{}
+			err = s.GetJobSetEvents(&api.JobSetRequest{
+				Id:             "job-set-1",
+				Watch:          false,
+				Queue:          "test-queue",
+				ErrorIfMissing: false,
+			}, stream)
+			assert.NoError(t, err)
+		})
+	})
+
+	t.Run("job set exists ErrorIfMissing true", func(t *testing.T) {
+		withEventServer(t, configuration.EventRetentionPolicy{ExpiryEnabled: false}, func(s *EventServer) {
+			err := s.queueRepository.CreateQueue(q)
+			assert.NoError(t, err)
+			stream := &eventStreamMock{}
+
+			reportEvent(t, s, &api.JobQueuedEvent{Queue: "test-queue", JobSetId: "job-set-1"})
+
+			err = s.GetJobSetEvents(&api.JobSetRequest{
+				Id:             "job-set-1",
+				Watch:          false,
+				Queue:          "test-queue",
+				ErrorIfMissing: true,
+			}, stream)
+			assert.Nil(t, err)
+			assert.Equal(t, 1, len(stream.sendMessages))
+		})
+	})
+
+	t.Run("job set exists ErrorIfMissing false", func(t *testing.T) {
+		withEventServer(t, configuration.EventRetentionPolicy{ExpiryEnabled: false}, func(s *EventServer) {
+			err := s.queueRepository.CreateQueue(q)
+			assert.NoError(t, err)
+			stream := &eventStreamMock{}
+
+			reportEvent(t, s, &api.JobQueuedEvent{Queue: "test-queue", JobSetId: "job-set-1"})
+
+			err = s.GetJobSetEvents(&api.JobSetRequest{
+				Id:             "job-set-1",
+				Watch:          false,
+				Queue:          "test-queue",
+				ErrorIfMissing: false,
+			}, stream)
+			assert.Nil(t, err)
+			assert.Equal(t, 1, len(stream.sendMessages))
+		})
+	})
+}
+
 func TestEventServer_EventsShouldBeRemovedAfterEventRetentionTime(t *testing.T) {
 	eventRetention := configuration.EventRetentionPolicy{ExpiryEnabled: true, RetentionDuration: time.Second * 2}
 	withEventServer(t, eventRetention, func(s *EventServer) {

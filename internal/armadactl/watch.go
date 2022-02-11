@@ -20,7 +20,7 @@ func (a *App) Watch(queue string, jobSetId string, raw bool, exit_on_inactive bo
 
 	client.WithConnection(a.Params.ApiConnectionDetails, func(conn *grpc.ClientConn) {
 		eventsClient := api.NewEventClient(conn)
-		client.WatchJobEvents(context.Background(), eventsClient, queue, jobSetId, func(state *domain.WatchContext, event api.Event) bool {
+		client.WatchJobSet(eventsClient, queue, jobSetId, true, true, context.Background(), func(state *domain.WatchContext, event api.Event) bool {
 			if raw {
 				data, err := json.Marshal(event)
 				if err != nil {
