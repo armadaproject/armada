@@ -19,6 +19,7 @@ type EventStore interface {
 }
 
 type EventRepository interface {
+	CheckStreamExists(queue string, jobSetId string) (bool, error)
 	ReadEvents(queue, jobSetId string, lastId string, limit int64, block time.Duration) ([]*api.EventStreamMessage, error)
 	GetLastMessageId(queue, jobSetId string) (string, error)
 }
@@ -80,6 +81,15 @@ func (repo *RedisEventRepository) ReportEvents(messages []*api.EventMessage) err
 
 	_, e := pipe.Exec()
 	return e
+}
+
+func (repo *RedisEventRepository) CheckStreamExists(queue string, jobSetId string) (bool, error) {
+	result, err := repo.db.Exists(getJobSetEventsKey(queue, jobSetId)).Result()
+	if err != nil {
+		return false, err
+	}
+	exists := result > 0
+	return exists, nil
 }
 
 func (repo *RedisEventRepository) ReadEvents(queue, jobSetId string, lastId string, limit int64, block time.Duration) ([]*api.EventStreamMessage, error) {

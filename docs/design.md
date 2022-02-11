@@ -135,7 +135,9 @@ Note that there is a chance than one queue will get allocated more than it is en
 
 ### Permissions
 
-Armada allows for setting user and group permissions for each queue via the `owners` and `groupOwners` options, respectively. Job set events can be seen by all users with `watch_all_events` permissions.
+Armada allows for setting user and group permissions for each queue via the `owners` and `groupOwners` options, respectively.
+More granular permissions can also be used on a global or per-queue basis to determine which actions can be taken by users.
+For more information, see the [Armada API docs](./api.md).
 
 If the `kubernetes.impersonateUsers` flag is set, Armada will create pods in Kubernetes under the username of the job owner, which will enforce Kubernetes permissions and limit access to namespaces.
 

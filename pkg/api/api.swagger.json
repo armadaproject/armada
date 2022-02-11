@@ -1014,6 +1014,9 @@
       "type": "object",
       "title": "swagger:model",
       "properties": {
+        "errorIfMissing": {
+          "type": "boolean"
+        },
         "fromMessageId": {
           "type": "string"
         },
