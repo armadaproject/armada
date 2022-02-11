@@ -66,7 +66,7 @@ func WatchJobSetWithJobIdsFilter(client api.EventClient, queue, jobSetId string,
 					case codes.NotFound:
 						log.Error(err.Message())
 						return state
-					case codes.Unauthenticated:
+					case codes.PermissionDenied:
 						log.Error(err.Message())
 						return state
 					}
