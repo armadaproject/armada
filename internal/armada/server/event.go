@@ -55,7 +55,7 @@ func (s *EventServer) ReportMultiple(ctx context.Context, message *api.EventList
 func (s *EventServer) GetJobSetEvents(request *api.JobSetRequest, stream api.Event_GetJobSetEventsServer) error {
 	q, err := s.queueRepository.GetQueue(request.Queue)
 	var expected *repository.ErrQueueNotFound
-	if errors.Is(err, expected) {
+	if errors.As(err, &expected) {
 		return status.Errorf(codes.NotFound, "[GetJobSetEvents] Queue %s does not exist", request.Queue)
 	} else if err != nil {
 		return err
@@ -64,6 +64,16 @@ func (s *EventServer) GetJobSetEvents(request *api.JobSetRequest, stream api.Eve
 	err = validateUserHasWatchPermissions(stream.Context(), s.permissions, q, request.Id)
 	if err != nil {
 		return status.Errorf(codes.PermissionDenied, "[GetJobSetEvents] %s", err)
+	}
+
+	if request.ErrorIfMissing {
+		exists, err := s.eventRepository.CheckStreamExists(request.Queue, request.Id)
+		if err != nil {
+			return status.Errorf(codes.Unavailable, "[GetJobSetEvents] error when checking jobset exists: %s", err)
+		}
+		if !exists {
+			return status.Errorf(codes.NotFound, "[GetJobSetEvents] Jobset %s for queue %s does not exist", request.Id, request.Queue)
+		}
 	}
 
 	fromId := request.FromMessageId
@@ -111,11 +121,14 @@ func (s *EventServer) GetJobSetEvents(request *api.JobSetRequest, stream api.Eve
 }
 
 func (s *EventServer) Watch(req *api.WatchRequest, stream api.Event_WatchServer) error {
-	watch := NewEventWatcher(s.eventRepository.ReadEvents, stream.Send).
-		MustExist(s.eventRepository.ReadEvents).
-		Authorize(s.queueRepository.GetQueue, validateUserHasWatchPermissions, s.permissions)
-
-	return watch(stream.Context(), req)
+	request := &api.JobSetRequest{
+		Id:             req.JobSetId,
+		Watch:          true,
+		FromMessageId:  req.FromId,
+		Queue:          req.Queue,
+		ErrorIfMissing: true,
+	}
+	return s.GetJobSetEvents(request, stream)
 }
 
 func validateUserHasWatchPermissions(ctx context.Context, permsChecker authorization.PermissionChecker, q queue.Queue, jobSetId string) error {

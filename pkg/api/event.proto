@@ -270,6 +270,7 @@ message JobSetRequest {
     bool watch = 2;
     string from_message_id = 3;
     string queue = 4;
+    bool errorIfMissing = 5;
 }
 
 message WatchRequest {
@@ -287,5 +288,7 @@ service Event {
             body: "*"
         };
     }
-    rpc Watch (WatchRequest) returns (stream EventStreamMessage);
+    rpc Watch (WatchRequest) returns (stream EventStreamMessage) {
+        option deprecated = true;
+    }
 }
