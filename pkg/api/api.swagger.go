@@ -1025,6 +1025,9 @@ func SwaggerJsonTemplate() string {
 		"      \"type\": \"object\",\n" +
 		"      \"title\": \"swagger:model\",\n" +
 		"      \"properties\": {\n" +
+		"        \"errorIfMissing\": {\n" +
+		"          \"type\": \"boolean\"\n" +
+		"        },\n" +
 		"        \"fromMessageId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +

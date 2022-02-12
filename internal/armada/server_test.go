@@ -182,6 +182,7 @@ func withRunningServer(action func(client api.SubmitClient, leaseClient api.Aggr
 				permissions.CreateQueue:    {"everyone"},
 				permissions.CancelJobs:     {"everyone"},
 				permissions.CancelAnyJobs:  {"everyone"},
+				permissions.WatchEvents:    {"everyone"},
 				permissions.WatchAllEvents: {"everyone"},
 			},
 		},

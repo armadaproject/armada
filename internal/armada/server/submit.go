@@ -68,11 +68,19 @@ func (server *SubmitServer) GetQueueInfo(ctx context.Context, req *api.QueueInfo
 		return nil, err
 	}
 
-	principal := authorization.GetPrincipal(ctx)
-
-	fmt.Println(q)
-	if !principalHasQueuePermissions(principal, q, queue.PermissionVerbWatch) {
-		return nil, status.Errorf(codes.PermissionDenied, "[GetQueueInfo] User %s not allowed to perform queue action: %s", principal.GetName(), queue.PermissionVerbWatch)
+	err = checkPermission(server.permissions, ctx, permissions.WatchAllEvents)
+	var globalPermErr *ErrNoPermission
+	if errors.As(err, &globalPermErr) {
+		err = checkQueuePermission(server.permissions, ctx, q, permissions.WatchEvents, queue.PermissionVerbWatch)
+		var queuePermErr *ErrNoPermission
+		if errors.As(err, &queuePermErr) {
+			return nil, status.Errorf(codes.PermissionDenied,
+				"[GetQueueInfo] error getting info for queue %s: %s", req.Name, MergePermissionErrors(globalPermErr, queuePermErr))
+		} else if err != nil {
+			return nil, status.Errorf(codes.Unavailable, "[GetQueueInfo] error checking permissions: %s", err)
+		}
+	} else if err != nil {
+		return nil, status.Errorf(codes.Unavailable, "[GetQueueInfo] error checking permissions: %s", err)
 	}
 
 	jobSets, e := server.jobRepository.GetQueueActiveJobSets(req.Name)
@@ -185,10 +193,19 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 		return nil, err
 	}
 
-	if !server.permissions.UserHasPermission(ctx, permissions.SubmitAnyJobs) {
-		if !principalHasQueuePermissions(principal, q, queue.PermissionVerbSubmit) {
-			return nil, status.Errorf(codes.PermissionDenied, "[SubmitJobs] User %s has no %s permissions for queue: %s", principal, queue.PermissionVerbSubmit, q.Name)
+	err = checkPermission(server.permissions, ctx, permissions.SubmitAnyJobs)
+	var globalPermErr *ErrNoPermission
+	if errors.As(err, &globalPermErr) {
+		err = checkQueuePermission(server.permissions, ctx, q, permissions.SubmitJobs, queue.PermissionVerbSubmit)
+		var queuePermErr *ErrNoPermission
+		if errors.As(err, &queuePermErr) {
+			return nil, status.Errorf(codes.PermissionDenied,
+				"[SubmitJobs] error submitting job in queue %s: %s", req.Queue, MergePermissionErrors(globalPermErr, queuePermErr))
+		} else if err != nil {
+			return nil, status.Errorf(codes.Unavailable, "[SubmitJobs] error checking permissions: %s", err)
 		}
+	} else if err != nil {
+		return nil, status.Errorf(codes.Unavailable, "[SubmitJobs] error checking permissions: %s", err)
 	}
 
 	principalSubject := queue.PermissionSubject{
@@ -311,7 +328,7 @@ func (server *SubmitServer) cancelJobsById(ctx context.Context, jobId string) (*
 		return nil, status.Errorf(codes.Internal, "[cancelJobsById] error getting job with ID %s: expected exactly one result, but got %v", jobId, jobs)
 	}
 
-	result, err := server.cancelJobs(ctx, jobs[0].Queue, jobs)
+	result, err := server.cancelJobs(ctx, jobs)
 	var e *ErrNoPermission
 	if errors.As(err, &e) {
 		return nil, status.Errorf(codes.PermissionDenied, "[cancelJobsById] error canceling job with ID %s: %s", jobId, e)
@@ -340,7 +357,7 @@ func (server *SubmitServer) cancelJobsByQueueAndSet(ctx context.Context, queue s
 			return result, status.Errorf(codes.Internal, "[cancelJobsBySetAndQueue] error getting jobs: %s", err)
 		}
 
-		result, err := server.cancelJobs(ctx, queue, jobs)
+		result, err := server.cancelJobs(ctx, jobs)
 		var e *ErrNoPermission
 		if errors.As(err, &e) {
 			return nil, status.Errorf(codes.PermissionDenied, "[cancelJobsBySetAndQueue] error canceling jobs: %s", e)
@@ -361,22 +378,16 @@ func (server *SubmitServer) cancelJobsByQueueAndSet(ctx context.Context, queue s
 	return &api.CancellationResult{CancelledIds: cancelledIds}, nil
 }
 
-func (server *SubmitServer) cancelJobs(ctx context.Context, queueName string, jobs []*api.Job) (*api.CancellationResult, error) {
+func (server *SubmitServer) cancelJobs(ctx context.Context, jobs []*api.Job) (*api.CancellationResult, error) {
 	principal := authorization.GetPrincipal(ctx)
 
-	q, err := server.queueRepository.GetQueue(queueName)
+	err := server.checkCancelPerms(ctx, jobs)
 	if err != nil {
 		return nil, err
 	}
 
-	if !server.permissions.UserHasPermission(ctx, permissions.CancelAnyJobs) {
-		if !principalHasQueuePermissions(principal, q, queue.PermissionVerbCancel) {
-			return nil, status.Errorf(codes.PermissionDenied, "[CancelJobs] User %s has no %s permissions for queue: %s", principal, queue.PermissionVerbCancel, q.Name)
-		}
-	}
-
-	e := reportJobsCancelling(server.eventStore, principal.GetName(), jobs)
-	if e != nil {
+	err = reportJobsCancelling(server.eventStore, principal.GetName(), jobs)
+	if err != nil {
 		return nil, fmt.Errorf("[cancelJobs] error reporting jobs marked as cancelled: %w", err)
 	}
 
@@ -401,6 +412,34 @@ func (server *SubmitServer) cancelJobs(ctx context.Context, queueName string, jo
 	}
 
 	return &api.CancellationResult{CancelledIds: cancelledIds}, nil
+}
+
+func (server *SubmitServer) checkCancelPerms(ctx context.Context, jobs []*api.Job) error {
+	queueNames := make(map[string]struct{})
+	for _, job := range jobs {
+		queueNames[job.Queue] = struct{}{}
+	}
+	for queueName := range queueNames {
+		q, err := server.queueRepository.GetQueue(queueName)
+		if err != nil {
+			return err
+		}
+
+		err = checkPermission(server.permissions, ctx, permissions.CancelAnyJobs)
+		var globalPermErr *ErrNoPermission
+		if errors.As(err, &globalPermErr) {
+			err = checkQueuePermission(server.permissions, ctx, q, permissions.CancelJobs, queue.PermissionVerbCancel)
+			var queuePermErr *ErrNoPermission
+			if errors.As(err, &queuePermErr) {
+				return MergePermissionErrors(globalPermErr, queuePermErr)
+			} else if err != nil {
+				return err
+			}
+		} else if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // ReprioritizeJobs updates the priority of one of more jobs.
@@ -503,42 +542,26 @@ func (server *SubmitServer) checkReprioritizePerms(ctx context.Context, jobs []*
 		queueNames[job.Queue] = struct{}{}
 	}
 	for queueName := range queueNames {
-		principal := authorization.GetPrincipal(ctx)
-
 		q, err := server.queueRepository.GetQueue(queueName)
 		if err != nil {
 			return err
 		}
 
-		if !server.permissions.UserHasPermission(ctx, permissions.CancelAnyJobs) {
-			if !principalHasQueuePermissions(principal, q, queue.PermissionVerbReprioritize) {
-				return status.Errorf(codes.PermissionDenied, err.Error())
+		err = checkPermission(server.permissions, ctx, permissions.ReprioritizeAnyJobs)
+		var globalPermErr *ErrNoPermission
+		if errors.As(err, &globalPermErr) {
+			err = checkQueuePermission(server.permissions, ctx, q, permissions.ReprioritizeJobs, queue.PermissionVerbReprioritize)
+			var queuePermErr *ErrNoPermission
+			if errors.As(err, &queuePermErr) {
+				return MergePermissionErrors(globalPermErr, queuePermErr)
+			} else if err != nil {
+				return err
 			}
+		} else if err != nil {
+			return err
 		}
 	}
 	return nil
-}
-
-func principalHasQueuePermissions(principal authorization.Principal, q queue.Queue, verb queue.PermissionVerb) bool {
-	subjects := queue.PermissionSubjects{}
-	for _, group := range principal.GetGroupNames() {
-		subjects = append(subjects, queue.PermissionSubject{
-			Name: group,
-			Kind: queue.PermissionSubjectKindGroup,
-		})
-	}
-	subjects = append(subjects, queue.PermissionSubject{
-		Name: principal.GetName(),
-		Kind: queue.PermissionSubjectKindUser,
-	})
-
-	for _, subject := range subjects {
-		if q.HasPermission(subject, verb) {
-			return true
-		}
-	}
-
-	return false
 }
 
 func (server *SubmitServer) getQueueOrCreate(ctx context.Context, queueName string) (queue.Queue, error) {
