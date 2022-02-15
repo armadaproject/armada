@@ -381,11 +381,11 @@ curl <span class="nt">-X</span> POST <span class="nt">-i</span> http://admin:pro
 
 <p>For more control, queues can be created via <code class="language-plaintext highlighter-rouge">armadactl create</code>, which allows for setting specific permission; see the following example.</p>
 
-<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>./armadactl create <span class="nt">-f</span> ./docs/quickstarts/queue-a.yaml
-./armadactl create <span class="nt">-f</span> ./docs/quickstarts/queue-b.yaml
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>./armadactl create <span class="nt">-f</span> ./docs/quickstart/queue-a.yaml
+./armadactl create <span class="nt">-f</span> ./docs/quickstart/queue-b.yaml
 </code></pre></div></div>
 
-<h3 id="job-submition">Job submition</h3>
+<h3 id="job-submission">Job submission</h3>
 <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>./armadactl submit ./docs/quickstart/job-queue-a.yaml
 ./armadactl submit ./docs/quickstart/job-queue-b.yaml
 </code></pre></div></div>
@@ -431,7 +431,7 @@ Nov  4 11:44:26 | Queued:   0, Leased:   0, Pending:   0, Running:   0, Succeede
 
 <p>Grafana:</p>
 
-<p><img src="./quickstart/grafana-screenshot.png" alt="Armada Grafana dashboard" title="Armada Grafana dashboard" /></p>
+<p><img src="../assets/img/grafana-screenshot.png" alt="Armada Grafana dashboard" title="Armada Grafana dashboard" /></p>
 
 <p>Note that the jobs in this demo simply run the <code class="language-plaintext highlighter-rouge">sleep</code> command so do not consume much resource.</p>
 

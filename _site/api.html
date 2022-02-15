@@ -180,23 +180,25 @@
 
 <p>Folder <code class="language-plaintext highlighter-rouge">/pkg/api</code> also contains generated clients and together with helper methods from <code class="language-plaintext highlighter-rouge">/pkg/client</code> provides a convenient way to call Armada API from go code. See armadactl code for <a href="../cmd/armadactl/cmd/submit.go">examples</a>.</p>
 
-<h3 id="public-api">Public API</h3>
-
 <p>Following subset of API defined in <code class="language-plaintext highlighter-rouge">/pkg/api</code> is intended for public use.</p>
 
-<h4 id="apisubmit-definition">api.Submit (<a href="../pkg/api/submit.proto">definition</a>)</h4>
+<h3 id="apisubmit-definition">api.Submit (<a href="../pkg/api/submit.proto">definition</a>)</h3>
 
 <p><strong>/api.Submit/SubmitJobs</strong> - submitting jobs to be run</p>
 
 <p><strong>/api.Submit/CancelJobs</strong> - cancel jobs</p>
 
-<p><strong>/api.Submit/CreateQueue</strong> - create or update existing queue</p>
+<p><strong>/api.Submit/CreateQueue</strong> - create a new queue</p>
+
+<p><strong>/api.Submit/UpdateQueue</strong> - update an existing queue</p>
 
 <p><strong>/api.Submit/DeleteQueue</strong> - remove queue</p>
 
-<p><strong>/api.Submit/GetQueueInfo</strong> - get information about active queue jobs</p>
+<p><strong>/api.Submit/GetQueue</strong> - get information about queue (name, permissions)</p>
 
-<h4 id="apievent--definition">api.Event  (<a href="../pkg/api/submit.proto">definition</a>)</h4>
+<p><strong>/api.Submit/GetQueueInfo</strong> - get information about queued (active jobs, including those currently running)</p>
+
+<h3 id="apievent--definition">api.Event  (<a href="../pkg/api/submit.proto">definition</a>)</h3>
 
 <p><strong>/api.Event/GetJobSetEvents</strong> - read events of jobs running under particular JobSet</p>
 
@@ -231,6 +233,93 @@
 
 <h3 id="kerberos">Kerberos</h3>
 <p>For Kerberos authentication API accepts the same authorization metadata for gRPC as standard Kerberos http SPNEGO authorization headers, the API responds with <code class="language-plaintext highlighter-rouge">WWW-Authenticate</code> header or metadata.</p>
+
+<h2 id="permissions">Permissions</h2>
+
+<p>Armada will determine which actions you are able to perform based on your user’s permissions.
+These are defined as global or on a per queue basis.</p>
+
+<p>Below is the list of global Armada permissions (defined <a href="../internal/armada/permissions/permissions.go">here</a>):</p>
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">submit_jobs</code></li>
+  <li><code class="language-plaintext highlighter-rouge">submit_any_jobs</code></li>
+  <li><code class="language-plaintext highlighter-rouge">create_queue</code></li>
+  <li><code class="language-plaintext highlighter-rouge">delete_queue</code></li>
+  <li><code class="language-plaintext highlighter-rouge">cancel_jobs</code></li>
+  <li><code class="language-plaintext highlighter-rouge">cancel_any_jobs</code></li>
+  <li><code class="language-plaintext highlighter-rouge">reprioritize_jobs</code></li>
+  <li><code class="language-plaintext highlighter-rouge">reprioritize_any_jobs</code></li>
+  <li><code class="language-plaintext highlighter-rouge">watch_events</code></li>
+  <li><code class="language-plaintext highlighter-rouge">watch_all_events</code></li>
+</ul>
+
+<p>In addition, the following queue-specific permission verbs control what actions can be taken per individual queues (defined <a href="../pkg/client/queue/permission_verb.go">here</a>):</p>
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">submit</code></li>
+  <li><code class="language-plaintext highlighter-rouge">cancel</code></li>
+  <li><code class="language-plaintext highlighter-rouge">reprioritize</code></li>
+  <li><code class="language-plaintext highlighter-rouge">watch</code></li>
+</ul>
+
+<p>The table below shows which permissions are required for a user to access each API endpoint (either directly or via a group).
+Note queue-specific permission require a user to be bound to a global permission as well (shown as tuples in the table below).</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Endpoint</th>
+      <th>Global Permissions</th>
+      <th>Queue Permissions</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">SubmitJobs</code></td>
+      <td><code class="language-plaintext highlighter-rouge">submit_any_jobs</code></td>
+      <td>(<code class="language-plaintext highlighter-rouge">submit_jobs</code>, <code class="language-plaintext highlighter-rouge">submit</code>)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">CancelJobs</code></td>
+      <td><code class="language-plaintext highlighter-rouge">cancel_any_jobs</code></td>
+      <td>(<code class="language-plaintext highlighter-rouge">cancel_jobs</code>, <code class="language-plaintext highlighter-rouge">cancel</code>)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">ReprioritizeJobs</code></td>
+      <td><code class="language-plaintext highlighter-rouge">reprioritize_any_jobs</code></td>
+      <td>(<code class="language-plaintext highlighter-rouge">reprioritize_jobs</code>, <code class="language-plaintext highlighter-rouge">reprioritize</code>)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">CreateQueue</code></td>
+      <td><code class="language-plaintext highlighter-rouge">create_queue</code></td>
+      <td> </td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">UpdateQueue</code></td>
+      <td><code class="language-plaintext highlighter-rouge">create_queue</code></td>
+      <td> </td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">DeleteQueue</code></td>
+      <td><code class="language-plaintext highlighter-rouge">delete_queue</code></td>
+      <td> </td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GetQueue</code></td>
+      <td> </td>
+      <td> </td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GetQueueInfo</code></td>
+      <td><code class="language-plaintext highlighter-rouge">watch_all_events</code></td>
+      <td>(<code class="language-plaintext highlighter-rouge">watch_events</code>, <code class="language-plaintext highlighter-rouge">watch</code>)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GetJobSetEvents</code></td>
+      <td><code class="language-plaintext highlighter-rouge">watch_all_events</code></td>
+      <td>(<code class="language-plaintext highlighter-rouge">watch_events</code>, <code class="language-plaintext highlighter-rouge">watch</code>)</td>
+    </tr>
+  </tbody>
+</table>
 
     </div>
   </div>
