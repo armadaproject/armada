@@ -53,17 +53,16 @@ require (
 	github.com/weaveworks/promrus v1.2.0
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect
 	github.com/yuin/gopher-lua v0.0.0-20190514113301-1cd887cd7036 // indirect
-	golang.org/x/net v0.0.0-20211123203042-d83791d6bcd9 // indirect
 	golang.org/x/oauth2 v0.0.0-20210819190943-2bc19b11175f
 	golang.org/x/sys v0.0.0-20211124211545-fe61309f8881 // indirect
-	google.golang.org/genproto v0.0.0-20210828152312-66f60bf46e71
+	google.golang.org/genproto v0.0.0-20210831024726-fe130286e0e2
 	google.golang.org/grpc v1.42.0
 	gopkg.in/square/go-jose.v2 v2.4.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0
-	k8s.io/api v0.22.4
-	k8s.io/apimachinery v0.22.4
-	k8s.io/client-go v0.22.4
-	k8s.io/component-base v0.22.4
+	k8s.io/api v0.23.4
+	k8s.io/apimachinery v0.23.4
+	k8s.io/client-go v0.23.4
+	k8s.io/component-base v0.23.4
 	k8s.io/component-helpers v0.22.4
-	k8s.io/kubelet v0.22.4
+	k8s.io/kubelet v0.23.4
 )
