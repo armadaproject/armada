@@ -271,7 +271,7 @@ Nov  4 11:44:26 | Queued:   0, Leased:   0, Pending:   0, Running:   0, Succeede
 
 Grafana:
 
-![Armada Grafana dashboard](./quickstart/grafana-screenshot.png "Armada Grafana dashboard")
+![Armada Grafana dashboard](./quickstart/lookout.png "Armada Grafana dashboard")
 
 Note that the jobs in this demo simply run the `sleep` command so do not consume much resource.
 
