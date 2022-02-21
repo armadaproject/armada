@@ -10,7 +10,6 @@ package armadaerrors
 import (
 	"context"
 	"fmt"
-
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -18,6 +17,34 @@ import (
 
 	"github.com/G-Research/armada/internal/common/requestid"
 )
+
+// ErrNoPermission represents an error that occurs when a client tries to perform some action
+// through the gRPC API for which it does not have permissions.
+//
+// It may be necessary populate the Action field by recovering this error at the gRPC endpoint (using errors.As)
+// and updating the field in-place.
+type ErrNoPermission struct {
+	// Principal that attempted the action
+	Principal string
+	// The missing permission
+	Permission string
+	// The attempted action
+	Action string
+	// Optional message included with the error message
+	Message string
+}
+
+func (err *ErrNoPermission) Error() (s string) {
+	if err.Action != "" {
+		s = fmt.Sprintf("%s lacks permission %s required for action %s", err.Principal, err.Permission, err.Action)
+	} else {
+		s = fmt.Sprintf("%s lacks permission %s", err.Principal, err.Permission)
+	}
+	if err.Message != "" {
+		s = s + fmt.Sprintf("; %s", err.Message)
+	}
+	return
+}
 
 // ErrAlreadyExists is a generic error to be returned whenever some resource already exists.
 // Type and Message are optional and are omitted from the error message if not provided.

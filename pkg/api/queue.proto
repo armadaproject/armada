@@ -2,6 +2,8 @@ syntax = 'proto3';
 
 package api;
 
+// option go_package = "github.com/G-Research/armada/pkg/api";
+
 import "google/protobuf/timestamp.proto";
 import "k8s.io/api/core/v1/generated.proto";
 import "k8s.io/apimachinery/pkg/api/resource/generated.proto";
@@ -9,8 +11,49 @@ import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 import "google/protobuf/empty.proto";
 import "pkg/api/submit.proto";
 
+import "k8s.io/api/networking/v1beta1/generated.proto";
+// import "internal/events/events.proto";
+
+// TODO: The command I have compiles the file, but puts the output in the wrong place. Puts it in github.com in the project root.
+// Let's fix the proto build script to run from the command line
+// Currently, we're using a docker image that gets all the right versions of everything
+// This ensures that builds are reproducible, which is good
+// I need both protoc and the gogofaster stuff
+// So I need to install a specific version of protoc
+// Let's see if I can go get releases
+// go get downloaded the protobuf source, not the compiled binaries I wanted
+// If I can compile it, I can download a particular release
+// But then the compiler toolchain becomes important
+// My goal is to automatically get known good protoc and gogo versions
+// Currently, we pull in pre-compiled binaries from the internet
+// I've figured out how to get the protoc source
+// If I can compile it, then I would have a known good protoc version
+// Alternatively, I could bring in the toolchain via self-service
+// And put in checks for the hash of the binary
+// That's probably easier
+// Let's bring in the protoc toolchain via self-service
+// Once I have it, I can write a script that uses go get to download all the deps and compiles the proto
+// But then I can start with using the protoc version I already have
+// gogofaster pulls in source code and then compiles a binary
+// So if I put in a go install command for the right gogo version, then I know I have the right gogo version
+
 option (gogoproto.goproto_stringer_all) = false;
 option (gogoproto.stringer_all) = true;
+
+// Compiling requires that the following go packages are available on the local system:
+// k8s.io/api v0.22.4
+// k8s.io/apimachinery v0.22.4
+//
+// Compile with the following commands (run from the project root directory):
+// mkdir -p ./build/proto/k8s.io/api/
+// mkdir -p ./build/proto/k8s.io/apimachinery/
+// mkdir -p ./build/proto/github.com/gogo/protobuf/
+// cp -a $(go env GOPATH)/pkg/mod/k8s.io/api@v0.22.4/* ./build/proto/k8s.io/api/
+// cp -a $(go env GOPATH)/pkg/mod/k8s.io/apimachinery@v0.22.4/* ./build/proto/k8s.io/apimachinery/
+// cp -a $(go env GOPATH)/pkg/mod/github.com/gogo/protobuf@v1.3.2/* ./build/proto/github.com/gogo/protobuf/
+// protoc -I=./build/proto -I=. --go_out=. --go_opt=paths=source_relative pkg/api/queue.proto --go_opt=Mk8s.io/apimachinery/pkg/api/resource/generated.proto=k8s.io/apimachinery/pkg/api/resource --go_opt=Mk8s.io/apimachinery/pkg/runtime/generated.proto=k8s.io/apimachinery/pkg/runtime --go_opt=Mk8s.io/apimachinery/pkg/runtime/schema/generated.proto=k8s.io/apimachinery/pkg/runtime/schema --go_opt=Mk8s.io/apimachinery/pkg/apis/meta/v1/generated.proto=k8s.io/apimachinery/pkg/apis/meta/v1 --go_opt=Mk8s.io/apimachinery/pkg/util/intstr/generated.proto=k8s.io/apimachinery/pkg/util/intstr --go_opt=Mk8s.io/api/core/v1/generated.proto=k8s.io/api/core/v1 --go_opt=Mk8s.io/api/networking/v1beta1/generated.proto=k8s.io/api/networking/v1beta1 --go_opt=Mpkg/api/submit.proto=github.com/G-Research/pkg/api --go_opt=Mpkg/api/queue.proto=github.com/G-Research/pkg/api --go_opt=Minternal/events/events.proto=github.com/G-Research/internal/events --go_opt=Mgoogle/protobuf/timestamp.proto=github.com/gogo/protobuf/types
+
+// protoc -I=. -I=$(go env GOPATH)/pkg/mod -I=$(go env GOPATH)/pkg/mod/github.com/gogo/protobuf@v1.3.2/protobuf -I=./build/proto pkg/api/queue.proto --gogofaster_out=Mgoogle/protobuf/any.proto=github.com/gogo/protobuf/types,Mgoogle/protobuf/duration.proto=github.com/gogo/protobuf/types,Mgoogle/protobuf/struct.proto=github.com/gogo/protobuf/types,Mgoogle/protobuf/timestamp.proto=github.com/gogo/protobuf/types,Mgoogle/protobuf/wrappers.proto=github.com/gogo/protobuf/types:.
 
 message Job {
     string id = 1;
@@ -27,8 +70,15 @@ message Job {
     k8s.io.api.core.v1.PodSpec pod_spec = 5 [deprecated = true]; // Use PodSpecs instead
     repeated k8s.io.api.core.v1.PodSpec pod_specs = 12;
     google.protobuf.Timestamp created = 6 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+    // Services can be provided either as Armada-specific config objects or as proper k8s objects.
+    // These options are exclusive, i.e., if either ingress or services is provided,
+    // then neither of k8s_ingress or k8s_service can be provided, and vice versa.
     repeated IngressConfig ingress = 14;
     repeated ServiceConfig services = 16;
+    // repeated github.com.G-Research.armada.internal.events.KubernetesObject objects = 17;
+    // github.com.G-Research.armada.internal.events.
+    repeated k8s.io.api.networking.v1beta1.Ingress k8s_ingress = 17;
+    repeated k8s.io.api.core.v1.Service k8s_service = 18;
 }
 
 message LeaseRequest {

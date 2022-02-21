@@ -5,12 +5,22 @@ Mgoogle/protobuf/empty.proto=github.com/gogo/protobuf/types,\
 Mgoogle/protobuf/timestamp.proto=github.com/gogo/protobuf/types,\
 Mgoogle/protobuf/wrappers.proto=github.com/gogo/protobuf/types
 
+# Corporate proxy for go packages.
+export GOPROXY=http://goproxy.uberit.net:3000
+export GOPRIVATE=git.uberit.net
+
 # protoc go
 protoc \
 --proto_path=. \
 --proto_path=/proto \
 --gogofaster_out=$TYPES,plugins=grpc:./ \
 pkg/api/*.proto
+
+protoc \
+--proto_path=. \
+--proto_path=/proto \
+--gogofaster_out=$TYPES:./ \
+internal/events/*.proto
 
 protoc \
 --proto_path=. \
@@ -84,4 +94,4 @@ templify -e -p=binoculars -f=SwaggerJson  pkg/api/binoculars/api.swagger.json
 goimports -w -local "github.com/G-Research/armada" ./pkg/api/
 
 # generate dotnet client to match the swagger
-dotnet build ./client/DotNet/Armada.Client /t:NSwag
+# dotnet build ./client/DotNet/Armada.Client /t:NSwag

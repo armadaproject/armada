@@ -153,7 +153,7 @@ func submitJobsAndWatch(t *testing.T, submitClient api.SubmitClient, eventsClien
 
 func createQueue(submitClient api.SubmitClient, jobRequest *api.JobSubmitRequest, t *testing.T) {
 	err := client.CreateQueue(submitClient, &api.Queue{Name: jobRequest.Queue, PriorityFactor: 1})
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 }
 
 func skipIfIntegrationEnvNotPresent(t *testing.T) {

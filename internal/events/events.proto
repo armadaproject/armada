@@ -1,0 +1,285 @@
+syntax = 'proto3';
+package events;
+
+import "k8s.io/api/core/v1/generated.proto";
+import "k8s.io/api/networking/v1beta1/generated.proto";
+
+// Compiling requires that the following go packages are available on the local system:
+// k8s.io/api v0.22.4
+// k8s.io/apimachinery v0.22.4
+//
+// Compile with the following commands (run from the project root directory):
+// mkdir -p ./build/proto/k8s.io/api/
+// mkdir -p ./build/proto/k8s.io/apimachinery/
+// cp -a $(go env GOPATH)/pkg/mod/k8s.io/api@v0.22.4/* ./build/proto/k8s.io/api/
+// cp -a $(go env GOPATH)/pkg/mod/k8s.io/apimachinery@v0.22.4/* ./build/proto/k8s.io/apimachinery/
+// protoc -I=./build/proto -I=. --go_out=. --go_opt=paths=source_relative internal/events/events.proto --go_opt=Mk8s.io/apimachinery/pkg/api/resource/generated.proto=k8s.io/apimachinery/pkg/api/resource --go_opt=Mk8s.io/apimachinery/pkg/runtime/generated.proto=k8s.io/apimachinery/pkg/runtime --go_opt=Mk8s.io/apimachinery/pkg/runtime/schema/generated.proto=k8s.io/apimachinery/pkg/runtime/schema --go_opt=Mk8s.io/apimachinery/pkg/apis/meta/v1/generated.proto=k8s.io/apimachinery/pkg/apis/meta/v1 --go_opt=Mk8s.io/apimachinery/pkg/util/intstr/generated.proto=k8s.io/apimachinery/pkg/util/intstr --go_opt=Mk8s.io/api/core/v1/generated.proto=k8s.io/api/core/v1 --go_opt=Mk8s.io/api/networking/v1beta1/generated.proto=k8s.io/api/networking/v1beta1
+
+// Armada state transition model
+//
+// The central concepts are:
+// - Jobs (i.e., a request for Armada to run a particular application)
+//   Each job includes an application (i.e., a pod spec) and is part of exactly one job set.
+// - Job sets (i.e., a set of jobs that can be controlled and monitored as a unit).
+//   Each job set has a unique user-supplied name, which is namespaced by queue.
+//   Job sets are not created explicitly; a job set is composed of all jobs submitted with the same job set name.
+// - Job runs (i.e., an attempt by Armada to run a particular job)
+//
+// This is the sequence of operations associated with running a set of jobs in Armada:
+// 1. Submit a job, which is composed of an application and associated config. The request must include a job set name.
+//    Armada returns a job id. Repeat this step to run multiple jobs in the same set.
+// 2. Each job is added to Armada's queue. For each job, once it reaches the front of the queue
+//    it is leased to an executor (of which there may be many), which is responsible for running the job.
+// 3. The executor attempts to run the job. Each such attempt is referred to as a job run.
+//    There may be several job runs associated with a job (e.g., if a run failed).
+// 4. Armada will report the exit status of each job as they finish.
+//
+// The state transition model of each job is:
+// [pending <=> leased => succeeded / failed, rejected]
+//
+// The state transition rules for each job are:
+// - After being submitted, the job is pending until it has been leased to an executor by the scheduler.
+// - The job is in the leased state while it is leased to at least one executor.
+// - The job transitions from leased to succeeded if all runs have finished and at least one succeeded
+//   (i.e., the application exited with a zero exit code).
+// - The job transitions from leased to failed if all runs failed (i.e., the application exited with a non-zero exit code).
+// - The job transitions from leased to pending if the executor the job was leased to does not start the job within some
+//   deadline (referred to as a lease expiry), or if the job is preempted, and the job is not leased to any other executor.
+// - The job may be rejected at any stage (e.g., if it cannot be scheduled).
+//
+// The state transition model of each job run is:
+// [pending => assigned => running => succeeded, failed, rejected, returned]
+//
+// The state transition rules for each job run are:
+// - Each job run starts when the job is assigned to an executor (by the scheduler),
+//   at which point it is in the pending state.
+// - While in the pending state, the executor attempts to assign the job to a node,
+//   at which point the run transitions to the assigned state.
+// - The run transitions to the running state once the application is running on the node it was assigned to.
+// - From the running state, the run transitions to either the succeeded or failed state
+//   (depending on the application exit code).
+// - The run may transition to the rejected state from the pending state.
+// - The run may transition to the returned state from either the pending (due to a lease expiry) or running
+//   (due to being preempted) states.
+
+// Message representing a sequence of state transitions.
+// This is the only message type that should ever be published to the log.
+message EventSequence {
+    // List of possible events, i.e., state transitions.
+    message Event {
+        oneof event {
+            SubmitJob submitJob = 1;
+            ReprioritiseJob reprioritiseJob = 2;
+            ReprioritiseJobSet reprioritiseJobSet = 3;
+            CancelJob cancelJob = 4;
+            CancelJobSet cancelJobSet = 5;
+            JobSucceeded jobSucceeded = 6;
+            JobFailed jobFailed = 7;
+            JobRejected jobRejected = 8;
+            JobRunLeased jobRunLeased = 9;
+            JobRunAssigned jobRunAssigned= 10;
+            JobRunRunning jobRunRunning= 11;
+            JobRunReturned jobRunReturned = 12;
+            JobRunSucceeded jobRunSucceeded = 13;
+            JobRunFailed jobRunFailed = 14;
+        }
+    }
+    // The system is namespaced by queue, and all events are associated with a job set.
+    // Hence, these are included with every message.
+    string queue = 1;
+    // Each job set has a unique name, which is namespaced by queue.
+    // If job_set_name has been published to the log previously, then
+    // then job_set_name can be omitted in favor of job_set_hash, which is the sha256 checksum of job_set_name.
+    // This is to reduce message size and improve query performance.
+    // The subscriber is responsible for storing previously seen values of job_set_name
+    // and looking those up based on their hash (i.e., content-based addressing).
+    string job_set_name = 2;
+    // job_set_hash is typically much shorter than job_set_name;
+    // job_set_name is often a file path, which may have long common prefixes.
+    bytes job_set_hash = 3;
+    // Id of the user submitting the message. Is passed on to Kubernetes.
+    string user_id = 4;
+    // List of groups the user is member of. Is passed on to Kubernetes.
+    repeated string groups = 5;
+    // For efficiency, we bundle several events (i.e., state transitions) in a single log message.
+    repeated Event events = 6;
+}
+
+// A request to run an Armada job. Each job consists of a set of Kubernetes objects,
+// one of which is the main object (typically a pod spec.) and has a priority associated with it
+// When the main object exists, all other objects are cleaned up.
+// The priority, together with the queue the job is submitted to, determines the order in which job are run.
+message SubmitJob {
+    // Each application may be run multiple times. This id uniquely identifies this job.
+    string job_id = 1;
+    // User-provided id used for server-side deduplication.
+    // I.e., jobs submitted with the same deduplication_id as an existing job are discarded.
+    // TODO: If we can deduplicate at the API endpoint, we don't need this on the log.
+    string deduplication_id = 2;
+    // Priority of this job. Measured relative to other jobs in the same queue.
+    double priority = 3;
+    // If true, the job is run at most once, i.e., it will be leased at most once, and will not be preempted.
+    // If false, the job may be re-leased on failure, which may cause the job to run more than once
+    // (e.g., if a job run succeeds but the executor fails before it can report job success).
+    // In addition, non-fragile jobs may be preempted.
+    bool fragile = 4;
+    // Information about how the job should be run in Kubernetes.
+    string namespace = 5;
+    map<string, string> annotations = 6;
+    map<string, string> labels = 7;
+    // Main object that determines when an application has finished.
+    KubernetesMainObject mainObject = 8;
+    // Set of additional Kubernetes objects to create as part of the job.
+    repeated KubernetesObject objects = 9;
+}
+
+// Kubernetes objects that can serve as main objects for an Armada job.
+message KubernetesMainObject {
+    oneof object {
+        PodSpecWithAvoidList pod_spec = 1;
+    }
+}
+
+// Kubernetes objects that can be created as part of an Armada.
+message KubernetesObject {
+    oneof object {
+        PodSpecWithAvoidList pod_spec = 1;
+        k8s.io.api.networking.v1beta1.Ingress ingress = 2;
+        k8s.io.api.core.v1.Service service = 3;
+        k8s.io.api.core.v1.ConfigMap configMap = 4;
+    }
+}
+
+// Kubernetes pod spec. with a bundled list of pods to avoid scheduling the pod to.
+message PodSpecWithAvoidList {
+    k8s.io.api.core.v1.PodSpec pod_spec = 1;
+    // List of nodes to avoid scheduling this pod on.
+    // TODO: Could this be done with selectors, taints, etc?
+    repeated string node_avoidlist = 2;
+}
+
+// Set the priority of a particular job.
+message ReprioritiseJob {
+    string job_id = 1;
+    double priority = 2;
+}
+
+// Set the priority of all jobs part of a job set.
+// This sets the priority of all jobs in the job set currently in the queued state.
+message ReprioritiseJobSet {
+    double priority = 1;
+}
+
+// A request to cancel a particular job.
+// This will cancel all runs (preempting it if running) for the job (i.e., move them to the failed state)
+// and then cancel job itself (i.e., move it to the failed state).
+message CancelJob {
+    string job_id = 1;
+}
+
+// Request to cancel all jobs in a job set.
+message CancelJobSet {
+}
+
+message JobSucceeded {
+    string job_id = 1;
+}
+
+message JobFailed {
+    message MaxRunsExceeded {
+    }
+    string job_id = 1;
+    oneof reason {
+        MaxRunsExceeded maxRunsExceeded = 2;
+    }
+}
+
+// Generated if the a job is rejected, e.g., because it requested more resources than are available.
+// A failed job is a job Armada tried to run, but which failed. Jobs are rejected if they can never be run.
+message JobRejected {
+    // TODO: Add details
+    message JobUnschedulable {
+    }
+    string job_id = 1;
+    oneof reason {
+        JobUnschedulable jobUnschedulable = 2;
+    }
+}
+
+// Indicates that a job has been leased to a cluster by the Armada scheduler.
+message JobRunLeased {
+    string run_id = 1;
+    string job_id = 2;
+    // Each cluster is represented by an executor.
+    string executor_id = 3;
+}
+
+// Indicates that a job has been leased to a cluster by the Armada scheduler.
+message JobRunAssigned {
+    string run_id = 1;
+    string job_id = 2;
+    // Runtime information, e.g., which pod the job is running on, its IP address etc.
+    oneof run_info {
+        PodRunInfo podRunInfo = 4;
+    }
+}
+
+// Indicates that a job is now running.
+message JobRunRunning {
+    string run_id = 1;
+    string job_id = 2;
+    // Runtime information, e.g., which pod the job is running on, its IP address etc.
+    oneof run_info {
+        PodRunInfo podRunInfo = 3;
+    }
+}
+
+// Container for runtime information of a job consisting of a podspec.
+message PodRunInfo {
+    string cluster_id = 1;
+    string kubernetes_id = 2;
+    string node_name = 3;
+    int32 pod_number = 4;
+    string pod_name = 5;
+    string pod_namespace = 6;
+}
+
+// Indicates an expected job run failure.
+message JobRunReturned {
+    message LeaseExpired {
+    }
+    message JobPreempted {
+    }
+    string run_id = 1;
+    string job_id = 2;
+    oneof reason {
+        LeaseExpired leaseExpired = 3;
+        JobPreempted jobPreempted = 4;
+    }
+}
+
+// Indicates that a job is no longer running.
+message JobRunSucceeded {
+    string run_id = 1;
+    string job_id = 2;
+}
+
+// Indicates that a job is no longer running.
+message JobRunFailed {
+    message ApplicationFailed {
+        string run_id = 1;
+        string job_id = 2;
+        // Application exit code.
+        int32 code = 3;
+        // Error message returned by the application.
+        string error = 4;
+    }
+    message OOMKilled {
+    }
+    string run_id = 1;
+    string job_id = 2;
+    oneof reason {
+        ApplicationFailed applicationFailed = 3;
+        OOMKilled oomKilled = 4;
+    }
+}

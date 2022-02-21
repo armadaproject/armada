@@ -610,7 +610,7 @@ func (repo *RedisJobRepository) UpdateJobs(ids []string, mutator func([]*api.Job
 
 func (repo *RedisJobRepository) updateJobs(ids []string, mutator func([]*api.Job), batchSize int, retries int, retryDelay time.Duration) []UpdateJobResult {
 	batchedIds := util.Batch(ids, batchSize)
-	result := []UpdateJobResult{}
+	result := make([]UpdateJobResult, 0, len(ids))
 
 	for _, batch := range batchedIds {
 		batchResult, err := repo.updateJobBatchWithRetry(batch, mutator, retries, retryDelay)
@@ -654,7 +654,7 @@ func (repo *RedisJobRepository) updateJobBatchWithRetry(ids []string, mutator fu
 	}
 
 	// Transactional function
-	result := []UpdateJobResult{}
+	result := make([]UpdateJobResult, 0, len(ids))
 	txf := func(tx *redis.Tx) error {
 
 		// Read all data the operation depends on

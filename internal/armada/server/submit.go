@@ -213,6 +213,9 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 		Kind: queue.PermissionSubjectKindUser,
 	}
 
+	// Armada impersonates the principal that submitted the job when interacting with k8s.
+	// If the principal doesn't itself have sufficient perms, we check if it's part of any groups that do, and add those.
+	// This is an optimisation to avoid passing around groups unnecessarily.
 	groups := []string{}
 	if !q.HasPermission(principalSubject, queue.PermissionVerbSubmit) {
 		for _, subject := range queue.NewPermissionSubjectsFromOwners(nil, principal.GetGroupNames()) {
