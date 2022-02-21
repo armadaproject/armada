@@ -110,6 +110,11 @@ build-docker-binoculars:
 
 build-docker: build-docker-server build-docker-executor build-docker-armadactl build-docker-armada-load-tester build-docker-fakeexecutor build-docker-lookout build-docker-binoculars
 
+# Build target without lookout, since lookout depends on pulling in npm packages and docker images from the internet.
+# The npm problems can be fixed by applying registry and disturl at https://confluence.uberit.net/pages/viewpage.action?pageId=25428658
+# Still don't know how to fix the docker problem.
+gr-build-docker: build-docker-server build-docker-executor build-docker-armadactl build-docker-armada-load-tester build-docker-fakeexecutor build-docker-binoculars
+
 build-ci: gobuild=$(gobuildlinux)
 build-ci: build-docker build-armadactl build-armadactl-multiplatform build-load-tester
 
@@ -137,6 +142,47 @@ e2e-stop-cluster:
 	docker rm kube nats
 
 .ONESHELL:
+gr-tests-e2e-teardown:
+	docker rm -f nats redis server executor
+	kind delete cluster --name armada-test
+	rm .kube/config
+	rmdir .kube
+
+.ONESHELL:
+gr-tests-e2e: # gr-build-docker
+	# kind create cluster --name armada-test --wait 30s --image docker-dockerhub-remote.artifactory.c3.zone/kindest/node:v1.21.1
+	mkdir -p .kube
+	kind get kubeconfig --name armada-test > .kube/config
+	sed -i -r 's/(\b[0-9]{1,3}\.){3}[0-9]{1,3}\b'/"localhost"/ .kube/config
+	kubectl apply -f ./e2e/setup/namespace-with-anonymous-user.yaml
+	docker run -d --name nats -p 4223:4223 -p 8223:8223 nats-streaming -p 4223 -m 8223
+	docker run -d --name redis -p=6379:6379 redis
+	#  --network=host
+	docker run -d --name server --network=host -p=50051:50051 \
+		-v $(shell pwd)/e2e:/e2e \
+		armada ./server --config /e2e/setup/insecure-armada-auth-config.yaml --config /e2e/setup/nats/armada-config.yaml
+	docker run -d --name executor --network=host -v $(shell pwd)/.kube:/.kube \
+		-e KUBECONFIG=/.kube/config \
+		-e ARMADA_KUBERNETES_IMPERSONATEUSERS=true \
+		-e ARMADA_KUBERNETES_STUCKPODEXPIRY=15s \
+		armada-executor
+	function tearDown {
+		echo -e "\nexecutor logs:"
+		docker logs executor
+		echo -e "\nserver logs:"
+		docker logs server
+		docker rm -f nats redis server executor
+		# kind delete cluster --name armada-test
+		rm .kube/config
+		rmdir .kube
+	}
+	trap tearDown exit
+	sleep 10
+	echo -e "\nrunning tests:"
+	# PATH=${PATH}:${PWD}/bin
+	INTEGRATION_ENABLED=true go test -v ./e2e/test/... -count=1
+
+.ONESHELL:
 tests-e2e: e2e-start-cluster build-docker
 	docker run -d --name redis -p=6379:6379 redis
 	docker run -d --name server --network=host -p=50051:50051 \
@@ -161,7 +207,7 @@ tests-e2e: e2e-start-cluster build-docker
 	INTEGRATION_ENABLED=true PATH=${PATH}:${PWD}/bin go test -v ./e2e/test/... -count=1
 
 proto:
-	docker build $(dockerFlags) -t armada-proto -f ./build/proto/Dockerfile .
+	docker build $(dockerFlags) -t armada-proto -f ./build/proto/GR_build/Dockerfile .
 	docker run -it --rm -v $(shell pwd):/go/src/armada -w /go/src/armada armada-proto ./scripts/proto.sh
 
 generate:
