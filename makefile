@@ -149,15 +149,16 @@ gr-tests-e2e-teardown:
 	rmdir .kube
 
 .ONESHELL:
-gr-tests-e2e: # gr-build-docker
-	# kind create cluster --name armada-test --wait 30s --image docker-dockerhub-remote.artifactory.c3.zone/kindest/node:v1.21.1
+gr-tests-e2e: gr-build-docker
+	kind create cluster --name armada-test --wait 30s --image kindest/node:v1.21.1
+	kind load docker-image "alpine:3.10" --name armada-test
 	mkdir -p .kube
 	kind get kubeconfig --name armada-test > .kube/config
 	sed -i -r 's/(\b[0-9]{1,3}\.){3}[0-9]{1,3}\b'/"localhost"/ .kube/config
 	kubectl apply -f ./e2e/setup/namespace-with-anonymous-user.yaml
 	docker run -d --name nats -p 4223:4223 -p 8223:8223 nats-streaming -p 4223 -m 8223
 	docker run -d --name redis -p=6379:6379 redis
-	#  --network=host
+
 	docker run -d --name server --network=host -p=50051:50051 \
 		-v $(shell pwd)/e2e:/e2e \
 		armada ./server --config /e2e/setup/insecure-armada-auth-config.yaml --config /e2e/setup/nats/armada-config.yaml
@@ -172,14 +173,14 @@ gr-tests-e2e: # gr-build-docker
 		echo -e "\nserver logs:"
 		docker logs server
 		docker rm -f nats redis server executor
-		# kind delete cluster --name armada-test
+		kind delete cluster --name armada-test
 		rm .kube/config
 		rmdir .kube
 	}
 	trap tearDown exit
 	sleep 10
 	echo -e "\nrunning tests:"
-	# PATH=${PATH}:${PWD}/bin
+	PATH=${PATH}:${PWD}/bin/linux
 	INTEGRATION_ENABLED=true go test -v ./e2e/test/... -count=1
 
 .ONESHELL:
