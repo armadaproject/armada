@@ -5,8 +5,11 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/apache/pulsar-client-go/pulsar"
+	"github.com/gogo/protobuf/proto"
+	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	v1 "k8s.io/api/core/v1"
@@ -22,7 +25,166 @@ import (
 // LogToArmada is a service that reads messages from Pulsar and updates the state of the Armada server accordingly.
 // Calls into an embedded Armada submit server object.
 type SubmitFromLog struct {
-	submitServer SubmitServer
+	SubmitServer *SubmitServer
+	Consumer     pulsar.Consumer
+}
+
+// Run the service that reads from Pulsar and updates Armada until the provided context is cancelled.
+func (srv *SubmitFromLog) Run(ctx context.Context) {
+	log := logrus.New()
+	log.Info("service started")
+	defer log.Info("stopped")
+
+	// Periodically log the number of processed messages.
+	logInterval := 10 * time.Second
+	lastLogged := time.Now()
+	numReceived := 0
+	numErrored := 0
+	var lastMessageId pulsar.MessageID
+	lastMessageId = nil
+	lastPublishTime := time.Now()
+
+	// Run until ctx is cancelled.
+	for {
+
+		// Periodic logging.
+		if time.Since(lastLogged) > logInterval {
+			log.WithFields(
+				logrus.Fields{
+					"received":      numReceived,
+					"succeeded":     numReceived - numErrored,
+					"errored":       numErrored,
+					"interval":      logInterval,
+					"lastMessageId": lastMessageId,
+					"timeLag":       time.Now().Sub(lastPublishTime),
+				},
+			).Info("message statistics")
+			numReceived = 0
+			numErrored = 0
+			lastLogged = time.Now()
+		}
+
+		// Check if the context has been cancelled, and, if not, get a message from Pulsar.
+		select {
+		case <-ctx.Done():
+			log.WithFields(
+				logrus.Fields{
+					"received":      numReceived,
+					"succeeded":     numReceived - numErrored,
+					"errored":       numErrored,
+					"interval":      logInterval,
+					"lastMessageId": lastMessageId,
+					"timeLag":       time.Now().Sub(lastPublishTime),
+				},
+			).Info("shutdown signal received")
+			break
+		default: // Get a message from Pulsar
+			newCtx, _ := context.WithTimeout(ctx, time.Second)
+			msg, err := srv.Consumer.Receive(newCtx)
+			if errors.Is(err, context.DeadlineExceeded) {
+				continue //expected
+			}
+			if err != nil {
+				log.WithField("lastMessageId", lastMessageId).WithError(err).Warnf("Pulsar receive failed; ignoring")
+				time.Sleep(time.Second)
+				continue
+			}
+			lastMessageId = msg.ID()
+			lastPublishTime = msg.PublishTime()
+			numReceived++
+
+			// TODO: Determine what to do based on the error (e.g., publish to a dead letter topic).
+			err = srv.ProcessMessage(ctx, msg)
+			if err != nil {
+				log.WithField("lastMessageId", lastMessageId).WithError(err).Warnf("Processing message failed; ignoring")
+				time.Sleep(time.Second)
+				numErrored++
+			}
+		}
+	}
+}
+
+func (srv *SubmitFromLog) ProcessMessage(ctx context.Context, msg pulsar.Message) (err error) {
+	sequence := &events.EventSequence{}
+	err = proto.Unmarshal(msg.Payload(), sequence)
+	if err != nil {
+		err = errors.WithStack(err)
+		return
+	}
+
+	if sequence.JobSetName == "" {
+		err = &armadaerrors.ErrInvalidArgument{
+			Name:    "JobSetName",
+			Value:   "",
+			Message: "JobSetName not provided",
+		}
+		err = errors.WithStack(err)
+		return
+	}
+	if sequence.UserId == "" {
+		err = &armadaerrors.ErrInvalidArgument{
+			Name:    "UserId",
+			Value:   "",
+			Message: "UserId not provided",
+		}
+		err = errors.WithStack(err)
+		return
+	}
+	if sequence.Queue == "" {
+		err = &armadaerrors.ErrInvalidArgument{
+			Name:    "Queue",
+			Value:   "",
+			Message: "Queue name not provided",
+		}
+		err = errors.WithStack(err)
+		return
+	}
+	if sequence.Groups == nil {
+		sequence.Groups = make([]string, 0)
+	}
+
+	// Split the event sequence by type
+	submitJobEvents := make([]*events.SubmitJob, 0)
+	cancelJobEvents := make([]*events.CancelJob, 0)
+	reprioritiseJobEvents := make([]*events.ReprioritiseJob, 0)
+	reprioritiseJobSetEvents := make([]*events.ReprioritiseJobSet, 0)
+	for _, event := range sequence.Events {
+		switch e := event.Event.(type) {
+		case *events.EventSequence_Event_SubmitJob:
+			submitJobEvents = append(submitJobEvents, e.SubmitJob)
+		case *events.EventSequence_Event_CancelJob:
+			cancelJobEvents = append(cancelJobEvents, e.CancelJob)
+		case *events.EventSequence_Event_ReprioritiseJob:
+			reprioritiseJobEvents = append(reprioritiseJobEvents, e.ReprioritiseJob)
+		case *events.EventSequence_Event_ReprioritiseJobSet:
+			reprioritiseJobSetEvents = append(reprioritiseJobSetEvents, e.ReprioritiseJobSet)
+		default:
+			logrus.Warnf("received unsupported Pulsar event: %v", event)
+		}
+	}
+
+	// Submit to Redis and Nats.
+	// Collect all errors as sibling errors.
+	var result *multierror.Error
+	result = multierror.Append(
+		result,
+		srv.SubmitJobs(ctx, sequence.UserId, sequence.Groups, sequence.Queue, sequence.JobSetName, submitJobEvents),
+	)
+	result = multierror.Append(
+		result,
+		srv.CancelJobs(ctx, sequence.UserId, cancelJobEvents),
+	)
+	result = multierror.Append(
+		result,
+		srv.ReprioritizeJobs(ctx, sequence.UserId, reprioritiseJobEvents),
+	)
+	result = multierror.Append(
+		result,
+		srv.ReprioritizeJobSets(ctx, sequence.UserId, sequence.Queue, sequence.JobSetName, reprioritiseJobSetEvents),
+	)
+
+	err = result.ErrorOrNil()
+	return
 }
 
 func (srv *SubmitFromLog) SubmitJobs(ctx context.Context, userId string, groups []string, queueName string, jobSetName string, es []*events.SubmitJob) error {
@@ -33,10 +195,10 @@ func (srv *SubmitFromLog) SubmitJobs(ctx context.Context, userId string, groups 
 	}
 
 	// Submit the jobs by writing them to the database.
-	submissionResults, err := srv.submitServer.jobRepository.AddJobs(jobs)
+	submissionResults, err := srv.SubmitServer.jobRepository.AddJobs(jobs)
 	if err != nil {
 		jobFailures := createJobFailuresWithReason(jobs, fmt.Sprintf("Failed to save job in Armada: %s", err))
-		reportErr := reportFailed(srv.submitServer.eventStore, "", jobFailures)
+		reportErr := reportFailed(srv.SubmitServer.eventStore, "", jobFailures)
 		if reportErr != nil {
 			return status.Errorf(codes.Internal, "[SubmitJobs] error reporting failure event: %v", reportErr)
 		}
@@ -64,17 +226,17 @@ func (srv *SubmitFromLog) SubmitJobs(ctx context.Context, userId string, groups 
 		}
 	}
 
-	err = reportFailed(srv.submitServer.eventStore, "", jobFailures)
+	err = reportFailed(srv.SubmitServer.eventStore, "", jobFailures)
 	if err != nil {
 		return status.Errorf(codes.Internal, fmt.Sprintf("[SubmitJobs] error reporting failed jobs: %s", err))
 	}
 
-	err = reportDuplicateDetected(srv.submitServer.eventStore, doubleSubmits)
+	err = reportDuplicateDetected(srv.SubmitServer.eventStore, doubleSubmits)
 	if err != nil {
 		return status.Errorf(codes.Internal, fmt.Sprintf("[SubmitJobs] error reporting duplicate jobs: %s", err))
 	}
 
-	err = reportQueued(srv.submitServer.eventStore, createdJobs)
+	err = reportQueued(srv.SubmitServer.eventStore, createdJobs)
 	if err != nil {
 		return status.Errorf(codes.Internal, fmt.Sprintf("[SubmitJobs] error reporting queued jobs: %s", err))
 	}
@@ -139,8 +301,8 @@ func apiJobFromLogSubmitJob(ownerId string, groups []string, queueName string, j
 		Labels:      e.Labels,
 		Annotations: e.Annotations,
 
-		K8SIngress:         k8sIngresses,
-		K8SService:         k8sServices,
+		K8SIngress: k8sIngresses,
+		K8SService: k8sServices,
 
 		Priority: e.Priority,
 
@@ -153,25 +315,25 @@ func apiJobFromLogSubmitJob(ownerId string, groups []string, queueName string, j
 }
 
 // CancelJobs cancels all jobs specified by the provided events in a single operation.
-func (srv *SubmitFromLog) CancelJobs(ctx context.Context, userName string, es []*events.CancelJob) error {
+func (srv *SubmitFromLog) CancelJobs(ctx context.Context, userId string, es []*events.CancelJob) error {
 	jobIds := make([]string, len(es), len(es))
 	for i, e := range es {
 		jobIds[i] = e.JobId
 	}
-	_, err := srv.CancelJobsById(ctx, userName, jobIds)
+	_, err := srv.CancelJobsById(ctx, userId, jobIds)
 	return err
 }
 
 func (srv *SubmitFromLog) CancelJobSet(ctx context.Context, queueName string, jobSetName string) error {
 
-	jobIds, err := srv.submitServer.jobRepository.GetActiveJobIds(queueName, jobSetName)
+	jobIds, err := srv.SubmitServer.jobRepository.GetActiveJobIds(queueName, jobSetName)
 	if err != nil {
 		return err
 	}
 
 	// Split IDs into batches and process one batch at a time.
 	// To reduce the number of jobs stored in memory.
-	jobIdBatches := util.Batch(jobIds, srv.submitServer.cancelJobsBatchSize)
+	jobIdBatches := util.Batch(jobIds, srv.SubmitServer.cancelJobsBatchSize)
 	for _, jobIdBatch := range jobIdBatches {
 		_, err := srv.CancelJobsById(ctx, queueName, jobIdBatch)
 		if err != nil {
@@ -190,19 +352,19 @@ func (srv *SubmitFromLog) CancelJobSet(ctx context.Context, queueName string, jo
 }
 
 // CancelJobsById cancels all jobs with the specified ids.
-func (srv *SubmitFromLog) CancelJobsById(ctx context.Context, userName string, jobIds []string) ([]string, error) {
+func (srv *SubmitFromLog) CancelJobsById(ctx context.Context, userId string, jobIds []string) ([]string, error) {
 
-	jobs, err := srv.submitServer.jobRepository.GetExistingJobsByIds(jobIds)
+	jobs, err := srv.SubmitServer.jobRepository.GetExistingJobsByIds(jobIds)
 	if err != nil {
 		return nil, err
 	}
 
-	err = reportJobsCancelling(srv.submitServer.eventStore, userName, jobs)
+	err = reportJobsCancelling(srv.SubmitServer.eventStore, userId, jobs)
 	if err != nil {
 		return nil, err
 	}
 
-	deletionResult, err := srv.submitServer.jobRepository.DeleteJobs(jobs)
+	deletionResult, err := srv.SubmitServer.jobRepository.DeleteJobs(jobs)
 	if err != nil {
 		return nil, err
 	}
@@ -212,14 +374,14 @@ func (srv *SubmitFromLog) CancelJobsById(ctx context.Context, userName string, j
 	for job, err := range deletionResult {
 		if err != nil {
 			// TODO: Use sibling errors.
-			log.Errorf("[cancelJobs] error cancelling job with ID %s: %s", job.Id, err)
+			logrus.Errorf("[cancelJobs] error cancelling job with ID %s: %s", job.Id, err)
 		} else {
 			cancelled = append(cancelled, job)
 			cancelledIds = append(cancelledIds, job.Id)
 		}
 	}
 
-	err = reportJobsCancelled(srv.submitServer.eventStore, userName, cancelled)
+	err = reportJobsCancelled(srv.SubmitServer.eventStore, userId, cancelled)
 	if err != nil {
 		return nil, err
 	}
@@ -228,7 +390,7 @@ func (srv *SubmitFromLog) CancelJobsById(ctx context.Context, userName string, j
 }
 
 // ReprioritizeJobs updates the priority of one of more jobs.
-func (srv *SubmitFromLog) ReprioritizeJobs(ctx context.Context, userName string, es []*events.ReprioritiseJob) error {
+func (srv *SubmitFromLog) ReprioritizeJobs(ctx context.Context, userId string, es []*events.ReprioritiseJob) error {
 	if len(es) == 0 {
 		return nil
 	}
@@ -237,7 +399,7 @@ func (srv *SubmitFromLog) ReprioritizeJobs(ctx context.Context, userName string,
 	for i, e := range es {
 		jobIds[i] = e.JobId
 	}
-	jobs, err := srv.submitServer.jobRepository.GetExistingJobsByIds(jobIds)
+	jobs, err := srv.SubmitServer.jobRepository.GetExistingJobsByIds(jobIds)
 	if err != nil {
 		return err
 	}
@@ -251,12 +413,12 @@ func (srv *SubmitFromLog) ReprioritizeJobs(ctx context.Context, userName string,
 		}
 	}
 
-	err = reportJobsReprioritizing(srv.submitServer.eventStore, userName, jobs, newPriority)
+	err = reportJobsReprioritizing(srv.SubmitServer.eventStore, userId, jobs, newPriority)
 	if err != nil {
 		return err
 	}
 
-	_, err = srv.submitServer.reprioritizeJobs(jobIds, newPriority, userName)
+	_, err = srv.SubmitServer.reprioritizeJobs(jobIds, newPriority, userId)
 	if err != nil {
 		return err
 	}
@@ -264,22 +426,30 @@ func (srv *SubmitFromLog) ReprioritizeJobs(ctx context.Context, userName string,
 	return nil
 }
 
-func (srv *SubmitFromLog) ReprioritizeJobSet(ctx context.Context, userName string, queueName string, jobSetName string, e *events.ReprioritiseJobSet) error {
-	jobIds, err := srv.submitServer.jobRepository.GetActiveJobIds(queueName, jobSetName)
+func (srv *SubmitFromLog) ReprioritizeJobSets(ctx context.Context, userId string, queueName string, jobSetName string, es []*events.ReprioritiseJobSet) error {
+	var result *multierror.Error
+	for _, e := range es {
+		result = multierror.Append(result, srv.ReprioritizeJobSet(ctx, userId, queueName, jobSetName, e))
+	}
+	return result.ErrorOrNil()
+}
+
+func (srv *SubmitFromLog) ReprioritizeJobSet(ctx context.Context, userId string, queueName string, jobSetName string, e *events.ReprioritiseJobSet) error {
+	jobIds, err := srv.SubmitServer.jobRepository.GetActiveJobIds(queueName, jobSetName)
 	if err != nil {
 		return err
 	}
-	jobs, err := srv.submitServer.jobRepository.GetExistingJobsByIds(jobIds)
+	jobs, err := srv.SubmitServer.jobRepository.GetExistingJobsByIds(jobIds)
 	if err != nil {
 		return err
 	}
 
-	err = reportJobsReprioritizing(srv.submitServer.eventStore, userName, jobs, e.Priority)
+	err = reportJobsReprioritizing(srv.SubmitServer.eventStore, userId, jobs, e.Priority)
 	if err != nil {
 		return err
 	}
 
-	_, err = srv.submitServer.reprioritizeJobs(jobIds, e.Priority, userName)
+	_, err = srv.SubmitServer.reprioritizeJobs(jobIds, e.Priority, userId)
 	if err != nil {
 		return err
 	}

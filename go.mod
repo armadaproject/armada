@@ -2,10 +2,16 @@ module github.com/G-Research/armada
 
 go 1.16
 
+// athenz@v1.10.5 and onwards bundle encrypted signing keys with the source code.
+// Because our corporate proxy blocks go get commands that pull in encrypted data,
+// we need to replace athenz@v1.10.5 or later with athenz@v1.10.4 or earlier.
+replace github.com/AthenZ/athenz v1.10.39 => github.com/AthenZ/athenz v1.10.4
+
 require (
 	github.com/alexbrainman/sspi v0.0.0-20180613141037-e580b900e9f5
 	github.com/alicebob/gopher-json v0.0.0-20180125190556-5a6b3ba71ee6 // indirect
 	github.com/alicebob/miniredis v2.5.0+incompatible
+	github.com/apache/pulsar-client-go v0.8.0 // indirect
 	github.com/avast/retry-go v3.0.0+incompatible
 	github.com/containerd/continuity v0.2.1 // indirect
 	github.com/coreos/go-oidc v2.2.1+incompatible
@@ -27,6 +33,7 @@ require (
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0
+	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/hashicorp/golang-lru v0.5.3 // indirect
 	github.com/instrumenta/kubeval v0.0.0-20190918223246-8d013ec9fc56
 	github.com/jcmturner/gokrb5/v8 v8.4.2-0.20201112171129-78f56934d598

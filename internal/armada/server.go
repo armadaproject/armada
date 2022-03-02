@@ -1,7 +1,10 @@
 package armada
 
 import (
+	"context"
 	"fmt"
+	executorconfig "github.com/G-Research/armada/internal/executor/configuration"
+	"github.com/apache/pulsar-client-go/pulsar"
 	"sync"
 	"time"
 
@@ -135,7 +138,8 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 	permissions := authorization.NewPrincipalPermissionChecker(
 		config.Auth.PermissionGroupMapping,
 		config.Auth.PermissionScopeMapping,
-		config.Auth.PermissionClaimMapping)
+		config.Auth.PermissionClaimMapping,
+	)
 
 	submitServer := server.NewSubmitServer(
 		permissions,
@@ -145,7 +149,58 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 		schedulingInfoRepository,
 		config.CancelJobsBatchSize,
 		&config.QueueManagement,
-		&config.Scheduling)
+		&config.Scheduling,
+	)
+	var submitServerToRegister api.SubmitServer
+	submitServerToRegister = submitServer
+
+	// If Pulsar is enabled, use the Pulsar submit endpoints.
+	if config.Pulsar.Enabled {
+
+		// API endpoints that generate Pulsar messages.
+		log.Info("Pulsar config provided; using Pulsar submit endpoints.")
+		pulsarClient, err := pulsar.NewClient(pulsar.ClientOptions{
+			URL: config.Pulsar.URL,
+		})
+		if err != nil {
+			panic(err)
+		}
+		producer, err := pulsarClient.CreateProducer(pulsar.ProducerOptions{
+			Topic: config.Pulsar.Topic,
+		})
+		if err != nil {
+			panic(err)
+		}
+		submitServerToRegister = &server.PulsarSubmitServer{
+			Producer:        producer,
+			QueueRepository: queueRepository,
+			Permissions:     permissions,
+			SubmitServer:    submitServer,
+			IngressConfig: &executorconfig.IngressConfiguration{
+				HostnameSuffix: config.Pulsar.HostnameSuffix,
+				CertNameSuffix: config.Pulsar.CertNameSuffix,
+				Annotations:    config.Pulsar.Annotations,
+			},
+		}
+
+		// Service that consumes Pulsar messages and writes to Redis and Nats.
+		consumer, err := pulsarClient.Subscribe(pulsar.ConsumerOptions{
+			Topic:            config.Pulsar.Topic,
+			SubscriptionName: config.Pulsar.SubscriptionName,
+			Type:             pulsar.Exclusive,
+		})
+		if err != nil {
+			panic(err)
+		}
+		submitFromLog := server.SubmitFromLog{
+			Consumer:     consumer,
+			SubmitServer: submitServer,
+		}
+		go submitFromLog.Run(context.Background())
+	} else {
+		log.Info("No Pulsar config provided; submitting directly to Redis and Nats.")
+	}
+
 	usageServer := server.NewUsageServer(permissions, config.PriorityHalfTime, &config.Scheduling, usageRepository, queueRepository)
 	aggregatedQueueServer := server.NewAggregatedQueueServer(permissions, config.Scheduling, jobRepository, queueCache, queueRepository, usageRepository, eventStore, schedulingInfoRepository)
 	eventServer := server.NewEventServer(permissions, redisEventRepository, eventStore, queueRepository)
@@ -155,7 +210,7 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 
 	metrics.ExposeDataMetrics(queueRepository, jobRepository, usageRepository, schedulingInfoRepository, queueCache)
 
-	api.RegisterSubmitServer(grpcServer, submitServer)
+	api.RegisterSubmitServer(grpcServer, submitServerToRegister)
 	api.RegisterUsageServer(grpcServer, usageServer)
 	api.RegisterAggregatedQueueServer(grpcServer, aggregatedQueueServer)
 	api.RegisterEventServer(grpcServer, eventServer)

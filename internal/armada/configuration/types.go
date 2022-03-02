@@ -31,8 +31,23 @@ type ArmadaConfig struct {
 	QueueManagement   QueueManagementConfig
 	DatabaseRetention DatabaseRetentionPolicy
 	EventRetention    EventRetentionPolicy
+	Pulsar            PulsarConfig
 
 	Metrics MetricsConfig
+}
+
+type PulsarConfig struct {
+	// Flag controlling if Pulsar is enabled or not.
+	Enabled bool
+	// Pulsar configuration
+	URL              string
+	Topic            string
+	SubscriptionName string
+	// Used to construct an executorconfig.IngressConfiguration,
+	// which is used when converting Armada-specific IngressConfig and ServiceConfig objects into k8s objects.
+	HostnameSuffix string
+	CertNameSuffix string
+	Annotations    map[string]string
 }
 
 type SchedulingConfig struct {

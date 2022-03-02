@@ -1,0 +1,7 @@
+pulsar:
+  enabled: true
+  URL: "pulsar://pulsar:6650"
+  topic: "armada"
+  subscriptionName: "consumer"
+  hostnameSuffix: "svc"
+  certNameSuffix: "ingress-tls-certificate"

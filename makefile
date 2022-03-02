@@ -150,23 +150,28 @@ gr-tests-e2e-teardown:
 
 .ONESHELL:
 gr-tests-e2e: gr-build-docker
+	docker pull "alpine:3.10" # ensure Alpine, which is used by tests, is available
 	kind create cluster --name armada-test --wait 30s --image kindest/node:v1.21.1
-	kind load docker-image "alpine:3.10" --name armada-test
-	mkdir -p .kube
-	kind get kubeconfig --name armada-test > .kube/config
-	sed -i -r 's/(\b[0-9]{1,3}\.){3}[0-9]{1,3}\b'/"localhost"/ .kube/config
-	kubectl apply -f ./e2e/setup/namespace-with-anonymous-user.yaml
-	docker run -d --name nats -p 4223:4223 -p 8223:8223 nats-streaming -p 4223 -m 8223
-	docker run -d --name redis -p=6379:6379 redis
+	kind load docker-image "alpine:3.10" --name armada-test # needed to make Alpine available to kind
 
-	docker run -d --name server --network=host -p=50051:50051 \
-		-v $(shell pwd)/e2e:/e2e \
-		armada ./server --config /e2e/setup/insecure-armada-auth-config.yaml --config /e2e/setup/nats/armada-config.yaml
-	docker run -d --name executor --network=host -v $(shell pwd)/.kube:/.kube \
+	mkdir -p .kube
+	kind get kubeconfig --internal --name armada-test > .kube/config
+
+	kubectl apply -f ./e2e/setup/namespace-with-anonymous-user.yaml # context set automatically by kind
+	docker run -d --name nats --network=kind nats-streaming
+	docker run -d --name redis -p=6379:6379 --network=kind redis
+	docker run -d --name pulsar -p 6650:6650 --network=kind --mount source=pulsardata,target=/pulsar/data --mount source=pulsarconf,target=/pulsar/conf apachepulsar/pulsar:2.9.1 bin/pulsar standalone
+
+	docker run -d --name server --network=kind -p=50051:50051 -v ${PWD}/e2e:/e2e \
+		armada ./server --config /e2e/setup/insecure-armada-auth-config.yaml --config /e2e/setup/nats/armada-config.yaml --config /e2e/setup/redis/armada-config.yaml --config /e2e/setup/pulsar/armada-config.yaml
+	docker run -d --name executor --network=kind -v ${PWD}/.kube:/.kube -v ${PWD}/e2e:/e2e  \
 		-e KUBECONFIG=/.kube/config \
 		-e ARMADA_KUBERNETES_IMPERSONATEUSERS=true \
 		-e ARMADA_KUBERNETES_STUCKPODEXPIRY=15s \
-		armada-executor
+		-e ARMADA_APICONNECTION_ARMADAURL="server:50051" \
+		-e ARMADA_APICONNECTION_FORCENOTLS=true \
+		armada-executor --config /e2e/setup/executor-config.yaml
+
 	function tearDown {
 		echo -e "\nexecutor logs:"
 		docker logs executor
