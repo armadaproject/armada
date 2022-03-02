@@ -7,6 +7,7 @@ import (
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/proto"
+	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -14,9 +15,11 @@ import (
 	"google.golang.org/grpc/status"
 	v1 "k8s.io/api/core/v1"
 	networking "k8s.io/api/networking/v1beta1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/G-Research/armada/internal/armada/repository"
 	"github.com/G-Research/armada/internal/common/armadaerrors"
+	"github.com/G-Research/armada/internal/common/requestid"
 	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/events"
 	"github.com/G-Research/armada/pkg/api"
@@ -27,13 +30,21 @@ import (
 type SubmitFromLog struct {
 	SubmitServer *SubmitServer
 	Consumer     pulsar.Consumer
+	// Logger from which the loggers used by this service are derived
+	// (e.g., using srv.Logger.WithField), or nil, in which case the global logrus logger is used.
+	Logger *logrus.Logger
 }
 
 // Run the service that reads from Pulsar and updates Armada until the provided context is cancelled.
 func (srv *SubmitFromLog) Run(ctx context.Context) {
-	log := logrus.New()
-	log.Info("service started")
-	defer log.Info("stopped")
+
+	// Get the configured logger, or the standard logger if none is provided.
+	log := srv.Logger
+	if log == nil {
+		log = logrus.StandardLogger()
+	}
+	log.Info("SubmitFromLog service started")
+	defer log.Info("SubmitFromLog service stopped")
 
 	// Periodically log the number of processed messages.
 	logInterval := 10 * time.Second
@@ -79,8 +90,8 @@ func (srv *SubmitFromLog) Run(ctx context.Context) {
 			).Info("shutdown signal received")
 			break
 		default: // Get a message from Pulsar
-			newCtx, _ := context.WithTimeout(ctx, time.Second)
-			msg, err := srv.Consumer.Receive(newCtx)
+			ctxWithTimeout, _ := context.WithTimeout(ctx, time.Second)
+			msg, err := srv.Consumer.Receive(ctxWithTimeout)
 			if errors.Is(err, context.DeadlineExceeded) {
 				continue //expected
 			}
@@ -93,10 +104,25 @@ func (srv *SubmitFromLog) Run(ctx context.Context) {
 			lastPublishTime = msg.PublishTime()
 			numReceived++
 
+			// Incoming gRPC requests are annotated with a unique id,
+			// which is included with the corresponding Pulsar message.
+			requestId := "missing"
+			if msg.Properties() != nil {
+				if id, ok := msg.Properties()[requestid.MetadataKey]; ok {
+					requestId = id
+				}
+			}
+
 			// TODO: Determine what to do based on the error (e.g., publish to a dead letter topic).
-			err = srv.ProcessMessage(ctx, msg)
+			messageCtx, ok := requestid.AddToIncomingContext(ctx, requestId)
+			if !ok {
+				messageCtx = ctx
+			}
+			messageLogger := log.WithFields(logrus.Fields{"messageId": msg.ID(), requestid.MetadataKey: requestId})
+			ctxWithLogger := ctxlogrus.ToContext(messageCtx, messageLogger)
+			err = srv.ProcessMessage(ctxWithLogger, msg)
 			if err != nil {
-				log.WithField("lastMessageId", lastMessageId).WithError(err).Warnf("Processing message failed; ignoring")
+				messageLogger.WithError(err).Warnf("processing message failed; ignoring")
 				time.Sleep(time.Second)
 				numErrored++
 			}
@@ -104,7 +130,12 @@ func (srv *SubmitFromLog) Run(ctx context.Context) {
 	}
 }
 
+// ProcessMessage processes a single Pulsar message (i.e., an event sequence)
+// by decomposing the events in the sequence by type and calling into the embedded SubmitServer.
 func (srv *SubmitFromLog) ProcessMessage(ctx context.Context, msg pulsar.Message) (err error) {
+	log := ctxlogrus.Extract(ctx)
+	log.Info("processing Pulsar message")
+
 	sequence := &events.EventSequence{}
 	err = proto.Unmarshal(msg.Payload(), sequence)
 	if err != nil {
@@ -148,7 +179,7 @@ func (srv *SubmitFromLog) ProcessMessage(ctx context.Context, msg pulsar.Message
 	cancelJobEvents := make([]*events.CancelJob, 0)
 	reprioritiseJobEvents := make([]*events.ReprioritiseJob, 0)
 	reprioritiseJobSetEvents := make([]*events.ReprioritiseJobSet, 0)
-	for _, event := range sequence.Events {
+	for i, event := range sequence.Events {
 		switch e := event.Event.(type) {
 		case *events.EventSequence_Event_SubmitJob:
 			submitJobEvents = append(submitJobEvents, e.SubmitJob)
@@ -159,7 +190,7 @@ func (srv *SubmitFromLog) ProcessMessage(ctx context.Context, msg pulsar.Message
 		case *events.EventSequence_Event_ReprioritiseJobSet:
 			reprioritiseJobSetEvents = append(reprioritiseJobSetEvents, e.ReprioritiseJobSet)
 		default:
-			logrus.Warnf("received unsupported Pulsar event: %v", event)
+			log.WithFields(logrus.Fields{"index": i, "event": event}).Warn("received unsupported Pulsar event")
 		}
 	}
 
@@ -270,18 +301,36 @@ func apiJobFromLogSubmitJob(ownerId string, groups []string, queueName string, j
 	// We need to separate those out into service and ingress types.
 	k8sServices := make([]*v1.Service, 0)
 	k8sIngresses := make([]*networking.Ingress, 0)
+	k8sPodSpecs := make([]*v1.PodSpec, 0)
+	k8sPodSpecs = append(k8sPodSpecs, podSpec)
 	for _, object := range e.Objects {
+
+		// The job-level ObjectMeta is the default.
+		objectMeta := metav1.ObjectMeta{
+			Namespace:   e.ObjectMeta.Namespace,
+			Annotations: e.ObjectMeta.Annotations,
+			Labels:      e.ObjectMeta.Labels,
+		}
+
+		// If a per-object ObjectMeta is provided, it takes precedence over the job-level one.
+		if object.ObjectMeta != nil {
+			objectMeta.Namespace = object.ObjectMeta.Namespace
+			objectMeta.Annotations = object.ObjectMeta.Annotations
+			objectMeta.Labels = object.ObjectMeta.Labels
+		}
 		switch o := object.Object.(type) {
 		case *events.KubernetesObject_Service:
-			k8sServices = append(k8sServices, o.Service)
+			k8sServices = append(k8sServices, &v1.Service{
+				ObjectMeta: objectMeta,
+				Spec:       *o.Service,
+			})
 		case *events.KubernetesObject_Ingress:
-			k8sIngresses = append(k8sIngresses, o.Ingress)
+			k8sIngresses = append(k8sIngresses, &networking.Ingress{
+				ObjectMeta: objectMeta,
+				Spec:       *o.Ingress,
+			})
 		case *events.KubernetesObject_PodSpec:
-			return nil, &armadaerrors.ErrInvalidArgument{
-				Name:    "Objects",
-				Value:   o,
-				Message: "providing more than one pod spec isn't supported",
-			}
+			k8sPodSpecs = append(k8sPodSpecs, o.PodSpec.PodSpec)
 		default:
 			return nil, &armadaerrors.ErrInvalidArgument{
 				Name:    "Objects",
@@ -297,17 +346,16 @@ func apiJobFromLogSubmitJob(ownerId string, groups []string, queueName string, j
 		Queue:    queueName,
 		JobSetId: jobSetName,
 
-		Namespace:   e.Namespace,
-		Labels:      e.Labels,
-		Annotations: e.Annotations,
+		Namespace:   e.ObjectMeta.Namespace,
+		Labels:      e.ObjectMeta.Labels,
+		Annotations: e.ObjectMeta.Annotations,
 
 		K8SIngress: k8sIngresses,
 		K8SService: k8sServices,
 
 		Priority: e.Priority,
 
-		PodSpec:                  podSpec,
-		PodSpecs:                 make([]*v1.PodSpec, 0),
+		PodSpecs:                 k8sPodSpecs,
 		Created:                  time,
 		Owner:                    ownerId,
 		QueueOwnershipUserGroups: groups,
@@ -369,24 +417,25 @@ func (srv *SubmitFromLog) CancelJobsById(ctx context.Context, userId string, job
 		return nil, err
 	}
 
+	// Check which jobs cancelled successfully.
+	// Collect any errors into a multierror.
+	var result *multierror.Error
 	cancelled := []*api.Job{}
 	cancelledIds := []string{}
 	for job, err := range deletionResult {
 		if err != nil {
-			// TODO: Use sibling errors.
-			logrus.Errorf("[cancelJobs] error cancelling job with ID %s: %s", job.Id, err)
+			result = multierror.Append(result, err)
 		} else {
 			cancelled = append(cancelled, job)
 			cancelledIds = append(cancelledIds, job.Id)
 		}
 	}
 
-	err = reportJobsCancelled(srv.SubmitServer.eventStore, userId, cancelled)
-	if err != nil {
-		return nil, err
-	}
+	// Report the jobs that cancelled successfully.
+	//Any error in doing so is a sibling to the errors with cancelling individual jobs.
+	result = multierror.Append(result, reportJobsCancelled(srv.SubmitServer.eventStore, userId, cancelled))
 
-	return cancelledIds, nil
+	return cancelledIds, result.ErrorOrNil()
 }
 
 // ReprioritizeJobs updates the priority of one of more jobs.

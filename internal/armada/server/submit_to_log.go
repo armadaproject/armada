@@ -3,12 +3,10 @@ package server
 import (
 	"context"
 	"crypto/sha256"
-	"github.com/G-Research/armada/internal/events"
-	"github.com/gogo/protobuf/types"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/proto"
+	"github.com/gogo/protobuf/types"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc/codes"
@@ -20,6 +18,8 @@ import (
 	"github.com/G-Research/armada/internal/common/armadaerrors"
 	"github.com/G-Research/armada/internal/common/auth/authorization"
 	"github.com/G-Research/armada/internal/common/auth/permission"
+	"github.com/G-Research/armada/internal/common/requestid"
+	"github.com/G-Research/armada/internal/events"
 	executorconfig "github.com/G-Research/armada/internal/executor/configuration"
 	executorutil "github.com/G-Research/armada/internal/executor/util"
 	"github.com/G-Research/armada/pkg/api"
@@ -34,17 +34,15 @@ type PulsarSubmitServer struct {
 	Producer        pulsar.Producer
 	Permissions     authorization.PermissionChecker
 	QueueRepository repository.QueueRepository
-	// Fall back to the legacy submit server for some endpoints
+	// Fall back to the legacy submit server for queue administration endpoints.
 	SubmitServer *SubmitServer
 	// Used to create k8s objects from the submitted ingresses and services.
-	// TODO: This needs to be populated. The executor loads config from disk to do so.
 	IngressConfig *executorconfig.IngressConfiguration
 }
 
 // TODO: Add input validation to make sure messages can be inserted to the database.
 // TODO: Check job size and reject jobs that could never be scheduled. Maybe by querying the scheduler for its limits.
 func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRequest) (*api.JobSubmitResponse, error) {
-	log.Info("Got SubmitJobs call")
 
 	userId, groups, err := srv.Authorize(ctx, req.Queue, permissions.SubmitAnyJobs, queue.PermissionVerbSubmit)
 	if err != nil {
@@ -89,24 +87,86 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 		// Move those objects into a list that can be submitted to the log.
 		objects := make([]*events.KubernetesObject, 0, len(services)+len(ingresses))
 		for _, service := range services {
+			// Default to using the ObjectMeta details provided in the job.
+			objectMeta := &events.ObjectMeta{
+				Namespace:   r.Namespace,
+				Annotations: r.Annotations,
+				Labels:      r.Labels,
+			}
+
+			// Override the defaults with any info provided from executorutil.GenerateIngresses.
+			if service.ObjectMeta.Namespace != "" {
+				objectMeta.Namespace = service.ObjectMeta.Namespace
+			}
+			if service.ObjectMeta.Annotations != nil {
+				objectMeta.Annotations = service.ObjectMeta.Annotations
+			}
+			if service.ObjectMeta.Labels != nil {
+				objectMeta.Labels = service.ObjectMeta.Labels
+			}
+
 			objects = append(objects, &events.KubernetesObject{
-				Object: &events.KubernetesObject_Service{Service: service},
+				ObjectMeta: objectMeta,
+				Object: &events.KubernetesObject_Service{
+					Service: &service.Spec,
+				},
 			})
 		}
 		for _, ingress := range ingresses {
+			// Default to using the ObjectMeta details provided in the job.
+			objectMeta := &events.ObjectMeta{
+				Namespace:   r.Namespace,
+				Annotations: r.Annotations,
+				Labels:      r.Labels,
+			}
+
+			// Override the defaults with any info provided from executorutil.GenerateIngresses.
+			if ingress.ObjectMeta.Namespace != "" {
+				objectMeta.Namespace = ingress.ObjectMeta.Namespace
+			}
+			if ingress.ObjectMeta.Annotations != nil {
+				objectMeta.Annotations = ingress.ObjectMeta.Annotations
+			}
+			if ingress.ObjectMeta.Labels != nil {
+				objectMeta.Labels = ingress.ObjectMeta.Labels
+			}
+
 			objects = append(objects, &events.KubernetesObject{
-				Object: &events.KubernetesObject_Ingress{Ingress: ingress},
+				ObjectMeta: objectMeta,
+				Object: &events.KubernetesObject_Ingress{
+					Ingress: &ingress.Spec,
+				},
 			})
 		}
 
-		// Main object associated with the job.
-		// TODO: Consider using podspecs instead here and create a separate API that uses podspec instead.
+		// Each job has a main object associated with it, which determines when the job exits.
+		// If provided, use r.PodSpec as the main object. Otherwise, try to use r.PodSpecs[0].
+		mainPodSpec := r.PodSpec
+		additionalPodSpecs := r.PodSpecs
+		if additionalPodSpecs == nil {
+			additionalPodSpecs = make([]*v1.PodSpec, 0)
+		}
+		if mainPodSpec == nil && len(additionalPodSpecs) > 0 {
+			mainPodSpec = additionalPodSpecs[0]
+			additionalPodSpecs = additionalPodSpecs[1:]
+		}
 		mainObject := &events.KubernetesMainObject{
 			Object: &events.KubernetesMainObject_PodSpec{
 				PodSpec: &events.PodSpecWithAvoidList{
-					PodSpec: r.PodSpec,
+					PodSpec: mainPodSpec,
 				},
 			},
+		}
+
+		// Add any additional pod specs into the list of additional objects.
+		for _, podSpec := range additionalPodSpecs {
+			objects = append(objects, &events.KubernetesObject{
+				Object: &events.KubernetesObject_PodSpec{
+					PodSpec: &events.PodSpecWithAvoidList{
+						PodSpec: podSpec,
+					},
+				},
+			})
 		}
 
 		// Fully formed job creation event to be added to the sequence.
@@ -114,11 +174,13 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 			JobId:           jobId,
 			DeduplicationId: r.ClientId,
 			Priority:        r.Priority,
-			Namespace:       r.Namespace,
-			Labels:          r.Labels,
-			Annotations:     r.Annotations,
-			MainObject:      mainObject,
-			Objects:         objects,
+			ObjectMeta: &events.ObjectMeta{
+				Namespace:   r.Namespace,
+				Annotations: r.Labels,
+				Labels:      r.Annotations,
+			},
+			MainObject: mainObject,
+			Objects:    objects,
 		}
 		sequence.Events[i] = &events.EventSequence_Event{
 			Event: &events.EventSequence_Event_SubmitJob{
@@ -127,13 +189,20 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 		}
 	}
 
-	// Marshal sequence and submit to the log
 	payload, err := proto.Marshal(sequence)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to marshal event sequence")
 	}
+
+	// Incoming gRPC requests are annotated with a unique id.
+	// Pass this id through the log by adding it to the Pulsar message properties.
+	requestId, ok := requestid.FromContext(ctx)
+	if !ok {
+		requestId = "missing"
+	}
 	_, err = srv.Producer.Send(ctx, &pulsar.ProducerMessage{
-		Payload: payload,
+		Payload:    payload,
+		Properties: map[string]string{requestid.MetadataKey: requestId},
 	})
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to send message")
@@ -162,14 +231,24 @@ func (srv *PulsarSubmitServer) CancelJobs(ctx context.Context, req *api.JobCance
 		},
 	}
 
-	// Marshal sequence and submit to the log
 	payload, err := proto.Marshal(sequence)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to marshal event sequence")
 	}
-	srv.Producer.Send(ctx, &pulsar.ProducerMessage{
-		Payload: payload,
+
+	// Incoming gRPC requests are annotated with a unique id.
+	// Pass this id through the log by adding it to the Pulsar message properties.
+	requestId, ok := requestid.FromContext(ctx)
+	if !ok {
+		requestId = "missing"
+	}
+	_, err = srv.Producer.Send(ctx, &pulsar.ProducerMessage{
+		Payload:    payload,
+		Properties: map[string]string{requestid.MetadataKey: requestId},
 	})
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to send message")
+	}
 
 	return &api.CancellationResult{
 		CancelledIds: []string{req.JobId},
@@ -204,14 +283,24 @@ func (srv *PulsarSubmitServer) ReprioritizeJobs(ctx context.Context, req *api.Jo
 		results[jobId] = "" // TODO: what do we put here?
 	}
 
-	// Marshal sequence and submit to the log
 	payload, err := proto.Marshal(sequence)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to marshal event sequence")
 	}
-	srv.Producer.Send(ctx, &pulsar.ProducerMessage{
-		Payload: payload,
+
+	// Incoming gRPC requests are annotated with a unique id.
+	// Pass this id through the log by adding it to the Pulsar message properties.
+	requestId, ok := requestid.FromContext(ctx)
+	if !ok {
+		requestId = "missing"
+	}
+	_, err = srv.Producer.Send(ctx, &pulsar.ProducerMessage{
+		Payload:    payload,
+		Properties: map[string]string{requestid.MetadataKey: requestId},
 	})
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to send message")
+	}
 
 	return &api.JobReprioritizeResponse{
 		ReprioritizationResults: results,

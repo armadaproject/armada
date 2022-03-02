@@ -124,13 +124,12 @@ message SubmitJob {
     // In addition, non-fragile jobs may be preempted.
     bool fragile = 4;
     // Information about how the job should be run in Kubernetes.
-    string namespace = 5;
-    map<string, string> annotations = 6;
-    map<string, string> labels = 7;
+    // Is applied to the main object and any additional objects that do not contain a separate ObjectMeta object.
+    ObjectMeta objectMeta = 5;
     // Main object that determines when an application has finished.
-    KubernetesMainObject mainObject = 8;
+    KubernetesMainObject mainObject = 6;
     // Set of additional Kubernetes objects to create as part of the job.
-    repeated KubernetesObject objects = 9;
+    repeated KubernetesObject objects = 7;
 }
 
 // Kubernetes objects that can serve as main objects for an Armada job.
@@ -142,12 +141,21 @@ message KubernetesMainObject {
 
 // Kubernetes objects that can be created as part of an Armada.
 message KubernetesObject {
+    ObjectMeta objectMeta = 1;
     oneof object {
-        PodSpecWithAvoidList pod_spec = 1;
-        k8s.io.api.networking.v1beta1.Ingress ingress = 2;
-        k8s.io.api.core.v1.Service service = 3;
-        k8s.io.api.core.v1.ConfigMap configMap = 4;
+        PodSpecWithAvoidList pod_spec = 2;
+        k8s.io.api.networking.v1beta1.IngressSpec ingress = 3;
+        k8s.io.api.core.v1.ServiceSpec service = 4;
+        k8s.io.api.core.v1.ConfigMap configMap = 5;
     }
+}
+
+// Auxiliary information needed to instantiate the object in Kubernetes.
+// Mirrors the Kubernetes ObjectMeta object.
+message ObjectMeta {
+    string namespace = 1;
+    map<string, string> annotations = 2;
+    map<string, string> labels = 3;
 }
 
 // Kubernetes pod spec. with a bundled list of pods to avoid scheduling the pod to.
