@@ -222,7 +222,7 @@ You can use the cobra cli to add new commands, the below will describe how to ad
 Get cobra cli tool:
 
 ```
-go get -u github.com/spf13/cobra/cobra
+go get -u github.com/spf13/cobra-cli
 ```
 
 Change to the directory of the command-line tool you are working on:
@@ -234,7 +234,7 @@ cd ./cmd/armadactl
 Use cobra to add new command:
 
 ```
-cobra add commandName
+cobra-cli add commandName
 ```
 
 You should see a new file appear under `./cmd/armadactl/cmd` with the name you specified in the command.
