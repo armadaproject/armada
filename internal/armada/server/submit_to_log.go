@@ -394,3 +394,236 @@ func (srv *PulsarSubmitServer) GetQueue(ctx context.Context, req *api.QueueGetRe
 func (srv *PulsarSubmitServer) GetQueueInfo(ctx context.Context, req *api.QueueInfoRequest) (*api.QueueInfo, error) {
 	return srv.GetQueueInfo(ctx, req)
 }
+
+// SubmitApiEvent converts an api.EventMessage into Pulsar state transition messages and publishes those to Pulsar.
+func (srv *PulsarSubmitServer) SubmitApiEvent(ctx context.Context, apiEvent *api.EventMessage) error {
+	sequence, err := PulsarSequenceFromApiEvent(apiEvent)
+	if err != nil {
+		return err
+	}
+
+	payload, err := proto.Marshal(sequence)
+	if err != nil {
+		err = errors.WithStack(err)
+		return err
+	}
+
+	// Incoming gRPC requests are annotated with a unique id.
+	// Pass this id through the log by adding it to the Pulsar message properties.
+	requestId, ok := requestid.FromContext(ctx)
+	if !ok {
+		requestId = "missing"
+	}
+	_, err = srv.Producer.Send(ctx, &pulsar.ProducerMessage{
+		Payload:    payload,
+		Properties: map[string]string{requestid.MetadataKey: requestId},
+	})
+	if err != nil {
+		err = errors.WithStack(err)
+		return err
+	}
+
+	return nil
+}
+
+// PulsarSequenceFromApiEvent converts an api.EventMessage into the corresponding Pulsar event
+// and returns an EventSequence containing this single event.
+//
+// The following is a list of API messages. Those marked with x are handled by this function.
+//	*EventMessage_Submitted
+//	*EventMessage_Queued
+//	*EventMessage_DuplicateFound
+// x	*EventMessage_Leased
+// x	*EventMessage_LeaseReturned
+// x	*EventMessage_LeaseExpired
+// x	*EventMessage_Pending
+// x	*EventMessage_Running
+// x	*EventMessage_UnableToSchedule
+// x	*EventMessage_Failed
+// x	*EventMessage_Succeeded
+//	*EventMessage_Reprioritized
+//	*EventMessage_Cancelling
+//	*EventMessage_Cancelled
+// x	*EventMessage_Terminated
+//	*EventMessage_Utilisation
+//	*EventMessage_IngressInfo
+//	*EventMessage_Reprioritizing
+//	*EventMessage_Updated
+//
+// The following is a list of Pulsar events. Those marked with x may be returned by this function.
+//	*EventSequence_Event_JobSucceeded
+// x	*EventSequence_Event_JobFailed
+//	*EventSequence_Event_JobRejected
+// x	*EventSequence_Event_JobRunLeased
+// x	*EventSequence_Event_JobRunAssigned
+// x	*EventSequence_Event_JobRunRunning
+// x	*EventSequence_Event_JobRunReturned
+// x	*EventSequence_Event_JobRunSucceeded
+// x	*EventSequence_Event_JobRunFailed
+func PulsarSequenceFromApiEvent(msg *api.EventMessage) (sequence *events.EventSequence, err error) {
+	sequence = &events.EventSequence{}
+	var event *events.EventSequence_Event
+
+	switch m := msg.Events.(type) {
+	case *api.EventMessage_Leased:
+		sequence.Queue = m.Leased.Queue
+		sequence.JobSetName = m.Leased.JobSetId
+		event = &events.EventSequence_Event{
+			Event: &events.EventSequence_Event_JobRunLeased{
+				JobRunLeased: &events.JobRunLeased{
+					RunId:      "legacy", // TODO: what do we do about this?
+					JobId:      m.Leased.JobId,
+					ExecutorId: m.Leased.ClusterId,
+				},
+			},
+		}
+	case *api.EventMessage_LeaseReturned:
+		sequence.Queue = m.LeaseReturned.Queue
+		sequence.JobSetName = m.LeaseReturned.JobSetId
+		event = &events.EventSequence_Event{
+			Event: &events.EventSequence_Event_JobRunFailed{
+				JobRunFailed: &events.JobRunFailed{
+					RunId: "",
+					JobId: m.LeaseReturned.JobId,
+					// TODO: Create specific reason types instead of using UnknownReason.
+					Reason: &events.JobRunFailed_UnknownReason_{
+						UnknownReason: &events.JobRunFailed_UnknownReason{
+							Reason: m.LeaseReturned.Reason,
+						},
+					},
+				},
+			},
+		}
+	case *api.EventMessage_LeaseExpired:
+		sequence.Queue = m.LeaseExpired.Queue
+		sequence.JobSetName = m.LeaseExpired.JobSetId
+		event = &events.EventSequence_Event{
+			Event: &events.EventSequence_Event_JobRunReturned{
+				JobRunReturned: &events.JobRunReturned{
+					RunId:  "legacy", // TODO: what do we do about this?
+					JobId:  m.LeaseExpired.JobId,
+					Reason: &events.JobRunReturned_LeaseExpired_{},
+				},
+			},
+		}
+	case *api.EventMessage_Pending:
+		sequence.Queue = m.Pending.Queue
+		sequence.JobSetName = m.Pending.JobSetId
+		event = &events.EventSequence_Event{
+			Event: &events.EventSequence_Event_JobRunAssigned{
+				JobRunAssigned: &events.JobRunAssigned{
+					RunId: "legacy", // TODO: what do we do about this?
+					JobId: m.Pending.JobId,
+					RunInfo: &events.JobRunAssigned_PodRunInfo{
+						// TODO: Consider changing these
+						PodRunInfo: &events.PodRunInfo{
+							ClusterId:    m.Pending.ClusterId, // TODO: Should be executor id
+							KubernetesId: m.Pending.KubernetesId,
+							NodeName:     "", // TODO: Remove
+							PodNumber:    m.Pending.PodNumber,
+							PodName:      m.Pending.PodName,
+							PodNamespace: m.Pending.PodNamespace,
+						},
+					},
+				},
+			},
+		}
+	case *api.EventMessage_Running:
+		sequence.Queue = m.Running.Queue
+		sequence.JobSetName = m.Running.JobSetId
+		event = &events.EventSequence_Event{
+			Event: &events.EventSequence_Event_JobRunRunning{
+				JobRunRunning: &events.JobRunRunning{
+					RunId: "legacy", // TODO: what do we do about this?
+					JobId: m.Running.JobId,
+					RunInfo: &events.JobRunRunning_PodRunInfo{
+						// TODO: Consider changing these
+						PodRunInfo: &events.PodRunInfo{
+							ClusterId:    m.Running.ClusterId, // TODO: Should be executor id
+							KubernetesId: m.Running.KubernetesId,
+							NodeName:     m.Running.NodeName,
+							PodNumber:    m.Running.PodNumber,
+							PodName:      m.Running.PodName,
+							PodNamespace: m.Running.PodNamespace,
+						},
+					},
+				},
+			},
+		}
+	case *api.EventMessage_UnableToSchedule:
+		sequence.Queue = m.UnableToSchedule.Queue
+		sequence.JobSetName = m.UnableToSchedule.JobSetId
+		event = &events.EventSequence_Event{
+			Event: &events.EventSequence_Event_JobRunFailed{
+				JobRunFailed: &events.JobRunFailed{
+					RunId: "legacy", // TODO: what do we do about this?
+					JobId: m.UnableToSchedule.JobId,
+					Reason: &events.JobRunFailed_JobUnschedulable_{
+						JobUnschedulable: &events.JobRunFailed_JobUnschedulable{
+							ClusterId:    m.UnableToSchedule.ClusterId,
+							Reason:       m.UnableToSchedule.Reason,
+							KubernetesId: m.UnableToSchedule.KubernetesId,
+							NodeName:     m.UnableToSchedule.NodeName,
+							PodNumber:    m.UnableToSchedule.PodNumber,
+							PodName:      m.UnableToSchedule.PodName,
+							PodNamespace: m.UnableToSchedule.PodNamespace,
+						},
+					},
+				},
+			},
+		}
+	case *api.EventMessage_Failed:
+		sequence.Queue = m.Failed.Queue
+		sequence.JobSetName = m.Failed.JobSetId
+		event = &events.EventSequence_Event{
+			Event: &events.EventSequence_Event_JobRunFailed{
+				JobRunFailed: &events.JobRunFailed{
+					RunId: "legacy", // TODO: what do we do about this?
+					JobId: m.Failed.JobId,
+					Reason: &events.JobRunFailed_ApplicationFailed_{
+						// TODO: Fill in details
+						ApplicationFailed: &events.JobRunFailed_ApplicationFailed{
+							Code:  0,
+							Error: "",
+						},
+					},
+				},
+			},
+		}
+	case *api.EventMessage_Succeeded:
+		sequence.Queue = m.Succeeded.Queue
+		sequence.JobSetName = m.Succeeded.JobSetId
+		event = &events.EventSequence_Event{
+			Event: &events.EventSequence_Event_JobRunSucceeded{
+				JobRunSucceeded: &events.JobRunSucceeded{
+					RunId: "legacy", // TODO: what do we do about this?
+					JobId: m.Succeeded.JobId,
+				},
+			},
+		}
+	case *api.EventMessage_Terminated:
+		sequence.Queue = m.Terminated.Queue
+		sequence.JobSetName = m.Terminated.JobSetId
+		event = &events.EventSequence_Event{
+			Event: &events.EventSequence_Event_JobFailed{
+				JobFailed: &events.JobFailed{
+					JobId: m.Terminated.JobId,
+					Reason: &events.JobFailed_MaxRunsExceeded_{
+						MaxRunsExceeded: &events.JobFailed_MaxRunsExceeded{},
+					},
+				},
+			},
+		}
+	default:
+		err = &armadaerrors.ErrInvalidArgument{
+			Name:    "msg",
+			Value:   msg,
+			Message: "received unsupported api message",
+		}
+		err = errors.WithStack(err)
+		return nil, err
+	}
+
+	sequence.Events = []*events.EventSequence_Event{event}
+	return sequence, nil
+}

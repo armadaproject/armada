@@ -104,11 +104,12 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 
 	// TODO: move this to task manager
 	eventstreamTeardown := func() {}
+	var eventProcessor *processor.RedisEventProcessor
 	if eventStream != nil {
 		eventStore = processor.NewEventStore(eventStream)
 
 		eventRepoBatcher := eventstream.NewTimedEventBatcher(config.Events.ProcessorBatchSize, config.Events.ProcessorMaxTimeBetweenBatches, config.Events.ProcessorTimeout)
-		eventProcessor := processor.NewEventRedisProcessor(config.Events.StoreQueue, redisEventRepository, eventStream, eventRepoBatcher)
+		eventProcessor = processor.NewEventRedisProcessor(config.Events.StoreQueue, redisEventRepository, eventStream, eventRepoBatcher)
 		eventProcessor.Start()
 
 		jobStatusBatcher := eventstream.NewTimedEventBatcher(config.Events.ProcessorBatchSize, config.Events.ProcessorMaxTimeBetweenBatches, config.Events.ProcessorTimeout)
@@ -171,7 +172,7 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 		if err != nil {
 			panic(err)
 		}
-		submitServerToRegister = &server.PulsarSubmitServer{
+		pulsarSubmitServer := &server.PulsarSubmitServer{
 			Producer:        producer,
 			QueueRepository: queueRepository,
 			Permissions:     permissions,
@@ -182,6 +183,7 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 				Annotations:    config.Pulsar.Annotations,
 			},
 		}
+		submitServerToRegister = pulsarSubmitServer
 
 		// Service that consumes Pulsar messages and writes to Redis and Nats.
 		consumer, err := pulsarClient.Subscribe(pulsar.ConsumerOptions{
@@ -192,11 +194,25 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 		if err != nil {
 			panic(err)
 		}
+
+		// Seek to the current time to avoid processing stale messages during development.
+		// TODO: Determine the right message ID to start at from some external state.
+		err = consumer.SeekByTime(time.Now())
+		if err != nil {
+			panic(err)
+		}
+
 		submitFromLog := server.SubmitFromLog{
 			Consumer:     consumer,
 			SubmitServer: submitServer,
 		}
 		go submitFromLog.Run(context.Background())
+
+		// If there's an eventProcessor, insert the PulsarSubmitServer so that it can publish
+		// state transitions to Pulsar in addition to Redis.
+		if eventProcessor != nil {
+			eventProcessor.PulsarSubmitServer = pulsarSubmitServer
+		}
 	} else {
 		log.Info("No Pulsar config provided; submitting directly to Redis and Nats.")
 	}

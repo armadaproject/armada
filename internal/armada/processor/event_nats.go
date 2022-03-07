@@ -1,11 +1,13 @@
 package processor
 
 import (
+	"context"
 	"fmt"
 
 	log "github.com/sirupsen/logrus"
 
 	"github.com/G-Research/armada/internal/armada/repository"
+	"github.com/G-Research/armada/internal/armada/server"
 	"github.com/G-Research/armada/internal/common/eventstream"
 	"github.com/G-Research/armada/pkg/api"
 )
@@ -30,10 +32,11 @@ func (n *StreamEventStore) ReportEvents(messages []*api.EventMessage) error {
 }
 
 type RedisEventProcessor struct {
-	queue      string
-	repository repository.EventStore
-	stream     eventstream.EventStream
-	batcher    eventstream.EventBatcher
+	queue              string
+	repository         repository.EventStore
+	stream             eventstream.EventStream
+	batcher            eventstream.EventBatcher
+	PulsarSubmitServer *server.PulsarSubmitServer
 }
 
 func NewEventRedisProcessor(
@@ -71,6 +74,12 @@ func (p *RedisEventProcessor) handleMessage(message *eventstream.Message) error 
 }
 
 func (p *RedisEventProcessor) handleBatch(batch []*eventstream.Message) error {
+	for _, message := range batch {
+		log.Infof("RedisEventProcessor got batched message: %v\n", message)
+		if p.PulsarSubmitServer != nil {
+			p.PulsarSubmitServer.SubmitApiEvent(context.Background(), message.EventMessage)
+		}
+	}
 	events := make([]*api.EventMessage, len(batch), len(batch))
 	for i, msg := range batch {
 		events[i] = msg.EventMessage

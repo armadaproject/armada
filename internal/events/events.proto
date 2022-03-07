@@ -205,13 +205,9 @@ message JobFailed {
 // Generated if the a job is rejected, e.g., because it requested more resources than are available.
 // A failed job is a job Armada tried to run, but which failed. Jobs are rejected if they can never be run.
 message JobRejected {
-    // TODO: Add details
-    message JobUnschedulable {
-    }
     string job_id = 1;
-    oneof reason {
-        JobUnschedulable jobUnschedulable = 2;
-    }
+    // oneof reason {
+    // }
 }
 
 // Indicates that a job has been leased to a cluster by the Armada scheduler.
@@ -272,22 +268,37 @@ message JobRunSucceeded {
     string job_id = 2;
 }
 
-// Indicates that a job is no longer running.
+// Indicates an unexpected failure. The job is no longer running at this point.
 message JobRunFailed {
     message ApplicationFailed {
-        string run_id = 1;
-        string job_id = 2;
         // Application exit code.
-        int32 code = 3;
+        int32 code = 1;
         // Error message returned by the application.
-        string error = 4;
+        string error = 2;
     }
     message OOMKilled {
+    }
+    // TODO: Consider updating
+    message JobUnschedulable {
+    	string clusterId = 1;
+    	string reason = 2;
+    	string kubernetesId = 3;
+    	string nodeName = 4;
+    	int32 podNumber = 5;
+    	string podName = 6;
+    	string podNamespace = 7;
+    }
+    // Use for reasons for which there isn't a specific message type
+    // until such a message type can be added.
+    message UnknownReason {
+        string reason = 1;
     }
     string run_id = 1;
     string job_id = 2;
     oneof reason {
         ApplicationFailed applicationFailed = 3;
         OOMKilled oomKilled = 4;
+        JobUnschedulable jobUnschedulable = 5;
+        UnknownReason unknownReason = 6;
     }
 }
