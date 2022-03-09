@@ -18,37 +18,43 @@ import "k8s.io/api/networking/v1beta1/generated.proto";
 // Armada state transition model
 //
 // The central concepts are:
-// - Jobs (i.e., a request for Armada to run a particular application)
-//   Each job includes an application (i.e., a pod spec) and is part of exactly one job set.
+// - Jobs (i.e., a request for Armada to run a particular application).
+//   Each job consists of a set of Kubernetes resources (e.g., one or more pod specs, a service, and an ingress).
+//   One resource is labeled the main resource, and the job is considered to have finished when that resource exits.
+//   Each job is part of exactly one job set.
 // - Job sets (i.e., a set of jobs that can be controlled and monitored as a unit).
 //   Each job set has a unique user-supplied name, which is namespaced by queue.
-//   Job sets are not created explicitly; a job set is composed of all jobs submitted with the same job set name.
-// - Job runs (i.e., an attempt by Armada to run a particular job)
+//   Job sets are implicit in the sense that they consist of all jobs submitted with the same job set name.
+// - Job runs (i.e., an attempt by Armada to run a particular job).
+//   There may be several job runs associated with each job, representing multiple attempts to run the job.
 //
 // This is the sequence of operations associated with running a set of jobs in Armada:
-// 1. Submit a job, which is composed of an application and associated config. The request must include a job set name.
+// 1. Submit a job, which is composed of a set of Kubernetes resources. The request must include a job set name.
 //    Armada returns a job id. Repeat this step to run multiple jobs in the same set.
 // 2. Each job is added to Armada's queue. For each job, once it reaches the front of the queue
-//    it is leased to an executor (of which there may be many), which is responsible for running the job.
+//    it is leased to an executor (of which there may be many), which is responsible for running the job
+//    in a Kubernetes cluster. Executors map one-to-one to Kubernetes clusters.
 // 3. The executor attempts to run the job. Each such attempt is referred to as a job run.
 //    There may be several job runs associated with a job (e.g., if a run failed).
 // 4. Armada will report the exit status of each job as they finish.
 //
 // The state transition model of each job is:
-// [pending <=> leased => succeeded / failed, rejected]
+// [pending <=> leased => succeeded, failed]
 //
 // The state transition rules for each job are:
 // - After being submitted, the job is pending until it has been leased to an executor by the scheduler.
+// - The job transitions to the failed state if it cannot be leased to an executor
+//   (e.g., if the job requests more resources than what is available in any cluster).
 // - The job is in the leased state while it is leased to at least one executor.
 // - The job transitions from leased to succeeded if all runs have finished and at least one succeeded
 //   (i.e., the application exited with a zero exit code).
-// - The job transitions from leased to failed if all runs failed (i.e., the application exited with a non-zero exit code).
-// - The job transitions from leased to pending if the executor the job was leased to does not start the job within some
-//   deadline (referred to as a lease expiry), or if the job is preempted, and the job is not leased to any other executor.
-// - The job may be rejected at any stage (e.g., if it cannot be scheduled).
+// - The job transitions from leased to pending if all runs failed and the error is considered recoverable
+//   (e.g., if the pod was preempted).
+// - The job transitions from leased to failed if all runs failed and the error is considered non-recoverable
+ //  (e.g., if the the application exited with a non-zero exit code).
 //
 // The state transition model of each job run is:
-// [pending => assigned => running => succeeded, failed, rejected, returned]
+// [pending => assigned => running => succeeded, failed]
 //
 // The state transition rules for each job run are:
 // - Each job run starts when the job is assigned to an executor (by the scheduler),
@@ -58,9 +64,10 @@ import "k8s.io/api/networking/v1beta1/generated.proto";
 // - The run transitions to the running state once the application is running on the node it was assigned to.
 // - From the running state, the run transitions to either the succeeded or failed state
 //   (depending on the application exit code).
-// - The run may transition to the rejected state from the pending state.
-// - The run may transition to the returned state from either the pending (due to a lease expiry) or running
-//   (due to being preempted) states.
+// - The run may transition to the failed state from any of the other states
+//   (e.g., due to a lease expiry or due to being preempted).
+
+// TODO: Use more efficient UUID implementation.
 
 // Message representing a sequence of state transitions.
 // This is the only message type that should ever be published to the log.
@@ -74,14 +81,12 @@ message EventSequence {
             CancelJob cancelJob = 4;
             CancelJobSet cancelJobSet = 5;
             JobSucceeded jobSucceeded = 6;
-            JobFailed jobFailed = 7;
-            JobRejected jobRejected = 8;
-            JobRunLeased jobRunLeased = 9;
-            JobRunAssigned jobRunAssigned= 10;
-            JobRunRunning jobRunRunning= 11;
-            JobRunReturned jobRunReturned = 12;
-            JobRunSucceeded jobRunSucceeded = 13;
-            JobRunFailed jobRunFailed = 14;
+            JobErrors jobErrors = 7;
+            JobRunLeased jobRunLeased = 8;
+            JobRunAssigned jobRunAssigned= 9;
+            JobRunRunning jobRunRunning= 10;
+            JobRunSucceeded jobRunSucceeded = 11;
+            JobRunErrors jobRunErrors = 12;
         }
     }
     // The system is namespaced by queue, and all events are associated with a job set.
@@ -98,6 +103,7 @@ message EventSequence {
     // job_set_name is often a file path, which may have long common prefixes.
     bytes job_set_hash = 3;
     // Id of the user submitting the message. Is passed on to Kubernetes.
+    // Leave empty for messages generated by Armada itself.
     string user_id = 4;
     // List of groups the user is member of. Is passed on to Kubernetes.
     repeated string groups = 5;
@@ -151,11 +157,18 @@ message KubernetesObject {
 }
 
 // Auxiliary information needed to instantiate the object in Kubernetes.
-// Mirrors the Kubernetes ObjectMeta object.
+// Inspired by the Kubernetes ObjectMeta object; see:
+// https://github.com/kubernetes/apimachinery/blob/master/pkg/apis/meta/v1/generated.proto#L641
+//
+// TODO: Consider including the executor id.
 message ObjectMeta {
     string namespace = 1;
-    map<string, string> annotations = 2;
-    map<string, string> labels = 3;
+    string name = 2;
+    // UUID assigned to the object my Kubernetes.
+    // Should be left empty on job creation, but should be set when in the JobRunRunning message.
+    string kubernetesId = 3;
+    map<string, string> annotations = 4;
+    map<string, string> labels = 5;
 }
 
 // Kubernetes pod spec. with a bundled list of pods to avoid scheduling the pod to.
@@ -193,23 +206,6 @@ message JobSucceeded {
     string job_id = 1;
 }
 
-message JobFailed {
-    message MaxRunsExceeded {
-    }
-    string job_id = 1;
-    oneof reason {
-        MaxRunsExceeded maxRunsExceeded = 2;
-    }
-}
-
-// Generated if the a job is rejected, e.g., because it requested more resources than are available.
-// A failed job is a job Armada tried to run, but which failed. Jobs are rejected if they can never be run.
-message JobRejected {
-    string job_id = 1;
-    // oneof reason {
-    // }
-}
-
 // Indicates that a job has been leased to a cluster by the Armada scheduler.
 message JobRunLeased {
     string run_id = 1;
@@ -218,87 +214,141 @@ message JobRunLeased {
     string executor_id = 3;
 }
 
-// Indicates that a job has been leased to a cluster by the Armada scheduler.
+// Indicates that a job has been assigned to nodes by Kubernetes.
 message JobRunAssigned {
     string run_id = 1;
     string job_id = 2;
-    // Runtime information, e.g., which pod the job is running on, its IP address etc.
-    oneof run_info {
-        PodRunInfo podRunInfo = 4;
-    }
 }
 
-// Indicates that a job is now running.
+// Indicates that the resources required by the job have been created and that the job is now running.
 message JobRunRunning {
     string run_id = 1;
     string job_id = 2;
-    // Runtime information, e.g., which pod the job is running on, its IP address etc.
-    oneof run_info {
-        PodRunInfo podRunInfo = 3;
+    // Runtime information, e.g., which node the job is running on, its IP address etc,
+    // for each resource created for the job run.
+    repeated KubernetesResourceInfo resourceInfos = 3;
+}
+
+// Message containing runtime information about some resource created for a job.
+message KubernetesResourceInfo {
+    ObjectMeta objectMeta = 1;
+    oneof info {
+        PodInfo podInfo = 2;
     }
 }
 
-// Container for runtime information of a job consisting of a podspec.
-message PodRunInfo {
-    string cluster_id = 1;
-    string kubernetes_id = 2;
-    string node_name = 3;
-    int32 pod_number = 4;
-    string pod_name = 5;
-    string pod_namespace = 6;
+// Container for runtime information of a podspec.
+message PodInfo {
+    string node_name = 1;
+    // TODO: Do we need this?
+    int32 pod_number = 2;
 }
 
-// Indicates an expected job run failure.
-message JobRunReturned {
-    message LeaseExpired {
-    }
-    message JobPreempted {
-    }
-    string run_id = 1;
-    string job_id = 2;
-    oneof reason {
-        LeaseExpired leaseExpired = 3;
-        JobPreempted jobPreempted = 4;
-    }
+message IngressInfo {
+    // TODO: Why a node name?
+    string node_name = 1;
+    // TODO: Why a map?
+    map<int32, string> ingress_addresses = 2;
 }
 
-// Indicates that a job is no longer running.
+// Indicates that the job finished successfully (i.e., in the expected manner).
 message JobRunSucceeded {
     string run_id = 1;
     string job_id = 2;
 }
 
-// Indicates an unexpected failure. The job is no longer running at this point.
-message JobRunFailed {
-    message ApplicationFailed {
-        // Application exit code.
-        int32 code = 1;
-        // Error message returned by the application.
-        string error = 2;
-    }
-    message OOMKilled {
-    }
-    // TODO: Consider updating
-    message JobUnschedulable {
-    	string clusterId = 1;
-    	string reason = 2;
-    	string kubernetesId = 3;
-    	string nodeName = 4;
-    	int32 podNumber = 5;
-    	string podName = 6;
-    	string podNamespace = 7;
-    }
-    // Use for reasons for which there isn't a specific message type
-    // until such a message type can be added.
-    message UnknownReason {
-        string reason = 1;
-    }
+// Message containing a set of errors associated with a particular job (or job run).
+// Contains a flag, which if set to true indicates that the job (or job run) has failed.
+// Otherwise, this message represents a set of errors from which the system has recovered.
+message JobErrors {
+    // Id of the job this error is associated with.
+    string job_id = 1;
+    // If true, this set of errors represent an unrecoverable failure,
+    // which means that Armada has given up on this job and will not create more runs for it.
+    bool terminal = 2;
+    // A set of errors that occurred within some context.
+    repeated Error errors = 4;
+}
+
+// Message containing a set of errors associated with a particular job (or job run).
+// Contains a flag, which if set to true indicates that the job (or job run) has failed.
+// Otherwise, this message represents a set of errors from which the system has recovered.
+//
+// Because each error may specify a parent error, the set of errors form a tree.
+//
+// Services may listen for these messages to obtain realtime information about errors associated with jobs.
+message JobRunErrors {
     string run_id = 1;
+    // If provided, this set of errors occurred within the context of a particular job run.
+    // If omitted, this set of errors occurred outside the context of a job run (e.g., during scheduling by Armada).
     string job_id = 2;
+    // If true, this set of errors represent an unrecoverable failure.
+    // If run_id is set and terminal is true, the executor has given up on this job run.
+    // If run_id is not set and terminal is true, Armada has given up on this job and will not create more runs for it.
+    bool terminal = 3;
+    // A set of errors that occurred within some context.
+    repeated Error errors = 4;
+}
+
+// Represents a failure that took place in the course of a job run (i.e., an attempt to run a job).
+// Each failure is either a resource failure or a system-level failure.
+// Resource failures correspond to a problem with a specific Kubernetes resource
+// (e.g., if a container terminates with a non-zero exit code).
+// System-level failure messages are created by the executor (e.g., a failure by the executor to write to Kubernetes).
+//
+// This message may only be published to the log as part of a JobRunError message.
+// TODO: Check if the container status contained any useful info for non-failed containers.
+message Error {
+	// The status code, which should be an enum value of [google.rpc.Code][google.rpc.Code].
+	int32 code = 1;
+	// A developer-facing error message
+	string message = 2;
+	// If this error is associated with a particular Kubernetes resource,
+	// this ObjectMeta identifies that resource. Otherwise, this field is nil.
+    ObjectMeta objectMeta = 3;
+    // Any subsequent errors caused by this error.
+    repeated Error child_errors = 4;
+    // Additional information for this particular combination of component and error. May be set to nil.
     oneof reason {
-        ApplicationFailed applicationFailed = 3;
-        OOMKilled oomKilled = 4;
-        JobUnschedulable jobUnschedulable = 5;
-        UnknownReason unknownReason = 6;
+        KubernetesError kubernetesError = 5;
+        ApplicationError applicationError = 6;
+        ExecutorError executorError = 7;
+        JobUnschedulable jobUnschedulable = 8;
+        LeaseExpired leaseExpired = 9;
+        JobPreempted jobPreempted = 10;
+        MaxRunsExceeded maxRunsExceeded = 11;
     }
+}
+
+// Represents an error associated with a particular Kubernetes resource.
+message KubernetesError {
+    // Type of Kubernetes resource (e.g., ingress).
+    string resourceType = 1;
+    // Id assigned to the resource by Kubernetes.
+    string resourceId = 2;
+}
+
+message ApplicationError {
+    // Id assigned by Kubernetes to the container running the application.
+    string container_id = 1;
+    // Exit code of the application running in the container.
+    int32 code = 2;
+    // Error message returned by the application in the container.
+    string message = 3;
+}
+
+message ExecutorError {
+}
+
+message JobUnschedulable {
+    string message = 1;
+}
+
+message LeaseExpired {
+}
+
+message JobPreempted {
+}
+
+message MaxRunsExceeded {
 }

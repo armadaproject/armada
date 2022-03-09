@@ -14,29 +14,6 @@ import "pkg/api/submit.proto";
 import "k8s.io/api/networking/v1beta1/generated.proto";
 // import "internal/events/events.proto";
 
-// TODO: The command I have compiles the file, but puts the output in the wrong place. Puts it in github.com in the project root.
-// Let's fix the proto build script to run from the command line
-// Currently, we're using a docker image that gets all the right versions of everything
-// This ensures that builds are reproducible, which is good
-// I need both protoc and the gogofaster stuff
-// So I need to install a specific version of protoc
-// Let's see if I can go get releases
-// go get downloaded the protobuf source, not the compiled binaries I wanted
-// If I can compile it, I can download a particular release
-// But then the compiler toolchain becomes important
-// My goal is to automatically get known good protoc and gogo versions
-// Currently, we pull in pre-compiled binaries from the internet
-// I've figured out how to get the protoc source
-// If I can compile it, then I would have a known good protoc version
-// Alternatively, I could bring in the toolchain via self-service
-// And put in checks for the hash of the binary
-// That's probably easier
-// Let's bring in the protoc toolchain via self-service
-// Once I have it, I can write a script that uses go get to download all the deps and compiles the proto
-// But then I can start with using the protoc version I already have
-// gogofaster pulls in source code and then compiles a binary
-// So if I put in a go install command for the right gogo version, then I know I have the right gogo version
-
 option (gogoproto.goproto_stringer_all) = false;
 option (gogoproto.stringer_all) = true;
 

@@ -429,6 +429,7 @@ func (srv *PulsarSubmitServer) SubmitApiEvent(ctx context.Context, apiEvent *api
 // PulsarSequenceFromApiEvent converts an api.EventMessage into the corresponding Pulsar event
 // and returns an EventSequence containing this single event.
 //
+// TODO: The following two lists are not updated.
 // The following is a list of API messages. Those marked with x are handled by this function.
 //	*EventMessage_Submitted
 //	*EventMessage_Queued
@@ -481,14 +482,22 @@ func PulsarSequenceFromApiEvent(msg *api.EventMessage) (sequence *events.EventSe
 		sequence.Queue = m.LeaseReturned.Queue
 		sequence.JobSetName = m.LeaseReturned.JobSetId
 		event = &events.EventSequence_Event{
-			Event: &events.EventSequence_Event_JobRunFailed{
-				JobRunFailed: &events.JobRunFailed{
-					RunId: "",
-					JobId: m.LeaseReturned.JobId,
-					// TODO: Create specific reason types instead of using UnknownReason.
-					Reason: &events.JobRunFailed_UnknownReason_{
-						UnknownReason: &events.JobRunFailed_UnknownReason{
-							Reason: m.LeaseReturned.Reason,
+			Event: &events.EventSequence_Event_JobRunErrors{
+				JobRunErrors: &events.JobRunErrors{
+					RunId:    "legacy",
+					JobId:    m.LeaseReturned.JobId,
+					Terminal: true, // EventMessage_LeaseReturned indicates a failed job run.
+					Errors: []*events.Error{
+						{
+							Code:    0,
+							Message: m.LeaseReturned.Reason,
+							ObjectMeta: &events.ObjectMeta{
+								Namespace:    "",
+								Name:         "",
+								KubernetesId: m.LeaseReturned.KubernetesId,
+								Annotations:  nil,
+								Labels:       nil,
+							},
 						},
 					},
 				},
@@ -498,11 +507,19 @@ func PulsarSequenceFromApiEvent(msg *api.EventMessage) (sequence *events.EventSe
 		sequence.Queue = m.LeaseExpired.Queue
 		sequence.JobSetName = m.LeaseExpired.JobSetId
 		event = &events.EventSequence_Event{
-			Event: &events.EventSequence_Event_JobRunReturned{
-				JobRunReturned: &events.JobRunReturned{
-					RunId:  "legacy", // TODO: what do we do about this?
-					JobId:  m.LeaseExpired.JobId,
-					Reason: &events.JobRunReturned_LeaseExpired_{},
+			Event: &events.EventSequence_Event_JobRunErrors{
+				JobRunErrors: &events.JobRunErrors{
+					RunId:    "legacy",
+					JobId:    m.LeaseExpired.JobId,
+					Terminal: true, // EventMessage_LeaseExpired indicates a failed job run.
+					Errors: []*events.Error{
+						{
+							Code: 0,
+							Reason: &events.Error_LeaseExpired{
+								LeaseExpired: &events.LeaseExpired{},
+							},
+						},
+					},
 				},
 			},
 		}
@@ -514,17 +531,6 @@ func PulsarSequenceFromApiEvent(msg *api.EventMessage) (sequence *events.EventSe
 				JobRunAssigned: &events.JobRunAssigned{
 					RunId: "legacy", // TODO: what do we do about this?
 					JobId: m.Pending.JobId,
-					RunInfo: &events.JobRunAssigned_PodRunInfo{
-						// TODO: Consider changing these
-						PodRunInfo: &events.PodRunInfo{
-							ClusterId:    m.Pending.ClusterId, // TODO: Should be executor id
-							KubernetesId: m.Pending.KubernetesId,
-							NodeName:     "", // TODO: Remove
-							PodNumber:    m.Pending.PodNumber,
-							PodName:      m.Pending.PodName,
-							PodNamespace: m.Pending.PodNamespace,
-						},
-					},
 				},
 			},
 		}
@@ -536,15 +542,22 @@ func PulsarSequenceFromApiEvent(msg *api.EventMessage) (sequence *events.EventSe
 				JobRunRunning: &events.JobRunRunning{
 					RunId: "legacy", // TODO: what do we do about this?
 					JobId: m.Running.JobId,
-					RunInfo: &events.JobRunRunning_PodRunInfo{
-						// TODO: Consider changing these
-						PodRunInfo: &events.PodRunInfo{
-							ClusterId:    m.Running.ClusterId, // TODO: Should be executor id
-							KubernetesId: m.Running.KubernetesId,
-							NodeName:     m.Running.NodeName,
-							PodNumber:    m.Running.PodNumber,
-							PodName:      m.Running.PodName,
-							PodNamespace: m.Running.PodNamespace,
+					ResourceInfos: []*events.KubernetesResourceInfo{
+						{
+							ObjectMeta: &events.ObjectMeta{
+								Namespace:    m.Running.NodeName,
+								Name:         m.Running.PodName,
+								KubernetesId: m.Running.KubernetesId,
+								// TODO: These should be included.
+								Annotations: nil,
+								Labels:      nil,
+							},
+							Info: &events.KubernetesResourceInfo_PodInfo{
+								PodInfo: &events.PodInfo{
+									NodeName:  m.Running.NodeName,
+									PodNumber: m.Running.PodNumber,
+								},
+							},
 						},
 					},
 				},
@@ -554,19 +567,16 @@ func PulsarSequenceFromApiEvent(msg *api.EventMessage) (sequence *events.EventSe
 		sequence.Queue = m.UnableToSchedule.Queue
 		sequence.JobSetName = m.UnableToSchedule.JobSetId
 		event = &events.EventSequence_Event{
-			Event: &events.EventSequence_Event_JobRunFailed{
-				JobRunFailed: &events.JobRunFailed{
-					RunId: "legacy", // TODO: what do we do about this?
-					JobId: m.UnableToSchedule.JobId,
-					Reason: &events.JobRunFailed_JobUnschedulable_{
-						JobUnschedulable: &events.JobRunFailed_JobUnschedulable{
-							ClusterId:    m.UnableToSchedule.ClusterId,
-							Reason:       m.UnableToSchedule.Reason,
-							KubernetesId: m.UnableToSchedule.KubernetesId,
-							NodeName:     m.UnableToSchedule.NodeName,
-							PodNumber:    m.UnableToSchedule.PodNumber,
-							PodName:      m.UnableToSchedule.PodName,
-							PodNamespace: m.UnableToSchedule.PodNamespace,
+			Event: &events.EventSequence_Event_JobErrors{
+				JobErrors: &events.JobErrors{
+					JobId:    m.UnableToSchedule.JobId,
+					Terminal: true, // EventMessage_UnableToSchedule indicates a failed job.
+					Errors: []*events.Error{
+						{
+							Code: 0,
+							Reason: &events.Error_JobUnschedulable{
+								JobUnschedulable: &events.JobUnschedulable{},
+							},
 						},
 					},
 				},
@@ -575,17 +585,41 @@ func PulsarSequenceFromApiEvent(msg *api.EventMessage) (sequence *events.EventSe
 	case *api.EventMessage_Failed:
 		sequence.Queue = m.Failed.Queue
 		sequence.JobSetName = m.Failed.JobSetId
+
+		// EventMessage_Failed may contain several errors (one for each container).
+		// Here, we create a tree from those errors which is embedded in a JobErrors message.
+		numErrors := len(m.Failed.ContainerStatuses) + 1
+		topError := &events.Error{
+			Code:        0,
+			Message:     m.Failed.Reason,
+			Reason:      nil,
+			ChildErrors: make([]*events.Error, 0, numErrors),
+		}
+		for _, st := range m.Failed.ContainerStatuses {
+			if st.ExitCode == 0 {
+				// This container exited successfully
+				continue
+			}
+			topError.ChildErrors = append(topError.ChildErrors, &events.Error{
+				Code:    0,
+				Message: st.Message + st.Reason,
+				Reason: &events.Error_ApplicationError{
+					ApplicationError: &events.ApplicationError{
+						Code:    st.ExitCode,
+						Message: st.Reason,
+					},
+				},
+			})
+		}
+
 		event = &events.EventSequence_Event{
-			Event: &events.EventSequence_Event_JobRunFailed{
-				JobRunFailed: &events.JobRunFailed{
-					RunId: "legacy", // TODO: what do we do about this?
-					JobId: m.Failed.JobId,
-					Reason: &events.JobRunFailed_ApplicationFailed_{
-						// TODO: Fill in details
-						ApplicationFailed: &events.JobRunFailed_ApplicationFailed{
-							Code:  0,
-							Error: "",
-						},
+			Event: &events.EventSequence_Event_JobRunErrors{
+				JobRunErrors: &events.JobRunErrors{
+					RunId:    "legacy", // This error occurs at the scheduler, i.e., outside a job run.
+					JobId:    m.Failed.JobId,
+					Terminal: true, // EventMessage_Failed indicates a failed job.
+					Errors: []*events.Error{
+						topError,
 					},
 				},
 			},
@@ -605,11 +639,16 @@ func PulsarSequenceFromApiEvent(msg *api.EventMessage) (sequence *events.EventSe
 		sequence.Queue = m.Terminated.Queue
 		sequence.JobSetName = m.Terminated.JobSetId
 		event = &events.EventSequence_Event{
-			Event: &events.EventSequence_Event_JobFailed{
-				JobFailed: &events.JobFailed{
-					JobId: m.Terminated.JobId,
-					Reason: &events.JobFailed_MaxRunsExceeded_{
-						MaxRunsExceeded: &events.JobFailed_MaxRunsExceeded{},
+			Event: &events.EventSequence_Event_JobErrors{
+				JobErrors: &events.JobErrors{
+					JobId:    m.Terminated.JobId,
+					Terminal: true,
+					Errors: []*events.Error{
+						{
+							Reason: &events.Error_MaxRunsExceeded{
+								MaxRunsExceeded: &events.MaxRunsExceeded{},
+							},
+						},
 					},
 				},
 			},

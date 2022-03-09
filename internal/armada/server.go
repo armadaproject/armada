@@ -202,8 +202,17 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 			panic(err)
 		}
 
+		// Create a new producer for this service.
+		producer, err = pulsarClient.CreateProducer(pulsar.ProducerOptions{
+			Topic: config.Pulsar.Topic,
+		})
+		if err != nil {
+			panic(err)
+		}
+
 		submitFromLog := server.SubmitFromLog{
 			Consumer:     consumer,
+			Producer:     producer,
 			SubmitServer: submitServer,
 		}
 		go submitFromLog.Run(context.Background())

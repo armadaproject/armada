@@ -8,6 +8,7 @@ import (
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/proto"
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -26,6 +27,9 @@ const pulsarTopic = "armada"
 const pulsarSubscription = "e2e-test-topic"
 const armadaUrl = "localhost:50051"
 const armadaQueueName = "e2e-test-queue"
+
+// Namespace created by the test setup. Used when submitting test jobs.
+const userNamespace = "personal-anonymous"
 
 // Test publishing and receiving a message to/from Pulsar.
 func TestPublishReceive(t *testing.T) {
@@ -53,41 +57,76 @@ func TestPublishReceive(t *testing.T) {
 func TestSubmitJobTransitions(t *testing.T) {
 	err := withSetup(func(ctx context.Context, client api.SubmitClient, producer pulsar.Producer, consumer pulsar.Consumer) error {
 		ctxWithTimeout, _ := context.WithTimeout(context.Background(), time.Second)
-		req := createJobSubmitRequest("personal-anonymous") // Namespace created by test setup
+		req := createJobSubmitRequest(userNamespace)
 		_, err := client.SubmitJobs(ctxWithTimeout, req)
 		if err != nil {
 			return err
 		}
 
-		numEventsExpected := 5
-		sequence, err := receiveJobSetSequence(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, 10*time.Second)
+		expected := &events.EventSequence{
+			Queue:      armadaQueueName,
+			JobSetName: req.JobSetId,
+			Events: []*events.EventSequence_Event{
+				{Event: &events.EventSequence_Event_SubmitJob{}},
+				{Event: &events.EventSequence_Event_JobRunLeased{}},
+				{Event: &events.EventSequence_Event_JobRunAssigned{}},
+				{Event: &events.EventSequence_Event_JobRunRunning{}},
+				{Event: &events.EventSequence_Event_JobRunSucceeded{}},
+				{Event: &events.EventSequence_Event_JobSucceeded{}},
+			},
+		}
+
+		numEventsExpected := len(expected.Events)
+		actual, err := receiveJobSetSequence(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, 10*time.Second)
 		if err != nil {
 			return err
 		}
-		if ok := assert.Equal(t, numEventsExpected, len(sequence.Events)); !ok {
+
+		if ok := isSequencef(t, expected, actual, "Event sequence error; printing diff:\n%s", cmp.Diff(expected, actual)); !ok {
 			return nil
 		}
-		if ok := assert.IsType(t, &events.EventSequence_Event_SubmitJob{}, sequence.Events[0].Event); !ok {
-			return nil
-		}
-		if ok := assert.IsType(t, &events.EventSequence_Event_JobRunLeased{}, sequence.Events[1].Event); !ok {
-			return nil
-		}
-		if ok := assert.IsType(t, &events.EventSequence_Event_JobRunAssigned{}, sequence.Events[2].Event); !ok {
-			return nil
-		}
-		if ok := assert.IsType(t, &events.EventSequence_Event_JobRunRunning{}, sequence.Events[3].Event); !ok {
-			return nil
-		}
-		if ok := assert.IsType(t, &events.EventSequence_Event_JobRunSucceeded{}, sequence.Events[4].Event); !ok {
-			return nil
-		}
-		// TODO: We should also have a job succeeded message here.
-		fmt.Printf("Received %d events\n", len(sequence.Events))
 
 		return nil
 	})
 	assert.NoError(t, err)
+}
+
+// Compare an expected sequence of events with the actual sequence.
+// Calls into the assert function to make comparison.
+// Returns true if the two sequences are equal and false otherwise.
+func isSequence(t *testing.T, expected *events.EventSequence, actual *events.EventSequence) (ok bool) {
+	return isSequencef(t, expected, actual, "")
+}
+
+// Like isSequence, but logs msg if a comparison fails.
+func isSequencef(t *testing.T, expected *events.EventSequence, actual *events.EventSequence, msg string, args ...interface{}) (ok bool) {
+	defer func() {
+		if !ok && msg != "" {
+			t.Logf(msg, args...)
+		}
+	}()
+	if ok = assert.NotNil(t, expected); !ok {
+		return false
+	}
+	if ok = assert.NotNil(t, actual); !ok {
+		return false
+	}
+	if ok = assert.Equal(t, expected.Queue, actual.Queue); !ok {
+		return false
+	}
+	if ok = assert.Equal(t, expected.JobSetName, actual.JobSetName); !ok {
+		return false
+	}
+	if ok = assert.Equal(t, len(expected.Events), len(actual.Events)); !ok {
+		return false
+	}
+	for i, expectedEvent := range expected.Events {
+		actualEvent := actual.Events[i]
+		if ok := assert.IsTypef(t, expectedEvent.Event, actualEvent.Event, "%d-th event differed: %s", i, actualEvent); !ok {
+			return false
+		}
+	}
+	return true
 }
 
 // receiveJobSetSequence receives messages from Pulsar, discarding any messages not for queue and jobSetName.
@@ -167,15 +206,11 @@ func withSetup(action func(ctx context.Context, submitClient api.SubmitClient, p
 	defer conn.Close()
 	submitClient := api.NewSubmitClient(conn)
 
-	// Recreate the queue to make sure it's empty.
-	err = client.DeleteQueue(submitClient, armadaQueueName)
-	if st, ok := status.FromError(err); ok && st.Code() == codes.NotFound {
-		// Queue didn't exist, which is fine; do nothing.
-	} else if err != nil {
-		return err
-	}
+	// Create queue needed for tests.
 	err = client.CreateQueue(submitClient, &api.Queue{Name: armadaQueueName, PriorityFactor: 1})
-	if err != nil {
+	if st, ok := status.FromError(err); ok && st.Code() == codes.AlreadyExists {
+		// Queue already exists; we don't need to create it.
+	} else if err != nil {
 		return err
 	}
 
