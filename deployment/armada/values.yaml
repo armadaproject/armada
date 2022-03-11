@@ -26,6 +26,12 @@ prometheus:
 customServiceAccount: null
 serviceAccount: null
 
+pulsar:
+  authentication:
+    enabled: false
+  tls:
+    enabled: false
+
 applicationConfig:
   grpcPort: 50051
   httpPort: 8080

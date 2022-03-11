@@ -55,6 +55,16 @@ spec:
               mountPath: /config/application_config.yaml
               subPath: {{ include "armada.config.filename" . }}
               readOnly: true
+            {{- if .Values.pulsar.authentication.enabled }}
+            - name: pulsar-token
+              mountPath: "/pulsar/tokens"
+              readOnly: true
+            {{- end }}
+            {{- if .Values.pulsar.tls.enabled }}
+            - name: pulsar-ca
+              mountPath: "/pulsar/ca"
+              readOnly: true
+            {{- end }}
             {{- if .Values.additionalVolumeMounts }}
             {{- toYaml .Values.additionalVolumeMounts | nindent 12 -}}
             {{- end }}
@@ -90,6 +100,22 @@ spec:
         - name: user-config
           secret:
             secretName: {{ include "armada.config.name" . }}
+        {{- if .Values.pulsar.authentication.enabled }}
+        - name: pulsar-token
+          secret:
+            secretName: "{{ .Values.pulsar.authentication.secret }}"
+            items:
+              - key: TOKEN
+                path: pulsar/token
+        {{- end }}
+        {{- if .Values.pulsar.tls.enabled }}
+        - name: pulsar-ca
+          secret:
+            secretName: "{{ .Values.pulsar.ca_cert }}"
+            items:
+              - key: ca.crt
+                path: ca.crt
+        {{- end }}
         {{- if .Values.additionalVolumes }}
         {{- toYaml .Values.additionalVolumes | nindent 8 }}
         {{- end }}
