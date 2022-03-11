@@ -1,0 +1,159 @@
+ingressClass: "nginx"
+clusterIssuer: "k8s-cluster-issuer"
+hostnames:
+  - "armada.armada.services-1.ospr-k8s-d.vgis.c3.zone"
+replicas: 3
+
+  image:\
+tag: branch-scaling-testing-9dd8b0bab627f07553a04a868fe746aeab07b273
+repository: docker-dockerhub-remote.artifactory.c3.zone/gresearchdev/armada-server-dev
+
+env:
+  - name: KRB5_CONFIG
+    value: /etc/krb5.conf
+resources:
+  limits:
+    memory: 2Gi
+    cpu: 1
+  requests:
+    memory: 2Gi
+    cpu: 1
+
+additionalVolumes:
+  - name: keytab
+    secret:
+      secretName: armada-server-dev-keytab
+  - name: krb5-conf
+    secret:
+      defaultMode: 420
+      secretName: krb5-conf
+  - name: ca-bundle
+    secret:
+      defaultMode: 420
+      secretName: ca-bundle
+
+additionalVolumeMounts:
+  - name: keytab
+    mountPath: /etc/keytab
+    readOnly: true
+  - name: krb5-conf
+    mountPath: /etc/krb5.conf
+    subPath: krb5.conf
+    readOnly: true
+  - name: ca-bundle
+    mountPath: /etc/ssl/certs
+    readOnly: true
+
+customServiceAccount: svc-armada
+
+prometheus:
+  enabled: true
+  labels:
+    metrics: "true"
+    prometheus: armada
+    role: prometheus-rulefiles
+
+ingress:
+  annotations:
+    healthPath: "/api/health"
+    nginx.ingress.kubernetes.io/ssl-ciphers: "HIGH:!aNULL:!MD5:ECDHE-RSA-AES256-SHA384"
+
+additionalLabels:
+  appregistry.gresearch.co.uk/app-id: "9670"
+
+applicationConfig:
+  priorityHalfTime: 5m
+  redis:
+    masterName: "mymaster"
+    addrs:
+      - "armada-redis-ha-announce-0.armada.svc:26379"
+      - "armada-redis-ha-announce-1.armada.svc:26379"
+      - "armada-redis-ha-announce-2.armada.svc:26379"
+    poolSize: 1000
+  scheduling:
+    queueLeaseBatchSize: 1000
+    maximalResourceFractionToSchedulePerQueue:
+      memory: 0.99
+      cpu: 0.99
+    maximalResourceFractionPerQueue:
+      memory: 0.99
+      cpu: 0.99
+    maximalClusterFractionToSchedule:
+      memory: 0.99
+      cpu: 0.99
+    defaultJobLimits:
+      cpu: 1
+      memory: 1Gi
+      ephemeral-storage: 8Gi
+    defaultJobTolerations:
+      - key: "gresearch.co.uk/batch"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"
+    poolResourceScarcity:
+      cpu:
+        cpu: 1
+      gpu:
+        nvidia.com/gpu: 1
+  eventsRedis:
+    masterName: "mymaster"
+    addrs:
+      - "armada-redis-ha-announce-0.armada.svc:26379"
+      - "armada-redis-ha-announce-1.armada.svc:26379"
+      - "armada-redis-ha-announce-2.armada.svc:26379"
+    poolSize: 1000
+  eventsNats:
+    servers:
+      - "nats://armada-nats-0.armada-nats.armada.svc:4222"
+      - "nats://armada-nats-1.armada-nats.armada.svc:4222"
+      - "nats://armada-nats-2.armada-nats.armada.svc:4222"
+    clusterID: "armada-nats"
+    subject: "ArmadaEvents"
+  databaseRetention:
+    jobRetentionDuration: 24h
+  corsAllowedOrigins:
+    - "https://lookout.armada.services-1.ospr-k8s-d.vgis.c3.zone"
+  queueManagement:
+    autoCreateQueues: true
+    defaultPriorityFactor: 1000
+  auth:
+    anonymousAuth: false
+    openIdAuth:
+      providerUrl: "https://signin.c3.zone"
+      groupsClaim: "groups"
+      clientId: "armada-qa"
+    kerberos:
+      keytabLocation: /etc/keytab/svc-armada-dev.kt
+      principalName: svc-armada-dev
+      userNameSuffix: -uberit-net
+      groupNameSuffix: -uberit-net
+      ldap:
+        url: "ldap://dc.vgis.sites.uberit.net"
+        username: "unix-ldap"
+        password: "L3tM31n!%"
+        groupSearchBase:  "DC=uberit,DC=net"
+    permissionGroupMapping:
+      submit_jobs: ["job-admin", "job-submitter", "lappArmadaDev-uberit-net"]
+      create_queue: ["job-admin", "lappArmadaDev-uberit-net"]
+      delete_queue: ["job-admin", "lappArmadaDev-uberit-net"]
+      cancel_jobs: ["job-admin", "job-submitter", "lappArmadaDev-uberit-net"]
+      watch_events: ["job-admin", "job-submitter", "lappArmadaDev-uberit-net"]
+      watch_all_events: ["job-admin", "job-submitter", "lappArmadaDev-uberit-net"]
+      submit_any_jobs: ["job-admin", "lappArmadaDev-uberit-net"]
+      cancel_any_jobs: ["job-admin", "lappArmadaDev-uberit-net"]
+      reprioritize_jobs: ["job-admin", "job-submitter", "lappArmadaDev-uberit-net"]
+      reprioritize_any_jobs: ["job-admin", "lappArmadaDev-uberit-net"]
+      execute_jobs: ["armada/executor", "lappArmadaDev-uberit-net"]
+    PermissionScopeMapping:
+      execute_jobs: ["armada/executor"]
+    PermissionClaimMapping:
+      submit_jobs: ["app-armada-qa--admin"]
+      create_queue: ["app-armada-qa--admin"]
+      delete_queue: ["app-armada-qa--admin"]
+      cancel_jobs: ["app-armada-qa--admin"]
+      watch_events: ["app-armada-qa--admin"]
+      watch_all_events: ["app-armada-qa--admin"]
+      submit_any_jobs: ["app-armada-qa--admin"]
+      cancel_any_jobs: ["app-armada-qa--admin"]
+      reprioritize_jobs: ["app-armada-qa--admin"]
+      reprioritize_any_jobs: ["app-armada-qa--admin"]
