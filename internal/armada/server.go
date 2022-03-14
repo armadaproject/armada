@@ -167,7 +167,7 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 			panic(err)
 		}
 		producer, err := pulsarClient.CreateProducer(pulsar.ProducerOptions{
-			Topic: config.Pulsar.Topic,
+			Topic: config.Pulsar.JobsetEventsTopic,
 		})
 		if err != nil {
 			panic(err)
@@ -185,10 +185,16 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 		}
 		submitServerToRegister = pulsarSubmitServer
 
+		// If there's an eventProcessor, insert the PulsarSubmitServer so that it can publish
+		// state transitions to Pulsar in addition to Redis.
+		if eventProcessor != nil {
+			eventProcessor.PulsarSubmitServer = pulsarSubmitServer
+		}
+
 		// Service that consumes Pulsar messages and writes to Redis and Nats.
 		consumer, err := pulsarClient.Subscribe(pulsar.ConsumerOptions{
-			Topic:            config.Pulsar.Topic,
-			SubscriptionName: config.Pulsar.SubscriptionName,
+			Topic:            config.Pulsar.JobsetEventsTopic,
+			SubscriptionName: config.Pulsar.RedisFromPulsarSubscription,
 			Type:             pulsar.Exclusive,
 		})
 		if err != nil {
@@ -202,26 +208,43 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 			panic(err)
 		}
 
-		// Create a new producer for this service.
-		producer, err = pulsarClient.CreateProducer(pulsar.ProducerOptions{
-			Topic: config.Pulsar.Topic,
+		submitFromLog := server.SubmitFromLog{
+			Consumer:     consumer,
+			SubmitServer: submitServer,
+		}
+		go submitFromLog.Run(context.Background())
+
+		// Service that reads from Pulsar and submits messages back into Pulsar.
+		// E.g., needed to automatically publish JobSucceeded after a JobRunSucceeded.
+		consumer, err = pulsarClient.Subscribe(pulsar.ConsumerOptions{
+			Topic:            config.Pulsar.JobsetEventsTopic,
+			SubscriptionName: config.Pulsar.PulsarFromPulsarSubscription,
+			Type:             pulsar.Exclusive,
 		})
 		if err != nil {
 			panic(err)
 		}
 
-		submitFromLog := server.SubmitFromLog{
-			Consumer:     consumer,
-			Producer:     producer,
-			SubmitServer: submitServer,
+		// TODO: Determine the right message ID to start at from some external state.
+		err = consumer.SeekByTime(time.Now())
+		if err != nil {
+			panic(err)
 		}
-		go submitFromLog.Run(context.Background())
 
-		// If there's an eventProcessor, insert the PulsarSubmitServer so that it can publish
-		// state transitions to Pulsar in addition to Redis.
-		if eventProcessor != nil {
-			eventProcessor.PulsarSubmitServer = pulsarSubmitServer
+		// Create a new producer for this service.
+		producer, err = pulsarClient.CreateProducer(pulsar.ProducerOptions{
+			Topic: config.Pulsar.JobsetEventsTopic,
+		})
+		if err != nil {
+			panic(err)
 		}
+
+		pulsarFromPulsar := server.PulsarFromPulsar{
+			Consumer: consumer,
+			Producer: producer,
+		}
+		go pulsarFromPulsar.Run(context.Background())
+
 	} else {
 		log.Info("No Pulsar config provided; submitting directly to Redis and Nats.")
 	}

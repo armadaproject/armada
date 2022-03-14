@@ -23,7 +23,7 @@ import (
 
 // Pulsar configuration. Must be manually reconciled with changes to the test setup or Armada.
 const pulsarUrl = "pulsar://localhost:6650"
-const pulsarTopic = "armada"
+const pulsarTopic = "jobset-events"
 const pulsarSubscription = "e2e-test-topic"
 const armadaUrl = "localhost:50051"
 const armadaQueueName = "e2e-test-queue"

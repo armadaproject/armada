@@ -40,9 +40,10 @@ type PulsarConfig struct {
 	// Flag controlling if Pulsar is enabled or not.
 	Enabled bool
 	// Pulsar configuration
-	URL              string
-	Topic            string
-	SubscriptionName string
+	URL                          string
+	JobsetEventsTopic            string
+	RedisFromPulsarSubscription  string
+	PulsarFromPulsarSubscription string
 	// Used to construct an executorconfig.IngressConfiguration,
 	// which is used when converting Armada-specific IngressConfig and ServiceConfig objects into k8s objects.
 	HostnameSuffix string

@@ -24,15 +24,16 @@ import (
 	"github.com/G-Research/armada/internal/common/requestid"
 	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/events"
+	"github.com/G-Research/armada/internal/pulsarutils/pulsarrequestid"
 	"github.com/G-Research/armada/pkg/api"
 )
 
-// LogToArmada is a service that reads messages from Pulsar and updates the state of the Armada server accordingly.
+// SubmitFromLog is a service that reads messages from Pulsar and updates the state of the Armada server accordingly
+// (in particular, it writes to Redis and Nats).
 // Calls into an embedded Armada submit server object.
 type SubmitFromLog struct {
 	SubmitServer *SubmitServer
 	Consumer     pulsar.Consumer
-	Producer     pulsar.Producer
 	// Logger from which the loggers used by this service are derived
 	// (e.g., using srv.Logger.WithField), or nil, in which case the global logrus logger is used.
 	Logger *logrus.Entry
@@ -48,7 +49,7 @@ func (srv *SubmitFromLog) Run(ctx context.Context) {
 	} else {
 		log = logrus.StandardLogger().WithField("service", "SubmitFromLog")
 	}
-	log.Info("SubmitFromLog service started")
+	log.Info("service started")
 
 	// Recover from panics by restarting the service.
 	defer func() {
@@ -94,30 +95,21 @@ func (srv *SubmitFromLog) Run(ctx context.Context) {
 		// Exit if the context has been cancelled. Otherwise, get a message from Pulsar.
 		select {
 		case <-ctx.Done():
-			log.WithFields(
-				logrus.Fields{
-					"received":      numReceived,
-					"succeeded":     numReceived - numErrored,
-					"errored":       numErrored,
-					"interval":      logInterval,
-					"lastMessageId": lastMessageId,
-					"timeLag":       time.Now().Sub(lastPublishTime),
-				},
-			).Info("shutdown signal received")
-			break
+			return
 		default:
 
 			// Get a message from Pulsar, which consists of a sequence of events (i.e., state transitions).
-			ctxWithTimeout, _ := context.WithTimeout(ctx, time.Second)
+			ctxWithTimeout, _ := context.WithTimeout(ctx, 10*time.Second)
 			msg, err := srv.Consumer.Receive(ctxWithTimeout)
 			if errors.Is(err, context.DeadlineExceeded) {
-				continue //expected
+				break //expected
 			}
 
-			// If receiving fails, wait for a bit, since the problem may be transient.
+			// If receiving fails, try again in the hope that the problem is transient.
+			// We don't need to distinguish between errors here, since any error means this function can't proceed.
 			if err != nil {
 				logging.WithStacktrace(log, err).WithField("lastMessageId", lastMessageId).Warnf("Pulsar receive failed; backing off")
-				time.Sleep(time.Second)
+				time.Sleep(100 * time.Millisecond)
 				continue
 			}
 			lastMessageId = msg.ID()
@@ -126,12 +118,7 @@ func (srv *SubmitFromLog) Run(ctx context.Context) {
 
 			// Incoming gRPC requests are annotated with a unique id,
 			// which is included with the corresponding Pulsar message.
-			requestId := "missing"
-			if msg.Properties() != nil {
-				if id, ok := msg.Properties()[requestid.MetadataKey]; ok {
-					requestId = id
-				}
-			}
+			requestId := pulsarrequestid.FromMessageOrMissing(msg)
 
 			// Put the requestId into a message-specific context and logger,
 			// which are passed on to sub-functions.
@@ -143,39 +130,21 @@ func (srv *SubmitFromLog) Run(ctx context.Context) {
 			ctxWithLogger := ctxlogrus.ToContext(messageCtx, messageLogger)
 
 			// Unmarshal and validate the message.
-			sequence, err := srv.UnmarshalEventSequence(ctxWithLogger, msg.Payload())
+			sequence, err := UnmarshalEventSequence(ctxWithLogger, msg.Payload())
 			if err != nil {
 				logging.WithStacktrace(messageLogger, err).Warnf("processing message failed; ignoring")
 				numErrored++
 				continue
 			}
 
-			// Process the events in the sequence.
-			// For efficiency, we may process several events at a time.
-			// To maintain ordering, we only do so for subsequences of consecutive events with equal type.
-			// TODO: Determine what to do based on the error (e.g., publish to a dead letter topic).
-			messageLogger.WithField("numEvents", len(sequence.Events)).Info("processing sequence")
-			i := 0
-			for i < len(sequence.Events) {
-				j, err := srv.ProcessSubSequence(ctxWithLogger, i, sequence)
-				if err != nil {
-					logging.WithStacktrace(messageLogger, err).WithFields(logrus.Fields{"lowerIndex": i, "upperIndex": j}).Warnf("processing subsequence failed; ignoring")
-					numErrored++
-				}
-
-				// Make sure we don't get stuck on processing a faulty message.
-				if j == i {
-					j++
-				}
-				i = j
-			}
+			srv.ProcessSequence(ctxWithLogger, sequence)
 		}
 	}
 }
 
 // UnmarshalEventSequence returns an EventSequence object contained in a byte buffer
 // after validating that the resulting EventSequence is valid.
-func (srv *SubmitFromLog) UnmarshalEventSequence(ctx context.Context, payload []byte) (*events.EventSequence, error) {
+func UnmarshalEventSequence(ctx context.Context, payload []byte) (*events.EventSequence, error) {
 	sequence := &events.EventSequence{}
 	err := proto.Unmarshal(payload, sequence)
 	if err != nil {
@@ -219,6 +188,27 @@ func (srv *SubmitFromLog) UnmarshalEventSequence(ctx context.Context, payload []
 	return sequence, nil
 }
 
+// ProcessSequence processes all events in a particular sequence.
+// For efficiency, we may process several events at a time.
+// To maintain ordering, we only do so for subsequences of consecutive events with equal type.
+func (srv *SubmitFromLog) ProcessSequence(ctx context.Context, sequence *events.EventSequence) {
+	i := 0
+	log := ctxlogrus.Extract(ctx)
+	// TODO: Implement better error handling and retry logic.
+	for i < len(sequence.Events) {
+		j, err := srv.ProcessSubSequence(ctx, i, sequence)
+		if err != nil {
+			logging.WithStacktrace(log, err).WithFields(logrus.Fields{"lowerIndex": i, "upperIndex": j}).Warnf("processing subsequence failed; ignoring")
+		}
+
+		// Make sure we don't get stuck on processing a faulty message.
+		if j == i {
+			j++
+		}
+		i = j
+	}
+}
+
 // ProcessSubSequence processes sequence.Events[i:j-1], where j is the index of the first event in the sequence
 // of a type different from that of sequence.Events[i], or len(sequence.Events) if no such event exists in the sequence,
 // and returns j.
@@ -230,7 +220,7 @@ func (srv *SubmitFromLog) UnmarshalEventSequence(ctx context.Context, payload []
 //
 // Not all events are handled by this processor since the legacy scheduler writes some transitions directly to the db.
 func (srv *SubmitFromLog) ProcessSubSequence(ctx context.Context, i int, sequence *events.EventSequence) (j int, err error) {
-	j = i + 1 // Return the next index to ensure that processing continues in case of unhandled errors at the caller
+	j = i // Initially, the next event to be processed is i.
 	if i < 0 || i >= len(sequence.Events) {
 		err = &armadaerrors.ErrInvalidArgument{
 			Name:    "i",
@@ -269,101 +259,21 @@ func (srv *SubmitFromLog) ProcessSubSequence(ctx context.Context, i int, sequenc
 		err = errors.WithStack(err)
 		j = i + len(es)
 	default:
-		// Processing for messages that only require creating new Pulsar messages.
-		j, err = srv.ProcessStatusSequence(ctx, i, sequence)
-
-		// If not at least 1 event was processed, the sequence contained events not supported by this function.
-		if j == i {
-			err = &armadaerrors.ErrInvalidArgument{
-				Name:    fmt.Sprintf("Events[%d]", i),
-				Value:   sequence.Events[i],
-				Message: "received unsupported Pulsar event",
-			}
-			err = errors.WithStack(err)
-
-			// Assign to j the index of the next event in the sequence with type different from sequence.Events[i],
-			// or len(sequence.Events) if no such element exists, so that processing won't be attempted for this type again.
-			j = i
-			t := reflect.TypeOf(sequence.Events[i].Event)
-			for j < len(sequence.Events) && reflect.TypeOf(sequence.Events[j].Event) == t {
-				j++
-			}
-		}
-	}
-	return
-}
-
-// ProcessStatusSequence processes a sequence of consecutive events for which the only action required
-// is to generate events that are published to Pulsar.
-//
-// In particular, it processes sequence.Events[i:j-1], where j is the index of the first event in the sequence
-// that does not only require sending Pulsar messages, or len(sequence.Events) if no such event exists in the sequence,
-// and returns j.
-func (srv *SubmitFromLog) ProcessStatusSequence(ctx context.Context, i int, sequence *events.EventSequence) (j int, err error) {
-	j = i
-
-	if srv.Producer == nil {
 		err = &armadaerrors.ErrInvalidArgument{
-			Name:    "Producer",
-			Value:   nil,
-			Message: "Pulsar producer missing",
+			Name:    fmt.Sprintf("Events[%d]", i),
+			Value:   sequence.Events[i],
+			Message: "received unsupported Pulsar event",
 		}
 		err = errors.WithStack(err)
-		return
-	}
 
-	es := make([]*events.EventSequence_Event, 0)
-loop:
-	for j < len(sequence.Events) {
-		switch e := sequence.Events[i].Event.(type) {
-		// In case of a JobRunSucceeded message, mark the job as succeeded by sending a JobSucceeded message.
-		// This is not strictly according to spec, since there may be other active job runs for the same job.
-		// Ideally, we would make sure there are no other such runs before marking the job as succeeded.
-		case *events.EventSequence_Event_JobRunSucceeded:
-			es = append(es, &events.EventSequence_Event{
-				Event: &events.EventSequence_Event_JobSucceeded{
-					JobSucceeded: &events.JobSucceeded{
-						JobId: e.JobRunSucceeded.JobId,
-					},
-				},
-			})
+		// Assign to j the index of the next event in the sequence with type different from sequence.Events[i],
+		// or len(sequence.Events) if no such element exists, so that processing won't be attempted for this type again.
+		j = i
+		t := reflect.TypeOf(sequence.Events[i].Event)
+		for j < len(sequence.Events) && reflect.TypeOf(sequence.Events[j].Event) == t {
 			j++
-		default:
-			// We've reached an event that can't be processed by this method.
-			break loop
 		}
 	}
-
-	// If no events were collected, break here.
-	if j == i {
-		return
-	}
-
-	payload, err := proto.Marshal(&events.EventSequence{
-		Queue:      sequence.Queue,
-		JobSetName: sequence.JobSetName,
-		Events:     es,
-	})
-	if err != nil {
-		err = errors.WithStack(err)
-		return
-	}
-
-	// Get a request id embedded in the context.
-	requestId := requestid.FromContextOrMissing(ctx)
-
-	ctxWithTimeout, _ := context.WithTimeout(ctx, time.Second)
-	_, err = srv.Producer.Send(ctxWithTimeout, &pulsar.ProducerMessage{
-		Payload:    payload,
-		Key:        sequence.JobSetName,
-		Properties: map[string]string{requestid.MetadataKey: requestId},
-	})
-	if err != nil {
-		err = errors.WithStack(err)
-		return
-	}
-
-	logrus.Infof("ProcessStatusSequence sent %s", es)
 	return
 }
 

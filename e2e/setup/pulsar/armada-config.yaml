@@ -1,7 +1,14 @@
 pulsar:
   enabled: true
   URL: "pulsar://pulsar:6650"
-  topic: "armada"
-  subscriptionName: "consumer"
+  jobsetEventsTopic: "jobset-events"
+  redisFromPulsarSubscription: "RedisFromPulsar"
+  pulsarFromPulsarSubscription: "PulsarFromPulsar"
   hostnameSuffix: "svc"
   certNameSuffix: "ingress-tls-certificate"
+  # TODO:
+  # compression
+  # tls
+  # ca, path to
+  # jwt, if enabled
+  # jwt, path to token file
