@@ -49,7 +49,7 @@ type PulsarConfig struct {
 	TLSValidateHostname bool
 	// Max number of connections to a single broker that will be kept in the pool. (Default: 1 connection)
 	MaxConnectionsPerBroker int
-	// Whether Pulsar authetication is enabled
+	// Whether Pulsar authentication is enabled
 	AuthenticationEnabled bool
 	// Authentication type. For now only "JWT" auth is valid
 	AuthenticationType string
