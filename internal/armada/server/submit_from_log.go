@@ -462,7 +462,7 @@ func apiJobFromLogSubmitJob(ownerId string, groups []string, queueName string, j
 	}
 
 	return &api.Job{
-		Id:       e.JobId,
+		Id:       events.StringFromProtoUuid(e.JobId),
 		ClientId: e.DeduplicationId,
 		Queue:    queueName,
 		JobSetId: jobSetName,
@@ -474,7 +474,7 @@ func apiJobFromLogSubmitJob(ownerId string, groups []string, queueName string, j
 		K8SIngress: k8sIngresses,
 		K8SService: k8sServices,
 
-		Priority: e.Priority,
+		Priority: float64(e.Priority),
 
 		PodSpecs:                 k8sPodSpecs,
 		Created:                  time,
@@ -487,7 +487,7 @@ func apiJobFromLogSubmitJob(ownerId string, groups []string, queueName string, j
 func (srv *SubmitFromLog) CancelJobs(ctx context.Context, userId string, es []*events.CancelJob) error {
 	jobIds := make([]string, len(es), len(es))
 	for i, e := range es {
-		jobIds[i] = e.JobId
+		jobIds[i] = events.StringFromProtoUuid(e.JobId)
 	}
 	_, err := srv.CancelJobsById(ctx, userId, jobIds)
 	return err
@@ -574,7 +574,7 @@ func (srv *SubmitFromLog) ReprioritizeJobs(ctx context.Context, userId string, e
 
 	jobIds := make([]string, len(es), len(es))
 	for i, e := range es {
-		jobIds[i] = e.JobId
+		jobIds[i] = events.StringFromProtoUuid(e.JobId)
 	}
 	jobs, err := srv.SubmitServer.jobRepository.GetExistingJobsByIds(jobIds)
 	if err != nil {
@@ -590,12 +590,12 @@ func (srv *SubmitFromLog) ReprioritizeJobs(ctx context.Context, userId string, e
 		}
 	}
 
-	err = reportJobsReprioritizing(srv.SubmitServer.eventStore, userId, jobs, newPriority)
+	err = reportJobsReprioritizing(srv.SubmitServer.eventStore, userId, jobs, float64(newPriority))
 	if err != nil {
 		return err
 	}
 
-	_, err = srv.SubmitServer.reprioritizeJobs(jobIds, newPriority, userId)
+	_, err = srv.SubmitServer.reprioritizeJobs(jobIds, float64(newPriority), userId)
 	if err != nil {
 		return err
 	}
@@ -621,12 +621,12 @@ func (srv *SubmitFromLog) ReprioritizeJobSet(ctx context.Context, userId string,
 		return err
 	}
 
-	err = reportJobsReprioritizing(srv.SubmitServer.eventStore, userId, jobs, e.Priority)
+	err = reportJobsReprioritizing(srv.SubmitServer.eventStore, userId, jobs, float64(e.Priority))
 	if err != nil {
 		return err
 	}
 
-	_, err = srv.SubmitServer.reprioritizeJobs(jobIds, e.Priority, userId)
+	_, err = srv.SubmitServer.reprioritizeJobs(jobIds, float64(e.Priority), userId)
 	if err != nil {
 		return err
 	}

@@ -179,7 +179,7 @@ func createJobSubmitRequest(namespace string) *api.JobSubmitRequest {
 		JobRequestItems: []*api.JobSubmitRequestItem{
 			{
 				Namespace: namespace,
-				Priority:  0,
+				Priority:  1,
 				PodSpec: &v1.PodSpec{
 					Containers: []v1.Container{
 						{

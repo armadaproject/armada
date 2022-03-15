@@ -130,6 +130,7 @@ func (srv *PulsarFromPulsar) Run(ctx context.Context) {
 			// TODO: Determine what to do based on the error (e.g., publish to a dead letter topic).
 			messageLogger.WithField("numEvents", len(sequence.Events)).Info("processing sequence")
 			err = srv.ProcessSequence(ctx, sequence)
+			// TODO: Handle these errors separately InvalidMessage, MessageTooBig
 			for pulsarutils.IsPulsarError(err) {
 				time.Sleep(time.Second)
 				err = srv.ProcessSequence(ctx, sequence)
