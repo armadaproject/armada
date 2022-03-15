@@ -43,11 +43,11 @@ type PulsarConfig struct {
 	URL string
 	// Path to the trusted TLS certificate file (must exist)
 	TLSTrustCertsFilePath string
-	//  Whether Pulsar client accept untrusted TLS certificate from broker
+	// Whether Pulsar client accept untrusted TLS certificate from broker
 	TLSAllowInsecureConnection bool
-	// Whether the Pulsar client verify the validity of the host name from broker
+	// Whether the Pulsar client will validate the hostname in the broker's TLS Cert matches the actual hostname.
 	TLSValidateHostname bool
-	//Max number of connections to a single broker that will kept in the pool. (Default: 1 connection)
+	// Max number of connections to a single broker that will be kept in the pool. (Default: 1 connection)
 	MaxConnectionsPerBroker int
 	// Whether Pulsar authetication is enabled
 	AuthenticationEnabled bool

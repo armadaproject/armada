@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/G-Research/armada/internal/common/armadaerrors"
-	executorconfig "github.com/G-Research/armada/internal/executor/configuration"
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
@@ -33,6 +32,7 @@ import (
 	"github.com/G-Research/armada/internal/common/health"
 	"github.com/G-Research/armada/internal/common/task"
 	"github.com/G-Research/armada/internal/common/util"
+	executorconfig "github.com/G-Research/armada/internal/executor/configuration"
 	"github.com/G-Research/armada/pkg/api"
 )
 
