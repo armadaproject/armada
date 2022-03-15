@@ -30,4 +30,3 @@ applicationConfig:
   grpcPort: 50051
   httpPort: 8080
   pulsar:
-    enabled: false
