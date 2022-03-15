@@ -3,12 +3,15 @@ package armada
 import (
 	"context"
 	"fmt"
-	executorconfig "github.com/G-Research/armada/internal/executor/configuration"
-	"github.com/apache/pulsar-client-go/pulsar"
-	"github.com/google/uuid"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/G-Research/armada/internal/common/armadaerrors"
+	executorconfig "github.com/G-Research/armada/internal/executor/configuration"
+	"github.com/apache/pulsar-client-go/pulsar"
+	"github.com/google/uuid"
+	"github.com/pkg/errors"
 
 	"github.com/go-redis/redis"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
@@ -170,10 +173,14 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 		if err != nil {
 			panic(err)
 		}
+		compressionLevel, err := parsePulsarCompressionLevel(config.Pulsar.CompressionLevel)
+		if err != nil {
+			panic(err)
+		}
 		producer, err := pulsarClient.CreateProducer(pulsar.ProducerOptions{
 			Name:             fmt.Sprintf("armada-server-%s", uuid.New()),
 			CompressionType:  compressionType,
-			CompressionLevel: pulsar.Default,
+			CompressionLevel: compressionLevel,
 			Topic:            config.Pulsar.JobsetEventsTopic,
 		})
 		if err != nil {
@@ -303,10 +310,18 @@ func createPulsarClient(config *configuration.PulsarConfig) (pulsar.Client, erro
 	// Sanity check that supplied Pulsar authentication parameters make sense
 	if config.AuthenticationEnabled {
 		if strings.ToLower(config.AuthenticationType) != "jwt" {
-			return nil, fmt.Errorf("only JWT authentication is supported for Pulsar right now. (Found %s in config)", config.AuthenticationType)
+			return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
+				Name:    "pulsar.AuthenticationType",
+				Value:   config.AuthenticationType,
+				Message: "Only JWT Authentication for Pulsar is supported right now.",
+			})
 		}
 		if strings.TrimSpace(config.JwtTokenPath) == "" {
-			return nil, fmt.Errorf("JWT authentication was configured for Pulsar but no JwtTokenPath was supplied")
+			return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
+				Name:    "pulsar.JwtTokenPath",
+				Value:   config.JwtTokenPath,
+				Message: "JWT authentication was configured for Pulsar but no JwtTokenPath was supplied",
+			})
 		}
 		authentication = pulsar.NewAuthenticationTokenFromFile(config.JwtTokenPath)
 	}
@@ -324,7 +339,7 @@ func createPulsarClient(config *configuration.PulsarConfig) (pulsar.Client, erro
 func parsePulsarCompressionType(compressionTypeStr string) (pulsar.CompressionType, error) {
 
 	switch strings.ToLower(compressionTypeStr) {
-	case "":
+	case "", "none":
 		return pulsar.NoCompression, nil
 	case "lz4":
 		return pulsar.LZ4, nil
@@ -333,6 +348,28 @@ func parsePulsarCompressionType(compressionTypeStr string) (pulsar.CompressionTy
 	case "zstd":
 		return pulsar.ZSTD, nil
 	default:
-		return pulsar.NoCompression, fmt.Errorf("unknown Pulsar compression type %s", compressionTypeStr)
+		return pulsar.NoCompression, errors.WithStack(&armadaerrors.ErrInvalidArgument{
+			Name:    "pulsar.CompressionType",
+			Value:   compressionTypeStr,
+			Message: fmt.Sprintf("Unknown Pulsar compression type %s", compressionTypeStr),
+		})
+	}
+}
+
+func parsePulsarCompressionLevel(compressionLevelStr string) (pulsar.CompressionLevel, error) {
+
+	switch strings.ToLower(compressionLevelStr) {
+	case "", "default":
+		return pulsar.Default, nil
+	case "faster":
+		return pulsar.Faster, nil
+	case "better":
+		return pulsar.Better, nil
+	default:
+		return pulsar.Default, errors.WithStack(&armadaerrors.ErrInvalidArgument{
+			Name:    "pulsar.CompressionLevel",
+			Value:   compressionLevelStr,
+			Message: fmt.Sprintf("Unknown Pulsar compression level %s", compressionLevelStr),
+		})
 	}
 }

@@ -2,7 +2,6 @@ package armada
 
 import (
 	"context"
-	"github.com/apache/pulsar-client-go/pulsar"
 	"log"
 	"net"
 	"os"
@@ -10,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/apache/pulsar-client-go/pulsar"
 
 	"github.com/alicebob/miniredis"
 	"github.com/go-redis/redis"
@@ -87,7 +88,7 @@ func TestAutomQueueCreation(t *testing.T) {
 	})
 }
 
-func TestParsePulsarCompression(t *testing.T) {
+func TestParsePulsarCompressionType(t *testing.T) {
 
 	// No compression
 	comp, err := parsePulsarCompressionType("")
@@ -107,10 +108,36 @@ func TestParsePulsarCompression(t *testing.T) {
 	// Lz4
 	comp, err = parsePulsarCompressionType("LZ4")
 	assert.NoError(t, err)
-	assert.Equal(t, pulsar.ZSTD, comp)
+	assert.Equal(t, pulsar.LZ4, comp)
 
 	// unknown
 	_, err = parsePulsarCompressionType("not a valid compression")
+	assert.Error(t, err)
+}
+
+func TestParsePulsarCompressionLevel(t *testing.T) {
+
+	// No compression
+	comp, err := parsePulsarCompressionLevel("")
+	assert.NoError(t, err)
+	assert.Equal(t, pulsar.Default, comp)
+
+	comp, err = parsePulsarCompressionLevel("Default")
+	assert.NoError(t, err)
+	assert.Equal(t, pulsar.Default, comp)
+
+	// Faster
+	comp, err = parsePulsarCompressionLevel("FASTER")
+	assert.NoError(t, err)
+	assert.Equal(t, pulsar.Faster, comp)
+
+	// Better
+	comp, err = parsePulsarCompressionLevel("Better")
+	assert.NoError(t, err)
+	assert.Equal(t, pulsar.Better, comp)
+
+	// unknown
+	_, err = parsePulsarCompressionLevel("not a valid compression type")
 	assert.Error(t, err)
 }
 

@@ -40,18 +40,28 @@ type PulsarConfig struct {
 	// Flag controlling if Pulsar is enabled or not.
 	Enabled bool
 	// Pulsar configuration
-	URL                          string
-	TLSTrustCertsFilePath        string
-	TLSAllowInsecureConnection   bool
-	TLSValidateHostname          bool
-	MaxConnectionsPerBroker      int
-	AuthenticationEnabled        bool
-	AuthenticationType           string
+	URL string
+	// Path to the trusted TLS certificate file (must exist)
+	TLSTrustCertsFilePath string
+	//  Whether Pulsar client accept untrusted TLS certificate from broker
+	TLSAllowInsecureConnection bool
+	// Whether the Pulsar client verify the validity of the host name from broker
+	TLSValidateHostname bool
+	//Max number of connections to a single broker that will kept in the pool. (Default: 1 connection)
+	MaxConnectionsPerBroker int
+	// Whether Pulsar authetication is enabled
+	AuthenticationEnabled bool
+	// Authentication type. For now only "JWT" auth is valid
+	AuthenticationType string
+	// Path to the JWT token (must exist). This must be set if AutheticationType is "JWT"
 	JwtTokenPath                 string
 	JobsetEventsTopic            string
 	RedisFromPulsarSubscription  string
 	PulsarFromPulsarSubscription string
-	CompressionType              string
+	// Compression to use.  Valid values are "None", "LZ4", "Zlib", "Zstd".  Default is "None"
+	CompressionType string
+	// Compression Level to use.  Valid values are "Default", "", "Zlib", "Zstd".  Default is "None"
+	CompressionLevel string
 	// Used to construct an executorconfig.IngressConfiguration,
 	// which is used when converting Armada-specific IngressConfig and ServiceConfig objects into k8s objects.
 	HostnameSuffix string
