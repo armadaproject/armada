@@ -2,8 +2,10 @@ package armada
 
 import (
 	"context"
+	"github.com/apache/pulsar-client-go/pulsar"
 	"log"
 	"net"
+	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -82,6 +84,82 @@ func TestAutomQueueCreation(t *testing.T) {
 		info, err := client.GetQueueInfo(ctx, &api.QueueInfoRequest{Name: "test"})
 		assert.NoError(t, err)
 		assert.Equal(t, "set", info.ActiveJobSets[0].Name)
+	})
+}
+
+func TestParsePulsarCompression(t *testing.T) {
+
+	// No compression
+	comp, err := parsePulsarCompressionType("")
+	assert.NoError(t, err)
+	assert.Equal(t, pulsar.NoCompression, comp)
+
+	// Zlib
+	comp, err = parsePulsarCompressionType("ZliB")
+	assert.NoError(t, err)
+	assert.Equal(t, pulsar.ZLib, comp)
+
+	// Zstd
+	comp, err = parsePulsarCompressionType("zstd")
+	assert.NoError(t, err)
+	assert.Equal(t, pulsar.ZSTD, comp)
+
+	// Lz4
+	comp, err = parsePulsarCompressionType("LZ4")
+	assert.NoError(t, err)
+	assert.Equal(t, pulsar.ZSTD, comp)
+
+	// unknown
+	_, err = parsePulsarCompressionType("not a valid compression")
+	assert.Error(t, err)
+}
+
+func TestCreatePulsarClientHappyPath(t *testing.T) {
+	cwd, _ := os.Executable() // Need a valid directory for tokens and certs
+
+	// test with auth and tls configured
+	config := &configuration.PulsarConfig{
+		URL: "pulsar://pulsarhost:50000",
+
+		TLSTrustCertsFilePath:      cwd,
+		TLSAllowInsecureConnection: true,
+		TLSValidateHostname:        true,
+		MaxConnectionsPerBroker:    100,
+		AuthenticationEnabled:      true,
+		AuthenticationType:         "JWT",
+		JwtTokenPath:               cwd,
+	}
+	_, err := createPulsarClient(config)
+	assert.NoError(t, err)
+
+	// Test without auth or TLS
+	config = &configuration.PulsarConfig{
+		URL:                     "pulsar://pulsarhost:50000",
+		MaxConnectionsPerBroker: 100,
+	}
+	_, err = createPulsarClient(config)
+	assert.NoError(t, err)
+
+}
+
+func TestCreatePulsarClientInvalidAuth(t *testing.T) {
+	// No Auth type
+	_, err := createPulsarClient(&configuration.PulsarConfig{
+		AuthenticationEnabled: true,
+	})
+	assert.Error(t, err)
+
+	// Invalid Auth type
+	_, err = createPulsarClient(&configuration.PulsarConfig{
+		AuthenticationEnabled: true,
+		AuthenticationType:    "INVALID",
+	})
+	assert.Error(t, err)
+
+	// No Token
+	_, err = createPulsarClient(&configuration.PulsarConfig{
+		AuthenticationEnabled: true,
+		AuthenticationType:    "JWT",
 	})
 }
 

@@ -41,9 +41,17 @@ type PulsarConfig struct {
 	Enabled bool
 	// Pulsar configuration
 	URL                          string
+	TLSTrustCertsFilePath        string
+	TLSAllowInsecureConnection   bool
+	TLSValidateHostname          bool
+	MaxConnectionsPerBroker      int
+	AuthenticationEnabled        bool
+	AuthenticationType           string
+	JwtTokenPath                 string
 	JobsetEventsTopic            string
 	RedisFromPulsarSubscription  string
 	PulsarFromPulsarSubscription string
+	CompressionType              string
 	// Used to construct an executorconfig.IngressConfiguration,
 	// which is used when converting Armada-specific IngressConfig and ServiceConfig objects into k8s objects.
 	HostnameSuffix string

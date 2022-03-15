@@ -5,6 +5,8 @@ import (
 	"fmt"
 	executorconfig "github.com/G-Research/armada/internal/executor/configuration"
 	"github.com/apache/pulsar-client-go/pulsar"
+	"github.com/google/uuid"
+	"strings"
 	"sync"
 	"time"
 
@@ -160,14 +162,19 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 
 		// API endpoints that generate Pulsar messages.
 		log.Info("Pulsar config provided; using Pulsar submit endpoints.")
-		pulsarClient, err := pulsar.NewClient(pulsar.ClientOptions{
-			URL: config.Pulsar.URL,
-		})
+		pulsarClient, err := createPulsarClient(&config.Pulsar)
+		if err != nil {
+			panic(err)
+		}
+		compressionType, err := parsePulsarCompressionType(config.Pulsar.CompressionType)
 		if err != nil {
 			panic(err)
 		}
 		producer, err := pulsarClient.CreateProducer(pulsar.ProducerOptions{
-			Topic: config.Pulsar.JobsetEventsTopic,
+			Name:             fmt.Sprintf("armada-server-%s", uuid.New()),
+			CompressionType:  compressionType,
+			CompressionLevel: pulsar.Default,
+			Topic:            config.Pulsar.JobsetEventsTopic,
 		})
 		if err != nil {
 			panic(err)
@@ -195,7 +202,7 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 		consumer, err := pulsarClient.Subscribe(pulsar.ConsumerOptions{
 			Topic:            config.Pulsar.JobsetEventsTopic,
 			SubscriptionName: config.Pulsar.RedisFromPulsarSubscription,
-			Type:             pulsar.Exclusive,
+			Type:             pulsar.KeyShared,
 		})
 		if err != nil {
 			panic(err)
@@ -288,4 +295,44 @@ func validateArmadaConfig(config *configuration.ArmadaConfig) error {
 		return fmt.Errorf("cancel jobs batch should be greater than 0: is %d", config.CancelJobsBatchSize)
 	}
 	return nil
+}
+
+func createPulsarClient(config *configuration.PulsarConfig) (pulsar.Client, error) {
+	var authentication pulsar.Authentication
+
+	// Sanity check that supplied Pulsar authentication parameters make sense
+	if config.AuthenticationEnabled {
+		if strings.ToLower(config.AuthenticationType) != "jwt" {
+			return nil, fmt.Errorf("only JWT authentication is supported for Pulsar right now. (Found %s in config)", config.AuthenticationType)
+		}
+		if strings.TrimSpace(config.JwtTokenPath) == "" {
+			return nil, fmt.Errorf("JWT authentication was configured for Pulsar but no JwtTokenPath was supplied")
+		}
+		authentication = pulsar.NewAuthenticationTokenFromFile(config.JwtTokenPath)
+	}
+
+	return pulsar.NewClient(pulsar.ClientOptions{
+		URL:                        config.URL,
+		TLSTrustCertsFilePath:      config.TLSTrustCertsFilePath,
+		TLSValidateHostname:        config.TLSValidateHostname,
+		TLSAllowInsecureConnection: config.TLSAllowInsecureConnection,
+		MaxConnectionsPerBroker:    config.MaxConnectionsPerBroker,
+		Authentication:             authentication,
+	})
+}
+
+func parsePulsarCompressionType(compressionTypeStr string) (pulsar.CompressionType, error) {
+
+	switch strings.ToLower(compressionTypeStr) {
+	case "":
+		return pulsar.NoCompression, nil
+	case "lz4":
+		return pulsar.LZ4, nil
+	case "zlib":
+		return pulsar.ZLib, nil
+	case "zstd":
+		return pulsar.ZSTD, nil
+	default:
+		return pulsar.NoCompression, fmt.Errorf("unknown Pulsar compression type %s", compressionTypeStr)
+	}
 }
