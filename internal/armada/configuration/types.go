@@ -60,7 +60,7 @@ type PulsarConfig struct {
 	PulsarFromPulsarSubscription string
 	// Compression to use.  Valid values are "None", "LZ4", "Zlib", "Zstd".  Default is "None"
 	CompressionType string
-	// Compression Level to use.  Valid values are "Default", "", "Zlib", "Zstd".  Default is "None"
+	// Compression Level to use.  Valid values are "Default", "Better", "Faster".  Default is "Default"
 	CompressionLevel string
 	// Used to construct an executorconfig.IngressConfiguration,
 	// which is used when converting Armada-specific IngressConfig and ServiceConfig objects into k8s objects.
