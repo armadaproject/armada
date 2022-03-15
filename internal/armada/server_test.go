@@ -10,9 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/apache/pulsar-client-go/pulsar"
-
 	"github.com/alicebob/miniredis"
+	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/go-redis/redis"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
