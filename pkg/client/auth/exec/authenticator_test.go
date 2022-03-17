@@ -9,7 +9,7 @@ import (
 
 func testScript() string {
 	if runtime.GOOS == "windows" {
-		return "./testdata/test-exec.bat"
+		return "testdata\\test-exec.bat"
 	} else {
 		return "./testdata/test-exec.sh"
 	}
