@@ -3,12 +3,12 @@ package server
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/gogo/protobuf/types"
+	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -18,6 +18,7 @@ import (
 	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/G-Research/armada/internal/armada/permissions"
 	"github.com/G-Research/armada/internal/armada/repository"
+	"github.com/G-Research/armada/internal/common/armadaerrors"
 	"github.com/G-Research/armada/internal/common/auth/authorization"
 	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/common/validation"
@@ -187,6 +188,47 @@ func (server *SubmitServer) DeleteQueue(ctx context.Context, request *api.QueueD
 
 func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRequest) (*api.JobSubmitResponse, error) {
 	principal := authorization.GetPrincipal(ctx)
+
+	for _, r := range req.JobRequestItems {
+
+		if r.PodSpec == nil && len(r.PodSpecs) == 0 {
+			return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
+				Name:    "PodSpec",
+				Value:   r.PodSpec,
+				Message: "Job does not contain at least one PodSpec",
+			})
+		}
+
+		// We only support jobs with a single PodSpec, and it must be set to r.PodSpec.
+		if r.PodSpec == nil && len(r.PodSpecs) == 1 {
+			r.PodSpec = r.PodSpecs[0]
+			r.PodSpecs = nil
+		}
+
+		// I'm not convinced that the code to create services/ingresses when multiple pods are submitted is correct.
+		// In particular, I think job.populateServicesIngresses is wrong.
+		// Hence, we return an error until we can make sure that the code is correct.
+		// The next error is redundant with this one, but we leave both since we may wish to remove this one.
+		// - Albin
+		if len(r.PodSpecs) > 0 {
+			return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
+				Name:    "PodSpecs",
+				Value:   r.PodSpecs,
+				Message: "Jobs with multiple pods are not supported",
+			})
+		}
+
+		// I'm not convinced the code is correct when combining r.PodSpec and r.PodSpecs.
+		// We should do more testing to make sure it's safe before we allow it.
+		// - Albin
+		if len(r.PodSpecs) > 0 && r.PodSpec != nil {
+			return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
+				Name:    "PodSpec",
+				Value:   r.PodSpec,
+				Message: "PodSpec must be nil if PodSpecs is provided (i.e., these are exclusive)",
+			})
+		}
+	}
 
 	q, err := server.getQueueOrCreate(ctx, req.Queue)
 	if err != nil {

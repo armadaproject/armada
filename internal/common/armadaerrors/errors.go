@@ -1,4 +1,4 @@
-// This package contains generic errors that should be returned by code handling gRPC requests.
+// Package armadaerrors contains generic errors that should be returned by code handling gRPC requests.
 // gRPC interceptors will look for the error types defined in this file and automatically set
 // the gRPC status and return code correctly.
 //
@@ -10,6 +10,7 @@ package armadaerrors
 import (
 	"context"
 	"fmt"
+
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -140,7 +141,7 @@ func CodeFromError(err error) codes.Code {
 	return codes.Unknown
 }
 
-// CauseUnaryServerInterceptor returns an interceptor that extracts the cause of an error chain
+// UnaryServerInterceptor returns an interceptor that extracts the cause of an error chain
 // and returns it as a gRPC status error.
 //
 // To log the full error chain and return only the cause to the user, insert this interceptor before

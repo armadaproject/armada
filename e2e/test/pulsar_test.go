@@ -9,12 +9,15 @@ import (
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	"github.com/G-Research/armada/internal/common/armadaerrors"
 	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/events"
 	"github.com/G-Research/armada/pkg/api"
@@ -24,9 +27,10 @@ import (
 // Pulsar configuration. Must be manually reconciled with changes to the test setup or Armada.
 const pulsarUrl = "pulsar://localhost:6650"
 const pulsarTopic = "jobset-events"
-const pulsarSubscription = "e2e-test-topic"
+const pulsarSubscription = "e2e-test"
 const armadaUrl = "localhost:50051"
 const armadaQueueName = "e2e-test-queue"
+const armadaUserId = "anonymous"
 
 // Namespace created by the test setup. Used when submitting test jobs.
 const userNamespace = "personal-anonymous"
@@ -53,42 +57,214 @@ func TestPublishReceive(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-// Test that submitting a job to Armada results in the correct sequence of Pulsar message being produced.
-func TestSubmitJobTransitions(t *testing.T) {
+// Test that submitting many jobs results in the correct sequence of Pulsar message being produced for each job.
+func TestSubmitJobs(t *testing.T) {
 	err := withSetup(func(ctx context.Context, client api.SubmitClient, producer pulsar.Producer, consumer pulsar.Consumer) error {
+		numJobs := 1
+		req := createJobSubmitRequest(numJobs)
 		ctxWithTimeout, _ := context.WithTimeout(context.Background(), time.Second)
-		req := createJobSubmitRequest(userNamespace)
-		_, err := client.SubmitJobs(ctxWithTimeout, req)
+		res, err := client.SubmitJobs(ctxWithTimeout, req)
 		if err != nil {
 			return err
 		}
 
-		expected := &events.EventSequence{
-			Queue:      armadaQueueName,
-			JobSetName: req.JobSetId,
-			Events: []*events.EventSequence_Event{
-				{Event: &events.EventSequence_Event_SubmitJob{}},
-				{Event: &events.EventSequence_Event_JobRunLeased{}},
-				{Event: &events.EventSequence_Event_JobRunAssigned{}},
-				{Event: &events.EventSequence_Event_JobRunRunning{}},
-				{Event: &events.EventSequence_Event_JobRunSucceeded{}},
-				{Event: &events.EventSequence_Event_JobSucceeded{}},
-			},
-		}
-
-		numEventsExpected := len(expected.Events)
-		actual, err := receiveJobSetSequence(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, 10*time.Second)
-		if err != nil {
-			return err
-		}
-
-		if ok := isSequencef(t, expected, actual, "Event sequence error; printing diff:\n%s", cmp.Diff(expected, actual)); !ok {
+		if ok := assert.Equal(t, numJobs, len(res.JobResponseItems)); !ok {
 			return nil
+		}
+
+		numEventsExpected := numJobs * 6
+		sequences, err := receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, 10*time.Second)
+		if err != nil {
+			return err
+		}
+
+		sequence := flattenSequences(sequences)
+		if ok := assert.NotNil(t, sequence); !ok {
+			return nil
+		}
+
+		for i, resi := range res.JobResponseItems {
+			reqi := req.JobRequestItems[i]
+
+			jobId, err := events.ProtoUuidFromUlidString(resi.JobId)
+			if err != nil {
+				return err
+			}
+
+			expected := expectedSequenceFromRequestItem(req.JobSetId, jobId, reqi)
+			actual, err := filterSequenceByJobId(sequence, jobId)
+			if err != nil {
+				return err
+			}
+			if ok := isSequencef(t, expected, actual, "Event sequence error; printing diff:\n%s", cmp.Diff(expected, actual)); !ok {
+				return nil
+			}
 		}
 
 		return nil
 	})
 	assert.NoError(t, err)
+}
+
+// Test that submitting many jobs results in the correct sequence of Pulsar message being produced for each job.
+// For jobs that contain multiple PodSpecs, services, and ingresses.
+func TestSubmitJobsWithEverything(t *testing.T) {
+	err := withSetup(func(ctx context.Context, client api.SubmitClient, producer pulsar.Producer, consumer pulsar.Consumer) error {
+		numJobs := 1
+		req := createJobSubmitRequestWithEverything(numJobs)
+		ctxWithTimeout, _ := context.WithTimeout(context.Background(), time.Second)
+		res, err := client.SubmitJobs(ctxWithTimeout, req)
+		if err != nil {
+			return err
+		}
+
+		if ok := assert.Equal(t, numJobs, len(res.JobResponseItems)); !ok {
+			return nil
+		}
+
+		numEventsExpected := numJobs * 6
+		sequences, err := receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, 10*time.Second)
+		if err != nil {
+			return err
+		}
+
+		sequence := flattenSequences(sequences)
+		if ok := assert.NotNil(t, sequence); !ok {
+			return nil
+		}
+
+		for i, resi := range res.JobResponseItems {
+			reqi := req.JobRequestItems[i]
+
+			jobId, err := events.ProtoUuidFromUlidString(resi.JobId)
+			if err != nil {
+				return err
+			}
+
+			expected := expectedSequenceFromRequestItem(req.JobSetId, jobId, reqi)
+			actual, err := filterSequenceByJobId(sequence, jobId)
+			if err != nil {
+				return err
+			}
+			if ok := isSequencef(t, expected, actual, "Event sequence error; printing diff:\n%s", cmp.Diff(expected, actual)); !ok {
+				return nil
+			}
+		}
+
+		return nil
+	})
+	assert.NoError(t, err)
+}
+
+// expectedSequenceFromJobRequestItem returns the expected event sequence for a particular job request and response.
+func expectedSequenceFromRequestItem(jobSetName string, jobId *events.Uuid, reqi *api.JobSubmitRequestItem) *events.EventSequence {
+
+	// Any objects created for the job in addition to the main object.
+	// We only check that the correct number of objects of each type is created.
+	// Later, we may wish to also check the fields of the objects.
+	objects := make([]*events.KubernetesObject, 0)
+
+	// Set of ports associated with a service in the submitted job.
+	// Because Armada automatically creates services for ingresses with no corresponding service,
+	// we need this to create the correct number of services.
+	servicePorts := make(map[uint32]bool)
+
+	// One object per service + compute servicePorts
+	if reqi.Services != nil {
+		for _, service := range reqi.Services {
+			objects = append(objects, &events.KubernetesObject{Object: &events.KubernetesObject_Service{}})
+			for _, port := range service.Ports {
+				servicePorts[port] = true
+			}
+		}
+	}
+
+	// Services and ingresses created for the job.
+	if reqi.Ingress != nil {
+		for _, ingress := range reqi.Ingress {
+			objects = append(objects, &events.KubernetesObject{Object: &events.KubernetesObject_Ingress{}})
+
+			// Armada automatically creates services as needed by ingresses
+			// (each ingress needs to point to a service).
+			for _, port := range ingress.Ports {
+				if _, ok := servicePorts[port]; !ok {
+					objects = append(objects, &events.KubernetesObject{Object: &events.KubernetesObject_Service{}})
+				}
+			}
+		}
+	}
+
+	// Count the total number of PodSpecs in the job and add one less than that to the additional objects
+	// (since one PodSpec is placed into the main object).
+	numPodSpecs := 0
+	if reqi.PodSpec != nil {
+		numPodSpecs++
+	}
+	if reqi.PodSpecs != nil {
+		numPodSpecs += len(reqi.PodSpecs)
+	}
+	for i := 0; i < numPodSpecs-1; i++ {
+		objects = append(objects, &events.KubernetesObject{Object: &events.KubernetesObject_PodSpec{}})
+	}
+
+	return &events.EventSequence{
+		Queue:      armadaQueueName,
+		JobSetName: jobSetName,
+		UserId:     armadaUserId,
+		Events: []*events.EventSequence_Event{
+			{Event: &events.EventSequence_Event_SubmitJob{
+				SubmitJob: &events.SubmitJob{
+					JobId:           jobId,
+					DeduplicationId: reqi.ClientId,
+					Priority:        uint32(reqi.Priority),
+					ObjectMeta: &events.ObjectMeta{
+						Namespace:    userNamespace,
+						Name:         "",
+						KubernetesId: "",
+						Annotations:  nil,
+						Labels:       nil,
+					},
+					MainObject:      &events.KubernetesMainObject{Object: &events.KubernetesMainObject_PodSpec{}},
+					Objects:         objects,
+					Lifetime:        0,
+					AtMostOnce:      false,
+					Preemptible:     false,
+					ConcurrencySafe: false,
+				},
+			}},
+			{Event: &events.EventSequence_Event_JobRunLeased{
+				JobRunLeased: &events.JobRunLeased{
+					RunId:      nil,
+					JobId:      jobId,
+					ExecutorId: "",
+				},
+			}},
+			{Event: &events.EventSequence_Event_JobRunAssigned{
+				JobRunAssigned: &events.JobRunAssigned{
+					RunId: nil,
+					JobId: jobId,
+				},
+			}},
+			{Event: &events.EventSequence_Event_JobRunRunning{
+				JobRunRunning: &events.JobRunRunning{
+					RunId:         nil,
+					JobId:         jobId,
+					ResourceInfos: nil,
+				},
+			}},
+			{Event: &events.EventSequence_Event_JobRunSucceeded{
+				JobRunSucceeded: &events.JobRunSucceeded{
+					RunId: nil,
+					JobId: jobId,
+				},
+			}},
+			{Event: &events.EventSequence_Event_JobSucceeded{
+				JobSucceeded: &events.JobSucceeded{
+					JobId: jobId,
+				},
+			}},
+		},
+	}
 }
 
 // Compare an expected sequence of events with the actual sequence.
@@ -117,27 +293,92 @@ func isSequencef(t *testing.T, expected *events.EventSequence, actual *events.Ev
 	if ok = assert.Equal(t, expected.JobSetName, actual.JobSetName); !ok {
 		return false
 	}
+	if ok = assert.Equal(t, expected.UserId, actual.UserId); !ok {
+		return false
+	}
 	if ok = assert.Equal(t, len(expected.Events), len(actual.Events)); !ok {
 		return false
 	}
 	for i, expectedEvent := range expected.Events {
 		actualEvent := actual.Events[i]
-		if ok := assert.IsTypef(t, expectedEvent.Event, actualEvent.Event, "%d-th event differed: %s", i, actualEvent); !ok {
+		if ok := isEventf(t, expectedEvent, actualEvent, "%d-th event differed: %s", i, actualEvent); !ok {
 			return false
 		}
 	}
 	return true
 }
 
+// Compare an actual event with an expected event.
+// Only compares the subset of fields relevant for testing.
+func isEventf(t *testing.T, expected *events.EventSequence_Event, actual *events.EventSequence_Event, msg string, args ...interface{}) (ok bool) {
+	defer func() {
+		if !ok && msg != "" {
+			t.Logf(msg, args...)
+		}
+	}()
+	if ok = assert.IsType(t, expected.Event, actual.Event); !ok {
+		return false
+	}
+
+	// If the expected event includes a jobId, the actual event must include the same jobId.
+	expectedJobId, err := events.JobIdFromEvent(expected)
+	if err == nil {
+		actualJobId, err := events.JobIdFromEvent(actual)
+		if ok = assert.NoError(t, err); !ok {
+			return false
+		}
+		if ok = assert.Equal(t, expectedJobId, actualJobId); !ok {
+			return false
+		}
+	}
+
+	switch expectedEvent := expected.Event.(type) {
+	case *events.EventSequence_Event_SubmitJob:
+		actualEvent, ok := actual.Event.(*events.EventSequence_Event_SubmitJob)
+		if ok := assert.True(t, ok); !ok {
+			return false
+		}
+		ok = ok && assert.Equal(t, *expectedEvent.SubmitJob.JobId, *actualEvent.SubmitJob.JobId)
+		ok = ok && assert.Equal(t, expectedEvent.SubmitJob.DeduplicationId, actualEvent.SubmitJob.DeduplicationId)
+		ok = ok && assert.Equal(t, expectedEvent.SubmitJob.Priority, actualEvent.SubmitJob.Priority)
+		ok = ok && assert.IsType(t, expectedEvent.SubmitJob.MainObject.Object, actualEvent.SubmitJob.MainObject.Object)
+		ok = ok && assert.NotNil(t, expectedEvent.SubmitJob.ObjectMeta)
+		ok = ok && assert.Equal(t, expectedEvent.SubmitJob.ObjectMeta.Namespace, actualEvent.SubmitJob.ObjectMeta.Namespace)
+
+		expectedObjectCounts := countObjectTypes(expectedEvent.SubmitJob.Objects)
+		actualObjectCounts := countObjectTypes(actualEvent.SubmitJob.Objects)
+		ok = ok && assert.Equal(t, expectedObjectCounts, actualObjectCounts)
+
+		return ok
+	case *events.EventSequence_Event_ReprioritiseJob:
+	case *events.EventSequence_Event_CancelJob:
+	case *events.EventSequence_Event_JobSucceeded:
+	case *events.EventSequence_Event_JobRunSucceeded:
+	case *events.EventSequence_Event_JobRunLeased:
+	case *events.EventSequence_Event_JobRunAssigned:
+	case *events.EventSequence_Event_JobRunRunning:
+	case *events.EventSequence_Event_JobRunErrors:
+	}
+	return true
+}
+
+// countObjectTypes returns a map from object type (as a string) to the number of objects of that type.
+func countObjectTypes(objects []*events.KubernetesObject) map[string]int {
+	result := make(map[string]int)
+	for _, object := range objects {
+		typeName := fmt.Sprintf("%T", object.Object)
+		count, _ := result[typeName]
+		result[typeName] = count + 1
+	}
+	return result
+}
+
 // receiveJobSetSequence receives messages from Pulsar, discarding any messages not for queue and jobSetName.
 // The events contained in the remaining messages are collected in a single sequence, which is returned.
-func receiveJobSetSequence(ctx context.Context, consumer pulsar.Consumer, queue string, jobSetName string, numEventsExpected int, timeout time.Duration) (result *events.EventSequence, err error) {
-	result = &events.EventSequence{
-		Queue:      queue,
-		JobSetName: jobSetName,
-		Events:     make([]*events.EventSequence_Event, 0),
-	}
-	for len(result.Events) < numEventsExpected {
+func receiveJobSetSequences(ctx context.Context, consumer pulsar.Consumer, queue string, jobSetName string, maxEvents int, timeout time.Duration) (sequences []*events.EventSequence, err error) {
+	sequences = make([]*events.EventSequence, 0)
+	numEvents := 0
+	for numEvents < maxEvents {
 		ctxWithTimeout, _ := context.WithTimeout(ctx, timeout)
 		var msg pulsar.Message
 		msg, err = consumer.Receive(ctxWithTimeout)
@@ -147,7 +388,6 @@ func receiveJobSetSequence(ctx context.Context, consumer pulsar.Consumer, queue 
 		} else if err != nil {
 			fmt.Println("Pulsar receive error", err)
 			continue
-			// return
 		}
 		consumer.Ack(msg)
 
@@ -164,37 +404,148 @@ func receiveJobSetSequence(ctx context.Context, consumer pulsar.Consumer, queue 
 			continue
 		}
 
-		result.Events = append(result.Events, sequence.Events...)
+		numEvents += len(sequence.Events)
+		sequences = append(sequences, sequence)
 	}
 	return
 }
 
+// concatenateSequences returns a new sequence containing all events in the provided slice of sequences.
+func flattenSequences(sequences []*events.EventSequence) *events.EventSequence {
+	if len(sequences) == 0 {
+		return nil
+	}
+	result := &events.EventSequence{
+		Queue:      sequences[0].Queue,
+		JobSetName: sequences[0].JobSetName,
+		UserId:     sequences[0].UserId,
+		Events:     make([]*events.EventSequence_Event, 0),
+	}
+	for _, sequence := range sequences {
+		result.Events = append(result.Events, sequence.Events...)
+	}
+	return result
+}
+
+// filterSequenceByJobId returns a new event sequence composed of the events for the job with the specified id.
+func filterSequenceByJobId(sequence *events.EventSequence, id *events.Uuid) (*events.EventSequence, error) {
+	result := &events.EventSequence{
+		Queue:      sequence.Queue,
+		JobSetName: sequence.JobSetName,
+		UserId:     sequence.UserId,
+		Events:     make([]*events.EventSequence_Event, 0),
+	}
+	for _, e := range sequence.Events {
+		jobId, err := events.JobIdFromEvent(e)
+		if errors.Is(err, &armadaerrors.ErrInvalidArgument{}) {
+			continue
+		} else if err != nil {
+			return nil, err
+		}
+		if *jobId != *id {
+			continue
+		}
+		result.Events = append(result.Events, e)
+	}
+	return result, nil
+}
+
 // Create a job submit request for testing.
-func createJobSubmitRequest(namespace string) *api.JobSubmitRequest {
+func createJobSubmitRequest(numJobs int) *api.JobSubmitRequest {
 	cpu, _ := resource.ParseQuantity("80m")
 	memory, _ := resource.ParseQuantity("50Mi")
+	items := make([]*api.JobSubmitRequestItem, numJobs, numJobs)
+	for i := 0; i < numJobs; i++ {
+		items[i] = &api.JobSubmitRequestItem{
+			Namespace: userNamespace,
+			Priority:  1,
+			ClientId:  uuid.New().String(), // So we can test that we get back the right thing
+			PodSpec: &v1.PodSpec{
+				Containers: []v1.Container{
+					{
+						Name:  "container1",
+						Image: "alpine:3.10",
+						Args:  []string{"sleep", "5s"},
+						Resources: v1.ResourceRequirements{
+							Requests: v1.ResourceList{"cpu": cpu, "memory": memory},
+							Limits:   v1.ResourceList{"cpu": cpu, "memory": memory},
+						},
+					},
+				},
+			},
+		}
+	}
 	return &api.JobSubmitRequest{
-		Queue:    armadaQueueName,
-		JobSetId: util.NewULID(),
-		JobRequestItems: []*api.JobSubmitRequestItem{
-			{
-				Namespace: namespace,
-				Priority:  1,
-				PodSpec: &v1.PodSpec{
-					Containers: []v1.Container{
-						{
-							Name:  "container1",
-							Image: "alpine:3.10",
-							Args:  []string{"sleep", "5s"},
-							Resources: v1.ResourceRequirements{
-								Requests: v1.ResourceList{"cpu": cpu, "memory": memory},
-								Limits:   v1.ResourceList{"cpu": cpu, "memory": memory},
+		Queue:           armadaQueueName,
+		JobSetId:        util.NewULID(),
+		JobRequestItems: items,
+	}
+}
+
+// Create a job submit request with multiple pods, and an ingress and service for testing.
+func createJobSubmitRequestWithEverything(numJobs int) *api.JobSubmitRequest {
+	cpu, _ := resource.ParseQuantity("80m")
+	memory, _ := resource.ParseQuantity("50Mi")
+	items := make([]*api.JobSubmitRequestItem, numJobs, numJobs)
+	for i := 0; i < numJobs; i++ {
+		items[i] = &api.JobSubmitRequestItem{
+			Namespace: userNamespace,
+			Priority:  1,
+			ClientId:  uuid.New().String(), // So we can test that we get back the right thing
+			PodSpec: &v1.PodSpec{
+				Containers: []v1.Container{
+					{
+						Name:  "container1",
+						Image: "alpine:3.10",
+						Args:  []string{"sleep", "5s"},
+						Resources: v1.ResourceRequirements{
+							Requests: v1.ResourceList{"cpu": cpu, "memory": memory},
+							Limits:   v1.ResourceList{"cpu": cpu, "memory": memory},
+						},
+						// Armada silently deletes services/ingresses unless the main pod exposes those.
+						// Hence, we need to expose the following ports.
+						Ports: []v1.ContainerPort{
+							{
+								ContainerPort: 5000,
+								Protocol:      v1.ProtocolTCP,
+								Name:          "port5000",
+							},
+							{
+								ContainerPort: 6000,
+								Protocol:      v1.ProtocolTCP,
+								Name:          "port6000",
+							},
+							{
+								ContainerPort: 7000,
+								Protocol:      v1.ProtocolTCP,
+								Name:          "port7000",
 							},
 						},
 					},
 				},
 			},
-		},
+			Ingress: []*api.IngressConfig{
+				{
+					Type:  api.IngressType_Ingress,
+					Ports: []uint32{5000},
+				},
+			},
+			Services: []*api.ServiceConfig{
+				{
+					Type:  api.ServiceType_NodePort,
+					Ports: []uint32{6000},
+				},
+				{
+					Type:  api.ServiceType_Headless,
+					Ports: []uint32{7000},
+				},
+			},
+		}
+	}
+	return &api.JobSubmitRequest{
+		Queue:           armadaQueueName,
+		JobSetId:        util.NewULID(),
+		JobRequestItems: items,
 	}
 }
 

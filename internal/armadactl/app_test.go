@@ -227,25 +227,25 @@ queue: %s
 jobSetId: set1
 jobs:
   - priority: 0
-    podSpecs:
-      - terminationGracePeriodSeconds: 0
-        restartPolicy: Never
-        containers:
-          - name: ls
-            imagePullPolicy: IfNotPresent
-            image: busybox:latest
-            command:
-              - sh
-              - -c
-            args:
-              - ls
-            resources:
-              limits:
-                memory: 100Mi
-                cpu: 1
-              requests:
-                memory: 100Mi
-                cpu: 1`, name))
+    podSpec:
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      containers:
+        - name: ls
+          imagePullPolicy: IfNotPresent
+          image: busybox:latest
+          command:
+            - sh
+            - -c
+          args:
+            - ls
+          resources:
+            limits:
+              memory: 100Mi
+              cpu: 1
+            requests:
+              memory: 100Mi
+              cpu: 1`, name))
 	jobDir := t.TempDir()
 	jobFile, err := os.CreateTemp(jobDir, "test")
 	if err != nil {

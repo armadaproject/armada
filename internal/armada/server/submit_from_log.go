@@ -259,6 +259,7 @@ func (srv *SubmitFromLog) ProcessSubSequence(ctx context.Context, i int, sequenc
 		err = errors.WithStack(err)
 		j = i + len(es)
 	default:
+		// TODO: Shouldn't be an error; is's fine to not handle all messages.
 		err = &armadaerrors.ErrInvalidArgument{
 			Name:    fmt.Sprintf("Events[%d]", i),
 			Value:   sequence.Events[i],
@@ -411,7 +412,7 @@ func apiJobsFromLogSubmitJobs(userId string, groups []string, queueName string, 
 // apiJobFromLogSubmitJob converts a SubmitJob log message into an api.Job struct, which is used by Armada internally.
 func apiJobFromLogSubmitJob(ownerId string, groups []string, queueName string, jobSetName string, time time.Time, e *events.SubmitJob) (*api.Job, error) {
 
-	// The log submit API only supports a single pod spec. per job, which is placed in the main object.
+	// We only support PodSpecs as main object.
 	mainObject, ok := e.MainObject.Object.(*events.KubernetesMainObject_PodSpec)
 	if !ok {
 		return nil, errors.Errorf("expected *PodSpecWithAvoidList, but got %v", e.MainObject.Object)
@@ -438,6 +439,7 @@ func apiJobFromLogSubmitJob(ownerId string, groups []string, queueName string, j
 			objectMeta.Namespace = object.ObjectMeta.Namespace
 			objectMeta.Annotations = object.ObjectMeta.Annotations
 			objectMeta.Labels = object.ObjectMeta.Labels
+			objectMeta.Name = object.ObjectMeta.Name
 		}
 		switch o := object.Object.(type) {
 		case *events.KubernetesObject_Service:

@@ -5,10 +5,6 @@ Mgoogle/protobuf/empty.proto=github.com/gogo/protobuf/types,\
 Mgoogle/protobuf/timestamp.proto=github.com/gogo/protobuf/types,\
 Mgoogle/protobuf/wrappers.proto=github.com/gogo/protobuf/types
 
-# Corporate proxy for go packages.
-export GOPROXY=http://goproxy.uberit.net:3000
-export GOPRIVATE=git.uberit.net
-
 # protoc go
 protoc \
 --proto_path=. \

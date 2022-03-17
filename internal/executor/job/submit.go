@@ -153,6 +153,10 @@ func (allocationService *SubmitService) submitPod(job *api.Job, i int) (*v1.Pod,
 // It does so by converting the Services and Ingress fields, which are Armada-specific, into proper k8s objects.
 // If either of K8SService or K8SIngress is already populated (i.e., is non-nil), this function is a no-op,
 // except for replacing nil-valued K8SService and K8SIngress with empty slices.
+//
+// TODO: I think this is wrong for jobs with multiple PodSPecs.
+// Because we should create a set of services/ingresses for each pod,
+// but this code is a no-op if K8SService or K8SIngress is already populated.
 func (allocationService *SubmitService) populateServicesIngresses(job *api.Job, pod *v1.Pod) {
 	if job.Services == nil {
 		job.Services = make([]*api.ServiceConfig, 0)

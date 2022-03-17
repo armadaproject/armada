@@ -1,4 +1,4 @@
-# Dockerfile for building .proto files internally at GR.
+# Dockerfile for building .proto files (sans the dotnet stuff).
 
 ARG GOLANG_VERSION=1.14
 ARG PROTOC_VERSION=3.17.3
@@ -9,17 +9,25 @@ ARG GO_SWAGGER_VERSION=0.23.0
 ARG TEMPLIFY_VERSION=0.0.0-20190823200653-c12e62ca00c1
 ARG GOIMPORTS_VERSION=0.0.0-20200529172331-a64b76657301
 
+# Populate with environment variables from shell by running docker build with
+# --build-arg GOPROXY --build-arg GOPRIVATE
+ARG GOPROXY=""
+ARG GOPRIVATE=""
+
 FROM --platform=linux/amd64 golang:${GOLANG_VERSION}-buster as builder
 
-# Corporate proxy for go packages.
-ENV GOPROXY=http://goproxy.uberit.net:3000
-ENV GOPRIVATE=git.uberit.net
+# Load GOPROXY and GOPRIVATE as environment varialbes in the build container.
+# If not defined, these are set to "", which defaults to the standard go package source.
+ARG GOPROXY
+ARG GOPRIVATE
+ENV GOPROXY=$GOPROXY
+ENV GOPRIVATE=$GOPRIVATE
 
-# Because we're building behind a corporate proxy,
-# the protoc binaries have to be brought in manually via self-service downloads.
+# Copy in the protoc toolchain (which must be downloaded and made available manually).
 ARG PROTOC_VERSION
-COPY build/proto/GR_build/protoc-${PROTOC_VERSION}-linux-x86_64/bin/protoc /usr/local/bin
-COPY build/proto/GR_build/protoc-${PROTOC_VERSION}-linux-x86_64/include/* /proto
+COPY build/protogo/protoc-${PROTOC_VERSION}-linux-x86_64/bin/protoc /usr/local/bin
+COPY build/protogo/protoc-${PROTOC_VERSION}-linux-x86_64/include/* /proto
+# Automated way of downloading protoc toolchain.
 #RUN curl -OL https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-x86_64.zip && \
 #    unzip -o protoc-${PROTOC_VERSION}-linux-x86_64.zip -d /usr/local bin/protoc && \
 #    unzip -o protoc-${PROTOC_VERSION}-linux-x86_64.zip -d /usr/local include/* && \
@@ -46,8 +54,6 @@ RUN go mod download k8s.io/api@v${K8S_VERSION} && \
     mkdir -p /proto/k8s.io/apimachinery && \
     cp -r $(go env GOPATH)/pkg/mod/k8s.io/api@v${K8S_VERSION}/* /proto/k8s.io/api && \
     cp -r $(go env GOPATH)/pkg/mod/k8s.io/apimachinery@v${K8S_VERSION}/* /proto/k8s.io/apimachinery
-#RUN git clone --branch v${K8S_VERSION} https://github.com/kubernetes/api /proto/k8s.io/api && \
-#    git clone --branch v${K8S_VERSION} https://github.com/kubernetes/apimachinery /proto/k8s.io/apimachinery
 
 ARG GO_SWAGGER_VERSION
 RUN GO111MODULE=on go get github.com/go-swagger/go-swagger/cmd/swagger@v${GO_SWAGGER_VERSION}

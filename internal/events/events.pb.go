@@ -41,6 +41,7 @@ type EventSequence struct {
 	//
 	// The subscriber is responsible for storing previously seen combinations of (queue, job_set_name)
 	// and looking those up based on their hash (i.e., content-based addressing).
+	// TODO: Remove queue_job_set_hash
 	Queue string `protobuf:"bytes,1,opt,name=queue,proto3" json:"queue,omitempty"`
 	// Each job set has a unique name.
 	JobSetName string `protobuf:"bytes,2,opt,name=job_set_name,json=jobSetName,proto3" json:"job_set_name,omitempty"`

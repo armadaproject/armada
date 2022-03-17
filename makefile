@@ -110,10 +110,8 @@ build-docker-binoculars:
 
 build-docker: build-docker-server build-docker-executor build-docker-armadactl build-docker-armada-load-tester build-docker-fakeexecutor build-docker-lookout build-docker-binoculars
 
-# Build target without lookout, since lookout depends on pulling in npm packages and docker images from the internet.
-# The npm problems can be fixed by applying registry and disturl at https://confluence.uberit.net/pages/viewpage.action?pageId=25428658
-# Still don't know how to fix the docker problem.
-gr-build-docker: build-docker-server build-docker-executor build-docker-armadactl build-docker-armada-load-tester build-docker-fakeexecutor build-docker-binoculars
+# Build target without lookout (to avoid needing to load npm packages from the Internet).
+build-docker-no-lookout: build-docker-server build-docker-executor build-docker-armadactl build-docker-armada-load-tester build-docker-fakeexecutor build-docker-binoculars
 
 build-ci: gobuild=$(gobuildlinux)
 build-ci: build-docker build-armadactl build-armadactl-multiplatform build-load-tester
@@ -131,25 +129,14 @@ tests:
 	go test -v ./pkg/...
 	go test -v ./cmd/...
 
-e2e-start-cluster:
-	./e2e/setup/setup_cluster_ci.sh
-	./e2e/setup/setup_kube_config_ci.sh
-	KUBECONFIG=.kube/config kubectl apply -f ./e2e/setup/namespace-with-anonymous-user.yaml
-	docker run -d --name nats -p 4223:4223 -p 8223:8223 nats-streaming -p 4223 -m 8223
-
-e2e-stop-cluster:
-	docker stop kube nats
-	docker rm kube nats
-
 .ONESHELL:
-gr-tests-e2e-teardown:
-	docker rm -f nats redis server executor
+tests-e2e-teardown:
+	docker rm -f nats redis pulsar server executor
 	kind delete cluster --name armada-test
 	rm .kube/config
 	rmdir .kube
 
-.ONESHELL:
-gr-tests-e2e: gr-build-docker
+tests-e2e-setup:
 	docker pull "alpine:3.10" # ensure Alpine, which is used by tests, is available
 	kind create cluster --name armada-test --wait 30s --image kindest/node:v1.21.1
 	kind load docker-image "alpine:3.10" --name armada-test # needed to make Alpine available to kind
@@ -160,8 +147,9 @@ gr-tests-e2e: gr-build-docker
 	kubectl apply -f ./e2e/setup/namespace-with-anonymous-user.yaml # context set automatically by kind
 	docker run -d --name nats --network=kind nats-streaming
 	docker run -d --name redis -p=6379:6379 --network=kind redis
-	docker run -d --name pulsar -p 6650:6650 --network=kind --mount source=pulsardata,target=/pulsar/data --mount source=pulsarconf,target=/pulsar/conf apachepulsar/pulsar:2.9.1 bin/pulsar standalone
+	docker run -d --name pulsar -p 6650:6650 --network=kind apachepulsar/pulsar:2.9.1 bin/pulsar standalone
 
+	sleep 10 # give dependencies time to start up
 	docker run -d --name server --network=kind -p=50051:50051 -v ${PWD}/e2e:/e2e \
 		armada ./server --config /e2e/setup/insecure-armada-auth-config.yaml --config /e2e/setup/nats/armada-config.yaml --config /e2e/setup/redis/armada-config.yaml --config /e2e/setup/pulsar/armada-config.yaml
 	docker run -d --name executor --network=kind -v ${PWD}/.kube:/.kube -v ${PWD}/e2e:/e2e  \
@@ -172,49 +160,26 @@ gr-tests-e2e: gr-build-docker
 		-e ARMADA_APICONNECTION_FORCENOTLS=true \
 		armada-executor --config /e2e/setup/executor-config.yaml
 
-	function tearDown {
+.ONESHELL:
+tests-e2e: build-armadactl build-docker-no-lookout tests-e2e-setup
+	function teardown {
 		echo -e "\nexecutor logs:"
 		docker logs executor
 		echo -e "\nserver logs:"
 		docker logs server
-		docker rm -f nats redis server executor
+		docker rm -f nats redis pulsar server executor
 		kind delete cluster --name armada-test
 		rm .kube/config
 		rmdir .kube
 	}
-	trap tearDown exit
+	trap teardown exit
 	sleep 10
 	echo -e "\nrunning tests:"
-	PATH=${PATH}:${PWD}/bin/linux
 	INTEGRATION_ENABLED=true go test -v ./e2e/test/... -count=1
 
-.ONESHELL:
-tests-e2e: e2e-start-cluster build-docker
-	docker run -d --name redis -p=6379:6379 redis
-	docker run -d --name server --network=host -p=50051:50051 \
-		-v $(shell pwd)/e2e:/e2e \
-		armada ./server --config /e2e/setup/insecure-armada-auth-config.yaml --config /e2e/setup/nats/armada-config.yaml
-	docker run -d --name executor --network=host -v $(shell pwd)/.kube/config:/kube/config \
-		-e KUBECONFIG=/kube/config \
-		-e ARMADA_KUBERNETES_IMPERSONATEUSERS=true \
-		-e ARMADA_KUBERNETES_STUCKPODEXPIRY=15s \
-		armada-executor
-	function tearDown {
-		echo -e "\nexecutor logs:"
-		docker logs executor
-		echo -e "\nserver logs:"
-		docker logs server
-		docker stop executor server redis
-		docker rm executor server redis
-	}
-	trap tearDown EXIT
-	sleep 10
-	echo -e "\nrunning test:"
-	INTEGRATION_ENABLED=true PATH=${PATH}:${PWD}/bin go test -v ./e2e/test/... -count=1
-
 proto:
-	docker build $(dockerFlags) -t armada-proto -f ./build/proto/GR_build/Dockerfile .
-	docker run -it --rm -v $(shell pwd):/go/src/armada -w /go/src/armada armada-proto ./scripts/proto.sh
+	docker build $(dockerFlags) --build-arg GOPROXY --build-arg GOPRIVATE -t armada-proto -f ./build/protogo/Dockerfile .
+	docker run -it --rm -e GOPROXY -e GOPRIVATE -v ${PWD}:/go/src/armada -w /go/src/armada armada-proto ./scripts/proto.sh
 
 generate:
 	go run github.com/rakyll/statik \

@@ -22,6 +22,10 @@ import (
 
 const integrationEnabledEnvVar = "INTEGRATION_ENABLED"
 
+// Location of the armadactl executable, which is needed by some tests.
+// Path is relative to this file.
+const armadactlExecutable = "../../bin/armadactl"
+
 func TestCanSubmitJob_ReceivingAllExpectedEvents(t *testing.T) {
 	skipIfIntegrationEnvNotPresent(t)
 
@@ -96,7 +100,7 @@ func TestCanSubmitJob_ArmdactlWatchExitOnInactive(t *testing.T) {
 		jobRequest := createJobRequest("personal-anonymous")
 		createQueue(submitClient, jobRequest, t)
 
-		cmd := exec.Command("armadactl", "--armadaUrl="+connDetails.ArmadaUrl, "watch", "--exit-if-inactive", jobRequest.Queue, jobRequest.JobSetId)
+		cmd := exec.Command(armadactlExecutable, "--armadaUrl="+connDetails.ArmadaUrl, "watch", "--exit-if-inactive", jobRequest.Queue, jobRequest.JobSetId)
 		err := cmd.Start()
 		assert.NoError(t, err)
 
@@ -202,7 +206,7 @@ func createJobRequest(namespace string) *api.JobSubmitRequest {
 					},
 					},
 				},
-				Priority: 0,
+				Priority: 1,
 			},
 		},
 	}

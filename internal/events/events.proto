@@ -71,6 +71,7 @@ import "k8s.io/api/networking/v1beta1/generated.proto";
 // This is the only message type that should ever be published to the log.
 message EventSequence {
     // List of possible events, i.e., state transitions.
+    // TODO: Add legacy JobUtilisationEvent
     message Event {
         oneof event {
             SubmitJob submitJob = 1;
@@ -100,6 +101,7 @@ message EventSequence {
     //
     // The subscriber is responsible for storing previously seen combinations of (queue, job_set_name)
     // and looking those up based on their hash (i.e., content-based addressing).
+    // TODO: Remove queue_job_set_hash
     string queue = 1;
     // Each job set has a unique name.
     string job_set_name = 2;
@@ -152,7 +154,7 @@ message SubmitJob {
     // (e.g., if a job run succeeds but the executor fails before it can report job success).
     bool atMostOnce = 8;
     // If true, Armada may preempt the job while running.
-    bool preemptible  = 9;
+    bool preemptible = 9;
     // If true, Armada may optimistically run several instances of the job concurrently
     // (typically on different clusters).
     // If false, a new job run may only be created once Armada is certain that all existing runs have finished.
@@ -160,6 +162,7 @@ message SubmitJob {
 }
 
 // Kubernetes objects that can serve as main objects for an Armada job.
+// TODO: Put an ObjectMeta here.
 message KubernetesMainObject {
     oneof object {
         PodSpecWithAvoidList pod_spec = 1;
@@ -350,6 +353,7 @@ message ApplicationError {
     // Id assigned by Kubernetes to the container running the application.
     Uuid container_id = 1;
     // Exit code of the application running in the container.
+    // TODO: Should be called exit_code
     int32 code = 2;
     // Error message returned by the application in the container.
     string message = 3;

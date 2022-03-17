@@ -2,7 +2,9 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"math"
+	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/proto"
@@ -21,8 +23,11 @@ import (
 	"github.com/G-Research/armada/internal/common/requestid"
 	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/events"
+	"github.com/G-Research/armada/internal/executor/configuration"
 	executorconfig "github.com/G-Research/armada/internal/executor/configuration"
+	"github.com/G-Research/armada/internal/executor/domain"
 	executorutil "github.com/G-Research/armada/internal/executor/util"
+	"github.com/G-Research/armada/internal/pulsarutils/pulsarrequestid"
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/client/queue"
 )
@@ -31,7 +36,7 @@ import (
 // (currently used for all runs, since Armada does not generate run ids).
 const LEGACY_RUN_ID = "00000000000000000000000000"
 
-// Server that accepts API calls according to the original Armada submit API
+// PulsarSubmitServer is a service that accepts API calls according to the original Armada submit API
 // and publishes messages to Pulsar based on those calls.
 // TODO: Consider returning a list of message ids of the messages generated
 type PulsarSubmitServer struct {
@@ -71,78 +76,47 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 		responses[i] = &api.JobSubmitResponseItem{}
 		responses[i].JobId = jobId.String()
 
-		// Create k8s objects from the data embedded in the request.
-		// GenerateIngresses expects a job object, but only uses a subset of its fields.
-		// Hence, we create a job object with the needed fields populated.
-		job := &api.Job{
-			Ingress:     r.Ingress,
-			Services:    r.Services,
-			Labels:      r.Labels,
-			Annotations: r.Annotations,
-			JobSetId:    req.JobSetId,
-			Owner:       userId,
-			Namespace:   r.Namespace,
-		}
-		pod := &v1.Pod{
-			Spec: *r.PodSpec,
-		}
-		pod.Labels = map[string]string{} // TODO: Do we need to put something here?
-		services, ingresses := executorutil.GenerateIngresses(job, pod, srv.IngressConfig)
-
-		// Move those objects into a list that can be submitted to the log.
-		objects := make([]*events.KubernetesObject, 0, len(services)+len(ingresses))
-		for _, service := range services {
-			// Default to using the ObjectMeta details provided in the job.
-			objectMeta := &events.ObjectMeta{
-				Namespace:   r.Namespace,
-				Annotations: r.Annotations,
-				Labels:      r.Labels,
-			}
-
-			// Override the defaults with any info provided from executorutil.GenerateIngresses.
-			if service.ObjectMeta.Namespace != "" {
-				objectMeta.Namespace = service.ObjectMeta.Namespace
-			}
-			if service.ObjectMeta.Annotations != nil {
-				objectMeta.Annotations = service.ObjectMeta.Annotations
-			}
-			if service.ObjectMeta.Labels != nil {
-				objectMeta.Labels = service.ObjectMeta.Labels
-			}
-
-			objects = append(objects, &events.KubernetesObject{
-				ObjectMeta: objectMeta,
-				Object: &events.KubernetesObject_Service{
-					Service: &service.Spec,
-				},
+		if r.PodSpec == nil && len(r.PodSpecs) == 0 {
+			return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
+				Name:    "PodSpec",
+				Value:   r.PodSpec,
+				Message: "Job does not contain at least one PodSpec",
 			})
 		}
-		for _, ingress := range ingresses {
-			// Default to using the ObjectMeta details provided in the job.
-			objectMeta := &events.ObjectMeta{
-				Namespace:   r.Namespace,
-				Annotations: r.Annotations,
-				Labels:      r.Labels,
-			}
 
-			// Override the defaults with any info provided from executorutil.GenerateIngresses.
-			if ingress.ObjectMeta.Namespace != "" {
-				objectMeta.Namespace = ingress.ObjectMeta.Namespace
-			}
-			if ingress.ObjectMeta.Annotations != nil {
-				objectMeta.Annotations = ingress.ObjectMeta.Annotations
-			}
-			if ingress.ObjectMeta.Labels != nil {
-				objectMeta.Labels = ingress.ObjectMeta.Labels
-			}
+		// We only support jobs with a single PodSpec, and it must be set to r.PodSpec.
+		if r.PodSpec == nil && len(r.PodSpecs) == 1 {
+			r.PodSpec = r.PodSpecs[0]
+			r.PodSpecs = nil
+		}
 
-			objects = append(objects, &events.KubernetesObject{
-				ObjectMeta: objectMeta,
-				Object: &events.KubernetesObject_Ingress{
-					Ingress: &ingress.Spec,
-				},
+		// I'm not convinced that the code to create services/ingresses when multiple pods are submitted is correct.
+		// In particular, we do not create a full set of services/ingresses for each pod.
+		// Hence, we return an error until we can make sure that the code is correct.
+		// The next error is redundant with this one, but we leave both since we may wish to remove this one.
+		// - Albin
+		if len(r.PodSpecs) > 0 {
+			return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
+				Name:    "PodSpecs",
+				Value:   r.PodSpecs,
+				Message: "Jobs with multiple pods are not supported",
 			})
 		}
+
+		// Although the code for submitting to Pulsar (below) supports setting both r.PodSpec and r.PodSpecs,
+		// the executor code does not (e.g., executorutil.CreatePod). We may be able to merge them,
+		// but we should do more testing to make sure it's safe before we allow it.
+		// - Albin
+		if len(r.PodSpecs) > 0 && r.PodSpec != nil {
+			return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
+				Name:    "PodSpec",
+				Value:   r.PodSpec,
+				Message: "PodSpec must be nil if PodSpecs is provided (i.e., these are exclusive)",
+			})
+		}
+
+		// List of objects to create for the job in addition to the main object.
+		objects := make([]*events.KubernetesObject, 0, len(r.Services)+len(r.Ingress)+len(r.PodSpecs))
 
 		// Each job has a main object associated with it, which determines when the job exits.
 		// If provided, use r.PodSpec as the main object. Otherwise, try to use r.PodSpecs[0].
@@ -155,6 +129,17 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 			mainPodSpec = additionalPodSpecs[0]
 			additionalPodSpecs = additionalPodSpecs[1:]
 		}
+
+		// Job must contain at least one podspec
+		if mainPodSpec == nil {
+			err := errors.WithStack(&armadaerrors.ErrInvalidArgument{
+				Name:    "PodSpec",
+				Value:   nil,
+				Message: "job doesn't contain any podspecs",
+			})
+			return nil, err
+		}
+
 		mainObject := &events.KubernetesMainObject{
 			Object: &events.KubernetesMainObject_PodSpec{
 				PodSpec: &events.PodSpecWithAvoidList{
@@ -171,6 +156,7 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 						PodSpec: podSpec,
 					},
 				},
+				ObjectMeta: &events.ObjectMeta{},
 			})
 		}
 
@@ -179,7 +165,16 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 			return nil, err
 		}
 
-		// Fully formed job creation event to be added to the sequence.
+		// Create a SubmitJob that is fully formed, except for any services and ingresses.
+		// Clients submit an Armada-specific abbreviated service/ingress spec,
+		// which needs to be converted to proper Kubernetes objects to be submitted to the log.
+		//
+		// For compatibility with legacy code, the procedure for performing this conversion is:
+		// 1. Create a SubmitJob message
+		// 2. Create a legacy api job from the SubmitJob message (does not include services/ingresses)
+		// 3. Add the legacy service and ingress objects to this legacy api job from the request
+		// 4. Create service/ingress Kubernetes objects from the legacy api job
+		// 5. Add those Kubernetes objects to the SubmitJob message before submitting it to the log
 		submitJob := &events.SubmitJob{
 			JobId:           events.ProtoUuidFromUlid(jobId),
 			DeduplicationId: r.ClientId,
@@ -192,6 +187,93 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 			MainObject: mainObject,
 			Objects:    objects,
 		}
+
+		// Create a legacy API job from the SubmitJob message, to
+		// 1. find any errors associated with the job now and
+		// 2. because we need it to create Kubernetes services and ingresses from the corresponding legacy objects.
+		apiJob, err := apiJobFromLogSubmitJob(userId, groups, req.Queue, req.JobSetId, time.Now(), submitJob)
+		if err != nil {
+			return nil, err
+		}
+
+		// Manually add the legacy services and ingresses.
+		apiJob.Services = r.Services
+		apiJob.Ingress = r.Ingress
+
+		// GenerateIngresses (below) looks into the pod to set names for the services/ingresses.
+		// Hence, we use the same code as is later used by the executor to create the pod to be submitted.
+		// Note that we only create the pod here to pass it to GenerateIngresses.
+		// TODO: This only works for a single pod; I think we should create services/ingresses for each pod in the request (Albin).
+		pod := executorutil.CreatePod(apiJob, &configuration.PodDefaults{}, 0)
+		pod.Annotations = util.MergeMaps(pod.Annotations, map[string]string{
+			domain.HasIngress:               "true",
+			domain.AssociatedServicesCount:  fmt.Sprintf("%d", len(apiJob.K8SService)),
+			domain.AssociatedIngressesCount: fmt.Sprintf("%d", len(apiJob.K8SIngress)),
+		})
+
+		// Create k8s objects from the data embedded in the request.
+		// GenerateIngresses expects a job object and a pod because it looks into those for optimisations.
+		// For example, it deletes services/ingresses for which there are no corresponding ports exposed in the PodSpec.
+		// Note that the user may submit several pods, but we only pass in one of them as a separate argument.
+		// I think this may result in Armada deleting services/ingresses needed for pods other than the first one (Albin).
+		services, ingresses := executorutil.GenerateIngresses(apiJob, pod, srv.IngressConfig)
+
+		// Add those objects to the list of objects.
+		for _, service := range services {
+			// Default to using the ObjectMeta details provided in the job.
+			objectMeta := &events.ObjectMeta{
+				Namespace:   r.Namespace,
+				Annotations: r.Annotations,
+				Labels:      r.Labels,
+				Name:        service.Name,
+			}
+
+			// Override the defaults with any info provided from executorutil.GenerateIngresses.
+			if service.ObjectMeta.Namespace != "" {
+				objectMeta.Namespace = service.ObjectMeta.Namespace
+			}
+			if service.ObjectMeta.Annotations != nil {
+				objectMeta.Annotations = service.ObjectMeta.Annotations
+			}
+			if service.ObjectMeta.Labels != nil {
+				objectMeta.Labels = service.ObjectMeta.Labels
+			}
+
+			submitJob.Objects = append(submitJob.Objects, &events.KubernetesObject{
+				ObjectMeta: objectMeta,
+				Object: &events.KubernetesObject_Service{
+					Service: &service.Spec,
+				},
+			})
+		}
+		for _, ingress := range ingresses {
+			// Default to using the ObjectMeta details provided in the job.
+			objectMeta := &events.ObjectMeta{
+				Namespace:   r.Namespace,
+				Annotations: r.Annotations,
+				Labels:      r.Labels,
+				Name:        ingress.Name,
+			}
+
+			// Override the defaults with any info provided from executorutil.GenerateIngresses.
+			if ingress.ObjectMeta.Namespace != "" {
+				objectMeta.Namespace = ingress.ObjectMeta.Namespace
+			}
+			if ingress.ObjectMeta.Annotations != nil {
+				objectMeta.Annotations = ingress.ObjectMeta.Annotations
+			}
+			if ingress.ObjectMeta.Labels != nil {
+				objectMeta.Labels = ingress.ObjectMeta.Labels
+			}
+
+			submitJob.Objects = append(submitJob.Objects, &events.KubernetesObject{
+				ObjectMeta: objectMeta,
+				Object: &events.KubernetesObject_Ingress{
+					Ingress: &ingress.Spec,
+				},
+			})
+		}
+
 		sequence.Events[i] = &events.EventSequence_Event{
 			Event: &events.EventSequence_Event_SubmitJob{
 				SubmitJob: submitJob,
@@ -206,14 +288,13 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 
 	// Incoming gRPC requests are annotated with a unique id.
 	// Pass this id through the log by adding it to the Pulsar message properties.
-	requestId, ok := requestid.FromContext(ctx)
-	if !ok {
-		requestId = "missing"
-	}
-	_, err = srv.Producer.Send(ctx, &pulsar.ProducerMessage{
+	requestId := requestid.FromContextOrMissing(ctx)
+	msg := &pulsar.ProducerMessage{
 		Payload:    payload,
 		Properties: map[string]string{requestid.MetadataKey: requestId},
-	})
+	}
+	pulsarrequestid.AddToMessage(msg, requestId)
+	_, err = srv.Producer.Send(ctx, msg)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to send message")
 	}
@@ -421,6 +502,7 @@ func (srv *PulsarSubmitServer) GetQueueInfo(ctx context.Context, req *api.QueueI
 }
 
 // SubmitApiEvent converts an api.EventMessage into Pulsar state transition messages and publishes those to Pulsar.
+// TODO: Handle utilisation messages.
 func (srv *PulsarSubmitServer) SubmitApiEvent(ctx context.Context, apiEvent *api.EventMessage) error {
 	sequence, err := PulsarSequenceFromApiEvent(apiEvent)
 	if err != nil {
