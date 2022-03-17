@@ -12,9 +12,9 @@ import (
 
 	"github.com/G-Research/armada/internal/common/logging"
 	"github.com/G-Research/armada/internal/common/requestid"
-	"github.com/G-Research/armada/internal/events"
 	"github.com/G-Research/armada/internal/pulsarutils"
 	"github.com/G-Research/armada/internal/pulsarutils/pulsarrequestid"
+	"github.com/G-Research/armada/pkg/events"
 )
 
 // PulsarFromPulsar is a service that reads from Pulsar and sends any required new messages.

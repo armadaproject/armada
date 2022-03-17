@@ -19,9 +19,9 @@ import (
 
 	"github.com/G-Research/armada/internal/common/armadaerrors"
 	"github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/internal/events"
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/client"
+	"github.com/G-Research/armada/pkg/events"
 )
 
 // Pulsar configuration. Must be manually reconciled with changes to the test setup or Armada.

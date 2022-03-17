@@ -16,7 +16,7 @@ protoc \
 --proto_path=. \
 --proto_path=/proto \
 --gogofaster_out=$TYPES:./ \
-internal/events/*.proto
+pkg/events/*.proto
 
 protoc \
 --proto_path=. \
