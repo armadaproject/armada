@@ -1,6 +1,6 @@
 package validation
 
-// TODO: Tests commented out because they pull in schemas from the Internet, which we can't do internally.
+// TODO: Tests commented out because they pull in schemas from the Internet.
 //import (
 //	"path/filepath"
 //	"testing"

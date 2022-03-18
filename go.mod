@@ -3,8 +3,8 @@ module github.com/G-Research/armada
 go 1.16
 
 // athenz@v1.10.5 and onwards bundle encrypted signing keys with the source code.
-// Because our corporate proxy blocks go get commands that pull in encrypted data,
-// we need to replace athenz@v1.10.5 or later with athenz@v1.10.4 or earlier.
+// Because corporate proxies may block go get commands that pull in encrypted data,
+// we replace athenz@v1.10.5 or later with athenz@v1.10.4.
 replace github.com/AthenZ/athenz v1.10.39 => github.com/AthenZ/athenz v1.10.4
 
 require (

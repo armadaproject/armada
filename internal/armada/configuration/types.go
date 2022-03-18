@@ -39,7 +39,7 @@ type ArmadaConfig struct {
 type PulsarConfig struct {
 	// Flag controlling if Pulsar is enabled or not.
 	Enabled bool
-	// Pulsar configuration
+	// Pulsar URL
 	URL string
 	// Path to the trusted TLS certificate file (must exist)
 	TLSTrustCertsFilePath string
