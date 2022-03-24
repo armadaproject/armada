@@ -717,9 +717,8 @@ func Test_JobTerminatedEvent(t *testing.T) {
 		})
 		assert.NoError(t, err)
 
-		assert.Equal(t, JobStateToIntMap[JobFailed], selectInt(t, db,
-			"SELECT state FROM job"))
-
+		assert.True(t, ToUTC(someTime).Equal(selectTime(t, db, "SELECT finished from job_run")))
+		assert.Equal(t, false, selectBoolean(t, db, "SELECT succeeded from job_run"))
 	})
 }
 
@@ -943,6 +942,26 @@ func selectNullString(t *testing.T, db *goqu.Database, query string) sql.NullStr
 	err = r.Scan(&str)
 	assert.NoError(t, err)
 	return str
+}
+
+func selectTime(t *testing.T, db *goqu.Database, query string) time.Time {
+	r, err := db.Query(query)
+	assert.NoError(t, err)
+	r.Next()
+	var value time.Time
+	err = r.Scan(&value)
+	assert.NoError(t, err)
+	return value
+}
+
+func selectBoolean(t *testing.T, db *goqu.Database, query string) bool {
+	r, err := db.Query(query)
+	assert.NoError(t, err)
+	r.Next()
+	var value bool
+	err = r.Scan(&value)
+	assert.NoError(t, err)
+	return value
 }
 
 func withDatabase(t *testing.T, action func(*goqu.Database)) {
