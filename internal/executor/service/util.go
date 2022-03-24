@@ -46,7 +46,7 @@ func jobShouldBeRenewed(job *job.RunningJob) bool {
 
 func shouldBeReportedDone(job *job.RunningJob) bool {
 	for _, pod := range job.ActivePods {
-		if util.IsInTerminalState(pod) && !util.IsReportedDone(pod) {
+		if util.IsInTerminalState(pod) && util.HasCurrentStateBeenReported(pod) && !util.IsReportedDone(pod) {
 			return true
 		}
 	}
