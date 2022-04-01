@@ -14,7 +14,7 @@ import (
 func (a *App) Resources(queueName string, jobSetId string) error {
 	client.WithConnection(a.Params.ApiConnectionDetails, func(conn *grpc.ClientConn) {
 		eventsClient := api.NewEventClient(conn)
-		state := client.GetJobSetState(eventsClient, queueName, jobSetId, context.Background())
+		state := client.GetJobSetState(eventsClient, queueName, jobSetId, context.Background(), true)
 
 		for _, job := range state.GetCurrentState() {
 			fmt.Fprintf(a.Out, "Job ID: %v, maximum used resources: %v\n", job.Job.Id, job.MaxUsedResources)
