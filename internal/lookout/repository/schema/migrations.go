@@ -23,16 +23,16 @@ func UpdateDatabase(db *sql.DB) error {
 	log.Info("Updating database...")
 	version, err := readVersion(db)
 	log.Infof("Current version %v", version)
-
+	log.Infof("fish")
 	if err != nil {
 		return err
 	}
-
+	log.Infof("1")
 	migrations, err := getMigrations()
 	if err != nil {
 		return err
 	}
-
+	log.Infof("2")
 	for _, m := range migrations {
 		if m.id > version {
 			log.Infof("Migration %v", m.name)
@@ -41,12 +41,14 @@ func UpdateDatabase(db *sql.DB) error {
 			if err != nil {
 				return err
 			}
+			log.Infof("3")
 
 			version = m.id
 			err = setVersion(db, version)
 			if err != nil {
 				return err
 			}
+			log.Infof("4")
 		}
 	}
 	log.Info("Database updated.")
@@ -54,13 +56,19 @@ func UpdateDatabase(db *sql.DB) error {
 }
 
 func readVersion(db *sql.DB) (int, error) {
-	result, err := db.Query(
-		`CREATE SEQUENCE IF NOT EXISTS database_version START WITH 0 MINVALUE 0;
-		SELECT last_value FROM database_version`)
+	_, err := db.Exec(
+		`CREATE SEQUENCE IF NOT EXISTS database_version START WITH 0 MINVALUE 0;`)
 	if err != nil {
 		return 0, err
 	}
 
+	result, err := db.Query(
+		`SELECT last_value FROM database_version`)
+	if err != nil {
+		return 0, err
+	}
+
+	log.Infof("chips")
 	var version int
 	result.Next()
 	err = result.Scan(&version)

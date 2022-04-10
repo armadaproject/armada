@@ -4,11 +4,9 @@ import (
 	"context"
 	"database/sql"
 
+	"github.com/G-Research/armada/pkg/api/lookout"
 	"github.com/doug-martin/goqu/v9"
 	_ "github.com/doug-martin/goqu/v9/dialect/postgres"
-	"github.com/lib/pq"
-
-	"github.com/G-Research/armada/pkg/api/lookout"
 )
 
 // Emulates JobStates enum
@@ -80,17 +78,17 @@ type JobRow struct {
 	Owner     sql.NullString  `db:"owner"`
 	JobSet    sql.NullString  `db:"jobset"`
 	Priority  sql.NullFloat64 `db:"priority"`
-	Submitted pq.NullTime     `db:"submitted"`
-	Cancelled pq.NullTime     `db:"cancelled"`
+	Submitted sql.NullTime    `db:"submitted"`
+	Cancelled sql.NullTime    `db:"cancelled"`
 	JobJson   sql.NullString  `db:"job"`
 	State     sql.NullInt64   `db:"state"`
 	RunId     sql.NullString  `db:"run_id"`
 	PodNumber sql.NullInt64   `db:"pod_number"`
 	Cluster   sql.NullString  `db:"cluster"`
 	Node      sql.NullString  `db:"node"`
-	Created   pq.NullTime     `db:"created"`
-	Started   pq.NullTime     `db:"started"`
-	Finished  pq.NullTime     `db:"finished"`
+	Created   sql.NullTime    `db:"created"`
+	Started   sql.NullTime    `db:"started"`
+	Finished  sql.NullTime    `db:"finished"`
 	Succeeded sql.NullBool    `db:"succeeded"`
 	Error     sql.NullString  `db:"error"`
 }

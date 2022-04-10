@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"testing"
 
+	_ "github.com/jackc/pgx/v4/stdlib"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/G-Research/armada/internal/common/util"
@@ -13,7 +14,7 @@ import (
 func WithDatabase(t *testing.T, action func(db *sql.DB)) {
 	dbName := "test_" + util.NewULID()
 	connectionString := "host=localhost port=5432 user=postgres password=psw sslmode=disable"
-	db, err := sql.Open("postgres", connectionString)
+	db, err := sql.Open("pgx", connectionString)
 	defer db.Close()
 
 	assert.Nil(t, err)
@@ -21,7 +22,7 @@ func WithDatabase(t *testing.T, action func(db *sql.DB)) {
 	_, err = db.Exec("CREATE DATABASE " + dbName)
 	assert.Nil(t, err)
 
-	testDb, err := sql.Open("postgres", connectionString+" dbname="+dbName)
+	testDb, err := sql.Open("pgx", connectionString+" dbname="+dbName)
 	assert.Nil(t, err)
 
 	defer func() {

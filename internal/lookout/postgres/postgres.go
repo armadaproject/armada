@@ -4,13 +4,13 @@ import (
 	"database/sql"
 	"strings"
 
-	_ "github.com/lib/pq"
+	_ "github.com/jackc/pgx/v4/stdlib"
 
 	"github.com/G-Research/armada/internal/lookout/configuration"
 )
 
 func Open(config configuration.PostgresConfig) (*sql.DB, error) {
-	db, err := sql.Open("postgres", createConnectionString(config.Connection))
+	db, err := sql.Open("pgx", createConnectionString(config.Connection))
 	if err != nil {
 		return nil, err
 	}
