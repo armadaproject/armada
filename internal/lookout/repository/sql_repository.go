@@ -4,9 +4,10 @@ import (
 	"context"
 	"database/sql"
 
-	"github.com/G-Research/armada/pkg/api/lookout"
 	"github.com/doug-martin/goqu/v9"
 	_ "github.com/doug-martin/goqu/v9/dialect/postgres"
+
+	"github.com/G-Research/armada/pkg/api/lookout"
 )
 
 // Emulates JobStates enum

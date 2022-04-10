@@ -5,10 +5,11 @@ import (
 	"database/sql"
 	"time"
 
-	"github.com/G-Research/armada/pkg/api/lookout"
 	"github.com/doug-martin/goqu/v9"
 	"github.com/doug-martin/goqu/v9/exp"
 	"github.com/gogo/protobuf/types"
+
+	"github.com/G-Research/armada/pkg/api/lookout"
 )
 
 type jobSetCountsRow struct {
