@@ -125,6 +125,7 @@ func (r *SQLJobRepository) getQueuesSql() (rowsSql, error) {
 			jobRun_started).
 		Distinct(job_queue).
 		Where(job_state.Eq(JobStateToIntMap[JobRunning])).
+		Order(job_queue.Asc(), jobRun_started.Asc()).
 		As("longest_running_sub") // Identify longest Running jobs
 
 	longestRunningDs := r.goquDb.
