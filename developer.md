@@ -243,20 +243,8 @@ cobra add commandName
 You should see a new file appear under `./cmd/armadactl/cmd` with the name you specified in the command.
 
 ### Running Armada website locally
-```bash
-git checkout gh-pages
-```
-```bash
-git checkout -b feature/my-fix
-```
-```bash
-git add file1 file2
-```
-```bash
-git commit -m 'description for your change'
-```
-```bash
-git push origin feature/my-fix
-```
-Flow of gh-pages - [https://github.com/G-Research/armada/actions/runs/1829252664/workflow#L27](https://github.com/G-Research/armada/actions/runs/1829252664/workflow#L27).
-read more about Testing GitHub Pages locally- http://bitly.ws/oPy9
+
+To make changes to the Armada website, checkout branch `gh-pages`. Please work on a separate branch and submit proposed changes as a pull request to be merged back into `gh-pages`.
+
+To understand how the website is generated, [see this workflow](https://github.com/G-Research/armada/actions/runs/1829252664/workflow#L27).
+To test the pages locally (without needing to commit), follow the steps listed in the GitHub documentation on [Jekyll](http://bitly.ws/oPy9).
