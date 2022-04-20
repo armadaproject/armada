@@ -1,13 +1,14 @@
 package eventapi
-package eventsdb
 
 import (
-	"PostgresPoc/pkg/models"
+	"sync"
+	"time"
+
+	"github.com/G-Research/armada/internal/eventapi/model"
+
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v4/pgxpool"
 	log "github.com/sirupsen/logrus"
-	"sync"
-	"time"
 )
 
 type UpdateRequest struct {
@@ -18,12 +19,12 @@ type UpdateRequest struct {
 
 type UpdateResponse struct {
 	SubscriptionId uuid.UUID
-	Events         []models.Event
+	Events         []model.Event
 }
 
 type EventSubscription struct {
 	SubscriptionId uuid.UUID
-	Channel        chan []models.Event
+	Channel        chan []model.Event
 }
 
 type EventManager struct {
@@ -36,9 +37,8 @@ type EventManager struct {
 type internalSubscription struct {
 	subscriptionId uuid.UUID
 	jobset         uuid.UUID
-	channel        chan []models.Event
+	channel        chan []model.Event
 }
-
 
 // NewEventManager returns an event manager that can fetch events from postgres and manage subscription requests for new data
 // db database pool
@@ -47,7 +47,7 @@ type internalSubscription struct {
 // pollPeriod period at which a given subscription will check if there are new events available
 // queryConcurrency number of concurrent event queries we can have in flight at any one time
 // offsetUpdates channel over which events will be sent, telling us that there is new data for a given jobset.
-func NewEventManager(db *pgxpool.Pool, maxBatchSize int, maxTimeout time.Duration, pollPeriod time.Duration, queryConcurrency int, offsetUpdates chan models.EventUpdate) EventManager {
+func NewEventManager(db *pgxpool.Pool, maxBatchSize int, maxTimeout time.Duration, pollPeriod time.Duration, queryConcurrency int, offsetUpdates chan model.EventUpdate) EventManager {
 
 	// Set up a function to store latest available offsets
 	availableOffsets := &sync.Map{}
