@@ -22,12 +22,10 @@ type migration struct {
 func UpdateDatabase(db *sql.DB) error {
 	log.Info("Updating database...")
 	version, err := readVersion(db)
-	log.Infof("Current version %v", version)
-
 	if err != nil {
 		return err
 	}
-
+	log.Infof("Current version %v", version)
 	migrations, err := getMigrations()
 	if err != nil {
 		return err
@@ -35,8 +33,6 @@ func UpdateDatabase(db *sql.DB) error {
 
 	for _, m := range migrations {
 		if m.id > version {
-			log.Infof("Migration %v", m.name)
-
 			_, err := db.Exec(m.sql)
 			if err != nil {
 				return err
@@ -54,9 +50,14 @@ func UpdateDatabase(db *sql.DB) error {
 }
 
 func readVersion(db *sql.DB) (int, error) {
+	_, err := db.Exec(
+		`CREATE SEQUENCE IF NOT EXISTS database_version START WITH 0 MINVALUE 0;`)
+	if err != nil {
+		return 0, err
+	}
+
 	result, err := db.Query(
-		`CREATE SEQUENCE IF NOT EXISTS database_version START WITH 0 MINVALUE 0;
-		SELECT last_value FROM database_version`)
+		`SELECT last_value FROM database_version`)
 	if err != nil {
 		return 0, err
 	}
