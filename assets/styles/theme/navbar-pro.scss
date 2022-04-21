@@ -14,8 +14,11 @@
 
   &.navbar-main {
     width: 100%;
-    position: absolute;
+    position: sticky;
     z-index: 99;
+    position:-webkit-sticky;
+    position:sticky;
+    top:0px;
 
     .dropdown-menu-footer {
       background-color: #F6F9FC;
