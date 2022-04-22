@@ -71,7 +71,7 @@ func (server *SubmitServer) GetQueueInfo(ctx context.Context, req *api.QueueInfo
 	err = checkPermission(server.permissions, ctx, permissions.WatchAllEvents)
 	var globalPermErr *ErrNoPermission
 	if errors.As(err, &globalPermErr) {
-		err = checkQueuePermission(server.permissions, ctx, q, permissions.WatchEvents, queue.PermissionVerbWatch)
+		err = CheckQueuePermission(server.permissions, ctx, q, permissions.WatchEvents, queue.PermissionVerbWatch)
 		var queuePermErr *ErrNoPermission
 		if errors.As(err, &queuePermErr) {
 			return nil, status.Errorf(codes.PermissionDenied,
@@ -196,7 +196,7 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 	err = checkPermission(server.permissions, ctx, permissions.SubmitAnyJobs)
 	var globalPermErr *ErrNoPermission
 	if errors.As(err, &globalPermErr) {
-		err = checkQueuePermission(server.permissions, ctx, q, permissions.SubmitJobs, queue.PermissionVerbSubmit)
+		err = CheckQueuePermission(server.permissions, ctx, q, permissions.SubmitJobs, queue.PermissionVerbSubmit)
 		var queuePermErr *ErrNoPermission
 		if errors.As(err, &queuePermErr) {
 			return nil, status.Errorf(codes.PermissionDenied,
@@ -246,7 +246,7 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 		return nil, status.Errorf(codes.Aborted, "[SubmitJobs] error getting submitted report: %s", err)
 	}
 
-	// Submit the jobs by writing them to the database
+	// Submit the jobs by writing them to the postgres
 	submissionResults, err := server.jobRepository.AddJobs(jobs)
 	if err != nil {
 		jobFailures := createJobFailuresWithReason(jobs, fmt.Sprintf("Failed to save job in Armada: %s", e))
@@ -428,7 +428,7 @@ func (server *SubmitServer) checkCancelPerms(ctx context.Context, jobs []*api.Jo
 		err = checkPermission(server.permissions, ctx, permissions.CancelAnyJobs)
 		var globalPermErr *ErrNoPermission
 		if errors.As(err, &globalPermErr) {
-			err = checkQueuePermission(server.permissions, ctx, q, permissions.CancelJobs, queue.PermissionVerbCancel)
+			err = CheckQueuePermission(server.permissions, ctx, q, permissions.CancelJobs, queue.PermissionVerbCancel)
 			var queuePermErr *ErrNoPermission
 			if errors.As(err, &queuePermErr) {
 				return MergePermissionErrors(globalPermErr, queuePermErr)
@@ -550,7 +550,7 @@ func (server *SubmitServer) checkReprioritizePerms(ctx context.Context, jobs []*
 		err = checkPermission(server.permissions, ctx, permissions.ReprioritizeAnyJobs)
 		var globalPermErr *ErrNoPermission
 		if errors.As(err, &globalPermErr) {
-			err = checkQueuePermission(server.permissions, ctx, q, permissions.ReprioritizeJobs, queue.PermissionVerbReprioritize)
+			err = CheckQueuePermission(server.permissions, ctx, q, permissions.ReprioritizeJobs, queue.PermissionVerbReprioritize)
 			var queuePermErr *ErrNoPermission
 			if errors.As(err, &queuePermErr) {
 				return MergePermissionErrors(globalPermErr, queuePermErr)

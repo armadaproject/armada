@@ -47,7 +47,7 @@ func NewRedisQueueRepository(db redis.UniversalClient) *RedisQueueRepository {
 func (r *RedisQueueRepository) GetAllQueues() ([]queue.Queue, error) {
 	result, err := r.db.HGetAll(queueHashKey).Result()
 	if err != nil {
-		return nil, fmt.Errorf("[RedisQueueRepository.GetAllQueues] error reading from database: %s", err)
+		return nil, fmt.Errorf("[RedisQueueRepository.GetAllQueues] error reading from postgres: %s", err)
 	}
 
 	queues := make([]queue.Queue, 0)
@@ -72,7 +72,7 @@ func (r *RedisQueueRepository) GetQueue(name string) (queue.Queue, error) {
 	if err == redis.Nil {
 		return queue.Queue{}, &ErrQueueNotFound{QueueName: name}
 	} else if err != nil {
-		return queue.Queue{}, fmt.Errorf("[RedisQueueRepository.GetQueue] error reading from database: %s", err)
+		return queue.Queue{}, fmt.Errorf("[RedisQueueRepository.GetQueue] error reading from postgres: %s", err)
 	}
 
 	apiQueue := &api.Queue{}
@@ -94,7 +94,7 @@ func (r *RedisQueueRepository) CreateQueue(queue queue.Queue) error {
 	// If the key exists, this is a no-op, and result is false.
 	result, err := r.db.HSetNX(queueHashKey, queue.Name, data).Result()
 	if err != nil {
-		return fmt.Errorf("[RedisQueueRepository.CreateQueue] error writing to database: %s", err)
+		return fmt.Errorf("[RedisQueueRepository.CreateQueue] error writing to postgres: %s", err)
 	}
 	if !result {
 		return &ErrQueueAlreadyExists{QueueName: queue.Name}
@@ -109,7 +109,7 @@ func (r *RedisQueueRepository) CreateQueue(queue queue.Queue) error {
 func (r *RedisQueueRepository) UpdateQueue(queue queue.Queue) error {
 	existsResult, err := r.db.HExists(queueHashKey, queue.Name).Result()
 	if err != nil {
-		return fmt.Errorf("[RedisQueueRepository.UpdateQueue] error reading from database: %s", err)
+		return fmt.Errorf("[RedisQueueRepository.UpdateQueue] error reading from postgres: %s", err)
 	} else if !existsResult {
 		return &ErrQueueNotFound{QueueName: queue.Name}
 	}
@@ -121,7 +121,7 @@ func (r *RedisQueueRepository) UpdateQueue(queue queue.Queue) error {
 
 	result := r.db.HSet(queueHashKey, queue.Name, data)
 	if err := result.Err(); err != nil {
-		return fmt.Errorf("[RedisQueueRepository.UpdateQueue] error writing to database: %s", err)
+		return fmt.Errorf("[RedisQueueRepository.UpdateQueue] error writing to postgres: %s", err)
 	}
 
 	return nil

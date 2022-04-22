@@ -72,7 +72,7 @@ func checkPermission(p authorization.PermissionChecker, ctx context.Context, per
 	return nil
 }
 
-func checkQueuePermission(
+func CheckQueuePermission(
 	p authorization.PermissionChecker,
 	ctx context.Context,
 	q queue.Queue,

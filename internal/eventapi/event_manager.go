@@ -4,67 +4,50 @@ import (
 	"sync"
 	"time"
 
-	"github.com/G-Research/armada/internal/eventapi/model"
-
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v4/pgxpool"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/G-Research/armada/internal/eventapi/postgres"
 )
 
-type UpdateRequest struct {
-	SubscriptionId uuid.UUID
-	Jobset         uuid.UUID
+type internalSubscription struct {
+	subscriptionId int64
+	jobset         int64
+	channel        chan []*Event
+}
+
+type EventRequest struct {
+	SubscriptionId int64
+	Jobset         int64
 	Sequence       int64
 }
 
-type UpdateResponse struct {
-	SubscriptionId uuid.UUID
-	Events         []model.Event
+type EventResponse struct {
+	SubscriptionId int64
+	Events         []*Event
 }
 
-type EventSubscription struct {
-	SubscriptionId uuid.UUID
-	Channel        chan []model.Event
-}
-
-type EventManager struct {
-	availableOffsets  *sync.Map
+type SubscriptionManager struct {
+	offsets           *OffsetManager
+	db                *postgres.EventDb
 	pollPeriod        time.Duration
-	requestChannel    chan UpdateRequest
-	subscriptionsById *sync.Map
+	requestChannel    chan *EventRequest
+	subscriptionIndex int64
+	subscriptionsById map[int64]*internalSubscription
+	subscriptionMutex sync.Mutex
 }
 
-type internalSubscription struct {
-	subscriptionId uuid.UUID
-	jobset         uuid.UUID
-	channel        chan []model.Event
-}
+// NewSubscriptionManager returns a SubscriptionManager that can fetch events from postgres and manage subscription requests for new data
+func NewSubscriptionManager(offsets *OffsetManager, db *postgres.EventDb, maxBatchSize int, maxTimeout time.Duration, pollPeriod time.Duration, queryConcurrency int) *SubscriptionManager {
 
-// NewEventManager returns an event manager that can fetch events from postgres and manage subscription requests for new data
-// db database pool
-// maxBatchSize maximum number of requests that will be batched together in a single query
-// maxTimeout maximum time that wil be waited before releasing a batch of requests
-// pollPeriod period at which a given subscription will check if there are new events available
-// queryConcurrency number of concurrent event queries we can have in flight at any one time
-// offsetUpdates channel over which events will be sent, telling us that there is new data for a given jobset.
-func NewEventManager(db *pgxpool.Pool, maxBatchSize int, maxTimeout time.Duration, pollPeriod time.Duration, queryConcurrency int, offsetUpdates chan model.EventUpdate) EventManager {
-
-	// Set up a function to store latest available offsets
-	availableOffsets := &sync.Map{}
-	go func() {
-		for update := range offsetUpdates {
-			availableOffsets.Store(update.Jobset, int(update.Sequence))
-		}
-	}()
-
-	em := EventManager{
-		availableOffsets:  availableOffsets,
+	sm := SubscriptionManager{
+		offsets:           offsets,
 		pollPeriod:        pollPeriod,
-		requestChannel:    make(chan UpdateRequest),
-		subscriptionsById: &sync.Map{},
+		requestChannel:    make(chan *EventRequest),
+		subscriptionsById: make(map[int64]*internalSubscription),
+		subscriptionIndex: 0,
 	}
 
-	batches := BatchQueries(em.requestChannel, maxBatchSize, maxTimeout)
+	batches := BatchQueries(sm.requestChannel, maxBatchSize, maxTimeout)
 
 	// Have n readers who each read batches from the queue and execute db queries
 	// This allows us to limit how many concurrent db queries we can make and thus
@@ -72,47 +55,49 @@ func NewEventManager(db *pgxpool.Pool, maxBatchSize int, maxTimeout time.Duratio
 	for i := 0; i < queryConcurrency; i++ {
 		go func() {
 			for req := range batches {
-				events, err := GetEvents(db, req)
+				events, err := db.GetEvents(req)
 				if err == nil {
 					for _, e := range events {
-						sub, present := em.subscriptionsById.Load(e.SubscriptionId)
+						sm.subscriptionMutex.Lock()
+						sub, present := sm.subscriptionsById[e.SubscriptionId]
+						sm.subscriptionMutex.Unlock()
 						if present {
-							sub.(internalSubscription).channel <- e.Events
+							sub.channel <- e.Events
 						}
 					}
 				} else {
-					//TODO log context here and raise alert?
-					log.Warnf("Error retrieving events from db: %v", err)
+					log.Warnf("Error retrieving events from db: %+v", err)
 				}
 			}
 		}()
 	}
-	return em
+	return &sm
 }
 
-func (m *EventManager) Subscribe(jobset uuid.UUID) EventSubscription {
-	sub := m.createSubscription(jobset)
+func (sm *SubscriptionManager) Subscribe(jobset int64) *EventSubscription {
+	sub := sm.createInternalSubscription(jobset)
 	var currentOffset int64 = -1
 	requestInFlight := false
 
-	externalSubscripton := EventSubscription{
+	externalSubscripton := &EventSubscription{
 		SubscriptionId: sub.subscriptionId,
-		Channel:        make(chan []models.Event),
+		Channel:        make(chan []*Event),
 	}
 
 	// Spin up a goroutine that will request more data evey poll period
 	// It wil short circuit if there are no updates available or if the previous request
 	// has not yet returned
 	go func() {
-		for {
-			storedOffset := int64(m.getOffset(jobset))
-			if storedOffset > currentOffset && !requestInFlight {
+		for sm.hasSubscription(sub.subscriptionId) {
+			storedOffset, ok := sm.offsets.Get(jobset)
+			if ok && (storedOffset > currentOffset && !requestInFlight) {
 				requestInFlight = true
-				req := UpdateRequest{SubscriptionId: sub.subscriptionId, Jobset: jobset, Sequence: currentOffset}
-				m.requestChannel <- req
+				req := &EventRequest{SubscriptionId: sub.subscriptionId, Jobset: jobset, Sequence: currentOffset}
+				sm.requestChannel <- req
 			}
-			time.Sleep(m.pollPeriod)
+			time.Sleep(sm.pollPeriod)
 		}
+		close(sm.requestChannel)
 	}()
 
 	// Go routine that will publish events to the external channel
@@ -129,38 +114,43 @@ func (m *EventManager) Subscribe(jobset uuid.UUID) EventSubscription {
 	return externalSubscripton
 }
 
-func (m *EventManager) createSubscription(jobset uuid.UUID) internalSubscription {
-	sub := internalSubscription{
-		subscriptionId: uuid.New(),
-		jobset:         jobset,
-		channel:        make(chan []models.Event),
-	}
-	m.subscriptionsById.Store(sub.subscriptionId, sub)
-	return sub
+func (sm *SubscriptionManager) Unsubscribe(subscriptionId int64) {
+	sm.subscriptionMutex.Lock()
+	delete(sm.subscriptionsById, subscriptionId)
+	sm.subscriptionMutex.Lock()
 }
 
-func (m *EventManager) getOffset(id uuid.UUID) int {
-	result, ok := m.availableOffsets.Load(id)
-	if ok {
-		return result.(int)
-	} else {
-		return -1
+func (sm *SubscriptionManager) hasSubscription(subscriptionId int64) bool {
+	sm.subscriptionMutex.Lock()
+	_, ok := sm.subscriptionsById[subscriptionId]
+	sm.subscriptionMutex.Lock()
+	return ok
+}
+
+func (sm *SubscriptionManager) createInternalSubscription(jobsetId int64) *internalSubscription {
+	sm.subscriptionMutex.Lock()
+	sub := &internalSubscription{
+		subscriptionId: sm.subscriptionIndex,
+		jobset:         jobsetId,
+		channel:        make(chan []*Event),
 	}
+	sm.subscriptionIndex++
+	sm.subscriptionsById[sub.subscriptionId] = sub
+	sm.subscriptionMutex.Unlock()
+	return sub
 }
 
 // BatchQueries Reads from a channel of UpdateRequests and batches them up, waiting for either maxItems to be present in the batch or
 // maxTimeout to have elapsed since the batch was started (whichever occurs first).  Once the condition has been met, the
-// bath is released and the next batch is started.
-// TODO: this should be done in a generic way and not tied to UpdateRequest
-// TODO: Probably want to inject a clock so that we can test this
-func BatchQueries(values <-chan UpdateRequest, maxItems int, maxTimeout time.Duration) chan []UpdateRequest {
-	batches := make(chan []UpdateRequest)
+// batch is released and the next batch is started.
+func BatchQueries(values <-chan *EventRequest, maxItems int, maxTimeout time.Duration) chan []*EventRequest {
+	batches := make(chan []*EventRequest)
 
 	go func() {
 		defer close(batches)
 
 		for keepGoing := true; keepGoing; {
-			var batch []UpdateRequest
+			var batch []*EventRequest
 			expire := time.After(maxTimeout)
 			for {
 				select {

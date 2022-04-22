@@ -11,7 +11,7 @@ import (
 
 const postgresFormat = "2006-01-02 15:04:05.000000"
 
-// DeleteOldJobs deletes jobs from the database that were submitted before cutoff.
+// DeleteOldJobs deletes jobs from the postgres that were submitted before cutoff.
 // The jobs are deleted in batches with the maximum number of jobs being deleted in
 // each batch being given by batchSizeLimit. The tables from which the jobs wil be deleted are:
 // * user_annotation_lookup

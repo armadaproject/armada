@@ -308,7 +308,7 @@ func processDeletionResponse(deletionResponse *deleteJobRedisResponse) (int64, e
 func (repo *RedisJobRepository) PeekQueue(queue string, limit int64) ([]*api.Job, error) {
 	ids, err := repo.db.ZRange(jobQueuePrefix+queue, 0, limit-1).Result()
 	if err != nil {
-		return nil, fmt.Errorf("[RedisJobRepository.PeekQueue] error reading from database: %s", err)
+		return nil, fmt.Errorf("[RedisJobRepository.PeekQueue] error reading from postgres: %s", err)
 	}
 
 	jobs, err := repo.GetExistingJobsByIds(ids)
@@ -353,14 +353,14 @@ func (repo *RedisJobRepository) GetExistingJobsByIds(ids []string) ([]*api.Job, 
 		if errors.As(result.Error, &e) {
 			continue
 		} else if result.Error != nil {
-			return nil, fmt.Errorf("[RedisJobRepository.GetExistingJobsByIds] error getting job with ID %s from database: %s", result.JobId, err)
+			return nil, fmt.Errorf("[RedisJobRepository.GetExistingJobsByIds] error getting job with ID %s from postgres: %s", result.JobId, err)
 		}
 		jobs = append(jobs, result.Job)
 	}
 	return jobs, nil
 }
 
-// GetJobsByIds attempts to get all requested jobs from the database.
+// GetJobsByIds attempts to get all requested jobs from the postgres.
 // Any error in getting a job is set to the Err field of the corresponding JobResult.
 func (repo *RedisJobRepository) GetJobsByIds(ids []string) ([]*JobResult, error) {
 	pipe := repo.db.Pipeline()
@@ -396,7 +396,7 @@ func (repo *RedisJobRepository) GetJobsByIds(ids []string) ([]*JobResult, error)
 		}
 
 		// TODO This shouldn't be here. We write these when creating the job,
-		// and the getter shouldn't mutate the object read from the database.
+		// and the getter shouldn't mutate the object read from the postgres.
 		for _, podSpec := range result.Job.GetAllPodSpecs() {
 			// TODO: remove, RequiredNodeLabels is deprecated and will be removed in future versions
 			for k, v := range result.Job.RequiredNodeLabels {
@@ -483,7 +483,7 @@ func (repo *RedisJobRepository) IterateQueueJobs(queueName string, action func(*
 func (repo *RedisJobRepository) GetLeasedJobIds(queue string) ([]string, error) {
 	val, err := repo.db.ZRange(jobLeasedPrefix+queue, 0, -1).Result()
 	if err != nil {
-		return nil, fmt.Errorf("[RedisJobRepository.GetLeasedJobIds] error reading from database: %s", err)
+		return nil, fmt.Errorf("[RedisJobRepository.GetLeasedJobIds] error reading from postgres: %s", err)
 	}
 	return val, nil
 }
@@ -821,7 +821,7 @@ func (repo *RedisJobRepository) GetJobRunInfos(jobIds []string) (map[string]*Run
 func (repo *RedisJobRepository) GetQueueJobIds(queueName string) ([]string, error) {
 	queuedIds, err := repo.db.ZRange(jobQueuePrefix+queueName, 0, -1).Result()
 	if err != nil {
-		return nil, fmt.Errorf("[RedisJobRepository.GetQueueJobIds] error reading from database: %s", err)
+		return nil, fmt.Errorf("[RedisJobRepository.GetQueueJobIds] error reading from postgres: %s", err)
 	}
 	return queuedIds, nil
 }
@@ -974,7 +974,7 @@ func (repo *RedisJobRepository) ExpireLeases(queue string, deadline time.Time) (
 func (repo *RedisJobRepository) AddRetryAttempt(jobId string) error {
 	_, err := repo.db.Incr(jobRetriesPrefix + jobId).Result()
 	if err != nil {
-		return fmt.Errorf("[RedisJobRepository.AddRetryAttempt] error updating database: %s", err)
+		return fmt.Errorf("[RedisJobRepository.AddRetryAttempt] error updating postgres: %s", err)
 	}
 	return nil
 }
@@ -984,7 +984,7 @@ func (repo *RedisJobRepository) GetNumberOfRetryAttempts(jobId string) (int, err
 	if err == redis.Nil {
 		return 0, nil
 	} else if err != nil {
-		return 0, fmt.Errorf("[RedisJobRepository.GetNumberOfRetryAttempts] error reading from database: %s", err)
+		return 0, fmt.Errorf("[RedisJobRepository.GetNumberOfRetryAttempts] error reading from postgres: %s", err)
 	}
 
 	retries, err := strconv.Atoi(retriesStr)

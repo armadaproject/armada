@@ -273,12 +273,6 @@ message JobSetRequest {
     bool errorIfMissing = 5;
 }
 
-message WatchRequest {
-    string queue = 1;
-    string job_set_id = 2;
-    string from_id = 3;
-}
-
 service Event {
     rpc ReportMultiple (EventList) returns (google.protobuf.Empty);
     rpc Report (EventMessage) returns (google.protobuf.Empty);
@@ -288,7 +282,13 @@ service Event {
             body: "*"
         };
     }
-    rpc Watch (WatchRequest) returns (stream EventStreamMessage) {
-        option deprecated = true;
-    }
+}
+
+message Offset{
+    int64 jobsetId = 1;
+    int64 offset = 2;
+}
+
+message Offsets{
+    repeated Offset offsets = 1;
 }

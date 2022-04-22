@@ -137,7 +137,7 @@ kind export kubeconfig --name=quickstart-armada-server
 # Install postgres
 helm install postgres bitnami/postgresql --set postgresqlPassword=psw
 
-# Run database migration
+# Run postgres migration
 helm install lookout-migration gresearch/armada-lookout-migration -f docs/quickstart/lookout-values.yaml
 
 # Install Armada Lookout

@@ -27,7 +27,7 @@ func NewRedisSchedulingInfoRepository(db redis.UniversalClient) *RedisScheduling
 func (r *RedisSchedulingInfoRepository) GetClusterSchedulingInfo() (map[string]*api.ClusterSchedulingInfoReport, error) {
 	result, err := r.db.HGetAll(clusterSchedulingInfoReportKey).Result()
 	if err != nil {
-		return nil, fmt.Errorf("[RedisSchedulingInfoRepository.GetClusterSchedulingInfo] error reading from database: %s", err)
+		return nil, fmt.Errorf("[RedisSchedulingInfoRepository.GetClusterSchedulingInfo] error reading from postgres: %s", err)
 	}
 
 	reports := make(map[string]*api.ClusterSchedulingInfoReport)
@@ -50,7 +50,7 @@ func (r *RedisSchedulingInfoRepository) UpdateClusterSchedulingInfo(report *api.
 
 	_, err = r.db.HSet(clusterSchedulingInfoReportKey, report.ClusterId, data).Result()
 	if err != nil {
-		return fmt.Errorf("[RedisSchedulingInfoRepository.UpdateClusterSchedulingInfo] error writing to database: %s", err)
+		return fmt.Errorf("[RedisSchedulingInfoRepository.UpdateClusterSchedulingInfo] error writing to postgres: %s", err)
 	}
 
 	return nil

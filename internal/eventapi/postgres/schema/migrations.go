@@ -10,7 +10,7 @@ import (
 	"github.com/rakyll/statik/fs"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/G-Research/armada/internal/lookout/repository/schema/statik"
+	"github.com/G-Research/armada/internal/eventapi/postgres/schema/statik"
 )
 
 type migration struct {
@@ -75,7 +75,7 @@ func setVersion(db *sql.DB, version int) error {
 }
 
 func getMigrations() ([]migration, error) {
-	vfs, err := fs.NewWithNamespace(statik.LookoutSql)
+	vfs, err := fs.NewWithNamespace(statik.EventapiSql)
 	if err != nil {
 		return nil, err
 	}
