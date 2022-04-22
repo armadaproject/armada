@@ -75,7 +75,7 @@ func (p *RedisEventProcessor) handleMessage(message *eventstream.Message) error 
 
 func (p *RedisEventProcessor) handleBatch(batch []*eventstream.Message) error {
 	for _, message := range batch {
-		log.Infof("RedisEventProcessor got batched message: %v\n", message)
+		log.Debugf("RedisEventProcessor got batched message: %v\n", message)
 		if p.PulsarSubmitServer != nil {
 			p.PulsarSubmitServer.SubmitApiEvent(context.Background(), message.EventMessage)
 		}

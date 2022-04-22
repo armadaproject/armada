@@ -3,16 +3,12 @@ package armada
 import (
 	"context"
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
-	"github.com/G-Research/armada/internal/common/armadaerrors"
 	"github.com/apache/pulsar-client-go/pulsar"
-	"github.com/google/uuid"
-	"github.com/pkg/errors"
-
 	"github.com/go-redis/redis"
+	"github.com/google/uuid"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/stan.go"
@@ -33,6 +29,7 @@ import (
 	"github.com/G-Research/armada/internal/common/task"
 	"github.com/G-Research/armada/internal/common/util"
 	executorconfig "github.com/G-Research/armada/internal/executor/configuration"
+	"github.com/G-Research/armada/internal/pulsarutils"
 	"github.com/G-Research/armada/pkg/api"
 )
 
@@ -165,15 +162,15 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 
 		// API endpoints that generate Pulsar messages.
 		log.Info("Pulsar config provided; using Pulsar submit endpoints.")
-		pulsarClient, err := createPulsarClient(&config.Pulsar)
+		pulsarClient, err := pulsarutils.NewPulsarClient(&config.Pulsar)
 		if err != nil {
 			panic(err)
 		}
-		compressionType, err := parsePulsarCompressionType(config.Pulsar.CompressionType)
+		compressionType, err := pulsarutils.ParsePulsarCompressionType(config.Pulsar.CompressionType)
 		if err != nil {
 			panic(err)
 		}
-		compressionLevel, err := parsePulsarCompressionLevel(config.Pulsar.CompressionLevel)
+		compressionLevel, err := pulsarutils.ParsePulsarCompressionLevel(config.Pulsar.CompressionLevel)
 		if err != nil {
 			panic(err)
 		}
@@ -215,13 +212,6 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 			panic(err)
 		}
 
-		// Seek to the current time to avoid processing stale messages during development.
-		// TODO: Determine the right message ID to start at from some external state.
-		err = consumer.SeekByTime(time.Now())
-		if err != nil {
-			panic(err)
-		}
-
 		submitFromLog := server.SubmitFromLog{
 			Consumer:     consumer,
 			SubmitServer: submitServer,
@@ -233,14 +223,8 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 		consumer, err = pulsarClient.Subscribe(pulsar.ConsumerOptions{
 			Topic:            config.Pulsar.JobsetEventsTopic,
 			SubscriptionName: config.Pulsar.PulsarFromPulsarSubscription,
-			Type:             pulsar.Exclusive,
+			Type:             pulsar.KeyShared,
 		})
-		if err != nil {
-			panic(err)
-		}
-
-		// TODO: Determine the right message ID to start at from some external state.
-		err = consumer.SeekByTime(time.Now())
 		if err != nil {
 			panic(err)
 		}
@@ -302,74 +286,4 @@ func validateArmadaConfig(config *configuration.ArmadaConfig) error {
 		return fmt.Errorf("cancel jobs batch should be greater than 0: is %d", config.CancelJobsBatchSize)
 	}
 	return nil
-}
-
-func createPulsarClient(config *configuration.PulsarConfig) (pulsar.Client, error) {
-	var authentication pulsar.Authentication
-
-	// Sanity check that supplied Pulsar authentication parameters make sense
-	if config.AuthenticationEnabled {
-		if strings.ToLower(config.AuthenticationType) != "jwt" {
-			return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
-				Name:    "pulsar.AuthenticationType",
-				Value:   config.AuthenticationType,
-				Message: "Only JWT Authentication for Pulsar is supported right now.",
-			})
-		}
-		if strings.TrimSpace(config.JwtTokenPath) == "" {
-			return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
-				Name:    "pulsar.JwtTokenPath",
-				Value:   config.JwtTokenPath,
-				Message: "JWT authentication was configured for Pulsar but no JwtTokenPath was supplied",
-			})
-		}
-		authentication = pulsar.NewAuthenticationTokenFromFile(config.JwtTokenPath)
-	}
-
-	return pulsar.NewClient(pulsar.ClientOptions{
-		URL:                        config.URL,
-		TLSTrustCertsFilePath:      config.TLSTrustCertsFilePath,
-		TLSValidateHostname:        config.TLSValidateHostname,
-		TLSAllowInsecureConnection: config.TLSAllowInsecureConnection,
-		MaxConnectionsPerBroker:    config.MaxConnectionsPerBroker,
-		Authentication:             authentication,
-	})
-}
-
-func parsePulsarCompressionType(compressionTypeStr string) (pulsar.CompressionType, error) {
-
-	switch strings.ToLower(compressionTypeStr) {
-	case "", "none":
-		return pulsar.NoCompression, nil
-	case "lz4":
-		return pulsar.LZ4, nil
-	case "zlib":
-		return pulsar.ZLib, nil
-	case "zstd":
-		return pulsar.ZSTD, nil
-	default:
-		return pulsar.NoCompression, errors.WithStack(&armadaerrors.ErrInvalidArgument{
-			Name:    "pulsar.CompressionType",
-			Value:   compressionTypeStr,
-			Message: fmt.Sprintf("Unknown Pulsar compression type %s", compressionTypeStr),
-		})
-	}
-}
-
-func parsePulsarCompressionLevel(compressionLevelStr string) (pulsar.CompressionLevel, error) {
-
-	switch strings.ToLower(compressionLevelStr) {
-	case "", "default":
-		return pulsar.Default, nil
-	case "faster":
-		return pulsar.Faster, nil
-	case "better":
-		return pulsar.Better, nil
-	default:
-		return pulsar.Default, errors.WithStack(&armadaerrors.ErrInvalidArgument{
-			Name:    "pulsar.CompressionLevel",
-			Value:   compressionLevelStr,
-			Message: fmt.Sprintf("Unknown Pulsar compression level %s", compressionLevelStr),
-		})
-	}
 }

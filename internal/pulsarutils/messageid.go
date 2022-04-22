@@ -2,9 +2,11 @@ package pulsarutils
 
 import (
 	"fmt"
-	"github.com/G-Research/armada/internal/common/armadaerrors"
+
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/pkg/errors"
+
+	"github.com/G-Research/armada/internal/common/armadaerrors"
 )
 
 // PulsarMessageId implements the pulsar.MessageID interface (which uniquely identifies a Pulsar message).
@@ -17,7 +19,7 @@ type PulsarMessageId struct {
 	batchIdx     int32
 }
 
-func New(ledgerID, entryID int64, partitionIdx, batchIdx int32) pulsar.MessageID {
+func New(ledgerID, entryID int64, partitionIdx, batchIdx int32) *PulsarMessageId {
 	return &PulsarMessageId{
 		ledgerID:     ledgerID,
 		entryID:      entryID,

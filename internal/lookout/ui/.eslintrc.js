@@ -15,7 +15,12 @@ module.exports = {
   extends: ["plugin:react/recommended", "plugin:@typescript-eslint/recommended", "prettier"],
   plugins: ["prettier", "eslint-plugin-import"],
   rules: {
-    "prettier/prettier": "error",
+    "prettier/prettier": [
+      "error",
+      {
+        endOfLine: "auto",
+      },
+    ],
     "import/order": [
       "error",
       {

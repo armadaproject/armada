@@ -10,11 +10,12 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
+	"github.com/G-Research/armada/internal/common/armadaerrors"
+	"github.com/G-Research/armada/internal/common/eventutil"
 	"github.com/G-Research/armada/internal/common/logging"
 	"github.com/G-Research/armada/internal/common/requestid"
-	"github.com/G-Research/armada/internal/pulsarutils"
 	"github.com/G-Research/armada/internal/pulsarutils/pulsarrequestid"
-	"github.com/G-Research/armada/pkg/events"
+	"github.com/G-Research/armada/pkg/armadaevents"
 )
 
 // PulsarFromPulsar is a service that reads from Pulsar and sends any required new messages.
@@ -117,32 +118,28 @@ func (srv *PulsarFromPulsar) Run(ctx context.Context) {
 			ctxWithLogger := ctxlogrus.ToContext(messageCtx, messageLogger)
 
 			// Unmarshal and validate the message.
-			sequence, err := UnmarshalEventSequence(ctxWithLogger, msg.Payload())
+			sequence, err := eventutil.UnmarshalEventSequence(ctxWithLogger, msg.Payload())
 			if err != nil {
 				// If unmarshalling fails, the message is malformed and we have no choice but to ignore it.
-				// TODO: Put the message on a special topic for later analysis.
 				logging.WithStacktrace(messageLogger, err).Warnf("processing message failed; ignoring")
 				numErrored++
 				continue
 			}
 
 			// Process the events in the sequence. For efficiency, we may process several events at a time.
-			// TODO: Determine what to do based on the error (e.g., publish to a dead letter topic).
 			messageLogger.WithField("numEvents", len(sequence.Events)).Info("processing sequence")
 			err = srv.ProcessSequence(ctx, sequence)
-			// TODO: Handle these errors separately InvalidMessage, MessageTooBig
-			for pulsarutils.IsPulsarError(err) {
-				time.Sleep(time.Second)
-				err = srv.ProcessSequence(ctx, sequence)
-			}
 			if err != nil {
 				logging.WithStacktrace(messageLogger, err).Error("failed to process sequence")
+			} else {
+				srv.Consumer.Ack(msg)
 			}
 		}
 	}
 }
 
-func (srv *PulsarFromPulsar) ProcessSequence(ctx context.Context, sequence *events.EventSequence) error {
+func (srv *PulsarFromPulsar) ProcessSequence(ctx context.Context, sequence *armadaevents.EventSequence) error {
+	log := ctxlogrus.Extract(ctx)
 
 	// Get any responses that should be sent in response to these events.
 	es := srv.ResponseEventsFromSequence(ctx, sequence)
@@ -151,7 +148,7 @@ func (srv *PulsarFromPulsar) ProcessSequence(ctx context.Context, sequence *even
 	}
 
 	// Send the resulting events.
-	payload, err := proto.Marshal(&events.EventSequence{
+	payload, err := proto.Marshal(&armadaevents.EventSequence{
 		Queue:      sequence.Queue,
 		JobSetName: sequence.JobSetName,
 		Events:     es,
@@ -173,6 +170,12 @@ func (srv *PulsarFromPulsar) ProcessSequence(ctx context.Context, sequence *even
 
 	ctxWithTimeout, _ := context.WithTimeout(ctx, 30*time.Second)
 	_, err = srv.Producer.Send(ctxWithTimeout, msg)
+	for armadaerrors.IsNetworkError(err) {
+		logging.WithStacktrace(log, err).WithFields(logrus.Fields{"queue": sequence.Queue, "jobSetName": sequence.JobSetName}).Error("network error; retrying")
+		time.Sleep(time.Second)
+		ctxWithTimeout, _ = context.WithTimeout(ctx, 30*time.Second)
+		_, err = srv.Producer.Send(ctxWithTimeout, msg)
+	}
 	if err != nil {
 		err = errors.WithStack(err)
 		return err
@@ -182,17 +185,17 @@ func (srv *PulsarFromPulsar) ProcessSequence(ctx context.Context, sequence *even
 }
 
 // ResponseEventsFromSequence returns a slice with all events that should be sent in response to the provided sequence.
-func (srv *PulsarFromPulsar) ResponseEventsFromSequence(ctx context.Context, sequence *events.EventSequence) []*events.EventSequence_Event {
-	es := make([]*events.EventSequence_Event, 0)
+func (srv *PulsarFromPulsar) ResponseEventsFromSequence(ctx context.Context, sequence *armadaevents.EventSequence) []*armadaevents.EventSequence_Event {
+	es := make([]*armadaevents.EventSequence_Event, 0)
 	for i := 0; i < len(sequence.Events); i++ {
 		switch e := sequence.Events[i].Event.(type) {
 		// In case of a JobRunSucceeded message, mark the job as succeeded by sending a JobSucceeded message.
 		// This is not strictly according to spec, since there may be other active job runs for the same job.
 		// Ideally, we would make sure there are no other such runs before marking the job as succeeded.
-		case *events.EventSequence_Event_JobRunSucceeded:
-			es = append(es, &events.EventSequence_Event{
-				Event: &events.EventSequence_Event_JobSucceeded{
-					JobSucceeded: &events.JobSucceeded{
+		case *armadaevents.EventSequence_Event_JobRunSucceeded:
+			es = append(es, &armadaevents.EventSequence_Event{
+				Event: &armadaevents.EventSequence_Event_JobSucceeded{
+					JobSucceeded: &armadaevents.JobSucceeded{
 						JobId: e.JobRunSucceeded.JobId,
 					},
 				},

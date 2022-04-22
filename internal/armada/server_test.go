@@ -196,7 +196,9 @@ func TestCancelJob(t *testing.T) {
 			Name:           "test",
 			PriorityFactor: 1,
 		})
-		assert.Empty(t, err)
+		if ok := assert.NoError(t, err); !ok {
+			t.FailNow()
+		}
 
 		cpu, _ := resource.ParseQuantity("1")
 		memory, _ := resource.ParseQuantity("512Mi")
@@ -205,21 +207,26 @@ func TestCancelJob(t *testing.T) {
 		SubmitJob(client, ctx, cpu, memory, t)
 
 		leasedResponse, err := leaseJobs(leaseClient, ctx, common.ComputeResources{"cpu": cpu, "memory": memory})
-
-		assert.Empty(t, err)
+		if ok := assert.NoError(t, err); !ok {
+			t.FailNow()
+		}
 		assert.Equal(t, 1, len(leasedResponse.Job))
 
 		cancelResult, err := client.CancelJobs(ctx, &api.JobCancelRequest{JobSetId: "set", Queue: "test"})
-		assert.Empty(t, err)
+		if ok := assert.NoError(t, err); !ok {
+			t.FailNow()
+		}
 		assert.Equal(t, 2, len(cancelResult.CancelledIds))
 
 		renewed, err := leaseClient.RenewLease(ctx, &api.RenewLeaseRequest{
 			ClusterId: "test-cluster",
 			Ids:       []string{leasedResponse.Job[0].Id},
 		})
-		assert.Empty(t, err)
-		assert.Equal(t, 0, len(renewed.Ids))
+		if ok := assert.NoError(t, err); !ok {
+			t.FailNow()
+		}
 
+		assert.Equal(t, 0, len(renewed.Ids))
 	})
 }
 

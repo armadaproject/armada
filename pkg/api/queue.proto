@@ -2,8 +2,6 @@ syntax = 'proto3';
 
 package api;
 
-// option go_package = "github.com/G-Research/armada/pkg/api";
-
 import "google/protobuf/timestamp.proto";
 import "k8s.io/api/core/v1/generated.proto";
 import "k8s.io/apimachinery/pkg/api/resource/generated.proto";
@@ -12,25 +10,9 @@ import "google/protobuf/empty.proto";
 import "pkg/api/submit.proto";
 
 import "k8s.io/api/networking/v1beta1/generated.proto";
-// import "internal/events/events.proto";
 
 option (gogoproto.goproto_stringer_all) = false;
 option (gogoproto.stringer_all) = true;
-
-// Compiling requires that the following go packages are available on the local system:
-// k8s.io/api v0.22.4
-// k8s.io/apimachinery v0.22.4
-//
-// Compile with the following commands (run from the project root directory):
-// mkdir -p ./build/proto/k8s.io/api/
-// mkdir -p ./build/proto/k8s.io/apimachinery/
-// mkdir -p ./build/proto/github.com/gogo/protobuf/
-// cp -a $(go env GOPATH)/pkg/mod/k8s.io/api@v0.22.4/* ./build/proto/k8s.io/api/
-// cp -a $(go env GOPATH)/pkg/mod/k8s.io/apimachinery@v0.22.4/* ./build/proto/k8s.io/apimachinery/
-// cp -a $(go env GOPATH)/pkg/mod/github.com/gogo/protobuf@v1.3.2/* ./build/proto/github.com/gogo/protobuf/
-// protoc -I=./build/proto -I=. --go_out=. --go_opt=paths=source_relative pkg/api/queue.proto --go_opt=Mk8s.io/apimachinery/pkg/api/resource/generated.proto=k8s.io/apimachinery/pkg/api/resource --go_opt=Mk8s.io/apimachinery/pkg/runtime/generated.proto=k8s.io/apimachinery/pkg/runtime --go_opt=Mk8s.io/apimachinery/pkg/runtime/schema/generated.proto=k8s.io/apimachinery/pkg/runtime/schema --go_opt=Mk8s.io/apimachinery/pkg/apis/meta/v1/generated.proto=k8s.io/apimachinery/pkg/apis/meta/v1 --go_opt=Mk8s.io/apimachinery/pkg/util/intstr/generated.proto=k8s.io/apimachinery/pkg/util/intstr --go_opt=Mk8s.io/api/core/v1/generated.proto=k8s.io/api/core/v1 --go_opt=Mk8s.io/api/networking/v1beta1/generated.proto=k8s.io/api/networking/v1beta1 --go_opt=Mpkg/api/submit.proto=github.com/G-Research/pkg/api --go_opt=Mpkg/api/queue.proto=github.com/G-Research/pkg/api --go_opt=Minternal/events/events.proto=github.com/G-Research/internal/events --go_opt=Mgoogle/protobuf/timestamp.proto=github.com/gogo/protobuf/types
-
-// protoc -I=. -I=$(go env GOPATH)/pkg/mod -I=$(go env GOPATH)/pkg/mod/github.com/gogo/protobuf@v1.3.2/protobuf -I=./build/proto pkg/api/queue.proto --gogofaster_out=Mgoogle/protobuf/any.proto=github.com/gogo/protobuf/types,Mgoogle/protobuf/duration.proto=github.com/gogo/protobuf/types,Mgoogle/protobuf/struct.proto=github.com/gogo/protobuf/types,Mgoogle/protobuf/timestamp.proto=github.com/gogo/protobuf/types,Mgoogle/protobuf/wrappers.proto=github.com/gogo/protobuf/types:.
 
 message Job {
     string id = 1;
