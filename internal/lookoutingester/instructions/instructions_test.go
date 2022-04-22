@@ -2,10 +2,11 @@ package instructions
 
 import (
 	"encoding/json"
-	"golang.org/x/net/context"
 	"math/rand"
 	"testing"
 	"time"
+
+	"golang.org/x/net/context"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/google/uuid"
