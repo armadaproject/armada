@@ -30,6 +30,8 @@ BUILD_TIME = $(strip $(date)) # Strip leading/trailing whitespace (added by powe
 DOCKER_GOPATH = ${GOPATH}
 ifeq ($(DOCKER_GOPATH),)
 	DOCKER_GOPATH = $(shell go env GOPATH || echo "")
+	DOCKER_GOPATH := $(subst :, ,$(DOCKER_GOPATH:v%=%))
+	DOCKER_GOPATH = $(word 1,$(DOCKER_GOPATH))
 endif
 ifeq ($(DOCKER_GOPATH),)
 	DOCKER_GOPATH = .go
@@ -90,7 +92,6 @@ gobuildlinux = go build -ldflags="-s -w"
 gobuild = go build
 
 build-server:
-	echo $(GO_CMD)
 	$(GO_CMD) $(gobuild) -o ./bin/server cmd/armada/main.go
 
 build-executor:
