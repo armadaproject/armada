@@ -270,32 +270,8 @@ junit-report:
 	$(GO_TEST_CMD) bash -c "cat test_reports/*.txt | go-junit-report > test_reports/junit.xml"
 
 proto:
-	docker build $(dockerFlags) --build-arg GOPROXY --build-arg GOPRIVATE --build-arg MAVEN_URL -t armada-proto -f ./build/proto/Dockerfile .
-	docker run --rm -e GOPROXY -e GOPRIVATE -v ${PWD}:/go/src/armada -w /go/src/armada armada-proto ./scripts/proto.sh
-
-	# generate proper swagger types (we are using standard json serializer, GRPC gateway generates protobuf json, which is not compatible)
-	$(GO_TEST_CMD) swagger generate spec -m -o pkg/api/api.swagger.definitions.json
-
-	# combine swagger definitions
-	$(GO_TEST_CMD) go run ./scripts/merge_swagger.go api.swagger.json > pkg/api/api.swagger.merged.json
-	mv -f pkg/api/api.swagger.merged.json pkg/api/api.swagger.json
-
-	$(GO_TEST_CMD) go run ./scripts/merge_swagger.go lookout/api.swagger.json > pkg/api/lookout/api.swagger.merged.json
-	mv -f pkg/api/lookout/api.swagger.merged.json pkg/api/lookout/api.swagger.json
-
-	$(GO_TEST_CMD) go run ./scripts/merge_swagger.go binoculars/api.swagger.json > pkg/api/binoculars/api.swagger.merged.json
-	mv -f pkg/api/binoculars/api.swagger.merged.json pkg/api/binoculars/api.swagger.json
-
-	rm -f pkg/api/api.swagger.definitions.json
-
-	# embed swagger json into go binary
-	$(GO_TEST_CMD) templify -e -p=api -f=SwaggerJson  pkg/api/api.swagger.json
-	$(GO_TEST_CMD) templify -e -p=lookout -f=SwaggerJson  pkg/api/lookout/api.swagger.json
-	$(GO_TEST_CMD) templify -e -p=binoculars -f=SwaggerJson  pkg/api/binoculars/api.swagger.json
-
-	# fix all imports ordering
-	$(GO_TEST_CMD) goimports -w -local "github.com/G-Research/armada" ./pkg/api/
-	$(GO_TEST_CMD) goimports -w -local "github.com/G-Research/armada" ./pkg/armadaevents/
+	docker build $(dockerFlags) -t armada-proto -f ./build/proto/Dockerfile .
+	docker run -it --rm -v $(shell pwd):/go/src/armada -w /go/src/armada armada-proto ./scripts/proto.sh
 
 # Target for compiling the dotnet Armada client.
 dotnet:
