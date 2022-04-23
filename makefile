@@ -49,8 +49,8 @@ endif
 
 # Deal with the fact that GOPATH might refer to multiple entries multiple directories
 # For now just take the first one
-DOCKER_GOPATH_DIR := $(subst :, ,$(DOCKER_GOPATH_DIR:v%=%))
-DOCKER_GOPATH_DIR = $(word 1,$(DOCKER_GOPATH_DIR))
+DOCKER_GOPATH_TOKS := $(subst :, ,$(DOCKER_GOPATH:v%=%))
+DOCKER_GOPATH_DIR = $(word 1,$(DOCKER_GOPATH_TOKS))
 
 GO_CMD = docker run --rm -v ${PWD}:/go/src/armada -w /go/src/armada --network=host \
 	-e GOPROXY -e GOPRIVATE -e INTEGRATION_ENABLED=true -e CGO_ENABLED=0 -e GOOS=linux -e GARCH=amd64 \
