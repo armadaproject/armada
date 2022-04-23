@@ -30,8 +30,6 @@ BUILD_TIME = $(strip $(date)) # Strip leading/trailing whitespace (added by powe
 DOCKER_GOPATH = ${GOPATH}
 ifeq ($(DOCKER_GOPATH),)
 	DOCKER_GOPATH = $(shell go env GOPATH || echo "")
-	DOCKER_GOPATH := $(subst :, ,$(DOCKER_GOPATH:v%=%))
-	DOCKER_GOPATH = $(word 1,$(DOCKER_GOPATH))
 endif
 ifeq ($(DOCKER_GOPATH),)
 	DOCKER_GOPATH = .go
@@ -48,9 +46,15 @@ endif
 #
 # To support SSL for alternate sources, we mount /etc/ssl/certs (which is Linux-specific) into the Docker container.
 # If not using alternate sources, this mount can be removed.
+
+# Deal with the fact that GOPATH might refer to multiple entries multiple directories
+# For now just take the first one
+DOCKER_GOPATH_DIR := $(subst :, ,$(DOCKER_GOPATH_DIR:v%=%))
+DOCKER_GOPATH_DIR = $(word 1,$(DOCKER_GOPATH_DIR))
+
 GO_CMD = docker run --rm -v ${PWD}:/go/src/armada -w /go/src/armada --network=host \
 	-e GOPROXY -e GOPRIVATE -e INTEGRATION_ENABLED=true -e CGO_ENABLED=0 -e GOOS=linux -e GARCH=amd64 \
-	-v $(DOCKER_GOPATH):/go \
+	-v $(DOCKER_GOPATH_DIR):/go \
 	golang:1.16-buster
 DOTNET_CMD = docker run --rm -v ${PWD}:/go/src/armada -w /go/src/armada \
 	-v /etc/ssl/certs:/etc/ssl/certs \
