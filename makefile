@@ -96,13 +96,13 @@ gobuildlinux = go build -ldflags="-s -w"
 gobuild = go build
 
 build-server:
-	$(GO_CMD) $(gobuild) -o ./bin/server cmd/armada/main.go
+	$(gobuild) -o ./bin/server cmd/armada/main.go
 
 build-executor:
-	$(GO_CMD) $(gobuild) -o ./bin/executor cmd/executor/main.go
+	$(gobuild) -o ./bin/executor cmd/executor/main.go
 
 build-fakeexecutor:
-	$(GO_CMD) $(gobuild) -o ./bin/executor cmd/fakeexecutor/main.go
+	$(gobuild) -o ./bin/executor cmd/fakeexecutor/main.go
 
 ARMADACTL_BUILD_PACKAGE := github.com/G-Research/armada/internal/armadactl/build
 define ARMADACTL_LDFLAGS
@@ -112,7 +112,7 @@ define ARMADACTL_LDFLAGS
 -X '$(ARMADACTL_BUILD_PACKAGE).GoVersion=$(GO_VERSION_STRING)'
 endef
 build-armadactl:
-	$(GO_CMD) $(gobuild) -ldflags="$(ARMADACTL_LDFLAGS)" -o ./bin/armadactl cmd/armadactl/main.go
+	$(gobuild) -ldflags="$(ARMADACTL_LDFLAGS)" -o ./bin/armadactl cmd/armadactl/main.go
 
 build-armadactl-multiplatform:
 	go install github.com/mitchellh/gox@v1.0.1
@@ -126,31 +126,31 @@ build-armadactl-release: build-armadactl-multiplatform
 	zip -j ./dist/armadactl-$(RELEASE_VERSION)-windows-amd64.zip ./bin/windows-amd64/armadactl.exe
 
 build-binoculars:
-	$(GO_CMD) $(gobuild) -o ./bin/binoculars cmd/binoculars/main.go
+	$(gobuild) -o ./bin/binoculars cmd/binoculars/main.go
 
 build-load-tester:
-	$(GO_CMD) $(gobuild) -o ./bin/armada-load-tester cmd/armada-load-tester/main.go
+	$(gobuild) -o ./bin/armada-load-tester cmd/armada-load-tester/main.go
 
 build: build-server build-executor build-fakeexecutor build-armadactl build-load-tester build-binoculars
 
 build-docker-server:
-	$(GO_CMD) $(gobuildlinux) -o ./bin/linux/server cmd/armada/main.go
+	$(gobuildlinux) -o ./bin/linux/server cmd/armada/main.go
 	docker build $(dockerFlags) -t armada -f ./build/armada/Dockerfile .
 
 build-docker-executor:
-	$(GO_CMD) $(gobuildlinux) -o ./bin/linux/executor cmd/executor/main.go
+	$(gobuildlinux) -o ./bin/linux/executor cmd/executor/main.go
 	docker build $(dockerFlags) -t armada-executor -f ./build/executor/Dockerfile .
 
 build-docker-armada-load-tester:
-	$(GO_CMD) $(gobuildlinux) -o ./bin/linux/armada-load-tester cmd/armada-load-tester/main.go
+	$(gobuildlinux) -o ./bin/linux/armada-load-tester cmd/armada-load-tester/main.go
 	docker build $(dockerFlags) -t armada-load-tester -f ./build/armada-load-tester/Dockerfile .
 
 build-docker-armadactl:
-	$(GO_CMD) $(gobuildlinux) -o ./bin/linux/armadactl cmd/armadactl/main.go
+	$(gobuildlinux) -o ./bin/linux/armadactl cmd/armadactl/main.go
 	docker build $(dockerFlags) -t armadactl -f ./build/armadactl/Dockerfile .
 
 build-docker-fakeexecutor:
-	$(GO_CMD) $(gobuildlinux) -o ./bin/linux/fakeexecutor cmd/fakeexecutor/main.go
+	$(gobuildlinux) -o ./bin/linux/fakeexecutor cmd/fakeexecutor/main.go
 	docker build $(dockerFlags) -t armada-fakeexecutor -f ./build/fakeexecutor/Dockerfile .
 
 build-docker-lookout:
@@ -160,11 +160,11 @@ build-docker-lookout:
 	# "npm run openapi" would result in running a docker container in docker.
 	docker run --rm -u $(id -u ${USER}):$(id -g ${USER}) -v ${PWD}:/project openapitools/openapi-generator-cli:v5.2.0 /project/internal/lookout/ui/openapi.sh
 	$(NODE_CMD) npm run build
-	$(GO_CMD) $(gobuildlinux) -o ./bin/linux/lookout cmd/lookout/main.go
+	$(gobuildlinux) -o ./bin/linux/lookout cmd/lookout/main.go
 	docker build $(dockerFlags) -t armada-lookout -f ./build/lookout/Dockerfile .
 
 build-docker-binoculars:
-	$(GO_CMD) $(gobuildlinux) -o ./bin/linux/binoculars cmd/binoculars/main.go
+	$(gobuildlinux) -o ./bin/linux/binoculars cmd/binoculars/main.go
 	docker build $(dockerFlags) -t armada-binoculars -f ./build/binoculars/Dockerfile .
 
 build-docker: build-docker-server build-docker-executor build-docker-armadactl build-docker-armada-load-tester build-docker-fakeexecutor build-docker-lookout build-docker-binoculars
@@ -188,7 +188,7 @@ tests:
 		docker rm -f redis postgres
 	}
 	trap tearDown EXIT
-	$(GO_TEST_CMD) go test -v ./internal... 2>&1 | tee test_reports/internal.txt
+	go test -v ./internal... 2>&1 | tee test_reports/internal.txt
 	$(GO_TEST_CMD) go test -v ./pkg... 2>&1 | tee test_reports/pkg.txt
 	$(GO_TEST_CMD) go test -v ./cmd... 2>&1 | tee test_reports/cmd.txt
 
@@ -196,7 +196,7 @@ tests:
 .ONESHELL:
 rebuild-server:
 	docker rm -f server
-	$(GO_CMD) $(gobuildlinux) -o ./bin/linux/server cmd/armada/main.go
+	$(gobuildlinux) -o ./bin/linux/server cmd/armada/main.go
 	docker build $(dockerFlags) -t armada -f ./build/armada/Dockerfile .
 	docker run -d --name server --network=kind -p=50051:50051 -p 8080:8080 -v ${PWD}/e2e:/e2e \
 		armada ./server --config /e2e/setup/insecure-armada-auth-config.yaml --config /e2e/setup/nats/armada-config.yaml --config /e2e/setup/redis/armada-config.yaml --config /e2e/setup/pulsar/armada-config.yaml  --config /e2e/setup/server/armada-config.yaml
@@ -281,17 +281,17 @@ dotnet:
 
 # Download all dependencies and install tools listed in internal/tools/tools.go
 download:
-	$(GO_CMD) go mod download
-	$(GO_TEST_CMD) go mod download
-	$(GO_CMD) go list -f '{{range .Imports}}{{.}} {{end}}' internal/tools/tools.go | xargs $(GO_CMD) go install
+	go mod download
+	go mod download
+	go list -f '{{range .Imports}}{{.}} {{end}}' internal/tools/tools.go | xargs go install
 	$(GO_TEST_CMD) go list -f '{{range .Imports}}{{.}} {{end}}' internal/tools/tools.go | xargs $(GO_TEST_CMD) go install
-	$(GO_CMD) go mod tidy
+	go mod tidy
 	$(GO_TEST_CMD) go mod tidy
 
 code-reports:
 	mkdir -p code_reports
-	$(GO_CMD) goimports -d -local "github.com/G-Research/armada" . | tee code_reports/goimports.txt
-	$(GO_CMD) ineffassign ./... | tee code_reports/ineffassign.txt
+	goimports -d -local "github.com/G-Research/armada" . | tee code_reports/goimports.txt
+	ineffassign ./... | tee code_reports/ineffassign.txt
 
 code-checks: code-reports
 	sync # make sure everything has been synced to disc
@@ -299,6 +299,6 @@ code-checks: code-reports
 	if [ $(shell cat code_reports/goimports.txt | wc -l) -ne "0" ]; then exit 1; fi
 
 generate:
-	$(GO_CMD) go run github.com/rakyll/statik \
+	go run github.com/rakyll/statik \
 		-dest=internal/lookout/repository/schema/ -src=internal/lookout/repository/schema/ -include=\*.sql -ns=lookout/sql -Z -f -m && \
 		go run golang.org/x/tools/cmd/goimports -w -local "github.com/G-Research/armada" internal/lookout/repository/schema/statik
