@@ -243,6 +243,7 @@ tests-e2e-no-setup:
 
 .ONESHELL:
 tests-e2e: build-armadactl build-docker-no-lookout tests-e2e-setup
+	go install sigs.k8s.io/kind
 	function teardown {
 		echo -e "\nexecutor logs:"
 		docker logs executor
