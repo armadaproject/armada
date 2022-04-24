@@ -115,7 +115,9 @@ build-armadactl:
 	$(GO_CMD) $(gobuild) -ldflags="$(ARMADACTL_LDFLAGS)" -o ./bin/armadactl cmd/armadactl/main.go
 
 build-armadactl-multiplatform:
-	$(GO_CMD) go install github.com/mitchellh/gox@v1.0.1 && gox -ldflags="$(ARMADACTL_LDFLAGS)" -output="./bin/{{.OS}}-{{.Arch}}/armadactl" -arch="amd64" -os="windows linux darwin" ./cmd/armadactl/
+	go install github.com/mitchellh/gox@v1.0.1
+	gox -ldflags="$(ARMADACTL_LDFLAGS)" -output="./bin/{{.OS}}-{{.Arch}}/armadactl" -arch="amd64" -os="windows linux darwin" ./cmd/armadactl/
+	#$(GO_CMD) go install github.com/mitchellh/gox@v1.0.1 && gox -ldflags="$(ARMADACTL_LDFLAGS)" -output="./bin/{{.OS}}-{{.Arch}}/armadactl" -arch="amd64" -os="windows linux darwin" ./cmd/armadactl/
 
 build-armadactl-release: build-armadactl-multiplatform
 	mkdir ./dist || true
