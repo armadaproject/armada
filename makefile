@@ -92,7 +92,7 @@ endif
 export SHELL:=/bin/bash
 export SHELLOPTS:=$(if $(SHELLOPTS),$(SHELLOPTS):)pipefail:errexit
 
-gobuildlinux = go build -ldflags="-s -w"
+gobuildlinux = GOOS=linux GARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w"
 gobuild = go build
 
 build-server:
@@ -209,6 +209,7 @@ tests-e2e-teardown:
 	rmdir .kube || true
 
 tests-e2e-setup:
+	go install sigs.k8s.io/kind
 	./e2e/setup/setup_cluster_ci.sh
 
 	docker pull "alpine:3.10" # ensure Alpine, which is used by tests, is available
@@ -219,7 +220,7 @@ tests-e2e-setup:
 	kind get kubeconfig --internal --name armada-test > .kube/config
 
 	docker run --rm -v ${PWD}:/go/src/armada -w /go/src/armada -e KUBECONFIG=/go/src/armada/.kube/config --network kind bitnami/kubectl:1.23 apply -f ./e2e/setup/namespace-with-anonymous-user.yaml
-	docker run -d --name nats nats-streaming
+	docker run -d --name nats -p 4223:4223 -p 8223:8223 nats-streaming -p 4223 -m 8223
 	docker run -d --name redis -p=6379:6379 redis
 	docker run -d --name pulsar -p 0.0.0.0:6650:6650 apachepulsar/pulsar:2.9.1 bin/pulsar standalone
 	docker run -d --name postgres -p 5432:5432 -e POSTGRES_PASSWORD=psw postgres
@@ -244,7 +245,7 @@ tests-e2e-no-setup:
 	# $(DOTNET_CMD) dotnet test client/DotNet/Armada.Client.Test/Armada.Client.Test.csproj
 
 .ONESHELL:
-tests-e2e: build-armadactl build-docker-no-lookout tests-e2e-setup
+tests-e2e:  build-armadactl build-docker-no-lookout tests-e2e-setup
 	function teardown {
 		echo -e "\nexecutor logs:"
 		docker logs executor
