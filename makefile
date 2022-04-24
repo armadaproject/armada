@@ -209,6 +209,7 @@ tests-e2e-teardown:
 	rmdir .kube || true
 
 tests-e2e-setup:
+	go install sigs.k8s.io/kind
 	docker pull "alpine:3.10" # ensure Alpine, which is used by tests, is available
 	kind create cluster --name armada-test --wait 30s --image kindest/node:v1.21.1
 	kind load docker-image "alpine:3.10" --name armada-test # needed to make Alpine available to kind
@@ -243,7 +244,6 @@ tests-e2e-no-setup:
 
 .ONESHELL:
 tests-e2e: build-armadactl build-docker-no-lookout tests-e2e-setup
-	go install sigs.k8s.io/kind
 	function teardown {
 		echo -e "\nexecutor logs:"
 		docker logs executor
