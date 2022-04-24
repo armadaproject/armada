@@ -181,6 +181,7 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 			Topic:            config.Pulsar.JobsetEventsTopic,
 		})
 		if err != nil {
+			log.Errorf("Error creating pulsar producer %+v", err)
 			panic(err)
 		}
 		pulsarSubmitServer := &server.PulsarSubmitServer{
