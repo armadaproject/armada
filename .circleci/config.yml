@@ -106,6 +106,32 @@ commands:
           git push -q origin HEAD
 
 jobs:
+  dependencies:
+    machine:
+      docker_layer_caching: false
+      image: ubuntu-2004:202104-01
+    environment:
+      GO111MODULE: "on"
+      GOPATH: "/home/circleci/go"
+      GOCACHE: "/home/circleci/go/cache"
+    working_directory: ~/go/src/github.com/G-Research/armada
+    steps:
+      - checkout
+
+      - restore_cache: # restores saved cache if no changes are detected since last run
+          keys:
+            - go-mod-v1-{{ checksum "go.sum" }}
+
+      - run: # no-op if we restored from cache
+          name: Download dependencies
+          command: make download
+
+      - save_cache: # if we downloaded new dependencies, cache those
+          key: go-mod-v1-{{ checksum "go.sum" }}
+          paths:
+            - "/home/circleci/go/pkg/mod"
+            - "/home/circleci/go/bin"
+
   code_style:
     machine:
       docker_layer_caching: false
@@ -117,6 +143,10 @@ jobs:
     working_directory: ~/go/src/github.com/G-Research/armada
     steps:
       - checkout
+
+      - restore_cache: # restores saved cache if no changes are detected since last run
+          keys:
+            - go-mod-v1-{{ checksum "go.sum" }}
 
       - run:
           name: Setup
@@ -137,7 +167,7 @@ jobs:
 
   generated_files:
     machine:
-      docker_layer_caching: false
+      docker_layer_caching: true
       image: ubuntu-2004:202104-01
     environment:
       GO111MODULE: "on"
@@ -146,6 +176,10 @@ jobs:
     working_directory: ~/go/src/github.com/G-Research/armada
     steps:
       - checkout
+
+      - restore_cache: # restores saved cache if no changes are detected since last run
+          keys:
+            - go-mod-v1-{{ checksum "go.sum" }}
 
       - run:
           name: Setup
@@ -173,9 +207,10 @@ jobs:
     working_directory: ~/go/src/github.com/G-Research/armada
     steps:
       - checkout
-      - restore_cache:
+
+      - restore_cache: # restores saved cache if no changes are detected since last run
           keys:
-            - machine-go-mod-v1-tests-{{ checksum "go.sum" }}
+            - go-mod-v1-{{ checksum "go.sum" }}
 
       - run:
           name: Setup
@@ -192,12 +227,6 @@ jobs:
       - store_test_results:
           path: test_reports/junit.xml
 
-      - save_cache:
-          key: machine-go-mod-v1-tests-{{ checksum "go.sum" }}
-          paths:
-            - "/home/circleci/go/pkg/mod"
-            - "/home/circleci/go/cache"
-
   e2e_tests:
     machine:
       docker_layer_caching: true
@@ -210,9 +239,10 @@ jobs:
     working_directory: ~/go/src/github.com/G-Research/armada
     steps:
       - checkout
-      - restore_cache:
+
+      - restore_cache: # restores saved cache if no changes are detected since last run
           keys:
-            - machine-go-mod-v1-tests-{{ checksum "go.sum" }}
+            - go-mod-v1-{{ checksum "go.sum" }}
 
       - run:
           name: Setup
@@ -233,12 +263,6 @@ jobs:
       - store_test_results:
           path: test_reports/junit.xml
 
-      - save_cache:
-          key: machine-go-mod-v1-tests-{{ checksum "go.sum" }}
-          paths:
-            - "/home/circleci/go/pkg/mod"
-            - "/home/circleci/go/cache"
-
   build:
     machine:
       docker_layer_caching: true
@@ -251,6 +275,10 @@ jobs:
     working_directory: ~/go/src/github.com/G-Research/armada
     steps:
       - checkout
+
+      - restore_cache: # restores saved cache if no changes are detected since last run
+          keys:
+            - go-mod-v1-{{ checksum "go.sum" }}
 
       # - run: e2e/setup/setup_environment.sh      
 
@@ -275,12 +303,6 @@ jobs:
       - run:
           name: Build
           command: make build-ci
-
-      - save_cache:
-          key: machine-go-mod-v1-{{ checksum "go.sum" }}
-          paths:
-            - "/home/circleci/go/pkg/mod"
-            - "/home/circleci/go/cache"
 
       - store_artifacts:
           path: bin/armadactl
@@ -335,6 +357,10 @@ jobs:
     steps:
       - checkout
       - setup_remote_docker
+
+      - restore_cache: # restores saved cache if no changes are detected since last run
+          keys:
+            - go-mod-v1-{{ checksum "go.sum" }}
 
       - run:
           name: Build armadactl release artifacts
@@ -407,24 +433,37 @@ workflows:
   version: 2
   build_and_deploy:
     jobs:
-      - code_style
-      - generated_files
-      - unit_tests
+      - dependencies
+      - code_style:
+          requires:
+            - dependencies
+      - generated_files:
+          requires:
+            - dependencies
+      - unit_tests:
+          requires:
+            - dependencies
       - build:
           requires:
+            - dependencies
             - code_style
             - generated_files
             - unit_tests
       - e2e_tests:
           requires:
+            - dependencies
             - build
       - release:
+          requires:
+            - dependencies
           filters:
             tags:
               only: /.*/
             branches:
               ignore: /.*/
       - release-dotnet-client:
+          requires:
+            - dependencies
           filters:
             tags:
               only: /.*/
