@@ -306,6 +306,7 @@ download:
 	echo $(go env GOPATH)
 	$(GO_TEST_CMD) go mod download
 	$(GO_TEST_CMD) go list -f '{{range .Imports}}{{.}} {{end}}' internal/tools/tools.go | xargs $(GO_TEST_CMD) go install
+	$(GO_TEST_CMD) go mod tidy
 
 code-reports:
 	mkdir -p code_reports
