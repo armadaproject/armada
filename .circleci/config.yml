@@ -368,6 +368,7 @@ workflows:
     jobs:
       - code_style
       - test
+      - e2e_test
       - build
       - release:
           filters:
