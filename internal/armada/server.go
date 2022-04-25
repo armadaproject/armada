@@ -175,16 +175,16 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 			panic(err)
 		}
 		var producer pulsar.Producer = nil
-		for i := 0; i < 10; i++ {
+		for i := 0; i < 20; i++ {
 			producer, err = pulsarClient.CreateProducer(pulsar.ProducerOptions{
 				Name:             fmt.Sprintf("armada-server-%s", uuid.New()),
 				CompressionType:  compressionType,
 				CompressionLevel: compressionLevel,
 				Topic:            config.Pulsar.JobsetEventsTopic,
 			})
-			if err != nil && i < 9 {
+			if err != nil && i < 19 {
 				log.Warnf("Error creating pulsar producer %+v", err)
-				time.Sleep(1 * time.Second)
+				time.Sleep(5 * time.Second)
 			} else {
 				break
 			}
