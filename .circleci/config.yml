@@ -161,6 +161,10 @@ jobs:
             - machine-go-mod-v1-tests-{{ checksum "go.sum" }}
 
       - run:
+          name: Setup
+          command: make download
+
+      - run:
           name: Tests
           command: make tests
 
@@ -168,11 +172,36 @@ jobs:
           key: machine-go-mod-v1-tests-{{ checksum "go.sum" }}
           paths:
             - "/home/circleci/go/pkg/mod"
-            - "/home/circleci/go/cache"          
+            - "/home/circleci/go/cache"
+
+  e2e-test:
+    machine:
+      docker_layer_caching: false
+      image: ubuntu-2004:202104-01
+    environment:
+      GO111MODULE: "on"
+      GOPATH: "/home/circleci/go"
+      GOCACHE: "/home/circleci/go/cache"
+    working_directory: ~/go/src/github.com/G-Research/armada
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - machine-go-mod-v1-tests-{{ checksum "go.sum" }}
+
+      - run:
+          name: Setup
+          command: make download
 
       - run:
           name: Integration tests
           command: make tests-e2e
+
+      - save_cache:
+          key: machine-go-mod-v1-tests-{{ checksum "go.sum" }}
+          paths:
+            - "/home/circleci/go/pkg/mod"
+            - "/home/circleci/go/cache"
 
   build:
     machine:
@@ -187,7 +216,7 @@ jobs:
       - checkout
 
       # - run: e2e/setup/setup_environment.sh      
-      
+
       # - run:
       #     name: Start cluster for e2e tests
       #     command: ./e2e/setup/setup_cluster_ci.sh
