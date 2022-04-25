@@ -149,6 +149,7 @@ jobs:
     machine:
       docker_layer_caching: false
       image: ubuntu-2004:202104-01
+      resource_class: large
     environment:
       GO111MODULE: "on"
       GOPATH: "/home/circleci/go"
@@ -178,6 +179,7 @@ jobs:
     machine:
       docker_layer_caching: false
       image: ubuntu-2004:202104-01
+      resource_class: large
     environment:
       GO111MODULE: "on"
       GOPATH: "/home/circleci/go"
@@ -207,6 +209,7 @@ jobs:
     machine:
       docker_layer_caching: false
       image: ubuntu-2004:202104-01
+      resource_class: large
     environment:
       GO111MODULE: "on"
       GOPATH: "/home/circleci/go"
