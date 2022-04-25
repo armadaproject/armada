@@ -174,7 +174,7 @@ jobs:
             - "/home/circleci/go/pkg/mod"
             - "/home/circleci/go/cache"
 
-  e2e-test:
+  e2e_test:
     machine:
       docker_layer_caching: false
       image: ubuntu-2004:202104-01
