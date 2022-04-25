@@ -205,6 +205,10 @@ tests-e2e-teardown:
 	kind delete cluster --name armada-test || true
 	rm .kube/config || true
 	rmdir .kube || true
+	echo -e "\nexecutor logs:"
+	docker logs executor
+	echo -e "\nserver logs:"
+	docker logs server
 
 tests-e2e-setup:
 	docker pull "alpine:3.10" # ensure Alpine, which is used by tests, is available
@@ -220,7 +224,7 @@ tests-e2e-setup:
 	docker run -d --name pulsar -p 0.0.0.0:6650:6650 --network=kind apachepulsar/pulsar:2.9.1 bin/pulsar standalone
 	docker run -d --name postgres --network=kind -p 5432:5432 -e POSTGRES_PASSWORD=psw postgres:14.2
 
-	sleep 10 # give dependencies time to start up
+	sleep 30 # give dependencies time to start up
 	docker run -d --name server --network=kind -p=50051:50051 -p 8080:8080 -v ${PWD}/e2e:/e2e \
 		armada ./server --config /e2e/setup/insecure-armada-auth-config.yaml --config /e2e/setup/nats/armada-config.yaml --config /e2e/setup/redis/armada-config.yaml --config /e2e/setup/pulsar/armada-config.yaml  --config /e2e/setup/server/armada-config.yaml
 	docker run -d --name executor --network=kind -v ${PWD}/.kube:/.kube -v ${PWD}/e2e:/e2e  \
