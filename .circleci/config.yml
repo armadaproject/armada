@@ -158,7 +158,7 @@ jobs:
 
   test:
     machine:
-      docker_layer_caching: false
+      docker_layer_caching: true
       image: ubuntu-2004:202104-01
     environment:
       GO111MODULE: "on"
@@ -185,7 +185,7 @@ jobs:
 
   build:
     machine:
-      docker_layer_caching: false
+      docker_layer_caching: true
       image: ubuntu-2004:202104-01
     environment:
       GO111MODULE: "on"
