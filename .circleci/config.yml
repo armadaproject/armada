@@ -196,6 +196,10 @@ jobs:
           command: make download
 
       - run:
+          name: Enable integration tests
+          command: echo 'export INTEGRATION_ENABLED="true"' >> $BASH_ENV
+
+      - run:
           name: Integration tests
           command: make tests-e2e
 
