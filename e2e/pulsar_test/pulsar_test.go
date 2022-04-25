@@ -48,75 +48,75 @@ var expectedTolerations = []v1.Toleration{
 }
 
 // Test publishing and receiving a message to/from Pulsar.
-//func TestPublishReceive(t *testing.T) {
-//	err := withSetup(func(ctx context.Context, _ api.SubmitClient, producer pulsar.Producer, consumer pulsar.Consumer) error {
-//		_, err := producer.Send(context.Background(), &pulsar.ProducerMessage{
-//			Payload: []byte("hello"),
-//		})
-//		if err != nil {
-//			return err
-//		}
-//
-//		ctxWithTimeout, _ := context.WithTimeout(context.Background(), time.Second)
-//		msg, err := consumer.Receive(ctxWithTimeout)
-//		if err != nil {
-//			return err
-//		}
-//		assert.Equal(t, "hello", string(msg.Payload()))
-//
-//		return nil
-//	})
-//	assert.NoError(t, err)
-//}
+func TestPublishReceive(t *testing.T) {
+	err := withSetup(func(ctx context.Context, _ api.SubmitClient, producer pulsar.Producer, consumer pulsar.Consumer) error {
+		_, err := producer.Send(context.Background(), &pulsar.ProducerMessage{
+			Payload: []byte("hello"),
+		})
+		if err != nil {
+			return err
+		}
+
+		ctxWithTimeout, _ := context.WithTimeout(context.Background(), time.Second)
+		msg, err := consumer.Receive(ctxWithTimeout)
+		if err != nil {
+			return err
+		}
+		assert.Equal(t, "hello", string(msg.Payload()))
+
+		return nil
+	})
+	assert.NoError(t, err)
+}
 
 // Test that submitting many jobs results in the correct sequence of Pulsar message being produced for each job.
-//func TestSubmitJobs(t *testing.T) {
-//	err := withSetup(func(ctx context.Context, client api.SubmitClient, producer pulsar.Producer, consumer pulsar.Consumer) error {
-//		numJobs := 1
-//		req := createJobSubmitRequest(numJobs)
-//		ctxWithTimeout, _ := context.WithTimeout(context.Background(), time.Second)
-//		res, err := client.SubmitJobs(ctxWithTimeout, req)
-//		if err != nil {
-//			return err
-//		}
-//
-//		if ok := assert.Equal(t, numJobs, len(res.JobResponseItems)); !ok {
-//			return nil
-//		}
-//
-//		numEventsExpected := numJobs * 6
-//		sequences, err := receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, 10*time.Second)
-//		if err != nil {
-//			return err
-//		}
-//
-//		sequence := flattenSequences(sequences)
-//		if ok := assert.NotNil(t, sequence); !ok {
-//			return nil
-//		}
-//
-//		for i, resi := range res.JobResponseItems {
-//			reqi := req.JobRequestItems[i]
-//
-//			jobId, err := armadaevents.ProtoUuidFromUlidString(resi.JobId)
-//			if err != nil {
-//				return err
-//			}
-//
-//			expected := expectedSequenceFromRequestItem(req.JobSetId, jobId, reqi)
-//			actual, err := filterSequenceByJobId(sequence, jobId)
-//			if err != nil {
-//				return err
-//			}
-//			if ok := isSequencef(t, expected, actual, "Event sequence error; printing diff:\n%s", cmp.Diff(expected, actual)); !ok {
-//				return nil
-//			}
-//		}
-//
-//		return nil
-//	})
-//	assert.NoError(t, err)
-//}
+func TestSubmitJobs(t *testing.T) {
+	err := withSetup(func(ctx context.Context, client api.SubmitClient, producer pulsar.Producer, consumer pulsar.Consumer) error {
+		numJobs := 1
+		req := createJobSubmitRequest(numJobs)
+		ctxWithTimeout, _ := context.WithTimeout(context.Background(), time.Second)
+		res, err := client.SubmitJobs(ctxWithTimeout, req)
+		if err != nil {
+			return err
+		}
+
+		if ok := assert.Equal(t, numJobs, len(res.JobResponseItems)); !ok {
+			return nil
+		}
+
+		numEventsExpected := numJobs * 6
+		sequences, err := receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, 10*time.Second)
+		if err != nil {
+			return err
+		}
+
+		sequence := flattenSequences(sequences)
+		if ok := assert.NotNil(t, sequence); !ok {
+			return nil
+		}
+
+		for i, resi := range res.JobResponseItems {
+			reqi := req.JobRequestItems[i]
+
+			jobId, err := armadaevents.ProtoUuidFromUlidString(resi.JobId)
+			if err != nil {
+				return err
+			}
+
+			expected := expectedSequenceFromRequestItem(req.JobSetId, jobId, reqi)
+			actual, err := filterSequenceByJobId(sequence, jobId)
+			if err != nil {
+				return err
+			}
+			if ok := isSequencef(t, expected, actual, "Event sequence error; printing diff:\n%s", cmp.Diff(expected, actual)); !ok {
+				return nil
+			}
+		}
+
+		return nil
+	})
+	assert.NoError(t, err)
+}
 
 // Test that submitting many jobs results in the correct sequence of Pulsar message being produced for each job.
 // For jobs that contain multiple PodSpecs, services, and ingresses.
@@ -186,7 +186,7 @@ func TestSubmitJobWithError(t *testing.T) {
 
 		// Test that we get errors messages.
 		numEventsExpected := numJobs * 4
-		sequences, err := receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, 30*time.Second)
+		sequences, err := receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, 10*time.Second)
 		if err != nil {
 			return err
 		}

@@ -206,7 +206,7 @@ jobs:
 
       - run:
           name: Build & Run e2e tests
-          command: make tests-e2e
+          command: make build-ci tests-e2e
 
       - run: cat go.sum
 
