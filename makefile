@@ -49,8 +49,8 @@ endif
 
 # Deal with the fact that GOPATH might refer to multiple entries multiple directories
 # For now just take the first one
-DOCKER_GOPATH_DIR := $(subst :, ,$(DOCKER_GOPATH_DIR:v%=%))
-DOCKER_GOPATH_DIR = $(word 1,$(DOCKER_GOPATH_DIR))
+DOCKER_GOPATH_TOKS := $(subst :, ,$(DOCKER_GOPATH:v%=%))
+DOCKER_GOPATH_DIR = $(word 1,$(DOCKER_GOPATH_TOKS))
 
 GO_CMD = docker run --rm -v ${PWD}:/go/src/armada -w /go/src/armada --network=host \
 	-e GOPROXY -e GOPRIVATE -e INTEGRATION_ENABLED=true -e CGO_ENABLED=0 -e GOOS=linux -e GARCH=amd64 \
@@ -59,7 +59,7 @@ GO_CMD = docker run --rm -v ${PWD}:/go/src/armada -w /go/src/armada --network=ho
 DOTNET_CMD = docker run --rm -v ${PWD}:/go/src/armada -w /go/src/armada \
 	-v /etc/ssl/certs:/etc/ssl/certs \
 	-e SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
-	dotnet/sdk:3.1.417-buster
+	mcr.microsoft.com/dotnet/sdk:3.1.417-buster
 NODE_CMD = docker run --rm -v ${PWD}:/go/src/armada -w /go/src/armada/internal/lookout/ui \
 	-e npm_config_disturl \
 	-e npm_config_registry \
@@ -303,12 +303,12 @@ dotnet:
 
 # Download all dependencies and install tools listed in internal/tools/tools.go
 download:
-	$(GO_CMD) go mod download
 	$(GO_TEST_CMD) go mod download
-	$(GO_CMD) go list -f '{{range .Imports}}{{.}} {{end}}' internal/tools/tools.go | xargs $(GO_CMD) go install
+	$(GO_CMD) go mod download
 	$(GO_TEST_CMD) go list -f '{{range .Imports}}{{.}} {{end}}' internal/tools/tools.go | xargs $(GO_TEST_CMD) go install
-	$(GO_CMD) go mod tidy
+	$(GO_CMD) go list -f '{{range .Imports}}{{.}} {{end}}' internal/tools/tools.go | xargs $(GO_CMD) go install
 	$(GO_TEST_CMD) go mod tidy
+	$(GO_CMD) go mod tidy
 
 code-reports:
 	mkdir -p code_reports
