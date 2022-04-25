@@ -255,7 +255,7 @@ tests-e2e: build-armadactl build-docker-no-lookout tests-e2e-setup
 		rmdir .kube
 	}
 	mkdir -p test_reports
-	#rap teardown exit
+	trap teardown exit
 	sleep 10
 	echo -e "\nrunning tests:"
 	$(GO_TEST_CMD) go test -v ./e2e/armadactl_test/... -count=1 2>&1 | tee test_reports/e2e_armadactl.txt
