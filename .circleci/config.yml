@@ -108,7 +108,7 @@ commands:
 jobs:
   checks_and_unit_tests:
     machine:
-      docker_layer_caching: false
+      docker_layer_caching: true
       image: ubuntu-2004:202104-01
       resource_class: xlarge
     environment:
