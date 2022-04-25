@@ -174,7 +174,7 @@ jobs:
           command: make junit-report
 
       - store_test_results:
-        path: test_reports/junit.xml
+          path: test_reports/junit.xml
 
       - save_cache:
           key: machine-go-mod-v1-tests-{{ checksum "go.sum" }}
@@ -215,7 +215,7 @@ jobs:
           command: make junit-report
 
       - store_test_results:
-        path: test_reports/junit.xml
+          path: test_reports/junit.xml
 
       - save_cache:
           key: machine-go-mod-v1-tests-{{ checksum "go.sum" }}
