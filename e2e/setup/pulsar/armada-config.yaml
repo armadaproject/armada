@@ -1,6 +1,6 @@
 pulsar:
   enabled: true
-  URL: "pulsar://localhost:6650"
+  URL: "pulsar://pulsar:6650"
   jobsetEventsTopic: "jobset-events"
   redisFromPulsarSubscription: "RedisFromPulsar"
   pulsarFromPulsarSubscription: "PulsarFromPulsar"

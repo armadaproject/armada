@@ -1,3 +1,3 @@
 apiConnection:
-  armadaUrl: "localhost:50051"
+  armadaUrl: "server:50051"
   forceNoTls: true

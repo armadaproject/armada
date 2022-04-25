@@ -210,8 +210,6 @@ tests-e2e-teardown:
 
 tests-e2e-setup:
 	go install sigs.k8s.io/kind
-	./e2e/setup/setup_cluster_ci.sh
-
 	docker pull "alpine:3.10" # ensure Alpine, which is used by tests, is available
 	kind create cluster --name armada-test --wait 30s --image kindest/node:v1.21.1
 	kind load docker-image "alpine:3.10" --name armada-test # needed to make Alpine available to kind
@@ -220,15 +218,15 @@ tests-e2e-setup:
 	kind get kubeconfig --internal --name armada-test > .kube/config
 
 	docker run --rm -v ${PWD}:/go/src/armada -w /go/src/armada -e KUBECONFIG=/go/src/armada/.kube/config --network kind bitnami/kubectl:1.23 apply -f ./e2e/setup/namespace-with-anonymous-user.yaml
-	docker run -d --name nats -p 4223:4223 -p 8223:8223 nats-streaming -p 4223 -m 8223
-	docker run -d --name redis -p=6379:6379 redis
-	docker run -d --name pulsar -p 0.0.0.0:6650:6650 apachepulsar/pulsar:2.9.1 bin/pulsar standalone
-	docker run -d --name postgres -p 5432:5432 -e POSTGRES_PASSWORD=psw postgres
+	docker run -d --name nats --network=kind nats-streaming
+	docker run -d --name redis -p=6379:6379 --network=kind redis
+	docker run -d --name pulsar -p 0.0.0.0:6650:6650 --network=kind apachepulsar/pulsar:2.9.1 bin/pulsar standalone
+	docker run -d --name postgres --network=kind -p 5432:5432 -e POSTGRES_PASSWORD=psw postgres
 
 	sleep 10 # give dependencies time to start up
-	docker run -d --name server --network=host -p=50051:50051 -p 8080:8080 -v ${PWD}/e2e:/e2e \
+	docker run -d --name server --network=kind -p=50051:50051 -p 8080:8080 -v ${PWD}/e2e:/e2e \
 		armada ./server --config /e2e/setup/insecure-armada-auth-config.yaml --config /e2e/setup/nats/armada-config.yaml --config /e2e/setup/redis/armada-config.yaml --config /e2e/setup/pulsar/armada-config.yaml  --config /e2e/setup/server/armada-config.yaml
-	docker run -d --name executor --network=host -v ${PWD}/.kube:/.kube -v ${PWD}/e2e:/e2e  \
+	docker run -d --name executor --network=kind -v ${PWD}/.kube:/.kube -v ${PWD}/e2e:/e2e  \
 		-e KUBECONFIG=/.kube/config \
 		-e ARMADA_KUBERNETES_IMPERSONATEUSERS=true \
 		-e ARMADA_KUBERNETES_STUCKPODEXPIRY=15s \
@@ -245,7 +243,7 @@ tests-e2e-no-setup:
 	# $(DOTNET_CMD) dotnet test client/DotNet/Armada.Client.Test/Armada.Client.Test.csproj
 
 .ONESHELL:
-tests-e2e:  build-armadactl build-docker-no-lookout tests-e2e-setup
+tests-e2e: build-armadactl build-docker-no-lookout tests-e2e-setup
 	function teardown {
 		echo -e "\nexecutor logs:"
 		docker logs executor
