@@ -417,7 +417,7 @@ workflows:
             - unit_tests
       - e2e_tests:
           requires:
-            build
+            - build
       - release:
           filters:
             tags:
