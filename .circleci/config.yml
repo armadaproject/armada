@@ -144,13 +144,9 @@ jobs:
     steps:
       - checkout
 
-      - restore_cache: # restores saved cache if no changes are detected since last run
+      - restore_cache: # restore dependencies
           keys:
             - go-mod-v1-{{ checksum "go.sum" }}
-
-      - run:
-          name: Setup
-          command: make download
 
       - run:
           name: Check Go formatting
@@ -177,13 +173,9 @@ jobs:
     steps:
       - checkout
 
-      - restore_cache: # restores saved cache if no changes are detected since last run
+      - restore_cache: # restore dependencies
           keys:
             - go-mod-v1-{{ checksum "go.sum" }}
-
-      - run:
-          name: Setup
-          command: make download
 
       - run:
           name: Check generated files
@@ -208,13 +200,9 @@ jobs:
     steps:
       - checkout
 
-      - restore_cache: # restores saved cache if no changes are detected since last run
+      - restore_cache: # restore dependencies
           keys:
             - go-mod-v1-{{ checksum "go.sum" }}
-
-      - run:
-          name: Setup
-          command: make download
 
       - run:
           name: Tests
@@ -240,13 +228,9 @@ jobs:
     steps:
       - checkout
 
-      - restore_cache: # restores saved cache if no changes are detected since last run
+      - restore_cache: # restore dependencies
           keys:
             - go-mod-v1-{{ checksum "go.sum" }}
-
-      - run:
-          name: Setup
-          command: make download
 
       - run:
           name: Enable integration tests
@@ -276,7 +260,7 @@ jobs:
     steps:
       - checkout
 
-      - restore_cache: # restores saved cache if no changes are detected since last run
+      - restore_cache: # restore dependencies
           keys:
             - go-mod-v1-{{ checksum "go.sum" }}
 
@@ -295,10 +279,6 @@ jobs:
       #     command: make build-ci tests-e2e
 
       # - run: cat go.sum
-
-      - run:
-          name: Setup
-          command: make download
 
       - run:
           name: Build
@@ -358,7 +338,7 @@ jobs:
       - checkout
       - setup_remote_docker
 
-      - restore_cache: # restores saved cache if no changes are detected since last run
+      - restore_cache: # restore dependencies
           keys:
             - go-mod-v1-{{ checksum "go.sum" }}
 
