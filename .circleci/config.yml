@@ -120,7 +120,7 @@ jobs:
 
       - restore_cache: # restores saved cache if no changes are detected since last run
           keys:
-            - go-mod-v1-{{ checksum "go.sum" }}
+            - go-mod-v2-{{ checksum "go.sum" }}
 
       - run:
           name: Print GOPATH
@@ -131,10 +131,10 @@ jobs:
           command: make download
 
       - save_cache: # if we downloaded new dependencies, cache those
-          key: go-mod-v1-{{ checksum "go.sum" }}
+          key: go-mod-v2-{{ checksum "go.sum" }}
           paths:
-            - "/home/circleci/go/pkg/mod"
-            - "/home/circleci/go/bin"
+            - "/go/pkg/mod"
+            - "/go/bin"
 
   code_style:
     machine:
@@ -150,7 +150,7 @@ jobs:
 
       - restore_cache: # restore dependencies
           keys:
-            - go-mod-v1-{{ checksum "go.sum" }}
+            - go-mod-v2-{{ checksum "go.sum" }}
 
       - run:
           name: Check Go formatting
@@ -179,7 +179,7 @@ jobs:
 
       - restore_cache: # restore dependencies
           keys:
-            - go-mod-v1-{{ checksum "go.sum" }}
+            - go-mod-v2-{{ checksum "go.sum" }}
 
       - run:
           name: Check generated files
@@ -206,7 +206,7 @@ jobs:
 
       - restore_cache: # restore dependencies
           keys:
-            - go-mod-v1-{{ checksum "go.sum" }}
+            - go-mod-v2-{{ checksum "go.sum" }}
 
       - run:
           name: Tests
@@ -234,7 +234,7 @@ jobs:
 
       - restore_cache: # restore dependencies
           keys:
-            - go-mod-v1-{{ checksum "go.sum" }}
+            - go-mod-v2-{{ checksum "go.sum" }}
 
       - run:
           name: Enable integration tests
@@ -266,7 +266,7 @@ jobs:
 
       - restore_cache: # restore dependencies
           keys:
-            - go-mod-v1-{{ checksum "go.sum" }}
+            - go-mod-v2-{{ checksum "go.sum" }}
 
       # - run: e2e/setup/setup_environment.sh      
 
@@ -276,7 +276,7 @@ jobs:
 
       # - restore_cache:
       #     keys:
-      #       - machine-go-mod-v1-{{ checksum "go.sum" }}
+      #       - machine-go-mod-v2-{{ checksum "go.sum" }}
 
       # - run:
       #     name: Build & Run e2e tests
@@ -344,7 +344,7 @@ jobs:
 
       - restore_cache: # restore dependencies
           keys:
-            - go-mod-v1-{{ checksum "go.sum" }}
+            - go-mod-v2-{{ checksum "go.sum" }}
 
       - run:
           name: Build armadactl release artifacts
