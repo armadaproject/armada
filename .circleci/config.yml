@@ -513,16 +513,12 @@ workflows:
       #       - dependencies
       #       - build
       - release:
-          requires:
-            - dependencies
           filters:
             tags:
               only: /.*/
             branches:
               ignore: /.*/
       - release-dotnet-client:
-          requires:
-            - dependencies
           filters:
             tags:
               only: /.*/
