@@ -180,8 +180,8 @@ tests-teardown:
 .ONESHELL:
 tests:
 	mkdir -p test_reports
-	docker run -d --name=redis --network=host -p=6379:6379 redis
-	docker run -d --name=postgres --network=host -p 5432:5432 -e POSTGRES_PASSWORD=psw postgres
+	docker run -d --name=redis --network=host -p=6379:6379 redis:6.2.6
+	docker run -d --name=postgres --network=host -p 5432:5432 -e POSTGRES_PASSWORD=psw postgres:14.2
 	function tearDown {
 		docker rm -f redis postgres
 	}
@@ -215,10 +215,10 @@ tests-e2e-setup:
 	kind get kubeconfig --internal --name armada-test > .kube/config
 
 	docker run --rm -v ${PWD}:/go/src/armada -w /go/src/armada -e KUBECONFIG=/go/src/armada/.kube/config --network kind bitnami/kubectl:1.23 apply -f ./e2e/setup/namespace-with-anonymous-user.yaml
-	docker run -d --name nats --network=kind nats-streaming
-	docker run -d --name redis -p=6379:6379 --network=kind redis
+	docker run -d --name nats --network=kind nats-streaming:0.24.5
+	docker run -d --name redis -p=6379:6379 --network=kind redis:6.2.6
 	docker run -d --name pulsar -p 0.0.0.0:6650:6650 --network=kind apachepulsar/pulsar:2.9.1 bin/pulsar standalone
-	docker run -d --name postgres --network=kind -p 5432:5432 -e POSTGRES_PASSWORD=psw postgres
+	docker run -d --name postgres --network=kind -p 5432:5432 -e POSTGRES_PASSWORD=psw postgres:14.2
 
 	sleep 10 # give dependencies time to start up
 	docker run -d --name server --network=kind -p=50051:50051 -p 8080:8080 -v ${PWD}/e2e:/e2e \
