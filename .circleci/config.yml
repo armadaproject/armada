@@ -106,7 +106,7 @@ commands:
           git push -q origin HEAD
 
 jobs:
-  dependencies:
+  checks_and_unit_tests:
     machine:
       docker_layer_caching: false
       image: ubuntu-2004:202104-01
@@ -136,6 +136,40 @@ jobs:
           paths:
             - "/home/circleci/go/pkg/mod"
             - "/home/circleci/go/bin"
+
+      - run:
+          name: Check Go formatting
+          command: make code-checks
+
+      - run:
+          name: Check TypeScript formatting
+          command: |
+            cd ./internal/lookout/ui
+            npm ci
+            npm run fmt
+            git status -s -uno
+            exit $(git status -s -uno | wc -l)
+
+      - run:
+          name: Check generated files
+          command: |
+            make proto
+            make dotnet
+            git status -s -uno
+            git --no-pager diff
+            git status -s -uno
+            exit $(git status -s -uno | wc -l)
+
+      - run:
+          name: Tests
+          command: make tests
+
+      - run:
+          name: Prepare reports
+          command: make junit-report
+
+      - store_test_results:
+          path: test_reports/junit.xml
 
   code_style:
     machine:
@@ -270,7 +304,7 @@ jobs:
       - store_test_results:
           path: test_reports/junit.xml
 
-  build:
+  build_and_integration_tests:
     machine:
       docker_layer_caching: true
       image: ubuntu-2004:202104-01
@@ -310,6 +344,22 @@ jobs:
       - run:
           name: Build
           command: make build-ci
+
+      - run:
+          name: e2e test environment setup
+          command: make tests-e2e-setup
+
+      - run:
+          name: Enable integration tests
+          command: echo 'export INTEGRATION_ENABLED="true"' >> $BASH_ENV          
+
+      - run:
+          name: e2e tests
+          command: make tests-e2e-no-setup
+
+      - run:
+          name: e2e test environment teardown
+          command: make tests-e2e-teardown
 
       - store_artifacts:
           path: bin/armadactl
@@ -440,26 +490,28 @@ workflows:
   version: 2
   build_and_deploy:
     jobs:
-      - dependencies
-      - code_style:
-          requires:
-            - dependencies
-      - generated_files:
-          requires:
-            - dependencies
-      - unit_tests:
-          requires:
-            - dependencies
-      - build:
-          requires:
-            - dependencies
-            - code_style
-            - generated_files
-            - unit_tests
-      - e2e_tests:
-          requires:
-            - dependencies
-            - build
+      -  build_and_integration_tests
+      -  checks_and_unit_tests
+      # - dependencies
+      # - code_style:
+      #     requires:
+      #       - dependencies
+      # - generated_files:
+      #     requires:
+      #       - dependencies
+      # - unit_tests:
+      #     requires:
+      #       - dependencies
+      # - build:
+      #     requires:
+      #       - dependencies
+      #       - code_style
+      #       - generated_files
+      #       - unit_tests
+      # - e2e_tests:
+      #     requires:
+      #       - dependencies
+      #       - build
       - release:
           requires:
             - dependencies
