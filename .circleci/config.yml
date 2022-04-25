@@ -152,7 +152,7 @@ jobs:
           command: make download
 
       - run:
-          name: Check generated proto
+          name: Check generated files
           command: |
             make proto
             make dotnet
