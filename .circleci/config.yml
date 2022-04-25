@@ -169,6 +169,13 @@ jobs:
           name: Tests
           command: make tests
 
+      - run:
+          name: Prepare reports
+          command: make junit-report
+
+      - store_test_results:
+        path: test_reports/junit.xml
+
       - save_cache:
           key: machine-go-mod-v1-tests-{{ checksum "go.sum" }}
           paths:
@@ -202,6 +209,13 @@ jobs:
       - run:
           name: Integration tests
           command: make tests-e2e
+
+      - run:
+          name: Prepare reports
+          command: make junit-report
+
+      - store_test_results:
+        path: test_reports/junit.xml
 
       - save_cache:
           key: machine-go-mod-v1-tests-{{ checksum "go.sum" }}
