@@ -167,9 +167,9 @@ jobs:
     working_directory: ~/go/src/github.com/G-Research/armada
     steps:
       - checkout
-      - restore_cache: # restores saved cache if no changes are detected since last run
+      - restore_cache:
           keys:
-            - go-mod-v4-{{ checksum "go.sum" }}
+            - machine-go-mod-v1-tests-{{ checksum "go.sum" }}
 
       - run:
           name: Test
@@ -178,7 +178,7 @@ jobs:
       - run: cat go.sum
 
       - save_cache:
-          key: go-mod-v4-{{ checksum "go.sum" }}
+          key: machine-go-mod-v1-tests-{{ checksum "go.sum" }}
           paths:
             - "/home/circleci/go/pkg/mod"
             - "/home/circleci/go/cache"
@@ -199,9 +199,9 @@ jobs:
           name: Start cluster for e2e tests
           command: ./e2e/setup/setup_cluster_ci.sh
 
-      - restore_cache: # restores saved cache if no changes are detected since last run
+      - restore_cache:
           keys:
-            - go-mod-v4-{{ checksum "go.sum" }}
+            - machine-go-mod-v1-{{ checksum "go.sum" }}
 
       - run:
           name: Build & Run e2e tests
@@ -210,7 +210,7 @@ jobs:
       - run: cat go.sum
 
       - save_cache:
-          key: go-mod-v4-{{ checksum "go.sum" }}
+          key: machine-go-mod-v1-{{ checksum "go.sum" }}
           paths:
             - "/home/circleci/go/pkg/mod"
             - "/home/circleci/go/cache"
