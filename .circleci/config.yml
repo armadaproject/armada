@@ -119,24 +119,12 @@ jobs:
       - checkout
 
       - run:
-          name: Check Go formatting
-          command: |
-            go install golang.org/x/tools/cmd/goimports@v0.1.1
-            if [ $? -ne 0 ]
-            then
-              echo "goimports installation failed" >&2
-              exit 1
-            fi
-            goimports -d -local "github.com/G-Research/armada" .
-            exit $(goimports -l -local "github.com/G-Research/armada" . | wc -l)
+          name: Setup
+          command: make download
 
       - run:
-          name: ineffassign
-          command: |
-            cd /tmp
-            go get -u github.com/gordonklaus/ineffassign
-            cd ~/go/src/github.com/G-Research/armada
-            ineffassign ./...
+          name: Check Go formatting
+          command: make code-checks
 
       - run:
           name: Check TypeScript formatting
@@ -151,6 +139,7 @@ jobs:
           name: Check generated files
           command: |
             make proto
+            make dotnet
             git status -s -uno
             git --no-pager diff
             git status -s -uno
@@ -172,16 +161,18 @@ jobs:
             - machine-go-mod-v1-tests-{{ checksum "go.sum" }}
 
       - run:
-          name: Test
+          name: Tests
           command: make tests
-
-      - run: cat go.sum
 
       - save_cache:
           key: machine-go-mod-v1-tests-{{ checksum "go.sum" }}
           paths:
             - "/home/circleci/go/pkg/mod"
-            - "/home/circleci/go/cache"
+            - "/home/circleci/go/cache"          
+
+      - run:
+          name: Integration tests
+          command: make tests-e2e
 
   build:
     machine:
@@ -194,20 +185,26 @@ jobs:
     working_directory: ~/go/src/github.com/G-Research/armada
     steps:
       - checkout
-      - run: e2e/setup/setup_environment.sh
+
+      # - run: e2e/setup/setup_environment.sh      
+      
+      # - run:
+      #     name: Start cluster for e2e tests
+      #     command: ./e2e/setup/setup_cluster_ci.sh
+
+      # - restore_cache:
+      #     keys:
+      #       - machine-go-mod-v1-{{ checksum "go.sum" }}
+
+      # - run:
+      #     name: Build & Run e2e tests
+      #     command: make build-ci tests-e2e
+
+      # - run: cat go.sum
+
       - run:
-          name: Start cluster for e2e tests
-          command: ./e2e/setup/setup_cluster_ci.sh
-
-      - restore_cache:
-          keys:
-            - machine-go-mod-v1-{{ checksum "go.sum" }}
-
-      - run:
-          name: Build & Run e2e tests
-          command: make build-ci tests-e2e
-
-      - run: cat go.sum
+          name: Build
+          command: make build-ci
 
       - save_cache:
           key: machine-go-mod-v1-{{ checksum "go.sum" }}
