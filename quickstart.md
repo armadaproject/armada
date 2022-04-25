@@ -10,29 +10,6 @@ The purpose of this guide is to install a minimal local Armada deployment for te
 - Kind v0.11.1+
 - Kubectl
 
-### Remote setup
-Instead of setting up Armada locally, you may prefer to install it on AmazonLinux on AWS EC2. Reasons for doing this include:
-- The install process is typically smoother on Linux
-- The memory and CPU demands of Armada are substantial
-- A dedicated, hosted environment is more robust
-
-#### Pre-requisites
-
-- Active AWS account
-- IAM permissions for EC2
-
-Ensure the current user has permission to run the `docker` command. This tpically requires `chmod u+rw /var/run/docker.sock`.
-
-When creating an EC2 instance, we recommend the following minimal configuration:
-- Choose AMI "Amazon Linux 2 AMI (HVM) - Kernel 5.10"
-- Instance type: t2.large (not free tier eligible)
-- EBS Volume size (GiB): 30
-- Ensure the instance belongs to a security group that allows you to access it by SSH (port 22).
-- When your instance is running, ssh into the remote instance from local terminal to execute quickstart instructions eg. `ssh -i ~/.ssh/aws.pem ec2-user@$Public_IPv4_DNS`, where `$Public_IPv4_DNS}}` is the one listed in the AWS console.
-
-Now you can install the prerequisites mentioned in the Linux section of the quickstart guide.
-
-
 ### OS specifics
 
 #### Linux
@@ -158,7 +135,7 @@ EXECUTOR_1_IP=$(kubectl get nodes quickstart-armada-executor-1-worker -o jsonpat
 kind export kubeconfig --name=quickstart-armada-server
 
 # Install postgres
-helm install postgres bitnami/postgresql --set postgresqlPassword=psw
+helm install postgres bitnami/postgresql --set auth.postgresPassword=psw
 
 # Run database migration
 helm install lookout-migration gresearch/armada-lookout-migration -f docs/quickstart/lookout-values.yaml
