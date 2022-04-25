@@ -122,6 +122,10 @@ jobs:
           keys:
             - go-mod-v1-{{ checksum "go.sum" }}
 
+      - run:
+          name: Print GOPATH
+          command: echo '$(go env GOPATH)'
+
       - run: # no-op if we restored from cache
           name: Download dependencies
           command: make download
