@@ -135,8 +135,24 @@ jobs:
             git status -s -uno
             exit $(git status -s -uno | wc -l)
 
+  generated_files:
+    machine:
+      docker_layer_caching: false
+      image: ubuntu-2004:202104-01
+    environment:
+      GO111MODULE: "on"
+      GOPATH: "/home/circleci/go"
+      GOCACHE: "/home/circleci/go/cache"
+    working_directory: ~/go/src/github.com/G-Research/armada
+    steps:
+      - checkout
+
       - run:
-          name: Check generated files
+          name: Setup
+          command: make download
+
+      - run:
+          name: Check generated proto
           command: |
             make proto
             make dotnet
@@ -145,7 +161,7 @@ jobs:
             git status -s -uno
             exit $(git status -s -uno | wc -l)
 
-  test:
+  unit_tests:
     machine:
       docker_layer_caching: false
       image: ubuntu-2004:202104-01
@@ -182,9 +198,9 @@ jobs:
             - "/home/circleci/go/pkg/mod"
             - "/home/circleci/go/cache"
 
-  e2e_test:
+  e2e_tests:
     machine:
-      docker_layer_caching: false
+      docker_layer_caching: true
       image: ubuntu-2004:202104-01
       resource_class: large
     environment:
@@ -225,7 +241,7 @@ jobs:
 
   build:
     machine:
-      docker_layer_caching: false
+      docker_layer_caching: true
       image: ubuntu-2004:202104-01
       resource_class: large
     environment:
@@ -392,9 +408,16 @@ workflows:
   build_and_deploy:
     jobs:
       - code_style
-      - test
-      - e2e_test
-      - build
+      - generated_files
+      - unit_tests
+      - build:
+          requires:
+            - code_style
+            - generated_files
+            - unit_tests
+      - e2e_tests:
+          requires:
+            build
       - release:
           filters:
             tags:
