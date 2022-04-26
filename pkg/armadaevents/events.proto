@@ -307,25 +307,17 @@ message JobRunErrors {
 // This message may only be published to the log as part of a JobRunError message.
 // TODO: Check if the container status contained any useful info for non-failed containers.
 message Error {
-    	// TODO: remove
-    	int32 code = 1;
-    	// TODO: remove
-    	string message = 2;
-    	// TODO: remove
-        ObjectMeta objectMeta = 3;
-        // If true, this error represents an unrecoverable failure and Armada has given up on this job or job run.
-        bool terminal = 4;
-        // TODO: remove
-        repeated Error child_errors = 5;
+    // If true, this error represents an unrecoverable failure and Armada has given up on this job or job run.
+    bool terminal = 1;
     // Additional information for this particular combination of component and error. May be set to nil.
     oneof reason {
-        KubernetesError kubernetesError = 6;
-        ContainerError containerError = 7;
-        ExecutorError executorError = 8;
-        JobUnschedulable jobUnschedulable = 9;
-        LeaseExpired leaseExpired = 10;
-        MaxRunsExceeded maxRunsExceeded = 11;
-        PodError podError = 12;
+        KubernetesError kubernetesError = 2;
+        ContainerError containerError = 3;
+        ExecutorError executorError = 4;
+        PodUnschedulable podUnschedulable = 5;
+        LeaseExpired leaseExpired = 6;
+        MaxRunsExceeded maxRunsExceeded = 7;
+        PodError podError = 8;
     }
 }
 
@@ -340,24 +332,53 @@ message KubernetesError {
 message PodError {
 	// this ObjectMeta identifies the Pod
     ObjectMeta objectMeta = 1;
-    string Message = 2;
-    repeated ContainerError containerErrors = 3;
+    string message = 2;
+    string node_name = 3;
+    int32 pod_number = 4;
+    repeated ContainerError containerErrors = 5;
 }
 
 message ContainerError {
+    // These messages represent the reason for why the container failed.
+    // We use empty messages to give the option of adding fields specific to each cause later.
+    message OutOfMemory {
+
+    }
+    message ContainerError {
+
+    }
+    message Evicted {
+
+    }
+    message DeadlineExceeded {
+
+    }
     // this ObjectMeta identifies the container
     ObjectMeta objectMeta = 1;
     // Exit code of the application running in the container.
     int32 exit_code = 2;
-    // Error message returned by the application in the container.
+    // Corresponds to v1.ContainerStateTerminated.Message
     string message = 3;
+    // Corresponds to v1.ContainerStateTerminated.Reason    
+    string reason = 4;
+    // Reason reported by Kubernetes.
+    oneof KubernetesReason {
+        OutOfMemory outOfMemory = 5;
+        Error error = 6;
+        Evicted evicted = 7;
+        DeadlineExceeded deadlineExceeded = 8;
+    }
 }
 
 message ExecutorError {
 }
 
-message JobUnschedulable {
-    string message = 1;
+message PodUnschedulable {
+	// this ObjectMeta identifies the Pod
+    ObjectMeta objectMeta = 1;
+    string message = 2;
+    string node_name = 3;
+    int32 pod_number = 4;
 }
 
 message LeaseExpired {
