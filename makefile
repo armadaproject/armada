@@ -202,9 +202,9 @@ rebuild-server:
 .ONESHELL:
 tests-e2e-teardown:
 	echo -e "\nexecutor logs:"
-	docker logs executor
+	docker logs executor || true
 	echo -e "\nserver logs:"
-	docker logs server
+	docker logs server || true
 	docker rm -f nats redis pulsar server executor postgres || true
 	kind delete cluster --name armada-test || true
 	rm .kube/config || true
