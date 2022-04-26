@@ -863,7 +863,35 @@ func PulsarSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.E
 		err = errors.WithStack(err)
 		return nil, err
 	case *api.EventMessage_IngressInfo:
-		// TODO: This should be included with the running message.
+		// Later, ingress info should be bundled with the JobRunRunning message.
+		// For now, we create a special message that exists only for compatibility with the legacy messages.
+
+		sequence.Queue = m.IngressInfo.Queue
+		sequence.JobSetName = m.IngressInfo.JobSetId
+
+		jobId, runId, err := parseJobRunIds(m.IngressInfo.JobId)
+		if err != nil {
+			return nil, err
+		}
+
+		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
+			Event: &armadaevents.EventSequence_Event_StandaloneIngressInfo{
+				StandaloneIngressInfo: &armadaevents.StandaloneIngressInfo{
+					RunId: armadaevents.ProtoUuidFromUlid(runId),
+					JobId: armadaevents.ProtoUuidFromUlid(jobId),
+					ObjectMeta: &armadaevents.ObjectMeta{
+						ExecutorId:   m.IngressInfo.ClusterId,
+						Namespace:    m.IngressInfo.PodNamespace, // We assume the ingress was created with the same namespace as the pod
+						KubernetesId: m.IngressInfo.KubernetesId,
+					},
+					IngressAddresses: m.IngressInfo.IngressAddresses,
+					NodeName:         m.IngressInfo.NodeName,
+					PodName:          m.IngressInfo.PodName,
+					PodNumber:        m.IngressInfo.PodNumber,
+					PodNamespace:     m.IngressInfo.PodNamespace,
+				},
+			},
+		})
 	case *api.EventMessage_Reprioritizing:
 		// Do nothing; there's no corresponding Pulsar message.
 	case *api.EventMessage_Updated:
