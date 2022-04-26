@@ -162,15 +162,19 @@ func TestEventServer_EventsShouldBeRemovedAfterEventRetentionTime(t *testing.T) 
 		stream := &eventStreamMock{}
 		reportEvent(t, s, &api.JobSubmittedEvent{JobSetId: jobSetId})
 
-		e := s.GetJobSetEvents(&api.JobSetRequest{Id: jobSetId, Watch: false}, stream)
-		assert.Nil(t, e)
+		err := s.GetJobSetEvents(&api.JobSetRequest{Id: jobSetId, Watch: false}, stream)
+		if ok := assert.NoError(t, err); !ok {
+			t.FailNow()
+		}
 		assert.Equal(t, 1, len(stream.sendMessages))
 
 		time.Sleep(eventRetention.RetentionDuration + time.Millisecond*100)
 
 		stream = &eventStreamMock{}
-		e = s.GetJobSetEvents(&api.JobSetRequest{Id: jobSetId, Watch: false}, stream)
-		assert.Nil(t, e)
+		err = s.GetJobSetEvents(&api.JobSetRequest{Id: jobSetId, Watch: false}, stream)
+		if ok := assert.NoError(t, err); !ok {
+			t.FailNow()
+		}
 		assert.Equal(t, 0, len(stream.sendMessages))
 	})
 }

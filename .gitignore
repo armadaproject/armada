@@ -2,6 +2,11 @@
 .idea
 .kube
 .test
+NuGet.Config
+armadactl.yaml
+loadtest.yaml
+test_reports
+code_reports
 
 # Binaries for programs and plugins
 *.exe

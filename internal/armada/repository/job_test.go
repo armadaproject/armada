@@ -651,24 +651,32 @@ func TestUpdateJobs_WhenTransactionAlwaysFails_ReturnsError_JobNotChanged(t *tes
 			if err != nil {
 				t.Fatalf("expected no error but got: %s", err)
 			}
-			assert.Equal(t, 1, len(results2))
-			assert.Nil(t, results2[0].Error)
+			if ok := assert.Equal(t, 1, len(results2)); !ok {
+				t.FailNow()
+			}
+			assert.NoError(t, results2[0].Error)
 
-			assert.Equal(t, 1, len(jobs))
+			if ok := assert.Equal(t, 1, len(jobs)); !ok {
+				t.FailNow()
+			}
 			jobs[0].PodSpec.SchedulerName = newSchedName
 		})
 		if err != nil {
 			t.Fatalf("expected no error but got: %s", err)
 		}
 
-		assert.Equal(t, 1, len(results))
+		if ok := assert.Equal(t, 1, len(results)); !ok {
+			t.FailNow()
+		}
 		assert.Equal(t, job1.Id, results[0].JobId)
 		assert.Nil(t, results[0].Job)
 		assert.Equal(t, redis.TxFailedErr, results[0].Error)
 
 		reloadedJobs, err := r.GetExistingJobsByIds([]string{job1.Id})
-		assert.Nil(t, err)
-		assert.Equal(t, 1, len(reloadedJobs))
+		assert.NoError(t, err)
+		if ok := assert.Equal(t, 1, len(reloadedJobs)); !ok {
+			t.FailNow()
+		}
 		assert.Equal(t, "", reloadedJobs[0].PodSpec.SchedulerName)
 	})
 }

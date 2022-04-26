@@ -1,0 +1,3 @@
+apiConnection:
+  armadaUrl: "server:50051"
+  forceNoTls: true

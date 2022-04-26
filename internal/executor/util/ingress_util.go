@@ -15,9 +15,7 @@ import (
 func GenerateIngresses(job *api.Job, pod *v1.Pod, ingressConfig *configuration.IngressConfiguration) ([]*v1.Service, []*networking.Ingress) {
 	services := []*v1.Service{}
 	ingresses := []*networking.Ingress{}
-
 	ingressToGen := CombineIngressService(job.Ingress, job.Services)
-
 	groupedIngressConfigs := groupIngressConfig(ingressToGen)
 	for svcType, configs := range groupedIngressConfigs {
 		if len(GetServicePorts(configs, &pod.Spec)) > 0 {
@@ -29,6 +27,8 @@ func GenerateIngresses(job *api.Job, pod *v1.Pod, ingressConfig *configuration.I
 					if len(GetServicePorts([]*IngressServiceConfig{config}, &pod.Spec)) <= 0 {
 						continue
 					}
+					// TODO: This results in an invalid name (one starting with "-") if pod.Name is the empty string;
+					// we should return an error if that's the case.
 					ingressName := fmt.Sprintf("%s-%s-%d", pod.Name, strings.ToLower(svcType.String()), index)
 					ingress := CreateIngress(ingressName, job, pod, service, ingressConfig, config)
 					ingresses = append(ingresses, ingress)
@@ -88,7 +88,7 @@ func GetServicePorts(svcConfigs []*IngressServiceConfig, podSpec *v1.PodSpec) []
 		ports := container.Ports
 		for _, svcConfig := range svcConfigs {
 			for _, port := range ports {
-				//Don't expose host via service, this will already be handled by kubernetes
+				// Don't expose host via service, this will already be handled by kubernetes
 				if port.HostPort > 0 {
 					continue
 				}

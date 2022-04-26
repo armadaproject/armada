@@ -1,10 +1,12 @@
 package postgres
 
 import (
+	"context"
 	"database/sql"
 	"strings"
 
-	_ "github.com/jackc/pgx/v4/stdlib"
+	"github.com/jackc/pgx/v4/pgxpool"
+	_ "github.com/lib/pq"
 
 	"github.com/G-Research/armada/internal/lookout/configuration"
 )
@@ -30,4 +32,14 @@ func createConnectionString(values map[string]string) string {
 		result += k + "='" + replacer.Replace(v) + "'"
 	}
 	return result
+}
+
+func OpenPgxPool(config configuration.PostgresConfig) (*pgxpool.Pool, error) {
+
+	db, err := pgxpool.Connect(context.Background(), createConnectionString(config.Connection))
+	if err != nil {
+		return nil, err
+	}
+	err = db.Ping(context.Background())
+	return db, err
 }
