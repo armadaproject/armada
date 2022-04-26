@@ -5,6 +5,7 @@ import (
 
 	"github.com/doug-martin/goqu/v9"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
+	_ "github.com/jackc/pgx/v4/stdlib"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/stan.go"
 	log "github.com/sirupsen/logrus"
