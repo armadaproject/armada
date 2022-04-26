@@ -201,14 +201,14 @@ rebuild-server:
 
 .ONESHELL:
 tests-e2e-teardown:
-	docker rm -f nats redis pulsar server executor postgres || true
-	kind delete cluster --name armada-test || true
-	rm .kube/config || true
-	rmdir .kube || true
 	echo -e "\nexecutor logs:"
 	docker logs executor
 	echo -e "\nserver logs:"
 	docker logs server
+	docker rm -f nats redis pulsar server executor postgres || true
+	kind delete cluster --name armada-test || true
+	rm .kube/config || true
+	rmdir .kube || true
 
 tests-e2e-setup:
 	docker pull "alpine:3.10" # ensure Alpine, which is used by tests, is available
