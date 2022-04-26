@@ -77,6 +77,7 @@ message EventSequence {
             JobRunSucceeded jobRunSucceeded = 13;
             JobRunErrors jobRunErrors = 14;
             JobDuplicateDetected jobDuplicateDetected = 15;
+            StandaloneIngressInfo standaloneIngressInfo = 16;
         }
     }
     // The system is namespaced by queue, and all events are associated with a job set.
@@ -252,21 +253,38 @@ message KubernetesResourceInfo {
     ObjectMeta objectMeta = 1;
     oneof info {
         PodInfo podInfo = 2;
+        IngressInfo ingressInfo = 3;
     }
 }
 
-// Container for runtime information of a podspec.
+// Runtime information of a pod.
 message PodInfo {
     string node_name = 1;
-    // TODO: Do we need this?
     int32 pod_number = 2;
 }
 
+// Runtime information of an ingress.
 message IngressInfo {
     // TODO: Why a node name?
     string node_name = 1;
     // TODO: Why a map?
     map<int32, string> ingress_addresses = 2;
+}
+
+// For sending details associated with a created ingress.
+// Used for compatibility with legacy messages, which send ingress info as its own message.
+// Later, this info should be bundled with the JobRunRunning message.
+message StandaloneIngressInfo {
+    Uuid run_id = 1;
+    Uuid job_id = 2;
+    // ObjectMeta associated with the ingress.
+    ObjectMeta objectMeta = 3;
+    map<int32, string> ingress_addresses = 4;
+    // The legacy message bundles info associated with the pod.
+	string node_name = 5;
+	int32 pod_number = 6;
+	string pod_name = 7;
+	string pod_namespace = 8;
 }
 
 // Indicates that the job finished successfully (i.e., in the expected manner).
@@ -359,7 +377,7 @@ message ContainerError {
     int32 exit_code = 2;
     // Corresponds to v1.ContainerStateTerminated.Message
     string message = 3;
-    // Corresponds to v1.ContainerStateTerminated.Reason    
+    // Corresponds to v1.ContainerStateTerminated.Reason
     string reason = 4;
     // Reason reported by Kubernetes.
     oneof KubernetesReason {
