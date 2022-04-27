@@ -77,7 +77,11 @@ build-binoculars:
 build-load-tester:
 	$(gobuild) -o ./bin/armada-load-tester cmd/armada-load-tester/main.go
 
-build: build-server build-executor build-fakeexecutor build-armadactl build-load-tester build-binoculars
+
+build-lookout-ingester:
+	$(GO_CMD) $(gobuild) -o ./bin/armada-load-tester cmd/armada-load-tester/main.go
+
+build: build-server build-executor build-fakeexecutor build-armadactl build-load-tester build-binoculars build-lookout-ingester
 
 build-docker-server:
 	$(gobuildlinux) -o ./bin/linux/server cmd/armada/main.go
@@ -99,6 +103,11 @@ build-docker-fakeexecutor:
 	$(gobuildlinux) -o ./bin/linux/fakeexecutor cmd/fakeexecutor/main.go
 	docker build $(dockerFlags) -t armada-fakeexecutor -f ./build/fakeexecutor/Dockerfile .
 
+
+build-docker-lookout-ingester:
+	$(GO_CMD) $(gobuildlinux) -o ./bin/linux/lookoutingester cmd/lookoutingester/main.go
+	docker build $(dockerFlags) -t armada-lookout-ingester -f ./build/lookoutingester/Dockerfile .
+
 build-docker-lookout:
 	(cd ./internal/lookout/ui/ && npm ci && npm run openapi && npm run build)
 	$(gobuildlinux) -o ./bin/linux/lookout cmd/lookout/main.go
@@ -108,7 +117,7 @@ build-docker-binoculars:
 	$(gobuildlinux) -o ./bin/linux/binoculars cmd/binoculars/main.go
 	docker build $(dockerFlags) -t armada-binoculars -f ./build/binoculars/Dockerfile .
 
-build-docker: build-docker-server build-docker-executor build-docker-armadactl build-docker-armada-load-tester build-docker-fakeexecutor build-docker-lookout build-docker-binoculars
+build-docker: build-docker-server build-docker-executor build-docker-armadactl build-docker-armada-load-tester build-docker-fakeexecutor build-docker-lookout build-docker-lookout-ingester build-docker-binoculars
 
 build-ci: gobuild=$(gobuildlinux)
 build-ci: build-docker build-armadactl build-armadactl-multiplatform build-load-tester
