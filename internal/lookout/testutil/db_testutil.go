@@ -74,7 +74,7 @@ func WithDatabasePgx(t *testing.T, action func(db *pgxpool.Pool)) {
 	}()
 
 	// A third connection!  We can get rid of this once we use move udateDatabse over to pgx
-	legacyDb, err := sql.Open("postgres", connectionString+" dbname="+dbName)
+	legacyDb, err := sql.Open("pgx", connectionString+" dbname="+dbName)
 	defer legacyDb.Close()
 	assert.Nil(t, err)
 	err = schema.UpdateDatabase(legacyDb)
