@@ -314,8 +314,8 @@ download:
 
 code-reports:
 	mkdir -p code_reports
-	$(GO_CMD) goimports -d -local "github.com/G-Research/armada" . | tee code_reports/goimports.txt
-	$(GO_CMD) ineffassign ./... | tee code_reports/ineffassign.txt
+	$(GO_TEST_CMD) goimports -d -local "github.com/G-Research/armada" . | tee code_reports/goimports.txt
+	$(GO_TEST_CMD) ineffassign ./... | tee code_reports/ineffassign.txt
 
 code-checks: code-reports
 	sync # make sure everything has been synced to disc
