@@ -122,7 +122,7 @@ func TestSubmitJobs(t *testing.T) {
 // For jobs that contain multiple PodSpecs, services, and ingresses.
 func TestSubmitJobsWithEverything(t *testing.T) {
 	err := withSetup(func(ctx context.Context, client api.SubmitClient, producer pulsar.Producer, consumer pulsar.Consumer) error {
-		numJobs := 2
+		numJobs := 1
 		req := createJobSubmitRequestWithEverything(numJobs)
 		ctxWithTimeout, _ := context.WithTimeout(context.Background(), time.Second)
 		res, err := client.SubmitJobs(ctxWithTimeout, req)
@@ -134,7 +134,7 @@ func TestSubmitJobsWithEverything(t *testing.T) {
 			return nil
 		}
 
-		numEventsExpected := numJobs * 6
+		numEventsExpected := numJobs * 7
 		sequences, err := receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, 10*time.Second)
 		if err != nil {
 			return err
@@ -158,9 +158,30 @@ func TestSubmitJobsWithEverything(t *testing.T) {
 			if err != nil {
 				return err
 			}
+
+			// Because the order of the ingress info messages varies (e.g., they may arrive after the job has completed),
+			// we filter those out and check them separately.
+			actual, standaloneIngressInfos, err := filterOutStandaloneIngressInfo(actual)
+			if err != nil {
+				return err
+			}
+
 			if ok := isSequencef(t, expected, actual, "Event sequence error; printing diff:\n%s", cmp.Diff(expected, actual)); !ok {
 				return nil
 			}
+
+			if !assert.Equal(t, 1, len(standaloneIngressInfos)) {
+				return nil
+			}
+			standaloneIngressInfo := standaloneIngressInfos[0]
+			fmt.Printf("standaloneIngressInfo:\n%+v\n", standaloneIngressInfo)
+			assert.Equal(t, standaloneIngressInfo.ObjectMeta.ExecutorId, "Cluster1")
+			assert.Equal(t, standaloneIngressInfo.ObjectMeta.Namespace, "personal-anonymous")
+			assert.Equal(t, standaloneIngressInfo.PodNamespace, "personal-anonymous")
+			_, ok := standaloneIngressInfo.IngressAddresses[5000]
+			assert.True(t, ok)
+			_, ok = standaloneIngressInfo.IngressAddresses[6000]
+			assert.True(t, ok)
 		}
 
 		return nil
@@ -633,6 +654,26 @@ func filterSequenceByJobId(sequence *armadaevents.EventSequence, id *armadaevent
 		result.Events = append(result.Events, e)
 	}
 	return result, nil
+}
+
+// filterOutStandaloneIngressInfo removed StandaloneIngressInfo events from the sequence.
+// We may wish to remove them because these events may arrive in different order (e.g., it could arrive after JobRunSucceeded).
+func filterOutStandaloneIngressInfo(sequence *armadaevents.EventSequence) (*armadaevents.EventSequence, []*armadaevents.StandaloneIngressInfo, error) {
+	result := &armadaevents.EventSequence{
+		Queue:      sequence.Queue,
+		JobSetName: sequence.JobSetName,
+		UserId:     sequence.UserId,
+		Events:     make([]*armadaevents.EventSequence_Event, 0),
+	}
+	standaloneIngressInfos := make([]*armadaevents.StandaloneIngressInfo, 0)
+	for _, e := range sequence.Events {
+		if ingressInfo, ok := e.Event.(*armadaevents.EventSequence_Event_StandaloneIngressInfo); ok {
+			standaloneIngressInfos = append(standaloneIngressInfos, ingressInfo.StandaloneIngressInfo)
+			continue
+		}
+		result.Events = append(result.Events, e)
+	}
+	return result, standaloneIngressInfos, nil
 }
 
 // Create a job submit request for testing.
