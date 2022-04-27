@@ -237,6 +237,10 @@ message JobRunLeased {
 message JobRunAssigned {
     Uuid run_id = 1;
     Uuid job_id = 2;
+    // Runtime information, e.g., which node the job is running on, its IP address etc,
+    // for each resource created for the job run.
+    // Included here and in JobRunRunning for compatibility with legacy messages.
+    repeated KubernetesResourceInfo resourceInfos = 3;
 }
 
 // Indicates that the resources required by the job have been created and that the job is now running.

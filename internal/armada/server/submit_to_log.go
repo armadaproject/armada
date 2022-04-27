@@ -615,6 +615,21 @@ func PulsarSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.E
 				JobRunAssigned: &armadaevents.JobRunAssigned{
 					RunId: armadaevents.ProtoUuidFromUlid(runId),
 					JobId: armadaevents.ProtoUuidFromUlid(jobId),
+					ResourceInfos: []*armadaevents.KubernetesResourceInfo{
+						{
+							ObjectMeta: &armadaevents.ObjectMeta{
+								KubernetesId: m.Pending.KubernetesId,
+								Name:         m.Pending.PodName,
+								Namespace:    m.Pending.PodNamespace,
+								ExecutorId:   m.Pending.ClusterId,
+							},
+							Info: &armadaevents.KubernetesResourceInfo_PodInfo{
+								PodInfo: &armadaevents.PodInfo{
+									PodNumber: m.Pending.PodNumber,
+								},
+							},
+						},
+					},
 				},
 			},
 		})
