@@ -31,8 +31,42 @@ type ArmadaConfig struct {
 	QueueManagement   QueueManagementConfig
 	DatabaseRetention DatabaseRetentionPolicy
 	EventRetention    EventRetentionPolicy
+	Pulsar            PulsarConfig
 
 	Metrics MetricsConfig
+}
+
+type PulsarConfig struct {
+	// Flag controlling if Pulsar is enabled or not.
+	Enabled bool
+	// Pulsar URL
+	URL string
+	// Path to the trusted TLS certificate file (must exist)
+	TLSTrustCertsFilePath string
+	// Whether Pulsar client accept untrusted TLS certificate from broker
+	TLSAllowInsecureConnection bool
+	// Whether the Pulsar client will validate the hostname in the broker's TLS Cert matches the actual hostname.
+	TLSValidateHostname bool
+	// Max number of connections to a single broker that will be kept in the pool. (Default: 1 connection)
+	MaxConnectionsPerBroker int
+	// Whether Pulsar authentication is enabled
+	AuthenticationEnabled bool
+	// Authentication type. For now only "JWT" auth is valid
+	AuthenticationType string
+	// Path to the JWT token (must exist). This must be set if AutheticationType is "JWT"
+	JwtTokenPath                 string
+	JobsetEventsTopic            string
+	RedisFromPulsarSubscription  string
+	PulsarFromPulsarSubscription string
+	// Compression to use.  Valid values are "None", "LZ4", "Zlib", "Zstd".  Default is "None"
+	CompressionType string
+	// Compression Level to use.  Valid values are "Default", "Better", "Faster".  Default is "Default"
+	CompressionLevel string
+	// Used to construct an executorconfig.IngressConfiguration,
+	// which is used when converting Armada-specific IngressConfig and ServiceConfig objects into k8s objects.
+	HostnameSuffix string
+	CertNameSuffix string
+	Annotations    map[string]string
 }
 
 type SchedulingConfig struct {

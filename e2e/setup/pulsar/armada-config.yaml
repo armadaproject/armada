@@ -1,0 +1,8 @@
+pulsar:
+  enabled: true
+  URL: "pulsar://pulsar:6650"
+  jobsetEventsTopic: "jobset-events"
+  redisFromPulsarSubscription: "RedisFromPulsar"
+  pulsarFromPulsarSubscription: "PulsarFromPulsar"
+  hostnameSuffix: "svc"
+  certNameSuffix: "ingress-tls-certificate"

@@ -245,6 +245,8 @@ func (c *leaseContext) distributeRemainder(limit LeasePayloadLimit) ([]*api.Job,
 	return jobs, nil
 }
 
+// leaseJobs calls into the JobRepository underlying the queue contained in the leaseContext to lease jobs.
+// Returns a slice of jobs that were leased.
 func (c *leaseContext) leaseJobs(queue *api.Queue, slice common.ComputeResourcesFloat, limit LeasePayloadLimit) ([]*api.Job, common.ComputeResourcesFloat, error) {
 	jobs := make([]*api.Job, 0)
 	remainder := slice
@@ -321,6 +323,7 @@ func (c *leaseContext) decreaseNodeResources(leased []*api.Job, nodeTypeUsage ma
 	}
 }
 
+// removeJobs returns the subset of jobs not in jobsToRemove.
 func removeJobs(jobs []*api.Job, jobsToRemove []*api.Job) []*api.Job {
 	jobsToRemoveIds := make(map[string]bool, len(jobsToRemove))
 	for _, job := range jobsToRemove {
@@ -336,6 +339,9 @@ func removeJobs(jobs []*api.Job, jobsToRemove []*api.Job) []*api.Job {
 	return result
 }
 
+// pickQueueRandomly returns a queue randomly selected from the provided map.
+// The probability of returning a particular queue AQueue is shares[AQueue] / sharesSum,
+// where sharesSum is the sum of all values in the provided map.
 func pickQueueRandomly(shares map[*api.Queue]float64) *api.Queue {
 	sum := 0.0
 	for _, share := range shares {
