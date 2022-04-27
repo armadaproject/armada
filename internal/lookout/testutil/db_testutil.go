@@ -52,7 +52,7 @@ func WithDatabasePgx(t *testing.T, action func(db *pgxpool.Pool)) {
 	// For now use database/sql for this
 	dbName := "test_" + util.NewULID()
 	connectionString := "host=localhost port=5432 user=postgres password=psw sslmode=disable"
-	db, err := sql.Open("postgres", connectionString)
+	db, err := sql.Open("pgx", connectionString)
 	defer db.Close()
 	assert.Nil(t, err)
 	_, err = db.Exec("CREATE DATABASE " + dbName)
