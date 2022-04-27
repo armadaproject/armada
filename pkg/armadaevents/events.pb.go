@@ -129,6 +129,7 @@ type EventSequence_Event struct {
 	//	*EventSequence_Event_JobRunSucceeded
 	//	*EventSequence_Event_JobRunErrors
 	//	*EventSequence_Event_JobDuplicateDetected
+	//	*EventSequence_Event_StandaloneIngressInfo
 	Event isEventSequence_Event_Event `protobuf_oneof:"event"`
 }
 
@@ -216,22 +217,26 @@ type EventSequence_Event_JobRunErrors struct {
 type EventSequence_Event_JobDuplicateDetected struct {
 	JobDuplicateDetected *JobDuplicateDetected `protobuf:"bytes,15,opt,name=jobDuplicateDetected,proto3,oneof" json:"jobDuplicateDetected,omitempty"`
 }
+type EventSequence_Event_StandaloneIngressInfo struct {
+	StandaloneIngressInfo *StandaloneIngressInfo `protobuf:"bytes,16,opt,name=standaloneIngressInfo,proto3,oneof" json:"standaloneIngressInfo,omitempty"`
+}
 
-func (*EventSequence_Event_SubmitJob) isEventSequence_Event_Event()            {}
-func (*EventSequence_Event_ReprioritiseJob) isEventSequence_Event_Event()      {}
-func (*EventSequence_Event_ReprioritiseJobSet) isEventSequence_Event_Event()   {}
-func (*EventSequence_Event_ReprioritisedJob) isEventSequence_Event_Event()     {}
-func (*EventSequence_Event_CancelJob) isEventSequence_Event_Event()            {}
-func (*EventSequence_Event_CancelJobSet) isEventSequence_Event_Event()         {}
-func (*EventSequence_Event_CancelledJob) isEventSequence_Event_Event()         {}
-func (*EventSequence_Event_JobSucceeded) isEventSequence_Event_Event()         {}
-func (*EventSequence_Event_JobErrors) isEventSequence_Event_Event()            {}
-func (*EventSequence_Event_JobRunLeased) isEventSequence_Event_Event()         {}
-func (*EventSequence_Event_JobRunAssigned) isEventSequence_Event_Event()       {}
-func (*EventSequence_Event_JobRunRunning) isEventSequence_Event_Event()        {}
-func (*EventSequence_Event_JobRunSucceeded) isEventSequence_Event_Event()      {}
-func (*EventSequence_Event_JobRunErrors) isEventSequence_Event_Event()         {}
-func (*EventSequence_Event_JobDuplicateDetected) isEventSequence_Event_Event() {}
+func (*EventSequence_Event_SubmitJob) isEventSequence_Event_Event()             {}
+func (*EventSequence_Event_ReprioritiseJob) isEventSequence_Event_Event()       {}
+func (*EventSequence_Event_ReprioritiseJobSet) isEventSequence_Event_Event()    {}
+func (*EventSequence_Event_ReprioritisedJob) isEventSequence_Event_Event()      {}
+func (*EventSequence_Event_CancelJob) isEventSequence_Event_Event()             {}
+func (*EventSequence_Event_CancelJobSet) isEventSequence_Event_Event()          {}
+func (*EventSequence_Event_CancelledJob) isEventSequence_Event_Event()          {}
+func (*EventSequence_Event_JobSucceeded) isEventSequence_Event_Event()          {}
+func (*EventSequence_Event_JobErrors) isEventSequence_Event_Event()             {}
+func (*EventSequence_Event_JobRunLeased) isEventSequence_Event_Event()          {}
+func (*EventSequence_Event_JobRunAssigned) isEventSequence_Event_Event()        {}
+func (*EventSequence_Event_JobRunRunning) isEventSequence_Event_Event()         {}
+func (*EventSequence_Event_JobRunSucceeded) isEventSequence_Event_Event()       {}
+func (*EventSequence_Event_JobRunErrors) isEventSequence_Event_Event()          {}
+func (*EventSequence_Event_JobDuplicateDetected) isEventSequence_Event_Event()  {}
+func (*EventSequence_Event_StandaloneIngressInfo) isEventSequence_Event_Event() {}
 
 func (m *EventSequence_Event) GetEvent() isEventSequence_Event_Event {
 	if m != nil {
@@ -345,6 +350,13 @@ func (m *EventSequence_Event) GetJobDuplicateDetected() *JobDuplicateDetected {
 	return nil
 }
 
+func (m *EventSequence_Event) GetStandaloneIngressInfo() *StandaloneIngressInfo {
+	if x, ok := m.GetEvent().(*EventSequence_Event_StandaloneIngressInfo); ok {
+		return x.StandaloneIngressInfo
+	}
+	return nil
+}
+
 // XXX_OneofWrappers is for the internal use of the proto package.
 func (*EventSequence_Event) XXX_OneofWrappers() []interface{} {
 	return []interface{}{
@@ -363,6 +375,7 @@ func (*EventSequence_Event) XXX_OneofWrappers() []interface{} {
 		(*EventSequence_Event_JobRunSucceeded)(nil),
 		(*EventSequence_Event_JobRunErrors)(nil),
 		(*EventSequence_Event_JobDuplicateDetected)(nil),
+		(*EventSequence_Event_StandaloneIngressInfo)(nil),
 	}
 }
 
@@ -1304,6 +1317,10 @@ func (m *JobRunLeased) GetExecutorId() string {
 type JobRunAssigned struct {
 	RunId *Uuid `protobuf:"bytes,1,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"`
 	JobId *Uuid `protobuf:"bytes,2,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
+	// Runtime information, e.g., which node the job is running on, its IP address etc,
+	// for each resource created for the job run.
+	// Included here and in JobRunRunning for compatibility with legacy messages.
+	ResourceInfos []*KubernetesResourceInfo `protobuf:"bytes,3,rep,name=resourceInfos,proto3" json:"resourceInfos,omitempty"`
 }
 
 func (m *JobRunAssigned) Reset()         { *m = JobRunAssigned{} }
@@ -1349,6 +1366,13 @@ func (m *JobRunAssigned) GetRunId() *Uuid {
 func (m *JobRunAssigned) GetJobId() *Uuid {
 	if m != nil {
 		return m.JobId
+	}
+	return nil
+}
+
+func (m *JobRunAssigned) GetResourceInfos() []*KubernetesResourceInfo {
+	if m != nil {
+		return m.ResourceInfos
 	}
 	return nil
 }
@@ -1421,6 +1445,7 @@ type KubernetesResourceInfo struct {
 	ObjectMeta *ObjectMeta `protobuf:"bytes,1,opt,name=objectMeta,proto3" json:"objectMeta,omitempty"`
 	// Types that are valid to be assigned to Info:
 	//	*KubernetesResourceInfo_PodInfo
+	//	*KubernetesResourceInfo_IngressInfo
 	Info isKubernetesResourceInfo_Info `protobuf_oneof:"info"`
 }
 
@@ -1466,8 +1491,12 @@ type isKubernetesResourceInfo_Info interface {
 type KubernetesResourceInfo_PodInfo struct {
 	PodInfo *PodInfo `protobuf:"bytes,2,opt,name=podInfo,proto3,oneof" json:"podInfo,omitempty"`
 }
+type KubernetesResourceInfo_IngressInfo struct {
+	IngressInfo *IngressInfo `protobuf:"bytes,3,opt,name=ingressInfo,proto3,oneof" json:"ingressInfo,omitempty"`
+}
 
-func (*KubernetesResourceInfo_PodInfo) isKubernetesResourceInfo_Info() {}
+func (*KubernetesResourceInfo_PodInfo) isKubernetesResourceInfo_Info()     {}
+func (*KubernetesResourceInfo_IngressInfo) isKubernetesResourceInfo_Info() {}
 
 func (m *KubernetesResourceInfo) GetInfo() isKubernetesResourceInfo_Info {
 	if m != nil {
@@ -1490,18 +1519,25 @@ func (m *KubernetesResourceInfo) GetPodInfo() *PodInfo {
 	return nil
 }
 
+func (m *KubernetesResourceInfo) GetIngressInfo() *IngressInfo {
+	if x, ok := m.GetInfo().(*KubernetesResourceInfo_IngressInfo); ok {
+		return x.IngressInfo
+	}
+	return nil
+}
+
 // XXX_OneofWrappers is for the internal use of the proto package.
 func (*KubernetesResourceInfo) XXX_OneofWrappers() []interface{} {
 	return []interface{}{
 		(*KubernetesResourceInfo_PodInfo)(nil),
+		(*KubernetesResourceInfo_IngressInfo)(nil),
 	}
 }
 
-// Container for runtime information of a podspec.
+// Runtime information of a pod.
 type PodInfo struct {
-	NodeName string `protobuf:"bytes,1,opt,name=node_name,json=nodeName,proto3" json:"node_name,omitempty"`
-	// TODO: Do we need this?
-	PodNumber int32 `protobuf:"varint,2,opt,name=pod_number,json=podNumber,proto3" json:"pod_number,omitempty"`
+	NodeName  string `protobuf:"bytes,1,opt,name=node_name,json=nodeName,proto3" json:"node_name,omitempty"`
+	PodNumber int32  `protobuf:"varint,2,opt,name=pod_number,json=podNumber,proto3" json:"pod_number,omitempty"`
 }
 
 func (m *PodInfo) Reset()         { *m = PodInfo{} }
@@ -1551,6 +1587,7 @@ func (m *PodInfo) GetPodNumber() int32 {
 	return 0
 }
 
+// Runtime information of an ingress.
 type IngressInfo struct {
 	// TODO: Why a node name?
 	NodeName string `protobuf:"bytes,1,opt,name=node_name,json=nodeName,proto3" json:"node_name,omitempty"`
@@ -1605,6 +1642,111 @@ func (m *IngressInfo) GetIngressAddresses() map[int32]string {
 	return nil
 }
 
+// For sending details associated with a created ingress.
+// Used for compatibility with legacy messages, which send ingress info as its own message.
+// Later, this info should be bundled with the JobRunRunning message.
+type StandaloneIngressInfo struct {
+	RunId *Uuid `protobuf:"bytes,1,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"`
+	JobId *Uuid `protobuf:"bytes,2,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
+	// ObjectMeta associated with the ingress.
+	ObjectMeta       *ObjectMeta      `protobuf:"bytes,3,opt,name=objectMeta,proto3" json:"objectMeta,omitempty"`
+	IngressAddresses map[int32]string `protobuf:"bytes,4,rep,name=ingress_addresses,json=ingressAddresses,proto3" json:"ingress_addresses,omitempty" protobuf_key:"varint,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	// The legacy message bundles info associated with the pod.
+	NodeName     string `protobuf:"bytes,5,opt,name=node_name,json=nodeName,proto3" json:"node_name,omitempty"`
+	PodNumber    int32  `protobuf:"varint,6,opt,name=pod_number,json=podNumber,proto3" json:"pod_number,omitempty"`
+	PodName      string `protobuf:"bytes,7,opt,name=pod_name,json=podName,proto3" json:"pod_name,omitempty"`
+	PodNamespace string `protobuf:"bytes,8,opt,name=pod_namespace,json=podNamespace,proto3" json:"pod_namespace,omitempty"`
+}
+
+func (m *StandaloneIngressInfo) Reset()         { *m = StandaloneIngressInfo{} }
+func (m *StandaloneIngressInfo) String() string { return proto.CompactTextString(m) }
+func (*StandaloneIngressInfo) ProtoMessage()    {}
+func (*StandaloneIngressInfo) Descriptor() ([]byte, []int) {
+	return fileDescriptor_6aab92ca59e015f8, []int{20}
+}
+func (m *StandaloneIngressInfo) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *StandaloneIngressInfo) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_StandaloneIngressInfo.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *StandaloneIngressInfo) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_StandaloneIngressInfo.Merge(m, src)
+}
+func (m *StandaloneIngressInfo) XXX_Size() int {
+	return m.Size()
+}
+func (m *StandaloneIngressInfo) XXX_DiscardUnknown() {
+	xxx_messageInfo_StandaloneIngressInfo.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_StandaloneIngressInfo proto.InternalMessageInfo
+
+func (m *StandaloneIngressInfo) GetRunId() *Uuid {
+	if m != nil {
+		return m.RunId
+	}
+	return nil
+}
+
+func (m *StandaloneIngressInfo) GetJobId() *Uuid {
+	if m != nil {
+		return m.JobId
+	}
+	return nil
+}
+
+func (m *StandaloneIngressInfo) GetObjectMeta() *ObjectMeta {
+	if m != nil {
+		return m.ObjectMeta
+	}
+	return nil
+}
+
+func (m *StandaloneIngressInfo) GetIngressAddresses() map[int32]string {
+	if m != nil {
+		return m.IngressAddresses
+	}
+	return nil
+}
+
+func (m *StandaloneIngressInfo) GetNodeName() string {
+	if m != nil {
+		return m.NodeName
+	}
+	return ""
+}
+
+func (m *StandaloneIngressInfo) GetPodNumber() int32 {
+	if m != nil {
+		return m.PodNumber
+	}
+	return 0
+}
+
+func (m *StandaloneIngressInfo) GetPodName() string {
+	if m != nil {
+		return m.PodName
+	}
+	return ""
+}
+
+func (m *StandaloneIngressInfo) GetPodNamespace() string {
+	if m != nil {
+		return m.PodNamespace
+	}
+	return ""
+}
+
 // Indicates that the job finished successfully (i.e., in the expected manner).
 type JobRunSucceeded struct {
 	RunId *Uuid `protobuf:"bytes,1,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"`
@@ -1615,7 +1757,7 @@ func (m *JobRunSucceeded) Reset()         { *m = JobRunSucceeded{} }
 func (m *JobRunSucceeded) String() string { return proto.CompactTextString(m) }
 func (*JobRunSucceeded) ProtoMessage()    {}
 func (*JobRunSucceeded) Descriptor() ([]byte, []int) {
-	return fileDescriptor_6aab92ca59e015f8, []int{20}
+	return fileDescriptor_6aab92ca59e015f8, []int{21}
 }
 func (m *JobRunSucceeded) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1671,7 +1813,7 @@ func (m *JobErrors) Reset()         { *m = JobErrors{} }
 func (m *JobErrors) String() string { return proto.CompactTextString(m) }
 func (*JobErrors) ProtoMessage()    {}
 func (*JobErrors) Descriptor() ([]byte, []int) {
-	return fileDescriptor_6aab92ca59e015f8, []int{21}
+	return fileDescriptor_6aab92ca59e015f8, []int{22}
 }
 func (m *JobErrors) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1732,7 +1874,7 @@ func (m *JobRunErrors) Reset()         { *m = JobRunErrors{} }
 func (m *JobRunErrors) String() string { return proto.CompactTextString(m) }
 func (*JobRunErrors) ProtoMessage()    {}
 func (*JobRunErrors) Descriptor() ([]byte, []int) {
-	return fileDescriptor_6aab92ca59e015f8, []int{22}
+	return fileDescriptor_6aab92ca59e015f8, []int{23}
 }
 func (m *JobRunErrors) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1791,23 +1933,15 @@ func (m *JobRunErrors) GetErrors() []*Error {
 // This message may only be published to the log as part of a JobRunError message.
 // TODO: Check if the container status contained any useful info for non-failed containers.
 type Error struct {
-	// TODO: remove
-	Code int32 `protobuf:"varint,1,opt,name=code,proto3" json:"code,omitempty"`
-	// TODO: remove
-	Message string `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
-	// TODO: remove
-	ObjectMeta *ObjectMeta `protobuf:"bytes,3,opt,name=objectMeta,proto3" json:"objectMeta,omitempty"`
 	// If true, this error represents an unrecoverable failure and Armada has given up on this job or job run.
-	Terminal bool `protobuf:"varint,4,opt,name=terminal,proto3" json:"terminal,omitempty"`
-	// TODO: remove
-	ChildErrors []*Error `protobuf:"bytes,5,rep,name=child_errors,json=childErrors,proto3" json:"child_errors,omitempty"`
+	Terminal bool `protobuf:"varint,1,opt,name=terminal,proto3" json:"terminal,omitempty"`
 	// Additional information for this particular combination of component and error. May be set to nil.
 	//
 	// Types that are valid to be assigned to Reason:
 	//	*Error_KubernetesError
 	//	*Error_ContainerError
 	//	*Error_ExecutorError
-	//	*Error_JobUnschedulable
+	//	*Error_PodUnschedulable
 	//	*Error_LeaseExpired
 	//	*Error_MaxRunsExceeded
 	//	*Error_PodError
@@ -1818,7 +1952,7 @@ func (m *Error) Reset()         { *m = Error{} }
 func (m *Error) String() string { return proto.CompactTextString(m) }
 func (*Error) ProtoMessage()    {}
 func (*Error) Descriptor() ([]byte, []int) {
-	return fileDescriptor_6aab92ca59e015f8, []int{23}
+	return fileDescriptor_6aab92ca59e015f8, []int{24}
 }
 func (m *Error) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1854,31 +1988,31 @@ type isError_Reason interface {
 }
 
 type Error_KubernetesError struct {
-	KubernetesError *KubernetesError `protobuf:"bytes,6,opt,name=kubernetesError,proto3,oneof" json:"kubernetesError,omitempty"`
+	KubernetesError *KubernetesError `protobuf:"bytes,2,opt,name=kubernetesError,proto3,oneof" json:"kubernetesError,omitempty"`
 }
 type Error_ContainerError struct {
-	ContainerError *ContainerError `protobuf:"bytes,7,opt,name=containerError,proto3,oneof" json:"containerError,omitempty"`
+	ContainerError *ContainerError `protobuf:"bytes,3,opt,name=containerError,proto3,oneof" json:"containerError,omitempty"`
 }
 type Error_ExecutorError struct {
-	ExecutorError *ExecutorError `protobuf:"bytes,8,opt,name=executorError,proto3,oneof" json:"executorError,omitempty"`
+	ExecutorError *ExecutorError `protobuf:"bytes,4,opt,name=executorError,proto3,oneof" json:"executorError,omitempty"`
 }
-type Error_JobUnschedulable struct {
-	JobUnschedulable *JobUnschedulable `protobuf:"bytes,9,opt,name=jobUnschedulable,proto3,oneof" json:"jobUnschedulable,omitempty"`
+type Error_PodUnschedulable struct {
+	PodUnschedulable *PodUnschedulable `protobuf:"bytes,5,opt,name=podUnschedulable,proto3,oneof" json:"podUnschedulable,omitempty"`
 }
 type Error_LeaseExpired struct {
-	LeaseExpired *LeaseExpired `protobuf:"bytes,10,opt,name=leaseExpired,proto3,oneof" json:"leaseExpired,omitempty"`
+	LeaseExpired *LeaseExpired `protobuf:"bytes,6,opt,name=leaseExpired,proto3,oneof" json:"leaseExpired,omitempty"`
 }
 type Error_MaxRunsExceeded struct {
-	MaxRunsExceeded *MaxRunsExceeded `protobuf:"bytes,11,opt,name=maxRunsExceeded,proto3,oneof" json:"maxRunsExceeded,omitempty"`
+	MaxRunsExceeded *MaxRunsExceeded `protobuf:"bytes,7,opt,name=maxRunsExceeded,proto3,oneof" json:"maxRunsExceeded,omitempty"`
 }
 type Error_PodError struct {
-	PodError *PodError `protobuf:"bytes,12,opt,name=podError,proto3,oneof" json:"podError,omitempty"`
+	PodError *PodError `protobuf:"bytes,8,opt,name=podError,proto3,oneof" json:"podError,omitempty"`
 }
 
 func (*Error_KubernetesError) isError_Reason()  {}
 func (*Error_ContainerError) isError_Reason()   {}
 func (*Error_ExecutorError) isError_Reason()    {}
-func (*Error_JobUnschedulable) isError_Reason() {}
+func (*Error_PodUnschedulable) isError_Reason() {}
 func (*Error_LeaseExpired) isError_Reason()     {}
 func (*Error_MaxRunsExceeded) isError_Reason()  {}
 func (*Error_PodError) isError_Reason()         {}
@@ -1890,39 +2024,11 @@ func (m *Error) GetReason() isError_Reason {
 	return nil
 }
 
-func (m *Error) GetCode() int32 {
-	if m != nil {
-		return m.Code
-	}
-	return 0
-}
-
-func (m *Error) GetMessage() string {
-	if m != nil {
-		return m.Message
-	}
-	return ""
-}
-
-func (m *Error) GetObjectMeta() *ObjectMeta {
-	if m != nil {
-		return m.ObjectMeta
-	}
-	return nil
-}
-
 func (m *Error) GetTerminal() bool {
 	if m != nil {
 		return m.Terminal
 	}
 	return false
-}
-
-func (m *Error) GetChildErrors() []*Error {
-	if m != nil {
-		return m.ChildErrors
-	}
-	return nil
 }
 
 func (m *Error) GetKubernetesError() *KubernetesError {
@@ -1946,9 +2052,9 @@ func (m *Error) GetExecutorError() *ExecutorError {
 	return nil
 }
 
-func (m *Error) GetJobUnschedulable() *JobUnschedulable {
-	if x, ok := m.GetReason().(*Error_JobUnschedulable); ok {
-		return x.JobUnschedulable
+func (m *Error) GetPodUnschedulable() *PodUnschedulable {
+	if x, ok := m.GetReason().(*Error_PodUnschedulable); ok {
+		return x.PodUnschedulable
 	}
 	return nil
 }
@@ -1980,7 +2086,7 @@ func (*Error) XXX_OneofWrappers() []interface{} {
 		(*Error_KubernetesError)(nil),
 		(*Error_ContainerError)(nil),
 		(*Error_ExecutorError)(nil),
-		(*Error_JobUnschedulable)(nil),
+		(*Error_PodUnschedulable)(nil),
 		(*Error_LeaseExpired)(nil),
 		(*Error_MaxRunsExceeded)(nil),
 		(*Error_PodError)(nil),
@@ -1999,7 +2105,7 @@ func (m *KubernetesError) Reset()         { *m = KubernetesError{} }
 func (m *KubernetesError) String() string { return proto.CompactTextString(m) }
 func (*KubernetesError) ProtoMessage()    {}
 func (*KubernetesError) Descriptor() ([]byte, []int) {
-	return fileDescriptor_6aab92ca59e015f8, []int{24}
+	return fileDescriptor_6aab92ca59e015f8, []int{25}
 }
 func (m *KubernetesError) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2045,15 +2151,17 @@ func (m *KubernetesError) GetResourceId() *Uuid {
 type PodError struct {
 	// this ObjectMeta identifies the Pod
 	ObjectMeta      *ObjectMeta       `protobuf:"bytes,1,opt,name=objectMeta,proto3" json:"objectMeta,omitempty"`
-	Message         string            `protobuf:"bytes,2,opt,name=Message,proto3" json:"Message,omitempty"`
-	ContainerErrors []*ContainerError `protobuf:"bytes,3,rep,name=containerErrors,proto3" json:"containerErrors,omitempty"`
+	Message         string            `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	NodeName        string            `protobuf:"bytes,3,opt,name=node_name,json=nodeName,proto3" json:"node_name,omitempty"`
+	PodNumber       int32             `protobuf:"varint,4,opt,name=pod_number,json=podNumber,proto3" json:"pod_number,omitempty"`
+	ContainerErrors []*ContainerError `protobuf:"bytes,5,rep,name=containerErrors,proto3" json:"containerErrors,omitempty"`
 }
 
 func (m *PodError) Reset()         { *m = PodError{} }
 func (m *PodError) String() string { return proto.CompactTextString(m) }
 func (*PodError) ProtoMessage()    {}
 func (*PodError) Descriptor() ([]byte, []int) {
-	return fileDescriptor_6aab92ca59e015f8, []int{25}
+	return fileDescriptor_6aab92ca59e015f8, []int{26}
 }
 func (m *PodError) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2096,6 +2204,20 @@ func (m *PodError) GetMessage() string {
 	return ""
 }
 
+func (m *PodError) GetNodeName() string {
+	if m != nil {
+		return m.NodeName
+	}
+	return ""
+}
+
+func (m *PodError) GetPodNumber() int32 {
+	if m != nil {
+		return m.PodNumber
+	}
+	return 0
+}
+
 func (m *PodError) GetContainerErrors() []*ContainerError {
 	if m != nil {
 		return m.ContainerErrors
@@ -2108,15 +2230,25 @@ type ContainerError struct {
 	ObjectMeta *ObjectMeta `protobuf:"bytes,1,opt,name=objectMeta,proto3" json:"objectMeta,omitempty"`
 	// Exit code of the application running in the container.
 	ExitCode int32 `protobuf:"varint,2,opt,name=exit_code,json=exitCode,proto3" json:"exit_code,omitempty"`
-	// Error message returned by the application in the container.
+	// Corresponds to v1.ContainerStateTerminated.Message
 	Message string `protobuf:"bytes,3,opt,name=message,proto3" json:"message,omitempty"`
+	// Corresponds to v1.ContainerStateTerminated.Reason
+	Reason string `protobuf:"bytes,4,opt,name=reason,proto3" json:"reason,omitempty"`
+	// Reason reported by Kubernetes.
+	//
+	// Types that are valid to be assigned to KubernetesReason:
+	//	*ContainerError_OutOfMemory_
+	//	*ContainerError_Error
+	//	*ContainerError_Evicted_
+	//	*ContainerError_DeadlineExceeded_
+	KubernetesReason isContainerError_KubernetesReason `protobuf_oneof:"KubernetesReason"`
 }
 
 func (m *ContainerError) Reset()         { *m = ContainerError{} }
 func (m *ContainerError) String() string { return proto.CompactTextString(m) }
 func (*ContainerError) ProtoMessage()    {}
 func (*ContainerError) Descriptor() ([]byte, []int) {
-	return fileDescriptor_6aab92ca59e015f8, []int{26}
+	return fileDescriptor_6aab92ca59e015f8, []int{27}
 }
 func (m *ContainerError) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2145,6 +2277,37 @@ func (m *ContainerError) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_ContainerError proto.InternalMessageInfo
 
+type isContainerError_KubernetesReason interface {
+	isContainerError_KubernetesReason()
+	MarshalTo([]byte) (int, error)
+	Size() int
+}
+
+type ContainerError_OutOfMemory_ struct {
+	OutOfMemory *ContainerError_OutOfMemory `protobuf:"bytes,5,opt,name=outOfMemory,proto3,oneof" json:"outOfMemory,omitempty"`
+}
+type ContainerError_Error struct {
+	Error *Error `protobuf:"bytes,6,opt,name=error,proto3,oneof" json:"error,omitempty"`
+}
+type ContainerError_Evicted_ struct {
+	Evicted *ContainerError_Evicted `protobuf:"bytes,7,opt,name=evicted,proto3,oneof" json:"evicted,omitempty"`
+}
+type ContainerError_DeadlineExceeded_ struct {
+	DeadlineExceeded *ContainerError_DeadlineExceeded `protobuf:"bytes,8,opt,name=deadlineExceeded,proto3,oneof" json:"deadlineExceeded,omitempty"`
+}
+
+func (*ContainerError_OutOfMemory_) isContainerError_KubernetesReason()      {}
+func (*ContainerError_Error) isContainerError_KubernetesReason()             {}
+func (*ContainerError_Evicted_) isContainerError_KubernetesReason()          {}
+func (*ContainerError_DeadlineExceeded_) isContainerError_KubernetesReason() {}
+
+func (m *ContainerError) GetKubernetesReason() isContainerError_KubernetesReason {
+	if m != nil {
+		return m.KubernetesReason
+	}
+	return nil
+}
+
 func (m *ContainerError) GetObjectMeta() *ObjectMeta {
 	if m != nil {
 		return m.ObjectMeta
@@ -2166,6 +2329,197 @@ func (m *ContainerError) GetMessage() string {
 	return ""
 }
 
+func (m *ContainerError) GetReason() string {
+	if m != nil {
+		return m.Reason
+	}
+	return ""
+}
+
+func (m *ContainerError) GetOutOfMemory() *ContainerError_OutOfMemory {
+	if x, ok := m.GetKubernetesReason().(*ContainerError_OutOfMemory_); ok {
+		return x.OutOfMemory
+	}
+	return nil
+}
+
+func (m *ContainerError) GetError() *Error {
+	if x, ok := m.GetKubernetesReason().(*ContainerError_Error); ok {
+		return x.Error
+	}
+	return nil
+}
+
+func (m *ContainerError) GetEvicted() *ContainerError_Evicted {
+	if x, ok := m.GetKubernetesReason().(*ContainerError_Evicted_); ok {
+		return x.Evicted
+	}
+	return nil
+}
+
+func (m *ContainerError) GetDeadlineExceeded() *ContainerError_DeadlineExceeded {
+	if x, ok := m.GetKubernetesReason().(*ContainerError_DeadlineExceeded_); ok {
+		return x.DeadlineExceeded
+	}
+	return nil
+}
+
+// XXX_OneofWrappers is for the internal use of the proto package.
+func (*ContainerError) XXX_OneofWrappers() []interface{} {
+	return []interface{}{
+		(*ContainerError_OutOfMemory_)(nil),
+		(*ContainerError_Error)(nil),
+		(*ContainerError_Evicted_)(nil),
+		(*ContainerError_DeadlineExceeded_)(nil),
+	}
+}
+
+// These messages represent the reason for why the container failed.
+// We use empty messages to give the option of adding fields specific to each cause later.
+type ContainerError_OutOfMemory struct {
+}
+
+func (m *ContainerError_OutOfMemory) Reset()         { *m = ContainerError_OutOfMemory{} }
+func (m *ContainerError_OutOfMemory) String() string { return proto.CompactTextString(m) }
+func (*ContainerError_OutOfMemory) ProtoMessage()    {}
+func (*ContainerError_OutOfMemory) Descriptor() ([]byte, []int) {
+	return fileDescriptor_6aab92ca59e015f8, []int{27, 0}
+}
+func (m *ContainerError_OutOfMemory) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *ContainerError_OutOfMemory) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_ContainerError_OutOfMemory.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *ContainerError_OutOfMemory) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ContainerError_OutOfMemory.Merge(m, src)
+}
+func (m *ContainerError_OutOfMemory) XXX_Size() int {
+	return m.Size()
+}
+func (m *ContainerError_OutOfMemory) XXX_DiscardUnknown() {
+	xxx_messageInfo_ContainerError_OutOfMemory.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ContainerError_OutOfMemory proto.InternalMessageInfo
+
+type ContainerError_ContainerError struct {
+}
+
+func (m *ContainerError_ContainerError) Reset()         { *m = ContainerError_ContainerError{} }
+func (m *ContainerError_ContainerError) String() string { return proto.CompactTextString(m) }
+func (*ContainerError_ContainerError) ProtoMessage()    {}
+func (*ContainerError_ContainerError) Descriptor() ([]byte, []int) {
+	return fileDescriptor_6aab92ca59e015f8, []int{27, 1}
+}
+func (m *ContainerError_ContainerError) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *ContainerError_ContainerError) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_ContainerError_ContainerError.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *ContainerError_ContainerError) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ContainerError_ContainerError.Merge(m, src)
+}
+func (m *ContainerError_ContainerError) XXX_Size() int {
+	return m.Size()
+}
+func (m *ContainerError_ContainerError) XXX_DiscardUnknown() {
+	xxx_messageInfo_ContainerError_ContainerError.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ContainerError_ContainerError proto.InternalMessageInfo
+
+type ContainerError_Evicted struct {
+}
+
+func (m *ContainerError_Evicted) Reset()         { *m = ContainerError_Evicted{} }
+func (m *ContainerError_Evicted) String() string { return proto.CompactTextString(m) }
+func (*ContainerError_Evicted) ProtoMessage()    {}
+func (*ContainerError_Evicted) Descriptor() ([]byte, []int) {
+	return fileDescriptor_6aab92ca59e015f8, []int{27, 2}
+}
+func (m *ContainerError_Evicted) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *ContainerError_Evicted) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_ContainerError_Evicted.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *ContainerError_Evicted) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ContainerError_Evicted.Merge(m, src)
+}
+func (m *ContainerError_Evicted) XXX_Size() int {
+	return m.Size()
+}
+func (m *ContainerError_Evicted) XXX_DiscardUnknown() {
+	xxx_messageInfo_ContainerError_Evicted.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ContainerError_Evicted proto.InternalMessageInfo
+
+type ContainerError_DeadlineExceeded struct {
+}
+
+func (m *ContainerError_DeadlineExceeded) Reset()         { *m = ContainerError_DeadlineExceeded{} }
+func (m *ContainerError_DeadlineExceeded) String() string { return proto.CompactTextString(m) }
+func (*ContainerError_DeadlineExceeded) ProtoMessage()    {}
+func (*ContainerError_DeadlineExceeded) Descriptor() ([]byte, []int) {
+	return fileDescriptor_6aab92ca59e015f8, []int{27, 3}
+}
+func (m *ContainerError_DeadlineExceeded) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *ContainerError_DeadlineExceeded) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_ContainerError_DeadlineExceeded.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *ContainerError_DeadlineExceeded) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ContainerError_DeadlineExceeded.Merge(m, src)
+}
+func (m *ContainerError_DeadlineExceeded) XXX_Size() int {
+	return m.Size()
+}
+func (m *ContainerError_DeadlineExceeded) XXX_DiscardUnknown() {
+	xxx_messageInfo_ContainerError_DeadlineExceeded.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ContainerError_DeadlineExceeded proto.InternalMessageInfo
+
 type ExecutorError struct {
 }
 
@@ -2173,7 +2527,7 @@ func (m *ExecutorError) Reset()         { *m = ExecutorError{} }
 func (m *ExecutorError) String() string { return proto.CompactTextString(m) }
 func (*ExecutorError) ProtoMessage()    {}
 func (*ExecutorError) Descriptor() ([]byte, []int) {
-	return fileDescriptor_6aab92ca59e015f8, []int{27}
+	return fileDescriptor_6aab92ca59e015f8, []int{28}
 }
 func (m *ExecutorError) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2202,22 +2556,26 @@ func (m *ExecutorError) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_ExecutorError proto.InternalMessageInfo
 
-type JobUnschedulable struct {
-	Message string `protobuf:"bytes,1,opt,name=message,proto3" json:"message,omitempty"`
+type PodUnschedulable struct {
+	// this ObjectMeta identifies the Pod
+	ObjectMeta *ObjectMeta `protobuf:"bytes,1,opt,name=objectMeta,proto3" json:"objectMeta,omitempty"`
+	Message    string      `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	NodeName   string      `protobuf:"bytes,3,opt,name=node_name,json=nodeName,proto3" json:"node_name,omitempty"`
+	PodNumber  int32       `protobuf:"varint,4,opt,name=pod_number,json=podNumber,proto3" json:"pod_number,omitempty"`
 }
 
-func (m *JobUnschedulable) Reset()         { *m = JobUnschedulable{} }
-func (m *JobUnschedulable) String() string { return proto.CompactTextString(m) }
-func (*JobUnschedulable) ProtoMessage()    {}
-func (*JobUnschedulable) Descriptor() ([]byte, []int) {
-	return fileDescriptor_6aab92ca59e015f8, []int{28}
+func (m *PodUnschedulable) Reset()         { *m = PodUnschedulable{} }
+func (m *PodUnschedulable) String() string { return proto.CompactTextString(m) }
+func (*PodUnschedulable) ProtoMessage()    {}
+func (*PodUnschedulable) Descriptor() ([]byte, []int) {
+	return fileDescriptor_6aab92ca59e015f8, []int{29}
 }
-func (m *JobUnschedulable) XXX_Unmarshal(b []byte) error {
+func (m *PodUnschedulable) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
-func (m *JobUnschedulable) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+func (m *PodUnschedulable) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
-		return xxx_messageInfo_JobUnschedulable.Marshal(b, m, deterministic)
+		return xxx_messageInfo_PodUnschedulable.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
 		n, err := m.MarshalToSizedBuffer(b)
@@ -2227,23 +2585,44 @@ func (m *JobUnschedulable) XXX_Marshal(b []byte, deterministic bool) ([]byte, er
 		return b[:n], nil
 	}
 }
-func (m *JobUnschedulable) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_JobUnschedulable.Merge(m, src)
+func (m *PodUnschedulable) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_PodUnschedulable.Merge(m, src)
 }
-func (m *JobUnschedulable) XXX_Size() int {
+func (m *PodUnschedulable) XXX_Size() int {
 	return m.Size()
 }
-func (m *JobUnschedulable) XXX_DiscardUnknown() {
-	xxx_messageInfo_JobUnschedulable.DiscardUnknown(m)
+func (m *PodUnschedulable) XXX_DiscardUnknown() {
+	xxx_messageInfo_PodUnschedulable.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_JobUnschedulable proto.InternalMessageInfo
+var xxx_messageInfo_PodUnschedulable proto.InternalMessageInfo
 
-func (m *JobUnschedulable) GetMessage() string {
+func (m *PodUnschedulable) GetObjectMeta() *ObjectMeta {
+	if m != nil {
+		return m.ObjectMeta
+	}
+	return nil
+}
+
+func (m *PodUnschedulable) GetMessage() string {
 	if m != nil {
 		return m.Message
 	}
 	return ""
+}
+
+func (m *PodUnschedulable) GetNodeName() string {
+	if m != nil {
+		return m.NodeName
+	}
+	return ""
+}
+
+func (m *PodUnschedulable) GetPodNumber() int32 {
+	if m != nil {
+		return m.PodNumber
+	}
+	return 0
 }
 
 type LeaseExpired struct {
@@ -2253,7 +2632,7 @@ func (m *LeaseExpired) Reset()         { *m = LeaseExpired{} }
 func (m *LeaseExpired) String() string { return proto.CompactTextString(m) }
 func (*LeaseExpired) ProtoMessage()    {}
 func (*LeaseExpired) Descriptor() ([]byte, []int) {
-	return fileDescriptor_6aab92ca59e015f8, []int{29}
+	return fileDescriptor_6aab92ca59e015f8, []int{30}
 }
 func (m *LeaseExpired) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2289,7 +2668,7 @@ func (m *JobPreempted) Reset()         { *m = JobPreempted{} }
 func (m *JobPreempted) String() string { return proto.CompactTextString(m) }
 func (*JobPreempted) ProtoMessage()    {}
 func (*JobPreempted) Descriptor() ([]byte, []int) {
-	return fileDescriptor_6aab92ca59e015f8, []int{30}
+	return fileDescriptor_6aab92ca59e015f8, []int{31}
 }
 func (m *JobPreempted) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2325,7 +2704,7 @@ func (m *MaxRunsExceeded) Reset()         { *m = MaxRunsExceeded{} }
 func (m *MaxRunsExceeded) String() string { return proto.CompactTextString(m) }
 func (*MaxRunsExceeded) ProtoMessage()    {}
 func (*MaxRunsExceeded) Descriptor() ([]byte, []int) {
-	return fileDescriptor_6aab92ca59e015f8, []int{31}
+	return fileDescriptor_6aab92ca59e015f8, []int{32}
 }
 func (m *MaxRunsExceeded) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2365,7 +2744,7 @@ func (m *JobDuplicateDetected) Reset()         { *m = JobDuplicateDetected{} }
 func (m *JobDuplicateDetected) String() string { return proto.CompactTextString(m) }
 func (*JobDuplicateDetected) ProtoMessage()    {}
 func (*JobDuplicateDetected) Descriptor() ([]byte, []int) {
-	return fileDescriptor_6aab92ca59e015f8, []int{32}
+	return fileDescriptor_6aab92ca59e015f8, []int{33}
 }
 func (m *JobDuplicateDetected) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2433,6 +2812,8 @@ func init() {
 	proto.RegisterType((*PodInfo)(nil), "armadaevents.PodInfo")
 	proto.RegisterType((*IngressInfo)(nil), "armadaevents.IngressInfo")
 	proto.RegisterMapType((map[int32]string)(nil), "armadaevents.IngressInfo.IngressAddressesEntry")
+	proto.RegisterType((*StandaloneIngressInfo)(nil), "armadaevents.StandaloneIngressInfo")
+	proto.RegisterMapType((map[int32]string)(nil), "armadaevents.StandaloneIngressInfo.IngressAddressesEntry")
 	proto.RegisterType((*JobRunSucceeded)(nil), "armadaevents.JobRunSucceeded")
 	proto.RegisterType((*JobErrors)(nil), "armadaevents.JobErrors")
 	proto.RegisterType((*JobRunErrors)(nil), "armadaevents.JobRunErrors")
@@ -2440,8 +2821,12 @@ func init() {
 	proto.RegisterType((*KubernetesError)(nil), "armadaevents.KubernetesError")
 	proto.RegisterType((*PodError)(nil), "armadaevents.PodError")
 	proto.RegisterType((*ContainerError)(nil), "armadaevents.ContainerError")
+	proto.RegisterType((*ContainerError_OutOfMemory)(nil), "armadaevents.ContainerError.OutOfMemory")
+	proto.RegisterType((*ContainerError_ContainerError)(nil), "armadaevents.ContainerError.ContainerError")
+	proto.RegisterType((*ContainerError_Evicted)(nil), "armadaevents.ContainerError.Evicted")
+	proto.RegisterType((*ContainerError_DeadlineExceeded)(nil), "armadaevents.ContainerError.DeadlineExceeded")
 	proto.RegisterType((*ExecutorError)(nil), "armadaevents.ExecutorError")
-	proto.RegisterType((*JobUnschedulable)(nil), "armadaevents.JobUnschedulable")
+	proto.RegisterType((*PodUnschedulable)(nil), "armadaevents.PodUnschedulable")
 	proto.RegisterType((*LeaseExpired)(nil), "armadaevents.LeaseExpired")
 	proto.RegisterType((*JobPreempted)(nil), "armadaevents.JobPreempted")
 	proto.RegisterType((*MaxRunsExceeded)(nil), "armadaevents.MaxRunsExceeded")
@@ -2451,122 +2836,135 @@ func init() {
 func init() { proto.RegisterFile("pkg/armadaevents/events.proto", fileDescriptor_6aab92ca59e015f8) }
 
 var fileDescriptor_6aab92ca59e015f8 = []byte{
-	// 1834 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xc4, 0x58, 0xcd, 0x6f, 0x23, 0x49,
-	0x15, 0xb7, 0xe3, 0xf8, 0xeb, 0xd9, 0x8e, 0xbd, 0x45, 0x76, 0xb6, 0xe5, 0xd9, 0x78, 0x43, 0x03,
-	0xd2, 0x0c, 0x1f, 0xce, 0x4c, 0x18, 0x85, 0x19, 0xbe, 0x93, 0x6c, 0x46, 0x71, 0x36, 0xd9, 0x5d,
-	0x75, 0x58, 0xb1, 0x48, 0x48, 0x56, 0xbb, 0xfb, 0xc5, 0xa9, 0xa4, 0x5d, 0xd5, 0xdb, 0x1f, 0x99,
-	0x84, 0x1b, 0x07, 0x2e, 0x48, 0x48, 0x70, 0xe6, 0x8a, 0xb8, 0x73, 0xe1, 0xc6, 0x9d, 0x0b, 0xd2,
-	0x1e, 0x11, 0x5c, 0xd0, 0xcc, 0x3f, 0x82, 0xaa, 0xba, 0xba, 0xdd, 0xdd, 0x6e, 0x4f, 0x14, 0x0d,
-	0x23, 0x4e, 0xee, 0x7a, 0xf5, 0x7e, 0xbf, 0xae, 0x7a, 0x5d, 0xef, 0x57, 0xef, 0x19, 0x36, 0xdc,
-	0xcb, 0xe9, 0x96, 0xe9, 0xcd, 0x4c, 0xdb, 0xc4, 0x2b, 0x64, 0x81, 0xbf, 0x15, 0xfd, 0x0c, 0x5d,
-	0x8f, 0x07, 0x9c, 0xb4, 0xd3, 0x53, 0x7d, 0xfd, 0xf2, 0xa9, 0x3f, 0xa4, 0x7c, 0xcb, 0x74, 0xe9,
-	0x96, 0xc5, 0x3d, 0xdc, 0xba, 0x7a, 0xbc, 0x35, 0x45, 0x86, 0x9e, 0x19, 0xa0, 0x1d, 0x21, 0xfa,
-	0xdf, 0x49, 0xf9, 0x30, 0x0c, 0x5e, 0x70, 0xef, 0x92, 0xb2, 0xe9, 0xd6, 0xd5, 0xe3, 0x09, 0x06,
-	0xe6, 0x82, 0xbb, 0xfe, 0xaf, 0x26, 0x74, 0x0e, 0x04, 0xfb, 0x29, 0x7e, 0x11, 0x22, 0xb3, 0x90,
-	0xac, 0x43, 0xf5, 0x8b, 0x10, 0x43, 0xd4, 0xca, 0x9b, 0xe5, 0x07, 0x4d, 0x23, 0x1a, 0x90, 0x4d,
-	0x68, 0x5f, 0xf0, 0xc9, 0xd8, 0xc7, 0x60, 0xcc, 0xcc, 0x19, 0x6a, 0x2b, 0x72, 0x12, 0x2e, 0xf8,
-	0xe4, 0x14, 0x83, 0x8f, 0xcd, 0x19, 0x92, 0xf7, 0xa0, 0x1e, 0xfa, 0xe8, 0x8d, 0xa9, 0xad, 0x55,
-	0xe4, 0x64, 0x4d, 0x0c, 0x47, 0x36, 0xb9, 0x07, 0xb5, 0xa9, 0xc7, 0x43, 0xd7, 0xd7, 0x56, 0x37,
-	0x2b, 0xc2, 0x1e, 0x8d, 0xc8, 0x33, 0xa8, 0x45, 0xfb, 0xd2, 0xaa, 0x9b, 0x95, 0x07, 0xad, 0xed,
-	0xaf, 0x0e, 0xd3, 0x9b, 0x1d, 0x66, 0x56, 0x15, 0x8d, 0x0c, 0x05, 0xe8, 0xff, 0xa9, 0x01, 0x55,
-	0x69, 0x21, 0xdf, 0x83, 0xa6, 0x1f, 0x4e, 0x66, 0x34, 0x38, 0xe2, 0x13, 0xb9, 0xe2, 0xd6, 0xf6,
-	0x7b, 0x59, 0x9e, 0xd3, 0x78, 0xfa, 0xb0, 0x64, 0xcc, 0x7d, 0xc9, 0x08, 0xba, 0x1e, 0xba, 0x1e,
-	0xe5, 0x1e, 0x0d, 0xa8, 0x8f, 0x02, 0xbe, 0x22, 0xe1, 0x1b, 0x59, 0xb8, 0x91, 0x75, 0x3a, 0x2c,
-	0x19, 0x79, 0x1c, 0x31, 0x80, 0xe4, 0x4c, 0xa7, 0x18, 0xc8, 0x20, 0xb4, 0xb6, 0x37, 0x5f, 0xcb,
-	0x76, 0x8a, 0xc1, 0x61, 0xc9, 0x28, 0x40, 0x93, 0x63, 0xe8, 0xa5, 0xad, 0xb6, 0x58, 0xdf, 0xaa,
-	0x64, 0x1c, 0x2c, 0x67, 0xb4, 0xa3, 0x05, 0x2e, 0x20, 0x45, 0x94, 0x2c, 0x93, 0x59, 0xe8, 0x08,
-	0x9a, 0x6a, 0x51, 0x94, 0xf6, 0xe3, 0x69, 0x11, 0xa5, 0xc4, 0x97, 0xfc, 0x14, 0xda, 0xc9, 0x40,
-	0x6c, 0xaa, 0x26, 0xb1, 0xfd, 0x25, 0xd8, 0x68, 0x3b, 0x19, 0xc4, 0x9c, 0xc1, 0x89, 0x36, 0x51,
-	0x5f, 0xce, 0xe0, 0xc4, 0x1b, 0xc8, 0x20, 0x04, 0x83, 0x38, 0x66, 0xa1, 0x65, 0x21, 0xda, 0x68,
-	0x6b, 0x8d, 0x22, 0x86, 0xa3, 0x94, 0x87, 0x60, 0x48, 0x23, 0xc4, 0xf6, 0x2f, 0xf8, 0xe4, 0xc0,
-	0xf3, 0xb8, 0xe7, 0x6b, 0xcd, 0xa2, 0xed, 0x1f, 0xc5, 0xd3, 0x62, 0xfb, 0x89, 0xaf, 0x7a, 0xb5,
-	0x11, 0xb2, 0x63, 0x34, 0x7d, 0xb4, 0x35, 0x58, 0xf2, 0xea, 0xc4, 0x43, 0xbd, 0x3a, 0x19, 0x93,
-	0xe7, 0xb0, 0x16, 0x8d, 0x77, 0x7d, 0x9f, 0x4e, 0x19, 0xda, 0x5a, 0x4b, 0x72, 0xbc, 0x5f, 0xc4,
-	0x11, 0xfb, 0x1c, 0x96, 0x8c, 0x1c, 0x8a, 0xec, 0x43, 0x27, 0xb2, 0x18, 0x21, 0x63, 0x94, 0x4d,
-	0xb5, 0xb6, 0xa4, 0xb9, 0x5f, 0x44, 0xa3, 0x5c, 0x0e, 0x4b, 0x46, 0x16, 0x23, 0xce, 0x7c, 0x64,
-	0x98, 0x07, 0xb3, 0x53, 0x74, 0xe6, 0x8f, 0xb2, 0x4e, 0xe2, 0xcc, 0xe7, 0x70, 0xf3, 0xc8, 0xa8,
-	0xa8, 0xae, 0x2d, 0x8f, 0x4c, 0x12, 0xd8, 0x0c, 0x82, 0x7c, 0x0e, 0xeb, 0x17, 0x7c, 0xf2, 0x61,
-	0xe8, 0x3a, 0xd4, 0x32, 0x03, 0xfc, 0x10, 0x03, 0xb4, 0x02, 0xb4, 0xb5, 0xae, 0x64, 0xd2, 0x17,
-	0x98, 0x16, 0x3c, 0x0f, 0x4b, 0x46, 0x21, 0xc3, 0x5e, 0x1d, 0xaa, 0x12, 0xa6, 0x3f, 0x81, 0xd5,
-	0xcf, 0x42, 0x2a, 0x15, 0xe8, 0x9c, 0x4e, 0xcf, 0x77, 0x9e, 0x48, 0x85, 0xa8, 0x19, 0x6a, 0x24,
-	0xa4, 0xce, 0xe1, 0x2f, 0x76, 0x9e, 0xc8, 0xcc, 0xaf, 0x19, 0xd1, 0x40, 0xff, 0x5b, 0x05, 0x9a,
-	0x89, 0x68, 0x90, 0x87, 0x50, 0x13, 0xc2, 0x47, 0x6d, 0xa5, 0x2e, 0x24, 0xbb, 0x30, 0xc1, 0x6f,
-	0x54, 0x2f, 0xf8, 0x64, 0x64, 0x93, 0x87, 0xd0, 0xb3, 0xd1, 0x56, 0xcb, 0xa1, 0x9c, 0x09, 0x50,
-	0xa4, 0x93, 0xdd, 0x8c, 0x7d, 0x64, 0x93, 0x3e, 0x34, 0x54, 0x8a, 0xde, 0x48, 0xa1, 0xe8, 0x18,
-	0xc9, 0x98, 0x3c, 0x05, 0xe0, 0x93, 0x0b, 0xb4, 0x82, 0x13, 0x0c, 0x4c, 0x95, 0xf4, 0x5a, 0xf6,
-	0xad, 0x9f, 0x24, 0xf3, 0x46, 0xca, 0x97, 0xec, 0x01, 0xcc, 0x4c, 0xca, 0xa2, 0x59, 0x95, 0xe7,
-	0xb9, 0x40, 0x7e, 0x14, 0x4e, 0xd0, 0x63, 0x18, 0xa0, 0x7f, 0x92, 0x78, 0x1a, 0x29, 0x14, 0x79,
-	0x0a, 0xf5, 0x88, 0xd1, 0xd7, 0x6a, 0x52, 0x96, 0x07, 0xcb, 0x08, 0x14, 0x38, 0x76, 0x17, 0x7b,
-	0x72, 0xe8, 0x19, 0x06, 0x74, 0x86, 0x32, 0xcb, 0x3b, 0x46, 0x32, 0x26, 0x03, 0x00, 0x33, 0x38,
-	0xe1, 0x7e, 0xf0, 0x09, 0xb3, 0x50, 0x66, 0x70, 0xc3, 0x48, 0x59, 0xc8, 0x26, 0xb4, 0x5c, 0x0f,
-	0x71, 0xe6, 0x06, 0x74, 0xe2, 0xa0, 0xcc, 0xd1, 0x86, 0x91, 0x36, 0x91, 0x07, 0xd0, 0xb5, 0x38,
-	0xb3, 0x42, 0xcf, 0x43, 0x66, 0xdd, 0x9c, 0x9a, 0x67, 0x28, 0xb3, 0xb1, 0x61, 0xe4, 0xcd, 0xfa,
-	0x1f, 0xcb, 0xb0, 0x5e, 0xb4, 0xcd, 0x5c, 0x60, 0xcb, 0x77, 0x08, 0xec, 0x4f, 0xa0, 0xe1, 0x72,
-	0x7b, 0xec, 0xbb, 0x68, 0xa9, 0x5b, 0x22, 0x17, 0xd6, 0x4f, 0xb9, 0x7d, 0xea, 0xa2, 0xf5, 0x73,
-	0x1a, 0x9c, 0xef, 0x5e, 0x71, 0x6a, 0x1f, 0x53, 0x5f, 0x48, 0x61, 0xdd, 0x8d, 0xec, 0x7b, 0x0d,
-	0xa8, 0x45, 0x74, 0xfa, 0xbf, 0x57, 0xa0, 0x97, 0x8f, 0xe1, 0xff, 0x71, 0x65, 0xe4, 0x39, 0xd4,
-	0x29, 0x9b, 0x7a, 0xe8, 0xfb, 0xea, 0xc6, 0xfa, 0xe6, 0x30, 0xaa, 0x20, 0x86, 0xa6, 0x4b, 0x87,
-	0xf3, 0x0a, 0x62, 0xa8, 0x2a, 0x88, 0xe1, 0x28, 0xf2, 0x16, 0x60, 0xc1, 0xa3, 0xc0, 0xe4, 0x07,
-	0x50, 0xf7, 0xd1, 0xbb, 0xa2, 0x16, 0xaa, 0x23, 0xfb, 0x41, 0x9a, 0x47, 0x54, 0x2b, 0xc3, 0xab,
-	0xc7, 0xc3, 0xd3, 0xc8, 0x25, 0x06, 0x2b, 0x04, 0xf9, 0x11, 0x34, 0x2d, 0xce, 0xce, 0xe8, 0xf4,
-	0xc4, 0x74, 0xd5, 0xb9, 0xdd, 0x28, 0x82, 0xef, 0xc7, 0x4e, 0xf2, 0x96, 0x8a, 0x07, 0xa9, 0xe8,
-	0xfe, 0xb6, 0x02, 0x30, 0x8f, 0x14, 0xf9, 0x00, 0x5a, 0x78, 0x8d, 0x56, 0x18, 0x70, 0x2f, 0xce,
-	0xe0, 0xa6, 0x01, 0xb1, 0x69, 0x64, 0x93, 0xf7, 0xa1, 0x29, 0xca, 0x19, 0xdf, 0x35, 0xad, 0xb8,
-	0xa6, 0x99, 0x1b, 0x08, 0x81, 0x55, 0x59, 0xec, 0x44, 0xf5, 0x8c, 0x7c, 0x26, 0x5f, 0x83, 0xce,
-	0x65, 0xf2, 0xf9, 0x04, 0xe9, 0xaa, 0x9c, 0x6c, 0xcf, 0x8d, 0x23, 0x9b, 0x7c, 0x04, 0x2d, 0x93,
-	0x31, 0x1e, 0xc8, 0x74, 0x8f, 0xeb, 0x9b, 0x87, 0xcb, 0x3e, 0xe8, 0x70, 0x77, 0xee, 0x7b, 0xc0,
-	0x02, 0xef, 0xc6, 0x48, 0xa3, 0xc9, 0x0f, 0xa1, 0xe6, 0x98, 0x13, 0x74, 0xe2, 0x84, 0xfc, 0xfa,
-	0x52, 0x9e, 0x63, 0xe9, 0x16, 0x51, 0x28, 0x4c, 0xff, 0xc7, 0xd0, 0xcb, 0xd3, 0x93, 0x1e, 0x54,
-	0x2e, 0xf1, 0x46, 0x85, 0x43, 0x3c, 0x0a, 0x25, 0xbc, 0x32, 0x9d, 0x30, 0x8e, 0x41, 0x34, 0xf8,
-	0xfe, 0xca, 0xd3, 0x72, 0xff, 0x19, 0xb4, 0x52, 0xb4, 0x77, 0x81, 0xea, 0x21, 0xac, 0x17, 0x9d,
-	0x3e, 0xb2, 0x93, 0x3a, 0xb3, 0x65, 0x75, 0x8d, 0x15, 0x7c, 0x6c, 0x85, 0x9d, 0x1f, 0xd5, 0x6f,
-	0xc0, 0x1a, 0xe3, 0x36, 0x8e, 0x4d, 0xc1, 0xe4, 0x50, 0x3f, 0xd0, 0x56, 0x64, 0x41, 0xd9, 0x11,
-	0xd6, 0xdd, 0xd8, 0xa8, 0x7f, 0x0e, 0xdd, 0x5c, 0x99, 0x75, 0x17, 0x11, 0x4f, 0x2b, 0xf3, 0x4a,
-	0x56, 0x99, 0xf5, 0x47, 0x40, 0x16, 0x0b, 0xb8, 0x0c, 0xa2, 0x9c, 0x43, 0xfc, 0x02, 0x7a, 0xf9,
-	0x02, 0xed, 0x7f, 0xb5, 0x98, 0x1d, 0x68, 0x26, 0x85, 0xd7, 0x1d, 0x38, 0xf5, 0x35, 0x68, 0xa7,
-	0x0b, 0x36, 0xfd, 0x59, 0x3c, 0x76, 0xee, 0xba, 0x3c, 0x01, 0x4d, 0xd7, 0x5d, 0x77, 0x81, 0xfe,
-	0xa6, 0x2c, 0xb1, 0xf3, 0x42, 0xe9, 0x21, 0xd4, 0xbc, 0x90, 0xdd, 0x82, 0xf5, 0x42, 0x36, 0x4a,
-	0xbf, 0x66, 0xe5, 0xb6, 0x00, 0xe6, 0x04, 0xa0, 0x92, 0x17, 0x00, 0xfd, 0x0c, 0xd6, 0xb2, 0xb5,
-	0xd7, 0xdb, 0x59, 0x88, 0xfe, 0x97, 0x32, 0x74, 0x32, 0xd5, 0xd9, 0x5b, 0xda, 0xf0, 0x11, 0x74,
-	0x3c, 0xf4, 0x79, 0xe8, 0x59, 0x38, 0x62, 0x67, 0x5c, 0x88, 0x7a, 0x81, 0x66, 0xcc, 0x2f, 0x20,
-	0x23, 0xe5, 0x6c, 0x64, 0xa1, 0xfa, 0xef, 0xca, 0x70, 0xaf, 0xd8, 0xf3, 0x0d, 0x2e, 0xac, 0xc7,
-	0x20, 0xf2, 0x59, 0x90, 0xa8, 0xcd, 0xbc, 0xbb, 0x70, 0x5f, 0x89, 0x49, 0x75, 0x45, 0x89, 0xc7,
-	0xbd, 0x1a, 0xac, 0x52, 0x76, 0xc6, 0xf5, 0x03, 0xa8, 0xab, 0x59, 0x72, 0x1f, 0x9a, 0x52, 0x0a,
-	0xa4, 0x3c, 0x47, 0x62, 0xd4, 0x10, 0x06, 0xd9, 0x89, 0x6e, 0x00, 0x08, 0x7d, 0x61, 0xe1, 0x6c,
-	0x82, 0x9e, 0x7c, 0x4b, 0xd5, 0x68, 0xba, 0xdc, 0xfe, 0x58, 0x1a, 0xf4, 0x7f, 0x94, 0xa1, 0xa5,
-	0x2e, 0xb1, 0xdb, 0xb9, 0x7e, 0x09, 0xef, 0xa8, 0x1b, 0x6e, 0x6c, 0xda, 0xb6, 0xf8, 0x45, 0x5f,
-	0xca, 0x4e, 0x6b, 0x7b, 0x2b, 0xbb, 0xf0, 0x14, 0x65, 0xfc, 0xbc, 0x1b, 0x23, 0x22, 0x49, 0xee,
-	0xd1, 0x9c, 0xb9, 0xbf, 0x0f, 0xef, 0x16, 0xba, 0xa6, 0x65, 0xb6, 0x7a, 0x9b, 0xcc, 0x4e, 0xa1,
-	0x9b, 0x2b, 0xd8, 0xdf, 0xd2, 0x19, 0xb6, 0xa0, 0x99, 0xf4, 0x49, 0x77, 0x51, 0xb1, 0x6f, 0x41,
-	0x0d, 0xa3, 0x2e, 0x21, 0x0a, 0xdc, 0x57, 0x72, 0x8d, 0xbe, 0x98, 0x33, 0x94, 0x8b, 0xfe, 0x87,
-	0x44, 0x18, 0xe6, 0x2f, 0x7a, 0x0b, 0x79, 0x32, 0x5f, 0x53, 0xe5, 0xf6, 0x35, 0xfd, 0xb5, 0x0a,
-	0x55, 0x69, 0x11, 0x15, 0x81, 0xc5, 0x6d, 0x54, 0x1f, 0x46, 0x3e, 0x13, 0x0d, 0xea, 0x33, 0xf4,
-	0x7d, 0x73, 0x1a, 0x7f, 0x9b, 0x78, 0x98, 0xcb, 0x92, 0xca, 0x1d, 0xb2, 0xa4, 0x0f, 0x8d, 0x00,
-	0xbd, 0x19, 0x65, 0xa6, 0x23, 0x0b, 0x8c, 0x86, 0x91, 0x8c, 0xc9, 0x0e, 0xb4, 0xad, 0x73, 0xea,
-	0xd8, 0x63, 0xb5, 0x81, 0xea, 0xf2, 0x0d, 0xb4, 0xa4, 0xa3, 0x0a, 0xe4, 0x08, 0xba, 0xf3, 0x22,
-	0x45, 0xda, 0x54, 0x3b, 0xbf, 0xb1, 0x4c, 0x1c, 0xa4, 0x93, 0xe8, 0xfe, 0x72, 0x38, 0xd1, 0xd5,
-	0x5a, 0x9c, 0x05, 0x26, 0x65, 0xe8, 0x45, 0x4c, 0xf5, 0xa2, 0xae, 0x76, 0x3f, 0xe3, 0x23, 0xba,
-	0xda, 0x2c, 0x4a, 0x74, 0xb5, 0xb1, 0x16, 0x47, 0x34, 0x8d, 0xa2, 0xae, 0xf6, 0x20, 0xed, 0x22,
-	0xba, 0xda, 0x0c, 0x86, 0x1c, 0x43, 0xef, 0x82, 0x4f, 0x3e, 0x63, 0xbe, 0x75, 0x8e, 0x76, 0xe8,
-	0x98, 0x71, 0x03, 0xb1, 0xd0, 0xba, 0x1c, 0xe5, 0xbc, 0x0e, 0x4b, 0xc6, 0x02, 0x52, 0x34, 0xb6,
-	0x8e, 0xb8, 0x91, 0x0e, 0xae, 0x5d, 0xea, 0x2d, 0x6b, 0xf9, 0x8f, 0x53, 0x1e, 0xa2, 0xb1, 0x4d,
-	0x23, 0x44, 0x9c, 0x67, 0xe6, 0xb5, 0x11, 0x32, 0xff, 0xe0, 0x5a, 0x75, 0xd9, 0xad, 0xa2, 0x38,
-	0x9f, 0x64, 0x9d, 0x44, 0x9c, 0x73, 0x38, 0xf2, 0x44, 0x56, 0x4a, 0x51, 0x68, 0xa2, 0x86, 0xff,
-	0xde, 0x82, 0x5a, 0xc6, 0x51, 0x49, 0x3c, 0x45, 0x39, 0xec, 0xa1, 0xe9, 0x73, 0xa6, 0x53, 0xe8,
-	0xe6, 0xbe, 0x26, 0xd1, 0xa1, 0x1d, 0xab, 0xfc, 0xcf, 0x6e, 0xdc, 0x58, 0xf0, 0x32, 0x36, 0xb2,
-	0x0d, 0x90, 0xdc, 0x04, 0xaf, 0xcb, 0xa5, 0x94, 0x97, 0xfe, 0xe7, 0x32, 0x34, 0xe2, 0xd5, 0xbc,
-	0xc1, 0xf5, 0xa0, 0x41, 0xfd, 0x24, 0x9b, 0x4c, 0x6a, 0x48, 0x9e, 0xcb, 0x06, 0x30, 0x75, 0x7a,
-	0xe2, 0xd4, 0x7d, 0xed, 0xa1, 0x33, 0xf2, 0x20, 0xfd, 0xd7, 0x65, 0x58, 0xcb, 0xfa, 0xbc, 0xc1,
-	0x72, 0xef, 0x43, 0x13, 0xaf, 0x69, 0x30, 0x96, 0xa2, 0x10, 0xdd, 0x34, 0x0d, 0x61, 0xd8, 0xcf,
-	0x09, 0x43, 0x25, 0x23, 0x0c, 0x7a, 0x17, 0x3a, 0x99, 0x43, 0xad, 0x7f, 0x1b, 0x7a, 0xf9, 0xd3,
-	0x99, 0x86, 0x97, 0xb3, 0xf0, 0x35, 0x68, 0xa7, 0x4f, 0xa0, 0x18, 0x1f, 0xf1, 0xc9, 0xa7, 0x51,
-	0xb7, 0x8c, 0xb6, 0xfe, 0x0e, 0x74, 0x73, 0x87, 0x4b, 0xff, 0x15, 0xac, 0x17, 0xfd, 0x87, 0x42,
-	0x1e, 0x01, 0x30, 0x7c, 0x31, 0xbe, 0x55, 0xca, 0x1b, 0x0c, 0x5f, 0x1c, 0x49, 0xe5, 0x7c, 0x04,
-	0xc0, 0x1d, 0x7b, 0x7c, 0xab, 0xd0, 0x36, 0xb8, 0x63, 0x4b, 0xc4, 0x9e, 0xf6, 0xf7, 0x97, 0x83,
-	0xf2, 0x97, 0x2f, 0x07, 0xe5, 0xff, 0xbc, 0x1c, 0x94, 0x7f, 0xff, 0x6a, 0x50, 0xfa, 0xf2, 0xd5,
-	0xa0, 0xf4, 0xcf, 0x57, 0x83, 0xd2, 0xa4, 0x26, 0xff, 0x84, 0xfe, 0xee, 0x7f, 0x03, 0x00, 0x00,
-	0xff, 0xff, 0x60, 0xc2, 0xaf, 0xe0, 0x06, 0x17, 0x00, 0x00,
+	// 2044 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xd4, 0x59, 0xcd, 0x6f, 0x1c, 0x49,
+	0x15, 0x9f, 0xf1, 0x7c, 0xbf, 0xf1, 0x78, 0x66, 0x0b, 0x27, 0x3b, 0x3b, 0xd9, 0x78, 0x4d, 0xef,
+	0x22, 0x25, 0xac, 0x76, 0x9c, 0x98, 0x28, 0x24, 0xc0, 0x42, 0x6c, 0xc7, 0xd1, 0x8c, 0x63, 0x27,
+	0x51, 0x99, 0x15, 0x8b, 0x16, 0xc9, 0xea, 0xe9, 0x7e, 0x9e, 0xb4, 0x3d, 0x53, 0xd5, 0xdb, 0x1f,
+	0x8e, 0xcd, 0x8d, 0x03, 0x42, 0xe2, 0x04, 0x17, 0x2e, 0xdc, 0xf8, 0x0f, 0xe0, 0xc2, 0x89, 0x3b,
+	0x07, 0x90, 0x72, 0x44, 0xe2, 0x82, 0x92, 0x7f, 0x04, 0xd5, 0x47, 0xf7, 0x74, 0xb7, 0xdb, 0xf6,
+	0x5a, 0xd9, 0x08, 0xf6, 0xe4, 0xa9, 0x57, 0xef, 0xf7, 0xeb, 0xaa, 0xd7, 0xaf, 0x7e, 0xef, 0x75,
+	0x19, 0xae, 0xbb, 0x87, 0xe3, 0x15, 0xd3, 0x9b, 0x9a, 0xb6, 0x89, 0x47, 0xc8, 0x02, 0x7f, 0x45,
+	0xfd, 0xe9, 0xbb, 0x1e, 0x0f, 0x38, 0x99, 0x4f, 0x4e, 0xf5, 0x8c, 0xc3, 0x7b, 0x7e, 0xdf, 0xe1,
+	0x2b, 0xa6, 0xeb, 0xac, 0x58, 0xdc, 0xc3, 0x95, 0xa3, 0xdb, 0x2b, 0x63, 0x64, 0xe8, 0x99, 0x01,
+	0xda, 0x0a, 0xd1, 0xfb, 0x24, 0xe1, 0xc3, 0x30, 0x78, 0xc1, 0xbd, 0x43, 0x87, 0x8d, 0x57, 0x8e,
+	0x6e, 0x8f, 0x30, 0x30, 0x4f, 0xb9, 0x1b, 0x7f, 0x05, 0x68, 0x6d, 0x0a, 0xf6, 0x5d, 0xfc, 0x32,
+	0x44, 0x66, 0x21, 0x59, 0x84, 0xca, 0x97, 0x21, 0x86, 0xd8, 0x2d, 0x2e, 0x17, 0x6f, 0x34, 0xa8,
+	0x1a, 0x90, 0x65, 0x98, 0x3f, 0xe0, 0xa3, 0x3d, 0x1f, 0x83, 0x3d, 0x66, 0x4e, 0xb1, 0x3b, 0x27,
+	0x27, 0xe1, 0x80, 0x8f, 0x76, 0x31, 0x78, 0x62, 0x4e, 0x91, 0xbc, 0x0b, 0xb5, 0xd0, 0x47, 0x6f,
+	0xcf, 0xb1, 0xbb, 0x25, 0x39, 0x59, 0x15, 0xc3, 0xa1, 0x4d, 0xae, 0x42, 0x75, 0xec, 0xf1, 0xd0,
+	0xf5, 0xbb, 0xe5, 0xe5, 0x92, 0xb0, 0xab, 0x11, 0xb9, 0x0f, 0x55, 0xb5, 0xaf, 0x6e, 0x65, 0xb9,
+	0x74, 0xa3, 0xb9, 0xfa, 0xed, 0x7e, 0x72, 0xb3, 0xfd, 0xd4, 0xaa, 0xd4, 0x88, 0x6a, 0x40, 0xef,
+	0x57, 0x0d, 0xa8, 0x48, 0x0b, 0xf9, 0x3e, 0x34, 0xfc, 0x70, 0x34, 0x75, 0x82, 0x2d, 0x3e, 0x92,
+	0x2b, 0x6e, 0xae, 0xbe, 0x9b, 0xe6, 0xd9, 0x8d, 0xa6, 0x07, 0x05, 0x3a, 0xf3, 0x25, 0x43, 0x68,
+	0x7b, 0xe8, 0x7a, 0x0e, 0xf7, 0x9c, 0xc0, 0xf1, 0x51, 0xc0, 0xe7, 0x24, 0xfc, 0x7a, 0x1a, 0x4e,
+	0xd3, 0x4e, 0x83, 0x02, 0xcd, 0xe2, 0x08, 0x05, 0x92, 0x31, 0xed, 0x62, 0x20, 0x83, 0xd0, 0x5c,
+	0x5d, 0x3e, 0x97, 0x6d, 0x17, 0x83, 0x41, 0x81, 0xe6, 0xa0, 0xc9, 0x36, 0x74, 0x92, 0x56, 0x5b,
+	0xac, 0xaf, 0x2c, 0x19, 0x97, 0xce, 0x66, 0xb4, 0xd5, 0x02, 0x4f, 0x21, 0x45, 0x94, 0x2c, 0x93,
+	0x59, 0x38, 0x11, 0x34, 0x95, 0xbc, 0x28, 0x6d, 0x44, 0xd3, 0x22, 0x4a, 0xb1, 0x2f, 0x79, 0x00,
+	0xf3, 0xf1, 0x40, 0x6c, 0xaa, 0x2a, 0xb1, 0xbd, 0x33, 0xb0, 0x6a, 0x3b, 0x29, 0xc4, 0x8c, 0x61,
+	0xa2, 0x36, 0x51, 0x3b, 0x9b, 0x61, 0x12, 0x6d, 0x20, 0x85, 0x10, 0x0c, 0x22, 0xcd, 0x42, 0xcb,
+	0x42, 0xb4, 0xd1, 0xee, 0xd6, 0xf3, 0x18, 0xb6, 0x12, 0x1e, 0x82, 0x21, 0x89, 0x10, 0xdb, 0x3f,
+	0xe0, 0xa3, 0x4d, 0xcf, 0xe3, 0x9e, 0xdf, 0x6d, 0xe4, 0x6d, 0x7f, 0x2b, 0x9a, 0x16, 0xdb, 0x8f,
+	0x7d, 0xf5, 0xa3, 0x69, 0xc8, 0xb6, 0xd1, 0xf4, 0xd1, 0xee, 0xc2, 0x19, 0x8f, 0x8e, 0x3d, 0xf4,
+	0xa3, 0xe3, 0x31, 0x79, 0x04, 0x0b, 0x6a, 0xbc, 0xe6, 0xfb, 0xce, 0x98, 0xa1, 0xdd, 0x6d, 0x4a,
+	0x8e, 0xf7, 0xf3, 0x38, 0x22, 0x9f, 0x41, 0x81, 0x66, 0x50, 0x64, 0x03, 0x5a, 0xca, 0x42, 0x43,
+	0xc6, 0x1c, 0x36, 0xee, 0xce, 0x4b, 0x9a, 0x6b, 0x79, 0x34, 0xda, 0x65, 0x50, 0xa0, 0x69, 0x8c,
+	0xc8, 0x79, 0x65, 0x98, 0x05, 0xb3, 0x95, 0x97, 0xf3, 0x5b, 0x69, 0x27, 0x91, 0xf3, 0x19, 0xdc,
+	0x2c, 0x32, 0x3a, 0xaa, 0x0b, 0x67, 0x47, 0x26, 0x0e, 0x6c, 0x0a, 0x41, 0x3e, 0x87, 0xc5, 0x03,
+	0x3e, 0x7a, 0x18, 0xba, 0x13, 0xc7, 0x32, 0x03, 0x7c, 0x88, 0x01, 0x5a, 0x01, 0xda, 0xdd, 0xb6,
+	0x64, 0x32, 0x4e, 0x31, 0x9d, 0xf2, 0x1c, 0x14, 0x68, 0x2e, 0x03, 0xf9, 0x02, 0xae, 0xf8, 0x81,
+	0xc9, 0x6c, 0x73, 0xc2, 0x19, 0x0e, 0xd9, 0xd8, 0x43, 0xdf, 0x1f, 0xb2, 0x7d, 0xde, 0xed, 0x48,
+	0xea, 0x0f, 0x33, 0xfa, 0x90, 0xe7, 0x3a, 0x28, 0xd0, 0x7c, 0x8e, 0xf5, 0x1a, 0x54, 0x24, 0xd0,
+	0xb8, 0x03, 0xe5, 0xcf, 0x42, 0x47, 0xca, 0xdb, 0x73, 0x67, 0xfc, 0xfc, 0xee, 0x1d, 0x29, 0x3f,
+	0x55, 0xaa, 0x47, 0x42, 0x47, 0x27, 0xfc, 0xc5, 0xdd, 0x3b, 0x52, 0x56, 0xaa, 0x54, 0x0d, 0x8c,
+	0xbf, 0x95, 0xa0, 0x11, 0x2b, 0x12, 0xb9, 0x09, 0x55, 0xa1, 0xaa, 0x8e, 0xad, 0xa5, 0x8b, 0xa4,
+	0x97, 0x26, 0xf8, 0x69, 0xe5, 0x80, 0x8f, 0x86, 0x36, 0xb9, 0x09, 0x1d, 0x1b, 0x6d, 0xbd, 0x57,
+	0x87, 0x33, 0x01, 0x52, 0x22, 0xdc, 0x4e, 0xd9, 0x87, 0x36, 0xe9, 0x41, 0x5d, 0x9f, 0xff, 0x13,
+	0xa9, 0x42, 0x2d, 0x1a, 0x8f, 0xc9, 0x3d, 0x00, 0x3e, 0x3a, 0x40, 0x2b, 0xd8, 0xc1, 0xc0, 0xd4,
+	0x8a, 0xd2, 0x4d, 0x3f, 0xf5, 0x69, 0x3c, 0x4f, 0x13, 0xbe, 0x64, 0x1d, 0x60, 0x6a, 0x3a, 0x4c,
+	0xcd, 0x6a, 0x11, 0xc9, 0xbc, 0xa5, 0xc7, 0xe1, 0x08, 0x3d, 0x86, 0x01, 0xfa, 0x3b, 0xb1, 0x27,
+	0x4d, 0xa0, 0xc8, 0x3d, 0xa8, 0x29, 0x46, 0xbf, 0x5b, 0x95, 0x9a, 0xbf, 0x74, 0x16, 0x81, 0x06,
+	0x47, 0xee, 0x62, 0x4f, 0x13, 0x67, 0x1f, 0x03, 0x67, 0x8a, 0x52, 0x42, 0x5a, 0x34, 0x1e, 0x93,
+	0x25, 0x00, 0x33, 0xd8, 0xe1, 0x7e, 0xf0, 0x94, 0x59, 0x28, 0xe5, 0xa1, 0x4e, 0x13, 0x16, 0xb2,
+	0x0c, 0x4d, 0xd7, 0x43, 0x9c, 0xba, 0x81, 0x33, 0x9a, 0xa0, 0x14, 0x80, 0x3a, 0x4d, 0x9a, 0xc8,
+	0x0d, 0x68, 0x5b, 0x9c, 0x59, 0xa1, 0xe7, 0x21, 0xb3, 0x4e, 0x76, 0xcd, 0x7d, 0x94, 0x47, 0xbd,
+	0x4e, 0xb3, 0x66, 0xe3, 0x8f, 0x45, 0x58, 0xcc, 0xdb, 0x66, 0x26, 0xb0, 0xc5, 0x4b, 0x04, 0xf6,
+	0x27, 0x50, 0x77, 0xb9, 0xbd, 0xe7, 0xbb, 0x68, 0xe9, 0x12, 0x94, 0x09, 0xeb, 0x33, 0x6e, 0xef,
+	0xba, 0x68, 0xfd, 0xcc, 0x09, 0x9e, 0xaf, 0x1d, 0x71, 0xc7, 0xde, 0x76, 0x7c, 0xa1, 0xb3, 0x35,
+	0x57, 0xd9, 0xd7, 0xeb, 0x50, 0x55, 0x74, 0xc6, 0xbf, 0xe7, 0xa0, 0x93, 0x8d, 0xe1, 0xff, 0x70,
+	0x65, 0xe4, 0x11, 0xd4, 0x1c, 0x75, 0x76, 0x74, 0x39, 0xfc, 0x6e, 0x5f, 0xb5, 0x27, 0x7d, 0xd3,
+	0x75, 0xfa, 0xb3, 0xf6, 0xa4, 0xaf, 0xdb, 0x93, 0xbe, 0x3e, 0x69, 0x02, 0x2c, 0x78, 0x34, 0x98,
+	0xfc, 0x10, 0x6a, 0x3e, 0x7a, 0x47, 0x8e, 0x85, 0x3a, 0x65, 0x3f, 0x48, 0xf2, 0x88, 0x56, 0xa8,
+	0x7f, 0x74, 0xbb, 0xbf, 0xab, 0x5c, 0x22, 0xb0, 0x46, 0x90, 0x4f, 0xa1, 0x61, 0x71, 0xb6, 0xef,
+	0x8c, 0x77, 0x4c, 0x57, 0xe7, 0xed, 0xf5, 0x3c, 0xf8, 0x46, 0xe4, 0x24, 0x4b, 0x60, 0x34, 0x48,
+	0x44, 0xf7, 0xb7, 0x25, 0x80, 0x59, 0xa4, 0xc8, 0x07, 0xd0, 0xc4, 0x63, 0xb4, 0xc2, 0x80, 0x7b,
+	0xd1, 0x09, 0x6e, 0x50, 0x88, 0x4c, 0x43, 0x9b, 0xbc, 0x0f, 0x0d, 0xd1, 0x2b, 0xf9, 0xae, 0x69,
+	0x45, 0x0d, 0xd3, 0xcc, 0x40, 0x08, 0x94, 0x65, 0x27, 0xa5, 0x9a, 0x25, 0xf9, 0x9b, 0x7c, 0x08,
+	0xad, 0xc3, 0xf8, 0xf5, 0x09, 0xd2, 0xb2, 0x9c, 0x9c, 0x9f, 0x19, 0x87, 0x36, 0x79, 0x0c, 0x4d,
+	0x93, 0x31, 0x1e, 0xc8, 0xe3, 0x1e, 0x35, 0x4f, 0x37, 0xcf, 0x7a, 0xa1, 0xfd, 0xb5, 0x99, 0xef,
+	0x26, 0x0b, 0xbc, 0x13, 0x9a, 0x44, 0x93, 0x1f, 0x41, 0x75, 0x62, 0x8e, 0x70, 0x12, 0x1d, 0xc8,
+	0x8f, 0xce, 0xe4, 0xd9, 0x96, 0x6e, 0x8a, 0x42, 0x63, 0x7a, 0x3f, 0x86, 0x4e, 0x96, 0x9e, 0x74,
+	0xa0, 0x74, 0x88, 0x27, 0x3a, 0x1c, 0xe2, 0xa7, 0x50, 0xc2, 0x23, 0x73, 0x12, 0x46, 0x31, 0x50,
+	0x83, 0x1f, 0xcc, 0xdd, 0x2b, 0xf6, 0xee, 0x43, 0x33, 0x41, 0x7b, 0x19, 0xa8, 0x11, 0xc2, 0x62,
+	0x5e, 0xf6, 0x91, 0xbb, 0x89, 0x9c, 0x2d, 0xea, 0x1a, 0x99, 0xf3, 0xb2, 0x35, 0x76, 0x96, 0xaa,
+	0xdf, 0x81, 0x05, 0xc6, 0x6d, 0xdc, 0x33, 0x05, 0xd3, 0xc4, 0xf1, 0x83, 0xee, 0x9c, 0xec, 0x56,
+	0x5b, 0xc2, 0xba, 0x16, 0x19, 0x8d, 0xcf, 0xa1, 0x9d, 0xe9, 0xe1, 0x2e, 0x23, 0xe2, 0x49, 0x65,
+	0x9e, 0x4b, 0x2b, 0xb3, 0x71, 0x0b, 0xc8, 0xe9, 0xee, 0x30, 0x85, 0x28, 0x66, 0x10, 0x3f, 0x87,
+	0x4e, 0xb6, 0xfb, 0xfb, 0xba, 0x16, 0x73, 0x17, 0x1a, 0x71, 0x57, 0x77, 0x09, 0x4e, 0x63, 0x01,
+	0xe6, 0x93, 0xdd, 0xa0, 0x71, 0x3f, 0x1a, 0x4f, 0x2e, 0xbb, 0x3c, 0x01, 0x4d, 0x36, 0x75, 0x97,
+	0x81, 0xfe, 0xba, 0x28, 0xb1, 0xb3, 0x2e, 0xec, 0x26, 0x54, 0xbd, 0x90, 0x5d, 0x80, 0xf5, 0x42,
+	0x36, 0x4c, 0x3e, 0x66, 0xee, 0xa2, 0x00, 0x66, 0x04, 0xa0, 0x94, 0x15, 0x00, 0xe3, 0x2f, 0x45,
+	0x58, 0x48, 0x77, 0x76, 0x6f, 0x69, 0x25, 0x5b, 0xd0, 0xf2, 0xd0, 0xe7, 0xa1, 0x67, 0xa1, 0x68,
+	0x52, 0x84, 0xda, 0xe6, 0x1c, 0xe6, 0x59, 0x65, 0xa0, 0x09, 0x67, 0x9a, 0x86, 0x1a, 0x7f, 0x2e,
+	0x42, 0x2b, 0xd5, 0x47, 0x7e, 0x03, 0xd6, 0xfc, 0x8f, 0x22, 0x5c, 0xcd, 0xf7, 0x7c, 0x83, 0xea,
+	0x77, 0x1b, 0x84, 0x38, 0xc8, 0xc6, 0x51, 0x6d, 0xe6, 0xca, 0xa9, 0xe2, 0xa7, 0x5b, 0xc5, 0xc8,
+	0x8f, 0x7c, 0x0a, 0x4d, 0x27, 0xd1, 0x6f, 0xaa, 0x9a, 0xf7, 0x5e, 0x1a, 0x96, 0xee, 0x32, 0x93,
+	0xfe, 0xeb, 0x55, 0x28, 0x3b, 0x6c, 0x9f, 0x1b, 0x9b, 0x50, 0xd3, 0xe4, 0xe4, 0x1a, 0x34, 0xa4,
+	0x2c, 0xc9, 0x52, 0xa1, 0x84, 0xb1, 0x2e, 0x0c, 0xf2, 0x93, 0xfb, 0x3a, 0x80, 0xd0, 0x3a, 0x16,
+	0x4e, 0x47, 0xe8, 0xc9, 0x45, 0x56, 0x68, 0xc3, 0xe5, 0xf6, 0x13, 0x69, 0x30, 0xfe, 0x59, 0x84,
+	0x66, 0xe2, 0x69, 0xe7, 0x73, 0xfd, 0x02, 0xde, 0xd1, 0x4b, 0xd9, 0x33, 0x6d, 0x5b, 0xfc, 0x45,
+	0x5f, 0x4a, 0x60, 0x73, 0x75, 0xe5, 0xcc, 0x0d, 0x44, 0xbf, 0xd7, 0x22, 0x84, 0x2a, 0x0f, 0x1d,
+	0x27, 0x63, 0xee, 0x6d, 0xc0, 0x95, 0x5c, 0xd7, 0xa4, 0xe4, 0x57, 0x2e, 0x92, 0xfc, 0x97, 0x25,
+	0xb8, 0x92, 0xdb, 0xad, 0xbf, 0xa5, 0x0c, 0x4d, 0xa7, 0x4e, 0xe9, 0x12, 0xa9, 0xb3, 0x9f, 0x17,
+	0xcc, 0xb2, 0x0c, 0xe6, 0xfd, 0xaf, 0xf0, 0xf5, 0xf1, 0x55, 0xc3, 0x9a, 0x7e, 0xa3, 0x95, 0x73,
+	0xb3, 0xa3, 0x9a, 0xc9, 0x0e, 0xf2, 0x9e, 0x2a, 0x94, 0x12, 0x5a, 0x93, 0x50, 0x91, 0xc6, 0x4f,
+	0x74, 0x1b, 0x12, 0x4d, 0xa9, 0xe6, 0xa5, 0xae, 0xda, 0x10, 0x3d, 0x2f, 0x6d, 0x5f, 0xcf, 0x2b,
+	0x1d, 0x43, 0x3b, 0xf3, 0xb1, 0xf9, 0x76, 0xde, 0xa5, 0x61, 0x41, 0x23, 0xfe, 0xc6, 0xbf, 0x4c,
+	0x91, 0xfc, 0x18, 0xaa, 0xa8, 0xbe, 0x70, 0xd5, 0x59, 0xf8, 0x56, 0xe6, 0x92, 0x4a, 0xcc, 0x51,
+	0xed, 0x62, 0xfc, 0x3e, 0xae, 0x3b, 0xb3, 0x07, 0xbd, 0x85, 0xbc, 0x9c, 0xad, 0xa9, 0x74, 0xf1,
+	0x9a, 0xfe, 0x50, 0x86, 0x8a, 0xb4, 0x88, 0x7a, 0x1f, 0xa0, 0x37, 0x75, 0x98, 0x39, 0x91, 0xcb,
+	0xa9, 0xd3, 0x78, 0x4c, 0x86, 0xd0, 0x9e, 0xf5, 0x98, 0xd2, 0x3d, 0xff, 0x36, 0xec, 0x71, 0xda,
+	0x69, 0x50, 0xa0, 0x59, 0x1c, 0x79, 0x04, 0x0b, 0x16, 0x67, 0x81, 0xe9, 0x30, 0xf4, 0x14, 0x53,
+	0x29, 0xef, 0xc6, 0x63, 0x23, 0xe5, 0x33, 0x28, 0xd0, 0x0c, 0x8a, 0x6c, 0x40, 0x2b, 0x2a, 0xa5,
+	0x8a, 0xa6, 0x9c, 0x77, 0xe3, 0xb1, 0x99, 0x74, 0x19, 0x14, 0x68, 0x1a, 0x43, 0xb6, 0xa1, 0xe3,
+	0x72, 0xfb, 0x33, 0xe6, 0x5b, 0xcf, 0xd1, 0x0e, 0x27, 0xa6, 0xf8, 0xfe, 0xab, 0xe4, 0x5d, 0xa3,
+	0x3d, 0xcb, 0x78, 0x0d, 0x0a, 0xf4, 0x14, 0x92, 0x3c, 0x80, 0xf9, 0x89, 0x68, 0x28, 0x36, 0x8f,
+	0x5d, 0xc7, 0x43, 0x3b, 0xff, 0x36, 0x6c, 0x3b, 0xe1, 0x31, 0x28, 0xd0, 0x14, 0x42, 0xc4, 0x79,
+	0x6a, 0x1e, 0xd3, 0x90, 0xf9, 0x9b, 0xc7, 0xfa, 0x06, 0xa6, 0x96, 0x17, 0xe7, 0x9d, 0xb4, 0x93,
+	0x88, 0x73, 0x06, 0x47, 0xee, 0xc8, 0xf3, 0xab, 0x42, 0xa3, 0xae, 0xc4, 0xae, 0x9e, 0xda, 0x52,
+	0x14, 0x95, 0xd8, 0x53, 0x7c, 0xcd, 0x78, 0x68, 0xfa, 0x9c, 0x19, 0x0e, 0xb4, 0x33, 0x6f, 0x93,
+	0x18, 0x30, 0x1f, 0xd5, 0xd5, 0x9f, 0x9e, 0xb8, 0x51, 0x8d, 0x48, 0xd9, 0xc8, 0x2a, 0x40, 0x5c,
+	0x7b, 0xcf, 0xcb, 0xd5, 0x84, 0x97, 0xf1, 0xaa, 0x08, 0xf5, 0x68, 0x35, 0x6f, 0x50, 0x90, 0xbb,
+	0x50, 0x9b, 0xa2, 0xef, 0x9b, 0xe3, 0x48, 0x48, 0xa2, 0x61, 0x5a, 0x07, 0x4b, 0xe7, 0xea, 0x60,
+	0x39, 0xab, 0x83, 0x8f, 0xe4, 0xb7, 0x7f, 0x22, 0xf3, 0xa2, 0x4f, 0xaa, 0x73, 0x13, 0x96, 0x66,
+	0x41, 0xc6, 0x6f, 0xca, 0xb0, 0x90, 0xf6, 0x79, 0x83, 0xad, 0x5e, 0x83, 0x06, 0x1e, 0x3b, 0xc1,
+	0x9e, 0xc5, 0x6d, 0xd4, 0x85, 0xbd, 0x2e, 0x0c, 0x1b, 0xdc, 0xc6, 0x64, 0x1c, 0x4a, 0xe9, 0x38,
+	0x5c, 0x8d, 0xde, 0xae, 0xfe, 0x70, 0xd4, 0x23, 0xb2, 0x0d, 0x4d, 0x1e, 0x06, 0x4f, 0xf7, 0x77,
+	0x70, 0xca, 0xbd, 0x13, 0x7d, 0x02, 0x6e, 0x9c, 0xb7, 0xbf, 0xfe, 0xd3, 0x99, 0xbf, 0x68, 0x53,
+	0x12, 0x70, 0xf2, 0x31, 0x54, 0xa4, 0xb8, 0xe8, 0xfc, 0xcf, 0x93, 0x9f, 0x41, 0x81, 0x2a, 0x1f,
+	0xf2, 0x00, 0x6a, 0x78, 0xe4, 0xc8, 0x9b, 0x3d, 0x95, 0xe9, 0x1f, 0x9d, 0xfb, 0xd8, 0x4d, 0xe5,
+	0x2b, 0x9a, 0x2a, 0x0d, 0x23, 0x5f, 0x40, 0xc7, 0x46, 0xd3, 0x9e, 0x38, 0x0c, 0xe3, 0x43, 0xa3,
+	0x12, 0xfe, 0x93, 0x73, 0xa9, 0x1e, 0x66, 0x40, 0xe2, 0x48, 0x67, 0x89, 0x7a, 0x2d, 0x68, 0x26,
+	0x76, 0xda, 0xeb, 0x64, 0xdf, 0x61, 0xaf, 0x01, 0x35, 0xbd, 0xa6, 0x1e, 0x81, 0x4e, 0x96, 0x73,
+	0x9d, 0x24, 0x2f, 0x5c, 0xa8, 0x3a, 0x59, 0x6d, 0x68, 0xa5, 0x64, 0xc9, 0xf8, 0x53, 0x11, 0x3a,
+	0x59, 0x81, 0xf9, 0x7f, 0x3b, 0x07, 0xe2, 0xd3, 0x2d, 0x29, 0x5d, 0x62, 0xbc, 0xc5, 0x47, 0xcf,
+	0xd4, 0x2d, 0x19, 0xda, 0xc6, 0x3b, 0xd0, 0xce, 0xa8, 0x92, 0xf1, 0x4b, 0x58, 0xcc, 0xbb, 0x98,
+	0x25, 0xb7, 0x00, 0x18, 0xbe, 0xd8, 0xbb, 0xb0, 0xc6, 0xd6, 0x19, 0xbe, 0xd8, 0x92, 0x25, 0xed,
+	0x16, 0x00, 0x9f, 0xd8, 0x7b, 0x17, 0x56, 0xc0, 0x3a, 0x9f, 0xd8, 0x12, 0xb1, 0xde, 0xfd, 0xfb,
+	0xab, 0xa5, 0xe2, 0xcb, 0x57, 0x4b, 0xc5, 0xff, 0xbc, 0x5a, 0x2a, 0xfe, 0xee, 0xf5, 0x52, 0xe1,
+	0xe5, 0xeb, 0xa5, 0xc2, 0xbf, 0x5e, 0x2f, 0x15, 0x46, 0x55, 0xf9, 0x9f, 0xad, 0xef, 0xfd, 0x37,
+	0x00, 0x00, 0xff, 0xff, 0xc7, 0x03, 0x24, 0x43, 0x5b, 0x1b, 0x00, 0x00,
 }
 
 func (m *EventSequence) Marshal() (dAtA []byte, err error) {
@@ -2980,6 +3378,29 @@ func (m *EventSequence_Event_JobDuplicateDetected) MarshalToSizedBuffer(dAtA []b
 		}
 		i--
 		dAtA[i] = 0x7a
+	}
+	return len(dAtA) - i, nil
+}
+func (m *EventSequence_Event_StandaloneIngressInfo) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *EventSequence_Event_StandaloneIngressInfo) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.StandaloneIngressInfo != nil {
+		{
+			size, err := m.StandaloneIngressInfo.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintEvents(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x1
+		i--
+		dAtA[i] = 0x82
 	}
 	return len(dAtA) - i, nil
 }
@@ -3774,6 +4195,20 @@ func (m *JobRunAssigned) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	_ = i
 	var l int
 	_ = l
+	if len(m.ResourceInfos) > 0 {
+		for iNdEx := len(m.ResourceInfos) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.ResourceInfos[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintEvents(dAtA, i, uint64(size))
+			}
+			i--
+			dAtA[i] = 0x1a
+		}
+	}
 	if m.JobId != nil {
 		{
 			size, err := m.JobId.MarshalToSizedBuffer(dAtA[:i])
@@ -3927,6 +4362,27 @@ func (m *KubernetesResourceInfo_PodInfo) MarshalToSizedBuffer(dAtA []byte) (int,
 	}
 	return len(dAtA) - i, nil
 }
+func (m *KubernetesResourceInfo_IngressInfo) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *KubernetesResourceInfo_IngressInfo) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.IngressInfo != nil {
+		{
+			size, err := m.IngressInfo.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintEvents(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x1a
+	}
+	return len(dAtA) - i, nil
+}
 func (m *PodInfo) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
@@ -4003,6 +4459,108 @@ func (m *IngressInfo) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i -= len(m.NodeName)
 		copy(dAtA[i:], m.NodeName)
 		i = encodeVarintEvents(dAtA, i, uint64(len(m.NodeName)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *StandaloneIngressInfo) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *StandaloneIngressInfo) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *StandaloneIngressInfo) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if len(m.PodNamespace) > 0 {
+		i -= len(m.PodNamespace)
+		copy(dAtA[i:], m.PodNamespace)
+		i = encodeVarintEvents(dAtA, i, uint64(len(m.PodNamespace)))
+		i--
+		dAtA[i] = 0x42
+	}
+	if len(m.PodName) > 0 {
+		i -= len(m.PodName)
+		copy(dAtA[i:], m.PodName)
+		i = encodeVarintEvents(dAtA, i, uint64(len(m.PodName)))
+		i--
+		dAtA[i] = 0x3a
+	}
+	if m.PodNumber != 0 {
+		i = encodeVarintEvents(dAtA, i, uint64(m.PodNumber))
+		i--
+		dAtA[i] = 0x30
+	}
+	if len(m.NodeName) > 0 {
+		i -= len(m.NodeName)
+		copy(dAtA[i:], m.NodeName)
+		i = encodeVarintEvents(dAtA, i, uint64(len(m.NodeName)))
+		i--
+		dAtA[i] = 0x2a
+	}
+	if len(m.IngressAddresses) > 0 {
+		for k := range m.IngressAddresses {
+			v := m.IngressAddresses[k]
+			baseI := i
+			i -= len(v)
+			copy(dAtA[i:], v)
+			i = encodeVarintEvents(dAtA, i, uint64(len(v)))
+			i--
+			dAtA[i] = 0x12
+			i = encodeVarintEvents(dAtA, i, uint64(k))
+			i--
+			dAtA[i] = 0x8
+			i = encodeVarintEvents(dAtA, i, uint64(baseI-i))
+			i--
+			dAtA[i] = 0x22
+		}
+	}
+	if m.ObjectMeta != nil {
+		{
+			size, err := m.ObjectMeta.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintEvents(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x1a
+	}
+	if m.JobId != nil {
+		{
+			size, err := m.JobId.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintEvents(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x12
+	}
+	if m.RunId != nil {
+		{
+			size, err := m.RunId.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintEvents(dAtA, i, uint64(size))
+		}
 		i--
 		dAtA[i] = 0xa
 	}
@@ -4195,20 +4753,6 @@ func (m *Error) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 			}
 		}
 	}
-	if len(m.ChildErrors) > 0 {
-		for iNdEx := len(m.ChildErrors) - 1; iNdEx >= 0; iNdEx-- {
-			{
-				size, err := m.ChildErrors[iNdEx].MarshalToSizedBuffer(dAtA[:i])
-				if err != nil {
-					return 0, err
-				}
-				i -= size
-				i = encodeVarintEvents(dAtA, i, uint64(size))
-			}
-			i--
-			dAtA[i] = 0x2a
-		}
-	}
 	if m.Terminal {
 		i--
 		if m.Terminal {
@@ -4216,30 +4760,6 @@ func (m *Error) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		} else {
 			dAtA[i] = 0
 		}
-		i--
-		dAtA[i] = 0x20
-	}
-	if m.ObjectMeta != nil {
-		{
-			size, err := m.ObjectMeta.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintEvents(dAtA, i, uint64(size))
-		}
-		i--
-		dAtA[i] = 0x1a
-	}
-	if len(m.Message) > 0 {
-		i -= len(m.Message)
-		copy(dAtA[i:], m.Message)
-		i = encodeVarintEvents(dAtA, i, uint64(len(m.Message)))
-		i--
-		dAtA[i] = 0x12
-	}
-	if m.Code != 0 {
-		i = encodeVarintEvents(dAtA, i, uint64(m.Code))
 		i--
 		dAtA[i] = 0x8
 	}
@@ -4263,7 +4783,7 @@ func (m *Error_KubernetesError) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 			i = encodeVarintEvents(dAtA, i, uint64(size))
 		}
 		i--
-		dAtA[i] = 0x32
+		dAtA[i] = 0x12
 	}
 	return len(dAtA) - i, nil
 }
@@ -4284,7 +4804,7 @@ func (m *Error_ContainerError) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 			i = encodeVarintEvents(dAtA, i, uint64(size))
 		}
 		i--
-		dAtA[i] = 0x3a
+		dAtA[i] = 0x1a
 	}
 	return len(dAtA) - i, nil
 }
@@ -4305,20 +4825,20 @@ func (m *Error_ExecutorError) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 			i = encodeVarintEvents(dAtA, i, uint64(size))
 		}
 		i--
-		dAtA[i] = 0x42
+		dAtA[i] = 0x22
 	}
 	return len(dAtA) - i, nil
 }
-func (m *Error_JobUnschedulable) MarshalTo(dAtA []byte) (int, error) {
+func (m *Error_PodUnschedulable) MarshalTo(dAtA []byte) (int, error) {
 	size := m.Size()
 	return m.MarshalToSizedBuffer(dAtA[:size])
 }
 
-func (m *Error_JobUnschedulable) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+func (m *Error_PodUnschedulable) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	i := len(dAtA)
-	if m.JobUnschedulable != nil {
+	if m.PodUnschedulable != nil {
 		{
-			size, err := m.JobUnschedulable.MarshalToSizedBuffer(dAtA[:i])
+			size, err := m.PodUnschedulable.MarshalToSizedBuffer(dAtA[:i])
 			if err != nil {
 				return 0, err
 			}
@@ -4326,7 +4846,7 @@ func (m *Error_JobUnschedulable) MarshalToSizedBuffer(dAtA []byte) (int, error) 
 			i = encodeVarintEvents(dAtA, i, uint64(size))
 		}
 		i--
-		dAtA[i] = 0x4a
+		dAtA[i] = 0x2a
 	}
 	return len(dAtA) - i, nil
 }
@@ -4347,7 +4867,7 @@ func (m *Error_LeaseExpired) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 			i = encodeVarintEvents(dAtA, i, uint64(size))
 		}
 		i--
-		dAtA[i] = 0x52
+		dAtA[i] = 0x32
 	}
 	return len(dAtA) - i, nil
 }
@@ -4368,7 +4888,7 @@ func (m *Error_MaxRunsExceeded) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 			i = encodeVarintEvents(dAtA, i, uint64(size))
 		}
 		i--
-		dAtA[i] = 0x5a
+		dAtA[i] = 0x3a
 	}
 	return len(dAtA) - i, nil
 }
@@ -4389,7 +4909,7 @@ func (m *Error_PodError) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 			i = encodeVarintEvents(dAtA, i, uint64(size))
 		}
 		i--
-		dAtA[i] = 0x62
+		dAtA[i] = 0x42
 	}
 	return len(dAtA) - i, nil
 }
@@ -4466,8 +4986,20 @@ func (m *PodError) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 				i = encodeVarintEvents(dAtA, i, uint64(size))
 			}
 			i--
-			dAtA[i] = 0x1a
+			dAtA[i] = 0x2a
 		}
+	}
+	if m.PodNumber != 0 {
+		i = encodeVarintEvents(dAtA, i, uint64(m.PodNumber))
+		i--
+		dAtA[i] = 0x20
+	}
+	if len(m.NodeName) > 0 {
+		i -= len(m.NodeName)
+		copy(dAtA[i:], m.NodeName)
+		i = encodeVarintEvents(dAtA, i, uint64(len(m.NodeName)))
+		i--
+		dAtA[i] = 0x1a
 	}
 	if len(m.Message) > 0 {
 		i -= len(m.Message)
@@ -4511,6 +5043,22 @@ func (m *ContainerError) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	_ = i
 	var l int
 	_ = l
+	if m.KubernetesReason != nil {
+		{
+			size := m.KubernetesReason.Size()
+			i -= size
+			if _, err := m.KubernetesReason.MarshalTo(dAtA[i:]); err != nil {
+				return 0, err
+			}
+		}
+	}
+	if len(m.Reason) > 0 {
+		i -= len(m.Reason)
+		copy(dAtA[i:], m.Reason)
+		i = encodeVarintEvents(dAtA, i, uint64(len(m.Reason)))
+		i--
+		dAtA[i] = 0x22
+	}
 	if len(m.Message) > 0 {
 		i -= len(m.Message)
 		copy(dAtA[i:], m.Message)
@@ -4538,6 +5086,182 @@ func (m *ContainerError) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	return len(dAtA) - i, nil
 }
 
+func (m *ContainerError_OutOfMemory_) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ContainerError_OutOfMemory_) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.OutOfMemory != nil {
+		{
+			size, err := m.OutOfMemory.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintEvents(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x2a
+	}
+	return len(dAtA) - i, nil
+}
+func (m *ContainerError_Error) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ContainerError_Error) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.Error != nil {
+		{
+			size, err := m.Error.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintEvents(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x32
+	}
+	return len(dAtA) - i, nil
+}
+func (m *ContainerError_Evicted_) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ContainerError_Evicted_) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.Evicted != nil {
+		{
+			size, err := m.Evicted.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintEvents(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x3a
+	}
+	return len(dAtA) - i, nil
+}
+func (m *ContainerError_DeadlineExceeded_) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ContainerError_DeadlineExceeded_) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.DeadlineExceeded != nil {
+		{
+			size, err := m.DeadlineExceeded.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintEvents(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x42
+	}
+	return len(dAtA) - i, nil
+}
+func (m *ContainerError_OutOfMemory) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *ContainerError_OutOfMemory) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ContainerError_OutOfMemory) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	return len(dAtA) - i, nil
+}
+
+func (m *ContainerError_ContainerError) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *ContainerError_ContainerError) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ContainerError_ContainerError) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	return len(dAtA) - i, nil
+}
+
+func (m *ContainerError_Evicted) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *ContainerError_Evicted) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ContainerError_Evicted) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	return len(dAtA) - i, nil
+}
+
+func (m *ContainerError_DeadlineExceeded) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *ContainerError_DeadlineExceeded) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ContainerError_DeadlineExceeded) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	return len(dAtA) - i, nil
+}
+
 func (m *ExecutorError) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
@@ -4561,7 +5285,7 @@ func (m *ExecutorError) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	return len(dAtA) - i, nil
 }
 
-func (m *JobUnschedulable) Marshal() (dAtA []byte, err error) {
+func (m *PodUnschedulable) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
 	n, err := m.MarshalToSizedBuffer(dAtA[:size])
@@ -4571,20 +5295,44 @@ func (m *JobUnschedulable) Marshal() (dAtA []byte, err error) {
 	return dAtA[:n], nil
 }
 
-func (m *JobUnschedulable) MarshalTo(dAtA []byte) (int, error) {
+func (m *PodUnschedulable) MarshalTo(dAtA []byte) (int, error) {
 	size := m.Size()
 	return m.MarshalToSizedBuffer(dAtA[:size])
 }
 
-func (m *JobUnschedulable) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+func (m *PodUnschedulable) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
+	if m.PodNumber != 0 {
+		i = encodeVarintEvents(dAtA, i, uint64(m.PodNumber))
+		i--
+		dAtA[i] = 0x20
+	}
+	if len(m.NodeName) > 0 {
+		i -= len(m.NodeName)
+		copy(dAtA[i:], m.NodeName)
+		i = encodeVarintEvents(dAtA, i, uint64(len(m.NodeName)))
+		i--
+		dAtA[i] = 0x1a
+	}
 	if len(m.Message) > 0 {
 		i -= len(m.Message)
 		copy(dAtA[i:], m.Message)
 		i = encodeVarintEvents(dAtA, i, uint64(len(m.Message)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if m.ObjectMeta != nil {
+		{
+			size, err := m.ObjectMeta.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintEvents(dAtA, i, uint64(size))
+		}
 		i--
 		dAtA[i] = 0xa
 	}
@@ -4943,6 +5691,18 @@ func (m *EventSequence_Event_JobDuplicateDetected) Size() (n int) {
 	}
 	return n
 }
+func (m *EventSequence_Event_StandaloneIngressInfo) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.StandaloneIngressInfo != nil {
+		l = m.StandaloneIngressInfo.Size()
+		n += 2 + l + sovEvents(uint64(l))
+	}
+	return n
+}
 func (m *Uuid) Size() (n int) {
 	if m == nil {
 		return 0
@@ -5283,6 +6043,12 @@ func (m *JobRunAssigned) Size() (n int) {
 		l = m.JobId.Size()
 		n += 1 + l + sovEvents(uint64(l))
 	}
+	if len(m.ResourceInfos) > 0 {
+		for _, e := range m.ResourceInfos {
+			l = e.Size()
+			n += 1 + l + sovEvents(uint64(l))
+		}
+	}
 	return n
 }
 
@@ -5337,6 +6103,18 @@ func (m *KubernetesResourceInfo_PodInfo) Size() (n int) {
 	}
 	return n
 }
+func (m *KubernetesResourceInfo_IngressInfo) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.IngressInfo != nil {
+		l = m.IngressInfo.Size()
+		n += 1 + l + sovEvents(uint64(l))
+	}
+	return n
+}
 func (m *PodInfo) Size() (n int) {
 	if m == nil {
 		return 0
@@ -5370,6 +6148,50 @@ func (m *IngressInfo) Size() (n int) {
 			mapEntrySize := 1 + sovEvents(uint64(k)) + 1 + len(v) + sovEvents(uint64(len(v)))
 			n += mapEntrySize + 1 + sovEvents(uint64(mapEntrySize))
 		}
+	}
+	return n
+}
+
+func (m *StandaloneIngressInfo) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.RunId != nil {
+		l = m.RunId.Size()
+		n += 1 + l + sovEvents(uint64(l))
+	}
+	if m.JobId != nil {
+		l = m.JobId.Size()
+		n += 1 + l + sovEvents(uint64(l))
+	}
+	if m.ObjectMeta != nil {
+		l = m.ObjectMeta.Size()
+		n += 1 + l + sovEvents(uint64(l))
+	}
+	if len(m.IngressAddresses) > 0 {
+		for k, v := range m.IngressAddresses {
+			_ = k
+			_ = v
+			mapEntrySize := 1 + sovEvents(uint64(k)) + 1 + len(v) + sovEvents(uint64(len(v)))
+			n += mapEntrySize + 1 + sovEvents(uint64(mapEntrySize))
+		}
+	}
+	l = len(m.NodeName)
+	if l > 0 {
+		n += 1 + l + sovEvents(uint64(l))
+	}
+	if m.PodNumber != 0 {
+		n += 1 + sovEvents(uint64(m.PodNumber))
+	}
+	l = len(m.PodName)
+	if l > 0 {
+		n += 1 + l + sovEvents(uint64(l))
+	}
+	l = len(m.PodNamespace)
+	if l > 0 {
+		n += 1 + l + sovEvents(uint64(l))
 	}
 	return n
 }
@@ -5439,25 +6261,8 @@ func (m *Error) Size() (n int) {
 	}
 	var l int
 	_ = l
-	if m.Code != 0 {
-		n += 1 + sovEvents(uint64(m.Code))
-	}
-	l = len(m.Message)
-	if l > 0 {
-		n += 1 + l + sovEvents(uint64(l))
-	}
-	if m.ObjectMeta != nil {
-		l = m.ObjectMeta.Size()
-		n += 1 + l + sovEvents(uint64(l))
-	}
 	if m.Terminal {
 		n += 2
-	}
-	if len(m.ChildErrors) > 0 {
-		for _, e := range m.ChildErrors {
-			l = e.Size()
-			n += 1 + l + sovEvents(uint64(l))
-		}
 	}
 	if m.Reason != nil {
 		n += m.Reason.Size()
@@ -5501,14 +6306,14 @@ func (m *Error_ExecutorError) Size() (n int) {
 	}
 	return n
 }
-func (m *Error_JobUnschedulable) Size() (n int) {
+func (m *Error_PodUnschedulable) Size() (n int) {
 	if m == nil {
 		return 0
 	}
 	var l int
 	_ = l
-	if m.JobUnschedulable != nil {
-		l = m.JobUnschedulable.Size()
+	if m.PodUnschedulable != nil {
+		l = m.PodUnschedulable.Size()
 		n += 1 + l + sovEvents(uint64(l))
 	}
 	return n
@@ -5580,6 +6385,13 @@ func (m *PodError) Size() (n int) {
 	if l > 0 {
 		n += 1 + l + sovEvents(uint64(l))
 	}
+	l = len(m.NodeName)
+	if l > 0 {
+		n += 1 + l + sovEvents(uint64(l))
+	}
+	if m.PodNumber != 0 {
+		n += 1 + sovEvents(uint64(m.PodNumber))
+	}
 	if len(m.ContainerErrors) > 0 {
 		for _, e := range m.ContainerErrors {
 			l = e.Size()
@@ -5606,6 +6418,97 @@ func (m *ContainerError) Size() (n int) {
 	if l > 0 {
 		n += 1 + l + sovEvents(uint64(l))
 	}
+	l = len(m.Reason)
+	if l > 0 {
+		n += 1 + l + sovEvents(uint64(l))
+	}
+	if m.KubernetesReason != nil {
+		n += m.KubernetesReason.Size()
+	}
+	return n
+}
+
+func (m *ContainerError_OutOfMemory_) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.OutOfMemory != nil {
+		l = m.OutOfMemory.Size()
+		n += 1 + l + sovEvents(uint64(l))
+	}
+	return n
+}
+func (m *ContainerError_Error) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Error != nil {
+		l = m.Error.Size()
+		n += 1 + l + sovEvents(uint64(l))
+	}
+	return n
+}
+func (m *ContainerError_Evicted_) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Evicted != nil {
+		l = m.Evicted.Size()
+		n += 1 + l + sovEvents(uint64(l))
+	}
+	return n
+}
+func (m *ContainerError_DeadlineExceeded_) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.DeadlineExceeded != nil {
+		l = m.DeadlineExceeded.Size()
+		n += 1 + l + sovEvents(uint64(l))
+	}
+	return n
+}
+func (m *ContainerError_OutOfMemory) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	return n
+}
+
+func (m *ContainerError_ContainerError) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	return n
+}
+
+func (m *ContainerError_Evicted) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	return n
+}
+
+func (m *ContainerError_DeadlineExceeded) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
 	return n
 }
 
@@ -5618,15 +6521,26 @@ func (m *ExecutorError) Size() (n int) {
 	return n
 }
 
-func (m *JobUnschedulable) Size() (n int) {
+func (m *PodUnschedulable) Size() (n int) {
 	if m == nil {
 		return 0
 	}
 	var l int
 	_ = l
+	if m.ObjectMeta != nil {
+		l = m.ObjectMeta.Size()
+		n += 1 + l + sovEvents(uint64(l))
+	}
 	l = len(m.Message)
 	if l > 0 {
 		n += 1 + l + sovEvents(uint64(l))
+	}
+	l = len(m.NodeName)
+	if l > 0 {
+		n += 1 + l + sovEvents(uint64(l))
+	}
+	if m.PodNumber != 0 {
+		n += 1 + sovEvents(uint64(m.PodNumber))
 	}
 	return n
 }
@@ -6446,6 +7360,41 @@ func (m *EventSequence_Event) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			m.Event = &EventSequence_Event_JobDuplicateDetected{v}
+			iNdEx = postIndex
+		case 16:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field StandaloneIngressInfo", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &StandaloneIngressInfo{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Event = &EventSequence_Event_StandaloneIngressInfo{v}
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
@@ -8599,6 +9548,40 @@ func (m *JobRunAssigned) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ResourceInfos", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.ResourceInfos = append(m.ResourceInfos, &KubernetesResourceInfo{})
+			if err := m.ResourceInfos[len(m.ResourceInfos)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipEvents(dAtA[iNdEx:])
@@ -8875,6 +9858,41 @@ func (m *KubernetesResourceInfo) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			m.Info = &KubernetesResourceInfo_PodInfo{v}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field IngressInfo", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &IngressInfo{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Info = &KubernetesResourceInfo_IngressInfo{v}
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
@@ -9171,6 +10189,392 @@ func (m *IngressInfo) Unmarshal(dAtA []byte) error {
 				}
 			}
 			m.IngressAddresses[mapkey] = mapvalue
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipEvents(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *StandaloneIngressInfo) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowEvents
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: StandaloneIngressInfo: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: StandaloneIngressInfo: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field RunId", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.RunId == nil {
+				m.RunId = &Uuid{}
+			}
+			if err := m.RunId.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field JobId", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.JobId == nil {
+				m.JobId = &Uuid{}
+			}
+			if err := m.JobId.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ObjectMeta", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.ObjectMeta == nil {
+				m.ObjectMeta = &ObjectMeta{}
+			}
+			if err := m.ObjectMeta.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field IngressAddresses", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.IngressAddresses == nil {
+				m.IngressAddresses = make(map[int32]string)
+			}
+			var mapkey int32
+			var mapvalue string
+			for iNdEx < postIndex {
+				entryPreIndex := iNdEx
+				var wire uint64
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return ErrIntOverflowEvents
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					wire |= uint64(b&0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				fieldNum := int32(wire >> 3)
+				if fieldNum == 1 {
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return ErrIntOverflowEvents
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						mapkey |= int32(b&0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+				} else if fieldNum == 2 {
+					var stringLenmapvalue uint64
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return ErrIntOverflowEvents
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						stringLenmapvalue |= uint64(b&0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					intStringLenmapvalue := int(stringLenmapvalue)
+					if intStringLenmapvalue < 0 {
+						return ErrInvalidLengthEvents
+					}
+					postStringIndexmapvalue := iNdEx + intStringLenmapvalue
+					if postStringIndexmapvalue < 0 {
+						return ErrInvalidLengthEvents
+					}
+					if postStringIndexmapvalue > l {
+						return io.ErrUnexpectedEOF
+					}
+					mapvalue = string(dAtA[iNdEx:postStringIndexmapvalue])
+					iNdEx = postStringIndexmapvalue
+				} else {
+					iNdEx = entryPreIndex
+					skippy, err := skipEvents(dAtA[iNdEx:])
+					if err != nil {
+						return err
+					}
+					if (skippy < 0) || (iNdEx+skippy) < 0 {
+						return ErrInvalidLengthEvents
+					}
+					if (iNdEx + skippy) > postIndex {
+						return io.ErrUnexpectedEOF
+					}
+					iNdEx += skippy
+				}
+			}
+			m.IngressAddresses[mapkey] = mapvalue
+			iNdEx = postIndex
+		case 5:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field NodeName", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.NodeName = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 6:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PodNumber", wireType)
+			}
+			m.PodNumber = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.PodNumber |= int32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 7:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PodName", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.PodName = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 8:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PodNamespace", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.PodNamespace = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
@@ -9622,93 +11026,6 @@ func (m *Error) Unmarshal(dAtA []byte) error {
 		switch fieldNum {
 		case 1:
 			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Code", wireType)
-			}
-			m.Code = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowEvents
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.Code |= int32(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		case 2:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Message", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowEvents
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthEvents
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLengthEvents
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Message = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 3:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field ObjectMeta", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowEvents
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthEvents
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthEvents
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if m.ObjectMeta == nil {
-				m.ObjectMeta = &ObjectMeta{}
-			}
-			if err := m.ObjectMeta.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		case 4:
-			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Terminal", wireType)
 			}
 			var v int
@@ -9727,41 +11044,7 @@ func (m *Error) Unmarshal(dAtA []byte) error {
 				}
 			}
 			m.Terminal = bool(v != 0)
-		case 5:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field ChildErrors", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowEvents
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthEvents
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthEvents
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.ChildErrors = append(m.ChildErrors, &Error{})
-			if err := m.ChildErrors[len(m.ChildErrors)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		case 6:
+		case 2:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field KubernetesError", wireType)
 			}
@@ -9796,7 +11079,7 @@ func (m *Error) Unmarshal(dAtA []byte) error {
 			}
 			m.Reason = &Error_KubernetesError{v}
 			iNdEx = postIndex
-		case 7:
+		case 3:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field ContainerError", wireType)
 			}
@@ -9831,7 +11114,7 @@ func (m *Error) Unmarshal(dAtA []byte) error {
 			}
 			m.Reason = &Error_ContainerError{v}
 			iNdEx = postIndex
-		case 8:
+		case 4:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field ExecutorError", wireType)
 			}
@@ -9866,9 +11149,9 @@ func (m *Error) Unmarshal(dAtA []byte) error {
 			}
 			m.Reason = &Error_ExecutorError{v}
 			iNdEx = postIndex
-		case 9:
+		case 5:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field JobUnschedulable", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field PodUnschedulable", wireType)
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
@@ -9895,13 +11178,13 @@ func (m *Error) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			v := &JobUnschedulable{}
+			v := &PodUnschedulable{}
 			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
-			m.Reason = &Error_JobUnschedulable{v}
+			m.Reason = &Error_PodUnschedulable{v}
 			iNdEx = postIndex
-		case 10:
+		case 6:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field LeaseExpired", wireType)
 			}
@@ -9936,7 +11219,7 @@ func (m *Error) Unmarshal(dAtA []byte) error {
 			}
 			m.Reason = &Error_LeaseExpired{v}
 			iNdEx = postIndex
-		case 11:
+		case 7:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field MaxRunsExceeded", wireType)
 			}
@@ -9971,7 +11254,7 @@ func (m *Error) Unmarshal(dAtA []byte) error {
 			}
 			m.Reason = &Error_MaxRunsExceeded{v}
 			iNdEx = postIndex
-		case 12:
+		case 8:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field PodError", wireType)
 			}
@@ -10244,6 +11527,57 @@ func (m *PodError) Unmarshal(dAtA []byte) error {
 			iNdEx = postIndex
 		case 3:
 			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field NodeName", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.NodeName = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 4:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PodNumber", wireType)
+			}
+			m.PodNumber = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.PodNumber |= int32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 5:
+			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field ContainerErrors", wireType)
 			}
 			var msglen int
@@ -10413,6 +11747,378 @@ func (m *ContainerError) Unmarshal(dAtA []byte) error {
 			}
 			m.Message = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Reason", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Reason = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 5:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field OutOfMemory", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &ContainerError_OutOfMemory{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.KubernetesReason = &ContainerError_OutOfMemory_{v}
+			iNdEx = postIndex
+		case 6:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Error", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &Error{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.KubernetesReason = &ContainerError_Error{v}
+			iNdEx = postIndex
+		case 7:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Evicted", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &ContainerError_Evicted{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.KubernetesReason = &ContainerError_Evicted_{v}
+			iNdEx = postIndex
+		case 8:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DeadlineExceeded", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &ContainerError_DeadlineExceeded{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.KubernetesReason = &ContainerError_DeadlineExceeded_{v}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipEvents(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *ContainerError_OutOfMemory) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowEvents
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: OutOfMemory: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: OutOfMemory: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		default:
+			iNdEx = preIndex
+			skippy, err := skipEvents(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *ContainerError_ContainerError) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowEvents
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: ContainerError: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: ContainerError: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		default:
+			iNdEx = preIndex
+			skippy, err := skipEvents(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *ContainerError_Evicted) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowEvents
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: Evicted: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: Evicted: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		default:
+			iNdEx = preIndex
+			skippy, err := skipEvents(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *ContainerError_DeadlineExceeded) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowEvents
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: DeadlineExceeded: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: DeadlineExceeded: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
 		default:
 			iNdEx = preIndex
 			skippy, err := skipEvents(dAtA[iNdEx:])
@@ -10484,7 +12190,7 @@ func (m *ExecutorError) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *JobUnschedulable) Unmarshal(dAtA []byte) error {
+func (m *PodUnschedulable) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -10507,13 +12213,49 @@ func (m *JobUnschedulable) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: JobUnschedulable: wiretype end group for non-group")
+			return fmt.Errorf("proto: PodUnschedulable: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: JobUnschedulable: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: PodUnschedulable: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ObjectMeta", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.ObjectMeta == nil {
+				m.ObjectMeta = &ObjectMeta{}
+			}
+			if err := m.ObjectMeta.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 2:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Message", wireType)
 			}
@@ -10545,6 +12287,57 @@ func (m *JobUnschedulable) Unmarshal(dAtA []byte) error {
 			}
 			m.Message = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field NodeName", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthEvents
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthEvents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.NodeName = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 4:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PodNumber", wireType)
+			}
+			m.PodNumber = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowEvents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.PodNumber |= int32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
 		default:
 			iNdEx = preIndex
 			skippy, err := skipEvents(dAtA[iNdEx:])

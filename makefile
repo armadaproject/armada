@@ -211,9 +211,9 @@ rebuild-server:
 .ONESHELL:
 tests-e2e-teardown:
 	echo -e "\nexecutor logs:"
-	docker logs executor
+	docker logs executor || true
 	echo -e "\nserver logs:"
-	docker logs server
+	docker logs server || true
 	docker rm -f nats redis pulsar server executor postgres || true
 	kind delete cluster --name armada-test || true
 	rm .kube/config || true
@@ -323,8 +323,8 @@ download:
 
 code-reports:
 	mkdir -p code_reports
-	$(GO_CMD) goimports -d -local "github.com/G-Research/armada" . | tee code_reports/goimports.txt
-	$(GO_CMD) ineffassign ./... | tee code_reports/ineffassign.txt
+	$(GO_TEST_CMD) goimports -d -local "github.com/G-Research/armada" . | tee code_reports/goimports.txt
+	$(GO_TEST_CMD) ineffassign ./... | tee code_reports/ineffassign.txt
 
 code-checks: code-reports
 	sync # make sure everything has been synced to disc

@@ -375,7 +375,7 @@ func handleJobRunErrors(ts time.Time, event *armadaevents.JobRunErrors, update *
 					})
 				}
 			}
-			if e.GetJobUnschedulable() != nil {
+			if e.GetPodUnschedulable() != nil {
 				jobRun.UnableToSchedule = pointer.Bool(true)
 			}
 		}
