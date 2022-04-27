@@ -45,6 +45,16 @@ spec:
               mountPath: /config/application_config.yaml
               subPath: {{ include "lookout_ingester.config.filename" . }}
               readOnly: true
+            {{- if .Values.applicationConfig.pulsar.authenticationEnabled }}
+            - name: pulsar-token
+              mountPath: "/pulsar/tokens"
+              readOnly: true
+            {{- end }}
+            {{- if .Values.applicationConfig.pulsar.tlsEnabled }}
+            - name: pulsar-ca
+              mountPath: "/pulsar/ca"
+              readOnly: true
+            {{- end }}
             {{- if .Values.additionalVolumeMounts }}
             {{- toYaml .Values.additionalVolumeMounts | nindent 12 -}}
             {{- end }}
