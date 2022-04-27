@@ -10,4 +10,4 @@ COPY ./config/lookoutingester/ /app/config/lookoutingester
 
 WORKDIR /app
 
-ENTRYPOINT ["./lookout"]
+ENTRYPOINT ["./lookoutingester"]

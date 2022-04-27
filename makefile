@@ -129,7 +129,11 @@ build-binoculars:
 build-load-tester:
 	$(GO_CMD) $(gobuild) -o ./bin/armada-load-tester cmd/armada-load-tester/main.go
 
-build: build-server build-executor build-fakeexecutor build-armadactl build-load-tester build-binoculars
+
+build-lookout-ingester:
+	$(GO_CMD) $(gobuild) -o ./bin/armada-load-tester cmd/armada-load-tester/main.go
+
+build: build-server build-executor build-fakeexecutor build-armadactl build-load-tester build-binoculars build-lookout-ingester
 
 build-docker-server:
 	$(GO_CMD) $(gobuildlinux) -o ./bin/linux/server cmd/armada/main.go
@@ -151,6 +155,11 @@ build-docker-fakeexecutor:
 	$(GO_CMD) $(gobuildlinux) -o ./bin/linux/fakeexecutor cmd/fakeexecutor/main.go
 	docker build $(dockerFlags) -t armada-fakeexecutor -f ./build/fakeexecutor/Dockerfile .
 
+
+build-docker-lookout-ingester:
+	$(GO_CMD) $(gobuildlinux) -o ./bin/linux/lookoutingester cmd/lookoutingester/main.go
+	docker build $(dockerFlags) -t armada-lookout-ingester -f ./build/lookoutingester/Dockerfile .
+
 build-docker-lookout:
 	$(NODE_CMD) npm ci
 	# The following line is equivalent to running "npm run openapi".
@@ -165,7 +174,7 @@ build-docker-binoculars:
 	$(GO_CMD) $(gobuildlinux) -o ./bin/linux/binoculars cmd/binoculars/main.go
 	docker build $(dockerFlags) -t armada-binoculars -f ./build/binoculars/Dockerfile .
 
-build-docker: build-docker-server build-docker-executor build-docker-armadactl build-docker-armada-load-tester build-docker-fakeexecutor build-docker-lookout build-docker-binoculars
+build-docker: build-docker-server build-docker-executor build-docker-armadactl build-docker-armada-load-tester build-docker-fakeexecutor build-docker-lookout build-docker-lookout-ingester build-docker-binoculars
 
 # Build target without lookout (to avoid needing to load npm packages from the Internet).
 build-docker-no-lookout: build-docker-server build-docker-executor build-docker-armadactl build-docker-armada-load-tester build-docker-fakeexecutor build-docker-binoculars
@@ -202,9 +211,9 @@ rebuild-server:
 .ONESHELL:
 tests-e2e-teardown:
 	echo -e "\nexecutor logs:"
-	docker logs executor
+	docker logs executor || true
 	echo -e "\nserver logs:"
-	docker logs server
+	docker logs server || true
 	docker rm -f nats redis pulsar server executor postgres || true
 	kind delete cluster --name armada-test || true
 	rm .kube/config || true
@@ -314,8 +323,8 @@ download:
 
 code-reports:
 	mkdir -p code_reports
-	$(GO_CMD) goimports -d -local "github.com/G-Research/armada" . | tee code_reports/goimports.txt
-	$(GO_CMD) ineffassign ./... | tee code_reports/ineffassign.txt
+	$(GO_TEST_CMD) goimports -d -local "github.com/G-Research/armada" . | tee code_reports/goimports.txt
+	$(GO_TEST_CMD) ineffassign ./... | tee code_reports/ineffassign.txt
 
 code-checks: code-reports
 	sync # make sure everything has been synced to disc

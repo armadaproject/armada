@@ -34,6 +34,8 @@ func JobIdFromEvent(event *EventSequence_Event) (*Uuid, error) {
 		return e.JobRunErrors.JobId, nil
 	case *EventSequence_Event_JobDuplicateDetected:
 		return e.JobDuplicateDetected.NewJobId, nil
+	case *EventSequence_Event_StandaloneIngressInfo:
+		return e.StandaloneIngressInfo.JobId, nil
 	default:
 		err := errors.WithStack(&armadaerrors.ErrInvalidArgument{
 			Name:    "event.Event",

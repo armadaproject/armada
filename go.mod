@@ -41,7 +41,7 @@ require (
 	github.com/jackc/pgx/v4 v4.15.0
 	github.com/jcmturner/gokrb5/v8 v8.4.2-0.20201112171129-78f56934d598
 	github.com/jstemmer/go-junit-report v0.9.1
-	github.com/lib/pq v1.10.4
+	github.com/lib/pq v1.10.4 // indirect
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/mitchellh/gox v0.4.0
 	github.com/mitchellh/mapstructure v1.4.3

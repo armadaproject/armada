@@ -42,11 +42,12 @@ type LookoutConfiguration struct {
 
 	UIConfig LookoutUIConfig
 
-	EventQueue   string
-	Nats         NatsConfig
-	Jetstream    configuration.JetstreamConfig
-	Postgres     PostgresConfig
-	PrunerConfig PrunerConfig
+	EventQueue             string
+	Nats                   NatsConfig
+	Jetstream              configuration.JetstreamConfig
+	Postgres               PostgresConfig
+	PrunerConfig           PrunerConfig
+	DisableEventProcessing bool
 }
 
 type LookoutIngesterConfiguration struct {
