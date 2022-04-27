@@ -73,9 +73,9 @@ commands:
 
   update-charts:
     description: |
-      Update Armada charts in the common G-Research charts repo 
+      Update Armada charts in the common G-Research charts repo
     steps:
-    - run:      
+    - run:
         name: Update version, appVersion and image tag to match current $RELEASE_TAG
         command: |
           RELEASE_TAG=${CIRCLE_TAG}
@@ -106,10 +106,11 @@ commands:
           git push -q origin HEAD
 
 jobs:
-  code_style:
+  checks_and_unit_tests:
     machine:
-      docker_layer_caching: false
+      docker_layer_caching: true
       image: ubuntu-2004:202104-01
+      resource_class: xlarge
     environment:
       GO111MODULE: "on"
       GOPATH: "/home/circleci/go"
@@ -118,25 +119,27 @@ jobs:
     steps:
       - checkout
 
-      - run:
-          name: Check Go formatting
-          command: |
-            go install golang.org/x/tools/cmd/goimports@v0.1.1
-            if [ $? -ne 0 ]
-            then
-              echo "goimports installation failed" >&2
-              exit 1
-            fi
-            goimports -d -local "github.com/G-Research/armada" .
-            exit $(goimports -l -local "github.com/G-Research/armada" . | wc -l)
+      - restore_cache: # restores saved cache if no changes are detected since last run
+          keys:
+            - go-mod-v3-{{ checksum "go.sum" }}
 
       - run:
-          name: ineffassign
-          command: |
-            cd /tmp
-            go get -u github.com/gordonklaus/ineffassign
-            cd ~/go/src/github.com/G-Research/armada
-            ineffassign ./...
+          name: Print GOPATH
+          command: echo '$(go env GOPATH)'
+
+      - run: # no-op if we restored from cache
+          name: Download dependencies
+          command: make download
+
+      - save_cache: # if we downloaded new dependencies, cache those
+          key: go-mod-v3-{{ checksum "go.sum" }}
+          paths:
+            - "/home/circleci/go/pkg/mod"
+            - "/home/circleci/go/bin"
+
+      - run:
+          name: Check Go formatting
+          command: make code-checks
 
       - run:
           name: Check TypeScript formatting
@@ -151,42 +154,28 @@ jobs:
           name: Check generated files
           command: |
             make proto
+            make dotnet
             git status -s -uno
             git --no-pager diff
             git status -s -uno
             exit $(git status -s -uno | wc -l)
 
-  test:
-    machine:
-      docker_layer_caching: false
-      image: ubuntu-2004:202104-01
-    environment:
-      GO111MODULE: "on"
-      GOPATH: "/home/circleci/go"
-      GOCACHE: "/home/circleci/go/cache"
-    working_directory: ~/go/src/github.com/G-Research/armada
-    steps:
-      - checkout
-      - restore_cache:
-          keys:
-            - machine-go-mod-v1-tests-{{ checksum "go.sum" }}
-
       - run:
-          name: Test
+          name: Tests
           command: make tests
 
-      - run: cat go.sum
+      - run:
+          name: Prepare reports
+          command: make junit-report
 
-      - save_cache:
-          key: machine-go-mod-v1-tests-{{ checksum "go.sum" }}
-          paths:
-            - "/home/circleci/go/pkg/mod"
-            - "/home/circleci/go/cache"
+      - store_test_results:
+          path: test_reports/junit.xml
 
-  build:
+  build_and_integration_tests:
     machine:
-      docker_layer_caching: false
+      docker_layer_caching: true
       image: ubuntu-2004:202104-01
+      resource_class: xlarge
     environment:
       GO111MODULE: "on"
       GOPATH: "/home/circleci/go"
@@ -194,26 +183,34 @@ jobs:
     working_directory: ~/go/src/github.com/G-Research/armada
     steps:
       - checkout
-      - run: e2e/setup/setup_environment.sh
-      - run:
-          name: Start cluster for e2e tests
-          command: ./e2e/setup/setup_cluster_ci.sh
 
-      - restore_cache:
+      - restore_cache: # restore dependencies
           keys:
-            - machine-go-mod-v1-{{ checksum "go.sum" }}
+            - go-mod-v3-{{ checksum "go.sum" }}
+
+      - run: # no-op if we restored from cache
+          name: Download dependencies
+          command: make download
 
       - run:
-          name: Build & Run e2e tests
-          command: make build-ci tests-e2e
+          name: Build
+          command: make build-ci
 
-      - run: cat go.sum
+      - run:
+          name: e2e test environment setup
+          command: make tests-e2e-setup
 
-      - save_cache:
-          key: machine-go-mod-v1-{{ checksum "go.sum" }}
-          paths:
-            - "/home/circleci/go/pkg/mod"
-            - "/home/circleci/go/cache"
+      - run:
+          name: Enable integration tests
+          command: echo 'export INTEGRATION_ENABLED="true"' >> $BASH_ENV          
+
+      - run:
+          name: e2e tests
+          command: make tests-e2e-no-setup
+
+      - run:
+          name: e2e test environment teardown
+          command: make tests-e2e-teardown
 
       - store_artifacts:
           path: bin/armadactl
@@ -274,6 +271,10 @@ jobs:
     steps:
       - checkout
       - setup_remote_docker
+
+      - restore_cache: # restore dependencies
+          keys:
+            - go-mod-v3-{{ checksum "go.sum" }}
 
       - run:
           name: Build armadactl release artifacts
@@ -346,9 +347,8 @@ workflows:
   version: 2
   build_and_deploy:
     jobs:
-      - code_style
-      - test
-      - build
+      -  build_and_integration_tests
+      -  checks_and_unit_tests
       - release:
           filters:
             tags:
@@ -361,4 +361,3 @@ workflows:
               only: /.*/
             branches:
               ignore: /.*/
-

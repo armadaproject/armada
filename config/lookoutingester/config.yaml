@@ -1,0 +1,25 @@
+postgres:
+  maxOpenConns: 100
+  maxIdleConns: 25
+  connMaxLifetime: 30m
+  connection:
+    host: localhost
+    port: 5432
+    user: postgres
+    password: psw
+    dbname: postgres
+    sslmode: disable
+
+
+pulsar:
+  enabled: true
+  URL: "pulsar://localhost:6650"
+  jobsetEventsTopic: "jobset-events"
+
+paralellism: 1
+subscriptionName: "lookout-ingester"
+batchSize: 10000
+batchDuration: 500ms
+pulsarReceiveTimeout: 5s
+pulsarBackoffTime: 1s
+MinJobSpecCompressionSize: 1024

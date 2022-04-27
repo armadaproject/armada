@@ -204,8 +204,13 @@ func TestSubmitServer_SubmitJob(t *testing.T) {
 
 		response, err := s.SubmitJobs(context.Background(), jobRequest)
 
-		assert.Empty(t, err)
-		assert.NotNil(t, response.JobResponseItems[0].JobId)
+		if ok := assert.NoError(t, err); !ok {
+			t.FailNow()
+		}
+		if ok := assert.NotEmpty(t, response.JobResponseItems); !ok {
+			t.FailNow()
+		}
+		assert.NotEmpty(t, response.JobResponseItems[0].JobId)
 	})
 }
 
@@ -247,9 +252,9 @@ func TestSubmitServer_SubmitJob_ApplyDefaults(t *testing.T) {
 			},
 		}
 
-		assert.Equal(t, expectedResources, retrievedJob[0].PodSpecs[0].Containers[0].Resources.Requests)
-		assert.Equal(t, expectedResources, retrievedJob[0].PodSpecs[0].Containers[0].Resources.Limits)
-		assert.Equal(t, expectedTolerations, retrievedJob[0].PodSpecs[0].Tolerations)
+		assert.Equal(t, expectedResources, retrievedJob[0].PodSpec.Containers[0].Resources.Requests)
+		assert.Equal(t, expectedResources, retrievedJob[0].PodSpec.Containers[0].Resources.Limits)
+		assert.Equal(t, expectedTolerations, retrievedJob[0].PodSpec.Tolerations)
 	})
 }
 

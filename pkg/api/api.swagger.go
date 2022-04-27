@@ -529,6 +529,7 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"ingress\": {\n" +
+		"          \"description\": \"Services can be provided either as Armada-specific config objects or as proper k8s objects.\\nThese options are exclusive, i.e., if either ingress or services is provided,\\nthen neither of k8s_ingress or k8s_service can be provided, and vice versa.\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/apiIngressConfig\"\n" +
@@ -536,6 +537,19 @@ func SwaggerJsonTemplate() string {
 		"        },\n" +
 		"        \"jobSetId\": {\n" +
 		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"k8sIngress\": {\n" +
+		"          \"description\": \"repeated github.com.G-Research.armada.internal.events.KubernetesObject objects = 17;\\ngithub.com.G-Research.armada.internal.events.\",\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/v1beta1Ingress\"\n" +
+		"          }\n" +
+		"        },\n" +
+		"        \"k8sService\": {\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/v1Service\"\n" +
+		"          }\n" +
 		"        },\n" +
 		"        \"labels\": {\n" +
 		"          \"type\": \"object\",\n" +
@@ -1747,6 +1761,17 @@ func SwaggerJsonTemplate() string {
 		"      },\n" +
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
+		"    \"v1ClientIPConfig\": {\n" +
+		"      \"description\": \"ClientIPConfig represents the configurations of Client IP based session affinity.\",\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"timeoutSeconds\": {\n" +
+		"          \"type\": \"integer\",\n" +
+		"          \"format\": \"int32\",\n" +
+		"          \"title\": \"timeoutSeconds specifies the seconds of ClientIP type session sticky time.\\nThe value must be \\u003e0 \\u0026\\u0026 \\u003c=86400(for 1 day) if ServiceAffinity == \\\"ClientIP\\\".\\nDefault value is 10800(for 3 hours).\\n+optional\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
 		"    \"v1ConfigMapEnvSource\": {\n" +
 		"      \"description\": \"The contents of the target ConfigMap's Data field will represent the\\nkey-value pairs as environment variables.\",\n" +
 		"      \"type\": \"object\",\n" +
@@ -2718,6 +2743,33 @@ func SwaggerJsonTemplate() string {
 		"      },\n" +
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
+		"    \"v1LoadBalancerIngress\": {\n" +
+		"      \"description\": \"LoadBalancerIngress represents the status of a load-balancer ingress point:\\ntraffic intended for the service should be sent to an ingress point.\",\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"hostname\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"title\": \"Hostname is set for load-balancer ingress points that are DNS based\\n(typically AWS load-balancers)\\n+optional\"\n" +
+		"        },\n" +
+		"        \"ip\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"title\": \"IP is set for load-balancer ingress points that are IP based\\n(typically GCE or OpenStack load-balancers)\\n+optional\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"v1LoadBalancerStatus\": {\n" +
+		"      \"description\": \"LoadBalancerStatus represents the status of a load-balancer.\",\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"ingress\": {\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"title\": \"Ingress is a list containing ingress points for the load-balancer.\\nTraffic intended for the service should be sent to these ingress points.\\n+optional\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/v1LoadBalancerIngress\"\n" +
+		"          }\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
 		"    \"v1LocalObjectReference\": {\n" +
 		"      \"description\": \"LocalObjectReference contains enough information to let you locate the\\nreferenced object inside the same namespace.\\n+structType=atomic\",\n" +
 		"      \"type\": \"object\",\n" +
@@ -2900,6 +2952,104 @@ func SwaggerJsonTemplate() string {
 		"        }\n" +
 		"      },\n" +
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
+		"    },\n" +
+		"    \"v1ObjectMeta\": {\n" +
+		"      \"description\": \"ObjectMeta is metadata that all persisted resources must have, which includes all objects\\nusers must create.\",\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"annotations\": {\n" +
+		"          \"description\": \"Annotations is an unstructured key value map stored with a resource that may be\\nset by external tools to store and retrieve arbitrary metadata. They are not\\nqueryable and should be preserved when modifying objects.\\nMore info: http://kubernetes.io/docs/user-guide/annotations\\n+optional\",\n" +
+		"          \"type\": \"object\",\n" +
+		"          \"additionalProperties\": {\n" +
+		"            \"type\": \"string\"\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"Annotations\"\n" +
+		"        },\n" +
+		"        \"clusterName\": {\n" +
+		"          \"description\": \"The name of the cluster which the object belongs to.\\nThis is used to distinguish resources with same name and namespace in different clusters.\\nThis field is not set anywhere right now and apiserver is going to ignore it if set in create or update request.\\n+optional\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"ClusterName\"\n" +
+		"        },\n" +
+		"        \"creationTimestamp\": {\n" +
+		"          \"$ref\": \"#/definitions/v1Time\"\n" +
+		"        },\n" +
+		"        \"deletionGracePeriodSeconds\": {\n" +
+		"          \"description\": \"Number of seconds allowed for this object to gracefully terminate before\\nit will be removed from the system. Only set when deletionTimestamp is also set.\\nMay only be shortened.\\nRead-only.\\n+optional\",\n" +
+		"          \"type\": \"integer\",\n" +
+		"          \"format\": \"int64\",\n" +
+		"          \"x-go-name\": \"DeletionGracePeriodSeconds\"\n" +
+		"        },\n" +
+		"        \"deletionTimestamp\": {\n" +
+		"          \"$ref\": \"#/definitions/v1Time\"\n" +
+		"        },\n" +
+		"        \"finalizers\": {\n" +
+		"          \"description\": \"Must be empty before the object is deleted from the registry. Each entry\\nis an identifier for the responsible component that will remove the entry\\nfrom the list. If the deletionTimestamp of the object is non-nil, entries\\nin this list can only be removed.\\nFinalizers may be processed and removed in any order.  Order is NOT enforced\\nbecause it introduces significant risk of stuck finalizers.\\nfinalizers is a shared field, any actor with permission can reorder it.\\nIf the finalizer list is processed in order, then this can lead to a situation\\nin which the component responsible for the first finalizer in the list is\\nwaiting for a signal (field value, external system, or other) produced by a\\ncomponent responsible for a finalizer later in the list, resulting in a deadlock.\\nWithout enforced ordering finalizers are free to order amongst themselves and\\nare not vulnerable to ordering changes in the list.\\n+optional\\n+patchStrategy=merge\",\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"type\": \"string\"\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"Finalizers\"\n" +
+		"        },\n" +
+		"        \"generateName\": {\n" +
+		"          \"description\": \"GenerateName is an optional prefix, used by the server, to generate a unique\\nname ONLY IF the Name field has not been provided.\\nIf this field is used, the name returned to the client will be different\\nthan the name passed. This value will also be combined with a unique suffix.\\nThe provided value has the same validation rules as the Name field,\\nand may be truncated by the length of the suffix required to make the value\\nunique on the server.\\n\\nIf this field is specified and the generated name exists, the server will\\nNOT return a 409 - instead, it will either return 201 Created or 500 with Reason\\nServerTimeout indicating a unique name could not be found in the time allotted, and the client\\nshould retry (optionally after the time indicated in the Retry-After header).\\n\\nApplied only if Name is not specified.\\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#idempotency\\n+optional\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"GenerateName\"\n" +
+		"        },\n" +
+		"        \"generation\": {\n" +
+		"          \"description\": \"A sequence number representing a specific generation of the desired state.\\nPopulated by the system. Read-only.\\n+optional\",\n" +
+		"          \"type\": \"integer\",\n" +
+		"          \"format\": \"int64\",\n" +
+		"          \"x-go-name\": \"Generation\"\n" +
+		"        },\n" +
+		"        \"labels\": {\n" +
+		"          \"description\": \"Map of string keys and values that can be used to organize and categorize\\n(scope and select) objects. May match selectors of replication controllers\\nand services.\\nMore info: http://kubernetes.io/docs/user-guide/labels\\n+optional\",\n" +
+		"          \"type\": \"object\",\n" +
+		"          \"additionalProperties\": {\n" +
+		"            \"type\": \"string\"\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"Labels\"\n" +
+		"        },\n" +
+		"        \"managedFields\": {\n" +
+		"          \"description\": \"ManagedFields maps workflow-id and version to the set of fields\\nthat are managed by that workflow. This is mostly for internal\\nhousekeeping, and users typically shouldn't need to set or\\nunderstand this field. A workflow can be the user's name, a\\ncontroller's name, or the name of a specific apply path like\\n\\\"ci-cd\\\". The set of fields is always in the version that the\\nworkflow used when modifying the object.\\n\\n+optional\",\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/v1ManagedFieldsEntry\"\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"ManagedFields\"\n" +
+		"        },\n" +
+		"        \"name\": {\n" +
+		"          \"description\": \"Name must be unique within a namespace. Is required when creating resources, although\\nsome resources may allow a client to request the generation of an appropriate name\\nautomatically. Name is primarily intended for creation idempotence and configuration\\ndefinition.\\nCannot be updated.\\nMore info: http://kubernetes.io/docs/user-guide/identifiers#names\\n+optional\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"Name\"\n" +
+		"        },\n" +
+		"        \"namespace\": {\n" +
+		"          \"description\": \"Namespace defines the space within which each name must be unique. An empty namespace is\\nequivalent to the \\\"default\\\" namespace, but \\\"default\\\" is the canonical representation.\\nNot all objects are required to be scoped to a namespace - the value of this field for\\nthose objects will be empty.\\n\\nMust be a DNS_LABEL.\\nCannot be updated.\\nMore info: http://kubernetes.io/docs/user-guide/namespaces\\n+optional\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"Namespace\"\n" +
+		"        },\n" +
+		"        \"ownerReferences\": {\n" +
+		"          \"description\": \"List of objects depended by this object. If ALL objects in the list have\\nbeen deleted, this object will be garbage collected. If this object is managed by a controller,\\nthen an entry in this list will point to this controller, with the controller field set to true.\\nThere cannot be more than one managing controller.\\n+optional\\n+patchMergeKey=uid\\n+patchStrategy=merge\",\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/v1OwnerReference\"\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"OwnerReferences\"\n" +
+		"        },\n" +
+		"        \"resourceVersion\": {\n" +
+		"          \"description\": \"An opaque value that represents the internal version of this object that can\\nbe used by clients to determine when objects have changed. May be used for optimistic\\nconcurrency, change detection, and the watch operation on a resource or set of resources.\\nClients must treat these values as opaque and passed unmodified back to the server.\\nThey may only be valid for a particular resource or set of resources.\\n\\nPopulated by the system.\\nRead-only.\\nValue must be treated as opaque by clients and .\\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#concurrency-control-and-consistency\\n+optional\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"ResourceVersion\"\n" +
+		"        },\n" +
+		"        \"selfLink\": {\n" +
+		"          \"description\": \"SelfLink is a URL representing this object.\\nPopulated by the system.\\nRead-only.\\n\\nDEPRECATED\\nKubernetes will stop propagating this field in 1.20 release and the field is planned\\nto be removed in 1.21 release.\\n+optional\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"SelfLink\"\n" +
+		"        },\n" +
+		"        \"uid\": {\n" +
+		"          \"$ref\": \"#/definitions/typesUID\"\n" +
+		"        }\n" +
+		"      },\n" +
+		"      \"x-go-package\": \"k8s.io/apimachinery/pkg/apis/meta/v1\"\n" +
 		"    },\n" +
 		"    \"v1OwnerReference\": {\n" +
 		"      \"description\": \"OwnerReference contains enough information to let you identify an owning\\nobject. An owning object must be in the same namespace as the dependent, or\\nbe cluster-scoped, so there is no namespace field.\\n+structType=atomic\",\n" +
@@ -4043,6 +4193,24 @@ func SwaggerJsonTemplate() string {
 		"      },\n" +
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
+		"    \"v1Service\": {\n" +
+		"      \"description\": \"Service is a named abstraction of software service (for example, mysql) consisting of local port\\n(for example 3306) that the proxy listens on, and the selector that determines which pods\\nwill answer requests sent through the proxy.\",\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"metadata\": {\n" +
+		"          \"title\": \"Standard object's metadata.\\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata\\n+optional\",\n" +
+		"          \"$ref\": \"#/definitions/v1ObjectMeta\"\n" +
+		"        },\n" +
+		"        \"spec\": {\n" +
+		"          \"title\": \"Spec defines the behavior of a service.\\nhttps://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#spec-and-status\\n+optional\",\n" +
+		"          \"$ref\": \"#/definitions/v1ServiceSpec\"\n" +
+		"        },\n" +
+		"        \"status\": {\n" +
+		"          \"title\": \"Most recently observed status of the service.\\nPopulated by the system.\\nRead-only.\\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#spec-and-status\\n+optional\",\n" +
+		"          \"$ref\": \"#/definitions/v1ServiceStatus\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
 		"    \"v1ServiceAccountTokenProjection\": {\n" +
 		"      \"description\": \"ServiceAccountTokenProjection represents a projected service account token\\nvolume. This projection can be used to insert a service account token into\\nthe pods runtime filesystem for use against APIs (Kubernetes API Server or\\notherwise).\",\n" +
 		"      \"type\": \"object\",\n" +
@@ -4065,6 +4233,136 @@ func SwaggerJsonTemplate() string {
 		"        }\n" +
 		"      },\n" +
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
+		"    },\n" +
+		"    \"v1ServicePort\": {\n" +
+		"      \"description\": \"ServicePort contains information on service's port.\",\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"name\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"title\": \"The name of this port within the service. This must be a DNS_LABEL.\\nAll ports within a ServiceSpec must have unique names. When considering\\nthe endpoints for a Service, this must match the 'name' field in the\\nEndpointPort.\\nOptional if only one ServicePort is defined on this service.\\n+optional\"\n" +
+		"        },\n" +
+		"        \"nodePort\": {\n" +
+		"          \"type\": \"integer\",\n" +
+		"          \"format\": \"int32\",\n" +
+		"          \"title\": \"The port on each node on which this service is exposed when type=NodePort or LoadBalancer.\\nUsually assigned by the system. If specified, it will be allocated to the service\\nif unused or else creation of the service will fail.\\nDefault is to auto-allocate a port if the ServiceType of this Service requires one.\\nMore info: https://kubernetes.io/docs/concepts/services-networking/service/#type-nodeport\\n+optional\"\n" +
+		"        },\n" +
+		"        \"port\": {\n" +
+		"          \"description\": \"The port that will be exposed by this service.\",\n" +
+		"          \"type\": \"integer\",\n" +
+		"          \"format\": \"int32\"\n" +
+		"        },\n" +
+		"        \"protocol\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"title\": \"The IP protocol for this port. Supports \\\"TCP\\\", \\\"UDP\\\", and \\\"SCTP\\\".\\nDefault is TCP.\\n+optional\"\n" +
+		"        },\n" +
+		"        \"targetPort\": {\n" +
+		"          \"title\": \"Number or name of the port to access on the pods targeted by the service.\\nNumber must be in the range 1 to 65535. Name must be an IANA_SVC_NAME.\\nIf this is a string, it will be looked up as a named port in the\\ntarget Pod's container ports. If this is not specified, the value\\nof the 'port' field is used (an identity map).\\nThis field is ignored for services with clusterIP=None, and should be\\nomitted or set equal to the 'port' field.\\nMore info: https://kubernetes.io/docs/concepts/services-networking/service/#defining-a-service\\n+optional\",\n" +
+		"          \"$ref\": \"#/definitions/intstrIntOrString\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"v1ServiceSpec\": {\n" +
+		"      \"description\": \"ServiceSpec describes the attributes that a user creates on a service.\",\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"clusterIP\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"title\": \"clusterIP is the IP address of the service and is usually assigned\\nrandomly by the master. If an address is specified manually and is not in\\nuse by others, it will be allocated to the service; otherwise, creation\\nof the service will fail. This field can not be changed through updates.\\nValid values are \\\"None\\\", empty string (\\\"\\\"), or a valid IP address. \\\"None\\\"\\ncan be specified for headless services when proxying is not required.\\nOnly applies to types ClusterIP, NodePort, and LoadBalancer. Ignored if\\ntype is ExternalName.\\nMore info: https://kubernetes.io/docs/concepts/services-networking/service/#virtual-ips-and-service-proxies\\n+optional\"\n" +
+		"        },\n" +
+		"        \"externalIPs\": {\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"title\": \"externalIPs is a list of IP addresses for which nodes in the cluster\\nwill also accept traffic for this service.  These IPs are not managed by\\nKubernetes.  The user is responsible for ensuring that traffic arrives\\nat a node with this IP.  A common example is external load-balancers\\nthat are not part of the Kubernetes system.\\n+optional\",\n" +
+		"          \"items\": {\n" +
+		"            \"type\": \"string\"\n" +
+		"          }\n" +
+		"        },\n" +
+		"        \"externalName\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"title\": \"externalName is the external reference that kubedns or equivalent will\\nreturn as a CNAME record for this service. No proxying will be involved.\\nMust be a valid RFC-1123 hostname (https://tools.ietf.org/html/rfc1123)\\nand requires Type to be ExternalName.\\n+optional\"\n" +
+		"        },\n" +
+		"        \"externalTrafficPolicy\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"title\": \"externalTrafficPolicy denotes if this Service desires to route external\\ntraffic to node-local or cluster-wide endpoints. \\\"Local\\\" preserves the\\nclient source IP and avoids a second hop for LoadBalancer and Nodeport\\ntype services, but risks potentially imbalanced traffic spreading.\\n\\\"Cluster\\\" obscures the client source IP and may cause a second hop to\\nanother node, but should have good overall load-spreading.\\n+optional\"\n" +
+		"        },\n" +
+		"        \"healthCheckNodePort\": {\n" +
+		"          \"type\": \"integer\",\n" +
+		"          \"format\": \"int32\",\n" +
+		"          \"title\": \"healthCheckNodePort specifies the healthcheck nodePort for the service.\\nIf not specified, HealthCheckNodePort is created by the service api\\nbackend with the allocated nodePort. Will use user-specified nodePort value\\nif specified by the client. Only effects when Type is set to LoadBalancer\\nand ExternalTrafficPolicy is set to Local.\\n+optional\"\n" +
+		"        },\n" +
+		"        \"ipFamily\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"title\": \"ipFamily specifies whether this Service has a preference for a particular IP family (e.g. IPv4 vs.\\nIPv6).  If a specific IP family is requested, the clusterIP field will be allocated from that family, if it is\\navailable in the cluster.  If no IP family is requested, the cluster's primary IP family will be used.\\nOther IP fields (loadBalancerIP, loadBalancerSourceRanges, externalIPs) and controllers which\\nallocate external load-balancers should use the same IP family.  Endpoints for this Service will be of\\nthis family.  This field is immutable after creation. Assigning a ServiceIPFamily not available in the\\ncluster (e.g. IPv6 in IPv4 only cluster) is an error condition and will fail during clusterIP assignment.\\n+optional\"\n" +
+		"        },\n" +
+		"        \"loadBalancerIP\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"title\": \"Only applies to Service Type: LoadBalancer\\nLoadBalancer will get created with the IP specified in this field.\\nThis feature depends on whether the underlying cloud-provider supports specifying\\nthe loadBalancerIP when a load balancer is created.\\nThis field will be ignored if the cloud-provider does not support the feature.\\n+optional\"\n" +
+		"        },\n" +
+		"        \"loadBalancerSourceRanges\": {\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"title\": \"If specified and supported by the platform, this will restrict traffic through the cloud-provider\\nload-balancer will be restricted to the specified client IPs. This field will be ignored if the\\ncloud-provider does not support the feature.\\\"\\nMore info: https://kubernetes.io/docs/tasks/access-application-cluster/configure-cloud-provider-firewall/\\n+optional\",\n" +
+		"          \"items\": {\n" +
+		"            \"type\": \"string\"\n" +
+		"          }\n" +
+		"        },\n" +
+		"        \"ports\": {\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"title\": \"The list of ports that are exposed by this service.\\nMore info: https://kubernetes.io/docs/concepts/services-networking/service/#virtual-ips-and-service-proxies\\n+patchMergeKey=port\\n+patchStrategy=merge\\n+listType=map\\n+listMapKey=port\\n+listMapKey=protocol\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/v1ServicePort\"\n" +
+		"          }\n" +
+		"        },\n" +
+		"        \"publishNotReadyAddresses\": {\n" +
+		"          \"type\": \"boolean\",\n" +
+		"          \"title\": \"publishNotReadyAddresses, when set to true, indicates that DNS implementations\\nmust publish the notReadyAddresses of subsets for the Endpoints associated with\\nthe Service. The default value is false.\\nThe primary use case for setting this field is to use a StatefulSet's Headless Service\\nto propagate SRV records for its Pods without respect to their readiness for purpose\\nof peer discovery.\\n+optional\"\n" +
+		"        },\n" +
+		"        \"selector\": {\n" +
+		"          \"type\": \"object\",\n" +
+		"          \"title\": \"Route service traffic to pods with label keys and values matching this\\nselector. If empty or not present, the service is assumed to have an\\nexternal process managing its endpoints, which Kubernetes will not\\nmodify. Only applies to types ClusterIP, NodePort, and LoadBalancer.\\nIgnored if type is ExternalName.\\nMore info: https://kubernetes.io/docs/concepts/services-networking/service/\\n+optional\",\n" +
+		"          \"additionalProperties\": {\n" +
+		"            \"type\": \"string\"\n" +
+		"          }\n" +
+		"        },\n" +
+		"        \"sessionAffinity\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"title\": \"Supports \\\"ClientIP\\\" and \\\"None\\\". Used to maintain session affinity.\\nEnable client IP based session affinity.\\nMust be ClientIP or None.\\nDefaults to None.\\nMore info: https://kubernetes.io/docs/concepts/services-networking/service/#virtual-ips-and-service-proxies\\n+optional\"\n" +
+		"        },\n" +
+		"        \"sessionAffinityConfig\": {\n" +
+		"          \"title\": \"sessionAffinityConfig contains the configurations of session affinity.\\n+optional\",\n" +
+		"          \"$ref\": \"#/definitions/v1SessionAffinityConfig\"\n" +
+		"        },\n" +
+		"        \"topologyKeys\": {\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"title\": \"topologyKeys is a preference-order list of topology keys which\\nimplementations of services should use to preferentially sort endpoints\\nwhen accessing this Service, it can not be used at the same time as\\nexternalTrafficPolicy=Local.\\nTopology keys must be valid label keys and at most 16 keys may be specified.\\nEndpoints are chosen based on the first topology key with available backends.\\nIf this field is specified and all entries have no backends that match\\nthe topology of the client, the service has no backends for that client\\nand connections should fail.\\nThe special value \\\"*\\\" may be used to mean \\\"any topology\\\". This catch-all\\nvalue, if used, only makes sense as the last value in the list.\\nIf this is not specified or empty, no topology constraints will be applied.\\n+optional\",\n" +
+		"          \"items\": {\n" +
+		"            \"type\": \"string\"\n" +
+		"          }\n" +
+		"        },\n" +
+		"        \"type\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"title\": \"type determines how the Service is exposed. Defaults to ClusterIP. Valid\\noptions are ExternalName, ClusterIP, NodePort, and LoadBalancer.\\n\\\"ExternalName\\\" maps to the specified externalName.\\n\\\"ClusterIP\\\" allocates a cluster-internal IP address for load-balancing to\\nendpoints. Endpoints are determined by the selector or if that is not\\nspecified, by manual construction of an Endpoints object. If clusterIP is\\n\\\"None\\\", no virtual IP is allocated and the endpoints are published as a\\nset of endpoints rather than a stable IP.\\n\\\"NodePort\\\" builds on ClusterIP and allocates a port on every node which\\nroutes to the clusterIP.\\n\\\"LoadBalancer\\\" builds on NodePort and creates an\\nexternal load-balancer (if supported in the current cloud) which routes\\nto the clusterIP.\\nMore info: https://kubernetes.io/docs/concepts/services-networking/service/#publishing-services-service-types\\n+optional\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"v1ServiceStatus\": {\n" +
+		"      \"description\": \"ServiceStatus represents the current status of a service.\",\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"loadBalancer\": {\n" +
+		"          \"title\": \"LoadBalancer contains the current status of the load-balancer,\\nif one is present.\\n+optional\",\n" +
+		"          \"$ref\": \"#/definitions/v1LoadBalancerStatus\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"v1SessionAffinityConfig\": {\n" +
+		"      \"description\": \"SessionAffinityConfig represents the configurations of session affinity.\",\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"clientIP\": {\n" +
+		"          \"title\": \"clientIP contains the configurations of Client IP based session affinity.\\n+optional\",\n" +
+		"          \"$ref\": \"#/definitions/v1ClientIPConfig\"\n" +
+		"        }\n" +
+		"      }\n" +
 		"    },\n" +
 		"    \"v1StorageMedium\": {\n" +
 		"      \"type\": \"string\",\n" +
@@ -4477,6 +4775,140 @@ func SwaggerJsonTemplate() string {
 		"        }\n" +
 		"      },\n" +
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
+		"    },\n" +
+		"    \"v1beta1HTTPIngressPath\": {\n" +
+		"      \"description\": \"HTTPIngressPath associates a path regex with a backend. Incoming urls matching\\nthe path are forwarded to the backend.\",\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"backend\": {\n" +
+		"          \"description\": \"Backend defines the referenced service endpoint to which the traffic\\nwill be forwarded to.\",\n" +
+		"          \"$ref\": \"#/definitions/v1beta1IngressBackend\"\n" +
+		"        },\n" +
+		"        \"path\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"title\": \"Path is an extended POSIX regex as defined by IEEE Std 1003.1,\\n(i.e this follows the egrep/unix syntax, not the perl syntax)\\nmatched against the path of an incoming request. Currently it can\\ncontain characters disallowed from the conventional \\\"path\\\"\\npart of a URL as defined by RFC 3986. Paths must begin with\\na '/'. If unspecified, the path defaults to a catch all sending\\ntraffic to the backend.\\n+optional\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"v1beta1HTTPIngressRuleValue\": {\n" +
+		"      \"description\": \"HTTPIngressRuleValue is a list of http selectors pointing to backends.\\nIn the example: http://\\u003chost\\u003e/\\u003cpath\\u003e?\\u003csearchpart\\u003e -\\u003e backend where\\nwhere parts of the url correspond to RFC 3986, this resource will be used\\nto match against everything after the last '/' and before the first '?'\\nor '#'.\",\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"paths\": {\n" +
+		"          \"description\": \"A collection of paths that map requests to backends.\",\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/v1beta1HTTPIngressPath\"\n" +
+		"          }\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"v1beta1Ingress\": {\n" +
+		"      \"description\": \"Ingress is a collection of rules that allow inbound connections to reach the\\nendpoints defined by a backend. An Ingress can be configured to give services\\nexternally-reachable urls, load balance traffic, terminate SSL, offer name\\nbased virtual hosting etc.\",\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"metadata\": {\n" +
+		"          \"title\": \"Standard object's metadata.\\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata\\n+optional\",\n" +
+		"          \"$ref\": \"#/definitions/v1ObjectMeta\"\n" +
+		"        },\n" +
+		"        \"spec\": {\n" +
+		"          \"title\": \"Spec is the desired state of the Ingress.\\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#spec-and-status\\n+optional\",\n" +
+		"          \"$ref\": \"#/definitions/v1beta1IngressSpec\"\n" +
+		"        },\n" +
+		"        \"status\": {\n" +
+		"          \"title\": \"Status is the current state of the Ingress.\\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#spec-and-status\\n+optional\",\n" +
+		"          \"$ref\": \"#/definitions/v1beta1IngressStatus\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"v1beta1IngressBackend\": {\n" +
+		"      \"description\": \"IngressBackend describes all endpoints for a given service and port.\",\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"serviceName\": {\n" +
+		"          \"description\": \"Specifies the name of the referenced service.\",\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"servicePort\": {\n" +
+		"          \"description\": \"Specifies the port of the referenced service.\",\n" +
+		"          \"$ref\": \"#/definitions/intstrIntOrString\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"v1beta1IngressRule\": {\n" +
+		"      \"description\": \"IngressRule represents the rules mapping the paths under a specified host to\\nthe related backend services. Incoming requests are first evaluated for a host\\nmatch, then routed to the backend associated with the matching IngressRuleValue.\",\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"host\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"title\": \"Host is the fully qualified domain name of a network host, as defined\\nby RFC 3986. Note the following deviations from the \\\"host\\\" part of the\\nURI as defined in the RFC:\\n1. IPs are not allowed. Currently an IngressRuleValue can only apply to the\\n\\t  IP in the Spec of the parent Ingress.\\n2. The `:` delimiter is not respected because ports are not allowed.\\n\\t  Currently the port of an Ingress is implicitly :80 for http and\\n\\t  :443 for https.\\nBoth these may change in the future.\\nIncoming requests are matched against the host before the IngressRuleValue.\\nIf the host is unspecified, the Ingress routes all traffic based on the\\nspecified IngressRuleValue.\\n+optional\"\n" +
+		"        },\n" +
+		"        \"ingressRuleValue\": {\n" +
+		"          \"title\": \"IngressRuleValue represents a rule to route requests for this IngressRule.\\nIf unspecified, the rule defaults to a http catch-all. Whether that sends\\njust traffic matching the host to the default backend or all traffic to the\\ndefault backend, is left to the controller fulfilling the Ingress. Http is\\ncurrently the only supported IngressRuleValue.\\n+optional\",\n" +
+		"          \"$ref\": \"#/definitions/v1beta1IngressRuleValue\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"v1beta1IngressRuleValue\": {\n" +
+		"      \"description\": \"IngressRuleValue represents a rule to apply against incoming requests. If the\\nrule is satisfied, the request is routed to the specified backend. Currently\\nmixing different types of rules in a single Ingress is disallowed, so exactly\\none of the following must be set.\",\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"http\": {\n" +
+		"          \"title\": \"+optional\",\n" +
+		"          \"$ref\": \"#/definitions/v1beta1HTTPIngressRuleValue\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"v1beta1IngressSpec\": {\n" +
+		"      \"description\": \"IngressSpec describes the Ingress the user wishes to exist.\",\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"backend\": {\n" +
+		"          \"title\": \"A default backend capable of servicing requests that don't match any\\nrule. At least one of 'backend' or 'rules' must be specified. This field\\nis optional to allow the loadbalancer controller or defaulting logic to\\nspecify a global default.\\n+optional\",\n" +
+		"          \"$ref\": \"#/definitions/v1beta1IngressBackend\"\n" +
+		"        },\n" +
+		"        \"rules\": {\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"title\": \"A list of host rules used to configure the Ingress. If unspecified, or\\nno rule matches, all traffic is sent to the default backend.\\n+optional\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/v1beta1IngressRule\"\n" +
+		"          }\n" +
+		"        },\n" +
+		"        \"tls\": {\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"title\": \"TLS configuration. Currently the Ingress only supports a single TLS\\nport, 443. If multiple members of this list specify different hosts, they\\nwill be multiplexed on the same port according to the hostname specified\\nthrough the SNI TLS extension, if the ingress controller fulfilling the\\ningress supports SNI.\\n+optional\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/v1beta1IngressTLS\"\n" +
+		"          }\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"v1beta1IngressStatus\": {\n" +
+		"      \"description\": \"IngressStatus describe the current state of the Ingress.\",\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"loadBalancer\": {\n" +
+		"          \"title\": \"LoadBalancer contains the current status of the load-balancer.\\n+optional\",\n" +
+		"          \"$ref\": \"#/definitions/v1LoadBalancerStatus\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"v1beta1IngressTLS\": {\n" +
+		"      \"description\": \"IngressTLS describes the transport layer security associated with an Ingress.\",\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"hosts\": {\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"title\": \"Hosts are a list of hosts included in the TLS certificate. The values in\\nthis list must match the name/s used in the tlsSecret. Defaults to the\\nwildcard host setting for the loadbalancer controller fulfilling this\\nIngress, if left unspecified.\\n+optional\",\n" +
+		"          \"items\": {\n" +
+		"            \"type\": \"string\"\n" +
+		"          }\n" +
+		"        },\n" +
+		"        \"secretName\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"title\": \"SecretName is the name of the secret used to terminate SSL traffic on 443.\\nField is left optional to allow SSL routing based on SNI hostname alone.\\nIf the SNI host in a listener conflicts with the \\\"Host\\\" header field used\\nby an IngressRule, the SNI host is used for termination and value of the\\nHost header is used for routing.\\n+optional\"\n" +
+		"        }\n" +
+		"      }\n" +
 		"    }\n" +
 		"  }\n" +
 		"}"
