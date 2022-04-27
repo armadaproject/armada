@@ -253,7 +253,7 @@ jobs:
             docker tag armada-lookout gresearchdev/armada-lookout-dev:${TAG}
             docker push gresearchdev/armada-lookout-dev:${TAG}
             
-            docker tag armada-lookout gresearchdev/armada-lookout-ingester-dev:${TAG}
+            docker tag armada-lookout-ingester gresearchdev/armada-lookout-ingester-dev:${TAG}
             docker push gresearchdev/armada-lookout-ingester-dev:${TAG}
 
             docker tag armada-binoculars gresearchdev/armada-binoculars-dev:${TAG}
