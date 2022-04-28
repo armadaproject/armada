@@ -556,16 +556,20 @@ func PulsarSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.E
 					JobId: armadaevents.ProtoUuidFromUlid(jobId),
 					Errors: []*armadaevents.Error{
 						{
-							Code:     0,
 							Terminal: true, // EventMessage_LeaseReturned indicates a failed job run.
-							Message:  m.LeaseReturned.Reason,
-							ObjectMeta: &armadaevents.ObjectMeta{
-								ExecutorId:   m.LeaseReturned.ClusterId,
-								Namespace:    "",
-								Name:         "",
-								KubernetesId: m.LeaseReturned.KubernetesId,
-								Annotations:  nil,
-								Labels:       nil,
+							Reason: &armadaevents.Error_PodError{
+								PodError: &armadaevents.PodError{
+									ObjectMeta: &armadaevents.ObjectMeta{
+										ExecutorId:   m.LeaseReturned.ClusterId,
+										Namespace:    "",
+										Name:         "",
+										KubernetesId: m.LeaseReturned.KubernetesId,
+										Annotations:  nil,
+										Labels:       nil,
+									},
+									PodNumber: m.LeaseReturned.PodNumber,
+									Message:   m.LeaseReturned.Reason,
+								},
 							},
 						},
 					},
@@ -588,7 +592,6 @@ func PulsarSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.E
 					JobId: armadaevents.ProtoUuidFromUlid(jobId),
 					Errors: []*armadaevents.Error{
 						{
-							Code:     0,
 							Terminal: true, // EventMessage_LeaseExpired indicates a failed job run.
 							Reason: &armadaevents.Error_LeaseExpired{
 								LeaseExpired: &armadaevents.LeaseExpired{},
@@ -612,6 +615,21 @@ func PulsarSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.E
 				JobRunAssigned: &armadaevents.JobRunAssigned{
 					RunId: armadaevents.ProtoUuidFromUlid(runId),
 					JobId: armadaevents.ProtoUuidFromUlid(jobId),
+					ResourceInfos: []*armadaevents.KubernetesResourceInfo{
+						{
+							ObjectMeta: &armadaevents.ObjectMeta{
+								KubernetesId: m.Pending.KubernetesId,
+								Name:         m.Pending.PodName,
+								Namespace:    m.Pending.PodNamespace,
+								ExecutorId:   m.Pending.ClusterId,
+							},
+							Info: &armadaevents.KubernetesResourceInfo_PodInfo{
+								PodInfo: &armadaevents.PodInfo{
+									PodNumber: m.Pending.PodNumber,
+								},
+							},
+						},
+					},
 				},
 			},
 		})
@@ -665,19 +683,20 @@ func PulsarSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.E
 					JobId: armadaevents.ProtoUuidFromUlid(jobId),
 					Errors: []*armadaevents.Error{
 						{
-							Code:     0,
 							Terminal: true, // EventMessage_UnableToSchedule indicates a failed job.
-							ObjectMeta: &armadaevents.ObjectMeta{
-								ExecutorId:   m.UnableToSchedule.ClusterId,
-								Namespace:    m.UnableToSchedule.PodNamespace,
-								Name:         m.UnableToSchedule.PodName,
-								KubernetesId: m.UnableToSchedule.KubernetesId,
-								Annotations:  nil,
-								Labels:       nil,
-							},
-							Reason: &armadaevents.Error_JobUnschedulable{
-								JobUnschedulable: &armadaevents.JobUnschedulable{
-									Message: fmt.Sprintf("could not schedule on node %s", m.UnableToSchedule.NodeName),
+							Reason: &armadaevents.Error_PodUnschedulable{
+								PodUnschedulable: &armadaevents.PodUnschedulable{
+									ObjectMeta: &armadaevents.ObjectMeta{
+										ExecutorId:   m.UnableToSchedule.ClusterId,
+										Namespace:    m.UnableToSchedule.PodNamespace,
+										Name:         m.UnableToSchedule.PodName,
+										KubernetesId: m.UnableToSchedule.KubernetesId,
+										Annotations:  nil,
+										Labels:       nil,
+									},
+									Message:   m.UnableToSchedule.Reason,
+									NodeName:  m.UnableToSchedule.NodeName,
+									PodNumber: m.UnableToSchedule.PodNumber,
 								},
 							},
 						},
@@ -689,52 +708,46 @@ func PulsarSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.E
 		sequence.Queue = m.Failed.Queue
 		sequence.JobSetName = m.Failed.JobSetId
 
-		// EventMessage_Failed may contain several errors (one for each container).
-		// Here, we create a tree from those errors which is embedded in a JobErrors message.
-		numErrors := len(m.Failed.ContainerStatuses) + 1
-		topError := &armadaevents.Error{
-			Code:     int32(m.Failed.Cause),
-			Message:  m.Failed.Reason + fmt.Sprintf(", node %s", m.Failed.NodeName),
-			Terminal: true, // EventMessage_Failed indicates a failed job.
-			Reason: &armadaevents.Error_PodError{
-				PodError: &armadaevents.PodError{
-					Message: m.Failed.Reason + fmt.Sprintf(", node %s", m.Failed.NodeName),
-					ObjectMeta: &armadaevents.ObjectMeta{
-						ExecutorId:   m.Failed.ClusterId,
-						Namespace:    m.Failed.PodNamespace,
-						Name:         m.Failed.PodName,
-						KubernetesId: m.Failed.KubernetesId,
-					},
-				},
-			},
-			ChildErrors: make([]*armadaevents.Error, 0, numErrors),
-		}
-		for _, st := range m.Failed.ContainerStatuses {
-			if st.ExitCode == 0 {
-				// This container exited successfully
-				continue
-			}
-			topError.ChildErrors = append(topError.ChildErrors, &armadaevents.Error{
-				Code:    int32(st.Cause),
-				Message: st.Message + ", " + st.Reason,
-				Reason: &armadaevents.Error_ContainerError{
-					ContainerError: &armadaevents.ContainerError{
-						ExitCode: st.ExitCode,
-						Message:  st.Reason,
-						ObjectMeta: &armadaevents.ObjectMeta{
-							ExecutorId:   m.Failed.ClusterId,
-							Namespace:    m.Failed.PodNamespace,
-							Name:         st.Name,
-							KubernetesId: "", // missing from api message
-						},
-					},
-				},
-			})
-		}
-
 		jobId, _, err := parseJobRunIds(m.Failed.JobId)
 		if err != nil {
 			return nil, err
+		}
+
+		// EventMessage_Failed contains one error for each container.
+		// Convert each of these to the corresponding Pulsar error.
+		containerErrors := make([]*armadaevents.ContainerError, 0, len(m.Failed.ContainerStatuses))
+		for _, st := range m.Failed.ContainerStatuses {
+			containerError := &armadaevents.ContainerError{
+				ExitCode: st.ExitCode,
+				Message:  st.Message,
+				Reason:   st.Reason,
+				ObjectMeta: &armadaevents.ObjectMeta{
+					ExecutorId:   m.Failed.ClusterId,
+					Namespace:    m.Failed.PodNamespace,
+					Name:         st.Name,
+					KubernetesId: "", // missing from api message
+				},
+			}
+
+			// Legacy messages encode the reason as an enum, whereas Pulsar uses objects.
+			switch m.Failed.Cause {
+			case api.Cause_DeadlineExceeded:
+				containerError.KubernetesReason = &armadaevents.ContainerError_DeadlineExceeded_{}
+			case api.Cause_Error:
+				containerError.KubernetesReason = &armadaevents.ContainerError_Error{}
+			case api.Cause_Evicted:
+				containerError.KubernetesReason = &armadaevents.ContainerError_Evicted_{}
+			case api.Cause_OOM:
+				containerError.KubernetesReason = &armadaevents.ContainerError_DeadlineExceeded_{}
+			default:
+				return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
+					Name:    "Cause",
+					Value:   m.Failed.Cause,
+					Message: "Unknown cause",
+				})
+			}
+
+			containerErrors = append(containerErrors, containerError)
 		}
 
 		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
@@ -742,7 +755,23 @@ func PulsarSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.E
 				JobErrors: &armadaevents.JobErrors{
 					JobId: armadaevents.ProtoUuidFromUlid(jobId),
 					Errors: []*armadaevents.Error{
-						topError,
+						{
+							Terminal: true,
+							Reason: &armadaevents.Error_PodError{
+								PodError: &armadaevents.PodError{
+									ObjectMeta: &armadaevents.ObjectMeta{
+										ExecutorId:   m.Failed.ClusterId,
+										Namespace:    m.Failed.PodNamespace,
+										Name:         m.Failed.PodName,
+										KubernetesId: m.Failed.KubernetesId,
+									},
+									Message:         m.Failed.Reason,
+									NodeName:        m.Failed.NodeName,
+									PodNumber:       m.Failed.PodNumber,
+									ContainerErrors: containerErrors,
+								},
+							},
+						},
 					},
 				},
 			},
@@ -805,6 +834,9 @@ func PulsarSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.E
 			},
 		})
 	case *api.EventMessage_Terminated:
+		// EventMessage_Terminated is generated when lease renewal fails. One such event is generated per pod.
+		// Hence, we translate these to PodError with an empty ContainerErrors.
+
 		sequence.Queue = m.Terminated.Queue
 		sequence.JobSetName = m.Terminated.JobSetId
 
@@ -820,14 +852,17 @@ func PulsarSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.E
 					Errors: []*armadaevents.Error{
 						{
 							Terminal: true,
-							ObjectMeta: &armadaevents.ObjectMeta{
-								ExecutorId:   m.Terminated.ClusterId,
-								Namespace:    m.Terminated.PodNamespace,
-								Name:         m.Terminated.PodName,
-								KubernetesId: m.Terminated.KubernetesId,
-							},
-							Reason: &armadaevents.Error_MaxRunsExceeded{
-								MaxRunsExceeded: &armadaevents.MaxRunsExceeded{},
+							Reason: &armadaevents.Error_PodError{
+								PodError: &armadaevents.PodError{
+									ObjectMeta: &armadaevents.ObjectMeta{
+										ExecutorId:   m.Terminated.ClusterId,
+										Namespace:    m.Terminated.PodNamespace,
+										Name:         m.Terminated.PodName,
+										KubernetesId: m.Terminated.KubernetesId,
+									},
+									PodNumber: m.Terminated.PodNumber,
+									Message:   m.Terminated.Reason,
+								},
 							},
 						},
 					},
@@ -843,7 +878,35 @@ func PulsarSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.E
 		err = errors.WithStack(err)
 		return nil, err
 	case *api.EventMessage_IngressInfo:
-		// TODO: This should be included with the running message.
+		// Later, ingress info should be bundled with the JobRunRunning message.
+		// For now, we create a special message that exists only for compatibility with the legacy messages.
+
+		sequence.Queue = m.IngressInfo.Queue
+		sequence.JobSetName = m.IngressInfo.JobSetId
+
+		jobId, runId, err := parseJobRunIds(m.IngressInfo.JobId)
+		if err != nil {
+			return nil, err
+		}
+
+		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
+			Event: &armadaevents.EventSequence_Event_StandaloneIngressInfo{
+				StandaloneIngressInfo: &armadaevents.StandaloneIngressInfo{
+					RunId: armadaevents.ProtoUuidFromUlid(runId),
+					JobId: armadaevents.ProtoUuidFromUlid(jobId),
+					ObjectMeta: &armadaevents.ObjectMeta{
+						ExecutorId:   m.IngressInfo.ClusterId,
+						Namespace:    m.IngressInfo.PodNamespace, // We assume the ingress was created with the same namespace as the pod
+						KubernetesId: m.IngressInfo.KubernetesId,
+					},
+					IngressAddresses: m.IngressInfo.IngressAddresses,
+					NodeName:         m.IngressInfo.NodeName,
+					PodName:          m.IngressInfo.PodName,
+					PodNumber:        m.IngressInfo.PodNumber,
+					PodNamespace:     m.IngressInfo.PodNamespace,
+				},
+			},
+		})
 	case *api.EventMessage_Reprioritizing:
 		// Do nothing; there's no corresponding Pulsar message.
 	case *api.EventMessage_Updated:

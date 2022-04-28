@@ -142,22 +142,22 @@ jobs:
           command: make code-checks
 
       - run:
-          name: Check TypeScript formatting
-          command: |
-            cd ./internal/lookout/ui
-            npm ci
-            npm run fmt
-            git status -s -uno
-            exit $(git status -s -uno | wc -l)
-
-      - run:
           name: Check generated files
           command: |
             make proto
             make dotnet
             git status -s -uno
             git --no-pager diff
+            exit $(git status -s -uno | wc -l)
+
+      - run:
+          name: Check TypeScript formatting
+          command: |
+            cd ./internal/lookout/ui
+            npm ci
+            npm run fmt
             git status -s -uno
+            git --no-pager diff
             exit $(git status -s -uno | wc -l)
 
       - run:
@@ -202,7 +202,7 @@ jobs:
 
       - run:
           name: Enable integration tests
-          command: echo 'export INTEGRATION_ENABLED="true"' >> $BASH_ENV          
+          command: echo 'export INTEGRATION_ENABLED="true"' >> $BASH_ENV
 
       - run:
           name: e2e tests
@@ -252,9 +252,15 @@ jobs:
 
             docker tag armada-lookout gresearchdev/armada-lookout-dev:${TAG}
             docker push gresearchdev/armada-lookout-dev:${TAG}
+            
+            docker tag armada-lookout-ingester gresearchdev/armada-lookout-ingester-dev:${TAG}
+            docker push gresearchdev/armada-lookout-ingester-dev:${TAG}
 
             docker tag armada-binoculars gresearchdev/armada-binoculars-dev:${TAG}
             docker push gresearchdev/armada-binoculars-dev:${TAG}
+            
+            docker tag armadactl gresearchdev/armada-armadactl-dev:${TAG}
+            docker push gresearchdev/armada-armadactl-dev:${TAG}
 
   release:
     docker:

@@ -7,7 +7,6 @@ import (
 
 	"github.com/jackc/pgx/v4/pgxpool"
 	_ "github.com/jackc/pgx/v4/stdlib"
-	_ "github.com/lib/pq"
 	"github.com/pkg/errors"
 
 	"github.com/G-Research/armada/internal/common/util"
@@ -68,7 +67,7 @@ func WithDatabasePgx(action func(db *pgxpool.Pool) error) error {
 	// For now use database/sql for this
 	dbName := "test_" + util.NewULID()
 	connectionString := "host=localhost port=5432 user=postgres password=psw sslmode=disable"
-	db, err := sql.Open("postgres", connectionString)
+	db, err := sql.Open("pgx", connectionString)
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -103,7 +102,7 @@ func WithDatabasePgx(action func(db *pgxpool.Pool) error) error {
 	}()
 
 	// A third connection!  We can get rid of this once we use move udateDatabse over to pgx
-	legacyDb, err := sql.Open("postgres", connectionString+" dbname="+dbName)
+	legacyDb, err := sql.Open("pgx", connectionString+" dbname="+dbName)
 	if err != nil {
 		return errors.WithStack(err)
 	}
