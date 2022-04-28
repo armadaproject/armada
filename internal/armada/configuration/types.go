@@ -7,12 +7,12 @@ import (
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/G-Research/armada/internal/common"
-	"github.com/G-Research/armada/internal/common/auth/configuration"
+	authconfig "github.com/G-Research/armada/internal/common/auth/configuration"
 	"github.com/G-Research/armada/pkg/client/queue"
 )
 
 type ArmadaConfig struct {
-	Auth configuration.AuthConfig
+	Auth authconfig.AuthConfig
 
 	GrpcPort           uint16
 	HttpPort           uint16
@@ -67,6 +67,8 @@ type PulsarConfig struct {
 	HostnameSuffix string
 	CertNameSuffix string
 	Annotations    map[string]string
+	// Settings for deduplication, which relies on a postgres server.
+	DedupPostgresConfig PostgresConfig
 }
 
 type SchedulingConfig struct {
@@ -109,6 +111,13 @@ type EventsConfig struct {
 	ProcessorBatchSize             int           // Maximum event batch size
 	ProcessorMaxTimeBetweenBatches time.Duration // Maximum time between batches
 	ProcessorTimeout               time.Duration // Timeout for reporting event or stopping batcher before erroring out
+}
+
+type PostgresConfig struct {
+	MaxOpenConns    int
+	MaxIdleConns    int
+	ConnMaxLifetime time.Duration
+	Connection      map[string]string
 }
 
 type NatsConfig struct {

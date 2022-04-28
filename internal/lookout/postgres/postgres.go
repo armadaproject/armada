@@ -8,7 +8,7 @@ import (
 	"github.com/jackc/pgx/v4/pgxpool"
 	_ "github.com/jackc/pgx/v4/stdlib"
 
-	"github.com/G-Research/armada/internal/lookout/configuration"
+	"github.com/G-Research/armada/internal/armada/configuration"
 )
 
 func Open(config configuration.PostgresConfig) (*sql.DB, error) {
