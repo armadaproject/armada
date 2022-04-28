@@ -82,7 +82,7 @@ func queryForIds(t *testing.T, db *sql.DB, table string) []string {
 }
 
 func withPopulatedDatabase(t *testing.T, action func(db *sql.DB)) {
-	testutil.WithDatabase(t, func(db *sql.DB) {
+	err := testutil.WithDatabase(func(db *sql.DB) error {
 		for i := 0; i < 10; i++ {
 			jobId := fmt.Sprintf("job-%v", i)
 			runId := fmt.Sprintf("job-%v-run", i)
@@ -112,5 +112,7 @@ func withPopulatedDatabase(t *testing.T, action func(db *sql.DB)) {
 			assert.NoError(t, err4)
 		}
 		action(db)
+		return nil
 	})
+	assert.NoError(t, err)
 }
