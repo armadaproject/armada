@@ -95,13 +95,16 @@ func CreateIngress(
 		host := fmt.Sprintf("%s-%s.%s.%s", servicePort.Name, pod.Name, pod.Namespace, executorIngressConfig.HostnameSuffix)
 		tlsHosts = append(tlsHosts, host)
 
+		// Workaround to get constant's address
+		pathType := networking.PathTypeImplementationSpecific
 		path := networking.IngressRule{
 			Host: host,
 			IngressRuleValue: networking.IngressRuleValue{
 				HTTP: &networking.HTTPIngressRuleValue{
 					Paths: []networking.HTTPIngressPath{
 						{
-							Path: "/",
+							Path:     "/",
+							PathType: &pathType,
 							Backend: networking.IngressBackend{
 								Service: &networking.IngressServiceBackend{
 									Name: service.Name,

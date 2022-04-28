@@ -168,6 +168,7 @@ func createNodeAllocatedPod() *v1.Pod {
 }
 
 func createIngress(hostname string, port int32) *networking.Ingress {
+	pathType := networking.PathTypeImplementationSpecific
 	return &networking.Ingress{
 		Spec: networking.IngressSpec{
 			Rules: []networking.IngressRule{
@@ -177,7 +178,8 @@ func createIngress(hostname string, port int32) *networking.Ingress {
 						HTTP: &networking.HTTPIngressRuleValue{
 							Paths: []networking.HTTPIngressPath{
 								{
-									Path: "/",
+									Path:     "/",
+									PathType: &pathType,
 									Backend: networking.IngressBackend{
 										Service: &networking.IngressServiceBackend{
 											Port: networking.ServiceBackendPort{

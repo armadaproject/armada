@@ -175,6 +175,7 @@ func TestCreateIngress_Basic(t *testing.T) {
 
 	result := CreateIngress("testIngress", job, pod, service, ingressConfig, jobConfig)
 
+	pathType := networking.PathTypeImplementationSpecific
 	expectedIngressSpec := networking.IngressSpec{
 		TLS: []networking.IngressTLS{},
 		Rules: []networking.IngressRule{
@@ -184,7 +185,8 @@ func TestCreateIngress_Basic(t *testing.T) {
 					HTTP: &networking.HTTPIngressRuleValue{
 						Paths: []networking.HTTPIngressPath{
 							{
-								Path: "/",
+								Path:     "/",
+								PathType: &pathType,
 								Backend: networking.IngressBackend{
 									Service: &networking.IngressServiceBackend{
 										Name: "testService",
@@ -222,6 +224,7 @@ func TestCreateIngress_TLS(t *testing.T) {
 
 	result := CreateIngress("testIngress", job, pod, service, ingressConfig, jobConfig)
 
+	pathType := networking.PathTypeImplementationSpecific
 	expectedIngressSpec := networking.IngressSpec{
 		TLS: []networking.IngressTLS{
 			{
@@ -238,7 +241,8 @@ func TestCreateIngress_TLS(t *testing.T) {
 					HTTP: &networking.HTTPIngressRuleValue{
 						Paths: []networking.HTTPIngressPath{
 							{
-								Path: "/",
+								Path:     "/",
+								PathType: &pathType,
 								Backend: networking.IngressBackend{
 									Service: &networking.IngressServiceBackend{
 										Name: "testService",
