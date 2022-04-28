@@ -5,10 +5,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/G-Research/armada/internal/common/armadaerrors"
-	"github.com/G-Research/armada/internal/lookout/testutil"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/G-Research/armada/internal/common/armadaerrors"
+	"github.com/G-Research/armada/internal/lookout/testutil"
 )
 
 func TestAdd(t *testing.T) {
@@ -88,7 +89,7 @@ func TestAddGet(t *testing.T) {
 
 		// Getting another value should return *armadaerrors.ErrNotFound
 		var targetErr *armadaerrors.ErrNotFound
-		actual, err = store.Get(context.Background(), "bar")
+		_, err = store.Get(context.Background(), "bar")
 		assert.ErrorAs(t, err, &targetErr)
 
 		// Purging the cache should still return the same value for foo

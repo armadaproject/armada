@@ -5,14 +5,15 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/G-Research/armada/internal/common/armadaerrors"
-	"github.com/G-Research/armada/internal/common/logging"
 	"github.com/hashicorp/golang-lru/simplelru"
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
+
+	"github.com/G-Research/armada/internal/common/armadaerrors"
+	"github.com/G-Research/armada/internal/common/logging"
 )
 
 // PGKeyValueStore is a time-limited key-value store backed by postgres with a local LRU cache.
