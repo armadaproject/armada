@@ -68,7 +68,8 @@ type PulsarConfig struct {
 	CertNameSuffix string
 	Annotations    map[string]string
 	// Settings for deduplication, which relies on a postgres server.
-	DedupPostgresConfig PostgresConfig
+	Postgres   PostgresConfig
+	DedupTable string
 }
 
 type SchedulingConfig struct {

@@ -29,6 +29,8 @@ import (
 	"github.com/G-Research/armada/internal/common/task"
 	"github.com/G-Research/armada/internal/common/util"
 	executorconfig "github.com/G-Research/armada/internal/executor/configuration"
+	"github.com/G-Research/armada/internal/lookout/postgres"
+	"github.com/G-Research/armada/internal/pgkeyvalue"
 	"github.com/G-Research/armada/internal/pulsarutils"
 	"github.com/G-Research/armada/pkg/api"
 )
@@ -195,6 +197,27 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 			},
 		}
 		submitServerToRegister = pulsarSubmitServer
+
+		// If postgres details were provided, enable deduplication.
+		log.Infof("DedupTable: %s\n", config.Pulsar.DedupTable)
+		log.Infof("Postgres: %+v\n", config.Pulsar.Postgres)
+		if config.Pulsar.DedupTable != "" && config.Pulsar.Postgres.Connection != nil {
+			log.Info("Pulsar submit API deduplication enabled")
+			db, err := postgres.OpenPgxPool(config.Pulsar.Postgres)
+			if err != nil {
+				panic(err)
+			}
+			store, err := pgkeyvalue.New(db, config.Pulsar.DedupTable)
+			if err != nil {
+				panic(err)
+			}
+			pulsarSubmitServer.KVStore = store
+
+			// Automatically clean up keys after two weeks.
+			store.PeriodicCleanup(context.Background(), time.Hour, 14*24*time.Hour)
+		} else {
+			log.Info("Pulsar submit API deduplication disabled")
+		}
 
 		// If there's an eventProcessor, insert the PulsarSubmitServer so that it can publish
 		// state transitions to Pulsar in addition to Redis.
