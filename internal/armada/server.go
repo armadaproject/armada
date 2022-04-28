@@ -205,7 +205,7 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 			if err != nil {
 				panic(err)
 			}
-			store, err := pgkeyvalue.New(db, config.Pulsar.DedupTable)
+			store, err := pgkeyvalue.New(db, 1000000, config.Pulsar.DedupTable)
 			if err != nil {
 				panic(err)
 			}

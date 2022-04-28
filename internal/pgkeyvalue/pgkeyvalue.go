@@ -29,7 +29,7 @@ type PGKeyValueStore struct {
 	tableName string
 }
 
-func New(db *pgxpool.Pool, tableName string) (*PGKeyValueStore, error) {
+func New(db *pgxpool.Pool, cacheSize int, tableName string) (*PGKeyValueStore, error) {
 	if db == nil {
 		return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
 			Name:    "db",
@@ -44,7 +44,7 @@ func New(db *pgxpool.Pool, tableName string) (*PGKeyValueStore, error) {
 			Message: "TableName must be non-empty",
 		})
 	}
-	cache, err := simplelru.NewLRU(100, nil)
+	cache, err := simplelru.NewLRU(cacheSize, nil)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
