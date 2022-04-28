@@ -232,8 +232,8 @@ func TestSubmitJobWithError(t *testing.T) {
 				return nil
 			}
 			expected := &armadaevents.EventSequence_Event{
-				Event: &armadaevents.EventSequence_Event_JobErrors{
-					JobErrors: &armadaevents.JobErrors{
+				Event: &armadaevents.EventSequence_Event_JobRunErrors{
+					JobRunErrors: &armadaevents.JobRunErrors{
 						JobId: jobId,
 					},
 				},

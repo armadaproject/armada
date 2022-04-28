@@ -526,6 +526,7 @@ func PulsarSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.E
 		sequence.Queue = m.Leased.Queue
 		sequence.JobSetName = m.Leased.JobSetId
 
+		// Message has no KubernetesId; use the all-zeros id.
 		jobId, runId, err := parseJobRunIds(m.Leased.JobId)
 		if err != nil {
 			return nil, err
@@ -544,7 +545,12 @@ func PulsarSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.E
 		sequence.Queue = m.LeaseReturned.Queue
 		sequence.JobSetName = m.LeaseReturned.JobSetId
 
-		jobId, runId, err := parseJobRunIds(m.LeaseReturned.JobId)
+		jobId, _, err := parseJobRunIds(m.LeaseReturned.JobId)
+		if err != nil {
+			return nil, err
+		}
+
+		runId, err := armadaevents.ProtoUuidFromUuidString(m.LeaseReturned.KubernetesId)
 		if err != nil {
 			return nil, err
 		}
@@ -552,7 +558,7 @@ func PulsarSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.E
 		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
 			Event: &armadaevents.EventSequence_Event_JobRunErrors{
 				JobRunErrors: &armadaevents.JobRunErrors{
-					RunId: armadaevents.ProtoUuidFromUlid(runId),
+					RunId: runId,
 					JobId: armadaevents.ProtoUuidFromUlid(jobId),
 					Errors: []*armadaevents.Error{
 						{
@@ -580,6 +586,7 @@ func PulsarSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.E
 		sequence.Queue = m.LeaseExpired.Queue
 		sequence.JobSetName = m.LeaseExpired.JobSetId
 
+		// Message has no KubernetesId; use the all-zeros id.
 		jobId, runId, err := parseJobRunIds(m.LeaseExpired.JobId)
 		if err != nil {
 			return nil, err
@@ -605,7 +612,12 @@ func PulsarSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.E
 		sequence.Queue = m.Pending.Queue
 		sequence.JobSetName = m.Pending.JobSetId
 
-		jobId, runId, err := parseJobRunIds(m.Pending.JobId)
+		jobId, _, err := parseJobRunIds(m.Pending.JobId)
+		if err != nil {
+			return nil, err
+		}
+
+		runId, err := armadaevents.ProtoUuidFromUuidString(m.Pending.KubernetesId)
 		if err != nil {
 			return nil, err
 		}
@@ -613,7 +625,7 @@ func PulsarSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.E
 		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
 			Event: &armadaevents.EventSequence_Event_JobRunAssigned{
 				JobRunAssigned: &armadaevents.JobRunAssigned{
-					RunId: armadaevents.ProtoUuidFromUlid(runId),
+					RunId: runId,
 					JobId: armadaevents.ProtoUuidFromUlid(jobId),
 					ResourceInfos: []*armadaevents.KubernetesResourceInfo{
 						{
@@ -637,7 +649,12 @@ func PulsarSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.E
 		sequence.Queue = m.Running.Queue
 		sequence.JobSetName = m.Running.JobSetId
 
-		jobId, runId, err := parseJobRunIds(m.Running.JobId)
+		jobId, _, err := parseJobRunIds(m.Running.JobId)
+		if err != nil {
+			return nil, err
+		}
+
+		runId, err := armadaevents.ProtoUuidFromUuidString(m.Running.KubernetesId)
 		if err != nil {
 			return nil, err
 		}
@@ -645,7 +662,7 @@ func PulsarSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.E
 		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
 			Event: &armadaevents.EventSequence_Event_JobRunRunning{
 				JobRunRunning: &armadaevents.JobRunRunning{
-					RunId: armadaevents.ProtoUuidFromUlid(runId),
+					RunId: runId,
 					JobId: armadaevents.ProtoUuidFromUlid(jobId),
 					ResourceInfos: []*armadaevents.KubernetesResourceInfo{
 						{
@@ -713,6 +730,11 @@ func PulsarSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.E
 			return nil, err
 		}
 
+		runId, err := armadaevents.ProtoUuidFromUuidString(m.Failed.KubernetesId)
+		if err != nil {
+			return nil, err
+		}
+
 		// EventMessage_Failed contains one error for each container.
 		// Convert each of these to the corresponding Pulsar error.
 		containerErrors := make([]*armadaevents.ContainerError, 0, len(m.Failed.ContainerStatuses))
@@ -725,7 +747,7 @@ func PulsarSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.E
 					ExecutorId:   m.Failed.ClusterId,
 					Namespace:    m.Failed.PodNamespace,
 					Name:         st.Name,
-					KubernetesId: "", // missing from api message
+					KubernetesId: "", // only the id of the pod is stored in the failed message
 				},
 			}
 
@@ -751,8 +773,9 @@ func PulsarSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.E
 		}
 
 		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
-			Event: &armadaevents.EventSequence_Event_JobErrors{
-				JobErrors: &armadaevents.JobErrors{
+			Event: &armadaevents.EventSequence_Event_JobRunErrors{
+				JobRunErrors: &armadaevents.JobRunErrors{
+					RunId: runId,
 					JobId: armadaevents.ProtoUuidFromUlid(jobId),
 					Errors: []*armadaevents.Error{
 						{
@@ -780,7 +803,12 @@ func PulsarSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.E
 		sequence.Queue = m.Succeeded.Queue
 		sequence.JobSetName = m.Succeeded.JobSetId
 
-		jobId, runId, err := parseJobRunIds(m.Succeeded.JobId)
+		jobId, _, err := parseJobRunIds(m.Succeeded.JobId)
+		if err != nil {
+			return nil, err
+		}
+
+		runId, err := armadaevents.ProtoUuidFromUuidString(m.Succeeded.KubernetesId)
 		if err != nil {
 			return nil, err
 		}
@@ -788,7 +816,7 @@ func PulsarSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.E
 		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
 			Event: &armadaevents.EventSequence_Event_JobRunSucceeded{
 				JobRunSucceeded: &armadaevents.JobRunSucceeded{
-					RunId: armadaevents.ProtoUuidFromUlid(runId),
+					RunId: runId,
 					JobId: armadaevents.ProtoUuidFromUlid(jobId),
 				},
 			},
@@ -884,7 +912,12 @@ func PulsarSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.E
 		sequence.Queue = m.IngressInfo.Queue
 		sequence.JobSetName = m.IngressInfo.JobSetId
 
-		jobId, runId, err := parseJobRunIds(m.IngressInfo.JobId)
+		jobId, _, err := parseJobRunIds(m.IngressInfo.JobId)
+		if err != nil {
+			return nil, err
+		}
+
+		runId, err := armadaevents.ProtoUuidFromUuidString(m.IngressInfo.KubernetesId)
 		if err != nil {
 			return nil, err
 		}
@@ -892,7 +925,7 @@ func PulsarSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.E
 		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
 			Event: &armadaevents.EventSequence_Event_StandaloneIngressInfo{
 				StandaloneIngressInfo: &armadaevents.StandaloneIngressInfo{
-					RunId: armadaevents.ProtoUuidFromUlid(runId),
+					RunId: runId,
 					JobId: armadaevents.ProtoUuidFromUlid(jobId),
 					ObjectMeta: &armadaevents.ObjectMeta{
 						ExecutorId:   m.IngressInfo.ClusterId,
