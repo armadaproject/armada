@@ -3,50 +3,65 @@ package testutil
 import (
 	"context"
 	"database/sql"
-	"testing"
+	"fmt"
 
 	"github.com/jackc/pgx/v4/pgxpool"
 	_ "github.com/jackc/pgx/v4/stdlib"
 	_ "github.com/lib/pq"
-	"github.com/stretchr/testify/assert"
+	"github.com/pkg/errors"
 
 	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/lookout/repository/schema"
 )
 
-func WithDatabase(t *testing.T, action func(db *sql.DB)) {
+func WithDatabase(action func(db *sql.DB) error) error {
 	dbName := "test_" + util.NewULID()
 	connectionString := "host=localhost port=5432 user=postgres password=psw sslmode=disable"
 	db, err := sql.Open("pgx", connectionString)
+	if err != nil {
+		return errors.WithStack(err)
+	}
 	defer db.Close()
 
-	assert.Nil(t, err)
-
 	_, err = db.Exec("CREATE DATABASE " + dbName)
-	assert.Nil(t, err)
+	if err != nil {
+		return errors.WithStack(err)
+	}
 
 	testDb, err := sql.Open("pgx", connectionString+" dbname="+dbName)
-	assert.Nil(t, err)
+	if err != nil {
+		return errors.WithStack(err)
+	}
 
 	defer func() {
 		err = testDb.Close()
-		assert.Nil(t, err)
+		if err != nil {
+			fmt.Println("Failed to close testDb")
+		}
+
 		// disconnect all db user before cleanup
 		_, err = db.Exec(
 			`SELECT pg_terminate_backend(pg_stat_activity.pid)
 			 FROM pg_stat_activity WHERE pg_stat_activity.datname = '` + dbName + `';`)
-		assert.Nil(t, err)
+		if err != nil {
+			fmt.Println("Failed to disconnect users")
+		}
+
 		_, err = db.Exec("DROP DATABASE " + dbName)
-		assert.Nil(t, err)
+		if err != nil {
+			fmt.Println("Failed to drop database")
+		}
 	}()
 
 	err = schema.UpdateDatabase(testDb)
-	assert.Nil(t, err)
+	if err != nil {
+		return errors.WithStack(err)
+	}
 
-	action(testDb)
+	return action(testDb)
 }
 
-func WithDatabasePgx(t *testing.T, action func(db *pgxpool.Pool)) {
+func WithDatabasePgx(action func(db *pgxpool.Pool) error) error {
 	ctx := context.Background()
 
 	// Connect and create a dedicated database for the test
@@ -54,32 +69,50 @@ func WithDatabasePgx(t *testing.T, action func(db *pgxpool.Pool)) {
 	dbName := "test_" + util.NewULID()
 	connectionString := "host=localhost port=5432 user=postgres password=psw sslmode=disable"
 	db, err := sql.Open("postgres", connectionString)
+	if err != nil {
+		return errors.WithStack(err)
+	}
 	defer db.Close()
-	assert.Nil(t, err)
+
 	_, err = db.Exec("CREATE DATABASE " + dbName)
-	assert.Nil(t, err)
+	if err != nil {
+		return errors.WithStack(err)
+	}
 
 	// Connect again- this time to the database we just created and using pgx pool.  This will be used for tests
 	testDbPool, err := pgxpool.Connect(ctx, connectionString+" dbname="+dbName)
-	assert.Nil(t, err)
+	if err != nil {
+		return errors.WithStack(err)
+	}
 
 	defer func() {
 		testDbPool.Close()
+
 		// disconnect all db user before cleanup
 		_, err = db.Exec(
 			`SELECT pg_terminate_backend(pg_stat_activity.pid)
 			 FROM pg_stat_activity WHERE pg_stat_activity.datname = '` + dbName + `';`)
-		assert.Nil(t, err)
+		if err != nil {
+			fmt.Println("Failed to disconnect users")
+		}
+
 		_, err = db.Exec("DROP DATABASE " + dbName)
-		assert.Nil(t, err)
+		if err != nil {
+			fmt.Println("Failed to drop database")
+		}
 	}()
 
 	// A third connection!  We can get rid of this once we use move udateDatabse over to pgx
 	legacyDb, err := sql.Open("postgres", connectionString+" dbname="+dbName)
+	if err != nil {
+		return errors.WithStack(err)
+	}
 	defer legacyDb.Close()
-	assert.Nil(t, err)
-	err = schema.UpdateDatabase(legacyDb)
-	assert.Nil(t, err)
 
-	action(testDbPool)
+	err = schema.UpdateDatabase(legacyDb)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
+	return action(testDbPool)
 }

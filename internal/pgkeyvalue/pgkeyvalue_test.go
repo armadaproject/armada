@@ -12,7 +12,7 @@ import (
 )
 
 func TestAdd(t *testing.T) {
-	testutil.WithDatabasePgx(t, func(db *pgxpool.Pool) {
+	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
 		store, err := New(db, "cachetable")
 		if !assert.NoError(t, err) {
 			t.FailNow()
@@ -59,11 +59,13 @@ func TestAdd(t *testing.T) {
 			t.FailNow()
 		}
 		assert.False(t, ok)
+		return nil
 	})
+	assert.NoError(t, err)
 }
 
 func TestAddGet(t *testing.T) {
-	testutil.WithDatabasePgx(t, func(db *pgxpool.Pool) {
+	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
 		store, err := New(db, "cachetable")
 		if !assert.NoError(t, err) {
 			t.FailNow()
@@ -96,11 +98,13 @@ func TestAddGet(t *testing.T) {
 			t.FailNow()
 		}
 		assert.Equal(t, expected, actual)
+		return nil
 	})
+	assert.NoError(t, err)
 }
 
 func TestCleanup(t *testing.T) {
-	testutil.WithDatabasePgx(t, func(db *pgxpool.Pool) {
+	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
 		store, err := New(db, "cachetable")
 		if !assert.NoError(t, err) {
 			t.FailNow()
@@ -175,5 +179,7 @@ func TestCleanup(t *testing.T) {
 			t.FailNow()
 		}
 		assert.True(t, ok)
+		return nil
 	})
+	assert.NoError(t, err)
 }
