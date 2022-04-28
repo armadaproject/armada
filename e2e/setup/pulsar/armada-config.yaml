@@ -6,3 +6,15 @@ pulsar:
   pulsarFromPulsarSubscription: "PulsarFromPulsar"
   hostnameSuffix: "svc"
   certNameSuffix: "ingress-tls-certificate"
+  dedupTable: pulsar_submit_dedup
+  postgres:
+    maxOpenConns: 100
+    maxIdleConns: 25
+    connMaxLifetime: 30m
+    connection:
+      host: postgres
+      port: 5432
+      user: postgres
+      password: psw
+      dbname: postgres
+      sslmode: disable

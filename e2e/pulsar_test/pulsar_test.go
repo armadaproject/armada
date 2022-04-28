@@ -72,7 +72,7 @@ func TestPublishReceive(t *testing.T) {
 // Test that submitting many jobs results in the correct sequence of Pulsar message being produced for each job.
 func TestSubmitJobs(t *testing.T) {
 	err := withSetup(func(ctx context.Context, client api.SubmitClient, producer pulsar.Producer, consumer pulsar.Consumer) error {
-		numJobs := 1
+		numJobs := 2
 		req := createJobSubmitRequest(numJobs)
 		ctxWithTimeout, _ := context.WithTimeout(context.Background(), time.Second)
 		res, err := client.SubmitJobs(ctxWithTimeout, req)
@@ -111,6 +111,54 @@ func TestSubmitJobs(t *testing.T) {
 			if ok := isSequencef(t, expected, actual, "Event sequence error; printing diff:\n%s", cmp.Diff(expected, actual)); !ok {
 				return nil
 			}
+		}
+
+		return nil
+	})
+	assert.NoError(t, err)
+}
+
+func TestDedup(t *testing.T) {
+	err := withSetup(func(ctx context.Context, client api.SubmitClient, producer pulsar.Producer, consumer pulsar.Consumer) error {
+		numJobs := 2
+		clientId := uuid.New().String()
+
+		// The first time, all jobs should be submitted.
+		req := createJobSubmitRequestWithClientId(numJobs, clientId)
+		ctxWithTimeout, _ := context.WithTimeout(context.Background(), time.Second)
+		res, err := client.SubmitJobs(ctxWithTimeout, req)
+		if err != nil {
+			return err
+		}
+
+		if ok := assert.Equal(t, numJobs, len(res.JobResponseItems)); !ok {
+			return nil
+		}
+
+		// The second time, all jobs should be rejected.
+		req = createJobSubmitRequestWithClientId(numJobs, clientId)
+		ctxWithTimeout, _ = context.WithTimeout(context.Background(), time.Second)
+		res, err = client.SubmitJobs(ctxWithTimeout, req)
+		if err != nil {
+			return err
+		}
+
+		if ok := assert.Equal(t, 0, len(res.JobResponseItems)); !ok {
+			return nil
+		}
+
+		// Check for partial rejection
+		req = createJobSubmitRequestWithClientId(numJobs, clientId)
+		req2 := createJobSubmitRequestWithClientId(numJobs, uuid.New().String())
+		req.JobRequestItems = append(req.JobRequestItems, req2.JobRequestItems...)
+		ctxWithTimeout, _ = context.WithTimeout(context.Background(), time.Second)
+		res, err = client.SubmitJobs(ctxWithTimeout, req)
+		if err != nil {
+			return err
+		}
+
+		if ok := assert.Equal(t, numJobs, len(res.JobResponseItems)); !ok {
+			return nil
 		}
 
 		return nil
@@ -678,14 +726,23 @@ func filterOutStandaloneIngressInfo(sequence *armadaevents.EventSequence) (*arma
 
 // Create a job submit request for testing.
 func createJobSubmitRequest(numJobs int) *api.JobSubmitRequest {
+	return createJobSubmitRequestWithClientId(numJobs, uuid.New().String())
+}
+
+// Create a job submit request for testing.
+func createJobSubmitRequestWithClientId(numJobs int, clientId string) *api.JobSubmitRequest {
 	cpu, _ := resource.ParseQuantity("80m")
 	memory, _ := resource.ParseQuantity("50Mi")
 	items := make([]*api.JobSubmitRequestItem, numJobs, numJobs)
 	for i := 0; i < numJobs; i++ {
+		itemClientId := clientId
+		if itemClientId != "" {
+			itemClientId = fmt.Sprintf("%s-%d", itemClientId, i)
+		}
 		items[i] = &api.JobSubmitRequestItem{
 			Namespace: userNamespace,
 			Priority:  1,
-			ClientId:  uuid.New().String(), // So we can test that we get back the right thing
+			ClientId:  itemClientId,
 			PodSpec: &v1.PodSpec{
 				Containers: []v1.Container{
 					{
