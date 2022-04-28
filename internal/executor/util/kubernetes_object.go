@@ -6,9 +6,8 @@ import (
 	"strings"
 
 	v1 "k8s.io/api/core/v1"
-	networking "k8s.io/api/networking/v1beta1"
+	networking "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/intstr"
 
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/internal/common/util"
@@ -104,8 +103,12 @@ func CreateIngress(
 						{
 							Path: "/",
 							Backend: networking.IngressBackend{
-								ServiceName: service.Name,
-								ServicePort: intstr.IntOrString{IntVal: servicePort.Port},
+								Service: &networking.IngressServiceBackend{
+									Name: service.Name,
+									Port: networking.ServiceBackendPort{
+										Number: servicePort.Port,
+									},
+								},
 							},
 						},
 					},

@@ -7,10 +7,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/api/networking/v1beta1"
+	networking "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/intstr"
 
 	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/executor/configuration"
@@ -135,20 +134,22 @@ func TestK8sServicesIngressesFromApiJob(t *testing.T) {
 		ingressConfig.Annotations,
 	)
 
-	expectedIngressRules := make([]v1beta1.IngressRule, 2)
+	expectedIngressRules := make([]networking.IngressRule, 2)
 	for i, container := range apiJob.PodSpec.Containers {
-		expectedIngressRules[i] = v1beta1.IngressRule{
+		expectedIngressRules[i] = networking.IngressRule{
 			Host: fmt.Sprintf("%s-%d-armada-%s-0.%s.%s",
 				container.Name, 5000, apiJob.GetId(), apiJob.GetNamespace(), ingressConfig.HostnameSuffix),
-			IngressRuleValue: v1beta1.IngressRuleValue{
-				HTTP: &v1beta1.HTTPIngressRuleValue{
-					Paths: []v1beta1.HTTPIngressPath{
+			IngressRuleValue: networking.IngressRuleValue{
+				HTTP: &networking.HTTPIngressRuleValue{
+					Paths: []networking.HTTPIngressPath{
 						{
 							Path: "/",
-							Backend: v1beta1.IngressBackend{
-								ServiceName: fmt.Sprintf("armada-%s-0-ingress", apiJob.GetId()),
-								ServicePort: intstr.IntOrString{
-									IntVal: 5000,
+							Backend: networking.IngressBackend{
+								Service: &networking.IngressServiceBackend{
+									Name: fmt.Sprintf("armada-%s-0-ingress", apiJob.GetId()),
+									Port: networking.ServiceBackendPort{
+										Number: 5000,
+									},
 								},
 							},
 						},
@@ -158,7 +159,7 @@ func TestK8sServicesIngressesFromApiJob(t *testing.T) {
 		}
 	}
 
-	expectedIngress := &v1beta1.Ingress{
+	expectedIngress := &networking.Ingress{
 		TypeMeta: metav1.TypeMeta{},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        fmt.Sprintf("armada-%s-%d-ingress-%d", apiJob.GetId(), 0, 0),
@@ -166,10 +167,10 @@ func TestK8sServicesIngressesFromApiJob(t *testing.T) {
 			Labels:      expectedLabels,
 			Annotations: expectedIngressAnnotations,
 		},
-		Spec: v1beta1.IngressSpec{
+		Spec: networking.IngressSpec{
 			IngressClassName: nil,
-			Backend:          nil,
-			TLS: []v1beta1.IngressTLS{
+			DefaultBackend:   nil,
+			TLS: []networking.IngressTLS{
 				{
 					Hosts: []string{
 						fmt.Sprintf("podSpec_container1-5000-armada-%s-0.%s.%s", apiJob.GetId(), apiJob.GetNamespace(), ingressConfig.HostnameSuffix),
@@ -180,7 +181,7 @@ func TestK8sServicesIngressesFromApiJob(t *testing.T) {
 			},
 			Rules: expectedIngressRules,
 		},
-		Status: v1beta1.IngressStatus{},
+		Status: networking.IngressStatus{},
 	}
 
 	for _, service := range services {

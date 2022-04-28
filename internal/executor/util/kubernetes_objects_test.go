@@ -3,8 +3,6 @@ package util
 import (
 	"testing"
 
-	"k8s.io/apimachinery/pkg/util/intstr"
-
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/internal/executor/configuration"
 	"github.com/G-Research/armada/internal/executor/domain"
@@ -12,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
-	networking "k8s.io/api/networking/v1beta1"
+	networking "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -188,8 +186,12 @@ func TestCreateIngress_Basic(t *testing.T) {
 							{
 								Path: "/",
 								Backend: networking.IngressBackend{
-									ServiceName: "testService",
-									ServicePort: intstr.IntOrString{IntVal: 8080},
+									Service: &networking.IngressServiceBackend{
+										Name: "testService",
+										Port: networking.ServiceBackendPort{
+											Number: 8080,
+										},
+									},
 								},
 							},
 						},
@@ -238,8 +240,12 @@ func TestCreateIngress_TLS(t *testing.T) {
 							{
 								Path: "/",
 								Backend: networking.IngressBackend{
-									ServiceName: "testService",
-									ServicePort: intstr.IntOrString{IntVal: 8080},
+									Service: &networking.IngressServiceBackend{
+										Name: "testService",
+										Port: networking.ServiceBackendPort{
+											Number: 8080,
+										},
+									},
 								},
 							},
 						},
