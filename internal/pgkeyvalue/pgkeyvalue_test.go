@@ -144,5 +144,36 @@ func TestCleanup(t *testing.T) {
 		store.cache.Purge()
 		_, err = store.Get(context.Background(), "bar")
 		assert.NoError(t, err)
+
+		// Test the automatic cleanup
+		ok, err = store.Add(context.Background(), "baz", expected)
+		if !assert.NoError(t, err) {
+			t.FailNow()
+		}
+		assert.True(t, ok)
+
+		// Start the cleanup job to run a quick interval.
+		// Then try adding baz twice more to make sure it gets cleaned up both times.
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		store.PeriodicCleanup(ctx, time.Microsecond, time.Microsecond)
+
+		time.Sleep(100 * time.Millisecond)
+		store.cache.Purge()
+
+		ok, err = store.Add(context.Background(), "baz", expected)
+		if !assert.NoError(t, err) {
+			t.FailNow()
+		}
+		assert.True(t, ok)
+
+		time.Sleep(100 * time.Millisecond)
+		store.cache.Purge()
+
+		ok, err = store.Add(context.Background(), "baz", expected)
+		if !assert.NoError(t, err) {
+			t.FailNow()
+		}
+		assert.True(t, ok)
 	})
 }

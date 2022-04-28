@@ -171,7 +171,8 @@ func (c *PGKeyValueStore) Cleanup(ctx context.Context, lifespan time.Duration) e
 	return nil
 }
 
-// PeriodicCleanup automatically runs the cleanup job every interval until the provided context is cancelled.
+// PeriodicCleanup starts a goroutine that automatically runs the cleanup job
+// every interval until the provided context is cancelled.
 func (c *PGKeyValueStore) PeriodicCleanup(ctx context.Context, interval time.Duration, lifespan time.Duration) {
 	log := logrus.StandardLogger().WithField("service", "PGKeyValueStoreCleanup")
 	log.Info("service started")
