@@ -7,6 +7,7 @@ import (
 
 	"github.com/hashicorp/golang-lru/simplelru"
 	"github.com/jackc/pgconn"
+	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/pkg/errors"
@@ -62,7 +63,7 @@ func (c *PGKeyValueStore) Add(ctx context.Context, key string, value []byte) (bo
 
 	// If the table doesn't exist, create it and try again.
 	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) && pgErr.Code == "42P01" { // Relation doesn't exist; create it.
+	if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UndefinedTable { // Relation doesn't exist; create it.
 		c.createTable(ctx)
 		ok, err = c.add(ctx, key, value)
 	}
@@ -78,7 +79,7 @@ func (c *PGKeyValueStore) AddKey(ctx context.Context, key string) (bool, error) 
 func (c *PGKeyValueStore) createTable(ctx context.Context) error {
 	var pgErr *pgconn.PgError
 	_, err := c.db.Exec(ctx, fmt.Sprintf("create table %s (key text primary key, value bytea, inserted timestamp not null);", c.tableName))
-	if errors.As(err, &pgErr) && pgErr.Code == "42P07" { // Relation already exists (i.e., someone else just created it), which is fine.
+	if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.DuplicateTable { // Someone else just created it, which is fine.
 		return nil
 	}
 	return err
