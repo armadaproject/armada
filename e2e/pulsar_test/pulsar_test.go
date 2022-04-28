@@ -122,6 +122,7 @@ func TestDedup(t *testing.T) {
 	err := withSetup(func(ctx context.Context, client api.SubmitClient, producer pulsar.Producer, consumer pulsar.Consumer) error {
 		numJobs := 2
 		clientId := uuid.New().String()
+		originalJobIds := make([]string, numJobs)
 
 		// The first time, all jobs should be submitted.
 		req := createJobSubmitRequestWithClientId(numJobs, clientId)
@@ -135,7 +136,11 @@ func TestDedup(t *testing.T) {
 			return nil
 		}
 
-		numEventsExpected := len(res.JobResponseItems) * 6
+		for i := 0; i < numJobs; i++ {
+			originalJobIds[i] = res.JobResponseItems[i].GetJobId()
+		}
+
+		numEventsExpected := numJobs * 6
 		_, err = receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, 10*time.Second)
 		if err != nil {
 			return err
@@ -149,11 +154,15 @@ func TestDedup(t *testing.T) {
 			return err
 		}
 
-		if ok := assert.Equal(t, 0, len(res.JobResponseItems)); !ok {
+		if ok := assert.Equal(t, numJobs, len(res.JobResponseItems)); !ok {
 			return nil
 		}
 
-		numEventsExpected = len(res.JobResponseItems) * 6
+		for i := 0; i < numJobs; i++ {
+			assert.Equal(t, originalJobIds[i], res.JobResponseItems[i].GetJobId())
+		}
+
+		numEventsExpected = numJobs // one duplicate detected message per job
 		_, err = receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, 10*time.Second)
 		if err != nil {
 			return err
@@ -169,11 +178,15 @@ func TestDedup(t *testing.T) {
 			return err
 		}
 
-		if ok := assert.Equal(t, numJobs, len(res.JobResponseItems)); !ok {
+		if ok := assert.Equal(t, 2*numJobs, len(res.JobResponseItems)); !ok {
 			return nil
 		}
 
-		numEventsExpected = len(res.JobResponseItems) * 6
+		for i := 0; i < numJobs; i++ {
+			assert.Equal(t, originalJobIds[i], res.JobResponseItems[i].GetJobId())
+		}
+
+		numEventsExpected = numJobs*6 + numJobs
 		_, err = receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, 10*time.Second)
 		if err != nil {
 			return err

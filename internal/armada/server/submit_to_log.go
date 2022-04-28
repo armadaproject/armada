@@ -58,22 +58,13 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 		return nil, err
 	}
 
-	// If enabled, filter out duplicate job submissions.
-	if srv.KVStore != nil {
-		jobRequestItems, err := srv.removeDuplicateSubmissions(ctx, req.Queue, req.JobRequestItems)
-		if err != nil {
-			return nil, err
-		}
-		req.JobRequestItems = jobRequestItems
-	}
-
 	// Prepare an event sequence to be submitted to the log
 	sequence := &armadaevents.EventSequence{
 		Queue:      req.Queue,
 		JobSetName: req.JobSetId,
 		UserId:     userId,
 		Groups:     groups,
-		Events:     make([]*armadaevents.EventSequence_Event, len(req.JobRequestItems), len(req.JobRequestItems)),
+		Events:     make([]*armadaevents.EventSequence_Event, 0, len(req.JobRequestItems)),
 	}
 
 	// Create legacy API jobs from the requests.
@@ -83,11 +74,71 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 		return nil, err
 	}
 
+	// Armada checks for duplicate job submissions if a ClientId (i.e., a deuplication id) is provided.
+	// Deduplication is based on storing the combined hash of the ClientId and queue.
+	// For storage efficiency, we store hashes instead of user-provided strings.
+	// For computational efficiency, we create a lookup table to avoid computing the same hash twice.
+	combinedHashData := make([]byte, 40)
+	queueHash := sha1.Sum([]byte(req.Queue))
+	for i, b := range queueHash {
+		combinedHashData[i] = b
+	}
+	combinedHashFromClientId := make(map[string][20]byte)
+	jobDuplicateFoundEvents := make([]*api.JobDuplicateFoundEvent, 0)
+
 	// Convert the API jobs to log jobs.
 	responses := make([]*api.JobSubmitResponseItem, len(req.JobRequestItems), len(req.JobRequestItems))
 	for i, apiJob := range apiJobs {
 		responses[i] = &api.JobSubmitResponseItem{
 			JobId: apiJob.GetId(),
+		}
+
+		// If a ClientId (i.e., a deuplication id) is provided,
+		// check for previous job submissions with the ClientId for this queue.
+		// If we find a duplicate, insert the previous jobId in the corresponding response
+		// and generate a job duplicate found event.
+		if apiJob.ClientId != "" && srv.KVStore != nil {
+
+			// Hash the ClientId together with the queue (or get it from the table, if possible).
+			combinedHash, ok := combinedHashFromClientId[apiJob.ClientId]
+			if !ok {
+				clientIdHash := sha1.Sum([]byte(apiJob.ClientId))
+
+				// Compute the combined hash.
+				for i, b := range clientIdHash {
+					combinedHashData[i+20] = b
+				}
+				combinedHash = sha1.Sum(combinedHashData)
+				combinedHashFromClientId[apiJob.ClientId] = combinedHash
+			}
+
+			// Check if we've seen the hash before.
+			// ok=true indicates insertion was successful,
+			// whereas ok=false indicates the key already exists
+			// (i.e., this submission is a duplicate).
+			dedupKey := fmt.Sprintf("%x", combinedHash)
+			ok, err := srv.KVStore.Add(ctx, dedupKey, []byte(apiJob.GetId()))
+			if err != nil {
+				return nil, errors.WithStack(err)
+			}
+			if !ok { // duplicate found
+				originalJobId, err := srv.KVStore.Get(ctx, dedupKey)
+				if err != nil {
+					return nil, errors.WithStack(err)
+				}
+
+				jobDuplicateFoundEvents = append(jobDuplicateFoundEvents, &api.JobDuplicateFoundEvent{
+					JobId:         responses[i].JobId,
+					Queue:         req.Queue,
+					JobSetId:      req.JobSetId,
+					Created:       time.Now(),
+					OriginalJobId: string(originalJobId),
+				})
+				responses[i].JobId = string(originalJobId)
+
+				// The job shouldn't be submitted twice. Move on to the next job.
+				continue
+			}
 		}
 
 		if apiJob.PodSpec == nil && len(apiJob.PodSpecs) == 0 {
@@ -150,11 +201,11 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 			return nil, err
 		}
 
-		sequence.Events[i] = &armadaevents.EventSequence_Event{
+		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
 			Event: &armadaevents.EventSequence_Event_SubmitJob{
 				SubmitJob: logJob,
 			},
-		}
+		})
 	}
 
 	payload, err := proto.Marshal(sequence)
@@ -166,6 +217,11 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 	err = reportSubmitted(srv.SubmitServer.eventStore, apiJobs)
 	if err != nil {
 		return nil, status.Errorf(codes.Aborted, "[SubmitJobs] error getting submitted report: %s", err)
+	}
+
+	err = reportDuplicateFoundEvents(srv.SubmitServer.eventStore, jobDuplicateFoundEvents)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "error reporting duplicates: %s", err)
 	}
 
 	// Incoming gRPC requests are annotated with a unique id.
@@ -185,57 +241,6 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 	}
 
 	return &api.JobSubmitResponse{JobResponseItems: responses}, nil
-}
-
-// removeDuplicateSubmissions filters out job submit request items with previously seen client ids.
-// Client ids are namespaced by queue.
-func (srv *PulsarSubmitServer) removeDuplicateSubmissions(ctx context.Context, queue string, items []*api.JobSubmitRequestItem) ([]*api.JobSubmitRequestItem, error) {
-
-	// For storage efficiency, we store hashes instead of user-provided strings.
-	// For computational efficiency, we create a lookup table to avoid computing the same hash twice.
-	// Client ids are namespaced by queue. Hence, we hash the client id together with the queue.
-	jobSubmitRequestItems := make([]*api.JobSubmitRequestItem, 0, len(items))
-	combinedHashData := make([]byte, 40)
-	queueHash := sha1.Sum([]byte(queue))
-	for i, b := range queueHash {
-		combinedHashData[i] = b
-	}
-	combinedHhashFromClientId := make(map[string][20]byte)
-	for _, item := range items {
-
-		// Empty ClientId indicates no deduplication.
-		if item.ClientId == "" {
-			jobSubmitRequestItems = append(jobSubmitRequestItems, item)
-			continue
-		}
-
-		// Otherwise hash the ClientId (or get it from the table, if possible).
-		combinedHash, ok := combinedHhashFromClientId[item.ClientId]
-		if !ok {
-			clientIdHash := sha1.Sum([]byte(item.ClientId))
-
-			// Compute the combined hash.
-			for i, b := range clientIdHash {
-				combinedHashData[i+20] = b
-			}
-			combinedHash = sha1.Sum(combinedHashData)
-			combinedHhashFromClientId[item.ClientId] = combinedHash
-		}
-
-		// Check if we've seen the hash before.
-		// ok=true indicates insertion was successful,
-		// whereas ok=false indicates the key already exists
-		// (i.e., this submission is a duplicate).
-		dedupKey := fmt.Sprintf("%x", combinedHash)
-		ok, err := srv.KVStore.AddKey(ctx, dedupKey)
-		if err != nil {
-			return nil, errors.WithStack(err)
-		}
-		if ok {
-			jobSubmitRequestItems = append(jobSubmitRequestItems, item)
-		}
-	}
-	return jobSubmitRequestItems, nil
 }
 
 func (srv *PulsarSubmitServer) CancelJobs(ctx context.Context, req *api.JobCancelRequest) (*api.CancellationResult, error) {
