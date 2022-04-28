@@ -224,8 +224,9 @@ func (srv *PulsarSubmitServer) removeDuplicateSubmissions(ctx context.Context, q
 		// ok=true indicates insertion was successful,
 		// whereas ok=false indicates the key already exists
 		// (i.e., this submission is a duplicate).
-		ok, err := srv.KVStore.AddKey(ctx, string(combinedHash[:]))
-		if err == nil {
+		dedupKey := fmt.Sprintf("%x", combinedHash)
+		ok, err := srv.KVStore.AddKey(ctx, dedupKey)
+		if err != nil {
 			return nil, errors.WithStack(err)
 		}
 		if ok {
