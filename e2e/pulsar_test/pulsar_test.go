@@ -124,7 +124,7 @@ func TestDedup(t *testing.T) {
 		clientId := uuid.New().String()
 		originalJobIds := make([]string, numJobs)
 
-		// The first time, all jobs should be submitted.
+		// The first time, all jobs should be submitted as-is.
 		req := createJobSubmitRequestWithClientId(numJobs, clientId)
 		ctxWithTimeout, _ := context.WithTimeout(context.Background(), time.Second)
 		res, err := client.SubmitJobs(ctxWithTimeout, req)
@@ -146,7 +146,7 @@ func TestDedup(t *testing.T) {
 			return err
 		}
 
-		// The second time, all jobs should be rejected.
+		// The second time, job ids should be replaced with the original ids.
 		req = createJobSubmitRequestWithClientId(numJobs, clientId)
 		ctxWithTimeout, _ = context.WithTimeout(context.Background(), time.Second)
 		res, err = client.SubmitJobs(ctxWithTimeout, req)
@@ -168,7 +168,7 @@ func TestDedup(t *testing.T) {
 			return err
 		}
 
-		// Check for partial rejection
+		// Here, some ids should be replaced and some should be new.
 		req = createJobSubmitRequestWithClientId(numJobs, clientId)
 		req2 := createJobSubmitRequestWithClientId(numJobs, uuid.New().String())
 		req.JobRequestItems = append(req.JobRequestItems, req2.JobRequestItems...)
