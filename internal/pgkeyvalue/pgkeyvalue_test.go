@@ -183,3 +183,17 @@ func TestCleanup(t *testing.T) {
 	})
 	assert.NoError(t, err)
 }
+
+func BenchmarkStore(b *testing.B) {
+	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
+		store, err := New(db, "cachetable")
+		if !assert.NoError(b, err) {
+			b.FailNow()
+		}
+		for i := 0; i < b.N; i++ {
+			store.AddKey(context.Background(), "foo")
+		}
+		return nil
+	})
+	assert.NoError(b, err)
+}
