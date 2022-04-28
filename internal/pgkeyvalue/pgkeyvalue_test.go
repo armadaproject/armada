@@ -46,6 +46,19 @@ func TestAdd(t *testing.T) {
 			t.FailNow()
 		}
 		assert.False(t, ok)
+
+		// Test AddKey
+		ok, err = store.AddKey(context.Background(), "baz")
+		if !assert.NoError(t, err) {
+			t.FailNow()
+		}
+		assert.True(t, ok)
+
+		ok, err = store.AddKey(context.Background(), "baz")
+		if !assert.NoError(t, err) {
+			t.FailNow()
+		}
+		assert.False(t, ok)
 	})
 }
 

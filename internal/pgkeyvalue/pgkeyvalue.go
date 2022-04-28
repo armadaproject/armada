@@ -69,9 +69,9 @@ func (c *PGKeyValueStore) Add(ctx context.Context, key string, value []byte) (bo
 	return ok, err
 }
 
-// AddKey is equivalent to Add(ctx, key, []byte{}).
+// AddKey is equivalent to Add(ctx, key, nil).
 func (c *PGKeyValueStore) AddKey(ctx context.Context, key string) (bool, error) {
-	return c.Add(ctx, key, []byte{})
+	return c.Add(ctx, key, nil)
 }
 
 func (c *PGKeyValueStore) createTable(ctx context.Context) error {
