@@ -409,7 +409,7 @@ func TestKubernetesClusterContext_ProcessPodsToDelete_PreventsRepeatedDeleteCall
 	client.Fake.ClearActions()
 	clusterContext.DeletePods([]*v1.Pod{pod})
 	clusterContext.ProcessPodsToDelete()
-	assert.Equal(t, len(client.Fake.Actions()), 3)
+	assert.Equal(t, len(client.Fake.Actions()), 2)
 
 	client.Fake.ClearActions()
 	clusterContext.DeletePods([]*v1.Pod{pod})
@@ -428,12 +428,12 @@ func TestKubernetesClusterContext_ProcessPodsToDelete_AllowsRepeatedDeleteCallTo
 	client.Fake.ClearActions()
 	clusterContext.DeletePods([]*v1.Pod{pod})
 	clusterContext.ProcessPodsToDelete()
-	assert.Equal(t, len(client.Fake.Actions()), 3)
+	assert.Equal(t, len(client.Fake.Actions()), 2)
 
 	client.Fake.ClearActions()
 	clusterContext.DeletePods([]*v1.Pod{pod})
 	clusterContext.ProcessPodsToDelete()
-	assert.Equal(t, len(client.Fake.Actions()), 3)
+	assert.Equal(t, len(client.Fake.Actions()), 2)
 }
 
 func TestKubernetesClusterContext_ProcessPodsToDelete_AllowsRepeatedDeleteCallToClient_AfterMinimumDeletePeriodHasPassed(t *testing.T) {
