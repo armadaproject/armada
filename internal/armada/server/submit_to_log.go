@@ -170,16 +170,18 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 
 	// Incoming gRPC requests are annotated with a unique id.
 	// Pass this id through the log by adding it to the Pulsar message properties.
-	requestId := requestid.FromContextOrMissing(ctx)
-	msg := &pulsar.ProducerMessage{
-		Payload:    payload,
-		Properties: map[string]string{requestid.MetadataKey: requestId},
-		Key:        req.JobSetId,
-	}
-	pulsarrequestid.AddToMessage(msg, requestId)
-	_, err = srv.Producer.Send(ctx, msg)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to send message")
+	if len(sequence.Events) > 0 {
+		requestId := requestid.FromContextOrMissing(ctx)
+		msg := &pulsar.ProducerMessage{
+			Payload:    payload,
+			Properties: map[string]string{requestid.MetadataKey: requestId},
+			Key:        req.JobSetId,
+		}
+		pulsarrequestid.AddToMessage(msg, requestId)
+		_, err = srv.Producer.Send(ctx, msg)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "failed to send message")
+		}
 	}
 
 	return &api.JobSubmitResponse{JobResponseItems: responses}, nil
