@@ -68,8 +68,10 @@ func Test_BatchSize(t *testing.T) {
 func queryForIds(t *testing.T, db *sql.DB, table string) []string {
 	var ids []string
 	rows, err := db.Query(fmt.Sprintf("SELECT job_id from %v", table))
+	if ok := assert.NoError(t, err); !ok {
+		t.FailNow()
+	}
 	defer rows.Close()
-	assert.NoError(t, err)
 	var id string
 	for rows.Next() {
 		err := rows.Scan(&id)

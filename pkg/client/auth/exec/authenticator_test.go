@@ -9,7 +9,7 @@ import (
 
 func testScript() string {
 	if runtime.GOOS == "windows" {
-		return "./testdata/test-exec.bat"
+		return "testdata\\test-exec.bat"
 	} else {
 		return "./testdata/test-exec.sh"
 	}
@@ -29,7 +29,9 @@ func TestAuthenticatorHappyPath(t *testing.T) {
 
 	md, err := a.GetRequestMetadata(nil, "")
 
-	assert.Empty(t, err)
+	if ok := assert.NoError(t, err); !ok {
+		t.FailNow()
+	}
 	assert.Equal(t, map[string]string{"authorization": "Bearer aToken"}, md)
 }
 
@@ -47,7 +49,9 @@ func TestAuthenticatorCmdFails(t *testing.T) {
 
 	md, err := a.GetRequestMetadata(nil, "")
 
-	assert.NotEmpty(t, err)
+	if ok := assert.Error(t, err); !ok {
+		t.FailNow()
+	}
 	assert.Empty(t, md)
 }
 
@@ -65,7 +69,9 @@ func TestAuthenticatorMissingCmd(t *testing.T) {
 
 	md, err := a.GetRequestMetadata(nil, "")
 
-	assert.NotEmpty(t, err)
+	if ok := assert.Error(t, err); !ok {
+		t.FailNow()
+	}
 	assert.Empty(t, md)
 }
 
@@ -83,6 +89,8 @@ func TestAuthenticatorNoToken(t *testing.T) {
 
 	md, err := a.GetRequestMetadata(nil, "")
 
-	assert.NotEmpty(t, err)
+	if ok := assert.Error(t, err); !ok {
+		t.FailNow()
+	}
 	assert.Empty(t, md)
 }

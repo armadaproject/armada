@@ -15,13 +15,20 @@ import (
 type JobState string
 
 const (
-	JobQueued    JobState = "QUEUED"
-	JobPending   JobState = "PENDING"
-	JobRunning   JobState = "RUNNING"
-	JobSucceeded JobState = "SUCCEEDED"
-	JobFailed    JobState = "FAILED"
-	JobCancelled JobState = "CANCELLED"
-	JobDuplicate JobState = "DUPLICATE"
+	JobQueued           JobState = "QUEUED"
+	JobPending          JobState = "PENDING"
+	JobRunning          JobState = "RUNNING"
+	JobSucceeded        JobState = "SUCCEEDED"
+	JobFailed           JobState = "FAILED"
+	JobCancelled        JobState = "CANCELLED"
+	JobDuplicate        JobState = "DUPLICATE"
+	JobQueuedOrdinal             = 1
+	JobPendingOrdinal            = 2
+	JobRunningOrdinal            = 3
+	JobSucceededOrdinal          = 4
+	JobFailedOrdinal             = 5
+	JobCancelledOrdinal          = 6
+	JobDuplicateOrdinal          = 7
 )
 
 type JobRepository interface {
@@ -105,23 +112,23 @@ var AllJobStates = []JobState{
 }
 
 var JobStateToIntMap = map[JobState]int{
-	JobQueued:    1,
-	JobPending:   2,
-	JobRunning:   3,
-	JobSucceeded: 4,
-	JobFailed:    5,
-	JobCancelled: 6,
-	JobDuplicate: 7,
+	JobQueued:    JobQueuedOrdinal,
+	JobPending:   JobPendingOrdinal,
+	JobRunning:   JobRunningOrdinal,
+	JobSucceeded: JobSucceededOrdinal,
+	JobFailed:    JobFailedOrdinal,
+	JobCancelled: JobCancelledOrdinal,
+	JobDuplicate: JobDuplicateOrdinal,
 }
 
 var IntToJobStateMap = map[int]JobState{
-	1: JobQueued,
-	2: JobPending,
-	3: JobRunning,
-	4: JobSucceeded,
-	5: JobFailed,
-	6: JobCancelled,
-	7: JobDuplicate,
+	JobQueuedOrdinal:    JobQueued,
+	JobPendingOrdinal:   JobPending,
+	JobRunningOrdinal:   JobRunning,
+	JobSucceededOrdinal: JobSucceeded,
+	JobFailedOrdinal:    JobFailed,
+	JobCancelledOrdinal: JobCancelled,
+	JobDuplicateOrdinal: JobDuplicate,
 }
 
 var defaultQueryStates = []JobState{
