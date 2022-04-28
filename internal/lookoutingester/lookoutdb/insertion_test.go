@@ -200,7 +200,7 @@ var expectedJobRunContainer = JobRunContainerRow{
 }
 
 func TestCreateJobsBatch(t *testing.T) {
-	testutil.WithDatabasePgx(t, func(db *pgxpool.Pool) {
+	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
 		// Insert
 		err := CreateJobsBatch(ctx.Background(), db, defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
@@ -221,11 +221,13 @@ func TestCreateJobsBatch(t *testing.T) {
 		err = CreateJobsBatch(ctx.Background(), db, append(defaultInstructionSet().JobsToCreate, invalidJob))
 		assert.Error(t, err)
 		assertNoRows(t, db, "job")
+		return nil
 	})
+	assert.NoError(t, err)
 }
 
 func TestUpdateJobsBatch(t *testing.T) {
-	testutil.WithDatabasePgx(t, func(db *pgxpool.Pool) {
+	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
 		// Insert
 		err := CreateJobsBatch(ctx.Background(), db, defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
@@ -252,11 +254,13 @@ func TestUpdateJobsBatch(t *testing.T) {
 		assert.Error(t, err)
 		job = getJob(t, db, jobIdString)
 		assert.Equal(t, expectedJobAfterSubmit, job)
+		return nil
 	})
+	assert.NoError(t, err)
 }
 
 func TestUpdateJobsScalar(t *testing.T) {
-	testutil.WithDatabasePgx(t, func(db *pgxpool.Pool) {
+	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
 		// Insert
 		err := CreateJobsBatch(ctx.Background(), db, defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
@@ -281,11 +285,13 @@ func TestUpdateJobsScalar(t *testing.T) {
 		UpdateJobsScalar(ctx.Background(), db, append(defaultInstructionSet().JobsToUpdate, invalidUpdate))
 		job = getJob(t, db, jobIdString)
 		assert.Equal(t, expectedJobAfterUpdate, job)
+		return nil
 	})
+	assert.NoError(t, err)
 }
 
 func TestCreateJobsScalar(t *testing.T) {
-	testutil.WithDatabasePgx(t, func(db *pgxpool.Pool) {
+	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
 
 		// Simple create
 		CreateJobsScalar(ctx.Background(), db, defaultInstructionSet().JobsToCreate)
@@ -305,11 +311,13 @@ func TestCreateJobsScalar(t *testing.T) {
 		CreateJobsScalar(ctx.Background(), db, append(defaultInstructionSet().JobsToCreate, invalidJob))
 		job = getJob(t, db, jobIdString)
 		assert.Equal(t, expectedJobAfterSubmit, job)
+		return nil
 	})
+	assert.NoError(t, err)
 }
 
 func TestCreateJobRunsBatch(t *testing.T) {
-	testutil.WithDatabasePgx(t, func(db *pgxpool.Pool) {
+	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
 
 		// Need to make sure we have a job so we can satisfy PK
 		err := CreateJobsBatch(ctx.Background(), db, defaultInstructionSet().JobsToCreate)
@@ -335,11 +343,13 @@ func TestCreateJobRunsBatch(t *testing.T) {
 		err = CreateJobRunsBatch(ctx.Background(), db, append(defaultInstructionSet().JobRunsToCreate, invalidRun))
 		assert.Error(t, err)
 		assertNoRows(t, db, "job_run")
+		return nil
 	})
+	assert.NoError(t, err)
 }
 
 func TestCreateJobRunsScalar(t *testing.T) {
-	testutil.WithDatabasePgx(t, func(db *pgxpool.Pool) {
+	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
 
 		// Need to make sure we have a job so we can satisfy PK
 		err := CreateJobsBatch(ctx.Background(), db, defaultInstructionSet().JobsToCreate)
@@ -363,11 +373,13 @@ func TestCreateJobRunsScalar(t *testing.T) {
 		CreateJobRunsScalar(ctx.Background(), db, append(defaultInstructionSet().JobRunsToCreate, invalidRun))
 		job = getJobRun(t, db, runIdString)
 		assert.Equal(t, expectedJobRun, job)
+		return nil
 	})
+	assert.NoError(t, err)
 }
 
 func TestUpdateJobRunsBatch(t *testing.T) {
-	testutil.WithDatabasePgx(t, func(db *pgxpool.Pool) {
+	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
 
 		// Need to make sure we have a job and run
 		err := CreateJobsBatch(ctx.Background(), db, defaultInstructionSet().JobsToCreate)
@@ -400,11 +412,13 @@ func TestUpdateJobRunsBatch(t *testing.T) {
 		assert.Error(t, err)
 		run = getJobRun(t, db, runIdString)
 		assert.Equal(t, expectedJobRun, run)
+		return nil
 	})
+	assert.NoError(t, err)
 }
 
 func TestUpdateJobRunsScalar(t *testing.T) {
-	testutil.WithDatabasePgx(t, func(db *pgxpool.Pool) {
+	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
 
 		// Need to make sure we have a job and run
 		err := CreateJobsBatch(ctx.Background(), db, defaultInstructionSet().JobsToCreate)
@@ -436,11 +450,13 @@ func TestUpdateJobRunsScalar(t *testing.T) {
 		UpdateJobRunsScalar(ctx.Background(), db, append(defaultInstructionSet().JobRunsToUpdate, invalidRun))
 		run = getJobRun(t, db, runIdString)
 		assert.Equal(t, expectedJobRunAfterUpdate, run)
+		return nil
 	})
+	assert.NoError(t, err)
 }
 
 func TestCreateUserAnnotationsBatch(t *testing.T) {
-	testutil.WithDatabasePgx(t, func(db *pgxpool.Pool) {
+	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
 
 		// Need to make sure we have a job
 		err := CreateJobsBatch(ctx.Background(), db, defaultInstructionSet().JobsToCreate)
@@ -466,21 +482,25 @@ func TestCreateUserAnnotationsBatch(t *testing.T) {
 		err = CreateUserAnnotationsBatch(ctx.Background(), db, append(defaultInstructionSet().UserAnnotationsToCreate, invalidAnnotation))
 		assert.Error(t, err)
 		assertNoRows(t, db, "user_annotation_lookup")
+		return nil
 	})
+	assert.NoError(t, err)
 }
 
 func TestEmptyUpdate(t *testing.T) {
-	testutil.WithDatabasePgx(t, func(db *pgxpool.Pool) {
+	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
 		Update(ctx.Background(), db, &model.InstructionSet{})
 		assertNoRows(t, db, "job")
 		assertNoRows(t, db, "job_run")
 		assertNoRows(t, db, "user_annotation_lookup")
 		assertNoRows(t, db, "job_run_container")
+		return nil
 	})
+	assert.NoError(t, err)
 }
 
 func TestCreateUserAnnotationsScalar(t *testing.T) {
-	testutil.WithDatabasePgx(t, func(db *pgxpool.Pool) {
+	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
 
 		// Need to make sure we have a job
 		err := CreateJobsBatch(ctx.Background(), db, defaultInstructionSet().JobsToCreate)
@@ -504,12 +524,13 @@ func TestCreateUserAnnotationsScalar(t *testing.T) {
 		CreateUserAnnotationsScalar(ctx.Background(), db, append(defaultInstructionSet().UserAnnotationsToCreate, invalidAnnotation))
 		annotation = getUserAnnotationLookup(t, db, jobIdString)
 		assert.Equal(t, expectedUserAnnotation, annotation)
+		return nil
 	})
+	assert.NoError(t, err)
 }
 
 func TestUpdate(t *testing.T) {
-
-	testutil.WithDatabasePgx(t, func(db *pgxpool.Pool) {
+	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
 		// Do the update
 		Update(ctx.Background(), db, defaultInstructionSet())
 
@@ -522,7 +543,9 @@ func TestUpdate(t *testing.T) {
 		assert.Equal(t, expectedJobRunAfterUpdate, jobRun)
 		assert.Equal(t, expectedJobRunContainer, container)
 		assert.Equal(t, expectedUserAnnotation, annotation)
+		return nil
 	})
+	assert.NoError(t, err)
 }
 
 func TestConflateJobUpdates(T *testing.T) {

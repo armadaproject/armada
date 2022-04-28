@@ -187,6 +187,12 @@ tests-teardown:
 	docker rm -f redis postgres || true
 
 .ONESHELL:
+tests-no-setup:
+	$(GO_TEST_CMD) go test -v ./internal... 2>&1 | tee test_reports/internal.txt
+	$(GO_TEST_CMD) go test -v ./pkg... 2>&1 | tee test_reports/pkg.txt
+	$(GO_TEST_CMD) go test -v ./cmd... 2>&1 | tee test_reports/cmd.txt
+
+.ONESHELL:
 tests:
 	mkdir -p test_reports
 	docker run -d --name=redis --network=host -p=6379:6379 redis:6.2.6

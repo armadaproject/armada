@@ -23,13 +23,6 @@ type LookoutUIConfig struct {
 	JobsAutoRefreshMs     int
 }
 
-type PostgresConfig struct {
-	MaxOpenConns    int
-	MaxIdleConns    int
-	ConnMaxLifetime time.Duration
-	Connection      map[string]string
-}
-
 type PrunerConfig struct {
 	DaysToKeep int
 	BatchSize  int
@@ -45,14 +38,14 @@ type LookoutConfiguration struct {
 	EventQueue             string
 	Nats                   NatsConfig
 	Jetstream              configuration.JetstreamConfig
-	Postgres               PostgresConfig
+	Postgres               configuration.PostgresConfig
 	PrunerConfig           PrunerConfig
 	DisableEventProcessing bool
 }
 
 type LookoutIngesterConfiguration struct {
 	// Database configuration
-	Postgres PostgresConfig
+	Postgres configuration.PostgresConfig
 	// General Pulsar configuration
 	Pulsar configuration.PulsarConfig
 	// Pulsar subscription name

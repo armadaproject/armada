@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"crypto/sha1"
 	"fmt"
 	"time"
 
@@ -21,6 +22,7 @@ import (
 	"github.com/G-Research/armada/internal/common/eventutil"
 	"github.com/G-Research/armada/internal/common/requestid"
 	executorconfig "github.com/G-Research/armada/internal/executor/configuration"
+	"github.com/G-Research/armada/internal/pgkeyvalue"
 	"github.com/G-Research/armada/internal/pulsarutils/pulsarrequestid"
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/armadaevents"
@@ -44,6 +46,7 @@ type PulsarSubmitServer struct {
 	SubmitServer *SubmitServer
 	// Used to create k8s objects from the submitted ingresses and services.
 	IngressConfig *executorconfig.IngressConfiguration
+	KVStore       *pgkeyvalue.PGKeyValueStore
 }
 
 // TODO: Add input validation to make sure messages can be inserted to the database.
@@ -61,7 +64,7 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 		JobSetName: req.JobSetId,
 		UserId:     userId,
 		Groups:     groups,
-		Events:     make([]*armadaevents.EventSequence_Event, len(req.JobRequestItems), len(req.JobRequestItems)),
+		Events:     make([]*armadaevents.EventSequence_Event, 0, len(req.JobRequestItems)),
 	}
 
 	// Create legacy API jobs from the requests.
@@ -71,11 +74,71 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 		return nil, err
 	}
 
+	// Armada checks for duplicate job submissions if a ClientId (i.e., a deuplication id) is provided.
+	// Deduplication is based on storing the combined hash of the ClientId and queue.
+	// For storage efficiency, we store hashes instead of user-provided strings.
+	// For computational efficiency, we create a lookup table to avoid computing the same hash twice.
+	combinedHashData := make([]byte, 40)
+	queueHash := sha1.Sum([]byte(req.Queue))
+	for i, b := range queueHash {
+		combinedHashData[i] = b
+	}
+	combinedHashFromClientId := make(map[string][20]byte)
+	jobDuplicateFoundEvents := make([]*api.JobDuplicateFoundEvent, 0)
+
 	// Convert the API jobs to log jobs.
 	responses := make([]*api.JobSubmitResponseItem, len(req.JobRequestItems), len(req.JobRequestItems))
 	for i, apiJob := range apiJobs {
 		responses[i] = &api.JobSubmitResponseItem{
 			JobId: apiJob.GetId(),
+		}
+
+		// If a ClientId (i.e., a deuplication id) is provided,
+		// check for previous job submissions with the ClientId for this queue.
+		// If we find a duplicate, insert the previous jobId in the corresponding response
+		// and generate a job duplicate found event.
+		if apiJob.ClientId != "" && srv.KVStore != nil {
+
+			// Hash the ClientId together with the queue (or get it from the table, if possible).
+			combinedHash, ok := combinedHashFromClientId[apiJob.ClientId]
+			if !ok {
+				clientIdHash := sha1.Sum([]byte(apiJob.ClientId))
+
+				// Compute the combined hash.
+				for i, b := range clientIdHash {
+					combinedHashData[i+20] = b
+				}
+				combinedHash = sha1.Sum(combinedHashData)
+				combinedHashFromClientId[apiJob.ClientId] = combinedHash
+			}
+
+			// Check if we've seen the hash before.
+			// ok=true indicates insertion was successful,
+			// whereas ok=false indicates the key already exists
+			// (i.e., this submission is a duplicate).
+			dedupKey := fmt.Sprintf("%x", combinedHash)
+			ok, err := srv.KVStore.Add(ctx, dedupKey, []byte(apiJob.GetId()))
+			if err != nil {
+				return nil, errors.WithStack(err)
+			}
+			if !ok { // duplicate found
+				originalJobId, err := srv.KVStore.Get(ctx, dedupKey)
+				if err != nil {
+					return nil, errors.WithStack(err)
+				}
+
+				jobDuplicateFoundEvents = append(jobDuplicateFoundEvents, &api.JobDuplicateFoundEvent{
+					JobId:         responses[i].JobId,
+					Queue:         req.Queue,
+					JobSetId:      req.JobSetId,
+					Created:       time.Now(),
+					OriginalJobId: string(originalJobId),
+				})
+				responses[i].JobId = string(originalJobId)
+
+				// The job shouldn't be submitted twice. Move on to the next job.
+				continue
+			}
 		}
 
 		if apiJob.PodSpec == nil && len(apiJob.PodSpecs) == 0 {
@@ -138,11 +201,11 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 			return nil, err
 		}
 
-		sequence.Events[i] = &armadaevents.EventSequence_Event{
+		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
 			Event: &armadaevents.EventSequence_Event_SubmitJob{
 				SubmitJob: logJob,
 			},
-		}
+		})
 	}
 
 	payload, err := proto.Marshal(sequence)
@@ -156,18 +219,25 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 		return nil, status.Errorf(codes.Aborted, "[SubmitJobs] error getting submitted report: %s", err)
 	}
 
+	err = reportDuplicateFoundEvents(srv.SubmitServer.eventStore, jobDuplicateFoundEvents)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "error reporting duplicates: %s", err)
+	}
+
 	// Incoming gRPC requests are annotated with a unique id.
 	// Pass this id through the log by adding it to the Pulsar message properties.
-	requestId := requestid.FromContextOrMissing(ctx)
-	msg := &pulsar.ProducerMessage{
-		Payload:    payload,
-		Properties: map[string]string{requestid.MetadataKey: requestId},
-		Key:        req.JobSetId,
-	}
-	pulsarrequestid.AddToMessage(msg, requestId)
-	_, err = srv.Producer.Send(ctx, msg)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to send message")
+	if len(sequence.Events) > 0 {
+		requestId := requestid.FromContextOrMissing(ctx)
+		msg := &pulsar.ProducerMessage{
+			Payload:    payload,
+			Properties: map[string]string{requestid.MetadataKey: requestId},
+			Key:        req.JobSetId,
+		}
+		pulsarrequestid.AddToMessage(msg, requestId)
+		_, err = srv.Producer.Send(ctx, msg)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "failed to send message")
+		}
 	}
 
 	return &api.JobSubmitResponse{JobResponseItems: responses}, nil
