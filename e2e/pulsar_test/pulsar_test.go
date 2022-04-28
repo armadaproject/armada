@@ -135,6 +135,12 @@ func TestDedup(t *testing.T) {
 			return nil
 		}
 
+		numEventsExpected := len(res.JobResponseItems) * 6
+		_, err = receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, 10*time.Second)
+		if err != nil {
+			return err
+		}
+
 		// The second time, all jobs should be rejected.
 		req = createJobSubmitRequestWithClientId(numJobs, clientId)
 		ctxWithTimeout, _ = context.WithTimeout(context.Background(), time.Second)
@@ -145,6 +151,12 @@ func TestDedup(t *testing.T) {
 
 		if ok := assert.Equal(t, 0, len(res.JobResponseItems)); !ok {
 			return nil
+		}
+
+		numEventsExpected = len(res.JobResponseItems) * 6
+		_, err = receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, 10*time.Second)
+		if err != nil {
+			return err
 		}
 
 		// Check for partial rejection
@@ -159,6 +171,12 @@ func TestDedup(t *testing.T) {
 
 		if ok := assert.Equal(t, numJobs, len(res.JobResponseItems)); !ok {
 			return nil
+		}
+
+		numEventsExpected = len(res.JobResponseItems) * 6
+		_, err = receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, 10*time.Second)
+		if err != nil {
+			return err
 		}
 
 		return nil
