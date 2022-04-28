@@ -9,7 +9,6 @@ import (
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
-	"github.com/oklog/ulid"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -283,14 +282,14 @@ func (srv *PulsarSubmitServer) CancelJobs(ctx context.Context, req *api.JobCance
 
 		cancelledIds = []string{fmt.Sprintf("all jobs in job set %s", req.JobSetId)}
 	} else {
-		jobId, err := parseJobId(req.JobId)
+		jobId, err := armadaevents.ProtoUuidFromUlidString(req.JobId)
 		if err != nil {
 			return nil, err
 		}
 
 		sequence.Events[0] = &armadaevents.EventSequence_Event{
 			Event: &armadaevents.EventSequence_Event_CancelJob{
-				CancelJob: &armadaevents.CancelJob{JobId: armadaevents.ProtoUuidFromUlid(jobId)},
+				CancelJob: &armadaevents.CancelJob{JobId: jobId},
 			},
 		}
 
@@ -375,7 +374,7 @@ func (srv *PulsarSubmitServer) ReprioritizeJobs(ctx context.Context, req *api.Jo
 	// Otherwise, only the specified jobs should be re-prioritised.
 	for i, jobIdString := range req.JobIds {
 
-		jobId, err := parseJobId(jobIdString)
+		jobId, err := armadaevents.ProtoUuidFromUlidString(jobIdString)
 		if err != nil {
 			results[jobIdString] = err.Error()
 			continue
@@ -384,7 +383,7 @@ func (srv *PulsarSubmitServer) ReprioritizeJobs(ctx context.Context, req *api.Jo
 		sequence.Events[i] = &armadaevents.EventSequence_Event{
 			Event: &armadaevents.EventSequence_Event_ReprioritiseJob{
 				ReprioritiseJob: &armadaevents.ReprioritiseJob{
-					JobId:    armadaevents.ProtoUuidFromUlid(jobId),
+					JobId:    jobId,
 					Priority: priority,
 				},
 			},
@@ -574,11 +573,11 @@ func PulsarSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.E
 		sequence.Queue = m.DuplicateFound.Queue
 		sequence.JobSetName = m.DuplicateFound.JobSetId
 
-		newJobId, err := parseJobId(m.DuplicateFound.JobId)
+		newJobId, err := armadaevents.ProtoUuidFromUlidString(m.DuplicateFound.JobId)
 		if err != nil {
 			return nil, err
 		}
-		oldJobId, err := parseJobId(m.DuplicateFound.OriginalJobId)
+		oldJobId, err := armadaevents.ProtoUuidFromUlidString(m.DuplicateFound.OriginalJobId)
 		if err != nil {
 			return nil, err
 		}
@@ -586,8 +585,8 @@ func PulsarSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.E
 		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
 			Event: &armadaevents.EventSequence_Event_JobDuplicateDetected{
 				JobDuplicateDetected: &armadaevents.JobDuplicateDetected{
-					NewJobId: armadaevents.ProtoUuidFromUlid(newJobId),
-					OldJobId: armadaevents.ProtoUuidFromUlid(oldJobId),
+					NewJobId: newJobId,
+					OldJobId: oldJobId,
 				},
 			},
 		})
@@ -596,7 +595,7 @@ func PulsarSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.E
 		sequence.JobSetName = m.Leased.JobSetId
 
 		// Message has no KubernetesId; use the all-zeros id.
-		jobId, err := parseJobId(m.Leased.JobId)
+		jobId, err := armadaevents.ProtoUuidFromUlidString(m.Leased.JobId)
 		if err != nil {
 			return nil, err
 		}
@@ -605,7 +604,7 @@ func PulsarSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.E
 			Event: &armadaevents.EventSequence_Event_JobRunLeased{
 				JobRunLeased: &armadaevents.JobRunLeased{
 					RunId:      legacyJobRunId(),
-					JobId:      armadaevents.ProtoUuidFromUlid(jobId),
+					JobId:      jobId,
 					ExecutorId: m.Leased.ClusterId,
 				},
 			},
@@ -614,7 +613,7 @@ func PulsarSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.E
 		sequence.Queue = m.LeaseReturned.Queue
 		sequence.JobSetName = m.LeaseReturned.JobSetId
 
-		jobId, err := parseJobId(m.LeaseReturned.JobId)
+		jobId, err := armadaevents.ProtoUuidFromUlidString(m.LeaseReturned.JobId)
 		if err != nil {
 			return nil, err
 		}
@@ -628,7 +627,7 @@ func PulsarSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.E
 			Event: &armadaevents.EventSequence_Event_JobRunErrors{
 				JobRunErrors: &armadaevents.JobRunErrors{
 					RunId: runId,
-					JobId: armadaevents.ProtoUuidFromUlid(jobId),
+					JobId: jobId,
 					Errors: []*armadaevents.Error{
 						{
 							Terminal: true, // EventMessage_LeaseReturned indicates a failed job run.
@@ -656,7 +655,7 @@ func PulsarSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.E
 		sequence.JobSetName = m.LeaseExpired.JobSetId
 
 		// Message has no KubernetesId; use the all-zeros id.
-		jobId, err := parseJobId(m.LeaseExpired.JobId)
+		jobId, err := armadaevents.ProtoUuidFromUlidString(m.LeaseExpired.JobId)
 		if err != nil {
 			return nil, err
 		}
@@ -665,7 +664,7 @@ func PulsarSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.E
 			Event: &armadaevents.EventSequence_Event_JobRunErrors{
 				JobRunErrors: &armadaevents.JobRunErrors{
 					RunId: legacyJobRunId(),
-					JobId: armadaevents.ProtoUuidFromUlid(jobId),
+					JobId: jobId,
 					Errors: []*armadaevents.Error{
 						{
 							Terminal: true, // EventMessage_LeaseExpired indicates a failed job run.
@@ -681,7 +680,7 @@ func PulsarSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.E
 		sequence.Queue = m.Pending.Queue
 		sequence.JobSetName = m.Pending.JobSetId
 
-		jobId, err := parseJobId(m.Pending.JobId)
+		jobId, err := armadaevents.ProtoUuidFromUlidString(m.Pending.JobId)
 		if err != nil {
 			return nil, err
 		}
@@ -695,7 +694,7 @@ func PulsarSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.E
 			Event: &armadaevents.EventSequence_Event_JobRunAssigned{
 				JobRunAssigned: &armadaevents.JobRunAssigned{
 					RunId: runId,
-					JobId: armadaevents.ProtoUuidFromUlid(jobId),
+					JobId: jobId,
 					ResourceInfos: []*armadaevents.KubernetesResourceInfo{
 						{
 							ObjectMeta: &armadaevents.ObjectMeta{
@@ -718,7 +717,7 @@ func PulsarSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.E
 		sequence.Queue = m.Running.Queue
 		sequence.JobSetName = m.Running.JobSetId
 
-		jobId, err := parseJobId(m.Running.JobId)
+		jobId, err := armadaevents.ProtoUuidFromUlidString(m.Running.JobId)
 		if err != nil {
 			return nil, err
 		}
@@ -732,7 +731,7 @@ func PulsarSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.E
 			Event: &armadaevents.EventSequence_Event_JobRunRunning{
 				JobRunRunning: &armadaevents.JobRunRunning{
 					RunId: runId,
-					JobId: armadaevents.ProtoUuidFromUlid(jobId),
+					JobId: jobId,
 					ResourceInfos: []*armadaevents.KubernetesResourceInfo{
 						{
 							ObjectMeta: &armadaevents.ObjectMeta{
@@ -758,7 +757,7 @@ func PulsarSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.E
 		sequence.Queue = m.UnableToSchedule.Queue
 		sequence.JobSetName = m.UnableToSchedule.JobSetId
 
-		jobId, err := parseJobId(m.UnableToSchedule.JobId)
+		jobId, err := armadaevents.ProtoUuidFromUlidString(m.UnableToSchedule.JobId)
 		if err != nil {
 			return nil, err
 		}
@@ -766,7 +765,7 @@ func PulsarSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.E
 		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
 			Event: &armadaevents.EventSequence_Event_JobErrors{
 				JobErrors: &armadaevents.JobErrors{
-					JobId: armadaevents.ProtoUuidFromUlid(jobId),
+					JobId: jobId,
 					Errors: []*armadaevents.Error{
 						{
 							Terminal: true, // EventMessage_UnableToSchedule indicates a failed job.
@@ -794,7 +793,7 @@ func PulsarSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.E
 		sequence.Queue = m.Failed.Queue
 		sequence.JobSetName = m.Failed.JobSetId
 
-		jobId, err := parseJobId(m.Failed.JobId)
+		jobId, err := armadaevents.ProtoUuidFromUlidString(m.Failed.JobId)
 		if err != nil {
 			return nil, err
 		}
@@ -845,7 +844,7 @@ func PulsarSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.E
 			Event: &armadaevents.EventSequence_Event_JobRunErrors{
 				JobRunErrors: &armadaevents.JobRunErrors{
 					RunId: runId,
-					JobId: armadaevents.ProtoUuidFromUlid(jobId),
+					JobId: jobId,
 					Errors: []*armadaevents.Error{
 						{
 							Terminal: true,
@@ -872,7 +871,7 @@ func PulsarSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.E
 		sequence.Queue = m.Succeeded.Queue
 		sequence.JobSetName = m.Succeeded.JobSetId
 
-		jobId, err := parseJobId(m.Succeeded.JobId)
+		jobId, err := armadaevents.ProtoUuidFromUlidString(m.Succeeded.JobId)
 		if err != nil {
 			return nil, err
 		}
@@ -886,7 +885,7 @@ func PulsarSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.E
 			Event: &armadaevents.EventSequence_Event_JobRunSucceeded{
 				JobRunSucceeded: &armadaevents.JobRunSucceeded{
 					RunId: runId,
-					JobId: armadaevents.ProtoUuidFromUlid(jobId),
+					JobId: jobId,
 				},
 			},
 		})
@@ -894,7 +893,7 @@ func PulsarSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.E
 		sequence.Queue = m.Reprioritized.Queue
 		sequence.JobSetName = m.Reprioritized.JobSetId
 
-		jobId, err := parseJobId(m.Reprioritized.JobId)
+		jobId, err := armadaevents.ProtoUuidFromUlidString(m.Reprioritized.JobId)
 		if err != nil {
 			return nil, err
 		}
@@ -907,7 +906,7 @@ func PulsarSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.E
 		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
 			Event: &armadaevents.EventSequence_Event_ReprioritisedJob{
 				ReprioritisedJob: &armadaevents.ReprioritisedJob{
-					JobId:    armadaevents.ProtoUuidFromUlid(jobId),
+					JobId:    jobId,
 					Priority: priority,
 				},
 			},
@@ -918,7 +917,7 @@ func PulsarSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.E
 		sequence.Queue = m.Cancelled.Queue
 		sequence.JobSetName = m.Cancelled.JobSetId
 
-		jobId, err := parseJobId(m.Cancelled.JobId)
+		jobId, err := armadaevents.ProtoUuidFromUlidString(m.Cancelled.JobId)
 		if err != nil {
 			return nil, err
 		}
@@ -926,7 +925,7 @@ func PulsarSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.E
 		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
 			Event: &armadaevents.EventSequence_Event_CancelledJob{
 				CancelledJob: &armadaevents.CancelledJob{
-					JobId: armadaevents.ProtoUuidFromUlid(jobId),
+					JobId: jobId,
 				},
 			},
 		})
@@ -937,7 +936,7 @@ func PulsarSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.E
 		sequence.Queue = m.Terminated.Queue
 		sequence.JobSetName = m.Terminated.JobSetId
 
-		jobId, err := parseJobId(m.Terminated.JobId)
+		jobId, err := armadaevents.ProtoUuidFromUlidString(m.Terminated.JobId)
 		if err != nil {
 			return nil, err
 		}
@@ -945,7 +944,7 @@ func PulsarSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.E
 		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
 			Event: &armadaevents.EventSequence_Event_JobErrors{
 				JobErrors: &armadaevents.JobErrors{
-					JobId: armadaevents.ProtoUuidFromUlid(jobId),
+					JobId: jobId,
 					Errors: []*armadaevents.Error{
 						{
 							Terminal: true,
@@ -981,7 +980,7 @@ func PulsarSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.E
 		sequence.Queue = m.IngressInfo.Queue
 		sequence.JobSetName = m.IngressInfo.JobSetId
 
-		jobId, err := parseJobId(m.IngressInfo.JobId)
+		jobId, err := armadaevents.ProtoUuidFromUlidString(m.IngressInfo.JobId)
 		if err != nil {
 			return nil, err
 		}
@@ -995,7 +994,7 @@ func PulsarSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.E
 			Event: &armadaevents.EventSequence_Event_StandaloneIngressInfo{
 				StandaloneIngressInfo: &armadaevents.StandaloneIngressInfo{
 					RunId: runId,
-					JobId: armadaevents.ProtoUuidFromUlid(jobId),
+					JobId: jobId,
 					ObjectMeta: &armadaevents.ObjectMeta{
 						ExecutorId:   m.IngressInfo.ClusterId,
 						Namespace:    m.IngressInfo.PodNamespace, // We assume the ingress was created with the same namespace as the pod
@@ -1024,23 +1023,6 @@ func PulsarSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.E
 	}
 
 	return sequence, nil
-}
-
-// parseJobId is a convenience function for converting a string to a ULID and
-// then returning the default legacy id for runs without an included id.
-// Returns an ErrInvalidArgument if parsing either id fails.
-func parseJobId(jobIdString string) (ulid.ULID, error) {
-	jobId, err := ulid.Parse(jobIdString)
-	if err != nil {
-		err = &armadaerrors.ErrInvalidArgument{
-			Name:    "jobId",
-			Value:   jobIdString,
-			Message: err.Error(),
-		}
-		err = errors.WithStack(err)
-		return jobId, err
-	}
-	return jobId, nil
 }
 
 func legacyJobRunId() *armadaevents.Uuid {
