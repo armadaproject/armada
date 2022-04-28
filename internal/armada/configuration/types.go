@@ -32,6 +32,7 @@ type ArmadaConfig struct {
 	DatabaseRetention DatabaseRetentionPolicy
 	EventRetention    EventRetentionPolicy
 	Pulsar            PulsarConfig
+	Postgres          PostgresConfig // Used for Pulsar submit API deduplication
 
 	Metrics MetricsConfig
 }
@@ -68,7 +69,6 @@ type PulsarConfig struct {
 	CertNameSuffix string
 	Annotations    map[string]string
 	// Settings for deduplication, which relies on a postgres server.
-	Postgres   PostgresConfig
 	DedupTable string
 }
 

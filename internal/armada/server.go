@@ -199,9 +199,9 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 		submitServerToRegister = pulsarSubmitServer
 
 		// If postgres details were provided, enable deduplication.
-		if config.Pulsar.DedupTable != "" && config.Pulsar.Postgres.Connection != nil {
+		if config.Pulsar.DedupTable != "" {
 			log.Info("Pulsar submit API deduplication enabled")
-			db, err := postgres.OpenPgxPool(config.Pulsar.Postgres)
+			db, err := postgres.OpenPgxPool(config.Postgres)
 			if err != nil {
 				panic(err)
 			}
