@@ -54,23 +54,23 @@ func New(db *pgxpool.Pool, tableName string) (*PGKeyValueStore, error) {
 	}, nil
 }
 
-// Add adds a key-value pair. Returns *armadaerror.ErrAlreadyExists if the key already exists.
+// Add adds a key-value pair. Returns true if successful and false if the key already exists.
 // The posgres table backing the key-value storage is created automatically if it doesn't already exist.
-func (c *PGKeyValueStore) Add(ctx context.Context, key string, value []byte) error {
-	err := c.add(ctx, key, value)
+func (c *PGKeyValueStore) Add(ctx context.Context, key string, value []byte) (bool, error) {
+	ok, err := c.add(ctx, key, value)
 
 	// If the table doesn't exist, create it and try again.
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && pgErr.Code == "42P01" { // Relation doesn't exist; create it.
 		c.createTable(ctx)
-		err = c.add(ctx, key, value)
+		ok, err = c.add(ctx, key, value)
 	}
 
-	return err
+	return ok, err
 }
 
 // AddKey is equivalent to Add(ctx, key, []byte{}).
-func (c *PGKeyValueStore) AddKey(ctx context.Context, key string) error {
+func (c *PGKeyValueStore) AddKey(ctx context.Context, key string) (bool, error) {
 	return c.Add(ctx, key, []byte{})
 }
 
@@ -83,14 +83,11 @@ func (c *PGKeyValueStore) createTable(ctx context.Context) error {
 	return err
 }
 
-func (c *PGKeyValueStore) add(ctx context.Context, key string, value []byte) error {
+func (c *PGKeyValueStore) add(ctx context.Context, key string, value []byte) (bool, error) {
 
 	// Overwriting isn't allowed.
 	if _, ok := c.cache.Get(key); ok {
-		return errors.WithStack(&armadaerrors.ErrAlreadyExists{
-			Type:  "Postgres key-value",
-			Value: key,
-		})
+		return false, nil
 	}
 
 	// Otherwise, get and set the key in a transaction.
@@ -116,23 +113,20 @@ func (c *PGKeyValueStore) add(ctx context.Context, key string, value []byte) err
 		return nil
 	})
 
-	// We need to return on error (in particular, tx rollback)
+	// We need to return on error (in particular tx rollback)
 	// to avoid writing to the cache after failing to write to postgres.
 	if err != nil {
-		return errors.WithStack(err)
+		return false, errors.WithStack(err)
 	}
 
-	// Return an error if the key already exists.
+	// Only add to cache if we also wrote to postgres.
 	if *exists {
-		return errors.WithStack(&armadaerrors.ErrAlreadyExists{
-			Type:  "Postgres key-value pair",
-			Value: key,
-		})
+		return false, nil
 	} else {
 		c.cache.Add(key, value)
 	}
 
-	return nil
+	return true, nil
 }
 
 // Get returns the value associated with the provided key,
