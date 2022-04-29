@@ -965,7 +965,9 @@ func selectBoolean(t *testing.T, db *goqu.Database, query string) bool {
 }
 
 func withDatabase(t *testing.T, action func(*goqu.Database)) {
-	testutil.WithDatabase(t, func(testDb *sql.DB) {
+	err := testutil.WithDatabase(func(testDb *sql.DB) error {
 		action(goqu.New("postgres", testDb))
+		return nil
 	})
+	assert.NoError(t, err)
 }
