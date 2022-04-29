@@ -9,7 +9,7 @@ import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 import "google/protobuf/empty.proto";
 import "pkg/api/submit.proto";
 
-import "k8s.io/api/networking/v1beta1/generated.proto";
+import "k8s.io/api/networking/v1/generated.proto";
 
 option (gogoproto.goproto_stringer_all) = false;
 option (gogoproto.stringer_all) = true;
@@ -36,7 +36,7 @@ message Job {
     repeated ServiceConfig services = 16;
     // repeated github.com.G-Research.armada.internal.events.KubernetesObject objects = 17;
     // github.com.G-Research.armada.internal.events.
-    repeated k8s.io.api.networking.v1beta1.Ingress k8s_ingress = 17;
+    repeated k8s.io.api.networking.v1.Ingress k8s_ingress = 17;
     repeated k8s.io.api.core.v1.Service k8s_service = 18;
 }
 

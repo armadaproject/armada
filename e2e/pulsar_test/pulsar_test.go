@@ -35,6 +35,8 @@ const armadaUserId = "anonymous"
 // Namespace created by the test setup. Used when submitting test jobs.
 const userNamespace = "personal-anonymous"
 
+const receiveEventTimeout = 30 * time.Second
+
 // The submit server should automatically add default tolerations.
 // These must be manually updated to match the default tolerations in the server config.
 var expectedTolerations = []v1.Toleration{
@@ -72,7 +74,7 @@ func TestPublishReceive(t *testing.T) {
 // Test that submitting many jobs results in the correct sequence of Pulsar message being produced for each job.
 func TestSubmitJobs(t *testing.T) {
 	err := withSetup(func(ctx context.Context, client api.SubmitClient, producer pulsar.Producer, consumer pulsar.Consumer) error {
-		numJobs := 1
+		numJobs := 2
 		req := createJobSubmitRequest(numJobs)
 		ctxWithTimeout, _ := context.WithTimeout(context.Background(), time.Second)
 		res, err := client.SubmitJobs(ctxWithTimeout, req)
@@ -85,7 +87,7 @@ func TestSubmitJobs(t *testing.T) {
 		}
 
 		numEventsExpected := numJobs * 6
-		sequences, err := receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, 10*time.Second)
+		sequences, err := receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, receiveEventTimeout)
 		if err != nil {
 			return err
 		}
@@ -118,6 +120,85 @@ func TestSubmitJobs(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestDedup(t *testing.T) {
+	err := withSetup(func(ctx context.Context, client api.SubmitClient, producer pulsar.Producer, consumer pulsar.Consumer) error {
+		numJobs := 2
+		clientId := uuid.New().String()
+		originalJobIds := make([]string, numJobs)
+
+		// The first time, all jobs should be submitted as-is.
+		req := createJobSubmitRequestWithClientId(numJobs, clientId)
+		ctxWithTimeout, _ := context.WithTimeout(context.Background(), time.Second)
+		res, err := client.SubmitJobs(ctxWithTimeout, req)
+		if err != nil {
+			return err
+		}
+
+		if ok := assert.Equal(t, numJobs, len(res.JobResponseItems)); !ok {
+			return nil
+		}
+
+		for i := 0; i < numJobs; i++ {
+			originalJobIds[i] = res.JobResponseItems[i].GetJobId()
+		}
+
+		numEventsExpected := numJobs * 6
+		_, err = receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, receiveEventTimeout)
+		if err != nil {
+			return err
+		}
+
+		// The second time, job ids should be replaced with the original ids.
+		req = createJobSubmitRequestWithClientId(numJobs, clientId)
+		ctxWithTimeout, _ = context.WithTimeout(context.Background(), time.Second)
+		res, err = client.SubmitJobs(ctxWithTimeout, req)
+		if err != nil {
+			return err
+		}
+
+		if ok := assert.Equal(t, numJobs, len(res.JobResponseItems)); !ok {
+			return nil
+		}
+
+		for i := 0; i < numJobs; i++ {
+			assert.Equal(t, originalJobIds[i], res.JobResponseItems[i].GetJobId())
+		}
+
+		numEventsExpected = numJobs // one duplicate detected message per job
+		_, err = receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, receiveEventTimeout)
+		if err != nil {
+			return err
+		}
+
+		// Here, some ids should be replaced and some should be new.
+		req = createJobSubmitRequestWithClientId(numJobs, clientId)
+		req2 := createJobSubmitRequestWithClientId(numJobs, uuid.New().String())
+		req.JobRequestItems = append(req.JobRequestItems, req2.JobRequestItems...)
+		ctxWithTimeout, _ = context.WithTimeout(context.Background(), time.Second)
+		res, err = client.SubmitJobs(ctxWithTimeout, req)
+		if err != nil {
+			return err
+		}
+
+		if ok := assert.Equal(t, 2*numJobs, len(res.JobResponseItems)); !ok {
+			return nil
+		}
+
+		for i := 0; i < numJobs; i++ {
+			assert.Equal(t, originalJobIds[i], res.JobResponseItems[i].GetJobId())
+		}
+
+		numEventsExpected = numJobs*6 + numJobs
+		_, err = receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, receiveEventTimeout)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
+	assert.NoError(t, err)
+}
+
 // Test that submitting many jobs results in the correct sequence of Pulsar message being produced for each job.
 // For jobs that contain multiple PodSpecs, services, and ingresses.
 func TestSubmitJobsWithEverything(t *testing.T) {
@@ -135,7 +216,7 @@ func TestSubmitJobsWithEverything(t *testing.T) {
 		}
 
 		numEventsExpected := numJobs * 7
-		sequences, err := receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, 10*time.Second)
+		sequences, err := receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, receiveEventTimeout)
 		if err != nil {
 			return err
 		}
@@ -207,7 +288,7 @@ func TestSubmitJobWithError(t *testing.T) {
 
 		// Test that we get errors messages.
 		numEventsExpected := numJobs * 4
-		sequences, err := receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, 10*time.Second)
+		sequences, err := receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, receiveEventTimeout)
 		if err != nil {
 			return err
 		}
@@ -232,8 +313,8 @@ func TestSubmitJobWithError(t *testing.T) {
 				return nil
 			}
 			expected := &armadaevents.EventSequence_Event{
-				Event: &armadaevents.EventSequence_Event_JobErrors{
-					JobErrors: &armadaevents.JobErrors{
+				Event: &armadaevents.EventSequence_Event_JobRunErrors{
+					JobRunErrors: &armadaevents.JobRunErrors{
 						JobId: jobId,
 					},
 				},
@@ -276,7 +357,7 @@ func TestSubmitCancelJobs(t *testing.T) {
 
 		// Test that we get submit, cancel, and cancelled messages.
 		numEventsExpected := numJobs * 3
-		sequences, err := receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, 10*time.Second)
+		sequences, err := receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, receiveEventTimeout)
 		if err != nil {
 			return err
 		}
@@ -589,6 +670,7 @@ func receiveJobSetSequences(ctx context.Context, consumer pulsar.Consumer, queue
 		var msg pulsar.Message
 		msg, err = consumer.Receive(ctxWithTimeout)
 		if err == context.DeadlineExceeded {
+			fmt.Println("Timed out waiting for event")
 			err = nil // Timeout is expected; ignore.
 			return
 		} else if err != nil {
@@ -678,14 +760,23 @@ func filterOutStandaloneIngressInfo(sequence *armadaevents.EventSequence) (*arma
 
 // Create a job submit request for testing.
 func createJobSubmitRequest(numJobs int) *api.JobSubmitRequest {
+	return createJobSubmitRequestWithClientId(numJobs, uuid.New().String())
+}
+
+// Create a job submit request for testing.
+func createJobSubmitRequestWithClientId(numJobs int, clientId string) *api.JobSubmitRequest {
 	cpu, _ := resource.ParseQuantity("80m")
 	memory, _ := resource.ParseQuantity("50Mi")
 	items := make([]*api.JobSubmitRequestItem, numJobs, numJobs)
 	for i := 0; i < numJobs; i++ {
+		itemClientId := clientId
+		if itemClientId != "" {
+			itemClientId = fmt.Sprintf("%s-%d", itemClientId, i)
+		}
 		items[i] = &api.JobSubmitRequestItem{
 			Namespace: userNamespace,
 			Priority:  1,
-			ClientId:  uuid.New().String(), // So we can test that we get back the right thing
+			ClientId:  itemClientId,
 			PodSpec: &v1.PodSpec{
 				Containers: []v1.Container{
 					{
