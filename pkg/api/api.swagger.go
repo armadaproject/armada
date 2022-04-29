@@ -542,7 +542,7 @@ func SwaggerJsonTemplate() string {
 		"          \"description\": \"repeated github.com.G-Research.armada.internal.events.KubernetesObject objects = 17;\\ngithub.com.G-Research.armada.internal.events.\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
-		"            \"$ref\": \"#/definitions/v1beta1Ingress\"\n" +
+		"            \"$ref\": \"#/definitions/v1Ingress\"\n" +
 		"          }\n" +
 		"        },\n" +
 		"        \"k8sService\": {\n" +
@@ -1772,6 +1772,38 @@ func SwaggerJsonTemplate() string {
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
+		"    \"v1Condition\": {\n" +
+		"      \"description\": \"// other fields\\n}\",\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"title\": \"Condition contains details for one aspect of the current state of this API Resource.\\n---\\nThis struct is intended for direct use as an array at the field path .status.conditions.  For example,\\ntype FooStatus struct{\\n    // Represents the observations of a foo's current state.\\n    // Known .status.conditions.type are: \\\"Available\\\", \\\"Progressing\\\", and \\\"Degraded\\\"\\n    // +patchMergeKey=type\\n    // +patchStrategy=merge\\n    // +listType=map\\n    // +listMapKey=type\\n    Conditions []metav1.Condition `json:\\\"conditions,omitempty\\\" patchStrategy:\\\"merge\\\" patchMergeKey:\\\"type\\\" protobuf:\\\"bytes,1,rep,name=conditions\\\"`\",\n" +
+		"      \"properties\": {\n" +
+		"        \"lastTransitionTime\": {\n" +
+		"          \"title\": \"lastTransitionTime is the last time the condition transitioned from one status to another.\\nThis should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.\\n+required\\n+kubebuilder:validation:Required\\n+kubebuilder:validation:Type=string\\n+kubebuilder:validation:Format=date-time\",\n" +
+		"          \"$ref\": \"#/definitions/v1Time\"\n" +
+		"        },\n" +
+		"        \"message\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"title\": \"message is a human readable message indicating details about the transition.\\nThis may be an empty string.\\n+required\\n+kubebuilder:validation:Required\\n+kubebuilder:validation:MaxLength=32768\"\n" +
+		"        },\n" +
+		"        \"observedGeneration\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"format\": \"int64\",\n" +
+		"          \"title\": \"observedGeneration represents the .metadata.generation that the condition was set based upon.\\nFor instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date\\nwith respect to the current state of the instance.\\n+optional\\n+kubebuilder:validation:Minimum=0\"\n" +
+		"        },\n" +
+		"        \"reason\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"title\": \"reason contains a programmatic identifier indicating the reason for the condition's last transition.\\nProducers of specific condition types may define expected values and meanings for this field,\\nand whether the values are considered a guaranteed API.\\nThe value should be a CamelCase string.\\nThis field may not be empty.\\n+required\\n+kubebuilder:validation:Required\\n+kubebuilder:validation:MaxLength=1024\\n+kubebuilder:validation:MinLength=1\\n+kubebuilder:validation:Pattern=`^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$`\"\n" +
+		"        },\n" +
+		"        \"status\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"title\": \"status of the condition, one of True, False, Unknown.\\n+required\\n+kubebuilder:validation:Required\\n+kubebuilder:validation:Enum=True;False;Unknown\"\n" +
+		"        },\n" +
+		"        \"type\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"title\": \"type of condition in CamelCase or in foo.example.com/CamelCase.\\n---\\nMany .condition.type values are consistent across resources like Available, but because arbitrary conditions can be\\nuseful (see .node.status.conditions), the ability to deconflict is important.\\nThe regex it matches is (dns1123SubdomainFmt/)?(qualifiedNameFmt)\\n+required\\n+kubebuilder:validation:Required\\n+kubebuilder:validation:Pattern=`^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\\\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$`\\n+kubebuilder:validation:MaxLength=316\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
 		"    \"v1ConfigMapEnvSource\": {\n" +
 		"      \"description\": \"The contents of the target ConfigMap's Data field will represent the\\nkey-value pairs as environment variables.\",\n" +
 		"      \"type\": \"object\",\n" +
@@ -2535,6 +2567,37 @@ func SwaggerJsonTemplate() string {
 		"      },\n" +
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
+		"    \"v1HTTPIngressPath\": {\n" +
+		"      \"description\": \"HTTPIngressPath associates a path with a backend. Incoming urls matching the\\npath are forwarded to the backend.\",\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"backend\": {\n" +
+		"          \"description\": \"Backend defines the referenced service endpoint to which the traffic\\nwill be forwarded to.\",\n" +
+		"          \"$ref\": \"#/definitions/v1IngressBackend\"\n" +
+		"        },\n" +
+		"        \"path\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"title\": \"Path is matched against the path of an incoming request. Currently it can\\ncontain characters disallowed from the conventional \\\"path\\\" part of a URL\\nas defined by RFC 3986. Paths must begin with a '/' and must be present\\nwhen using PathType with value \\\"Exact\\\" or \\\"Prefix\\\".\\n+optional\"\n" +
+		"        },\n" +
+		"        \"pathType\": {\n" +
+		"          \"description\": \"PathType determines the interpretation of the Path matching. PathType can\\nbe one of the following values:\\n* Exact: Matches the URL path exactly.\\n* Prefix: Matches based on a URL path prefix split by '/'. Matching is\\n  done on a path element by element basis. A path element refers is the\\n  list of labels in the path split by the '/' separator. A request is a\\n  match for path p if every p is an element-wise prefix of p of the\\n  request path. Note that if the last element of the path is a substring\\n  of the last element in request path, it is not a match (e.g. /foo/bar\\n  matches /foo/bar/baz, but does not match /foo/barbaz).\\n* ImplementationSpecific: Interpretation of the Path matching is up to\\n  the IngressClass. Implementations can treat this as a separate PathType\\n  or treat it identically to Prefix or Exact path types.\\nImplementations are required to support all path types.\",\n" +
+		"          \"type\": \"string\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"v1HTTPIngressRuleValue\": {\n" +
+		"      \"description\": \"HTTPIngressRuleValue is a list of http selectors pointing to backends.\\nIn the example: http://\\u003chost\\u003e/\\u003cpath\\u003e?\\u003csearchpart\\u003e -\\u003e backend where\\nwhere parts of the url correspond to RFC 3986, this resource will be used\\nto match against everything after the last '/' and before the first '?'\\nor '#'.\",\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"paths\": {\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"title\": \"A collection of paths that map requests to backends.\\n+listType=atomic\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/v1HTTPIngressPath\"\n" +
+		"          }\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
 		"    \"v1Handler\": {\n" +
 		"      \"description\": \"Handler defines a specific action that should be taken\\nTODO: pass structured data to these actions, and document that data here.\",\n" +
 		"      \"type\": \"object\",\n" +
@@ -2656,6 +2719,131 @@ func SwaggerJsonTemplate() string {
 		"      },\n" +
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
+		"    \"v1Ingress\": {\n" +
+		"      \"description\": \"Ingress is a collection of rules that allow inbound connections to reach the\\nendpoints defined by a backend. An Ingress can be configured to give services\\nexternally-reachable urls, load balance traffic, terminate SSL, offer name\\nbased virtual hosting etc.\",\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"metadata\": {\n" +
+		"          \"title\": \"Standard object's metadata.\\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata\\n+optional\",\n" +
+		"          \"$ref\": \"#/definitions/v1ObjectMeta\"\n" +
+		"        },\n" +
+		"        \"spec\": {\n" +
+		"          \"title\": \"Spec is the desired state of the Ingress.\\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#spec-and-status\\n+optional\",\n" +
+		"          \"$ref\": \"#/definitions/v1IngressSpec\"\n" +
+		"        },\n" +
+		"        \"status\": {\n" +
+		"          \"title\": \"Status is the current state of the Ingress.\\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#spec-and-status\\n+optional\",\n" +
+		"          \"$ref\": \"#/definitions/v1IngressStatus\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"v1IngressBackend\": {\n" +
+		"      \"description\": \"IngressBackend describes all endpoints for a given service and port.\",\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"resource\": {\n" +
+		"          \"title\": \"Resource is an ObjectRef to another Kubernetes resource in the namespace\\nof the Ingress object. If resource is specified, a service.Name and\\nservice.Port must not be specified.\\nThis is a mutually exclusive setting with \\\"Service\\\".\\n+optional\",\n" +
+		"          \"$ref\": \"#/definitions/v1TypedLocalObjectReference\"\n" +
+		"        },\n" +
+		"        \"service\": {\n" +
+		"          \"title\": \"Service references a Service as a Backend.\\nThis is a mutually exclusive setting with \\\"Resource\\\".\\n+optional\",\n" +
+		"          \"$ref\": \"#/definitions/v1IngressServiceBackend\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"v1IngressRule\": {\n" +
+		"      \"description\": \"IngressRule represents the rules mapping the paths under a specified host to\\nthe related backend services. Incoming requests are first evaluated for a host\\nmatch, then routed to the backend associated with the matching IngressRuleValue.\",\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"host\": {\n" +
+		"          \"description\": \"Host is the fully qualified domain name of a network host, as defined by RFC 3986.\\nNote the following deviations from the \\\"host\\\" part of the\\nURI as defined in RFC 3986:\\n1. IPs are not allowed. Currently an IngressRuleValue can only apply to\\n   the IP in the Spec of the parent Ingress.\\n2. The `:` delimiter is not respected because ports are not allowed.\\n\\t  Currently the port of an Ingress is implicitly :80 for http and\\n\\t  :443 for https.\\nBoth these may change in the future.\\nIncoming requests are matched against the host before the\\nIngressRuleValue. If the host is unspecified, the Ingress routes all\\ntraffic based on the specified IngressRuleValue.\\n\\nHost can be \\\"precise\\\" which is a domain name without the terminating dot of\\na network host (e.g. \\\"foo.bar.com\\\") or \\\"wildcard\\\", which is a domain name\\nprefixed with a single wildcard label (e.g. \\\"*.foo.com\\\").\\nThe wildcard character '*' must appear by itself as the first DNS label and\\nmatches only a single label. You cannot have a wildcard label by itself (e.g. Host == \\\"*\\\").\\nRequests will be matched against the Host field in the following way:\\n1. If Host is precise, the request matches this rule if the http host header is equal to Host.\\n2. If Host is a wildcard, then the request matches this rule if the http host header\\nis to equal to the suffix (removing the first label) of the wildcard rule.\\n+optional\",\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"ingressRuleValue\": {\n" +
+		"          \"title\": \"IngressRuleValue represents a rule to route requests for this IngressRule.\\nIf unspecified, the rule defaults to a http catch-all. Whether that sends\\njust traffic matching the host to the default backend or all traffic to the\\ndefault backend, is left to the controller fulfilling the Ingress. Http is\\ncurrently the only supported IngressRuleValue.\\n+optional\",\n" +
+		"          \"$ref\": \"#/definitions/v1IngressRuleValue\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"v1IngressRuleValue\": {\n" +
+		"      \"description\": \"IngressRuleValue represents a rule to apply against incoming requests. If the\\nrule is satisfied, the request is routed to the specified backend. Currently\\nmixing different types of rules in a single Ingress is disallowed, so exactly\\none of the following must be set.\",\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"http\": {\n" +
+		"          \"title\": \"+optional\",\n" +
+		"          \"$ref\": \"#/definitions/v1HTTPIngressRuleValue\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"v1IngressServiceBackend\": {\n" +
+		"      \"description\": \"IngressServiceBackend references a Kubernetes Service as a Backend.\",\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"name\": {\n" +
+		"          \"description\": \"Name is the referenced service. The service must exist in\\nthe same namespace as the Ingress object.\",\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"port\": {\n" +
+		"          \"description\": \"Port of the referenced service. A port name or port number\\nis required for a IngressServiceBackend.\",\n" +
+		"          \"$ref\": \"#/definitions/v1ServiceBackendPort\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"v1IngressSpec\": {\n" +
+		"      \"description\": \"IngressSpec describes the Ingress the user wishes to exist.\",\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"defaultBackend\": {\n" +
+		"          \"title\": \"DefaultBackend is the backend that should handle requests that don't\\nmatch any rule. If Rules are not specified, DefaultBackend must be specified.\\nIf DefaultBackend is not set, the handling of requests that do not match any\\nof the rules will be up to the Ingress controller.\\n+optional\",\n" +
+		"          \"$ref\": \"#/definitions/v1IngressBackend\"\n" +
+		"        },\n" +
+		"        \"ingressClassName\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"title\": \"IngressClassName is the name of the IngressClass cluster resource. The\\nassociated IngressClass defines which controller will implement the\\nresource. This replaces the deprecated `kubernetes.io/ingress.class`\\nannotation. For backwards compatibility, when that annotation is set, it\\nmust be given precedence over this field. The controller may emit a\\nwarning if the field and annotation have different values.\\nImplementations of this API should ignore Ingresses without a class\\nspecified. An IngressClass resource may be marked as default, which can\\nbe used to set a default value for this field. For more information,\\nrefer to the IngressClass documentation.\\n+optional\"\n" +
+		"        },\n" +
+		"        \"rules\": {\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"title\": \"A list of host rules used to configure the Ingress. If unspecified, or\\nno rule matches, all traffic is sent to the default backend.\\n+listType=atomic\\n+optional\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/v1IngressRule\"\n" +
+		"          }\n" +
+		"        },\n" +
+		"        \"tls\": {\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"title\": \"TLS configuration. Currently the Ingress only supports a single TLS\\nport, 443. If multiple members of this list specify different hosts, they\\nwill be multiplexed on the same port according to the hostname specified\\nthrough the SNI TLS extension, if the ingress controller fulfilling the\\ningress supports SNI.\\n+listType=atomic\\n+optional\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/v1IngressTLS\"\n" +
+		"          }\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"v1IngressStatus\": {\n" +
+		"      \"description\": \"IngressStatus describe the current state of the Ingress.\",\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"loadBalancer\": {\n" +
+		"          \"title\": \"LoadBalancer contains the current status of the load-balancer.\\n+optional\",\n" +
+		"          \"$ref\": \"#/definitions/v1LoadBalancerStatus\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"v1IngressTLS\": {\n" +
+		"      \"description\": \"IngressTLS describes the transport layer security associated with an Ingress.\",\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"hosts\": {\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"title\": \"Hosts are a list of hosts included in the TLS certificate. The values in\\nthis list must match the name/s used in the tlsSecret. Defaults to the\\nwildcard host setting for the loadbalancer controller fulfilling this\\nIngress, if left unspecified.\\n+listType=atomic\\n+optional\",\n" +
+		"          \"items\": {\n" +
+		"            \"type\": \"string\"\n" +
+		"          }\n" +
+		"        },\n" +
+		"        \"secretName\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"title\": \"SecretName is the name of the secret used to terminate TLS traffic on\\nport 443. Field is left optional to allow TLS routing based on SNI\\nhostname alone. If the SNI host in a listener conflicts with the \\\"Host\\\"\\nheader field used by an IngressRule, the SNI host is used for termination\\nand value of the Host header is used for routing.\\n+optional\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
 		"    \"v1KeyToPath\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"title\": \"Maps a string key to a path within a volume.\",\n" +
@@ -2754,6 +2942,13 @@ func SwaggerJsonTemplate() string {
 		"        \"ip\": {\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"title\": \"IP is set for load-balancer ingress points that are IP based\\n(typically GCE or OpenStack load-balancers)\\n+optional\"\n" +
+		"        },\n" +
+		"        \"ports\": {\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"title\": \"Ports is a list of records of service ports\\nIf used, every port defined in the service should have an entry in it\\n+listType=atomic\\n+optional\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/v1PortStatus\"\n" +
+		"          }\n" +
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
@@ -3672,6 +3867,24 @@ func SwaggerJsonTemplate() string {
 		"      },\n" +
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
+		"    \"v1PortStatus\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"error\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"title\": \"Error is to record the problem with the service port\\nThe format of the error shall comply with the following rules:\\n- built-in error values shall be specified in this file and those shall use\\n  CamelCase names\\n- cloud provider specific error values must have names that comply with the\\n  format foo.example.com/CamelCase.\\n---\\nThe regex it matches is (dns1123SubdomainFmt/)?(qualifiedNameFmt)\\n+optional\\n+kubebuilder:validation:Required\\n+kubebuilder:validation:Pattern=`^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\\\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$`\\n+kubebuilder:validation:MaxLength=316\"\n" +
+		"        },\n" +
+		"        \"port\": {\n" +
+		"          \"type\": \"integer\",\n" +
+		"          \"format\": \"int32\",\n" +
+		"          \"title\": \"Port is the port number of the service port of which status is recorded here\"\n" +
+		"        },\n" +
+		"        \"protocol\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"title\": \"Protocol is the protocol of the service port of which status is recorded here\\nThe supported values are: \\\"TCP\\\", \\\"UDP\\\", \\\"SCTP\\\"\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
 		"    \"v1PortworxVolumeSource\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"title\": \"PortworxVolumeSource represents a Portworx volume resource.\",\n" +
@@ -4234,10 +4447,29 @@ func SwaggerJsonTemplate() string {
 		"      },\n" +
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
+		"    \"v1ServiceBackendPort\": {\n" +
+		"      \"description\": \"ServiceBackendPort is the service port being referenced.\",\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"name\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"title\": \"Name is the name of the port on the Service.\\nThis is a mutually exclusive setting with \\\"Number\\\".\\n+optional\"\n" +
+		"        },\n" +
+		"        \"number\": {\n" +
+		"          \"type\": \"integer\",\n" +
+		"          \"format\": \"int32\",\n" +
+		"          \"title\": \"Number is the numerical port number (e.g. 80) on the Service.\\nThis is a mutually exclusive setting with \\\"Name\\\".\\n+optional\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
 		"    \"v1ServicePort\": {\n" +
 		"      \"description\": \"ServicePort contains information on service's port.\",\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
+		"        \"appProtocol\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"title\": \"The application protocol for this port.\\nThis field follows standard Kubernetes label syntax.\\nUn-prefixed names are reserved for IANA standard service names (as per\\nRFC-6335 and http://www.iana.org/assignments/service-names).\\nNon-standard protocols should use prefixed names such as\\nmycompany.com/my-custom-protocol.\\n+optional\"\n" +
+		"        },\n" +
 		"        \"name\": {\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"title\": \"The name of this port within the service. This must be a DNS_LABEL.\\nAll ports within a ServiceSpec must have unique names. When considering\\nthe endpoints for a Service, this must match the 'name' field in the\\nEndpointPort.\\nOptional if only one ServicePort is defined on this service.\\n+optional\"\n" +
@@ -4245,7 +4477,7 @@ func SwaggerJsonTemplate() string {
 		"        \"nodePort\": {\n" +
 		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int32\",\n" +
-		"          \"title\": \"The port on each node on which this service is exposed when type=NodePort or LoadBalancer.\\nUsually assigned by the system. If specified, it will be allocated to the service\\nif unused or else creation of the service will fail.\\nDefault is to auto-allocate a port if the ServiceType of this Service requires one.\\nMore info: https://kubernetes.io/docs/concepts/services-networking/service/#type-nodeport\\n+optional\"\n" +
+		"          \"title\": \"The port on each node on which this service is exposed when type is\\nNodePort or LoadBalancer.  Usually assigned by the system. If a value is\\nspecified, in-range, and not in use it will be used, otherwise the\\noperation will fail.  If not specified, a port will be allocated if this\\nService requires one.  If this field is specified when creating a\\nService which does not need it, creation will fail. This field will be\\nwiped when updating a Service to no longer need it (e.g. changing type\\nfrom NodePort to ClusterIP).\\nMore info: https://kubernetes.io/docs/concepts/services-networking/service/#type-nodeport\\n+optional\"\n" +
 		"        },\n" +
 		"        \"port\": {\n" +
 		"          \"description\": \"The port that will be exposed by this service.\",\n" +
@@ -4254,7 +4486,7 @@ func SwaggerJsonTemplate() string {
 		"        },\n" +
 		"        \"protocol\": {\n" +
 		"          \"type\": \"string\",\n" +
-		"          \"title\": \"The IP protocol for this port. Supports \\\"TCP\\\", \\\"UDP\\\", and \\\"SCTP\\\".\\nDefault is TCP.\\n+optional\"\n" +
+		"          \"title\": \"The IP protocol for this port. Supports \\\"TCP\\\", \\\"UDP\\\", and \\\"SCTP\\\".\\nDefault is TCP.\\n+default=\\\"TCP\\\"\\n+optional\"\n" +
 		"        },\n" +
 		"        \"targetPort\": {\n" +
 		"          \"title\": \"Number or name of the port to access on the pods targeted by the service.\\nNumber must be in the range 1 to 65535. Name must be an IANA_SVC_NAME.\\nIf this is a string, it will be looked up as a named port in the\\ntarget Pod's container ports. If this is not specified, the value\\nof the 'port' field is used (an identity map).\\nThis field is ignored for services with clusterIP=None, and should be\\nomitted or set equal to the 'port' field.\\nMore info: https://kubernetes.io/docs/concepts/services-networking/service/#defining-a-service\\n+optional\",\n" +
@@ -4266,9 +4498,20 @@ func SwaggerJsonTemplate() string {
 		"      \"description\": \"ServiceSpec describes the attributes that a user creates on a service.\",\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
+		"        \"allocateLoadBalancerNodePorts\": {\n" +
+		"          \"type\": \"boolean\",\n" +
+		"          \"title\": \"allocateLoadBalancerNodePorts defines if NodePorts will be automatically\\nallocated for services with type LoadBalancer.  Default is \\\"true\\\". It\\nmay be set to \\\"false\\\" if the cluster load-balancer does not rely on\\nNodePorts.  If the caller requests specific NodePorts (by specifying a\\nvalue), those requests will be respected, regardless of this field.\\nThis field may only be set for services with type LoadBalancer and will\\nbe cleared if the type is changed to any other type.\\nThis field is beta-level and is only honored by servers that enable the ServiceLBNodePortControl feature.\\n+featureGate=ServiceLBNodePortControl\\n+optional\"\n" +
+		"        },\n" +
 		"        \"clusterIP\": {\n" +
 		"          \"type\": \"string\",\n" +
-		"          \"title\": \"clusterIP is the IP address of the service and is usually assigned\\nrandomly by the master. If an address is specified manually and is not in\\nuse by others, it will be allocated to the service; otherwise, creation\\nof the service will fail. This field can not be changed through updates.\\nValid values are \\\"None\\\", empty string (\\\"\\\"), or a valid IP address. \\\"None\\\"\\ncan be specified for headless services when proxying is not required.\\nOnly applies to types ClusterIP, NodePort, and LoadBalancer. Ignored if\\ntype is ExternalName.\\nMore info: https://kubernetes.io/docs/concepts/services-networking/service/#virtual-ips-and-service-proxies\\n+optional\"\n" +
+		"          \"title\": \"clusterIP is the IP address of the service and is usually assigned\\nrandomly. If an address is specified manually, is in-range (as per\\nsystem configuration), and is not in use, it will be allocated to the\\nservice; otherwise creation of the service will fail. This field may not\\nbe changed through updates unless the type field is also being changed\\nto ExternalName (which requires this field to be blank) or the type\\nfield is being changed from ExternalName (in which case this field may\\noptionally be specified, as describe above).  Valid values are \\\"None\\\",\\nempty string (\\\"\\\"), or a valid IP address. Setting this to \\\"None\\\" makes a\\n\\\"headless service\\\" (no virtual IP), which is useful when direct endpoint\\nconnections are preferred and proxying is not required.  Only applies to\\ntypes ClusterIP, NodePort, and LoadBalancer. If this field is specified\\nwhen creating a Service of type ExternalName, creation will fail. This\\nfield will be wiped when updating a Service to type ExternalName.\\nMore info: https://kubernetes.io/docs/concepts/services-networking/service/#virtual-ips-and-service-proxies\\n+optional\"\n" +
+		"        },\n" +
+		"        \"clusterIPs\": {\n" +
+		"          \"description\": \"ClusterIPs is a list of IP addresses assigned to this service, and are\\nusually assigned randomly.  If an address is specified manually, is\\nin-range (as per system configuration), and is not in use, it will be\\nallocated to the service; otherwise creation of the service will fail.\\nThis field may not be changed through updates unless the type field is\\nalso being changed to ExternalName (which requires this field to be\\nempty) or the type field is being changed from ExternalName (in which\\ncase this field may optionally be specified, as describe above).  Valid\\nvalues are \\\"None\\\", empty string (\\\"\\\"), or a valid IP address.  Setting\\nthis to \\\"None\\\" makes a \\\"headless service\\\" (no virtual IP), which is\\nuseful when direct endpoint connections are preferred and proxying is\\nnot required.  Only applies to types ClusterIP, NodePort, and\\nLoadBalancer. If this field is specified when creating a Service of type\\nExternalName, creation will fail. This field will be wiped when updating\\na Service to type ExternalName.  If this field is not specified, it will\\nbe initialized from the clusterIP field.  If this field is specified,\\nclients must ensure that clusterIPs[0] and clusterIP have the same\\nvalue.\\n\\nUnless the \\\"IPv6DualStack\\\" feature gate is enabled, this field is\\nlimited to one value, which must be the same as the clusterIP field.  If\\nthe feature gate is enabled, this field may hold a maximum of two\\nentries (dual-stack IPs, in either order).  These IPs must correspond to\\nthe values of the ipFamilies field. Both clusterIPs and ipFamilies are\\ngoverned by the ipFamilyPolicy field.\\nMore info: https://kubernetes.io/docs/concepts/services-networking/service/#virtual-ips-and-service-proxies\\n+listType=atomic\\n+optional\",\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"type\": \"string\"\n" +
+		"          }\n" +
 		"        },\n" +
 		"        \"externalIPs\": {\n" +
 		"          \"type\": \"array\",\n" +
@@ -4279,7 +4522,7 @@ func SwaggerJsonTemplate() string {
 		"        },\n" +
 		"        \"externalName\": {\n" +
 		"          \"type\": \"string\",\n" +
-		"          \"title\": \"externalName is the external reference that kubedns or equivalent will\\nreturn as a CNAME record for this service. No proxying will be involved.\\nMust be a valid RFC-1123 hostname (https://tools.ietf.org/html/rfc1123)\\nand requires Type to be ExternalName.\\n+optional\"\n" +
+		"          \"title\": \"externalName is the external reference that discovery mechanisms will\\nreturn as an alias for this service (e.g. a DNS CNAME record). No\\nproxying will be involved.  Must be a lowercase RFC-1123 hostname\\n(https://tools.ietf.org/html/rfc1123) and requires `type` to be \\\"ExternalName\\\".\\n+optional\"\n" +
 		"        },\n" +
 		"        \"externalTrafficPolicy\": {\n" +
 		"          \"type\": \"string\",\n" +
@@ -4288,11 +4531,26 @@ func SwaggerJsonTemplate() string {
 		"        \"healthCheckNodePort\": {\n" +
 		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int32\",\n" +
-		"          \"title\": \"healthCheckNodePort specifies the healthcheck nodePort for the service.\\nIf not specified, HealthCheckNodePort is created by the service api\\nbackend with the allocated nodePort. Will use user-specified nodePort value\\nif specified by the client. Only effects when Type is set to LoadBalancer\\nand ExternalTrafficPolicy is set to Local.\\n+optional\"\n" +
+		"          \"title\": \"healthCheckNodePort specifies the healthcheck nodePort for the service.\\nThis only applies when type is set to LoadBalancer and\\nexternalTrafficPolicy is set to Local. If a value is specified, is\\nin-range, and is not in use, it will be used.  If not specified, a value\\nwill be automatically allocated.  External systems (e.g. load-balancers)\\ncan use this port to determine if a given node holds endpoints for this\\nservice or not.  If this field is specified when creating a Service\\nwhich does not need it, creation will fail. This field will be wiped\\nwhen updating a Service to no longer need it (e.g. changing type).\\n+optional\"\n" +
 		"        },\n" +
-		"        \"ipFamily\": {\n" +
+		"        \"internalTrafficPolicy\": {\n" +
 		"          \"type\": \"string\",\n" +
-		"          \"title\": \"ipFamily specifies whether this Service has a preference for a particular IP family (e.g. IPv4 vs.\\nIPv6).  If a specific IP family is requested, the clusterIP field will be allocated from that family, if it is\\navailable in the cluster.  If no IP family is requested, the cluster's primary IP family will be used.\\nOther IP fields (loadBalancerIP, loadBalancerSourceRanges, externalIPs) and controllers which\\nallocate external load-balancers should use the same IP family.  Endpoints for this Service will be of\\nthis family.  This field is immutable after creation. Assigning a ServiceIPFamily not available in the\\ncluster (e.g. IPv6 in IPv4 only cluster) is an error condition and will fail during clusterIP assignment.\\n+optional\"\n" +
+		"          \"title\": \"InternalTrafficPolicy specifies if the cluster internal traffic\\nshould be routed to all endpoints or node-local endpoints only.\\n\\\"Cluster\\\" routes internal traffic to a Service to all endpoints.\\n\\\"Local\\\" routes traffic to node-local endpoints only, traffic is\\ndropped if no node-local endpoints are ready.\\nThe default value is \\\"Cluster\\\".\\n+featureGate=ServiceInternalTrafficPolicy\\n+optional\"\n" +
+		"        },\n" +
+		"        \"ipFamilies\": {\n" +
+		"          \"description\": \"IPFamilies is a list of IP families (e.g. IPv4, IPv6) assigned to this\\nservice, and is gated by the \\\"IPv6DualStack\\\" feature gate.  This field\\nis usually assigned automatically based on cluster configuration and the\\nipFamilyPolicy field. If this field is specified manually, the requested\\nfamily is available in the cluster, and ipFamilyPolicy allows it, it\\nwill be used; otherwise creation of the service will fail.  This field\\nis conditionally mutable: it allows for adding or removing a secondary\\nIP family, but it does not allow changing the primary IP family of the\\nService.  Valid values are \\\"IPv4\\\" and \\\"IPv6\\\".  This field only applies\\nto Services of types ClusterIP, NodePort, and LoadBalancer, and does\\napply to \\\"headless\\\" services.  This field will be wiped when updating a\\nService to type ExternalName.\\n\\nThis field may hold a maximum of two entries (dual-stack families, in\\neither order).  These families must correspond to the values of the\\nclusterIPs field, if specified. Both clusterIPs and ipFamilies are\\ngoverned by the ipFamilyPolicy field.\\n+listType=atomic\\n+optional\",\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"type\": \"string\"\n" +
+		"          }\n" +
+		"        },\n" +
+		"        \"ipFamilyPolicy\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"title\": \"IPFamilyPolicy represents the dual-stack-ness requested or required by\\nthis Service, and is gated by the \\\"IPv6DualStack\\\" feature gate.  If\\nthere is no value provided, then this field will be set to SingleStack.\\nServices can be \\\"SingleStack\\\" (a single IP family), \\\"PreferDualStack\\\"\\n(two IP families on dual-stack configured clusters or a single IP family\\non single-stack clusters), or \\\"RequireDualStack\\\" (two IP families on\\ndual-stack configured clusters, otherwise fail). The ipFamilies and\\nclusterIPs fields depend on the value of this field.  This field will be\\nwiped when updating a service to type ExternalName.\\n+optional\"\n" +
+		"        },\n" +
+		"        \"loadBalancerClass\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"title\": \"loadBalancerClass is the class of the load balancer implementation this Service belongs to.\\nIf specified, the value of this field must be a label-style identifier, with an optional prefix,\\ne.g. \\\"internal-vip\\\" or \\\"example.com/internal-vip\\\". Unprefixed names are reserved for end-users.\\nThis field can only be set when the Service type is 'LoadBalancer'. If not set, the default load\\nbalancer implementation is used, today this is typically done through the cloud provider integration,\\nbut should apply for any default implementation. If set, it is assumed that a load balancer\\nimplementation is watching for Services with a matching class. Any default load balancer\\nimplementation (e.g. cloud providers) should ignore Services that set this field.\\nThis field can only be set when creating or updating a Service to type 'LoadBalancer'.\\nOnce set, it can not be changed. This field will be wiped when a service is updated to a non 'LoadBalancer' type.\\n+featureGate=LoadBalancerClass\\n+optional\"\n" +
 		"        },\n" +
 		"        \"loadBalancerIP\": {\n" +
 		"          \"type\": \"string\",\n" +
@@ -4300,7 +4558,7 @@ func SwaggerJsonTemplate() string {
 		"        },\n" +
 		"        \"loadBalancerSourceRanges\": {\n" +
 		"          \"type\": \"array\",\n" +
-		"          \"title\": \"If specified and supported by the platform, this will restrict traffic through the cloud-provider\\nload-balancer will be restricted to the specified client IPs. This field will be ignored if the\\ncloud-provider does not support the feature.\\\"\\nMore info: https://kubernetes.io/docs/tasks/access-application-cluster/configure-cloud-provider-firewall/\\n+optional\",\n" +
+		"          \"title\": \"If specified and supported by the platform, this will restrict traffic through the cloud-provider\\nload-balancer will be restricted to the specified client IPs. This field will be ignored if the\\ncloud-provider does not support the feature.\\\"\\nMore info: https://kubernetes.io/docs/tasks/access-application-cluster/create-external-load-balancer/\\n+optional\",\n" +
 		"          \"items\": {\n" +
 		"            \"type\": \"string\"\n" +
 		"          }\n" +
@@ -4314,11 +4572,11 @@ func SwaggerJsonTemplate() string {
 		"        },\n" +
 		"        \"publishNotReadyAddresses\": {\n" +
 		"          \"type\": \"boolean\",\n" +
-		"          \"title\": \"publishNotReadyAddresses, when set to true, indicates that DNS implementations\\nmust publish the notReadyAddresses of subsets for the Endpoints associated with\\nthe Service. The default value is false.\\nThe primary use case for setting this field is to use a StatefulSet's Headless Service\\nto propagate SRV records for its Pods without respect to their readiness for purpose\\nof peer discovery.\\n+optional\"\n" +
+		"          \"title\": \"publishNotReadyAddresses indicates that any agent which deals with endpoints for this\\nService should disregard any indications of ready/not-ready.\\nThe primary use case for setting this field is for a StatefulSet's Headless Service to\\npropagate SRV DNS records for its Pods for the purpose of peer discovery.\\nThe Kubernetes controllers that generate Endpoints and EndpointSlice resources for\\nServices interpret this to mean that all endpoints are considered \\\"ready\\\" even if the\\nPods themselves are not. Agents which consume only Kubernetes generated endpoints\\nthrough the Endpoints or EndpointSlice resources can safely assume this behavior.\\n+optional\"\n" +
 		"        },\n" +
 		"        \"selector\": {\n" +
 		"          \"type\": \"object\",\n" +
-		"          \"title\": \"Route service traffic to pods with label keys and values matching this\\nselector. If empty or not present, the service is assumed to have an\\nexternal process managing its endpoints, which Kubernetes will not\\nmodify. Only applies to types ClusterIP, NodePort, and LoadBalancer.\\nIgnored if type is ExternalName.\\nMore info: https://kubernetes.io/docs/concepts/services-networking/service/\\n+optional\",\n" +
+		"          \"title\": \"Route service traffic to pods with label keys and values matching this\\nselector. If empty or not present, the service is assumed to have an\\nexternal process managing its endpoints, which Kubernetes will not\\nmodify. Only applies to types ClusterIP, NodePort, and LoadBalancer.\\nIgnored if type is ExternalName.\\nMore info: https://kubernetes.io/docs/concepts/services-networking/service/\\n+optional\\n+mapType=atomic\",\n" +
 		"          \"additionalProperties\": {\n" +
 		"            \"type\": \"string\"\n" +
 		"          }\n" +
@@ -4331,16 +4589,9 @@ func SwaggerJsonTemplate() string {
 		"          \"title\": \"sessionAffinityConfig contains the configurations of session affinity.\\n+optional\",\n" +
 		"          \"$ref\": \"#/definitions/v1SessionAffinityConfig\"\n" +
 		"        },\n" +
-		"        \"topologyKeys\": {\n" +
-		"          \"type\": \"array\",\n" +
-		"          \"title\": \"topologyKeys is a preference-order list of topology keys which\\nimplementations of services should use to preferentially sort endpoints\\nwhen accessing this Service, it can not be used at the same time as\\nexternalTrafficPolicy=Local.\\nTopology keys must be valid label keys and at most 16 keys may be specified.\\nEndpoints are chosen based on the first topology key with available backends.\\nIf this field is specified and all entries have no backends that match\\nthe topology of the client, the service has no backends for that client\\nand connections should fail.\\nThe special value \\\"*\\\" may be used to mean \\\"any topology\\\". This catch-all\\nvalue, if used, only makes sense as the last value in the list.\\nIf this is not specified or empty, no topology constraints will be applied.\\n+optional\",\n" +
-		"          \"items\": {\n" +
-		"            \"type\": \"string\"\n" +
-		"          }\n" +
-		"        },\n" +
 		"        \"type\": {\n" +
 		"          \"type\": \"string\",\n" +
-		"          \"title\": \"type determines how the Service is exposed. Defaults to ClusterIP. Valid\\noptions are ExternalName, ClusterIP, NodePort, and LoadBalancer.\\n\\\"ExternalName\\\" maps to the specified externalName.\\n\\\"ClusterIP\\\" allocates a cluster-internal IP address for load-balancing to\\nendpoints. Endpoints are determined by the selector or if that is not\\nspecified, by manual construction of an Endpoints object. If clusterIP is\\n\\\"None\\\", no virtual IP is allocated and the endpoints are published as a\\nset of endpoints rather than a stable IP.\\n\\\"NodePort\\\" builds on ClusterIP and allocates a port on every node which\\nroutes to the clusterIP.\\n\\\"LoadBalancer\\\" builds on NodePort and creates an\\nexternal load-balancer (if supported in the current cloud) which routes\\nto the clusterIP.\\nMore info: https://kubernetes.io/docs/concepts/services-networking/service/#publishing-services-service-types\\n+optional\"\n" +
+		"          \"title\": \"type determines how the Service is exposed. Defaults to ClusterIP. Valid\\noptions are ExternalName, ClusterIP, NodePort, and LoadBalancer.\\n\\\"ClusterIP\\\" allocates a cluster-internal IP address for load-balancing\\nto endpoints. Endpoints are determined by the selector or if that is not\\nspecified, by manual construction of an Endpoints object or\\nEndpointSlice objects. If clusterIP is \\\"None\\\", no virtual IP is\\nallocated and the endpoints are published as a set of endpoints rather\\nthan a virtual IP.\\n\\\"NodePort\\\" builds on ClusterIP and allocates a port on every node which\\nroutes to the same endpoints as the clusterIP.\\n\\\"LoadBalancer\\\" builds on NodePort and creates an external load-balancer\\n(if supported in the current cloud) which routes to the same endpoints\\nas the clusterIP.\\n\\\"ExternalName\\\" aliases this service to the specified externalName.\\nSeveral other fields do not apply to ExternalName services.\\nMore info: https://kubernetes.io/docs/concepts/services-networking/service/#publishing-services-service-types\\n+optional\"\n" +
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
@@ -4348,6 +4599,13 @@ func SwaggerJsonTemplate() string {
 		"      \"description\": \"ServiceStatus represents the current status of a service.\",\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
+		"        \"conditions\": {\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"title\": \"Current service state\\n+optional\\n+patchMergeKey=type\\n+patchStrategy=merge\\n+listType=map\\n+listMapKey=type\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/v1Condition\"\n" +
+		"          }\n" +
+		"        },\n" +
 		"        \"loadBalancer\": {\n" +
 		"          \"title\": \"LoadBalancer contains the current status of the load-balancer,\\nif one is present.\\n+optional\",\n" +
 		"          \"$ref\": \"#/definitions/v1LoadBalancerStatus\"\n" +
@@ -4775,140 +5033,6 @@ func SwaggerJsonTemplate() string {
 		"        }\n" +
 		"      },\n" +
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
-		"    },\n" +
-		"    \"v1beta1HTTPIngressPath\": {\n" +
-		"      \"description\": \"HTTPIngressPath associates a path regex with a backend. Incoming urls matching\\nthe path are forwarded to the backend.\",\n" +
-		"      \"type\": \"object\",\n" +
-		"      \"properties\": {\n" +
-		"        \"backend\": {\n" +
-		"          \"description\": \"Backend defines the referenced service endpoint to which the traffic\\nwill be forwarded to.\",\n" +
-		"          \"$ref\": \"#/definitions/v1beta1IngressBackend\"\n" +
-		"        },\n" +
-		"        \"path\": {\n" +
-		"          \"type\": \"string\",\n" +
-		"          \"title\": \"Path is an extended POSIX regex as defined by IEEE Std 1003.1,\\n(i.e this follows the egrep/unix syntax, not the perl syntax)\\nmatched against the path of an incoming request. Currently it can\\ncontain characters disallowed from the conventional \\\"path\\\"\\npart of a URL as defined by RFC 3986. Paths must begin with\\na '/'. If unspecified, the path defaults to a catch all sending\\ntraffic to the backend.\\n+optional\"\n" +
-		"        }\n" +
-		"      }\n" +
-		"    },\n" +
-		"    \"v1beta1HTTPIngressRuleValue\": {\n" +
-		"      \"description\": \"HTTPIngressRuleValue is a list of http selectors pointing to backends.\\nIn the example: http://\\u003chost\\u003e/\\u003cpath\\u003e?\\u003csearchpart\\u003e -\\u003e backend where\\nwhere parts of the url correspond to RFC 3986, this resource will be used\\nto match against everything after the last '/' and before the first '?'\\nor '#'.\",\n" +
-		"      \"type\": \"object\",\n" +
-		"      \"properties\": {\n" +
-		"        \"paths\": {\n" +
-		"          \"description\": \"A collection of paths that map requests to backends.\",\n" +
-		"          \"type\": \"array\",\n" +
-		"          \"items\": {\n" +
-		"            \"$ref\": \"#/definitions/v1beta1HTTPIngressPath\"\n" +
-		"          }\n" +
-		"        }\n" +
-		"      }\n" +
-		"    },\n" +
-		"    \"v1beta1Ingress\": {\n" +
-		"      \"description\": \"Ingress is a collection of rules that allow inbound connections to reach the\\nendpoints defined by a backend. An Ingress can be configured to give services\\nexternally-reachable urls, load balance traffic, terminate SSL, offer name\\nbased virtual hosting etc.\",\n" +
-		"      \"type\": \"object\",\n" +
-		"      \"properties\": {\n" +
-		"        \"metadata\": {\n" +
-		"          \"title\": \"Standard object's metadata.\\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata\\n+optional\",\n" +
-		"          \"$ref\": \"#/definitions/v1ObjectMeta\"\n" +
-		"        },\n" +
-		"        \"spec\": {\n" +
-		"          \"title\": \"Spec is the desired state of the Ingress.\\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#spec-and-status\\n+optional\",\n" +
-		"          \"$ref\": \"#/definitions/v1beta1IngressSpec\"\n" +
-		"        },\n" +
-		"        \"status\": {\n" +
-		"          \"title\": \"Status is the current state of the Ingress.\\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#spec-and-status\\n+optional\",\n" +
-		"          \"$ref\": \"#/definitions/v1beta1IngressStatus\"\n" +
-		"        }\n" +
-		"      }\n" +
-		"    },\n" +
-		"    \"v1beta1IngressBackend\": {\n" +
-		"      \"description\": \"IngressBackend describes all endpoints for a given service and port.\",\n" +
-		"      \"type\": \"object\",\n" +
-		"      \"properties\": {\n" +
-		"        \"serviceName\": {\n" +
-		"          \"description\": \"Specifies the name of the referenced service.\",\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"servicePort\": {\n" +
-		"          \"description\": \"Specifies the port of the referenced service.\",\n" +
-		"          \"$ref\": \"#/definitions/intstrIntOrString\"\n" +
-		"        }\n" +
-		"      }\n" +
-		"    },\n" +
-		"    \"v1beta1IngressRule\": {\n" +
-		"      \"description\": \"IngressRule represents the rules mapping the paths under a specified host to\\nthe related backend services. Incoming requests are first evaluated for a host\\nmatch, then routed to the backend associated with the matching IngressRuleValue.\",\n" +
-		"      \"type\": \"object\",\n" +
-		"      \"properties\": {\n" +
-		"        \"host\": {\n" +
-		"          \"type\": \"string\",\n" +
-		"          \"title\": \"Host is the fully qualified domain name of a network host, as defined\\nby RFC 3986. Note the following deviations from the \\\"host\\\" part of the\\nURI as defined in the RFC:\\n1. IPs are not allowed. Currently an IngressRuleValue can only apply to the\\n\\t  IP in the Spec of the parent Ingress.\\n2. The `:` delimiter is not respected because ports are not allowed.\\n\\t  Currently the port of an Ingress is implicitly :80 for http and\\n\\t  :443 for https.\\nBoth these may change in the future.\\nIncoming requests are matched against the host before the IngressRuleValue.\\nIf the host is unspecified, the Ingress routes all traffic based on the\\nspecified IngressRuleValue.\\n+optional\"\n" +
-		"        },\n" +
-		"        \"ingressRuleValue\": {\n" +
-		"          \"title\": \"IngressRuleValue represents a rule to route requests for this IngressRule.\\nIf unspecified, the rule defaults to a http catch-all. Whether that sends\\njust traffic matching the host to the default backend or all traffic to the\\ndefault backend, is left to the controller fulfilling the Ingress. Http is\\ncurrently the only supported IngressRuleValue.\\n+optional\",\n" +
-		"          \"$ref\": \"#/definitions/v1beta1IngressRuleValue\"\n" +
-		"        }\n" +
-		"      }\n" +
-		"    },\n" +
-		"    \"v1beta1IngressRuleValue\": {\n" +
-		"      \"description\": \"IngressRuleValue represents a rule to apply against incoming requests. If the\\nrule is satisfied, the request is routed to the specified backend. Currently\\nmixing different types of rules in a single Ingress is disallowed, so exactly\\none of the following must be set.\",\n" +
-		"      \"type\": \"object\",\n" +
-		"      \"properties\": {\n" +
-		"        \"http\": {\n" +
-		"          \"title\": \"+optional\",\n" +
-		"          \"$ref\": \"#/definitions/v1beta1HTTPIngressRuleValue\"\n" +
-		"        }\n" +
-		"      }\n" +
-		"    },\n" +
-		"    \"v1beta1IngressSpec\": {\n" +
-		"      \"description\": \"IngressSpec describes the Ingress the user wishes to exist.\",\n" +
-		"      \"type\": \"object\",\n" +
-		"      \"properties\": {\n" +
-		"        \"backend\": {\n" +
-		"          \"title\": \"A default backend capable of servicing requests that don't match any\\nrule. At least one of 'backend' or 'rules' must be specified. This field\\nis optional to allow the loadbalancer controller or defaulting logic to\\nspecify a global default.\\n+optional\",\n" +
-		"          \"$ref\": \"#/definitions/v1beta1IngressBackend\"\n" +
-		"        },\n" +
-		"        \"rules\": {\n" +
-		"          \"type\": \"array\",\n" +
-		"          \"title\": \"A list of host rules used to configure the Ingress. If unspecified, or\\nno rule matches, all traffic is sent to the default backend.\\n+optional\",\n" +
-		"          \"items\": {\n" +
-		"            \"$ref\": \"#/definitions/v1beta1IngressRule\"\n" +
-		"          }\n" +
-		"        },\n" +
-		"        \"tls\": {\n" +
-		"          \"type\": \"array\",\n" +
-		"          \"title\": \"TLS configuration. Currently the Ingress only supports a single TLS\\nport, 443. If multiple members of this list specify different hosts, they\\nwill be multiplexed on the same port according to the hostname specified\\nthrough the SNI TLS extension, if the ingress controller fulfilling the\\ningress supports SNI.\\n+optional\",\n" +
-		"          \"items\": {\n" +
-		"            \"$ref\": \"#/definitions/v1beta1IngressTLS\"\n" +
-		"          }\n" +
-		"        }\n" +
-		"      }\n" +
-		"    },\n" +
-		"    \"v1beta1IngressStatus\": {\n" +
-		"      \"description\": \"IngressStatus describe the current state of the Ingress.\",\n" +
-		"      \"type\": \"object\",\n" +
-		"      \"properties\": {\n" +
-		"        \"loadBalancer\": {\n" +
-		"          \"title\": \"LoadBalancer contains the current status of the load-balancer.\\n+optional\",\n" +
-		"          \"$ref\": \"#/definitions/v1LoadBalancerStatus\"\n" +
-		"        }\n" +
-		"      }\n" +
-		"    },\n" +
-		"    \"v1beta1IngressTLS\": {\n" +
-		"      \"description\": \"IngressTLS describes the transport layer security associated with an Ingress.\",\n" +
-		"      \"type\": \"object\",\n" +
-		"      \"properties\": {\n" +
-		"        \"hosts\": {\n" +
-		"          \"type\": \"array\",\n" +
-		"          \"title\": \"Hosts are a list of hosts included in the TLS certificate. The values in\\nthis list must match the name/s used in the tlsSecret. Defaults to the\\nwildcard host setting for the loadbalancer controller fulfilling this\\nIngress, if left unspecified.\\n+optional\",\n" +
-		"          \"items\": {\n" +
-		"            \"type\": \"string\"\n" +
-		"          }\n" +
-		"        },\n" +
-		"        \"secretName\": {\n" +
-		"          \"type\": \"string\",\n" +
-		"          \"title\": \"SecretName is the name of the secret used to terminate SSL traffic on 443.\\nField is left optional to allow SSL routing based on SNI hostname alone.\\nIf the SNI host in a listener conflicts with the \\\"Host\\\" header field used\\nby an IngressRule, the SNI host is used for termination and value of the\\nHost header is used for routing.\\n+optional\"\n" +
-		"        }\n" +
-		"      }\n" +
 		"    }\n" +
 		"  }\n" +
 		"}"
