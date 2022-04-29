@@ -35,6 +35,8 @@ const armadaUserId = "anonymous"
 // Namespace created by the test setup. Used when submitting test jobs.
 const userNamespace = "personal-anonymous"
 
+const receiveEventTimeout = 30 * time.Second
+
 // The submit server should automatically add default tolerations.
 // These must be manually updated to match the default tolerations in the server config.
 var expectedTolerations = []v1.Toleration{
@@ -85,7 +87,7 @@ func TestSubmitJobs(t *testing.T) {
 		}
 
 		numEventsExpected := numJobs * 6
-		sequences, err := receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, 10*time.Second)
+		sequences, err := receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, receiveEventTimeout)
 		if err != nil {
 			return err
 		}
@@ -141,7 +143,7 @@ func TestDedup(t *testing.T) {
 		}
 
 		numEventsExpected := numJobs * 6
-		_, err = receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, 10*time.Second)
+		_, err = receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, receiveEventTimeout)
 		if err != nil {
 			return err
 		}
@@ -163,7 +165,7 @@ func TestDedup(t *testing.T) {
 		}
 
 		numEventsExpected = numJobs // one duplicate detected message per job
-		_, err = receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, 10*time.Second)
+		_, err = receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, receiveEventTimeout)
 		if err != nil {
 			return err
 		}
@@ -187,7 +189,7 @@ func TestDedup(t *testing.T) {
 		}
 
 		numEventsExpected = numJobs*6 + numJobs
-		_, err = receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, 10*time.Second)
+		_, err = receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, receiveEventTimeout)
 		if err != nil {
 			return err
 		}
@@ -214,7 +216,7 @@ func TestSubmitJobsWithEverything(t *testing.T) {
 		}
 
 		numEventsExpected := numJobs * 7
-		sequences, err := receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, 10*time.Second)
+		sequences, err := receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, receiveEventTimeout)
 		if err != nil {
 			return err
 		}
@@ -286,7 +288,7 @@ func TestSubmitJobWithError(t *testing.T) {
 
 		// Test that we get errors messages.
 		numEventsExpected := numJobs * 4
-		sequences, err := receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, 10*time.Second)
+		sequences, err := receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, receiveEventTimeout)
 		if err != nil {
 			return err
 		}
@@ -355,7 +357,7 @@ func TestSubmitCancelJobs(t *testing.T) {
 
 		// Test that we get submit, cancel, and cancelled messages.
 		numEventsExpected := numJobs * 3
-		sequences, err := receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, 10*time.Second)
+		sequences, err := receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, receiveEventTimeout)
 		if err != nil {
 			return err
 		}
