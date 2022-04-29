@@ -72,7 +72,7 @@ func UuidStringFromProtoUuid(id *Uuid) (string, error) {
 	return strings.ToLower(UuidFromProtoUuid(id).String()), nil
 }
 
-// ProtoUuidFromUlidString parses a string into a proto UUID and returns it.
+// ProtoUuidFromUlidString parses a ULID string into a proto UUID and returns it.
 func ProtoUuidFromUlidString(ulidString string) (*Uuid, error) {
 	id, err := ulid.Parse(ulidString)
 	if err != nil {
@@ -80,4 +80,14 @@ func ProtoUuidFromUlidString(ulidString string) (*Uuid, error) {
 		return nil, err
 	}
 	return ProtoUuidFromUlid(id), nil
+}
+
+// ProtoUuidFromUuidString parses a UUID string into a proto UUID and returns it.
+func ProtoUuidFromUuidString(uuidString string) (*Uuid, error) {
+	id, err := uuid.Parse(uuidString)
+	if err != nil {
+		err = errors.WithStack(err)
+		return nil, err
+	}
+	return ProtoUuidFromUuid(id), nil
 }
