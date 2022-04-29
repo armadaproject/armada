@@ -1,0 +1,20 @@
+scheduling:
+  queueLeaseBatchSize: 1000
+  maximalResourceFractionToSchedulePerQueue:
+    memory: 0.99
+    cpu: 0.99
+  maximalResourceFractionPerQueue:
+    memory: 0.99
+    cpu: 0.99
+  maximalClusterFractionToSchedule:
+    memory: 0.99
+    cpu: 0.99
+  defaultJobLimits:
+    cpu: 1
+    memory: 1Gi
+    ephemeral-storage: 8Gi
+  defaultJobTolerations:
+    - key: "example.com/default_toleration"
+      operator: "Equal"
+      value: "true"
+      effect: "NoSchedule"

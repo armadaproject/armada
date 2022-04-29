@@ -20,6 +20,8 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/G-Research/armada/internal/common/auth/authorization"
+	"github.com/G-Research/armada/internal/common/logging"
+	"github.com/G-Research/armada/internal/common/requestid"
 )
 
 // CreateGrpcServer creates a gRPC server (by calling grpc.NewServer) with settings specific to
@@ -40,10 +42,16 @@ func CreateGrpcServer(authServices []authorization.AuthService) *grpc.Server {
 	tagsExtractor := grpc_ctxtags.WithFieldExtractor(grpc_ctxtags.CodeGenRequestFieldExtractor)
 	unaryInterceptors = append(unaryInterceptors,
 		grpc_ctxtags.UnaryServerInterceptor(tagsExtractor),
-		grpc_logrus.UnaryServerInterceptor(messageDefault))
+		grpc_logrus.UnaryServerInterceptor(messageDefault),
+		requestid.UnaryServerInterceptor(false),
+		logging.UnaryServerInterceptor(),
+	)
 	streamInterceptors = append(streamInterceptors,
 		grpc_ctxtags.StreamServerInterceptor(tagsExtractor),
-		grpc_logrus.StreamServerInterceptor(messageDefault))
+		grpc_logrus.StreamServerInterceptor(messageDefault),
+		requestid.StreamServerInterceptor(false),
+		logging.StreamServerInterceptor(),
+	)
 
 	// Authentication
 	// The provided authServices represents a list of services that can be used to authenticate

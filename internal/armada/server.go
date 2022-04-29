@@ -1,11 +1,14 @@
 package armada
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"time"
 
+	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/go-redis/redis"
+	"github.com/google/uuid"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/stan.go"
@@ -25,6 +28,10 @@ import (
 	"github.com/G-Research/armada/internal/common/health"
 	"github.com/G-Research/armada/internal/common/task"
 	"github.com/G-Research/armada/internal/common/util"
+	executorconfig "github.com/G-Research/armada/internal/executor/configuration"
+	"github.com/G-Research/armada/internal/lookout/postgres"
+	"github.com/G-Research/armada/internal/pgkeyvalue"
+	"github.com/G-Research/armada/internal/pulsarutils"
 	"github.com/G-Research/armada/pkg/api"
 )
 
@@ -101,11 +108,12 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 
 	// TODO: move this to task manager
 	eventstreamTeardown := func() {}
+	var eventProcessor *processor.RedisEventProcessor
 	if eventStream != nil {
 		eventStore = processor.NewEventStore(eventStream)
 
 		eventRepoBatcher := eventstream.NewTimedEventBatcher(config.Events.ProcessorBatchSize, config.Events.ProcessorMaxTimeBetweenBatches, config.Events.ProcessorTimeout)
-		eventProcessor := processor.NewEventRedisProcessor(config.Events.StoreQueue, redisEventRepository, eventStream, eventRepoBatcher)
+		eventProcessor = processor.NewEventRedisProcessor(config.Events.StoreQueue, redisEventRepository, eventStream, eventRepoBatcher)
 		eventProcessor.Start()
 
 		jobStatusBatcher := eventstream.NewTimedEventBatcher(config.Events.ProcessorBatchSize, config.Events.ProcessorMaxTimeBetweenBatches, config.Events.ProcessorTimeout)
@@ -135,7 +143,8 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 	permissions := authorization.NewPrincipalPermissionChecker(
 		config.Auth.PermissionGroupMapping,
 		config.Auth.PermissionScopeMapping,
-		config.Auth.PermissionClaimMapping)
+		config.Auth.PermissionClaimMapping,
+	)
 
 	submitServer := server.NewSubmitServer(
 		permissions,
@@ -145,7 +154,120 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 		schedulingInfoRepository,
 		config.CancelJobsBatchSize,
 		&config.QueueManagement,
-		&config.Scheduling)
+		&config.Scheduling,
+	)
+	var submitServerToRegister api.SubmitServer
+	submitServerToRegister = submitServer
+
+	// If Pulsar is enabled, use the Pulsar submit endpoints.
+	if config.Pulsar.Enabled {
+
+		// API endpoints that generate Pulsar messages.
+		log.Info("Pulsar config provided; using Pulsar submit endpoints.")
+		pulsarClient, err := pulsarutils.NewPulsarClient(&config.Pulsar)
+		if err != nil {
+			panic(err)
+		}
+		compressionType, err := pulsarutils.ParsePulsarCompressionType(config.Pulsar.CompressionType)
+		if err != nil {
+			panic(err)
+		}
+		compressionLevel, err := pulsarutils.ParsePulsarCompressionLevel(config.Pulsar.CompressionLevel)
+		if err != nil {
+			panic(err)
+		}
+		producer, err := pulsarClient.CreateProducer(pulsar.ProducerOptions{
+			Name:             fmt.Sprintf("armada-server-%s", uuid.New()),
+			CompressionType:  compressionType,
+			CompressionLevel: compressionLevel,
+			Topic:            config.Pulsar.JobsetEventsTopic,
+		})
+		if err != nil {
+			panic(err)
+		}
+		pulsarSubmitServer := &server.PulsarSubmitServer{
+			Producer:        producer,
+			QueueRepository: queueRepository,
+			Permissions:     permissions,
+			SubmitServer:    submitServer,
+			IngressConfig: &executorconfig.IngressConfiguration{
+				HostnameSuffix: config.Pulsar.HostnameSuffix,
+				CertNameSuffix: config.Pulsar.CertNameSuffix,
+				Annotations:    config.Pulsar.Annotations,
+			},
+		}
+		submitServerToRegister = pulsarSubmitServer
+
+		// If postgres details were provided, enable deduplication.
+		if config.Pulsar.DedupTable != "" {
+			log.Info("Pulsar submit API deduplication enabled")
+			db, err := postgres.OpenPgxPool(config.Postgres)
+			if err != nil {
+				panic(err)
+			}
+			store, err := pgkeyvalue.New(db, 1000000, config.Pulsar.DedupTable)
+			if err != nil {
+				panic(err)
+			}
+			pulsarSubmitServer.KVStore = store
+
+			// Automatically clean up keys after two weeks.
+			store.PeriodicCleanup(context.Background(), time.Hour, 14*24*time.Hour)
+		} else {
+			log.Info("Pulsar submit API deduplication disabled")
+		}
+
+		// If there's an eventProcessor, insert the PulsarSubmitServer so that it can publish
+		// state transitions to Pulsar in addition to Redis.
+		if eventProcessor != nil {
+			eventProcessor.PulsarSubmitServer = pulsarSubmitServer
+		}
+
+		// Service that consumes Pulsar messages and writes to Redis and Nats.
+		consumer, err := pulsarClient.Subscribe(pulsar.ConsumerOptions{
+			Topic:            config.Pulsar.JobsetEventsTopic,
+			SubscriptionName: config.Pulsar.RedisFromPulsarSubscription,
+			Type:             pulsar.KeyShared,
+		})
+		if err != nil {
+			panic(err)
+		}
+
+		submitFromLog := server.SubmitFromLog{
+			Consumer:     consumer,
+			SubmitServer: submitServer,
+		}
+		go submitFromLog.Run(context.Background())
+
+		// Service that reads from Pulsar and submits messages back into Pulsar.
+		// E.g., needed to automatically publish JobSucceeded after a JobRunSucceeded.
+		consumer, err = pulsarClient.Subscribe(pulsar.ConsumerOptions{
+			Topic:            config.Pulsar.JobsetEventsTopic,
+			SubscriptionName: config.Pulsar.PulsarFromPulsarSubscription,
+			Type:             pulsar.KeyShared,
+		})
+		if err != nil {
+			panic(err)
+		}
+
+		// Create a new producer for this service.
+		producer, err = pulsarClient.CreateProducer(pulsar.ProducerOptions{
+			Topic: config.Pulsar.JobsetEventsTopic,
+		})
+		if err != nil {
+			panic(err)
+		}
+
+		pulsarFromPulsar := server.PulsarFromPulsar{
+			Consumer: consumer,
+			Producer: producer,
+		}
+		go pulsarFromPulsar.Run(context.Background())
+
+	} else {
+		log.Info("No Pulsar config provided; submitting directly to Redis and Nats.")
+	}
+
 	usageServer := server.NewUsageServer(permissions, config.PriorityHalfTime, &config.Scheduling, usageRepository, queueRepository)
 	aggregatedQueueServer := server.NewAggregatedQueueServer(permissions, config.Scheduling, jobRepository, queueCache, queueRepository, usageRepository, eventStore, schedulingInfoRepository)
 	eventServer := server.NewEventServer(permissions, redisEventRepository, eventStore, queueRepository)
@@ -155,7 +277,7 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 
 	metrics.ExposeDataMetrics(queueRepository, jobRepository, usageRepository, schedulingInfoRepository, queueCache)
 
-	api.RegisterSubmitServer(grpcServer, submitServer)
+	api.RegisterSubmitServer(grpcServer, submitServerToRegister)
 	api.RegisterUsageServer(grpcServer, usageServer)
 	api.RegisterAggregatedQueueServer(grpcServer, aggregatedQueueServer)
 	api.RegisterEventServer(grpcServer, eventServer)
