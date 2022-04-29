@@ -37,8 +37,10 @@ var runIdProto = armadaevents.ProtoUuidFromUuid(uuid.MustParse(runIdString))
 const jobSetName = "testJobset"
 const executorId = "testCluster"
 const nodeName = "testNode"
+const podName = "test-pod"
 const queue = "test-queue"
 const userId = "testUser"
+const namespace = "test-ns"
 const priority = 3
 const newPriority = 4
 const podNumber = 6
@@ -52,7 +54,7 @@ var submit = &armadaevents.EventSequence_Event{
 			JobId:    jobIdProto,
 			Priority: priority,
 			ObjectMeta: &armadaevents.ObjectMeta{
-				Namespace: "test-ns",
+				Namespace: namespace,
 				Name:      "test-job",
 			},
 			MainObject: &armadaevents.KubernetesMainObject{
@@ -85,13 +87,27 @@ var submit = &armadaevents.EventSequence_Event{
 	},
 }
 
-// Leased
-var leased = &armadaevents.EventSequence_Event{
-	Event: &armadaevents.EventSequence_Event_JobRunLeased{
-		JobRunLeased: &armadaevents.JobRunLeased{
-			RunId:      runIdProto,
-			JobId:      jobIdProto,
-			ExecutorId: executorId,
+// Assigned
+var assigned = &armadaevents.EventSequence_Event{
+	Event: &armadaevents.EventSequence_Event_JobRunAssigned{
+		JobRunAssigned: &armadaevents.JobRunAssigned{
+			RunId: runIdProto,
+			JobId: jobIdProto,
+			ResourceInfos: []*armadaevents.KubernetesResourceInfo{
+				{
+					ObjectMeta: &armadaevents.ObjectMeta{
+						KubernetesId: runIdString,
+						Name:         podName,
+						Namespace:    namespace,
+						ExecutorId:   executorId,
+					},
+					Info: &armadaevents.KubernetesResourceInfo_PodInfo{
+						PodInfo: &armadaevents.PodInfo{
+							PodNumber: podNumber,
+						},
+					},
+				},
+			},
 		},
 	},
 }
@@ -235,11 +251,11 @@ func TestSubmit(t *testing.T) {
 	assert.Equal(t, expected, instructions)
 }
 
-// Happy path of submit -> leased -> running -> succeeded
+// Happy path of submit -> assigned -> running -> succeeded
 // All in a single update
 // Single submit message
 func TestHappyPathSingleUpdate(t *testing.T) {
-	msg := NewMsg(baseTime, submit, leased, running, jobRunSucceeded, jobSucceeded)
+	msg := NewMsg(baseTime, submit, assigned, running, jobRunSucceeded, jobSucceeded)
 	instructions := ConvertMsg(context.Background(), msg, &NoOpCompressor{})
 	expected := &model.InstructionSet{
 		JobsToCreate:    []*model.CreateJobInstruction{&expectedSubmit},
@@ -270,7 +286,7 @@ func TestHappyPathMultiUpdate(t *testing.T) {
 	assert.Equal(t, expected, instructions)
 
 	// Leased
-	msg2 := NewMsg(baseTime, leased)
+	msg2 := NewMsg(baseTime, assigned)
 	instructions = ConvertMsg(context.Background(), msg2, compressor)
 	expected = &model.InstructionSet{
 		JobsToUpdate:    []*model.UpdateJobInstruction{&expectedLeased},
