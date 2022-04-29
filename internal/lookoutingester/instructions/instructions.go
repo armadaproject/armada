@@ -82,8 +82,8 @@ func ConvertMsg(ctx context.Context, msg *model.ConsumerMessage, compressor Comp
 			err = handleJobSucceeded(ts, event.GetJobSucceeded(), updateInstructions)
 		case *armadaevents.EventSequence_Event_JobErrors:
 			err = handleJobErrors(ts, event.GetJobErrors(), updateInstructions)
-		case *armadaevents.EventSequence_Event_JobRunLeased:
-			err = handleJobRunLeased(ts, event.GetJobRunLeased(), updateInstructions)
+		case *armadaevents.EventSequence_Event_JobRunAssigned:
+			err = handleJobRunAssigned(ts, event.GetJobRunAssigned(), updateInstructions)
 		case *armadaevents.EventSequence_Event_JobRunRunning:
 			err = handleJobRunRunning(ts, event.GetJobRunRunning(), updateInstructions)
 		case *armadaevents.EventSequence_Event_JobRunSucceeded:
@@ -93,7 +93,7 @@ func ConvertMsg(ctx context.Context, msg *model.ConsumerMessage, compressor Comp
 		case *armadaevents.EventSequence_Event_JobDuplicateDetected:
 			err = handleJobDuplicateDetected(ts, event.GetJobDuplicateDetected(), updateInstructions)
 		case *armadaevents.EventSequence_Event_CancelJob:
-		case *armadaevents.EventSequence_Event_JobRunAssigned:
+		case *armadaevents.EventSequence_Event_JobRunLeased:
 		case *armadaevents.EventSequence_Event_ReprioritiseJobSet:
 		case *armadaevents.EventSequence_Event_CancelJobSet:
 			messageLogger.Debugf("Ignoring event")
@@ -293,7 +293,7 @@ func handleJobRunRunning(ts time.Time, event *armadaevents.JobRunRunning, update
 	return nil
 }
 
-func handleJobRunLeased(ts time.Time, event *armadaevents.JobRunLeased, update *model.InstructionSet) error {
+func handleJobRunAssigned(ts time.Time, event *armadaevents.JobRunAssigned, update *model.InstructionSet) error {
 	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetJobId())
 	if err != nil {
 		return err
@@ -312,12 +312,15 @@ func handleJobRunLeased(ts time.Time, event *armadaevents.JobRunLeased, update *
 	}
 
 	update.JobsToUpdate = append(update.JobsToUpdate, &job)
-
+	cluster := ""
+	if len(event.GetResourceInfos()) > 0 {
+		cluster = event.GetResourceInfos()[0].GetObjectMeta().GetExecutorId()
+	}
 	// Now create a job run
 	jobRun := model.CreateJobRunInstruction{
 		RunId:   runId,
 		JobId:   jobId,
-		Cluster: event.ExecutorId,
+		Cluster: cluster,
 		Created: ts,
 	}
 	update.JobRunsToCreate = append(update.JobRunsToCreate, &jobRun)
