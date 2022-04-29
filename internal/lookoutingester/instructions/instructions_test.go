@@ -87,7 +87,7 @@ var submit = &armadaevents.EventSequence_Event{
 	},
 }
 
-// Leased
+// Assigned
 var assigned = &armadaevents.EventSequence_Event{
 	Event: &armadaevents.EventSequence_Event_JobRunAssigned{
 		JobRunAssigned: &armadaevents.JobRunAssigned{
