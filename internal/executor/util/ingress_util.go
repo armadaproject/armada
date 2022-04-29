@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	v1 "k8s.io/api/core/v1"
-	networking "k8s.io/api/networking/v1beta1"
+	networking "k8s.io/api/networking/v1"
 
 	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/executor/configuration"
