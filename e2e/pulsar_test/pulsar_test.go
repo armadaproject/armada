@@ -670,6 +670,7 @@ func receiveJobSetSequences(ctx context.Context, consumer pulsar.Consumer, queue
 		var msg pulsar.Message
 		msg, err = consumer.Receive(ctxWithTimeout)
 		if err == context.DeadlineExceeded {
+			fmt.Println("Timed out waiting for event")
 			err = nil // Timeout is expected; ignore.
 			return
 		} else if err != nil {
