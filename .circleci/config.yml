@@ -192,7 +192,7 @@ jobs:
           keys:
             - go-mod-v3-{{ checksum "go.sum" }}
 
-      - run: # no-op if we restored from cache
+      - run:
           name: Download dependencies
           command: |
             curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
@@ -285,6 +285,14 @@ jobs:
             - go-mod-v3-{{ checksum "go.sum" }}
 
       - run:
+          name: Download dependencies
+          command: |
+            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+            chmod +x kubectl
+            mv kubectl /home/circleci/bin/
+            make download # no-op if we restored from cache
+
+      - run:
           name: Build armadactl release artifacts
           command: make build-armadactl-release RELEASE_VERSION=${CIRCLE_TAG}
 
@@ -340,6 +348,18 @@ jobs:
     working_directory: /go/src/github.com/G-Research/armada
     steps:
       - checkout
+
+      - restore_cache: # restore dependencies
+          keys:
+            - go-mod-v3-{{ checksum "go.sum" }}
+
+      - run:
+          name: Download dependencies
+          command: |
+            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+            chmod +x kubectl
+            mv kubectl /home/circleci/bin/
+            make download # no-op if we restored from cache
 
       - run:
           name: Release dotnet client
