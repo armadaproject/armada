@@ -386,7 +386,9 @@ func (server *SubmitServer) cancelJobsById(ctx context.Context, jobId string) (*
 
 // cancels all jobs part of a particular job set and queue
 func (server *SubmitServer) cancelJobsByQueueAndSet(ctx context.Context, queue string, jobSetId string) (*api.CancellationResult, error) {
+	fmt.Println("TEST before getting job ids")
 	ids, err := server.jobRepository.GetActiveJobIds(queue, jobSetId)
+	fmt.Println("TEST after getting job ids")
 	if err != nil {
 		return nil, status.Errorf(codes.Unavailable, "[cancelJobsBySetAndQueue] error getting job IDs: %s", err)
 	}
@@ -402,7 +404,9 @@ func (server *SubmitServer) cancelJobsByQueueAndSet(ctx context.Context, queue s
 			return result, status.Errorf(codes.Internal, "[cancelJobsBySetAndQueue] error getting jobs: %s", err)
 		}
 
+		fmt.Println("TEST cancelling batch")
 		result, err := server.cancelJobs(ctx, jobs)
+		fmt.Println("TEST done cancelling batch")
 		var e *ErrNoPermission
 		if errors.As(err, &e) {
 			return nil, status.Errorf(codes.PermissionDenied, "[cancelJobsBySetAndQueue] error canceling jobs: %s", e)
