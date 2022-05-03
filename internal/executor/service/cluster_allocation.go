@@ -45,13 +45,13 @@ func (allocationService *ClusterAllocationService) AllocateSpareClusterCapacity(
 		return
 	}
 
-	leasedJobs, err := allocationService.clusterContext.GetBatchPods()
+	leasePods, err := allocationService.clusterContext.GetBatchPods()
 	if err != nil {
 		log.Errorf("Failed to allocate spare cluster capacity because %s", err)
 		return
 	}
-	leasedJobs = util.FilterPods(leasedJobs, shouldBeRenewed)
-	newJobs, err := allocationService.leaseService.RequestJobLeases(capacityReport.AvailableCapacity, capacityReport.Nodes, utilisation.GetAllocationByQueue(leasedJobs))
+	activePods := util.FilterPods(leasePods, isActive)
+	newJobs, err := allocationService.leaseService.RequestJobLeases(capacityReport.AvailableCapacity, capacityReport.Nodes, utilisation.GetAllocationByQueue(activePods))
 
 	cpu := (*capacityReport.AvailableCapacity)["cpu"]
 	memory := (*capacityReport.AvailableCapacity)["memory"]
@@ -68,6 +68,12 @@ func (allocationService *ClusterAllocationService) AllocateSpareClusterCapacity(
 			log.Errorf("Failed to process failed jobs  because %s", err)
 		}
 	}
+}
+
+// Any pod not in a terminal state is considered active for the purposes of cluster allocation
+// As soon as a pod finishes (enters a terminal state) we should try to allocate another pod
+func isActive(pod *v1.Pod) bool {
+	return !util.IsInTerminalState(pod)
 }
 
 func (allocationService *ClusterAllocationService) processFailedJobs(failedSubmissions []*job.FailedSubmissionDetails) error {

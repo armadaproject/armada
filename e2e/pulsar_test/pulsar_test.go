@@ -47,6 +47,8 @@ const ingressPath = "/"
 // Namespace created by the test setup. Used when submitting test jobs.
 const userNamespace = "personal-anonymous"
 
+const receiveEventTimeout = 30 * time.Second
+
 // The submit server should automatically add default tolerations.
 // These must be manually updated to match the default tolerations in the server config.
 var expectedTolerations = []v1.Toleration{
@@ -885,6 +887,7 @@ func receiveJobSetSequences(ctx context.Context, consumer pulsar.Consumer, queue
 		var msg pulsar.Message
 		msg, err = consumer.Receive(ctxWithTimeout)
 		if err == context.DeadlineExceeded {
+			fmt.Println("Timed out waiting for event")
 			err = nil // Timeout is expected; ignore.
 			return
 		} else if err != nil {
