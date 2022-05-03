@@ -131,7 +131,7 @@ jobs:
           name: Download dependencies
           command: |
             curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-            sudo mv kubectl /usr/local/bin/
+            mv kubectl /home/circleci/bin/
             make download # no-op if we restored from cache
 
       - save_cache: # if we downloaded new dependencies, cache those
@@ -194,9 +194,8 @@ jobs:
       - run: # no-op if we restored from cache
           name: Download dependencies
           command: |
-            echo $PATH
             curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-            sudo mv kubectl /usr/local/bin/
+            mv kubectl /home/circleci/bin/
             make download # no-op if we restored from cache
 
       - run:
