@@ -5,7 +5,7 @@ platform := $(shell uname -s || echo unknown)
 # Using 'where' on Windows and 'which' on Unix-like systems, respectively
 # We do not check for 'date', since it's a cmdlet on Windows, which do not show up with where
 # (:= assignment is necessary to force immediate evaluation of expression)
-EXECUTABLES = git docker
+EXECUTABLES = git docker kubectl
 ifeq ($(platform),windows32)
 	K := $(foreach exec,$(EXECUTABLES),$(if $(shell where $(exec)),some string,$(error "No $(exec) in PATH")))
 else
@@ -215,24 +215,46 @@ rebuild-server:
 		armada ./server --config /e2e/setup/insecure-armada-auth-config.yaml --config /e2e/setup/nats/armada-config.yaml --config /e2e/setup/redis/armada-config.yaml --config /e2e/setup/pulsar/armada-config.yaml  --config /e2e/setup/server/armada-config.yaml
 
 .ONESHELL:
+rebuild-executor:
+	docker rm -f executor
+	$(GO_CMD) $(gobuildlinux) -o ./bin/linux/executor cmd/executor/main.go
+	docker build $(dockerFlags) -t armada-executor -f ./build/executor/Dockerfile .
+	docker run -d --name executor --network=kind -v ${PWD}/.kube:/.kube -v ${PWD}/e2e:/e2e  \
+		-e KUBECONFIG=/.kube/config \
+		-e ARMADA_KUBERNETES_IMPERSONATEUSERS=true \
+		-e ARMADA_KUBERNETES_STUCKPODEXPIRY=15s \
+		-e ARMADA_APICONNECTION_ARMADAURL="server:50051" \
+		-e ARMADA_APICONNECTION_FORCENOTLS=true \
+		armada-executor --config /e2e/setup/executor-config.yaml
+
+.ONESHELL:
 tests-e2e-teardown:
-	echo -e "\nexecutor logs:"
-	docker logs executor || true
-	echo -e "\nserver logs:"
-	docker logs server || true
 	docker rm -f nats redis pulsar server executor postgres || true
 	kind delete cluster --name armada-test || true
 	rm .kube/config || true
 	rmdir .kube || true
 
-tests-e2e-setup:
-	docker pull "alpine:3.10" # ensure Alpine, which is used by tests, is available
-	kind create cluster --name armada-test --wait 30s --image kindest/node:v1.21.1
-	kind load docker-image "alpine:3.10" --name armada-test # needed to make Alpine available to kind
-
+.ONESHELL:
+setup-cluster:
+	kind create cluster --config e2e/setup/kind.yaml
+	# We need an ingress controller to enable cluster ingress
+	kubectl apply -f e2e/setup/ingress-nginx.yaml --context kind-armada-test
+	# Wait until the ingress controller is ready
+	echo "Waiting for ingress controller to become ready"
+	sleep 60s # calling wait immediately can result in "no matching resources found"
+	kubectl wait --namespace ingress-nginx \
+		--for=condition=ready pod \
+		--selector=app.kubernetes.io/component=controller \
+		--timeout=90s \
+		--context kind-armada-test
+	docker pull "alpine:3.10" # ensure alpine, which is used by tests, is available
+	docker pull "nginx:1.21.6" # ensure nginx, which is used by tests, is available
+	kind load docker-image "alpine:3.10" --name armada-test # needed to make alpine available to kind
+	kind load docker-image "nginx:1.21.6" --name armada-test # needed to make nginx available to kind
 	mkdir -p .kube
 	kind get kubeconfig --internal --name armada-test > .kube/config
 
+tests-e2e-setup: setup-cluster 
 	docker run --rm -v ${PWD}:/go/src/armada -w /go/src/armada -e KUBECONFIG=/go/src/armada/.kube/config --network kind bitnami/kubectl:1.23 apply -f ./e2e/setup/namespace-with-anonymous-user.yaml
 	docker run -d --name nats --network=kind nats-streaming:0.24.5
 	docker run -d --name redis -p=6379:6379 --network=kind redis:6.2.6
