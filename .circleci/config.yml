@@ -192,7 +192,7 @@ jobs:
           keys:
             - go-mod-v3-{{ checksum "go.sum" }}
 
-      - run: # no-op if we restored from cache
+      - run:
           name: Download dependencies
           command: |
             curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
@@ -283,6 +283,14 @@ jobs:
       - restore_cache: # restore dependencies
           keys:
             - go-mod-v3-{{ checksum "go.sum" }}
+
+      - run:
+          name: Download dependencies
+          command: |
+            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+            chmod +x kubectl
+            mv kubectl /home/circleci/bin/
+            make download # no-op if we restored from cache
 
       - run:
           name: Build armadactl release artifacts
