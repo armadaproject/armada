@@ -763,8 +763,8 @@ func PulsarSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.E
 		}
 
 		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
-			Event: &armadaevents.EventSequence_Event_JobErrors{
-				JobErrors: &armadaevents.JobErrors{
+			Event: &armadaevents.EventSequence_Event_JobRunErrors{
+				JobRunErrors: &armadaevents.JobRunErrors{
 					JobId: jobId,
 					Errors: []*armadaevents.Error{
 						{
