@@ -3,17 +3,17 @@ package eventdb
 import (
 	"context"
 	"fmt"
+	"strings"
+
 	"github.com/G-Research/armada/internal/eventingester/model"
-	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
-	"strings"
 )
 
 func Insert(ctx context.Context, db *pgxpool.Pool, events []*model.EventMessage) error {
 
-	if len(offsets) < 1 {
+	if len(events) < 1 {
 		return nil
 	}
 
@@ -27,53 +27,6 @@ func Insert(ctx context.Context, db *pgxpool.Pool, events []*model.EventMessage)
 
 	// Insert offsets
 
-	// Insert partition indexes
-
-}
-
-func InsertPartitionsBatch(ctx context.Context, db *pgxpool.Pool, messageIDs []pulsar.MessageID) error {
-
-	tmpTable := uniqueTableName("last_processed_message")
-
-	createTmp := func(tx pgx.Tx) error {
-		_, err := tx.Exec(ctx, fmt.Sprintf(`
-				CREATE TEMPORARY TABLE %s 
-				(
-				  partition	   int,
-				  ledger_id    bigint,
-                  entry_id     bigint
-				  batch_idx    int,
-				) ON COMMIT DROP;`, tmpTable))
-		return err
-	}
-
-	insertTmp := func(tx pgx.Tx) error {
-		_, err := tx.CopyFrom(ctx,
-			pgx.Identifier{tmpTable},
-			[]string{"partition", "ledger_id", "entry_id", "batch_idx"},
-			pgx.CopyFromSlice(len(messageIDs), func(i int) ([]interface{}, error) {
-				return []interface{}{
-					messageIDs[i].PartitionIdx(),
-					messageIDs[i].LedgerID(),
-					messageIDs[i].EntryID(),
-					messageIDs[i].BatchIdx(),
-				}, nil
-			}),
-		)
-		return err
-	}
-
-	copyToDest := func(tx pgx.Tx) error {
-		_, err := tx.Exec(
-			ctx,
-			fmt.Sprintf(`
-					INSERT INTO last_processed_message (partition, ledger_id, entry_id, batch_idx SELECT * from %s
-					ON CONFLICT DO NOTHING`, tmpTable),
-		)
-		return err
-	}
-
-	return batchInsert(ctx, db, createTmp, insertTmp, copyToDest)
 }
 
 func InsertOffsetsBatch(ctx context.Context, db *pgxpool.Pool, offsets []*model.Offset) error {
@@ -162,7 +115,7 @@ func InsertJobsetsBatch(ctx context.Context, db *pgxpool.Pool, jobsets []*model.
 
 func InsertEventsBatch(ctx context.Context, db *pgxpool.Pool, events []*model.EventRow) error {
 
-	tmpTable := uniqueTableName("events")
+	tmpTable := uniqueTableName("event")
 
 	createTmp := func(tx pgx.Tx) error {
 		_, err := tx.Exec(ctx, fmt.Sprintf(`
@@ -236,16 +189,25 @@ func batchInsert(ctx context.Context, db *pgxpool.Pool, createTmp func(pgx.Tx) e
 	})
 }
 
-func LastOffsets(events []*model.EventMessage) []*model.Offset {
+func LoadJobsets(ctx context.Context, db *pgxpool.Pool) []*model.JobsetRow {
+	rows, err := db.Query(ctx, "SELECT jobset_id, queue, jobset FROM jobset")
 
-	offsetsById := make(map[string]pulsar.MessageID)
+}
+
+func LastOffsets(events []*model.EventRow) []*model.Offset {
+
+	offsetsById := make(map[int64]int64)
 
 	for _, event := range events {
-		offsetsById[event.Event.JobSetName] = event.MessageId
+		offsetsById[event.JobSetId] = event.Index
 	}
 
-	offsets := make([]*model.Offset)
-	for _, event := range offsetsById {
-		offsetsById[event.Event.JobSetName] = event.MessageId
+	offsets := make([]*model.Offset, 0)
+	for jobSet, offset := range offsetsById {
+		offsets = append(offsets, &model.Offset{
+			JobSetId: jobSet,
+			Offset:   offset,
+		})
 	}
+	return offsets
 }

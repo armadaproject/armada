@@ -1,9 +1,9 @@
 package model
 
 import (
-	"github.com/G-Research/armada/pkg/armadaevents"
-	"github.com/apache/pulsar-client-go/pulsar"
 	"time"
+
+	"github.com/G-Research/armada/pkg/armadaevents"
 )
 
 type EventRow struct {
@@ -25,6 +25,6 @@ type Offset struct {
 }
 
 type EventMessage struct {
-	MessageId pulsar.MessageID
-	Event     *armadaevents.EventSequence
+	Offset int64
+	Event  *armadaevents.EventSequence
 }
