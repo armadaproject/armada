@@ -35,6 +35,7 @@ const pulsarSubscription = "e2e-test"
 const armadaUrl = "localhost:50051"
 const armadaQueueName = "e2e-test-queue"
 const armadaUserId = "anonymous"
+const defaultPulsarTimeout = 30 * time.Second
 
 // We setup kind to expose ingresses on this ULR.
 const ingressUrl = "http://localhost:5000"
@@ -96,7 +97,7 @@ func TestSubmitJobs(t *testing.T) {
 		}
 
 		numEventsExpected := numJobs * 6
-		sequences, err := receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, 10*time.Second)
+		sequences, err := receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, defaultPulsarTimeout)
 		if err != nil {
 			return err
 		}
@@ -152,7 +153,7 @@ func TestDedup(t *testing.T) {
 		}
 
 		numEventsExpected := numJobs * 6
-		_, err = receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, 10*time.Second)
+		_, err = receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, defaultPulsarTimeout)
 		if err != nil {
 			return err
 		}
@@ -174,7 +175,7 @@ func TestDedup(t *testing.T) {
 		}
 
 		numEventsExpected = numJobs // one duplicate detected message per job
-		_, err = receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, 10*time.Second)
+		_, err = receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, defaultPulsarTimeout)
 		if err != nil {
 			return err
 		}
@@ -198,7 +199,7 @@ func TestDedup(t *testing.T) {
 		}
 
 		numEventsExpected = numJobs*6 + numJobs
-		_, err = receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, 10*time.Second)
+		_, err = receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, defaultPulsarTimeout)
 		if err != nil {
 			return err
 		}
@@ -222,7 +223,7 @@ func TestIngress(t *testing.T) {
 		}
 
 		numEventsExpected := 5
-		sequences, err := receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, 10*time.Second)
+		sequences, err := receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, defaultPulsarTimeout)
 		if err != nil {
 			return err
 		}
@@ -289,7 +290,7 @@ func TestIngress(t *testing.T) {
 		}
 
 		numEventsExpected = 3
-		sequences, err = receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, 10*time.Second)
+		sequences, err = receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, defaultPulsarTimeout)
 		if err != nil {
 			return err
 		}
@@ -324,7 +325,7 @@ func TestService(t *testing.T) {
 		}
 
 		numEventsExpected := 5
-		sequences, err := receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, 10*time.Second)
+		sequences, err := receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, defaultPulsarTimeout)
 		if err != nil {
 			return err
 		}
@@ -365,7 +366,7 @@ func TestService(t *testing.T) {
 
 		// Check that the wget job completes successfully.
 		numEventsExpected = 5
-		sequences, err = receiveJobSetSequences(ctx, consumer, armadaQueueName, wgetReq.JobSetId, numEventsExpected, 10*time.Second)
+		sequences, err = receiveJobSetSequences(ctx, consumer, armadaQueueName, wgetReq.JobSetId, numEventsExpected, defaultPulsarTimeout)
 		if err != nil {
 			return err
 		}
@@ -394,7 +395,7 @@ func TestService(t *testing.T) {
 		}
 
 		numEventsExpected = 3
-		sequences, err = receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, 10*time.Second)
+		sequences, err = receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, defaultPulsarTimeout)
 		if err != nil {
 			return err
 		}
@@ -430,7 +431,7 @@ func TestSubmitJobsWithEverything(t *testing.T) {
 		}
 
 		numEventsExpected := numJobs * 7
-		sequences, err := receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, 10*time.Second)
+		sequences, err := receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, defaultPulsarTimeout)
 		if err != nil {
 			return err
 		}
@@ -502,7 +503,7 @@ func TestSubmitJobWithError(t *testing.T) {
 
 		// Test that we get errors messages.
 		numEventsExpected := numJobs * 4
-		sequences, err := receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, 10*time.Second)
+		sequences, err := receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, defaultPulsarTimeout)
 		if err != nil {
 			return err
 		}
@@ -571,7 +572,7 @@ func TestSubmitCancelJobs(t *testing.T) {
 
 		// Test that we get submit, cancel, and cancelled messages.
 		numEventsExpected := numJobs * 3
-		sequences, err := receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, 10*time.Second)
+		sequences, err := receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, defaultPulsarTimeout)
 		if err != nil {
 			return err
 		}
