@@ -510,7 +510,7 @@ func CreateJobRunContainersBatch(ctx context.Context, db *pgxpool.Pool, instruct
 		createTmp := func(tx pgx.Tx) error {
 			_, err := tx.Exec(ctx, fmt.Sprintf(`
 				CREATE TEMPORARY TABLE %s (
-				  run_id  varchar(32),
+				  run_id  varchar(36),
                   container_name  varchar(512),
 				  exit_code integer
 				) ON COMMIT DROP;`, tmpTable))
