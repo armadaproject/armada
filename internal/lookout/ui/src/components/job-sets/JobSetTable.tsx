@@ -64,12 +64,13 @@ export default function JobSetTable(props: JobSetTableProps) {
           )
         }}
         headerRowRenderer={(tableHeaderRowProps) => {
+          const deselectEnabled = props.selectedJobSets.size > 0
+          const disabledOnEmpty = props.jobSets.length == 0
           return (
             <CheckboxHeaderRow
-              deselectEnabled={props.selectedJobSets.size > 0}
-              disabledOnEmpty={props.jobSets.length == 0}
-              onDeselectAllClick={() => props.onDeselectAllClick()}
-              onSelectAllClick={() => props.onSelectAllClick()}
+              checked={deselectEnabled}
+              disabled={!deselectEnabled && disabledOnEmpty}
+              onClick={deselectEnabled ? () => props.onDeselectAllClick() : props.onSelectAllClick}
               {...tableHeaderRowProps}
             />
           )
