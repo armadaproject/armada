@@ -386,9 +386,9 @@ func (server *SubmitServer) cancelJobsById(ctx context.Context, jobId string) (*
 
 // cancels all jobs part of a particular job set and queue
 func (server *SubmitServer) cancelJobsByQueueAndSet(ctx context.Context, queue string, jobSetId string) (*api.CancellationResult, error) {
-	fmt.Println("TEST before getting job ids")
+	fmt.Printf("TEST before getting job ids, queue: %s  jobset: %s\n", queue, jobSetId)
 	ids, err := server.jobRepository.GetActiveJobIds(queue, jobSetId)
-	fmt.Println("TEST after getting job ids")
+	fmt.Printf("TEST after getting job ids, loaded total of %d ids\n", len(ids))
 	if err != nil {
 		return nil, status.Errorf(codes.Unavailable, "[cancelJobsBySetAndQueue] error getting job IDs: %s", err)
 	}

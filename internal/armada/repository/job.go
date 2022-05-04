@@ -849,16 +849,19 @@ func (repo *RedisJobRepository) GetActiveJobIds(queue string, jobSetId string) (
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
+	fmt.Printf("TEST GetActiveJobIds: queuedIds: %d\n", len(queuedIds))
 
 	leasedIds, err := leasedIdsCommand.Result()
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
+	fmt.Printf("TEST GetActiveJobIds: leasedIds: %d\n", len(leasedIds))
 
 	jobSetIds, err := jobSetIdsCommand.Result()
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
+	fmt.Printf("TEST GetActiveJobIds: jobSetIds: %d\n", len(jobSetIds))
 
 	activeIds := util.StringListToSet(append(queuedIds, leasedIds...))
 	activeSetIds := []string{}
