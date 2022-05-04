@@ -368,6 +368,12 @@ func TestInvalidEvent(t *testing.T) {
 	assert.Equal(t, expected, instructions)
 }
 
+func TestTruncate(t *testing.T) {
+	assert.Equal(t, "", truncate("", 3))
+	assert.Equal(t, "abc", truncate("abc", 3))
+	assert.Equal(t, "abc", truncate("abcd", 3))
+}
+
 // This message is invalid as it has no payload
 // Assert that the update just contains the messageId so we can ack it
 func TestInvalidMessage(t *testing.T) {
