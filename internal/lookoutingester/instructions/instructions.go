@@ -101,7 +101,7 @@ func ConvertMsg(ctx context.Context, msg *model.ConsumerMessage, compressor Comp
 			messageLogger.Warnf("Ignoring event")
 		}
 		if err != nil {
-			messageLogger.Warnf("Could not convert event at index %d.", idx)
+			messageLogger.Warnf("Could not convert event at index %d. %+v", idx, err)
 		}
 	}
 	return updateInstructions
@@ -369,7 +369,8 @@ func handleJobRunErrors(ts time.Time, event *armadaevents.JobRunErrors, update *
 		for _, e := range event.GetErrors() {
 			podError := e.GetPodError()
 			if podError != nil && e.Terminal {
-				jobRun.Error = pointer.String(podError.GetMessage())
+				truncatedMsg := truncate(podError.GetMessage(), 2048)
+				jobRun.Error = pointer.String(truncatedMsg)
 				for _, containerError := range podError.ContainerErrors {
 					update.JobRunContainersToCreate = append(update.JobRunContainersToCreate, &model.CreateJobRunContainerInstruction{
 						RunId:         jobRun.RunId,
@@ -396,4 +397,11 @@ func getNode(resources []*armadaevents.KubernetesResourceInfo) (string, int) {
 		}
 	}
 	return "UNKNOWN", -1
+}
+
+func truncate(s string, max int) string {
+	if max > len(s) {
+		return s
+	}
+	return s[:max]
 }
