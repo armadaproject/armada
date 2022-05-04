@@ -235,7 +235,12 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 		return nil, err
 	}
 
-	err = server.submittingJobsWouldSurpassLimit(&q, req)
+	err = server.submittingJobsWouldSurpassLimit(q, req)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.InvalidArgument,
+			"[SubmitJobs] error checking queue limit: %s", err)
+	}
 
 	err = checkPermission(server.permissions, ctx, permissions.SubmitAnyJobs)
 	var globalPermErr *ErrNoPermission
@@ -353,18 +358,18 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 	return result, nil
 }
 
-func (server *SubmitServer) submittingJobsWouldSurpassLimit(queue *api.Queue, jobSubmitRequest *api.JobSubmitRequest) error {
+func (server *SubmitServer) submittingJobsWouldSurpassLimit(q queue.Queue, jobSubmitRequest *api.JobSubmitRequest) error {
 	limit := server.queueManagementConfig.DefaultQueuedJobsLimit
 	if limit <= 0 {
 		return nil
 	}
 
-	queued, err := server.countQueuedJobs(queue)
+	queued, err := server.countQueuedJobs(q)
 	if err != nil {
 		return err
 	}
 
-	queuedAfterSubmission := queued+ int64(len(jobSubmitRequest.JobRequestItems))
+	queuedAfterSubmission := queued + int64(len(jobSubmitRequest.JobRequestItems))
 	if queuedAfterSubmission > int64(limit) {
 		return fmt.Errorf(
 			"too many queued jobs: currently have %d, would have %d with new submission, limit is %d",
@@ -374,8 +379,8 @@ func (server *SubmitServer) submittingJobsWouldSurpassLimit(queue *api.Queue, jo
 	return nil
 }
 
-func (server *SubmitServer) countQueuedJobs(queue *api.Queue) (int64, error) {
-	sizes, err := server.jobRepository.GetQueueSizes([]*api.Queue{queue})
+func (server *SubmitServer) countQueuedJobs(q queue.Queue) (int64, error) {
+	sizes, err := server.jobRepository.GetQueueSizes(queue.QueuesToAPI([]queue.Queue{q}))
 	if err != nil {
 		return 0, err
 	}

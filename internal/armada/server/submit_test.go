@@ -457,17 +457,15 @@ func TestSubmitServer_SubmitJobs_RejectsIfTooManyJobsAreQueued(t *testing.T) {
 
 		s.queueManagementConfig.DefaultQueuedJobsLimit = limit
 		jobSetId := util.NewULID()
-		jobRequest := createJobRequest(jobSetId, 1)
 
 		for i := 0; i < limit; i++ {
-			result, err := s.SubmitJobs(context.Background(), jobRequest)
+			result, err := s.SubmitJobs(context.Background(), createJobRequest(jobSetId, 1))
 			assert.NoError(t, err)
 			assert.Len(t, result.JobResponseItems, 1)
 		}
 
-		result, err := s.SubmitJobs(context.Background(), jobRequest)
+		_, err := s.SubmitJobs(context.Background(), createJobRequest(jobSetId, 1))
 		assert.Error(t, err)
-		assert.Len(t, result.JobResponseItems, 0)
 	})
 }
 
