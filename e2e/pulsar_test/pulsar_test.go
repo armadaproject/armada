@@ -3,6 +3,10 @@ package pulsar_test
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
+	"net/http"
+	"os/exec"
+	"strings"
 	"testing"
 	"time"
 
@@ -31,9 +35,19 @@ const pulsarSubscription = "e2e-test"
 const armadaUrl = "localhost:50051"
 const armadaQueueName = "e2e-test-queue"
 const armadaUserId = "anonymous"
+const defaultPulsarTimeout = 30 * time.Second
+
+// We setup kind to expose ingresses on this ULR.
+const ingressUrl = "http://localhost:5000"
+
+// Armada exposes all ingresses on this path.
+// Routing to the correct service is done using the hostname header.
+const ingressPath = "/"
 
 // Namespace created by the test setup. Used when submitting test jobs.
 const userNamespace = "personal-anonymous"
+
+const receiveEventTimeout = 30 * time.Second
 
 // The submit server should automatically add default tolerations.
 // These must be manually updated to match the default tolerations in the server config.
@@ -85,7 +99,7 @@ func TestSubmitJobs(t *testing.T) {
 		}
 
 		numEventsExpected := numJobs * 6
-		sequences, err := receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, 10*time.Second)
+		sequences, err := receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, defaultPulsarTimeout)
 		if err != nil {
 			return err
 		}
@@ -141,7 +155,7 @@ func TestDedup(t *testing.T) {
 		}
 
 		numEventsExpected := numJobs * 6
-		_, err = receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, 10*time.Second)
+		_, err = receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, defaultPulsarTimeout)
 		if err != nil {
 			return err
 		}
@@ -163,7 +177,7 @@ func TestDedup(t *testing.T) {
 		}
 
 		numEventsExpected = numJobs // one duplicate detected message per job
-		_, err = receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, 10*time.Second)
+		_, err = receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, defaultPulsarTimeout)
 		if err != nil {
 			return err
 		}
@@ -187,9 +201,214 @@ func TestDedup(t *testing.T) {
 		}
 
 		numEventsExpected = numJobs*6 + numJobs
-		_, err = receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, 10*time.Second)
+		_, err = receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, defaultPulsarTimeout)
 		if err != nil {
 			return err
+		}
+
+		return nil
+	})
+	assert.NoError(t, err)
+}
+
+func TestIngress(t *testing.T) {
+	err := withSetup(func(ctx context.Context, client api.SubmitClient, producer pulsar.Producer, consumer pulsar.Consumer) error {
+		req := createJobSubmitRequestWithIngress()
+		ctxWithTimeout, _ := context.WithTimeout(context.Background(), time.Second)
+		res, err := client.SubmitJobs(ctxWithTimeout, req)
+		if err != nil {
+			return err
+		}
+
+		if ok := assert.Equal(t, 1, len(res.JobResponseItems)); !ok {
+			return nil
+		}
+
+		numEventsExpected := 5
+		sequences, err := receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, defaultPulsarTimeout)
+		if err != nil {
+			return err
+		}
+
+		sequence := flattenSequences(sequences)
+		if !assert.NotNil(t, sequence) {
+			return nil
+		}
+
+		if !assert.Equal(t, numEventsExpected, len(sequence.Events)) {
+			t.FailNow()
+		}
+
+		// Armada generated a special event with info on how to connect to the ingress.
+		ingressInfoEvent, ok := sequence.Events[numEventsExpected-1].GetEvent().(*armadaevents.EventSequence_Event_StandaloneIngressInfo)
+		if !assert.True(t, ok) {
+			t.FailNow()
+		}
+		ingressInfo := ingressInfoEvent.StandaloneIngressInfo
+
+		actualJobId, err := armadaevents.UlidStringFromProtoUuid(ingressInfo.GetJobId())
+		if err != nil {
+			return err
+		}
+		assert.Equal(t, res.JobResponseItems[0].JobId, actualJobId)
+
+		// Hostname used to route requests to the service setup for the created pod.
+		containerPort := int32(80)
+		host, ok := ingressInfo.IngressAddresses[containerPort]
+		if !assert.True(t, ok) {
+			t.FailNow()
+		}
+
+		// It takes a few seconds for the ingress to become active.
+		// Ideally, we would make repeated requests up to some max timeout instead of using a constant 10s.
+		time.Sleep(10 * time.Second)
+
+		// Make a get request to this hostname to verify that we get a response from the pod.
+		httpClient := &http.Client{}
+		httpReq, err := http.NewRequest("GET", ingressUrl+ingressPath, nil)
+		if err != nil {
+			return err
+		}
+		httpReq.Host = host
+		httpRes, err := httpClient.Do(httpReq)
+		if err != nil {
+			return err
+		}
+		httpResBytes, err := ioutil.ReadAll(httpRes.Body)
+		if err != nil {
+			return err
+		}
+		assert.Contains(t, string(httpResBytes), "If you see this page, the nginx web server is successfully installed")
+
+		// Cancel the job to clean it up.
+		ctxWithTimeout, _ = context.WithTimeout(context.Background(), time.Second)
+		_, err = client.CancelJobs(ctxWithTimeout, &api.JobCancelRequest{
+			JobId:    res.JobResponseItems[0].JobId,
+			JobSetId: req.JobSetId,
+			Queue:    req.Queue,
+		})
+		if !assert.NoError(t, err) {
+			return nil
+		}
+
+		numEventsExpected = 3
+		sequences, err = receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, defaultPulsarTimeout)
+		if err != nil {
+			return err
+		}
+
+		sequence = flattenSequences(sequences)
+		if !assert.NotNil(t, sequence) {
+			return nil
+		}
+
+		if !assert.Equal(t, numEventsExpected, len(sequence.Events)) {
+			t.FailNow()
+		}
+
+		return nil
+	})
+	assert.NoError(t, err)
+}
+
+func TestService(t *testing.T) {
+	err := withSetup(func(ctx context.Context, client api.SubmitClient, producer pulsar.Producer, consumer pulsar.Consumer) error {
+
+		// Create a job running an nginx server accessible via a headless service.
+		req := createJobSubmitRequestWithService()
+		ctxWithTimeout, _ := context.WithTimeout(context.Background(), time.Second)
+		res, err := client.SubmitJobs(ctxWithTimeout, req)
+		if err != nil {
+			return err
+		}
+
+		if ok := assert.Equal(t, 1, len(res.JobResponseItems)); !ok {
+			return nil
+		}
+
+		numEventsExpected := 5
+		sequences, err := receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, defaultPulsarTimeout)
+		if err != nil {
+			return err
+		}
+
+		sequence := flattenSequences(sequences)
+		if !assert.NotNil(t, sequence) {
+			return nil
+		}
+
+		if !assert.Equal(t, numEventsExpected, len(sequence.Events)) {
+			t.FailNow()
+		}
+
+		// It takes a few seconds for the service to become active.
+		// Ideally, we would make repeated requests up to some max timeout instead of using a constant 10s.
+		time.Sleep(10 * time.Second)
+
+		// Get the ip of the nginx pod via the k8s api.
+		podIndex := 0
+		endpointName := fmt.Sprintf("armada-%s-%d-headless", res.GetJobResponseItems()[0].JobId, podIndex)
+		out, err := exec.Command("kubectl", "get", "endpoints", endpointName, "--namespace", userNamespace, "-o", "jsonpath='{.subsets[0].addresses[0].ip}'").Output()
+		if !assert.NoError(t, err) {
+			t.FailNow()
+		}
+		address := strings.ReplaceAll(string(out), "'", "") + ":80"
+
+		// Submit a new job that queries that ip using wget.
+		wgetReq := createWgetJobRequest(address)
+		ctxWithTimeout, _ = context.WithTimeout(context.Background(), time.Second)
+		wgetRes, err := client.SubmitJobs(ctxWithTimeout, wgetReq)
+		if err != nil {
+			return err
+		}
+
+		if ok := assert.Equal(t, 1, len(wgetRes.JobResponseItems)); !ok {
+			return nil
+		}
+
+		// Check that the wget job completes successfully.
+		numEventsExpected = 5
+		sequences, err = receiveJobSetSequences(ctx, consumer, armadaQueueName, wgetReq.JobSetId, numEventsExpected, defaultPulsarTimeout)
+		if err != nil {
+			return err
+		}
+
+		sequence = flattenSequences(sequences)
+		if !assert.NotNil(t, sequence) {
+			return nil
+		}
+
+		if !assert.Equal(t, numEventsExpected, len(sequence.Events)) {
+			t.FailNow()
+		}
+
+		_, ok := sequence.Events[numEventsExpected-1].GetEvent().(*armadaevents.EventSequence_Event_JobSucceeded)
+		assert.True(t, ok)
+
+		// Cancel the original job (i.e., the nginx job).
+		ctxWithTimeout, _ = context.WithTimeout(context.Background(), time.Second)
+		_, err = client.CancelJobs(ctxWithTimeout, &api.JobCancelRequest{
+			JobId:    res.JobResponseItems[0].JobId,
+			JobSetId: req.JobSetId,
+			Queue:    req.Queue,
+		})
+		if !assert.NoError(t, err) {
+			return nil
+		}
+
+		numEventsExpected = 3
+		sequences, err = receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, defaultPulsarTimeout)
+		if err != nil {
+			return err
+		}
+
+		sequence = flattenSequences(sequences)
+		if !assert.NotNil(t, sequence) {
+			return nil
+		}
+
+		if !assert.Equal(t, numEventsExpected, len(sequence.Events)) {
+			t.FailNow()
 		}
 
 		return nil
@@ -214,7 +433,7 @@ func TestSubmitJobsWithEverything(t *testing.T) {
 		}
 
 		numEventsExpected := numJobs * 7
-		sequences, err := receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, 10*time.Second)
+		sequences, err := receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, defaultPulsarTimeout)
 		if err != nil {
 			return err
 		}
@@ -286,7 +505,7 @@ func TestSubmitJobWithError(t *testing.T) {
 
 		// Test that we get errors messages.
 		numEventsExpected := numJobs * 4
-		sequences, err := receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, 10*time.Second)
+		sequences, err := receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, defaultPulsarTimeout)
 		if err != nil {
 			return err
 		}
@@ -355,7 +574,7 @@ func TestSubmitCancelJobs(t *testing.T) {
 
 		// Test that we get submit, cancel, and cancelled messages.
 		numEventsExpected := numJobs * 3
-		sequences, err := receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, 10*time.Second)
+		sequences, err := receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, defaultPulsarTimeout)
 		if err != nil {
 			return err
 		}
@@ -668,6 +887,7 @@ func receiveJobSetSequences(ctx context.Context, consumer pulsar.Consumer, queue
 		var msg pulsar.Message
 		msg, err = consumer.Receive(ctxWithTimeout)
 		if err == context.DeadlineExceeded {
+			fmt.Println("Timed out waiting for event")
 			err = nil // Timeout is expected; ignore.
 			return
 		} else if err != nil {
@@ -796,7 +1016,136 @@ func createJobSubmitRequestWithClientId(numJobs int, clientId string) *api.JobSu
 	}
 }
 
-// Create a job submit request with multiple pods, and an ingress and service for testing.
+// Return a job request with a container that queries the specified address using wget.
+func createWgetJobRequest(address string) *api.JobSubmitRequest {
+	cpu, _ := resource.ParseQuantity("80m")
+	memory, _ := resource.ParseQuantity("50Mi")
+	items := []*api.JobSubmitRequestItem{
+		{
+			Namespace: userNamespace,
+			Priority:  1,
+			PodSpec: &v1.PodSpec{
+				Containers: []v1.Container{
+					{
+						Name:  "wget",
+						Image: "alpine:3.10",
+						Args:  []string{"wget", address, "--timeout=5"}, // Queried from the k8s services API
+						Resources: v1.ResourceRequirements{
+							Requests: v1.ResourceList{"cpu": cpu, "memory": memory},
+							Limits:   v1.ResourceList{"cpu": cpu, "memory": memory},
+						},
+					},
+				},
+			},
+		},
+	}
+	return &api.JobSubmitRequest{
+		Queue:           armadaQueueName,
+		JobSetId:        util.NewULID(),
+		JobRequestItems: items,
+	}
+}
+
+// Create a job submit request with an ingress.
+func createJobSubmitRequestWithIngress() *api.JobSubmitRequest {
+	cpu, _ := resource.ParseQuantity("80m")
+	memory, _ := resource.ParseQuantity("50Mi")
+	items := make([]*api.JobSubmitRequestItem, 1)
+
+	items[0] = &api.JobSubmitRequestItem{
+		Namespace: userNamespace,
+		Priority:  1,
+		ClientId:  uuid.New().String(), // So we can test that we get back the right thing
+		PodSpec: &v1.PodSpec{
+			Containers: []v1.Container{
+				{
+					Name:  "nginx",
+					Image: "nginx:1.21.6",
+					Resources: v1.ResourceRequirements{
+						Requests: v1.ResourceList{"cpu": cpu, "memory": memory},
+						Limits:   v1.ResourceList{"cpu": cpu, "memory": memory},
+					},
+					// Armada silently deletes services/ingresses unless the main pod exposes those.
+					// Hence, we need to expose the following ports.
+					Ports: []v1.ContainerPort{
+						{
+							ContainerPort: 80,
+							Protocol:      v1.ProtocolTCP,
+							Name:          "port",
+						},
+					},
+				},
+			},
+		},
+		Ingress: []*api.IngressConfig{
+			{
+				Ports: []uint32{80},
+			},
+		},
+	}
+	return &api.JobSubmitRequest{
+		Queue:           armadaQueueName,
+		JobSetId:        util.NewULID(),
+		JobRequestItems: items,
+	}
+}
+
+// Create a job submit request with services.
+func createJobSubmitRequestWithService() *api.JobSubmitRequest {
+	cpu, _ := resource.ParseQuantity("80m")
+	memory, _ := resource.ParseQuantity("50Mi")
+	items := make([]*api.JobSubmitRequestItem, 1)
+
+	items[0] = &api.JobSubmitRequestItem{
+		Namespace: userNamespace,
+		Priority:  1,
+		ClientId:  uuid.New().String(), // So we can test that we get back the right thing
+		PodSpec: &v1.PodSpec{
+			Containers: []v1.Container{
+				{
+					Name:  "nginx",
+					Image: "nginx:1.21.6",
+					Resources: v1.ResourceRequirements{
+						Requests: v1.ResourceList{"cpu": cpu, "memory": memory},
+						Limits:   v1.ResourceList{"cpu": cpu, "memory": memory},
+					},
+					// Armada silently deletes services/ingresses unless the main pod exposes those.
+					// Hence, we need to expose the following ports.
+					Ports: []v1.ContainerPort{
+						{
+							ContainerPort: 80,
+							Protocol:      v1.ProtocolTCP,
+							Name:          "port80",
+						},
+						{
+							ContainerPort: 6000,
+							Protocol:      v1.ProtocolTCP,
+							Name:          "port6000",
+						},
+					},
+				},
+			},
+		},
+		Services: []*api.ServiceConfig{
+			{
+				Type:  api.ServiceType_Headless,
+				Ports: []uint32{80},
+			},
+			{
+				Type:  api.ServiceType_NodePort,
+				Ports: []uint32{80},
+			},
+		},
+	}
+
+	return &api.JobSubmitRequest{
+		Queue:           armadaQueueName,
+		JobSetId:        util.NewULID(),
+		JobRequestItems: items,
+	}
+}
+
+// Create a job submit request with ingresses and services for testing.
 func createJobSubmitRequestWithEverything(numJobs int) *api.JobSubmitRequest {
 	cpu, _ := resource.ParseQuantity("80m")
 	memory, _ := resource.ParseQuantity("50Mi")

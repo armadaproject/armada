@@ -8,6 +8,7 @@ import (
 
 	"github.com/doug-martin/goqu/v9"
 	"github.com/doug-martin/goqu/v9/exp"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/api/lookout"
@@ -256,7 +257,7 @@ func makeJobFromRow(row *JobRow) (*api.Job, error) {
 	jobJson := ParseNullString(row.JobJson)
 	err := json.Unmarshal([]byte(jobJson), &jobFromJson)
 	if err != nil {
-		return nil, fmt.Errorf("error while parsing job %s json: %v", ParseNullString(row.JobId), err)
+		log.Errorf("error while parsing job %s json: %v", ParseNullString(row.JobId), err)
 	}
 
 	return &api.Job{
