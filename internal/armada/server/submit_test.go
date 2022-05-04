@@ -451,6 +451,26 @@ func TestSubmitServer_SubmitJobs_HandlesDoubleSubmit(t *testing.T) {
 	})
 }
 
+func TestSubmitServer_SubmitJobs_RejectsIfTooManyJobsAreQueued(t *testing.T) {
+	withSubmitServer(func(s *SubmitServer, events repository.EventRepository) {
+		limit := 3
+
+		s.queueManagementConfig.DefaultQueuedJobsLimit = limit
+		jobSetId := util.NewULID()
+		jobRequest := createJobRequest(jobSetId, 1)
+
+		for i := 0; i < limit; i++ {
+			result, err := s.SubmitJobs(context.Background(), jobRequest)
+			assert.NoError(t, err)
+			assert.Len(t, result.JobResponseItems, 1)
+		}
+
+		result, err := s.SubmitJobs(context.Background(), jobRequest)
+		assert.Error(t, err)
+		assert.Len(t, result.JobResponseItems, 0)
+	})
+}
+
 func TestSubmitServer_ReprioritizeJobs(t *testing.T) {
 	t.Run("job that doesn't exist", func(t *testing.T) {
 		withSubmitServerAndRepos(func(s *SubmitServer, jobRepo repository.JobRepository, events repository.EventRepository) {
