@@ -73,6 +73,7 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
     this.selectJobSet = this.selectJobSet.bind(this)
     this.shiftSelectJobSet = this.shiftSelectJobSet.bind(this)
     this.deselectAll = this.deselectAll.bind(this)
+    this.selectAll = this.selectAll.bind(this)
 
     this.openCancelJobSets = this.openCancelJobSets.bind(this)
     this.openReprioritizeJobSets = this.openReprioritizeJobSets.bind(this)
@@ -173,6 +174,17 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
     this.setState({
       ...this.state,
       selectedJobSets: new Map<string, JobSet>(),
+      lastSelectedIndex: 0,
+    })
+  }
+
+  selectAll() {
+    const selected = new Map<string, JobSet>()
+    this.state.jobSets.forEach((jobSet) => selected.set(jobSet.jobSetId, jobSet))
+
+    this.setState({
+      ...this.state,
+      selectedJobSets: selected,
       lastSelectedIndex: 0,
     })
   }
@@ -301,6 +313,7 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
           onSelectJobSet={this.selectJobSet}
           onShiftSelectJobSet={this.shiftSelectJobSet}
           onDeselectAllClick={this.deselectAll}
+          onSelectAllClick={this.selectAll}
           onCancelJobSetsClick={() => this.openCancelJobSets(true)}
           onToggleAutoRefresh={this.toggleAutoRefresh}
           onReprioritizeJobSetsClick={() => this.openReprioritizeJobSets(true)}
