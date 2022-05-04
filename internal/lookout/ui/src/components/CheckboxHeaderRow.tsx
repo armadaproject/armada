@@ -9,7 +9,9 @@ import "./Row.css"
 
 export type CheckboxHeaderRowProps = {
   deselectEnabled: boolean
+  disabledOnEmpty: boolean
   onDeselectAllClick: () => void
+  onSelectAllClick: () => void
 } & TableHeaderRowProps
 
 export default function CheckboxHeaderRow(props: CheckboxHeaderRowProps) {
@@ -18,9 +20,9 @@ export default function CheckboxHeaderRow(props: CheckboxHeaderRowProps) {
       <div className="select-box" style={{ width: CHECKBOX_WIDTH }}>
         <Checkbox
           checked={props.deselectEnabled}
-          disabled={!props.deselectEnabled}
+          disabled={!props.deselectEnabled && props.disabledOnEmpty}
           indeterminate={props.deselectEnabled}
-          onClick={props.onDeselectAllClick}
+          onClick={props.deselectEnabled ? props.onDeselectAllClick : props.onSelectAllClick}
         />
       </div>
       {props.columns}
