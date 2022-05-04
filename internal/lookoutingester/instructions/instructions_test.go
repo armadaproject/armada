@@ -2,7 +2,6 @@ package instructions
 
 import (
 	"encoding/json"
-	"fmt"
 	"math/rand"
 	"testing"
 	"time"
@@ -334,15 +333,6 @@ func TestCancelled(t *testing.T) {
 		MessageIds:   []*model.ConsumerMessageId{{msg.Message.ID(), msg.ConsumerId}},
 	}
 	assert.Equal(t, expected, instructions)
-}
-
-func TestFoo(t *testing.T) {
-	var s string = ""
-	fmt.Println(s[:3])
-	s = "abc"
-	fmt.Println(s[:3])
-	s = "abcd"
-	fmt.Println(s[:3])
 }
 
 func TestReprioritised(t *testing.T) {
