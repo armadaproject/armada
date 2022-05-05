@@ -139,8 +139,9 @@ type JetstreamConfig struct {
 }
 
 type QueueManagementConfig struct {
-	AutoCreateQueues      bool
-	DefaultPriorityFactor queue.PriorityFactor
+	AutoCreateQueues       bool
+	DefaultPriorityFactor  queue.PriorityFactor
+	DefaultQueuedJobsLimit int
 }
 
 type MetricsConfig struct {

@@ -37,6 +37,7 @@ scheduling:
     memory: 1Mi
 queueManagement:
   defaultPriorityFactor: 1000
+  defaultQueuedJobsLimit: 0  # No Limit
 events:
   storeQueue: "ArmadaEventRedisProcessor"
   jobStatusQueue: "ArmadaEventJobStatusProcessor"
