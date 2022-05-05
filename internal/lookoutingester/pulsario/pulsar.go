@@ -76,9 +76,8 @@ func Receive(ctx context.Context, consumer pulsar.Consumer, consumerId int, buff
 					time.Sleep(backoffTime)
 					continue
 				}
-				lastMessageId = msg.ID()
-				lastPublishTime = msg.PublishTime()
 				numReceived++
+				lastPublishTime = msg.PublishTime()
 				lastMessageId = msg.ID()
 				log.Debugf("Recevied message %s", lastMessageId)
 				out <- &model.ConsumerMessage{
