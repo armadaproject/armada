@@ -161,6 +161,7 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 
 	// If Pulsar is enabled, use the Pulsar submit endpoints.
 	if config.Pulsar.Enabled {
+		serverId := uuid.New()
 
 		// API endpoints that generate Pulsar messages.
 		log.Info("Pulsar config provided; using Pulsar submit endpoints.")
@@ -177,7 +178,7 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 			panic(err)
 		}
 		producer, err := pulsarClient.CreateProducer(pulsar.ProducerOptions{
-			Name:             fmt.Sprintf("armada-server-%s", uuid.New()),
+			Name:             fmt.Sprintf("armada-server-%s", serverId),
 			CompressionType:  compressionType,
 			CompressionLevel: compressionLevel,
 			Topic:            config.Pulsar.JobsetEventsTopic,
@@ -252,7 +253,10 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 
 		// Create a new producer for this service.
 		producer, err = pulsarClient.CreateProducer(pulsar.ProducerOptions{
-			Topic: config.Pulsar.JobsetEventsTopic,
+			Name:             fmt.Sprintf("armada-pulsar-to-pulsar-%s", serverId),
+			CompressionType:  compressionType,
+			CompressionLevel: compressionLevel,
+			Topic:            config.Pulsar.JobsetEventsTopic,
 		})
 		if err != nil {
 			panic(err)
