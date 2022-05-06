@@ -274,9 +274,6 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 				panic(err)
 			}
 
-			// We're only interested in new events.
-			consumer.SeekByTime(time.Now())
-
 			eventsPrinter := server.EventsPrinter{
 				Consumer: consumer,
 			}
