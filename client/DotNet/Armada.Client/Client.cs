@@ -77,7 +77,7 @@ namespace GResearch.Armada.Client
 
     public partial class ArmadaClient : IArmadaClient
     {
-        private const int WatchInactivityTimeoutSeconds = 15;
+        private const int WatchInactivityTimeoutSeconds = 600;
         private const string NoLine = "NoLine";
         
         public async Task<IEnumerable<StreamResponse<ApiEventStreamMessage>>> GetJobEventsStream(
