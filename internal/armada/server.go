@@ -264,6 +264,23 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 		}
 		go pulsarFromPulsar.Run(context.Background())
 
+		// Service that reads from Pulsar and logs events.
+		consumer, err = pulsarClient.Subscribe(pulsar.ConsumerOptions{
+			Topic:            config.Pulsar.JobsetEventsTopic,
+			SubscriptionName: config.Pulsar.EventsPrinterSubscription,
+		})
+		if err != nil {
+			panic(err)
+		}
+
+		// We're only interested in new events.
+		consumer.SeekByTime(time.Now())
+
+		eventsPrinter := server.EventsPrinter{
+			Consumer: consumer,
+		}
+		go eventsPrinter.Run(context.Background())
+
 	} else {
 		log.Info("No Pulsar config provided; submitting directly to Redis and Nats.")
 	}
