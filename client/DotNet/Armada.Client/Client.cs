@@ -77,7 +77,7 @@ namespace GResearch.Armada.Client
 
     public partial class ArmadaClient : IArmadaClient
     {
-        private const int WatchInactivityTimeoutSeconds = 600;
+        private const int WatchInactivityTimeoutSeconds = 15;
         private const string NoLine = "NoLine";
         
         public async Task<IEnumerable<StreamResponse<ApiEventStreamMessage>>> GetJobEventsStream(
@@ -181,7 +181,7 @@ namespace GResearch.Armada.Client
          */
         private async Task<string> ReadLineAsyncWithCancellation(StreamReader reader, CancellationToken ct)
         {
-            using(var taskCancellation = CancellationTokenSource.CreateLinkedTokenSource(ct))
+            using (var taskCancellation = CancellationTokenSource.CreateLinkedTokenSource(ct))
             {
                 var taskCancellationToken = taskCancellation.Token;
 
@@ -191,9 +191,8 @@ namespace GResearch.Armada.Client
                     {
                         return await reader.ReadLineAsync();
                     }
-
                     return NoLine;
-                }, ct);
+                }, taskCancellationToken);
                 var cancellation = Task.Run(async () =>
                 {
                     while (!taskCancellationToken.IsCancellationRequested)
@@ -201,8 +200,13 @@ namespace GResearch.Armada.Client
                         await Task.Delay(TimeSpan.FromSeconds(1), taskCancellationToken);
                     }
                 }, taskCancellationToken);
-
                 await Task.WhenAny(task, cancellation);
+
+                if (!taskCancellationToken.IsCancellationRequested)
+                {
+                    taskCancellation.Cancel();
+                }
+
                 return task.IsCompleted ? task.Result : NoLine;
             }
         }
