@@ -90,6 +90,12 @@ func (srv *EventsPrinter) Run(ctx context.Context) {
 				"Groups":              sequence.Groups,
 				"NumEvents":           len(sequence.Events),
 				requestid.MetadataKey: pulsarrequestid.FromMessageOrMissing(msg),
+				"PublishTime":         msg.PublishTime(),
+				"EventTime":           msg.EventTime(),
+				"Topic":               msg.Topic(),
+				"Properties":          msg.Properties(),
+				"PulsarId":            msg.ID(),
+				"Key":                 msg.Key(),
 			})
 
 			s := "Sequence: " + eventutil.ShortSequenceString(sequence)
