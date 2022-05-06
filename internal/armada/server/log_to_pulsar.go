@@ -128,7 +128,7 @@ func (srv *PulsarFromPulsar) Run(ctx context.Context) {
 
 			// Process the events in the sequence. For efficiency, we may process several events at a time.
 			messageLogger.WithField("numEvents", len(sequence.Events)).Info("processing sequence")
-			err = srv.ProcessSequence(ctx, sequence)
+			err = srv.ProcessSequence(ctxWithLogger, sequence)
 			if err != nil {
 				logging.WithStacktrace(messageLogger, err).Error("failed to process sequence")
 			} else {
@@ -165,6 +165,10 @@ func (srv *PulsarFromPulsar) ProcessSequence(ctx context.Context, sequence *arma
 	msg := &pulsar.ProducerMessage{
 		Payload: payload,
 		Key:     sequence.JobSetName,
+		Properties: map[string]string{
+			requestid.MetadataKey:                     requestId,
+			armadaevents.PULSAR_MESSAGE_TYPE_PROPERTY: armadaevents.PULSAR_CONTROL_MESSAGE,
+		},
 	}
 	pulsarrequestid.AddToMessage(msg, requestId)
 
