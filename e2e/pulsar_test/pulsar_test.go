@@ -122,8 +122,8 @@ func TestSubmitJobs(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			if ok := isSequencef(t, expected, actual, "Event sequence error; printing diff:\n%s", cmp.Diff(expected, actual)); !ok {
-				return nil
+			if !isSequencef(t, expected, actual, "Event sequence error; printing diff:\n%s", cmp.Diff(expected, actual)) {
+				t.FailNow()
 			}
 		}
 
@@ -827,54 +827,42 @@ func isSequenceTypef(t *testing.T, expected *armadaevents.EventSequence, actual 
 // Compare an expected sequence of events with the actual sequence.
 // Calls into the assert function to make comparison.
 // Returns true if the two sequences are equal and false otherwise.
-func isSequence(t *testing.T, expected *armadaevents.EventSequence, actual *armadaevents.EventSequence) (ok bool) {
+func isSequence(t *testing.T, expected *armadaevents.EventSequence, actual *armadaevents.EventSequence) bool {
 	return isSequencef(t, expected, actual, "")
 }
 
 // Like isSequence, but logs msg if a comparison fails.
-func isSequencef(t *testing.T, expected *armadaevents.EventSequence, actual *armadaevents.EventSequence, msg string, args ...interface{}) (ok bool) {
+func isSequencef(t *testing.T, expected *armadaevents.EventSequence, actual *armadaevents.EventSequence, msg string, args ...interface{}) bool {
+	ok := true
 	defer func() {
 		if !ok && msg != "" {
 			t.Logf(msg, args...)
 		}
 	}()
-	if ok = assert.NotNil(t, expected); !ok {
-		return false
-	}
-	if ok = assert.NotNil(t, actual); !ok {
-		return false
-	}
-	if ok = assert.Equal(t, expected.Queue, actual.Queue); !ok {
-		return false
-	}
-	if ok = assert.Equal(t, expected.JobSetName, actual.JobSetName); !ok {
-		return false
-	}
-	if ok = assert.Equal(t, expected.UserId, actual.UserId); !ok {
-		return false
-	}
-	if ok = assert.Equal(t, len(expected.Events), len(actual.Events)); !ok {
-		return false
-	}
+	ok = ok && assert.NotNil(t, expected)
+	ok = ok && assert.NotNil(t, actual)
+	ok = ok && assert.Equal(t, expected.Queue, actual.Queue)
+	ok = ok && assert.Equal(t, expected.JobSetName, actual.JobSetName)
+	ok = ok && assert.Equal(t, expected.UserId, actual.UserId)
+	ok = ok && assert.Equal(t, len(expected.Events), len(actual.Events))
 	for i, expectedEvent := range expected.Events {
 		actualEvent := actual.Events[i]
-		if ok := isEventf(t, expectedEvent, actualEvent, "%d-th event differed: %s", i, actualEvent); !ok {
-			return false
-		}
+		ok = ok && isEventf(t, expectedEvent, actualEvent, "%d-th event differed: %s", i, actualEvent)
 	}
-	return true
+	return ok
 }
 
 // Compare an actual event with an expected event.
 // Only compares the subset of fields relevant for testing.
-func isEventf(t *testing.T, expected *armadaevents.EventSequence_Event, actual *armadaevents.EventSequence_Event, msg string, args ...interface{}) (ok bool) {
+func isEventf(t *testing.T, expected *armadaevents.EventSequence_Event, actual *armadaevents.EventSequence_Event, msg string, args ...interface{}) bool {
+	ok := true
 	defer func() {
 		if !ok && msg != "" {
 			t.Logf(msg, args...)
 		}
 	}()
-	if ok = assert.IsType(t, expected.Event, actual.Event); !ok {
-		return false
+	if ok = ok && assert.IsType(t, expected.Event, actual.Event); !ok {
+		return ok
 	}
 
 	// If the expected event includes a jobId, the actual event must include the same jobId.
@@ -882,8 +870,8 @@ func isEventf(t *testing.T, expected *armadaevents.EventSequence_Event, actual *
 	if err == nil {
 		actualJobId, err := armadaevents.JobIdFromEvent(actual)
 		if err == nil { // Ignore for events without a jobId (e.g., cancelJobSet).
-			if assert.Equal(t, expectedJobId, actualJobId) {
-				return false
+			if ok = ok && assert.Equal(t, expectedJobId, actualJobId); ok {
+				return ok
 			}
 		}
 	}
@@ -891,8 +879,8 @@ func isEventf(t *testing.T, expected *armadaevents.EventSequence_Event, actual *
 	switch expectedEvent := expected.Event.(type) {
 	case *armadaevents.EventSequence_Event_SubmitJob:
 		actualEvent, ok := actual.Event.(*armadaevents.EventSequence_Event_SubmitJob)
-		if ok := assert.True(t, ok); !ok {
-			return false
+		if ok = ok && assert.True(t, ok); !ok {
+			return ok
 		}
 		ok = ok && assert.Equal(t, *expectedEvent.SubmitJob.JobId, *actualEvent.SubmitJob.JobId)
 		ok = ok && assert.Equal(t, expectedEvent.SubmitJob.DeduplicationId, actualEvent.SubmitJob.DeduplicationId)
