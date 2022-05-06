@@ -73,7 +73,7 @@ func (srv *EventsPrinter) Run(ctx context.Context) {
 			ctxWithTimeout, _ := context.WithTimeout(ctx, 10*time.Second)
 			msg, err := consumer.Receive(ctxWithTimeout)
 			if errors.Is(err, context.DeadlineExceeded) { //expected
-				log.Info("no new messages from Pulsar (or another instance holds the subscription")
+				log.Info("no new messages from Pulsar (or another instance holds the subscription)")
 				break
 			} else if err != nil {
 				logging.WithStacktrace(log, err).Warnf("receiving from Pulsar failed")
