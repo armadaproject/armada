@@ -201,13 +201,15 @@ namespace GResearch.Armada.Client
                     }
                 }, taskCancellationToken);
                 await Task.WhenAny(task, cancellation);
+                
+                var result = task.IsCompleted ? task.Result : NoLine;
 
                 if (!taskCancellationToken.IsCancellationRequested)
                 {
                     taskCancellation.Cancel();
                 }
 
-                return task.IsCompleted ? task.Result : NoLine;
+                return result;
             }
         }
 
