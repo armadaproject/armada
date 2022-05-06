@@ -100,6 +100,12 @@ func (srv *PulsarFromPulsar) Run(ctx context.Context) {
 				time.Sleep(100 * time.Millisecond)
 				continue
 			}
+
+			// We're only interested in control messages.
+			if !armadaevents.IsControlMessage(msg) {
+				continue
+			}
+
 			lastMessageId = msg.ID()
 			lastPublishTime = msg.PublishTime()
 			numReceived++
