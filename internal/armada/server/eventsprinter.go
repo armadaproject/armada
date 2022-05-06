@@ -3,13 +3,13 @@ package server
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/proto"
 	"github.com/sirupsen/logrus"
 
+	"github.com/G-Research/armada/internal/common/eventutil"
 	"github.com/G-Research/armada/internal/common/logging"
 	"github.com/G-Research/armada/internal/common/requestid"
 	"github.com/G-Research/armada/internal/pulsarutils/pulsarrequestid"
@@ -92,16 +92,7 @@ func (srv *EventsPrinter) Run(ctx context.Context) {
 				requestid.MetadataKey: pulsarrequestid.FromMessageOrMissing(msg),
 			})
 
-			s := "Sequence: "
-			for _, event := range sequence.Events {
-				jobId, _ := armadaevents.JobIdFromEvent(event)
-				jobIdString, err := armadaevents.UlidStringFromProtoUuid(jobId)
-				if err != nil {
-					logging.WithStacktrace(log, err).Warnf("converting jobId to string failed")
-					jobIdString = ""
-				}
-				s += fmt.Sprintf("[%T (job %s)] ", event.Event, jobIdString)
-			}
+			s := "Sequence: " + eventutil.ShortSequenceString(sequence)
 
 			messageLogger.Info(s)
 		}
