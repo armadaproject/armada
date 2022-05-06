@@ -19,7 +19,9 @@ import (
 // EventsPrinter is a service that prints all events passing through pulsar to a logger.
 // This service is only meant for use during development; it will be slow when the number of events is large.
 type EventsPrinter struct {
-	Consumer pulsar.Consumer
+	Client           pulsar.Client
+	Topic            string
+	SubscriptionName string
 	// Logger from which the loggers used by this service are derived
 	// (e.g., using srv.Logger.WithField), or nil, in which case the global logrus logger is used.
 	Logger *logrus.Entry
@@ -49,6 +51,15 @@ func (srv *EventsPrinter) Run(ctx context.Context) {
 		}
 	}()
 
+	consumer, err := srv.Client.Subscribe(pulsar.ConsumerOptions{
+		Topic:            srv.Topic,
+		SubscriptionName: srv.SubscriptionName,
+		Type:             pulsar.Failover,
+	})
+	if err != nil {
+		panic(err)
+	}
+
 	// Run until ctx is cancelled.
 	for {
 
@@ -60,7 +71,7 @@ func (srv *EventsPrinter) Run(ctx context.Context) {
 
 			// Get a message from Pulsar, which consists of a sequence of events (i.e., state transitions).
 			ctxWithTimeout, _ := context.WithTimeout(ctx, 10*time.Second)
-			msg, err := srv.Consumer.Receive(ctxWithTimeout)
+			msg, err := consumer.Receive(ctxWithTimeout)
 			if errors.Is(err, context.DeadlineExceeded) { //expected
 				log.Info("no new messages from Pulsar")
 				break
@@ -69,7 +80,7 @@ func (srv *EventsPrinter) Run(ctx context.Context) {
 				break
 			}
 
-			srv.Consumer.Ack(msg)
+			consumer.Ack(msg)
 
 			// We're only interested in control messages.
 			if !armadaevents.IsControlMessage(msg) {

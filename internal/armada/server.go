@@ -266,16 +266,10 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 
 		// Service that reads from Pulsar and logs events.
 		if config.Pulsar.EventsPrinter {
-			consumer, err = pulsarClient.Subscribe(pulsar.ConsumerOptions{
+			eventsPrinter := server.EventsPrinter{
+				Client:           pulsarClient,
 				Topic:            config.Pulsar.JobsetEventsTopic,
 				SubscriptionName: config.Pulsar.EventsPrinterSubscription,
-			})
-			if err != nil {
-				panic(err)
-			}
-
-			eventsPrinter := server.EventsPrinter{
-				Consumer: consumer,
 			}
 			go eventsPrinter.Run(context.Background())
 		}
