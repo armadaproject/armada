@@ -314,11 +314,11 @@ func K8sServicesIngressesFromApiJob(job *api.Job, ingressConfig *configuration.I
 // LogSubmitPriorityFromApiPriority returns the uint32 representation of the priority included with a submitted job,
 // or an error if the conversion fails.
 func LogSubmitPriorityFromApiPriority(priority float64) (uint32, error) {
-	if priority < 1 {
+	if priority < 0 {
 		return 0, &armadaerrors.ErrInvalidArgument{
 			Name:    "priority",
 			Value:   priority,
-			Message: "priority must be larger than or equal to 1",
+			Message: "priority must be larger than or equal to 0",
 		}
 	}
 	if priority > math.MaxUint32 {
