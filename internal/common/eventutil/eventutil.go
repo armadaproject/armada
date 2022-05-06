@@ -36,7 +36,7 @@ func UnmarshalEventSequence(ctx context.Context, payload []byte) (*armadaevents.
 		err = &armadaerrors.ErrInvalidArgument{
 			Name:    "JobSetName",
 			Value:   "",
-			Message: "JobSetName not provided",
+			Message: fmt.Sprintf("JobSetName not provided for sequence %s", ShortSequenceString(sequence)),
 		}
 		err = errors.WithStack(err)
 		return nil, err
@@ -46,7 +46,7 @@ func UnmarshalEventSequence(ctx context.Context, payload []byte) (*armadaevents.
 		err = &armadaerrors.ErrInvalidArgument{
 			Name:    "Queue",
 			Value:   "",
-			Message: "Queue name not provided",
+			Message: fmt.Sprintf("Queue name not provided for sequence %s", ShortSequenceString(sequence)),
 		}
 		err = errors.WithStack(err)
 		return nil, err
@@ -66,6 +66,21 @@ func UnmarshalEventSequence(ctx context.Context, payload []byte) (*armadaevents.
 		return nil, err
 	}
 	return sequence, nil
+}
+
+// ShortSequenceString returns a short string representation of an events sequence.
+// To be used for logging, for example.
+func ShortSequenceString(sequence *armadaevents.EventSequence) string {
+	s := ""
+	for _, event := range sequence.Events {
+		jobId, _ := armadaevents.JobIdFromEvent(event)
+		jobIdString, err := armadaevents.UlidStringFromProtoUuid(jobId)
+		if err != nil {
+			jobIdString = ""
+		}
+		s += fmt.Sprintf("[%T (job %s)] ", event.Event, jobIdString)
+	}
+	return s
 }
 
 // ApiJobsFromLogSubmitJobs converts a slice of log jobs to API jobs.
