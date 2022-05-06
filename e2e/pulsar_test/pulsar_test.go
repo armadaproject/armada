@@ -845,9 +845,11 @@ func isSequencef(t *testing.T, expected *armadaevents.EventSequence, actual *arm
 	ok = ok && assert.Equal(t, expected.JobSetName, actual.JobSetName)
 	ok = ok && assert.Equal(t, expected.UserId, actual.UserId)
 	ok = ok && assert.Equal(t, len(expected.Events), len(actual.Events))
-	for i, expectedEvent := range expected.Events {
-		actualEvent := actual.Events[i]
-		ok = ok && isEventf(t, expectedEvent, actualEvent, "%d-th event differed: %s", i, actualEvent)
+	if len(expected.Events) == len(actual.Events) {
+		for i, expectedEvent := range expected.Events {
+			actualEvent := actual.Events[i]
+			ok = ok && isEventf(t, expectedEvent, actualEvent, "%d-th event differed: %s", i, actualEvent)
+		}
 	}
 	return ok
 }
