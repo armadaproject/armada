@@ -347,14 +347,10 @@ func TestReprioritised(t *testing.T) {
 
 func TestInvalidEvent(t *testing.T) {
 
-	// This event is invalid as it references a job that doesn't exist
-	nonExistingJob, _ := armadaevents.ProtoUuidFromUlidString("01f3j0g1md6qx7z5qb148qnh4r")
+	// This event is invalid as it doesn't have a job id or a run id
 	invalidEvent := &armadaevents.EventSequence_Event{
-		Event: &armadaevents.EventSequence_Event_JobRunLeased{
-			JobRunLeased: &armadaevents.JobRunLeased{
-				JobId:      nonExistingJob,
-				ExecutorId: executorId,
-			},
+		Event: &armadaevents.EventSequence_Event_JobRunRunning{
+			JobRunRunning: &armadaevents.JobRunRunning{},
 		},
 	}
 

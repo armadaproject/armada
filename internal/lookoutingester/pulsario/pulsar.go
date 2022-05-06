@@ -25,10 +25,31 @@ var log = logrus.NewEntry(logrus.StandardLogger())
 func Receive(ctx context.Context, consumer pulsar.Consumer, consumerId int, bufferSize int, receiveTimeout time.Duration, backoffTime time.Duration) chan *model.ConsumerMessage {
 	out := make(chan *model.ConsumerMessage, bufferSize)
 	go func() {
+
+		// Periodically log the number of processed messages.
+		logInterval := 60 * time.Second
+		lastLogged := time.Now()
+		numReceived := 0
 		var lastMessageId pulsar.MessageID
+		lastMessageId = nil
+		lastPublishTime := time.Now()
 
 		// Run until ctx is cancelled.
 		for {
+
+			// Periodic logging.
+			if time.Since(lastLogged) > logInterval {
+				log.WithFields(
+					logrus.Fields{
+						"received":      numReceived,
+						"interval":      logInterval,
+						"lastMessageId": lastMessageId,
+						"timeLag":       time.Now().Sub(lastPublishTime),
+					},
+				).Info("message statistics")
+				numReceived = 0
+				lastLogged = time.Now()
+			}
 
 			// Exit if the context has been cancelled. Otherwise, get a message from Pulsar.
 			select {
@@ -55,8 +76,10 @@ func Receive(ctx context.Context, consumer pulsar.Consumer, consumerId int, buff
 					time.Sleep(backoffTime)
 					continue
 				}
-				log.Debugf("Recevied message %s", msg.ID())
+				numReceived++
+				lastPublishTime = msg.PublishTime()
 				lastMessageId = msg.ID()
+				log.Debugf("Recevied message %s", lastMessageId)
 				out <- &model.ConsumerMessage{
 					Message:    msg,
 					ConsumerId: consumerId,
