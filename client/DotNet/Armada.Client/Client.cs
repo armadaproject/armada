@@ -77,6 +77,9 @@ namespace GResearch.Armada.Client
 
     public partial class ArmadaClient : IArmadaClient
     {
+        private const int WatchInactivityTimeoutSeconds = 600;
+        private const string NoLine = "NoLine";
+        
         public async Task<IEnumerable<StreamResponse<ApiEventStreamMessage>>> GetJobEventsStream(
             string queue, string jobSetId, string fromMessageId = null, bool watch = false)
         {
@@ -115,16 +118,27 @@ namespace GResearch.Armada.Client
             {
                 try
                 {
+                    var jobSetEventRequestCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                    jobSetEventRequestCts.CancelAfter(TimeSpan.FromSeconds(WatchInactivityTimeoutSeconds));
                     using (var fileResponse = await GetJobSetEventsCoreAsync(queue, jobSetId,
-                        new ApiJobSetRequest {FromMessageId = fromMessageId, Watch = true}, ct))
+                        new ApiJobSetRequest {FromMessageId = fromMessageId, Watch = true}, jobSetEventRequestCts.Token))
                     using (var reader = new StreamReader(fileResponse.Stream))
                     {
                         try
                         {
                             failCount = 0;
-                            while (!ct.IsCancellationRequested && !reader.EndOfStream)
+                            while (!ct.IsCancellationRequested)
                             {
-                                var line = await reader.ReadLineAsync();
+                                var inactivityCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                                inactivityCts.CancelAfter(TimeSpan.FromSeconds(WatchInactivityTimeoutSeconds));
+                                
+                                var line = await ReadLineAsyncWithCancellation(reader, inactivityCts.Token);
+
+                                if (string.Equals(line, NoLine) || inactivityCts.IsCancellationRequested)
+                                {
+                                    reader.Dispose();
+                                    break;
+                                }
                                 var (newMessageId, eventMessage) = ProcessEventLine(fromMessageId, line);
                                 fromMessageId = newMessageId;
                                 if (eventMessage != null)
@@ -152,7 +166,47 @@ namespace GResearch.Armada.Client
                 }
             }
         }
-        
+
+        /*
+         * The purpose of this function is to provide an async cancellable way to read a line from a StreamReader
+         * 
+         * It will return either:
+         *  - A new line
+         *  - "NoLine" when either the end of the stream is reached or the passed in token is cancelled
+         */
+        private async Task<string> ReadLineAsyncWithCancellation(StreamReader reader, CancellationToken ct)
+        {
+            var taskCancellation = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            var taskCancellationToken = taskCancellation.Token;
+
+            var task = Task.Run<string>(async() =>
+            {
+                if (!reader.EndOfStream)
+                {
+                    return await reader.ReadLineAsync();
+                }
+
+                return NoLine;
+            }, ct);
+            var cancellation = Task.Run(async () =>
+            {
+                while (!taskCancellationToken.IsCancellationRequested)
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(1), taskCancellationToken);
+                }
+            }, taskCancellationToken);
+
+
+            await Task.WhenAny(task, cancellation);
+
+            if (!taskCancellationToken.IsCancellationRequested)
+            {
+                taskCancellation.Cancel();
+            }
+
+            return task.IsCompleted ? task.Result : NoLine;
+        }
+
         private (string, StreamResponse<ApiEventStreamMessage>) ProcessEventLine(string fromMessageId, string line)
         {
             try
