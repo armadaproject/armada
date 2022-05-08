@@ -135,29 +135,38 @@ build-lookout-ingester:
 build: build-server build-executor build-fakeexecutor build-armadactl build-load-tester build-binoculars build-lookout-ingester
 
 build-docker-server:
-	$(GO_CMD) $(gobuildlinux) -o ./bin/linux/server cmd/armada/main.go
-	docker build $(dockerFlags) -t armada -f ./build/armada/Dockerfile .
+	mkdir -p .build/server
+	$(GO_CMD) $(gobuildlinux) -o ./.build/server/server cmd/armada/main.go
+	cp -a ./config/armada ./.build/server/config
+	docker build $(dockerFlags) -t armada -f ./build/armada/Dockerfile ./.build/server/
 
 build-docker-executor:
-	$(GO_CMD) $(gobuildlinux) -o ./bin/linux/executor cmd/executor/main.go
-	docker build $(dockerFlags) -t armada-executor -f ./build/executor/Dockerfile .
+	mkdir -p .build/executor
+	$(GO_CMD) $(gobuildlinux) -o ./.build/executor/executor cmd/executor/main.go
+	cp -a ./config/executor ./.build/executor/config
+	docker build $(dockerFlags) -t armada-executor -f ./build/executor/Dockerfile ./.build/executor
 
 build-docker-armada-load-tester:
-	$(GO_CMD) $(gobuildlinux) -o ./bin/linux/armada-load-tester cmd/armada-load-tester/main.go
-	docker build $(dockerFlags) -t armada-load-tester -f ./build/armada-load-tester/Dockerfile .
+	mkdir -p .build/armada-load-tester
+	$(GO_CMD) $(gobuildlinux) -o ./.build/armada-load-tester/armada-load-tester cmd/armada-load-tester/main.go
+	docker build $(dockerFlags) -t armada-load-tester -f ./build/armada-load-tester/Dockerfile ./.build/armada-load-tester
 
 build-docker-armadactl:
-	$(GO_CMD) $(gobuildlinux) -o ./bin/linux/armadactl cmd/armadactl/main.go
-	docker build $(dockerFlags) -t armadactl -f ./build/armadactl/Dockerfile .
+	mkdir -p .build/armadactl
+	$(GO_CMD) $(gobuildlinux) -o ./.build/armadactl/armadactl cmd/armadactl/main.go
+	docker build $(dockerFlags) -t armadactl -f ./build/armadactl/Dockerfile ./.build/armadactl
 
 build-docker-fakeexecutor:
-	$(GO_CMD) $(gobuildlinux) -o ./bin/linux/fakeexecutor cmd/fakeexecutor/main.go
-	docker build $(dockerFlags) -t armada-fakeexecutor -f ./build/fakeexecutor/Dockerfile .
-
+	mkdir -p .build/fakeexecutor
+	$(GO_CMD) $(gobuildlinux) -o ./.build/fakeexecutor/fakeexecutor cmd/fakeexecutor/main.go
+	cp -a ./config/executor ./.build/fakeexecutor/config
+	docker build $(dockerFlags) -t armada-fakeexecutor -f ./build/fakeexecutor/Dockerfile ./.build/fakeexecutor
 
 build-docker-lookout-ingester:
-	$(GO_CMD) $(gobuildlinux) -o ./bin/linux/lookoutingester cmd/lookoutingester/main.go
-	docker build $(dockerFlags) -t armada-lookout-ingester -f ./build/lookoutingester/Dockerfile .
+	mkdir -p .build/lookoutingester
+	$(GO_CMD) $(gobuildlinux) -o ./.build/lookoutingester/lookoutingester cmd/lookoutingester/main.go
+	cp -a ./config/lookoutingester ./.build/lookoutingester/config
+	docker build $(dockerFlags) -t armada-lookout-ingester -f ./build/lookoutingester/Dockerfile ./.build/lookoutingester
 
 build-docker-lookout:
 	$(NODE_CMD) npm ci
@@ -170,8 +179,10 @@ build-docker-lookout:
 	docker build $(dockerFlags) -t armada-lookout -f ./build/lookout/Dockerfile .
 
 build-docker-binoculars:
-	$(GO_CMD) $(gobuildlinux) -o ./bin/linux/binoculars cmd/binoculars/main.go
-	docker build $(dockerFlags) -t armada-binoculars -f ./build/binoculars/Dockerfile .
+	mkdir -p .build/binoculars
+	$(GO_CMD) $(gobuildlinux) -o ./.build/binoculars/binoculars cmd/binoculars/main.go
+	cp -a ./config/binoculars ./.build/binoculars/config
+	docker build $(dockerFlags) -t armada-binoculars -f ./build/binoculars/Dockerfile ./.build/binoculars
 
 build-docker: build-docker-server build-docker-executor build-docker-armadactl build-docker-armada-load-tester build-docker-fakeexecutor build-docker-lookout build-docker-lookout-ingester build-docker-binoculars
 

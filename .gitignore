@@ -2,6 +2,7 @@
 .idea
 .kube
 .test
+.build
 NuGet.Config
 armadactl.yaml
 loadtest.yaml
