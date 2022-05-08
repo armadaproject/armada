@@ -30,7 +30,7 @@ import (
 
 // Pulsar configuration. Must be manually reconciled with changes to the test setup or Armada.
 const pulsarUrl = "pulsar://localhost:6650"
-const pulsarTopic = "jobset-events"
+const pulsarTopic = "persistent://armada/armada/jobset-events"
 const pulsarSubscription = "e2e-test"
 const armadaUrl = "localhost:50051"
 const armadaQueueName = "e2e-test-queue"
@@ -1353,9 +1353,14 @@ func withSetup(action func(ctx context.Context, submitClient api.SubmitClient, p
 	defer consumer.Close()
 
 	// Skip any messages already published to Pulsar.
-	err = consumer.SeekByTime(time.Now())
-	if err != nil {
-		return errors.WithStack(err)
+	for {
+		ctxWithTimeout, _ := context.WithTimeout(context.Background(), time.Second)
+		_, err := consumer.Receive(ctxWithTimeout)
+		if err == context.DeadlineExceeded {
+			break
+		} else if err != nil {
+			return errors.WithStack(err)
+		}
 	}
 
 	return action(context.Background(), submitClient, producer, consumer)
