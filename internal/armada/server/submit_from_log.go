@@ -141,6 +141,7 @@ func (srv *SubmitFromLog) Run(ctx context.Context) {
 				continue
 			}
 
+			messageLogger.WithField("numEvents", len(sequence.Events)).Info("processing sequence")
 			ok = srv.ProcessSequence(ctxWithLogger, sequence)
 			if ok {
 				srv.Consumer.Ack(msg)
