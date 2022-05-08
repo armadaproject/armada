@@ -256,15 +256,22 @@ setup-cluster:
 tests-e2e-setup:# setup-cluster
 	docker run --rm -v ${PWD}:/go/src/armada -w /go/src/armada -e KUBECONFIG=/go/src/armada/.kube/config --network kind bitnami/kubectl:1.23 apply -f ./e2e/setup/namespace-with-anonymous-user.yaml
 
+	# Armada dependencies.
 	docker run -d --name pulsar -p 0.0.0.0:6650:6650 --network=kind apachepulsar/pulsar:2.9.1 bin/pulsar standalone
 	docker run -d --name nats --network=kind nats-streaming:0.24.5
 	docker run -d --name redis -p=6379:6379 --network=kind redis:6.2.6
 	docker run -d --name postgres --network=kind -p 5432:5432 -e POSTGRES_PASSWORD=psw postgres:14.2
 
-	sleep 10
+	# Create the partitioned topic used by Armada.
+	sleep 10 # pulsar-admin errors if the Pulsar server hasn't started up yet.
 	docker exec -it pulsar bin/pulsar-admin tenants create armada
 	docker exec -it pulsar bin/pulsar-admin namespaces create armada/armada
-	docker exec -it pulsar bin/pulsar-admin topics create-partitioned-topic persistent://armada/armada/jobset-events -p 100	
+	docker exec -it pulsar bin/pulsar-admin topics create-partitioned-topic persistent://armada/armada/jobset-events -p 100
+
+	# Disable topic auto-creation to ensure an error is thrown on using the wrong topic
+	# (Pulsar automatically created the public tenant and default namespace).
+	docker exec -it pulsar bin/pulsar-admin namespaces set-auto-topic-creation public/default --disable
+	docker exec -it pulsar bin/pulsar-admin namespaces set-auto-topic-creation armada/armada --disable
 
 	sleep 30 # give dependencies time to start up
 	docker run -d --name server --network=kind -p=50051:50051 -p 8080:8080 -v ${PWD}/e2e:/e2e \
