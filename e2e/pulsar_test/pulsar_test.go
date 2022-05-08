@@ -5,16 +5,19 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"os/exec"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
+	pulsarlog "github.com/apache/pulsar-client-go/pulsar/log"
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -1325,10 +1328,20 @@ func withSetup(action func(ctx context.Context, submitClient api.SubmitClient, p
 		return errors.WithStack(err)
 	}
 
+	// Redirect Pulsar logs to a file since it's very verbose.
+	_ = os.Mkdir("../../.test", os.ModePerm)
+	f, err := os.OpenFile("../../.test/pulsar.log", os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0666)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	logger := logrus.StandardLogger() // .WithField("service", "Pulsar")
+	logger.Out = f
+
 	// Connection to Pulsar. To check that the correct sequence of messages are produced.
 	pulsarClient, err := pulsar.NewClient(pulsar.ClientOptions{
 		URL:              pulsarUrl,
 		OperationTimeout: 5 * time.Second,
+		Logger:           pulsarlog.NewLoggerWithLogrus(logger),
 	})
 	if err != nil {
 		return errors.WithStack(err)
