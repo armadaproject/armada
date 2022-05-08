@@ -215,20 +215,17 @@ tests:
 	$(GO_TEST_CMD) go test -v ./pkg... 2>&1 | tee test_reports/pkg.txt
 	$(GO_TEST_CMD) go test -v ./cmd... 2>&1 | tee test_reports/cmd.txt
 
-# To be used during development to restart the Armada server before re-running tests.
+# Rebuild and restart the server.
 .ONESHELL:
-rebuild-server:
-	docker rm -f server
-	$(GO_CMD) $(gobuildlinux) -o ./bin/linux/server cmd/armada/main.go
-	docker build $(dockerFlags) -t armada -f ./build/armada/Dockerfile .
+rebuild-server: build-docker-server
+	docker rm -f server || true
 	docker run -d --name server --network=kind -p=50051:50051 -p 8080:8080 -v ${PWD}/e2e:/e2e \
 		armada ./server --config /e2e/setup/insecure-armada-auth-config.yaml --config /e2e/setup/nats/armada-config.yaml --config /e2e/setup/redis/armada-config.yaml --config /e2e/setup/pulsar/armada-config.yaml  --config /e2e/setup/server/armada-config.yaml
 
+# Rebuild and restart the executor.
 .ONESHELL:
-rebuild-executor:
-	docker rm -f executor
-	$(GO_CMD) $(gobuildlinux) -o ./bin/linux/executor cmd/executor/main.go
-	docker build $(dockerFlags) -t armada-executor -f ./build/executor/Dockerfile .
+rebuild-executor: build-docker-executor
+	docker rm -f executor || true
 	docker run -d --name executor --network=kind -v ${PWD}/.kube:/.kube -v ${PWD}/e2e:/e2e  \
 		-e KUBECONFIG=/.kube/config \
 		-e ARMADA_KUBERNETES_IMPERSONATEUSERS=true \
