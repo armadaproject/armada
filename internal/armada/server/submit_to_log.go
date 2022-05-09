@@ -501,42 +501,19 @@ func (srv *PulsarSubmitServer) GetQueueInfo(ctx context.Context, req *api.QueueI
 
 // SubmitApiEvent converts an api.EventMessage into Pulsar state transition messages and publishes those to Pulsar.
 func (srv *PulsarSubmitServer) SubmitApiEvent(ctx context.Context, apiEvent *api.EventMessage) error {
+	sequence, err := PulsarSequenceFromApiEvent(apiEvent)
+	if err != nil {
+		return err
+	}
 
-	// For now, we submit legacy utilisation messages directly to the log.
-	// We include a property in the Pulsar message, which the consumer can use to detect these messages.
-	//
-	// If it's not a utilisation message, we convert the message to a proper log event message.
-	var messageType string
-	var jobSetName string
-	var payload []byte
-	var err error
-	if m, ok := (apiEvent.Events).(*api.EventMessage_Utilisation); ok {
-		payload, err = proto.Marshal(apiEvent)
-		if err != nil {
-			err = errors.WithStack(err)
-			return err
-		}
-		messageType = armadaevents.PULSAR_UTILISATION_MESSAGE
-		jobSetName = m.Utilisation.JobSetId
-	} else {
-		sequence, err := PulsarSequenceFromApiEvent(apiEvent)
-		if err != nil {
-			return err
-		}
+	// If no events were created, exit here.
+	if len(sequence.Events) == 0 {
+		return nil
+	}
 
-		// If no events were created, exit here.
-		if len(sequence.Events) == 0 {
-			return nil
-		}
-
-		payload, err = proto.Marshal(sequence)
-		if err != nil {
-			err = errors.WithStack(err)
-			return err
-		}
-
-		messageType = armadaevents.PULSAR_CONTROL_MESSAGE
-		jobSetName = sequence.JobSetName
+	payload, err := proto.Marshal(sequence)
+	if err != nil {
+		return errors.WithStack(err)
 	}
 
 	// Incoming gRPC requests are annotated with a unique id.
@@ -547,9 +524,9 @@ func (srv *PulsarSubmitServer) SubmitApiEvent(ctx context.Context, apiEvent *api
 		Payload: payload,
 		Properties: map[string]string{
 			requestid.MetadataKey:                     requestId,
-			armadaevents.PULSAR_MESSAGE_TYPE_PROPERTY: messageType,
+			armadaevents.PULSAR_MESSAGE_TYPE_PROPERTY: armadaevents.PULSAR_CONTROL_MESSAGE,
 		},
-		Key: jobSetName,
+		Key: sequence.JobSetName,
 	})
 	if err != nil {
 		err = errors.WithStack(err)
