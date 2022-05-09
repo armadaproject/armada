@@ -35,7 +35,7 @@ func RootCmd() *cobra.Command {
 	cmd.PersistentFlags().String("url", "pulsar://localhost:6650", "URL to connect to Pulsar on.")
 	cmd.PersistentFlags().Bool("verbose", false, "Print full event sequences.")
 	cmd.PersistentFlags().String("subscription", "eventsprinter", "Subscription to connect to Pulsar on.")
-	cmd.PersistentFlags().String("topic", "jobset-events", "Pulsar topic to subscribe to.")
+	cmd.PersistentFlags().String("topic", "persistent://armada/armada/jobset-events", "Pulsar topic to subscribe to.")
 
 	return cmd
 }

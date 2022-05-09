@@ -32,7 +32,9 @@ func TestSubmitJob_EmptyPodSpec(t *testing.T) {
 			Name:           "test",
 			PriorityFactor: 1,
 		})
-		assert.Empty(t, err)
+		if !assert.NoError(t, err) {
+			return
+		}
 
 		request := &api.JobSubmitRequest{
 			JobRequestItems: []*api.JobSubmitRequestItem{{}},
@@ -51,7 +53,9 @@ func TestSubmitJob(t *testing.T) {
 			Name:           "test",
 			PriorityFactor: 1,
 		})
-		assert.Empty(t, err)
+		if !assert.NoError(t, err) {
+			return
+		}
 
 		cpu, _ := resource.ParseQuantity("1")
 		memory, _ := resource.ParseQuantity("512Mi")
@@ -59,10 +63,16 @@ func TestSubmitJob(t *testing.T) {
 		jobId := SubmitJob(client, ctx, cpu, memory, t)
 
 		leasedResponse, err := leaseJobs(leaseClient, ctx, common.ComputeResources{"cpu": cpu, "memory": memory})
-		assert.Empty(t, err)
+		if !assert.NoError(t, err) {
+			return
+		}
 
-		assert.Equal(t, 1, len(leasedResponse.Job))
-		assert.Equal(t, jobId, leasedResponse.Job[0].Id)
+		if !assert.Equal(t, 1, len(leasedResponse.Job)) {
+			return
+		}
+		if !assert.Equal(t, jobId, leasedResponse.Job[0].Id) {
+			return
+		}
 	})
 }
 
@@ -158,7 +168,7 @@ func SubmitJob(client api.SubmitClient, ctx context.Context, cpu resource.Quanti
 		JobSetId: "set",
 	}
 	response, err := client.SubmitJobs(ctx, request)
-	assert.Empty(t, err)
+	assert.NoError(t, err)
 	return response.JobResponseItems[0].JobId
 }
 

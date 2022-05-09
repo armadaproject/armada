@@ -70,6 +70,9 @@ type PulsarConfig struct {
 	Annotations    map[string]string
 	// Settings for deduplication, which relies on a postgres server.
 	DedupTable string
+	// Log all pulsar events
+	EventsPrinterSubscription string
+	EventsPrinter             bool
 }
 
 type SchedulingConfig struct {

@@ -71,6 +71,7 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 	taskManager.Register(queueCache.Refresh, config.Metrics.RefreshInterval, "refresh_queue_cache")
 
 	redisEventRepository := repository.NewRedisEventRepository(eventsDb, config.EventRetention)
+	var streamEventStore *processor.StreamEventStore
 	var eventStore repository.EventStore
 	var eventStream eventstream.EventStream
 
@@ -110,7 +111,8 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 	eventstreamTeardown := func() {}
 	var eventProcessor *processor.RedisEventProcessor
 	if eventStream != nil {
-		eventStore = processor.NewEventStore(eventStream)
+		streamEventStore = processor.NewEventStore(eventStream)
+		eventStore = streamEventStore
 
 		eventRepoBatcher := eventstream.NewTimedEventBatcher(config.Events.ProcessorBatchSize, config.Events.ProcessorMaxTimeBetweenBatches, config.Events.ProcessorTimeout)
 		eventProcessor = processor.NewEventRedisProcessor(config.Events.StoreQueue, redisEventRepository, eventStream, eventRepoBatcher)
@@ -161,6 +163,7 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 
 	// If Pulsar is enabled, use the Pulsar submit endpoints.
 	if config.Pulsar.Enabled {
+		serverId := uuid.New()
 
 		// API endpoints that generate Pulsar messages.
 		log.Info("Pulsar config provided; using Pulsar submit endpoints.")
@@ -177,7 +180,7 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 			panic(err)
 		}
 		producer, err := pulsarClient.CreateProducer(pulsar.ProducerOptions{
-			Name:             fmt.Sprintf("armada-server-%s", uuid.New()),
+			Name:             fmt.Sprintf("armada-server-%s", serverId),
 			CompressionType:  compressionType,
 			CompressionLevel: compressionLevel,
 			Topic:            config.Pulsar.JobsetEventsTopic,
@@ -217,10 +220,10 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 			log.Info("Pulsar submit API deduplication disabled")
 		}
 
-		// If there's an eventProcessor, insert the PulsarSubmitServer so that it can publish
-		// state transitions to Pulsar in addition to Redis.
-		if eventProcessor != nil {
-			eventProcessor.PulsarSubmitServer = pulsarSubmitServer
+		// If there's a streamEventProcessor,
+		// insert the PulsarSubmitServer so it can publish state transitions to Pulsar too.
+		if streamEventStore != nil {
+			streamEventStore.PulsarSubmitServer = pulsarSubmitServer
 		}
 
 		// Service that consumes Pulsar messages and writes to Redis and Nats.
@@ -252,7 +255,10 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 
 		// Create a new producer for this service.
 		producer, err = pulsarClient.CreateProducer(pulsar.ProducerOptions{
-			Topic: config.Pulsar.JobsetEventsTopic,
+			Name:             fmt.Sprintf("armada-pulsar-to-pulsar-%s", serverId),
+			CompressionType:  compressionType,
+			CompressionLevel: compressionLevel,
+			Topic:            config.Pulsar.JobsetEventsTopic,
 		})
 		if err != nil {
 			panic(err)
@@ -264,6 +270,15 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 		}
 		go pulsarFromPulsar.Run(context.Background())
 
+		// Service that reads from Pulsar and logs events.
+		if config.Pulsar.EventsPrinter {
+			eventsPrinter := server.EventsPrinter{
+				Client:           pulsarClient,
+				Topic:            config.Pulsar.JobsetEventsTopic,
+				SubscriptionName: config.Pulsar.EventsPrinterSubscription,
+			}
+			go eventsPrinter.Run(context.Background())
+		}
 	} else {
 		log.Info("No Pulsar config provided; submitting directly to Redis and Nats.")
 	}
