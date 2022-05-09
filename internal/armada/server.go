@@ -71,6 +71,7 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 	taskManager.Register(queueCache.Refresh, config.Metrics.RefreshInterval, "refresh_queue_cache")
 
 	redisEventRepository := repository.NewRedisEventRepository(eventsDb, config.EventRetention)
+	var streamEventStore *processor.StreamEventStore
 	var eventStore repository.EventStore
 	var eventStream eventstream.EventStream
 
@@ -110,7 +111,8 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 	eventstreamTeardown := func() {}
 	var eventProcessor *processor.RedisEventProcessor
 	if eventStream != nil {
-		eventStore = processor.NewEventStore(eventStream)
+		streamEventStore = processor.NewEventStore(eventStream)
+		eventStore = streamEventStore
 
 		eventRepoBatcher := eventstream.NewTimedEventBatcher(config.Events.ProcessorBatchSize, config.Events.ProcessorMaxTimeBetweenBatches, config.Events.ProcessorTimeout)
 		eventProcessor = processor.NewEventRedisProcessor(config.Events.StoreQueue, redisEventRepository, eventStream, eventRepoBatcher)
@@ -218,10 +220,10 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 			log.Info("Pulsar submit API deduplication disabled")
 		}
 
-		// If there's an eventProcessor, insert the PulsarSubmitServer so that it can publish
-		// state transitions to Pulsar in addition to Redis.
-		if eventProcessor != nil {
-			eventProcessor.PulsarSubmitServer = pulsarSubmitServer
+		// If there's a streamEventProcessor,
+		// insert the PulsarSubmitServer so it can publish state transitions to Pulsar too.
+		if streamEventStore != nil {
+			streamEventStore.PulsarSubmitServer = pulsarSubmitServer
 		}
 
 		// Service that consumes Pulsar messages and writes to Redis and Nats.
