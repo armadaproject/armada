@@ -9,6 +9,7 @@ import (
 	"github.com/G-Research/armada/internal/armada/repository"
 	"github.com/G-Research/armada/internal/armada/server"
 	"github.com/G-Research/armada/internal/common/eventstream"
+	"github.com/G-Research/armada/internal/common/logging"
 	"github.com/G-Research/armada/pkg/api"
 )
 
@@ -64,6 +65,15 @@ func (p *RedisEventProcessor) Start() {
 }
 
 func (p *RedisEventProcessor) handleMessage(message *eventstream.Message) error {
+	if p.PulsarSubmitServer != nil {
+		logger := log.StandardLogger().WithField("service", "RedisEventProcessor")
+		log.Infof("got message: %v", message)
+		err := p.PulsarSubmitServer.SubmitApiEvent(context.Background(), message.EventMessage)
+		if err != nil {
+			logging.WithStacktrace(logger, err).Error("failed to submit API event to Pulsar")
+		}
+	}
+
 	err := p.batcher.Report(message)
 	if err != nil {
 		err = fmt.Errorf("[handleMessage] error reporting event: %w", err)
@@ -74,12 +84,6 @@ func (p *RedisEventProcessor) handleMessage(message *eventstream.Message) error 
 }
 
 func (p *RedisEventProcessor) handleBatch(batch []*eventstream.Message) error {
-	for _, message := range batch {
-		log.Debugf("RedisEventProcessor got batched message: %v\n", message)
-		if p.PulsarSubmitServer != nil {
-			p.PulsarSubmitServer.SubmitApiEvent(context.Background(), message.EventMessage)
-		}
-	}
 	events := make([]*api.EventMessage, len(batch), len(batch))
 	for i, msg := range batch {
 		events[i] = msg.EventMessage
