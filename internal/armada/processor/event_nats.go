@@ -14,7 +14,8 @@ import (
 )
 
 type StreamEventStore struct {
-	stream eventstream.EventStream
+	stream             eventstream.EventStream
+	PulsarSubmitServer *server.PulsarSubmitServer
 }
 
 func NewEventStore(stream eventstream.EventStream) *StreamEventStore {
@@ -25,6 +26,20 @@ func (n *StreamEventStore) ReportEvents(messages []*api.EventMessage) error {
 	if len(messages) == 0 {
 		return nil
 	}
+
+	// Publish to Pulsar if enabled.
+	if n.PulsarSubmitServer != nil {
+		logger := log.StandardLogger().WithField("service", "StreamEventStore")
+		for _, message := range messages {
+			logger.Infof("publishing to Pulsar: %v", message)
+
+			err := n.PulsarSubmitServer.SubmitApiEvent(context.Background(), message)
+			if err != nil {
+				logging.WithStacktrace(logger, err).Error("failed to submit API event to Pulsar")
+			}
+		}
+	}
+
 	errs := n.stream.Publish(messages)
 	if len(errs) > 0 {
 		return fmt.Errorf("[ReportEvents] error publishing events: %v", errs)
@@ -33,11 +48,10 @@ func (n *StreamEventStore) ReportEvents(messages []*api.EventMessage) error {
 }
 
 type RedisEventProcessor struct {
-	queue              string
-	repository         repository.EventStore
-	stream             eventstream.EventStream
-	batcher            eventstream.EventBatcher
-	PulsarSubmitServer *server.PulsarSubmitServer
+	queue      string
+	repository repository.EventStore
+	stream     eventstream.EventStream
+	batcher    eventstream.EventBatcher
 }
 
 func NewEventRedisProcessor(
@@ -65,15 +79,6 @@ func (p *RedisEventProcessor) Start() {
 }
 
 func (p *RedisEventProcessor) handleMessage(message *eventstream.Message) error {
-	if p.PulsarSubmitServer != nil {
-		logger := log.StandardLogger().WithField("service", "RedisEventProcessor")
-		logger.Infof("got message: %v", message)
-		err := p.PulsarSubmitServer.SubmitApiEvent(context.Background(), message.EventMessage)
-		if err != nil {
-			logging.WithStacktrace(logger, err).Error("failed to submit API event to Pulsar")
-		}
-	}
-
 	err := p.batcher.Report(message)
 	if err != nil {
 		err = fmt.Errorf("[handleMessage] error reporting event: %w", err)
