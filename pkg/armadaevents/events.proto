@@ -5,6 +5,7 @@ import "google/protobuf/timestamp.proto";
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 import "k8s.io/api/core/v1/generated.proto";
 import "k8s.io/api/networking/v1/generated.proto";
+import "k8s.io/apimachinery/pkg/api/resource/generated.proto";
 
 // Armada state transition model
 //
@@ -63,7 +64,7 @@ import "k8s.io/api/networking/v1/generated.proto";
 message EventSequence {
     // List of possible events, i.e., state transitions.
     message Event {
-        google.protobuf.Timestamp created = 17 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+        google.protobuf.Timestamp created = 18 [(gogoproto.stdtime) = true];
         oneof event {
             SubmitJob submitJob = 1;
             ReprioritiseJob reprioritiseJob = 2;
@@ -81,6 +82,7 @@ message EventSequence {
             JobRunErrors jobRunErrors = 14;
             JobDuplicateDetected jobDuplicateDetected = 15;
             StandaloneIngressInfo standaloneIngressInfo = 16;
+            ResourceUtilisation resourceUtilisation = 17;
         }
     }
     // The system is namespaced by queue, and all events are associated with a job set.
@@ -95,6 +97,15 @@ message EventSequence {
     repeated string groups = 4;
     // For efficiency, we bundle several events (i.e., state transitions) in a single log message.
     repeated Event events = 5;
+}
+
+// Resource usage of a particular k8s object created as part of a job.
+message ResourceUtilisation {
+    Uuid run_id = 1;
+    Uuid job_id = 2;
+    KubernetesResourceInfo resource_info = 3;
+    map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> max_resources_for_period = 4 [(gogoproto.nullable) = false];
+    map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> total_cumulative_usage = 5 [(gogoproto.nullable) = false];
 }
 
 // A UUID, encoded in accordance with section 4.1.2 of RFC 4122

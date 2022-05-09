@@ -978,13 +978,44 @@ func PulsarSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.E
 			},
 		})
 	case *api.EventMessage_Utilisation:
-		err = &armadaerrors.ErrInvalidArgument{
-			Name:    "msg",
-			Value:   msg,
-			Message: "utilisation messages should be handled by the caller of this function",
+		sequence.Queue = m.Utilisation.Queue
+		sequence.JobSetName = m.Utilisation.JobSetId
+
+		jobId, err := armadaevents.ProtoUuidFromUlidString(m.Utilisation.JobId)
+		if err != nil {
+			return nil, err
 		}
-		err = errors.WithStack(err)
-		return nil, err
+
+		runId, err := armadaevents.ProtoUuidFromUuidString(m.Utilisation.KubernetesId)
+		if err != nil {
+			return nil, err
+		}
+
+		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
+			Created: &m.Utilisation.Created,
+			Event: &armadaevents.EventSequence_Event_ResourceUtilisation{
+				ResourceUtilisation: &armadaevents.ResourceUtilisation{
+					RunId: runId,
+					JobId: jobId,
+					ResourceInfo: &armadaevents.KubernetesResourceInfo{
+						ObjectMeta: &armadaevents.ObjectMeta{
+							ExecutorId:   m.Utilisation.ClusterId,
+							KubernetesId: m.Utilisation.KubernetesId,
+							Namespace:    m.Utilisation.PodNamespace,
+							Name:         m.Utilisation.PodName,
+						},
+						Info: &armadaevents.KubernetesResourceInfo_PodInfo{
+							PodInfo: &armadaevents.PodInfo{
+								NodeName:  m.Utilisation.NodeName,
+								PodNumber: m.Utilisation.PodNumber,
+							},
+						},
+					},
+					MaxResourcesForPeriod: m.Utilisation.MaxResourcesForPeriod,
+					TotalCumulativeUsage:  m.Utilisation.TotalCumulativeUsage,
+				},
+			},
+		})
 	case *api.EventMessage_IngressInfo:
 		// Later, ingress info should be bundled with the JobRunRunning message.
 		// For now, we create a special message that exists only for compatibility with the legacy messages.
