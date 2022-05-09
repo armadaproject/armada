@@ -5,16 +5,19 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"os/exec"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
+	pulsarlog "github.com/apache/pulsar-client-go/pulsar/log"
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -30,7 +33,7 @@ import (
 
 // Pulsar configuration. Must be manually reconciled with changes to the test setup or Armada.
 const pulsarUrl = "pulsar://localhost:6650"
-const pulsarTopic = "jobset-events"
+const pulsarTopic = "persistent://armada/armada/jobset-events"
 const pulsarSubscription = "e2e-test"
 const armadaUrl = "localhost:50051"
 const armadaQueueName = "e2e-test-queue"
@@ -122,8 +125,8 @@ func TestSubmitJobs(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			if ok := isSequencef(t, expected, actual, "Event sequence error; printing diff:\n%s", cmp.Diff(expected, actual)); !ok {
-				return nil
+			if !isSequencef(t, expected, actual, "Event sequence error; printing diff:\n%s", cmp.Diff(expected, actual)) {
+				t.FailNow()
 			}
 		}
 
@@ -204,6 +207,147 @@ func TestDedup(t *testing.T) {
 		_, err = receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, defaultPulsarTimeout)
 		if err != nil {
 			return err
+		}
+
+		return nil
+	})
+	assert.NoError(t, err)
+}
+
+// Test submitting several jobs, cancelling all of them, and checking that at least 1 is cancelled.
+func TestSubmitCancelJobs(t *testing.T) {
+	err := withSetup(func(ctx context.Context, client api.SubmitClient, producer pulsar.Producer, consumer pulsar.Consumer) error {
+
+		// Submit a few jobs that fail after a few seconds
+		numJobs := 2
+		req := createJobSubmitRequestWithError(numJobs)
+		ctxWithTimeout, _ := context.WithTimeout(context.Background(), time.Second)
+		res, err := client.SubmitJobs(ctxWithTimeout, req)
+		if err != nil {
+			return err
+		}
+
+		if ok := assert.Equal(t, numJobs, len(res.JobResponseItems)); !ok {
+			return nil
+		}
+
+		for _, r := range res.JobResponseItems {
+			ctxWithTimeout, _ = context.WithTimeout(context.Background(), time.Second)
+			client.CancelJobs(ctxWithTimeout, &api.JobCancelRequest{
+				JobId:    r.JobId,
+				JobSetId: req.JobSetId,
+				Queue:    req.Queue,
+			})
+		}
+
+		// Test that we get submit, cancel, and cancelled messages.
+		numEventsExpected := numJobs * 3
+		sequences, err := receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, defaultPulsarTimeout)
+		if err != nil {
+			return err
+		}
+
+		sequence := flattenSequences(sequences)
+		if ok := assert.NotNil(t, sequence); !ok {
+			return nil
+		}
+
+		for _, resi := range res.JobResponseItems {
+			jobId, err := armadaevents.ProtoUuidFromUlidString(resi.JobId)
+			if err != nil {
+				return err
+			}
+
+			actual, err := filterSequenceByJobId(sequence, jobId)
+			if err != nil {
+				return err
+			}
+
+			expected := &armadaevents.EventSequence{
+				Queue:      armadaQueueName,
+				JobSetName: req.JobSetId,
+				UserId:     armadaUserId,
+				Events: []*armadaevents.EventSequence_Event{
+					{Event: &armadaevents.EventSequence_Event_SubmitJob{}},
+					{Event: &armadaevents.EventSequence_Event_CancelJob{}},
+					{Event: &armadaevents.EventSequence_Event_CancelledJob{}},
+				}}
+			if ok := isSequenceTypef(t, expected, actual, "Event sequence error; printing diff:\n%s", cmp.Diff(expected, actual)); !ok {
+				return nil
+			}
+		}
+
+		return nil
+	})
+	assert.NoError(t, err)
+}
+
+// Test cancelling a job set.
+func TestSubmitCancelJobSet(t *testing.T) {
+	err := withSetup(func(ctx context.Context, client api.SubmitClient, producer pulsar.Producer, consumer pulsar.Consumer) error {
+
+		// Submit a few jobs that fail after a few seconds
+		numJobs := 2
+		req := createJobSubmitRequestWithError(numJobs)
+		ctxWithTimeout, _ := context.WithTimeout(context.Background(), time.Second)
+		res, err := client.SubmitJobs(ctxWithTimeout, req)
+		if err != nil {
+			return err
+		}
+
+		if ok := assert.Equal(t, numJobs, len(res.JobResponseItems)); !ok {
+			return nil
+		}
+
+		ctxWithTimeout, _ = context.WithTimeout(context.Background(), time.Second)
+		_, err = client.CancelJobs(ctxWithTimeout, &api.JobCancelRequest{
+			JobSetId: req.JobSetId,
+			Queue:    req.Queue,
+		})
+		assert.NoError(t, err)
+
+		// Test that we get submit, cancel job set, and cancelled messages.
+		numEventsExpected := numJobs + 1 + numJobs
+		sequences, err := receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, defaultPulsarTimeout)
+		if err != nil {
+			return err
+		}
+
+		actual := flattenSequences(sequences)
+		if ok := assert.NotNil(t, actual); !ok {
+			return nil
+		}
+
+		expected := &armadaevents.EventSequence{
+			Queue:      armadaQueueName,
+			JobSetName: req.JobSetId,
+			UserId:     armadaUserId,
+			Events:     []*armadaevents.EventSequence_Event{},
+		}
+		for _, _ = range res.JobResponseItems {
+			expected.Events = append(
+				expected.Events,
+				&armadaevents.EventSequence_Event{
+					Event: &armadaevents.EventSequence_Event_SubmitJob{},
+				},
+			)
+		}
+		expected.Events = append(
+			expected.Events,
+			&armadaevents.EventSequence_Event{
+				Event: &armadaevents.EventSequence_Event_CancelJobSet{},
+			},
+		)
+		for _, _ = range res.JobResponseItems {
+			expected.Events = append(
+				expected.Events,
+				&armadaevents.EventSequence_Event{
+					Event: &armadaevents.EventSequence_Event_CancelledJob{},
+				},
+			)
+		}
+		if ok := isSequenceTypef(t, expected, actual, "Event sequence error; printing diff:\n%s", cmp.Diff(expected, actual)); !ok {
+			return nil
 		}
 
 		return nil
@@ -546,74 +690,6 @@ func TestSubmitJobWithError(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-// Test submitting several jobs, cancelling all of them, and checking that at least 1 is cancelled.
-func TestSubmitCancelJobs(t *testing.T) {
-	err := withSetup(func(ctx context.Context, client api.SubmitClient, producer pulsar.Producer, consumer pulsar.Consumer) error {
-
-		// Submit a few jobs that fail after a few seconds
-		numJobs := 2
-		req := createJobSubmitRequestWithError(numJobs)
-		ctxWithTimeout, _ := context.WithTimeout(context.Background(), time.Second)
-		res, err := client.SubmitJobs(ctxWithTimeout, req)
-		if err != nil {
-			return err
-		}
-
-		if ok := assert.Equal(t, numJobs, len(res.JobResponseItems)); !ok {
-			return nil
-		}
-
-		for _, r := range res.JobResponseItems {
-			ctxWithTimeout, _ = context.WithTimeout(context.Background(), time.Second)
-			client.CancelJobs(ctxWithTimeout, &api.JobCancelRequest{
-				JobId:    r.JobId,
-				JobSetId: req.JobSetId,
-				Queue:    req.Queue,
-			})
-		}
-
-		// Test that we get submit, cancel, and cancelled messages.
-		numEventsExpected := numJobs * 3
-		sequences, err := receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, defaultPulsarTimeout)
-		if err != nil {
-			return err
-		}
-
-		sequence := flattenSequences(sequences)
-		if ok := assert.NotNil(t, sequence); !ok {
-			return nil
-		}
-
-		for _, resi := range res.JobResponseItems {
-			jobId, err := armadaevents.ProtoUuidFromUlidString(resi.JobId)
-			if err != nil {
-				return err
-			}
-
-			actual, err := filterSequenceByJobId(sequence, jobId)
-			if err != nil {
-				return err
-			}
-
-			expected := &armadaevents.EventSequence{
-				Queue:      armadaQueueName,
-				JobSetName: req.JobSetId,
-				UserId:     armadaUserId,
-				Events: []*armadaevents.EventSequence_Event{
-					{Event: &armadaevents.EventSequence_Event_SubmitJob{}},
-					{Event: &armadaevents.EventSequence_Event_CancelJob{}},
-					{Event: &armadaevents.EventSequence_Event_CancelledJob{}},
-				}}
-			if ok := isSequenceTypef(t, expected, actual, "Event sequence error; printing diff:\n%s", cmp.Diff(expected, actual)); !ok {
-				return nil
-			}
-		}
-
-		return nil
-	})
-	assert.NoError(t, err)
-}
-
 // expectedSequenceFromJobRequestItem returns the expected event sequence for a particular job request and response.
 func expectedSequenceFromRequestItem(jobSetName string, jobId *armadaevents.Uuid, reqi *api.JobSubmitRequestItem) *armadaevents.EventSequence {
 
@@ -754,73 +830,62 @@ func isSequenceTypef(t *testing.T, expected *armadaevents.EventSequence, actual 
 // Compare an expected sequence of events with the actual sequence.
 // Calls into the assert function to make comparison.
 // Returns true if the two sequences are equal and false otherwise.
-func isSequence(t *testing.T, expected *armadaevents.EventSequence, actual *armadaevents.EventSequence) (ok bool) {
+func isSequence(t *testing.T, expected *armadaevents.EventSequence, actual *armadaevents.EventSequence) bool {
 	return isSequencef(t, expected, actual, "")
 }
 
 // Like isSequence, but logs msg if a comparison fails.
-func isSequencef(t *testing.T, expected *armadaevents.EventSequence, actual *armadaevents.EventSequence, msg string, args ...interface{}) (ok bool) {
+func isSequencef(t *testing.T, expected *armadaevents.EventSequence, actual *armadaevents.EventSequence, msg string, args ...interface{}) bool {
+	ok := true
 	defer func() {
 		if !ok && msg != "" {
 			t.Logf(msg, args...)
 		}
 	}()
-	if ok = assert.NotNil(t, expected); !ok {
-		return false
-	}
-	if ok = assert.NotNil(t, actual); !ok {
-		return false
-	}
-	if ok = assert.Equal(t, expected.Queue, actual.Queue); !ok {
-		return false
-	}
-	if ok = assert.Equal(t, expected.JobSetName, actual.JobSetName); !ok {
-		return false
-	}
-	if ok = assert.Equal(t, expected.UserId, actual.UserId); !ok {
-		return false
-	}
-	if ok = assert.Equal(t, len(expected.Events), len(actual.Events)); !ok {
-		return false
-	}
-	for i, expectedEvent := range expected.Events {
-		actualEvent := actual.Events[i]
-		if ok := isEventf(t, expectedEvent, actualEvent, "%d-th event differed: %s", i, actualEvent); !ok {
-			return false
+	ok = ok && assert.NotNil(t, expected)
+	ok = ok && assert.NotNil(t, actual)
+	ok = ok && assert.Equal(t, expected.Queue, actual.Queue)
+	ok = ok && assert.Equal(t, expected.JobSetName, actual.JobSetName)
+	ok = ok && assert.Equal(t, expected.UserId, actual.UserId)
+	ok = ok && assert.Equal(t, len(expected.Events), len(actual.Events))
+	if len(expected.Events) == len(actual.Events) {
+		for i, expectedEvent := range expected.Events {
+			actualEvent := actual.Events[i]
+			ok = ok && isEventf(t, expectedEvent, actualEvent, "%d-th event differed: %s", i, actualEvent)
 		}
 	}
-	return true
+	return ok
 }
 
 // Compare an actual event with an expected event.
 // Only compares the subset of fields relevant for testing.
-func isEventf(t *testing.T, expected *armadaevents.EventSequence_Event, actual *armadaevents.EventSequence_Event, msg string, args ...interface{}) (ok bool) {
+func isEventf(t *testing.T, expected *armadaevents.EventSequence_Event, actual *armadaevents.EventSequence_Event, msg string, args ...interface{}) bool {
+	ok := true
 	defer func() {
 		if !ok && msg != "" {
 			t.Logf(msg, args...)
 		}
 	}()
-	if ok = assert.IsType(t, expected.Event, actual.Event); !ok {
-		return false
+	if ok = ok && assert.IsType(t, expected.Event, actual.Event); !ok {
+		return ok
 	}
 
 	// If the expected event includes a jobId, the actual event must include the same jobId.
 	expectedJobId, err := armadaevents.JobIdFromEvent(expected)
 	if err == nil {
 		actualJobId, err := armadaevents.JobIdFromEvent(actual)
-		if ok = assert.NoError(t, err); !ok {
-			return false
-		}
-		if ok = assert.Equal(t, expectedJobId, actualJobId); !ok {
-			return false
+		if err == nil { // Ignore for events without a jobId (e.g., cancelJobSet).
+			if ok = ok && assert.Equal(t, expectedJobId, actualJobId); ok {
+				return ok
+			}
 		}
 	}
 
 	switch expectedEvent := expected.Event.(type) {
 	case *armadaevents.EventSequence_Event_SubmitJob:
 		actualEvent, ok := actual.Event.(*armadaevents.EventSequence_Event_SubmitJob)
-		if ok := assert.True(t, ok); !ok {
-			return false
+		if ok = ok && assert.True(t, ok); !ok {
+			return ok
 		}
 		ok = ok && assert.Equal(t, *expectedEvent.SubmitJob.JobId, *actualEvent.SubmitJob.JobId)
 		ok = ok && assert.Equal(t, expectedEvent.SubmitJob.DeduplicationId, actualEvent.SubmitJob.DeduplicationId)
@@ -1263,10 +1328,20 @@ func withSetup(action func(ctx context.Context, submitClient api.SubmitClient, p
 		return errors.WithStack(err)
 	}
 
+	// Redirect Pulsar logs to a file since it's very verbose.
+	_ = os.Mkdir("../../.test", os.ModePerm)
+	f, err := os.OpenFile("../../.test/pulsar.log", os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0666)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	logger := logrus.StandardLogger() // .WithField("service", "Pulsar")
+	logger.Out = f
+
 	// Connection to Pulsar. To check that the correct sequence of messages are produced.
 	pulsarClient, err := pulsar.NewClient(pulsar.ClientOptions{
 		URL:              pulsarUrl,
 		OperationTimeout: 5 * time.Second,
+		Logger:           pulsarlog.NewLoggerWithLogrus(logger),
 	})
 	if err != nil {
 		return errors.WithStack(err)
@@ -1291,9 +1366,14 @@ func withSetup(action func(ctx context.Context, submitClient api.SubmitClient, p
 	defer consumer.Close()
 
 	// Skip any messages already published to Pulsar.
-	err = consumer.SeekByTime(time.Now())
-	if err != nil {
-		return errors.WithStack(err)
+	for {
+		ctxWithTimeout, _ := context.WithTimeout(context.Background(), time.Second)
+		_, err := consumer.Receive(ctxWithTimeout)
+		if err == context.DeadlineExceeded {
+			break
+		} else if err != nil {
+			return errors.WithStack(err)
+		}
 	}
 
 	return action(context.Background(), submitClient, producer, consumer)

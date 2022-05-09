@@ -12,6 +12,7 @@ import (
 
 	"github.com/G-Research/armada/internal/common/logging"
 	"github.com/G-Research/armada/internal/lookoutingester/model"
+	"github.com/G-Research/armada/pkg/armadaevents"
 )
 
 var log = logrus.NewEntry(logrus.StandardLogger())
@@ -76,6 +77,12 @@ func Receive(ctx context.Context, consumer pulsar.Consumer, consumerId int, buff
 					time.Sleep(backoffTime)
 					continue
 				}
+
+				// We're only interested in control messages.
+				if !armadaevents.IsControlMessage(msg) {
+					continue
+				}
+
 				numReceived++
 				lastPublishTime = msg.PublishTime()
 				lastMessageId = msg.ID()

@@ -224,11 +224,5 @@ func withSetup(url, topic, subscription string, action func(ctx context.Context,
 	}
 	defer consumer.Close()
 
-	// Skip any messages already published to Pulsar.
-	err = consumer.SeekByTime(time.Now())
-	if err != nil {
-		return err
-	}
-
 	return action(context.Background(), producer, consumer)
 }

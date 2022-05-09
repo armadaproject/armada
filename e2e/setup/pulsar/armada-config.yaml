@@ -1,12 +1,14 @@
 pulsar:
   enabled: true
   URL: "pulsar://pulsar:6650"
-  jobsetEventsTopic: "jobset-events"
+  jobsetEventsTopic: "persistent://armada/armada/jobset-events"
   redisFromPulsarSubscription: "RedisFromPulsar"
   pulsarFromPulsarSubscription: "PulsarFromPulsar"
   hostnameSuffix: "svc"
   certNameSuffix: "ingress-tls-certificate"
   dedupTable: pulsar_submit_dedup
+  eventsPrinter: true
+  eventsPrinterSubscription: "EventsPrinter"
 postgres:
   maxOpenConns: 100
   maxIdleConns: 25
