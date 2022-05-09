@@ -67,7 +67,7 @@ func (p *RedisEventProcessor) Start() {
 func (p *RedisEventProcessor) handleMessage(message *eventstream.Message) error {
 	if p.PulsarSubmitServer != nil {
 		logger := log.StandardLogger().WithField("service", "RedisEventProcessor")
-		log.Infof("got message: %v", message)
+		logger.Infof("got message: %v", message)
 		err := p.PulsarSubmitServer.SubmitApiEvent(context.Background(), message.EventMessage)
 		if err != nil {
 			logging.WithStacktrace(logger, err).Error("failed to submit API event to Pulsar")
