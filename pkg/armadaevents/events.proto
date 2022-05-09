@@ -63,7 +63,7 @@ import "k8s.io/api/networking/v1/generated.proto";
 message EventSequence {
     // List of possible events, i.e., state transitions.
     message Event {
-        google.protobuf.Timestamp created = 17 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];        
+        google.protobuf.Timestamp created = 17 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
         oneof event {
             SubmitJob submitJob = 1;
             ReprioritiseJob reprioritiseJob = 2;
