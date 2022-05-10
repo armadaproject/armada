@@ -297,7 +297,13 @@ jobs:
 
       - run:
           name: Build armadactl release artifacts
-          command: make build-armadactl-release RELEASE_VERSION=EXPERIMENT
+          command: |
+            gox -h
+            which gox
+            echo $HOME
+            docker run --rm -v /home/circleci/go/src/github.com/G-Research/armada:/go/src/armada -w /go/src/armada --network=host -e GOPROXY -e GOPRIVATE -e INTEGRATION_ENABLED=true -e CGO_ENABLED=0 -e GOOS=linux -e GARCH=amd64 -v /home/circleci/go:/go golang:1.16-buster bash -c ' echo $PATH'
+            docker run --rm -v /home/circleci/go/src/github.com/G-Research/armada:/go/src/armada -w /go/src/armada --network=host -e GOPROXY -e GOPRIVATE -e INTEGRATION_ENABLED=true -e CGO_ENABLED=0 -e GOOS=linux -e GARCH=amd64 -v /home/circleci/go:/go golang:1.16-buster bash -c 'ls /go/bin'
+            make build-armadactl-release RELEASE_VERSION=EXPERIMENT
           
       - store_artifacts:
           path: dist/*
