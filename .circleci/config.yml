@@ -269,6 +269,27 @@ jobs:
 
             docker tag armadactl gresearchdev/armada-armadactl-dev:${TAG}
             docker push gresearchdev/armada-armadactl-dev:${TAG}
+            
+  test-release:
+    docker:
+      - image: cimg/go:1.16.2
+        environment:
+          GO111MODULE: "on"
+    working_directory: ~/go/src/github.com/G-Research/armada
+    steps:
+      - checkout
+      - setup_remote_docker
+
+      - restore_cache: # restore dependencies
+          keys:
+            - go-mod-v3-{{ checksum "go.sum" }}
+
+      - run:
+          name: Build armadactl release artifacts
+          command: make build-armadactl-release RELEASE_VERSION=EXPERIMENT
+          
+      - store_artifacts:
+          path: dist/*
 
   release:
     docker:
@@ -377,6 +398,7 @@ workflows:
     jobs:
       -  build_and_integration_tests
       -  checks_and_unit_tests
+      -  test-release
       - release:
           filters:
             tags:
