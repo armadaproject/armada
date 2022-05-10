@@ -305,6 +305,8 @@ jobs:
             which gox
             echo $HOME
             make build-armadactl-release RELEASE_VERSION=EXPERIMENT
+            ls dist
+            ls bin
           
       - store_artifacts:
           path: dist/*
