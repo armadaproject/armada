@@ -304,8 +304,6 @@ jobs:
             gox -h
             which gox
             echo $HOME
-            ls /home/circleci/go
-            ls /home/circleci/go/bin
             make build-armadactl-release RELEASE_VERSION=EXPERIMENT
           
       - store_artifacts:
