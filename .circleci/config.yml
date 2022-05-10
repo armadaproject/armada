@@ -271,10 +271,14 @@ jobs:
             docker push gresearchdev/armada-armadactl-dev:${TAG}
             
   test-release:
-    docker:
-      - image: cimg/go:1.16.2
-        environment:
-          GO111MODULE: "on"
+    machine:
+      docker_layer_caching: true
+      image: ubuntu-2004:202104-01
+      resource_class: xlarge
+    environment:
+      GO111MODULE: "on"
+      GOPATH: "/home/circleci/go"
+      GOCACHE: "/home/circleci/go/cache"
     working_directory: ~/go/src/github.com/G-Research/armada
     steps:
       - checkout
