@@ -291,7 +291,9 @@ jobs:
             chmod +x kubectl
             sudo mv kubectl /usr/local/bin/
             make download # no-op if we restored from cache
-            gox
+            gox -h
+            which gox
+            echo $HOME
 
       - run:
           name: Build armadactl release artifacts
