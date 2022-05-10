@@ -309,7 +309,7 @@ jobs:
             ls bin
           
       - store_artifacts:
-          path: dist/*
+          path: dist
 
   release:
     docker:
