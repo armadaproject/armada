@@ -74,6 +74,7 @@ func PrintEvents(url, topic, subscription string, verbose bool) error {
 					// On error, we print an empty id.
 					jobId, _ := armadaevents.JobIdFromEvent(event)
 					fmt.Printf("\t%T (job %s)\n", event.Event, armadaevents.UlidFromProtoUuid(jobId))
+
 					if submitJob, ok := event.Event.(*armadaevents.EventSequence_Event_SubmitJob); ok {
 						mainObject := submitJob.SubmitJob.GetMainObject()
 						fmt.Printf("\t\tMainObject: %T\n", mainObject.Object)
@@ -85,7 +86,18 @@ func PrintEvents(url, topic, subscription string, verbose bool) error {
 							fmt.Printf("\t\tObject %d: %T\n", i, object.GetObject())
 							fmt.Printf("\t\t\tObjectMeta: %v\n", object.GetObjectMeta())
 						}
+					} else if duplicateDetected, ok := event.Event.(*armadaevents.EventSequence_Event_JobDuplicateDetected); ok {
+						newId, err := armadaevents.UlidStringFromProtoUuid(duplicateDetected.JobDuplicateDetected.NewJobId)
+						if err != nil {
+							panic(err)
+						}
+						oldId, err := armadaevents.UlidStringFromProtoUuid(duplicateDetected.JobDuplicateDetected.OldJobId)
+						if err != nil {
+							panic(err)
+						}
+						fmt.Printf("\t\tNew job %s is a duplicate of existing job %s\n", newId, oldId)
 					}
+
 				}
 			} else {
 				// Remove fields from PodSpecs that result in panics when printing.
@@ -211,12 +223,6 @@ func withSetup(url, topic, subscription string, action func(ctx context.Context,
 		return err
 	}
 	defer consumer.Close()
-
-	// Skip any messages already published to Pulsar.
-	err = consumer.SeekByTime(time.Now())
-	if err != nil {
-		return err
-	}
 
 	return action(context.Background(), producer, consumer)
 }

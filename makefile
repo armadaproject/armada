@@ -5,7 +5,7 @@ platform := $(shell uname -s || echo unknown)
 # Using 'where' on Windows and 'which' on Unix-like systems, respectively
 # We do not check for 'date', since it's a cmdlet on Windows, which do not show up with where
 # (:= assignment is necessary to force immediate evaluation of expression)
-EXECUTABLES = git docker
+EXECUTABLES = git docker kubectl
 ifeq ($(platform),windows32)
 	K := $(foreach exec,$(EXECUTABLES),$(if $(shell where $(exec)),some string,$(error "No $(exec) in PATH")))
 else
@@ -129,36 +129,44 @@ build-binoculars:
 build-load-tester:
 	$(GO_CMD) $(gobuild) -o ./bin/armada-load-tester cmd/armada-load-tester/main.go
 
-
 build-lookout-ingester:
-	$(GO_CMD) $(gobuild) -o ./bin/armada-load-tester cmd/armada-load-tester/main.go
+	$(GO_CMD) $(gobuild) -o ./bin/lookoutingester cmd/lookoutingester/main.go
 
 build: build-server build-executor build-fakeexecutor build-armadactl build-load-tester build-binoculars build-lookout-ingester
 
 build-docker-server:
-	$(GO_CMD) $(gobuildlinux) -o ./bin/linux/server cmd/armada/main.go
-	docker build $(dockerFlags) -t armada -f ./build/armada/Dockerfile .
+	mkdir -p .build/server
+	$(GO_CMD) $(gobuildlinux) -o ./.build/server/server cmd/armada/main.go
+	cp -a ./config/armada ./.build/server/config
+	docker build $(dockerFlags) -t armada -f ./build/armada/Dockerfile ./.build/server/
 
 build-docker-executor:
-	$(GO_CMD) $(gobuildlinux) -o ./bin/linux/executor cmd/executor/main.go
-	docker build $(dockerFlags) -t armada-executor -f ./build/executor/Dockerfile .
+	mkdir -p .build/executor
+	$(GO_CMD) $(gobuildlinux) -o ./.build/executor/executor cmd/executor/main.go
+	cp -a ./config/executor ./.build/executor/config
+	docker build $(dockerFlags) -t armada-executor -f ./build/executor/Dockerfile ./.build/executor
 
 build-docker-armada-load-tester:
-	$(GO_CMD) $(gobuildlinux) -o ./bin/linux/armada-load-tester cmd/armada-load-tester/main.go
-	docker build $(dockerFlags) -t armada-load-tester -f ./build/armada-load-tester/Dockerfile .
+	mkdir -p .build/armada-load-tester
+	$(GO_CMD) $(gobuildlinux) -o ./.build/armada-load-tester/armada-load-tester cmd/armada-load-tester/main.go
+	docker build $(dockerFlags) -t armada-load-tester -f ./build/armada-load-tester/Dockerfile ./.build/armada-load-tester
 
 build-docker-armadactl:
-	$(GO_CMD) $(gobuildlinux) -o ./bin/linux/armadactl cmd/armadactl/main.go
-	docker build $(dockerFlags) -t armadactl -f ./build/armadactl/Dockerfile .
+	mkdir -p .build/armadactl
+	$(GO_CMD) $(gobuildlinux) -o ./.build/armadactl/armadactl cmd/armadactl/main.go
+	docker build $(dockerFlags) -t armadactl -f ./build/armadactl/Dockerfile ./.build/armadactl
 
 build-docker-fakeexecutor:
-	$(GO_CMD) $(gobuildlinux) -o ./bin/linux/fakeexecutor cmd/fakeexecutor/main.go
-	docker build $(dockerFlags) -t armada-fakeexecutor -f ./build/fakeexecutor/Dockerfile .
-
+	mkdir -p .build/fakeexecutor
+	$(GO_CMD) $(gobuildlinux) -o ./.build/fakeexecutor/fakeexecutor cmd/fakeexecutor/main.go
+	cp -a ./config/executor ./.build/fakeexecutor/config
+	docker build $(dockerFlags) -t armada-fakeexecutor -f ./build/fakeexecutor/Dockerfile ./.build/fakeexecutor
 
 build-docker-lookout-ingester:
-	$(GO_CMD) $(gobuildlinux) -o ./bin/linux/lookoutingester cmd/lookoutingester/main.go
-	docker build $(dockerFlags) -t armada-lookout-ingester -f ./build/lookoutingester/Dockerfile .
+	mkdir -p .build/lookoutingester
+	$(GO_CMD) $(gobuildlinux) -o ./.build/lookoutingester/lookoutingester cmd/lookoutingester/main.go
+	cp -a ./config/lookoutingester ./.build/lookoutingester/config
+	docker build $(dockerFlags) -t armada-lookout-ingester -f ./build/lookoutingester/Dockerfile ./.build/lookoutingester
 
 build-docker-lookout:
 	$(NODE_CMD) npm ci
@@ -171,8 +179,10 @@ build-docker-lookout:
 	docker build $(dockerFlags) -t armada-lookout -f ./build/lookout/Dockerfile .
 
 build-docker-binoculars:
-	$(GO_CMD) $(gobuildlinux) -o ./bin/linux/binoculars cmd/binoculars/main.go
-	docker build $(dockerFlags) -t armada-binoculars -f ./build/binoculars/Dockerfile .
+	mkdir -p .build/binoculars
+	$(GO_CMD) $(gobuildlinux) -o ./.build/binoculars/binoculars cmd/binoculars/main.go
+	cp -a ./config/binoculars ./.build/binoculars/config
+	docker build $(dockerFlags) -t armada-binoculars -f ./build/binoculars/Dockerfile ./.build/binoculars
 
 build-docker: build-docker-server build-docker-executor build-docker-armadactl build-docker-armada-load-tester build-docker-fakeexecutor build-docker-lookout build-docker-lookout-ingester build-docker-binoculars
 
@@ -205,39 +215,71 @@ tests:
 	$(GO_TEST_CMD) go test -v ./pkg... 2>&1 | tee test_reports/pkg.txt
 	$(GO_TEST_CMD) go test -v ./cmd... 2>&1 | tee test_reports/cmd.txt
 
-# To be used during development to restart the Armada server before re-running tests.
+# Rebuild and restart the server.
 .ONESHELL:
-rebuild-server:
-	docker rm -f server
-	$(GO_CMD) $(gobuildlinux) -o ./bin/linux/server cmd/armada/main.go
-	docker build $(dockerFlags) -t armada -f ./build/armada/Dockerfile .
+rebuild-server: build-docker-server
+	docker rm -f server || true
 	docker run -d --name server --network=kind -p=50051:50051 -p 8080:8080 -v ${PWD}/e2e:/e2e \
 		armada ./server --config /e2e/setup/insecure-armada-auth-config.yaml --config /e2e/setup/nats/armada-config.yaml --config /e2e/setup/redis/armada-config.yaml --config /e2e/setup/pulsar/armada-config.yaml  --config /e2e/setup/server/armada-config.yaml
 
+# Rebuild and restart the executor.
+.ONESHELL:
+rebuild-executor: build-docker-executor
+	docker rm -f executor || true
+	docker run -d --name executor --network=kind -v ${PWD}/.kube:/.kube -v ${PWD}/e2e:/e2e  \
+		-e KUBECONFIG=/.kube/config \
+		-e ARMADA_KUBERNETES_IMPERSONATEUSERS=true \
+		-e ARMADA_KUBERNETES_STUCKPODEXPIRY=15s \
+		-e ARMADA_APICONNECTION_ARMADAURL="server:50051" \
+		-e ARMADA_APICONNECTION_FORCENOTLS=true \
+		armada-executor --config /e2e/setup/executor-config.yaml
+
 .ONESHELL:
 tests-e2e-teardown:
-	echo -e "\nexecutor logs:"
-	docker logs executor || true
-	echo -e "\nserver logs:"
-	docker logs server || true
 	docker rm -f nats redis pulsar server executor postgres || true
 	kind delete cluster --name armada-test || true
 	rm .kube/config || true
 	rmdir .kube || true
 
-tests-e2e-setup:
-	docker pull "alpine:3.10" # ensure Alpine, which is used by tests, is available
-	kind create cluster --name armada-test --wait 30s --image kindest/node:v1.21.1
-	kind load docker-image "alpine:3.10" --name armada-test # needed to make Alpine available to kind
-
+.ONESHELL:
+setup-cluster:
+	kind create cluster --config e2e/setup/kind.yaml
+	# We need an ingress controller to enable cluster ingress
+	kubectl apply -f e2e/setup/ingress-nginx.yaml --context kind-armada-test
+	# Wait until the ingress controller is ready
+	echo "Waiting for ingress controller to become ready"
+	sleep 60s # calling wait immediately can result in "no matching resources found"
+	kubectl wait --namespace ingress-nginx \
+		--for=condition=ready pod \
+		--selector=app.kubernetes.io/component=controller \
+		--timeout=90s \
+		--context kind-armada-test
+	docker pull "alpine:3.10" # ensure alpine, which is used by tests, is available
+	docker pull "nginx:1.21.6" # ensure nginx, which is used by tests, is available
+	kind load docker-image "alpine:3.10" --name armada-test # needed to make alpine available to kind
+	kind load docker-image "nginx:1.21.6" --name armada-test # needed to make nginx available to kind
 	mkdir -p .kube
 	kind get kubeconfig --internal --name armada-test > .kube/config
 
+tests-e2e-setup: setup-cluster
 	docker run --rm -v ${PWD}:/go/src/armada -w /go/src/armada -e KUBECONFIG=/go/src/armada/.kube/config --network kind bitnami/kubectl:1.23 apply -f ./e2e/setup/namespace-with-anonymous-user.yaml
+
+	# Armada dependencies.
+	docker run -d --name pulsar -p 0.0.0.0:6650:6650 --network=kind apachepulsar/pulsar:2.9.1 bin/pulsar standalone
 	docker run -d --name nats --network=kind nats-streaming:0.24.5
 	docker run -d --name redis -p=6379:6379 --network=kind redis:6.2.6
-	docker run -d --name pulsar -p 0.0.0.0:6650:6650 --network=kind apachepulsar/pulsar:2.9.1 bin/pulsar standalone
 	docker run -d --name postgres --network=kind -p 5432:5432 -e POSTGRES_PASSWORD=psw postgres:14.2
+
+	# Create the partitioned topic used by Armada.
+	sleep 10 # pulsar-admin errors if the Pulsar server hasn't started up yet.
+	docker exec -it pulsar bin/pulsar-admin tenants create armada
+	docker exec -it pulsar bin/pulsar-admin namespaces create armada/armada
+	docker exec -it pulsar bin/pulsar-admin topics create-partitioned-topic persistent://armada/armada/jobset-events -p 100
+
+	# Disable topic auto-creation to ensure an error is thrown on using the wrong topic
+	# (Pulsar automatically created the public tenant and default namespace).
+	docker exec -it pulsar bin/pulsar-admin namespaces set-auto-topic-creation public/default --disable
+	docker exec -it pulsar bin/pulsar-admin namespaces set-auto-topic-creation armada/armada --disable
 
 	sleep 30 # give dependencies time to start up
 	docker run -d --name server --network=kind -p=50051:50051 -p 8080:8080 -v ${PWD}/e2e:/e2e \

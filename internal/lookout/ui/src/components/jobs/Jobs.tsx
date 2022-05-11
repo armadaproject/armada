@@ -155,10 +155,12 @@ export default class Jobs extends React.Component<JobsProps, Record<string, neve
                         )
                       }}
                       headerRowRenderer={(tableHeaderRowProps) => {
+                        const jobsAreSelected = this.props.selectedJobs.size > 0
                         return (
                           <CheckboxHeaderRow
-                            deselectEnabled={this.props.selectedJobs.size > 0}
-                            onDeselectAllClick={this.props.onDeselectAllClick}
+                            checked={jobsAreSelected}
+                            disabled={!jobsAreSelected}
+                            onClick={() => this.props.onDeselectAllClick()}
                             {...tableHeaderRowProps}
                           />
                         )

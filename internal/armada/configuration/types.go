@@ -70,6 +70,9 @@ type PulsarConfig struct {
 	Annotations    map[string]string
 	// Settings for deduplication, which relies on a postgres server.
 	DedupTable string
+	// Log all pulsar events
+	EventsPrinterSubscription string
+	EventsPrinter             bool
 }
 
 type SchedulingConfig struct {
@@ -139,8 +142,9 @@ type JetstreamConfig struct {
 }
 
 type QueueManagementConfig struct {
-	AutoCreateQueues      bool
-	DefaultPriorityFactor queue.PriorityFactor
+	AutoCreateQueues       bool
+	DefaultPriorityFactor  queue.PriorityFactor
+	DefaultQueuedJobsLimit int
 }
 
 type MetricsConfig struct {

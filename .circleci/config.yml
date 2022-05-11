@@ -127,9 +127,13 @@ jobs:
           name: Print GOPATH
           command: echo '$(go env GOPATH)'
 
-      - run: # no-op if we restored from cache
+      - run:
           name: Download dependencies
-          command: make download
+          command: |
+            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+            chmod +x kubectl
+            mv kubectl /home/circleci/bin/
+            make download # no-op if we restored from cache
 
       - save_cache: # if we downloaded new dependencies, cache those
           key: go-mod-v3-{{ checksum "go.sum" }}
@@ -188,9 +192,13 @@ jobs:
           keys:
             - go-mod-v3-{{ checksum "go.sum" }}
 
-      - run: # no-op if we restored from cache
+      - run:
           name: Download dependencies
-          command: make download
+          command: |
+            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+            chmod +x kubectl
+            mv kubectl /home/circleci/bin/
+            make download # no-op if we restored from cache
 
       - run:
           name: Build
@@ -252,13 +260,13 @@ jobs:
 
             docker tag armada-lookout gresearchdev/armada-lookout-dev:${TAG}
             docker push gresearchdev/armada-lookout-dev:${TAG}
-            
+
             docker tag armada-lookout-ingester gresearchdev/armada-lookout-ingester-dev:${TAG}
             docker push gresearchdev/armada-lookout-ingester-dev:${TAG}
 
             docker tag armada-binoculars gresearchdev/armada-binoculars-dev:${TAG}
             docker push gresearchdev/armada-binoculars-dev:${TAG}
-            
+
             docker tag armadactl gresearchdev/armada-armadactl-dev:${TAG}
             docker push gresearchdev/armada-armadactl-dev:${TAG}
 
@@ -275,6 +283,14 @@ jobs:
       - restore_cache: # restore dependencies
           keys:
             - go-mod-v3-{{ checksum "go.sum" }}
+
+      - run:
+          name: Download dependencies
+          command: |
+            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+            chmod +x kubectl
+            sudo mv kubectl /usr/local/bin/
+            make download # no-op if we restored from cache
 
       - run:
           name: Build armadactl release artifacts
@@ -332,6 +348,18 @@ jobs:
     working_directory: /go/src/github.com/G-Research/armada
     steps:
       - checkout
+
+      - restore_cache: # restore dependencies
+          keys:
+            - go-mod-v3-{{ checksum "go.sum" }}
+
+      - run:
+          name: Download dependencies
+          command: |
+            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+            chmod +x kubectl
+            mv kubectl /home/circleci/bin/
+            make download # no-op if we restored from cache
 
       - run:
           name: Release dotnet client
