@@ -22,6 +22,7 @@ type ApiConnectionDetails struct {
 	OpenIdDeviceAuth            oidc.DeviceDetails
 	OpenIdPasswordAuth          oidc.ClientPasswordDetails
 	OpenIdClientCredentialsAuth oidc.ClientCredentialsDetails
+	OpenIdKubernetesAuth        oidc.KubernetesDetails
 	KerberosAuth                kerberos.ClientConfig
 	ForceNoTls                  bool
 	ExecAuth                    exec.CommandDetails
@@ -82,6 +83,9 @@ func perRpcCredentials(config *ApiConnectionDetails) (credentials.PerRPCCredenti
 	} else if config.OpenIdClientCredentialsAuth.ProviderUrl != "" {
 		return oidc.AuthenticateWithClientCredentials(config.OpenIdClientCredentialsAuth)
 
+	} else if config.OpenIdKubernetesAuth.ProviderUrl != "" {
+		return oidc.AuthenticateKubernetes(config.OpenIdKubernetesAuth)
+		
 	} else if config.KerberosAuth.Enabled {
 		return kerberos.NewSPNEGOCredentials(config.ArmadaUrl, config.KerberosAuth)
 	} else if config.ExecAuth.Cmd != "" {
