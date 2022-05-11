@@ -1,4 +1,4 @@
-package pulsario
+package pulsarutils
 
 import (
 	ctx "context"
@@ -11,7 +11,6 @@ import (
 	"golang.org/x/net/context"
 
 	"github.com/G-Research/armada/internal/lookoutingester/model"
-	"github.com/G-Research/armada/internal/lookoutingester/testutil"
 )
 
 type mockConsumer struct {
@@ -38,9 +37,9 @@ func TestReceive(t *testing.T) {
 	msgTime := time.Now()
 	consumer := &mockConsumer{
 		msgs: []pulsar.Message{
-			testutil.EmptyPulsarMessage(1, msgTime),
-			testutil.EmptyPulsarMessage(2, msgTime),
-			testutil.EmptyPulsarMessage(3, msgTime),
+			EmptyPulsarMessage(1, msgTime),
+			EmptyPulsarMessage(2, msgTime),
+			EmptyPulsarMessage(3, msgTime),
 		},
 	}
 	context, cancel := ctx.WithCancel(ctx.Background())
@@ -60,9 +59,9 @@ func TestReceive(t *testing.T) {
 	}()
 	wg.Wait()
 	assert.Equal(t, []*model.ConsumerMessage{
-		{testutil.EmptyPulsarMessage(1, msgTime), 1},
-		{testutil.EmptyPulsarMessage(2, msgTime), 1},
-		{testutil.EmptyPulsarMessage(3, msgTime), 1},
+		{EmptyPulsarMessage(1, msgTime), 1},
+		{EmptyPulsarMessage(2, msgTime), 1},
+		{EmptyPulsarMessage(3, msgTime), 1},
 	}, receivedMsgs)
 
 }
@@ -75,15 +74,15 @@ func TestAcks(t *testing.T) {
 	wg.Add(1)
 	go Ack(ctx.Background(), consumers, input, &wg)
 	input <- []*model.ConsumerMessageId{
-		{testutil.NewMessageId(1), 0}, {testutil.NewMessageId(2), 0}}
+		{NewMessageId(1), 0, 0}, {NewMessageId(2), 0, 0}}
 	input <- []*model.ConsumerMessageId{
-		{testutil.NewMessageId(3), 0}, {testutil.NewMessageId(4), 0}}
+		{NewMessageId(3), 0, 0}, {NewMessageId(4), 0, 0}}
 	close(input)
 	expected := []pulsar.MessageID{
-		testutil.NewMessageId(1),
-		testutil.NewMessageId(2),
-		testutil.NewMessageId(3),
-		testutil.NewMessageId(4),
+		NewMessageId(1),
+		NewMessageId(2),
+		NewMessageId(3),
+		NewMessageId(4),
 	}
 	wg.Wait()
 	assert.Equal(t, expected, mockConsumer.ackedIds)
