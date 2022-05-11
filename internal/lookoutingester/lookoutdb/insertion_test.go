@@ -3,18 +3,17 @@ package lookoutdb
 import (
 	ctx "context"
 	"fmt"
+	"github.com/G-Research/armada/internal/pulsarutils"
 	"sort"
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"k8s.io/utils/pointer"
 
 	"github.com/G-Research/armada/internal/lookout/testutil"
 	"github.com/G-Research/armada/internal/lookoutingester/model"
-	pulsartestutil "github.com/G-Research/armada/internal/lookoutingester/testutil"
 	"github.com/G-Research/armada/pkg/armadaevents"
 )
 
@@ -22,7 +21,6 @@ const jobIdString = "01f3j0g1md4qx7z5qb148qnh4r"
 const runIdString = "123e4567-e89b-12d3-a456-426614174000"
 
 var jobIdProto, _ = armadaevents.ProtoUuidFromUlidString(jobIdString)
-var runIdProto = armadaevents.ProtoUuidFromUuid(uuid.MustParse(runIdString))
 
 const jobSetName = "testJobset"
 const executorId = "testCluster"
@@ -41,7 +39,6 @@ var baseTime, _ = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.00
 var updateTime, _ = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:06.000Z")
 var startTime, _ = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:07.000Z")
 var finishedTime, _ = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:08.000Z")
-var baseTimeUnix = baseTime.Local()
 
 // An invalid job id that exceeds th varchar count
 var invalidId = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
@@ -133,7 +130,7 @@ func defaultInstructionSet() *model.InstructionSet {
 			ContainerName: containerName,
 			ExitCode:      3,
 		}},
-		MessageIds: []*model.ConsumerMessageId{{pulsartestutil.NewMessageId(3), 1}},
+		MessageIds: []*model.ConsumerMessageId{{pulsarutils.NewMessageId(3), 0, 1}},
 	}
 }
 
@@ -214,7 +211,8 @@ func TestCreateJobsBatch(t *testing.T) {
 		assert.Equal(t, expectedJobAfterSubmit, job)
 
 		// If a row is bad then we should return an error and no updates should happen
-		db.Exec(ctx.Background(), "DELETE FROM job")
+		_, err = db.Exec(ctx.Background(), "DELETE FROM job")
+		assert.NoError(t, err)
 		invalidJob := &model.CreateJobInstruction{
 			JobId: invalidId,
 		}
@@ -244,7 +242,8 @@ func TestUpdateJobsBatch(t *testing.T) {
 		assert.Equal(t, expectedJobAfterUpdate, job)
 
 		// If a update is bad then we should return an error and no updates should happen
-		db.Exec(ctx.Background(), "DELETE FROM job")
+		_, err = db.Exec(ctx.Background(), "DELETE FROM job")
+		assert.NoError(t, err)
 		err = CreateJobsBatch(ctx.Background(), db, defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
 		invalidUpdate := &model.UpdateJobInstruction{
@@ -276,7 +275,8 @@ func TestUpdateJobsScalar(t *testing.T) {
 		assert.Equal(t, expectedJobAfterUpdate, job)
 
 		// If a update is bad then we should return an error and no updates should happen
-		db.Exec(ctx.Background(), "DELETE FROM job")
+		_, err = db.Exec(ctx.Background(), "DELETE FROM job")
+		assert.NoError(t, err)
 		err = CreateJobsBatch(ctx.Background(), db, defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
 		invalidUpdate := &model.UpdateJobInstruction{
@@ -304,7 +304,8 @@ func TestCreateJobsScalar(t *testing.T) {
 		assert.Equal(t, expectedJobAfterSubmit, job)
 
 		// If a row is bad then we should update only the good rows
-		db.Exec(ctx.Background(), "DELETE FROM jobs")
+		_, err := db.Exec(ctx.Background(), "DELETE FROM jobs")
+		assert.NoError(t, err)
 		invalidJob := &model.CreateJobInstruction{
 			JobId: invalidId,
 		}
@@ -336,7 +337,8 @@ func TestCreateJobRunsBatch(t *testing.T) {
 		assert.Equal(t, expectedJobRun, job)
 
 		// If a row is bad then we should return an error and no updates should happen
-		db.Exec(ctx.Background(), "DELETE FROM job_run")
+		_, err = db.Exec(ctx.Background(), "DELETE FROM job_run")
+		assert.NoError(t, err)
 		invalidRun := &model.CreateJobRunInstruction{
 			RunId: invalidId,
 		}
@@ -366,7 +368,8 @@ func TestCreateJobRunsScalar(t *testing.T) {
 		assert.Equal(t, expectedJobRun, job)
 
 		// If a row is bad then we create rows that can be created
-		db.Exec(ctx.Background(), "DELETE FROM job_run")
+		_, err = db.Exec(ctx.Background(), "DELETE FROM job_run")
+		assert.NoError(t, err)
 		invalidRun := &model.CreateJobRunInstruction{
 			RunId: invalidId,
 		}
@@ -475,7 +478,8 @@ func TestCreateUserAnnotationsBatch(t *testing.T) {
 		assert.Equal(t, expectedUserAnnotation, annotation)
 
 		// If a row is bad then we should return an error and no updates should happen
-		db.Exec(ctx.Background(), "DELETE FROM user_annotation_lookup")
+		_, err = db.Exec(ctx.Background(), "DELETE FROM user_annotation_lookup")
+		assert.NoError(t, err)
 		invalidAnnotation := &model.CreateUserAnnotationInstruction{
 			JobId: invalidId,
 		}
@@ -517,7 +521,7 @@ func TestCreateUserAnnotationsScalar(t *testing.T) {
 		assert.Equal(t, expectedUserAnnotation, annotation)
 
 		// If a row is bad then we should update the rows we can
-		db.Exec(ctx.Background(), "DELETE FROM user_annotation_lookup")
+		_, err = db.Exec(ctx.Background(), "DELETE FROM user_annotation_lookup")
 		invalidAnnotation := &model.CreateUserAnnotationInstruction{
 			JobId: invalidId,
 		}

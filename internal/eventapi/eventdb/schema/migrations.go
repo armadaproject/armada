@@ -10,7 +10,7 @@ import (
 	"github.com/rakyll/statik/fs"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/G-Research/armada/internal/eventapi/postgres/schema/statik"
+	"github.com/G-Research/armada/internal/eventapi/eventdb/schema/statik"
 )
 
 type migration struct {
