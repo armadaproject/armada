@@ -3,6 +3,7 @@ package instructions
 import (
 	"context"
 	"encoding/json"
+	"github.com/G-Research/armada/internal/common/compress"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
@@ -22,7 +23,7 @@ import (
 
 // Convert takes a channel containing incoming pulsar messages and returns a channel with the corresponding
 // InstructionSets.  Each pulsar message will generate exactly one InstructionSet.
-func Convert(ctx context.Context, msgs chan *model.ConsumerMessage, bufferSize int, compressor Compressor) chan *model.InstructionSet {
+func Convert(ctx context.Context, msgs chan *model.ConsumerMessage, bufferSize int, compressor compress.Compressor) chan *model.InstructionSet {
 	out := make(chan *model.InstructionSet, bufferSize)
 	go func() {
 		for msg := range msgs {
@@ -39,7 +40,7 @@ func Convert(ctx context.Context, msgs chan *model.ConsumerMessage, bufferSize i
 // resulting InstructionSet will contain all events that could be parsed, along with the mesageId of the original message.
 // In the case that no events can be parsed (e.g. the message is not valid protobuf), an empty InstructionSet containing
 // only the messageId will be returned.
-func ConvertMsg(ctx context.Context, msg *model.ConsumerMessage, compressor Compressor) *model.InstructionSet {
+func ConvertMsg(ctx context.Context, msg *model.ConsumerMessage, compressor compress.Compressor) *model.InstructionSet {
 
 	pulsarMsg := msg.Message
 
@@ -52,9 +53,9 @@ func ConvertMsg(ctx context.Context, msg *model.ConsumerMessage, compressor Comp
 	}
 	messageLogger := log.WithFields(logrus.Fields{"messageId": pulsarMsg.ID(), requestid.MetadataKey: requestId})
 	ctxWithLogger := ctxlogrus.ToContext(messageCtx, messageLogger)
-	updateInstructions := &model.InstructionSet{MessageIds: []*model.ConsumerMessageId{{pulsarMsg.ID(), msg.ConsumerId}}}
+	updateInstructions := &model.InstructionSet{MessageIds: []*model.ConsumerMessageId{{pulsarMsg.ID(), 0, msg.ConsumerId}}}
 
-	// It's not a control message-  no instructions needed
+	// It's not a control message-no instructions needed
 	if !armadaevents.IsControlMessage(msg.Message) {
 		return updateInstructions
 	}
@@ -107,7 +108,7 @@ func ConvertMsg(ctx context.Context, msg *model.ConsumerMessage, compressor Comp
 	return updateInstructions
 }
 
-func handleSubmitJob(logger *logrus.Entry, queue string, owner string, jobSet string, ts time.Time, event *armadaevents.SubmitJob, compressor Compressor, update *model.InstructionSet) error {
+func handleSubmitJob(logger *logrus.Entry, queue string, owner string, jobSet string, ts time.Time, event *armadaevents.SubmitJob, compressor compress.Compressor, update *model.InstructionSet) error {
 	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetJobId())
 	if err != nil {
 		return err

@@ -3,48 +3,57 @@ package eventapi
 import (
 	"context"
 	"fmt"
+	"github.com/G-Research/armada/internal/eventapi/eventdb"
+	lru "github.com/hashicorp/golang-lru"
 	"sync"
-
-	"github.com/G-Research/armada/internal/eventapi/postgres"
+	"time"
 )
 
-type JobsetMapper struct {
-	jobsetIds map[string]int64
-	eventDb   *postgres.EventDb
+type JobsetMapper interface {
+	Get(ctx context.Context, queue string, jobset string) (int64, error)
+}
+
+type PostgresJobsetMapper struct {
+	jobsetIds *lru.Cache
+	eventDb   *eventdb.EventDb
 	mutex     sync.Mutex
 }
 
-func NewJobsetMapper(eventDb *postgres.EventDb) (*JobsetMapper, error) {
-	initialJobsets, err := eventDb.GetJobsets(context.Background())
+func NewJobsetMapper(eventDb *eventdb.EventDb, cachesize int, initialiseSince time.Duration) (*PostgresJobsetMapper, error) {
+	initialJobsets, err := eventDb.LoadJobsets(context.Background(), time.Now().UTC().Add(-initialiseSince))
 	if err != nil {
 		return nil, err
 	}
-	jobsetIds := make(map[string]int64, len(initialJobsets))
+	jobsetIds, err := lru.New(cachesize)
+	if err != nil {
+		return nil, err
+	}
 	for _, js := range initialJobsets {
 		key := key(js.Queue, js.Jobset)
-		jobsetIds[key] = js.Id
+		jobsetIds.Add(key, js.JobSetId)
 	}
-	return &JobsetMapper{
+	return &PostgresJobsetMapper{
 		jobsetIds: jobsetIds,
 		eventDb:   eventDb,
 	}, nil
 }
 
-func (j *JobsetMapper) get(ctx context.Context, queue string, jobset string) (int64, error) {
-	j.mutex.Lock()
-	defer j.mutex.Unlock()
+func (j *PostgresJobsetMapper) Get(ctx context.Context, queue string, jobset string) (int64, error) {
 	key := key(queue, jobset)
-	id, ok := j.jobsetIds[key]
-	if !ok {
-		// get from db
-		id, err := j.eventDb.GetOrCreateJobsetId(ctx, queue, jobset)
-		if err != nil {
-			return 0, err
-		}
-		j.jobsetIds[key] = id
+	id, ok := j.jobsetIds.Get(key)
+	if ok {
+		return id.(int64), nil
 	}
-	return id, nil
+
+	// get from db
+	id, err := j.eventDb.GetOrCreateJobsetId(ctx, queue, jobset)
+	if err != nil {
+		return 0, err
+	}
+	j.jobsetIds.Add(key, id)
+	return id.(int64), nil
 }
+
 func key(queue string, jobset string) string {
 	return fmt.Sprintf("%s:%s", queue, jobset)
 }

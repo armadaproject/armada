@@ -283,12 +283,3 @@ service Event {
         };
     }
 }
-
-message Offset{
-    int64 jobsetId = 1;
-    int64 offset = 2;
-}
-
-message Offsets{
-    repeated Offset offsets = 1;
-}

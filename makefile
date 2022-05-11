@@ -292,7 +292,7 @@ proto:
 	docker build $(dockerFlags) --build-arg GOPROXY --build-arg GOPRIVATE --build-arg MAVEN_URL -t armada-proto -f ./build/proto/Dockerfile .
 	docker run --rm -e GOPROXY -e GOPRIVATE -v ${PWD}:/go/src/armada -w /go/src/armada armada-proto ./scripts/proto.sh
 
-	# generate proper swagger types (we are using standard json serializer, GRPC gateway generates protobuf json, which is not compatible)
+#	# generate proper swagger types (we are using standard json serializer, GRPC gateway generates protobuf json, which is not compatible)
 	$(GO_TEST_CMD) swagger generate spec -m -o pkg/api/api.swagger.definitions.json
 
 	# combine swagger definitions
@@ -338,9 +338,9 @@ code-checks: code-reports
 	if [ $(shell cat code_reports/goimports.txt | wc -l) -ne "0" ]; then exit 1; fi
 
 generate:
+#	$(GO_CMD) go run github.com/rakyll/statik \
+#		-dest=internal/lookout/repository/schema/ -src=internal/lookout/repository/schema/ -include=\*.sql -ns=lookout/sql -Z -f -m && \
+#		go run golang.org/x/tools/cmd/goimports -w -local "github.com/G-Research/armada" internal/lookout/repository/schema/statik
 	$(GO_CMD) go run github.com/rakyll/statik \
-		-dest=internal/lookout/repository/schema/ -src=internal/lookout/repository/schema/ -include=\*.sql -ns=lookout/sql -Z -f -m && \
-		go run golang.org/x/tools/cmd/goimports -w -local "github.com/G-Research/armada" internal/lookout/repository/schema/statik
-	$(GO_CMD) go run github.com/rakyll/statik \
-    		-dest=internal/eventapi/postgres/schema/ -src=internal/eventapi/postgres/schema/ -include=\*.sql -ns=eventapi/sql -Z -f -m && \
-    		go run golang.org/x/tools/cmd/goimports -w -local "github.com/G-Research/armada" internal/eventapi/postgres/schema/statik
+    		-dest=internal/eventapi/postgres/schema/ -src=internal/eventapi/eventdb/schema/ -include=\*.sql -ns=eventapi/sql -Z -f -m && \
+    		go run golang.org/x/tools/cmd/goimports -w -local "github.com/G-Research/armada" internal/eventapi/eventdb/schema/statik

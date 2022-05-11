@@ -3,6 +3,9 @@ package armadaevents;
 
 import "k8s.io/api/core/v1/generated.proto";
 import "k8s.io/api/networking/v1/generated.proto";
+import "google/protobuf/timestamp.proto";
+import "k8s.io/apimachinery/pkg/api/resource/generated.proto";
+import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 
 // Armada state transition model
 //
@@ -417,4 +420,35 @@ message MaxRunsExceeded {
 message JobDuplicateDetected {
     Uuid new_job_id = 1;
     Uuid old_job_id = 2;
+}
+
+message Offset{
+    int64 jobsetId = 1;
+    int64 offset = 2;
+}
+
+message Offsets{
+    repeated Offset offsets = 1;
+}
+
+message JobUtilisationEvent {
+    string job_id = 1;
+    string job_set_id = 2;
+    string queue = 3;
+    google.protobuf.Timestamp created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+    string cluster_id = 5;
+    string kubernetes_id = 6;
+    map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> MaxResourcesForPeriod = 7 [(gogoproto.nullable) = false];
+    string node_name = 8;
+    int32 pod_number = 9;
+    string pod_name = 10;
+    string pod_namespace = 11;
+    map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> total_cumulative_usage = 12 [(gogoproto.nullable) = false];
+}
+
+message DatabaseEvent{
+    oneof event {
+        EventSequence eventSequence = 1;
+        JobUtilisationEvent jobUtilisation = 2;
+    }
 }
