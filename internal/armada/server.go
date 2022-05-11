@@ -28,7 +28,6 @@ import (
 	"github.com/G-Research/armada/internal/common/health"
 	"github.com/G-Research/armada/internal/common/task"
 	"github.com/G-Research/armada/internal/common/util"
-	executorconfig "github.com/G-Research/armada/internal/executor/configuration"
 	"github.com/G-Research/armada/internal/lookout/postgres"
 	"github.com/G-Research/armada/internal/pgkeyvalue"
 	"github.com/G-Research/armada/internal/pulsarutils"
@@ -193,11 +192,6 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 			QueueRepository: queueRepository,
 			Permissions:     permissions,
 			SubmitServer:    submitServer,
-			IngressConfig: &executorconfig.IngressConfiguration{
-				HostnameSuffix: config.Pulsar.HostnameSuffix,
-				CertNameSuffix: config.Pulsar.CertNameSuffix,
-				Annotations:    config.Pulsar.Annotations,
-			},
 		}
 		submitServerToRegister = pulsarSubmitServer
 
