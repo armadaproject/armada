@@ -38,7 +38,7 @@ commands:
             HELM_PLATFORM="linux-amd64"
 
             # Create local bin directory for later convenience
-            mkdir /home/circleci/bin/
+            mkdir -p /home/circleci/bin/
             echo 'export PATH=/home/circleci/bin/:$PATH' >> $BASH_ENV
             source $BASH_ENV
 
@@ -100,10 +100,11 @@ commands:
           cd charts
           git checkout -b circlci-armada_$RELEASE_TAG
           git add ./armada
-          git -c user.name='GR OSS' -c user.email=github@gr-oss.io commit -qam "Pushing new helm charts at version $RELEASE_TAG"
-          eval "$(ssh-agent -s)"
-          echo -e "$ARMADA_CHART_UPDATE_KEY" | ssh-add - > /dev/null
-          git push -q origin HEAD
+          git status
+          # git -c user.name='GR OSS' -c user.email=github@gr-oss.io commit -qam "Pushing new helm charts at version $RELEASE_TAG"
+          # eval "$(ssh-agent -s)"
+          # echo -e "$ARMADA_CHART_UPDATE_KEY" | ssh-add - > /dev/null
+          # git push -q origin HEAD
 
 jobs:
   checks_and_unit_tests:
@@ -269,6 +270,26 @@ jobs:
 
             docker tag armadactl gresearchdev/armada-armadactl-dev:${TAG}
             docker push gresearchdev/armada-armadactl-dev:${TAG}
+  
+  test-release:
+    machine:
+      docker_layer_caching: true
+      image: ubuntu-2004:202104-01
+      resource_class: xlarge
+    environment:
+      GO111MODULE: "on"
+      GOPATH: "/home/circleci/go"
+      GOCACHE: "/home/circleci/go/cache"
+    working_directory: ~/go/src/github.com/G-Research/armada
+    steps:
+      - checkout
+      
+      - install-helm-client
+
+      - checkout-charts
+
+      - update-charts
+      
 
   release:
     machine:
@@ -368,6 +389,7 @@ workflows:
     jobs:
       -  build_and_integration_tests
       -  checks_and_unit_tests
+      -  test-release
       - release:
           filters:
             tags:
