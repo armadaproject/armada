@@ -238,11 +238,7 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 		pulsarComponents = append(pulsarComponents, consumer)
 
 		submitFromLog := server.SubmitFromLog{
-			ConsumerOptions: &pulsar.ConsumerOptions{
-				Topic:            config.Pulsar.JobsetEventsTopic,
-				SubscriptionName: config.Pulsar.RedisFromPulsarSubscription,
-				Type:             pulsar.KeyShared,
-			},
+			Consumer:     consumer,
 			SubmitServer: submitServer,
 		}
 		go submitFromLog.Run(pulsarContext)
