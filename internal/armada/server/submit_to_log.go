@@ -20,7 +20,7 @@ import (
 	"github.com/G-Research/armada/internal/common/auth/permission"
 	"github.com/G-Research/armada/internal/common/eventutil"
 	"github.com/G-Research/armada/internal/common/requestid"
-	executorconfig "github.com/G-Research/armada/internal/executor/configuration"
+	"github.com/G-Research/armada/internal/executor/configuration"
 	"github.com/G-Research/armada/internal/pgkeyvalue"
 	"github.com/G-Research/armada/internal/pulsarutils/pulsarrequestid"
 	"github.com/G-Research/armada/pkg/api"
@@ -42,9 +42,8 @@ type PulsarSubmitServer struct {
 	QueueRepository repository.QueueRepository
 	// Fall back to the legacy submit server for queue administration endpoints.
 	SubmitServer *SubmitServer
-	// Used to create k8s objects from the submitted ingresses and services.
-	IngressConfig *executorconfig.IngressConfiguration
-	KVStore       *pgkeyvalue.PGKeyValueStore
+	// Used for job submission deduplication.
+	KVStore *pgkeyvalue.PGKeyValueStore
 }
 
 // TODO: Add input validation to make sure messages can be inserted to the database.
@@ -181,7 +180,11 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 		// Users submit API-specific service and ingress objects.
 		// However, the log only accepts proper k8s objects.
 		// Hence, the API-specific objects must be converted to proper k8s objects.
-		err = eventutil.PopulateK8sServicesIngresses(apiJob, srv.IngressConfig)
+		//
+		// We use an empty ingress config here.
+		// The executor applies executor-specific information later.
+		// We only need this here because we're re-using code that was previously called by the executor.
+		err = eventutil.PopulateK8sServicesIngresses(apiJob, &configuration.IngressConfiguration{})
 		if err != nil {
 			return nil, err
 		}
