@@ -59,6 +59,7 @@ func (srv *EventsPrinter) Run(ctx context.Context) {
 	if err != nil {
 		panic(err)
 	}
+	defer consumer.Close()
 
 	// Run until ctx is cancelled.
 	for {
