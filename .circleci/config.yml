@@ -78,7 +78,7 @@ commands:
     - run:
         name: Update version, appVersion and image tag to match current $RELEASE_TAG
         command: |
-          RELEASE_TAG=${CIRCLE_TAG}
+          export RELEASE_TAG=TEST
           echo release version is $RELEASE_TAG
           find . \( -name "Chart.yaml" -o -name "values.yaml" \) -exec sed -i s/LATEST/$RELEASE_TAG/ {} +
 
@@ -96,7 +96,7 @@ commands:
     - run:
         name: Commit and push updated charts
         command: |
-          RELEASE_TAG=${CIRCLE_TAG}
+          export RELEASE_TAG=TEST
           cd charts
           git checkout -b circlci-armada_$RELEASE_TAG
           git add ./armada
