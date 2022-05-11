@@ -20,7 +20,7 @@ import (
 	"github.com/G-Research/armada/internal/common/auth/permission"
 	"github.com/G-Research/armada/internal/common/eventutil"
 	"github.com/G-Research/armada/internal/common/requestid"
-	executorconfig "github.com/G-Research/armada/internal/executor/configuration"
+	"github.com/G-Research/armada/internal/executor/configuration"
 	"github.com/G-Research/armada/internal/pgkeyvalue"
 	"github.com/G-Research/armada/internal/pulsarutils/pulsarrequestid"
 	"github.com/G-Research/armada/pkg/api"
@@ -42,9 +42,8 @@ type PulsarSubmitServer struct {
 	QueueRepository repository.QueueRepository
 	// Fall back to the legacy submit server for queue administration endpoints.
 	SubmitServer *SubmitServer
-	// Used to create k8s objects from the submitted ingresses and services.
-	IngressConfig *executorconfig.IngressConfiguration
-	KVStore       *pgkeyvalue.PGKeyValueStore
+	// Used for job submission deduplication.
+	KVStore *pgkeyvalue.PGKeyValueStore
 }
 
 // TODO: Add input validation to make sure messages can be inserted to the database.
@@ -181,7 +180,11 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 		// Users submit API-specific service and ingress objects.
 		// However, the log only accepts proper k8s objects.
 		// Hence, the API-specific objects must be converted to proper k8s objects.
-		err = eventutil.PopulateK8sServicesIngresses(apiJob, srv.IngressConfig)
+		//
+		// We use an empty ingress config here.
+		// The executor applies executor-specific information later.
+		// We only need this here because we're re-using code that was previously called by the executor.
+		err = eventutil.PopulateK8sServicesIngresses(apiJob, &configuration.IngressConfiguration{})
 		if err != nil {
 			return nil, err
 		}
@@ -501,42 +504,19 @@ func (srv *PulsarSubmitServer) GetQueueInfo(ctx context.Context, req *api.QueueI
 
 // SubmitApiEvent converts an api.EventMessage into Pulsar state transition messages and publishes those to Pulsar.
 func (srv *PulsarSubmitServer) SubmitApiEvent(ctx context.Context, apiEvent *api.EventMessage) error {
+	sequence, err := PulsarSequenceFromApiEvent(apiEvent)
+	if err != nil {
+		return err
+	}
 
-	// For now, we submit legacy utilisation messages directly to the log.
-	// We include a property in the Pulsar message, which the consumer can use to detect these messages.
-	//
-	// If it's not a utilisation message, we convert the message to a proper log event message.
-	var messageType string
-	var jobSetName string
-	var payload []byte
-	var err error
-	if m, ok := (apiEvent.Events).(*api.EventMessage_Utilisation); ok {
-		payload, err = proto.Marshal(apiEvent)
-		if err != nil {
-			err = errors.WithStack(err)
-			return err
-		}
-		messageType = armadaevents.PULSAR_UTILISATION_MESSAGE
-		jobSetName = m.Utilisation.JobSetId
-	} else {
-		sequence, err := PulsarSequenceFromApiEvent(apiEvent)
-		if err != nil {
-			return err
-		}
+	// If no events were created, exit here.
+	if len(sequence.Events) == 0 {
+		return nil
+	}
 
-		// If no events were created, exit here.
-		if len(sequence.Events) == 0 {
-			return nil
-		}
-
-		payload, err = proto.Marshal(sequence)
-		if err != nil {
-			err = errors.WithStack(err)
-			return err
-		}
-
-		messageType = armadaevents.PULSAR_CONTROL_MESSAGE
-		jobSetName = sequence.JobSetName
+	payload, err := proto.Marshal(sequence)
+	if err != nil {
+		return errors.WithStack(err)
 	}
 
 	// Incoming gRPC requests are annotated with a unique id.
@@ -547,9 +527,9 @@ func (srv *PulsarSubmitServer) SubmitApiEvent(ctx context.Context, apiEvent *api
 		Payload: payload,
 		Properties: map[string]string{
 			requestid.MetadataKey:                     requestId,
-			armadaevents.PULSAR_MESSAGE_TYPE_PROPERTY: messageType,
+			armadaevents.PULSAR_MESSAGE_TYPE_PROPERTY: armadaevents.PULSAR_CONTROL_MESSAGE,
 		},
-		Key: jobSetName,
+		Key: sequence.JobSetName,
 	})
 	if err != nil {
 		err = errors.WithStack(err)
@@ -978,13 +958,44 @@ func PulsarSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.E
 			},
 		})
 	case *api.EventMessage_Utilisation:
-		err = &armadaerrors.ErrInvalidArgument{
-			Name:    "msg",
-			Value:   msg,
-			Message: "utilisation messages should be handled by the caller of this function",
+		sequence.Queue = m.Utilisation.Queue
+		sequence.JobSetName = m.Utilisation.JobSetId
+
+		jobId, err := armadaevents.ProtoUuidFromUlidString(m.Utilisation.JobId)
+		if err != nil {
+			return nil, err
 		}
-		err = errors.WithStack(err)
-		return nil, err
+
+		runId, err := armadaevents.ProtoUuidFromUuidString(m.Utilisation.KubernetesId)
+		if err != nil {
+			return nil, err
+		}
+
+		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
+			Created: &m.Utilisation.Created,
+			Event: &armadaevents.EventSequence_Event_ResourceUtilisation{
+				ResourceUtilisation: &armadaevents.ResourceUtilisation{
+					RunId: runId,
+					JobId: jobId,
+					ResourceInfo: &armadaevents.KubernetesResourceInfo{
+						ObjectMeta: &armadaevents.ObjectMeta{
+							ExecutorId:   m.Utilisation.ClusterId,
+							KubernetesId: m.Utilisation.KubernetesId,
+							Namespace:    m.Utilisation.PodNamespace,
+							Name:         m.Utilisation.PodName,
+						},
+						Info: &armadaevents.KubernetesResourceInfo_PodInfo{
+							PodInfo: &armadaevents.PodInfo{
+								NodeName:  m.Utilisation.NodeName,
+								PodNumber: m.Utilisation.PodNumber,
+							},
+						},
+					},
+					MaxResourcesForPeriod: m.Utilisation.MaxResourcesForPeriod,
+					TotalCumulativeUsage:  m.Utilisation.TotalCumulativeUsage,
+				},
+			},
+		})
 	case *api.EventMessage_IngressInfo:
 		// Later, ingress info should be bundled with the JobRunRunning message.
 		// For now, we create a special message that exists only for compatibility with the legacy messages.

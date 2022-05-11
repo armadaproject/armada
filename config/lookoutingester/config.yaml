@@ -14,7 +14,7 @@ postgres:
 pulsar:
   enabled: true
   URL: "pulsar://localhost:6650"
-  jobsetEventsTopic: "jobset-events"
+  jobsetEventsTopic: "persistent://armada/armada/events"
 
 paralellism: 1
 subscriptionName: "lookout-ingester"
