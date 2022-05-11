@@ -315,6 +315,10 @@ func K8sServicesIngressesFromApiJob(job *api.Job, ingressConfig *configuration.I
 		domain.AssociatedIngressesCount: fmt.Sprintf("%d", len(job.Ingress)),
 	})
 
+	// We use an empty ingress config here.
+	// The executor applies executor-specific information later.
+	ingressConfig = &configuration.IngressConfiguration{}
+
 	// Create k8s objects from the data embedded in the request.
 	// GenerateIngresses expects a job object and a pod because it looks into those for optimisations.
 	// For example, it deletes services/ingresses for which there are no corresponding ports exposed in the PodSpec.
