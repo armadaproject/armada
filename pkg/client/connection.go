@@ -85,7 +85,6 @@ func perRpcCredentials(config *ApiConnectionDetails) (credentials.PerRPCCredenti
 
 	} else if config.OpenIdKubernetesAuth.ProviderUrl != "" {
 		return oidc.AuthenticateKubernetes(config.OpenIdKubernetesAuth)
-		
 	} else if config.KerberosAuth.Enabled {
 		return kerberos.NewSPNEGOCredentials(config.ArmadaUrl, config.KerberosAuth)
 	} else if config.ExecAuth.Cmd != "" {
