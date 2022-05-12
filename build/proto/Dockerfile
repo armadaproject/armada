@@ -100,4 +100,10 @@ RUN powershell_version=7.0.1 \
     # To reduce image size, remove the copy nupkg that nuget keeps.
     && find /usr/share/powershell -print | grep -i '.*[.]nupkg$' | xargs rm
 
+
+# Install python3 and grpcio-tools
+RUN apt-get update \
+    && apt-get install -y python3-pip \
+    && pip3 -vv install grpcio grpcio-tools
+
 ENTRYPOINT ["/bin/bash"]
