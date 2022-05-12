@@ -20,7 +20,7 @@ type migration struct {
 }
 
 func UpdateDatabase(db *sql.DB) error {
-	log.Info("Updating postgres...")
+	log.Info("Updating database...")
 	version, err := readVersion(db)
 	if err != nil {
 		return err

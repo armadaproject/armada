@@ -40,7 +40,7 @@ func NewRedisUsageRepository(db redis.UniversalClient) *RedisUsageRepository {
 func (r *RedisUsageRepository) GetClusterUsageReports() (map[string]*api.ClusterUsageReport, error) {
 	result, err := r.db.HGetAll(clusterReportKey).Result()
 	if err != nil {
-		return nil, fmt.Errorf("[RedisUsageRepository.GetClusterUsageReports] error reading from postgres: %s", err)
+		return nil, fmt.Errorf("[RedisUsageRepository.GetClusterUsageReports] error reading from database: %s", err)
 	}
 	reports := make(map[string]*api.ClusterUsageReport)
 
@@ -58,7 +58,7 @@ func (r *RedisUsageRepository) GetClusterUsageReports() (map[string]*api.Cluster
 func (r *RedisUsageRepository) GetClusterLeasedReports() (map[string]*api.ClusterLeasedReport, error) {
 	result, err := r.db.HGetAll(clusterLeasedReportKey).Result()
 	if err != nil {
-		return nil, fmt.Errorf("[RedisUsageRepository.GetClusterLeasedReports] error reading from postgres: %s", err)
+		return nil, fmt.Errorf("[RedisUsageRepository.GetClusterLeasedReports] error reading from database: %s", err)
 	}
 	reports := make(map[string]*api.ClusterLeasedReport)
 
@@ -76,7 +76,7 @@ func (r *RedisUsageRepository) GetClusterLeasedReports() (map[string]*api.Cluste
 func (r *RedisUsageRepository) GetClusterPriority(clusterId string) (map[string]float64, error) {
 	result, err := r.db.HGetAll(clusterPrioritiesPrefix + clusterId).Result()
 	if err != nil {
-		return nil, fmt.Errorf("[RedisUsageRepository.GetClusterPriority] error reading from postgres: %s", err)
+		return nil, fmt.Errorf("[RedisUsageRepository.GetClusterPriority] error reading from database: %s", err)
 	}
 
 	rv, err := toFloat64Map(result)
@@ -88,7 +88,7 @@ func (r *RedisUsageRepository) GetClusterPriority(clusterId string) (map[string]
 }
 
 // GetClusterPriorities returns a map from clusterId to clusterPriority.
-// This method makes a single aggregated call to the postgres, making this method more efficient
+// This method makes a single aggregated call to the database, making this method more efficient
 // than calling GetClusterPriority repeatredly.
 func (r *RedisUsageRepository) GetClusterPriorities(clusterIds []string) (map[string]map[string]float64, error) {
 	pipe := r.db.Pipeline()
@@ -97,7 +97,7 @@ func (r *RedisUsageRepository) GetClusterPriorities(clusterIds []string) (map[st
 		cmds[id] = pipe.HGetAll(clusterPrioritiesPrefix + id)
 		err := cmds[id].Err()
 		if err != nil {
-			return nil, fmt.Errorf("[RedisUsageRepository.GetClusterPriorities] error reading from postgres: %s", err)
+			return nil, fmt.Errorf("[RedisUsageRepository.GetClusterPriorities] error reading from database: %s", err)
 		}
 	}
 
@@ -105,7 +105,7 @@ func (r *RedisUsageRepository) GetClusterPriorities(clusterIds []string) (map[st
 	// i.e., commands executed after the erroring command may have also returned an error.
 	_, err := pipe.Exec()
 	if err != nil {
-		return nil, fmt.Errorf("[RedisUsageRepository.GetClusterPriorities] error performing pipelined read from postgres: %s", err)
+		return nil, fmt.Errorf("[RedisUsageRepository.GetClusterPriorities] error performing pipelined read from database: %s", err)
 	}
 
 	clusterPriorities := make(map[string]map[string]float64)
@@ -138,7 +138,7 @@ func (r *RedisUsageRepository) UpdateCluster(report *api.ClusterUsageReport, pri
 
 	_, err = pipe.Exec()
 	if err != nil {
-		return fmt.Errorf("[RedisUsageRepository.UpdateCluster] error performing pipelined writes to postgres: %s", err)
+		return fmt.Errorf("[RedisUsageRepository.UpdateCluster] error performing pipelined writes to database: %s", err)
 	}
 
 	return nil
@@ -153,7 +153,7 @@ func (r *RedisUsageRepository) UpdateClusterLeased(report *api.ClusterLeasedRepo
 
 	_, err = r.db.HSet(clusterLeasedReportKey, report.ClusterId, data).Result()
 	if err != nil {
-		return fmt.Errorf("[RedisUsageRepository.UpdateClusterLeased] error writing to postgres: %s", err)
+		return fmt.Errorf("[RedisUsageRepository.UpdateClusterLeased] error writing to database: %s", err)
 	}
 
 	return err

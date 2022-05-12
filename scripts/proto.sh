@@ -15,7 +15,6 @@ pkg/api/*.proto
 protoc \
 --proto_path=. \
 --proto_path=/proto \
---proto_path=pkg/api \
 --gogofaster_out=$TYPES:./ \
 pkg/armadaevents/*.proto
 

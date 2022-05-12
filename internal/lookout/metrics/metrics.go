@@ -8,14 +8,14 @@ const MetricPrefix = "lookout_"
 
 var dbOpenConnectionsDesc = prometheus.NewDesc(
 	MetricPrefix+"db_open_connections_total",
-	"Number of open connections to postgres",
+	"Number of open connections to database",
 	nil,
 	nil,
 )
 
 var dbOpenConnectionsUtilizationDesc = prometheus.NewDesc(
 	MetricPrefix+"db_open_connections_utilization",
-	"Percentage of connections used over total allowed connections to postgres",
+	"Percentage of connections used over total allowed connections to database",
 	nil,
 	nil,
 )

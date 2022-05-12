@@ -108,7 +108,7 @@ func (repo *RedisEventRepository) ReadEvents(queue, jobSetId string, lastId stri
 	if err == redis.Nil {
 		return make([]*api.EventStreamMessage, 0), nil
 	} else if err != nil {
-		return nil, fmt.Errorf("[RedisEventRepository.ReadEvents] error reading from postgres: %s", err)
+		return nil, fmt.Errorf("[RedisEventRepository.ReadEvents] error reading from database: %s", err)
 	}
 
 	messages := make([]*api.EventStreamMessage, 0)
@@ -128,7 +128,7 @@ func (repo *RedisEventRepository) ReadEvents(queue, jobSetId string, lastId stri
 func (repo *RedisEventRepository) GetLastMessageId(queue, jobSetId string) (string, error) {
 	msg, err := repo.db.XRevRangeN(getJobSetEventsKey(queue, jobSetId), "+", "-", 1).Result()
 	if err != nil {
-		return "", fmt.Errorf("[RedisEventRepository.GetLastMessageId] error reading from postgres: %s", err)
+		return "", fmt.Errorf("[RedisEventRepository.GetLastMessageId] error reading from database: %s", err)
 	}
 	if len(msg) > 0 {
 		return msg[0].ID, nil
