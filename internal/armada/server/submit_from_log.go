@@ -131,6 +131,7 @@ func (srv *SubmitFromLog) Run(ctx context.Context) {
 			// Unmarshal and validate the message.
 			sequence, err := eventutil.UnmarshalEventSequence(ctxWithLogger, msg.Payload())
 			if err != nil {
+				srv.Consumer.Ack(msg)
 				logging.WithStacktrace(messageLogger, err).Warnf("processing message failed; ignoring")
 				numErrored++
 				break
