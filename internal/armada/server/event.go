@@ -158,7 +158,7 @@ func validateUserHasWatchPermissions(ctx context.Context, permsChecker authoriza
 	err := checkPermission(permsChecker, ctx, permissions.WatchAllEvents)
 	var globalPermErr *ErrNoPermission
 	if errors.As(err, &globalPermErr) {
-		err = CheckQueuePermission(permsChecker, ctx, q, permissions.WatchEvents, queue.PermissionVerbWatch)
+		err = checkQueuePermission(permsChecker, ctx, q, permissions.WatchEvents, queue.PermissionVerbWatch)
 		var queuePermErr *ErrNoPermission
 		if errors.As(err, &queuePermErr) {
 			return status.Errorf(codes.PermissionDenied, "error getting events for queue: %s, job set: %s: %s",

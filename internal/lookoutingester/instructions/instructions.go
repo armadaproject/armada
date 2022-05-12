@@ -3,6 +3,7 @@ package instructions
 import (
 	"context"
 	"encoding/json"
+	"github.com/G-Research/armada/internal/pulsarutils"
 	"time"
 
 	"github.com/G-Research/armada/internal/common/compress"
@@ -24,7 +25,7 @@ import (
 
 // Convert takes a channel containing incoming pulsar messages and returns a channel with the corresponding
 // InstructionSets.  Each pulsar message will generate exactly one InstructionSet.
-func Convert(ctx context.Context, msgs chan *model.ConsumerMessage, bufferSize int, compressor compress.Compressor) chan *model.InstructionSet {
+func Convert(ctx context.Context, msgs chan *pulsarutils.ConsumerMessage, bufferSize int, compressor compress.Compressor) chan *model.InstructionSet {
 	out := make(chan *model.InstructionSet, bufferSize)
 	go func() {
 		for msg := range msgs {
@@ -41,7 +42,7 @@ func Convert(ctx context.Context, msgs chan *model.ConsumerMessage, bufferSize i
 // resulting InstructionSet will contain all events that could be parsed, along with the mesageId of the original message.
 // In the case that no events can be parsed (e.g. the message is not valid protobuf), an empty InstructionSet containing
 // only the messageId will be returned.
-func ConvertMsg(ctx context.Context, msg *model.ConsumerMessage, compressor compress.Compressor) *model.InstructionSet {
+func ConvertMsg(ctx context.Context, msg *pulsarutils.ConsumerMessage, compressor compress.Compressor) *model.InstructionSet {
 
 	pulsarMsg := msg.Message
 
@@ -54,7 +55,11 @@ func ConvertMsg(ctx context.Context, msg *model.ConsumerMessage, compressor comp
 	}
 	messageLogger := log.WithFields(logrus.Fields{"messageId": pulsarMsg.ID(), requestid.MetadataKey: requestId})
 	ctxWithLogger := ctxlogrus.ToContext(messageCtx, messageLogger)
-	updateInstructions := &model.InstructionSet{MessageIds: []*model.ConsumerMessageId{{pulsarMsg.ID(), 0, msg.ConsumerId}}}
+	updateInstructions := &model.InstructionSet{
+		MessageIds: []*pulsarutils.ConsumerMessageId{
+			{pulsarMsg.ID(), 0, msg.ConsumerId},
+		},
+	}
 
 	// It's not a control message-no instructions needed
 	if !armadaevents.IsControlMessage(msg.Message) {

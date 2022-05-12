@@ -313,7 +313,7 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 		}
 
 		subscriptionManager := serving.NewSubscriptionManager(sequenceManager, eventDb, 10, 1*time.Second, 2*time.Second, 100, 10000, clock.RealClock{})
-		eventApi = serving.PostgresEventApi(jobsetMapper, subscriptionManager, sequenceManager)
+		eventApi = serving.NewEventApi(jobsetMapper, subscriptionManager, sequenceManager)
 	}
 
 	usageServer := server.NewUsageServer(permissions, config.PriorityHalfTime, &config.Scheduling, usageRepository, queueRepository)
