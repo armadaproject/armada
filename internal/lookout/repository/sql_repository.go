@@ -6,7 +6,6 @@ import (
 
 	"github.com/doug-martin/goqu/v9"
 	_ "github.com/doug-martin/goqu/v9/dialect/postgres"
-	"github.com/lib/pq"
 
 	"github.com/G-Research/armada/pkg/api/lookout"
 )
@@ -16,13 +15,20 @@ import (
 type JobState string
 
 const (
-	JobQueued    JobState = "QUEUED"
-	JobPending   JobState = "PENDING"
-	JobRunning   JobState = "RUNNING"
-	JobSucceeded JobState = "SUCCEEDED"
-	JobFailed    JobState = "FAILED"
-	JobCancelled JobState = "CANCELLED"
-	JobDuplicate JobState = "DUPLICATE"
+	JobQueued           JobState = "QUEUED"
+	JobPending          JobState = "PENDING"
+	JobRunning          JobState = "RUNNING"
+	JobSucceeded        JobState = "SUCCEEDED"
+	JobFailed           JobState = "FAILED"
+	JobCancelled        JobState = "CANCELLED"
+	JobDuplicate        JobState = "DUPLICATE"
+	JobQueuedOrdinal             = 1
+	JobPendingOrdinal            = 2
+	JobRunningOrdinal            = 3
+	JobSucceededOrdinal          = 4
+	JobFailedOrdinal             = 5
+	JobCancelledOrdinal          = 6
+	JobDuplicateOrdinal          = 7
 )
 
 type JobRepository interface {
@@ -80,17 +86,17 @@ type JobRow struct {
 	Owner     sql.NullString  `db:"owner"`
 	JobSet    sql.NullString  `db:"jobset"`
 	Priority  sql.NullFloat64 `db:"priority"`
-	Submitted pq.NullTime     `db:"submitted"`
-	Cancelled pq.NullTime     `db:"cancelled"`
+	Submitted sql.NullTime    `db:"submitted"`
+	Cancelled sql.NullTime    `db:"cancelled"`
 	JobJson   sql.NullString  `db:"job"`
 	State     sql.NullInt64   `db:"state"`
 	RunId     sql.NullString  `db:"run_id"`
 	PodNumber sql.NullInt64   `db:"pod_number"`
 	Cluster   sql.NullString  `db:"cluster"`
 	Node      sql.NullString  `db:"node"`
-	Created   pq.NullTime     `db:"created"`
-	Started   pq.NullTime     `db:"started"`
-	Finished  pq.NullTime     `db:"finished"`
+	Created   sql.NullTime    `db:"created"`
+	Started   sql.NullTime    `db:"started"`
+	Finished  sql.NullTime    `db:"finished"`
 	Succeeded sql.NullBool    `db:"succeeded"`
 	Error     sql.NullString  `db:"error"`
 }
@@ -106,23 +112,23 @@ var AllJobStates = []JobState{
 }
 
 var JobStateToIntMap = map[JobState]int{
-	JobQueued:    1,
-	JobPending:   2,
-	JobRunning:   3,
-	JobSucceeded: 4,
-	JobFailed:    5,
-	JobCancelled: 6,
-	JobDuplicate: 7,
+	JobQueued:    JobQueuedOrdinal,
+	JobPending:   JobPendingOrdinal,
+	JobRunning:   JobRunningOrdinal,
+	JobSucceeded: JobSucceededOrdinal,
+	JobFailed:    JobFailedOrdinal,
+	JobCancelled: JobCancelledOrdinal,
+	JobDuplicate: JobDuplicateOrdinal,
 }
 
 var IntToJobStateMap = map[int]JobState{
-	1: JobQueued,
-	2: JobPending,
-	3: JobRunning,
-	4: JobSucceeded,
-	5: JobFailed,
-	6: JobCancelled,
-	7: JobDuplicate,
+	JobQueuedOrdinal:    JobQueued,
+	JobPendingOrdinal:   JobPending,
+	JobRunningOrdinal:   JobRunning,
+	JobSucceededOrdinal: JobSucceeded,
+	JobFailedOrdinal:    JobFailed,
+	JobCancelledOrdinal: JobCancelled,
+	JobDuplicateOrdinal: JobDuplicate,
 }
 
 var defaultQueryStates = []JobState{

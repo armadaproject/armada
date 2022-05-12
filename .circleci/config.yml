@@ -73,9 +73,9 @@ commands:
 
   update-charts:
     description: |
-      Update Armada charts in the common G-Research charts repo 
+      Update Armada charts in the common G-Research charts repo
     steps:
-    - run:      
+    - run:
         name: Update version, appVersion and image tag to match current $RELEASE_TAG
         command: |
           RELEASE_TAG=${CIRCLE_TAG}
@@ -106,10 +106,11 @@ commands:
           git push -q origin HEAD
 
 jobs:
-  code_style:
+  checks_and_unit_tests:
     machine:
-      docker_layer_caching: false
+      docker_layer_caching: true
       image: ubuntu-2004:202104-01
+      resource_class: xlarge
     environment:
       GO111MODULE: "on"
       GOPATH: "/home/circleci/go"
@@ -118,25 +119,40 @@ jobs:
     steps:
       - checkout
 
-      - run:
-          name: Check Go formatting
-          command: |
-            go install golang.org/x/tools/cmd/goimports@v0.1.1
-            if [ $? -ne 0 ]
-            then
-              echo "goimports installation failed" >&2
-              exit 1
-            fi
-            goimports -d -local "github.com/G-Research/armada" .
-            exit $(goimports -l -local "github.com/G-Research/armada" . | wc -l)
+      - restore_cache: # restores saved cache if no changes are detected since last run
+          keys:
+            - go-mod-v3-{{ checksum "go.sum" }}
 
       - run:
-          name: ineffassign
+          name: Print GOPATH
+          command: echo '$(go env GOPATH)'
+
+      - run:
+          name: Download dependencies
           command: |
-            cd /tmp
-            go get -u github.com/gordonklaus/ineffassign
-            cd ~/go/src/github.com/G-Research/armada
-            ineffassign ./...
+            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+            chmod +x kubectl
+            mv kubectl /home/circleci/bin/
+            make download # no-op if we restored from cache
+
+      - save_cache: # if we downloaded new dependencies, cache those
+          key: go-mod-v3-{{ checksum "go.sum" }}
+          paths:
+            - "/home/circleci/go/pkg/mod"
+            - "/home/circleci/go/bin"
+
+      - run:
+          name: Check Go formatting
+          command: make code-checks
+
+      - run:
+          name: Check generated files
+          command: |
+            make proto
+            make dotnet
+            git status -s -uno
+            git --no-pager diff
+            exit $(git status -s -uno | wc -l)
 
       - run:
           name: Check TypeScript formatting
@@ -145,48 +161,25 @@ jobs:
             npm ci
             npm run fmt
             git status -s -uno
-            exit $(git status -s -uno | wc -l)
-
-      - run:
-          name: Check generated files
-          command: |
-            make proto
-            git status -s -uno
             git --no-pager diff
-            git status -s -uno
             exit $(git status -s -uno | wc -l)
 
-  test:
-    machine:
-      docker_layer_caching: false
-      image: ubuntu-2004:202104-01
-    environment:
-      GO111MODULE: "on"
-      GOPATH: "/home/circleci/go"
-      GOCACHE: "/home/circleci/go/cache"
-    working_directory: ~/go/src/github.com/G-Research/armada
-    steps:
-      - checkout
-      - restore_cache:
-          keys:
-            - machine-go-mod-v1-tests-{{ checksum "go.sum" }}
-
       - run:
-          name: Test
+          name: Tests
           command: make tests
 
-      - run: cat go.sum
+      - run:
+          name: Prepare reports
+          command: make junit-report
 
-      - save_cache:
-          key: machine-go-mod-v1-tests-{{ checksum "go.sum" }}
-          paths:
-            - "/home/circleci/go/pkg/mod"
-            - "/home/circleci/go/cache"
+      - store_test_results:
+          path: test_reports/junit.xml
 
-  build:
+  build_and_integration_tests:
     machine:
-      docker_layer_caching: false
+      docker_layer_caching: true
       image: ubuntu-2004:202104-01
+      resource_class: xlarge
     environment:
       GO111MODULE: "on"
       GOPATH: "/home/circleci/go"
@@ -194,26 +187,38 @@ jobs:
     working_directory: ~/go/src/github.com/G-Research/armada
     steps:
       - checkout
-      - run: e2e/setup/setup_environment.sh
-      - run:
-          name: Start cluster for e2e tests
-          command: ./e2e/setup/setup_cluster_ci.sh
 
-      - restore_cache:
+      - restore_cache: # restore dependencies
           keys:
-            - machine-go-mod-v1-{{ checksum "go.sum" }}
+            - go-mod-v3-{{ checksum "go.sum" }}
 
       - run:
-          name: Build & Run e2e tests
-          command: make build-ci tests-e2e
+          name: Download dependencies
+          command: |
+            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+            chmod +x kubectl
+            mv kubectl /home/circleci/bin/
+            make download # no-op if we restored from cache
 
-      - run: cat go.sum
+      - run:
+          name: Build
+          command: make build-ci
 
-      - save_cache:
-          key: machine-go-mod-v1-{{ checksum "go.sum" }}
-          paths:
-            - "/home/circleci/go/pkg/mod"
-            - "/home/circleci/go/cache"
+      - run:
+          name: e2e test environment setup
+          command: make tests-e2e-setup
+
+      - run:
+          name: Enable integration tests
+          command: echo 'export INTEGRATION_ENABLED="true"' >> $BASH_ENV
+
+      - run:
+          name: e2e tests
+          command: make tests-e2e-no-setup
+
+      - run:
+          name: e2e test environment teardown
+          command: make tests-e2e-teardown
 
       - store_artifacts:
           path: bin/armadactl
@@ -256,25 +261,46 @@ jobs:
             docker tag armada-lookout gresearchdev/armada-lookout-dev:${TAG}
             docker push gresearchdev/armada-lookout-dev:${TAG}
 
+            docker tag armada-lookout-ingester gresearchdev/armada-lookout-ingester-dev:${TAG}
+            docker push gresearchdev/armada-lookout-ingester-dev:${TAG}
+
             docker tag armada-binoculars gresearchdev/armada-binoculars-dev:${TAG}
             docker push gresearchdev/armada-binoculars-dev:${TAG}
 
+            docker tag armadactl gresearchdev/armada-armadactl-dev:${TAG}
+            docker push gresearchdev/armada-armadactl-dev:${TAG}
+
   release:
-    docker:
-      - image: cimg/go:1.16.2
-        environment:
-          GO111MODULE: "on"
+    machine:
+      docker_layer_caching: true
+      image: ubuntu-2004:202104-01
+      resource_class: xlarge
+    environment:
+      GO111MODULE: "on"
+      GOPATH: "/home/circleci/go"
+      GOCACHE: "/home/circleci/go/cache"
     working_directory: ~/go/src/github.com/G-Research/armada
     steps:
       - checkout
-      - setup_remote_docker
+
+      - restore_cache: # restore dependencies
+          keys:
+            - go-mod-v3-{{ checksum "go.sum" }}
+
+      - run:
+          name: Download dependencies
+          command: |
+            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+            chmod +x kubectl
+            sudo mv kubectl /usr/local/bin/
+            make download # no-op if we restored from cache
 
       - run:
           name: Build armadactl release artifacts
           command: make build-armadactl-release RELEASE_VERSION=${CIRCLE_TAG}
 
       - store_artifacts:
-          path: dist/*
+          path: dist
 
       - run:
           name: Upload artifacts to Github release
@@ -325,7 +351,7 @@ jobs:
     working_directory: /go/src/github.com/G-Research/armada
     steps:
       - checkout
-
+      
       - run:
           name: Release dotnet client
           command: |
@@ -334,15 +360,14 @@ jobs:
             dotnet nuget push ./bin/client/DotNet/G-Research.Armada.Client.${RELEASE_TAG}.nupkg -k ${NUGET_API_KEY} -s https://api.nuget.org/v3/index.json
 
       - store_artifacts:
-          path: bin/client/DotNet/*
+          path: bin/client/DotNet
 
 workflows:
   version: 2
   build_and_deploy:
     jobs:
-      - code_style
-      - test
-      - build
+      -  build_and_integration_tests
+      -  checks_and_unit_tests
       - release:
           filters:
             tags:
@@ -355,4 +380,3 @@ workflows:
               only: /.*/
             branches:
               ignore: /.*/
-

@@ -135,7 +135,7 @@ EXECUTOR_1_IP=$(kubectl get nodes quickstart-armada-executor-1-worker -o jsonpat
 kind export kubeconfig --name=quickstart-armada-server
 
 # Install postgres
-helm install postgres bitnami/postgresql --set postgresqlPassword=psw
+helm install postgres bitnami/postgresql --set auth.postgresPassword=psw
 
 # Run database migration
 helm install lookout-migration gresearch/armada-lookout-migration -f docs/quickstart/lookout-values.yaml

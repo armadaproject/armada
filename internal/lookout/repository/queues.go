@@ -3,9 +3,7 @@ package repository
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/doug-martin/goqu/v9"
@@ -21,24 +19,60 @@ type countsRow struct {
 	Running uint32 `db:"running"`
 }
 
+type rowsSql struct {
+	Counts         string
+	OldestQueued   string
+	LongestRunning string
+}
+
 func (r *SQLJobRepository) GetQueueInfos(ctx context.Context) ([]*lookout.QueueInfo, error) {
 	queries, err := r.getQueuesSql()
 	if err != nil {
 		return nil, err
 	}
 
-	rows, err := r.goquDb.Db.QueryContext(ctx, queries)
+	var countRows *sql.Rows
+	var longestRunningRows *sql.Rows
+	var oldestQueuedRows *sql.Rows
+
+	defer func() {
+		if countRows != nil {
+			err := countRows.Close()
+			if err != nil {
+				logrus.Errorf("Failed to close SQL connection: %v", err)
+			}
+		}
+
+		if longestRunningRows != nil {
+			err := longestRunningRows.Close()
+			if err != nil {
+				logrus.Errorf("Failed to close SQL connection: %v", err)
+			}
+		}
+
+		if oldestQueuedRows != nil {
+			err := oldestQueuedRows.Close()
+			if err != nil {
+				logrus.Errorf("Failed to close SQL connection: %v", err)
+			}
+		}
+	}()
+	countRows, err = r.goquDb.Db.QueryContext(ctx, queries.Counts)
 	if err != nil {
 		return nil, err
 	}
-	defer func() {
-		err := rows.Close()
-		if err != nil {
-			logrus.Fatalf("Failed to close SQL connection: %v", err)
-		}
-	}()
 
-	result, err := r.rowsToQueues(rows)
+	longestRunningRows, err = r.goquDb.Db.QueryContext(ctx, queries.LongestRunning)
+	if err != nil {
+		return nil, err
+	}
+
+	oldestQueuedRows, err = r.goquDb.Db.QueryContext(ctx, queries.OldestQueued)
+	if err != nil {
+		return nil, err
+	}
+
+	result, err := r.rowsToQueues(countRows, oldestQueuedRows, longestRunningRows)
 	if err != nil {
 		return nil, err
 	}
@@ -46,7 +80,7 @@ func (r *SQLJobRepository) GetQueueInfos(ctx context.Context) ([]*lookout.QueueI
 	return result, nil
 }
 
-func (r *SQLJobRepository) getQueuesSql() (string, error) {
+func (r *SQLJobRepository) getQueuesSql() (rowsSql, error) {
 	countsDs := r.goquDb.
 		From(jobTable).
 		Select(
@@ -111,53 +145,43 @@ func (r *SQLJobRepository) getQueuesSql() (string, error) {
 			jobRun_created,
 			jobRun_started,
 			jobRun_finished).
+		Order(jobRun_runId.Asc(), jobRun_started.Asc()).
 		As("longest_running")
 
 	countsSql, _, err := countsDs.ToSQL()
 	if err != nil {
-		return "", err
+		return rowsSql{}, err
 	}
 	oldestQueuedSql, _, err := oldestQueuedDs.ToSQL()
 	if err != nil {
-		return "", err
+		return rowsSql{}, err
 	}
 	longestRunningSql, _, err := longestRunningDs.ToSQL()
 	if err != nil {
-		return "", err
+		return rowsSql{}, err
 	}
-
-	// Execute three unprepared statements sequentially.
-	// There are no parameters and we don't care if updates happen between queries.
-	return strings.Join([]string{countsSql, oldestQueuedSql, longestRunningSql}, " ; "), nil
+	return rowsSql{countsSql, oldestQueuedSql, longestRunningSql}, nil
 }
 
-func (r *SQLJobRepository) rowsToQueues(rows *sql.Rows) ([]*lookout.QueueInfo, error) {
+func (r *SQLJobRepository) rowsToQueues(counts *sql.Rows, oldestQueued *sql.Rows, longestRunning *sql.Rows) ([]*lookout.QueueInfo, error) {
 	queueInfoMap := make(map[string]*lookout.QueueInfo)
 
 	// Job counts
-	err := setJobCounts(rows, queueInfoMap)
+	err := setJobCounts(counts, queueInfoMap)
 	if err != nil {
 		return nil, err
 	}
 
 	// Oldest queued
-	if rows.NextResultSet() {
-		err = r.setOldestQueuedJob(rows, queueInfoMap)
-		if err != nil {
-			return nil, err
-		}
-	} else if rows.Err() != nil {
-		return nil, fmt.Errorf("expected result set for oldest queued job: %v", rows.Err())
+	err = r.setOldestQueuedJob(oldestQueued, queueInfoMap)
+	if err != nil {
+		return nil, err
 	}
 
 	// Longest Running
-	if rows.NextResultSet() {
-		err = r.setLongestRunningJob(rows, queueInfoMap)
-		if err != nil {
-			return nil, err
-		}
-	} else if rows.Err() != nil {
-		return nil, fmt.Errorf("expected result set for longest Running job: %v", rows.Err())
+	err = r.setLongestRunningJob(longestRunning, queueInfoMap)
+	if err != nil {
+		return nil, err
 	}
 
 	result := getSortedQueueInfos(queueInfoMap)

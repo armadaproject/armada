@@ -1,17 +1,21 @@
 package processor
 
 import (
+	"context"
 	"fmt"
 
 	log "github.com/sirupsen/logrus"
 
 	"github.com/G-Research/armada/internal/armada/repository"
+	"github.com/G-Research/armada/internal/armada/server"
 	"github.com/G-Research/armada/internal/common/eventstream"
+	"github.com/G-Research/armada/internal/common/logging"
 	"github.com/G-Research/armada/pkg/api"
 )
 
 type StreamEventStore struct {
-	stream eventstream.EventStream
+	stream             eventstream.EventStream
+	PulsarSubmitServer *server.PulsarSubmitServer
 }
 
 func NewEventStore(stream eventstream.EventStream) *StreamEventStore {
@@ -22,6 +26,20 @@ func (n *StreamEventStore) ReportEvents(messages []*api.EventMessage) error {
 	if len(messages) == 0 {
 		return nil
 	}
+
+	// Publish to Pulsar if enabled.
+	if n.PulsarSubmitServer != nil {
+		logger := log.StandardLogger().WithField("service", "StreamEventStore")
+		for _, message := range messages {
+			logger.Infof("publishing to Pulsar: %v", message)
+
+			err := n.PulsarSubmitServer.SubmitApiEvent(context.Background(), message)
+			if err != nil {
+				logging.WithStacktrace(logger, err).Error("failed to submit API event to Pulsar")
+			}
+		}
+	}
+
 	errs := n.stream.Publish(messages)
 	if len(errs) > 0 {
 		return fmt.Errorf("[ReportEvents] error publishing events: %v", errs)

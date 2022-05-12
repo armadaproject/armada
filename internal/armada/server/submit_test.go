@@ -204,8 +204,13 @@ func TestSubmitServer_SubmitJob(t *testing.T) {
 
 		response, err := s.SubmitJobs(context.Background(), jobRequest)
 
-		assert.Empty(t, err)
-		assert.NotNil(t, response.JobResponseItems[0].JobId)
+		if ok := assert.NoError(t, err); !ok {
+			t.FailNow()
+		}
+		if ok := assert.NotEmpty(t, response.JobResponseItems); !ok {
+			t.FailNow()
+		}
+		assert.NotEmpty(t, response.JobResponseItems[0].JobId)
 	})
 }
 
@@ -247,9 +252,9 @@ func TestSubmitServer_SubmitJob_ApplyDefaults(t *testing.T) {
 			},
 		}
 
-		assert.Equal(t, expectedResources, retrievedJob[0].PodSpecs[0].Containers[0].Resources.Requests)
-		assert.Equal(t, expectedResources, retrievedJob[0].PodSpecs[0].Containers[0].Resources.Limits)
-		assert.Equal(t, expectedTolerations, retrievedJob[0].PodSpecs[0].Tolerations)
+		assert.Equal(t, expectedResources, retrievedJob[0].PodSpec.Containers[0].Resources.Requests)
+		assert.Equal(t, expectedResources, retrievedJob[0].PodSpec.Containers[0].Resources.Limits)
+		assert.Equal(t, expectedTolerations, retrievedJob[0].PodSpec.Tolerations)
 	})
 }
 
@@ -443,6 +448,24 @@ func TestSubmitServer_SubmitJobs_HandlesDoubleSubmit(t *testing.T) {
 
 		assert.Equal(t, duplicateFound.OriginalJobId, submitted.JobId)
 		assert.Equal(t, duplicateFound.JobId, submitted2.JobId)
+	})
+}
+
+func TestSubmitServer_SubmitJobs_RejectsIfTooManyJobsAreQueued(t *testing.T) {
+	withSubmitServer(func(s *SubmitServer, events repository.EventRepository) {
+		limit := 3
+
+		s.queueManagementConfig.DefaultQueuedJobsLimit = limit
+		jobSetId := util.NewULID()
+
+		for i := 0; i < limit; i++ {
+			result, err := s.SubmitJobs(context.Background(), createJobRequest(jobSetId, 1))
+			assert.NoError(t, err)
+			assert.Len(t, result.JobResponseItems, 1)
+		}
+
+		_, err := s.SubmitJobs(context.Background(), createJobRequest(jobSetId, 1))
+		assert.Error(t, err)
 	})
 }
 

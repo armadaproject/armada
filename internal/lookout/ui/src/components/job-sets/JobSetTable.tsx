@@ -21,6 +21,7 @@ interface JobSetTableProps {
   onSelectJobSet: (index: number, selected: boolean) => void
   onShiftSelectJobSet: (index: number, selected: boolean) => void
   onDeselectAllClick: () => void
+  onSelectAllClick: () => void
   onOrderChange: (newestFirst: boolean) => void
 }
 
@@ -63,10 +64,13 @@ export default function JobSetTable(props: JobSetTableProps) {
           )
         }}
         headerRowRenderer={(tableHeaderRowProps) => {
+          const jobSetsAreSelected = props.selectedJobSets.size > 0
+          const noJobSetsArePresent = props.jobSets.length == 0
           return (
             <CheckboxHeaderRow
-              deselectEnabled={props.selectedJobSets.size > 0}
-              onDeselectAllClick={() => props.onDeselectAllClick()}
+              checked={jobSetsAreSelected}
+              disabled={!jobSetsAreSelected && noJobSetsArePresent}
+              onClick={jobSetsAreSelected ? () => props.onDeselectAllClick() : props.onSelectAllClick}
               {...tableHeaderRowProps}
             />
           )

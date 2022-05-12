@@ -9,7 +9,6 @@ import (
 
 	"github.com/doug-martin/goqu/v9"
 	"github.com/doug-martin/goqu/v9/exp"
-	_ "github.com/lib/pq"
 
 	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/pkg/api"
@@ -375,25 +374,7 @@ func (r *SQLJobStore) RecordJobTerminated(event *api.JobTerminatedEvent) error {
 	}
 
 	return tx.Wrap(func() error {
-
-		if err := upsertJobRun(tx, jobRunRecord); err != nil {
-			return err
-		}
-
-		jobDs := tx.Insert(jobTable).
-			With("run_states", getRunStateCounts(tx, event.GetJobId())).
-			Rows(goqu.Record{
-				"job_id": event.JobId,
-				"queue":  event.Queue,
-				"jobset": event.JobSetId,
-				"state":  JobStateToIntMap[JobFailed],
-			}).
-			OnConflict(goqu.DoUpdate("job_id", goqu.Record{
-				"state": determineJobState(tx),
-			}))
-
-		_, err := jobDs.Prepared(true).Executor().Exec()
-		return err
+		return upsertJobRun(tx, jobRunRecord)
 	})
 }
 
