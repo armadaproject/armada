@@ -111,11 +111,6 @@ func (srv *SubmitFromLog) Run(ctx context.Context) {
 				continue
 			}
 
-			// We're only interested in control messages.
-			if !armadaevents.IsControlMessage(msg) {
-				continue
-			}
-
 			lastMessageId = msg.ID()
 			lastPublishTime = msg.PublishTime()
 			numReceived++
