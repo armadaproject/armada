@@ -383,3 +383,7 @@ generate:
 	$(GO_CMD) go run github.com/rakyll/statik \
 		-dest=internal/lookout/repository/schema/ -src=internal/lookout/repository/schema/ -include=\*.sql -ns=lookout/sql -Z -f -m && \
 		go run golang.org/x/tools/cmd/goimports -w -local "github.com/G-Research/armada" internal/lookout/repository/schema/statik
+	$(GO_CMD) go run github.com/rakyll/statik \
+    		-dest=internal/eventapi/eventdb/schema/ -src=internal/eventapi/eventdb/schema/ -include=\*.sql -ns=eventapi/sql -Z -f -m && \
+    		go run golang.org/x/tools/cmd/goimports -w -local "github.com/G-Research/armada" internal/eventapi/eventdb/schema/statik
+

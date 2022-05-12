@@ -298,7 +298,7 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 		return nil, status.Errorf(codes.Aborted, "[SubmitJobs] error getting submitted report: %s", err)
 	}
 
-	// Submit the jobs by writing them to the postgres
+	// Submit the jobs by writing them to the database
 	submissionResults, err := server.jobRepository.AddJobs(jobs)
 	if err != nil {
 		jobFailures := createJobFailuresWithReason(jobs, fmt.Sprintf("Failed to save job in Armada: %s", e))
