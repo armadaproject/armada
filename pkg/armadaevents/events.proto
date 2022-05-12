@@ -442,21 +442,6 @@ message SeqUpdates{
     repeated SeqUpdate updates = 1;
 }
 
-message JobUtilisationEvent {
-    string job_id = 1;
-    string job_set_id = 2;
-    string queue = 3;
-    google.protobuf.Timestamp created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
-    string cluster_id = 5;
-    string kubernetes_id = 6;
-    map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> MaxResourcesForPeriod = 7 [(gogoproto.nullable) = false];
-    string node_name = 8;
-    int32 pod_number = 9;
-    string pod_name = 10;
-    string pod_namespace = 11;
-    map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> total_cumulative_usage = 12 [(gogoproto.nullable) = false];
-}
-
 message DatabaseEvent{
     EventSequence eventSequence = 1;
 }
