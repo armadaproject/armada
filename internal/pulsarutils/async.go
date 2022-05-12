@@ -4,9 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/G-Research/armada/pkg/armadaevents"
 	"sync"
 	"time"
+
+	"github.com/G-Research/armada/pkg/armadaevents"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/sirupsen/logrus"

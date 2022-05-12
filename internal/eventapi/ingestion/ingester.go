@@ -2,6 +2,16 @@ package ingestion
 
 import (
 	"context"
+	"os"
+	"os/signal"
+	"sync"
+	"time"
+
+	"github.com/apache/pulsar-client-go/pulsar"
+	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
+	"github.com/sirupsen/logrus"
+	"k8s.io/apimachinery/pkg/util/clock"
+
 	"github.com/G-Research/armada/internal/common/compress"
 	"github.com/G-Research/armada/internal/eventapi"
 	"github.com/G-Research/armada/internal/eventapi/configuration"
@@ -9,14 +19,6 @@ import (
 	"github.com/G-Research/armada/internal/eventapi/model"
 	"github.com/G-Research/armada/internal/lookout/postgres"
 	"github.com/G-Research/armada/internal/pulsarutils"
-	"github.com/apache/pulsar-client-go/pulsar"
-	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
-	"github.com/sirupsen/logrus"
-	"k8s.io/apimachinery/pkg/util/clock"
-	"os"
-	"os/signal"
-	"sync"
-	"time"
 )
 
 // Run will create a pipeline that will take Armada event messages from Pulsar and update the

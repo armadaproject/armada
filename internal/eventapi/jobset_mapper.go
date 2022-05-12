@@ -3,14 +3,29 @@ package eventapi
 import (
 	"context"
 	"fmt"
-	"github.com/G-Research/armada/internal/eventapi/eventdb"
-	lru "github.com/hashicorp/golang-lru"
 	"sync"
 	"time"
+
+	lru "github.com/hashicorp/golang-lru"
+
+	"github.com/G-Research/armada/internal/eventapi/eventdb"
 )
 
 type JobsetMapper interface {
 	Get(ctx context.Context, queue string, jobset string) (int64, error)
+}
+
+type StaticJobsetMapper struct {
+	JobsetIds map[string]int64
+}
+
+func (j *StaticJobsetMapper) Get(ctx context.Context, queue string, jobset string) (int64, error) {
+	key := key(queue, jobset)
+	id, ok := j.JobsetIds[key]
+	if !ok {
+		return -1, fmt.Errorf("no mapping exists for queue %sand jobset %s", queue, jobset)
+	}
+	return id, nil
 }
 
 type PostgresJobsetMapper struct {

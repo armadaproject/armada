@@ -3,12 +3,14 @@ package armada
 import (
 	"context"
 	"fmt"
+	"sync"
+	"time"
+
+	"k8s.io/apimachinery/pkg/util/clock"
+
 	"github.com/G-Research/armada/internal/eventapi"
 	"github.com/G-Research/armada/internal/eventapi/eventdb"
 	"github.com/G-Research/armada/internal/eventapi/serving"
-	"k8s.io/apimachinery/pkg/util/clock"
-	"sync"
-	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/go-redis/redis"

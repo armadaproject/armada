@@ -2,11 +2,14 @@ package ingestion
 
 import (
 	"context"
+
+	"github.com/apache/pulsar-client-go/pulsar"
+	"github.com/gogo/protobuf/proto"
+	"github.com/prometheus/common/log"
+
 	model2 "github.com/G-Research/armada/internal/eventapi/model"
 	"github.com/G-Research/armada/internal/lookoutingester/model"
 	"github.com/G-Research/armada/pkg/armadaevents"
-	"github.com/apache/pulsar-client-go/pulsar"
-	"github.com/gogo/protobuf/proto"
 )
 
 func SendSequenceUpdates(ctx context.Context, producer pulsar.Producer, msgs chan []*model2.PulsarEventRow, bufferSize int) chan []*model.ConsumerMessageId {

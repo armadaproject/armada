@@ -1,10 +1,11 @@
 package batch
 
 import (
-	"github.com/G-Research/armada/internal/pulsarutils"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/G-Research/armada/internal/pulsarutils"
 
 	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/util/clock"

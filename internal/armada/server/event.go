@@ -3,10 +3,12 @@ package server
 import (
 	"context"
 	"errors"
+	"time"
+
+	log "github.com/sirupsen/logrus"
+
 	"github.com/G-Research/armada/internal/eventapi/model"
 	"github.com/G-Research/armada/internal/eventapi/serving"
-	log "github.com/sirupsen/logrus"
-	"time"
 
 	"github.com/gogo/protobuf/types"
 	"google.golang.org/grpc/codes"

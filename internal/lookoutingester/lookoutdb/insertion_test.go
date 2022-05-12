@@ -3,10 +3,11 @@ package lookoutdb
 import (
 	ctx "context"
 	"fmt"
-	"github.com/G-Research/armada/internal/pulsarutils"
 	"sort"
 	"testing"
 	"time"
+
+	"github.com/G-Research/armada/internal/pulsarutils"
 
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/stretchr/testify/assert"
@@ -130,7 +131,7 @@ func defaultInstructionSet() *model.InstructionSet {
 			ContainerName: containerName,
 			ExitCode:      3,
 		}},
-		MessageIds: []*model.ConsumerMessageId{{pulsarutils.NewMessageId(3), 0, 1}},
+		MessageIds: []*pulsarutils.ConsumerMessageId{{pulsarutils.NewMessageId(3), 0, 1}},
 	}
 }
 

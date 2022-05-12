@@ -2,26 +2,31 @@ package serving
 
 import (
 	ctx "context"
+	"math"
+
+	"github.com/gogo/protobuf/proto"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
 	"github.com/G-Research/armada/internal/common/compress"
 	"github.com/G-Research/armada/internal/eventapi"
 	"github.com/G-Research/armada/internal/eventapi/model"
+	"github.com/G-Research/armada/internal/eventapi/serving/apimessages"
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/armadaevents"
-	"github.com/gogo/protobuf/proto"
-	"math"
 )
 
 type EventApi struct {
 	jobsetMapper        eventapi.JobsetMapper
-	subscriptionManager *SubscriptionManager
+	subscriptionManager SubscriptionManager
 	sequenceManager     SequenceManager
 }
 
-func PostgresEventApi(jobsetMapper eventapi.JobsetMapper, subscriptionManager *SubscriptionManager, sequenceManager SequenceManager) *EventApi {
+func NewEventApi(jobsetMapper eventapi.JobsetMapper, subscriptionManager SubscriptionManager, sequenceManager SequenceManager) *EventApi {
 	return &EventApi{
 		jobsetMapper:        jobsetMapper,
-		subscriptionManager: subscriptionManager,
 		sequenceManager:     sequenceManager,
+		subscriptionManager: subscriptionManager,
 	}
 }
 
@@ -74,8 +79,8 @@ func (r *EventApi) GetJobSetEvents(request *api.JobSetRequest, stream api.Event_
 			return nil
 		default:
 		}
-		msgIndex := 0
 		for _, compressedEvent := range events {
+			msgIndex := 0
 			decompressedEvent, err := decompressor.Decompress(compressedEvent.Event)
 			if err != nil {
 				return err
@@ -85,20 +90,23 @@ func (r *EventApi) GetJobSetEvents(request *api.JobSetRequest, stream api.Event_
 			if err != nil {
 				return err
 			}
-			// These fields are not present in the db messages so we add them back here
+			// These fields are not present in the db messages, so we add them back here
 			dbEvent.EventSequence.Queue = request.Queue
 			dbEvent.EventSequence.JobSetName = request.Id
-			apiEvents, err := FromEventSequence(dbEvent.EventSequence, dbEvent.Time)
+			apiEvents, err := apimessages.FromEventSequence(dbEvent.EventSequence)
 			if err != nil {
 				return err
 			}
 			for _, apiEvent := range apiEvents {
 				externalSequenceNo := model.ExternalSeqNo{Sequence: compressedEvent.SeqNo, Index: msgIndex}
 				if externalSequenceNo.IsAfter(fromSequence) {
-					stream.Send(&api.EventStreamMessage{
+					err = stream.Send(&api.EventStreamMessage{
 						Id:      externalSequenceNo.ToString(),
 						Message: apiEvent,
 					})
+					if err != nil {
+						return status.Errorf(codes.Unavailable, "[GetJobSetEvents] error sending event: %s", err)
+					}
 				}
 				msgIndex++
 			}

@@ -1,8 +1,9 @@
 package model
 
 import (
-	"github.com/G-Research/armada/internal/pulsarutils"
 	"time"
+
+	"github.com/G-Research/armada/internal/pulsarutils"
 )
 
 // CreateJobInstruction is an instruction to insert a new row into the jobs table

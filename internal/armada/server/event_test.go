@@ -298,7 +298,7 @@ func withEventServer(t *testing.T, eventRetention configuration.EventRetentionPo
 
 	repo := repository.NewRedisEventRepository(client, eventRetention)
 	queueRepo := repository.NewRedisQueueRepository(client)
-	server := NewEventServer(&FakePermissionChecker{}, repo, repo, queueRepo)
+	server := NewEventServer(&FakePermissionChecker{}, repo, repo, queueRepo, nil)
 
 	client.FlushDB()
 

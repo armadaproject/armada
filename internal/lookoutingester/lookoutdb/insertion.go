@@ -7,6 +7,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/G-Research/armada/internal/pulsarutils"
+
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
@@ -19,8 +21,8 @@ import (
 
 // ProcessUpdates will update the lookout database according to the incoming channel of instructions.  It returns a channel
 // containing all the message ids that have been successfully processed.
-func ProcessUpdates(ctx context.Context, db *pgxpool.Pool, msgs chan *model.InstructionSet, bufferSize int) chan []*model.ConsumerMessageId {
-	out := make(chan []*model.ConsumerMessageId, bufferSize)
+func ProcessUpdates(ctx context.Context, db *pgxpool.Pool, msgs chan *model.InstructionSet, bufferSize int) chan []*pulsarutils.ConsumerMessageId {
+	out := make(chan []*pulsarutils.ConsumerMessageId, bufferSize)
 	go func() {
 		for msg := range msgs {
 			Update(ctx, db, msg)

@@ -1,43 +1,46 @@
-package serving
+package apimessages
 
 import (
 	"time"
 
+	"github.com/G-Research/armada/internal/common/eventutil"
+
+	"github.com/pkg/errors"
+
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/armadaevents"
-	"github.com/pkg/errors"
 )
 
-func FromEventSequence(es *armadaevents.EventSequence, ts time.Time) ([]*api.EventMessage, error) {
+func FromEventSequence(es *armadaevents.EventSequence) ([]*api.EventMessage, error) {
 	apiEvents := make([]*api.EventMessage, 0)
 	var err error = nil
 	var convertedEvents []*api.EventMessage = nil
 	for _, event := range es.Events {
 		switch esEvent := event.GetEvent().(type) {
 		case *armadaevents.EventSequence_Event_SubmitJob:
-			convertedEvents, err = FromLogSubmit(es.Queue, es.JobSetName, ts, esEvent.SubmitJob)
+			convertedEvents, err = FromLogSubmit(es.UserId, es.Groups, es.Queue, es.JobSetName, *event.Created, esEvent.SubmitJob)
 		case *armadaevents.EventSequence_Event_CancelledJob:
-			convertedEvents, err = FromLogCancelled(es.UserId, es.Queue, es.JobSetName, ts, esEvent.CancelledJob)
+			convertedEvents, err = FromLogCancelled(es.UserId, es.Queue, es.JobSetName, *event.Created, esEvent.CancelledJob)
 		case *armadaevents.EventSequence_Event_CancelJob:
-			convertedEvents, err = FromLogCancelling(es.UserId, es.Queue, es.JobSetName, ts, esEvent.CancelJob)
+			convertedEvents, err = FromLogCancelling(es.UserId, es.Queue, es.JobSetName, *event.Created, esEvent.CancelJob)
 		case *armadaevents.EventSequence_Event_ReprioritiseJob:
-			convertedEvents, err = FromLogReprioritizing(es.UserId, es.Queue, es.JobSetName, ts, esEvent.ReprioritiseJob)
+			convertedEvents, err = FromLogReprioritizing(es.UserId, es.Queue, es.JobSetName, *event.Created, esEvent.ReprioritiseJob)
 		case *armadaevents.EventSequence_Event_ReprioritisedJob:
-			convertedEvents, err = FromLogReprioritised(es.UserId, es.Queue, es.JobSetName, ts, esEvent.ReprioritisedJob)
+			convertedEvents, err = FromLogReprioritised(es.UserId, es.Queue, es.JobSetName, *event.Created, esEvent.ReprioritisedJob)
 		case *armadaevents.EventSequence_Event_JobDuplicateDetected:
-			convertedEvents, err = FromLogDuplicateDetected(es.Queue, es.JobSetName, ts, esEvent.JobDuplicateDetected)
+			convertedEvents, err = FromLogDuplicateDetected(es.Queue, es.JobSetName, *event.Created, esEvent.JobDuplicateDetected)
 		case *armadaevents.EventSequence_Event_JobRunLeased:
-			convertedEvents, err = FromLogJobRunLeased(es.Queue, es.JobSetName, ts, esEvent.JobRunLeased)
+			convertedEvents, err = FromLogJobRunLeased(es.Queue, es.JobSetName, *event.Created, esEvent.JobRunLeased)
 		case *armadaevents.EventSequence_Event_JobRunErrors:
-			convertedEvents, err = FromJobRunErrors(es.Queue, es.JobSetName, ts, esEvent.JobRunErrors)
+			convertedEvents, err = FromJobRunErrors(es.Queue, es.JobSetName, *event.Created, esEvent.JobRunErrors)
 		case *armadaevents.EventSequence_Event_JobErrors:
-			convertedEvents, err = FromJobErrors(es.Queue, es.JobSetName, ts, esEvent.JobErrors)
+			convertedEvents, err = FromJobErrors(es.Queue, es.JobSetName, *event.Created, esEvent.JobErrors)
 		case *armadaevents.EventSequence_Event_JobRunRunning:
-			convertedEvents, err = FromJobRunRunning(es.Queue, es.JobSetName, ts, esEvent.JobRunRunning)
+			convertedEvents, err = FromJobRunRunning(es.Queue, es.JobSetName, *event.Created, esEvent.JobRunRunning)
 		case *armadaevents.EventSequence_Event_JobRunAssigned:
-			convertedEvents, err = FromJobRunAssigned(es.Queue, es.JobSetName, ts, esEvent.JobRunAssigned)
+			convertedEvents, err = FromJobRunAssigned(es.Queue, es.JobSetName, *event.Created, esEvent.JobRunAssigned)
 		case *armadaevents.EventSequence_Event_ResourceUtilisation:
-			convertedEvents, err = FromResourceUtilisation(es.Queue, es.JobSetName, ts, esEvent.ResourceUtilisation)
+			convertedEvents, err = FromResourceUtilisation(es.Queue, es.JobSetName, *event.Created, esEvent.ResourceUtilisation)
 		}
 		if err != nil {
 			//TODO: would it be better to log a warning and continue?
@@ -48,22 +51,43 @@ func FromEventSequence(es *armadaevents.EventSequence, ts time.Time) ([]*api.Eve
 	return apiEvents, nil
 }
 
-func FromLogSubmit(queueName string, jobSetName string, time time.Time, e *armadaevents.SubmitJob) ([]*api.EventMessage, error) {
+func FromLogSubmit(owner string, groups []string, queue string, jobSet string, time time.Time, e *armadaevents.SubmitJob) ([]*api.EventMessage, error) {
 	jobId, err := armadaevents.UlidStringFromProtoUuid(e.JobId)
 	if err != nil {
 		err = errors.WithStack(err)
 		return nil, err
 	}
 
+	job, err := eventutil.ApiJobFromLogSubmitJob(owner, groups, queue, jobSet, time, e)
+	if err != nil {
+		err = errors.WithStack(err)
+		return nil, err
+	}
+
+	submitEvent := &api.JobSubmittedEvent{
+		JobId:    jobId,
+		JobSetId: jobSet,
+		Queue:    queue,
+		Created:  time,
+		Job:      *job,
+	}
+
+	queuedEvent := &api.JobQueuedEvent{
+		JobId:    jobId,
+		JobSetId: jobSet,
+		Queue:    queue,
+		Created:  time,
+	}
+
 	return []*api.EventMessage{
 		{
+			Events: &api.EventMessage_Submitted{
+				Submitted: submitEvent,
+			},
+		},
+		{
 			Events: &api.EventMessage_Queued{
-				Queued: &api.JobQueuedEvent{
-					JobId:    jobId,
-					JobSetId: jobSetName,
-					Queue:    queueName,
-					Created:  time,
-				},
+				Queued: queuedEvent,
 			},
 		},
 	}, nil
@@ -75,6 +99,7 @@ func FromLogCancelling(userId string, queueName string, jobSetName string, time 
 		err = errors.WithStack(err)
 		return nil, err
 	}
+
 	return []*api.EventMessage{
 		{
 			Events: &api.EventMessage_Cancelling{

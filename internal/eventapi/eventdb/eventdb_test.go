@@ -2,14 +2,16 @@ package eventdb
 
 import (
 	"context"
-	"github.com/G-Research/armada/internal/common/database"
-	"github.com/G-Research/armada/internal/eventapi/eventdb/schema/statik"
-	"github.com/G-Research/armada/internal/eventapi/model"
+	"testing"
+	"time"
+
 	"github.com/jackc/pgx/v4/pgxpool"
 	_ "github.com/jackc/pgx/v4/stdlib"
 	"github.com/stretchr/testify/assert"
-	"testing"
-	"time"
+
+	"github.com/G-Research/armada/internal/common/database"
+	"github.com/G-Research/armada/internal/eventapi/eventdb/schema/statik"
+	"github.com/G-Research/armada/internal/eventapi/model"
 )
 
 var baseTime, _ = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")

@@ -2,11 +2,12 @@ package instructions
 
 import (
 	"encoding/json"
-	"github.com/G-Research/armada/internal/common/compress"
-	"github.com/G-Research/armada/internal/pulsarutils"
 	"math/rand"
 	"testing"
 	"time"
+
+	"github.com/G-Research/armada/internal/common/compress"
+	"github.com/G-Research/armada/internal/pulsarutils"
 
 	"golang.org/x/net/context"
 

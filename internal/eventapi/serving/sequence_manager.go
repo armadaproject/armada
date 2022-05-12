@@ -2,12 +2,14 @@ package serving
 
 import (
 	"context"
-	"github.com/G-Research/armada/internal/eventapi/eventdb"
-	"github.com/G-Research/armada/pkg/armadaevents"
+	"time"
+
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/proto"
 	log "github.com/sirupsen/logrus"
-	"time"
+
+	"github.com/G-Research/armada/internal/eventapi/eventdb"
+	"github.com/G-Research/armada/pkg/armadaevents"
 )
 
 type SequenceManager interface {

@@ -3,8 +3,9 @@ package instructions
 import (
 	"context"
 	"encoding/json"
-	"github.com/G-Research/armada/internal/common/compress"
 	"time"
+
+	"github.com/G-Research/armada/internal/common/compress"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"

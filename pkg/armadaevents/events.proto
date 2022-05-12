@@ -458,6 +458,5 @@ message JobUtilisationEvent {
 }
 
 message DatabaseEvent{
-    google.protobuf.Timestamp time  = 1 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
-    EventSequence eventSequence = 2;
+    EventSequence eventSequence = 1;
 }

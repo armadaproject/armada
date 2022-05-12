@@ -2,13 +2,15 @@ package eventapi
 
 import (
 	"context"
+	"testing"
+	"time"
+
+	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/stretchr/testify/assert"
+
 	"github.com/G-Research/armada/internal/common/database"
 	"github.com/G-Research/armada/internal/eventapi/eventdb"
 	"github.com/G-Research/armada/internal/eventapi/eventdb/schema/statik"
-	"github.com/jackc/pgx/v4/pgxpool"
-	"github.com/stretchr/testify/assert"
-	"testing"
-	"time"
 )
 
 var baseTime, _ = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")

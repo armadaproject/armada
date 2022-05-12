@@ -1,10 +1,11 @@
 package lookoutingester
 
 import (
-	"github.com/G-Research/armada/internal/common/compress"
 	"os"
 	"os/signal"
 	"sync"
+
+	"github.com/G-Research/armada/internal/common/compress"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"

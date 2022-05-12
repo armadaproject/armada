@@ -2,10 +2,11 @@ package model
 
 import (
 	"fmt"
-	"github.com/G-Research/armada/internal/pulsarutils"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/G-Research/armada/internal/pulsarutils"
 )
 
 // EventRow represents an Event in the Postgres Database

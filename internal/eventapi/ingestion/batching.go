@@ -1,9 +1,11 @@
 package ingestion
 
 import (
-	"github.com/G-Research/armada/internal/eventapi/model"
-	"k8s.io/apimachinery/pkg/util/clock"
 	"time"
+
+	"k8s.io/apimachinery/pkg/util/clock"
+
+	"github.com/G-Research/armada/internal/eventapi/model"
 )
 
 func Batch(values <-chan *model.PulsarEventRow, maxItems int, maxTimeout time.Duration, bufferSize int, clock clock.Clock) chan []*model.PulsarEventRow {

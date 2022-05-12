@@ -2,12 +2,14 @@ package serving
 
 import (
 	"fmt"
-	"github.com/G-Research/armada/internal/eventapi/model"
-	"github.com/stretchr/testify/assert"
-	"k8s.io/apimachinery/pkg/util/clock"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"k8s.io/apimachinery/pkg/util/clock"
+
+	"github.com/G-Research/armada/internal/eventapi/model"
 )
 
 var defaultJobsetId int64 = 10
@@ -62,7 +64,7 @@ func TestCatchup(t *testing.T) {
 		mutex:  sync.Mutex{},
 		events: []*model.EventRow{event1},
 	}
-	sm := NewSubscriptionManager(offsetManager, &db, 100, 10*time.Millisecond, 1*time.Second, 2, testClock)
+	sm := NewSubscriptionManager(offsetManager, &db, 100, 10*time.Millisecond, 1*time.Second, 2, 1000, testClock)
 	subscription := sm.Subscribe(defaultJobsetId, 0)
 	wg := sync.WaitGroup{}
 	wg.Add(1)
@@ -111,7 +113,7 @@ func TestPoll(t *testing.T) {
 		mutex:  sync.Mutex{},
 		events: []*model.EventRow{event1, event2, event3},
 	}
-	sm := NewSubscriptionManager(sequenceManager, &db, 100, 10*time.Millisecond, 1*time.Second, 2, testClock)
+	sm := NewSubscriptionManager(sequenceManager, &db, 100, 10*time.Millisecond, 1*time.Second, 2, 1000, testClock)
 	subscription := sm.Subscribe(defaultJobsetId, 0)
 	wg := sync.WaitGroup{}
 	wg.Add(1)
@@ -125,15 +127,15 @@ func TestPoll(t *testing.T) {
 			}
 		}
 	}()
-	// Wait for a bit- because the index is zero we should collect anything
-	time.Sleep(1000)
+	// Wait for a bit- because the index is zero we should not collect anything
+	time.Sleep(100 * time.Millisecond)
 	assert.Equal(t, 0, len(collectedEvents))
 
 	// now update the index
 	sequenceManager.Update(map[int64]int64{defaultJobsetId: 3})
 
 	// Wait for a bit- we haven't moved on the clock so the poll shouldn't happen
-	time.Sleep(1000)
+	time.Sleep(100 * time.Millisecond)
 	assert.Equal(t, 0, len(collectedEvents))
 
 	// now advance the clock
@@ -161,7 +163,7 @@ func TestFromOffset(t *testing.T) {
 		mutex:  sync.Mutex{},
 		events: []*model.EventRow{event1, event2, event3},
 	}
-	sm := NewSubscriptionManager(sequenceManager, &db, 100, 10*time.Millisecond, 1*time.Second, 2, testClock)
+	sm := NewSubscriptionManager(sequenceManager, &db, 100, 10*time.Millisecond, 1*time.Second, 2, 1000, testClock)
 	subscription := sm.Subscribe(defaultJobsetId, 1)
 	wg := sync.WaitGroup{}
 	wg.Add(1)

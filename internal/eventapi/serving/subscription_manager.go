@@ -1,14 +1,21 @@
 package serving
 
 import (
-	"github.com/G-Research/armada/internal/eventapi/eventdb"
-	"github.com/G-Research/armada/internal/eventapi/model"
-	"k8s.io/apimachinery/pkg/util/clock"
 	"sync"
 	"time"
 
+	"k8s.io/apimachinery/pkg/util/clock"
+
+	"github.com/G-Research/armada/internal/eventapi/eventdb"
+	"github.com/G-Research/armada/internal/eventapi/model"
+
 	log "github.com/sirupsen/logrus"
 )
+
+type SubscriptionManager interface {
+	Subscribe(jobset int64, fromOffset int64) *model.EventSubscription
+	Unsubscribe(subscriptionId int64)
+}
 
 type internalSubscription struct {
 	subscriptionId int64
@@ -16,7 +23,7 @@ type internalSubscription struct {
 	channel        chan []*model.EventRow
 }
 
-type SubscriptionManager struct {
+type DefaultSubscriptionManager struct {
 	offsets           SequenceManager
 	db                *eventdb.EventDb
 	pollPeriod        time.Duration
@@ -33,10 +40,10 @@ type EventDbRO interface {
 	GetEvents(requests []*model.EventRequest, limit int) ([]*model.EventResponse, error)
 }
 
-// NewSubscriptionManager returns a SubscriptionManager that can fetch events from postgres and manage subscription requests for new data
-func NewSubscriptionManager(sequenceManager SequenceManager, db EventDbRO, maxBatchSize int, maxTimeout time.Duration, pollPeriod time.Duration, queryConcurrency int, maxFetchSize int, clock clock.Clock) *SubscriptionManager {
+// NewSubscriptionManager returns a DefaultSubscriptionManager that can fetch events from postgres and manage subscription requests for new data
+func NewSubscriptionManager(sequenceManager SequenceManager, db EventDbRO, maxBatchSize int, maxTimeout time.Duration, pollPeriod time.Duration, queryConcurrency int, maxFetchSize int, clock clock.Clock) *DefaultSubscriptionManager {
 
-	sm := SubscriptionManager{
+	sm := DefaultSubscriptionManager{
 		offsets:           sequenceManager,
 		pollPeriod:        pollPeriod,
 		batchedChannel:    make(chan *model.EventRequest),
@@ -97,7 +104,7 @@ func NewSubscriptionManager(sequenceManager SequenceManager, db EventDbRO, maxBa
 	return &sm
 }
 
-func (sm *SubscriptionManager) Subscribe(jobset int64, fromOffset int64) *model.EventSubscription {
+func (sm *DefaultSubscriptionManager) Subscribe(jobset int64, fromOffset int64) *model.EventSubscription {
 	sub := sm.createInternalSubscription(jobset)
 	currentOffset := fromOffset
 
@@ -106,9 +113,9 @@ func (sm *SubscriptionManager) Subscribe(jobset int64, fromOffset int64) *model.
 		Channel:        make(chan []*model.EventRow),
 	}
 
-	// In an ideal world we would be catching up if the fromOffset eas less than the current offset.
+	// In an ideal world we would be catching up if the fromOffset is less than the current offset.
 	// Unfortunately most of the clients use rest which means they would alsw
-	catchingUp := fromOffset == 0
+	catchingUp := fromOffset == -1
 
 	cond := sync.NewCond(&sync.Mutex{})
 
@@ -120,20 +127,29 @@ func (sm *SubscriptionManager) Subscribe(jobset int64, fromOffset int64) *model.
 			start := sm.clock.Now()
 			storedOffset, ok := sm.offsets.Get(jobset)
 			if ok && storedOffset > currentOffset {
+				// We've determined that there are new events available.  Make a request for data
 				req := &model.EventRequest{SubscriptionId: sub.subscriptionId, Jobset: jobset, Sequence: currentOffset}
 				if catchingUp {
 					sm.catchupChannel <- req
 				} else {
 					sm.batchedChannel <- req
 				}
+
+				// Wait for the request to be serviced
+				cond.L.Lock()
+				cond.Wait()
+				cond.L.Unlock()
+			} else {
+				// There was no data available so by definition we can't be catching up
+				catchingUp = false
 			}
-			cond.L.Lock()
-			cond.Wait()
-			cond.L.Unlock()
 			// If we've caught up then sleep until we next want to check results
 			if !catchingUp {
 				taken := sm.clock.Now().Sub(start)
-				sm.clock.Sleep(sm.pollPeriod - taken)
+				// A simple time.sleep would be simpler here, but less easy for testing
+				select {
+				case <-time.After(sm.pollPeriod - taken):
+				}
 			}
 		}
 		close(sub.channel)
@@ -160,20 +176,20 @@ func (sm *SubscriptionManager) Subscribe(jobset int64, fromOffset int64) *model.
 	return externalSubscription
 }
 
-func (sm *SubscriptionManager) Unsubscribe(subscriptionId int64) {
+func (sm *DefaultSubscriptionManager) Unsubscribe(subscriptionId int64) {
 	sm.subscriptionMutex.Lock()
 	defer sm.subscriptionMutex.Unlock()
 	delete(sm.subscriptionsById, subscriptionId)
 }
 
-func (sm *SubscriptionManager) hasSubscription(subscriptionId int64) bool {
+func (sm *DefaultSubscriptionManager) hasSubscription(subscriptionId int64) bool {
 	sm.subscriptionMutex.Lock()
 	defer sm.subscriptionMutex.Unlock()
 	_, ok := sm.subscriptionsById[subscriptionId]
 	return ok
 }
 
-func (sm *SubscriptionManager) createInternalSubscription(jobsetId int64) *internalSubscription {
+func (sm *DefaultSubscriptionManager) createInternalSubscription(jobsetId int64) *internalSubscription {
 	sm.subscriptionMutex.Lock()
 	defer sm.subscriptionMutex.Unlock()
 	sub := &internalSubscription{
