@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"os"
@@ -23,6 +24,9 @@ func AuthenticateKubernetes(config KubernetesDetails) (*TokenCredentials, error)
 	ctx := context.Background()
 	provider, err := openId.NewProvider(ctx, config.ProviderUrl)
 	if err != nil {
+		fmt.Println("#################################")
+		fmt.Println("Failed to create provider!!!")
+		fmt.Println("#################################")
 		return nil, err
 	}
 
@@ -34,6 +38,9 @@ func AuthenticateKubernetes(config KubernetesDetails) (*TokenCredentials, error)
 
 	kubernetesToken, err := getKubernetesToken()
 	if err != nil {
+		fmt.Println("#################################")
+		fmt.Println("Failed to get Kubernetes Token!!!")
+		fmt.Println("#################################")
 		return nil, err
 	}
 
@@ -47,6 +54,9 @@ func AuthenticateKubernetes(config KubernetesDetails) (*TokenCredentials, error)
 		})
 
 	if err != nil {
+		fmt.Println("#################################")
+		fmt.Println("Failed to make post request!!!")
+		fmt.Println("#################################")
 		return nil, err
 	}
 
