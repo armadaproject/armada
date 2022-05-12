@@ -45,3 +45,7 @@ msbuild.log
 msbuild.err
 msbuild.wrn
 packages
+
+# python pycache
+*.pyc
+client/python/dist

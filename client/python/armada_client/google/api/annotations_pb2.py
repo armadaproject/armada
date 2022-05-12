@@ -12,7 +12,7 @@ from google.protobuf import symbol_database as _symbol_database
 _sym_db = _symbol_database.Default()
 
 
-from google.api import http_pb2 as google_dot_api_dot_http__pb2
+from armada_client.google.api import http_pb2 as google_dot_api_dot_http__pb2
 from google.protobuf import descriptor_pb2 as google_dot_protobuf_dot_descriptor__pb2
 
 

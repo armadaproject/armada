@@ -2,7 +2,7 @@
 """Client and server classes corresponding to protobuf-defined services."""
 import grpc
 
-from armada.client import usage_pb2 as armada_dot_client_dot_usage__pb2
+from armada_client.generated_client import usage_pb2 as armada_dot_client_dot_usage__pb2
 from google.protobuf import empty_pb2 as google_dot_protobuf_dot_empty__pb2
 
 

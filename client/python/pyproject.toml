@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "armada_client"
+version = "0.1.0"
+description = ""
+authors = ["Your Name <you@example.com>"]
+license = "GPL"
+
+[tool.poetry.dependencies]
+python = "^3.9"
+grpcio = "^1.46.1"
+grpcio-tools = "^1.46.1"
+
+[tool.poetry.dev-dependencies]
+black = "^22.3.0"
+mypy = "^0.950"
+pylint = "^2.13.8"
+flake8 = "^4.0.1"
+pytest = "^7.1.2"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
