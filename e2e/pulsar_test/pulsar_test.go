@@ -33,7 +33,7 @@ import (
 
 // Pulsar configuration. Must be manually reconciled with changes to the test setup or Armada.
 const pulsarUrl = "pulsar://localhost:6650"
-const pulsarTopic = "persistent://armada/armada/jobset-events"
+const pulsarTopic = "persistent://armada/armada/events"
 const pulsarSubscription = "e2e-test"
 const armadaUrl = "localhost:50051"
 const armadaQueueName = "e2e-test-queue"
@@ -635,7 +635,7 @@ func TestSubmitJobWithError(t *testing.T) {
 	err := withSetup(func(ctx context.Context, client api.SubmitClient, producer pulsar.Producer, consumer pulsar.Consumer) error {
 
 		// Submit a few jobs that fail after a few seconds
-		numJobs := 2
+		numJobs := 1
 		req := createJobSubmitRequestWithError(numJobs)
 		ctxWithTimeout, _ := context.WithTimeout(context.Background(), time.Second)
 		res, err := client.SubmitJobs(ctxWithTimeout, req)

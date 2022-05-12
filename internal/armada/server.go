@@ -28,7 +28,6 @@ import (
 	"github.com/G-Research/armada/internal/common/health"
 	"github.com/G-Research/armada/internal/common/task"
 	"github.com/G-Research/armada/internal/common/util"
-	executorconfig "github.com/G-Research/armada/internal/executor/configuration"
 	"github.com/G-Research/armada/internal/lookout/postgres"
 	"github.com/G-Research/armada/internal/pgkeyvalue"
 	"github.com/G-Research/armada/internal/pulsarutils"
@@ -71,6 +70,7 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 	taskManager.Register(queueCache.Refresh, config.Metrics.RefreshInterval, "refresh_queue_cache")
 
 	redisEventRepository := repository.NewRedisEventRepository(eventsDb, config.EventRetention)
+	var streamEventStore *processor.StreamEventStore
 	var eventStore repository.EventStore
 	var eventStream eventstream.EventStream
 
@@ -110,7 +110,8 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 	eventstreamTeardown := func() {}
 	var eventProcessor *processor.RedisEventProcessor
 	if eventStream != nil {
-		eventStore = processor.NewEventStore(eventStream)
+		streamEventStore = processor.NewEventStore(eventStream)
+		eventStore = streamEventStore
 
 		eventRepoBatcher := eventstream.NewTimedEventBatcher(config.Events.ProcessorBatchSize, config.Events.ProcessorMaxTimeBetweenBatches, config.Events.ProcessorTimeout)
 		eventProcessor = processor.NewEventRedisProcessor(config.Events.StoreQueue, redisEventRepository, eventStream, eventRepoBatcher)
@@ -160,6 +161,9 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 	submitServerToRegister = submitServer
 
 	// If Pulsar is enabled, use the Pulsar submit endpoints.
+	// Store a list of all Pulsar components to use during cleanup later.
+	var pulsarComponents []interface{ Close() }
+	pulsarContext, pulsarCancel := context.WithCancel(context.Background())
 	if config.Pulsar.Enabled {
 		serverId := uuid.New()
 
@@ -169,6 +173,8 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 		if err != nil {
 			panic(err)
 		}
+		pulsarComponents = append(pulsarComponents, pulsarClient)
+
 		compressionType, err := pulsarutils.ParsePulsarCompressionType(config.Pulsar.CompressionType)
 		if err != nil {
 			panic(err)
@@ -186,16 +192,12 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 		if err != nil {
 			panic(err)
 		}
+		pulsarComponents = append(pulsarComponents, producer)
 		pulsarSubmitServer := &server.PulsarSubmitServer{
 			Producer:        producer,
 			QueueRepository: queueRepository,
 			Permissions:     permissions,
 			SubmitServer:    submitServer,
-			IngressConfig: &executorconfig.IngressConfiguration{
-				HostnameSuffix: config.Pulsar.HostnameSuffix,
-				CertNameSuffix: config.Pulsar.CertNameSuffix,
-				Annotations:    config.Pulsar.Annotations,
-			},
 		}
 		submitServerToRegister = pulsarSubmitServer
 
@@ -213,15 +215,15 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 			pulsarSubmitServer.KVStore = store
 
 			// Automatically clean up keys after two weeks.
-			store.PeriodicCleanup(context.Background(), time.Hour, 14*24*time.Hour)
+			store.PeriodicCleanup(pulsarContext, time.Hour, 14*24*time.Hour)
 		} else {
 			log.Info("Pulsar submit API deduplication disabled")
 		}
 
-		// If there's an eventProcessor, insert the PulsarSubmitServer so that it can publish
-		// state transitions to Pulsar in addition to Redis.
-		if eventProcessor != nil {
-			eventProcessor.PulsarSubmitServer = pulsarSubmitServer
+		// If there's a streamEventProcessor,
+		// insert the PulsarSubmitServer so it can publish state transitions to Pulsar too.
+		if streamEventStore != nil {
+			streamEventStore.PulsarSubmitServer = pulsarSubmitServer
 		}
 
 		// Service that consumes Pulsar messages and writes to Redis and Nats.
@@ -233,12 +235,13 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 		if err != nil {
 			panic(err)
 		}
+		pulsarComponents = append(pulsarComponents, consumer)
 
 		submitFromLog := server.SubmitFromLog{
 			Consumer:     consumer,
 			SubmitServer: submitServer,
 		}
-		go submitFromLog.Run(context.Background())
+		go submitFromLog.Run(pulsarContext)
 
 		// Service that reads from Pulsar and submits messages back into Pulsar.
 		// E.g., needed to automatically publish JobSucceeded after a JobRunSucceeded.
@@ -250,6 +253,7 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 		if err != nil {
 			panic(err)
 		}
+		pulsarComponents = append(pulsarComponents, consumer)
 
 		// Create a new producer for this service.
 		producer, err = pulsarClient.CreateProducer(pulsar.ProducerOptions{
@@ -261,12 +265,13 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 		if err != nil {
 			panic(err)
 		}
+		pulsarComponents = append(pulsarComponents, producer)
 
 		pulsarFromPulsar := server.PulsarFromPulsar{
 			Consumer: consumer,
 			Producer: producer,
 		}
-		go pulsarFromPulsar.Run(context.Background())
+		go pulsarFromPulsar.Run(pulsarContext)
 
 		// Service that reads from Pulsar and logs events.
 		if config.Pulsar.EventsPrinter {
@@ -275,7 +280,7 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 				Topic:            config.Pulsar.JobsetEventsTopic,
 				SubscriptionName: config.Pulsar.EventsPrinterSubscription,
 			}
-			go eventsPrinter.Run(context.Background())
+			go eventsPrinter.Run(pulsarContext)
 		}
 	} else {
 		log.Info("No Pulsar config provided; submitting directly to Redis and Nats.")
@@ -303,6 +308,12 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 	grpcCommon.Listen(config.GrpcPort, grpcServer, wg)
 
 	teardown := func() {
+		pulsarCancel()
+		// Reverse order to close the Pulsar client last
+		// (i.e., the same order as if we had used defer).
+		for i := len(pulsarComponents) - 1; i >= 0; i-- {
+			pulsarComponents[i].Close()
+		}
 		eventstreamTeardown()
 		taskManager.StopAll(time.Second * 2)
 		grpcServer.GracefulStop()

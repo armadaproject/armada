@@ -271,14 +271,17 @@ jobs:
             docker push gresearchdev/armada-armadactl-dev:${TAG}
 
   release:
-    docker:
-      - image: cimg/go:1.16.2
-        environment:
-          GO111MODULE: "on"
+    machine:
+      docker_layer_caching: true
+      image: ubuntu-2004:202104-01
+      resource_class: xlarge
+    environment:
+      GO111MODULE: "on"
+      GOPATH: "/home/circleci/go"
+      GOCACHE: "/home/circleci/go/cache"
     working_directory: ~/go/src/github.com/G-Research/armada
     steps:
       - checkout
-      - setup_remote_docker
 
       - restore_cache: # restore dependencies
           keys:
@@ -289,7 +292,7 @@ jobs:
           command: |
             curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
             chmod +x kubectl
-            mv kubectl /home/circleci/bin/
+            sudo mv kubectl /usr/local/bin/
             make download # no-op if we restored from cache
 
       - run:
@@ -297,7 +300,7 @@ jobs:
           command: make build-armadactl-release RELEASE_VERSION=${CIRCLE_TAG}
 
       - store_artifacts:
-          path: dist/*
+          path: dist
 
       - run:
           name: Upload artifacts to Github release
@@ -348,19 +351,7 @@ jobs:
     working_directory: /go/src/github.com/G-Research/armada
     steps:
       - checkout
-
-      - restore_cache: # restore dependencies
-          keys:
-            - go-mod-v3-{{ checksum "go.sum" }}
-
-      - run:
-          name: Download dependencies
-          command: |
-            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-            chmod +x kubectl
-            mv kubectl /home/circleci/bin/
-            make download # no-op if we restored from cache
-
+      
       - run:
           name: Release dotnet client
           command: |
@@ -369,7 +360,7 @@ jobs:
             dotnet nuget push ./bin/client/DotNet/G-Research.Armada.Client.${RELEASE_TAG}.nupkg -k ${NUGET_API_KEY} -s https://api.nuget.org/v3/index.json
 
       - store_artifacts:
-          path: bin/client/DotNet/*
+          path: bin/client/DotNet
 
 workflows:
   version: 2
