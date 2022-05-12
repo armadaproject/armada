@@ -108,7 +108,7 @@ func (srv *SubmitFromLog) Run(ctx context.Context) {
 			if err != nil {
 				logging.WithStacktrace(log, err).WithField("lastMessageId", lastMessageId).Warnf("Pulsar receive failed; backing off")
 				time.Sleep(100 * time.Millisecond)
-				continue
+				break
 			}
 
 			lastMessageId = msg.ID()
