@@ -1,9 +1,20 @@
 import time
 import uuid
-from armada_client.generated_client import event_pb2, event_pb2_grpc, queue_pb2, queue_pb2_grpc, usage_pb2, usage_pb2_grpc, submit_pb2, submit_pb2_grpc
+from armada_client.generated_client import (
+    event_pb2,
+    event_pb2_grpc,
+    queue_pb2,
+    queue_pb2_grpc,
+    usage_pb2,
+    usage_pb2_grpc,
+    submit_pb2,
+    submit_pb2_grpc,
+)
 from armada_client.client import ArmadaClient, AuthData, AuthMethod
 from armada_client.k8s.io.api.core.v1 import generated_pb2 as core_v1
-from armada_client.k8s.io.apimachinery.pkg.api.resource import generated_pb2 as api_resource
+from armada_client.k8s.io.apimachinery.pkg.api.resource import (
+    generated_pb2 as api_resource,
+)
 
 
 class BasicAuthTest:
@@ -25,8 +36,7 @@ class BasicAuthTest:
                         flexVolume=core_v1.FlexVolumeSource(
                             driver="gr/cifs",
                             fsType="cifs",
-                            secretRef=core_v1.LocalObjectReference(
-                                name="secret-name"),
+                            secretRef=core_v1.LocalObjectReference(name="secret-name"),
                             options={"networkPath": ""},
                         )
                     ),
