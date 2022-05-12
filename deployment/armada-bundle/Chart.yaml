@@ -15,10 +15,15 @@ dependencies:
   - name: armada-lookout-migration
     version: 0.1.43
     repository: file:///Users/zele/Projects/gresearch/armada/deployment/lookout-migration
+    condition: dependencies.armada-lookout-migration
   - name: stan
     version: 0.13.0
     repository: https://nats-io.github.io/k8s/helm/charts
     condition: dependencies.stan
+  - name: pulsar
+    version: 2.9.3
+    repository: https://pulsar.apache.org/charts
+    condition: dependencies.pulsar
   - name: kube-prometheus-stack
     version: 35.0.3
     repository: https://prometheus-community.github.io/helm-charts

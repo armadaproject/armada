@@ -11,6 +11,9 @@ dependencies:
 - name: stan
   repository: https://nats-io.github.io/k8s/helm/charts
   version: 0.13.0
+- name: pulsar
+  repository: https://pulsar.apache.org/charts
+  version: 2.9.3
 - name: kube-prometheus-stack
   repository: https://prometheus-community.github.io/helm-charts
   version: 35.0.3
@@ -26,5 +29,5 @@ dependencies:
 - name: executor-cluster-monitoring
   repository: https://g-research.github.io/charts
   version: v0.1.9
-digest: sha256:b609a648c50a8e31b8c4758be70376136b4fee6a9fe23f06ed08ed2f52c9d35b
-generated: "2022-05-05T15:57:40.795261+02:00"
+digest: sha256:fe97691131a0448c62c56259cce9142e7e5128d9e74cde7b623c9c564b53370a
+generated: "2022-05-12T18:02:04.672869+02:00"

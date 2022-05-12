@@ -9,6 +9,8 @@ dependencies:
   armada-executor: true
   executor-cluster-monitoring: true
   postgresql: true
+  pulsar: true
+  armada-lookout-migration: true
 
 redis-ha:
   fullnameOverride: redis-ha
@@ -60,6 +62,9 @@ armada-lookout-migration:
 
 stan:
   nameOverride: "nats"
+
+pulsar:
+  fullnameOverride: pulsar
 
 kube-prometheus-stack:
   alertmanager:
