@@ -142,10 +142,9 @@ func (srv *SubmitFromLog) Run(ctx context.Context) {
 			}
 
 			messageLogger.WithField("numEvents", len(sequence.Events)).Info("processing sequence")
-			ok = srv.ProcessSequence(ctxWithLogger, sequence)
-			if ok {
-				srv.Consumer.Ack(msg)
-			}
+			// TODO: Improve retry logic.
+			srv.ProcessSequence(ctxWithLogger, sequence)
+			srv.Consumer.Ack(msg)
 		}
 	}
 }
