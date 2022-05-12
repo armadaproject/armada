@@ -22,7 +22,7 @@ import (
 )
 
 // Run will create a pipeline that will take Armada event messages from Pulsar and update the
-// Lookout database accordingly.  This pipeline will run until a SIGTERM is received
+// Events database accordingly.  This pipeline will run until a SIGTERM is received
 func Run(config *configuration.EventIngesterConfiguration) {
 
 	if !(config.Paralellism > 0) {
@@ -116,6 +116,9 @@ func Run(config *configuration.EventIngesterConfiguration) {
 	log.Info("Shutdown event received- closing")
 }
 
+// Merges an array of channels into a single channel
+// TODO: This is basically the same asMergeInstructions in the lookout ingester
+// Once generics arrive we should factor this out
 func merge(cs []chan *model.PulsarEventRow) <-chan *model.PulsarEventRow {
 	out := make(chan *model.PulsarEventRow)
 	var wg sync.WaitGroup

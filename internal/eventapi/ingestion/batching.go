@@ -8,6 +8,10 @@ import (
 	"github.com/G-Research/armada/internal/eventapi/model"
 )
 
+// Batch batches up events from a channel.  Batches are created whenever maxItems InstructionSets have been
+// received or maxTimeout has elapsed since the last batch was created (whichever occurs first).
+// This function has a lot in common with lookoutingester.batch.  Hopefully when generics become available we can
+// factor out most of the common code
 func Batch(values <-chan *model.PulsarEventRow, maxItems int, maxTimeout time.Duration, bufferSize int, clock clock.Clock) chan []*model.PulsarEventRow {
 
 	out := make(chan []*model.PulsarEventRow, bufferSize)

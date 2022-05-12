@@ -9,11 +9,13 @@ import (
 	"github.com/G-Research/armada/internal/eventapi/model"
 )
 
-func ProcessUpdates(ctx context.Context, db *eventdb.EventDb, msgs chan []*model.PulsarEventRow, bufferSize int) chan []*model.PulsarEventRow {
+// InsertEvents takes a channel of armada events and insets them into the event db
+// the events are republished to an output channel for further processing (e.g. Ackking)
+func InsertEvents(ctx context.Context, db *eventdb.EventDb, msgs chan []*model.PulsarEventRow, bufferSize int) chan []*model.PulsarEventRow {
 	out := make(chan []*model.PulsarEventRow, bufferSize)
 	go func() {
 		for msg := range msgs {
-			update(ctx, db, msg)
+			insert(ctx, db, msg)
 			out <- msg
 		}
 		close(out)
@@ -21,12 +23,12 @@ func ProcessUpdates(ctx context.Context, db *eventdb.EventDb, msgs chan []*model
 	return out
 }
 
-func update(ctx context.Context, db *eventdb.EventDb, inputRows []*model.PulsarEventRow) {
+func insert(ctx context.Context, db *eventdb.EventDb, inputRows []*model.PulsarEventRow) {
 	rows := make([]*model.EventRow, len(inputRows))
 	for i := 0; i <= len(inputRows); i++ {
 		rows[i] = inputRows[i].Event
 	}
-	err := db.InsertEvents(ctx, rows)
+	err := db.UpdateEvents(ctx, rows)
 	if err != nil {
 		log.Warnf("Error inserting rows")
 	}

@@ -7,8 +7,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/G-Research/armada/pkg/armadaevents"
-
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/sirupsen/logrus"
 
@@ -94,11 +92,6 @@ func Receive(ctx context.Context, consumer pulsar.Consumer, consumerId int, buff
 						WithField("lastMessageId", lastMessageId).
 						Warnf("Pulsar receive failed; backing off for %s", backoffTime)
 					time.Sleep(backoffTime)
-					continue
-				}
-
-				// We're only interested in control messages.
-				if !armadaevents.IsControlMessage(msg) {
 					continue
 				}
 

@@ -17,6 +17,8 @@ type EventRow struct {
 }
 
 // JobsetRow represents a Jobset in the Postgres Database
+// Essentially this is a mapping from (jobsetName, queue) ->  int64 which means
+// We can store int64s rather than long strings
 type JobsetRow struct {
 	JobSetId int64
 	Queue    string
@@ -25,6 +27,7 @@ type JobsetRow struct {
 }
 
 // SeqNoRow represents a Sequence Number in the Postgres Database
+// This enables us to keep track of the latest available event for each jobset
 type SeqNoRow struct {
 	JobSetId   int64
 	SeqNo      int64
@@ -43,22 +46,30 @@ type EventSubscription struct {
 	Channel        chan []*EventRow
 }
 
+// EventRequest represents a request for new Event rows form the database
 type EventRequest struct {
-	SubscriptionId int64
-	Jobset         int64
-	Sequence       int64
+	SubscriptionId int64 // The subscriber who originated the request
+	Jobset         int64 // The id of the jobset they want events for
+	Sequence       int64 // Only return  events after this sequence number
 }
 
+// EventResponse represents a response to the EventRequest
 type EventResponse struct {
-	SubscriptionId int64
-	Events         []*EventRow
+	SubscriptionId int64       // The subscriber who originated the request
+	Events         []*EventRow // Returned Events
 }
 
+// ExternalSeqNo is a sequence number that we pass to end users
+// Sequence is the puslar message sequence
+// Index is the index of the event inside the armadaevents.EventSequence
 type ExternalSeqNo struct {
 	Sequence int64
 	Index    int
 }
 
+// ParseExternalSeqNo Parses an external sequence number which should be of the form "Sequence:Index".
+// The empty string will be interpreted as "-1:-1" whoch is the initial sequence numebr
+// An error will be returned if the sequence number cannot be parsed
 func ParseExternalSeqNo(str string) (*ExternalSeqNo, error) {
 	if str == "" {
 		return &ExternalSeqNo{-1, -1}, nil
@@ -81,6 +92,7 @@ func ParseExternalSeqNo(str string) (*ExternalSeqNo, error) {
 	}, nil
 }
 
+// IsValidExternalSeqNo Returns true if the given string is a valid ExternalSeqNo
 func IsValidExternalSeqNo(str string) bool {
 	_, err := ParseExternalSeqNo(str)
 	return err == nil

@@ -2,18 +2,20 @@ package ingestion
 
 import (
 	"context"
+	"github.com/G-Research/armada/internal/pulsarutils"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/proto"
 	"github.com/prometheus/common/log"
 
-	model2 "github.com/G-Research/armada/internal/eventapi/model"
-	"github.com/G-Research/armada/internal/lookoutingester/model"
+	"github.com/G-Research/armada/internal/eventapi/model"
 	"github.com/G-Research/armada/pkg/armadaevents"
 )
 
-func SendSequenceUpdates(ctx context.Context, producer pulsar.Producer, msgs chan []*model2.PulsarEventRow, bufferSize int) chan []*model.ConsumerMessageId {
-	out := make(chan []*model.ConsumerMessageId, bufferSize)
+// SendSequenceUpdates takes a channel of events that have been processed and publishes the corresponding sequence numbers onto pulsar
+// It outputs the pulsar message ids of the originating events so that the messages can be accked
+func SendSequenceUpdates(ctx context.Context, producer pulsar.Producer, msgs chan []*model.PulsarEventRow, bufferSize int) chan []*pulsarutils.ConsumerMessageId {
+	out := make(chan []*pulsarutils.ConsumerMessageId, bufferSize)
 	go func() {
 		for msg := range msgs {
 			msgIds := SendSequenceUpdate(ctx, msg, producer)
@@ -24,18 +26,20 @@ func SendSequenceUpdates(ctx context.Context, producer pulsar.Producer, msgs cha
 	return out
 }
 
-func SendSequenceUpdate(ctx context.Context, inputMsgs []*model2.PulsarEventRow, producer pulsar.Producer) []*model.ConsumerMessageId {
-	offsets := make([]*armadaevents.Offset, len(inputMsgs))
-	messageIds := make([]*model.ConsumerMessageId, len(inputMsgs))
+// SendSequenceUpdate synchronously sends sequence numbers to Pulsar
+// TODO: Retries if the pulsar send fails
+func SendSequenceUpdate(ctx context.Context, inputMsgs []*model.PulsarEventRow, producer pulsar.Producer) []*pulsarutils.ConsumerMessageId {
+	seqUpdates := make([]*armadaevents.SeqUpdate, len(inputMsgs))
+	messageIds := make([]*pulsarutils.ConsumerMessageId, len(inputMsgs))
 	for i := 0; i < len(messageIds); i++ {
 		messageIds[i] = inputMsgs[i].MessageId
-		offsets[i] = &armadaevents.Offset{
+		seqUpdates[i] = &armadaevents.SeqUpdate{
 			JobsetId: inputMsgs[i].Event.JobSetId,
-			Offset:   inputMsgs[i].MessageId.Index,
+			SeqNo:    inputMsgs[i].MessageId.Index,
 		}
 	}
-	offsetsBatch := &armadaevents.Offsets{
-		Offsets: offsets,
+	offsetsBatch := &armadaevents.SeqUpdates{
+		Updates: seqUpdates,
 	}
 	payload, err := proto.Marshal(offsetsBatch)
 	if err == nil {

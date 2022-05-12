@@ -3,33 +3,38 @@ package eventdb
 import (
 	"context"
 	"fmt"
+	"github.com/G-Research/armada/internal/common/database"
+	"github.com/pkg/errors"
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
+	"github.com/G-Research/armada/internal/eventapi/model"
 	"github.com/jackc/pgtype/pgxtype"
 	"github.com/jackc/pgx/v4"
-	"github.com/pkg/errors"
-
-	"github.com/G-Research/armada/internal/eventapi/model"
 
 	"github.com/jackc/pgx/v4/pgxpool"
 )
 
+// EventDb represents the operations that can be performed on the events database
 type EventDb struct {
 	db *pgxpool.Pool
 }
 
 func NewEventDb(db *pgxpool.Pool) *EventDb {
-	return &EventDb{
-		db: db,
-	}
+	return &EventDb{db: db}
 }
 
+// UpdateEvents updates the database with a batch of events.
+// This first check the database to see which sequence numbers have already been inserted, any Events with lower
+// sequence numbers are discarded at this stage.
+// Next the events are insrted using the postgres copy protocol
+// Finally the sequence numbers are updated
 func (e *EventDb) UpdateEvents(ctx context.Context, events []*model.EventRow) error {
 
+	jobsetIds := distinctJobsets(events)
+
 	// If there's nothing to insert then we can just return
-	if len(events) < 1 {
+	if len(jobsetIds) < 1 {
 		return nil
 	}
 
@@ -39,17 +44,19 @@ func (e *EventDb) UpdateEvents(ctx context.Context, events []*model.EventRow) er
 		DeferrableMode: pgx.Deferrable,
 	}, func(tx pgx.Tx) error {
 
-		// First filter out any events with  sequenceNo equal to or lower than sequenceNos we already have
-		jobsetId := distinctJobsets(events)
-		sequenceNos, err := loadSequenceNosForIds(ctx, tx, jobsetId)
+		// First filter out any events where there is no row or the sequenceNo is equal to or lower than sequenceNos we already have
+		sequenceNos, err := loadSequenceNosForIds(ctx, tx, jobsetIds)
+
 		if err != nil {
 			return err
 		}
 		eventsToInsert := make([]*model.EventRow, 0)
 		for _, event := range events {
-			lastProcessed, seqNoFound := sequenceNos[event.JobSetId]
-			if !seqNoFound || lastProcessed < event.SeqNo {
-				eventsToInsert = append(eventsToInsert, event)
+			if event != nil {
+				lastProcessed, seqNoFound := sequenceNos[event.JobSetId]
+				if !seqNoFound || lastProcessed < event.SeqNo {
+					eventsToInsert = append(eventsToInsert, event)
+				}
 			}
 		}
 
@@ -59,15 +66,19 @@ func (e *EventDb) UpdateEvents(ctx context.Context, events []*model.EventRow) er
 			return err
 		}
 
-		// Finally insert the seqnos corresponding to those events
-		seqNosToInsert := lastSeqNumbers(events)
+		// Finally, insert the seqnos corresponding to those events
+		seqNosToInsert := lastSeqNumbers(eventsToInsert)
 		err = e.InsertSeqNos(ctx, seqNosToInsert)
 		return err
 	})
 }
 
+// InsertSeqNos inserts a batch of sequence numbers using the postgres copy protocol
+// This is effectively an upsert.  If a sequence number for a jobset didn't already exist then it is created.
+// If it does already exist then the corresponding sequence number is updated
+// Note that it is up to the caller to determine that they are not replacing more recent sequence numbers
 func (e *EventDb) InsertSeqNos(ctx context.Context, seqNos []*model.SeqNoRow) error {
-	tmpTable := uniqueTableName("latest_seqno")
+	tmpTable := database.UniqueTableName("latest_seqno")
 
 	createTmp := func(tx pgx.Tx) error {
 		_, err := tx.Exec(ctx, fmt.Sprintf(`
@@ -106,17 +117,14 @@ func (e *EventDb) InsertSeqNos(ctx context.Context, seqNos []*model.SeqNoRow) er
 		return err
 	}
 
-	return batchInsert(ctx, e.db, createTmp, insertTmp, copyToDest)
+	return database.BatchInsert(ctx, e.db, createTmp, insertTmp, copyToDest)
 }
 
-func uniqueTableName(table string) string {
-	suffix := strings.ReplaceAll(uuid.New().String(), "-", "")
-	return fmt.Sprintf("%s_tmp_%s", table, suffix)
-}
-
+// InsertEvents inserts a batch of events into the event table using the copy protocol
+// Any existing events will not be overwritten.
 func (e *EventDb) InsertEvents(ctx context.Context, events []*model.EventRow) error {
 
-	tmpTable := uniqueTableName("event")
+	tmpTable := database.UniqueTableName("event")
 
 	createTmp := func(tx pgx.Tx) error {
 		_, err := tx.Exec(ctx, fmt.Sprintf(`
@@ -154,116 +162,14 @@ func (e *EventDb) InsertEvents(ctx context.Context, events []*model.EventRow) er
 		return err
 	}
 
-	return batchInsert(ctx, e.db, createTmp, insertTmp, copyToDest)
+	return database.BatchInsert(ctx, e.db, createTmp, insertTmp, copyToDest)
 }
 
-func (e *EventDb) LoadJobsetsAfter(ctx context.Context, after time.Time) ([]*model.JobsetRow, error) {
-	rows, err := e.db.Query(ctx, "SELECT id, queue, jobset, created FROM jobset WHERE created > $1", after)
-	if err != nil {
-		return nil, err
-	}
-	jobsets := make([]*model.JobsetRow, 0)
-	for rows.Next() {
-		jobset := &model.JobsetRow{}
-		err := rows.Scan(&jobset.JobSetId, &jobset.Queue, &jobset.Jobset, &jobset.Created)
-		if err != nil {
-			return nil, err
-		}
-		jobsets = append(jobsets, jobset)
-	}
-	return jobsets, nil
-}
-
-func (e *EventDb) LoadSeqNos(ctx context.Context) ([]*model.SeqNoRow, error) {
-	rows, err := e.db.Query(ctx, "SELECT jobset_id, seqno, update_time FROM latest_seqno ORDER BY jobset_id")
-	if err != nil {
-		return nil, err
-	}
-	seqNos := make([]*model.SeqNoRow, 0)
-	for rows.Next() {
-		seqNo := &model.SeqNoRow{}
-		err := rows.Scan(&seqNo.JobSetId, &seqNo.SeqNo, &seqNo.UpdateTime)
-		if err != nil {
-			return nil, err
-		}
-		seqNos = append(seqNos, seqNo)
-	}
-	return seqNos, nil
-}
-
-func (e *EventDb) LoadEvents(ctx context.Context) ([]*model.EventRow, error) {
-	rows, err := e.db.Query(ctx, "SELECT jobset_id, seqno, event FROM event")
-	if err != nil {
-		return nil, err
-	}
-	events := make([]*model.EventRow, 0)
-	for rows.Next() {
-		seqNo := &model.EventRow{}
-		err := rows.Scan(&seqNo.JobSetId, &seqNo.SeqNo, &seqNo.Event)
-		if err != nil {
-			return nil, err
-		}
-		events = append(events, seqNo)
-	}
-	return events, nil
-}
-
-func loadSequenceNosForIds(ctx context.Context, querier pgxtype.Querier, jobsetIds []int64) (map[int64]int64, error) {
-	rows, err := querier.Query(ctx, "SELECT jobset_id, seqno FROM latest_seqno WHERE jobset_id = any($1)", jobsetIds)
-	if err != nil {
-		return nil, err
-	}
-	seqnos := make(map[int64]int64, 0)
-	for rows.Next() {
-		var jobsetId int64 = -1
-		var seqno int64 = -1
-		err := rows.Scan(&jobsetId, &seqno)
-		if err != nil {
-			return nil, err
-		}
-		seqnos[jobsetId] = seqno
-	}
-	return seqnos, nil
-}
-
-func lastSeqNumbers(events []*model.EventRow) []*model.SeqNoRow {
-
-	seqNosById := make(map[int64]int64)
-
-	for _, event := range events {
-		seqNosById[event.JobSetId] = event.SeqNo
-	}
-
-	seqNos := make([]*model.SeqNoRow, 0)
-	for jobSet, seqNo := range seqNosById {
-		seqNos = append(seqNos, &model.SeqNoRow{
-			JobSetId:   jobSet,
-			SeqNo:      seqNo,
-			UpdateTime: time.Now().In(time.UTC),
-		})
-	}
-	return seqNos
-}
-
-func (e *EventDb) GetOrCreateJobsetId(ctx context.Context, queue string, jobset string) (int64, error) {
-
-	_, err := e.db.Exec(
-		ctx,
-		`INSERT INTO jobset (queue, jobset, created) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING;`,
-		queue,
-		jobset,
-		time.Now().In(time.UTC))
-
-	if err != nil {
-		return 0, err
-	}
-
-	var id int64 = 0
-	row := e.db.QueryRow(ctx, `SELECT id FROM jobset WHERE queue = $1 AND jobset = $2`, queue, jobset)
-	err = row.Scan(&id)
-	return id, err
-}
-
+// GetEvents fetches all the events from the database for the list of requests.  If the number of rows returned will
+// not exceed the limit supplied.
+// This function exists because we expect that at any given point in time there may be new rows available for multiple
+// jobsets, each with a relatively small number of rows available.  This allows us to fetch the rows for multiple
+// jobsets in  a single query, which should be more efficient than making a large number of queries
 func (e *EventDb) GetEvents(requests []*model.EventRequest, limit int) ([]*model.EventResponse, error) {
 
 	// Build up a query of the form:
@@ -328,42 +234,133 @@ func (e *EventDb) GetEvents(requests []*model.EventRequest, limit int) ([]*model
 	return results, nil
 }
 
+// LoadJobsetsAfter Loads all Jobsets created the supplied time
+func (e *EventDb) LoadJobsetsAfter(ctx context.Context, after time.Time) ([]*model.JobsetRow, error) {
+	rows, err := e.db.Query(ctx, "SELECT id, queue, jobset, created FROM jobset WHERE created > $1", after)
+	if err != nil {
+		return nil, err
+	}
+	jobsets := make([]*model.JobsetRow, 0)
+	for rows.Next() {
+		jobset := &model.JobsetRow{}
+		err := rows.Scan(&jobset.JobSetId, &jobset.Queue, &jobset.Jobset, &jobset.Created)
+		if err != nil {
+			return nil, err
+		}
+		jobsets = append(jobsets, jobset)
+	}
+	return jobsets, nil
+}
+
+// LoadSeqNos Loads all sequence numbers.  This could be very  large so is mainly intended for test purposes
+func (e *EventDb) LoadSeqNos(ctx context.Context) ([]*model.SeqNoRow, error) {
+	rows, err := e.db.Query(ctx, "SELECT jobset_id, seqno, update_time FROM latest_seqno ORDER BY jobset_id")
+	if err != nil {
+		return nil, err
+	}
+	seqNos := make([]*model.SeqNoRow, 0)
+	for rows.Next() {
+		seqNo := &model.SeqNoRow{}
+		err := rows.Scan(&seqNo.JobSetId, &seqNo.SeqNo, &seqNo.UpdateTime)
+		if err != nil {
+			return nil, err
+		}
+		seqNos = append(seqNos, seqNo)
+	}
+	return seqNos, nil
+}
+
+// LoadEvents Loads all events.  This could be very large so is mainly intended for test purposes
+func (e *EventDb) LoadEvents(ctx context.Context) ([]*model.EventRow, error) {
+	rows, err := e.db.Query(ctx, "SELECT jobset_id, seqno, event FROM event")
+	if err != nil {
+		return nil, err
+	}
+	events := make([]*model.EventRow, 0)
+	for rows.Next() {
+		seqNo := &model.EventRow{}
+		err := rows.Scan(&seqNo.JobSetId, &seqNo.SeqNo, &seqNo.Event)
+		if err != nil {
+			return nil, err
+		}
+		events = append(events, seqNo)
+	}
+	return events, nil
+}
+
+// GetOrCreateJobsetId will retrieve a mapping from (queue, jobset) -> jobsetId or create a new one if one doesn't exist
+func (e *EventDb) GetOrCreateJobsetId(ctx context.Context, queue string, jobset string) (int64, error) {
+
+	_, err := e.db.Exec(
+		ctx,
+		`INSERT INTO jobset (queue, jobset, created) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING;`,
+		queue,
+		jobset,
+		time.Now().In(time.UTC))
+
+	if err != nil {
+		return 0, err
+	}
+
+	var id int64 = 0
+	row := e.db.QueryRow(ctx, `SELECT id FROM jobset WHERE queue = $1 AND jobset = $2`, queue, jobset)
+	err = row.Scan(&id)
+	return id, err
+}
+
+// loadSequenceNosForIds will load all the sequence numbers for the supplied jobsetIds
+func loadSequenceNosForIds(ctx context.Context, querier pgxtype.Querier, jobsetIds []int64) (map[int64]int64, error) {
+	rows, err := querier.Query(ctx, "SELECT jobset_id, seqno FROM latest_seqno WHERE jobset_id = any($1)", jobsetIds)
+	if err != nil {
+		return nil, err
+	}
+	seqnos := make(map[int64]int64, 0)
+	for rows.Next() {
+		var jobsetId int64 = -1
+		var seqno int64 = -1
+		err := rows.Scan(&jobsetId, &seqno)
+		if err != nil {
+			return nil, err
+		}
+		seqnos[jobsetId] = seqno
+	}
+	return seqnos, nil
+}
+
+// lastSeqNumbers determines the last sequence number for each jobset in the input event rows
+// this function  assumes that the input event rows are already sorted by seq number
+func lastSeqNumbers(events []*model.EventRow) []*model.SeqNoRow {
+
+	seqNosById := make(map[int64]int64)
+
+	for _, event := range events {
+		seqNosById[event.JobSetId] = event.SeqNo
+	}
+
+	seqNos := make([]*model.SeqNoRow, 0)
+	for jobSet, seqNo := range seqNosById {
+		seqNos = append(seqNos, &model.SeqNoRow{
+			JobSetId:   jobSet,
+			SeqNo:      seqNo,
+			UpdateTime: time.Now().In(time.UTC),
+		})
+	}
+	return seqNos
+}
+
+// Returns the distinct jobset ids in each supplied batch of events
+// Note that we have  to check whether any given event is nil
+// As this will occur if we've had a failed message
 func distinctJobsets(events []*model.EventRow) []int64 {
 	keys := make(map[int64]bool)
 	distinctJobsets := make([]int64, 0)
 	for _, e := range events {
-		if _, value := keys[e.JobSetId]; !value {
-			keys[e.JobSetId] = true
-			distinctJobsets = append(distinctJobsets, e.JobSetId)
+		if e != nil {
+			if _, value := keys[e.JobSetId]; !value {
+				keys[e.JobSetId] = true
+				distinctJobsets = append(distinctJobsets, e.JobSetId)
+			}
 		}
 	}
 	return distinctJobsets
-}
-
-func batchInsert(ctx context.Context, db *pgxpool.Pool, createTmp func(pgx.Tx) error,
-	insertTmp func(pgx.Tx) error, copyToDest func(pgx.Tx) error) error {
-
-	return db.BeginTxFunc(ctx, pgx.TxOptions{
-		IsoLevel:       pgx.ReadCommitted,
-		AccessMode:     pgx.ReadWrite,
-		DeferrableMode: pgx.Deferrable,
-	}, func(tx pgx.Tx) error {
-
-		// Create a temporary table to hold the staging data
-		err := createTmp(tx)
-		if err != nil {
-			return err
-		}
-
-		err = insertTmp(tx)
-		if err != nil {
-			return err
-		}
-
-		err = copyToDest(tx)
-		if err != nil {
-			return err
-		}
-		return nil
-	})
 }

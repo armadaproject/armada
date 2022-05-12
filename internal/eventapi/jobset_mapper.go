@@ -11,10 +11,14 @@ import (
 	"github.com/G-Research/armada/internal/eventapi/eventdb"
 )
 
+// JobsetMapper Allows us to map between external jobset identifiers (i.e (queue, jobset)) and our internal
+// int64 representation
 type JobsetMapper interface {
+	// Get returns the int64 mapping, or an error if no mapping can be determined
 	Get(ctx context.Context, queue string, jobset string) (int64, error)
 }
 
+// StaticJobsetMapper has a set of jobsets backed by a simple map. It's mainly intended for test purposes
 type StaticJobsetMapper struct {
 	JobsetIds map[string]int64
 }
@@ -28,6 +32,8 @@ func (j *StaticJobsetMapper) Get(ctx context.Context, queue string, jobset strin
 	return id, nil
 }
 
+// PostgresJobsetMapper uses Postgres to store mappings.
+// New Mappings will be created automatically and stored in a local LRU cache for fast access
 type PostgresJobsetMapper struct {
 	jobsetIds *lru.Cache
 	eventDb   *eventdb.EventDb
