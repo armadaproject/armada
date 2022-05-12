@@ -8,6 +8,46 @@ import (
 	"github.com/pkg/errors"
 )
 
+func FromEventSequence(es *armadaevents.EventSequence, ts time.Time) ([]*api.EventMessage, error) {
+	apiEvents := make([]*api.EventMessage, 0)
+	var err error = nil
+	var convertedEvents []*api.EventMessage = nil
+	for _, event := range es.Events {
+		switch esEvent := event.GetEvent().(type) {
+		case *armadaevents.EventSequence_Event_SubmitJob:
+			convertedEvents, err = FromLogSubmit(es.Queue, es.JobSetName, ts, esEvent.SubmitJob)
+		case *armadaevents.EventSequence_Event_CancelledJob:
+			convertedEvents, err = FromLogCancelled(es.UserId, es.Queue, es.JobSetName, ts, esEvent.CancelledJob)
+		case *armadaevents.EventSequence_Event_CancelJob:
+			convertedEvents, err = FromLogCancelling(es.UserId, es.Queue, es.JobSetName, ts, esEvent.CancelJob)
+		case *armadaevents.EventSequence_Event_ReprioritiseJob:
+			convertedEvents, err = FromLogReprioritizing(es.UserId, es.Queue, es.JobSetName, ts, esEvent.ReprioritiseJob)
+		case *armadaevents.EventSequence_Event_ReprioritisedJob:
+			convertedEvents, err = FromLogReprioritised(es.UserId, es.Queue, es.JobSetName, ts, esEvent.ReprioritisedJob)
+		case *armadaevents.EventSequence_Event_JobDuplicateDetected:
+			convertedEvents, err = FromLogDuplicateDetected(es.Queue, es.JobSetName, ts, esEvent.JobDuplicateDetected)
+		case *armadaevents.EventSequence_Event_JobRunLeased:
+			convertedEvents, err = FromLogJobRunLeased(es.Queue, es.JobSetName, ts, esEvent.JobRunLeased)
+		case *armadaevents.EventSequence_Event_JobRunErrors:
+			convertedEvents, err = FromJobRunErrors(es.Queue, es.JobSetName, ts, esEvent.JobRunErrors)
+		case *armadaevents.EventSequence_Event_JobErrors:
+			convertedEvents, err = FromJobErrors(es.Queue, es.JobSetName, ts, esEvent.JobErrors)
+		case *armadaevents.EventSequence_Event_JobRunRunning:
+			convertedEvents, err = FromJobRunRunning(es.Queue, es.JobSetName, ts, esEvent.JobRunRunning)
+		case *armadaevents.EventSequence_Event_JobRunAssigned:
+			convertedEvents, err = FromJobRunAssigned(es.Queue, es.JobSetName, ts, esEvent.JobRunAssigned)
+		case *armadaevents.EventSequence_Event_ResourceUtilisation:
+			convertedEvents, err = FromResourceUtilisation(es.Queue, es.JobSetName, ts, esEvent.ResourceUtilisation)
+		}
+		if err != nil {
+			//TODO: would it be better to log a warning and continue?
+			return nil, err
+		}
+		apiEvents = append(apiEvents, convertedEvents...)
+	}
+	return apiEvents, nil
+}
+
 func FromLogSubmit(queueName string, jobSetName string, time time.Time, e *armadaevents.SubmitJob) ([]*api.EventMessage, error) {
 	jobId, err := armadaevents.UlidStringFromProtoUuid(e.JobId)
 	if err != nil {
@@ -363,6 +403,37 @@ func FromJobRunAssigned(queueName string, jobSetName string, time time.Time, e *
 		{
 			Events: &api.EventMessage_Pending{
 				Pending: apiEvent,
+			},
+		},
+	}, nil
+}
+
+func FromResourceUtilisation(queueName string, jobSetName string, time time.Time, e *armadaevents.ResourceUtilisation) ([]*api.EventMessage, error) {
+	jobId, err := armadaevents.UlidStringFromProtoUuid(e.JobId)
+	if err != nil {
+		err = errors.WithStack(err)
+		return nil, err
+	}
+
+	apiEvent :=
+		&api.JobUtilisationEvent{
+			JobId:                 jobId,
+			Queue:                 queueName,
+			Created:               time,
+			ClusterId:             e.GetResourceInfo().GetObjectMeta().GetExecutorId(),
+			KubernetesId:          e.GetResourceInfo().GetObjectMeta().GetKubernetesId(),
+			MaxResourcesForPeriod: e.MaxResourcesForPeriod,
+			NodeName:              e.GetResourceInfo().GetPodInfo().GetNodeName(),
+			PodNumber:             e.GetResourceInfo().GetPodInfo().GetPodNumber(),
+			PodName:               e.GetResourceInfo().GetObjectMeta().GetName(),
+			PodNamespace:          e.GetResourceInfo().GetObjectMeta().GetNamespace(),
+			TotalCumulativeUsage:  e.TotalCumulativeUsage,
+		}
+
+	return []*api.EventMessage{
+		{
+			Events: &api.EventMessage_Utilisation{
+				Utilisation: apiEvent,
 			},
 		},
 	}, nil

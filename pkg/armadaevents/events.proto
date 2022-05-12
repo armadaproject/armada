@@ -1,8 +1,6 @@
 syntax = 'proto3';
 package armadaevents;
 
-import "google/protobuf/timestamp.proto";
-import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 import "k8s.io/api/core/v1/generated.proto";
 import "k8s.io/api/networking/v1/generated.proto";
 import "google/protobuf/timestamp.proto";
@@ -435,13 +433,13 @@ message JobDuplicateDetected {
     Uuid old_job_id = 2;
 }
 
-message Offset{
+message SeqUpdate{
     int64 jobsetId = 1;
-    int64 offset = 2;
+    int64 seqNo = 2;
 }
 
-message Offsets{
-    repeated Offset offsets = 1;
+message SeqUpdates{
+    repeated SeqUpdate updates = 1;
 }
 
 message JobUtilisationEvent {
@@ -460,8 +458,6 @@ message JobUtilisationEvent {
 }
 
 message DatabaseEvent{
-    oneof event {
-        EventSequence eventSequence = 1;
-        JobUtilisationEvent jobUtilisation = 2;
-    }
+    google.protobuf.Timestamp time  = 1 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+    EventSequence eventSequence = 2;
 }

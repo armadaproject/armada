@@ -155,7 +155,7 @@ func (e *EventDb) InsertEvents(ctx context.Context, events []*model.EventRow) er
 	return batchInsert(ctx, e.db, createTmp, insertTmp, copyToDest)
 }
 
-func (e *EventDb) LoadJobsets(ctx context.Context, after time.Time) ([]*model.JobsetRow, error) {
+func (e *EventDb) LoadJobsetsAfter(ctx context.Context, after time.Time) ([]*model.JobsetRow, error) {
 	rows, err := e.db.Query(ctx, "SELECT id, queue, jobset, created FROM jobset WHERE created > $1", after)
 	if err != nil {
 		return nil, err

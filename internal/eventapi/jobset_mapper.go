@@ -20,7 +20,7 @@ type PostgresJobsetMapper struct {
 }
 
 func NewJobsetMapper(eventDb *eventdb.EventDb, cachesize int, initialiseSince time.Duration) (*PostgresJobsetMapper, error) {
-	initialJobsets, err := eventDb.LoadJobsets(context.Background(), time.Now().UTC().Add(-initialiseSince))
+	initialJobsets, err := eventDb.LoadJobsetsAfter(context.Background(), time.Now().UTC().Add(-initialiseSince))
 	if err != nil {
 		return nil, err
 	}

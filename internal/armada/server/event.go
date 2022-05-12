@@ -3,6 +3,9 @@ package server
 import (
 	"context"
 	"errors"
+	"github.com/G-Research/armada/internal/eventapi/model"
+	"github.com/G-Research/armada/internal/eventapi/serving"
+	log "github.com/sirupsen/logrus"
 	"time"
 
 	"github.com/gogo/protobuf/types"
@@ -21,19 +24,22 @@ type EventServer struct {
 	eventRepository repository.EventRepository
 	queueRepository repository.QueueRepository
 	eventStore      repository.EventStore
+	eventApi        *serving.EventApi
 }
 
 func NewEventServer(
 	permissions authorization.PermissionChecker,
 	eventRepository repository.EventRepository,
 	eventStore repository.EventStore,
-	queueRepository repository.QueueRepository) *EventServer {
+	queueRepository repository.QueueRepository,
+	eventApi *serving.EventApi) *EventServer {
 
 	return &EventServer{
 		permissions:     permissions,
 		eventRepository: eventRepository,
 		eventStore:      eventStore,
 		queueRepository: queueRepository,
+		eventApi:        eventApi,
 	}
 }
 
@@ -66,6 +72,25 @@ func (s *EventServer) GetJobSetEvents(request *api.JobSetRequest, stream api.Eve
 		return status.Errorf(codes.PermissionDenied, "[GetJobSetEvents] %s", err)
 	}
 
+	if s.eventApi == nil || model.IsValidExternalSeqNo(request.FromMessageId) {
+		return s.serveEventsFromRepository(request, stream)
+	} else {
+		return s.serveEventsFromEventApi(request, stream)
+	}
+}
+
+func (s *EventServer) Watch(req *api.WatchRequest, stream api.Event_WatchServer) error {
+	request := &api.JobSetRequest{
+		Id:             req.JobSetId,
+		Watch:          true,
+		FromMessageId:  req.FromId,
+		Queue:          req.Queue,
+		ErrorIfMissing: true,
+	}
+	return s.GetJobSetEvents(request, stream)
+}
+
+func (s *EventServer) serveEventsFromRepository(request *api.JobSetRequest, stream api.Event_GetJobSetEventsServer) error {
 	if request.ErrorIfMissing {
 		exists, err := s.eventRepository.CheckStreamExists(request.Queue, request.Id)
 		if err != nil {
@@ -120,22 +145,18 @@ func (s *EventServer) GetJobSetEvents(request *api.JobSetRequest, stream api.Eve
 	}
 }
 
-func (s *EventServer) Watch(req *api.WatchRequest, stream api.Event_WatchServer) error {
-	request := &api.JobSetRequest{
-		Id:             req.JobSetId,
-		Watch:          true,
-		FromMessageId:  req.FromId,
-		Queue:          req.Queue,
-		ErrorIfMissing: true,
+func (s *EventServer) serveEventsFromEventApi(request *api.JobSetRequest, stream api.Event_GetJobSetEventsServer) error {
+	if request.ErrorIfMissing {
+		log.Warnf("Requested to error if stream missing, but evntApi is async and so does not know this information")
 	}
-	return s.GetJobSetEvents(request, stream)
+	return s.eventApi.GetJobSetEvents(request, stream)
 }
 
 func validateUserHasWatchPermissions(ctx context.Context, permsChecker authorization.PermissionChecker, q queue.Queue, jobSetId string) error {
 	err := checkPermission(permsChecker, ctx, permissions.WatchAllEvents)
 	var globalPermErr *ErrNoPermission
 	if errors.As(err, &globalPermErr) {
-		err = checkQueuePermission(permsChecker, ctx, q, permissions.WatchEvents, queue.PermissionVerbWatch)
+		err = CheckQueuePermission(permsChecker, ctx, q, permissions.WatchEvents, queue.PermissionVerbWatch)
 		var queuePermErr *ErrNoPermission
 		if errors.As(err, &queuePermErr) {
 			return status.Errorf(codes.PermissionDenied, "error getting events for queue: %s, job set: %s: %s",

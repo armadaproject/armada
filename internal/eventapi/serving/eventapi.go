@@ -2,40 +2,67 @@ package serving
 
 import (
 	ctx "context"
-	"fmt"
 	"github.com/G-Research/armada/internal/common/compress"
 	"github.com/G-Research/armada/internal/eventapi"
+	"github.com/G-Research/armada/internal/eventapi/model"
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/armadaevents"
 	"github.com/gogo/protobuf/proto"
-	"time"
+	"math"
 )
 
-type PostgresEventRepository struct {
-	mapper              eventapi.JobsetMapper
+type EventApi struct {
+	jobsetMapper        eventapi.JobsetMapper
 	subscriptionManager *SubscriptionManager
-	offsets             SequenceManager
+	sequenceManager     SequenceManager
 }
 
-func (r *PostgresEventRepository) CheckStreamExists(queue string, jobSetId string) (bool, error) {
-	return true, nil
-}
-
-func (r *PostgresEventRepository) GetLastMessageId(queue, jobSetId string) (string, error) {
-	id, err := r.mapper.Get(ctx.Background(), queue, jobSetId)
-	if err != nil {
-		return "", err
+func PostgresEventApi(jobsetMapper eventapi.JobsetMapper, subscriptionManager *SubscriptionManager, sequenceManager SequenceManager) *EventApi {
+	return &EventApi{
+		jobsetMapper:        jobsetMapper,
+		subscriptionManager: subscriptionManager,
+		sequenceManager:     sequenceManager,
 	}
-	offset, _ := r.offsets.Get(id)
-	return fmt.Sprint(offset), nil
 }
 
-func (r *PostgresEventRepository) GetJobSetEvents(request *api.JobSetRequest, stream api.Event_GetJobSetEventsServer) error {
-	jobsetId, err := r.mapper.Get(ctx.Background(), request.Queue, request.Id)
+func (r *EventApi) GetLastMessageId(queue, jobSetId string) (int64, error) {
+	id, err := r.jobsetMapper.Get(ctx.Background(), queue, jobSetId)
+	if err != nil {
+		return -1, err
+	}
+	offset, present := r.sequenceManager.Get(id)
+	if !present {
+		offset = -1
+	}
+	return offset, nil
+}
+
+func (r *EventApi) GetJobSetEvents(request *api.JobSetRequest, stream api.Event_GetJobSetEventsServer) error {
+	// Extract Jobset
+	jobsetId, err := r.jobsetMapper.Get(ctx.Background(), request.Queue, request.Id)
 	if err != nil {
 		return err
 	}
-	subscription := r.subscriptionManager.Subscribe(jobsetId, 0)
+
+	// Extract Sequence
+	fromSequence, err := model.ParseExternalSeqNo(request.FromMessageId)
+	if err != nil {
+		return err
+	}
+	var upTo = int64(math.MaxInt64)
+	if !request.Watch {
+		upTo, err = r.GetLastMessageId(request.Queue, request.Id)
+		if err != nil {
+			return err
+		}
+	}
+
+	// We can short circuit if there are no valid messages to  retrieve
+	if upTo == -1 || upTo <= fromSequence.Sequence {
+		return nil
+	}
+
+	subscription := r.subscriptionManager.Subscribe(jobsetId, fromSequence.Sequence)
 	defer r.subscriptionManager.Unsubscribe(subscription.SubscriptionId)
 	decompressor, err := compress.NewZlibDecompressor()
 	if err != nil {
@@ -47,6 +74,7 @@ func (r *PostgresEventRepository) GetJobSetEvents(request *api.JobSetRequest, st
 			return nil
 		default:
 		}
+		msgIndex := 0
 		for _, compressedEvent := range events {
 			decompressedEvent, err := decompressor.Decompress(compressedEvent.Event)
 			if err != nil {
@@ -57,87 +85,27 @@ func (r *PostgresEventRepository) GetJobSetEvents(request *api.JobSetRequest, st
 			if err != nil {
 				return err
 			}
-			apiEvents, err := ToApiMessage(dbEvent, request.Queue, request.Id)
+			// These fields are not present in the db messages so we add them back here
+			dbEvent.EventSequence.Queue = request.Queue
+			dbEvent.EventSequence.JobSetName = request.Id
+			apiEvents, err := FromEventSequence(dbEvent.EventSequence, dbEvent.Time)
 			if err != nil {
 				return err
 			}
 			for _, apiEvent := range apiEvents {
-				stream.Send(&api.EventStreamMessage{
-					Id:      "",
-					Message: apiEvent,
-				})
+				externalSequenceNo := model.ExternalSeqNo{Sequence: compressedEvent.SeqNo, Index: msgIndex}
+				if externalSequenceNo.IsAfter(fromSequence) {
+					stream.Send(&api.EventStreamMessage{
+						Id:      externalSequenceNo.ToString(),
+						Message: apiEvent,
+					})
+				}
+				msgIndex++
+			}
+			if compressedEvent.SeqNo >= upTo {
+				return nil
 			}
 		}
 	}
 	return nil
-}
-
-func ToApiMessage(dbEvent *armadaevents.DatabaseEvent, queue string, jobset string) ([]*api.EventMessage, error) {
-	switch event := dbEvent.GetEvent().(type) {
-	case *armadaevents.DatabaseEvent_EventSequence:
-		event.EventSequence.Queue = queue
-		event.EventSequence.JobSetName = jobset
-		return fromEventSequence(event.EventSequence)
-	case *armadaevents.DatabaseEvent_JobUtilisation:
-		event.JobUtilisation.Queue = queue
-		event.JobUtilisation.JobSetId = jobset
-		return fromJobUtilisation(event.JobUtilisation)
-	}
-	return nil, nil
-}
-
-func fromEventSequence(es *armadaevents.EventSequence) ([]*api.EventMessage, error) {
-	apiEvents := make([]*api.EventMessage, 0)
-	var err error = nil
-	var convertedEvents []*api.EventMessage = nil
-	for _, event := range es.Events {
-		switch esEvent := event.GetEvent().(type) {
-		case *armadaevents.EventSequence_Event_SubmitJob:
-			convertedEvents, err = FromLogSubmit(es.Queue, es.JobSetName, time.Now(), esEvent.SubmitJob)
-		case *armadaevents.EventSequence_Event_CancelledJob:
-			convertedEvents, err = FromLogCancelled(es.UserId, es.Queue, es.JobSetName, time.Now(), esEvent.CancelledJob)
-		case *armadaevents.EventSequence_Event_CancelJob:
-			convertedEvents, err = FromLogCancelling(es.UserId, es.Queue, es.JobSetName, time.Now(), esEvent.CancelJob)
-		case *armadaevents.EventSequence_Event_ReprioritiseJob:
-			convertedEvents, err = FromLogReprioritizing(es.UserId, es.Queue, es.JobSetName, time.Now(), esEvent.ReprioritiseJob)
-		case *armadaevents.EventSequence_Event_ReprioritisedJob:
-			convertedEvents, err = FromLogReprioritised(es.UserId, es.Queue, es.JobSetName, time.Now(), esEvent.ReprioritisedJob)
-		case *armadaevents.EventSequence_Event_JobDuplicateDetected:
-			convertedEvents, err = FromLogDuplicateDetected(es.Queue, es.JobSetName, time.Now(), esEvent.JobDuplicateDetected)
-		case *armadaevents.EventSequence_Event_JobRunLeased:
-			convertedEvents, err = FromLogJobRunLeased(es.Queue, es.JobSetName, time.Now(), esEvent.JobRunLeased)
-		case *armadaevents.EventSequence_Event_JobRunErrors:
-			convertedEvents, err = FromJobRunErrors(es.Queue, es.JobSetName, time.Now(), esEvent.JobRunErrors)
-		case *armadaevents.EventSequence_Event_JobErrors:
-			convertedEvents, err = FromJobErrors(es.Queue, es.JobSetName, time.Now(), esEvent.JobErrors)
-		case *armadaevents.EventSequence_Event_JobRunRunning:
-			convertedEvents, err = FromJobRunRunning(es.Queue, es.JobSetName, time.Now(), esEvent.JobRunRunning)
-		case *armadaevents.EventSequence_Event_JobRunAssigned:
-			convertedEvents, err = FromJobRunAssigned(es.Queue, es.JobSetName, time.Now(), esEvent.JobRunAssigned)
-		}
-		if err != nil {
-			//TODO: would it be better to log a warning and continue?
-			return nil, err
-		}
-		apiEvents = append(apiEvents, convertedEvents...)
-	}
-	return apiEvents, nil
-}
-
-func fromJobUtilisation(dbEvent *armadaevents.JobUtilisationEvent) ([]*api.EventMessage, error) {
-	return []*api.EventMessage{{Events: &api.EventMessage_Utilisation{
-		Utilisation: &api.JobUtilisationEvent{
-			JobId:                 dbEvent.JobId,
-			Queue:                 dbEvent.Queue,
-			Created:               dbEvent.Created,
-			ClusterId:             dbEvent.ClusterId,
-			KubernetesId:          dbEvent.KubernetesId,
-			MaxResourcesForPeriod: dbEvent.MaxResourcesForPeriod,
-			NodeName:              dbEvent.NodeName,
-			PodNumber:             dbEvent.PodNumber,
-			PodName:               dbEvent.PodName,
-			PodNamespace:          dbEvent.PodNamespace,
-			TotalCumulativeUsage:  dbEvent.TotalCumulativeUsage,
-		},
-	}}}, nil
 }

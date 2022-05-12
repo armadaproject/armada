@@ -1,6 +1,7 @@
 package serving
 
 import (
+	"github.com/G-Research/armada/internal/eventapi/eventdb"
 	"github.com/G-Research/armada/internal/eventapi/model"
 	"k8s.io/apimachinery/pkg/util/clock"
 	"sync"
@@ -19,6 +20,7 @@ type SubscriptionManager struct {
 	offsets           SequenceManager
 	db                *eventdb.EventDb
 	pollPeriod        time.Duration
+	maxFetchSize      int
 	batchedChannel    chan *model.EventRequest
 	catchupChannel    chan *model.EventRequest
 	subscriptionIndex int64
@@ -28,14 +30,14 @@ type SubscriptionManager struct {
 }
 
 type EventDbRO interface {
-	GetEvents(requests []*model.EventRequest) ([]*model.EventResponse, error)
+	GetEvents(requests []*model.EventRequest, limit int) ([]*model.EventResponse, error)
 }
 
 // NewSubscriptionManager returns a SubscriptionManager that can fetch events from postgres and manage subscription requests for new data
-func NewSubscriptionManager(offsets SequenceManager, db EventDbRO, maxBatchSize int, maxTimeout time.Duration, pollPeriod time.Duration, queryConcurrency int, clock clock.Clock) *SubscriptionManager {
+func NewSubscriptionManager(sequenceManager SequenceManager, db EventDbRO, maxBatchSize int, maxTimeout time.Duration, pollPeriod time.Duration, queryConcurrency int, maxFetchSize int, clock clock.Clock) *SubscriptionManager {
 
 	sm := SubscriptionManager{
-		offsets:           offsets,
+		offsets:           sequenceManager,
 		pollPeriod:        pollPeriod,
 		batchedChannel:    make(chan *model.EventRequest),
 		catchupChannel:    make(chan *model.EventRequest),
@@ -56,7 +58,7 @@ func NewSubscriptionManager(offsets SequenceManager, db EventDbRO, maxBatchSize 
 		// We use it when streams have got behind and need to catch up
 		go func() {
 			for req := range sm.catchupChannel {
-				events, err := db.GetEvents([]*model.EventRequest{req})
+				events, err := db.GetEvents([]*model.EventRequest{req}, maxFetchSize)
 				if err == nil {
 					for _, e := range events {
 						sm.subscriptionMutex.Lock()
@@ -76,7 +78,7 @@ func NewSubscriptionManager(offsets SequenceManager, db EventDbRO, maxBatchSize 
 		// We use it when streams are caught up and are periodically checking for updates
 		go func() {
 			for req := range batches {
-				events, err := db.GetEvents(req)
+				events, err := db.GetEvents(req, maxFetchSize)
 				if err == nil {
 					for _, e := range events {
 						sm.subscriptionMutex.Lock()

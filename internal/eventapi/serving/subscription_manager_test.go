@@ -17,7 +17,7 @@ type DummyDb struct {
 	events []*model.EventRow
 }
 
-func (db *DummyDb) GetEvents(requests []*model.EventRequest) ([]*model.EventResponse, error) {
+func (db *DummyDb) GetEvents(requests []*model.EventRequest, limit int) ([]*model.EventResponse, error) {
 	db.mutex.Lock()
 	defer db.mutex.Unlock()
 	responses := make([]*model.EventResponse, 0)
@@ -52,7 +52,7 @@ func (db *DummyDb) addEvents(events []*model.EventRow) {
 // Second fetch returns event 2
 func TestCatchup(t *testing.T) {
 	testClock := clock.NewFakeClock(time.Now())
-	offsetManager := NewSequenceManager(map[int64]int64{defaultJobsetId: 3})
+	offsetManager := NewStaticSequenceManager(map[int64]int64{defaultJobsetId: 3})
 
 	event1 := &model.EventRow{JobSetId: defaultJobsetId, SeqNo: 1, Event: nil}
 	event2 := &model.EventRow{JobSetId: defaultJobsetId, SeqNo: 2, Event: nil}
@@ -101,7 +101,7 @@ func TestPoll(t *testing.T) {
 	testClock := clock.NewFakeClock(time.Now())
 
 	// Initialise with no events
-	sequenceManager := NewSequenceManager(map[int64]int64{defaultJobsetId: 0})
+	sequenceManager := NewStaticSequenceManager(map[int64]int64{defaultJobsetId: 0})
 
 	event1 := &model.EventRow{JobSetId: defaultJobsetId, SeqNo: 1, Event: nil}
 	event2 := &model.EventRow{JobSetId: defaultJobsetId, SeqNo: 2, Event: nil}
@@ -151,7 +151,7 @@ func TestFromOffset(t *testing.T) {
 	testClock := clock.NewFakeClock(time.Now())
 
 	// Initialise with 3 events
-	sequenceManager := NewSequenceManager(map[int64]int64{defaultJobsetId: 3})
+	sequenceManager := NewStaticSequenceManager(map[int64]int64{defaultJobsetId: 3})
 
 	event1 := &model.EventRow{JobSetId: defaultJobsetId, SeqNo: 1, Event: nil}
 	event2 := &model.EventRow{JobSetId: defaultJobsetId, SeqNo: 2, Event: nil}

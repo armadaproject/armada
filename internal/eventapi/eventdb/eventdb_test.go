@@ -168,7 +168,7 @@ func TestGetOrCreateJobsetId(t *testing.T) {
 		assert.Equal(t, id1, id3)
 		assert.Equal(t, id2, id4)
 
-		createdJobsets, err := db.LoadJobsets(ctx, time.Now().In(time.UTC).Add(-1*time.Minute))
+		createdJobsets, err := db.LoadJobsetsAfter(ctx, time.Now().In(time.UTC).Add(-1*time.Minute))
 		assert.NoError(t, err)
 		expectedJobsets := []*model.JobsetRow{
 			{JobSetId: 1, Queue: "fish", Jobset: "chips"},

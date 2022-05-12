@@ -3,6 +3,10 @@ package armada
 import (
 	"context"
 	"fmt"
+	"github.com/G-Research/armada/internal/eventapi"
+	"github.com/G-Research/armada/internal/eventapi/eventdb"
+	"github.com/G-Research/armada/internal/eventapi/serving"
+	"k8s.io/apimachinery/pkg/util/clock"
 	"sync"
 	"time"
 
@@ -283,9 +287,36 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 		log.Info("No Pulsar config provided; submitting directly to Redis and Nats.")
 	}
 
+	var eventApi *serving.EventApi = nil
+	// Setup new events api if enabled
+	if config.EventApi.Enabled {
+
+		// Set up eventDb
+		pool, err := postgres.OpenPgxPool(config.Postgres)
+		eventDb := eventdb.NewEventDb(pool)
+
+		// Setup pulsar
+		pulsarClient, err := pulsarutils.NewPulsarClient(&config.Pulsar)
+		if err != nil {
+			panic(err)
+		}
+		sequenceManager, err := serving.NewUpdatingSequenceManager(context.Background(), eventDb, pulsarClient, config.EventApi.UpdateTopic)
+		if err != nil {
+			panic(err)
+		}
+
+		jobsetMapper, err := eventapi.NewJobsetMapper(eventDb, config.EventApi.JobsetCacheSize, 24*time.Hour)
+		if err != nil {
+			panic(err)
+		}
+
+		subscriptionManager := serving.NewSubscriptionManager(sequenceManager, eventDb, 10, 1*time.Second, 2*time.Second, 100, 10000, clock.RealClock{})
+		eventApi = serving.PostgresEventApi(jobsetMapper, subscriptionManager, sequenceManager)
+	}
+
 	usageServer := server.NewUsageServer(permissions, config.PriorityHalfTime, &config.Scheduling, usageRepository, queueRepository)
 	aggregatedQueueServer := server.NewAggregatedQueueServer(permissions, config.Scheduling, jobRepository, queueCache, queueRepository, usageRepository, eventStore, schedulingInfoRepository)
-	eventServer := server.NewEventServer(permissions, redisEventRepository, eventStore, queueRepository)
+	eventServer := server.NewEventServer(permissions, redisEventRepository, eventStore, queueRepository, eventApi)
 	leaseManager := scheduling.NewLeaseManager(jobRepository, queueRepository, eventStore, config.Scheduling.Lease.ExpireAfter)
 
 	taskManager.Register(leaseManager.ExpireLeases, config.Scheduling.Lease.ExpiryLoopInterval, "lease_expiry")
