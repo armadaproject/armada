@@ -71,6 +71,7 @@ mkdir -p armada/client
 cp pkg/api/event.proto pkg/api/queue.proto pkg/api/submit.proto pkg/api/usage.proto armada/client/
 sed -i 's/\([^\/]\)pkg\/api/\1armada\/client/g' armada/client/*.proto
 
+
 # generate python stubs
 python3 -m grpc_tools.protoc -I. -I/proto --python_out=client/python --grpc_python_out=client/python \
     /proto/google/api/annotations.proto \
@@ -82,4 +83,5 @@ python3 -m grpc_tools.protoc -I. -I/proto --python_out=client/python --grpc_pyth
     /proto/k8s.io/apimachinery/pkg/apis/meta/v1/generated.proto \
     /proto/k8s.io/apimachinery/pkg/runtime/generated.proto \
     /proto/k8s.io/apimachinery/pkg/runtime/schema/generated.proto \
-    /proto/k8s.io/apimachinery/pkg/util/intstr/generated.proto
+    /proto/k8s.io/apimachinery/pkg/util/intstr/generated.proto \
+    /proto/k8s.io/api/networking/v1/generated.proto
