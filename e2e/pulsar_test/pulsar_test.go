@@ -635,7 +635,7 @@ func TestSubmitJobWithError(t *testing.T) {
 	err := withSetup(func(ctx context.Context, client api.SubmitClient, producer pulsar.Producer, consumer pulsar.Consumer) error {
 
 		// Submit a few jobs that fail after a few seconds
-		numJobs := 2
+		numJobs := 1
 		req := createJobSubmitRequestWithError(numJobs)
 		ctxWithTimeout, _ := context.WithTimeout(context.Background(), time.Second)
 		res, err := client.SubmitJobs(ctxWithTimeout, req)
