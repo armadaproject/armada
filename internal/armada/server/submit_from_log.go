@@ -133,7 +133,7 @@ func (srv *SubmitFromLog) Run(ctx context.Context) {
 			if err != nil {
 				logging.WithStacktrace(messageLogger, err).Warnf("processing message failed; ignoring")
 				numErrored++
-				continue
+				break
 			}
 
 			messageLogger.WithField("numEvents", len(sequence.Events)).Info("processing sequence")
