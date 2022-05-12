@@ -38,7 +38,7 @@ commands:
             HELM_PLATFORM="linux-amd64"
 
             # Create local bin directory for later convenience
-            mkdir /home/circleci/bin/
+            mkdir -p /home/circleci/bin/
             echo 'export PATH=/home/circleci/bin/:$PATH' >> $BASH_ENV
             source $BASH_ENV
 
