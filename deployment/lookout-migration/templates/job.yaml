@@ -21,7 +21,7 @@ spec:
         runAsGroup: 2000
       initContainers:
         - name: db-wait
-          image: appropriate/nc
+          image: alpine:3.10
           command:
             - /bin/sh
             - -c
