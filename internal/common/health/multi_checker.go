@@ -2,6 +2,7 @@ package health
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 )
@@ -24,6 +25,10 @@ func NewMultiChecker(checkers ...Checker) *MultiChecker {
 func (mc *MultiChecker) Check() error {
 	mc.mu.Lock()
 	defer mc.mu.Unlock()
+
+	if len(mc.checkers) == 0 {
+		return fmt.Errorf("no checkers registered")
+	}
 
 	errorStrings := []string{}
 	for _, checker := range mc.checkers {
