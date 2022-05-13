@@ -12,6 +12,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// SubscriptionManager lets callers subscribe to channels of events in an efficient manner
 type SubscriptionManager interface {
 	Subscribe(jobset int64, fromOffset int64) *model.EventSubscription
 	Unsubscribe(subscriptionId int64)
@@ -28,14 +29,15 @@ type DefaultSubscriptionManager struct {
 	db                *eventdb.EventDb
 	pollPeriod        time.Duration
 	maxFetchSize      int
-	batchedChannel    chan *model.EventRequest
-	catchupChannel    chan *model.EventRequest
+	batchedChannel    chan *model.EventRequest // A channel where queries are batched together which increases overall throughput at the cost of latency
+	catchupChannel    chan *model.EventRequest // A channel for queries to be made in a low latency manner at the cost of overall throughput
 	subscriptionIndex int64
 	subscriptionsById map[int64]*internalSubscription
 	subscriptionMutex sync.RWMutex
 	clock             clock.Clock
 }
 
+// EventDbRO is a Simplified view of EventsDb which helps testing
 type EventDbRO interface {
 	GetEvents(requests []*model.EventRequest, limit int) ([]*model.EventResponse, error)
 }
@@ -104,6 +106,8 @@ func NewSubscriptionManager(sequenceManager SequenceManager, db EventDbRO, maxBa
 	return &sm
 }
 
+// Subscribe returns an EventSubscription which consists of a stream of events along with a subscription id
+// Callers should pass back the subscriptionId when they want to Unsubscribe.
 func (sm *DefaultSubscriptionManager) Subscribe(jobset int64, fromOffset int64) *model.EventSubscription {
 	sub := sm.createInternalSubscription(jobset)
 	currentOffset := fromOffset
@@ -176,6 +180,7 @@ func (sm *DefaultSubscriptionManager) Subscribe(jobset int64, fromOffset int64) 
 	return externalSubscription
 }
 
+// Unsubscribe frees up resources associated with the stream
 func (sm *DefaultSubscriptionManager) Unsubscribe(subscriptionId int64) {
 	sm.subscriptionMutex.Lock()
 	defer sm.subscriptionMutex.Unlock()

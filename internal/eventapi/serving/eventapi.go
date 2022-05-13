@@ -16,6 +16,7 @@ import (
 	"github.com/G-Research/armada/pkg/armadaevents"
 )
 
+// EventApi is responsible for serveing User requests for event messages
 type EventApi struct {
 	jobsetMapper        eventapi.JobsetMapper
 	subscriptionManager SubscriptionManager
@@ -30,18 +31,9 @@ func NewEventApi(jobsetMapper eventapi.JobsetMapper, subscriptionManager Subscri
 	}
 }
 
-func (r *EventApi) GetLastMessageId(queue, jobSetId string) (int64, error) {
-	id, err := r.jobsetMapper.Get(ctx.Background(), queue, jobSetId)
-	if err != nil {
-		return -1, err
-	}
-	offset, present := r.sequenceManager.Get(id)
-	if !present {
-		offset = -1
-	}
-	return offset, nil
-}
-
+// GetJobSetEvents Returns a stream of events from the events Db
+// If request.Watch is set then the stream will only end when the user requests it, otherwise it will return all events
+// present in the database when the request was made.
 func (r *EventApi) GetJobSetEvents(request *api.JobSetRequest, stream api.Event_GetJobSetEventsServer) error {
 	// Extract Jobset
 	jobsetId, err := r.jobsetMapper.Get(ctx.Background(), request.Queue, request.Id)
@@ -56,7 +48,7 @@ func (r *EventApi) GetJobSetEvents(request *api.JobSetRequest, stream api.Event_
 	}
 	var upTo = int64(math.MaxInt64)
 	if !request.Watch {
-		upTo, err = r.GetLastMessageId(request.Queue, request.Id)
+		upTo, err = r.getLastMessageId(request.Queue, request.Id)
 		if err != nil {
 			return err
 		}
@@ -116,4 +108,17 @@ func (r *EventApi) GetJobSetEvents(request *api.JobSetRequest, stream api.Event_
 		}
 	}
 	return nil
+}
+
+// getLastMessageId returns the latests seq No for the given jibset or -1 if there are no seqNos
+func (r *EventApi) getLastMessageId(queue, jobSetId string) (int64, error) {
+	id, err := r.jobsetMapper.Get(ctx.Background(), queue, jobSetId)
+	if err != nil {
+		return -1, err
+	}
+	offset, present := r.sequenceManager.Get(id)
+	if !present {
+		offset = -1
+	}
+	return offset, nil
 }
