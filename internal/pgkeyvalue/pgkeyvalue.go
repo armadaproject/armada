@@ -28,6 +28,7 @@ type PGKeyValueStore struct {
 	db *pgxpool.Pool
 	// Name of the postgres table used for storage.
 	tableName string
+	Logger    *logrus.Logger
 }
 
 func New(db *pgxpool.Pool, cacheSize int, tableName string) (*PGKeyValueStore, error) {
@@ -176,7 +177,13 @@ func (c *PGKeyValueStore) Cleanup(ctx context.Context, lifespan time.Duration) e
 // PeriodicCleanup starts a goroutine that automatically runs the cleanup job
 // every interval until the provided context is cancelled.
 func (c *PGKeyValueStore) PeriodicCleanup(ctx context.Context, interval time.Duration, lifespan time.Duration) error {
-	log := logrus.StandardLogger().WithField("service", "PGKeyValueStoreCleanup")
+	var log *logrus.Entry
+	if c.Logger == nil {
+		log = logrus.StandardLogger().WithField("service", "PGKeyValueStoreCleanup")
+	} else {
+		log = c.Logger.WithField("service", "PGKeyValueStoreCleanup")
+	}
+
 	log.Info("service started")
 	ticker := time.NewTicker(interval)
 	for {
