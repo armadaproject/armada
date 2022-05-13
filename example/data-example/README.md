@@ -1,0 +1,63 @@
+# Setting up quick start and use local file system
+
+You can use the setup_kind_tmp_volume.sh script to setup a kind cluster that attaches a local file system.
+
+Kind, by default, does not attach volumes from your local file system.  
+
+```
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+  - role: control-plane
+    image: "kindest/node:v1.21.10"
+    extraMounts:
+      - hostPath: /tmp/data
+        containerPath: /data
+  - role: worker
+    image: "kindest/node:v1.21.10"
+    extraMounts:
+      - hostPath: /tmp/data
+        containerPath: /data
+```
+The above config creates a kind executor cluster that mounts /tmp/data.
+
+Once you have kind setup to use these volumes, you can now create kubernetes objects such as PersistentVolumes.
+
+We have an example PersistentVolume and PersistentVolumeClaim for a local kind setup.  
+
+A user can then use the PersistentVolumeClaim in their armada job spec:
+
+```
+queue: test
+jobSetId: job-set-1
+jobs:
+  - priority: 0
+    podSpec:
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      containers:
+        - name: docker-data
+          imagePullPolicy: IfNotPresent
+          image: kevinpatrickhannon/docker-data:1.0.1
+          command:
+            - /app/go-file
+          args:
+            - --input=/data/test.csv
+            - --output=/data/out.txt
+          volumeMounts:
+          - name: data
+            mountPath: /data
+          resources:
+            limits:
+              memory: 64Mi
+              cpu: 150m
+            requests:
+              memory: 64Mi
+              cpu: 150m
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: myclaim-1
+```
+
+

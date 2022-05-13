@@ -1,0 +1,30 @@
+queue: test
+jobSetId: job-set-1
+jobs:
+  - priority: 0
+    podSpec:
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      containers:
+        - name: docker-data
+          imagePullPolicy: IfNotPresent
+          image: kevinpatrickhannon/docker-data:1.0.1
+          command:
+            - /app/go-file
+          args:
+            - --input=/data/test.csv
+            - --output=/data/out.txt
+          volumeMounts:
+          - name: data
+            mountPath: /data
+          resources:
+            limits:
+              memory: 64Mi
+              cpu: 150m
+            requests:
+              memory: 64Mi
+              cpu: 150m
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: myclaim-1
