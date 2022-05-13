@@ -2,8 +2,6 @@ package authorization
 
 import (
 	"context"
-	"fmt"
-
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	grpc_ctxtags "github.com/grpc-ecosystem/go-grpc-middleware/tags"
 	"google.golang.org/grpc/codes"
@@ -126,9 +124,6 @@ func CreateMiddlewareAuthFunction(authServices []AuthService) grpc_auth.AuthFunc
 	return func(ctx context.Context) (context.Context, error) {
 		for _, service := range authServices {
 			principal, err := service.Authenticate(ctx)
-			fmt.Printf("#################################")
-			fmt.Printf("%v", err)
-			fmt.Printf("#################################")
 			if err == missingCredentials {
 				// try next auth service
 				continue
