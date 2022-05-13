@@ -103,7 +103,7 @@ namespace GResearch.Armada.Client.Test
                 {
                     new V1Container
                     {
-                        Name = "Container1",
+                        Name = "container1",
                         Image = "index.docker.io/library/ubuntu:latest",
                         Args = new[] {"sleep", "10s"},
                         SecurityContext = new V1SecurityContext {RunAsUser = 1000},

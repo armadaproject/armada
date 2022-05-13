@@ -168,6 +168,26 @@ func (allocationService *SubmitService) populateServicesIngresses(job *api.Job, 
 		k8sServices, k8sIngresses := util2.GenerateIngresses(job, pod, allocationService.podDefaults.Ingress)
 		job.K8SService = k8sServices
 		job.K8SIngress = k8sIngresses
+	} else {
+		// If K8SIngress and/or K8SService was already populated, it was populated by the Pulsar submit API.
+		// Because the submit API can't know which executor the services/ingresses will be created in,
+		// the executor has to provide all executor-specific information.
+		for _, ingress := range job.K8SIngress {
+			ingress.Annotations = util.MergeMaps(
+				ingress.Annotations,
+				allocationService.podDefaults.Ingress.Annotations,
+			)
+
+			// We need to use indexing here since Spec.Rules isn't pointers.
+			for i, _ := range ingress.Spec.Rules {
+				ingress.Spec.Rules[i].Host += allocationService.podDefaults.Ingress.HostnameSuffix
+			}
+
+			// We need to use indexing here since Spec.TLS isn't pointers.
+			for i, _ := range ingress.Spec.TLS {
+				ingress.Spec.TLS[i].SecretName += allocationService.podDefaults.Ingress.CertNameSuffix
+			}
+		}
 	}
 	if job.K8SService == nil {
 		job.K8SService = make([]*v1.Service, 0)
@@ -175,7 +195,6 @@ func (allocationService *SubmitService) populateServicesIngresses(job *api.Job, 
 	if job.K8SIngress == nil {
 		job.K8SIngress = make([]*networking.Ingress, 0)
 	}
-	return
 }
 
 func exposesPorts(job *api.Job, podSpec *v1.PodSpec) bool {
