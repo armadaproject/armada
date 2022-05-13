@@ -38,7 +38,7 @@ type SubmitFromLog struct {
 }
 
 // Run the service that reads from Pulsar and updates Armada until the provided context is cancelled.
-func (srv *SubmitFromLog) Run(ctx context.Context) {
+func (srv *SubmitFromLog) Run(ctx context.Context) error {
 
 	// Get the configured logger, or the standard logger if none is provided.
 	var log *logrus.Entry
@@ -93,7 +93,7 @@ func (srv *SubmitFromLog) Run(ctx context.Context) {
 		// Exit if the context has been cancelled. Otherwise, get a message from Pulsar.
 		select {
 		case <-ctx.Done():
-			return
+			return nil
 		default:
 
 			// Get a message from Pulsar, which consists of a sequence of events (i.e., state transitions).
