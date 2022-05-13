@@ -98,7 +98,7 @@ func (srv *PulsarFromPulsar) Run(ctx context.Context) error {
 			if err != nil {
 				logging.WithStacktrace(log, err).WithField("lastMessageId", lastMessageId).Warnf("Pulsar receive failed; backing off")
 				time.Sleep(100 * time.Millisecond)
-				continue
+				break
 			}
 
 			lastMessageId = msg.ID()
@@ -122,9 +122,10 @@ func (srv *PulsarFromPulsar) Run(ctx context.Context) error {
 			sequence, err := eventutil.UnmarshalEventSequence(ctxWithLogger, msg.Payload())
 			if err != nil {
 				// If unmarshalling fails, the message is malformed and we have no choice but to ignore it.
+				srv.Consumer.Ack(msg)
 				logging.WithStacktrace(messageLogger, err).Warnf("processing message failed; ignoring")
 				numErrored++
-				continue
+				break
 			}
 
 			// Process the events in the sequence. For efficiency, we may process several events at a time.
@@ -132,9 +133,8 @@ func (srv *PulsarFromPulsar) Run(ctx context.Context) error {
 			err = srv.ProcessSequence(ctxWithLogger, sequence)
 			if err != nil {
 				logging.WithStacktrace(messageLogger, err).Error("failed to process sequence")
-			} else {
-				srv.Consumer.Ack(msg)
 			}
+			srv.Consumer.Ack(msg)
 		}
 	}
 }
