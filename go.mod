@@ -45,7 +45,7 @@ require (
 	github.com/jstemmer/go-junit-report v0.9.1
 	github.com/lib/pq v1.10.4 // indirect
 	github.com/mitchellh/go-homedir v1.1.0
-	github.com/mitchellh/gox v0.4.0
+	github.com/mitchellh/gox v1.0.1
 	github.com/mitchellh/mapstructure v1.4.3
 	github.com/nats-io/jsm.go v0.0.26
 	github.com/nats-io/nats-server/v2 v2.4.1-0.20210907200628-874c79fe411f
