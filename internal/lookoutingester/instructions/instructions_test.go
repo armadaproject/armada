@@ -248,7 +248,7 @@ func TestSubmit(t *testing.T) {
 	instructions := ConvertMsg(context.Background(), msg, &compress.NoOpCompressor{})
 	expected := &model.InstructionSet{
 		JobsToCreate: []*model.CreateJobInstruction{&expectedSubmit},
-		MessageIds:   []*model.ConsumerMessageId{{msg.Message.ID(), 0, msg.ConsumerId}},
+		MessageIds:   []*pulsarutils.ConsumerMessageId{{msg.Message.ID(), 0, msg.ConsumerId}},
 	}
 	assert.Equal(t, expected, instructions)
 }
@@ -264,7 +264,7 @@ func TestHappyPathSingleUpdate(t *testing.T) {
 		JobsToUpdate:    []*model.UpdateJobInstruction{&expectedLeased, &expectedRunning, &expectedJobSucceeded},
 		JobRunsToCreate: []*model.CreateJobRunInstruction{&expectedLeasedRun},
 		JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedRunningRun, &expectedJobRunSucceeded},
-		MessageIds:      []*model.ConsumerMessageId{{msg.Message.ID(), 0, msg.ConsumerId}},
+		MessageIds:      []*pulsarutils.ConsumerMessageId{{msg.Message.ID(), 0, msg.ConsumerId}},
 	}
 	// assert each field separately as can be tricky to see what doesn't match
 	assert.Equal(t, expected.JobsToCreate, instructions.JobsToCreate)
@@ -283,7 +283,7 @@ func TestHappyPathMultiUpdate(t *testing.T) {
 	instructions := ConvertMsg(context.Background(), msg1, compressor)
 	expected := &model.InstructionSet{
 		JobsToCreate: []*model.CreateJobInstruction{&expectedSubmit},
-		MessageIds:   []*model.ConsumerMessageId{{msg1.Message.ID(), 0, msg1.ConsumerId}},
+		MessageIds:   []*pulsarutils.ConsumerMessageId{{msg1.Message.ID(), 0, msg1.ConsumerId}},
 	}
 	assert.Equal(t, expected, instructions)
 
@@ -293,7 +293,7 @@ func TestHappyPathMultiUpdate(t *testing.T) {
 	expected = &model.InstructionSet{
 		JobsToUpdate:    []*model.UpdateJobInstruction{&expectedLeased},
 		JobRunsToCreate: []*model.CreateJobRunInstruction{&expectedLeasedRun},
-		MessageIds:      []*model.ConsumerMessageId{{msg2.Message.ID(), 0, msg2.ConsumerId}},
+		MessageIds:      []*pulsarutils.ConsumerMessageId{{msg2.Message.ID(), 0, msg2.ConsumerId}},
 	}
 	assert.Equal(t, expected, instructions)
 
@@ -303,7 +303,7 @@ func TestHappyPathMultiUpdate(t *testing.T) {
 	expected = &model.InstructionSet{
 		JobsToUpdate:    []*model.UpdateJobInstruction{&expectedRunning},
 		JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedRunningRun},
-		MessageIds:      []*model.ConsumerMessageId{{msg3.Message.ID(), 0, msg3.ConsumerId}},
+		MessageIds:      []*pulsarutils.ConsumerMessageId{{msg3.Message.ID(), 0, msg3.ConsumerId}},
 	}
 	assert.Equal(t, expected, instructions)
 
@@ -312,7 +312,7 @@ func TestHappyPathMultiUpdate(t *testing.T) {
 	instructions = ConvertMsg(context.Background(), msg4, compressor)
 	expected = &model.InstructionSet{
 		JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedJobRunSucceeded},
-		MessageIds:      []*model.ConsumerMessageId{{msg4.Message.ID(), 0, msg4.ConsumerId}},
+		MessageIds:      []*pulsarutils.ConsumerMessageId{{msg4.Message.ID(), 0, msg4.ConsumerId}},
 	}
 	assert.Equal(t, expected, instructions)
 
@@ -321,7 +321,7 @@ func TestHappyPathMultiUpdate(t *testing.T) {
 	instructions = ConvertMsg(context.Background(), msg5, compressor)
 	expected = &model.InstructionSet{
 		JobsToUpdate: []*model.UpdateJobInstruction{&expectedJobSucceeded},
-		MessageIds:   []*model.ConsumerMessageId{{msg5.Message.ID(), 0, msg5.ConsumerId}},
+		MessageIds:   []*pulsarutils.ConsumerMessageId{{msg5.Message.ID(), 0, msg5.ConsumerId}},
 	}
 	assert.Equal(t, expected, instructions)
 
@@ -332,7 +332,7 @@ func TestCancelled(t *testing.T) {
 	instructions := ConvertMsg(context.Background(), msg, &compress.NoOpCompressor{})
 	expected := &model.InstructionSet{
 		JobsToUpdate: []*model.UpdateJobInstruction{&expectedJobCancelled},
-		MessageIds:   []*model.ConsumerMessageId{{msg.Message.ID(), 0, msg.ConsumerId}},
+		MessageIds:   []*pulsarutils.ConsumerMessageId{{msg.Message.ID(), 0, msg.ConsumerId}},
 	}
 	assert.Equal(t, expected, instructions)
 }
@@ -342,7 +342,7 @@ func TestReprioritised(t *testing.T) {
 	instructions := ConvertMsg(context.Background(), msg, &compress.NoOpCompressor{})
 	expected := &model.InstructionSet{
 		JobsToUpdate: []*model.UpdateJobInstruction{&expectedJobReprioritised},
-		MessageIds:   []*model.ConsumerMessageId{{msg.Message.ID(), 0, msg.ConsumerId}},
+		MessageIds:   []*pulsarutils.ConsumerMessageId{{msg.Message.ID(), 0, msg.ConsumerId}},
 	}
 	assert.Equal(t, expected, instructions)
 }
@@ -361,7 +361,7 @@ func TestInvalidEvent(t *testing.T) {
 	instructions := ConvertMsg(context.Background(), msg, &compress.NoOpCompressor{})
 	expected := &model.InstructionSet{
 		JobsToCreate: []*model.CreateJobInstruction{&expectedSubmit},
-		MessageIds:   []*model.ConsumerMessageId{{msg.Message.ID(), 0, msg.ConsumerId}},
+		MessageIds:   []*pulsarutils.ConsumerMessageId{{msg.Message.ID(), 0, msg.ConsumerId}},
 	}
 	assert.Equal(t, expected, instructions)
 }
@@ -375,15 +375,15 @@ func TestTruncate(t *testing.T) {
 // This message is invalid as it has no payload
 // Assert that the update just contains the messageId so we can ack it
 func TestInvalidMessage(t *testing.T) {
-	msg := &model.ConsumerMessage{Message: pulsarutils.EmptyPulsarMessage(3, time.Now()), ConsumerId: 3}
+	msg := &pulsarutils.ConsumerMessage{Message: pulsarutils.EmptyPulsarMessage(3, time.Now()), ConsumerId: 3}
 	instructions := ConvertMsg(context.Background(), msg, &compress.NoOpCompressor{})
 	expected := &model.InstructionSet{
-		MessageIds: []*model.ConsumerMessageId{{msg.Message.ID(), 0, msg.ConsumerId}},
+		MessageIds: []*pulsarutils.ConsumerMessageId{{msg.Message.ID(), 0, msg.ConsumerId}},
 	}
 	assert.Equal(t, expected, instructions)
 }
 
-func NewMsg(publishTime time.Time, event ...*armadaevents.EventSequence_Event) *model.ConsumerMessage {
+func NewMsg(publishTime time.Time, event ...*armadaevents.EventSequence_Event) *pulsarutils.ConsumerMessage {
 	seq := &armadaevents.EventSequence{
 		Queue:      queue,
 		JobSetName: jobSetName,
@@ -392,5 +392,5 @@ func NewMsg(publishTime time.Time, event ...*armadaevents.EventSequence_Event) *
 	}
 	payload, _ := proto.Marshal(seq)
 	messageSeq := rand.Int()
-	return &model.ConsumerMessage{Message: pulsarutils.NewPulsarMessage(messageSeq, publishTime, payload), ConsumerId: messageSeq}
+	return &pulsarutils.ConsumerMessage{Message: pulsarutils.NewPulsarMessage(messageSeq, publishTime, payload), ConsumerId: messageSeq}
 }
