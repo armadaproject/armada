@@ -3,7 +3,7 @@ package ingestion
 import (
 	"context"
 
-	"github.com/prometheus/common/log"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/G-Research/armada/internal/eventapi/eventdb"
 	"github.com/G-Research/armada/internal/eventapi/model"

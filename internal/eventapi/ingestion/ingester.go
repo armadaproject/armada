@@ -98,7 +98,7 @@ func Run(config *configuration.EventIngesterConfiguration) {
 	batchedMsgs := Batch(mergedMsgs, config.BatchSize, config.BatchDuration, 5, clock.RealClock{})
 
 	// Insert into database
-	inserted := ProcessUpdates(ctx, eventDb, batchedMsgs, 5)
+	inserted := InsertEvents(ctx, eventDb, batchedMsgs, 5)
 
 	// Send update
 	sequenceUpdatesSent := SendSequenceUpdates(ctx, nil, inserted, 5)

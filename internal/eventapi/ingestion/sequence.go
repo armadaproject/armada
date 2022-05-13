@@ -6,7 +6,7 @@ import (
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/proto"
-	"github.com/prometheus/common/log"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/G-Research/armada/internal/eventapi/model"
 	"github.com/G-Research/armada/pkg/armadaevents"
