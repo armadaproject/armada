@@ -60,4 +60,17 @@ jobs:
             claimName: myclaim-1
 ```
 
+### Setting up volumes with kind cluster
+
+Kind is a simple way of testing kubernetes clusters with docker.
+
+`kind get clusters` Will show you a list of kind clusters
+
+`kubectl config get-contexts` will show the kubernetes contexts.
+
+You can use kubectl and the context to interact with that particular kubernets cluster.
+
+`kubectl create -f examples/data-example/persistent-volume.yaml --context $KUBE_CONTEXT`
+
+This will create a Persistent-Volume in the kind cluster
 
