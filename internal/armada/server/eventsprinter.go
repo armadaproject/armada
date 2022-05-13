@@ -80,19 +80,13 @@ func (srv *EventsPrinter) Run(ctx context.Context) error {
 				logging.WithStacktrace(log, err).Warnf("receiving from Pulsar failed")
 				break
 			}
-
 			consumer.Ack(msg)
-
-			// We're only interested in control messages.
-			if !armadaevents.IsControlMessage(msg) {
-				continue
-			}
 
 			sequence := &armadaevents.EventSequence{}
 			err = proto.Unmarshal(msg.Payload(), sequence)
 			if err != nil {
 				logging.WithStacktrace(log, err).Warnf("unmarshalling Pulsar message failed")
-				continue
+				break
 			}
 
 			messageLogger := log.WithFields(logrus.Fields{
@@ -111,7 +105,6 @@ func (srv *EventsPrinter) Run(ctx context.Context) error {
 			})
 
 			s := "Sequence: " + eventutil.ShortSequenceString(sequence)
-
 			messageLogger.Info(s)
 		}
 	}
