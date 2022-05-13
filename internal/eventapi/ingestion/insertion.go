@@ -2,6 +2,7 @@ package ingestion
 
 import (
 	"context"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 
@@ -24,12 +25,16 @@ func InsertEvents(ctx context.Context, db *eventdb.EventDb, msgs chan []*model.P
 }
 
 func insert(ctx context.Context, db *eventdb.EventDb, inputRows []*model.PulsarEventRow) {
+	start := time.Now()
 	rows := make([]*model.EventRow, len(inputRows))
 	for i := 0; i <= len(inputRows); i++ {
 		rows[i] = inputRows[i].Event
 	}
 	err := db.UpdateEvents(ctx, rows)
 	if err != nil {
-		log.Warnf("Error inserting rows")
+		log.Warnf("Error inserting rows %+v", err)
+	} else {
+		taken := time.Now().Sub(start).Milliseconds()
+		log.Infof("Inerted %d events in %dms", len(inputRows), taken)
 	}
 }
