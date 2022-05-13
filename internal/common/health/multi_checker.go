@@ -3,6 +3,7 @@ package health
 import (
 	"errors"
 	"strings"
+	"sync"
 )
 
 // MultiChecker combines multiple Checker instances.
@@ -10,6 +11,7 @@ import (
 // and returns a new error created by joining any errors returned from those calls,
 // or nil if no errors are found.
 type MultiChecker struct {
+	mu       sync.Mutex
 	checkers []Checker
 }
 
@@ -20,6 +22,9 @@ func NewMultiChecker(checkers ...Checker) *MultiChecker {
 }
 
 func (mc *MultiChecker) Check() error {
+	mc.mu.Lock()
+	defer mc.mu.Unlock()
+
 	errorStrings := []string{}
 	for _, checker := range mc.checkers {
 		err := checker.Check()
@@ -36,5 +41,7 @@ func (mc *MultiChecker) Check() error {
 }
 
 func (mc *MultiChecker) Add(checker Checker) {
+	mc.mu.Lock()
+	defer mc.mu.Unlock()
 	mc.checkers = append(mc.checkers, checker)
 }
