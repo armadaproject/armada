@@ -101,11 +101,6 @@ func (srv *PulsarFromPulsar) Run(ctx context.Context) error {
 				continue
 			}
 
-			// We're only interested in control messages.
-			if !armadaevents.IsControlMessage(msg) {
-				continue
-			}
-
 			lastMessageId = msg.ID()
 			lastPublishTime = msg.PublishTime()
 			numReceived++
