@@ -7,10 +7,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestMultiChecker_WhenNoChecksAdded_CheckPasses(t *testing.T) {
+func TestMultiChecker_WhenNoChecksAdded_CheckFails(t *testing.T) {
 	mc := NewMultiChecker()
 	err := mc.Check()
-	assert.Nil(t, err)
+	assert.Error(t, err)
 }
 
 func TestMultiChecker_TwoChecksPass_CheckPasses(t *testing.T) {
