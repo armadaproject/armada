@@ -38,7 +38,7 @@ type SubmitFromLog struct {
 }
 
 // Run the service that reads from Pulsar and updates Armada until the provided context is cancelled.
-func (srv *SubmitFromLog) Run(ctx context.Context) {
+func (srv *SubmitFromLog) Run(ctx context.Context) error {
 
 	// Get the configured logger, or the standard logger if none is provided.
 	var log *logrus.Entry
@@ -93,7 +93,7 @@ func (srv *SubmitFromLog) Run(ctx context.Context) {
 		// Exit if the context has been cancelled. Otherwise, get a message from Pulsar.
 		select {
 		case <-ctx.Done():
-			return
+			return nil
 		default:
 
 			// Get a message from Pulsar, which consists of a sequence of events (i.e., state transitions).
@@ -108,12 +108,7 @@ func (srv *SubmitFromLog) Run(ctx context.Context) {
 			if err != nil {
 				logging.WithStacktrace(log, err).WithField("lastMessageId", lastMessageId).Warnf("Pulsar receive failed; backing off")
 				time.Sleep(100 * time.Millisecond)
-				continue
-			}
-
-			// We're only interested in control messages.
-			if !armadaevents.IsControlMessage(msg) {
-				continue
+				break
 			}
 
 			lastMessageId = msg.ID()
@@ -136,9 +131,10 @@ func (srv *SubmitFromLog) Run(ctx context.Context) {
 			// Unmarshal and validate the message.
 			sequence, err := eventutil.UnmarshalEventSequence(ctxWithLogger, msg.Payload())
 			if err != nil {
+				srv.Consumer.Ack(msg)
 				logging.WithStacktrace(messageLogger, err).Warnf("processing message failed; ignoring")
 				numErrored++
-				continue
+				break
 			}
 
 			messageLogger.WithField("numEvents", len(sequence.Events)).Info("processing sequence")

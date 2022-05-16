@@ -28,7 +28,7 @@ type EventsPrinter struct {
 }
 
 // Run the service that reads from Pulsar and updates Armada until the provided context is cancelled.
-func (srv *EventsPrinter) Run(ctx context.Context) {
+func (srv *EventsPrinter) Run(ctx context.Context) error {
 
 	// Get the configured logger, or the standard logger if none is provided.
 	var log *logrus.Entry
@@ -67,7 +67,7 @@ func (srv *EventsPrinter) Run(ctx context.Context) {
 		// Exit if the context has been cancelled. Otherwise, get a message from Pulsar.
 		select {
 		case <-ctx.Done():
-			return
+			return nil
 		default:
 
 			// Get a message from Pulsar, which consists of a sequence of events (i.e., state transitions).
@@ -80,19 +80,13 @@ func (srv *EventsPrinter) Run(ctx context.Context) {
 				logging.WithStacktrace(log, err).Warnf("receiving from Pulsar failed")
 				break
 			}
-
 			consumer.Ack(msg)
-
-			// We're only interested in control messages.
-			if !armadaevents.IsControlMessage(msg) {
-				continue
-			}
 
 			sequence := &armadaevents.EventSequence{}
 			err = proto.Unmarshal(msg.Payload(), sequence)
 			if err != nil {
 				logging.WithStacktrace(log, err).Warnf("unmarshalling Pulsar message failed")
-				continue
+				break
 			}
 
 			messageLogger := log.WithFields(logrus.Fields{
@@ -111,7 +105,6 @@ func (srv *EventsPrinter) Run(ctx context.Context) {
 			})
 
 			s := "Sequence: " + eventutil.ShortSequenceString(sequence)
-
 			messageLogger.Info(s)
 		}
 	}
