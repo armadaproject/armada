@@ -248,7 +248,7 @@ func (srv *PulsarSubmitServer) CancelJobs(ctx context.Context, req *api.JobCance
 
 	// For requests specifying a job id, we need to check which queue the job is part of
 	// (see comments below).
-	// This must be done before checking authroization, since the auth check expects a queue.
+	// This must be done before checking auth, since the auth check expects a queue.
 	if req.JobId != "" {
 		jobs, err := srv.SubmitServer.jobRepository.GetJobsByIds([]string{req.JobId})
 		if err != nil {
