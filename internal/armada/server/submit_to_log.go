@@ -245,6 +245,54 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 }
 
 func (srv *PulsarSubmitServer) CancelJobs(ctx context.Context, req *api.JobCancelRequest) (*api.CancellationResult, error) {
+
+	// For requests specifying a job id, we need to check which queue the job is part of
+	// (see comments below).
+	// This must be done before checking auth, since the auth check expects a queue.
+	if req.JobId != "" {
+		jobs, err := srv.SubmitServer.jobRepository.GetJobsByIds([]string{req.JobId})
+		if err != nil {
+			return nil, err
+		}
+		if len(jobs) == 0 {
+			return nil, &armadaerrors.ErrNotFound{
+				Type:  "job",
+				Value: req.JobId,
+			}
+		}
+		if len(jobs) != 1 { // Internal error; should never happen.
+			return nil, fmt.Errorf("expected 1 job result, but got %v", jobs)
+		}
+		queue := jobs[0].Job.GetQueue()
+		jobSetId := jobs[0].Job.GetJobSetId()
+
+		// We allow clients to submit requests only containing a job id.
+		// For these requests, we need to populate the queue and jobSetId fields.
+		if req.Queue == "" {
+			req.Queue = queue
+		}
+		if req.JobSetId == "" {
+			req.JobSetId = jobSetId
+		}
+
+		// If both a job id and queue or jobsetId is provided, return ErrNotFound if they don't match,
+		// since the job could not be found for the provided queue/jobSetId.
+		if req.Queue != queue {
+			return nil, &armadaerrors.ErrNotFound{
+				Type:    "job",
+				Value:   req.JobId,
+				Message: fmt.Sprintf("job not found in queue %s", req.Queue),
+			}
+		}
+		if req.JobSetId != jobSetId {
+			return nil, &armadaerrors.ErrNotFound{
+				Type:    "job",
+				Value:   req.JobId,
+				Message: fmt.Sprintf("job not found in job set %s", req.JobSetId),
+			}
+		}
+	}
+
 	userId, groups, err := srv.Authorize(ctx, req.Queue, permissions.CancelAnyJobs, queue.PermissionVerbCancel)
 	if err != nil {
 		return nil, err
