@@ -254,6 +254,12 @@ func (srv *PulsarSubmitServer) CancelJobs(ctx context.Context, req *api.JobCance
 		if err != nil {
 			return nil, err
 		}
+		if len(jobs) == 0 {
+			return nil, &armadaerrors.ErrNotFound{
+				Type:  "job",
+				Value: req.JobId,
+			}
+		}
 		if len(jobs) != 1 { // Internal error; should never happen.
 			return nil, fmt.Errorf("expected 1 job result, but got %v", jobs)
 		}
