@@ -282,14 +282,14 @@ func (srv *PulsarSubmitServer) CancelJobs(ctx context.Context, req *api.JobCance
 			return nil, &armadaerrors.ErrNotFound{
 				Type:    "job",
 				Value:   req.JobId,
-				Message: fmt.Sprintf("job not found in queue %s", req.Queue),
+				Message: fmt.Sprintf("job not found in queue %s, try waiting or setting queue/jobSetId explicitly", req.Queue),
 			}
 		}
 		if req.JobSetId != jobSetId {
 			return nil, &armadaerrors.ErrNotFound{
 				Type:    "job",
 				Value:   req.JobId,
-				Message: fmt.Sprintf("job not found in job set %s", req.JobSetId),
+				Message: fmt.Sprintf("job not found in job set %s, try waiting or setting queue/jobSetId explicitly", req.JobSetId),
 			}
 		}
 	}
