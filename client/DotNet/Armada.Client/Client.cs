@@ -113,7 +113,6 @@ namespace GResearch.Armada.Client
             var failCount = 0;
             while (!ct.IsCancellationRequested)
             {
-                Console.WriteLine("At the top of the loop!");
                 try
                 {
                     using (var fileResponse = await GetJobSetEventsCoreAsync(queue, jobSetId,
@@ -125,6 +124,7 @@ namespace GResearch.Armada.Client
                             failCount = 0;
                             while (!ct.IsCancellationRequested)
                             {
+                                // TODO change this to something more reasonable like 5 minutes!
                                 var line = await reader.ReadLineAsync().TimeoutAfter(TimeSpan.FromSeconds(1));
                                 if(line == null)
                                 {
@@ -141,19 +141,16 @@ namespace GResearch.Armada.Client
                         }
                         catch (IOException)
                         {
-                            Console.WriteLine("IO exception.  Reconnecting.");
                             // Stream was probably closed by the server, continue to reconnect
                         }
                     }
                 }
                 catch (TaskCanceledException)
-                { 
-                    Console.WriteLine("Task cancelled.  Reconnecting.");
+                {
                     // Server closed the connection, continue to reconnect
                 }
                 catch (Exception e)
                 {
-                    Console.WriteLine("Exception. Backing off");
                     failCount++;
                     onException?.Invoke(e);
                     // gradually back off
