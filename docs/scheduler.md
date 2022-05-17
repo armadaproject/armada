@@ -36,7 +36,7 @@ The 99-th percentile time from job submission to the job being available for sch
 
 Overall average cluster utilisation should be at least 90%. We do not target 100% to allow for making room for scheduling large jobs.
 
-In addition, we are interested in the following qualitative metrics:
+In addition, we consider the following qualitative metrics:
 
 - fairness and
 - ability to schedule large jobs, e.g., jobs consuming one or more entire nodes.
@@ -50,7 +50,7 @@ Here, we outline the scheduler implementation. At a high level, the scheduler
 1. selects an executor and
 2. assigns jobs to this executor until full.
 
-The above algorithm runs periodically. In addition, Armada continually schedules preemtible and lime-limited jobs.
+The above algorithm runs periodically. In addition, Armada continually schedules preemtible and lime-limited jobs to improve utilisation and throughput.
 
 ### Fairness
 
@@ -65,11 +65,11 @@ The scheduler assigns jobs to only one executor at a time. In particular, each w
 Once activated, the scheduler assigns jobs to the cluster according to the following procedure. Initially, all queues are considered for scheduling:
 
 1. Select the queue furthest below its target resource usage. Denote this queue by Q.
-2. Select the highest-priority job from Q. Denote this job by J. If scheduling job J on the cluster would exceed any of the following, remove this queue from the scheduler and go to step 5.
+2. Select the highest-priority job from Q. Denote this job by J. If assigning J to the cluster would exceed any of the following, remove Q from the scheduler and go to step 4.
     * Cluster capacity.
     * Per-job resource quotas.
     * Per-queue resource quotas.
-3. Assign job J to the cluster. If the queue contains no more jobs, remove it from the scheduler.
+3. Assign J to the cluster. If the Q contains no more jobs, remove it from the scheduler.
 4. Repeat until the scheduler contains no more queues.
 
 ### Opportunistic scheduling algorithm
@@ -79,7 +79,7 @@ To increase utilisation and throughput, Armada may opportunistically schedule jo
 - `preemptible`: Indicates if Armada may preempt the job or not. The default is false.
 - `lifetime`: Maximum lifespan of the job in seconds. Jobs that exceed their lifetime may be preempted. A value of 0 (the default) indicates infinite lifetime.
 
-Preemtible and time-limited jobs are scheduled continuously and do not need to adhere to per-job or per-queue resource quotas. For each cluster, Armada estimates the time at which it will fall below its resource utilisation. Armada may schedule jobs with a lifetime less than the time until this estimate. Armada may always schedule preemtible jobs. Preemtible jobs may be preempted to make room for jobs scheduled by the main algorithm.
+Preemtible and time-limited jobs are scheduled continuously and do not need to adhere to per-job or per-queue resource quotas. For each cluster, Armada estimates the time at which it will fall below its resource utilisation. Armada may schedule time-limited jobs that do not increase this time. Armada may always schedule preemtible jobs. However, these may be preempted to make room for jobs scheduled by the main algorithm.
 
 ### Per-cluster scheduling
 
@@ -93,11 +93,11 @@ Scheduling decisions are recorded in the form of lease messages, which are publi
 
 Hence, jobs containing several Kubernetes objects (e.g., a job with a pod and a service object), result in several rows being written to the database.
 
-Each executor is responsible for polling the database and reconciling any differences between the list of objects written to it with the objects that currently exist in Kubernetes, creating and deleting objects as necessary (using the name to map database rows to objects in Kubernetes). The executor relies on the Kubernetes scheduler to assign pods to nodes. Finally, the executor writes the current state of each object back to the database.
+Each executor is responsible for polling the database and reconciling any differences between the list of objects written to it with the objects that currently exist in Kubernetes, creating and deleting objects as necessary (using the name to map database rows to objects in Kubernetes). The executor writes the current state of each object back to the database.
 
 ## Scheduling limitations
 
 Jobs can optionally specify the following parameters:
 
-- atMostOnce: If false (the default), Armada will attempt to run the job only once. If true, Armada may retry running the job if it doesn't succeed.
-- concurrencySafe: If true, Armada may assign the job to multiple executors simultaneously. Once one of the executors starts the job, the other replicas are cancelled. This can reduce scheduling delay but may result in several executors running the job concurrently.
+- `atMostOnce`: If false (the default), Armada will attempt to run the job only once. If true, Armada may retry running the job if it doesn't succeed.
+- `concurrencySafe`: If true, Armada may assign the job to multiple executors simultaneously. Once one of the executors starts the job, the other replicas are cancelled. This can reduce scheduling delay but may result in several executors running the job concurrently.
