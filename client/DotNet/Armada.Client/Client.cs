@@ -113,6 +113,7 @@ namespace GResearch.Armada.Client
             var failCount = 0;
             while (!ct.IsCancellationRequested)
             {
+                Console.WriteLine("At the top of the loop!");
                 try
                 {
                     using (var fileResponse = await GetJobSetEventsCoreAsync(queue, jobSetId,
@@ -122,9 +123,14 @@ namespace GResearch.Armada.Client
                         try
                         {
                             failCount = 0;
-                            while (!ct.IsCancellationRequested && !reader.EndOfStream)
+                            while (!ct.IsCancellationRequested)
                             {
-                                var line = await reader.ReadLineAsync();
+                                var line = await reader.ReadLineAsync().TimeoutAfter(TimeSpan.FromSeconds(1));
+                                if(line == null)
+                                {
+                                    // reader.ReadLineAsync() should return null if the end of file is reached
+                                    break;
+                                }
                                 var (newMessageId, eventMessage) = ProcessEventLine(fromMessageId, line);
                                 fromMessageId = newMessageId;
                                 if (eventMessage != null)
@@ -135,16 +141,19 @@ namespace GResearch.Armada.Client
                         }
                         catch (IOException)
                         {
+                            Console.WriteLine("IO exception.  Reconnecting.");
                             // Stream was probably closed by the server, continue to reconnect
                         }
                     }
                 }
                 catch (TaskCanceledException)
-                {
+                { 
+                    Console.WriteLine("Task cancelled.  Reconnecting.");
                     // Server closed the connection, continue to reconnect
                 }
                 catch (Exception e)
                 {
+                    Console.WriteLine("Exception. Backing off");
                     failCount++;
                     onException?.Invoke(e);
                     // gradually back off
@@ -152,6 +161,7 @@ namespace GResearch.Armada.Client
                 }
             }
         }
+        
         
         private (string, StreamResponse<ApiEventStreamMessage>) ProcessEventLine(string fromMessageId, string line)
         {
