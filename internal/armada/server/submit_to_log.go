@@ -246,10 +246,11 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 
 func (srv *PulsarSubmitServer) CancelJobs(ctx context.Context, req *api.JobCancelRequest) (*api.CancellationResult, error) {
 
-	// For requests specifying a job id, we need to check which queue the job is part of
-	// (see comments below).
+	// If either queue or jobSetId is missing, we need to get those from Redis.
 	// This must be done before checking auth, since the auth check expects a queue.
-	if req.JobId != "" {
+	// If both queue and jobSetId are provided, we assume that those are correct
+	// to make it possible to cancel jobs that have been submitted but not written to Redis yet.
+	if req.JobId != "" && (req.Queue == "" || req.JobSetId == "") {
 		jobs, err := srv.SubmitServer.jobRepository.GetJobsByIds([]string{req.JobId})
 		if err != nil {
 			return nil, err
