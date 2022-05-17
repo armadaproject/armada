@@ -665,7 +665,7 @@ func TestSubmitJobWithError(t *testing.T) {
 		}
 
 		// Test that we get errors messages.
-		numEventsExpected := numJobs * 4
+		numEventsExpected := numJobs * 5
 		sequences, err := receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, defaultPulsarTimeout)
 		if err != nil {
 			return err
@@ -687,17 +687,34 @@ func TestSubmitJobWithError(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			if ok := assert.NotEmpty(t, actual.Events); !ok {
+			if !assert.NotEmpty(t, actual.Events) {
 				return nil
 			}
-			expected := &armadaevents.EventSequence_Event{
-				Event: &armadaevents.EventSequence_Event_JobRunErrors{
-					JobRunErrors: &armadaevents.JobRunErrors{
-						JobId: jobId,
+			expected := &armadaevents.EventSequence{
+				Queue:      req.Queue,
+				JobSetName: req.JobSetId,
+				UserId:     armadaUserId,
+				Events: []*armadaevents.EventSequence_Event{
+					{
+						Event: &armadaevents.EventSequence_Event_JobRunErrors{
+							JobRunErrors: &armadaevents.JobRunErrors{
+								JobId: jobId,
+							},
+						},
+					},
+					{
+						Event: &armadaevents.EventSequence_Event_JobErrors{
+							JobErrors: &armadaevents.JobErrors{
+								JobId: jobId,
+							},
+						},
 					},
 				},
 			}
-			if ok := isEventf(t, expected, actual.Events[len(actual.Events)-1], "Event sequence error; printing diff:\n%s", cmp.Diff(expected, actual)); !ok {
+
+			// Only check the two final events.
+			actual.Events = actual.Events[len(actual.Events)-2:]
+			if !isSequencef(t, expected, actual, "Event sequence error; printing diff:\n%s", cmp.Diff(expected, actual)) {
 				return nil
 			}
 		}

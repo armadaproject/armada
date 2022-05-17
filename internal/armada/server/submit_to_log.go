@@ -874,6 +874,7 @@ func PulsarSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.E
 			containerErrors = append(containerErrors, containerError)
 		}
 
+		// Event indicating the job run failed.
 		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
 			Event: &armadaevents.EventSequence_Event_JobRunErrors{
 				JobRunErrors: &armadaevents.JobRunErrors{
@@ -895,6 +896,23 @@ func PulsarSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.E
 									PodNumber:       m.Failed.PodNumber,
 									ContainerErrors: containerErrors,
 								},
+							},
+						},
+					},
+				},
+			},
+		})
+
+		// Event indicating that the job as a whole failed.
+		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
+			Event: &armadaevents.EventSequence_Event_JobErrors{
+				JobErrors: &armadaevents.JobErrors{
+					JobId: jobId,
+					Errors: []*armadaevents.Error{
+						{
+							Terminal: true,
+							Reason: &armadaevents.Error_MaxRunsExceeded{
+								MaxRunsExceeded: &armadaevents.MaxRunsExceeded{},
 							},
 						},
 					},
