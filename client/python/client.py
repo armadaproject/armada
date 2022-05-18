@@ -100,7 +100,6 @@ class ArmadaClient:
     def get_job_events_stream(self, queue, job_set_id, from_message_id=None, watch=False):
         jsr = event_pb2.JobSetRequest(queue=queue, from_message_id=from_message_id, watch=False)
         jse = self.event_stub.GetJobSetEvents(queue, job_set_id, jsr)
-        print(jse)
 
     def submit_jobs(self, queue, job_set_id, job_request_items):
         request = submit_pb2.JobSubmitRequest(
