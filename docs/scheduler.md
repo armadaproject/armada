@@ -80,7 +80,7 @@ Once activated for a particular cluster, the scheduler assigns jobs to the clust
 
 ### Opportunistic scheduling algorithm
 
-To increase utilisation and throughput, Armada may opportunistically schedule jobs outside of the main algorithm if doing so can be done without delaying jobs scheduled by the main algorithm. Only jobs that are preemptible or that specify a max lifespan (i.e., a time beyond which Armada may preempt the job) may be scheduled opportunistically. Note that a preemptible job is equivalent to a job with a lifespan of 0.
+To increase utilisation and throughput, Armada may opportunistically schedule jobs outside of the main algorithm if doing so can be done without delaying jobs scheduled by the main algorithm. Only jobs that are preemptible or that specify a max lifespan (i.e., a time beyond which Armada may preempt the job) may be scheduled opportunistically. Note that a preemptible job is equivalent to a job with a lifespan of 0. The key idea is that a lower-priority job may be run before a higher-priority job if doing so does not delay the higher-priority job.
 
 Preemtible and time-limited jobs are scheduled continuously and do not need to adhere to per-job or per-queue resource quotas. For each cluster, Armada estimates the time at which it will fall below its resource utilisation. Armada continually schedules preemptible and time-limited jobs that do not increase this estimate. If necessary, the main algorithm will preempt such jobs to make room for higher-priority jobs.
 
