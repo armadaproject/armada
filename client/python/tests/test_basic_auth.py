@@ -24,7 +24,7 @@ class BasicAuthTest:
         basic_auth_data = AuthData(
             AuthMethod.Basic, username="testuser", password="asdfasdf"
         )
-        self.client = ArmadaClient(host, port, basic_auth_data, testing=True)
+        self.client = ArmadaClient(host, port, basic_auth_data, disable_ssl=True)
 
     # private static ApiJobSubmitRequest CreateJobRequest(string jobSet)
     def job_submit_request_items_for_test(self, queue, job_set_id):

@@ -6,7 +6,7 @@ authors = ["Your Name <you@example.com>"]
 license = "GPL"
 
 [tool.poetry.dependencies]
-python = "^3.9"
+python = "^3.7"
 grpcio = "^1.46.1"
 grpcio-tools = "^1.46.1"
 

@@ -10,16 +10,18 @@ import threading
 from enum import Enum, auto
 from typing import Optional
 
-from armada.client import event_pb2
-from armada.client import event_pb2_grpc
-from armada.client import queue_pb2
-from armada.client import queue_pb2_grpc
-from armada.client import usage_pb2
-from armada.client import usage_pb2_grpc
-from armada.client import submit_pb2
-from armada.client import submit_pb2_grpc
-from k8s.io.api.core.v1 import generated_pb2 as core_v1
-from k8s.io.apimachinery.pkg.api.resource import generated_pb2 as api_resource
+from armada_client.generated_client import event_pb2
+from armada_client.generated_client import event_pb2_grpc
+from armada_client.generated_client import queue_pb2
+from armada_client.generated_client import queue_pb2_grpc
+from armada_client.generated_client import usage_pb2
+from armada_client.generated_client import usage_pb2_grpc
+from armada_client.generated_client import submit_pb2
+from armada_client.generated_client import submit_pb2_grpc
+from armada_client.k8s.io.api.core.v1 import generated_pb2 as core_v1
+from armada_client.k8s.io.apimachinery.pkg.api.resource import (
+    generated_pb2 as api_resource,
+)
 
 class AuthMethod(Enum):
         Anonymous = auto()
