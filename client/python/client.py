@@ -1,6 +1,7 @@
 import base64
 from concurrent.futures import ThreadPoolExecutor
 from multiprocessing.pool import ThreadPool
+import os
 import time
 from urllib import response
 import grpc
@@ -67,12 +68,13 @@ class GrpcBasicAuth(grpc.AuthMetadataPlugin):
 class ArmadaClient:
     def __init__(self, host: str, port: int,
         auth_data: AuthData = AuthData(),
-        disable_ssl: bool = False):
+        disable_ssl: bool = False,
+        max_workers = os.cpu_count()):
 
         self.host = host
         self.port = port
         self.disable_ssl = disable_ssl
-        self.executor = ThreadPoolExecutor(max_workers=1)
+        self.executor = ThreadPoolExecutor(max_workers = max_workers or 1)
 
         if auth_data.method == AuthMethod.Anonymous:
             self.channel = grpc.insecure_channel(f'{host}:{port}')
