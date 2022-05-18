@@ -6,6 +6,8 @@ ARG K8S_VERSION=0.22.4
 
 FROM --platform=x86_64 python:${PYTHON_VERSION}-buster
 
+RUN mkdir /proto
+
 ARG GOGO_PROTOBUF_VERSION
 RUN git clone -c advice.detachedHead=false -b v${GOGO_PROTOBUF_VERSION} --single-branch https://github.com/gogo/protobuf.git && \
     mkdir -p /proto/github.com/gogo/protobuf && \
@@ -35,6 +37,6 @@ RUN git clone -c advice.detachedHead=false -b v${K8S_VERSION} --single-branch ht
     find . -regex '.*proto$' -exec cp --parents '{}' /proto/k8s.io/api \; && \
     cd ..
 
-RUN pip -vv install grpcio grpcio-tools
+RUN pip install grpcio grpcio-tools
 
 ENTRYPOINT ["/bin/bash"]
