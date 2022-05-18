@@ -6,17 +6,9 @@ This document outlines the proposed Armada scheduler. The existing scheduler wil
 
 Armada consists of the Armada server and one or more Kubernetes worker clusters. Each worker cluster consists of a large number of nodes responsible for executing tasks and is managed by a process referred to as the Armada executor. Jobs are submitted to the Armada server, where they are queued until being handed off to an executor, which assigns them to nodes.
 
-Armada uses a two-stage scheduling approach, consisting of a top-level scheduler (part of the server), and a set of per-cluster schedulers- one per executor. The top-level scheduler is responsible for assigning jobs to executors and the per-cluster schedulers are responsible for assigning those jobs to nodes. We refer to the top-level scheduler simply as "the scheduler".
+Armada uses a two-stage scheduling approach, consisting of a top-level scheduler (part of the server), and a set of per-cluster schedulers- one per executor. The top-level scheduler is responsible for assigning jobs to executors and the per-cluster schedulers are responsible for assigning those jobs to nodes. This two-stage approach allows the scheduler to manage very large numbers of nodes. We refer to the top-level scheduler simply as "the scheduler". 
 
-The scheduler manages several queues of jobs and executors, and assigns jobs to executors one at a time. Further, for simplicity and scalability, the scheduler only considers one executor at a time. Hence, once an executor has been selected, the job of the scheduler is to join N streams of jobs, where N is the number of queues, into a single stream of jobs, i.e., the scheduler is essentially a multiplexer. Each executor is responsible for deciding how jobs are allocated within the cluster it manages. This two-stage approach allows the scheduler to manage very large numbers of nodes (hundreds of thousands).
-
-Once an executor, denoted by E, has been selected, the scheduler repeatedly performs the following steps until some stopping criterium is met:
-
-1. Select a queue, denoted by Q.
-2. Select a job, denoted by J, from Q.
-3. Assign J to E.
-
-This process is explained in detail below.
+Each job is a member of exactly one job queue (e.g., corresponding to a particular user) and has a priority associated with it, i.e., each job has associated with it a tuple `(queue, priority)`. The job of the scheduler is to decide in what order to schedule jobs to worker clusters.
 
 ## Metrics
 
@@ -32,7 +24,7 @@ Armada is designed to schedule batch workloads over systems composed of up to 1 
 
 jobs per second. At this throughput, filling an empty cluster would take 10 minutes. 
 
-The 99-th percentile time from job submission to the job being available for scheduling should be at most 1 minute (i.e., one tenth of the average job runtime).
+The 99-th percentile latency from job submission to the job being available for scheduling should be at most 1 minute (i.e., one tenth of the average job runtime).
 
 Overall average cluster utilisation should be at least 90%. We do not target 100% to allow for making room for scheduling large jobs.
 
@@ -50,40 +42,51 @@ Here, we outline the scheduler implementation. At a high level, the scheduler
 1. selects an executor and
 2. assigns jobs to this executor until full.
 
-The above algorithm runs periodically. In addition, Armada continually schedules preemtible and lime-limited jobs to improve utilisation and throughput.
+For simplicity and scalability, the scheduler only considers one executor at a time. The above algorithm runs periodically. In addition, to improve utilisation and throughput, Armada continually schedules preemtible and lime-limited jobs.
 
 ### Fairness
 
-The scheduler achieves fairness via a weighted fair queuing approach. Specifically, each queue has a weight associated with it that determines its target resource usage. Denote the per-queue weights by w_1, ..., w_N, where N is the total number of queues, and by w = sum(w_1, ..., w_N) their sum. The target resource usage of each queue is then w_1 / w, ..., w_N / w. The order in which queues are selected is determined by how far below their target resource usage they are.
+The scheduler achieves fairness via a weighted fair queuing approach. Specifically, each queue has a weight associated with it that determines its target resource usage. Denote the per-queue weights by 
+
+`w_1, ..., w_N`,
+
+where `N` is the total number of queues, and by 
+
+`w = sum(w_1, ..., w_N)`
+
+ their sum. The target resource usage of each queue is then 
+ 
+ `w_1 / w, ..., w_N / w`. 
+ 
+ We combine all resources (CPU, RAM, and accelerators) when computing resource usage. The order in which queues are selected is determined by how far below their target resource usage they are.
 
 ### Executor selection
 
-The scheduler assigns jobs to only one executor at a time. In particular, each worker cluster has associated with it a lower utilisation threshold. The scheduler activates when a cluster falls below this threshold (e.g., when 10% of its CPU is idle) and assigns jobs to the cluster until it is full. Tuning this threshold provides a trade-off between the size of jobs that can be scheduled and cluster utilisation. For example, if the threshold is 90% for a particular resource, up to 10% of cluster resources are idle at any time and jobs consuming up to 10% of that resource can be scheduled.
+The scheduler assigns jobs to only one executor at a time. In particular, each worker cluster has associated with it a lower utilisation threshold and the scheduler activates when a cluster falls below this threshold (e.g., when 10% of its CPU is idle). At that point, the scheduler assigns jobs to the cluster until full. Tuning this threshold provides a trade-off between the size of jobs that can be scheduled and cluster utilisation. For example, if the threshold is 90% for a particular resource, up to 10% of cluster resources are idle at any time and jobs consuming up to 10% of that resource can be scheduled.
+
+To improve utilisation, the scheduler schedules time-limited and preemptible jobs opportunistically.
 
 ### Main scheduling algorithm
 
-Once activated, the scheduler assigns jobs to the cluster according to the following procedure. Initially, all queues are considered for scheduling:
+Once activated for a particular cluster, the scheduler assigns jobs to the cluster according to the following procedure. Initially, all queues are considered for scheduling.
 
 1. Select the queue furthest below its target resource usage. Denote this queue by Q.
 2. Select the highest-priority job from Q. Denote this job by J. If assigning J to the cluster would exceed any of the following, remove Q from the scheduler and go to step 4.
     * Cluster capacity.
     * Per-job resource quotas.
     * Per-queue resource quotas.
-3. Assign J to the cluster. If the Q contains no more jobs, remove it from the scheduler.
+3. Assign J to the cluster. If Q contains no more jobs, remove it from the scheduler.
 4. Repeat until the scheduler contains no more queues.
 
 ### Opportunistic scheduling algorithm
 
-To increase utilisation and throughput, Armada may opportunistically schedule jobs outside of the main algorithm if doing so can be done without delaying jobs scheduled by the main algorithm. Only jobs that specify at least one of the following parameters can be scheduled opportunistically:
+To increase utilisation and throughput, Armada may opportunistically schedule jobs outside of the main algorithm if doing so can be done without delaying jobs scheduled by the main algorithm. Only jobs that are preemptible or that specify a max lifespan (i.e., a time beyond which Armada may preempt the job) may be scheduled opportunistically. Note that a preemptible job is equivalent to a job with a lifespan of 0.
 
-- `preemptible`: Indicates if Armada may preempt the job or not. The default is false.
-- `lifetime`: Maximum lifespan of the job in seconds. Jobs that exceed their lifetime may be preempted. A value of 0 (the default) indicates infinite lifetime.
-
-Preemtible and time-limited jobs are scheduled continuously and do not need to adhere to per-job or per-queue resource quotas. For each cluster, Armada estimates the time at which it will fall below its resource utilisation. Armada may schedule time-limited jobs that do not increase this time. Armada may always schedule preemtible jobs. However, these may be preempted to make room for jobs scheduled by the main algorithm.
+Preemtible and time-limited jobs are scheduled continuously and do not need to adhere to per-job or per-queue resource quotas. For each cluster, Armada estimates the time at which it will fall below its resource utilisation. Armada continually schedules preemptible and time-limited jobs that do not increase this estimate. If necessary, the main algorithm will preempt such jobs to make room for higher-priority jobs.
 
 ### Per-cluster scheduling
 
-Jobs assigned to an executor are assigned to nodes according to a bin-packing procedure, where jobs are assigned to nodes to minimize the number of nodes necessary. Any jobs that do not fit (e.g., because the scheduler made a mistake) are returned to the scheduler.
+Jobs assigned to an executor are assigned to nodes according to a bin-packing procedure, where jobs are assigned to nodes to minimize the number of nodes required. This is to make room for large incoming jobs. Any jobs that the executor is not able to schedule are returned to the scheduler.
 
 ## Executor implementation
 
@@ -93,7 +96,7 @@ Scheduling decisions are recorded in the form of lease messages, which are publi
 
 Hence, jobs containing several Kubernetes objects (e.g., a job with a pod and a service object), result in several rows being written to the database.
 
-Each executor is responsible for polling the database and reconciling any differences between the list of objects written to it with the objects that currently exist in Kubernetes, creating and deleting objects as necessary (using the name to map database rows to objects in Kubernetes). The executor writes the current state of each object back to the database.
+Each executor is responsible for polling the database and reconciling any differences between the list of objects written to it with the objects that currently exist in Kubernetes, creating and deleting objects as necessary. The executor writes the current state of each object back to the database.
 
 ## Scheduling limitations
 
