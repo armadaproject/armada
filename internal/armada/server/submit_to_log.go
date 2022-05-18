@@ -594,7 +594,7 @@ func (srv *PulsarSubmitServer) SubmitApiEvents(ctx context.Context, apiEvents []
 
 // SubmitApiEvent converts an api.EventMessage into Pulsar state transition messages and publishes those to Pulsar.
 func (srv *PulsarSubmitServer) SubmitApiEvent(ctx context.Context, apiEvent *api.EventMessage) error {
-	sequence, err := PulsarSequenceFromApiEvent(apiEvent)
+	sequence, err := eventutil.EventSequenceFromApiEvent(apiEvent)
 	if err != nil {
 		return err
 	}
