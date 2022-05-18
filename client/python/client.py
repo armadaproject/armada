@@ -1,4 +1,6 @@
 import base64
+from concurrent.futures import ThreadPoolExecutor
+from multiprocessing.pool import ThreadPool
 import time
 from urllib import response
 import grpc
@@ -70,6 +72,7 @@ class ArmadaClient:
         self.host = host
         self.port = port
         self.disable_ssl = disable_ssl
+        self.executor = ThreadPoolExecutor(max_workers=1)
 
         if auth_data.method == AuthMethod.Anonymous:
             self.channel = grpc.insecure_channel(f'{host}:{port}')
@@ -153,7 +156,7 @@ class ArmadaClient:
     def watch_events(self, on_event, queue, job_set_id, from_message_id=None):
         jsr = event_pb2.JobSetRequest(queue=queue, id=job_set_id, from_message_id=from_message_id, watch=True, errorIfMissing=True)
         event_stream = self.event_stub.GetJobSetEvents(jsr)
-        def thread_func():
+        def event_counter():
             try:
                 nonlocal event_stream
                 for event in event_stream:
@@ -168,8 +171,7 @@ class ArmadaClient:
                 else:
                     raise
 
-        th = threading.Thread(target=thread_func)
-        th.start()
+        self.executor.submit(event_counter)
         return event_stream
 
     def unwatch_events(self, event_stream):
@@ -182,7 +184,6 @@ class ArmadaClientTest:
         basic_auth_data = AuthData(AuthMethod.Basic, username='testuser', password='asdfasdf')
         self.client = ArmadaClient(host, port, basic_auth_data, disable_ssl=True)
 
-    # private static ApiJobSubmitRequest CreateJobRequest(string jobSet)
     def job_submit_request_items_for_test(self, queue, job_set_id):
         pod = core_v1.PodSpec(
             volumes=[
@@ -259,7 +260,6 @@ class ArmadaClientTest:
         print(count)
         self.client.unwatch_events(event_stream)
 
-                # public async Task TestSimpleJobSubmitFlow()
     def test_simple_job_submit_flow(self):
         queue_name = "test"
         job_set_id = f"set-{uuid.uuid1()}"
@@ -276,7 +276,6 @@ class ArmadaClientTest:
         )
 
 
-    #  public async Task TestProcessingUnknownEvents()
     def test_processing_unknown_events(self):
         pass
 
