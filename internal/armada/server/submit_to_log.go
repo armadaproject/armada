@@ -9,6 +9,7 @@ import (
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
+	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -565,28 +566,48 @@ func (srv *PulsarSubmitServer) SubmitApiEvents(ctx context.Context, apiEvents []
 	// Pass this id through the log by adding it to the Pulsar message properties.
 	requestId := requestid.FromContextOrMissing(ctx)
 
-	// Send each sequence.
+	// Send each sequence async. Collect any errors via ch.
+	ch := make(chan error, len(sequences))
+	defer close(ch)
 	for _, sequence := range sequences {
 		payload, err := proto.Marshal(sequence)
 		if err != nil {
 			return errors.WithStack(err)
 		}
 
-		_, err = srv.Producer.Send(ctx, &pulsar.ProducerMessage{
-			Payload: payload,
-			Properties: map[string]string{
-				requestid.MetadataKey:                     requestId,
-				armadaevents.PULSAR_MESSAGE_TYPE_PROPERTY: armadaevents.PULSAR_CONTROL_MESSAGE,
+		srv.Producer.SendAsync(
+			ctx,
+			&pulsar.ProducerMessage{
+				Payload: payload,
+				Properties: map[string]string{
+					requestid.MetadataKey:                     requestId,
+					armadaevents.PULSAR_MESSAGE_TYPE_PROPERTY: armadaevents.PULSAR_CONTROL_MESSAGE,
+				},
+				Key: sequence.JobSetName,
 			},
-			Key: sequence.JobSetName,
-		})
+			// Callback on send.
+			func(_ pulsar.MessageID, _ *pulsar.ProducerMessage, err error) {
+				ch <- err
+			},
+		)
 		if err != nil {
 			err = errors.WithStack(err)
 			return err
 		}
 	}
 
-	return nil
+	// Flush queued messages and wait until persisted.
+	err = srv.Producer.Flush()
+	if err != nil {
+		return err
+	}
+
+	// Collect any errors experienced by the async send and return.
+	var result *multierror.Error
+	for range sequences {
+		result = multierror.Append(result, <-ch)
+	}
+	return result.ErrorOrNil()
 }
 
 // SubmitApiEvent converts an api.EventMessage into Pulsar state transition messages and publishes those to Pulsar.
