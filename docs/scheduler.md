@@ -104,3 +104,7 @@ Jobs can optionally specify the following parameters:
 
 - `atMostOnce`: If false (the default), Armada will attempt to run the job only once. If true, Armada may retry running the job if it doesn't succeed.
 - `concurrencySafe`: If true, Armada may assign the job to multiple executors simultaneously. Once one of the executors starts the job, the other replicas are cancelled. This can reduce scheduling delay but may result in several executors running the job concurrently.
+
+## Distributed jobs
+
+Distributed jobs are represented as [PodGroups](https://github.com/kubernetes-sigs/scheduler-plugins/blob/master/kep/42-podgroup-coscheduling/README.md). All pods that make up a `PodGroup` are scheduled jointly using a gang-scheduling algorithm. Similar to to [kube-batch](https://github.com/kubernetes-sigs/kube-batch) and [Volcano](https://volcano.sh/en/docs/podgroup/), the gang-scheduling algorithm is implemented as a [custom Kubernetes scheduler](https://kubernetes.io/docs/tasks/extend-kubernetes/configure-multiple-schedulers/).
