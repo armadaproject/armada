@@ -1,0 +1,66 @@
+application:
+  clusterId : "Cluster1"
+  pool: "default"
+  submitConcurrencyLimit: 2
+  updateConcurrencyLimit: 10
+  deleteConcurrencyLimit: 2
+task:
+  utilisationReportingInterval: 1s
+  missingJobEventReconciliationInterval: 15s
+  jobLeaseRenewalInterval: 15s
+  podDeletionInterval: 5s
+  allocateSpareClusterCapacityInterval: 5s
+  queueUsageDataRefreshInterval: 5s
+  utilisationEventProcessingInterval: 1s
+  utilisationEventReportingInterval: 5m
+apiConnection:
+  armadaUrl : "localhost:50051"
+  basicAuth:
+    username: "testuser"
+    password: "asdfasdf"
+client:
+  maxMessageSizeBytes: 8388608 # 1024 * 1024 * 8
+metric:
+  port: 9001
+  exposeQueueUsageMetrics: false
+kubernetes:
+  impersonateUsers: false
+  minimumPodAge: 3m
+  failedPodExpiry: 10m
+  stuckTerminatingPodExpiry: 1m
+  podDefaults:
+    ingress:
+      hostnameSuffix: "svc"
+      certNameSuffix: "ingress-tls-certificate"
+  pendingPodChecks:
+    events:
+    - regexp: "Failed to pull image.*desc = failed to pull and unpack image"            # Suggests genuine problem with image name, no point in waiting around too long.
+      type: Warning
+      gracePeriod: 90s
+      action: Fail
+    - regexp: "Failed to pull image.*code = Unknown desc = Error response from daemon"  # Seen when image doesn't exist, no point in waiting around too long.
+      type: Warning
+      gracePeriod: 90s
+      action: Fail
+    - regexp: "nodes are available"  # Catch-all, matches all except the FailedScheduling message "0/3 nodes are available:", this can happen in normal operation.
+      inverse: true
+      type: Warning
+      gracePeriod: 5m
+      action: Retry
+    containerStatuses:
+    - state: Waiting
+      reasonRegexp: "InvalidImageName"  # If image name format is invalid (for example starts https://), fail immediately.
+      gracePeriod: 0s
+      action: Fail
+    - state: Waiting
+      reasonRegexp: "ImagePullBackOff"  # Can stay in this state a while for large images and overloaded registries, hence long timeout.
+      gracePeriod: 15m
+      action: Retry
+    - state: Waiting
+      reasonRegexp: "ErrImagePull"      # Can stay in this state a while for large images and overloaded registries, hence long timeout.
+      gracePeriod: 15m
+      action: Retry
+    - state: Waiting                    # Default timeout for statuses not matched above.
+      reasonRegexp: ".*"
+      gracePeriod: 5m
+      action: Retry

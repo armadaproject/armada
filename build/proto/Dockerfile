@@ -76,10 +76,4 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 COPY --from=builder /go/bin /usr/local/bin
 COPY --from=builder /proto /proto
 
-# Install python3 and grpcio-tools
-# TODO maybe install all this manually (ie, not from package management)
-RUN apt-get update \
-    && apt-get install -y python3-pip \
-    && pip3 -vv install grpcio grpcio-tools
-
 ENTRYPOINT ["/bin/bash"]
