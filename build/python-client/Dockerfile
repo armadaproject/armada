@@ -11,7 +11,7 @@ RUN mkdir /proto
 ARG GOGO_PROTOBUF_VERSION
 RUN git clone -c advice.detachedHead=false -b v${GOGO_PROTOBUF_VERSION} --single-branch https://github.com/gogo/protobuf.git && \
     mkdir -p /proto/github.com/gogo/protobuf && \
-    cp -r protobuf/* /proto/github.com/gogo/protobuf && \
+    cp --parents protobuf/gogoproto/gogo.proto /proto/github.com/gogo/ && \
     mkdir -p /proto/google && \
     cp -r protobuf/protobuf/google/* /proto/google
 
