@@ -46,6 +46,8 @@ class AuthData:
         elif self.method == AuthMethod.Kerberos:
             pass
 
+# The python GRPC library requires authentication data to be provided as an AuthMetadataPlugin
+# The username/password are colon-delimted and base64 encoded as per RFC 2617
 class GrpcBasicAuth(grpc.AuthMetadataPlugin):
     def __init__(self, username: str, password: str):
         self._username = username
