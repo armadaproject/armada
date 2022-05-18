@@ -551,6 +551,47 @@ func (srv *PulsarSubmitServer) GetQueueInfo(ctx context.Context, req *api.QueueI
 	return srv.SubmitServer.GetQueueInfo(ctx, req)
 }
 
+// SubmitApiEvents converts several api.EventMessage into Pulsar state transition messages and publishes those to Pulsar.
+func (srv *PulsarSubmitServer) SubmitApiEvents(ctx context.Context, apiEvents []*api.EventMessage) error {
+
+	// Because (queue, userId, jobSetId) may differ between events,
+	// several sequences may be necessary.
+	sequences, err := eventutil.EventSequencesFromApiEvents(apiEvents)
+	if err != nil {
+		return err
+	}
+	if len(sequences) == 0 {
+		return nil
+	}
+
+	// Incoming gRPC requests are annotated with a unique id.
+	// Pass this id through the log by adding it to the Pulsar message properties.
+	requestId := requestid.FromContextOrMissing(ctx)
+
+	// Send each sequence.
+	for _, sequence := range sequences {
+		payload, err := proto.Marshal(sequence)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+
+		_, err = srv.Producer.Send(ctx, &pulsar.ProducerMessage{
+			Payload: payload,
+			Properties: map[string]string{
+				requestid.MetadataKey:                     requestId,
+				armadaevents.PULSAR_MESSAGE_TYPE_PROPERTY: armadaevents.PULSAR_CONTROL_MESSAGE,
+			},
+			Key: sequence.JobSetName,
+		})
+		if err != nil {
+			err = errors.WithStack(err)
+			return err
+		}
+	}
+
+	return nil
+}
+
 // SubmitApiEvent converts an api.EventMessage into Pulsar state transition messages and publishes those to Pulsar.
 func (srv *PulsarSubmitServer) SubmitApiEvent(ctx context.Context, apiEvent *api.EventMessage) error {
 	sequence, err := PulsarSequenceFromApiEvent(apiEvent)
