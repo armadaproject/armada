@@ -65,16 +65,16 @@ class GrpcBasicAuth(grpc.AuthMetadataPlugin):
 class ArmadaClient:
     def __init__(self, host: str, port: int,
         auth_data: AuthData = AuthData(),
-        testing: bool = False):
+        disable_ssl: bool = False):
 
         self.host = host
         self.port = port
-        self.testing = testing
+        self.disable_ssl = disable_ssl
 
         if auth_data.method == AuthMethod.Anonymous:
             self.channel = grpc.insecure_channel(f'{host}:{port}')
         elif auth_data.method == AuthMethod.Basic:
-            if self.testing:
+            if self.disable_ssl:
                 channel_credentials = grpc.local_channel_credentials()
             else:
                 # TODO pass root certs, private key, cert chain if this is needed
@@ -181,7 +181,7 @@ class ArmadaClientTest:
         # TODO: generalize this so tests can be run with a variety of auth schemas
 
         basic_auth_data = AuthData(AuthMethod.Basic, username='testuser', password='asdfasdf')
-        self.client = ArmadaClient(host, port, basic_auth_data, testing=True)
+        self.client = ArmadaClient(host, port, basic_auth_data, disable_ssl=True)
 
     # private static ApiJobSubmitRequest CreateJobRequest(string jobSet)
     def job_submit_request_items_for_test(self, queue, job_set_id):
