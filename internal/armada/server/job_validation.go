@@ -1,9 +1,10 @@
 package server
 
 import (
+	"github.com/pkg/errors"
+
 	"github.com/G-Research/armada/internal/armada/scheduling"
 	"github.com/G-Research/armada/pkg/api"
-	"github.com/pkg/errors"
 )
 
 // validateJobsCanBeScheduled returns a boolean indicating if all pods that make up the provided jobs
