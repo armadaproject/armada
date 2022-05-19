@@ -4,6 +4,7 @@ from multiprocessing.pool import ThreadPool
 import os
 import time
 from urllib import response
+from armada_client.auth_data import AuthData, AuthMethod
 import grpc
 import uuid
 import threading
@@ -24,39 +25,9 @@ from armada_client.k8s.io.apimachinery.pkg.api.resource import (
 )
 
 
-class AuthMethod(Enum):
-    Anonymous = auto()
-    Basic = auto()
-    OpenId = auto()
-    Kerberos = auto()
-
-
-class AuthData:
-    def __init__(self, method: AuthMethod = AuthMethod.Anonymous,
-                 # for BasicAuth
-                 username: Optional[str] = None, password: Optional[str] = None,
-                 oidc_token: Optional[str] = None,
-                 # TODO add options for kerberos authentication
-                 ):
-
-        self.method = method
-
-        if self.method == AuthMethod.Anonymous:
-            pass
-        elif self.method == AuthMethod.Basic:
-            if not (username and password):
-                raise Exception("need username and password for Basic auth")
-            self.username = username
-            self.password = password
-        elif self.method == AuthMethod.OpenId:
-            if not oidc_token:
-                raise Exception("need oidc_token for OpenId auth")
-        elif self.method == AuthMethod.Kerberos:
-            pass
 
 # The python GRPC library requires authentication data to be provided as an AuthMetadataPlugin
 # The username/password are colon-delimted and base64 encoded as per RFC 2617
-
 
 class GrpcBasicAuth(grpc.AuthMetadataPlugin):
     def __init__(self, username: str, password: str):

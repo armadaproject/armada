@@ -49,3 +49,4 @@ packages
 # python pycache
 *.pyc
 client/python/dist
+.python-version
