@@ -205,6 +205,20 @@ var clusterAvailableCapacity = prometheus.NewDesc(
 	nil,
 )
 
+var totalNodesAvailableDesc = prometheus.NewDesc(
+	MetricPrefix+"total_nodes",
+	"Total number of nodes available in armada clusters",
+	[]string{"cluster", "pool", "nodeType"},
+	nil,
+)
+
+var schulableNodesAvailableDesc = prometheus.NewDesc(
+	MetricPrefix+"schedulable_nodes",
+	"Number of nodes able to accept jobs in armada clusters",
+	[]string{"cluster", "pool", "nodeType"},
+	nil,
+)
+
 func (c *QueueInfoCollector) Describe(desc chan<- *prometheus.Desc) {
 	desc <- queueSizeDesc
 	desc <- queuePriorityDesc
@@ -420,6 +434,23 @@ func (c *QueueInfoCollector) recordClusterCapacityMetrics(metrics chan<- prometh
 						resourceType,
 						nodeTypeUsage.NodeType.Id)
 				}
+
+				// Add metrics for the number of nodes and the number of nodes available to accept jobs
+				metrics <- prometheus.MustNewConstMetric(
+					schulableNodesAvailableDesc,
+					prometheus.GaugeValue,
+					float64(nodeTypeUsage.TotalNodes),
+					cluster,
+					report.Pool,
+					nodeTypeUsage.NodeType.Id)
+
+				metrics <- prometheus.MustNewConstMetric(
+					totalNodesAvailableDesc,
+					prometheus.GaugeValue,
+					float64(nodeTypeUsage.TotalNodes),
+					cluster,
+					report.Pool,
+					nodeTypeUsage.NodeType.Id)
 			}
 		} else {
 			for resourceType, value := range report.ClusterCapacity {
