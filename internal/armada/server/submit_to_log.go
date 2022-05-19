@@ -246,10 +246,11 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 
 func (srv *PulsarSubmitServer) CancelJobs(ctx context.Context, req *api.JobCancelRequest) (*api.CancellationResult, error) {
 
-	// For requests specifying a job id, we need to check which queue the job is part of
-	// (see comments below).
+	// If either queue or jobSetId is missing, we need to get those from Redis.
 	// This must be done before checking auth, since the auth check expects a queue.
-	if req.JobId != "" {
+	// If both queue and jobSetId are provided, we assume that those are correct
+	// to make it possible to cancel jobs that have been submitted but not written to Redis yet.
+	if req.JobId != "" && (req.Queue == "" || req.JobSetId == "") {
 		jobs, err := srv.SubmitServer.jobRepository.GetJobsByIds([]string{req.JobId})
 		if err != nil {
 			return nil, err
@@ -281,14 +282,14 @@ func (srv *PulsarSubmitServer) CancelJobs(ctx context.Context, req *api.JobCance
 			return nil, &armadaerrors.ErrNotFound{
 				Type:    "job",
 				Value:   req.JobId,
-				Message: fmt.Sprintf("job not found in queue %s", req.Queue),
+				Message: fmt.Sprintf("job not found in queue %s, try waiting or setting queue/jobSetId explicitly", req.Queue),
 			}
 		}
 		if req.JobSetId != jobSetId {
 			return nil, &armadaerrors.ErrNotFound{
 				Type:    "job",
 				Value:   req.JobId,
-				Message: fmt.Sprintf("job not found in job set %s", req.JobSetId),
+				Message: fmt.Sprintf("job not found in job set %s, try waiting or setting queue/jobSetId explicitly", req.JobSetId),
 			}
 		}
 	}
@@ -874,6 +875,7 @@ func PulsarSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.E
 			containerErrors = append(containerErrors, containerError)
 		}
 
+		// Event indicating the job run failed.
 		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
 			Event: &armadaevents.EventSequence_Event_JobRunErrors{
 				JobRunErrors: &armadaevents.JobRunErrors{
@@ -895,6 +897,23 @@ func PulsarSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.E
 									PodNumber:       m.Failed.PodNumber,
 									ContainerErrors: containerErrors,
 								},
+							},
+						},
+					},
+				},
+			},
+		})
+
+		// Event indicating that the job as a whole failed.
+		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
+			Event: &armadaevents.EventSequence_Event_JobErrors{
+				JobErrors: &armadaevents.JobErrors{
+					JobId: jobId,
+					Errors: []*armadaevents.Error{
+						{
+							Terminal: true,
+							Reason: &armadaevents.Error_MaxRunsExceeded{
+								MaxRunsExceeded: &armadaevents.MaxRunsExceeded{},
 							},
 						},
 					},
