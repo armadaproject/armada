@@ -37,20 +37,6 @@ func Test_MatchSchedulingRequirements_labels(t *testing.T) {
 	}})
 	assert.True(t, ok)
 	assert.NoError(t, err)
-
-	// assert.False(t, MatchSchedulingRequirements(job, &api.ClusterSchedulingInfoReport{}))
-	// assert.False(t, MatchSchedulingRequirements(job, &api.ClusterSchedulingInfoReport{NodeTypes: []*api.NodeType{
-	// 	{Labels: map[string]string{"armada/region": "eu"}},
-	// 	{Labels: map[string]string{"armada/zone": "2"}},
-	// }}))
-	// assert.False(t, MatchSchedulingRequirements(job, &api.ClusterSchedulingInfoReport{NodeTypes: []*api.NodeType{
-	// 	{Labels: map[string]string{"armada/region": "eu", "armada/zone": "2"}},
-	// }}))
-
-	// assert.True(t, MatchSchedulingRequirements(job, &api.ClusterSchedulingInfoReport{NodeTypes: []*api.NodeType{
-	// 	{Labels: map[string]string{"x": "y"}},
-	// 	{Labels: map[string]string{"armada/region": "eu", "armada/zone": "1", "x": "y"}},
-	// }}))
 }
 
 func Test_MatchSchedulingRequirements_isAbleToFitOnAvailableNodes(t *testing.T) {
@@ -79,19 +65,6 @@ func Test_MatchSchedulingRequirements_isAbleToFitOnAvailableNodes(t *testing.T) 
 	})
 	assert.True(t, ok)
 	assert.NoError(t, err)
-
-	// assert.False(t, MatchSchedulingRequirements(job, &api.ClusterSchedulingInfoReport{}))
-
-	// assert.False(t, MatchSchedulingRequirements(job, &api.ClusterSchedulingInfoReport{
-	// 	NodeTypes: []*api.NodeType{{AllocatableResources: common.ComputeResources{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")}}},
-	// }))
-
-	// assert.True(t, MatchSchedulingRequirements(job, &api.ClusterSchedulingInfoReport{
-	// 	NodeTypes: []*api.NodeType{
-	// 		{AllocatableResources: common.ComputeResources{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")}},
-	// 		{AllocatableResources: common.ComputeResources{"cpu": resource.MustParse("3"), "memory": resource.MustParse("3Gi")}},
-	// 	},
-	// }))
 }
 
 func Test_AggregateNodeTypesAllocations(t *testing.T) {
