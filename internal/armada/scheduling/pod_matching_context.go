@@ -45,10 +45,10 @@ func fits(resourceRequest, availableResources common.ComputeResourcesFloat) (boo
 	for resourceType, requestedResourceQuantity := range resourceRequest {
 		availableResourceQuantity, ok := availableResources[resourceType]
 		if !ok {
-			return false, fmt.Errorf("requested resource %s, but none is available", resourceType)
+			return false, fmt.Errorf("pod requested resource %s, but none is available", resourceType)
 		}
 		if availableResourceQuantity < requestedResourceQuantity {
-			return false, fmt.Errorf("requested %f of resource %s, but only %f is available", requestedResourceQuantity, resourceType, availableResourceQuantity)
+			return false, fmt.Errorf("pod requested %f of resource %s, but only %f is available", requestedResourceQuantity, resourceType, availableResourceQuantity)
 		}
 	}
 	return true, nil
@@ -60,10 +60,10 @@ func matchNodeSelector(podSpec *v1.PodSpec, labels map[string]string) (bool, err
 	for label, selectorValue := range podSpec.NodeSelector {
 		nodeValue, ok := labels[label]
 		if labels == nil || !ok {
-			return false, fmt.Errorf("node selector requires labels[%s] = %s, but the node does not include this label", label, selectorValue)
+			return false, fmt.Errorf("node selector requires labels[%s] = %s, but the node type does not include this label", label, selectorValue)
 		}
 		if nodeValue != selectorValue {
-			return false, fmt.Errorf("node selector requires labels[%s] = %s, but labels[%s] = %s for this node", label, selectorValue, label, nodeValue)
+			return false, fmt.Errorf("node selector requires labels[%s] = %s, but labels[%s] = %s for this node type", label, selectorValue, label, nodeValue)
 		}
 	}
 	return true, nil
@@ -76,7 +76,7 @@ func tolerates(podSpec *v1.PodSpec, taints []v1.Taint) (bool, error) {
 			continue // Only check hard constraints.
 		}
 		if !tolerationsTolerateTaint(podSpec.Tolerations, &taint) {
-			return false, fmt.Errorf("node has taint %s of value %s not tolerated by the pod", taint.Key, taint.Value)
+			return false, fmt.Errorf("node type has taint %s of value %s not tolerated by the pod", taint.Key, taint.Value)
 		}
 	}
 	return true, nil
