@@ -118,7 +118,7 @@ namespace GResearch.Armada.Client
                 try
                 {
                     using (var fileResponse = await GetJobSetEventsCoreAsync(queue, jobSetId,
-                        new ApiJobSetRequest {FromMessageId = fromMessageId, Watch = true}, ct))
+                        new ApiJobSetRequest {FromMessageId = fromMessageId, Watch = true}, ct).TimeoutAfter(WatchInactivityTimeout))
                     using (var reader = new StreamReader(fileResponse.Stream))
                     {
                         try

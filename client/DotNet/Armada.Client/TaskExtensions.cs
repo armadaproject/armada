@@ -7,7 +7,7 @@ namespace GResearch.Armada.Client
     public static class TaskExtensions
     {
         /// <summary>
-        /// Extension method to let a Task timeout with a TimeoutException iof it does not complete before the given timeout
+        /// Extension method to let a Task timeout with a TimeoutException if it does not complete before the given timeout
         /// </summary>
         /// <param name="task">Task to apply the timeout to</param>
         /// <param name="timeout">Timespan after which the task will fail with a TimeoutException</param>
@@ -19,7 +19,7 @@ namespace GResearch.Armada.Client
                 var completedTask = await Task.WhenAny(task, Task.Delay(timeout, timeoutCancellationTokenSource.Token));
                 if (completedTask == task) {
                     timeoutCancellationTokenSource.Cancel();
-                    return await task;  // thi si needed to propagate exceptions
+                    return await task;  // this is needed to propagate exceptions
                 } else {
                     throw new TimeoutException($"Operation timed out after {timeout}");
                 }
