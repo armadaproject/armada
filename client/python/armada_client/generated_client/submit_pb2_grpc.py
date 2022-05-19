@@ -2,7 +2,7 @@
 """Client and server classes corresponding to protobuf-defined services."""
 import grpc
 
-from armada_client.generated_client import submit_pb2 as armada_dot_client_dot_submit__pb2
+from armada_client.generated_client import submit_pb2 as armada__client_dot_generated__client_dot_submit__pb2
 from google.protobuf import empty_pb2 as google_dot_protobuf_dot_empty__pb2
 
 
@@ -17,43 +17,43 @@ class SubmitStub(object):
         """
         self.SubmitJobs = channel.unary_unary(
                 '/api.Submit/SubmitJobs',
-                request_serializer=armada_dot_client_dot_submit__pb2.JobSubmitRequest.SerializeToString,
-                response_deserializer=armada_dot_client_dot_submit__pb2.JobSubmitResponse.FromString,
+                request_serializer=armada__client_dot_generated__client_dot_submit__pb2.JobSubmitRequest.SerializeToString,
+                response_deserializer=armada__client_dot_generated__client_dot_submit__pb2.JobSubmitResponse.FromString,
                 )
         self.CancelJobs = channel.unary_unary(
                 '/api.Submit/CancelJobs',
-                request_serializer=armada_dot_client_dot_submit__pb2.JobCancelRequest.SerializeToString,
-                response_deserializer=armada_dot_client_dot_submit__pb2.CancellationResult.FromString,
+                request_serializer=armada__client_dot_generated__client_dot_submit__pb2.JobCancelRequest.SerializeToString,
+                response_deserializer=armada__client_dot_generated__client_dot_submit__pb2.CancellationResult.FromString,
                 )
         self.ReprioritizeJobs = channel.unary_unary(
                 '/api.Submit/ReprioritizeJobs',
-                request_serializer=armada_dot_client_dot_submit__pb2.JobReprioritizeRequest.SerializeToString,
-                response_deserializer=armada_dot_client_dot_submit__pb2.JobReprioritizeResponse.FromString,
+                request_serializer=armada__client_dot_generated__client_dot_submit__pb2.JobReprioritizeRequest.SerializeToString,
+                response_deserializer=armada__client_dot_generated__client_dot_submit__pb2.JobReprioritizeResponse.FromString,
                 )
         self.CreateQueue = channel.unary_unary(
                 '/api.Submit/CreateQueue',
-                request_serializer=armada_dot_client_dot_submit__pb2.Queue.SerializeToString,
+                request_serializer=armada__client_dot_generated__client_dot_submit__pb2.Queue.SerializeToString,
                 response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
                 )
         self.UpdateQueue = channel.unary_unary(
                 '/api.Submit/UpdateQueue',
-                request_serializer=armada_dot_client_dot_submit__pb2.Queue.SerializeToString,
+                request_serializer=armada__client_dot_generated__client_dot_submit__pb2.Queue.SerializeToString,
                 response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
                 )
         self.DeleteQueue = channel.unary_unary(
                 '/api.Submit/DeleteQueue',
-                request_serializer=armada_dot_client_dot_submit__pb2.QueueDeleteRequest.SerializeToString,
+                request_serializer=armada__client_dot_generated__client_dot_submit__pb2.QueueDeleteRequest.SerializeToString,
                 response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
                 )
         self.GetQueue = channel.unary_unary(
                 '/api.Submit/GetQueue',
-                request_serializer=armada_dot_client_dot_submit__pb2.QueueGetRequest.SerializeToString,
-                response_deserializer=armada_dot_client_dot_submit__pb2.Queue.FromString,
+                request_serializer=armada__client_dot_generated__client_dot_submit__pb2.QueueGetRequest.SerializeToString,
+                response_deserializer=armada__client_dot_generated__client_dot_submit__pb2.Queue.FromString,
                 )
         self.GetQueueInfo = channel.unary_unary(
                 '/api.Submit/GetQueueInfo',
-                request_serializer=armada_dot_client_dot_submit__pb2.QueueInfoRequest.SerializeToString,
-                response_deserializer=armada_dot_client_dot_submit__pb2.QueueInfo.FromString,
+                request_serializer=armada__client_dot_generated__client_dot_submit__pb2.QueueInfoRequest.SerializeToString,
+                response_deserializer=armada__client_dot_generated__client_dot_submit__pb2.QueueInfo.FromString,
                 )
 
 
@@ -113,43 +113,43 @@ def add_SubmitServicer_to_server(servicer, server):
     rpc_method_handlers = {
             'SubmitJobs': grpc.unary_unary_rpc_method_handler(
                     servicer.SubmitJobs,
-                    request_deserializer=armada_dot_client_dot_submit__pb2.JobSubmitRequest.FromString,
-                    response_serializer=armada_dot_client_dot_submit__pb2.JobSubmitResponse.SerializeToString,
+                    request_deserializer=armada__client_dot_generated__client_dot_submit__pb2.JobSubmitRequest.FromString,
+                    response_serializer=armada__client_dot_generated__client_dot_submit__pb2.JobSubmitResponse.SerializeToString,
             ),
             'CancelJobs': grpc.unary_unary_rpc_method_handler(
                     servicer.CancelJobs,
-                    request_deserializer=armada_dot_client_dot_submit__pb2.JobCancelRequest.FromString,
-                    response_serializer=armada_dot_client_dot_submit__pb2.CancellationResult.SerializeToString,
+                    request_deserializer=armada__client_dot_generated__client_dot_submit__pb2.JobCancelRequest.FromString,
+                    response_serializer=armada__client_dot_generated__client_dot_submit__pb2.CancellationResult.SerializeToString,
             ),
             'ReprioritizeJobs': grpc.unary_unary_rpc_method_handler(
                     servicer.ReprioritizeJobs,
-                    request_deserializer=armada_dot_client_dot_submit__pb2.JobReprioritizeRequest.FromString,
-                    response_serializer=armada_dot_client_dot_submit__pb2.JobReprioritizeResponse.SerializeToString,
+                    request_deserializer=armada__client_dot_generated__client_dot_submit__pb2.JobReprioritizeRequest.FromString,
+                    response_serializer=armada__client_dot_generated__client_dot_submit__pb2.JobReprioritizeResponse.SerializeToString,
             ),
             'CreateQueue': grpc.unary_unary_rpc_method_handler(
                     servicer.CreateQueue,
-                    request_deserializer=armada_dot_client_dot_submit__pb2.Queue.FromString,
+                    request_deserializer=armada__client_dot_generated__client_dot_submit__pb2.Queue.FromString,
                     response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
             ),
             'UpdateQueue': grpc.unary_unary_rpc_method_handler(
                     servicer.UpdateQueue,
-                    request_deserializer=armada_dot_client_dot_submit__pb2.Queue.FromString,
+                    request_deserializer=armada__client_dot_generated__client_dot_submit__pb2.Queue.FromString,
                     response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
             ),
             'DeleteQueue': grpc.unary_unary_rpc_method_handler(
                     servicer.DeleteQueue,
-                    request_deserializer=armada_dot_client_dot_submit__pb2.QueueDeleteRequest.FromString,
+                    request_deserializer=armada__client_dot_generated__client_dot_submit__pb2.QueueDeleteRequest.FromString,
                     response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
             ),
             'GetQueue': grpc.unary_unary_rpc_method_handler(
                     servicer.GetQueue,
-                    request_deserializer=armada_dot_client_dot_submit__pb2.QueueGetRequest.FromString,
-                    response_serializer=armada_dot_client_dot_submit__pb2.Queue.SerializeToString,
+                    request_deserializer=armada__client_dot_generated__client_dot_submit__pb2.QueueGetRequest.FromString,
+                    response_serializer=armada__client_dot_generated__client_dot_submit__pb2.Queue.SerializeToString,
             ),
             'GetQueueInfo': grpc.unary_unary_rpc_method_handler(
                     servicer.GetQueueInfo,
-                    request_deserializer=armada_dot_client_dot_submit__pb2.QueueInfoRequest.FromString,
-                    response_serializer=armada_dot_client_dot_submit__pb2.QueueInfo.SerializeToString,
+                    request_deserializer=armada__client_dot_generated__client_dot_submit__pb2.QueueInfoRequest.FromString,
+                    response_serializer=armada__client_dot_generated__client_dot_submit__pb2.QueueInfo.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -173,8 +173,8 @@ class Submit(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/api.Submit/SubmitJobs',
-            armada_dot_client_dot_submit__pb2.JobSubmitRequest.SerializeToString,
-            armada_dot_client_dot_submit__pb2.JobSubmitResponse.FromString,
+            armada__client_dot_generated__client_dot_submit__pb2.JobSubmitRequest.SerializeToString,
+            armada__client_dot_generated__client_dot_submit__pb2.JobSubmitResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -190,8 +190,8 @@ class Submit(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/api.Submit/CancelJobs',
-            armada_dot_client_dot_submit__pb2.JobCancelRequest.SerializeToString,
-            armada_dot_client_dot_submit__pb2.CancellationResult.FromString,
+            armada__client_dot_generated__client_dot_submit__pb2.JobCancelRequest.SerializeToString,
+            armada__client_dot_generated__client_dot_submit__pb2.CancellationResult.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -207,8 +207,8 @@ class Submit(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/api.Submit/ReprioritizeJobs',
-            armada_dot_client_dot_submit__pb2.JobReprioritizeRequest.SerializeToString,
-            armada_dot_client_dot_submit__pb2.JobReprioritizeResponse.FromString,
+            armada__client_dot_generated__client_dot_submit__pb2.JobReprioritizeRequest.SerializeToString,
+            armada__client_dot_generated__client_dot_submit__pb2.JobReprioritizeResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -224,7 +224,7 @@ class Submit(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/api.Submit/CreateQueue',
-            armada_dot_client_dot_submit__pb2.Queue.SerializeToString,
+            armada__client_dot_generated__client_dot_submit__pb2.Queue.SerializeToString,
             google_dot_protobuf_dot_empty__pb2.Empty.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
@@ -241,7 +241,7 @@ class Submit(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/api.Submit/UpdateQueue',
-            armada_dot_client_dot_submit__pb2.Queue.SerializeToString,
+            armada__client_dot_generated__client_dot_submit__pb2.Queue.SerializeToString,
             google_dot_protobuf_dot_empty__pb2.Empty.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
@@ -258,7 +258,7 @@ class Submit(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/api.Submit/DeleteQueue',
-            armada_dot_client_dot_submit__pb2.QueueDeleteRequest.SerializeToString,
+            armada__client_dot_generated__client_dot_submit__pb2.QueueDeleteRequest.SerializeToString,
             google_dot_protobuf_dot_empty__pb2.Empty.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
@@ -275,8 +275,8 @@ class Submit(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/api.Submit/GetQueue',
-            armada_dot_client_dot_submit__pb2.QueueGetRequest.SerializeToString,
-            armada_dot_client_dot_submit__pb2.Queue.FromString,
+            armada__client_dot_generated__client_dot_submit__pb2.QueueGetRequest.SerializeToString,
+            armada__client_dot_generated__client_dot_submit__pb2.Queue.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -292,7 +292,7 @@ class Submit(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/api.Submit/GetQueueInfo',
-            armada_dot_client_dot_submit__pb2.QueueInfoRequest.SerializeToString,
-            armada_dot_client_dot_submit__pb2.QueueInfo.FromString,
+            armada__client_dot_generated__client_dot_submit__pb2.QueueInfoRequest.SerializeToString,
+            armada__client_dot_generated__client_dot_submit__pb2.QueueInfo.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
