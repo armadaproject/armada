@@ -60,7 +60,7 @@ func MatchSchedulingRequirements(job *api.Job, schedulingInfo *api.ClusterSchedu
 			if err != nil {
 				return false, errors.WithMessagef(err, "%d-th pod can't be scheduled", i)
 			} else {
-				return false, errors.Errorf("%d-th pod can't be scheduled")
+				return false, errors.Errorf("%d-th pod can't be scheduled", i)
 			}
 
 		}
