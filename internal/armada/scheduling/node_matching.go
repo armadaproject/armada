@@ -62,7 +62,6 @@ func MatchSchedulingRequirements(job *api.Job, schedulingInfo *api.ClusterSchedu
 			} else {
 				return false, errors.Errorf("%d-th pod can't be scheduled", i)
 			}
-
 		}
 	}
 	return true, nil
@@ -78,6 +77,10 @@ func isLargeEnough(job *api.Job, minimumJobSize common.ComputeResources) bool {
 // If not, an error is returned indicating why the pod can't be scheduled.
 // The error is of type *armadaerrors.ErrPodUnschedulable.
 func matchAnyNodeType(podSpec *v1.PodSpec, nodeTypes []*api.NodeType) (bool, error) {
+	if len(nodeTypes) == 0 {
+		return false, errors.Errorf("no node types available")
+	}
+
 	var result *armadaerrors.ErrPodUnschedulable
 	podMatchingContext := NewPodMatchingContext(podSpec)
 	for _, nodeType := range nodeTypes {
