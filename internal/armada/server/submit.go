@@ -288,7 +288,11 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 	}
 
 	if ok, err := validateJobsCanBeScheduled(jobs, allClusterSchedulingInfo); !ok {
-		return nil, errors.WithMessagef(err, "can't schedule job for user %s", principal.GetName())
+		if err != nil {
+			return nil, errors.WithMessagef(err, "can't schedule job for user %s", principal.GetName())
+		} else {
+			return nil, errors.Errorf("can't schedule job for user %s", principal.GetName())
+		}
 	}
 
 	// Create events marking the jobs as submitted

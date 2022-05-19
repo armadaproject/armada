@@ -57,7 +57,12 @@ func MatchSchedulingRequirements(job *api.Job, schedulingInfo *api.ClusterSchedu
 	for i, podSpec := range job.GetAllPodSpecs() {
 		// TODO: make sure there are enough nodes available for all the job pods.
 		if ok, err := matchAnyNodeType(podSpec, schedulingInfo.NodeTypes); !ok {
-			return false, errors.WithMessagef(err, "%d-th job can't be scheduled", i)
+			if err != nil {
+				return false, errors.WithMessagef(err, "%d-th pod can't be scheduled", i)
+			} else {
+				return false, errors.Errorf("%d-th pod can't be scheduled")
+			}
+
 		}
 	}
 	return true, nil

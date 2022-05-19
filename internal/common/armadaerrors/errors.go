@@ -473,7 +473,7 @@ func (err *ErrPodUnschedulable) Error() string {
 	fmt.Fprintf(&b, "can't schedule pod on any node type; ")
 	i := 0
 	for reason, count := range err.countFromReason {
-		fmt.Fprintf(&b, "%d node types excluded because %s", count, reason)
+		fmt.Fprintf(&b, "%d node type(s) excluded because %s", count, reason)
 		i++
 		if i < len(err.countFromReason) {
 			fmt.Fprintf(&b, ", ")

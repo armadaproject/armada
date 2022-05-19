@@ -14,7 +14,11 @@ func validateJobsCanBeScheduled(jobs []*api.Job, allClusterSchedulingInfo map[st
 	activeClusterSchedulingInfo := scheduling.FilterActiveClusterSchedulingInfoReports(allClusterSchedulingInfo)
 	for i, job := range jobs {
 		if ok, err := scheduling.MatchSchedulingRequirementsOnAnyCluster(job, activeClusterSchedulingInfo); !ok {
-			return false, errors.WithMessagef(err, "%d-th job can't be scheduled", i)
+			if err != nil {
+				return false, errors.WithMessagef(err, "%d-th job can't be scheduled", i)
+			} else {
+				return false, errors.Errorf("%d-th job can't be scheduled")
+			}
 		}
 	}
 	return true, nil

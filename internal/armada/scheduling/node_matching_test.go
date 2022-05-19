@@ -1,6 +1,7 @@
 package scheduling
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -17,6 +18,8 @@ func Test_MatchSchedulingRequirements_labels(t *testing.T) {
 	ok, err := MatchSchedulingRequirements(job, &api.ClusterSchedulingInfoReport{})
 	assert.False(t, ok)
 	assert.Error(t, err)
+	fmt.Println(err)
+	t.Log(err)
 
 	ok, err = MatchSchedulingRequirements(job, &api.ClusterSchedulingInfoReport{NodeTypes: []*api.NodeType{
 		{Labels: map[string]string{"armada/region": "eu"}},
@@ -24,12 +27,14 @@ func Test_MatchSchedulingRequirements_labels(t *testing.T) {
 	}})
 	assert.False(t, ok)
 	assert.Error(t, err)
+	t.Log(err)
 
 	ok, err = MatchSchedulingRequirements(job, &api.ClusterSchedulingInfoReport{NodeTypes: []*api.NodeType{
 		{Labels: map[string]string{"armada/region": "eu", "armada/zone": "2"}},
 	}})
 	assert.False(t, ok)
 	assert.Error(t, err)
+	t.Log(err)
 
 	ok, err = MatchSchedulingRequirements(job, &api.ClusterSchedulingInfoReport{NodeTypes: []*api.NodeType{
 		{Labels: map[string]string{"x": "y"}},
@@ -37,6 +42,8 @@ func Test_MatchSchedulingRequirements_labels(t *testing.T) {
 	}})
 	assert.True(t, ok)
 	assert.NoError(t, err)
+
+	assert.True(t, false)
 }
 
 func Test_MatchSchedulingRequirements_isAbleToFitOnAvailableNodes(t *testing.T) {
