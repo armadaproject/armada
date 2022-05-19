@@ -333,7 +333,7 @@ junit-report:
 
 python-client:
 	docker build $(dockerFlags) -t armada-python-client-builder -f ./build/python-client/Dockerfile .
-	docker run --rm -e GOPROXY -e GOPRIVATE -v ${PWD}:/go/src/armada -w /go/src/armada armada-python-client-builder ./scripts/build-python-client.sh
+	docker run --rm -v ${PWD}:/armada -w /armada armada-python-client-builder ./scripts/build-python-client.sh
 
 proto:
 	docker build $(dockerFlags) --build-arg GOPROXY --build-arg GOPRIVATE --build-arg MAVEN_URL -t armada-proto -f ./build/proto/Dockerfile .
