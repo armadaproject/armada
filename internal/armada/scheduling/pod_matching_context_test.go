@@ -29,10 +29,12 @@ func Test_fits(t *testing.T) {
 	ok, err := fits(makeResourceList(2, 20).AsFloat(), available)
 	assert.False(t, ok)
 	assert.Error(t, err)
+	err.Error()
 
 	ok, err = fits(makeResourceList(2, 5).AsFloat(), available)
 	assert.False(t, ok)
 	assert.Error(t, err)
+	err.Error()
 
 	ok, err = fits(makeResourceList(1, 10).AsFloat(), available)
 	assert.True(t, ok)
@@ -48,10 +50,12 @@ func Test_matchNodeSelector(t *testing.T) {
 	ok, err := matchNodeSelector(&v1.PodSpec{NodeSelector: map[string]string{"C": "test"}}, labels)
 	assert.False(t, ok)
 	assert.Error(t, err)
+	err.Error()
 
 	ok, err = matchNodeSelector(&v1.PodSpec{NodeSelector: map[string]string{"B": "42"}}, labels)
 	assert.False(t, ok)
 	assert.Error(t, err)
+	err.Error()
 
 	ok, err = matchNodeSelector(&v1.PodSpec{NodeSelector: map[string]string{"A": "test"}}, labels)
 	assert.True(t, ok)
@@ -68,6 +72,7 @@ func Test_tolerates_WhenTaintHasNoToleration_ReturnsFalse(t *testing.T) {
 	ok, err := tolerates(podSpec, taints)
 	assert.False(t, ok)
 	assert.Error(t, err)
+	err.Error()
 }
 
 func Test_tolerates_WhenTaintHasAnEqualsToleration_ReturnsTrue(t *testing.T) {
