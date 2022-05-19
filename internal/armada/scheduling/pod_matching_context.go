@@ -48,7 +48,7 @@ func fits(resourceRequest, availableResources common.ComputeResourcesFloat) (boo
 			return false, fmt.Errorf("requested resource %s, but none is available", resourceType)
 		}
 		if availableResourceQuantity < requestedResourceQuantity {
-			return false, fmt.Errorf("requested %f of resource %s, but only %f is available")
+			return false, fmt.Errorf("requested %f of resource %s, but only %f is available", requestedResourceQuantity, resourceType, availableResourceQuantity)
 		}
 	}
 	return true, nil
