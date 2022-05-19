@@ -7,7 +7,7 @@ sed -i 's/\([^\/]\)pkg\/api/\1armada\/client/g' armada/client/*.proto
 
 
 # generate python stubs
-python3 -m grpc_tools.protoc -I. -I/proto --python_out=client/python --grpc_python_out=client/python \
+python3 -m grpc_tools.protoc -I. -I/proto --python_out=client/python/armada_client --grpc_python_out=client/python/armada_client \
     /proto/google/api/annotations.proto \
     /proto/google/api/http.proto \
     armada/client/event.proto armada/client/queue.proto armada/client/submit.proto armada/client/usage.proto \
