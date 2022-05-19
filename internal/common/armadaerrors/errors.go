@@ -257,6 +257,12 @@ func CodeFromError(err error) codes.Code {
 			return codes.InvalidArgument
 		}
 	}
+	{
+		var e *ErrPodUnschedulable
+		if errors.As(err, &e) {
+			return codes.InvalidArgument
+		}
+	}
 
 	return codes.Unknown
 }
@@ -438,4 +444,74 @@ func unwrapOrOriginal(err error) error {
 		return err
 	}
 	return unwrapped
+}
+
+// ErrPodUnschedulable indicates that a pod can't be scheduled on any node type.
+type ErrPodUnschedulable struct {
+	// Maps the reason for excluding a node type to the number of node types excluded for this reason.
+	countFromReason map[string]int
+}
+
+// Add updates the internal counter of errors.
+func (err *ErrPodUnschedulable) Add(reason string, count int) *ErrPodUnschedulable {
+	if err == nil {
+		err = &ErrPodUnschedulable{}
+	}
+	if err.countFromReason == nil {
+		err.countFromReason = make(map[string]int)
+	}
+	err.countFromReason[reason] += count
+	return err
+}
+
+func (err *ErrPodUnschedulable) Error() string {
+	if len(err.countFromReason) == 0 {
+		return "can't schedule pod on any node type"
+	}
+
+	var b strings.Builder
+	fmt.Fprintf(&b, "can't schedule pod on any node type; ")
+	i := 0
+	for reason, count := range err.countFromReason {
+		fmt.Fprintf(&b, "%d node types excluded because %s", count, reason)
+		i++
+		if i < len(err.countFromReason) {
+			fmt.Fprintf(&b, ", ")
+		}
+	}
+	return b.String()
+}
+
+// NewCombinedErrPodUnschedulable returns a new ErrPodUnschedulable with
+// countFromReasons aggregated over all arguments.
+func NewCombinedErrPodUnschedulable(errs ...error) *ErrPodUnschedulable {
+	if len(errs) == 0 {
+		return nil
+	}
+
+	result := &ErrPodUnschedulable{
+		countFromReason: make(map[string]int),
+	}
+	for _, err := range errs {
+		if err == nil {
+			continue
+		}
+
+		// If the error is of type *ErrPodUnschedulable, merge the reasons.
+		if e, ok := err.(*ErrPodUnschedulable); ok {
+			if len(e.countFromReason) == 0 {
+				continue
+			}
+			for reason, count := range e.countFromReason {
+				result.countFromReason[reason] += count
+			}
+		} else { // Otherwise, add the error message as a reason.
+			result.countFromReason[err.Error()] += 1
+		}
+	}
+
+	if len(result.countFromReason) == 0 {
+		return nil
+	}
+	return result
 }
