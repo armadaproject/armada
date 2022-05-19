@@ -2,7 +2,7 @@
 """Client and server classes corresponding to protobuf-defined services."""
 import grpc
 
-from armada_client.generated_client import usage_pb2 as armada_dot_client_dot_usage__pb2
+from armada_client.generated_client import usage_pb2 as armada__client_dot_generated__client_dot_usage__pb2
 from google.protobuf import empty_pb2 as google_dot_protobuf_dot_empty__pb2
 
 
@@ -17,7 +17,7 @@ class UsageStub(object):
         """
         self.ReportUsage = channel.unary_unary(
                 '/api.Usage/ReportUsage',
-                request_serializer=armada_dot_client_dot_usage__pb2.ClusterUsageReport.SerializeToString,
+                request_serializer=armada__client_dot_generated__client_dot_usage__pb2.ClusterUsageReport.SerializeToString,
                 response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
                 )
 
@@ -36,7 +36,7 @@ def add_UsageServicer_to_server(servicer, server):
     rpc_method_handlers = {
             'ReportUsage': grpc.unary_unary_rpc_method_handler(
                     servicer.ReportUsage,
-                    request_deserializer=armada_dot_client_dot_usage__pb2.ClusterUsageReport.FromString,
+                    request_deserializer=armada__client_dot_generated__client_dot_usage__pb2.ClusterUsageReport.FromString,
                     response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
             ),
     }
@@ -61,7 +61,7 @@ class Usage(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/api.Usage/ReportUsage',
-            armada_dot_client_dot_usage__pb2.ClusterUsageReport.SerializeToString,
+            armada__client_dot_generated__client_dot_usage__pb2.ClusterUsageReport.SerializeToString,
             google_dot_protobuf_dot_empty__pb2.Empty.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)

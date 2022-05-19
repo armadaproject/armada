@@ -2,7 +2,7 @@
 """Client and server classes corresponding to protobuf-defined services."""
 import grpc
 
-from armada_client.generated_client import queue_pb2 as armada_dot_client_dot_queue__pb2
+from armada_client.generated_client import queue_pb2 as armada__client_dot_generated__client_dot_queue__pb2
 from google.protobuf import empty_pb2 as google_dot_protobuf_dot_empty__pb2
 
 
@@ -17,23 +17,23 @@ class AggregatedQueueStub(object):
         """
         self.LeaseJobs = channel.unary_unary(
                 '/api.AggregatedQueue/LeaseJobs',
-                request_serializer=armada_dot_client_dot_queue__pb2.LeaseRequest.SerializeToString,
-                response_deserializer=armada_dot_client_dot_queue__pb2.JobLease.FromString,
+                request_serializer=armada__client_dot_generated__client_dot_queue__pb2.LeaseRequest.SerializeToString,
+                response_deserializer=armada__client_dot_generated__client_dot_queue__pb2.JobLease.FromString,
                 )
         self.RenewLease = channel.unary_unary(
                 '/api.AggregatedQueue/RenewLease',
-                request_serializer=armada_dot_client_dot_queue__pb2.RenewLeaseRequest.SerializeToString,
-                response_deserializer=armada_dot_client_dot_queue__pb2.IdList.FromString,
+                request_serializer=armada__client_dot_generated__client_dot_queue__pb2.RenewLeaseRequest.SerializeToString,
+                response_deserializer=armada__client_dot_generated__client_dot_queue__pb2.IdList.FromString,
                 )
         self.ReturnLease = channel.unary_unary(
                 '/api.AggregatedQueue/ReturnLease',
-                request_serializer=armada_dot_client_dot_queue__pb2.ReturnLeaseRequest.SerializeToString,
+                request_serializer=armada__client_dot_generated__client_dot_queue__pb2.ReturnLeaseRequest.SerializeToString,
                 response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
                 )
         self.ReportDone = channel.unary_unary(
                 '/api.AggregatedQueue/ReportDone',
-                request_serializer=armada_dot_client_dot_queue__pb2.IdList.SerializeToString,
-                response_deserializer=armada_dot_client_dot_queue__pb2.IdList.FromString,
+                request_serializer=armada__client_dot_generated__client_dot_queue__pb2.IdList.SerializeToString,
+                response_deserializer=armada__client_dot_generated__client_dot_queue__pb2.IdList.FromString,
                 )
 
 
@@ -69,23 +69,23 @@ def add_AggregatedQueueServicer_to_server(servicer, server):
     rpc_method_handlers = {
             'LeaseJobs': grpc.unary_unary_rpc_method_handler(
                     servicer.LeaseJobs,
-                    request_deserializer=armada_dot_client_dot_queue__pb2.LeaseRequest.FromString,
-                    response_serializer=armada_dot_client_dot_queue__pb2.JobLease.SerializeToString,
+                    request_deserializer=armada__client_dot_generated__client_dot_queue__pb2.LeaseRequest.FromString,
+                    response_serializer=armada__client_dot_generated__client_dot_queue__pb2.JobLease.SerializeToString,
             ),
             'RenewLease': grpc.unary_unary_rpc_method_handler(
                     servicer.RenewLease,
-                    request_deserializer=armada_dot_client_dot_queue__pb2.RenewLeaseRequest.FromString,
-                    response_serializer=armada_dot_client_dot_queue__pb2.IdList.SerializeToString,
+                    request_deserializer=armada__client_dot_generated__client_dot_queue__pb2.RenewLeaseRequest.FromString,
+                    response_serializer=armada__client_dot_generated__client_dot_queue__pb2.IdList.SerializeToString,
             ),
             'ReturnLease': grpc.unary_unary_rpc_method_handler(
                     servicer.ReturnLease,
-                    request_deserializer=armada_dot_client_dot_queue__pb2.ReturnLeaseRequest.FromString,
+                    request_deserializer=armada__client_dot_generated__client_dot_queue__pb2.ReturnLeaseRequest.FromString,
                     response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
             ),
             'ReportDone': grpc.unary_unary_rpc_method_handler(
                     servicer.ReportDone,
-                    request_deserializer=armada_dot_client_dot_queue__pb2.IdList.FromString,
-                    response_serializer=armada_dot_client_dot_queue__pb2.IdList.SerializeToString,
+                    request_deserializer=armada__client_dot_generated__client_dot_queue__pb2.IdList.FromString,
+                    response_serializer=armada__client_dot_generated__client_dot_queue__pb2.IdList.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -109,8 +109,8 @@ class AggregatedQueue(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/api.AggregatedQueue/LeaseJobs',
-            armada_dot_client_dot_queue__pb2.LeaseRequest.SerializeToString,
-            armada_dot_client_dot_queue__pb2.JobLease.FromString,
+            armada__client_dot_generated__client_dot_queue__pb2.LeaseRequest.SerializeToString,
+            armada__client_dot_generated__client_dot_queue__pb2.JobLease.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -126,8 +126,8 @@ class AggregatedQueue(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/api.AggregatedQueue/RenewLease',
-            armada_dot_client_dot_queue__pb2.RenewLeaseRequest.SerializeToString,
-            armada_dot_client_dot_queue__pb2.IdList.FromString,
+            armada__client_dot_generated__client_dot_queue__pb2.RenewLeaseRequest.SerializeToString,
+            armada__client_dot_generated__client_dot_queue__pb2.IdList.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -143,7 +143,7 @@ class AggregatedQueue(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/api.AggregatedQueue/ReturnLease',
-            armada_dot_client_dot_queue__pb2.ReturnLeaseRequest.SerializeToString,
+            armada__client_dot_generated__client_dot_queue__pb2.ReturnLeaseRequest.SerializeToString,
             google_dot_protobuf_dot_empty__pb2.Empty.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
@@ -160,7 +160,7 @@ class AggregatedQueue(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/api.AggregatedQueue/ReportDone',
-            armada_dot_client_dot_queue__pb2.IdList.SerializeToString,
-            armada_dot_client_dot_queue__pb2.IdList.FromString,
+            armada__client_dot_generated__client_dot_queue__pb2.IdList.SerializeToString,
+            armada__client_dot_generated__client_dot_queue__pb2.IdList.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
