@@ -77,6 +77,8 @@ namespace GResearch.Armada.Client
 
     public partial class ArmadaClient : IArmadaClient
     {
+        private static readonly TimeSpan WatchInactivityTimeout = TimeSpan.FromMinutes(10);
+        
         public async Task<IEnumerable<StreamResponse<ApiEventStreamMessage>>> GetJobEventsStream(
             string queue, string jobSetId, string fromMessageId = null, bool watch = false)
         {
@@ -124,8 +126,7 @@ namespace GResearch.Armada.Client
                             failCount = 0;
                             while (!ct.IsCancellationRequested)
                             {
-                                // TODO change this to something more reasonable like 5 minutes!
-                                var line = await reader.ReadLineAsync().TimeoutAfter(TimeSpan.FromSeconds(1));
+                                var line = await reader.ReadLineAsync().TimeoutAfter(WatchInactivityTimeout);
                                 if(line == null)
                                 {
                                     // reader.ReadLineAsync() should return null if the end of file is reached
