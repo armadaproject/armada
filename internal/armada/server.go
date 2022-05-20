@@ -343,6 +343,9 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 
 		// Set up eventDb
 		pool, err := postgres.OpenPgxPool(config.Postgres)
+		if err != nil {
+			panic(err)
+		}
 		eventDb := eventdb.NewEventDb(pool)
 
 		// Setup pulsar

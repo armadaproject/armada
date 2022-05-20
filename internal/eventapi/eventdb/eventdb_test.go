@@ -72,6 +72,7 @@ func TestUpdateEventsWithoutDuplicates(t *testing.T) {
 		err := db.UpdateEvents(ctx, events)
 		assert.NoError(t, err)
 		retrievedEvents, err := db.LoadEvents(ctx)
+		assert.NoError(t, err)
 		assert.Equal(t, events, retrievedEvents)
 
 		// Check seq nos were updated
@@ -80,6 +81,7 @@ func TestUpdateEventsWithoutDuplicates(t *testing.T) {
 			{JobSetId: 2, SeqNo: 3},
 		}
 		retrievedSeqNos, err := db.LoadSeqNos(ctx)
+		assert.NoError(t, err)
 		for i, sn := range retrievedSeqNos {
 			expectedSeqNos[i].UpdateTime = sn.UpdateTime
 		}
@@ -137,6 +139,7 @@ func TestUpdateEventsWithDuplicates(t *testing.T) {
 		}
 
 		retrievedEvents, err := db.LoadEvents(ctx)
+		assert.NoError(t, err)
 		assert.Equal(t, expectedEvents, retrievedEvents)
 
 		// Check seq nos were updated
@@ -145,6 +148,7 @@ func TestUpdateEventsWithDuplicates(t *testing.T) {
 			{JobSetId: 2, SeqNo: 3},
 		}
 		retrievedSeqNos, err := db.LoadSeqNos(ctx)
+		assert.NoError(t, err)
 		for i, sn := range retrievedSeqNos {
 			expectedSeqNos[i].UpdateTime = sn.UpdateTime
 		}
