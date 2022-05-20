@@ -3,10 +3,11 @@ package database
 import (
 	"context"
 	"fmt"
+	"strings"
+
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
-	"strings"
 )
 
 func UniqueTableName(table string) string {

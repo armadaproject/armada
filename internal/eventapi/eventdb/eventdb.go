@@ -3,14 +3,17 @@ package eventdb
 import (
 	"context"
 	"fmt"
-	"github.com/G-Research/armada/internal/common/database"
-	"github.com/pkg/errors"
 	"strings"
 	"time"
 
-	"github.com/G-Research/armada/internal/eventapi/model"
+	"github.com/pkg/errors"
+
+	"github.com/G-Research/armada/internal/common/database"
+
 	"github.com/jackc/pgtype/pgxtype"
 	"github.com/jackc/pgx/v4"
+
+	"github.com/G-Research/armada/internal/eventapi/model"
 
 	"github.com/jackc/pgx/v4/pgxpool"
 )

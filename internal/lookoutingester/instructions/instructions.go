@@ -3,8 +3,9 @@ package instructions
 import (
 	"context"
 	"encoding/json"
-	"github.com/G-Research/armada/internal/pulsarutils"
 	"time"
+
+	"github.com/G-Research/armada/internal/pulsarutils"
 
 	"github.com/G-Research/armada/internal/common/compress"
 
