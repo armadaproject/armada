@@ -7,8 +7,6 @@ import (
 
 	"github.com/G-Research/armada/internal/common/eventutil"
 
-	"github.com/pkg/errors"
-
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/armadaevents"
 )
@@ -16,7 +14,7 @@ import (
 // FromEventSequence Converts internal messages to external api messages
 // Note that some internal api messages can result in multiple api messages so we need to
 // return an array of messages
-// TODO: once we no longer need to worrry about legacy messages in the api we can move eventutil.ApiJobFromLogSubmitJob here
+// TODO: once we no longer need to worry about legacy messages in the api we can move eventutil.ApiJobFromLogSubmitJob here
 func FromEventSequence(es *armadaevents.EventSequence) ([]*api.EventMessage, error) {
 	apiEvents := make([]*api.EventMessage, 0)
 	var err error = nil
@@ -42,7 +40,7 @@ func FromEventSequence(es *armadaevents.EventSequence) ([]*api.EventMessage, err
 		case *armadaevents.EventSequence_Event_JobErrors:
 			convertedEvents, err = FromInternalJobErrors(es.Queue, es.JobSetName, *event.Created, esEvent.JobErrors)
 		case *armadaevents.EventSequence_Event_JobRunRunning:
-			convertedEvents, err = FrominternalJobRunRunning(es.Queue, es.JobSetName, *event.Created, esEvent.JobRunRunning)
+			convertedEvents, err = FromInternalJobRunRunning(es.Queue, es.JobSetName, *event.Created, esEvent.JobRunRunning)
 		case *armadaevents.EventSequence_Event_JobRunAssigned:
 			convertedEvents, err = FromInternalJobRunAssigned(es.Queue, es.JobSetName, *event.Created, esEvent.JobRunAssigned)
 		case *armadaevents.EventSequence_Event_ResourceUtilisation:
@@ -66,13 +64,11 @@ func FromEventSequence(es *armadaevents.EventSequence) ([]*api.EventMessage, err
 func FromInternalSubmit(owner string, groups []string, queue string, jobSet string, time time.Time, e *armadaevents.SubmitJob) ([]*api.EventMessage, error) {
 	jobId, err := armadaevents.UlidStringFromProtoUuid(e.JobId)
 	if err != nil {
-		err = errors.WithStack(err)
 		return nil, err
 	}
 
 	job, err := eventutil.ApiJobFromLogSubmitJob(owner, groups, queue, jobSet, time, e)
 	if err != nil {
-		err = errors.WithStack(err)
 		return nil, err
 	}
 
@@ -108,7 +104,6 @@ func FromInternalSubmit(owner string, groups []string, queue string, jobSet stri
 func FromInternalCancel(userId string, queueName string, jobSetName string, time time.Time, e *armadaevents.CancelJob) ([]*api.EventMessage, error) {
 	jobId, err := armadaevents.UlidStringFromProtoUuid(e.JobId)
 	if err != nil {
-		err = errors.WithStack(err)
 		return nil, err
 	}
 
@@ -131,7 +126,6 @@ func FromInternalCancel(userId string, queueName string, jobSetName string, time
 func FromInternalCancelled(userId string, queueName string, jobSetName string, time time.Time, e *armadaevents.CancelledJob) ([]*api.EventMessage, error) {
 	jobId, err := armadaevents.UlidStringFromProtoUuid(e.JobId)
 	if err != nil {
-		err = errors.WithStack(err)
 		return nil, err
 	}
 
@@ -153,7 +147,6 @@ func FromInternalCancelled(userId string, queueName string, jobSetName string, t
 func FromInternalReprioritiseJob(userId string, queueName string, jobSetName string, time time.Time, e *armadaevents.ReprioritiseJob) ([]*api.EventMessage, error) {
 	jobId, err := armadaevents.UlidStringFromProtoUuid(e.JobId)
 	if err != nil {
-		err = errors.WithStack(err)
 		return nil, err
 	}
 	return []*api.EventMessage{
@@ -175,7 +168,6 @@ func FromInternalReprioritiseJob(userId string, queueName string, jobSetName str
 func FromInternalReprioritisedJob(userId string, queueName string, jobSetName string, time time.Time, e *armadaevents.ReprioritisedJob) ([]*api.EventMessage, error) {
 	jobId, err := armadaevents.UlidStringFromProtoUuid(e.JobId)
 	if err != nil {
-		err = errors.WithStack(err)
 		return nil, err
 	}
 	return []*api.EventMessage{
@@ -197,12 +189,10 @@ func FromInternalReprioritisedJob(userId string, queueName string, jobSetName st
 func FromInternalLogDuplicateDetected(queueName string, jobSetName string, time time.Time, e *armadaevents.JobDuplicateDetected) ([]*api.EventMessage, error) {
 	jobId, err := armadaevents.UlidStringFromProtoUuid(e.NewJobId)
 	if err != nil {
-		err = errors.WithStack(err)
 		return nil, err
 	}
 	originalJobId, err := armadaevents.UlidStringFromProtoUuid(e.OldJobId)
 	if err != nil {
-		err = errors.WithStack(err)
 		return nil, err
 	}
 	return []*api.EventMessage{
@@ -223,7 +213,6 @@ func FromInternalLogDuplicateDetected(queueName string, jobSetName string, time 
 func FromInternalLogJobRunLeased(queueName string, jobSetName string, time time.Time, e *armadaevents.JobRunLeased) ([]*api.EventMessage, error) {
 	jobId, err := armadaevents.UlidStringFromProtoUuid(e.JobId)
 	if err != nil {
-		err = errors.WithStack(err)
 		return nil, err
 	}
 	return []*api.EventMessage{
@@ -244,7 +233,6 @@ func FromInternalLogJobRunLeased(queueName string, jobSetName string, time time.
 func FromInternalJobRunErrors(queueName string, jobSetName string, time time.Time, e *armadaevents.JobRunErrors) ([]*api.EventMessage, error) {
 	jobId, err := armadaevents.UlidStringFromProtoUuid(e.JobId)
 	if err != nil {
-		err = errors.WithStack(err)
 		return nil, err
 	}
 
@@ -264,32 +252,47 @@ func FromInternalJobRunErrors(queueName string, jobSetName string, time time.Tim
 					},
 				}
 				events = append(events, event)
-			case *armadaevents.Error_PodError:
+			case *armadaevents.Error_PodUnschedulable:
+				objectMeta := reason.PodUnschedulable.GetObjectMeta()
 				event := &api.EventMessage{
-					Events: &api.EventMessage_Failed{
-						Failed: makeJobFailed(jobId, queueName, jobSetName, time, reason),
+					Events: &api.EventMessage_UnableToSchedule{
+						UnableToSchedule: &api.JobUnableToScheduleEvent{
+							JobId:        jobId,
+							ClusterId:    objectMeta.GetExecutorId(),
+							PodNamespace: objectMeta.GetNamespace(),
+							PodName:      objectMeta.GetName(),
+							KubernetesId: objectMeta.GetKubernetesId(),
+							Reason:       reason.PodUnschedulable.GetMessage(),
+							NodeName:     reason.PodUnschedulable.GetNodeName(),
+							PodNumber:    reason.PodUnschedulable.GetPodNumber(),
+							JobSetId:     jobSetName,
+							Queue:        queueName,
+							Created:      time,
+						},
 					},
 				}
-				// TODO: determine if we should be making a leaseReturned
-				//event := makeLeaseReturned(jobId, queueName, jobSetName, time, reason)
+				events = append(events, event)
+			case *armadaevents.Error_PodError:
+				objectMeta := reason.PodError.GetObjectMeta()
+				event := &api.EventMessage{
+					Events: &api.EventMessage_LeaseReturned{
+						LeaseReturned: &api.JobLeaseReturnedEvent{
+							JobId:        jobId,
+							JobSetId:     jobSetName,
+							Queue:        queueName,
+							Created:      time,
+							ClusterId:    objectMeta.GetExecutorId(),
+							Reason:       reason.PodError.GetMessage(),
+							KubernetesId: objectMeta.GetKubernetesId(),
+							PodNumber:    reason.PodError.GetPodNumber(),
+						},
+					},
+				}
 				events = append(events, event)
 			}
 		}
 	}
 	return events, nil
-}
-
-func makeLeaseReturned(jobId string, queueName string, jobSetName string, time time.Time, podError *armadaevents.Error_PodError) *api.JobLeaseReturnedEvent {
-	return &api.JobLeaseReturnedEvent{
-		JobId:        jobId,
-		JobSetId:     jobSetName,
-		Queue:        queueName,
-		Created:      time,
-		ClusterId:    podError.PodError.GetObjectMeta().GetExecutorId(),
-		KubernetesId: podError.PodError.GetObjectMeta().GetKubernetesId(),
-		PodNumber:    podError.PodError.GetPodNumber(),
-		Reason:       podError.PodError.GetMessage(),
-	}
 }
 
 func makeJobFailed(jobId string, queueName string, jobSetName string, time time.Time, podError *armadaevents.Error_PodError) *api.JobFailedEvent {
@@ -332,47 +335,16 @@ func makeJobFailed(jobId string, queueName string, jobSetName string, time time.
 func FromInternalJobErrors(queueName string, jobSetName string, time time.Time, e *armadaevents.JobErrors) ([]*api.EventMessage, error) {
 	jobId, err := armadaevents.UlidStringFromProtoUuid(e.JobId)
 	if err != nil {
-		err = errors.WithStack(err)
 		return nil, err
 	}
 
 	events := make([]*api.EventMessage, 0)
 	for _, msgErr := range e.GetErrors() {
 		switch reason := msgErr.Reason.(type) {
-		case *armadaevents.Error_PodUnschedulable:
-			event := &api.EventMessage{
-				Events: &api.EventMessage_UnableToSchedule{
-					UnableToSchedule: &api.JobUnableToScheduleEvent{
-						JobId:        jobId,
-						JobSetId:     jobSetName,
-						Queue:        queueName,
-						Created:      time,
-						ClusterId:    reason.PodUnschedulable.ObjectMeta.ExecutorId,
-						KubernetesId: reason.PodUnschedulable.ObjectMeta.KubernetesId,
-						PodName:      reason.PodUnschedulable.ObjectMeta.Name,
-						PodNamespace: reason.PodUnschedulable.ObjectMeta.Namespace,
-						Reason:       reason.PodUnschedulable.Message,
-						NodeName:     reason.PodUnschedulable.NodeName,
-						PodNumber:    reason.PodUnschedulable.PodNumber,
-					},
-				},
-			}
-			events = append(events, event)
 		case *armadaevents.Error_PodError:
 			event := &api.EventMessage{
-				Events: &api.EventMessage_Terminated{
-					Terminated: &api.JobTerminatedEvent{
-						JobId:        jobId,
-						JobSetId:     jobSetName,
-						Queue:        queueName,
-						Created:      time,
-						ClusterId:    reason.PodError.ObjectMeta.ExecutorId,
-						KubernetesId: reason.PodError.ObjectMeta.KubernetesId,
-						PodName:      reason.PodError.ObjectMeta.Name,
-						PodNamespace: reason.PodError.ObjectMeta.Namespace,
-						Reason:       reason.PodError.Message,
-						PodNumber:    reason.PodError.GetPodNumber(),
-					},
+				Events: &api.EventMessage_Failed{
+					Failed: makeJobFailed(jobId, queueName, jobSetName, time, reason),
 				},
 			}
 			events = append(events, event)
@@ -381,10 +353,9 @@ func FromInternalJobErrors(queueName string, jobSetName string, time time.Time, 
 	return events, nil
 }
 
-func FrominternalJobRunRunning(queueName string, jobSetName string, time time.Time, e *armadaevents.JobRunRunning) ([]*api.EventMessage, error) {
+func FromInternalJobRunRunning(queueName string, jobSetName string, time time.Time, e *armadaevents.JobRunRunning) ([]*api.EventMessage, error) {
 	jobId, err := armadaevents.UlidStringFromProtoUuid(e.JobId)
 	if err != nil {
-		err = errors.WithStack(err)
 		return nil, err
 	}
 
@@ -417,7 +388,6 @@ func FrominternalJobRunRunning(queueName string, jobSetName string, time time.Ti
 func FromInternalJobRunAssigned(queueName string, jobSetName string, time time.Time, e *armadaevents.JobRunAssigned) ([]*api.EventMessage, error) {
 	jobId, err := armadaevents.UlidStringFromProtoUuid(e.JobId)
 	if err != nil {
-		err = errors.WithStack(err)
 		return nil, err
 	}
 
@@ -448,7 +418,6 @@ func FromInternalJobRunAssigned(queueName string, jobSetName string, time time.T
 func FromInternalResourceUtilisation(queueName string, jobSetName string, time time.Time, e *armadaevents.ResourceUtilisation) ([]*api.EventMessage, error) {
 	jobId, err := armadaevents.UlidStringFromProtoUuid(e.JobId)
 	if err != nil {
-		err = errors.WithStack(err)
 		return nil, err
 	}
 
