@@ -420,6 +420,25 @@ func (c *QueueInfoCollector) recordClusterCapacityMetrics(metrics chan<- prometh
 						resourceType,
 						nodeTypeUsage.NodeType.Id)
 				}
+
+				// Add metrics for the number of nodes and the number of nodes available to accept jobs
+				metrics <- prometheus.MustNewConstMetric(
+					clusterCapacityDesc,
+					prometheus.GaugeValue,
+					float64(nodeTypeUsage.TotalNodes),
+					cluster,
+					report.Pool,
+					"nodes",
+					nodeTypeUsage.NodeType.Id)
+
+				metrics <- prometheus.MustNewConstMetric(
+					clusterAvailableCapacity,
+					prometheus.GaugeValue,
+					float64(nodeTypeUsage.SchedulableNodes),
+					cluster,
+					report.Pool,
+					"nodes",
+					nodeTypeUsage.NodeType.Id)
 			}
 		} else {
 			for resourceType, value := range report.ClusterCapacity {
