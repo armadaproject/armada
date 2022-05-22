@@ -305,7 +305,7 @@ func TestCreateJobsScalar(t *testing.T) {
 		assert.Equal(t, expectedJobAfterSubmit, job)
 
 		// If a row is bad then we should update only the good rows
-		_, err := db.Exec(ctx.Background(), "DELETE FROM jobs")
+		_, err := db.Exec(ctx.Background(), "DELETE FROM job")
 		assert.NoError(t, err)
 		invalidJob := &model.CreateJobInstruction{
 			JobId: invalidId,
