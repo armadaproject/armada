@@ -72,7 +72,7 @@ func (c *QueueCache) Refresh() {
 			for pool, infos := range clusterInfoByPool {
 				matches := false
 				for _, schedulingInfo := range infos {
-					if scheduling.MatchSchedulingRequirements(job, schedulingInfo) {
+					if ok, _ := scheduling.MatchSchedulingRequirements(job, schedulingInfo); ok {
 						matches = true
 					} else {
 						nonMatchingClusters[schedulingInfo.ClusterId] = empty{}
