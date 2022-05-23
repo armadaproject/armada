@@ -354,6 +354,8 @@ message Error {
         LeaseExpired leaseExpired = 6;
         MaxRunsExceeded maxRunsExceeded = 7;
         PodError podError = 8;
+        PodLeaseReturned podLeaseReturned = 9;
+        PodTerminated podTerminated = 10;
     }
 }
 
@@ -365,8 +367,9 @@ message KubernetesError {
     Uuid resourceId = 2;
 }
 
+// Indicates one or more of the containers in the pod failed.
 message PodError {
-	// this ObjectMeta identifies the Pod
+	// This ObjectMeta identifies the Pod.
     ObjectMeta objectMeta = 1;
     string message = 2;
     string node_name = 3;
@@ -404,6 +407,23 @@ message ContainerError {
         Evicted evicted = 7;
         DeadlineExceeded deadlineExceeded = 8;
     }
+}
+
+// Indicates that the pod could not be scheduled for some reason.
+message PodLeaseReturned {
+    ObjectMeta objectMeta = 1;
+    string message = 2;
+    int32 pod_number = 3;
+}
+
+// Indicates that the lease on the job that the pod was part of could not be renewed.
+// If this happens, the executor deletes the pod and generates a JobRunError with this message as the reason.
+message PodTerminated {
+	// This ObjectMeta identifies the Pod.
+    ObjectMeta objectMeta = 1;
+    string message = 2;
+    string node_name = 3;
+    int32 pod_number = 4;
 }
 
 message ExecutorError {
