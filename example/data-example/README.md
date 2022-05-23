@@ -1,6 +1,6 @@
 # Setting up quick start and use local file system
 
-You can use the setup_kind_tmp_volume.sh script to setup a kind cluster that attaches a local file system.
+You can use the kind-data-config-executor.yaml config to setup a kind cluster that attaches a local file system.
 
 Kind, by default, does not attach volumes from your local file system.  
 
@@ -73,4 +73,6 @@ You can use kubectl and the context to interact with that particular kubernets c
 `kubectl create -f examples/data-example/persistent-volume.yaml --context $KUBE_CONTEXT`
 
 This will create a Persistent-Volume in the kind cluster
+
+`kubectl create -f examples/data-example/persistent-volume-claim.yaml --context $KUBE_CONTEXT`
 
