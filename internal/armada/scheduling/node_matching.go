@@ -47,6 +47,8 @@ func MatchSchedulingRequirementsOnAnyCluster(job *api.Job, allClusterSchedulingI
 	}
 	// Return a merged error report.
 	// The idea is that users don't care how nodes are split between clusters.
+	// These errors do not include info about which pod in the job caused the error.
+	// However, this is fine since we currently only support single-pod jobs.
 	return false, armadaerrors.NewCombinedErrPodUnschedulable(errs...)
 }
 
