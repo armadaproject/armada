@@ -122,8 +122,11 @@ func matchAnyNodeTypePodAllocation(
 	alreadyConsumed nodeTypeUsedResources,
 	newlyConsumed nodeTypeUsedResources) (*nodeTypeAllocation, bool, error) {
 
-	podMatchingContext := NewPodMatchingContext(podSpec)
+	if len(nodeAllocations) == 0 {
+		return nil, false, fmt.Errorf("no nodes available")
+	}
 
+	podMatchingContext := NewPodMatchingContext(podSpec)
 	var result *armadaerrors.ErrPodUnschedulable
 	for _, node := range nodeAllocations {
 		available := node.availableResources.DeepCopy()

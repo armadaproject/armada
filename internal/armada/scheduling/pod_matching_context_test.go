@@ -125,7 +125,7 @@ func Test_tolerates_WhenTaintHasAToleration_ButEffectDiffers_ReturnsFalse(t *tes
 
 	ok, err := tolerates(podSpec, taints)
 	assert.False(t, ok)
-	assert.NoError(t, err)
+	assert.Error(t, err)
 }
 
 func makeTaints() []v1.Taint {
@@ -156,7 +156,15 @@ func Test_matchAnyNodeTypePodAllocation_WhenFindsMatch_ReturnsMatch(t *testing.T
 }
 
 func Test_matchAnyNodeTypePodAllocation_WhenAllAvailableCpuConsumed_ReturnsFalse(t *testing.T) {
-	podSpec := &v1.PodSpec{}
+	podSpec := &v1.PodSpec{
+		Containers: []v1.Container{
+			{
+				Resources: v1.ResourceRequirements{
+					Requests: v1.ResourceList{"cpu": *resource.NewQuantity(0, ""), "memory": *resource.NewQuantity(0, "")},
+				},
+			},
+		},
+	}
 	nodeAllocations := defaultNodeTypeAllocations()
 	alreadyConsumed := nodeTypeUsedResources{nodeAllocations[0]: common.ComputeResourcesFloat{"cpu": 4, "memory": 1 * 1024 * 1024 * 1024}}
 	newlyConsumed := nodeTypeUsedResources{nodeAllocations[0]: common.ComputeResourcesFloat{"cpu": 4, "memory": 1 * 1024 * 1024 * 1024}}

@@ -102,10 +102,14 @@ func matchesRequiredNodeAffinity(nodeSelector *nodeaffinity.LazyErrorNodeSelecto
 	node := &v1.Node{}
 	node.Labels = nodeType.Labels
 	match, err := nodeSelector.Match(node)
-	if err != nil {
-		return false, err
+	if !match {
+		if err != nil {
+			return match, err
+		} else {
+			return false, fmt.Errorf("unknown reason")
+		}
 	}
-	return match, nil
+	return match, err
 }
 
 func makeRequiredNodeAffinitySelector(podSpec *v1.PodSpec) *nodeaffinity.LazyErrorNodeSelector {
