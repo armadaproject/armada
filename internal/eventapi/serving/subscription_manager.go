@@ -38,12 +38,12 @@ type DefaultSubscriptionManager struct {
 }
 
 // EventDbRO is a Simplified view of EventsDb which helps testing
-type EventDbRO interface {
+type eventDbRO interface {
 	GetEvents(requests []*model.EventRequest, limit int) ([]*model.EventResponse, error)
 }
 
 // NewSubscriptionManager returns a DefaultSubscriptionManager that can fetch events from postgres and manage subscription requests for new data
-func NewSubscriptionManager(sequenceManager SequenceManager, db EventDbRO, maxBatchSize int, maxTimeout time.Duration, pollPeriod time.Duration, queryConcurrency int, maxFetchSize int, clock clock.Clock) *DefaultSubscriptionManager {
+func NewSubscriptionManager(sequenceManager SequenceManager, db eventDbRO, maxBatchSize int, maxTimeout time.Duration, pollPeriod time.Duration, queryConcurrency int, maxFetchSize int, clock clock.Clock) *DefaultSubscriptionManager {
 
 	sm := DefaultSubscriptionManager{
 		offsets:           sequenceManager,
