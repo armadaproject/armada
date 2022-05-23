@@ -2,6 +2,7 @@ package ingestion
 
 import (
 	"context"
+
 	"github.com/G-Research/armada/internal/pulsarutils"
 
 	"github.com/apache/pulsar-client-go/pulsar"

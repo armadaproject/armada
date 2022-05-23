@@ -132,7 +132,10 @@ build-load-tester:
 build-lookout-ingester:
 	$(GO_CMD) $(gobuild) -o ./bin/lookoutingester cmd/lookoutingester/main.go
 
-build: build-server build-executor build-fakeexecutor build-armadactl build-load-tester build-binoculars build-lookout-ingester
+build-eventapi-ingester:
+	$(GO_CMD) $(gobuild) -o ./bin/eventingester cmd/eventapingester/main.go
+
+build: build-server build-executor build-fakeexecutor build-armadactl build-load-tester build-binoculars build-lookout-ingester build-eventapi-ingester
 
 build-docker-server:
 	mkdir -p .build/server
@@ -167,6 +170,12 @@ build-docker-lookout-ingester:
 	$(GO_CMD) $(gobuildlinux) -o ./.build/lookoutingester/lookoutingester cmd/lookoutingester/main.go
 	cp -a ./config/lookoutingester ./.build/lookoutingester/config
 	docker build $(dockerFlags) -t armada-lookout-ingester -f ./build/lookoutingester/Dockerfile ./.build/lookoutingester
+
+build-docker-eventapi-ingester:
+	mkdir -p .build/eventingester
+	$(GO_CMD) $(gobuildlinux) -o ./.build/eventingester/eventingester cmd/eventingester/main.go
+	cp -a ./config/eventingester ./.build/eventingester/config
+	docker build $(dockerFlags) -t armada-eventapi-ingester -f ./build/eventingester/Dockerfile ./.build/eventingester
 
 build-docker-lookout:
 	$(NODE_CMD) npm ci
