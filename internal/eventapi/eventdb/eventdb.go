@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/G-Research/armada/internal/common/database"
 	"github.com/pkg/errors"
+	log "github.com/sirupsen/logrus"
 	"strings"
 	"time"
 
@@ -35,6 +36,7 @@ func (e *EventDb) UpdateEvents(ctx context.Context, events []*model.EventRow) er
 
 	// If there's nothing to insert then we can just return
 	if len(jobsetIds) < 1 {
+		log.Debugf("No events to insert")
 		return nil
 	}
 

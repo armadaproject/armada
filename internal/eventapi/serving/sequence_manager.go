@@ -25,7 +25,7 @@ type DefaultSequenceManager struct {
 // NewUpdatingSequenceManager returns a SequenceManager that is initialised from the eventDb and then receives
 // updates from pulsar
 func NewUpdatingSequenceManager(ctx context.Context, eventDb *eventdb.EventDb, pulsarClient pulsar.Client, updateTopic string) (*DefaultSequenceManager, error) {
-	// Snapshot the time before we fetch from the db.  This allows us to later subscribe to puslarmessages from before
+	// Snapshot the time before we fetch from the db.  This allows us to later subscribe to pulsar messages from before
 	// our db fetch time
 	startTime := time.Now()
 
@@ -38,7 +38,7 @@ func NewUpdatingSequenceManager(ctx context.Context, eventDb *eventdb.EventDb, p
 	}
 	initialSequences := make(map[int64]int64, len(initialSequenceRows))
 	for _, seq := range initialSequenceRows {
-		initialSequences[seq.JobSetId] = seq.JobSetId
+		initialSequences[seq.JobSetId] = seq.SeqNo
 	}
 	sm := &DefaultSequenceManager{
 		sequences: initialSequences,
@@ -46,8 +46,9 @@ func NewUpdatingSequenceManager(ctx context.Context, eventDb *eventdb.EventDb, p
 
 	// subscribe to pulsar updates from a time before we did a database fetch
 	reader, err := pulsarClient.CreateReader(pulsar.ReaderOptions{
-		Topic: updateTopic,
-		Name:  "armada-sequence-manager",
+		Topic:          updateTopic,
+		Name:           "armada-sequence-manager",
+		StartMessageID: pulsar.EarliestMessageID(),
 	})
 	if err != nil {
 		return nil, err
@@ -59,16 +60,20 @@ func NewUpdatingSequenceManager(ctx context.Context, eventDb *eventdb.EventDb, p
 	}
 
 	go func() {
-		for reader.HasNext() {
+		for {
 			msg, err := reader.Next(context.Background())
 			if err != nil {
-				log.Fatal(err)
+				log.Errorf("Error reading sequence updates: %+v", err)
+				time.Sleep(100 * time.Millisecond)
+				continue
 			}
 			seqUpdate := &armadaevents.SeqUpdates{}
 			err = proto.Unmarshal(msg.Payload(), seqUpdate)
 			if err != nil {
-				log.Error(err)
+				log.Error("Error unmarshalling sequence updates: %+v", err)
+				continue
 			}
+			log.Infof("Received Sequence update containing %d updates", len(seqUpdate.Updates))
 			seqByJobset := make(map[int64]int64, len(seqUpdate.Updates))
 			for _, seq := range seqUpdate.Updates {
 				seqByJobset[seq.JobsetId] = seq.SeqNo

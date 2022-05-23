@@ -74,7 +74,7 @@ func (s *EventServer) GetJobSetEvents(request *api.JobSetRequest, stream api.Eve
 		return status.Errorf(codes.PermissionDenied, "[GetJobSetEvents] %s", err)
 	}
 
-	if s.eventApi == nil || model.IsValidExternalSeqNo(request.FromMessageId) {
+	if s.eventApi == nil || !model.IsValidExternalSeqNo(request.FromMessageId) {
 		return s.serveEventsFromRepository(request, stream)
 	} else {
 		return s.serveEventsFromEventApi(request, stream)

@@ -2,6 +2,7 @@ package serving
 
 import (
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"k8s.io/apimachinery/pkg/util/clock"
@@ -32,8 +33,7 @@ type DefaultSubscriptionManager struct {
 	batchedChannel    chan *model.EventRequest // A channel where queries are batched together which increases overall throughput at the cost of latency
 	catchupChannel    chan *model.EventRequest // A channel for queries to be made in a low latency manner at the cost of overall throughput
 	subscriptionIndex int64
-	subscriptionsById map[int64]*internalSubscription
-	subscriptionMutex sync.RWMutex
+	subscriptionsById *sync.Map
 	clock             clock.Clock
 }
 
@@ -50,9 +50,8 @@ func NewSubscriptionManager(sequenceManager SequenceManager, db EventDbRO, maxBa
 		pollPeriod:        pollPeriod,
 		batchedChannel:    make(chan *model.EventRequest),
 		catchupChannel:    make(chan *model.EventRequest),
-		subscriptionsById: make(map[int64]*internalSubscription),
+		subscriptionsById: &sync.Map{},
 		subscriptionIndex: 0,
-		subscriptionMutex: sync.RWMutex{},
 		clock:             clock,
 	}
 
@@ -63,23 +62,32 @@ func NewSubscriptionManager(sequenceManager SequenceManager, db EventDbRO, maxBa
 	// avoid overloading the database
 	for i := 0; i < queryConcurrency; i++ {
 
-		// This function processes single requests without batching ast lower throughput but lower latency
+		fetchFromDb := func(req []*model.EventRequest) {
+			start := time.Now()
+			events, err := db.GetEvents(req, maxFetchSize)
+			taken := time.Now().Sub(start).Milliseconds()
+			if taken > 500 {
+				log.Warnf("Slow query: Fetched %d events from the database in %dms", len(events), taken)
+			} else {
+				log.Debugf("Fetched %d events from the database in %dms", len(events), taken)
+			}
+			if err == nil {
+				for _, e := range events {
+					sub, present := sm.subscriptionsById.Load(e.SubscriptionId)
+					if present {
+						sub.(*internalSubscription).channel <- e.Events
+					}
+				}
+			} else {
+				log.Warnf("Error retrieving events from db: %+v", err)
+			}
+		}
+
+		// This function processes single requests without batching which gives lower throughput but lower latency
 		// We use it when streams have got behind and need to catch up
 		go func() {
 			for req := range sm.catchupChannel {
-				events, err := db.GetEvents([]*model.EventRequest{req}, maxFetchSize)
-				if err == nil {
-					for _, e := range events {
-						sm.subscriptionMutex.Lock()
-						sub, present := sm.subscriptionsById[e.SubscriptionId]
-						sm.subscriptionMutex.Unlock()
-						if present {
-							sub.channel <- e.Events
-						}
-					}
-				} else {
-					log.Warnf("Error retrieving events from db: %+v", err)
-				}
+				fetchFromDb([]*model.EventRequest{req})
 			}
 		}()
 
@@ -87,19 +95,7 @@ func NewSubscriptionManager(sequenceManager SequenceManager, db EventDbRO, maxBa
 		// We use it when streams are caught up and are periodically checking for updates
 		go func() {
 			for req := range batches {
-				events, err := db.GetEvents(req, maxFetchSize)
-				if err == nil {
-					for _, e := range events {
-						sm.subscriptionMutex.Lock()
-						sub, present := sm.subscriptionsById[e.SubscriptionId]
-						sm.subscriptionMutex.Unlock()
-						if present {
-							sub.channel <- e.Events
-						}
-					}
-				} else {
-					log.Warnf("Error retrieving events from db: %+v", err)
-				}
+				fetchFromDb(req)
 			}
 		}()
 	}
@@ -182,28 +178,22 @@ func (sm *DefaultSubscriptionManager) Subscribe(jobset int64, fromOffset int64) 
 
 // Unsubscribe frees up resources associated with the stream
 func (sm *DefaultSubscriptionManager) Unsubscribe(subscriptionId int64) {
-	sm.subscriptionMutex.Lock()
-	defer sm.subscriptionMutex.Unlock()
-	delete(sm.subscriptionsById, subscriptionId)
+	sm.subscriptionsById.Delete(subscriptionId)
 }
 
 func (sm *DefaultSubscriptionManager) hasSubscription(subscriptionId int64) bool {
-	sm.subscriptionMutex.Lock()
-	defer sm.subscriptionMutex.Unlock()
-	_, ok := sm.subscriptionsById[subscriptionId]
+	_, ok := sm.subscriptionsById.Load(subscriptionId)
 	return ok
 }
 
 func (sm *DefaultSubscriptionManager) createInternalSubscription(jobsetId int64) *internalSubscription {
-	sm.subscriptionMutex.Lock()
-	defer sm.subscriptionMutex.Unlock()
+	atomic.AddInt64(&sm.subscriptionIndex, 1)
 	sub := &internalSubscription{
 		subscriptionId: sm.subscriptionIndex,
 		jobset:         jobsetId,
 		channel:        make(chan []*model.EventRow),
 	}
-	sm.subscriptionIndex++
-	sm.subscriptionsById[sub.subscriptionId] = sub
+	sm.subscriptionsById.Store(sub.subscriptionId, sub)
 	return sub
 }
 
@@ -215,7 +205,6 @@ func BatchQueries(values <-chan *model.EventRequest, maxItems int, maxTimeout ti
 
 	go func() {
 		defer close(batches)
-
 		for keepGoing := true; keepGoing; {
 			var batch []*model.EventRequest
 			expire := time.After(maxTimeout)

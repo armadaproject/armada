@@ -57,6 +57,14 @@ func Run(config *configuration.EventIngesterConfiguration) {
 		panic(err)
 	}
 
+	producer, err := pulsarClient.CreateProducer(pulsar.ProducerOptions{
+		Topic: "sequence-updates",
+	})
+	if err != nil {
+		log.Errorf("Error initialising pulsr producer")
+		panic(err)
+	}
+
 	// Receive messages and convert them to instructions in parallel
 	log.Infof("Creating %d subscriptions to pulsar topic %s", config.Paralellism, config.Pulsar.JobsetEventsTopic)
 	eventChannels := make([]chan *model.PulsarEventRow, config.Paralellism)
@@ -101,7 +109,7 @@ func Run(config *configuration.EventIngesterConfiguration) {
 	inserted := InsertEvents(ctx, eventDb, batchedMsgs, 5)
 
 	// Send update
-	sequenceUpdatesSent := SendSequenceUpdates(ctx, nil, inserted, 5)
+	sequenceUpdatesSent := SendSequenceUpdates(ctx, producer, inserted, 5)
 
 	// Waitgroup that wil fire when the pipeline has been torn down
 	wg := &sync.WaitGroup{}

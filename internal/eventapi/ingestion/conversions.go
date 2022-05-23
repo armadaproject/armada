@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/gogo/protobuf/proto"
 	log "github.com/sirupsen/logrus"
+	"time"
 
 	"github.com/G-Research/armada/internal/common/compress"
 	"github.com/G-Research/armada/internal/common/eventutil"
@@ -67,7 +68,7 @@ func (rc *MessageRowConverter) ConvertMsg(ctx context.Context, msg *pulsarutils.
 	// TODO: we can remove this once created is being populated everywhere
 	for _, event := range es.Events {
 		if event.Created == nil {
-			t := msg.Message.PublishTime()
+			t := msg.Message.PublishTime().In(time.UTC)
 			event.Created = &t
 		}
 	}
@@ -104,7 +105,7 @@ func emptyEvent(msg *pulsarutils.ConsumerMessage) *model.PulsarEventRow {
 	return &model.PulsarEventRow{
 		MessageId: &pulsarutils.ConsumerMessageId{
 			MessageId:  msg.Message.ID(),
-			Index:      int64(*msg.Message.Index()),
+			Index:      -1,
 			ConsumerId: msg.ConsumerId,
 		},
 	}

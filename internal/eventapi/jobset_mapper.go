@@ -7,6 +7,7 @@ import (
 	"time"
 
 	lru "github.com/hashicorp/golang-lru"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/G-Research/armada/internal/eventapi/eventdb"
 )
@@ -42,6 +43,7 @@ type PostgresJobsetMapper struct {
 
 func NewJobsetMapper(eventDb *eventdb.EventDb, cachesize int, initialiseSince time.Duration) (*PostgresJobsetMapper, error) {
 	initialJobsets, err := eventDb.LoadJobsetsAfter(context.Background(), time.Now().UTC().Add(-initialiseSince))
+	log.Infof("Loaded %d jobset mapping from the db", len(initialJobsets))
 	if err != nil {
 		return nil, err
 	}
@@ -67,10 +69,13 @@ func (j *PostgresJobsetMapper) Get(ctx context.Context, queue string, jobset str
 	}
 
 	// get from db
+	start := time.Now()
 	id, err := j.eventDb.GetOrCreateJobsetId(ctx, queue, jobset)
+	taken := time.Now().Sub(start).Milliseconds()
 	if err != nil {
 		return 0, err
 	}
+	log.Debugf("Retrieved jobset mapping in %dms", taken)
 	j.jobsetIds.Add(key, id)
 	return id.(int64), nil
 }

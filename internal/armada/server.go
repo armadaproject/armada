@@ -297,7 +297,11 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 	if config.EventApi.Enabled {
 
 		// Set up eventDb
-		pool, err := postgres.OpenPgxPool(config.Postgres)
+		pool, err := postgres.OpenPgxPool(config.EventApi.Postgres)
+		if err != nil {
+			panic(err)
+		}
+
 		eventDb := eventdb.NewEventDb(pool)
 
 		// Setup pulsar
@@ -315,7 +319,7 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 			panic(err)
 		}
 
-		subscriptionManager := serving.NewSubscriptionManager(sequenceManager, eventDb, 10, 1*time.Second, 2*time.Second, 100, 10000, clock.RealClock{})
+		subscriptionManager := serving.NewSubscriptionManager(sequenceManager, eventDb, 10, 1*time.Second, 2*time.Second, config.EventApi.QueryConcurrency, 10000, clock.RealClock{})
 		eventApi = serving.NewEventApi(jobsetMapper, subscriptionManager, sequenceManager)
 	}
 

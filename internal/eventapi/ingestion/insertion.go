@@ -27,7 +27,7 @@ func InsertEvents(ctx context.Context, db *eventdb.EventDb, msgs chan []*model.P
 func insert(ctx context.Context, db *eventdb.EventDb, inputRows []*model.PulsarEventRow) {
 	start := time.Now()
 	rows := make([]*model.EventRow, len(inputRows))
-	for i := 0; i <= len(inputRows); i++ {
+	for i := 0; i < len(inputRows); i++ {
 		rows[i] = inputRows[i].Event
 	}
 	err := db.UpdateEvents(ctx, rows)
@@ -35,6 +35,6 @@ func insert(ctx context.Context, db *eventdb.EventDb, inputRows []*model.PulsarE
 		log.Warnf("Error inserting rows %+v", err)
 	} else {
 		taken := time.Now().Sub(start).Milliseconds()
-		log.Infof("Inerted %d events in %dms", len(inputRows), taken)
+		log.Infof("Inserted %d events in %dms", len(inputRows), taken)
 	}
 }

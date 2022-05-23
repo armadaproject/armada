@@ -29,34 +29,38 @@ func SendSequenceUpdates(ctx context.Context, producer pulsar.Producer, msgs cha
 // SendSequenceUpdate synchronously sends sequence numbers to Pulsar
 // TODO: Retries if the pulsar send fails
 func SendSequenceUpdate(ctx context.Context, inputMsgs []*model.PulsarEventRow, producer pulsar.Producer) []*pulsarutils.ConsumerMessageId {
-	seqUpdates := make([]*armadaevents.SeqUpdate, len(inputMsgs))
+	seqUpdates := []*armadaevents.SeqUpdate{}
 	messageIds := make([]*pulsarutils.ConsumerMessageId, len(inputMsgs))
 	for i := 0; i < len(messageIds); i++ {
 		messageIds[i] = inputMsgs[i].MessageId
-		seqUpdates[i] = &armadaevents.SeqUpdate{
-			JobsetId: inputMsgs[i].Event.JobSetId,
-			SeqNo:    inputMsgs[i].MessageId.Index,
+		if inputMsgs[i].Event != nil {
+			seqUpdates = append(seqUpdates, &armadaevents.SeqUpdate{
+				JobsetId: inputMsgs[i].Event.JobSetId,
+				SeqNo:    inputMsgs[i].MessageId.Index,
+			})
 		}
 	}
-	offsetsBatch := &armadaevents.SeqUpdates{
-		Updates: seqUpdates,
-	}
-	payload, err := proto.Marshal(offsetsBatch)
-	if err == nil {
-		msg := &pulsar.ProducerMessage{
-			Payload: payload,
+	if len(seqUpdates) > 0 {
+		offsetsBatch := &armadaevents.SeqUpdates{
+			Updates: seqUpdates,
 		}
-		sent := false
-		for sent == false {
-			_, err := producer.Send(ctx, msg)
-			if err == nil {
-				sent = true
-			} else {
-				log.Warnf("Error sending update message %+v", err)
+		payload, err := proto.Marshal(offsetsBatch)
+		if err == nil {
+			msg := &pulsar.ProducerMessage{
+				Payload: payload,
 			}
+			sent := false
+			for sent == false {
+				_, err := producer.Send(ctx, msg)
+				if err == nil {
+					sent = true
+				} else {
+					log.Warnf("Error sending update message %+v", err)
+				}
+			}
+		} else {
+			log.Warnf("Error marshalling event")
 		}
-	} else {
-		log.Warnf("Error marshalling event")
 	}
 	return messageIds
 }
