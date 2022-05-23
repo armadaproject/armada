@@ -8,3 +8,6 @@ def test_basic_auth():
     basic = AuthData(AuthMethod.Basic, 'test', 'password')
     assert basic.username == 'test'
     assert basic.password == 'password'
+
+def test_oidc_auth():
+    oidc = AuthData(AuthMethod.OpenId)

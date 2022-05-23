@@ -1,15 +1,10 @@
-ingressClass: "nginx"
-clusterIssuer: "letsencrypt-prod"
-hostnames:
-  - "ec2-54-174-143-145.compute-1.amazonaws.com"
 auth:
-  basicAuth:
-    enableAuthentication: true
-    users:
-      testuser:
-        Password: asdfasdf
-        Groups: ["testgroup"]
-  #anonymousAuth: true
+  OpenIdAuth:
+    providerUrl: "http://127.0.0.1:5556/dex/"
+    clientId: "***"
+    localPort: 26354
+    useAccessToken: true
+    scopes: []
   permissionGroupMapping:
     submit_jobs: ["everyone"]
     submit_any_jobs: ["everyone"]
