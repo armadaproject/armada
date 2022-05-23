@@ -76,15 +76,15 @@ func ParseExternalSeqNo(str string) (*ExternalSeqNo, error) {
 	}
 	toks := strings.Split(str, ":")
 	if len(toks) != 2 {
-		return nil, fmt.Errorf("%s is not a valid sequence number")
+		return nil, fmt.Errorf("%s is not a valid sequence number", str)
 	}
 	sequence, err := strconv.ParseInt(toks[0], 10, 64)
 	if err != nil {
-		return nil, fmt.Errorf("%s is not a valid sequence number")
+		return nil, fmt.Errorf("%s is not a valid sequence number", str)
 	}
 	index, err := strconv.Atoi(toks[1])
 	if err != nil {
-		return nil, fmt.Errorf("%s is not a valid sequence number")
+		return nil, fmt.Errorf("%s is not a valid sequence number", str)
 	}
 	return &ExternalSeqNo{
 		Sequence: sequence,
