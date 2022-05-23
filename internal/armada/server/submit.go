@@ -728,7 +728,7 @@ func (server *SubmitServer) createJobsObjects(request *api.JobSubmitRequest, own
 			server.applyDefaultsToPodSpec(podSpec)
 			err := validation.ValidatePodSpec(podSpec, server.schedulingConfig)
 			if err != nil {
-				return nil, fmt.Errorf("[createJobs] error validating the %d-th pod pf the %d-th job of job set %s: %w", j, i, request.JobSetId, err)
+				return nil, fmt.Errorf("[createJobs] error validating the %d-th pod of the %d-th job of job set %s: %w", j, i, request.JobSetId, err)
 			}
 
 			// TODO: remove, RequiredNodeLabels is deprecated and will be removed in future versions
