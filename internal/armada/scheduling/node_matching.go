@@ -45,6 +45,8 @@ func MatchSchedulingRequirementsOnAnyCluster(job *api.Job, allClusterSchedulingI
 			errs = append(errs, err)
 		}
 	}
+	// Return a merged error report.
+	// The idea is that users don't care how nodes are split between clusters.
 	return false, armadaerrors.NewCombinedErrPodUnschedulable(errs...)
 }
 
@@ -58,7 +60,7 @@ func MatchSchedulingRequirements(job *api.Job, schedulingInfo *api.ClusterSchedu
 		// TODO: make sure there are enough nodes available for all the job pods.
 		if ok, err := matchAnyNodeType(podSpec, schedulingInfo.NodeTypes); !ok {
 			if err != nil {
-				return false, errors.WithMessagef(err, "%d-th pod can't be scheduled", i)
+				return false, err
 			} else {
 				return false, errors.Errorf("%d-th pod can't be scheduled", i)
 			}
