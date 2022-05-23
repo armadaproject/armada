@@ -84,7 +84,6 @@ func tolerates(podSpec *v1.PodSpec, taints []v1.Taint) (bool, error) {
 
 // https://github.com/kubernetes/kubernetes/blob/master/pkg/apis/core/v1/helper/helpers.go#L427
 func tolerationsTolerateTaint(tolerations []v1.Toleration, taint *v1.Taint) bool {
-	// TODO: Return the first taint not tolerated.
 	for i := range tolerations {
 		if tolerations[i].ToleratesTaint(taint) {
 			return true
