@@ -17,7 +17,7 @@ func validateJobsCanBeScheduled(jobs []*api.Job, allClusterSchedulingInfo map[st
 			if err != nil {
 				return false, errors.WithMessagef(err, "%d-th job can't be scheduled", i)
 			} else {
-				return false, errors.Errorf("%d-th job can't be scheduled")
+				return false, errors.Errorf("%d-th job can't be scheduled", i)
 			}
 		}
 	}
