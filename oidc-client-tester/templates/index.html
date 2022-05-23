@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<!--
+  ~ Copyright (C) 2016 Curity AB.
+  ~
+  ~ Licensed under the Apache License, Version 2.0 (the "License");
+  ~ you may not use this file except in compliance with the License.
+  ~ You may obtain a copy of the License at
+  ~
+  ~     http://www.apache.org/licenses/LICENSE-2.0
+  ~
+  ~ Unless required by applicable law or agreed to in writing, software
+  ~ distributed under the License is distributed on an "AS IS" BASIS,
+  ~ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  ~ See the License for the specific language governing permissions and
+  ~ limitations under the License.
+-->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>OpenID Connect Demo</title>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css"
+          integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap-theme.min.css"
+          integrity="sha384-rHyoN1iRsVXV4nD0JutlnGaslCJuC7uwjduW9SVrLvRYooPp2bWYgmgJQIXwl/Sp" crossorigin="anonymous">
+    <script src="https://code.jquery.com/jquery-3.1.1.slim.min.js"
+            integrity="sha256-/SIrNqv8h6QGKDuNoLGA4iret+kyesCkHGzVUUV0shc=" crossorigin="anonymous"></script>
+
+    <style type="text/css">
+        .navbar img {
+            max-width: 500px;
+        }
+
+        .navbar {
+            text-align: center;
+        }
+
+        .label {
+            font-size: 90%;
+            line-height: 1.2;
+            font-weight: 400;
+        }
+
+        .mb {
+            margin-bottom: 12px;
+        }
+
+        LABEL {
+            font-weight: normal;
+        }
+
+        #response_type_label {
+            padding-left: 0;
+            padding-bottom: 0.5em;
+        }
+    </style>
+
+    <script type="application/javascript">
+        function prettyJson(text) {
+            var token;
+            try {
+                token = JSON.parse(text);
+            } catch (e) {
+                // not json
+                return;
+            }
+            return JSON.stringify(token, null, 2);
+        }
+
+        function handleNonCodeFlowResponse() {
+            console.log("OK");
+            var params = {};
+            window.location.hash.substring(1).split('&').map(function (it) {
+                var parts = it.split('=');
+                params[parts[0]] = parts[1]
+            });
+            console.log(params);
+            $.post("callback-js", params, function (data) {
+                console.log(data);
+                console.log(params["id_token"]);
+                document.location = "/";
+            });
+        }
+
+        if (window.location.hash) {
+            handleNonCodeFlowResponse();
+        }
+
+        $('document').ready(function () {
+            $('.list-group li').click(function () {
+                $(this).next().toggleClass('hidden');
+            });
+
+            var idPayload = $('#id-token-payload').text();
+            if (idPayload !== '') {
+                var idToken = JSON.parse(idPayload);
+                if (typeof idToken['sub'] !== 'undefined') {
+                    $('#sessionname').text(idToken['sub']);
+                }
+            }
+            else {
+                $('.welcome').addClass('hidden');
+            }
+
+            var apiStatusCode = $('#api-response-status-code');
+            if (apiStatusCode.length > 0 && apiStatusCode.text().trim() === '200') {
+                apiStatusCode.addClass('label-success');
+            } else {
+                apiStatusCode.addClass('label-danger').removeClass('label-success');
+                $('#api-response-data').addClass('alert').addClass('alert-danger');
+            }
+
+            $('.btn').click(function (event) {
+                event.stopPropagation();
+            });
+
+            $('.json').each(function () {
+                $(this).text(prettyJson($(this).text()));
+                $(this).removeClass('hidden');
+            });
+        });
+
+    </script>
+</head>
+<body>
+  <nav class="navbar navbar-default">
+    <div class="container-fluid">
+      <div class="navbar-header">
+        <a class="navbar-brand" href="/">
+          <img alt="Brand" style="width:100px;" src="{{ url_for('static', filename='oauth-logo.png') }}">
+        </a>
+      </div>
+      <ul class="nav navbar-nav navbar-right">
+        <li><a href="/logout">Logout</a></li>
+      </ul>
+    </div>
+  </nav>
+
+<div class="container-fluid">
+    {% if error %}
+        <div class="row">
+            <div class="col-md-3"></div>
+            <div class="col-md-6">
+                <p class="text-danger">{{ error }}</p>
+            </div>
+            <div class="col-md-3"></div>
+        </div>
+    {% endif %}
+    <div class="row">
+        <div class="col-md-3"></div>
+        <div class="col-md-5">
+            <h2 class="welcome">Welcome <span id="sessionname"></span>!</h2>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-md-3"></div>
+        <div class="col-md-6">
+
+                <ul class="list-group">
+                    {% if session.api_response %}
+                        <li class="list-group-item">
+                            API Response
+                            <span class="label pull-right" id="api-response-status-code">
+                               {{ session.api_response.code | e }}
+                            </span>
+                        </li>
+                        <div>
+                            <pre class="json hidden" id="api-response-data">{{ session.api_response['data'] | e }}</pre>
+                        </div>
+                    {% endif %}
+
+                    {% if session.front_end_id_token %}
+                        <li class="list-group-item">Front-end ID Token</li>
+                        <div>
+                            <pre class="json hidden">{{ session.front_end_id_token_json[0] | e }}</pre>
+                            <pre class="json hidden" id="id-token-payload">{{ session.front_end_id_token_json[1] | e }}</pre>
+                            <pre>{{ session.front_end_id_token }}</pre>
+                        </div>
+                    {% endif %}
+
+                    {% if session.id_token %}
+                        <li class="list-group-item">Back-end ID Token</li>
+                        <div>
+                            <pre class="json hidden">{{ session.id_token_json[0] | e }}</pre>
+                            <pre class="json hidden" id="id-token-payload">{{ session.id_token_json[1] | e }}</pre>
+                            <pre>{{ session.id_token }}</pre>
+                        </div>
+                    {% endif %}
+
+                    {%  if session.front_end_access_token %}
+                        <li class="list-group-item">Front-end Access Token
+                            <a href="/revoke?front_end_access_token" class="btn btn-xs btn-danger pull-right">revoke</a>
+                        </li>
+                        <div>
+                            {% if session.front_end_access_token_json %}
+                                <pre class="json hidden">{{ session.front_end_access_token_json[0] | e }}</pre>
+                                <pre class="json hidden">{{ session.front_end_access_token_json[1] | e }}</pre>
+                                <pre>{{ session.front_end_access_token }}</pre>
+                            {% else %}
+                                <pre>{{ session.front_end_access_token | e }}</pre>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+
+                    {% if session.access_token %}
+                        <li class="list-group-item">Back-end Access Token
+                            <a href="/revoke?back_end_access_token" class="btn btn-xs btn-danger pull-right" style="margin-left: 4px">revoke</a>
+
+                            {% if session.refresh_token %}
+                                <a href="/refresh" class="btn btn-xs btn-info pull-right" id="refresh">refresh</a>
+                            {% endif %}
+                        </li>
+                        <div>
+                            {% if session.access_token_json %}
+                                <pre class="json hidden">{{ session.access_token_json[0] | e }}</pre>
+                                <pre class="json hidden">{{ session.access_token_json[1] | e }}</pre>
+                                <pre>{{ session.access_token }}</pre>
+                            {% else %}
+                                <pre>{{ session.access_token | e }}</pre>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+
+                    {% if session.refresh_token %}
+                        <div>
+                            <li class="list-group-item">Back-end Refresh Token
+                                <a href="/revoke?refresh_token" class="btn btn-xs btn-danger pull-right">revoke</a>
+                            </li>
+                            <pre>{{ session.refresh_token | e }}</pre>
+                        </div>
+                    {% endif %}
+                </ul>
+        </div>
+        <div class="col-md-3"></div>
+    </div>
+    <div class="row">
+        <div class="col-md-3"></div>
+        <div class="col-md-6">
+            {% if session %}
+              {% if not error and (session.access_token or session.front_end_access_token) %}
+                  <div class="panel panel-default">
+                    <div class="panel-heading">Request data from an API</div>
+                    <div class="panel-body">
+                        <div class="btn-group btn-group-justified mb" role="group">
+                            {% if session.front_end_access_token and session.access_token %}
+                                <a href="/call-api?front-end" class="btn btn-default" type="button" style="right: 4px; border-radius: 4px">Using Front-end Access Token</a>
+                                <a href="/call-api" class="btn btn-default" type="button" style="left: 4px; border-radius: 4px">Using Back-end Access Token</a>
+                            {% elif session.access_token %}
+                                <a href="/call-api" class="btn btn-default" type="button">Using Back-end Access Token</a>
+                            {% else %}
+                                <a href="/call-api?front-end" class="btn btn-default" type="button">Using Front-end Access Token</a>
+                            {% endif %}
+                        </div>
+                    </div>
+                  </div>
+              {%  endif %}
+                <form action="/start-login" method="get">
+                    <div class="form-group">
+                        <input type="text" class="form-control" name="acr" id="acr" placeholder="Authentication class context reference (ACR)">
+                    </div>
+                    <div class="radio-inline" id="response_type_label">
+                        Response Type
+                    </div>
+                    <div class="radio-inline">
+                        <label><input type="radio" name="responseType" value="code" {{ "checked" if flow == "code" }}>code</label>
+                    </div>
+                    <div class="radio-inline">
+                        <label><input type="radio" name="responseType" value="code id_token" {{  "checked" if flow == "code id_token" }}>code + id_token</label>
+                    </div>
+                    <div class="radio-inline">
+                        <label><input type="radio" name="responseType" value="code token" {{ "checked" if flow == "code token" }}>code + token</label>
+                    </div>
+                    <div class="radio-inline">
+                        <label><input type="radio" name="responseType" value="code id_token token" {{ "checked" if flow == "code id_token token" }}>code + token + id_token</label>
+                    </div>
+                    <div class="checkbox" style="margin-top: 0">
+                        <label><input type="checkbox" name="forceAuthN">Force authentication</label>
+                    </div>
+                    <div class="checkbox">
+                        <label><input type="checkbox" name="forceConsent">Force consent</label>
+                    </div>
+                    <div class="checkbox">
+                        <label><input type="checkbox" name="allowConsentOptionDeselection" checked>Allow deselection of consent options</label>
+                    </div>
+                    <div class="form-group">
+                        <input type="text" name="ui_locales" class="form-control" placeholder="Space-separated list of UI Locales (e.g., 'en-US sv')">
+                    </div>
+                    <div class="form-group">
+                        <input type="number" min="10" max="3600" name="max_age" class="form-control" placeholder="Maximum age of SSO session">
+                    </div>
+                    <div class="form-group">
+                        <input type="text" class="form-control" name="scope" id="scope" placeholder="Space-separated list of scopes (e.g., openid)">
+                    </div>
+                    <div class="form-group">
+                        <label for="claims">Claims</label>
+                        <textarea name="claims" id="claims" rows="5" class="json form-control">
+                            {
+                                "id_token": {
+
+                                },
+                                "userinfo": {
+                                }
+                            }
+                        </textarea>
+                    </div>
+
+                    <div style="margin-bottom: 1em">
+                        <button type="submit" class="btn btn-default btn-group-justified mb">Restart Login</button>
+                    </div>
+                </form>                
+            {% endif %}
+        </div>
+        <div class="col-md-3"></div>
+    </div>
+</div>
+</body>
+</html>

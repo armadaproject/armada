@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<!--
+  ~ Copyright (C) 2016 Curity AB.
+  ~
+  ~ Licensed under the Apache License, Version 2.0 (the "License");
+  ~ you may not use this file except in compliance with the License.
+  ~ You may obtain a copy of the License at
+  ~
+  ~     http://www.apache.org/licenses/LICENSE-2.0
+  ~
+  ~ Unless required by applicable law or agreed to in writing, software
+  ~ distributed under the License is distributed on an "AS IS" BASIS,
+  ~ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  ~ See the License for the specific language governing permissions and
+  ~ limitations under the License.
+-->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>OpenID Connect Demo</title>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css"
+          integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap-theme.min.css"
+          integrity="sha384-rHyoN1iRsVXV4nD0JutlnGaslCJuC7uwjduW9SVrLvRYooPp2bWYgmgJQIXwl/Sp" crossorigin="anonymous">
+    <script src="https://code.jquery.com/jquery-3.1.1.slim.min.js"
+            integrity="sha256-/SIrNqv8h6QGKDuNoLGA4iret+kyesCkHGzVUUV0shc=" crossorigin="anonymous"></script>
+
+    <style type="text/css">
+        .navbar img {
+            max-width: 500px;
+        }
+
+        .navbar {
+            text-align: center;
+        }
+
+        .jumbotron .text-info {
+            color: rgb(11, 169, 28)
+        }
+
+        .json {
+            margin-top: 4px
+        }
+    </style>
+
+    <script type="application/javascript">
+        function prettyJson(text) {
+            var token;
+            try {
+                token = JSON.parse(text);
+            } catch (e) {
+                // not json
+                return;
+            }
+            return JSON.stringify(token, null, 2);
+        }
+
+        $('document').ready(function () {
+            $('.btn').click(function (event) {
+                event.stopPropagation();
+            });
+
+            $('#client-conf').click(function () {
+                $('.json').toggleClass('hidden');
+
+                if ($(".json").hasClass("hidden")) {
+                    $(this).html("Client Configuration &gt;");
+                }
+                else {
+                    $(this).html("&lt; Client Configuration");
+                }
+            });
+            $('.json').each(function () {
+                $(this).text(prettyJson($(this).text()));
+            });
+        });
+
+    </script>
+</head>
+<body>
+<div class="navbar">
+    <br/>
+    <div class="row">
+        <div class="col-md-3"></div>
+        <div class="col-md-6">
+            <a href="/"><img src="{{ url_for('static', filename='oauth-logo.png') }}"/></a>
+        </div>
+        <div class="col-md-3"></div>
+    </div>
+</div>
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-md-12">
+            <h2 class="welcome text-center">Welcome!</h2>
+        </div>
+    </div>
+    <div class="row jumbotron">
+        <div class="col-md-3"></div>
+        <div class="col-md-6">
+            <h2>This is a demo application that shows the use of OAuth 2 and OpenID Connect. </h2>
+            {% if not registered %}
+                <p>Press the button below to register your unique client with the OAuth server: <span class="text-info">{{ server_name | e }}</span>.</p>
+                <a class="btn btn-info" role="button" href="/register">Register</a>
+            {% else %}
+                <p>Client <span class="text-info">{{ client_id }}</span> is <em>{{ "dynamically" if using_dynamic_registration else "statically" }}</em> registered.</p>
+                {% if using_dynamic_registration %}
+                    <p>
+                        <span class="btn btn-default" id="client-conf" role="button">Client Configuration &gt;</span>
+                        <a class="btn btn-default" href="/clean-registration" role="button">Delete Client Configuration</a>
+                        <pre class="json hidden">{{ client_data | tojson | safe }}</pre>
+                    </p>
+                {% endif %}
+                <p>
+                    Pressing <span class="text-info">Sign In</span> will redirect you to <span class="text-info">{{ authorization_endpoint | e }}</span> where you can authorize
+                    the application <span class="text-info">{{ client_data.client_name | e }}</span> to access your profile info. <small class="text-muted">The data will only be used to
+                    demonstrate the possibilities of the OpenID Connect
+                    protocol and will not be stored.</small></p>
+                    <a class="btn btn-info" role="button" href="/start-login">Sign In</a>
+                </p>
+            {% endif %}
+        </div>
+        <div class="col-md-3"></div>
+    </div>
+    <div class="row text-center">
+        <p>Copyright Curity AB 2017-2021</p>
+        <a href="https://curity.io">Visit Curity.io for more information</a>
+    </div>
+
+</div>
+</body>
+</html>
