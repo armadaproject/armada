@@ -209,6 +209,21 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 		})
 	}
 
+	// Check if the job can be scheduled on any executor,
+	// to avoid having users wait for a job that may never be scheduled
+	allClusterSchedulingInfo, err := srv.SubmitServer.schedulingInfoRepository.GetClusterSchedulingInfo()
+	if err != nil {
+		err = errors.WithMessage(err, "error getting scheduling info")
+		return nil, err
+	}
+	if ok, err := validateJobsCanBeScheduled(apiJobs, allClusterSchedulingInfo); !ok {
+		if err != nil {
+			return nil, errors.WithMessagef(err, "can't schedule job for user %s", userId)
+		} else {
+			return nil, errors.Errorf("can't schedule job for user %s", userId)
+		}
+	}
+
 	payload, err := proto.Marshal(sequence)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to marshal event sequence")
