@@ -371,3 +371,61 @@ func testContainer(name string) v1.Container {
 		},
 	}
 }
+
+func TestCompactSequences(t *testing.T) {
+
+	sequences := []*armadaevents.EventSequence{
+		{
+			Queue:      "queue1",
+			UserId:     "userId1",
+			JobSetName: "jobSetName1",
+			Groups:     []string{"group1", "group2"},
+			Events: []*armadaevents.EventSequence_Event{
+				{Event: &armadaevents.EventSequence_Event_SubmitJob{}},
+			},
+		},
+		{
+			Queue:      "queue2",
+			UserId:     "userId2",
+			JobSetName: "jobSetName2",
+			Groups:     []string{"group1", "group2"},
+			Events: []*armadaevents.EventSequence_Event{
+				{Event: &armadaevents.EventSequence_Event_SubmitJob{}},
+			},
+		},
+		{
+			Queue:      "queue1",
+			UserId:     "userId1",
+			JobSetName: "jobSetName1",
+			Groups:     []string{"group1", "group2", "group3"},
+			Events: []*armadaevents.EventSequence_Event{
+				{Event: &armadaevents.EventSequence_Event_CancelJob{}},
+			},
+		},
+	}
+
+	expected := []*armadaevents.EventSequence{
+		{
+			Queue:      "queue1",
+			UserId:     "userId1",
+			JobSetName: "jobSetName1",
+			Groups:     []string{"group1", "group2"},
+			Events: []*armadaevents.EventSequence_Event{
+				{Event: &armadaevents.EventSequence_Event_SubmitJob{}},
+				{Event: &armadaevents.EventSequence_Event_CancelJob{}},
+			},
+		},
+		{
+			Queue:      "queue2",
+			UserId:     "userId2",
+			JobSetName: "jobSetName2",
+			Groups:     []string{"group1", "group2"},
+			Events: []*armadaevents.EventSequence_Event{
+				{Event: &armadaevents.EventSequence_Event_SubmitJob{}},
+			},
+		},
+	}
+
+	actual := CompactEventSequences(sequences)
+	assert.Equal(t, expected, actual)
+}
