@@ -485,16 +485,12 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 					JobId: jobId,
 					Errors: []*armadaevents.Error{
 						{
-							Terminal: true, // EventMessage_LeaseReturned indicates a failed job run.
-							Reason: &armadaevents.Error_PodError{
-								PodError: &armadaevents.PodError{
+							Terminal: true, // EventMessage_LeaseReturned indicates a pod could not be scheduled.
+							Reason: &armadaevents.Error_PodLeaseReturned{
+								PodLeaseReturned: &armadaevents.PodLeaseReturned{
 									ObjectMeta: &armadaevents.ObjectMeta{
 										ExecutorId:   m.LeaseReturned.ClusterId,
-										Namespace:    "",
-										Name:         "",
 										KubernetesId: m.LeaseReturned.KubernetesId,
-										Annotations:  nil,
-										Labels:       nil,
 									},
 									PodNumber: m.LeaseReturned.PodNumber,
 									Message:   m.LeaseReturned.Reason,
@@ -809,9 +805,6 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 			},
 		})
 	case *api.EventMessage_Terminated:
-		// EventMessage_Terminated is generated when lease renewal fails. One such event is generated per pod.
-		// Hence, we translate these to PodError with an empty ContainerErrors.
-
 		sequence.Queue = m.Terminated.Queue
 		sequence.JobSetName = m.Terminated.JobSetId
 
@@ -833,8 +826,8 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 					Errors: []*armadaevents.Error{
 						{
 							Terminal: true,
-							Reason: &armadaevents.Error_PodError{
-								PodError: &armadaevents.PodError{
+							Reason: &armadaevents.Error_PodTerminated{
+								PodTerminated: &armadaevents.PodTerminated{
 									ObjectMeta: &armadaevents.ObjectMeta{
 										ExecutorId:   m.Terminated.ClusterId,
 										Namespace:    m.Terminated.PodNamespace,
