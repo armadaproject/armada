@@ -129,6 +129,8 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 	return jobLease, nil
 }
 
+// RenewLease renews the leases on a set of jobs.
+// Job leases expire unless renewed within a configurable amount of time.
 func (q *AggregatedQueueServer) RenewLease(ctx context.Context, request *api.RenewLeaseRequest) (*api.IdList, error) {
 	if err := checkPermission(q.permissions, ctx, permissions.ExecuteJobs); err != nil {
 		return nil, status.Errorf(codes.PermissionDenied, "[RenewLease] error: %s", err)
