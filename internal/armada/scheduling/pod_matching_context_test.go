@@ -160,7 +160,7 @@ func Test_matchAnyNodeTypePodAllocation_WhenAllAvailableCpuConsumed_ReturnsFalse
 		Containers: []v1.Container{
 			{
 				Resources: v1.ResourceRequirements{
-					Requests: v1.ResourceList{"cpu": *resource.NewQuantity(0, ""), "memory": *resource.NewQuantity(0, "")},
+					Requests: v1.ResourceList{"cpu": *resource.NewQuantity(1, ""), "memory": *resource.NewQuantity(1, "")},
 				},
 			},
 		},
