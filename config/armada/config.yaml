@@ -64,7 +64,7 @@ pulsar:
   eventsPrinter: false
   eventsPrinterSubscription: "EventsPrinter"
 eventapi:
-  enabled : true
+  enabled : false  # Can stay in this state a while for large images and overloaded registries, hence long timeout.
   queryConcurrency: 100
   jobsetCacheSize:  10000
   updateTopic:      sequence-updates
