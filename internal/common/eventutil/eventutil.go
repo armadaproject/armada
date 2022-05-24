@@ -477,10 +477,7 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 		if err != nil {
 			// Because LeaseReturned may be generated before the job is running, the KubernetesId may be missing.
 			// In this scenario, we make up an empty id.
-			runId, err = armadaevents.ProtoUuidFromUlidString(util.NewULID())
-			if err != nil {
-				return nil, err
-			}
+			runId = legacyJobRunId()
 		}
 
 		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
