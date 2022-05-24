@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/pkg/errors"
+
 	"time"
 
 	"github.com/gogo/protobuf/proto"
@@ -51,7 +53,7 @@ func (rc *MessageRowConverter) ConvertMsg(ctx context.Context, msg *pulsarutils.
 
 	// Try and resolve an index. We require this
 	if msg.Message.Index() == nil {
-		return emptyEvent(msg), fmt.Errorf("index not found on pulsar message")
+		return emptyEvent(msg), errors.WithStack(fmt.Errorf("index not found on pulsar message"))
 	}
 
 	// Try and unmarshall the proto-  if it fails there's not much we can do here.
@@ -82,11 +84,11 @@ func (rc *MessageRowConverter) ConvertMsg(ctx context.Context, msg *pulsarutils.
 
 	bytes, err := proto.Marshal(dbEvent)
 	if err != nil {
-		return emptyEvent(msg), err
+		return emptyEvent(msg), errors.WithStack(err)
 	}
 	protoBytes, err := rc.compressor.Compress(bytes)
 	if err != nil {
-		return emptyEvent(msg), err
+		return emptyEvent(msg), errors.WithStack(err)
 	}
 
 	return &model.PulsarEventRow{

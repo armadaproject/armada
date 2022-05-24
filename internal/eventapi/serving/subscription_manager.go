@@ -5,6 +5,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/pkg/errors"
+
 	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/G-Research/armada/internal/eventapi/eventdb"
@@ -79,7 +81,7 @@ func NewSubscriptionManager(sequenceManager SequenceManager, db eventDbRO, maxBa
 					}
 				}
 			} else {
-				log.Warnf("Error retrieving events from db: %+v", err)
+				log.Warnf("Error retrieving events from db: %+v", errors.WithStack(err))
 			}
 		}
 
@@ -114,7 +116,7 @@ func (sm *DefaultSubscriptionManager) Subscribe(jobset int64, fromOffset int64) 
 	}
 
 	// In an ideal world we would be catching up if the fromOffset is less than the current offset.
-	// Unfortunately most of the clients use rest which means they would alsw
+	// Unfortunately most of the clients use rest which means they often restart the stream
 	catchingUp := fromOffset == -1
 
 	cond := sync.NewCond(&sync.Mutex{})

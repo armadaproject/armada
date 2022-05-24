@@ -44,7 +44,7 @@ func FromEventSequence(es *armadaevents.EventSequence) ([]*api.EventMessage, err
 		case *armadaevents.EventSequence_Event_JobRunAssigned:
 			convertedEvents, err = FromInternalJobRunAssigned(es.Queue, es.JobSetName, *event.Created, esEvent.JobRunAssigned)
 		case *armadaevents.EventSequence_Event_ResourceUtilisation:
-			convertedEvents, err = FromInternalResourceUtilisation(es.Queue, es.JobSetName, *event.Created, esEvent.ResourceUtilisation)
+			convertedEvents, err = FromInternalResourceUtilisation(es.Queue, *event.Created, esEvent.ResourceUtilisation)
 		case *armadaevents.EventSequence_Event_ReprioritiseJobSet:
 		case *armadaevents.EventSequence_Event_CancelJobSet:
 			// These events have no api analog right now, so we ignore
@@ -306,6 +306,8 @@ func FromInternalJobRunErrors(queueName string, jobSetName string, time time.Tim
 					},
 				}
 				events = append(events, event)
+			default:
+				log.Debugf("Ignoring event %T", reason)
 			}
 
 		}
@@ -343,6 +345,8 @@ func makeJobFailed(jobId string, queueName string, jobSetName string, time time.
 			containerStatus.Cause = api.Cause_Evicted
 		case *armadaevents.ContainerError_OutOfMemory_:
 			containerStatus.Cause = api.Cause_OOM
+		default:
+			log.Warnf("Unknown KubernetesReason of type %T", containerErr.KubernetesReason)
 		}
 		containerStatuses = append(containerStatuses, containerStatus)
 	}
@@ -366,6 +370,8 @@ func FromInternalJobErrors(queueName string, jobSetName string, time time.Time, 
 				},
 			}
 			events = append(events, event)
+		default:
+			log.Warnf("Unknown job error %T", reason)
 		}
 	}
 	return events, nil
@@ -433,7 +439,7 @@ func FromInternalJobRunAssigned(queueName string, jobSetName string, time time.T
 	}, nil
 }
 
-func FromInternalResourceUtilisation(queueName string, jobSetName string, time time.Time, e *armadaevents.ResourceUtilisation) ([]*api.EventMessage, error) {
+func FromInternalResourceUtilisation(queueName string, time time.Time, e *armadaevents.ResourceUtilisation) ([]*api.EventMessage, error) {
 	jobId, err := armadaevents.UlidStringFromProtoUuid(e.JobId)
 	if err != nil {
 		return nil, err
