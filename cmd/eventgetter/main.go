@@ -2,9 +2,11 @@ package main
 
 import (
 	ctx "context"
-	"github.com/G-Research/armada/pkg/api"
+
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
+
+	"github.com/G-Research/armada/pkg/api"
 )
 
 func main() {
