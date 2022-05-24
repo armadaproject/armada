@@ -116,19 +116,21 @@ func (allocationService *SubmitService) submitWorker(wg *sync.WaitGroup, jobsToS
 func (allocationService *SubmitService) submitPod(job *api.Job, i int) (*v1.Pod, error) {
 
 	pod := util2.CreatePod(job, allocationService.podDefaults, i)
-	pod.Annotations = util.MergeMaps(pod.Annotations, map[string]string{
-		domain.HasIngress:               "true",
-		domain.AssociatedServicesCount:  fmt.Sprintf("%d", len(job.K8SService)),
-		domain.AssociatedIngressesCount: fmt.Sprintf("%d", len(job.K8SIngress)),
-	})
+	// Ensure the K8SService and K8SIngress fields are populated
+	allocationService.populateServicesIngresses(job, pod)
+
+	if len(job.K8SService) > 0 || len(job.K8SIngress) > 0 {
+		pod.Annotations = util.MergeMaps(pod.Annotations, map[string]string{
+			domain.HasIngress:               "true",
+			domain.AssociatedServicesCount:  fmt.Sprintf("%d", len(job.K8SService)),
+			domain.AssociatedIngressesCount: fmt.Sprintf("%d", len(job.K8SIngress)),
+		})
+	}
 
 	submittedPod, err := allocationService.clusterContext.SubmitPod(pod, job.Owner, job.QueueOwnershipUserGroups)
 	if err != nil {
 		return pod, err
 	}
-
-	// Ensure the K8SService and K8SIngress fields are populated
-	allocationService.populateServicesIngresses(job, pod)
 
 	for _, service := range job.K8SService {
 		service.ObjectMeta.OwnerReferences = []metav1.OwnerReference{util2.CreateOwnerReference(submittedPod)}
