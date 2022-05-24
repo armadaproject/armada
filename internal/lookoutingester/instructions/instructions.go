@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/gogo/protobuf/proto"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/pkg/errors"
@@ -331,8 +333,7 @@ func handleJobRunSucceeded(ts time.Time, event *armadaevents.JobRunSucceeded, up
 
 	runId, err := armadaevents.UuidStringFromProtoUuid(event.RunId)
 	if err != nil {
-		err = errors.WithStack(err)
-		return err
+		return errors.WithStack(err)
 	}
 
 	jobRun := model.UpdateJobRunInstruction{
@@ -345,47 +346,66 @@ func handleJobRunSucceeded(ts time.Time, event *armadaevents.JobRunSucceeded, up
 }
 
 func handleJobRunErrors(ts time.Time, event *armadaevents.JobRunErrors, update *model.InstructionSet) error {
+	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetJobId())
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
 	runId, err := armadaevents.UuidStringFromProtoUuid(event.RunId)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
-	var isTerminal = false
 	for _, e := range event.GetErrors() {
+		// We just interpret the first terminal error
 		if e.Terminal {
-			isTerminal = true
-			break
-		}
-	}
 
-	if isTerminal {
-		jobRun := model.UpdateJobRunInstruction{
-			RunId:     runId,
-			Started:   &ts,
-			Succeeded: pointer.Bool(false),
-			Finished:  &ts,
-		}
+			// Certain legacy events mean we don't have a valid run id
+			// In this case we have to invent a fake run
+			// TODO: remove this when the legacy messages go away!
+			if runId == eventutil.LEGACY_RUN_ID {
+				jobRun := createFakeJobRun(jobId, ts)
+				runId = jobRun.RunId
+				update.JobRunsToCreate = append(update.JobRunsToCreate, jobRun)
+			}
 
-		for _, e := range event.GetErrors() {
-			podError := e.GetPodError()
-			if podError != nil && e.Terminal {
-				truncatedMsg := truncate(podError.GetMessage(), 2048)
-				jobRun.Error = pointer.String(truncatedMsg)
-				for _, containerError := range podError.ContainerErrors {
+			jobRunUpdate := &model.UpdateJobRunInstruction{
+				RunId:     runId,
+				Started:   &ts,
+				Succeeded: pointer.Bool(false),
+				Finished:  &ts,
+			}
+
+			switch reason := e.Reason.(type) {
+			case *armadaevents.Error_PodError:
+				truncatedMsg := truncate(reason.PodError.GetMessage(), 2048)
+				jobRunUpdate.Error = pointer.String(truncatedMsg)
+				for _, containerError := range reason.PodError.ContainerErrors {
 					update.JobRunContainersToCreate = append(update.JobRunContainersToCreate, &model.CreateJobRunContainerInstruction{
-						RunId:         jobRun.RunId,
+						RunId:         jobRunUpdate.RunId,
 						ExitCode:      containerError.ExitCode,
 						ContainerName: containerError.GetObjectMeta().GetName(),
 					})
 				}
+			case *armadaevents.Error_PodTerminated:
+				truncatedMsg := truncate(reason.PodTerminated.GetMessage(), 2048)
+				jobRunUpdate.Error = pointer.String(truncatedMsg)
+			case *armadaevents.Error_PodUnschedulable:
+				jobRunUpdate.Error = pointer.String("Pod Unschedulable")
+				jobRunUpdate.UnableToSchedule = pointer.Bool(true)
+			case *armadaevents.Error_PodLeaseReturned:
+				jobRunUpdate.Error = pointer.String("Lease Returned")
+				jobRunUpdate.UnableToSchedule = pointer.Bool(true)
+			case *armadaevents.Error_LeaseExpired:
+				jobRunUpdate.Error = pointer.String("Lease Expired")
+				jobRunUpdate.UnableToSchedule = pointer.Bool(true)
+			default:
+				log.Debugf("Ignoring event %T", reason)
 			}
-			if e.GetPodUnschedulable() != nil {
-				jobRun.UnableToSchedule = pointer.Bool(true)
-			}
+			update.JobRunsToUpdate = append(update.JobRunsToUpdate, jobRunUpdate)
+			break
 		}
-		update.JobRunsToUpdate = append(update.JobRunsToUpdate, &jobRun)
 	}
-
 	return nil
 }
 
@@ -404,4 +424,14 @@ func truncate(s string, max int) string {
 		return s
 	}
 	return s[:max]
+}
+
+func createFakeJobRun(jobId string, ts time.Time) *model.CreateJobRunInstruction {
+	runId := uuid.New().String()
+	return &model.CreateJobRunInstruction{
+		RunId:   runId,
+		JobId:   jobId,
+		Cluster: "Unknown",
+		Created: ts,
+	}
 }
