@@ -1,9 +1,10 @@
-from asyncio import futures
-from armada_client.armada.client import submit_pb2_grpc, submit_pb2
-from armada_client.armada.client.submit_pb2_grpc import SubmitServicer
+from concurrent import futures
+from armada_client.armada import submit_pb2_grpc, submit_pb2
+from armada_client.armada.submit_pb2_grpc import SubmitServicer
 import grpc
 
-class Greeter(submit_pb2_grpc.SubmitServicer):
+
+class SubmitService(submit_pb2_grpc.SubmitServicer):
     def CreateQueue(self, request, context):
         return ""
 
@@ -17,7 +18,7 @@ class Greeter(submit_pb2_grpc.SubmitServicer):
 def serve():
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     submit_pb2_grpc.add_SubmitServicer_to_server(
-        SubmitServicer(), server)
+        SubmitService(), server)
     server.add_insecure_port('[::]:50051')
     server.start()
     server.wait_for_termination()

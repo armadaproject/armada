@@ -11,8 +11,8 @@ def test_no_auth_create_and_delete_queue():
     tester = ArmadaClient(
         "127.0.0.1", "50051", grpc.insecure_channel(target="127.0.0.1:50051")
     )
-    tester.client.create_queue("test", priority_factor=200)
-    queue = tester.client.get_queue("test")
+    tester.create_queue("test", priority_factor=200)
+    queue = tester.get_queue("test")
     assert queue.name == "test"
     assert queue.priority_factor == 200.0
-    tester.client.delete_queue("test")
+    tester.delete_queue("test")

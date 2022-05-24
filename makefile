@@ -331,7 +331,7 @@ junit-report:
 	rm -f test_reports/junit.xml
 	$(GO_TEST_CMD) bash -c "cat test_reports/*.txt | go-junit-report > test_reports/junit.xml"
 
-python-client:
+python:
 	docker build $(dockerFlags) -t armada-python-client-builder -f ./build/python-client/Dockerfile .
 	docker run --rm -v ${PWD}:/go/src/armada -w /go/src/armada armada-python-client-builder ./scripts/build-python-client.sh
 

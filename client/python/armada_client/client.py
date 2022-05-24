@@ -4,11 +4,7 @@ Armada Python GRPC Client
 from concurrent.futures import ThreadPoolExecutor
 import os
 import grpc
-from armada_client.armada.client import event_pb2
-from armada_client.armada.client import event_pb2_grpc
-from armada_client.armada.client import usage_pb2_grpc
-from armada_client.armada.client import submit_pb2
-from armada_client.armada.client import submit_pb2_grpc
+from armada_client.armada import event_pb2, event_pb2_grpc, usage_pb2_grpc, submit_pb2_grpc, submit_pb2
 
 
 class ArmadaClient:
