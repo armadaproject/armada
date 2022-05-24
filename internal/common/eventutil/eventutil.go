@@ -407,7 +407,9 @@ func CompactEventSequences(sequences []*armadaevents.EventSequence) []*armadaeve
 
 	sequences = make([]*armadaevents.EventSequence, 0, len(sequenceFromKey))
 	for _, sequence := range sequenceFromKey {
-		sequences = append(sequences, sequence)
+		if len(sequence.Events) > 0 {
+			sequences = append(sequences, sequence)
+		}
 	}
 	return sequences
 }
@@ -659,7 +661,8 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 
 		runId, err := armadaevents.ProtoUuidFromUuidString(m.Failed.KubernetesId)
 		if err != nil {
-			return nil, err
+			// If a job fails without ever being assigned to a job, there won't be a KubernetesId.
+			runId = legacyJobRunId()
 		}
 
 		// EventMessage_Failed contains one error for each container.
