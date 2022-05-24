@@ -1,6 +1,6 @@
 import time
 import uuid
-from armada_client.generated_client import (
+from armada_client.armada.client import (
     event_pb2,
     event_pb2_grpc,
     queue_pb2,
@@ -33,24 +33,21 @@ class GrpcBasicAuth(grpc.AuthMetadataPlugin):
 
 
 class BasicAuthTest:
-    def __init__(self, host, port, username, password,disable_ssl=True):
+    def __init__(self, host, port, username, password, disable_ssl=True):
         # TODO: generalize this so tests can be run with a variety of auth schemas
         if disable_ssl:
             channel_credentials = grpc.local_channel_credentials()
         else:
             # TODO pass root certs, private key, cert chain if this is needed
             channel_credentials = grpc.ssl_channel_credentials()
-        channel = grpc.secure_channel(f'{host}:{port}',
-                                           grpc.composite_channel_credentials(
-                                               channel_credentials,
-                                               grpc.metadata_call_credentials(
-                                                   GrpcBasicAuth(
-                                                       username, password)
-                                               )
-                                           )
-                                           )
-        self.client = ArmadaClient(
-            host, port, channel)
+        channel = grpc.secure_channel(
+            f"{host}:{port}",
+            grpc.composite_channel_credentials(
+                channel_credentials,
+                grpc.metadata_call_credentials(GrpcBasicAuth(username, password)),
+            ),
+        )
+        self.client = ArmadaClient(host, port, channel)
 
     # private static ApiJobSubmitRequest CreateJobRequest(string jobSet)
     def job_submit_request_items_for_test(self, queue, job_set_id):
@@ -62,8 +59,7 @@ class BasicAuthTest:
                         flexVolume=core_v1.FlexVolumeSource(
                             driver="gr/cifs",
                             fsType="cifs",
-                            secretRef=core_v1.LocalObjectReference(
-                                name="secret-name"),
+                            secretRef=core_v1.LocalObjectReference(name="secret-name"),
                             options={"networkPath": ""},
                         )
                     ),

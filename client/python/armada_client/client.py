@@ -10,18 +10,19 @@ import threading
 from enum import Enum, auto
 from typing import Optional
 
-from armada_client.generated_client import event_pb2
-from armada_client.generated_client import event_pb2_grpc
-from armada_client.generated_client import queue_pb2
-from armada_client.generated_client import queue_pb2_grpc
-from armada_client.generated_client import usage_pb2
-from armada_client.generated_client import usage_pb2_grpc
-from armada_client.generated_client import submit_pb2
-from armada_client.generated_client import submit_pb2_grpc
+from armada_client.armada.client import event_pb2
+from armada_client.armada.client import event_pb2_grpc
+from armada_client.armada.client import queue_pb2
+from armada_client.armada.client import queue_pb2_grpc
+from armada_client.armada.client import usage_pb2
+from armada_client.armada.client import usage_pb2_grpc
+from armada_client.armada.client import submit_pb2
+from armada_client.armada.client import submit_pb2_grpc
 from armada_client.k8s.io.api.core.v1 import generated_pb2 as core_v1
 from armada_client.k8s.io.apimachinery.pkg.api.resource import (
     generated_pb2 as api_resource,
 )
+
 
 class ArmadaClient:
     def __init__(self, host: str, port: int, channel, max_workers=os.cpu_count()):
