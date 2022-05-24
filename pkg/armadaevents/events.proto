@@ -442,6 +442,6 @@ message SeqUpdates{
     repeated SeqUpdate updates = 1;
 }
 
-message DatabaseEvent{
+message DatabaseSequence{
     EventSequence eventSequence = 1;
 }

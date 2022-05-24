@@ -156,7 +156,7 @@ func TestGetEvents_WithEventAvailable(t *testing.T) {
 }
 
 func CreateDbMessage(sequence *armadaevents.EventSequence) ([]byte, error) {
-	dbEvent := &armadaevents.DatabaseEvent{
+	dbEvent := &armadaevents.DatabaseSequence{
 		EventSequence: sequence,
 	}
 	payload, err := proto.Marshal(dbEvent)

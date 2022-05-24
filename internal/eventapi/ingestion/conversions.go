@@ -4,9 +4,10 @@ import (
 	"context"
 	"fmt"
 
+	"time"
+
 	"github.com/gogo/protobuf/proto"
 	log "github.com/sirupsen/logrus"
-	"time"
 
 	"github.com/G-Research/armada/internal/common/compress"
 	"github.com/G-Research/armada/internal/common/eventutil"
@@ -77,7 +78,7 @@ func (rc *MessageRowConverter) ConvertMsg(ctx context.Context, msg *pulsarutils.
 	// Remove the jobset Name and the queue from the proto as we're storing this in the db
 	es.JobSetName = ""
 	es.Queue = ""
-	dbEvent := &armadaevents.DatabaseEvent{EventSequence: es}
+	dbEvent := &armadaevents.DatabaseSequence{EventSequence: es}
 
 	bytes, err := proto.Marshal(dbEvent)
 	if err != nil {

@@ -70,7 +70,7 @@ func NewUpdatingSequenceManager(ctx context.Context, eventDb *eventdb.EventDb, p
 			seqUpdate := &armadaevents.SeqUpdates{}
 			err = proto.Unmarshal(msg.Payload(), seqUpdate)
 			if err != nil {
-				log.Error("Error unmarshalling sequence updates: %+v", err)
+				log.Error("Error unmarshalling sequence updates: %+V", err)
 				continue
 			}
 			log.Infof("Received Sequence update containing %d updates", len(seqUpdate.Updates))

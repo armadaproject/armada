@@ -2987,22 +2987,22 @@ func (m *SeqUpdates) GetUpdates() []*SeqUpdate {
 	return nil
 }
 
-type DatabaseEvent struct {
+type DatabaseSequence struct {
 	EventSequence *EventSequence `protobuf:"bytes,1,opt,name=eventSequence,proto3" json:"eventSequence,omitempty"`
 }
 
-func (m *DatabaseEvent) Reset()         { *m = DatabaseEvent{} }
-func (m *DatabaseEvent) String() string { return proto.CompactTextString(m) }
-func (*DatabaseEvent) ProtoMessage()    {}
-func (*DatabaseEvent) Descriptor() ([]byte, []int) {
+func (m *DatabaseSequence) Reset()         { *m = DatabaseSequence{} }
+func (m *DatabaseSequence) String() string { return proto.CompactTextString(m) }
+func (*DatabaseSequence) ProtoMessage()    {}
+func (*DatabaseSequence) Descriptor() ([]byte, []int) {
 	return fileDescriptor_6aab92ca59e015f8, []int{37}
 }
-func (m *DatabaseEvent) XXX_Unmarshal(b []byte) error {
+func (m *DatabaseSequence) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
-func (m *DatabaseEvent) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+func (m *DatabaseSequence) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
-		return xxx_messageInfo_DatabaseEvent.Marshal(b, m, deterministic)
+		return xxx_messageInfo_DatabaseSequence.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
 		n, err := m.MarshalToSizedBuffer(b)
@@ -3012,19 +3012,19 @@ func (m *DatabaseEvent) XXX_Marshal(b []byte, deterministic bool) ([]byte, error
 		return b[:n], nil
 	}
 }
-func (m *DatabaseEvent) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_DatabaseEvent.Merge(m, src)
+func (m *DatabaseSequence) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_DatabaseSequence.Merge(m, src)
 }
-func (m *DatabaseEvent) XXX_Size() int {
+func (m *DatabaseSequence) XXX_Size() int {
 	return m.Size()
 }
-func (m *DatabaseEvent) XXX_DiscardUnknown() {
-	xxx_messageInfo_DatabaseEvent.DiscardUnknown(m)
+func (m *DatabaseSequence) XXX_DiscardUnknown() {
+	xxx_messageInfo_DatabaseSequence.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_DatabaseEvent proto.InternalMessageInfo
+var xxx_messageInfo_DatabaseSequence proto.InternalMessageInfo
 
-func (m *DatabaseEvent) GetEventSequence() *EventSequence {
+func (m *DatabaseSequence) GetEventSequence() *EventSequence {
 	if m != nil {
 		return m.EventSequence
 	}
@@ -3080,13 +3080,13 @@ func init() {
 	proto.RegisterType((*JobDuplicateDetected)(nil), "armadaevents.JobDuplicateDetected")
 	proto.RegisterType((*SeqUpdate)(nil), "armadaevents.SeqUpdate")
 	proto.RegisterType((*SeqUpdates)(nil), "armadaevents.SeqUpdates")
-	proto.RegisterType((*DatabaseEvent)(nil), "armadaevents.DatabaseEvent")
+	proto.RegisterType((*DatabaseSequence)(nil), "armadaevents.DatabaseSequence")
 }
 
 func init() { proto.RegisterFile("pkg/armadaevents/events.proto", fileDescriptor_6aab92ca59e015f8) }
 
 var fileDescriptor_6aab92ca59e015f8 = []byte{
-	// 2412 bytes of a gzipped FileDescriptorProto
+	// 2413 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xd4, 0x59, 0xdf, 0x6f, 0x1b, 0xc7,
 	0xf1, 0x27, 0xc5, 0xdf, 0x43, 0x51, 0x62, 0xd6, 0xb2, 0x43, 0xd3, 0xb1, 0xac, 0x5c, 0x12, 0x40,
 	0x46, 0x10, 0xd2, 0xd6, 0xd7, 0xf0, 0xd7, 0x4e, 0xe2, 0xc6, 0x92, 0x2c, 0x83, 0x94, 0x25, 0xdb,
@@ -3233,11 +3233,11 @@ var fileDescriptor_6aab92ca59e015f8 = []byte{
 	0x2f, 0xb7, 0x2d, 0x5d, 0x75, 0x91, 0x97, 0xb6, 0x3d, 0xd6, 0x77, 0xd0, 0xed, 0xca, 0xe1, 0x72,
 	0x34, 0x94, 0xf9, 0xe1, 0xc3, 0xc1, 0x97, 0x4f, 0xe5, 0x21, 0x3e, 0x47, 0xa5, 0xa0, 0x7c, 0x05,
 	0x10, 0xd2, 0x1d, 0x7e, 0xd4, 0xf7, 0xe4, 0xdf, 0x46, 0x56, 0xec, 0xfd, 0xe4, 0x77, 0xd3, 0x00,
-	0x4a, 0x03, 0x9c, 0x42, 0xa1, 0xf6, 0x48, 0x75, 0xd5, 0x3e, 0xf7, 0x98, 0xf8, 0x72, 0xbb, 0x0c,
-	0x35, 0x8c, 0x7e, 0xe2, 0x0d, 0x6f, 0x1f, 0x26, 0x7f, 0x05, 0xa6, 0x71, 0xc6, 0x4a, 0xe3, 0xbb,
-	0xd7, 0xf3, 0xd9, 0x57, 0xaf, 0xe7, 0xb3, 0xff, 0x7a, 0x3d, 0x9f, 0xfd, 0xf6, 0xcd, 0x7c, 0xe6,
-	0xd5, 0x9b, 0xf9, 0xcc, 0xdf, 0xdf, 0xcc, 0x67, 0xfa, 0x45, 0xf1, 0xf5, 0xf7, 0xff, 0xfe, 0x1d,
-	0x00, 0x00, 0xff, 0xff, 0x3a, 0x5b, 0xf1, 0x9c, 0xe0, 0x1f, 0x00, 0x00,
+	0x4a, 0x03, 0x9c, 0xb2, 0x0d, 0xf5, 0x47, 0xaa, 0xab, 0xf6, 0x55, 0x07, 0xc3, 0x4f, 0xcd, 0xcb,
+	0x50, 0xc3, 0xe8, 0x57, 0xde, 0xf0, 0x02, 0x62, 0xf2, 0x87, 0x60, 0x1a, 0x67, 0xac, 0x34, 0xbe,
+	0x7b, 0x3d, 0x9f, 0x7d, 0xf5, 0x7a, 0x3e, 0xfb, 0xaf, 0xd7, 0xf3, 0xd9, 0x6f, 0xdf, 0xcc, 0x67,
+	0x5e, 0xbd, 0x99, 0xcf, 0xfc, 0xfd, 0xcd, 0x7c, 0xa6, 0x5f, 0x14, 0x1f, 0x80, 0xff, 0xef, 0xdf,
+	0x01, 0x00, 0x00, 0xff, 0xff, 0x79, 0x2c, 0x03, 0x0a, 0xe3, 0x1f, 0x00, 0x00,
 }
 
 func (m *EventSequence) Marshal() (dAtA []byte, err error) {
@@ -5940,7 +5940,7 @@ func (m *SeqUpdates) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	return len(dAtA) - i, nil
 }
 
-func (m *DatabaseEvent) Marshal() (dAtA []byte, err error) {
+func (m *DatabaseSequence) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
 	n, err := m.MarshalToSizedBuffer(dAtA[:size])
@@ -5950,12 +5950,12 @@ func (m *DatabaseEvent) Marshal() (dAtA []byte, err error) {
 	return dAtA[:n], nil
 }
 
-func (m *DatabaseEvent) MarshalTo(dAtA []byte) (int, error) {
+func (m *DatabaseSequence) MarshalTo(dAtA []byte) (int, error) {
 	size := m.Size()
 	return m.MarshalToSizedBuffer(dAtA[:size])
 }
 
-func (m *DatabaseEvent) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+func (m *DatabaseSequence) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	i := len(dAtA)
 	_ = i
 	var l int
@@ -7194,7 +7194,7 @@ func (m *SeqUpdates) Size() (n int) {
 	return n
 }
 
-func (m *DatabaseEvent) Size() (n int) {
+func (m *DatabaseSequence) Size() (n int) {
 	if m == nil {
 		return 0
 	}
@@ -13908,7 +13908,7 @@ func (m *SeqUpdates) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *DatabaseEvent) Unmarshal(dAtA []byte) error {
+func (m *DatabaseSequence) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -13931,10 +13931,10 @@ func (m *DatabaseEvent) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: DatabaseEvent: wiretype end group for non-group")
+			return fmt.Errorf("proto: DatabaseSequence: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: DatabaseEvent: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: DatabaseSequence: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:

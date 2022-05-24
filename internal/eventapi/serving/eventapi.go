@@ -77,7 +77,7 @@ func (r *EventApi) GetJobSetEvents(request *api.JobSetRequest, stream api.Event_
 			if err != nil {
 				return err
 			}
-			dbEvent := &armadaevents.DatabaseEvent{}
+			dbEvent := &armadaevents.DatabaseSequence{}
 			err = proto.Unmarshal(decompressedEvent, dbEvent)
 			if err != nil {
 				return err
