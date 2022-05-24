@@ -71,12 +71,17 @@ func (clusterUtilisationService *ClusterUtilisationService) ReportClusterUtilisa
 		managedPodsOnNodes := GetPodsOnNodes(allBatchPods, nodeGroup.Nodes)
 		queueReports := clusterUtilisationService.createReportsOfQueueUsages(managedPodsOnNodes)
 
+		unschedulableNodes := util.
+			FilterNodes(nodeGroup.Nodes, func(node *v1.Node) bool { return node.Spec.Unschedulable })
+
 		nodeGroupReports = append(nodeGroupReports, api.NodeTypeUsageReport{
 			NodeType:          nodeGroup.NodeType,
 			Capacity:          nodeGroup.NodeGroupCapacity,
 			AvailableCapacity: nodeGroup.NodeGroupAllocatableCapacity,
 			Queues:            queueReports,
 			CordonedUsage:     nodeGroup.NodeGroupCordonedCapacity,
+			TotalNodes:        int32(len(nodeGroup.Nodes)),
+			SchedulableNodes:  int32(len(nodeGroup.Nodes) - len(unschedulableNodes)),
 		})
 	}
 

@@ -17,15 +17,28 @@ func Test_Matches_BasicPod_ReturnsTrue(t *testing.T) {
 
 	available := makeResourceList(1, 10).AsFloat()
 	nodeType := &api.NodeType{}
-	assert.True(t, ctx.Matches(nodeType, available))
+
+	ok, err := ctx.Matches(nodeType, available)
+	assert.True(t, ok)
+	assert.NoError(t, err)
 }
 
 func Test_fits(t *testing.T) {
 	available := makeResourceList(1, 10).AsFloat()
 
-	assert.False(t, fits(makeResourceList(2, 20).AsFloat(), available))
-	assert.False(t, fits(makeResourceList(2, 5).AsFloat(), available))
-	assert.True(t, fits(makeResourceList(1, 10).AsFloat(), available))
+	ok, err := fits(makeResourceList(2, 20).AsFloat(), available)
+	assert.False(t, ok)
+	assert.Error(t, err)
+	err.Error()
+
+	ok, err = fits(makeResourceList(2, 5).AsFloat(), available)
+	assert.False(t, ok)
+	assert.Error(t, err)
+	err.Error()
+
+	ok, err = fits(makeResourceList(1, 10).AsFloat(), available)
+	assert.True(t, ok)
+	assert.NoError(t, err)
 }
 
 func Test_matchNodeSelector(t *testing.T) {
@@ -33,21 +46,37 @@ func Test_matchNodeSelector(t *testing.T) {
 		"A": "test",
 		"B": "test",
 	}
-	assert.False(t, matchNodeSelector(&v1.PodSpec{NodeSelector: map[string]string{"C": "test"}}, labels))
-	assert.False(t, matchNodeSelector(&v1.PodSpec{NodeSelector: map[string]string{"B": "42"}}, labels))
-	assert.True(t, matchNodeSelector(&v1.PodSpec{NodeSelector: map[string]string{"A": "test"}}, labels))
-	assert.True(t, matchNodeSelector(&v1.PodSpec{NodeSelector: map[string]string{"A": "test", "B": "test"}}, labels))
+
+	ok, err := matchNodeSelector(&v1.PodSpec{NodeSelector: map[string]string{"C": "test"}}, labels)
+	assert.False(t, ok)
+	assert.Error(t, err)
+	err.Error()
+
+	ok, err = matchNodeSelector(&v1.PodSpec{NodeSelector: map[string]string{"B": "42"}}, labels)
+	assert.False(t, ok)
+	assert.Error(t, err)
+	err.Error()
+
+	ok, err = matchNodeSelector(&v1.PodSpec{NodeSelector: map[string]string{"A": "test"}}, labels)
+	assert.True(t, ok)
+	assert.NoError(t, err)
+
+	ok, err = matchNodeSelector(&v1.PodSpec{NodeSelector: map[string]string{"A": "test", "B": "test"}}, labels)
+	assert.True(t, ok)
+	assert.NoError(t, err)
 }
 
 func Test_tolerates_WhenTaintHasNoToleration_ReturnsFalse(t *testing.T) {
 	taints := makeTaints()
 	podSpec := &v1.PodSpec{}
-	assert.False(t, tolerates(podSpec, taints))
+	ok, err := tolerates(podSpec, taints)
+	assert.False(t, ok)
+	assert.Error(t, err)
+	err.Error()
 }
 
 func Test_tolerates_WhenTaintHasAnEqualsToleration_ReturnsTrue(t *testing.T) {
 	taints := makeTaints()
-
 	podSpec := &v1.PodSpec{
 		Tolerations: []v1.Toleration{
 			{
@@ -56,9 +85,12 @@ func Test_tolerates_WhenTaintHasAnEqualsToleration_ReturnsTrue(t *testing.T) {
 				Value:    "test",
 				Effect:   v1.TaintEffectNoSchedule,
 			},
-		}}
+		},
+	}
 
-	assert.True(t, tolerates(podSpec, taints))
+	ok, err := tolerates(podSpec, taints)
+	assert.True(t, ok)
+	assert.NoError(t, err)
 }
 
 func Test_tolerates_WhenTaintHasAnExistsToleration_ReturnsTrue(t *testing.T) {
@@ -74,12 +106,13 @@ func Test_tolerates_WhenTaintHasAnExistsToleration_ReturnsTrue(t *testing.T) {
 		},
 	}
 
-	assert.True(t, tolerates(podSpec, taints))
+	ok, err := tolerates(podSpec, taints)
+	assert.True(t, ok)
+	assert.NoError(t, err)
 }
 
 func Test_tolerates_WhenTaintHasAToleration_ButEffectDiffers_ReturnsFalse(t *testing.T) {
 	taints := makeTaints()
-
 	podSpec := &v1.PodSpec{
 		Tolerations: []v1.Toleration{
 			{
@@ -90,7 +123,9 @@ func Test_tolerates_WhenTaintHasAToleration_ButEffectDiffers_ReturnsFalse(t *tes
 		},
 	}
 
-	assert.False(t, tolerates(podSpec, taints))
+	ok, err := tolerates(podSpec, taints)
+	assert.False(t, ok)
+	assert.Error(t, err)
 }
 
 func makeTaints() []v1.Taint {
@@ -114,20 +149,30 @@ func Test_matchAnyNodeTypePodAllocation_WhenFindsMatch_ReturnsMatch(t *testing.T
 	alreadyConsumed := nodeTypeUsedResources{nodeAllocations[0]: common.ComputeResourcesFloat{"cpu": 3, "memory": 1 * 1024 * 1024 * 1024}}
 	newlyConsumed := nodeTypeUsedResources{nodeAllocations[0]: common.ComputeResourcesFloat{"cpu": 3, "memory": 1 * 1024 * 1024 * 1024}}
 
-	resultNode, resultFlag := matchAnyNodeTypePodAllocation(podSpec, nodeAllocations, alreadyConsumed, newlyConsumed)
+	resultNode, resultFlag, err := matchAnyNodeTypePodAllocation(podSpec, nodeAllocations, alreadyConsumed, newlyConsumed)
 	assert.Equal(t, nodeAllocations[0], resultNode)
 	assert.True(t, resultFlag)
+	assert.NoError(t, err)
 }
 
 func Test_matchAnyNodeTypePodAllocation_WhenAllAvailableCpuConsumed_ReturnsFalse(t *testing.T) {
-	podSpec := &v1.PodSpec{}
+	podSpec := &v1.PodSpec{
+		Containers: []v1.Container{
+			{
+				Resources: v1.ResourceRequirements{
+					Requests: v1.ResourceList{"cpu": *resource.NewQuantity(0, ""), "memory": *resource.NewQuantity(0, "")},
+				},
+			},
+		},
+	}
 	nodeAllocations := defaultNodeTypeAllocations()
 	alreadyConsumed := nodeTypeUsedResources{nodeAllocations[0]: common.ComputeResourcesFloat{"cpu": 4, "memory": 1 * 1024 * 1024 * 1024}}
 	newlyConsumed := nodeTypeUsedResources{nodeAllocations[0]: common.ComputeResourcesFloat{"cpu": 4, "memory": 1 * 1024 * 1024 * 1024}}
 
-	resultNode, resultFlag := matchAnyNodeTypePodAllocation(podSpec, nodeAllocations, alreadyConsumed, newlyConsumed)
+	resultNode, resultFlag, err := matchAnyNodeTypePodAllocation(podSpec, nodeAllocations, alreadyConsumed, newlyConsumed)
 	assert.Nil(t, resultNode)
 	assert.False(t, resultFlag)
+	assert.Error(t, err)
 }
 
 func Test_matchAnyNodeTypePodAllocation_WhenNodeSelectorMatchesNoNodes_ReturnsFalse(t *testing.T) {
@@ -136,9 +181,10 @@ func Test_matchAnyNodeTypePodAllocation_WhenNodeSelectorMatchesNoNodes_ReturnsFa
 	alreadyConsumed := nodeTypeUsedResources{nodeAllocations[0]: common.ComputeResourcesFloat{}}
 	newlyConsumed := nodeTypeUsedResources{nodeAllocations[0]: common.ComputeResourcesFloat{}}
 
-	resultNode, resultFlag := matchAnyNodeTypePodAllocation(podSpec, nodeAllocations, alreadyConsumed, newlyConsumed)
+	resultNode, resultFlag, err := matchAnyNodeTypePodAllocation(podSpec, nodeAllocations, alreadyConsumed, newlyConsumed)
 	assert.Nil(t, resultNode)
 	assert.False(t, resultFlag)
+	assert.Error(t, err)
 }
 func Test_matchAnyNodeTypePodAllocation_WhenNodeSelectorRulesOutFirstNode_ReturnsSecondNode(t *testing.T) {
 	podSpec := &v1.PodSpec{NodeSelector: map[string]string{"a": "b"}}
@@ -150,9 +196,10 @@ func Test_matchAnyNodeTypePodAllocation_WhenNodeSelectorRulesOutFirstNode_Return
 	alreadyConsumed := nodeTypeUsedResources{nodeAllocations[0]: common.ComputeResourcesFloat{}}
 	newlyConsumed := nodeTypeUsedResources{nodeAllocations[0]: common.ComputeResourcesFloat{}}
 
-	resultNode, resultFlag := matchAnyNodeTypePodAllocation(podSpec, nodeAllocations, alreadyConsumed, newlyConsumed)
+	resultNode, resultFlag, err := matchAnyNodeTypePodAllocation(podSpec, nodeAllocations, alreadyConsumed, newlyConsumed)
 	assert.Equal(t, nodeAllocations[1], resultNode)
 	assert.True(t, resultFlag)
+	assert.NoError(t, err)
 }
 
 func Test_matchAnyNodeTypePodAllocation_WhenTaintRulesOutAllNodes_ReturnsFalse(t *testing.T) {
@@ -164,9 +211,10 @@ func Test_matchAnyNodeTypePodAllocation_WhenTaintRulesOutAllNodes_ReturnsFalse(t
 	alreadyConsumed := nodeTypeUsedResources{nodeAllocations[0]: common.ComputeResourcesFloat{}}
 	newlyConsumed := nodeTypeUsedResources{nodeAllocations[0]: common.ComputeResourcesFloat{}}
 
-	resultNode, resultFlag := matchAnyNodeTypePodAllocation(podSpec, nodeAllocations, alreadyConsumed, newlyConsumed)
+	resultNode, resultFlag, err := matchAnyNodeTypePodAllocation(podSpec, nodeAllocations, alreadyConsumed, newlyConsumed)
 	assert.Nil(t, resultNode)
 	assert.False(t, resultFlag)
+	assert.Error(t, err)
 }
 func Test_matchAnyNodeTypePodAllocation_WhenTaintRulesOutFirstNode_ReturnsSecondNode(t *testing.T) {
 	podSpec := &v1.PodSpec{Tolerations: []v1.Toleration{{Key: "a", Value: "b", Effect: v1.TaintEffectNoSchedule}}}
@@ -178,16 +226,19 @@ func Test_matchAnyNodeTypePodAllocation_WhenTaintRulesOutFirstNode_ReturnsSecond
 	alreadyConsumed := nodeTypeUsedResources{nodeAllocations[0]: common.ComputeResourcesFloat{}}
 	newlyConsumed := nodeTypeUsedResources{nodeAllocations[0]: common.ComputeResourcesFloat{}}
 
-	resultNode, resultFlag := matchAnyNodeTypePodAllocation(podSpec, nodeAllocations, alreadyConsumed, newlyConsumed)
+	resultNode, resultFlag, err := matchAnyNodeTypePodAllocation(podSpec, nodeAllocations, alreadyConsumed, newlyConsumed)
 	assert.Equal(t, nodeAllocations[1], resultNode)
 	assert.True(t, resultFlag)
+	assert.NoError(t, err)
 }
 
 func Test_matchesRequiredNodeAffinity_WhenNoAffinitySet_ReturnsTrue(t *testing.T) {
 	podSpec := &v1.PodSpec{}
 	nodeType := &api.NodeType{}
 
-	assert.True(t, matchesRequiredNodeAffinity(makeRequiredNodeAffinitySelector(podSpec), nodeType))
+	ok, err := matchesRequiredNodeAffinity(makeRequiredNodeAffinitySelector(podSpec), nodeType)
+	assert.True(t, ok)
+	assert.NoError(t, err)
 }
 
 func Test_matchesRequiredNodeAffinity_WhenInAffinitySet_MatchesOnlyLabelledNode(t *testing.T) {
@@ -200,11 +251,25 @@ func Test_matchesRequiredNodeAffinity_WhenInAffinitySet_MatchesOnlyLabelledNode(
 	podSpec := podWithRequiredNodeAffinity(reqs)
 	sel := makeRequiredNodeAffinitySelector(podSpec)
 
-	assert.False(t, matchesRequiredNodeAffinity(sel, &api.NodeType{}))
-	assert.False(t, matchesRequiredNodeAffinity(sel, &api.NodeType{Labels: map[string]string{}}))
-	assert.False(t, matchesRequiredNodeAffinity(sel, &api.NodeType{Labels: map[string]string{"does_not_match": "does_not_match"}}))
-	assert.False(t, matchesRequiredNodeAffinity(sel, &api.NodeType{Labels: map[string]string{"a": "does_not_match"}}))
-	assert.True(t, matchesRequiredNodeAffinity(sel, &api.NodeType{Labels: map[string]string{"a": "b"}}))
+	ok, err := matchesRequiredNodeAffinity(sel, &api.NodeType{})
+	assert.False(t, ok)
+	assert.Error(t, err)
+
+	ok, err = matchesRequiredNodeAffinity(sel, &api.NodeType{Labels: map[string]string{}})
+	assert.False(t, ok)
+	assert.Error(t, err)
+
+	ok, err = matchesRequiredNodeAffinity(sel, &api.NodeType{Labels: map[string]string{"does_not_match": "does_not_match"}})
+	assert.False(t, ok)
+	assert.Error(t, err)
+
+	ok, err = matchesRequiredNodeAffinity(sel, &api.NodeType{Labels: map[string]string{"a": "does_not_match"}})
+	assert.False(t, ok)
+	assert.Error(t, err)
+
+	ok, err = matchesRequiredNodeAffinity(sel, &api.NodeType{Labels: map[string]string{"a": "b"}})
+	assert.True(t, ok)
+	assert.NoError(t, err)
 }
 
 func Test_matchesRequiredNodeAffinity_WhenNotInAffinitySet_MatchesAllExceptLabelledNode(t *testing.T) {
@@ -217,12 +282,29 @@ func Test_matchesRequiredNodeAffinity_WhenNotInAffinitySet_MatchesAllExceptLabel
 	podSpec := podWithRequiredNodeAffinity(reqs)
 	sel := makeRequiredNodeAffinitySelector(podSpec)
 
-	assert.True(t, matchesRequiredNodeAffinity(sel, &api.NodeType{}))
-	assert.True(t, matchesRequiredNodeAffinity(sel, &api.NodeType{Labels: map[string]string{}}))
-	assert.True(t, matchesRequiredNodeAffinity(sel, &api.NodeType{Labels: map[string]string{"does_not_match": "does_not_match"}}))
-	assert.True(t, matchesRequiredNodeAffinity(sel, &api.NodeType{Labels: map[string]string{"a": "does_not_match"}}))
-	assert.False(t, matchesRequiredNodeAffinity(sel, &api.NodeType{Labels: map[string]string{"a": "b"}}))
-	assert.False(t, matchesRequiredNodeAffinity(sel, &api.NodeType{Labels: map[string]string{"a": "b", "does_not_match": "does_not_match"}}))
+	ok, err := matchesRequiredNodeAffinity(sel, &api.NodeType{})
+	assert.True(t, ok)
+	assert.NoError(t, err)
+
+	ok, err = matchesRequiredNodeAffinity(sel, &api.NodeType{Labels: map[string]string{}})
+	assert.True(t, ok)
+	assert.NoError(t, err)
+
+	ok, err = matchesRequiredNodeAffinity(sel, &api.NodeType{Labels: map[string]string{"does_not_match": "does_not_match"}})
+	assert.True(t, ok)
+	assert.NoError(t, err)
+
+	ok, err = matchesRequiredNodeAffinity(sel, &api.NodeType{Labels: map[string]string{"a": "does_not_match"}})
+	assert.True(t, ok)
+	assert.NoError(t, err)
+
+	ok, err = matchesRequiredNodeAffinity(sel, &api.NodeType{Labels: map[string]string{"a": "b"}})
+	assert.False(t, ok)
+	assert.Error(t, err)
+
+	ok, err = matchesRequiredNodeAffinity(sel, &api.NodeType{Labels: map[string]string{"a": "b", "does_not_match": "does_not_match"}})
+	assert.False(t, ok)
+	assert.Error(t, err)
 }
 
 func makeResourceList(cores int64, gigabytesRam int64) common.ComputeResources {
