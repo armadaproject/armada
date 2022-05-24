@@ -458,7 +458,7 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
 			Event: &armadaevents.EventSequence_Event_JobRunLeased{
 				JobRunLeased: &armadaevents.JobRunLeased{
-					RunId:      legacyJobRunId(),
+					RunId:      LegacyJobRunId(),
 					JobId:      jobId,
 					ExecutorId: m.Leased.ClusterId,
 				},
@@ -514,7 +514,7 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
 			Event: &armadaevents.EventSequence_Event_JobRunErrors{
 				JobRunErrors: &armadaevents.JobRunErrors{
-					RunId: legacyJobRunId(),
+					RunId: LegacyJobRunId(),
 					JobId: jobId,
 					Errors: []*armadaevents.Error{
 						{
@@ -935,10 +935,10 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 }
 
 // Id used for messages for which we can't use the kubernetesId.
-const LEGACY_RUN_ID = "00000000000000000000000000"
+const LEGACY_RUN_ID = "00000000-0000-0000-0000-000000000000"
 
-func legacyJobRunId() *armadaevents.Uuid {
-	jobRunId, err := armadaevents.ProtoUuidFromUlidString(LEGACY_RUN_ID)
+func LegacyJobRunId() *armadaevents.Uuid {
+	jobRunId, err := armadaevents.ProtoUuidFromUuidString(LEGACY_RUN_ID)
 	if err != nil {
 		panic(err)
 	}

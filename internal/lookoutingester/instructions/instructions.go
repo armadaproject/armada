@@ -431,7 +431,7 @@ func createFakeJobRun(jobId string, ts time.Time) *model.CreateJobRunInstruction
 	return &model.CreateJobRunInstruction{
 		RunId:   runId,
 		JobId:   jobId,
-		Cluster: "Unknown",
+		Cluster: "UNKNOWN",
 		Created: ts,
 	}
 }
