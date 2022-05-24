@@ -1,5 +1,7 @@
+import base64
 import time
 import uuid
+import grpc
 from armada_client.armada.client import (
     event_pb2,
     event_pb2_grpc,
@@ -10,7 +12,7 @@ from armada_client.armada.client import (
     submit_pb2,
     submit_pb2_grpc,
 )
-from armada_client.client import ArmadaClient, AuthData, AuthMethod
+from armada_client.client import ArmadaClient
 from armada_client.k8s.io.api.core.v1 import generated_pb2 as core_v1
 from armada_client.k8s.io.apimachinery.pkg.api.resource import (
     generated_pb2 as api_resource,
@@ -44,7 +46,8 @@ class BasicAuthTest:
             f"{host}:{port}",
             grpc.composite_channel_credentials(
                 channel_credentials,
-                grpc.metadata_call_credentials(GrpcBasicAuth(username, password)),
+                grpc.metadata_call_credentials(
+                    GrpcBasicAuth(username, password)),
             ),
         )
         self.client = ArmadaClient(host, port, channel)
@@ -52,19 +55,6 @@ class BasicAuthTest:
     # private static ApiJobSubmitRequest CreateJobRequest(string jobSet)
     def job_submit_request_items_for_test(self, queue, job_set_id):
         pod = core_v1.PodSpec(
-            volumes=[
-                core_v1.Volume(
-                    name="root-dir",
-                    volumeSource=core_v1.VolumeSource(
-                        flexVolume=core_v1.FlexVolumeSource(
-                            driver="gr/cifs",
-                            fsType="cifs",
-                            secretRef=core_v1.LocalObjectReference(name="secret-name"),
-                            options={"networkPath": ""},
-                        )
-                    ),
-                )
-            ],
             containers=[
                 core_v1.Container(
                     name="Container1",
