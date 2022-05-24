@@ -322,7 +322,7 @@ func (c *KubernetesClusterContext) ProcessPodsToDelete() {
 			if err == nil {
 				deletePodEventsErr := c.deletePodEvents(podToDelete)
 				if deletePodEventsErr != nil {
-					log.Errorf("Failed to delete pod events for pod %s/%s because %s", podToDelete.Name, podToDelete.Namespace, deletePodEventsErr)
+					log.WithError(deletePodEventsErr).Errorf("Failed to delete pod events for pod %s/%s", podToDelete.Name, podToDelete.Namespace)
 				}
 			}
 		}
