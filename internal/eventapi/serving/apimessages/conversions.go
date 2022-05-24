@@ -272,8 +272,8 @@ func FromInternalJobRunErrors(queueName string, jobSetName string, time time.Tim
 					},
 				}
 				events = append(events, event)
-			case *armadaevents.Error_PodError:
-				objectMeta := reason.PodError.GetObjectMeta()
+			case *armadaevents.Error_PodLeaseReturned:
+				objectMeta := reason.PodLeaseReturned.GetObjectMeta()
 				event := &api.EventMessage{
 					Events: &api.EventMessage_LeaseReturned{
 						LeaseReturned: &api.JobLeaseReturnedEvent{
@@ -282,14 +282,32 @@ func FromInternalJobRunErrors(queueName string, jobSetName string, time time.Tim
 							Queue:        queueName,
 							Created:      time,
 							ClusterId:    objectMeta.GetExecutorId(),
-							Reason:       reason.PodError.GetMessage(),
+							Reason:       reason.PodLeaseReturned.GetMessage(),
 							KubernetesId: objectMeta.GetKubernetesId(),
-							PodNumber:    reason.PodError.GetPodNumber(),
+							PodNumber:    reason.PodLeaseReturned.GetPodNumber(),
+						},
+					},
+				}
+				events = append(events, event)
+			case *armadaevents.Error_PodTerminated:
+				objectMeta := reason.PodTerminated.GetObjectMeta()
+				event := &api.EventMessage{
+					Events: &api.EventMessage_Terminated{
+						Terminated: &api.JobTerminatedEvent{
+							JobId:        jobId,
+							JobSetId:     jobSetName,
+							Queue:        queueName,
+							Created:      time,
+							ClusterId:    objectMeta.GetExecutorId(),
+							Reason:       reason.PodTerminated.GetMessage(),
+							KubernetesId: objectMeta.GetKubernetesId(),
+							PodNumber:    reason.PodTerminated.GetPodNumber(),
 						},
 					},
 				}
 				events = append(events, event)
 			}
+
 		}
 	}
 	return events, nil
