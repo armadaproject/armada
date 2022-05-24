@@ -661,7 +661,7 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 
 		runId, err := armadaevents.ProtoUuidFromUuidString(m.Failed.KubernetesId)
 		if err != nil {
-			// If a job fails without ever being assigned to a job, there won't be a KubernetesId.
+			// If a job fails without ever being assigned to a node, there won't be a KubernetesId.
 			runId = legacyJobRunId()
 		}
 
