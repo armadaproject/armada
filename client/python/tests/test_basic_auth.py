@@ -46,8 +46,7 @@ class BasicAuthTest:
             f"{host}:{port}",
             grpc.composite_channel_credentials(
                 channel_credentials,
-                grpc.metadata_call_credentials(
-                    GrpcBasicAuth(username, password)),
+                grpc.metadata_call_credentials(GrpcBasicAuth(username, password)),
             ),
         )
         self.client = ArmadaClient(host, port, channel)

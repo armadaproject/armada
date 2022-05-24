@@ -4,7 +4,13 @@ Armada Python GRPC Client
 from concurrent.futures import ThreadPoolExecutor
 import os
 import grpc
-from armada_client.armada import event_pb2, event_pb2_grpc, usage_pb2_grpc, submit_pb2_grpc, submit_pb2
+from armada_client.armada import (
+    event_pb2,
+    event_pb2_grpc,
+    usage_pb2_grpc,
+    submit_pb2_grpc,
+    submit_pb2,
+)
 
 
 class ArmadaClient:
@@ -21,8 +27,7 @@ class ArmadaClient:
     See https://grpc.github.io/grpc/python/grpc.html
     """
 
-    def __init__(self, host: str, port: int, channel,
-                 max_workers=os.cpu_count()):
+    def __init__(self, host: str, port: int, channel, max_workers=os.cpu_count()):
 
         self.host = host
         self.port = port
@@ -45,8 +50,7 @@ class ArmadaClient:
     def submit_jobs(self, queue, job_set_id, job_request_items):
         """Implementation of SubmitJobs rpc function"""
         request = submit_pb2.JobSubmitRequest(
-            queue=queue, job_set_id=job_set_id,
-            job_request_items=job_request_items
+            queue=queue, job_set_id=job_set_id, job_request_items=job_request_items
         )
         response = self.submit_stub.SubmitJobs(request)
         return response
