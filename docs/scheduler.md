@@ -2,7 +2,20 @@
 
 This document outlines the proposed Armada scheduler. The existing scheduler will be deprecated in favour of the one described here sometime during 2022. This is work in progress; everything herein is subject to change.
 
-## Architecture
+The purpose of developing this new scheduler is to improve fairness and throughput, and to more effectively schedule large and distributed jobs, compared to the existing scheduler.
+
+
+- The scheduler is a multiplexer.
+- The scheduler achieves max-min fairness among the currently active queues.
+- Each queue accrues share over time while these is at least one job queued in the queue.
+- We use a backfilling approach to improve utilisation, i.e., lower-priority jobs are scheduled ahead of higher-priority jobs only if the lower-priority job does not delay the higher-priority job.
+- We use per-queue and per-job resource limits to prevent a single queue from using all resources. Preemptible jobs do not need to adhere to these limits.
+- We limit the unfairness in the system. This prevents jobs from a single queue of using more than a certain amount of resources. Time-limited jobs are scheduled as long as the bound on unfairness doesn't exceed some limit.
+- We preempt jobs when if doing so improves fairness.
+- We unify all available resources. We use an event-driven architecture to decide which job to schedule next.
+- All pod creation has to be performed via the Armada scheduler. We plan to support systems that dynamically create workers (e.g., Spark) by either building in first-class support for Armada into the system (in this case Spark) or by hijacking the Kubernetes resource creation API, so that creating a pod results in submitting an Armada job that eventually causes those pods to be created.
+
+## Armada architecture
 
 Armada consists of the Armada server and one or more Kubernetes worker clusters. Each worker cluster consists of a large number of nodes responsible for executing tasks and is managed by a process referred to as the Armada executor. Jobs are submitted to the Armada server, where they are queued until being handed off to an executor, which assigns them to nodes.
 
@@ -10,7 +23,71 @@ Armada uses a two-stage scheduling approach, consisting of a top-level scheduler
 
 Each job is a member of exactly one job queue (e.g., corresponding to a particular user) and has a priority associated with it, i.e., each job has associated with it a tuple `(queue, priority)`. The job of the scheduler is to decide in what order to schedule jobs to worker clusters.
 
-## Metrics
+## Scheduler architecture
+
+At a high level, scheduling consists of three stages:
+
+1. Global prioritisation
+2. Cluster assignment
+3. Node assignment
+
+The two first stages take place in the server and the third stage in the executor. We explain the first two stages here and the third stage in a later section. At any time, the scheduler manages `N` job queues. Suppose that `Q <= N` of these queues have at least 1 job waiting to be scheduled (i.e., the remaining `N-Q` queues are empty). We refer to these `Q` queues as active and the remaining `N-Q` queues as inactive. Within each of the active queues, jobs are ordered by priority. The first scheduling stage consists computing a global order of all jobs across all active queues. Denote by
+
+`j_1, j_2, ...`
+
+the 1st and 2nd job in this order and so on. Later, we show how to compute this order fairly and efficiently.
+
+The second stage consists of assigning jobs to worker clusters. Normally, jobs are assigned to clusters in order, i.e., `j_i` is assigned before `j_2` and so on. However, if some job cannot be scheduled (e.g., because insufficient resources are available), a lower-priority job (i.e., a job further back in the global order) may be scheduled ahead of a higher-priority job (i.e., a job ocurring earlier in the global order) if doing so does not delay scheduling the higher-priority job. This is an optimisation to improve utilisation and is referred to as backfilling (see, e.g., [this page](http://docs.adaptivecomputing.com/maui/8.2backfill.php) for some background).
+
+TODO: Explain the settings we allow (preemptible, lifetime).
+
+Next, we explain how fairness is defined in Armada.
+
+## Fairness
+
+- Armada allocates jobs to clusters in a manner that satisfies weighted max-min allocation.
+- Queues accrue budget while active. These queues are effectively standing in line waiting for their jobs to be scheduled. Queues with no jobs are not standing in line.
+- Queues spend budget while having jobs running.
+- The net loss or gain in budget is determined by the difference between these.
+- The highest priority job is the job that brings the largest increase in fairness. So let's find a fairness measure.
+
+Here, we describe the definition of fairness used by Armada and how the scheduler fairly divides scarce resources between job queues. This determines how jobs are ordered across queues. First, the resource usage of a particular job is a weighted sum of all resources allocated to that job. For example, if the resources considered for some job are CPU, GPU, and RAM, then the resource usage of that job is
+
+`CPU + w_GPU * GPU + w_RAM * RAM`,
+
+where `w_GPU` and `w_RAM` is the cost of `GPU` and `RAM` relative to `1 CPU` core. We define such weights for all resources in the cluster (e.g., different types of GPUs). The resource usage of a particular queue is the sum of all resources allocated to curently running jobs originating from that queue.
+
+Second, each queue has a weight associated with it that determines the size of its fair share. Denote these per-queue weights by 
+
+`w_1, ..., w_N`,
+
+where `N` is the total number of queues, and by 
+
+`w = sum(w_1, ..., w_N)`
+
+their sum. The fair share for each of the N queues is then
+ 
+`w_1 / w, ..., w_N / w`.
+
+TODO: Explain how budget is accrued
+
+Armada divides resources among currently active queues, i.e., queues with at least one job currently queued. The priority of each queue is computed as follows:
+
+Iterate over all active queues. Compute the sum of their weights. The priority of the i-th queue is increased by w_i / w * t_i. At each time intervall, the priority of the i-th queue is decreased by q_i / resource_sum * T. So queues both accrue and lose priority continually. A queue that is allocated more than it's fair share loses priority at each instant (never going below zero). A queue allocated less than its fair share gains priority.
+
+Armada allocates jobs to nodes to achieve weighted [max-min fairness](https://en.wikipedia.org/wiki/Max-min_fairness). Specifically, Armada allocates jobs to nodes such that an attempt to increase the resources allocated to any queue necessarily results in reducing the resources allocated to at least one queue that is currently below its fair share.
+
+The scheduler achieves fairness via a weighted fair queuing approach.
+
+- We only schedule a job from a lower-priority queue before a higher-priority queue if doing so does not delay scheduling the highest-priority job of that higher-priority queue.
+- We only schedule the lower-priority jobs from some queue before higher-priority jobs in that queue if doing so does not delay scheduling the higher-priority job.
+- For jobs with equal priority, the job queued first has higher priority.
+
+## Scheduler metrics
+
+TODO: Add a formal fairness measure.
+
+TODO: Consider renaming to "Scheduler performance" and move qualitative metrics out of this section.
 
 We measure scheduler quality quantitatively by
 
@@ -20,7 +97,7 @@ We measure scheduler quality quantitatively by
 
 Armada is designed to schedule batch workloads over systems composed of up to 1 million cores when each job takes, on average, 10 minutes or more to complete, and consumes at least 1 core. Hence, to keep the cluster full, Armada must be able to schedule at least
 
-1 000 000 / (60 * 10) = 1666.66...
+`1 000 000 / (60 * 10) = 1666.66...`
 
 jobs per second. At this throughput, filling an empty cluster would take 10 minutes. 
 
