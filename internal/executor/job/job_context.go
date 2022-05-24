@@ -155,17 +155,6 @@ func groupRunningJobs(pods []*v1.Pod) []*RunningJob {
 	return result
 }
 
-func (c *ClusterJobContext) registerIssue(job *RunningJob, issue *PodIssue) {
-	job.Issue = issue
-
-	record, exists := c.activeJobs[job.JobId]
-	if exists {
-		record.issue = issue
-	} else {
-		log.Errorf("Resolving issue without existing record (jobId: %s)", job.JobId)
-	}
-}
-
 func (c *ClusterJobContext) addIssues(jobs []*RunningJob) []*RunningJob {
 
 	c.activeJobIdsMutex.Lock()
@@ -183,7 +172,10 @@ func (c *ClusterJobContext) addIssues(jobs []*RunningJob) []*RunningJob {
 			c.activeJobs[job.JobId] = record
 		}
 		if record.issue == nil {
-			c.detectStuckPods(job)
+			if podIssue := c.detectPodIssue(job); podIssue != nil {
+				record.issue = podIssue
+				job.Issue = podIssue
+			}
 		}
 	}
 
@@ -206,20 +198,18 @@ func (c *ClusterJobContext) addIssues(jobs []*RunningJob) []*RunningJob {
 	return jobs
 }
 
-func (c *ClusterJobContext) detectStuckPods(runningJob *RunningJob) {
+func (c *ClusterJobContext) detectPodIssue(runningJob *RunningJob) *PodIssue {
 
 	for _, pod := range runningJob.ActivePods {
 		if pod.DeletionTimestamp != nil && pod.DeletionTimestamp.Add(c.stuckTerminatingPodExpiry).Before(time.Now()) {
 			// pod is stuck in terminating phase, this sometimes happen on node failure
 			// its safer to produce failed event than retrying as the job might have run already
-			c.registerIssue(runningJob, &PodIssue{
+			return &PodIssue{
 				OriginatingPod: pod.DeepCopy(),
 				Pods:           runningJob.ActivePods,
 				Message:        "pod stuck in terminating phase, this might be due to platform problems",
 				Retryable:      false,
-				Type:           StuckTerminating})
-			break
-
+				Type:           StuckTerminating}
 		} else if pod.Status.Phase == v1.PodUnknown || pod.Status.Phase == v1.PodPending {
 
 			podEvents, err := c.clusterContext.GetPodEvents(pod)
@@ -241,17 +231,17 @@ func (c *ClusterJobContext) detectStuckPods(runningJob *RunningJob) {
 
 				log.Warnf("Found issue with pod %s in namespace %s: %s", pod.Name, pod.Namespace, message)
 
-				c.registerIssue(runningJob, &PodIssue{
+				return &PodIssue{
 					OriginatingPod: pod.DeepCopy(),
 					Pods:           runningJob.ActivePods,
 					Message:        message,
 					Retryable:      retryable,
 					Type:           UnableToSchedule,
-				})
-				break
+				}
 			}
 		}
 	}
+	return nil
 }
 
 func createStuckPodMessage(retryable bool, originalMessage string) string {
