@@ -1,31 +1,32 @@
-import base64
+"""
+Armada Python GRPC Client
+"""
 from concurrent.futures import ThreadPoolExecutor
-from multiprocessing.pool import ThreadPool
 import os
-import time
-from urllib import response
 import grpc
-import uuid
-import threading
-from enum import Enum, auto
-from typing import Optional
-
 from armada_client.armada.client import event_pb2
 from armada_client.armada.client import event_pb2_grpc
-from armada_client.armada.client import queue_pb2
-from armada_client.armada.client import queue_pb2_grpc
-from armada_client.armada.client import usage_pb2
 from armada_client.armada.client import usage_pb2_grpc
 from armada_client.armada.client import submit_pb2
 from armada_client.armada.client import submit_pb2_grpc
-from armada_client.k8s.io.api.core.v1 import generated_pb2 as core_v1
-from armada_client.k8s.io.apimachinery.pkg.api.resource import (
-    generated_pb2 as api_resource,
-)
 
 
 class ArmadaClient:
-    def __init__(self, host: str, port: int, channel, max_workers=os.cpu_count()):
+    """
+    The Armada Client
+    Implementation of GRPC stubs from events, queues and submit
+
+    Attributes:
+        host: IP address
+        port: port for grpc
+        channel: GRPC channel
+        max_workers: number of cores for thread pools
+    GRPC channels is for authentication.
+    See https://grpc.github.io/grpc/python/grpc.html
+    """
+
+    def __init__(self, host: str, port: int, channel,
+                 max_workers=os.cpu_count()):
 
         self.host = host
         self.port = port
@@ -39,19 +40,23 @@ class ArmadaClient:
     def get_job_events_stream(
         self, queue, job_set_id, from_message_id=None, watch=False
     ):
+        """Implementation of GetJobSetEvents rpc function"""
         jsr = event_pb2.JobSetRequest(
-            queue=queue, from_message_id=from_message_id, watch=False
+            queue=queue, from_message_id=from_message_id, watch=watch
         )
-        jse = self.event_stub.GetJobSetEvents(queue, job_set_id, jsr)
+        self.event_stub.GetJobSetEvents(queue, job_set_id, jsr)
 
     def submit_jobs(self, queue, job_set_id, job_request_items):
+        """Implementation of SubmitJobs rpc function"""
         request = submit_pb2.JobSubmitRequest(
-            queue=queue, job_set_id=job_set_id, job_request_items=job_request_items
+            queue=queue, job_set_id=job_set_id,
+            job_request_items=job_request_items
         )
         response = self.submit_stub.SubmitJobs(request)
         return response
 
     def cancel_jobs(self, queue=None, job_id=None, job_set_id=None):
+        """Implementation of CancelJobs rpc function"""
         request = submit_pb2.JobCancelRequest(
             queue=queue, job_id=job_id, job_set_id=job_set_id
         )
@@ -61,6 +66,8 @@ class ArmadaClient:
     def reprioritize_jobs(
         self, new_priority, job_ids=None, job_set_id=None, queue=None
     ):
+        """Implementation of ReprioritizeJobs rpc function"""
+
         request = submit_pb2.JobReprioritizeRequest(
             job_ids=job_ids,
             job_set_id=job_set_id,
@@ -71,31 +78,37 @@ class ArmadaClient:
         return response
 
     def create_queue(self, name, **queue_params):
+        """Implementation of CreateQueue rpc function"""
         request = submit_pb2.Queue(name=name, **queue_params)
         response = self.submit_stub.CreateQueue(request)
         return response
 
     def update_queue(self, name, **queue_params):
+        """Implementation of UpdateQueue rpc function"""
         request = submit_pb2.Queue(name=name, **queue_params)
         response = self.submit_stub.UpdateQueue(request)
         return response
 
     def delete_queue(self, name):
+        """Implementation of DeleteQueue rpc function"""
         request = submit_pb2.QueueDeleteRequest(name=name)
         response = self.submit_stub.DeleteQueue(request)
         return response
 
     def get_queue(self, name):
+        """Impl of GetQueue"""
         request = submit_pb2.QueueGetRequest(name=name)
         response = self.submit_stub.GetQueue(request)
         return response
 
     def get_queue_info(self, name):
+        """Impl of GetQueueInfo"""
         request = submit_pb2.QueueInfoRequest(name=name)
         response = self.submit_stub.GetQueueInfo(request)
         return response
 
     def watch_events(self, on_event, queue, job_set_id, from_message_id=None):
+        """Impl of WatchEvents"""
         jsr = event_pb2.JobSetRequest(
             queue=queue,
             id=job_set_id,
@@ -110,13 +123,13 @@ class ArmadaClient:
                 nonlocal event_stream
                 for event in event_stream:
                     on_event(event)
-            except grpc._channel._MultiThreadedRendezvous as e:
-                if e.code() == grpc.StatusCode.CANCELLED:
+            except grpc._channel._MultiThreadedRendezvous as error:  # pylint: disable=protected-access
+                if error.code() == grpc.StatusCode.CANCELLED:
                     pass
                 # process cancelled status
                 elif (
-                    e.code() == grpc.StatusCode.UNAVAILABLE
-                    and "Connection reset by peer" in e.details()
+                    error.code() == grpc.StatusCode.UNAVAILABLE
+                    and "Connection reset by peer" in error.details()
                 ):
                     pass
                 # process unavailable status
@@ -126,5 +139,7 @@ class ArmadaClient:
         self.executor.submit(event_counter)
         return event_stream
 
-    def unwatch_events(self, event_stream):
-        event_stream.cancel()
+
+def unwatch_events(event_stream):
+    """Grpc way to cancel a stream"""
+    event_stream.cancel()
