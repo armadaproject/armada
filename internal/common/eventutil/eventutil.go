@@ -407,7 +407,9 @@ func CompactEventSequences(sequences []*armadaevents.EventSequence) []*armadaeve
 
 	sequences = make([]*armadaevents.EventSequence, 0, len(sequenceFromKey))
 	for _, sequence := range sequenceFromKey {
-		sequences = append(sequences, sequence)
+		if len(sequence.Events) > 0 {
+			sequences = append(sequences, sequence)
+		}
 	}
 	return sequences
 }
@@ -475,7 +477,9 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 
 		runId, err := armadaevents.ProtoUuidFromUuidString(m.LeaseReturned.KubernetesId)
 		if err != nil {
-			return nil, err
+			// Because LeaseReturned may be generated before the job is running, the KubernetesId may be missing.
+			// In this scenario, we make up an empty id.
+			runId = legacyJobRunId()
 		}
 
 		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
@@ -657,7 +661,8 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 
 		runId, err := armadaevents.ProtoUuidFromUuidString(m.Failed.KubernetesId)
 		if err != nil {
-			return nil, err
+			// If a job fails without ever being assigned to a node, there won't be a KubernetesId.
+			runId = legacyJobRunId()
 		}
 
 		// EventMessage_Failed contains one error for each container.

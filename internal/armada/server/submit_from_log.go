@@ -570,7 +570,7 @@ func (srv *SubmitFromLog) CancelJobsById(ctx context.Context, userId string, job
 	}
 
 	// Report the jobs that cancelled successfully.
-	//Any error in doing so is a sibling to the errors with cancelling individual jobs.
+	// Any error in doing so is a sibling to the errors with cancelling individual jobs.
 	result = multierror.Append(result, reportJobsCancelled(srv.SubmitServer.eventStore, userId, cancelled))
 
 	return cancelledIds, result.ErrorOrNil()

@@ -43,6 +43,10 @@ func (podCtx *PodMatchingContext) Matches(nodeType *api.NodeType, availableResou
 // fits returns true if the requested resources are no greater than the available resources.
 func fits(resourceRequest, availableResources common.ComputeResourcesFloat) (bool, error) {
 	for resourceType, requestedResourceQuantity := range resourceRequest {
+		// Do not return error on requesting zero of some resource.
+		if requestedResourceQuantity <= 0 {
+			continue
+		}
 		availableResourceQuantity, ok := availableResources[resourceType]
 		if !ok {
 			return false, fmt.Errorf("pod requested resource %s, but none is available", resourceType)
