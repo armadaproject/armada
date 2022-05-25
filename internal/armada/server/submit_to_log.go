@@ -608,9 +608,6 @@ func (srv *PulsarSubmitServer) publishToPulsar(ctx context.Context, sequences []
 				ch <- err
 			},
 		)
-		if err != nil {
-			return errors.WithStack(err)
-		}
 	}
 
 	// Flush queued messages and wait until persisted.
