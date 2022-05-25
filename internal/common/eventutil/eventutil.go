@@ -454,13 +454,9 @@ func groupsEqual(g1, g2 []string) bool {
 	return true
 }
 
-// MAX_SEQUENCE_SIZE_IN_BYTES. By default, Pulsar messages may be at most 5 MB.
-// Hence, we limit event sequences to be at most 4 MB to give some margin.
-const MAX_SEQUENCE_SIZE_IN_BYTES = 4000000
-
 // LimitSequenceByteSize returns a slice of sequences produced by breaking up sequence.Events
 // into separate sequences, each of which is at most MAX_SEQUENCE_SIZE_IN_BYTES bytes in size.
-func LimitSequenceByteSizeNew(sequence *armadaevents.EventSequence) ([]*armadaevents.EventSequence, error) {
+func LimitSequenceByteSize(sequence *armadaevents.EventSequence, sizeInBytes int) ([]*armadaevents.EventSequence, error) {
 
 	// Compute the size of the sequence without events.
 	events := sequence.Events
@@ -473,14 +469,14 @@ func LimitSequenceByteSizeNew(sequence *armadaevents.EventSequence) ([]*armadaev
 	lastSequenceEventSize := 0
 	for _, event := range sequence.Events {
 		eventSize := proto.Size(event)
-		if eventSize+headerSize > MAX_SEQUENCE_SIZE_IN_BYTES {
+		if eventSize+headerSize > sizeInBytes {
 			return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
 				Name:    "sequence",
 				Value:   sequence,
-				Message: "sequence contains a single event too large",
+				Message: fmt.Sprintf("sequence header is of size %d and sequence contains an event of size %d bytes, but the sequence size limit is %d", headerSize, eventSize, sizeInBytes),
 			})
 		}
-		if len(sequences) == 0 || lastSequenceEventSize+eventSize+headerSize > MAX_SEQUENCE_SIZE_IN_BYTES {
+		if len(sequences) == 0 || lastSequenceEventSize+eventSize+headerSize > sizeInBytes {
 			sequences = append(sequences, &armadaevents.EventSequence{
 				Queue:      sequence.Queue,
 				JobSetName: sequence.JobSetName,
@@ -492,6 +488,7 @@ func LimitSequenceByteSizeNew(sequence *armadaevents.EventSequence) ([]*armadaev
 		}
 		lastSequence := sequences[len(sequences)-1]
 		lastSequence.Events = append(lastSequence.Events, event)
+		lastSequenceEventSize += eventSize
 	}
 	return sequences, nil
 }

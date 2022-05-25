@@ -621,3 +621,59 @@ func TestCompactSequences_Groups(t *testing.T) {
 	actual := CompactEventSequences(sequences)
 	assert.Equal(t, expected, actual)
 }
+
+func TestLimitSequenceByteSize(t *testing.T) {
+	sequence := &armadaevents.EventSequence{
+		Queue:      "queue1",
+		UserId:     "userId1",
+		JobSetName: "jobSetName1",
+		Groups:     []string{"group1", "group2"},
+		Events:     nil,
+	}
+
+	// 10 events, each of size 10 bytes + a little more.
+	// At the time of writing, each event is 14 bytes and the sequence with no event is of size 46 bytes.
+	numEvents := 3
+	for i := 0; i < numEvents; i++ {
+		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
+			Event: &armadaevents.EventSequence_Event_SubmitJob{
+				SubmitJob: &armadaevents.SubmitJob{
+					DeduplicationId: "1234567890",
+				},
+			},
+		})
+	}
+
+	actual, err := LimitSequenceByteSize(sequence, 1000)
+	if !assert.NoError(t, err) {
+		return
+	}
+	assert.Equal(t, []*armadaevents.EventSequence{sequence}, actual)
+
+	_, err = LimitSequenceByteSize(sequence, 1)
+	assert.Error(t, err)
+
+	expected := make([]*armadaevents.EventSequence, numEvents)
+	for i := 0; i < numEvents; i++ {
+		expected[i] = &armadaevents.EventSequence{
+			Queue:      "queue1",
+			UserId:     "userId1",
+			JobSetName: "jobSetName1",
+			Groups:     []string{"group1", "group2"},
+			Events: []*armadaevents.EventSequence_Event{
+				{
+					Event: &armadaevents.EventSequence_Event_SubmitJob{
+						SubmitJob: &armadaevents.SubmitJob{
+							DeduplicationId: "1234567890",
+						},
+					},
+				},
+			},
+		}
+	}
+	actual, err = LimitSequenceByteSize(sequence, 60)
+	if !assert.NoError(t, err) {
+		return
+	}
+	assert.Equal(t, expected, actual)
+}
