@@ -56,7 +56,8 @@ metrics:
 pulsar:
   enabled: true
   URL: "pulsar://localhost:6650"
-  jobsetEventsTopic: "events"
+  maxAllowedMessageSize: 4194304  # 4MB
+  jobsetEventsTopic: "persistent://armada/armada/events""
   redisFromPulsarSubscription: "RedisFromPulsar"
   pulsarFromPulsarSubscription: "PulsarFromPulsar"
   hostnameSuffix: "svc"
@@ -64,7 +65,7 @@ pulsar:
   eventsPrinter: false
   eventsPrinterSubscription: "EventsPrinter"
 eventapi:
-  enabled : false  # Can stay in this state a while for large images and overloaded registries, hence long timeout.
+  enabled : false
   queryConcurrency: 100
   jobsetCacheSize:  10000
   updateTopic:      sequence-updates

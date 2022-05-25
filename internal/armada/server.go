@@ -227,6 +227,7 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 			Name:             fmt.Sprintf("armada-server-%s", serverId),
 			CompressionType:  compressionType,
 			CompressionLevel: compressionLevel,
+			BatchingMaxSize:  config.Pulsar.MaxAllowedMessageSize,
 			Topic:            config.Pulsar.JobsetEventsTopic,
 		})
 		if err != nil {
@@ -307,6 +308,7 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 			Name:             fmt.Sprintf("armada-pulsar-to-pulsar-%s", serverId),
 			CompressionType:  compressionType,
 			CompressionLevel: compressionLevel,
+			BatchingMaxSize:  config.Pulsar.MaxAllowedMessageSize,
 			Topic:            config.Pulsar.JobsetEventsTopic,
 		})
 		if err != nil {
