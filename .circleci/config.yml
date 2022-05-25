@@ -319,23 +319,23 @@ jobs:
 
             echo ${DOCKERHUB_PASS} | docker login -u ${DOCKERHUB_USER} --password-stdin
 
-            docker pull gresearchdev/armada-server-dev:${TAG}
+            ./scripts/docker-pull-with-retry.sh gresearchdev/armada-server-dev:${TAG} 30
             docker tag gresearchdev/armada-server-dev:${TAG} gresearchdev/armada-server:${RELEASE_TAG}
             docker push gresearchdev/armada-server:${RELEASE_TAG}
 
-            docker pull gresearchdev/armada-executor-dev:${TAG}
+            ./scripts/docker-pull-with-retry.sh gresearchdev/armada-executor-dev:${TAG}
             docker tag gresearchdev/armada-executor-dev:${TAG} gresearchdev/armada-executor:${RELEASE_TAG}
             docker push gresearchdev/armada-executor:${RELEASE_TAG}
 
-            docker pull gresearchdev/armada-armadactl-dev:${TAG}
+            ./scripts/docker-pull-with-retry.sh gresearchdev/armada-armadactl-dev:${TAG}
             docker tag gresearchdev/armada-armadactl-dev:${TAG} gresearchdev/armada-armadactl:${RELEASE_TAG}
             docker push gresearchdev/armada-armadactl:${RELEASE_TAG}
 
-            docker pull gresearchdev/armada-lookout-dev:${TAG}
+            ./scripts/docker-pull-with-retry.sh gresearchdev/armada-lookout-dev:${TAG}
             docker tag gresearchdev/armada-lookout-dev:${TAG} gresearchdev/armada-lookout:${RELEASE_TAG}
             docker push gresearchdev/armada-lookout:${RELEASE_TAG}
 
-            docker pull gresearchdev/armada-binoculars-dev:${TAG}
+            ./scripts/docker-pull-with-retry.sh gresearchdev/armada-binoculars-dev:${TAG}
             docker tag gresearchdev/armada-binoculars-dev:${TAG} gresearchdev/armada-binoculars:${RELEASE_TAG}
             docker push gresearchdev/armada-binoculars:${RELEASE_TAG}
 
