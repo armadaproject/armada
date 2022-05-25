@@ -38,6 +38,8 @@ type PulsarSubmitServer struct {
 	Producer        pulsar.Producer
 	Permissions     authorization.PermissionChecker
 	QueueRepository repository.QueueRepository
+	// Maximum size of Pulsar messages
+	MaxAllowedMessageSize uint
 	// Fall back to the legacy submit server for queue administration endpoints.
 	SubmitServer *SubmitServer
 	// Used for job submission deduplication.
@@ -584,6 +586,14 @@ func (srv *PulsarSubmitServer) publishToPulsar(ctx context.Context, sequences []
 	// Pass this id through the log by adding it to the Pulsar message properties.
 	requestId := requestid.FromContextOrMissing(ctx)
 
+	// Reduce the number of sequences to send to the minimum possible,
+	// and then break up any sequences larger than srv.MaxAllowedMessageSize.
+	sequences = eventutil.CompactEventSequences(sequences)
+	sequences, err := eventutil.LimitSequencesByteSize(sequences, int(srv.MaxAllowedMessageSize))
+	if err != nil {
+		return err
+	}
+
 	// Send each sequence async. Collect any errors via ch.
 	ch := make(chan error, len(sequences))
 	defer close(ch)
@@ -608,15 +618,12 @@ func (srv *PulsarSubmitServer) publishToPulsar(ctx context.Context, sequences []
 				ch <- err
 			},
 		)
-		if err != nil {
-			return errors.WithStack(err)
-		}
 	}
 
 	// Flush queued messages and wait until persisted.
-	err := srv.Producer.Flush()
+	err = srv.Producer.Flush()
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	// Collect any errors experienced by the async send and return.
