@@ -16,14 +16,14 @@ from armada_client.armada import (
 class ArmadaClient:
     """
     The Armada Client
-    Implementation of GRPC stubs from events, queues and submit
+    Implementation of gRPC stubs from events, queues and submit
 
     Attributes:
         host: IP address
-        port: port for grpc
-        channel: GRPC channel
+        port: port for gRPC
+        channel: gRPC channel
         max_workers: number of cores for thread pools
-    GRPC channels is for authentication.
+    gRPC channels is for authentication.
     See https://grpc.github.io/grpc/python/grpc.html
     """
 
@@ -38,7 +38,7 @@ class ArmadaClient:
         self.usage_stub = usage_pb2_grpc.UsageStub(channel)
 
     def get_job_events_stream(
-        self, queue, job_set_id, from_message_id=None, watch=False
+        self, queue: str, job_set_id: str, from_message_id=None, watch=False
     ):
         """Implementation of GetJobSetEvents rpc function"""
         jsr = event_pb2.JobSetRequest(
@@ -46,7 +46,7 @@ class ArmadaClient:
         )
         self.event_stub.GetJobSetEvents(queue, job_set_id, jsr)
 
-    def submit_jobs(self, queue, job_set_id, job_request_items):
+    def submit_jobs(self, queue: str, job_set_id: str, job_request_items):
         """Implementation of SubmitJobs rpc function"""
         request = submit_pb2.JobSubmitRequest(
             queue=queue, job_set_id=job_set_id, job_request_items=job_request_items
@@ -76,31 +76,31 @@ class ArmadaClient:
         response = self.submit_stub.ReprioritizeJobs(request)
         return response
 
-    def create_queue(self, name, **queue_params):
+    def create_queue(self, name: str, **queue_params):
         """Implementation of CreateQueue rpc function"""
         request = submit_pb2.Queue(name=name, **queue_params)
         response = self.submit_stub.CreateQueue(request)
         return response
 
-    def update_queue(self, name, **queue_params):
+    def update_queue(self, name: str, **queue_params):
         """Implementation of UpdateQueue rpc function"""
         request = submit_pb2.Queue(name=name, **queue_params)
         response = self.submit_stub.UpdateQueue(request)
         return response
 
-    def delete_queue(self, name):
+    def delete_queue(self, name: str):
         """Implementation of DeleteQueue rpc function"""
         request = submit_pb2.QueueDeleteRequest(name=name)
         response = self.submit_stub.DeleteQueue(request)
         return response
 
-    def get_queue(self, name):
+    def get_queue(self, name: str):
         """Impl of GetQueue"""
         request = submit_pb2.QueueGetRequest(name=name)
         response = self.submit_stub.GetQueue(request)
         return response
 
-    def get_queue_info(self, name):
+    def get_queue_info(self, name: str):
         """Impl of GetQueueInfo"""
         request = submit_pb2.QueueInfoRequest(name=name)
         response = self.submit_stub.GetQueueInfo(request)

@@ -2,7 +2,7 @@ import base64
 import time
 import uuid
 import grpc
-from armada_client.python_modify import (
+from armada_client.armada import (
     event_pb2,
     event_pb2_grpc,
     queue_pb2,

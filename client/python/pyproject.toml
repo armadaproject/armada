@@ -2,8 +2,8 @@
 name = "armada_client"
 version = "0.1.0"
 description = ""
-authors = ["Your Name <you@example.com>"]
-license = "GPL"
+authors = ["Kevin Hannon <kevin@gr-oss.io> Andrew Cone <andrew@gr-oss.io>"]
+license = "APACHE"
 
 [tool.poetry.dependencies]
 python = "^3.7"
