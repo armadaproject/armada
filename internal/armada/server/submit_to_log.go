@@ -613,7 +613,7 @@ func (srv *PulsarSubmitServer) publishToPulsar(ctx context.Context, sequences []
 	// Flush queued messages and wait until persisted.
 	err := srv.Producer.Flush()
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	// Collect any errors experienced by the async send and return.
