@@ -454,6 +454,80 @@ func groupsEqual(g1, g2 []string) bool {
 	return true
 }
 
+// MAX_SEQUENCE_SIZE_IN_BYTES. By default, Pulsar messages may be at most 5 MB.
+// Hence, we limit event sequences to be at most 4 MB to give some margin.
+const MAX_SEQUENCE_SIZE_IN_BYTES = 4000000
+
+// LimitSequenceByteSize returns a slice of sequences produced by breaking up the sequence.Events
+// into separate sequences, each of which is at most MAX_SEQUENCE_SIZE_IN_BYTES bytes in size.
+func LimitSequenceByteSize(sequence *armadaevents.EventSequence) ([]*armadaevents.EventSequence, error) {
+	sequences := make([]*armadaevents.EventSequence, 0, 1)
+	if sequence == nil || proto.Size(sequence) <= MAX_SEQUENCE_SIZE_IN_BYTES {
+		sequences = append(sequences, sequence)
+	} else if len(sequence.Events) <= 1 {
+		return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
+			Name:    "sequence",
+			Value:   sequence,
+			Message: "sequence is exceeds max byte size and can't be broken up",
+		})
+	} else { // There are at least two events that can be split into separate sequences.
+		splitSequences, err := splitSequenceByByteSize(sequence)
+		if err != nil {
+			return nil, err
+		}
+		for _, splitSequence := range splitSequences {
+			limitedSequences, err := LimitSequenceByteSize(splitSequence)
+			if err != nil {
+				return nil, err
+			}
+			sequences = append(sequences, limitedSequences...)
+		}
+	}
+	return sequences, nil
+}
+
+func splitSequenceByByteSize(sequence *armadaevents.EventSequence) ([]*armadaevents.EventSequence, error) {
+	if sequence == nil || len(sequence.Events) < 1 {
+		return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
+			Name:    "sequence",
+			Value:   sequence,
+			Message: "sequence can't be split",
+		})
+	}
+
+	// Compute the size in bytes of the events in the sequence.
+	overallSize := proto.Size(sequence)
+	events := sequence.Events
+	sequence.Events = make([]*armadaevents.EventSequence_Event, 0)
+	eventSize := overallSize - proto.Size(sequence)
+	sequence.Events = events
+
+	// Move events into two separate sequences of equal size.
+	i := 0
+	sequenceEventSize := 0
+	for i < len(sequence.Events) && sequenceEventSize < eventSize/2 {
+		sequenceEventSize += proto.Size(sequence.Events[i])
+		i++
+	}
+
+	return []*armadaevents.EventSequence{
+		{
+			Queue:      sequence.Queue,
+			JobSetName: sequence.JobSetName,
+			UserId:     sequence.UserId,
+			Groups:     sequence.Groups,
+			Events:     sequence.Events[0 : i-1],
+		},
+		{
+			Queue:      sequence.Queue,
+			JobSetName: sequence.JobSetName,
+			UserId:     sequence.UserId,
+			Groups:     sequence.Groups,
+			Events:     sequence.Events[i : len(sequence.Events)-1],
+		},
+	}, nil
+}
+
 // EventSequenceFromApiEvent converts an api.EventMessage into the corresponding Pulsar event
 // and returns an EventSequence containing this single event.
 // We map API events to sequences one-to-one because each API event may contain different (queue, jobSet, userId),
