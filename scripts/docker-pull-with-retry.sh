@@ -8,7 +8,7 @@ do
     exit 0
   fi
   echo Failed to pull $IMAGE - attempt $i
-  sleep 3
+  sleep 60
 done
 
 # Return failure if all pull attempts fail
