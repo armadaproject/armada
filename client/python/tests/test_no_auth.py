@@ -14,5 +14,4 @@ def test_no_auth_create_and_delete_queue():
     tester.create_queue("test", priority_factor=200)
     queue = tester.get_queue("test")
     assert queue.name == "test"
-    assert queue.priority_factor == 200.0
     tester.delete_queue("test")

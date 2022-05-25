@@ -32,11 +32,10 @@ class ArmadaClient:
         self.host = host
         self.port = port
         self.executor = ThreadPoolExecutor(max_workers=max_workers or 1)
-        self.channel = channel
 
-        self.submit_stub = submit_pb2_grpc.SubmitStub(self.channel)
-        self.event_stub = event_pb2_grpc.EventStub(self.channel)
-        self.usage_stub = usage_pb2_grpc.UsageStub(self.channel)
+        self.submit_stub = submit_pb2_grpc.SubmitStub(channel)
+        self.event_stub = event_pb2_grpc.EventStub(channel)
+        self.usage_stub = usage_pb2_grpc.UsageStub(channel)
 
     def get_job_events_stream(
         self, queue, job_set_id, from_message_id=None, watch=False
