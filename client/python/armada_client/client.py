@@ -2,6 +2,7 @@
 Armada Python GRPC Client
 """
 from concurrent.futures import ThreadPoolExecutor
+from functools import partial
 import os
 import grpc
 from armada_client.armada import (
@@ -116,10 +117,8 @@ class ArmadaClient:
             errorIfMissing=True,
         )
         event_stream = self.event_stub.GetJobSetEvents(jsr)
-
-        def event_counter():
+        def event_counter(event_stream):
             try:
-                nonlocal event_stream
                 for event in event_stream:
                     on_event(event)
             except grpc._channel._MultiThreadedRendezvous as error:  # pylint: disable=protected-access
@@ -135,7 +134,8 @@ class ArmadaClient:
                 else:
                     raise
 
-        self.executor.submit(event_counter)
+        event_function = partial(event_counter, event_stream = event_stream)
+        self.executor.submit(event_function)
         return event_stream
 
 

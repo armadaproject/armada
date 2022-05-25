@@ -1,6 +1,7 @@
 import base64
 import time
 import uuid
+from armada_client.client import unwatch_events
 import grpc
 from armada_client.armada import (
     event_pb2,
@@ -104,7 +105,7 @@ class BasicAuthTest:
         time.sleep(1)
 
         print(count)
-        self.client.unwatch_events(event_stream)
+        unwatch_events(event_stream)
 
         # public async Task TestSimpleJobSubmitFlow()
 
@@ -129,5 +130,5 @@ class BasicAuthTest:
 
 
 def test_basic_auth():
-    tester = BasicAuthTest("127.0.0.1", 50051)
+    tester = BasicAuthTest(host="127.0.0.1", port=50051, username='test', password='asdfasdf')
     tester.test_watch_events()
