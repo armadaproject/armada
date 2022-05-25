@@ -405,18 +405,18 @@ func TestReprioritised(t *testing.T) {
 
 func TestFailed(t *testing.T) {
 	msg := NewMsg(baseTime, jobRunFailed)
-	instructions := ConvertMsg(context.Background(), msg, &NoOpCompressor{})
+	instructions := ConvertMsg(context.Background(), msg, &compress.NoOpCompressor{})
 	expected := &model.InstructionSet{
 		JobRunsToUpdate:          []*model.UpdateJobRunInstruction{&expectedFailed},
 		JobRunContainersToCreate: []*model.CreateJobRunContainerInstruction{&expectedJobRunContainer},
-		MessageIds:               []*model.ConsumerMessageId{{msg.Message.ID(), msg.ConsumerId}},
+		MessageIds:               []*pulsarutils.ConsumerMessageId{{msg.Message.ID(), 0, msg.ConsumerId}},
 	}
 	assert.Equal(t, expected, instructions)
 }
 
 func TestFailedWithMissingRunId(t *testing.T) {
 	msg := NewMsg(baseTime, jobLeaseReturned)
-	instructions := ConvertMsg(context.Background(), msg, &NoOpCompressor{})
+	instructions := ConvertMsg(context.Background(), msg, &compress.NoOpCompressor{})
 	jobRun := instructions.JobRunsToCreate[0]
 	assert.NotEqual(t, eventutil.LEGACY_RUN_ID, jobRun.RunId)
 	expected := &model.InstructionSet{
@@ -438,7 +438,7 @@ func TestFailedWithMissingRunId(t *testing.T) {
 				UnableToSchedule: pointer.Bool(true),
 			},
 		},
-		MessageIds: []*model.ConsumerMessageId{{msg.Message.ID(), msg.ConsumerId}},
+		MessageIds: []*pulsarutils.ConsumerMessageId{{msg.Message.ID(), 0, msg.ConsumerId}},
 	}
 	assert.Equal(t, expected.JobRunsToUpdate, instructions.JobRunsToUpdate)
 }
