@@ -54,7 +54,7 @@ func TestUnaryServerInterceptor(t *testing.T) {
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return nil, handlerErr
 	}
-	f := UnaryServerInterceptor()
+	f := UnaryServerInterceptor(100)
 
 	// nils should be passed through as-is
 	handlerErr = nil
@@ -96,7 +96,7 @@ func TestStreamServerInterceptor(t *testing.T) {
 	handler := func(srv interface{}, stream grpc.ServerStream) error {
 		return handlerErr
 	}
-	f := StreamServerInterceptor()
+	f := StreamServerInterceptor(100)
 
 	// nils should be passed through as-is
 	handlerErr = nil

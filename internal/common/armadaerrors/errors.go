@@ -372,15 +372,16 @@ func IsNetworkError(err error) bool {
 }
 
 // UnaryServerInterceptor returns an interceptor that extracts the cause of an error chain
-// and returns it as a gRPC status error.
+// and returns it as a gRPC status error. It also limits the number of characters returned.
 //
 // To log the full error chain and return only the cause to the user, insert this interceptor before
 // the logging interceptor.
-func UnaryServerInterceptor() grpc.UnaryServerInterceptor {
+func UnaryServerInterceptor(maxErrorSize int) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 		rv, err := handler(ctx, req)
 
-		// If the error is nil or a gRPC status, return as-is
+		// If the error is nil or a gRPC status, return as-is.
+		// status.FromError(nil) returns true.
 		if _, ok := status.FromError(err); ok {
 			return rv, err
 		}
@@ -390,20 +391,26 @@ func UnaryServerInterceptor() grpc.UnaryServerInterceptor {
 		code := CodeFromError(cause)
 
 		// If available, annotate the status with the request ID
+		var errorMessage string
 		if id, ok := requestid.FromContext(ctx); ok {
-			return rv, status.Error(code, fmt.Sprintf("[%s: %q] ", requestid.MetadataKey, id)+cause.Error())
+			errorMessage = fmt.Sprintf("[%s: %q] ", requestid.MetadataKey, id) + cause.Error()
+		} else {
+			errorMessage = cause.Error()
 		}
-		return rv, status.Error(code, cause.Error())
+
+		// Limit error message size
+		return rv, status.Error(code, errorMessage[:maxErrorSize])
 	}
 }
 
 // StreamServerInterceptor returns an interceptor that extracts the cause of an error chain
-// and returns it as a gRPC status error.
-func StreamServerInterceptor() grpc.StreamServerInterceptor {
+// and returns it as a gRPC status error. It also limits the number of characters returned.
+func StreamServerInterceptor(maxErrorSize int) grpc.StreamServerInterceptor {
 	return func(srv interface{}, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		err := handler(srv, stream)
 
 		// If the error is nil or a gRPC status, return as-is
+		// status.FromError(nil) returns true.
 		if _, ok := status.FromError(err); ok {
 			return err
 		}
@@ -413,10 +420,15 @@ func StreamServerInterceptor() grpc.StreamServerInterceptor {
 		code := CodeFromError(cause)
 
 		// If available, annotate the status with the request ID
+		var errorMessage string
 		if id, ok := requestid.FromContext(stream.Context()); ok {
-			return status.Error(code, fmt.Sprintf("[%s: %q] ", requestid.MetadataKey, id)+cause.Error())
+			errorMessage = fmt.Sprintf("[%s: %q] ", requestid.MetadataKey, id) + cause.Error()
+		} else {
+			errorMessage = cause.Error()
 		}
-		return status.Error(code, cause.Error())
+
+		// Limit error message size
+		return status.Error(code, errorMessage[:maxErrorSize])
 	}
 }
 

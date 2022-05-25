@@ -44,14 +44,14 @@ func CreateGrpcServer(authServices []authorization.AuthService) *grpc.Server {
 	unaryInterceptors = append(unaryInterceptors,
 		grpc_ctxtags.UnaryServerInterceptor(tagsExtractor),
 		requestid.UnaryServerInterceptor(false),
-		armadaerrors.UnaryServerInterceptor(),
+		armadaerrors.UnaryServerInterceptor(1000),
 		grpc_logrus.UnaryServerInterceptor(messageDefault),
 		logging.UnaryServerInterceptor(),
 	)
 	streamInterceptors = append(streamInterceptors,
 		grpc_ctxtags.StreamServerInterceptor(tagsExtractor),
 		requestid.StreamServerInterceptor(false),
-		armadaerrors.StreamServerInterceptor(),
+		armadaerrors.StreamServerInterceptor(1000),
 		grpc_logrus.StreamServerInterceptor(messageDefault),
 		logging.StreamServerInterceptor(),
 	)
