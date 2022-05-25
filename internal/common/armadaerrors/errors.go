@@ -393,13 +393,17 @@ func UnaryServerInterceptor(maxErrorSize int) grpc.UnaryServerInterceptor {
 		// If available, annotate the status with the request ID
 		var errorMessage string
 		if id, ok := requestid.FromContext(ctx); ok {
-			errorMessage = fmt.Sprintf("[%s: %q] ", requestid.MetadataKey, id) + cause.Error()
+			errorMessage = fmt.Sprintf("[%s: %q] ", requestid.MetadataKey, id) + err.Error()
 		} else {
-			errorMessage = cause.Error()
+			errorMessage = err.Error()
 		}
 
-		// Limit error message size
-		return rv, status.Error(code, errorMessage[:maxErrorSize])
+		// Limit error message size.
+		if len(errorMessage) > maxErrorSize {
+			errorMessage = errorMessage[:maxErrorSize]
+		}
+
+		return rv, status.Error(code, errorMessage)
 	}
 }
 
@@ -422,13 +426,17 @@ func StreamServerInterceptor(maxErrorSize int) grpc.StreamServerInterceptor {
 		// If available, annotate the status with the request ID
 		var errorMessage string
 		if id, ok := requestid.FromContext(stream.Context()); ok {
-			errorMessage = fmt.Sprintf("[%s: %q] ", requestid.MetadataKey, id) + cause.Error()
+			errorMessage = fmt.Sprintf("[%s: %q] ", requestid.MetadataKey, id) + err.Error()
 		} else {
-			errorMessage = cause.Error()
+			errorMessage = err.Error()
 		}
 
-		// Limit error message size
-		return status.Error(code, errorMessage[:maxErrorSize])
+		// Limit error message size.
+		if len(errorMessage) > maxErrorSize {
+			errorMessage = errorMessage[:maxErrorSize]
+		}
+
+		return status.Error(code, errorMessage)
 	}
 }
 
