@@ -677,3 +677,38 @@ func TestLimitSequenceByteSize(t *testing.T) {
 	}
 	assert.Equal(t, expected, actual)
 }
+
+func TestLimitSequencesByteSize(t *testing.T) {
+	numSequences := 3
+	numEvents := 3
+	sequences := make([]*armadaevents.EventSequence, 0)
+	for i := 0; i < numEvents; i++ {
+		sequence := &armadaevents.EventSequence{
+			Queue:      "queue1",
+			UserId:     "userId1",
+			JobSetName: "jobSetName1",
+			Groups:     []string{"group1", "group2"},
+			Events:     nil,
+		}
+
+		// 10 events, each of size 10 bytes + a little more.
+		// At the time of writing, each event is 14 bytes and the sequence with no event is of size 46 bytes.
+		for i := 0; i < numEvents; i++ {
+			sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
+				Event: &armadaevents.EventSequence_Event_SubmitJob{
+					SubmitJob: &armadaevents.SubmitJob{
+						DeduplicationId: "1234567890",
+					},
+				},
+			})
+		}
+
+		sequences = append(sequences, sequence)
+	}
+
+	actual, err := LimitSequencesByteSize(sequences, 60)
+	if !assert.NoError(t, err) {
+		return
+	}
+	assert.Equal(t, numSequences*numEvents, len(actual))
+}
