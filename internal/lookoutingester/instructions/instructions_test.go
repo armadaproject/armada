@@ -44,6 +44,7 @@ const namespace = "test-ns"
 const priority = 3
 const newPriority = 4
 const podNumber = 6
+const errMsg = "sample error message"
 
 var baseTime, _ = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
 
@@ -161,6 +162,48 @@ var jobReprioritised = &armadaevents.EventSequence_Event{
 	},
 }
 
+// Job Run Failed
+var jobRunFailed = &armadaevents.EventSequence_Event{
+	Event: &armadaevents.EventSequence_Event_JobRunErrors{
+		JobRunErrors: &armadaevents.JobRunErrors{
+			JobId: jobIdProto,
+			RunId: runIdProto,
+			Errors: []*armadaevents.Error{
+				{
+					Terminal: true,
+					Reason: &armadaevents.Error_PodError{
+						PodError: &armadaevents.PodError{
+							Message:  errMsg,
+							NodeName: nodeName,
+							ContainerErrors: []*armadaevents.ContainerError{
+								{ExitCode: 1},
+							},
+						},
+					},
+				},
+			},
+		},
+	},
+}
+
+// Job LeaseR eturned
+var jobLeaseReturned = &armadaevents.EventSequence_Event{
+	Event: &armadaevents.EventSequence_Event_JobRunErrors{
+		JobRunErrors: &armadaevents.JobRunErrors{
+			JobId: jobIdProto,
+			RunId: eventutil.LegacyJobRunId(),
+			Errors: []*armadaevents.Error{
+				{
+					Terminal: true,
+					Reason: &armadaevents.Error_PodLeaseReturned{
+						PodLeaseReturned: &armadaevents.PodLeaseReturned{},
+					},
+				},
+			},
+		},
+	},
+}
+
 var jobSucceeded = &armadaevents.EventSequence_Event{
 	Event: &armadaevents.EventSequence_Event_JobSucceeded{
 		JobSucceeded: &armadaevents.JobSucceeded{
@@ -238,6 +281,19 @@ var expectedJobReprioritised = model.UpdateJobInstruction{
 	JobId:    jobIdString,
 	Priority: pointer.Int32(newPriority),
 	Updated:  baseTime,
+}
+
+var expectedFailed = model.UpdateJobRunInstruction{
+	RunId:     runIdString,
+	Started:   &baseTime,
+	Finished:  &baseTime,
+	Succeeded: pointer.Bool(false),
+	Error:     pointer.String(errMsg),
+}
+
+var expectedJobRunContainer = model.CreateJobRunContainerInstruction{
+	RunId:    runIdString,
+	ExitCode: 1,
 }
 
 // Single submit message
@@ -343,6 +399,46 @@ func TestReprioritised(t *testing.T) {
 		MessageIds:   []*model.ConsumerMessageId{{msg.Message.ID(), msg.ConsumerId}},
 	}
 	assert.Equal(t, expected, instructions)
+}
+
+func TestFailed(t *testing.T) {
+	msg := NewMsg(baseTime, jobRunFailed)
+	instructions := ConvertMsg(context.Background(), msg, &NoOpCompressor{})
+	expected := &model.InstructionSet{
+		JobRunsToUpdate:          []*model.UpdateJobRunInstruction{&expectedFailed},
+		JobRunContainersToCreate: []*model.CreateJobRunContainerInstruction{&expectedJobRunContainer},
+		MessageIds:               []*model.ConsumerMessageId{{msg.Message.ID(), msg.ConsumerId}},
+	}
+	assert.Equal(t, expected, instructions)
+}
+
+func TestFailedWithMissingRunId(t *testing.T) {
+	msg := NewMsg(baseTime, jobLeaseReturned)
+	instructions := ConvertMsg(context.Background(), msg, &NoOpCompressor{})
+	jobRun := instructions.JobRunsToCreate[0]
+	assert.NotEqual(t, eventutil.LEGACY_RUN_ID, jobRun.RunId)
+	expected := &model.InstructionSet{
+		JobRunsToCreate: []*model.CreateJobRunInstruction{
+			{
+				JobId:   jobIdString,
+				RunId:   jobRun.RunId,
+				Cluster: "UNKNOWN",
+				Created: baseTime,
+			},
+		},
+		JobRunsToUpdate: []*model.UpdateJobRunInstruction{
+			{
+				RunId:            jobRun.RunId,
+				Started:          &baseTime,
+				Finished:         &baseTime,
+				Succeeded:        pointer.Bool(false),
+				Error:            pointer.String("Lease Returned"),
+				UnableToSchedule: pointer.Bool(true),
+			},
+		},
+		MessageIds: []*model.ConsumerMessageId{{msg.Message.ID(), msg.ConsumerId}},
+	}
+	assert.Equal(t, expected.JobRunsToUpdate, instructions.JobRunsToUpdate)
 }
 
 func TestInvalidEvent(t *testing.T) {
