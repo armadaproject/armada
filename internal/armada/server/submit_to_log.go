@@ -236,7 +236,7 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 	err = srv.publishToPulsar(ctx, []*armadaevents.EventSequence{sequence})
 
 	if err != nil {
-		log.Errorf("Error sending message to pulsar: %+v", err)
+		log.WithError(err).Error("failed send to Pulsar")
 		return nil, status.Error(codes.Internal, "Failed to send message")
 	}
 
@@ -350,7 +350,7 @@ func (srv *PulsarSubmitServer) CancelJobs(ctx context.Context, req *api.JobCance
 	err = srv.publishToPulsar(ctx, []*armadaevents.EventSequence{sequence})
 
 	if err != nil {
-		log.Errorf("Error sending message to pulsar: %+v", err)
+		log.WithError(err).Error("failed send to Pulsar")
 		return nil, status.Error(codes.Internal, "Failed to send message")
 	}
 
@@ -433,7 +433,7 @@ func (srv *PulsarSubmitServer) ReprioritizeJobs(ctx context.Context, req *api.Jo
 	err = srv.publishToPulsar(ctx, []*armadaevents.EventSequence{sequence})
 
 	if err != nil {
-		log.Errorf("Error sending message to pulsar: %+v", err)
+		log.WithError(err).Error("failed send to Pulsar")
 		return nil, status.Error(codes.Internal, "Failed to send message")
 	}
 
