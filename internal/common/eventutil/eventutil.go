@@ -479,7 +479,7 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 		if err != nil {
 			// Because LeaseReturned may be generated before the job is running, the KubernetesId may be missing.
 			// In this scenario, we make up an empty id.
-			runId = legacyJobRunId()
+			runId = LegacyJobRunId()
 		}
 
 		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
@@ -662,7 +662,7 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 		runId, err := armadaevents.ProtoUuidFromUuidString(m.Failed.KubernetesId)
 		if err != nil {
 			// If a job fails without ever being assigned to a node, there won't be a KubernetesId.
-			runId = legacyJobRunId()
+			runId = LegacyJobRunId()
 		}
 
 		// EventMessage_Failed contains one error for each container.
