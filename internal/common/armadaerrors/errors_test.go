@@ -126,7 +126,16 @@ func TestStreamServerInterceptor(t *testing.T) {
 	st, ok = status.FromError(err)
 	assert.True(t, ok)
 	assert.Equal(t, codes.AlreadyExists, st.Code())
-	assert.Equal(t, innerErr.Error(), st.Message())
+	assert.Equal(t, handlerErr.Error(), st.Message())
+
+	// a chain of errors with a stack trace should omit the stack trace
+	innerErr = &ErrAlreadyExists{}
+	handlerErr = errors.WithMessage(errors.WithStack(innerErr), "foo")
+	err = f(nil, stream, nil, handler)
+	st, ok = status.FromError(err)
+	assert.True(t, ok)
+	assert.Equal(t, codes.AlreadyExists, st.Code())
+	assert.Equal(t, errors.WithMessage(innerErr, "foo").Error(), st.Message())
 
 	// if the context contains a request id, it should be included in the error message
 	id := "123"
