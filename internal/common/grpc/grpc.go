@@ -19,6 +19,7 @@ import (
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/status"
 
+	"github.com/G-Research/armada/internal/common/armadaerrors"
 	"github.com/G-Research/armada/internal/common/auth/authorization"
 	"github.com/G-Research/armada/internal/common/logging"
 	"github.com/G-Research/armada/internal/common/requestid"
@@ -42,14 +43,16 @@ func CreateGrpcServer(authServices []authorization.AuthService) *grpc.Server {
 	tagsExtractor := grpc_ctxtags.WithFieldExtractor(grpc_ctxtags.CodeGenRequestFieldExtractor)
 	unaryInterceptors = append(unaryInterceptors,
 		grpc_ctxtags.UnaryServerInterceptor(tagsExtractor),
-		grpc_logrus.UnaryServerInterceptor(messageDefault),
 		requestid.UnaryServerInterceptor(false),
+		armadaerrors.UnaryServerInterceptor(2000),
+		grpc_logrus.UnaryServerInterceptor(messageDefault),
 		logging.UnaryServerInterceptor(),
 	)
 	streamInterceptors = append(streamInterceptors,
 		grpc_ctxtags.StreamServerInterceptor(tagsExtractor),
-		grpc_logrus.StreamServerInterceptor(messageDefault),
 		requestid.StreamServerInterceptor(false),
+		armadaerrors.StreamServerInterceptor(2000),
+		grpc_logrus.StreamServerInterceptor(messageDefault),
 		logging.StreamServerInterceptor(),
 	)
 

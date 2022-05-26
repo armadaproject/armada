@@ -236,10 +236,11 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 		defer producer.Close()
 
 		pulsarSubmitServer := &server.PulsarSubmitServer{
-			Producer:        producer,
-			QueueRepository: queueRepository,
-			Permissions:     permissions,
-			SubmitServer:    submitServer,
+			Producer:              producer,
+			QueueRepository:       queueRepository,
+			Permissions:           permissions,
+			SubmitServer:          submitServer,
+			MaxAllowedMessageSize: config.Pulsar.MaxAllowedMessageSize,
 		}
 		submitServerToRegister = pulsarSubmitServer
 
