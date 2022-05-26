@@ -124,10 +124,6 @@ class BasicAuthTest:
             queue=queue_name, job_set_id=job_set_id
         )
 
-    #  public async Task TestProcessingUnknownEvents()
-    def test_processing_unknown_events(self):
-        pass
-
 
 def test_basic_auth():
     tester = BasicAuthTest(host="127.0.0.1", port=50051, username='test', password='asdfasdf')
