@@ -57,7 +57,7 @@ func readVersion(ctx context.Context, db pgxtype.Querier) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-
+	defer result.Close()
 	var version int
 	result.Next()
 	err = result.Scan(&version)
