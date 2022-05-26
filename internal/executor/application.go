@@ -36,8 +36,11 @@ func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGrou
 		os.Exit(-1)
 	}
 
-	kubernetesClientProvider, err := cluster.NewKubernetesClientProvider(config.Kubernetes.ImpersonateUsers)
-
+	kubernetesClientProvider, err := cluster.NewKubernetesClientProvider(
+		config.Kubernetes.ImpersonateUsers,
+		config.Kubernetes.QPS,
+		config.Kubernetes.Burst,
+	)
 	if err != nil {
 		log.Errorf("Failed to connect to kubernetes because %s", err)
 		os.Exit(-1)

@@ -33,6 +33,8 @@ type ClientConfiguration struct {
 
 type KubernetesConfiguration struct {
 	ImpersonateUsers          bool
+	QPS                       float32
+	Burst                     int
 	TrackedNodeLabels         []string
 	AvoidNodeLabelsOnRetry    []string
 	ToleratedTaints           []string
