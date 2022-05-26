@@ -22,6 +22,8 @@ metric:
   exposeQueueUsageMetrics: false
 kubernetes:
   impersonateUsers: false
+  QPS: 1000
+  Burst: 10000
   minimumPodAge: 3m
   failedPodExpiry: 10m
   stuckTerminatingPodExpiry: 1m
