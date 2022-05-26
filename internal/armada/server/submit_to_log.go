@@ -11,6 +11,7 @@ import (
 	"github.com/gogo/protobuf/types"
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
+	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -23,7 +24,6 @@ import (
 	"github.com/G-Research/armada/internal/common/requestid"
 	"github.com/G-Research/armada/internal/executor/configuration"
 	"github.com/G-Research/armada/internal/pgkeyvalue"
-	"github.com/G-Research/armada/internal/pulsarutils/pulsarrequestid"
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/armadaevents"
 	"github.com/G-Research/armada/pkg/client/queue"
@@ -38,6 +38,8 @@ type PulsarSubmitServer struct {
 	Producer        pulsar.Producer
 	Permissions     authorization.PermissionChecker
 	QueueRepository repository.QueueRepository
+	// Maximum size of Pulsar messages
+	MaxAllowedMessageSize uint
 	// Fall back to the legacy submit server for queue administration endpoints.
 	SubmitServer *SubmitServer
 	// Used for job submission deduplication.
@@ -222,11 +224,6 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 		}
 	}
 
-	payload, err := proto.Marshal(sequence)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to marshal event sequence")
-	}
-
 	// Create events marking the jobs as submitted
 	err = reportSubmitted(srv.SubmitServer.eventStore, apiJobs)
 	if err != nil {
@@ -238,20 +235,11 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 		return nil, status.Errorf(codes.Internal, "error reporting duplicates: %s", err)
 	}
 
-	// Incoming gRPC requests are annotated with a unique id.
-	// Pass this id through the log by adding it to the Pulsar message properties.
-	if len(sequence.Events) > 0 {
-		requestId := requestid.FromContextOrMissing(ctx)
-		msg := &pulsar.ProducerMessage{
-			Payload:    payload,
-			Properties: map[string]string{requestid.MetadataKey: requestId},
-			Key:        req.JobSetId,
-		}
-		pulsarrequestid.AddToMessage(msg, requestId)
-		_, err = srv.Producer.Send(ctx, msg)
-		if err != nil {
-			return nil, status.Errorf(codes.Internal, "failed to send message")
-		}
+	err = srv.publishToPulsar(ctx, []*armadaevents.EventSequence{sequence})
+
+	if err != nil {
+		log.WithError(err).Error("failed send to Pulsar")
+		return nil, status.Error(codes.Internal, "Failed to send message")
 	}
 
 	return &api.JobSubmitResponse{JobResponseItems: responses}, nil
@@ -361,24 +349,11 @@ func (srv *PulsarSubmitServer) CancelJobs(ctx context.Context, req *api.JobCance
 		cancelledIds = []string{req.JobId} // indicates no error
 	}
 
-	payload, err := proto.Marshal(sequence)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to marshal event sequence")
-	}
+	err = srv.publishToPulsar(ctx, []*armadaevents.EventSequence{sequence})
 
-	// Incoming gRPC requests are annotated with a unique id.
-	// Pass this id through the log by adding it to the Pulsar message properties.
-	requestId, ok := requestid.FromContext(ctx)
-	if !ok {
-		requestId = "missing"
-	}
-	_, err = srv.Producer.Send(ctx, &pulsar.ProducerMessage{
-		Payload:    payload,
-		Properties: map[string]string{requestid.MetadataKey: requestId},
-		Key:        req.JobSetId,
-	})
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to send message")
+		log.WithError(err).Error("failed send to Pulsar")
+		return nil, status.Error(codes.Internal, "Failed to send message")
 	}
 
 	return &api.CancellationResult{
@@ -457,24 +432,11 @@ func (srv *PulsarSubmitServer) ReprioritizeJobs(ctx context.Context, req *api.Jo
 		results[jobIdString] = "" // empty string indicates no error
 	}
 
-	payload, err := proto.Marshal(sequence)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to marshal event sequence")
-	}
+	err = srv.publishToPulsar(ctx, []*armadaevents.EventSequence{sequence})
 
-	// Incoming gRPC requests are annotated with a unique id.
-	// Pass this id through the log by adding it to the Pulsar message properties.
-	requestId, ok := requestid.FromContext(ctx)
-	if !ok {
-		requestId = "missing"
-	}
-	_, err = srv.Producer.Send(ctx, &pulsar.ProducerMessage{
-		Payload:    payload,
-		Properties: map[string]string{requestid.MetadataKey: requestId},
-		Key:        req.JobSetId,
-	})
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to send message")
+		log.WithError(err).Error("failed send to Pulsar")
+		return nil, status.Error(codes.Internal, "Failed to send message")
 	}
 
 	return &api.JobReprioritizeResponse{
@@ -577,52 +539,7 @@ func (srv *PulsarSubmitServer) SubmitApiEvents(ctx context.Context, apiEvents []
 		return nil
 	}
 
-	// Incoming gRPC requests are annotated with a unique id.
-	// Pass this id through the log by adding it to the Pulsar message properties.
-	requestId := requestid.FromContextOrMissing(ctx)
-
-	// Send each sequence async. Collect any errors via ch.
-	ch := make(chan error, len(sequences))
-	defer close(ch)
-	for _, sequence := range sequences {
-		payload, err := proto.Marshal(sequence)
-		if err != nil {
-			return errors.WithStack(err)
-		}
-
-		srv.Producer.SendAsync(
-			ctx,
-			&pulsar.ProducerMessage{
-				Payload: payload,
-				Properties: map[string]string{
-					requestid.MetadataKey:                     requestId,
-					armadaevents.PULSAR_MESSAGE_TYPE_PROPERTY: armadaevents.PULSAR_CONTROL_MESSAGE,
-				},
-				Key: sequence.JobSetName,
-			},
-			// Callback on send.
-			func(_ pulsar.MessageID, _ *pulsar.ProducerMessage, err error) {
-				ch <- err
-			},
-		)
-		if err != nil {
-			err = errors.WithStack(err)
-			return err
-		}
-	}
-
-	// Flush queued messages and wait until persisted.
-	err = srv.Producer.Flush()
-	if err != nil {
-		return err
-	}
-
-	// Collect any errors experienced by the async send and return.
-	var result *multierror.Error
-	for range sequences {
-		result = multierror.Append(result, <-ch)
-	}
-	return result.ErrorOrNil()
+	return srv.publishToPulsar(ctx, sequences)
 }
 
 // SubmitApiEvent converts an api.EventMessage into Pulsar state transition messages and publishes those to Pulsar.
@@ -660,4 +577,59 @@ func (srv *PulsarSubmitServer) SubmitApiEvent(ctx context.Context, apiEvent *api
 	}
 
 	return nil
+}
+
+// PublishToPulsar sends pulsar messages async
+func (srv *PulsarSubmitServer) publishToPulsar(ctx context.Context, sequences []*armadaevents.EventSequence) error {
+
+	// Incoming gRPC requests are annotated with a unique id.
+	// Pass this id through the log by adding it to the Pulsar message properties.
+	requestId := requestid.FromContextOrMissing(ctx)
+
+	// Reduce the number of sequences to send to the minimum possible,
+	// and then break up any sequences larger than srv.MaxAllowedMessageSize.
+	sequences = eventutil.CompactEventSequences(sequences)
+	sequences, err := eventutil.LimitSequencesByteSize(sequences, int(srv.MaxAllowedMessageSize))
+	if err != nil {
+		return err
+	}
+
+	// Send each sequence async. Collect any errors via ch.
+	ch := make(chan error, len(sequences))
+	defer close(ch)
+	for _, sequence := range sequences {
+		payload, err := proto.Marshal(sequence)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+
+		srv.Producer.SendAsync(
+			ctx,
+			&pulsar.ProducerMessage{
+				Payload: payload,
+				Properties: map[string]string{
+					requestid.MetadataKey:                     requestId,
+					armadaevents.PULSAR_MESSAGE_TYPE_PROPERTY: armadaevents.PULSAR_CONTROL_MESSAGE,
+				},
+				Key: sequence.JobSetName,
+			},
+			// Callback on send.
+			func(_ pulsar.MessageID, _ *pulsar.ProducerMessage, err error) {
+				ch <- err
+			},
+		)
+	}
+
+	// Flush queued messages and wait until persisted.
+	err = srv.Producer.Flush()
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
+	// Collect any errors experienced by the async send and return.
+	var result *multierror.Error
+	for range sequences {
+		result = multierror.Append(result, <-ch)
+	}
+	return result.ErrorOrNil()
 }

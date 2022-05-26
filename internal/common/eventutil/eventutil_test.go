@@ -372,7 +372,7 @@ func testContainer(name string) v1.Container {
 	}
 }
 
-func TestCompactSequences(t *testing.T) {
+func TestCompactSequences_Basic(t *testing.T) {
 
 	sequences := []*armadaevents.EventSequence{
 		{
@@ -397,7 +397,7 @@ func TestCompactSequences(t *testing.T) {
 			Queue:      "queue1",
 			UserId:     "userId1",
 			JobSetName: "jobSetName1",
-			Groups:     []string{"group1", "group2", "group3"},
+			Groups:     []string{"group1", "group2"},
 			Events: []*armadaevents.EventSequence_Event{
 				{Event: &armadaevents.EventSequence_Event_CancelJob{}},
 			},
@@ -428,4 +428,287 @@ func TestCompactSequences(t *testing.T) {
 
 	actual := CompactEventSequences(sequences)
 	assert.Equal(t, expected, actual)
+}
+
+func TestCompactSequences_JobSetOrder(t *testing.T) {
+
+	sequences := []*armadaevents.EventSequence{
+		{
+			Queue:      "queue1",
+			UserId:     "userId1",
+			JobSetName: "jobSetName1",
+			Groups:     []string{"group1", "group2"},
+			Events: []*armadaevents.EventSequence_Event{
+				{Event: &armadaevents.EventSequence_Event_SubmitJob{}},
+			},
+		},
+		{
+			Queue:      "queue1",
+			UserId:     "userId1",
+			JobSetName: "jobSetName1",
+			Groups:     []string{"group1", "group2", "group3"},
+			Events: []*armadaevents.EventSequence_Event{
+				{Event: &armadaevents.EventSequence_Event_SubmitJob{}},
+			},
+		},
+		{
+			Queue:      "queue1",
+			UserId:     "userId1",
+			JobSetName: "jobSetName2",
+			Groups:     []string{"group1", "group2"},
+			Events: []*armadaevents.EventSequence_Event{
+				{Event: &armadaevents.EventSequence_Event_SubmitJob{}},
+			},
+		},
+		{
+			Queue:      "queue1",
+			UserId:     "userId1",
+			JobSetName: "jobSetName1",
+			Groups:     []string{"group1", "group2"},
+			Events: []*armadaevents.EventSequence_Event{
+				{Event: &armadaevents.EventSequence_Event_ReprioritiseJob{}},
+			},
+		},
+		{
+			Queue:      "queue1",
+			UserId:     "userId1",
+			JobSetName: "jobSetName2",
+			Groups:     []string{"group1", "group2"},
+			Events: []*armadaevents.EventSequence_Event{
+				{Event: &armadaevents.EventSequence_Event_CancelJob{}},
+			},
+		},
+		{
+			Queue:      "queue1",
+			UserId:     "userId1",
+			JobSetName: "jobSetName1",
+			Groups:     []string{"group1", "group2"},
+			Events: []*armadaevents.EventSequence_Event{
+				{Event: &armadaevents.EventSequence_Event_CancelJob{}},
+			},
+		},
+	}
+
+	expected := []*armadaevents.EventSequence{
+		{
+			Queue:      "queue1",
+			UserId:     "userId1",
+			JobSetName: "jobSetName1",
+			Groups:     []string{"group1", "group2"},
+			Events: []*armadaevents.EventSequence_Event{
+				{Event: &armadaevents.EventSequence_Event_SubmitJob{}},
+			},
+		},
+		{
+			Queue:      "queue1",
+			UserId:     "userId1",
+			JobSetName: "jobSetName1",
+			Groups:     []string{"group1", "group2", "group3"},
+			Events: []*armadaevents.EventSequence_Event{
+				{Event: &armadaevents.EventSequence_Event_SubmitJob{}},
+			},
+		},
+		{
+			Queue:      "queue1",
+			UserId:     "userId1",
+			JobSetName: "jobSetName1",
+			Groups:     []string{"group1", "group2"},
+			Events: []*armadaevents.EventSequence_Event{
+				{Event: &armadaevents.EventSequence_Event_ReprioritiseJob{}},
+				{Event: &armadaevents.EventSequence_Event_CancelJob{}},
+			},
+		},
+		{
+			Queue:      "queue1",
+			UserId:     "userId1",
+			JobSetName: "jobSetName2",
+			Groups:     []string{"group1", "group2"},
+			Events: []*armadaevents.EventSequence_Event{
+				{Event: &armadaevents.EventSequence_Event_SubmitJob{}},
+				{Event: &armadaevents.EventSequence_Event_CancelJob{}},
+			},
+		},
+	}
+
+	actual := CompactEventSequences(sequences)
+	assert.Equal(t, expected, actual)
+}
+
+func TestCompactSequences_Groups(t *testing.T) {
+
+	sequences := []*armadaevents.EventSequence{
+		{
+			Queue:      "queue1",
+			UserId:     "userId1",
+			JobSetName: "jobSetName1",
+			Groups:     []string{"group1"},
+			Events: []*armadaevents.EventSequence_Event{
+				{Event: &armadaevents.EventSequence_Event_SubmitJob{}},
+			},
+		},
+		{
+			Queue:      "queue1",
+			UserId:     "userId1",
+			JobSetName: "jobSetName1",
+			Groups:     []string{"group1"},
+			Events: []*armadaevents.EventSequence_Event{
+				{Event: &armadaevents.EventSequence_Event_CancelJob{}},
+			},
+		},
+		{
+			Queue:      "queue1",
+			UserId:     "userId1",
+			JobSetName: "jobSetName1",
+			Groups:     []string{},
+			Events: []*armadaevents.EventSequence_Event{
+				{Event: &armadaevents.EventSequence_Event_SubmitJob{}},
+			},
+		},
+		{
+			Queue:      "queue1",
+			UserId:     "userId1",
+			JobSetName: "jobSetName1",
+			Groups:     []string{},
+			Events: []*armadaevents.EventSequence_Event{
+				{Event: &armadaevents.EventSequence_Event_CancelJob{}},
+			},
+		},
+		{
+			Queue:      "queue1",
+			UserId:     "userId1",
+			JobSetName: "jobSetName1",
+			Groups:     nil,
+			Events: []*armadaevents.EventSequence_Event{
+				{Event: &armadaevents.EventSequence_Event_SubmitJob{}},
+			},
+		},
+		{
+			Queue:      "queue1",
+			UserId:     "userId1",
+			JobSetName: "jobSetName1",
+			Groups:     nil,
+			Events: []*armadaevents.EventSequence_Event{
+				{Event: &armadaevents.EventSequence_Event_CancelJob{}},
+			},
+		},
+	}
+
+	expected := []*armadaevents.EventSequence{
+		{
+			Queue:      "queue1",
+			UserId:     "userId1",
+			JobSetName: "jobSetName1",
+			Groups:     []string{"group1"},
+			Events: []*armadaevents.EventSequence_Event{
+				{Event: &armadaevents.EventSequence_Event_SubmitJob{}},
+				{Event: &armadaevents.EventSequence_Event_CancelJob{}},
+			},
+		},
+		{
+			Queue:      "queue1",
+			UserId:     "userId1",
+			JobSetName: "jobSetName1",
+			Groups:     []string{},
+			Events: []*armadaevents.EventSequence_Event{
+				{Event: &armadaevents.EventSequence_Event_SubmitJob{}},
+				{Event: &armadaevents.EventSequence_Event_CancelJob{}},
+				{Event: &armadaevents.EventSequence_Event_SubmitJob{}},
+				{Event: &armadaevents.EventSequence_Event_CancelJob{}},
+			},
+		},
+	}
+
+	actual := CompactEventSequences(sequences)
+	assert.Equal(t, expected, actual)
+}
+
+func TestLimitSequenceByteSize(t *testing.T) {
+	sequence := &armadaevents.EventSequence{
+		Queue:      "queue1",
+		UserId:     "userId1",
+		JobSetName: "jobSetName1",
+		Groups:     []string{"group1", "group2"},
+		Events:     nil,
+	}
+
+	// 10 events, each of size 10 bytes + a little more.
+	// At the time of writing, each event is 14 bytes and the sequence with no event is of size 46 bytes.
+	numEvents := 3
+	for i := 0; i < numEvents; i++ {
+		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
+			Event: &armadaevents.EventSequence_Event_SubmitJob{
+				SubmitJob: &armadaevents.SubmitJob{
+					DeduplicationId: "1234567890",
+				},
+			},
+		})
+	}
+
+	actual, err := LimitSequenceByteSize(sequence, 1000)
+	if !assert.NoError(t, err) {
+		return
+	}
+	assert.Equal(t, []*armadaevents.EventSequence{sequence}, actual)
+
+	_, err = LimitSequenceByteSize(sequence, 1)
+	assert.Error(t, err)
+
+	expected := make([]*armadaevents.EventSequence, numEvents)
+	for i := 0; i < numEvents; i++ {
+		expected[i] = &armadaevents.EventSequence{
+			Queue:      "queue1",
+			UserId:     "userId1",
+			JobSetName: "jobSetName1",
+			Groups:     []string{"group1", "group2"},
+			Events: []*armadaevents.EventSequence_Event{
+				{
+					Event: &armadaevents.EventSequence_Event_SubmitJob{
+						SubmitJob: &armadaevents.SubmitJob{
+							DeduplicationId: "1234567890",
+						},
+					},
+				},
+			},
+		}
+	}
+	actual, err = LimitSequenceByteSize(sequence, 60)
+	if !assert.NoError(t, err) {
+		return
+	}
+	assert.Equal(t, expected, actual)
+}
+
+func TestLimitSequencesByteSize(t *testing.T) {
+	numSequences := 3
+	numEvents := 3
+	sequences := make([]*armadaevents.EventSequence, 0)
+	for i := 0; i < numEvents; i++ {
+		sequence := &armadaevents.EventSequence{
+			Queue:      "queue1",
+			UserId:     "userId1",
+			JobSetName: "jobSetName1",
+			Groups:     []string{"group1", "group2"},
+			Events:     nil,
+		}
+
+		// 10 events, each of size 10 bytes + a little more.
+		// At the time of writing, each event is 14 bytes and the sequence with no event is of size 46 bytes.
+		for i := 0; i < numEvents; i++ {
+			sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
+				Event: &armadaevents.EventSequence_Event_SubmitJob{
+					SubmitJob: &armadaevents.SubmitJob{
+						DeduplicationId: "1234567890",
+					},
+				},
+			})
+		}
+
+		sequences = append(sequences, sequence)
+	}
+
+	actual, err := LimitSequencesByteSize(sequences, 60)
+	if !assert.NoError(t, err) {
+		return
+	}
+	assert.Equal(t, numSequences*numEvents, len(actual))
 }

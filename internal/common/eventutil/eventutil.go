@@ -8,6 +8,7 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/pkg/errors"
+	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	networking "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -382,36 +383,128 @@ func EventSequencesFromApiEvents(msgs []*api.EventMessage) ([]*armadaevents.Even
 }
 
 // CompactEventSequences converts a []*armadaevents.EventSequence into a []*armadaevents.EventSequence of minimal length.
-// In particular, it moves all events part of sequences with equal (queue, jobSetName, userId) into a single sequence.
-// The groups field is set to that of the first event in the sequence for a each (queue, jobSetName, userId).
-// This function may mutates the input sequences, i.e., it should be used like
-// sequences = CompactEventSequences(sequences).
+// In particular, it moves events with equal (queue, jobSetName, userId, groups) into a single sequence.
+// when doing so is possible without changing the order of events within job sets.
+//
+// For example, three sequences [A, B, C], [D, E], [F, G]
+// could result in the following two sequences [A, B, C, F, G], [D, E],
+// if sequence 1 and 3 share the same (queue, jobSetName, userId, groups)
+// and if the sequence [D, E] is for a different job set.
 func CompactEventSequences(sequences []*armadaevents.EventSequence) []*armadaevents.EventSequence {
 
-	// These fields must be shared by all events in a sequence.
-	type Key struct {
-		Queue      string
-		JobSetName string
-		UserId     string
-	}
-	sequenceFromKey := make(map[Key]*armadaevents.EventSequence)
-
+	// We may change ordering between job sets but not within job sets.
+	// To ensure the order of the resulting compacted sequences is deterministic,
+	// store a slice of all unique jobSetNames in the order they occur in sequences.
+	numSequences := 0
+	jobSetNames := make([]string, 0)
+	sequencesFromJobSetName := make(map[string][]*armadaevents.EventSequence)
 	for _, sequence := range sequences {
-		key := Key{sequence.Queue, sequence.JobSetName, sequence.UserId}
-		if combinedSequence, ok := sequenceFromKey[key]; ok {
-			combinedSequence.Events = append(combinedSequence.Events, sequence.Events...)
-		} else {
-			sequenceFromKey[key] = sequence
+		if sequence == nil || len(sequence.Events) == 0 {
+			continue // Skip empty sequences.
+		}
+		// Consider sequences within the same jobSet for compaction.
+		if jobSetSequences, ok := sequencesFromJobSetName[sequence.JobSetName]; ok {
+
+			// This first if should never trigger.
+			if len(jobSetSequences) == 0 {
+				numSequences++
+				sequencesFromJobSetName[sequence.JobSetName] = append(jobSetSequences, sequence)
+			} else {
+				// Merge events in sequence into the last sequence for this jobSet if (queue, jobSetName, userId, groups) are equal.
+				lastSequence := jobSetSequences[len(jobSetSequences)-1]
+				if lastSequence != nil && sequence.Queue == lastSequence.Queue && sequence.UserId == lastSequence.UserId && groupsEqual(sequence.Groups, lastSequence.Groups) {
+					lastSequence.Events = append(lastSequence.Events, sequence.Events...)
+				} else {
+					numSequences++
+					sequencesFromJobSetName[sequence.JobSetName] = append(jobSetSequences, sequence)
+				}
+			}
+		} else { // Create a new slice the first time we see a jobSet.
+			numSequences++
+			jobSetNames = append(jobSetNames, sequence.JobSetName)
+			sequencesFromJobSetName[sequence.JobSetName] = []*armadaevents.EventSequence{sequence}
 		}
 	}
 
-	sequences = make([]*armadaevents.EventSequence, 0, len(sequenceFromKey))
-	for _, sequence := range sequenceFromKey {
-		if len(sequence.Events) > 0 {
-			sequences = append(sequences, sequence)
+	// Flatten the map to return a slice of sequences.
+	sequences = make([]*armadaevents.EventSequence, 0, numSequences)
+	for _, jobSetName := range jobSetNames {
+		if jobSetSequences, ok := sequencesFromJobSetName[jobSetName]; ok {
+			sequences = append(sequences, jobSetSequences...)
+		} else {
+			log.Errorf("no sequence found for jobSetName %s; this should never happen", jobSetName)
 		}
 	}
+
 	return sequences
+}
+
+func groupsEqual(g1, g2 []string) bool {
+	if len(g1) == 0 && len(g2) == 0 {
+		return true // Consider make []string{} and nil equal.
+	}
+	if len(g1) != len(g2) {
+		return false
+	}
+	for i := range g1 {
+		if g1[i] != g2[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// LimitSequencesByteSize calls LimitSequenceByteSize for each of the provided sequences
+// and returns all resulting sequences.
+func LimitSequencesByteSize(sequences []*armadaevents.EventSequence, sizeInBytes int) ([]*armadaevents.EventSequence, error) {
+	rv := make([]*armadaevents.EventSequence, 0, len(sequences))
+	for _, sequence := range sequences {
+		limitedSequences, err := LimitSequenceByteSize(sequence, sizeInBytes)
+		if err != nil {
+			return nil, err
+		}
+		rv = append(rv, limitedSequences...)
+	}
+	return rv, nil
+}
+
+// LimitSequenceByteSize returns a slice of sequences produced by breaking up sequence.Events
+// into separate sequences, each of which is at most MAX_SEQUENCE_SIZE_IN_BYTES bytes in size.
+func LimitSequenceByteSize(sequence *armadaevents.EventSequence, sizeInBytes int) ([]*armadaevents.EventSequence, error) {
+
+	// Compute the size of the sequence without events.
+	events := sequence.Events
+	sequence.Events = make([]*armadaevents.EventSequence_Event, 0)
+	headerSize := proto.Size(sequence)
+	sequence.Events = events
+
+	// var currentSequence *armadaevents.EventSequence
+	sequences := make([]*armadaevents.EventSequence, 0, 1)
+	lastSequenceEventSize := 0
+	for _, event := range sequence.Events {
+		eventSize := proto.Size(event)
+		if eventSize+headerSize > sizeInBytes {
+			return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
+				Name:    "sequence",
+				Value:   sequence,
+				Message: fmt.Sprintf("sequence header is of size %d and sequence contains an event of size %d bytes, but the sequence size limit is %d", headerSize, eventSize, sizeInBytes),
+			})
+		}
+		if len(sequences) == 0 || lastSequenceEventSize+eventSize+headerSize > sizeInBytes {
+			sequences = append(sequences, &armadaevents.EventSequence{
+				Queue:      sequence.Queue,
+				JobSetName: sequence.JobSetName,
+				UserId:     sequence.UserId,
+				Groups:     sequence.Groups,
+				Events:     nil,
+			})
+			lastSequenceEventSize = 0
+		}
+		lastSequence := sequences[len(sequences)-1]
+		lastSequence.Events = append(lastSequence.Events, event)
+		lastSequenceEventSize += eventSize
+	}
+	return sequences, nil
 }
 
 // EventSequenceFromApiEvent converts an api.EventMessage into the corresponding Pulsar event
@@ -460,7 +553,7 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
 			Event: &armadaevents.EventSequence_Event_JobRunLeased{
 				JobRunLeased: &armadaevents.JobRunLeased{
-					RunId:      legacyJobRunId(),
+					RunId:      LegacyJobRunId(),
 					JobId:      jobId,
 					ExecutorId: m.Leased.ClusterId,
 				},
@@ -479,7 +572,7 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 		if err != nil {
 			// Because LeaseReturned may be generated before the job is running, the KubernetesId may be missing.
 			// In this scenario, we make up an empty id.
-			runId = legacyJobRunId()
+			runId = LegacyJobRunId()
 		}
 
 		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
@@ -518,7 +611,7 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
 			Event: &armadaevents.EventSequence_Event_JobRunErrors{
 				JobRunErrors: &armadaevents.JobRunErrors{
-					RunId: legacyJobRunId(),
+					RunId: LegacyJobRunId(),
 					JobId: jobId,
 					Errors: []*armadaevents.Error{
 						{
@@ -662,7 +755,7 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 		runId, err := armadaevents.ProtoUuidFromUuidString(m.Failed.KubernetesId)
 		if err != nil {
 			// If a job fails without ever being assigned to a node, there won't be a KubernetesId.
-			runId = legacyJobRunId()
+			runId = LegacyJobRunId()
 		}
 
 		// EventMessage_Failed contains one error for each container.
@@ -940,10 +1033,10 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 }
 
 // Id used for messages for which we can't use the kubernetesId.
-const LEGACY_RUN_ID = "00000000000000000000000000"
+const LEGACY_RUN_ID = "00000000-0000-0000-0000-000000000000"
 
-func legacyJobRunId() *armadaevents.Uuid {
-	jobRunId, err := armadaevents.ProtoUuidFromUlidString(LEGACY_RUN_ID)
+func LegacyJobRunId() *armadaevents.Uuid {
+	jobRunId, err := armadaevents.ProtoUuidFromUuidString(LEGACY_RUN_ID)
 	if err != nil {
 		panic(err)
 	}

@@ -5,6 +5,8 @@ import (
 	"os/signal"
 	"sync"
 
+	"github.com/G-Research/armada/internal/common/compress"
+
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/sirupsen/logrus"
@@ -17,7 +19,6 @@ import (
 	"github.com/G-Research/armada/internal/lookoutingester/instructions"
 	"github.com/G-Research/armada/internal/lookoutingester/lookoutdb"
 	"github.com/G-Research/armada/internal/lookoutingester/model"
-	"github.com/G-Research/armada/internal/lookoutingester/pulsario"
 	"github.com/G-Research/armada/internal/pulsarutils"
 )
 
@@ -65,10 +66,10 @@ func Run(config *configuration.LookoutIngesterConfiguration) {
 		}
 
 		// Receive Pulsar messages on a channel
-		pulsarMsgs := pulsario.Receive(ctx, consumer, i, 2*config.BatchSize, config.PulsarReceiveTimeout, config.PulsarBackoffTime)
+		pulsarMsgs := pulsarutils.Receive(ctx, consumer, i, 2*config.BatchSize, config.PulsarReceiveTimeout, config.PulsarBackoffTime)
 
 		// Turn the messages into instructions
-		compressor, err := instructions.NewZlibCompressor(config.MinJobSpecCompressionSize)
+		compressor, err := compress.NewZlibCompressor(config.MinJobSpecCompressionSize)
 		if err != nil {
 			log.Errorf("Error creating compressor for consumer %d", i)
 			panic(err)
@@ -93,7 +94,7 @@ func Run(config *configuration.LookoutIngesterConfiguration) {
 	wg.Add(1)
 
 	// Ack the messages- we pass a waitgroup here that will tell us when the pipeline has shutdown
-	go pulsario.Ack(ctx, consumers, acks, &wg)
+	go pulsarutils.Ack(ctx, consumers, acks, &wg)
 
 	log.Info("Ingestion pipeline set up.  Running until shutdown event received")
 	// wait for a shutdown event
