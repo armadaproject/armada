@@ -4,6 +4,7 @@ version = "0.1.0"
 description = ""
 authors = ["Kevin Hannon <kevin@gr-oss.io> Andrew Cone <andrew@gr-oss.io>"]
 license = "APACHE"
+include = ["**/armada_client/**/*.py"]
 
 [tool.poetry.dependencies]
 python = "^3.7"
@@ -16,6 +17,7 @@ mypy = "^0.950"
 pylint = "^2.13.8"
 flake8 = "^4.0.1"
 pytest = "^7.1.2"
+twine = "^4.0.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
