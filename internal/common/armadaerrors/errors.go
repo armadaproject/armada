@@ -400,7 +400,7 @@ func UnaryServerInterceptor(maxErrorSize int) grpc.UnaryServerInterceptor {
 
 		// Limit error message size.
 		if len(errorMessage) > maxErrorSize {
-			errorMessage = errorMessage[:maxErrorSize]
+			errorMessage = errorMessage[:maxErrorSize] + "... (truncated)"
 		}
 
 		return rv, status.Error(code, errorMessage)
@@ -433,7 +433,7 @@ func StreamServerInterceptor(maxErrorSize int) grpc.StreamServerInterceptor {
 
 		// Limit error message size.
 		if len(errorMessage) > maxErrorSize {
-			errorMessage = errorMessage[:maxErrorSize]
+			errorMessage = errorMessage[:maxErrorSize] + "... (truncated)"
 		}
 
 		return status.Error(code, errorMessage)
