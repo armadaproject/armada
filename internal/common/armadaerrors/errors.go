@@ -376,7 +376,7 @@ func IsNetworkError(err error) bool {
 //
 // To log the full error chain and return only the cause to the user, insert this interceptor before
 // the logging interceptor.
-func UnaryServerInterceptor(maxErrorSize int) grpc.UnaryServerInterceptor {
+func UnaryServerInterceptor(maxErrorSize uint) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 		rv, err := handler(ctx, req)
 
@@ -399,7 +399,7 @@ func UnaryServerInterceptor(maxErrorSize int) grpc.UnaryServerInterceptor {
 		}
 
 		// Limit error message size.
-		if len(errorMessage) > maxErrorSize {
+		if len(errorMessage) > int(maxErrorSize) {
 			errorMessage = errorMessage[:maxErrorSize] + "... (truncated)"
 		}
 
@@ -409,7 +409,7 @@ func UnaryServerInterceptor(maxErrorSize int) grpc.UnaryServerInterceptor {
 
 // StreamServerInterceptor returns an interceptor that extracts the cause of an error chain
 // and returns it as a gRPC status error. It also limits the number of characters returned.
-func StreamServerInterceptor(maxErrorSize int) grpc.StreamServerInterceptor {
+func StreamServerInterceptor(maxErrorSize uint) grpc.StreamServerInterceptor {
 	return func(srv interface{}, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		err := handler(srv, stream)
 
@@ -432,7 +432,7 @@ func StreamServerInterceptor(maxErrorSize int) grpc.StreamServerInterceptor {
 		}
 
 		// Limit error message size.
-		if len(errorMessage) > maxErrorSize {
+		if len(errorMessage) > int(maxErrorSize) {
 			errorMessage = errorMessage[:maxErrorSize] + "... (truncated)"
 		}
 
