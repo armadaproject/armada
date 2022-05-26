@@ -1,11 +1,9 @@
-package testutil
+package pulsarutils
 
 import (
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
-
-	"github.com/G-Research/armada/internal/lookoutingester/model"
 )
 
 type MockMessageId struct {
@@ -24,8 +22,8 @@ func NewMessageId(id int) pulsar.MessageID {
 	return MockMessageId{id: id}
 }
 
-func NewConsumerMessageId(id int) *model.ConsumerMessageId {
-	return &model.ConsumerMessageId{
+func NewConsumerMessageId(id int) *ConsumerMessageId {
+	return &ConsumerMessageId{
 		MessageId:  MockMessageId{id: id},
 		ConsumerId: id,
 	}

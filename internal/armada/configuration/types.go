@@ -33,8 +33,8 @@ type ArmadaConfig struct {
 	EventRetention    EventRetentionPolicy
 	Pulsar            PulsarConfig
 	Postgres          PostgresConfig // Used for Pulsar submit API deduplication
-
-	Metrics MetricsConfig
+	EventApi          EventApiConfig
+	Metrics           MetricsConfig
 }
 
 type PulsarConfig struct {
@@ -151,4 +151,12 @@ type QueueManagementConfig struct {
 
 type MetricsConfig struct {
 	RefreshInterval time.Duration
+}
+
+type EventApiConfig struct {
+	Enabled          bool
+	QueryConcurrency int
+	JobsetCacheSize  int
+	UpdateTopic      string
+	Postgres         PostgresConfig
 }

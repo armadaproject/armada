@@ -1,11 +1,11 @@
 syntax = 'proto3';
 package armadaevents;
 
-import "google/protobuf/timestamp.proto";
-import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 import "k8s.io/api/core/v1/generated.proto";
 import "k8s.io/api/networking/v1/generated.proto";
+import "google/protobuf/timestamp.proto";
 import "k8s.io/apimachinery/pkg/api/resource/generated.proto";
+import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 
 // Armada state transition model
 //
@@ -451,4 +451,17 @@ message MaxRunsExceeded {
 message JobDuplicateDetected {
     Uuid new_job_id = 1;
     Uuid old_job_id = 2;
+}
+
+message SeqUpdate{
+    int64 jobsetId = 1;
+    int64 seqNo = 2;
+}
+
+message SeqUpdates{
+    repeated SeqUpdate updates = 1;
+}
+
+message DatabaseSequence{
+    EventSequence eventSequence = 1;
 }
