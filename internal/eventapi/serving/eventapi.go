@@ -4,6 +4,8 @@ import (
 	ctx "context"
 	"math"
 
+	"github.com/pkg/errors"
+
 	"github.com/gogo/protobuf/proto"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -77,10 +79,10 @@ func (r *EventApi) GetJobSetEvents(request *api.JobSetRequest, stream api.Event_
 			if err != nil {
 				return err
 			}
-			dbEvent := &armadaevents.DatabaseEvent{}
+			dbEvent := &armadaevents.DatabaseSequence{}
 			err = proto.Unmarshal(decompressedEvent, dbEvent)
 			if err != nil {
-				return err
+				return errors.WithStack(err)
 			}
 			// These fields are not present in the db messages, so we add them back here
 			dbEvent.EventSequence.Queue = request.Queue
@@ -97,7 +99,7 @@ func (r *EventApi) GetJobSetEvents(request *api.JobSetRequest, stream api.Event_
 						Message: apiEvent,
 					})
 					if err != nil {
-						return status.Errorf(codes.Unavailable, "[GetJobSetEvents] error sending event: %s", err)
+						return status.Errorf(codes.Unavailable, "[GetJobSetEvents] error sending event: %s", errors.WithStack(err))
 					}
 				}
 				msgIndex++

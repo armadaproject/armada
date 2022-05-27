@@ -3,9 +3,10 @@ CREATE TABLE jobset
     id        bigserial PRIMARY KEY,
     queue     text NOT NULL,
     jobset    text NOT NULL,
-    created   timestamp,
+    created   timestamp DEFAULT NOW(),
     UNIQUE (queue, jobset)
 );
+CREATE UNIQUE INDEX idx_queue_jobset ON jobset(queue, jobset);
 CREATE INDEX idx_jobset_created ON jobset(created);
 
 CREATE TABLE latest_seqno

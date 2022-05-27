@@ -73,6 +73,8 @@ type PulsarConfig struct {
 	// Log all pulsar events
 	EventsPrinterSubscription string
 	EventsPrinter             bool
+	// Maximum allowed message size in bytes
+	MaxAllowedMessageSize uint
 }
 
 type SchedulingConfig struct {

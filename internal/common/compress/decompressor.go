@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"compress/zlib"
 	"io"
+
+	"github.com/pkg/errors"
 )
 
 // Decompressor is a fast, single threaded compressor.
@@ -42,13 +44,13 @@ func (d *ZlibDecompressor) Decompress(b []byte) ([]byte, error) {
 	if d.reader == nil {
 		reader, err := zlib.NewReader(inputBuffer)
 		if err != nil {
-			return nil, err
+			return nil, errors.WithStack(err)
 		}
 		d.reader = reader
 	} else {
 		err := d.reader.(zlib.Resetter).Reset(inputBuffer, nil)
 		if err != nil {
-			return nil, err
+			return nil, errors.WithStack(err)
 		}
 		d.outputBuffer.Reset()
 	}
@@ -56,7 +58,7 @@ func (d *ZlibDecompressor) Decompress(b []byte) ([]byte, error) {
 	// Decompress
 	_, err := io.Copy(d.outputBuffer, d.reader)
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 	decompressed := d.outputBuffer.Bytes()
 	return decompressed, nil

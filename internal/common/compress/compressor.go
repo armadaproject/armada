@@ -3,6 +3,8 @@ package compress
 import (
 	"bytes"
 	"compress/zlib"
+
+	"github.com/pkg/errors"
 )
 
 // Compressor is a fast, single threaded compressor.
@@ -34,11 +36,11 @@ func NewZlibCompressor(minCompressSize int) (*ZlibCompressor, error) {
 	var b bytes.Buffer
 	compressedWriter, err := zlib.NewWriterLevel(&b, zlib.BestSpeed)
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 	unCompressedWriter, err := zlib.NewWriterLevel(&b, zlib.NoCompression)
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 
 	return &ZlibCompressor{
@@ -66,7 +68,7 @@ func (c *ZlibCompressor) Compress(b []byte) ([]byte, error) {
 	// For some reason writer.Flush() doesn't work here
 	err = writer.Close()
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 	compressed := make([]byte, len(c.buffer.Bytes()))
 	copy(compressed, c.buffer.Bytes())

@@ -3,9 +3,10 @@ package eventdb
 import (
 	"context"
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"strings"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/jackc/pgtype/pgxtype"
 	"github.com/jackc/pgx/v4"
@@ -90,7 +91,7 @@ func (e *EventDb) InsertSeqNos(ctx context.Context, seqNos []*model.SeqNoRow) er
 				  seqno         bigint,
 				  update_time   timestamp
 				) ON COMMIT DROP;`, tmpTable))
-		return err
+		return errors.WithStack(err)
 	}
 
 	insertTmp := func(tx pgx.Tx) error {
@@ -105,7 +106,7 @@ func (e *EventDb) InsertSeqNos(ctx context.Context, seqNos []*model.SeqNoRow) er
 				}, nil
 			}),
 		)
-		return err
+		return errors.WithStack(err)
 	}
 
 	copyToDest := func(tx pgx.Tx) error {
@@ -116,7 +117,7 @@ func (e *EventDb) InsertSeqNos(ctx context.Context, seqNos []*model.SeqNoRow) er
 					ON CONFLICT (jobset_id)
 					DO UPDATE SET seqno = EXCLUDED.seqno`, tmpTable),
 		)
-		return err
+		return errors.WithStack(err)
 	}
 
 	return database.BatchInsert(ctx, e.db, createTmp, insertTmp, copyToDest)
@@ -136,7 +137,7 @@ func (e *EventDb) InsertEvents(ctx context.Context, events []*model.EventRow) er
 				  seqno      bigint,
 				  event      bytea
 				) ON COMMIT DROP;`, tmpTable))
-		return err
+		return errors.WithStack(err)
 	}
 
 	insertTmp := func(tx pgx.Tx) error {
@@ -161,7 +162,7 @@ func (e *EventDb) InsertEvents(ctx context.Context, events []*model.EventRow) er
 					INSERT INTO event (jobset_id, seqno, event) SELECT * from %s
 					ON CONFLICT DO NOTHING`, tmpTable),
 		)
-		return err
+		return errors.WithStack(err)
 	}
 
 	return database.BatchInsert(ctx, e.db, createTmp, insertTmp, copyToDest)
@@ -236,27 +237,27 @@ func (e *EventDb) GetEvents(requests []*model.EventRequest, limit int) ([]*model
 	return results, nil
 }
 
-// LoadJobsetsAfter Loads all Jobsets created after the supplied time
+// LoadJobsetsAfter Loads all Jobsets created the supplied time
 func (e *EventDb) LoadJobsetsAfter(ctx context.Context, after time.Time) ([]*model.JobsetRow, error) {
 	rows, err := e.db.Query(ctx, "SELECT id, queue, jobset, created FROM jobset WHERE created > $1", after)
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 	jobsets := make([]*model.JobsetRow, 0)
 	for rows.Next() {
 		jobset := &model.JobsetRow{}
 		err := rows.Scan(&jobset.JobSetId, &jobset.Queue, &jobset.Jobset, &jobset.Created)
 		if err != nil {
-			return nil, err
+			return nil, errors.WithStack(err)
 		}
 		jobsets = append(jobsets, jobset)
 	}
 	return jobsets, nil
 }
 
-// LoadSeqNosAfter Loads all sequence numbers from jobsets which have had uypdates after the given cutoff time
-func (e *EventDb) LoadSeqNosAfter(ctx context.Context, after time.Time) ([]*model.SeqNoRow, error) {
-	rows, err := e.db.Query(ctx, "SELECT jobset_id, seqno, update_time FROM latest_seqno WHERE update_time > $1 ORDER BY jobset_id", after)
+// LoadSeqNos Loads all sequence numbers.  This could be very  large so is mainly intended for test purposes
+func (e *EventDb) LoadSeqNos(ctx context.Context) ([]*model.SeqNoRow, error) {
+	rows, err := e.db.Query(ctx, "SELECT jobset_id, seqno, update_time FROM latest_seqno ORDER BY jobset_id")
 	if err != nil {
 		return nil, err
 	}
@@ -265,7 +266,7 @@ func (e *EventDb) LoadSeqNosAfter(ctx context.Context, after time.Time) ([]*mode
 		seqNo := &model.SeqNoRow{}
 		err := rows.Scan(&seqNo.JobSetId, &seqNo.SeqNo, &seqNo.UpdateTime)
 		if err != nil {
-			return nil, err
+			return nil, errors.WithStack(err)
 		}
 		seqNos = append(seqNos, seqNo)
 	}
@@ -283,39 +284,11 @@ func (e *EventDb) LoadEvents(ctx context.Context) ([]*model.EventRow, error) {
 		seqNo := &model.EventRow{}
 		err := rows.Scan(&seqNo.JobSetId, &seqNo.SeqNo, &seqNo.Event)
 		if err != nil {
-			return nil, err
+			return nil, errors.WithStack(err)
 		}
 		events = append(events, seqNo)
 	}
 	return events, nil
-}
-
-// DeleteJobsetInfo deletes all the information associated with a jobset from the db if the expectedSeqNo is equal to the current seq No
-func (e *EventDb) DeleteJobsetInfo(ctx context.Context, jobSet int64, expectedSeqNo int64) error {
-	return e.db.BeginTxFunc(ctx, pgx.TxOptions{
-		IsoLevel:       pgx.ReadCommitted,
-		AccessMode:     pgx.ReadWrite,
-		DeferrableMode: pgx.Deferrable,
-	}, func(tx pgx.Tx) error {
-		var retrievedSeqNo int64 = -1
-		r := tx.QueryRow(ctx, "SELECT seqNo FROM latest_seqno WHERE jobset_id = $1", jobSet)
-		r.Scan(&retrievedSeqNo)
-		if retrievedSeqNo == expectedSeqNo {
-			_, err := tx.Exec(ctx, "DElETE FROM latest_seqno WHERE jobset_id = $1", jobSet)
-			if err != nil {
-				return err
-			}
-			_, err = tx.Exec(ctx, "DElETE FROM jobset WHERE id = $1", jobSet)
-			if err != nil {
-				return err
-			}
-			_, err = tx.Exec(ctx, "DELETE FROM event WHERE jobset_id = $1", jobSet)
-			return err
-		} else {
-			log.Infof("Retrieved seqNo %d but expected seqNo %d.  Not deleting", retrievedSeqNo, expectedSeqNo)
-			return nil
-		}
-	})
 }
 
 // GetOrCreateJobsetId will retrieve a mapping from (queue, jobset) -> jobsetId or create a new one if one doesn't exist
@@ -329,39 +302,13 @@ func (e *EventDb) GetOrCreateJobsetId(ctx context.Context, queue string, jobset 
 		time.Now().In(time.UTC))
 
 	if err != nil {
-		return 0, err
+		return 0, errors.WithStack(err)
 	}
 
 	var id int64 = 0
 	row := e.db.QueryRow(ctx, `SELECT id FROM jobset WHERE queue = $1 AND jobset = $2`, queue, jobset)
 	err = row.Scan(&id)
-	return id, err
-}
-
-// GetOrCreateJobsetId will retrieve a mapping from (queue, jobset) -> jobsetId or create a new one if one doesn't exist
-func (e *EventDb) GetOrCreateJobsetIds(ctx context.Context, []*model.JobsetRow) error {
-	// First do a select to see what jobsets we do have
-	stmts := make([]string, len(requests))
-	params := make([]interface{}, len(requests)*3)
-	for i, req := range requests {
-		stmts[i] = fmt.Sprintf("("+
-			"SELECT %d as reqIdx, seqno, event "+
-			"FROM event "+
-			"WHERE jobset_id = $%d AND seqno > $%d "+
-			"ORDER BY seqno "+
-			"LIMIT $%d)", i, i*3+1, (i*3)+2, (i*3)+3)
-		params[i*3] = req.Jobset
-		params[i*3+1] = req.Sequence
-		params[i*3+2] = limit
-	}
-
-	// populate all the jobsets, anything that is missing keep track of
-
-	// create everything that is missing
-
-	//populate missing
-
-	return 1, nil
+	return id, errors.WithStack(err)
 }
 
 // loadSequenceNosForIds will load all the sequence numbers for the supplied jobsetIds
@@ -376,7 +323,7 @@ func loadSequenceNosForIds(ctx context.Context, querier pgxtype.Querier, jobsetI
 		var seqno int64 = -1
 		err := rows.Scan(&jobsetId, &seqno)
 		if err != nil {
-			return nil, err
+			return nil, errors.WithStack(err)
 		}
 		seqnos[jobsetId] = seqno
 	}

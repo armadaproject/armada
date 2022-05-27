@@ -3,6 +3,8 @@ package ingestion
 import (
 	"context"
 
+	"github.com/pkg/errors"
+
 	"github.com/G-Research/armada/internal/pulsarutils"
 
 	"github.com/apache/pulsar-client-go/pulsar"
@@ -56,11 +58,11 @@ func SendSequenceUpdate(ctx context.Context, inputMsgs []*model.PulsarEventRow, 
 				if err == nil {
 					sent = true
 				} else {
-					log.Warnf("Error sending update message %+v", err)
+					log.Warnf("Error sending update message %+v", errors.WithStack(err))
 				}
 			}
 		} else {
-			log.Warnf("Error marshalling event")
+			log.Warnf("Error marshalling sequence update %+v", errors.WithStack(err))
 		}
 	}
 	return messageIds

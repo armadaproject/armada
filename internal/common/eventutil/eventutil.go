@@ -8,6 +8,7 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/pkg/errors"
+	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	networking "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -330,11 +331,7 @@ func K8sServicesIngressesFromApiJob(job *api.Job, ingressConfig *configuration.I
 // or an error if the conversion fails.
 func LogSubmitPriorityFromApiPriority(priority float64) (uint32, error) {
 	if priority < 0 {
-		return 0, &armadaerrors.ErrInvalidArgument{
-			Name:    "priority",
-			Value:   priority,
-			Message: "priority must be larger than or equal to 0",
-		}
+		priority = 0
 	}
 	if priority > math.MaxUint32 {
 		priority = math.MaxUint32
@@ -362,4 +359,682 @@ func K8sObjectMetaFromLogObjectMeta(meta *armadaevents.ObjectMeta) *metav1.Objec
 		Annotations: meta.GetAnnotations(),
 		Labels:      meta.GetLabels(),
 	}
+}
+
+func EventSequencesFromApiEvents(msgs []*api.EventMessage) ([]*armadaevents.EventSequence, error) {
+
+	// Each sequence may only contain events for a specific combination of (queue, jobSet, userId).
+	// Because each API event may contain different (queue, jobSet, userId), we map each event to separate sequences.
+	sequences := make([]*armadaevents.EventSequence, 0, len(msgs))
+	for _, msg := range msgs {
+		sequence, err := EventSequenceFromApiEvent(msg)
+		if err != nil {
+			return nil, err
+		}
+		sequences = append(sequences, sequence)
+	}
+
+	// Reduce the sequences to the smallest number possible.
+	return CompactEventSequences(sequences), nil
+}
+
+// CompactEventSequences converts a []*armadaevents.EventSequence into a []*armadaevents.EventSequence of minimal length.
+// In particular, it moves events with equal (queue, jobSetName, userId, groups) into a single sequence.
+// when doing so is possible without changing the order of events within job sets.
+//
+// For example, three sequences [A, B, C], [D, E], [F, G]
+// could result in the following two sequences [A, B, C, F, G], [D, E],
+// if sequence 1 and 3 share the same (queue, jobSetName, userId, groups)
+// and if the sequence [D, E] is for a different job set.
+func CompactEventSequences(sequences []*armadaevents.EventSequence) []*armadaevents.EventSequence {
+
+	// We may change ordering between job sets but not within job sets.
+	// To ensure the order of the resulting compacted sequences is deterministic,
+	// store a slice of all unique jobSetNames in the order they occur in sequences.
+	numSequences := 0
+	jobSetNames := make([]string, 0)
+	sequencesFromJobSetName := make(map[string][]*armadaevents.EventSequence)
+	for _, sequence := range sequences {
+		if sequence == nil || len(sequence.Events) == 0 {
+			continue // Skip empty sequences.
+		}
+		// Consider sequences within the same jobSet for compaction.
+		if jobSetSequences, ok := sequencesFromJobSetName[sequence.JobSetName]; ok {
+
+			// This first if should never trigger.
+			if len(jobSetSequences) == 0 {
+				numSequences++
+				sequencesFromJobSetName[sequence.JobSetName] = append(jobSetSequences, sequence)
+			} else {
+				// Merge events in sequence into the last sequence for this jobSet if (queue, jobSetName, userId, groups) are equal.
+				lastSequence := jobSetSequences[len(jobSetSequences)-1]
+				if lastSequence != nil && sequence.Queue == lastSequence.Queue && sequence.UserId == lastSequence.UserId && groupsEqual(sequence.Groups, lastSequence.Groups) {
+					lastSequence.Events = append(lastSequence.Events, sequence.Events...)
+				} else {
+					numSequences++
+					sequencesFromJobSetName[sequence.JobSetName] = append(jobSetSequences, sequence)
+				}
+			}
+		} else { // Create a new slice the first time we see a jobSet.
+			numSequences++
+			jobSetNames = append(jobSetNames, sequence.JobSetName)
+			sequencesFromJobSetName[sequence.JobSetName] = []*armadaevents.EventSequence{sequence}
+		}
+	}
+
+	// Flatten the map to return a slice of sequences.
+	sequences = make([]*armadaevents.EventSequence, 0, numSequences)
+	for _, jobSetName := range jobSetNames {
+		if jobSetSequences, ok := sequencesFromJobSetName[jobSetName]; ok {
+			sequences = append(sequences, jobSetSequences...)
+		} else {
+			log.Errorf("no sequence found for jobSetName %s; this should never happen", jobSetName)
+		}
+	}
+
+	return sequences
+}
+
+func groupsEqual(g1, g2 []string) bool {
+	if len(g1) == 0 && len(g2) == 0 {
+		return true // Consider make []string{} and nil equal.
+	}
+	if len(g1) != len(g2) {
+		return false
+	}
+	for i := range g1 {
+		if g1[i] != g2[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// LimitSequencesByteSize calls LimitSequenceByteSize for each of the provided sequences
+// and returns all resulting sequences.
+func LimitSequencesByteSize(sequences []*armadaevents.EventSequence, sizeInBytes int) ([]*armadaevents.EventSequence, error) {
+	rv := make([]*armadaevents.EventSequence, 0, len(sequences))
+	for _, sequence := range sequences {
+		limitedSequences, err := LimitSequenceByteSize(sequence, sizeInBytes)
+		if err != nil {
+			return nil, err
+		}
+		rv = append(rv, limitedSequences...)
+	}
+	return rv, nil
+}
+
+// LimitSequenceByteSize returns a slice of sequences produced by breaking up sequence.Events
+// into separate sequences, each of which is at most MAX_SEQUENCE_SIZE_IN_BYTES bytes in size.
+func LimitSequenceByteSize(sequence *armadaevents.EventSequence, sizeInBytes int) ([]*armadaevents.EventSequence, error) {
+
+	// Compute the size of the sequence without events.
+	events := sequence.Events
+	sequence.Events = make([]*armadaevents.EventSequence_Event, 0)
+	headerSize := proto.Size(sequence)
+	sequence.Events = events
+
+	// var currentSequence *armadaevents.EventSequence
+	sequences := make([]*armadaevents.EventSequence, 0, 1)
+	lastSequenceEventSize := 0
+	for _, event := range sequence.Events {
+		eventSize := proto.Size(event)
+		if eventSize+headerSize > sizeInBytes {
+			return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
+				Name:    "sequence",
+				Value:   sequence,
+				Message: fmt.Sprintf("sequence header is of size %d and sequence contains an event of size %d bytes, but the sequence size limit is %d", headerSize, eventSize, sizeInBytes),
+			})
+		}
+		if len(sequences) == 0 || lastSequenceEventSize+eventSize+headerSize > sizeInBytes {
+			sequences = append(sequences, &armadaevents.EventSequence{
+				Queue:      sequence.Queue,
+				JobSetName: sequence.JobSetName,
+				UserId:     sequence.UserId,
+				Groups:     sequence.Groups,
+				Events:     nil,
+			})
+			lastSequenceEventSize = 0
+		}
+		lastSequence := sequences[len(sequences)-1]
+		lastSequence.Events = append(lastSequence.Events, event)
+		lastSequenceEventSize += eventSize
+	}
+	return sequences, nil
+}
+
+// EventSequenceFromApiEvent converts an api.EventMessage into the corresponding Pulsar event
+// and returns an EventSequence containing this single event.
+// We map API events to sequences one-to-one because each API event may contain different (queue, jobSet, userId),
+// which must be common to all events in a sequence.
+func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.EventSequence, err error) {
+	sequence = &armadaevents.EventSequence{}
+
+	switch m := msg.Events.(type) {
+	case *api.EventMessage_Submitted:
+		// Do nothing; the Pulsar submitted message is generated by the Pulsar API endpoint.
+	case *api.EventMessage_Queued:
+		// Do nothing; there's no corresponding Pulsar message.
+	case *api.EventMessage_DuplicateFound:
+		sequence.Queue = m.DuplicateFound.Queue
+		sequence.JobSetName = m.DuplicateFound.JobSetId
+
+		newJobId, err := armadaevents.ProtoUuidFromUlidString(m.DuplicateFound.JobId)
+		if err != nil {
+			return nil, err
+		}
+		oldJobId, err := armadaevents.ProtoUuidFromUlidString(m.DuplicateFound.OriginalJobId)
+		if err != nil {
+			return nil, err
+		}
+
+		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
+			Event: &armadaevents.EventSequence_Event_JobDuplicateDetected{
+				JobDuplicateDetected: &armadaevents.JobDuplicateDetected{
+					NewJobId: newJobId,
+					OldJobId: oldJobId,
+				},
+			},
+		})
+	case *api.EventMessage_Leased:
+		sequence.Queue = m.Leased.Queue
+		sequence.JobSetName = m.Leased.JobSetId
+
+		// Message has no KubernetesId; use the all-zeros id.
+		jobId, err := armadaevents.ProtoUuidFromUlidString(m.Leased.JobId)
+		if err != nil {
+			return nil, err
+		}
+
+		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
+			Event: &armadaevents.EventSequence_Event_JobRunLeased{
+				JobRunLeased: &armadaevents.JobRunLeased{
+					RunId:      LegacyJobRunId(),
+					JobId:      jobId,
+					ExecutorId: m.Leased.ClusterId,
+				},
+			},
+		})
+	case *api.EventMessage_LeaseReturned:
+		sequence.Queue = m.LeaseReturned.Queue
+		sequence.JobSetName = m.LeaseReturned.JobSetId
+
+		jobId, err := armadaevents.ProtoUuidFromUlidString(m.LeaseReturned.JobId)
+		if err != nil {
+			return nil, err
+		}
+
+		runId, err := armadaevents.ProtoUuidFromUuidString(m.LeaseReturned.KubernetesId)
+		if err != nil {
+			// Because LeaseReturned may be generated before the job is running, the KubernetesId may be missing.
+			// In this scenario, we make up an empty id.
+			runId = LegacyJobRunId()
+		}
+
+		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
+			Event: &armadaevents.EventSequence_Event_JobRunErrors{
+				JobRunErrors: &armadaevents.JobRunErrors{
+					RunId: runId,
+					JobId: jobId,
+					Errors: []*armadaevents.Error{
+						{
+							Terminal: true, // EventMessage_LeaseReturned indicates a pod could not be scheduled.
+							Reason: &armadaevents.Error_PodLeaseReturned{
+								PodLeaseReturned: &armadaevents.PodLeaseReturned{
+									ObjectMeta: &armadaevents.ObjectMeta{
+										ExecutorId:   m.LeaseReturned.ClusterId,
+										KubernetesId: m.LeaseReturned.KubernetesId,
+									},
+									PodNumber: m.LeaseReturned.PodNumber,
+									Message:   m.LeaseReturned.Reason,
+								},
+							},
+						},
+					},
+				},
+			},
+		})
+	case *api.EventMessage_LeaseExpired:
+		sequence.Queue = m.LeaseExpired.Queue
+		sequence.JobSetName = m.LeaseExpired.JobSetId
+
+		// Message has no KubernetesId; use the all-zeros id.
+		jobId, err := armadaevents.ProtoUuidFromUlidString(m.LeaseExpired.JobId)
+		if err != nil {
+			return nil, err
+		}
+
+		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
+			Event: &armadaevents.EventSequence_Event_JobRunErrors{
+				JobRunErrors: &armadaevents.JobRunErrors{
+					RunId: LegacyJobRunId(),
+					JobId: jobId,
+					Errors: []*armadaevents.Error{
+						{
+							Terminal: true, // EventMessage_LeaseExpired indicates a failed job run.
+							Reason: &armadaevents.Error_LeaseExpired{
+								LeaseExpired: &armadaevents.LeaseExpired{},
+							},
+						},
+					},
+				},
+			},
+		})
+	case *api.EventMessage_Pending:
+		sequence.Queue = m.Pending.Queue
+		sequence.JobSetName = m.Pending.JobSetId
+
+		jobId, err := armadaevents.ProtoUuidFromUlidString(m.Pending.JobId)
+		if err != nil {
+			return nil, err
+		}
+
+		runId, err := armadaevents.ProtoUuidFromUuidString(m.Pending.KubernetesId)
+		if err != nil {
+			return nil, err
+		}
+
+		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
+			Event: &armadaevents.EventSequence_Event_JobRunAssigned{
+				JobRunAssigned: &armadaevents.JobRunAssigned{
+					RunId: runId,
+					JobId: jobId,
+					ResourceInfos: []*armadaevents.KubernetesResourceInfo{
+						{
+							ObjectMeta: &armadaevents.ObjectMeta{
+								KubernetesId: m.Pending.KubernetesId,
+								Name:         m.Pending.PodName,
+								Namespace:    m.Pending.PodNamespace,
+								ExecutorId:   m.Pending.ClusterId,
+							},
+							Info: &armadaevents.KubernetesResourceInfo_PodInfo{
+								PodInfo: &armadaevents.PodInfo{
+									PodNumber: m.Pending.PodNumber,
+								},
+							},
+						},
+					},
+				},
+			},
+		})
+	case *api.EventMessage_Running:
+		sequence.Queue = m.Running.Queue
+		sequence.JobSetName = m.Running.JobSetId
+
+		jobId, err := armadaevents.ProtoUuidFromUlidString(m.Running.JobId)
+		if err != nil {
+			return nil, err
+		}
+
+		runId, err := armadaevents.ProtoUuidFromUuidString(m.Running.KubernetesId)
+		if err != nil {
+			return nil, err
+		}
+
+		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
+			Event: &armadaevents.EventSequence_Event_JobRunRunning{
+				JobRunRunning: &armadaevents.JobRunRunning{
+					RunId: runId,
+					JobId: jobId,
+					ResourceInfos: []*armadaevents.KubernetesResourceInfo{
+						{
+							ObjectMeta: &armadaevents.ObjectMeta{
+								Namespace:    m.Running.NodeName,
+								Name:         m.Running.PodName,
+								KubernetesId: m.Running.KubernetesId,
+								// TODO: These should be included.
+								Annotations: nil,
+								Labels:      nil,
+							},
+							Info: &armadaevents.KubernetesResourceInfo_PodInfo{
+								PodInfo: &armadaevents.PodInfo{
+									NodeName:  m.Running.NodeName,
+									PodNumber: m.Running.PodNumber,
+								},
+							},
+						},
+					},
+				},
+			},
+		})
+	case *api.EventMessage_UnableToSchedule:
+		sequence.Queue = m.UnableToSchedule.Queue
+		sequence.JobSetName = m.UnableToSchedule.JobSetId
+
+		jobId, err := armadaevents.ProtoUuidFromUlidString(m.UnableToSchedule.JobId)
+		if err != nil {
+			return nil, err
+		}
+
+		runId, err := armadaevents.ProtoUuidFromUuidString(m.UnableToSchedule.KubernetesId)
+		if err != nil {
+			return nil, err
+		}
+
+		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
+			Event: &armadaevents.EventSequence_Event_JobRunErrors{
+				JobRunErrors: &armadaevents.JobRunErrors{
+					RunId: runId,
+					JobId: jobId,
+					Errors: []*armadaevents.Error{
+						{
+							Terminal: true, // EventMessage_UnableToSchedule indicates a failed job.
+							Reason: &armadaevents.Error_PodUnschedulable{
+								PodUnschedulable: &armadaevents.PodUnschedulable{
+									ObjectMeta: &armadaevents.ObjectMeta{
+										ExecutorId:   m.UnableToSchedule.ClusterId,
+										Namespace:    m.UnableToSchedule.PodNamespace,
+										Name:         m.UnableToSchedule.PodName,
+										KubernetesId: m.UnableToSchedule.KubernetesId,
+										Annotations:  nil,
+										Labels:       nil,
+									},
+									Message:   m.UnableToSchedule.Reason,
+									NodeName:  m.UnableToSchedule.NodeName,
+									PodNumber: m.UnableToSchedule.PodNumber,
+								},
+							},
+						},
+					},
+				},
+			},
+		})
+	case *api.EventMessage_Failed:
+		sequence.Queue = m.Failed.Queue
+		sequence.JobSetName = m.Failed.JobSetId
+
+		jobId, err := armadaevents.ProtoUuidFromUlidString(m.Failed.JobId)
+		if err != nil {
+			return nil, err
+		}
+
+		runId, err := armadaevents.ProtoUuidFromUuidString(m.Failed.KubernetesId)
+		if err != nil {
+			// If a job fails without ever being assigned to a node, there won't be a KubernetesId.
+			runId = LegacyJobRunId()
+		}
+
+		// EventMessage_Failed contains one error for each container.
+		// Convert each of these to the corresponding Pulsar error.
+		containerErrors := make([]*armadaevents.ContainerError, 0, len(m.Failed.ContainerStatuses))
+		for _, st := range m.Failed.ContainerStatuses {
+			containerError := &armadaevents.ContainerError{
+				ExitCode: st.ExitCode,
+				Message:  st.Message,
+				Reason:   st.Reason,
+				ObjectMeta: &armadaevents.ObjectMeta{
+					ExecutorId:   m.Failed.ClusterId,
+					Namespace:    m.Failed.PodNamespace,
+					Name:         st.Name,
+					KubernetesId: "", // only the id of the pod is stored in the failed message
+				},
+			}
+
+			// Legacy messages encode the reason as an enum, whereas Pulsar uses objects.
+			switch m.Failed.Cause {
+			case api.Cause_DeadlineExceeded:
+				containerError.KubernetesReason = &armadaevents.ContainerError_DeadlineExceeded_{}
+			case api.Cause_Error:
+				containerError.KubernetesReason = &armadaevents.ContainerError_Error{}
+			case api.Cause_Evicted:
+				containerError.KubernetesReason = &armadaevents.ContainerError_Evicted_{}
+			case api.Cause_OOM:
+				containerError.KubernetesReason = &armadaevents.ContainerError_DeadlineExceeded_{}
+			default:
+				return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
+					Name:    "Cause",
+					Value:   m.Failed.Cause,
+					Message: "Unknown cause",
+				})
+			}
+
+			containerErrors = append(containerErrors, containerError)
+		}
+
+		// Event indicating the job run failed.
+		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
+			Event: &armadaevents.EventSequence_Event_JobRunErrors{
+				JobRunErrors: &armadaevents.JobRunErrors{
+					RunId: runId,
+					JobId: jobId,
+					Errors: []*armadaevents.Error{
+						{
+							Terminal: true,
+							Reason: &armadaevents.Error_PodError{
+								PodError: &armadaevents.PodError{
+									ObjectMeta: &armadaevents.ObjectMeta{
+										ExecutorId:   m.Failed.ClusterId,
+										Namespace:    m.Failed.PodNamespace,
+										Name:         m.Failed.PodName,
+										KubernetesId: m.Failed.KubernetesId,
+									},
+									Message:         m.Failed.Reason,
+									NodeName:        m.Failed.NodeName,
+									PodNumber:       m.Failed.PodNumber,
+									ContainerErrors: containerErrors,
+								},
+							},
+						},
+					},
+				},
+			},
+		})
+
+		// Event indicating that the job as a whole failed.
+		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
+			Event: &armadaevents.EventSequence_Event_JobErrors{
+				JobErrors: &armadaevents.JobErrors{
+					JobId: jobId,
+					Errors: []*armadaevents.Error{
+						{
+							Terminal: true,
+							Reason: &armadaevents.Error_MaxRunsExceeded{
+								MaxRunsExceeded: &armadaevents.MaxRunsExceeded{},
+							},
+						},
+					},
+				},
+			},
+		})
+	case *api.EventMessage_Succeeded:
+		sequence.Queue = m.Succeeded.Queue
+		sequence.JobSetName = m.Succeeded.JobSetId
+
+		jobId, err := armadaevents.ProtoUuidFromUlidString(m.Succeeded.JobId)
+		if err != nil {
+			return nil, err
+		}
+
+		runId, err := armadaevents.ProtoUuidFromUuidString(m.Succeeded.KubernetesId)
+		if err != nil {
+			return nil, err
+		}
+
+		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
+			Event: &armadaevents.EventSequence_Event_JobRunSucceeded{
+				JobRunSucceeded: &armadaevents.JobRunSucceeded{
+					RunId: runId,
+					JobId: jobId,
+				},
+			},
+		})
+	case *api.EventMessage_Reprioritized:
+		sequence.Queue = m.Reprioritized.Queue
+		sequence.JobSetName = m.Reprioritized.JobSetId
+
+		jobId, err := armadaevents.ProtoUuidFromUlidString(m.Reprioritized.JobId)
+		if err != nil {
+			return nil, err
+		}
+
+		priority, err := LogSubmitPriorityFromApiPriority(m.Reprioritized.NewPriority)
+		if err != nil {
+			return nil, err
+		}
+
+		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
+			Event: &armadaevents.EventSequence_Event_ReprioritisedJob{
+				ReprioritisedJob: &armadaevents.ReprioritisedJob{
+					JobId:    jobId,
+					Priority: priority,
+				},
+			},
+		})
+	case *api.EventMessage_Cancelling:
+		// Do nothing; there's no corresponding Pulsar message.
+	case *api.EventMessage_Cancelled:
+		sequence.Queue = m.Cancelled.Queue
+		sequence.JobSetName = m.Cancelled.JobSetId
+
+		jobId, err := armadaevents.ProtoUuidFromUlidString(m.Cancelled.JobId)
+		if err != nil {
+			return nil, err
+		}
+
+		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
+			Event: &armadaevents.EventSequence_Event_CancelledJob{
+				CancelledJob: &armadaevents.CancelledJob{
+					JobId: jobId,
+				},
+			},
+		})
+	case *api.EventMessage_Terminated:
+		sequence.Queue = m.Terminated.Queue
+		sequence.JobSetName = m.Terminated.JobSetId
+
+		jobId, err := armadaevents.ProtoUuidFromUlidString(m.Terminated.JobId)
+		if err != nil {
+			return nil, err
+		}
+
+		runId, err := armadaevents.ProtoUuidFromUuidString(m.Terminated.KubernetesId)
+		if err != nil {
+			return nil, err
+		}
+
+		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
+			Event: &armadaevents.EventSequence_Event_JobRunErrors{
+				JobRunErrors: &armadaevents.JobRunErrors{
+					RunId: runId,
+					JobId: jobId,
+					Errors: []*armadaevents.Error{
+						{
+							Terminal: true,
+							Reason: &armadaevents.Error_PodTerminated{
+								PodTerminated: &armadaevents.PodTerminated{
+									ObjectMeta: &armadaevents.ObjectMeta{
+										ExecutorId:   m.Terminated.ClusterId,
+										Namespace:    m.Terminated.PodNamespace,
+										Name:         m.Terminated.PodName,
+										KubernetesId: m.Terminated.KubernetesId,
+									},
+									PodNumber: m.Terminated.PodNumber,
+									Message:   m.Terminated.Reason,
+								},
+							},
+						},
+					},
+				},
+			},
+		})
+	case *api.EventMessage_Utilisation:
+		sequence.Queue = m.Utilisation.Queue
+		sequence.JobSetName = m.Utilisation.JobSetId
+
+		jobId, err := armadaevents.ProtoUuidFromUlidString(m.Utilisation.JobId)
+		if err != nil {
+			return nil, err
+		}
+
+		runId, err := armadaevents.ProtoUuidFromUuidString(m.Utilisation.KubernetesId)
+		if err != nil {
+			return nil, err
+		}
+
+		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
+			Created: &m.Utilisation.Created,
+			Event: &armadaevents.EventSequence_Event_ResourceUtilisation{
+				ResourceUtilisation: &armadaevents.ResourceUtilisation{
+					RunId: runId,
+					JobId: jobId,
+					ResourceInfo: &armadaevents.KubernetesResourceInfo{
+						ObjectMeta: &armadaevents.ObjectMeta{
+							ExecutorId:   m.Utilisation.ClusterId,
+							KubernetesId: m.Utilisation.KubernetesId,
+							Namespace:    m.Utilisation.PodNamespace,
+							Name:         m.Utilisation.PodName,
+						},
+						Info: &armadaevents.KubernetesResourceInfo_PodInfo{
+							PodInfo: &armadaevents.PodInfo{
+								NodeName:  m.Utilisation.NodeName,
+								PodNumber: m.Utilisation.PodNumber,
+							},
+						},
+					},
+					MaxResourcesForPeriod: m.Utilisation.MaxResourcesForPeriod,
+					TotalCumulativeUsage:  m.Utilisation.TotalCumulativeUsage,
+				},
+			},
+		})
+	case *api.EventMessage_IngressInfo:
+		// Later, ingress info should be bundled with the JobRunRunning message.
+		// For now, we create a special message that exists only for compatibility with the legacy messages.
+
+		sequence.Queue = m.IngressInfo.Queue
+		sequence.JobSetName = m.IngressInfo.JobSetId
+
+		jobId, err := armadaevents.ProtoUuidFromUlidString(m.IngressInfo.JobId)
+		if err != nil {
+			return nil, err
+		}
+
+		runId, err := armadaevents.ProtoUuidFromUuidString(m.IngressInfo.KubernetesId)
+		if err != nil {
+			return nil, err
+		}
+
+		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
+			Event: &armadaevents.EventSequence_Event_StandaloneIngressInfo{
+				StandaloneIngressInfo: &armadaevents.StandaloneIngressInfo{
+					RunId: runId,
+					JobId: jobId,
+					ObjectMeta: &armadaevents.ObjectMeta{
+						ExecutorId:   m.IngressInfo.ClusterId,
+						Namespace:    m.IngressInfo.PodNamespace, // We assume the ingress was created with the same namespace as the pod
+						KubernetesId: m.IngressInfo.KubernetesId,
+					},
+					IngressAddresses: m.IngressInfo.IngressAddresses,
+					NodeName:         m.IngressInfo.NodeName,
+					PodName:          m.IngressInfo.PodName,
+					PodNumber:        m.IngressInfo.PodNumber,
+					PodNamespace:     m.IngressInfo.PodNamespace,
+				},
+			},
+		})
+	case *api.EventMessage_Reprioritizing:
+		// Do nothing; there's no corresponding Pulsar message.
+	case *api.EventMessage_Updated:
+		// Do nothing; we're not allowing arbitrary job updates.
+	default:
+		err = &armadaerrors.ErrInvalidArgument{
+			Name:    "msg",
+			Value:   msg,
+			Message: "received unsupported api message",
+		}
+		err = errors.WithStack(err)
+		return nil, err
+	}
+
+	return sequence, nil
+}
+
+// Id used for messages for which we can't use the kubernetesId.
+const LEGACY_RUN_ID = "00000000-0000-0000-0000-000000000000"
+
+func LegacyJobRunId() *armadaevents.Uuid {
+	jobRunId, err := armadaevents.ProtoUuidFromUuidString(LEGACY_RUN_ID)
+	if err != nil {
+		panic(err)
+	}
+	return jobRunId
 }

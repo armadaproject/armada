@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/pkg/errors"
+
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/proto"
 	log "github.com/sirupsen/logrus"
@@ -63,14 +65,14 @@ func NewUpdatingSequenceManager(ctx context.Context, eventDb *eventdb.EventDb, p
 		for {
 			msg, err := reader.Next(context.Background())
 			if err != nil {
-				log.Errorf("Error reading sequence updates: %+v", err)
+				log.Errorf("Error reading sequence updates: %+v", errors.WithStack(err))
 				time.Sleep(100 * time.Millisecond)
 				continue
 			}
 			seqUpdate := &armadaevents.SeqUpdates{}
 			err = proto.Unmarshal(msg.Payload(), seqUpdate)
 			if err != nil {
-				log.Error("Error unmarshalling sequence updates: %+v", err)
+				log.Errorf("Error unmarshalling sequence updates: %+v", errors.WithStack(err))
 				continue
 			}
 			log.Infof("Received Sequence update containing %d updates", len(seqUpdate.Updates))

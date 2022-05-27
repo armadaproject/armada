@@ -257,6 +257,12 @@ func CodeFromError(err error) codes.Code {
 			return codes.InvalidArgument
 		}
 	}
+	{
+		var e *ErrPodUnschedulable
+		if errors.As(err, &e) {
+			return codes.InvalidArgument
+		}
+	}
 
 	return codes.Unknown
 }
@@ -366,15 +372,16 @@ func IsNetworkError(err error) bool {
 }
 
 // UnaryServerInterceptor returns an interceptor that extracts the cause of an error chain
-// and returns it as a gRPC status error.
+// and returns it as a gRPC status error. It also limits the number of characters returned.
 //
 // To log the full error chain and return only the cause to the user, insert this interceptor before
 // the logging interceptor.
-func UnaryServerInterceptor() grpc.UnaryServerInterceptor {
+func UnaryServerInterceptor(maxErrorSize uint) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 		rv, err := handler(ctx, req)
 
-		// If the error is nil or a gRPC status, return as-is
+		// If the error is nil or a gRPC status, return as-is.
+		// status.FromError(nil) returns true.
 		if _, ok := status.FromError(err); ok {
 			return rv, err
 		}
@@ -384,20 +391,30 @@ func UnaryServerInterceptor() grpc.UnaryServerInterceptor {
 		code := CodeFromError(cause)
 
 		// If available, annotate the status with the request ID
+		var errorMessage string
 		if id, ok := requestid.FromContext(ctx); ok {
-			return rv, status.Error(code, fmt.Sprintf("[%s: %q] ", requestid.MetadataKey, id)+cause.Error())
+			errorMessage = fmt.Sprintf("[%s: %q] ", requestid.MetadataKey, id) + err.Error()
+		} else {
+			errorMessage = err.Error()
 		}
-		return rv, status.Error(code, cause.Error())
+
+		// Limit error message size.
+		if len(errorMessage) > int(maxErrorSize) {
+			errorMessage = errorMessage[:maxErrorSize] + "... (truncated)"
+		}
+
+		return rv, status.Error(code, errorMessage)
 	}
 }
 
 // StreamServerInterceptor returns an interceptor that extracts the cause of an error chain
-// and returns it as a gRPC status error.
-func StreamServerInterceptor() grpc.StreamServerInterceptor {
+// and returns it as a gRPC status error. It also limits the number of characters returned.
+func StreamServerInterceptor(maxErrorSize uint) grpc.StreamServerInterceptor {
 	return func(srv interface{}, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		err := handler(srv, stream)
 
 		// If the error is nil or a gRPC status, return as-is
+		// status.FromError(nil) returns true.
 		if _, ok := status.FromError(err); ok {
 			return err
 		}
@@ -407,10 +424,19 @@ func StreamServerInterceptor() grpc.StreamServerInterceptor {
 		code := CodeFromError(cause)
 
 		// If available, annotate the status with the request ID
+		var errorMessage string
 		if id, ok := requestid.FromContext(stream.Context()); ok {
-			return status.Error(code, fmt.Sprintf("[%s: %q] ", requestid.MetadataKey, id)+cause.Error())
+			errorMessage = fmt.Sprintf("[%s: %q] ", requestid.MetadataKey, id) + err.Error()
+		} else {
+			errorMessage = err.Error()
 		}
-		return status.Error(code, cause.Error())
+
+		// Limit error message size.
+		if len(errorMessage) > int(maxErrorSize) {
+			errorMessage = errorMessage[:maxErrorSize] + "... (truncated)"
+		}
+
+		return status.Error(code, errorMessage)
 	}
 }
 
@@ -438,4 +464,74 @@ func unwrapOrOriginal(err error) error {
 		return err
 	}
 	return unwrapped
+}
+
+// ErrPodUnschedulable indicates that a pod can't be scheduled on any node type.
+type ErrPodUnschedulable struct {
+	// Maps the reason for excluding a node type to the number of node types excluded for this reason.
+	countFromReason map[string]int
+}
+
+// Add updates the internal counter of errors.
+func (err *ErrPodUnschedulable) Add(reason string, count int) *ErrPodUnschedulable {
+	if err == nil {
+		err = &ErrPodUnschedulable{}
+	}
+	if err.countFromReason == nil {
+		err.countFromReason = make(map[string]int)
+	}
+	err.countFromReason[reason] += count
+	return err
+}
+
+func (err *ErrPodUnschedulable) Error() string {
+	if len(err.countFromReason) == 0 {
+		return "can't schedule pod on any node type"
+	}
+
+	var b strings.Builder
+	fmt.Fprintf(&b, "can't schedule pod on any node type; ")
+	i := 0
+	for reason, count := range err.countFromReason {
+		fmt.Fprintf(&b, "%d node type(s) excluded because %s", count, reason)
+		i++
+		if i < len(err.countFromReason) {
+			fmt.Fprintf(&b, ", ")
+		}
+	}
+	return b.String()
+}
+
+// NewCombinedErrPodUnschedulable returns a new ErrPodUnschedulable with
+// countFromReasons aggregated over all arguments.
+func NewCombinedErrPodUnschedulable(errs ...error) *ErrPodUnschedulable {
+	if len(errs) == 0 {
+		return nil
+	}
+
+	result := &ErrPodUnschedulable{
+		countFromReason: make(map[string]int),
+	}
+	for _, err := range errs {
+		if err == nil {
+			continue
+		}
+
+		// If the error is of type *ErrPodUnschedulable, merge the reasons.
+		if e, ok := err.(*ErrPodUnschedulable); ok {
+			if len(e.countFromReason) == 0 {
+				continue
+			}
+			for reason, count := range e.countFromReason {
+				result.countFromReason[reason] += count
+			}
+		} else { // Otherwise, add the error message as a reason.
+			result.countFromReason[err.Error()] += 1
+		}
+	}
+
+	if len(result.countFromReason) == 0 {
+		return nil
+	}
+	return result
 }

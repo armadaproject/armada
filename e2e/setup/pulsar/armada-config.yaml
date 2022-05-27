@@ -9,6 +9,7 @@ pulsar:
   dedupTable: pulsar_submit_dedup
   eventsPrinter: true
   eventsPrinterSubscription: "EventsPrinter"
+  maxAllowedMessageSize: 4194304 # 4MB
 postgres:
   maxOpenConns: 100
   maxIdleConns: 25
@@ -19,4 +20,4 @@ postgres:
     user: postgres
     password: psw
     dbname: postgres
-    sslmode: disable  
+    sslmode: disable

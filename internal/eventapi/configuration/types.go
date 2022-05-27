@@ -26,6 +26,6 @@ type EventIngesterConfiguration struct {
 	PulsarBackoffTime time.Duration
 	// Number of goroutines to be used for receiving messages and converting them to instructions
 	Paralellism int
-	// Time after which any jobsets that haven't received events will be deleted from the db
-	InactiveJobsetExpiration time.Duration
+	// Pulsar Topic on which sequence updates will be sent
+	UpdateTopic string
 }

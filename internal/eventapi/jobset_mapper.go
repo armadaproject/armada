@@ -6,6 +6,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/pkg/errors"
+
 	lru "github.com/hashicorp/golang-lru"
 	log "github.com/sirupsen/logrus"
 
@@ -28,7 +30,7 @@ func (j *StaticJobsetMapper) Get(ctx context.Context, queue string, jobset strin
 	key := key(queue, jobset)
 	id, ok := j.JobsetIds[key]
 	if !ok {
-		return -1, fmt.Errorf("no mapping exists for queue %sand jobset %s", queue, jobset)
+		return -1, errors.WithStack(fmt.Errorf("no mapping exists for queue %sand jobset %s", queue, jobset))
 	}
 	return id, nil
 }

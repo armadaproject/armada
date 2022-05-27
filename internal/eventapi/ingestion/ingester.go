@@ -58,10 +58,10 @@ func Run(config *configuration.EventIngesterConfiguration) {
 	}
 
 	producer, err := pulsarClient.CreateProducer(pulsar.ProducerOptions{
-		Topic: "sequence-updates",
+		Topic: config.UpdateTopic,
 	})
 	if err != nil {
-		log.Errorf("Error initialising pulsr producer")
+		log.Errorf("Error initialising pulsar producer")
 		panic(err)
 	}
 
