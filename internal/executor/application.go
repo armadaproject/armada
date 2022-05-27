@@ -50,11 +50,11 @@ func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGrou
 	}
 
 	var etcdHealthMonitor *etcdhealthmonitor.EtcdHealthMonitor
-	if len(config.Kubernetes.EtcdMetricUrls) != 0 && config.Kubernetes.EtcdMaxFractionOfStorageInUse != 0 {
+	if len(config.Kubernetes.EtcdMetricUrls) != 0 {
 		log.Info("etcd URLs provided; monitoring etcd health")
 
-		if config.Kubernetes.EtcdMaxFractionOfStorageInUse < 0 || config.Kubernetes.EtcdMaxFractionOfStorageInUse >= 1 {
-			panic("EtcdMaxFractionOfStorageInUse must be in (0, 1)")
+		if config.Kubernetes.EtcdMaxFractionOfStorageInUse <= 0 || config.Kubernetes.EtcdMaxFractionOfStorageInUse > 1 {
+			panic("EtcdMaxFractionOfStorageInUse must be in (0, 1]")
 		}
 
 		etcdHealthMonitor, err = etcdhealthmonitor.New(config.Kubernetes.EtcdMetricUrls, nil)
