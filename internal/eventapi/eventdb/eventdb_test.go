@@ -33,14 +33,14 @@ func TestInsertSequenceNumbers(t *testing.T) {
 		}
 		err := db.InsertSeqNos(ctx, seqNos)
 		assert.NoError(t, err)
-		retrievedSeqNos, err := db.LoadSeqNos(ctx)
+		retrievedSeqNos, err := db.LoadSeqNosAfter(ctx, baseTime.Add(-1*time.Second))
 		assert.NoError(t, err)
 		assert.Equal(t, seqNos, retrievedSeqNos)
 
 		// Test idempotant by inserting again
 		err = db.InsertSeqNos(ctx, seqNos)
 		assert.NoError(t, err)
-		retrievedSeqNos, err = db.LoadSeqNos(ctx)
+		retrievedSeqNos, err = db.LoadSeqNosAfter(ctx, baseTime.Add(-1*time.Second))
 		assert.NoError(t, err)
 		assert.Equal(t, seqNos, retrievedSeqNos)
 
@@ -80,7 +80,7 @@ func TestUpdateEventsWithoutDuplicates(t *testing.T) {
 			{JobSetId: 1, SeqNo: 2},
 			{JobSetId: 2, SeqNo: 3},
 		}
-		retrievedSeqNos, err := db.LoadSeqNos(ctx)
+		retrievedSeqNos, err := db.LoadSeqNosAfter(ctx, baseTime.Add(-1*time.Second))
 		assert.NoError(t, err)
 		for i, sn := range retrievedSeqNos {
 			expectedSeqNos[i].UpdateTime = sn.UpdateTime
@@ -147,7 +147,7 @@ func TestUpdateEventsWithDuplicates(t *testing.T) {
 			{JobSetId: 1, SeqNo: 2},
 			{JobSetId: 2, SeqNo: 3},
 		}
-		retrievedSeqNos, err := db.LoadSeqNos(ctx)
+		retrievedSeqNos, err := db.LoadSeqNosAfter(ctx, baseTime.Add(-1*time.Second))
 		assert.NoError(t, err)
 		for i, sn := range retrievedSeqNos {
 			expectedSeqNos[i].UpdateTime = sn.UpdateTime
@@ -273,6 +273,65 @@ func TestGetEvents(t *testing.T) {
 		response, err = db.GetEvents([]*model.EventRequest{request, request2}, 100)
 		assert.NoError(t, err)
 		assert.Equal(t, expectedEventsResponse, response)
+		return nil
+	})
+	assert.NoError(t, err)
+}
+
+func TestDeleteJobsetInfo(t *testing.T) {
+	err := WithDatabase(func(db *EventDb) error {
+		ctx := context.Background()
+
+		id1, err := db.GetOrCreateJobsetId(ctx, "testQueue", "jobset1")
+		assert.NoError(t, err)
+		id2, err := db.GetOrCreateJobsetId(ctx, "testQueue", "jobset2")
+		assert.NoError(t, err)
+
+		seqNos := []*model.SeqNoRow{
+			{JobSetId: id1, SeqNo: 10, UpdateTime: baseTime},
+			{JobSetId: id2, SeqNo: 10, UpdateTime: baseTime},
+		}
+		err = db.InsertSeqNos(ctx, seqNos)
+		assert.NoError(t, err)
+
+		events := []*model.EventRow{
+			{JobSetId: id1, SeqNo: 10, Event: []byte{1}},
+			{JobSetId: id2, SeqNo: 10, Event: []byte{1}},
+		}
+		err = db.InsertEvents(ctx, events)
+		assert.NoError(t, err)
+
+		// try and delete jobset 1 with an expected sequence of 9- should be a no op
+		err = db.DeleteJobsetInfo(ctx, id1, 9)
+		assert.NoError(t, err)
+		loadedEvents, err := db.LoadEvents(ctx)
+		assert.NoError(t, err)
+		assert.Equal(t, events, loadedEvents)
+
+		// Now try and delte jobset 1 with an expected sequence of 10- should delete
+		err = db.DeleteJobsetInfo(ctx, id1, 10)
+		assert.NoError(t, err)
+
+		loadedEvents, err = db.LoadEvents(ctx)
+		assert.Equal(t, []*model.EventRow{
+			{JobSetId: id2, SeqNo: 10, Event: []byte{1}},
+		}, loadedEvents)
+
+		loadedJobsets, err := db.LoadJobsetsAfter(ctx, baseTime.Add(-1*time.Second))
+		for _, js := range loadedJobsets {
+			js.Created = time.Time{}
+		}
+		assert.NoError(t, err)
+		expectedJobsets := []*model.JobsetRow{
+			{JobSetId: 2, Queue: "testQueue", Jobset: "jobset2"},
+		}
+		assert.Equal(t, expectedJobsets, loadedJobsets)
+
+		loadedSeqNos, err := db.LoadSeqNosAfter(ctx, baseTime.Add(-1*time.Second))
+		assert.NoError(t, err)
+		assert.Equal(t, []*model.SeqNoRow{
+			{JobSetId: id2, SeqNo: 10, UpdateTime: baseTime},
+		}, loadedSeqNos)
 		return nil
 	})
 	assert.NoError(t, err)

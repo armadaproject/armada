@@ -237,7 +237,7 @@ func (e *EventDb) GetEvents(requests []*model.EventRequest, limit int) ([]*model
 	return results, nil
 }
 
-// LoadJobsetsAfter Loads all Jobsets created the supplied time
+// LoadJobsetsAfter Loads all Jobsets created after the supplied time
 func (e *EventDb) LoadJobsetsAfter(ctx context.Context, after time.Time) ([]*model.JobsetRow, error) {
 	rows, err := e.db.Query(ctx, "SELECT id, queue, jobset, created FROM jobset WHERE created > $1", after)
 	if err != nil {
@@ -255,9 +255,9 @@ func (e *EventDb) LoadJobsetsAfter(ctx context.Context, after time.Time) ([]*mod
 	return jobsets, nil
 }
 
-// LoadSeqNos Loads all sequence numbers.  This could be very  large so is mainly intended for test purposes
-func (e *EventDb) LoadSeqNos(ctx context.Context) ([]*model.SeqNoRow, error) {
-	rows, err := e.db.Query(ctx, "SELECT jobset_id, seqno, update_time FROM latest_seqno ORDER BY jobset_id")
+// LoadSeqNosAfter Loads all sequence numbers from jobsets which have had uypdates after the given cutoff time
+func (e *EventDb) LoadSeqNosAfter(ctx context.Context, after time.Time) ([]*model.SeqNoRow, error) {
+	rows, err := e.db.Query(ctx, "SELECT jobset_id, seqno, update_time FROM latest_seqno WHERE update_time > $1 ORDER BY jobset_id", after)
 	if err != nil {
 		return nil, err
 	}
@@ -289,6 +289,34 @@ func (e *EventDb) LoadEvents(ctx context.Context) ([]*model.EventRow, error) {
 		events = append(events, seqNo)
 	}
 	return events, nil
+}
+
+// DeleteJobsetInfo deletes all the information associated with a jobset from the db if the expectedSeqNo is equal to the current seq No
+func (e *EventDb) DeleteJobsetInfo(ctx context.Context, jobSet int64, expectedSeqNo int64) error {
+	return e.db.BeginTxFunc(ctx, pgx.TxOptions{
+		IsoLevel:       pgx.ReadCommitted,
+		AccessMode:     pgx.ReadWrite,
+		DeferrableMode: pgx.Deferrable,
+	}, func(tx pgx.Tx) error {
+		var retrievedSeqNo int64 = -1
+		r := tx.QueryRow(ctx, "SELECT seqNo FROM latest_seqno WHERE jobset_id = $1", jobSet)
+		r.Scan(&retrievedSeqNo)
+		if retrievedSeqNo == expectedSeqNo {
+			_, err := tx.Exec(ctx, "DElETE FROM latest_seqno WHERE jobset_id = $1", jobSet)
+			if err != nil {
+				return errors.WithStack(err)
+			}
+			_, err = tx.Exec(ctx, "DElETE FROM jobset WHERE id = $1", jobSet)
+			if err != nil {
+				return errors.WithStack(err)
+			}
+			_, err = tx.Exec(ctx, "DELETE FROM event WHERE jobset_id = $1", jobSet)
+			return errors.WithStack(err)
+		} else {
+			log.Infof("Retrieved seqNo %d but expected seqNo %d.  Not deleting", retrievedSeqNo, expectedSeqNo)
+			return nil
+		}
+	})
 }
 
 // GetOrCreateJobsetId will retrieve a mapping from (queue, jobset) -> jobsetId or create a new one if one doesn't exist

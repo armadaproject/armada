@@ -28,4 +28,6 @@ type EventIngesterConfiguration struct {
 	Paralellism int
 	// Pulsar Topic on which sequence updates will be sent
 	UpdateTopic string
+	// Time after which any jobsets that haven't received events will be deleted from the db
+	InactiveJobsetExpiration time.Duration
 }
