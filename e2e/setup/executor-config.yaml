@@ -4,4 +4,5 @@ apiConnection:
 kubernetes:
   QPS: 100
   Burst: 100
-  etcdMaxFractionOfStorageInUse: 0.9
+  etcdFractionOfStorageInUseSoftLimit: 0.8
+  etcdFractionOfStorageInUseHardLimit: 0.9

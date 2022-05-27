@@ -22,7 +22,8 @@ metric:
   exposeQueueUsageMetrics: false
 kubernetes:
   impersonateUsers: false
-  EtcdMaxFractionOfStorageInUse: 0.9
+  EtcdFractionOfStorageInUseSoftLimit: 0.8
+  EtcdFractionOfStorageInUseHardLimit: 0.9
   QPS: 10000
   Burst: 10000
   minimumPodAge: 3m

@@ -53,8 +53,12 @@ func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGrou
 	if len(config.Kubernetes.EtcdMetricUrls) != 0 {
 		log.Info("etcd URLs provided; monitoring etcd health")
 
-		if config.Kubernetes.EtcdMaxFractionOfStorageInUse <= 0 || config.Kubernetes.EtcdMaxFractionOfStorageInUse > 1 {
-			panic("EtcdMaxFractionOfStorageInUse must be in (0, 1]")
+		if config.Kubernetes.EtcdFractionOfStorageInUseSoftLimit <= 0 || config.Kubernetes.EtcdFractionOfStorageInUseSoftLimit > 1 {
+			panic("EtcdFractionOfStorageInUseSoftLimit must be in (0, 1]")
+		}
+
+		if config.Kubernetes.EtcdFractionOfStorageInUseHardLimit <= 0 || config.Kubernetes.EtcdFractionOfStorageInUseHardLimit > 1 {
+			panic("EtcdFractionOfStorageInUseHardLimit must be in (0, 1]")
 		}
 
 		etcdHealthMonitor, err = etcdhealthmonitor.New(config.Kubernetes.EtcdMetricUrls, nil)
@@ -89,7 +93,7 @@ func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGrou
 		kubernetesClientProvider,
 	)
 	clusterContext.EtcdHealthMonitor = etcdHealthMonitor
-	clusterContext.EtcdMaxFractionOfStorageInUse = config.Kubernetes.EtcdMaxFractionOfStorageInUse
+	clusterContext.EtcdMaxFractionOfStorageInUse = config.Kubernetes.EtcdFractionOfStorageInUseHardLimit
 
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
@@ -97,10 +101,10 @@ func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGrou
 	taskManager := task.NewBackgroundTaskManager(metrics.ArmadaExecutorMetricsPrefix)
 	taskManager.Register(clusterContext.ProcessPodsToDelete, config.Task.PodDeletionInterval, "pod_deletion")
 
-	return StartUpWithContext(config, clusterContext, taskManager, wg)
+	return StartUpWithContext(config, clusterContext, etcdHealthMonitor, taskManager, wg)
 }
 
-func StartUpWithContext(config configuration.ExecutorConfiguration, clusterContext executor_context.ClusterContext, taskManager *task.BackgroundTaskManager, wg *sync.WaitGroup) (func(), *sync.WaitGroup) {
+func StartUpWithContext(config configuration.ExecutorConfiguration, clusterContext executor_context.ClusterContext, etcdHealthMonitor *etcdhealthmonitor.EtcdHealthMonitor, taskManager *task.BackgroundTaskManager, wg *sync.WaitGroup) (func(), *sync.WaitGroup) {
 
 	conn, err := createConnectionToApi(config)
 	if err != nil {
@@ -122,6 +126,8 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 		config.Kubernetes.MinimumJobSize,
 		config.Kubernetes.AvoidNodeLabelsOnRetry,
 	)
+	jobLeaseService.EtcdHealthMonitor = etcdHealthMonitor
+	jobLeaseService.EtcdMaxFractionOfStorageInUse = config.Kubernetes.EtcdFractionOfStorageInUseSoftLimit
 
 	if config.Kubernetes.PendingPodChecks == nil {
 		log.Error("Config error: Missing pending pod checks")

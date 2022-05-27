@@ -39,19 +39,21 @@ type KubernetesConfiguration struct {
 	QPS   float32
 	Burst int
 	// URLs of the etcd instances storing the cluster state.
-	// If provided, Armada monitors the health of etcd and limits object creation when
-	// etcd is EtcdMaxFractionOfStorageInUse or more percent full.
-	EtcdMetricUrls                []string
-	EtcdMaxFractionOfStorageInUse float64
-	TrackedNodeLabels             []string
-	AvoidNodeLabelsOnRetry        []string
-	ToleratedTaints               []string
-	MinimumPodAge                 time.Duration
-	StuckTerminatingPodExpiry     time.Duration
-	FailedPodExpiry               time.Duration
-	MinimumJobSize                common.ComputeResources
-	PodDefaults                   *PodDefaults
-	PendingPodChecks              *podchecks.Checks
+	// If provided, Armada monitors the health of etcd and
+	// stops requesting jobs when etcd is EtcdFractionOfStorageInUseSoftLimit percent full and
+	// stops pod creation when etcd is EtcdFractionOfStorageInUseHardLimit or more percent full.
+	EtcdMetricUrls                      []string
+	EtcdFractionOfStorageInUseSoftLimit float64
+	EtcdFractionOfStorageInUseHardLimit float64
+	TrackedNodeLabels                   []string
+	AvoidNodeLabelsOnRetry              []string
+	ToleratedTaints                     []string
+	MinimumPodAge                       time.Duration
+	StuckTerminatingPodExpiry           time.Duration
+	FailedPodExpiry                     time.Duration
+	MinimumJobSize                      common.ComputeResources
+	PodDefaults                         *PodDefaults
+	PendingPodChecks                    *podchecks.Checks
 }
 
 type TaskConfiguration struct {
