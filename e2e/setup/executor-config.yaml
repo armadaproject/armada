@@ -4,6 +4,4 @@ apiConnection:
 kubernetes:
   QPS: 100
   Burst: 100
-  etcdMetricUrls:
-    - "http://etcd:2379/metrics"
   etcdMaxFractionOfStorageInUse: 0.9
