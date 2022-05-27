@@ -277,7 +277,7 @@ jobs:
             docker tag armadactl gresearchdev/armada-armadactl-dev:${TAG}
             docker push gresearchdev/armada-armadactl-dev:${TAG}
 
-  release:
+  release-armadactl:
     machine:
       docker_layer_caching: true
       image: ubuntu-2004:202104-01
@@ -318,6 +318,18 @@ jobs:
 
             ./scripts/add-checksum-summary.sh ${GITHUB_TOKEN} ${CIRCLE_TAG}
 
+  release-docker-images:
+    machine:
+      docker_layer_caching: true
+      image: ubuntu-2004:202104-01
+      resource_class: medium
+    environment:
+      GO111MODULE: "on"
+      GOPATH: "/home/circleci/go"
+      GOCACHE: "/home/circleci/go/cache"
+    working_directory: ~/go/src/github.com/G-Research/armada
+    steps:
+      - checkout
       - run:
           name: Publish images
           command: |
@@ -345,6 +357,19 @@ jobs:
             docker pull gresearchdev/armada-binoculars-dev:${TAG}
             docker tag gresearchdev/armada-binoculars-dev:${TAG} gresearchdev/armada-binoculars:${RELEASE_TAG}
             docker push gresearchdev/armada-binoculars:${RELEASE_TAG}
+
+  release-charts:
+    machine:
+      docker_layer_caching: true
+      image: ubuntu-2004:202104-01
+      resource_class: medium
+    environment:
+      GO111MODULE: "on"
+      GOPATH: "/home/circleci/go"
+      GOCACHE: "/home/circleci/go/cache"
+    working_directory: ~/go/src/github.com/G-Research/armada
+    steps:
+      - checkout
 
       - install-helm-client
 
@@ -376,7 +401,19 @@ workflows:
       -  build_and_integration_tests
       -  checks_and_unit_tests-ubuntu2004-go116
       -  checks_and_unit_tests-ubuntu2204-go118
-      - release:
+      - release-armadactl:
+          filters:
+            tags:
+              only: /.*/
+            branches:
+              ignore: /.*/
+      - release-docker-images:
+          filters:
+            tags:
+              only: /.*/
+            branches:
+              ignore: /.*/
+      - release-charts:
           filters:
             tags:
               only: /.*/
