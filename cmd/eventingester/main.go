@@ -2,6 +2,7 @@ package main
 
 import (
 	ctx "context"
+	"github.com/G-Research/armada/internal/eventapi/cleanup"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
@@ -18,10 +19,12 @@ import (
 
 const CustomConfigLocation string = "config"
 const MigrateDatabase string = "migrateDatabase"
+const PruneDatabase = "pruneDatabase"
 
 func init() {
 	pflag.StringSlice(CustomConfigLocation, []string{}, "Fully qualified path to application configuration file (for multiple config files repeat this arg or separate paths with commas)")
 	pflag.Bool(MigrateDatabase, false, "Migrate database instead of running server")
+	pflag.Bool(PruneDatabase, false, "Removes old jobsets from the database instead of running server")
 	pflag.Parse()
 }
 
@@ -35,6 +38,11 @@ func main() {
 	common.LoadConfig(&config, "./config/eventingester", userSpecifiedConfigs)
 	if viper.GetBool(MigrateDatabase) {
 		err := migrateDatabase(config)
+		if err != nil {
+			log.Fatal(err)
+		}
+	} else if viper.GetBool(PruneDatabase) {
+		err := cleanup.Run(&config)
 		if err != nil {
 			log.Fatal(err)
 		}
