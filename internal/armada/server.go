@@ -8,7 +8,6 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/clock"
 
-	"github.com/G-Research/armada/internal/eventapi"
 	"github.com/G-Research/armada/internal/eventapi/eventdb"
 	"github.com/G-Research/armada/internal/eventapi/serving"
 
@@ -361,13 +360,8 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 			panic(err)
 		}
 
-		jobsetMapper, err := eventapi.NewJobsetMapper(eventDb, config.EventApi.JobsetCacheSize, 24*time.Hour)
-		if err != nil {
-			panic(err)
-		}
-
 		subscriptionManager := serving.NewSubscriptionManager(sequenceManager, eventDb, 10, 1*time.Second, 2*time.Second, config.EventApi.QueryConcurrency, 10000, clock.RealClock{})
-		eventApi = serving.NewEventApi(jobsetMapper, subscriptionManager, sequenceManager)
+		eventApi = serving.NewEventApi(eventDb, subscriptionManager, sequenceManager)
 	}
 
 	usageServer := server.NewUsageServer(permissions, config.PriorityHalfTime, &config.Scheduling, usageRepository, queueRepository)

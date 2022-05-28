@@ -1,8 +1,9 @@
 package ingestion
 
 import (
-	"github.com/G-Research/armada/internal/pulsarutils"
 	"time"
+
+	"github.com/G-Research/armada/internal/pulsarutils"
 
 	"k8s.io/apimachinery/pkg/util/clock"
 )

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/zlib"
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -11,7 +12,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
 
-	"github.com/G-Research/armada/internal/eventapi"
 	"github.com/G-Research/armada/internal/eventapi/model"
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/armadaevents"
@@ -63,7 +63,20 @@ var expectedApiEvent = &api.EventMessage_Cancelled{
 		Requestor: user,
 	},
 }
-var jobsetMapper = &eventapi.StaticJobsetMapper{JobsetIds: map[string]int64{"test-queue:test-jobset": 1}}
+
+type dummyJobsetMapper struct {
+	mappings map[string]int64
+}
+
+func (jsm dummyJobsetMapper) GetOrCreateJobsetId(ctx context.Context, queue string, jobset string) (int64, error) {
+	id, present := jsm.mappings[fmt.Sprintf("%s:%s", queue, jobset)]
+	if !present {
+		return -1, fmt.Errorf("no mapping for %s:%s", queue, jobset)
+	}
+	return id, nil
+}
+
+var testJobsetMapper = dummyJobsetMapper{mappings: map[string]int64{"test-queue:test-jobset": 1}}
 
 // Test that if you ask for events and there are no events available then you return immediately
 func TestGetEvents_WithNoEventAvailable(t *testing.T) {
@@ -179,6 +192,6 @@ func withEventApi(action func(eventApi *EventApi, context *testEventContext)) {
 		activeSubscriptions: 0,
 		SequenceManager:     &DefaultSequenceManager{sequences: make(map[int64]int64)},
 	}
-	eventApi := NewEventApi(jobsetMapper, context, context.SequenceManager)
+	eventApi := NewEventApi(testJobsetMapper, context, context.SequenceManager)
 	action(eventApi, context)
 }

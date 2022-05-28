@@ -3,12 +3,14 @@ package cleanup
 import (
 	ctx "context"
 	"fmt"
+	"time"
+
+	"github.com/pkg/errors"
+	log "github.com/sirupsen/logrus"
+
 	"github.com/G-Research/armada/internal/eventapi/configuration"
 	"github.com/G-Research/armada/internal/eventapi/eventdb"
 	"github.com/G-Research/armada/internal/lookout/postgres"
-	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
-	"time"
 )
 
 func Run(config *configuration.EventIngesterConfiguration) error {

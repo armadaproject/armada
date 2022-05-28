@@ -2,13 +2,14 @@ package ingestion
 
 import (
 	"context"
+	"os"
+	"os/signal"
+	"sync"
+
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/clock"
-	"os"
-	"os/signal"
-	"sync"
 
 	"github.com/G-Research/armada/internal/common/compress"
 	"github.com/G-Research/armada/internal/eventapi/configuration"

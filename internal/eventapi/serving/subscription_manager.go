@@ -160,9 +160,6 @@ func (sm *DefaultSubscriptionManager) Subscribe(jobset int64, fromOffset int64) 
 	// Go routine that will publish events to the external channel
 	go func() {
 		for data := range sub.channel {
-			cond.L.Lock()
-			cond.Signal()
-			cond.L.Unlock()
 			if len(data) > 0 {
 				receivedOffset := data[len(data)-1].SeqNo
 				if catchingUp {
@@ -170,8 +167,11 @@ func (sm *DefaultSubscriptionManager) Subscribe(jobset int64, fromOffset int64) 
 					storedOffset, _ := sm.offsets.Get(jobset)
 					catchingUp = storedOffset > receivedOffset
 				}
-				currentOffset = receivedOffset
+				atomic.StoreInt64(&currentOffset, receivedOffset)
 			}
+			cond.L.Lock()
+			cond.Signal()
+			cond.L.Unlock()
 			externalSubscription.Channel <- data
 		}
 	}()

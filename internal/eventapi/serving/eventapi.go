@@ -4,6 +4,8 @@ import (
 	ctx "context"
 	"math"
 
+	"golang.org/x/net/context"
+
 	"github.com/pkg/errors"
 
 	"github.com/gogo/protobuf/proto"
@@ -11,7 +13,6 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/G-Research/armada/internal/common/compress"
-	"github.com/G-Research/armada/internal/eventapi"
 	"github.com/G-Research/armada/internal/eventapi/model"
 	"github.com/G-Research/armada/internal/eventapi/serving/apimessages"
 	"github.com/G-Research/armada/pkg/api"
@@ -20,12 +21,16 @@ import (
 
 // EventApi is responsible for serveing User requests for event messages
 type EventApi struct {
-	jobsetMapper        eventapi.JobsetMapper
+	jobsetMapper        jobsetMapper
 	subscriptionManager SubscriptionManager
 	sequenceManager     SequenceManager
 }
 
-func NewEventApi(jobsetMapper eventapi.JobsetMapper, subscriptionManager SubscriptionManager, sequenceManager SequenceManager) *EventApi {
+type jobsetMapper interface {
+	GetOrCreateJobsetId(ctx context.Context, queue string, jobset string) (int64, error)
+}
+
+func NewEventApi(jobsetMapper jobsetMapper, subscriptionManager SubscriptionManager, sequenceManager SequenceManager) *EventApi {
 	return &EventApi{
 		jobsetMapper:        jobsetMapper,
 		sequenceManager:     sequenceManager,
@@ -38,7 +43,7 @@ func NewEventApi(jobsetMapper eventapi.JobsetMapper, subscriptionManager Subscri
 // present in the database when the request was made.
 func (r *EventApi) GetJobSetEvents(request *api.JobSetRequest, stream api.Event_GetJobSetEventsServer) error {
 	// Extract Jobset
-	jobsetId, err := r.jobsetMapper.Get(ctx.Background(), request.Queue, request.Id)
+	jobsetId, err := r.jobsetMapper.GetOrCreateJobsetId(ctx.Background(), request.Queue, request.Id)
 	if err != nil {
 		return err
 	}
@@ -50,7 +55,7 @@ func (r *EventApi) GetJobSetEvents(request *api.JobSetRequest, stream api.Event_
 	}
 	var upTo = int64(math.MaxInt64)
 	if !request.Watch {
-		upTo, err = r.getLastMessageId(request.Queue, request.Id)
+		upTo, err = r.getLastMessageId(jobsetId)
 		if err != nil {
 			return err
 		}
@@ -112,13 +117,9 @@ func (r *EventApi) GetJobSetEvents(request *api.JobSetRequest, stream api.Event_
 	return nil
 }
 
-// getLastMessageId returns the latests seq No for the given jibset or -1 if there are no seqNos
-func (r *EventApi) getLastMessageId(queue, jobSetId string) (int64, error) {
-	id, err := r.jobsetMapper.Get(ctx.Background(), queue, jobSetId)
-	if err != nil {
-		return -1, err
-	}
-	offset, present := r.sequenceManager.Get(id)
+// getLastMessageId returns the latests seq No for the given jobset or -1 if there are no seqNos
+func (r *EventApi) getLastMessageId(jobSetId int64) (int64, error) {
+	offset, present := r.sequenceManager.Get(jobSetId)
 	if !present {
 		offset = -1
 	}

@@ -2,12 +2,15 @@ package main
 
 import (
 	"context"
-	"github.com/G-Research/armada/pkg/armadaevents"
+	"time"
+
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/proto"
-	"time"
+
+	"github.com/G-Research/armada/pkg/armadaevents"
+
+	log "github.com/sirupsen/logrus"
 )
-import log "github.com/sirupsen/logrus"
 
 const jobIdString = "01f3j0g1md4qx7z5qb148qnh4r"
 

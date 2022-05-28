@@ -31,10 +31,10 @@ func NewUpdatingSequenceManager(ctx context.Context, eventDb *eventdb.EventDb, p
 	// our db fetch time
 	startTime := time.Now()
 
-	// Load the latest sequence from the DB
+	// Load the latest sequence from the DB after our cutoff time
 	// TODO: this could become expensive if we have a very large number of jobsets
 	// Could move to a caching model
-	initialSequenceRows, err := eventDb.LoadSeqNos(ctx)
+	initialSequenceRows, err := eventDb.LoadSeqNosAfter(ctx, time.Now().Add(-2*24*7*time.Hour))
 	if err != nil {
 		return nil, err
 	}
