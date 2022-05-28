@@ -15,7 +15,6 @@ pulsar:
   URL: "pulsar://localhost:6650"
   jobsetEventsTopic: "jobset-events"
 
-paralellism: 1
 subscriptionName: "events-ingester"
 batchSize: 10000
 batchDuration: 500ms
