@@ -34,10 +34,16 @@ type SeqNoRow struct {
 	UpdateTime time.Time
 }
 
-// PulsarEventRow represents an Event Row along with information about the originating pulsar message
-type PulsarEventRow struct {
-	MessageId *pulsarutils.ConsumerMessageId
-	Event     *EventRow
+// QueueJobsetPair holds a queue and a jobset, which is the compound key of armada jobsets
+type QueueJobsetPair struct {
+	Queue  string
+	Jobset string
+}
+
+// BatchUpdate represents an Event Row along with information about the originating pulsar message
+type BatchUpdate struct {
+	MessageIds []*pulsarutils.ConsumerMessageId
+	Events     []*EventRow
 }
 
 // EventSubscription represents a single subscription to a stream of events

@@ -24,8 +24,6 @@ type EventIngesterConfiguration struct {
 	PulsarReceiveTimeout time.Duration
 	// Time for which the pulsar consumer will back off after receiving an error on trying to receive a message
 	PulsarBackoffTime time.Duration
-	// Number of goroutines to be used for receiving messages and converting them to instructions
-	Paralellism int
 	// Pulsar Topic on which sequence updates will be sent
 	UpdateTopic string
 	// Time after which any jobsets that haven't received events will be deleted from the db

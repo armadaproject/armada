@@ -255,7 +255,7 @@ func (e *EventDb) LoadJobsetsAfter(ctx context.Context, after time.Time) ([]*mod
 	return jobsets, nil
 }
 
-// LoadSeqNosAfter Loads all sequence numbers from jobsets which have had uypdates after the given cutoff time
+// LoadSeqNosAfter Loads all sequence numbers from jobsets which have had updates after the given cutoff time
 func (e *EventDb) LoadSeqNosAfter(ctx context.Context, after time.Time) ([]*model.SeqNoRow, error) {
 	rows, err := e.db.Query(ctx, "SELECT jobset_id, seqno, update_time FROM latest_seqno WHERE update_time > $1 ORDER BY jobset_id", after)
 	if err != nil {
@@ -317,6 +317,22 @@ func (e *EventDb) DeleteJobsetInfo(ctx context.Context, jobSet int64, expectedSe
 			return nil
 		}
 	})
+}
+
+// GetOrCreateJobsetIds will retrieve a mapping from (queue, jobset) -> jobsetId or create a new one if one doesn't exist
+func (e *EventDb) GetOrCreateJobsetIds(ctx context.Context, jobsets map[model.QueueJobsetPair]bool) (map[model.QueueJobsetPair]int64, error) {
+
+	mappings := make(map[model.QueueJobsetPair]int64, len(jobsets))
+
+	// TODO: this will be extrememly slow.  This can be fixed once I understand how to do a compound in clause in pgx
+	for k, _ := range mappings {
+		id, err := e.GetOrCreateJobsetId(ctx, k.Queue, k.Jobset)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		mappings[k] = id
+	}
+	return mappings, nil
 }
 
 // GetOrCreateJobsetId will retrieve a mapping from (queue, jobset) -> jobsetId or create a new one if one doesn't exist

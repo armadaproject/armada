@@ -12,11 +12,11 @@ import (
 
 // InsertEvents takes a channel of armada events and insets them into the event db
 // the events are republished to an output channel for further processing (e.g. Ackking)
-func InsertEvents(ctx context.Context, db *eventdb.EventDb, msgs chan []*model.PulsarEventRow, bufferSize int) chan []*model.PulsarEventRow {
-	out := make(chan []*model.PulsarEventRow, bufferSize)
+func InsertEvents(ctx context.Context, db *eventdb.EventDb, msgs chan *model.BatchUpdate, bufferSize int) chan *model.BatchUpdate {
+	out := make(chan *model.BatchUpdate, bufferSize)
 	go func() {
 		for msg := range msgs {
-			insert(ctx, db, msg)
+			insert(ctx, db, msg.Events)
 			out <- msg
 		}
 		close(out)
@@ -24,17 +24,13 @@ func InsertEvents(ctx context.Context, db *eventdb.EventDb, msgs chan []*model.P
 	return out
 }
 
-func insert(ctx context.Context, db *eventdb.EventDb, inputRows []*model.PulsarEventRow) {
+func insert(ctx context.Context, db *eventdb.EventDb, rows []*model.EventRow) {
 	start := time.Now()
-	rows := make([]*model.EventRow, len(inputRows))
-	for i := 0; i < len(inputRows); i++ {
-		rows[i] = inputRows[i].Event
-	}
 	err := db.UpdateEvents(ctx, rows)
 	if err != nil {
 		log.Warnf("Error inserting rows %+v", err)
 	} else {
 		taken := time.Now().Sub(start).Milliseconds()
-		log.Infof("Inserted %d events in %dms", len(inputRows), taken)
+		log.Infof("Inserted %d events in %dms", len(rows), taken)
 	}
 }

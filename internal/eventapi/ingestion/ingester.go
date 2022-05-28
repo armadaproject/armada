@@ -2,21 +2,17 @@ package ingestion
 
 import (
 	"context"
-	"os"
-	"os/signal"
-	"sync"
-	"time"
-
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/clock"
+	"os"
+	"os/signal"
+	"sync"
 
 	"github.com/G-Research/armada/internal/common/compress"
-	"github.com/G-Research/armada/internal/eventapi"
 	"github.com/G-Research/armada/internal/eventapi/configuration"
 	"github.com/G-Research/armada/internal/eventapi/eventdb"
-	"github.com/G-Research/armada/internal/eventapi/model"
 	"github.com/G-Research/armada/internal/lookout/postgres"
 	"github.com/G-Research/armada/internal/pulsarutils"
 )
@@ -24,10 +20,6 @@ import (
 // Run will create a pipeline that will take Armada event messages from Pulsar and update the
 // Events database accordingly.  This pipeline will run until a SIGTERM is received
 func Run(config *configuration.EventIngesterConfiguration) {
-
-	if !(config.Paralellism > 0) {
-		panic("Lookout ingester paralellism must be greater than 0")
-	}
 
 	log := logrus.StandardLogger().WithField("service", "EventIngester")
 	ctx := ctxlogrus.ToContext(createContextWithShutdown(), log)
@@ -50,13 +42,6 @@ func Run(config *configuration.EventIngesterConfiguration) {
 		panic(err)
 	}
 
-	// initialise a jobsetMapper preloaded with the last day's mappings
-	jobsetmapper, err := eventapi.NewJobsetMapper(eventDb, 100000, 24*time.Hour)
-	if err != nil {
-		log.Errorf("Error initialising jobset mapper")
-		panic(err)
-	}
-
 	producer, err := pulsarClient.CreateProducer(pulsar.ProducerOptions{
 		Topic: config.UpdateTopic,
 	})
@@ -66,47 +51,39 @@ func Run(config *configuration.EventIngesterConfiguration) {
 	}
 
 	// Receive messages and convert them to instructions in parallel
-	log.Infof("Creating %d subscriptions to pulsar topic %s", config.Paralellism, config.Pulsar.JobsetEventsTopic)
-	eventChannels := make([]chan *model.PulsarEventRow, config.Paralellism)
-	consumers := make([]pulsar.Consumer, config.Paralellism)
-	for i := 0; i < config.Paralellism; i++ {
+	log.Infof("Creating subscriptions to pulsar topic %s", config.Pulsar.JobsetEventsTopic)
 
-		// Create a pulsar consumer
-		consumer, err := pulsarClient.Subscribe(pulsar.ConsumerOptions{
-			Topic:            config.Pulsar.JobsetEventsTopic,
-			SubscriptionName: config.SubscriptionName,
-			Type:             pulsar.KeyShared,
-		})
-		if err != nil {
-			log.Errorf("Error creating pulsar consumer %d", i)
-			panic(err)
-		}
-
-		// Receive Pulsar messages on a channel
-		pulsarMsgs := pulsarutils.Receive(ctx, consumer, i, 2*config.BatchSize, config.PulsarReceiveTimeout, config.PulsarBackoffTime)
-
-		// Turn the messages into instructions
-		compressor, err := compress.NewZlibCompressor(config.MinMessageCompressionSize)
-		if err != nil {
-			log.Errorf("Error creating compressor for consumer %d", i)
-			panic(err)
-		}
-		converter := &MessageRowConverter{
-			compressor:   compressor,
-			jobsetMapper: jobsetmapper,
-		}
-		eventChannels[i] = Convert(ctx, pulsarMsgs, 2*config.BatchSize, converter)
-		consumers[i] = consumer
+	// Create a pulsar consumer
+	consumer, err := pulsarClient.Subscribe(pulsar.ConsumerOptions{
+		Topic:            config.Pulsar.JobsetEventsTopic,
+		SubscriptionName: config.SubscriptionName,
+		Type:             pulsar.KeyShared,
+	})
+	if err != nil {
+		log.Errorf("Error creating pulsar consumer")
+		panic(err)
 	}
 
-	// Create a merged set of msgs from each stream.  Ordering within each stream is preserved
-	mergedMsgs := merge(eventChannels)
+	// Receive Pulsar messages on a channel
+	pulsarMsgs := pulsarutils.Receive(ctx, consumer, 1, 2*config.BatchSize, config.PulsarReceiveTimeout, config.PulsarBackoffTime)
 
 	// Batch up messages
-	batchedMsgs := Batch(mergedMsgs, config.BatchSize, config.BatchDuration, 5, clock.RealClock{})
+	batchedMsgs := Batch(pulsarMsgs, config.BatchSize, config.BatchDuration, 5, clock.RealClock{})
+
+	// Turn the messages into event rows
+	compressor, err := compress.NewZlibCompressor(config.MinMessageCompressionSize)
+	if err != nil {
+		log.Errorf("Error creating compressor for consumer")
+		panic(err)
+	}
+	converter := &MessageRowConverter{
+		compressor: compressor,
+		eventDb:    eventDb,
+	}
+	events := Convert(ctx, batchedMsgs, 5, converter)
 
 	// Insert into database
-	inserted := InsertEvents(ctx, eventDb, batchedMsgs, 5)
+	inserted := InsertEvents(ctx, eventDb, events, 5)
 
 	// Send update
 	sequenceUpdatesSent := SendSequenceUpdates(ctx, producer, inserted, 5)
@@ -116,34 +93,12 @@ func Run(config *configuration.EventIngesterConfiguration) {
 	wg.Add(1)
 
 	// Send Acks
-	go pulsarutils.Ack(ctx, consumers, sequenceUpdatesSent, wg)
+	go pulsarutils.Ack(ctx, []pulsar.Consumer{consumer}, sequenceUpdatesSent, wg)
 
 	log.Info("Ingestion pipeline set up.  Running until shutdown event received")
 	// wait for a shutdown event
 	wg.Wait()
 	log.Info("Shutdown event received- closing")
-}
-
-// Merges an array of channels into a single channel
-// TODO: This is basically the same asMergeInstructions in the lookout ingester
-// Once generics arrive we should factor this out
-func merge(cs []chan *model.PulsarEventRow) <-chan *model.PulsarEventRow {
-	out := make(chan *model.PulsarEventRow)
-	var wg sync.WaitGroup
-	wg.Add(len(cs))
-	for _, c := range cs {
-		go func(c <-chan *model.PulsarEventRow) {
-			for v := range c {
-				out <- v
-			}
-			wg.Done()
-		}(c)
-	}
-	go func() {
-		wg.Wait()
-		close(out)
-	}()
-	return out
 }
 
 // createContextWithShutdown returns a context that will report done when a SIGTERM is received
