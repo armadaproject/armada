@@ -284,7 +284,9 @@ tests-e2e-setup: setup-cluster
 	docker exec -it pulsar bin/pulsar-admin tenants create armada
 	docker exec -it pulsar bin/pulsar-admin namespaces create armada/armada
 	docker exec -it pulsar bin/pulsar-admin topics delete-partitioned-topic persistent://armada/armada/events -f || true
+	docker exec -it pulsar bin/pulsar-admin topics delete-partitioned-topic persistent://armada/armada/sequenceupdates -f || true
 	docker exec -it pulsar bin/pulsar-admin topics create-partitioned-topic persistent://armada/armada/events -p 2
+	docker exec -it pulsar bin/pulsar-admin topics create-partitioned-topic persistent://armada/armada/sequenceupdates -p 2
 
 	# Disable topic auto-creation to ensure an error is thrown on using the wrong topic
 	# (Pulsar automatically created the public tenant and default namespace).
@@ -292,7 +294,8 @@ tests-e2e-setup: setup-cluster
 	docker exec -it pulsar bin/pulsar-admin namespaces set-auto-topic-creation armada/armada --disable
 
 	sleep 30 # give dependencies time to start up
-	docker run -d --name event-ingester --network=kind --config /e2e/setup/eventingester/config.yaml
+	docker run --network kind -v ${PWD}/e2e:/e2e armada-eventapi-ingester --config /e2e/setup/event-ingester/config.yaml --migrateDatabase
+	docker run -d --name event-ingester --network=kind -v ${PWD}/e2e:/e2e armada-eventapi-ingester --config /e2e/setup/event-ingester/config.yaml
 	docker run -d --name server --network=kind -p=50051:50051 -p 8080:8080 -v ${PWD}/e2e:/e2e \
 		armada ./server --config /e2e/setup/insecure-armada-auth-config.yaml --config /e2e/setup/nats/armada-config.yaml --config /e2e/setup/redis/armada-config.yaml --config /e2e/setup/pulsar/armada-config.yaml  --config /e2e/setup/server/armada-config.yaml
 	docker run -d --name executor --network=kind -v ${PWD}/.kube:/.kube -v ${PWD}/e2e:/e2e  \
@@ -312,17 +315,17 @@ tests-e2e-no-setup:
 	# $(DOTNET_CMD) dotnet test client/DotNet/Armada.Client.Test/Armada.Client.Test.csproj
 
 .ONESHELL:
-tests-e2e: build-armadactl build-docker-no-lookout tests-e2e-setup
-	function teardown {
-		echo -e "\nexecutor logs:"
-		docker logs executor
-		echo -e "\nserver logs:"
-		docker logs server
-		docker rm -f nats redis pulsar server event-ingester executor postgres
-		kind delete cluster --name armada-test
-		rm .kube/config
-		rmdir .kube
-	}
+tests-e2e: #build-armadactl build-docker-no-lookout tests-e2e-setup
+#	function teardown {
+#		echo -e "\nexecutor logs:"
+#		docker logs executor
+#		echo -e "\nserver logs:"
+#		docker logs server
+#		docker rm -f nats redis pulsar server event-ingester executor postgres
+#		kind delete cluster --name armada-test
+#		rm .kube/config
+#		rmdir .kube
+#	}
 	mkdir -p test_reports
 	trap teardown exit
 	sleep 10

@@ -46,10 +46,10 @@ func main() {
 func migrateDatabase(config configuration.EventIngesterConfiguration) error {
 	log.Infof("Opening connection pool to postgres")
 	db, err := postgres.OpenPgxPool(config.Postgres)
-	defer db.Close()
 	if err != nil {
 		return err
 	}
+	defer db.Close()
 	migrations, err := database.GetMigrations(statik.EventapiSql)
 	if err != nil {
 		return err

@@ -1,0 +1,12 @@
+postgres:
+  connection:
+    host: postgres
+
+pulsar:
+  enabled: true
+  URL: "pulsar://pulsar:6650"
+  jobsetEventsTopic: "persistent://armada/armada/events"
+
+subscriptionName: "events-ingester"
+batchDuration: 10ms # set this much smaller than in prod to make the tests faster
+updateTopic: "persistent://armada/armada/sequenceupdates"
