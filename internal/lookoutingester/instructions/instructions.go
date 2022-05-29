@@ -5,10 +5,6 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/G-Research/armada/internal/pulsarutils"
-
-	"github.com/G-Research/armada/internal/common/compress"
-
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
