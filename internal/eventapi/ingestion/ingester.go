@@ -66,7 +66,7 @@ func Run(config *configuration.EventIngesterConfiguration) {
 	}
 
 	// Receive Pulsar messages on a channel
-	pulsarMsgs := pulsarutils.Receive(ctx, consumer, 1, 2*config.BatchSize, config.PulsarReceiveTimeout, config.PulsarBackoffTime)
+	pulsarMsgs := pulsarutils.Receive(ctx, consumer, 0, 2*config.BatchSize, config.PulsarReceiveTimeout, config.PulsarBackoffTime)
 
 	// Batch up messages
 	batchedMsgs := Batch(pulsarMsgs, config.BatchSize, config.BatchDuration, 5, clock.RealClock{})
