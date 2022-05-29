@@ -189,6 +189,43 @@ func TestGetOrCreateJobsetId(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestGetOrCreateJobsetIds(t *testing.T) {
+	err := WithDatabase(func(db *EventDb) error {
+		ctx := context.Background()
+
+		actual, err := db.GetOrCreateJobsetIds(ctx,
+			[]model.QueueJobsetPair{
+				{Queue: "queue1", Jobset: "testjobset"},
+				{Queue: "queue2", Jobset: "testjobset"},
+			},
+		)
+		assert.NoError(t, err)
+		expected := map[model.QueueJobsetPair]int64{
+			{Queue: "queue1", Jobset: "testjobset"}: 1,
+			{Queue: "queue2", Jobset: "testjobset"}: 2,
+		}
+
+		assert.Equal(t, expected, actual)
+
+		actual, err = db.GetOrCreateJobsetIds(ctx,
+			[]model.QueueJobsetPair{
+				{Queue: "queue2", Jobset: "testjobset"},
+				{Queue: "queue1", Jobset: "testjobset2"},
+			},
+		)
+
+		expected = map[model.QueueJobsetPair]int64{
+			{Queue: "queue2", Jobset: "testjobset"}:  2,
+			{Queue: "queue1", Jobset: "testjobset2"}: 3,
+		}
+
+		assert.Equal(t, expected, actual)
+
+		return nil
+	})
+	assert.NoError(t, err)
+}
+
 func TestGetEvents(t *testing.T) {
 	err := WithDatabase(func(db *EventDb) error {
 

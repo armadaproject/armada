@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/G-Research/armada/internal/common/database"
+
 	log "github.com/sirupsen/logrus"
 
 	"github.com/G-Research/armada/internal/eventapi/eventdb"
@@ -26,9 +28,11 @@ func InsertEvents(ctx context.Context, db *eventdb.EventDb, msgs chan *model.Bat
 
 func insert(ctx context.Context, db *eventdb.EventDb, rows []*model.EventRow) {
 	start := time.Now()
-	err := db.UpdateEvents(ctx, rows)
+	err := database.ExecuteWithDatabaseRetry(func() error {
+		return db.UpdateEvents(ctx, rows)
+	})
 	if err != nil {
-		log.Warnf("Error inserting rows %+v", err)
+		log.WithError(err).Warnf("Error inserting rows")
 	} else {
 		taken := time.Now().Sub(start).Milliseconds()
 		log.Infof("Inserted %d events in %dms", len(rows), taken)

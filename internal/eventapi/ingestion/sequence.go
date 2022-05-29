@@ -59,10 +59,10 @@ func SendSequenceUpdate(ctx context.Context, inputMsgs []*model.EventRow, produc
 			if err == nil {
 				sent = true
 			} else {
-				log.Warnf("Error sending update message %+v", errors.WithStack(err))
+				log.WithError(errors.WithStack(err)).Warnf("Error sending update message")
 			}
 		}
 	} else {
-		log.Warnf("Error marshalling sequence update %+v", errors.WithStack(err))
+		log.WithError(errors.WithStack(err)).Warnf("Error marshalling sequence update")
 	}
 }

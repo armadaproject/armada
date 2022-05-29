@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/G-Research/armada/internal/common/database"
+
 	"github.com/gogo/protobuf/proto"
 	log "github.com/sirupsen/logrus"
 
@@ -38,7 +40,7 @@ func (rc *MessageRowConverter) ConvertBatch(ctx context.Context, batch []*pulsar
 	// First unmarshall everything
 	messageIds := make([]*pulsarutils.ConsumerMessageId, len(batch))
 	eventSequences := make([]*armadaevents.EventSequence, len(batch))
-	distinctJobsets := make(map[model.QueueJobsetPair]bool)
+	jobsetsByKey := make(map[model.QueueJobsetPair]bool)
 	for i, msg := range batch {
 
 		pulsarMsg := msg.Message
@@ -74,18 +76,24 @@ func (rc *MessageRowConverter) ConvertBatch(ctx context.Context, batch []*pulsar
 			}
 		}
 		eventSequences[i] = es
-		distinctJobsets[model.QueueJobsetPair{Queue: es.Queue, Jobset: es.JobSetName}] = true
+		jobsetsByKey[model.QueueJobsetPair{Queue: es.Queue, Jobset: es.JobSetName}] = true
 	}
 
-	// Map QueueJobsetPairs to ints
-	mappings, err := rc.eventDb.GetOrCreateJobsetIds(ctx, distinctJobsets)
+	distinctJobsets := make([]model.QueueJobsetPair, 0, len(jobsetsByKey))
+	for k := range jobsetsByKey {
+		distinctJobsets = append(distinctJobsets, k)
+	}
+	mappingsObj, err := database.QueryWithDatabaseRetry(func() (interface{}, error) {
+		return rc.eventDb.GetOrCreateJobsetIds(ctx, distinctJobsets)
+	})
 	if err != nil {
 		log.WithError(err).Warnf("Error mapping jobsets")
 		return &model.BatchUpdate{MessageIds: messageIds, Events: nil}
 	}
+	mappings := mappingsObj.(map[model.QueueJobsetPair]int64)
 
-	// Finally construct event ros
-	eventRows := make([]*model.EventRow, 0)
+	// Finally construct event rows
+	eventRows := make([]*model.EventRow, 0, len(eventSequences))
 	for i, es := range eventSequences {
 
 		if es != nil {

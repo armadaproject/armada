@@ -320,19 +320,100 @@ func (e *EventDb) DeleteJobsetInfo(ctx context.Context, jobSet int64, expectedSe
 }
 
 // GetOrCreateJobsetIds will retrieve a mapping from (queue, jobset) -> jobsetId or create a new one if one doesn't exist
-func (e *EventDb) GetOrCreateJobsetIds(ctx context.Context, jobsets map[model.QueueJobsetPair]bool) (map[model.QueueJobsetPair]int64, error) {
+func (e *EventDb) GetOrCreateJobsetIds(ctx context.Context, jobsets []model.QueueJobsetPair) (map[model.QueueJobsetPair]int64, error) {
+
+	tx, err := e.db.BeginTx(ctx, pgx.TxOptions{
+		IsoLevel:       pgx.ReadCommitted,
+		AccessMode:     pgx.ReadWrite,
+		DeferrableMode: pgx.Deferrable})
+
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	mappings, err := doGetOrCreatejobsets(ctx, jobsets, tx)
+
+	if err != nil {
+		txErr := tx.Rollback(ctx)
+		if txErr != nil {
+			log.WithError(errors.WithStack(txErr)).Warnf("Error rolling back transaction")
+		}
+		return nil, errors.WithStack(err)
+	}
+
+	err = tx.Commit(ctx)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	return mappings, nil
+}
+
+func doGetOrCreatejobsets(ctx context.Context, jobsets []model.QueueJobsetPair, tx pgx.Tx) (map[model.QueueJobsetPair]int64, error) {
+
+	tmpTable := database.UniqueTableName("jobset")
+
+	_, err := tx.Exec(ctx, fmt.Sprintf(`
+				CREATE TEMPORARY TABLE %s 
+				(
+				  queue 	text,
+				  jobset    text
+				) ON COMMIT DROP;`, tmpTable))
+
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	_, err = tx.CopyFrom(ctx,
+		pgx.Identifier{tmpTable},
+		[]string{"queue", "jobset"},
+		pgx.CopyFromSlice(len(jobsets), func(i int) ([]interface{}, error) {
+			return []interface{}{
+				jobsets[i].Queue,
+				jobsets[i].Jobset,
+			}, nil
+		}),
+	)
+
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	_, err = tx.Exec(ctx, fmt.Sprintf(`
+		INSERT INTO jobset (queue, jobset, created)
+		(SELECT tmp.queue, tmp.jobset, $1 FROM %s AS tmp
+		LEFT JOIN jobset on jobset.queue = tmp.queue AND jobset.jobset = tmp.jobset
+		WHERE jobset.jobset is null)
+		ON CONFLICT DO NOTHING;`, tmpTable), time.Now().In(time.UTC))
+
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	rows, err := tx.Query(ctx, fmt.Sprintf(`
+		(SELECT jobset.id, jobset.queue, jobset.jobset FROM jobset
+		JOIN %s AS tmp on jobset.queue = tmp.queue AND jobset.jobset = tmp.jobset);`, tmpTable))
+
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
 
 	mappings := make(map[model.QueueJobsetPair]int64, len(jobsets))
 
-	// TODO: this will be extrememly slow.  This can be fixed once I understand how to do a compound in clause in pgx
-	for k, _ := range mappings {
-		id, err := e.GetOrCreateJobsetId(ctx, k.Queue, k.Jobset)
+	for rows.Next() {
+
+		var jobsetId int64 = -1
+		var queue = ""
+		var jobset = ""
+		err := rows.Scan(&jobsetId, &queue, &jobset)
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		mappings[k] = id
+		mappings[model.QueueJobsetPair{Queue: queue, Jobset: jobset}] = jobsetId
 	}
+
 	return mappings, nil
+
 }
 
 // GetOrCreateJobsetId will retrieve a mapping from (queue, jobset) -> jobsetId or create a new one if one doesn't exist

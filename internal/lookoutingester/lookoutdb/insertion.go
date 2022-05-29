@@ -7,15 +7,15 @@ import (
 	"sync"
 	"time"
 
+	"github.com/G-Research/armada/internal/common/database"
+
 	"github.com/G-Research/armada/internal/pulsarutils"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
-	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/G-Research/armada/internal/common/armadaerrors"
 	"github.com/G-Research/armada/internal/lookoutingester/model"
 )
 
@@ -152,7 +152,7 @@ func CreateJobRunContainers(ctx context.Context, db *pgxpool.Pool, instructions 
 }
 
 func CreateJobsBatch(ctx context.Context, db *pgxpool.Pool, instructions []*model.CreateJobInstruction) error {
-	return withDatabaseRetry(func() error {
+	return database.ExecuteWithDatabaseRetry(func() error {
 
 		tmpTable := uniqueTableName("job")
 
@@ -217,7 +217,7 @@ func CreateJobsScalar(ctx context.Context, db *pgxpool.Pool, instructions []*mod
 		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
          ON CONFLICT DO NOTHING`
 	for _, i := range instructions {
-		err := withDatabaseRetry(func() error {
+		err := database.ExecuteWithDatabaseRetry(func() error {
 			_, err := db.Exec(ctx, sqlStatement, i.JobId, i.Queue, i.Owner, i.JobSet, i.Priority, i.Submitted, i.JobJson, i.JobProto, i.State, i.Updated)
 			return err
 		})
@@ -228,7 +228,7 @@ func CreateJobsScalar(ctx context.Context, db *pgxpool.Pool, instructions []*mod
 }
 
 func UpdateJobsBatch(ctx context.Context, db *pgxpool.Pool, instructions []*model.UpdateJobInstruction) error {
-	return withDatabaseRetry(func() error {
+	return database.ExecuteWithDatabaseRetry(func() error {
 		tmpTable := uniqueTableName("job")
 
 		createTmp := func(tx pgx.Tx) error {
@@ -293,7 +293,7 @@ func UpdateJobsScalar(ctx context.Context, db *pgxpool.Pool, instructions []*mod
                   duplicate = coalesce($5, duplicate)
 				WHERE job_id = $6`
 	for _, i := range instructions {
-		err := withDatabaseRetry(func() error {
+		err := database.ExecuteWithDatabaseRetry(func() error {
 			_, err := db.Exec(ctx, sqlStatement, i.Priority, i.State, i.Updated, i.Cancelled, i.Duplicate, i.JobId)
 			return err
 		})
@@ -304,7 +304,7 @@ func UpdateJobsScalar(ctx context.Context, db *pgxpool.Pool, instructions []*mod
 }
 
 func CreateJobRunsBatch(ctx context.Context, db *pgxpool.Pool, instructions []*model.CreateJobRunInstruction) error {
-	return withDatabaseRetry(func() error {
+	return database.ExecuteWithDatabaseRetry(func() error {
 		tmpTable := uniqueTableName("job_run")
 
 		createTmp := func(tx pgx.Tx) error {
@@ -353,7 +353,7 @@ func CreateJobRunsScalar(ctx context.Context, db *pgxpool.Pool, instructions []*
 		 VALUES ($1, $2, $3, $4)
          ON CONFLICT DO NOTHING`
 	for _, i := range instructions {
-		err := withDatabaseRetry(func() error {
+		err := database.ExecuteWithDatabaseRetry(func() error {
 			_, err := db.Exec(ctx, sqlStatement, i.RunId, i.JobId, i.Created, i.Cluster)
 			return err
 		})
@@ -364,7 +364,7 @@ func CreateJobRunsScalar(ctx context.Context, db *pgxpool.Pool, instructions []*
 }
 
 func UpdateJobRunsBatch(ctx context.Context, db *pgxpool.Pool, instructions []*model.UpdateJobRunInstruction) error {
-	return withDatabaseRetry(func() error {
+	return database.ExecuteWithDatabaseRetry(func() error {
 
 		tmpTable := uniqueTableName("job_run")
 
@@ -439,7 +439,7 @@ func UpdateJobRunsScalar(ctx context.Context, db *pgxpool.Pool, instructions []*
 				  unable_to_schedule = coalesce($7, unable_to_schedule)
 				WHERE run_id = $8`
 	for _, i := range instructions {
-		err := withDatabaseRetry(func() error {
+		err := database.ExecuteWithDatabaseRetry(func() error {
 			_, err := db.Exec(ctx, sqlStatement, i.Node, i.Started, i.Finished, i.Succeeded, i.Error, i.PodNumber, i.UnableToSchedule, i.RunId)
 			return err
 		})
@@ -450,7 +450,7 @@ func UpdateJobRunsScalar(ctx context.Context, db *pgxpool.Pool, instructions []*
 }
 
 func CreateUserAnnotationsBatch(ctx context.Context, db *pgxpool.Pool, instructions []*model.CreateUserAnnotationInstruction) error {
-	return withDatabaseRetry(func() error {
+	return database.ExecuteWithDatabaseRetry(func() error {
 		tmpTable := uniqueTableName("user_annotation_lookup")
 
 		createTmp := func(tx pgx.Tx) error {
@@ -497,7 +497,7 @@ func CreateUserAnnotationsScalar(ctx context.Context, db *pgxpool.Pool, instruct
 		 VALUES ($1, $2, $3) 
          ON CONFLICT DO NOTHING`
 	for _, i := range instructions {
-		err := withDatabaseRetry(func() error {
+		err := database.ExecuteWithDatabaseRetry(func() error {
 			_, err := db.Exec(ctx, sqlStatement, i.JobId, i.Key, i.Value)
 			return err
 		})
@@ -509,7 +509,7 @@ func CreateUserAnnotationsScalar(ctx context.Context, db *pgxpool.Pool, instruct
 }
 
 func CreateJobRunContainersBatch(ctx context.Context, db *pgxpool.Pool, instructions []*model.CreateJobRunContainerInstruction) error {
-	return withDatabaseRetry(func() error {
+	return database.ExecuteWithDatabaseRetry(func() error {
 		tmpTable := uniqueTableName("job_run_container")
 		createTmp := func(tx pgx.Tx) error {
 			_, err := tx.Exec(ctx, fmt.Sprintf(`
@@ -554,7 +554,7 @@ func CreateJobRunContainersScalar(ctx context.Context, db *pgxpool.Pool, instruc
 		 VALUES ($1, $2, $3)
 	     ON CONFLICT DO NOTHING`
 	for _, i := range instructions {
-		err := withDatabaseRetry(func() error {
+		err := database.ExecuteWithDatabaseRetry(func() error {
 			_, err := db.Exec(ctx, sqlStatement, i.RunId, i.ContainerName, i.ExitCode)
 			return err
 		})
@@ -666,44 +666,4 @@ func conflateJobRunUpdates(updates []*model.UpdateJobRunInstruction) []*model.Up
 		conflated = append(conflated, v)
 	}
 	return conflated
-}
-
-// Executes a database function, retrying until it either succeeds or encounters a non-retryable error
-func withDatabaseRetry(executeDb func() error) error {
-	// TODO: arguably this should come from config
-	var backOff = 1
-	const maxBackoff = 60
-	const maxRetries = 10
-	var numRetries = 0
-	var err error = nil
-	for attempt := 0; attempt < maxRetries; attempt++ {
-		err = executeDb()
-
-		if err == nil {
-			return nil
-		}
-
-		if armadaerrors.IsNetworkError(err) || armadaerrors.IsRetryablePostgresError(err) {
-			backOff = min(2*backOff, maxBackoff)
-			numRetries++
-			log.Warnf("Retryable error encountered executing sql, will wait for %d seconds before retrying.  Error was %v", backOff, err)
-			time.Sleep(time.Duration(backOff) * time.Second)
-		} else {
-			// Non retryable error
-			return err
-		}
-	}
-
-	// If we get to here then we've got an error we can't handle.  Panic
-	panic(errors.WithStack(&armadaerrors.ErrMaxRetriesExceeded{
-		Message:   fmt.Sprintf("Gave up running database query after %d retries", maxRetries),
-		LastError: err,
-	}))
-}
-
-func min(a int, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }
