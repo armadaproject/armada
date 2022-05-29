@@ -16,7 +16,7 @@ import (
 // return an array of messages
 // TODO: once we no longer need to worry about legacy messages in the api we can move eventutil.ApiJobFromLogSubmitJob here
 func FromEventSequence(es *armadaevents.EventSequence) ([]*api.EventMessage, error) {
-	apiEvents := make([]*api.EventMessage, 0)
+	apiEvents := make([]*api.EventMessage, 0, len(es.Events))
 	var err error = nil
 	var convertedEvents []*api.EventMessage = nil
 	for _, event := range es.Events {
@@ -45,6 +45,8 @@ func FromEventSequence(es *armadaevents.EventSequence) ([]*api.EventMessage, err
 			convertedEvents, err = FromInternalJobRunAssigned(es.Queue, es.JobSetName, *event.Created, esEvent.JobRunAssigned)
 		case *armadaevents.EventSequence_Event_ResourceUtilisation:
 			convertedEvents, err = FromInternalResourceUtilisation(es.Queue, *event.Created, esEvent.ResourceUtilisation)
+		case *armadaevents.EventSequence_Event_StandaloneIngressInfo:
+			convertedEvents, err = FromInternalStandaloneIngressInfo(es.Queue, *event.Created, esEvent.StandaloneIngressInfo)
 		case *armadaevents.EventSequence_Event_ReprioritiseJobSet:
 		case *armadaevents.EventSequence_Event_CancelJobSet:
 			// These events have no api analog right now, so we ignore
@@ -467,4 +469,34 @@ func FromInternalResourceUtilisation(queueName string, time time.Time, e *armada
 			},
 		},
 	}, nil
+}
+
+func FromInternalStandaloneIngressInfo(queueName string, time time.Time, e *armadaevents.StandaloneIngressInfo) ([]*api.EventMessage, error) {
+	jobId, err := armadaevents.UlidStringFromProtoUuid(e.JobId)
+	if err != nil {
+		return nil, err
+	}
+
+	apiEvent :=
+		&api.JobIngressInfoEvent{
+			JobId:            jobId,
+			Queue:            queueName,
+			Created:          time,
+			ClusterId:        e.GetObjectMeta().GetExecutorId(),
+			KubernetesId:     e.GetObjectMeta().GetKubernetesId(),
+			PodNamespace:     e.GetObjectMeta().GetNamespace(),
+			NodeName:         e.GetNodeName(),
+			PodNumber:        e.GetPodNumber(),
+			PodName:          e.GetPodName(),
+			IngressAddresses: e.GetIngressAddresses(),
+		}
+
+	return []*api.EventMessage{
+		{
+			Events: &api.EventMessage_IngressInfo{
+				IngressInfo: apiEvent,
+			},
+		},
+	}, nil
+
 }
