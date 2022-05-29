@@ -213,6 +213,7 @@ func TestGetOrCreateJobsetIds(t *testing.T) {
 				{Queue: "queue1", Jobset: "testjobset2"},
 			},
 		)
+		assert.NoError(t, err)
 
 		expected = map[model.QueueJobsetPair]int64{
 			{Queue: "queue2", Jobset: "testjobset"}:  2,
@@ -350,6 +351,7 @@ func TestDeleteJobsetInfo(t *testing.T) {
 		assert.NoError(t, err)
 
 		loadedEvents, err = db.LoadEvents(ctx)
+		assert.NoError(t, err)
 		assert.Equal(t, []*model.EventRow{
 			{JobSetId: id2, SeqNo: 10, Event: []byte{1}},
 		}, loadedEvents)

@@ -52,7 +52,7 @@ func Run(config *configuration.EventIngesterConfiguration) {
 	}
 
 	// Receive messages and convert them to instructions in parallel
-	log.Infof("Creating subscriptions to pulsar topic %s", config.Pulsar.JobsetEventsTopic)
+	log.Infof("Creating subscription to pulsar topic %s", config.Pulsar.JobsetEventsTopic)
 
 	// Create a pulsar consumer
 	consumer, err := pulsarClient.Subscribe(pulsar.ConsumerOptions{
