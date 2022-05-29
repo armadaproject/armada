@@ -101,7 +101,7 @@ func WithDatabasePgx(action func(db *pgxpool.Pool) error) error {
 		}
 	}()
 
-	// A third connection!  We can get rid of this once we use move udateDatabse over to pgx
+	// A third connection!  We can get rid of this once we use move updateDatabse over to pgx
 	legacyDb, err := sql.Open("pgx", connectionString+" dbname="+dbName)
 	if err != nil {
 		return errors.WithStack(err)
