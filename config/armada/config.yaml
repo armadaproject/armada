@@ -69,6 +69,9 @@ eventapi:
   queryConcurrency: 100
   jobsetCacheSize:  10000
   updateTopic:      sequence-updates
+  PollPeriod:         500ms
+  QueryBatchSize:     100
+  QueryBatchDuration: 2s
   postgres:
     maxOpenConns: 100
     maxIdleConns: 25

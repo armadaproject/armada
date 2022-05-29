@@ -154,9 +154,12 @@ type MetricsConfig struct {
 }
 
 type EventApiConfig struct {
-	Enabled          bool
-	QueryConcurrency int
-	JobsetCacheSize  int
-	UpdateTopic      string
-	Postgres         PostgresConfig
+	Enabled            bool
+	QueryConcurrency   int
+	JobsetCacheSize    int
+	UpdateTopic        string
+	Postgres           PostgresConfig
+	PollPeriod         time.Duration
+	QueryBatchSize     int
+	QueryBatchDuration time.Duration
 }

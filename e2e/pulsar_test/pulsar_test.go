@@ -977,6 +977,7 @@ func countObjectTypes(objects []*armadaevents.KubernetesObject) map[string]int {
 }
 
 // receiveJobSetSequence receives messages from Pulsar, discarding any messages not for queue and jobSetName.
+// receiveJobSetSequence receives messages from Pulsar, discarding any messages not for queue and jobSetName.
 // The events contained in the remaining messages are collected in a single sequence, which is returned.
 func receiveJobSetSequences(ctx context.Context, consumer pulsar.Consumer, queue string, jobSetName string, maxEvents int, timeout time.Duration) (sequences []*armadaevents.EventSequence, err error) {
 	sequences = make([]*armadaevents.EventSequence, 0)

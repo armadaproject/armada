@@ -4,11 +4,9 @@ import (
 	ctx "context"
 	"math"
 
-	"golang.org/x/net/context"
-
-	"github.com/pkg/errors"
-
 	"github.com/gogo/protobuf/proto"
+	"github.com/pkg/errors"
+	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 

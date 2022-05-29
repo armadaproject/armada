@@ -286,7 +286,7 @@ tests-e2e-setup: setup-cluster
 	docker exec -it pulsar bin/pulsar-admin topics delete-partitioned-topic persistent://armada/armada/events -f || true
 	docker exec -it pulsar bin/pulsar-admin topics delete-partitioned-topic persistent://armada/armada/sequenceupdates -f || true
 	docker exec -it pulsar bin/pulsar-admin topics create-partitioned-topic persistent://armada/armada/events -p 2
-	docker exec -it pulsar bin/pulsar-admin topics create-partitioned-topic persistent://armada/armada/sequenceupdates -p 2
+	docker exec -it pulsar bin/pulsar-admin topics create persistent://armada/armada/sequenceupdates
 
 	# Disable topic auto-creation to ensure an error is thrown on using the wrong topic
 	# (Pulsar automatically created the public tenant and default namespace).
@@ -315,17 +315,17 @@ tests-e2e-no-setup:
 	# $(DOTNET_CMD) dotnet test client/DotNet/Armada.Client.Test/Armada.Client.Test.csproj
 
 .ONESHELL:
-tests-e2e: #build-armadactl build-docker-no-lookout tests-e2e-setup
-#	function teardown {
-#		echo -e "\nexecutor logs:"
-#		docker logs executor
-#		echo -e "\nserver logs:"
-#		docker logs server
-#		docker rm -f nats redis pulsar server event-ingester executor postgres
-#		kind delete cluster --name armada-test
-#		rm .kube/config
-#		rmdir .kube
-#	}
+tests-e2e: build-armadactl build-docker-no-lookout tests-e2e-setup
+	function teardown {
+		echo -e "\nexecutor logs:"
+		docker logs executor
+		echo -e "\nserver logs:"
+		docker logs server
+		docker rm -f nats redis pulsar server event-ingester executor postgres
+		kind delete cluster --name armada-test
+		rm .kube/config
+		rmdir .kube
+	}
 	mkdir -p test_reports
 	trap teardown exit
 	sleep 10
