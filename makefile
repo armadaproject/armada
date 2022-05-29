@@ -196,7 +196,7 @@ build-docker-binoculars:
 build-docker: build-docker-server build-docker-executor build-docker-armadactl build-docker-armada-load-tester build-docker-fakeexecutor build-docker-lookout build-docker-lookout-ingester build-docker-binoculars
 
 # Build target without lookout (to avoid needing to load npm packages from the Internet).
-build-docker-no-lookout: build-docker-server build-docker-executor build-docker-armadactl build-docker-armada-load-tester build-docker-fakeexecutor build-docker-binoculars
+build-docker-no-lookout: build-docker-server build-docker-executor build-docker-armadactl build-docker-armada-load-tester build-docker-fakeexecutor build-docker-binoculars build-docker-eventapi-ingester
 
 build-ci: gobuild=$(gobuildlinux)
 build-ci: build-docker build-armadactl build-armadactl-multiplatform build-load-tester
@@ -245,7 +245,7 @@ rebuild-executor: build-docker-executor
 
 .ONESHELL:
 tests-e2e-teardown:
-	docker rm -f nats redis pulsar server executor postgres || true
+	docker rm -f nats redis pulsar server event-ingester executor postgres || true
 	kind delete cluster --name armada-test || true
 	rm .kube/config || true
 	rmdir .kube || true
@@ -274,7 +274,7 @@ tests-e2e-setup: setup-cluster
 	docker run --rm -v ${PWD}:/go/src/armada -w /go/src/armada -e KUBECONFIG=/go/src/armada/.kube/config --network kind bitnami/kubectl:1.23 apply -f ./e2e/setup/namespace-with-anonymous-user.yaml
 
 	# Armada dependencies.
-	docker run -d --name pulsar -p 0.0.0.0:6650:6650 --network=kind apachepulsar/pulsar:2.9.2 bin/pulsar standalone
+	docker run -d --name pulsar -p 0.0.0.0:6650:6650 -v ${PWD}/e2e/setup/pulsar/standalone.conf:/pulsar/conf/standalone.conf --network=kind apachepulsar/pulsar:2.9.2 bin/pulsar standalone
 	docker run -d --name nats --network=kind nats-streaming:0.24.5
 	docker run -d --name redis -p=6379:6379 --network=kind redis:6.2.6
 	docker run -d --name postgres --network=kind -p 5432:5432 -e POSTGRES_PASSWORD=psw postgres:14.2
@@ -292,6 +292,7 @@ tests-e2e-setup: setup-cluster
 	docker exec -it pulsar bin/pulsar-admin namespaces set-auto-topic-creation armada/armada --disable
 
 	sleep 30 # give dependencies time to start up
+	docker run -d --name event-ingester --network=kind --config /e2e/setup/eventingester/config.yaml
 	docker run -d --name server --network=kind -p=50051:50051 -p 8080:8080 -v ${PWD}/e2e:/e2e \
 		armada ./server --config /e2e/setup/insecure-armada-auth-config.yaml --config /e2e/setup/nats/armada-config.yaml --config /e2e/setup/redis/armada-config.yaml --config /e2e/setup/pulsar/armada-config.yaml  --config /e2e/setup/server/armada-config.yaml
 	docker run -d --name executor --network=kind -v ${PWD}/.kube:/.kube -v ${PWD}/e2e:/e2e  \
@@ -317,7 +318,7 @@ tests-e2e: build-armadactl build-docker-no-lookout tests-e2e-setup
 		docker logs executor
 		echo -e "\nserver logs:"
 		docker logs server
-		docker rm -f nats redis pulsar server executor postgres
+		docker rm -f nats redis pulsar server event-ingester executor postgres
 		kind delete cluster --name armada-test
 		rm .kube/config
 		rmdir .kube
