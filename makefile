@@ -214,8 +214,8 @@ tests-no-setup:
 .ONESHELL:
 tests:
 	mkdir -p test_reports
-	docker run -d --name=redis --network=host -p=6379:6379 redis:6.2.6
-	docker run -d --name=postgres --network=host -p 5432:5432 -e POSTGRES_PASSWORD=psw postgres:14.2
+	docker run -d --name=redis -p=6379:6379 redis:6.2.6
+	docker run -d --name=postgres -p 5432:5432 -e POSTGRES_PASSWORD=psw postgres:14.2
 	function tearDown {
 		docker rm -f redis postgres
 	}
@@ -395,5 +395,5 @@ generate:
 		go run golang.org/x/tools/cmd/goimports -w -local "github.com/G-Research/armada" internal/lookout/repository/schema/statik
 	$(GO_CMD) go run github.com/rakyll/statik \
     		-dest=internal/eventapi/eventdb/schema/ -src=internal/eventapi/eventdb/schema/ -include=\*.sql -ns=eventapi/sql -Z -f -m && \
-    		go run golang.org/x/tools/cmd/goimports -w -local "github.com/G-Research/armada" internal/eventapi/eventdb/schema/statik
+    	go run golang.org/x/tools/cmd/goimports -w -local "github.com/G-Research/armada" internal/eventapi/eventdb/schema/statik
 
