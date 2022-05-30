@@ -22,6 +22,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 
+	"github.com/G-Research/armada/internal/common/armadaerrors"
 	"github.com/G-Research/armada/internal/common/cluster"
 	util2 "github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/etcdhealthmonitor"
@@ -240,9 +241,12 @@ func (c *KubernetesClusterContext) SubmitPod(pod *v1.Pod, owner string, ownerGro
 			return nil, err
 		}
 		if fractionOfStorageInUse > c.EtcdMaxFractionOfStorageInUse {
-			err := errors.Errorf("etcd is %f percent full, but the limit is %f percent", fractionOfStorageInUse, c.EtcdMaxFractionOfStorageInUse)
-			err = errors.WithMessage(err, "failed to submit pod")
-			return nil, errors.WithStack(err)
+			err := errors.WithStack(&armadaerrors.ErrCreateResource{
+				Type:    "pod",
+				Name:    pod.Name,
+				Message: fmt.Sprintf("etcd is %f percent full, but the limit is %f percent", fractionOfStorageInUse, c.EtcdMaxFractionOfStorageInUse),
+			})
+			return nil, err
 		}
 	}
 
