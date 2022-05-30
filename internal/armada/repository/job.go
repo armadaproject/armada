@@ -66,6 +66,7 @@ type JobRepository interface {
 	GetQueueJobIds(queueName string) ([]string, error)
 	RenewLease(clusterId string, jobIds []string) (renewed []string, e error)
 	ExpireLeases(queue string, deadline time.Time) (expired []*api.Job, e error)
+	ExpireLeasesById(jobIds []string, deadline time.Time) (expired []*api.Job, e error)
 	ReturnLease(clusterId string, jobId string) (returnedJob *api.Job, err error)
 	DeleteJobs(jobs []*api.Job) (map[*api.Job]error, error)
 	GetActiveJobIds(queue string, jobSetId string) ([]string, error)

@@ -123,9 +123,6 @@ func (jobLeaseService *JobLeaseService) RequestJobLeases(availableResource *comm
 			} else if err != nil {
 				return err
 			}
-			if res.Job.Id == "" {
-				return nil
-			}
 			ch <- res.Job
 		}
 	})
@@ -133,6 +130,7 @@ func (jobLeaseService *JobLeaseService) RequestJobLeases(availableResource *comm
 	// Goroutine responsible for collecting received jobs into a slice and sending acks.
 	jobs := make([]*api.Job, 0)
 	g.Go(func() error {
+		defer stream.CloseSend()
 		for {
 			select {
 			case <-ctx.Done():
@@ -145,7 +143,9 @@ func (jobLeaseService *JobLeaseService) RequestJobLeases(availableResource *comm
 				err := stream.Send(&api.StreamingLeaseRequest{
 					SubmittedJobs: []string{job.Id},
 				})
-				if err != nil {
+				if err == io.EOF {
+					return nil
+				} else if err != nil {
 					return err
 				}
 				jobs = append(jobs, job)

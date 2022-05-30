@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/gogo/protobuf/types"
+	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
@@ -132,18 +134,17 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 }
 
 // StreamingLeaseJobs is called by the executor to request jobs for it to run.
-// It streams jobs to the executor as quickly as it can and then waits to receive ids back
-// for jobs for which all resources have been created.
+// It streams jobs to the executor as quickly as it can and then waits to receive ids back.
+// Only jobs for which an id was sent back are marked as leased.
 //
-// This function should typically be used instead of the LeaseJobs function.
+// This function should be used instead of the LeaseJobs function in most cases.
 func (q *AggregatedQueueServer) StreamingLeaseJobs(stream api.AggregatedQueue_StreamingLeaseJobsServer) error {
 
 	if err := checkPermission(q.permissions, stream.Context(), permissions.ExecuteJobs); err != nil {
 		return err
 	}
 
-	// Receive once to get info about what jobs should be returned
-	// and prepare the list of jobs to be sent.
+	// Receive once to get info necessary to get jobs to lease.
 	req, err := stream.Recv()
 	if err != nil {
 		return errors.WithStack(err)
@@ -174,7 +175,8 @@ func (q *AggregatedQueueServer) StreamingLeaseJobs(stream api.AggregatedQueue_St
 		return err
 	}
 
-	// One of the below functions expects a regular lease request.
+	// One of the below functions expects a regular lease request,
+	// so we need to convert.
 	leaseRequest := &api.LeaseRequest{
 		ClusterId:           req.ClusterId,
 		Pool:                req.Pool,
@@ -261,9 +263,12 @@ func (q *AggregatedQueueServer) StreamingLeaseJobs(stream api.AggregatedQueue_St
 
 	// Collect all jobs that were acked.
 	ackedJobs := make([]*api.Job, 0, len(ackedJobsById))
+	nonAckedJobIds := make([]string, 0)
 	for _, job := range jobs {
 		if ack, ok := ackedJobsById[job.Id]; ack && ok {
 			ackedJobs = append(ackedJobs, job)
+		} else {
+			nonAckedJobIds = append(nonAckedJobIds, job.Id)
 		}
 	}
 
@@ -271,13 +276,16 @@ func (q *AggregatedQueueServer) StreamingLeaseJobs(stream api.AggregatedQueue_St
 	reportJobsLeased(q.eventStore, ackedJobs, req.ClusterId)
 
 	// Write to Redis that these jobs were leased.
+	var result *multierror.Error
 	clusterLeasedReport := scheduling.CreateClusterLeasedReport(req.ClusterLeasedReport.ClusterId, &req.ClusterLeasedReport, ackedJobs)
 	err = q.usageRepository.UpdateClusterLeased(clusterLeasedReport)
-	if err != nil {
-		return err
-	}
+	result = multierror.Append(result, err)
 
-	return nil
+	// Expire the leases of any non-acked jobs so that they can be re-leased.
+	_, err = q.jobRepository.ExpireLeasesById(nonAckedJobIds, time.Now().Add(30*time.Second))
+	result = multierror.Append(result, err)
+
+	return result.ErrorOrNil()
 }
 
 func (q *AggregatedQueueServer) RenewLease(ctx context.Context, request *api.RenewLeaseRequest) (*api.IdList, error) {
