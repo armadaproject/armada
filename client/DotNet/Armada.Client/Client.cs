@@ -77,8 +77,6 @@ namespace GResearch.Armada.Client
 
     public partial class ArmadaClient : IArmadaClient
     {
-        private static readonly TimeSpan WatchInactivityTimeout = TimeSpan.FromMinutes(10);
-        
         public async Task<IEnumerable<StreamResponse<ApiEventStreamMessage>>> GetJobEventsStream(
             string queue, string jobSetId, string fromMessageId = null, bool watch = false)
         {
@@ -118,20 +116,15 @@ namespace GResearch.Armada.Client
                 try
                 {
                     using (var fileResponse = await GetJobSetEventsCoreAsync(queue, jobSetId,
-                        new ApiJobSetRequest {FromMessageId = fromMessageId, Watch = true}, ct).TimeoutAfter(WatchInactivityTimeout))
+                        new ApiJobSetRequest {FromMessageId = fromMessageId, Watch = true}, ct))
                     using (var reader = new StreamReader(fileResponse.Stream))
                     {
                         try
                         {
                             failCount = 0;
-                            while (!ct.IsCancellationRequested)
+                            while (!ct.IsCancellationRequested && !reader.EndOfStream)
                             {
-                                var line = await reader.ReadLineAsync().TimeoutAfter(WatchInactivityTimeout);
-                                if(line == null)
-                                {
-                                    // reader.ReadLineAsync() should return null if the end of file is reached
-                                    break;
-                                }
+                                var line = await reader.ReadLineAsync();
                                 var (newMessageId, eventMessage) = ProcessEventLine(fromMessageId, line);
                                 fromMessageId = newMessageId;
                                 if (eventMessage != null)
@@ -159,7 +152,6 @@ namespace GResearch.Armada.Client
                 }
             }
         }
-        
         
         private (string, StreamResponse<ApiEventStreamMessage>) ProcessEventLine(string fromMessageId, string line)
         {
