@@ -94,7 +94,7 @@ func (allocationService *SubmitService) submitWorker(wg *sync.WaitGroup, jobsToS
 
 				// Depending on what went wrong, we may either fail the job
 				// or return the lease to the scheduler to try again.
-				recoverable := true
+				var recoverable bool
 				var e *armadaerrors.ErrCreateResource
 				if status, ok := err.(k8s_errors.APIStatus); ok {
 					recoverable = !isNotRecoverable(status.Status())
