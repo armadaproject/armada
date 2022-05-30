@@ -275,12 +275,13 @@ func (q *AggregatedQueueServer) StreamingLeaseJobs(stream api.AggregatedQueue_St
 	// Create leased events for acked jobs.
 	reportJobsLeased(q.eventStore, ackedJobs, req.ClusterId)
 
-	// Write to Redis that these jobs were leased.
+	// Write a leased report to Redis for acked jobs.
 	var result *multierror.Error
 	clusterLeasedReport := scheduling.CreateClusterLeasedReport(req.ClusterLeasedReport.ClusterId, &req.ClusterLeasedReport, ackedJobs)
 	err = q.usageRepository.UpdateClusterLeased(clusterLeasedReport)
 	result = multierror.Append(result, err)
 
+	// scheduling.LeaseJobs (called above) automatically marks jobs as leased.
 	// Expire the leases of any non-acked jobs so that they can be re-leased.
 	_, err = q.jobRepository.ExpireLeasesById(nonAckedJobIds, time.Now().Add(30*time.Second))
 	result = multierror.Append(result, err)
