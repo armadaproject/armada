@@ -3,12 +3,14 @@ package service
 import (
 	"context"
 	"fmt"
+	"io"
 	"strings"
 	"time"
 
 	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/retry"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/sync/errgroup"
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/G-Research/armada/internal/common"
@@ -81,23 +83,82 @@ func (jobLeaseService *JobLeaseService) RequestJobLeases(availableResource *comm
 		Queues:     leasedQueueReports,
 	}
 
-	leaseRequest := api.LeaseRequest{
+	// Setup a bidirectional gRPC stream.
+	// The server sends jobs over this stream.
+	// The executor sends back acks to indicate which jobs were successfully received.
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	stream, err := jobLeaseService.queueClient.StreamingLeaseJobs(ctx, grpc_retry.Disable())
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	// The first message sent over the stream includes all information necessary
+	// for the server to choose jobs to lease.
+	// Subsequent messages only include ids of received jobs.
+	err = stream.Send(&api.StreamingLeaseRequest{
 		ClusterId:           jobLeaseService.clusterContext.GetClusterId(),
 		Pool:                jobLeaseService.clusterContext.GetClusterPool(),
 		Resources:           *availableResource,
 		ClusterLeasedReport: clusterLeasedReport,
 		Nodes:               nodes,
 		MinimumJobSize:      jobLeaseService.minimumJobSize,
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	response, err := jobLeaseService.queueClient.LeaseJobs(ctx, &leaseRequest, grpc_retry.WithMax(1))
-
+	})
 	if err != nil {
-		return make([]*api.Job, 0), err
+		return nil, errors.WithStack(err)
 	}
 
-	return response.Job, nil
+	// Goroutine receiving jobs from the server.
+	// Send jobs on ch to another goroutine responsible for sending back acks.
+	ch := make(chan *api.Job)
+	g, ctx := errgroup.WithContext(ctx)
+	g.Go(func() error {
+		// Cancel the context when all jobs have been received.
+		// This ensures the goroutine responsible for sending acks exits.
+		defer cancel()
+		for {
+			res, err := stream.Recv()
+			if err == io.EOF {
+				return nil
+			} else if err != nil {
+				return err
+			}
+			if res.Job.Id == "" {
+				return nil
+			}
+			ch <- res.Job
+		}
+	})
+
+	// Goroutine responsible for collecting received jobs into a slice and sending acks.
+	jobs := make([]*api.Job, 0)
+	g.Go(func() error {
+		for {
+			select {
+			case <-ctx.Done():
+				if ctx.Err() != context.Canceled {
+					return ctx.Err()
+				} else {
+					return nil
+				}
+			case job := <-ch:
+				err := stream.Send(&api.StreamingLeaseRequest{
+					SubmittedJobs: []string{job.Id},
+				})
+				if err != nil {
+					return err
+				}
+				jobs = append(jobs, job)
+			}
+		}
+	})
+
+	err = g.Wait()
+	if err != nil {
+		log.WithError(err).Error("error receiving leases from server")
+	}
+
+	return jobs, nil
 }
 
 func (jobLeaseService *JobLeaseService) ReturnLease(pod *v1.Pod) error {
