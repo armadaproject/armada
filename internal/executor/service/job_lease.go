@@ -111,11 +111,11 @@ func (jobLeaseService *JobLeaseService) RequestJobLeases(availableResource *comm
 	// Goroutine receiving jobs from the server.
 	// Send jobs on ch to another goroutine responsible for sending back acks.
 	ch := make(chan *api.Job)
-	g, ctx := errgroup.WithContext(ctx)
+	g, _ := errgroup.WithContext(ctx)
 	g.Go(func() error {
-		// Cancel the context when all jobs have been received.
+		// Close the chanel when all jobs have been received.
 		// This ensures the goroutine responsible for sending acks exits.
-		defer cancel()
+		defer close(ch)
 		for {
 			res, err := stream.Recv()
 			if err == io.EOF {
@@ -127,32 +127,28 @@ func (jobLeaseService *JobLeaseService) RequestJobLeases(availableResource *comm
 		}
 	})
 
-	// Goroutine responsible for collecting received jobs into a slice and sending acks.
+	// Get received jobs on the channel and send back acks.
 	jobs := make([]*api.Job, 0)
-	g.Go(func() error {
-		defer stream.CloseSend()
-		for {
-			select {
-			case <-ctx.Done():
-				if ctx.Err() != context.Canceled {
-					return ctx.Err()
-				} else {
-					return nil
-				}
-			case job := <-ch:
-				err := stream.Send(&api.StreamingLeaseRequest{
-					SubmittedJobs: []string{job.Id},
-				})
-				if err == io.EOF {
-					return nil
-				} else if err != nil {
-					return err
-				}
-				jobs = append(jobs, job)
-			}
+	for {
+		job := <-ch
+		if job == nil {
+			break // Channel closed.
 		}
-	})
 
+		// Send ack back to the server.
+		err := stream.Send(&api.StreamingLeaseRequest{
+			SubmittedJobs: []string{job.Id},
+		})
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			log.WithError(err).Error("error sending leases to server")
+			break
+		}
+		jobs = append(jobs, job)
+	}
+
+	// Wait for receiver to exit.
 	err = g.Wait()
 	if err != nil {
 		log.WithError(err).Error("error receiving leases from server")
