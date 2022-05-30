@@ -1042,6 +1042,9 @@ func SwaggerJsonTemplate() string {
 		"        \"errorIfMissing\": {\n" +
 		"          \"type\": \"boolean\"\n" +
 		"        },\n" +
+		"        \"forceRedis\": {\n" +
+		"          \"type\": \"boolean\"\n" +
+		"        },\n" +
 		"        \"fromMessageId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +

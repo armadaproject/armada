@@ -22,3 +22,4 @@ batchDuration: 500ms
 pulsarReceiveTimeout: 5s
 pulsarBackoffTime: 1s
 minMessageCompressionSize: 1024
+updateTopic: "sequence-updates"

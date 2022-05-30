@@ -26,4 +26,6 @@ type EventIngesterConfiguration struct {
 	PulsarBackoffTime time.Duration
 	// Number of goroutines to be used for receiving messages and converting them to instructions
 	Paralellism int
+	// Pulsar Topic on which sequence updates will be sent
+	UpdateTopic string
 }

@@ -74,7 +74,7 @@ func (s *EventServer) GetJobSetEvents(request *api.JobSetRequest, stream api.Eve
 		return status.Errorf(codes.PermissionDenied, "[GetJobSetEvents] %s", err)
 	}
 
-	if s.eventApi == nil || !model.IsValidExternalSeqNo(request.FromMessageId) {
+	if request.ForceRedis || s.eventApi == nil || !model.IsValidExternalSeqNo(request.FromMessageId) {
 		return s.serveEventsFromRepository(request, stream)
 	} else {
 		return s.serveEventsFromEventApi(request, stream)
@@ -88,6 +88,7 @@ func (s *EventServer) Watch(req *api.WatchRequest, stream api.Event_WatchServer)
 		FromMessageId:  req.FromId,
 		Queue:          req.Queue,
 		ErrorIfMissing: true,
+		ForceRedis:     req.ForceRedis,
 	}
 	return s.GetJobSetEvents(request, stream)
 }
