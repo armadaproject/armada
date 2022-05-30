@@ -49,6 +49,24 @@ message LeaseRequest {
     repeated NodeInfo nodes = 7 [(gogoproto.nullable) = false];
 }
 
+// For the bidirectional streaming job lease request service.
+// For the first message, populate all fields except SubmittedJobs, which should be empty.
+// For subsequent messages, these fields may be left empty, in which case the last non-zero value received is used.
+// By streaming back job ids, the server knows which jobs were received in case of an outage.
+message StreamingLeaseRequest {
+    // Each cluster has a unique name associated with it.
+    string cluster_id = 1;
+    // Nodes are split into pools. This field indicates for which pool jobs are leased.
+    string pool = 8;    
+    map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> resources = 2 [(gogoproto.nullable) = false];
+    ClusterLeasedReport cluster_leased_report  = 4 [(gogoproto.nullable) = false];
+    map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> minimum_job_size = 6 [(gogoproto.nullable) = false];
+    repeated NodeInfo nodes = 7 [(gogoproto.nullable) = false];
+    // Ids of the jobs for which all Kubernetes resources have been created.
+    // Streaming these back to the server allows it to know which jobs were created in case of a network outage.
+    repeated string SubmittedJobs = 9;
+}
+
 message NodeInfo {
     string name = 1;
     repeated k8s.io.api.core.v1.Taint taints = 2 [(gogoproto.nullable) = false];
@@ -95,6 +113,10 @@ message JobLease {
     repeated Job job = 1;
 }
 
+message StreamingJobLease {
+    Job job = 1;
+}
+
 message IdList {
     repeated string ids = 1;
 }
@@ -112,6 +134,7 @@ message ReturnLeaseRequest {
 
 service AggregatedQueue {
     rpc LeaseJobs (LeaseRequest) returns (JobLease);
+    rpc StreamingLeaseJobs (stream StreamingLeaseRequest) returns (stream StreamingJobLease);
     rpc RenewLease (RenewLeaseRequest) returns (IdList);
     rpc ReturnLease (ReturnLeaseRequest) returns (google.protobuf.Empty);
     rpc ReportDone (IdList) returns (IdList);
