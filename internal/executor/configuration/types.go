@@ -39,6 +39,7 @@ type KubernetesConfiguration struct {
 	MinimumPodAge             time.Duration
 	StuckTerminatingPodExpiry time.Duration
 	FailedPodExpiry           time.Duration
+	MaxTerminatedPods         int
 	MinimumJobSize            common.ComputeResources
 	PodDefaults               *PodDefaults
 	PendingPodChecks          *podchecks.Checks
@@ -53,6 +54,7 @@ type TaskConfiguration struct {
 	QueueUsageDataRefreshInterval         time.Duration
 	UtilisationEventProcessingInterval    time.Duration
 	UtilisationEventReportingInterval     time.Duration
+	ResourceCleanupInterval               time.Duration
 }
 
 type MetricConfiguration struct {

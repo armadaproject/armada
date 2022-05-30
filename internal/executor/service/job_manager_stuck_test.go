@@ -212,9 +212,7 @@ func makejobManagerWithTestDoubles() (context.ClusterContext, *fake.MockLeaseSer
 		fakeClusterContext,
 		jobContext,
 		eventReporter,
-		mockLeaseService,
-		time.Second,
-		time.Second)
+		mockLeaseService)
 
 	return fakeClusterContext, mockLeaseService, eventReporter, jobManager
 }
