@@ -5,12 +5,14 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	networking "k8s.io/api/networking/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	k8s_errors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/G-Research/armada/internal/common/armadaerrors"
 	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/executor/configuration"
 	"github.com/G-Research/armada/internal/executor/context"
@@ -90,8 +92,17 @@ func (allocationService *SubmitService) submitWorker(wg *sync.WaitGroup, jobsToS
 			if err != nil {
 				log.Errorf("Failed to submit job %s because %s", job.Id, err)
 
-				status, ok := err.(errors.APIStatus)
-				recoverable := !ok || isNotRecoverable(status.Status())
+				// Depending on what went wrong, we may either fail the job
+				// or return the lease to the scheduler to try again.
+				var recoverable bool
+				var e *armadaerrors.ErrCreateResource
+				if status, ok := err.(k8s_errors.APIStatus); ok {
+					recoverable = !isNotRecoverable(status.Status())
+				} else if errors.As(err, &e) {
+					recoverable = true
+				} else {
+					recoverable = false
+				}
 
 				errDetails := &FailedSubmissionDetails{
 					Job:         job,
