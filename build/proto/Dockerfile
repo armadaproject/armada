@@ -39,6 +39,7 @@ RUN curl -OLk ${MAVEN_URL}/com/google/protobuf/protoc/${PROTOC_VERSION}/protoc-$
     echo "${PROTOC_SHA1} /usr/local/bin/protoc" | sha1sum -c - && \
     chmod +x /usr/local/bin/protoc
 
+# Remove after I copy proto files
 ARG GOGO_PROTOBUF_VERSION
 RUN GO111MODULE=on go get github.com/gogo/protobuf/protoc-gen-gogofaster@v${GOGO_PROTOBUF_VERSION} && \
     mkdir -p /proto/github.com/gogo/protobuf && \
@@ -53,6 +54,7 @@ RUN GO111MODULE=on go get \
     mkdir -p /proto/google && \
     cp -r /go/pkg/mod/github.com/grpc-ecosystem/grpc-gateway@v${GRPC_GATEWAY_VERSION}/third_party/googleapis/google/* /proto/google
 
+# Remove after you can inject proto files
 ARG K8S_VERSION
 RUN go mod download k8s.io/api@v${K8S_VERSION} && \
     go mod download k8s.io/apimachinery@v${K8S_VERSION} && \
@@ -60,15 +62,6 @@ RUN go mod download k8s.io/api@v${K8S_VERSION} && \
     mkdir -p /proto/k8s.io/apimachinery && \
     cp -r $(go env GOPATH)/pkg/mod/k8s.io/api@v${K8S_VERSION}/* /proto/k8s.io/api && \
     cp -r $(go env GOPATH)/pkg/mod/k8s.io/apimachinery@v${K8S_VERSION}/* /proto/k8s.io/apimachinery
-
-ARG GO_SWAGGER_VERSION
-RUN GO111MODULE=on go get github.com/go-swagger/go-swagger/cmd/swagger@v${GO_SWAGGER_VERSION}
-
-ARG TEMPLIFY_VERSION
-RUN GO111MODULE=on go get github.com/wlbr/templify@v${TEMPLIFY_VERSION}
-
-ARG GOIMPORTS_VERSION
-RUN GO111MODULE=on go get golang.org/x/tools/cmd/goimports@v${GOIMPORTS_VERSION}
 
 ARG GOLANG_VERSION
 FROM --platform=linux/amd64 golang:${GOLANG_VERSION}-buster
