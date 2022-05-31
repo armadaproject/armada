@@ -12,8 +12,8 @@ nodes:
         node-labels: "ingress-ready=true"
   extraPortMappings:
   - containerPort: 80 # port of the nginx ingress controller
-    hostPort: 5000 # expose ingresses on localhost:5000
+    hostPort: 5001 # expose ingresses on localhost:5001
     protocol: TCP
-  - containerPort: 3000 # arbitrary port used to test "node port services"
-    hostPort: 3000 # expose service on localhost:3000
+  - containerPort: 3001 # arbitrary port used to test "node port services"
+    hostPort: 3001 # expose service on localhost:3001
     protocol: TCP

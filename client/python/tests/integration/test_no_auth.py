@@ -21,6 +21,8 @@ no_auth_client = ArmadaClient(host='127.0.0.1', port=50051,
 
 def test_create_queue():
     no_auth_client.create_queue(name='test', priority_factor=1)
+def test_delete_queue():
+    no_auth_client.delete_queue(name='test')
 
 def test_submit_job():
     no_auth_client.submit_jobs(queue='test', job_set_id='job-set-1', job_request_items=submit_sleep_job())
