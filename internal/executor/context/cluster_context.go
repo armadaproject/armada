@@ -79,8 +79,7 @@ type KubernetesClusterContext struct {
 	kubernetesClientProvider cluster.KubernetesClientProvider
 	eventInformer            informer.EventInformer
 	// If provided, stops object creation while EtcdMaxFractionOfStorageInUse or more of etcd storage is full.
-	EtcdHealthMonitor             *etcdhealthmonitor.EtcdHealthMonitor
-	EtcdMaxFractionOfStorageInUse float64
+	etcdHealthMonitor *etcdhealthmonitor.EtcdHealthMonitor
 }
 
 func (c *KubernetesClusterContext) GetClusterId() string {
@@ -94,7 +93,8 @@ func (c *KubernetesClusterContext) GetClusterPool() string {
 func NewClusterContext(
 	configuration configuration.ApplicationConfiguration,
 	minTimeBetweenRepeatDeletionCalls time.Duration,
-	kubernetesClientProvider cluster.KubernetesClientProvider) *KubernetesClusterContext {
+	kubernetesClientProvider cluster.KubernetesClientProvider,
+	etcdHealthMonitor *etcdhealthmonitor.EtcdHealthMonitor) *KubernetesClusterContext {
 
 	kubernetesClient := kubernetesClientProvider.Client()
 
@@ -114,6 +114,7 @@ func NewClusterContext(
 		ingressInformer:          factory.Networking().V1().Ingresses(),
 		kubernetesClient:         kubernetesClient,
 		kubernetesClientProvider: kubernetesClientProvider,
+		etcdHealthMonitor:        etcdHealthMonitor,
 	}
 
 	context.AddPodEventHandler(cache.ResourceEventHandlerFuncs{
@@ -234,20 +235,14 @@ func (c *KubernetesClusterContext) GetNodeStatsSummary(node *v1.Node) (*v1alpha1
 
 func (c *KubernetesClusterContext) SubmitPod(pod *v1.Pod, owner string, ownerGroups []string) (*v1.Pod, error) {
 
-	// If a health monitor is provided, reject pods when etcd is almost full.
-	if c.EtcdHealthMonitor != nil {
-		fractionOfStorageInUse, err := c.EtcdHealthMonitor.MaxFractionOfStorageInUse()
-		if err != nil {
-			return nil, err
-		}
-		if fractionOfStorageInUse > c.EtcdMaxFractionOfStorageInUse {
-			err := errors.WithStack(&armadaerrors.ErrCreateResource{
-				Type:    "pod",
-				Name:    pod.Name,
-				Message: fmt.Sprintf("etcd is %f percent full, but the limit is %f percent", fractionOfStorageInUse, c.EtcdMaxFractionOfStorageInUse),
-			})
-			return nil, err
-		}
+	// If a health monitor is provided, reject pods when etcd is at its hard limit.
+	if c.etcdHealthMonitor != nil && c.etcdHealthMonitor.IsAtHardHealthLimit() {
+		err := errors.WithStack(&armadaerrors.ErrCreateResource{
+			Type:    "pod",
+			Name:    pod.Name,
+			Message: fmt.Sprintf("etcd is at its hard heatlh limit and therefore not healthy to submit to"),
+		})
+		return nil, err
 	}
 
 	c.submittedPods.Add(pod)

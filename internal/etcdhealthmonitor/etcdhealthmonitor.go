@@ -10,12 +10,16 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/G-Research/armada/internal/common/armadaerrors"
 	"github.com/G-Research/armada/internal/common/logging"
+	"github.com/G-Research/armada/internal/executor/configuration"
 )
+
+const etcdInUseSizeBytesMetricName string = "etcd_mvcc_db_total_size_in_use_in_bytes"
+const etcdTotalSizeBytesMetricName string = "etcd_server_quota_backend_bytes"
 
 // EtcdHealthMonitor is a service for monitoring the health of etcd.
 // It continually scrapes metrics from one of more etcd instances
@@ -26,14 +30,14 @@ type EtcdHealthMonitor struct {
 	// HTTP client used to make requests.
 	client *http.Client
 	// Time after which we consider instances to be down if no metrics have been collected successfully.
-	// Defaults to 5 minutes.
+	// Defaults to 2 minutes.
 	MetricsMaxAge time.Duration
 	// Interval at which to scrape metrics from etcd.
-	// Defaults to 1 second.
+	// Defaults to 5 second.
 	ScrapeInterval time.Duration
-	// If provided, is used by run.
-	Logger *logrus.Logger
-	mu     sync.Mutex
+	// Configuration for etcd
+	etcdConfiguration configuration.EtcdConfiguration
+	mu                sync.Mutex
 }
 
 // Store monitor information for a particular etcd instance.
@@ -43,17 +47,29 @@ type etcdInstanceMonitor struct {
 	// Error returned by the most recent attempt to scrape metrics for this instance.
 	err error
 	// Metrics collected from etcd (a map from metric name to value); see
-	// https://etcd.io/docs/v3.1/op-guide/monitoring/
+	// https://etcd.io/docs/v3.5/op-guide/monitoring/
 	metrics map[string]float64
+}
+
+func (e *etcdInstanceMonitor) deepCopy() *etcdInstanceMonitor {
+	metricsCopy := make(map[string]float64, len(e.metrics))
+	for key, value := range e.metrics {
+		metricsCopy[key] = value
+	}
+	return &etcdInstanceMonitor{
+		lastCheck: time.Unix(e.lastCheck.Unix(), e.lastCheck.UnixNano()),
+		err:       e.err,
+		metrics:   metricsCopy,
+	}
 }
 
 // Return a new EtcdHealthMonitor that monitors the etcd instances at the given urls.
 // Provide a http client, e.g., to use auth, or set client to nil to use the default client.
-func New(urls []string, client *http.Client) (*EtcdHealthMonitor, error) {
-	if len(urls) == 0 {
+func New(etcConfiguration configuration.EtcdConfiguration, client *http.Client) (*EtcdHealthMonitor, error) {
+	if len(etcConfiguration.MetricUrls) == 0 {
 		return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
 			Name:    "urls",
-			Value:   urls,
+			Value:   etcConfiguration.MetricUrls,
 			Message: "no URLs provided",
 		})
 	}
@@ -61,62 +77,67 @@ func New(urls []string, client *http.Client) (*EtcdHealthMonitor, error) {
 		client = http.DefaultClient
 	}
 	rv := &EtcdHealthMonitor{
-		MetricsMaxAge:  5 * time.Minute,
-		ScrapeInterval: time.Second,
-		instances:      make(map[string]*etcdInstanceMonitor),
-		client:         client,
+		MetricsMaxAge:     2 * time.Minute,
+		ScrapeInterval:    time.Second * 5,
+		instances:         make(map[string]*etcdInstanceMonitor),
+		client:            client,
+		etcdConfiguration: etcConfiguration,
 	}
-	for _, url := range urls {
+	for _, url := range etcConfiguration.MetricUrls {
 		rv.instances[url] = &etcdInstanceMonitor{
 			metrics: make(map[string]float64),
 		}
 	}
+	go rv.Run(context.Background())
 	return rv, nil
 }
 
 // Run the service until ctx is cancelled.
-func (srv *EtcdHealthMonitor) Run(ctx context.Context) error {
-	var log *logrus.Entry
-	if srv.Logger == nil {
-		log = logrus.StandardLogger().WithField("service", "EtcdHealthMonitor")
-	} else {
-		log = srv.Logger.WithField("service", "EtcdHealthMonitor")
-	}
-	log.Info("started")
-	defer log.Info("exited")
-
-	// log periodically
-	lastLogged := time.Now()
+func (srv *EtcdHealthMonitor) Run(ctx context.Context) {
+	log.WithField("service", "EtcdHealthMonitor").Info("started ETCD health monitor")
+	defer log.WithField("service", "EtcdHealthMonitor").Info("exited ETCD health monitor")
 
 	ticker := time.NewTicker(srv.ScrapeInterval)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return
 		case <-ticker.C:
-			if err := srv.ScrapeMetrics(ctx); err != nil {
-				logging.WithStacktrace(log, err).Error("failed to scrape metrics from etcd")
+			if err := srv.scrapeMetrics(ctx); err != nil {
+				logging.WithStacktrace(log.WithField("service", "EtcdHealthMonitor"), err).Error("failed to scrape metrics from etcd")
 			}
-			if time.Since(lastLogged) > 10*time.Second {
-				v, err := srv.MaxFractionOfStorageInUse()
-				lastLogged = time.Now()
-				if err != nil {
-					logging.WithStacktrace(log, err).Error("failed to compute MaxFractionOfStorageInUse")
-				} else {
-					log.WithField("MaxFractionOfStorageInUse", v).Info("scraped metrics from etcd")
-				}
-			}
+			// TODO Add prometheus metrics for success/fail + current values
 		}
 	}
 }
 
-// ScrapeMetrics collects metrics for all etcd instances.
-func (srv *EtcdHealthMonitor) ScrapeMetrics(ctx context.Context) error {
+func (srv *EtcdHealthMonitor) getInstances() map[string]*etcdInstanceMonitor {
 	srv.mu.Lock()
 	defer srv.mu.Unlock()
+
+	current := srv.instances
+	instancesCopy := make(map[string]*etcdInstanceMonitor, len(current))
+
+	for url, instance := range current {
+		instancesCopy[url] = instance.deepCopy()
+	}
+
+	return instancesCopy
+}
+
+func (srv *EtcdHealthMonitor) updateInstances(updatedInstances map[string]*etcdInstanceMonitor) {
+	srv.mu.Lock()
+	defer srv.mu.Unlock()
+
+	srv.instances = updatedInstances
+}
+
+// ScrapeMetrics collects metrics for all etcd instances.
+func (srv *EtcdHealthMonitor) scrapeMetrics(ctx context.Context) error {
 	g, ctx := errgroup.WithContext(ctx)
-	for url, instance := range srv.instances {
+	instances := srv.getInstances()
+	for url, instance := range instances {
 		url := url
 		instance := instance
 		g.Go(func() error {
@@ -161,23 +182,34 @@ func (srv *EtcdHealthMonitor) ScrapeMetrics(ctx context.Context) error {
 			return nil
 		})
 	}
-	return g.Wait()
+	err := g.Wait()
+	srv.updateInstances(instances)
+	return err
+}
+
+func (srv *EtcdHealthMonitor) IsAtSoftHealthLimit() bool {
+	currentFractionOfResourceInUse, err := srv.currentFractionOfResourceInUse()
+	if err != nil {
+		return true
+	}
+	return currentFractionOfResourceInUse >= srv.etcdConfiguration.FractionOfStorageInUseSoftLimit
+}
+
+func (srv *EtcdHealthMonitor) IsAtHardHealthLimit() bool {
+	currentFractionOfResourceInUse, err := srv.currentFractionOfResourceInUse()
+	if err != nil {
+		return true
+	}
+	return currentFractionOfResourceInUse >= srv.etcdConfiguration.FractionOfStorageInUseHardLimit
 }
 
 // MaxFractionOfStorageInUse returns the maximum fraction of storage in use over all etcd instances.
-func (srv *EtcdHealthMonitor) MaxFractionOfStorageInUse() (float64, error) {
+func (srv *EtcdHealthMonitor) currentFractionOfResourceInUse() (float64, error) {
 	srv.mu.Lock()
 	defer srv.mu.Unlock()
 
-	if len(srv.instances) == 0 {
-		return 0, errors.WithStack(&armadaerrors.ErrInvalidArgument{
-			Name:    "instances",
-			Value:   srv.instances,
-			Message: "no metrics available",
-		})
-	}
-
 	rv := 0.0
+	available := 0
 	for url, instance := range srv.instances {
 		if instance == nil {
 			return 0, errors.WithStack(&armadaerrors.ErrInvalidArgument{
@@ -189,39 +221,37 @@ func (srv *EtcdHealthMonitor) MaxFractionOfStorageInUse() (float64, error) {
 
 		metricsAge := time.Since(instance.lastCheck)
 		if metricsAge > srv.MetricsMaxAge {
-			err := instance.err
-			if err == nil {
-				err = errors.New("unknown error")
-			}
-			return 0, errors.WithStack(errors.WithMessagef(
-				err,
-				"max age is %s, but metrics for etcd instance at %s are of age %s; instance may be down",
-				srv.MetricsMaxAge, url, metricsAge,
-			))
+			log.Warnf("skipping instance as max age is %s, but metrics for etcd instance at %s are of age %s; instance may be down",
+				srv.MetricsMaxAge, url, metricsAge)
+			continue
 		}
 
-		totalSize, ok := instance.metrics["etcd_server_quota_backend_bytes"]
+		totalSize, ok := instance.metrics[etcdTotalSizeBytesMetricName]
 		if !ok {
-			return 0, errors.WithStack(&armadaerrors.ErrInvalidArgument{
-				Name:    "metrics",
-				Value:   instance.metrics,
-				Message: "metric etcd_server_quota_backend_bytes not available",
-			})
+			log.Warnf("skipping instance %s as metric etcd_server_quota_backend_bytes not available", url)
+			continue
 		}
 
-		inUse, ok := instance.metrics["etcd_mvcc_db_total_size_in_use_in_bytes"]
+		inUse, ok := instance.metrics[etcdInUseSizeBytesMetricName]
 		if !ok {
-			return 0, errors.WithStack(&armadaerrors.ErrInvalidArgument{
-				Name:    "metrics",
-				Value:   instance.metrics,
-				Message: "metric etcd_mvcc_db_total_size_in_use_in_bytes not available",
-			})
+			log.Warnf("skipping instance %s as metric etcd_mvcc_db_total_size_in_use_in_bytes not available", url)
+			continue
 		}
 
 		fractionInUse := inUse / totalSize
 		if fractionInUse > rv {
 			rv = fractionInUse
 		}
+		available++
 	}
+
+	if len(srv.instances) < srv.etcdConfiguration.MinimumAvailable {
+		return 0, errors.WithStack(&armadaerrors.ErrInvalidArgument{
+			Name:    "instances",
+			Value:   srv.instances,
+			Message: "insufficient etcd metrics available",
+		})
+	}
+
 	return rv, nil
 }
