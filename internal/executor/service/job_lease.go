@@ -8,6 +8,7 @@ import (
 	"time"
 
 	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/retry"
+	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
@@ -109,43 +110,57 @@ func (jobLeaseService *JobLeaseService) RequestJobLeases(availableResource *comm
 	}
 
 	// Goroutine receiving jobs from the server.
-	// Send jobs on ch to another goroutine responsible for sending back acks.
-	ch := make(chan *api.Job)
+	// Also recevies ack confirmations from the server.
+	// Send leases on ch to another goroutine responsible for sending back acks.
+	// Give the channel a small buffer to allow for some asynchronicity.
+	var numServerAcks uint32
+	var numJobs uint32
+	jobs := make([]*api.Job, 0)
+	ch := make(chan *api.StreamingJobLease, 10)
 	g, _ := errgroup.WithContext(ctx)
 	g.Go(func() error {
 		// Close the chanel when all jobs have been received.
 		// This ensures the goroutine responsible for sending acks exits.
 		defer close(ch)
-		for {
+
+		// Receive until all acks have been confirmed.
+		for numServerAcks == 0 || numServerAcks < numJobs {
 			res, err := stream.Recv()
 			if err == io.EOF {
 				return nil
 			} else if err != nil {
 				return err
 			}
-			ch <- res.Job
+			numJobs = res.GetNumJobs()
+			numServerAcks = res.GetNumAcked()
+			if res.Job != nil {
+				jobs = append(jobs, res.Job)
+			}
+
+			ch <- res
 		}
+		return nil
 	})
 
 	// Get received jobs on the channel and send back acks.
-	jobs := make([]*api.Job, 0)
 	for {
-		job := <-ch
-		if job == nil {
+		res := <-ch
+		if res == nil {
 			break // Channel closed.
 		}
 
 		// Send ack back to the server.
-		err := stream.Send(&api.StreamingLeaseRequest{
-			SubmittedJobs: []string{job.Id},
-		})
-		if err == io.EOF {
-			break
-		} else if err != nil {
-			log.WithError(err).Error("error sending leases to server")
-			break
+		if res.Job != nil {
+			err := stream.Send(&api.StreamingLeaseRequest{
+				ReceivedJobIds: []string{res.Job.Id},
+			})
+			if err == io.EOF {
+				break
+			} else if err != nil {
+				log.WithError(err).Error("error sending leases to server")
+				break
+			}
 		}
-		jobs = append(jobs, job)
 	}
 
 	// Wait for receiver to exit.
@@ -154,22 +169,45 @@ func (jobLeaseService *JobLeaseService) RequestJobLeases(availableResource *comm
 		log.WithError(err).Error("error receiving leases from server")
 	}
 
-	return jobs, nil
+	// If we received confirmation on the ack, we know the server is aware we received the job.
+	// For the remaining jobs, return any leases.
+	receivedJobs := jobs[:numServerAcks]
+
+	// Expire jobs the server never confirmed the ack of.
+	jobsToReturn := jobs[numServerAcks:]
+	var result *multierror.Error
+	for _, job := range jobsToReturn {
+		err := jobLeaseService.ReturnLeaseById(job.Id, nil)
+		result = multierror.Append(result, err)
+	}
+	err = result.ErrorOrNil()
+	if err != nil {
+		log.WithError(err).Error("error returning leases to server")
+	}
+
+	return receivedJobs, nil
 }
 
 func (jobLeaseService *JobLeaseService) ReturnLease(pod *v1.Pod) error {
 	jobId := util.ExtractJobId(pod)
-	ctx, cancel := common.ContextWithDefaultTimeout()
-	defer cancel()
-
 	avoidNodeLabels, err := getAvoidNodeLabels(pod, jobLeaseService.avoidNodeLabelsOnRetry, jobLeaseService.clusterContext)
 	if err != nil {
 		log.Warnf("Failed to get node labels to avoid on rerun for pod %s in namespace %s: %v", pod.Name, pod.Namespace, err)
 		avoidNodeLabels = emptyOrderedStringMap()
 	}
+	return jobLeaseService.ReturnLeaseById(jobId, avoidNodeLabels)
+}
 
-	log.Infof("Returning lease for job %s (will try to avoid these node labels next time: %v)", jobId, avoidNodeLabels)
-	_, err = jobLeaseService.queueClient.ReturnLease(ctx, &api.ReturnLeaseRequest{ClusterId: jobLeaseService.clusterContext.GetClusterId(), JobId: jobId, AvoidNodeLabels: avoidNodeLabels})
+func (jobLeaseService *JobLeaseService) ReturnLeaseById(jobId string, nodeLabelsToAvoid *api.OrderedStringMap) error {
+	ctx, cancel := common.ContextWithDefaultTimeout()
+	defer cancel()
+
+	if nodeLabelsToAvoid != nil && len(nodeLabelsToAvoid.Entries) > 0 {
+		log.Infof("Returning lease for job %s (will try to avoid these node labels next time: %v)", jobId, nodeLabelsToAvoid)
+	} else {
+		log.Infof("Returning lease for job %s", jobId)
+	}
+	_, err := jobLeaseService.queueClient.ReturnLease(ctx, &api.ReturnLeaseRequest{ClusterId: jobLeaseService.clusterContext.GetClusterId(), JobId: jobId, AvoidNodeLabels: nodeLabelsToAvoid})
 	return err
 }
 

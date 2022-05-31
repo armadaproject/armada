@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"sync/atomic"
 	"time"
 
 	"github.com/gogo/protobuf/types"
@@ -222,12 +223,27 @@ func (q *AggregatedQueueServer) StreamingLeaseJobs(stream api.AggregatedQueue_St
 		return err
 	}
 
+	// The server streams jobs to the executor.
+	// The executor streams back an ack for each received job.
+	// With each job sent to the executor, the server includes the number of received acks.
+	//
+	// When the connection breaks, the server expires all leases for which it hasn't received an ack
+	// and the executor expires all leases for which it hasn't received confirmation that the server received the ack.
+	//
+	// We track the total number of jobs and the number of jobs for which acks have been received.
+	// Because gRPC streams guarantee ordering, we only need to track the number of acks.
+	// The client is responsible for acking jobs in the order they are received.
+	numJobs := uint32(len(jobs))
+	var numAcked uint32
+
 	// Stream the jobs to the executor.
 	g, _ := errgroup.WithContext(stream.Context())
 	g.Go(func() error {
 		for _, job := range jobs {
 			err := stream.Send(&api.StreamingJobLease{
-				Job: job,
+				Job:      job,
+				NumJobs:  numJobs,
+				NumAcked: atomic.LoadUint32(&numAcked),
 			})
 			if err == io.EOF {
 				return nil
@@ -239,43 +255,50 @@ func (q *AggregatedQueueServer) StreamingLeaseJobs(stream api.AggregatedQueue_St
 	})
 
 	// Listen for job ids being streamed back as they're received.
-	ackedJobsById := make(map[string]bool)
 	g.Go(func() error {
-		for len(ackedJobsById) < len(jobs) {
+		numJobs := numJobs // Assign a local variable to guarantee there are no race conditions.
+		for atomic.LoadUint32(&numAcked) < numJobs {
 			ack, err := stream.Recv()
 			if err == io.EOF {
 				return nil
 			} else if err != nil {
 				return err
 			}
-			for _, jobId := range ack.SubmittedJobs {
-				ackedJobsById[jobId] = true
-			}
+			atomic.AddUint32(&numAcked, uint32(len(ack.ReceivedJobIds)))
 		}
 		return nil
 	})
 
-	// Wait for sending/receiving to finish.
+	// Wait for all jobs to have been sent and all acks to have been received.
 	err = g.Wait()
 	if err != nil {
 		log.WithError(err).Error("error sending/receiving job leases to/from executor")
 	}
 
-	// Collect all jobs that were acked.
-	ackedJobs := make([]*api.Job, 0, len(ackedJobsById))
-	nonAckedJobIds := make([]string, 0)
-	for _, job := range jobs {
-		if ack, ok := ackedJobsById[job.Id]; ack && ok {
-			ackedJobs = append(ackedJobs, job)
-		} else {
-			nonAckedJobIds = append(nonAckedJobIds, job.Id)
-		}
+	// Send one more message with the total number of acks.
+	err = stream.Send(&api.StreamingJobLease{
+		Job:      nil, // Omitted
+		NumJobs:  numJobs,
+		NumAcked: numAcked,
+	})
+	if err != nil {
+		log.WithError(err).Error("error sending the number of acks")
 	}
 
-	// Create leased events for acked jobs.
+	// Collect all jobs that were acked and not.
+	ackedJobs := make([]*api.Job, 0, numAcked)
+	for i := 0; i < int(numAcked); i++ {
+		ackedJobs = append(ackedJobs, jobs[i])
+	}
+	nonAckedJobIds := make([]string, 0, numJobs-numAcked)
+	for i := numAcked; i < numJobs; i++ {
+		nonAckedJobIds = append(nonAckedJobIds, jobs[i].Id)
+	}
+
+	// Create job leased events.
 	reportJobsLeased(q.eventStore, ackedJobs, req.ClusterId)
 
-	// Write a leased report to Redis for acked jobs.
+	// Write a leased report to Redis.
 	var result *multierror.Error
 	clusterLeasedReport := scheduling.CreateClusterLeasedReport(req.ClusterLeasedReport.ClusterId, &req.ClusterLeasedReport, ackedJobs)
 	err = q.usageRepository.UpdateClusterLeased(clusterLeasedReport)

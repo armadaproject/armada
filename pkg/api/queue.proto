@@ -62,9 +62,8 @@ message StreamingLeaseRequest {
     ClusterLeasedReport cluster_leased_report  = 4 [(gogoproto.nullable) = false];
     map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> minimum_job_size = 6 [(gogoproto.nullable) = false];
     repeated NodeInfo nodes = 7 [(gogoproto.nullable) = false];
-    // Ids of the jobs for which all Kubernetes resources have been created.
-    // Streaming these back to the server allows it to know which jobs were created in case of a network outage.
-    repeated string SubmittedJobs = 9;
+    // Ids of received jobs. Used to ack received jobs.
+    repeated string ReceivedJobIds = 9;
 }
 
 message NodeInfo {
@@ -115,6 +114,11 @@ message JobLease {
 
 message StreamingJobLease {
     Job job = 1;
+    // Total number of jobs being sent over this connection.
+    uint32 numJobs = 2;
+    // Number of jobs for which the server has received an ack.
+    // When numAcked = numJobs, all jobs have been received and acked.
+    uint32 numAcked = 3;
 }
 
 message IdList {
