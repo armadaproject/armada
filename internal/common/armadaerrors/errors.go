@@ -504,7 +504,7 @@ func (err *ErrPodUnschedulable) Add(reason string, count int) *ErrPodUnschedulab
 }
 
 func (err *ErrPodUnschedulable) Error() string {
-	if len(err.countFromReason) == 0 {
+	if err == nil || len(err.countFromReason) == 0 {
 		return "can't schedule pod on any node type"
 	}
 
