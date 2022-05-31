@@ -36,7 +36,7 @@ func CreateGrpcServer(authServices []authorization.AuthService) *grpc.Server {
 	streamInterceptors := []grpc.StreamServerInterceptor{}
 
 	//Automatically recover from panics
-	//NOTE This must be the first interceptor, so any other interceptor that panics can also be recovered from
+	//NOTE This must be the first interceptor, so it can handle panics in any subsequently added interceptor
 	recovery := grpc_recovery.WithRecoveryHandler(panicRecoveryHandler)
 	unaryInterceptors = append(unaryInterceptors, grpc_recovery.UnaryServerInterceptor(recovery))
 	streamInterceptors = append(streamInterceptors, grpc_recovery.StreamServerInterceptor(recovery))
