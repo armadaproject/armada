@@ -25,9 +25,9 @@ import (
 	"github.com/G-Research/armada/internal/common/armadaerrors"
 	"github.com/G-Research/armada/internal/common/cluster"
 	util2 "github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/internal/etcdhealthmonitor"
 	"github.com/G-Research/armada/internal/executor/configuration"
 	"github.com/G-Research/armada/internal/executor/domain"
+	"github.com/G-Research/armada/internal/executor/etcd"
 	"github.com/G-Research/armada/internal/executor/util"
 )
 
@@ -79,7 +79,7 @@ type KubernetesClusterContext struct {
 	kubernetesClientProvider cluster.KubernetesClientProvider
 	eventInformer            informer.EventInformer
 	// If provided, stops object creation while EtcdMaxFractionOfStorageInUse or more of etcd storage is full.
-	etcdHealthMonitor *etcdhealthmonitor.EtcdHealthMonitor
+	etcdHealthMonitor etcd.EtcdLimitHealthMonitor
 }
 
 func (c *KubernetesClusterContext) GetClusterId() string {
@@ -94,7 +94,7 @@ func NewClusterContext(
 	configuration configuration.ApplicationConfiguration,
 	minTimeBetweenRepeatDeletionCalls time.Duration,
 	kubernetesClientProvider cluster.KubernetesClientProvider,
-	etcdHealthMonitor *etcdhealthmonitor.EtcdHealthMonitor) *KubernetesClusterContext {
+	etcdHealthMonitor etcd.EtcdLimitHealthMonitor) *KubernetesClusterContext {
 
 	kubernetesClient := kubernetesClientProvider.Client()
 

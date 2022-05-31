@@ -1,4 +1,4 @@
-package etcdhealthmonitor
+package etcd
 
 import (
 	"bufio"
@@ -11,16 +11,24 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/sync/errgroup"
 
 	"github.com/G-Research/armada/internal/common/armadaerrors"
 	"github.com/G-Research/armada/internal/common/logging"
 	"github.com/G-Research/armada/internal/executor/configuration"
+	"github.com/G-Research/armada/internal/executor/metrics"
 )
 
 const etcdInUseSizeBytesMetricName string = "etcd_mvcc_db_total_size_in_use_in_bytes"
 const etcdTotalSizeBytesMetricName string = "etcd_server_quota_backend_bytes"
+const etcdMemberUrl string = "url"
+
+type EtcdLimitHealthMonitor interface {
+	IsWithinSoftHealthLimit() bool
+	IsWithinHardHealthLimit() bool
+}
 
 // EtcdHealthMonitor is a service for monitoring the health of etcd.
 // It continually scrapes metrics from one of more etcd instances
@@ -41,28 +49,23 @@ type EtcdHealthMonitor struct {
 	mu                sync.Mutex
 }
 
-// Store monitor information for a particular etcd instance.
-type etcdInstanceMonitor struct {
-	// When metrics was last collected for this instance.
-	lastCheck time.Time
-	// Error returned by the most recent attempt to scrape metrics for this instance.
-	err error
-	// Metrics collected from etcd (a map from metric name to value); see
-	// https://etcd.io/docs/v3.5/op-guide/monitoring/
-	metrics map[string]float64
-}
+var etcdInstanceUpDesc = prometheus.NewDesc(
+	metrics.ArmadaExecutorMetricsPrefix+"_etcd_instance_up",
+	"Shows if an etcd instance is sufficiently live to get metrics from",
+	[]string{etcdMemberUrl}, nil,
+)
 
-func (e *etcdInstanceMonitor) deepCopy() *etcdInstanceMonitor {
-	metricsCopy := make(map[string]float64, len(e.metrics))
-	for key, value := range e.metrics {
-		metricsCopy[key] = value
-	}
-	return &etcdInstanceMonitor{
-		lastCheck: time.Unix(e.lastCheck.Unix(), e.lastCheck.UnixNano()),
-		err:       e.err,
-		metrics:   metricsCopy,
-	}
-}
+var etcdInstanceHealthCheckTimeDesc = prometheus.NewDesc(
+	metrics.ArmadaExecutorMetricsPrefix+"etcd_instance_health_check_time",
+	"Time of the last successful health check scrape",
+	[]string{etcdMemberUrl}, nil,
+)
+
+var etcdInstanceInUseFractionDesc = prometheus.NewDesc(
+	metrics.ArmadaExecutorMetricsPrefix+"etcd_instance_current_in_use_fraction",
+	"Current fraction of the etcd instance that is in use",
+	[]string{etcdMemberUrl}, nil,
+)
 
 // Return a new EtcdHealthMonitor that monitors the etcd instances at the given urls.
 // Provide a http client, e.g., to use auth, or set client to nil to use the default client.
@@ -90,13 +93,41 @@ func New(etcConfiguration configuration.EtcdConfiguration, client *http.Client) 
 		}
 	}
 	go rv.Run(context.Background())
+	prometheus.MustRegister(rv)
 	return rv, nil
+}
+
+func (srv *EtcdHealthMonitor) Describe(desc chan<- *prometheus.Desc) {
+	desc <- etcdInstanceUpDesc
+	desc <- etcdInstanceHealthCheckTimeDesc
+	desc <- etcdInstanceInUseFractionDesc
+}
+
+func (srv *EtcdHealthMonitor) Collect(metrics chan<- prometheus.Metric) {
+	for url, instance := range srv.getInstances() {
+		currentFraction, err := srv.getInstanceCurrentFractionOfResourceInUse(instance)
+		metrics <- prometheus.MustNewConstMetric(etcdInstanceHealthCheckTimeDesc, prometheus.CounterValue, float64(instance.lastCheck.Unix()), url)
+		if err != nil {
+			metrics <- prometheus.MustNewConstMetric(etcdInstanceUpDesc, prometheus.GaugeValue, 0, url)
+			prometheus.NewInvalidMetric(etcdInstanceInUseFractionDesc, err)
+		} else {
+			metrics <- prometheus.MustNewConstMetric(etcdInstanceUpDesc, prometheus.GaugeValue, 1, url)
+			metrics <- prometheus.MustNewConstMetric(etcdInstanceInUseFractionDesc, prometheus.GaugeValue, currentFraction, url)
+		}
+	}
 }
 
 // Run the service until ctx is cancelled.
 func (srv *EtcdHealthMonitor) Run(ctx context.Context) {
 	log.WithField("service", "EtcdHealthMonitor").Info("started ETCD health monitor")
 	defer log.WithField("service", "EtcdHealthMonitor").Info("exited ETCD health monitor")
+
+	var taskDurationHistogram = promauto.NewHistogram(
+		prometheus.HistogramOpts{
+			Name:    metrics.ArmadaExecutorMetricsPrefix + "etcd_health_check_latency_seconds",
+			Help:    "Background loop etcd health check latency in seconds",
+			Buckets: prometheus.ExponentialBuckets(0.01, 2, 15),
+		})
 
 	ticker := time.NewTicker(srv.ScrapeInterval)
 	defer ticker.Stop()
@@ -105,10 +136,12 @@ func (srv *EtcdHealthMonitor) Run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
+			start := time.Now()
 			if err := srv.scrapeMetrics(ctx); err != nil {
 				logging.WithStacktrace(log.WithField("service", "EtcdHealthMonitor"), err).Error("failed to scrape metrics from etcd")
 			}
-			// TODO Add prometheus metrics for success/fail + current values
+			duration := time.Since(start)
+			taskDurationHistogram.Observe(duration.Seconds())
 		}
 	}
 }
@@ -136,26 +169,31 @@ func (srv *EtcdHealthMonitor) updateInstances(updatedInstances map[string]*etcdI
 
 // ScrapeMetrics collects metrics for all etcd instances.
 func (srv *EtcdHealthMonitor) scrapeMetrics(ctx context.Context) error {
-	g, ctx := errgroup.WithContext(ctx)
+	ctx, cancel := context.WithTimeout(ctx, time.Second*30)
+	defer cancel()
+
+	wg := sync.WaitGroup{}
 	instances := srv.getInstances()
 	for url, instance := range instances {
+		wg.Add(1)
 		url := url
 		instance := instance
-		g.Go(func() error {
+		go func() {
+			defer wg.Done()
 			req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 			if err != nil {
 				instance.err = err
-				return errors.WithStack(err)
+				return
 			}
 
 			resp, err := srv.client.Do(req)
 			if err != nil {
 				instance.err = err
-				return errors.WithStack(err)
+				return
 			}
 			defer resp.Body.Close()
 
-			metrics := make(map[string]float64)
+			receivedMetrics := make(map[string]float64)
 			scanner := bufio.NewScanner(resp.Body)
 			for scanner.Scan() {
 				line := scanner.Text()
@@ -175,17 +213,23 @@ func (srv *EtcdHealthMonitor) scrapeMetrics(ctx context.Context) error {
 				if err != nil {
 					continue
 				}
-				metrics[key] = val
+				receivedMetrics[key] = val
 			}
-			instance.metrics = metrics
+			instance.metrics = receivedMetrics
 			instance.lastCheck = time.Now()
 			instance.err = nil
-			return nil
-		})
+		}()
 	}
-	err := g.Wait()
+
+	wg.Wait()
 	srv.updateInstances(instances)
-	return err
+
+	for _, instance := range instances {
+		if instance.err != nil {
+			return instance.err
+		}
+	}
+	return nil
 }
 
 func (srv *EtcdHealthMonitor) IsWithinSoftHealthLimit() bool {
@@ -214,7 +258,7 @@ func (srv *EtcdHealthMonitor) currentFractionOfResourceInUse() (float64, error) 
 	for url, instance := range srv.instances {
 		fractionInUse, err := srv.getInstanceCurrentFractionOfResourceInUse(instance)
 		if err != nil {
-			log.Warnf("skipping instance %s as %s", url, err)
+			log.Warnf("skipping etcd instance %s as %s", url, err)
 			continue
 		}
 		if fractionInUse > maxCurrentFractionInUse {
@@ -245,7 +289,7 @@ func (srv *EtcdHealthMonitor) getInstanceCurrentFractionOfResourceInUse(instance
 
 	metricsAge := time.Since(instance.lastCheck)
 	if metricsAge > srv.MetricsMaxAge {
-		return 0, fmt.Errorf("metrics for etcd instance are too old current age %s max age %s; instance may be down")
+		return 0, fmt.Errorf("metrics for etcd instance are too old current age %s max age %s; instance may be down", metricsAge, srv.MetricsMaxAge)
 	}
 
 	totalSize, ok := instance.metrics[etcdTotalSizeBytesMetricName]

@@ -24,7 +24,7 @@ kubernetes:
   impersonateUsers: false
   etcd:
     fractionOfStorageInUseSoftLimit: 0.8
-    fractionOfStorageInUseHardLimit: 0.8
+    fractionOfStorageInUseHardLimit: 0.9
     minimumAvailable: 1
   QPS: 10000
   Burst: 10000

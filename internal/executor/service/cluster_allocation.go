@@ -3,12 +3,12 @@ package service
 import (
 	"fmt"
 
-	"github.com/G-Research/armada/internal/etcdhealthmonitor"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 
 	"github.com/G-Research/armada/internal/executor/context"
+	"github.com/G-Research/armada/internal/executor/etcd"
 	"github.com/G-Research/armada/internal/executor/job"
 	"github.com/G-Research/armada/internal/executor/reporter"
 	"github.com/G-Research/armada/internal/executor/util"
@@ -21,7 +21,7 @@ type ClusterAllocationService struct {
 	utilisationService utilisation.UtilisationService
 	clusterContext     context.ClusterContext
 	submitter          job.Submitter
-	etcdHealthMonitor  *etcdhealthmonitor.EtcdHealthMonitor
+	etcdHealthMonitor  etcd.EtcdLimitHealthMonitor
 }
 
 func NewClusterAllocationService(
@@ -30,7 +30,7 @@ func NewClusterAllocationService(
 	leaseService LeaseService,
 	utilisationService utilisation.UtilisationService,
 	submitter job.Submitter,
-	etcdHealthMonitor *etcdhealthmonitor.EtcdHealthMonitor) *ClusterAllocationService {
+	etcdHealthMonitor etcd.EtcdLimitHealthMonitor) *ClusterAllocationService {
 
 	return &ClusterAllocationService{
 		leaseService:       leaseService,
@@ -44,7 +44,8 @@ func NewClusterAllocationService(
 func (allocationService *ClusterAllocationService) AllocateSpareClusterCapacity() {
 	// If a health monitor is provided, avoid leasing jobs when etcd is almost full.
 	if allocationService.etcdHealthMonitor != nil && !allocationService.etcdHealthMonitor.IsWithinSoftHealthLimit() {
-		log.Warnf("skipping allocating spare cluster capacity as etcd is at its soft health limit")
+		log.Warnf("Skipping allocating spare cluster capacity as etcd is at its soft health limit")
+		return
 	}
 
 	capacityReport, err := allocationService.utilisationService.GetAvailableClusterCapacity()

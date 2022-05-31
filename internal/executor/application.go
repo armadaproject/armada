@@ -14,9 +14,9 @@ import (
 	"github.com/G-Research/armada/internal/common/cluster"
 	"github.com/G-Research/armada/internal/common/task"
 	"github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/internal/etcdhealthmonitor"
 	"github.com/G-Research/armada/internal/executor/configuration"
 	executor_context "github.com/G-Research/armada/internal/executor/context"
+	"github.com/G-Research/armada/internal/executor/etcd"
 	"github.com/G-Research/armada/internal/executor/job"
 	"github.com/G-Research/armada/internal/executor/metrics"
 	"github.com/G-Research/armada/internal/executor/metrics/pod_metrics"
@@ -47,11 +47,11 @@ func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGrou
 		os.Exit(-1)
 	}
 
-	var etcdHealthMonitor *etcdhealthmonitor.EtcdHealthMonitor
+	var etcdHealthMonitor *etcd.EtcdHealthMonitor
 	if len(config.Kubernetes.Etcd.MetricUrls) > 0 {
 		log.Info("etcd URLs provided; monitoring etcd health enabled")
 
-		etcdHealthMonitor, err = etcdhealthmonitor.New(config.Kubernetes.Etcd, nil)
+		etcdHealthMonitor, err = etcd.New(config.Kubernetes.Etcd, nil)
 		if err != nil {
 			panic(err)
 		}
@@ -75,7 +75,7 @@ func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGrou
 	return StartUpWithContext(config, clusterContext, etcdHealthMonitor, taskManager, wg)
 }
 
-func StartUpWithContext(config configuration.ExecutorConfiguration, clusterContext executor_context.ClusterContext, etcdHealthMonitor *etcdhealthmonitor.EtcdHealthMonitor, taskManager *task.BackgroundTaskManager, wg *sync.WaitGroup) (func(), *sync.WaitGroup) {
+func StartUpWithContext(config configuration.ExecutorConfiguration, clusterContext executor_context.ClusterContext, etcdHealthMonitor etcd.EtcdLimitHealthMonitor, taskManager *task.BackgroundTaskManager, wg *sync.WaitGroup) (func(), *sync.WaitGroup) {
 
 	conn, err := createConnectionToApi(config)
 	if err != nil {
