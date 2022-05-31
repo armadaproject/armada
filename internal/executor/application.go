@@ -1,6 +1,7 @@
 package executor
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -8,14 +9,16 @@ import (
 	"time"
 
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
+	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 
 	"github.com/G-Research/armada/internal/common/cluster"
 	"github.com/G-Research/armada/internal/common/task"
 	"github.com/G-Research/armada/internal/common/util"
+	"github.com/G-Research/armada/internal/etcdhealthmonitor"
 	"github.com/G-Research/armada/internal/executor/configuration"
-	"github.com/G-Research/armada/internal/executor/context"
+	executor_context "github.com/G-Research/armada/internal/executor/context"
 	"github.com/G-Research/armada/internal/executor/job"
 	"github.com/G-Research/armada/internal/executor/metrics"
 	"github.com/G-Research/armada/internal/executor/metrics/pod_metrics"
@@ -36,17 +39,61 @@ func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGrou
 		os.Exit(-1)
 	}
 
-	kubernetesClientProvider, err := cluster.NewKubernetesClientProvider(config.Kubernetes.ImpersonateUsers)
-
+	kubernetesClientProvider, err := cluster.NewKubernetesClientProvider(
+		config.Kubernetes.ImpersonateUsers,
+		config.Kubernetes.QPS,
+		config.Kubernetes.Burst,
+	)
 	if err != nil {
 		log.Errorf("Failed to connect to kubernetes because %s", err)
 		os.Exit(-1)
 	}
 
-	clusterContext := context.NewClusterContext(
+	var etcdHealthMonitor *etcdhealthmonitor.EtcdHealthMonitor
+	if len(config.Kubernetes.EtcdMetricUrls) != 0 {
+		log.Info("etcd URLs provided; monitoring etcd health")
+
+		if config.Kubernetes.EtcdFractionOfStorageInUseSoftLimit <= 0 || config.Kubernetes.EtcdFractionOfStorageInUseSoftLimit > 1 {
+			panic("EtcdFractionOfStorageInUseSoftLimit must be in (0, 1]")
+		}
+
+		if config.Kubernetes.EtcdFractionOfStorageInUseHardLimit <= 0 || config.Kubernetes.EtcdFractionOfStorageInUseHardLimit > 1 {
+			panic("EtcdFractionOfStorageInUseHardLimit must be in (0, 1]")
+		}
+
+		etcdHealthMonitor, err = etcdhealthmonitor.New(config.Kubernetes.EtcdMetricUrls, nil)
+		if err != nil {
+			panic(err)
+		}
+
+		// Run the etcd health monitor in the background.
+		// TODO: Run services in an errgroup
+		ctx, _ := context.WithCancel(context.Background())
+		go etcdHealthMonitor.Run(ctx)
+
+		// Give it up to 10 seconds to start collecting metrics.
+		start := time.Now()
+		etcdFractionOfStorageInUse, err := etcdHealthMonitor.MaxFractionOfStorageInUse()
+		for err != nil {
+			time.Sleep(time.Second)
+			etcdFractionOfStorageInUse, err = etcdHealthMonitor.MaxFractionOfStorageInUse()
+			if time.Since(start) > 10*time.Second {
+				err := errors.WithMessage(err, "EtcdHealthMonitor failed to start in time")
+				panic(err)
+			}
+		}
+		log.Infof("%f percent of etcd storage is in use", etcdFractionOfStorageInUse)
+	} else {
+		log.Info("no etcd URLs provided; etcd health isn't monitored")
+	}
+
+	clusterContext := executor_context.NewClusterContext(
 		config.Application,
 		2*time.Minute,
-		kubernetesClientProvider)
+		kubernetesClientProvider,
+	)
+	clusterContext.EtcdHealthMonitor = etcdHealthMonitor
+	clusterContext.EtcdMaxFractionOfStorageInUse = config.Kubernetes.EtcdFractionOfStorageInUseHardLimit
 
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
@@ -54,10 +101,10 @@ func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGrou
 	taskManager := task.NewBackgroundTaskManager(metrics.ArmadaExecutorMetricsPrefix)
 	taskManager.Register(clusterContext.ProcessPodsToDelete, config.Task.PodDeletionInterval, "pod_deletion")
 
-	return StartUpWithContext(config, clusterContext, taskManager, wg)
+	return StartUpWithContext(config, clusterContext, etcdHealthMonitor, taskManager, wg)
 }
 
-func StartUpWithContext(config configuration.ExecutorConfiguration, clusterContext context.ClusterContext, taskManager *task.BackgroundTaskManager, wg *sync.WaitGroup) (func(), *sync.WaitGroup) {
+func StartUpWithContext(config configuration.ExecutorConfiguration, clusterContext executor_context.ClusterContext, etcdHealthMonitor *etcdhealthmonitor.EtcdHealthMonitor, taskManager *task.BackgroundTaskManager, wg *sync.WaitGroup) (func(), *sync.WaitGroup) {
 
 	conn, err := createConnectionToApi(config)
 	if err != nil {
@@ -79,6 +126,8 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 		config.Kubernetes.MinimumJobSize,
 		config.Kubernetes.AvoidNodeLabelsOnRetry,
 	)
+	jobLeaseService.EtcdHealthMonitor = etcdHealthMonitor
+	jobLeaseService.EtcdMaxFractionOfStorageInUse = config.Kubernetes.EtcdFractionOfStorageInUseSoftLimit
 
 	if config.Kubernetes.PendingPodChecks == nil {
 		log.Error("Config error: Missing pending pod checks")
