@@ -304,6 +304,13 @@ tests-e2e-setup: setup-cluster
 
 .ONESHELL:
 tests-e2e-no-setup:
+	function teardown {
+		echo -e "\nexecutor logs:"
+		docker logs executor
+		echo -e "\nserver logs:"
+		docker logs server
+	}
+	trap teardown exit
 	mkdir -p test_reports
 	$(GO_TEST_CMD) go test -v ./e2e/armadactl_test/... -count=1 2>&1 | tee test_reports/e2e_armadactl.txt
 	$(GO_TEST_CMD) go test -v ./e2e/basic_test/... -count=1 2>&1 | tee test_reports/e2e_basic.txt

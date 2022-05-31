@@ -47,7 +47,7 @@ func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGrou
 		os.Exit(-1)
 	}
 
-	var etcdHealthMonitor *etcd.EtcdHealthMonitor
+	var etcdHealthMonitor etcd.EtcdLimitHealthMonitor
 	if len(config.Kubernetes.Etcd.MetricUrls) > 0 {
 		log.Info("etcd URLs provided; monitoring etcd health enabled")
 
