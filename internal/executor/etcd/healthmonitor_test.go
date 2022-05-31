@@ -70,7 +70,7 @@ func TestIsWithinSoftHealthLimit(t *testing.T) {
 	healthChecker := makeEtcHealthMonitorWithInstances(0.3, 0.5, makeValidEtcdInstanceMonitor(10, 100))
 	assert.True(t, healthChecker.IsWithinSoftHealthLimit())
 
-	//Current usage is 30%, over 30% limit
+	//Current usage is 30%, at 30% limit
 	healthChecker = makeEtcHealthMonitorWithInstances(0.3, 0.5, makeValidEtcdInstanceMonitor(30, 100))
 	assert.False(t, healthChecker.IsWithinSoftHealthLimit())
 
