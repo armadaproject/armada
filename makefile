@@ -72,8 +72,8 @@ NODE_CMD = docker run --rm -v ${PWD}:/go/src/armada -w /go/src/armada/internal/l
 # Bump if you are updating
 GRPC_GATEWAY_VERSION:=@v1.16.0
 GOGO_PROTOBUF_VERSION=@v1.3.2
-K8_APIM_VERSION = @v0.24.1
-K8_API_VERSION = @v0.24.1
+K8_APIM_VERSION = @v0.22.4
+K8_API_VERSION = @v0.22.4
 
 # Optionally (if the TESTS_IN_DOCKER environment variable is set to true) run tests in docker containers.
 # If using WSL, running tests in docker may result in network problems.
