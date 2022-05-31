@@ -1,14 +1,14 @@
 # Scheduler
 
-This document outlines the proposed Armada scheduler. The existing scheduler will be deprecated in favour of the one described here sometime during 2022. This is work in progress; everything herein is subject to change.
+This document outlines the proposed Armada scheduler. The existing scheduler will be deprecated in favour of the one described here during 2022. This is work in progress; everything herein is subject to change.
 
-The purpose this new scheduler is to improve fairness and throughput, and to more effectively schedule large and distributed jobs.
+The purpose this new scheduler is to improve fairness and throughput, to more effectively schedule large and distributed jobs, and to provide a way of running systems with dynamically changing resource requirements (e.g., Spark clusters) via Armada.
 
 ## Armada architecture
 
 Armada consists of the Armada server and one or more Kubernetes worker clusters. Each worker cluster consists of a large number of nodes responsible for executing tasks and is managed by a process referred to as the Armada executor. Jobs are submitted to the Armada server, where they are queued until being handed off to an executor, which assigns them to nodes.
 
-Armada uses a two-stage scheduling approach, consisting of a top-level scheduler (part of the server), and a set of per-cluster schedulers- one per executor. The top-level scheduler is responsible for assigning jobs to executors and the per-cluster schedulers are responsible for assigning those jobs to nodes. This two-stage approach allows the scheduler to manage very large numbers of nodes. We refer to the top-level scheduler simply as "the scheduler".
+Armada uses a two-stage scheduling approach, consisting of a top-level scheduler (which is part of the server), and a set of per-cluster schedulers- one per executor. The top-level scheduler is responsible for assigning jobs to executors and the per-cluster schedulers are responsible for assigning those jobs to nodes. This two-stage approach allows the scheduler to manage very large numbers of nodes. We refer to the top-level scheduler simply as "the scheduler".
 
 Each job is a member of exactly one job queue (e.g., corresponding to a particular user) and has a priority associated with it, i.e., each job has associated with it a tuple `(queue, priority)`. The job of the scheduler is to decide in what order to schedule jobs to worker clusters.
 
@@ -20,7 +20,7 @@ At a high level, scheduling consists of:
 2. Cluster assignment
 3. Node assignment
 
-The two first stages take place in the server and the third in the executor. We explain the first two stages here and the third stage in a later section. At any one time, each job is in one of the following three stages:
+The first two stages take place in the server and the third in the executor. We explain the first two stages here and the third stage in a later section. At any one time, each job is in one of the following three stages:
 
 1. Queued
 2. Pending
@@ -34,17 +34,23 @@ The cluster assignment stage consists of assigning jobs to worker clusters. Deno
 
 the 1st and 2nd job to enter the pending stage and so on. Normally, jobs are assigned to clusters in order, i.e., `j_i` is assigned before `j_2` and so on. However, if some job cannot be scheduled (e.g., because insufficient resources are available), a lower-priority job may be assigned ahead of a higher-priority job if doing so does not delay assigning the higher-priority job. For example, `j_2` may be assigned to a cluster ahead of `j_1`. This is an optimisation to improve utilisation and is referred to as backfilling (see, e.g., [this page](http://docs.adaptivecomputing.com/maui/8.2backfill.php) for some background).
 
-For example, backfilling may be possible if a higher-priority job is waiting for GPU to become available and a lower-priority job only requests CPU and RAM. Further, for each submitted job, Armada allows users to optionally specify job lifetime, i.e., an amount of time after which the job may be preempted. Such jobs are run opportunistically since they can be preempted if holding up a higher-priority job. Note that a lifetime of 0 corresponds to a regular preemtible job.
+For example, backfilling may be possible if a higher-priority job is waiting for GPU to become available and a lower-priority job requests only CPU and RAM. Further, for each submitted job, Armada allows users to optionally specify job lifetime, i.e., an amount of time after which the job may be preempted. Such jobs are run opportunistically since they can be preempted if holding up a higher-priority job. Note that a lifetime of 0 corresponds to a what is usually referred to as a preemtible job.
 
 ## Resource usage and fairness
 
-The notions of resource usage and fair share are central to the scheduler design and are explained here. First, the resource usage of a particular job is a weighted sum of all resources allocated to that job. For example, if some job uses CPU, GPU, and RAM, then the resource usage of that job is
+The notions of resource usage, flow, and fair share are central to the scheduler design and are explained here. 
+
+### Resource usage
+
+The resource usage of a particular job is a weighted sum of all resources requested by that job. For example, if some job uses CPU, GPU, and RAM, then the resource usage of that job is
 
 `CPU + w_GPU * GPU + w_RAM * RAM`,
 
-where `w_GPU` and `w_RAM` is the cost of `GPU` and `RAM` relative to `1 CPU` core. We define such weights for all resources in the cluster (e.g., different types of GPUs). The resource usage of a particular queue is the sum of all resources requested by jobs in the pending and running stages originating from that queue.
+where `w_GPU` and `w_RAM` is the cost of `GPU` and `RAM` relative to `1 CPU` core. We define such weights for all resources in the cluster. The resource usage of a particular queue is the sum of all resources requested by jobs in the pending and running stages originating from that queue.
 
-Second, each queue has a weight associated with it that determines the size of its fair share. Denote these per-queue weights by 
+### Fair share
+
+Each queue has a weight associated with it that determines the size of its fair share. Denote these per-queue weights by 
 
 `w_1, ..., w_N`,
 
@@ -56,7 +62,40 @@ their sum. The fair share for each of the N queues is then
  
 `w_1 / w, ..., w_N / w`.
 
-The scheduler decides which job to move from the queued to pending stage next based on the weighted [max-min fairness criterion](https://en.wikipedia.org/wiki/Max-min_fairness), i.e., such that an attempt to increase the resources allocated to any one queue necessarily results in reducing the resources allocated to at least one queue that is currently below its fair share. In particular, the scheduler uses a progressive filling algorithm, where the queue furthest below its fair share is considered next.
+### Flow
+
+The scheduler does not rely on resource usage directly when computing the fair share of each queue. Instead, it uses the related notion of *flow*, defined recursively for each queue as
+
+`queueFlow = queueResourceUsage + max(queueFlow - queueResourceUsage, 0) * beta`,
+
+where
+
+`beta = 0.5 ^ (timeSinceLastUpdate / halfTime)`,
+
+and `halfTime` is a parameter of the scheduler. Flow is initially set to zero, is lower-bounded by resource usage, and converges to resource usage over time. Relying on flow instead of resource usage ensures fair scheduling in cases where it is not possible to have jobs from all queues running simultaneously.
+
+## Global prioritisation
+
+The goal of the scheduler is to schedule jobs in a manner that achieves weighted [max-min fairness](https://en.wikipedia.org/wiki/Max-min_fairness), i.e., such that an attempt to increase the flow of any one queue necessarily results in reducing the flow of at least one queue currently below its fair share. In network scheduling, where several incoming data streams are multiplexed onto a single outgoing data stream, max-min fairness is achieved by gradually increasing the flow allocated to incoming streams in equal infinitesimal amounts until the capacity limit of one or more incoming streams is hit. The flow of these streams is not increased further. Next, the flow of the remaining streams is increased until again the capacity limit of some streams is hit. The algorithm terminates when the capacity limit of all incoming links or of the outoing link is hit, whichever happens first. This is known as progressive filling.
+
+The Armada scheduler uses a similar algorithm when moving jobs from the queued to pending stage. Because the scheduler cannot increase flow in infinitesimal amounts (jobs may be of arbitrary size) it approximates progressive filling in the following way:
+
+1. For each non-empty queue, get the highest-priority job.
+2. For each such job, compute the flow of the corresponding queue if this job were to be scheduled.
+3. Select the job that would result in the smallest flow.
+4. Move the selected job into the pending stage.
+
+TODO: Explain excess flow.
+
+## Excess flow budget
+
+- There are 3 limits.
+- Limit on exceeding fair share for non-preemptible jobs.
+- Limit on per-queue excess flow.
+- Limit on global excess flow.
+
+- Each queue has an excess flow budget, which is measured in resource-minutes. Jobs that are scheduled beyond its extra fraction consume this budget. This is to ensure a queue cannot take all resources in the cluster forever.
+- There's a global excess flow budget to ensure incoming jobs can be scheduled in a timely manner.
 
 ## Scheduler metrics
 
