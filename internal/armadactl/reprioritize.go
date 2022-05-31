@@ -3,18 +3,16 @@ package armadactl
 import (
 	"fmt"
 
-	"google.golang.org/grpc"
-
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/client"
+	"github.com/pkg/errors"
 )
 
 // Reprioritize sets the priority of the job identified by (jobId, queueName, jobSet) to priorityFactor
 // TODO We should have separate methods to operate on individual jobs and job sets
-func (a *App) Reprioritize(jobId string, queueName string, jobSet string, priorityFactor float64) (outerErr error) {
-	client.WithConnection(a.Params.ApiConnectionDetails, func(conn *grpc.ClientConn) {
-		client := api.NewSubmitClient(conn)
+func (a *App) Reprioritize(jobId string, queueName string, jobSet string, priorityFactor float64) error {
+	return client.WithSubmitClient(a.Params.ApiConnectionDetails, func(c api.SubmitClient) error {
 
 		var jobIds []string
 		if jobId != "" {
@@ -30,24 +28,23 @@ func (a *App) Reprioritize(jobId string, queueName string, jobSet string, priori
 			Queue:       queueName,
 			NewPriority: priorityFactor,
 		}
-		result, err := client.ReprioritizeJobs(ctx, &req)
+		result, err := c.ReprioritizeJobs(ctx, &req)
 		if err != nil {
-			outerErr = fmt.Errorf("[armadactl.Reprioritize] error submitting reprioritizing request %#v: %s", req, err)
-			return
+			return errors.WithMessagef(err, "error reprioritising jobs matching queue: %s, job set: %s, and job ID: %s\n", queueName, jobSet, jobId)
 		}
 
 		err = a.writeResults(result.ReprioritizationResults)
 		if err != nil {
-			outerErr = fmt.Errorf("[armadactl.Reprioritize] error writing reprioritizing results for request %#v: %s", req, err)
-			return
+			return err
 		}
+
+		return nil
 	})
-	return
 }
 
 func (a *App) writeResults(results map[string]string) error {
 	if len(results) == 0 {
-		return fmt.Errorf("[armadactl.writeResults] no jobs were reprioritized")
+		return fmt.Errorf("no jobs were reprioritized")
 	}
 
 	var reprioritizedIds []string
@@ -76,7 +73,7 @@ func (a *App) writeResults(results map[string]string) error {
 	}
 
 	if len(erroredIds) > 0 {
-		return fmt.Errorf("[armadactl.writeResults] error reprioritizing some jobs")
+		return fmt.Errorf("error reprioritizing some jobs")
 	}
 	return nil
 }

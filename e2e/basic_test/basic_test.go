@@ -29,7 +29,7 @@ const armadactlExecutable = "../../bin/armadactl"
 func TestCanSubmitJob_ReceivingAllExpectedEvents(t *testing.T) {
 	skipIfIntegrationEnvNotPresent(t)
 
-	client.WithConnection(connectionDetails(), func(connection *grpc.ClientConn) {
+	err := client.WithConnection(connectionDetails(), func(connection *grpc.ClientConn) error {
 		submitClient := api.NewSubmitClient(connection)
 		eventsClient := api.NewEventClient(connection)
 
@@ -42,13 +42,15 @@ func TestCanSubmitJob_ReceivingAllExpectedEvents(t *testing.T) {
 		assert.True(t, statusEvents[domain.Leased])
 		assert.True(t, statusEvents[domain.Running])
 		assert.True(t, statusEvents[domain.Succeeded])
+		return nil
 	})
+	assert.NoError(t, err)
 }
 
 func TestCanSubmitJob_IncorrectImage_FailsWithoutRetry(t *testing.T) {
 	skipIfIntegrationEnvNotPresent(t)
 
-	client.WithConnection(connectionDetails(), func(connection *grpc.ClientConn) {
+	err := client.WithConnection(connectionDetails(), func(connection *grpc.ClientConn) error {
 		submitClient := api.NewSubmitClient(connection)
 		eventsClient := api.NewEventClient(connection)
 
@@ -70,30 +72,34 @@ func TestCanSubmitJob_IncorrectImage_FailsWithoutRetry(t *testing.T) {
 
 		assert.True(t, statusEvents[domain.Failed])
 		assert.Equal(t, 1, numLeasedEvents)
+		return nil
 	})
+	assert.NoError(t, err)
 }
 
 func TestCanNotSubmitJobToDeletedQueue(t *testing.T) {
 	skipIfIntegrationEnvNotPresent(t)
 
-	client.WithConnection(connectionDetails(), func(connection *grpc.ClientConn) {
-		submitClient := api.NewSubmitClient(connection)
-
+	err := client.WithSubmitClient(connectionDetails(), func(client api.SubmitClient) error {
 		jobRequest := createJobRequest("personal-anonymous")
-		createQueue(submitClient, jobRequest, t)
+		createQueue(client, jobRequest, t)
 
-		err := client.DeleteQueue(submitClient, jobRequest.Queue)
+		_, err := client.DeleteQueue(context.Background(), &api.QueueDeleteRequest{
+			Name: jobRequest.Queue,
+		})
 		assert.NoError(t, err)
 
-		_, err = client.SubmitJobs(submitClient, jobRequest)
+		_, err = client.SubmitJobs(context.Background(), jobRequest)
 		assert.Error(t, err)
+		return nil
 	})
+	assert.NoError(t, err)
 }
 
 func TestCanSubmitJob_ArmdactlWatchExitOnInactive(t *testing.T) {
 	skipIfIntegrationEnvNotPresent(t)
 	connDetails := connectionDetails()
-	client.WithConnection(connDetails, func(connection *grpc.ClientConn) {
+	err := client.WithConnection(connDetails, func(connection *grpc.ClientConn) error {
 		submitClient := api.NewSubmitClient(connection)
 		eventsClient := api.NewEventClient(connection)
 
@@ -107,13 +113,15 @@ func TestCanSubmitJob_ArmdactlWatchExitOnInactive(t *testing.T) {
 		submitJobsAndWatch(t, submitClient, eventsClient, jobRequest)
 		err = cmd.Wait()
 		assert.NoError(t, err)
+		return nil
 	})
+	assert.NoError(t, err)
 }
 
 func TestCanSubmitJob_KubernetesNamespacePermissionsAreRespected(t *testing.T) {
 	skipIfIntegrationEnvNotPresent(t)
 
-	client.WithConnection(connectionDetails(), func(connection *grpc.ClientConn) {
+	err := client.WithConnection(connectionDetails(), func(connection *grpc.ClientConn) error {
 		submitClient := api.NewSubmitClient(connection)
 		eventsClient := api.NewEventClient(connection)
 
@@ -122,7 +130,9 @@ func TestCanSubmitJob_KubernetesNamespacePermissionsAreRespected(t *testing.T) {
 
 		statusEvents, _ := submitJobsAndWatch(t, submitClient, eventsClient, jobRequest)
 		assert.True(t, statusEvents[domain.Failed], "Anonymous user should not have access to default namespace.")
+		return nil
 	})
+	assert.NoError(t, err)
 }
 
 func connectionDetails() *client.ApiConnectionDetails {
