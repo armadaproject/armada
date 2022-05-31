@@ -34,4 +34,3 @@ We expect readers of the documentation to have a basic understanding of Docker a
 
 - [Docker overiew](https://docs.docker.com/get-started/overview/)
 - [Kubernetes overview](https://kubernetes.io/docs/concepts/overview/)
-
