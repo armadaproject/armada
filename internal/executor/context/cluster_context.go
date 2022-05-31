@@ -236,7 +236,7 @@ func (c *KubernetesClusterContext) GetNodeStatsSummary(node *v1.Node) (*v1alpha1
 func (c *KubernetesClusterContext) SubmitPod(pod *v1.Pod, owner string, ownerGroups []string) (*v1.Pod, error) {
 
 	// If a health monitor is provided, reject pods when etcd is at its hard limit.
-	if c.etcdHealthMonitor != nil && c.etcdHealthMonitor.IsAtHardHealthLimit() {
+	if c.etcdHealthMonitor != nil && !c.etcdHealthMonitor.IsWithinHardHealthLimit() {
 		err := errors.WithStack(&armadaerrors.ErrCreateResource{
 			Type:    "pod",
 			Name:    pod.Name,

@@ -43,7 +43,7 @@ func NewClusterAllocationService(
 
 func (allocationService *ClusterAllocationService) AllocateSpareClusterCapacity() {
 	// If a health monitor is provided, avoid leasing jobs when etcd is almost full.
-	if allocationService.etcdHealthMonitor != nil && allocationService.etcdHealthMonitor.IsAtSoftHealthLimit() {
+	if allocationService.etcdHealthMonitor != nil && !allocationService.etcdHealthMonitor.IsWithinSoftHealthLimit() {
 		log.Warnf("skipping allocating spare cluster capacity as etcd is at its soft health limit")
 	}
 

@@ -3,6 +3,7 @@ package etcdhealthmonitor
 import (
 	"bufio"
 	"context"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -187,20 +188,20 @@ func (srv *EtcdHealthMonitor) scrapeMetrics(ctx context.Context) error {
 	return err
 }
 
-func (srv *EtcdHealthMonitor) IsAtSoftHealthLimit() bool {
+func (srv *EtcdHealthMonitor) IsWithinSoftHealthLimit() bool {
 	currentFractionOfResourceInUse, err := srv.currentFractionOfResourceInUse()
 	if err != nil {
-		return true
+		return false
 	}
-	return currentFractionOfResourceInUse >= srv.etcdConfiguration.FractionOfStorageInUseSoftLimit
+	return currentFractionOfResourceInUse < srv.etcdConfiguration.FractionOfStorageInUseSoftLimit
 }
 
-func (srv *EtcdHealthMonitor) IsAtHardHealthLimit() bool {
+func (srv *EtcdHealthMonitor) IsWithinHardHealthLimit() bool {
 	currentFractionOfResourceInUse, err := srv.currentFractionOfResourceInUse()
 	if err != nil {
-		return true
+		return false
 	}
-	return currentFractionOfResourceInUse >= srv.etcdConfiguration.FractionOfStorageInUseHardLimit
+	return currentFractionOfResourceInUse < srv.etcdConfiguration.FractionOfStorageInUseHardLimit
 }
 
 // MaxFractionOfStorageInUse returns the maximum fraction of storage in use over all etcd instances.
@@ -208,44 +209,21 @@ func (srv *EtcdHealthMonitor) currentFractionOfResourceInUse() (float64, error) 
 	srv.mu.Lock()
 	defer srv.mu.Unlock()
 
-	rv := 0.0
+	maxCurrentFractionInUse := 0.0
 	available := 0
 	for url, instance := range srv.instances {
-		if instance == nil {
-			return 0, errors.WithStack(&armadaerrors.ErrInvalidArgument{
-				Name:    "instances",
-				Value:   srv.instances,
-				Message: "instance is nil",
-			})
-		}
-
-		metricsAge := time.Since(instance.lastCheck)
-		if metricsAge > srv.MetricsMaxAge {
-			log.Warnf("skipping instance as max age is %s, but metrics for etcd instance at %s are of age %s; instance may be down",
-				srv.MetricsMaxAge, url, metricsAge)
+		fractionInUse, err := srv.getInstanceCurrentFractionOfResourceInUse(instance)
+		if err != nil {
+			log.Warnf("skipping instance %s as %s", url, err)
 			continue
 		}
-
-		totalSize, ok := instance.metrics[etcdTotalSizeBytesMetricName]
-		if !ok {
-			log.Warnf("skipping instance %s as metric etcd_server_quota_backend_bytes not available", url)
-			continue
-		}
-
-		inUse, ok := instance.metrics[etcdInUseSizeBytesMetricName]
-		if !ok {
-			log.Warnf("skipping instance %s as metric etcd_mvcc_db_total_size_in_use_in_bytes not available", url)
-			continue
-		}
-
-		fractionInUse := inUse / totalSize
-		if fractionInUse > rv {
-			rv = fractionInUse
+		if fractionInUse > maxCurrentFractionInUse {
+			maxCurrentFractionInUse = fractionInUse
 		}
 		available++
 	}
 
-	if len(srv.instances) < srv.etcdConfiguration.MinimumAvailable {
+	if available < srv.etcdConfiguration.MinimumAvailable {
 		return 0, errors.WithStack(&armadaerrors.ErrInvalidArgument{
 			Name:    "instances",
 			Value:   srv.instances,
@@ -253,5 +231,32 @@ func (srv *EtcdHealthMonitor) currentFractionOfResourceInUse() (float64, error) 
 		})
 	}
 
-	return rv, nil
+	return maxCurrentFractionInUse, nil
+}
+
+func (srv *EtcdHealthMonitor) getInstanceCurrentFractionOfResourceInUse(instance *etcdInstanceMonitor) (float64, error) {
+	if instance == nil {
+		return 0, fmt.Errorf("instance is nil")
+	}
+
+	if instance.lastCheck.IsZero() {
+		return 0, fmt.Errorf("no scrape has ever occured for this instance, possibly etcd health check is still initialising")
+	}
+
+	metricsAge := time.Since(instance.lastCheck)
+	if metricsAge > srv.MetricsMaxAge {
+		return 0, fmt.Errorf("metrics for etcd instance are too old current age %s max age %s; instance may be down")
+	}
+
+	totalSize, ok := instance.metrics[etcdTotalSizeBytesMetricName]
+	if !ok {
+		return 0, fmt.Errorf("metric etcd_server_quota_backend_bytes not available")
+	}
+
+	inUse, ok := instance.metrics[etcdInUseSizeBytesMetricName]
+	if !ok {
+		return 0, fmt.Errorf("metric etcd_mvcc_db_total_size_in_use_in_bytes not available")
+	}
+
+	return inUse / totalSize, nil
 }
