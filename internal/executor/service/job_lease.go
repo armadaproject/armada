@@ -87,7 +87,7 @@ func (jobLeaseService *JobLeaseService) RequestJobLeases(availableResource *comm
 	// Setup a bidirectional gRPC stream.
 	// The server sends jobs over this stream.
 	// The executor sends back acks to indicate which jobs were successfully received.
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	stream, err := jobLeaseService.queueClient.StreamingLeaseJobs(ctx, grpc_retry.Disable())
 	if err != nil {
