@@ -1031,6 +1031,9 @@
         "errorIfMissing": {
           "type": "boolean"
         },
+        "forceRedis": {
+          "type": "boolean"
+        },
         "fromMessageId": {
           "type": "string"
         },
