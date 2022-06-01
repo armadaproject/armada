@@ -1,10 +1,14 @@
 package cluster
 
 import (
+	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/util/flowcontrol"
+
+	"github.com/G-Research/armada/internal/common/armadaerrors"
 )
 
 type KubernetesClientProvider interface {
@@ -19,22 +23,39 @@ type ConfigKubernetesClientProvider struct {
 	client           kubernetes.Interface
 }
 
-func NewKubernetesClientProvider(impersonateUsers bool) (*ConfigKubernetesClientProvider, error) {
-	config, err := loadConfig()
+func NewKubernetesClientProvider(impersonateUsers bool, qps float32, burst int) (*ConfigKubernetesClientProvider, error) {
+	if qps == 0 {
+		return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
+			Name:    "qps",
+			Value:   qps,
+			Message: "qps must be positive",
+		})
+	}
+	if burst == 0 {
+		return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
+			Name:    "burst",
+			Value:   burst,
+			Message: "burst must be positive",
+		})
+	}
+
+	restConfig, err := loadConfig()
 	if err != nil {
 		return nil, err
 	}
 
-	config.Burst = 10000
-	config.QPS = 10000
+	// Use a shared rate limiter for all clients created by this provider.
+	// This limits the total number of concurrent calls across all clients to burst
+	// and the total number of calls per second to qps.
+	restConfig.RateLimiter = flowcontrol.NewTokenBucketRateLimiter(qps, burst)
 
-	client, err := kubernetes.NewForConfig(config)
+	client, err := kubernetes.NewForConfig(restConfig)
 	if err != nil {
 		return nil, err
 	}
 
 	return &ConfigKubernetesClientProvider{
-			restConfig:       config,
+			restConfig:       restConfig,
 			impersonateUsers: impersonateUsers,
 			client:           client},
 		nil

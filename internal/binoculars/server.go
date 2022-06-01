@@ -21,7 +21,11 @@ func StartUp(config *configuration.BinocularsConfig) (func(), *sync.WaitGroup) {
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
 
-	kubernetesClientProvider, err := cluster.NewKubernetesClientProvider(config.ImpersonateUsers)
+	kubernetesClientProvider, err := cluster.NewKubernetesClientProvider(
+		config.ImpersonateUsers,
+		config.K8sQPS,
+		config.K8sBurst,
+	)
 	if err != nil {
 		log.Errorf("Failed to connect to kubernetes because %s", err)
 		os.Exit(-1)

@@ -1423,6 +1423,9 @@ namespace GResearch.Armada.Client
         [Newtonsoft.Json.JsonProperty("errorIfMissing", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public bool? ErrorIfMissing { get; set; }
     
+        [Newtonsoft.Json.JsonProperty("forceRedis", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public bool? ForceRedis { get; set; }
+    
         [Newtonsoft.Json.JsonProperty("fromMessageId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string FromMessageId { get; set; }
     

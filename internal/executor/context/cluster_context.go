@@ -6,10 +6,11 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	networking "k8s.io/api/networking/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	k8s_errors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
@@ -21,8 +22,10 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 
+	"github.com/G-Research/armada/internal/common/armadaerrors"
 	"github.com/G-Research/armada/internal/common/cluster"
 	util2 "github.com/G-Research/armada/internal/common/util"
+	"github.com/G-Research/armada/internal/etcdhealthmonitor"
 	"github.com/G-Research/armada/internal/executor/configuration"
 	"github.com/G-Research/armada/internal/executor/domain"
 	"github.com/G-Research/armada/internal/executor/util"
@@ -75,6 +78,9 @@ type KubernetesClusterContext struct {
 	kubernetesClient         kubernetes.Interface
 	kubernetesClientProvider cluster.KubernetesClientProvider
 	eventInformer            informer.EventInformer
+	// If provided, stops object creation while EtcdMaxFractionOfStorageInUse or more of etcd storage is full.
+	EtcdHealthMonitor             *etcdhealthmonitor.EtcdHealthMonitor
+	EtcdMaxFractionOfStorageInUse float64
 }
 
 func (c *KubernetesClusterContext) GetClusterId() string {
@@ -228,6 +234,22 @@ func (c *KubernetesClusterContext) GetNodeStatsSummary(node *v1.Node) (*v1alpha1
 
 func (c *KubernetesClusterContext) SubmitPod(pod *v1.Pod, owner string, ownerGroups []string) (*v1.Pod, error) {
 
+	// If a health monitor is provided, reject pods when etcd is almost full.
+	if c.EtcdHealthMonitor != nil {
+		fractionOfStorageInUse, err := c.EtcdHealthMonitor.MaxFractionOfStorageInUse()
+		if err != nil {
+			return nil, err
+		}
+		if fractionOfStorageInUse > c.EtcdMaxFractionOfStorageInUse {
+			err := errors.WithStack(&armadaerrors.ErrCreateResource{
+				Type:    "pod",
+				Name:    pod.Name,
+				Message: fmt.Sprintf("etcd is %f percent full, but the limit is %f percent", fractionOfStorageInUse, c.EtcdMaxFractionOfStorageInUse),
+			})
+			return nil, err
+		}
+	}
+
 	c.submittedPods.Add(pod)
 	ownerClient, err := c.kubernetesClientProvider.ClientForUser(owner, ownerGroups)
 	if err != nil {
@@ -282,7 +304,7 @@ func (c *KubernetesClusterContext) deletePodEvents(pod *v1.Pod) error {
 func (c *KubernetesClusterContext) DeleteService(service *v1.Service) error {
 	deleteOptions := createDeleteOptions()
 	err := c.kubernetesClient.CoreV1().Services(service.Namespace).Delete(ctx.Background(), service.Name, deleteOptions)
-	if err != nil && errors.IsNotFound(err) {
+	if err != nil && k8s_errors.IsNotFound(err) {
 		return nil
 	}
 	return err
@@ -291,7 +313,7 @@ func (c *KubernetesClusterContext) DeleteService(service *v1.Service) error {
 func (c *KubernetesClusterContext) DeleteIngress(ingress *networking.Ingress) error {
 	deleteOptions := createDeleteOptions()
 	err := c.kubernetesClient.NetworkingV1().Ingresses(ingress.Namespace).Delete(ctx.Background(), ingress.Name, deleteOptions)
-	if err != nil && errors.IsNotFound(err) {
+	if err != nil && k8s_errors.IsNotFound(err) {
 		return nil
 	}
 	return err
@@ -322,12 +344,12 @@ func (c *KubernetesClusterContext) ProcessPodsToDelete() {
 			if err == nil {
 				deletePodEventsErr := c.deletePodEvents(podToDelete)
 				if deletePodEventsErr != nil {
-					log.Errorf("Failed to delete pod events for pod %s/%s because %s", podToDelete.Name, podToDelete.Namespace, err)
+					log.WithError(deletePodEventsErr).Errorf("Failed to delete pod events for pod %s/%s", podToDelete.Name, podToDelete.Namespace)
 				}
 			}
 		}
 
-		if err == nil || errors.IsNotFound(err) {
+		if err == nil || k8s_errors.IsNotFound(err) {
 			c.podsToDelete.Update(podId, nil)
 		} else {
 			log.Errorf("Failed to delete pod %s/%s because %s", podToDelete.Namespace, podToDelete.Name, err)
@@ -352,7 +374,7 @@ func (c *KubernetesClusterContext) GetServices(pod *v1.Pod) ([]*v1.Service, erro
 		return []*v1.Service{}, err
 	}
 	services, err := c.serviceInformer.Lister().List(*podAssociationSelector)
-	if err != nil && errors.IsNotFound(err) {
+	if err != nil && k8s_errors.IsNotFound(err) {
 		return []*v1.Service{}, nil
 	}
 	if err == nil && services == nil {
@@ -367,7 +389,7 @@ func (c *KubernetesClusterContext) GetIngresses(pod *v1.Pod) ([]*networking.Ingr
 		return []*networking.Ingress{}, err
 	}
 	ingresses, err := c.ingressInformer.Lister().List(*podAssociationSelector)
-	if err != nil && errors.IsNotFound(err) {
+	if err != nil && k8s_errors.IsNotFound(err) {
 		return []*networking.Ingress{}, nil
 	}
 	if err == nil && ingresses == nil {

@@ -54,7 +54,7 @@ func TestUnaryServerInterceptor(t *testing.T) {
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return nil, handlerErr
 	}
-	f := UnaryServerInterceptor()
+	f := UnaryServerInterceptor(100)
 
 	// nils should be passed through as-is
 	handlerErr = nil
@@ -66,16 +66,25 @@ func TestUnaryServerInterceptor(t *testing.T) {
 	_, err = f(ctx, nil, nil, handler)
 	st, ok := status.FromError(err)
 	assert.True(t, ok)
-	assert.Equal(t, codes.Aborted, st.Code(), "expected %v, but got %v", codes.Aborted, st.Code())
+	assert.Equal(t, codes.Aborted, st.Code())
 
-	// a chain of errors should result in the message of the cause error being returned
+	// a chain of errors should result in the entire chain being returned
 	innerErr := &ErrAlreadyExists{}
 	handlerErr = errors.WithMessage(innerErr, "foo")
 	_, err = f(ctx, nil, nil, handler)
 	st, ok = status.FromError(err)
 	assert.True(t, ok)
-	assert.Equal(t, codes.AlreadyExists, st.Code(), "expected %v, but got %v", codes.AlreadyExists, st.Code())
-	assert.Equal(t, st.Message(), innerErr.Error(), "expected %q, but got %q", st.Message(), innerErr.Error())
+	assert.Equal(t, codes.AlreadyExists, st.Code())
+	assert.Equal(t, handlerErr.Error(), st.Message())
+
+	// a chain of errors with a stack trace should omit the stack trace
+	innerErr = &ErrAlreadyExists{}
+	handlerErr = errors.WithMessage(errors.WithStack(innerErr), "foo")
+	_, err = f(ctx, nil, nil, handler)
+	st, ok = status.FromError(err)
+	assert.True(t, ok)
+	assert.Equal(t, codes.AlreadyExists, st.Code())
+	assert.Equal(t, errors.WithMessage(innerErr, "foo").Error(), st.Message())
 
 	// if the context contains a request id, it should be included in the error message
 	id := "123"
@@ -96,7 +105,7 @@ func TestStreamServerInterceptor(t *testing.T) {
 	handler := func(srv interface{}, stream grpc.ServerStream) error {
 		return handlerErr
 	}
-	f := StreamServerInterceptor()
+	f := StreamServerInterceptor(100)
 
 	// nils should be passed through as-is
 	handlerErr = nil
@@ -108,7 +117,7 @@ func TestStreamServerInterceptor(t *testing.T) {
 	err = f(nil, stream, nil, handler)
 	st, ok := status.FromError(err)
 	assert.True(t, ok)
-	assert.Equal(t, codes.Aborted, st.Code(), "expected %v, but got %v", codes.Aborted, st.Code())
+	assert.Equal(t, codes.Aborted, st.Code())
 
 	// a chain of errors should result in the message of the cause error being returned
 	innerErr := &ErrAlreadyExists{}
@@ -116,8 +125,17 @@ func TestStreamServerInterceptor(t *testing.T) {
 	err = f(nil, stream, nil, handler)
 	st, ok = status.FromError(err)
 	assert.True(t, ok)
-	assert.Equal(t, codes.AlreadyExists, st.Code(), "expected %v, but got %v", codes.AlreadyExists, st.Code())
-	assert.Equal(t, innerErr.Error(), st.Message(), "expected %v, but got %v", innerErr.Error(), st.Message())
+	assert.Equal(t, codes.AlreadyExists, st.Code())
+	assert.Equal(t, handlerErr.Error(), st.Message())
+
+	// a chain of errors with a stack trace should omit the stack trace
+	innerErr = &ErrAlreadyExists{}
+	handlerErr = errors.WithMessage(errors.WithStack(innerErr), "foo")
+	err = f(nil, stream, nil, handler)
+	st, ok = status.FromError(err)
+	assert.True(t, ok)
+	assert.Equal(t, codes.AlreadyExists, st.Code())
+	assert.Equal(t, errors.WithMessage(innerErr, "foo").Error(), st.Message())
 
 	// if the context contains a request id, it should be included in the error message
 	id := "123"
