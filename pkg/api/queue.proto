@@ -49,6 +49,23 @@ message LeaseRequest {
     repeated NodeInfo nodes = 7 [(gogoproto.nullable) = false];
 }
 
+// For the bidirectional streaming job lease request service.
+// For the first message, populate all fields except SubmittedJobs, which should be empty.
+// For subsequent messages, these fields may be left empty, in which case the last non-zero value received is used.
+// By streaming back job ids, the server knows which jobs were received in case of an outage.
+message StreamingLeaseRequest {
+    // Each cluster has a unique name associated with it.
+    string cluster_id = 1;
+    // Nodes are split into pools. This field indicates for which pool jobs are leased.
+    string pool = 2;
+    map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> resources = 3 [(gogoproto.nullable) = false];
+    ClusterLeasedReport cluster_leased_report = 4 [(gogoproto.nullable) = false];
+    map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> minimum_job_size = 5 [(gogoproto.nullable) = false];
+    repeated NodeInfo nodes = 6 [(gogoproto.nullable) = false];
+    // Ids of received jobs. Used to ack received jobs.
+    repeated string ReceivedJobIds = 7;
+}
+
 message NodeInfo {
     string name = 1;
     repeated k8s.io.api.core.v1.Taint taints = 2 [(gogoproto.nullable) = false];
@@ -95,6 +112,15 @@ message JobLease {
     repeated Job job = 1;
 }
 
+message StreamingJobLease {
+    Job job = 1;
+    // Total number of jobs being sent over this connection.
+    uint32 numJobs = 2;
+    // Number of jobs for which the server has received an ack.
+    // When numAcked = numJobs, all jobs have been received and acked.
+    uint32 numAcked = 3;
+}
+
 message IdList {
     repeated string ids = 1;
 }
@@ -112,6 +138,7 @@ message ReturnLeaseRequest {
 
 service AggregatedQueue {
     rpc LeaseJobs (LeaseRequest) returns (JobLease);
+    rpc StreamingLeaseJobs (stream StreamingLeaseRequest) returns (stream StreamingJobLease);
     rpc RenewLease (RenewLeaseRequest) returns (IdList);
     rpc ReturnLease (ReturnLeaseRequest) returns (google.protobuf.Empty);
     rpc ReportDone (IdList) returns (IdList);
