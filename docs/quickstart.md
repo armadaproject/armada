@@ -10,6 +10,27 @@ The purpose of this guide is to install a minimal local Armada deployment for te
 - Kind v0.11.1+
 - Kubectl
 
+
+### Remote setup
+Instead of doing local setup you can work with armada by doing remote setup using AWS EC2 instance where you can also work with peers using their public key.
+
+#### Pre-requisites
+
+- Active AWS account
+- IAM permissions for EC2
+
+
+Ensure the current user has permission to run the `docker` command without `sudo`. and you are not using free-tier account of AWS.
+
+Important configurations while creating an EC2 instance:
+- Choose AMI "Amazon Linux 2 AMI (HVM) - Kernel 5.10"
+- Instance type : t2.large
+- EBS Volume size (GiB): 30
+- When your instance is in Running state ,you need to ssh into remote instance from local terminal to start with quickstart instructions eg. "ssh -i ~/.ssh/aws.pem ec2-user@Public IPv4 DNS"
+
+Now you can install all the pre-requisites mentioned in quickstart document and all other steps of Linux machine.
+
+
 ### OS specifics
 
 #### Linux
@@ -271,7 +292,7 @@ Nov  4 11:44:26 | Queued:   0, Leased:   0, Pending:   0, Running:   0, Succeede
 
 Grafana:
 
-![Armada Grafana dashboard](./quickstart/grafana-screenshot.png "Armada Grafana dashboard")
+![Armada Grafana dashboard](./quickstart/lookout.png "Armada Grafana dashboard")
 
 Note that the jobs in this demo simply run the `sleep` command so do not consume much resource.
 

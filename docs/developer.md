@@ -8,9 +8,12 @@ There are many ways you can setup you local environment, this is just a basic qu
 To follow this section it is assumed you have:
 * Golang >= 1.16 installed [https://golang.org/doc/install](https://golang.org/doc/install)
 * `kubectl` installed [https://kubernetes.io/docs/tasks/tools/install-kubectl/](https://kubernetes.io/docs/tasks/tools/install-kubectl/)
-* Docker installed, configured for the current user
+* Docker installed, configured for the current user <br />
+    * Windows [https://docs.docker.com/desktop/windows/install/](https://docs.docker.com/desktop/windows/install/)<br />
+    * Mac [https://docs.docker.com/desktop/mac/install/](https://docs.docker.com/desktop/mac/install/)<br />
 * This repository cloned. The guide will assume you are in the root directory of this repository
-
+    * Clone repository [https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository)<br />
+    
 ### Running Armada locally
 
 There are two options for developing Armada locally. 
@@ -238,3 +241,22 @@ cobra add commandName
 ```
 
 You should see a new file appear under `./cmd/armadactl/cmd` with the name you specified in the command.
+
+### Running Armada website locally
+```bash
+git checkout gh-pages
+```
+```bash
+git checkout -b feature/my-fix
+```
+```bash
+git add file1 file2
+```
+```bash
+git commit -m 'description for your change'
+```
+```bash
+git push origin feature/my-fix
+```
+Flow of gh-pages - [https://github.com/G-Research/armada/actions/runs/1829252664/workflow#L27](https://github.com/G-Research/armada/actions/runs/1829252664/workflow#L27).
+read more about Testing GitHub Pages locally- http://bitly.ws/oPy9
