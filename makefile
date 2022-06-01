@@ -123,6 +123,16 @@ build-armadactl-release: build-armadactl-multiplatform
 	tar -czvf ./dist/armadactl-$(RELEASE_VERSION)-darwin-amd64.tar.gz -C ./bin/darwin-amd64/ armadactl
 	zip -j ./dist/armadactl-$(RELEASE_VERSION)-windows-amd64.zip ./bin/windows-amd64/armadactl.exe
 
+TESTSUITE_BUILD_PACKAGE := github.com/G-Research/armada/internal/testsuite/build
+define TESTSUITE_LDFLAGS
+-X '$(TESTSUITE_BUILD_PACKAGE).BuildTime=$(BUILD_TIME)' \
+-X '$(TESTSUITE_BUILD_PACKAGE).ReleaseVersion=$(RELEASE_VERSION)' \
+-X '$(TESTSUITE_BUILD_PACKAGE).GitCommit=$(GIT_COMMIT)' \
+-X '$(TESTSUITE_BUILD_PACKAGE).GoVersion=$(GO_VERSION_STRING)'
+endef
+build-testsuite:
+	$(GO_CMD) $(gobuild) -ldflags="$(TESTSUITE_LDFLAGS)" -o ./bin/testsuite cmd/testsuite/main.go
+
 build-binoculars:
 	$(GO_CMD) $(gobuild) -o ./bin/binoculars cmd/binoculars/main.go
 
