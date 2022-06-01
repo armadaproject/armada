@@ -16,6 +16,7 @@ require (
 	github.com/coreos/go-oidc v2.2.1+incompatible
 	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f
 	github.com/doug-martin/goqu/v9 v9.18.0
+	github.com/evanphx/json-patch v4.12.0+incompatible // indirect
 	github.com/go-ldap/ldap/v3 v3.4.1
 	github.com/go-openapi/analysis v0.21.2
 	github.com/go-openapi/jsonreference v0.19.6
@@ -27,7 +28,6 @@ require (
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/protobuf v1.5.2
 	github.com/gomodule/redigo v2.0.0+incompatible // indirect
-	github.com/google/gnostic v0.6.9 // indirect
 	github.com/google/go-cmp v0.5.6
 	github.com/google/uuid v1.1.2
 	github.com/gordonklaus/ineffassign v0.0.0-20210914165742-4cc7213b9bc8
@@ -55,31 +55,36 @@ require (
 	github.com/nats-io/stan.go v0.10.2
 	github.com/oklog/ulid v1.3.1
 	github.com/pkg/errors v0.9.1
-	github.com/prometheus/client_golang v1.12.1
+	github.com/prometheus/client_golang v1.11.1
 	github.com/rakyll/statik v0.1.7
 	github.com/renstrom/shortuuid v3.0.0+incompatible
 	github.com/sirupsen/logrus v1.8.1
-	github.com/spf13/cobra v1.4.0
+	github.com/spf13/cobra v1.3.0
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.10.1
 	github.com/stretchr/testify v1.7.0
 	github.com/weaveworks/promrus v1.2.0
 	github.com/wlbr/templify v0.0.0-20210816202250-7b8044ca19e9
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect
+	github.com/xeipuuv/gojsonschema v1.2.0 // indirect
 	github.com/yuin/gopher-lua v0.0.0-20190514113301-1cd887cd7036 // indirect
 	golang.org/x/net v0.0.0-20220127200216-cd36cc0744dd
 	golang.org/x/oauth2 v0.0.0-20211104180415-d3ed0bb246c8
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
-	golang.org/x/tools v0.1.10
-	google.golang.org/genproto v0.0.0-20220107163113-42d7afdf6368
+	golang.org/x/sys v0.0.0-20220209214540-3681064d5158 // indirect
+	golang.org/x/tools v0.1.8
+	google.golang.org/genproto v0.0.0-20211208223120-3a66f561d7aa
 	google.golang.org/grpc v1.43.0
 	gopkg.in/yaml.v2 v2.4.0
-	k8s.io/api v0.24.1
-	k8s.io/apimachinery v0.24.1
-	k8s.io/client-go v0.24.1
-	k8s.io/component-base v0.24.1
-	k8s.io/component-helpers v0.24.1
-	k8s.io/kubelet v0.24.1
+	k8s.io/api v0.22.4
+	k8s.io/apimachinery v0.22.4
+	k8s.io/client-go v0.22.4
+	k8s.io/component-base v0.22.4
+	k8s.io/component-helpers v0.22.4
+	k8s.io/klog/v2 v2.60.1 // indirect
+	k8s.io/kube-openapi v0.0.0-20220328201542-3ee0da9b0b42 // indirect
+	k8s.io/kubelet v0.22.4
 	k8s.io/utils v0.0.0-20220210201930-3a6ce19ff2f9
 	sigs.k8s.io/kind v0.12.0
+	sigs.k8s.io/structured-merge-diff/v4 v4.2.1 // indirect
 )

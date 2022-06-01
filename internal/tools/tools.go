@@ -13,4 +13,5 @@ import (
 	_ "github.com/wlbr/templify"
 	_ "golang.org/x/tools/cmd/goimports"
 	_ "sigs.k8s.io/kind"
+	_ "github.com/gogo/protobuf/protoc-gen-gogofaster"
 )
