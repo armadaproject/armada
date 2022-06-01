@@ -16,7 +16,6 @@ require (
 	github.com/coreos/go-oidc v2.2.1+incompatible
 	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f
 	github.com/doug-martin/goqu/v9 v9.18.0
-	github.com/evanphx/json-patch v4.12.0+incompatible // indirect
 	github.com/go-ldap/ldap/v3 v3.4.1
 	github.com/go-openapi/analysis v0.21.2
 	github.com/go-openapi/jsonreference v0.19.6
@@ -68,10 +67,9 @@ require (
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect
 	github.com/xeipuuv/gojsonschema v1.2.0 // indirect
 	github.com/yuin/gopher-lua v0.0.0-20190514113301-1cd887cd7036 // indirect
-	golang.org/x/net v0.0.0-20220127200216-cd36cc0744dd
+	golang.org/x/net v0.0.0-20220121210141-e204ce36a2ba
 	golang.org/x/oauth2 v0.0.0-20211104180415-d3ed0bb246c8
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
-	golang.org/x/sys v0.0.0-20220209214540-3681064d5158 // indirect
 	golang.org/x/tools v0.1.8
 	google.golang.org/genproto v0.0.0-20211208223120-3a66f561d7aa
 	google.golang.org/grpc v1.43.0
@@ -81,10 +79,7 @@ require (
 	k8s.io/client-go v0.22.4
 	k8s.io/component-base v0.22.4
 	k8s.io/component-helpers v0.22.4
-	k8s.io/klog/v2 v2.60.1 // indirect
-	k8s.io/kube-openapi v0.0.0-20220328201542-3ee0da9b0b42 // indirect
 	k8s.io/kubelet v0.22.4
 	k8s.io/utils v0.0.0-20220210201930-3a6ce19ff2f9
 	sigs.k8s.io/kind v0.12.0
-	sigs.k8s.io/structured-merge-diff/v4 v4.2.1 // indirect
 )
