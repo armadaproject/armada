@@ -27,7 +27,6 @@ import (
 )
 
 func TestSubmitJob_EmptyPodSpec(t *testing.T) {
-	assert.Fail(t, "foo")
 	withRunningServer(func(client api.SubmitClient, leaseClient api.AggregatedQueueClient, ctx context.Context) {
 		_, err := client.CreateQueue(ctx, &api.Queue{
 			Name:           "test",
