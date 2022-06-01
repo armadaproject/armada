@@ -5,6 +5,7 @@ package tools
 
 import (
 	_ "github.com/go-swagger/go-swagger/cmd/swagger"
+	_ "github.com/gogo/protobuf/protoc-gen-gogofaster"
 	_ "github.com/gordonklaus/ineffassign"
 	_ "github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway"
 	_ "github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger"
@@ -13,5 +14,4 @@ import (
 	_ "github.com/wlbr/templify"
 	_ "golang.org/x/tools/cmd/goimports"
 	_ "sigs.k8s.io/kind"
-	_ "github.com/gogo/protobuf/protoc-gen-gogofaster"
 )
