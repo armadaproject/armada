@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"sync/atomic"
-	"time"
 
 	"github.com/gogo/protobuf/types"
 	"github.com/hashicorp/go-multierror"
@@ -285,29 +284,21 @@ func (q *AggregatedQueueServer) StreamingLeaseJobs(stream api.AggregatedQueue_St
 		log.WithError(err).Error("error sending the number of acks")
 	}
 
-	// Collect all jobs that were acked and not.
-	ackedJobs := make([]*api.Job, 0, numAcked)
-	for i := 0; i < int(numAcked); i++ {
-		ackedJobs = append(ackedJobs, jobs[i])
-	}
-	nonAckedJobIds := make([]string, 0, numJobs-numAcked)
-	for i := numAcked; i < numJobs; i++ {
-		nonAckedJobIds = append(nonAckedJobIds, jobs[i].Id)
-	}
-
-	// Create job leased events.
+	// Create job leased events and write a leased report into Redis for all acked jobs.
+	ackedJobs := jobs[:numAcked]
 	reportJobsLeased(q.eventStore, ackedJobs, req.ClusterId)
 
-	// Write a leased report to Redis.
 	var result *multierror.Error
 	clusterLeasedReport := scheduling.CreateClusterLeasedReport(req.ClusterLeasedReport.ClusterId, &req.ClusterLeasedReport, ackedJobs)
 	err = q.usageRepository.UpdateClusterLeased(clusterLeasedReport)
 	result = multierror.Append(result, err)
 
-	// scheduling.LeaseJobs (called above) automatically marks jobs as leased.
-	// Expire the leases of any non-acked jobs so that they can be re-leased.
-	_, err = q.jobRepository.ExpireLeasesById(nonAckedJobIds, time.Now().Add(30*time.Second))
-	result = multierror.Append(result, err)
+	// scheduling.LeaseJobs (called above) automatically marks all returned jobs as leased.
+	// Return the leases of any non-acked jobs so that they can be re-leased.
+	for i := numAcked; i < numJobs; i++ {
+		_, err = q.jobRepository.ReturnLease(req.ClusterId, jobs[i].Id)
+		result = multierror.Append(result, err)
+	}
 
 	return result.ErrorOrNil()
 }

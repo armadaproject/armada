@@ -87,7 +87,7 @@ func (jobLeaseService *JobLeaseService) RequestJobLeases(availableResource *comm
 	// Setup a bidirectional gRPC stream.
 	// The server sends jobs over this stream.
 	// The executor sends back acks to indicate which jobs were successfully received.
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	stream, err := jobLeaseService.queueClient.StreamingLeaseJobs(ctx, grpc_retry.Disable())
 	if err != nil {
@@ -117,51 +117,69 @@ func (jobLeaseService *JobLeaseService) RequestJobLeases(availableResource *comm
 	var numJobs uint32
 	jobs := make([]*api.Job, 0)
 	ch := make(chan *api.StreamingJobLease, 10)
-	g, _ := errgroup.WithContext(ctx)
+	g, ctx := errgroup.WithContext(ctx)
 	g.Go(func() error {
-		// Close the chanel when all jobs have been received.
-		// This ensures the goroutine responsible for sending acks exits.
+
+		// Close channel to ensure sending goroutine exits.
 		defer close(ch)
 
-		// Receive until all acks have been confirmed.
+		// Exit when until all acks have been confirmed.
 		for numServerAcks == 0 || numServerAcks < numJobs {
-			res, err := stream.Recv()
-			if err == io.EOF {
-				return nil
-			} else if err != nil {
-				return err
+			select {
+			case <-ctx.Done():
+				if ctx.Err() == context.DeadlineExceeded {
+					return nil
+				} else {
+					return ctx.Err()
+				}
+			default:
+				res, err := stream.Recv()
+				if err == io.EOF {
+					return nil
+				} else if err != nil {
+					return err
+				}
+				numJobs = res.GetNumJobs()
+				numServerAcks = res.GetNumAcked()
+				if res.Job != nil {
+					jobs = append(jobs, res.Job)
+				}
+				ch <- res
 			}
-			numJobs = res.GetNumJobs()
-			numServerAcks = res.GetNumAcked()
-			if res.Job != nil {
-				jobs = append(jobs, res.Job)
-			}
-
-			ch <- res
 		}
 		return nil
 	})
 
 	// Get received jobs on the channel and send back acks.
-	for {
-		res := <-ch
-		if res == nil {
-			break // Channel closed.
-		}
+	g.Go(func() error {
+		defer stream.CloseSend()
+		for {
+			select {
+			case <-ctx.Done():
+				if ctx.Err() == context.DeadlineExceeded {
+					return nil
+				} else {
+					return ctx.Err()
+				}
+			case res := <-ch:
+				if res == nil {
+					return nil // Channel closed.
+				}
 
-		// Send ack back to the server.
-		if res.Job != nil {
-			err := stream.Send(&api.StreamingLeaseRequest{
-				ReceivedJobIds: []string{res.Job.Id},
-			})
-			if err == io.EOF {
-				break
-			} else if err != nil {
-				log.WithError(err).Error("error sending leases to server")
-				break
+				// Send ack back to the server.
+				if res.Job != nil {
+					err := stream.Send(&api.StreamingLeaseRequest{
+						ReceivedJobIds: []string{res.Job.Id},
+					})
+					if err == io.EOF {
+						return nil
+					} else if err != nil {
+						return err
+					}
+				}
 			}
 		}
-	}
+	})
 
 	// Wait for receiver to exit.
 	err = g.Wait()
