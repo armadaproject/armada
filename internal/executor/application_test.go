@@ -9,7 +9,6 @@ import (
 )
 
 func Test_ValidateConfig_When_AvoidNodeLabelsOnRetry_MissingFrom_TrackedNodeLabels_Fails(t *testing.T) {
-	assert.True(t, false)
 	config := createBasicValidExecutorConfiguration()
 
 	config.Kubernetes.TrackedNodeLabels = []string{"host"}
