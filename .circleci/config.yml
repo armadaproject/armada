@@ -222,15 +222,16 @@ jobs:
 
       - run:
           name: e2e tests
-          command: make tests-e2e-no-setup || true
+          command: make tests-e2e-no-setup
 
       - run:
           name: e2e test environment teardown
-          command: make tests-e2e-teardown || true
+          command: make tests-e2e-teardown
           
       - run:
           name: Prepare reports
           command: make junit-report
+          when: always
 
       - store_test_results:
           path: test_reports/junit.xml
