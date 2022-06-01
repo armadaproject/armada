@@ -49,6 +49,7 @@ helm repo add prometheus-community https://prometheus-community.github.io/helm-c
 helm repo add nats https://nats-io.github.io/k8s/helm/charts
 helm repo add bitnami https://charts.bitnami.com/bitnami
 helm repo add gresearch https://g-research.github.io/charts
+helm repo add apache https://pulsar.apache.org/charts
 helm repo update
 ```
 
@@ -97,6 +98,9 @@ helm install redis dandydev/redis-ha -f docs/quickstart/redis-values.yaml
 
 # Install nats-streaming
 helm install nats nats/stan
+
+# Install pulsar
+helm install pulsar apache/pulsar
 
 # Install Prometheus
 helm install kube-prometheus-stack prometheus-community/kube-prometheus-stack -f docs/quickstart/server-prometheus-values.yaml
