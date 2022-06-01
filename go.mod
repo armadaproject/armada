@@ -43,14 +43,13 @@ require (
 	github.com/jackc/pgx/v4 v4.16.1
 	github.com/jcmturner/gokrb5/v8 v8.4.2-0.20201112171129-78f56934d598
 	github.com/jstemmer/go-junit-report v0.9.1
-	github.com/lib/pq v1.10.4 // indirect
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/mitchellh/gox v1.0.1
 	github.com/mitchellh/mapstructure v1.4.3
 	github.com/nats-io/jsm.go v0.0.26
-	github.com/nats-io/nats-server/v2 v2.4.1-0.20210907200628-874c79fe411f
-	github.com/nats-io/nats-streaming-server v0.22.1
-	github.com/nats-io/nats.go v1.13.0
+	github.com/nats-io/nats-server/v2 v2.8.2
+	github.com/nats-io/nats-streaming-server v0.24.6
+	github.com/nats-io/nats.go v1.15.0
 	github.com/nats-io/stan.go v0.10.2
 	github.com/oklog/ulid v1.3.1
 	github.com/pkg/errors v0.9.1
