@@ -19,8 +19,8 @@ require (
 	github.com/go-ldap/ldap/v3 v3.4.1
 	github.com/go-openapi/analysis v0.21.2
 	github.com/go-openapi/jsonreference v0.19.6
-	github.com/go-openapi/loads v0.21.0
-	github.com/go-openapi/runtime v0.21.1
+	github.com/go-openapi/loads v0.21.1
+	github.com/go-openapi/runtime v0.24.1
 	github.com/go-openapi/spec v0.20.4
 	github.com/go-redis/redis v6.15.9+incompatible
 	github.com/go-swagger/go-swagger v0.29.0
@@ -43,14 +43,13 @@ require (
 	github.com/jackc/pgx/v4 v4.16.1
 	github.com/jcmturner/gokrb5/v8 v8.4.2-0.20201112171129-78f56934d598
 	github.com/jstemmer/go-junit-report v0.9.1
-	github.com/lib/pq v1.10.4 // indirect
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/mitchellh/gox v1.0.1
 	github.com/mitchellh/mapstructure v1.4.3
 	github.com/nats-io/jsm.go v0.0.26
-	github.com/nats-io/nats-server/v2 v2.4.1-0.20210907200628-874c79fe411f
-	github.com/nats-io/nats-streaming-server v0.22.1
-	github.com/nats-io/nats.go v1.13.0
+	github.com/nats-io/nats-server/v2 v2.8.2
+	github.com/nats-io/nats-streaming-server v0.24.6
+	github.com/nats-io/nats.go v1.15.0
 	github.com/nats-io/stan.go v0.10.2
 	github.com/oklog/ulid v1.3.1
 	github.com/pkg/errors v0.9.1
@@ -67,7 +66,7 @@ require (
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect
 	github.com/xeipuuv/gojsonschema v1.2.0 // indirect
 	github.com/yuin/gopher-lua v0.0.0-20190514113301-1cd887cd7036 // indirect
-	golang.org/x/net v0.0.0-20220121210141-e204ce36a2ba
+	golang.org/x/net v0.0.0-20220127200216-cd36cc0744dd
 	golang.org/x/oauth2 v0.0.0-20211104180415-d3ed0bb246c8
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	golang.org/x/tools v0.1.8
