@@ -166,11 +166,12 @@ jobs:
 
       - run:
           name: Tests
-          command: make tests || true
+          command: make tests
 
       - run:
           name: Prepare reports
           command: make junit-report
+          when: always
 
       - store_test_results:
           path: test_reports/junit.xml
