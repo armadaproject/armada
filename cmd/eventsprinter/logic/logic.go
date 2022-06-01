@@ -96,8 +96,15 @@ func PrintEvents(url, topic, subscription string, verbose bool) error {
 							panic(err)
 						}
 						fmt.Printf("\t\tNew job %s is a duplicate of existing job %s\n", newId, oldId)
+					} else if jobRunErrors, ok := event.Event.(*armadaevents.EventSequence_Event_JobRunErrors); ok {
+						for _, e := range jobRunErrors.JobRunErrors.Errors {
+							fmt.Printf("\t\t%T\n", e.Reason)
+						}
+					} else if jobErrors, ok := event.Event.(*armadaevents.EventSequence_Event_JobErrors); ok {
+						for _, e := range jobErrors.JobErrors.Errors {
+							fmt.Printf("\t\t%T\n", e.Reason)
+						}
 					}
-
 				}
 			} else {
 				// Remove fields from PodSpecs that result in panics when printing.
