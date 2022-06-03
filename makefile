@@ -1,6 +1,6 @@
 # Determine which platform we're on based on the kernel name
 platform := $(shell uname -s || echo unknown)
-
+PWD := $(shell pwd)
 # Check that all necessary executables are present
 # Using 'where' on Windows and 'which' on Unix-like systems, respectively
 # We do not check for 'date', since it's a cmdlet on Windows, which do not show up with where
@@ -67,6 +67,13 @@ NODE_CMD = docker run --rm -v ${PWD}:/go/src/armada -w /go/src/armada/internal/l
 	-e SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
 	-e npm_config_cafile=/etc/ssl/certs/ca-certificates.crt \
 	node:16.14-buster
+
+# Versions of third party API
+# Bump if you are updating
+GRPC_GATEWAY_VERSION:=@v1.16.0
+GOGO_PROTOBUF_VERSION=@v1.3.2
+K8_APIM_VERSION = @v0.22.4
+K8_API_VERSION = @v0.22.4
 
 # Optionally (if the TESTS_IN_DOCKER environment variable is set to true) run tests in docker containers.
 # If using WSL, running tests in docker may result in network problems.
@@ -257,7 +264,7 @@ setup-cluster:
 	kubectl apply -f e2e/setup/ingress-nginx.yaml --context kind-armada-test
 	# Wait until the ingress controller is ready
 	echo "Waiting for ingress controller to become ready"
-	sleep 60s # calling wait immediately can result in "no matching resources found"
+	sleep 60 # calling wait immediately can result in "no matching resources found"
 	kubectl wait --namespace ingress-nginx \
 		--for=condition=ready pod \
 		--selector=app.kubernetes.io/component=controller \
@@ -340,7 +347,42 @@ junit-report:
 	rm -f test_reports/junit.xml
 	$(GO_TEST_CMD) bash -c "cat test_reports/*.txt | go-junit-report > test_reports/junit.xml"
 
-proto:
+python: download
+	rm -rf proto
+	mkdir -p proto
+	mkdir -p proto/google/api
+	mkdir -p proto/google/protobuf
+	mkdir -p proto/k8s.io/apimachinery/pkg/api/resource
+	mkdir -p proto/k8s.io/apimachinery/pkg/apis/meta/v1
+
+	mkdir -p proto/k8s.io/apimachinery/pkg/runtime
+	mkdir -p proto/k8s.io/apimachinery/pkg/runtime/schema
+	mkdir -p proto/k8s.io/apimachinery/pkg/util/intstr/
+	mkdir -p proto/k8s.io/api/networking/v1
+	mkdir -p proto/k8s.io/api/core/v1
+	mkdir -p proto/github.com/gogo/protobuf/gogoproto/
+
+	docker build $(dockerFlags) -t armada-python-client-builder -f ./build/python-client/Dockerfile .
+# Copy third party annotations from grpc-ecosystem
+	
+	cp $(DOCKER_GOPATH)/pkg/mod/github.com/grpc-ecosystem/grpc-gateway$(GRPC_GATEWAY_VERSION)/third_party/googleapis/google/api/annotations.proto proto/google/api
+	cp $(DOCKER_GOPATH)/pkg/mod/github.com/grpc-ecosystem/grpc-gateway$(GRPC_GATEWAY_VERSION)/third_party/googleapis/google/api/http.proto proto/google/api
+	cp $(DOCKER_GOPATH)/pkg/mod/github.com/gogo/protobuf$(GOGO_PROTOBUF_VERSION)/protobuf/google/protobuf/*.proto proto/google/protobuf
+	cp -r $(DOCKER_GOPATH)/pkg/mod/github.com/gogo/protobuf$(GOGO_PROTOBUF_VERSION)/gogoproto/gogo.proto proto/github.com/gogo/protobuf/gogoproto/
+
+#K8S MACHINERY API COPY
+	cp $(DOCKER_GOPATH)/pkg/mod/k8s.io/apimachinery$(K8_APIM_VERSION)/pkg/api/resource/generated.proto proto/k8s.io/apimachinery/pkg/api/resource/
+	cp $(DOCKER_GOPATH)/pkg/mod/k8s.io/apimachinery$(K8_APIM_VERSION)/pkg/apis/meta/v1/generated.proto proto/k8s.io/apimachinery/pkg/apis/meta/v1
+	cp $(DOCKER_GOPATH)/pkg/mod/k8s.io/apimachinery$(K8_APIM_VERSION)/pkg/runtime/generated.proto proto/k8s.io/apimachinery/pkg/runtime
+	cp $(DOCKER_GOPATH)/pkg/mod/k8s.io/apimachinery$(K8_APIM_VERSION)/pkg/runtime/schema/generated.proto proto/k8s.io/apimachinery/pkg/runtime/schema/
+	cp $(DOCKER_GOPATH)/pkg/mod/k8s.io/apimachinery$(K8_APIM_VERSION)/pkg/util/intstr/generated.proto proto/k8s.io/apimachinery/pkg/util/intstr/
+#K8S API COPY
+	cp $(DOCKER_GOPATH)/pkg/mod/k8s.io/api$(K8_API_VERSION)/networking/v1/generated.proto proto/k8s.io/api/networking/v1
+	cp $(DOCKER_GOPATH)/pkg/mod/k8s.io/api$(K8_API_VERSION)/core/v1/generated.proto proto/k8s.io/api/core/v1
+
+	docker run --rm -v ${PWD}/proto:/proto -v ${PWD}:/go/src/armada -w /go/src/armada armada-python-client-builder ./scripts/build-python-client.sh
+
+proto: download
 	docker build $(dockerFlags) --build-arg GOPROXY --build-arg GOPRIVATE --build-arg MAVEN_URL -t armada-proto -f ./build/proto/Dockerfile .
 	docker run --rm -e GOPROXY -e GOPRIVATE -v ${PWD}:/go/src/armada -w /go/src/armada armada-proto ./scripts/proto.sh
 
@@ -397,3 +439,6 @@ generate:
     		-dest=internal/eventapi/eventdb/schema/ -src=internal/eventapi/eventdb/schema/ -include=\*.sql -ns=eventapi/sql -Z -f -m && \
     		go run golang.org/x/tools/cmd/goimports -w -local "github.com/G-Research/armada" internal/eventapi/eventdb/schema/statik
 
+.ONESHELL:
+clean: 
+	git clean -fdx

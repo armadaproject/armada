@@ -45,3 +45,13 @@ msbuild.log
 msbuild.err
 msbuild.wrn
 packages
+
+# python
+# Pycache, dist, poetry versions 
+# and ignore protoc generated files
+*.pyc
+client/python/dist
+.python-version
+*_pb2.py
+*_pb2_grpc.py
+armada/
