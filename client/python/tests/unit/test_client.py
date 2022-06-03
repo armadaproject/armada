@@ -55,7 +55,7 @@ def test_create_queue():
 
 
 def test_get_queue():
-    tester.get_queue("test")
+    assert tester.get_queue("test").name == "test"
 
 
 def test_delete_queue():

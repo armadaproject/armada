@@ -1,12 +1,5 @@
 from armada_client.armada import (
-    event_pb2,
-    event_pb2_grpc,
-    queue_pb2,
-    queue_pb2_grpc,
-    usage_pb2,
-    usage_pb2_grpc,
     submit_pb2,
-    submit_pb2_grpc,
 )
 from armada_client.client import ArmadaClient
 from armada_client.k8s.io.api.core.v1 import generated_pb2 as core_v1
@@ -16,7 +9,7 @@ from armada_client.k8s.io.apimachinery.pkg.api.resource import (
 import grpc
 import pytest
 
-no_auth_client = ArmadaClient(channel=grpc.insecure_channel(target=f"127.0.0.1:50051"))
+no_auth_client = ArmadaClient(channel=grpc.insecure_channel(target="127.0.0.1:50051"))
 
 
 @pytest.fixture()
@@ -51,11 +44,11 @@ def submit_sleep_job():
                 args=["sleep", "10s"],
                 resources=core_v1.ResourceRequirements(
                     requests={
-                        "cpu": api_resource.Quantity(string="150m"),
+                        "cpu": api_resource.Quantity(string="0.2"),
                         "memory": api_resource.Quantity(string="64Mi"),
                     },
                     limits={
-                        "cpu": api_resource.Quantity(string="150m"),
+                        "cpu": api_resource.Quantity(string="0.2"),
                         "memory": api_resource.Quantity(string="64Mi"),
                     },
                 ),
