@@ -10,9 +10,14 @@ from armada_client.armada import (
 
 import grpc
 
-
+channel = grpc.insecure_channel(target="127.0.0.1:50051")
 tester = ArmadaClient(
-    "127.0.0.1", "50051", grpc.insecure_channel(target="127.0.0.1:50051")
+    grpc.insecure_channel(
+        target="127.0.0.1:50051",
+        options={
+            "grpc.keepalive_time_ms": 30000,
+        }.items(),
+    )
 )
 
 
@@ -38,12 +43,15 @@ def test_submit_job():
         ],
     )
 
-    tester.submit_jobs(queue="test", job_set_id="test",
-                       job_request_items=[submit_pb2.JobSubmitRequestItem(priority=1, pod_spec=pod)])
+    tester.submit_jobs(
+        queue="test",
+        job_set_id="test",
+        job_request_items=[submit_pb2.JobSubmitRequestItem(priority=1, pod_spec=pod)],
+    )
 
 
 def test_create_queue():
-    tester.create_queue(name="test")
+    tester.create_queue(name="test", priority_factor=1)
 
 
 def test_get_queue():
@@ -55,4 +63,4 @@ def test_delete_queue():
 
 
 def test_get_queue_info():
-    tester.get_queue_info(name='test')
+    tester.get_queue_info(name="test")

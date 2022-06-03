@@ -13,7 +13,7 @@ class SubmitService(submit_pb2_grpc.SubmitServicer):
         return empty_pb2.Empty()
 
     def GetQueue(self, request, context):
-        return submit_pb2.Queue(name="test")
+        return submit_pb2.Queue(name=request.name)
 
     def SubmitJobs(self, request, context):
         return submit_pb2.JobSubmitResponse()

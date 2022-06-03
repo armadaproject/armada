@@ -50,7 +50,7 @@ class BasicAuthTest:
                 grpc.metadata_call_credentials(GrpcBasicAuth(username, password)),
             ),
         )
-        self.client = ArmadaClient(host, port, channel)
+        self.client = ArmadaClient(channel)
 
     # private static ApiJobSubmitRequest CreateJobRequest(string jobSet)
     def job_submit_request_items_for_test(self, queue, job_set_id):
@@ -126,5 +126,7 @@ class BasicAuthTest:
 
 
 def test_basic_auth():
-    tester = BasicAuthTest(host="127.0.0.1", port=50051, username='test', password='asdfasdf')
+    tester = BasicAuthTest(
+        host="127.0.0.1", port=50051, username="test", password="asdfasdf"
+    )
     tester.test_watch_events()

@@ -28,10 +28,8 @@ class ArmadaClient:
     See https://grpc.github.io/grpc/python/grpc.html
     """
 
-    def __init__(self, host: str, port: int, channel, max_workers=os.cpu_count()):
+    def __init__(self, channel, max_workers=os.cpu_count()):
 
-        self.host = host
-        self.port = port
         self.executor = ThreadPoolExecutor(max_workers=max_workers or 1)
 
         self.submit_stub = submit_pb2_grpc.SubmitStub(channel)
@@ -117,6 +115,7 @@ class ArmadaClient:
             errorIfMissing=True,
         )
         event_stream = self.event_stub.GetJobSetEvents(jsr)
+
         def event_counter(event_stream):
             try:
                 for event in event_stream:
@@ -134,7 +133,7 @@ class ArmadaClient:
                 else:
                     raise
 
-        event_function = partial(event_counter, event_stream = event_stream)
+        event_function = partial(event_counter, event_stream=event_stream)
         self.executor.submit(event_function)
         return event_stream
 
