@@ -47,10 +47,11 @@ func FromEventSequence(es *armadaevents.EventSequence) ([]*api.EventMessage, err
 			convertedEvents, err = FromInternalResourceUtilisation(es.Queue, *event.Created, esEvent.ResourceUtilisation)
 		case *armadaevents.EventSequence_Event_StandaloneIngressInfo:
 			convertedEvents, err = FromInternalStandaloneIngressInfo(es.Queue, *event.Created, esEvent.StandaloneIngressInfo)
+		case *armadaevents.EventSequence_Event_JobRunSucceeded:
 		case *armadaevents.EventSequence_Event_ReprioritiseJobSet:
 		case *armadaevents.EventSequence_Event_CancelJobSet:
 			// These events have no api analog right now, so we ignore
-			log.Debugf("Ignoring event")
+			log.Debugf("Ignoring event %T", esEvent)
 		default:
 			log.Warnf("Unknown event type: %T", esEvent)
 		}
