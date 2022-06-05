@@ -2,6 +2,7 @@ package serving
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/pkg/errors"
@@ -21,7 +22,8 @@ type SequenceManager interface {
 }
 
 type DefaultSequenceManager struct {
-	sequences map[int64]int64
+	sequences sync.Map
+	mutex     sync.Mutex
 }
 
 // NewUpdatingSequenceManager returns a SequenceManager that is initialised from the eventDb and then receives
@@ -43,8 +45,10 @@ func NewUpdatingSequenceManager(ctx context.Context, eventDb *eventdb.EventDb, p
 		initialSequences[seq.JobSetId] = seq.SeqNo
 	}
 	sm := &DefaultSequenceManager{
-		sequences: initialSequences,
+		sequences: sync.Map{},
+		mutex:     sync.Mutex{},
 	}
+	sm.Update(initialSequences)
 
 	// subscribe to pulsar updates from a time before we did a database fetch
 	reader, err := pulsarClient.CreateReader(pulsar.ReaderOptions{
@@ -93,25 +97,33 @@ func NewUpdatingSequenceManager(ctx context.Context, eventDb *eventdb.EventDb, p
 // This is mainly usefuly for test purposes
 func NewStaticSequenceManager(initialSequences map[int64]int64) *DefaultSequenceManager {
 	om := &DefaultSequenceManager{
-		sequences: initialSequences,
+		sequences: sync.Map{},
+		mutex:     sync.Mutex{},
 	}
+	om.Update(initialSequences)
 	return om
 }
 
 // Get Retrieves the latets sequence for the given jobset.  The boolean returned will
 // be true if an offset exists and false otherwise
 func (sm *DefaultSequenceManager) Get(jobsetId int64) (int64, bool) {
-	existingOffset, ok := sm.sequences[jobsetId]
-	return existingOffset, ok
+	existingOffset, ok := sm.sequences.Load(jobsetId)
+	if ok {
+		return existingOffset.(int64), true
+	} else {
+		return -1, false
+	}
 }
 
 // Update updates the sequences for the supplied jobsets.
 // Any sequences in the update which are lower than the sequences we already store will be ignored.
 func (sm *DefaultSequenceManager) Update(newSequences map[int64]int64) {
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
 	for k, v := range newSequences {
-		existingSequence, ok := sm.sequences[k]
-		if !ok || v > existingSequence {
-			sm.sequences[k] = v
+		existingSequence, ok := sm.sequences.Load(k)
+		if !ok || v > existingSequence.(int64) {
+			sm.sequences.Store(k, v)
 		}
 	}
 }
