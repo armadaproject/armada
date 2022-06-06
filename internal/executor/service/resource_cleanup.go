@@ -25,10 +25,10 @@ func NewResourceCleanupService(clusterContext clusterContext.ClusterContext, kub
 	}
 
 	/*
-	 The purpose of this is to remove any associated nodeport services as soon as the pod enters a terminal state
-	 There are limited available nodeports in a cluster and we keep pods around after they complete (especially failed pods can live a long time)
-	 If we wait for the pod to be cleaned up to delete the nodeport service, we risk exhausting the number of nodeports available
-	 - Especially in the case someone submits lots of jobs that require nodeports but fail instantly
+	 The purpose of this is to remove any associated ingress and services resources as soon as the pod enters a terminal state
+	 There is a limited number of nodeports + clusterIPs in a cluster and we keep pods around after they complete (especially failed pods can live a long time)
+	 If we wait for the pod to be cleaned up to delete the associated ingresses + services, we risk exhausting the number of nodeports/clusterIPs available
+	 - Especially in the case someone submits lots of jobs that require these resources but fail instantly
 
 	 We do set ownerreference on the services to point to the pod.
 	 So in the case the cleanup below fails, the ownerreference will ensure it is cleaned up when the pod is
