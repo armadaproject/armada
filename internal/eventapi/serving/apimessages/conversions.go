@@ -35,6 +35,8 @@ func FromEventSequence(es *armadaevents.EventSequence) ([]*api.EventMessage, err
 			convertedEvents, err = FromInternalLogDuplicateDetected(es.Queue, es.JobSetName, *event.Created, esEvent.JobDuplicateDetected)
 		case *armadaevents.EventSequence_Event_JobRunLeased:
 			convertedEvents, err = FromInternalLogJobRunLeased(es.Queue, es.JobSetName, *event.Created, esEvent.JobRunLeased)
+		case *armadaevents.EventSequence_Event_JobSucceeded:
+			convertedEvents, err = FromInternalJobSucceeded(es.Queue, es.JobSetName, *event.Created, esEvent.JobSucceeded)
 		case *armadaevents.EventSequence_Event_JobRunErrors:
 			convertedEvents, err = FromInternalJobRunErrors(es.Queue, es.JobSetName, *event.Created, esEvent.JobRunErrors)
 		case *armadaevents.EventSequence_Event_JobErrors:
@@ -437,6 +439,28 @@ func FromInternalJobRunAssigned(queueName string, jobSetName string, time time.T
 		{
 			Events: &api.EventMessage_Pending{
 				Pending: apiEvent,
+			},
+		},
+	}, nil
+}
+
+func FromInternalJobSucceeded(queueName string, jobSetName string, time time.Time, e *armadaevents.JobSucceeded) ([]*api.EventMessage, error) {
+	jobId, err := armadaevents.UlidStringFromProtoUuid(e.JobId)
+	if err != nil {
+		return nil, err
+	}
+
+	apiEvent := &api.JobSucceededEvent{
+		JobId:    jobId,
+		JobSetId: jobSetName,
+		Queue:    queueName,
+		Created:  time,
+	}
+
+	return []*api.EventMessage{
+		{
+			Events: &api.EventMessage_Succeeded{
+				Succeeded: apiEvent,
 			},
 		},
 	}, nil
