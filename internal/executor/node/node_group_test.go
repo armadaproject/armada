@@ -1,10 +1,8 @@
 package node
 
 import (
-	"fmt"
 	"testing"
 
-	"github.com/hashicorp/go-multierror"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -102,17 +100,6 @@ func TestFilterAvailableProcessingNodes(t *testing.T) {
 
 	result := nodeInfoService.isAvailableProcessingNode(&node)
 	assert.True(t, result, 1)
-}
-
-func TestMultiError(t *testing.T) {
-	var result *multierror.Error
-
-	result = multierror.Append(result, fmt.Errorf("Error1"))
-	result = multierror.Append(result, fmt.Errorf("Error2"))
-
-	fmt.Println("1" + result.Error())
-	fmt.Println("2" + result.Unwrap().Error())
-	fmt.Println(fmt.Errorf("Error3"))
 }
 
 func TestIsAvailableProcessingNode_IsFalse_UnschedulableNode(t *testing.T) {
