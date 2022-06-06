@@ -58,7 +58,9 @@ type EtcdConfiguration struct {
 	MetricUrls                      []string
 	FractionOfStorageInUseSoftLimit float64
 	FractionOfStorageInUseHardLimit float64
-	MinimumAvailable                int
+	// This is the number of etcd endpoints that have to be healthy for Armada to perform the health check
+	// If less than MinimumAvailable are healthy, Armada will consider etcd unhealthy and stop submitting pods
+	MinimumAvailable int
 }
 
 type TaskConfiguration struct {
