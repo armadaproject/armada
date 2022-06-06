@@ -5,6 +5,7 @@ import (
 	"compress/zlib"
 	"context"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -190,7 +191,7 @@ func withEventApi(action func(eventApi *EventApi, context *testEventContext)) {
 	context := &testEventContext{
 		eventChannel:        make(chan []*model.EventRow, 10),
 		activeSubscriptions: 0,
-		SequenceManager:     &DefaultSequenceManager{sequences: make(map[int64]int64)},
+		SequenceManager:     &DefaultSequenceManager{sequences: sync.Map{}},
 	}
 	eventApi := NewEventApi(testJobsetMapper, context, context.SequenceManager)
 	action(eventApi, context)
