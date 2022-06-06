@@ -39,8 +39,6 @@ func FromEventSequence(es *armadaevents.EventSequence) ([]*api.EventMessage, err
 			convertedEvents, err = FromInternalJobSucceeded(es.Queue, es.JobSetName, *event.Created, esEvent.JobSucceeded)
 		case *armadaevents.EventSequence_Event_JobRunErrors:
 			convertedEvents, err = FromInternalJobRunErrors(es.Queue, es.JobSetName, *event.Created, esEvent.JobRunErrors)
-		case *armadaevents.EventSequence_Event_JobErrors:
-			convertedEvents, err = FromInternalJobErrors(es.Queue, es.JobSetName, *event.Created, esEvent.JobErrors)
 		case *armadaevents.EventSequence_Event_JobRunRunning:
 			convertedEvents, err = FromInternalJobRunRunning(es.Queue, es.JobSetName, *event.Created, esEvent.JobRunRunning)
 		case *armadaevents.EventSequence_Event_JobRunAssigned:
@@ -49,6 +47,7 @@ func FromEventSequence(es *armadaevents.EventSequence) ([]*api.EventMessage, err
 			convertedEvents, err = FromInternalResourceUtilisation(es.Queue, *event.Created, esEvent.ResourceUtilisation)
 		case *armadaevents.EventSequence_Event_StandaloneIngressInfo:
 			convertedEvents, err = FromInternalStandaloneIngressInfo(es.Queue, *event.Created, esEvent.StandaloneIngressInfo)
+		case *armadaevents.EventSequence_Event_JobErrors:
 		case *armadaevents.EventSequence_Event_JobRunSucceeded:
 		case *armadaevents.EventSequence_Event_ReprioritiseJobSet:
 		case *armadaevents.EventSequence_Event_CancelJobSet:
@@ -245,6 +244,13 @@ func FromInternalJobRunErrors(queueName string, jobSetName string, time time.Tim
 	for _, msgErr := range e.GetErrors() {
 		if msgErr.Terminal {
 			switch reason := msgErr.Reason.(type) {
+			case *armadaevents.Error_PodError:
+				event := &api.EventMessage{
+					Events: &api.EventMessage_Failed{
+						Failed: makeJobFailed(jobId, queueName, jobSetName, time, reason),
+					},
+				}
+				events = append(events, event)
 			case *armadaevents.Error_LeaseExpired:
 				event := &api.EventMessage{
 					Events: &api.EventMessage_LeaseExpired{
@@ -334,14 +340,14 @@ func makeJobFailed(jobId string, queueName string, jobSetName string, time time.
 		Reason:       podError.PodError.GetMessage(),
 	}
 	containerStatuses := make([]*api.ContainerStatus, 0)
-	for _, containerErr := range podError.PodError.ContainerErrors {
+	for _, containerErr := range podError.PodError.GetContainerErrors() {
 		containerStatus := &api.ContainerStatus{
 			Name:     containerErr.GetObjectMeta().GetName(),
 			ExitCode: containerErr.GetExitCode(),
-			Message:  containerErr.Message,
-			Reason:   containerErr.Reason,
+			Message:  containerErr.GetMessage(),
+			Reason:   containerErr.GetReason(),
 		}
-		switch containerErr.KubernetesReason.(type) {
+		switch containerErr.GetKubernetesReason().(type) {
 		case *armadaevents.ContainerError_DeadlineExceeded_:
 			containerStatus.Cause = api.Cause_DeadlineExceeded
 		case *armadaevents.ContainerError_Error:
@@ -357,29 +363,6 @@ func makeJobFailed(jobId string, queueName string, jobSetName string, time time.
 	}
 	event.ContainerStatuses = containerStatuses
 	return event
-}
-
-func FromInternalJobErrors(queueName string, jobSetName string, time time.Time, e *armadaevents.JobErrors) ([]*api.EventMessage, error) {
-	jobId, err := armadaevents.UlidStringFromProtoUuid(e.JobId)
-	if err != nil {
-		return nil, err
-	}
-
-	events := make([]*api.EventMessage, 0)
-	for _, msgErr := range e.GetErrors() {
-		switch reason := msgErr.Reason.(type) {
-		case *armadaevents.Error_PodError:
-			event := &api.EventMessage{
-				Events: &api.EventMessage_Failed{
-					Failed: makeJobFailed(jobId, queueName, jobSetName, time, reason),
-				},
-			}
-			events = append(events, event)
-		default:
-			log.Warnf("Unknown job error %T", reason)
-		}
-	}
-	return events, nil
 }
 
 func FromInternalJobRunRunning(queueName string, jobSetName string, time time.Time, e *armadaevents.JobRunRunning) ([]*api.EventMessage, error) {
