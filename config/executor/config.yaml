@@ -25,7 +25,7 @@ kubernetes:
   etcd:
     fractionOfStorageInUseSoftLimit: 0.8
     fractionOfStorageInUseHardLimit: 0.9
-    minimumAvailable: 1
+    minimumAvailable: 2
   QPS: 10000
   Burst: 10000
   minimumPodAge: 3m
