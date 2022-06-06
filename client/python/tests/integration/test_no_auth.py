@@ -23,6 +23,7 @@ def test_submit_job(queue):
     no_auth_client.submit_jobs(
         queue="test", job_set_id="job-set-1", job_request_items=submit_sleep_job()
     )
+    no_auth_client.cancel_jobs(queue='test', job_set_id="job-set-1")
 
 
 def test_get_queue(queue):
