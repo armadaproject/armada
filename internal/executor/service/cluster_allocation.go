@@ -8,7 +8,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 
 	"github.com/G-Research/armada/internal/executor/context"
-	"github.com/G-Research/armada/internal/executor/etcd"
+	"github.com/G-Research/armada/internal/executor/healthmonitor"
 	"github.com/G-Research/armada/internal/executor/job"
 	"github.com/G-Research/armada/internal/executor/reporter"
 	"github.com/G-Research/armada/internal/executor/util"
@@ -21,7 +21,7 @@ type ClusterAllocationService struct {
 	utilisationService utilisation.UtilisationService
 	clusterContext     context.ClusterContext
 	submitter          job.Submitter
-	etcdHealthMonitor  etcd.EtcdLimitHealthMonitor
+	etcdHealthMonitor  healthmonitor.EtcdLimitHealthMonitor
 }
 
 func NewClusterAllocationService(
@@ -30,7 +30,7 @@ func NewClusterAllocationService(
 	leaseService LeaseService,
 	utilisationService utilisation.UtilisationService,
 	submitter job.Submitter,
-	etcdHealthMonitor etcd.EtcdLimitHealthMonitor) *ClusterAllocationService {
+	etcdHealthMonitor healthmonitor.EtcdLimitHealthMonitor) *ClusterAllocationService {
 
 	return &ClusterAllocationService{
 		leaseService:       leaseService,

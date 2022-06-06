@@ -24,7 +24,7 @@ import (
 	util2 "github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/executor/configuration"
 	"github.com/G-Research/armada/internal/executor/domain"
-	"github.com/G-Research/armada/internal/executor/etcd"
+	"github.com/G-Research/armada/internal/executor/healthmonitor"
 	"github.com/G-Research/armada/internal/executor/util"
 )
 
@@ -43,7 +43,7 @@ func setupTestWithMinRepeatedDeletePeriod(minRepeatedDeletePeriod time.Duration)
 	client := fake.NewSimpleClientset()
 	clientProvider := &FakeClientProvider{FakeClient: client}
 
-	fakeEtcdHealthMonitor := &etcd.FakeEtcdLimitHealthMonitor{
+	fakeEtcdHealthMonitor := &healthmonitor.FakeEtcdLimitHealthMonitor{
 		IsWithinHardLimit: true,
 		IsWithinSoftLimit: true,
 	}
@@ -632,7 +632,7 @@ func TestKubernetesClusterContext_GetNodes(t *testing.T) {
 
 func TestKubernetesClusterContext_Submit_BlocksOnEtcdReachingHardLimit(t *testing.T) {
 	clusterContext, _ := setupTestWithProvider()
-	unhealthyEtcdHeathMonitor := &etcd.FakeEtcdLimitHealthMonitor{
+	unhealthyEtcdHeathMonitor := &healthmonitor.FakeEtcdLimitHealthMonitor{
 		IsWithinSoftLimit: false,
 		IsWithinHardLimit: false,
 	}

@@ -1,4 +1,4 @@
-package etcd
+package healthmonitor
 
 import (
 	"bufio"
@@ -69,7 +69,7 @@ var etcdInstanceInUseFractionDesc = prometheus.NewDesc(
 
 // Return a new EtcdHealthMonitor that monitors the etcd instances at the given urls.
 // Provide a http client, e.g., to use auth, or set client to nil to use the default client.
-func New(etcConfiguration configuration.EtcdConfiguration, client *http.Client) (*EtcdHealthMonitor, error) {
+func NewEtcdHealthMonitor(etcConfiguration configuration.EtcdConfiguration, client *http.Client) (*EtcdHealthMonitor, error) {
 	if len(etcConfiguration.MetricUrls) == 0 {
 		return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
 			Name:    "urls",
