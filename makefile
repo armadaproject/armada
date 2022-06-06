@@ -223,10 +223,6 @@ tests:
 	mkdir -p test_reports
 	docker run -d --name=redis --network=host -p=6379:6379 redis:6.2.6
 	docker run -d --name=postgres --network=host -p 5432:5432 -e POSTGRES_PASSWORD=psw postgres:14.2
-	function tearDown {
-		docker rm -f redis postgres
-	}
-	trap tearDown EXIT
 	$(GO_TEST_CMD) go test -v ./internal... 2>&1 | tee test_reports/internal.txt
 	$(GO_TEST_CMD) go test -v ./pkg... 2>&1 | tee test_reports/pkg.txt
 	$(GO_TEST_CMD) go test -v ./cmd... 2>&1 | tee test_reports/cmd.txt
@@ -347,7 +343,7 @@ junit-report:
 	rm -f test_reports/junit.xml
 	$(GO_TEST_CMD) bash -c "cat test_reports/*.txt | go-junit-report > test_reports/junit.xml"
 
-python: download
+setup-proto: download
 	rm -rf proto
 	mkdir -p proto
 	mkdir -p proto/google/api
@@ -362,7 +358,6 @@ python: download
 	mkdir -p proto/k8s.io/api/core/v1
 	mkdir -p proto/github.com/gogo/protobuf/gogoproto/
 
-	docker build $(dockerFlags) -t armada-python-client-builder -f ./build/python-client/Dockerfile .
 # Copy third party annotations from grpc-ecosystem
 	
 	cp $(DOCKER_GOPATH)/pkg/mod/github.com/grpc-ecosystem/grpc-gateway$(GRPC_GATEWAY_VERSION)/third_party/googleapis/google/api/annotations.proto proto/google/api
@@ -380,11 +375,13 @@ python: download
 	cp $(DOCKER_GOPATH)/pkg/mod/k8s.io/api$(K8_API_VERSION)/networking/v1/generated.proto proto/k8s.io/api/networking/v1
 	cp $(DOCKER_GOPATH)/pkg/mod/k8s.io/api$(K8_API_VERSION)/core/v1/generated.proto proto/k8s.io/api/core/v1
 
+python: setup-proto
+	docker build $(dockerFlags) -t armada-python-client-builder -f ./build/python-client/Dockerfile .
 	docker run --rm -v ${PWD}/proto:/proto -v ${PWD}:/go/src/armada -w /go/src/armada armada-python-client-builder ./scripts/build-python-client.sh
 
-proto: download
+proto: setup-proto
 	docker build $(dockerFlags) --build-arg GOPROXY --build-arg GOPRIVATE --build-arg MAVEN_URL -t armada-proto -f ./build/proto/Dockerfile .
-	docker run --rm -e GOPROXY -e GOPRIVATE -v ${PWD}:/go/src/armada -w /go/src/armada armada-proto ./scripts/proto.sh
+	docker run --rm -v ${PWD}/proto:/proto -v ${PWD}:/go/src/armada -w /go/src/armada armada-proto ./scripts/proto.sh
 
 	# generate proper swagger types (we are using standard json serializer, GRPC gateway generates protobuf json, which is not compatible)
 	$(GO_TEST_CMD) swagger generate spec -m -o pkg/api/api.swagger.definitions.json
