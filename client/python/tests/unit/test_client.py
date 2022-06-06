@@ -64,3 +64,19 @@ def test_delete_queue():
 
 def test_get_queue_info():
     tester.get_queue_info(name="test")
+
+
+def test_cancel_jobs():
+    test_create_queue()
+    test_submit_job()
+    tester.cancel_jobs(queue="test", job_set_id="job-set-1", job_id="job1")
+
+
+def test_update_queue():
+    tester.update_queue(name="test", priority_factor=1)
+
+
+def test_reprioritize_jobs():
+    tester.reprioritize_jobs(
+        new_priority=1.0, job_ids="test", job_set_id="job_test_1", queue="test"
+    )

@@ -1,7 +1,7 @@
-from concurrent import futures
-from armada_client.armada import submit_pb2_grpc, submit_pb2, event_pb2, event_pb2_grpc
 import grpc
+from concurrent import futures
 from google.protobuf import empty_pb2
+from armada_client.armada import submit_pb2_grpc, submit_pb2, event_pb2, event_pb2_grpc
 
 
 class SubmitService(submit_pb2_grpc.SubmitServicer):
@@ -18,6 +18,15 @@ class SubmitService(submit_pb2_grpc.SubmitServicer):
         return submit_pb2.JobSubmitResponse()
 
     def GetQueueInfo(self, request, context):
+        return submit_pb2.QueueInfo()
+
+    def CancelJobs(self, request, context):
+        return submit_pb2.CancellationResult()
+
+    def ReprioritizeJobs(self, request, context):
+        return submit_pb2.JobReprioritizeResponse()
+
+    def UpdateQueue(self, request, context):
         return empty_pb2.Empty()
 
 
