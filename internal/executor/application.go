@@ -137,11 +137,9 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 		clusterContext,
 		jobContext,
 		eventReporter,
-		jobLeaseService,
-		config.Kubernetes.MinimumPodAge,
-		config.Kubernetes.FailedPodExpiry)
+		jobLeaseService)
 
-	job.RunIngressCleanup(clusterContext)
+	resourceCleanupService := service.NewResourceCleanupService(clusterContext, config.Kubernetes)
 
 	pod_metrics.ExposeClusterContextMetrics(clusterContext, clusterUtilisationService, queueUtilisationService, nodeInfoService)
 
@@ -149,6 +147,7 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 	taskManager.Register(eventReporter.ReportMissingJobEvents, config.Task.MissingJobEventReconciliationInterval, "event_reconciliation")
 	taskManager.Register(clusterAllocationService.AllocateSpareClusterCapacity, config.Task.AllocateSpareClusterCapacityInterval, "job_lease_request")
 	taskManager.Register(jobManager.ManageJobLeases, config.Task.JobLeaseRenewalInterval, "job_management")
+	taskManager.Register(resourceCleanupService.CleanupResources, config.Task.ResourceCleanupInterval, "resource_cleanup")
 
 	if config.Metric.ExposeQueueUsageMetrics {
 		taskManager.Register(queueUtilisationService.RefreshUtilisationData, config.Task.QueueUsageDataRefreshInterval, "pod_usage_data_refresh")
