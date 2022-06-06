@@ -3,10 +3,14 @@ package server
 import (
 	"context"
 	"fmt"
+	"io"
+	"sync/atomic"
 
 	"github.com/gogo/protobuf/types"
+	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -127,6 +131,176 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 		Job: jobs,
 	}
 	return jobLease, nil
+}
+
+// StreamingLeaseJobs is called by the executor to request jobs for it to run.
+// It streams jobs to the executor as quickly as it can and then waits to receive ids back.
+// Only jobs for which an id was sent back are marked as leased.
+//
+// This function should be used instead of the LeaseJobs function in most cases.
+func (q *AggregatedQueueServer) StreamingLeaseJobs(stream api.AggregatedQueue_StreamingLeaseJobsServer) error {
+
+	if err := checkPermission(q.permissions, stream.Context(), permissions.ExecuteJobs); err != nil {
+		return err
+	}
+
+	// Receive once to get info necessary to get jobs to lease.
+	req, err := stream.Recv()
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
+	// Return no jobs if we don't have enough work.
+	var res common.ComputeResources = req.Resources
+	if res.AsFloat().IsLessThan(q.schedulingConfig.MinimumResourceToSchedule) {
+		return nil
+	}
+
+	queues, err := q.queueRepository.GetAllQueues()
+	if err != nil {
+		return err
+	}
+
+	activeQueues, err := q.jobRepository.FilterActiveQueues(queue.QueuesToAPI(queues))
+	if err != nil {
+		return err
+	}
+
+	usageReports, err := q.usageRepository.GetClusterUsageReports()
+	if err != nil {
+		return err
+	}
+
+	if err = q.usageRepository.UpdateClusterLeased(&req.ClusterLeasedReport); err != nil {
+		return err
+	}
+
+	// One of the below functions expects a regular lease request,
+	// so we need to convert.
+	leaseRequest := &api.LeaseRequest{
+		ClusterId:           req.ClusterId,
+		Pool:                req.Pool,
+		Resources:           req.Resources,
+		ClusterLeasedReport: req.ClusterLeasedReport,
+		MinimumJobSize:      req.MinimumJobSize,
+		Nodes:               req.Nodes,
+	}
+	nodeResources := scheduling.AggregateNodeTypeAllocations(req.Nodes)
+	clusterSchedulingInfo := scheduling.CreateClusterSchedulingInfoReport(leaseRequest, nodeResources)
+	err = q.schedulingInfoRepository.UpdateClusterSchedulingInfo(clusterSchedulingInfo)
+	if err != nil {
+		return err
+	}
+
+	activeClusterReports := scheduling.FilterActiveClusters(usageReports)
+	activePoolClusterReports := scheduling.FilterPoolClusters(req.Pool, activeClusterReports)
+	activePoolCLusterIds := scheduling.GetClusterReportIds(activePoolClusterReports)
+	clusterPriorities, err := q.usageRepository.GetClusterPriorities(activePoolCLusterIds)
+	if err != nil {
+		return err
+	}
+
+	clusterLeasedJobReports, err := q.usageRepository.GetClusterLeasedReports()
+	if err != nil {
+		return err
+	}
+	poolLeasedJobReports := scheduling.FilterClusterLeasedReports(activePoolCLusterIds, clusterLeasedJobReports)
+	jobs, err := scheduling.LeaseJobs(
+		stream.Context(),
+		&q.schedulingConfig,
+		q.jobQueue,
+		// For the unary job lease call, we pass in a function that creates job leased events.
+		// Here, we create such events at the end of the function only for jobs the client sent back acks for.
+		func(jobs []*api.Job) {},
+		leaseRequest,
+		nodeResources,
+		activePoolClusterReports,
+		poolLeasedJobReports,
+		clusterPriorities,
+		activeQueues)
+	if err != nil {
+		return err
+	}
+
+	// The server streams jobs to the executor.
+	// The executor streams back an ack for each received job.
+	// With each job sent to the executor, the server includes the number of received acks.
+	//
+	// When the connection breaks, the server expires all leases for which it hasn't received an ack
+	// and the executor expires all leases for which it hasn't received confirmation that the server received the ack.
+	//
+	// We track the total number of jobs and the number of jobs for which acks have been received.
+	// Because gRPC streams guarantee ordering, we only need to track the number of acks.
+	// The client is responsible for acking jobs in the order they are received.
+	numJobs := uint32(len(jobs))
+	var numAcked uint32
+
+	// Stream the jobs to the executor.
+	g, _ := errgroup.WithContext(stream.Context())
+	g.Go(func() error {
+		for _, job := range jobs {
+			err := stream.Send(&api.StreamingJobLease{
+				Job:      job,
+				NumJobs:  numJobs,
+				NumAcked: atomic.LoadUint32(&numAcked),
+			})
+			if err == io.EOF {
+				return nil
+			} else if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+
+	// Listen for job ids being streamed back as they're received.
+	g.Go(func() error {
+		numJobs := numJobs // Assign a local variable to guarantee there are no race conditions.
+		for atomic.LoadUint32(&numAcked) < numJobs {
+			ack, err := stream.Recv()
+			if err == io.EOF {
+				return nil
+			} else if err != nil {
+				return err
+			}
+			atomic.AddUint32(&numAcked, uint32(len(ack.ReceivedJobIds)))
+		}
+		return nil
+	})
+
+	// Wait for all jobs to have been sent and all acks to have been received.
+	err = g.Wait()
+	if err != nil {
+		log.WithError(err).Error("error sending/receiving job leases to/from executor")
+	}
+
+	// Send one more message with the total number of acks.
+	err = stream.Send(&api.StreamingJobLease{
+		Job:      nil, // Omitted
+		NumJobs:  numJobs,
+		NumAcked: numAcked,
+	})
+	if err != nil {
+		log.WithError(err).Error("error sending the number of acks")
+	}
+
+	// Create job leased events and write a leased report into Redis for all acked jobs.
+	ackedJobs := jobs[:numAcked]
+	reportJobsLeased(q.eventStore, ackedJobs, req.ClusterId)
+
+	var result *multierror.Error
+	clusterLeasedReport := scheduling.CreateClusterLeasedReport(req.ClusterLeasedReport.ClusterId, &req.ClusterLeasedReport, ackedJobs)
+	err = q.usageRepository.UpdateClusterLeased(clusterLeasedReport)
+	result = multierror.Append(result, err)
+
+	// scheduling.LeaseJobs (called above) automatically marks all returned jobs as leased.
+	// Return the leases of any non-acked jobs so that they can be re-leased.
+	for i := numAcked; i < numJobs; i++ {
+		_, err = q.jobRepository.ReturnLease(req.ClusterId, jobs[i].Id)
+		result = multierror.Append(result, err)
+	}
+
+	return result.ErrorOrNil()
 }
 
 func (q *AggregatedQueueServer) RenewLease(ctx context.Context, request *api.RenewLeaseRequest) (*api.IdList, error) {

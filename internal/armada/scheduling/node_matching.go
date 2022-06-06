@@ -45,6 +45,9 @@ func MatchSchedulingRequirementsOnAnyCluster(job *api.Job, allClusterSchedulingI
 			errs = append(errs, err)
 		}
 	}
+	if len(errs) == 0 {
+		errs = append(errs, fmt.Errorf("no matching node types available"))
+	}
 	// Return a merged error report.
 	// The idea is that users don't care how nodes are split between clusters.
 	// These errors do not include info about which pod in the job caused the error.

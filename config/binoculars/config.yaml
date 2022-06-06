@@ -7,3 +7,5 @@ auth:
     enableAuthentication: false
   anonymousAuth: true
 impersonateUsers: false
+k8sQPS: 10000
+k8sBurst: 10000

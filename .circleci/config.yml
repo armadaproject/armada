@@ -171,6 +171,7 @@ jobs:
       - run:
           name: Prepare reports
           command: make junit-report
+          when: always
 
       - store_test_results:
           path: test_reports/junit.xml
@@ -226,10 +227,14 @@ jobs:
       - run:
           name: e2e test environment teardown
           command: make tests-e2e-teardown
+          
+      - run:
+          name: Prepare reports
+          command: make junit-report
+          when: always
 
-      - store_artifacts:
-          path: bin/armadactl
-          destination: armadactl
+      - store_test_results:
+          path: test_reports/junit.xml
 
       - run:
           name: Push Image
@@ -270,9 +275,6 @@ jobs:
 
             docker tag armada-lookout-ingester gresearchdev/armada-lookout-ingester-dev:${TAG}
             docker push gresearchdev/armada-lookout-ingester-dev:${TAG}
-            
-            docker tag armada-eventapi-ingester gresearchdev/armada-eventapi-ingester-dev:${TAG}
-            docker push gresearchdev/armada-eventapi-ingester-dev:${TAG}
 
             docker tag armada-binoculars gresearchdev/armada-binoculars-dev:${TAG}
             docker push gresearchdev/armada-binoculars-dev:${TAG}

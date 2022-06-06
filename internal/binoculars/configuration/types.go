@@ -11,4 +11,6 @@ type BinocularsConfig struct {
 	CorsAllowedOrigins []string
 
 	ImpersonateUsers bool
+	K8sBurst         int
+	K8sQPS           float32
 }
