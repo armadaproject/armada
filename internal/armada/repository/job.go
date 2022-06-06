@@ -66,6 +66,7 @@ type JobRepository interface {
 	GetQueueJobIds(queueName string) ([]string, error)
 	RenewLease(clusterId string, jobIds []string) (renewed []string, e error)
 	ExpireLeases(queue string, deadline time.Time) (expired []*api.Job, e error)
+	ExpireLeasesById(jobIds []string, deadline time.Time) (expired []*api.Job, e error)
 	ReturnLease(clusterId string, jobId string) (returnedJob *api.Job, err error)
 	DeleteJobs(jobs []*api.Job) (map[*api.Job]error, error)
 	GetActiveJobIds(queue string, jobSetId string) ([]string, error)
@@ -935,6 +936,7 @@ func (repo *RedisJobRepository) GetQueueActiveJobSets(queue string) ([]*api.JobS
 	return result, nil
 }
 
+// ExpireLeases expires the leases on all jobs for the provided queue.
 func (repo *RedisJobRepository) ExpireLeases(queue string, deadline time.Time) ([]*api.Job, error) {
 	maxScore := strconv.FormatInt(deadline.UnixNano(), 10)
 
@@ -943,7 +945,16 @@ func (repo *RedisJobRepository) ExpireLeases(queue string, deadline time.Time) (
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	expiringJobs, err := repo.GetExistingJobsByIds(ids)
+
+	return repo.ExpireLeasesById(ids, deadline)
+}
+
+func (repo *RedisJobRepository) ExpireLeasesById(jobIds []string, deadline time.Time) ([]*api.Job, error) {
+	if len(jobIds) == 0 {
+		return make([]*api.Job, 0), nil
+	}
+
+	expiringJobs, err := repo.GetExistingJobsByIds(jobIds)
 	if err != nil {
 		return nil, err
 	}
