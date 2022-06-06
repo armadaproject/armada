@@ -6,11 +6,15 @@ For easy development purposes, it is beneficial to setup a ec2 instance for deve
 
 ## Instructions
 
-- We suggest a t3.large instance from aws ec2 with Amazon Linux.  8 GB of memory is suggested.
+- We suggest a t3.xlarge instance from aws ec2 with Amazon Linux.  16 GB of memory is suggested.
+- During selection of instance, Add a large volume to your ec2 instance (100 gb)
+- During selection of instance, add Security Group Rules that allows you to access tcp ports from your desktop browser.  This is useful for viewing lookout UI or other web services
 - Install [docker](https://www.cyberciti.biz/faq/how-to-install-docker-on-amazon-linux-2/)
-- Install Go
+- Install docker-compose
+- Install Go 
 - Install Kind
 - Install kubectl
 - Install helm
-- Add a Elastic Block Storage (EBS) volume to the ec2 instance.  Default storage in the instance is not enough. [Tutorial](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ebs-creating-volume.html)
-- 
+- Install python3 (>= 3.7)
+- Install dotnet for [linux](https://docs.microsoft.com/en-us/dotnet/core/install/linux-centos)
+- We suggest using the remote code extension from VS Code.
