@@ -18,3 +18,4 @@ For easy development purposes, it is beneficial to setup a ec2 instance for deve
 - Install python3 (>= 3.7)
 - Install dotnet for [linux](https://docs.microsoft.com/en-us/dotnet/core/install/linux-centos)
 - We suggest using the remote code extension from VS Code.
+- If you enable ports from your laptop, you can grab the DNS from your ec2 instance and replace localhost to access from the browser.  If you want to view lookout ui, you may need to set DANGEROUSLY_DISABLE_HOST_CHECK=true before running npm run build
