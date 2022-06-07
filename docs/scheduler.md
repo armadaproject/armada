@@ -20,7 +20,13 @@ Armada jobs are created by submitting a job specification to the Armada server, 
 
 ### Distributed jobs
 
-Distributed jobs are represented as [PodGroups](https://github.com/kubernetes-sigs/scheduler-plugins/blob/master/kep/42-podgroup-coscheduling/README.md), i.e., groups of cooperating pods, and the pods that make up a `PodGroup` are scheduled jointly using a gang-scheduling algorithm. PodGroups may specify a minimum number of pods that must be schedulable before the job can be started and a maximum number of pods that may be created. Similar to [kube-batch](https://github.com/kubernetes-sigs/kube-batch) and [Volcano](https://volcano.sh/en/docs/podgroup/), the gang-scheduling algorithm is implemented as a [custom Kubernetes scheduler](https://kubernetes.io/docs/tasks/extend-kubernetes/configure-multiple-schedulers/). In particular, gang-scheduling is based on reserving entire nodes for the pods that make up a distributed job. Regarding preemption, Armada will first preempt any pods above the minimum required for the job. If the number of running pods drops below the minimum, all remaining pods are immediately preempted.
+Distributed jobs are represented as [PodGroups](https://github.com/kubernetes-sigs/scheduler-plugins/blob/master/kep/42-podgroup-coscheduling/README.md) in Armada. PodGroups are designed to support modern distributed machine learning jobs, which may consist of one or more coordinator nodes, elastic pools of worker nodes, and long-lived auxiliary services, e.g., for recording profiling information. Each PodGroup is a bag of cooperating pods and the pods that make up a `PodGroup` are scheduled jointly using a gang-scheduling algorithm. 
+
+Similar to [kube-batch](https://github.com/kubernetes-sigs/kube-batch) and [Volcano](https://volcano.sh/en/docs/podgroup/), the gang-scheduling algorithm is implemented as a [custom Kubernetes scheduler](https://kubernetes.io/docs/tasks/extend-kubernetes/configure-multiple-schedulers/). Further, gang-scheduling is based on reserving entire nodes for the pods that make up a distributed job. 
+
+The pods that make up each PodGroup are grouped into sub-groups consisting of identical pods (i.e., are composed of the same images run with the same arguments). Each such sub-group specifies a minimum and maximum number of pods, and the sub-group is schedulable when the minimum number of pods can be created. If additional resources are available, pods are created up to the maximum (i.e., sub-groups are elastic). The PodGroup is schedulable when all sub-groups are schedulable.
+
+Distributed jobs may be preempted both in part and entirely. In particular, Armada will first preempt any pods above the minimum required for the job (as specified by the PodGroup). These pods may later be re-created if additional resources become available (i.e., these jobs are elastic). If not sufficient, Armada may preempt additional pods. If the number of running pods drops below the minimum, all remaining pods are immediately preempted.
 
 ### Elasticity and dynamic resource creation
 
@@ -144,6 +150,12 @@ Second, each queue has a budget for running jobs with finite lifetime. This budg
 The excess flow budget prevents a single queue from hanging on to all resources in the cluster for more than a limited time. Note that jobs with a lifetime of `0` consume no budget, i.e., a single queue may still consume the entire cluster if there are no other users present and the jobs scheduled are immediately preemptible.
 
 ## Executor implementation
+
+TODO: Explain gang scheduling.
+
+- Gang scheduling is an assignment optimisation problem.
+- Define lost opportunity as the amount of resources that potentially become unavailable as a result of assigning a pod to a node. For example, if a node has 72 cores and 128 GB of RAM, and a pod is scheduled on it that requests 50 cores and 32 GB of RAM, then the lost opportunity is 22 cores and 96 GB of RAM; the lost opportunity would be smaller if the pod can be scheduled on a smaller node.
+- Gang scheduling consists of assigning some number of pods to nodes to minimise lost opportunity.
 
 TODO: We can probably omit this from this document.
 
