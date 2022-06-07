@@ -46,7 +46,6 @@ class BasicAuthTest:
         )
         self.client = ArmadaClient(channel)
 
-    # private static ApiJobSubmitRequest CreateJobRequest(string jobSet)
     @staticmethod
     def job_submit_request_items_for_test():
         pod = core_v1.PodSpec(
