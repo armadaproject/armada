@@ -41,7 +41,7 @@ jobs:
         run: make junit-report
 
       - name: Upload junit report
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v2.2.4
         with:
           name: junit.xml
           path: test_reports/junit.xml
