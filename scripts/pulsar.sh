@@ -1,0 +1,12 @@
+	# Create the partitioned topic used by Armada.
+	sleep 10 # pulsar-admin errors if the Pulsar server hasn't started up yet.
+
+    docker exec -it pulsar bin/pulsar-admin tenants create armada
+	docker exec -it pulsar bin/pulsar-admin namespaces create armada/armada
+	docker exec -it pulsar bin/pulsar-admin topics delete-partitioned-topic persistent://armada/armada/events -f || true
+	docker exec -it pulsar bin/pulsar-admin topics create-partitioned-topic persistent://armada/armada/events -p 2
+
+	# Disable topic auto-creation to ensure an error is thrown on using the wrong topic
+	# (Pulsar automatically created the public tenant and default namespace).
+	docker exec -it pulsar bin/pulsar-admin namespaces set-auto-topic-creation public/default --disable
+	docker exec -it pulsar bin/pulsar-admin namespaces set-auto-topic-creation armada/armada --disable
