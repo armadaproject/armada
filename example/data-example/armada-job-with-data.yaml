@@ -1,4 +1,4 @@
-queue: test
+queue: queue-a
 jobSetId: job-set-1
 jobs:
   - priority: 0
@@ -8,12 +8,11 @@ jobs:
       containers:
         - name: docker-data
           imagePullPolicy: IfNotPresent
-          image: kevinpatrickhannon/docker-data:1.0.1
+          image: busybox
           command:
-            - /app/go-file
+            - cat
           args:
-            - --input=/data/test.csv
-            - --output=/data/out.txt
+            - /data/test.csv
           volumeMounts:
           - name: data
             mountPath: /data

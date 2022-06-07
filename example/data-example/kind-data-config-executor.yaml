@@ -2,12 +2,10 @@ kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 nodes:
   - role: control-plane
-    image: "kindest/node:v1.21.10"
     extraMounts:
       - hostPath: /tmp/data
         containerPath: /data
   - role: worker
-    image: "kindest/node:v1.21.10"
     extraMounts:
       - hostPath: /tmp/data
         containerPath: /data
