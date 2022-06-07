@@ -14,20 +14,26 @@ Armada uses a two-stage scheduling approach, consisting of a top-level scheduler
 
 Each Armada job consists of a bag of Kubernetes object (e.g., pods, services, and ingresses) with a shared life cycle; all objects are created at the start of the job and are destroyed when the job has finished. Each job is a member of a queue (e.g., corresponding to a particular user) and a job set (a per-queue logical grouping of jobs that can be managed as a unit), and has a priority associated with it, i.e., each job has associated with it a tuple `(queue, jobSet, priority)`. Each job is assigned to a cluster as a unit, i.e., all resources that make up a job are created within the same cluster.
 
+Further, for each submitted job, Armada allows users to optionally specify job lifetime, i.e., an amount of time after which the job may be preempted. Such jobs are run opportunistically since they can be preempted if holding up a higher-priority job. Note that a lifetime of 0 corresponds to a what is usually referred to as a preemtible job. Armada may preempt jobs older than their specified lifetime when a queue has exceeded its fair share (discussed later).
+
 Armada jobs are created by submitting a job specification to the Armada server, either via client libraries or via the `armadactl` command-line-utility. In this way, users can submit jobs to Armada directly. However, users may also submit workflows to higher-level schedulers, such as [Apache AirFlow](https://airflow.apache.org/), which in turn submit jobs to Armada.
 
 ### Distributed jobs
 
-Distributed jobs are represented as [PodGroups](https://github.com/kubernetes-sigs/scheduler-plugins/blob/master/kep/42-podgroup-coscheduling/README.md), i.e., groups of cooperating pods, and the pods that make up a `PodGroup` are scheduled jointly using a gang-scheduling algorithm. Similar to to [kube-batch](https://github.com/kubernetes-sigs/kube-batch) and [Volcano](https://volcano.sh/en/docs/podgroup/), the gang-scheduling algorithm is implemented as a [custom Kubernetes scheduler](https://kubernetes.io/docs/tasks/extend-kubernetes/configure-multiple-schedulers/).
+Distributed jobs are represented as [PodGroups](https://github.com/kubernetes-sigs/scheduler-plugins/blob/master/kep/42-podgroup-coscheduling/README.md), i.e., groups of cooperating pods, and the pods that make up a `PodGroup` are scheduled jointly using a gang-scheduling algorithm. PodGroups may specify a minimum number of pods that must be schedulable before the job can be started and a maximum number of pods that may be created. Similar to [kube-batch](https://github.com/kubernetes-sigs/kube-batch) and [Volcano](https://volcano.sh/en/docs/podgroup/), the gang-scheduling algorithm is implemented as a [custom Kubernetes scheduler](https://kubernetes.io/docs/tasks/extend-kubernetes/configure-multiple-schedulers/). In particular, gang-scheduling is based on reserving entire nodes for the pods that make up a distributed job. Regarding preemption, Armada will first preempt any pods above the minimum required for the job. If the number of running pods drops below the minimum, all remaining pods are immediately preempted.
 
 ### Elasticity and dynamic resource creation
 
 Armada supports workflows that require a dynamically changing amount of resources (e.g., [Apache Spark](https://spark.apache.org/) clusters and AirFlow jobs) using the following two approaches:
 
 - The workflow is submitted to a higher-level scheduler (e.g., Apache AirFlow) that dynamically submits jobs to Armada, monitors their status, and makes decisions on which jobs to submit next.
-- An "operator" job is submitted to Armada (e.g., corresponding to a Spark cluster manager) that has the power to request resources from Armada (e.g., to run additional pods) by submitting further Armada jobs. The operator job may do so either via the Armada job submission API or via a special set of Kubernets API endpoints that translate resource creation commands into Armada job submissions.
+- An "operator" job is submitted to Armada (e.g., corresponding to a Spark cluster manager) that can request additional resources from Armada (e.g., to run additional pods) by submitting further Armada jobs and can release resources by cancelling jobs. The operator may do so either via the Armada job submission API (in which case the operator has to be Armada-aware) or via a special set of Kubernets API endpoints that translate resource creation and deletion commands into Armada job submissions and cancellations, respectively (in which case the operator does not need to be Armada-aware).
 
 In this way, Armada is in control of all resource creation and can manage cluster resources effectively.
+
+### Preemption
+
+
 
 ## Scheduler architecture
 
@@ -43,15 +49,13 @@ The first two stages take place in the server and the third in the executor. We 
 2. Pending
 3. Running
 
-Each job that is submitted is part of one of the `N` queues managed by the scheduler and is in the queued stage. Jobs within each queue are ordered by priority but there is no ordering between jobs in different queues. Jobs are moved from the queued stage into the pending stage one at a time and jobs in the pending stage are assigned to worker clusters on a first-in-first-out basis. Hence, all jobs in the pending stage are ordered and the global prioritisation stage consists of deciding in what order jobs should be moved from the queued to pending stage. Within each queue, jobs are moved from the queued to pending stage strictly in order of priority, i.e., for each queue, the next job to be moved into the pending stage is always the highest priority job in that queue.
+Each job that is submitted is part of one of the `N` queues managed by the scheduler and is in the queued stage. Jobs within each queue are ordered by the priorities set by the user but are not globally ordered; the scheduler is responsible for establishing such a global ordering. Jobs are moved from the queued stage into the pending stage one at a time and jobs in the pending stage are assigned to worker clusters on a first-in-first-out basis. Hence, all jobs in the pending stage are ordered and the global prioritisation stage consists of deciding in what order jobs should be moved from the queued to pending stage. Within each queue, jobs are moved from the queued to pending stage strictly in order of priority, i.e., for each queue, the next job to be moved into the pending stage is always the highest priority job in that queue.
 
 The cluster assignment stage consists of assigning jobs to worker clusters. Denote by
 
 `j_1, j_2, ...`
 
-the 1st and 2nd job to enter the pending stage and so on. Normally, jobs are assigned to clusters in order, i.e., `j_i` is assigned before `j_2` and so on. However, if some job cannot be scheduled (e.g., because insufficient resources are available), a lower-priority job may be assigned ahead of a higher-priority job if doing so does not delay assigning the higher-priority job. For example, `j_2` may be assigned to a cluster ahead of `j_1`. This is an optimisation to improve utilisation and is typically referred to as backfilling (see, e.g., [this page](http://docs.adaptivecomputing.com/maui/8.2backfill.php) for some background).
-
-For example, backfilling may be possible if a higher-priority job is waiting for GPU to become available and a lower-priority job requests only CPU and RAM. Further, for each submitted job, Armada allows users to optionally specify job lifetime, i.e., an amount of time after which the job may be preempted. Such jobs are run opportunistically since they can be preempted if holding up a higher-priority job. Note that a lifetime of 0 corresponds to a what is usually referred to as a preemtible job.
+the 1st and 2nd job to enter the pending stage and so on. Normally, jobs are assigned to clusters in order, i.e., `j_i` is assigned before `j_2` and so on. However, if some job cannot be scheduled (e.g., because insufficient resources are available), a lower-priority job may be assigned ahead of a higher-priority job if doing so does not delay assigning the higher-priority job. For example, `j_2` may be assigned to a cluster ahead of `j_1`. This is an optimisation to improve utilisation and is typically referred to as backfilling (see, e.g., [this page](http://docs.adaptivecomputing.com/maui/8.2backfill.php) for some background). For example, backfilling may be possible if a higher-priority job is waiting for GPU to become available and a lower-priority job requests only CPU and RAM. 
 
 Each executor assigns jobs to nodes according to a bin-packing procedure, where jobs are assigned to nodes to minimize the number of nodes required. This is to make room for large incoming jobs. Any jobs that the executor is not able to assign to nodes are returned to the scheduler. For distributed jobs, the executor is responsible for gang-scheduling, i.e., creating all required resources simultaneously.
 
