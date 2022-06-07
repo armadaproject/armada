@@ -18,7 +18,7 @@ require (
 	github.com/doug-martin/goqu/v9 v9.18.0
 	github.com/go-ldap/ldap/v3 v3.4.1
 	github.com/go-openapi/analysis v0.21.2
-	github.com/go-openapi/jsonreference v0.19.6
+	github.com/go-openapi/jsonreference v0.20.0
 	github.com/go-openapi/loads v0.21.1
 	github.com/go-openapi/runtime v0.24.1
 	github.com/go-openapi/spec v0.20.4
