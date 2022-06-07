@@ -35,6 +35,12 @@ func CreateGrpcServer(authServices []authorization.AuthService) *grpc.Server {
 	unaryInterceptors := []grpc.UnaryServerInterceptor{}
 	streamInterceptors := []grpc.StreamServerInterceptor{}
 
+	//Automatically recover from panics
+	//NOTE This must be the first interceptor, so it can handle panics in any subsequently added interceptor
+	recovery := grpc_recovery.WithRecoveryHandler(panicRecoveryHandler)
+	unaryInterceptors = append(unaryInterceptors, grpc_recovery.UnaryServerInterceptor(recovery))
+	streamInterceptors = append(streamInterceptors, grpc_recovery.StreamServerInterceptor(recovery))
+
 	// Logging (using logrus)
 	// By default, information contained in the request context is logged
 	// tagsExtractor pulls information out of the request payload (a protobuf) and stores it in
@@ -67,11 +73,6 @@ func CreateGrpcServer(authServices []authorization.AuthService) *grpc.Server {
 	grpc_prometheus.EnableHandlingTimeHistogram()
 	unaryInterceptors = append(unaryInterceptors, grpc_prometheus.UnaryServerInterceptor)
 	streamInterceptors = append(streamInterceptors, grpc_prometheus.StreamServerInterceptor)
-
-	// Automatically recover from panics
-	recovery := grpc_recovery.WithRecoveryHandler(panicRecoveryHandler)
-	unaryInterceptors = append(unaryInterceptors, grpc_recovery.UnaryServerInterceptor(recovery))
-	streamInterceptors = append(streamInterceptors, grpc_recovery.StreamServerInterceptor(recovery))
 
 	// Interceptors are registered at server creation
 	return grpc.NewServer(
