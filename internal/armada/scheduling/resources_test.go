@@ -13,6 +13,35 @@ import (
 // 1 cpu per 1 Gb
 var scarcity = map[string]float64{"cpu": 1, "memory": 1.0 / (1024 * 1024 * 1024)}
 
+type queueResources map[*api.Queue]common.ComputeResourcesFloat
+
+// Verify that two maps of queues to compute-resources are basically equal, in
+// keys, as well as resource cpu value, accepting a small tolerance for CPU
+// resource, as some versions of Docker will report a microscopically
+// fractional difference, instead of the exact smooth integer-like value that
+// tests often specify.
+func assertCpuResourceSoftEqual(t *testing.T, expected, actual queueResources) {
+	assert.Equal(t, len(expected), len(actual))
+
+	expectQs := make([]api.Queue, len(expected))
+	for q := range expected {
+		expectQs = append(expectQs, *q)
+	}
+	actualQs := make([]api.Queue, len(actual))
+	for q := range actual {
+		actualQs = append(actualQs, *q)
+	}
+	assert.ElementsMatch(t, expectQs, actualQs)
+
+	for q, _ := range expected {
+		actualRsrc, exists := actual[q]
+		assert.True(t, exists)
+		assert.NotNil(t, actualRsrc)
+
+		assert.InDelta(t, expected[q]["cpu"], actualRsrc["cpu"], 0.001)
+	}
+}
+
 func Test_sliceResources(t *testing.T) {
 
 	q1 := &api.Queue{Name: "q1"}
@@ -33,7 +62,9 @@ func Test_sliceResources(t *testing.T) {
 	// resulted usage ration should be 4 : 4 : 4
 	twoCpu := common.ComputeResourcesFloat{"cpu": 2.0}
 	fourCpu := common.ComputeResourcesFloat{"cpu": 4.0}
-	assert.Equal(t, slices, map[*api.Queue]common.ComputeResourcesFloat{q1: twoCpu, q2: twoCpu, q3: fourCpu})
+	expectRsrcs := map[*api.Queue]common.ComputeResourcesFloat{q1: twoCpu, q2: twoCpu, q3: fourCpu}
+
+	assertCpuResourceSoftEqual(t, expectRsrcs, slices)
 }
 
 func Test_sliceResources_highImbalance(t *testing.T) {
@@ -84,12 +115,13 @@ func Test_SliceResourceWithLimits_SchedulingShareMatchesAdjusted_WhenNoQueuesAtL
 	// resulted usage ration should be 4 : 4 : 4
 	twoCpu := common.ComputeResourcesFloat{"cpu": 2.0}
 	fourCpu := common.ComputeResourcesFloat{"cpu": 4.0}
-	assert.Equal(t, slices[q1].schedulingShare, twoCpu)
-	assert.Equal(t, slices[q1].adjustedShare, twoCpu)
-	assert.Equal(t, slices[q2].schedulingShare, twoCpu)
-	assert.Equal(t, slices[q2].adjustedShare, twoCpu)
-	assert.Equal(t, slices[q3].schedulingShare, fourCpu)
-	assert.Equal(t, slices[q3].adjustedShare, fourCpu)
+
+	assert.InDeltaMapValues(t, slices[q1].schedulingShare, twoCpu, 0.001)
+	assert.InDeltaMapValues(t, slices[q1].adjustedShare, twoCpu, 0.001)
+	assert.InDeltaMapValues(t, slices[q2].schedulingShare, twoCpu, 0.001)
+	assert.InDeltaMapValues(t, slices[q2].adjustedShare, twoCpu, 0.001)
+	assert.InDeltaMapValues(t, slices[q3].schedulingShare, fourCpu, 0.001)
+	assert.InDeltaMapValues(t, slices[q3].adjustedShare, fourCpu, 0.001)
 }
 
 func Test_SliceResourceWithLimits_SchedulingShareCorrespondsWithPriority(t *testing.T) {
