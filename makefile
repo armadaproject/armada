@@ -279,7 +279,7 @@ tests-e2e-setup: setup-cluster
 	docker run -d --name redis -p=6379:6379 --network=kind redis:6.2.6
 	docker run -d --name postgres --network=kind -p 5432:5432 -e POSTGRES_PASSWORD=psw postgres:14.2
 
-	scripts/pulsar.sh
+	bash scripts/pulsar.sh
 
 	sleep 30 # give dependencies time to start up
 	docker run -d --name server --network=kind -p=50051:50051 -p 8080:8080 -v ${PWD}/e2e:/e2e \
