@@ -1,0 +1,12 @@
+name: Run Python Linting and Unit Tests
+
+on:
+  push:
+    paths-ignore:
+      - 'client/python/**'
+
+jobs:
+  run-tox-format:
+    runs-on: ubuntu-latest
+    steps:
+      - run: 'echo "No python modified, not running python jobs"'

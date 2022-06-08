@@ -1,0 +1,18 @@
+name: Run Python Linting and Unit Tests
+
+on:
+  push:
+    paths:
+      - 'client/python/**'
+
+jobs:
+  run-tox-format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-python@v2
+      - name: Install tox
+        run: pip install tox
+      - name: Run tox format environment
+        run: tox -e format
+        working-directory: client/python
