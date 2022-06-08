@@ -1,9 +1,10 @@
 name: Run Python Linting and Unit Tests
 
-on:
-  push:
-    paths:
-      - 'client/python/**'
+on: [push]
+#on:
+#  push:
+#    paths:
+#      - 'client/python/**'
 
 jobs:
   run-tox:

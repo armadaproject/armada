@@ -6,7 +6,7 @@ on:
       - 'client/python/**'
 
 jobs:
-  run-tox-format:
+  run-tox:
     runs-on: ubuntu-latest
     steps:
       - run: 'echo "No python modified, not running python jobs"'
