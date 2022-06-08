@@ -4,13 +4,13 @@ import { IconButton, TableCell, TableRow, Link } from "@material-ui/core"
 import FileCopyOutlined from "@material-ui/icons/FileCopyOutlined"
 import validator from "validator"
 type DetailRowProps = {
-  detailKey?: string
+  detailRowKey?: string
   name: string
   value: string
   className?: string // Class to be applied to value <span> element
 }
 export default function DetailRow(props: DetailRowProps) {
-  const key = props.detailKey ? props.detailKey : props.name
+  const key = props.detailRowKey ? props.detailRowKey : props.name
   return (
     <TableRow key={key}>
       <TableCell className="field-label">{props.name}</TableCell>
