@@ -14,10 +14,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
+      # Generate the proto files for python
       - run: make python
       - uses: actions/setup-python@v2
         with:
           python-version: '3.9' # Version range or exact version of a Python version to use, using SemVer's version range syntax
+      # Use https://github.com/marketplace/actions/install-poetry-action for setting up poetry
       - name: Install Poetry
         uses: snok/install-poetry@v1
         with:
