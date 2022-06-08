@@ -38,12 +38,15 @@ jobs:
       # install dependencies if cache does not exist
       #----------------------------------------------
       - name: Install dependencies
+        working-directory: client/python
         if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
         run: poetry install --no-interaction --no-root
       #----------------------------------------------
       # install your root project, if required
       #----------------------------------------------
       - name: Install library
+        working-directory: client/python
+
         run: poetry install --no-interaction
       #----------------------------------------------
       - name: Run tox format environment
