@@ -25,21 +25,13 @@ def test_submit_job(queue):
         queue="test", job_set_id="job-set-1", job_request_items=submit_sleep_job()
     )
     # Jobs can must be finished before deleting queue
-    no_auth_client.cancel_jobs(queue='test', job_set_id="job-set-1")
+    no_auth_client.cancel_jobs(queue="test", job_set_id="job-set-1")
     time.sleep(1)
 
 
 def test_get_queue(queue):
     queue = no_auth_client.get_queue(name="test")
     assert queue.name == "test"
-
-
-def test_get_queue_fail():
-    try:
-        queue = no_auth_client.get_queue(name="test")
-        assert queue.name == "test"
-    except:
-        assert True
 
 
 def submit_sleep_job():
