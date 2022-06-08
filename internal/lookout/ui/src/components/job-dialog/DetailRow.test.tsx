@@ -1,7 +1,7 @@
 import React from "react"
 
 import { TableContainer, Table, TableBody } from "@material-ui/core"
-import { getByText, render, screen } from "@testing-library/react"
+import { render, screen } from "@testing-library/react"
 
 import DetailRow from "./DetailRow"
 function SetUpReactTable(name: string, value: string) {
@@ -30,6 +30,5 @@ describe("DetailRow", () => {
     const actual = SetUpReactTable("detail", "//google.org")
     render(actual)
     expect(screen.getByText("//google.org")).toBeInTheDocument()
-
   })
 })
