@@ -90,7 +90,7 @@ def test_update_queue():
     tester.update_queue(name="test", priority_factor=1)
 
 
-def test_reprioritize_jobs(server_mock):
+def test_reprioritize_jobs():
     tester.reprioritize_jobs(
         new_priority=1.0, job_ids="test", job_set_id="job_test_1", queue="test"
     )
