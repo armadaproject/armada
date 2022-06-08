@@ -106,6 +106,11 @@ message Queue {
 }
 
 // swagger:model
+message QueueList {
+    repeated Queue queues = 1;
+}
+
+// swagger:model
 message CancellationResult {
     repeated string cancelled_ids = 1 [(gogoproto.jsontag) = "cancelledIds"];
 }
@@ -137,6 +142,24 @@ message JobSetInfo {
     int32 leased_jobs = 3;
 }
 
+message QueueUpdateResponse {
+    Queue queue = 1;
+    string error = 2;
+}
+
+message BatchQueueUpdateResponse {
+    repeated QueueUpdateResponse failed_queues = 1;
+}
+
+message QueueCreateResponse {
+    Queue queue = 1;
+    string error = 2;
+}
+
+message BatchQueueCreateResponse {
+    repeated QueueCreateResponse failed_queues = 1;
+}
+
 service Submit {
     rpc SubmitJobs (JobSubmitRequest) returns (JobSubmitResponse) {
         option (google.api.http) = {
@@ -162,9 +185,21 @@ service Submit {
             body: "*"
         };
     }
+    rpc CreateQueues (QueueList) returns (BatchQueueCreateResponse) {
+        option(google.api.http) = {
+            post: "/v1/batched/create_queues"
+            body: "*"
+        };
+    }
     rpc UpdateQueue (Queue) returns (google.protobuf.Empty) {
         option (google.api.http) = {
             put: "/v1/queue/{name}"
+            body: "*"
+        };
+    }
+    rpc UpdateQueues (QueueList) returns (BatchQueueUpdateResponse) {
+        option (google.api.http) = {
+            put: "/v1/batched/update_queues"
             body: "*"
         };
     }
