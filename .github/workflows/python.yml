@@ -6,7 +6,7 @@ on:
       - 'client/python/**'
 
 jobs:
-  run-tox-format:
+  run-tox:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -15,4 +15,7 @@ jobs:
         run: pip install tox
       - name: Run tox format environment
         run: tox -e format
+        working-directory: client/python
+      - name: Run tox python 3.9 unit tests
+        run: tox -e py39
         working-directory: client/python

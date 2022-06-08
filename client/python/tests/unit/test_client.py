@@ -3,12 +3,26 @@ from armada_client.k8s.io.api.core.v1 import generated_pb2 as core_v1
 from armada_client.k8s.io.apimachinery.pkg.api.resource import (
     generated_pb2 as api_resource,
 )
-from armada_client.armada import (
-    submit_pb2,
-)
-
+from server_mock import EventService, SubmitService
 
 import grpc
+from concurrent import futures
+from armada_client.armada import submit_pb2_grpc, submit_pb2, event_pb2_grpc
+
+import pytest
+
+
+@pytest.fixture(scope="session", autouse=True)
+def server_mock():
+    server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+    submit_pb2_grpc.add_SubmitServicer_to_server(SubmitService(), server)
+    event_pb2_grpc.add_EventServicer_to_server(EventService(), server)
+    server.add_insecure_port("[::]:50051")
+    server.start()
+
+    yield
+    server.stop(False)
+
 
 channel = grpc.insecure_channel(target="127.0.0.1:50051")
 tester = ArmadaClient(
@@ -76,7 +90,7 @@ def test_update_queue():
     tester.update_queue(name="test", priority_factor=1)
 
 
-def test_reprioritize_jobs():
+def test_reprioritize_jobs(server_mock):
     tester.reprioritize_jobs(
         new_priority=1.0, job_ids="test", job_set_id="job_test_1", queue="test"
     )

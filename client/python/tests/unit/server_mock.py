@@ -1,5 +1,3 @@
-import grpc
-from concurrent import futures
 from google.protobuf import empty_pb2
 from armada_client.armada import submit_pb2_grpc, submit_pb2, event_pb2, event_pb2_grpc
 
@@ -33,16 +31,3 @@ class SubmitService(submit_pb2_grpc.SubmitServicer):
 class EventService(event_pb2_grpc.EventServicer):
     def Watch(self, request, context):
         return event_pb2.EventMessage()
-
-
-def serve():
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-    submit_pb2_grpc.add_SubmitServicer_to_server(SubmitService(), server)
-    event_pb2_grpc.add_EventServicer_to_server(EventService(), server)
-    server.add_insecure_port("[::]:50051")
-    server.start()
-    server.wait_for_termination()
-
-
-if __name__ == "__main__":
-    serve()
