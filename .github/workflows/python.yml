@@ -6,6 +6,7 @@ on:
       - 'client/python/**'
       - 'build/python-client/**'
       - 'pkg/api/*.proto'
+      - '.github/workflows/python.yml'
 
 
 jobs:
