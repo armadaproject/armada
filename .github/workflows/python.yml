@@ -6,11 +6,14 @@ on: [push]
 #    paths:
 #      - 'client/python/**'
 
+
 jobs:
   run-tox:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
+      - uses: ./.github/workflows/go-setup
+        run: make python
       - uses: actions/setup-python@v2
         with:
           python-version: '3.9' # Version range or exact version of a Python version to use, using SemVer's version range syntax
