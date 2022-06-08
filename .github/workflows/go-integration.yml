@@ -1,0 +1,90 @@
+on:
+  push:
+    branches-ignore:
+      - master
+  pull_request:
+    branches-ignore:
+      - gh-pages
+
+jobs:
+  # TODO: Make this work on github-hosted runners if secrets are not set
+  start-runner:
+    name: Start runner in EC2
+    runs-on: ubuntu-latest
+    outputs:
+      label: ${{ steps.start-ec2-runner.outputs.label }}
+      ec2-instance-id: ${{ steps.start-ec2-runner.outputs.ec2-instance-id }}
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+      - name: Start EC2 runner
+        id: start-ec2-runner
+        uses: machulav/ec2-github-runner@v2
+        with:
+          mode: start
+          github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+          ec2-image-id: ami-09bb1742250efb19f
+          ec2-instance-type: c3.2xlarge
+          subnet-id: subnet-01ac708e6543a418e
+          security-group-id: sg-061f1d862351daadc
+          aws-resource-tags: >
+            [
+              {"Key": "Name", "Value": "ec2-github-runner"},
+              {"Key": "GitHubRepository", "Value": "${{ github.repository }}"}
+            ]
+  go-integration-tests:
+      needs: start-runner
+      runs-on: ${{ needs.start-runner.outputs.label }}
+      strategy:
+        fail-fast: false
+        matrix:
+          go: [ '1.16', '1.18' ]
+      steps:
+        - uses: actions/checkout@v3
+        - uses: ./.github/workflows/go-setup
+        - uses: satackey/action-docker-layer-caching@v0.0.11
+          continue-on-error: true
+        # TODO(JayF): Consider moving parallelism to makefile or string interpolate out the make steps
+        #- name: make build-ci (parallel)
+        #  run: 'parallel --jobs 200% "make {}" ::: build-docker-server build-docker-executor build-docker-armadactl build-docker-armada-load-tester build-docker-fakeexecutor build-docker-lookout build-docker-lookout-ingester build-docker-binoculars build-armadactl build-armadactl-multiplatform build-load-tester'
+        - run: make build-ci
+        - run: make tests-e2e-setup
+        - name: Run make tests-e2e-no-setup
+          run: |
+            export INTEGRATION_ENABLED=true
+            make tests-e2e-no-setup
+        - run: make tests-e2e-teardown
+        - run: make junit-report
+        - name: Upload junit report
+          uses: actions/upload-artifact@v2.2.4
+          with:
+            name: junit.xml
+            path: test_reports/junit.xml
+  stop-runner:
+      name: Stop self-hosted runner
+      needs:
+        - start-runner
+        - go-integration-tests
+      runs-on: ubuntu-latest
+      if: ${{ always() }}
+      steps:
+        - name: Configure AWS credentials
+          uses: aws-actions/configure-aws-credentials@v1
+          with:
+            aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+            aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+            aws-region: ${{ secrets.AWS_REGION }}
+        - name: Stop EC2 runner
+          uses: machulav/ec2-github-runner@v2
+          with:
+            mode: stop
+            github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+            label: ${{ needs.start-runner-outputs.label }}
+            ec2-instance-id: ${{ needs.start-runner-outputs.ec2-instance-id }}
+
+
+

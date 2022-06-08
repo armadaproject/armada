@@ -51,3 +51,33 @@ jobs:
         with:
           name: junit.xml
           path: test_reports/junit.xml
+  go-integration-tests:
+      runs-on: ubuntu-latest
+      strategy:
+        fail-fast: false
+        matrix:
+          go: [ '1.16', '1.18' ]
+      steps:
+        - uses: actions/checkout@v3
+        - uses: ./.github/workflows/go-setup
+        - uses: satackey/action-docker-layer-caching@v0.0.11
+          continue-on-error: true
+        # TODO(JayF): Consider moving parallelism to makefile or string interpolate out the make steps
+        #- name: make build-ci (parallel)
+        #  run: 'parallel --jobs 200% "make {}" ::: build-docker-server build-docker-executor build-docker-armadactl build-docker-armada-load-tester build-docker-fakeexecutor build-docker-lookout build-docker-lookout-ingester build-docker-binoculars build-armadactl build-armadactl-multiplatform build-load-tester'
+        - run: make build-ci
+        - run: make tests-e2e-setup
+        - name: Run make tests-e2e-no-setup
+          run: |
+            export INTEGRATION_ENABLED=true
+            make tests-e2e-no-setup
+        - run: make tests-e2e-teardown
+        - run: make junit-report
+        - name: Upload junit report
+          uses: actions/upload-artifact@v2.2.4
+          with:
+            name: junit.xml
+            path: test_reports/junit.xml
+
+
+

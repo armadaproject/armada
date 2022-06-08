@@ -4,10 +4,12 @@ description: "Sets up go environment and installs deps for go testing of armada"
 runs:
   using: "composite"
   steps:
+    # By setting cache:true, it enables caching of go modules, as long as the
+    # hash of the go.sum file remains the same.
     - uses: actions/setup-go@v3
       with:
         go-version: ${{ matrix.go }}
         cache: true
-    - name: Setup dependencies
+    - name: Run make download
       shell: bash
       run: make download
