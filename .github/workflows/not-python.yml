@@ -4,6 +4,8 @@ on:
   push:
     paths-ignore:
       - 'client/python/**'
+      - 'build/python-client/**'
+      - 'pkg/api/*.proto'
 
 jobs:
   run-tox:
