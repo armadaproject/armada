@@ -7,5 +7,6 @@ auth:
     enableAuthentication: false
   anonymousAuth: true
 impersonateUsers: false
-k8sQPS: 10000
-k8sBurst: 10000
+kubernetes:
+  QPS: 10000
+  Burst: 10000
