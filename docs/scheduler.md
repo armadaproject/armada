@@ -1,8 +1,8 @@
 # Scheduler
 
-This document outlines the proposed Armada scheduler. The existing scheduler will be deprecated in favour of the one described here during 2022. This is work in progress; everything herein is subject to change.
+This document outlines the proposed Armada scheduler; the existing scheduler will be deprecated in favour of the one described here. This is work in progress; everything herein is subject to change.
 
-The purpose this new scheduler is to improve fairness and throughput, to more effectively schedule large and distributed jobs, and to provide a way of running systems with dynamically changing resource requirements (e.g., Spark clusters) via Armada.
+The purpose this new scheduler is to improve fairness and throughput, to more effectively schedule large and distributed jobs, and to provide a way of running workloads with dynamically changing resource requirements (e.g., Spark clusters) via Armada.
 
 ## Armada architecture
 
@@ -20,13 +20,19 @@ Armada jobs are created by submitting a job specification to the Armada server, 
 
 ### Distributed jobs
 
-Distributed jobs are represented as [PodGroups](https://github.com/kubernetes-sigs/scheduler-plugins/blob/master/kep/42-podgroup-coscheduling/README.md) in Armada. PodGroups are designed to support modern distributed machine learning jobs, which may consist of one or more coordinator nodes, elastic pools of worker nodes, and long-lived auxiliary services, e.g., for recording profiling information. Each PodGroup is a bag of cooperating pods and the pods that make up a `PodGroup` are scheduled jointly using a gang-scheduling algorithm. 
+Distributed jobs are represented as [PodGroups](https://github.com/kubernetes-sigs/scheduler-plugins/blob/master/kep/42-podgroup-coscheduling/README.md) in Armada. PodGroups are designed to support modern distributed machine learning jobs, which may consist of one or more coordinator nodes, elastic pools of worker nodes, and long-lived auxiliary services, e.g., for recording profiling information. Each PodGroup is a bag of cooperating pods and the pods that make up a `PodGroup` are scheduled jointly using a gang-scheduling algorithm.
 
 Similar to [kube-batch](https://github.com/kubernetes-sigs/kube-batch) and [Volcano](https://volcano.sh/en/docs/podgroup/), the gang-scheduling algorithm is implemented as a [custom Kubernetes scheduler](https://kubernetes.io/docs/tasks/extend-kubernetes/configure-multiple-schedulers/). Further, gang-scheduling is based on reserving entire nodes for the pods that make up a distributed job. 
 
 The pods that make up each PodGroup are grouped into sub-groups consisting of identical pods (i.e., are composed of the same images run with the same arguments). Each such sub-group specifies a minimum and maximum number of pods, and the sub-group is schedulable when the minimum number of pods can be created. If additional resources are available, pods are created up to the maximum (i.e., sub-groups are elastic). The PodGroup is schedulable when all sub-groups are schedulable.
 
-Distributed jobs may be preempted both in part and entirely. In particular, Armada will first preempt any pods above the minimum required for the job (as specified by the PodGroup). These pods may later be re-created if additional resources become available (i.e., these jobs are elastic). If not sufficient, Armada may preempt additional pods. If the number of running pods drops below the minimum, all remaining pods are immediately preempted.
+#### Preemption
+
+Distributed jobs may be preempted both in part and entirely. In particular, Armada will first preempt any pods above the minimum required for the job (as specified by the PodGroup). These pods may later be re-created if additional resources become available (i.e., these jobs are elastic). If not sufficient, Armada may preempt additional pods. If the number of running pods drops below the minimum for some some-group, all remaining pods are immediately preempted.
+
+#### Topology-aware scheduling
+
+For some classes of distributed workloads (e.g., distributed learning), performance is heavily influenced by inter-pod latency. Hence, Armada allows users to request pods to be scheduled in close proximity within the network. Specifically, cluster networks are typically configured as fat trees (sometimes referred to as [Clos networks](https://en.wikipedia.org/wiki/Clos_network)), and Armada tries to minimise the maximum number of hops between any two pods within each sub-group. Users may also constrain the maximum number of such hops. This feature is implemented in a manner similar to Kubernetes [pod topology spread constraints](https://kubernetes.io/docs/concepts/workloads/pods/pod-topology-spread-constraints/).
 
 ### Elasticity and dynamic resource creation
 
@@ -36,10 +42,6 @@ Armada supports workflows that require a dynamically changing amount of resource
 - An "operator" job is submitted to Armada (e.g., corresponding to a Spark cluster manager) that can request additional resources from Armada (e.g., to run additional pods) by submitting further Armada jobs and can release resources by cancelling jobs. The operator may do so either via the Armada job submission API (in which case the operator has to be Armada-aware) or via a special set of Kubernets API endpoints that translate resource creation and deletion commands into Armada job submissions and cancellations, respectively (in which case the operator does not need to be Armada-aware).
 
 In this way, Armada is in control of all resource creation and can manage cluster resources effectively.
-
-### Preemption
-
-
 
 ## Scheduler architecture
 
