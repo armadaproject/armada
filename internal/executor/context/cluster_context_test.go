@@ -24,6 +24,7 @@ import (
 	util2 "github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/executor/configuration"
 	"github.com/G-Research/armada/internal/executor/domain"
+	"github.com/G-Research/armada/internal/executor/healthmonitor"
 	"github.com/G-Research/armada/internal/executor/util"
 )
 
@@ -42,10 +43,16 @@ func setupTestWithMinRepeatedDeletePeriod(minRepeatedDeletePeriod time.Duration)
 	client := fake.NewSimpleClientset()
 	clientProvider := &FakeClientProvider{FakeClient: client}
 
+	fakeEtcdHealthMonitor := &healthmonitor.FakeEtcdLimitHealthMonitor{
+		IsWithinHardLimit: true,
+		IsWithinSoftLimit: true,
+	}
+
 	clusterContext := NewClusterContext(
 		configuration.ApplicationConfiguration{ClusterId: "test-cluster-1", Pool: "pool", DeleteConcurrencyLimit: 1},
 		minRepeatedDeletePeriod,
 		clientProvider,
+		fakeEtcdHealthMonitor,
 	)
 
 	return clusterContext, clientProvider
@@ -621,6 +628,26 @@ func TestKubernetesClusterContext_GetNodes(t *testing.T) {
 		return len(nodes) > 0 && nodes[0].Name == node.Name
 	})
 	assert.True(t, nodeFound)
+}
+
+func TestKubernetesClusterContext_Submit_BlocksOnEtcdReachingHardLimit(t *testing.T) {
+	clusterContext, _ := setupTestWithProvider()
+	unhealthyEtcdHeathMonitor := &healthmonitor.FakeEtcdLimitHealthMonitor{
+		IsWithinSoftLimit: false,
+		IsWithinHardLimit: false,
+	}
+	clusterContext.etcdHealthMonitor = unhealthyEtcdHeathMonitor
+
+	_, err := clusterContext.SubmitPod(createBatchPod(), "user", []string{})
+	assert.Error(t, err)
+}
+
+func TestKubernetesClusterContext_Submit_HandlesNoEtcdHealthMonitor(t *testing.T) {
+	clusterContext, _ := setupTestWithProvider()
+	clusterContext.etcdHealthMonitor = nil
+
+	_, err := clusterContext.SubmitPod(createBatchPod(), "user", []string{})
+	assert.NoError(t, err)
 }
 
 func TestKubernetesClusterContext_Submit_UseUserSpecificClient(t *testing.T) {

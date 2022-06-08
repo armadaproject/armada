@@ -35,6 +35,12 @@ ifeq ($(DOCKER_GOPATH),)
 	DOCKER_GOPATH = .go
 endif
 
+ifeq ($(platform),Darwin)
+	DOCKER_NET =
+else
+	DOCKER_NET = --network=host
+endif
+
 # For reproducibility, run build commands in docker containers with known toolchain versions.
 # INTEGRATION_ENABLED=true is needed for the e2e tests.
 #
@@ -52,7 +58,7 @@ endif
 DOCKER_GOPATH_TOKS := $(subst :, ,$(DOCKER_GOPATH:v%=%))
 DOCKER_GOPATH_DIR = $(word 1,$(DOCKER_GOPATH_TOKS))
 
-GO_CMD = docker run --rm -v ${PWD}:/go/src/armada -w /go/src/armada --network=host \
+GO_CMD = docker run --rm -v ${PWD}:/go/src/armada -w /go/src/armada $(DOCKER_NET) \
 	-e GOPROXY -e GOPRIVATE -e INTEGRATION_ENABLED=true -e CGO_ENABLED=0 -e GOOS=linux -e GARCH=amd64 \
 	-v $(DOCKER_GOPATH_DIR):/go \
 	golang:1.16-buster
@@ -214,12 +220,10 @@ tests-no-setup:
 .ONESHELL:
 tests:
 	mkdir -p test_reports
-	docker run -d --name=redis --network=host -p=6379:6379 redis:6.2.6
-	docker run -d --name=postgres --network=host -p 5432:5432 -e POSTGRES_PASSWORD=psw postgres:14.2
-	function tearDown {
-		docker rm -f redis postgres
-	}
-	trap tearDown EXIT
+	docker run -d --name=redis $(DOCKER_NET) -p=6379:6379 redis:6.2.6
+	docker run -d --name=postgres $(DOCKER_NET) -p 5432:5432 -e POSTGRES_PASSWORD=psw postgres:14.2
+	sleep 3
+	function tearDown { docker rm -f redis postgres; }; trap tearDown EXIT
 	$(GO_TEST_CMD) go test -v ./internal... 2>&1 | tee test_reports/internal.txt
 	$(GO_TEST_CMD) go test -v ./pkg... 2>&1 | tee test_reports/pkg.txt
 	$(GO_TEST_CMD) go test -v ./cmd... 2>&1 | tee test_reports/cmd.txt
@@ -304,6 +308,13 @@ tests-e2e-setup: setup-cluster
 
 .ONESHELL:
 tests-e2e-no-setup:
+	function printApplicationLogs {
+		echo -e "\nexecutor logs:"
+		docker logs executor
+		echo -e "\nserver logs:"
+		docker logs server
+	}
+	trap printApplicationLogs exit
 	mkdir -p test_reports
 	$(GO_TEST_CMD) go test -v ./e2e/armadactl_test/... -count=1 2>&1 | tee test_reports/e2e_armadactl.txt
 	$(GO_TEST_CMD) go test -v ./e2e/basic_test/... -count=1 2>&1 | tee test_reports/e2e_basic.txt
