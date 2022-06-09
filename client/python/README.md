@@ -23,9 +23,10 @@ In the repo level, run `make python`
     - Package is defined by pyproject.toml
     - `poetry install` will pull dependencies and install based on pyproject.toml
 3) tox
-    - `poetry run tox -e format` will format/lint your code according to default black settings and flake8
+    - `poetry run tox -e format` will check formating/linter for your code according to default black settings and flake8
     - `poetry run tox -e py39` will run unit tests with your default python 3.9 environment
-
+4) Auto formatting
+    - `poetry run tox -e format-code` will run black formatter on client and testing code.
 ## CI
 
 We use tox for running our formatting and testing jobs in github actions.
