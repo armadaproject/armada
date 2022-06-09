@@ -1,4 +1,4 @@
-Python Client For Armada
+# Armada Python client
 
 ## Overview
 
