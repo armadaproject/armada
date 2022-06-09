@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strings"
 	"text/tabwriter"
 	"time"
 
@@ -16,7 +15,10 @@ import (
 
 	"github.com/G-Research/armada/internal/common/armadaerrors"
 	"github.com/G-Research/armada/internal/testsuite/build"
+	"github.com/G-Research/armada/internal/testsuite/eventlogger"
+	"github.com/G-Research/armada/internal/testsuite/eventsplitter"
 	"github.com/G-Research/armada/internal/testsuite/eventwatcher"
+	"github.com/G-Research/armada/internal/testsuite/submitter"
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/client"
 	"github.com/G-Research/armada/pkg/client/domain"
@@ -125,191 +127,112 @@ func (a *App) Submit(config *SubmitConfig) error {
 		return err
 	}
 
+	// Optional
+	// ctx := context.Background()
 	ctx, cancel := context.WithCancel(context.Background())
 	if config.Timeout != 0 {
-		ctx, cancel = context.WithDeadline(context.Background(), time.Now().Add(config.Timeout))
+		ctx, cancel = context.WithTimeout(ctx, config.Timeout)
 	}
+
+	// Channels for each downstream system.
+	logCh := make(chan *api.EventMessage)
+	noActiveCh := make(chan *api.EventMessage)
+	failedCh := make(chan *api.EventMessage)
+	assertCh := make(chan *api.EventMessage)
+
+	// Setup ctx to cancel on any job failing and on no active jobs.
+	ctx = eventwatcher.WithCancelOnFailed(ctx, failedCh)
+	ctx = eventwatcher.WithCancelOnNoActiveJobs(ctx, noActiveCh)
+
 	g, ctx := errgroup.WithContext(ctx)
 
 	// Goroutine for receiving events.
-	// Sends events on eventChannel.
 	watcher := eventwatcher.New(config.JobFile.Queue, config.JobFile.JobSetId, a.Params.ApiConnectionDetails)
 	g.Go(func() error { return watcher.Run(ctx) })
 
-	// eventChannel := make(chan *api.EventMessage)
-	// g.Go(func() error {
-	// 	return client.WithEventClient(a.Params.ApiConnectionDetails, func(c api.EventClient) error {
-	// 		stream, err := c.GetJobSetEvents(ctx, &api.JobSetRequest{
-	// 			Id:    config.JobFile.JobSetId,
-	// 			Queue: config.JobFile.Queue,
-	// 			Watch: true,
-	// 		})
-	// 		if err != nil {
-	// 			return err
-	// 		}
+	// Split the events into multiple channels, one for each downstream service.
+	// noActiveCh and failedCh must come last, since they cancel the context.
+	splitter := eventsplitter.New(watcher.C, []chan *api.EventMessage{assertCh, logCh, noActiveCh, failedCh}...)
+	g.Go(func() error { return splitter.Run(ctx) })
 
-	// 		for {
-	// 			msg, err := stream.Recv()
-	// 			if err == io.EOF {
-	// 				return nil
-	// 			} else if err != nil {
-	// 				return err
+	// Log periodically.
+	eventLogger := eventlogger.New(logCh, 5*time.Second)
+	g.Go(func() error { return eventLogger.Run(ctx) })
+
+	// Submit jobs
+	submitter := &submitter.Submitter{
+		ApiConnectionDetails: a.Params.ApiConnectionDetails,
+		JobFile:              config.JobFile,
+		NumBatches:           config.NumBatches,
+		BatchSize:            config.BatchSize,
+		Interval:             config.Interval,
+	}
+	err := submitter.Run(ctx)
+	if err != nil {
+		return err
+	}
+
+	jobIds := submitter.JobIds()
+	expected := []*api.EventMessage{
+		{Events: &api.EventMessage_Submitted{}},
+		{Events: &api.EventMessage_Succeeded{}},
+	}
+	jobIdMap := make(map[string]interface{})
+	for _, jobId := range jobIds {
+		jobIdMap[jobId] = ""
+	}
+
+	err = eventwatcher.AssertEvents(ctx, assertCh, jobIdMap, expected)
+	if err != nil {
+		return err
+	}
+	cancel()
+
+	// // Goroutine responsible for submitting jobs.
+	// // Sends the ids of submitted jobs on a channel.
+	// req := &api.JobSubmitRequest{
+	// 	Queue:    config.JobFile.Queue,
+	// 	JobSetId: config.JobFile.JobSetId,
+	// }
+	// for i := 0; i < int(config.BatchSize); i++ {
+	// 	req.JobRequestItems = append(req.JobRequestItems, config.JobFile.Jobs...)
+	// }
+	// g.Go(func() error {
+	// 	fmt.Println("Submitter started")
+	// 	defer fmt.Println("Submitter stopped")
+	// 	var numBatchesSent uint
+	// 	return client.WithSubmitClient(a.Params.ApiConnectionDetails, func(c api.SubmitClient) error {
+	// 		ticker := time.NewTicker(config.Interval)
+	// 		defer ticker.Stop()
+	// 		for config.NumBatches == 0 || numBatchesSent < config.NumBatches {
+	// 			select {
+	// 			case <-ticker.C:
+	// 				_, err := c.SubmitJobs(ctx, req)
+	// 				if err != nil {
+	// 					return errors.WithStack(errors.WithMessage(err, "error submitting jobs"))
+	// 				}
+	// 				numBatchesSent++
+	// 			case <-ctx.Done():
+	// 				return ctx.Err()
 	// 			}
-	// 			eventChannel <- msg.Message
 	// 		}
+	// 		return nil
 	// 	})
 	// })
 
-	// Goroutine responsible for submitting jobs.
-	// Sends the ids of submitted jobs on a channel.
-	req := &api.JobSubmitRequest{
-		Queue:    config.JobFile.Queue,
-		JobSetId: config.JobFile.JobSetId,
-	}
-	for i := 0; i < int(config.BatchSize); i++ {
-		req.JobRequestItems = append(req.JobRequestItems, config.JobFile.Jobs...)
-	}
-	submitChannel := make(chan string)
-	g.Go(func() error {
-		var numBatchesSent uint
-		return client.WithSubmitClient(a.Params.ApiConnectionDetails, func(c api.SubmitClient) error {
-			ticker := time.NewTicker(config.Interval)
-			defer ticker.Stop()
-			for config.NumBatches == 0 || numBatchesSent < config.NumBatches {
-				select {
-				case <-ticker.C:
-					res, err := c.SubmitJobs(ctx, req)
-					if err != nil {
-						return errors.WithStack(errors.WithMessage(err, "error submitting jobs"))
-					}
+	// Wait for ctx to be cancelled or time out.
+	// <-ctx.Done()
 
-					// Send the ids.
-					for _, item := range res.JobResponseItems {
-						submitChannel <- item.JobId
-					}
-					numBatchesSent++
-				case <-ctx.Done():
-					return ctx.Err()
-				}
-			}
-			return nil
-		})
-	})
-
-	// Log periodically.
-	transitionsByJobId := make(map[string][]string)
-	g.Go(func() error {
-		ticker := time.NewTicker(5 * time.Second)
-		defer ticker.Stop()
-		defer cancel()
-
-		numTotalJobs := len(req.JobRequestItems)
-		numTotalSucceded := 0
-		numTotalFailed := 0
-
-		intervalTransitionsByJobId := make(map[string][]string)
-		numSubmitted := 0
-		numSucceded := 0
-		numFailed := 0
-		numActive := 0
-
-		for numTotalFailed+numTotalSucceded < numTotalJobs {
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case <-ticker.C: // Print a summary of what happened in this interval.
-				if len(intervalTransitionsByJobId) == 0 {
-					break
-				}
-
-				numActive += numSubmitted
-				numActive -= numSucceded + numFailed
-
-				// For each job for which we already have some state transitions,
-				// add the most recent state to the state transitions seen in this interval.
-				// This makes is more clear what's going on.
-				continuedTransitionsByJobId := make(map[string][]string)
-				for jobId, transitions := range intervalTransitionsByJobId {
-					if previousTransitions := transitionsByJobId[jobId]; len(previousTransitions) > 0 {
-						previousState := previousTransitions[len(previousTransitions)-1]
-						continuedTransitionsByJobId[jobId] = append([]string{previousState}, transitions...)
-					} else {
-						continuedTransitionsByJobId[jobId] = transitions
-					}
-				}
-
-				// Print the number of jobs for each unique sequence of state transitions.
-				for transitions, counts := range countJobsByTransitions(continuedTransitionsByJobId) {
-					fmt.Printf("%d:\t%s\n", counts, transitions)
-				}
-				fmt.Println() // Indicates the end of the interval.
-				// fmt.Printf("> %d active jobs (%d submitted, %d succeded, and %d failed in interval)\n\n", numActive, numSubmitted, numSucceded, numFailed)
-
-				// Move transitions over to the global map and reset the interval map.
-				for jobId, transitions := range intervalTransitionsByJobId {
-					transitionsByJobId[jobId] = append(transitionsByJobId[jobId], transitions...)
-				}
-				intervalTransitionsByJobId = make(map[string][]string)
-
-				numTotalSucceded += numSucceded
-				numTotalFailed += numFailed
-
-				fmt.Println("succeeded", numTotalSucceded, "failed", numTotalFailed)
-
-				numSubmitted = 0
-				numSucceded = 0
-				numFailed = 0
-
-			case e := <-watcher.C: // Jobset event received.
-				if e == nil {
-					break
-				}
-
-				jobId := jobIdFromApiEvent(e)
-				s := shortStringFromApiEvent(e)
-				intervalTransitionsByJobId[jobId] = append(intervalTransitionsByJobId[jobId], s)
-				if isSubmittedEvent(e) {
-					numSubmitted++
-				}
-				if isSuccededEvent(e) {
-					numSucceded++
-				}
-				if isFailedEvent(e) {
-					numFailed++
-				}
-			case jobId := <-submitChannel:
-				intervalTransitionsByJobId[jobId] = append(intervalTransitionsByJobId[jobId], "SubmitSent")
-			}
-		}
-		return nil
-	})
-
+	fmt.Println("Waiting for errgroup")
 	if err := g.Wait(); err != context.DeadlineExceeded && err != context.Canceled && err != nil {
 		log.WithError(err).Error("error submitting jobs or receiving events: %s", err)
 	}
+	fmt.Println("Errgroup cancelled")
 
-	fmt.Println("Global count")
-	for transitions, counts := range countJobsByTransitions(transitionsByJobId) {
-		fmt.Printf("%d:\t%s\n", counts, transitions)
-	}
+	fmt.Println("All transitions")
+	eventLogger.Log()
+
 	return nil
-}
-
-// countJobsByTransitions returns a map from sequences of transitions,
-// e.g., "submitted -> queued" to the number of jobs going through exactly those transitions.
-func countJobsByTransitions(transitionsByJobId map[string][]string) map[string]int {
-	numJobsFromEventSequence := make(map[string]int)
-	for _, events := range transitionsByJobId {
-		eventSequence := strings.Join(events, " -> ")
-		numJobsFromEventSequence[eventSequence]++
-	}
-	return numJobsFromEventSequence
-}
-
-func shortStringFromApiEvent(msg *api.EventMessage) string {
-	s := stringFromApiEvent(msg)
-	s = strings.ReplaceAll(s, "*api.EventMessage_", "")
-	return s
 }
 
 func isSubmittedEvent(msg *api.EventMessage) bool {
@@ -344,52 +267,4 @@ func isTerminalEvent(msg *api.EventMessage) bool {
 		return true
 	}
 	return false
-}
-
-func stringFromApiEvent(msg *api.EventMessage) string {
-	return fmt.Sprintf("%T", msg.Events)
-}
-
-func jobIdFromApiEvent(msg *api.EventMessage) string {
-	switch e := msg.Events.(type) {
-	case *api.EventMessage_Submitted:
-		return e.Submitted.JobId
-	case *api.EventMessage_Queued:
-		return e.Queued.JobId
-	case *api.EventMessage_DuplicateFound:
-		return e.DuplicateFound.JobId
-	case *api.EventMessage_Leased:
-		return e.Leased.JobId
-	case *api.EventMessage_LeaseReturned:
-		return e.LeaseReturned.JobId
-	case *api.EventMessage_LeaseExpired:
-		return e.LeaseExpired.JobId
-	case *api.EventMessage_Pending:
-		return e.Pending.JobId
-	case *api.EventMessage_Running:
-		return e.Running.JobId
-	case *api.EventMessage_UnableToSchedule:
-		return e.UnableToSchedule.JobId
-	case *api.EventMessage_Failed:
-		return e.Failed.JobId
-	case *api.EventMessage_Succeeded:
-		return e.Succeeded.JobId
-	case *api.EventMessage_Reprioritized:
-		return e.Reprioritized.JobId
-	case *api.EventMessage_Cancelling:
-		return e.Cancelling.JobId
-	case *api.EventMessage_Cancelled:
-		return e.Cancelled.JobId
-	case *api.EventMessage_Terminated:
-		return e.Terminated.JobId
-	case *api.EventMessage_Utilisation:
-		return e.Utilisation.JobId
-	case *api.EventMessage_IngressInfo:
-		return e.IngressInfo.JobId
-	case *api.EventMessage_Reprioritizing:
-		return e.Reprioritizing.JobId
-	case *api.EventMessage_Updated:
-		return e.Updated.JobId
-	}
-	return ""
 }
