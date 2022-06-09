@@ -21,7 +21,7 @@ Prerequisites:
     - poetry run pylint will lint your code
 
 
-# Unit Tests
+## Testing
 gRPC requires a server to start so our unit tests are not true unit tests.  We start a grpc server and then our unit tests run against that server.
 
 Run tests/run/server in one shell.
