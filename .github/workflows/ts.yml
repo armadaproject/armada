@@ -3,7 +3,6 @@ on:
     paths:
       - 'internal/lookout/ui/**'
       - 'build/lookout/**'
-      - 'pkg/api/*.proto'
       - '.github/workflows/ts.yml'
 
 jobs:
