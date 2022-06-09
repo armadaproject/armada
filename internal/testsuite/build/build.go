@@ -1,3 +1,4 @@
+// Package build info
 package build
 
 var BuildTime string
