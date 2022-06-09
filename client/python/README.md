@@ -10,23 +10,33 @@ We expose the public rpc calls from submit.proto and event.proto.
 ## Build
 Prerequisites:
 
+For building the python client:
+In the repo level, run `make python`
+`cd client/python`
+`poetry install`
+
 1) pyenv
     - Sets up local python environment for supporting multiple python environments
 2) poetry
     - Package is defined by pyproject.toml
-    - poetry install will pull dependencies and install based on pyproject.toml
+    - `poetry install` will pull dependencies and install based on pyproject.toml
 3) formatting
-    - poetry run black will format your code according to default black settings
-    - poetry run pylint will lint your code
+    - `poetry run black` will format your code according to default black settings
+    - `poetry run pylint` will lint your code
+4) Unit Testing
+    - `poetry run pytest tests/unit`
+
+## CI
+
+We use tox for running our formatting and testing jobs in github actions.
 
 ## Testing
 
 # Unit Tests
-gRPC requires a server to start so our unit tests are not true unit tests.  We start a grpc server and then our unit tests run against that server.
 
-Run tests/run/server in one shell.
+`poetry run pytest tests/unit/test_client.py`
 
-Run tests/run_unit.sh in another shell to unit test the client.
+This is just a simple test that starts a grpc server in the background and verifies that we can call the client.  
 
 # Integration Tests
 
