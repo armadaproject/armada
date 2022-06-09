@@ -6,7 +6,6 @@ Python client wrapping the gRPC services defined in `submit.proto` and `events.p
 - submitting, cancelling, and reprioritising jobs, and
 - watching for job events.
 
-We expose the public rpc calls from submit.proto and event.proto.
 
 
 ## Build
