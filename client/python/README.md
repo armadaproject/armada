@@ -18,14 +18,13 @@ In the repo level, run `make python`
 
 1) pyenv
     - Sets up local python environment for supporting multiple python environments
+    - Set up a local python 3.9 environment 
 2) poetry
     - Package is defined by pyproject.toml
     - `poetry install` will pull dependencies and install based on pyproject.toml
-3) formatting
-    - `poetry run black` will format your code according to default black settings
-    - `poetry run pylint` will lint your code
-4) Unit Testing
-    - `poetry run pytest tests/unit`
+3) tox
+    - `poetry run tox -e format` will format/lint your code according to default black settings and flake8
+    - `poetry run tox -e py39` will run unit tests with your default python 3.9 environment
 
 ## CI
 
