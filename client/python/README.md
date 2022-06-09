@@ -1,6 +1,5 @@
 # Armada Python client
 
-## Overview
 
 The python client wraps the gRPC api from events.proto and submit.proto.  
 
