@@ -1,10 +1,11 @@
-Python Client For Armada
+# Armada Python client
 
-## Overview
 
-The python client wraps the gRPC api from events.proto and submit.proto.  
+Python client wrapping the gRPC services defined in `submit.proto` and `events.proto`; allows for
 
-We expose the public rpc calls from submit.proto and event.proto.
+- submitting, cancelling, and reprioritising jobs, and
+- watching for job events.
+
 
 
 ## Build
@@ -30,18 +31,11 @@ In the repo level, run `make python`
 
 We use tox for running our formatting and testing jobs in github actions.
 
-## Testing
 
-# Unit Tests
+## Testing
+gRPC requires a server to start so our unit tests are not true unit tests.  We start a grpc server and then our unit tests run against that server.
 
 `poetry run pytest tests/unit/test_client.py`
 
 This is just a simple test that starts a grpc server in the background and verifies that we can call the client.  
-
-# Integration Tests
-
-A design decision we made is allow users of the client to plug their own grpc channels into the class.  This allows one to inject auth/ssl into the client but does not require any code on our part for handling authentication.  
-
-tests/integration has some examples of how to use it with basic and no auth.  
-
 
