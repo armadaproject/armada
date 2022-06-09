@@ -1,7 +1,10 @@
 # Armada Python client
 
 
-The python client wraps the gRPC api from events.proto and submit.proto.  
+Python client wrapping the gRPC services defined in `submit.proto` and `events.proto`; allows for
+
+- submitting, cancelling, and reprioritising jobs, and
+- watching for job events.
 
 We expose the public rpc calls from submit.proto and event.proto.
 
