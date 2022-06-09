@@ -1,0 +1,47 @@
+on: [push]
+
+jobs:
+  go-lint:
+    # TODO(JayF): Configure this to only run when golang code has changed
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        go: [ '1.16', '1.18' ]
+    steps:
+      - uses: actions/checkout@v3
+      - uses: ./.github/workflows/go-setup
+
+      - name: make code-checks
+        run: make code-checks
+
+      # TODO(JayF): Consider moving this into its own step, that runs under a larger set of circumstances
+      #             since it's possible for this to fail without any go changes being made.
+      - name: Validate no changes in generated proto files
+        run: |
+          make proto
+          make dotnet
+          git status -s -uno
+          git --no-pager diff
+          exit $(git status -s -uno | wc -l)
+  go-unit-tests:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        go: [ '1.16', '1.18' ]
+    steps:
+      - uses: actions/checkout@v3
+      - uses: ./.github/workflows/go-setup
+
+      - name: make tests
+        run: make tests
+
+      - name: make junit-report
+        run: make junit-report
+
+      - name: Upload junit report
+        uses: actions/upload-artifact@v2.2.4
+        with:
+          name: junit.xml
+          path: test_reports/junit.xml
