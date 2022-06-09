@@ -20,7 +20,6 @@ Prerequisites:
     - poetry run black will format your code according to default black settings
     - poetry run pylint will lint your code
 
-## Testing
 
 # Unit Tests
 gRPC requires a server to start so our unit tests are not true unit tests.  We start a grpc server and then our unit tests run against that server.
