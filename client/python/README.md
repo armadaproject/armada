@@ -28,10 +28,3 @@ Run tests/run/server in one shell.
 
 Run tests/run_unit.sh in another shell to unit test the client.
 
-# Integration Tests
-
-A design decision we made is allow users of the client to plug their own grpc channels into the class.  This allows one to inject auth/ssl into the client but does not require any code on our part for handling authentication.  
-
-tests/integration has some examples of how to use it with basic and no auth.  
-
-
