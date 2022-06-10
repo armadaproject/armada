@@ -9,20 +9,20 @@ import (
 	"github.com/G-Research/armada/internal/common/auth/permission"
 )
 
-const TestSubmitPermission permission.Permission = "TestSubmitPermission"
+const TestSubmitJobsPermission permission.Permission = "submit_jobs"
 
 func TestPrincipalPermissionChecker_UserHavePermission(t *testing.T) {
 
 	checker := NewPrincipalPermissionChecker(
-		map[permission.Permission][]string{TestSubmitPermission: {"submitterGroup", "admin"}},
+		map[permission.Permission][]string{TestSubmitJobsPermission: {"submitterGroup", "adminGroup"}},
 		map[permission.Permission][]string{},
 		map[permission.Permission][]string{})
 
-	admin := NewStaticPrincipal("me", []string{"admin"})
-	submitter := NewStaticPrincipal("me", []string{"submitterGroup"})
-	otherUser := NewStaticPrincipal("me", []string{"test"})
+	admin := NewStaticPrincipal("admin", []string{"adminGroup"})
+	submitter := NewStaticPrincipal("submitter", []string{"submitterGroup"})
+	otherUser := NewStaticPrincipal("otherUser", []string{"someUnimportantGroup"})
 
-	assert.True(t, checker.UserHasPermission(WithPrincipal(context.Background(), admin), TestSubmitPermission))
-	assert.True(t, checker.UserHasPermission(WithPrincipal(context.Background(), submitter), TestSubmitPermission))
-	assert.False(t, checker.UserHasPermission(WithPrincipal(context.Background(), otherUser), TestSubmitPermission))
+	assert.True(t, checker.UserHasPermission(WithPrincipal(context.Background(), admin), TestSubmitJobsPermission))
+	assert.True(t, checker.UserHasPermission(WithPrincipal(context.Background(), submitter), TestSubmitJobsPermission))
+	assert.False(t, checker.UserHasPermission(WithPrincipal(context.Background(), otherUser), TestSubmitJobsPermission))
 }

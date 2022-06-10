@@ -38,9 +38,9 @@ func NewPrincipalPermissionChecker(
 // has that permission.
 func (checker *PrincipalPermissionChecker) UserHasPermission(ctx context.Context, perm permission.Permission) bool {
 	principal := GetPrincipal(ctx)
-	return hasPermission(perm, checker.permissionScopeMap, func(scope string) bool { return principal.HasScope(scope) }) ||
-		hasPermission(perm, checker.permissionGroupMap, func(group string) bool { return principal.IsInGroup(group) }) ||
-		hasPermission(perm, checker.permissionClaimMap, func(claim string) bool { return principal.HasClaim(claim) })
+	return hasPermission(perm, checker.permissionScopeMap, principal.HasScope) ||
+		hasPermission(perm, checker.permissionGroupMap, principal.IsInGroup) ||
+		hasPermission(perm, checker.permissionClaimMap, principal.HasClaim)
 }
 
 // UserOwns check if obj is owned by the principal contained in the context,
