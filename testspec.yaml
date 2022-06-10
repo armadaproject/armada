@@ -2,6 +2,7 @@ numBatches: 1
 batchSize: 1
 timeout: 100
 expectedEvents:
+  # Names have to be the same as in event.proto. Including case.
   - submitted:
       queue:
         e2e-test-queue
