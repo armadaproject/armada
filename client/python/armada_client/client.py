@@ -46,7 +46,19 @@ class ArmadaClient:
         self.event_stub.GetJobSetEvents(queue, job_set_id, jsr)
 
     def submit_jobs(self, queue: str, job_set_id: str, job_request_items):
-        """Implementation of SubmitJobs rpc function"""
+        """Submit a armada job.
+        Parameters
+        ----------
+        queue: str
+            The name of the queue
+        job_set_id: str
+            The name of the job set (a grouping of jobs)
+        job_request_items: List[JobSubmitRequestItem]
+            An array of JobSubmitRequestItems.  See the api definition in submit.proto for a definition.
+
+        This calls the SubmitJob rpc call.
+        :return: A JobSubmitResponse object.
+        """
         request = submit_pb2.JobSubmitRequest(
             queue=queue, job_set_id=job_set_id, job_request_items=job_request_items
         )
@@ -87,14 +99,30 @@ class ArmadaClient:
         response = self.submit_stub.UpdateQueue(request)
         return response
 
-    def delete_queue(self, name: str):
-        """Implementation of DeleteQueue rpc function"""
+    def delete_queue(self, name: str) -> None:
+        """Delete a queue by name.
+        Parameters
+        ----------
+        name : str
+            The name of the queue
+        
+        This calls the DeleteQueue rpc call.
+        Only empty queues can be deleted.
+        """
         request = submit_pb2.QueueDeleteRequest(name=name)
         response = self.submit_stub.DeleteQueue(request)
         return response
 
     def get_queue(self, name: str):
-        """Impl of GetQueue"""
+        """Get the queue by name.
+        Parameters
+        ----------
+        name: str
+            The name of the queue
+
+        This calls the GetQueue rpc call.
+        :return: A queue object.  See the api definition.
+        """
         request = submit_pb2.QueueGetRequest(name=name)
         response = self.submit_stub.GetQueue(request)
         return response
