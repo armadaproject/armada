@@ -20,8 +20,6 @@ class ArmadaClient:
     Implementation of gRPC stubs from events, queues and submit
 
     Attributes:
-        host: IP address
-        port: port for gRPC
         channel: gRPC channel
         max_workers: number of cores for thread pools
     gRPC channels is for authentication.
@@ -47,14 +45,13 @@ class ArmadaClient:
 
     def submit_jobs(self, queue: str, job_set_id: str, job_request_items):
         """Submit a armada job.
-        Parameters
-        ----------
-        queue: str
+        :param queue: str
             The name of the queue
-        job_set_id: str
+        :param job_set_id: str
             The name of the job set (a grouping of jobs)
-        job_request_items: List[JobSubmitRequestItem]
-            An array of JobSubmitRequestItems.  See the api definition in submit.proto for a definition.
+        :param job_request_items: List[JobSubmitRequestItem]
+            An array of JobSubmitRequestItems.
+            See the api definition in submit.proto for a definition.
 
         This calls the SubmitJob rpc call.
         :return: A JobSubmitResponse object.
@@ -101,11 +98,9 @@ class ArmadaClient:
 
     def delete_queue(self, name: str) -> None:
         """Delete a queue by name.
-        Parameters
-        ----------
-        name : str
+        param: name: str
             The name of the queue
-        
+
         This calls the DeleteQueue rpc call.
         Only empty queues can be deleted.
         """
@@ -115,9 +110,7 @@ class ArmadaClient:
 
     def get_queue(self, name: str):
         """Get the queue by name.
-        Parameters
-        ----------
-        name: str
+        param: name: str
             The name of the queue
 
         This calls the GetQueue rpc call.
