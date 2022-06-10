@@ -1,0 +1,31 @@
+numBatches: 1
+batchSize: 1
+timeout: 100
+expectedEvents:
+  - submitted:
+      queue:
+        e2e-test-queue
+  - succeeded:
+jobFile:
+  queue: e2e-test-queue
+  jobSetId: set1
+  jobs:
+    - priority: 0
+      namespace: personal-anonymous
+      podSpecs:
+        - terminationGracePeriodSeconds: 0
+          restartPolicy: Never
+          containers:
+            - name: sleep
+              imagePullPolicy: IfNotPresent
+              image: alpine:3.10            
+              args:
+                - sleep
+                - 1
+              resources:
+                limits:
+                  memory: 10Mi
+                  cpu: 100m
+                requests:
+                  memory: 10Mi
+                  cpu: 100m
