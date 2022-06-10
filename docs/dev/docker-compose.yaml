@@ -27,3 +27,9 @@ services:
     ports:
       - "4223:4223"
       - "8223:8223"
+  pulsar:
+    image: apachepulsar/pulsar:2.9.2
+    container_name: pulsar
+    command: bin/pulsar standalone
+    ports: 
+      - "6650:6650"
