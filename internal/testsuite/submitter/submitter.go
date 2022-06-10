@@ -28,7 +28,6 @@ type Submitter struct {
 	Timeout time.Duration
 	jobIds  []string
 	mu      sync.Mutex
-	C       chan string
 }
 
 func (config *Submitter) Validate() error {
@@ -74,9 +73,6 @@ func (srv *Submitter) Run(ctx context.Context) error {
 	fmt.Println("Submitter started")
 	defer fmt.Println("Submitter stopped")
 
-	srv.C = make(chan string)
-	defer close(srv.C)
-
 	var numBatchesSent uint
 	req := &api.JobSubmitRequest{
 		Queue:    srv.JobFile.Queue,
@@ -86,13 +82,25 @@ func (srv *Submitter) Run(ctx context.Context) error {
 		req.JobRequestItems = append(req.JobRequestItems, srv.JobFile.Jobs...)
 	}
 	return client.WithSubmitClient(srv.ApiConnectionDetails, func(c api.SubmitClient) error {
-		ticker := time.NewTicker(srv.Interval)
-		defer ticker.Stop()
+
+		// Create a closed ticker channel; receiving on tickerCh returns immediately.
+		C := make(chan time.Time)
+		close(C)
+		tickerCh := (<-chan time.Time)(C)
+
+		// If an interval is provided, replace tickerCh with one that generates ticks periodically.
+		if srv.Interval != 0 {
+			ticker := time.NewTicker(srv.Interval)
+			defer ticker.Stop()
+			tickerCh = ticker.C
+		}
+
+		// Submit jobs.
 		for srv.NumBatches == 0 || numBatchesSent < srv.NumBatches {
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
-			case <-ticker.C:
+			case <-tickerCh:
 				res, err := c.SubmitJobs(ctx, req)
 				if err != nil {
 					return errors.WithStack(errors.WithMessage(err, "error submitting jobs"))

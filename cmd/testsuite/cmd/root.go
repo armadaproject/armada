@@ -1,12 +1,17 @@
 package cmd
 
 import (
+	"fmt"
+	"io/ioutil"
 	"time"
 
+	"github.com/gogo/protobuf/jsonpb"
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
+	"sigs.k8s.io/yaml"
 
 	"github.com/G-Research/armada/internal/testsuite"
+	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/client"
 	"github.com/G-Research/armada/pkg/client/domain"
 	"github.com/G-Research/armada/pkg/client/util"
@@ -38,6 +43,7 @@ If not provided, $HOME/.armadactl.yaml is used.`}
 	cmd.AddCommand(
 		submitCmd(testsuite.New()),
 		versionCmd(testsuite.New()),
+		fooCmd(testsuite.New()),
 	)
 
 	return cmd
@@ -55,6 +61,74 @@ func versionCmd(app *testsuite.App) *cobra.Command {
 			return app.Version()
 		},
 	}
+	return cmd
+}
+
+// Submit batches of jobs and wait for those jobs to finish.
+// Prints job completion statistics on exit.
+func fooCmd(app *testsuite.App) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "foo",
+		Short: "Submit batches of jobs and wait for them to complete.",
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			return initParams(cmd, app)
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+
+			testFilePath, err := cmd.Flags().GetString("testFile")
+			if err != nil {
+				return err
+			}
+
+			testSpec := &testsuite.TestSpec{}
+			err = util.BindJsonOrYaml(testFilePath, testSpec)
+			if err != nil {
+				return err
+			}
+
+			fmt.Printf("%#v\n", testSpec)
+
+			expectedEventsPath, err := cmd.Flags().GetString("expectedFile")
+			if err != nil {
+				return err
+			}
+
+			// reader, err := os.Open(filePath)
+			// if err != nil {
+			// 	return err
+			// }
+
+			event := &api.EventMessage{}
+
+			yamlBytes, err := ioutil.ReadFile(expectedEventsPath)
+			if err != nil {
+				return err
+			}
+			jsonBytes, _ := yaml.YAMLToJSON(yamlBytes)
+			fmt.Println(string(jsonBytes))
+			err = jsonpb.UnmarshalString(string(jsonBytes), event)
+			if err != nil {
+				return err
+			}
+
+			// err = util.BindJsonOrYaml(expectedEventsPath, event)
+			// if err != nil {
+			// 	return err
+			// }
+
+			fmt.Printf("%#v\n", event)
+
+			return nil
+		},
+	}
+
+	cmd.Flags().String("testFile", "", "Path to test file.")
+	cmd.Flags().String("expectedFile", "", "Path to file with expected events.")
+
+	// I want some succinct way to express the events
+	// I could read them in as strings
+	// Then read them into events one at a time
+
 	return cmd
 }
 

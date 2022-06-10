@@ -58,6 +58,28 @@ func (a *App) validateParams() error {
 	return nil
 }
 
+type TestSpec struct {
+	// Jobs to submit.
+	// The n jobs herein are copied BatchSize times to produce n*BatchSize jobs.
+	// A batch of n*BatchSize such jobs are submitted in each API call.
+	// NumBatches such batches are submitted in total.
+	JobFile *domain.JobSubmitFile
+	// Queue string
+	// JobSetId string
+	// Job []*api.JobSubmitRequestItem
+	// Number of batches of jobs to submit.
+	// If 0, will submit forever.
+	NumBatches uint
+	// Number of copies of the provided jobs to submit per batch.
+	BatchSize uint
+	// Time between batches.
+	// If 0, jobs are submitted as quickly as possible.
+	Interval time.Duration
+	// Number of seconds to wait for jobs to finish.
+	Timeout time.Duration
+	// ExpectedEvents []*api.EventMessage
+}
+
 // Version prints build information (e.g., current git commit) to the app output.
 func (a *App) Version() error {
 	w := tabwriter.NewWriter(a.Out, 1, 1, 1, ' ', 0)
