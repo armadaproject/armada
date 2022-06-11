@@ -16,7 +16,6 @@ import (
 
 	"github.com/G-Research/armada/internal/common"
 	commonUtil "github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/internal/etcdhealthmonitor"
 	context2 "github.com/G-Research/armada/internal/executor/context"
 	"github.com/G-Research/armada/internal/executor/job"
 	"github.com/G-Research/armada/internal/executor/util"
@@ -33,12 +32,10 @@ type LeaseService interface {
 }
 
 type JobLeaseService struct {
-	clusterContext                context2.ClusterContext
-	queueClient                   api.AggregatedQueueClient
-	minimumJobSize                common.ComputeResources
-	avoidNodeLabelsOnRetry        []string
-	EtcdHealthMonitor             *etcdhealthmonitor.EtcdHealthMonitor
-	EtcdMaxFractionOfStorageInUse float64
+	clusterContext         context2.ClusterContext
+	queueClient            api.AggregatedQueueClient
+	minimumJobSize         common.ComputeResources
+	avoidNodeLabelsOnRetry []string
 }
 
 func NewJobLeaseService(
@@ -56,20 +53,6 @@ func NewJobLeaseService(
 }
 
 func (jobLeaseService *JobLeaseService) RequestJobLeases(availableResource *common.ComputeResources, nodes []api.NodeInfo, leasedResourceByQueue map[string]common.ComputeResources) ([]*api.Job, error) {
-
-	// If a health monitor is provided, avoid leasing jobs when etcd is almost full.
-	if jobLeaseService.EtcdHealthMonitor != nil {
-		fractionOfStorageInUse, err := jobLeaseService.EtcdHealthMonitor.MaxFractionOfStorageInUse()
-		if err != nil {
-			return nil, err
-		}
-		if fractionOfStorageInUse > jobLeaseService.EtcdMaxFractionOfStorageInUse {
-			err := errors.Errorf("etcd is %f percent full, but the limit is %f percent", fractionOfStorageInUse, jobLeaseService.EtcdMaxFractionOfStorageInUse)
-			err = errors.WithMessage(err, "did not request leases")
-			return nil, errors.WithStack(err)
-		}
-	}
-
 	leasedQueueReports := make([]*api.QueueLeasedReport, 0, len(leasedResourceByQueue))
 	for queueName, leasedResource := range leasedResourceByQueue {
 		leasedQueueReport := &api.QueueLeasedReport{

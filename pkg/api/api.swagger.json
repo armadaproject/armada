@@ -11,6 +11,70 @@
     "version": "version not set"
   },
   "paths": {
+    "/v1/batched/create_queues": {
+      "post": {
+        "tags": [
+          "Submit"
+        ],
+        "operationId": "CreateQueues",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiQueueList"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiBatchQueueCreateResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        }
+      }
+    },
+    "/v1/batched/update_queues": {
+      "put": {
+        "tags": [
+          "Submit"
+        ],
+        "operationId": "UpdateQueues",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiQueueList"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiBatchQueueUpdateResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        }
+      }
+    },
     "/v1/job-set/{queue}/{id}": {
       "post": {
         "produces": [
@@ -339,6 +403,28 @@
           "type": "array",
           "items": {
             "type": "string"
+          }
+        }
+      }
+    },
+    "apiBatchQueueCreateResponse": {
+      "type": "object",
+      "properties": {
+        "failedQueues": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiQueueCreateResponse"
+          }
+        }
+      }
+    },
+    "apiBatchQueueUpdateResponse": {
+      "type": "object",
+      "properties": {
+        "failedQueues": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiQueueUpdateResponse"
           }
         }
       }
@@ -1389,6 +1475,17 @@
         }
       }
     },
+    "apiQueueCreateResponse": {
+      "type": "object",
+      "properties": {
+        "error": {
+          "type": "string"
+        },
+        "queue": {
+          "$ref": "#/definitions/apiQueue"
+        }
+      }
+    },
     "apiQueueInfo": {
       "type": "object",
       "title": "swagger:model",
@@ -1401,6 +1498,29 @@
         },
         "name": {
           "type": "string"
+        }
+      }
+    },
+    "apiQueueList": {
+      "type": "object",
+      "title": "swagger:model",
+      "properties": {
+        "queues": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiQueue"
+          }
+        }
+      }
+    },
+    "apiQueueUpdateResponse": {
+      "type": "object",
+      "properties": {
+        "error": {
+          "type": "string"
+        },
+        "queue": {
+          "$ref": "#/definitions/apiQueue"
         }
       }
     },

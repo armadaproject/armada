@@ -10,11 +10,12 @@ echo "Using $stream_backend"
 kind create cluster --name demo-a --config ./docs/dev/kind.yaml
 
 docker-compose -f ./docs/dev/docker-compose.yaml up -d
-sleep 1s
+sleep 10s
+bash scripts/pulsar.sh
 
 go run ./cmd/lookout/main.go --migrateDatabase
 
-echo "go run ./cmd/armada/main.go --config ./docs/dev/config/armada/auth.yaml --config ./docs/dev/config/armada/$stream_backend.yaml"
+echo "go run ./cmd/armada/main.go --config ./docs/dev/config/armada/base.yaml --config ./docs/dev/config/armada/$stream_backend.yaml"
 echo "go run ./cmd/lookout/main.go --config ./docs/dev/config/lookout/$stream_backend.yaml"
 echo 'ARMADA_APPLICATION_CLUSTERID=demo-a ARMADA_METRIC_PORT=9001 go run ./cmd/executor/main.go'
-echo "go run ./cmd/binoculars/main.go --config ./docs/dev/config/binoculars/auth.yaml"
+echo "go run ./cmd/binoculars/main.go --config ./docs/dev/config/binoculars/base.yaml"
