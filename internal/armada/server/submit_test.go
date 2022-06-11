@@ -713,10 +713,14 @@ func TestFillContainerRequestAndLimits(t *testing.T) {
 }
 
 func TestSubmitServer_GetQueueInfo_Permissions(t *testing.T) {
+	const watchEventsGroup = "watch-events-group"
+	const watchAllEventsGroup = "watch-all-events-group"
+	const watchQueueGroup = "watch-queue-group"
+
 	emptyPerms := make(map[permission.Permission][]string)
 	perms := map[permission.Permission][]string{
-		permissions.WatchEvents:    {"watch-events-group"},
-		permissions.WatchAllEvents: {"watch-all-events-group"},
+		permissions.WatchEvents:    {watchEventsGroup},
+		permissions.WatchAllEvents: {watchAllEventsGroup},
 	}
 	q := queue.Queue{
 		Name: "test-queue",
@@ -724,7 +728,7 @@ func TestSubmitServer_GetQueueInfo_Permissions(t *testing.T) {
 			{
 				Subjects: []queue.PermissionSubject{{
 					Kind: queue.PermissionSubjectKindGroup,
-					Name: "watch-queue-group",
+					Name: watchQueueGroup,
 				}},
 				Verbs: []queue.PermissionVerb{queue.PermissionVerbWatch},
 			},
@@ -756,7 +760,7 @@ func TestSubmitServer_GetQueueInfo_Permissions(t *testing.T) {
 			err := s.queueRepository.CreateQueue(q)
 			assert.NoError(t, err)
 
-			principal := authorization.NewStaticPrincipal("alice", []string{"watch-all-events-group"})
+			principal := authorization.NewStaticPrincipal("alice", []string{watchAllEventsGroup})
 			ctx := authorization.WithPrincipal(context.Background(), principal)
 
 			_, err = s.GetQueueInfo(ctx, &api.QueueInfoRequest{
@@ -774,7 +778,7 @@ func TestSubmitServer_GetQueueInfo_Permissions(t *testing.T) {
 			err := s.queueRepository.CreateQueue(q)
 			assert.NoError(t, err)
 
-			principal := authorization.NewStaticPrincipal("alice", []string{"watch-queue-group"})
+			principal := authorization.NewStaticPrincipal("alice", []string{watchQueueGroup})
 			ctx := authorization.WithPrincipal(context.Background(), principal)
 
 			_, err = s.GetQueueInfo(ctx, &api.QueueInfoRequest{
@@ -792,7 +796,7 @@ func TestSubmitServer_GetQueueInfo_Permissions(t *testing.T) {
 			err := s.queueRepository.CreateQueue(q)
 			assert.NoError(t, err)
 
-			principal := authorization.NewStaticPrincipal("alice", []string{"watch-events-group", "watch-queue-group"})
+			principal := authorization.NewStaticPrincipal("alice", []string{watchEventsGroup, watchQueueGroup})
 			ctx := authorization.WithPrincipal(context.Background(), principal)
 
 			_, err = s.GetQueueInfo(ctx, &api.QueueInfoRequest{
