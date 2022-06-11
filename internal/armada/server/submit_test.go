@@ -723,7 +723,7 @@ func TestSubmitServer_GetQueueInfo_Permissions(t *testing.T) {
 		Permissions: []queue.Permissions{
 			{
 				Subjects: []queue.PermissionSubject{{
-					Kind: "Group",
+					Kind: queue.PermissionSubjectKindGroup,
 					Name: "watch-queue-group",
 				}},
 				Verbs: []queue.PermissionVerb{queue.PermissionVerbWatch},
@@ -949,7 +949,7 @@ func TestSubmitServer_SubmitJobs_Permissions(t *testing.T) {
 		Permissions: []queue.Permissions{
 			{
 				Subjects: []queue.PermissionSubject{{
-					Kind: "Group",
+					Kind: queue.PermissionSubjectKindGroup,
 					Name: "submit-queue-group",
 				}},
 				Verbs: []queue.PermissionVerb{queue.PermissionVerbSubmit},
@@ -1162,7 +1162,7 @@ func TestSubmitServer_ReprioritizeJobs_Permissions(t *testing.T) {
 		Permissions: []queue.Permissions{
 			{
 				Subjects: []queue.PermissionSubject{{
-					Kind: "Group",
+					Kind: queue.PermissionSubjectKindGroup,
 					Name: "reprioritize-queue-group",
 				}},
 				Verbs: []queue.PermissionVerb{queue.PermissionVerbReprioritize},
