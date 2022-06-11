@@ -50,7 +50,7 @@ func (checker *PrincipalPermissionChecker) UserHasPermission(ctx context.Context
 // If obj is owned by the principal in the context, no groups are returned.
 //
 // TODO Should we always return the groups (even if the principal owns obj directly)?
-func (checker *PrincipalPermissionChecker) UserOwns(ctx context.Context, obj Owned) (owned bool, ownershipGoups []string) {
+func (checker *PrincipalPermissionChecker) UserOwns(ctx context.Context, obj Owned) (owned bool, ownershipGroups []string) {
 	principal := GetPrincipal(ctx)
 	currentUserName := principal.GetName()
 
@@ -60,13 +60,13 @@ func (checker *PrincipalPermissionChecker) UserOwns(ctx context.Context, obj Own
 		}
 	}
 
-	ownershipGoups = []string{}
+	ownershipGroups = []string{}
 	for _, group := range obj.GetGroupOwners() {
 		if principal.IsInGroup(group) {
-			ownershipGoups = append(ownershipGoups, group)
+			ownershipGroups = append(ownershipGroups, group)
 		}
 	}
-	return len(ownershipGoups) > 0, ownershipGoups
+	return len(ownershipGroups) > 0, ownershipGroups
 }
 
 func hasPermission(perm permission.Permission, permMap map[permission.Permission][]string, assert func(string) bool) bool {
