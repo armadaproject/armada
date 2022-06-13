@@ -54,12 +54,14 @@ class ArmadaClient:
         response = self.submit_stub.SubmitJobs(request)
         return response
 
-    def cancel_jobs(self, queue=Optional[str], job_id=Optional[str], job_set_id=Optional[str]):
+    def cancel_jobs(
+        self, queue=Optional[str], job_id=Optional[str], job_set_id=Optional[str]
+    ):
         """CancelJobs rpc call.  Cancel jobs in a given queue, job_set_id, job_id
         :param queue: str
             The name of the queue
         :param job_id: str
-            The name of the job id 
+            The name of the job id
         :param job_set_id: List[JobSubmitRequestItem]
             An array of JobSubmitRequestItems.
             See the api definition in submit.proto for a definition.
@@ -75,17 +77,21 @@ class ArmadaClient:
         return response
 
     def reprioritize_jobs(
-        self, new_priority: float, job_ids=List[str], job_set_id = Optional[str], queue = Optional[str]
+        self,
+        new_priority: float,
+        job_ids=List[str],
+        job_set_id=Optional[str],
+        queue=Optional[str],
     ):
-        """Reprioritize jobs with new_priority value.  
-        Can be applied all jobs in a job_set_id or 
+        """Reprioritize jobs with new_priority value.
+        Can be applied all jobs in a job_set_id or
         applied to a list of jobs
         param: new_priority: float
             The new priority value for the jobs
         param: job_ids: A list of job ids
-            Apply new_priority to list of jobs 
+            Apply new_priority to list of jobs
         param: job_set_id: str A job set id
-        param: queue: str The queue 
+        param: queue: str The queue
 
         This calls the ReprioritizeJobs rpc call.
         :return: ReprioritizeJobsResponse object.  It is a map of strings.
@@ -135,7 +141,7 @@ class ArmadaClient:
         Only empty queues can be deleted.
         """
         request = submit_pb2.QueueDeleteRequest(name=name)
-        response = self.submit_stub.DeleteQueue(request)
+        self.submit_stub.DeleteQueue(request)
 
     def get_queue(self, name: str):
         """Get the queue by name.
@@ -161,19 +167,26 @@ class ArmadaClient:
         response = self.submit_stub.GetQueueInfo(request)
         return response
 
-    def watch_events(self, on_event:Callable, queue:str, job_set_id:str, from_message_id=Optional[str]):
+    def watch_events(
+        self,
+        on_event: Callable,
+        queue: str,
+        job_set_id: str,
+        from_message_id=Optional[str],
+    ):
         """Watch events .
         param: queue: str
             The name of the queue
         param: job_set_id: str
             The name of the job_set_id to watch
         param: on_event: Callable
-            A function for handling streams 
+            A function for handling streams
         param: from_message_id: str
             TBD: What is this
 
         This calls the Watchevents rpc call.
-        : return: A stream of potential messages from events.  See events.proto for a comprehensive list.
+        : return: A stream of potential messages from events.
+        See events.proto for a comprehensive list.
         """
         jsr = event_pb2.JobSetRequest(
             queue=queue,
