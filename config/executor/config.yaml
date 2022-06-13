@@ -37,6 +37,9 @@ kubernetes:
     ingress:
       hostnameSuffix: "svc"
       certNameSuffix: "ingress-tls-certificate"
+  # Instantly fail jobs when the pod submission error matches the regexes below
+  fatalPodSubmissionErrors:
+  - "admission webhook"
   pendingPodChecks:
     events:
     - regexp: "Failed to pull image.*desc = failed to pull and unpack image"            # Suggests genuine problem with image name, no point in waiting around too long.
