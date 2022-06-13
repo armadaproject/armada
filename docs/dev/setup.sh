@@ -10,7 +10,8 @@ echo "Using $stream_backend"
 kind create cluster --name demo-a --config ./docs/dev/kind.yaml
 
 docker-compose -f ./docs/dev/docker-compose.yaml up -d
-sleep 1s
+sleep 10s
+bash scripts/pulsar.sh
 
 go run ./cmd/lookout/main.go --migrateDatabase
 
