@@ -55,7 +55,10 @@ class ArmadaClient:
         return response
 
     def cancel_jobs(
-        self, queue=Optional[str], job_id=Optional[str], job_set_id=Optional[str]
+        self,
+        queue: Optional[str] = None,
+        job_id: Optional[str] = None,
+        job_set_id: Optional[str] = None,
     ):
         """CancelJobs rpc call.  Cancel jobs in a given queue, job_set_id, job_id
         :param queue: str
@@ -80,8 +83,8 @@ class ArmadaClient:
         self,
         new_priority: float,
         job_ids=List[str],
-        job_set_id=Optional[str],
-        queue=Optional[str],
+        job_set_id: Optional[str] = None,
+        queue: Optional[str] = None,
     ):
         """Reprioritize jobs with new_priority value.
         Can be applied all jobs in a job_set_id or
