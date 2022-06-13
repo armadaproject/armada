@@ -2,10 +2,8 @@
 Armada Python GRPC Client
 """
 from concurrent.futures import ThreadPoolExecutor
-from functools import partial
 import os
-from typing import Callable, List, Optional
-import grpc
+from typing import List, Optional
 from armada_client.armada import (
     event_pb2,
     event_pb2_grpc,
@@ -70,6 +68,8 @@ class ArmadaClient:
             See the api definition in submit.proto for a definition.
 
         This calls the SubmitJob rpc call.
+
+        Either job_id or queue + job_set_id is required
         :return: A JobSubmitResponse object.
         """
 
@@ -164,7 +164,7 @@ class ArmadaClient:
             The name of the queue
 
         This calls the GetQueueInfo rpc call.
-        : return: A queue info object.  See the api definition.
+        :return: A queue info object.  See the api definition.
         """
         request = submit_pb2.QueueInfoRequest(name=name)
         response = self.submit_stub.GetQueueInfo(request)
@@ -172,23 +172,20 @@ class ArmadaClient:
 
     def watch_events(
         self,
-        on_event: Callable,
         queue: str,
         job_set_id: str,
-        from_message_id=Optional[str],
+        from_message_id: Optional[str] = None,
     ):
         """Watch events .
         param: queue: str
             The name of the queue
         param: job_set_id: str
             The name of the job_set_id to watch
-        param: on_event: Callable
-            A function for handling streams
         param: from_message_id: str
             TBD: What is this
 
         This calls the Watchevents rpc call.
-        : return: A stream of potential messages from events.
+        :return: A stream of potential messages from events.
         See events.proto for a comprehensive list.
         """
         jsr = event_pb2.JobSetRequest(
@@ -198,30 +195,7 @@ class ArmadaClient:
             watch=True,
             errorIfMissing=True,
         )
-        event_stream = self.event_stub.GetJobSetEvents(jsr)
-
-        def event_counter(event_stream):
-            try:
-                for event in event_stream:
-                    on_event(event)
-            except (
-                grpc._channel._MultiThreadedRendezvous
-            ) as error:  # pylint: disable=protected-access
-                if error.code() == grpc.StatusCode.CANCELLED:
-                    pass
-                # process cancelled status
-                elif (
-                    error.code() == grpc.StatusCode.UNAVAILABLE
-                    and "Connection reset by peer" in error.details()
-                ):
-                    pass
-                # process unavailable status
-                else:
-                    raise
-
-        event_function = partial(event_counter, event_stream=event_stream)
-        self.executor.submit(event_function)
-        return event_stream
+        return self.event_stub.GetJobSetEvents(jsr)
 
 
 def unwatch_events(event_stream):

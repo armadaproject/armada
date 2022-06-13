@@ -93,9 +93,7 @@ class BasicAuthTest:
             nonlocal count
             count += 1
 
-        event_stream = self.client.watch_events(
-            on_event=event_counter, queue=queue_name, job_set_id=job_set_id
-        )
+        event_stream = self.client.watch_events(queue=queue_name, job_set_id=job_set_id)
         time.sleep(1)
 
         print(count)
