@@ -11,9 +11,7 @@ import grpc
 import pytest
 import time
 
-no_auth_client = ArmadaClient(
-    channel=grpc.insecure_channel(target="127.0.0.1:50051"), max_workers=1
-)
+no_auth_client = ArmadaClient(channel=grpc.insecure_channel(target="127.0.0.1:50051"))
 
 
 @pytest.fixture()
@@ -66,7 +64,7 @@ def submit_sleep_job():
             core_v1.Container(
                 name="sleep",
                 image="alpine:latest",
-                args=["sleep", "50s"],
+                args=["sleep", "10s"],
                 resources=core_v1.ResourceRequirements(
                     requests={
                         "cpu": api_resource.Quantity(string="0.2"),
