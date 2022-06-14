@@ -1,6 +1,7 @@
 package util
 
 import (
+	"sync"
 	"testing"
 	"time"
 
@@ -667,6 +668,7 @@ func TestProcessPodsWithThreadPool(t *testing.T) {
 	pod3 := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{Name: "pod3"},
 	}
+	resultMutex := &sync.Mutex{}
 	result := map[string]bool{
 		pod1.Name: false,
 		pod2.Name: false,
@@ -674,6 +676,8 @@ func TestProcessPodsWithThreadPool(t *testing.T) {
 	}
 
 	ProcessPodsWithThreadPool([]*v1.Pod{pod1, pod2, pod3}, 3, func(pod *v1.Pod) {
+		defer resultMutex.Unlock()
+		resultMutex.Lock()
 		result[pod.Name] = true
 	})
 
