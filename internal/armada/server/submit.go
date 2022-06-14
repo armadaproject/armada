@@ -136,6 +136,25 @@ func (server *SubmitServer) CreateQueue(ctx context.Context, request *api.Queue)
 	return &types.Empty{}, nil
 }
 
+func (server *SubmitServer) CreateQueues(ctx context.Context, request *api.QueueList) (*api.BatchQueueCreateResponse, error) {
+	failedQueues := []*api.QueueCreateResponse{}
+
+	// Create a queue for each element of the request body and return the failures.
+	for _, queue := range request.Queues {
+		_, err := server.CreateQueue(ctx, queue)
+		if err != nil {
+			failedQueues = append(failedQueues, &api.QueueCreateResponse{
+				Queue: queue,
+				Error: err.Error(),
+			})
+		}
+	}
+
+	return &api.BatchQueueCreateResponse{
+		FailedQueues: failedQueues,
+	}, nil
+}
+
 func (server *SubmitServer) UpdateQueue(ctx context.Context, request *api.Queue) (*types.Empty, error) {
 	err := checkPermission(server.permissions, ctx, permissions.CreateQueue)
 	var ep *ErrNoPermission
@@ -159,6 +178,25 @@ func (server *SubmitServer) UpdateQueue(ctx context.Context, request *api.Queue)
 	}
 
 	return &types.Empty{}, nil
+}
+
+func (server *SubmitServer) UpdateQueues(ctx context.Context, request *api.QueueList) (*api.BatchQueueUpdateResponse, error) {
+	failedQueues := []*api.QueueUpdateResponse{}
+
+	// Create a queue for each element of the request body and return the failures.
+	for _, queue := range request.Queues {
+		_, err := server.UpdateQueue(ctx, queue)
+		if err != nil {
+			failedQueues = append(failedQueues, &api.QueueUpdateResponse{
+				Queue: queue,
+				Error: err.Error(),
+			})
+		}
+	}
+
+	return &api.BatchQueueUpdateResponse{
+		FailedQueues: failedQueues,
+	}, nil
 }
 
 func (server *SubmitServer) DeleteQueue(ctx context.Context, request *api.QueueDeleteRequest) (*types.Empty, error) {

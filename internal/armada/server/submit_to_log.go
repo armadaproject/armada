@@ -513,8 +513,14 @@ func principalHasQueuePermissions(principal authorization.Principal, q queue.Que
 func (srv *PulsarSubmitServer) CreateQueue(ctx context.Context, req *api.Queue) (*types.Empty, error) {
 	return srv.SubmitServer.CreateQueue(ctx, req)
 }
+func (srv *PulsarSubmitServer) CreateQueues(ctx context.Context, req *api.QueueList) (*api.BatchQueueCreateResponse, error) {
+	return srv.SubmitServer.CreateQueues(ctx, req)
+}
 func (srv *PulsarSubmitServer) UpdateQueue(ctx context.Context, req *api.Queue) (*types.Empty, error) {
 	return srv.SubmitServer.UpdateQueue(ctx, req)
+}
+func (srv *PulsarSubmitServer) UpdateQueues(ctx context.Context, req *api.QueueList) (*api.BatchQueueUpdateResponse, error) {
+	return srv.SubmitServer.UpdateQueues(ctx, req)
 }
 func (srv *PulsarSubmitServer) DeleteQueue(ctx context.Context, req *api.QueueDeleteRequest) (*types.Empty, error) {
 	return srv.SubmitServer.DeleteQueue(ctx, req)
