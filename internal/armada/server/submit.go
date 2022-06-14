@@ -271,7 +271,12 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 
 	q, err := server.getQueueOrCreate(ctx, req.Queue)
 	if err != nil {
-		return nil, errors.WithMessage(err, "[SubmitJobs] couldn't get/make queue")
+		code := codes.Unknown
+		if e, ok := status.FromError(err); ok {
+			code = e.Code()
+		}
+
+		return nil, status.Errorf(code, "[SubmitJobs] couldn't get/make queue: %s", err)
 	}
 
 	err = server.submittingJobsWouldSurpassLimit(*q, req)
@@ -306,9 +311,9 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 	// This is an optimisation to avoid passing around groups unnecessarily.
 	groups := []string{}
 	if !q.HasPermission(principalSubject, queue.PermissionVerbSubmit) {
-		for _, subject := range queue.NewPermissionSubjectsFromOwners(nil, principal.GetGroupNames()) {
-			if q.HasPermission(subject, queue.PermissionVerbSubmit) {
-				groups = append(groups, subject.Name)
+		for _, groupSubject := range queue.NewPermissionSubjectsFromOwners(nil, principal.GetGroupNames()) {
+			if q.HasPermission(groupSubject, queue.PermissionVerbSubmit) {
+				groups = append(groups, groupSubject.Name)
 			}
 		}
 	}
