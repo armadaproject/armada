@@ -330,7 +330,6 @@ func (c *KubernetesClusterContext) ProcessPodsToDelete() {
 			err = annotationErr
 			if annotationErr == nil {
 				podToDelete = updatedPod
-				c.podsToDelete.Update(podId, podToDelete)
 			}
 		}
 
