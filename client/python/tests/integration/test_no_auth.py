@@ -11,9 +11,7 @@ import grpc
 import pytest
 import time
 
-no_auth_client = ArmadaClient(
-    channel=grpc.insecure_channel(target="127.0.0.1:50051"), max_workers=1
-)
+no_auth_client = ArmadaClient(channel=grpc.insecure_channel(target="127.0.0.1:50051"))
 
 
 @pytest.fixture()
