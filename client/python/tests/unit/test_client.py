@@ -3,7 +3,7 @@ from armada_client.k8s.io.api.core.v1 import generated_pb2 as core_v1
 from armada_client.k8s.io.apimachinery.pkg.api.resource import (
     generated_pb2 as api_resource,
 )
-
+from server_mock import EventService, SubmitService
 import grpc
 from concurrent import futures
 from armada_client.armada import submit_pb2_grpc, submit_pb2, event_pb2_grpc
