@@ -1,0 +1,59 @@
+name: Run Python Linting and Unit Tests
+
+on:
+  push:
+    paths:
+      - 'client/python/**'
+      - 'build/python-client/**'
+      - 'pkg/api/*.proto'
+      - '.github/workflows/python.yml'
+
+
+jobs:
+  run-tox:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      # Generate the proto files for python
+      - run: make python
+      - uses: actions/setup-python@v2
+        with:
+          python-version: '3.9' # Version range or exact version of a Python version to use, using SemVer's version range syntax
+      # Use https://github.com/marketplace/actions/install-poetry-action for setting up poetry
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+          installer-parallel: true
+
+      #----------------------------------------------
+      #       load cached venv if cache exists
+      #----------------------------------------------
+      - name: Load cached venv
+        id: cached-poetry-dependencies
+        uses: actions/cache@v2
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
+      #----------------------------------------------
+      # install dependencies if cache does not exist
+      #----------------------------------------------
+      - name: Install dependencies
+        working-directory: client/python
+        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
+        run: poetry install --no-interaction --no-root
+      #----------------------------------------------
+      # install your root project, if required
+      #----------------------------------------------
+      - name: Install library
+        working-directory: client/python
+
+        run: poetry install --no-interaction
+      #----------------------------------------------
+      - name: Run tox format environment
+        run: poetry run tox -e format
+        working-directory: client/python
+      - name: Run tox python 3.9 unit tests
+        run: poetry run tox -e py39
+        working-directory: client/python
