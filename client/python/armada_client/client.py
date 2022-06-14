@@ -120,7 +120,9 @@ class ArmadaClient:
             try:
                 for event in event_stream:
                     on_event(event)
-            except grpc._channel._MultiThreadedRendezvous as error:  # pylint: disable=protected-access
+            except (
+                grpc._channel._MultiThreadedRendezvous
+            ) as error:  # pylint: disable=protected-access
                 if error.code() == grpc.StatusCode.CANCELLED:
                     pass
                 # process cancelled status
