@@ -63,14 +63,14 @@ def test_get_queue_info():
 def test_get_job_events_stream():
     queue_name = f'queue-{uuid.uuid1()}'
     job_set_name = f'set-{uuid.uuid1()}'
-    no_auth_client.create_queue(name=queue_name, priority_factor=200)
+    no_auth_client.create_queue(name=queue_name, priority_factor=1.0)
     jobs = no_auth_client.submit_jobs(
         queue=queue_name, job_set_id=job_set_name, job_request_items=submit_sleep_job()
     )
     # Jobs can must be finished before deleting queue
     job_id = jobs.job_response_items[0].job_id
     event_stream = no_auth_client.get_job_events_stream(queue=queue_name, job_set_id=job_set_name)
-    time.sleep(5)
+    print(job_id)
     found_successful_job = False
     for event in event_stream:
         print(event.message)
