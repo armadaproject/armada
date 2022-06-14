@@ -20,7 +20,7 @@ def queue():
     no_auth_client.delete_queue(name="test")
 
 
-def test_submit_job(queue):
+def test_submit_job():
     no_auth_client.submit_jobs(
         queue="test", job_set_id="job-set-1", job_request_items=submit_sleep_job()
     )
@@ -29,7 +29,7 @@ def test_submit_job(queue):
     time.sleep(1)
 
 
-def test_get_queue(queue):
+def test_get_queue():
     queue = no_auth_client.get_queue(name="test")
     assert queue.name == "test"
 
