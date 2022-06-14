@@ -70,6 +70,7 @@ def test_get_job_events_stream():
     # Jobs can must be finished before deleting queue
     job_id = jobs.job_response_items[0].job_id
     event_stream = no_auth_client.get_job_events_stream(queue=queue_name, job_set_id=job_set_name)
+    time.sleep(5)
     found_successful_job = False
     for event in event_stream:
         print(event.message)
@@ -77,7 +78,6 @@ def test_get_job_events_stream():
             found_successful_job = True
             break
     assert found_successful_job
-    time.sleep(1)
 
 
 def submit_sleep_job():

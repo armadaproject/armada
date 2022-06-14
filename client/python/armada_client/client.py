@@ -38,11 +38,14 @@ class ArmadaClient:
         queue: str,
         job_set_id: str,
         from_message_id: Optional[str] = None,
-        watch=False,
     ):
         """Implementation of GetJobSetEvents rpc function"""
         jsr = event_pb2.JobSetRequest(
-            queue=queue, id=job_set_id, from_message_id=from_message_id, watch=watch
+            queue=queue,
+            id=job_set_id,
+            from_message_id=from_message_id,
+            watch=True,
+            errorIfMissing=True,
         )
         return self.event_stub.GetJobSetEvents(jsr)
 
