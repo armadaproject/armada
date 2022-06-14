@@ -33,11 +33,14 @@ def test_submit_job(queue):
 
 
 def test_watch_events(queue):
+    no_auth_client.submit_jobs(
+        queue="test", job_set_id="job-set-1", job_request_items=submit_sleep_job()
+    )
+    time.sleep(1)
     event_return = no_auth_client.watch_events(queue="test", job_set_id="job-set-1")
     for event in event_return:
-        if event.message.succeeded:
-            assert event.message.succeeded
-            break
+        if event.message.succeeded.job_id:
+            print(event.message)
 
     unwatch_events(event_stream=event_return)
 
@@ -63,7 +66,7 @@ def submit_sleep_job():
             core_v1.Container(
                 name="sleep",
                 image="alpine:latest",
-                args=["sleep", "10s"],
+                args=["sleep", "50s"],
                 resources=core_v1.ResourceRequirements(
                     requests={
                         "cpu": api_resource.Quantity(string="0.2"),
@@ -87,3 +90,7 @@ def test_cancel_by_id(queue):
     )
     no_auth_client.cancel_jobs(job_id=jobs.job_response_items[0].job_id)
     time.sleep(1)
+
+
+def test_cancel_by_queue_job_set_no_jobs(queue):
+    no_auth_client.cancel_jobs(queue="test", job_set_id="job-set-1")
