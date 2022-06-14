@@ -42,9 +42,9 @@ class ArmadaClient:
     ):
         """Implementation of GetJobSetEvents rpc function"""
         jsr = event_pb2.JobSetRequest(
-            queue=queue, from_message_id=from_message_id, watch=watch
+            queue=queue, id=job_set_id, from_message_id=from_message_id, watch=watch
         )
-        return self.event_stub.GetJobSetEvents(queue, job_set_id, jsr)
+        return self.event_stub.GetJobSetEvents(jsr)
 
     def submit_jobs(self, queue: str, job_set_id: str, job_request_items):
         """Implementation of SubmitJobs rpc function"""

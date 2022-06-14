@@ -72,8 +72,10 @@ def test_get_job_events_stream():
     event_stream = no_auth_client.get_job_events_stream(queue=queue_name, job_set_id=job_set_name)
     found_successful_job = False
     for event in event_stream:
+        print(event.message)
         if job_id == event.message.succeeded.job_id:
             found_successful_job = True
+            break
     assert found_successful_job
     time.sleep(1)
 
