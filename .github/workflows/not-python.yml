@@ -1,0 +1,15 @@
+name: Run Python Linting and Unit Tests
+
+on:
+  push:
+    paths-ignore:
+      - 'client/python/**'
+      - 'build/python-client/**'
+      - 'pkg/api/*.proto'
+      - '.github/workflows/python.yml'
+
+jobs:
+  run-tox:
+    runs-on: ubuntu-latest
+    steps:
+      - run: 'echo "No python modified, not running python jobs"'
