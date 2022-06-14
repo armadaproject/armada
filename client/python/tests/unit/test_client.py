@@ -3,16 +3,35 @@ from armada_client.k8s.io.api.core.v1 import generated_pb2 as core_v1
 from armada_client.k8s.io.apimachinery.pkg.api.resource import (
     generated_pb2 as api_resource,
 )
-from armada_client.armada import (
-    submit_pb2,
-)
-
+from server_mock import EventService, SubmitService
 
 import grpc
+from concurrent import futures
+from armada_client.armada import submit_pb2_grpc, submit_pb2, event_pb2_grpc
+
+import pytest
 
 
+@pytest.fixture(scope="session", autouse=True)
+def server_mock():
+    server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+    submit_pb2_grpc.add_SubmitServicer_to_server(SubmitService(), server)
+    event_pb2_grpc.add_EventServicer_to_server(EventService(), server)
+    server.add_insecure_port("[::]:50051")
+    server.start()
+
+    yield
+    server.stop(False)
+
+
+channel = grpc.insecure_channel(target="127.0.0.1:50051")
 tester = ArmadaClient(
-    "127.0.0.1", "50051", grpc.insecure_channel(target="127.0.0.1:50051")
+    grpc.insecure_channel(
+        target="127.0.0.1:50051",
+        options={
+            "grpc.keepalive_time_ms": 30000,
+        }.items(),
+    )
 )
 
 
@@ -38,16 +57,19 @@ def test_submit_job():
         ],
     )
 
-    tester.submit_jobs(queue="test", job_set_id="test",
-                       job_request_items=[submit_pb2.JobSubmitRequestItem(priority=1, pod_spec=pod)])
+    tester.submit_jobs(
+        queue="test",
+        job_set_id="test",
+        job_request_items=[submit_pb2.JobSubmitRequestItem(priority=1, pod_spec=pod)],
+    )
 
 
 def test_create_queue():
-    tester.create_queue(name="test")
+    tester.create_queue(name="test", priority_factor=1)
 
 
 def test_get_queue():
-    tester.get_queue("test")
+    assert tester.get_queue("test").name == "test"
 
 
 def test_delete_queue():
@@ -55,4 +77,20 @@ def test_delete_queue():
 
 
 def test_get_queue_info():
-    tester.get_queue_info(name='test')
+    tester.get_queue_info(name="test")
+
+
+def test_cancel_jobs():
+    test_create_queue()
+    test_submit_job()
+    tester.cancel_jobs(queue="test", job_set_id="job-set-1", job_id="job1")
+
+
+def test_update_queue():
+    tester.update_queue(name="test", priority_factor=1)
+
+
+def test_reprioritize_jobs():
+    tester.reprioritize_jobs(
+        new_priority=1.0, job_ids="test", job_set_id="job_test_1", queue="test"
+    )

@@ -252,7 +252,7 @@ rebuild-executor: build-docker-executor
 		-e ARMADA_KUBERNETES_STUCKPODEXPIRY=15s \
 		-e ARMADA_APICONNECTION_ARMADAURL="server:50051" \
 		-e ARMADA_APICONNECTION_FORCENOTLS=true \
-		armada-executor --config /e2e/setup/executor-config.yaml
+		armada-executor --config /e2e/setup/insecure-executor-config.yaml
 
 .ONESHELL:
 tests-e2e-teardown:
@@ -301,7 +301,7 @@ tests-e2e-setup: setup-cluster
 		-e ARMADA_KUBERNETES_STUCKPODEXPIRY=15s \
 		-e ARMADA_APICONNECTION_ARMADAURL="server:50051" \
 		-e ARMADA_APICONNECTION_FORCENOTLS=true \
-		armada-executor --config /e2e/setup/executor-config.yaml
+		armada-executor --config /e2e/setup/insecure-executor-config.yaml
 
 .ONESHELL:
 tests-e2e-no-setup:
@@ -418,7 +418,6 @@ dotnet:
 
 # Download all dependencies and install tools listed in internal/tools/tools.go
 download:
-	echo $(go env GOPATH)
 	$(GO_TEST_CMD) go mod download
 	$(GO_TEST_CMD) go list -f '{{range .Imports}}{{.}} {{end}}' internal/tools/tools.go | xargs $(GO_TEST_CMD) go install
 	$(GO_TEST_CMD) go mod tidy
@@ -440,7 +439,3 @@ generate:
 	$(GO_CMD) go run github.com/rakyll/statik \
     		-dest=internal/eventapi/eventdb/schema/ -src=internal/eventapi/eventdb/schema/ -include=\*.sql -ns=eventapi/sql -Z -f -m && \
     		go run golang.org/x/tools/cmd/goimports -w -local "github.com/G-Research/armada" internal/eventapi/eventdb/schema/statik
-
-.ONESHELL:
-clean: 
-	git clean -fdx

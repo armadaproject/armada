@@ -4,14 +4,7 @@ import uuid
 from armada_client.client import unwatch_events
 import grpc
 from armada_client.armada import (
-    event_pb2,
-    event_pb2_grpc,
-    queue_pb2,
-    queue_pb2_grpc,
-    usage_pb2,
-    usage_pb2_grpc,
     submit_pb2,
-    submit_pb2_grpc,
 )
 from armada_client.client import ArmadaClient
 from armada_client.k8s.io.api.core.v1 import generated_pb2 as core_v1
@@ -19,7 +12,8 @@ from armada_client.k8s.io.apimachinery.pkg.api.resource import (
     generated_pb2 as api_resource,
 )
 
-# The python GRPC library requires authentication data to be provided as an AuthMetadataPlugin
+# The python GRPC library requires authentication
+#  data to be provided as an AuthMetadataPlugin.
 # The username/password are colon-delimted and base64 encoded as per RFC 2617
 
 
@@ -50,10 +44,10 @@ class BasicAuthTest:
                 grpc.metadata_call_credentials(GrpcBasicAuth(username, password)),
             ),
         )
-        self.client = ArmadaClient(host, port, channel)
+        self.client = ArmadaClient(channel)
 
-    # private static ApiJobSubmitRequest CreateJobRequest(string jobSet)
-    def job_submit_request_items_for_test(self, queue, job_set_id):
+    @staticmethod
+    def job_submit_request_items_for_test():
         pod = core_v1.PodSpec(
             containers=[
                 core_v1.Container(
@@ -78,8 +72,8 @@ class BasicAuthTest:
         return [submit_pb2.JobSubmitRequestItem(priority=1, pod_spec=pod)]
 
     def submit_test_job(self, queue, job_set_id):
-        jsr_items = self.job_submit_request_items_for_test(queue, job_set_id)
-        request = submit_pb2.JobSubmitRequest(
+        jsr_items = self.job_submit_request_items_for_test()
+        submit_pb2.JobSubmitRequest(
             queue="test", job_set_id=job_set_id, job_request_items=jsr_items
         )
         self.client.submit_jobs(queue, job_set_id, jsr_items)
@@ -95,7 +89,7 @@ class BasicAuthTest:
 
         count = 0
 
-        def event_counter(e):
+        def event_counter():
             nonlocal count
             count += 1
 
@@ -106,8 +100,6 @@ class BasicAuthTest:
 
         print(count)
         unwatch_events(event_stream)
-
-        # public async Task TestSimpleJobSubmitFlow()
 
     def test_simple_job_submit_flow(self):
         queue_name = "test"
@@ -120,11 +112,11 @@ class BasicAuthTest:
         )
 
         self.client.submit_jobs(jsr)
-        cancel_response = self.client.cancel_jobs(
-            queue=queue_name, job_set_id=job_set_id
-        )
+        self.client.cancel_jobs(queue=queue_name, job_set_id=job_set_id)
 
 
 def test_basic_auth():
-    tester = BasicAuthTest(host="127.0.0.1", port=50051, username='test', password='asdfasdf')
+    tester = BasicAuthTest(
+        host="127.0.0.1", port=50051, username="test", password="asdfasdf"
+    )
     tester.test_watch_events()

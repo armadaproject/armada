@@ -28,10 +28,8 @@ class ArmadaClient:
     See https://grpc.github.io/grpc/python/grpc.html
     """
 
-    def __init__(self, host: str, port: int, channel, max_workers=os.cpu_count()):
+    def __init__(self, channel, max_workers=os.cpu_count()):
 
-        self.host = host
-        self.port = port
         self.executor = ThreadPoolExecutor(max_workers=max_workers or 1)
 
         self.submit_stub = submit_pb2_grpc.SubmitStub(channel)
