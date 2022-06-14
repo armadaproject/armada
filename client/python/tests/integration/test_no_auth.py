@@ -1,3 +1,4 @@
+import uuid
 from armada_client.armada import (
     submit_pb2,
 )
@@ -14,48 +15,61 @@ import time
 no_auth_client = ArmadaClient(channel=grpc.insecure_channel(target="127.0.0.1:50051"))
 
 
-@pytest.fixture()
+queue_name = f"queue-{uuid.uuid1()}"
+
+@pytest.fixture(scope="session", autouse=True)
 def queue():
-    empty_queue = no_auth_client.create_queue(name="test", priority_factor=1)
+    no_auth_client.delete_queue(name=queue_name)
+
+    empty_queue = no_auth_client.create_queue(name=queue_name, priority_factor=1)
     yield empty_queue
-    no_auth_client.delete_queue(name="test")
+    no_auth_client.delete_queue(name=queue_name)
 
 
-def test_submit_job(queue):
+def test_submit_job():
+    job_set_id = f"set-{uuid.uuid1()}"
+    no_auth_client.create_queue(name=queue_name, priority_factor=1)
     no_auth_client.submit_jobs(
-        queue="test", job_set_id="job-set-1", job_request_items=submit_sleep_job()
+        queue=queue_name, job_set_id=job_set_id, job_request_items=submit_sleep_job()
     )
     # Jobs can must be finished before deleting queue
-    no_auth_client.cancel_jobs(queue="test", job_set_id="job-set-1")
+    no_auth_client.cancel_jobs(queue=queue_name, job_set_id=job_set_id)
     time.sleep(1)
 
 
-def test_watch_events(queue):
-    no_auth_client.submit_jobs(
-        queue="test", job_set_id="job-set-1", job_request_items=submit_sleep_job()
+def test_watch_events():
+    job_set_id = f"set-{uuid.uuid1()}"
+    no_auth_client.create_queue(name=queue_name, priority_factor=1)
+
+    sleep_job = no_auth_client.submit_jobs(
+        queue=queue_name, job_set_id=job_set_id, job_request_items=submit_sleep_job()
     )
-    time.sleep(1)
-    event_return = no_auth_client.watch_events(queue="test", job_set_id="job-set-1")
+    time.sleep(4)
+    sleep_id = sleep_job.job_response_items[0].job_id
+    event_return = no_auth_client.watch_events(queue=queue_name, job_set_id=job_set_id)
+    found_successful_job = False
     for event in event_return:
-        if event.message.succeeded.job_id:
-            print(event.message)
-
-    unwatch_events(event_stream=event_return)
-
-
-def test_get_queue(queue):
-    queue = no_auth_client.get_queue(name="test")
-    assert queue.name == "test"
+        if event.message.succeeded.job_id and event.message.succeeded.job_id == sleep_id:
+            found_successful_job = True
+            break
+    assert found_successful_job
 
 
-def test_get_queue_info(queue):
-    queue = no_auth_client.get_queue_info(name="test")
-    assert queue.name == "test"
+def test_get_queue():
+    queue_name = f"queue-{uuid.uuid1()}"
+
+    no_auth_client.create_queue(name=queue_name, priority_factor=1)
+
+    queue = no_auth_client.get_queue(name=queue_name)
+    assert queue.name == queue_name
+
+
+def test_get_queue_info():
+
+    no_auth_client.create_queue(name=queue_name, priority_factor=1)
+    queue = no_auth_client.get_queue_info(name=queue_name)
+    assert queue.name == queue_name
     assert not queue.active_job_sets
-
-
-def test_delete_queue():
-    no_auth_client.delete_queue(name="test")
 
 
 def submit_sleep_job():
@@ -64,7 +78,7 @@ def submit_sleep_job():
             core_v1.Container(
                 name="sleep",
                 image="alpine:latest",
-                args=["sleep", "10s"],
+                args=["sleep", "2s"],
                 resources=core_v1.ResourceRequirements(
                     requests={
                         "cpu": api_resource.Quantity(string="0.2"),
@@ -82,13 +96,12 @@ def submit_sleep_job():
     return [submit_pb2.JobSubmitRequestItem(priority=0, pod_spec=pod)]
 
 
-def test_cancel_by_id(queue):
+def test_cancel_by_id():
+    job_set_id = f"set-{uuid.uuid1()}"
+    no_auth_client.create_queue(name=queue_name, priority_factor=1)
+
     jobs = no_auth_client.submit_jobs(
-        queue="test", job_set_id="job-set-1", job_request_items=submit_sleep_job()
+        queue=queue_name, job_set_id=job_set_id, job_request_items=submit_sleep_job()
     )
     no_auth_client.cancel_jobs(job_id=jobs.job_response_items[0].job_id)
     time.sleep(1)
-
-
-def test_cancel_by_queue_job_set_no_jobs(queue):
-    no_auth_client.cancel_jobs(queue="test", job_set_id="job-set-1")

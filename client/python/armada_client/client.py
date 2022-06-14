@@ -197,7 +197,6 @@ class ArmadaClient:
         )
         return self.event_stub.GetJobSetEvents(jsr)
 
-
 def unwatch_events(event_stream):
     """Grpc way to cancel a stream"""
     event_stream.cancel()
