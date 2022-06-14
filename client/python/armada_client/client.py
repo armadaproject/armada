@@ -115,6 +115,7 @@ class ArmadaClient:
             errorIfMissing=True,
         )
         event_stream = self.event_stub.GetJobSetEvents(jsr)
+
         def event_counter(event_stream):
             try:
                 for event in event_stream:
@@ -132,7 +133,7 @@ class ArmadaClient:
                 else:
                     raise
 
-        event_function = partial(event_counter, event_stream = event_stream)
+        event_function = partial(event_counter, event_stream=event_stream)
         self.executor.submit(event_function)
         return event_stream
 

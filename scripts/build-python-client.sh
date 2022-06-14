@@ -1,7 +1,4 @@
-<<<<<<< HEAD
-=======
 #!/bin/bash
->>>>>>> master
 # This script is intended to be run under the docker container at $ARMADADIR/build/python-api-client/
 
 # make the python package armada.client, not pkg.api
@@ -35,10 +32,7 @@ sed -i 's/from google.api/from armada_client.google.api/g' client/python/armada_
 sed -i 's/from google.api/from armada_client.google.api/g' client/python/armada_client/google/api/*.py
 
 find client/python/armada_client/ -name '*.py' | xargs sed -i 's/from k8s.io/from armada_client.k8s.io/g'
-<<<<<<< HEAD
-=======
 
 cd client/python/armada_client
 poetry install
 poetry build
->>>>>>> master
