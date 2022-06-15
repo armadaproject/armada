@@ -29,7 +29,6 @@ describe("DetailRow", () => {
     const linkRole = await screen.queryByRole("link")
     expect(linkRole).toBeTruthy()
     expect(screen.getByText("http://google.org")).toBeInTheDocument()
-
   })
   it("DetailRow With Bad Link", async () => {
     const actual = SetUpReactTable("detail", "//google.org")
@@ -37,6 +36,5 @@ describe("DetailRow", () => {
     const linkRole = await screen.queryByRole("//google.org")
     expect(linkRole).toBeFalsy()
     expect(screen.getByText("//google.org")).toBeInTheDocument()
-
   })
 })
