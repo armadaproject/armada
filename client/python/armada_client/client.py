@@ -33,6 +33,22 @@ class ArmadaClient:
         self.event_stub = event_pb2_grpc.EventStub(channel)
         self.usage_stub = usage_pb2_grpc.UsageStub(channel)
 
+    def get_job_events_stream(
+        self,
+        queue: str,
+        job_set_id: str,
+        from_message_id: Optional[str] = None,
+    ):
+        """Implementation of GetJobSetEvents rpc function"""
+        jsr = event_pb2.JobSetRequest(
+            queue=queue,
+            id=job_set_id,
+            from_message_id=from_message_id,
+            watch=True,
+            errorIfMissing=True,
+        )
+        return self.event_stub.GetJobSetEvents(jsr)
+
     def submit_jobs(self, queue: str, job_set_id: str, job_request_items):
         """Submit a armada job.
         :param queue: str
@@ -58,21 +74,7 @@ class ArmadaClient:
         job_id: Optional[str] = None,
         job_set_id: Optional[str] = None,
     ):
-        """CancelJobs rpc call.  Cancel jobs in a given queue, job_set_id, job_id
-        :param queue: str
-            The name of the queue
-        :param job_id: str
-            The name of the job id
-        :param job_set_id: List[JobSubmitRequestItem]
-            An array of JobSubmitRequestItems.
-            See the api definition in submit.proto for a definition.
-
-        This calls the SubmitJob rpc call.
-
-        Either job_id or queue + job_set_id is required
-        :return: A JobSubmitResponse object.
-        """
-
+        """Implementation of CancelJobs rpc function"""
         request = submit_pb2.JobCancelRequest(
             queue=queue, job_id=job_id, job_set_id=job_set_id
         )
@@ -82,7 +84,7 @@ class ArmadaClient:
     def reprioritize_jobs(
         self,
         new_priority: float,
-        job_ids=List[str],
+        job_ids: Optional[List[str]] = None,
         job_set_id: Optional[str] = None,
         queue: Optional[str] = None,
     ):
@@ -170,32 +172,6 @@ class ArmadaClient:
         response = self.submit_stub.GetQueueInfo(request)
         return response
 
-    def watch_events(
-        self,
-        queue: str,
-        job_set_id: str,
-        from_message_id: Optional[str] = None,
-    ):
-        """Watch events .
-        param: queue: str
-            The name of the queue
-        param: job_set_id: str
-            The name of the job_set_id to watch
-        param: from_message_id: str
-            TBD: What is this
-
-        This calls the Watchevents rpc call.
-        :return: A stream of potential messages from events.
-        See events.proto for a comprehensive list.
-        """
-        jsr = event_pb2.JobSetRequest(
-            queue=queue,
-            id=job_set_id,
-            from_message_id=from_message_id,
-            watch=True,
-            errorIfMissing=True,
-        )
-        return self.event_stub.GetJobSetEvents(jsr)
 
 def unwatch_events(event_stream):
     """Grpc way to cancel a stream"""

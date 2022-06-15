@@ -101,7 +101,7 @@ func (allocationService *ClusterAllocationService) processFailedJobs(failedSubmi
 			err := allocationService.eventReporter.Report(failEvent)
 
 			if err == nil {
-				toBeReportedDone = append(toBeReportedDone, details.Job.JobSetId)
+				toBeReportedDone = append(toBeReportedDone, details.Job.Id)
 			}
 		}
 	}
