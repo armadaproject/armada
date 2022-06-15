@@ -48,6 +48,9 @@ func (r *SQLJobStore) RecordJob(job *api.Job, timestamp time.Time) error {
 		return err
 	}
 
+	fmt.Printf("%s\n", string(jobJson))
+	preprocessedJobJson := preprocessJobJson(jobJson)
+	fmt.Printf("%s\n", string(preprocessedJobJson))
 	return tx.Wrap(func() error {
 		ds := tx.Insert(jobTable).
 			With("run_states", getRunStateCounts(tx, job.Id)).
@@ -58,7 +61,7 @@ func (r *SQLJobStore) RecordJob(job *api.Job, timestamp time.Time) error {
 				"jobset":      job.JobSetId,
 				"priority":    job.Priority,
 				"submitted":   ToUTC(job.Created),
-				"job":         jobJson,
+				"job":         preprocessedJobJson,
 				"state":       JobStateToIntMap[JobQueued],
 				"job_updated": timestamp,
 			}).
@@ -68,7 +71,7 @@ func (r *SQLJobStore) RecordJob(job *api.Job, timestamp time.Time) error {
 				"jobset":      job.JobSetId,
 				"priority":    job.Priority,
 				"submitted":   ToUTC(job.Created),
-				"job":         jobJson,
+				"job":         preprocessedJobJson,
 				"state":       determineJobState(tx),
 				"job_updated": timestamp,
 			}).Where(job_jobUpdated.Lt(timestamp)))
@@ -293,7 +296,7 @@ func (r *SQLJobStore) RecordJobFailed(event *api.JobFailedEvent) error {
 		"pod_number": event.GetPodNumber(),
 		"finished":   ToUTC(event.GetCreated()),
 		"succeeded":  false,
-		"error":      truncateError(event.GetReason()),
+		"error":      preprocessError(event.GetReason()),
 	}
 	if event.GetNodeName() != "" {
 		jobRunRecord["node"] = event.GetNodeName()
@@ -341,7 +344,7 @@ func (r *SQLJobStore) RecordJobUnableToSchedule(event *api.JobUnableToScheduleEv
 		"pod_number":         event.GetPodNumber(),
 		"finished":           ToUTC(event.GetCreated()),
 		"unable_to_schedule": true,
-		"error":              truncateError(event.GetReason()),
+		"error":              preprocessError(event.GetReason()),
 	}
 	if event.GetNodeName() != "" {
 		jobRunRecord["node"] = event.GetNodeName()
@@ -365,7 +368,7 @@ func (r *SQLJobStore) RecordJobTerminated(event *api.JobTerminatedEvent) error {
 		"pod_number": event.GetPodNumber(),
 		"finished":   ToUTC(event.GetCreated()),
 		"succeeded":  false,
-		"error":      truncateError(event.GetReason()),
+		"error":      preprocessError(event.GetReason()),
 	}
 
 	tx, err := r.db.Begin()
@@ -514,6 +517,15 @@ func stateAsLiteral(state JobState) exp.LiteralExpression {
 	return goqu.L(fmt.Sprintf("%d", JobStateToIntMap[state]))
 }
 
-func truncateError(err string) string {
+// Removes null characters
+func preprocessJobJson(jobJson []byte) []byte {
+	jobJsonString := string(jobJson)
+	jobJsonString = strings.ReplaceAll(jobJsonString, "u\\000", "")
+	return []byte(jobJsonString)
+}
+
+// Truncates error and removes null characters
+func preprocessError(err string) string {
+	err = strings.ReplaceAll(err, "\000", "")
 	return fmt.Sprintf("%.2048s", err)
 }

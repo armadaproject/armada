@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	v1 "k8s.io/api/core/v1"
 	"strings"
 	"testing"
 	"time"
@@ -230,21 +231,45 @@ func Test_EmptyRunId(t *testing.T) {
 }
 
 func Test_UnableToSchedule(t *testing.T) {
-	withDatabase(t, func(db *goqu.Database) {
-		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
+	t.Run("single job", func(t *testing.T) {
+		withDatabase(t, func(db *goqu.Database) {
+			jobStore := NewSQLJobStore(db, userAnnotationPrefix)
 
-		err := jobStore.RecordJobUnableToSchedule(&api.JobUnableToScheduleEvent{
-			JobId:        util.NewULID(),
-			Queue:        queue,
-			Created:      time.Now(),
-			KubernetesId: util.NewULID(),
+			err := jobStore.RecordJobUnableToSchedule(&api.JobUnableToScheduleEvent{
+				JobId:        util.NewULID(),
+				Queue:        queue,
+				Created:      time.Now(),
+				KubernetesId: util.NewULID(),
+			})
+			assert.NoError(t, err)
+
+			assert.Equal(t, 1, selectInt(t, db,
+				"SELECT count(*) FROM job_run WHERE job_run.unable_to_schedule = TRUE"))
+			assert.Equal(t, 1, selectInt(t, db,
+				"SELECT count(*) FROM job_run WHERE job_run.finished IS NOT NULL"))
 		})
-		assert.NoError(t, err)
+	})
 
-		assert.Equal(t, 1, selectInt(t, db,
-			"SELECT count(*) FROM job_run WHERE job_run.unable_to_schedule = TRUE"))
-		assert.Equal(t, 1, selectInt(t, db,
-			"SELECT count(*) FROM job_run WHERE job_run.finished IS NOT NULL"))
+	t.Run("null character in error message", func(t *testing.T) {
+		withDatabase(t, func(db *goqu.Database) {
+			jobStore := NewSQLJobStore(db, userAnnotationPrefix)
+			jobId := util.NewULID()
+
+			expectedError := "Some error  please"
+			err := jobStore.RecordJobUnableToSchedule(&api.JobUnableToScheduleEvent{
+				JobId:        jobId,
+				Queue:        "queue",
+				Created:      someTime,
+				KubernetesId: k8sId1,
+				PodNumber:    0,
+				Reason:       "Some error \000 please",
+			})
+			assert.NoError(t, err)
+
+			nullString := selectNullString(t, db, "SELECT error FROM job_run")
+			assert.True(t, nullString.Valid)
+			assert.Equal(t, expectedError, nullString.String)
+		})
 	})
 }
 
@@ -287,6 +312,32 @@ func Test_Queued(t *testing.T) {
 
 			assert.Equal(t, JobStateToIntMap[JobPending], selectInt(t, db,
 				"SELECT state FROM job"))
+		})
+	})
+
+	t.Run("null character in pod spec", func(t *testing.T) {
+		withDatabase(t, func(db *goqu.Database) {
+			jobStore := NewSQLJobStore(db, userAnnotationPrefix)
+			jobId := util.NewULID()
+
+			err := jobStore.RecordJob(&api.Job{
+				Id:      jobId,
+				Queue:   "queue",
+				Created: someTime,
+				PodSpecs: []*v1.PodSpec{
+					{
+						Containers: []v1.Container{
+							{
+								Name:    "test-container",
+								Image:   "test-image",
+								Command: []string{"/bin/bash"},
+								Args:    []string{"echo", "hello", "\000"},
+							},
+						},
+					},
+				},
+			}, someTime)
+			assert.NoError(t, err)
 		})
 	})
 }
@@ -567,39 +618,63 @@ func Test_Succeeded(t *testing.T) {
 }
 
 func Test_Failed(t *testing.T) {
-	withDatabase(t, func(db *goqu.Database) {
-		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
-		jobId := util.NewULID()
+	t.Run("multi-node job", func(t *testing.T) {
+		withDatabase(t, func(db *goqu.Database) {
+			jobStore := NewSQLJobStore(db, userAnnotationPrefix)
+			jobId := util.NewULID()
 
-		err := jobStore.RecordJobFailed(&api.JobFailedEvent{
-			JobId:        jobId,
-			Queue:        "queue",
-			Created:      someTime,
-			KubernetesId: k8sId1,
-			PodNumber:    0,
+			err := jobStore.RecordJobFailed(&api.JobFailedEvent{
+				JobId:        jobId,
+				Queue:        "queue",
+				Created:      someTime,
+				KubernetesId: k8sId1,
+				PodNumber:    0,
+			})
+			assert.NoError(t, err)
+
+			err = jobStore.RecordJobSucceeded(&api.JobSucceededEvent{
+				JobId:        jobId,
+				Queue:        "queue",
+				Created:      someTime,
+				KubernetesId: k8sId2,
+				PodNumber:    1,
+			})
+			assert.NoError(t, err)
+
+			err = jobStore.RecordJobSucceeded(&api.JobSucceededEvent{
+				JobId:        jobId,
+				Queue:        "queue",
+				Created:      someTime,
+				KubernetesId: k8sId3,
+				PodNumber:    2,
+			})
+			assert.NoError(t, err)
+
+			assert.Equal(t, JobStateToIntMap[JobFailed], selectInt(t, db,
+				"SELECT state FROM job"))
 		})
-		assert.NoError(t, err)
+	})
 
-		err = jobStore.RecordJobSucceeded(&api.JobSucceededEvent{
-			JobId:        jobId,
-			Queue:        "queue",
-			Created:      someTime,
-			KubernetesId: k8sId2,
-			PodNumber:    1,
+	t.Run("null character in error message", func(t *testing.T) {
+		withDatabase(t, func(db *goqu.Database) {
+			jobStore := NewSQLJobStore(db, userAnnotationPrefix)
+			jobId := util.NewULID()
+
+			expectedError := "Some error  please"
+			err := jobStore.RecordJobFailed(&api.JobFailedEvent{
+				JobId:        jobId,
+				Queue:        "queue",
+				Created:      someTime,
+				KubernetesId: k8sId1,
+				PodNumber:    0,
+				Reason:       "Some error \000 please",
+			})
+			assert.NoError(t, err)
+
+			nullString := selectNullString(t, db, "SELECT error FROM job_run")
+			assert.True(t, nullString.Valid)
+			assert.Equal(t, expectedError, nullString.String)
 		})
-		assert.NoError(t, err)
-
-		err = jobStore.RecordJobSucceeded(&api.JobSucceededEvent{
-			JobId:        jobId,
-			Queue:        "queue",
-			Created:      someTime,
-			KubernetesId: k8sId3,
-			PodNumber:    2,
-		})
-		assert.NoError(t, err)
-
-		assert.Equal(t, JobStateToIntMap[JobFailed], selectInt(t, db,
-			"SELECT state FROM job"))
 	})
 }
 
