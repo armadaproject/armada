@@ -16,19 +16,27 @@ function SetUpReactTable(name: string, value: string) {
   )
 }
 describe("DetailRow", () => {
-  it("DetailRow with no links", () => {
+  it("DetailRow with no links", async () => {
     const actual = SetUpReactTable("detail", "NOTURL")
     render(actual)
+    const noLink = await screen.queryByRole("link")
+    expect(noLink).toBeFalsy()
     expect(screen.getByText("NOTURL")).toBeInTheDocument()
   })
-  it("DetailRow with links", () => {
+  it("DetailRow with links", async () => {
     const actual = SetUpReactTable("detail", "http://google.org")
     render(actual)
-    expect(screen.getByRole("link")).toBeInTheDocument()
+    const linkRole = await screen.queryByRole("link")
+    expect(linkRole).toBeTruthy()
+    expect(screen.getByText("http://google.org")).toBeInTheDocument()
+
   })
-  it("DetailRow With Bad Link", () => {
+  it("DetailRow With Bad Link", async () => {
     const actual = SetUpReactTable("detail", "//google.org")
     render(actual)
+    const linkRole = await screen.queryByRole("//google.org")
+    expect(linkRole).toBeFalsy()
     expect(screen.getByText("//google.org")).toBeInTheDocument()
+
   })
 })
