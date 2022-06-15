@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "armada"
+version = "0.1.0"
+description = "Armada Airflow Operator"
+authors = ["Kevin Hannon <kevin@gr-oss.io>"]
+license = "Apache"
+include = ["armada/**/*.py"]
+
+[tool.poetry.dependencies]
+python = "^3.7"
+apache-airflow = "^2.3.1"
+armada-client = {path = "../../client/python/dist/armada_client-0.1.0-py3-none-any.whl"}
+
+[tool.poetry.dev-dependencies]
+black = "^22.3.0"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

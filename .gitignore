@@ -54,5 +54,5 @@ client/python/dist
 .python-version
 *_pb2.py
 *_pb2_grpc.py
-armada/
+client/python/armada_client/armada/
 .tox
