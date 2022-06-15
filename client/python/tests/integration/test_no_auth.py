@@ -114,14 +114,3 @@ def submit_sleep_job():
     )
 
     return [submit_pb2.JobSubmitRequestItem(priority=0, pod_spec=pod)]
-
-
-def test_cancel_by_id():
-    job_set_id = f"set-{uuid.uuid1()}"
-    no_auth_client.create_queue(name=queue_name, priority_factor=1)
-
-    jobs = no_auth_client.submit_jobs(
-        queue=queue_name, job_set_id=job_set_id, job_request_items=submit_sleep_job()
-    )
-    no_auth_client.cancel_jobs(job_id=jobs.job_response_items[0].job_id)
-    time.sleep(1)
