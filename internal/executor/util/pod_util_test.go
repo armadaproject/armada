@@ -1,6 +1,7 @@
 package util
 
 import (
+	"sync"
 	"testing"
 	"time"
 
@@ -667,6 +668,7 @@ func TestProcessPodsWithThreadPool(t *testing.T) {
 	pod3 := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{Name: "pod3"},
 	}
+	resultMutex := &sync.Mutex{}
 	result := map[string]bool{
 		pod1.Name: false,
 		pod2.Name: false,
@@ -674,10 +676,87 @@ func TestProcessPodsWithThreadPool(t *testing.T) {
 	}
 
 	ProcessPodsWithThreadPool([]*v1.Pod{pod1, pod2, pod3}, 3, func(pod *v1.Pod) {
+		defer resultMutex.Unlock()
+		resultMutex.Lock()
 		result[pod.Name] = true
 	})
 
 	assert.True(t, result[pod1.Name])
 	assert.True(t, result[pod2.Name])
 	assert.True(t, result[pod3.Name])
+}
+
+func TestRemovePodsFromQueue(t *testing.T) {
+	pod1 := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "pod1"},
+	}
+	pod2 := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "pod2"},
+	}
+
+	list := []*v1.Pod{pod1, pod2}
+	toRemove := []*v1.Pod{pod2}
+
+	result := RemovePodsFromList(list, toRemove)
+	assert.Len(t, result, 1)
+	assert.Equal(t, result[0].Name, pod1.Name)
+}
+
+func TestRemovePodsFromQueue_EmptyLists(t *testing.T) {
+	pod1 := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "pod1"},
+	}
+	pod2 := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "pod2"},
+	}
+
+	//All lists empty
+	list := []*v1.Pod{}
+	toRemove := []*v1.Pod{}
+	result := RemovePodsFromList(list, toRemove)
+	assert.Empty(t, result)
+
+	//Remove list empty
+	list = []*v1.Pod{pod1, pod2}
+	result = RemovePodsFromList(list, toRemove)
+	assert.Equal(t, result, list)
+
+	//Input list empty
+	list = []*v1.Pod{}
+	toRemove = []*v1.Pod{pod1}
+	result = RemovePodsFromList(list, toRemove)
+	assert.Empty(t, result)
+}
+
+func TestGroupByQueue(t *testing.T) {
+	queue1pod1 := &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "pod1", Labels: map[string]string{domain.Queue: "Queue1"}}}
+	queue1pod2 := &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "pod2", Labels: map[string]string{domain.Queue: "Queue1"}}}
+	queue1pod3 := &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "pod3", Labels: map[string]string{domain.Queue: "Queue1"}}}
+	queue2pod1 := &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "pod1", Labels: map[string]string{domain.Queue: "Queue2"}}}
+	queue3pod1 := &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "pod1", Labels: map[string]string{domain.Queue: "Queue3"}}}
+
+	pods := []*v1.Pod{queue1pod1, queue1pod2, queue1pod3, queue2pod1, queue3pod1}
+
+	result := GroupByQueue(pods)
+	assert.Len(t, result, 3)
+	assert.Len(t, result["Queue1"], 3)
+	assert.Len(t, result["Queue2"], 1)
+	assert.Len(t, result["Queue3"], 1)
+}
+
+func TestGroupByQueue_WhenQueueIsNotSet(t *testing.T) {
+	queue1pod1 := &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "pod1", Labels: map[string]string{domain.Queue: "Queue1"}}}
+	queue1pod2 := &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "pod2", Labels: map[string]string{domain.Queue: "Queue1"}}}
+	noQueuePod1 := &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "pod1"}}
+
+	pods := []*v1.Pod{queue1pod1, queue1pod2, noQueuePod1}
+
+	result := GroupByQueue(pods)
+	assert.Len(t, result, 1)
+	assert.Len(t, result["Queue1"], 2)
+}
+
+func TestGroupByQueue_EmptyList(t *testing.T) {
+	result := GroupByQueue([]*v1.Pod{})
+	assert.Len(t, result, 0)
 }

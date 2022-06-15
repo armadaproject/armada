@@ -36,24 +36,32 @@ type KubernetesConfiguration struct {
 	ImpersonateUsers bool
 	// Max number of Kubernetes API queries per second
 	// and max number of concurrent Kubernetes API queries.
-	QPS   float32
-	Burst int
+	QPS                       float32
+	Burst                     int
+	Etcd                      EtcdConfiguration
+	TrackedNodeLabels         []string
+	AvoidNodeLabelsOnRetry    []string
+	ToleratedTaints           []string
+	MinimumPodAge             time.Duration
+	StuckTerminatingPodExpiry time.Duration
+	FailedPodExpiry           time.Duration
+	MaxTerminatedPods         int
+	MinimumJobSize            common.ComputeResources
+	PodDefaults               *PodDefaults
+	PendingPodChecks          *podchecks.Checks
+}
+
+type EtcdConfiguration struct {
 	// URLs of the etcd instances storing the cluster state.
 	// If provided, Armada monitors the health of etcd and
 	// stops requesting jobs when etcd is EtcdFractionOfStorageInUseSoftLimit percent full and
 	// stops pod creation when etcd is EtcdFractionOfStorageInUseHardLimit or more percent full.
-	EtcdMetricUrls                      []string
-	EtcdFractionOfStorageInUseSoftLimit float64
-	EtcdFractionOfStorageInUseHardLimit float64
-	TrackedNodeLabels                   []string
-	AvoidNodeLabelsOnRetry              []string
-	ToleratedTaints                     []string
-	MinimumPodAge                       time.Duration
-	StuckTerminatingPodExpiry           time.Duration
-	FailedPodExpiry                     time.Duration
-	MinimumJobSize                      common.ComputeResources
-	PodDefaults                         *PodDefaults
-	PendingPodChecks                    *podchecks.Checks
+	MetricUrls                      []string
+	FractionOfStorageInUseSoftLimit float64
+	FractionOfStorageInUseHardLimit float64
+	// This is the number of etcd endpoints that have to be healthy for Armada to perform the health check
+	// If less than MinimumAvailable are healthy, Armada will consider etcd unhealthy and stop submitting pods
+	MinimumAvailable int
 }
 
 type TaskConfiguration struct {
@@ -65,6 +73,7 @@ type TaskConfiguration struct {
 	QueueUsageDataRefreshInterval         time.Duration
 	UtilisationEventProcessingInterval    time.Duration
 	UtilisationEventReportingInterval     time.Duration
+	ResourceCleanupInterval               time.Duration
 }
 
 type MetricConfiguration struct {

@@ -9,6 +9,7 @@ task:
   missingJobEventReconciliationInterval: 15s
   jobLeaseRenewalInterval: 15s
   podDeletionInterval: 5s
+  resourceCleanupInterval: 15s
   allocateSpareClusterCapacityInterval: 5s
   queueUsageDataRefreshInterval: 5s
   utilisationEventProcessingInterval: 1s
@@ -22,12 +23,15 @@ metric:
   exposeQueueUsageMetrics: false
 kubernetes:
   impersonateUsers: false
-  EtcdFractionOfStorageInUseSoftLimit: 0.8
-  EtcdFractionOfStorageInUseHardLimit: 0.9
+  etcd:
+    fractionOfStorageInUseSoftLimit: 0.8
+    fractionOfStorageInUseHardLimit: 0.9
+    minimumAvailable: 2
   QPS: 10000
   Burst: 10000
   minimumPodAge: 3m
   failedPodExpiry: 10m
+  maxTerminatedPods: 1000 # Should be lower than kube-controller-managed terminated-pod-gc-threshold (default 12500)
   stuckTerminatingPodExpiry: 1m
   podDefaults:
     ingress:

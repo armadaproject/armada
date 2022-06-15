@@ -1,7 +1,6 @@
 package executor
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -9,16 +8,15 @@ import (
 	"time"
 
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
-	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 
 	"github.com/G-Research/armada/internal/common/cluster"
 	"github.com/G-Research/armada/internal/common/task"
 	"github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/internal/etcdhealthmonitor"
 	"github.com/G-Research/armada/internal/executor/configuration"
 	executor_context "github.com/G-Research/armada/internal/executor/context"
+	"github.com/G-Research/armada/internal/executor/healthmonitor"
 	"github.com/G-Research/armada/internal/executor/job"
 	"github.com/G-Research/armada/internal/executor/metrics"
 	"github.com/G-Research/armada/internal/executor/metrics/pod_metrics"
@@ -49,40 +47,14 @@ func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGrou
 		os.Exit(-1)
 	}
 
-	var etcdHealthMonitor *etcdhealthmonitor.EtcdHealthMonitor
-	if len(config.Kubernetes.EtcdMetricUrls) != 0 {
-		log.Info("etcd URLs provided; monitoring etcd health")
+	var etcdHealthMonitor healthmonitor.EtcdLimitHealthMonitor
+	if len(config.Kubernetes.Etcd.MetricUrls) > 0 {
+		log.Info("etcd URLs provided; monitoring etcd health enabled")
 
-		if config.Kubernetes.EtcdFractionOfStorageInUseSoftLimit <= 0 || config.Kubernetes.EtcdFractionOfStorageInUseSoftLimit > 1 {
-			panic("EtcdFractionOfStorageInUseSoftLimit must be in (0, 1]")
-		}
-
-		if config.Kubernetes.EtcdFractionOfStorageInUseHardLimit <= 0 || config.Kubernetes.EtcdFractionOfStorageInUseHardLimit > 1 {
-			panic("EtcdFractionOfStorageInUseHardLimit must be in (0, 1]")
-		}
-
-		etcdHealthMonitor, err = etcdhealthmonitor.New(config.Kubernetes.EtcdMetricUrls, nil)
+		etcdHealthMonitor, err = healthmonitor.NewEtcdHealthMonitor(config.Kubernetes.Etcd, nil)
 		if err != nil {
 			panic(err)
 		}
-
-		// Run the etcd health monitor in the background.
-		// TODO: Run services in an errgroup
-		ctx, _ := context.WithCancel(context.Background())
-		go etcdHealthMonitor.Run(ctx)
-
-		// Give it up to 10 seconds to start collecting metrics.
-		start := time.Now()
-		etcdFractionOfStorageInUse, err := etcdHealthMonitor.MaxFractionOfStorageInUse()
-		for err != nil {
-			time.Sleep(time.Second)
-			etcdFractionOfStorageInUse, err = etcdHealthMonitor.MaxFractionOfStorageInUse()
-			if time.Since(start) > 10*time.Second {
-				err := errors.WithMessage(err, "EtcdHealthMonitor failed to start in time")
-				panic(err)
-			}
-		}
-		log.Infof("%f percent of etcd storage is in use", etcdFractionOfStorageInUse)
 	} else {
 		log.Info("no etcd URLs provided; etcd health isn't monitored")
 	}
@@ -91,9 +63,8 @@ func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGrou
 		config.Application,
 		2*time.Minute,
 		kubernetesClientProvider,
+		etcdHealthMonitor,
 	)
-	clusterContext.EtcdHealthMonitor = etcdHealthMonitor
-	clusterContext.EtcdMaxFractionOfStorageInUse = config.Kubernetes.EtcdFractionOfStorageInUseHardLimit
 
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
@@ -104,7 +75,7 @@ func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGrou
 	return StartUpWithContext(config, clusterContext, etcdHealthMonitor, taskManager, wg)
 }
 
-func StartUpWithContext(config configuration.ExecutorConfiguration, clusterContext executor_context.ClusterContext, etcdHealthMonitor *etcdhealthmonitor.EtcdHealthMonitor, taskManager *task.BackgroundTaskManager, wg *sync.WaitGroup) (func(), *sync.WaitGroup) {
+func StartUpWithContext(config configuration.ExecutorConfiguration, clusterContext executor_context.ClusterContext, etcdHealthMonitor healthmonitor.EtcdLimitHealthMonitor, taskManager *task.BackgroundTaskManager, wg *sync.WaitGroup) (func(), *sync.WaitGroup) {
 
 	conn, err := createConnectionToApi(config)
 	if err != nil {
@@ -126,8 +97,6 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 		config.Kubernetes.MinimumJobSize,
 		config.Kubernetes.AvoidNodeLabelsOnRetry,
 	)
-	jobLeaseService.EtcdHealthMonitor = etcdHealthMonitor
-	jobLeaseService.EtcdMaxFractionOfStorageInUse = config.Kubernetes.EtcdFractionOfStorageInUseSoftLimit
 
 	if config.Kubernetes.PendingPodChecks == nil {
 		log.Error("Config error: Missing pending pod checks")
@@ -161,17 +130,16 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 		eventReporter,
 		jobLeaseService,
 		clusterUtilisationService,
-		submitter)
+		submitter,
+		etcdHealthMonitor)
 
 	jobManager := service.NewJobManager(
 		clusterContext,
 		jobContext,
 		eventReporter,
-		jobLeaseService,
-		config.Kubernetes.MinimumPodAge,
-		config.Kubernetes.FailedPodExpiry)
+		jobLeaseService)
 
-	job.RunIngressCleanup(clusterContext)
+	resourceCleanupService := service.NewResourceCleanupService(clusterContext, config.Kubernetes)
 
 	pod_metrics.ExposeClusterContextMetrics(clusterContext, clusterUtilisationService, queueUtilisationService, nodeInfoService)
 
@@ -179,6 +147,7 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 	taskManager.Register(eventReporter.ReportMissingJobEvents, config.Task.MissingJobEventReconciliationInterval, "event_reconciliation")
 	taskManager.Register(clusterAllocationService.AllocateSpareClusterCapacity, config.Task.AllocateSpareClusterCapacityInterval, "job_lease_request")
 	taskManager.Register(jobManager.ManageJobLeases, config.Task.JobLeaseRenewalInterval, "job_management")
+	taskManager.Register(resourceCleanupService.CleanupResources, config.Task.ResourceCleanupInterval, "resource_cleanup")
 
 	if config.Metric.ExposeQueueUsageMetrics {
 		taskManager.Register(queueUtilisationService.RefreshUtilisationData, config.Task.QueueUsageDataRefreshInterval, "pod_usage_data_refresh")
@@ -225,6 +194,12 @@ func validateConfig(config configuration.ExecutorConfiguration) error {
 	}
 	if config.Application.DeleteConcurrencyLimit <= 0 {
 		return fmt.Errorf("DeleteConcurrencyLimit was %d, must be greater or equal to 1", config.Application.DeleteConcurrencyLimit)
+	}
+	if config.Kubernetes.Etcd.FractionOfStorageInUseSoftLimit <= 0 || config.Kubernetes.Etcd.FractionOfStorageInUseSoftLimit > 1 {
+		return fmt.Errorf("EtcdFractionOfStorageInUseSoftLimit must be in (0, 1]")
+	}
+	if config.Kubernetes.Etcd.FractionOfStorageInUseHardLimit <= 0 || config.Kubernetes.Etcd.FractionOfStorageInUseHardLimit > 1 {
+		return fmt.Errorf("EtcdFractionOfStorageInUseHardLimit must be in (0, 1]")
 	}
 	return nil
 }

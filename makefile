@@ -1,6 +1,6 @@
 # Determine which platform we're on based on the kernel name
 platform := $(shell uname -s || echo unknown)
-
+PWD := $(shell pwd)
 # Check that all necessary executables are present
 # Using 'where' on Windows and 'which' on Unix-like systems, respectively
 # We do not check for 'date', since it's a cmdlet on Windows, which do not show up with where
@@ -35,6 +35,12 @@ ifeq ($(DOCKER_GOPATH),)
 	DOCKER_GOPATH = .go
 endif
 
+ifeq ($(platform),Darwin)
+	DOCKER_NET =
+else
+	DOCKER_NET = --network=host
+endif
+
 # For reproducibility, run build commands in docker containers with known toolchain versions.
 # INTEGRATION_ENABLED=true is needed for the e2e tests.
 #
@@ -52,7 +58,7 @@ endif
 DOCKER_GOPATH_TOKS := $(subst :, ,$(DOCKER_GOPATH:v%=%))
 DOCKER_GOPATH_DIR = $(word 1,$(DOCKER_GOPATH_TOKS))
 
-GO_CMD = docker run --rm -v ${PWD}:/go/src/armada -w /go/src/armada --network=host \
+GO_CMD = docker run --rm -v ${PWD}:/go/src/armada -w /go/src/armada $(DOCKER_NET) \
 	-e GOPROXY -e GOPRIVATE -e INTEGRATION_ENABLED=true -e CGO_ENABLED=0 -e GOOS=linux -e GARCH=amd64 \
 	-v $(DOCKER_GOPATH_DIR):/go \
 	golang:1.16-buster
@@ -67,6 +73,13 @@ NODE_CMD = docker run --rm -v ${PWD}:/go/src/armada -w /go/src/armada/internal/l
 	-e SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
 	-e npm_config_cafile=/etc/ssl/certs/ca-certificates.crt \
 	node:16.14-buster
+
+# Versions of third party API
+# Bump if you are updating
+GRPC_GATEWAY_VERSION:=@v1.16.0
+GOGO_PROTOBUF_VERSION=@v1.3.2
+K8_APIM_VERSION = @v0.22.4
+K8_API_VERSION = @v0.22.4
 
 # Optionally (if the TESTS_IN_DOCKER environment variable is set to true) run tests in docker containers.
 # If using WSL, running tests in docker may result in network problems.
@@ -224,12 +237,10 @@ tests-no-setup:
 .ONESHELL:
 tests:
 	mkdir -p test_reports
-	docker run -d --name=redis --network=host -p=6379:6379 redis:6.2.6
-	docker run -d --name=postgres --network=host -p 5432:5432 -e POSTGRES_PASSWORD=psw postgres:14.2
-	function tearDown {
-		docker rm -f redis postgres
-	}
-	trap tearDown EXIT
+	docker run -d --name=redis $(DOCKER_NET) -p=6379:6379 redis:6.2.6
+	docker run -d --name=postgres $(DOCKER_NET) -p 5432:5432 -e POSTGRES_PASSWORD=psw postgres:14.2
+	sleep 3
+	function tearDown { docker rm -f redis postgres; }; trap tearDown EXIT
 	$(GO_TEST_CMD) go test -v ./internal... 2>&1 | tee test_reports/internal.txt
 	$(GO_TEST_CMD) go test -v ./pkg... 2>&1 | tee test_reports/pkg.txt
 	$(GO_TEST_CMD) go test -v ./cmd... 2>&1 | tee test_reports/cmd.txt
@@ -251,7 +262,7 @@ rebuild-executor: build-docker-executor
 		-e ARMADA_KUBERNETES_STUCKPODEXPIRY=15s \
 		-e ARMADA_APICONNECTION_ARMADAURL="server:50051" \
 		-e ARMADA_APICONNECTION_FORCENOTLS=true \
-		armada-executor --config /e2e/setup/executor-config.yaml
+		armada-executor --config /e2e/setup/insecure-executor-config.yaml
 
 .ONESHELL:
 tests-e2e-teardown:
@@ -267,7 +278,7 @@ setup-cluster:
 	kubectl apply -f e2e/setup/ingress-nginx.yaml --context kind-armada-test
 	# Wait until the ingress controller is ready
 	echo "Waiting for ingress controller to become ready"
-	sleep 60s # calling wait immediately can result in "no matching resources found"
+	sleep 60 # calling wait immediately can result in "no matching resources found"
 	kubectl wait --namespace ingress-nginx \
 		--for=condition=ready pod \
 		--selector=app.kubernetes.io/component=controller \
@@ -289,17 +300,7 @@ tests-e2e-setup: setup-cluster
 	docker run -d --name redis -p=6379:6379 --network=kind redis:6.2.6
 	docker run -d --name postgres --network=kind -p 5432:5432 -e POSTGRES_PASSWORD=psw postgres:14.2
 
-	# Create the partitioned topic used by Armada.
-	sleep 10 # pulsar-admin errors if the Pulsar server hasn't started up yet.
-	docker exec -it pulsar bin/pulsar-admin tenants create armada
-	docker exec -it pulsar bin/pulsar-admin namespaces create armada/armada
-	docker exec -it pulsar bin/pulsar-admin topics delete-partitioned-topic persistent://armada/armada/events -f || true
-	docker exec -it pulsar bin/pulsar-admin topics create-partitioned-topic persistent://armada/armada/events -p 2
-
-	# Disable topic auto-creation to ensure an error is thrown on using the wrong topic
-	# (Pulsar automatically created the public tenant and default namespace).
-	docker exec -it pulsar bin/pulsar-admin namespaces set-auto-topic-creation public/default --disable
-	docker exec -it pulsar bin/pulsar-admin namespaces set-auto-topic-creation armada/armada --disable
+	bash scripts/pulsar.sh
 
 	sleep 30 # give dependencies time to start up
 	docker run -d --name server --network=kind -p=50051:50051 -p 8080:8080 -v ${PWD}/e2e:/e2e \
@@ -310,10 +311,17 @@ tests-e2e-setup: setup-cluster
 		-e ARMADA_KUBERNETES_STUCKPODEXPIRY=15s \
 		-e ARMADA_APICONNECTION_ARMADAURL="server:50051" \
 		-e ARMADA_APICONNECTION_FORCENOTLS=true \
-		armada-executor --config /e2e/setup/executor-config.yaml
+		armada-executor --config /e2e/setup/insecure-executor-config.yaml
 
 .ONESHELL:
 tests-e2e-no-setup:
+	function printApplicationLogs {
+		echo -e "\nexecutor logs:"
+		docker logs executor
+		echo -e "\nserver logs:"
+		docker logs server
+	}
+	trap printApplicationLogs exit
 	mkdir -p test_reports
 	$(GO_TEST_CMD) go test -v ./e2e/armadactl_test/... -count=1 2>&1 | tee test_reports/e2e_armadactl.txt
 	$(GO_TEST_CMD) go test -v ./e2e/basic_test/... -count=1 2>&1 | tee test_reports/e2e_basic.txt
@@ -350,7 +358,42 @@ junit-report:
 	rm -f test_reports/junit.xml
 	$(GO_TEST_CMD) bash -c "cat test_reports/*.txt | go-junit-report > test_reports/junit.xml"
 
-proto:
+python: download
+	rm -rf proto
+	mkdir -p proto
+	mkdir -p proto/google/api
+	mkdir -p proto/google/protobuf
+	mkdir -p proto/k8s.io/apimachinery/pkg/api/resource
+	mkdir -p proto/k8s.io/apimachinery/pkg/apis/meta/v1
+
+	mkdir -p proto/k8s.io/apimachinery/pkg/runtime
+	mkdir -p proto/k8s.io/apimachinery/pkg/runtime/schema
+	mkdir -p proto/k8s.io/apimachinery/pkg/util/intstr/
+	mkdir -p proto/k8s.io/api/networking/v1
+	mkdir -p proto/k8s.io/api/core/v1
+	mkdir -p proto/github.com/gogo/protobuf/gogoproto/
+
+	docker build $(dockerFlags) -t armada-python-client-builder -f ./build/python-client/Dockerfile .
+# Copy third party annotations from grpc-ecosystem
+	
+	cp $(DOCKER_GOPATH)/pkg/mod/github.com/grpc-ecosystem/grpc-gateway$(GRPC_GATEWAY_VERSION)/third_party/googleapis/google/api/annotations.proto proto/google/api
+	cp $(DOCKER_GOPATH)/pkg/mod/github.com/grpc-ecosystem/grpc-gateway$(GRPC_GATEWAY_VERSION)/third_party/googleapis/google/api/http.proto proto/google/api
+	cp $(DOCKER_GOPATH)/pkg/mod/github.com/gogo/protobuf$(GOGO_PROTOBUF_VERSION)/protobuf/google/protobuf/*.proto proto/google/protobuf
+	cp -r $(DOCKER_GOPATH)/pkg/mod/github.com/gogo/protobuf$(GOGO_PROTOBUF_VERSION)/gogoproto/gogo.proto proto/github.com/gogo/protobuf/gogoproto/
+
+#K8S MACHINERY API COPY
+	cp $(DOCKER_GOPATH)/pkg/mod/k8s.io/apimachinery$(K8_APIM_VERSION)/pkg/api/resource/generated.proto proto/k8s.io/apimachinery/pkg/api/resource/
+	cp $(DOCKER_GOPATH)/pkg/mod/k8s.io/apimachinery$(K8_APIM_VERSION)/pkg/apis/meta/v1/generated.proto proto/k8s.io/apimachinery/pkg/apis/meta/v1
+	cp $(DOCKER_GOPATH)/pkg/mod/k8s.io/apimachinery$(K8_APIM_VERSION)/pkg/runtime/generated.proto proto/k8s.io/apimachinery/pkg/runtime
+	cp $(DOCKER_GOPATH)/pkg/mod/k8s.io/apimachinery$(K8_APIM_VERSION)/pkg/runtime/schema/generated.proto proto/k8s.io/apimachinery/pkg/runtime/schema/
+	cp $(DOCKER_GOPATH)/pkg/mod/k8s.io/apimachinery$(K8_APIM_VERSION)/pkg/util/intstr/generated.proto proto/k8s.io/apimachinery/pkg/util/intstr/
+#K8S API COPY
+	cp $(DOCKER_GOPATH)/pkg/mod/k8s.io/api$(K8_API_VERSION)/networking/v1/generated.proto proto/k8s.io/api/networking/v1
+	cp $(DOCKER_GOPATH)/pkg/mod/k8s.io/api$(K8_API_VERSION)/core/v1/generated.proto proto/k8s.io/api/core/v1
+
+	docker run --rm -v ${PWD}/proto:/proto -v ${PWD}:/go/src/armada -w /go/src/armada armada-python-client-builder ./scripts/build-python-client.sh
+
+proto: download
 	docker build $(dockerFlags) --build-arg GOPROXY --build-arg GOPRIVATE --build-arg MAVEN_URL -t armada-proto -f ./build/proto/Dockerfile .
 	docker run --rm -e GOPROXY -e GOPRIVATE -v ${PWD}:/go/src/armada -w /go/src/armada armada-proto ./scripts/proto.sh
 
@@ -384,7 +427,6 @@ dotnet:
 
 # Download all dependencies and install tools listed in internal/tools/tools.go
 download:
-	echo $(go env GOPATH)
 	$(GO_TEST_CMD) go mod download
 	$(GO_TEST_CMD) go list -f '{{range .Imports}}{{.}} {{end}}' internal/tools/tools.go | xargs $(GO_TEST_CMD) go install
 	$(GO_TEST_CMD) go mod tidy
@@ -406,4 +448,3 @@ generate:
 	$(GO_CMD) go run github.com/rakyll/statik \
     		-dest=internal/eventapi/eventdb/schema/ -src=internal/eventapi/eventdb/schema/ -include=\*.sql -ns=eventapi/sql -Z -f -m && \
     		go run golang.org/x/tools/cmd/goimports -w -local "github.com/G-Research/armada" internal/eventapi/eventdb/schema/statik
-
