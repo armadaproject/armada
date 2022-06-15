@@ -49,11 +49,12 @@ helm repo add prometheus-community https://prometheus-community.github.io/helm-c
 helm repo add nats https://nats-io.github.io/k8s/helm/charts
 helm repo add bitnami https://charts.bitnami.com/bitnami
 helm repo add gresearch https://g-research.github.io/charts
+helm repo add apache https://pulsar.apache.org/charts
 helm repo update
 ```
 
 ## Installation
-This guide will install Armada on 3 local Kubernetes clusters; one server and two executor clusters. 
+This guide will install Armada on 3 local Kubernetes clusters; one server and two executor clusters.
 
 You should then clone this repository and step into it:
 
@@ -64,7 +65,27 @@ cd armada
 
 All commands are intended to be run from the root of the repository.
 
-### Server deployment
+Armada offers One-click setup and Manual setup guides.
+* Use the [One-click setup](#one-click-setup) if you want to immediately provision an Armada cluster.
+* Use the [Manual setup](#manual-setup) guide if you want to learn more about Armada internals.
+
+### One-click setup
+
+Run the following script in order to provision an Armada cluster locally:
+```bash
+./docs/local/setup.sh
+```
+
+Run the following script if you want to destroy your local Armada cluster:
+```bash
+./docs/local/destroy.sh
+```
+
+### Manual setup
+
+This guide walks you through how to manually create an Armada cluster and deploy all of its components.
+
+#### Server deployment
 
 ```bash
 kind create cluster --name quickstart-armada-server --config ./docs/quickstart/kind-config-server.yaml
@@ -78,6 +99,9 @@ helm install redis dandydev/redis-ha -f docs/quickstart/redis-values.yaml
 # Install nats-streaming
 helm install nats nats/stan
 
+# Install pulsar
+helm install pulsar apache/pulsar
+
 # Install Prometheus
 helm install kube-prometheus-stack prometheus-community/kube-prometheus-stack -f docs/quickstart/server-prometheus-values.yaml
 
@@ -88,7 +112,7 @@ helm install armada-server gresearch/armada -f ./docs/quickstart/server-values.y
 SERVER_IP=$(kubectl get nodes quickstart-armada-server-worker -o jsonpath='{.status.addresses[?(@.type=="InternalIP")].address}')
 ```
 
-### Executor deployments
+#### Executor deployments
 
 First executor:
 
@@ -128,7 +152,7 @@ helm install armada-executor-cluster-monitoring gresearch/executor-cluster-monit
 EXECUTOR_1_IP=$(kubectl get nodes quickstart-armada-executor-1-worker -o jsonpath='{.status.addresses[?(@.type=="InternalIP")].address}')
 ```
 
-### Armada Lookout UI
+#### Armada Lookout UI
 
 ```bash
 # Set cluster as current context
@@ -150,7 +174,7 @@ kubectl port-forward svc/armada-lookout 8080:8080
 ```
 You will be able to view Lookout at `http://localhost:8080`.
 
-### Grafana configuration
+#### Grafana configuration
 
 ```bash
 curl -X POST -i http://admin:prom-operator@localhost:30001/api/datasources -H "Content-Type: application/json" -d '{"name":"cluster-0","type":"prometheus","url":"http://'$EXECUTOR_0_IP':30001","access":"proxy","basicAuth":false}'
@@ -192,9 +216,9 @@ else
 fi
 ```
 
-Alternatively, you can find the latst armadactl binaries at:
+Alternatively, you can find the latest armadactl binaries at:
 
-  * [https://github.com/G-Research/armada/releases/latest](https://github.com/G-Research/armada/releases/latest)
+* [https://github.com/G-Research/armada/releases/latest](https://github.com/G-Research/armada/releases/latest)
 
 Simply download the latest release for your platform and unzip or untar.
 
@@ -208,10 +232,10 @@ Create queues, submit some jobs and monitor progress:
 ./armadactl create queue queue-b --priorityFactor 2
 ```
 For queues created in this way, user and group owners of the queue have permissions to:
- - submit jobs
- - cancel jobs
- - reprioritize jobs
- - watch queue
+- submit jobs
+- cancel jobs
+- reprioritize jobs
+- watch queue
 
 For more control, queues can be created via `armadactl create`, which allows for setting specific permission; see the following example.
 
