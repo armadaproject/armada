@@ -16,22 +16,27 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from typing import TYPE_CHECKING, Any, Callable, List, Optional, Sequence
-
+from airflow.exceptions import AirflowException
 from airflow.models import BaseOperator
 
 from armada_client.client import ArmadaClient, unwatch_events
 
-if TYPE_CHECKING:
-    from airflow.utils.context import Context
 import logging
 
-
-armada_logger = logging.getLogger('airflow.task')
+from armada.operators.utils import airflow_error, search_for_job_complete
+armada_logger = logging.getLogger("airflow.task")
 
 
 class ArmadaOperator(BaseOperator):
-    def __init__(self, name: str, armada_client: ArmadaClient, queue: str, job_set_id: str, job_request_items, **kwargs) -> None:
+    def __init__(
+        self,
+        name: str,
+        armada_client: ArmadaClient,
+        queue: str,
+        job_set_id: str,
+        job_request_items,
+        **kwargs,
+    ) -> None:
         super().__init__(**kwargs)
         self.name = name
         self.armada_client = armada_client
@@ -42,23 +47,21 @@ class ArmadaOperator(BaseOperator):
     def execute(self, context):
 
         # get the airflow.task logger
-        message = f"Hello {self.name}"
-        armada_logger.info("Running Armada Operator")
-        job = self.armada_client.submit_jobs(queue=self.queue, job_set_id=self.job_set_id, job_request_items = self.job_request_items)
+        armada_logger.info(f'Running Armada job {self.name}')
+        armada_logger.info("Execution Date:", context["execution_date"])
+        job = self.armada_client.submit_jobs(
+            queue=self.queue,
+            job_set_id=self.job_set_id,
+            job_request_items=self.job_request_items,
+        )
 
         job_id = job.job_response_items[0].job_id
 
-        sleep_event = self.armada_client.get_job_events_stream(queue=self.queue, job_set_id=self.job_set_id)
-        search_for_successful_event(sleep_event, self.name, job_id)
+        job_events = self.armada_client.get_job_events_stream(
+            queue=self.queue, job_set_id=self.job_set_id
+        )
+        job_state = search_for_job_complete(job_events, self.name, job_id, armada_logger)
+        airflow_error(job_state, self.name, job_id)
         unwatch_events(sleep_event)
 
         return message
-
-
-def search_for_successful_event(event, job_name: str, completed_job: str):
-    for element in event:
-        if element.message.succeeded.job_id == completed_job:
-            armada_logger.info(
-                f'Armada job {job_name} with id {completed_job} completed without error')
-            break
-    return

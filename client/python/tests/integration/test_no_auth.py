@@ -91,12 +91,58 @@ def test_get_job_events_stream():
             break
     assert found_successful_job
 
+def test_get_job_events_stream_error():
+    queue_name = f"queue-{uuid.uuid1()}"
+    job_set_name = f"set-{uuid.uuid1()}"
+    no_auth_client.delete_queue(name=queue_name)
+    no_auth_client.create_queue(name=queue_name, priority_factor=1.0)
+    jobs = no_auth_client.submit_jobs(
+        queue=queue_name, job_set_id=job_set_name, job_request_items=submit_bad_job()
+    )
+    time.sleep(2)
+    # Jobs can must be finished before deleting queue
+    job_id = jobs.job_response_items[0].job_id
+    event_stream = no_auth_client.get_job_events_stream(
+        queue=queue_name, job_set_id=job_set_name
+    )
+    found_error_job = False
+    for event in event_stream:
+        print(event.message.failed)
+        if job_id == event.message.failed.job_id:
+            found_error_job = True
+            break
+    assert found_error_job
+
 
 def submit_sleep_job():
     pod = core_v1.PodSpec(
         containers=[
             core_v1.Container(
                 name="sleep",
+                image="alpine:latest",
+                args=["sleep", "3s"],
+                resources=core_v1.ResourceRequirements(
+                    requests={
+                        "cpu": api_resource.Quantity(string="0.2"),
+                        "memory": api_resource.Quantity(string="64Mi"),
+                    },
+                    limits={
+                        "cpu": api_resource.Quantity(string="0.2"),
+                        "memory": api_resource.Quantity(string="64Mi"),
+                    },
+                ),
+            )
+        ],
+    )
+
+    return [submit_pb2.JobSubmitRequestItem(priority=0, pod_spec=pod)]
+
+
+def submit_bad_job():
+    pod = core_v1.PodSpec(
+        containers=[
+            core_v1.Container(
+                name="no_image",
                 image="alpine:latest",
                 args=["sleep", "3s"],
                 resources=core_v1.ResourceRequirements(

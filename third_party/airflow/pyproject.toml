@@ -13,6 +13,10 @@ armada-client = {path = "../../client/python/dist/armada_client-0.1.0-py3-none-a
 
 [tool.poetry.dev-dependencies]
 black = "^22.3.0"
+pytest = "^7.1.2"
+tox = "^3.25.0"
+mypy = "^0.961"
+flake8 = "^4.0.1"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
