@@ -48,7 +48,6 @@ class ArmadaOperator(BaseOperator):
 
         # get the airflow.task logger
         armada_logger.info(f"Running Armada job {self.name}")
-        armada_logger.info("Execution Date:", context["execution_date"])
         job = self.armada_client.submit_jobs(
             queue=self.queue,
             job_set_id=self.job_set_id,

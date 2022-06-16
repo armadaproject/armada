@@ -1,4 +1,4 @@
-from airflow.exceptions import AirflowException
+from airflow.exceptions import AirflowFailException
 
 
 def airflow_error(job_state: str, name: str, job_id: str):
@@ -10,4 +10,4 @@ def airflow_error(job_state: str, name: str, job_id: str):
         or job_state == "cancelling"
         or job_state == "terminated"
     ):
-        raise AirflowException(f"The Armada job {name}:{job_id} {job_state}")
+        raise AirflowFailException(f"The Armada job {name}:{job_id} {job_state}")

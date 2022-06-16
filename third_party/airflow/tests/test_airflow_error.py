@@ -1,5 +1,5 @@
 from armada.operators.utils import airflow_error
-from airflow.exceptions import AirflowException
+from airflow.exceptions import AirflowFailException
 import pytest
 
 testdata_success = ["successful", "running", "queued"]
@@ -21,6 +21,6 @@ testdata_error = [
 @pytest.mark.parametrize("state, expected_exception_message", testdata_error)
 def test_airflow_error_states(state, expected_exception_message):
 
-    with pytest.raises(AirflowException) as airflow:
+    with pytest.raises(AirflowFailException) as airflow:
         airflow_error(state, "hello", "id")
     assert str(airflow.value) == expected_exception_message
