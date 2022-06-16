@@ -16,14 +16,14 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from airflow.exceptions import AirflowException
 from airflow.models import BaseOperator
 
-from armada_client.client import ArmadaClient, unwatch_events
+from armada_client.client import ArmadaClient, unwatch_events, search_for_job_complete
 
 import logging
 
-from armada.operators.utils import airflow_error, search_for_job_complete
+from armada.operators.utils import airflow_error
+
 armada_logger = logging.getLogger("airflow.task")
 
 
@@ -47,7 +47,7 @@ class ArmadaOperator(BaseOperator):
     def execute(self, context):
 
         # get the airflow.task logger
-        armada_logger.info(f'Running Armada job {self.name}')
+        armada_logger.info(f"Running Armada job {self.name}")
         armada_logger.info("Execution Date:", context["execution_date"])
         job = self.armada_client.submit_jobs(
             queue=self.queue,
@@ -60,8 +60,11 @@ class ArmadaOperator(BaseOperator):
         job_events = self.armada_client.get_job_events_stream(
             queue=self.queue, job_set_id=self.job_set_id
         )
-        job_state = search_for_job_complete(job_events, self.name, job_id, armada_logger)
+        job_state, job_message = search_for_job_complete(job_events, self.name, job_id)
+        armada_logger.info(
+            f"Armada Job finished with {job_state} and message: {job_message}"
+        )
         airflow_error(job_state, self.name, job_id)
-        unwatch_events(sleep_event)
+        unwatch_events(job_events)
 
-        return message
+        return job_message
