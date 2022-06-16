@@ -18,15 +18,14 @@ class ArmadaClient:
     The Armada Client
     Implementation of gRPC stubs from events, queues and submit
 
-    Attributes:
-        channel: gRPC channel
-        max_workers: number of cores for thread pools
-    gRPC channels is for authentication.
-    See https://grpc.github.io/grpc/python/grpc.html
+    :param channel: gRPC channel used for authentication. See
+                    https://grpc.github.io/grpc/python/grpc.html
+                    for more information.
+    :param max_workers: number of cores for thread pools
+    :return: an Armada client instance
     """
 
-    def __init__(self, channel, max_workers=os.cpu_count()):
-
+    def __init__(self, channel, max_workers: int = os.cpu_count()):
         self.executor = ThreadPoolExecutor(max_workers=max_workers or 1)
 
         self.submit_stub = submit_pb2_grpc.SubmitStub(channel)
@@ -39,7 +38,16 @@ class ArmadaClient:
         job_set_id: str,
         from_message_id: Optional[str] = None,
     ):
-        """Implementation of GetJobSetEvents rpc function"""
+        """Get event stream for a job set.
+
+        Uses the GetJobSetEvents rpc to get a stream of events relating
+        to the provided job_set_id.
+
+        :param queue: The name of the queue
+        :param job_set_id: The name of the job set (a grouping of jobs)
+        :param from_message_id: The from message id.
+        :return: A job events stream for the job_set_id provided.
+        """
         jsr = event_pb2.JobSetRequest(
             queue=queue,
             id=job_set_id,
@@ -74,7 +82,16 @@ class ArmadaClient:
         job_id: Optional[str] = None,
         job_set_id: Optional[str] = None,
     ):
-        """Implementation of CancelJobs rpc function"""
+        """Cancel jobs in a given queue.
+
+        Uses the CancelJobs RPC to cancel jobs. Either job_id or
+        job_set_id is required.
+
+        :param queue: The name of the queue
+        :param job_id: The name of the job id (this or job_set_id required)
+        :param job_set_id: An array of JobSubmitRequestItems. (this or job_id required)
+        :return: A JobSubmitResponse object.
+        """
         request = submit_pb2.JobCancelRequest(
             queue=queue, job_id=job_id, job_set_id=job_set_id
         )
@@ -89,17 +106,15 @@ class ArmadaClient:
         queue: Optional[str] = None,
     ):
         """Reprioritize jobs with new_priority value.
-        Can be applied all jobs in a job_set_id or
-        applied to a list of jobs
-        param: new_priority: float
-            The new priority value for the jobs
-        param: job_ids: A list of job ids
-            Apply new_priority to list of jobs
-        param: job_set_id: str A job set id
-        param: queue: str The queue
 
-        This calls the ReprioritizeJobs rpc call.
-        :return: ReprioritizeJobsResponse object.  It is a map of strings.
+        Uses ReprioritizeJobs RPC to set a new priority on a list of jobs
+        or job set.
+
+        :param new_priority: The new priority value for the jobs
+        :param job_ids: A list of job ids to change priority of
+        :param job_set_id: A job set id including jobs to change priority of
+        :param queue: The queue the jobs are in
+        :return: ReprioritizeJobsResponse object. It is a map of strings.
         """
         request = submit_pb2.JobReprioritizeRequest(
             job_ids=job_ids,
@@ -112,13 +127,12 @@ class ArmadaClient:
 
     def create_queue(self, name: str, **queue_params):
         """Create the queue by name.
-        param: name: str
-            The name of the queue
-        param: queue_params: Queue Object
-            The params is a queue object
 
-        This calls the GetQueue rpc call.
-        :return: A queue object.  See the api definition.
+        Uses the CreateQueue RPC to create a queue.
+
+        :param name: The name of the queue
+        :param queue_params: Queue Object
+        :return: A queue object per the Armada api definition.
         """
         request = submit_pb2.Queue(name=name, **queue_params)
         response = self.submit_stub.CreateQueue(request)
@@ -126,35 +140,34 @@ class ArmadaClient:
 
     def update_queue(self, name: str, **queue_params) -> None:
         """Update the queue of name with values in queue_params
-        param: name: str
-            The name of the queue
-        param: queue_params: Queue Object
-            The params is a queue object
 
-        This calls the UpdateQueue rpc call.
-        :return: An empty object
+        Uses UpdateQueue RPC to update the parameters on the queue.
+
+        :param name: The name of the queue
+        :param queue_params: Queue Object
+        :return: None
         """
         request = submit_pb2.Queue(name=name, **queue_params)
         self.submit_stub.UpdateQueue(request)
 
     def delete_queue(self, name: str) -> None:
-        """Delete a queue by name.
-        param: name: str
-            The name of the queue
+        """Delete an empty queue by name.
 
-        This calls the DeleteQueue rpc call.
-        Only empty queues can be deleted.
+        Uses the DeleteQueue RPC to delete the queue.
+
+        :param name: The name of an empty queue
+        :return: None
         """
         request = submit_pb2.QueueDeleteRequest(name=name)
         self.submit_stub.DeleteQueue(request)
 
     def get_queue(self, name: str):
         """Get the queue by name.
-        param: name: str
-            The name of the queue
 
-        This calls the GetQueue rpc call.
-        :return: A queue object.  See the api definition.
+        Uses the GetQueue RPC to get the queue.
+
+        :param name: The name of the queue
+        :return: A queue object. See the api definition.
         """
         request = submit_pb2.QueueGetRequest(name=name)
         response = self.submit_stub.GetQueue(request)
@@ -162,10 +175,10 @@ class ArmadaClient:
 
     def get_queue_info(self, name: str):
         """Get the queue info by name.
-        param: name: str
-            The name of the queue
 
-        This calls the GetQueueInfo rpc call.
+        Uses the GetQueueInfo RPC to get queue info.
+
+        :param name: The name of the queue
         :return: A queue info object.  See the api definition.
         """
         request = submit_pb2.QueueInfoRequest(name=name)
@@ -173,6 +186,12 @@ class ArmadaClient:
         return response
 
 
-def unwatch_events(event_stream):
-    """Grpc way to cancel a stream"""
+def unwatch_events(event_stream) -> None:
+    """Closes gRPC event streams
+
+    Closes the provided event_stream.queue
+
+    :param event_stream: a gRPC event stream
+    :return: nothing
+    """
     event_stream.cancel()
