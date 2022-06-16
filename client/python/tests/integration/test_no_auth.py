@@ -86,7 +86,7 @@ def test_get_job_events_stream():
     )
     success = search_for_job_complete(event_stream, job_name="sleep", job_id=job_id)
     assert success[0] == "successful"
-    assert success[1] == f"Armada job:id sleep:{job_id} succeeded"
+    assert success[1] == f"Armada sleep:{job_id} succeeded"
 
 def test_get_job_events_stream_error():
     queue_name = f"queue-{uuid.uuid1()}"
