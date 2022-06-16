@@ -32,9 +32,7 @@ def test_failed_event():
     events = [event_stream_message]
     job_complete = search_for_job_complete(events, job_name="test", job_id="id")
     assert job_complete[0] == "failed"
-    assert (
-        job_complete[1] == "Armada test:id failed\nfailed with reason test fail"
-    )
+    assert job_complete[1] == "Armada test:id failed\nfailed with reason test fail"
 
 
 def test_cancelling_event():
