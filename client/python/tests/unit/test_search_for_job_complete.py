@@ -14,7 +14,7 @@ def test_succeded_event():
     events = [event_stream_message]
     job_complete = search_for_job_complete(events, job_name="test", job_id="id")
     assert job_complete[0] == "successful"
-    assert job_complete[1] == "Armada job:id test:id succeeded"
+    assert job_complete[1] == "Armada test:id succeeded"
 
 
 def test_failed_event():
@@ -30,7 +30,7 @@ def test_failed_event():
     job_complete = search_for_job_complete(events, job_name="test", job_id="id")
     assert job_complete[0] == "failed"
     assert (
-        job_complete[1] == "Armada job:id test:id failed\nfailed with reason test fail"
+        job_complete[1] == "Armada test:id failed\nfailed with reason test fail"
     )
 
 
@@ -46,7 +46,7 @@ def test_cancelling_event():
     events = [event_stream_message]
     job_complete = search_for_job_complete(events, job_name="test", job_id="id")
     assert job_complete[0] == "cancelling"
-    assert job_complete[1] == "Armada job:id test:id cancelling"
+    assert job_complete[1] == "Armada test:id cancelling"
 
 
 def test_cancelled_event():
@@ -61,7 +61,7 @@ def test_cancelled_event():
     events = [event_stream_message]
     job_complete = search_for_job_complete(events, job_name="test", job_id="id")
     assert job_complete[0] == "cancelled"
-    assert job_complete[1] == "Armada job:id test:id cancelled"
+    assert job_complete[1] == "Armada test:id cancelled"
 
 
 def test_terminated_event():
@@ -76,4 +76,4 @@ def test_terminated_event():
     events = [event_stream_message]
     job_complete = search_for_job_complete(events, job_name="test", job_id="id")
     assert job_complete[0] == "terminated"
-    assert job_complete[1] == "Armada job:id test:id terminated"
+    assert job_complete[1] == "Armada test:id terminated"

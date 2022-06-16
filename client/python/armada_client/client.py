@@ -3,7 +3,7 @@ Armada Python GRPC Client
 """
 from concurrent.futures import ThreadPoolExecutor
 import os
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from armada_client.armada import (
     event_pb2,
     event_pb2_grpc,
@@ -183,45 +183,44 @@ class ArmadaClient:
         return response
 
 
-def search_for_job_complete(event, job_name: str, job_id: str) -> List[str]:
+def search_for_job_complete(event, job_name: str, job_id: str) -> Tuple[str, str]:
     """Search the event stream to see if your job has finished running
 
     :param event: a gRPC event stream
     :param job_name: The name of your armada job
     :param job_id: The name of the job id that armada assigns to it
-    :return: A list of [state, message]
+    :return: A tuple of state, message
     """
 
-    tuple_return = ["temp", "temp2"]
-    tuple_return[0] = "queued"
-    tuple_return[1] = f"Armada job:id {job_name}:{job_id} is queued"
+    job_state = "queued"
+    job_message = f"Armada {job_name}:{job_id} is queued"
     for element in event:
         if element.message.succeeded.job_id == job_id:
-            tuple_return[0] = "successful"
-            tuple_return[1] = f"Armada job:id {job_name}:{job_id} succeeded"
+            job_state = "successful"
+            job_message = f"Armada {job_name}:{job_id} succeeded"
             break
         if element.message.failed.job_id == job_id:
-            tuple_return[1] = (
-                f"Armada job:id {job_name}:{job_id} failed\n"
+            job_state = "failed"
+            job_message = (
+                f"Armada {job_name}:{job_id} failed\n"
                 f"failed with reason {element.message.failed.reason}"
             )
-            tuple_return[0] = "failed"
 
             break
         if element.message.cancelling.job_id == job_id:
-            tuple_return[1] = f"Armada job:id {job_name}:{job_id} cancelling"
-            tuple_return[0] = "cancelling"
+            job_state = "cancelling"
+            job_message = f"Armada {job_name}:{job_id} cancelling"
             break
         if element.message.cancelled.job_id == job_id:
-            tuple_return[1] = f"Armada job:id {job_name}:{job_id} cancelled"
-            tuple_return[0] = "cancelled"
+            job_state = "cancelled"
+            job_message = f"Armada {job_name}:{job_id} cancelled"
             break
         if element.message.terminated.job_id == job_id:
-            tuple_return[1] = f"Armada job:id {job_name}:{job_id} terminated"
-            tuple_return[0] = "terminated"
+            job_state = "terminated"
+            job_message = f"Armada {job_name}:{job_id} terminated"
             break
 
-    return tuple_return
+    return job_state, job_message
 
 
 def unwatch_events(event_stream) -> None:
