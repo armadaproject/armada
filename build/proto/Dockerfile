@@ -50,5 +50,6 @@ ARG GOLANG_VERSION
 FROM --platform=linux/amd64 golang:${GOLANG_VERSION}-buster
 COPY --from=builder /usr/local/bin /usr/local/bin
 COPY --from=builder /go/bin /usr/local/bin
+COPY --from=builder /go/pkg /usr/local/share
 
 ENTRYPOINT ["/bin/bash"]
