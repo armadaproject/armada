@@ -11,6 +11,9 @@ def test_succeded_event():
     event_message.succeeded.CopyFrom(successful_event)
     event_stream_message.message.CopyFrom(event_message)
 
+    # We are constructing a EventMessage and creating a list out of it
+    # This is to mock a grpc stream.
+    # IRL this would be given to us from a grpc call
     events = [event_stream_message]
     job_complete = search_for_job_complete(events, job_name="test", job_id="id")
     assert job_complete[0] == "successful"
