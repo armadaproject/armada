@@ -56,3 +56,4 @@ client/python/dist
 *_pb2_grpc.py
 armada/
 .tox
+client/python/docs/build/
