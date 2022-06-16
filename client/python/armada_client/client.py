@@ -186,6 +186,47 @@ class ArmadaClient:
         return response
 
 
+def search_for_job_complete(event, job_name: str, job_id: str) -> List[str]:
+    """Search the event stream to see if your job has finished running
+
+    :param event: a gRPC event stream
+    :param job_name: The name of your armada job
+    :param job_id: The name of the job id that armada assigns to it
+    :return: A list of [state, message]
+    """
+
+    tuple_return = ["temp", "temp2"]
+    tuple_return[0] = "queued"
+    tuple_return[1] = f"Armada job:id {job_name}:{job_id} is queued"
+    for element in event:
+        if element.message.succeeded.job_id == job_id:
+            tuple_return[0] = "successful"
+            tuple_return[1] = f"Armada job:id {job_name}:{job_id} succeeded"
+            break
+        if element.message.failed.job_id == job_id:
+            tuple_return[1] = (
+                f"Armada job:id {job_name}:{job_id} failed\n"
+                f"failed with reason {element.message.failed.reason}"
+            )
+            tuple_return[0] = "failed"
+
+            break
+        if element.message.cancelling.job_id == job_id:
+            tuple_return[1] = f"Armada job:id {job_name}:{job_id} cancelling"
+            tuple_return[0] = "cancelling"
+            break
+        if element.message.cancelled.job_id == job_id:
+            tuple_return[1] = f"Armada job:id {job_name}:{job_id} cancelled"
+            tuple_return[0] = "cancelled"
+            break
+        if element.message.terminated.job_id == job_id:
+            tuple_return[1] = f"Armada job:id {job_name}:{job_id} terminated"
+            tuple_return[0] = "terminated"
+            break
+
+    return tuple_return
+
+
 def unwatch_events(event_stream) -> None:
     """Closes gRPC event streams
 

@@ -24,6 +24,7 @@ def server_mock():
     server.stop(False)
 
 
+channel = grpc.insecure_channel(target="127.0.0.1:60000")
 tester = ArmadaClient(
     grpc.insecure_channel(
         target="127.0.0.1:60000",
