@@ -41,7 +41,7 @@ ARG GOGO_PROTOBUF_VERSION
 RUN GO111MODULE=on go get github.com/gogo/protobuf/protoc-gen-gogofaster@v${GOGO_PROTOBUF_VERSION}
 
 ARG GRPC_GATEWAY_VERSION
-RUN GO111MODULE=on go get
+RUN GO111MODULE=on go get \
    github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway@v${GRPC_GATEWAY_VERSION} \
    github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger@v${GRPC_GATEWAY_VERSION}
 
