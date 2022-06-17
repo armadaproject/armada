@@ -366,6 +366,7 @@ setup-proto: download
 # Copy third party annotations from grpc-ecosystem
 	
 	ls $(DOCKER_GOPATH)/pkg/mod
+	ls $(DOCKER_GOPATH_DIR)/pkg/mod
 	cp $(DOCKER_GOPATH)/pkg/mod/github.com/grpc-ecosystem/grpc-gateway$(GRPC_GATEWAY_VERSION)/third_party/googleapis/google/api/annotations.proto proto/google/api
 	cp $(DOCKER_GOPATH)/pkg/mod/github.com/grpc-ecosystem/grpc-gateway$(GRPC_GATEWAY_VERSION)/third_party/googleapis/google/api/http.proto proto/google/api
 	cp $(DOCKER_GOPATH)/pkg/mod/github.com/gogo/protobuf$(GOGO_PROTOBUF_VERSION)/protobuf/google/protobuf/*.proto proto/google/protobuf
