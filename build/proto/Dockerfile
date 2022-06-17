@@ -38,10 +38,10 @@ RUN curl -OLk ${MAVEN_URL}/com/google/protobuf/protoc/${PROTOC_VERSION}/protoc-$
     chmod +x /usr/local/bin/protoc
 
 ARG GOGO_PROTOBUF_VERSION
-RUN GO111MODULE=on go get github.com/gogo/protobuf/protoc-gen-gogofaster@v${GOGO_PROTOBUF_VERSION}
+RUN go install github.com/gogo/protobuf/protoc-gen-gogofaster@v${GOGO_PROTOBUF_VERSION}
 
 ARG GRPC_GATEWAY_VERSION
-RUN GO111MODULE=on go get\
+RUN go install
    github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway@v${GRPC_GATEWAY_VERSION} \
    github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger@v${GRPC_GATEWAY_VERSION}
 
@@ -50,6 +50,5 @@ ARG GOLANG_VERSION
 FROM --platform=linux/amd64 golang:${GOLANG_VERSION}-buster
 COPY --from=builder /usr/local/bin /usr/local/bin
 COPY --from=builder /go/bin /usr/local/bin
-COPY --from=builder /go/pkg /usr/local/share
 
 ENTRYPOINT ["/bin/bash"]
