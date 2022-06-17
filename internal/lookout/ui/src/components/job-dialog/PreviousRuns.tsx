@@ -4,7 +4,7 @@ import { Collapse, List, ListItem, ListItemText, Paper, Table, TableBody, TableC
 import { ExpandLess, ExpandMore } from "@material-ui/icons"
 
 import { Run } from "../../services/JobService"
-import { RunDetailsRows } from "./RunDetailsRows"
+import RunDetailsRows from "./RunDetailsRows"
 
 import "./PreviousRuns.css"
 
