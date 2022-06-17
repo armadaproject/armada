@@ -76,7 +76,7 @@ NODE_CMD = docker run --rm -v ${PWD}:/go/src/armada -w /go/src/armada/internal/l
 
 # Versions of third party API
 # Bump if you are updating
-GRPC_GATEWAY_VERSION:=@v1.15.0
+GRPC_GATEWAY_VERSION:=@v1.16.0
 GOGO_PROTOBUF_VERSION=@v1.3.2
 K8_APIM_VERSION = @v0.22.4
 K8_API_VERSION = @v0.22.4
