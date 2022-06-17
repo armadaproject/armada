@@ -13,18 +13,24 @@ import os
 
 
 def client() -> ArmadaClient:
-    server_name, server_port = 'localhost','50051'
-    if os.environ.get('ARMADA_SERVER'):
-        server_name = os.environ.get('ARMADA_SERVER')
+    server_name, server_port = "localhost", "50051"
+    if os.environ.get("ARMADA_SERVER"):
+        server_name = os.environ.get("ARMADA_SERVER")
 
-    if os.environ.get('ARMADA_PORT'):
-        server_port = os.environ.get('ARMADA_PORT')
+    if os.environ.get("ARMADA_PORT"):
+        server_port = os.environ.get("ARMADA_PORT")
 
-    return ArmadaClient(channel=grpc.insecure_channel(target=f"{server_name}:{server_port}"))
+    return ArmadaClient(
+        channel=grpc.insecure_channel(target=f"{server_name}:{server_port}")
+    )
+
+
 no_auth_client = client()
+
 
 def sleep(sleep_time):
     time.sleep(sleep_time)
+
 
 def test_submit_job_and_cancel_by_id():
     queue_name = f"queue-{uuid.uuid1()}"
@@ -35,7 +41,9 @@ def test_submit_job_and_cancel_by_id():
         queue=queue_name, job_set_id=job_set_name, job_request_items=submit_sleep_job()
     )
     # Jobs can must be finished before deleting queue
-    cancel_response = no_auth_client.cancel_jobs(job_id=jobs.job_response_items[0].job_id)
+    cancel_response = no_auth_client.cancel_jobs(
+        job_id=jobs.job_response_items[0].job_id
+    )
     assert cancel_response.cancelled_ids[0] == jobs.job_response_items[0].job_id
 
 
@@ -44,12 +52,14 @@ def test_submit_job_and_cancel_by_queue_job_set():
     job_set_name = f"set-{uuid.uuid1()}"
     no_auth_client.create_queue(name=queue_name, priority_factor=200)
     sleep(5)
-    jobs = no_auth_client.submit_jobs(
+    no_auth_client.submit_jobs(
         queue=queue_name, job_set_id=job_set_name, job_request_items=submit_sleep_job()
     )
     # Jobs can must be finished before deleting queue
-    cancelled_response = no_auth_client.cancel_jobs(queue=queue_name, job_set_id=job_set_name)
-    assert f'all jobs in job set {job_set_name}' == cancelled_response.cancelled_ids[0]
+    cancelled_response = no_auth_client.cancel_jobs(
+        queue=queue_name, job_set_id=job_set_name
+    )
+    assert f"all jobs in job set {job_set_name}" == cancelled_response.cancelled_ids[0]
 
 
 def test_get_queue():
@@ -81,7 +91,7 @@ def test_get_job_events_stream():
     )
     sleep(5)
     # Jobs can must be finished before deleting queue
-    job_id = jobs.job_response_items[0].job_id
+    jobs.job_response_items[0].job_id
     event_stream = no_auth_client.get_job_events_stream(
         queue=queue_name, job_set_id=job_set_name
     )
