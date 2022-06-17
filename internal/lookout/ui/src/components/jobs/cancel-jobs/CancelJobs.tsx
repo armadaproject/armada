@@ -36,7 +36,7 @@ export default function CancelJobs(props: CancelJobsProps) {
             {props.jobsToCancel.map((job) => (
               <TableRow key={job.jobId} className="lookout-word-wrapped">
                 <TableCell>{job.jobId}</TableCell>
-                <TableCell>{job.jobSet}cancel-jobs</TableCell>
+                <TableCell>{job.jobSet}</TableCell>
                 <TableCell>{job.jobState}</TableCell>
                 <TableCell>{job.submissionTime}</TableCell>
               </TableRow>
