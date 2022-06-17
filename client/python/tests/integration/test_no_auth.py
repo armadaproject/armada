@@ -10,6 +10,7 @@ from armada_client.k8s.io.apimachinery.pkg.api.resource import (
 import grpc
 import time
 import os
+import pytest
 
 
 def client() -> ArmadaClient:
@@ -32,11 +33,29 @@ def sleep(sleep_time):
     time.sleep(sleep_time)
 
 
+queue_name = f"queue-{uuid.uuid1()}"
+
+
+@pytest.fixture(scope="session", autouse=True)
+def queue():
+
+    no_auth_client.create_queue(name=queue_name, priority_factor=1)
+    sleep(3)
+
+
+def test_get_queue():
+    queue = no_auth_client.get_queue(name=queue_name)
+    assert queue.name == queue_name
+
+
+def test_get_queue_info():
+    queue = no_auth_client.get_queue_info(name=queue_name)
+    assert queue.name == queue_name
+    assert not queue.active_job_sets
+
+
 def test_submit_job_and_cancel_by_id():
-    queue_name = f"queue-{uuid.uuid1()}"
     job_set_name = f"set-{uuid.uuid1()}"
-    no_auth_client.create_queue(name=queue_name, priority_factor=200)
-    sleep(5)
     jobs = no_auth_client.submit_jobs(
         queue=queue_name, job_set_id=job_set_name, job_request_items=submit_sleep_job()
     )
@@ -48,9 +67,7 @@ def test_submit_job_and_cancel_by_id():
 
 
 def test_submit_job_and_cancel_by_queue_job_set():
-    queue_name = f"queue-{uuid.uuid1()}"
     job_set_name = f"set-{uuid.uuid1()}"
-    no_auth_client.create_queue(name=queue_name, priority_factor=200)
     sleep(5)
     no_auth_client.submit_jobs(
         queue=queue_name, job_set_id=job_set_name, job_request_items=submit_sleep_job()
@@ -62,30 +79,8 @@ def test_submit_job_and_cancel_by_queue_job_set():
     assert f"all jobs in job set {job_set_name}" == cancelled_response.cancelled_ids[0]
 
 
-def test_get_queue():
-    queue_name = f"queue-{uuid.uuid1()}"
-    no_auth_client.create_queue(name=queue_name, priority_factor=200)
-    sleep(5)
-
-    queue = no_auth_client.get_queue(name=queue_name)
-    assert queue.name == queue_name
-
-
-def test_get_queue_info():
-    queue_name = f"queue-{uuid.uuid1()}"
-    no_auth_client.create_queue(name=queue_name, priority_factor=200)
-    sleep(5)
-
-    queue = no_auth_client.get_queue_info(name=queue_name)
-    assert queue.name == queue_name
-    assert not queue.active_job_sets
-
-
 def test_get_job_events_stream():
-    queue_name = f"queue-{uuid.uuid1()}"
     job_set_name = f"set-{uuid.uuid1()}"
-    no_auth_client.delete_queue(name=queue_name)
-    no_auth_client.create_queue(name=queue_name, priority_factor=1.0)
     jobs = no_auth_client.submit_jobs(
         queue=queue_name, job_set_id=job_set_name, job_request_items=submit_sleep_job()
     )
