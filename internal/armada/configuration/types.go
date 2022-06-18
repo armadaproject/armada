@@ -1,7 +1,6 @@
 package configuration
 
 import (
-	"google.golang.org/grpc/keepalive"
 	"time"
 
 	"github.com/go-redis/redis"
@@ -9,6 +8,7 @@ import (
 
 	"github.com/G-Research/armada/internal/common"
 	authconfig "github.com/G-Research/armada/internal/common/auth/configuration"
+	grpcconfig "github.com/G-Research/armada/internal/common/grpc/configuration"
 	"github.com/G-Research/armada/pkg/client/queue"
 )
 
@@ -21,7 +21,7 @@ type ArmadaConfig struct {
 
 	CorsAllowedOrigins []string
 
-	Grpc GrpcConfig
+	Grpc grpcconfig.GrpcConfig
 
 	PriorityHalfTime    time.Duration
 	CancelJobsBatchSize int
@@ -39,11 +39,6 @@ type ArmadaConfig struct {
 	Postgres          PostgresConfig // Used for Pulsar submit API deduplication
 	EventApi          EventApiConfig
 	Metrics           MetricsConfig
-}
-
-type GrpcConfig struct {
-	KeepaliveParams            keepalive.ServerParameters
-	KeepaliveEnforcementPolicy keepalive.EnforcementPolicy
 }
 
 type PulsarConfig struct {
