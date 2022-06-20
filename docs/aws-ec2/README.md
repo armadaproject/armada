@@ -2,7 +2,7 @@
 
 ## Background
 
-For development, you might want to set up an Amazon EC2 instance as the resource requirements for Armada are substantial. A typical armada installation requires a system with at least 16GB of memory to perform well. Running Armada on a laptop made before ~2017 will typically eat battery life and result in a slower UI.
+For development, you might want to set up an Amazon EC2 instance as the resource requirements for Armada are substantial. A typical Armada installation requires a system with at least 16GB of memory to perform well. Running Armada on a laptop made before ~2017 will typically eat battery life and result in a slower UI.
 
 Note: As of June 2022, not all Armada dependencies reliably build on a Mac M1 using standard package management. So if you have an M1 Mac, working on EC2 or another external server is your best bet.
 
