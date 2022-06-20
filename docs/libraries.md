@@ -1,10 +1,10 @@
 # Libraries 
 
 ## Overview
-Client libraries for Armada are under active development. This document is intended to document what clients exist and how to use them.
+This document is an overview of Armada client libraries.
 
 ## Python
-Armada provides python client bindings providing access to the RPC API. 
+Here, we give an overview of the Armada Python client. 
 
 ### Installation
 Prerequisites for installation include a working Python installation and poetry. You may wish to install the client into a virutalenv.
