@@ -56,6 +56,7 @@ def test_get_queue_info():
 
 def test_submit_job_and_cancel_by_id():
     job_set_name = f"set-{uuid.uuid1()}"
+    sleep(5)
     jobs = no_auth_client.submit_jobs(
         queue=queue_name, job_set_id=job_set_name, job_request_items=submit_sleep_job()
     )
