@@ -38,6 +38,12 @@ func SubmitJobs(submitClient api.SubmitClient, request *api.JobSubmitRequest) (*
 	return submitClient.SubmitJobs(ctx, request)
 }
 
+func CancelJobs(submitClient api.SubmitClient, request *api.JobCancelRequest) (*api.CancellationResult, error) {
+	ctx, cancel := common.ContextWithDefaultTimeout()
+	defer cancel()
+	return submitClient.CancelJobs(ctx, request)
+}
+
 func CreateChunkedSubmitRequests(queue string, jobSetId string, jobs []*api.JobSubmitRequestItem) []*api.JobSubmitRequest {
 	requests := make([]*api.JobSubmitRequest, 0, 10)
 

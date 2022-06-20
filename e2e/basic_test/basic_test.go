@@ -155,6 +155,36 @@ func submitJobsAndWatch(t *testing.T, submitClient api.SubmitClient, eventsClien
 	return statusEvents, allEvents
 }
 
+func TestCanSubmitJob_AndCancelByQueueJobSetId(t *testing.T) {
+	skipIfIntegrationEnvNotPresent(t)
+	client.WithConnection(connectionDetails(), func(connection *grpc.ClientConn) {
+		submitClient := api.NewSubmitClient(connection)
+
+		jobRequest := createJobRequest("personal-anonymous")
+		createQueue(submitClient, jobRequest, t)
+		_, err := client.SubmitJobs(submitClient, jobRequest)
+
+		client.CancelJobs(submitClient, &api.JobCancelRequest{Queue: jobRequest.Queue, JobSetId: jobRequest.Queue})
+		assert.NoError(t, err)
+
+	})
+}
+
+func TestSubmitJobs_AndCancelByJobId(t *testing.T) {
+	skipIfIntegrationEnvNotPresent(t)
+	client.WithConnection(connectionDetails(), func(connection *grpc.ClientConn) {
+		submitClient := api.NewSubmitClient(connection)
+
+		jobRequest := createJobRequest("personal-anonymous")
+		createQueue(submitClient, jobRequest, t)
+		jobResponse, err := client.SubmitJobs(submitClient, jobRequest)
+		jobId := jobResponse.JobResponseItems[0].GetJobId()
+		client.CancelJobs(submitClient, &api.JobCancelRequest{JobId: jobId})
+		assert.NoError(t, err)
+
+	})
+}
+
 func createQueue(submitClient api.SubmitClient, jobRequest *api.JobSubmitRequest, t *testing.T) {
 	err := client.CreateQueue(submitClient, &api.Queue{Name: jobRequest.Queue, PriorityFactor: 1})
 	assert.NoError(t, err)
