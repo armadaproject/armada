@@ -40,7 +40,7 @@ There are additional API methods defined in proto specifications, which are used
 ## REST
 The REST API only exposes the public part of the gRPC API and it is implemented using grpc-gateway (https://github.com/grpc-ecosystem/grpc-gateway).
 
-Swagger json specification can be found [here](../pkg/api/api.swagger.json) and is also served by armada under `my.armada.deployment/api/swagger.json`
+Swagger json specification can be found [here](../pkg/api/api.swagger.json) and is also served by Armada under `my.armada.deployment/api/swagger.json`
 
 ## Authentication
 
@@ -49,7 +49,7 @@ Both gRPC and REST API support the same set of authentication methods. In the ca
 See helm chart [documentation](./helm/server.md#Authentication) for different server authentication schemes setup.
 
 ### No Auth
-For testing, armada can be configured to accept no authentication. All operations will use user `anonymous` in this case.
+For testing, Armada can be configured to accept no authentication. All operations will use user `anonymous` in this case.
 
 ### OpenId Authentication
 When server is configured with OpenID, it will accept authorization header or metadata in the form `Bearer {oauth_token}`.
