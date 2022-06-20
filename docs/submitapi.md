@@ -122,8 +122,8 @@ enum ServiceType {
 
 A summary of the main changes here are as follows:
 
-1. The message structure itself is made as similar as possible to our internal message representing a job submission.  Note that it is deliberately 
-not identical as the internal message as this means we can change the internal message format without introducing an external api change.
+1. The message structure itself is made as similar as possible to our [internal message representing a job submission](https://github.com/G-Research/armada/blob/master/pkg/armadaevents/events.proto#L126).  Note that it is deliberately 
+not **identical** to our internal message as this allows us to change internal messages without affecting the external api.
 3. Jobs are now composed of a single main object along with an arbitrary number of auxillary objects.  This distincton allows us to be sympathetic to 
 frameworks that have separate cooordinator and worker processes (e.g. Dask, Spark) and should allow us to detrmine which is the "gateway" application in
 terms of errors, ui etc.  The intention is that all pods specified by the job will be gang-scheduled by Armada.  
@@ -133,13 +133,12 @@ think that something like a `StatefulSet` should be provisioned as part of a job
 5. In addition to the objects available on the existing api (`PodSpec`, `ConfigMap`, `IngressConfig`, `ServiceConfig`) we define a new message `PodGroup` which is
 a group of pods that all have the same PodSpec.  This is inspired by similar concepts in [Volcano](https://volcano.sh/en/docs/podgroup/) and [k8s-sigs](https://github.com/kubernetes-sigs/scheduler-plugins/blob/master/pkg/coscheduling/README.md)
 and allows an efficient representation of a large number of identical pods.
-6. Jobs may be marked as pre-emptible, which is a pre-requisite for enabling pre-emeption.
+6. Jobs may be marked as pre-emptible, which is a pre-requisite for enabling pre-emeption in the scheduler.
 7. Jobs may be marked as concurrency safe which would allow Armada to optimistically run several instances of the job concurrently if capacity allows.
 8. Jobs may be marked as atMostOnce which means that Armada will not try to rerun them on a failure.
 9. Jobs may define a lifetime, which a number of seconds after which the job may be pre-empted.  This enables more efficienct scheduling and the plan is to reward the user 
-with exra capcity if it is set.   More details can be found in the [scheduling proposal](https://github.com/G-Research/armada/pull/976/files).
+with extra capcity if it is set.   More details can be found in the [scheduling proposal](https://github.com/G-Research/armada/pull/976/files).
 
 ## Migration Strategy
-
 It should be possible to add a new rpc endpoint which accepts a new JobSubmissionRequest message containing a list of  new JobSubmitRequestItems. After some period of time, we should be able to  migrate all users to the new endpoint and retire the old rpc call. 
 Reprioritization and cancellation should work as before without changes.
