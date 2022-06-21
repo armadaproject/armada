@@ -68,7 +68,14 @@ export default function JobDetails(props: DetailsProps) {
           </TableBody>
         </Table>
       </TableContainer>
-      {initRuns && <PreviousRuns runs={initRuns} expandedItems={expandedItems} onToggleExpand={toggleExpanded} />}
+      {initRuns && (
+        <PreviousRuns
+          runs={initRuns}
+          jobId={props.job.jobId}
+          expandedItems={expandedItems}
+          onToggleExpand={toggleExpanded}
+        />
+      )}
       {props.job.jobYaml && (
         <div className="details-yaml-container">
           <Accordion>

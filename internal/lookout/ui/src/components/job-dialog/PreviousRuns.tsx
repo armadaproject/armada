@@ -10,6 +10,7 @@ import "./PreviousRuns.css"
 
 interface SchedulingHistoryProps {
   runs: Run[]
+  jobId: string
   expandedItems: Set<string>
   onToggleExpand: (k8sId: string, isExpanded: boolean) => void
 }
@@ -42,7 +43,7 @@ export function PreviousRuns(props: SchedulingHistoryProps) {
                     <TableContainer>
                       <Table>
                         <TableBody>
-                          <RunDetailsRows run={run} />
+                          <RunDetailsRows run={run} jobId={props.jobId} />
                         </TableBody>
                       </Table>
                     </TableContainer>
