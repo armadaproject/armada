@@ -60,6 +60,7 @@ class ArmadaClient:
 
     def submit_jobs(self, queue: str, job_set_id: str, job_request_items):
         """Submit a armada job.
+        
         :param queue: str
             The name of the queue
         :param job_set_id: str
