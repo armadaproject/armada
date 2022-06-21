@@ -62,22 +62,28 @@ message JobSubmitRequestItem {
 
 // Kubernetes objects that can serve as main objects for an Armada job.
 message KubernetesMainObject {
-    ObjectMeta objectMeta = 1;
+    // Set of labels applied to this object
+    map<string, string> labels = 1;
+    // Set of annotations applied to this object
+    map<string, string> annotations = 2;
     oneof object {
-        k8s.io.api.core.v1.PodSpec pod_spec = 2;
-        PodGroup pod_group = 3;
+        k8s.io.api.core.v1.PodSpec pod_spec = 3;
+        PodGroup pod_group = 4;
     }
 }
 
 // Kubernetes objects that can be created as part of an Armada job.
 message KubernetesObject {
-    ObjectMeta objectMeta = 1;
+    // Set of labels applied to this object
+    map<string, string> labels = 1;
+    // Set of annotations applied to this object
+    map<string, string> annotations = 2;
     oneof object {
-        k8s.io.api.core.v1.PodSpec pod_spec = 2;
-        IngressConfig ingress = 3;
-        ServiceConfig service = 4;
-        k8s.io.api.core.v1.ConfigMap configMap = 5;
-        PodGroup pod_group = 6;
+        k8s.io.api.core.v1.PodSpec pod_spec = 3;
+        IngressConfig ingress = 4;
+        ServiceConfig service = 5;
+        k8s.io.api.core.v1.ConfigMap configMap = 6;
+        PodGroup pod_group = 7;
     }
 }
 
