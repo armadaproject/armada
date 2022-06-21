@@ -17,6 +17,7 @@
 # under the License.
 
 from airflow.models import BaseOperator
+from airflow.exceptions import AirflowException
 
 from armada_client.client import ArmadaClient, unwatch_events, search_for_job_complete
 
@@ -47,15 +48,17 @@ class ArmadaOperator(BaseOperator):
     def execute(self, context):
 
         # get the airflow.task logger
-        armada_logger.info(f"Running Armada job {self.name}")
         job = self.armada_client.submit_jobs(
             queue=self.queue,
             job_set_id=self.job_set_id,
             job_request_items=self.job_request_items,
         )
 
-        job_id = job.job_response_items[0].job_id
-
+        try:
+            job_id = job.job_response_items[0].job_id
+            armada_logger.info(f"Running Armada job {self.name} with id {job_id}")
+        except:
+            raise AirflowException("Armada has issues submitting job")
         job_events = self.armada_client.get_job_events_stream(
             queue=self.queue, job_set_id=self.job_set_id
         )
