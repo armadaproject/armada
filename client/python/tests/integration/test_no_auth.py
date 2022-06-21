@@ -7,7 +7,6 @@ from armada_client.k8s.io.api.core.v1 import generated_pb2 as core_v1
 from armada_client.k8s.io.apimachinery.pkg.api.resource import (
     generated_pb2 as api_resource,
 )
-from armada_client.client import unwatch_events
 import grpc
 import time
 
@@ -87,6 +86,7 @@ def test_get_job_events_stream():
     success = search_for_job_complete(event_stream, job_name="sleep", job_id=job_id)
     assert success[0] == "successful"
     assert success[1] == f"Armada sleep:{job_id} succeeded"
+
 
 def test_get_job_events_stream_error():
     queue_name = f"queue-{uuid.uuid1()}"
