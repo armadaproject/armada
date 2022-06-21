@@ -61,29 +61,23 @@ def test_submit_job_and_cancel_by_id():
         queue=queue_name, job_set_id=job_set_name, job_request_items=submit_sleep_job()
     )
     # Jobs can must be finished before deleting queue
-    cancel_response = no_auth_client.cancel_jobs(
-        job_id=jobs.job_response_items[0].job_id
-    )
+    no_auth_client.cancel_jobs(job_id=jobs.job_response_items[0].job_id)
 
     queue = no_auth_client.get_queue_info(name=queue_name)
     assert not queue.active_job_sets
-
 
 
 def test_submit_job_and_cancel_by_queue_job_set():
     job_set_name = f"set-{uuid.uuid1()}"
     sleep(5)
-    jobs = no_auth_client.submit_jobs(
+    no_auth_client.submit_jobs(
         queue=queue_name, job_set_id=job_set_name, job_request_items=submit_sleep_job()
     )
     # Jobs can must be finished before deleting queue
-    cancelled_response = no_auth_client.cancel_jobs(
-        queue=queue_name, job_set_id=job_set_name
-    )
+    no_auth_client.cancel_jobs(queue=queue_name, job_set_id=job_set_name)
 
     queue = no_auth_client.get_queue_info(name=queue_name)
     assert not queue.active_job_sets
-
 
 
 def test_get_job_events_stream():
