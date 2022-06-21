@@ -9,19 +9,20 @@ import (
 	"github.com/G-Research/armada/internal/common/armadaerrors"
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/client"
-	"github.com/G-Research/armada/pkg/client/domain"
 	"github.com/pkg/errors"
 )
 
 type Submitter struct {
 	ApiConnectionDetails *client.ApiConnectionDetails
 	// Jobs to submit.
-	JobFile *domain.JobSubmitFile
+	Queue      string
+	JobSetName string
+	Jobs       []*api.JobSubmitRequestItem
 	// Number of batches of jobs to submit.
 	// A value of 0 indicates infinity.
-	NumBatches uint
+	NumBatches uint32
 	// Number of copies of the provided job to submit per batch.
-	BatchSize uint
+	BatchSize uint32
 	// Time between batches.
 	Interval time.Duration
 	// Number of seconds to wait for jobs to finish.
@@ -31,31 +32,24 @@ type Submitter struct {
 }
 
 func (config *Submitter) Validate() error {
-	if config.JobFile == nil {
-		return errors.WithStack(&armadaerrors.ErrInvalidArgument{
-			Name:    "Job",
-			Value:   config.JobFile,
-			Message: "not provided",
-		})
-	}
-	if len(config.JobFile.Jobs) == 0 {
+	if len(config.Jobs) == 0 {
 		return errors.WithStack(&armadaerrors.ErrInvalidArgument{
 			Name:    "Jobs",
-			Value:   config.JobFile.Jobs,
+			Value:   config.Jobs,
 			Message: "no jobs provided",
 		})
 	}
-	if config.JobFile.Queue == "" {
+	if config.Queue == "" {
 		return errors.WithStack(&armadaerrors.ErrInvalidArgument{
 			Name:    "Queue",
-			Value:   config.JobFile.Queue,
+			Value:   config.Queue,
 			Message: "not provided",
 		})
 	}
-	if config.JobFile.JobSetId == "" {
+	if config.JobSetName == "" {
 		return errors.WithStack(&armadaerrors.ErrInvalidArgument{
 			Name:    "JobSetName",
-			Value:   config.JobFile.JobSetId,
+			Value:   config.JobSetName,
 			Message: "not provided",
 		})
 	}
@@ -73,13 +67,13 @@ func (srv *Submitter) Run(ctx context.Context) error {
 	fmt.Println("Submitter started")
 	defer fmt.Println("Submitter stopped")
 
-	var numBatchesSent uint
+	var numBatchesSent uint32
 	req := &api.JobSubmitRequest{
-		Queue:    srv.JobFile.Queue,
-		JobSetId: srv.JobFile.JobSetId,
+		Queue:    srv.Queue,
+		JobSetId: srv.JobSetName,
 	}
 	for i := 0; i < int(srv.BatchSize); i++ {
-		req.JobRequestItems = append(req.JobRequestItems, srv.JobFile.Jobs...)
+		req.JobRequestItems = append(req.JobRequestItems, srv.Jobs...)
 	}
 	return client.WithSubmitClient(srv.ApiConnectionDetails, func(c api.SubmitClient) error {
 

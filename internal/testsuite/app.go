@@ -1,6 +1,7 @@
 package testsuite
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"fmt"
@@ -9,9 +10,12 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/gogo/protobuf/jsonpb"
+	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
+	"sigs.k8s.io/yaml"
 
 	"github.com/G-Research/armada/internal/common/armadaerrors"
 	"github.com/G-Research/armada/internal/testsuite/build"
@@ -144,32 +148,56 @@ func (config *SubmitConfig) Validate() error {
 	return nil
 }
 
-func (a *App) Submit(config *SubmitConfig) error {
-	if err := config.Validate(); err != nil {
+func (a *App) Submit(testSpec *api.TestSpec) error {
+	// if err := testSpec.Validate(); err != nil {
+	// 	return err
+	// }
+
+	// Optional timeout
+	ctx, cancel := context.WithCancel(context.Background())
+	if testSpec.Timeout != 0 {
+		fmt.Println("Non-zero timeout ", testSpec.Timeout)
+		ctx, cancel = context.WithTimeout(ctx, testSpec.Timeout)
+	}
+	defer cancel()
+
+	// Submit jobs.
+	submitter := &submitter.Submitter{
+		ApiConnectionDetails: a.Params.ApiConnectionDetails,
+		Jobs:                 testSpec.Jobs,
+		Queue:                testSpec.Queue,
+		JobSetName:           testSpec.JobSetId,
+		NumBatches:           testSpec.NumBatches,
+		BatchSize:            testSpec.BatchSize,
+		Interval:             testSpec.Interval,
+	}
+	err := submitter.Run(ctx)
+	if err != nil {
 		return err
 	}
-
-	// Optional
-	// ctx := context.Background()
-	ctx, cancel := context.WithCancel(context.Background())
-	if config.Timeout != 0 {
-		ctx, cancel = context.WithTimeout(ctx, config.Timeout)
+	jobIds := submitter.JobIds()
+	jobIdMap := make(map[string]bool)
+	for _, jobId := range jobIds {
+		jobIdMap[jobId] = false
 	}
 
-	// Channels for each downstream system.
+	// One channel for each system listening to events.
 	logCh := make(chan *api.EventMessage)
 	noActiveCh := make(chan *api.EventMessage)
 	failedCh := make(chan *api.EventMessage)
 	assertCh := make(chan *api.EventMessage)
 
-	// Setup ctx to cancel on any job failing and on no active jobs.
-	ctx = eventwatcher.WithCancelOnFailed(ctx, failedCh)
-	ctx = eventwatcher.WithCancelOnNoActiveJobs(ctx, noActiveCh)
-
+	// Setup an errgroup that cancels on any job failing or there being no active jobs.
 	g, ctx := errgroup.WithContext(ctx)
+	g.Go(func() error { return eventwatcher.ErrorOnNoActiveJobs(ctx, noActiveCh, jobIdMap) })
+	g.Go(func() error { return eventwatcher.ErrorOnFailed(ctx, failedCh) })
 
-	// Goroutine for receiving events.
-	watcher := eventwatcher.New(config.JobFile.Queue, config.JobFile.JobSetId, a.Params.ApiConnectionDetails)
+	// Logger service.
+	eventLogger := eventlogger.New(logCh, 5*time.Second)
+	g.Go(func() error { return eventLogger.Run(ctx) })
+
+	// Goroutine forwarding API events on a channel.
+	watcher := eventwatcher.New(testSpec.Queue, testSpec.JobSetId, a.Params.ApiConnectionDetails)
 	g.Go(func() error { return watcher.Run(ctx) })
 
 	// Split the events into multiple channels, one for each downstream service.
@@ -177,77 +205,17 @@ func (a *App) Submit(config *SubmitConfig) error {
 	splitter := eventsplitter.New(watcher.C, []chan *api.EventMessage{assertCh, logCh, noActiveCh, failedCh}...)
 	g.Go(func() error { return splitter.Run(ctx) })
 
-	// Log periodically.
-	eventLogger := eventlogger.New(logCh, 5*time.Second)
-	g.Go(func() error { return eventLogger.Run(ctx) })
-
-	// Submit jobs
-	submitter := &submitter.Submitter{
-		ApiConnectionDetails: a.Params.ApiConnectionDetails,
-		JobFile:              config.JobFile,
-		NumBatches:           config.NumBatches,
-		BatchSize:            config.BatchSize,
-		Interval:             config.Interval,
-	}
-	err := submitter.Run(ctx)
+	// Assert that we get the right events for each job.
+	err = eventwatcher.AssertEvents(ctx, assertCh, jobIdMap, testSpec.ExpectedEvents)
 	if err != nil {
-		return err
-	}
-
-	jobIds := submitter.JobIds()
-	expected := []*api.EventMessage{
-		{Events: &api.EventMessage_Submitted{}},
-		{Events: &api.EventMessage_Succeeded{}},
-	}
-	jobIdMap := make(map[string]interface{})
-	for _, jobId := range jobIds {
-		jobIdMap[jobId] = ""
-	}
-
-	err = eventwatcher.AssertEvents(ctx, assertCh, jobIdMap, expected)
-	if err != nil {
+		fmt.Println("======= assert failed ", err)
 		return err
 	}
 	cancel()
 
-	// // Goroutine responsible for submitting jobs.
-	// // Sends the ids of submitted jobs on a channel.
-	// req := &api.JobSubmitRequest{
-	// 	Queue:    config.JobFile.Queue,
-	// 	JobSetId: config.JobFile.JobSetId,
-	// }
-	// for i := 0; i < int(config.BatchSize); i++ {
-	// 	req.JobRequestItems = append(req.JobRequestItems, config.JobFile.Jobs...)
-	// }
-	// g.Go(func() error {
-	// 	fmt.Println("Submitter started")
-	// 	defer fmt.Println("Submitter stopped")
-	// 	var numBatchesSent uint
-	// 	return client.WithSubmitClient(a.Params.ApiConnectionDetails, func(c api.SubmitClient) error {
-	// 		ticker := time.NewTicker(config.Interval)
-	// 		defer ticker.Stop()
-	// 		for config.NumBatches == 0 || numBatchesSent < config.NumBatches {
-	// 			select {
-	// 			case <-ticker.C:
-	// 				_, err := c.SubmitJobs(ctx, req)
-	// 				if err != nil {
-	// 					return errors.WithStack(errors.WithMessage(err, "error submitting jobs"))
-	// 				}
-	// 				numBatchesSent++
-	// 			case <-ctx.Done():
-	// 				return ctx.Err()
-	// 			}
-	// 		}
-	// 		return nil
-	// 	})
-	// })
-
-	// Wait for ctx to be cancelled or time out.
-	// <-ctx.Done()
-
 	fmt.Println("Waiting for errgroup")
 	if err := g.Wait(); err != context.DeadlineExceeded && err != context.Canceled && err != nil {
-		log.WithError(err).Error("error submitting jobs or receiving events: %s", err)
+		log.WithError(err).Errorf("error submitting jobs or receiving events: %s", err)
 	}
 	fmt.Println("Errgroup cancelled")
 
@@ -257,36 +225,39 @@ func (a *App) Submit(config *SubmitConfig) error {
 	return nil
 }
 
-func isSubmittedEvent(msg *api.EventMessage) bool {
-	switch msg.Events.(type) {
-	case *api.EventMessage_Submitted:
-		return true
-	}
-	return false
-}
+// UnmarshalTestCase unmarshals bytes into a TestSpec.
+func UnmarshalTestCase(yamlBytes []byte, testSpec *api.TestSpec) error {
+	var result *multierror.Error
+	successExpectedEvents := false
+	successEverythingElse := false
+	docs := bytes.Split(yamlBytes, []byte("---"))
+	for _, docYamlBytes := range docs {
 
-func isSuccededEvent(msg *api.EventMessage) bool {
-	switch msg.Events.(type) {
-	case *api.EventMessage_Succeeded:
-		return true
-	}
-	return false
-}
+		// yaml.Unmarshal can unmarshal everything,
+		// but leaves oneof fields empty (these are silently discarded).
+		if err := yaml.Unmarshal(docYamlBytes, testSpec); err != nil {
+			result = multierror.Append(result, err)
+		} else {
+			successEverythingElse = true
+		}
 
-func isFailedEvent(msg *api.EventMessage) bool {
-	switch msg.Events.(type) {
-	case *api.EventMessage_Failed:
-		return true
+		// YAMLToJSON + jsonpb.Unmarshaler can unmarshal oneof fields,
+		// but can't unmarshal k8s pod specs.
+		docJsonBytes, err := yaml.YAMLToJSON(docYamlBytes)
+		if err != nil {
+			result = multierror.Append(result, err)
+			continue
+		}
+		unmarshaler := jsonpb.Unmarshaler{AllowUnknownFields: true}
+		err = unmarshaler.Unmarshal(bytes.NewReader(docJsonBytes), testSpec)
+		if err != nil {
+			result = multierror.Append(result, err)
+		} else {
+			successExpectedEvents = true
+		}
 	}
-	return false
-}
-
-func isTerminalEvent(msg *api.EventMessage) bool {
-	switch msg.Events.(type) {
-	case *api.EventMessage_Failed:
-		return true
-	case *api.EventMessage_Succeeded:
-		return true
+	if !successExpectedEvents || !successEverythingElse {
+		return result.ErrorOrNil()
 	}
-	return false
+	return nil
 }
