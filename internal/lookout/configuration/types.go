@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/G-Research/armada/internal/armada/configuration"
+	grpcconfig "github.com/G-Research/armada/internal/common/grpc/configuration"
 )
 
 type NatsConfig struct {
@@ -32,6 +33,8 @@ type LookoutConfiguration struct {
 	HttpPort    uint16
 	GrpcPort    uint16
 	MetricsPort uint16
+
+	Grpc grpcconfig.GrpcConfig
 
 	UIConfig LookoutUIConfig
 
