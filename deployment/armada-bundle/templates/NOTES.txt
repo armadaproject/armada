@@ -1,0 +1,18 @@
+Thank you for installing {{ .Chart.Name }}.
+
+To learn more about the release, try:
+
+  $ helm status {{ .Release.Name }}
+  $ helm get all {{ .Release.Name }}
+
+Please run the following command to initialize Grafana dashboards:
+  $ kubectl port-forward svc/armada-bundle-grafana 30001:80
+  $ curl -X POST -i http://admin:prom-operator@localhost:30001/api/datasources -H "Content-Type: application/json" -d '{"name":"cluster-0","type":"prometheus","url":"http://armada-executor.default.svc.cluster.local:30001","access":"proxy","basicAuth":false}'
+  $ curl -X POST -i http://admin:prom-operator@localhost:30001/api/dashboards/import --data-binary @../../docs/quickstart/grafana-armada-dashboard.json -H "Content-Type: application/json"
+  $ open http://localhost:30001 with your browser and use admin:prom-operator as default creds
+
+If you want to connect to the Armada server using armadactl, port-forward to the Armada server:
+  $ kubectl port-forward svc/armada 50051:50051
+
+If you want to open the Lookout UI, port-forward to the UI server:
+  $ kubectl port-forward svc/armada-lookout 8080:8080
