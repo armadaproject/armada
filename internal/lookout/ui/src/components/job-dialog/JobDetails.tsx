@@ -66,7 +66,7 @@ export default function JobDetails(props: DetailsProps) {
                 <DetailRow
                   key={"annotation-" + name}
                   detailRowKey={"annotation-" + name}
-                  annotation={value}
+                  isAnnotation
                   name={name}
                   value={value}
                 />
