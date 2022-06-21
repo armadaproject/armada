@@ -71,7 +71,7 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 	// For each gRPC request, we try them all until one succeeds, at which point the process is
 	// short-circuited.
 	authServices := auth.ConfigureAuth(config.Auth)
-	grpcServer := grpcCommon.CreateGrpcServer(authServices)
+	grpcServer := grpcCommon.CreateGrpcServer(config.Grpc.KeepaliveParams, config.Grpc.KeepaliveEnforcementPolicy, authServices)
 
 	// Shut down grpcServer if the context is cancelled.
 	// Give the server 5 seconds to shut down gracefully.
