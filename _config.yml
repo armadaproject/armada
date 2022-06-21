@@ -7,10 +7,6 @@ collections:
   pages:
     output: true
     permalink: /:name
-  posts:
-    output: false
-    permalink: /blog/:slug
-    type: "post"
 
 defaults:
   -

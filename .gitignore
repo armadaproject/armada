@@ -1,3 +1,9 @@
+# GH Pages
+# _site is where local development puts built files
+_site
+# Gemfile.lock may vary based on local ruby version; best to not commit
+Gemfile.lock
+
 .vscode
 .idea
 .kube

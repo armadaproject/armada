@@ -1,6 +1,8 @@
+source "https://rubygems.org"
+
 # If you want to use GitHub Pages, remove the "gem "jekyll"" above and
 # uncomment the line below. To upgrade, run `bundle update github-pages`.
-gem "github-pages", "~> 208", group: :jekyll_plugins
+gem "github-pages", "~> 226", group: :jekyll_plugins
 # If you have any plugins, put them here!
 group :jekyll_plugins do
   gem 'jekyll-paginate', "~> 1.1.0"
@@ -16,3 +18,6 @@ end
 
 # Performance-booster for watching directories on Windows
 gem "wdm", "~> 0.1.1", :platforms => [:mingw, :x64_mingw, :mswin]
+
+# Requiring this version of webrick permits this to work under ruby 3.x.
+gem "webrick", "~> 1.7"
