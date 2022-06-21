@@ -5,7 +5,6 @@ import (
 	"net"
 	"runtime/debug"
 	"sync"
-	"time"
 
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
@@ -27,7 +26,10 @@ import (
 
 // CreateGrpcServer creates a gRPC server (by calling grpc.NewServer) with settings specific to
 // this project, and registers services for, e.g., logging and authentication.
-func CreateGrpcServer(authServices []authorization.AuthService) *grpc.Server {
+func CreateGrpcServer(
+	keepaliveParams keepalive.ServerParameters,
+	keepaliveEnforcementPolicy keepalive.EnforcementPolicy,
+	authServices []authorization.AuthService) *grpc.Server {
 
 	// Logging, authentication, etc. are implemented via gRPC interceptors
 	// (i.e., via functions that are called before handling the actual request).
@@ -76,9 +78,8 @@ func CreateGrpcServer(authServices []authorization.AuthService) *grpc.Server {
 
 	// Interceptors are registered at server creation
 	return grpc.NewServer(
-		grpc.KeepaliveParams(keepalive.ServerParameters{
-			MaxConnectionIdle: 5 * time.Minute,
-		}),
+		grpc.KeepaliveParams(keepaliveParams),
+		grpc.KeepaliveEnforcementPolicy(keepaliveEnforcementPolicy),
 		grpc.StreamInterceptor(grpc_middleware.ChainStreamServer(streamInterceptors...)),
 		grpc.UnaryInterceptor(grpc_middleware.ChainUnaryServer(unaryInterceptors...)),
 	)

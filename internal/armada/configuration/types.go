@@ -8,16 +8,20 @@ import (
 
 	"github.com/G-Research/armada/internal/common"
 	authconfig "github.com/G-Research/armada/internal/common/auth/configuration"
+	grpcconfig "github.com/G-Research/armada/internal/common/grpc/configuration"
 	"github.com/G-Research/armada/pkg/client/queue"
 )
 
 type ArmadaConfig struct {
 	Auth authconfig.AuthConfig
 
-	GrpcPort           uint16
-	HttpPort           uint16
-	MetricsPort        uint16
+	GrpcPort    uint16
+	HttpPort    uint16
+	MetricsPort uint16
+
 	CorsAllowedOrigins []string
+
+	Grpc grpcconfig.GrpcConfig
 
 	PriorityHalfTime    time.Duration
 	CancelJobsBatchSize int
