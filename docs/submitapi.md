@@ -68,7 +68,7 @@ message KubernetesMainObject {
     map<string, string> annotations = 2;
     oneof object {
         k8s.io.api.core.v1.PodSpec pod_spec = 3;
-        PodGroup pod_group = 4;
+        PodGroupSpec pod_group_spec = 4;
     }
 }
 
@@ -79,27 +79,46 @@ message KubernetesObject {
     // Set of annotations applied to this object
     map<string, string> annotations = 2;
     oneof object {
-        k8s.io.api.core.v1.PodSpec pod_spec = 3;
         IngressConfig ingress = 4;
         ServiceConfig service = 5;
         k8s.io.api.core.v1.ConfigMap configMap = 6;
-        PodGroup pod_group = 7;
     }
 }
 
-// A set of pods that all have the same spec
-message PodGroup {
+message PodGroupSpec {
 
-    // Minimum number of pods to be scheduled.
-    // Pods below this won't be pre-empted
-    uint32 min_member = 1;
+	// min_resources define an aggregated minimum resource requirement to run
+	// a group of pods, as a fail-past path to speed up the whole scheduling.
+	// (optional)
+	k8s.io.api.core.v1.PodSpec min_resources = 1;
 
-    // maximum number of pods to be scheduled.
-    uint32 max_member = 2;
+	// subsets consist of various kinds of pod sets.
+	// A PodGroup is schedulable if all subsets can be scheduled.
+	repeated Subset subsets = 2;
 
-    // If any pod in the pod group takes longer than this to start- we fail the whole pod group
-    int32 schedule_timeout_seconds = 3;
+	// schedule_timeout_seconds defines the timeout threshold to abort
+	// an in-progress PodGroup-level scheduling attempt.
+	int32 schedule_timeout_seconds = 3;
+}
 
+// Subset represents a collection of pods with the same role.
+message Subset {
+
+	// role is used to distinguish pods with different roles in the
+	// same pod group. Optional if there is only one subset in the
+	// pod group.
+	string role = 1;
+
+	// MinMember specifies the minimum number of pods required for a
+	// subset to be operational. When the job is initially scheduled, armada will ensure that 
+	// At least this number of pods are brought up.
+	// If the number of pods falls below this, the job will be killed.
+    int32 min_member = 2;
+    
+    // ManMember specifies the max number of pods requested when using (static) elastic scaling
+    // (optional)
+    int32 max_member = 3;
+    
     // All Pods in the pod group are identical
     k8s.io.api.core.v1.PodSpec template = 4;
 }
