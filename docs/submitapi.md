@@ -53,11 +53,6 @@ message JobSubmitRequestItem {
     // If true, Armada may preempt the job while running.
     bool preemptible = 10;
 
-    // If true, Armada may optimistically run several instances of the job concurrently
-    // (typically on different clusters).
-    // If false, a new job run may only be created once Armada is certain that all existing runs have finished.
-    bool concurrencySafe = 11;
-
 }
 
 // Kubernetes objects that can serve as main objects for an Armada job.
