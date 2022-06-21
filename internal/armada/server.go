@@ -93,14 +93,14 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 	db := createRedisClient(&config.Redis)
 	defer func() {
 		if err := db.Close(); err != nil {
-			log.WithError(err).Error("faled to close Redis client")
+			log.WithError(err).Error("failed to close Redis client")
 		}
 	}()
 
 	eventsDb := createRedisClient(&config.EventsRedis)
 	defer func() {
-		if err := db.Close(); err != nil {
-			log.WithError(err).Error("faled to close events Redis client")
+		if err := eventsDb.Close(); err != nil {
+			log.WithError(err).Error("failed to close events Redis client")
 		}
 	}()
 
