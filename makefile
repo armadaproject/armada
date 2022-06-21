@@ -1,6 +1,6 @@
 # Determine which platform we're on based on the kernel name
 platform := $(shell uname -s || echo unknown)
-
+PWD := $(shell pwd)
 # Check that all necessary executables are present
 # Using 'where' on Windows and 'which' on Unix-like systems, respectively
 # We do not check for 'date', since it's a cmdlet on Windows, which do not show up with where
@@ -73,6 +73,13 @@ NODE_CMD = docker run --rm -v ${PWD}:/go/src/armada -w /go/src/armada/internal/l
 	-e SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
 	-e npm_config_cafile=/etc/ssl/certs/ca-certificates.crt \
 	node:16.14-buster
+
+# Versions of third party API
+# Bump if you are updating
+GRPC_GATEWAY_VERSION:=@v1.16.0
+GOGO_PROTOBUF_VERSION=@v1.3.2
+K8_APIM_VERSION = @v0.22.4
+K8_API_VERSION = @v0.22.4
 
 # Optionally (if the TESTS_IN_DOCKER environment variable is set to true) run tests in docker containers.
 # If using WSL, running tests in docker may result in network problems.
@@ -245,7 +252,7 @@ rebuild-executor: build-docker-executor
 		-e ARMADA_KUBERNETES_STUCKPODEXPIRY=15s \
 		-e ARMADA_APICONNECTION_ARMADAURL="server:50051" \
 		-e ARMADA_APICONNECTION_FORCENOTLS=true \
-		armada-executor --config /e2e/setup/executor-config.yaml
+		armada-executor --config /e2e/setup/insecure-executor-config.yaml
 
 .ONESHELL:
 tests-e2e-teardown:
@@ -261,7 +268,7 @@ setup-cluster:
 	kubectl apply -f e2e/setup/ingress-nginx.yaml --context kind-armada-test
 	# Wait until the ingress controller is ready
 	echo "Waiting for ingress controller to become ready"
-	sleep 60s # calling wait immediately can result in "no matching resources found"
+	sleep 60 # calling wait immediately can result in "no matching resources found"
 	kubectl wait --namespace ingress-nginx \
 		--for=condition=ready pod \
 		--selector=app.kubernetes.io/component=controller \
@@ -294,7 +301,7 @@ tests-e2e-setup: setup-cluster
 		-e ARMADA_KUBERNETES_STUCKPODEXPIRY=15s \
 		-e ARMADA_APICONNECTION_ARMADAURL="server:50051" \
 		-e ARMADA_APICONNECTION_FORCENOTLS=true \
-		armada-executor --config /e2e/setup/executor-config.yaml
+		armada-executor --config /e2e/setup/insecure-executor-config.yaml
 
 .ONESHELL:
 tests-e2e-no-setup:
@@ -341,9 +348,46 @@ junit-report:
 	rm -f test_reports/junit.xml
 	$(GO_TEST_CMD) bash -c "cat test_reports/*.txt | go-junit-report > test_reports/junit.xml"
 
-proto:
+setup-proto: download
+	rm -rf proto
+	mkdir -p proto
+	mkdir -p proto/google/api
+	mkdir -p proto/google/protobuf
+	mkdir -p proto/k8s.io/apimachinery/pkg/api/resource
+	mkdir -p proto/k8s.io/apimachinery/pkg/apis/meta/v1
+
+	mkdir -p proto/k8s.io/apimachinery/pkg/runtime
+	mkdir -p proto/k8s.io/apimachinery/pkg/runtime/schema
+	mkdir -p proto/k8s.io/apimachinery/pkg/util/intstr/
+	mkdir -p proto/k8s.io/api/networking/v1
+	mkdir -p proto/k8s.io/api/core/v1
+	mkdir -p proto/github.com/gogo/protobuf/gogoproto/
+
+# Copy third party annotations from grpc-ecosystem
+
+	$(GO_CMD) cp /go/pkg/mod/github.com/grpc-ecosystem/grpc-gateway$(GRPC_GATEWAY_VERSION)/third_party/googleapis/google/api/annotations.proto proto/google/api
+	$(GO_CMD) cp /go/pkg/mod/github.com/grpc-ecosystem/grpc-gateway$(GRPC_GATEWAY_VERSION)/third_party/googleapis/google/api/http.proto proto/google/api
+	$(GO_CMD) cp -r /go/pkg/mod/github.com/gogo/protobuf$(GOGO_PROTOBUF_VERSION)/protobuf/google/protobuf proto/google
+	$(GO_CMD) cp /go/pkg/mod/github.com/gogo/protobuf$(GOGO_PROTOBUF_VERSION)/gogoproto/gogo.proto proto/github.com/gogo/protobuf/gogoproto/
+
+#K8S MACHINERY API COPY
+	$(GO_CMD) cp /go/pkg/mod/k8s.io/apimachinery$(K8_APIM_VERSION)/pkg/api/resource/generated.proto proto/k8s.io/apimachinery/pkg/api/resource/
+	$(GO_CMD) cp /go/pkg/mod/k8s.io/apimachinery$(K8_APIM_VERSION)/pkg/apis/meta/v1/generated.proto proto/k8s.io/apimachinery/pkg/apis/meta/v1
+	$(GO_CMD) cp /go/pkg/mod/k8s.io/apimachinery$(K8_APIM_VERSION)/pkg/runtime/generated.proto proto/k8s.io/apimachinery/pkg/runtime
+	$(GO_CMD) cp /go/pkg/mod/k8s.io/apimachinery$(K8_APIM_VERSION)/pkg/runtime/schema/generated.proto proto/k8s.io/apimachinery/pkg/runtime/schema/
+	$(GO_CMD) cp /go/pkg/mod/k8s.io/apimachinery$(K8_APIM_VERSION)/pkg/util/intstr/generated.proto proto/k8s.io/apimachinery/pkg/util/intstr/
+#K8S API COPY
+	$(GO_CMD) cp /go/pkg/mod/k8s.io/api$(K8_API_VERSION)/networking/v1/generated.proto proto/k8s.io/api/networking/v1
+	$(GO_CMD) cp /go/pkg/mod/k8s.io/api$(K8_API_VERSION)/core/v1/generated.proto proto/k8s.io/api/core/v1
+
+python: setup-proto
+	docker build $(dockerFlags) -t armada-python-client-builder -f ./build/python-client/Dockerfile .
+	docker run --rm -v ${PWD}/proto:/proto -v ${PWD}:/go/src/armada -w /go/src/armada armada-python-client-builder ./scripts/build-python-client.sh
+
+proto: setup-proto
+	
 	docker build $(dockerFlags) --build-arg GOPROXY --build-arg GOPRIVATE --build-arg MAVEN_URL -t armada-proto -f ./build/proto/Dockerfile .
-	docker run --rm -e GOPROXY -e GOPRIVATE -v ${PWD}:/go/src/armada -w /go/src/armada armada-proto ./scripts/proto.sh
+	docker run --rm -e GOPROXY -e GOPRIVATE -v ${PWD}/proto:/proto -v ${PWD}:/go/src/armada -w /go/src/armada armada-proto ./scripts/proto.sh
 
 	# generate proper swagger types (we are using standard json serializer, GRPC gateway generates protobuf json, which is not compatible)
 	$(GO_TEST_CMD) swagger generate spec -m -o pkg/api/api.swagger.definitions.json
@@ -375,7 +419,6 @@ dotnet:
 
 # Download all dependencies and install tools listed in internal/tools/tools.go
 download:
-	echo $(go env GOPATH)
 	$(GO_TEST_CMD) go mod download
 	$(GO_TEST_CMD) go list -f '{{range .Imports}}{{.}} {{end}}' internal/tools/tools.go | xargs $(GO_TEST_CMD) go install
 	$(GO_TEST_CMD) go mod tidy
@@ -397,4 +440,3 @@ generate:
 	$(GO_CMD) go run github.com/rakyll/statik \
     		-dest=internal/eventapi/eventdb/schema/ -src=internal/eventapi/eventdb/schema/ -include=\*.sql -ns=eventapi/sql -Z -f -m && \
     		go run golang.org/x/tools/cmd/goimports -w -local "github.com/G-Research/armada" internal/eventapi/eventdb/schema/statik
-
