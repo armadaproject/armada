@@ -208,17 +208,9 @@ def search_for_job_complete(event, job_name: str, job_id: str) -> Tuple[str, str
             )
 
             break
-        if element.message.cancelling.job_id == job_id:
-            job_state = "cancelling"
-            job_message = f"Armada {job_name}:{job_id} cancelling"
-            break
         if element.message.cancelled.job_id == job_id:
             job_state = "cancelled"
             job_message = f"Armada {job_name}:{job_id} cancelled"
-            break
-        if element.message.terminated.job_id == job_id:
-            job_state = "terminated"
-            job_message = f"Armada {job_name}:{job_id} terminated"
             break
 
     return job_state, job_message

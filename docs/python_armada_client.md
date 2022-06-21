@@ -254,6 +254,35 @@ Uses UpdateQueue RPC to update the parameters on the queue.
 
 
 
+### armada_client.client.search_for_job_complete(event, job_name, job_id)
+Search the event stream to see if your job has finished running
+
+
+* **Parameters**
+
+    
+    * **event** – a gRPC event stream
+
+
+    * **job_name** (*str*) – The name of your armada job
+
+
+    * **job_id** (*str*) – The name of the job id that armada assigns to it
+
+
+
+* **Returns**
+
+    A tuple of state, message
+
+
+
+* **Return type**
+
+    Tuple[str, str]
+
+
+
 ### armada_client.client.unwatch_events(event_stream)
 Closes gRPC event streams
 
