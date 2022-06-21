@@ -8,6 +8,7 @@ type DetailRowProps = {
   name: string
   value: string
   className?: string // Class to be applied to value <span> element
+  annotation?: string
 }
 export default function DetailRow(props: DetailRowProps) {
   const key = props.detailRowKey ? props.detailRowKey : props.name
@@ -15,8 +16,8 @@ export default function DetailRow(props: DetailRowProps) {
     <TableRow key={key}>
       <TableCell className="field-label">{props.name}</TableCell>
       <TableCell className="field-value">
-        {validator.isURL(props.value) ? (
-          <Link href={props.value}>{props.value}</Link>
+        {props.annotation && validator.isURL(props.value) ? (
+          <Link href={props.annotation}>{props.annotation}</Link>
         ) : (
           <span className={props.className || ""}>{props.value}</span>
         )}
