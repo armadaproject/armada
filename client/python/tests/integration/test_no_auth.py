@@ -64,7 +64,10 @@ def test_submit_job_and_cancel_by_id():
     cancel_response = no_auth_client.cancel_jobs(
         job_id=jobs.job_response_items[0].job_id
     )
-    assert cancel_response.cancelled_ids[0] == jobs.job_response_items[0].job_id
+
+    queue = no_auth_client.get_queue_info(name=queue_name)
+    assert not queue.active_job_sets
+
 
 
 def test_submit_job_and_cancel_by_queue_job_set():
@@ -77,7 +80,10 @@ def test_submit_job_and_cancel_by_queue_job_set():
     cancelled_response = no_auth_client.cancel_jobs(
         queue=queue_name, job_set_id=job_set_name
     )
-    assert jobs.job_response_items[0].job_id == cancelled_response.cancelled_ids[0]
+
+    queue = no_auth_client.get_queue_info(name=queue_name)
+    assert not queue.active_job_sets
+
 
 
 def test_get_job_events_stream():
