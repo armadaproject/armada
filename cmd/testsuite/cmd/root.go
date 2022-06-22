@@ -95,16 +95,26 @@ func testCmd(app *testsuite.App) *cobra.Command {
 				}
 			}()
 
+			numSuccesses := 0
+			numFailures := 0
+			start := time.Now()
 			for _, testFile := range testFiles {
-				start := time.Now()
+				testStart := time.Now()
 				err := app.TestFile(ctx, testFile)
-				fmt.Printf("\nRuntime: %s\n", time.Since(start))
+				fmt.Printf("\nRuntime: %s\n", time.Since(testStart))
 				if err != nil {
+					numFailures++
 					fmt.Printf("TEST FAILED: %s\n", err)
 				} else {
+					numSuccesses++
 					fmt.Print("TEST SUCCEEDED\n")
 				}
 			}
+
+			fmt.Printf("\n======= SUMMARY =======\n")
+			fmt.Printf("Ran %d test(s) in %s\n", numSuccesses+numFailures, time.Since(start))
+			fmt.Printf("Successes: %d\n", numSuccesses)
+			fmt.Printf("Failures: %d\n", numFailures)
 			return nil
 		},
 	}
