@@ -5,10 +5,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/pkg/errors"
+
 	"github.com/G-Research/armada/internal/common/armadaerrors"
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/client"
-	"github.com/pkg/errors"
 )
 
 type Submitter struct {
