@@ -76,4 +76,4 @@ with DAG(
     op = BashOperator(task_id='dummy', bash_command='echo Hello World!')
     armada = ArmadaOperator(task_id='armada', name='armada', queue='test', job_set_id='job-set-1', armada_client=no_auth_client, job_request_items = submit_sleep_job())
     bad_armada = ArmadaOperator(task_id='armada_fail', name='armada_fail', queue='test', job_set_id='job-set-1', armada_client=no_auth_client, job_request_items = submit_bad_job())
-    op >> [armada, bad_armada]
+    op >> [armada, bad_armada] >> armada
