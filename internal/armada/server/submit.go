@@ -271,12 +271,7 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 
 	q, err := server.getQueueOrCreate(ctx, req.Queue)
 	if err != nil {
-		code := codes.Unknown
-		if e, ok := status.FromError(err); ok {
-			code = e.Code()
-		}
-
-		return nil, status.Errorf(code, "[SubmitJobs] couldn't get/make queue: %s", err)
+		return nil, status.Errorf(armadaerrors.CodeFromError(err), "couldn't get/make queue: %s", err)
 	}
 
 	err = server.submittingJobsWouldSurpassLimit(*q, req)
@@ -328,7 +323,7 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 	// to avoid having users wait for a job that may never be scheduled
 	allClusterSchedulingInfo, err := server.schedulingInfoRepository.GetClusterSchedulingInfo()
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "[SubmitJobs] error getting scheduling info: %s", err)
+		return nil, status.Errorf(codes.InvalidArgument, "error getting scheduling info: %s", err)
 	}
 
 	if ok, err := validateJobsCanBeScheduled(jobs, allClusterSchedulingInfo); !ok {
