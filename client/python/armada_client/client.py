@@ -3,7 +3,7 @@ Armada Python GRPC Client
 """
 from concurrent.futures import ThreadPoolExecutor
 import os
-from typing import List, Optional, Tuple
+from typing import List, Optional
 from armada_client.armada import (
     event_pb2,
     event_pb2_grpc,
@@ -60,7 +60,7 @@ class ArmadaClient:
 
     def submit_jobs(self, queue: str, job_set_id: str, job_request_items):
         """Submit a armada job.
-        
+
         :param queue: str
             The name of the queue
         :param job_set_id: str
