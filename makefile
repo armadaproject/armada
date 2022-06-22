@@ -79,7 +79,7 @@ NODE_CMD = docker run --rm -v ${PWD}:/go/src/armada -w /go/src/armada/internal/l
 	-e npm_config_registry \
 	-v build/ssl/certs/:/etc/ssl/certs \
 	-e SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
-	-e npm_config_cafile /etc/ssl/certs/ca-certificates.crt \
+	-e npm_config_cafile=/etc/ssl/certs/ca-certificates.crt \
 	${NODE_DOCKER_IMG}
 else
 DOTNET_CMD = docker run -v ${PWD}:/go/src/armada -w /go/src/armada \
