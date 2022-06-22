@@ -238,7 +238,7 @@ build-docker-eventapi-ingester:
 	cp -a ./config/eventingester ./.build/eventingester/config
 	docker build $(dockerFlags) -t armada-eventapi-ingester -f ./build/eventingester/Dockerfile ./.build/eventingester
 
-build-docker-lookout: node_setup
+build-docker-lookout: node-setup
 	$(NODE_CMD) npm ci
 	# The following line is equivalent to running "npm run openapi".
 	# We use this instead of "npm run openapi" since if NODE_CMD is set to run npm in docker,
