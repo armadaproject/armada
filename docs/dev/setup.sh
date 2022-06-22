@@ -23,7 +23,7 @@ else
   $COMPOSE_CMD -f ./docs/dev/docker-compose.yaml up -d
 fi
 
-sleep 10s
+sleep 10
 
 go run ./cmd/lookout/main.go --migrateDatabase
 
