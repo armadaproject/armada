@@ -60,37 +60,6 @@ GO_CMD = docker run --rm -v ${PWD}:/go/src/armada -w /go/src/armada $(DOCKER_NET
 	-v $(DOCKER_GOPATH_DIR):/go \
 	golang:1.16-buster
 
-NODE_DOCKER_IMG := node:16.14-buster
-DOTNET_DOCKER_IMG := mcr.microsoft.com/dotnet/sdk:3.1.417-buster
-
-# By default, the install process trusts standard SSL root CAs only.
-# To use your host system's SSL certs on Debian/Ubuntu, AmazonLinux, or MacOS, uncomment the line below
-#
-# USE_SYSTEM_CERTS := true
-
-ifdef USE_SYSTEM_CERTS
-DOTNET_CMD = docker run -v ${PWD}:/go/src/armada -w /go/src/armada \
-	-v ${PWD}/build/ssl/certs/:/etc/ssl/certs \
-	-e SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
-	${DOTNET_DOCKER_IMG}
-
-NODE_CMD = docker run --rm -v ${PWD}:/go/src/armada -w /go/src/armada/internal/lookout/ui \
-	-e npm_config_disturl \
-	-e npm_config_registry \
-	-v build/ssl/certs/:/etc/ssl/certs \
-	-e SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
-	-e npm_config_cafile=/etc/ssl/certs/ca-certificates.crt \
-	${NODE_DOCKER_IMG}
-else
-DOTNET_CMD = docker run -v ${PWD}:/go/src/armada -w /go/src/armada \
-	${DOTNET_DOCKER_IMG}
-
-NODE_CMD = docker run --rm -v ${PWD}:/go/src/armada -w /go/src/armada/internal/lookout/ui \
-	-e npm_config_disturl \
-	-e npm_config_registry \
-	${NODE_DOCKER_IMG}
-endif
-
 # Versions of third party API
 # Bump if you are updating
 GRPC_GATEWAY_VERSION:=@v1.16.0
@@ -125,7 +94,28 @@ export SHELLOPTS:=$(if $(SHELLOPTS),$(SHELLOPTS):)pipefail:errexit
 gobuildlinux = go build -ldflags="-s -w"
 gobuild = go build
 
+NODE_DOCKER_IMG := node:16.14-buster
+DOTNET_DOCKER_IMG := mcr.microsoft.com/dotnet/sdk:3.1.417-buster
+
+# By default, the install process trusts standard SSL root CAs only.
+# To use your host system's SSL certs on Debian/Ubuntu, AmazonLinux, or MacOS, uncomment the line below
+#
+# USE_SYSTEM_CERTS := true
+
 ifdef USE_SYSTEM_CERTS
+
+DOTNET_CMD = docker run -v ${PWD}:/go/src/armada -w /go/src/armada \
+	-v ${PWD}/build/ssl/certs/:/etc/ssl/certs \
+	-e SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
+	${DOTNET_DOCKER_IMG}
+
+NODE_CMD = docker run --rm -v ${PWD}:/go/src/armada -w /go/src/armada/internal/lookout/ui \
+	-e npm_config_disturl \
+	-e npm_config_registry \
+	-v build/ssl/certs/:/etc/ssl/certs \
+	-e SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
+	-e npm_config_cafile=/etc/ssl/certs/ca-certificates.crt \
+	${NODE_DOCKER_IMG}
 
 UNAME_S := $(shell uname -s)
 ssl-certs:
@@ -151,6 +141,15 @@ node-setup: ssl-certs
 dotnet-setup: ssl-certs
 
 else
+
+DOTNET_CMD = docker run -v ${PWD}:/go/src/armada -w /go/src/armada \
+	${DOTNET_DOCKER_IMG}
+
+NODE_CMD = docker run --rm -v ${PWD}:/go/src/armada -w /go/src/armada/internal/lookout/ui \
+	-e npm_config_disturl \
+	-e npm_config_registry \
+	${NODE_DOCKER_IMG}
+
 # no setup necessary for node or dotnet if using default SSL certs
 node-setup:
 dotnet-setup:
