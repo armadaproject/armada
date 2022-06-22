@@ -85,22 +85,18 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 		return nil
 	})
 
-	// Allows for registering functions to be run periodically in the background.
-	taskManager := task.NewBackgroundTaskManager(metrics.MetricPrefix)
-	defer taskManager.StopAll(time.Second * 2)
-
 	// Setup Redis
 	db := createRedisClient(&config.Redis)
 	defer func() {
 		if err := db.Close(); err != nil {
-			log.WithError(err).Error("faled to close Redis client")
+			log.WithError(err).Error("failed to close Redis client")
 		}
 	}()
 
 	eventsDb := createRedisClient(&config.EventsRedis)
 	defer func() {
-		if err := db.Close(); err != nil {
-			log.WithError(err).Error("faled to close events Redis client")
+		if err := eventsDb.Close(); err != nil {
+			log.WithError(err).Error("failed to close events Redis client")
 		}
 	}()
 
@@ -109,9 +105,6 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 	queueRepository := repository.NewRedisQueueRepository(db)
 	schedulingInfoRepository := repository.NewRedisSchedulingInfoRepository(db)
 	healthChecks.Add(repository.NewRedisHealth(db))
-
-	queueCache := cache.NewQueueCache(queueRepository, jobRepository, schedulingInfoRepository)
-	taskManager.Register(queueCache.Refresh, config.Metrics.RefreshInterval, "refresh_queue_cache")
 
 	redisEventRepository := repository.NewRedisEventRepository(eventsDb, config.EventRetention)
 	var streamEventStore *processor.StreamEventStore
@@ -223,15 +216,16 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 		if err != nil {
 			return err
 		}
+		serverPulsarProducerName := fmt.Sprintf("armada-server-%s", serverId)
 		producer, err := pulsarClient.CreateProducer(pulsar.ProducerOptions{
-			Name:             fmt.Sprintf("armada-server-%s", serverId),
+			Name:             serverPulsarProducerName,
 			CompressionType:  compressionType,
 			CompressionLevel: compressionLevel,
 			BatchingMaxSize:  config.Pulsar.MaxAllowedMessageSize,
 			Topic:            config.Pulsar.JobsetEventsTopic,
 		})
 		if err != nil {
-			return errors.WithStack(err)
+			return errors.Wrapf(err, "error creating pulsar producer %s", serverPulsarProducerName)
 		}
 		defer producer.Close()
 
@@ -305,15 +299,16 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 		defer consumer.Close()
 
 		// Create a new producer for this service.
+		p2pPulsarProducer := fmt.Sprintf("armada-pulsar-to-pulsar-%s", serverId)
 		producer, err = pulsarClient.CreateProducer(pulsar.ProducerOptions{
-			Name:             fmt.Sprintf("armada-pulsar-to-pulsar-%s", serverId),
+			Name:             p2pPulsarProducer,
 			CompressionType:  compressionType,
 			CompressionLevel: compressionLevel,
 			BatchingMaxSize:  config.Pulsar.MaxAllowedMessageSize,
 			Topic:            config.Pulsar.JobsetEventsTopic,
 		})
 		if err != nil {
-			return errors.WithStack(err)
+			return errors.Wrapf(err, "error creating pulsar producer %s", p2pPulsarProducer)
 		}
 		defer producer.Close()
 
@@ -371,10 +366,15 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 	}
 
 	usageServer := server.NewUsageServer(permissions, config.PriorityHalfTime, &config.Scheduling, usageRepository, queueRepository)
+	queueCache := cache.NewQueueCache(queueRepository, jobRepository, schedulingInfoRepository)
 	aggregatedQueueServer := server.NewAggregatedQueueServer(permissions, config.Scheduling, jobRepository, queueCache, queueRepository, usageRepository, eventStore, schedulingInfoRepository)
 	eventServer := server.NewEventServer(permissions, redisEventRepository, eventStore, queueRepository, eventApi)
 	leaseManager := scheduling.NewLeaseManager(jobRepository, queueRepository, eventStore, config.Scheduling.Lease.ExpireAfter)
 
+	// Allows for registering functions to be run periodically in the background.
+	taskManager := task.NewBackgroundTaskManager(metrics.MetricPrefix)
+	defer taskManager.StopAll(time.Second * 2)
+	taskManager.Register(queueCache.Refresh, config.Metrics.RefreshInterval, "refresh_queue_cache")
 	taskManager.Register(leaseManager.ExpireLeases, config.Scheduling.Lease.ExpiryLoopInterval, "lease_expiry")
 
 	metrics.ExposeDataMetrics(queueRepository, jobRepository, usageRepository, schedulingInfoRepository, queueCache)
