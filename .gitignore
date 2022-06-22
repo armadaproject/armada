@@ -47,7 +47,7 @@ msbuild.wrn
 packages
 
 # python
-# Pycache, dist, poetry versions 
+# Pycache, dist, poetry versions
 # and ignore protoc generated files
 *.pyc
 client/python/dist
@@ -57,3 +57,4 @@ client/python/dist
 armada/
 .tox
 client/python/docs/build/
+build/ssl/certs/ca-certificates.crt
