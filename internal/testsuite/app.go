@@ -233,7 +233,7 @@ func (a *App) Test(testSpec *api.TestSpec, asserters ...func(context.Context, ch
 		err = errors.WithMessage(err, groupErr.Error())
 	}
 
-	fmt.Println("All job transitions:")
+	fmt.Fprint(a.Out, "All job transitions:")
 	eventLogger.Log()
 
 	// Cancel any jobs still running.
