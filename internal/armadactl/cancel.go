@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/pkg/errors"
+
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/client"
-	"github.com/pkg/errors"
 )
 
 // Cancel cancels a job.

@@ -3,12 +3,13 @@ package armadactl
 import (
 	"fmt"
 
+	"github.com/pkg/errors"
+
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/client"
 	"github.com/G-Research/armada/pkg/client/domain"
 	"github.com/G-Research/armada/pkg/client/util"
 	"github.com/G-Research/armada/pkg/client/validation"
-	"github.com/pkg/errors"
 )
 
 // Submit a job, represented by a file, to the Armada server.

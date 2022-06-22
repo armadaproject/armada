@@ -3,10 +3,11 @@ package armadactl
 import (
 	"fmt"
 
+	"github.com/pkg/errors"
+
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/client"
-	"github.com/pkg/errors"
 )
 
 // Reprioritize sets the priority of the job identified by (jobId, queueName, jobSet) to priorityFactor
