@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"path/filepath"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -76,8 +77,14 @@ func testCmd(app *testsuite.App) *cobra.Command {
 			}
 
 			for _, testFile := range testFiles {
+				start := time.Now()
 				err := app.TestFile(testFile)
-				fmt.Println(testFile, ": ", err)
+				fmt.Printf("\nRuntime: %s\n", time.Since(start))
+				if err != nil {
+					fmt.Printf("TEST FAILED: %s\n", err)
+				} else {
+					fmt.Print("TEST SUCCEEDED\n")
+				}
 			}
 			return nil
 		},

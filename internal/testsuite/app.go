@@ -125,19 +125,21 @@ func GetCancelAllJobs(testSpec *api.TestSpec, apiConnectionDetails *client.ApiCo
 
 func (a *App) Test(testSpec *api.TestSpec, asserters ...func(context.Context, chan *api.EventMessage, map[string]bool) error) error {
 
-	fmt.Fprintf(a.Out, "======= %s =======\n", testSpec.GetName())
+	logInterval := 5 * time.Second
+	fmt.Fprintf(a.Out, "\n======= %s =======\n", testSpec.GetName())
 	fmt.Fprintf(a.Out, "Queue: %s\n", testSpec.GetJobSetId())
 	fmt.Fprintf(a.Out, "Job set: %s\n", testSpec.GetQueue())
 	fmt.Fprintf(a.Out, "Timeout: %s\n", testSpec.GetTimeout())
+	fmt.Fprintf(a.Out, "Log interval: %s\n", logInterval)
 	fmt.Fprint(a.Out, "\n")
 	fmt.Fprintf(a.Out, "Expected events:\n")
-	for i, e := range testSpec.GetExpectedEvents() {
+	for _, e := range testSpec.GetExpectedEvents() {
 		s := fmt.Sprintf("%T", e.GetEvents())
 		s = strings.ReplaceAll(s, "*api.EventMessage_", "")
-		fmt.Fprintf(a.Out, "%d. %s\n", i, s)
+		fmt.Fprintf(a.Out, "- %s\n", s)
 	}
 	fmt.Fprint(a.Out, "\n")
-	fmt.Fprint(a.Out, "Actual job transitions:\n")
+	fmt.Fprintf(a.Out, "Job transitions over windows of length %s:\n", logInterval)
 
 	// Optional timeout
 	ctx, cancel := context.WithCancel(context.Background())
@@ -210,7 +212,7 @@ func (a *App) Test(testSpec *api.TestSpec, asserters ...func(context.Context, ch
 	g.Go(func() error { return eventwatcher.ErrorOnNoActiveJobs(ctx, noActiveCh, jobIdMap) })
 
 	// Logger service.
-	eventLogger := eventlogger.New(logCh, 5*time.Second)
+	eventLogger := eventlogger.New(logCh, logInterval)
 	g.Go(func() error { return eventLogger.Run(ctx) })
 
 	// Goroutine forwarding API events on a channel.
@@ -233,7 +235,7 @@ func (a *App) Test(testSpec *api.TestSpec, asserters ...func(context.Context, ch
 		err = errors.WithMessage(err, groupErr.Error())
 	}
 
-	fmt.Fprint(a.Out, "All job transitions:")
+	fmt.Fprint(a.Out, "All job transitions:\n")
 	eventLogger.Log()
 
 	// Cancel any jobs still running.
@@ -246,9 +248,9 @@ func (a *App) Test(testSpec *api.TestSpec, asserters ...func(context.Context, ch
 			JobSetId: testSpec.GetJobSetId(),
 		})
 		if err != nil {
-			fmt.Println("Error cancelling remaining jobs: ", err.Error())
+			fmt.Fprintf(a.Out, "\nError cancelling jobs: %s\n", err.Error())
 		} else if len(res.GetCancelledIds()) > 0 {
-			fmt.Println("Cancelled ", res.GetCancelledIds())
+			fmt.Fprintf(a.Out, "\nCancelled %v\n", res.GetCancelledIds())
 		}
 		return err
 	})
