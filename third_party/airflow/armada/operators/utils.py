@@ -8,9 +8,9 @@ def airflow_error(job_state: str, name: str, job_id: str):
     :param job_state: A string representation of state
     :param name: The name of your armada job
     :param job_id: The job id that armada assigns to it
-    :return: No Return or an AirflowFailException.  
+    :return: No Return or an AirflowFailException.
     AirflowFailException tells Airflow Schedule to not reschedule the task
-
+    """
     if job_state == "successful" or job_state == "running" or job_state == "queued":
         return
     if (
@@ -20,7 +20,8 @@ def airflow_error(job_state: str, name: str, job_id: str):
         or job_state == "terminated"
     ):
         raise AirflowFailException(f"The Armada job {name}:{job_id} {job_state}")
-    """
+
+
 def search_for_job_complete(event, job_name: str, job_id: str) -> Tuple[str, str]:
     """Search the event stream to see if your job has finished running
 
