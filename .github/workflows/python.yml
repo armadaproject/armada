@@ -11,8 +11,8 @@ on:
       - '.github/workflows/python.yml'
       - 'docs/python_armada_client.md'
   pull_request:
-    branches:
-      - master
+    branches-ignore:
+      - gh-pages
     paths:
       - 'client/python/**'
       - 'build/python-client/**'
