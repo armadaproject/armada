@@ -18,6 +18,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/renstrom/shortuuid"
 	"golang.org/x/sync/errgroup"
+	apimachineryYaml "k8s.io/apimachinery/pkg/util/yaml"
 	"sigs.k8s.io/yaml"
 
 	"github.com/G-Research/armada/internal/testsuite/build"
@@ -74,7 +75,7 @@ func (a *App) Version() error {
 	return nil
 }
 
-func (a *App) TestFile(filePath string) error {
+func (a *App) TestFile(ctx context.Context, filePath string) error {
 	testSpec := &api.TestSpec{}
 	yamlBytes, err := ioutil.ReadFile(filePath)
 	if err != nil {
@@ -94,7 +95,7 @@ func (a *App) TestFile(filePath string) error {
 		testSpec.Name = fileName
 	}
 
-	return a.Test(testSpec)
+	return a.Test(ctx, testSpec)
 }
 
 // GetCancelAllJobs returns a processor that cancels all jobs in jobIds one at a time
@@ -123,12 +124,12 @@ func GetCancelAllJobs(testSpec *api.TestSpec, apiConnectionDetails *client.ApiCo
 	}
 }
 
-func (a *App) Test(testSpec *api.TestSpec, asserters ...func(context.Context, chan *api.EventMessage, map[string]bool) error) error {
+func (a *App) Test(ctx context.Context, testSpec *api.TestSpec, asserters ...func(context.Context, chan *api.EventMessage, map[string]bool) error) error {
 
 	logInterval := 5 * time.Second
 	fmt.Fprintf(a.Out, "\n======= %s =======\n", testSpec.GetName())
-	fmt.Fprintf(a.Out, "Queue: %s\n", testSpec.GetJobSetId())
-	fmt.Fprintf(a.Out, "Job set: %s\n", testSpec.GetQueue())
+	fmt.Fprintf(a.Out, "Queue: %s\n", testSpec.GetQueue())
+	fmt.Fprintf(a.Out, "Job set: %s\n", testSpec.GetJobSetId())
 	fmt.Fprintf(a.Out, "Timeout: %s\n", testSpec.GetTimeout())
 	fmt.Fprintf(a.Out, "Log interval: %s\n", logInterval)
 	fmt.Fprint(a.Out, "\n")
@@ -142,7 +143,7 @@ func (a *App) Test(testSpec *api.TestSpec, asserters ...func(context.Context, ch
 	fmt.Fprintf(a.Out, "Job transitions over windows of length %s:\n", logInterval)
 
 	// Optional timeout
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(ctx)
 	if testSpec.Timeout != 0 {
 		ctx, cancel = context.WithTimeout(ctx, testSpec.Timeout)
 	}
@@ -206,6 +207,7 @@ func (a *App) Test(testSpec *api.TestSpec, asserters ...func(context.Context, ch
 	logCh := make(chan *api.EventMessage)
 	noActiveCh := make(chan *api.EventMessage)
 	assertCh := make(chan *api.EventMessage)
+	ingressCh := make(chan *api.EventMessage)
 
 	// Setup an errgroup that cancels on any job failing or there being no active jobs.
 	g, ctx := errgroup.WithContext(ctx)
@@ -220,19 +222,20 @@ func (a *App) Test(testSpec *api.TestSpec, asserters ...func(context.Context, ch
 	g.Go(func() error { return watcher.Run(ctx) })
 
 	// Split the events into multiple channels, one for each downstream service.
-	splitter := eventsplitter.New(watcher.C, []chan *api.EventMessage{assertCh, logCh, noActiveCh}...)
+	splitter := eventsplitter.New(watcher.C, []chan *api.EventMessage{assertCh, ingressCh, logCh, noActiveCh}...)
 	g.Go(func() error { return splitter.Run(ctx) })
 
+	// Watch for ingress events and try to download from any ingresses found.
+	g.Go(func() error { return eventwatcher.GetFromIngresses(ctx, ingressCh) })
+
 	// Assert that we get the right events for each job.
-	assertGroup, ctx := errgroup.WithContext(ctx)
-	assertGroup.Go(func() error { return eventwatcher.AssertEvents(ctx, assertCh, jobIdMap, testSpec.ExpectedEvents) })
-	err = assertGroup.Wait()
+	err = eventwatcher.AssertEvents(ctx, assertCh, jobIdMap, testSpec.ExpectedEvents)
 
 	// Stop all services and wait for them to exit.
 	cancel()
 	groupErr := g.Wait()
 	if err != nil && groupErr != nil && groupErr != context.Canceled {
-		err = errors.WithMessage(err, groupErr.Error())
+		err = errors.WithMessage(groupErr, err.Error())
 	}
 
 	fmt.Fprint(a.Out, "All job transitions:\n")
@@ -268,7 +271,7 @@ func UnmarshalTestCase(yamlBytes []byte, testSpec *api.TestSpec) error {
 
 		// yaml.Unmarshal can unmarshal everything,
 		// but leaves oneof fields empty (these are silently discarded).
-		if err := yaml.Unmarshal(docYamlBytes, testSpec); err != nil {
+		if err := apimachineryYaml.NewYAMLOrJSONDecoder(bytes.NewReader(yamlBytes), 128).Decode(testSpec); err != nil {
 			result = multierror.Append(result, err)
 		} else {
 			successEverythingElse = true

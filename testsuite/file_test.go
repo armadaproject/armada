@@ -1,6 +1,7 @@
 package testsuite
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -56,7 +57,7 @@ func TestFiles(t *testing.T) {
 		}
 		name = strings.TrimSuffix(name, ext)
 		t.Run(name, func(t *testing.T) {
-			assert.NoError(t, testSuite.TestFile(testFile))
+			assert.NoError(t, testSuite.TestFile(context.Background(), testFile))
 		})
 	}
 }

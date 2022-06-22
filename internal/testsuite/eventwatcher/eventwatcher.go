@@ -4,11 +4,16 @@ package eventwatcher
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"os"
 	"reflect"
+	"strings"
+	"time"
 
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/client"
 	"github.com/pkg/errors"
+	"golang.org/x/sync/errgroup"
 )
 
 // EventWatcher is a service for watching for events and forwarding those on C.
@@ -63,9 +68,9 @@ type ErrUnexpectedEvent struct {
 
 func (err *ErrUnexpectedEvent) Error() string {
 	if err.message == "" {
-		return fmt.Sprintf("expected event of type %T, but got %T", err.expected.Events, err.actual.Events)
+		return fmt.Sprintf("expected event of type %T, but got %+v", err.expected.Events, err.actual.Events)
 	}
-	return fmt.Sprintf("expected event of type %T, but got %T; %s", err.expected.Events, err.actual.Events, err.message)
+	return fmt.Sprintf("expected event of type %T, but got %+v; %s", err.expected.Events, err.actual.Events, err.message)
 }
 
 // AssertEvents compares the events received for each job with the expected events.
@@ -177,6 +182,84 @@ func ErrorOnFailed(parent context.Context, C chan *api.EventMessage) error {
 				err := fmt.Errorf("job failed")
 				return errors.WithMessagef(err, "%v", failedEvent)
 			}
+		}
+	}
+}
+
+// GetFromIngresses listens for ingressInfo messages and tries to download from each ingress.
+// Returns false if any download fails.
+func GetFromIngresses(parent context.Context, C chan *api.EventMessage) error {
+	g, ctx := errgroup.WithContext(parent)
+	for {
+		select {
+		case <-parent.Done():
+			return g.Wait()
+		case <-ctx.Done(): // errgroup cancelled
+			return g.Wait()
+		case msg := <-C:
+			if ingressInfo := msg.GetIngressInfo(); ingressInfo != nil {
+				for _, host := range ingressInfo.IngressAddresses {
+					ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+					defer cancel()
+					host := host
+					g.Go(func() error { return getFromIngress(ctx, host) })
+				}
+			}
+		}
+	}
+}
+
+func getFromIngress(ctx context.Context, host string) error {
+	tokens := strings.Split(host, ".")
+	if len(tokens) == 0 {
+		return fmt.Errorf("malformed hostname: %s", host)
+	}
+	url := "http://" + tokens[len(tokens)-1]
+
+	// The ingress info messages can't convey which port ingress are handled on (only the url).
+	// (The assumption is that ingress is always handled on port 80.)
+	// Here, we override this with an environment varibel so we can test against local Kind clusters,
+	// which may handle ingress on an arbitrary port.
+	ingressPort := os.Getenv("ARMADA_EXECUTOR_INGRESS_PORT")
+	if ingressPort == "" {
+		ingressPort = "80"
+	}
+
+	// Make a get request to test that the ingress works.
+	// This assumes that whatever the ingress points to responds.
+	httpClient := &http.Client{}
+	httpReq, err := http.NewRequest("GET", url+":"+ingressPort+"/", nil)
+	if err != nil {
+		return err
+	}
+	httpReq.Host = host
+
+	// It may take a moment before ingresses are registered with the ingress controller.
+	// so we retry until success or until ctx is cancelled.
+	var requestErr error
+	for {
+		select {
+		case <-ctx.Done():
+			// When cancelled, return the most recent request err,
+			// or if there have been no errors (context cancelled before the first attempt)
+			// return the context error.
+			if requestErr == nil {
+				return ctx.Err()
+			}
+			return requestErr
+		default:
+			httpRes, err := httpClient.Do(httpReq)
+			if err != nil {
+				requestErr = err
+				break
+			}
+
+			if httpRes.StatusCode != 200 {
+				requestErr = fmt.Errorf("GET request failed for host %s: status code %d", host, httpRes.StatusCode)
+				break
+			}
+
+			return nil
 		}
 	}
 }

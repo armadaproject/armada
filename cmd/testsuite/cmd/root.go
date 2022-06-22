@@ -1,8 +1,12 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
+	"os"
+	"os/signal"
 	"path/filepath"
+	"syscall"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -76,9 +80,24 @@ func testCmd(app *testsuite.App) *cobra.Command {
 				return err
 			}
 
+			// Crate a context that is cancelled on SIGINT/SIGTERM.
+			// Ensures test jobs are cancelled on ctrl-C.
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			stopSignal := make(chan os.Signal, 1)
+			signal.Notify(stopSignal, syscall.SIGINT, syscall.SIGTERM)
+			go func() {
+				select {
+				case <-ctx.Done():
+					return
+				case <-stopSignal:
+					cancel()
+				}
+			}()
+
 			for _, testFile := range testFiles {
 				start := time.Now()
-				err := app.TestFile(testFile)
+				err := app.TestFile(ctx, testFile)
 				fmt.Printf("\nRuntime: %s\n", time.Since(start))
 				if err != nil {
 					fmt.Printf("TEST FAILED: %s\n", err)
