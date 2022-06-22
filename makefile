@@ -313,6 +313,9 @@ tests-e2e-setup: setup-cluster
 		-e ARMADA_APICONNECTION_FORCENOTLS=true \
 		armada-executor --config /e2e/setup/insecure-executor-config.yaml
 
+	# Create test queue if it doesn't already exist
+	$(GO_CMD) go run cmd/armadactl/main.go create queue e2e-test-queue || true
+
 .ONESHELL:
 tests-e2e-no-setup:
 	function printApplicationLogs {
