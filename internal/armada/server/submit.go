@@ -712,9 +712,9 @@ func (server *SubmitServer) getQueueOrCreate(ctx context.Context, queueName stri
 		}
 
 		principal := authorization.GetPrincipal(ctx)
-		groupNames := principal.GetGroupNames()
-		everyone_index := slices.Index(groupNames, "everyone")
-		groupNames = append(groupNames[:everyone_index], groupNames[everyone_index+1:]...)
+		groupNames := slices.Filter(nil, principal.GetGroupNames(),
+			func(s string) bool { return s != authorization.EveryoneGroup },
+		)
 		q = queue.Queue{
 			Name:           queueName,
 			PriorityFactor: server.queueManagementConfig.DefaultPriorityFactor,
