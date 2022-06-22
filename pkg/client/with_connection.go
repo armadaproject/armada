@@ -1,8 +1,9 @@
 package client
 
 import (
-	"github.com/G-Research/armada/pkg/api"
 	"google.golang.org/grpc"
+
+	"github.com/G-Research/armada/pkg/api"
 )
 
 func WithConnection(apiConnectionDetails *ApiConnectionDetails, action func(*grpc.ClientConn) error) error {
