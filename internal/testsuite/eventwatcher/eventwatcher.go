@@ -31,8 +31,6 @@ func New(queue string, jobSetName string, apiConnectionDetails *client.ApiConnec
 
 // Run starts the service.
 func (srv *EventWatcher) Run(ctx context.Context) error {
-	fmt.Println("Watcher started")
-	defer fmt.Println("Watcher stopped")
 	return client.WithEventClient(srv.ApiConnectionDetails, func(c api.EventClient) error {
 		stream, err := c.GetJobSetEvents(ctx, &api.JobSetRequest{
 			Id:    srv.JobSetName,
@@ -65,9 +63,9 @@ type ErrUnexpectedEvent struct {
 
 func (err *ErrUnexpectedEvent) Error() string {
 	if err.message == "" {
-		return fmt.Sprintf("expected event of type %T, but got %T", err.expected, err.actual)
+		return fmt.Sprintf("expected event of type %T, but got %T", err.expected.Events, err.actual.Events)
 	}
-	return fmt.Sprintf("expected event of type %T, but got %T; %s", err.expected, err.actual, err.message)
+	return fmt.Sprintf("expected event of type %T, but got %T; %s", err.expected.Events, err.actual.Events, err.message)
 }
 
 // AssertEvents compares the events received for each job with the expected events.
@@ -122,6 +120,8 @@ func isTerminalEvent(msg *api.EventMessage) bool {
 		return true
 	case *api.EventMessage_Succeeded:
 		return true
+	case *api.EventMessage_Cancelled:
+		return true
 	}
 	return false
 }
@@ -165,46 +165,9 @@ func ErrorOnNoActiveJobs(parent context.Context, C chan *api.EventMessage, jobId
 	}
 }
 
-// // WithCancelOnNoActiveJobs returns a context that is cancelled when there are no active jobs,
-// // or if the parent is cancelled.
-// func WithCancelOnNoActiveJobs(parent context.Context, C chan *api.EventMessage, jobIds map[string]bool) context.Context {
-// 	ctx, cancel := context.WithCancel(parent)
-// 	go func() {
-// 		numActive := 0
-// 		numRemaining := len(jobIds)
-// 		exitedByJobId := make(map[string]bool)
-// 		defer cancel()
-// 		defer fmt.Println("WithCancelOnNoActiveJobs stopped")
-// 		for {
-// 			fmt.Println("WithCancelOnNoActiveJobs", numActive)
-// 			select {
-// 			case <-parent.Done():
-// 				return
-// 			case msg := <-C:
-// 				if e := msg.GetSubmitted(); e != nil {
-// 					numActive++
-// 				} else if e := msg.GetSucceeded(); e != nil {
-// 					if _, ok := exitedByJobId[e.jobId]; ok {
-// 						fmt.Println("")
-// 						return errors.New("received multiple terminal events for job %s", e.JobId)
-// 					}
-// 					numActive--
-// 				} else if e := msg.GetFailed(); e != nil {
-// 					numActive--
-// 				}
-// 				if numActive <= 0 {
-// 					return
-// 				}
-// 			}
-// 		}
-// 	}()
-// 	return ctx
-// }
-
 // WithCancelOnFailed returns a context that is cancelled if a job fails,
 // or if the parent is cancelled.
 func ErrorOnFailed(parent context.Context, C chan *api.EventMessage) error {
-	defer fmt.Println("ErrorOnFailed stopped")
 	for {
 		select {
 		case <-parent.Done():
@@ -216,31 +179,4 @@ func ErrorOnFailed(parent context.Context, C chan *api.EventMessage) error {
 			}
 		}
 	}
-}
-
-type EventKey string
-
-const FailedEventKey EventKey = "FailedEvent"
-
-// WithCancelOnFailed returns a context that is cancelled if a job fails,
-// or if the parent is cancelled.
-func WithCancelOnFailed(parent context.Context, C chan *api.EventMessage) context.Context {
-	ctx, cancel := context.WithCancel(parent)
-	var failedEvent *api.JobFailedEvent
-	ctx = context.WithValue(ctx, FailedEventKey, &failedEvent)
-	go func() {
-		defer cancel()
-		defer fmt.Println("WithCancelOnFailed stopped")
-		for {
-			select {
-			case <-parent.Done():
-				return
-			case msg := <-C:
-				if failedEvent = msg.GetFailed(); failedEvent != nil {
-					return
-				}
-			}
-		}
-	}()
-	return ctx
 }

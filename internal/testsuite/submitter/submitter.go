@@ -2,7 +2,6 @@ package submitter
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"time"
 
@@ -64,9 +63,6 @@ func (config *Submitter) Validate() error {
 }
 
 func (srv *Submitter) Run(ctx context.Context) error {
-	fmt.Println("Submitter started")
-	defer fmt.Println("Submitter stopped")
-
 	var numBatchesSent uint32
 	req := &api.JobSubmitRequest{
 		Queue:    srv.Queue,

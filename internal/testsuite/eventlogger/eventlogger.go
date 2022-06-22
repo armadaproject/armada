@@ -79,8 +79,6 @@ func CountJobsByTransitions(transitionsByJobId map[string][]string) map[string]i
 }
 
 func (srv *EventsLogger) Run(ctx context.Context) error {
-	fmt.Println("EventsLogger started")
-	defer fmt.Println("EventsLogger stopped")
 	ticker := time.NewTicker(srv.interval)
 	defer ticker.Stop()
 	defer srv.flushAndLog()
