@@ -41,6 +41,8 @@ menu_settings:
         url: '/user'   
       - title: 'Production Install'
         url: '/production-install'
+      - title: 'Libraries'
+        url: '/libraries'
     - title: 'Quickstart'
       url: '/quickstart' 
     - title: 'Contribute'
