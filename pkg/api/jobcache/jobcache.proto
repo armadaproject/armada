@@ -12,6 +12,6 @@ message JobCacheResponse {
 }
 
 service JobCache {
-    rpc SubmitJobs (JobCacheRequest) returns (JobCacheRequest) {
+    rpc GetJobStatus (JobCacheRequest) returns (JobCacheResponse) {
     }
 }

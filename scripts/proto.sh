@@ -34,7 +34,7 @@ protoc \
 --proto_path=. \
 --proto_path=/proto \
 --gogofaster_out=$TYPES,plugins=grpc:./ \
-pkg/api/jobcaching/*.proto
+pkg/api/jobcache/*.proto
 
 
 # gogo proto generates correct json name inside protobuf tag but wrong json tag, for example:
