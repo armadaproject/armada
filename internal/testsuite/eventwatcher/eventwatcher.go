@@ -162,6 +162,15 @@ func ErrorOnNoActiveJobs(parent context.Context, C chan *api.EventMessage, jobId
 					numRemaining--
 				}
 				numActive--
+			} else if e := msg.GetCancelled(); e != nil {
+				if _, ok := exitedByJobId[e.JobId]; ok {
+					return errors.Errorf("received multiple terminal events for job %s", e.JobId)
+				}
+				exitedByJobId[e.JobId] = true
+				if _, ok := jobIds[e.JobId]; ok {
+					numRemaining--
+				}
+				numActive--
 			}
 			if numRemaining <= 0 {
 				return errors.New("all jobs exited")
