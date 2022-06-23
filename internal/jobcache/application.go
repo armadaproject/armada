@@ -27,6 +27,7 @@ func StartUp(config *configuration.JobCacheConfiguration) (func(), *sync.WaitGro
 	grpcCommon.Listen(config.GrpcPort, grpcServer, &wg)
 
 	wg.Wait()
+	log.Info("I got here")
 	stop := func() {
 		grpcServer.GracefulStop()
 	}

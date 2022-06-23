@@ -28,6 +28,12 @@ func main() {
 	common.BindCommandlineArguments()
 	g, ctx := errgroup.WithContext(context.Background())
 
+	var config configuration.JobCacheConfiguration
+	userSpecifiedConfigs := viper.GetStringSlice(CustomConfigLocation)
+	common.LoadConfig(&config, "./config/jobcache", userSpecifiedConfigs)
+
+	shutdown, wg := jobcache.StartUp(&config)
+
 	// Cancel the errgroup context on SIGINT and SIGTERM,
 	// which shuts everything down gracefully.
 	stopSignal := make(chan os.Signal, 1)
@@ -37,24 +43,12 @@ func main() {
 		case <-ctx.Done():
 			return nil
 		case sig := <-stopSignal:
-			// Returning an error cancels the errgroup.
+			wg.Done()
+			shutdown()
 			return fmt.Errorf("received signal %v", sig)
 		}
 	})
 
-	var config configuration.JobCacheConfiguration
-	userSpecifiedConfigs := viper.GetStringSlice(CustomConfigLocation)
-	common.LoadConfig(&config, "./config/jobcache", userSpecifiedConfigs)
-
-	shutdownChannel := make(chan os.Signal, 1)
-	signal.Notify(shutdownChannel, syscall.SIGINT, syscall.SIGTERM)
-
-	shutdown, wg := jobcache.StartUp(&config)
-
-	go func() {
-		<-shutdownChannel
-		shutdown()
-	}()
 	wg.Wait()
 
 }
