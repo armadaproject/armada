@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"reflect"
-	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -163,6 +162,15 @@ func ErrorOnNoActiveJobs(parent context.Context, C chan *api.EventMessage, jobId
 					numRemaining--
 				}
 				numActive--
+			} else if e := msg.GetCancelled(); e != nil {
+				if _, ok := exitedByJobId[e.JobId]; ok {
+					return errors.Errorf("received multiple terminal events for job %s", e.JobId)
+				}
+				exitedByJobId[e.JobId] = true
+				if _, ok := jobIds[e.JobId]; ok {
+					numRemaining--
+				}
+				numActive--
 			}
 			if numRemaining <= 0 {
 				return errors.New("all jobs exited")
@@ -210,15 +218,14 @@ func GetFromIngresses(parent context.Context, C chan *api.EventMessage) error {
 }
 
 func getFromIngress(ctx context.Context, host string) error {
-	tokens := strings.Split(host, ".")
-	if len(tokens) == 0 {
-		return errors.Errorf("malformed hostname: %s", host)
+	ingressUrl := os.Getenv("ARMADA_EXECUTOR_INGRESS_URL")
+	if ingressUrl == "" {
+		ingressUrl = "http://" + host
 	}
-	url := "http://" + tokens[len(tokens)-1]
 
 	// The ingress info messages can't convey which port ingress are handled on (only the url).
 	// (The assumption is that ingress is always handled on port 80.)
-	// Here, we override this with an environment varibel so we can test against local Kind clusters,
+	// Here, we override this with an environment variable so we can test against local Kind clusters,
 	// which may handle ingress on an arbitrary port.
 	ingressPort := os.Getenv("ARMADA_EXECUTOR_INGRESS_PORT")
 	if ingressPort == "" {
@@ -228,7 +235,7 @@ func getFromIngress(ctx context.Context, host string) error {
 	// Make a get request to test that the ingress works.
 	// This assumes that whatever the ingress points to responds.
 	httpClient := &http.Client{}
-	httpReq, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("%s:%s/", url, ingressPort), http.NoBody)
+	httpReq, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("%s:%s/", ingressUrl, ingressPort), http.NoBody)
 	if err != nil {
 		return err
 	}
