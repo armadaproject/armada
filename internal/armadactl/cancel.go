@@ -27,7 +27,7 @@ func (a *App) Cancel(queue string, jobSetId string, jobId string) (outerErr erro
 			Queue:    queue,
 		})
 		if err != nil {
-			return errors.WithMessagef(err, "error cancelling jobs matching queue: %s, job set: %s, and job id: %s", queue, jobSetId, jobId)
+			return errors.Wrapf(err, "error cancelling jobs matching queue: %s, job set: %s, and job id: %s", queue, jobSetId, jobId)
 		}
 
 		fmt.Fprintf(a.Out, "Requested cancellation for jobs %s\n", strings.Join(result.CancelledIds, ", "))

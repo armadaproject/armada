@@ -45,7 +45,7 @@ func (a *App) Reprioritize(jobId string, queueName string, jobSet string, priori
 
 func (a *App) writeResults(results map[string]string) error {
 	if len(results) == 0 {
-		return fmt.Errorf("no jobs were reprioritized")
+		return errors.Errorf("no jobs were reprioritized")
 	}
 
 	var reprioritizedIds []string
@@ -74,7 +74,7 @@ func (a *App) writeResults(results map[string]string) error {
 	}
 
 	if len(erroredIds) > 0 {
-		return fmt.Errorf("error reprioritizing some jobs")
+		return errors.Errorf("error reprioritizing some jobs")
 	}
 	return nil
 }
