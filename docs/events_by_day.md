@@ -12,7 +12,7 @@ To address these issues we suggest splitting each jobset into a logical stream p
 ### Write-Side
 
 * When an event message is received from Pulsar, the Pulsar message timestamp will be used to determine the (UTC) day to which the message pertains
-* The event message will then be appended to the redis stream under the key `<queue>_<jobset>_<day>` where <day> is the UTC day determined in the above step in hh_mm_ss format
+* The event message will then be appended to the redis stream under the key `<queue>_<jobset>_<day>` where `<day>` is the UTC day determined in the above step in hh_mm_ss format
 * The `<queue>_<jobset>_<day>` key that was appended to in the step above is then added to a Redis set stored at `<queue>_<jobset>_streams`
 * The result of the above should be that the messages for a a given jobset should be stored in one key per day. 
 The  sets stored under `<queue>_<jobset>_streams` can be used to determine which streams are available.  Because of the way we process pulsar messages, we can guarentee that 
