@@ -89,7 +89,7 @@ func AssertEvents(ctx context.Context, c chan *api.EventMessage, jobIds map[stri
 	for {
 		select {
 		case <-ctx.Done():
-			return fmt.Errorf("did not receive all events for at least one job")
+			return errors.Errorf("did not receive all events for at least one job")
 		case actual := <-c:
 			actualJobId := api.JobIdFromApiEvent(actual)
 			_, ok := jobIds[actualJobId]
@@ -147,7 +147,7 @@ func ErrorOnNoActiveJobs(parent context.Context, C chan *api.EventMessage, jobId
 				numActive++
 			} else if e := msg.GetSucceeded(); e != nil {
 				if _, ok := exitedByJobId[e.JobId]; ok {
-					return fmt.Errorf("received multiple terminal events for job %s", e.JobId)
+					return errors.Errorf("received multiple terminal events for job %s", e.JobId)
 				}
 				exitedByJobId[e.JobId] = true
 				if _, ok := jobIds[e.JobId]; ok {
@@ -156,7 +156,7 @@ func ErrorOnNoActiveJobs(parent context.Context, C chan *api.EventMessage, jobId
 				numActive--
 			} else if e := msg.GetFailed(); e != nil {
 				if _, ok := exitedByJobId[e.JobId]; ok {
-					return fmt.Errorf("received multiple terminal events for job %s", e.JobId)
+					return errors.Errorf("received multiple terminal events for job %s", e.JobId)
 				}
 				exitedByJobId[e.JobId] = true
 				if _, ok := jobIds[e.JobId]; ok {
@@ -180,7 +180,7 @@ func ErrorOnFailed(parent context.Context, C chan *api.EventMessage) error {
 			return parent.Err()
 		case msg := <-C:
 			if failedEvent := msg.GetFailed(); failedEvent != nil {
-				err := fmt.Errorf("job failed")
+				err := errors.Errorf("job failed")
 				return errors.WithMessagef(err, "%v", failedEvent)
 			}
 		}
@@ -200,10 +200,9 @@ func GetFromIngresses(parent context.Context, C chan *api.EventMessage) error {
 		case msg := <-C:
 			if ingressInfo := msg.GetIngressInfo(); ingressInfo != nil {
 				for _, host := range ingressInfo.IngressAddresses {
-					ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-					defer cancel()
+					ctxWithTimeout, _ := context.WithTimeout(ctx, 10*time.Second)
 					host := host
-					g.Go(func() error { return getFromIngress(ctx, host) })
+					g.Go(func() error { return getFromIngress(ctxWithTimeout, host) })
 				}
 			}
 		}
@@ -213,7 +212,7 @@ func GetFromIngresses(parent context.Context, C chan *api.EventMessage) error {
 func getFromIngress(ctx context.Context, host string) error {
 	tokens := strings.Split(host, ".")
 	if len(tokens) == 0 {
-		return fmt.Errorf("malformed hostname: %s", host)
+		return errors.Errorf("malformed hostname: %s", host)
 	}
 	url := "http://" + tokens[len(tokens)-1]
 
@@ -229,7 +228,7 @@ func getFromIngress(ctx context.Context, host string) error {
 	// Make a get request to test that the ingress works.
 	// This assumes that whatever the ingress points to responds.
 	httpClient := &http.Client{}
-	httpReq, err := http.NewRequest("GET", url+":"+ingressPort+"/", nil)
+	httpReq, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("%s:%s/", url, ingressPort), http.NoBody)
 	if err != nil {
 		return err
 	}
@@ -254,9 +253,10 @@ func getFromIngress(ctx context.Context, host string) error {
 				requestErr = err
 				break
 			}
+			httpRes.Body.Close()
 
 			if httpRes.StatusCode != 200 {
-				requestErr = fmt.Errorf("GET request failed for host %s: status code %d", host, httpRes.StatusCode)
+				requestErr = errors.Errorf("GET request failed for host %s: status code %d", host, httpRes.StatusCode)
 				break
 			}
 

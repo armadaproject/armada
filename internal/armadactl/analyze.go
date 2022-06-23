@@ -13,11 +13,11 @@ import (
 
 func (a *App) Analyze(queue string, jobSetId string) error {
 	fmt.Fprintf(a.Out, "Querying queue %s for job set %s\n", queue, jobSetId)
-	return client.WithEventClient(a.Params.ApiConnectionDetails, func(c api.EventClient) error {
+	return client.WithEventClient(a.Params.ApiConnectionDetails, func(ec api.EventClient) error {
 		events := map[string][]*api.Event{}
 		var jobState *domain.WatchContext
 
-		client.WatchJobSet(c, queue, jobSetId, false, true, context.Background(), func(state *domain.WatchContext, e api.Event) bool {
+		client.WatchJobSet(ec, queue, jobSetId, false, true, context.Background(), func(state *domain.WatchContext, e api.Event) bool {
 			events[e.GetJobId()] = append(events[e.GetJobId()], &e)
 			jobState = state
 			return false

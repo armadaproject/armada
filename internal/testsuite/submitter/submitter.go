@@ -94,7 +94,7 @@ func (srv *Submitter) Run(ctx context.Context) error {
 			case <-tickerCh:
 				res, err := c.SubmitJobs(ctx, req)
 				if err != nil {
-					return errors.WithStack(errors.WithMessage(err, "error submitting jobs"))
+					return errors.WithMessage(err, "error submitting jobs")
 				}
 				srv.mu.Lock()
 				for _, item := range res.JobResponseItems {

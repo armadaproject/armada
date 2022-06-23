@@ -33,7 +33,7 @@ message TestSpec {
 	// If 0, jobs are submitted as quickly as possible.
     google.protobuf.Duration interval = 7 [(gogoproto.stdduration) = true, (gogoproto.nullable) = false];
 	// Number of seconds to wait for jobs to finish.
-    google.protobuf.Duration timeout = 8 [(gogoproto.stdduration) = true, (gogoproto.nullable) = false];	
+    google.protobuf.Duration timeout = 8 [(gogoproto.stdduration) = true, (gogoproto.nullable) = false];
 	// If the jobs in this spec. should be cancelled.
 	enum Cancel {
 		NO = 0; // Do not cancel jobs.
