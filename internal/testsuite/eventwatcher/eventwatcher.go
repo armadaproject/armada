@@ -225,7 +225,7 @@ func getFromIngress(ctx context.Context, host string) error {
 
 	// The ingress info messages can't convey which port ingress are handled on (only the url).
 	// (The assumption is that ingress is always handled on port 80.)
-	// Here, we override this with an environment varibel so we can test against local Kind clusters,
+	// Here, we override this with an environment variable so we can test against local Kind clusters,
 	// which may handle ingress on an arbitrary port.
 	ingressPort := os.Getenv("ARMADA_EXECUTOR_INGRESS_PORT")
 	if ingressPort == "" {
