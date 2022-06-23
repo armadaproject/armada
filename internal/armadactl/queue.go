@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/pkg/errors"
+
 	"github.com/G-Research/armada/pkg/client"
 	"github.com/G-Research/armada/pkg/client/queue"
 	"github.com/G-Research/armada/pkg/client/util"
@@ -12,7 +14,7 @@ import (
 // CreateQueue calls app.QueueAPI.Create with the provided parameters.
 func (a *App) CreateQueue(queue queue.Queue) error {
 	if err := a.Params.QueueAPI.Create(queue); err != nil {
-		return fmt.Errorf("[armadactl.CreateQueue] error creating queue %s: %s", queue.Name, err)
+		return errors.Errorf("[armadactl.CreateQueue] error creating queue %s: %s", queue.Name, err)
 	}
 	fmt.Fprintf(a.Out, "Created queue %s\n", queue.Name)
 	return nil
@@ -21,23 +23,23 @@ func (a *App) CreateQueue(queue queue.Queue) error {
 func (a *App) CreateResource(fileName string, dryRun bool) error {
 	var resource client.Resource
 	if err := util.BindJsonOrYaml(fileName, &resource); err != nil {
-		return fmt.Errorf("file %s error: %s", fileName, err)
+		return err
 	}
 	if resource.Version != client.APIVersionV1 {
-		return fmt.Errorf("file %s error: invalid resource field 'apiVersion': %s", fileName, resource.Version)
+		return errors.Errorf("file %s error: invalid resource field 'apiVersion': %s", fileName, resource.Version)
 	}
 
 	switch resource.Kind {
 	case client.ResourceKindQueue:
 		queue := queue.Queue{}
 		if err := util.BindJsonOrYaml(fileName, &queue); err != nil {
-			return fmt.Errorf("file %s error: %s", fileName, err)
+			return errors.Errorf("file %s error: %s", fileName, err)
 		}
 		if !dryRun {
 			return a.Params.QueueAPI.Create(queue)
 		}
 	default:
-		return fmt.Errorf("invalid resource kind: %s", resource.Kind)
+		return errors.Errorf("invalid resource kind: %s", resource.Kind)
 	}
 
 	return nil
@@ -46,7 +48,7 @@ func (a *App) CreateResource(fileName string, dryRun bool) error {
 // DeleteQueue calls app.QueueAPI.Delete with the provided parameters.
 func (a *App) DeleteQueue(name string) error {
 	if err := a.Params.QueueAPI.Delete(name); err != nil {
-		return fmt.Errorf("[armadactl.DeleteQueue] error deleting queue %s: %s", name, err)
+		return errors.Errorf("[armadactl.DeleteQueue] error deleting queue %s: %s", name, err)
 	}
 	fmt.Fprintf(a.Out, "Deleted queue %s (or it did not exist)\n", name)
 	return nil
@@ -57,7 +59,7 @@ func (a *App) DescribeQueue(name string) error {
 	fmt.Fprintf(a.Out, "Queue: %s\n", name)
 	queueInfo, err := a.Params.QueueAPI.GetInfo(name)
 	if err != nil {
-		return fmt.Errorf("[armadactl.DescribeQueue] error describing queue %s: %s", name, err)
+		return errors.Errorf("[armadactl.DescribeQueue] error describing queue %s: %s", name, err)
 	}
 
 	jobSets := queueInfo.ActiveJobSets
@@ -79,7 +81,7 @@ func (a *App) DescribeQueue(name string) error {
 // UpdateQueue calls app.QueueAPI.Update with the provided parameters.
 func (a *App) UpdateQueue(queue queue.Queue) error {
 	if err := a.Params.QueueAPI.Update(queue); err != nil {
-		return fmt.Errorf("error updating queue %s: %s", queue.Name, err)
+		return errors.Errorf("error updating queue %s: %s", queue.Name, err)
 	}
 
 	fmt.Fprintf(a.Out, "Updated queue %s\n", queue.Name)
