@@ -1,4 +1,4 @@
-grpcPort: 60001
+grpcPort: 60003
 httpPort: 8090
 
 grpc:

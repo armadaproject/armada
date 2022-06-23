@@ -4,6 +4,8 @@ package jobcache;
 
 message JobCacheRequest {
     string job_id = 1;
+    string job_set_id = 2;
+    string queue = 3;
 }
 
 message JobCacheResponse {
