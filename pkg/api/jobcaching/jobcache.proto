@@ -1,0 +1,17 @@
+syntax = 'proto3';
+
+package jobcache;
+
+message JobCacheRequest {
+    string job_id = 1;
+}
+
+message JobCacheResponse {
+    string state = 1;
+    string error = 2;
+}
+
+service JobCache {
+    rpc SubmitJobs (JobCacheRequest) returns (JobCacheRequest) {
+    }
+}
