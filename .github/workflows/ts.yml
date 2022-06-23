@@ -1,5 +1,14 @@
 on:
   push:
+    branches-ignore:
+      - master
+    paths:
+      - 'internal/lookout/ui/**'
+      - 'build/lookout/**'
+      - '.github/workflows/ts.yml'
+  pull_request:
+    branches-ignore:
+      - gh-pages
     paths:
       - 'internal/lookout/ui/**'
       - 'build/lookout/**'
