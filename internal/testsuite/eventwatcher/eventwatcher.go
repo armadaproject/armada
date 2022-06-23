@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"reflect"
-	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -210,11 +209,10 @@ func GetFromIngresses(parent context.Context, C chan *api.EventMessage) error {
 }
 
 func getFromIngress(ctx context.Context, host string) error {
-	tokens := strings.Split(host, ".")
-	if len(tokens) == 0 {
-		return errors.Errorf("malformed hostname: %s", host)
+	ingressUrl := os.Getenv("ARMADA_EXECUTOR_INGRESS_URL")
+	if ingressUrl == "" {
+		ingressUrl = "http://" + host
 	}
-	url := "http://" + tokens[len(tokens)-1]
 
 	// The ingress info messages can't convey which port ingress are handled on (only the url).
 	// (The assumption is that ingress is always handled on port 80.)
@@ -228,7 +226,7 @@ func getFromIngress(ctx context.Context, host string) error {
 	// Make a get request to test that the ingress works.
 	// This assumes that whatever the ingress points to responds.
 	httpClient := &http.Client{}
-	httpReq, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("%s:%s/", url, ingressPort), http.NoBody)
+	httpReq, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("%s:%s/", ingressUrl, ingressPort), http.NoBody)
 	if err != nil {
 		return err
 	}
