@@ -61,6 +61,7 @@ func (srv *EventWatcher) Run(ctx context.Context) error {
 
 // ErrUnexpectedEvent indicates the wrong event type was received.
 type ErrUnexpectedEvent struct {
+	jobId    string
 	expected *api.EventMessage
 	actual   *api.EventMessage
 	message  string
@@ -68,9 +69,9 @@ type ErrUnexpectedEvent struct {
 
 func (err *ErrUnexpectedEvent) Error() string {
 	if err.message == "" {
-		return fmt.Sprintf("expected event of type %T, but got %+v", err.expected.Events, err.actual.Events)
+		return fmt.Sprintf("unexpected event for job %s: expected event of type %T, but got %+v", err.jobId, err.expected.Events, err.actual.Events)
 	}
-	return fmt.Sprintf("expected event of type %T, but got %+v; %s", err.expected.Events, err.actual.Events, err.message)
+	return fmt.Sprintf("unexpected event for job %s: expected event of type %T, but got %+v; %s", err.jobId, err.expected.Events, err.actual.Events, err.message)
 }
 
 // AssertEvents compares the events received for each job with the expected events.
@@ -111,6 +112,7 @@ func AssertEvents(ctx context.Context, c chan *api.EventMessage, jobIds map[stri
 			// Return an error if the job has exited without us seeing all expected events.
 			if isTerminalEvent(actual) && i < len(expected) {
 				return &ErrUnexpectedEvent{
+					jobId:    actualJobId,
 					expected: expected[i],
 					actual:   actual,
 				}

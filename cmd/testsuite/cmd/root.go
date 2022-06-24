@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"encoding/xml"
 	"fmt"
 	"os"
 	"os/signal"
@@ -9,6 +10,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/jstemmer/go-junit-report/v2/junit"
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
 	"github.com/G-Research/armada/internal/testsuite"
@@ -72,12 +75,17 @@ func testCmd(app *testsuite.App) *cobra.Command {
 
 			testFilesPattern, err := cmd.Flags().GetString("tests")
 			if err != nil {
-				return err
+				return errors.WithStack(err)
 			}
 
 			testFiles, err := filepath.Glob(testFilesPattern)
 			if err != nil {
-				return err
+				return errors.WithStack(err)
+			}
+
+			junitPath, err := cmd.Flags().GetString("junit")
+			if err != nil {
+				return errors.WithStack(err)
 			}
 
 			// Crate a context that is cancelled on SIGINT/SIGTERM.
@@ -95,12 +103,16 @@ func testCmd(app *testsuite.App) *cobra.Command {
 				}
 			}()
 
+			testSuite := &junit.Testsuite{
+				Name: testFilesPattern,
+			}
+
 			numSuccesses := 0
 			numFailures := 0
 			start := time.Now()
 			for _, testFile := range testFiles {
 				testStart := time.Now()
-				err := app.TestFile(ctx, testFile)
+				testCase, err := app.TestFileJunit(ctx, testFile)
 				fmt.Printf("\nRuntime: %s\n", time.Since(testStart))
 				if err != nil {
 					numFailures++
@@ -109,17 +121,50 @@ func testCmd(app *testsuite.App) *cobra.Command {
 					numSuccesses++
 					fmt.Print("TEST SUCCEEDED\n")
 				}
+
+				testSuite.AddTestcase(testCase)
 			}
 
 			fmt.Printf("\n======= SUMMARY =======\n")
 			fmt.Printf("Ran %d test(s) in %s\n", numSuccesses+numFailures, time.Since(start))
 			fmt.Printf("Successes: %d\n", numSuccesses)
 			fmt.Printf("Failures: %d\n", numFailures)
+
+			// If junitPath is set, write a JUnit report.
+			testSuite.Time = fmt.Sprint(time.Since(start))
+			testSuites := &junit.Testsuites{
+				Name: testFilesPattern,
+				Time: testSuite.Time,
+			}
+			testSuites.AddSuite(*testSuite)
+			if junitPath != "" {
+				junitFile, err := os.Create(junitPath)
+				if err != nil {
+					return errors.WithStack(err)
+				}
+				defer junitFile.Close()
+
+				encoder := xml.NewEncoder(junitFile)
+				encoder.Indent("", "\t")
+				err = encoder.Encode(testSuites)
+				if err != nil {
+					return errors.WithStack(err)
+				}
+				err = encoder.Flush()
+				if err != nil {
+					return errors.WithStack(err)
+				}
+			}
+
+			if numFailures != 0 {
+				return errors.Errorf("there was at least one test failure")
+			}
 			return nil
 		},
 	}
 
 	cmd.Flags().String("tests", "", "Test file pattern, e.g., './testcases/*.yaml'.")
+	cmd.Flags().String("junit", "", "Write a JUnit test report to this path.")
 
 	return cmd
 }
