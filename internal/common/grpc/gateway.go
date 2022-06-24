@@ -7,6 +7,8 @@ import (
 	"path"
 	"strings"
 
+	"google.golang.org/grpc/credentials/insecure"
+
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"github.com/jcmturner/gokrb5/v8/spnego"
@@ -40,7 +42,7 @@ func CreateGatewayHandler(
 			return fmt.Sprintf("%s%s", runtime.MetadataHeaderPrefix, key), true
 		}))
 
-	conn, err := grpc.DialContext(connectionCtx, grpcAddress, grpc.WithInsecure())
+	conn, err := grpc.DialContext(connectionCtx, grpcAddress, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		panic(err)
 	}
