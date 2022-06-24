@@ -3,10 +3,11 @@ package grpc
 import (
 	"context"
 	"fmt"
-	"google.golang.org/grpc/credentials/insecure"
 	"net/http"
 	"path"
 	"strings"
+
+	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
