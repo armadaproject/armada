@@ -15,6 +15,7 @@ import (
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/hashicorp/go-multierror"
+	"github.com/jstemmer/go-junit-report/v2/junit"
 	"github.com/pkg/errors"
 	"github.com/renstrom/shortuuid"
 	"golang.org/x/sync/errgroup"
@@ -75,14 +76,60 @@ func (a *App) Version() error {
 	return nil
 }
 
+func (a *App) TestFileJunit(ctx context.Context, filePath string) (junit.Testcase, error) {
+
+	// Load test spec.
+	testSpec, err := TestSpecFromFilePath(filePath)
+	if err != nil {
+		return junit.Testcase{}, err
+	}
+
+	// Capture the test output for inclusion in the returned junit.Testcase.
+	// Before returning, restore the original a.Out.
+	origOut := a.Out
+	var out bytes.Buffer
+	a.Out = io.MultiWriter(&out, origOut)
+	defer func() { a.Out = origOut }()
+
+	// Run the tests and convert any errors into a Junit result.
+	start := time.Now()
+	testErr := a.Test(ctx, testSpec)
+	var failure *junit.Result
+	if testErr != nil {
+		failure = &junit.Result{
+			Message: fmt.Sprintf("%+v", testErr),
+		}
+	}
+	systemOut := &junit.Output{
+		Data: out.String(),
+	}
+
+	// Return Junit TestCase according to spec: https://llg.cubic.org/docs/junit/
+	return junit.Testcase{
+		Name:      testSpec.Name,
+		Classname: filePath,
+		Time:      fmt.Sprint(time.Since(start)),
+		Failure:   failure,
+		SystemOut: systemOut,
+	}, testErr
+}
+
 func (a *App) TestFile(ctx context.Context, filePath string) error {
+	testSpec, err := TestSpecFromFilePath(filePath)
+	if err != nil {
+		return err
+	}
+	return a.Test(ctx, testSpec)
+}
+
+func TestSpecFromFilePath(filePath string) (*api.TestSpec, error) {
 	testSpec := &api.TestSpec{}
 	yamlBytes, err := ioutil.ReadFile(filePath)
 	if err != nil {
-		return errors.WithStack(err)
+		return nil, errors.WithStack(err)
 	}
 	if err := UnmarshalTestCase(yamlBytes, testSpec); err != nil {
-		return err
+		return nil, err
 	}
 
 	// Randomize jobSetName for each test to ensure we're only getting events for this run.
@@ -95,7 +142,7 @@ func (a *App) TestFile(ctx context.Context, filePath string) error {
 		testSpec.Name = fileName
 	}
 
-	return a.Test(ctx, testSpec)
+	return testSpec, nil
 }
 
 // GetCancelAllJobs returns a processor that cancels all jobs in jobIds one at a time
@@ -215,6 +262,7 @@ func (a *App) Test(ctx context.Context, testSpec *api.TestSpec, asserters ...fun
 
 	// Logger service.
 	eventLogger := eventlogger.New(logCh, logInterval)
+	eventLogger.Out = a.Out
 	g.Go(func() error { return eventLogger.Run(ctx) })
 
 	// Goroutine forwarding API events on a channel.
