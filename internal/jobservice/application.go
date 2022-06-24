@@ -20,8 +20,8 @@ func StartUp(config *configuration.JobServiceConfiguration) (func(), *sync.WaitG
 
 	grpcServer := grpcCommon.CreateGrpcServer(config.Grpc.KeepaliveParams, config.Grpc.KeepaliveEnforcementPolicy, []authorization.AuthService{&authorization.AnonymousAuthService{}})
 
-	jobCacheServer := server.NewJobCacheServer()
-	jobservice.RegisterJobServiceServer(grpcServer, jobCacheServer)
+	jobService := server.NewJobService(config)
+	jobservice.RegisterJobServiceServer(grpcServer, jobService)
 
 	log.Info("JobCache service listening on ", config.GrpcPort)
 	grpcCommon.Listen(config.GrpcPort, grpcServer, &wg)

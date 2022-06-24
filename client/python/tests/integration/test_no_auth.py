@@ -98,7 +98,30 @@ def submit_sleep_job():
             core_v1.Container(
                 name="sleep",
                 image="alpine:latest",
-                args=["sleep", "3s"],
+                args=["sleep", "6s"],
+                resources=core_v1.ResourceRequirements(
+                    requests={
+                        "cpu": api_resource.Quantity(string="0.2"),
+                        "memory": api_resource.Quantity(string="64Mi"),
+                    },
+                    limits={
+                        "cpu": api_resource.Quantity(string="0.2"),
+                        "memory": api_resource.Quantity(string="64Mi"),
+                    },
+                ),
+            )
+        ],
+    )
+
+    return [submit_pb2.JobSubmitRequestItem(priority=0, pod_spec=pod)]
+
+def submit_bad_job():
+    pod = core_v1.PodSpec(
+        containers=[
+            core_v1.Container(
+                name="sleep",
+                image="NOCONTAINER",
+                args=["sleep", "6s"],
                 resources=core_v1.ResourceRequirements(
                     requests={
                         "cpu": api_resource.Quantity(string="0.2"),
@@ -117,5 +140,40 @@ def submit_sleep_job():
 
 def test_job_service():
     job_service_client = JobServiceClient(channel=grpc.insecure_channel(target="127.0.0.1:60003"))
-    job_status = job_service_client.get_job_status(queue='test', job_set_id='test', job_id='blah')
+    queue_name = f"queue-{uuid.uuid1()}"
+    job_set_name = f"set-{uuid.uuid1()}"
+    no_auth_client.create_queue(name=queue_name, priority_factor=200)
+
+    jobs = no_auth_client.submit_jobs(
+        queue=queue_name, job_set_id=job_set_name, job_request_items=submit_sleep_job()
+    )
+    time.sleep(2)
+
+    for val in range(60):
+        job_status = job_service_client.get_job_status(queue=queue_name, job_set_id=job_set_name, job_id=jobs.job_response_items[0].job_id)
+        time.sleep(1)
+        if job_status.state == 'Succeeded':
+            break
+        print(job_status)
+
+    print(job_status)
+
+def test_job_service_bad():
+    job_service_client = JobServiceClient(channel=grpc.insecure_channel(target="127.0.0.1:60003"))
+    queue_name = f"queue-{uuid.uuid1()}"
+    job_set_name = f"set-{uuid.uuid1()}"
+    no_auth_client.create_queue(name=queue_name, priority_factor=200)
+
+    jobs = no_auth_client.submit_jobs(
+        queue=queue_name, job_set_id=job_set_name, job_request_items=submit_bad_job()
+    )
+    time.sleep(2)
+
+    for val in range(60):
+        job_status = job_service_client.get_job_status(queue=queue_name, job_set_id=job_set_name, job_id=jobs.job_response_items[0].job_id)
+        time.sleep(1)
+        if job_status.state == 'Failed':
+            break
+        print(job_status)
+
     print(job_status)

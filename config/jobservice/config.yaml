@@ -1,6 +1,9 @@
 grpcPort: 60003
 httpPort: 8090
 
+apiConnection:
+  armadaUrl : "localhost:50051"
+
 grpc:
   keepaliveParams:
     maxConnectionIdle: 5m

@@ -3,17 +3,20 @@ package server
 import (
 	"context"
 
+	"github.com/G-Research/armada/internal/jobservice/configuration"
+	"github.com/G-Research/armada/internal/jobservice/eventstojobs"
 	"github.com/G-Research/armada/pkg/api/jobservice"
 )
 
 type JobServiceServer struct {
-	jobservice.UnimplementedJobServiceServer
+	jobServiceConfig *configuration.JobServiceConfiguration
 }
 
-func NewJobCacheServer() *JobServiceServer {
-	return &JobServiceServer{}
-} 
+func NewJobService(config *configuration.JobServiceConfiguration) *JobServiceServer {
+	return &JobServiceServer{jobServiceConfig: config}
+}
 
 func (s *JobServiceServer) GetJobStatus(ctx context.Context, opts *jobservice.JobServiceRequest) (*jobservice.JobServiceResponse, error) {
-	return &jobservice.JobServiceResponse{State: "success"}, nil
+	eventsToJobService := eventstojobs.NewEventsToJobService(opts.Queue, opts.JobSetId, opts.JobId, s.jobServiceConfig.ApiConnection)
+	return eventsToJobService.GetJobStatus(ctx)
 }
