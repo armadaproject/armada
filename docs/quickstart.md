@@ -5,7 +5,7 @@ The purpose of this guide is to install a minimal local Armada deployment for te
 ## Pre-requisites
 
 - Git
-- Docker (Docker Desktop recommended for local development)
+- Docker (Docker Desktop recommended for local development on Windows/OSX)
 - Helm v3.5+
 - Kind v0.11.1+
 - Kubectl
@@ -24,7 +24,7 @@ All commands are intended to be run from the root of the repository.
 
 Armada is a resource intensive application due to the need to run multiple Kubernetes clusters - for a local installation you will need at least 16GB of RAM available.
 
-### One-click setup
+### One-click Setup
 
 Run the following script in order to provision an Armada cluster locally:
 ```bash
@@ -40,7 +40,7 @@ Run the following script if you want to destroy your local Armada cluster:
 ## Usage
 Create queues, submit some jobs and monitor progress:
 
-### Queue creation
+### Queue Creation
 ```bash
 ./armadactl create queue queue-a --priorityFactor 1
 ./armadactl create queue queue-b --priorityFactor 2
@@ -58,7 +58,8 @@ For more control, queues can be created via `armadactl create`, which allows for
 ./armadactl create -f ./docs/quickstart/queue-b.yaml
 ```
 
-### Job submission
+
+### Job Submission
 ```
 ./armadactl submit ./docs/quickstart/job-queue-a.yaml
 ./armadactl submit ./docs/quickstart/job-queue-b.yaml
@@ -76,7 +77,7 @@ Watch individual queues:
 Log in to the Grafana dashboard at [http://localhost:30001](http://localhost:30001) using the default credentials of `admin` / `prom-operator`.
 Navigate to the Armada Overview dashboard to get a view of jobs progressing through the system.
 
-Try submitting lots of jobs and see queues build and get processed:
+Try submitting lots of jobs and see queues get built and processed:
 
 ```bash
 for i in {1..50}
@@ -107,12 +108,30 @@ Nov  4 11:44:17 | Queued:   0, Leased:   0, Pending:   0, Running:   1, Succeede
 Nov  4 11:44:26 | Queued:   0, Leased:   0, Pending:   0, Running:   0, Succeeded:   2, Failed:   0, Cancelled:   0 | event: *api.JobSucceededEvent, job id: 01drv3mey2mzmayf50631tzp9m
 ```
 
+
+### Grafana Configuration
+
+Run the following commands to setup Grafana in your environment:
+
+```bash
+curl -X POST -i http://admin:prom-operator@localhost:30001/api/datasources -H "Content-Type: application/json" -d '{"name":"cluster-0","type":"prometheus","url":"http://'$EXECUTOR_0_IP':30001","access":"proxy","basicAuth":false}'
+curl -X POST -i http://admin:prom-operator@localhost:30001/api/datasources -H "Content-Type: application/json" -d '{"name":"cluster-1","type":"prometheus","url":"http://'$EXECUTOR_1_IP':30001","access":"proxy","basicAuth":false}'
+curl -X POST -i http://admin:prom-operator@localhost:30001/api/dashboards/import --data-binary @./docs/quickstart/grafana-armada-dashboard.json -H "Content-Type: application/json"
+```
+
 Grafana:
 
 ![Armada Grafana dashboard](./quickstart/grafana-screenshot.png "Armada Grafana dashboard")
 
-Note that the jobs in this demo simply run the `sleep` command so do not consume much resource.
+Note that the jobs in this demo simply run the `sleep` command so do not consume many resources.
 
-Lookout:
+### Lookout Configuration
+
+Armada Lookout UI can be configured by doing the following:
+
+```bash
+kubectl port-forward svc/armada-lookout 8080:8080 
+```
+Then access it by opening [http://localhost:8080](http://localhost:8080) in your browser.
 
 ![Lookout UI](./quickstart/lookout.png "Lookout UI")
