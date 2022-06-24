@@ -156,6 +156,9 @@ func testCmd(app *testsuite.App) *cobra.Command {
 				}
 			}
 
+			if numFailures != 0 {
+				return errors.Errorf("there was at least one test failure")
+			}
 			return nil
 		},
 	}
