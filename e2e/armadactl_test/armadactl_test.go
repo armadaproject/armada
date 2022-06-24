@@ -255,7 +255,7 @@ jobs:
 
 	out := buf.String()
 	buf.Reset()
-	for _, s := range []string{"Submitted job with ID", "to job set with ID set1\n"} {
+	for _, s := range []string{"Submitted job with id", "to job set set1\n"} {
 		if !strings.Contains(out, s) {
 			t.Fatalf("expected output to contain '%s', but got '%s'", s, out)
 		}

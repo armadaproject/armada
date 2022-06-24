@@ -3,7 +3,7 @@ name: Deploy GH Pages
 on:
   push:
     branches: 
-      - master 
+      - master
     paths:
       - 'docs/*.md'
       - 'docs/quickstart'
