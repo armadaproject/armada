@@ -1,8 +1,13 @@
 package client
 
 import (
+	"fmt"
+	"net/http"
 	"strings"
 	"time"
+
+	"github.com/pkg/errors"
+	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/G-Research/armada/pkg/client/auth/exec"
 
@@ -98,5 +103,25 @@ func transportCredentials(config *ApiConnectionDetails) grpc.DialOption {
 	if !config.ForceNoTls && !strings.Contains(config.ArmadaUrl, "localhost") {
 		return grpc.WithTransportCredentials(credentials.NewClientTLSFromCert(nil, ""))
 	}
-	return grpc.WithInsecure()
+	return grpc.WithTransportCredentials(insecure.NewCredentials())
+}
+
+func (a *ApiConnectionDetails) ArmadaRestServerHealthcheck() error {
+	url := a.ArmadaRestUrl
+	if url == "" {
+		return errors.New("armada server rest api url not provided")
+	}
+	if !strings.HasPrefix(url, "http") {
+		url = fmt.Sprintf("http://%s", url)
+	}
+	healthEndpoint := fmt.Sprintf("%s/health", url)
+	resp, err := http.Get(healthEndpoint)
+	if err != nil {
+		return errors.Wrap(err, "error sending healthcheck request to armada rest api server")
+	}
+	if resp.StatusCode < 200 || resp.StatusCode > 399 {
+		return errors.Errorf("invalid status code received, expected status code in range 200-399, received %d %s", resp.StatusCode, resp.Status)
+	}
+
+	return nil
 }
