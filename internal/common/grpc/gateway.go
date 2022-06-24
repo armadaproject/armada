@@ -3,6 +3,7 @@ package grpc
 import (
 	"context"
 	"fmt"
+	"google.golang.org/grpc/credentials/insecure"
 	"net/http"
 	"path"
 	"strings"
@@ -40,7 +41,7 @@ func CreateGatewayHandler(
 			return fmt.Sprintf("%s%s", runtime.MetadataHeaderPrefix, key), true
 		}))
 
-	conn, err := grpc.DialContext(connectionCtx, grpcAddress, grpc.WithInsecure())
+	conn, err := grpc.DialContext(connectionCtx, grpcAddress, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		panic(err)
 	}
