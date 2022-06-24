@@ -36,7 +36,7 @@ func NewEventsToJobService(
 // TODO: This function will use redis and a pub/sub method.
 // For now, we will use the api for streaming events and allow for clients to treat this as polling.
 // This is not a production usecase yet.
-func (eventToJobService *EventsToJobService) GetJobStatus(context context.Context) (*jobservice.JobServiceResponse, error) {
+func (eventToJobService *EventsToJobService) GetJobStatusUsingEventApi(context context.Context) (*jobservice.JobServiceResponse, error) {
 	returnJobService := jobservice.JobServiceResponse{State: "Success"}
 
 	client.WithConnection(&eventToJobService.apiConnection, func(conn *grpc.ClientConn) {

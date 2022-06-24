@@ -18,5 +18,5 @@ func NewJobService(config *configuration.JobServiceConfiguration) *JobServiceSer
 
 func (s *JobServiceServer) GetJobStatus(ctx context.Context, opts *jobservice.JobServiceRequest) (*jobservice.JobServiceResponse, error) {
 	eventsToJobService := eventstojobs.NewEventsToJobService(opts.Queue, opts.JobSetId, opts.JobId, s.jobServiceConfig.ApiConnection)
-	return eventsToJobService.GetJobStatus(ctx)
+	return eventsToJobService.GetJobStatusUsingEventApi(ctx)
 }
