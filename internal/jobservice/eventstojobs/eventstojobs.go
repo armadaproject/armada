@@ -5,10 +5,11 @@ import (
 	"io"
 	"time"
 
+	log "github.com/sirupsen/logrus"
+
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/api/jobservice"
 	"github.com/G-Research/armada/pkg/client"
-	log "github.com/sirupsen/logrus"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
