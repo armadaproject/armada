@@ -12,8 +12,8 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/G-Research/armada/internal/common"
-	"github.com/G-Research/armada/internal/jobcache"
-	"github.com/G-Research/armada/internal/jobcache/configuration"
+	"github.com/G-Research/armada/internal/jobservice"
+	"github.com/G-Research/armada/internal/jobservice/configuration"
 )
 
 const CustomConfigLocation string = "config"
@@ -28,11 +28,11 @@ func main() {
 	common.BindCommandlineArguments()
 	g, ctx := errgroup.WithContext(context.Background())
 
-	var config configuration.JobCacheConfiguration
+	var config configuration.JobServiceConfiguration
 	userSpecifiedConfigs := viper.GetStringSlice(CustomConfigLocation)
-	common.LoadConfig(&config, "./config/jobcache", userSpecifiedConfigs)
+	common.LoadConfig(&config, "./config/jobservice", userSpecifiedConfigs)
 
-	shutdown, wg := jobcache.StartUp(&config)
+	shutdown, wg := jobservice.StartUp(&config)
 
 	// Cancel the errgroup context on SIGINT and SIGTERM,
 	// which shuts everything down gracefully.

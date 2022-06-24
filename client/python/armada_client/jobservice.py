@@ -2,14 +2,14 @@ from concurrent.futures import ThreadPoolExecutor
 import os
 from typing import Optional
 from armada_client.armada import (
-    jobcache_pb2,
-    jobcache_pb2_grpc,
+    jobservice_pb2,
+    jobservice_pb2_grpc,
 )
 
 
-class JobCacheClint:
+class JobServiceClient:
     """
-    Client for accessing Armada over gRPC.
+    Client for accessing JobService over gRPC.
 
     :param channel: gRPC channel used for authentication. See
                     https://grpc.github.io/grpc/python/grpc.html
@@ -22,7 +22,7 @@ class JobCacheClint:
     def __init__(self, channel, max_workers: Optional[int] = None):
         self.executor = ThreadPoolExecutor(max_workers=max_workers or os.cpu_count())
 
-        self.job_cache_stub = jobcache_pb2_grpc.JobCache(channel)
+        self.job_cache_stub = jobservice_pb2_grpc.JobServiceStub(channel)
 
     def get_job_status(self, queue: str, job_set_id: str, job_id: str):
         """Get event stream for a job set.
@@ -35,7 +35,7 @@ class JobCacheClint:
         :param from_message_id: The from message id.
         :return: A job events stream for the job_set_id provided.
         """
-        jsr = jobcache_pb2.JobCacheRequest(
+        jsr = jobservice_pb2.JobServiceRequest(
             queue=queue,
             job_set_id=job_set_id,
             job_id=job_id,

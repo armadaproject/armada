@@ -7,6 +7,7 @@ from armada_client.k8s.io.api.core.v1 import generated_pb2 as core_v1
 from armada_client.k8s.io.apimachinery.pkg.api.resource import (
     generated_pb2 as api_resource,
 )
+from armada_client.jobservice import JobServiceClient
 import grpc
 import time
 
@@ -113,3 +114,8 @@ def submit_sleep_job():
     )
 
     return [submit_pb2.JobSubmitRequestItem(priority=0, pod_spec=pod)]
+
+def test_job_service():
+    job_service_client = JobServiceClient(channel=grpc.insecure_channel(target="127.0.0.1:60003"))
+    job_status = job_service_client.get_job_status(queue='test', job_set_id='test', job_id='blah')
+    print(job_status)
