@@ -17,6 +17,7 @@ import (
 
 type ApiConnectionDetails struct {
 	ArmadaUrl                   string
+	ArmadaRestUrl               string
 	BasicAuth                   common.LoginCredentials
 	OpenIdAuth                  oidc.PKCEDetails
 	OpenIdDeviceAuth            oidc.DeviceDetails

@@ -2,10 +2,14 @@ package testsuite
 
 import (
 	"context"
+	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/pkg/errors"
 
 	"github.com/stretchr/testify/assert"
 
@@ -32,6 +36,11 @@ func TestFiles(t *testing.T) {
 	err := util.BindJsonOrYaml(armadaConfigFile, apiConnectionDetails)
 	if !assert.NoError(t, err) {
 		t.FailNow()
+	}
+
+	err = doArmadaServerHealthcheck(apiConnectionDetails.ArmadaRestUrl)
+	if err != nil {
+		t.Fatalf("armada server healthcheck failed: %v", err)
 	}
 
 	testSuite := testsuite.New()
@@ -61,4 +70,23 @@ func TestFiles(t *testing.T) {
 			assert.NoError(t, testSuite.TestFile(context.Background(), testFile))
 		})
 	}
+}
+
+func doArmadaServerHealthcheck(apiURL string) error {
+	if apiURL == "" {
+		return errors.New("armada server rest api url not provided")
+	}
+	if !strings.HasPrefix(apiURL, "http") {
+		apiURL = fmt.Sprintf("http://%s", apiURL)
+	}
+	healthEndpoint := fmt.Sprintf("%s/health", apiURL)
+	resp, err := http.Get(healthEndpoint)
+	if err != nil {
+		return errors.Wrap(err, "error sending healthcheck request to armada rest api server")
+	}
+	if resp.StatusCode != http.StatusNoContent {
+		return errors.Errorf("invalid status code received, expected 204 No Content, received %d %s", resp.StatusCode, resp.Status)
+	}
+
+	return nil
 }
