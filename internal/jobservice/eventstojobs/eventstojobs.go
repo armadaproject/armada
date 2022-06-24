@@ -33,6 +33,7 @@ func NewEventsToJobService(
 		jobid:         jobid,
 		apiConnection: apiConnection}
 }
+
 // TODO: This function will use redis and a pub/sub method.
 // For now, we will use the api for streaming events and allow for clients to treat this as polling.
 // This is not a production usecase yet.

@@ -3,7 +3,6 @@ package configuration
 import (
 	grpcconfig "github.com/G-Research/armada/internal/common/grpc/configuration"
 	"github.com/G-Research/armada/pkg/client"
-
 )
 
 type JobServiceConfiguration struct {
@@ -11,7 +10,6 @@ type JobServiceConfiguration struct {
 	GrpcPort    uint16
 	MetricsPort uint16
 
-	Grpc grpcconfig.GrpcConfig
+	Grpc          grpcconfig.GrpcConfig
 	ApiConnection client.ApiConnectionDetails
-
 }
