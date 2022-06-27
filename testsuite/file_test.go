@@ -30,13 +30,13 @@ func TestFiles(t *testing.T) {
 	}
 	apiConnectionDetails := &client.ApiConnectionDetails{}
 	err := util.BindJsonOrYaml(armadaConfigFile, apiConnectionDetails)
-	if !assert.NoError(t, err) {
+	if !assert.NoErrorf(t, err, "error unmarshalling api connection details") {
 		t.FailNow()
 	}
 
 	err = apiConnectionDetails.ArmadaRestServerHealthcheck()
-	if err != nil {
-		t.Fatalf("armada server healthcheck failed: %v", err)
+	if !assert.NoErrorf(t, err, "armada server health check failed") {
+		t.FailNow()
 	}
 
 	testSuite := testsuite.New()
