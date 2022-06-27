@@ -97,7 +97,7 @@ def submit_sleep_job():
             core_v1.Container(
                 name="sleep",
                 image="alpine:latest",
-                args=["sleep", "6s"],
+                args=["sleep", "3s"],
                 resources=core_v1.ResourceRequirements(
                     requests={
                         "cpu": api_resource.Quantity(string="0.2"),
