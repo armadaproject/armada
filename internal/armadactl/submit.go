@@ -3,7 +3,7 @@ package armadactl
 import (
 	"fmt"
 
-	"google.golang.org/grpc"
+	"github.com/pkg/errors"
 
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/client"
@@ -14,44 +14,39 @@ import (
 
 // Submit a job, represented by a file, to the Armada server.
 // If dry-run is true, the job file is validated but not submitted.
-func (a *App) Submit(path string, dryRun bool) (outerErr error) {
+func (a *App) Submit(path string, dryRun bool) error {
 
 	ok, err := validation.ValidateSubmitFile(path)
 	if !ok {
-		fmt.Fprintf(a.Out, "Invalid jobfile: %s/n", err)
-		return nil
+		return err
 	}
 
 	submitFile := &domain.JobSubmitFile{}
-
 	err = util.BindJsonOrYaml(path, submitFile)
 	if err != nil {
-		return fmt.Errorf("[armadactl.Submit] error parsing job file: %s", err)
+		return err
 	}
 
 	if dryRun {
-		return
+		return nil
 	}
 
 	requests := client.CreateChunkedSubmitRequests(submitFile.Queue, submitFile.JobSetId, submitFile.Jobs)
-	client.WithConnection(a.Params.ApiConnectionDetails, func(conn *grpc.ClientConn) {
-		submissionClient := api.NewSubmitClient(conn)
+	return client.WithSubmitClient(a.Params.ApiConnectionDetails, func(c api.SubmitClient) error {
 		for _, request := range requests {
-			response, err := client.SubmitJobs(submissionClient, request)
+			response, err := client.SubmitJobs(c, request)
 			if err != nil {
-				outerErr = fmt.Errorf("[armadactl.Submit] error submitting job with request %#v: %s", request, err)
-				return
+				return errors.WithMessagef(err, "error submitting request %#v", request)
 			}
 
 			for _, jobResponseItem := range response.JobResponseItems {
 				if jobResponseItem.Error != "" {
 					fmt.Fprintf(a.Out, "Error submitting job: %s\n", jobResponseItem.Error)
 				} else {
-					fmt.Fprintf(a.Out, "Submitted job with ID %s to job set with ID %s\n", jobResponseItem.JobId, request.JobSetId)
+					fmt.Fprintf(a.Out, "Submitted job with id %s to job set %s\n", jobResponseItem.JobId, request.JobSetId)
 				}
 			}
-
 		}
+		return nil
 	})
-	return
 }
