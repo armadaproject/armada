@@ -42,8 +42,5 @@ func initParams(cmd *cobra.Command, app *testsuite.App) error {
 		return errors.Wrap(err, "error loading command line arguments")
 	}
 	app.Params.ApiConnectionDetails = client.ExtractCommandlineArmadaApiConnectionDetails()
-	if err := app.Params.ApiConnectionDetails.ArmadaRestServerHealthcheck(); err != nil {
-		return errors.Wrap(err, "armada server health check failed")
-	}
 	return nil
 }

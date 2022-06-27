@@ -36,6 +36,10 @@ func testCmd(app *testsuite.App) *cobra.Command {
 
 func testCmdRunE(app *testsuite.App) func(cmd *cobra.Command, args []string) error {
 	return func(cmd *cobra.Command, args []string) error {
+		if err := app.Params.ApiConnectionDetails.ArmadaRestServerHealthcheck(); err != nil {
+			return errors.Wrap(err, "armada server health check failed")
+		}
+
 		testFilesPattern, err := cmd.Flags().GetString("tests")
 		if err != nil {
 			return errors.WithStack(err)
@@ -130,13 +134,13 @@ func createJUnitReport(junitPath string, testSuites *junit.Testsuites) error {
 
 	encoder := xml.NewEncoder(junitFile)
 	encoder.Indent("", "\t")
-	err = encoder.Encode(testSuites)
-	if err != nil {
+
+	if err = encoder.Encode(testSuites); err != nil {
 		return errors.WithStack(err)
 	}
-	err = encoder.Flush()
-	if err != nil {
+	if err = encoder.Flush(); err != nil {
 		return errors.WithStack(err)
 	}
+
 	return nil
 }
