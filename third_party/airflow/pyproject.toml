@@ -10,6 +10,8 @@ include = ["armada/**/*.py"]
 python = "^3.7"
 apache-airflow = "^2.3.1"
 armada-client = {path = "../../client/python/dist/armada_client-0.1.0-py3-none-any.whl"}
+grpcio = "^1.47.0"
+grpcio-tools = "^1.47.0"
 
 [tool.poetry.dev-dependencies]
 black = "^22.3.0"

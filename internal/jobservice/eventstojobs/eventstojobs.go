@@ -41,7 +41,7 @@ func NewEventsToJobService(
 func (eventToJobService *EventsToJobService) GetJobStatusUsingEventApi(context context.Context) (*jobservice.JobServiceResponse, error) {
 	returnJobService := jobservice.JobServiceResponse{State: "Success"}
 
-	client.WithConnection(&eventToJobService.apiConnection, func(conn *grpc.ClientConn) {
+	client.WithConnection(&eventToJobService.apiConnection, func(conn *grpc.ClientConn) error {
 		eventsClient := api.NewEventClient(conn)
 		for {
 
@@ -69,14 +69,14 @@ func (eventToJobService *EventsToJobService) GetJobStatusUsingEventApi(context c
 						switch err.Code() {
 						case codes.NotFound:
 							log.Error(err.Message())
-							return
+							return nil
 						case codes.PermissionDenied:
 							log.Error(err.Message())
-							return
+							return nil
 						}
 					}
 					if e == io.EOF {
-						return
+						return nil
 					}
 					time.Sleep(5 * time.Second)
 					break

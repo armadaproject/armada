@@ -117,6 +117,9 @@ build-executor:
 build-fakeexecutor:
 	$(GO_CMD) $(gobuild) -o ./bin/executor cmd/fakeexecutor/main.go
 
+build-jobservice:
+	$(GO_CMD) $(gobuild) -o ./bin/jobservice cmd/jobservice/main.go
+
 ARMADACTL_BUILD_PACKAGE := github.com/G-Research/armada/internal/armadactl/build
 define ARMADACTL_LDFLAGS
 -X '$(ARMADACTL_BUILD_PACKAGE).BuildTime=$(BUILD_TIME)' \
@@ -171,6 +174,12 @@ build-docker-executor:
 	$(GO_CMD) $(gobuildlinux) -o ./.build/executor/executor cmd/executor/main.go
 	cp -a ./config/executor ./.build/executor/config
 	docker build $(dockerFlags) -t armada-executor -f ./build/executor/Dockerfile ./.build/executor
+
+build-docker-jobservice:
+	mkdir -p .build/jobservice
+	$(GO_CMD) $(gobuildlinux) -o ./.build/jobservice/jobservice cmd/jobservice/main.go
+	cp -a ./config/jobservice ./.build/jobservice/config
+	docker build $(dockerFlags) -t armada-jobservice -f ./build/jobservice/Dockerfile ./.build/jobservice
 
 build-docker-armada-load-tester:
 	mkdir -p .build/armada-load-tester
@@ -402,6 +411,12 @@ python: setup-proto
 	docker build $(dockerFlags) -t armada-python-client-builder -f ./build/python-client/Dockerfile .
 	docker run --rm -v ${PWD}/proto:/proto -v ${PWD}:/go/src/armada -w /go/src/armada armada-python-client-builder ./scripts/build-python-client.sh
 
+airflow-operator: 
+	rm -rf proto-airflow
+	mkdir -p proto-airflow
+	docker build $(dockerFlags) -t armada-airflow-operator-builder -f ./build/airflow-operator/Dockerfile .
+	docker run --rm -v ${PWD}/proto-airflow:/proto -v ${PWD}:/go/src/armada -w /go/src/armada armada-airflow-operator-builder ./scripts/build-airflow-operator.sh
+	
 proto: setup-proto
 	
 	docker build $(dockerFlags) --build-arg GOPROXY --build-arg GOPRIVATE --build-arg MAVEN_URL -t armada-proto -f ./build/proto/Dockerfile .
