@@ -31,7 +31,7 @@ func AddArmadaApiConnectionCommandlineArgs(rootCmd *cobra.Command) {
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.armadactl.yaml)")
 }
 
-// LoadCommandlineArgsFromConfigFile loads armadactl config
+// LoadCommandlineArgs loads armadactl config
 // armadactl-defaults.yaml - From exePath, where exePath is the path to the armadactl executable
 // armada config file - From cfgFile, set by the --config CLI flag, or defaulting to $HOME/.armadactl if not set
 // These configs are then merged
