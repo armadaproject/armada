@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"reflect"
-	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -62,6 +61,7 @@ func (srv *EventWatcher) Run(ctx context.Context) error {
 
 // ErrUnexpectedEvent indicates the wrong event type was received.
 type ErrUnexpectedEvent struct {
+	jobId    string
 	expected *api.EventMessage
 	actual   *api.EventMessage
 	message  string
@@ -69,9 +69,9 @@ type ErrUnexpectedEvent struct {
 
 func (err *ErrUnexpectedEvent) Error() string {
 	if err.message == "" {
-		return fmt.Sprintf("expected event of type %T, but got %+v", err.expected.Events, err.actual.Events)
+		return fmt.Sprintf("unexpected event for job %s: expected event of type %T, but got %+v", err.jobId, err.expected.Events, err.actual.Events)
 	}
-	return fmt.Sprintf("expected event of type %T, but got %+v; %s", err.expected.Events, err.actual.Events, err.message)
+	return fmt.Sprintf("unexpected event for job %s: expected event of type %T, but got %+v; %s", err.jobId, err.expected.Events, err.actual.Events, err.message)
 }
 
 // AssertEvents compares the events received for each job with the expected events.
@@ -112,6 +112,7 @@ func AssertEvents(ctx context.Context, c chan *api.EventMessage, jobIds map[stri
 			// Return an error if the job has exited without us seeing all expected events.
 			if isTerminalEvent(actual) && i < len(expected) {
 				return &ErrUnexpectedEvent{
+					jobId:    actualJobId,
 					expected: expected[i],
 					actual:   actual,
 				}
@@ -155,6 +156,15 @@ func ErrorOnNoActiveJobs(parent context.Context, C chan *api.EventMessage, jobId
 				}
 				numActive--
 			} else if e := msg.GetFailed(); e != nil {
+				if _, ok := exitedByJobId[e.JobId]; ok {
+					return errors.Errorf("received multiple terminal events for job %s", e.JobId)
+				}
+				exitedByJobId[e.JobId] = true
+				if _, ok := jobIds[e.JobId]; ok {
+					numRemaining--
+				}
+				numActive--
+			} else if e := msg.GetCancelled(); e != nil {
 				if _, ok := exitedByJobId[e.JobId]; ok {
 					return errors.Errorf("received multiple terminal events for job %s", e.JobId)
 				}
@@ -210,15 +220,14 @@ func GetFromIngresses(parent context.Context, C chan *api.EventMessage) error {
 }
 
 func getFromIngress(ctx context.Context, host string) error {
-	tokens := strings.Split(host, ".")
-	if len(tokens) == 0 {
-		return errors.Errorf("malformed hostname: %s", host)
+	ingressUrl := os.Getenv("ARMADA_EXECUTOR_INGRESS_URL")
+	if ingressUrl == "" {
+		ingressUrl = "http://" + host
 	}
-	url := "http://" + tokens[len(tokens)-1]
 
 	// The ingress info messages can't convey which port ingress are handled on (only the url).
 	// (The assumption is that ingress is always handled on port 80.)
-	// Here, we override this with an environment varibel so we can test against local Kind clusters,
+	// Here, we override this with an environment variable so we can test against local Kind clusters,
 	// which may handle ingress on an arbitrary port.
 	ingressPort := os.Getenv("ARMADA_EXECUTOR_INGRESS_PORT")
 	if ingressPort == "" {
@@ -228,7 +237,7 @@ func getFromIngress(ctx context.Context, host string) error {
 	// Make a get request to test that the ingress works.
 	// This assumes that whatever the ingress points to responds.
 	httpClient := &http.Client{}
-	httpReq, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("%s:%s/", url, ingressPort), http.NoBody)
+	httpReq, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("%s:%s/", ingressUrl, ingressPort), http.NoBody)
 	if err != nil {
 		return err
 	}
