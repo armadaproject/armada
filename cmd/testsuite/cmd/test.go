@@ -4,15 +4,16 @@ import (
 	"context"
 	"encoding/xml"
 	"fmt"
-	"github.com/G-Research/armada/internal/testsuite"
-	"github.com/jstemmer/go-junit-report/v2/junit"
-	"github.com/pkg/errors"
-	"github.com/spf13/cobra"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"syscall"
 	"time"
+
+	"github.com/G-Research/armada/internal/testsuite"
+	"github.com/jstemmer/go-junit-report/v2/junit"
+	"github.com/pkg/errors"
+	"github.com/spf13/cobra"
 )
 
 // Submit batches of jobs and wait for those jobs to finish.
