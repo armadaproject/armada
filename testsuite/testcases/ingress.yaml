@@ -1,0 +1,37 @@
+numBatches: 1
+batchSize: 1
+queue: e2e-test-queue
+jobs:
+  - priority: 0
+    namespace: personal-anonymous
+    ingress:
+      - type: Ingress
+        tlsEnabled: false
+        ports:
+          - 4000
+    podSpec:
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      containers:
+        - name: nc
+          imagePullPolicy: IfNotPresent
+          image: alpine:3.10
+          # Server responding to the first request with a 200 status code and then exiting.
+          args: ["nc", "-l", "-p", "4000", "-e", "echo", "HTTP/1.1 200 OK\nContent-Length: 12\nConnection: close\nContent-Type: text/html\n\nHello world!"]
+          resources:
+            limits:
+              memory: 100Mi
+              cpu: 100m
+            requests:
+              memory: 100Mi
+              cpu: 100m
+          ports:
+            - containerPort: 4000
+              protocol: TCP
+              name: port
+---
+timeout: "100s"
+expectedEvents:
+  - submitted:
+  - ingressInfo:
+  - succeeded:
