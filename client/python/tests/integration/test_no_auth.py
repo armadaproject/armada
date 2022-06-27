@@ -7,7 +7,6 @@ from armada_client.k8s.io.api.core.v1 import generated_pb2 as core_v1
 from armada_client.k8s.io.apimachinery.pkg.api.resource import (
     generated_pb2 as api_resource,
 )
-from armada_client.jobservice import JobServiceClient
 import grpc
 import time
 
@@ -115,6 +114,7 @@ def submit_sleep_job():
 
     return [submit_pb2.JobSubmitRequestItem(priority=0, pod_spec=pod)]
 
+
 def submit_bad_job():
     pod = core_v1.PodSpec(
         containers=[
@@ -137,43 +137,3 @@ def submit_bad_job():
     )
 
     return [submit_pb2.JobSubmitRequestItem(priority=0, pod_spec=pod)]
-
-def test_job_service():
-    job_service_client = JobServiceClient(channel=grpc.insecure_channel(target="127.0.0.1:60003"))
-    queue_name = f"queue-{uuid.uuid1()}"
-    job_set_name = f"set-{uuid.uuid1()}"
-    no_auth_client.create_queue(name=queue_name, priority_factor=200)
-
-    jobs = no_auth_client.submit_jobs(
-        queue=queue_name, job_set_id=job_set_name, job_request_items=submit_sleep_job()
-    )
-    time.sleep(2)
-
-    for val in range(60):
-        job_status = job_service_client.get_job_status(queue=queue_name, job_set_id=job_set_name, job_id=jobs.job_response_items[0].job_id)
-        time.sleep(1)
-        if job_status.state == 'Succeeded':
-            break
-        print(job_status)
-
-    print(job_status)
-
-def test_job_service_bad():
-    job_service_client = JobServiceClient(channel=grpc.insecure_channel(target="127.0.0.1:60003"))
-    queue_name = f"queue-{uuid.uuid1()}"
-    job_set_name = f"set-{uuid.uuid1()}"
-    no_auth_client.create_queue(name=queue_name, priority_factor=200)
-
-    jobs = no_auth_client.submit_jobs(
-        queue=queue_name, job_set_id=job_set_name, job_request_items=submit_bad_job()
-    )
-    time.sleep(2)
-
-    for val in range(60):
-        job_status = job_service_client.get_job_status(queue=queue_name, job_set_id=job_set_name, job_id=jobs.job_response_items[0].job_id)
-        time.sleep(1)
-        if job_status.state == 'Failed':
-            break
-        print(job_status)
-
-    print(job_status)
