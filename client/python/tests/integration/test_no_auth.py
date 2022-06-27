@@ -113,27 +113,3 @@ def submit_sleep_job():
     )
 
     return [submit_pb2.JobSubmitRequestItem(priority=0, pod_spec=pod)]
-
-
-def submit_bad_job():
-    pod = core_v1.PodSpec(
-        containers=[
-            core_v1.Container(
-                name="sleep",
-                image="NOCONTAINER",
-                args=["sleep", "6s"],
-                resources=core_v1.ResourceRequirements(
-                    requests={
-                        "cpu": api_resource.Quantity(string="0.2"),
-                        "memory": api_resource.Quantity(string="64Mi"),
-                    },
-                    limits={
-                        "cpu": api_resource.Quantity(string="0.2"),
-                        "memory": api_resource.Quantity(string="64Mi"),
-                    },
-                ),
-            )
-        ],
-    )
-
-    return [submit_pb2.JobSubmitRequestItem(priority=0, pod_spec=pod)]
