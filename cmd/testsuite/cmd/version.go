@@ -1,8 +1,9 @@
 package cmd
 
 import (
-	"github.com/G-Research/armada/internal/testsuite"
 	"github.com/spf13/cobra"
+
+	"github.com/G-Research/armada/internal/testsuite"
 )
 
 // versionCmd prints version info and exits.
