@@ -20,7 +20,7 @@ from airflow.models import BaseOperator
 from airflow.exceptions import AirflowException
 
 from armada_client.client import ArmadaClient, unwatch_events
-from armada.operators.jobservice import JobServiceClient
+from armada.jobservice import JobServiceClient
 
 import logging
 

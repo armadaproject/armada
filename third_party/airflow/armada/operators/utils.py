@@ -1,5 +1,5 @@
 from airflow.exceptions import AirflowFailException
-from typing import Tuple
+from typing import Optional, Tuple
 
 from armada.operators.jobservice import JobServiceClient
 
@@ -25,10 +25,10 @@ def airflow_error(job_state: str, name: str, job_id: str):
 
 
 def default_job_status_callable(
-    job_service_client: JobServiceClient,
     queue: str,
     job_set_id: str,
     job_id: str,
+    job_service_client: Optional[JobServiceClient],
 ):
     return job_service_client.get_job_status(
         queue=queue, job_id=job_id, job_set_id=job_set_id

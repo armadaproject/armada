@@ -1,7 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor
 import os
 from typing import Optional
-from armada.armada import jobservice_pb2_grpc, jobservice_pb2
+from armada.jobservice import jobservice_pb2_grpc, jobservice_pb2
 
 
 class JobServiceClient:
