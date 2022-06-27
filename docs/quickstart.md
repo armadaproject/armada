@@ -26,15 +26,11 @@ Armada is a resource intensive application due to the need to run multiple Kuber
 
 ### One-click Setup
 
-Run the following script in order to provision an Armada cluster locally:
-```bash
-./docs/local/setup.sh
-```
+To install Armada and all its dependencies you can use this script: 
+https://github.com/G-Research/armada/blob/master/docs/local/setup.sh
 
-Run the following script if you want to destroy your local Armada cluster:
-```bash
-./docs/local/destroy.sh
-```
+Likewise this script will remove the Armada components from your system: 
+https://github.com/G-Research/armada/blob/master/docs/local/destroy.sh
 
 
 ## Usage
