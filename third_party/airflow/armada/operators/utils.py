@@ -1,6 +1,8 @@
 from airflow.exceptions import AirflowFailException
 from typing import Tuple
 
+from armada.operators.jobservice import JobServiceClient
+
 
 def airflow_error(job_state: str, name: str, job_id: str):
     """Throw an error on a terminal event if job errored out
@@ -22,7 +24,24 @@ def airflow_error(job_state: str, name: str, job_id: str):
         raise AirflowFailException(f"The Armada job {name}:{job_id} {job_state}")
 
 
-def search_for_job_complete(event, job_name: str, job_id: str) -> Tuple[str, str]:
+def default_job_status_callable(
+    job_service_client: JobServiceClient,
+    queue: str,
+    job_set_id: str,
+    job_id: str,
+):
+    return job_service_client.get_job_status(
+        queue=queue, job_id=job_id, job_set_id=job_set_id
+    )
+
+
+def search_for_job_complete(
+    queue: str,
+    job_set_id: str,
+    airflow_task_name: str,
+    job_id: str,
+    job_status_callable=default_job_status_callable,
+) -> Tuple[str, str]:
     """Search the event stream to see if your job has finished running
 
     :param event: a gRPC event stream
@@ -31,32 +50,32 @@ def search_for_job_complete(event, job_name: str, job_id: str) -> Tuple[str, str
     :return: A tuple of state, message
     """
 
-    job_state = "queued"
-    job_message = f"Armada {job_name}:{job_id} is queued"
-    for element in event:
-        if element.message.succeeded.job_id == job_id:
+    while True:
+        job_status_return = job_status_callable(
+            queue=queue,
+            job_id=job_id,
+            job_set_id=job_set_id,
+            airflow_task_name=airflow_task_name,
+        )
+        if job_status_return.state == "Successful":
             job_state = "successful"
-            job_message = f"Armada {job_name}:{job_id} succeeded"
+            job_message = f"Armada {airflow_task_name}:{job_id} succeeded"
             break
-        if element.message.failed.job_id == job_id:
+        if job_status_return.state == "Failed":
             job_state = "failed"
             job_message = (
-                f"Armada {job_name}:{job_id} failed\n"
-                f"failed with reason {element.message.failed.reason}"
+                f"Armada {airflow_task_name}:{job_id} failed\n"
+                f"failed with reason {job_status_return.error}"
             )
 
             break
-        if element.message.cancelling.job_id == job_id:
-            job_state = "cancelling"
-            job_message = f"Armada {job_name}:{job_id} cancelling"
-            break
-        if element.message.cancelled.job_id == job_id:
+        if job_status_return.state == "Cancelled":
             job_state = "cancelled"
-            job_message = f"Armada {job_name}:{job_id} cancelled"
+            job_message = f"Armada {airflow_task_name}:{job_id} cancelled"
             break
-        if element.message.terminated.job_id == job_id:
+        if job_status_return.state == "Terminated":
             job_state = "terminated"
-            job_message = f"Armada {job_name}:{job_id} terminated"
+            job_message = f"Armada {airflow_task_name}:{job_id} terminated"
             break
 
     return job_state, job_message
