@@ -120,7 +120,7 @@ func (a *ApiConnectionDetails) ArmadaHealthCheck() (ok bool, err error) {
 	healthEndpoint := fmt.Sprintf("%s/health", url)
 	resp, err := http.Get(healthEndpoint)
 	if err != nil {
-		return false, err
+		return false, errors.WithStack(err)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode > 399 {
 		return false, nil
