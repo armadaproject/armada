@@ -106,10 +106,13 @@ func transportCredentials(config *ApiConnectionDetails) grpc.DialOption {
 	return grpc.WithTransportCredentials(insecure.NewCredentials())
 }
 
-func (a *ApiConnectionDetails) ArmadaRestServerHealthcheck() error {
+// ArmadaHealthCheck calls Armada Server /health endpoint.
+//
+// Returns true if response status code is in range [200-399], otherwise returns false.
+func (a *ApiConnectionDetails) ArmadaHealthCheck() (ok bool, err error) {
 	url := a.ArmadaRestUrl
 	if url == "" {
-		return errors.New("armada server rest api url not provided")
+		return false, errors.New("Armada server rest api url not provided")
 	}
 	if !strings.HasPrefix(url, "http") {
 		url = fmt.Sprintf("http://%s", url)
@@ -117,11 +120,11 @@ func (a *ApiConnectionDetails) ArmadaRestServerHealthcheck() error {
 	healthEndpoint := fmt.Sprintf("%s/health", url)
 	resp, err := http.Get(healthEndpoint)
 	if err != nil {
-		return errors.Wrap(err, "error sending healthcheck request to armada rest api server")
+		return false, errors.Wrap(err, "error sending healthcheck request to Armada rest api server")
 	}
 	if resp.StatusCode < 200 || resp.StatusCode > 399 {
-		return errors.Errorf("invalid status code received, expected status code in range 200-399, received %d %s", resp.StatusCode, resp.Status)
+		return false, nil
 	}
 
-	return nil
+	return true, nil
 }
