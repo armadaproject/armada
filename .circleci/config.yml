@@ -264,6 +264,9 @@ jobs:
             docker tag armadactl gresearchdev/armada-armadactl-dev:${TAG}
             docker push gresearchdev/armada-armadactl-dev:${TAG}
 
+            docker tag testsuite gresearchdev/armada-testsuite-dev:${TAG}
+            docker push gresearchdev/armada-testsuite-dev:${TAG}
+
             docker tag armada-load-tester gresearchdev/armada-load-tester-dev:${TAG}
             docker push gresearchdev/armada-load-tester-dev:${TAG}
 
@@ -354,6 +357,10 @@ jobs:
             docker pull gresearchdev/armada-armadactl-dev:${TAG}
             docker tag gresearchdev/armada-armadactl-dev:${TAG} gresearchdev/armada-armadactl:${RELEASE_TAG}
             docker push gresearchdev/armada-armadactl:${RELEASE_TAG}
+
+            docker pull gresearchdev/armada-testsuite-dev:${TAG}
+            docker tag gresearchdev/armada-testsuite-dev:${TAG} gresearchdev/armada-testsuite:${RELEASE_TAG}
+            docker push gresearchdev/armada-testsuite:${RELEASE_TAG}
 
             docker pull gresearchdev/armada-lookout-dev:${TAG}
             docker tag gresearchdev/armada-lookout-dev:${TAG} gresearchdev/armada-lookout:${RELEASE_TAG}
