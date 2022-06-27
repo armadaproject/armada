@@ -37,8 +37,12 @@ func testCmd(app *testsuite.App) *cobra.Command {
 
 func testCmdRunE(app *testsuite.App) func(cmd *cobra.Command, args []string) error {
 	return func(cmd *cobra.Command, args []string) error {
-		if err := app.Params.ApiConnectionDetails.ArmadaRestServerHealthcheck(); err != nil {
-			return errors.Wrap(err, "armada server health check failed")
+		healthy, err := app.Params.ApiConnectionDetails.ArmadaHealthCheck()
+		if err != nil {
+			return errors.WithMessage(err, "error calling Armada server healthcheck")
+		}
+		if !healthy {
+			return errors.New("Armada server is not healthy")
 		}
 
 		testFilesPattern, err := cmd.Flags().GetString("tests")
@@ -79,7 +83,10 @@ func testCmdRunE(app *testsuite.App) func(cmd *cobra.Command, args []string) err
 
 		start := time.Now()
 
-		printSummary(start, numSuccesses, numFailures)
+		fmt.Printf("\n======= SUMMARY =======\n")
+		fmt.Printf("Ran %d test(s) in %s\n", numSuccesses+numFailures, time.Since(start))
+		fmt.Printf("Successes: %d\n", numSuccesses)
+		fmt.Printf("Failures: %d\n", numFailures)
 
 		// If junitPath is set, write a JUnit report.
 		testSuite.Time = fmt.Sprint(time.Since(start))
@@ -89,8 +96,8 @@ func testCmdRunE(app *testsuite.App) func(cmd *cobra.Command, args []string) err
 		}
 		testSuites.AddSuite(*testSuite)
 		if junitPath != "" {
-			if err := createJUnitReport(junitPath, testSuites); err != nil {
-				return errors.Wrap(err, "error creating junit report")
+			if err := writeJUnitReport(junitPath, testSuites); err != nil {
+				return errors.WithMessage(err, "error writing junit report")
 			}
 		}
 
@@ -119,14 +126,7 @@ func runTestFiles(ctx context.Context, app *testsuite.App, testSuite *junit.Test
 	return numSuccesses, numFailures
 }
 
-func printSummary(start time.Time, numSuccesses, numFailures int) {
-	fmt.Printf("\n======= SUMMARY =======\n")
-	fmt.Printf("Ran %d test(s) in %s\n", numSuccesses+numFailures, time.Since(start))
-	fmt.Printf("Successes: %d\n", numSuccesses)
-	fmt.Printf("Failures: %d\n", numFailures)
-}
-
-func createJUnitReport(junitPath string, testSuites *junit.Testsuites) error {
+func writeJUnitReport(junitPath string, testSuites *junit.Testsuites) error {
 	junitFile, err := os.Create(junitPath)
 	if err != nil {
 		return errors.WithStack(err)
