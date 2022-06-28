@@ -3,6 +3,7 @@ package client
 import (
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -61,11 +62,20 @@ func CreateApiConnectionWithCallOptions(
 	streamInterceptors := grpc.WithChainStreamInterceptor(grpc_retry.StreamClientInterceptor(retryOpts...))
 	dialOpts := append(additionalDialOptions,
 		defaultCallOptions,
-		keepAliveOptions,
 		unuaryInterceptors,
 		streamInterceptors,
 		transportCredentials(config),
 	)
+	// Because the server must allow keepalive, only use it if explicitly enabled.
+	if s := os.Getenv("ARMADA_GRPC_KEEPALIVE"); s != "" {
+		dialOpts = append(additionalDialOptions,
+			defaultCallOptions,
+			keepAliveOptions,
+			unuaryInterceptors,
+			streamInterceptors,
+			transportCredentials(config),
+		)
+	}
 
 	creds, err := perRpcCredentials(config)
 	if err != nil {
