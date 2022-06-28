@@ -17,17 +17,17 @@ def server_mock():
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     submit_pb2_grpc.add_SubmitServicer_to_server(SubmitService(), server)
     event_pb2_grpc.add_EventServicer_to_server(EventService(), server)
-    server.add_insecure_port("[::]:60000")
+    server.add_insecure_port("[::]:50051")
     server.start()
 
     yield
     server.stop(False)
 
 
-channel = grpc.insecure_channel(target="127.0.0.1:60000")
+channel = grpc.insecure_channel(target="127.0.0.1:50051")
 tester = ArmadaClient(
     grpc.insecure_channel(
-        target="127.0.0.1:60000",
+        target="127.0.0.1:50051",
         options={
             "grpc.keepalive_time_ms": 30000,
         }.items(),
