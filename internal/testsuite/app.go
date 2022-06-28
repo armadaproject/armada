@@ -267,6 +267,9 @@ func (a *App) Test(ctx context.Context, testSpec *api.TestSpec, asserters ...fun
 
 	// Goroutine forwarding API events on a channel.
 	watcher := eventwatcher.New(testSpec.Queue, testSpec.JobSetId, a.Params.ApiConnectionDetails)
+	watcher.BackoffExponential = time.Second
+	watcher.MaxRetries = 6
+	watcher.Out = a.Out
 	g.Go(func() error { return watcher.Run(ctx) })
 
 	// Split the events into multiple channels, one for each downstream service.

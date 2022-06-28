@@ -4,11 +4,13 @@ package eventwatcher
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"reflect"
 	"time"
 
+	"github.com/grpc-ecosystem/go-grpc-middleware/util/backoffutils"
 	"github.com/pkg/errors"
 	"golang.org/x/sync/errgroup"
 
@@ -19,14 +21,23 @@ import (
 // EventWatcher is a service for watching for events and forwarding those on C.
 // It connects to a server using ApiConnectionDetails and subscribes to events (queue, jobSetName).
 type EventWatcher struct {
+	Out                  io.Writer
 	Queue                string
 	JobSetName           string
 	ApiConnectionDetails *client.ApiConnectionDetails
 	C                    chan *api.EventMessage
+	// BackoffExponential produces increasing intervals for each retry attempt.
+	//
+	// The scalar is multiplied times 2 raised to the current attempt. So the first
+	// retry with a scalar of 100ms is 100ms, while the 5th attempt would be 1.6s.
+	BackoffExponential time.Duration
+	// MaxRetries is the number of consecutive retries until the watcher gives up.
+	MaxRetries uint
 }
 
 func New(queue string, jobSetName string, apiConnectionDetails *client.ApiConnectionDetails) *EventWatcher {
 	return &EventWatcher{
+		Out:                  os.Stdout,
 		Queue:                queue,
 		JobSetName:           jobSetName,
 		ApiConnectionDetails: apiConnectionDetails,
@@ -36,27 +47,62 @@ func New(queue string, jobSetName string, apiConnectionDetails *client.ApiConnec
 
 // Run starts the service.
 func (srv *EventWatcher) Run(ctx context.Context) error {
-	return client.WithEventClient(srv.ApiConnectionDetails, func(c api.EventClient) error {
-		stream, err := c.GetJobSetEvents(ctx, &api.JobSetRequest{
-			Id:    srv.JobSetName,
-			Queue: srv.Queue,
-			Watch: true,
-		})
-		if err != nil {
+	var attempt uint
+	var fromMessageId string
+	var lastErr error
+	for attempt < srv.MaxRetries {
+		if err := srv.waitRetryBackoff(ctx, attempt); err != nil {
 			return err
 		}
-		for {
-			msg, err := stream.Recv()
+		err := client.WithEventClient(srv.ApiConnectionDetails, func(c api.EventClient) error {
+			stream, err := c.GetJobSetEvents(ctx, &api.JobSetRequest{
+				Id:            srv.JobSetName,
+				Queue:         srv.Queue,
+				FromMessageId: fromMessageId,
+				Watch:         true,
+			})
 			if err != nil {
 				return err
 			}
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case srv.C <- msg.Message:
+			for {
+				msg, err := stream.Recv()
+				if err != nil {
+					return err
+				}
+				attempt = 0
+				fromMessageId = msg.GetId()
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				case srv.C <- msg.Message:
+				}
 			}
+		})
+		if err != nil {
+			attempt++
+			lastErr = err
+			fmt.Fprintf(srv.Out, "EventWatcher stream broken: %s\n", err)
 		}
-	})
+	}
+	return lastErr
+}
+
+func (srv *EventWatcher) waitRetryBackoff(ctx context.Context, attempt uint) error {
+	var waitTime time.Duration = 0
+	if attempt > 0 {
+		waitTime = srv.BackoffExponential * time.Duration(backoffutils.ExponentBase2(attempt))
+	}
+	if waitTime > 0 {
+		fmt.Fprintf(srv.Out, "EventWatcher attempt %d, backoff for %v\n", attempt, waitTime)
+		timer := time.NewTimer(waitTime)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return ctx.Err()
+		case <-timer.C:
+		}
+	}
+	return nil
 }
 
 // ErrUnexpectedEvent indicates the wrong event type was received.
