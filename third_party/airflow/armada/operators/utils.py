@@ -52,10 +52,7 @@ def search_for_job_complete(
 
     while True:
         job_status_return = job_status_callable(
-            queue=queue,
-            job_id=job_id,
-            job_set_id=job_set_id,
-            airflow_task_name=airflow_task_name,
+            queue=queue, job_id=job_id, job_set_id=job_set_id
         )
         if job_status_return.state == "Successful":
             job_state = "successful"
