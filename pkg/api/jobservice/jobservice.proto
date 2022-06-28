@@ -9,10 +9,10 @@ message JobServiceRequest {
 }
 
 message JobServiceResponse {
-// This is a string representation of the envent name
+// This is a string representation of the event name
 // See event.proto for a list of possible events
     string state = 1;
-// For failed Jobs, this will contain a reason why the job failed
+// For failed jobs, this will contain a reason why the job failed
     string error = 2;
 }
 
