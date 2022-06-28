@@ -15,8 +15,7 @@ from armada_client.armada import (
 
 class ArmadaClient:
     """
-    The Armada Client
-    Implementation of gRPC stubs from events, queues and submit
+    Client for accessing Armada over gRPC.
 
     :param channel: gRPC channel used for authentication. See
                     https://grpc.github.io/grpc/python/grpc.html
@@ -61,15 +60,12 @@ class ArmadaClient:
     def submit_jobs(self, queue: str, job_set_id: str, job_request_items):
         """Submit a armada job.
 
-        :param queue: str
-            The name of the queue
-        :param job_set_id: str
-            The name of the job set (a grouping of jobs)
-        :param job_request_items: List[JobSubmitRequestItem]
-            An array of JobSubmitRequestItems.
-            See the api definition in submit.proto for a definition.
+        Uses SubmitJobs RPC to submit a job.
 
-        This calls the SubmitJob rpc call.
+        :param queue: The name of the queue
+        :param job_set_id: The name of the job set (a grouping of jobs)
+        :param job_request_items: List[JobSubmitRequestItem]
+                                  An array of JobSubmitRequestItems.
         :return: A JobSubmitResponse object.
         """
         request = submit_pb2.JobSubmitRequest(
