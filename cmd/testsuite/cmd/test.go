@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"syscall"
 	"time"
 
 	"github.com/jstemmer/go-junit-report/v2/junit"
+	"github.com/mattn/go-zglob"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
@@ -50,7 +50,7 @@ func testCmdRunE(app *testsuite.App) func(cmd *cobra.Command, args []string) err
 			return errors.WithStack(err)
 		}
 
-		testFiles, err := filepath.Glob(testFilesPattern)
+		testFiles, err := zglob.Glob(testFilesPattern)
 		if err != nil {
 			return errors.WithStack(err)
 		}

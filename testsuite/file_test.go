@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/mattn/go-zglob"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/G-Research/armada/internal/testsuite"
@@ -54,7 +55,7 @@ func TestFiles(t *testing.T) {
 		t.FailNow()
 	}
 
-	testFiles, err := filepath.Glob(testFilesPattern)
+	testFiles, err := zglob.Glob(testFilesPattern)
 	if !assert.NoError(t, err) {
 		t.FailNow()
 	}
