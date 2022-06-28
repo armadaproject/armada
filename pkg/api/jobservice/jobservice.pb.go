@@ -88,10 +88,10 @@ func (m *JobServiceRequest) GetQueue() string {
 }
 
 type JobServiceResponse struct {
-	// This is a string representation of the envent name
+	// This is a string representation of the event name
 	// See event.proto for a list of possible events
 	State string `protobuf:"bytes,1,opt,name=state,proto3" json:"state,omitempty"`
-	// For failed Jobs, this will contain a reason why the job failed
+	// For failed jobs, this will contain a reason why the job failed
 	Error string `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
 }
 
