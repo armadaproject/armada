@@ -6,16 +6,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pkg/errors"
-	"google.golang.org/grpc/credentials/insecure"
-
-	"github.com/G-Research/armada/pkg/client/auth/exec"
-
 	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/retry"
+	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/keepalive"
 
 	"github.com/G-Research/armada/internal/common"
+	"github.com/G-Research/armada/pkg/client/auth/exec"
 	"github.com/G-Research/armada/pkg/client/auth/kerberos"
 	"github.com/G-Research/armada/pkg/client/auth/oidc"
 )
@@ -47,20 +46,26 @@ func CreateApiConnectionWithCallOptions(
 
 	retryOpts := []grpc_retry.CallOption{
 		grpc_retry.WithBackoff(grpc_retry.BackoffExponential(1 * time.Second)),
-		grpc_retry.WithMax(3),
+		grpc_retry.WithMax(5),
 	}
 
 	callOptions := append(additionalDefaultCallOptions, grpc.WaitForReady(true))
-
 	defaultCallOptions := grpc.WithDefaultCallOptions(callOptions...)
+	keepAliveOptions := grpc.WithKeepaliveParams(
+		keepalive.ClientParameters{
+			Time:    15 * time.Second,
+			Timeout: 10 * time.Second,
+		},
+	)
 	unuaryInterceptors := grpc.WithChainUnaryInterceptor(grpc_retry.UnaryClientInterceptor(retryOpts...))
 	streamInterceptors := grpc.WithChainStreamInterceptor(grpc_retry.StreamClientInterceptor(retryOpts...))
-
 	dialOpts := append(additionalDialOptions,
 		defaultCallOptions,
+		keepAliveOptions,
 		unuaryInterceptors,
 		streamInterceptors,
-		transportCredentials(config))
+		transportCredentials(config),
+	)
 
 	creds, err := perRpcCredentials(config)
 	if err != nil {
