@@ -158,6 +158,10 @@ build-lookout-ingester:
 build-eventapi-ingester:
 	$(GO_CMD) $(gobuild) -o ./bin/eventingester cmd/eventapingester/main.go
 
+build-jobservice:
+	$(GO_CMD) $(gobuild) -o ./bin/jobservice cmd/jobservice/main.go
+
+
 build: build-server build-executor build-fakeexecutor build-armadactl build-load-tester build-testsuite build-binoculars build-lookout-ingester build-eventapi-ingester
 
 build-docker-server:
@@ -165,6 +169,12 @@ build-docker-server:
 	$(GO_CMD) $(gobuildlinux) -o ./.build/server/server cmd/armada/main.go
 	cp -a ./config/armada ./.build/server/config
 	docker build $(dockerFlags) -t armada -f ./build/armada/Dockerfile ./.build/server/
+
+build-docker-jobservice:
+	mkdir -p .build/jobservice
+	$(GO_CMD) $(gobuildlinux) -o ./.build/jobservice/jobservice cmd/jobservice/main.go
+	cp -a ./config/jobservice ./.build/jobservice/config
+	docker build $(dockerFlags) -t jobservice -f ./build/jobservice/Dockerfile ./.build/jobservice/
 
 build-docker-executor:
 	mkdir -p .build/executor
