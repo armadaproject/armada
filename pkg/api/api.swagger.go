@@ -1697,10 +1697,12 @@ func SwaggerJsonTemplate() string {
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
 		"    \"v1AzureDataDiskCachingMode\": {\n" +
+		"      \"description\": \"+enum\",\n" +
 		"      \"type\": \"string\",\n" +
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
 		"    \"v1AzureDataDiskKind\": {\n" +
+		"      \"description\": \"+enum\",\n" +
 		"      \"type\": \"string\",\n" +
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
@@ -2181,6 +2183,7 @@ func SwaggerJsonTemplate() string {
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
 		"    \"v1DNSPolicy\": {\n" +
+		"      \"description\": \"+enum\",\n" +
 		"      \"type\": \"string\",\n" +
 		"      \"title\": \"DNSPolicy defines how a pod's DNS will be configured.\",\n" +
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
@@ -2319,8 +2322,9 @@ func SwaggerJsonTemplate() string {
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
 		"    \"v1EphemeralContainer\": {\n" +
-		"      \"description\": \"An EphemeralContainer is a container that may be added temporarily to an existing pod for\\nuser-initiated activities such as debugging. Ephemeral containers have no resource or\\nscheduling guarantees, and they will not be restarted when they exit or when a pod is\\nremoved or restarted. If an ephemeral container causes a pod to exceed its resource\\nallocation, the pod may be evicted.\\nEphemeral containers may not be added by directly updating the pod spec. They must be added\\nvia the pod's ephemeralcontainers subresource, and they will appear in the pod spec\\nonce added.\\nThis is an alpha feature enabled by the EphemeralContainers feature flag.\",\n" +
+		"      \"description\": \"To add an ephemeral container, use the ephemeralcontainers subresource of an existing\\nPod. Ephemeral containers may not be removed or restarted.\\n\\nThis is a beta feature available on clusters that haven't disabled the EphemeralContainers feature gate.\",\n" +
 		"      \"type\": \"object\",\n" +
+		"      \"title\": \"An EphemeralContainer is a temporary container that you may add to an existing Pod for\\nuser-initiated activities such as debugging. Ephemeral containers have no resource or\\nscheduling guarantees, and they will not be restarted when they exit or when a Pod is\\nremoved or restarted. The kubelet may evict a Pod if an ephemeral container causes the\\nPod to exceed its resource allocation.\",\n" +
 		"      \"properties\": {\n" +
 		"        \"args\": {\n" +
 		"          \"description\": \"Arguments to the entrypoint.\\nThe docker image's CMD is used if this is not provided.\\nVariable references $(VAR_NAME) are expanded using the container's environment. If a variable\\ncannot be resolved, the reference in the input string will be unchanged. Double $$ are reduced\\nto a single $, which allows for escaping the $(VAR_NAME) syntax: i.e. \\\"$$(VAR_NAME)\\\" will\\nproduce the string literal \\\"$(VAR_NAME)\\\". Escaped references will never be expanded, regardless\\nof whether the variable exists or not. Cannot be updated.\\nMore info: https://kubernetes.io/docs/tasks/inject-data-application/define-command-argument-container/#running-a-command-in-a-shell\\n+optional\",\n" +
@@ -2374,7 +2378,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"Name\"\n" +
 		"        },\n" +
 		"        \"ports\": {\n" +
-		"          \"description\": \"Ports are not allowed for ephemeral containers.\",\n" +
+		"          \"description\": \"Ports are not allowed for ephemeral containers.\\n+optional\\n+patchMergeKey=containerPort\\n+patchStrategy=merge\\n+listType=map\\n+listMapKey=containerPort\\n+listMapKey=protocol\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1ContainerPort\"\n" +
@@ -2404,7 +2408,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"StdinOnce\"\n" +
 		"        },\n" +
 		"        \"targetContainerName\": {\n" +
-		"          \"description\": \"If set, the name of the container from PodSpec that this ephemeral container targets.\\nThe ephemeral container will be run in the namespaces (IPC, PID, etc) of this container.\\nIf not set then the ephemeral container is run in whatever namespaces are shared\\nfor the pod. Note that the container runtime must support this feature.\\n+optional\",\n" +
+		"          \"description\": \"If set, the name of the container from PodSpec that this ephemeral container targets.\\nThe ephemeral container will be run in the namespaces (IPC, PID, etc) of this container.\\nIf not set then the ephemeral container uses the namespaces configured in the Pod spec.\\n\\nThe container runtime must implement support for this feature. If the runtime does not\\nsupport namespace targeting then the result of setting this field is undefined.\\n+optional\",\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"x-go-name\": \"TargetContainerName\"\n" +
 		"        },\n" +
@@ -2430,7 +2434,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"VolumeDevices\"\n" +
 		"        },\n" +
 		"        \"volumeMounts\": {\n" +
-		"          \"description\": \"Pod volumes to mount into the container's filesystem.\\nCannot be updated.\\n+optional\\n+patchMergeKey=mountPath\\n+patchStrategy=merge\",\n" +
+		"          \"description\": \"Pod volumes to mount into the container's filesystem. Subpath mounts are not allowed for ephemeral containers.\\nCannot be updated.\\n+optional\\n+patchMergeKey=mountPath\\n+patchStrategy=merge\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1VolumeMount\"\n" +
@@ -2596,6 +2600,23 @@ func SwaggerJsonTemplate() string {
 		"      },\n" +
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
+		"    \"v1GRPCAction\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"port\": {\n" +
+		"          \"description\": \"Port number of the gRPC service. Number must be in the range 1 to 65535.\",\n" +
+		"          \"type\": \"integer\",\n" +
+		"          \"format\": \"int32\",\n" +
+		"          \"x-go-name\": \"Port\"\n" +
+		"        },\n" +
+		"        \"service\": {\n" +
+		"          \"description\": \"Service is the name of the service to place in the gRPC HealthCheckRequest\\n(see https://github.com/grpc/grpc/blob/master/doc/health-checking.md).\\n\\nIf this is not specified, the default behavior is defined by gRPC.\\n+optional\\n+default=\\\"\\\"\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"Service\"\n" +
+		"        }\n" +
+		"      },\n" +
+		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
+		"    },\n" +
 		"    \"v1GitRepoVolumeSource\": {\n" +
 		"      \"description\": \"DEPRECATED: GitRepo is deprecated. To provision a container with a git repo, mount an\\nEmptyDir into an InitContainer that clones the repo using git, then mount the EmptyDir\\ninto the Pod's container.\",\n" +
 		"      \"type\": \"object\",\n" +
@@ -2721,22 +2742,6 @@ func SwaggerJsonTemplate() string {
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
-		"    \"v1Handler\": {\n" +
-		"      \"description\": \"Handler defines a specific action that should be taken\\nTODO: pass structured data to these actions, and document that data here.\",\n" +
-		"      \"type\": \"object\",\n" +
-		"      \"properties\": {\n" +
-		"        \"exec\": {\n" +
-		"          \"$ref\": \"#/definitions/v1ExecAction\"\n" +
-		"        },\n" +
-		"        \"httpGet\": {\n" +
-		"          \"$ref\": \"#/definitions/v1HTTPGetAction\"\n" +
-		"        },\n" +
-		"        \"tcpSocket\": {\n" +
-		"          \"$ref\": \"#/definitions/v1TCPSocketAction\"\n" +
-		"        }\n" +
-		"      },\n" +
-		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
-		"    },\n" +
 		"    \"v1HostAlias\": {\n" +
 		"      \"description\": \"HostAlias holds the mapping between IP and hostnames that will be injected as an entry in the\\npod's hosts file.\",\n" +
 		"      \"type\": \"object\",\n" +
@@ -2758,6 +2763,7 @@ func SwaggerJsonTemplate() string {
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
 		"    \"v1HostPathType\": {\n" +
+		"      \"description\": \"+enum\",\n" +
 		"      \"type\": \"string\",\n" +
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
@@ -3046,10 +3052,26 @@ func SwaggerJsonTemplate() string {
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
 		"        \"postStart\": {\n" +
-		"          \"$ref\": \"#/definitions/v1Handler\"\n" +
+		"          \"$ref\": \"#/definitions/v1LifecycleHandler\"\n" +
 		"        },\n" +
 		"        \"preStop\": {\n" +
-		"          \"$ref\": \"#/definitions/v1Handler\"\n" +
+		"          \"$ref\": \"#/definitions/v1LifecycleHandler\"\n" +
+		"        }\n" +
+		"      },\n" +
+		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
+		"    },\n" +
+		"    \"v1LifecycleHandler\": {\n" +
+		"      \"description\": \"LifecycleHandler defines a specific action that should be taken in a lifecycle\\nhook. One and only one of the fields, except TCPSocket must be specified.\",\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"exec\": {\n" +
+		"          \"$ref\": \"#/definitions/v1ExecAction\"\n" +
+		"        },\n" +
+		"        \"httpGet\": {\n" +
+		"          \"$ref\": \"#/definitions/v1HTTPGetAction\"\n" +
+		"        },\n" +
+		"        \"tcpSocket\": {\n" +
+		"          \"$ref\": \"#/definitions/v1TCPSocketAction\"\n" +
 		"        }\n" +
 		"      },\n" +
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
@@ -3142,6 +3164,7 @@ func SwaggerJsonTemplate() string {
 		"      \"x-go-package\": \"k8s.io/apimachinery/pkg/apis/meta/v1\"\n" +
 		"    },\n" +
 		"    \"v1MountPropagationMode\": {\n" +
+		"      \"description\": \"+enum\",\n" +
 		"      \"type\": \"string\",\n" +
 		"      \"title\": \"MountPropagationMode describes mount propagation.\",\n" +
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
@@ -3203,7 +3226,7 @@ func SwaggerJsonTemplate() string {
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
 		"    \"v1NodeSelectorOperator\": {\n" +
-		"      \"description\": \"A node selector operator is the set of operators that can be used in\\na node selector requirement.\",\n" +
+		"      \"description\": \"A node selector operator is the set of operators that can be used in\\na node selector requirement.\\n+enum\",\n" +
 		"      \"type\": \"string\",\n" +
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
@@ -3251,6 +3274,11 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"MatchFields\"\n" +
 		"        }\n" +
 		"      },\n" +
+		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
+		"    },\n" +
+		"    \"v1OSName\": {\n" +
+		"      \"type\": \"string\",\n" +
+		"      \"title\": \"OSName is the set of OS'es that can be used in OS.\",\n" +
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
 		"    \"v1ObjectFieldSelector\": {\n" +
@@ -3405,6 +3433,7 @@ func SwaggerJsonTemplate() string {
 		"      \"x-go-package\": \"k8s.io/apimachinery/pkg/apis/meta/v1\"\n" +
 		"    },\n" +
 		"    \"v1PersistentVolumeAccessMode\": {\n" +
+		"      \"description\": \"+enum\",\n" +
 		"      \"type\": \"string\",\n" +
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
@@ -3568,6 +3597,7 @@ func SwaggerJsonTemplate() string {
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
 		"    \"v1PersistentVolumeMode\": {\n" +
+		"      \"description\": \"+enum\",\n" +
 		"      \"type\": \"string\",\n" +
 		"      \"title\": \"PersistentVolumeMode describes how a volume is intended to be consumed, either Block or Filesystem.\",\n" +
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
@@ -3715,8 +3745,18 @@ func SwaggerJsonTemplate() string {
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
 		"    \"v1PodFSGroupChangePolicy\": {\n" +
-		"      \"description\": \"PodFSGroupChangePolicy holds policies that will be used for applying fsGroup to a volume\\nwhen volume is mounted.\",\n" +
+		"      \"description\": \"PodFSGroupChangePolicy holds policies that will be used for applying fsGroup to a volume\\nwhen volume is mounted.\\n+enum\",\n" +
 		"      \"type\": \"string\",\n" +
+		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
+		"    },\n" +
+		"    \"v1PodOS\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"title\": \"PodOS defines the OS parameters of a pod.\",\n" +
+		"      \"properties\": {\n" +
+		"        \"name\": {\n" +
+		"          \"$ref\": \"#/definitions/v1OSName\"\n" +
+		"        }\n" +
+		"      },\n" +
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
 		"    \"v1PodReadinessGate\": {\n" +
@@ -3735,7 +3775,7 @@ func SwaggerJsonTemplate() string {
 		"      \"title\": \"PodSecurityContext holds pod-level security attributes and common container settings.\",\n" +
 		"      \"properties\": {\n" +
 		"        \"fsGroup\": {\n" +
-		"          \"description\": \"A special supplemental group that applies to all containers in a pod.\\nSome volume types allow the Kubelet to change the ownership of that volume\\nto be owned by the pod:\\n\\n1. The owning GID will be the FSGroup\\n2. The setgid bit is set (new files created in the volume will be owned by FSGroup)\\n3. The permission bits are OR'd with rw-rw----\\n\\nIf unset, the Kubelet will not modify the ownership and permissions of any volume.\\n+optional\",\n" +
+		"          \"description\": \"A special supplemental group that applies to all containers in a pod.\\nSome volume types allow the Kubelet to change the ownership of that volume\\nto be owned by the pod:\\n\\n1. The owning GID will be the FSGroup\\n2. The setgid bit is set (new files created in the volume will be owned by FSGroup)\\n3. The permission bits are OR'd with rw-rw----\\n\\nIf unset, the Kubelet will not modify the ownership and permissions of any volume.\\nNote that this field cannot be set when spec.os.name is windows.\\n+optional\",\n" +
 		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int64\",\n" +
 		"          \"x-go-name\": \"FSGroup\"\n" +
@@ -3744,7 +3784,7 @@ func SwaggerJsonTemplate() string {
 		"          \"$ref\": \"#/definitions/v1PodFSGroupChangePolicy\"\n" +
 		"        },\n" +
 		"        \"runAsGroup\": {\n" +
-		"          \"description\": \"The GID to run the entrypoint of the container process.\\nUses runtime default if unset.\\nMay also be set in SecurityContext.  If set in both SecurityContext and\\nPodSecurityContext, the value specified in SecurityContext takes precedence\\nfor that container.\\n+optional\",\n" +
+		"          \"description\": \"The GID to run the entrypoint of the container process.\\nUses runtime default if unset.\\nMay also be set in SecurityContext.  If set in both SecurityContext and\\nPodSecurityContext, the value specified in SecurityContext takes precedence\\nfor that container.\\nNote that this field cannot be set when spec.os.name is windows.\\n+optional\",\n" +
 		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int64\",\n" +
 		"          \"x-go-name\": \"RunAsGroup\"\n" +
@@ -3755,7 +3795,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"RunAsNonRoot\"\n" +
 		"        },\n" +
 		"        \"runAsUser\": {\n" +
-		"          \"description\": \"The UID to run the entrypoint of the container process.\\nDefaults to user specified in image metadata if unspecified.\\nMay also be set in SecurityContext.  If set in both SecurityContext and\\nPodSecurityContext, the value specified in SecurityContext takes precedence\\nfor that container.\\n+optional\",\n" +
+		"          \"description\": \"The UID to run the entrypoint of the container process.\\nDefaults to user specified in image metadata if unspecified.\\nMay also be set in SecurityContext.  If set in both SecurityContext and\\nPodSecurityContext, the value specified in SecurityContext takes precedence\\nfor that container.\\nNote that this field cannot be set when spec.os.name is windows.\\n+optional\",\n" +
 		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int64\",\n" +
 		"          \"x-go-name\": \"RunAsUser\"\n" +
@@ -3767,7 +3807,7 @@ func SwaggerJsonTemplate() string {
 		"          \"$ref\": \"#/definitions/v1SeccompProfile\"\n" +
 		"        },\n" +
 		"        \"supplementalGroups\": {\n" +
-		"          \"description\": \"A list of groups applied to the first process run in each container, in addition\\nto the container's primary GID.  If unspecified, no groups will be added to\\nany container.\\n+optional\",\n" +
+		"          \"description\": \"A list of groups applied to the first process run in each container, in addition\\nto the container's primary GID.  If unspecified, no groups will be added to\\nany container.\\nNote that this field cannot be set when spec.os.name is windows.\\n+optional\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"type\": \"integer\",\n" +
@@ -3776,7 +3816,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"SupplementalGroups\"\n" +
 		"        },\n" +
 		"        \"sysctls\": {\n" +
-		"          \"description\": \"Sysctls hold a list of namespaced sysctls used for the pod. Pods with unsupported\\nsysctls (by the container runtime) might fail to launch.\\n+optional\",\n" +
+		"          \"description\": \"Sysctls hold a list of namespaced sysctls used for the pod. Pods with unsupported\\nsysctls (by the container runtime) might fail to launch.\\nNote that this field cannot be set when spec.os.name is windows.\\n+optional\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1Sysctl\"\n" +
@@ -3827,7 +3867,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"EnableServiceLinks\"\n" +
 		"        },\n" +
 		"        \"ephemeralContainers\": {\n" +
-		"          \"description\": \"List of ephemeral containers run in this pod. Ephemeral containers may be run in an existing\\npod to perform user-initiated actions such as debugging. This list cannot be specified when\\ncreating a pod, and it cannot be modified by updating the pod spec. In order to add an\\nephemeral container to an existing pod, use the pod's ephemeralcontainers subresource.\\nThis field is alpha-level and is only honored by servers that enable the EphemeralContainers feature.\\n+optional\\n+patchMergeKey=name\\n+patchStrategy=merge\",\n" +
+		"          \"description\": \"List of ephemeral containers run in this pod. Ephemeral containers may be run in an existing\\npod to perform user-initiated actions such as debugging. This list cannot be specified when\\ncreating a pod, and it cannot be modified by updating the pod spec. In order to add an\\nephemeral container to an existing pod, use the pod's ephemeralcontainers subresource.\\nThis field is beta-level and available on clusters that haven't disabled the EphemeralContainers feature gate.\\n+optional\\n+patchMergeKey=name\\n+patchStrategy=merge\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1EphemeralContainer\"\n" +
@@ -3890,6 +3930,9 @@ func SwaggerJsonTemplate() string {
 		"            \"type\": \"string\"\n" +
 		"          },\n" +
 		"          \"x-go-name\": \"NodeSelector\"\n" +
+		"        },\n" +
+		"        \"os\": {\n" +
+		"          \"$ref\": \"#/definitions/v1PodOS\"\n" +
 		"        },\n" +
 		"        \"overhead\": {\n" +
 		"          \"$ref\": \"#/definitions/v1ResourceList\"\n" +
@@ -4031,6 +4074,7 @@ func SwaggerJsonTemplate() string {
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
 		"    \"v1PreemptionPolicy\": {\n" +
+		"      \"description\": \"+enum\",\n" +
 		"      \"type\": \"string\",\n" +
 		"      \"title\": \"PreemptionPolicy describes a policy for if/when to preempt a pod.\",\n" +
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
@@ -4063,6 +4107,9 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int32\",\n" +
 		"          \"x-go-name\": \"FailureThreshold\"\n" +
+		"        },\n" +
+		"        \"grpc\": {\n" +
+		"          \"$ref\": \"#/definitions/v1GRPCAction\"\n" +
 		"        },\n" +
 		"        \"httpGet\": {\n" +
 		"          \"$ref\": \"#/definitions/v1HTTPGetAction\"\n" +
@@ -4104,6 +4151,7 @@ func SwaggerJsonTemplate() string {
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
 		"    \"v1ProcMountType\": {\n" +
+		"      \"description\": \"+enum\",\n" +
 		"      \"type\": \"string\",\n" +
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
@@ -4129,12 +4177,13 @@ func SwaggerJsonTemplate() string {
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
 		"    \"v1Protocol\": {\n" +
+		"      \"description\": \"+enum\",\n" +
 		"      \"type\": \"string\",\n" +
 		"      \"title\": \"Protocol defines network protocols supported for things like container ports.\",\n" +
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
 		"    \"v1PullPolicy\": {\n" +
-		"      \"description\": \"PullPolicy describes a policy for if/when to pull a container image\",\n" +
+		"      \"description\": \"PullPolicy describes a policy for if/when to pull a container image\\n+enum\",\n" +
 		"      \"type\": \"string\",\n" +
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
@@ -4267,7 +4316,7 @@ func SwaggerJsonTemplate() string {
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
 		"    \"v1RestartPolicy\": {\n" +
-		"      \"description\": \"Only one of the following restart policies may be specified.\\nIf none of the following policies is specified, the default one\\nis RestartPolicyAlways.\",\n" +
+		"      \"description\": \"Only one of the following restart policies may be specified.\\nIf none of the following policies is specified, the default one\\nis RestartPolicyAlways.\\n+enum\",\n" +
 		"      \"type\": \"string\",\n" +
 		"      \"title\": \"RestartPolicy describes how the container should be restarted.\",\n" +
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
@@ -4371,6 +4420,7 @@ func SwaggerJsonTemplate() string {
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
 		"    \"v1SeccompProfileType\": {\n" +
+		"      \"description\": \"+enum\",\n" +
 		"      \"type\": \"string\",\n" +
 		"      \"title\": \"SeccompProfileType defines the supported seccomp profile types.\",\n" +
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
@@ -4480,7 +4530,7 @@ func SwaggerJsonTemplate() string {
 		"      \"title\": \"SecurityContext holds security configuration that will be applied to a container.\",\n" +
 		"      \"properties\": {\n" +
 		"        \"allowPrivilegeEscalation\": {\n" +
-		"          \"description\": \"AllowPrivilegeEscalation controls whether a process can gain more\\nprivileges than its parent process. This bool directly controls if\\nthe no_new_privs flag will be set on the container process.\\nAllowPrivilegeEscalation is true always when the container is:\\n1) run as Privileged\\n2) has CAP_SYS_ADMIN\\n+optional\",\n" +
+		"          \"description\": \"AllowPrivilegeEscalation controls whether a process can gain more\\nprivileges than its parent process. This bool directly controls if\\nthe no_new_privs flag will be set on the container process.\\nAllowPrivilegeEscalation is true always when the container is:\\n1) run as Privileged\\n2) has CAP_SYS_ADMIN\\nNote that this field cannot be set when spec.os.name is windows.\\n+optional\",\n" +
 		"          \"type\": \"boolean\",\n" +
 		"          \"x-go-name\": \"AllowPrivilegeEscalation\"\n" +
 		"        },\n" +
@@ -4488,7 +4538,7 @@ func SwaggerJsonTemplate() string {
 		"          \"$ref\": \"#/definitions/v1Capabilities\"\n" +
 		"        },\n" +
 		"        \"privileged\": {\n" +
-		"          \"description\": \"Run container in privileged mode.\\nProcesses in privileged containers are essentially equivalent to root on the host.\\nDefaults to false.\\n+optional\",\n" +
+		"          \"description\": \"Run container in privileged mode.\\nProcesses in privileged containers are essentially equivalent to root on the host.\\nDefaults to false.\\nNote that this field cannot be set when spec.os.name is windows.\\n+optional\",\n" +
 		"          \"type\": \"boolean\",\n" +
 		"          \"x-go-name\": \"Privileged\"\n" +
 		"        },\n" +
@@ -4496,12 +4546,12 @@ func SwaggerJsonTemplate() string {
 		"          \"$ref\": \"#/definitions/v1ProcMountType\"\n" +
 		"        },\n" +
 		"        \"readOnlyRootFilesystem\": {\n" +
-		"          \"description\": \"Whether this container has a read-only root filesystem.\\nDefault is false.\\n+optional\",\n" +
+		"          \"description\": \"Whether this container has a read-only root filesystem.\\nDefault is false.\\nNote that this field cannot be set when spec.os.name is windows.\\n+optional\",\n" +
 		"          \"type\": \"boolean\",\n" +
 		"          \"x-go-name\": \"ReadOnlyRootFilesystem\"\n" +
 		"        },\n" +
 		"        \"runAsGroup\": {\n" +
-		"          \"description\": \"The GID to run the entrypoint of the container process.\\nUses runtime default if unset.\\nMay also be set in PodSecurityContext.  If set in both SecurityContext and\\nPodSecurityContext, the value specified in SecurityContext takes precedence.\\n+optional\",\n" +
+		"          \"description\": \"The GID to run the entrypoint of the container process.\\nUses runtime default if unset.\\nMay also be set in PodSecurityContext.  If set in both SecurityContext and\\nPodSecurityContext, the value specified in SecurityContext takes precedence.\\nNote that this field cannot be set when spec.os.name is windows.\\n+optional\",\n" +
 		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int64\",\n" +
 		"          \"x-go-name\": \"RunAsGroup\"\n" +
@@ -4512,7 +4562,7 @@ func SwaggerJsonTemplate() string {
 		"          \"x-go-name\": \"RunAsNonRoot\"\n" +
 		"        },\n" +
 		"        \"runAsUser\": {\n" +
-		"          \"description\": \"The UID to run the entrypoint of the container process.\\nDefaults to user specified in image metadata if unspecified.\\nMay also be set in PodSecurityContext.  If set in both SecurityContext and\\nPodSecurityContext, the value specified in SecurityContext takes precedence.\\n+optional\",\n" +
+		"          \"description\": \"The UID to run the entrypoint of the container process.\\nDefaults to user specified in image metadata if unspecified.\\nMay also be set in PodSecurityContext.  If set in both SecurityContext and\\nPodSecurityContext, the value specified in SecurityContext takes precedence.\\nNote that this field cannot be set when spec.os.name is windows.\\n+optional\",\n" +
 		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int64\",\n" +
 		"          \"x-go-name\": \"RunAsUser\"\n" +
@@ -4630,7 +4680,7 @@ func SwaggerJsonTemplate() string {
 		"          \"title\": \"clusterIP is the IP address of the service and is usually assigned\\nrandomly. If an address is specified manually, is in-range (as per\\nsystem configuration), and is not in use, it will be allocated to the\\nservice; otherwise creation of the service will fail. This field may not\\nbe changed through updates unless the type field is also being changed\\nto ExternalName (which requires this field to be blank) or the type\\nfield is being changed from ExternalName (in which case this field may\\noptionally be specified, as describe above).  Valid values are \\\"None\\\",\\nempty string (\\\"\\\"), or a valid IP address. Setting this to \\\"None\\\" makes a\\n\\\"headless service\\\" (no virtual IP), which is useful when direct endpoint\\nconnections are preferred and proxying is not required.  Only applies to\\ntypes ClusterIP, NodePort, and LoadBalancer. If this field is specified\\nwhen creating a Service of type ExternalName, creation will fail. This\\nfield will be wiped when updating a Service to type ExternalName.\\nMore info: https://kubernetes.io/docs/concepts/services-networking/service/#virtual-ips-and-service-proxies\\n+optional\"\n" +
 		"        },\n" +
 		"        \"clusterIPs\": {\n" +
-		"          \"description\": \"ClusterIPs is a list of IP addresses assigned to this service, and are\\nusually assigned randomly.  If an address is specified manually, is\\nin-range (as per system configuration), and is not in use, it will be\\nallocated to the service; otherwise creation of the service will fail.\\nThis field may not be changed through updates unless the type field is\\nalso being changed to ExternalName (which requires this field to be\\nempty) or the type field is being changed from ExternalName (in which\\ncase this field may optionally be specified, as describe above).  Valid\\nvalues are \\\"None\\\", empty string (\\\"\\\"), or a valid IP address.  Setting\\nthis to \\\"None\\\" makes a \\\"headless service\\\" (no virtual IP), which is\\nuseful when direct endpoint connections are preferred and proxying is\\nnot required.  Only applies to types ClusterIP, NodePort, and\\nLoadBalancer. If this field is specified when creating a Service of type\\nExternalName, creation will fail. This field will be wiped when updating\\na Service to type ExternalName.  If this field is not specified, it will\\nbe initialized from the clusterIP field.  If this field is specified,\\nclients must ensure that clusterIPs[0] and clusterIP have the same\\nvalue.\\n\\nUnless the \\\"IPv6DualStack\\\" feature gate is enabled, this field is\\nlimited to one value, which must be the same as the clusterIP field.  If\\nthe feature gate is enabled, this field may hold a maximum of two\\nentries (dual-stack IPs, in either order).  These IPs must correspond to\\nthe values of the ipFamilies field. Both clusterIPs and ipFamilies are\\ngoverned by the ipFamilyPolicy field.\\nMore info: https://kubernetes.io/docs/concepts/services-networking/service/#virtual-ips-and-service-proxies\\n+listType=atomic\\n+optional\",\n" +
+		"          \"description\": \"ClusterIPs is a list of IP addresses assigned to this service, and are\\nusually assigned randomly.  If an address is specified manually, is\\nin-range (as per system configuration), and is not in use, it will be\\nallocated to the service; otherwise creation of the service will fail.\\nThis field may not be changed through updates unless the type field is\\nalso being changed to ExternalName (which requires this field to be\\nempty) or the type field is being changed from ExternalName (in which\\ncase this field may optionally be specified, as describe above).  Valid\\nvalues are \\\"None\\\", empty string (\\\"\\\"), or a valid IP address.  Setting\\nthis to \\\"None\\\" makes a \\\"headless service\\\" (no virtual IP), which is\\nuseful when direct endpoint connections are preferred and proxying is\\nnot required.  Only applies to types ClusterIP, NodePort, and\\nLoadBalancer. If this field is specified when creating a Service of type\\nExternalName, creation will fail. This field will be wiped when updating\\na Service to type ExternalName.  If this field is not specified, it will\\nbe initialized from the clusterIP field.  If this field is specified,\\nclients must ensure that clusterIPs[0] and clusterIP have the same\\nvalue.\\n\\nThis field may hold a maximum of two entries (dual-stack IPs, in either order).\\nThese IPs must correspond to the values of the ipFamilies field. Both\\nclusterIPs and ipFamilies are governed by the ipFamilyPolicy field.\\nMore info: https://kubernetes.io/docs/concepts/services-networking/service/#virtual-ips-and-service-proxies\\n+listType=atomic\\n+optional\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"type\": \"string\"\n" +
@@ -4661,7 +4711,7 @@ func SwaggerJsonTemplate() string {
 		"          \"title\": \"InternalTrafficPolicy specifies if the cluster internal traffic\\nshould be routed to all endpoints or node-local endpoints only.\\n\\\"Cluster\\\" routes internal traffic to a Service to all endpoints.\\n\\\"Local\\\" routes traffic to node-local endpoints only, traffic is\\ndropped if no node-local endpoints are ready.\\nThe default value is \\\"Cluster\\\".\\n+featureGate=ServiceInternalTrafficPolicy\\n+optional\"\n" +
 		"        },\n" +
 		"        \"ipFamilies\": {\n" +
-		"          \"description\": \"IPFamilies is a list of IP families (e.g. IPv4, IPv6) assigned to this\\nservice, and is gated by the \\\"IPv6DualStack\\\" feature gate.  This field\\nis usually assigned automatically based on cluster configuration and the\\nipFamilyPolicy field. If this field is specified manually, the requested\\nfamily is available in the cluster, and ipFamilyPolicy allows it, it\\nwill be used; otherwise creation of the service will fail.  This field\\nis conditionally mutable: it allows for adding or removing a secondary\\nIP family, but it does not allow changing the primary IP family of the\\nService.  Valid values are \\\"IPv4\\\" and \\\"IPv6\\\".  This field only applies\\nto Services of types ClusterIP, NodePort, and LoadBalancer, and does\\napply to \\\"headless\\\" services.  This field will be wiped when updating a\\nService to type ExternalName.\\n\\nThis field may hold a maximum of two entries (dual-stack families, in\\neither order).  These families must correspond to the values of the\\nclusterIPs field, if specified. Both clusterIPs and ipFamilies are\\ngoverned by the ipFamilyPolicy field.\\n+listType=atomic\\n+optional\",\n" +
+		"          \"description\": \"IPFamilies is a list of IP families (e.g. IPv4, IPv6) assigned to this\\nservice. This field is usually assigned automatically based on cluster\\nconfiguration and the ipFamilyPolicy field. If this field is specified\\nmanually, the requested family is available in the cluster,\\nand ipFamilyPolicy allows it, it will be used; otherwise creation of\\nthe service will fail. This field is conditionally mutable: it allows\\nfor adding or removing a secondary IP family, but it does not allow\\nchanging the primary IP family of the Service. Valid values are \\\"IPv4\\\"\\nand \\\"IPv6\\\".  This field only applies to Services of types ClusterIP,\\nNodePort, and LoadBalancer, and does apply to \\\"headless\\\" services.\\nThis field will be wiped when updating a Service to type ExternalName.\\n\\nThis field may hold a maximum of two entries (dual-stack families, in\\neither order).  These families must correspond to the values of the\\nclusterIPs field, if specified. Both clusterIPs and ipFamilies are\\ngoverned by the ipFamilyPolicy field.\\n+listType=atomic\\n+optional\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"type\": \"string\"\n" +
@@ -4669,7 +4719,7 @@ func SwaggerJsonTemplate() string {
 		"        },\n" +
 		"        \"ipFamilyPolicy\": {\n" +
 		"          \"type\": \"string\",\n" +
-		"          \"title\": \"IPFamilyPolicy represents the dual-stack-ness requested or required by\\nthis Service, and is gated by the \\\"IPv6DualStack\\\" feature gate.  If\\nthere is no value provided, then this field will be set to SingleStack.\\nServices can be \\\"SingleStack\\\" (a single IP family), \\\"PreferDualStack\\\"\\n(two IP families on dual-stack configured clusters or a single IP family\\non single-stack clusters), or \\\"RequireDualStack\\\" (two IP families on\\ndual-stack configured clusters, otherwise fail). The ipFamilies and\\nclusterIPs fields depend on the value of this field.  This field will be\\nwiped when updating a service to type ExternalName.\\n+optional\"\n" +
+		"          \"title\": \"IPFamilyPolicy represents the dual-stack-ness requested or required by\\nthis Service. If there is no value provided, then this field will be set\\nto SingleStack. Services can be \\\"SingleStack\\\" (a single IP family),\\n\\\"PreferDualStack\\\" (two IP families on dual-stack configured clusters or\\na single IP family on single-stack clusters), or \\\"RequireDualStack\\\"\\n(two IP families on dual-stack configured clusters, otherwise fail). The\\nipFamilies and clusterIPs fields depend on the value of this field. This\\nfield will be wiped when updating a service to type ExternalName.\\n+optional\"\n" +
 		"        },\n" +
 		"        \"loadBalancerClass\": {\n" +
 		"          \"type\": \"string\",\n" +
@@ -4813,10 +4863,12 @@ func SwaggerJsonTemplate() string {
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
 		"    \"v1TaintEffect\": {\n" +
+		"      \"description\": \"+enum\",\n" +
 		"      \"type\": \"string\",\n" +
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
 		"    \"v1TerminationMessagePolicy\": {\n" +
+		"      \"description\": \"+enum\",\n" +
 		"      \"type\": \"string\",\n" +
 		"      \"title\": \"TerminationMessagePolicy describes how termination messages are retrieved from a container.\",\n" +
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
@@ -4858,6 +4910,7 @@ func SwaggerJsonTemplate() string {
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
 		"    \"v1TolerationOperator\": {\n" +
+		"      \"description\": \"+enum\",\n" +
 		"      \"type\": \"string\",\n" +
 		"      \"title\": \"A toleration operator is the set of operators that can be used in a toleration.\",\n" +
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
@@ -4909,11 +4962,12 @@ func SwaggerJsonTemplate() string {
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
 		"    \"v1URIScheme\": {\n" +
-		"      \"description\": \"URIScheme identifies the scheme used for connection to a host for Get actions\",\n" +
+		"      \"description\": \"URIScheme identifies the scheme used for connection to a host for Get actions\\n+enum\",\n" +
 		"      \"type\": \"string\",\n" +
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
 		"    \"v1UnsatisfiableConstraintAction\": {\n" +
+		"      \"description\": \"+enum\",\n" +
 		"      \"type\": \"string\",\n" +
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
 		"    },\n" +
