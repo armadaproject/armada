@@ -33,6 +33,7 @@ message JobServiceResponse {
         UPDATED = 19;
         JOB_ID_NOT_FOUND=20;
     }
+    State state = 1;
 // For failed jobs, this will contain a reason why the job failed
     string error = 2;
 }

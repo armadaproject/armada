@@ -39,7 +39,7 @@ func NewEventsToJobService(
 // For now, we will use the api for streaming events and allow for clients to treat this as polling.
 // This is not a production usecase yet.
 func (eventToJobService *EventsToJobService) GetJobStatusUsingEventApi(context context.Context) (*jobservice.JobServiceResponse, error) {
-	returnJobService := jobservice.JobServiceResponse{State: "Success"}
+	returnJobService := jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_JOB_ID_NOT_FOUND}
 
 	client.WithConnection(&eventToJobService.apiConnection, func(conn *grpc.ClientConn) error {
 		eventsClient := api.NewEventClient(conn)
