@@ -6,7 +6,7 @@ from armada.jobservice import jobservice_pb2
 def test_failed_event():
     def test_callable(queue: str, job_set_id: str, job_id: str):
         return jobservice_pb2.JobServiceResponse(
-            state="Failed", error="Testing Failure"
+            state=jobservice_pb2.JobServiceResponse.State.FAILED, error="Testing Failure"
         )
 
     job_complete = search_for_job_complete(
@@ -24,7 +24,7 @@ def test_failed_event():
 
 def test_successful_event():
     def test_callable(queue: str, job_set_id: str, job_id: str):
-        return jobservice_pb2.JobServiceResponse(state="Successful")
+        return jobservice_pb2.JobServiceResponse(state=jobservice_pb2.JobServiceResponse.State.SUCCESSFUL)
 
     job_complete = search_for_job_complete(
         airflow_task_name="test",
