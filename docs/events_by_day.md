@@ -92,7 +92,7 @@ stream appears in the results, this can be treated as a genuine KeyNotFound.
 * The compression job will put non-negligable load on redis.  This is because it is going to have to read *all* events from *all* streams it is going to compress. 
 To solve this, we could only compress a subset of the jobs, or we could throttle the job so that it continually runs but only compresses x streams per hour.   
 * It's not clear how efficient it wil be to iterate over all keys.  I suspect it wil be fine but would need to check if e.g. we have 1 million keys.
-* We should ensure we don;t have multiple compression jobs running at the same time.
+* We should ensure we don't have multiple compression jobs running at the same time.
 * I've chose 4MB above becuase it should give a batch big enough to see good compression, but small enought that it won't OOM.  In theory this could lead to 
   us pulling 2GB into memory (we try to pull 500 redis events at a time), but I think that should be unlikely as a) 4MB is the uncompressed batch size and b) it would
   require someone to be fetching old events on a truely gigiantic jobset. If we do think this is a problem we can reduce the batch size when fetching compressed streams. 
