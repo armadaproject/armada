@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"syscall"
 	"time"
 
 	"github.com/jstemmer/go-junit-report/v2/junit"
+	"github.com/mattn/go-zglob"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
@@ -37,12 +37,16 @@ func testCmd(app *testsuite.App) *cobra.Command {
 
 func testCmdRunE(app *testsuite.App) func(cmd *cobra.Command, args []string) error {
 	return func(cmd *cobra.Command, args []string) error {
-		healthy, err := app.Params.ApiConnectionDetails.ArmadaHealthCheck()
-		if err != nil {
-			return errors.WithMessage(err, "error calling Armada server healthcheck")
-		}
-		if !healthy {
-			return errors.New("Armada server is not healthy")
+		if app.Params.ApiConnectionDetails.ArmadaRestUrl != "" {
+			healthy, err := app.Params.ApiConnectionDetails.ArmadaHealthCheck()
+			if err != nil {
+				return errors.WithMessage(err, "error performing Armada health check")
+			}
+			if !healthy {
+				return errors.New("Armada server is unhealthy")
+			}
+		} else {
+			fmt.Println("Armada REST URL not provided; omitting health check.")
 		}
 
 		testFilesPattern, err := cmd.Flags().GetString("tests")
@@ -50,7 +54,7 @@ func testCmdRunE(app *testsuite.App) func(cmd *cobra.Command, args []string) err
 			return errors.WithStack(err)
 		}
 
-		testFiles, err := filepath.Glob(testFilesPattern)
+		testFiles, err := zglob.Glob(testFilesPattern)
 		if err != nil {
 			return errors.WithStack(err)
 		}
