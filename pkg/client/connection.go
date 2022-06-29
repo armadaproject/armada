@@ -3,7 +3,6 @@ package client
 import (
 	"fmt"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
@@ -21,8 +20,18 @@ import (
 )
 
 type ApiConnectionDetails struct {
-	ArmadaUrl                   string
-	ArmadaRestUrl               string
+	ArmadaUrl     string
+	ArmadaRestUrl string
+	// After a duration of this time, if the client doesn't see any activity it
+	// pings the server to see if the transport is still alive.
+	// If set below 10s, a minimum value of 10s is used instead.
+	// The default value is infinity.
+	GrpcKeepAliveTime time.Duration
+	// After having pinged for keepalive check, the client waits for a duration
+	// of Timeout and if no activity is seen even after that the connection is
+	// closed.
+	GrpcKeepAliveTimeout time.Duration
+	// Authentication options.
 	BasicAuth                   common.LoginCredentials
 	OpenIdAuth                  oidc.PKCEDetails
 	OpenIdDeviceAuth            oidc.DeviceDetails
@@ -52,12 +61,6 @@ func CreateApiConnectionWithCallOptions(
 
 	callOptions := append(additionalDefaultCallOptions, grpc.WaitForReady(true))
 	defaultCallOptions := grpc.WithDefaultCallOptions(callOptions...)
-	keepAliveOptions := grpc.WithKeepaliveParams(
-		keepalive.ClientParameters{
-			Time:    15 * time.Second,
-			Timeout: 10 * time.Second,
-		},
-	)
 	unuaryInterceptors := grpc.WithChainUnaryInterceptor(grpc_retry.UnaryClientInterceptor(retryOpts...))
 	streamInterceptors := grpc.WithChainStreamInterceptor(grpc_retry.StreamClientInterceptor(retryOpts...))
 	dialOpts := append(additionalDialOptions,
@@ -66,15 +69,15 @@ func CreateApiConnectionWithCallOptions(
 		streamInterceptors,
 		transportCredentials(config),
 	)
-	// Because the server must allow keepalive, only use it if explicitly enabled.
-	if s := os.Getenv("ARMADA_GRPC_KEEPALIVE"); s != "" {
-		dialOpts = append(additionalDialOptions,
-			defaultCallOptions,
-			keepAliveOptions,
-			unuaryInterceptors,
-			streamInterceptors,
-			transportCredentials(config),
+	// gRPC keepalive options.
+	if config.GrpcKeepAliveTime > 0 || config.GrpcKeepAliveTimeout > 0 {
+		keepAliveOptions := grpc.WithKeepaliveParams(
+			keepalive.ClientParameters{
+				Time:    config.GrpcKeepAliveTime,
+				Timeout: config.GrpcKeepAliveTimeout,
+			},
 		)
+		dialOpts = append(dialOpts, keepAliveOptions)
 	}
 
 	creds, err := perRpcCredentials(config)
