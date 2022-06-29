@@ -31,7 +31,7 @@ and continue to poll the existing stream until this indicates that a new stream 
 
 ### Considerations
   
-We may have to repalce the autoexpiration of keys with a manual job to clean things up.  That is because when a stream `<queue>_<jobset>_<day>` is deleted,
+We may have to replace the autoexpiration of keys with a manual job to clean things up.  That is because when a stream `<queue>_<jobset>_<day>` is deleted,
 we also need to remove it from the  `<queue>_<jobset>_streams` set.  If we simply let the stream expire, this will not occur.
   
 We have doubled the number of writes when inserting events as now we not only need to insert the event, but also the update the set of streams.  I don't believe this
