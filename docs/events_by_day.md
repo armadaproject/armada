@@ -40,7 +40,7 @@ the writes to (hopefully) enable many events in the same jobset being written in
 
 We have marginally increased the number of reads.  Specifically:
 * There are n+1 extra reads at the start of a event request where we need to determine the streams and their offses; n is the number of streams. Given that the common case is for 
-a subscription to start immediately, most of the time n will be 1 and so this shoudl be inconsequential.
+a subscription to start immediately, most of the time n will be 1 and so this should be inconsequential.
 * For jobsets that span multiple days there will be a period between midnight and the first event of the day where every poll will be at least 2 requests (one request to 
 see if there any new streams, another to see if there are any new events).  This should be fine, however we might run into problems if there are a large number of jobsets
 that span multiple days, have active subscriptions and typically don't see any new events on a given day until long after midnight.  if this is the case we could mitigate
