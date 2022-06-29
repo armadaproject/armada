@@ -183,6 +183,16 @@ build-armadactl-release: build-armadactl-multiplatform
 	tar -czvf ./dist/armadactl-$(RELEASE_VERSION)-darwin-amd64.tar.gz -C ./bin/darwin-amd64/ armadactl
 	zip -j ./dist/armadactl-$(RELEASE_VERSION)-windows-amd64.zip ./bin/windows-amd64/armadactl.exe
 
+TESTSUITE_BUILD_PACKAGE := github.com/G-Research/armada/internal/testsuite/build
+define TESTSUITE_LDFLAGS
+-X '$(TESTSUITE_BUILD_PACKAGE).BuildTime=$(BUILD_TIME)' \
+-X '$(TESTSUITE_BUILD_PACKAGE).ReleaseVersion=$(RELEASE_VERSION)' \
+-X '$(TESTSUITE_BUILD_PACKAGE).GitCommit=$(GIT_COMMIT)' \
+-X '$(TESTSUITE_BUILD_PACKAGE).GoVersion=$(GO_VERSION_STRING)'
+endef
+build-testsuite:
+	$(GO_CMD) $(gobuild) -ldflags="$(TESTSUITE_LDFLAGS)" -o ./bin/testsuite cmd/testsuite/main.go
+
 build-binoculars:
 	$(GO_CMD) $(gobuild) -o ./bin/binoculars cmd/binoculars/main.go
 
@@ -195,7 +205,7 @@ build-lookout-ingester:
 build-eventapi-ingester:
 	$(GO_CMD) $(gobuild) -o ./bin/eventingester cmd/eventapingester/main.go
 
-build: build-server build-executor build-fakeexecutor build-armadactl build-load-tester build-binoculars build-lookout-ingester build-eventapi-ingester
+build: build-server build-executor build-fakeexecutor build-armadactl build-load-tester build-testsuite build-binoculars build-lookout-ingester build-eventapi-ingester
 
 build-docker-server:
 	mkdir -p .build/server
@@ -214,9 +224,14 @@ build-docker-armada-load-tester:
 	$(GO_CMD) $(gobuildlinux) -o ./.build/armada-load-tester/armada-load-tester cmd/armada-load-tester/main.go
 	docker build $(dockerFlags) -t armada-load-tester -f ./build/armada-load-tester/Dockerfile ./.build/armada-load-tester
 
+build-docker-testsuite:
+	mkdir -p .build/testsuite
+	$(GO_CMD) $(gobuildlinux) -ldflags="$(TESTSUITE_LDFLAGS)" -o ./.build/testsuite/testsuite cmd/testsuite/main.go
+	docker build $(dockerFlags) -t testsuite -f ./build/testsuite/Dockerfile ./.build/testsuite
+
 build-docker-armadactl:
 	mkdir -p .build/armadactl
-	$(GO_CMD) $(gobuildlinux) -o ./.build/armadactl/armadactl cmd/armadactl/main.go
+	$(GO_CMD) $(gobuildlinux) -ldflags="$(ARMADACTL_LDFLAGS)" -o ./.build/armadactl/armadactl cmd/armadactl/main.go
 	docker build $(dockerFlags) -t armadactl -f ./build/armadactl/Dockerfile ./.build/armadactl
 
 build-docker-fakeexecutor:
@@ -253,13 +268,13 @@ build-docker-binoculars:
 	cp -a ./config/binoculars ./.build/binoculars/config
 	docker build $(dockerFlags) -t armada-binoculars -f ./build/binoculars/Dockerfile ./.build/binoculars
 
-build-docker: build-docker-server build-docker-executor build-docker-armadactl build-docker-armada-load-tester build-docker-fakeexecutor build-docker-lookout build-docker-lookout-ingester build-docker-binoculars
+build-docker: build-docker-server build-docker-executor build-docker-armadactl build-docker-testsuite build-docker-armada-load-tester build-docker-fakeexecutor build-docker-lookout build-docker-lookout-ingester build-docker-binoculars
 
 # Build target without lookout (to avoid needing to load npm packages from the Internet).
-build-docker-no-lookout: build-docker-server build-docker-executor build-docker-armadactl build-docker-armada-load-tester build-docker-fakeexecutor build-docker-binoculars
+build-docker-no-lookout: build-docker-server build-docker-executor build-docker-armadactl build-docker-testsuite build-docker-armada-load-tester build-docker-fakeexecutor build-docker-binoculars
 
 build-ci: gobuild=$(gobuildlinux)
-build-ci: build-docker build-armadactl build-armadactl-multiplatform build-load-tester
+build-ci: build-docker build-armadactl build-armadactl-multiplatform build-load-tester build-testsuite
 
 .ONESHELL:
 tests-teardown:
@@ -350,6 +365,9 @@ tests-e2e-setup: setup-cluster
 		-e ARMADA_APICONNECTION_FORCENOTLS=true \
 		armada-executor --config /e2e/setup/insecure-executor-config.yaml
 
+	# Create test queue if it doesn't already exist
+	$(GO_CMD) go run cmd/armadactl/main.go create queue e2e-test-queue || true
+
 .ONESHELL:
 tests-e2e-no-setup: dotnet-setup
 	function printApplicationLogs {
@@ -434,7 +452,7 @@ python: setup-proto
 proto: setup-proto
 
 	docker build $(dockerFlags) --build-arg GOPROXY --build-arg GOPRIVATE --build-arg MAVEN_URL -t armada-proto -f ./build/proto/Dockerfile .
-	docker run --rm -e GOPROXY -e GOPRIVATE -v ${PWD}/proto:/proto -v ${PWD}:/go/src/armada -w /go/src/armada armada-proto ./scripts/proto.sh
+	docker run --rm -e GOPROXY -e GOPRIVATE -u $(shell id -u):$(shell id -g) -v ${PWD}/proto:/proto -v ${PWD}:/go/src/armada -w /go/src/armada armada-proto ./scripts/proto.sh
 
 	# generate proper swagger types (we are using standard json serializer, GRPC gateway generates protobuf json, which is not compatible)
 	$(GO_TEST_CMD) swagger generate spec -m -o pkg/api/api.swagger.definitions.json

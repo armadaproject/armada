@@ -2,12 +2,26 @@ name: Run Python Linting and Unit Tests
 
 on:
   push:
+    branches-ignore:
+      - master
     paths:
       - 'client/python/**'
       - 'build/python-client/**'
       - 'pkg/api/*.proto'
       - '.github/workflows/python.yml'
       - 'docs/python_armada_client.md'
+      - 'scripts/build-python-client.sh'
+
+  pull_request:
+    branches-ignore:
+      - gh-pages
+    paths:
+      - 'client/python/**'
+      - 'build/python-client/**'
+      - 'pkg/api/*.proto'
+      - '.github/workflows/python.yml'
+      - 'docs/python_armada_client.md'
+      - 'scripts/build-python-client.sh'
 
 jobs:
   run-tox:

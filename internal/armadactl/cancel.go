@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"google.golang.org/grpc"
+	"github.com/pkg/errors"
 
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/pkg/api"
@@ -17,22 +17,20 @@ func (a *App) Cancel(queue string, jobSetId string, jobId string) (outerErr erro
 	apiConnectionDetails := a.Params.ApiConnectionDetails
 
 	fmt.Fprintf(a.Out, "Requesting cancellation of jobs matching queue: %s, job set: %s, and job ID: %s\n", queue, jobSetId, jobId)
-	client.WithConnection(apiConnectionDetails, func(conn *grpc.ClientConn) {
-		client := api.NewSubmitClient(conn)
+	return client.WithSubmitClient(apiConnectionDetails, func(c api.SubmitClient) error {
 		ctx, cancel := common.ContextWithDefaultTimeout()
 		defer cancel()
 
-		result, err := client.CancelJobs(ctx, &api.JobCancelRequest{
+		result, err := c.CancelJobs(ctx, &api.JobCancelRequest{
 			JobId:    jobId,
 			JobSetId: jobSetId,
 			Queue:    queue,
 		})
-
 		if err != nil {
-			outerErr = fmt.Errorf("[armadactl.Cencel] error cancelling job: %s", err)
-			return
+			return errors.Wrapf(err, "error cancelling jobs matching queue: %s, job set: %s, and job id: %s", queue, jobSetId, jobId)
 		}
+
 		fmt.Fprintf(a.Out, "Requested cancellation for jobs %s\n", strings.Join(result.CancelledIds, ", "))
+		return nil
 	})
-	return
 }
