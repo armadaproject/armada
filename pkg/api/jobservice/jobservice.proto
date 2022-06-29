@@ -9,9 +9,30 @@ message JobServiceRequest {
 }
 
 message JobServiceResponse {
-// This is a string representation of the event name
 // See event.proto for a list of possible events
-    string state = 1;
+// If you add new events to events.proto please add them here also.
+    enum State {
+        SUBMITTED = 0;
+        QUEUED = 1;
+        DUPLICATE_FOUND = 2;
+        LEASED = 3;
+        LEASE_RETURNED = 4;
+        LEASE_EXPIRED = 5;
+        PENDING = 6;
+        RUNNING = 7;
+        UNABLE_TO_SCHEDULE = 8;
+        FAILED = 9;
+        SUCCEEDED = 10;
+        REPRIORITIZED = 11;
+        CANCELLING = 12;
+        CANCELLED = 13;
+        TERMINATED = 14;
+        UTILISATION = 15;
+        INGRESS_INFO = 17;
+        REPRIORITIZING = 18;
+        UPDATED = 19;
+        JOB_ID_NOT_FOUND=20;
+    }
 // For failed jobs, this will contain a reason why the job failed
     string error = 2;
 }
