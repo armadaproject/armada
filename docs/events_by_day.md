@@ -5,7 +5,7 @@ At present, all api events are stored in one Redis Event Stream per jobset, with
 * If a user submits jobs to a jobset such that at least one event is generated more frequently than once every n days, the eventstream will never be cleaned up.  This can lead to memory growth over time.
 * Memory usage of these streams can be very large due to both the number of messages and the verbosity of each message.  This can cause issues as Redis requires all data to be held in memory.
 
-To address these issues we suggest splitting each jobset into a logical stream per day.  This should enable old messages to be cleaned up, even if the jobset itself lasts indefinitely. It should also enable old, but still readbale, streams to be compressed which should further save memory.
+To address these issues we suggest splitting each jobset into a logical stream per day.  This should enable old messages to be cleaned up, even if the jobset itself lasts indefinitely. It should also enable old, but still readable, streams to be compressed which should further save memory.
 
 ## Proposed Mechanism for Splitting Streams.
 
@@ -56,7 +56,7 @@ have a large amount of common information and thus compress very well.
   
 The general strategy here is:
   
-* Create a job that runs periodically and iterates over the `<queue>_<jobset>_streams` keys
+* Create a k8s batch job that runs periodically and iterates over the `<queue>_<jobset>_streams` keys
 * For each key it will parse out the stream keys and determine if any are over x days old
 * For each stream key over x days old it will read the stream and rewrite it to a new stream `<queue>_<jobset>_compressed_<day>` where each message in the new stream 
 represents 4MB of compressed messages in the old stream.
