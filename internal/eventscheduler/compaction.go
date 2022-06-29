@@ -1,4 +1,4 @@
-package scheduler
+package eventscheduler
 
 import (
 	"github.com/pkg/errors"
