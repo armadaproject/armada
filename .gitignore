@@ -47,7 +47,7 @@ msbuild.wrn
 packages
 
 # python
-# Pycache, dist, poetry versions 
+# Pycache, dist, poetry versions
 # and ignore protoc generated files
 *.pyc
 client/python/dist
@@ -56,4 +56,5 @@ client/python/dist
 *_pb2_grpc.py
 client/python/armada_client/armada/
 .tox
+proto
 client/python/docs/build/
