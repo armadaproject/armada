@@ -21,36 +21,12 @@ func TestEventsToJobResponse(t *testing.T) {
 			jobResponse:  jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_SUBMITTED},
 		},
 		{
-			eventMessage: api.EventMessage{&api.EventMessage_Queued{}},
-			jobResponse:  jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_QUEUED},
-		},
-		{
 			eventMessage: api.EventMessage{&api.EventMessage_DuplicateFound{}},
 			jobResponse:  jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_DUPLICATE_FOUND},
 		},
 		{
-			eventMessage: api.EventMessage{&api.EventMessage_Leased{}},
-			jobResponse:  jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_LEASED},
-		},
-		{
-			eventMessage: api.EventMessage{&api.EventMessage_LeaseReturned{&api.JobLeaseReturnedEvent{Reason: "LeasureReturned test"}}},
-			jobResponse:  jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_LEASE_RETURNED, Error: "LeasureReturned test"},
-		},
-		{
-			eventMessage: api.EventMessage{&api.EventMessage_LeaseExpired{}},
-			jobResponse:  jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_LEASE_EXPIRED},
-		},
-		{
-			eventMessage: api.EventMessage{&api.EventMessage_Pending{}},
-			jobResponse:  jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_PENDING},
-		},
-		{
 			eventMessage: api.EventMessage{&api.EventMessage_Running{}},
 			jobResponse:  jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_RUNNING},
-		},
-		{
-			eventMessage: api.EventMessage{&api.EventMessage_UnableToSchedule{&api.JobUnableToScheduleEvent{Reason: "Unable To Schedule test"}}},
-			jobResponse:  jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_UNABLE_TO_SCHEDULE, Error: "Unable To Schedule test"},
 		},
 		{
 			eventMessage: api.EventMessage{&api.EventMessage_Failed{&api.JobFailedEvent{Reason: "Failed Test"}}},
@@ -65,32 +41,8 @@ func TestEventsToJobResponse(t *testing.T) {
 			jobResponse:  jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_SUCCEEDED},
 		},
 		{
-			eventMessage: api.EventMessage{&api.EventMessage_Reprioritizing{}},
-			jobResponse:  jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_REPRIORITIZING},
-		},
-		{
-			eventMessage: api.EventMessage{&api.EventMessage_Reprioritized{}},
-			jobResponse:  jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_REPRIORITIZED},
-		},
-		{
-			eventMessage: api.EventMessage{&api.EventMessage_Cancelling{}},
-			jobResponse:  jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_CANCELLING},
-		},
-		{
-			eventMessage: api.EventMessage{&api.EventMessage_Utilisation{}},
-			jobResponse:  jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_UTILISATION},
-		},
-		{
-			eventMessage: api.EventMessage{&api.EventMessage_IngressInfo{}},
-			jobResponse:  jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_INGRESS_INFO},
-		},
-		{
 			eventMessage: api.EventMessage{&api.EventMessage_Cancelled{}},
 			jobResponse:  jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_CANCELLED},
-		},
-		{
-			eventMessage: api.EventMessage{&api.EventMessage_Updated{}},
-			jobResponse:  jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_UPDATED},
 		},
 	}
 	length := len(eventMessages)
