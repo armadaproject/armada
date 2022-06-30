@@ -27,7 +27,7 @@ If you spot a bug, then please raise an issue in our main GitHub project:
 Likewise, if you have developed a cool new feature or improvement, then send us a pull request!
 Please try and make sure that this is linked to an [issue](https://github.com/G-Research/armada/issues).
 
-**Please keep all pull requests on a seperate branch!**
+**Please keep all pull requests on a separate branch!**
 
 ### Branches
 
