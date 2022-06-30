@@ -11,7 +11,7 @@ grpc:
     time: 2h
     timeout: 20s
   keepaliveEnforcementPolicy:
-    minTime: 5m
+    minTime: 10s
     permitWithoutStream: false
 redis:
   addrs:
