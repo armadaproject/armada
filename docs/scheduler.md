@@ -4,6 +4,8 @@ This document outlines the proposed Armada scheduler; the existing scheduler wil
 
 The purpose this new scheduler is to improve fairness and throughput, to more effectively schedule large and distributed jobs, and to provide a way of running workloads with dynamically changing resource requirements (e.g., Spark clusters) via Armada.
 
+The scheduler will be implemented in an extensible manner, such that the scheduling algorithm can be tuned or changed entirely over time if necessary.
+
 ## Armada architecture
 
 Armada consists of the Armada server and one or more Kubernetes worker clusters. Each worker cluster consists of a large number of nodes responsible for executing tasks and is managed by a process referred to as the Armada executor. Jobs are submitted to the Armada server, where they are queued until being handed off to an executor, which assigns them to nodes.
