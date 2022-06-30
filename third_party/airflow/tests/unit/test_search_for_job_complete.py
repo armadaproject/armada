@@ -36,22 +36,6 @@ def test_successful_event():
     assert job_complete[0] == "succeeded"
     assert job_complete[1] == "Armada test:id succeeded"
 
-
-def test_terminated_event():
-    def test_callable(queue: str, job_set_id: str, job_id: str):
-        return jobservice_pb2.JobServiceResponse(state=jobservice_pb2.JobServiceResponse.TERMINATED)
-
-    job_complete = search_for_job_complete(
-        airflow_task_name="test",
-        job_id="id",
-        queue="test",
-        job_set_id="test",
-        job_status_callable=test_callable,
-    )
-    assert job_complete[0] == "terminated"
-    assert job_complete[1] == "Armada test:id terminated"
-
-
 def test_cancelled_event():
     def test_callable(queue: str, job_set_id: str, job_id: str):
         return jobservice_pb2.JobServiceResponse(state=jobservice_pb2.JobServiceResponse.CANCELLED)

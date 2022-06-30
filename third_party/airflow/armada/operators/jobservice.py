@@ -20,7 +20,7 @@ class JobServiceClient:
     def __init__(self, channel, max_workers: Optional[int] = None):
         self.executor = ThreadPoolExecutor(max_workers=max_workers or os.cpu_count())
 
-        self.job_stub = jobservice_pb2_grpc.SubmitStub(channel)
+        self.job_stub = jobservice_pb2_grpc.JobServiceStub(channel)
 
     def get_job_status(self, queue: str, job_set_id: str, job_id: str):
         """Get event stream for a job set.

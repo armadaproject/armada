@@ -57,5 +57,6 @@ client/python/dist
 client/python/armada_client/armada/
 .tox
 proto
+proto-airflow
 client/python/docs/build/
 build/ssl/certs/ca-certificates.crt

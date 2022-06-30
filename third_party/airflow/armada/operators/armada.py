@@ -20,7 +20,7 @@ from airflow.models import BaseOperator
 from airflow.exceptions import AirflowException
 
 from armada_client.client import ArmadaClient
-from armada.jobservice import JobServiceClient
+from armada.operators.jobservice import JobServiceClient
 
 import logging
 
@@ -34,7 +34,7 @@ class ArmadaOperator(BaseOperator):
         self,
         name: str,
         armada_client: ArmadaClient,
-        job_service: JobServiceClient,
+        job_service_client: JobServiceClient,
         queue: str,
         job_set_id: str,
         job_request_items,
@@ -43,7 +43,7 @@ class ArmadaOperator(BaseOperator):
         super().__init__(**kwargs)
         self.name = name
         self.armada_client = armada_client
-        self.job_service = job_service
+        self.job_service = job_service_client
         self.queue = queue
         self.job_set_id = job_set_id
         self.job_request_items = job_request_items
@@ -63,7 +63,7 @@ class ArmadaOperator(BaseOperator):
         except Exception:
             raise AirflowException("Armada has issues submitting job")
         job_state, job_message = search_for_job_complete(
-            self.job_service, self.queue, self.job_set_id, self.name, job_id
+            job_service_client=self.job_service, queue=self.queue, job_set_id=self.job_set_id, airflow_task_name=self.name, job_id=job_id
         )
         armada_logger.info(
             f"Armada Job finished with {job_state} and message: {job_message}"

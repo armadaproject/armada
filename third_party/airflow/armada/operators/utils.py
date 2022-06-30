@@ -41,6 +41,7 @@ def search_for_job_complete(
     job_set_id: str,
     airflow_task_name: str,
     job_id: str,
+    job_service_client: Optional[JobServiceClient] = None,
     job_status_callable=default_job_status_callable,
 ) -> Tuple[str, str]:
     """Search the event stream to see if your job has finished running
@@ -52,9 +53,15 @@ def search_for_job_complete(
     """
 
     while True:
-        job_status_return = job_status_callable(
-            queue=queue, job_id=job_id, job_set_id=job_set_id
-        )
+        if job_service_client:
+            job_status_return = job_status_callable(
+                queue=queue, job_id=job_id, job_set_id=job_set_id, job_service_client=job_service_client
+            )
+        else: 
+            job_status_return = job_status_callable(
+                queue=queue, job_id=job_id, job_set_id=job_set_id
+            )
+
         if job_status_return.state == jobservice_pb2.JobServiceResponse.SUCCEEDED:
             job_state = "succeeded"
             job_message = f"Armada {airflow_task_name}:{job_id} succeeded"
@@ -70,10 +77,6 @@ def search_for_job_complete(
         if job_status_return.state == jobservice_pb2.JobServiceResponse.CANCELLED:
             job_state = "cancelled"
             job_message = f"Armada {airflow_task_name}:{job_id} cancelled"
-            break
-        if job_status_return.state == jobservice_pb2.JobServiceResponse.TERMINATED:
-            job_state = "terminated"
-            job_message = f"Armada {airflow_task_name}:{job_id} terminated"
             break
 
     return job_state, job_message
