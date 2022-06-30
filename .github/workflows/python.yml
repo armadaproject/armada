@@ -11,6 +11,7 @@ on:
       - '.github/workflows/python.yml'
       - 'docs/python_armada_client.md'
       - 'scripts/build-python-client.sh'
+      - 'makefile'
 
   pull_request:
     branches-ignore:
@@ -22,6 +23,7 @@ on:
       - '.github/workflows/python.yml'
       - 'docs/python_armada_client.md'
       - 'scripts/build-python-client.sh'
+      - 'makefile'
 
 jobs:
   run-tox:
