@@ -17,6 +17,7 @@ on:
       - '.github/workflows/airflow-operator.yml'
       - 'docs/python_airflow_operator.md'
       - 'scripts/build-airflow-operator.sh'
+      - 'makefile'
 
   pull_request:
     branches-ignore:
@@ -34,6 +35,7 @@ on:
       - '.github/workflows/airflow-operator.yml'
       - 'docs/python_airflow_operator.md'
       - 'scripts/build-airflow-operator.sh'
+      - 'makefile'
 
 jobs:
   run-tox:
