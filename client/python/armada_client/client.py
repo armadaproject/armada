@@ -1,6 +1,7 @@
 """
 Armada Python GRPC Client
 """
+
 from concurrent.futures import ThreadPoolExecutor
 import os
 from typing import List, Optional
@@ -183,13 +184,13 @@ class ArmadaClient:
         response = self.submit_stub.GetQueueInfo(request)
         return response
 
+    @staticmethod
+    def unwatch_events(event_stream) -> None:
+        """Closes gRPC event streams
 
-def unwatch_events(event_stream) -> None:
-    """Closes gRPC event streams
+        Closes the provided event_stream.queue
 
-    Closes the provided event_stream.queue
-
-    :param event_stream: a gRPC event stream
-    :return: nothing
-    """
-    event_stream.cancel()
+        :param event_stream: a gRPC event stream
+        :return: nothing
+        """
+        event_stream.cancel()
