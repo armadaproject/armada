@@ -17,7 +17,7 @@ message JobServiceResponse {
         RUNNING = 2;
         FAILED = 3;
         SUCCEEDED = 4;
-        TERMINATED = 5;
+        CANCELLED = 5;
         JOB_ID_NOT_FOUND = 6;
     }
     State state = 1;
