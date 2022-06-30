@@ -63,7 +63,13 @@ export default function JobDetails(props: DetailsProps) {
             {lastRun && <RunDetailsRows run={lastRun} jobId={props.job.jobId} />}
             {props.job.annotations &&
               Object.entries(props.job.annotations).map(([name, value]) => (
-                <DetailRow key={"annotation-" + name} detailRowKey={"annotation-" + name} name={name} value={value} />
+                <DetailRow
+                  key={"annotation-" + name}
+                  detailRowKey={"annotation-" + name}
+                  isAnnotation
+                  name={name}
+                  value={value}
+                />
               ))}
           </TableBody>
         </Table>
