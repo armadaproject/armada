@@ -23,10 +23,9 @@ class JobServiceClient:
         self.job_stub = jobservice_pb2_grpc.JobServiceStub(channel)
 
     def get_job_status(self, queue: str, job_set_id: str, job_id: str):
-        """Get event stream for a job set.
+        """Get job status of a given job in a queue and job_set_id.
 
-        Uses the GetJobSetEvents rpc to get a stream of events relating
-        to the provided job_set_id.
+        Uses the GetJobStatus rpc to get a status of your job
 
         :param queue: The name of the queue
         :param job_set_id: The name of the job set (a grouping of jobs)

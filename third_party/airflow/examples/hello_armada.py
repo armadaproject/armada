@@ -1,5 +1,3 @@
-import airflow
-from datetime import datetime, timedelta
 from airflow import DAG
 from airflow.operators.bash import BashOperator
 from armada.operators.armada import ArmadaOperator
@@ -13,7 +11,7 @@ from armada_client.armada import (
     submit_pb2,
 )
 
-from armada_client.client import ArmadaClient, unwatch_events
+from armada_client.client import ArmadaClient
 import grpc
 
 import pendulum

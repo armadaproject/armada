@@ -1,4 +1,3 @@
-
 from armada.operators.utils import search_for_job_complete
 from armada.jobservice import jobservice_pb2
 
@@ -24,7 +23,9 @@ def test_failed_event():
 
 def test_successful_event():
     def test_callable(queue: str, job_set_id: str, job_id: str):
-        return jobservice_pb2.JobServiceResponse(state=jobservice_pb2.JobServiceResponse.SUCCEEDED)
+        return jobservice_pb2.JobServiceResponse(
+            state=jobservice_pb2.JobServiceResponse.SUCCEEDED
+        )
 
     job_complete = search_for_job_complete(
         airflow_task_name="test",
@@ -36,9 +37,12 @@ def test_successful_event():
     assert job_complete[0] == "succeeded"
     assert job_complete[1] == "Armada test:id succeeded"
 
+
 def test_cancelled_event():
     def test_callable(queue: str, job_set_id: str, job_id: str):
-        return jobservice_pb2.JobServiceResponse(state=jobservice_pb2.JobServiceResponse.CANCELLED)
+        return jobservice_pb2.JobServiceResponse(
+            state=jobservice_pb2.JobServiceResponse.CANCELLED
+        )
 
     job_complete = search_for_job_complete(
         airflow_task_name="test",

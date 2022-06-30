@@ -30,6 +30,23 @@ armada_logger = logging.getLogger("airflow.task")
 
 
 class ArmadaOperator(BaseOperator):
+    """
+    The ArmadaOperator for airflow
+    Implementation of an ArmadaOperator for airflow.
+    Airflow operators inherit from BaseOperator.
+    Execution of operator is done in execute.
+
+    :param name: The name of the airflow task
+    :param armada_client: The Armada Python GRPC client
+                        that is used for interacting with Armada
+    :param job_service_client: The JobServiceClient that is used for polling
+    :param queue: The queue name
+    :param job_set_id: The job_set_id. Should be set at dag level for all jobs
+    :param job_request_items: A PodSpec that is used by Armada for submitting a job
+
+    :return: a job service client instance
+    """
+
     def __init__(
         self,
         name: str,
@@ -63,7 +80,11 @@ class ArmadaOperator(BaseOperator):
         except Exception:
             raise AirflowException("Armada has issues submitting job")
         job_state, job_message = search_for_job_complete(
-            job_service_client=self.job_service, queue=self.queue, job_set_id=self.job_set_id, airflow_task_name=self.name, job_id=job_id
+            job_service_client=self.job_service,
+            queue=self.queue,
+            job_set_id=self.job_set_id,
+            airflow_task_name=self.name,
+            job_id=job_id,
         )
         armada_logger.info(
             f"Armada Job finished with {job_state} and message: {job_message}"
