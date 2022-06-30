@@ -226,6 +226,30 @@ Uses SubmitJobs RPC to submit a job.
 
 
 
+#### _static_ unwatch_events(event_stream)
+Closes gRPC event streams
+
+Closes the provided event_stream.queue
+
+
+* **Parameters**
+
+    **event_stream** – a gRPC event stream
+
+
+
+* **Returns**
+
+    nothing
+
+
+
+* **Return type**
+
+    None
+
+
+
 #### update_queue(name, \*\*queue_params)
 Update the queue of name with values in queue_params
 
@@ -245,30 +269,6 @@ Uses UpdateQueue RPC to update the parameters on the queue.
 * **Returns**
 
     None
-
-
-
-* **Return type**
-
-    None
-
-
-
-### armada_client.client.unwatch_events(event_stream)
-Closes gRPC event streams
-
-Closes the provided event_stream.queue
-
-
-* **Parameters**
-
-    **event_stream** – a gRPC event stream
-
-
-
-* **Returns**
-
-    nothing
 
 
 
