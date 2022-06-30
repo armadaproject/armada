@@ -48,6 +48,10 @@ jobs:
       - run: pip install tox
       # Generate the proto files for python, required for later steps
       - run: make python
+      - run: |
+          poetry install -v
+          poetry build
+        working-directory: client/python
       - run: make airflow-operator
       - name: Run tox format environment
         run: tox -e format
