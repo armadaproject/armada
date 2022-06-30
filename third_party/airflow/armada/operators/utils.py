@@ -55,11 +55,11 @@ def search_for_job_complete(
         job_status_return = job_status_callable(
             queue=queue, job_id=job_id, job_set_id=job_set_id
         )
-        if job_status_return.state == jobservice_pb2.JobServiceResponse.State.SUCCESSFUL:
-            job_state = "successful"
+        if job_status_return.state == jobservice_pb2.JobServiceResponse.SUCCEEDED:
+            job_state = "succeeded"
             job_message = f"Armada {airflow_task_name}:{job_id} succeeded"
             break
-        if job_status_return.state == jobservice_pb2.JobServiceResponse.State.FAILED:
+        if job_status_return.state == jobservice_pb2.JobServiceResponse.FAILED:
             job_state = "failed"
             job_message = (
                 f"Armada {airflow_task_name}:{job_id} failed\n"
@@ -67,11 +67,11 @@ def search_for_job_complete(
             )
 
             break
-        if job_status_return.state == jobservice_pb2.JobServiceResponse.State.CANCELLED:
+        if job_status_return.state == jobservice_pb2.JobServiceResponse.CANCELLED:
             job_state = "cancelled"
             job_message = f"Armada {airflow_task_name}:{job_id} cancelled"
             break
-        if job_status_return.state == jobservice_pb2.JobServiceResponse.State.TERMINATED:
+        if job_status_return.state == jobservice_pb2.JobServiceResponse.TERMINATED:
             job_state = "terminated"
             job_message = f"Armada {airflow_task_name}:{job_id} terminated"
             break
