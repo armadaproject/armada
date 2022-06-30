@@ -43,6 +43,16 @@ Armada supports workflows that require a dynamically changing amount of resource
 
 In this way, Armada is in control of all resource creation and can manage cluster resources effectively.
 
+### Job urgency
+
+Armada supports a notion of job urgency, i.e., a way for users to indicate to the scheduler how important it is to run a job soon. For example, a batch of jobs to be run over the weekend are less urgent than a job the user is actively waiting for the reuslts of. Specifically, urgency is implemented using priority groups, where jobs in a higher priority group are always run before jobs in a lower priority group. The scheduler effectively processes one priority group at a time, moving on to a lower group only when there are no more jobs in any higher group. The rest of this document outlines how scheduling works once a priority group has been selected.
+
+For example, if there are three priority groups, the groups could be interpreted as follows:
+
+1. Run only if there is unused capacity
+2. Run as usual
+3. Run as soon as possible
+
 ## Scheduler architecture
 
 At a high level, scheduling consists of:
