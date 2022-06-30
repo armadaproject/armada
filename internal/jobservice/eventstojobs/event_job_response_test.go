@@ -1,6 +1,7 @@
 package eventstojobs
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -33,10 +34,6 @@ func TestEventsToJobResponse(t *testing.T) {
 			jobResponse:  jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_FAILED, Error: "Failed Test"},
 		},
 		{
-			eventMessage: api.EventMessage{&api.EventMessage_Terminated{&api.JobTerminatedEvent{Reason: "Terminated Test"}}},
-			jobResponse:  jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_TERMINATED, Error: "Terminated Test"},
-		},
-		{
 			eventMessage: api.EventMessage{&api.EventMessage_Succeeded{}},
 			jobResponse:  jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_SUCCEEDED},
 		},
@@ -46,9 +43,11 @@ func TestEventsToJobResponse(t *testing.T) {
 		},
 	}
 	length := len(eventMessages)
-	assert.Equal(t, length, 19)
+	assert.Equal(t, length, 6)
 	for i := range eventMessages {
 		jobResponse, err := EventsToJobResponse(eventMessages[i].eventMessage)
+		fmt.Print(eventMessages[i].eventMessage)
+		fmt.Print(jobResponse)
 		assert.NoError(t, err)
 		assert.Equal(t, jobResponse, &eventMessages[i].jobResponse)
 	}

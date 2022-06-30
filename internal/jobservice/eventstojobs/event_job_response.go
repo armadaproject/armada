@@ -19,7 +19,9 @@ func EventsToJobResponse(message api.EventMessage) (*jobservice.JobServiceRespon
 		return &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_FAILED, Error: message.GetFailed().Reason}, nil
 	case *api.EventMessage_Succeeded:
 		return &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_SUCCEEDED}, nil
-	case *api.EventMessage_Terminated:
-		return &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_TERMINATED, Error: message.GetTerminated().Reason}, nil
+	case *api.EventMessage_Cancelled:
+		return &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_CANCELLED}, nil
+	}
+
 	return nil, fmt.Errorf("unknown event type")
 }
