@@ -58,3 +58,4 @@ client/python/armada_client/armada/
 .tox
 proto
 client/python/docs/build/
+build/ssl/certs/ca-certificates.crt
