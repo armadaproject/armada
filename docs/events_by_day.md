@@ -11,12 +11,14 @@ To address these issues we suggest splitting each jobset into a logical stream p
 
 ### Write-Side
 
-* When an event message is received from Pulsar, the Pulsar message timestamp will be used to determine the (UTC) day to which the message pertains
-* The event message will then be appended to the redis stream under the key `<queue>_<jobset>_<day>` where `<day>` is the UTC day determined in the above step in hh_mm_ss format
-* The `<queue>_<jobset>_<day>` key that was appended to in the step above is then added to a Redis set stored at `<queue>_<jobset>_streams`
-* The result of the above should be that the messages for a a given jobset should be stored in one key per day. 
-The  sets stored under `<queue>_<jobset>_streams` can be used to determine which streams are available.  Because of the way we process pulsar messages, we can guarentee that 
-if a subsequent stream exits, any previous streams will never be appended to.
+* Read a message from Pulsar
+* Retrieve the last entry from the key `<queue>_<jobset>_streams`.  This is key is expected to contain a Redis sorted set consisiting of strings of the form  `<queue>_<jobset>_<day>`.
+* Determine the (UTC) day of the message from the broker timestamp
+* Determine the stream to append to.  The stream key is of the form `<queue>_<jobset>_<day>`, which means we must determine the correct day.  The logic for this is as follows:
+  * If <queue>_<jobset>_streams exists and references a day *after* the day in the message, use the day from that
+  * In all other cases use the day derived from the broker timestamp.
+* Append the event to the redis stream under the key `<queue>_<jobset>_<day>` where `<day>` is the UTC day determined in the above step in hh_mm_ss format
+* If a new stream was created (i.e. the day derived above was different to that retrieved from `<queue>_<jobset>_streams`) add the new stream key to `<queue>_<jobset>_streams`
 
 ### Read-Side
 * When a request for events is received, we first try to retrieve the set of streams at `<queue>_<jobset>_streams`.
@@ -34,11 +36,10 @@ and continue to poll the existing stream until this indicates that a new stream 
 We may have to replace the autoexpiration of keys with a manual job to clean things up.  That is because when a stream `<queue>_<jobset>_<day>` is deleted,
 we also need to remove it from the  `<queue>_<jobset>_streams` set.  If we simply let the stream expire, this will not occur.
   
-We have doubled the number of writes when inserting events as now we not only need to insert the event, but also the update the set of streams.  I don't believe this
-will be an issue as though the number of writes will be doubled, the extra amount of data will be trivial.  If this does become a problem we can probably batch
-the writes to (hopefully) enable many events in the same jobset being written in a single call.
+We have now added an extra read when inserting events as now we not only need to insert the event, but also read the set of streams.  I don't believe this
+will be an issue as reading the swet should be cheap compared to the cost of writing the (much larger) events.
 
-We have marginally increased the number of reads.  Specifically:
+We have marginally increased the number of reads when users subscribe.  Specifically:
 * There are n+1 extra reads at the start of a event request where we need to determine the streams and their offses; n is the number of streams. Given that the common case is for 
 a subscription to start immediately, most of the time n will be 1 and so this should be inconsequential.
 * For jobsets that span multiple days there will be a period between midnight and the first event of the day where every poll will be at least 2 requests (one request to 
