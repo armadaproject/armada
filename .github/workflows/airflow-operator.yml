@@ -56,6 +56,10 @@ jobs:
       - name: Run tox format environment
         run: tox -e format
         working-directory: third_party/airflow
+      - name: Verify docs updated if needed
+        run: tox -e docs-check
+        working-directory: third_party/airflow
+
       - name: Run tox python 3.9 unit tests
         run: tox -e py39
         working-directory: third_party/airflow
