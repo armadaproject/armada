@@ -1,4 +1,0 @@
-[MASTER]
-
-# regex to ignore any files with *pb2.py in the path or pb2_grpc.py in the path
-ignore-patterns=(.)*_grpc\.py,(.)*_pb2\.py
