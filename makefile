@@ -164,9 +164,6 @@ build-executor:
 build-fakeexecutor:
 	$(GO_CMD) $(gobuild) -o ./bin/executor cmd/fakeexecutor/main.go
 
-build-jobservice:
-	$(GO_CMD) $(gobuild) -o ./bin/jobservice cmd/jobservice/main.go
-
 ARMADACTL_BUILD_PACKAGE := github.com/G-Research/armada/internal/armadactl/build
 define ARMADACTL_LDFLAGS
 -X '$(ARMADACTL_BUILD_PACKAGE).BuildTime=$(BUILD_TIME)' \
@@ -208,10 +205,6 @@ build-lookout-ingester:
 build-eventapi-ingester:
 	$(GO_CMD) $(gobuild) -o ./bin/eventingester cmd/eventapingester/main.go
 
-build-jobservice:
-	$(GO_CMD) $(gobuild) -o ./bin/jobservice cmd/jobservice/main.go
-
-
 build: build-server build-executor build-fakeexecutor build-armadactl build-load-tester build-testsuite build-binoculars build-lookout-ingester build-eventapi-ingester
 
 build-docker-server:
@@ -220,23 +213,11 @@ build-docker-server:
 	cp -a ./config/armada ./.build/server/config
 	docker build $(dockerFlags) -t armada -f ./build/armada/Dockerfile ./.build/server/
 
-build-docker-jobservice:
-	mkdir -p .build/jobservice
-	$(GO_CMD) $(gobuildlinux) -o ./.build/jobservice/jobservice cmd/jobservice/main.go
-	cp -a ./config/jobservice ./.build/jobservice/config
-	docker build $(dockerFlags) -t jobservice -f ./build/jobservice/Dockerfile ./.build/jobservice/
-
 build-docker-executor:
 	mkdir -p .build/executor
 	$(GO_CMD) $(gobuildlinux) -o ./.build/executor/executor cmd/executor/main.go
 	cp -a ./config/executor ./.build/executor/config
 	docker build $(dockerFlags) -t armada-executor -f ./build/executor/Dockerfile ./.build/executor
-
-build-docker-jobservice:
-	mkdir -p .build/jobservice
-	$(GO_CMD) $(gobuildlinux) -o ./.build/jobservice/jobservice cmd/jobservice/main.go
-	cp -a ./config/jobservice ./.build/jobservice/config
-	docker build $(dockerFlags) -t armada-jobservice -f ./build/jobservice/Dockerfile ./.build/jobservice
 
 build-docker-armada-load-tester:
 	mkdir -p .build/armada-load-tester
