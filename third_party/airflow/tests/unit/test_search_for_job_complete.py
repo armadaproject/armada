@@ -54,6 +54,7 @@ def test_cancelled_event():
     assert job_complete[0] == "cancelled"
     assert job_complete[1] == "Armada test:id cancelled"
 
+
 def test_job_id_not_found():
     def test_callable(queue: str, job_set_id: str, job_id: str):
         return jobservice_pb2.JobServiceResponse(
@@ -66,7 +67,9 @@ def test_job_id_not_found():
         queue="test",
         job_set_id="test",
         job_status_callable=test_callable,
-        time_out_for_failure=5
+        time_out_for_failure=5,
     )
     assert job_complete[0] == "job_not_found"
-    assert job_complete[1] == "Armada test:id could not find a job id and\nhit a timeout"
+    assert (
+        job_complete[1] == "Armada test:id could not find a job id and\nhit a timeout"
+    )

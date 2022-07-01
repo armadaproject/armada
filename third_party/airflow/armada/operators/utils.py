@@ -46,7 +46,7 @@ def search_for_job_complete(
     job_id: str,
     job_service_client: Optional[JobServiceClient] = None,
     job_status_callable=default_job_status_callable,
-    time_out_for_failure: int = 7200
+    time_out_for_failure: int = 7200,
 ) -> Tuple[str, str]:
     """Poll JobService cache until you get a terminated event.
     A terminated event is SUCCEEDED, FAILED or CANCELLED
@@ -57,7 +57,8 @@ def search_for_job_complete(
     :param job_service_client: A JobServiceClient that is used for polling.
                                 It is optional only for testing
     :param job_status_callable: A callable object for test injection.
-    :param time_out_for_failure: We need to decide if job_id_not_found is because job_id was not found
+    :param time_out_for_failure: We need to decide if job_id_not_found is
+                                    because job_id was not found
                                     or it has not been submitted yet.
     :return: A tuple of state, message
     """
@@ -97,14 +98,17 @@ def search_for_job_complete(
             job_state = "cancelled"
             job_message = f"Armada {airflow_task_name}:{job_id} cancelled"
             break
-        if job_status_return.state == jobservice_pb2.JobServiceResponse.JOB_ID_NOT_FOUND:
+        if (
+            job_status_return.state
+            == jobservice_pb2.JobServiceResponse.JOB_ID_NOT_FOUND
+        ):
             end_time = time.time()
             time_elasped = int(end_time) - int(start_time)
             if time_elasped > time_out_for_failure:
                 job_state = "job_not_found"
                 job_message = (
                     f"Armada {airflow_task_name}:{job_id} could not find a job id and\n"
-                     f"hit a timeout"
+                    f"hit a timeout"
                 )
                 break
 
