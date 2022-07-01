@@ -13,10 +13,9 @@ title: armada package
 ### _class_ armada.operators.armada.ArmadaOperator(name, armada_client, job_service_client, queue, job_set_id, job_request_items, \*\*kwargs)
 Bases: `airflow.models.baseoperator.BaseOperator`
 
-The ArmadaOperator for airflow
 Implementation of an ArmadaOperator for airflow.
+
 Airflow operators inherit from BaseOperator.
-Execution of operator is done in execute.
 
 
 * **Parameters**
@@ -55,10 +54,9 @@ Execution of operator is done in execute.
 
 
 #### execute(context)
-This is the main method to derive when creating an operator.
-Context is the same dictionary used as when rendering jinja templates.
+Executes the Armada Operator.
 
-Refer to get_template_context for more context.
+Runs an Armada job and calls the job_service_client for polling.
 
 ## armada.operators.jobservice module
 
@@ -67,6 +65,7 @@ Refer to get_template_context for more context.
 Bases: `object`
 
 The JobService Client
+
 Implementation of gRPC stubs from JobService
 
 
@@ -136,9 +135,9 @@ Throw an error on a terminal event if job errored out
 * **Returns**
 
     No Return or an AirflowFailException.
-    AirflowFailException tells Airflow Schedule 
-    to not reschedule the task
 
+
+AirflowFailException tells Airflow Schedule to not reschedule the task
 
 
 ### armada.operators.utils.default_job_status_callable(queue, job_set_id, job_id, job_service_client)
@@ -161,6 +160,7 @@ Throw an error on a terminal event if job errored out
 
 ### armada.operators.utils.search_for_job_complete(queue, job_set_id, airflow_task_name, job_id, job_service_client=None, job_status_callable=<function default_job_status_callable>, time_out_for_failure=7200)
 Poll JobService cache until you get a terminated event.
+
 A terminated event is SUCCEEDED, FAILED or CANCELLED
 
 
@@ -183,9 +183,9 @@ A terminated event is SUCCEEDED, FAILED or CANCELLED
     * **job_status_callable** – A callable object for test injection.
 
 
-    * **time_out_for_failure** (*int*) – We need to decide if job_id_not_found is
-    because job_id was not found
-    or it has not been submitted yet.
+    * **time_out_for_failure** (*int*) – The amount of time a job
+    can be in job_id_not_found
+    before we decide it was a invalid job
 
 
     * **queue** (*str*) – 

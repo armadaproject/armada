@@ -2,7 +2,7 @@ from armada.operators.utils import airflow_error
 from airflow.exceptions import AirflowFailException
 import pytest
 
-testdata_success = ["successful", "running", "queued"]
+testdata_success = ["succeeded", "running"]
 
 
 @pytest.mark.parametrize("state", testdata_success)
@@ -13,8 +13,6 @@ def test_airflow_error_successful(state):
 testdata_error = [
     ("failed", "The Armada job hello:id failed"),
     ("cancelled", "The Armada job hello:id cancelled"),
-    ("cancelling", "The Armada job hello:id cancelling"),
-    ("terminated", "The Armada job hello:id terminated"),
 ]
 
 

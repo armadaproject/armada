@@ -7,6 +7,7 @@ from armada.jobservice import jobservice_pb2_grpc, jobservice_pb2
 class JobServiceClient:
     """
     The JobService Client
+
     Implementation of gRPC stubs from JobService
 
     :param channel: gRPC channel used for authentication. See

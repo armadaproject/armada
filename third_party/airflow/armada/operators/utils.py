@@ -17,14 +17,9 @@ def airflow_error(job_state: str, name: str, job_id: str):
     :return: No Return or an AirflowFailException.
     AirflowFailException tells Airflow Schedule to not reschedule the task
     """
-    if job_state == "successful" or job_state == "running" or job_state == "queued":
+    if job_state == "succeeded":
         return
-    if (
-        job_state == "failed"
-        or job_state == "cancelled"
-        or job_state == "cancelling"
-        or job_state == "terminated"
-    ):
+    if job_state == "failed" or job_state == "cancelled":
         raise AirflowFailException(f"The Armada job {name}:{job_id} {job_state}")
 
 
@@ -48,7 +43,10 @@ def search_for_job_complete(
     job_status_callable=default_job_status_callable,
     time_out_for_failure: int = 7200,
 ) -> Tuple[str, str]:
-    """Poll JobService cache until you get a terminated event.
+    """
+
+    Poll JobService cache until you get a terminated event.
+
     A terminated event is SUCCEEDED, FAILED or CANCELLED
 
     :param job_set_id: Your job_set_id
@@ -57,9 +55,9 @@ def search_for_job_complete(
     :param job_service_client: A JobServiceClient that is used for polling.
                                 It is optional only for testing
     :param job_status_callable: A callable object for test injection.
-    :param time_out_for_failure: We need to decide if job_id_not_found is
-                                    because job_id was not found
-                                    or it has not been submitted yet.
+    :param time_out_for_failure: The amount of time a job
+                                    can be in job_id_not_found
+                                    before we decide it was a invalid job
     :return: A tuple of state, message
     """
     start_time = time.time()

@@ -31,10 +31,9 @@ armada_logger = logging.getLogger("airflow.task")
 
 class ArmadaOperator(BaseOperator):
     """
-    The ArmadaOperator for airflow
     Implementation of an ArmadaOperator for airflow.
+
     Airflow operators inherit from BaseOperator.
-    Execution of operator is done in execute.
 
     :param name: The name of the airflow task
     :param armada_client: The Armada Python GRPC client
@@ -66,8 +65,12 @@ class ArmadaOperator(BaseOperator):
         self.job_request_items = job_request_items
 
     def execute(self, context):
+        """
+        Executes the Armada Operator.
 
-        # get the airflow.task logger
+        Runs an Armada job and calls the job_service_client for polling.
+
+        """
         job = self.armada_client.submit_jobs(
             queue=self.queue,
             job_set_id=self.job_set_id,
