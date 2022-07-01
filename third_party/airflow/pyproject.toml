@@ -2,7 +2,7 @@
 name = "armada"
 version = "0.1.0"
 description = "Armada Airflow Operator"
-authors = ["Kevin Hannon <kevin@gr-oss.io>"]
+authors = ["Armada-GROSS <armada@armadaproject.io>"]
 license = "Apache"
 include = ["armada/**/*.py"]
 
