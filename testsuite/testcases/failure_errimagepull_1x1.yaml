@@ -21,7 +21,8 @@ jobs:
               memory: 10Mi
               cpu: 100m
 ---
-timeout: "100s"
+timeout: "300s"
 expectedEvents:
   - submitted:
+  - unableToSchedule:
   - failed:
