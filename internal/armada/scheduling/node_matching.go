@@ -26,7 +26,7 @@ func CreateClusterSchedulingInfoReport(leaseRequest *api.LeaseRequest, nodeAlloc
 }
 
 func extractNodeTypes(allocations []*nodeTypeAllocation) []*api.NodeType {
-	result := []*api.NodeType{}
+	var result []*api.NodeType
 	for _, n := range allocations {
 		result = append(result, &n.nodeType)
 	}
@@ -46,7 +46,7 @@ func MatchSchedulingRequirementsOnAnyCluster(job *api.Job, allClusterSchedulingI
 		}
 	}
 	if len(errs) == 0 {
-		errs = append(errs, fmt.Errorf("no matching node types available"))
+		errs = append(errs, errors.Errorf("no matching node types available"))
 	}
 	// Return a merged error report.
 	// The idea is that users don't care how nodes are split between clusters.
@@ -66,9 +66,8 @@ func MatchSchedulingRequirements(job *api.Job, schedulingInfo *api.ClusterSchedu
 		if ok, err := matchAnyNodeType(podSpec, schedulingInfo.NodeTypes); !ok {
 			if err != nil {
 				return false, err
-			} else {
-				return false, errors.Errorf("%d-th pod can't be scheduled", i)
 			}
+			return false, errors.Errorf("%d-th pod can't be scheduled", i)
 		}
 	}
 	return true, nil
@@ -92,11 +91,13 @@ func matchAnyNodeType(podSpec *v1.PodSpec, nodeTypes []*api.NodeType) (bool, err
 	podMatchingContext := NewPodMatchingContext(podSpec)
 	for _, nodeType := range nodeTypes {
 		nodeResources := common.ComputeResources(nodeType.AllocatableResources).AsFloat()
-		if ok, err := podMatchingContext.Matches(nodeType, nodeResources); ok {
+		ok, err := podMatchingContext.Matches(nodeType, nodeResources)
+		switch {
+		case ok:
 			return true, nil
-		} else if err != nil {
+		case err != nil:
 			result = result.Add(err.Error(), 1)
-		} else {
+		default:
 			result = result.Add("unknown reason", 1)
 		}
 	}
@@ -105,8 +106,8 @@ func matchAnyNodeType(podSpec *v1.PodSpec, nodeTypes []*api.NodeType) (bool, err
 
 func matchAnyNodeTypeAllocation(job *api.Job,
 	nodeAllocations []*nodeTypeAllocation,
-	alreadyConsumed nodeTypeUsedResources) (nodeTypeUsedResources, bool, error) {
-
+	alreadyConsumed nodeTypeUsedResources,
+) (nodeTypeUsedResources, bool, error) {
 	newlyConsumed := nodeTypeUsedResources{}
 
 	for _, podSpec := range job.GetAllPodSpecs() {
@@ -127,10 +128,10 @@ func matchAnyNodeTypePodAllocation(
 	podSpec *v1.PodSpec,
 	nodeAllocations []*nodeTypeAllocation,
 	alreadyConsumed nodeTypeUsedResources,
-	newlyConsumed nodeTypeUsedResources) (*nodeTypeAllocation, bool, error) {
-
+	newlyConsumed nodeTypeUsedResources,
+) (*nodeTypeAllocation, bool, error) {
 	if len(nodeAllocations) == 0 {
-		return nil, false, fmt.Errorf("no nodes available")
+		return nil, false, errors.Errorf("no nodes available")
 	}
 
 	podMatchingContext := NewPodMatchingContext(podSpec)
@@ -141,11 +142,13 @@ func matchAnyNodeTypePodAllocation(
 		available.Sub(newlyConsumed[node])
 		available.LimitWith(common.ComputeResources(node.nodeType.AllocatableResources).AsFloat())
 
-		if ok, err := podMatchingContext.Matches(&node.nodeType, available); ok {
+		ok, err := podMatchingContext.Matches(&node.nodeType, available)
+		switch {
+		case ok:
 			return node, true, nil
-		} else if err != nil {
+		case err != nil:
 			result = result.Add(err.Error(), 1)
-		} else {
+		default:
 			result = result.Add("unknown reason", 1)
 		}
 	}
@@ -176,7 +179,7 @@ func AggregateNodeTypeAllocations(nodes []api.NodeInfo) []*nodeTypeAllocation {
 		}
 	}
 
-	result := []*nodeTypeAllocation{}
+	var result []*nodeTypeAllocation
 	for _, n := range nodeTypesIndex {
 		result = append(result, n)
 	}
@@ -184,7 +187,8 @@ func AggregateNodeTypeAllocations(nodes []api.NodeInfo) []*nodeTypeAllocation {
 	sort.Slice(result, func(i, j int) bool {
 		// assign more tainted nodes first, then smaller nodes first
 		return len(result[i].nodeType.Taints) > len(result[j].nodeType.Taints) ||
-			len(result[i].nodeType.Taints) == len(result[j].nodeType.Taints) && dominates(result[j].nodeType.AllocatableResources, result[i].nodeType.AllocatableResources)
+			len(result[i].nodeType.Taints) == len(result[j].nodeType.Taints) &&
+				dominates(result[j].nodeType.AllocatableResources, result[i].nodeType.AllocatableResources)
 	})
 
 	return result
