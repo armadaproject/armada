@@ -24,6 +24,7 @@ Armada’s API is event driven, preventing it from integrating with tools, such 
 - Should armadactl be the client used for the new armada cache service
   - I think the go grpc client should be used
 - What should the new binary be named (armada-local-cache?)
+  - jobservice
 - Are there other Armada use cases that could benefit from this cache service, should we consider them in our design?
   - Could any of this be useful for lookout?
 - Do we need armada client libraries to all support caching apis as well?
@@ -72,15 +73,10 @@ service JobService {
 ```
 - What should be the API between Armada cache <-> Airflow?
   - The proto file above will generate a python client where they can call get_job_status with job_id, job_set_id and queue specified.  All of these are known by the Airflow Operator.
-  ```
-      jobs = no_auth_client.submit_jobs(
-        queue=queue_name, job_set_id=job_set_name, job_request_items=submit_sleep_job()
-    )
-    
-    job_status = job_service_client.get_job_status(queue=queue_name, job_set_id=job_set_name, job_id=jobs.job_response_items[0].job_id)
-  ```
+  - [API Definition](https://github.com/G-Research/armada/blob/master/pkg/api/jobservice/jobservice.proto)
 - Need some kind of subscription ability; where we pass a job set id + queue to tell the cache to start caching those events.
-  - I don't think we should include an API to start subscription.  I think it should be forced. 
+  - I don't think we should include an API to start subscription.  I think it should be forced.
+  - JobSet subscription will happen automatically for all tasks in a dag.   
 - Does Armada’s existing API need to be modified or added to at all?
   - No.
 
@@ -115,11 +111,29 @@ I have a PR that implements this [plan](https://github.com/G-Research/armada/pul
 - Implemented the GetJobStatus rpc call that reaches out to events service to get status of job. This is not exactly what we want.
 - Reports Error on failed jobs where Events proto has a Reason field
 
-Work in Progress
+### Subscription
 
-- Creating a Redis client
-- Using events api to subscribe to job-sets
-- Generating the python stubs in the Armada-Airflow-Operator
+After talking with Chris Martin, I found out that we will be implementing our own redis cache for the events.  We will not be using pulsar, nats, or jetstream to stream events.
 
-Open Questions:
-- I need help figuring out how to subscribe to events and what API to use in Armada:  Pulsar, NATS, Jetstream?  Currently, I am using the GRPC Events Client in go.
+The logic for this service should be as follows:
+
+- When a request comes in, check if we already have a subscription to that jobset.
+If we don't have a subscription, create one using the armada go client (grpc api).
+- Have a function connected to this subscription that updates the jobId key in the local cache with the new state for all jobs in the jobset (even those nobody has asked for yet).  
+- The local redis should just store jobId -> state mappings.  Any messages you get that don't correspond to states we care about (ingresses, unableToSchedule) just ignore.
+- Return the latest state.  If we just subscribed then it's probably "not found"
+The armada operator just polls for the job state. The first poll for a given jobset will cause a subscription to be made for that jobset.
+
+### Open questions:
+
+1) How often do we delete data?
+   - One suggestion:  if nobody has asked for a status on any job in the jobset for x mins (x=10?)
+2) What do we need if the cache doesn't exist yet?
+   - One suggestion: We make the operator tolerant to wait for the subscribe to "catch up"
+   - Another suggestion: We fallback to GetJobSetEvents directly without the cache 
+
+3) Where should we deploy this cache?  Airflow deployment or Armada?
+
+4) Should we limit scope to Airflow or should this be general for any user of Armada?
+
+5) What are the security implications of this cache?
