@@ -36,10 +36,10 @@ func TestFiles(t *testing.T) {
 	}
 
 	healthy, err := apiConnectionDetails.ArmadaHealthCheck()
-	if !assert.NoErrorf(t, err, "error calling Armada server healthcheck") {
+	if !assert.NoErrorf(t, err, "error performing Armada health check") {
 		t.FailNow()
 	}
-	if !assert.Truef(t, healthy, "Armada server is not healthy") {
+	if !assert.Truef(t, healthy, "Armada server is unhealthy") {
 		t.FailNow()
 	}
 
