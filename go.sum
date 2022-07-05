@@ -258,8 +258,9 @@ github.com/go-openapi/analysis v0.19.10/go.mod h1:qmhS3VNFxBlquFJ0RGoDtylO9y4pgT
 github.com/go-openapi/analysis v0.19.16/go.mod h1:GLInF007N83Ad3m8a/CbQ5TPzdnGT7workfHwuVjNVk=
 github.com/go-openapi/analysis v0.20.0/go.mod h1:BMchjvaHDykmRMsK40iPtvyOfFdMMxlOmQr9FBZk+Og=
 github.com/go-openapi/analysis v0.20.1/go.mod h1:BMchjvaHDykmRMsK40iPtvyOfFdMMxlOmQr9FBZk+Og=
-github.com/go-openapi/analysis v0.21.2 h1:hXFrOYFHUAMQdu6zwAiKKJHJQ8kqZs1ux/ru1P1wLJU=
 github.com/go-openapi/analysis v0.21.2/go.mod h1:HZwRk4RRisyG8vx2Oe6aqeSQcoxRp47Xkp3+K6q+LdY=
+github.com/go-openapi/analysis v0.21.3 h1:CPEa+B2oYCkb+lIKB4xP6Ork8Gvh0GNg9dm/twI3+QA=
+github.com/go-openapi/analysis v0.21.3/go.mod h1:2rtHDVV21tLgvJd+eXu+ExiOhfMO4+dNb7496llyke0=
 github.com/go-openapi/errors v0.17.0/go.mod h1:LcZQpmvG4wyF5j4IhA73wkLFQg+QJXOQHVjmcZxhka0=
 github.com/go-openapi/errors v0.18.0/go.mod h1:LcZQpmvG4wyF5j4IhA73wkLFQg+QJXOQHVjmcZxhka0=
 github.com/go-openapi/errors v0.19.2/go.mod h1:qX0BLWsyaKfvhluLejVpVNwNRdXZhEbTA4kxxpKBC94=
