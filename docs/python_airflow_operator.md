@@ -11,7 +11,7 @@ title: armada package
 
 
 ### _class_ armada.operators.armada.ArmadaOperator(name, armada_client, job_service_client, queue, job_set_id, job_request_items, \*\*kwargs)
-Bases: `airflow.models.baseoperator.BaseOperator`
+Bases: `BaseOperator`
 
 Implementation of an ArmadaOperator for airflow.
 
@@ -24,11 +24,11 @@ Airflow operators inherit from BaseOperator.
     * **name** (*str*) – The name of the airflow task
 
 
-    * **armada_client** (*armada_client.client.ArmadaClient*) – The Armada Python GRPC client
+    * **armada_client** (*ArmadaClient*) – The Armada Python GRPC client
     that is used for interacting with Armada
 
 
-    * **job_service_client** (*armada.operators.jobservice.JobServiceClient*) – The JobServiceClient that is used for polling
+    * **job_service_client** (*JobServiceClient*) – The JobServiceClient that is used for polling
 
 
     * **queue** (*str*) – The queue name
@@ -44,12 +44,6 @@ Airflow operators inherit from BaseOperator.
 * **Returns**
 
     a job service client instance
-
-
-
-* **Return type**
-
-    None
 
 
 
@@ -154,7 +148,7 @@ AirflowFailException tells Airflow Schedule to not reschedule the task
     * **job_id** (*str*) – 
 
 
-    * **job_service_client** (*Optional**[**armada.operators.jobservice.JobServiceClient**]*) – 
+    * **job_service_client** (*Optional**[**JobServiceClient**]*) – 
 
 
 
@@ -176,7 +170,7 @@ A terminated event is SUCCEEDED, FAILED or CANCELLED
     * **job_id** (*str*) – The name of the job id that armada assigns to it
 
 
-    * **job_service_client** (*Optional**[**armada.operators.jobservice.JobServiceClient**]*) – A JobServiceClient that is used for polling.
+    * **job_service_client** (*Optional**[**JobServiceClient**]*) – A JobServiceClient that is used for polling.
     It is optional only for testing
 
 
@@ -200,4 +194,4 @@ A terminated event is SUCCEEDED, FAILED or CANCELLED
 
 * **Return type**
 
-    Tuple[str, str]
+    *Tuple*[str, str]
