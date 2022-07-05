@@ -9,6 +9,8 @@ import {
   LookoutQueueInfo,
   LookoutRunInfo,
   ApiJob,
+  V1Container,
+  V1PodSpec,
 } from "../openapi/lookout"
 import { reverseMap, secondsToDurationString, getErrorMessage } from "../utils"
 
@@ -82,6 +84,7 @@ export type Job = {
   jobYaml: string
   annotations: { [key: string]: string }
   namespace: string
+  containers: Map<number, string[]> // Map from pod number to containers in that pod
 }
 
 export type Run = {
@@ -94,15 +97,17 @@ export type Run = {
   podStartTime?: string
   finishTime?: string
   podNumber: number
-  containers: string[]
 }
 
-export type CancelJobsResult = {
+export type CancelJobsResponse = {
   cancelledJobs: Job[]
-  failedJobCancellations: FailedJobCancellation[]
+  failedJobCancellations: {
+    job: Job
+    error: string
+  }[]
 }
 
-export type CancelJobSetsResult = {
+export type CancelJobSetsResponse = {
   cancelledJobSets: JobSet[]
   failedJobSetCancellations: {
     jobSet: JobSet
@@ -110,27 +115,20 @@ export type CancelJobSetsResult = {
   }[]
 }
 
-export type FailedJobCancellation = {
-  job: Job
-  error: string
-}
-
-export type ReprioritizeJobsResult = {
+export type ReprioritizeJobsResponse = {
   reprioritizedJobs: Job[]
-  failedJobReprioritizations: FailedJobReprioritizations[]
+  failedJobReprioritizations: {
+    job: Job
+    error: string
+  }[]
 }
 
-export type ReprioritizeJobSetsResult = {
+export type ReprioritizeJobSetsResponse = {
   reprioritizedJobSets: JobSet[]
   failedJobSetReprioritizations: {
     jobSet: JobSet
     error: string
   }[]
-}
-
-export type FailedJobReprioritizations = {
-  job: Job
-  error: string
 }
 
 const JOB_STATE_MAP = new Map<string, string>()
@@ -144,6 +142,8 @@ JOB_STATE_MAP.set("CANCELLED", "Cancelled")
 const INVERSE_JOB_STATE_MAP = reverseMap(JOB_STATE_MAP)
 
 export const JOB_STATES_FOR_DISPLAY = ["Queued", "Pending", "Running", "Succeeded", "Failed", "Cancelled"]
+
+export const UNKNOWN_CONTAINER = "Unknown Container"
 
 export default class JobService {
   lookoutApi: LookoutApi
@@ -206,86 +206,90 @@ export default class JobService {
     return []
   }
 
-  async cancelJobs(jobs: Job[]): Promise<CancelJobsResult> {
-    const result: CancelJobsResult = { cancelledJobs: [], failedJobCancellations: [] }
+  async cancelJobs(jobs: Job[]): Promise<CancelJobsResponse> {
+    const response: CancelJobsResponse = { cancelledJobs: [], failedJobCancellations: [] }
     for (const job of jobs) {
       try {
-        const apiResult = await this.submitApi.cancelJobs({
+        const apiResponse = await this.submitApi.cancelJobs({
           body: {
             jobId: job.jobId,
           },
         })
 
-        if (!apiResult.cancelledIds || apiResult.cancelledIds.length !== 1 || apiResult.cancelledIds[0] !== job.jobId) {
-          result.failedJobCancellations.push({ job: job, error: "No job was cancelled" })
+        if (
+          !apiResponse.cancelledIds ||
+          apiResponse.cancelledIds.length !== 1 ||
+          apiResponse.cancelledIds[0] !== job.jobId
+        ) {
+          response.failedJobCancellations.push({ job: job, error: "No job was cancelled" })
         } else {
-          result.cancelledJobs.push(job)
+          response.cancelledJobs.push(job)
         }
       } catch (e) {
         console.error(e)
         const text = await getErrorMessage(e)
-        result.failedJobCancellations.push({ job: job, error: text })
+        response.failedJobCancellations.push({ job: job, error: text })
       }
     }
-    return result
+    return response
   }
 
-  async cancelJobSets(queue: string, jobSets: JobSet[]): Promise<CancelJobSetsResult> {
-    const result: CancelJobSetsResult = { cancelledJobSets: [], failedJobSetCancellations: [] }
+  async cancelJobSets(queue: string, jobSets: JobSet[]): Promise<CancelJobSetsResponse> {
+    const response: CancelJobSetsResponse = { cancelledJobSets: [], failedJobSetCancellations: [] }
     for (const jobSet of jobSets) {
       try {
-        const apiResult = await this.submitApi.cancelJobs({
+        const apiResponse = await this.submitApi.cancelJobs({
           body: {
             queue: queue,
             jobSetId: jobSet.jobSetId,
           },
         })
 
-        if (apiResult.cancelledIds?.length) {
-          result.cancelledJobSets.push(jobSet)
+        if (apiResponse.cancelledIds?.length) {
+          response.cancelledJobSets.push(jobSet)
         } else {
-          result.failedJobSetCancellations.push({ jobSet: jobSet, error: "No job was cancelled" })
+          response.failedJobSetCancellations.push({ jobSet: jobSet, error: "No job was cancelled" })
         }
       } catch (e) {
         console.error(e)
         const text = await getErrorMessage(e)
-        result.failedJobSetCancellations.push({ jobSet: jobSet, error: text })
+        response.failedJobSetCancellations.push({ jobSet: jobSet, error: text })
       }
     }
-    return result
+    return response
   }
 
-  async reprioritizeJobs(jobs: Job[], newPriority: number): Promise<ReprioritizeJobsResult> {
-    const result: ReprioritizeJobsResult = { reprioritizedJobs: [], failedJobReprioritizations: [] }
+  async reprioritizeJobs(jobs: Job[], newPriority: number): Promise<ReprioritizeJobsResponse> {
+    const response: ReprioritizeJobsResponse = { reprioritizedJobs: [], failedJobReprioritizations: [] }
     const jobIds: string[] = []
     for (const job of jobs) {
       jobIds.push(job.jobId)
     }
     try {
-      const apiResult = await this.submitApi.reprioritizeJobs({
+      const apiResponse = await this.submitApi.reprioritizeJobs({
         body: {
           jobIds: jobIds,
           newPriority: newPriority,
         },
       })
 
-      if (apiResult == null || apiResult.reprioritizationResults == null) {
-        const errorMessage = "No reprioritizationResults found in response body"
+      if (apiResponse == null || apiResponse.reprioritizationResults == null) {
+        const errorMessage = "No reprioritization results found in response body"
         console.error(errorMessage)
         for (const job of jobs) {
-          result.failedJobReprioritizations.push({ job: job, error: errorMessage })
+          response.failedJobReprioritizations.push({ job: job, error: errorMessage })
         }
       } else {
         for (const job of jobs) {
-          if (apiResult.reprioritizationResults?.hasOwnProperty(job.jobId)) {
-            const error = apiResult.reprioritizationResults[job.jobId]
+          if (apiResponse.reprioritizationResults?.hasOwnProperty(job.jobId)) {
+            const error = apiResponse.reprioritizationResults[job.jobId]
             if (error === "") {
-              result.reprioritizedJobs.push(job)
+              response.reprioritizedJobs.push(job)
             } else {
-              result.failedJobReprioritizations.push({ job: job, error: error })
+              response.failedJobReprioritizations.push({ job: job, error: error })
             }
           } else {
-            result.reprioritizedJobs.push(job)
+            response.reprioritizedJobs.push(job)
           }
         }
       }
@@ -294,28 +298,32 @@ export default class JobService {
 
       const errorMessage = await getErrorMessage(e)
       for (const job of jobs) {
-        result.failedJobReprioritizations.push({ job: job, error: errorMessage })
+        response.failedJobReprioritizations.push({ job: job, error: errorMessage })
       }
     }
-    return result
+    return response
   }
 
-  async reprioritizeJobSets(queue: string, jobSets: JobSet[], newPriority: number): Promise<ReprioritizeJobSetsResult> {
-    const result: ReprioritizeJobSetsResult = { reprioritizedJobSets: [], failedJobSetReprioritizations: [] }
+  async reprioritizeJobSets(
+    queue: string,
+    jobSets: JobSet[],
+    newPriority: number,
+  ): Promise<ReprioritizeJobSetsResponse> {
+    const response: ReprioritizeJobSetsResponse = { reprioritizedJobSets: [], failedJobSetReprioritizations: [] }
 
     for (const jobSet of jobSets) {
       try {
-        const apiResult = await this.submitApi.reprioritizeJobs({
+        const apiResponse = await this.submitApi.reprioritizeJobs({
           body: {
             queue: queue,
             jobSetId: jobSet.jobSetId,
             newPriority: newPriority,
           },
         })
-        if (apiResult == null || apiResult.reprioritizationResults == null) {
+        if (apiResponse == null || apiResponse.reprioritizationResults == null) {
           const errorMessage = "No reprioritizationResults found in response body"
           console.error(errorMessage)
-          result.failedJobSetReprioritizations.push({
+          response.failedJobSetReprioritizations.push({
             jobSet: jobSet,
             error: "No reprioritizationResults found in response body",
           })
@@ -325,7 +333,7 @@ export default class JobService {
         let errorCount = 0
         let successCount = 0
         let error = ""
-        for (const e of Object.values(apiResult.reprioritizationResults)) {
+        for (const e of Object.values(apiResponse.reprioritizationResults)) {
           if (e !== "") {
             errorCount++
             error = e
@@ -334,21 +342,22 @@ export default class JobService {
           }
         }
         if (errorCount === 0) {
-          result.reprioritizedJobSets.push(jobSet)
+          response.reprioritizedJobSets.push(jobSet)
         } else {
-          const message: string = "Reprioritised: " + successCount + " Failed: " + errorCount + " Reason: " + error
-          result.failedJobSetReprioritizations.push({ jobSet: jobSet, error: message })
+          const message = `Reprioritized: ${successCount}  Failed: ${errorCount}  Reason: ${error}`
+          response.failedJobSetReprioritizations.push({ jobSet: jobSet, error: message })
         }
       } catch (e) {
         console.error(e)
         const text = await getErrorMessage(e)
-        result.failedJobSetReprioritizations.push({ jobSet: jobSet, error: text })
+        response.failedJobSetReprioritizations.push({ jobSet: jobSet, error: text })
       }
     }
-    return result
+    return response
   }
 
   private queueInfoToViewModel(queueInfo: LookoutQueueInfo): QueueInfo {
+    console.log(queueInfo)
     let oldestQueuedJob: Job | undefined
     let oldestQueuedDuration = "-"
     if (queueInfo.oldestQueuedJob) {
@@ -390,9 +399,10 @@ export default class JobService {
     const jobState = JOB_STATE_MAP.get(jobInfo.jobState ?? "") ?? "Unknown"
     const jobFromJson = jobInfo.jobJson ? (JSON.parse(jobInfo.jobJson) as ApiJob) : undefined
     const jobYaml = jobInfo.jobJson ? jobJsonToYaml(jobFromJson) : ""
-    const runs = getRuns(jobInfo, jobFromJson)
+    const runs = getRuns(jobInfo)
     const annotations = jobInfo.job?.annotations ? this.getAnnotations(jobInfo.job?.annotations) : {}
     const namespace = jobFromJson?.namespace ?? ""
+    const containers = getContainers(jobFromJson)
 
     return {
       jobId: jobId,
@@ -407,6 +417,7 @@ export default class JobService {
       jobYaml: jobYaml,
       annotations: annotations,
       namespace: namespace,
+      containers: containers,
     }
   }
 
@@ -492,13 +503,46 @@ function dateToString(date: Date): string {
   })
 }
 
-function getRuns(jobInfo: LookoutJobInfo, jobFromJson: ApiJob | undefined): Run[] {
+function getContainers(apiJob: ApiJob | undefined): Map<number, string[]> {
+  const podSpecs = apiJob?.podSpecs || []
+  if (podSpecs.length === 0 && apiJob?.podSpec) {
+    podSpecs.push(apiJob?.podSpec)
+  }
+  if (podSpecs.length === 0) {
+    return new Map<number, string[]>()
+  }
+  return getContainersFromPodSpecs(podSpecs)
+}
+
+function getContainersFromPodSpecs(podSpecs: V1PodSpec[]): Map<number, string[]> {
+  const containers = new Map<number, string[]>()
+  for (let i = 0; i < podSpecs.length; i++) {
+    const podContainerNames: string[] = []
+
+    const initContainers = getContainerNames(podSpecs[i].initContainers)
+    const podContainers = getContainerNames(podSpecs[i].containers)
+    podContainerNames.push(...initContainers, ...podContainers)
+
+    if (podContainerNames.length === 0) {
+      podContainerNames.push(UNKNOWN_CONTAINER)
+    }
+
+    containers.set(i, podContainerNames)
+  }
+  return containers
+}
+
+function getContainerNames(containers: V1Container[] | undefined): string[] {
+  return (containers ?? []).map((container) => container.name ?? UNKNOWN_CONTAINER)
+}
+
+function getRuns(jobInfo: LookoutJobInfo): Run[] {
   if (!jobInfo.runs || jobInfo.runs.length === 0) {
     return []
   }
 
   sortRuns(jobInfo.runs)
-  return jobInfo.runs.map((r) => runInfoToViewModel(r, jobFromJson))
+  return jobInfo.runs.map((r) => runInfoToViewModel(r))
 }
 
 function sortRuns(runs: LookoutRunInfo[]) {
@@ -517,10 +561,7 @@ function getLatestTimeForRun(run: LookoutRunInfo) {
   )
 }
 
-function runInfoToViewModel(run: LookoutRunInfo, job: ApiJob | undefined): Run {
-  const podSpecs = job?.podSpecs ?? []
-  const containers = podSpecs.length > 0 ? podSpecs[run.podNumber ?? 0].containers ?? [] : []
-  const containerNames = containers.length > 0 ? containers.map((c) => c.name ?? "") : [""]
+function runInfoToViewModel(run: LookoutRunInfo): Run {
   return {
     k8sId: run.k8sId ?? "Unknown Kubernetes id",
     cluster: run.cluster ?? "Unknown cluster",
@@ -531,7 +572,6 @@ function runInfoToViewModel(run: LookoutRunInfo, job: ApiJob | undefined): Run {
     podStartTime: run.started ? dateToString(run.started) : undefined,
     finishTime: run.finished ? dateToString(run.finished) : undefined,
     podNumber: run.podNumber ?? 0,
-    containers: containerNames,
   }
 }
 

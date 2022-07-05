@@ -3,12 +3,12 @@ package server
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/gogo/protobuf/types"
+	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -18,6 +18,7 @@ import (
 	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/G-Research/armada/internal/armada/permissions"
 	"github.com/G-Research/armada/internal/armada/repository"
+	"github.com/G-Research/armada/internal/common/armadaerrors"
 	"github.com/G-Research/armada/internal/common/auth/authorization"
 	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/common/validation"
@@ -68,11 +69,19 @@ func (server *SubmitServer) GetQueueInfo(ctx context.Context, req *api.QueueInfo
 		return nil, err
 	}
 
-	principal := authorization.GetPrincipal(ctx)
-
-	fmt.Println(q)
-	if !principalHasQueuePermissions(principal, q, queue.PermissionVerbWatch) {
-		return nil, status.Errorf(codes.PermissionDenied, "[GetQueueInfo] User %s not allowed to perform queue action: %s", principal.GetName(), queue.PermissionVerbWatch)
+	err = checkPermission(server.permissions, ctx, permissions.WatchAllEvents)
+	var globalPermErr *ErrNoPermission
+	if errors.As(err, &globalPermErr) {
+		err = checkQueuePermission(server.permissions, ctx, q, permissions.WatchEvents, queue.PermissionVerbWatch)
+		var queuePermErr *ErrNoPermission
+		if errors.As(err, &queuePermErr) {
+			return nil, status.Errorf(codes.PermissionDenied,
+				"[GetQueueInfo] error getting info for queue %s: %s", req.Name, MergePermissionErrors(globalPermErr, queuePermErr))
+		} else if err != nil {
+			return nil, status.Errorf(codes.Unavailable, "[GetQueueInfo] error checking permissions: %s", err)
+		}
+	} else if err != nil {
+		return nil, status.Errorf(codes.Unavailable, "[GetQueueInfo] error checking permissions: %s", err)
 	}
 
 	jobSets, e := server.jobRepository.GetQueueActiveJobSets(req.Name)
@@ -127,6 +136,25 @@ func (server *SubmitServer) CreateQueue(ctx context.Context, request *api.Queue)
 	return &types.Empty{}, nil
 }
 
+func (server *SubmitServer) CreateQueues(ctx context.Context, request *api.QueueList) (*api.BatchQueueCreateResponse, error) {
+	failedQueues := []*api.QueueCreateResponse{}
+
+	// Create a queue for each element of the request body and return the failures.
+	for _, queue := range request.Queues {
+		_, err := server.CreateQueue(ctx, queue)
+		if err != nil {
+			failedQueues = append(failedQueues, &api.QueueCreateResponse{
+				Queue: queue,
+				Error: err.Error(),
+			})
+		}
+	}
+
+	return &api.BatchQueueCreateResponse{
+		FailedQueues: failedQueues,
+	}, nil
+}
+
 func (server *SubmitServer) UpdateQueue(ctx context.Context, request *api.Queue) (*types.Empty, error) {
 	err := checkPermission(server.permissions, ctx, permissions.CreateQueue)
 	var ep *ErrNoPermission
@@ -150,6 +178,25 @@ func (server *SubmitServer) UpdateQueue(ctx context.Context, request *api.Queue)
 	}
 
 	return &types.Empty{}, nil
+}
+
+func (server *SubmitServer) UpdateQueues(ctx context.Context, request *api.QueueList) (*api.BatchQueueUpdateResponse, error) {
+	failedQueues := []*api.QueueUpdateResponse{}
+
+	// Create a queue for each element of the request body and return the failures.
+	for _, queue := range request.Queues {
+		_, err := server.UpdateQueue(ctx, queue)
+		if err != nil {
+			failedQueues = append(failedQueues, &api.QueueUpdateResponse{
+				Queue: queue,
+				Error: err.Error(),
+			})
+		}
+	}
+
+	return &api.BatchQueueUpdateResponse{
+		FailedQueues: failedQueues,
+	}, nil
 }
 
 func (server *SubmitServer) DeleteQueue(ctx context.Context, request *api.QueueDeleteRequest) (*types.Empty, error) {
@@ -180,15 +227,72 @@ func (server *SubmitServer) DeleteQueue(ctx context.Context, request *api.QueueD
 func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRequest) (*api.JobSubmitResponse, error) {
 	principal := authorization.GetPrincipal(ctx)
 
+	for _, r := range req.JobRequestItems {
+
+		if r.PodSpec == nil && len(r.PodSpecs) == 0 {
+			return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
+				Name:    "PodSpec",
+				Value:   r.PodSpec,
+				Message: "Job does not contain at least one PodSpec",
+			})
+		}
+
+		// We only support jobs with a single PodSpec, and it must be set to r.PodSpec.
+		if r.PodSpec == nil && len(r.PodSpecs) == 1 {
+			r.PodSpec = r.PodSpecs[0]
+			r.PodSpecs = nil
+		}
+
+		// I'm not convinced that the code to create services/ingresses when multiple pods are submitted is correct.
+		// In particular, I think job.populateServicesIngresses is wrong.
+		// Hence, we return an error until we can make sure that the code is correct.
+		// The next error is redundant with this one, but we leave both since we may wish to remove this one.
+		// - Albin
+		if len(r.PodSpecs) > 0 {
+			return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
+				Name:    "PodSpecs",
+				Value:   r.PodSpecs,
+				Message: "Jobs with multiple pods are not supported",
+			})
+		}
+
+		// I'm not convinced the code is correct when combining r.PodSpec and r.PodSpecs.
+		// We should do more testing to make sure it's safe before we allow it.
+		// - Albin
+		if len(r.PodSpecs) > 0 && r.PodSpec != nil {
+			return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
+				Name:    "PodSpec",
+				Value:   r.PodSpec,
+				Message: "PodSpec must be nil if PodSpecs is provided (i.e., these are exclusive)",
+			})
+		}
+	}
+
 	q, err := server.getQueueOrCreate(ctx, req.Queue)
 	if err != nil {
 		return nil, err
 	}
 
-	if !server.permissions.UserHasPermission(ctx, permissions.SubmitAnyJobs) {
-		if !principalHasQueuePermissions(principal, q, queue.PermissionVerbSubmit) {
-			return nil, status.Errorf(codes.PermissionDenied, "[SubmitJobs] User %s has no %s permissions for queue: %s", principal, queue.PermissionVerbSubmit, q.Name)
+	err = server.submittingJobsWouldSurpassLimit(q, req)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.InvalidArgument,
+			"[SubmitJobs] error checking queue limit: %s", err)
+	}
+
+	err = checkPermission(server.permissions, ctx, permissions.SubmitAnyJobs)
+	var globalPermErr *ErrNoPermission
+	if errors.As(err, &globalPermErr) {
+		err = checkQueuePermission(server.permissions, ctx, q, permissions.SubmitJobs, queue.PermissionVerbSubmit)
+		var queuePermErr *ErrNoPermission
+		if errors.As(err, &queuePermErr) {
+			return nil, status.Errorf(codes.PermissionDenied,
+				"[SubmitJobs] error submitting job in queue %s: %s", req.Queue, MergePermissionErrors(globalPermErr, queuePermErr))
+		} else if err != nil {
+			return nil, status.Errorf(codes.Unavailable, "[SubmitJobs] error checking permissions: %s", err)
 		}
+	} else if err != nil {
+		return nil, status.Errorf(codes.Unavailable, "[SubmitJobs] error checking permissions: %s", err)
 	}
 
 	principalSubject := queue.PermissionSubject{
@@ -196,6 +300,9 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 		Kind: queue.PermissionSubjectKindUser,
 	}
 
+	// Armada impersonates the principal that submitted the job when interacting with k8s.
+	// If the principal doesn't itself have sufficient perms, we check if it's part of any groups that do, and add those.
+	// This is an optimisation to avoid passing around groups unnecessarily.
 	groups := []string{}
 	if !q.HasPermission(principalSubject, queue.PermissionVerbSubmit) {
 		for _, subject := range queue.NewPermissionSubjectsFromOwners(nil, principal.GetGroupNames()) {
@@ -218,9 +325,12 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 		return nil, status.Errorf(codes.InvalidArgument, "[SubmitJobs] error getting scheduling info: %s", err)
 	}
 
-	err = validateJobsCanBeScheduled(jobs, allClusterSchedulingInfo)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "[SubmitJobs] error submitting jobs for user %s: %s", principal.GetName(), err)
+	if ok, err := validateJobsCanBeScheduled(jobs, allClusterSchedulingInfo); !ok {
+		if err != nil {
+			return nil, errors.WithMessagef(err, "can't schedule job for user %s", principal.GetName())
+		} else {
+			return nil, errors.Errorf("can't schedule job for user %s", principal.GetName())
+		}
 	}
 
 	// Create events marking the jobs as submitted
@@ -289,6 +399,38 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 	return result, nil
 }
 
+func (server *SubmitServer) submittingJobsWouldSurpassLimit(q queue.Queue, jobSubmitRequest *api.JobSubmitRequest) error {
+	limit := server.queueManagementConfig.DefaultQueuedJobsLimit
+	if limit <= 0 {
+		return nil
+	}
+
+	queued, err := server.countQueuedJobs(q)
+	if err != nil {
+		return err
+	}
+
+	queuedAfterSubmission := queued + int64(len(jobSubmitRequest.JobRequestItems))
+	if queuedAfterSubmission > int64(limit) {
+		return fmt.Errorf(
+			"too many queued jobs: currently have %d, would have %d with new submission, limit is %d",
+			queued, queuedAfterSubmission, limit)
+	}
+
+	return nil
+}
+
+func (server *SubmitServer) countQueuedJobs(q queue.Queue) (int64, error) {
+	sizes, err := server.jobRepository.GetQueueSizes(queue.QueuesToAPI([]queue.Queue{q}))
+	if err != nil {
+		return 0, err
+	}
+	if len(sizes) == 0 {
+		return 0, fmt.Errorf("no value for number of queued jobs returned from job repository")
+	}
+	return sizes[0], nil
+}
+
 // CancelJobs cancels jobs identified by the request.
 // If the request contains a job ID, only the job with that ID is cancelled.
 // If the request contains a queue name and a job set ID, all jobs matching those are cancelled.
@@ -311,7 +453,7 @@ func (server *SubmitServer) cancelJobsById(ctx context.Context, jobId string) (*
 		return nil, status.Errorf(codes.Internal, "[cancelJobsById] error getting job with ID %s: expected exactly one result, but got %v", jobId, jobs)
 	}
 
-	result, err := server.cancelJobs(ctx, jobs[0].Queue, jobs)
+	result, err := server.cancelJobs(ctx, jobs)
 	var e *ErrNoPermission
 	if errors.As(err, &e) {
 		return nil, status.Errorf(codes.PermissionDenied, "[cancelJobsById] error canceling job with ID %s: %s", jobId, e)
@@ -340,7 +482,7 @@ func (server *SubmitServer) cancelJobsByQueueAndSet(ctx context.Context, queue s
 			return result, status.Errorf(codes.Internal, "[cancelJobsBySetAndQueue] error getting jobs: %s", err)
 		}
 
-		result, err := server.cancelJobs(ctx, queue, jobs)
+		result, err := server.cancelJobs(ctx, jobs)
 		var e *ErrNoPermission
 		if errors.As(err, &e) {
 			return nil, status.Errorf(codes.PermissionDenied, "[cancelJobsBySetAndQueue] error canceling jobs: %s", e)
@@ -361,22 +503,16 @@ func (server *SubmitServer) cancelJobsByQueueAndSet(ctx context.Context, queue s
 	return &api.CancellationResult{CancelledIds: cancelledIds}, nil
 }
 
-func (server *SubmitServer) cancelJobs(ctx context.Context, queueName string, jobs []*api.Job) (*api.CancellationResult, error) {
+func (server *SubmitServer) cancelJobs(ctx context.Context, jobs []*api.Job) (*api.CancellationResult, error) {
 	principal := authorization.GetPrincipal(ctx)
 
-	q, err := server.queueRepository.GetQueue(queueName)
+	err := server.checkCancelPerms(ctx, jobs)
 	if err != nil {
 		return nil, err
 	}
 
-	if !server.permissions.UserHasPermission(ctx, permissions.CancelAnyJobs) {
-		if !principalHasQueuePermissions(principal, q, queue.PermissionVerbCancel) {
-			return nil, status.Errorf(codes.PermissionDenied, "[CancelJobs] User %s has no %s permissions for queue: %s", principal, queue.PermissionVerbCancel, q.Name)
-		}
-	}
-
-	e := reportJobsCancelling(server.eventStore, principal.GetName(), jobs)
-	if e != nil {
+	err = reportJobsCancelling(server.eventStore, principal.GetName(), jobs)
+	if err != nil {
 		return nil, fmt.Errorf("[cancelJobs] error reporting jobs marked as cancelled: %w", err)
 	}
 
@@ -401,6 +537,34 @@ func (server *SubmitServer) cancelJobs(ctx context.Context, queueName string, jo
 	}
 
 	return &api.CancellationResult{CancelledIds: cancelledIds}, nil
+}
+
+func (server *SubmitServer) checkCancelPerms(ctx context.Context, jobs []*api.Job) error {
+	queueNames := make(map[string]struct{})
+	for _, job := range jobs {
+		queueNames[job.Queue] = struct{}{}
+	}
+	for queueName := range queueNames {
+		q, err := server.queueRepository.GetQueue(queueName)
+		if err != nil {
+			return err
+		}
+
+		err = checkPermission(server.permissions, ctx, permissions.CancelAnyJobs)
+		var globalPermErr *ErrNoPermission
+		if errors.As(err, &globalPermErr) {
+			err = checkQueuePermission(server.permissions, ctx, q, permissions.CancelJobs, queue.PermissionVerbCancel)
+			var queuePermErr *ErrNoPermission
+			if errors.As(err, &queuePermErr) {
+				return MergePermissionErrors(globalPermErr, queuePermErr)
+			} else if err != nil {
+				return err
+			}
+		} else if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // ReprioritizeJobs updates the priority of one of more jobs.
@@ -503,42 +667,26 @@ func (server *SubmitServer) checkReprioritizePerms(ctx context.Context, jobs []*
 		queueNames[job.Queue] = struct{}{}
 	}
 	for queueName := range queueNames {
-		principal := authorization.GetPrincipal(ctx)
-
 		q, err := server.queueRepository.GetQueue(queueName)
 		if err != nil {
 			return err
 		}
 
-		if !server.permissions.UserHasPermission(ctx, permissions.CancelAnyJobs) {
-			if !principalHasQueuePermissions(principal, q, queue.PermissionVerbReprioritize) {
-				return status.Errorf(codes.PermissionDenied, err.Error())
+		err = checkPermission(server.permissions, ctx, permissions.ReprioritizeAnyJobs)
+		var globalPermErr *ErrNoPermission
+		if errors.As(err, &globalPermErr) {
+			err = checkQueuePermission(server.permissions, ctx, q, permissions.ReprioritizeJobs, queue.PermissionVerbReprioritize)
+			var queuePermErr *ErrNoPermission
+			if errors.As(err, &queuePermErr) {
+				return MergePermissionErrors(globalPermErr, queuePermErr)
+			} else if err != nil {
+				return err
 			}
+		} else if err != nil {
+			return err
 		}
 	}
 	return nil
-}
-
-func principalHasQueuePermissions(principal authorization.Principal, q queue.Queue, verb queue.PermissionVerb) bool {
-	subjects := queue.PermissionSubjects{}
-	for _, group := range principal.GetGroupNames() {
-		subjects = append(subjects, queue.PermissionSubject{
-			Name: group,
-			Kind: queue.PermissionSubjectKindGroup,
-		})
-	}
-	subjects = append(subjects, queue.PermissionSubject{
-		Name: principal.GetName(),
-		Kind: queue.PermissionSubjectKindUser,
-	})
-
-	for _, subject := range subjects {
-		if q.HasPermission(subject, verb) {
-			return true
-		}
-	}
-
-	return false
 }
 
 func (server *SubmitServer) getQueueOrCreate(ctx context.Context, queueName string) (queue.Queue, error) {
@@ -618,7 +766,7 @@ func (server *SubmitServer) createJobsObjects(request *api.JobSubmitRequest, own
 			server.applyDefaultsToPodSpec(podSpec)
 			err := validation.ValidatePodSpec(podSpec, server.schedulingConfig)
 			if err != nil {
-				return nil, fmt.Errorf("[createJobs] error validating the %d-th pod pf the %d-th job of job set %s: %w", j, i, request.JobSetId, err)
+				return nil, fmt.Errorf("[createJobs] error validating the %d-th pod of the %d-th job of job set %s: %w", j, i, request.JobSetId, err)
 			}
 
 			// TODO: remove, RequiredNodeLabels is deprecated and will be removed in future versions

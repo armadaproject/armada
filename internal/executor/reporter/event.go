@@ -7,7 +7,7 @@ import (
 	"time"
 
 	v1 "k8s.io/api/core/v1"
-	networking "k8s.io/api/networking/v1beta1"
+	networking "k8s.io/api/networking/v1"
 
 	"github.com/G-Research/armada/internal/executor/domain"
 	"github.com/G-Research/armada/internal/executor/util"
@@ -130,7 +130,7 @@ func CreateJobIngressInfoEvent(pod *v1.Pod, clusterId string, associatedServices
 
 	for _, ingress := range associatedIngresses {
 		for _, rule := range ingress.Spec.Rules {
-			portNumber := rule.HTTP.Paths[0].Backend.ServicePort.IntVal
+			portNumber := rule.HTTP.Paths[0].Backend.Service.Port.Number
 			containerPortMapping[portNumber] = rule.Host
 		}
 	}

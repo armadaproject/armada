@@ -6,9 +6,16 @@ import (
 	"github.com/G-Research/armada/pkg/api"
 )
 
+// Each executor periodically reports cluster resource usage to the server.
+// A cluster is considered inactive if the most recent such report is older than this amount of time.
 const activeClusterExpiry = 10 * time.Minute
+
+// Each executor periodically sends a list of all nodes in its cluster to the server.
+// These lists are used by the scheduler and are considered valid for this amount of time.
 const recentlyActiveClusterExpiry = 60 * time.Minute
 
+// FilterActiveClusters returns the subset of reports corresponding to active clusters.
+// A cluster is considered active if the most recent ClusterUsageReport was received less than activeClusterExpiry ago.
 func FilterActiveClusters(reports map[string]*api.ClusterUsageReport) map[string]*api.ClusterUsageReport {
 	result := map[string]*api.ClusterUsageReport{}
 	now := time.Now()
@@ -20,6 +27,7 @@ func FilterActiveClusters(reports map[string]*api.ClusterUsageReport) map[string
 	return result
 }
 
+// FilterPoolClusters returns the subset of reports for which the pool has a specific value.
 func FilterPoolClusters(pool string, reports map[string]*api.ClusterUsageReport) map[string]*api.ClusterUsageReport {
 	result := map[string]*api.ClusterUsageReport{}
 	for id, report := range reports {
@@ -30,6 +38,7 @@ func FilterPoolClusters(pool string, reports map[string]*api.ClusterUsageReport)
 	return result
 }
 
+// GroupByPool returns a map from pool name to another map, which in turn maps report ids to reports.
 func GroupByPool(reports map[string]*api.ClusterUsageReport) map[string]map[string]*api.ClusterUsageReport {
 	result := map[string]map[string]*api.ClusterUsageReport{}
 	for id, report := range reports {
@@ -43,6 +52,8 @@ func GroupByPool(reports map[string]*api.ClusterUsageReport) map[string]map[stri
 	return result
 }
 
+// FilterClusterLeasedReports returns the subset of reports with id in the provided slice of ids.
+// ids for which there is no corresponding report are ignored.
 func FilterClusterLeasedReports(ids []string, reports map[string]*api.ClusterLeasedReport) map[string]*api.ClusterLeasedReport {
 	result := map[string]*api.ClusterLeasedReport{}
 	for _, id := range ids {
@@ -53,6 +64,7 @@ func FilterClusterLeasedReports(ids []string, reports map[string]*api.ClusterLea
 	return result
 }
 
+// FilterActiveClusterSchedulingInfoReports returns the subset of reports within the expiry time.
 func FilterActiveClusterSchedulingInfoReports(reports map[string]*api.ClusterSchedulingInfoReport) map[string]*api.ClusterSchedulingInfoReport {
 	result := map[string]*api.ClusterSchedulingInfoReport{}
 	now := time.Now()
@@ -64,6 +76,7 @@ func FilterActiveClusterSchedulingInfoReports(reports map[string]*api.ClusterSch
 	return result
 }
 
+// GroupSchedulingInfoByPool returns a map from pool name to another map, which in turn maps report ids to reports.
 func GroupSchedulingInfoByPool(reports map[string]*api.ClusterSchedulingInfoReport) map[string]map[string]*api.ClusterSchedulingInfoReport {
 	result := map[string]map[string]*api.ClusterSchedulingInfoReport{}
 	for id, report := range reports {
@@ -77,6 +90,7 @@ func GroupSchedulingInfoByPool(reports map[string]*api.ClusterSchedulingInfoRepo
 	return result
 }
 
+// GetClusterReportIds returns a slice composed of all unique report ids in the provided map.
 func GetClusterReportIds(reports map[string]*api.ClusterUsageReport) []string {
 	var result []string
 	for id := range reports {

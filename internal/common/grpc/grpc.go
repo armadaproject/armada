@@ -5,7 +5,6 @@ import (
 	"net"
 	"runtime/debug"
 	"sync"
-	"time"
 
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
@@ -19,18 +18,30 @@ import (
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/status"
 
+	"github.com/G-Research/armada/internal/common/armadaerrors"
 	"github.com/G-Research/armada/internal/common/auth/authorization"
+	"github.com/G-Research/armada/internal/common/logging"
+	"github.com/G-Research/armada/internal/common/requestid"
 )
 
 // CreateGrpcServer creates a gRPC server (by calling grpc.NewServer) with settings specific to
 // this project, and registers services for, e.g., logging and authentication.
-func CreateGrpcServer(authServices []authorization.AuthService) *grpc.Server {
+func CreateGrpcServer(
+	keepaliveParams keepalive.ServerParameters,
+	keepaliveEnforcementPolicy keepalive.EnforcementPolicy,
+	authServices []authorization.AuthService) *grpc.Server {
 
 	// Logging, authentication, etc. are implemented via gRPC interceptors
 	// (i.e., via functions that are called before handling the actual request).
 	// There are separate interceptors for unary and streaming gRPC calls.
 	unaryInterceptors := []grpc.UnaryServerInterceptor{}
 	streamInterceptors := []grpc.StreamServerInterceptor{}
+
+	//Automatically recover from panics
+	//NOTE This must be the first interceptor, so it can handle panics in any subsequently added interceptor
+	recovery := grpc_recovery.WithRecoveryHandler(panicRecoveryHandler)
+	unaryInterceptors = append(unaryInterceptors, grpc_recovery.UnaryServerInterceptor(recovery))
+	streamInterceptors = append(streamInterceptors, grpc_recovery.StreamServerInterceptor(recovery))
 
 	// Logging (using logrus)
 	// By default, information contained in the request context is logged
@@ -40,10 +51,18 @@ func CreateGrpcServer(authServices []authorization.AuthService) *grpc.Server {
 	tagsExtractor := grpc_ctxtags.WithFieldExtractor(grpc_ctxtags.CodeGenRequestFieldExtractor)
 	unaryInterceptors = append(unaryInterceptors,
 		grpc_ctxtags.UnaryServerInterceptor(tagsExtractor),
-		grpc_logrus.UnaryServerInterceptor(messageDefault))
+		requestid.UnaryServerInterceptor(false),
+		armadaerrors.UnaryServerInterceptor(2000),
+		grpc_logrus.UnaryServerInterceptor(messageDefault),
+		logging.UnaryServerInterceptor(),
+	)
 	streamInterceptors = append(streamInterceptors,
 		grpc_ctxtags.StreamServerInterceptor(tagsExtractor),
-		grpc_logrus.StreamServerInterceptor(messageDefault))
+		requestid.StreamServerInterceptor(false),
+		armadaerrors.StreamServerInterceptor(2000),
+		grpc_logrus.StreamServerInterceptor(messageDefault),
+		logging.StreamServerInterceptor(),
+	)
 
 	// Authentication
 	// The provided authServices represents a list of services that can be used to authenticate
@@ -57,16 +76,10 @@ func CreateGrpcServer(authServices []authorization.AuthService) *grpc.Server {
 	unaryInterceptors = append(unaryInterceptors, grpc_prometheus.UnaryServerInterceptor)
 	streamInterceptors = append(streamInterceptors, grpc_prometheus.StreamServerInterceptor)
 
-	// Automatically recover from panics
-	recovery := grpc_recovery.WithRecoveryHandler(panicRecoveryHandler)
-	unaryInterceptors = append(unaryInterceptors, grpc_recovery.UnaryServerInterceptor(recovery))
-	streamInterceptors = append(streamInterceptors, grpc_recovery.StreamServerInterceptor(recovery))
-
 	// Interceptors are registered at server creation
 	return grpc.NewServer(
-		grpc.KeepaliveParams(keepalive.ServerParameters{
-			MaxConnectionIdle: 5 * time.Minute,
-		}),
+		grpc.KeepaliveParams(keepaliveParams),
+		grpc.KeepaliveEnforcementPolicy(keepaliveEnforcementPolicy),
 		grpc.StreamInterceptor(grpc_middleware.ChainStreamServer(streamInterceptors...)),
 		grpc.UnaryInterceptor(grpc_middleware.ChainUnaryServer(unaryInterceptors...)),
 	)

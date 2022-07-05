@@ -1,0 +1,11 @@
+.cancel-job-sets {
+  margin: 1em 0.33em 1em 0.33em !important;
+}
+
+.cancel-job-sets-id {
+  width: 40% !important;
+}
+
+.cancel-job-sets-error {
+  width: 60% !important;
+}

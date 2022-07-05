@@ -2,12 +2,9 @@ package server
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 
-	"github.com/G-Research/armada/internal/armada/permissions"
-	"github.com/G-Research/armada/internal/armada/repository"
 	"github.com/G-Research/armada/internal/common/auth/authorization"
 	"github.com/G-Research/armada/internal/common/auth/permission"
 	"github.com/G-Research/armada/pkg/client/queue"
@@ -37,66 +34,26 @@ func (err *ErrNoPermission) Error() string {
 	return strings.Join(reasons, ", ")
 }
 
-// checkQueuePermission checks if the principal embedded in the context has permission
-// to perform actions on the given queue. If the principal has sufficient permissions,
-// nil is returned. Otherwise an error is returned.
-func (server *SubmitServer) checkQueuePermission(
-	ctx context.Context,
-	queueName string,
-	attemptToCreate bool,
-	basicPermission permission.Permission,
-	allQueuesPermission permission.Permission) ([]string, error) {
-
-	// Load the q into memory to check if the user is the owner of the q
-	q, err := server.queueRepository.GetQueue(queueName)
-	var e *repository.ErrQueueNotFound
-
-	// TODO Checking permissions shouldn't have side side effects.
-	// Hence, this function shouldn't automatically create queues.
-	// Further, we should consider removing the AutoCreateQueues option entirely.
-	// Since it leads to surprising behavior (e.g., creating a queue if the name is misspelled).
-	// Creating queues should always be an explicit decision.
-	// The less surprising behavior is to return ErrQueueNotFound (perhaps wrapped).
-	if errors.As(err, &e) && attemptToCreate && server.queueManagementConfig.AutoCreateQueues {
-		// TODO Is this correct? Shouldn't the relevant permission be permissions.CreateQueue?
-		err = checkPermission(server.permissions, ctx, permissions.SubmitAnyJobs)
+func MergePermissionErrors(errs ...*ErrNoPermission) *ErrNoPermission {
+	var filtered []*ErrNoPermission
+	for _, err := range errs {
 		if err != nil {
-			return nil, fmt.Errorf("[checkQueuePermission] error: %w", err)
+			filtered = append(filtered, err)
 		}
-
-		q = queue.Queue{
-			Name:           queueName,
-			PriorityFactor: server.queueManagementConfig.DefaultPriorityFactor,
-		}
-		err = server.queueRepository.CreateQueue(q)
-		if err != nil {
-			return nil, fmt.Errorf("[checkQueuePermission] error creating queue: %w", err)
-		}
-
-		// nil indicates that the user has sufficient permissions
-		// The newly created group has no ownership groups
-		return []string{}, nil
-	} else if err != nil {
-		return nil, fmt.Errorf("[checkQueuePermission] error getting queue %s: %w", queueName, err)
 	}
 
-	// The user must either own the queue or have permission to access all queues
-	permissionToCheck := basicPermission
-	owned, groups := server.permissions.UserOwns(ctx, q.ToAPI())
-	if !owned {
-		permissionToCheck = allQueuesPermission
+	if len(filtered) == 0 {
+		return nil
 	}
-	if err := checkPermission(server.permissions, ctx, permissionToCheck); err != nil {
-		err = &ErrNoPermission{
-			Principal: authorization.GetPrincipal(ctx),
-			Reasons: []string{
-				fmt.Sprintf("does not own queue %q and have %s permissions for it", queueName, basicPermission),
-				fmt.Sprintf("does not have %s permissions", allQueuesPermission),
-			},
-		}
-		return nil, err
+
+	merged := &ErrNoPermission{
+		Principal: filtered[0].Principal,
+		Reasons:   []string{},
 	}
-	return groups, nil
+	for _, err := range filtered {
+		merged.Reasons = append(merged.Reasons, err.Reasons...)
+	}
+	return merged
 }
 
 // checkPermission is a helper function called by the gRPC handlers to check if a client has the
@@ -113,4 +70,49 @@ func checkPermission(p authorization.PermissionChecker, ctx context.Context, per
 		}
 	}
 	return nil
+}
+
+func checkQueuePermission(
+	p authorization.PermissionChecker,
+	ctx context.Context,
+	q queue.Queue,
+	globalPermission permission.Permission,
+	verb queue.PermissionVerb) error {
+	err := checkPermission(p, ctx, globalPermission)
+	if err != nil {
+		return err
+	}
+
+	// User must either own the queue or have the permission for the specific verb
+	owned, _ := p.UserOwns(ctx, q.ToAPI())
+	if owned {
+		return nil
+	}
+
+	principal := authorization.GetPrincipal(ctx)
+
+	subjects := queue.PermissionSubjects{}
+	for _, group := range principal.GetGroupNames() {
+		subjects = append(subjects, queue.PermissionSubject{
+			Name: group,
+			Kind: queue.PermissionSubjectKindGroup,
+		})
+	}
+	subjects = append(subjects, queue.PermissionSubject{
+		Name: principal.GetName(),
+		Kind: queue.PermissionSubjectKindUser,
+	})
+
+	for _, subject := range subjects {
+		if q.HasPermission(subject, verb) {
+			return nil
+		}
+	}
+
+	return &ErrNoPermission{
+		Principal: principal,
+		Reasons: []string{
+			fmt.Sprintf("does not have permission %s", verb),
+		},
+	}
 }

@@ -186,7 +186,6 @@ func (q *KubeletPodUtilisationService) updatePodStats(podStats *v1alpha1.PodStat
 	// add custom metrics for gpu
 	for _, c := range podStats.Containers {
 		for _, a := range c.Accelerators {
-			log.Infof("Detected accelerator: %s %s", a.Make, a.Model)
 			accelerator = true
 			acceleratorDutyCycles += int64(a.DutyCycle)
 			acceleratorUsedMemory += int64(a.MemoryUsed)

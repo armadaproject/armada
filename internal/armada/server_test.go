@@ -32,7 +32,9 @@ func TestSubmitJob_EmptyPodSpec(t *testing.T) {
 			Name:           "test",
 			PriorityFactor: 1,
 		})
-		assert.Empty(t, err)
+		if !assert.NoError(t, err) {
+			return
+		}
 
 		request := &api.JobSubmitRequest{
 			JobRequestItems: []*api.JobSubmitRequestItem{{}},
@@ -51,7 +53,9 @@ func TestSubmitJob(t *testing.T) {
 			Name:           "test",
 			PriorityFactor: 1,
 		})
-		assert.Empty(t, err)
+		if !assert.NoError(t, err) {
+			t.FailNow()
+		}
 
 		cpu, _ := resource.ParseQuantity("1")
 		memory, _ := resource.ParseQuantity("512Mi")
@@ -59,10 +63,16 @@ func TestSubmitJob(t *testing.T) {
 		jobId := SubmitJob(client, ctx, cpu, memory, t)
 
 		leasedResponse, err := leaseJobs(leaseClient, ctx, common.ComputeResources{"cpu": cpu, "memory": memory})
-		assert.Empty(t, err)
+		if !assert.NoError(t, err) {
+			t.FailNow()
+		}
 
-		assert.Equal(t, 1, len(leasedResponse.Job))
-		assert.Equal(t, jobId, leasedResponse.Job[0].Id)
+		if !assert.Equal(t, 1, len(leasedResponse.Job)) {
+			t.FailNow()
+		}
+		if !assert.Equal(t, jobId, leasedResponse.Job[0].Id) {
+			t.FailNow()
+		}
 	})
 }
 
@@ -74,13 +84,17 @@ func TestAutomQueueCreation(t *testing.T) {
 
 		jobId := SubmitJob(client, ctx, cpu, memory, t)
 		leasedResponse, err := leaseJobs(leaseClient, ctx, common.ComputeResources{"cpu": cpu, "memory": memory})
-		assert.Empty(t, err)
+		if !assert.NoError(t, err) {
+			t.FailNow()
+		}
 
 		assert.Equal(t, 1, len(leasedResponse.Job))
 		assert.Equal(t, jobId, leasedResponse.Job[0].Id)
 
 		info, err := client.GetQueueInfo(ctx, &api.QueueInfoRequest{Name: "test"})
-		assert.NoError(t, err)
+		if !assert.NoError(t, err) {
+			t.FailNow()
+		}
 		assert.Equal(t, "set", info.ActiveJobSets[0].Name)
 	})
 }
@@ -92,7 +106,9 @@ func TestCancelJob(t *testing.T) {
 			Name:           "test",
 			PriorityFactor: 1,
 		})
-		assert.Empty(t, err)
+		if ok := assert.NoError(t, err); !ok {
+			t.FailNow()
+		}
 
 		cpu, _ := resource.ParseQuantity("1")
 		memory, _ := resource.ParseQuantity("512Mi")
@@ -101,21 +117,26 @@ func TestCancelJob(t *testing.T) {
 		SubmitJob(client, ctx, cpu, memory, t)
 
 		leasedResponse, err := leaseJobs(leaseClient, ctx, common.ComputeResources{"cpu": cpu, "memory": memory})
-
-		assert.Empty(t, err)
+		if ok := assert.NoError(t, err); !ok {
+			t.FailNow()
+		}
 		assert.Equal(t, 1, len(leasedResponse.Job))
 
 		cancelResult, err := client.CancelJobs(ctx, &api.JobCancelRequest{JobSetId: "set", Queue: "test"})
-		assert.Empty(t, err)
+		if ok := assert.NoError(t, err); !ok {
+			t.FailNow()
+		}
 		assert.Equal(t, 2, len(cancelResult.CancelledIds))
 
 		renewed, err := leaseClient.RenewLease(ctx, &api.RenewLeaseRequest{
 			ClusterId: "test-cluster",
 			Ids:       []string{leasedResponse.Job[0].Id},
 		})
-		assert.Empty(t, err)
-		assert.Equal(t, 0, len(renewed.Ids))
+		if ok := assert.NoError(t, err); !ok {
+			t.FailNow()
+		}
 
+		assert.Equal(t, 0, len(renewed.Ids))
 	})
 }
 
@@ -151,7 +172,7 @@ func SubmitJob(client api.SubmitClient, ctx context.Context, cpu resource.Quanti
 		JobSetId: "set",
 	}
 	response, err := client.SubmitJobs(ctx, request)
-	assert.Empty(t, err)
+	assert.NoError(t, err)
 	return response.JobResponseItems[0].JobId
 }
 
@@ -160,7 +181,8 @@ func withRunningServer(action func(client api.SubmitClient, leaseClient api.Aggr
 	if err != nil {
 		panic(err)
 	}
-	defer minidb.Close()
+	// minidb.Close hangs indefinitely (likely due to a bug in miniredis)
+	// defer minidb.Close()
 
 	// cleanup prometheus in case there are registered metrics already present
 	prometheus.DefaultRegisterer = prometheus.NewRegistry()
@@ -172,42 +194,61 @@ func withRunningServer(action func(client api.SubmitClient, leaseClient api.Aggr
 	parts := strings.Split(freeAddress, ":")
 	port, _ := strconv.Atoi(parts[len(parts)-1])
 
-	shutdown, _ := Serve(&configuration.ArmadaConfig{
-		Auth: authConfiguration.AuthConfig{
-			AnonymousAuth: true,
-			PermissionGroupMapping: map[permission.Permission][]string{
-				permissions.ExecuteJobs:    {"everyone"},
-				permissions.SubmitJobs:     {"everyone"},
-				permissions.SubmitAnyJobs:  {"everyone"},
-				permissions.CreateQueue:    {"everyone"},
-				permissions.CancelJobs:     {"everyone"},
-				permissions.CancelAnyJobs:  {"everyone"},
-				permissions.WatchAllEvents: {"everyone"},
-			},
-		},
-		GrpcPort: uint16(port),
-		Redis: redis.UniversalOptions{
-			Addrs: []string{minidb.Addr()},
-			DB:    0,
-		},
-		CancelJobsBatchSize: 200,
-		Scheduling: configuration.SchedulingConfig{
-			QueueLeaseBatchSize:          100,
-			MaximumLeasePayloadSizeBytes: 7 * 1024 * 1024,
-			MaximumJobsToSchedule:        1000,
-			Lease: configuration.LeaseSettings{
-				ExpireAfter:        time.Minute * 15,
-				ExpiryLoopInterval: time.Second * 5,
-			},
-			MaxPodSpecSizeBytes: 65535,
-		},
-		QueueManagement: configuration.QueueManagementConfig{
-			AutoCreateQueues:      true,
-			DefaultPriorityFactor: 1000,
-		},
-	},
-		health.NewMultiChecker())
+	healthChecks := health.NewMultiChecker()
+
+	ctx, shutdown := context.WithCancel(context.Background())
 	defer shutdown()
+	go func() {
+		err := Serve(
+			ctx,
+			&configuration.ArmadaConfig{
+				Auth: authConfiguration.AuthConfig{
+					AnonymousAuth: true,
+					PermissionGroupMapping: map[permission.Permission][]string{
+						permissions.ExecuteJobs:    {"everyone"},
+						permissions.SubmitJobs:     {"everyone"},
+						permissions.SubmitAnyJobs:  {"everyone"},
+						permissions.CreateQueue:    {"everyone"},
+						permissions.CancelJobs:     {"everyone"},
+						permissions.CancelAnyJobs:  {"everyone"},
+						permissions.WatchEvents:    {"everyone"},
+						permissions.WatchAllEvents: {"everyone"},
+					},
+				},
+				GrpcPort: uint16(port),
+				Redis: redis.UniversalOptions{
+					Addrs: []string{minidb.Addr()},
+					DB:    0,
+				},
+				CancelJobsBatchSize: 200,
+				Scheduling: configuration.SchedulingConfig{
+					QueueLeaseBatchSize:          100,
+					MaximumLeasePayloadSizeBytes: 7 * 1024 * 1024,
+					MaximumJobsToSchedule:        1000,
+					Lease: configuration.LeaseSettings{
+						ExpireAfter:        time.Minute * 15,
+						ExpiryLoopInterval: time.Second * 5,
+					},
+					MaxPodSpecSizeBytes: 65535,
+				},
+				QueueManagement: configuration.QueueManagementConfig{
+					AutoCreateQueues:      true,
+					DefaultPriorityFactor: 1000,
+				},
+			},
+			healthChecks,
+		)
+		if err != nil {
+			log.Fatalf("failed to start server: %v", err)
+		}
+	}()
+
+	// Wait for the server to come up
+	err = healthChecks.Check()
+	for err != nil {
+		time.Sleep(100 * time.Millisecond)
+		err = healthChecks.Check()
+	}
 
 	conn, err := grpc.Dial(freeAddress, grpc.WithInsecure(), grpc.WithDefaultCallOptions(grpc.WaitForReady(true)))
 	if err != nil {
@@ -218,9 +259,8 @@ func withRunningServer(action func(client api.SubmitClient, leaseClient api.Aggr
 	setupServer(conn)
 	client := api.NewSubmitClient(conn)
 	leaseClient := api.NewAggregatedQueueClient(conn)
-	ctx := context.Background()
 
-	action(client, leaseClient, ctx)
+	action(client, leaseClient, context.Background())
 }
 
 func setupServer(conn *grpc.ClientConn) {

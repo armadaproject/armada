@@ -46,7 +46,7 @@ var loadtestCmd = &cobra.Command{
 			  containers:
 				- name: sleep
 				  imagePullPolicy: IfNotPresent
-				  image: alpine:latest
+				  image: alpine:3.10
 				  command:
 					- sh
 				  args:
@@ -54,8 +54,8 @@ var loadtestCmd = &cobra.Command{
 					- sleep $(( (RANDOM % 60) + 100 ))
 				  resources:
 					limits:
-					  memory: 128Mi
-					  cpu: 80m
+					  memory: 64Mi
+					  cpu: 60m
 					requests:
 					  memory: 64Mi
 					  cpu: 60m

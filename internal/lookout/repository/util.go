@@ -7,7 +7,6 @@ import (
 
 	"github.com/doug-martin/goqu/v9"
 	"github.com/doug-martin/goqu/v9/exp"
-	"github.com/lib/pq"
 
 	"github.com/G-Research/armada/internal/common/util"
 )
@@ -97,14 +96,14 @@ func ParseNullFloat(nullFloat sql.NullFloat64) float64 {
 	return nullFloat.Float64
 }
 
-func ParseNullTime(nullTime pq.NullTime) *time.Time {
+func ParseNullTime(nullTime sql.NullTime) *time.Time {
 	if !nullTime.Valid {
 		return nil
 	}
 	return &nullTime.Time
 }
 
-func ParseNullTimeDefault(nullTime pq.NullTime) time.Time {
+func ParseNullTimeDefault(nullTime sql.NullTime) time.Time {
 	if !nullTime.Valid {
 		return time.Time{}
 	}

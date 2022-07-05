@@ -45,6 +45,7 @@ interface JobSetsProps {
   onSelectJobSet: (index: number, selected: boolean) => void
   onShiftSelectJobSet: (index: number, selected: boolean) => void
   onDeselectAllClick: () => void
+  onSelectAllClick: () => void
   onCancelJobSetsClick: () => void
   onToggleAutoRefresh: (autoRefresh: boolean) => void
   onReprioritizeJobSetsClick: () => void
@@ -76,6 +77,7 @@ export default function JobSets(props: JobSetsProps) {
       onSelectJobSet={props.onSelectJobSet}
       onShiftSelectJobSet={props.onShiftSelectJobSet}
       onDeselectAllClick={props.onDeselectAllClick}
+      onSelectAllClick={props.onSelectAllClick}
       onOrderChange={props.onOrderChange}
     />
   )

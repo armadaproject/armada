@@ -45,6 +45,18 @@
     }
   },
   "definitions": {
+    "binocularsLogLine": {
+      "type": "object",
+      "title": "swagger:model",
+      "properties": {
+        "line": {
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "string"
+        }
+      }
+    },
     "binocularsLogRequest": {
       "type": "object",
       "title": "swagger:model",
@@ -72,7 +84,10 @@
       "title": "swagger:model",
       "properties": {
         "log": {
-          "type": "string"
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/binocularsLogLine"
+          }
         }
       }
     },

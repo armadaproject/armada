@@ -22,14 +22,6 @@
     table-layout: fixed;
 }
 
-.job-sets-action-container .job-sets-action-id {
-    width: 40%;
-}
-
-.job-sets-action-container .job-sets-action-error {
-    width: 60% !important;
-}
-
 .job-sets-action-container .job-sets-action-wrap {
     white-space: normal;
     word-wrap: break-word;

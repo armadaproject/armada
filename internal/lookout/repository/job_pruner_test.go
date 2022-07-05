@@ -68,8 +68,10 @@ func Test_BatchSize(t *testing.T) {
 func queryForIds(t *testing.T, db *sql.DB, table string) []string {
 	var ids []string
 	rows, err := db.Query(fmt.Sprintf("SELECT job_id from %v", table))
+	if ok := assert.NoError(t, err); !ok {
+		t.FailNow()
+	}
 	defer rows.Close()
-	assert.NoError(t, err)
 	var id string
 	for rows.Next() {
 		err := rows.Scan(&id)
@@ -80,7 +82,7 @@ func queryForIds(t *testing.T, db *sql.DB, table string) []string {
 }
 
 func withPopulatedDatabase(t *testing.T, action func(db *sql.DB)) {
-	testutil.WithDatabase(t, func(db *sql.DB) {
+	err := testutil.WithDatabase(func(db *sql.DB) error {
 		for i := 0; i < 10; i++ {
 			jobId := fmt.Sprintf("job-%v", i)
 			runId := fmt.Sprintf("job-%v-run", i)
@@ -110,5 +112,7 @@ func withPopulatedDatabase(t *testing.T, action func(db *sql.DB)) {
 			assert.NoError(t, err4)
 		}
 		action(db)
+		return nil
 	})
+	assert.NoError(t, err)
 }

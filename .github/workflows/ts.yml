@@ -1,0 +1,39 @@
+on:
+  push:
+    branches-ignore:
+      - master
+    paths:
+      - 'internal/lookout/ui/**'
+      - 'build/lookout/**'
+      - '.github/workflows/ts.yml'
+  pull_request:
+    branches-ignore:
+      - gh-pages
+    paths:
+      - 'internal/lookout/ui/**'
+      - 'build/lookout/**'
+      - '.github/workflows/ts.yml'
+
+jobs:
+  ts-lint:
+    # TODO(JayF): Determine what nodejs versions we target, and setup matrix-based testing similar to what we do for go
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Check TypeScript formatting
+        run: |
+          npm ci && npm run fmt || exit 1
+          exit $(git status -s -uno | wc -l)
+        working-directory: ./internal/lookout/ui
+  ts-unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Run Unit Tests
+        run: |
+          npm ci && npm run openapi && CI=true npm run test
+        working-directory: ./internal/lookout/ui
+
+

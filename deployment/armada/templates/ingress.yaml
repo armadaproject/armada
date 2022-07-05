@@ -1,4 +1,4 @@
-apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: {{ .Values.ingress.nameOverride | default (include "armada.name" .) }}
@@ -25,9 +25,12 @@ spec:
     http:
       paths:
         - path: /
+          pathType: ImplementationSpecific
           backend:
-            serviceName: {{ include "armada.name" $root }}
-            servicePort: {{ $root.Values.applicationConfig.grpcPort }}
+            service:
+              name: {{ include "armada.name" $root }}
+              port:
+                number: {{ $root.Values.applicationConfig.grpcPort }}
   {{ end }}
   tls:
     - hosts:

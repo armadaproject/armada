@@ -8,7 +8,6 @@ import (
 	"github.com/doug-martin/goqu/v9"
 	"github.com/doug-martin/goqu/v9/exp"
 	"github.com/gogo/protobuf/types"
-	"github.com/lib/pq"
 
 	"github.com/G-Research/armada/pkg/api/lookout"
 )
@@ -20,21 +19,21 @@ type jobSetCountsRow struct {
 	Running   sql.NullInt64 `db:"running"`
 	Succeeded sql.NullInt64 `db:"succeeded"`
 	Failed    sql.NullInt64 `db:"failed"`
-	Submitted pq.NullTime   `db:"submitted"`
+	Submitted sql.NullTime  `db:"submitted"`
 
-	RunningStatsMin     pq.NullTime `db:"running_min"`
-	RunningStatsMax     pq.NullTime `db:"running_max"`
-	RunningStatsAverage pq.NullTime `db:"running_average"`
-	RunningStatsMedian  pq.NullTime `db:"running_median"`
-	RunningStatsQ1      pq.NullTime `db:"running_q1"`
-	RunningStatsQ3      pq.NullTime `db:"running_q3"`
+	RunningStatsMin     sql.NullTime `db:"running_min"`
+	RunningStatsMax     sql.NullTime `db:"running_max"`
+	RunningStatsAverage sql.NullTime `db:"running_average"`
+	RunningStatsMedian  sql.NullTime `db:"running_median"`
+	RunningStatsQ1      sql.NullTime `db:"running_q1"`
+	RunningStatsQ3      sql.NullTime `db:"running_q3"`
 
-	QueuedStatsMin     pq.NullTime `db:"queued_min"`
-	QueuedStatsMax     pq.NullTime `db:"queued_max"`
-	QueuedStatsAverage pq.NullTime `db:"queued_average"`
-	QueuedStatsMedian  pq.NullTime `db:"queued_median"`
-	QueuedStatsQ1      pq.NullTime `db:"queued_q1"`
-	QueuedStatsQ3      pq.NullTime `db:"queued_q3"`
+	QueuedStatsMin     sql.NullTime `db:"queued_min"`
+	QueuedStatsMax     sql.NullTime `db:"queued_max"`
+	QueuedStatsAverage sql.NullTime `db:"queued_average"`
+	QueuedStatsMedian  sql.NullTime `db:"queued_median"`
+	QueuedStatsQ1      sql.NullTime `db:"queued_q1"`
+	QueuedStatsQ3      sql.NullTime `db:"queued_q3"`
 }
 
 func (r *SQLJobRepository) GetJobSetInfos(ctx context.Context, opts *lookout.GetJobSetsRequest) ([]*lookout.JobSetInfo, error) {
@@ -216,7 +215,7 @@ func (r *SQLJobRepository) rowsToJobSets(rows []*jobSetCountsRow, queue string) 
 	return jobSetInfos
 }
 
-func getProtoDuration(currentTime time.Time, maybeTime pq.NullTime) *types.Duration {
+func getProtoDuration(currentTime time.Time, maybeTime sql.NullTime) *types.Duration {
 	var duration *types.Duration
 	if maybeTime.Valid {
 		duration = types.DurationProto(currentTime.Sub(maybeTime.Time))

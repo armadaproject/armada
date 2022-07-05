@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/G-Research/armada/internal/armada/repository"
@@ -56,6 +57,22 @@ func reportDuplicateDetected(repository repository.EventStore, results []*reposi
 		return fmt.Errorf("[reportDuplicateDetected] error reporting events: %w", err)
 	}
 
+	return nil
+}
+
+func reportDuplicateFoundEvents(repository repository.EventStore, events []*api.JobDuplicateFoundEvent) error {
+	apiEvents := make([]*api.EventMessage, len(events))
+	for i, event := range events {
+		event, err := api.Wrap(event)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		apiEvents[i] = event
+	}
+	err := repository.ReportEvents(apiEvents)
+	if err != nil {
+		return errors.WithStack(err)
+	}
 	return nil
 }
 

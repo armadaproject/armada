@@ -5,11 +5,14 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	networking "k8s.io/api/networking/v1"
+	k8s_errors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/G-Research/armada/internal/common/armadaerrors"
 	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/executor/configuration"
 	"github.com/G-Research/armada/internal/executor/context"
@@ -89,8 +92,17 @@ func (allocationService *SubmitService) submitWorker(wg *sync.WaitGroup, jobsToS
 			if err != nil {
 				log.Errorf("Failed to submit job %s because %s", job.Id, err)
 
-				status, ok := err.(errors.APIStatus)
-				recoverable := !ok || isNotRecoverable(status.Status())
+				// Depending on what went wrong, we may either fail the job
+				// or return the lease to the scheduler to try again.
+				var recoverable bool
+				var e *armadaerrors.ErrCreateResource
+				if status, ok := err.(k8s_errors.APIStatus); ok {
+					recoverable = !isNotRecoverable(status.Status())
+				} else if errors.As(err, &e) {
+					recoverable = true
+				} else {
+					recoverable = false
+				}
 
 				errDetails := &FailedSubmissionDetails{
 					Job:         job,
@@ -109,38 +121,92 @@ func (allocationService *SubmitService) submitWorker(wg *sync.WaitGroup, jobsToS
 	}
 }
 
+// submitPod submits a pod to k8s together with any services and ingresses bundled with the Armada job.
+// This function may fail partly, i.e., it may successfully create a subset of the requested objects before failing.
+// In case of failure, any already created objects are not cleaned up.
 func (allocationService *SubmitService) submitPod(job *api.Job, i int) (*v1.Pod, error) {
-	pod := util2.CreatePod(job, allocationService.podDefaults, i)
 
-	if exposesPorts(job, &pod.Spec) {
-		services, ingresses := util2.GenerateIngresses(job, pod, allocationService.podDefaults.Ingress)
+	pod := util2.CreatePod(job, allocationService.podDefaults, i)
+	// Ensure the K8SService and K8SIngress fields are populated
+	allocationService.populateServicesIngresses(job, pod)
+
+	if len(job.K8SService) > 0 || len(job.K8SIngress) > 0 {
 		pod.Annotations = util.MergeMaps(pod.Annotations, map[string]string{
 			domain.HasIngress:               "true",
-			domain.AssociatedServicesCount:  fmt.Sprintf("%d", len(services)),
-			domain.AssociatedIngressesCount: fmt.Sprintf("%d", len(ingresses)),
+			domain.AssociatedServicesCount:  fmt.Sprintf("%d", len(job.K8SService)),
+			domain.AssociatedIngressesCount: fmt.Sprintf("%d", len(job.K8SIngress)),
 		})
-		submittedPod, err := allocationService.clusterContext.SubmitPod(pod, job.Owner, job.QueueOwnershipUserGroups)
+	}
+
+	submittedPod, err := allocationService.clusterContext.SubmitPod(pod, job.Owner, job.QueueOwnershipUserGroups)
+	if err != nil {
+		return pod, err
+	}
+
+	for _, service := range job.K8SService {
+		service.ObjectMeta.OwnerReferences = []metav1.OwnerReference{util2.CreateOwnerReference(submittedPod)}
+		_, err = allocationService.clusterContext.SubmitService(service)
 		if err != nil {
 			return pod, err
 		}
-		for _, service := range services {
-			service.ObjectMeta.OwnerReferences = []metav1.OwnerReference{util2.CreateOwnerReference(submittedPod)}
-			_, err = allocationService.clusterContext.SubmitService(service)
-			if err != nil {
-				return pod, err
-			}
+	}
+
+	for _, ingress := range job.K8SIngress {
+		ingress.ObjectMeta.OwnerReferences = []metav1.OwnerReference{util2.CreateOwnerReference(submittedPod)}
+		_, err = allocationService.clusterContext.SubmitIngress(ingress)
+		if err != nil {
+			return pod, err
 		}
-		for _, ingress := range ingresses {
-			ingress.ObjectMeta.OwnerReferences = []metav1.OwnerReference{util2.CreateOwnerReference(submittedPod)}
-			_, err = allocationService.clusterContext.SubmitIngress(ingress)
-			if err != nil {
-				return pod, err
-			}
-		}
-		return pod, err
+	}
+
+	return pod, err
+}
+
+// populateServicesIngresses populates the K8SService and K8SIngress fields of the job.
+// It does so by converting the Services and Ingress fields, which are Armada-specific, into proper k8s objects.
+// If either of K8SService or K8SIngress is already populated (i.e., is non-nil), this function is a no-op,
+// except for replacing nil-valued K8SService and K8SIngress with empty slices.
+//
+// TODO: I think this is wrong for jobs with multiple PodSPecs.
+// Because we should create a set of services/ingresses for each pod,
+// but this code is a no-op if K8SService or K8SIngress is already populated.
+func (allocationService *SubmitService) populateServicesIngresses(job *api.Job, pod *v1.Pod) {
+	if job.Services == nil {
+		job.Services = make([]*api.ServiceConfig, 0)
+	}
+	if job.Ingress == nil {
+		job.Ingress = make([]*api.IngressConfig, 0)
+	}
+	if job.K8SIngress == nil && job.K8SService == nil && exposesPorts(job, &pod.Spec) {
+		k8sServices, k8sIngresses := util2.GenerateIngresses(job, pod, allocationService.podDefaults.Ingress)
+		job.K8SService = k8sServices
+		job.K8SIngress = k8sIngresses
 	} else {
-		_, err := allocationService.clusterContext.SubmitPod(pod, job.Owner, job.QueueOwnershipUserGroups)
-		return pod, err
+		// If K8SIngress and/or K8SService was already populated, it was populated by the Pulsar submit API.
+		// Because the submit API can't know which executor the services/ingresses will be created in,
+		// the executor has to provide all executor-specific information.
+		for _, ingress := range job.K8SIngress {
+			ingress.Annotations = util.MergeMaps(
+				ingress.Annotations,
+				allocationService.podDefaults.Ingress.Annotations,
+			)
+
+			// We need to use indexing here since Spec.Rules isn't pointers.
+			for i, _ := range ingress.Spec.Rules {
+				ingress.Spec.Rules[i].Host += allocationService.podDefaults.Ingress.HostnameSuffix
+			}
+
+			// We need to use indexing here since Spec.TLS isn't pointers.
+			for i, _ := range ingress.Spec.TLS {
+				ingress.Spec.TLS[i].SecretName += allocationService.podDefaults.Ingress.CertNameSuffix
+			}
+		}
+	}
+	if job.K8SService == nil {
+		job.K8SService = make([]*v1.Service, 0)
+	}
+	if job.K8SIngress == nil {
+		job.K8SIngress = make([]*networking.Ingress, 0)
 	}
 }
 

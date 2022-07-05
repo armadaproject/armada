@@ -91,6 +91,9 @@ func (eventReporter *JobEventReporter) reportCurrentStatus(pod *v1.Pod) {
 	if !util.IsManagedPod(pod) {
 		return
 	}
+	if util.HasCurrentStateBeenReported(pod) {
+		return
+	}
 
 	event, err := CreateEventForCurrentState(pod, eventReporter.clusterContext.GetClusterId())
 	if err != nil {

@@ -3,13 +3,13 @@ package exec
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"strings"
 	"sync"
 
+	"github.com/pkg/errors"
 	grpc_credentials "google.golang.org/grpc/credentials"
 )
 
@@ -70,21 +70,21 @@ func (a *Authenticator) getCredsLocked() (string, error) {
 	}
 
 	err := cmd.Run()
-
 	if err != nil {
-		return "", fmt.Errorf("error retrieving credentials %w", err)
+		err = errors.Wrapf(err, "error retrieving credentials; command stdout: %s", string(stdout.Bytes()))
+		return "", err
 	}
 
 	tok := strings.TrimSpace(string(stdout.Bytes()))
-
 	if tok == "" {
-		return "", fmt.Errorf("command didn't return a token")
+		err := errors.Errorf("command didn't return a token")
+		return "", errors.WithStack(err)
 	}
 
 	return tok, nil
 }
 
-func (a Authenticator) GetRequestMetadata(ctx context.Context, uri ...string) (map[string]string, error) {
+func (a *Authenticator) GetRequestMetadata(ctx context.Context, uri ...string) (map[string]string, error) {
 	tok, err := a.getCreds()
 	if err != nil {
 		return nil, err
@@ -94,6 +94,6 @@ func (a Authenticator) GetRequestMetadata(ctx context.Context, uri ...string) (m
 	}, nil
 }
 
-func (a Authenticator) RequireTransportSecurity() bool {
+func (a *Authenticator) RequireTransportSecurity() bool {
 	return false
 }

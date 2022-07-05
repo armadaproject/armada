@@ -1,8 +1,18 @@
-import { BinocularsApi, Configuration, ConfigurationParameters } from "../openapi/binoculars"
+import { BinocularsApi, BinocularsLogLine, Configuration, ConfigurationParameters } from "../openapi/binoculars"
 
-export interface LogLine {
-  text: string
-  time: string
+export type LogLine = {
+  timestamp: string
+  line: string
+}
+
+export type GetLogsRequest = {
+  clusterId: string
+  namespace: string
+  jobId: string
+  podNumber: number
+  container: string
+  sinceTime: string
+  tailLines: number | undefined
 }
 
 export default class LogService {
@@ -16,47 +26,21 @@ export default class LogService {
     this.isEnabled = isEnabled
   }
 
-  async getPodLogs(
-    clusterId: string,
-    jobId: string,
-    namespace: string,
-    podNumber: number,
-    container: string,
-    tailLines: number | undefined = undefined,
-    sinceTime: string | undefined = undefined,
-  ): Promise<LogLine[]> {
-    const maxSize = 2000000 // 2Mb chunks at most
-    const api = this.getBinoculars(clusterId)
+  async getPodLogs(request: GetLogsRequest): Promise<LogLine[]> {
+    const api = this.getBinoculars(request.clusterId)
     const logResult = await api.logs({
       body: {
-        jobId: jobId,
-        podNumber: podNumber,
-        podNamespace: namespace,
-        sinceTime: sinceTime,
+        jobId: request.jobId,
+        podNumber: request.podNumber,
+        podNamespace: request.namespace,
+        sinceTime: request.sinceTime,
         logOptions: {
-          container: container,
-          tailLines: tailLines,
-          timestamps: true,
-          limitBytes: maxSize,
+          container: request.container,
+          tailLines: request.tailLines,
         },
       },
     })
-    return this.parseLogLines(logResult.log ?? "", maxSize)
-  }
-
-  private parseLogLines(log: string, maxSize: number) {
-    const lines = log.split("\n").filter((s) => s != "")
-    if (log.length >= maxSize) {
-      // discart last partial line
-      lines.pop()
-    }
-    return lines.map((l) => {
-      const divider = l.indexOf(" ")
-      return {
-        time: l.substr(0, divider),
-        text: l.substr(divider + 1),
-      }
-    })
+    return parseLogLines(logResult.log ?? [])
   }
 
   private getBinoculars(clusterId: string) {
@@ -67,4 +51,11 @@ export default class LogService {
       }),
     )
   }
+}
+
+function parseLogLines(logLinesFromApi: BinocularsLogLine[]): LogLine[] {
+  return logLinesFromApi.map((l) => ({
+    timestamp: l.timestamp ?? "",
+    line: l.line ?? "",
+  }))
 }

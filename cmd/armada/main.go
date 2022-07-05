@@ -1,20 +1,25 @@
 package main
 
 import (
+	"context"
+	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/G-Research/armada/internal/armada"
 	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/G-Research/armada/internal/common"
 	gateway "github.com/G-Research/armada/internal/common/grpc"
 	"github.com/G-Research/armada/internal/common/health"
+	"github.com/G-Research/armada/internal/common/logging"
 	"github.com/G-Research/armada/pkg/api"
 )
 
@@ -37,22 +42,36 @@ func main() {
 
 	log.Info("Starting...")
 
+	// Run services within an errgroup to propagate errors between services.
+	g, ctx := errgroup.WithContext(context.Background())
+
+	// Cancel the errgroup context on SIGINT and SIGTERM,
+	// which shuts everything down gracefully.
 	stopSignal := make(chan os.Signal, 1)
 	signal.Notify(stopSignal, syscall.SIGINT, syscall.SIGTERM)
+	g.Go(func() error {
+		select {
+		case <-ctx.Done():
+			return nil
+		case sig := <-stopSignal:
+			// Returning an error cancels the errgroup.
+			return fmt.Errorf("received signal %v", sig)
+		}
+	})
 
 	// TODO This starts a separate HTTP server. Is that intended? Should we have a single mux for everything?
+	// TODO: Run in errgroup
 	shutdownMetricServer := common.ServeMetrics(config.MetricsPort)
 	defer shutdownMetricServer()
 
+	// Register /health API endpoint
 	mux := http.NewServeMux()
-
 	startupCompleteCheck := health.NewStartupCompleteChecker()
 	healthChecks := health.NewMultiChecker(startupCompleteCheck)
-
-	// Register /health API endpoint
 	health.SetupHttpMux(mux, healthChecks)
 
 	// register gRPC API handlers in mux
+	// TODO: Run in errgroup
 	shutdownGateway := gateway.CreateGatewayHandler(
 		config.GrpcPort, mux, "/",
 		config.CorsAllowedOrigins,
@@ -63,19 +82,22 @@ func main() {
 	defer shutdownGateway()
 
 	// start HTTP server
+	// TODO: Run in errgroup
 	shutdownHttpServer := common.ServeHttp(config.HttpPort, mux)
 	defer shutdownHttpServer()
 
-	shutdown, wg := armada.Serve(&config, healthChecks)
-	go func() {
-		<-stopSignal
+	// Start Armada server
+	g.Go(func() error {
+		return armada.Serve(ctx, &config, healthChecks)
+	})
 
-		// TODO Can't be sure this will run, since there are calls to panic/os.Exit in sub-calls
-		shutdown()
+	// Assume the server is ready if there are no errors within 10 seconds.
+	go func() {
+		time.Sleep(10 * time.Second)
+		startupCompleteCheck.MarkComplete()
 	}()
 
-	// TODO Why do we have this system?
-	// Instead, perform checks before starting services that depend on these checks being completed.
-	startupCompleteCheck.MarkComplete()
-	wg.Wait()
+	if err := g.Wait(); err != nil {
+		logging.WithStacktrace(log.NewEntry(log.StandardLogger()), err).Error("Armada server shut down")
+	}
 }

@@ -8,6 +8,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/G-Research/armada/internal/binoculars/configuration"
+	"github.com/G-Research/armada/internal/binoculars/logs"
 	"github.com/G-Research/armada/internal/binoculars/server"
 	"github.com/G-Research/armada/internal/common/auth"
 	"github.com/G-Research/armada/internal/common/cluster"
@@ -20,15 +21,20 @@ func StartUp(config *configuration.BinocularsConfig) (func(), *sync.WaitGroup) {
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
 
-	kubernetesClientProvider, err := cluster.NewKubernetesClientProvider(config.ImpersonateUsers)
+	kubernetesClientProvider, err := cluster.NewKubernetesClientProvider(
+		config.ImpersonateUsers,
+		config.Kubernetes.QPS,
+		config.Kubernetes.Burst,
+	)
 	if err != nil {
 		log.Errorf("Failed to connect to kubernetes because %s", err)
 		os.Exit(-1)
 	}
 
-	grpcServer := grpcCommon.CreateGrpcServer(auth.ConfigureAuth(config.Auth))
+	grpcServer := grpcCommon.CreateGrpcServer(config.Grpc.KeepaliveParams, config.Grpc.KeepaliveEnforcementPolicy, auth.ConfigureAuth(config.Auth))
 
-	binocularsServer := server.NewBinocularsServer(kubernetesClientProvider)
+	logService := logs.NewKubernetesLogService(kubernetesClientProvider)
+	binocularsServer := server.NewBinocularsServer(logService)
 	binoculars.RegisterBinocularsServer(grpcServer, binocularsServer)
 	grpc_prometheus.Register(grpcServer)
 

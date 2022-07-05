@@ -56,7 +56,7 @@ func TestUtilisationEventReporter_ReportUtilisationEvents(t *testing.T) {
 
 	period := event2.Created.Sub(event1.Created)
 
-	accuracy := time.Millisecond * 10
+	accuracy := time.Millisecond * 20
 	assert.Equal(t, period/accuracy, reportingPeriod/accuracy)
 }
 

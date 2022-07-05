@@ -1,0 +1,12 @@
+redis:
+  addrs:
+    - "redis:6379"
+  password: ""
+  db: 0
+  poolSize: 1000
+eventsRedis:
+  addrs:
+    - "redis:6379"
+  password: ""
+  db: 0
+  poolSize: 1000

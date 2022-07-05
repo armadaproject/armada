@@ -16,6 +16,7 @@ const (
 	CancelAnyJobs                             = "cancel_any_jobs"
 	ReprioritizeJobs                          = "reprioritize_jobs"
 	ReprioritizeAnyJobs                       = "reprioritize_any_jobs"
+	WatchEvents                               = "watch_events"
 	WatchAllEvents                            = "watch_all_events"
 
 	ExecuteJobs = "execute_jobs"

@@ -294,6 +294,40 @@ func RemoveDuplicates(pods []*v1.Pod) []*v1.Pod {
 	return result
 }
 
+func RemovePodsFromList(list1 []*v1.Pod, list2 []*v1.Pod) []*v1.Pod {
+	podsToRemove := ExtractNames(list2)
+	podsToRemoveSet := util.StringListToSet(podsToRemove)
+
+	result := make([]*v1.Pod, 0, len(list1))
+	for _, pod := range list1 {
+		if _, present := podsToRemoveSet[pod.Name]; !present {
+			result = append(result, pod)
+		}
+	}
+
+	return result
+}
+
+// GroupByQueue Any pod without a queue label set is excluded from the output
+func GroupByQueue(pods []*v1.Pod) map[string][]*v1.Pod {
+	podsByQueue := map[string][]*v1.Pod{}
+
+	for _, pod := range pods {
+		queue, exists := pod.Labels[domain.Queue]
+		if !exists {
+			log.Warnf("Cannot group pod %s/%s by queue as it has no queue set", pod.Namespace, pod.Name)
+			continue
+		}
+
+		if _, exists := podsByQueue[queue]; !exists {
+			podsByQueue[queue] = make([]*v1.Pod, 0, 10)
+		}
+
+		podsByQueue[queue] = append(podsByQueue[queue], pod)
+	}
+	return podsByQueue
+}
+
 func ProcessPodsWithThreadPool(pods []*v1.Pod, maxThreadCount int, processPod func(*v1.Pod)) {
 	wg := &sync.WaitGroup{}
 	processChannel := make(chan *v1.Pod)

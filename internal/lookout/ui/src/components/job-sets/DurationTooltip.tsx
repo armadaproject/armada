@@ -15,14 +15,14 @@ export interface DurationTooltipProps {
 
 export default function DurationTooltip(props: DurationTooltipProps) {
   let content = (
-    <React.Fragment>
+    <>
       {props.max && <div>max: {secondsToDurationString(props.max)}</div>}
       {props.thirdQuartile && <div>third quartile: {secondsToDurationString(props.thirdQuartile)}</div>}
       {props.median && <div>median: {secondsToDurationString(props.median)}</div>}
       {props.average && <div>average: {secondsToDurationString(props.average)}</div>}
       {props.firstQuartile && <div>first quartile: {secondsToDurationString(props.firstQuartile)}</div>}
       {props.min && <div>min: {secondsToDurationString(props.min)}</div>}
-    </React.Fragment>
+    </>
   )
 
   if (allDefined(props)) {

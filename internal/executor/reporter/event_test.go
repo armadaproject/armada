@@ -5,8 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
-	networking "k8s.io/api/networking/v1beta1"
-	"k8s.io/apimachinery/pkg/util/intstr"
+	networking "k8s.io/api/networking/v1"
 
 	"github.com/G-Research/armada/pkg/api"
 )
@@ -169,6 +168,7 @@ func createNodeAllocatedPod() *v1.Pod {
 }
 
 func createIngress(hostname string, port int32) *networking.Ingress {
+	pathType := networking.PathTypeImplementationSpecific
 	return &networking.Ingress{
 		Spec: networking.IngressSpec{
 			Rules: []networking.IngressRule{
@@ -178,9 +178,14 @@ func createIngress(hostname string, port int32) *networking.Ingress {
 						HTTP: &networking.HTTPIngressRuleValue{
 							Paths: []networking.HTTPIngressPath{
 								{
-									Path: "/",
+									Path:     "/",
+									PathType: &pathType,
 									Backend: networking.IngressBackend{
-										ServicePort: intstr.IntOrString{IntVal: port},
+										Service: &networking.IngressServiceBackend{
+											Port: networking.ServiceBackendPort{
+												Number: port,
+											},
+										},
 									},
 								},
 							},

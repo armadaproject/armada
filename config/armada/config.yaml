@@ -5,6 +5,14 @@ metricsPort: 9000
 corsAllowedOrigins: []
 priorityHalfTime: 20m
 cancelJobsBatchSize: 200
+grpc:
+  keepaliveParams:
+    maxConnectionIdle: 5m
+    time: 2h
+    timeout: 20s
+  keepaliveEnforcementPolicy:
+    minTime: 10s
+    permitWithoutStream: false
 redis:
   addrs:
     - "localhost:6379"
@@ -37,6 +45,7 @@ scheduling:
     memory: 1Mi
 queueManagement:
   defaultPriorityFactor: 1000
+  defaultQueuedJobsLimit: 0  # No Limit
 events:
   storeQueue: "ArmadaEventRedisProcessor"
   jobStatusQueue: "ArmadaEventJobStatusProcessor"
@@ -52,3 +61,30 @@ eventRetention:
   retentionDuration: 336h # Specified as a Go duration
 metrics:
   refreshInterval: 10s
+pulsar:
+  enabled: true
+  URL: "pulsar://localhost:6650"
+  maxAllowedMessageSize: 4194304 # 4MB
+  jobsetEventsTopic: "persistent://armada/armada/events"
+  redisFromPulsarSubscription: "RedisFromPulsar"
+  pulsarFromPulsarSubscription: "PulsarFromPulsar"
+  hostnameSuffix: "svc"
+  certNameSuffix: "ingress-tls-certificate"
+  eventsPrinter: false
+  eventsPrinterSubscription: "EventsPrinter"
+eventapi:
+  enabled : false
+  queryConcurrency: 100
+  jobsetCacheSize:  10000
+  updateTopic:      sequence-updates
+  postgres:
+    maxOpenConns: 100
+    maxIdleConns: 25
+    connMaxLifetime: 30m
+    connection:
+      host: localhost
+      port: 5432
+      user: postgres
+      password: psw
+      dbname: postgres
+      sslmode: disable

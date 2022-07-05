@@ -56,6 +56,18 @@ func SwaggerJsonTemplate() string {
 		"    }\n" +
 		"  },\n" +
 		"  \"definitions\": {\n" +
+		"    \"binocularsLogLine\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"title\": \"swagger:model\",\n" +
+		"      \"properties\": {\n" +
+		"        \"line\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"timestamp\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
 		"    \"binocularsLogRequest\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"title\": \"swagger:model\",\n" +
@@ -83,7 +95,10 @@ func SwaggerJsonTemplate() string {
 		"      \"title\": \"swagger:model\",\n" +
 		"      \"properties\": {\n" +
 		"        \"log\": {\n" +
-		"          \"type\": \"string\"\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/binocularsLogLine\"\n" +
+		"          }\n" +
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +

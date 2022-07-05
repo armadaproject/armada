@@ -23,8 +23,8 @@ func GetInfo(getConnectionDetails client.ConnectionDetails) GetInfoAPI {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
-		queueInfo, e := client.GetQueueInfo(ctx, &api.QueueInfoRequest{Name: queueName})
-		if e != nil {
+		queueInfo, err := client.GetQueueInfo(ctx, &api.QueueInfoRequest{Name: queueName})
+		if err != nil {
 			return nil, fmt.Errorf("get queue info request failed: %s", err)
 		}
 

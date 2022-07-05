@@ -262,6 +262,8 @@ func createStuckPodMessage(retryable bool, originalMessage string) string {
 }
 
 func (c *ClusterJobContext) handleDeletedPod(pod *v1.Pod) {
+	c.activeJobIdsMutex.Lock()
+	defer c.activeJobIdsMutex.Unlock()
 	jobId := util.ExtractJobId(pod)
 	if jobId != "" {
 		record, exists := c.activeJobs[jobId]
