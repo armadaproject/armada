@@ -21,6 +21,16 @@ rules:
 - apiGroups:
   - ""
   resources:
+  - events
+  verbs:
+  - get
+  - list
+  - watch
+  - delete
+  - deletecollection
+- apiGroups:
+  - ""
+  resources:
   - services
   verbs:
   - get
@@ -43,7 +53,6 @@ rules:
 - apiGroups:
   - ""
   resources:
-  - events
   - nodes
   verbs:
   - get

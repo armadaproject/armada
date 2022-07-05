@@ -1,6 +1,9 @@
 package configuration
 
-import "github.com/G-Research/armada/internal/common/auth/configuration"
+import (
+	"github.com/G-Research/armada/internal/common/auth/configuration"
+	grpcconfig "github.com/G-Research/armada/internal/common/grpc/configuration"
+)
 
 type BinocularsConfig struct {
 	Auth configuration.AuthConfig
@@ -10,5 +13,12 @@ type BinocularsConfig struct {
 	MetricsPort        uint16
 	CorsAllowedOrigins []string
 
+	Grpc             grpcconfig.GrpcConfig
 	ImpersonateUsers bool
+	Kubernetes       KubernetesConfiguration
+}
+
+type KubernetesConfiguration struct {
+	Burst int
+	QPS   float32
 }

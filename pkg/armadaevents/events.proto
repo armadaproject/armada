@@ -3,6 +3,9 @@ package armadaevents;
 
 import "k8s.io/api/core/v1/generated.proto";
 import "k8s.io/api/networking/v1/generated.proto";
+import "google/protobuf/timestamp.proto";
+import "k8s.io/apimachinery/pkg/api/resource/generated.proto";
+import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 
 // Armada state transition model
 //
@@ -61,6 +64,7 @@ import "k8s.io/api/networking/v1/generated.proto";
 message EventSequence {
     // List of possible events, i.e., state transitions.
     message Event {
+        google.protobuf.Timestamp created = 18 [(gogoproto.stdtime) = true];
         oneof event {
             SubmitJob submitJob = 1;
             ReprioritiseJob reprioritiseJob = 2;
@@ -78,6 +82,7 @@ message EventSequence {
             JobRunErrors jobRunErrors = 14;
             JobDuplicateDetected jobDuplicateDetected = 15;
             StandaloneIngressInfo standaloneIngressInfo = 16;
+            ResourceUtilisation resourceUtilisation = 17;
         }
     }
     // The system is namespaced by queue, and all events are associated with a job set.
@@ -92,6 +97,15 @@ message EventSequence {
     repeated string groups = 4;
     // For efficiency, we bundle several events (i.e., state transitions) in a single log message.
     repeated Event events = 5;
+}
+
+// Resource usage of a particular k8s object created as part of a job.
+message ResourceUtilisation {
+    Uuid run_id = 1;
+    Uuid job_id = 2;
+    KubernetesResourceInfo resource_info = 3;
+    map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> max_resources_for_period = 4 [(gogoproto.nullable) = false];
+    map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> total_cumulative_usage = 5 [(gogoproto.nullable) = false];
 }
 
 // A UUID, encoded in accordance with section 4.1.2 of RFC 4122
@@ -340,6 +354,8 @@ message Error {
         LeaseExpired leaseExpired = 6;
         MaxRunsExceeded maxRunsExceeded = 7;
         PodError podError = 8;
+        PodLeaseReturned podLeaseReturned = 9;
+        PodTerminated podTerminated = 10;
     }
 }
 
@@ -351,8 +367,9 @@ message KubernetesError {
     Uuid resourceId = 2;
 }
 
+// Indicates one or more of the containers in the pod failed.
 message PodError {
-	// this ObjectMeta identifies the Pod
+	// This ObjectMeta identifies the Pod.
     ObjectMeta objectMeta = 1;
     string message = 2;
     string node_name = 3;
@@ -392,6 +409,23 @@ message ContainerError {
     }
 }
 
+// Indicates that the pod could not be scheduled for some reason.
+message PodLeaseReturned {
+    ObjectMeta objectMeta = 1;
+    string message = 2;
+    int32 pod_number = 3;
+}
+
+// Indicates that the lease on the job that the pod was part of could not be renewed.
+// If this happens, the executor deletes the pod and generates a JobRunError with this message as the reason.
+message PodTerminated {
+	// This ObjectMeta identifies the Pod.
+    ObjectMeta objectMeta = 1;
+    string message = 2;
+    string node_name = 3;
+    int32 pod_number = 4;
+}
+
 message ExecutorError {
 }
 
@@ -417,4 +451,17 @@ message MaxRunsExceeded {
 message JobDuplicateDetected {
     Uuid new_job_id = 1;
     Uuid old_job_id = 2;
+}
+
+message SeqUpdate{
+    int64 jobsetId = 1;
+    int64 seqNo = 2;
+}
+
+message SeqUpdates{
+    repeated SeqUpdate updates = 1;
+}
+
+message DatabaseSequence{
+    EventSequence eventSequence = 1;
 }

@@ -3,7 +3,7 @@ package model
 import (
 	"time"
 
-	"github.com/apache/pulsar-client-go/pulsar"
+	"github.com/G-Research/armada/internal/pulsarutils"
 )
 
 // CreateJobInstruction is an instruction to insert a new row into the jobs table
@@ -64,22 +64,6 @@ type UpdateJobRunInstruction struct {
 	UnableToSchedule *bool
 }
 
-// ConsumerMessageId wraps a pulsar message id  and an identifier for the consumer which originally received the
-// corresponding message.  This exists because we need to track which messages came from which consumers so that
-// we can ACK them on the correct consumer.
-type ConsumerMessageId struct {
-	MessageId  pulsar.MessageID
-	ConsumerId int
-}
-
-// ConsumerMessage wraps a pulsar message and an identifier for the consumer which originally received the
-// corresponding message.  This exists because we need to track which messages came from which consumers so that
-// we can ACK them on the correct consumer.
-type ConsumerMessage struct {
-	Message    pulsar.Message
-	ConsumerId int
-}
-
 // InstructionSet represents a set of instructions to apply to the database.  Each type of instruction is stored in its
 // own ordered list representign the order it was received.  We also store the original message ids corresponding to
 // these instructions so that when they are saved to the database, we can ACK the corresponding messages.
@@ -90,5 +74,5 @@ type InstructionSet struct {
 	JobRunsToUpdate          []*UpdateJobRunInstruction
 	UserAnnotationsToCreate  []*CreateUserAnnotationInstruction
 	JobRunContainersToCreate []*CreateJobRunContainerInstruction
-	MessageIds               []*ConsumerMessageId
+	MessageIds               []*pulsarutils.ConsumerMessageId
 }

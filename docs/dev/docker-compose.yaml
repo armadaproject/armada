@@ -27,3 +27,12 @@ services:
     ports:
       - "4223:4223"
       - "8223:8223"
+  pulsar:
+    image: apachepulsar/pulsar:2.10.0
+    profiles: ["linux"]
+    container_name: pulsar
+    volumes:
+      - ../../scripts/pulsar.sh:/pulsar.sh
+    entrypoint: sh -c "bin/pulsar standalone && . /pulsar.sh"
+    ports: 
+      - "6650:6650"

@@ -38,7 +38,7 @@ commands:
             HELM_PLATFORM="linux-amd64"
 
             # Create local bin directory for later convenience
-            mkdir /home/circleci/bin/
+            mkdir -p /home/circleci/bin/
             echo 'export PATH=/home/circleci/bin/:$PATH' >> $BASH_ENV
             source $BASH_ENV
 
@@ -106,7 +106,7 @@ commands:
           git push -q origin HEAD
 
 jobs:
-  checks_and_unit_tests:
+  checks_and_unit_tests-ubuntu2004-go116: &checksAndUnitTests
     machine:
       docker_layer_caching: true
       image: ubuntu-2004:202104-01
@@ -171,9 +171,17 @@ jobs:
       - run:
           name: Prepare reports
           command: make junit-report
+          when: always
 
       - store_test_results:
           path: test_reports/junit.xml
+
+  checks_and_unit_tests-ubuntu2204-go118:
+    <<: *checksAndUnitTests
+    machine:
+      docker_layer_caching: true
+      image: ubuntu-2204:current
+      resource_class: xlarge
 
   build_and_integration_tests:
     machine:
@@ -219,10 +227,14 @@ jobs:
       - run:
           name: e2e test environment teardown
           command: make tests-e2e-teardown
+          
+      - run:
+          name: Prepare reports
+          command: make junit-report
+          when: always
 
-      - store_artifacts:
-          path: bin/armadactl
-          destination: armadactl
+      - store_test_results:
+          path: test_reports/junit.xml
 
       - run:
           name: Push Image
@@ -252,6 +264,9 @@ jobs:
             docker tag armadactl gresearchdev/armada-armadactl-dev:${TAG}
             docker push gresearchdev/armada-armadactl-dev:${TAG}
 
+            docker tag testsuite gresearchdev/armada-testsuite-dev:${TAG}
+            docker push gresearchdev/armada-testsuite-dev:${TAG}
+
             docker tag armada-load-tester gresearchdev/armada-load-tester-dev:${TAG}
             docker push gresearchdev/armada-load-tester-dev:${TAG}
 
@@ -270,15 +285,18 @@ jobs:
             docker tag armadactl gresearchdev/armada-armadactl-dev:${TAG}
             docker push gresearchdev/armada-armadactl-dev:${TAG}
 
-  release:
-    docker:
-      - image: cimg/go:1.16.2
-        environment:
-          GO111MODULE: "on"
+  release-armadactl:
+    machine:
+      docker_layer_caching: true
+      image: ubuntu-2004:202104-01
+      resource_class: xlarge
+    environment:
+      GO111MODULE: "on"
+      GOPATH: "/home/circleci/go"
+      GOCACHE: "/home/circleci/go/cache"
     working_directory: ~/go/src/github.com/G-Research/armada
     steps:
       - checkout
-      - setup_remote_docker
 
       - restore_cache: # restore dependencies
           keys:
@@ -297,7 +315,7 @@ jobs:
           command: make build-armadactl-release RELEASE_VERSION=${CIRCLE_TAG}
 
       - store_artifacts:
-          path: dist/*
+          path: dist
 
       - run:
           name: Upload artifacts to Github release
@@ -308,6 +326,18 @@ jobs:
 
             ./scripts/add-checksum-summary.sh ${GITHUB_TOKEN} ${CIRCLE_TAG}
 
+  release-docker-images:
+    machine:
+      docker_layer_caching: true
+      image: ubuntu-2004:202104-01
+      resource_class: medium
+    environment:
+      GO111MODULE: "on"
+      GOPATH: "/home/circleci/go"
+      GOCACHE: "/home/circleci/go/cache"
+    working_directory: ~/go/src/github.com/G-Research/armada
+    steps:
+      - checkout
       - run:
           name: Publish images
           command: |
@@ -328,6 +358,10 @@ jobs:
             docker tag gresearchdev/armada-armadactl-dev:${TAG} gresearchdev/armada-armadactl:${RELEASE_TAG}
             docker push gresearchdev/armada-armadactl:${RELEASE_TAG}
 
+            docker pull gresearchdev/armada-testsuite-dev:${TAG}
+            docker tag gresearchdev/armada-testsuite-dev:${TAG} gresearchdev/armada-testsuite:${RELEASE_TAG}
+            docker push gresearchdev/armada-testsuite:${RELEASE_TAG}
+
             docker pull gresearchdev/armada-lookout-dev:${TAG}
             docker tag gresearchdev/armada-lookout-dev:${TAG} gresearchdev/armada-lookout:${RELEASE_TAG}
             docker push gresearchdev/armada-lookout:${RELEASE_TAG}
@@ -335,6 +369,19 @@ jobs:
             docker pull gresearchdev/armada-binoculars-dev:${TAG}
             docker tag gresearchdev/armada-binoculars-dev:${TAG} gresearchdev/armada-binoculars:${RELEASE_TAG}
             docker push gresearchdev/armada-binoculars:${RELEASE_TAG}
+
+  release-charts:
+    machine:
+      docker_layer_caching: true
+      image: ubuntu-2004:202104-01
+      resource_class: medium
+    environment:
+      GO111MODULE: "on"
+      GOPATH: "/home/circleci/go"
+      GOCACHE: "/home/circleci/go/cache"
+    working_directory: ~/go/src/github.com/G-Research/armada
+    steps:
+      - checkout
 
       - install-helm-client
 
@@ -348,19 +395,7 @@ jobs:
     working_directory: /go/src/github.com/G-Research/armada
     steps:
       - checkout
-
-      - restore_cache: # restore dependencies
-          keys:
-            - go-mod-v3-{{ checksum "go.sum" }}
-
-      - run:
-          name: Download dependencies
-          command: |
-            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-            chmod +x kubectl
-            mv kubectl /home/circleci/bin/
-            make download # no-op if we restored from cache
-
+      
       - run:
           name: Release dotnet client
           command: |
@@ -369,15 +404,28 @@ jobs:
             dotnet nuget push ./bin/client/DotNet/G-Research.Armada.Client.${RELEASE_TAG}.nupkg -k ${NUGET_API_KEY} -s https://api.nuget.org/v3/index.json
 
       - store_artifacts:
-          path: bin/client/DotNet/*
+          path: bin/client/DotNet
 
 workflows:
   version: 2
   build_and_deploy:
     jobs:
       -  build_and_integration_tests
-      -  checks_and_unit_tests
-      - release:
+      -  checks_and_unit_tests-ubuntu2004-go116
+      -  checks_and_unit_tests-ubuntu2204-go118
+      - release-armadactl:
+          filters:
+            tags:
+              only: /.*/
+            branches:
+              ignore: /.*/
+      - release-docker-images:
+          filters:
+            tags:
+              only: /.*/
+            branches:
+              ignore: /.*/
+      - release-charts:
           filters:
             tags:
               only: /.*/

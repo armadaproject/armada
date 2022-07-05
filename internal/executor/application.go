@@ -15,7 +15,8 @@ import (
 	"github.com/G-Research/armada/internal/common/task"
 	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/executor/configuration"
-	"github.com/G-Research/armada/internal/executor/context"
+	executor_context "github.com/G-Research/armada/internal/executor/context"
+	"github.com/G-Research/armada/internal/executor/healthmonitor"
 	"github.com/G-Research/armada/internal/executor/job"
 	"github.com/G-Research/armada/internal/executor/metrics"
 	"github.com/G-Research/armada/internal/executor/metrics/pod_metrics"
@@ -36,17 +37,34 @@ func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGrou
 		os.Exit(-1)
 	}
 
-	kubernetesClientProvider, err := cluster.NewKubernetesClientProvider(config.Kubernetes.ImpersonateUsers)
-
+	kubernetesClientProvider, err := cluster.NewKubernetesClientProvider(
+		config.Kubernetes.ImpersonateUsers,
+		config.Kubernetes.QPS,
+		config.Kubernetes.Burst,
+	)
 	if err != nil {
 		log.Errorf("Failed to connect to kubernetes because %s", err)
 		os.Exit(-1)
 	}
 
-	clusterContext := context.NewClusterContext(
+	var etcdHealthMonitor healthmonitor.EtcdLimitHealthMonitor
+	if len(config.Kubernetes.Etcd.MetricUrls) > 0 {
+		log.Info("etcd URLs provided; monitoring etcd health enabled")
+
+		etcdHealthMonitor, err = healthmonitor.NewEtcdHealthMonitor(config.Kubernetes.Etcd, nil)
+		if err != nil {
+			panic(err)
+		}
+	} else {
+		log.Info("no etcd URLs provided; etcd health isn't monitored")
+	}
+
+	clusterContext := executor_context.NewClusterContext(
 		config.Application,
 		2*time.Minute,
-		kubernetesClientProvider)
+		kubernetesClientProvider,
+		etcdHealthMonitor,
+	)
 
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
@@ -54,10 +72,10 @@ func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGrou
 	taskManager := task.NewBackgroundTaskManager(metrics.ArmadaExecutorMetricsPrefix)
 	taskManager.Register(clusterContext.ProcessPodsToDelete, config.Task.PodDeletionInterval, "pod_deletion")
 
-	return StartUpWithContext(config, clusterContext, taskManager, wg)
+	return StartUpWithContext(config, clusterContext, etcdHealthMonitor, taskManager, wg)
 }
 
-func StartUpWithContext(config configuration.ExecutorConfiguration, clusterContext context.ClusterContext, taskManager *task.BackgroundTaskManager, wg *sync.WaitGroup) (func(), *sync.WaitGroup) {
+func StartUpWithContext(config configuration.ExecutorConfiguration, clusterContext executor_context.ClusterContext, etcdHealthMonitor healthmonitor.EtcdLimitHealthMonitor, taskManager *task.BackgroundTaskManager, wg *sync.WaitGroup) (func(), *sync.WaitGroup) {
 
 	conn, err := createConnectionToApi(config)
 	if err != nil {
@@ -112,17 +130,16 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 		eventReporter,
 		jobLeaseService,
 		clusterUtilisationService,
-		submitter)
+		submitter,
+		etcdHealthMonitor)
 
 	jobManager := service.NewJobManager(
 		clusterContext,
 		jobContext,
 		eventReporter,
-		jobLeaseService,
-		config.Kubernetes.MinimumPodAge,
-		config.Kubernetes.FailedPodExpiry)
+		jobLeaseService)
 
-	job.RunIngressCleanup(clusterContext)
+	resourceCleanupService := service.NewResourceCleanupService(clusterContext, config.Kubernetes)
 
 	pod_metrics.ExposeClusterContextMetrics(clusterContext, clusterUtilisationService, queueUtilisationService, nodeInfoService)
 
@@ -130,6 +147,7 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 	taskManager.Register(eventReporter.ReportMissingJobEvents, config.Task.MissingJobEventReconciliationInterval, "event_reconciliation")
 	taskManager.Register(clusterAllocationService.AllocateSpareClusterCapacity, config.Task.AllocateSpareClusterCapacityInterval, "job_lease_request")
 	taskManager.Register(jobManager.ManageJobLeases, config.Task.JobLeaseRenewalInterval, "job_management")
+	taskManager.Register(resourceCleanupService.CleanupResources, config.Task.ResourceCleanupInterval, "resource_cleanup")
 
 	if config.Metric.ExposeQueueUsageMetrics {
 		taskManager.Register(queueUtilisationService.RefreshUtilisationData, config.Task.QueueUsageDataRefreshInterval, "pod_usage_data_refresh")
@@ -176,6 +194,12 @@ func validateConfig(config configuration.ExecutorConfiguration) error {
 	}
 	if config.Application.DeleteConcurrencyLimit <= 0 {
 		return fmt.Errorf("DeleteConcurrencyLimit was %d, must be greater or equal to 1", config.Application.DeleteConcurrencyLimit)
+	}
+	if config.Kubernetes.Etcd.FractionOfStorageInUseSoftLimit <= 0 || config.Kubernetes.Etcd.FractionOfStorageInUseSoftLimit > 1 {
+		return fmt.Errorf("EtcdFractionOfStorageInUseSoftLimit must be in (0, 1]")
+	}
+	if config.Kubernetes.Etcd.FractionOfStorageInUseHardLimit <= 0 || config.Kubernetes.Etcd.FractionOfStorageInUseHardLimit > 1 {
+		return fmt.Errorf("EtcdFractionOfStorageInUseHardLimit must be in (0, 1]")
 	}
 	return nil
 }

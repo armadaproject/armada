@@ -3,6 +3,8 @@ package batch
 import (
 	"time"
 
+	"github.com/G-Research/armada/internal/pulsarutils"
+
 	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/G-Research/armada/internal/lookoutingester/model"
@@ -68,7 +70,7 @@ func mergeInstructionSets(batch []*model.InstructionSet) *model.InstructionSet {
 		lenUserAnnotationsToCreate += len(instructionSet.UserAnnotationsToCreate)
 		lenJobRunConaintersToCreate += len(instructionSet.JobRunContainersToCreate)
 	}
-	messageIds := make([]*model.ConsumerMessageId, lenMessageIds)
+	messageIds := make([]*pulsarutils.ConsumerMessageId, lenMessageIds)
 	jobsToCreate := make([]*model.CreateJobInstruction, lenJobsToCreate)
 	jobsToUpdate := make([]*model.UpdateJobInstruction, lenJobsToUpdate)
 	jobRunsToCreate := make([]*model.CreateJobRunInstruction, lenJobRunsToCreate)

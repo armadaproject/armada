@@ -7,6 +7,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/G-Research/armada/internal/pulsarutils"
+
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
@@ -19,11 +21,14 @@ import (
 
 // ProcessUpdates will update the lookout database according to the incoming channel of instructions.  It returns a channel
 // containing all the message ids that have been successfully processed.
-func ProcessUpdates(ctx context.Context, db *pgxpool.Pool, msgs chan *model.InstructionSet, bufferSize int) chan []*model.ConsumerMessageId {
-	out := make(chan []*model.ConsumerMessageId, bufferSize)
+func ProcessUpdates(ctx context.Context, db *pgxpool.Pool, msgs chan *model.InstructionSet, bufferSize int) chan []*pulsarutils.ConsumerMessageId {
+	out := make(chan []*pulsarutils.ConsumerMessageId, bufferSize)
 	go func() {
 		for msg := range msgs {
+			start := time.Now()
 			Update(ctx, db, msg)
+			taken := time.Now().Sub(start).Milliseconds()
+			log.Infof("Inserted %d events in %dms", len(msg.MessageIds), taken)
 			out <- msg.MessageIds
 		}
 		close(out)
@@ -38,7 +43,6 @@ func ProcessUpdates(ctx context.Context, db *pgxpool.Pool, msgs chan *model.Inst
 // * Job Run Updates, New Job Containers
 // In each case we first try to bach insert the rows using the postgres copy protocol.  If this fails then we try a
 // slower, serial insert and discard any rows that cannot be inserted.
-// TODO: identify transient errors (e.g. database down) and retry until resolved
 func Update(ctx context.Context, db *pgxpool.Pool, instructions *model.InstructionSet) {
 
 	// We might have multiple updates for the same job or job run

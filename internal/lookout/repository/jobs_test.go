@@ -2,6 +2,7 @@ package repository
 
 import (
 	"encoding/json"
+	"sort"
 	"testing"
 	"time"
 
@@ -162,6 +163,10 @@ func TestGetJobs_GetMultipleRunJob(t *testing.T) {
 		assert.Nil(t, jobInfo.Cancelled)
 
 		assert.Equal(t, 2, len(jobInfo.Runs))
+		// Run order is not guaranteed
+		sort.SliceStable(jobInfo.Runs, func(i, j int) bool {
+			return jobInfo.Runs[i].Created.Before(*jobInfo.Runs[j].Created)
+		})
 		AssertRunInfosEquivalent(t, &lookout.RunInfo{
 			K8SId:     k8sId1,
 			Cluster:   cluster,

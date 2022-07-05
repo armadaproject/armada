@@ -30,13 +30,9 @@ func (n *StreamEventStore) ReportEvents(messages []*api.EventMessage) error {
 	// Publish to Pulsar if enabled.
 	if n.PulsarSubmitServer != nil {
 		logger := log.StandardLogger().WithField("service", "StreamEventStore")
-		for _, message := range messages {
-			logger.Infof("publishing to Pulsar: %v", message)
-
-			err := n.PulsarSubmitServer.SubmitApiEvent(context.Background(), message)
-			if err != nil {
-				logging.WithStacktrace(logger, err).Error("failed to submit API event to Pulsar")
-			}
+		err := n.PulsarSubmitServer.SubmitApiEvents(context.Background(), messages)
+		if err != nil {
+			logging.WithStacktrace(logger, err).Error("failed to submit API event to Pulsar")
 		}
 	}
 

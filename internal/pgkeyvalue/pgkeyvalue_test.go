@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/G-Research/armada/internal/common/armadaerrors"
@@ -114,6 +115,9 @@ func TestCleanup(t *testing.T) {
 			t.FailNow()
 		}
 
+		// Set an empty logger to avoid annoying "cleanup succeeded" messages
+		store.Logger = &logrus.Logger{}
+
 		// Adding a key for the first time should insert into both the local cache and postgres,
 		// and return false (since the key didn't already exist).
 		expected := []byte{0, 1, 2}
@@ -164,7 +168,7 @@ func TestCleanup(t *testing.T) {
 		// Then try adding baz twice more to make sure it gets cleaned up both times.
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		store.PeriodicCleanup(ctx, time.Microsecond, time.Microsecond)
+		go store.PeriodicCleanup(ctx, time.Microsecond, time.Microsecond)
 
 		time.Sleep(100 * time.Millisecond)
 		store.cache.Purge()

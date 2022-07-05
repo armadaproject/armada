@@ -275,13 +275,15 @@ func (c *leaseContext) leaseJobs(queue *api.Queue, slice common.ComputeResources
 			remainder = slice.DeepCopy()
 			remainder.Sub(requirement)
 			if isLargeEnough(job, c.minimumJobSize) && remainder.IsValid() && candidatesLimit.IsWithinLimit(job) {
-				newlyConsumed, ok := matchAnyNodeTypeAllocation(job, c.nodeResources, consumedNodeResources)
+				newlyConsumed, ok, err := matchAnyNodeTypeAllocation(job, c.nodeResources, consumedNodeResources)
 				if ok {
 					slice = remainder
 					candidates = append(candidates, job)
 					candidatesLimit.RemoveFromRemainingLimit(job)
 					candidateNodes[job] = newlyConsumed
 					consumedNodeResources.Add(newlyConsumed)
+				} else {
+					log.WithError(err).Error("failed to match node")
 				}
 			}
 			if candidatesLimit.AtLimit() {

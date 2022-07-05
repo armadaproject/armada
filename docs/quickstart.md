@@ -5,55 +5,13 @@ The purpose of this guide is to install a minimal local Armada deployment for te
 ## Pre-requisites
 
 - Git
-- Docker
+- Docker (Docker Desktop recommended for local development on Windows/OSX)
 - Helm v3.5+
 - Kind v0.11.1+
 - Kubectl
 
-### OS specifics
-
-#### Linux
-
-Ensure the current user has permission to run the `docker` command without `sudo`.
-
-#### macOS
-
-You can install the pre-requisites with [Homebrew](https://brew.sh):
-
-```bash
-brew cask install docker
-brew install helm kind kubernetes-cli
-```
-
-Ensure at least 5GB of RAM are allocated to the Docker VM (see Preferences -> Resources -> Advanced).
-
-#### Windows
-
-You can install the pre-requisites with [Chocolatey](https://chocolatey.org):
-
-```cmd
-choco install git docker-desktop kubernetes-helm kind kubernetes-cli
-```
-
-Ensure at least 5GB of RAM are allocated to the Docker VM (see Settings -> Resources -> Advanced).
-
-All the commands below should be executed in Git Bash.
-
-### Helm
-
-Make sure Helm is configured to use the required chart repos:
-
-```bash
-helm repo add dandydev https://dandydeveloper.github.io/charts
-helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
-helm repo add nats https://nats-io.github.io/k8s/helm/charts
-helm repo add bitnami https://charts.bitnami.com/bitnami
-helm repo add gresearch https://g-research.github.io/charts
-helm repo update
-```
-
 ## Installation
-This guide will install Armada on 3 local Kubernetes clusters; one server and two executor clusters. 
+This guide will install Armada on 3 local Kubernetes clusters; one server and two executor clusters.
 
 You should then clone this repository and step into it:
 
@@ -64,154 +22,30 @@ cd armada
 
 All commands are intended to be run from the root of the repository.
 
-### Server deployment
+Armada is a resource intensive application due to the need to run multiple Kubernetes clusters - for a local installation you will need at least 16GB of RAM available.
 
-```bash
-kind create cluster --name quickstart-armada-server --config ./docs/quickstart/kind-config-server.yaml
+### One-click Setup
 
-# Set cluster as current context
-kind export kubeconfig --name=quickstart-armada-server
+To install Armada and all its dependencies you can use this script: 
+https://github.com/G-Research/armada/blob/master/docs/local/setup.sh
 
-# Install Redis
-helm install redis dandydev/redis-ha -f docs/quickstart/redis-values.yaml
-
-# Install nats-streaming
-helm install nats nats/stan
-
-# Install Prometheus
-helm install kube-prometheus-stack prometheus-community/kube-prometheus-stack -f docs/quickstart/server-prometheus-values.yaml
-
-# Install Armada server
-helm install armada-server gresearch/armada -f ./docs/quickstart/server-values.yaml
-
-# Get server IP for executors
-SERVER_IP=$(kubectl get nodes quickstart-armada-server-worker -o jsonpath='{.status.addresses[?(@.type=="InternalIP")].address}')
-```
-
-### Executor deployments
-
-First executor:
-
-```bash
-kind create cluster --name quickstart-armada-executor-0 --config ./docs/quickstart/kind-config-executor.yaml
-
-# Set cluster as current context
-kind export kubeconfig --name=quickstart-armada-executor-0
-
-# Install Prometheus
-helm install kube-prometheus-stack prometheus-community/kube-prometheus-stack -f docs/quickstart/executor-prometheus-values.yaml
-
-# Install executor
-helm install armada-executor gresearch/armada-executor --set applicationConfig.apiConnection.armadaUrl="$SERVER_IP:30000" -f docs/quickstart/executor-values.yaml
-helm install armada-executor-cluster-monitoring gresearch/executor-cluster-monitoring -f docs/quickstart/executor-cluster-monitoring-values.yaml
-
-# Get executor IP for Grafana
-EXECUTOR_0_IP=$(kubectl get nodes quickstart-armada-executor-0-worker -o jsonpath='{.status.addresses[?(@.type=="InternalIP")].address}')
-```
-
-Second executor:
-
-```bash
-kind create cluster --name quickstart-armada-executor-1 --config ./docs/quickstart/kind-config-executor.yaml
-
-# Set cluster as current context
-kind export kubeconfig --name=quickstart-armada-executor-1
-
-# Install Prometheus
-helm install kube-prometheus-stack prometheus-community/kube-prometheus-stack -f docs/quickstart/executor-prometheus-values.yaml
-
-# Install executor
-helm install armada-executor gresearch/armada-executor --set applicationConfig.apiConnection.armadaUrl="$SERVER_IP:30000" -f docs/quickstart/executor-values.yaml
-helm install armada-executor-cluster-monitoring gresearch/executor-cluster-monitoring -f docs/quickstart/executor-cluster-monitoring-values.yaml
-
-# Get executor IP for Grafana
-EXECUTOR_1_IP=$(kubectl get nodes quickstart-armada-executor-1-worker -o jsonpath='{.status.addresses[?(@.type=="InternalIP")].address}')
-```
-
-### Armada Lookout UI
-
-```bash
-# Set cluster as current context
-kind export kubeconfig --name=quickstart-armada-server
-
-# Install postgres
-helm install postgres bitnami/postgresql --set auth.postgresPassword=psw
-
-# Run database migration
-helm install lookout-migration gresearch/armada-lookout-migration -f docs/quickstart/lookout-values.yaml
-
-# Install Armada Lookout
-helm install lookout gresearch/armada-lookout -f docs/quickstart/lookout-values.yaml
-```
-
-You can view the UI by running the following:
-```bash
-kubectl port-forward svc/armada-lookout 8080:8080
-```
-You will be able to view Lookout at `http://localhost:8080`.
-
-### Grafana configuration
-
-```bash
-curl -X POST -i http://admin:prom-operator@localhost:30001/api/datasources -H "Content-Type: application/json" -d '{"name":"cluster-0","type":"prometheus","url":"http://'$EXECUTOR_0_IP':30001","access":"proxy","basicAuth":false}'
-curl -X POST -i http://admin:prom-operator@localhost:30001/api/datasources -H "Content-Type: application/json" -d '{"name":"cluster-1","type":"prometheus","url":"http://'$EXECUTOR_1_IP':30001","access":"proxy","basicAuth":false}'
-curl -X POST -i http://admin:prom-operator@localhost:30001/api/dashboards/import --data-binary @./docs/quickstart/grafana-armada-dashboard.json -H "Content-Type: application/json"
-```
-### CLI installation
-
-The following steps download the `armadactl` CLI to the current directory:
-
-```bash
-#!/bin/bash
-
-echo "Downloading armadactl for your platform"
-
-# Determine Platform
-SYSTEM=$(uname | sed 's/MINGW.*/windows/' | tr A-Z a-z)
-if [ $SYSTEM == "windows" ]; then
-  ARCHIVE_TYPE=zip
-  UNARCHIVE="zcat > armadactl.exe"
-else
-  ARCHIVE_TYPE=tar.gz
-  UNARCHIVE="tar xzf -"
-fi
-
-# Find the latest Armada version
-LATEST_GH_URL=$(curl -fsSLI -o /dev/null -w %{url_effective} https://github.com/G-Research/armada/releases/latest)
-ARMADA_VERSION=${LATEST_GH_URL##*/}
-ARMADACTL_URL="https://github.com/G-Research/armada/releases/download/$ARMADA_VERSION/armadactl-$ARMADA_VERSION-$SYSTEM-amd64.$ARCHIVE_TYPE"
-
-# Download and untar/unzip armadactl
-if curl -sL $ARMADACTL_URL | sh -c "$UNARCHIVE" ; then
-	echo "armadactl downloaded successfully"
-else
-	echo "Something is amiss!"
-	echo "Please visit:"
-	echo "  - https://github.com/G-Research/armada/releases/latest"
-	echo "to find the latest armadactl binary for your platform"
-fi
-```
-
-Alternatively, you can find the latst armadactl binaries at:
-
-  * [https://github.com/G-Research/armada/releases/latest](https://github.com/G-Research/armada/releases/latest)
-
-Simply download the latest release for your platform and unzip or untar.
+Likewise this script will remove the Armada components from your system: 
+https://github.com/G-Research/armada/blob/master/docs/local/destroy.sh
 
 
 ## Usage
 Create queues, submit some jobs and monitor progress:
 
-### Queue creation
+### Queue Creation
 ```bash
 ./armadactl create queue queue-a --priorityFactor 1
 ./armadactl create queue queue-b --priorityFactor 2
 ```
 For queues created in this way, user and group owners of the queue have permissions to:
- - submit jobs
- - cancel jobs
- - reprioritize jobs
- - watch queue
+- submit jobs
+- cancel jobs
+- reprioritize jobs
+- watch queue
 
 For more control, queues can be created via `armadactl create`, which allows for setting specific permission; see the following example.
 
@@ -220,7 +54,8 @@ For more control, queues can be created via `armadactl create`, which allows for
 ./armadactl create -f ./docs/quickstart/queue-b.yaml
 ```
 
-### Job submission
+
+### Job Submission
 ```
 ./armadactl submit ./docs/quickstart/job-queue-a.yaml
 ./armadactl submit ./docs/quickstart/job-queue-b.yaml
@@ -238,7 +73,7 @@ Watch individual queues:
 Log in to the Grafana dashboard at [http://localhost:30001](http://localhost:30001) using the default credentials of `admin` / `prom-operator`.
 Navigate to the Armada Overview dashboard to get a view of jobs progressing through the system.
 
-Try submitting lots of jobs and see queues build and get processed:
+Try submitting lots of jobs and see queues get built and processed:
 
 ```bash
 for i in {1..50}
@@ -269,12 +104,30 @@ Nov  4 11:44:17 | Queued:   0, Leased:   0, Pending:   0, Running:   1, Succeede
 Nov  4 11:44:26 | Queued:   0, Leased:   0, Pending:   0, Running:   0, Succeeded:   2, Failed:   0, Cancelled:   0 | event: *api.JobSucceededEvent, job id: 01drv3mey2mzmayf50631tzp9m
 ```
 
+
+### Grafana Configuration
+
+Run the following commands to setup Grafana in your environment:
+
+```bash
+curl -X POST -i http://admin:prom-operator@localhost:30001/api/datasources -H "Content-Type: application/json" -d '{"name":"cluster-0","type":"prometheus","url":"http://'$EXECUTOR_0_IP':30001","access":"proxy","basicAuth":false}'
+curl -X POST -i http://admin:prom-operator@localhost:30001/api/datasources -H "Content-Type: application/json" -d '{"name":"cluster-1","type":"prometheus","url":"http://'$EXECUTOR_1_IP':30001","access":"proxy","basicAuth":false}'
+curl -X POST -i http://admin:prom-operator@localhost:30001/api/dashboards/import --data-binary @./docs/quickstart/grafana-armada-dashboard.json -H "Content-Type: application/json"
+```
+
 Grafana:
 
 ![Armada Grafana dashboard](./quickstart/grafana-screenshot.png "Armada Grafana dashboard")
 
-Note that the jobs in this demo simply run the `sleep` command so do not consume much resource.
+Note that the jobs in this demo simply run the `sleep` command so do not consume many resources.
 
-Lookout:
+### Lookout Configuration
+
+Armada Lookout UI can be configured by doing the following:
+
+```bash
+kubectl port-forward svc/armada-lookout 8080:8080 
+```
+Then access it by opening [http://localhost:8080](http://localhost:8080) in your browser.
 
 ![Lookout UI](./quickstart/lookout.png "Lookout UI")

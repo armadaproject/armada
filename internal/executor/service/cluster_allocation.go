@@ -8,6 +8,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 
 	"github.com/G-Research/armada/internal/executor/context"
+	"github.com/G-Research/armada/internal/executor/healthmonitor"
 	"github.com/G-Research/armada/internal/executor/job"
 	"github.com/G-Research/armada/internal/executor/reporter"
 	"github.com/G-Research/armada/internal/executor/util"
@@ -20,6 +21,7 @@ type ClusterAllocationService struct {
 	utilisationService utilisation.UtilisationService
 	clusterContext     context.ClusterContext
 	submitter          job.Submitter
+	etcdHealthMonitor  healthmonitor.EtcdLimitHealthMonitor
 }
 
 func NewClusterAllocationService(
@@ -27,17 +29,24 @@ func NewClusterAllocationService(
 	eventReporter reporter.EventReporter,
 	leaseService LeaseService,
 	utilisationService utilisation.UtilisationService,
-	submitter job.Submitter) *ClusterAllocationService {
+	submitter job.Submitter,
+	etcdHealthMonitor healthmonitor.EtcdLimitHealthMonitor) *ClusterAllocationService {
 
 	return &ClusterAllocationService{
 		leaseService:       leaseService,
 		eventReporter:      eventReporter,
 		utilisationService: utilisationService,
 		clusterContext:     clusterContext,
-		submitter:          submitter}
+		submitter:          submitter,
+		etcdHealthMonitor:  etcdHealthMonitor}
 }
 
 func (allocationService *ClusterAllocationService) AllocateSpareClusterCapacity() {
+	// If a health monitor is provided, avoid leasing jobs when etcd is almost full.
+	if allocationService.etcdHealthMonitor != nil && !allocationService.etcdHealthMonitor.IsWithinSoftHealthLimit() {
+		log.Warnf("Skipping allocating spare cluster capacity as etcd is at its soft health limit")
+		return
+	}
 
 	capacityReport, err := allocationService.utilisationService.GetAvailableClusterCapacity()
 	if err != nil {
@@ -58,7 +67,7 @@ func (allocationService *ClusterAllocationService) AllocateSpareClusterCapacity(
 	log.Infof("Requesting new jobs with free resource cpu: %d, memory %d. Received %d new jobs. ", cpu.AsDec(), memory.Value(), len(newJobs))
 
 	if err != nil {
-		log.Errorf("Failed to lease new jobs because %s", err)
+		log.WithError(err).Error("failed to lease new jobs")
 		return
 	} else {
 		failedJobs := allocationService.submitter.SubmitJobs(newJobs)
@@ -92,7 +101,7 @@ func (allocationService *ClusterAllocationService) processFailedJobs(failedSubmi
 			err := allocationService.eventReporter.Report(failEvent)
 
 			if err == nil {
-				toBeReportedDone = append(toBeReportedDone, details.Job.JobSetId)
+				toBeReportedDone = append(toBeReportedDone, details.Job.Id)
 			}
 		}
 	}

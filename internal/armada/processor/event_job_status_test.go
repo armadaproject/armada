@@ -243,6 +243,10 @@ func (repo *mockJobRepository) ExpireLeases(queue string, deadline time.Time) (e
 	return []*api.Job{}, nil
 }
 
+func (repo *mockJobRepository) ExpireLeasesById(jobIds []string, deadline time.Time) (expired []*api.Job, e error) {
+	return []*api.Job{}, nil
+}
+
 func (repo *mockJobRepository) ReturnLease(clusterId string, jobId string) (returnedJob *api.Job, err error) {
 	return nil, nil
 }

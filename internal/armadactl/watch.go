@@ -7,8 +7,6 @@ import (
 	"reflect"
 	"time"
 
-	"google.golang.org/grpc"
-
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/client"
 	"github.com/G-Research/armada/pkg/client/domain"
@@ -17,10 +15,8 @@ import (
 // Watch prints events associated with a particular job set.
 func (a *App) Watch(queue string, jobSetId string, raw bool, exit_on_inactive bool) error {
 	fmt.Fprintf(a.Out, "Watching job set %s\n", jobSetId)
-
-	client.WithConnection(a.Params.ApiConnectionDetails, func(conn *grpc.ClientConn) {
-		eventsClient := api.NewEventClient(conn)
-		client.WatchJobSet(eventsClient, queue, jobSetId, true, true, context.Background(), func(state *domain.WatchContext, event api.Event) bool {
+	return client.WithEventClient(a.Params.ApiConnectionDetails, func(c api.EventClient) error {
+		client.WatchJobSet(c, queue, jobSetId, true, true, context.Background(), func(state *domain.WatchContext, event api.Event) bool {
 			if raw {
 				data, err := json.Marshal(event)
 				if err != nil {
@@ -52,8 +48,8 @@ func (a *App) Watch(queue string, jobSetId string, raw bool, exit_on_inactive bo
 			}
 			return false
 		})
+		return nil
 	})
-	return nil
 }
 
 func (a *App) printSummary(state *domain.WatchContext, e api.Event) {

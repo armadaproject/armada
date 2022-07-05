@@ -5,11 +5,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/G-Research/armada/internal/pulsarutils"
+
 	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/G-Research/armada/internal/lookoutingester/model"
-	"github.com/G-Research/armada/internal/lookoutingester/testutil"
 )
 
 const (
@@ -21,11 +22,11 @@ const (
 var (
 	update1 = &model.InstructionSet{
 		JobsToCreate: []*model.CreateJobInstruction{{JobId: "job1"}},
-		MessageIds:   []*model.ConsumerMessageId{testutil.NewConsumerMessageId(1)},
+		MessageIds:   []*pulsarutils.ConsumerMessageId{pulsarutils.NewConsumerMessageId(1)},
 	}
 	update2 = &model.InstructionSet{
 		JobsToCreate: []*model.CreateJobInstruction{{JobId: "job2"}},
-		MessageIds:   []*model.ConsumerMessageId{testutil.NewConsumerMessageId(2)},
+		MessageIds:   []*pulsarutils.ConsumerMessageId{pulsarutils.NewConsumerMessageId(2)},
 	}
 )
 
@@ -56,7 +57,7 @@ func TestBatchByMaxItems(t *testing.T) {
 	wg.Wait()
 	expected := &model.InstructionSet{
 		JobsToCreate:             []*model.CreateJobInstruction{{JobId: "job1"}, {JobId: "job2"}},
-		MessageIds:               []*model.ConsumerMessageId{testutil.NewConsumerMessageId(1), testutil.NewConsumerMessageId(2)},
+		MessageIds:               []*pulsarutils.ConsumerMessageId{pulsarutils.NewConsumerMessageId(1), pulsarutils.NewConsumerMessageId(2)},
 		JobsToUpdate:             []*model.UpdateJobInstruction{},
 		JobRunsToCreate:          []*model.CreateJobRunInstruction{},
 		JobRunsToUpdate:          []*model.UpdateJobRunInstruction{},
@@ -92,7 +93,7 @@ func TestBatchByTime(t *testing.T) {
 	wg.Wait()
 	expected := &model.InstructionSet{
 		JobsToCreate:             []*model.CreateJobInstruction{{JobId: "job1"}},
-		MessageIds:               []*model.ConsumerMessageId{testutil.NewConsumerMessageId(1)},
+		MessageIds:               []*pulsarutils.ConsumerMessageId{pulsarutils.NewConsumerMessageId(1)},
 		JobsToUpdate:             []*model.UpdateJobInstruction{},
 		JobRunsToCreate:          []*model.CreateJobRunInstruction{},
 		JobRunsToUpdate:          []*model.UpdateJobRunInstruction{},

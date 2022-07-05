@@ -3,8 +3,14 @@ package armada
 import (
 	"context"
 	"fmt"
-	"sync"
+	"net"
 	"time"
+
+	"k8s.io/apimachinery/pkg/util/clock"
+
+	"github.com/G-Research/armada/internal/eventapi"
+	"github.com/G-Research/armada/internal/eventapi/eventdb"
+	"github.com/G-Research/armada/internal/eventapi/serving"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/go-redis/redis"
@@ -12,7 +18,9 @@ import (
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/stan.go"
+	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/G-Research/armada/internal/armada/cache"
 	"github.com/G-Research/armada/internal/armada/configuration"
@@ -28,47 +36,75 @@ import (
 	"github.com/G-Research/armada/internal/common/health"
 	"github.com/G-Research/armada/internal/common/task"
 	"github.com/G-Research/armada/internal/common/util"
-	executorconfig "github.com/G-Research/armada/internal/executor/configuration"
 	"github.com/G-Research/armada/internal/lookout/postgres"
 	"github.com/G-Research/armada/internal/pgkeyvalue"
 	"github.com/G-Research/armada/internal/pulsarutils"
 	"github.com/G-Research/armada/pkg/api"
 )
 
-func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker) (func(), *sync.WaitGroup) {
+func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks *health.MultiChecker) error {
 
-	// TODO Using an error group would be better.
-	// Since we want to shut down everything in a controlled manner in case of an irrecoverable error.
-	wg := &sync.WaitGroup{}
-	wg.Add(1)
+	log.Info("Armada server starting")
+	defer log.Info("Armada server shutting down")
 
-	// TODO Return an error, don't panic.
+	// We call startupCompleteCheck.MarkComplete() when all services have been started.
+	startupCompleteCheck := health.NewStartupCompleteChecker()
+	healthChecks.Add(startupCompleteCheck)
+
+	// Run all services within an errgroup to propagate errors between services.
+	// Defer cancelling the parent context to ensure the errgroup is cancelled on return.
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	g, ctx := errgroup.WithContext(ctx)
+
+	// List of services to run concurrently.
+	// Because we want to start services only once all input validation has been completed,
+	// we add all services to a slice and start them together at the end of this function.
+	var services []func() error
+
 	err := validateArmadaConfig(config)
 	if err != nil {
-		panic(fmt.Errorf("configuration validation error: %v", err))
+		return err
 	}
 
 	// We support multiple simultaneous authentication services (e.g., username/password  OpenId).
 	// For each gRPC request, we try them all until one succeeds, at which point the process is
 	// short-circuited.
 	authServices := auth.ConfigureAuth(config.Auth)
-	grpcServer := grpcCommon.CreateGrpcServer(authServices)
+	grpcServer := grpcCommon.CreateGrpcServer(config.Grpc.KeepaliveParams, config.Grpc.KeepaliveEnforcementPolicy, authServices)
 
-	// Allows for registering functions to be run periodically in the background
-	taskManager := task.NewBackgroundTaskManager(metrics.MetricPrefix)
+	// Shut down grpcServer if the context is cancelled.
+	// Give the server 5 seconds to shut down gracefully.
+	services = append(services, func() error {
+		<-ctx.Done()
+		go func() {
+			time.Sleep(5 * time.Second)
+			grpcServer.Stop()
+		}()
+		grpcServer.GracefulStop()
+		return nil
+	})
 
-	// TODO Redis setup code. Move into a separate function.
+	// Setup Redis
 	db := createRedisClient(&config.Redis)
+	defer func() {
+		if err := db.Close(); err != nil {
+			log.WithError(err).Error("failed to close Redis client")
+		}
+	}()
+
 	eventsDb := createRedisClient(&config.EventsRedis)
+	defer func() {
+		if err := eventsDb.Close(); err != nil {
+			log.WithError(err).Error("failed to close events Redis client")
+		}
+	}()
 
 	jobRepository := repository.NewRedisJobRepository(db, config.DatabaseRetention)
 	usageRepository := repository.NewRedisUsageRepository(db)
 	queueRepository := repository.NewRedisQueueRepository(db)
 	schedulingInfoRepository := repository.NewRedisSchedulingInfoRepository(db)
 	healthChecks.Add(repository.NewRedisHealth(db))
-
-	queueCache := cache.NewQueueCache(queueRepository, jobRepository, schedulingInfoRepository)
-	taskManager.Register(queueCache.Refresh, config.Metrics.RefreshInterval, "refresh_queue_cache")
 
 	redisEventRepository := repository.NewRedisEventRepository(eventsDb, config.EventRetention)
 	var streamEventStore *processor.StreamEventStore
@@ -77,38 +113,38 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 
 	// TODO It looks like multiple backends can be provided.
 	// We should ensure that only 1 system is provided.
-	// TODO Return an error, don't panic.
 	if len(config.EventsNats.Servers) > 0 {
 		stanClient, err := eventstream.NewStanClientConnection(
 			config.EventsNats.ClusterID,
 			"armada-server-"+util.NewULID(),
 			config.EventsNats.Servers)
 		if err != nil {
-			panic(err)
+			return err
 		}
 
 		eventStream = eventstream.NewStanEventStream(
 			config.EventsNats.Subject,
 			stanClient,
 			stan.SetManualAckMode(),
-			stan.StartWithLastReceived())
-
+			stan.StartWithLastReceived(),
+		)
+		defer eventStream.Close() // Closes the stanClient
 		healthChecks.Add(stanClient)
 	} else if len(config.EventsJetstream.Servers) > 0 {
 		stream, err := eventstream.NewJetstreamEventStream(
 			&config.EventsJetstream,
 			jsm.SamplePercent(100),
-			jsm.StartWithLastReceived())
+			jsm.StartWithLastReceived(),
+		)
 		if err != nil {
-			panic(err)
+			return err
 		}
+		defer stream.Close()
 		eventStream = stream
 
 		healthChecks.Add(stream)
 	}
 
-	// TODO: move this to task manager
-	eventstreamTeardown := func() {}
 	var eventProcessor *processor.RedisEventProcessor
 	if eventStream != nil {
 		streamEventStore = processor.NewEventStore(eventStream)
@@ -122,9 +158,7 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 		jobStatusProcessor := processor.NewEventJobStatusProcessor(config.Events.JobStatusQueue, jobRepository, eventStream, jobStatusBatcher)
 		jobStatusProcessor.Start()
 
-		// TODO Teardown functions should return an error that can be logged/whatever by the caller.
-		// Not use log internally.
-		eventstreamTeardown = func() {
+		defer func() {
 			err := eventRepoBatcher.Stop()
 			if err != nil {
 				log.Errorf("failed to flush event processor buffer for redis")
@@ -137,7 +171,7 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 			if err != nil {
 				log.Errorf("failed to close event stream connection: %v", err)
 			}
-		}
+		}()
 	} else {
 		eventStore = redisEventRepository
 	}
@@ -162,6 +196,7 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 	submitServerToRegister = submitServer
 
 	// If Pulsar is enabled, use the Pulsar submit endpoints.
+	// Store a list of all Pulsar components to use during cleanup later.
 	if config.Pulsar.Enabled {
 		serverId := uuid.New()
 
@@ -169,35 +204,37 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 		log.Info("Pulsar config provided; using Pulsar submit endpoints.")
 		pulsarClient, err := pulsarutils.NewPulsarClient(&config.Pulsar)
 		if err != nil {
-			panic(err)
+			return err
 		}
+		defer pulsarClient.Close()
+
 		compressionType, err := pulsarutils.ParsePulsarCompressionType(config.Pulsar.CompressionType)
 		if err != nil {
-			panic(err)
+			return err
 		}
 		compressionLevel, err := pulsarutils.ParsePulsarCompressionLevel(config.Pulsar.CompressionLevel)
 		if err != nil {
-			panic(err)
+			return err
 		}
+		serverPulsarProducerName := fmt.Sprintf("armada-server-%s", serverId)
 		producer, err := pulsarClient.CreateProducer(pulsar.ProducerOptions{
-			Name:             fmt.Sprintf("armada-server-%s", serverId),
+			Name:             serverPulsarProducerName,
 			CompressionType:  compressionType,
 			CompressionLevel: compressionLevel,
+			BatchingMaxSize:  config.Pulsar.MaxAllowedMessageSize,
 			Topic:            config.Pulsar.JobsetEventsTopic,
 		})
 		if err != nil {
-			panic(err)
+			return errors.Wrapf(err, "error creating pulsar producer %s", serverPulsarProducerName)
 		}
+		defer producer.Close()
+
 		pulsarSubmitServer := &server.PulsarSubmitServer{
-			Producer:        producer,
-			QueueRepository: queueRepository,
-			Permissions:     permissions,
-			SubmitServer:    submitServer,
-			IngressConfig: &executorconfig.IngressConfiguration{
-				HostnameSuffix: config.Pulsar.HostnameSuffix,
-				CertNameSuffix: config.Pulsar.CertNameSuffix,
-				Annotations:    config.Pulsar.Annotations,
-			},
+			Producer:              producer,
+			QueueRepository:       queueRepository,
+			Permissions:           permissions,
+			SubmitServer:          submitServer,
+			MaxAllowedMessageSize: config.Pulsar.MaxAllowedMessageSize,
 		}
 		submitServerToRegister = pulsarSubmitServer
 
@@ -206,16 +243,20 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 			log.Info("Pulsar submit API deduplication enabled")
 			db, err := postgres.OpenPgxPool(config.Postgres)
 			if err != nil {
-				panic(err)
+				return err
 			}
+			defer db.Close()
+
 			store, err := pgkeyvalue.New(db, 1000000, config.Pulsar.DedupTable)
 			if err != nil {
-				panic(err)
+				return err
 			}
 			pulsarSubmitServer.KVStore = store
 
 			// Automatically clean up keys after two weeks.
-			store.PeriodicCleanup(context.Background(), time.Hour, 14*24*time.Hour)
+			services = append(services, func() error {
+				return store.PeriodicCleanup(ctx, time.Hour, 14*24*time.Hour)
+			})
 		} else {
 			log.Info("Pulsar submit API deduplication disabled")
 		}
@@ -233,14 +274,17 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 			Type:             pulsar.KeyShared,
 		})
 		if err != nil {
-			panic(err)
+			return errors.WithStack(err)
 		}
+		defer consumer.Close()
 
 		submitFromLog := server.SubmitFromLog{
 			Consumer:     consumer,
 			SubmitServer: submitServer,
 		}
-		go submitFromLog.Run(context.Background())
+		services = append(services, func() error {
+			return submitFromLog.Run(ctx)
+		})
 
 		// Service that reads from Pulsar and submits messages back into Pulsar.
 		// E.g., needed to automatically publish JobSucceeded after a JobRunSucceeded.
@@ -250,25 +294,31 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 			Type:             pulsar.KeyShared,
 		})
 		if err != nil {
-			panic(err)
+			return errors.WithStack(err)
 		}
+		defer consumer.Close()
 
 		// Create a new producer for this service.
+		p2pPulsarProducer := fmt.Sprintf("armada-pulsar-to-pulsar-%s", serverId)
 		producer, err = pulsarClient.CreateProducer(pulsar.ProducerOptions{
-			Name:             fmt.Sprintf("armada-pulsar-to-pulsar-%s", serverId),
+			Name:             p2pPulsarProducer,
 			CompressionType:  compressionType,
 			CompressionLevel: compressionLevel,
+			BatchingMaxSize:  config.Pulsar.MaxAllowedMessageSize,
 			Topic:            config.Pulsar.JobsetEventsTopic,
 		})
 		if err != nil {
-			panic(err)
+			return errors.Wrapf(err, "error creating pulsar producer %s", p2pPulsarProducer)
 		}
+		defer producer.Close()
 
 		pulsarFromPulsar := server.PulsarFromPulsar{
 			Consumer: consumer,
 			Producer: producer,
 		}
-		go pulsarFromPulsar.Run(context.Background())
+		services = append(services, func() error {
+			return pulsarFromPulsar.Run(ctx)
+		})
 
 		// Service that reads from Pulsar and logs events.
 		if config.Pulsar.EventsPrinter {
@@ -277,17 +327,54 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 				Topic:            config.Pulsar.JobsetEventsTopic,
 				SubscriptionName: config.Pulsar.EventsPrinterSubscription,
 			}
-			go eventsPrinter.Run(context.Background())
+			services = append(services, func() error {
+				return eventsPrinter.Run(ctx)
+			})
 		}
 	} else {
 		log.Info("No Pulsar config provided; submitting directly to Redis and Nats.")
 	}
 
+	var eventApi *serving.EventApi = nil
+	// Setup new events api if enabled
+	if config.EventApi.Enabled {
+
+		// Set up eventDb
+		pool, err := postgres.OpenPgxPool(config.Postgres)
+		if err != nil {
+			panic(err)
+		}
+		eventDb := eventdb.NewEventDb(pool)
+
+		// Setup pulsar
+		pulsarClient, err := pulsarutils.NewPulsarClient(&config.Pulsar)
+		if err != nil {
+			panic(err)
+		}
+		sequenceManager, err := serving.NewUpdatingSequenceManager(context.Background(), eventDb, pulsarClient, config.EventApi.UpdateTopic)
+		if err != nil {
+			panic(err)
+		}
+
+		jobsetMapper, err := eventapi.NewJobsetMapper(eventDb, config.EventApi.JobsetCacheSize, 24*time.Hour)
+		if err != nil {
+			panic(err)
+		}
+
+		subscriptionManager := serving.NewSubscriptionManager(sequenceManager, eventDb, 10, 1*time.Second, 2*time.Second, config.EventApi.QueryConcurrency, 10000, clock.RealClock{})
+		eventApi = serving.NewEventApi(jobsetMapper, subscriptionManager, sequenceManager)
+	}
+
 	usageServer := server.NewUsageServer(permissions, config.PriorityHalfTime, &config.Scheduling, usageRepository, queueRepository)
+	queueCache := cache.NewQueueCache(queueRepository, jobRepository, schedulingInfoRepository)
 	aggregatedQueueServer := server.NewAggregatedQueueServer(permissions, config.Scheduling, jobRepository, queueCache, queueRepository, usageRepository, eventStore, schedulingInfoRepository)
-	eventServer := server.NewEventServer(permissions, redisEventRepository, eventStore, queueRepository)
+	eventServer := server.NewEventServer(permissions, redisEventRepository, eventStore, queueRepository, eventApi)
 	leaseManager := scheduling.NewLeaseManager(jobRepository, queueRepository, eventStore, config.Scheduling.Lease.ExpireAfter)
 
+	// Allows for registering functions to be run periodically in the background.
+	taskManager := task.NewBackgroundTaskManager(metrics.MetricPrefix)
+	defer taskManager.StopAll(time.Second * 2)
+	taskManager.Register(queueCache.Refresh, config.Metrics.RefreshInterval, "refresh_queue_cache")
 	taskManager.Register(leaseManager.ExpireLeases, config.Scheduling.Lease.ExpiryLoopInterval, "lease_expiry")
 
 	metrics.ExposeDataMetrics(queueRepository, jobRepository, usageRepository, schedulingInfoRepository, queueCache)
@@ -299,17 +386,25 @@ func Serve(config *configuration.ArmadaConfig, healthChecks *health.MultiChecker
 
 	grpc_prometheus.Register(grpcServer)
 
-	// TODO grpcCommon.Listen is supposed to call wg.Done() internally.
-	// Except, that it calls log.Fatalf first, so wg.Done() is never called.
-	// There's no clean way for grpcCommon.Listen to return an error.
-	grpcCommon.Listen(config.GrpcPort, grpcServer, wg)
-
-	teardown := func() {
-		eventstreamTeardown()
-		taskManager.StopAll(time.Second * 2)
-		grpcServer.GracefulStop()
+	// Cancel the errgroup if grpcServer.Serve returns an error.
+	log.Infof("Armada gRPC server listening on %d", config.GrpcPort)
+	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", config.GrpcPort))
+	if err != nil {
+		return errors.WithStack(err)
 	}
-	return teardown, wg
+	services = append(services, func() error {
+		return grpcServer.Serve(lis)
+	})
+
+	// Start all services and wait for the context to be cancelled,
+	// which if the parent context is cancelled or if any of the services returns an error.
+	// We start all services at the end of the function to ensure all services are ready.
+	for _, service := range services {
+		g.Go(service)
+	}
+
+	startupCompleteCheck.MarkComplete()
+	return g.Wait()
 }
 
 func createRedisClient(config *redis.UniversalOptions) redis.UniversalClient {
@@ -319,7 +414,7 @@ func createRedisClient(config *redis.UniversalOptions) redis.UniversalClient {
 // TODO Is this all validation that needs to be done?
 func validateArmadaConfig(config *configuration.ArmadaConfig) error {
 	if config.CancelJobsBatchSize <= 0 {
-		return fmt.Errorf("cancel jobs batch should be greater than 0: is %d", config.CancelJobsBatchSize)
+		return errors.WithStack(fmt.Errorf("cancel jobs batch should be greater than 0: is %d", config.CancelJobsBatchSize))
 	}
 	return nil
 }

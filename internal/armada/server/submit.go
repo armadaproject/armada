@@ -136,6 +136,25 @@ func (server *SubmitServer) CreateQueue(ctx context.Context, request *api.Queue)
 	return &types.Empty{}, nil
 }
 
+func (server *SubmitServer) CreateQueues(ctx context.Context, request *api.QueueList) (*api.BatchQueueCreateResponse, error) {
+	failedQueues := []*api.QueueCreateResponse{}
+
+	// Create a queue for each element of the request body and return the failures.
+	for _, queue := range request.Queues {
+		_, err := server.CreateQueue(ctx, queue)
+		if err != nil {
+			failedQueues = append(failedQueues, &api.QueueCreateResponse{
+				Queue: queue,
+				Error: err.Error(),
+			})
+		}
+	}
+
+	return &api.BatchQueueCreateResponse{
+		FailedQueues: failedQueues,
+	}, nil
+}
+
 func (server *SubmitServer) UpdateQueue(ctx context.Context, request *api.Queue) (*types.Empty, error) {
 	err := checkPermission(server.permissions, ctx, permissions.CreateQueue)
 	var ep *ErrNoPermission
@@ -159,6 +178,25 @@ func (server *SubmitServer) UpdateQueue(ctx context.Context, request *api.Queue)
 	}
 
 	return &types.Empty{}, nil
+}
+
+func (server *SubmitServer) UpdateQueues(ctx context.Context, request *api.QueueList) (*api.BatchQueueUpdateResponse, error) {
+	failedQueues := []*api.QueueUpdateResponse{}
+
+	// Create a queue for each element of the request body and return the failures.
+	for _, queue := range request.Queues {
+		_, err := server.UpdateQueue(ctx, queue)
+		if err != nil {
+			failedQueues = append(failedQueues, &api.QueueUpdateResponse{
+				Queue: queue,
+				Error: err.Error(),
+			})
+		}
+	}
+
+	return &api.BatchQueueUpdateResponse{
+		FailedQueues: failedQueues,
+	}, nil
 }
 
 func (server *SubmitServer) DeleteQueue(ctx context.Context, request *api.QueueDeleteRequest) (*types.Empty, error) {
@@ -287,9 +325,12 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 		return nil, status.Errorf(codes.InvalidArgument, "[SubmitJobs] error getting scheduling info: %s", err)
 	}
 
-	err = validateJobsCanBeScheduled(jobs, allClusterSchedulingInfo)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "[SubmitJobs] error submitting jobs for user %s: %s", principal.GetName(), err)
+	if ok, err := validateJobsCanBeScheduled(jobs, allClusterSchedulingInfo); !ok {
+		if err != nil {
+			return nil, errors.WithMessagef(err, "can't schedule job for user %s", principal.GetName())
+		} else {
+			return nil, errors.Errorf("can't schedule job for user %s", principal.GetName())
+		}
 	}
 
 	// Create events marking the jobs as submitted
@@ -725,7 +766,7 @@ func (server *SubmitServer) createJobsObjects(request *api.JobSubmitRequest, own
 			server.applyDefaultsToPodSpec(podSpec)
 			err := validation.ValidatePodSpec(podSpec, server.schedulingConfig)
 			if err != nil {
-				return nil, fmt.Errorf("[createJobs] error validating the %d-th pod pf the %d-th job of job set %s: %w", j, i, request.JobSetId, err)
+				return nil, fmt.Errorf("[createJobs] error validating the %d-th pod of the %d-th job of job set %s: %w", j, i, request.JobSetId, err)
 			}
 
 			// TODO: remove, RequiredNodeLabels is deprecated and will be removed in future versions

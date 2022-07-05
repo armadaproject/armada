@@ -77,9 +77,6 @@ namespace GResearch.Armada.Client
 
     public partial class ArmadaClient : IArmadaClient
     {
-        private const int WatchInactivityTimeoutSeconds = 600;
-        private const string NoLine = "NoLine";
-        
         public async Task<IEnumerable<StreamResponse<ApiEventStreamMessage>>> GetJobEventsStream(
             string queue, string jobSetId, string fromMessageId = null, bool watch = false)
         {
@@ -116,103 +113,46 @@ namespace GResearch.Armada.Client
             var failCount = 0;
             while (!ct.IsCancellationRequested)
             {
-                using (var jobSetEventRequestCts = CancellationTokenSource.CreateLinkedTokenSource(ct))
+                try
                 {
-                    jobSetEventRequestCts.CancelAfter(TimeSpan.FromSeconds(WatchInactivityTimeoutSeconds));
-                    try
+                    using (var fileResponse = await GetJobSetEventsCoreAsync(queue, jobSetId,
+                        new ApiJobSetRequest {FromMessageId = fromMessageId, Watch = true}, ct))
+                    using (var reader = new StreamReader(fileResponse.Stream))
                     {
-                        using (var fileResponse = await GetJobSetEventsCoreAsync(queue, jobSetId,
-                            new ApiJobSetRequest {FromMessageId = fromMessageId, Watch = true},
-                            jobSetEventRequestCts.Token))
-                        using (var reader = new StreamReader(fileResponse.Stream))
+                        try
                         {
-                            try
+                            failCount = 0;
+                            while (!ct.IsCancellationRequested && !reader.EndOfStream)
                             {
-                                failCount = 0;
-                                while (!ct.IsCancellationRequested)
+                                var line = await reader.ReadLineAsync();
+                                var (newMessageId, eventMessage) = ProcessEventLine(fromMessageId, line);
+                                fromMessageId = newMessageId;
+                                if (eventMessage != null)
                                 {
-                                    using (var inactivityCts = CancellationTokenSource.CreateLinkedTokenSource(ct))
-                                    {
-                                        inactivityCts.CancelAfter(TimeSpan.FromSeconds(WatchInactivityTimeoutSeconds));
-                                        var line = await ReadLineAsyncWithCancellation(reader, inactivityCts.Token);
-
-                                        if (string.Equals(line, NoLine) || inactivityCts.IsCancellationRequested)
-                                        {
-                                            reader.Dispose();
-                                            break;
-                                        }
-
-                                        var (newMessageId, eventMessage) = ProcessEventLine(fromMessageId, line);
-                                        fromMessageId = newMessageId;
-                                        if (eventMessage != null)
-                                        {
-                                            onMessage(eventMessage);
-                                        }
-                                    }
+                                    onMessage(eventMessage);
                                 }
                             }
-                            catch (IOException)
-                            {
-                                // Stream was probably closed by the server, continue to reconnect
-                            }
+                        }
+                        catch (IOException)
+                        {
+                            // Stream was probably closed by the server, continue to reconnect
                         }
                     }
-                    catch (TaskCanceledException)
-                    {
-                        // Server closed the connection, continue to reconnect
-                    }
-                    catch (Exception e)
-                    {
-                        failCount++;
-                        onException?.Invoke(e);
-                        // gradually back off
-                        await Task.Delay(TimeSpan.FromSeconds(Math.Min(300, Math.Pow(2, failCount))), ct);
-                    }
+                }
+                catch (TaskCanceledException)
+                {
+                    // Server closed the connection, continue to reconnect
+                }
+                catch (Exception e)
+                {
+                    failCount++;
+                    onException?.Invoke(e);
+                    // gradually back off
+                    await Task.Delay(TimeSpan.FromSeconds(Math.Min(300, Math.Pow(2 ,failCount))), ct);
                 }
             }
         }
-
-        /*
-         * The purpose of this function is to provide an async cancellable way to read a line from a StreamReader
-         * 
-         * It will return either:
-         *  - A new line
-         *  - "NoLine" when either the end of the stream is reached or the passed in token is cancelled
-         */
-        private async Task<string> ReadLineAsyncWithCancellation(StreamReader reader, CancellationToken ct)
-        {
-            using (var taskCancellation = CancellationTokenSource.CreateLinkedTokenSource(ct))
-            {
-                var taskCancellationToken = taskCancellation.Token;
-
-                var task = Task.Run<string>(async() =>
-                {
-                    if (!reader.EndOfStream)
-                    {
-                        return await reader.ReadLineAsync();
-                    }
-                    return NoLine;
-                }, taskCancellationToken);
-                var cancellation = Task.Run(async () =>
-                {
-                    while (!taskCancellationToken.IsCancellationRequested)
-                    {
-                        await Task.Delay(TimeSpan.FromSeconds(1), taskCancellationToken);
-                    }
-                }, taskCancellationToken);
-                await Task.WhenAny(task, cancellation);
-                
-                var result = task.IsCompleted ? task.Result : NoLine;
-
-                if (!taskCancellationToken.IsCancellationRequested)
-                {
-                    taskCancellation.Cancel();
-                }
-
-                return result;
-            }
-        }
-
+        
         private (string, StreamResponse<ApiEventStreamMessage>) ProcessEventLine(string fromMessageId, string line)
         {
             try

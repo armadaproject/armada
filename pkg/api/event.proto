@@ -271,12 +271,14 @@ message JobSetRequest {
     string from_message_id = 3;
     string queue = 4;
     bool errorIfMissing = 5;
+    bool force_redis = 6;  // This field is for test purposes only
 }
 
 message WatchRequest {
     string queue = 1;
     string job_set_id = 2;
     string from_id = 3;
+    bool force_redis = 4;  // This field is for test purposes only
 }
 
 service Event {

@@ -8,16 +8,20 @@ import (
 
 	"github.com/G-Research/armada/internal/common"
 	authconfig "github.com/G-Research/armada/internal/common/auth/configuration"
+	grpcconfig "github.com/G-Research/armada/internal/common/grpc/configuration"
 	"github.com/G-Research/armada/pkg/client/queue"
 )
 
 type ArmadaConfig struct {
 	Auth authconfig.AuthConfig
 
-	GrpcPort           uint16
-	HttpPort           uint16
-	MetricsPort        uint16
+	GrpcPort    uint16
+	HttpPort    uint16
+	MetricsPort uint16
+
 	CorsAllowedOrigins []string
+
+	Grpc grpcconfig.GrpcConfig
 
 	PriorityHalfTime    time.Duration
 	CancelJobsBatchSize int
@@ -33,8 +37,8 @@ type ArmadaConfig struct {
 	EventRetention    EventRetentionPolicy
 	Pulsar            PulsarConfig
 	Postgres          PostgresConfig // Used for Pulsar submit API deduplication
-
-	Metrics MetricsConfig
+	EventApi          EventApiConfig
+	Metrics           MetricsConfig
 }
 
 type PulsarConfig struct {
@@ -73,6 +77,8 @@ type PulsarConfig struct {
 	// Log all pulsar events
 	EventsPrinterSubscription string
 	EventsPrinter             bool
+	// Maximum allowed message size in bytes
+	MaxAllowedMessageSize uint
 }
 
 type SchedulingConfig struct {
@@ -149,4 +155,12 @@ type QueueManagementConfig struct {
 
 type MetricsConfig struct {
 	RefreshInterval time.Duration
+}
+
+type EventApiConfig struct {
+	Enabled          bool
+	QueryConcurrency int
+	JobsetCacheSize  int
+	UpdateTopic      string
+	Postgres         PostgresConfig
 }

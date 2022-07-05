@@ -1,0 +1,29 @@
+name: Run Python Linting and Unit Tests
+
+on:
+  push:
+    branches-ignore:
+      - master
+    paths-ignore:
+      - 'client/python/**'
+      - 'build/python-client/**'
+      - 'pkg/api/*.proto'
+      - '.github/workflows/python.yml'
+      - 'docs/python_armada_client.md'
+      - 'scripts/build-python-client.sh'
+  pull_request:
+    branches-ignore:
+      - gh-pages
+    paths-ignore:
+      - 'client/python/**'
+      - 'build/python-client/**'
+      - 'pkg/api/*.proto'
+      - '.github/workflows/python.yml'
+      - 'docs/python_armada_client.md'
+      - 'scripts/build-python-client.sh'
+
+jobs:
+  run-tox:
+    runs-on: ubuntu-latest
+    steps:
+      - run: 'echo "No python modified, not running python jobs"'

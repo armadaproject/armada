@@ -21,13 +21,17 @@ func StartUp(config *configuration.BinocularsConfig) (func(), *sync.WaitGroup) {
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
 
-	kubernetesClientProvider, err := cluster.NewKubernetesClientProvider(config.ImpersonateUsers)
+	kubernetesClientProvider, err := cluster.NewKubernetesClientProvider(
+		config.ImpersonateUsers,
+		config.Kubernetes.QPS,
+		config.Kubernetes.Burst,
+	)
 	if err != nil {
 		log.Errorf("Failed to connect to kubernetes because %s", err)
 		os.Exit(-1)
 	}
 
-	grpcServer := grpcCommon.CreateGrpcServer(auth.ConfigureAuth(config.Auth))
+	grpcServer := grpcCommon.CreateGrpcServer(config.Grpc.KeepaliveParams, config.Grpc.KeepaliveEnforcementPolicy, auth.ConfigureAuth(config.Auth))
 
 	logService := logs.NewKubernetesLogService(kubernetesClientProvider)
 	binocularsServer := server.NewBinocularsServer(logService)
