@@ -1,6 +1,8 @@
 package configuration
 
 import (
+	"github.com/go-redis/redis"
+
 	grpcconfig "github.com/G-Research/armada/internal/common/grpc/configuration"
 	"github.com/G-Research/armada/pkg/client"
 )
@@ -12,4 +14,5 @@ type JobServiceConfiguration struct {
 
 	Grpc          grpcconfig.GrpcConfig
 	ApiConnection client.ApiConnectionDetails
+	Redis         redis.UniversalOptions
 }
