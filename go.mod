@@ -17,7 +17,7 @@ require (
 	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f
 	github.com/doug-martin/goqu/v9 v9.18.0
 	github.com/go-ldap/ldap/v3 v3.4.1
-	github.com/go-openapi/analysis v0.21.2
+	github.com/go-openapi/analysis v0.21.3
 	github.com/go-openapi/jsonreference v0.20.0
 	github.com/go-openapi/loads v0.21.1
 	github.com/go-openapi/runtime v0.24.1
