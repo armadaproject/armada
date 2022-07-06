@@ -46,8 +46,17 @@ func (m *JobManager) ManageJobLeases() {
 	for _, chunk := range chunkedJobs {
 		failedJobs, err := m.jobLeaseService.RenewJobLeases(chunk)
 		if err == nil && len(failedJobs) > 0 {
-			m.reportTerminated(extractPods(failedJobs))
-			m.jobContext.DeleteJobs(failedJobs)
+			// This happens in case of lease being revoked - normally due to cancellation
+			// In which case, we should delete the job
+			jobsToDelete := filterRunningJobs(failedJobs, func(runningJob *job.RunningJob) bool {
+				for _, pod := range runningJob.ActivePods {
+					if !util.IsInTerminalState(pod) {
+						return true
+					}
+				}
+				return false
+			})
+			m.jobContext.DeleteJobs(jobsToDelete)
 		}
 	}
 
