@@ -7,7 +7,6 @@ Python client wrapping the gRPC services defined in `submit.proto` and `events.p
 - watching for job events.
 
 
-
 ## Build
 Prerequisites:
 
@@ -18,7 +17,7 @@ In the repo level, run `make python`
 
 1) pyenv
     - Sets up local python environment for supporting multiple python environments
-    - Set up a local python 3.9 environment 
+    - Set up a local python 3.9 environment
 2) poetry
     - Package is defined by pyproject.toml
     - `poetry install` will pull dependencies and install based on pyproject.toml
@@ -37,5 +36,5 @@ gRPC requires a server to start so our unit tests are not true unit tests.  We s
 
 `poetry run pytest tests/unit/test_client.py`
 
-This is just a simple test that starts a grpc server in the background and verifies that we can call the client.  
+This is just a simple test that starts a grpc server in the background and verifies that we can call the client.
 
