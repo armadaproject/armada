@@ -30,6 +30,12 @@ protoc \
 --gogofaster_out=$TYPES,plugins=grpc:./ \
 pkg/api/binoculars/*.proto
 
+protoc \
+--proto_path=. \
+--proto_path=/proto \
+--gogofaster_out=$TYPES,plugins=grpc:./ \
+pkg/api/jobservice/*.proto
+
 # gogo proto generates correct json name inside protobuf tag but wrong json tag, for example:
 #   `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
 # this hack fixes tag as:

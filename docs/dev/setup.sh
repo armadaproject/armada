@@ -7,11 +7,23 @@ if [ -z "$stream_backend" ] || (echo "stan jetstream" | grep -v -q "$stream_back
 fi
 echo "Using $stream_backend"
 
+COMPOSE_CMD='docker-compose'
+
+DCLIENT_VERSION=$(docker version -f '{{.Client.Version}}')
+if echo $DCLIENT_VERSION | grep -q '^2' ; then
+  COMPOSE_CMD='docker compose'
+fi
+
 kind create cluster --name demo-a --config ./docs/dev/kind.yaml
 
-docker-compose -f ./docs/dev/docker-compose.yaml up -d
-sleep 10s
-bash scripts/pulsar.sh
+OSTYPE=$(uname -s)
+if [ $OSTYPE == "Linux" ]; then
+  $COMPOSE_CMD --profile linux -f ./docs/dev/docker-compose.yaml up -d
+else
+  $COMPOSE_CMD -f ./docs/dev/docker-compose.yaml up -d
+fi
+
+sleep 10
 
 go run ./cmd/lookout/main.go --migrateDatabase
 
