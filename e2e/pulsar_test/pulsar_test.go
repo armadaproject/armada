@@ -452,7 +452,7 @@ func TestIngress(t *testing.T) {
 			return nil
 		}
 
-		numEventsExpected = 3
+		numEventsExpected = 2
 		sequences, err = receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, defaultPulsarTimeout)
 		if err != nil {
 			return err
@@ -557,7 +557,7 @@ func TestService(t *testing.T) {
 			return nil
 		}
 
-		numEventsExpected = 3
+		numEventsExpected = 2
 		sequences, err = receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, defaultPulsarTimeout)
 		if err != nil {
 			return err
