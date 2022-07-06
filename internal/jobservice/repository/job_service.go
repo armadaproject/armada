@@ -3,8 +3,8 @@ package repository
 import (
 	"fmt"
 
+	"github.com/gogo/protobuf/proto"
 	log "github.com/sirupsen/logrus"
-	"google.golang.org/protobuf/proto"
 
 	"github.com/G-Research/armada/pkg/api/jobservice"
 	"github.com/go-redis/redis"
@@ -12,12 +12,11 @@ import (
 
 type JobServiceRepository interface {
 	GetJobStatus(jobId string) (*jobservice.JobServiceResponse, error)
-	UpdateJobStatus(jobSetId string) ([]string, error)
+	UpdateJobServiceDb(jobSetId string, jobResponse *jobservice.JobServiceResponse) (error)
 }
 type RedisJobServiceRepository struct {
 	db redis.UniversalClient
 }
-
 func NewRedisJobServiceRepository(db redis.UniversalClient) *RedisJobServiceRepository {
 	_, err := db.Ping().Result()
 	if err != nil {
@@ -34,8 +33,14 @@ func (jsr *RedisJobServiceRepository) GetJobStatus(jobId string) (*jobservice.Jo
 	jobResponse := &jobservice.JobServiceResponse{}
 	e := proto.Unmarshal([]byte(val), jobResponse)
 	if e != nil {
-		return &jobservice.JobServiceResponse{}, fmt.Errorf("[RedisQueueRepository.GetQueue] error unmarshalling queue: %s", err)
+		return &jobservice.JobServiceResponse{}, fmt.Errorf("[RedisJobServiceRepository.GetJobStatus] error unmarshalling JobResponse: %s", err)
 	}
 
-	return jobservice.NewJobServiceResponse(apiQueue)
+	return jobResponse, nil
+}
+func (jsr *RedisJobServiceRepository) UpdateJobServiceDb(jobSetId string, jobResponse *jobservice.JobServiceResponse) (error) {
+	if err := jsr.db.Publish(jobSetId, jobResponse).Err(); err != nil {
+        panic(err)
+    }
+	return nil
 }

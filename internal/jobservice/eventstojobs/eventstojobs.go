@@ -7,8 +7,8 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
+	"github.com/G-Research/armada/internal/jobservice/repository"
 	"github.com/G-Research/armada/pkg/api"
-	"github.com/G-Research/armada/pkg/api/jobservice"
 	"github.com/G-Research/armada/pkg/client"
 
 	"google.golang.org/grpc"
@@ -17,30 +17,31 @@ import (
 )
 
 type EventsToJobService struct {
-	queue         string
-	jobsetid      string
-	jobid         string
-	apiConnection client.ApiConnectionDetails
+	queue                string
+	jobsetid             string
+	jobid                string
+	apiConnection        client.ApiConnectionDetails
+	jobServiceRepository repository.JobServiceRepository
 }
 
 func NewEventsToJobService(
 	queue string,
 	jobsetid string,
 	jobid string,
-	apiConnection client.ApiConnectionDetails) *EventsToJobService {
+	apiConnection client.ApiConnectionDetails,
+	jobServiceRepository repository.JobServiceRepository) *EventsToJobService {
 	return &EventsToJobService{
-		queue:         queue,
-		jobsetid:      jobsetid,
-		jobid:         jobid,
-		apiConnection: apiConnection}
+		queue:                queue,
+		jobsetid:             jobsetid,
+		jobid:                jobid,
+		apiConnection:        apiConnection,
+		jobServiceRepository: jobServiceRepository}
 }
 
 // TODO: This function will use redis and a pub/sub method.
 // For now, we will use the api for streaming events and allow for clients to treat this as polling.
-// This is not a production usecase yet.
-func (eventToJobService *EventsToJobService) GetJobStatusUsingEventApi(context context.Context) (*jobservice.JobServiceResponse, error) {
-	returnJobService := jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_JOB_ID_NOT_FOUND}
-
+// This is not a production usecase yet.*jobservice.JobServiceResponse,
+func (eventToJobService *EventsToJobService) SubscribeToJobSetId(context context.Context) error {
 	client.WithConnection(&eventToJobService.apiConnection, func(conn *grpc.ClientConn) error {
 		eventsClient := api.NewEventClient(conn)
 		for {
@@ -81,16 +82,24 @@ func (eventToJobService *EventsToJobService) GetJobStatusUsingEventApi(context c
 					time.Sleep(5 * time.Second)
 					break
 				}
-				jobStatus, e := EventsToJobResponse(*msg.Message)
-				if e != nil {
-					// This can mean that the event type reported from server is unknown to the client
-					log.Error(e)
+				if !IsEventAJobResponse(*msg.Message) {
 					continue
+				} else {
+					jobStatus, eventJobErr := EventsToJobResponse(*msg.Message)
+					if eventJobErr != nil {
+						// This can mean that the event type reported from server is unknown to the client
+						log.Error(eventJobErr)
+						continue
+					}
+					e := eventToJobService.jobServiceRepository.UpdateJobServiceDb(api.JobIdFromApiEvent(msg.Message), jobStatus)
+					if e != nil {
+						log.Error(e)
+						continue
+					}
 				}
-				returnJobService.Error = jobStatus.Error
-				returnJobService.State = jobStatus.State
+
 			}
 		}
 	})
-	return &returnJobService, nil
+	return nil
 }

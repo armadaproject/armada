@@ -25,3 +25,12 @@ func EventsToJobResponse(message api.EventMessage) (*jobservice.JobServiceRespon
 
 	return nil, fmt.Errorf("unknown event type")
 }
+
+func IsEventAJobResponse(message api.EventMessage) bool {
+	switch message.Events.(type) {
+	case *api.EventMessage_Submitted, *api.EventMessage_DuplicateFound, *api.EventMessage_Running, *api.EventMessage_Failed, *api.EventMessage_Succeeded, *api.EventMessage_Cancelled:
+		return true
+	default:
+		return false
+	}
+}

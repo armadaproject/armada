@@ -6,7 +6,10 @@ import (
 	"github.com/G-Research/armada/internal/common/auth/authorization"
 	grpcCommon "github.com/G-Research/armada/internal/common/grpc"
 	"github.com/G-Research/armada/internal/jobservice/configuration"
+	"github.com/G-Research/armada/internal/jobservice/repository"
+
 	"github.com/G-Research/armada/internal/jobservice/server"
+
 	"github.com/G-Research/armada/pkg/api/jobservice"
 	"github.com/go-redis/redis"
 
@@ -25,13 +28,14 @@ func StartUp(config *configuration.JobServiceConfiguration) (func(), *sync.WaitG
 			log.WithError(err).Error("failed to close Redis client")
 		}
 	}()
+	redisJobRepository := repository.NewRedisJobServiceRepository(db)
 
 	grpcServer := grpcCommon.CreateGrpcServer(config.Grpc.KeepaliveParams, config.Grpc.KeepaliveEnforcementPolicy, []authorization.AuthService{&authorization.AnonymousAuthService{}})
 
-	jobService := server.NewJobService(config)
+	jobService := server.NewJobService(config, *redisJobRepository)
 	jobservice.RegisterJobServiceServer(grpcServer, jobService)
 
-	log.Info("JobCache service listening on ", config.GrpcPort)
+	log.Info("JobService service listening on ", config.GrpcPort)
 	grpcCommon.Listen(config.GrpcPort, grpcServer, &wg)
 
 	wg.Wait()
