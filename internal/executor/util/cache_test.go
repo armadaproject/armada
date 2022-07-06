@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -24,6 +25,19 @@ func TestMapPodCache_Add(t *testing.T) {
 	cache.Add(pod)
 
 	assert.Equal(t, pod, cache.Get(ExtractPodKey(pod)))
+	assert.Equal(t, 1, getMetricGaugeCurrentValue(cache))
+}
+
+func TestMapPodCache_Add_Metrics(t *testing.T) {
+	initializeTest()
+
+	pod := makeManagedPod("job1")
+	cache := NewTimeExpiringPodCache(time.Minute, time.Second, "metric1")
+
+	//Repeated add to the same key, only counts as 1
+	cache.Add(pod)
+	cache.Add(pod)
+	assert.Equal(t, 1, getMetricGaugeCurrentValue(cache))
 }
 
 func TestMapPodCache_Add_Expires(t *testing.T) {
@@ -39,6 +53,7 @@ func TestMapPodCache_Add_Expires(t *testing.T) {
 
 	assert.Equal(t, (*v1.Pod)(nil), cache.Get("job1"))
 	assert.Equal(t, 0, len(cache.GetAll()))
+	assert.Equal(t, 0, getMetricGaugeCurrentValue(cache))
 }
 
 func TestMapPodCache_AddIfNotExists(t *testing.T) {
@@ -53,6 +68,7 @@ func TestMapPodCache_AddIfNotExists(t *testing.T) {
 	assert.True(t, cache.AddIfNotExists(pod1))
 	assert.False(t, cache.AddIfNotExists(pod2))
 	assert.Equal(t, "1", cache.Get(ExtractPodKey(pod1)).Name)
+	assert.Equal(t, 1, getMetricGaugeCurrentValue(cache))
 }
 
 func TestMapPodCache_Update(t *testing.T) {
@@ -66,9 +82,11 @@ func TestMapPodCache_Update(t *testing.T) {
 	cache := NewTimeExpiringPodCache(time.Minute, time.Second, "metric1")
 	assert.False(t, cache.Update(ExtractPodKey(pod1), pod1))
 	assert.Equal(t, 0, len(cache.GetAll()))
+	assert.Equal(t, 0, getMetricGaugeCurrentValue(cache))
 	cache.Add(pod1)
 	assert.True(t, cache.Update(ExtractPodKey(pod2), pod2))
 	assert.Equal(t, "2", cache.Get(ExtractPodKey(pod1)).Name)
+	assert.Equal(t, 1, getMetricGaugeCurrentValue(cache))
 }
 
 func TestMapPodCache_Delete(t *testing.T) {
@@ -79,9 +97,11 @@ func TestMapPodCache_Delete(t *testing.T) {
 
 	cache.Add(pod)
 	assert.NotNil(t, cache.Get(ExtractPodKey(pod)))
+	assert.Equal(t, 1, getMetricGaugeCurrentValue(cache))
 
 	cache.Delete(ExtractPodKey(pod))
 	assert.Nil(t, cache.Get(ExtractPodKey(pod)))
+	assert.Equal(t, 0, getMetricGaugeCurrentValue(cache))
 }
 
 func TestMapPodCache_Delete_DoNotFailOnUnrecognisedKey(t *testing.T) {
@@ -156,4 +176,8 @@ func makeManagedPod(jobId string) *v1.Pod {
 		},
 	}
 	return &pod
+}
+
+func getMetricGaugeCurrentValue(cache *mapPodCache) int {
+	return int(testutil.ToFloat64(cache.sizeGauge))
 }
