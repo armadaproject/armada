@@ -118,7 +118,7 @@ tolerations: []
 <br/>
 
 
-For other node configurations and all other executor options you can specify in your values file, see [executor Helm docs](./helm/executor.md).
+For other node configurations and all other executor options you can specify in your values file, see [executor Helm docs](https://armadaproject.io/helm#Executor-helm-chart).
 
 Fill in the appropriate values in the above template and save it as `executor-values.yaml`.
 
