@@ -63,11 +63,13 @@ func CreateApiConnectionWithCallOptions(
 	defaultCallOptions := grpc.WithDefaultCallOptions(callOptions...)
 	unuaryInterceptors := grpc.WithChainUnaryInterceptor(grpc_retry.UnaryClientInterceptor(retryOpts...))
 	streamInterceptors := grpc.WithChainStreamInterceptor(grpc_retry.StreamClientInterceptor(retryOpts...))
+	maxMsgSize := 32 * 1024 * 1024
 	dialOpts := append(additionalDialOptions,
 		defaultCallOptions,
 		unuaryInterceptors,
 		streamInterceptors,
 		transportCredentials(config),
+		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(maxMsgSize), grpc.MaxCallSendMsgSize(maxMsgSize)),
 	)
 	// gRPC keepalive options.
 	if config.GrpcKeepAliveTime > 0 || config.GrpcKeepAliveTimeout > 0 {

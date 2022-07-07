@@ -77,11 +77,14 @@ func CreateGrpcServer(
 	streamInterceptors = append(streamInterceptors, grpc_prometheus.StreamServerInterceptor)
 
 	// Interceptors are registered at server creation
+	maxMsgSize := 32 * 1024 * 1024
 	return grpc.NewServer(
 		grpc.KeepaliveParams(keepaliveParams),
 		grpc.KeepaliveEnforcementPolicy(keepaliveEnforcementPolicy),
 		grpc.StreamInterceptor(grpc_middleware.ChainStreamServer(streamInterceptors...)),
 		grpc.UnaryInterceptor(grpc_middleware.ChainUnaryServer(unaryInterceptors...)),
+		grpc.MaxRecvMsgSize(maxMsgSize),
+		grpc.MaxSendMsgSize(maxMsgSize),
 	)
 }
 
