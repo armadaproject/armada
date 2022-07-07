@@ -56,6 +56,7 @@ func (m *JobManager) ManageJobLeases() {
 				}
 				return false
 			})
+			m.reportTerminated(extractPods(jobsToDelete))
 			m.jobContext.DeleteJobs(jobsToDelete)
 		}
 	}
