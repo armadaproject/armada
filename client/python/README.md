@@ -30,11 +30,20 @@ In the repo level, run `make python`
 
 We use tox for running our formatting and testing jobs in github actions.
 
-
 ## Testing
 gRPC requires a server to start so our unit tests are not true unit tests.  We start a grpc server and then our unit tests run against that server.
 
 `poetry run pytest tests/unit/test_client.py`
 
-This is just a simple test that starts a grpc server in the background and verifies that we can call the client.
+This is just a simple test that starts a grpc server in the background and verifies that we can call the client. 
 
+## Releasing
+
+This is to be automated.
+
+Manual Release:
+
+Log into the Armada-GROSS account on PyPI.  
+Generate the API tokens and copy those tokens to ~/.pypirc.
+`poetry build`
+`poetry run twine upload dist/*`
