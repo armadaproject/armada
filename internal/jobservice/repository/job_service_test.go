@@ -8,12 +8,38 @@ import (
 
 	"github.com/G-Research/armada/pkg/api/jobservice"
 )
-func TestConstructJobService(t *testing.T) {
+func TestConstructJobServiceDoesNotExist(t *testing.T) {
 	withJobServiceRepo(func(r *RedisJobServiceRepository) {
 		var responseExpected = &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_JOB_ID_NOT_FOUND}
 		err := r.UpdateJobServiceDb("job-set-1", &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_JOB_ID_NOT_FOUND})
 		assert.Nil(t, err)
 
+		resp, err := r.GetJobStatus("job-set-1")
+		assert.Nil(t, err)
+		assert.Equal(t, resp, responseExpected)
+
+	})
+}
+
+func TestConstructJobServiceFailed(t *testing.T) {
+	withJobServiceRepo(func(r *RedisJobServiceRepository) {
+		var responseExpected = &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_FAILED, Error: "TestFail"}
+		err := r.UpdateJobServiceDb("job-set-1", &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_JOB_ID_NOT_FOUND})
+		assert.Nil(t, err)
+		var failedErr = r.UpdateJobServiceDb("job-set-1", &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_FAILED, Error: "TestFail"})
+		assert.Nil(t, failedErr)
+
+		resp, err := r.GetJobStatus("job-set-1")
+		assert.Nil(t, err)
+		assert.Equal(t, resp, responseExpected)
+
+	})
+}
+
+
+func TestConstructJobServiceNoJob(t *testing.T) {
+	withJobServiceRepo(func(r *RedisJobServiceRepository) {
+		var responseExpected = &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_JOB_ID_NOT_FOUND}
 		resp, err := r.GetJobStatus("job-set-1")
 		assert.Nil(t, err)
 		assert.Equal(t, resp, responseExpected)

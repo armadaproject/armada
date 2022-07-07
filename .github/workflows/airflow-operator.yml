@@ -1,4 +1,4 @@
-name: Run Python Linting and Unit Tests
+name: Run Python Armada Airflow Operator Linting and Unit Tests
 
 on:
   push:
@@ -11,6 +11,12 @@ on:
       - '.github/workflows/python.yml'
       - 'docs/python_armada_client.md'
       - 'scripts/build-python-client.sh'
+      - 'third_party/airflow/**'
+      - 'build/airflow-operator/**'
+      - 'pkg/api/jobservice/*.proto'
+      - '.github/workflows/airflow-operator.yml'
+      - 'docs/python_airflow_operator.md'
+      - 'scripts/build-airflow-operator.sh'
       - 'makefile'
 
   pull_request:
@@ -23,6 +29,12 @@ on:
       - '.github/workflows/python.yml'
       - 'docs/python_armada_client.md'
       - 'scripts/build-python-client.sh'
+      - 'third_party/airflow/**'
+      - 'build/airflow-operator/**'
+      - 'pkg/api/jobservice/*.proto'
+      - '.github/workflows/airflow-operator.yml'
+      - 'docs/python_airflow_operator.md'
+      - 'scripts/build-airflow-operator.sh'
       - 'makefile'
 
 jobs:
@@ -33,15 +45,21 @@ jobs:
       - uses: actions/setup-python@v2
         with:
           python-version: '3.9'
-      - run: pip install tox
+      - run: pip install tox poetry
       # Generate the proto files for python, required for later steps
       - run: make python
+      - run: |
+          poetry install -v
+          poetry build
+        working-directory: client/python
+      - run: make airflow-operator
       - name: Run tox format environment
         run: tox -e format
-        working-directory: client/python
+        working-directory: third_party/airflow
       - name: Verify docs updated if needed
         run: tox -e docs-check
-        working-directory: client/python
+        working-directory: third_party/airflow
+
       - name: Run tox python 3.9 unit tests
         run: tox -e py39
-        working-directory: client/python
+        working-directory: third_party/airflow
