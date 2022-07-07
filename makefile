@@ -54,6 +54,7 @@ endif
 # For now just take the first one
 DOCKER_GOPATH_TOKS := $(subst :, ,$(DOCKER_GOPATH:v%=%))
 DOCKER_GOPATH_DIR = $(word 1,$(DOCKER_GOPATH_TOKS))
+@echo docker gopath: ${DOCKER_GOPATH_DIR}
 
 GO_CMD = docker run --rm -v ${PWD}:/go/src/armada -w /go/src/armada $(DOCKER_NET) \
 	-e GOPROXY -e GOPRIVATE -e INTEGRATION_ENABLED=true -e CGO_ENABLED=0 -e GOOS=linux -e GARCH=amd64 \
@@ -455,28 +456,28 @@ proto: setup-proto
 	docker run --rm -e GOPROXY -e GOPRIVATE -u $(shell id -u):$(shell id -g) -v ${PWD}/proto:/proto -v ${PWD}:/go/src/armada -w /go/src/armada armada-proto ./scripts/proto.sh
 
 	# generate proper swagger types (we are using standard json serializer, GRPC gateway generates protobuf json, which is not compatible)
-	$(GO_TEST_CMD) swagger generate spec -m -o pkg/api/api.swagger.definitions.json
+	$(GO_CMD) swagger generate spec -m -o pkg/api/api.swagger.definitions.json
 
 	# combine swagger definitions
-	$(GO_TEST_CMD) go run ./scripts/merge_swagger.go api.swagger.json > pkg/api/api.swagger.merged.json
+	$(GO_CMD) go run ./scripts/merge_swagger.go api.swagger.json > pkg/api/api.swagger.merged.json
 	mv -f pkg/api/api.swagger.merged.json pkg/api/api.swagger.json
 
-	$(GO_TEST_CMD) go run ./scripts/merge_swagger.go lookout/api.swagger.json > pkg/api/lookout/api.swagger.merged.json
+	$(GO_CMD) go run ./scripts/merge_swagger.go lookout/api.swagger.json > pkg/api/lookout/api.swagger.merged.json
 	mv -f pkg/api/lookout/api.swagger.merged.json pkg/api/lookout/api.swagger.json
 
-	$(GO_TEST_CMD) go run ./scripts/merge_swagger.go binoculars/api.swagger.json > pkg/api/binoculars/api.swagger.merged.json
+	$(GO_CMD) go run ./scripts/merge_swagger.go binoculars/api.swagger.json > pkg/api/binoculars/api.swagger.merged.json
 	mv -f pkg/api/binoculars/api.swagger.merged.json pkg/api/binoculars/api.swagger.json
 
 	rm -f pkg/api/api.swagger.definitions.json
 
 	# embed swagger json into go binary
-	$(GO_TEST_CMD) templify -e -p=api -f=SwaggerJson  pkg/api/api.swagger.json
-	$(GO_TEST_CMD) templify -e -p=lookout -f=SwaggerJson  pkg/api/lookout/api.swagger.json
-	$(GO_TEST_CMD) templify -e -p=binoculars -f=SwaggerJson  pkg/api/binoculars/api.swagger.json
+	$(GO_CMD) templify -e -p=api -f=SwaggerJson  pkg/api/api.swagger.json
+	$(GO_CMD) templify -e -p=lookout -f=SwaggerJson  pkg/api/lookout/api.swagger.json
+	$(GO_CMD) templify -e -p=binoculars -f=SwaggerJson  pkg/api/binoculars/api.swagger.json
 
 	# fix all imports ordering
-	$(GO_TEST_CMD) goimports -w -local "github.com/G-Research/armada" ./pkg/api/
-	$(GO_TEST_CMD) goimports -w -local "github.com/G-Research/armada" ./pkg/armadaevents/
+	$(GO_CMD) goimports -w -local "github.com/G-Research/armada" ./pkg/api/
+	$(GO_CMD) goimports -w -local "github.com/G-Research/armada" ./pkg/armadaevents/
 
 # Target for compiling the dotnet Armada client.
 dotnet: dotnet-setup
@@ -484,14 +485,14 @@ dotnet: dotnet-setup
 
 # Download all dependencies and install tools listed in internal/tools/tools.go
 download:
-	$(GO_TEST_CMD) go mod download
-	$(GO_TEST_CMD) go list -f '{{range .Imports}}{{.}} {{end}}' internal/tools/tools.go | xargs $(GO_TEST_CMD) go install
-	$(GO_TEST_CMD) go mod tidy
+	$(GO_CMD) go mod download
+	$(GO_CMD) go list -f '{{range .Imports}}{{.}} {{end}}' internal/tools/tools.go | xargs $(GO_TEST_CMD) go install
+	$(GO_CMD) go mod tidy
 
 code-reports:
 	mkdir -p code_reports
-	$(GO_TEST_CMD) goimports -d -local "github.com/G-Research/armada" . | tee code_reports/goimports.txt
-	$(GO_TEST_CMD) ineffassign ./... | tee code_reports/ineffassign.txt
+	$(GO_CMD) goimports -d -local "github.com/G-Research/armada" . | tee code_reports/goimports.txt
+	$(GO_CMD) ineffassign ./... | tee code_reports/ineffassign.txt
 
 code-checks: code-reports
 	sync # make sure everything has been synced to disc
