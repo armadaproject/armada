@@ -79,7 +79,7 @@ Below is the list of global Armada permissions (defined [here](https://github.co
 * `watch_events`
 * `watch_all_events`
 
-In addition, the following queue-specific permission verbs control what actions can be taken per individual queues (defined [here](https://github.com/g-research/armada/blob/master/client/queue/permission_verb.go)):
+In addition, the following queue-specific permission verbs control what actions can be taken per individual queues (defined [here](https://github.com/g-research/armada/blob/master/pkg/client/queue/permission_verb.go)):
 * `submit`
 * `cancel`
 * `reprioritize`
