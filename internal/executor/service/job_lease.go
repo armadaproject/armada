@@ -22,8 +22,6 @@ import (
 	"github.com/G-Research/armada/pkg/api"
 )
 
-const maxPodRequestSize = 10000
-
 type LeaseService interface {
 	ReturnLease(pod *v1.Pod) error
 	RequestJobLeases(availableResource *common.ComputeResources, nodes []api.NodeInfo, leasedResourceByQueue map[string]common.ComputeResources) ([]*api.Job, error)
