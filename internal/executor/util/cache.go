@@ -16,9 +16,10 @@ type PodCache interface {
 	Add(pod *v1.Pod)
 	AddIfNotExists(pod *v1.Pod) bool
 	Update(key string, pod *v1.Pod) bool
-	Delete(podId string)
-	Get(podId string) *v1.Pod
+	Delete(key string)
+	Get(key string) *v1.Pod
 	GetAll() []*v1.Pod
+	GetKey(pod *v1.Pod) string
 }
 
 type cacheRecord struct {
@@ -28,14 +29,16 @@ type cacheRecord struct {
 
 type mapPodCache struct {
 	records       map[string]cacheRecord
+	keyFunc       func(pod *v1.Pod) string
 	rwLock        sync.RWMutex
 	defaultExpiry time.Duration
 	sizeGauge     prometheus.Gauge
 }
 
-func NewTimeExpiringPodCache(expiry time.Duration, cleanUpInterval time.Duration, metricName string) *mapPodCache {
+func NewTimeExpiringPodCache(expiry time.Duration, cleanUpInterval time.Duration, metricName string, keyFunc func(pod *v1.Pod) string) *mapPodCache {
 	cache := &mapPodCache{
 		records:       map[string]cacheRecord{},
+		keyFunc:       keyFunc,
 		rwLock:        sync.RWMutex{},
 		defaultExpiry: expiry,
 		sizeGauge: promauto.NewGauge(
@@ -50,7 +53,7 @@ func NewTimeExpiringPodCache(expiry time.Duration, cleanUpInterval time.Duration
 }
 
 func (podCache *mapPodCache) Add(pod *v1.Pod) {
-	podId := ExtractPodKey(pod)
+	podId := podCache.GetKey(pod)
 
 	podCache.rwLock.Lock()
 	defer podCache.rwLock.Unlock()
@@ -60,7 +63,7 @@ func (podCache *mapPodCache) Add(pod *v1.Pod) {
 }
 
 func (podCache *mapPodCache) AddIfNotExists(pod *v1.Pod) bool {
-	podId := ExtractPodKey(pod)
+	podId := podCache.GetKey(pod)
 
 	podCache.rwLock.Lock()
 	defer podCache.rwLock.Unlock()
@@ -74,34 +77,38 @@ func (podCache *mapPodCache) AddIfNotExists(pod *v1.Pod) bool {
 	return !exists
 }
 
-func (podCache *mapPodCache) Update(podId string, pod *v1.Pod) bool {
+func (podCache *mapPodCache) Update(key string, pod *v1.Pod) bool {
 	podCache.rwLock.Lock()
 	defer podCache.rwLock.Unlock()
 
-	existing, ok := podCache.records[podId]
+	existing, ok := podCache.records[key]
 	exists := ok && existing.expiry.After(time.Now())
 	if exists {
-		podCache.records[podId] = cacheRecord{pod: pod.DeepCopy(), expiry: time.Now().Add(podCache.defaultExpiry)}
+		podCache.records[key] = cacheRecord{pod: pod.DeepCopy(), expiry: time.Now().Add(podCache.defaultExpiry)}
 	}
 	return ok
 }
 
-func (podCache *mapPodCache) Delete(podId string) {
+func (podCache *mapPodCache) Delete(key string) {
 	podCache.rwLock.Lock()
 	defer podCache.rwLock.Unlock()
 
-	_, ok := podCache.records[podId]
+	_, ok := podCache.records[key]
 	if ok {
-		delete(podCache.records, podId)
+		delete(podCache.records, key)
 		podCache.sizeGauge.Set(float64(len(podCache.records)))
 	}
 }
 
-func (podCache *mapPodCache) Get(podId string) *v1.Pod {
+func (podCache *mapPodCache) GetKey(pod *v1.Pod) string {
+	return podCache.keyFunc(pod)
+}
+
+func (podCache *mapPodCache) Get(key string) *v1.Pod {
 	podCache.rwLock.Lock()
 	defer podCache.rwLock.Unlock()
 
-	record := podCache.records[podId]
+	record := podCache.records[key]
 	if record.expiry.After(time.Now()) {
 		return record.pod.DeepCopy()
 	}

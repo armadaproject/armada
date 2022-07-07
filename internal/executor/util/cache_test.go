@@ -21,10 +21,10 @@ func TestMapPodCache_Add(t *testing.T) {
 	initializeTest()
 
 	pod := makeManagedPod("job1")
-	cache := NewTimeExpiringPodCache(time.Minute, time.Second, "metric1")
+	cache := NewTimeExpiringPodCache(time.Minute, time.Second, "metric1", ExtractPodKey)
 	cache.Add(pod)
 
-	assert.Equal(t, pod, cache.Get(ExtractPodKey(pod)))
+	assert.Equal(t, pod, cache.Get(cache.GetKey(pod)))
 	assert.Equal(t, 1, getMetricGaugeCurrentValue(cache))
 }
 
@@ -32,7 +32,7 @@ func TestMapPodCache_Add_Metrics(t *testing.T) {
 	initializeTest()
 
 	pod := makeManagedPod("job1")
-	cache := NewTimeExpiringPodCache(time.Minute, time.Second, "metric1")
+	cache := NewTimeExpiringPodCache(time.Minute, time.Second, "metric1", ExtractPodKey)
 
 	//Repeated add to the same key, only counts as 1
 	cache.Add(pod)
@@ -44,10 +44,10 @@ func TestMapPodCache_Add_Expires(t *testing.T) {
 	initializeTest()
 
 	pod := makeManagedPod("job1")
-	cache := NewTimeExpiringPodCache(time.Second/10, time.Second/100, "metric1")
+	cache := NewTimeExpiringPodCache(time.Second/10, time.Second/100, "metric1", ExtractPodKey)
 	cache.Add(pod)
 
-	assert.Equal(t, pod, cache.Get(ExtractPodKey(pod)))
+	assert.Equal(t, pod, cache.Get(cache.GetKey(pod)))
 
 	time.Sleep(time.Second / 5)
 
@@ -64,7 +64,7 @@ func TestMapPodCache_AddIfNotExists(t *testing.T) {
 	pod2 := makeManagedPod("job1")
 	pod2.Name = "2"
 
-	cache := NewTimeExpiringPodCache(time.Minute, time.Second, "metric1")
+	cache := NewTimeExpiringPodCache(time.Minute, time.Second, "metric1", ExtractPodKey)
 	assert.True(t, cache.AddIfNotExists(pod1))
 	assert.False(t, cache.AddIfNotExists(pod2))
 	assert.Equal(t, "1", cache.Get(ExtractPodKey(pod1)).Name)
@@ -79,7 +79,7 @@ func TestMapPodCache_Update(t *testing.T) {
 	pod2 := makeManagedPod("job1")
 	pod2.Name = "2"
 
-	cache := NewTimeExpiringPodCache(time.Minute, time.Second, "metric1")
+	cache := NewTimeExpiringPodCache(time.Minute, time.Second, "metric1", ExtractPodKey)
 	assert.False(t, cache.Update(ExtractPodKey(pod1), pod1))
 	assert.Equal(t, 0, len(cache.GetAll()))
 	assert.Equal(t, 0, getMetricGaugeCurrentValue(cache))
@@ -93,21 +93,21 @@ func TestMapPodCache_Delete(t *testing.T) {
 	initializeTest()
 
 	pod := makeManagedPod("job1")
-	cache := NewTimeExpiringPodCache(time.Minute, time.Second, "metric1")
+	cache := NewTimeExpiringPodCache(time.Minute, time.Second, "metric1", ExtractPodKey)
 
 	cache.Add(pod)
-	assert.NotNil(t, cache.Get(ExtractPodKey(pod)))
+	assert.NotNil(t, cache.Get(cache.GetKey(pod)))
 	assert.Equal(t, 1, getMetricGaugeCurrentValue(cache))
 
-	cache.Delete(ExtractPodKey(pod))
-	assert.Nil(t, cache.Get(ExtractPodKey(pod)))
+	cache.Delete(cache.GetKey(pod))
+	assert.Nil(t, cache.Get(cache.GetKey(pod)))
 	assert.Equal(t, 0, getMetricGaugeCurrentValue(cache))
 }
 
 func TestMapPodCache_Delete_DoNotFailOnUnrecognisedKey(t *testing.T) {
 	initializeTest()
 
-	cache := NewTimeExpiringPodCache(time.Minute, time.Second, "metric1")
+	cache := NewTimeExpiringPodCache(time.Minute, time.Second, "metric1", ExtractPodKey)
 
 	cache.Delete("madeupkey")
 	assert.Nil(t, cache.Get("madeupkey"))
@@ -117,11 +117,11 @@ func TestNewMapPodCache_Get_ReturnsCopy(t *testing.T) {
 	initializeTest()
 
 	pod := makeManagedPod("job1")
-	cache := NewTimeExpiringPodCache(time.Minute, time.Second, "metric1")
+	cache := NewTimeExpiringPodCache(time.Minute, time.Second, "metric1", ExtractPodKey)
 
 	cache.Add(pod)
 
-	result := cache.Get(ExtractPodKey(pod))
+	result := cache.Get(cache.GetKey(pod))
 	assert.Equal(t, result, pod)
 
 	pod.Namespace = "new value"
@@ -133,7 +133,7 @@ func TestMapPodCache_GetAll(t *testing.T) {
 
 	pod1 := makeManagedPod("job1")
 	pod2 := makeManagedPod("job2")
-	cache := NewTimeExpiringPodCache(time.Minute, time.Second, "metric1")
+	cache := NewTimeExpiringPodCache(time.Minute, time.Second, "metric1", ExtractPodKey)
 
 	cache.Add(pod1)
 	cache.Add(pod2)
@@ -155,7 +155,7 @@ func TestMapPodCache_GetReturnsACopy(t *testing.T) {
 	initializeTest()
 
 	pod := makeManagedPod("job1")
-	cache := NewTimeExpiringPodCache(time.Minute, time.Second, "metric1")
+	cache := NewTimeExpiringPodCache(time.Minute, time.Second, "metric1", ExtractPodKey)
 
 	cache.Add(pod)
 

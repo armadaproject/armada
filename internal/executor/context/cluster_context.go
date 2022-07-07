@@ -104,8 +104,8 @@ func NewClusterContext(
 		clusterId:                configuration.ClusterId,
 		pool:                     configuration.Pool,
 		deleteThreadCount:        configuration.DeleteConcurrencyLimit,
-		submittedPods:            util.NewTimeExpiringPodCache(time.Minute, time.Second, "submitted_job"),
-		podsToDelete:             util.NewTimeExpiringPodCache(minTimeBetweenRepeatDeletionCalls, time.Second, "deleted_job"),
+		submittedPods:            util.NewTimeExpiringPodCache(time.Minute, time.Second, "submitted_job", util.ExtractPodKey),
+		podsToDelete:             util.NewTimeExpiringPodCache(minTimeBetweenRepeatDeletionCalls, time.Second, "deleted_job", getPodDeletionCacheKey),
 		stopper:                  make(chan struct{}),
 		podInformer:              factory.Core().V1().Pods(),
 		nodeInformer:             factory.Core().V1().Nodes(),
@@ -124,7 +124,7 @@ func NewClusterContext(
 				log.Errorf("Failed to process pod event due to it being an unexpected type. Failed to process %+v", obj)
 				return
 			}
-			context.submittedPods.Delete(util.ExtractPodKey(pod))
+			context.submittedPods.Delete(context.submittedPods.GetKey(pod))
 		},
 	})
 
@@ -254,7 +254,7 @@ func (c *KubernetesClusterContext) SubmitPod(pod *v1.Pod, owner string, ownerGro
 	returnedPod, err := ownerClient.CoreV1().Pods(pod.Namespace).Create(ctx.Background(), pod, metav1.CreateOptions{})
 
 	if err != nil {
-		c.submittedPods.Delete(util.ExtractPodKey(pod))
+		c.submittedPods.Delete(c.submittedPods.GetKey(pod))
 	}
 	return returnedPod, err
 }
@@ -317,12 +317,11 @@ func (c *KubernetesClusterContext) DeleteIngress(ingress *networking.Ingress) er
 func (c *KubernetesClusterContext) ProcessPodsToDelete() {
 	pods := c.podsToDelete.GetAll()
 
-	deleteOptions := createDeleteOptions()
 	util.ProcessPodsWithThreadPool(pods, c.deleteThreadCount, func(podToDelete *v1.Pod) {
 		if podToDelete == nil {
 			return
 		}
-		podId := util.ExtractPodKey(podToDelete)
+		podKey := c.podsToDelete.GetKey(podToDelete)
 
 		var err error
 		if !util.IsMarkedForDeletion(podToDelete) {
@@ -330,12 +329,13 @@ func (c *KubernetesClusterContext) ProcessPodsToDelete() {
 			err = annotationErr
 			if annotationErr == nil {
 				podToDelete = updatedPod
-				c.podsToDelete.Update(podId, podToDelete)
+				c.podsToDelete.Update(podKey, podToDelete)
 			}
 		}
 
 		if err == nil {
-			err = c.kubernetesClient.CoreV1().Pods(podToDelete.Namespace).Delete(ctx.Background(), podToDelete.Name, deleteOptions)
+			podDeleteOptions := createPodDeleteOptions(podToDelete)
+			err = c.kubernetesClient.CoreV1().Pods(podToDelete.Namespace).Delete(ctx.Background(), podToDelete.Name, podDeleteOptions)
 			if err == nil {
 				deletePodEventsErr := c.deletePodEvents(podToDelete)
 				if deletePodEventsErr != nil {
@@ -345,10 +345,10 @@ func (c *KubernetesClusterContext) ProcessPodsToDelete() {
 		}
 
 		if err == nil || k8s_errors.IsNotFound(err) {
-			c.podsToDelete.Update(podId, nil)
+			c.podsToDelete.Update(podKey, nil)
 		} else {
 			log.Errorf("Failed to delete pod %s/%s because %s", podToDelete.Namespace, podToDelete.Name, err)
-			c.podsToDelete.Delete(podId)
+			c.podsToDelete.Delete(podKey)
 		}
 	})
 }
@@ -429,4 +429,26 @@ func createDeleteOptions() metav1.DeleteOptions {
 		GracePeriodSeconds: &gracePeriod,
 	}
 	return deleteOptions
+}
+
+func createPodDeleteOptions(pod *v1.Pod) metav1.DeleteOptions {
+	deleteOptions := createDeleteOptions()
+
+	if string(pod.UID) != "" {
+		preCondition := &metav1.Preconditions{
+			UID: &pod.UID,
+		}
+		deleteOptions.Preconditions = preCondition
+	}
+
+	return deleteOptions
+}
+
+func getPodDeletionCacheKey(pod *v1.Pod) string {
+	if string(pod.UID) != "" {
+		return string(pod.UID)
+	}
+	//Default to generic pod cache key is kubernetes id isn't set
+	//This is used on failed submission when we aren't sure if the pod was created or not
+	return util.ExtractPodKey(pod)
 }

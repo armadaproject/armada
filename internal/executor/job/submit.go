@@ -147,7 +147,7 @@ func (allocationService *SubmitService) submitPod(job *api.Job, i int) (*v1.Pod,
 		service.ObjectMeta.OwnerReferences = []metav1.OwnerReference{util2.CreateOwnerReference(submittedPod)}
 		_, err = allocationService.clusterContext.SubmitService(service)
 		if err != nil {
-			return pod, err
+			return submittedPod, err
 		}
 	}
 
@@ -155,11 +155,11 @@ func (allocationService *SubmitService) submitPod(job *api.Job, i int) (*v1.Pod,
 		ingress.ObjectMeta.OwnerReferences = []metav1.OwnerReference{util2.CreateOwnerReference(submittedPod)}
 		_, err = allocationService.clusterContext.SubmitIngress(ingress)
 		if err != nil {
-			return pod, err
+			return submittedPod, err
 		}
 	}
 
-	return pod, err
+	return submittedPod, err
 }
 
 // populateServicesIngresses populates the K8SService and K8SIngress fields of the job.
