@@ -1,0 +1,1156 @@
+{
+  "dashboard": {
+    "annotations": {
+      "list": [
+        {
+          "builtIn": 1,
+          "datasource": "-- Grafana --",
+          "enable": true,
+          "hide": true,
+          "iconColor": "rgba(0, 211, 255, 1)",
+          "name": "Annotations & Alerts",
+          "type": "dashboard"
+        }
+      ]
+    },
+    "editable": true,
+    "gnetId": null,
+    "graphTooltip": 0,
+    "id": null,
+    "iteration": 1572813374561,
+    "links": [],
+    "panels": [
+      {
+        "aliasColors": {},
+        "bars": false,
+        "dashLength": 10,
+        "dashes": false,
+        "datasource": null,
+        "fill": 6,
+        "fillGradient": 0,
+        "gridPos": {
+          "h": 8,
+          "w": 8,
+          "x": 0,
+          "y": 0
+        },
+        "id": 5,
+        "interval": "1s",
+        "legend": {
+          "avg": false,
+          "current": false,
+          "max": false,
+          "min": false,
+          "show": true,
+          "total": false,
+          "values": false
+        },
+        "lines": true,
+        "linewidth": 1,
+        "nullPointMode": "null as zero",
+        "options": {
+          "dataLinks": []
+        },
+        "percentage": false,
+        "pointradius": 2,
+        "points": false,
+        "renderer": "flot",
+        "seriesOverrides": [],
+        "spaceLength": 10,
+        "stack": true,
+        "steppedLine": false,
+        "targets": [
+          {
+            "expr": "armada:queue:size",
+            "legendFormat": "{{ queueName }}",
+            "refId": "A"
+          }
+        ],
+        "thresholds": [],
+        "timeFrom": null,
+        "timeRegions": [],
+        "timeShift": null,
+        "title": "Queued jobs",
+        "tooltip": {
+          "shared": true,
+          "sort": 0,
+          "value_type": "individual"
+        },
+        "type": "graph",
+        "xaxis": {
+          "buckets": null,
+          "mode": "time",
+          "name": null,
+          "show": true,
+          "values": []
+        },
+        "yaxes": [
+          {
+            "format": "short",
+            "label": null,
+            "logBase": 1,
+            "max": null,
+            "min": null,
+            "show": true
+          },
+          {
+            "format": "short",
+            "label": null,
+            "logBase": 1,
+            "max": null,
+            "min": null,
+            "show": true
+          }
+        ],
+        "yaxis": {
+          "align": false,
+          "alignLevel": null
+        }
+      },
+      {
+        "aliasColors": {},
+        "bars": false,
+        "dashLength": 10,
+        "dashes": false,
+        "datasource": null,
+        "decimals": 3,
+        "fill": 0,
+        "fillGradient": 0,
+        "gridPos": {
+          "h": 8,
+          "w": 8,
+          "x": 8,
+          "y": 0
+        },
+        "id": 13,
+        "interval": "3s",
+        "legend": {
+          "avg": false,
+          "current": false,
+          "max": false,
+          "min": false,
+          "show": true,
+          "total": false,
+          "values": false
+        },
+        "lines": true,
+        "linewidth": 1,
+        "nullPointMode": "null",
+        "options": {
+          "dataLinks": []
+        },
+        "percentage": false,
+        "pointradius": 2,
+        "points": false,
+        "renderer": "flot",
+        "seriesOverrides": [],
+        "spaceLength": 10,
+        "stack": false,
+        "steppedLine": false,
+        "targets": [
+          {
+            "expr": "armada:queue:priority",
+            "legendFormat": "{{ queueName }}",
+            "refId": "A"
+          }
+        ],
+        "thresholds": [],
+        "timeFrom": null,
+        "timeRegions": [],
+        "timeShift": null,
+        "title": "Queue priority",
+        "tooltip": {
+          "shared": true,
+          "sort": 0,
+          "value_type": "individual"
+        },
+        "type": "graph",
+        "xaxis": {
+          "buckets": null,
+          "mode": "time",
+          "name": null,
+          "show": true,
+          "values": []
+        },
+        "yaxes": [
+          {
+            "decimals": null,
+            "format": "short",
+            "label": null,
+            "logBase": 1,
+            "max": null,
+            "min": "0",
+            "show": true
+          },
+          {
+            "decimals": null,
+            "format": "short",
+            "label": null,
+            "logBase": 1,
+            "max": null,
+            "min": null,
+            "show": true
+          }
+        ],
+        "yaxis": {
+          "align": false,
+          "alignLevel": null
+        }
+      },
+      {
+        "aliasColors": {},
+        "bars": false,
+        "dashLength": 10,
+        "dashes": false,
+        "datasource": null,
+        "decimals": 10,
+        "fill": 7,
+        "fillGradient": 0,
+        "gridPos": {
+          "h": 8,
+          "w": 8,
+          "x": 16,
+          "y": 0
+        },
+        "id": 44,
+        "interval": "3s",
+        "legend": {
+          "avg": false,
+          "current": false,
+          "max": false,
+          "min": false,
+          "show": true,
+          "total": false,
+          "values": false
+        },
+        "lines": true,
+        "linewidth": 1,
+        "nullPointMode": "null as zero",
+        "options": {
+          "dataLinks": []
+        },
+        "percentage": true,
+        "pointradius": 2,
+        "points": false,
+        "renderer": "flot",
+        "seriesOverrides": [],
+        "spaceLength": 10,
+        "stack": true,
+        "steppedLine": false,
+        "targets": [
+          {
+            "expr": "(armada:queue:size > bool 1) *  (100 / armada:queue:priority)  / scalar(sum((armada:queue:size > bool 1) * (1 / armada:queue:priority)))",
+            "legendFormat": "{{ queueName }}",
+            "refId": "A"
+          }
+        ],
+        "thresholds": [],
+        "timeFrom": null,
+        "timeRegions": [],
+        "timeShift": null,
+        "title": "Queue share",
+        "tooltip": {
+          "shared": true,
+          "sort": 0,
+          "value_type": "individual"
+        },
+        "type": "graph",
+        "xaxis": {
+          "buckets": null,
+          "mode": "time",
+          "name": null,
+          "show": true,
+          "values": []
+        },
+        "yaxes": [
+          {
+            "decimals": null,
+            "format": "percent",
+            "label": null,
+            "logBase": 1,
+            "max": "100",
+            "min": null,
+            "show": true
+          },
+          {
+            "decimals": null,
+            "format": "short",
+            "label": null,
+            "logBase": 1,
+            "max": null,
+            "min": null,
+            "show": true
+          }
+        ],
+        "yaxis": {
+          "align": false,
+          "alignLevel": null
+        }
+      },
+      {
+        "collapsed": false,
+        "datasource": null,
+        "gridPos": {
+          "h": 1,
+          "w": 24,
+          "x": 0,
+          "y": 8
+        },
+        "id": 35,
+        "panels": [],
+        "title": "CPU",
+        "type": "row"
+      },
+      {
+        "aliasColors": {
+          "Failed": "semi-dark-red",
+          "Pending": "light-blue",
+          "Running": "light-green",
+          "Succeeded": "light-yellow",
+          "Unknown": "dark-purple"
+        },
+        "bars": false,
+        "dashLength": 10,
+        "dashes": false,
+        "datasource": "$cluster",
+        "decimals": null,
+        "description": "",
+        "fill": 6,
+        "fillGradient": 0,
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 9
+        },
+        "id": 7,
+        "interval": "3s",
+        "legend": {
+          "avg": false,
+          "current": false,
+          "hideZero": false,
+          "max": false,
+          "min": false,
+          "show": true,
+          "total": false,
+          "values": false
+        },
+        "lines": true,
+        "linewidth": 1,
+        "links": [],
+        "maxPerRow": 6,
+        "nullPointMode": "null as zero",
+        "options": {
+          "dataLinks": []
+        },
+        "percentage": false,
+        "pointradius": 2,
+        "points": false,
+        "renderer": "flot",
+        "repeat": "cluster",
+        "repeatDirection": "h",
+        "scopedVars": {
+          "cluster": {
+            "selected": false,
+            "text": "cluster-0",
+            "value": "cluster-0"
+          }
+        },
+        "seriesOverrides": [
+          {
+            "alias": "Available CPU",
+            "color": "#73BF69",
+            "fill": 0,
+            "linewidth": 2,
+            "stack": false
+          },
+          {
+            "alias": "Used CPU",
+            "color": "#FADE2A",
+            "fill": 0,
+            "linewidth": 2,
+            "stack": false
+          }
+        ],
+        "spaceLength": 10,
+        "stack": true,
+        "steppedLine": false,
+        "targets": [
+          {
+            "expr": "armada:monitoring:armada_pod_cpu_request:sum{phase=\"Running\"}",
+            "format": "time_series",
+            "intervalFactor": 1,
+            "legendFormat": "{{ label_armada_queue_id }}",
+            "refId": "A"
+          },
+          {
+            "expr": " node:worker_node_allocatable_cpu_cores:sum",
+            "instant": false,
+            "legendFormat": "Available CPU",
+            "refId": "B"
+          },
+          {
+            "expr": "container:worker_node_cpu_usage_seconds_total:sum",
+            "legendFormat": "Used CPU",
+            "refId": "C"
+          }
+        ],
+        "thresholds": [],
+        "timeFrom": null,
+        "timeRegions": [],
+        "timeShift": null,
+        "title": "$cluster - Running pods cpu request",
+        "tooltip": {
+          "shared": true,
+          "sort": 0,
+          "value_type": "individual"
+        },
+        "type": "graph",
+        "xaxis": {
+          "buckets": null,
+          "mode": "time",
+          "name": null,
+          "show": true,
+          "values": []
+        },
+        "yaxes": [
+          {
+            "decimals": 0,
+            "format": "short",
+            "label": null,
+            "logBase": 1,
+            "max": null,
+            "min": "0",
+            "show": true
+          },
+          {
+            "decimals": null,
+            "format": "short",
+            "label": null,
+            "logBase": 1,
+            "max": null,
+            "min": null,
+            "show": true
+          }
+        ],
+        "yaxis": {
+          "align": false,
+          "alignLevel": null
+        }
+      },
+      {
+        "aliasColors": {
+          "Failed": "semi-dark-red",
+          "Pending": "light-blue",
+          "Running": "light-green",
+          "Succeeded": "light-yellow",
+          "Unknown": "dark-purple"
+        },
+        "bars": false,
+        "dashLength": 10,
+        "dashes": false,
+        "datasource": "$cluster",
+        "decimals": null,
+        "description": "",
+        "fill": 6,
+        "fillGradient": 0,
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 9
+        },
+        "id": 45,
+        "interval": "3s",
+        "legend": {
+          "avg": false,
+          "current": false,
+          "hideZero": false,
+          "max": false,
+          "min": false,
+          "show": true,
+          "total": false,
+          "values": false
+        },
+        "lines": true,
+        "linewidth": 1,
+        "links": [],
+        "maxPerRow": 6,
+        "nullPointMode": "null as zero",
+        "options": {
+          "dataLinks": []
+        },
+        "percentage": false,
+        "pointradius": 2,
+        "points": false,
+        "renderer": "flot",
+        "repeat": null,
+        "repeatDirection": "h",
+        "repeatIteration": 1572813374561,
+        "repeatPanelId": 7,
+        "scopedVars": {
+          "cluster": {
+            "selected": false,
+            "text": "cluster-1",
+            "value": "cluster-1"
+          }
+        },
+        "seriesOverrides": [
+          {
+            "alias": "Available CPU",
+            "color": "#73BF69",
+            "fill": 0,
+            "linewidth": 2,
+            "stack": false
+          },
+          {
+            "alias": "Used CPU",
+            "color": "#FADE2A",
+            "fill": 0,
+            "linewidth": 2,
+            "stack": false
+          }
+        ],
+        "spaceLength": 10,
+        "stack": true,
+        "steppedLine": false,
+        "targets": [
+          {
+            "expr": "armada:monitoring:armada_pod_cpu_request:sum{phase=\"Running\"}",
+            "format": "time_series",
+            "intervalFactor": 1,
+            "legendFormat": "{{ label_armada_queue_id }}",
+            "refId": "A"
+          },
+          {
+            "expr": " node:worker_node_allocatable_cpu_cores:sum",
+            "instant": false,
+            "legendFormat": "Available CPU",
+            "refId": "B"
+          },
+          {
+            "expr": "container:worker_node_cpu_usage_seconds_total:sum",
+            "legendFormat": "Used CPU",
+            "refId": "C"
+          }
+        ],
+        "thresholds": [],
+        "timeFrom": null,
+        "timeRegions": [],
+        "timeShift": null,
+        "title": "$cluster - Running pods cpu request",
+        "tooltip": {
+          "shared": true,
+          "sort": 0,
+          "value_type": "individual"
+        },
+        "type": "graph",
+        "xaxis": {
+          "buckets": null,
+          "mode": "time",
+          "name": null,
+          "show": true,
+          "values": []
+        },
+        "yaxes": [
+          {
+            "decimals": 0,
+            "format": "short",
+            "label": null,
+            "logBase": 1,
+            "max": null,
+            "min": "0",
+            "show": true
+          },
+          {
+            "decimals": null,
+            "format": "short",
+            "label": null,
+            "logBase": 1,
+            "max": null,
+            "min": null,
+            "show": true
+          }
+        ],
+        "yaxis": {
+          "align": false,
+          "alignLevel": null
+        }
+      },
+      {
+        "collapsed": false,
+        "datasource": null,
+        "gridPos": {
+          "h": 1,
+          "w": 24,
+          "x": 0,
+          "y": 17
+        },
+        "id": 29,
+        "panels": [],
+        "title": "Memory",
+        "type": "row"
+      },
+      {
+        "aliasColors": {
+          "Failed": "semi-dark-red",
+          "Pending": "light-blue",
+          "Running": "light-green",
+          "Succeeded": "light-yellow",
+          "Unknown": "dark-purple"
+        },
+        "bars": false,
+        "dashLength": 10,
+        "dashes": false,
+        "datasource": "$cluster",
+        "decimals": null,
+        "description": "",
+        "fill": 5,
+        "fillGradient": 0,
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 18
+        },
+        "id": 17,
+        "interval": "3s",
+        "legend": {
+          "avg": false,
+          "current": false,
+          "hideZero": false,
+          "max": false,
+          "min": false,
+          "show": true,
+          "total": false,
+          "values": false
+        },
+        "lines": true,
+        "linewidth": 1,
+        "links": [],
+        "maxPerRow": 6,
+        "nullPointMode": "null as zero",
+        "options": {
+          "dataLinks": []
+        },
+        "percentage": false,
+        "pointradius": 2,
+        "points": false,
+        "renderer": "flot",
+        "repeat": "cluster",
+        "repeatDirection": "h",
+        "scopedVars": {
+          "cluster": {
+            "selected": false,
+            "text": "cluster-0",
+            "value": "cluster-0"
+          }
+        },
+        "seriesOverrides": [
+          {
+            "alias": "Available Memory",
+            "color": "#73BF69",
+            "fill": 0,
+            "linewidth": 2,
+            "stack": false
+          },
+          {
+            "alias": "Memory used",
+            "color": "#FADE2A",
+            "fill": 0,
+            "linewidth": 2,
+            "stack": false
+          }
+        ],
+        "spaceLength": 10,
+        "stack": true,
+        "steppedLine": false,
+        "targets": [
+          {
+            "expr": "armada:monitoring:armada_pod_memory_request:sum{phase=\"Running\"}",
+            "format": "time_series",
+            "intervalFactor": 1,
+            "legendFormat": "{{ label_armada_queue_id }}",
+            "refId": "A"
+          },
+          {
+            "expr": " node:worker_node_allocatable_memory_bytes:sum",
+            "instant": false,
+            "legendFormat": "Available Memory",
+            "refId": "B"
+          },
+          {
+            "expr": "container:worker_node_memory_usage_bytes:sum",
+            "legendFormat": "Memory used",
+            "refId": "C"
+          }
+        ],
+        "thresholds": [],
+        "timeFrom": null,
+        "timeRegions": [],
+        "timeShift": null,
+        "title": "$cluster - Running pods memory request by queue",
+        "tooltip": {
+          "shared": true,
+          "sort": 0,
+          "value_type": "individual"
+        },
+        "type": "graph",
+        "xaxis": {
+          "buckets": null,
+          "mode": "time",
+          "name": null,
+          "show": true,
+          "values": []
+        },
+        "yaxes": [
+          {
+            "format": "decbytes",
+            "label": null,
+            "logBase": 1,
+            "max": null,
+            "min": "0",
+            "show": true
+          },
+          {
+            "decimals": null,
+            "format": "short",
+            "label": null,
+            "logBase": 1,
+            "max": null,
+            "min": null,
+            "show": true
+          }
+        ],
+        "yaxis": {
+          "align": false,
+          "alignLevel": null
+        }
+      },
+      {
+        "aliasColors": {
+          "Failed": "semi-dark-red",
+          "Pending": "light-blue",
+          "Running": "light-green",
+          "Succeeded": "light-yellow",
+          "Unknown": "dark-purple"
+        },
+        "bars": false,
+        "dashLength": 10,
+        "dashes": false,
+        "datasource": "$cluster",
+        "decimals": null,
+        "description": "",
+        "fill": 5,
+        "fillGradient": 0,
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 18
+        },
+        "id": 46,
+        "interval": "3s",
+        "legend": {
+          "avg": false,
+          "current": false,
+          "hideZero": false,
+          "max": false,
+          "min": false,
+          "show": true,
+          "total": false,
+          "values": false
+        },
+        "lines": true,
+        "linewidth": 1,
+        "links": [],
+        "maxPerRow": 6,
+        "nullPointMode": "null as zero",
+        "options": {
+          "dataLinks": []
+        },
+        "percentage": false,
+        "pointradius": 2,
+        "points": false,
+        "renderer": "flot",
+        "repeat": null,
+        "repeatDirection": "h",
+        "repeatIteration": 1572813374561,
+        "repeatPanelId": 17,
+        "scopedVars": {
+          "cluster": {
+            "selected": false,
+            "text": "cluster-1",
+            "value": "cluster-1"
+          }
+        },
+        "seriesOverrides": [
+          {
+            "alias": "Available Memory",
+            "color": "#73BF69",
+            "fill": 0,
+            "linewidth": 2,
+            "stack": false
+          },
+          {
+            "alias": "Memory used",
+            "color": "#FADE2A",
+            "fill": 0,
+            "linewidth": 2,
+            "stack": false
+          }
+        ],
+        "spaceLength": 10,
+        "stack": true,
+        "steppedLine": false,
+        "targets": [
+          {
+            "expr": "armada:monitoring:armada_pod_memory_request:sum{phase=\"Running\"}",
+            "format": "time_series",
+            "intervalFactor": 1,
+            "legendFormat": "{{ label_armada_queue_id }}",
+            "refId": "A"
+          },
+          {
+            "expr": " node:worker_node_allocatable_memory_bytes:sum",
+            "instant": false,
+            "legendFormat": "Available Memory",
+            "refId": "B"
+          },
+          {
+            "expr": "container:worker_node_memory_usage_bytes:sum",
+            "legendFormat": "Memory used",
+            "refId": "C"
+          }
+        ],
+        "thresholds": [],
+        "timeFrom": null,
+        "timeRegions": [],
+        "timeShift": null,
+        "title": "$cluster - Running pods memory request by queue",
+        "tooltip": {
+          "shared": true,
+          "sort": 0,
+          "value_type": "individual"
+        },
+        "type": "graph",
+        "xaxis": {
+          "buckets": null,
+          "mode": "time",
+          "name": null,
+          "show": true,
+          "values": []
+        },
+        "yaxes": [
+          {
+            "format": "decbytes",
+            "label": null,
+            "logBase": 1,
+            "max": null,
+            "min": "0",
+            "show": true
+          },
+          {
+            "decimals": null,
+            "format": "short",
+            "label": null,
+            "logBase": 1,
+            "max": null,
+            "min": null,
+            "show": true
+          }
+        ],
+        "yaxis": {
+          "align": false,
+          "alignLevel": null
+        }
+      },
+      {
+        "collapsed": false,
+        "datasource": null,
+        "gridPos": {
+          "h": 1,
+          "w": 24,
+          "x": 0,
+          "y": 26
+        },
+        "id": 23,
+        "panels": [],
+        "title": "Pods",
+        "type": "row"
+      },
+      {
+        "aliasColors": {
+          "Failed": "semi-dark-red",
+          "Pending": "light-blue",
+          "Running": "light-green",
+          "Succeeded": "light-yellow",
+          "Unknown": "dark-purple"
+        },
+        "bars": false,
+        "dashLength": 10,
+        "dashes": false,
+        "datasource": "$cluster",
+        "decimals": null,
+        "description": "",
+        "fill": 0,
+        "fillGradient": 0,
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 27
+        },
+        "id": 37,
+        "interval": "3s",
+        "legend": {
+          "avg": false,
+          "current": false,
+          "hideZero": false,
+          "max": false,
+          "min": false,
+          "show": true,
+          "total": false,
+          "values": false
+        },
+        "lines": true,
+        "linewidth": 1,
+        "links": [],
+        "maxPerRow": 6,
+        "nullPointMode": "null as zero",
+        "options": {
+          "dataLinks": []
+        },
+        "percentage": false,
+        "pointradius": 2,
+        "points": false,
+        "renderer": "flot",
+        "repeat": "cluster",
+        "repeatDirection": "h",
+        "scopedVars": {
+          "cluster": {
+            "selected": false,
+            "text": "cluster-0",
+            "value": "cluster-0"
+          }
+        },
+        "seriesOverrides": [],
+        "spaceLength": 10,
+        "stack": false,
+        "steppedLine": false,
+        "targets": [
+          {
+            "expr": "namespace:pods_per_phase:sum{namespace=\"default\"} ",
+            "format": "time_series",
+            "intervalFactor": 1,
+            "legendFormat": "{{ phase }}",
+            "refId": "A"
+          }
+        ],
+        "thresholds": [],
+        "timeFrom": null,
+        "timeRegions": [],
+        "timeShift": null,
+        "title": "$cluster - Pods by phase",
+        "tooltip": {
+          "shared": true,
+          "sort": 0,
+          "value_type": "individual"
+        },
+        "type": "graph",
+        "xaxis": {
+          "buckets": null,
+          "mode": "time",
+          "name": null,
+          "show": true,
+          "values": []
+        },
+        "yaxes": [
+          {
+            "format": "short",
+            "label": null,
+            "logBase": 1,
+            "max": null,
+            "min": "0",
+            "show": true
+          },
+          {
+            "decimals": null,
+            "format": "short",
+            "label": null,
+            "logBase": 1,
+            "max": null,
+            "min": null,
+            "show": true
+          }
+        ],
+        "yaxis": {
+          "align": false,
+          "alignLevel": null
+        }
+      },
+      {
+        "aliasColors": {
+          "Failed": "semi-dark-red",
+          "Pending": "light-blue",
+          "Running": "light-green",
+          "Succeeded": "light-yellow",
+          "Unknown": "dark-purple"
+        },
+        "bars": false,
+        "dashLength": 10,
+        "dashes": false,
+        "datasource": "$cluster",
+        "decimals": null,
+        "description": "",
+        "fill": 0,
+        "fillGradient": 0,
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 27
+        },
+        "id": 47,
+        "interval": "3s",
+        "legend": {
+          "avg": false,
+          "current": false,
+          "hideZero": false,
+          "max": false,
+          "min": false,
+          "show": true,
+          "total": false,
+          "values": false
+        },
+        "lines": true,
+        "linewidth": 1,
+        "links": [],
+        "maxPerRow": 6,
+        "nullPointMode": "null as zero",
+        "options": {
+          "dataLinks": []
+        },
+        "percentage": false,
+        "pointradius": 2,
+        "points": false,
+        "renderer": "flot",
+        "repeat": null,
+        "repeatDirection": "h",
+        "repeatIteration": 1572813374561,
+        "repeatPanelId": 37,
+        "scopedVars": {
+          "cluster": {
+            "selected": false,
+            "text": "cluster-1",
+            "value": "cluster-1"
+          }
+        },
+        "seriesOverrides": [],
+        "spaceLength": 10,
+        "stack": false,
+        "steppedLine": false,
+        "targets": [
+          {
+            "expr": "namespace:pods_per_phase:sum{namespace=\"default\"} ",
+            "format": "time_series",
+            "intervalFactor": 1,
+            "legendFormat": "{{ phase }}",
+            "refId": "A"
+          }
+        ],
+        "thresholds": [],
+        "timeFrom": null,
+        "timeRegions": [],
+        "timeShift": null,
+        "title": "$cluster - Pods by phase",
+        "tooltip": {
+          "shared": true,
+          "sort": 0,
+          "value_type": "individual"
+        },
+        "type": "graph",
+        "xaxis": {
+          "buckets": null,
+          "mode": "time",
+          "name": null,
+          "show": true,
+          "values": []
+        },
+        "yaxes": [
+          {
+            "format": "short",
+            "label": null,
+            "logBase": 1,
+            "max": null,
+            "min": "0",
+            "show": true
+          },
+          {
+            "decimals": null,
+            "format": "short",
+            "label": null,
+            "logBase": 1,
+            "max": null,
+            "min": null,
+            "show": true
+          }
+        ],
+        "yaxis": {
+          "align": false,
+          "alignLevel": null
+        }
+      }
+    ],
+    "refresh": "5s",
+    "schemaVersion": 19,
+    "style": "dark",
+    "tags": [],
+    "templating": {
+      "list": [
+        {
+          "current": {
+            "tags": [],
+            "text": "All",
+            "value": [
+              "$__all"
+            ]
+          },
+          "hide": 0,
+          "includeAll": true,
+          "label": null,
+          "multi": true,
+          "name": "cluster",
+          "options": [],
+          "query": "prometheus",
+          "refresh": 1,
+          "regex": "cluster-.*",
+          "skipUrlSync": false,
+          "type": "datasource"
+        }
+      ]
+    },
+    "time": {
+      "from": "now-5m",
+      "to": "now"
+    },
+    "timepicker": {
+      "refresh_intervals": [
+        "5s",
+        "10s",
+        "30s",
+        "1m",
+        "5m",
+        "15m",
+        "30m",
+        "1h",
+        "2h",
+        "1d"
+      ]
+    },
+    "timezone": "",
+    "title": "Armada - Overview",
+    "uid": "jzf8f6cZz",
+    "version": 1
+  }
+}
