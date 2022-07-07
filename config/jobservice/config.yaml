@@ -12,9 +12,9 @@ grpc:
   keepaliveEnforcementPolicy:
     minTime: 5m
     permitWithoutStream: false
-redis:
+jobredis:
   addrs:
-    - "localhost:6380"
+    - "jobredis:6380"
   password: ""
   db: 0
   poolSize: 1000

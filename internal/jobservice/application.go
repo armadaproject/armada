@@ -28,14 +28,14 @@ func StartUp(config *configuration.JobServiceConfiguration) (func(), *sync.WaitG
 			log.WithError(err).Error("failed to close Redis client")
 		}
 	}()
-	redisJobRepository := repository.NewRedisJobServiceRepository(db)
-
+	
 	grpcServer := grpcCommon.CreateGrpcServer(config.Grpc.KeepaliveParams, config.Grpc.KeepaliveEnforcementPolicy, []authorization.AuthService{&authorization.AnonymousAuthService{}})
-
+	log.Info("JobService service listening on ", config.GrpcPort)
+	
+	redisJobRepository := repository.NewRedisJobServiceRepository(db)
 	jobService := server.NewJobService(config, *redisJobRepository)
 	jobservice.RegisterJobServiceServer(grpcServer, jobService)
 
-	log.Info("JobService service listening on ", config.GrpcPort)
 	grpcCommon.Listen(config.GrpcPort, grpcServer, &wg)
 
 	wg.Wait()

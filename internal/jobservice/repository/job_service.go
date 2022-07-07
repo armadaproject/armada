@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/gogo/protobuf/proto"
-	log "github.com/sirupsen/logrus"
+	"github.com/pkg/errors"
 
 	"github.com/G-Research/armada/pkg/api/jobservice"
 	"github.com/go-redis/redis"
@@ -12,15 +12,16 @@ import (
 
 type JobServiceRepository interface {
 	GetJobStatus(jobId string) (*jobservice.JobServiceResponse, error)
-	UpdateJobServiceDb(jobSetId string, jobResponse *jobservice.JobServiceResponse) (error)
+	UpdateJobServiceDb(jobId string, jobResponse *jobservice.JobServiceResponse) error
 }
 type RedisJobServiceRepository struct {
 	db redis.UniversalClient
 }
+
 func NewRedisJobServiceRepository(db redis.UniversalClient) *RedisJobServiceRepository {
-	_, err := db.Ping().Result()
+	err := HealthCheck(db)
 	if err != nil {
-		log.Fatal(err)
+		panic(err)
 	}
 	return &RedisJobServiceRepository{db: db}
 }
@@ -38,9 +39,14 @@ func (jsr *RedisJobServiceRepository) GetJobStatus(jobId string) (*jobservice.Jo
 
 	return jobResponse, nil
 }
-func (jsr *RedisJobServiceRepository) UpdateJobServiceDb(jobSetId string, jobResponse *jobservice.JobServiceResponse) (error) {
-	if err := jsr.db.Publish(jobSetId, jobResponse).Err(); err != nil {
-        panic(err)
-    }
+func (jsr *RedisJobServiceRepository) UpdateJobServiceDb(jobSetId string, jobResponse *jobservice.JobServiceResponse) error {
+	data, err := proto.Marshal(jobResponse)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
+	if err := jsr.db.Set(jobSetId, data, 0).Err(); err != nil {
+		panic(err)
+	}
 	return nil
 }
