@@ -5,13 +5,13 @@ import (
 	"strings"
 	"time"
 
-	commonUtil "github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/internal/executor/job"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 
+	commonUtil "github.com/G-Research/armada/internal/common/util"
 	context2 "github.com/G-Research/armada/internal/executor/context"
 	"github.com/G-Research/armada/internal/executor/domain"
+	"github.com/G-Research/armada/internal/executor/job"
 	"github.com/G-Research/armada/internal/executor/reporter"
 	"github.com/G-Research/armada/internal/executor/util"
 )

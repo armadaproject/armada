@@ -5,14 +5,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	podchecksConfig "github.com/G-Research/armada/internal/executor/configuration/podchecks"
 	"github.com/G-Research/armada/internal/executor/context/fake"
 	"github.com/G-Research/armada/internal/executor/domain"
 	"github.com/G-Research/armada/internal/executor/podchecks"
 	"github.com/G-Research/armada/internal/executor/util"
-	"github.com/stretchr/testify/assert"
-	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestHandleDeletion_AddsPodIssue_OnUnexpectedDeletionOfArmadaJobs(t *testing.T) {
