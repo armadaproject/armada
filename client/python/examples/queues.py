@@ -23,10 +23,10 @@ class GrpcBasicAuth(grpc.AuthMetadataPlugin):
 
 def main():
     disable_ssl = None
-    host = "localhost"
-    port = "8080"
-    username = "admin"
-    password = "admin"
+    host = "armada.dev.armadaproject.io"
+    port = "443"
+    username = "test"
+    password = "test"
     queue_name = "test-queue"
 
     if disable_ssl:
@@ -43,12 +43,23 @@ def main():
     )
 
     client = ArmadaClient(channel)
-    client.create_queue(name=queue_name, priority_factor=200)
+    try:
+        client.create_queue(name=queue_name, priority_factor=200)
+    except grpc.RpcError as e:
+        code = e.code()
+        if code == grpc.StatusCode.ALREADY_EXISTS:
+            print(f"Queue {queue_name} already exists")
+        else:
+            raise e
+
+    print("============")
     info = client.get_queue_info(name=queue_name)
     print(info)
     print("============")
     info = client.get_queue(name=queue_name)
     print(info)
+
+    client.delete_queue(name=queue_name)
 
 
 if __name__ == "__main__":
