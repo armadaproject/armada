@@ -47,6 +47,48 @@ func TestJobManager_DoesNothingIfNoStuckPodsAreFound(t *testing.T) {
 	mockLeaseService.AssertReportDoneCalledOnceWith(t, []string{})
 }
 
+func TestJobManager_DeletesPodAndReportsTerminated_IfLeasePreventedOnRunningPod(t *testing.T) {
+	fakeClusterContext, mockLeaseService, mockEventsReporter, jobManager := makejobManagerWithTestDoubles()
+
+	runningPod := makeRunningPod()
+	addPod(t, fakeClusterContext, runningPod)
+	//Prevent renewal of lease for pod
+	mockLeaseService.NonrenewableJobIds = []string{util.ExtractJobId(runningPod)}
+
+	pods, err := fakeClusterContext.GetBatchPods()
+	assert.NoError(t, err)
+	assert.Len(t, pods, 1)
+
+	jobManager.ManageJobLeases()
+
+	_, ok := mockEventsReporter.ReceivedEvents[0].(*api.JobTerminatedEvent)
+	assert.True(t, ok)
+
+	pods, err = fakeClusterContext.GetBatchPods()
+	assert.NoError(t, err)
+	assert.Len(t, pods, 0)
+}
+
+func TestJobManager_DoesNothing_IfLeaseRenewalPreventOnFinishedPod(t *testing.T) {
+	fakeClusterContext, mockLeaseService, mockEventsReporter, jobManager := makejobManagerWithTestDoubles()
+	runningPod := makeSucceededPod()
+	addPod(t, fakeClusterContext, runningPod)
+	//Prevent renewal of lease for pod
+	mockLeaseService.NonrenewableJobIds = []string{util.ExtractJobId(runningPod)}
+
+	pods, err := fakeClusterContext.GetBatchPods()
+	assert.NoError(t, err)
+	assert.Len(t, pods, 1)
+
+	jobManager.ManageJobLeases()
+
+	assert.Len(t, mockEventsReporter.ReceivedEvents, 0)
+
+	pods, err = fakeClusterContext.GetBatchPods()
+	assert.NoError(t, err)
+	assert.Len(t, pods, 1)
+}
+
 func TestJobManager_DeletesPodAndReportsDoneIfStuckAndUnretryable(t *testing.T) {
 	unretryableStuckPod := makeUnretryableStuckPod()
 
@@ -150,12 +192,16 @@ func getActivePods(t *testing.T, clusterContext context.ClusterContext) []*v1.Po
 	return remainingActivePods
 }
 
+func makeSucceededPod() *v1.Pod {
+	return makeTestPod(v1.PodStatus{Phase: v1.PodSucceeded})
+}
+
 func makeRunningPod() *v1.Pod {
-	return makeTestPod(v1.PodStatus{Phase: "Running"})
+	return makeTestPod(v1.PodStatus{Phase: v1.PodRunning})
 }
 
 func makeTerminatingPod() *v1.Pod {
-	pod := makeTestPod(v1.PodStatus{Phase: "Running"})
+	pod := makeTestPod(v1.PodStatus{Phase: v1.PodRunning})
 	t := metav1.NewTime(time.Now().Add(-time.Hour))
 	pod.DeletionTimestamp = &t
 	return pod
