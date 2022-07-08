@@ -197,11 +197,7 @@ class ArmadaClient:
         event_stream.cancel()
 
     def create_job_request(
-        self,
-        queue: str,
-        job_set_id: str,
-        job_request_items: List,
-        **job_params
+        self, queue: str, job_set_id: str, job_request_items: List, **job_params
     ):
         """Create a job request.
 
@@ -218,10 +214,7 @@ class ArmadaClient:
         )
 
     def create_job_request_item(
-        self,
-        pod_spec: core_v1.PodSpec,
-        priority: int = 1,
-        **job_item_params
+        self, pod_spec: core_v1.PodSpec, priority: int = 1, **job_item_params
     ):
         """Create a job request.
 
@@ -231,7 +224,5 @@ class ArmadaClient:
         :return: A job item request object. See the api definition.
         """
         return submit_pb2.JobSubmitRequestItem(
-            priority=priority,
-            pod_spec=pod_spec,
-            **job_item_params
+            priority=priority, pod_spec=pod_spec, **job_item_params
         )
