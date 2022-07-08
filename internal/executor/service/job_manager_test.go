@@ -13,6 +13,7 @@ import (
 	commonUtil "github.com/G-Research/armada/internal/common/util"
 	podchecksConfig "github.com/G-Research/armada/internal/executor/configuration/podchecks"
 	"github.com/G-Research/armada/internal/executor/context"
+	context2 "github.com/G-Research/armada/internal/executor/context/fake"
 	"github.com/G-Research/armada/internal/executor/domain"
 	"github.com/G-Research/armada/internal/executor/job"
 	"github.com/G-Research/armada/internal/executor/podchecks"
@@ -217,8 +218,8 @@ func addPod(t *testing.T, fakeClusterContext context.ClusterContext, runningPod 
 	}
 }
 
-func makejobManagerWithTestDoubles() (*fake.SyncFakeClusterContext, *fake.MockLeaseService, *reporter_fake.FakeEventReporter, *JobManager) {
-	fakeClusterContext := fake.NewSyncFakeClusterContext()
+func makejobManagerWithTestDoubles() (*context2.SyncFakeClusterContext, *fake.MockLeaseService, *reporter_fake.FakeEventReporter, *JobManager) {
+	fakeClusterContext := context2.NewSyncFakeClusterContext()
 	mockLeaseService := fake.NewMockLeaseService()
 	eventReporter := reporter_fake.NewFakeEventReporter()
 	jobContext := job.NewClusterJobContext(fakeClusterContext, makePodChecker(), time.Minute*3, 1)
