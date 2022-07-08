@@ -7,7 +7,6 @@ Python client wrapping the gRPC services defined in `submit.proto` and `events.p
 - watching for job events.
 
 
-
 ## Build
 Prerequisites:
 
@@ -18,7 +17,7 @@ In the repo level, run `make python`
 
 1) pyenv
     - Sets up local python environment for supporting multiple python environments
-    - Set up a local python 3.9 environment 
+    - Set up a local python 3.9 environment
 2) poetry
     - Package is defined by pyproject.toml
     - `poetry install` will pull dependencies and install based on pyproject.toml
@@ -30,7 +29,6 @@ In the repo level, run `make python`
 ## CI
 
 We use tox for running our formatting and testing jobs in github actions.
-
 
 ## Testing
 gRPC requires a server to start so our unit tests are not true unit tests.  We start a grpc server and then our unit tests run against that server.
@@ -49,4 +47,3 @@ Log into the Armada-GROSS account on PyPI.
 Generate the API tokens and copy those tokens to ~/.pypirc.
 `poetry build`
 `poetry run twine upload dist/*`
-

@@ -117,7 +117,7 @@ curl -X POST -i http://admin:prom-operator@localhost:30001/api/dashboards/import
 
 Grafana:
 
-![Armada Grafana dashboard](./quickstart/grafana-screenshot.png "Armada Grafana dashboard")
+![Armada Grafana dashboard](./grafana-screenshot.png "Armada Grafana dashboard")
 
 Note that the jobs in this demo simply run the `sleep` command so do not consume many resources.
 
@@ -130,4 +130,4 @@ kubectl port-forward svc/armada-lookout 8080:8080
 ```
 Then access it by opening [http://localhost:8080](http://localhost:8080) in your browser.
 
-![Lookout UI](./quickstart/lookout.png "Lookout UI")
+![Lookout UI](./lookout.png "Lookout UI")
