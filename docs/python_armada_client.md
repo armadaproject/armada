@@ -63,6 +63,55 @@ job_set_id is required.
 
 
 
+#### create_job_request(queue, job_set_id, job_request_items, \*\*job_params)
+Create a job request.
+
+
+* **Parameters**
+
+    
+    * **queue** (*str*) – The name of the queue
+
+
+    * **job_set_id** (*str*) – The name of the job set (a grouping of jobs)
+
+
+    * **job_params** – Job Object
+
+
+    * **job_request_items** (*List*) – 
+
+
+
+* **Returns**
+
+    A job request object. See the api definition.
+
+
+
+#### create_job_request_item(pod_spec, priority=1, \*\*job_item_params)
+Create a job request.
+
+
+* **Parameters**
+
+    
+    * **priority** (*int*) – The priority of the job
+
+
+    * **pod_spec** (*PodSpec*) – The k8s pod spec of the job
+
+
+    * **job_item_params** – Job Item Object
+
+
+
+* **Returns**
+
+    A job item request object. See the api definition.
+
+
+
 #### create_queue(name, \*\*queue_params)
 Create the queue by name.
 
