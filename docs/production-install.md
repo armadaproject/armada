@@ -57,7 +57,7 @@ basicAuth:
     "user1": "password1"
 ```
 
-For all configuration options you can specify in your values file, see [server Helm docs](./helm/server.md).
+For all configuration options you can specify in your values file, see [server Helm docs](https://armadaproject.io/helm#server-helm-chat).
 
 Fill in the appropriate values in the above template and save it as `server-values.yaml`
 
