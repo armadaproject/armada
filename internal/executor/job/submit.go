@@ -199,6 +199,9 @@ func (allocationService *SubmitService) populateServicesIngresses(job *api.Job, 
 			// We need to use indexing here since Spec.TLS isn't pointers.
 			for i, _ := range ingress.Spec.TLS {
 				ingress.Spec.TLS[i].SecretName += allocationService.podDefaults.Ingress.CertNameSuffix
+				for j, _ := range ingress.Spec.TLS[i].Hosts {
+					ingress.Spec.TLS[i].Hosts[j] += allocationService.podDefaults.Ingress.HostnameSuffix
+				}
 			}
 		}
 	}
