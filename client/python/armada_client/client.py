@@ -220,7 +220,8 @@ class ArmadaClient:
 
         :param priority: The priority of the job
         :param pod_spec: The k8s pod spec of the job
-        :param job_item_params: Job Item Object
+        :param job_item_params: All other job_item kwaarg
+               arguments as specified in the api definition.
         :return: A job item request object. See the api definition.
         """
         return submit_pb2.JobSubmitRequestItem(
