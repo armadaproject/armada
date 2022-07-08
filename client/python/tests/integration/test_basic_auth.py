@@ -2,9 +2,8 @@ import base64
 import time
 import uuid
 import grpc
-from armada_client.armada import (
-    submit_pb2,
-)
+
+from armada_client.armada import submit_pb2
 from armada_client.client import ArmadaClient
 from armada_client.k8s.io.api.core.v1 import generated_pb2 as core_v1
 from armada_client.k8s.io.apimachinery.pkg.api.resource import (
@@ -30,12 +29,10 @@ class GrpcBasicAuth(grpc.AuthMetadataPlugin):
 
 
 class BasicAuthTest:
-    def __init__(self, host, port, username, password, disable_ssl=True):
-        # TODO: generalize this so tests can be run with a variety of auth schemas
+    def __init__(self, host, port, username, password, disable_ssl=False):
         if disable_ssl:
             channel_credentials = grpc.local_channel_credentials()
         else:
-            # TODO pass root certs, private key, cert chain if this is needed
             channel_credentials = grpc.ssl_channel_credentials()
         channel = grpc.secure_channel(
             f"{host}:{port}",
@@ -81,28 +78,30 @@ class BasicAuthTest:
         queue_name = "test"
         job_set_id = f"set-{uuid.uuid1()}"
 
-        self.client.delete_queue(name=queue_name)
         self.client.create_queue(name=queue_name, priority_factor=200)
         self.submit_test_job(queue=queue_name, job_set_id=job_set_id)
         self.client.cancel_jobs(queue=queue_name, job_set_id=job_set_id)
 
-        count = 0
-
-        def event_counter():
-            nonlocal count
-            count += 1
-
-        event_stream = self.client.watch_events(
-            on_event=event_counter, queue=queue_name, job_set_id=job_set_id
+        event_stream = self.client.get_job_events_stream(
+            queue=queue_name, job_set_id=job_set_id
         )
         time.sleep(1)
 
-        print(count)
         self.client.unwatch_events(event_stream)
 
 
 def test_basic_auth():
     tester = BasicAuthTest(
-        host="127.0.0.1", port=50051, username="test", password="asdfasdf"
+        host="127.0.0.1",
+        port=50051,
+        username="test",
+        password="test",
     )
     tester.test_watch_events()
+
+
+if __name__ == "__main__":
+    test_basic_auth()
+    print("done")
+    input("Press Enter to continue...")
+    exit(0)
