@@ -54,7 +54,6 @@ endif
 # For now just take the first one
 DOCKER_GOPATH_TOKS := $(subst :, ,$(DOCKER_GOPATH:v%=%))
 DOCKER_GOPATH_DIR = $(word 1,$(DOCKER_GOPATH_TOKS))
-@echo docker gopath: ${DOCKER_GOPATH_DIR}
 
 GO_CMD = docker run --rm -v ${PWD}:/go/src/armada -w /go/src/armada $(DOCKER_NET) \
 	-e GOPROXY -e GOPRIVATE -e INTEGRATION_ENABLED=true -e CGO_ENABLED=0 -e GOOS=linux -e GARCH=amd64 \
