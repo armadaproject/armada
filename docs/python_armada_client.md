@@ -99,7 +99,8 @@ Create a job request.
     * **pod_spec** (*PodSpec*) – The k8s pod spec of the job
 
 
-    * **job_item_params** – Job Item Object
+    * **job_item_params** – All other job_item kwaarg
+    arguments as specified in the api definition.
 
 
 
