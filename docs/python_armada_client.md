@@ -63,7 +63,7 @@ job_set_id is required.
 
 
 
-#### create_job_request(queue, job_set_id, job_request_items, \*\*job_params)
+#### create_job_request(queue, job_set_id, job_request_items)
 Create a job request.
 
 
@@ -79,7 +79,7 @@ Create a job request.
     * **job_params** – Job Object
 
 
-    * **job_request_items** (*List*) – 
+    * **job_request_items** (*List**[**JobSubmitRequestItem**]*) – List[JobSubmitRequestItem]
 
 
 

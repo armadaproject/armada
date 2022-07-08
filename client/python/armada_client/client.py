@@ -197,20 +197,20 @@ class ArmadaClient:
         event_stream.cancel()
 
     def create_job_request(
-        self, queue: str, job_set_id: str, job_request_items: List, **job_params
+        self,
+        queue: str,
+        job_set_id: str,
+        job_request_items: List[submit_pb2.JobSubmitRequestItem],
     ):
         """Create a job request.
 
         :param queue: The name of the queue
         :param job_set_id: The name of the job set (a grouping of jobs)
-        :param job_params: Job Object
+        :param job_request_items: List of Job Request Items
         :return: A job request object. See the api definition.
         """
         return submit_pb2.JobSubmitRequest(
-            queue=queue,
-            job_set_id=job_set_id,
-            job_request_items=job_request_items,
-            **job_params
+            queue=queue, job_set_id=job_set_id, job_request_items=job_request_items
         )
 
     def create_job_request_item(
