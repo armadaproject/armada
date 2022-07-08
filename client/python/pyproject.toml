@@ -1,8 +1,8 @@
 [tool.poetry]
 name = "armada_client"
-version = "0.1.0"
+version = "0.1.0-dev"
 description = ""
-authors = ["Kevin Hannon <kevin@gr-oss.io> Andrew Cone <andrew@gr-oss.io>"]
+authors = ["G Research Open Source Software <armada@armadaproject.io>"]
 license = "APACHE"
 include = ["**/armada_client/**/*.py"]
 
