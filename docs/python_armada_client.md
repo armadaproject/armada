@@ -76,10 +76,7 @@ Create a job request.
     * **job_set_id** (*str*) – The name of the job set (a grouping of jobs)
 
 
-    * **job_params** – Job Object
-
-
-    * **job_request_items** (*List**[**JobSubmitRequestItem**]*) – List[JobSubmitRequestItem]
+    * **job_request_items** (*List**[**JobSubmitRequestItem**]*) – List of Job Request Items
 
 
 
