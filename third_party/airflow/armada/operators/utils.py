@@ -17,7 +17,7 @@ def airflow_error(job_state: str, name: str, job_id: str):
     :return: No Return or an AirflowFailException.
 
     AirflowFailException tells Airflow Schedule to not reschedule the task
-    
+
     """
     if job_state == "succeeded":
         return
