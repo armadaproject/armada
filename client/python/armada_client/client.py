@@ -14,6 +14,8 @@ from armada_client.armada import (
 )
 from armada_client.k8s.io.api.core.v1 import generated_pb2 as core_v1
 
+from armada_client.event import Event
+
 
 class ArmadaClient:
     """
@@ -59,8 +61,8 @@ class ArmadaClient:
         )
         return self.event_stub.GetJobSetEvents(jsr)
 
-    def unmarshal_event_response(self, event):
-        pass
+    def unmarshal_event_response(self, event) -> Event:
+        return Event(event)
 
     def submit_jobs(self, queue: str, job_set_id: str, job_request_items):
         """Submit a armada job.
