@@ -25,7 +25,7 @@ On Linux Machine
 On Mac Machine
 =
 
-1) Open your favorite shell, for example, [Homebrew](https://brew.sh/) or [MacPorts](https://www.macports.org/).
+1) Open your favorite shell/package manager, for example, [Homebrew](https://brew.sh/) or [MacPorts](https://www.macports.org/).
 2) Install [Git](https://git-scm.com/) by running `$ brew install git` or `$ sudo port install git` or follow the instructions [here](https://www.atlassian.com/git/tutorials/install-git)
 7) Fork the G-Research Armada repository to your personal repository.
 8) Clone the forked armada repository on your personal git repository by running git clone [Armada Repo](https://github.com/G-Research/armada.git) and navigate into the new directory Armada project by running cd armada.
