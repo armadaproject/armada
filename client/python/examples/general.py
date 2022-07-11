@@ -6,6 +6,7 @@ then watch for the job to succeed or fail.
 import os
 import time
 import uuid
+from enum import Enum
 
 import grpc
 from armada_client.client import ArmadaClient
@@ -15,7 +16,7 @@ from armada_client.k8s.io.apimachinery.pkg.api.resource import (
 )
 
 
-class EventState:
+class EventType(Enum):
     """
     Struct for the event states.
     """
@@ -84,8 +85,10 @@ def wait_for_job_event(event_stream, job_id: str, event_state: str):
         msg_type = event.message.WhichOneof("events")
         message = getattr(event.message, msg_type)
 
+        msg_type = EventType(msg_type)
+
         if message.job_id == job_id:
-            if msg_type == EventState.failed:
+            if msg_type == EventType.failed:
                 return False
             elif msg_type == event_state:
                 return True
@@ -118,7 +121,7 @@ def creating_jobs_example(client, queue, job_set_id):
     # Can be accessed directly as an iterator that will yield the next event
     event_stream = client.get_job_events_stream(queue=queue, job_set_id=job_set_id)
 
-    test = wait_for_job_event(event_stream, job_id, EventState.succeeded)
+    test = wait_for_job_event(event_stream, job_id, EventType.succeeded)
     if test:
         print("Job submitted")
 

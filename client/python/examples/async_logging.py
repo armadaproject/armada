@@ -2,6 +2,7 @@ import os
 import threading
 import time
 import uuid
+from enum import Enum
 
 import grpc
 from armada_client.client import ArmadaClient
@@ -11,7 +12,7 @@ from armada_client.k8s.io.apimachinery.pkg.api.resource import (
 )
 
 
-class EventState:
+class EventType(Enum):
     """
     Struct for the event states.
     """
@@ -90,7 +91,9 @@ def watch_job_set(client: ArmadaClient, queue: str, job_set_id):
                 msg_type = event.message.WhichOneof("events")
                 message = getattr(event.message, msg_type)
 
-                print(f"Job {message.job_id} is {msg_type}")
+                msg_type = EventType(msg_type)
+
+                print(f"Job {message.job_id} - {msg_type}")
 
         # Handle the error we expect to maybe occur
         except grpc.RpcError as e:
