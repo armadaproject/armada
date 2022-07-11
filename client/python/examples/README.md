@@ -1,10 +1,17 @@
+# Python Client Examples
+
+Currently there are two example files
+
+## Setup
+
 ## Using Basic Auth
+
+The following code shows an example of how basic authentication can be setup
 
 ```py
 # The python GRPC library requires authentication
 #  data to be provided as an AuthMetadataPlugin.
 # The username/password are colon-delimted and base64 encoded as per RFC 2617
-
 
 class GrpcBasicAuth(grpc.AuthMetadataPlugin):
     def __init__(self, username: str, password: str):
