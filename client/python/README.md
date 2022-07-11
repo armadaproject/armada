@@ -42,7 +42,6 @@ On Windows Machine
 =
 ### Note: This repository can only run on Windows Subsystem for Linux (WSL)
 
-<<<<<<< HEAD
 1) To install Windows Subsystem for Linux on your local machine follow the instructions [here](https://docs.microsoft.com/en-us/windows/wsl/install) 
 2) Install [Git](https://git-scm.com/) by running `$ sudo apt-get install git` or follow the instructions [here](https://docs.microsoft.com/en-us/windows/wsl/tutorials/wsl-git)
 3) Fork the G-Research Armada repository to your personal repository.
@@ -63,8 +62,7 @@ Python client wrapping the gRPC services defined in `submit.proto` and `events.p
 - submitting, cancelling, and re-prioritising jobs, and
 - watching for job events.
 
-=======
->>>>>>> e4c4495c6f3605bef87af3111e2187eb1dda2a76
+
 ## Build
 Prerequisites:
 
