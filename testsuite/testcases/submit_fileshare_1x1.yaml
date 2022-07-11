@@ -1,0 +1,62 @@
+numBatches: 1
+batchSize: 1
+queue: e2e-test-queue
+jobs:
+  - priority: 0
+    namespace: personal-anonymous
+    podSpec:
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      volumes:
+        - name: shared-data
+          emptyDir: {}
+      initContainers:
+        - name: writer
+          imagePullPolicy: IfNotPresent
+          image: alpine:3.16
+          command:
+            - sh
+            - -c
+            - |
+              echo "Hello world!" > /usr/share/test/file.txt
+          volumeMounts:
+            - name: shared-data
+              mountPath: /usr/share/test
+          resources:
+            limits:
+              memory: 10Mi
+              cpu: 100m
+            requests:
+              memory: 10Mi
+              cpu: 100m
+      containers:
+        - name: reader
+          imagePullPolicy: IfNotPresent
+          image: alpine:3.16
+          command:
+            - sh
+            - -c
+            - |
+              expected="Hello world!"
+              if [ "$(cat /usr/share/test/file.txt)" != "$expected" ]; then
+                echo "File contents do not match!"
+                exit 1
+              else
+                echo "File contents match!"
+                exit 0
+              fi
+          volumeMounts:
+            - name: shared-data
+              mountPath: /usr/share/test
+          resources:
+            limits:
+              memory: 10Mi
+              cpu: 100m
+            requests:
+              memory: 10Mi
+              cpu: 100m
+---
+timeout: "100s"
+expectedEvents:
+  - submitted:
+  - succeeded:

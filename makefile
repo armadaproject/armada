@@ -49,9 +49,6 @@ endif
 #
 # For npm, set the npm_config_disturl and npm_config_registry environment variables.
 # Alternatively, place a .npmrc file in internal/lookout/ui
-#
-# To support SSL for alternate sources, we mount /etc/ssl/certs (which is Linux-specific) into the Docker container.
-# If not using alternate sources, this mount can be removed.
 
 # Deal with the fact that GOPATH might refer to multiple entries multiple directories
 # For now just take the first one
@@ -62,17 +59,6 @@ GO_CMD = docker run --rm -v ${PWD}:/go/src/armada -w /go/src/armada $(DOCKER_NET
 	-e GOPROXY -e GOPRIVATE -e INTEGRATION_ENABLED=true -e CGO_ENABLED=0 -e GOOS=linux -e GARCH=amd64 \
 	-v $(DOCKER_GOPATH_DIR):/go \
 	golang:1.16-buster
-DOTNET_CMD = docker run --rm -v ${PWD}:/go/src/armada -w /go/src/armada \
-	-v /etc/ssl/certs:/etc/ssl/certs \
-	-e SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
-	mcr.microsoft.com/dotnet/sdk:3.1.417-buster
-NODE_CMD = docker run --rm -v ${PWD}:/go/src/armada -w /go/src/armada/internal/lookout/ui \
-	-e npm_config_disturl \
-	-e npm_config_registry \
-	-v /etc/ssl/certs:/etc/ssl/certs \
-	-e SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
-	-e npm_config_cafile=/etc/ssl/certs/ca-certificates.crt \
-	node:16.14-buster
 
 # Versions of third party API
 # Bump if you are updating
@@ -107,6 +93,67 @@ export SHELLOPTS:=$(if $(SHELLOPTS),$(SHELLOPTS):)pipefail:errexit
 
 gobuildlinux = go build -ldflags="-s -w"
 gobuild = go build
+
+NODE_DOCKER_IMG := node:16.14-buster
+DOTNET_DOCKER_IMG := mcr.microsoft.com/dotnet/sdk:3.1.417-buster
+
+# By default, the install process trusts standard SSL root CAs only.
+# To use your host system's SSL certs on Debian/Ubuntu, AmazonLinux, or MacOS, uncomment the line below
+#
+# USE_SYSTEM_CERTS := true
+
+ifdef USE_SYSTEM_CERTS
+
+DOTNET_CMD = docker run -v ${PWD}:/go/src/armada -w /go/src/armada \
+	-v ${PWD}/build/ssl/certs/:/etc/ssl/certs \
+	-e SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
+	${DOTNET_DOCKER_IMG}
+
+NODE_CMD = docker run --rm -v ${PWD}:/go/src/armada -w /go/src/armada/internal/lookout/ui \
+	-e npm_config_disturl \
+	-e npm_config_registry \
+	-v build/ssl/certs/:/etc/ssl/certs \
+	-e SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
+	-e npm_config_cafile=/etc/ssl/certs/ca-certificates.crt \
+	${NODE_DOCKER_IMG}
+
+UNAME_S := $(shell uname -s)
+ssl-certs:
+	mkdir -p build/ssl/certs/
+	rm -f build/ssl/certs/ca-certificates.crt
+ ifneq ("$(wildcard /etc/ssl/certs/ca-certificates.crt)", "")
+	# Debian-based distros
+	cp /etc/ssl/certs/ca-certificates.crt build/ssl/certs/ca-certificates.crt
+ else ifneq ("$(wildcard /etc/ssl/certs/ca-bundle.crt)","")
+	# AmazonLinux
+	cp /etc/ssl/certs/ca-bundle.crt build/ssl/certs/ca-certificates.crt
+ else ifeq ("$(UNAME_S)", "Darwin")
+	# MacOS
+	security find-certificate -a -p /System/Library/Keychains/SystemRootCertificates.keychain >> build/ssl/certs/ca-certificates.crt
+	security find-certificate -a -p /Library/Keychains/System.keychain >> build/ssl/certs/ca-certificates.crt
+	security find-certificate -a -p ~/Library/Keychains/login.keychain-db >> build/ssl/certs/ca-certificates.crt
+ else
+	echo "Don't know where to find root CA certs"
+	exit 1
+ endif
+
+node-setup: ssl-certs
+dotnet-setup: ssl-certs
+
+else
+
+DOTNET_CMD = docker run -v ${PWD}:/go/src/armada -w /go/src/armada \
+	${DOTNET_DOCKER_IMG}
+
+NODE_CMD = docker run --rm -v ${PWD}:/go/src/armada -w /go/src/armada/internal/lookout/ui \
+	-e npm_config_disturl \
+	-e npm_config_registry \
+	${NODE_DOCKER_IMG}
+
+# no setup necessary for node or dotnet if using default SSL certs
+node-setup:
+dotnet-setup:
+endif
 
 build-server:
 	$(GO_CMD) $(gobuild) -o ./bin/server cmd/armada/main.go
@@ -158,7 +205,7 @@ build-lookout-ingester:
 build-eventapi-ingester:
 	$(GO_CMD) $(gobuild) -o ./bin/eventingester cmd/eventapingester/main.go
 
-build: build-server build-executor build-fakeexecutor build-armadactl build-load-tester build-binoculars build-lookout-ingester build-eventapi-ingester
+build: build-server build-executor build-fakeexecutor build-armadactl build-load-tester build-testsuite build-binoculars build-lookout-ingester build-eventapi-ingester
 
 build-docker-server:
 	mkdir -p .build/server
@@ -177,9 +224,14 @@ build-docker-armada-load-tester:
 	$(GO_CMD) $(gobuildlinux) -o ./.build/armada-load-tester/armada-load-tester cmd/armada-load-tester/main.go
 	docker build $(dockerFlags) -t armada-load-tester -f ./build/armada-load-tester/Dockerfile ./.build/armada-load-tester
 
+build-docker-testsuite:
+	mkdir -p .build/testsuite
+	$(GO_CMD) $(gobuildlinux) -ldflags="$(TESTSUITE_LDFLAGS)" -o ./.build/testsuite/testsuite cmd/testsuite/main.go
+	docker build $(dockerFlags) -t testsuite -f ./build/testsuite/Dockerfile ./.build/testsuite
+
 build-docker-armadactl:
 	mkdir -p .build/armadactl
-	$(GO_CMD) $(gobuildlinux) -o ./.build/armadactl/armadactl cmd/armadactl/main.go
+	$(GO_CMD) $(gobuildlinux) -ldflags="$(ARMADACTL_LDFLAGS)" -o ./.build/armadactl/armadactl cmd/armadactl/main.go
 	docker build $(dockerFlags) -t armadactl -f ./build/armadactl/Dockerfile ./.build/armadactl
 
 build-docker-fakeexecutor:
@@ -200,7 +252,7 @@ build-docker-eventapi-ingester:
 	cp -a ./config/eventingester ./.build/eventingester/config
 	docker build $(dockerFlags) -t armada-eventapi-ingester -f ./build/eventingester/Dockerfile ./.build/eventingester
 
-build-docker-lookout:
+build-docker-lookout: node-setup
 	$(NODE_CMD) npm ci
 	# The following line is equivalent to running "npm run openapi".
 	# We use this instead of "npm run openapi" since if NODE_CMD is set to run npm in docker,
@@ -216,13 +268,13 @@ build-docker-binoculars:
 	cp -a ./config/binoculars ./.build/binoculars/config
 	docker build $(dockerFlags) -t armada-binoculars -f ./build/binoculars/Dockerfile ./.build/binoculars
 
-build-docker: build-docker-server build-docker-executor build-docker-armadactl build-docker-armada-load-tester build-docker-fakeexecutor build-docker-lookout build-docker-lookout-ingester build-docker-binoculars
+build-docker: build-docker-server build-docker-executor build-docker-armadactl build-docker-testsuite build-docker-armada-load-tester build-docker-fakeexecutor build-docker-lookout build-docker-lookout-ingester build-docker-binoculars
 
 # Build target without lookout (to avoid needing to load npm packages from the Internet).
-build-docker-no-lookout: build-docker-server build-docker-executor build-docker-armadactl build-docker-armada-load-tester build-docker-fakeexecutor build-docker-binoculars
+build-docker-no-lookout: build-docker-server build-docker-executor build-docker-armadactl build-docker-testsuite build-docker-armada-load-tester build-docker-fakeexecutor build-docker-binoculars
 
 build-ci: gobuild=$(gobuildlinux)
-build-ci: build-docker build-armadactl build-armadactl-multiplatform build-load-tester
+build-ci: build-docker build-armadactl build-armadactl-multiplatform build-load-tester build-testsuite
 
 .ONESHELL:
 tests-teardown:
@@ -317,7 +369,7 @@ tests-e2e-setup: setup-cluster
 	$(GO_CMD) go run cmd/armadactl/main.go create queue e2e-test-queue || true
 
 .ONESHELL:
-tests-e2e-no-setup:
+tests-e2e-no-setup: dotnet-setup
 	function printApplicationLogs {
 		echo -e "\nexecutor logs:"
 		docker logs executor
@@ -398,7 +450,7 @@ python: setup-proto
 	docker run --rm -v ${PWD}/proto:/proto -v ${PWD}:/go/src/armada -w /go/src/armada armada-python-client-builder ./scripts/build-python-client.sh
 
 proto: setup-proto
-	
+
 	docker build $(dockerFlags) --build-arg GOPROXY --build-arg GOPRIVATE --build-arg MAVEN_URL -t armada-proto -f ./build/proto/Dockerfile .
 	docker run --rm -e GOPROXY -e GOPRIVATE -u $(shell id -u):$(shell id -g) -v ${PWD}/proto:/proto -v ${PWD}:/go/src/armada -w /go/src/armada armada-proto ./scripts/proto.sh
 
@@ -427,7 +479,7 @@ proto: setup-proto
 	$(GO_TEST_CMD) goimports -w -local "github.com/G-Research/armada" ./pkg/armadaevents/
 
 # Target for compiling the dotnet Armada client.
-dotnet:
+dotnet: dotnet-setup
 	$(DOTNET_CMD) dotnet build ./client/DotNet/Armada.Client /t:NSwag
 
 # Download all dependencies and install tools listed in internal/tools/tools.go
