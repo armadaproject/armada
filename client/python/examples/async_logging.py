@@ -11,6 +11,31 @@ from armada_client.k8s.io.apimachinery.pkg.api.resource import (
 )
 
 
+class EventState:
+    """
+    Struct for the event states.
+    """
+
+    submitted = "submitted"
+    queued = "queued"
+    duplicate_found = "duplicate_found"
+    leased = "leased"
+    lease_returned = "lease_returned"
+    pending = "pending"
+    running = "running"
+    unable_to_schedule = "unable_to_schedule"
+    failed = "failed"
+    succeeded = "succeeded"
+    reprioritized = "reprioritized"
+    cancelling = "cancelling"
+    cancelled = "cancelled"
+    terminated = "terminated"
+    utilisation = "utilisation"
+    ingress_info = "ingress_info"
+    reprioritizing = "reprioritizing"
+    updated = "updated"
+
+
 def create_dummy_job(client):
     """
     Create a dummy job with a single container.
@@ -42,31 +67,6 @@ def create_dummy_job(client):
     return [client.create_job_request_item(priority=1, pod_spec=pod)]
 
 
-def useful_message(message, queue):
-    """
-    Returns the message if it us considered "useful"
-
-    This is based on it being one of the following message types
-    """
-
-    acceptable = [
-        (message.running, "Running"),
-        (message.succeeded, "Succeeded"),
-        (message.failed, "Failed"),
-        (message.cancelled, "Cancelled"),
-        (message.cancelling, "Cancelling"),
-        (message.reprioritized, "Reprioritized"),
-        (message.reprioritizing, "Reprioritizing"),
-        (message.queued, "Queued"),
-    ]
-
-    for accepted, msg_type in acceptable:
-        if accepted.queue == queue:
-            return accepted, msg_type, True
-
-    return None, None, False
-
-
 def watch_job_set(client: ArmadaClient, queue: str, job_set_id):
     """
     Trys to latch on to the job set and print out the status
@@ -87,9 +87,10 @@ def watch_job_set(client: ArmadaClient, queue: str, job_set_id):
             # For each event, check if it is one we are interested in
             # and print out the message if it is
             for event in event_stream:
-                msg, msg_type, useful = useful_message(event.message, queue)
-                if useful:
-                    print(msg_type, ":", msg.job_id)
+                msg_type = event.message.WhichOneof("events")
+                message = getattr(event.message, msg_type)
+
+                print(f"Job {message.job_id} is {msg_type}")
 
         # Handle the error we expect to maybe occur
         except grpc.RpcError as e:

@@ -15,6 +15,31 @@ from armada_client.k8s.io.apimachinery.pkg.api.resource import (
 )
 
 
+class EventState:
+    """
+    Struct for the event states.
+    """
+
+    submitted = "submitted"
+    queued = "queued"
+    duplicate_found = "duplicate_found"
+    leased = "leased"
+    lease_returned = "lease_returned"
+    pending = "pending"
+    running = "running"
+    unable_to_schedule = "unable_to_schedule"
+    failed = "failed"
+    succeeded = "succeeded"
+    reprioritized = "reprioritized"
+    cancelling = "cancelling"
+    cancelled = "cancelled"
+    terminated = "terminated"
+    utilisation = "utilisation"
+    ingress_info = "ingress_info"
+    reprioritizing = "reprioritizing"
+    updated = "updated"
+
+
 def create_dummy_job(client: ArmadaClient):
     """
     Create a dummy job with a single container.
@@ -46,7 +71,7 @@ def create_dummy_job(client: ArmadaClient):
     return [client.create_job_request_item(priority=1, pod_spec=pod)]
 
 
-def wait_for_job_event(event_stream, job_id: str, event_type: str):
+def wait_for_job_event(event_stream, job_id: str, event_state: str):
     """
     Wait for a job event to occur.
 
@@ -55,37 +80,15 @@ def wait_for_job_event(event_stream, job_id: str, event_type: str):
 
     # Contains all the possible message types
     for event in event_stream:
-        if job_id == event.message.succeeded.job_id and event_type == "SUCCEEDED":
-            return True
 
-        elif job_id == event.message.running.job_id and event_type == "RUNNING":
-            return True
+        msg_type = event.message.WhichOneof("events")
+        message = getattr(event.message, msg_type)
 
-        elif (
-            job_id == event.message.reprioritizing.job_id
-            and event_type == "REPRIORITIZING"
-        ):
-            return True
-
-        elif (
-            job_id == event.message.reprioritized.job_id
-            and event_type == "REPRIORITIZED"
-        ):
-            return True
-
-        elif job_id == event.message.failed.job_id and event_type == "FAILED":
-            return False
-
-        elif job_id == event.message.cancelled.job_id and event_type == "CANCELLED":
-            return True
-
-        elif job_id == event.message.cancelling.job_id and event_type == "CANCELLING":
-            return True
-
-        elif job_id == event.message.queued.job_id and event_type == "QUEUED":
-            return True
-
-    return None
+        if message.job_id == job_id:
+            if msg_type == EventState.failed:
+                return False
+            elif msg_type == event_state:
+                return True
 
 
 def creating_jobs_example(client, queue, job_set_id):
@@ -115,12 +118,12 @@ def creating_jobs_example(client, queue, job_set_id):
     # Can be accessed directly as an iterator that will yield the next event
     event_stream = client.get_job_events_stream(queue=queue, job_set_id=job_set_id)
 
-    succeded = wait_for_job_event(event_stream, job_id, "SUCCEEDED")
-    if succeded:
-        print("Job Succeeded")
+    test = wait_for_job_event(event_stream, job_id, EventState.succeeded)
+    if test:
+        print("Job submitted")
 
-    elif not succeded:
-        print("Job Failed")
+    elif not test:
+        print("Failed")
 
     # Close the event stream
     client.unwatch_events(event_stream)
