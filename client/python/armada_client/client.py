@@ -58,6 +58,9 @@ class ArmadaClient:
         )
         return self.event_stub.GetJobSetEvents(jsr)
 
+    def unmarshal_event_response(self, event):
+        pass
+
     def submit_jobs(self, queue: str, job_set_id: str, job_request_items):
         """Submit a armada job.
 
