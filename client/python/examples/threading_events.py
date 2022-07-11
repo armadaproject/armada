@@ -42,8 +42,6 @@ def useful_message(message, queue):
         (message.running, "Running"),
         (message.succeeded, "Succeeded"),
         (message.failed, "Failed"),
-        (message.reprioritizing, "Reprioritizing"),
-        (message.failed, "Failed"),
         (message.cancelled, "Cancelled"),
         (message.cancelling, "Cancelling"),
         (message.reprioritized, "Reprioritized"),
@@ -175,8 +173,9 @@ def main():
 
     # wait for threads to finish
     thread.join()
+    watch_jobs.join()
 
-    print("Done")
+    print("Completed.")
 
 
 if __name__ == "__main__":
