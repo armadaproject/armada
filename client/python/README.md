@@ -42,6 +42,7 @@ On Windows Machine
 =
 ### Note: This repository can only run on Windows Subsystem for Linux (WSL)
 
+<<<<<<< HEAD
 1) To install Windows Subsystem for Linux on your local machine follow the instructions [here](https://docs.microsoft.com/en-us/windows/wsl/install) 
 2) Install [Git](https://git-scm.com/) by running `$ sudo apt-get install git` or follow the instructions [here](https://docs.microsoft.com/en-us/windows/wsl/tutorials/wsl-git)
 3) Fork the G-Research Armada repository to your personal repository.
@@ -62,6 +63,8 @@ Python client wrapping the gRPC services defined in `submit.proto` and `events.p
 - submitting, cancelling, and re-prioritising jobs, and
 - watching for job events.
 
+=======
+>>>>>>> e4c4495c6f3605bef87af3111e2187eb1dda2a76
 ## Build
 Prerequisites:
 
@@ -70,7 +73,7 @@ In the repo level, run `make python` then `cd client/python` and lastly run `poe
 
 1) pyenv
     - Sets up local python environment for supporting multiple python environments
-    - Set up a local python 3.9 environment 
+    - Set up a local python 3.9 environment
 2) poetry
     - Package is defined by pyproject.toml
     - `poetry install` will pull dependencies and install based on pyproject.toml
@@ -82,7 +85,6 @@ In the repo level, run `make python` then `cd client/python` and lastly run `poe
 ## CI
 
 We use tox for running our formatting and testing jobs in github actions.
-
 
 ## Testing
 gRPC requires a server to start so our unit tests are not true unit tests.  We start a grpc server and then our unit tests run against that server.
@@ -101,4 +103,3 @@ Log into the Armada-GROSS account on PyPI.
 Generate the API tokens and copy those tokens to ~/.pypirc.
 `poetry build`
 `poetry run twine upload dist/*`
-
