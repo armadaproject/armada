@@ -112,7 +112,7 @@ def watch_queue(client, queue):
         time.sleep(0.2)
 
 
-def sync_tasks(client, queue, job_set_id):
+def workflow(client, queue, job_set_id):
     try:
         client.create_queue(name=queue, priority_factor=1)
     except grpc.RpcError as e:
@@ -139,44 +139,47 @@ def sync_tasks(client, queue, job_set_id):
 
 
 def main():
-    disable_ssl = None
-    host = os.environ.get("HOST", "localhost")
-    port = os.environ.get("PORT", "50051")
     queue = "test-general"
     job_set_id = f"set-{uuid.uuid1()}"
 
-    if disable_ssl:
+    if DISABLE_SSL:
         channel_credentials = grpc.local_channel_credentials()
     else:
         channel_credentials = grpc.ssl_channel_credentials()
 
     channel = grpc.secure_channel(
-        f"{host}:{port}",
+        f"{HOST}:{PORT}",
         channel_credentials,
     )
 
     client = ArmadaClient(channel)
 
     # run creating_queues_example in a thread
-    thread = threading.Thread(target=sync_tasks, args=(client, queue, job_set_id))
-    thread.start()
+    thread = threading.Thread(target=workflow, args=(client, queue, job_set_id))
 
     # run watch_jobs in a separate thread
     watch_jobs = threading.Thread(
         target=watch_job_set, args=(client, queue, job_set_id)
     )
-    watch_jobs.start()
 
     # run watch in a separate thread
     watch_queues = threading.Thread(target=watch_queue, args=(client, queue))
+
+    thread.start()
+    watch_jobs.start()
     watch_queues.start()
 
     # wait for threads to finish
     thread.join()
     watch_jobs.join()
+    watch_queues.join()
 
     print("Completed.")
 
 
 if __name__ == "__main__":
+    DISABLE_SSL = None
+    HOST = os.environ.get("HOST", "localhost")
+    PORT = os.environ.get("PORT", "50051")
+
     main()
