@@ -12,6 +12,7 @@ import "k8s.io/apimachinery/pkg/api/resource/generated.proto";
 option (gogoproto.goproto_stringer_all) = false;
 option (gogoproto.stringer_all) = true;
 
+// Represents a job being submitted to the queue.
 message JobSubmittedEvent {
     string job_id = 1;
     string job_set_id = 2;
@@ -20,6 +21,7 @@ message JobSubmittedEvent {
     Job job = 5 [(gogoproto.nullable) = false];
 }
 
+// Represents a job being queued.
 message JobQueuedEvent {
     string job_id = 1;
     string job_set_id = 2;
@@ -27,6 +29,7 @@ message JobQueuedEvent {
     google.protobuf.Timestamp created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
 }
 
+// Represents a job is a duplicate of another job.
 message JobDuplicateFoundEvent {
     string job_id = 1;
     string job_set_id = 2;
@@ -35,6 +38,7 @@ message JobDuplicateFoundEvent {
     string original_job_id = 5;
 }
 
+// Represents a job being leased to a K8s cluster.
 message JobLeasedEvent {
     string job_id = 1;
     string job_set_id = 2;
@@ -43,6 +47,7 @@ message JobLeasedEvent {
     string cluster_id = 5;
 }
 
+// Represents the data for a job that has been leased to a K8s cluster.
 message JobLeaseReturnedEvent {
     string job_id = 1;
     string job_set_id = 2;
@@ -54,6 +59,7 @@ message JobLeaseReturnedEvent {
     int32  pod_number = 8;
 }
 
+// Represents k8s saying a job has expired.
 message JobLeaseExpiredEvent {
     string job_id = 1;
     string job_set_id = 2;
@@ -61,6 +67,7 @@ message JobLeaseExpiredEvent {
     google.protobuf.Timestamp created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
 }
 
+// Represents a job that is pending in the queue.
 message JobPendingEvent {
     string job_id = 1;
     string job_set_id = 2;
@@ -73,6 +80,7 @@ message JobPendingEvent {
     string pod_namespace = 9;
 }
 
+// Represents a job that is running
 message JobRunningEvent {
     string job_id = 1;
     string job_set_id = 2;
@@ -86,6 +94,7 @@ message JobRunningEvent {
     string pod_namespace = 10;
 }
 
+// Represents the infomation on a job from ingress.
 message JobIngressInfoEvent {
     string job_id = 1;
     string job_set_id = 2;
@@ -100,6 +109,7 @@ message JobIngressInfoEvent {
     map<int32, string> ingress_addresses = 9;
 }
 
+// Represents a job that failed to schedule in the queue.
 message JobUnableToScheduleEvent {
     string job_id = 1;
     string job_set_id = 2;
@@ -114,6 +124,7 @@ message JobUnableToScheduleEvent {
     string pod_namespace = 11;
 }
 
+// Represents a job that failed to run.
 message JobFailedEvent {
     string job_id = 1;
     string job_set_id = 2;
@@ -131,6 +142,7 @@ message JobFailedEvent {
     Cause cause = 12;
 }
 
+// Represents a job that has been completed.
 message JobSucceededEvent {
     string job_id = 1;
     string job_set_id = 2;
@@ -144,6 +156,7 @@ message JobSucceededEvent {
     string pod_namespace = 10;
 }
 
+// Represents the data about a jobs utilization.
 message JobUtilisationEvent {
     string job_id = 1;
     string job_set_id = 2;
@@ -159,6 +172,7 @@ message JobUtilisationEvent {
     map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> total_cumulative_usage = 12 [(gogoproto.nullable) = false];
 }
 
+// Represents a job that is in the process of reprioritizing.
 message JobReprioritizingEvent {
     string job_id = 1;
     string job_set_id = 2;
@@ -168,6 +182,7 @@ message JobReprioritizingEvent {
     string requestor = 6;
 }
 
+// Represents a job that has been reprioritized.
 message JobReprioritizedEvent {
     string job_id = 1;
     string job_set_id = 2;
@@ -177,6 +192,7 @@ message JobReprioritizedEvent {
     string requestor = 6;
 }
 
+// Represents a job that is being cancelled.
 message JobCancellingEvent {
     string job_id = 1;
     string job_set_id = 2;
@@ -185,6 +201,7 @@ message JobCancellingEvent {
     string requestor = 5;
 }
 
+// Represents a job that has been cancelled.
 message JobCancelledEvent {
     string job_id = 1;
     string job_set_id = 2;
@@ -193,6 +210,7 @@ message JobCancelledEvent {
     string requestor = 5;
 }
 
+// Represents a job that has been termniated.
 message JobTerminatedEvent {
     string job_id = 1;
     string job_set_id = 2;
@@ -206,6 +224,7 @@ message JobTerminatedEvent {
     string reason = 8;
 }
 
+// Represents a job that is being updated
 message JobUpdatedEvent {
     string job_id = 1;
     string job_set_id = 2;
@@ -215,6 +234,7 @@ message JobUpdatedEvent {
     Job job = 6 [(gogoproto.nullable) = false];
 }
 
+// Represents at least one of the events from the events.proto file.
 message EventMessage {
     oneof events {
         JobSubmittedEvent submitted = 1;
@@ -239,6 +259,7 @@ message EventMessage {
     }
 }
 
+// The cause for a job to error.
 enum Cause {
     Error = 0;
     Evicted = 1;
@@ -246,6 +267,7 @@ enum Cause {
     DeadlineExceeded = 3;
 }
 
+// A Docker containers status.
 message ContainerStatus {
     string name = 1;
     int32 exitCode = 2;
@@ -254,6 +276,7 @@ message ContainerStatus {
     Cause cause = 5;
 }
 
+// A list of event messages covering all events.
 message EventList {
     repeated EventMessage events = 1;
 }
@@ -274,6 +297,7 @@ message JobSetRequest {
     bool force_redis = 6;  // This field is for test purposes only
 }
 
+// Represents a request to watch events
 message WatchRequest {
     string queue = 1;
     string job_set_id = 2;
@@ -281,15 +305,25 @@ message WatchRequest {
     bool force_redis = 4;  // This field is for test purposes only
 }
 
+// Service that handles all events
 service Event {
-    rpc ReportMultiple (EventList) returns (google.protobuf.Empty);
+
+    // Reports multiple events at once
+    rpc ReportMultiple (EventList) returns (google.protobuf.Empty);#
+
+    // Reports a single event message
     rpc Report (EventMessage) returns (google.protobuf.Empty);
+
+    // Returns an event stream message
     rpc GetJobSetEvents (JobSetRequest) returns (stream EventStreamMessage) {
         option (google.api.http) = {
             post: "/v1/job-set/{queue}/{id}"
             body: "*"
         };
     }
+
+    // Returns an event stream message to watch
+    // (deprecated)
     rpc Watch (WatchRequest) returns (stream EventStreamMessage) {
         option deprecated = true;
     }

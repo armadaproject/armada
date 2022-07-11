@@ -14,6 +14,8 @@ import "k8s.io/api/networking/v1/generated.proto";
 option (gogoproto.goproto_stringer_all) = false;
 option (gogoproto.stringer_all) = true;
 
+
+// Represents a single Job and its k8s details.
 message Job {
     string id = 1;
     string client_id = 13;
@@ -40,6 +42,8 @@ message Job {
     repeated k8s.io.api.core.v1.Service k8s_service = 18;
 }
 
+
+// Represents a k8s least request for the job.
 message LeaseRequest {
     string cluster_id = 1;
     string pool = 8;
@@ -66,6 +70,7 @@ message StreamingLeaseRequest {
     repeated string ReceivedJobIds = 7;
 }
 
+// Represents the k8s node info.
 message NodeInfo {
     string name = 1;
     repeated k8s.io.api.core.v1.Taint taints = 2 [(gogoproto.nullable) = false];
@@ -74,13 +79,14 @@ message NodeInfo {
     map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> available_resources = 5 [(gogoproto.nullable) = false];
 }
 
+// Represents the k8s node type.
 message NodeType {
     repeated k8s.io.api.core.v1.Taint taints = 1 [(gogoproto.nullable) = false];
     map<string,string> labels = 2;
     map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> allocatable_resources = 3 [(gogoproto.nullable) = false];
 }
 
-// Used to store last info in Redis
+// Used to store last info in Redis.
 message ClusterSchedulingInfoReport {
     string cluster_id = 1;
     string pool = 7;
@@ -89,29 +95,35 @@ message ClusterSchedulingInfoReport {
     map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> minimum_job_size = 6 [(gogoproto.nullable) = false];
 }
 
+// Represents a k8s queue report.
 message QueueLeasedReport {
     string name = 1;
     map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> resources_leased = 2 [(gogoproto.nullable) = false];
 }
 
+// Represents a k8s Cluster report.
 message ClusterLeasedReport {
     string cluster_id = 1;
     google.protobuf.Timestamp report_time = 2 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
     repeated QueueLeasedReport queues = 3;
 }
 
+// Represents k8s compute resources left for jobs.
 message ComputeResource {
     map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> resources = 1 [(gogoproto.nullable) = false];
 }
 
+// Node label.
 message NodeLabeling {
     map<string,string> labels = 3;
 }
 
+// Job Lease.
 message JobLease {
     repeated Job job = 1;
 }
 
+// Stream data for a Job Lease.
 message StreamingJobLease {
     Job job = 1;
     // Total number of jobs being sent over this connection.
@@ -121,34 +133,50 @@ message StreamingJobLease {
     uint32 numAcked = 3;
 }
 
+// List of IDs of jobs that have been received.
 message IdList {
     repeated string ids = 1;
 }
 
+// List of IDs of jobs that need to have their lease renewed.
 message RenewLeaseRequest {
     string cluster_id = 1;
     repeated string ids = 2;
 }
 
+// Return message of a least request.
 message ReturnLeaseRequest {
     string cluster_id = 1;
     string job_id = 2;
     OrderedStringMap avoid_node_labels = 4;
 }
 
+// Represents the Queue Service.
 service AggregatedQueue {
+
+    // K8s lease request. Returns a Job Lease
     rpc LeaseJobs (LeaseRequest) returns (JobLease);
+
+    // K8s lease request. Returns a Job Lease
     rpc StreamingLeaseJobs (stream StreamingLeaseRequest) returns (stream StreamingJobLease);
+
+    // K8s renew lease request. Returns a list of ID's that were renewed.
     rpc RenewLease (RenewLeaseRequest) returns (IdList);
+
+    // Return job space back to the queue
     rpc ReturnLease (ReturnLeaseRequest) returns (google.protobuf.Empty);
+
+    // Report list of ID's as completed.
     rpc ReportDone (IdList) returns (IdList);
 }
 
+// Represents an element of a mapping
 message StringKeyValuePair {
    string key = 1;
    string value = 2;
 }
 
+// A list of key-value pairs.
 message OrderedStringMap {
    repeated StringKeyValuePair entries = 1;
 }
