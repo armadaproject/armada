@@ -8,7 +8,7 @@ from armada_client.armada import event_pb2
 
 class EventType(Enum):
     """
-    Struct for the event states.
+    Enum for the event states.
     """
 
     submitted = "submitted"
@@ -31,7 +31,7 @@ class EventType(Enum):
     updated = "updated"
 
 
-class MsgAttributes(Enum):
+class _MsgAttribute(Enum):
     """
     All Attributes for a Message
     """
@@ -46,6 +46,11 @@ class MsgAttributes(Enum):
     cluster_id = "cluster_id"
     created = "created"
     node_name = "node_name"
+    reason = "reason"
+
+    # TODO
+    container_statuses = "container_statuses"
+    exit_codes = "exit_codes"
 
 
 class Message:
@@ -60,21 +65,53 @@ class Message:
     """
 
     def __init__(self, message: event_pb2.EventStreamMessage, msg_type: str):
-        self.type: EventType = EventType(msg_type)
+        self.msg_type: EventType = EventType(msg_type)
         self.original: event_pb2.EventStreamMessage = message
 
-        self.job_id = getattr(message, MsgAttributes.job_id.name, None)
-        self.job_set_id = getattr(message, MsgAttributes.job_set_id.name, None)
-        self.queue = getattr(message, MsgAttributes.queue.name, None)
-        self.kubernetes_id = getattr(message, MsgAttributes.kubernetes_id.name, None)
-        self.pod_name = getattr(message, MsgAttributes.pod_name.name, None)
-        self.pod_namespace = getattr(message, MsgAttributes.pod_namespace.name, None)
-        self.pod_number = getattr(message, MsgAttributes.pod_number.name, None)
-        self.cluster_id = getattr(message, MsgAttributes.cluster_id.name, None)
-        self.created: timestamp_pb2.Timestamp = self.get_timestamp_object()
-        self.node_name = getattr(message, MsgAttributes.node_name.name, None)
+        self.job_id: str = self._get_string_object(_MsgAttribute.job_id)
+        self.job_set_id: str = self._get_string_object(_MsgAttribute.job_set_id)
+        self.queue: str = self._get_string_object(_MsgAttribute.queue)
+        self.kubernetes_id: str = self._get_string_object(_MsgAttribute.kubernetes_id)
+        self.pod_name: str = self._get_string_object(_MsgAttribute.pod_name)
+        self.pod_namespace: str = self._get_string_object(_MsgAttribute.pod_namespace)
+        self.cluster_id: str = self._get_string_object(_MsgAttribute.cluster_id)
+        self.node_name: str = self._get_string_object(_MsgAttribute.node_name)
 
-    def get_timestamp_object(self) -> timestamp_pb2.Timestamp:
+        self.created: timestamp_pb2.Timestamp = self._get_timestamp_object(
+            _MsgAttribute.created
+        )
+
+        self.pod_number: int = self._get_int_object(_MsgAttribute.pod_number)
+
+    def _get_int_object(self, attribute: _MsgAttribute) -> int:
+        """
+        Returns an int object from the message
+
+        This is needed to stop MyPy erroring, as it complains about
+        getattr accepting any return type.
+        """
+
+        int_object = getattr(self.original, attribute.name, None)
+        int_object = typing.cast(int, int_object)
+
+        return int_object
+
+    def _get_string_object(self, attribute: _MsgAttribute) -> str:
+        """
+        Returns a string object from the message
+
+        This is needed to stop MyPy erroring, as it complains about
+        getattr accepting any return type.
+        """
+
+        string = getattr(self.original, attribute.name, None)
+        string = typing.cast(str, string)
+
+        return string
+
+    def _get_timestamp_object(
+        self, attribute: _MsgAttribute
+    ) -> timestamp_pb2.Timestamp:
         """
         Returns a timestamp object from the message
 
@@ -82,14 +119,14 @@ class Message:
         getattr accepting any return type.
         """
 
-        timestamp = getattr(self.original, MsgAttributes.cluster_id.name, None)
+        timestamp = getattr(self.original, attribute.name, None)
         timestamp = typing.cast(timestamp_pb2.Timestamp, timestamp)
 
         return timestamp
 
     def __repr__(self):
         return (
-            f"Message Type {self.type} \n"
+            f"Message Type {self.msg_type} \n"
             f"Job ID: {self.job_id} \n"
             f"Job Set ID: {self.job_set_id} \n"
             f"Queue: {self.queue} \n"

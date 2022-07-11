@@ -226,6 +226,20 @@ Uses SubmitJobs RPC to submit a job.
 
 
 
+#### unmarshal_event_message(event)
+
+* **Parameters**
+
+    **event** (*EventStreamMessage*) – 
+
+
+
+* **Return type**
+
+    *Message*
+
+
+
 #### _static_ unwatch_events(event_stream)
 Closes gRPC event streams
 
@@ -275,3 +289,62 @@ Uses UpdateQueue RPC to update the parameters on the queue.
 * **Return type**
 
     None
+
+
+## armada_client.event module
+
+
+### _class_ armada_client.event.EventType(value)
+Enum for the event states.
+
+
+#### cancelled(_ = 'cancelled_ )
+
+#### cancelling(_ = 'cancelling_ )
+
+#### duplicate_found(_ = 'duplicate_found_ )
+
+#### failed(_ = 'failed_ )
+
+#### ingress_info(_ = 'ingress_info_ )
+
+#### lease_returned(_ = 'lease_returned_ )
+
+#### leased(_ = 'leased_ )
+
+#### pending(_ = 'pending_ )
+
+#### queued(_ = 'queued_ )
+
+#### reprioritized(_ = 'reprioritized_ )
+
+#### reprioritizing(_ = 'reprioritizing_ )
+
+#### running(_ = 'running_ )
+
+#### submitted(_ = 'submitted_ )
+
+#### succeeded(_ = 'succeeded_ )
+
+#### terminated(_ = 'terminated_ )
+
+#### unable_to_schedule(_ = 'unable_to_schedule_ )
+
+#### updated(_ = 'updated_ )
+
+#### utilisation(_ = 'utilisation_ )
+
+### _class_ armada_client.event.Message(message, msg_type)
+Represents a gRPC proto event message
+
+Definition can be found at:
+[https://github.com/G-Research/armada/blob/master/pkg/api/event.proto#L284](https://github.com/G-Research/armada/blob/master/pkg/api/event.proto#L284)
+
+
+* **Parameters**
+
+    
+    * **message** (*EventStreamMessage*) – The message to be parsed
+
+
+    * **msg_type** (*str*) – The type of message
