@@ -13,7 +13,7 @@ from armada_client.armada import (
     submit_pb2,
 )
 
-from armada_client.event import Event
+from armada_client.event import Message
 
 
 class ArmadaClient:
@@ -60,8 +60,13 @@ class ArmadaClient:
         )
         return self.event_stub.GetJobSetEvents(jsr)
 
-    def unmarshal_event_response(self, event: event_pb2.EventStreamMessage) -> Event:
-        return Event(event)
+    def unmarshal_event_message(self, event: event_pb2.EventStreamMessage) -> Message:
+        msg_type = event.message.WhichOneof("events")
+        message = getattr(event.message, msg_type)
+
+        message = Message(message, msg_type)
+
+        return message
 
     def submit_jobs(self, queue: str, job_set_id: str, job_request_items):
         """Submit a armada job.
