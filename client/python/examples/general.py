@@ -35,6 +35,41 @@ def create_dummy_job(client):
     return [client.create_job_request_item(priority=1, pod_spec=pod)]
 
 
+def wait_for_job_event(event_stream, job_id, event_type):
+    for event in event_stream:
+        if job_id == event.message.succeeded.job_id and event_type == "SUCCEEDED":
+            return True
+
+        elif job_id == event.message.running.job_id and event_type == "RUNNING":
+            return True
+
+        elif (
+            job_id == event.message.reprioritizing.job_id
+            and event_type == "REPRIORITIZING"
+        ):
+            return True
+
+        elif (
+            job_id == event.message.reprioritized.job_id
+            and event_type == "REPRIORITIZED"
+        ):
+            return True
+
+        elif job_id == event.message.failed.job_id and event_type == "FAILED":
+            return False
+
+        elif job_id == event.message.cancelled.job_id and event_type == "CANCELLED":
+            return True
+
+        elif job_id == event.message.cancelling.job_id and event_type == "CANCELLING":
+            return True
+
+        elif job_id == event.message.queued.job_id and event_type == "QUEUED":
+            return True
+
+    return None
+
+
 def creating_jobs_example(client, queue, job_set_id):
 
     job_request_items = create_dummy_job(client)
@@ -43,31 +78,23 @@ def creating_jobs_example(client, queue, job_set_id):
         queue=queue, job_set_id=job_set_id, job_request_items=job_request_items
     )
 
-    resp = client.submit_jobs(queue, job_set_id, job_request_items)
+    resp = client.submit_jobs(
+        queue=queue, job_set_id=job_set_id, job_request_items=job_request_items
+    )
     job_id = resp.job_response_items[0].job_id
+
     client.reprioritize_jobs(new_priority=2, queue=queue, job_set_id=job_set_id)
 
     time.sleep(2)
 
     event_stream = client.get_job_events_stream(queue=queue, job_set_id=job_set_id)
 
-    for event in event_stream:
-        if job_id == event.message.succeeded.job_id:
-            print(f"Job {job_id} was successful")
-            break
+    succeded = wait_for_job_event(event_stream, job_id, "SUCCEEDED")
+    if succeded:
+        print("Job Succeeded")
 
-        elif job_id == event.message.running.job_id:
-            print(f"Job {job_id} is running.")
-
-        elif job_id == event.message.reprioritizing.new_priority:
-            print(
-                f"Job {job_id} had its priority changed to",
-                event.message.submitted.job.priority,
-            )
-
-        elif job_id == event.message.failed.job_id:
-            print(f"Job {job_id} failed. Reason: {event.message.failed.reason}")
-            break
+    elif not succeded:
+        print("Job Failed")
 
     client.unwatch_events(event_stream)
 
@@ -94,20 +121,18 @@ def creating_queues_example(client, queue):
     print(f"Queue {queue} now has a priority factor of {info.priority_factor}")
 
 
-def main():
-    disable_ssl = None
-    host = os.environ.get("HOST", "localhost")
-    port = os.environ.get("PORT", "50051")
+def workflow():
+
     queue = "test-general"
     job_set_id = f"set-{uuid.uuid1()}"
 
-    if disable_ssl:
+    if DISABLE_SSL:
         channel_credentials = grpc.local_channel_credentials()
     else:
         channel_credentials = grpc.ssl_channel_credentials()
 
     channel = grpc.secure_channel(
-        f"{host}:{port}",
+        f"{HOST}:{PORT}",
         channel_credentials,
     )
 
@@ -119,4 +144,9 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    DISABLE_SSL = os.environ.get("True", False)
+    HOST = os.environ.get("HOST", "localhost")
+    PORT = os.environ.get("PORT", "50051")
+
+    workflow()
+    print("Completed Workflow")
