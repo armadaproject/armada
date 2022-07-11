@@ -1,7 +1,7 @@
 :orphan:
 
 Armada Airflow Operator
-======================
+=======================
 
 armada.operators.armada module
 -----------------------------------
