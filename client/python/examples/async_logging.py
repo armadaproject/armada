@@ -12,6 +12,12 @@ from armada_client.k8s.io.apimachinery.pkg.api.resource import (
 
 
 def create_dummy_job(client):
+    """
+    Create a dummy job with a single container.
+    """
+
+    # For infomation on where this comes from,
+    # see: https://github.com/kubernetes/api/blob/master/core/v1/generated.proto
     pod = core_v1.PodSpec(
         containers=[
             core_v1.Container(
@@ -37,6 +43,11 @@ def create_dummy_job(client):
 
 
 def useful_message(message, queue):
+    """
+    Returns the message if it us considered "useful"
+
+    This is based on it being one of the following message types
+    """
 
     acceptable = [
         (message.running, "Running"),
@@ -57,20 +68,31 @@ def useful_message(message, queue):
 
 
 def watch_job_set(client: ArmadaClient, queue: str, job_set_id):
+    """
+    Trys to latch on to the job set and print out the status
+
+    This is a blocking call, so it will never return.
+
+    If there have been more than 10 failed connections, then it will exit
+    """
     attempts = 0
 
+    # Continuely try and reconnected to the job set
     while True:
         try:
             event_stream = client.get_job_events_stream(
                 queue=queue, job_set_id=job_set_id
             )
+
+            # For each event, check if it is one we are interested in
+            # and print out the message if it is
             for event in event_stream:
                 msg, msg_type, useful = useful_message(event.message, queue)
                 if useful:
                     print(msg_type, ":", msg.job_id)
 
+        # Handle the error we expect to maybe occur
         except grpc.RpcError as e:
-            # not found
             if e.code() != grpc.StatusCode.NOT_FOUND:
                 print("Unexpected error:", e)
                 exit()
@@ -84,9 +106,16 @@ def watch_job_set(client: ArmadaClient, queue: str, job_set_id):
 
 
 def watch_queue(client, queue):
+    """
+    Watch the queue and any changes that occur
+
+    Print out the changes
+    """
+
     last_info1 = None
     last_info2 = None
 
+    # Continously featch the queue infomation
     while True:
         info1 = client.get_queue_info(name=queue)
         info2 = client.get_queue(name=queue)
@@ -95,11 +124,13 @@ def watch_queue(client, queue):
             last_info1 = info1
             last_info2 = info2
 
+        # If there is a change in the priority factor, print it out
         if last_info2.priority_factor != info2.priority_factor:
             print(
                 f"Priority factor changed from {last_info2.priority_factor} to {info2.priority_factor}"
             )
 
+        # If there is a change in the number of jobs, print it out
         for new, old in zip(info1.active_job_sets, last_info1.active_job_sets):
             if new.leased_jobs != old.leased_jobs:
                 print(
@@ -109,12 +140,20 @@ def watch_queue(client, queue):
         last_info1 = info1
         last_info2 = info2
 
+        # So that we don't spam the server
         time.sleep(0.2)
 
 
 def workflow(client, queue, job_set_id):
+    """
+    Example workflow for the async logging example
+    """
+
+    # Handle if the queue already exists
     try:
         client.create_queue(name=queue, priority_factor=1)
+
+    # Handle the error we expect to maybe occur
     except grpc.RpcError as e:
         code = e.code()
         if code == grpc.StatusCode.ALREADY_EXISTS:
@@ -126,6 +165,7 @@ def workflow(client, queue, job_set_id):
     # Time for the watcher to pick it up
     time.sleep(1)
 
+    # Some different commands for logging to detect
     client.update_queue(name=queue, priority_factor=2)
 
     job_request_items = create_dummy_job(client)
@@ -139,32 +179,35 @@ def workflow(client, queue, job_set_id):
 
 
 def main():
+    """
+    Run the example workflow, and both the watchers in separate threads
+    """
+
+    # The queue and job_set_id that will be used for all jobs
     queue = "test-general"
     job_set_id = f"set-{uuid.uuid1()}"
 
+    # Ensures that the correct channel type is generated
     if DISABLE_SSL:
         channel_credentials = grpc.local_channel_credentials()
     else:
         channel_credentials = grpc.ssl_channel_credentials()
-
     channel = grpc.secure_channel(
         f"{HOST}:{PORT}",
         channel_credentials,
     )
-
     client = ArmadaClient(channel)
 
-    # run creating_queues_example in a thread
+    # Create the threads
     thread = threading.Thread(target=workflow, args=(client, queue, job_set_id))
 
-    # run watch_jobs in a separate thread
     watch_jobs = threading.Thread(
         target=watch_job_set, args=(client, queue, job_set_id)
     )
 
-    # run watch in a separate thread
     watch_queues = threading.Thread(target=watch_queue, args=(client, queue))
 
+    # Start the threads
     thread.start()
     watch_jobs.start()
     watch_queues.start()

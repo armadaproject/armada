@@ -134,8 +134,11 @@ def creating_queues_example(client, queue):
     Also changes the priority of the queue to 2 for demonstration purposes.
     """
 
+    # Make sure we handle the queue already existing
     try:
         client.create_queue(name=queue, priority_factor=1)
+
+    # Handle the error we expect to maybe occur
     except grpc.RpcError as e:
         code = e.code()
         if code == grpc.StatusCode.ALREADY_EXISTS:
