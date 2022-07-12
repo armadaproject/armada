@@ -20,10 +20,10 @@ func NewJobService(config *configuration.JobServiceConfiguration, redisService r
 }
 
 func (s *JobServiceServer) GetJobStatus(ctx context.Context, opts *jobservice.JobServiceRequest) (*jobservice.JobServiceResponse, error) {
-	eventJob := eventstojobs.NewEventsToJobService(opts.Queue, opts.JobSetId, opts.JobId, s.jobServiceConfig.ApiConnection, &s.jobRepository)
+	eventJob := eventstojobs.NewEventsToJobService(opts.Queue, opts.JobSetId, opts.JobId, s.jobServiceConfig, &s.jobRepository)
 	response, err := s.jobRepository.GetJobStatus(opts.JobId)
 	if response.State == jobservice.JobServiceResponse_JOB_ID_NOT_FOUND {
-		go eventJob.SubscribeToJobSetId(ctx)
+		eventJob.SubscribeToJobSetId(ctx)
 		return s.jobRepository.GetJobStatus(opts.JobId)
 	}
 	return response, err

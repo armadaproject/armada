@@ -1,5 +1,6 @@
 grpcPort: 60003
 httpPort: 8090
+SubscribeJobSetTime: 5
 
 apiConnection:
   armadaUrl : "localhost:50051"
@@ -18,4 +19,5 @@ jobredis:
   password: ""
   db: 0
   poolSize: 1000
+
 

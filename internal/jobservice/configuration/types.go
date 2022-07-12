@@ -15,4 +15,6 @@ type JobServiceConfiguration struct {
 	Grpc          grpcconfig.GrpcConfig
 	ApiConnection client.ApiConnectionDetails
 	Redis         redis.UniversalOptions
+	// Configurable value that translates to number of seconds
+	SubscribeJobSetTime int64
 }
